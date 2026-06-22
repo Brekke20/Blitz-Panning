@@ -41,13 +41,10 @@ export async function handler(event) {
     const orgId = orgData.data?.[0]?.id;
     if (!orgId) throw new Error('Could not find Zoho Desk org ID');
 
-    // Fetch open tickets assigned to me
-    // Using status filter: open + my assignments
+    // Fetch tickets - no status/assignee filter so we get everything visible to this user
     const params = new URLSearchParams({
       limit: '100',
-      status: 'open',
-      assigneeType: 'mine',
-      fields: 'id,ticketNumber,subject,status,priority,contact,account,description,createdTime,dueDate,cf', // cf = custom fields (address)
+      fields: 'id,ticketNumber,subject,status,priority,contact,account,description,createdTime,dueDate,cf',
     });
 
     const ticketsRes = await fetch(`${ZOHO_DESK}/tickets?${params}`, {
