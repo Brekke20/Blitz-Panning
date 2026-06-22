@@ -66,7 +66,12 @@ export async function handler(event) {
       // Adres: eerst contact, dan account, dan custom fields als fallback
       const contactAddr = buildAddress(t.contact);
       const accountAddr = buildAddress(t.account);
-      const cfAddr = t.cf?.cf_adres || t.cf?.cf_address || t.cf?.cf_locatie || t.cf?.cf_site_address || '';
+      const cf = t.cf || {};
+      const cfAddr = cf.cf_adres || cf.cf_adres1 || cf.cf_adres_eindklant || cf.cf_address
+                  || cf.cf_locatie || cf.cf_site_address || cf.cf_installatieadres
+                  // Zoho genereert soms een hash-suffix op de veldnaam
+                  || Object.entries(cf).find(([k]) => k.toLowerCase().includes('adres'))?.[1]
+                  || '';
       const address = contactAddr || accountAddr || cfAddr;
 
       return {

@@ -7,388 +7,931 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Blitz Planning</title>
   <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --bg: #0f0f1a; --surface: #1a1a2e; --surface2: #252540;
       --border: #2e2e50; --accent: #f59e0b; --green: #10b981;
-      --red: #ef4444; --text: #e2e8f0; --muted: #94a3b8; --radius: 10px;
+      --red: #ef4444; --text: #e2e8f0; --muted: #94a3b8; --r: 8px;
     }
-    html, body { min-height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    html, body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100%; }
 
-    /* Header */
+    /* ── Header ── */
     header {
       background: var(--surface); border-bottom: 1px solid var(--border);
-      padding: 14px 20px; display: flex; align-items: center; gap: 12px;
-      position: sticky; top: 0; z-index: 10;
+      padding: 12px 16px; display: flex; align-items: center; gap: 10px;
+      position: sticky; top: 0; z-index: 20;
     }
-    header h1 { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
-    .refresh-btn {
-      margin-left: auto; background: var(--surface2); border: 1px solid var(--border);
-      color: var(--text); padding: 7px 14px; border-radius: 6px;
-      font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    header h1 { font-size: 1.05rem; font-weight: 700; color: var(--accent); flex: 1; }
+    .hbtn {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 7px 13px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; cursor: pointer;
     }
-    .refresh-btn:active { opacity: 0.7; }
+    .hbtn:active { opacity: 0.7; }
 
-    /* Tabs */
+    /* ── Tabs ── */
     .tabs {
-      display: flex; border-bottom: 1px solid var(--border);
-      background: var(--surface); position: sticky; top: 53px; z-index: 9;
+      display: flex; background: var(--surface); border-bottom: 1px solid var(--border);
+      position: sticky; top: 49px; z-index: 19;
     }
     .tab {
-      flex: 1; padding: 13px 8px; text-align: center; font-size: 0.85rem;
-      font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
-      transition: all 0.15s;
+      flex: 1; padding: 12px 6px; text-align: center; font-size: 0.82rem; font-weight: 600;
+      color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s;
     }
     .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .badge {
+      display: inline-block; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--muted); font-size: 0.7rem; padding: 1px 5px; border-radius: 10px; margin-left: 4px; font-weight: 700;
+    }
 
-    /* Content */
-    .tab-content { display: none; padding: 12px; max-width: 700px; margin: 0 auto; }
-    .tab-content.active { display: block; }
+    /* ── Views ── */
+    .view { display: none; }
+    .view.active { display: block; }
 
-    /* Ticket card */
+    /* ── Ticket cards ── */
+    .ticket-list { padding: 10px; max-width: 680px; margin: 0 auto; }
     .ticket {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px;
-      cursor: pointer; transition: border-color 0.15s;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+      padding: 12px 14px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s;
+      display: flex; gap: 12px; align-items: flex-start;
     }
     .ticket:hover { border-color: var(--accent); }
-    .ticket:active { opacity: 0.8; }
-    .ticket-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; flex-wrap: wrap; }
-    .ticket-number { font-size: 0.75rem; font-weight: 700; color: var(--accent); font-family: monospace; }
-    .status-tag {
-      font-size: 0.7rem; font-weight: 600; padding: 2px 7px; border-radius: 4px;
-      background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
-    }
-    .ticket-subject { font-weight: 600; font-size: 0.92rem; line-height: 1.35; margin-bottom: 4px; }
-    .ticket-meta { font-size: 0.8rem; color: var(--muted); margin-bottom: 8px; }
-    .ticket-address {
-      display: flex; align-items: center; gap: 6px;
-      font-size: 0.8rem; padding: 6px 10px; border-radius: 6px; background: var(--surface2);
-    }
-    .ticket-address.ok { color: var(--text); }
-    .ticket-address.missing { color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+    .ticket.in-plan { border-color: var(--green); background: #0d2b1e; }
+    .ticket-body { flex: 1; min-width: 0; }
+    .ticket-top { display: flex; gap: 6px; align-items: center; margin-bottom: 5px; flex-wrap: wrap; }
+    .tnum { font-size: 0.72rem; font-weight: 700; color: var(--accent); font-family: monospace; }
+    .stag { font-size: 0.68rem; font-weight: 600; padding: 2px 6px; border-radius: 3px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); }
+    .in-plan-tag { font-size: 0.68rem; font-weight: 600; color: var(--green); }
+    .tsub { font-weight: 600; font-size: 0.88rem; line-height: 1.3; margin-bottom: 3px; }
+    .tmeta { font-size: 0.78rem; color: var(--muted); margin-bottom: 5px; }
+    .taddr { font-size: 0.77rem; display: flex; gap: 4px; }
+    .taddr.ok { color: var(--muted); }
+    .taddr.miss { color: var(--red); }
 
-    /* Empty / loading */
-    .empty { text-align: center; color: var(--muted); padding: 60px 20px; font-size: 0.9rem; }
-    .count-badge {
-      display: inline-block; background: var(--surface2); border: 1px solid var(--border);
-      color: var(--muted); font-size: 0.72rem; padding: 1px 6px;
-      border-radius: 10px; margin-left: 5px; font-weight: 700;
-    }
+    .ticket-action { flex-shrink: 0; }
+    .btn-add { background: var(--green); border: none; color: #fff; width: 32px; height: 32px; border-radius: 50%; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .btn-rem { background: var(--red); border: none; color: #fff; width: 32px; height: 32px; border-radius: 50%; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .btn-add:active, .btn-rem:active { opacity: 0.75; }
 
-    /* ── Detail modal ── */
+    .empty { text-align: center; color: var(--muted); padding: 50px 20px; font-size: 0.9rem; }
+
+    /* ── Planning view ── */
+    #view-planning { display: none; }
+    #view-planning.active { display: flex; flex-direction: column; }
+
+    .plan-header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 10px 14px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    }
+    .plan-header input[type=date] {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 6px 10px; border-radius: 6px; font-size: 0.85rem;
+    }
+    .btn-primary {
+      background: var(--accent); border: none; color: #000;
+      padding: 7px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 700; cursor: pointer;
+    }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-sec {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 7px 12px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+    }
+    .btn-sec:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .plan-body { display: flex; flex: 1; min-height: 0; }
+
+    /* Route list */
+    #route-list {
+      width: 320px; flex-shrink: 0; overflow-y: auto; padding: 8px;
+      background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .stop {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 10px 12px;
+      display: flex; gap: 8px; align-items: flex-start;
+    }
+    .stop.drag-over { border-color: var(--accent); }
+    .stop-num {
+      background: var(--accent); color: #000; border-radius: 50%;
+      width: 24px; height: 24px; display: flex; align-items: center;
+      justify-content: center; font-weight: 800; font-size: 0.75rem; flex-shrink: 0;
+    }
+    .stop-info { flex: 1; min-width: 0; }
+    .stop-sub { font-weight: 600; font-size: 0.84rem; margin-bottom: 2px; }
+    .stop-addr { font-size: 0.75rem; color: var(--muted); }
+    .stop-leg { font-size: 0.73rem; color: var(--muted); margin: 2px 0 4px 32px; }
+    .stop-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .sico { background: var(--surface); border: 1px solid var(--border); color: var(--muted); padding: 4px 7px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; }
+    .sico:active { opacity: 0.7; }
+
+    .route-empty { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 40px 16px; }
+
+    /* Map */
+    #map-wrap { flex: 1; position: relative; min-height: 300px; }
+    #map { width: 100%; height: 100%; min-height: 300px; }
+
+    /* Summary bar */
+    .plan-summary {
+      background: var(--surface); border-top: 1px solid var(--border);
+      padding: 8px 14px; display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.78rem; color: var(--muted);
+    }
+    .plan-summary b { color: var(--text); }
+
+    /* ── Gepland view ── */
+    .cal-week {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; background: var(--surface); border-bottom: 1px solid var(--border);
+      position: sticky; top: 97px; z-index: 10;
+    }
+    .cal-week span { font-size: 0.88rem; font-weight: 700; }
+    .cal-week button { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 1rem; }
+    .cal-day { padding: 0 10px 8px; max-width: 680px; margin: 0 auto; }
+    .cal-day-hdr {
+      font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.06em; padding: 10px 4px 6px; border-bottom: 1px solid var(--border); margin-bottom: 6px;
+    }
+    .cal-day-hdr.today { color: var(--green); }
+
+    /* ── Modals ── */
     .overlay {
       display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8);
-      z-index: 100; align-items: flex-end; justify-content: center; padding: 0;
+      z-index: 100; align-items: flex-end; justify-content: center;
     }
     .overlay.open { display: flex; }
+    @media (min-width: 600px) { .overlay { align-items: center; padding: 20px; } }
 
-    /* Sheet van onderaf op mobiel, gecentreerd op desktop */
     .modal {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 16px 16px 0 0; padding: 0; width: 100%; max-width: 560px;
-      max-height: 90vh; overflow-y: auto;
+      border-radius: 14px 14px 0 0; width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto;
     }
-    @media (min-width: 600px) {
-      .overlay { align-items: center; padding: 20px; }
-      .modal { border-radius: 14px; max-height: 85vh; }
-    }
+    @media (min-width: 600px) { .modal { border-radius: 12px; } }
 
-    .modal-header {
-      padding: 18px 20px 14px;
-      border-bottom: 1px solid var(--border);
+    .mhdr {
+      padding: 16px 18px 12px; border-bottom: 1px solid var(--border);
       position: sticky; top: 0; background: var(--surface); z-index: 1;
     }
-    .modal-ticket-num {
-      font-size: 0.75rem; font-weight: 700; color: var(--accent);
-      font-family: monospace; margin-bottom: 4px;
-    }
-    .modal-title { font-size: 1rem; font-weight: 700; line-height: 1.35; }
-    .modal-badges { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-    .badge {
-      font-size: 0.7rem; font-weight: 600; padding: 3px 8px; border-radius: 4px;
-      background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
-    }
-    .badge.prio-high   { background: #7f1d1d; color: #fca5a5; border-color: #7f1d1d; }
-    .badge.prio-medium { background: #78350f; color: #fcd34d; border-color: #78350f; }
-    .badge.prio-low    { background: #14532d; color: #86efac; border-color: #14532d; }
+    .mhdr-num { font-size: 0.72rem; font-weight: 700; color: var(--accent); font-family: monospace; margin-bottom: 3px; }
+    .mhdr-title { font-size: 0.95rem; font-weight: 700; line-height: 1.3; }
+    .mhdr-tags { display: flex; gap: 5px; margin-top: 7px; flex-wrap: wrap; }
+    .mtag { font-size: 0.68rem; font-weight: 600; padding: 2px 7px; border-radius: 4px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); }
+    .mtag.ph { background: #7f1d1d; color: #fca5a5; border-color: transparent; }
+    .mtag.pm { background: #78350f; color: #fcd34d; border-color: transparent; }
+    .mtag.pl { background: #14532d; color: #86efac; border-color: transparent; }
 
-    .modal-body { padding: 16px 20px; }
-    .info-section { margin-bottom: 18px; }
-    .info-section-title {
-      font-size: 0.7rem; font-weight: 700; color: var(--muted);
-      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px;
-    }
-    .info-row { display: flex; gap: 10px; margin-bottom: 8px; align-items: flex-start; }
-    .info-label { font-size: 0.78rem; color: var(--muted); min-width: 90px; flex-shrink: 0; padding-top: 1px; }
-    .info-value { font-size: 0.85rem; color: var(--text); flex: 1; word-break: break-word; }
-    .info-value.missing { color: var(--red); }
-    .info-value a { color: var(--accent); text-decoration: none; }
-    .info-value a:hover { text-decoration: underline; }
+    .mbody { padding: 14px 18px; }
+    .msec-title { font-size: 0.69rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    .msec { margin-bottom: 16px; }
+    .mrow { display: flex; gap: 10px; margin-bottom: 7px; }
+    .mlabel { font-size: 0.77rem; color: var(--muted); min-width: 90px; flex-shrink: 0; padding-top: 1px; }
+    .mval { font-size: 0.83rem; color: var(--text); flex: 1; word-break: break-word; }
+    .mval.miss { color: var(--red); }
+    .mval a { color: var(--accent); text-decoration: none; }
 
-    .modal-footer {
-      padding: 14px 20px; border-top: 1px solid var(--border);
+    .mftr {
+      padding: 12px 18px; border-top: 1px solid var(--border);
       display: flex; gap: 8px; justify-content: flex-end;
       position: sticky; bottom: 0; background: var(--surface);
     }
-    .btn-close {
-      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      padding: 9px 18px; border-radius: 7px; font-size: 0.85rem; cursor: pointer;
-    }
-    .btn-oplossing {
-      background: var(--accent); border: none; color: #000;
-      padding: 9px 18px; border-radius: 7px; font-size: 0.85rem;
-      font-weight: 700; cursor: pointer;
-    }
-    .btn-oplossing:active, .btn-close:active { opacity: 0.75; }
 
-    /* ── Oplossing modal ── */
-    #opl-overlay {
-      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
-      z-index: 200; align-items: center; justify-content: center; padding: 20px;
+    /* Settings modal — niet als sheet */
+    #set-overlay { align-items: center; padding: 16px; }
+    #set-modal { border-radius: 12px; max-width: 460px; max-height: 90vh; overflow-y: auto; }
+    .set-field { margin-bottom: 14px; }
+    .set-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 5px; display: block; }
+    .set-input {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 0.88rem; font-family: inherit;
     }
-    #opl-overlay.open { display: flex; }
-    #opl-modal {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; padding: 22px; width: 100%; max-width: 460px;
+    .set-row { display: flex; gap: 8px; }
+    .set-row .set-input { flex: 1; }
+    .days-grid { display: flex; gap: 6px; flex-wrap: wrap; }
+    .day-btn {
+      padding: 5px 10px; border-radius: 5px; font-size: 0.8rem; font-weight: 600;
+      border: 1px solid var(--border); background: var(--surface2); color: var(--muted); cursor: pointer;
     }
-    #opl-modal h3 { font-size: 1rem; margin-bottom: 4px; }
-    #opl-modal .sub { font-size: 0.8rem; color: var(--muted); margin-bottom: 14px; }
+    .day-btn.on { background: var(--accent); color: #000; border-color: var(--accent); }
+
+    /* Oplossing modal */
+    #opl-overlay { align-items: center; padding: 20px; }
+    #opl-modal { border-radius: 12px; max-width: 460px; padding: 20px; }
+    #opl-modal h3 { font-size: 0.95rem; margin-bottom: 4px; }
+    #opl-modal .sub { font-size: 0.78rem; color: var(--muted); margin-bottom: 12px; }
     #opl-modal textarea {
       width: 100%; background: var(--surface2); border: 1px solid var(--border);
-      color: var(--text); padding: 10px 12px; border-radius: 6px;
-      font-size: 0.9rem; font-family: inherit; min-height: 100px;
-      resize: vertical; margin-bottom: 14px;
+      color: var(--text); padding: 10px; border-radius: 6px; font-size: 0.88rem;
+      font-family: inherit; min-height: 90px; resize: vertical; margin-bottom: 12px;
     }
-    .opl-btns { display: flex; gap: 8px; justify-content: flex-end; }
-    .btn-cancel {
-      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; cursor: pointer;
-    }
-    .btn-save {
-      background: var(--accent); border: none; color: #000;
-      padding: 8px 18px; border-radius: 6px; font-size: 0.85rem;
-      font-weight: 700; cursor: pointer;
-    }
+    .row-btns { display: flex; gap: 8px; justify-content: flex-end; }
+    .btn-cancel { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 15px; border-radius: 6px; font-size: 0.83rem; cursor: pointer; }
+    .btn-save { background: var(--accent); border: none; color: #000; padding: 8px 16px; border-radius: 6px; font-size: 0.83rem; font-weight: 700; cursor: pointer; }
 
     /* Toast */
     #toast {
-      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-      background: var(--surface2); border: 1px solid var(--border);
-      color: var(--text); padding: 10px 20px; border-radius: 8px;
-      font-size: 0.85rem; z-index: 300; opacity: 0;
-      transition: opacity 0.2s; pointer-events: none; white-space: nowrap;
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 9px 18px; border-radius: 8px; font-size: 0.83rem; z-index: 999;
+      opacity: 0; transition: opacity 0.2s; pointer-events: none; white-space: nowrap;
     }
     #toast.show { opacity: 1; }
+
+    /* Mobile adjustments */
+    @media (max-width: 680px) {
+      .plan-body { flex-direction: column; }
+      #route-list { width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: none; overflow: visible; }
+      #map-wrap { height: 280px; }
+      #map { height: 280px; }
+    }
   </style>
 </head>
 <body>
 
 <header>
   <h1>⚡ Blitz Planning</h1>
-  <button class="refresh-btn" onclick="loadTickets()">🔄 Vernieuwen</button>
+  <button class="hbtn" onclick="openSettings()">⚙️ Instellingen</button>
+  <button class="hbtn" onclick="loadTickets()">🔄</button>
 </header>
 
 <div class="tabs">
-  <div class="tab active" onclick="setTab('plannen')" id="tab-plannen">
-    Te plannen <span class="count-badge" id="count-plannen">0</span>
-  </div>
-  <div class="tab" onclick="setTab('gepland')" id="tab-gepland">
-    Gepland <span class="count-badge" id="count-gepland">0</span>
+  <div class="tab active" id="tab-tickets" onclick="setTab('tickets')">📋 <span class="badge" id="cnt-tickets">0</span></div>
+  <div class="tab" id="tab-planning" onclick="setTab('planning')">🗓️ Planning <span class="badge" id="cnt-plan">0</span></div>
+  <div class="tab" id="tab-gepland" onclick="setTab('gepland')">📅 Gepland <span class="badge" id="cnt-gepland">0</span></div>
+</div>
+
+<!-- Tickets -->
+<div class="view active" id="view-tickets">
+  <div class="ticket-list" id="ticket-list">
+    <div class="empty" id="empty-tickets">Laden...</div>
   </div>
 </div>
 
-<div class="tab-content active" id="view-plannen">
-  <div class="empty" id="empty-plannen">Laden...</div>
+<!-- Planning -->
+<div class="view" id="view-planning">
+  <div class="plan-header">
+    <input type="date" id="plan-date" onchange="onDateChange(this.value)" />
+    <button class="btn-primary" id="btn-optimize" onclick="optimizeRoute()" disabled>⚡ Optimaliseer</button>
+    <button class="btn-sec" id="btn-route" onclick="calculateRoute()" disabled>🗺️ Bereken</button>
+    <button class="btn-sec" onclick="clearPlanning()">✕ Leegmaken</button>
+  </div>
+  <div class="plan-body">
+    <div id="route-list"><div class="route-empty">Voeg tickets toe via de 📋 tab</div></div>
+    <div id="map-wrap"><div id="map"></div></div>
+  </div>
+  <div class="plan-summary">
+    Stops: <b id="s-stops">0</b> &nbsp;·&nbsp;
+    Afstand: <b id="s-dist">—</b> &nbsp;·&nbsp;
+    Rijtijd: <b id="s-time">—</b> &nbsp;·&nbsp;
+    Vertraging: <b id="s-delay">—</b> &nbsp;·&nbsp;
+    ETA: <b id="s-eta">—</b>
+  </div>
 </div>
-<div class="tab-content" id="view-gepland">
-  <div class="empty" id="empty-gepland">Laden...</div>
+
+<!-- Gepland -->
+<div class="view" id="view-gepland">
+  <div class="cal-week">
+    <button onclick="calNav(-1)">‹</button>
+    <span id="cal-label">—</span>
+    <button onclick="calNav(1)">›</button>
+  </div>
+  <div id="cal-body" class="ticket-list"></div>
 </div>
 
 <!-- Detail modal -->
-<div class="overlay" id="detail-overlay" onclick="closeDetail(event)">
-  <div class="modal" id="detail-modal">
-    <div class="modal-header">
-      <div class="modal-ticket-num" id="d-number"></div>
-      <div class="modal-title" id="d-title"></div>
-      <div class="modal-badges" id="d-badges"></div>
+<div class="overlay" id="det-overlay" onclick="closeDet(event)">
+  <div class="modal">
+    <div class="mhdr">
+      <div class="mhdr-num" id="d-num"></div>
+      <div class="mhdr-title" id="d-title"></div>
+      <div class="mhdr-tags" id="d-tags"></div>
     </div>
-    <div class="modal-body">
-      <div class="info-section" id="d-klant-section">
-        <div class="info-section-title">Klantgegevens</div>
-        <div id="d-klant-rows"></div>
+    <div class="mbody">
+      <div class="msec">
+        <div class="msec-title">Klantgegevens</div>
+        <div id="d-klant"></div>
       </div>
-      <div class="info-section" id="d-ticket-section">
-        <div class="info-section-title">Ticketdetails</div>
-        <div id="d-ticket-rows"></div>
+      <div class="msec">
+        <div class="msec-title">Ticketdetails</div>
+        <div id="d-ticket"></div>
+      </div>
+      <div id="d-cf"></div>
+    </div>
+    <div class="mftr">
+      <button class="btn-cancel" onclick="closeDet()">Sluiten</button>
+      <button class="btn-save" id="d-plan-btn" onclick="togglePlanFromDetail()"></button>
+      <button class="btn-save" style="background:var(--surface2);color:var(--text);border:1px solid var(--border)" onclick="openOpl()">✏️ Oplossing</button>
+    </div>
+  </div>
+</div>
+
+<!-- Instellingen modal -->
+<div class="overlay" id="set-overlay" onclick="closeSettings(event)">
+  <div class="modal" id="set-modal">
+    <div class="mhdr"><div class="mhdr-title">⚙️ Instellingen Planning</div></div>
+    <div class="mbody">
+      <div class="set-field">
+        <label class="set-label">Startlocatie (vertrekpunt)</label>
+        <input class="set-input" id="set-start" type="text" placeholder="bv. Blitz Power, Geel" />
+      </div>
+      <div class="set-field">
+        <label class="set-label">Tijd per interventie (minuten)</label>
+        <input class="set-input" id="set-duration" type="number" min="15" max="480" placeholder="120" />
+      </div>
+      <div class="set-field">
+        <label class="set-label">Max interventies per dag</label>
+        <input class="set-input" id="set-max" type="number" min="1" max="20" placeholder="4" />
+      </div>
+      <div class="set-field">
+        <label class="set-label">Werkuren</label>
+        <div class="set-row">
+          <input class="set-input" id="set-van" type="time" value="08:00" />
+          <span style="align-self:center;color:var(--muted);font-size:0.85rem">tot</span>
+          <input class="set-input" id="set-tot" type="time" value="17:00" />
+        </div>
+      </div>
+      <div class="set-field">
+        <label class="set-label">Beschikbare werkdagen</label>
+        <div class="days-grid" id="days-grid"></div>
       </div>
     </div>
-    <div class="modal-footer">
-      <button class="btn-close" onclick="closeDetail()">Sluiten</button>
-      <button class="btn-oplossing" id="d-opl-btn" onclick="openOplossing()">✏️ Oplossing</button>
+    <div class="mftr">
+      <button class="btn-cancel" onclick="closeSettings()">Annuleren</button>
+      <button class="btn-save" onclick="saveSettings()">Opslaan</button>
     </div>
   </div>
 </div>
 
 <!-- Oplossing modal -->
-<div id="opl-overlay" onclick="closeOplossing(event)">
-  <div id="opl-modal">
+<div class="overlay" id="opl-overlay" onclick="closeOpl(event)">
+  <div class="modal" id="opl-modal">
     <h3>✅ Oplossing invoeren</h3>
     <div class="sub" id="opl-label"></div>
     <textarea id="opl-text" placeholder="Beschrijf de uitgevoerde interventie of oplossing..."></textarea>
-    <div class="opl-btns">
-      <button class="btn-cancel" onclick="closeOplossing()">Annuleren</button>
-      <button class="btn-save" onclick="saveOplossing()">Opslaan in Zoho</button>
+    <div class="row-btns">
+      <button class="btn-cancel" onclick="closeOpl()">Annuleren</button>
+      <button class="btn-save" onclick="saveOpl()">Opslaan in Zoho</button>
     </div>
   </div>
 </div>
 
 <div id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-let teplannen = [];
-let gepland   = [];
+// ══════════════════════════════════════
+// STATE
+// ══════════════════════════════════════
+let allTickets = [];
+let allGepland = [];
+let planning   = [];   // { ticket, address, _lat, _lon }
+let routeData  = null;
 let activeTicket = null;
+let currentTab = 'tickets';
+let calOffset  = 0;
+let leafletMap, routeLayer;
 
-// ── Init ──────────────────────────────────────────
+const savedPlanning = JSON.parse(localStorage.getItem('blitz_planning') || '{}');
+
+const DEFAULT_SETTINGS = {
+  startlocatie: 'Blitz Power, Geel',
+  duurMinuten: 120,
+  maxPerDag: 4,
+  vanTijd: '08:00',
+  totTijd: '17:00',
+  werkdagen: [1, 2, 3, 4, 5],
+};
+let settings = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('blitz_settings') || '{}') };
+
+// ══════════════════════════════════════
+// INIT
+// ══════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('plan-date').value = today;
+  initMap();
   loadTickets();
+  renderCalWeek();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 });
 
-// ── Data ──────────────────────────────────────────
+// ══════════════════════════════════════
+// DATA
+// ══════════════════════════════════════
 async function loadTickets() {
-  ['plannen','gepland'].forEach(t => document.getElementById('empty-' + t).textContent = 'Laden...');
+  document.getElementById('empty-tickets').textContent = 'Laden...';
   try {
     const res = await fetch('/api/tickets');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    teplannen = data.tickets || [];
-    gepland   = data.plannedTickets || [];
-    document.getElementById('count-plannen').textContent = teplannen.length;
-    document.getElementById('count-gepland').textContent = gepland.length;
-    render('plannen', teplannen);
-    render('gepland', gepland);
+    allTickets = data.tickets || [];
+    allGepland = data.plannedTickets || [];
+    document.getElementById('cnt-tickets').textContent = allTickets.length;
+    document.getElementById('cnt-gepland').textContent = allGepland.length;
+    renderTickets();
+    renderCalWeek();
+    // Herstel geplande stops voor huidige datum
+    loadPlanningForDate(document.getElementById('plan-date').value);
+    toast(`${allTickets.length} te plannen · ${allGepland.length} gepland`);
   } catch (err) {
     toast('❌ ' + err.message, 4000);
-    ['plannen','gepland'].forEach(t => document.getElementById('empty-' + t).textContent = 'Kon tickets niet laden.');
+    document.getElementById('empty-tickets').textContent = 'Kon tickets niet laden: ' + err.message;
   }
 }
 
-// ── Render ticket cards ───────────────────────────
-function render(tab, tickets) {
-  const view  = document.getElementById('view-' + tab);
-  const empty = document.getElementById('empty-' + tab);
-  [...view.querySelectorAll('.ticket')].forEach(el => el.remove());
+// ══════════════════════════════════════
+// TICKETS TAB
+// ══════════════════════════════════════
+function renderTickets() {
+  const list = document.getElementById('ticket-list');
+  [...list.querySelectorAll('.ticket')].forEach(el => el.remove());
+  const empty = document.getElementById('empty-tickets');
 
-  if (tickets.length === 0) {
-    empty.textContent = tab === 'plannen' ? 'Geen tickets te plannen.' : 'Geen geplande tickets.';
-    empty.style.display = '';
-    return;
-  }
+  if (allTickets.length === 0) { empty.style.display = ''; return; }
   empty.style.display = 'none';
 
-  tickets.forEach(t => {
+  const planIds = new Set(planning.map(p => p.ticket.id));
+  allTickets.forEach(t => {
+    const inPlan = planIds.has(t.id);
     const card = document.createElement('div');
-    card.className = 'ticket';
-    card.onclick = () => openDetail(t);
+    card.className = 'ticket' + (inPlan ? ' in-plan' : '');
 
     const meta = [t.account, t.contact].filter(Boolean).join(' · ');
-
     card.innerHTML = `
-      <div class="ticket-top">
-        <span class="ticket-number">#${t.number}</span>
-        <span class="status-tag">${t.status}</span>
+      <div class="ticket-body">
+        <div class="ticket-top">
+          <span class="tnum">#${t.number}</span>
+          <span class="stag">${t.status}</span>
+          ${inPlan ? '<span class="in-plan-tag">✓ In planning</span>' : ''}
+        </div>
+        <div class="tsub">${t.subject || '—'}</div>
+        ${meta ? `<div class="tmeta">${meta}</div>` : ''}
+        <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">
+          ${t.hasAddress ? '📍 ' + t.address : '⚠️ Geen adres bekend'}
+        </div>
       </div>
-      <div class="ticket-subject">${t.subject || '—'}</div>
-      ${meta ? `<div class="ticket-meta">${meta}</div>` : ''}
-      <div class="ticket-address ${t.hasAddress ? 'ok' : 'missing'}">
-        ${t.hasAddress ? '📍 ' + t.address : '⚠️ Geen adres bekend'}
+      <div class="ticket-action">
+        ${inPlan
+          ? `<button class="btn-rem" onclick="event.stopPropagation();removeFromPlanning('${t.id}')">✕</button>`
+          : `<button class="btn-add" onclick="event.stopPropagation();addToPlanning('${t.id}')">+</button>`
+        }
       </div>
     `;
-    view.appendChild(card);
+    card.addEventListener('click', () => openDetail(t));
+    list.appendChild(card);
   });
 }
 
-// ── Tabs ──────────────────────────────────────────
+// ══════════════════════════════════════
+// TABS
+// ══════════════════════════════════════
 function setTab(tab) {
+  currentTab = tab;
   document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   document.getElementById('view-' + tab).classList.add('active');
+  if (tab === 'planning') setTimeout(() => leafletMap?.invalidateSize(), 50);
+  if (tab === 'gepland') renderCalWeek();
 }
 
-// ── Detail modal ──────────────────────────────────
-function openDetail(t) {
-  activeTicket = t;
+// ══════════════════════════════════════
+// PLANNING
+// ══════════════════════════════════════
+function addToPlanning(ticketId) {
+  const t = allTickets.find(t => t.id === ticketId);
+  if (!t || planning.find(p => p.ticket.id === ticketId)) return;
+  planning.push({ ticket: t, address: t.address });
+  afterPlanningChange();
+  setTab('planning');
+}
 
-  document.getElementById('d-number').textContent = '#' + t.number;
-  document.getElementById('d-title').textContent  = t.subject || '—';
+function removeFromPlanning(ticketId) {
+  planning = planning.filter(p => p.ticket.id !== ticketId);
+  afterPlanningChange();
+}
 
-  // Badges
-  const badges = document.getElementById('d-badges');
-  badges.innerHTML = '';
-  if (t.status) badges.innerHTML += `<span class="badge">${t.status}</span>`;
-  if (t.priority) {
-    const p = t.priority.toLowerCase();
-    badges.innerHTML += `<span class="badge prio-${p}">${t.priority}</span>`;
+function clearPlanning() {
+  planning = [];
+  routeData = null;
+  afterPlanningChange();
+}
+
+function afterPlanningChange() {
+  document.getElementById('cnt-plan').textContent = planning.length;
+  document.getElementById('s-stops').textContent = planning.length;
+  document.getElementById('btn-optimize').disabled = planning.length < 2;
+  document.getElementById('btn-route').disabled = planning.length < 1;
+  renderTickets();
+  renderRouteList();
+  updateMap();
+  clearSummary();
+  savePlanningForDate();
+}
+
+function onDateChange(val) {
+  loadPlanningForDate(val);
+}
+
+function savePlanningForDate() {
+  const date = document.getElementById('plan-date').value;
+  savedPlanning[date] = planning.map(p => ({ id: p.ticket.id, address: p.address, _lat: p._lat, _lon: p._lon }));
+  localStorage.setItem('blitz_planning', JSON.stringify(savedPlanning));
+}
+
+function loadPlanningForDate(date) {
+  const saved = savedPlanning[date] || [];
+  planning = saved.map(s => {
+    const t = allTickets.find(t => t.id === s.id);
+    if (!t) return null;
+    return { ticket: t, address: s.address || t.address, _lat: s._lat, _lon: s._lon };
+  }).filter(Boolean);
+  routeData = null;
+  afterPlanningChange();
+}
+
+function renderRouteList() {
+  const list = document.getElementById('route-list');
+  list.innerHTML = '';
+  if (planning.length === 0) {
+    list.innerHTML = '<div class="route-empty">Voeg tickets toe via de 📋 tab</div>';
+    return;
+  }
+  planning.forEach((item, i) => {
+    // Leg connector
+    if (i > 0 && routeData?.legs?.[i - 1]) {
+      const leg = routeData.legs[i - 1];
+      const mins = Math.round(leg.travelTimeSeconds / 60);
+      const km = (leg.distanceMeters / 1000).toFixed(1);
+      const delay = leg.trafficDelaySeconds > 60 ? ` +${Math.round(leg.trafficDelaySeconds/60)}' file` : '';
+      const d = document.createElement('div');
+      d.className = 'stop-leg';
+      d.textContent = `🚗 ${mins} min · ${km} km${delay}`;
+      list.appendChild(d);
+    }
+
+    const stop = document.createElement('div');
+    stop.className = 'stop';
+    stop.dataset.index = i;
+
+    const safeSubject = (item.ticket.subject || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    stop.innerHTML = `
+      <div class="stop-num">${i + 1}</div>
+      <div class="stop-info">
+        <div class="stop-sub">${item.ticket.subject || '—'}</div>
+        <div class="stop-addr">📍 ${item.address || 'geen adres'}</div>
+      </div>
+      <div class="stop-actions">
+        <button class="sico" onclick="navigate('${encodeURIComponent(item.address || '')}')">🧭</button>
+        <button class="sico" data-ticket-id="${item.ticket.id}" data-subject="${safeSubject}" onclick="openOplFromBtn(this)">✏️</button>
+        <button class="sico" onclick="removeFromPlanning('${item.ticket.id}')">✕</button>
+      </div>
+    `;
+
+    // Drag & drop alleen desktop
+    if (window.innerWidth > 680) {
+      stop.draggable = true;
+      stop.style.cursor = 'grab';
+      stop.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', i); stop.style.opacity = '0.4'; });
+      stop.addEventListener('dragend', () => stop.style.opacity = '');
+      stop.addEventListener('dragover', e => { e.preventDefault(); stop.classList.add('drag-over'); });
+      stop.addEventListener('dragleave', () => stop.classList.remove('drag-over'));
+      stop.addEventListener('drop', e => {
+        e.preventDefault(); stop.classList.remove('drag-over');
+        const from = +e.dataTransfer.getData('text/plain');
+        if (from !== i) {
+          planning.splice(i, 0, planning.splice(from, 1)[0]);
+          routeData = null;
+          afterPlanningChange();
+        }
+      });
+    }
+    list.appendChild(stop);
+  });
+}
+
+// ══════════════════════════════════════
+// ROUTE / OPTIMIZE
+// ══════════════════════════════════════
+async function optimizeRoute() {
+  if (planning.length < 2) return;
+  showLoading('Route optimaliseren...');
+  try {
+    const res = await fetch('/api/optimize', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ origin: settings.startlocatie, stops: planning.map(p => p.address) }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    planning = data.optimizedOrder.map(i => ({
+      ...planning[i],
+      _lat: data.locations?.[i + 1]?.lat,
+      _lon: data.locations?.[i + 1]?.lon,
+    }));
+    toast('Route geoptimaliseerd ✓');
+    afterPlanningChange();
+    await calculateRoute();
+  } catch (err) {
+    toast('❌ ' + err.message, 4000);
+    await calculateRoute();
+  } finally { hideLoading(); }
+}
+
+async function calculateRoute() {
+  if (planning.length === 0) return;
+  showLoading('Route berekenen...');
+  try {
+    // Geocode stops zonder coördinaten
+    const needsGeo = planning.some(p => !p._lat);
+    if (needsGeo) {
+      const geoRes = await fetch('/api/optimize', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origin: settings.startlocatie, stops: planning.map(p => p.address) }),
+      });
+      const geoData = await geoRes.json();
+      if (!geoData.error && geoData.locations) {
+        planning.forEach((p, i) => {
+          p._lat = p._lat || geoData.locations[i + 1]?.lat;
+          p._lon = p._lon || geoData.locations[i + 1]?.lon;
+        });
+      }
+    }
+
+    // Geocode startlocatie
+    const orgRes = await fetch('/api/optimize', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ origin: settings.startlocatie, stops: [settings.startlocatie] }),
+    });
+    const orgData = await orgRes.json();
+    const originLoc = orgData.locations?.[0];
+    if (!originLoc) throw new Error('Startlocatie niet gevonden');
+
+    const waypoints = [
+      { lat: originLoc.lat, lon: originLoc.lon },
+      ...planning.filter(p => p._lat).map(p => ({ lat: p._lat, lon: p._lon })),
+    ];
+    if (waypoints.length < 2) { hideLoading(); return; }
+
+    const rRes = await fetch('/api/route', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ waypoints }),
+    });
+    const rData = await rRes.json();
+    if (rData.error) throw new Error(rData.error);
+
+    routeData = rData;
+    updateMap();
+    renderRouteList();
+
+    document.getElementById('s-dist').textContent = (rData.totalDistanceMeters / 1000).toFixed(0) + ' km';
+    document.getElementById('s-time').textContent = fmtSec(rData.totalTravelTimeSeconds);
+    document.getElementById('s-delay').textContent = rData.totalTrafficDelaySeconds > 60 ? '+' + fmtSec(rData.totalTrafficDelaySeconds) : 'geen';
+    document.getElementById('s-eta').textContent = rData.arrivalTime
+      ? new Date(rData.arrivalTime).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' }) : '—';
+    toast('Route berekend ✓');
+  } catch (err) {
+    toast('❌ Route: ' + err.message, 4000);
+    updateMap();
+  } finally { hideLoading(); }
+}
+
+function clearSummary() {
+  ['s-dist','s-time','s-delay','s-eta'].forEach(id => document.getElementById(id).textContent = '—');
+}
+
+function fmtSec(s) {
+  const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
+  return h > 0 ? `${h}u ${m}min` : `${m}min`;
+}
+
+function navigate(encoded) {
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}&travelmode=driving`, '_blank');
+}
+
+// ══════════════════════════════════════
+// MAP
+// ══════════════════════════════════════
+function initMap() {
+  leafletMap = L.map('map', { zoomControl: true }).setView([51.0, 4.5], 8);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap', maxZoom: 18,
+  }).addTo(leafletMap);
+  routeLayer = L.layerGroup().addTo(leafletMap);
+}
+
+function updateMap() {
+  routeLayer.clearLayers();
+  if (planning.length === 0) return;
+
+  if (routeData?.polyline?.length) {
+    const poly = L.polyline(routeData.polyline, { color: '#f59e0b', weight: 4, opacity: 0.85 }).addTo(routeLayer);
+    leafletMap.fitBounds(poly.getBounds(), { padding: [30, 30] });
   }
 
-  // Klantgegevens
+  const pts = [];
+  planning.forEach((p, i) => {
+    if (!p._lat) return;
+    L.marker([p._lat, p._lon], {
+      icon: L.divIcon({
+        html: `<div style="background:#f59e0b;color:#000;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;border:2px solid #000;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${i+1}</div>`,
+        iconSize: [26,26], iconAnchor: [13,13], className: '',
+      })
+    }).bindPopup(`<b>#${i+1}</b> ${p.ticket.subject}<br>${p.address}`).addTo(routeLayer);
+    pts.push([p._lat, p._lon]);
+  });
+
+  if (pts.length > 0 && !routeData?.polyline?.length)
+    leafletMap.fitBounds(L.latLngBounds(pts), { padding: [40,40] });
+}
+
+// ══════════════════════════════════════
+// GEPLAND / KALENDER
+// ══════════════════════════════════════
+function renderCalWeek() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - (today.getDay()+6)%7 + calOffset*7);
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6);
+
+  const fmt = d => d.toLocaleDateString('nl-BE', { day: 'numeric', month: 'short' });
+  document.getElementById('cal-label').textContent = `${fmt(weekStart)} – ${fmt(weekEnd)}`;
+
+  const body = document.getElementById('cal-body');
+  body.innerHTML = '';
+
+  const byDate = {};
+  allGepland.forEach(t => {
+    const key = t.dueDate ? t.dueDate.split('T')[0] : 'none';
+    (byDate[key] = byDate[key] || []).push(t);
+  });
+
+  let any = false;
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(weekStart); day.setDate(weekStart.getDate() + i);
+    const key = day.toISOString().split('T')[0];
+    if (!byDate[key]?.length) continue;
+    any = true;
+    const isToday = day.getTime() === today.getTime();
+    const hdr = document.createElement('div');
+    hdr.className = 'cal-day';
+    hdr.innerHTML = `<div class="cal-day-hdr${isToday ? ' today' : ''}">
+      ${isToday ? '⬤ ' : ''}${day.toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' })}
+    </div>`;
+    byDate[key].forEach(t => {
+      const card = document.createElement('div');
+      card.className = 'ticket';
+      card.style.cursor = 'pointer';
+      const meta = [t.account, t.contact].filter(Boolean).join(' · ');
+      card.innerHTML = `
+        <div class="ticket-body">
+          <div class="ticket-top"><span class="tnum">#${t.number}</span><span class="stag">${t.status}</span></div>
+          <div class="tsub">${t.subject || '—'}</div>
+          ${meta ? `<div class="tmeta">${meta}</div>` : ''}
+          <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? '📍 ' + t.address : '⚠️ Geen adres'}</div>
+        </div>
+      `;
+      card.addEventListener('click', () => openDetail(t));
+      hdr.appendChild(card);
+    });
+    body.appendChild(hdr);
+  }
+  if (!any) body.innerHTML = '<div class="empty">Geen geplande tickets deze week</div>';
+}
+
+function calNav(dir) { calOffset += dir; renderCalWeek(); }
+
+// ══════════════════════════════════════
+// DETAIL MODAL
+// ══════════════════════════════════════
+function openDetail(t) {
+  activeTicket = t;
+  document.getElementById('d-num').textContent = '#' + t.number;
+  document.getElementById('d-title').textContent = t.subject || '—';
+
+  const tags = document.getElementById('d-tags');
+  tags.innerHTML = `<span class="mtag">${t.status}</span>`;
+  if (t.priority) {
+    const pc = { high:'ph', medium:'pm', low:'pl' }[t.priority.toLowerCase()] || '';
+    tags.innerHTML += `<span class="mtag ${pc}">${t.priority}</span>`;
+  }
+
   const klantRows = [
-    t.contact && { label: 'Contact',   value: t.contact },
-    t.account && { label: 'Bedrijf',   value: t.account },
-    t.email   && { label: 'E-mail',    value: `<a href="mailto:${t.email}">${t.email}</a>` },
-    t.phone   && { label: 'Telefoon',  value: `<a href="tel:${t.phone}">${t.phone}</a>` },
-    {
-      label: 'Adres',
-      value: t.hasAddress ? t.address : null,
-      missing: !t.hasAddress,
-      missingText: 'Geen adres bekend',
-    },
+    t.contact && { l: 'Contact',  v: t.contact },
+    t.account && { l: 'Bedrijf',  v: t.account },
+    t.email   && { l: 'E-mail',   v: `<a href="mailto:${t.email}">${t.email}</a>` },
+    t.phone   && { l: 'Telefoon', v: `<a href="tel:${t.phone}">${t.phone}</a>` },
+    { l: 'Adres', v: t.hasAddress ? t.address : null, miss: !t.hasAddress },
   ].filter(Boolean);
 
-  document.getElementById('d-klant-rows').innerHTML = klantRows.map(r =>
-    `<div class="info-row">
-      <span class="info-label">${r.label}</span>
-      <span class="info-value${r.missing ? ' missing' : ''}">${r.missing ? r.missingText : r.value}</span>
+  document.getElementById('d-klant').innerHTML = klantRows.map(r =>
+    `<div class="mrow">
+      <span class="mlabel">${r.l}</span>
+      <span class="mval${r.miss ? ' miss' : ''}">${r.miss ? 'Geen adres bekend' : r.v}</span>
     </div>`
   ).join('');
 
-  // Ticketdetails
   const ticketRows = [
-    t.dueDate     && { label: 'Vervaldatum', value: formatDate(t.dueDate) },
-    t.createdTime && { label: 'Aangemaakt',  value: formatDate(t.createdTime) },
+    t.dueDate     && { l: 'Vervaldatum', v: fmtDate(t.dueDate) },
+    t.createdTime && { l: 'Aangemaakt',  v: fmtDate(t.createdTime) },
   ].filter(Boolean);
 
-  document.getElementById('d-ticket-rows').innerHTML = ticketRows.length
-    ? ticketRows.map(r =>
-        `<div class="info-row">
-          <span class="info-label">${r.label}</span>
-          <span class="info-value">${r.value}</span>
-        </div>`
-      ).join('')
-    : '<div class="info-row"><span class="info-value" style="color:var(--muted)">—</span></div>';
+  document.getElementById('d-ticket').innerHTML = ticketRows.length
+    ? ticketRows.map(r => `<div class="mrow"><span class="mlabel">${r.l}</span><span class="mval">${r.v}</span></div>`).join('')
+    : '<div class="mrow"><span class="mval" style="color:var(--muted)">—</span></div>';
 
-  document.getElementById('detail-overlay').classList.add('open');
-}
-
-function closeDetail(e) {
-  if (e && e.target !== document.getElementById('detail-overlay')) return;
-  document.getElementById('detail-overlay').classList.remove('open');
-}
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    closeOplossing();
-    closeDetail();
+  // Debug: custom fields
+  const cfEl = document.getElementById('d-cf');
+  cfEl.innerHTML = '';
+  if (t._cf && Object.keys(t._cf).length > 0) {
+    cfEl.innerHTML = `<div class="msec-title" style="color:var(--accent);margin-top:14px;margin-bottom:8px">🔍 Custom fields (debug)</div>`
+      + Object.entries(t._cf).map(([k,v]) =>
+          `<div class="mrow"><span class="mlabel" style="font-family:monospace;font-size:0.7rem;color:var(--accent)">${k}</span><span class="mval" style="font-size:0.78rem">${v||'—'}</span></div>`
+        ).join('');
   }
-});
 
-// ── Oplossing modal ───────────────────────────────
-function openOplossing() {
+  // Plan knop
+  const inPlan = planning.some(p => p.ticket.id === t.id);
+  const planBtn = document.getElementById('d-plan-btn');
+  planBtn.textContent = inPlan ? '✕ Uit planning' : '➕ Voeg toe';
+  planBtn.style.background = inPlan ? 'var(--red)' : 'var(--green)';
+
+  document.getElementById('det-overlay').classList.add('open');
+}
+
+function closeDet(e) {
+  if (e && e.target !== document.getElementById('det-overlay')) return;
+  document.getElementById('det-overlay').classList.remove('open');
+}
+
+function togglePlanFromDetail() {
+  if (!activeTicket) return;
+  const inPlan = planning.some(p => p.ticket.id === activeTicket.id);
+  if (inPlan) removeFromPlanning(activeTicket.id);
+  else addToPlanning(activeTicket.id);
+  // Update knop zonder modal te sluiten
+  const planBtn = document.getElementById('d-plan-btn');
+  const nowIn = planning.some(p => p.ticket.id === activeTicket.id);
+  planBtn.textContent = nowIn ? '✕ Uit planning' : '➕ Voeg toe';
+  planBtn.style.background = nowIn ? 'var(--red)' : 'var(--green)';
+}
+
+// ══════════════════════════════════════
+// INSTELLINGEN
+// ══════════════════════════════════════
+const DAGEN = ['Zo','Ma','Di','Wo','Do','Vr','Za'];
+
+function openSettings() {
+  document.getElementById('set-start').value = settings.startlocatie;
+  document.getElementById('set-duration').value = settings.duurMinuten;
+  document.getElementById('set-max').value = settings.maxPerDag;
+  document.getElementById('set-van').value = settings.vanTijd;
+  document.getElementById('set-tot').value = settings.totTijd;
+
+  const grid = document.getElementById('days-grid');
+  grid.innerHTML = '';
+  DAGEN.forEach((dag, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'day-btn' + (settings.werkdagen.includes(i) ? ' on' : '');
+    btn.textContent = dag;
+    btn.onclick = () => {
+      const idx = settings.werkdagen.indexOf(i);
+      if (idx >= 0) settings.werkdagen.splice(idx, 1);
+      else settings.werkdagen.push(i);
+      btn.classList.toggle('on');
+    };
+    grid.appendChild(btn);
+  });
+
+  document.getElementById('set-overlay').classList.add('open');
+}
+
+function closeSettings(e) {
+  if (e && e.target !== document.getElementById('set-overlay')) return;
+  document.getElementById('set-overlay').classList.remove('open');
+}
+
+function saveSettings() {
+  settings.startlocatie = document.getElementById('set-start').value.trim() || DEFAULT_SETTINGS.startlocatie;
+  settings.duurMinuten  = +document.getElementById('set-duration').value || DEFAULT_SETTINGS.duurMinuten;
+  settings.maxPerDag    = +document.getElementById('set-max').value || DEFAULT_SETTINGS.maxPerDag;
+  settings.vanTijd      = document.getElementById('set-van').value || DEFAULT_SETTINGS.vanTijd;
+  settings.totTijd      = document.getElementById('set-tot').value || DEFAULT_SETTINGS.totTijd;
+  localStorage.setItem('blitz_settings', JSON.stringify(settings));
+  document.getElementById('set-overlay').classList.remove('open');
+  toast('✓ Instellingen opgeslagen');
+}
+
+// ══════════════════════════════════════
+// OPLOSSING
+// ══════════════════════════════════════
+function openOplFromBtn(btn) {
+  activeTicket = allTickets.find(t => t.id === btn.dataset.ticketId)
+              || allGepland.find(t => t.id === btn.dataset.ticketId)
+              || activeTicket;
+  openOpl();
+}
+
+function openOpl() {
   if (!activeTicket) return;
   document.getElementById('opl-label').textContent = activeTicket.subject || '';
   document.getElementById('opl-text').value = '';
@@ -396,42 +939,57 @@ function openOplossing() {
   setTimeout(() => document.getElementById('opl-text').focus(), 80);
 }
 
-function closeOplossing(e) {
+function closeOpl(e) {
   if (e && e.target !== document.getElementById('opl-overlay')) return;
   document.getElementById('opl-overlay').classList.remove('open');
 }
 
-async function saveOplossing() {
+async function saveOpl() {
   const content = document.getElementById('opl-text').value.trim();
   if (!content || !activeTicket) return;
   document.getElementById('opl-overlay').classList.remove('open');
   try {
     const res = await fetch('/api/comment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticketId: activeTicket.id, content }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     toast('✓ Oplossing opgeslagen');
-  } catch (err) {
-    toast('❌ ' + err.message, 4000);
-  }
+  } catch (err) { toast('❌ ' + err.message, 4000); }
 }
 
-// ── Helpers ───────────────────────────────────────
-function formatDate(str) {
-  return new Date(str).toLocaleDateString('nl-BE', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+// ══════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════
+function fmtDate(s) {
+  return new Date(s).toLocaleDateString('nl-BE', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function showLoading(msg) {
+  // Simple: disable buttons
+  document.getElementById('btn-optimize').disabled = true;
+  document.getElementById('btn-route').disabled = true;
+  toast(msg, 10000);
+}
+function hideLoading() {
+  document.getElementById('btn-optimize').disabled = planning.length < 2;
+  document.getElementById('btn-route').disabled = planning.length < 1;
 }
 
 let toastTimer;
 function toast(msg, ms = 2500) {
   const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
+  el.textContent = msg; el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), ms);
 }
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeDet(); closeSettings(); closeOpl();
+  }
+});
 </script>
 </body>
 </html>
