@@ -71,10 +71,13 @@ export async function handler(event) {
         status:      t.status || '',
         priority:    t.priority || '',
         contact:     t.contact?.fullName || '',
+        email:       t.contact?.email || '',
+        phone:       t.contact?.phone || t.contact?.mobile || '',
         account:     t.account?.accountName || '',
         address,
         hasAddress:  !!address,
         dueDate:     t.dueDate || null,
+        createdTime: t.createdTime || null,
         _cf:         t.cf || {},  // tijdelijk: voor debuggen van veldnamen
       };
     };

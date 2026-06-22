@@ -14,7 +14,7 @@ foreach ($lock in $locks) {
 git config user.email "brentcalaerts5@gmail.com"
 git config user.name "Brent Calaerts"
 git add .
-git commit -m "simplify: basis ticketlijst + adres uit custom fields, debug cf output"
+git commit -m "feat: ticketdetail popup met klantgegevens, klikbare kaartjes"
 git push origin main
 
 Write-Host ""
