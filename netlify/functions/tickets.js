@@ -52,12 +52,27 @@ export async function handler(event) {
     const orgId = orgData.data?.[0]?.id;
     if (!orgId) throw new Error('Zoho Desk org ID niet gevonden');
 
-    const params = new URLSearchParams({ limit: '100' });
-    const res = await fetch(`${ZOHO_DESK}/tickets?${params}`, {
+    // Stap 1: lijst ophalen voor status-filtering (geen cf hier)
+    const res = await fetch(`${ZOHO_DESK}/tickets?limit=100`, {
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
     });
     const raw = await res.json();
     const all = raw.data || [];
+
+    // Stap 2: filter relevante tickets
+    const TO_PLAN = ['Wachten op planning', 'Wachten op bevestiging planning'];
+    const relevantIds = all
+      .filter(t => TO_PLAN.includes(t.status) || t.status === 'Geplande support')
+      .map(t => t.id);
+
+    // Stap 3: haal elk ticket individueel op — dit geeft wél de cf custom fields
+    const detailed = await Promise.all(
+      relevantIds.map(id =>
+        fetch(`${ZOHO_DESK}/tickets/${id}`, {
+          headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
+        }).then(r => r.json())
+      )
+    );
 
     const mapTicket = t => {
       // Adres: eerst contact, dan account, dan custom fields als fallback
@@ -85,13 +100,12 @@ export async function handler(event) {
         hasAddress:  !!address,
         dueDate:     t.dueDate || null,
         createdTime: t.createdTime || null,
-        _raw:        t,  // tijdelijk: volledige raw Zoho response
+        _cf:         t.cf || {},  // custom fields (beschikbaar via individueel ticket endpoint)
       };
     };
 
-    const TO_PLAN = ['Wachten op planning', 'Wachten op bevestiging planning'];
-    const tickets        = all.filter(t => TO_PLAN.includes(t.status)).map(mapTicket);
-    const plannedTickets = all.filter(t => t.status === 'Geplande support').map(mapTicket);
+    const tickets        = detailed.filter(t => TO_PLAN.includes(t.status)).map(mapTicket);
+    const plannedTickets = detailed.filter(t => t.status === 'Geplande support').map(mapTicket);
 
     return {
       statusCode: 200,
