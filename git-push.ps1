@@ -14,7 +14,7 @@ foreach ($lock in $locks) {
 git config user.email "brentcalaerts5@gmail.com"
 git config user.name "Brent Calaerts"
 git add .
-git commit -m "fix: verwijder fields filter zodat Zoho cf custom fields teruggeeft"
+git commit -m "debug: stuur raw Zoho ticket terug om veldstructuur te zien"
 git push origin main
 
 Write-Host ""

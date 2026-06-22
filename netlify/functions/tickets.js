@@ -85,7 +85,7 @@ export async function handler(event) {
         hasAddress:  !!address,
         dueDate:     t.dueDate || null,
         createdTime: t.createdTime || null,
-        _cf:         t.cf || {},  // tijdelijk: voor debuggen van veldnamen
+        _raw:        t,  // tijdelijk: volledige raw Zoho response
       };
     };
 
