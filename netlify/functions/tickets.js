@@ -1,7 +1,7 @@
 // /api/tickets
-// Fetches tickets from Zoho Desk, filtered by status.
-// "Wachten op planning" = te plannen pool
-// "Geplande support"    = kalender view
+// Haalt tickets op uit Zoho Desk op basis van status.
+// Te plannen:  Wachten op planning / Wachten op bevestiging planning
+// Gepland:     Geplande support
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK = 'https://desk.zoho.eu/api/v1';
@@ -9,9 +9,9 @@ const ZOHO_DESK = 'https://desk.zoho.eu/api/v1';
 async function getAccessToken() {
   const params = new URLSearchParams({
     refresh_token: process.env.ZOHO_REFRESH_TOKEN,
-    client_id: process.env.ZOHO_CLIENT_ID,
+    client_id:     process.env.ZOHO_CLIENT_ID,
     client_secret: process.env.ZOHO_CLIENT_SECRET,
-    grant_type: 'refresh_token',
+    grant_type:    'refresh_token',
   });
   const res = await fetch(ZOHO_ACCOUNTS, {
     method: 'POST',
@@ -19,8 +19,14 @@ async function getAccessToken() {
     body: params,
   });
   const data = await res.json();
-  if (!data.access_token) throw new Error('Token refresh failed: ' + JSON.stringify(data));
+  if (!data.access_token) throw new Error('Token refresh mislukt: ' + JSON.stringify(data));
   return data.access_token;
+}
+
+function buildAddress(obj) {
+  if (!obj) return '';
+  const parts = [obj.street, obj.city, obj.zip, obj.country].filter(Boolean);
+  return parts.join(', ');
 }
 
 export async function handler(event) {
@@ -32,47 +38,55 @@ export async function handler(event) {
   try {
     const accessToken = await getAccessToken();
 
-    // Get org ID
     const orgRes = await fetch(`${ZOHO_DESK}/organizations`, {
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
     });
     const orgData = await orgRes.json();
     const orgId = orgData.data?.[0]?.id;
-    if (!orgId) throw new Error('Could not find Zoho Desk org ID');
+    if (!orgId) throw new Error('Zoho Desk org ID niet gevonden');
 
-    // Fetch all tickets (max 100), then filter by status
-    const p = new URLSearchParams({
-      limit: '100',
-      fields: 'id,ticketNumber,subject,status,priority,contact,account,description,createdTime,dueDate,cf',
+    // include=contacts,accounts geeft adresvelden mee op contact/account
+    const params = new URLSearchParams({
+      limit:   '100',
+      include: 'contacts,accounts',
+      fields:  'id,ticketNumber,subject,status,priority,contact,account,createdTime,dueDate,cf',
     });
-    const res = await fetch(`${ZOHO_DESK}/tickets?${p}`, {
+    const res = await fetch(`${ZOHO_DESK}/tickets?${params}`, {
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
     });
     const raw = await res.json();
     const all = raw.data || [];
 
-    const mapTicket = t => ({
-      id: t.id,
-      number: t.ticketNumber,
-      subject: t.subject,
-      status: t.status,
-      priority: t.priority,
-      contact: t.contact?.fullName || '',
-      account: t.account?.accountName || '',
-      address: t.cf?.cf_address || t.cf?.cf_locatie || t.cf?.cf_site_address || '',
-      description: t.description || '',
-      createdTime: t.createdTime,
-      dueDate: t.dueDate,
-    });
+    const mapTicket = t => {
+      // Adres: eerst contact, dan account, dan custom fields als fallback
+      const contactAddr = buildAddress(t.contact);
+      const accountAddr = buildAddress(t.account);
+      const cfAddr = t.cf?.cf_adres || t.cf?.cf_address || t.cf?.cf_locatie || t.cf?.cf_site_address || '';
+      const address = contactAddr || accountAddr || cfAddr;
 
-    const TO_PLAN_STATUSES = ['Wachten op planning', 'Wachten op bevestiging planning'];
-    const tickets        = all.filter(t => TO_PLAN_STATUSES.includes(t.status)).map(mapTicket);
+      return {
+        id:          t.id,
+        number:      t.ticketNumber,
+        subject:     t.subject || '',
+        status:      t.status || '',
+        priority:    t.priority || '',
+        contact:     t.contact?.fullName || '',
+        account:     t.account?.accountName || '',
+        address,
+        hasAddress:  !!address,
+        dueDate:     t.dueDate || null,
+        _cf:         t.cf || {},  // tijdelijk: voor debuggen van veldnamen
+      };
+    };
+
+    const TO_PLAN = ['Wachten op planning', 'Wachten op bevestiging planning'];
+    const tickets        = all.filter(t => TO_PLAN.includes(t.status)).map(mapTicket);
     const plannedTickets = all.filter(t => t.status === 'Geplande support').map(mapTicket);
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ tickets, plannedTickets, orgId }),
+      body: JSON.stringify({ tickets, plannedTickets }),
     };
   } catch (err) {
     return {
