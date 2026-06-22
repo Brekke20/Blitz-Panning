@@ -45,33 +45,41 @@ export async function handler(event) {
     const orgId   = orgData.data?.[0]?.id;
     if (!orgId) throw new Error('Zoho Desk org ID niet gevonden');
 
-    // Stap 1: per status ophalen (voorkomt dat tickets buiten de top-100 gemist worden)
     const RELEVANT = [
       'Service in te plannen',
       'Wachten op bevestiging planning',
       'Geplande service',
     ];
 
-    const listsPerStatus = await Promise.all(
-      RELEVANT.map(status =>
-        fetch(`${ZOHO_DESK}/tickets?limit=100&status=${encodeURIComponent(status)}`, {
-          headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
-        }).then(r => r.json())
-      )
-    );
+    // Stap 1: alle tickets ophalen via paginering (max 3 pagina's = 300 tickets)
+    const safeJson = async (res) => {
+      const text = await res.text();
+      if (!text) return {};
+      try { return JSON.parse(text); } catch { return {}; }
+    };
 
-    const relevantIds = listsPerStatus
-      .flatMap(d => d.data || [])
-      .map(t => t.id)
-      // dedupliceer (voor het geval een ticket in meerdere resultaten zit)
-      .filter((id, i, arr) => arr.indexOf(id) === i);
+    let allRaw = [];
+    for (let from = 0; from < 300; from += 100) {
+      const res  = await fetch(`${ZOHO_DESK}/tickets?limit=100&from=${from}&sortBy=createdTime&order=desc`, {
+        headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
+      });
+      const data = await safeJson(res);
+      const page = data.data || [];
+      allRaw = allRaw.concat(page);
+      if (page.length < 100) break; // geen volgende pagina
+    }
 
-    // Stap 2: individueel ophalen voor cf custom fields
+    // Stap 2: filteren op relevante statussen
+    const relevantIds = allRaw
+      .filter(t => RELEVANT.includes(t.status))
+      .map(t => t.id);
+
+    // Stap 3: individueel ophalen voor cf custom fields
     const detailed = await Promise.all(
       relevantIds.map(id =>
         fetch(`${ZOHO_DESK}/tickets/${id}`, {
           headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
-        }).then(r => r.json())
+        }).then(safeJson)
       )
     );
 
