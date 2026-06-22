@@ -17,231 +17,181 @@
     }
     html, body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100%; }
 
-    /* ── Header ── */
-    header {
-      background: var(--surface); border-bottom: 1px solid var(--border);
-      padding: 12px 16px; display: flex; align-items: center; gap: 10px;
-      position: sticky; top: 0; z-index: 20;
-    }
-    header h1 { font-size: 1.05rem; font-weight: 700; color: var(--accent); flex: 1; }
-    .hbtn {
-      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      padding: 7px 13px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; cursor: pointer;
-    }
+    /* Header */
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 11px 14px; display: flex; align-items: center; gap: 8px; position: sticky; top: 0; z-index: 30; }
+    header h1 { font-size: 1rem; font-weight: 700; color: var(--accent); flex: 1; }
+    .hbtn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
     .hbtn:active { opacity: 0.7; }
 
-    /* ── Tabs ── */
-    .tabs {
-      display: flex; background: var(--surface); border-bottom: 1px solid var(--border);
-      position: sticky; top: 49px; z-index: 19;
-    }
-    .tab {
-      flex: 1; padding: 12px 6px; text-align: center; font-size: 0.82rem; font-weight: 600;
-      color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s;
-    }
+    /* Tabs */
+    .tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 47px; z-index: 29; }
+    .tab { flex: 1; padding: 11px 4px; text-align: center; font-size: 0.8rem; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
     .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-    .badge {
-      display: inline-block; background: var(--surface2); border: 1px solid var(--border);
-      color: var(--muted); font-size: 0.7rem; padding: 1px 5px; border-radius: 10px; margin-left: 4px; font-weight: 700;
-    }
+    .badge { display: inline-block; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); font-size: 0.68rem; padding: 1px 5px; border-radius: 10px; margin-left: 3px; font-weight: 700; }
 
-    /* ── Views ── */
+    /* Views */
     .view { display: none; }
     .view.active { display: block; }
 
-    /* ── Ticket cards ── */
-    .ticket-list { padding: 10px; max-width: 680px; margin: 0 auto; }
-    .ticket {
-      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
-      padding: 12px 14px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s;
-      display: flex; gap: 12px; align-items: flex-start;
-    }
+    /* Filters */
+    .filter-bar { padding: 8px 10px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; position: sticky; top: 88px; z-index: 28; }
+    .filter-pill { padding: 4px 10px; border-radius: 16px; font-size: 0.75rem; font-weight: 600; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+    .filter-pill.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+    /* Ticket cards */
+    .ticket-list { padding: 8px 10px; max-width: 700px; margin: 0 auto; }
+    .ticket { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 11px 13px; margin-bottom: 7px; cursor: pointer; transition: border-color 0.15s; display: flex; gap: 10px; }
     .ticket:hover { border-color: var(--accent); }
     .ticket.in-plan { border-color: var(--green); background: #0d2b1e; }
-    .ticket-body { flex: 1; min-width: 0; }
-    .ticket-top { display: flex; gap: 6px; align-items: center; margin-bottom: 5px; flex-wrap: wrap; }
-    .tnum { font-size: 0.72rem; font-weight: 700; color: var(--accent); font-family: monospace; }
-    .stag { font-size: 0.68rem; font-weight: 600; padding: 2px 6px; border-radius: 3px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); }
-    .in-plan-tag { font-size: 0.68rem; font-weight: 600; color: var(--green); }
-    .tsub { font-weight: 600; font-size: 0.88rem; line-height: 1.3; margin-bottom: 3px; }
-    .tmeta { font-size: 0.78rem; color: var(--muted); margin-bottom: 5px; }
-    .taddr { font-size: 0.77rem; display: flex; gap: 4px; }
+    .t-body { flex: 1; min-width: 0; }
+    .t-top { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+    .tnum { font-size: 0.7rem; font-weight: 700; color: var(--accent); font-family: monospace; }
+    .stag { font-size: 0.66rem; font-weight: 600; padding: 2px 5px; border-radius: 3px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); }
+    .atag { font-size: 0.66rem; font-weight: 600; padding: 2px 6px; border-radius: 3px; background: #1e3a5f; color: #93c5fd; border: 1px solid #1e40af; }
+    .tsub { font-weight: 600; font-size: 0.86rem; line-height: 1.3; margin-bottom: 3px; }
+    .tmeta { font-size: 0.76rem; color: var(--muted); margin-bottom: 4px; }
+    .taddr { font-size: 0.74rem; }
     .taddr.ok { color: var(--muted); }
     .taddr.miss { color: var(--red); }
+    .t-action { flex-shrink: 0; display: flex; align-items: flex-start; padding-top: 2px; }
+    .btn-add { background: var(--green); border: none; color: #fff; width: 30px; height: 30px; border-radius: 50%; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .btn-rem { background: var(--red); border: none; color: #fff; width: 30px; height: 30px; border-radius: 50%; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .btn-add:active, .btn-rem:active { opacity: 0.7; }
+    .empty { text-align: center; color: var(--muted); padding: 50px 20px; font-size: 0.88rem; }
 
-    .ticket-action { flex-shrink: 0; }
-    .btn-add { background: var(--green); border: none; color: #fff; width: 32px; height: 32px; border-radius: 50%; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .btn-rem { background: var(--red); border: none; color: #fff; width: 32px; height: 32px; border-radius: 50%; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .btn-add:active, .btn-rem:active { opacity: 0.75; }
+    /* ── Kalender tab ── */
+    #view-kalender.active { display: flex; flex-direction: column; }
+    .kal-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; position: sticky; top: 88px; z-index: 28; }
+    .kal-week-label { font-size: 0.88rem; font-weight: 700; flex: 1; min-width: 120px; }
+    .kal-nav { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 5px 13px; border-radius: 6px; cursor: pointer; font-size: 0.95rem; }
+    .btn-autoplan { background: var(--accent); border: none; color: #000; padding: 7px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 700; cursor: pointer; }
+    .btn-autoplan:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .empty { text-align: center; color: var(--muted); padding: 50px 20px; font-size: 0.9rem; }
+    /* Week grid */
+    .week-grid { display: flex; gap: 0; flex: 1; overflow-x: auto; }
+    .day-col { flex: 1; min-width: 140px; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .day-col:last-child { border-right: none; }
+    .day-hdr { padding: 8px 10px 6px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+    .day-hdr-date { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+    .day-hdr-date.today { color: var(--green); }
+    .day-hdr-date.past { opacity: 0.4; }
+    .day-hdr-num { font-size: 1.1rem; font-weight: 700; margin: 1px 0 4px; }
+    .day-block-btn { font-size: 0.68rem; font-weight: 600; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); cursor: pointer; display: block; width: 100%; text-align: center; margin-bottom: 2px; }
+    .day-block-btn.blocked { background: rgba(239,68,68,0.15); color: var(--red); border-color: rgba(239,68,68,0.3); }
+    .day-body { flex: 1; padding: 6px; background: var(--bg); display: flex; flex-direction: column; gap: 5px; }
+    .day-body.blocked-day { background: repeating-linear-gradient(45deg, var(--bg), var(--bg) 8px, rgba(239,68,68,0.05) 8px, rgba(239,68,68,0.05) 16px); }
+    .day-empty { font-size: 0.72rem; color: var(--muted); text-align: center; padding: 12px 4px; opacity: 0.6; }
 
-    /* ── Planning view ── */
-    #view-planning { display: none; }
+    /* Calendar ticket mini-card */
+    .cal-ticket { background: var(--surface); border: 1px solid var(--border); border-radius: 5px; padding: 7px 8px; cursor: pointer; transition: border-color 0.15s; }
+    .cal-ticket:hover { border-color: var(--accent); }
+    .cal-ticket-num { font-size: 0.65rem; font-weight: 700; color: var(--accent); font-family: monospace; }
+    .cal-ticket-sub { font-size: 0.75rem; font-weight: 600; line-height: 1.2; margin: 2px 0; }
+    .cal-ticket-meta { font-size: 0.68rem; color: var(--muted); }
+    .cal-ticket-addr { font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
+    .cal-ticket-addr.miss { color: var(--red); }
+
+    /* Time blocking modal */
+    .time-grid { display: grid; grid-template-columns: 40px 1fr; gap: 1px; background: var(--border); border-radius: 6px; overflow: hidden; max-height: 350px; overflow-y: auto; }
+    .tg-label { background: var(--surface); padding: 2px 4px; font-size: 0.65rem; color: var(--muted); display: flex; align-items: center; justify-content: flex-end; }
+    .tg-slot { background: var(--surface2); height: 16px; cursor: pointer; transition: background 0.1s; border-left: 2px solid transparent; }
+    .tg-slot:hover { background: var(--surface); }
+    .tg-slot.blocked { background: rgba(239,68,68,0.3); border-left-color: var(--red); }
+    .tg-slot.hour-start { border-top: 1px solid var(--border); }
+
+    /* Planning tab */
     #view-planning.active { display: flex; flex-direction: column; }
-
-    .plan-header {
-      background: var(--surface); border-bottom: 1px solid var(--border);
-      padding: 10px 14px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
-    }
-    .plan-header input[type=date] {
-      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      padding: 6px 10px; border-radius: 6px; font-size: 0.85rem;
-    }
-    .btn-primary {
-      background: var(--accent); border: none; color: #000;
-      padding: 7px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 700; cursor: pointer;
-    }
+    .plan-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 9px 12px; display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+    .plan-header input[type=date] { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 9px; border-radius: 6px; font-size: 0.83rem; }
+    .btn-primary { background: var(--accent); border: none; color: #000; padding: 7px 13px; border-radius: 6px; font-size: 0.81rem; font-weight: 700; cursor: pointer; }
     .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-sec {
-      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      padding: 7px 12px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; cursor: pointer;
-    }
+    .btn-sec { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 7px 11px; border-radius: 6px; font-size: 0.81rem; font-weight: 600; cursor: pointer; }
     .btn-sec:disabled { opacity: 0.4; cursor: not-allowed; }
-
     .plan-body { display: flex; flex: 1; min-height: 0; }
-
-    /* Route list */
-    #route-list {
-      width: 320px; flex-shrink: 0; overflow-y: auto; padding: 8px;
-      background: var(--surface); border-right: 1px solid var(--border);
-      display: flex; flex-direction: column; gap: 4px;
-    }
-    .stop {
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: var(--r); padding: 10px 12px;
-      display: flex; gap: 8px; align-items: flex-start;
-    }
+    #route-list { width: 310px; flex-shrink: 0; overflow-y: auto; padding: 7px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
+    .stop { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); padding: 9px 11px; display: flex; gap: 7px; align-items: flex-start; }
     .stop.drag-over { border-color: var(--accent); }
-    .stop-num {
-      background: var(--accent); color: #000; border-radius: 50%;
-      width: 24px; height: 24px; display: flex; align-items: center;
-      justify-content: center; font-weight: 800; font-size: 0.75rem; flex-shrink: 0;
-    }
+    .stop-num { background: var(--accent); color: #000; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.72rem; flex-shrink: 0; }
     .stop-info { flex: 1; min-width: 0; }
-    .stop-sub { font-weight: 600; font-size: 0.84rem; margin-bottom: 2px; }
-    .stop-addr { font-size: 0.75rem; color: var(--muted); }
-    .stop-leg { font-size: 0.73rem; color: var(--muted); margin: 2px 0 4px 32px; }
-    .stop-actions { display: flex; gap: 4px; flex-shrink: 0; }
-    .sico { background: var(--surface); border: 1px solid var(--border); color: var(--muted); padding: 4px 7px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; }
-    .sico:active { opacity: 0.7; }
-
-    .route-empty { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 40px 16px; }
-
-    /* Map */
-    #map-wrap { flex: 1; position: relative; min-height: 300px; }
-    #map { width: 100%; height: 100%; min-height: 300px; }
-
-    /* Summary bar */
-    .plan-summary {
-      background: var(--surface); border-top: 1px solid var(--border);
-      padding: 8px 14px; display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.78rem; color: var(--muted);
-    }
+    .stop-sub { font-weight: 600; font-size: 0.82rem; margin-bottom: 2px; }
+    .stop-addr { font-size: 0.72rem; color: var(--muted); }
+    .stop-leg { font-size: 0.7rem; color: var(--muted); padding: 2px 0 3px 29px; }
+    .stop-actions { display: flex; gap: 3px; flex-shrink: 0; }
+    .sico { background: var(--surface); border: 1px solid var(--border); color: var(--muted); padding: 4px 6px; border-radius: 4px; cursor: pointer; font-size: 0.78rem; }
+    .route-empty { color: var(--muted); font-size: 0.83rem; text-align: center; padding: 40px 14px; }
+    #map-wrap { flex: 1; position: relative; min-height: 250px; }
+    #map { width: 100%; height: 100%; min-height: 250px; }
+    .plan-summary { background: var(--surface); border-top: 1px solid var(--border); padding: 7px 12px; display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.76rem; color: var(--muted); }
     .plan-summary b { color: var(--text); }
 
-    /* ── Gepland view ── */
-    .cal-week {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 10px 14px; background: var(--surface); border-bottom: 1px solid var(--border);
-      position: sticky; top: 97px; z-index: 10;
-    }
-    .cal-week span { font-size: 0.88rem; font-weight: 700; }
-    .cal-week button { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 1rem; }
-    .cal-day { padding: 0 10px 8px; max-width: 680px; margin: 0 auto; }
-    .cal-day-hdr {
-      font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase;
-      letter-spacing: 0.06em; padding: 10px 4px 6px; border-bottom: 1px solid var(--border); margin-bottom: 6px;
-    }
+    /* Gepland tab */
+    .gep-week { background: var(--surface); border-bottom: 1px solid var(--border); padding: 9px 12px; display: flex; align-items: center; gap: 10px; position: sticky; top: 88px; z-index: 28; }
+    .gep-week span { font-size: 0.86rem; font-weight: 700; flex: 1; }
+    .gep-week button { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 4px 12px; border-radius: 5px; cursor: pointer; }
+    .cal-day-hdr { font-size: 0.7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; padding: 10px 12px 5px; border-bottom: 1px solid var(--border); }
     .cal-day-hdr.today { color: var(--green); }
 
-    /* ── Modals ── */
-    .overlay {
-      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8);
-      z-index: 100; align-items: flex-end; justify-content: center;
-    }
+    /* Modals */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; align-items: flex-end; justify-content: center; }
     .overlay.open { display: flex; }
-    @media (min-width: 600px) { .overlay { align-items: center; padding: 20px; } }
-
-    .modal {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 14px 14px 0 0; width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto;
-    }
+    @media (min-width: 600px) { .overlay { align-items: center; padding: 16px; } }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px 14px 0 0; width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto; }
     @media (min-width: 600px) { .modal { border-radius: 12px; } }
-
-    .mhdr {
-      padding: 16px 18px 12px; border-bottom: 1px solid var(--border);
-      position: sticky; top: 0; background: var(--surface); z-index: 1;
-    }
-    .mhdr-num { font-size: 0.72rem; font-weight: 700; color: var(--accent); font-family: monospace; margin-bottom: 3px; }
-    .mhdr-title { font-size: 0.95rem; font-weight: 700; line-height: 1.3; }
-    .mhdr-tags { display: flex; gap: 5px; margin-top: 7px; flex-wrap: wrap; }
-    .mtag { font-size: 0.68rem; font-weight: 600; padding: 2px 7px; border-radius: 4px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); }
+    .mhdr { padding: 15px 17px 11px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 1; }
+    .mhdr-num { font-size: 0.7rem; font-weight: 700; color: var(--accent); font-family: monospace; margin-bottom: 2px; }
+    .mhdr-title { font-size: 0.93rem; font-weight: 700; line-height: 1.3; }
+    .mhdr-tags { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
+    .mtag { font-size: 0.66rem; font-weight: 600; padding: 2px 6px; border-radius: 3px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); }
     .mtag.ph { background: #7f1d1d; color: #fca5a5; border-color: transparent; }
     .mtag.pm { background: #78350f; color: #fcd34d; border-color: transparent; }
     .mtag.pl { background: #14532d; color: #86efac; border-color: transparent; }
-
-    .mbody { padding: 14px 18px; }
-    .msec-title { font-size: 0.69rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
-    .msec { margin-bottom: 16px; }
-    .mrow { display: flex; gap: 10px; margin-bottom: 7px; }
-    .mlabel { font-size: 0.77rem; color: var(--muted); min-width: 90px; flex-shrink: 0; padding-top: 1px; }
-    .mval { font-size: 0.83rem; color: var(--text); flex: 1; word-break: break-word; }
+    .mtag.agent { background: #1e3a5f; color: #93c5fd; border-color: #1e40af; }
+    .mbody { padding: 13px 17px; }
+    .msec { margin-bottom: 14px; }
+    .msec-title { font-size: 0.67rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 7px; }
+    .mrow { display: flex; gap: 9px; margin-bottom: 6px; }
+    .mlabel { font-size: 0.75rem; color: var(--muted); min-width: 88px; flex-shrink: 0; padding-top: 1px; }
+    .mval { font-size: 0.82rem; color: var(--text); flex: 1; word-break: break-word; }
     .mval.miss { color: var(--red); }
     .mval a { color: var(--accent); text-decoration: none; }
+    .mftr { padding: 11px 17px; border-top: 1px solid var(--border); display: flex; gap: 7px; justify-content: flex-end; flex-wrap: wrap; position: sticky; bottom: 0; background: var(--surface); }
 
-    .mftr {
-      padding: 12px 18px; border-top: 1px solid var(--border);
-      display: flex; gap: 8px; justify-content: flex-end;
-      position: sticky; bottom: 0; background: var(--surface);
-    }
-
-    /* Settings modal — niet als sheet */
+    /* Settings */
     #set-overlay { align-items: center; padding: 16px; }
-    #set-modal { border-radius: 12px; max-width: 460px; max-height: 90vh; overflow-y: auto; }
-    .set-field { margin-bottom: 14px; }
-    .set-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 5px; display: block; }
-    .set-input {
-      width: 100%; background: var(--surface2); border: 1px solid var(--border);
-      color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 0.88rem; font-family: inherit;
-    }
-    .set-row { display: flex; gap: 8px; }
+    #set-modal { border-radius: 12px; max-width: 460px; }
+    .set-field { margin-bottom: 13px; }
+    .set-label { font-size: 0.76rem; color: var(--muted); margin-bottom: 4px; display: block; }
+    .set-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 7px 9px; border-radius: 6px; font-size: 0.86rem; font-family: inherit; }
+    .set-row { display: flex; gap: 7px; align-items: center; }
     .set-row .set-input { flex: 1; }
-    .days-grid { display: flex; gap: 6px; flex-wrap: wrap; }
-    .day-btn {
-      padding: 5px 10px; border-radius: 5px; font-size: 0.8rem; font-weight: 600;
-      border: 1px solid var(--border); background: var(--surface2); color: var(--muted); cursor: pointer;
-    }
+    .days-grid { display: flex; gap: 5px; flex-wrap: wrap; }
+    .day-btn { padding: 5px 9px; border-radius: 5px; font-size: 0.78rem; font-weight: 600; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); cursor: pointer; }
     .day-btn.on { background: var(--accent); color: #000; border-color: var(--accent); }
 
-    /* Oplossing modal */
-    #opl-overlay { align-items: center; padding: 20px; }
-    #opl-modal { border-radius: 12px; max-width: 460px; padding: 20px; }
-    #opl-modal h3 { font-size: 0.95rem; margin-bottom: 4px; }
-    #opl-modal .sub { font-size: 0.78rem; color: var(--muted); margin-bottom: 12px; }
-    #opl-modal textarea {
-      width: 100%; background: var(--surface2); border: 1px solid var(--border);
-      color: var(--text); padding: 10px; border-radius: 6px; font-size: 0.88rem;
-      font-family: inherit; min-height: 90px; resize: vertical; margin-bottom: 12px;
-    }
-    .row-btns { display: flex; gap: 8px; justify-content: flex-end; }
-    .btn-cancel { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 15px; border-radius: 6px; font-size: 0.83rem; cursor: pointer; }
-    .btn-save { background: var(--accent); border: none; color: #000; padding: 8px 16px; border-radius: 6px; font-size: 0.83rem; font-weight: 700; cursor: pointer; }
+    /* Time block modal */
+    #block-overlay { align-items: center; padding: 16px; }
+    #block-modal { border-radius: 12px; max-width: 360px; }
 
-    /* Toast */
-    #toast {
-      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      padding: 9px 18px; border-radius: 8px; font-size: 0.83rem; z-index: 999;
-      opacity: 0; transition: opacity 0.2s; pointer-events: none; white-space: nowrap;
-    }
+    /* Oplossing */
+    #opl-overlay { align-items: center; padding: 16px; }
+    #opl-modal { border-radius: 12px; max-width: 460px; padding: 18px; }
+    #opl-modal h3 { font-size: 0.93rem; margin-bottom: 4px; }
+    #opl-modal .sub { font-size: 0.76rem; color: var(--muted); margin-bottom: 11px; }
+    #opl-modal textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 9px; border-radius: 6px; font-size: 0.86rem; font-family: inherit; min-height: 85px; resize: vertical; margin-bottom: 11px; }
+    .row-btns { display: flex; gap: 7px; justify-content: flex-end; }
+    .btn-cancel { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 7px 14px; border-radius: 6px; font-size: 0.82rem; cursor: pointer; }
+    .btn-save { background: var(--accent); border: none; color: #000; padding: 7px 15px; border-radius: 6px; font-size: 0.82rem; font-weight: 700; cursor: pointer; }
+
+    #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 16px; border-radius: 7px; font-size: 0.81rem; z-index: 999; opacity: 0; transition: opacity 0.2s; pointer-events: none; white-space: nowrap; }
     #toast.show { opacity: 1; }
 
-    /* Mobile adjustments */
     @media (max-width: 680px) {
       .plan-body { flex-direction: column; }
       #route-list { width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: none; overflow: visible; }
-      #map-wrap { height: 280px; }
-      #map { height: 280px; }
+      #map-wrap { height: 260px; }
+      #map { height: 260px; }
+      .week-grid { flex-direction: column; }
+      .day-col { min-width: unset; border-right: none; border-bottom: 1px solid var(--border); }
     }
   </style>
 </head>
@@ -249,52 +199,64 @@
 
 <header>
   <h1>⚡ Blitz Planning</h1>
-  <button class="hbtn" onclick="openSettings()">⚙️ Instellingen</button>
+  <button class="hbtn" onclick="openSettings()">⚙️</button>
   <button class="hbtn" onclick="loadTickets()">🔄</button>
 </header>
 
 <div class="tabs">
   <div class="tab active" id="tab-tickets" onclick="setTab('tickets')">📋 <span class="badge" id="cnt-tickets">0</span></div>
-  <div class="tab" id="tab-planning" onclick="setTab('planning')">🗓️ Planning <span class="badge" id="cnt-plan">0</span></div>
-  <div class="tab" id="tab-gepland" onclick="setTab('gepland')">📅 Gepland <span class="badge" id="cnt-gepland">0</span></div>
+  <div class="tab" id="tab-kalender" onclick="setTab('kalender')">📅 Kalender</div>
+  <div class="tab" id="tab-planning" onclick="setTab('planning')">🗺️ Route</div>
+  <div class="tab" id="tab-gepland" onclick="setTab('gepland')">✅ <span class="badge" id="cnt-gepland">0</span></div>
 </div>
 
-<!-- Tickets -->
+<!-- TICKETS TAB -->
 <div class="view active" id="view-tickets">
+  <div class="filter-bar" id="ticket-filters">
+    <span style="font-size:0.72rem;color:var(--muted);font-weight:600">Eigenaar:</span>
+    <button class="filter-pill active" data-filter="assignee" data-val="all" onclick="setFilter('assignee','all',this)">Alle</button>
+  </div>
   <div class="ticket-list" id="ticket-list">
     <div class="empty" id="empty-tickets">Laden...</div>
   </div>
 </div>
 
-<!-- Planning -->
+<!-- KALENDER TAB -->
+<div class="view" id="view-kalender">
+  <div class="kal-header">
+    <button class="kal-nav" onclick="kalNav(-1)">‹</button>
+    <span class="kal-week-label" id="kal-label">—</span>
+    <button class="kal-nav" onclick="kalNav(1)">›</button>
+    <button class="btn-autoplan" id="btn-autoplan" onclick="autoPlan()">⚡ Plan deze week</button>
+  </div>
+  <div class="week-grid" id="week-grid"></div>
+</div>
+
+<!-- PLANNING (ROUTE) TAB -->
 <div class="view" id="view-planning">
   <div class="plan-header">
     <input type="date" id="plan-date" onchange="onDateChange(this.value)" />
     <button class="btn-primary" id="btn-optimize" onclick="optimizeRoute()" disabled>⚡ Optimaliseer</button>
     <button class="btn-sec" id="btn-route" onclick="calculateRoute()" disabled>🗺️ Bereken</button>
-    <button class="btn-sec" onclick="clearPlanning()">✕ Leegmaken</button>
+    <button class="btn-sec" onclick="clearDay()">✕ Leeg</button>
   </div>
   <div class="plan-body">
-    <div id="route-list"><div class="route-empty">Voeg tickets toe via de 📋 tab</div></div>
+    <div id="route-list"><div class="route-empty">Voeg tickets toe via 📋 of 📅</div></div>
     <div id="map-wrap"><div id="map"></div></div>
   </div>
   <div class="plan-summary">
-    Stops: <b id="s-stops">0</b> &nbsp;·&nbsp;
-    Afstand: <b id="s-dist">—</b> &nbsp;·&nbsp;
-    Rijtijd: <b id="s-time">—</b> &nbsp;·&nbsp;
-    Vertraging: <b id="s-delay">—</b> &nbsp;·&nbsp;
-    ETA: <b id="s-eta">—</b>
+    Stops: <b id="s-stops">0</b> &nbsp;·&nbsp; Afstand: <b id="s-dist">—</b> &nbsp;·&nbsp; Rijtijd: <b id="s-time">—</b> &nbsp;·&nbsp; Vertraging: <b id="s-delay">—</b> &nbsp;·&nbsp; ETA: <b id="s-eta">—</b>
   </div>
 </div>
 
-<!-- Gepland -->
+<!-- GEPLAND TAB -->
 <div class="view" id="view-gepland">
-  <div class="cal-week">
-    <button onclick="calNav(-1)">‹</button>
-    <span id="cal-label">—</span>
-    <button onclick="calNav(1)">›</button>
+  <div class="gep-week">
+    <button onclick="gepNav(-1)">‹</button>
+    <span id="gep-label">—</span>
+    <button onclick="gepNav(1)">›</button>
   </div>
-  <div id="cal-body" class="ticket-list"></div>
+  <div id="gep-body" class="ticket-list"></div>
 </div>
 
 <!-- Detail modal -->
@@ -306,20 +268,13 @@
       <div class="mhdr-tags" id="d-tags"></div>
     </div>
     <div class="mbody">
-      <div class="msec">
-        <div class="msec-title">Klantgegevens</div>
-        <div id="d-klant"></div>
-      </div>
-      <div class="msec">
-        <div class="msec-title">Ticketdetails</div>
-        <div id="d-ticket"></div>
-      </div>
-      <div id="d-cf"></div>
+      <div class="msec"><div class="msec-title">Klantgegevens</div><div id="d-klant"></div></div>
+      <div class="msec"><div class="msec-title">Ticketdetails</div><div id="d-ticket"></div></div>
     </div>
     <div class="mftr">
       <button class="btn-cancel" onclick="closeDet()">Sluiten</button>
-      <button class="btn-save" id="d-plan-btn" onclick="togglePlanFromDetail()"></button>
-      <button class="btn-save" style="background:var(--surface2);color:var(--text);border:1px solid var(--border)" onclick="openOpl()">✏️ Oplossing</button>
+      <button class="btn-save" id="d-plan-btn" onclick="togglePlan()"></button>
+      <button class="btn-cancel" onclick="openOpl()">✏️ Oplossing</button>
     </div>
   </div>
 </div>
@@ -335,22 +290,22 @@
       </div>
       <div class="set-field">
         <label class="set-label">Tijd per interventie (minuten)</label>
-        <input class="set-input" id="set-duration" type="number" min="15" max="480" placeholder="120" />
+        <input class="set-input" id="set-duration" type="number" min="15" max="480" step="15" />
       </div>
       <div class="set-field">
         <label class="set-label">Max interventies per dag</label>
-        <input class="set-input" id="set-max" type="number" min="1" max="20" placeholder="4" />
+        <input class="set-input" id="set-max" type="number" min="1" max="20" />
       </div>
       <div class="set-field">
         <label class="set-label">Werkuren</label>
         <div class="set-row">
-          <input class="set-input" id="set-van" type="time" value="08:00" />
-          <span style="align-self:center;color:var(--muted);font-size:0.85rem">tot</span>
-          <input class="set-input" id="set-tot" type="time" value="17:00" />
+          <input class="set-input" id="set-van" type="time" />
+          <span style="color:var(--muted);font-size:0.83rem;flex-shrink:0">tot</span>
+          <input class="set-input" id="set-tot" type="time" />
         </div>
       </div>
       <div class="set-field">
-        <label class="set-label">Beschikbare werkdagen</label>
+        <label class="set-label">Werkdagen</label>
         <div class="days-grid" id="days-grid"></div>
       </div>
     </div>
@@ -361,12 +316,30 @@
   </div>
 </div>
 
+<!-- Tijdsblokkering modal -->
+<div class="overlay" id="block-overlay" onclick="closeBlock(event)">
+  <div class="modal" id="block-modal">
+    <div class="mhdr">
+      <div class="mhdr-title">⏱ Beschikbaarheid</div>
+      <div id="block-date-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
+    </div>
+    <div class="mbody">
+      <p style="font-size:0.78rem;color:var(--muted);margin-bottom:10px">Klik of sleep om tijdslots te blokkeren (rood = geblokkeerd)</p>
+      <div class="time-grid" id="time-grid"></div>
+    </div>
+    <div class="mftr">
+      <button class="btn-cancel" onclick="clearDayBlocks()">Alles vrijmaken</button>
+      <button class="btn-cancel" onclick="closeBlock()">Sluiten</button>
+    </div>
+  </div>
+</div>
+
 <!-- Oplossing modal -->
 <div class="overlay" id="opl-overlay" onclick="closeOpl(event)">
   <div class="modal" id="opl-modal">
     <h3>✅ Oplossing invoeren</h3>
     <div class="sub" id="opl-label"></div>
-    <textarea id="opl-text" placeholder="Beschrijf de uitgevoerde interventie of oplossing..."></textarea>
+    <textarea id="opl-text" placeholder="Beschrijf de uitgevoerde interventie..."></textarea>
     <div class="row-btns">
       <button class="btn-cancel" onclick="closeOpl()">Annuleren</button>
       <button class="btn-save" onclick="saveOpl()">Opslaan in Zoho</button>
@@ -378,45 +351,42 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-// ══════════════════════════════════════
+// ══════════════════════════
 // STATE
-// ══════════════════════════════════════
-let allTickets = [];
-let allGepland = [];
-let planning   = [];   // { ticket, address, _lat, _lon }
-let routeData  = null;
-let activeTicket = null;
-let currentTab = 'tickets';
-let calOffset  = 0;
+// ══════════════════════════
+let allTickets = [], allGepland = [], activeTicket = null;
+let planning = {};         // { "2026-06-23": [{ticket, address, _lat, _lon}] }
+let routeData = null, currentRouteDate = null;
 let leafletMap, routeLayer;
+let kalOffset = 0, gepOffset = 0;
+let activeBlockDate = null;
+let isDragging = false, dragBlocking = null;
+let activeAssigneeFilter = 'all';
 
-const savedPlanning = JSON.parse(localStorage.getItem('blitz_planning') || '{}');
+// Persistence
+const savedPlanning  = JSON.parse(localStorage.getItem('blitz_planning2') || '{}');
+const blockedSlots   = JSON.parse(localStorage.getItem('blitz_blocked') || '{}');  // { date: ["08:00","08:15",...] }
+const blockedDays    = JSON.parse(localStorage.getItem('blitz_blocked_days') || '{}'); // { date: true }
 
-const DEFAULT_SETTINGS = {
-  startlocatie: 'Blitz Power, Geel',
-  duurMinuten: 120,
-  maxPerDag: 4,
-  vanTijd: '08:00',
-  totTijd: '17:00',
-  werkdagen: [1, 2, 3, 4, 5],
-};
+const DEFAULT_SETTINGS = { startlocatie:'Blitz Power, Geel', duurMinuten:120, maxPerDag:4, vanTijd:'08:00', totTijd:'17:00', werkdagen:[1,2,3,4,5] };
 let settings = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('blitz_settings') || '{}') };
 
-// ══════════════════════════════════════
+// ══════════════════════════
 // INIT
-// ══════════════════════════════════════
+// ══════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('plan-date').value = today;
   initMap();
   loadTickets();
-  renderCalWeek();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  renderKalender();
+  renderGepland();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 });
 
-// ══════════════════════════════════════
+// ══════════════════════════
 // DATA
-// ══════════════════════════════════════
+// ══════════════════════════
 async function loadTickets() {
   document.getElementById('empty-tickets').textContent = 'Laden...';
   try {
@@ -426,569 +396,874 @@ async function loadTickets() {
     if (data.error) throw new Error(data.error);
     allTickets = data.tickets || [];
     allGepland = data.plannedTickets || [];
+
+    // Herstel planning uit opslag
+    Object.entries(savedPlanning).forEach(([date, stops]) => {
+      planning[date] = stops.map(s => {
+        const t = allTickets.find(t => t.id === s.id);
+        return t ? { ticket: t, address: s.address || t.address, _lat: s._lat, _lon: s._lon } : null;
+      }).filter(Boolean);
+    });
+
     document.getElementById('cnt-tickets').textContent = allTickets.length;
     document.getElementById('cnt-gepland').textContent = allGepland.length;
+    buildAssigneeFilter();
     renderTickets();
-    renderCalWeek();
-    // Herstel geplande stops voor huidige datum
-    loadPlanningForDate(document.getElementById('plan-date').value);
+    renderKalender();
+    renderGepland();
+    const routeDate = document.getElementById('plan-date').value;
+    renderRouteList(routeDate);
+    updateRouteBtns(routeDate);
     toast(`${allTickets.length} te plannen · ${allGepland.length} gepland`);
-  } catch (err) {
+  } catch(err) {
     toast('❌ ' + err.message, 4000);
     document.getElementById('empty-tickets').textContent = 'Kon tickets niet laden: ' + err.message;
   }
 }
 
-// ══════════════════════════════════════
-// TICKETS TAB
-// ══════════════════════════════════════
+// ══════════════════════════
+// FILTERS
+// ══════════════════════════
+function buildAssigneeFilter() {
+  const bar = document.getElementById('ticket-filters');
+  // Remove existing agent pills
+  [...bar.querySelectorAll('[data-filter="assignee"]:not([data-val="all"])')].forEach(el => el.remove());
+  const assignees = [...new Set(allTickets.map(t => t.assignee).filter(Boolean))];
+  assignees.forEach(a => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-pill';
+    btn.dataset.filter = 'assignee';
+    btn.dataset.val = a;
+    btn.textContent = a;
+    btn.onclick = () => setFilter('assignee', a, btn);
+    bar.appendChild(btn);
+  });
+}
+
+function setFilter(type, val, btn) {
+  if (type === 'assignee') activeAssigneeFilter = val;
+  document.querySelectorAll(`[data-filter="${type}"]`).forEach(el => el.classList.remove('active'));
+  btn.classList.add('active');
+  renderTickets();
+}
+
+// ══════════════════════════
+// TICKETS
+// ══════════════════════════
 function renderTickets() {
   const list = document.getElementById('ticket-list');
   [...list.querySelectorAll('.ticket')].forEach(el => el.remove());
   const empty = document.getElementById('empty-tickets');
+  const allPlanIds = new Set(Object.values(planning).flat().map(p => p.ticket.id));
 
-  if (allTickets.length === 0) { empty.style.display = ''; return; }
+  const filtered = allTickets.filter(t => {
+    if (activeAssigneeFilter !== 'all' && t.assignee !== activeAssigneeFilter) return false;
+    return true;
+  });
+
+  if (filtered.length === 0) { empty.style.display = ''; return; }
   empty.style.display = 'none';
 
-  const planIds = new Set(planning.map(p => p.ticket.id));
-  allTickets.forEach(t => {
-    const inPlan = planIds.has(t.id);
+  filtered.forEach(t => {
+    const inPlan = allPlanIds.has(t.id);
     const card = document.createElement('div');
     card.className = 'ticket' + (inPlan ? ' in-plan' : '');
-
-    const meta = [t.account, t.contact].filter(Boolean).join(' · ');
+    const meta = [t.account || t.naamEindklant, t.regio].filter(Boolean).join(' · ');
     card.innerHTML = `
-      <div class="ticket-body">
-        <div class="ticket-top">
+      <div class="t-body">
+        <div class="t-top">
           <span class="tnum">#${t.number}</span>
           <span class="stag">${t.status}</span>
-          ${inPlan ? '<span class="in-plan-tag">✓ In planning</span>' : ''}
+          ${t.assignee ? `<span class="atag">${t.assignee}</span>` : ''}
+          ${inPlan ? `<span class="stag" style="color:var(--green);border-color:var(--green)">✓ ingepland</span>` : ''}
         </div>
-        <div class="tsub">${t.subject || '—'}</div>
+        <div class="tsub">${t.subject||'—'}</div>
         ${meta ? `<div class="tmeta">${meta}</div>` : ''}
-        <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">
-          ${t.hasAddress ? '📍 ' + t.address : '⚠️ Geen adres bekend'}
-        </div>
+        <div class="taddr ${t.hasAddress?'ok':'miss'}">${t.hasAddress ? '📍 '+t.address : '⚠️ Geen adres'}</div>
       </div>
-      <div class="ticket-action">
+      <div class="t-action">
         ${inPlan
-          ? `<button class="btn-rem" onclick="event.stopPropagation();removeFromPlanning('${t.id}')">✕</button>`
-          : `<button class="btn-add" onclick="event.stopPropagation();addToPlanning('${t.id}')">+</button>`
-        }
-      </div>
-    `;
+          ? `<button class="btn-rem" onclick="event.stopPropagation();removeTicketFromAllDays('${t.id}')">✕</button>`
+          : `<button class="btn-add" onclick="event.stopPropagation();quickAdd('${t.id}')">+</button>`}
+      </div>`;
     card.addEventListener('click', () => openDetail(t));
     list.appendChild(card);
   });
 }
 
-// ══════════════════════════════════════
-// TABS
-// ══════════════════════════════════════
-function setTab(tab) {
-  currentTab = tab;
-  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
-  document.getElementById('tab-' + tab).classList.add('active');
-  document.getElementById('view-' + tab).classList.add('active');
-  if (tab === 'planning') setTimeout(() => leafletMap?.invalidateSize(), 50);
-  if (tab === 'gepland') renderCalWeek();
+function quickAdd(ticketId) {
+  // Add to today or next available workday
+  const today = new Date().toISOString().split('T')[0];
+  const date = nextAvailableDay(today);
+  if (!date) return toast('Geen beschikbare werkdag gevonden');
+  addTicketToDate(ticketId, date);
+  toast('✓ Toegevoegd aan ' + fmtDateShort(date));
 }
 
-// ══════════════════════════════════════
-// PLANNING
-// ══════════════════════════════════════
-function addToPlanning(ticketId) {
+function addTicketToDate(ticketId, date) {
   const t = allTickets.find(t => t.id === ticketId);
-  if (!t || planning.find(p => p.ticket.id === ticketId)) return;
-  planning.push({ ticket: t, address: t.address });
-  afterPlanningChange();
-  setTab('planning');
-}
-
-function removeFromPlanning(ticketId) {
-  planning = planning.filter(p => p.ticket.id !== ticketId);
-  afterPlanningChange();
-}
-
-function clearPlanning() {
-  planning = [];
-  routeData = null;
-  afterPlanningChange();
-}
-
-function afterPlanningChange() {
-  document.getElementById('cnt-plan').textContent = planning.length;
-  document.getElementById('s-stops').textContent = planning.length;
-  document.getElementById('btn-optimize').disabled = planning.length < 2;
-  document.getElementById('btn-route').disabled = planning.length < 1;
+  if (!t) return;
+  if (!planning[date]) planning[date] = [];
+  if (planning[date].find(p => p.ticket.id === ticketId)) return;
+  planning[date].push({ ticket: t, address: t.address });
+  savePlanning();
   renderTickets();
-  renderRouteList();
-  updateMap();
-  clearSummary();
-  savePlanningForDate();
+  renderKalender();
+  if (document.getElementById('plan-date').value === date) renderRouteList(date);
 }
 
-function onDateChange(val) {
-  loadPlanningForDate(val);
+function removeTicketFromAllDays(ticketId) {
+  Object.keys(planning).forEach(date => {
+    planning[date] = planning[date].filter(p => p.ticket.id !== ticketId);
+    if (!planning[date].length) delete planning[date];
+  });
+  savePlanning();
+  renderTickets();
+  renderKalender();
+  renderRouteList(document.getElementById('plan-date').value);
 }
 
-function savePlanningForDate() {
-  const date = document.getElementById('plan-date').value;
-  savedPlanning[date] = planning.map(p => ({ id: p.ticket.id, address: p.address, _lat: p._lat, _lon: p._lon }));
-  localStorage.setItem('blitz_planning', JSON.stringify(savedPlanning));
+function removeTicketFromDate(ticketId, date) {
+  if (!planning[date]) return;
+  planning[date] = planning[date].filter(p => p.ticket.id !== ticketId);
+  if (!planning[date].length) delete planning[date];
+  savePlanning();
+  renderTickets();
+  renderKalender();
+  renderRouteList(date);
 }
 
-function loadPlanningForDate(date) {
-  const saved = savedPlanning[date] || [];
-  planning = saved.map(s => {
-    const t = allTickets.find(t => t.id === s.id);
-    if (!t) return null;
-    return { ticket: t, address: s.address || t.address, _lat: s._lat, _lon: s._lon };
-  }).filter(Boolean);
-  routeData = null;
-  afterPlanningChange();
+function savePlanning() {
+  const toSave = {};
+  Object.entries(planning).forEach(([date, stops]) => {
+    toSave[date] = stops.map(p => ({ id: p.ticket.id, address: p.address, _lat: p._lat, _lon: p._lon }));
+  });
+  localStorage.setItem('blitz_planning2', JSON.stringify(toSave));
 }
 
-function renderRouteList() {
-  const list = document.getElementById('route-list');
-  list.innerHTML = '';
-  if (planning.length === 0) {
-    list.innerHTML = '<div class="route-empty">Voeg tickets toe via de 📋 tab</div>';
-    return;
-  }
-  planning.forEach((item, i) => {
-    // Leg connector
-    if (i > 0 && routeData?.legs?.[i - 1]) {
-      const leg = routeData.legs[i - 1];
-      const mins = Math.round(leg.travelTimeSeconds / 60);
-      const km = (leg.distanceMeters / 1000).toFixed(1);
-      const delay = leg.trafficDelaySeconds > 60 ? ` +${Math.round(leg.trafficDelaySeconds/60)}' file` : '';
-      const d = document.createElement('div');
-      d.className = 'stop-leg';
-      d.textContent = `🚗 ${mins} min · ${km} km${delay}`;
-      list.appendChild(d);
+// ══════════════════════════
+// KALENDER
+// ══════════════════════════
+function renderKalender() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const weekStart = getWeekStart(today, kalOffset);
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6);
+  document.getElementById('kal-label').textContent = fmtDateShort(weekStart) + ' – ' + fmtDateShort(weekEnd);
+
+  const grid = document.getElementById('week-grid');
+  grid.innerHTML = '';
+
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(weekStart); day.setDate(weekStart.getDate()+i);
+    const dateStr = day.toISOString().split('T')[0];
+    const dow = day.getDay();
+    if (!settings.werkdagen.includes(dow)) continue; // skip non-workdays
+
+    const isToday = day.getTime() === today.getTime();
+    const isPast  = day.getTime() < today.getTime();
+    const isDayBlocked = !!blockedDays[dateStr];
+    const dayStops = planning[dateStr] || [];
+    const blockedSlotCount = (blockedSlots[dateStr] || []).length;
+
+    const col = document.createElement('div');
+    col.className = 'day-col';
+
+    const dayLabel = day.toLocaleDateString('nl-BE', { weekday:'short' });
+    const dayNum   = day.toLocaleDateString('nl-BE', { day:'numeric', month:'short' });
+
+    col.innerHTML = `
+      <div class="day-hdr">
+        <div class="day-hdr-date ${isToday?'today':isPast?'past':''}">${dayLabel}</div>
+        <div class="day-hdr-num">${day.getDate()}</div>
+        <button class="day-block-btn ${isDayBlocked?'blocked':''}" onclick="toggleDayBlock('${dateStr}')">
+          ${isDayBlocked ? '🔒 Geblokkeerd' : blockedSlotCount > 0 ? `⏱ ${blockedSlotCount} slots` : '⏱ Beschikbaar'}
+        </button>
+      </div>
+      <div class="day-body${isDayBlocked?' blocked-day':''}" id="daybody-${dateStr}">
+        ${dayStops.length === 0 ? '<div class="day-empty">—</div>' : ''}
+      </div>`;
+
+    dayStops.forEach(stop => {
+      const card = document.createElement('div');
+      card.className = 'cal-ticket';
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px">
+          <div>
+            <div class="cal-ticket-num">#${stop.ticket.number}</div>
+            <div class="cal-ticket-sub">${stop.ticket.subject||'—'}</div>
+            ${stop.ticket.assignee ? `<div class="cal-ticket-meta">👤 ${stop.ticket.assignee}</div>` : ''}
+            <div class="cal-ticket-addr ${stop.ticket.hasAddress?'':'miss'}">${stop.ticket.hasAddress ? '📍 '+stop.address : '⚠️ geen adres'}</div>
+          </div>
+          <button onclick="event.stopPropagation();removeTicketFromDate('${stop.ticket.id}','${dateStr}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.8rem;flex-shrink:0">✕</button>
+        </div>`;
+      card.addEventListener('click', () => openDetail(stop.ticket));
+      col.querySelector('.day-body').appendChild(card);
+    });
+
+    // Open route button for this day
+    if (dayStops.length > 0) {
+      const routeBtn = document.createElement('button');
+      routeBtn.className = 'day-block-btn';
+      routeBtn.style.cssText = 'background:var(--accent);color:#000;border-color:var(--accent);margin-top:4px';
+      routeBtn.textContent = '🗺️ Route';
+      routeBtn.onclick = () => { document.getElementById('plan-date').value = dateStr; setTab('planning'); renderRouteList(dateStr); };
+      col.querySelector('.day-body').appendChild(routeBtn);
     }
 
+    grid.appendChild(col);
+  }
+
+  // Block button opens time picker
+  grid.querySelectorAll('.day-block-btn').forEach(btn => {
+    if (!btn.textContent.includes('Route')) {
+      const dateStr = btn.closest('.day-col').querySelector('.day-body').id.replace('daybody-','');
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (blockedDays[dateStr]) { toggleDayBlock(dateStr); return; }
+        openBlockModal(dateStr);
+      });
+    }
+  });
+}
+
+function kalNav(dir) { kalOffset += dir; renderKalender(); }
+
+function toggleDayBlock(dateStr) {
+  if (blockedDays[dateStr]) {
+    delete blockedDays[dateStr];
+  } else {
+    blockedDays[dateStr] = true;
+  }
+  localStorage.setItem('blitz_blocked_days', JSON.stringify(blockedDays));
+  renderKalender();
+}
+
+// ══════════════════════════
+// TIME BLOCK MODAL
+// ══════════════════════════
+function openBlockModal(dateStr) {
+  activeBlockDate = dateStr;
+  const d = new Date(dateStr + 'T12:00:00');
+  document.getElementById('block-date-label').textContent =
+    d.toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long' });
+
+  const grid = document.getElementById('time-grid');
+  grid.innerHTML = '';
+
+  const [vanH, vanM] = settings.vanTijd.split(':').map(Number);
+  const [totH, totM] = settings.totTijd.split(':').map(Number);
+  const startSlot = vanH * 4 + Math.floor(vanM / 15);
+  const endSlot   = totH * 4 + Math.floor(totM / 15);
+  const blocked   = new Set(blockedSlots[dateStr] || []);
+
+  for (let slot = startSlot; slot < endSlot; slot++) {
+    const h = Math.floor(slot / 4);
+    const m = (slot % 4) * 15;
+    const timeStr = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    const isHourStart = m === 0;
+    const isBlocked = blocked.has(timeStr);
+
+    // Label (only on hour start)
+    const label = document.createElement('div');
+    label.className = 'tg-label';
+    label.textContent = isHourStart ? timeStr : '';
+    if (isHourStart) label.style.borderTop = '1px solid var(--border)';
+    grid.appendChild(label);
+
+    // Slot
+    const slotEl = document.createElement('div');
+    slotEl.className = 'tg-slot' + (isBlocked ? ' blocked' : '') + (isHourStart ? ' hour-start' : '');
+    slotEl.dataset.time = timeStr;
+    slotEl.addEventListener('mousedown', () => {
+      isDragging = true;
+      dragBlocking = !slotEl.classList.contains('blocked');
+      toggleSlot(slotEl, dateStr);
+    });
+    slotEl.addEventListener('mouseenter', () => { if (isDragging) toggleSlot(slotEl, dateStr); });
+    grid.appendChild(slotEl);
+  }
+
+  document.getElementById('block-overlay').classList.add('open');
+}
+
+document.addEventListener('mouseup', () => { isDragging = false; dragBlocking = null; });
+
+function toggleSlot(slotEl, dateStr) {
+  const timeStr = slotEl.dataset.time;
+  const blocked = blockedSlots[dateStr] || [];
+  const idx = blocked.indexOf(timeStr);
+  if (dragBlocking && idx === -1) {
+    blocked.push(timeStr);
+    slotEl.classList.add('blocked');
+  } else if (!dragBlocking && idx !== -1) {
+    blocked.splice(idx, 1);
+    slotEl.classList.remove('blocked');
+  }
+  if (blocked.length) blockedSlots[dateStr] = blocked;
+  else delete blockedSlots[dateStr];
+  localStorage.setItem('blitz_blocked', JSON.stringify(blockedSlots));
+  renderKalender();
+}
+
+function clearDayBlocks() {
+  delete blockedSlots[activeBlockDate];
+  localStorage.setItem('blitz_blocked', JSON.stringify(blockedSlots));
+  document.getElementById('block-overlay').classList.remove('open');
+  renderKalender();
+}
+
+function closeBlock(e) {
+  if (e && e.target !== document.getElementById('block-overlay')) return;
+  document.getElementById('block-overlay').classList.remove('open');
+}
+
+// ══════════════════════════
+// AUTO-PLAN
+// ══════════════════════════
+async function autoPlan() {
+  const toplan = allTickets.filter(t => t.hasAddress);
+  if (!toplan.length) return toast('Geen tickets met adres om in te plannen');
+
+  const btn = document.getElementById('btn-autoplan');
+  btn.disabled = true; btn.textContent = '⏳ Bezig...';
+
+  try {
+    // Geocode alle tickets
+    toast('Adressen geocoden...', 8000);
+    const res = await fetch('/api/optimize', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ origin: settings.startlocatie, stops: toplan.map(t => t.address) }),
+    });
+    const geoData = await res.json();
+    const originCoords = geoData.locations?.[0] || null;
+    if (geoData.locations) {
+      toplan.forEach((t, i) => {
+        t._lat = geoData.locations[i+1]?.lat;
+        t._lon = geoData.locations[i+1]?.lon;
+      });
+    }
+
+    // Laat TomTom de gemiddelde rijtijd berekenen (wegen + vertraging)
+    toast('Rijtijden berekenen via TomTom...', 8000);
+    const travelMin = await estimateTravelMinFromRoute(toplan, originCoords || { lat: 51.15, lon: 4.99 });
+
+    // Bereken beschikbare werkdagen deze week
+    const today = new Date(); today.setHours(0,0,0,0);
+    const weekStart = getWeekStart(today, kalOffset);
+    const availDays = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart); d.setDate(weekStart.getDate()+i);
+      const dStr = d.toISOString().split('T')[0];
+      if (!settings.werkdagen.includes(d.getDay())) continue;
+      if (blockedDays[dStr]) continue;
+      const maxForDay = capacityForDay(dStr, travelMin);
+      if (maxForDay > 0) availDays.push({ date: dStr, cap: maxForDay });
+    }
+    if (!availDays.length) return toast('Geen beschikbare dagen deze week');
+
+    // Verwijder tickets die al ingepland zijn
+    const alreadyPlanned = new Set(Object.values(planning).flat().map(p => p.ticket.id));
+    const unplanned = toplan.filter(t => !alreadyPlanned.has(t.id));
+    if (!unplanned.length) return toast('Alle tickets zijn al ingepland');
+
+    // Cluster op regio (indien aanwezig), anders op geografische nabijheid
+    const clusters = clusterTickets(unplanned);
+
+    // Verdeel clusters over beschikbare dagen
+    let clusterIdx = 0;
+    const overflow = [];
+    for (const day of availDays) {
+      if (clusterIdx >= clusters.length) break;
+      if (!planning[day.date]) planning[day.date] = [];
+      let added = 0;
+      while (clusterIdx < clusters.length && added < day.cap) {
+        const t = clusters[clusterIdx++];
+        if (!planning[day.date].find(p => p.ticket.id === t.id)) {
+          planning[day.date].push({ ticket: t, address: t.address, _lat: t._lat, _lon: t._lon });
+          added++;
+        }
+      }
+    }
+    // Rest = overflow
+    while (clusterIdx < clusters.length) overflow.push(clusters[clusterIdx++]);
+
+    savePlanning();
+    renderTickets();
+    renderKalender();
+
+    if (overflow.length) toast(`✓ Week ingepland · ${overflow.length} ticket(s) passen niet meer deze week`);
+    else toast('✓ Alle tickets ingepland voor deze week');
+  } catch(err) {
+    toast('❌ ' + err.message, 4000);
+  } finally {
+    btn.disabled = false; btn.textContent = '⚡ Plan deze week';
+  }
+}
+
+// Vraag TomTom om de gemiddelde rijtijd per leg (inclusief snelheidslimiet + vertraging)
+// Gebruikt de echte route API op basis van de geclustertde stops
+async function estimateTravelMinFromRoute(tickets, originCoords) {
+  const withCoords = [originCoords, ...tickets.filter(t => t._lat && t._lon)];
+  if (withCoords.length < 2) return 30;
+  try {
+    const res = await fetch('/api/route', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ waypoints: withCoords.map(p => ({ lat: p.lat ?? p._lat, lon: p.lon ?? p._lon })) }),
+    });
+    const data = await res.json();
+    if (data.error || !data.legs?.length) return 30;
+    const avgSec = data.totalTravelTimeSeconds / data.legs.length;
+    return Math.round(avgSec / 60);
+  } catch { return 30; }
+}
+
+function capacityForDay(dateStr, travelMin = 30) {
+  const [vanH, vanM] = settings.vanTijd.split(':').map(Number);
+  const [totH, totM] = settings.totTijd.split(':').map(Number);
+  const totalMinutes = (totH*60+totM) - (vanH*60+vanM);
+  const blockedMin   = (blockedSlots[dateStr] || []).length * 15;
+  const available    = totalMinutes - blockedMin;
+  const perSlot      = settings.duurMinuten + travelMin;
+  return Math.min(Math.floor(available / perSlot), settings.maxPerDag);
+}
+
+function clusterTickets(tickets) {
+  // Groepeer eerst op regio (indien beschikbaar), dan op geografische nabijheid
+  const withRegio = tickets.filter(t => t.regio);
+  const withoutRegio = tickets.filter(t => !t.regio);
+
+  // Sorteer per regio
+  const regioGroups = {};
+  withRegio.forEach(t => { (regioGroups[t.regio] = regioGroups[t.regio]||[]).push(t); });
+
+  // Geografisch clusteren voor tickets zonder regio (greedy nearest-neighbor)
+  const geoSorted = geoCluster(withoutRegio);
+
+  // Samenvoegen: regio-groepen aaneengesloten, daarna geo-gesorteerde
+  return [...Object.values(regioGroups).flat(), ...geoSorted];
+}
+
+function geoCluster(tickets) {
+  if (!tickets.length) return [];
+  const withCoords = tickets.filter(t => t._lat && t._lon);
+  const noCoords   = tickets.filter(t => !t._lat || !t._lon);
+  if (!withCoords.length) return [...noCoords];
+
+  const result = [];
+  const remaining = [...withCoords];
+  let current = remaining.splice(0, 1)[0];
+  result.push(current);
+
+  while (remaining.length) {
+    let nearestIdx = 0, minDist = Infinity;
+    remaining.forEach((t, i) => {
+      const d = haversine(current._lat, current._lon, t._lat, t._lon);
+      if (d < minDist) { minDist = d; nearestIdx = i; }
+    });
+    current = remaining.splice(nearestIdx, 1)[0];
+    result.push(current);
+  }
+  return [...result, ...noCoords];
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLon = (lon2-lon1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function nextAvailableDay(fromDate) {
+  const d = new Date(fromDate + 'T12:00:00');
+  for (let i = 0; i < 30; i++) {
+    const dStr = d.toISOString().split('T')[0];
+    if (settings.werkdagen.includes(d.getDay()) && !blockedDays[dStr] && capacityForDay(dStr) > 0) return dStr;
+    d.setDate(d.getDate()+1);
+  }
+  return null;
+}
+
+
+// ══════════════════════════
+// GEPLAND TAB
+// ══════════════════════════
+function renderGepland() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const weekStart = getWeekStart(today, gepOffset);
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6);
+  document.getElementById('gep-label').textContent = fmtDateShort(weekStart) + ' – ' + fmtDateShort(weekEnd);
+
+  const body = document.getElementById('gep-body');
+  body.innerHTML = '';
+  const byDate = {};
+  allGepland.forEach(t => {
+    const key = t.dueDate ? t.dueDate.split('T')[0] : 'none';
+    (byDate[key] = byDate[key]||[]).push(t);
+  });
+
+  let any = false;
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(weekStart); day.setDate(weekStart.getDate()+i);
+    const key = day.toISOString().split('T')[0];
+    if (!byDate[key]?.length) continue;
+    any = true;
+    const isToday = day.getTime() === today.getTime();
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `<div class="cal-day-hdr${isToday?' today':''}">${isToday?'⬤ ':''}${day.toLocaleDateString('nl-BE',{weekday:'long',day:'numeric',month:'long'})}</div>`;
+    byDate[key].forEach(t => {
+      const card = document.createElement('div');
+      card.className = 'ticket';
+      card.style.cursor = 'pointer';
+      const meta = [t.account||t.naamEindklant, t.assignee].filter(Boolean).join(' · ');
+      card.innerHTML = `<div class="t-body">
+        <div class="t-top"><span class="tnum">#${t.number}</span><span class="stag">${t.status}</span>${t.assignee?`<span class="atag">${t.assignee}</span>`:''}</div>
+        <div class="tsub">${t.subject||'—'}</div>
+        ${meta?`<div class="tmeta">${meta}</div>`:''}
+        <div class="taddr ${t.hasAddress?'ok':'miss'}">${t.hasAddress?'📍 '+t.address:'⚠️ Geen adres'}</div>
+      </div>`;
+      card.addEventListener('click', () => openDetail(t));
+      wrapper.appendChild(card);
+    });
+    body.appendChild(wrapper);
+  }
+  if (!any) body.innerHTML = '<div class="empty">Geen geplande tickets deze week</div>';
+}
+
+function gepNav(dir) { gepOffset += dir; renderGepland(); }
+
+// ══════════════════════════
+// ROUTE / PLANNING TAB
+// ══════════════════════════
+function onDateChange(val) {
+  renderRouteList(val);
+  updateRouteBtns(val);
+}
+
+function clearDay() {
+  const date = document.getElementById('plan-date').value;
+  delete planning[date];
+  savePlanning();
+  renderRouteList(date);
+  renderTickets();
+  renderKalender();
+}
+
+function updateRouteBtns(date) {
+  const stops = planning[date] || [];
+  document.getElementById('btn-optimize').disabled = stops.length < 2;
+  document.getElementById('btn-route').disabled    = stops.length < 1;
+  document.getElementById('s-stops').textContent   = stops.length;
+}
+
+function renderRouteList(date) {
+  const list = document.getElementById('route-list');
+  const stops = planning[date] || [];
+  list.innerHTML = '';
+  if (!stops.length) { list.innerHTML = '<div class="route-empty">Voeg tickets toe via 📋 of 📅</div>'; return; }
+
+  stops.forEach((item, i) => {
+    if (i > 0 && routeData?.legs?.[i-1] && currentRouteDate === date) {
+      const leg = routeData.legs[i-1];
+      const d = document.createElement('div');
+      d.className = 'stop-leg';
+      d.textContent = `🚗 ${Math.round(leg.travelTimeSeconds/60)} min · ${(leg.distanceMeters/1000).toFixed(1)} km`;
+      list.appendChild(d);
+    }
     const stop = document.createElement('div');
     stop.className = 'stop';
-    stop.dataset.index = i;
-
-    const safeSubject = (item.ticket.subject || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    const safeSubj = (item.ticket.subject||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
     stop.innerHTML = `
-      <div class="stop-num">${i + 1}</div>
+      <div class="stop-num">${i+1}</div>
       <div class="stop-info">
-        <div class="stop-sub">${item.ticket.subject || '—'}</div>
-        <div class="stop-addr">📍 ${item.address || 'geen adres'}</div>
+        <div class="stop-sub">${item.ticket.subject||'—'}</div>
+        <div class="stop-addr">📍 ${item.address||'geen adres'}</div>
       </div>
       <div class="stop-actions">
-        <button class="sico" onclick="navigate('${encodeURIComponent(item.address || '')}')">🧭</button>
-        <button class="sico" data-ticket-id="${item.ticket.id}" data-subject="${safeSubject}" onclick="openOplFromBtn(this)">✏️</button>
-        <button class="sico" onclick="removeFromPlanning('${item.ticket.id}')">✕</button>
-      </div>
-    `;
-
-    // Drag & drop alleen desktop
+        <button class="sico" onclick="navigate('${encodeURIComponent(item.address||'')}')">🧭</button>
+        <button class="sico" data-ticket-id="${item.ticket.id}" data-subject="${safeSubj}" onclick="openOplFromBtn(this)">✏️</button>
+        <button class="sico" onclick="removeTicketFromDate('${item.ticket.id}','${date}')">✕</button>
+      </div>`;
     if (window.innerWidth > 680) {
-      stop.draggable = true;
-      stop.style.cursor = 'grab';
-      stop.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', i); stop.style.opacity = '0.4'; });
-      stop.addEventListener('dragend', () => stop.style.opacity = '');
+      stop.draggable = true; stop.style.cursor = 'grab';
+      stop.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', i); stop.style.opacity='0.4'; });
+      stop.addEventListener('dragend', () => stop.style.opacity='');
       stop.addEventListener('dragover', e => { e.preventDefault(); stop.classList.add('drag-over'); });
       stop.addEventListener('dragleave', () => stop.classList.remove('drag-over'));
       stop.addEventListener('drop', e => {
         e.preventDefault(); stop.classList.remove('drag-over');
         const from = +e.dataTransfer.getData('text/plain');
         if (from !== i) {
-          planning.splice(i, 0, planning.splice(from, 1)[0]);
+          const arr = planning[date];
+          arr.splice(i, 0, arr.splice(from, 1)[0]);
           routeData = null;
-          afterPlanningChange();
+          savePlanning();
+          renderRouteList(date);
+          updateRouteBtns(date);
         }
       });
     }
     list.appendChild(stop);
   });
+  updateRouteBtns(date);
 }
 
-// ══════════════════════════════════════
-// ROUTE / OPTIMIZE
-// ══════════════════════════════════════
 async function optimizeRoute() {
-  if (planning.length < 2) return;
-  showLoading('Route optimaliseren...');
+  const date = document.getElementById('plan-date').value;
+  const stops = planning[date] || [];
+  if (stops.length < 2) return;
+  toast('Route optimaliseren...', 8000);
   try {
     const res = await fetch('/api/optimize', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ origin: settings.startlocatie, stops: planning.map(p => p.address) }),
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ origin: settings.startlocatie, stops: stops.map(p => p.address) }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    planning = data.optimizedOrder.map(i => ({
-      ...planning[i],
-      _lat: data.locations?.[i + 1]?.lat,
-      _lon: data.locations?.[i + 1]?.lon,
+    planning[date] = data.optimizedOrder.map(i => ({
+      ...stops[i], _lat: data.locations?.[i+1]?.lat, _lon: data.locations?.[i+1]?.lon,
     }));
+    savePlanning();
     toast('Route geoptimaliseerd ✓');
-    afterPlanningChange();
+    renderRouteList(date);
     await calculateRoute();
-  } catch (err) {
-    toast('❌ ' + err.message, 4000);
-    await calculateRoute();
-  } finally { hideLoading(); }
+  } catch(err) { toast('❌ '+err.message, 4000); await calculateRoute(); }
 }
 
 async function calculateRoute() {
-  if (planning.length === 0) return;
-  showLoading('Route berekenen...');
+  const date = document.getElementById('plan-date').value;
+  const stops = planning[date] || [];
+  if (!stops.length) return;
+  toast('Route berekenen...', 8000);
   try {
-    // Geocode stops zonder coördinaten
-    const needsGeo = planning.some(p => !p._lat);
-    if (needsGeo) {
-      const geoRes = await fetch('/api/optimize', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ origin: settings.startlocatie, stops: planning.map(p => p.address) }),
+    // Geocode missing coords
+    if (stops.some(p => !p._lat)) {
+      const gRes = await fetch('/api/optimize', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ origin: settings.startlocatie, stops: stops.map(p=>p.address) }),
       });
-      const geoData = await geoRes.json();
-      if (!geoData.error && geoData.locations) {
-        planning.forEach((p, i) => {
-          p._lat = p._lat || geoData.locations[i + 1]?.lat;
-          p._lon = p._lon || geoData.locations[i + 1]?.lon;
-        });
-      }
+      const gData = await gRes.json();
+      if (gData.locations) stops.forEach((p,i) => { p._lat=p._lat||gData.locations[i+1]?.lat; p._lon=p._lon||gData.locations[i+1]?.lon; });
     }
-
-    // Geocode startlocatie
     const orgRes = await fetch('/api/optimize', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ origin: settings.startlocatie, stops: [settings.startlocatie] }),
     });
     const orgData = await orgRes.json();
     const originLoc = orgData.locations?.[0];
     if (!originLoc) throw new Error('Startlocatie niet gevonden');
-
-    const waypoints = [
-      { lat: originLoc.lat, lon: originLoc.lon },
-      ...planning.filter(p => p._lat).map(p => ({ lat: p._lat, lon: p._lon })),
-    ];
-    if (waypoints.length < 2) { hideLoading(); return; }
-
+    const waypoints = [{ lat:originLoc.lat, lon:originLoc.lon }, ...stops.filter(p=>p._lat).map(p=>({lat:p._lat,lon:p._lon}))];
+    if (waypoints.length < 2) return hideLoading();
     const rRes = await fetch('/api/route', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ waypoints }),
     });
     const rData = await rRes.json();
     if (rData.error) throw new Error(rData.error);
-
-    routeData = rData;
-    updateMap();
-    renderRouteList();
-
-    document.getElementById('s-dist').textContent = (rData.totalDistanceMeters / 1000).toFixed(0) + ' km';
+    routeData = rData; currentRouteDate = date;
+    renderRouteList(date);
+    updateMap(date);
+    document.getElementById('s-dist').textContent = (rData.totalDistanceMeters/1000).toFixed(0)+' km';
     document.getElementById('s-time').textContent = fmtSec(rData.totalTravelTimeSeconds);
-    document.getElementById('s-delay').textContent = rData.totalTrafficDelaySeconds > 60 ? '+' + fmtSec(rData.totalTrafficDelaySeconds) : 'geen';
-    document.getElementById('s-eta').textContent = rData.arrivalTime
-      ? new Date(rData.arrivalTime).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' }) : '—';
+    document.getElementById('s-delay').textContent = rData.totalTrafficDelaySeconds>60 ? '+'+fmtSec(rData.totalTrafficDelaySeconds) : 'geen';
+    document.getElementById('s-eta').textContent = rData.arrivalTime ? new Date(rData.arrivalTime).toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit'}) : '—';
     toast('Route berekend ✓');
-  } catch (err) {
-    toast('❌ Route: ' + err.message, 4000);
-    updateMap();
-  } finally { hideLoading(); }
+  } catch(err) { toast('❌ Route: '+err.message, 4000); updateMap(date); }
 }
 
-function clearSummary() {
-  ['s-dist','s-time','s-delay','s-eta'].forEach(id => document.getElementById(id).textContent = '—');
-}
-
-function fmtSec(s) {
-  const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
-  return h > 0 ? `${h}u ${m}min` : `${m}min`;
-}
-
-function navigate(encoded) {
-  window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}&travelmode=driving`, '_blank');
-}
-
-// ══════════════════════════════════════
+// ══════════════════════════
 // MAP
-// ══════════════════════════════════════
+// ══════════════════════════
 function initMap() {
-  leafletMap = L.map('map', { zoomControl: true }).setView([51.0, 4.5], 8);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap', maxZoom: 18,
-  }).addTo(leafletMap);
+  leafletMap = L.map('map', { zoomControl:true }).setView([51.0,4.5], 8);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap', maxZoom:18 }).addTo(leafletMap);
   routeLayer = L.layerGroup().addTo(leafletMap);
 }
 
-function updateMap() {
+function updateMap(date) {
   routeLayer.clearLayers();
-  if (planning.length === 0) return;
-
-  if (routeData?.polyline?.length) {
-    const poly = L.polyline(routeData.polyline, { color: '#f59e0b', weight: 4, opacity: 0.85 }).addTo(routeLayer);
-    leafletMap.fitBounds(poly.getBounds(), { padding: [30, 30] });
+  const stops = planning[date] || [];
+  if (!stops.length) return;
+  if (routeData?.polyline?.length && currentRouteDate===date) {
+    const poly = L.polyline(routeData.polyline, {color:'#f59e0b',weight:4,opacity:0.85}).addTo(routeLayer);
+    leafletMap.fitBounds(poly.getBounds(), {padding:[30,30]});
   }
-
   const pts = [];
-  planning.forEach((p, i) => {
+  stops.forEach((p,i) => {
     if (!p._lat) return;
-    L.marker([p._lat, p._lon], {
-      icon: L.divIcon({
-        html: `<div style="background:#f59e0b;color:#000;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;border:2px solid #000;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${i+1}</div>`,
-        iconSize: [26,26], iconAnchor: [13,13], className: '',
-      })
-    }).bindPopup(`<b>#${i+1}</b> ${p.ticket.subject}<br>${p.address}`).addTo(routeLayer);
-    pts.push([p._lat, p._lon]);
+    L.marker([p._lat,p._lon], { icon: L.divIcon({
+      html:`<div style="background:#f59e0b;color:#000;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;border:2px solid #000;box-shadow:0 2px 5px rgba(0,0,0,0.4)">${i+1}</div>`,
+      iconSize:[24,24],iconAnchor:[12,12],className:'',
+    })}).bindPopup(`<b>#${i+1}</b> ${p.ticket.subject}<br>${p.address}`).addTo(routeLayer);
+    pts.push([p._lat,p._lon]);
   });
-
-  if (pts.length > 0 && !routeData?.polyline?.length)
-    leafletMap.fitBounds(L.latLngBounds(pts), { padding: [40,40] });
+  if (pts.length && !(routeData?.polyline?.length && currentRouteDate===date))
+    leafletMap.fitBounds(L.latLngBounds(pts), {padding:[40,40]});
 }
 
-// ══════════════════════════════════════
-// GEPLAND / KALENDER
-// ══════════════════════════════════════
-function renderCalWeek() {
-  const today = new Date(); today.setHours(0,0,0,0);
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - (today.getDay()+6)%7 + calOffset*7);
-  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6);
-
-  const fmt = d => d.toLocaleDateString('nl-BE', { day: 'numeric', month: 'short' });
-  document.getElementById('cal-label').textContent = `${fmt(weekStart)} – ${fmt(weekEnd)}`;
-
-  const body = document.getElementById('cal-body');
-  body.innerHTML = '';
-
-  const byDate = {};
-  allGepland.forEach(t => {
-    const key = t.dueDate ? t.dueDate.split('T')[0] : 'none';
-    (byDate[key] = byDate[key] || []).push(t);
-  });
-
-  let any = false;
-  for (let i = 0; i < 7; i++) {
-    const day = new Date(weekStart); day.setDate(weekStart.getDate() + i);
-    const key = day.toISOString().split('T')[0];
-    if (!byDate[key]?.length) continue;
-    any = true;
-    const isToday = day.getTime() === today.getTime();
-    const hdr = document.createElement('div');
-    hdr.className = 'cal-day';
-    hdr.innerHTML = `<div class="cal-day-hdr${isToday ? ' today' : ''}">
-      ${isToday ? '⬤ ' : ''}${day.toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' })}
-    </div>`;
-    byDate[key].forEach(t => {
-      const card = document.createElement('div');
-      card.className = 'ticket';
-      card.style.cursor = 'pointer';
-      const meta = [t.account, t.contact].filter(Boolean).join(' · ');
-      card.innerHTML = `
-        <div class="ticket-body">
-          <div class="ticket-top"><span class="tnum">#${t.number}</span><span class="stag">${t.status}</span></div>
-          <div class="tsub">${t.subject || '—'}</div>
-          ${meta ? `<div class="tmeta">${meta}</div>` : ''}
-          <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? '📍 ' + t.address : '⚠️ Geen adres'}</div>
-        </div>
-      `;
-      card.addEventListener('click', () => openDetail(t));
-      hdr.appendChild(card);
-    });
-    body.appendChild(hdr);
-  }
-  if (!any) body.innerHTML = '<div class="empty">Geen geplande tickets deze week</div>';
+// ══════════════════════════
+// TABS
+// ══════════════════════════
+function setTab(tab) {
+  document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.getElementById('view-'+tab).classList.add('active');
+  if (tab==='planning') setTimeout(()=>leafletMap?.invalidateSize(),50);
+  if (tab==='kalender') renderKalender();
+  if (tab==='gepland')  renderGepland();
 }
 
-function calNav(dir) { calOffset += dir; renderCalWeek(); }
-
-// ══════════════════════════════════════
+// ══════════════════════════
 // DETAIL MODAL
-// ══════════════════════════════════════
+// ══════════════════════════
 function openDetail(t) {
   activeTicket = t;
-  document.getElementById('d-num').textContent = '#' + t.number;
-  document.getElementById('d-title').textContent = t.subject || '—';
-
+  document.getElementById('d-num').textContent = '#'+t.number;
+  document.getElementById('d-title').textContent = t.subject||'—';
   const tags = document.getElementById('d-tags');
   tags.innerHTML = `<span class="mtag">${t.status}</span>`;
-  if (t.priority) {
-    const pc = { high:'ph', medium:'pm', low:'pl' }[t.priority.toLowerCase()] || '';
-    tags.innerHTML += `<span class="mtag ${pc}">${t.priority}</span>`;
-  }
+  if (t.priority) { const pc={high:'ph',medium:'pm',low:'pl'}[t.priority.toLowerCase()]||''; tags.innerHTML+=`<span class="mtag ${pc}">${t.priority}</span>`; }
+  if (t.assignee) tags.innerHTML+=`<span class="mtag agent">👤 ${t.assignee}</span>`;
 
-  const klantRows = [
-    t.contact && { l: 'Contact',  v: t.contact },
-    t.account && { l: 'Bedrijf',  v: t.account },
-    t.email   && { l: 'E-mail',   v: `<a href="mailto:${t.email}">${t.email}</a>` },
-    t.phone   && { l: 'Telefoon', v: `<a href="tel:${t.phone}">${t.phone}</a>` },
-    { l: 'Adres', v: t.hasAddress ? t.address : null, miss: !t.hasAddress },
-  ].filter(Boolean);
+  const row = (l,v,link) => v ? `<div class="mrow"><span class="mlabel">${l}</span><span class="mval">${link?`<a href="${link}${v}">${v}</a>`:v}</span></div>` : '';
+  document.getElementById('d-klant').innerHTML = [
+    row('Contact',  t.naamEindklant||t.contact),
+    row('Bedrijf',  t.account),
+    row('E-mail',   t.emailEindklant||t.email, 'mailto:'),
+    row('Telefoon', t.telefoonEindklant||t.phone, 'tel:'),
+    t.hasAddress
+      ? `<div class="mrow"><span class="mlabel">Adres</span><span class="mval">${t.address}</span></div>`
+      : `<div class="mrow"><span class="mlabel">Adres</span><span class="mval miss">Geen adres bekend</span></div>`,
+  ].join('');
+  document.getElementById('d-ticket').innerHTML = [
+    row('Probleemtype', t.probleemtype),
+    row('Serienummer',  t.serienummer),
+    row('Partner',      t.partner),
+    row('Regio',        t.regio),
+    row('Vervaldatum',  t.dueDate&&fmtDate(t.dueDate)),
+    row('Aangemaakt',   t.createdTime&&fmtDate(t.createdTime)),
+  ].join('')||'<div class="mrow"><span class="mval" style="color:var(--muted)">—</span></div>';
 
-  document.getElementById('d-klant').innerHTML = klantRows.map(r =>
-    `<div class="mrow">
-      <span class="mlabel">${r.l}</span>
-      <span class="mval${r.miss ? ' miss' : ''}">${r.miss ? 'Geen adres bekend' : r.v}</span>
-    </div>`
-  ).join('');
-
-  const ticketRows = [
-    t.dueDate     && { l: 'Vervaldatum', v: fmtDate(t.dueDate) },
-    t.createdTime && { l: 'Aangemaakt',  v: fmtDate(t.createdTime) },
-  ].filter(Boolean);
-
-  document.getElementById('d-ticket').innerHTML = ticketRows.length
-    ? ticketRows.map(r => `<div class="mrow"><span class="mlabel">${r.l}</span><span class="mval">${r.v}</span></div>`).join('')
-    : '<div class="mrow"><span class="mval" style="color:var(--muted)">—</span></div>';
-
-  // Debug: custom fields
-  const cfEl = document.getElementById('d-cf');
-  cfEl.innerHTML = '';
-  if (t._cf && Object.keys(t._cf).length > 0) {
-    cfEl.innerHTML = `<div class="msec-title" style="color:var(--accent);margin-top:14px;margin-bottom:8px">🔍 Custom fields (debug)</div>`
-      + Object.entries(t._cf).map(([k,v]) =>
-          `<div class="mrow"><span class="mlabel" style="font-family:monospace;font-size:0.7rem;color:var(--accent)">${k}</span><span class="mval" style="font-size:0.78rem">${v||'—'}</span></div>`
-        ).join('');
-  }
-
-  // Plan knop
-  const inPlan = planning.some(p => p.ticket.id === t.id);
+  const allPlanIds = new Set(Object.values(planning).flat().map(p=>p.ticket.id));
+  const inPlan = allPlanIds.has(t.id);
   const planBtn = document.getElementById('d-plan-btn');
   planBtn.textContent = inPlan ? '✕ Uit planning' : '➕ Voeg toe';
   planBtn.style.background = inPlan ? 'var(--red)' : 'var(--green)';
-
   document.getElementById('det-overlay').classList.add('open');
 }
 
 function closeDet(e) {
-  if (e && e.target !== document.getElementById('det-overlay')) return;
+  if (e && e.target!==document.getElementById('det-overlay')) return;
   document.getElementById('det-overlay').classList.remove('open');
 }
 
-function togglePlanFromDetail() {
+function togglePlan() {
   if (!activeTicket) return;
-  const inPlan = planning.some(p => p.ticket.id === activeTicket.id);
-  if (inPlan) removeFromPlanning(activeTicket.id);
-  else addToPlanning(activeTicket.id);
-  // Update knop zonder modal te sluiten
-  const planBtn = document.getElementById('d-plan-btn');
-  const nowIn = planning.some(p => p.ticket.id === activeTicket.id);
-  planBtn.textContent = nowIn ? '✕ Uit planning' : '➕ Voeg toe';
-  planBtn.style.background = nowIn ? 'var(--red)' : 'var(--green)';
+  const allPlanIds = new Set(Object.values(planning).flat().map(p=>p.ticket.id));
+  if (allPlanIds.has(activeTicket.id)) {
+    removeTicketFromAllDays(activeTicket.id);
+    document.getElementById('d-plan-btn').textContent='➕ Voeg toe';
+    document.getElementById('d-plan-btn').style.background='var(--green)';
+  } else {
+    const date = nextAvailableDay(new Date().toISOString().split('T')[0]);
+    if (!date) return toast('Geen beschikbare dag');
+    addTicketToDate(activeTicket.id, date);
+    document.getElementById('d-plan-btn').textContent='✕ Uit planning';
+    document.getElementById('d-plan-btn').style.background='var(--red)';
+    toast('✓ Toegevoegd aan '+fmtDateShort(date));
+  }
 }
 
-// ══════════════════════════════════════
+// ══════════════════════════
 // INSTELLINGEN
-// ══════════════════════════════════════
-const DAGEN = ['Zo','Ma','Di','Wo','Do','Vr','Za'];
-
+// ══════════════════════════
+const DAGEN=['Zo','Ma','Di','Wo','Do','Vr','Za'];
 function openSettings() {
-  document.getElementById('set-start').value = settings.startlocatie;
+  document.getElementById('set-start').value    = settings.startlocatie;
   document.getElementById('set-duration').value = settings.duurMinuten;
-  document.getElementById('set-max').value = settings.maxPerDag;
-  document.getElementById('set-van').value = settings.vanTijd;
-  document.getElementById('set-tot').value = settings.totTijd;
-
+  document.getElementById('set-max').value      = settings.maxPerDag;
+  document.getElementById('set-van').value      = settings.vanTijd;
+  document.getElementById('set-tot').value      = settings.totTijd;
   const grid = document.getElementById('days-grid');
-  grid.innerHTML = '';
-  DAGEN.forEach((dag, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'day-btn' + (settings.werkdagen.includes(i) ? ' on' : '');
-    btn.textContent = dag;
-    btn.onclick = () => {
-      const idx = settings.werkdagen.indexOf(i);
-      if (idx >= 0) settings.werkdagen.splice(idx, 1);
-      else settings.werkdagen.push(i);
-      btn.classList.toggle('on');
-    };
+  grid.innerHTML='';
+  DAGEN.forEach((dag,i)=>{
+    const btn=document.createElement('button');
+    btn.className='day-btn'+(settings.werkdagen.includes(i)?' on':'');
+    btn.textContent=dag;
+    btn.onclick=()=>{ const idx=settings.werkdagen.indexOf(i); if(idx>=0) settings.werkdagen.splice(idx,1); else settings.werkdagen.push(i); btn.classList.toggle('on'); };
     grid.appendChild(btn);
   });
-
   document.getElementById('set-overlay').classList.add('open');
 }
-
 function closeSettings(e) {
-  if (e && e.target !== document.getElementById('set-overlay')) return;
+  if (e && e.target!==document.getElementById('set-overlay')) return;
   document.getElementById('set-overlay').classList.remove('open');
 }
-
 function saveSettings() {
-  settings.startlocatie = document.getElementById('set-start').value.trim() || DEFAULT_SETTINGS.startlocatie;
-  settings.duurMinuten  = +document.getElementById('set-duration').value || DEFAULT_SETTINGS.duurMinuten;
-  settings.maxPerDag    = +document.getElementById('set-max').value || DEFAULT_SETTINGS.maxPerDag;
-  settings.vanTijd      = document.getElementById('set-van').value || DEFAULT_SETTINGS.vanTijd;
-  settings.totTijd      = document.getElementById('set-tot').value || DEFAULT_SETTINGS.totTijd;
+  settings.startlocatie = document.getElementById('set-start').value.trim()||DEFAULT_SETTINGS.startlocatie;
+  settings.duurMinuten  = +document.getElementById('set-duration').value||DEFAULT_SETTINGS.duurMinuten;
+  settings.maxPerDag    = +document.getElementById('set-max').value||DEFAULT_SETTINGS.maxPerDag;
+  settings.vanTijd      = document.getElementById('set-van').value||DEFAULT_SETTINGS.vanTijd;
+  settings.totTijd      = document.getElementById('set-tot').value||DEFAULT_SETTINGS.totTijd;
   localStorage.setItem('blitz_settings', JSON.stringify(settings));
   document.getElementById('set-overlay').classList.remove('open');
   toast('✓ Instellingen opgeslagen');
 }
 
-// ══════════════════════════════════════
+// ══════════════════════════
 // OPLOSSING
-// ══════════════════════════════════════
+// ══════════════════════════
 function openOplFromBtn(btn) {
-  activeTicket = allTickets.find(t => t.id === btn.dataset.ticketId)
-              || allGepland.find(t => t.id === btn.dataset.ticketId)
-              || activeTicket;
-  openOpl();
+  const t = allTickets.find(t=>t.id===btn.dataset.ticketId)||allGepland.find(t=>t.id===btn.dataset.ticketId)||activeTicket;
+  if (t) { activeTicket=t; openOpl(); }
 }
-
 function openOpl() {
   if (!activeTicket) return;
-  document.getElementById('opl-label').textContent = activeTicket.subject || '';
-  document.getElementById('opl-text').value = '';
+  document.getElementById('opl-label').textContent=activeTicket.subject||'';
+  document.getElementById('opl-text').value='';
   document.getElementById('opl-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('opl-text').focus(), 80);
+  setTimeout(()=>document.getElementById('opl-text').focus(),80);
 }
-
 function closeOpl(e) {
-  if (e && e.target !== document.getElementById('opl-overlay')) return;
+  if (e && e.target!==document.getElementById('opl-overlay')) return;
   document.getElementById('opl-overlay').classList.remove('open');
 }
-
 async function saveOpl() {
-  const content = document.getElementById('opl-text').value.trim();
-  if (!content || !activeTicket) return;
+  const content=document.getElementById('opl-text').value.trim();
+  if (!content||!activeTicket) return;
   document.getElementById('opl-overlay').classList.remove('open');
   try {
-    const res = await fetch('/api/comment', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticketId: activeTicket.id, content }),
-    });
-    const data = await res.json();
+    const res=await fetch('/api/comment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticketId:activeTicket.id,content})});
+    const data=await res.json();
     if (data.error) throw new Error(data.error);
     toast('✓ Oplossing opgeslagen');
-  } catch (err) { toast('❌ ' + err.message, 4000); }
+  } catch(err) { toast('❌ '+err.message,4000); }
 }
 
-// ══════════════════════════════════════
+// ══════════════════════════
 // HELPERS
-// ══════════════════════════════════════
-function fmtDate(s) {
-  return new Date(s).toLocaleDateString('nl-BE', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function showLoading(msg) {
-  // Simple: disable buttons
-  document.getElementById('btn-optimize').disabled = true;
-  document.getElementById('btn-route').disabled = true;
-  toast(msg, 10000);
-}
-function hideLoading() {
-  document.getElementById('btn-optimize').disabled = planning.length < 2;
-  document.getElementById('btn-route').disabled = planning.length < 1;
+// ══════════════════════════
+function navigate(enc) { window.open(`https://www.google.com/maps/dir/?api=1&destination=${enc}&travelmode=driving`,'_blank'); }
+function fmtDate(s) { return new Date(s).toLocaleDateString('nl-BE',{weekday:'short',day:'numeric',month:'short',year:'numeric'}); }
+function fmtDateShort(d) { const date=d instanceof Date?d:new Date(d+'T12:00:00'); return date.toLocaleDateString('nl-BE',{day:'numeric',month:'short'}); }
+function fmtSec(s) { const h=Math.floor(s/3600),m=Math.round((s%3600)/60); return h>0?`${h}u ${m}min`:`${m}min`; }
+function getWeekStart(baseDate, offset) {
+  const d=new Date(baseDate); d.setHours(0,0,0,0);
+  d.setDate(d.getDate()-((d.getDay()+6)%7)+offset*7);
+  return d;
 }
 
 let toastTimer;
-function toast(msg, ms = 2500) {
-  const el = document.getElementById('toast');
-  el.textContent = msg; el.classList.add('show');
+function toast(msg, ms=2500) {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),ms);
 }
 
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    closeDet(); closeSettings(); closeOpl();
-  }
+document.addEventListener('keydown', e=>{
+  if (e.key==='Escape') { closeDet(); closeSettings(); closeOpl(); closeBlock(); }
 });
 </script>
 </body>

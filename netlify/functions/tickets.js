@@ -6,7 +6,6 @@
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK = 'https://desk.zoho.eu/api/v1';
 
-// Token cache — blijft geldig binnen dezelfde warm Lambda instance
 let cachedToken = null;
 let tokenExpiry = 0;
 
@@ -26,21 +25,12 @@ async function getAccessToken() {
   const data = await res.json();
   if (!data.access_token) throw new Error('Token refresh mislukt: ' + JSON.stringify(data));
   cachedToken = data.access_token;
-  tokenExpiry = Date.now() + 55 * 60 * 1000; // 55 minuten
+  tokenExpiry = Date.now() + 55 * 60 * 1000;
   return cachedToken;
 }
 
-function buildAddress(obj) {
-  if (!obj) return '';
-  const parts = [obj.street, obj.city, obj.zip, obj.country].filter(Boolean);
-  return parts.join(', ');
-}
-
 export async function handler(event) {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-  };
+  const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
 
   try {
     const accessToken = await getAccessToken();
@@ -52,20 +42,20 @@ export async function handler(event) {
     const orgId = orgData.data?.[0]?.id;
     if (!orgId) throw new Error('Zoho Desk org ID niet gevonden');
 
-    // Stap 1: lijst ophalen voor status-filtering (geen cf hier)
-    const res = await fetch(`${ZOHO_DESK}/tickets?limit=100`, {
+    // Stap 1: lijst voor status-filtering (geen cf in list endpoint)
+    const listRes = await fetch(`${ZOHO_DESK}/tickets?limit=100`, {
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
     });
-    const raw = await res.json();
-    const all = raw.data || [];
+    const listData = await listRes.json();
+    const all = listData.data || [];
 
-    // Stap 2: filter relevante tickets
+    // Stap 2: filter relevante tickets op status
     const TO_PLAN = ['Wachten op planning', 'Wachten op bevestiging planning'];
     const relevantIds = all
       .filter(t => TO_PLAN.includes(t.status) || t.status === 'Geplande support')
       .map(t => t.id);
 
-    // Stap 3: haal elk ticket individueel op — dit geeft wél de cf custom fields
+    // Stap 3: individueel ophalen geeft wél de cf custom fields
     const detailed = await Promise.all(
       relevantIds.map(id =>
         fetch(`${ZOHO_DESK}/tickets/${id}`, {
@@ -75,32 +65,32 @@ export async function handler(event) {
     );
 
     const mapTicket = t => {
-      // Adres: eerst contact, dan account, dan custom fields als fallback
-      const contactAddr = buildAddress(t.contact);
-      const accountAddr = buildAddress(t.account);
       const cf = t.cf || {};
-      const cfAddr = cf.cf_adres || cf.cf_adres1 || cf.cf_adres_eindklant || cf.cf_address
-                  || cf.cf_locatie || cf.cf_site_address || cf.cf_installatieadres
-                  // Zoho genereert soms een hash-suffix op de veldnaam
-                  || Object.entries(cf).find(([k]) => k.toLowerCase().includes('adres'))?.[1]
-                  || '';
-      const address = contactAddr || accountAddr || cfAddr;
-
+      const address = cf.cf_adres || cf.cf_adres_eindklant
+                   || Object.entries(cf).find(([k, v]) => k.includes('adres') && v)?.[1]
+                   || '';
       return {
-        id:          t.id,
-        number:      t.ticketNumber,
-        subject:     t.subject || '',
-        status:      t.status || '',
-        priority:    t.priority || '',
-        contact:     t.contact?.fullName || '',
-        email:       t.contact?.email || '',
-        phone:       t.contact?.phone || t.contact?.mobile || '',
-        account:     t.account?.accountName || '',
+        id:                t.id,
+        number:            t.ticketNumber,
+        subject:           t.subject || '',
+        status:            t.status || '',
+        priority:          t.priority || '',
+        assignee:          t.assignee?.fullName || t.assignee?.name || '',
+        contact:           t.contact?.fullName || '',
+        email:             t.contact?.email || t.email || '',
+        phone:             t.contact?.phone || t.contact?.mobile || t.phone || '',
+        account:           t.account?.accountName || '',
         address,
-        hasAddress:  !!address,
-        dueDate:     t.dueDate || null,
-        createdTime: t.createdTime || null,
-        _cf:         t.cf || {},  // custom fields (beschikbaar via individueel ticket endpoint)
+        hasAddress:        !!address,
+        naamEindklant:     cf.cf_naam_eindklant || '',
+        emailEindklant:    cf.cf_e_mail_eindklant || '',
+        telefoonEindklant: cf.cf_telefoon_eindklant || '',
+        serienummer:       cf.cf_serienummer || '',
+        partner:           cf.cf_partner_installateur || '',
+        probleemtype:      cf.cf_probleemtype || '',
+        regio:             cf.cf_regio || '',
+        dueDate:           t.dueDate || null,
+        createdTime:       t.createdTime || null,
       };
     };
 
