@@ -52,10 +52,7 @@ export async function handler(event) {
     const orgId = orgData.data?.[0]?.id;
     if (!orgId) throw new Error('Zoho Desk org ID niet gevonden');
 
-    const params = new URLSearchParams({
-      limit:  '100',
-      fields: 'id,ticketNumber,subject,status,priority,contact,account,createdTime,dueDate,cf',
-    });
+    const params = new URLSearchParams({ limit: '100' });
     const res = await fetch(`${ZOHO_DESK}/tickets?${params}`, {
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
     });
