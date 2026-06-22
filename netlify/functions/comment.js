@@ -1,7 +1,6 @@
-// /api/tickets
-// Fetches tickets from Zoho Desk, filtered by status.
-// "Wachten op planning" = te plannen pool
-// "Geplande support"    = kalender view
+// /api/comment
+// Updates the "resolution" field on a Zoho Desk ticket.
+// POST body: { ticketId, content }
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK = 'https://desk.zoho.eu/api/v1';
@@ -29,10 +28,19 @@ export async function handler(event) {
     'Content-Type': 'application/json',
   };
 
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers };
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
+  }
+
   try {
+    const { ticketId, content } = JSON.parse(event.body || '{}');
+    if (!ticketId || !content?.trim()) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'ticketId and content required' }) };
+    }
+
     const accessToken = await getAccessToken();
 
-    // Get org ID
     const orgRes = await fetch(`${ZOHO_DESK}/organizations`, {
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
     });
@@ -40,39 +48,24 @@ export async function handler(event) {
     const orgId = orgData.data?.[0]?.id;
     if (!orgId) throw new Error('Could not find Zoho Desk org ID');
 
-    // Fetch all tickets (max 100), then filter by status
-    const p = new URLSearchParams({
-      limit: '100',
-      fields: 'id,ticketNumber,subject,status,priority,contact,account,description,createdTime,dueDate,cf',
-    });
-    const res = await fetch(`${ZOHO_DESK}/tickets?${p}`, {
-      headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
-    });
-    const raw = await res.json();
-    const all = raw.data || [];
-
-    const mapTicket = t => ({
-      id: t.id,
-      number: t.ticketNumber,
-      subject: t.subject,
-      status: t.status,
-      priority: t.priority,
-      contact: t.contact?.fullName || '',
-      account: t.account?.accountName || '',
-      address: t.cf?.cf_address || t.cf?.cf_locatie || t.cf?.cf_site_address || '',
-      description: t.description || '',
-      createdTime: t.createdTime,
-      dueDate: t.dueDate,
+    // PATCH the resolution field on the ticket
+    const patchRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Zoho-oauthtoken ${accessToken}`,
+        orgId,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ resolution: content.trim() }),
     });
 
-    const TO_PLAN_STATUSES = ['Wachten op planning', 'Wachten op bevestiging planning'];
-    const tickets        = all.filter(t => TO_PLAN_STATUSES.includes(t.status)).map(mapTicket);
-    const plannedTickets = all.filter(t => t.status === 'Geplande support').map(mapTicket);
+    const patchData = await patchRes.json();
+    if (!patchRes.ok) throw new Error(JSON.stringify(patchData));
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ tickets, plannedTickets, orgId }),
+      body: JSON.stringify({ success: true }),
     };
   } catch (err) {
     return {

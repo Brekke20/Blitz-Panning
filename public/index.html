@@ -400,6 +400,137 @@
 
     /* Drag & drop */
     .route-stop[draggable="true"] { cursor: grab; }
+
+    /* ── Kalender tab ── */
+    #calendar-view {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 8px;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .cal-week-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 4px 12px;
+      gap: 8px;
+    }
+    .cal-week-nav span { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+    .cal-week-nav button {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .cal-day-group { margin-bottom: 8px; }
+    .cal-day-header {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 6px 4px 4px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 6px;
+    }
+    .cal-day-header.today { color: var(--accent2); }
+    .cal-day-header.overdue { color: var(--danger); }
+    .cal-ticket {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      margin-bottom: 6px;
+    }
+    .cal-ticket-subject { font-weight: 600; font-size: 0.88rem; margin-bottom: 3px; }
+    .cal-ticket-meta { font-size: 0.78rem; color: var(--text2); }
+    .cal-ticket-status {
+      display: inline-block;
+      font-size: 0.68rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text2);
+      margin-top: 4px;
+    }
+    .cal-empty { color: var(--text2); font-size: 0.85rem; text-align: center; padding: 40px 20px; }
+
+    /* ── Status filter pills ── */
+    #status-filter {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding: 0 0 4px;
+    }
+    .status-pill {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text2);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .status-pill.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+    /* ── Comment modal ── */
+    #comment-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    #comment-modal-overlay.open { display: flex; }
+    #comment-modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 100%;
+      max-width: 480px;
+      margin: 20px;
+    }
+    #comment-modal h3 { margin-bottom: 4px; font-size: 1rem; }
+    #comment-ticket-label { font-size: 0.8rem; color: var(--text2); margin-bottom: 14px; }
+    #comment-type-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    .comment-type-btn {
+      flex: 1;
+      padding: 6px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text2);
+      cursor: pointer;
+    }
+    .comment-type-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    #comment-textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      margin-bottom: 16px;
+      min-height: 100px;
+      resize: vertical;
+      font-family: inherit;
+    }
+    #comment-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
   </style>
 </head>
 <body>
@@ -418,14 +549,21 @@
     <div id="sidebar">
       <div id="sidebar-header">
         <div id="sidebar-tabs">
-          <button class="tab-btn active" onclick="setTab('tickets')" id="tab-tickets">📋 Tickets (<span id="ticket-count">0</span>)</button>
-          <button class="tab-btn" onclick="setTab('planning')" id="tab-planning">🗓️ Dag (<span id="planning-count">0</span>)</button>
+          <button class="tab-btn active" onclick="setTab('tickets')" id="tab-tickets">📋 (<span id="ticket-count">0</span>)</button>
+          <button class="tab-btn" onclick="setTab('planning')" id="tab-planning">🗓️ (<span id="planning-count">0</span>)</button>
+          <button class="tab-btn" onclick="setTab('kalender')" id="tab-kalender">📅 (<span id="planned-count">0</span>)</button>
         </div>
         <div id="filter-row">
           <input id="search-input" type="search" placeholder="Zoek ticket, klant, adres..." oninput="filterTickets(this.value)" />
         </div>
+        <div id="status-filter">
+          <button class="status-pill active" onclick="setStatusFilter('all')" id="spill-all">Alle</button>
+          <button class="status-pill" onclick="setStatusFilter('Wachten op planning')" id="spill-wop">Te plannen</button>
+          <button class="status-pill" onclick="setStatusFilter('Wachten op bevestiging planning')" id="spill-wbp">Ter bevestiging</button>
+        </div>
       </div>
       <div id="ticket-list"></div>
+      <div id="calendar-view"></div>
     </div>
 
     <!-- Main planning area -->
@@ -466,6 +604,19 @@
   </div>
 </div>
 
+<!-- Comment modal -->
+<div id="comment-modal-overlay" onclick="closeCommentModal(event)">
+  <div id="comment-modal">
+    <h3>✅ Oplossing invoeren</h3>
+    <div id="comment-ticket-label"></div>
+    <textarea id="comment-textarea" placeholder="Beschrijf de oplossing of uitgevoerde interventie..."></textarea>
+    <div id="comment-modal-actions">
+      <button class="btn-secondary" onclick="closeCommentModal()">Annuleren</button>
+      <button class="btn-primary" onclick="submitComment()">Opslaan in Zoho</button>
+    </div>
+  </div>
+</div>
+
 <!-- Address edit modal -->
 <div id="modal-overlay" onclick="closeModal(event)">
   <div id="modal">
@@ -493,12 +644,16 @@
 // STATE
 // ══════════════════════════════════════════════
 let allTickets = [];
+let allPlannedTickets = []; // Geplande service view
 let planningTickets = []; // {ticket, address}[]
 let routeData = null;
 let map, routeLayer;
 let markers = [];
 let editingTicketId = null;
+let commentTicketId = null;
 let currentTab = 'tickets';
+let currentStatusFilter = 'all';
+let calendarWeekOffset = 0; // 0 = current week
 const addressOverrides = JSON.parse(localStorage.getItem('addressOverrides') || '{}');
 const savedPlanning = JSON.parse(localStorage.getItem('savedPlanning') || '{}');
 
@@ -612,10 +767,15 @@ async function loadTickets() {
       ...t,
       address: addressOverrides[t.id] || t.address || '',
     }));
+    allPlannedTickets = (data.plannedTickets || []).map(t => ({
+      ...t,
+      address: addressOverrides[t.id] || t.address || '',
+    }));
 
     document.getElementById('ticket-count').textContent = allTickets.length;
+    document.getElementById('planned-count').textContent = allPlannedTickets.length;
     renderTickets(allTickets);
-    toast(`${allTickets.length} tickets geladen`);
+    toast(`${allTickets.length} te plannen, ${allPlannedTickets.length} gepland`);
 
     // Restore planning for today if saved
     const date = document.getElementById('date-picker').value;
@@ -676,7 +836,8 @@ function renderTickets(tickets) {
           ? `<button class="btn-sm btn-remove" onclick="removeFromPlanning('${ticket.id}')">✕ Verwijder</button>`
           : `<button class="btn-sm btn-add" onclick="addToPlanning('${ticket.id}')">+ Voeg toe</button>`
         }
-        <button class="btn-sm btn-edit" onclick="editAddress('${ticket.id}')">📍 Adres</button>
+        <button class="btn-sm btn-edit" onclick="editAddress('${ticket.id}')">📍</button>
+        <button class="btn-sm btn-edit" onclick="openCommentModal('${ticket.id}', ${JSON.stringify(ticket.subject).replace(/'/g, "\\'")})">✏️</button>
       </div>
     `;
     list.appendChild(card);
@@ -684,14 +845,15 @@ function renderTickets(tickets) {
 }
 
 function filterTickets(query) {
-  const q = query.toLowerCase();
-  const filtered = allTickets.filter(t =>
-    t.subject.toLowerCase().includes(q) ||
-    t.account.toLowerCase().includes(q) ||
-    t.address.toLowerCase().includes(q) ||
-    t.number.toLowerCase().includes(q)
-  );
-  renderTickets(filtered);
+  renderTickets(filterCurrentTickets());
+}
+
+function setStatusFilter(status) {
+  currentStatusFilter = status;
+  document.querySelectorAll('.status-pill').forEach(p => p.classList.remove('active'));
+  const map = { all: 'spill-all', 'Wachten op planning': 'spill-wop', 'Wachten op bevestiging planning': 'spill-wbp' };
+  document.getElementById(map[status])?.classList.add('active');
+  renderTickets(filterCurrentTickets());
 }
 
 // ══════════════════════════════════════════════
@@ -739,12 +901,14 @@ function renderCurrentTab() {
 
 function filterCurrentTickets() {
   const q = document.getElementById('search-input').value.toLowerCase();
-  return allTickets.filter(t =>
-    t.subject.toLowerCase().includes(q) ||
-    t.account.toLowerCase().includes(q) ||
-    t.address.toLowerCase().includes(q) ||
-    t.number.toLowerCase().includes(q)
-  );
+  return allTickets.filter(t => {
+    if (currentStatusFilter !== 'all' && t.status !== currentStatusFilter) return false;
+    if (!q) return true;
+    return t.subject.toLowerCase().includes(q) ||
+      t.account.toLowerCase().includes(q) ||
+      t.address.toLowerCase().includes(q) ||
+      (t.number || '').toLowerCase().includes(q);
+  });
 }
 
 function renderPlanningTickets() {
@@ -788,6 +952,7 @@ function renderPlanningTickets() {
       </div>
       <div class="stop-actions">
         <button class="btn-nav" onclick="navigate('${encodeURIComponent(item.address)}')">🧭 Nav</button>
+        <button class="btn-icon" onclick="openCommentModal('${item.ticket.id}', '${item.ticket.subject.replace(/'/g, "\\'")}')">✏️</button>
         <button class="btn-icon" onclick="editAddress('${item.ticket.id}')" title="Adres bewerken">📍</button>
         <button class="btn-icon" onclick="removeFromPlanning('${item.ticket.id}')" title="Verwijder">✕</button>
       </div>
@@ -1017,6 +1182,47 @@ document.getElementById('modal-address-input')?.addEventListener('keydown', e =>
 });
 
 // ══════════════════════════════════════════════
+// COMMENT / NOTITIE
+// ══════════════════════════════════════════════
+function openCommentModal(ticketId, subject) {
+  commentTicketId = ticketId;
+  document.getElementById('comment-ticket-label').textContent = subject || '';
+  document.getElementById('comment-textarea').value = '';
+  document.getElementById('comment-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('comment-textarea').focus(), 100);
+}
+
+function closeCommentModal(e) {
+  if (e && e.target !== document.getElementById('comment-modal-overlay')) return;
+  document.getElementById('comment-modal-overlay').classList.remove('open');
+  commentTicketId = null;
+}
+
+async function submitComment() {
+  const content = document.getElementById('comment-textarea').value.trim();
+  if (!content || !commentTicketId) return;
+
+  showLoading('Oplossing opslaan...');
+  document.getElementById('comment-modal-overlay').classList.remove('open');
+
+  try {
+    const res = await fetch('/api/comment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticketId: commentTicketId, content }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    toast('✓ Oplossing opgeslagen in Zoho');
+  } catch (err) {
+    toast('❌ ' + err.message, 4000);
+  } finally {
+    hideLoading();
+    commentTicketId = null;
+  }
+}
+
+// ══════════════════════════════════════════════
 // PERSISTENCE
 // ══════════════════════════════════════════════
 function savePlanningForDate() {
@@ -1047,10 +1253,18 @@ function setTab(tab) {
   currentTab = tab;
   document.getElementById('tab-tickets').classList.toggle('active', tab === 'tickets');
   document.getElementById('tab-planning').classList.toggle('active', tab === 'planning');
+  document.getElementById('tab-kalender').classList.toggle('active', tab === 'kalender');
 
   const list = document.getElementById('ticket-list');
+  const cal  = document.getElementById('calendar-view');
+
+  list.style.display = tab === 'kalender' ? 'none' : '';
+  cal.style.display  = tab === 'kalender' ? 'flex'  : 'none';
+
   if (tab === 'tickets') {
     renderTickets(filterCurrentTickets());
+  } else if (tab === 'kalender') {
+    renderCalendar();
   } else {
     // Show planning items in sidebar
     list.innerHTML = '';
@@ -1077,6 +1291,122 @@ function setTab(tab) {
       });
     }
   }
+}
+
+// ══════════════════════════════════════════════
+// KALENDER
+// ══════════════════════════════════════════════
+function renderCalendar() {
+  const cal = document.getElementById('calendar-view');
+  cal.innerHTML = '';
+
+  // Week navigation
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const weekStart = new Date(today);
+  const dayOfWeek = (today.getDay() + 6) % 7; // Mon=0
+  weekStart.setDate(today.getDate() - dayOfWeek + calendarWeekOffset * 7);
+
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+
+  const fmtShort = d => d.toLocaleDateString('nl-BE', { day: 'numeric', month: 'short' });
+  const nav = document.createElement('div');
+  nav.className = 'cal-week-nav';
+  nav.innerHTML = `
+    <button onclick="calWeek(-1)">‹</button>
+    <span>${fmtShort(weekStart)} – ${fmtShort(weekEnd)}</span>
+    <button onclick="calWeek(1)">›</button>
+  `;
+  cal.appendChild(nav);
+
+  // Group tickets by due date
+  const byDate = {};
+  allPlannedTickets.forEach(t => {
+    const raw = t.dueDate;
+    if (!raw) {
+      (byDate['none'] = byDate['none'] || []).push(t);
+      return;
+    }
+    const d = new Date(raw);
+    d.setHours(0, 0, 0, 0);
+    const key = d.toISOString().split('T')[0];
+    (byDate[key] = byDate[key] || []).push(t);
+  });
+
+  // Show days in current week + any out-of-week tickets with due dates
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate() + i);
+    days.push(d);
+  }
+
+  let hasAny = false;
+  days.forEach(day => {
+    const key = day.toISOString().split('T')[0];
+    const tickets = byDate[key];
+    if (!tickets || tickets.length === 0) return;
+    hasAny = true;
+
+    const isToday = day.getTime() === today.getTime();
+    const isPast  = day.getTime() < today.getTime();
+
+    const group = document.createElement('div');
+    group.className = 'cal-day-group';
+
+    const dayLabel = day.toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' });
+    const hdr = document.createElement('div');
+    hdr.className = `cal-day-header${isToday ? ' today' : isPast ? ' overdue' : ''}`;
+    hdr.textContent = (isToday ? '⬤ ' : '') + dayLabel;
+    group.appendChild(hdr);
+
+    tickets.forEach(t => {
+      const card = document.createElement('div');
+      card.className = 'cal-ticket';
+      card.innerHTML = `
+        <div class="cal-ticket-subject">${t.subject}</div>
+        <div class="cal-ticket-meta">${[t.account, t.contact].filter(Boolean).join(' · ')}</div>
+        ${t.status ? `<span class="cal-ticket-status">${t.status}</span>` : ''}
+      `;
+      group.appendChild(card);
+    });
+
+    cal.appendChild(group);
+  });
+
+  // Tickets without due date
+  if (byDate['none'] && calendarWeekOffset === 0) {
+    const group = document.createElement('div');
+    group.className = 'cal-day-group';
+    const hdr = document.createElement('div');
+    hdr.className = 'cal-day-header';
+    hdr.textContent = '📌 Geen vervaldatum';
+    group.appendChild(hdr);
+    byDate['none'].forEach(t => {
+      const card = document.createElement('div');
+      card.className = 'cal-ticket';
+      card.innerHTML = `
+        <div class="cal-ticket-subject">${t.subject}</div>
+        <div class="cal-ticket-meta">${[t.account, t.contact].filter(Boolean).join(' · ')}</div>
+      `;
+      group.appendChild(card);
+    });
+    cal.appendChild(group);
+    hasAny = true;
+  }
+
+  if (!hasAny) {
+    const empty = document.createElement('div');
+    empty.className = 'cal-empty';
+    empty.textContent = 'Geen geplande service deze week';
+    cal.appendChild(empty);
+  }
+}
+
+function calWeek(dir) {
+  calendarWeekOffset += dir;
+  renderCalendar();
 }
 
 // ══════════════════════════════════════════════
