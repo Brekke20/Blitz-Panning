@@ -444,7 +444,7 @@ let settings = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('blitz_
 // INIT
 // ══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('plan-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('plan-date').value = localISO(new Date());
   activeAssigneeFilter = settings.eigenaar || 'all';
   initMap();
   loadTickets();
@@ -545,7 +545,7 @@ function setFilter(type, val, btn) {
 // ══════════════════════════════════════════════
 // TICKETS TAB
 // ══════════════════════════════════════════════
-const TODAY_STR = new Date().toISOString().split('T')[0];
+const TODAY_STR = localISO(new Date());
 
 function isOverdue(t) {
   return t.dueDate && t.dueDate.split('T')[0] < TODAY_STR;
@@ -597,7 +597,7 @@ function renderTickets() {
 }
 
 async function quickAdd(ticketId) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localISO(new Date());
   const date  = nextAvailableDay(today);
   if (!date) return toast('Geen beschikbare werkdag gevonden');
   await addTicketToDate(ticketId, date);
@@ -749,7 +749,7 @@ function renderKalender() {
     const dow    = day.getDay();
     if (!settings.werkdagen.includes(dow)) continue;
 
-    const dateStr       = day.toISOString().split('T')[0];
+    const dateStr       = localISO(day);
     const isToday       = day.getTime() === today.getTime();
     const isPast        = day.getTime() < today.getTime();
     const isDayBlocked  = !!blockedDays[dateStr];
@@ -923,7 +923,7 @@ function capacityForDay(dateStr, travelMin = 30) {
 function nextAvailableDay(fromDate) {
   const d = new Date(fromDate + 'T12:00:00');
   for (let i = 0; i < 30; i++) {
-    const dStr = d.toISOString().split('T')[0];
+    const dStr = localISO(d);
     if (settings.werkdagen.includes(d.getDay()) && !blockedDays[dStr] && capacityForDay(dStr) > 0) return dStr;
     d.setDate(d.getDate() + 1);
   }
@@ -994,7 +994,7 @@ async function autoPlan() {
     const availDays = [];
     for (let i = 0; i < 7; i++) {
       const d    = new Date(weekStart); d.setDate(weekStart.getDate() + i);
-      const dStr = d.toISOString().split('T')[0];
+      const dStr = localISO(d);
       if (!settings.werkdagen.includes(d.getDay())) continue;
       if (blockedDays[dStr]) continue;
       const alreadyPlanned = (planning[dStr] || []).length;
@@ -1135,7 +1135,7 @@ function renderGepland() {
   let any = false;
   for (let i = 0; i < 7; i++) {
     const day = new Date(weekStart); day.setDate(weekStart.getDate() + i);
-    const key = day.toISOString().split('T')[0];
+    const key = localISO(day);
     if (!byDate[key]?.length) continue;
     any = true;
     const isToday = day.getTime() === today.getTime();
@@ -1401,7 +1401,7 @@ function closeDet(e) {
 async function togglePlanFromDetail() {
   if (!activeTicket) return;
   if (activeTicket.status === 'Service in te plannen') {
-    const date = nextAvailableDay(new Date().toISOString().split('T')[0]);
+    const date = nextAvailableDay(localISO(new Date()));
     if (!date) return toast('Geen beschikbare dag gevonden');
     closeDet();
     await addTicketToDate(activeTicket.id, date);
@@ -1502,6 +1502,7 @@ function navigate(enc) { window.open(`https://www.google.com/maps/dir/?api=1&des
 function fmtDate(s)     { return new Date(s).toLocaleDateString('nl-BE', { weekday:'short', day:'numeric', month:'short', year:'numeric' }); }
 function fmtDateShort(d){ const date = d instanceof Date ? d : new Date(d + 'T12:00:00'); return date.toLocaleDateString('nl-BE', { day:'numeric', month:'short' }); }
 function fmtSec(s)      { const h = Math.floor(s/3600), m = Math.round((s%3600)/60); return h > 0 ? `${h}u ${m}min` : `${m}min`; }
+function localISO(d)    { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function getWeekStart(baseDate, offset) {
   const d = new Date(baseDate); d.setHours(0,0,0,0);
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + offset * 7);

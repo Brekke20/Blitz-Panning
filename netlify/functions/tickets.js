@@ -45,24 +45,28 @@ export async function handler(event) {
     const orgId   = orgData.data?.[0]?.id;
     if (!orgId) throw new Error('Zoho Desk org ID niet gevonden');
 
-    // Stap 1: lijst ophalen (geen cf fields in list endpoint)
-    const listRes  = await fetch(`${ZOHO_DESK}/tickets?limit=100`, {
-      headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
-    });
-    const listData = await listRes.json();
-    const all      = listData.data || [];
-
-    // Stap 2: alle relevante statussen selecteren
+    // Stap 1: per status ophalen (voorkomt dat tickets buiten de top-100 gemist worden)
     const RELEVANT = [
       'Service in te plannen',
       'Wachten op bevestiging planning',
       'Geplande service',
     ];
-    const relevantIds = all
-      .filter(t => RELEVANT.includes(t.status))
-      .map(t => t.id);
 
-    // Stap 3: individueel ophalen voor cf custom fields
+    const listsPerStatus = await Promise.all(
+      RELEVANT.map(status =>
+        fetch(`${ZOHO_DESK}/tickets?limit=100&status=${encodeURIComponent(status)}`, {
+          headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
+        }).then(r => r.json())
+      )
+    );
+
+    const relevantIds = listsPerStatus
+      .flatMap(d => d.data || [])
+      .map(t => t.id)
+      // dedupliceer (voor het geval een ticket in meerdere resultaten zit)
+      .filter((id, i, arr) => arr.indexOf(id) === i);
+
+    // Stap 2: individueel ophalen voor cf custom fields
     const detailed = await Promise.all(
       relevantIds.map(id =>
         fetch(`${ZOHO_DESK}/tickets/${id}`, {
