@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f59e0b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Blitz Planning</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f0f1a;
+      --surface: #1a1a2e;
+      --surface2: #252540;
+      --border: #2e2e50;
+      --accent: #f59e0b;
+      --accent2: #10b981;
+      --danger: #ef4444;
+      --text: #e2e8f0;
+      --text2: #94a3b8;
+      --radius: 10px;
+    }
+    html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 15px; }
+
+    /* ── Layout ── */
+    #app { display: flex; flex-direction: column; height: 100%; }
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+    header h1 span { color: var(--text2); font-weight: 400; font-size: 0.85rem; margin-left: 8px; }
+    .header-actions { margin-left: auto; display: flex; gap: 8px; }
+    #main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar (desktop) ── */
+    #sidebar {
+      width: 380px;
+      min-width: 280px;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    #sidebar-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #sidebar-tabs {
+      display: flex;
+      gap: 6px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text2);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: all 0.15s;
+    }
+    .tab-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    #filter-row { display: flex; gap: 8px; }
+    #search-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    #search-input::placeholder { color: var(--text2); }
+    #ticket-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+
+    /* ── Ticket card ── */
+    .ticket-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      user-select: none;
+    }
+    .ticket-card:hover { border-color: var(--accent); }
+    .ticket-card.in-planning { border-color: var(--accent2); background: #0d2b22; }
+    .ticket-card.dragging { opacity: 0.4; }
+    .ticket-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+    .ticket-number { font-size: 0.75rem; color: var(--accent); font-weight: 700; font-family: monospace; }
+    .priority-badge {
+      font-size: 0.68rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .priority-high { background: #7f1d1d; color: #fca5a5; }
+    .priority-medium { background: #78350f; color: #fcd34d; }
+    .priority-low { background: #14532d; color: #86efac; }
+    .ticket-subject { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; line-height: 1.3; }
+    .ticket-account { font-size: 0.8rem; color: var(--text2); margin-bottom: 4px; }
+    .ticket-address {
+      font-size: 0.78rem;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ticket-address.missing { color: var(--danger); }
+    .ticket-actions { display: flex; gap: 6px; margin-top: 10px; }
+    .btn-sm {
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s;
+    }
+    .btn-sm:hover { opacity: 0.85; }
+    .btn-add { background: var(--accent2); color: #fff; }
+    .btn-remove { background: var(--danger); color: #fff; }
+    .btn-edit { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+
+    /* ── Planning panel ── */
+    #planning-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #planning-header {
+      padding: 12px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    #planning-header h2 { font-size: 0.95rem; font-weight: 700; }
+    #date-picker {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    #origin-input {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      width: 200px;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      padding: 7px 16px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    #planning-content { flex: 1; display: flex; overflow: hidden; }
+
+    /* ── Route list ── */
+    #route-list {
+      width: 340px;
+      flex-shrink: 0;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+    }
+    .route-stop {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      cursor: grab;
+    }
+    .route-stop:active { cursor: grabbing; }
+    .route-stop.drag-over { border-color: var(--accent); background: #2a2a10; }
+    .stop-number {
+      background: var(--accent);
+      color: #000;
+      border-radius: 50%;
+      width: 26px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.8rem;
+      flex-shrink: 0;
+    }
+    .stop-info { flex: 1; min-width: 0; }
+    .stop-subject { font-weight: 600; font-size: 0.88rem; margin-bottom: 3px; }
+    .stop-account { font-size: 0.78rem; color: var(--text2); margin-bottom: 3px; }
+    .stop-address { font-size: 0.78rem; color: var(--accent); }
+    .stop-travel { font-size: 0.75rem; color: var(--accent2); margin-top: 4px; }
+    .stop-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .btn-nav {
+      background: var(--accent2);
+      color: #fff;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-icon {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text2);
+      padding: 6px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+
+    .leg-connector {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      color: var(--text2);
+      font-size: 0.75rem;
+    }
+    .leg-connector::before { content: ''; display: block; width: 2px; height: 20px; background: var(--border); margin-left: 12px; }
+
+    /* ── Map ── */
+    #map-container { flex: 1; position: relative; }
+    #map { width: 100%; height: 100%; }
+
+    /* ── Day summary ── */
+    #day-summary {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      font-size: 0.8rem;
+      color: var(--text2);
+    }
+    #day-summary span b { color: var(--text); }
+
+    /* ── Empty state ── */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--text2);
+      text-align: center;
+      padding: 40px;
+    }
+    .empty-state svg { opacity: 0.3; }
+    .empty-state h3 { color: var(--text); font-size: 1rem; }
+
+    /* ── Address edit modal ── */
+    #modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    #modal-overlay.open { display: flex; }
+    #modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 100%;
+      max-width: 480px;
+      margin: 20px;
+    }
+    #modal h3 { margin-bottom: 16px; font-size: 1rem; }
+    #modal-address-input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      margin-bottom: 16px;
+    }
+    #modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ── Loading overlay ── */
+    #loading {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      color: var(--text);
+    }
+    #loading.show { display: flex; }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      z-index: 3000;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; }
+
+    /* ── Responsive: mobile ── */
+    @media (max-width: 768px) {
+      #sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+      #main { flex-direction: column; }
+      #planning-panel { min-height: 60vh; }
+      #planning-content { flex-direction: column; }
+      #route-list { width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: 50vh; }
+      #map-container { min-height: 300px; }
+      #sidebar { max-height: 50vh; }
+
+      /* Mobile: alleen planning tonen als stops zijn geselecteerd */
+      #sidebar.hidden-mobile { display: none; }
+      #planning-panel.hidden-mobile { display: none; }
+    }
+
+    /* ── Ticket list (tickets tab) ── */
+    #tickets-view { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    #planning-view { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+
+    /* Drag & drop */
+    .route-stop[draggable="true"] { cursor: grab; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <h1>⚡ Blitz Planning <span id="header-date"></span></h1>
+    <div class="header-actions">
+      <button class="btn-secondary" onclick="loadTickets()" id="refresh-btn">🔄 Vernieuwen</button>
+      <button class="btn-secondary" onclick="showMobilePlanning()" id="mobile-plan-btn" style="display:none">📋 Planning</button>
+    </div>
+  </header>
+
+  <div id="main">
+    <!-- Sidebar: ticket pool -->
+    <div id="sidebar">
+      <div id="sidebar-header">
+        <div id="sidebar-tabs">
+          <button class="tab-btn active" onclick="setTab('tickets')" id="tab-tickets">📋 Tickets (<span id="ticket-count">0</span>)</button>
+          <button class="tab-btn" onclick="setTab('planning')" id="tab-planning">🗓️ Dag (<span id="planning-count">0</span>)</button>
+        </div>
+        <div id="filter-row">
+          <input id="search-input" type="search" placeholder="Zoek ticket, klant, adres..." oninput="filterTickets(this.value)" />
+        </div>
+      </div>
+      <div id="ticket-list"></div>
+    </div>
+
+    <!-- Main planning area -->
+    <div id="planning-panel">
+      <div id="planning-header">
+        <h2>🗺️ Dagroute</h2>
+        <input type="date" id="date-picker" onchange="updateDate(this.value)" />
+        <input type="text" id="origin-input" placeholder="Vertrekpunt (adres)" value="Blitz Power, Geel" />
+        <button class="btn-primary" onclick="optimizeRoute()" id="optimize-btn" disabled>⚡ Optimaliseer</button>
+        <button class="btn-secondary" onclick="calculateRoute()" id="route-btn" disabled>🔄 Bereken</button>
+      </div>
+
+      <div id="planning-content">
+        <!-- Route stops list -->
+        <div id="route-list">
+          <div class="empty-state" id="route-empty">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+            <h3>Geen stops gepland</h3>
+            <p>Voeg tickets toe vanuit de lijst</p>
+          </div>
+        </div>
+
+        <!-- Map -->
+        <div id="map-container">
+          <div id="map"></div>
+        </div>
+      </div>
+
+      <!-- Day summary -->
+      <div id="day-summary">
+        <span>Stops: <b id="sum-stops">0</b></span>
+        <span>Afstand: <b id="sum-distance">—</b></span>
+        <span>Rijtijd: <b id="sum-time">—</b></span>
+        <span>Vertraging: <b id="sum-delay">—</b></span>
+        <span>ETA laatste stop: <b id="sum-eta">—</b></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Address edit modal -->
+<div id="modal-overlay" onclick="closeModal(event)">
+  <div id="modal">
+    <h3>📍 Adres bewerken</h3>
+    <input id="modal-address-input" type="text" placeholder="Volledig adres, stad" />
+    <div id="modal-actions">
+      <button class="btn-secondary" onclick="closeModal()">Annuleren</button>
+      <button class="btn-primary" onclick="saveModalAddress()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Loading -->
+<div id="loading">
+  <div class="spinner"></div>
+  <span id="loading-text">Laden...</span>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+let allTickets = [];
+let planningTickets = []; // {ticket, address}[]
+let routeData = null;
+let map, routeLayer;
+let markers = [];
+let editingTicketId = null;
+let currentTab = 'tickets';
+const addressOverrides = JSON.parse(localStorage.getItem('addressOverrides') || '{}');
+const savedPlanning = JSON.parse(localStorage.getItem('savedPlanning') || '{}');
+
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  initMap();
+  setDefaultDate();
+  checkMobile();
+  loadTickets();
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+});
+
+function setDefaultDate() {
+  const picker = document.getElementById('date-picker');
+  picker.value = new Date().toISOString().split('T')[0];
+  document.getElementById('header-date').textContent = formatDate(picker.value);
+}
+
+function updateDate(val) {
+  document.getElementById('header-date').textContent = formatDate(val);
+  loadSavedPlanningForDate(val);
+}
+
+function formatDate(val) {
+  return new Date(val + 'T12:00:00').toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+function checkMobile() {
+  if (window.innerWidth <= 768) {
+    document.getElementById('mobile-plan-btn').style.display = '';
+  }
+}
+
+// ══════════════════════════════════════════════
+// MAP
+// ══════════════════════════════════════════════
+function initMap() {
+  map = L.map('map', { zoomControl: true }).setView([51.0, 4.5], 8);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 18,
+  }).addTo(map);
+  routeLayer = L.layerGroup().addTo(map);
+}
+
+function updateMap() {
+  routeLayer.clearLayers();
+  markers = [];
+
+  if (planningTickets.length === 0) return;
+
+  // Origin marker
+  const origin = document.getElementById('origin-input').value;
+
+  const points = [];
+
+  // Route polyline
+  if (routeData?.polyline?.length) {
+    const poly = L.polyline(routeData.polyline, {
+      color: '#f59e0b',
+      weight: 4,
+      opacity: 0.8,
+    }).addTo(routeLayer);
+    map.fitBounds(poly.getBounds(), { padding: [30, 30] });
+  }
+
+  // Stop markers
+  planningTickets.forEach((item, i) => {
+    if (item._lat && item._lon) {
+      const marker = L.marker([item._lat, item._lon], {
+        icon: createIcon(i + 1),
+      })
+        .bindPopup(`<b>#${i + 1} ${item.ticket.subject}</b><br>${item.ticket.account}<br>${item.address}`)
+        .addTo(routeLayer);
+      markers.push(marker);
+      points.push([item._lat, item._lon]);
+    }
+  });
+
+  if (points.length > 0 && !routeData?.polyline?.length) {
+    map.fitBounds(L.latLngBounds(points), { padding: [40, 40] });
+  }
+}
+
+function createIcon(number) {
+  return L.divIcon({
+    html: `<div style="background:#f59e0b;color:#000;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;border:2px solid #000;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${number}</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    className: '',
+  });
+}
+
+// ══════════════════════════════════════════════
+// TICKETS
+// ══════════════════════════════════════════════
+async function loadTickets() {
+  showLoading('Tickets laden uit Zoho Desk...');
+  try {
+    const res = await fetch('/api/tickets');
+    const data = await res.json();
+
+    if (data.error) throw new Error(data.error);
+
+    allTickets = data.tickets.map(t => ({
+      ...t,
+      address: addressOverrides[t.id] || t.address || '',
+    }));
+
+    document.getElementById('ticket-count').textContent = allTickets.length;
+    renderTickets(allTickets);
+    toast(`${allTickets.length} tickets geladen`);
+
+    // Restore planning for today if saved
+    const date = document.getElementById('date-picker').value;
+    loadSavedPlanningForDate(date);
+
+  } catch (err) {
+    toast('❌ ' + err.message, 4000);
+    // Demo mode als API niet werkt
+    loadDemoTickets();
+  } finally {
+    hideLoading();
+  }
+}
+
+function loadDemoTickets() {
+  allTickets = [
+    { id: '1', number: '#1001', subject: 'CHARX laadpaal offline', account: 'Q-Park Antwerpen', priority: 'high', address: 'Koningin Astridplein, 2018 Antwerpen', status: 'open', contact: 'Jan Peeters', dueDate: null, description: '' },
+    { id: '2', number: '#1002', subject: 'Firmware update SEC-3100', account: 'Apcoa Parking Gent', priority: 'medium', address: 'Korenmarkt 1, 9000 Gent', status: 'open', contact: 'Marie Janssen', dueDate: null, description: '' },
+    { id: '3', number: '#1003', subject: 'Connector kapot poort 3', account: 'Brugge Parking', priority: 'high', address: 'Markt 1, 8000 Brugge', status: 'open', contact: 'Pieter De Smet', dueDate: null, description: '' },
+    { id: '4', number: '#1004', subject: 'OCPP verbinding verloren', account: 'Leuven Centrum', priority: 'medium', address: 'Grote Markt 9, 3000 Leuven', status: 'open', contact: 'An Claes', dueDate: null, description: '' },
+    { id: '5', number: '#1005', subject: 'Nieuwe installatie keuring', account: 'Tesla Supercharger Hasselt', priority: 'low', address: 'Gouverneur Roppesingel 51, 3500 Hasselt', status: 'open', contact: 'Dirk Willems', dueDate: null, description: '' },
+  ];
+  document.getElementById('ticket-count').textContent = allTickets.length;
+  renderTickets(allTickets);
+  toast('Demo-modus actief (geen Zoho verbinding)', 3000);
+}
+
+function renderTickets(tickets) {
+  const list = document.getElementById('ticket-list');
+  const inPlanningIds = new Set(planningTickets.map(p => p.ticket.id));
+
+  if (tickets.length === 0) {
+    list.innerHTML = '<div class="empty-state"><h3>Geen tickets gevonden</h3></div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  tickets.forEach(ticket => {
+    const inPlanning = inPlanningIds.has(ticket.id);
+    const hasAddress = !!ticket.address;
+
+    const card = document.createElement('div');
+    card.className = `ticket-card${inPlanning ? ' in-planning' : ''}`;
+    card.dataset.id = ticket.id;
+    card.innerHTML = `
+      <div class="ticket-meta">
+        <span class="ticket-number">${ticket.number}</span>
+        <span class="priority-badge priority-${ticket.priority || 'low'}">${ticket.priority || 'low'}</span>
+        ${inPlanning ? '<span style="font-size:0.75rem;color:var(--accent2)">✓ Ingepland</span>' : ''}
+      </div>
+      <div class="ticket-subject">${ticket.subject}</div>
+      <div class="ticket-account">${ticket.account}${ticket.contact ? ' · ' + ticket.contact : ''}</div>
+      <div class="ticket-address ${!hasAddress ? 'missing' : ''}">
+        📍 ${hasAddress ? ticket.address : 'Geen adres — klik om toe te voegen'}
+      </div>
+      <div class="ticket-actions">
+        ${inPlanning
+          ? `<button class="btn-sm btn-remove" onclick="removeFromPlanning('${ticket.id}')">✕ Verwijder</button>`
+          : `<button class="btn-sm btn-add" onclick="addToPlanning('${ticket.id}')">+ Voeg toe</button>`
+        }
+        <button class="btn-sm btn-edit" onclick="editAddress('${ticket.id}')">📍 Adres</button>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function filterTickets(query) {
+  const q = query.toLowerCase();
+  const filtered = allTickets.filter(t =>
+    t.subject.toLowerCase().includes(q) ||
+    t.account.toLowerCase().includes(q) ||
+    t.address.toLowerCase().includes(q) ||
+    t.number.toLowerCase().includes(q)
+  );
+  renderTickets(filtered);
+}
+
+// ══════════════════════════════════════════════
+// PLANNING
+// ══════════════════════════════════════════════
+function addToPlanning(ticketId) {
+  const ticket = allTickets.find(t => t.id === ticketId);
+  if (!ticket) return;
+  if (planningTickets.find(p => p.ticket.id === ticketId)) return;
+
+  if (!ticket.address) {
+    editAddress(ticketId, () => {
+      planningTickets.push({ ticket, address: ticket.address });
+      afterPlanningChange();
+    });
+    return;
+  }
+
+  planningTickets.push({ ticket, address: ticket.address });
+  afterPlanningChange();
+}
+
+function removeFromPlanning(ticketId) {
+  planningTickets = planningTickets.filter(p => p.ticket.id !== ticketId);
+  afterPlanningChange();
+}
+
+function afterPlanningChange() {
+  document.getElementById('planning-count').textContent = planningTickets.length;
+  document.getElementById('sum-stops').textContent = planningTickets.length;
+  document.getElementById('optimize-btn').disabled = planningTickets.length < 2;
+  document.getElementById('route-btn').disabled = planningTickets.length < 1;
+  renderPlanningTickets();
+  renderTickets(filterCurrentTickets());
+  savePlanningForDate();
+  routeData = null;
+  updateMap();
+  clearRouteSummary();
+}
+
+function renderCurrentTab() {
+  if (currentTab === 'tickets') renderTickets(filterCurrentTickets());
+  else renderPlanningTickets();
+}
+
+function filterCurrentTickets() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  return allTickets.filter(t =>
+    t.subject.toLowerCase().includes(q) ||
+    t.account.toLowerCase().includes(q) ||
+    t.address.toLowerCase().includes(q) ||
+    t.number.toLowerCase().includes(q)
+  );
+}
+
+function renderPlanningTickets() {
+  const routeList = document.getElementById('route-list');
+  const routeEmpty = document.getElementById('route-empty');
+
+  if (planningTickets.length === 0) {
+    routeEmpty.style.display = '';
+    routeList.innerHTML = '';
+    routeList.appendChild(routeEmpty);
+    return;
+  }
+
+  routeEmpty.style.display = 'none';
+  routeList.innerHTML = '';
+
+  planningTickets.forEach((item, i) => {
+    // Leg connector (travel time between stops)
+    if (i > 0 && routeData?.legs?.[i - 1]) {
+      const leg = routeData.legs[i - 1];
+      const mins = Math.round(leg.travelTimeSeconds / 60);
+      const delay = leg.trafficDelaySeconds > 60 ? ` (+${Math.round(leg.trafficDelaySeconds / 60)}' vertraging)` : '';
+      const connector = document.createElement('div');
+      connector.className = 'leg-connector';
+      connector.innerHTML = `🚗 ${mins} min · ${(leg.distanceMeters / 1000).toFixed(1)} km${delay}`;
+      routeList.appendChild(connector);
+    }
+
+    const stop = document.createElement('div');
+    stop.className = 'route-stop';
+    stop.draggable = true;
+    stop.dataset.index = i;
+    stop.dataset.id = item.ticket.id;
+
+    stop.innerHTML = `
+      <div class="stop-number">${i + 1}</div>
+      <div class="stop-info">
+        <div class="stop-subject">${item.ticket.subject}</div>
+        <div class="stop-account">${item.ticket.account}</div>
+        <div class="stop-address">📍 ${item.address}</div>
+      </div>
+      <div class="stop-actions">
+        <button class="btn-nav" onclick="navigate('${encodeURIComponent(item.address)}')">🧭 Nav</button>
+        <button class="btn-icon" onclick="editAddress('${item.ticket.id}')" title="Adres bewerken">📍</button>
+        <button class="btn-icon" onclick="removeFromPlanning('${item.ticket.id}')" title="Verwijder">✕</button>
+      </div>
+    `;
+
+    // Drag & drop handlers
+    stop.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', i);
+      stop.classList.add('dragging');
+    });
+    stop.addEventListener('dragend', () => stop.classList.remove('dragging'));
+    stop.addEventListener('dragover', e => {
+      e.preventDefault();
+      stop.classList.add('drag-over');
+    });
+    stop.addEventListener('dragleave', () => stop.classList.remove('drag-over'));
+    stop.addEventListener('drop', e => {
+      e.preventDefault();
+      stop.classList.remove('drag-over');
+      const from = parseInt(e.dataTransfer.getData('text/plain'));
+      const to = i;
+      if (from !== to) {
+        const moved = planningTickets.splice(from, 1)[0];
+        planningTickets.splice(to, 0, moved);
+        routeData = null;
+        afterPlanningChange();
+        calculateRoute();
+      }
+    });
+
+    routeList.appendChild(stop);
+  });
+}
+
+function navigate(encodedAddress) {
+  const address = decodeURIComponent(encodedAddress);
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`;
+  window.open(url, '_blank');
+}
+
+// ══════════════════════════════════════════════
+// OPTIMIZE & ROUTE
+// ══════════════════════════════════════════════
+async function optimizeRoute() {
+  const origin = document.getElementById('origin-input').value;
+  if (!origin) return toast('Vul een vertrekpunt in');
+  if (planningTickets.length < 2) return;
+
+  showLoading('Route optimaliseren...');
+  try {
+    const stops = planningTickets.map(p => p.address);
+    const res = await fetch('/api/optimize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ origin, stops }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    // Reorder planning according to optimized order
+    const optimized = data.optimizedOrder.map(i => ({
+      ...planningTickets[i],
+      _lat: data.locations[i + 1]?.lat,
+      _lon: data.locations[i + 1]?.lon,
+    }));
+    planningTickets = optimized;
+
+    toast('Route geoptimaliseerd ✓');
+    afterPlanningChange();
+    await calculateRoute();
+  } catch (err) {
+    toast('❌ Optimalisatie: ' + err.message, 4000);
+    // Fallback: gewoon berekenen zonder optimalisatie
+    await calculateRoute();
+  } finally {
+    hideLoading();
+  }
+}
+
+async function calculateRoute() {
+  if (planningTickets.length === 0) return;
+  showLoading('Route berekenen...');
+
+  try {
+    // First geocode all stops if needed
+    const toGeocode = planningTickets.filter(p => !p._lat || !p._lon);
+    if (toGeocode.length > 0) {
+      const geocodeRes = await fetch('/api/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          origin: document.getElementById('origin-input').value,
+          stops: planningTickets.map(p => p.address),
+        }),
+      });
+      const geoData = await geocodeRes.json();
+      if (!geoData.error && geoData.locations) {
+        planningTickets.forEach((p, i) => {
+          p._lat = geoData.locations[i + 1]?.lat;
+          p._lon = geoData.locations[i + 1]?.lon;
+        });
+      }
+    }
+
+    // Calculate route
+    const origin = document.getElementById('origin-input').value;
+    const originGeo = await geocodeAddress(origin);
+    const waypoints = [
+      { lat: originGeo.lat, lon: originGeo.lon },
+      ...planningTickets.filter(p => p._lat).map(p => ({ lat: p._lat, lon: p._lon })),
+    ];
+
+    if (waypoints.length < 2) { hideLoading(); return; }
+
+    const res = await fetch('/api/route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ waypoints }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    routeData = data;
+    updateRouteSummary(data);
+    updateMap();
+    renderPlanningTickets();
+    toast('Route berekend ✓');
+  } catch (err) {
+    toast('❌ Route: ' + err.message, 4000);
+    updateMap(); // Show markers even without route
+  } finally {
+    hideLoading();
+  }
+}
+
+async function geocodeAddress(address) {
+  const res = await fetch(`/api/optimize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ origin: address, stops: [address] }),
+  });
+  const data = await res.json();
+  const loc = data.locations?.[0];
+  if (!loc) throw new Error('Geocoding mislukt voor: ' + address);
+  return loc;
+}
+
+function updateRouteSummary(data) {
+  document.getElementById('sum-distance').textContent = (data.totalDistanceMeters / 1000).toFixed(0) + ' km';
+  document.getElementById('sum-time').textContent = formatSeconds(data.totalTravelTimeSeconds);
+  document.getElementById('sum-delay').textContent = data.totalTrafficDelaySeconds > 60
+    ? '+' + formatSeconds(data.totalTrafficDelaySeconds)
+    : 'Geen';
+  document.getElementById('sum-eta').textContent = data.arrivalTime
+    ? new Date(data.arrivalTime).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' })
+    : '—';
+}
+
+function clearRouteSummary() {
+  document.getElementById('sum-distance').textContent = '—';
+  document.getElementById('sum-time').textContent = '—';
+  document.getElementById('sum-delay').textContent = '—';
+  document.getElementById('sum-eta').textContent = '—';
+}
+
+function formatSeconds(s) {
+  const h = Math.floor(s / 3600);
+  const m = Math.round((s % 3600) / 60);
+  return h > 0 ? `${h}u ${m}min` : `${m} min`;
+}
+
+// ══════════════════════════════════════════════
+// ADDRESS EDIT
+// ══════════════════════════════════════════════
+let _editCallback = null;
+function editAddress(ticketId, callback) {
+  editingTicketId = ticketId;
+  _editCallback = callback || null;
+  const ticket = allTickets.find(t => t.id === ticketId);
+  document.getElementById('modal-address-input').value = ticket?.address || '';
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('modal-address-input').focus(), 100);
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').classList.remove('open');
+  editingTicketId = null;
+  _editCallback = null;
+}
+
+function saveModalAddress() {
+  const address = document.getElementById('modal-address-input').value.trim();
+  if (!address) return;
+
+  // Update ticket
+  const ticket = allTickets.find(t => t.id === editingTicketId);
+  if (ticket) {
+    ticket.address = address;
+    addressOverrides[editingTicketId] = address;
+    localStorage.setItem('addressOverrides', JSON.stringify(addressOverrides));
+  }
+
+  // Update in planning if present
+  const inPlanning = planningTickets.find(p => p.ticket.id === editingTicketId);
+  if (inPlanning) {
+    inPlanning.address = address;
+    inPlanning._lat = null;
+    inPlanning._lon = null;
+  }
+
+  document.getElementById('modal-overlay').classList.remove('open');
+
+  if (_editCallback) {
+    _editCallback();
+    _editCallback = null;
+  } else {
+    afterPlanningChange();
+  }
+  editingTicketId = null;
+}
+
+// Enter key in modal
+document.getElementById('modal-address-input')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveModalAddress();
+  if (e.key === 'Escape') closeModal();
+});
+
+// ══════════════════════════════════════════════
+// PERSISTENCE
+// ══════════════════════════════════════════════
+function savePlanningForDate() {
+  const date = document.getElementById('date-picker').value;
+  savedPlanning[date] = planningTickets.map(p => ({
+    id: p.ticket.id,
+    address: p.address,
+  }));
+  localStorage.setItem('savedPlanning', JSON.stringify(savedPlanning));
+}
+
+function loadSavedPlanningForDate(date) {
+  const saved = savedPlanning[date] || [];
+  planningTickets = saved
+    .map(s => {
+      const ticket = allTickets.find(t => t.id === s.id);
+      if (!ticket) return null;
+      return { ticket, address: s.address };
+    })
+    .filter(Boolean);
+  afterPlanningChange();
+}
+
+// ══════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════
+function setTab(tab) {
+  currentTab = tab;
+  document.getElementById('tab-tickets').classList.toggle('active', tab === 'tickets');
+  document.getElementById('tab-planning').classList.toggle('active', tab === 'planning');
+
+  const list = document.getElementById('ticket-list');
+  if (tab === 'tickets') {
+    renderTickets(filterCurrentTickets());
+  } else {
+    // Show planning items in sidebar
+    list.innerHTML = '';
+    if (planningTickets.length === 0) {
+      list.innerHTML = '<div class="empty-state"><h3>Nog niets ingepland</h3><p>Voeg tickets toe via de Tickets tab</p></div>';
+    } else {
+      planningTickets.forEach((item, i) => {
+        const card = document.createElement('div');
+        card.className = 'ticket-card in-planning';
+        card.innerHTML = `
+          <div class="ticket-meta">
+            <span style="background:var(--accent);color:#000;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:0.75rem">${i+1}</span>
+            <span class="ticket-number">${item.ticket.number}</span>
+          </div>
+          <div class="ticket-subject">${item.ticket.subject}</div>
+          <div class="ticket-account">${item.ticket.account}</div>
+          <div class="ticket-address">📍 ${item.address}</div>
+          <div class="ticket-actions">
+            <button class="btn-nav" onclick="navigate('${encodeURIComponent(item.address)}')">🧭 Navigeer</button>
+            <button class="btn-sm btn-remove" onclick="removeFromPlanning('${item.ticket.id}')">✕</button>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+  }
+}
+
+// ══════════════════════════════════════════════
+// MOBILE
+// ══════════════════════════════════════════════
+function showMobilePlanning() {
+  setTab('planning');
+}
+
+// ══════════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════════
+function showLoading(msg) {
+  document.getElementById('loading-text').textContent = msg || 'Laden...';
+  document.getElementById('loading').classList.add('show');
+}
+
+function hideLoading() {
+  document.getElementById('loading').classList.remove('show');
+}
+
+let toastTimer;
+function toast(msg, duration = 2500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), duration);
+}
+</script>
+</body>
+</html>

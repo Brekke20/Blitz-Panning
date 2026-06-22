@@ -1,0 +1,9 @@
+{
+  "name": "blitz-planning",
+  "version": "1.0.0",
+  "description": "Field service planning app for Blitz Power",
+  "private": true,
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}
