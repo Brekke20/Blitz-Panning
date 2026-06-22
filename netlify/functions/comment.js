@@ -5,12 +5,16 @@
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK = 'https://desk.zoho.eu/api/v1';
 
+let cachedToken = null;
+let tokenExpiry = 0;
+
 async function getAccessToken() {
+  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
   const params = new URLSearchParams({
     refresh_token: process.env.ZOHO_REFRESH_TOKEN,
-    client_id: process.env.ZOHO_CLIENT_ID,
+    client_id:     process.env.ZOHO_CLIENT_ID,
     client_secret: process.env.ZOHO_CLIENT_SECRET,
-    grant_type: 'refresh_token',
+    grant_type:    'refresh_token',
   });
   const res = await fetch(ZOHO_ACCOUNTS, {
     method: 'POST',
@@ -18,8 +22,10 @@ async function getAccessToken() {
     body: params,
   });
   const data = await res.json();
-  if (!data.access_token) throw new Error('Token refresh failed: ' + JSON.stringify(data));
-  return data.access_token;
+  if (!data.access_token) throw new Error('Token refresh mislukt: ' + JSON.stringify(data));
+  cachedToken = data.access_token;
+  tokenExpiry = Date.now() + 55 * 60 * 1000;
+  return cachedToken;
 }
 
 export async function handler(event) {

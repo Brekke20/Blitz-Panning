@@ -6,7 +6,12 @@
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK = 'https://desk.zoho.eu/api/v1';
 
+// Token cache — blijft geldig binnen dezelfde warm Lambda instance
+let cachedToken = null;
+let tokenExpiry = 0;
+
 async function getAccessToken() {
+  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
   const params = new URLSearchParams({
     refresh_token: process.env.ZOHO_REFRESH_TOKEN,
     client_id:     process.env.ZOHO_CLIENT_ID,
@@ -20,7 +25,9 @@ async function getAccessToken() {
   });
   const data = await res.json();
   if (!data.access_token) throw new Error('Token refresh mislukt: ' + JSON.stringify(data));
-  return data.access_token;
+  cachedToken = data.access_token;
+  tokenExpiry = Date.now() + 55 * 60 * 1000; // 55 minuten
+  return cachedToken;
 }
 
 function buildAddress(obj) {
@@ -45,11 +52,9 @@ export async function handler(event) {
     const orgId = orgData.data?.[0]?.id;
     if (!orgId) throw new Error('Zoho Desk org ID niet gevonden');
 
-    // include=contacts,accounts geeft adresvelden mee op contact/account
     const params = new URLSearchParams({
-      limit:   '100',
-      include: 'contacts,accounts',
-      fields:  'id,ticketNumber,subject,status,priority,contact,account,createdTime,dueDate,cf',
+      limit:  '100',
+      fields: 'id,ticketNumber,subject,status,priority,contact,account,createdTime,dueDate,cf',
     });
     const res = await fetch(`${ZOHO_DESK}/tickets?${params}`, {
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },

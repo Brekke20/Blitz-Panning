@@ -14,7 +14,7 @@ foreach ($lock in $locks) {
 git config user.email "brentcalaerts5@gmail.com"
 git config user.name "Brent Calaerts"
 git add .
-git commit -m "feat: ticketdetail popup met klantgegevens, klikbare kaartjes"
+git commit -m "fix: token caching om Zoho rate limit te vermijden"
 git push origin main
 
 Write-Host ""
