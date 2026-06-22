@@ -1,13 +1,16 @@
 // /api/tickets
 // Haalt tickets op uit Zoho Desk op basis van status.
-// Te plannen:  Wachten op planning / Wachten op bevestiging planning
-// Gepland:     Geplande support
+//
+// Statussen:
+//   Service in te plannen           → moet nog ingepland worden
+//   Wachten op bevestiging planning → op kalender gezet, wacht op klantbevestiging
+//   Geplande service                → klant bevestigd, definitief
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
-const ZOHO_DESK = 'https://desk.zoho.eu/api/v1';
+const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
 
 let cachedToken = null;
-let tokenExpiry = 0;
+let tokenExpiry  = 0;
 
 async function getAccessToken() {
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
@@ -17,7 +20,7 @@ async function getAccessToken() {
     client_secret: process.env.ZOHO_CLIENT_SECRET,
     grant_type:    'refresh_token',
   });
-  const res = await fetch(ZOHO_ACCOUNTS, {
+  const res  = await fetch(ZOHO_ACCOUNTS, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: params,
@@ -35,27 +38,31 @@ export async function handler(event) {
   try {
     const accessToken = await getAccessToken();
 
-    const orgRes = await fetch(`${ZOHO_DESK}/organizations`, {
+    const orgRes  = await fetch(`${ZOHO_DESK}/organizations`, {
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
     });
     const orgData = await orgRes.json();
-    const orgId = orgData.data?.[0]?.id;
+    const orgId   = orgData.data?.[0]?.id;
     if (!orgId) throw new Error('Zoho Desk org ID niet gevonden');
 
-    // Stap 1: lijst voor status-filtering (geen cf in list endpoint)
-    const listRes = await fetch(`${ZOHO_DESK}/tickets?limit=100`, {
+    // Stap 1: lijst ophalen (geen cf fields in list endpoint)
+    const listRes  = await fetch(`${ZOHO_DESK}/tickets?limit=100`, {
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
     });
     const listData = await listRes.json();
-    const all = listData.data || [];
+    const all      = listData.data || [];
 
-    // Stap 2: filter relevante tickets op status
-    const TO_PLAN = ['Wachten op planning', 'Wachten op bevestiging planning'];
+    // Stap 2: alle relevante statussen selecteren
+    const RELEVANT = [
+      'Service in te plannen',
+      'Wachten op bevestiging planning',
+      'Geplande service',
+    ];
     const relevantIds = all
-      .filter(t => TO_PLAN.includes(t.status) || t.status === 'Geplande support')
+      .filter(t => RELEVANT.includes(t.status))
       .map(t => t.id);
 
-    // Stap 3: individueel ophalen geeft wél de cf custom fields
+    // Stap 3: individueel ophalen voor cf custom fields
     const detailed = await Promise.all(
       relevantIds.map(id =>
         fetch(`${ZOHO_DESK}/tickets/${id}`, {
@@ -65,42 +72,44 @@ export async function handler(event) {
     );
 
     const mapTicket = t => {
-      const cf = t.cf || {};
-      const address = cf.cf_adres || cf.cf_adres_eindklant
+      const cf      = t.cf || {};
+      const address = cf.cf_adres
+                   || cf.cf_adres_eindklant
                    || Object.entries(cf).find(([k, v]) => k.includes('adres') && v)?.[1]
                    || '';
       return {
         id:                t.id,
         number:            t.ticketNumber,
-        subject:           t.subject || '',
-        status:            t.status || '',
-        priority:          t.priority || '',
+        subject:           t.subject   || '',
+        status:            t.status    || '',
+        priority:          t.priority  || '',
         assignee:          t.assignee?.fullName || t.assignee?.name || '',
-        contact:           t.contact?.fullName || '',
-        email:             t.contact?.email || t.email || '',
-        phone:             t.contact?.phone || t.contact?.mobile || t.phone || '',
+        contact:           t.contact?.fullName  || '',
+        email:             t.contact?.email     || t.email  || '',
+        phone:             t.contact?.phone     || t.contact?.mobile || t.phone || '',
         account:           t.account?.accountName || '',
         address,
         hasAddress:        !!address,
-        naamEindklant:     cf.cf_naam_eindklant || '',
-        emailEindklant:    cf.cf_e_mail_eindklant || '',
-        telefoonEindklant: cf.cf_telefoon_eindklant || '',
-        serienummer:       cf.cf_serienummer || '',
+        naamEindklant:     cf.cf_naam_eindklant       || '',
+        emailEindklant:    cf.cf_e_mail_eindklant     || '',
+        telefoonEindklant: cf.cf_telefoon_eindklant   || '',
+        serienummer:       cf.cf_serienummer          || '',
         partner:           cf.cf_partner_installateur || '',
-        probleemtype:      cf.cf_probleemtype || '',
-        regio:             cf.cf_regio || '',
-        dueDate:           t.dueDate || null,
+        probleemtype:      cf.cf_probleemtype         || '',
+        regio:             cf.cf_regio                || '',
+        dueDate:           t.dueDate     || null,
         createdTime:       t.createdTime || null,
       };
     };
 
-    const tickets        = detailed.filter(t => TO_PLAN.includes(t.status)).map(mapTicket);
-    const plannedTickets = detailed.filter(t => t.status === 'Geplande support').map(mapTicket);
+    const tickets        = detailed.filter(t => t.status === 'Service in te plannen').map(mapTicket);
+    const pendingTickets = detailed.filter(t => t.status === 'Wachten op bevestiging planning').map(mapTicket);
+    const plannedTickets = detailed.filter(t => t.status === 'Geplande service').map(mapTicket);
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ tickets, plannedTickets }),
+      body: JSON.stringify({ tickets, pendingTickets, plannedTickets }),
     };
   } catch (err) {
     return {
