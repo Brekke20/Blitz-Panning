@@ -14,7 +14,7 @@ foreach ($lock in $locks) {
 git config user.email "brentcalaerts5@gmail.com"
 git config user.name "Brent Calaerts"
 git add .
-git commit -m "fix: status filter tabs, oplossing veld, kalender view"
+git commit -m "fix: bug audit - onclick XSS, map height mobiel, dead code, tab filters"
 git push origin main
 
 Write-Host ""
