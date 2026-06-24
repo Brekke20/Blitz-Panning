@@ -45,28 +45,48 @@ export async function handler(event) {
     const orgId   = orgData.data?.[0]?.id;
     if (!orgId) throw new Error('Zoho Desk org ID niet gevonden');
 
-    const RELEVANT = [
-      'Service in te plannen',
-      'Wachten op bevestiging planning',
-      'Geplande service',
-    ];
+    // Agents ophalen voor naam-lookup (parallel met tickets)
+    const agentsRes = await fetch(`${ZOHO_DESK}/agents?limit=50`, {
+      headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
+    });
+    const agentsData = await agentsRes.json();
+    const agentMap = {};
+    for (const a of agentsData.data || []) {
+      agentMap[a.id] = a.name || `${a.firstName || ''} ${a.lastName || ''}`.trim();
+    }
 
-    // Stap 1: alle tickets ophalen via paginering (max 3 pagina's = 300 tickets)
+    // Beide naamsets ondersteunen (Zoho gebruikt soms oude, soms nieuwe namen)
+    const STATUS_TE_PLANNEN  = ['Service in te plannen',  'Wachten op planning'];
+    const STATUS_PENDING     = ['Wachten op bevestiging planning'];
+    const STATUS_GEPLAND     = ['Geplande service', 'Geplande support'];
+    const RELEVANT = [...STATUS_TE_PLANNEN, ...STATUS_PENDING, ...STATUS_GEPLAND];
+
+    // Stap 1: alle tickets ophalen via paginering (max 6 pagina's = 600 tickets)
     const safeJson = async (res) => {
       const text = await res.text();
       if (!text) return {};
       try { return JSON.parse(text); } catch { return {}; }
     };
 
+    // Paginering zonder statusType filter (Zoho filtert custom statuses er anders uit)
+    // Zodra een pagina 0 relevante tickets oplevert EN de vorige pagina ook 0 had, stoppen we vroeg.
     let allRaw = [];
-    for (let from = 0; from < 300; from += 100) {
-      const res  = await fetch(`${ZOHO_DESK}/tickets?limit=100&from=${from}&sortBy=createdTime&order=desc`, {
+    let emptyRelevantPages = 0;
+    for (let from = 0; from < 600; from += 100) {
+      const res  = await fetch(`${ZOHO_DESK}/tickets?limit=100&from=${from}`, {
         headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
       });
       const data = await safeJson(res);
       const page = data.data || [];
+      const relevantOnPage = page.filter(t => RELEVANT.includes(t.status)).length;
       allRaw = allRaw.concat(page);
-      if (page.length < 100) break; // geen volgende pagina
+      if (page.length < 100) break; // laatste pagina
+      if (relevantOnPage === 0) {
+        emptyRelevantPages++;
+        if (emptyRelevantPages >= 2) break; // 2 lege pagina's op rij → stoppen
+      } else {
+        emptyRelevantPages = 0;
+      }
     }
 
     // Stap 2: filteren op relevante statussen
@@ -74,14 +94,20 @@ export async function handler(event) {
       .filter(t => RELEVANT.includes(t.status))
       .map(t => t.id);
 
-    // Stap 3: individueel ophalen voor cf custom fields
-    const detailed = await Promise.all(
-      relevantIds.map(id =>
-        fetch(`${ZOHO_DESK}/tickets/${id}`, {
-          headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
-        }).then(safeJson)
-      )
-    );
+
+    // Stap 3: individueel ophalen voor cf custom fields (in batches van 5 om rate limiting te vermijden)
+    const detailed = [];
+    for (let i = 0; i < relevantIds.length; i += 5) {
+      const batch = relevantIds.slice(i, i + 5);
+      const results = await Promise.all(
+        batch.map(id =>
+          fetch(`${ZOHO_DESK}/tickets/${id}`, {
+            headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
+          }).then(safeJson)
+        )
+      );
+      detailed.push(...results);
+    }
 
     const mapTicket = t => {
       const cf      = t.cf || {};
@@ -95,11 +121,13 @@ export async function handler(event) {
         subject:           t.subject   || '',
         status:            t.status    || '',
         priority:          t.priority  || '',
-        assignee:          t.assignee?.fullName || t.assignee?.name || '',
-        contact:           t.contact?.fullName  || '',
-        email:             t.contact?.email     || t.email  || '',
-        phone:             t.contact?.phone     || t.contact?.mobile || t.phone || '',
-        account:           t.account?.accountName || '',
+        assignee:          agentMap[t.assigneeId] || '',
+        contact:           t.contact?.name || t.contact?.fullName
+                           || (t.contact?.firstName ? `${t.contact.firstName} ${t.contact.lastName || ''}`.trim() : '')
+                           || '',
+        email:             t.contact?.email  || t.contact?.emailId || t.email  || '',
+        phone:             t.contact?.phone  || t.contact?.mobile  || t.phone  || '',
+        account:           t.account?.name || t.account?.accountName || '',
         address,
         hasAddress:        !!address,
         naamEindklant:     cf.cf_naam_eindklant       || '',
@@ -108,20 +136,27 @@ export async function handler(event) {
         serienummer:       cf.cf_serienummer          || '',
         partner:           cf.cf_partner_installateur || '',
         probleemtype:      cf.cf_probleemtype         || '',
-        regio:             cf.cf_regio                || '',
+        regio:             (cf.cf_regio && cf.cf_regio !== '-Geen-') ? cf.cf_regio : '',
         dueDate:           t.dueDate     || null,
         createdTime:       t.createdTime || null,
       };
     };
 
-    const tickets        = detailed.filter(t => t.status === 'Service in te plannen').map(mapTicket);
-    const pendingTickets = detailed.filter(t => t.status === 'Wachten op bevestiging planning').map(mapTicket);
-    const plannedTickets = detailed.filter(t => t.status === 'Geplande service').map(mapTicket);
+    const tickets        = detailed.filter(t => STATUS_TE_PLANNEN.includes(t.status)).map(mapTicket);
+    const pendingTickets = detailed.filter(t => STATUS_PENDING.includes(t.status)).map(mapTicket);
+    const plannedTickets = detailed.filter(t => STATUS_GEPLAND.includes(t.status)).map(mapTicket);
+
+    // DEBUG — tijdelijk: toon ruwe statusverdeling uit Zoho
+    const _debug = {
+      allRawCount:    allRaw.length,
+      relevantCount:  relevantIds.length,
+      statusCounts:   allRaw.reduce((acc, t) => { acc[t.status] = (acc[t.status] || 0) + 1; return acc; }, {}),
+    };
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ tickets, pendingTickets, plannedTickets }),
+      body: JSON.stringify({ tickets, pendingTickets, plannedTickets, _debug }),
     };
   } catch (err) {
     return {
