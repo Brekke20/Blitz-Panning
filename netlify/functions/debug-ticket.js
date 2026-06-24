@@ -39,18 +39,11 @@ export async function handler(event) {
     });
     const ticketData = await ticketRes.json();
 
-    // Stuur enkel de relevante velden terug (geen gevoelige data)
+    // Volledige raw response — enkel voor lokaal debuggen
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({
-        id:       ticketData.id,
-        assignee: ticketData.assignee,
-        contact:  ticketData.contact,
-        account:  ticketData.account,
-        status:   ticketData.status,
-        dueDate:  ticketData.dueDate,
-      }, null, 2),
+      body: JSON.stringify(ticketData, null, 2),
     };
   } catch (err) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };

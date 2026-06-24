@@ -14,7 +14,7 @@ foreach ($lock in $locks) {
 git config user.email "brentcalaerts5@gmail.com"
 git config user.name "Brent Calaerts"
 git add .
-git commit -m "fix: timezone bug (toISOString→localISO), tickets per status ophalen; feat: Zoho status writeback, kalender tab, eigenaar filter, auto-plan, tijdsblokkering
+git commit -m "fix: timezone bug (localISO), juiste Zoho statusnamen, rate limiting, paginering tot 600; feat: Zoho status writeback, kalender tab, eigenaar filter, auto-plan, tijdsblokkering
 
 - Nieuwe Netlify function /api/plan: PATCH Zoho status + dueDate bij in/uit planning zetten
 - Correcte Zoho statussen: Service in te plannen / Wachten op bevestiging planning / Geplande service

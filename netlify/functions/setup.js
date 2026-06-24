@@ -34,7 +34,7 @@ export async function handler(event) {
     client_id: clientId,
     client_secret: clientSecret,
     redirect_uri: 'https://desk.zoho.com',
-    scope: 'Desk.tickets.READ,Desk.contacts.READ,Desk.basic.READ,Desk.accounts.READ',
+    scope: 'Desk.tickets.READ,Desk.tickets.UPDATE,Desk.contacts.READ,Desk.basic.READ,Desk.accounts.READ',
   });
 
   const response = await fetch('https://accounts.zoho.eu/oauth/v2/token', {

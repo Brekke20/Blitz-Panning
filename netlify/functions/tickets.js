@@ -146,19 +146,10 @@ export async function handler(event) {
     const pendingTickets = detailed.filter(t => STATUS_PENDING.includes(t.status)).map(mapTicket);
     const plannedTickets = detailed.filter(t => STATUS_GEPLAND.includes(t.status)).map(mapTicket);
 
-    // DEBUG — tijdelijk
-    const _debug = {
-      allRawCount:    allRaw.length,
-      relevantCount:  relevantIds.length,
-      detailedCount:  detailed.length,
-      detailedSample: detailed.slice(0, 3).map(t => ({ id: t.id, status: t.status, keys: Object.keys(t).slice(0, 8) })),
-      statusCounts:   allRaw.reduce((acc, t) => { acc[t.status] = (acc[t.status] || 0) + 1; return acc; }, {}),
-    };
-
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ tickets, pendingTickets, plannedTickets, _debug }),
+      body: JSON.stringify({ tickets, pendingTickets, plannedTickets }),
     };
   } catch (err) {
     return {

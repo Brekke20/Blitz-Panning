@@ -63,10 +63,10 @@ export async function handler(event) {
         dueDate: `${date}T00:00:00.000Z`,
       };
     } else {
-      // Uit planning halen
+      // Uit planning halen → terug naar "Wachten op planning" (werkelijke Zoho statusnaam)
       patch = {
-        status:  'Service in te plannen',
-        dueDate: '',   // lege string = wissen in Zoho
+        status:  'Wachten op planning',
+        dueDate: '',
       };
     }
 
@@ -80,9 +80,13 @@ export async function handler(event) {
       body: JSON.stringify(patch),
     });
 
-    const patchData = await patchRes.json();
+    // Zoho geeft soms een lege body terug (204 of leeg 200) — veilig parsen
+    let patchData = {};
+    const rawBody = await patchRes.text();
+    if (rawBody) {
+      try { patchData = JSON.parse(rawBody); } catch (_) { /* lege of non-JSON body */ }
+    }
 
-    // Zoho geeft soms 200 terug maar met een foutmelding in het body
     if (!patchRes.ok) {
       throw new Error(`Zoho fout (${patchRes.status}): ${JSON.stringify(patchData)}`);
     }
