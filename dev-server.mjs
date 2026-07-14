@@ -51,8 +51,10 @@ async function callFunction(fnName, req, body) {
   const fnPath = path.join(__dirname, 'netlify', 'functions', `${fnName}.js`);
   if (!fs.existsSync(fnPath)) return { statusCode: 404, body: JSON.stringify({ error: `Functie niet gevonden: ${fnName}` }) };
 
-  // Module cachen zodat token-cache in de functie bewaard blijft tussen requests
-  const mod = await import(url.pathToFileURL(fnPath).href);
+  // Cache-bust op basis van bestandswijzigingstijd zodat code-wijzigingen
+  // direct worden opgepikt zonder server-herstart.
+  const mtime = fs.statSync(fnPath).mtimeMs;
+  const mod = await import(url.pathToFileURL(fnPath).href + `?t=${mtime}`);
 
   const parsedUrl  = new URL(req.url, 'http://localhost');
   const queryStringParameters = Object.fromEntries(parsedUrl.searchParams.entries());

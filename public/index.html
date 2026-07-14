@@ -3293,6 +3293,26 @@ ${R.varia ? `<div class="sec">Varia</div><div class="block">${R.varia}</div>` : 
   }
   // Revoke na 2 min — genoeg tijd om te printen
   setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
+
+  // Upload PDF als bijlage naar Zoho in achtergrond
+  const rapportFilename = `rapport-${_wizTicket.number || _wizTicket.id}-${R.datum || 'onbekend'}.pdf`;
+  uploadRapportToZoho(html, _wizTicket.id, rapportFilename);
+}
+
+async function uploadRapportToZoho(html, ticketId, filename) {
+  toast('📤 Rapport uploaden naar Zoho…');
+  try {
+    const res = await fetch('/api/rapport', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ html, ticketId, filename }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload mislukt');
+    toast('✅ Rapport opgeslagen als bijlage in Zoho');
+  } catch (err) {
+    toast('⚠️ Zoho upload mislukt: ' + err.message);
+  }
 }
 
 document.addEventListener('keydown', e => {

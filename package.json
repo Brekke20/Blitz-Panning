@@ -4,6 +4,8 @@
   "description": "Field service planning app for Blitz Power",
   "private": true,
   "dependencies": {
-    "node-fetch": "^3.3.2"
+    "@sparticuz/chromium-min": "^131.0.0",
+    "node-fetch": "^3.3.2",
+    "puppeteer-core": "^22.12.0"
   }
 }
