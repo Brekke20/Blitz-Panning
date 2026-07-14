@@ -49,9 +49,10 @@
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       background: var(--bg);
       color: var(--text);
-      min-height: 100%;
+      height: 100%;
       -webkit-font-smoothing: antialiased;
     }
+    body { display: flex; flex-direction: column; }
 
     /* ── Animaties ── */
     @keyframes slideUp {
@@ -216,6 +217,9 @@
     /* ── Views ── */
     .view { display: none; }
     .view.active { display: block; }
+    /* Route tab: fill remaining viewport height */
+    #view-planning { flex-direction: column; }
+    #view-planning.active { display: flex; flex: 1; min-height: 0; }
 
     /* ── Filter bar ── */
     .filter-bar {
@@ -437,7 +441,7 @@
     .cal-meta { font-size: 0.65rem; color: var(--muted); margin-left: 4px; }
     .cal-addr { font-size: 0.64rem; color: var(--muted); margin: 2px 0 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .cal-addr.miss { color: rgba(248,81,73,0.75); }
-    .cal-actions { display: flex; gap: 4px; margin: 6px 0 0 4px; }
+    .cal-actions { display: flex; gap: 4px; margin: 6px 0 0 4px; flex-wrap: wrap; }
     .cal-btn {
       background: transparent; border: 1px solid var(--border); color: var(--muted);
       padding: 3px 8px; border-radius: 4px; font-size: 0.67rem;
@@ -862,18 +866,9 @@
     .wiz-sig-clear:hover { border-color: var(--muted); color: var(--text); }
     .wiz-sig-status { font-size: 0.77rem; color: var(--muted); }
     .wiz-sig-status.signed { color: var(--accent); font-weight: 700; }
-    /* Radio button rows (pill style) */
-    .wiz-radio-btns { display: flex; gap: 8px; flex-wrap: wrap; }
-    .wiz-radio-btn  { display: flex; align-items: center; gap: 7px; cursor: pointer; }
-    .wiz-radio-btn input { display: none; }
-    .wiz-radio-btn-label {
-      padding: 9px 16px; border-radius: 22px; border: 1.5px solid var(--border);
-      font-size: 0.84rem; color: var(--text2); transition: background 0.12s, border-color 0.12s;
-      cursor: pointer; user-select: none;
-    }
-    .wiz-radio-btn input:checked + .wiz-radio-btn-label {
-      background: var(--accent-dim); border-color: var(--accent); color: var(--accent); font-weight: 700;
-    }
+    /* Radio cards — horizontale rij variant */
+    .wiz-radio-cards.row { flex-direction: row; }
+    .wiz-radio-cards.row .wiz-radio-card { flex: 1; justify-content: center; text-align: center; }
     /* Add part button */
     .wiz-add-part {
       background: transparent; border: 1px dashed var(--border); color: var(--muted);
@@ -991,6 +986,9 @@
       <button class="btn-cancel" onclick="closeDet()">Sluiten</button>
       <button class="btn-save"   id="d-plan-btn" onclick="togglePlanFromDetail()"></button>
       <button class="btn-cancel" onclick="openOpl()">✏️ Oplossing</button>
+      <button class="btn-cancel" id="d-btn-arrival" style="display:none" title="Aankomst registreren" onclick="registerArrival(activeTicket?.id,_detailDate)">⏱️ Aankomst</button>
+      <button class="btn-cancel" id="d-btn-proposal" style="display:none" title="Afspraakvoorstel sturen" onclick="openProposal(activeTicket?.id,_detailDate)">📨 Voorstel</button>
+      <button class="btn-cancel" id="d-btn-rapport"  style="display:none" title="Service rapport" onclick="openRapport(activeTicket?.id,_detailDate)">📋 Rapport</button>
     </div>
   </div>
 </div>
@@ -1162,6 +1160,7 @@ const DUMMY_DATA = {
 // ══════════════════════════════════════════════
 let allTickets = [], allPending = [], allGepland = [];
 let activeTicket = null;
+let _detailDate  = null; // datum waarop het actieve ticket ingepland staat
 // planning: { "2026-06-23": [{ ticket, address, _lat, _lon }] }
 // Zoho is bron van waarheid: allPending seeds planning bij laden
 let planning = {};
@@ -2334,6 +2333,16 @@ function setTab(tab) {
 function openDetail(t) {
   if (!t) return;
   activeTicket = t;
+
+  // Zoek de datum waarop dit ticket ingepland staat
+  _detailDate = null;
+  for (const [date, stops] of Object.entries(planning)) {
+    if (stops.some(s => s.ticket.id === t.id)) { _detailDate = date; break; }
+  }
+  const showPlanBtns = !!_detailDate;
+  document.getElementById('d-btn-arrival').style.display  = showPlanBtns ? '' : 'none';
+  document.getElementById('d-btn-proposal').style.display = showPlanBtns ? '' : 'none';
+  document.getElementById('d-btn-rapport').style.display  = showPlanBtns ? '' : 'none';
   document.getElementById('d-num').textContent   = '#' + t.number;
   document.getElementById('d-title').textContent = t.subject || '—';
 
@@ -2513,6 +2522,7 @@ function roundToNextQuarterStr(timeStr) {
 function openProposal(ticketId, date, arrivalMin) {
   activeTicket = getPlanningTicket(ticketId);
   if (!activeTicket) return toast('Ticket niet gevonden');
+  closeDet();
 
   document.getElementById('proposal-date').value = date;
 
@@ -2732,6 +2742,7 @@ const WIZ_STEPS = [
 function openRapport(ticketId, date) {
   const ticket = getPlanningTicket(ticketId);
   if (!ticket) return toast('Ticket niet gevonden');
+  closeDet();
   _wizTicket = ticket;
   _wizDate   = date;
 
@@ -2899,7 +2910,7 @@ function wizRenderFacturatie(el) {
         </label>
         <label class="wiz-radio-card">
           <input type="radio" name="f-facturatie" value="partner" ${R.facturatie==='partner'?'checked':''} onchange="wizFacturatieChange()">
-          <div><div class="wiz-radio-card-label">Partner / installateur</div><div class="wiz-radio-card-sub">${_wizTicket.partner||'—'}</div></div>
+          <div><div class="wiz-radio-card-label">Partner / installateur</div>${_wizTicket.partner ? `<div class="wiz-radio-card-sub">${_wizTicket.partner}</div>` : ''}</div>
         </label>
         <label class="wiz-radio-card">
           <input type="radio" name="f-facturatie" value="vrij" ${R.facturatie==='vrij'?'checked':''} onchange="wizFacturatieChange()">
@@ -2953,30 +2964,30 @@ function wizRenderProduct(el) {
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Type</label>
-      <div class="wiz-radio-btns">
-        <label class="wiz-radio-btn"><input type="radio" name="f-type" value="D1" ${R.type==='D1'?'checked':''}><span class="wiz-radio-btn-label">Single (D1)</span></label>
-        <label class="wiz-radio-btn"><input type="radio" name="f-type" value="D2" ${R.type==='D2'?'checked':''}><span class="wiz-radio-btn-label">Dual (D2)</span></label>
+      <div class="wiz-radio-cards row">
+        <label class="wiz-radio-card"><input type="radio" name="f-type" value="D1" ${R.type==='D1'?'checked':''}><div><div class="wiz-radio-card-label">Single (D1)</div></div></label>
+        <label class="wiz-radio-card"><input type="radio" name="f-type" value="D2" ${R.type==='D2'?'checked':''}><div><div class="wiz-radio-card-label">Dual (D2)</div></div></label>
       </div>
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Uitvoering</label>
-      <div class="wiz-radio-btns">
-        <label class="wiz-radio-btn"><input type="radio" name="f-uitvoering" value="tower" ${R.uitvoering==='tower'?'checked':''}><span class="wiz-radio-btn-label">Tower</span></label>
-        <label class="wiz-radio-btn"><input type="radio" name="f-uitvoering" value="wall" ${R.uitvoering==='wall'?'checked':''}><span class="wiz-radio-btn-label">Wall</span></label>
+      <div class="wiz-radio-cards row">
+        <label class="wiz-radio-card"><input type="radio" name="f-uitvoering" value="tower" ${R.uitvoering==='tower'?'checked':''}><div><div class="wiz-radio-card-label">Tower</div></div></label>
+        <label class="wiz-radio-card"><input type="radio" name="f-uitvoering" value="wall" ${R.uitvoering==='wall'?'checked':''}><div><div class="wiz-radio-card-label">Wall</div></div></label>
       </div>
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Kabeltype</label>
-      <div class="wiz-radio-btns">
-        <label class="wiz-radio-btn"><input type="radio" name="f-kabel" value="socket" ${R.kabel==='socket'?'checked':''} onchange="wizKabelChange()"><span class="wiz-radio-btn-label">Socket</span></label>
-        <label class="wiz-radio-btn"><input type="radio" name="f-kabel" value="kabel" ${R.kabel==='kabel'?'checked':''} onchange="wizKabelChange()"><span class="wiz-radio-btn-label">Vaste kabel</span></label>
+      <div class="wiz-radio-cards row">
+        <label class="wiz-radio-card"><input type="radio" name="f-kabel" value="socket" ${R.kabel==='socket'?'checked':''} onchange="wizKabelChange()"><div><div class="wiz-radio-card-label">Socket</div></div></label>
+        <label class="wiz-radio-card"><input type="radio" name="f-kabel" value="kabel" ${R.kabel==='kabel'?'checked':''} onchange="wizKabelChange()"><div><div class="wiz-radio-card-label">Vaste kabel</div></div></label>
       </div>
       <div id="kabel-lengte-wrap" style="${R.kabel==='kabel'?'':'display:none'};margin-top:10px">
         <label class="wiz-field-label">Kabellengte</label>
-        <div class="wiz-radio-btns">
-          <label class="wiz-radio-btn"><input type="radio" name="f-kabellengte" value="5m" ${R.kabellengte==='5m'?'checked':''}><span class="wiz-radio-btn-label">5m</span></label>
-          <label class="wiz-radio-btn"><input type="radio" name="f-kabellengte" value="8m" ${R.kabellengte==='8m'?'checked':''}><span class="wiz-radio-btn-label">8m</span></label>
-          <label class="wiz-radio-btn"><input type="radio" name="f-kabellengte" value="spiraal" ${R.kabellengte==='spiraal'?'checked':''}><span class="wiz-radio-btn-label">Spiraal</span></label>
+        <div class="wiz-radio-cards row">
+          <label class="wiz-radio-card"><input type="radio" name="f-kabellengte" value="5m" ${R.kabellengte==='5m'?'checked':''}><div><div class="wiz-radio-card-label">5m</div></div></label>
+          <label class="wiz-radio-card"><input type="radio" name="f-kabellengte" value="8m" ${R.kabellengte==='8m'?'checked':''}><div><div class="wiz-radio-card-label">8m</div></div></label>
+          <label class="wiz-radio-card"><input type="radio" name="f-kabellengte" value="spiraal" ${R.kabellengte==='spiraal'?'checked':''}><div><div class="wiz-radio-card-label">Spiraal</div></div></label>
         </div>
       </div>
     </div>`;
@@ -3020,16 +3031,16 @@ function wizRenderStatus(el) {
     <div class="wiz-step-title">Status &amp; onderdelen</div>
     <div class="wiz-field">
       <label class="wiz-field-label">Definitief hersteld</label>
-      <div class="wiz-radio-btns">
-        <label class="wiz-radio-btn"><input type="radio" name="f-hersteld" value="ja" ${R.hersteld==='ja'?'checked':''}><span class="wiz-radio-btn-label">Ja</span></label>
-        <label class="wiz-radio-btn"><input type="radio" name="f-hersteld" value="nee" ${R.hersteld!=='ja'?'checked':''}><span class="wiz-radio-btn-label">Nee</span></label>
+      <div class="wiz-radio-cards row">
+        <label class="wiz-radio-card"><input type="radio" name="f-hersteld" value="ja" ${R.hersteld==='ja'?'checked':''}><div><div class="wiz-radio-card-label">Ja</div></div></label>
+        <label class="wiz-radio-card"><input type="radio" name="f-hersteld" value="nee" ${R.hersteld!=='ja'?'checked':''}><div><div class="wiz-radio-card-label">Nee</div></div></label>
       </div>
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Nieuwe interventie nodig</label>
-      <div class="wiz-radio-btns">
-        <label class="wiz-radio-btn"><input type="radio" name="f-nieuw-inter" value="ja" ${R.nieuwInter==='ja'?'checked':''}><span class="wiz-radio-btn-label">Ja</span></label>
-        <label class="wiz-radio-btn"><input type="radio" name="f-nieuw-inter" value="nee" ${R.nieuwInter!=='ja'?'checked':''}><span class="wiz-radio-btn-label">Nee</span></label>
+      <div class="wiz-radio-cards row">
+        <label class="wiz-radio-card"><input type="radio" name="f-nieuw-inter" value="ja" ${R.nieuwInter==='ja'?'checked':''}><div><div class="wiz-radio-card-label">Ja</div></div></label>
+        <label class="wiz-radio-card"><input type="radio" name="f-nieuw-inter" value="nee" ${R.nieuwInter!=='ja'?'checked':''}><div><div class="wiz-radio-card-label">Nee</div></div></label>
       </div>
     </div>
     <div class="wiz-sep"></div>
@@ -3273,13 +3284,15 @@ ${R.varia ? `<div class="sec">Varia</div><div class="block">${R.varia}</div>` : 
 </div>
 </body></html>`;
 
-  const win = window.open('', '_blank', 'width=960,height=780');
-  if (!win) return toast('Pop-upblokkering actief — sta pop-ups toe voor deze pagina');
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  setTimeout(() => win.print(), 500);
+  const blob   = new Blob([html], { type: 'text/html; charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+  const win    = window.open(blobUrl, '_blank');
+  if (!win) {
+    URL.revokeObjectURL(blobUrl);
+    return toast('Pop-upblokkering actief — sta pop-ups toe voor deze pagina');
+  }
+  // Revoke na 2 min — genoeg tijd om te printen
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
 }
 
 document.addEventListener('keydown', e => {
