@@ -904,7 +904,7 @@
     }
     .prijs-hdr-title { font-size: 1rem; font-weight: 700; flex: 1; }
     .prijs-hdr-meta  { font-size: 0.72rem; color: var(--muted); text-align: right; line-height: 1.4; }
-    .prijs-body { flex: 1; overflow-y: auto; padding: 14px 20px; }
+    .prijs-body { flex: 1; overflow-y: auto; padding: 14px 20px; min-height: 0; }
     .prijs-ftr {
       padding: 12px 20px; border-top: 1px solid var(--border); display: flex;
       gap: 8px; justify-content: flex-end; flex-shrink: 0; background: var(--surface);
@@ -956,6 +956,9 @@
       text-align: right; font-family: inherit;
     }
     .prijs-prijs-input:focus { outline: none; border-color: var(--accent); }
+    .prijs-prijs-input::-webkit-outer-spin-button,
+    .prijs-prijs-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .prijs-prijs-input[type=number] { -moz-appearance: textfield; }
     .prijs-eenheid { font-size: 0.68rem; color: var(--muted); }
     .prijs-del-btn {
       background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem;
@@ -1225,7 +1228,7 @@
       <div id="prijs-gate-err" style="font-size:0.78rem;color:var(--red);min-height:18px"></div>
     </div>
     <!-- Editor (zichtbaar na auth) -->
-    <div id="prijs-editor" style="display:none;flex-direction:column;height:100%">
+    <div id="prijs-editor" style="display:none;flex-direction:column;flex:1;min-height:0">
       <div class="prijs-hdr">
         <div class="prijs-hdr-title">💰 Prijsbeheer</div>
         <div class="prijs-hdr-meta" id="prijs-meta">—</div>
