@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blitz Power — Prioriteitsmatrix Service Tickets</title>
+<style>
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10pt;
+  color: #111;
+  background: #e8e8e8;
+}
+
+/* ── PAGE ── */
+.page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 12mm auto;
+  background: #fff;
+  padding: 13mm 15mm 11mm;
+  box-shadow: 0 3px 20px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── HEADER ── */
+.hdr {
+  display: flex;
+  align-items: center;
+  margin-bottom: 7px;
+}
+.bolt svg { display: block; }
+.brand { margin-left: 9px; }
+.brand-name {
+  font-size: 17pt;
+  font-weight: 900;
+  letter-spacing: 5px;
+  color: #181e24;
+  line-height: 1;
+  font-family: 'Arial Black', Arial, sans-serif;
+}
+.brand-sub {
+  font-size: 6.5pt;
+  color: #aaa;
+  letter-spacing: 3px;
+  margin-top: 2px;
+}
+.hdr-right {
+  margin-left: auto;
+  text-align: right;
+  font-size: 7.5pt;
+  color: #999;
+  letter-spacing: 0.5px;
+  line-height: 1.6;
+}
+.accent-bar { height: 3px; background: #00dfa3; margin-bottom: 14px; }
+
+/* ── SECTION TITLE ── */
+.sec {
+  font-size: 7pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.8px;
+  color: #777;
+  border-bottom: 1px solid #e8e8e8;
+  padding-bottom: 3px;
+  margin: 13px 0 9px;
+}
+
+/* ── MATRIX INTRO ── */
+.intro {
+  font-size: 8.5pt;
+  color: #555;
+  line-height: 1.6;
+  margin-bottom: 11px;
+}
+.intro strong { color: #181e24; }
+
+/* ── MATRIX TABLE ── */
+.matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.matrix-table td, .matrix-table th {
+  border: 1px solid #d5d5d5;
+}
+
+/* Corner cell */
+.corner {
+  width: 118px;
+  background: #181e24;
+  padding: 8px;
+  vertical-align: bottom;
+}
+.corner-text {
+  font-size: 6.5pt;
+  color: #5a6472;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+.corner-arrow {
+  font-size: 8.5pt;
+  color: #00dfa3;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+/* Column header */
+.col-hdr {
+  background: #181e24;
+  text-align: center;
+  padding: 7px 6px;
+  vertical-align: middle;
+  border-color: #2d3844;
+}
+.col-num {
+  font-size: 14pt;
+  font-weight: 900;
+  color: #00dfa3;
+  line-height: 1;
+}
+.col-keyword {
+  font-size: 8pt;
+  font-weight: 700;
+  color: #ffffff;
+  margin-top: 3px;
+  letter-spacing: 0.3px;
+}
+.col-subtext {
+  font-size: 6.5pt;
+  color: #6a7a8a;
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+/* Row header */
+.row-hdr {
+  background: #f7f7f7;
+  border-right: 2px solid #c0c0c0;
+  padding: 9px 8px;
+  vertical-align: middle;
+}
+.row-letter {
+  font-size: 14pt;
+  font-weight: 900;
+  color: #181e24;
+  line-height: 1;
+}
+.row-title {
+  font-size: 7.5pt;
+  font-weight: 700;
+  color: #333;
+  margin-top: 3px;
+  line-height: 1.3;
+}
+.row-sub {
+  font-size: 6.5pt;
+  color: #999;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+/* Prio cells */
+.cell {
+  text-align: center;
+  vertical-align: middle;
+  height: 62px;
+  padding: 6px;
+}
+.cell-high   { background: #fde8e8; }
+.cell-medium { background: #fef3cd; }
+.cell-low    { background: #e8f5e9; }
+
+.cell-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 4px;
+}
+
+.prio-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cell-high   .prio-dot { background: #c0392b; }
+.cell-medium .prio-dot { background: #c07800; }
+.cell-low    .prio-dot { background: #2e7d32; }
+
+.prio-word {
+  font-size: 9.5pt;
+  font-weight: 900;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+.cell-high   .prio-word { color: #c0392b; }
+.cell-medium .prio-word { color: #c07800; }
+.cell-low    .prio-word { color: #2e7d32; }
+
+/* ── LEGENDA URGENTIE ── */
+.urg-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.urg-card {
+  border: 1px solid #e4e4e4;
+  border-radius: 4px;
+  padding: 8px 10px;
+  background: #fafafa;
+}
+.urg-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.urg-num {
+  font-size: 13pt;
+  font-weight: 900;
+  line-height: 1;
+}
+.urg-num.u1 { color: #c0392b; }
+.urg-num.u2 { color: #c07800; }
+.urg-num.u3 { color: #2e7d32; }
+.urg-kw {
+  font-size: 8pt;
+  font-weight: 700;
+  color: #222;
+}
+.urg-desc { font-size: 7pt; color: #777; line-height: 1.45; }
+
+/* ── VERZWARENDE FACTOREN ── */
+.factors { display: flex; flex-direction: column; gap: 5px; }
+.factor {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 7px 10px;
+  background: #fffbec;
+  border: 1px solid #edd97a;
+  border-left: 4px solid #e6a817;
+  border-radius: 3px;
+}
+.f-icon { font-size: 11pt; flex-shrink: 0; margin-top: 1px; }
+.f-title { font-size: 8pt; font-weight: 700; color: #333; margin-bottom: 2px; }
+.f-desc  { font-size: 7pt; color: #666; line-height: 1.45; }
+
+/* ── FOOTER ── */
+.page-footer {
+  margin-top: auto;
+  padding-top: 9px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  font-size: 6.5pt;
+  color: #ccc;
+}
+
+/* ══════════════════════ PAGE 2 ══════════════════════ */
+.info-intro {
+  font-size: 9pt;
+  color: #444;
+  line-height: 1.7;
+  margin-bottom: 3px;
+}
+
+.prio-block {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 7px;
+}
+.prio-block.high   { background: #fde8e8; border-left: 5px solid #c0392b; }
+.prio-block.medium { background: #fef3cd; border-left: 5px solid #e6a817; }
+.prio-block.low    { background: #e8f5e9; border-left: 5px solid #2e7d32; }
+
+.pb-label {
+  font-size: 10pt;
+  font-weight: 900;
+  letter-spacing: 1px;
+  min-width: 58px;
+  margin-top: 1px;
+}
+.high   .pb-label { color: #c0392b; }
+.medium .pb-label { color: #c07800; }
+.low    .pb-label { color: #2e7d32; }
+
+.pb-sla   { font-size: 7.5pt; font-weight: 700; color: #555; margin-bottom: 3px; }
+.pb-desc  { font-size: 8pt; color: #444; line-height: 1.55; margin-bottom: 5px; }
+.pb-ex    { font-size: 7pt; color: #666; line-height: 1.65; }
+.pb-ex span::before { content: "→ "; color: #00dfa3; font-weight: 700; }
+.pb-ex span { display: block; }
+
+.steps {
+  counter-reset: s;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 11px;
+}
+.steps li {
+  counter-increment: s;
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 8.5pt;
+  color: #333;
+  line-height: 1.55;
+}
+.steps li::before {
+  content: counter(s);
+  background: #181e24;
+  color: #00dfa3;
+  font-weight: 900;
+  font-size: 7.5pt;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.mini {
+  border: 1px solid #e4e4e4;
+  border-radius: 4px;
+  padding: 8px 10px;
+  background: #fafafa;
+}
+.mini-title {
+  font-size: 7.5pt; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: #555; margin-bottom: 5px;
+}
+.mini ul { list-style: none; }
+.mini li {
+  font-size: 7.5pt; color: #444; line-height: 1.65;
+  padding-left: 10px; position: relative;
+}
+.mini li::before { content: "·"; position: absolute; left: 0; color: #00dfa3; font-weight: 700; }
+
+.tip {
+  background: #f0fdf9;
+  border: 1px solid #b2edd8;
+  border-left: 4px solid #00dfa3;
+  border-radius: 3px;
+  padding: 8px 11px;
+  margin-bottom: 8px;
+}
+.tip-title { font-size: 7.5pt; font-weight: 700; color: #065f46; margin-bottom: 3px; }
+.tip-body  { font-size: 7.5pt; color: #065f46; line-height: 1.6; }
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+  body {
+    background: white;
+    margin: 0;
+    padding: 0;
+  }
+  .page {
+    margin: 0;
+    box-shadow: none;
+    width: 100%;
+    min-height: 297mm;
+    page-break-after: always;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- PAGINA 1 — MATRIX SNELREFERENTIE              -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="page">
+
+  <div class="hdr">
+    <div class="bolt">
+      <svg width="13" height="21" viewBox="0 0 13 21" xmlns="http://www.w3.org/2000/svg">
+        <line x1="10" y1="1" x2="1" y2="11" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/>
+        <line x1="12" y1="10" x2="3" y2="20" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="brand">
+      <div class="brand-name">BLITZ POWER</div>
+      <div class="brand-sub">SERVICE &amp; SUPPORT</div>
+    </div>
+    <div class="hdr-right">Prioriteitsmatrix — Service Tickets<br>v1.0 · Intern gebruik</div>
+  </div>
+  <div class="accent-bar"></div>
+
+  <p class="intro">
+    Beantwoord twee vragen: <strong>Wat is de operationele impact?</strong> (kies rij A, B of C) en
+    <strong>Hoe urgent is de locatie/situatie?</strong> (kies kolom 1, 2 of 3).
+    Het kruispunt = de prioriteit. Controleer daarna de verzwarende factoren onderaan.
+  </p>
+
+  <div class="sec">Stap 1 — Matrix: impact × urgentie</div>
+
+  <table class="matrix-table">
+    <thead>
+      <tr>
+        <!-- Corner -->
+        <th class="corner">
+          <div class="corner-text">Impact ↓<br>Urgentie →</div>
+        </th>
+        <!-- Col 1 -->
+        <th class="col-hdr">
+          <div class="col-num">1</div>
+          <div class="col-keyword">Publiek / Fleet</div>
+          <div class="col-subtext">Geen alternatief beschikbaar</div>
+        </th>
+        <!-- Col 2 -->
+        <th class="col-hdr">
+          <div class="col-num">2</div>
+          <div class="col-keyword">B2B kantoor</div>
+          <div class="col-subtext">Beperkt alternatief aanwezig</div>
+        </th>
+        <!-- Col 3 -->
+        <th class="col-hdr">
+          <div class="col-num">3</div>
+          <div class="col-keyword">Residentieel</div>
+          <div class="col-subtext">Alternatief beschikbaar</div>
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Rij A -->
+      <tr>
+        <td class="row-hdr">
+          <div class="row-letter">A</div>
+          <div class="row-title">Volledig buiten dienst</div>
+          <div class="row-sub">Geen enkel laadpunt werkt</div>
+        </td>
+        <td class="cell cell-high"><div class="cell-inner"><div class="prio-dot"></div><span class="prio-word">HIGH</span></div></td>
+        <td class="cell cell-high"><div class="cell-inner"><div class="prio-dot"></div><span class="prio-word">HIGH</span></div></td>
+        <td class="cell cell-medium"><div class="cell-inner"><div class="prio-dot"></div><span class="prio-word">MEDIUM</span></div></td>
+      </tr>
+      <!-- Rij B -->
+      <tr>
+        <td class="row-hdr">
+          <div class="row-letter">B</div>
+          <div class="row-title">Gedeeltelijk beschikbaar</div>
+          <div class="row-sub">Verminderd vermogen of 1 van 2 outputs werkt</div>
+        </td>
+        <td class="cell cell-high"><div class="cell-inner"><div class="prio-dot"></div><span class="prio-word">HIGH</span></div></td>
+        <td class="cell cell-medium"><div class="cell-inner"><div class="prio-dot"></div><span class="prio-word">MEDIUM</span></div></td>
+        <td class="cell cell-low"><div class="cell-inner"><div class="prio-dot"></div><span class="prio-word">LOW</span></div></td>
+      </tr>
+      <!-- Rij C -->
+      <tr>
+        <td class="row-hdr">
+          <div class="row-letter">C</div>
+          <div class="row-title">Beschikbaar — klacht</div>
+          <div class="row-sub">Laadt wel, maar storing of klacht gemeld</div>
+        </td>
+        <td class="cell cell-medium"><div class="cell-inner"><div class="prio-dot"></div><span class="prio-word">MEDIUM</span></div></td>
+        <td class="cell cell-low"><div class="cell-inner"><div class="prio-dot"></div><span class="prio-word">LOW</span></div></td>
+        <td class="cell cell-low"><div class="cell-inner"><div class="prio-dot"></div><span class="prio-word">LOW</span></div></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Urgentie legenda -->
+  <div class="sec">Kolom toelichting — urgentie</div>
+  <div class="urg-grid">
+    <div class="urg-card">
+      <div class="urg-header">
+        <div class="urg-num u1">1</div>
+        <div class="urg-kw">Publiek / Fleet</div>
+      </div>
+      <div class="urg-desc">
+        Publieke laadlocatie (meerdere gebruikers) · Bedrijfsvoertuigen die dagelijks moeten laden ·
+        Locatie zonder enig alternatief in de buurt · Klant volledig geblokkeerd
+      </div>
+    </div>
+    <div class="urg-card">
+      <div class="urg-header">
+        <div class="urg-num u2">2</div>
+        <div class="urg-kw">B2B kantoor</div>
+      </div>
+      <div class="urg-desc">
+        Bedrijfssite of kantoorparkeerplaats · Medewerkers ondervinden hinder maar kunnen elders laden ·
+        Beperkt aantal alternatieve laadpunten aanwezig
+      </div>
+    </div>
+    <div class="urg-card">
+      <div class="urg-header">
+        <div class="urg-num u3">3</div>
+        <div class="urg-kw">Residentieel</div>
+      </div>
+      <div class="urg-desc">
+        Privé-installatie thuis · Klant kan tijdelijk elders laden (publiek, werk) ·
+        Geen acute tijdsdruk · Hinder maar geen blokkage
+      </div>
+    </div>
+  </div>
+
+  <!-- Verzwarende factoren -->
+  <div class="sec">Stap 2 — Verzwarende factoren (verhogen steeds 1 niveau)</div>
+  <div class="factors">
+    <div class="factor">
+      <div class="f-icon">🔁</div>
+      <div>
+        <div class="f-title">Recidief — 2e of volgende interventie voor hetzelfde probleem</div>
+        <div class="f-desc">Al eerder behandeld maar het probleem keert terug. Duidt op een dieper onderliggend defect. Altijd 1 niveau hoger dan de matrix aangeeft.</div>
+      </div>
+    </div>
+    <div class="factor">
+      <div class="f-icon">⚡</div>
+      <div>
+        <div class="f-title">Veiligheidsrisico — OCPP-foutcode met brand- of elektriciteitsrisico</div>
+        <div class="f-desc">Oververhitting, aardlek of isolatiefout gedetecteerd. Ongeacht de matrix: <strong>altijd direct HIGH</strong>. Geen uitzonderingen.</div>
+      </div>
+    </div>
+    <div class="factor">
+      <div class="f-icon">📋</div>
+      <div>
+        <div class="f-title">Garantiedossier met externe deadline</div>
+        <div class="f-desc">Leverancier of garantievoorwaarden leggen een tijdsdruk op. 1 niveau hoger om SLA-breach te vermijden.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>Blitz Power BV — Intern gebruik</span>
+    <span>Pagina 1 / 2 &nbsp;·&nbsp; Prioriteitsmatrix v1.0</span>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- PAGINA 2 — INFO FICHE                         -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="page">
+
+  <div class="hdr">
+    <div class="bolt">
+      <svg width="13" height="21" viewBox="0 0 13 21" xmlns="http://www.w3.org/2000/svg">
+        <line x1="10" y1="1" x2="1" y2="11" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/>
+        <line x1="12" y1="10" x2="3" y2="20" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="brand">
+      <div class="brand-name">BLITZ POWER</div>
+      <div class="brand-sub">SERVICE &amp; SUPPORT</div>
+    </div>
+    <div class="hdr-right">Info fiche — Prioriteiten<br>Achtergrond &amp; Gebruik</div>
+  </div>
+  <div class="accent-bar"></div>
+
+  <div class="sec">Waarom een prioriteitsmatrix?</div>
+  <p class="info-intro">
+    Niet elk serviceticket is even dringend — maar zonder duidelijke criteria kiest iedereen anders.
+    Dat leidt tot frustratie, ontevreden klanten en technici die de verkeerde volgorde rijden.
+    Deze matrix geeft iedereen dezelfde meetlat. Het doel is niet perfectie, maar
+    <strong>consistentie en rust</strong> in de dagelijkse planning.
+  </p>
+
+  <div class="sec">Hoe gebruik je de matrix?</div>
+  <ol class="steps">
+    <li><div>Lees het ticket en bepaal de <strong>operationele impact</strong>: werkt het toestel helemaal niet (A), gedeeltelijk (B), of laadt het maar is er een klacht (C)?</div></li>
+    <li><div>Bepaal de <strong>urgentie</strong>: gaat het om een publieke locatie of fleet (1), een B2B kantoor (2), of een residentiële installatie (3)?</div></li>
+    <li><div>Zoek het <strong>kruispunt</strong> op in de matrix op pagina 1 → dat is de basispriorititeit.</div></li>
+    <li><div>Controleer de <strong>drie verzwarende factoren</strong>. Van toepassing? Verhoog 1 niveau. Veiligheidsrisico? Direct HIGH, geen discussie.</div></li>
+    <li><div>Stel de prioriteit in in <strong>Zoho</strong>. Voeg een korte motivatie toe als het niet voor de hand liggend is.</div></li>
+  </ol>
+
+  <div class="sec">Wat betekent elke prioriteit?</div>
+
+  <div class="prio-block high">
+    <div class="pb-label">HIGH</div>
+    <div>
+      <div class="pb-sla">Streefdoel: interventie binnen 1–2 werkdagen</div>
+      <div class="pb-desc">Directe impact op meerdere gebruikers of een bedrijfsproces. Uitstel vergroot de schade. Gaat bovenaan de wachtrij en wordt als eerste ingepland.</div>
+      <div class="pb-ex">
+        <span>Publiek laadpark volledig buiten dienst</span>
+        <span>Fleet-locatie: bedrijfsvoertuigen kunnen niet laden</span>
+        <span>Elk ticket met veiligheidsrisico (OCPP-foutcode)</span>
+        <span>Recidief op een eerder gerapporteerd probleem</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="prio-block medium">
+    <div class="pb-label">MEDIUM</div>
+    <div>
+      <div class="pb-sla">Streefdoel: interventie binnen 3–5 werkdagen</div>
+      <div class="pb-desc">Er is hinder, maar de situatie is beheersbaar. De klant kan (beperkt) verder. Plannen in de lopende of volgende week, rekening houdend met route.</div>
+      <div class="pb-ex">
+        <span>Residentieel: volledig buiten dienst maar klant kan elders laden</span>
+        <span>B2B kantoor: 1 van 2 outputs werkt niet</span>
+        <span>Publieke locatie: verminderd vermogen, alternatief aanwezig</span>
+        <span>Klacht op publieke locatie zonder volledige uitval</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="prio-block low">
+    <div class="pb-label">LOW</div>
+    <div>
+      <div class="pb-sla">Streefdoel: interventie binnen 5–10 werkdagen</div>
+      <div class="pb-desc">Minimale impact. Het toestel functioneert of de klant heeft een werkend alternatief. Wordt meegenomen wanneer de route het toelaat (geo-clustering).</div>
+      <div class="pb-ex">
+        <span>Residentieel: klacht zonder uitval, laadpunt werkt nog</span>
+        <span>B2B: cosmetisch defect of niet-kritische melding</span>
+        <span>Vragen over gebruik of instellingen zonder technisch defect</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">Tips en valkuilen</div>
+  <div class="two-col">
+    <div class="mini">
+      <div class="mini-title">✅ Doe dit</div>
+      <ul>
+        <li>Noteer altijd een motivatie bij MEDIUM of hoger als het niet evident is</li>
+        <li>Controleer eerst op veiligheids-foutcodes vóór je de matrix invult</li>
+        <li>Twijfel je tussen twee niveaus? Neem het hogere.</li>
+        <li>Herbekijk de prio als nieuwe info binnenkomt</li>
+      </ul>
+    </div>
+    <div class="mini">
+      <div class="mini-title">❌ Vermijd dit</div>
+      <ul>
+        <li>Alles op HIGH zetten "voor de zekerheid" — dan verliest de prio zijn waarde</li>
+        <li>De klant zijn eigen prioriteit laten bepalen zonder matrix te checken</li>
+        <li>LOW-tickets wekenlang laten liggen zonder opvolging</li>
+        <li>Prioriteit aanpassen zonder reden te noteren in Zoho</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="tip">
+    <div class="tip-title">💡 Onthoud</div>
+    <div class="tip-body">
+      De matrix geeft structuur, geen dictaat. Als jij als planner voelt dat een ticket zwaarder weegt dan de matrix aangeeft,
+      vertrouw dan je vakkennis — maar noteer waarom. Zo bouw je na verloop van tijd een geheugen op van uitzonderingen
+      en kan de matrix bijgestuurd worden.
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>Blitz Power BV — Intern gebruik</span>
+    <span>Pagina 2 / 2 &nbsp;·&nbsp; Info fiche Prioriteiten v1.0</span>
+  </div>
+</div>
+
+</body>
+</html>

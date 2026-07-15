@@ -4,6 +4,7 @@
   "description": "Field service planning app for Blitz Power",
   "private": true,
   "dependencies": {
+    "@netlify/blobs": "^8.1.0",
     "@sparticuz/chromium-min": "^131.0.0",
     "node-fetch": "^3.3.2",
     "puppeteer-core": "^22.12.0"

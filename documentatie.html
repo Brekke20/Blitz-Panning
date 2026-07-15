@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<title>Blitz Planning — Documentatie</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+
+/* ── TOKENS ── */
+:root{
+  --dark:#181e24;--dark2:#1e2730;--dark3:#252e38;--dark4:#2d3844;
+  --accent:#00dfa3;--accent-dim:#0a3d2e;
+  --text:#e8eaed;--muted:#7a8a9a;
+  --high:#e53935;--medium:#f59e0b;--low:#22c55e;
+  --border:#2d3844;
+}
+
+body{font-family:Arial,Helvetica,sans-serif;background:#f0f0f0;color:#222;font-size:10pt}
+
+/* ── PAGES ── */
+.page{width:210mm;min-height:297mm;margin:10mm auto;background:#fff;box-shadow:0 3px 20px rgba(0,0,0,.15);display:flex;flex-direction:column;page-break-after:always}
+
+/* ── COVER ── */
+.cover{background:var(--dark);color:var(--text);display:flex;flex-direction:column;justify-content:space-between;padding:20mm 18mm}
+.cover-logo{display:flex;align-items:center;gap:14px}
+.cover-brand{font-size:26pt;font-weight:900;letter-spacing:6px;color:var(--accent);font-family:'Arial Black',Arial,sans-serif}
+.cover-brand-sub{font-size:8pt;color:#5a6472;letter-spacing:4px;margin-top:3px}
+.cover-mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding:30mm 0 20mm}
+.cover-title{font-size:30pt;font-weight:900;color:#fff;line-height:1.1;letter-spacing:-0.5px}
+.cover-title span{color:var(--accent)}
+.cover-sub{font-size:11pt;color:#5a7a6a;margin-top:12px;font-weight:400;letter-spacing:0.5px}
+.cover-bar{height:3px;background:var(--accent);margin:18px 0}
+.cover-desc{font-size:9pt;color:#6a8a7a;line-height:1.7;max-width:140mm}
+.cover-footer{display:flex;justify-content:space-between;align-items:flex-end;font-size:7.5pt;color:#3a4a5a}
+.cover-version{background:var(--accent-dim);border:1px solid var(--accent);color:var(--accent);padding:4px 12px;border-radius:20px;font-size:7.5pt;font-weight:700;letter-spacing:1px}
+
+/* ── CONTENT PAGES ── */
+.content{padding:12mm 14mm 10mm}
+
+.doc-header{display:flex;align-items:center;margin-bottom:6px}
+.doc-logo{display:flex;align-items:center;gap:8px}
+.doc-brand{font-size:11pt;font-weight:900;letter-spacing:4px;color:var(--dark);font-family:'Arial Black',Arial,sans-serif}
+.doc-brand-sub{font-size:5.5pt;color:#aaa;letter-spacing:3px;margin-top:1px}
+.doc-header-right{margin-left:auto;font-size:7pt;color:#bbb;text-align:right;line-height:1.6}
+.accent-bar{height:3px;background:var(--accent);margin-bottom:14px}
+
+/* ── SECTION TITLES ── */
+.chapter{font-size:16pt;font-weight:900;color:var(--dark);margin-bottom:4px;letter-spacing:-0.3px}
+.chapter span{color:var(--accent)}
+.chapter-sub{font-size:8.5pt;color:#888;margin-bottom:12px;letter-spacing:0.3px}
+.sec{font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#888;border-bottom:1px solid #eee;padding-bottom:3px;margin:13px 0 8px}
+.body-text{font-size:8.5pt;color:#444;line-height:1.7;margin-bottom:8px}
+
+/* ── TOC ── */
+.toc-item{display:flex;align-items:baseline;gap:0;margin-bottom:5px;font-size:9pt}
+.toc-num{min-width:22px;font-weight:700;color:var(--accent);font-size:8.5pt}
+.toc-title{color:#333;flex:1}
+.toc-dots{flex:1;border-bottom:1px dotted #ccc;margin:0 6px;position:relative;top:-3px}
+.toc-page{color:#888;font-size:8pt;min-width:20px;text-align:right}
+.toc-group{margin-bottom:10px}
+.toc-group-title{font-size:7pt;text-transform:uppercase;letter-spacing:2px;color:#bbb;margin-bottom:4px;margin-top:8px}
+
+/* ── APP MOCKUPS ── */
+.mockup{border-radius:8px;overflow:hidden;border:1px solid #333;margin:10px 0;font-family:Arial,sans-serif}
+.mock-bar{background:var(--dark);padding:7px 12px;display:flex;align-items:center;gap:10px}
+.mock-logo{font-size:9pt;font-weight:900;color:var(--accent);letter-spacing:3px}
+.mock-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);background:var(--dark2)}
+.mock-tab{padding:8px 14px;font-size:8pt;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px}
+.mock-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:700}
+.mock-tab .badge{background:var(--accent-dim);color:var(--accent);font-size:6pt;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:700}
+.mock-body{background:var(--dark2);padding:10px;min-height:120px}
+.mock-toolbar{background:var(--dark);padding:7px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}
+
+/* Tickets in wachtrij */
+.mock-ticket{background:var(--dark3);border-radius:5px;border:1px solid var(--border);padding:9px 11px;margin-bottom:6px;display:flex;align-items:flex-start;gap:10px;border-left:3px solid var(--border)}
+.mock-ticket.high{border-left-color:var(--high)}
+.mock-ticket.medium{border-left-color:var(--medium)}
+.mock-ticket.low{border-left-color:var(--low)}
+.mock-ticket-info{flex:1}
+.mock-ticket-meta{display:flex;gap:5px;align-items:center;margin-bottom:4px;flex-wrap:wrap}
+.mock-ticket-num{font-size:7pt;color:var(--muted)}
+.badge-status{font-size:6.5pt;padding:2px 6px;border-radius:3px;font-weight:700}
+.badge-high{background:rgba(229,57,53,.2);color:#ef9a9a}
+.badge-medium{background:rgba(245,158,11,.2);color:#fcd34d}
+.badge-low{background:rgba(34,197,94,.2);color:#86efac}
+.badge-verlopen{background:rgba(229,57,53,.15);color:#ef9a9a}
+.badge-open{background:rgba(122,138,154,.15);color:#94a3b8}
+.badge-wacht{background:rgba(245,158,11,.15);color:#fcd34d}
+.badge-bevestigd{background:rgba(0,223,163,.15);color:var(--accent)}
+.badge-tech{background:rgba(99,102,241,.2);color:#a5b4fc;font-size:6pt}
+.mock-ticket-title{font-size:8.5pt;font-weight:700;color:var(--text);margin-bottom:2px}
+.mock-ticket-sub{font-size:7pt;color:var(--muted)}
+.mock-add-btn{width:22px;height:22px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--dark);font-weight:900;font-size:11pt;flex-shrink:0;margin-top:2px}
+
+/* Week grid */
+.mock-week{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border)}
+.mock-day{background:var(--dark2);padding:8px 7px;min-height:80px}
+.mock-day-hdr{font-size:7pt;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
+.mock-day-num{font-size:15pt;font-weight:900;color:var(--text);line-height:1}
+.mock-day-num.today{background:var(--accent);color:var(--dark);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12pt}
+.mock-day-meta{font-size:6.5pt;color:var(--muted);margin-top:3px}
+.mock-cal-ticket{background:var(--dark3);border-radius:4px;border:1px solid var(--border);padding:6px 7px;margin-top:6px;border-left:3px solid var(--medium)}
+.mock-cal-ticket.bevestigd{border-left-color:var(--accent)}
+.mock-cal-ticket.high{border-left-color:var(--high)}
+.mock-cal-ticket-title{font-size:7pt;font-weight:700;color:var(--text)}
+.mock-cal-ticket-sub{font-size:6pt;color:var(--muted);margin-top:1px}
+
+/* Modal */
+.mock-modal-overlay{background:rgba(0,0,0,.6);padding:15px;display:flex;align-items:center;justify-content:center}
+.mock-modal{background:var(--dark3);border-radius:10px;border:1px solid var(--border);width:100%;max-width:340px;overflow:hidden}
+.mock-modal-hdr{padding:12px 14px;border-bottom:1px solid var(--border)}
+.mock-modal-title{font-size:10pt;font-weight:700;color:var(--text)}
+.mock-modal-sub{font-size:7pt;color:var(--muted);margin-top:2px}
+.mock-modal-body{padding:12px 14px}
+.mock-field-lbl{font-size:6.5pt;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:3px;margin-top:8px}
+.mock-field-lbl:first-child{margin-top:0}
+.mock-field-val{font-size:8.5pt;color:var(--text)}
+.mock-field-val.green{color:var(--accent)}
+.mock-field-val.phone{color:var(--accent)}
+.mock-divider{height:1px;background:var(--border);margin:10px 0}
+.mock-modal-ftr{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.mock-btn{padding:6px 12px;border-radius:5px;font-size:7.5pt;font-weight:700;cursor:pointer}
+.mock-btn-cancel{background:var(--dark4);color:var(--text);border:1px solid var(--border)}
+.mock-btn-danger{background:#c62828;color:#fff}
+.mock-btn-primary{background:var(--accent);color:var(--dark)}
+.mock-btn-ghost{background:var(--dark4);color:var(--muted);border:1px solid var(--border)}
+
+/* Route mockup */
+.mock-route-body{display:flex;background:var(--dark2);min-height:140px}
+.mock-route-list{width:130px;background:var(--dark3);border-right:1px solid var(--border);padding:8px;flex-shrink:0}
+.mock-route-item{background:var(--dark4);border-radius:4px;padding:6px;margin-bottom:5px;border-left:3px solid var(--accent)}
+.mock-route-num{font-size:7pt;color:var(--accent);font-weight:700}
+.mock-route-addr{font-size:6.5pt;color:var(--text);margin-top:1px}
+.mock-route-dist{font-size:6pt;color:var(--muted);margin-top:1px}
+.mock-map{flex:1;background:linear-gradient(135deg,#c8e6c9 0%,#a5d6a7 30%,#81c784 50%,#c8e6c9 70%,#dcedc8 100%);position:relative;display:flex;align-items:center;justify-content:center}
+.mock-map-label{font-size:7pt;color:rgba(0,0,0,.3);font-weight:700;letter-spacing:2px}
+.mock-map-pin{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid #fff}
+.mock-route-stats{background:var(--dark);padding:5px 10px;display:flex;gap:14px;font-size:7pt;color:var(--muted)}
+.mock-route-stats b{color:var(--text)}
+
+/* Wizard mockup */
+.mock-wiz{background:var(--dark);min-height:200px;display:flex;flex-direction:column}
+.mock-wiz-hdr{padding:10px 14px;border-bottom:1px solid var(--border)}
+.mock-wiz-title{font-size:9pt;font-weight:700;color:var(--text)}
+.mock-wiz-dots{display:flex;gap:5px;margin-top:5px}
+.mock-dot{width:9px;height:9px;border-radius:50%;background:var(--dark4)}
+.mock-dot.active{background:var(--accent)}
+.mock-dot.done{background:rgba(0,223,163,.4)}
+.mock-wiz-body{flex:1;padding:12px 14px}
+.mock-wiz-step-title{font-size:10pt;font-weight:700;color:var(--text);margin-bottom:10px}
+.mock-input-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:7px}
+.mock-input{background:var(--dark3);border:1px solid var(--border);border-radius:5px;padding:7px 9px}
+.mock-input-lbl{font-size:6pt;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:2px}
+.mock-input-val{font-size:8pt;color:var(--text)}
+.mock-wiz-ftr{padding:9px 14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--dark2)}
+
+/* Radio cards */
+.mock-radio-row{display:flex;gap:6px;margin-bottom:7px}
+.mock-radio-card{flex:1;background:var(--dark3);border:2px solid var(--border);border-radius:6px;padding:8px;text-align:center;cursor:pointer}
+.mock-radio-card.selected{border-color:var(--accent);background:var(--accent-dim)}
+.mock-radio-card-label{font-size:8pt;font-weight:700;color:var(--text)}
+.mock-radio-card-sub{font-size:6.5pt;color:var(--muted);margin-top:2px}
+
+/* Info boxes */
+.info-box{border-radius:5px;padding:9px 12px;margin-bottom:8px;font-size:8pt;line-height:1.6}
+.info-box.tip{background:#f0fdf9;border:1px solid #b2edd8;border-left:4px solid var(--accent);color:#065f46}
+.info-box.warn{background:#fffbec;border:1px solid #f0d060;border-left:4px solid #e6a817;color:#7a5a00}
+.info-box.info{background:#eff6ff;border:1px solid #bfdbfe;border-left:4px solid #3b82f6;color:#1e40af}
+.info-box-title{font-weight:700;margin-bottom:3px;font-size:8pt}
+
+/* Flow diagram */
+.flow{display:flex;align-items:center;justify-content:center;gap:8px;margin:10px 0;flex-wrap:wrap}
+.flow-box{background:var(--dark);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 12px;font-size:8pt;font-weight:700;text-align:center;min-width:70px}
+.flow-box.accent{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+.flow-box.ext{background:#1a1f2e;border-color:#3b82f6;color:#93c5fd}
+.flow-arrow{color:#888;font-size:12pt}
+
+/* Two-col */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}
+.feat-card{border:1px solid #e8e8e8;border-radius:5px;padding:9px 11px;background:#fafafa}
+.feat-card-icon{font-size:14pt;margin-bottom:4px}
+.feat-card-title{font-size:8.5pt;font-weight:700;color:#222;margin-bottom:3px}
+.feat-card-desc{font-size:7.5pt;color:#555;line-height:1.55}
+
+/* Page footer */
+.page-footer{margin-top:auto;padding:8px 14mm;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:6.5pt;color:#ccc}
+
+/* Status badges row */
+.status-flow{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:8px 0}
+.sf-badge{padding:3px 9px;border-radius:12px;font-size:7pt;font-weight:700;white-space:nowrap}
+.sf-arrow{color:#bbb;font-size:10pt}
+
+@media print{
+  @page{size:A4 portrait;margin:0}
+  body{background:white}
+  .page{margin:0;box-shadow:none;width:100%;min-height:297mm}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ -->
+<!-- COVER                         -->
+<!-- ═══════════════════════════════ -->
+<div class="page cover">
+  <div class="cover-logo">
+    <svg width="18" height="30" viewBox="0 0 18 30" xmlns="http://www.w3.org/2000/svg">
+      <line x1="14" y1="2" x2="2" y2="16" stroke="#00dfa3" stroke-width="4" stroke-linecap="round"/>
+      <line x1="16" y1="14" x2="4" y2="28" stroke="#00dfa3" stroke-width="4" stroke-linecap="round"/>
+    </svg>
+    <div>
+      <div class="cover-brand">BLITZ POWER</div>
+      <div class="cover-brand-sub">SERVICE &amp; SUPPORT</div>
+    </div>
+  </div>
+
+  <div class="cover-mid">
+    <div class="cover-title">Blitz <span>Planning</span><br>Tool</div>
+    <div class="cover-sub">Gebruikersdocumentatie &amp; Feature Overzicht</div>
+    <div class="cover-bar"></div>
+    <div class="cover-desc">
+      De Blitz Planning Tool is een interne webapplicatie voor het beheer en de planning van field service interventies.
+      Deze documentatie beschrijft alle functies, de werkwijze en de integratie met Zoho Desk.
+    </div>
+  </div>
+
+  <div class="cover-footer">
+    <div>
+      <div style="color:#4a6a5a;margin-bottom:3px">Blitz Power BV — Intern gebruik</div>
+      <div>Versie 1.0 &nbsp;·&nbsp; Juli 2026</div>
+    </div>
+    <div class="cover-version">v1.0</div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- INHOUDSOPGAVE                 -->
+<!-- ═══════════════════════════════ -->
+<div class="page content">
+  <div class="doc-header">
+    <div class="doc-logo">
+      <svg width="10" height="16" viewBox="0 0 10 16" xmlns="http://www.w3.org/2000/svg">
+        <line x1="8" y1="1" x2="1" y2="9" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="9" y1="7" x2="2" y2="15" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+      <div class="doc-logo">
+        <div class="doc-brand">BLITZ POWER</div>
+      </div>
+    </div>
+    <div class="doc-header-right">Blitz Planning Tool — Documentatie v1.0</div>
+  </div>
+  <div class="accent-bar"></div>
+
+  <div class="chapter">Inhoud<span>.</span></div>
+  <div class="chapter-sub">Overzicht van alle secties in dit document</div>
+
+  <div class="toc-group">
+    <div class="toc-group-title">Introductie</div>
+    <div class="toc-item"><span class="toc-num">1</span><span class="toc-title">Wat is de Blitz Planning Tool?</span><span class="toc-dots"></span><span class="toc-page">3</span></div>
+    <div class="toc-item"><span class="toc-num">2</span><span class="toc-title">Integraties &amp; Architectuur</span><span class="toc-dots"></span><span class="toc-page">3</span></div>
+  </div>
+
+  <div class="toc-group">
+    <div class="toc-group-title">De vier tabs</div>
+    <div class="toc-item"><span class="toc-num">3</span><span class="toc-title">Wachtrij — openstaande tickets</span><span class="toc-dots"></span><span class="toc-page">4</span></div>
+    <div class="toc-item"><span class="toc-num">4</span><span class="toc-title">Kalender — weekoverzicht</span><span class="toc-dots"></span><span class="toc-page">5</span></div>
+    <div class="toc-item"><span class="toc-num">5</span><span class="toc-title">Route — dagplanning &amp; kaart</span><span class="toc-dots"></span><span class="toc-page">6</span></div>
+    <div class="toc-item"><span class="toc-num">6</span><span class="toc-title">Ingepland — bevestigde interventies</span><span class="toc-dots"></span><span class="toc-page">6</span></div>
+  </div>
+
+  <div class="toc-group">
+    <div class="toc-group-title">Features</div>
+    <div class="toc-item"><span class="toc-num">7</span><span class="toc-title">Ticket detail modal</span><span class="toc-dots"></span><span class="toc-page">7</span></div>
+    <div class="toc-item"><span class="toc-num">8</span><span class="toc-title">Automatische planning (autoPlan)</span><span class="toc-dots"></span><span class="toc-page">7</span></div>
+    <div class="toc-item"><span class="toc-num">9</span><span class="toc-title">Aankomst registreren</span><span class="toc-dots"></span><span class="toc-page">8</span></div>
+    <div class="toc-item"><span class="toc-num">10</span><span class="toc-title">Afspraakvoorstel versturen</span><span class="toc-dots"></span><span class="toc-page">8</span></div>
+    <div class="toc-item"><span class="toc-num">11</span><span class="toc-title">Service Rapport wizard</span><span class="toc-dots"></span><span class="toc-page">9</span></div>
+  </div>
+
+  <div class="toc-group">
+    <div class="toc-group-title">Referentie</div>
+    <div class="toc-item"><span class="toc-num">12</span><span class="toc-title">Ticket statussen in Zoho</span><span class="toc-dots"></span><span class="toc-page">10</span></div>
+    <div class="toc-item"><span class="toc-num">13</span><span class="toc-title">Technische informatie</span><span class="toc-dots"></span><span class="toc-page">10</span></div>
+  </div>
+
+  <div class="page-footer"><span>Blitz Power BV — Intern gebruik</span><span>Inhoudsopgave</span></div>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- PAGE 3 — INTRO + ARCHITECTUUR -->
+<!-- ═══════════════════════════════ -->
+<div class="page content">
+  <div class="doc-header">
+    <div class="doc-logo"><svg width="10" height="16" viewBox="0 0 10 16" xmlns="http://www.w3.org/2000/svg"><line x1="8" y1="1" x2="1" y2="9" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/><line x1="9" y1="7" x2="2" y2="15" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/></svg><div class="doc-brand" style="margin-left:6px">BLITZ POWER</div></div>
+    <div class="doc-header-right">Blitz Planning Tool — v1.0</div>
+  </div>
+  <div class="accent-bar"></div>
+
+  <!-- 1. Wat is het -->
+  <div class="chapter">1. Wat is de Blitz Planning Tool<span>?</span></div>
+  <div class="chapter-sub">Interne webapplicatie voor field service planning</div>
+
+  <p class="body-text">
+    De Blitz Planning Tool is een mobiele webapp ontwikkeld voor het service-team van Blitz Power. De tool haalt openstaande servicetickets op uit <strong>Zoho Desk</strong>, helpt bij het prioriteren en inplannen van interventies, en laat technici ter plaatse aankomsttijden registreren, afspraakvoorstellen versturen en service rapporten opmaken.
+  </p>
+  <p class="body-text">
+    De tool is beschikbaar via <strong>blitz-planning.netlify.app</strong> en werkt op zowel desktop als mobiel. Een internetverbinding is vereist voor het synchroniseren met Zoho Desk.
+  </p>
+
+  <div class="two-col">
+    <div class="feat-card"><div class="feat-card-icon"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><rect x="4.5" y="1" width="11" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="10" cy="15.5" r="1.2" fill="currentColor"/></svg></div><div class="feat-card-title">Mobiel-first design</div><div class="feat-card-desc">Ontworpen voor gebruik onderweg, op smartphone en tablet. Werkt ook op desktop.</div></div>
+    <div class="feat-card"><div class="feat-card-icon"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><path d="M3.5 10a6.5 6.5 0 0 1 11.3-4.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16.5 10a6.5 6.5 0 0 1-11.3 4.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><polyline points="12.3,4.2 14.8,5.7 13,8.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><polyline points="7.7,15.8 5.2,14.3 7,11.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="feat-card-title">Live synchronisatie</div><div class="feat-card-desc">Tickets worden rechtstreeks uit Zoho Desk geladen. Wijzigingen in status worden meteen teruggeschreven.</div></div>
+    <div class="feat-card"><div class="feat-card-icon"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><polygon points="7,2 7,15 13,17 13,4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><polyline points="2,4 7,2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><polyline points="2,4 2,17 7,15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><polyline points="13,4 18,2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><polyline points="18,2 18,15 13,17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div><div class="feat-card-title">Route-optimalisatie</div><div class="feat-card-desc">Dagroutes worden berekend via de TomTom API op basis van geografische clustering en rijafstand.</div></div>
+    <div class="feat-card"><div class="feat-card-icon"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><rect x="4" y="3" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7,4 V2.5 a3,1.5 0 0 1 6,0 V4" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="9" x2="13" y2="9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="7" y1="12" x2="13" y2="12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="7" y1="15" x2="11" y2="15" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div><div class="feat-card-title">Digitaal service rapport</div><div class="feat-card-desc">7-stappen wizard voor digitale handtekeningen, onderdelen en automatische upload naar Zoho als PDF-bijlage.</div></div>
+  </div>
+
+  <!-- 2. Architectuur -->
+  <div class="sec">2. Integraties &amp; Architectuur</div>
+  <p class="body-text">De tool communiceert met twee externe diensten via serverless Netlify Functions:</p>
+
+  <div class="flow">
+    <div class="flow-box ext">Zoho Desk<br><span style="font-size:6pt;font-weight:400;color:#6ea8fe">Tickets · Status · E-mail · PDF</span></div>
+    <div class="flow-arrow">⇄</div>
+    <div class="flow-box accent">Blitz Planning<br><span style="font-size:6pt;font-weight:400">blitz-planning.netlify.app</span></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box ext">TomTom API<br><span style="font-size:6pt;font-weight:400;color:#6ea8fe">Route · Afstand · Rijtijd</span></div>
+  </div>
+
+  <div class="info-box tip">
+    <div class="info-box-title"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><path d="M10 2a5.5 5.5 0 0 1 3.5 9.7V14H6.5v-2.3A5.5 5.5 0 0 1 10 2z" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="7.5" y1="16" x2="12.5" y2="16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="8.5" y1="18" x2="11.5" y2="18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Zoho OAuth</div>
+    De koppeling met Zoho Desk verloopt via OAuth2 (refresh token). Tickets worden geladen bij het openen van de app en kunnen handmatig ververst worden via de verversknop rechtsboven.
+  </div>
+
+  <div class="page-footer"><span>Blitz Power BV — Intern gebruik</span><span>Pagina 3</span></div>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- PAGE 4 — WACHTRIJ             -->
+<!-- ═══════════════════════════════ -->
+<div class="page content">
+  <div class="doc-header"><div class="doc-logo"><svg width="10" height="16" viewBox="0 0 10 16" xmlns="http://www.w3.org/2000/svg"><line x1="8" y1="1" x2="1" y2="9" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/><line x1="9" y1="7" x2="2" y2="15" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/></svg><div class="doc-brand" style="margin-left:6px">BLITZ POWER</div></div><div class="doc-header-right">Blitz Planning Tool — v1.0</div></div>
+  <div class="accent-bar"></div>
+
+  <div class="chapter">3. Wachtrij<span>.</span></div>
+  <div class="chapter-sub">Openstaande tickets klaar voor inplanning</div>
+
+  <!-- Mockup wachtrij -->
+  <div class="mockup">
+    <div class="mock-bar">
+      <svg width="9" height="14" viewBox="0 0 9 14" xmlns="http://www.w3.org/2000/svg"><line x1="7" y1="1" x2="1" y2="7" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/><line x1="8" y1="7" x2="2" y2="13" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/></svg>
+      <span class="mock-logo">BLITZ PLANNING</span>
+      <span style="margin-left:auto;font-size:7pt;color:#5a7a6a;background:#0a3d2e;padding:2px 9px;border-radius:10px;border:1px solid #00dfa3">● Alle</span>
+    </div>
+    <div class="mock-tabs">
+      <div class="mock-tab active">Wachtrij <span class="badge">3</span></div>
+      <div class="mock-tab">Kalender</div>
+      <div class="mock-tab">Route</div>
+      <div class="mock-tab">Ingepland <span class="badge">1</span></div>
+    </div>
+    <div class="mock-body">
+      <div class="mock-ticket high">
+        <div class="mock-ticket-info">
+          <div class="mock-ticket-meta"><span class="mock-ticket-num">#1001</span><span class="badge-status badge-verlopen">Verlopen</span><span class="badge-status badge-high">high</span><span class="badge-status badge-tech">Tim</span></div>
+          <div class="mock-ticket-title">Laadpaal offline na stroomuitval</div>
+          <div class="mock-ticket-sub">EV Park Geel · Kempen &nbsp;·&nbsp; Antwerpseweg 50, 2440 Geel</div>
+        </div>
+        <div class="mock-add-btn">+</div>
+      </div>
+      <div class="mock-ticket medium">
+        <div class="mock-ticket-info">
+          <div class="mock-ticket-meta"><span class="mock-ticket-num">#1002</span><span class="badge-status badge-open">Open</span><span class="badge-status badge-medium">medium</span><span class="badge-status badge-tech">Tim</span></div>
+          <div class="mock-ticket-title">Controller reageert niet op OCPP commando</div>
+          <div class="mock-ticket-sub">Parking Hasselt · Limburg &nbsp;·&nbsp; Kuringersteenweg 12, 3500 Hasselt</div>
+        </div>
+        <div class="mock-add-btn">+</div>
+      </div>
+      <div class="mock-ticket low">
+        <div class="mock-ticket-info">
+          <div class="mock-ticket-meta"><span class="mock-ticket-num">#1003</span><span class="badge-status badge-open">Open</span><span class="badge-status badge-low">low</span><span class="badge-status badge-tech">Roel</span></div>
+          <div class="mock-ticket-title">Laadstation geeft foutcode E05</div>
+          <div class="mock-ticket-sub">Residentie Turnhout</div>
+        </div>
+        <div class="mock-add-btn">+</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">Wat zie je hier?</div>
+  <p class="body-text">De Wachtrij toont alle tickets die nog niet ingepland zijn. Elk ticket toont: het Zoho ticketnummer, de status, de prioriteit (high/medium/low), de toegewezen technieker, de klant- en locatienaam en het adres.</p>
+
+  <div class="two-col">
+    <div>
+      <div class="sec">Prioriteit badge</div>
+      <div style="display:flex;gap:5px;margin-bottom:6px">
+        <span class="badge-status badge-high" style="padding:3px 9px">high</span>
+        <span class="badge-status badge-medium" style="padding:3px 9px">medium</span>
+        <span class="badge-status badge-low" style="padding:3px 9px">low</span>
+      </div>
+      <p class="body-text">Gebruik de prioriteitsmatrix (zie apart document) om de juiste prioriteit toe te kennen in Zoho.</p>
+    </div>
+    <div>
+      <div class="sec">Ticket inplannen</div>
+      <p class="body-text">Klik op de <strong style="color:#00dfa3">+</strong> knop naast een ticket om het toe te voegen aan de dagplanning. Je kiest dan de datum. Of gebruik autoPlan voor automatische inplanning van de hele week.</p>
+    </div>
+  </div>
+
+  <div class="info-box warn">
+    <div class="info-box-title"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><path d="M10 2L1.5 17.5h17Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><line x1="10" y1="8.5" x2="10" y2="13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="15.5" r="1" fill="currentColor"/></svg> Verlopen tickets</div>
+    Tickets waarvan de vervaldatum in het verleden ligt, worden gemarkeerd met de badge "Verlopen" in rood. Deze hebben de hoogste urgentie en worden door de auto-planning als eerste ingepland.
+  </div>
+
+  <div class="page-footer"><span>Blitz Power BV — Intern gebruik</span><span>Pagina 4</span></div>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- PAGE 5 — KALENDER             -->
+<!-- ═══════════════════════════════ -->
+<div class="page content">
+  <div class="doc-header"><div class="doc-logo"><svg width="10" height="16" viewBox="0 0 10 16" xmlns="http://www.w3.org/2000/svg"><line x1="8" y1="1" x2="1" y2="9" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/><line x1="9" y1="7" x2="2" y2="15" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/></svg><div class="doc-brand" style="margin-left:6px">BLITZ POWER</div></div><div class="doc-header-right">Blitz Planning Tool — v1.0</div></div>
+  <div class="accent-bar"></div>
+
+  <div class="chapter">4. Kalender<span>.</span></div>
+  <div class="chapter-sub">Weekoverzicht van alle geplande interventies</div>
+
+  <div class="mockup">
+    <div class="mock-bar">
+      <svg width="9" height="14" viewBox="0 0 9 14" xmlns="http://www.w3.org/2000/svg"><line x1="7" y1="1" x2="1" y2="7" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/><line x1="8" y1="7" x2="2" y2="13" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/></svg>
+      <span class="mock-logo">BLITZ PLANNING</span>
+      <span style="margin-left:auto;background:#00dfa3;color:#181e24;padding:3px 11px;border-radius:5px;font-size:7.5pt;font-weight:700"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><line x1="14" y1="2" x2="4" y2="11" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><line x1="16" y1="9" x2="6" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg> Plan deze week</span>
+    </div>
+    <div class="mock-tabs">
+      <div class="mock-tab">Wachtrij <span class="badge">3</span></div>
+      <div class="mock-tab active">Kalender</div>
+      <div class="mock-tab">Route</div>
+      <div class="mock-tab">Ingepland</div>
+    </div>
+    <div style="background:#181e24;padding:6px 10px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:8pt;color:#7a8a9a">← &nbsp; 13 jul – 19 jul</span>
+      <span style="font-size:8pt;color:#7a8a9a">→</span>
+    </div>
+    <!-- Week banner -->
+    <div style="background:rgba(245,158,11,.1);border-left:3px solid #f59e0b;padding:6px 10px;font-size:7pt;color:#fcd34d;font-weight:700">WACHTEN OP BEVESTIGING — GEEN DATUM (1)</div>
+    <!-- Week grid -->
+    <div class="mock-week">
+      <div class="mock-day"><div class="mock-day-hdr">MA</div><div class="mock-day-num">13</div><div class="mock-day-meta">0/2 stops</div><div style="font-size:6pt;color:#5a7a6a;margin-top:2px"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><circle cx="10" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="10" y1="12" x2="10" y2="8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="10" y1="12" x2="13" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="2.5" x2="12" y2="2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="10" y1="2.5" x2="10" y2="5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Beschikbaar</div></div>
+      <div class="mock-day"><div class="mock-day-hdr">DI</div><div class="mock-day-num">14</div><div class="mock-day-meta">0/2 stops</div><div style="font-size:6pt;color:#5a7a6a;margin-top:2px"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><circle cx="10" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="10" y1="12" x2="10" y2="8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="10" y1="12" x2="13" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="2.5" x2="12" y2="2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="10" y1="2.5" x2="10" y2="5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Beschikbaar</div></div>
+      <div class="mock-day"><div class="mock-day-hdr">WO</div><div class="mock-day-num today">15</div><div class="mock-day-meta">0/2 stops</div><div style="font-size:6pt;color:#5a7a6a;margin-top:2px"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><circle cx="10" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="10" y1="12" x2="10" y2="8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="10" y1="12" x2="13" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="2.5" x2="12" y2="2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="10" y1="2.5" x2="10" y2="5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Beschikbaar</div></div>
+      <div class="mock-day"><div class="mock-day-hdr">DO</div><div class="mock-day-num">16</div><div class="mock-day-meta">0/2 stops</div><div style="font-size:6pt;color:#5a7a6a;margin-top:2px"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><circle cx="10" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="10" y1="12" x2="10" y2="8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="10" y1="12" x2="13" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="2.5" x2="12" y2="2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="10" y1="2.5" x2="10" y2="5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Beschikbaar</div></div>
+      <div class="mock-day"><div class="mock-day-hdr">VR</div><div class="mock-day-num">17</div><div class="mock-day-meta">1/2 stops · +2.5u</div><div style="font-size:6pt;color:#5a7a6a;margin-top:2px"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><circle cx="10" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="10" y1="12" x2="10" y2="8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="10" y1="12" x2="13" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="2.5" x2="12" y2="2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="10" y1="2.5" x2="10" y2="5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Beschikbaar</div>
+        <div class="mock-cal-ticket bevestigd"><div class="mock-cal-ticket-title">BLITZ – Support</div><div class="mock-cal-ticket-sub">Bevestigd · Kursat Deniz</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">Wat zie je hier?</div>
+  <p class="body-text">De Kalender toont de volledige werkweek (maandag t.e.m. vrijdag). Per dag zie je het aantal geplande stops, de beschikbare capaciteit in uren, en de ingeplande tickets als kaartjes per dag.</p>
+
+  <div class="two-col">
+    <div>
+      <div class="sec">Gele banner bovenaan</div>
+      <p class="body-text">Tickets met status "Wachten op bevestiging planning" maar zonder geplande datum worden in een aparte banner getoond. Ze zijn voorgesteld maar nog niet bevestigd door de klant.</p>
+    </div>
+    <div>
+      <div class="sec">Navigatie</div>
+      <p class="body-text">Blader door weken met de pijlen links en rechts. Vandaag is gemarkeerd met een groene cirkel. Gebruik <strong>Plan deze week</strong> rechts om automatisch alle wachtrij-tickets in te plannen.</p>
+    </div>
+  </div>
+
+  <div class="info-box tip">
+    <div class="info-box-title"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><path d="M10 2a5.5 5.5 0 0 1 3.5 9.7V14H6.5v-2.3A5.5 5.5 0 0 1 10 2z" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="7.5" y1="16" x2="12.5" y2="16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="8.5" y1="18" x2="11.5" y2="18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Ticket acties vanuit de kalender</div>
+    Klik op een ticketkaart om de detail modal te openen. Van hieruit kan je aankomst registreren, een afspraakvoorstel sturen of een service rapport opmaken.
+  </div>
+
+  <div class="page-footer"><span>Blitz Power BV — Intern gebruik</span><span>Pagina 5</span></div>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- PAGE 6 — ROUTE + INGEPLAND    -->
+<!-- ═══════════════════════════════ -->
+<div class="page content">
+  <div class="doc-header"><div class="doc-logo"><svg width="10" height="16" viewBox="0 0 10 16" xmlns="http://www.w3.org/2000/svg"><line x1="8" y1="1" x2="1" y2="9" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/><line x1="9" y1="7" x2="2" y2="15" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/></svg><div class="doc-brand" style="margin-left:6px">BLITZ POWER</div></div><div class="doc-header-right">Blitz Planning Tool — v1.0</div></div>
+  <div class="accent-bar"></div>
+
+  <div class="chapter">5. Route<span>.</span></div>
+  <div class="chapter-sub">Dagplanning met geoptimaliseerde kaartroute</div>
+
+  <div class="mockup">
+    <div class="mock-tabs" style="background:#1e2730">
+      <div class="mock-tab">Wachtrij</div><div class="mock-tab">Kalender</div><div class="mock-tab active">Route</div><div class="mock-tab">Ingepland</div>
+    </div>
+    <div class="mock-toolbar">
+      <span style="background:#1e2730;border:1px solid #2d3844;border-radius:4px;padding:4px 8px;font-size:7.5pt;color:#e8eaed">15/07/2026</span>
+      <span style="background:#00dfa3;color:#181e24;border-radius:4px;padding:4px 10px;font-size:7.5pt;font-weight:700">● Optimaliseer</span>
+      <span style="background:#252e38;border:1px solid #2d3844;border-radius:4px;padding:4px 9px;font-size:7.5pt;color:#7a8a9a">Bereken tijden</span>
+      <span style="background:#252e38;border:1px solid #2d3844;border-radius:4px;padding:4px 9px;font-size:7.5pt;color:#7a8a9a">✕ Leeg</span>
+    </div>
+    <div class="mock-route-body">
+      <div class="mock-route-list">
+        <div class="mock-route-item">
+          <div class="mock-route-num">① 08:30</div>
+          <div class="mock-route-addr">Antwerpseweg 50, Geel</div>
+          <div class="mock-route-dist">Startpunt · 0 km</div>
+        </div>
+        <div class="mock-route-item">
+          <div class="mock-route-num">② 09:45</div>
+          <div class="mock-route-addr">Kuringersteenweg 12, Hasselt</div>
+          <div class="mock-route-dist">41 km · 52 min</div>
+        </div>
+        <div class="mock-route-item" style="border-left-color:#7a8a9a">
+          <div class="mock-route-num" style="color:#7a8a9a">③ –</div>
+          <div class="mock-route-addr" style="color:#7a8a9a">Voeg stops toe...</div>
+        </div>
+      </div>
+      <div class="mock-map">
+        <div class="mock-map-pin" style="top:35%;left:28%"></div>
+        <div class="mock-map-pin" style="top:55%;left:60%"></div>
+        <div class="mock-map-label">België</div>
+      </div>
+    </div>
+    <div class="mock-route-stats">
+      Stops: <b>2</b> &nbsp;·&nbsp; Afstand: <b>41 km</b> &nbsp;·&nbsp; Rijtijd: <b>52 min</b> &nbsp;·&nbsp; ETA: <b>10:37</b>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <div class="sec">Optimaliseer</div>
+      <p class="body-text">Hersorteert alle stops voor de kortste totaalafstand via de TomTom Route Optimization API. Aankomsttijden worden automatisch berekend.</p>
+    </div>
+    <div>
+      <div class="sec">Acties per stop</div>
+      <p class="body-text">Elke stop heeft knoppen voor navigatie (<svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><polygon points="10,4.5 12.5,10 10,11.5 7.5,10" fill="currentColor"/><polygon points="10,15.5 7.5,10 10,11.5 12.5,10" fill="#999"/></svg>), afspraakvoorstel (<svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><rect x="2" y="5" width="16" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><polyline points="2,5 10,12 18,5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><line x1="14.5" y1="11" x2="16.5" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="15.5" y1="9.5" x2="15.5" y2="12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>) en aankomst registreren (<svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><circle cx="10" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="10" y1="12" x2="10" y2="8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="10" y1="12" x2="13" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="2.5" x2="12" y2="2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="10" y1="2.5" x2="10" y2="5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>). Navigatie opent Google Maps.</p>
+    </div>
+  </div>
+
+  <!-- 6. Ingepland -->
+  <div class="sec" style="margin-top:16px">6. Ingepland — bevestigde interventies</div>
+  <p class="body-text">
+    De tab <strong>Ingepland</strong> toont alle tickets met status <span class="badge-status badge-bevestigd" style="padding:2px 7px">Geplande support</span> — interventies die bevestigd zijn door de klant. Deze tickets worden <strong>nooit automatisch verschoven</strong> door autoPlan, ongeacht urgentie of route-optimalisatie.
+  </p>
+
+  <div class="info-box info">
+    <div class="info-box-title"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="10" y1="9" x2="10" y2="14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="6.5" r="1.1" fill="currentColor"/></svg> IJzeren regel</div>
+    Tickets met status "Geplande support" zijn onschendbaar. De auto-planning houdt hier altijd rekening mee en plant nooit iets bovenop een bevestigde afspraak.
+  </div>
+
+  <div class="page-footer"><span>Blitz Power BV — Intern gebruik</span><span>Pagina 6</span></div>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- PAGE 7 — DETAIL + AUTOPLAN    -->
+<!-- ═══════════════════════════════ -->
+<div class="page content">
+  <div class="doc-header"><div class="doc-logo"><svg width="10" height="16" viewBox="0 0 10 16" xmlns="http://www.w3.org/2000/svg"><line x1="8" y1="1" x2="1" y2="9" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/><line x1="9" y1="7" x2="2" y2="15" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/></svg><div class="doc-brand" style="margin-left:6px">BLITZ POWER</div></div><div class="doc-header-right">Blitz Planning Tool — v1.0</div></div>
+  <div class="accent-bar"></div>
+
+  <div class="chapter">7. Ticket detail modal<span>.</span></div>
+  <div class="chapter-sub">Alle informatie en acties voor één ticket</div>
+
+  <div class="two-col">
+    <div>
+      <div class="mockup" style="margin-top:0">
+        <div class="mock-modal-overlay" style="padding:8px">
+          <div class="mock-modal" style="max-width:100%">
+            <div class="mock-modal-hdr">
+              <div class="mock-modal-title">#1004 — Energiemeting klopt niet</div>
+              <div style="display:flex;gap:4px;margin-top:5px">
+                <span class="badge-status badge-wacht">Wacht bevestiging</span>
+                <span class="badge-status badge-medium">medium</span>
+                <span class="badge-status badge-tech">Tim</span>
+              </div>
+            </div>
+            <div class="mock-modal-body">
+              <div class="mock-field-lbl">Klantgegevens</div>
+              <div class="mock-field-lbl">Contact</div><div class="mock-field-val">Luc Wouters</div>
+              <div class="mock-field-lbl">Bedrijf</div><div class="mock-field-val">Industrie Beringen</div>
+              <div class="mock-field-lbl">E-mail</div><div class="mock-field-val green">luc@test.be</div>
+              <div class="mock-field-lbl">Telefoon</div><div class="mock-field-val phone">0477 34 56 78</div>
+              <div class="mock-field-lbl">Adres</div><div class="mock-field-val green">Koerselsesteenweg 88, 3580 Beringen ↗</div>
+              <div class="mock-divider"></div>
+              <div class="mock-field-lbl">Serienummer</div><div class="mock-field-val">CHARX-3301</div>
+              <div class="mock-field-lbl">Probleemtype</div><div class="mock-field-val">Metering</div>
+            </div>
+            <div class="mock-modal-ftr" style="flex-direction:column;gap:5px">
+              <div style="display:flex;gap:5px;justify-content:center;width:100%">
+                <span class="mock-btn mock-btn-cancel" style="font-size:6.5pt">Sluiten</span>
+                <span class="mock-btn mock-btn-danger" style="font-size:6.5pt">✕ Verwijder</span>
+                <span class="mock-btn mock-btn-ghost" style="font-size:6.5pt"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><path d="M14.5 3.5l2 2-10 10-3 1 1-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><line x1="12" y1="5.5" x2="14.5" y2="8" stroke="currentColor" stroke-width="1.5"/></svg> Oplossing</span>
+              </div>
+              <div style="display:flex;gap:5px;justify-content:center;width:100%">
+                <span class="mock-btn mock-btn-ghost" style="font-size:6.5pt"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><circle cx="10" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="10" y1="12" x2="10" y2="8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="10" y1="12" x2="13" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="2.5" x2="12" y2="2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="10" y1="2.5" x2="10" y2="5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Aankomst</span>
+                <span class="mock-btn mock-btn-ghost" style="font-size:6.5pt"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><rect x="2" y="5" width="16" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><polyline points="2,5 10,12 18,5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><line x1="14.5" y1="11" x2="16.5" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="15.5" y1="9.5" x2="15.5" y2="12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Voorstel</span>
+                <span class="mock-btn mock-btn-ghost" style="font-size:6.5pt"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><rect x="4" y="3" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7,4 V2.5 a3,1.5 0 0 1 6,0 V4" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="9" x2="13" y2="9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="7" y1="12" x2="13" y2="12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="7" y1="15" x2="11" y2="15" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Rapport</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="sec">Hoe openen?</div>
+      <p class="body-text">Klik op <strong>Details</strong> in een ticketkaart (kalender of route) of klik rechtstreeks op de kaart. De modal opent bovenop het huidige scherm.</p>
+      <div class="sec">Actieknoppen (enkel voor geplande tickets)</div>
+      <div style="margin-bottom:5px"><span class="mock-btn mock-btn-ghost" style="font-size:7pt;display:inline-block;margin-bottom:4px"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><circle cx="10" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="10" y1="12" x2="10" y2="8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="10" y1="12" x2="13" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="2.5" x2="12" y2="2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="10" y1="2.5" x2="10" y2="5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Aankomst</span> <span style="font-size:7.5pt;color:#444">— Registreert de aankomsttijd als interne notitie in Zoho</span></div>
+      <div style="margin-bottom:5px"><span class="mock-btn mock-btn-ghost" style="font-size:7pt;display:inline-block;margin-bottom:4px"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><rect x="2" y="5" width="16" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><polyline points="2,5 10,12 18,5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><line x1="14.5" y1="11" x2="16.5" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="15.5" y1="9.5" x2="15.5" y2="12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Voorstel</span> <span style="font-size:7.5pt;color:#444">— Opent het scherm voor een afspraakvoorstel</span></div>
+      <div style="margin-bottom:5px"><span class="mock-btn mock-btn-ghost" style="font-size:7pt;display:inline-block;margin-bottom:4px"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><rect x="4" y="3" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7,4 V2.5 a3,1.5 0 0 1 6,0 V4" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="9" x2="13" y2="9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="7" y1="12" x2="13" y2="12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="7" y1="15" x2="11" y2="15" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Rapport</span> <span style="font-size:7.5pt;color:#444">— Opent de service rapport wizard</span></div>
+      <div class="info-box tip" style="margin-top:8px">
+        <div class="info-box-title"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><path d="M10 2a5.5 5.5 0 0 1 3.5 9.7V14H6.5v-2.3A5.5 5.5 0 0 1 10 2z" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="7.5" y1="16" x2="12.5" y2="16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="8.5" y1="18" x2="11.5" y2="18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Adres</div>
+        Het adres is klikbaar en opent Google Maps voor navigatie.
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. AutoPlan -->
+  <div class="sec" style="margin-top:14px">8. Automatische planning (autoPlan)</div>
+  <p class="body-text">De knop <strong style="background:#00dfa3;color:#181e24;padding:1px 8px;border-radius:3px;font-size:8pt"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><line x1="14" y1="2" x2="4" y2="11" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><line x1="16" y1="9" x2="6" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg> Plan deze week</strong> in de kalender plant automatisch alle wachtrij-tickets in voor de komende werkweek. Het algoritme gebruikt een score-formule:</p>
+
+  <div class="flow" style="margin:6px 0 8px">
+    <div class="flow-box" style="font-size:7.5pt">Prioriteit<br><span style="color:#00dfa3;font-size:9pt">× 3</span></div>
+    <div class="flow-arrow">+</div>
+    <div class="flow-box" style="font-size:7.5pt">Urgentie<br><span style="color:#00dfa3;font-size:9pt">× 2</span></div>
+    <div class="flow-arrow">+</div>
+    <div class="flow-box" style="font-size:7.5pt">Afstand<br><span style="color:#00dfa3;font-size:9pt">× 1.5</span></div>
+    <div class="flow-arrow">+</div>
+    <div class="flow-box" style="font-size:7.5pt">Overdue<br><span style="color:#00dfa3;font-size:9pt">bonus</span></div>
+    <div class="flow-arrow">=</div>
+    <div class="flow-box accent" style="font-size:7.5pt">Eindscore<br>→ volgorde</div>
+  </div>
+
+  <p class="body-text">Tickets worden geclusterd per regio en verdeeld over de beschikbare dagen (max. capaciteit per dag). Bevestigde tickets worden nooit verschoven.</p>
+
+  <div class="page-footer"><span>Blitz Power BV — Intern gebruik</span><span>Pagina 7</span></div>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- PAGE 8 — VOORSTEL + AANKOMST  -->
+<!-- ═══════════════════════════════ -->
+<div class="page content">
+  <div class="doc-header"><div class="doc-logo"><svg width="10" height="16" viewBox="0 0 10 16" xmlns="http://www.w3.org/2000/svg"><line x1="8" y1="1" x2="1" y2="9" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/><line x1="9" y1="7" x2="2" y2="15" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/></svg><div class="doc-brand" style="margin-left:6px">BLITZ POWER</div></div><div class="doc-header-right">Blitz Planning Tool — v1.0</div></div>
+  <div class="accent-bar"></div>
+
+  <div class="chapter">9–10. Aankomst &amp; Afspraakvoorstel<span>.</span></div>
+
+  <div class="two-col">
+    <!-- Aankomst -->
+    <div>
+      <div class="sec">9. Aankomst registreren <svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><circle cx="10" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="10" y1="12" x2="10" y2="8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="10" y1="12" x2="13" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="2.5" x2="12" y2="2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="10" y1="2.5" x2="10" y2="5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+      <p class="body-text">Via de knop <strong><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><circle cx="10" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="10" y1="12" x2="10" y2="8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="10" y1="12" x2="13" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="2.5" x2="12" y2="2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="10" y1="2.5" x2="10" y2="5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Aankomst</strong> in de detail modal registreer je de exacte aankomsttijd op locatie. De tijdstempel wordt opgeslagen als een interne notitie in Zoho Desk op het ticket.</p>
+      <p class="body-text">De aankomsttijd wordt ook gebruikt als voorgesteld starttijdstip bij het afspraakvoorstel (afgerond naar volgend kwartier).</p>
+      <div class="info-box tip">
+        <div class="info-box-title"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><path d="M10 2a5.5 5.5 0 0 1 3.5 9.7V14H6.5v-2.3A5.5 5.5 0 0 1 10 2z" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="7.5" y1="16" x2="12.5" y2="16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="8.5" y1="18" x2="11.5" y2="18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Gebruik</div>
+        Registreer de aankomst zodra je aankomt op locatie, vóór je begint met het werk. Zo heb je later nauwkeurige tijdsgegevens voor het service rapport.
+      </div>
+    </div>
+
+    <!-- Voorstel -->
+    <div>
+      <div class="sec">10. Afspraakvoorstel <svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><rect x="2" y="5" width="16" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><polyline points="2,5 10,12 18,5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><line x1="14.5" y1="11" x2="16.5" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="15.5" y1="9.5" x2="15.5" y2="12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+      <div class="mockup" style="margin:0 0 6px">
+        <div style="background:#1e2730;padding:8px 10px;border-bottom:1px solid #2d3844">
+          <div style="font-size:8.5pt;font-weight:700;color:#e8eaed"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><rect x="2" y="5" width="16" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><polyline points="2,5 10,12 18,5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><line x1="14.5" y1="11" x2="16.5" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="15.5" y1="9.5" x2="15.5" y2="12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Afspraakvoorstel</div>
+          <div style="font-size:6.5pt;color:#7a8a9a">#1004 — Luc Wouters</div>
+        </div>
+        <div style="background:#252e38;padding:9px 10px">
+          <div style="font-size:6.5pt;color:#7a8a9a;margin-bottom:3px;text-transform:uppercase;letter-spacing:1px">Datum</div>
+          <div style="background:#1e2730;border:1px solid #2d3844;border-radius:4px;padding:5px 8px;font-size:8pt;color:#e8eaed;margin-bottom:6px">17/07/2026</div>
+          <div style="font-size:6.5pt;color:#7a8a9a;margin-bottom:3px;text-transform:uppercase;letter-spacing:1px">Tijdstip</div>
+          <div style="background:#1e2730;border:1px solid #2d3844;border-radius:4px;padding:5px 8px;font-size:8pt;color:#e8eaed;margin-bottom:6px">09:00</div>
+          <div style="font-size:6.5pt;color:#7a8a9a;margin-bottom:3px;text-transform:uppercase;letter-spacing:1px">E-mail klant</div>
+          <div style="background:#1e2730;border:1px solid #2d3844;border-radius:4px;padding:5px 8px;font-size:8pt;color:#00dfa3;margin-bottom:8px">luc@test.be</div>
+          <!-- Email preview -->
+          <div style="border:1px solid #2d3844;border-radius:4px;overflow:hidden">
+            <div style="background:#181e24;padding:7px 9px;display:flex;align-items:center;gap:6px">
+              <svg width="7" height="11" viewBox="0 0 7 11" xmlns="http://www.w3.org/2000/svg"><line x1="5.5" y1="1" x2="1" y2="6" stroke="#00dfa3" stroke-width="2" stroke-linecap="round"/><line x1="6" y1="5" x2="1.5" y2="10" stroke="#00dfa3" stroke-width="2" stroke-linecap="round"/></svg>
+              <span style="font-size:7.5pt;font-weight:900;letter-spacing:2px;color:#00dfa3">BLITZ</span>
+            </div>
+            <div style="background:#fff;padding:8px 9px">
+              <div style="font-size:7pt;color:#333;margin-bottom:5px">Geachte Luc Wouters,</div>
+              <div style="background:#f7f7f7;border-left:2px solid #00dfa3;padding:5px 7px">
+                <div style="font-size:6pt;color:#8a9aaa;text-transform:uppercase;letter-spacing:1px">Voorgestelde afspraak</div>
+                <div style="font-size:8.5pt;font-weight:700;color:#181e24">vrijdag 17 juli 2026</div>
+                <div style="font-size:7pt;color:#333">om <b>09:00</b> uur</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#1e2730;padding:7px 10px;display:flex;justify-content:flex-end;gap:6px;border-top:1px solid #2d3844">
+          <span style="background:#2d3844;color:#e8eaed;padding:4px 9px;border-radius:4px;font-size:7pt">Annuleren</span>
+          <span style="background:#00dfa3;color:#181e24;padding:4px 9px;border-radius:4px;font-size:7pt;font-weight:700"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><rect x="2" y="5" width="16" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><polyline points="2,5 10,12 18,5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><line x1="14.5" y1="11" x2="16.5" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="15.5" y1="9.5" x2="15.5" y2="12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Verstuur</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">Wat doet een afspraakvoorstel?</div>
+  <p class="body-text">Het versturen van een voorstel doet drie dingen tegelijk: de ticketstatus in Zoho wordt gezet op <span class="badge-status badge-wacht" style="padding:2px 7px">Wachten op bevestiging planning</span>, de vervaldatum van het ticket wordt ingesteld op de gekozen datum en het tijdstip, en de klant ontvangt een gebrande HTML-mail met de voorgestelde afspraakdetails.</p>
+
+  <div class="info-box warn">
+    <div class="info-box-title"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><path d="M10 2L1.5 17.5h17Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><line x1="10" y1="8.5" x2="10" y2="13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="15.5" r="1" fill="currentColor"/></svg> Geen e-mail thread</div>
+    Bij tickets aangemaakt via telefoon (geen inkomende e-mail) kan de e-mail niet worden verstuurd via de Zoho reply-functie. De ticketstatus en datum worden wel altijd bijgewerkt. De tool toont hiervoor een melding.
+  </div>
+
+  <div class="page-footer"><span>Blitz Power BV — Intern gebruik</span><span>Pagina 8</span></div>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- PAGE 9 — SERVICE RAPPORT      -->
+<!-- ═══════════════════════════════ -->
+<div class="page content">
+  <div class="doc-header"><div class="doc-logo"><svg width="10" height="16" viewBox="0 0 10 16" xmlns="http://www.w3.org/2000/svg"><line x1="8" y1="1" x2="1" y2="9" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/><line x1="9" y1="7" x2="2" y2="15" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/></svg><div class="doc-brand" style="margin-left:6px">BLITZ POWER</div></div><div class="doc-header-right">Blitz Planning Tool — v1.0</div></div>
+  <div class="accent-bar"></div>
+
+  <div class="chapter">11. Service Rapport<span>.</span></div>
+  <div class="chapter-sub">7-stappen wizard voor digitale rapportage ter plaatse</div>
+
+  <!-- Wizard mockup -->
+  <div class="mockup">
+    <div class="mock-wiz">
+      <div class="mock-wiz-hdr">
+        <div style="display:flex;justify-content:space-between">
+          <div class="mock-wiz-title"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><rect x="4" y="3" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7,4 V2.5 a3,1.5 0 0 1 6,0 V4" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="9" x2="13" y2="9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="7" y1="12" x2="13" y2="12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="7" y1="15" x2="11" y2="15" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Service Rapport</div>
+          <span style="color:#7a8a9a;font-size:10pt">✕</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <div class="mock-wiz-dots">
+            <div class="mock-dot active"></div>
+            <div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div>
+          </div>
+          <span style="font-size:7pt;color:#7a8a9a">1 / 7 — Algemeen</span>
+        </div>
+      </div>
+      <div class="mock-wiz-body">
+        <div class="mock-wiz-step-title">Algemeen</div>
+        <div style="background:#252e38;border-radius:4px;border:1px solid #2d3844;padding:7px 9px;margin-bottom:8px">
+          <div style="font-size:8pt;font-weight:700;color:#e8eaed">Energiemeting klopt niet</div>
+          <div style="font-size:7pt;color:#7a8a9a">Industrie Beringen · Koerselsesteenweg 88, 3580 Beringen</div>
+        </div>
+        <div class="mock-input-row">
+          <div class="mock-input"><div class="mock-input-lbl">Datum</div><div class="mock-input-val">17/07/2026</div></div>
+          <div class="mock-input"><div class="mock-input-lbl">#Zoho</div><div class="mock-input-val">#1004</div></div>
+        </div>
+        <div class="mock-input" style="margin-bottom:7px"><div class="mock-input-lbl">Technieker Blitz</div><div class="mock-input-val" style="color:#4a6a5a">Naam technieker...</div></div>
+        <div class="mock-input-row">
+          <div class="mock-input"><div class="mock-input-lbl">Starttijd</div><div class="mock-input-val">--:--</div></div>
+          <div class="mock-input"><div class="mock-input-lbl">Stoptijd</div><div class="mock-input-val">09:18</div></div>
+        </div>
+      </div>
+      <div class="mock-wiz-ftr">
+        <span style="font-size:7pt;color:#7a8a9a">Algemeen</span>
+        <span style="background:#00dfa3;color:#181e24;padding:5px 14px;border-radius:5px;font-size:8pt;font-weight:700">Volgende →</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">De 7 stappen</div>
+  <div class="two-col">
+    <div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;gap:8px;align-items:center;font-size:8pt;color:#333"><span style="background:#181e24;color:#00dfa3;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:7pt;font-weight:900;flex-shrink:0">1</span><div><strong>Algemeen</strong> — datum, technieker, adres, start/stoptijd</div></div>
+        <div style="display:flex;gap:8px;align-items:center;font-size:8pt;color:#333"><span style="background:#181e24;color:#00dfa3;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:7pt;font-weight:900;flex-shrink:0">2</span><div><strong>Facturatie</strong> — klant, partner/installateur of forfait</div></div>
+        <div style="display:flex;gap:8px;align-items:center;font-size:8pt;color:#333"><span style="background:#181e24;color:#00dfa3;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:7pt;font-weight:900;flex-shrink:0">3</span><div><strong>Product</strong> — serienummer, type (Single/Dual 1/Dual 2), kabel</div></div>
+        <div style="display:flex;gap:8px;align-items:center;font-size:8pt;color:#333"><span style="background:#181e24;color:#00dfa3;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:7pt;font-weight:900;flex-shrink:0">4</span><div><strong>Omschrijving</strong> — probleem, ondernomen acties, onderdelen</div></div>
+      </div>
+    </div>
+    <div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;gap:8px;align-items:center;font-size:8pt;color:#333"><span style="background:#181e24;color:#00dfa3;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:7pt;font-weight:900;flex-shrink:0">5</span><div><strong>Status</strong> — hersteld? nieuwe interventie nodig?</div></div>
+        <div style="display:flex;gap:8px;align-items:center;font-size:8pt;color:#333"><span style="background:#181e24;color:#00dfa3;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:7pt;font-weight:900;flex-shrink:0">6</span><div><strong>Handtekening technieker</strong> — digitaal via touchscreen</div></div>
+        <div style="display:flex;gap:8px;align-items:center;font-size:8pt;color:#333"><span style="background:#181e24;color:#00dfa3;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:7pt;font-weight:900;flex-shrink:0">7</span><div><strong>Handtekening klant</strong> — digitaal, gevolgd door PDF-generatie</div></div>
+      </div>
+      <div class="info-box tip" style="margin-top:8px">
+        <div class="info-box-title"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><line x1="10" y1="2" x2="10" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><polyline points="7,5.5 10,2 13,5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5,9 H2 V18 H18 V9 H15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Automatische upload</div>
+        Na voltooiing wordt de PDF automatisch als bijlage geüpload naar het Zoho-ticket. Tegelijk opent een printvenster voor een lokale kopie.
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer"><span>Blitz Power BV — Intern gebruik</span><span>Pagina 9</span></div>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- PAGE 10 — STATUSSEN + TECH    -->
+<!-- ═══════════════════════════════ -->
+<div class="page content">
+  <div class="doc-header"><div class="doc-logo"><svg width="10" height="16" viewBox="0 0 10 16" xmlns="http://www.w3.org/2000/svg"><line x1="8" y1="1" x2="1" y2="9" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/><line x1="9" y1="7" x2="2" y2="15" stroke="#00dfa3" stroke-width="2.5" stroke-linecap="round"/></svg><div class="doc-brand" style="margin-left:6px">BLITZ POWER</div></div><div class="doc-header-right">Blitz Planning Tool — v1.0</div></div>
+  <div class="accent-bar"></div>
+
+  <div class="chapter">12. Ticket statussen<span>.</span></div>
+  <div class="chapter-sub">Statusflow in Zoho Desk en impact op de tool</div>
+
+  <div class="sec">Volledige statusflow</div>
+  <div class="status-flow">
+    <span class="sf-badge" style="background:rgba(122,138,154,.15);color:#94a3b8">Open</span>
+    <span class="sf-arrow">→</span>
+    <span class="sf-badge" style="background:rgba(99,102,241,.15);color:#a5b4fc">Wachten op planning</span>
+    <span class="sf-arrow">→</span>
+    <span class="sf-badge" style="background:rgba(245,158,11,.15);color:#fcd34d">Wachten op bevestiging</span>
+    <span class="sf-arrow">→</span>
+    <span class="sf-badge" style="background:rgba(0,223,163,.15);color:#00dfa3">Geplande support</span>
+  </div>
+
+  <div style="margin-top:8px;display:flex;flex-direction:column;gap:5px">
+    <div style="display:flex;gap:10px;align-items:flex-start;font-size:8pt;color:#444;line-height:1.5">
+      <span class="sf-badge" style="background:rgba(122,138,154,.15);color:#94a3b8;flex-shrink:0;margin-top:1px">Open</span>
+      <span>Ticket binnengebracht in Zoho. Staat in de Wachtrij van de tool. Klaar voor inplanning.</span>
+    </div>
+    <div style="display:flex;gap:10px;align-items:flex-start;font-size:8pt;color:#444;line-height:1.5">
+      <span class="sf-badge" style="background:rgba(99,102,241,.15);color:#a5b4fc;flex-shrink:0;margin-top:1px">Wachten op planning</span>
+      <span>Ticket staat in de tool ingepland op een datum. Wachtrij-tab toont dit ticket niet meer.</span>
+    </div>
+    <div style="display:flex;gap:10px;align-items:flex-start;font-size:8pt;color:#444;line-height:1.5">
+      <span class="sf-badge" style="background:rgba(245,158,11,.15);color:#fcd34d;flex-shrink:0;margin-top:1px">Wacht bevestiging</span>
+      <span>Afspraakvoorstel verstuurd naar klant. Ticket toont "<svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><rect x="2" y="4" width="16" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><polyline points="2,4 10,11 18,4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg> Voorstel verstuurd" label. Geen definitieve datum.</span>
+    </div>
+    <div style="display:flex;gap:10px;align-items:flex-start;font-size:8pt;color:#444;line-height:1.5">
+      <span class="sf-badge" style="background:rgba(0,223,163,.15);color:#00dfa3;flex-shrink:0;margin-top:1px">Geplande support</span>
+      <span>Klant heeft bevestigd. Ticket verschijnt in de Ingepland-tab. <strong>Wordt nooit automatisch verschoven.</strong></span>
+    </div>
+    <div style="display:flex;gap:10px;align-items:flex-start;font-size:8pt;color:#444;line-height:1.5">
+      <span class="sf-badge" style="background:rgba(122,138,154,.1);color:#94a3b8;flex-shrink:0;margin-top:1px">Wachten op klant</span>
+      <span>Ticket wacht op reactie van de klant (onderdelen, info). Staat niet in de wachtrij voor inplanning.</span>
+    </div>
+    <div style="display:flex;gap:10px;align-items:flex-start;font-size:8pt;color:#444;line-height:1.5">
+      <span class="sf-badge" style="background:rgba(122,138,154,.1);color:#94a3b8;flex-shrink:0;margin-top:1px">Monitoring</span>
+      <span>Remote monitoring — geen field interventie vereist. Verschijnt niet in de planning tool.</span>
+    </div>
+  </div>
+
+  <!-- 13. Technische info -->
+  <div class="sec" style="margin-top:16px">13. Technische informatie</div>
+  <div class="two-col">
+    <div>
+      <div class="feat-card">
+        <div class="feat-card-title"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><ellipse cx="10" cy="10" rx="4" ry="8" fill="none" stroke="currentColor" stroke-width="1.2"/><line x1="2" y1="10" x2="18" y2="10" stroke="currentColor" stroke-width="1.2"/><line x1="10" y1="2" x2="10" y2="18" stroke="currentColor" stroke-width="1.2"/></svg> Hosting</div>
+        <div class="feat-card-desc">Netlify · automatische deploy vanuit GitHub (branch: main) · URL: blitz-planning.netlify.app</div>
+      </div>
+    </div>
+    <div>
+      <div class="feat-card">
+        <div class="feat-card-title"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><circle cx="7" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="10.5" y1="10.5" x2="18" y2="18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="14" y1="15" x2="16" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> API koppelingen</div>
+        <div class="feat-card-desc">Zoho Desk EU (OAuth2 refresh token) · TomTom Routing &amp; Optimization API</div>
+      </div>
+    </div>
+    <div>
+      <div class="feat-card">
+        <div class="feat-card-title"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><line x1="14" y1="2" x2="4" y2="11" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><line x1="16" y1="9" x2="6" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg> Serverless functions</div>
+        <div class="feat-card-desc">tickets.js · plan.js · comment.js · propose.js · rapport.js · route.js · optimize.js</div>
+      </div>
+    </div>
+    <div>
+      <div class="feat-card">
+        <div class="feat-card-title"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><path d="M7 2 v8 L3 17 a1.5 1.5 0 0 0 1.4 2 h11.2 a1.5 1.5 0 0 0 1.4-2 L13 10 V2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="7" y1="2" x2="13" y2="2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Testmodus</div>
+        <div class="feat-card-desc">Voeg <strong>?test</strong> toe aan de URL voor testmodus met dummy-tickets. Geen echte Zoho-calls.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-box info" style="margin-top:4px">
+    <div class="info-box-title"><svg width="1.1em" height="1.1em" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.12em"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="10" y1="9" x2="10" y2="14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="6.5" r="1.1" fill="currentColor"/></svg> Broncode</div>
+    De volledige broncode staat op GitHub (Brekke20/Blitz-Panning). Elke push naar de main-branch triggert automatisch een nieuwe deploy op Netlify. Gemiddelde deploytijd: 2–3 minuten.
+  </div>
+
+  <div class="page-footer"><span>Blitz Power BV — Intern gebruik</span><span>Pagina 10 — Einde documentatie v1.0</span></div>
+</div>
+
+</body>
+</html>

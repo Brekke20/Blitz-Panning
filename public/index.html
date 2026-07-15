@@ -891,6 +891,162 @@
       .week-grid { flex-direction: column; }
       .day-col { min-width: unset; border-right: none; border-bottom: 1px solid var(--border); }
     }
+
+    /* ── Prijsbeheer admin modal ────────────────────────────────────────────── */
+    #prijs-overlay { z-index: 110; }
+    #prijs-overlay .modal {
+      max-width: 600px; width: 96%; max-height: 88vh; display: flex; flex-direction: column;
+      padding: 0; overflow: hidden;
+    }
+    .prijs-hdr {
+      padding: 16px 20px 14px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .prijs-hdr-title { font-size: 1rem; font-weight: 700; flex: 1; }
+    .prijs-hdr-meta  { font-size: 0.72rem; color: var(--muted); text-align: right; line-height: 1.4; }
+    .prijs-body { flex: 1; overflow-y: auto; padding: 14px 20px; }
+    .prijs-ftr {
+      padding: 12px 20px; border-top: 1px solid var(--border); display: flex;
+      gap: 8px; justify-content: flex-end; flex-shrink: 0; background: var(--surface);
+    }
+    /* Categorie-sectie */
+    .prijs-cat { margin-bottom: 18px; }
+    .prijs-cat-title {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 8px;
+    }
+    /* Rij per onderdeel */
+    .prijs-row {
+      display: grid; grid-template-columns: 1fr auto; gap: 6px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 8px 10px; margin-bottom: 5px;
+    }
+    .prijs-row-main { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+    .prijs-naam-input {
+      background: var(--surface3); border: 1px solid var(--border); color: var(--text);
+      border-radius: 6px; padding: 7px 10px; font-size: 0.88rem; width: 100%;
+      font-family: inherit;
+    }
+    .prijs-naam-input:focus { outline: none; border-color: var(--accent); }
+    .prijs-tags-wrap { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .prijs-tag {
+      background: var(--surface3); border: 1px solid var(--border); border-radius: 12px;
+      padding: 2px 8px; font-size: 0.72rem; color: var(--text2); display: flex;
+      align-items: center; gap: 3px;
+    }
+    .prijs-tag-del { cursor: pointer; color: var(--muted); font-size: 0.7rem; line-height: 1; }
+    .prijs-tag-del:hover { color: var(--red); }
+    .prijs-tag-add {
+      background: none; border: 1px dashed var(--border); border-radius: 12px;
+      color: var(--muted); padding: 2px 8px; font-size: 0.72rem; cursor: pointer;
+      font-family: inherit;
+    }
+    .prijs-tag-add:hover { border-color: var(--accent); color: var(--accent); }
+    .prijs-tag-input {
+      background: var(--surface3); border: 1px solid var(--accent); border-radius: 12px;
+      color: var(--text); padding: 2px 8px; font-size: 0.72rem; width: 90px;
+      font-family: inherit;
+    }
+    .prijs-row-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+    .prijs-input-wrap { display: flex; align-items: center; gap: 4px; }
+    .prijs-euro { font-size: 0.78rem; color: var(--muted); }
+    .prijs-prijs-input {
+      background: var(--surface3); border: 1px solid var(--border); color: var(--text);
+      border-radius: 6px; padding: 7px 9px; font-size: 0.88rem; width: 90px;
+      text-align: right; font-family: inherit;
+    }
+    .prijs-prijs-input:focus { outline: none; border-color: var(--accent); }
+    .prijs-eenheid { font-size: 0.68rem; color: var(--muted); }
+    .prijs-del-btn {
+      background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem;
+      padding: 2px 4px; line-height: 1; margin-top: auto;
+    }
+    .prijs-del-btn:hover { color: var(--red); }
+    .prijs-add-btn {
+      background: none; border: 1px dashed var(--border); color: var(--accent);
+      border-radius: var(--r); padding: 8px 12px; font-size: 0.82rem; cursor: pointer;
+      width: 100%; font-family: inherit; margin-top: 2px; transition: background 0.12s;
+    }
+    .prijs-add-btn:hover { background: var(--accent-dim); border-color: var(--accent); }
+    /* Tarieven-sectie */
+    .prijs-tarieven-sep { border-top: 2px solid var(--border); margin: 18px 0 14px; }
+    .prijs-tarief-row {
+      display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 8px 10px; margin-bottom: 5px;
+    }
+    .prijs-tarief-naam {
+      font-size: 0.85rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .btn-dirty { background: var(--accent); color: var(--bg); }
+    /* Password gate */
+    .prijs-gate {
+      padding: 24px 20px; display: flex; flex-direction: column; align-items: center; gap: 14px;
+    }
+    .prijs-gate-icon { font-size: 2rem; }
+    .prijs-gate-title { font-size: 0.95rem; font-weight: 700; }
+    .prijs-gate-sub { font-size: 0.8rem; color: var(--muted); text-align: center; }
+    .prijs-gate-input {
+      background: var(--surface3); border: 1px solid var(--border); color: var(--text);
+      border-radius: var(--r); padding: 12px 14px; font-size: 1rem; width: 100%;
+      max-width: 280px; text-align: center; letter-spacing: 0.2em; font-family: inherit;
+    }
+    .prijs-gate-input:focus { outline: none; border-color: var(--accent); }
+    /* Banner */
+    .prijs-cache-banner {
+      background: var(--orange-dim); border: 1px solid var(--orange); border-radius: var(--r);
+      padding: 8px 12px; font-size: 0.78rem; color: var(--orange); margin-bottom: 10px;
+    }
+
+    /* ── Wizard onderdelen (catalogus-modus) ────────────────────────────────── */
+    .wiz-cat-search-wrap { position: relative; margin-bottom: 8px; }
+    .wiz-cat-search {
+      width: 100%; background: var(--surface3); border: 1px solid var(--border); color: var(--text);
+      border-radius: var(--r); padding: 10px 12px 10px 36px; font-size: 0.9rem; font-family: inherit;
+    }
+    .wiz-cat-search:focus { outline: none; border-color: var(--accent); }
+    .wiz-cat-search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 0.9rem; pointer-events: none; }
+    .wiz-tag-filters { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+    .wiz-tag-filter {
+      background: var(--surface3); border: 1px solid var(--border); border-radius: 12px;
+      padding: 3px 10px; font-size: 0.72rem; cursor: pointer; color: var(--text2);
+      transition: all 0.12s;
+    }
+    .wiz-tag-filter.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+    .wiz-cat-results { max-height: 200px; overflow-y: auto; margin-bottom: 8px; border: 1px solid var(--border); border-radius: var(--r); }
+    .wiz-cat-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 9px 12px; border-bottom: 1px solid var(--border); cursor: pointer;
+      transition: background 0.1s;
+    }
+    .wiz-cat-item:last-child { border-bottom: none; }
+    .wiz-cat-item:hover { background: var(--surface2); }
+    .wiz-cat-item-naam { font-size: 0.85rem; color: var(--text); }
+    .wiz-cat-item-prijs { font-size: 0.8rem; color: var(--accent); font-weight: 600; flex-shrink: 0; margin-left: 8px; }
+    .wiz-cat-empty { padding: 14px; text-align: center; color: var(--muted); font-size: 0.82rem; }
+    /* Geselecteerde onderdelen */
+    .wiz-sel-item {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r);
+      padding: 9px 11px; margin-bottom: 6px;
+    }
+    .wiz-sel-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .wiz-sel-naam { font-size: 0.85rem; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wiz-sel-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.9rem; flex-shrink: 0; }
+    .wiz-sel-del:hover { color: var(--red); }
+    .wiz-sel-bottom { display: flex; align-items: center; gap: 10px; }
+    .wiz-sel-aantal-wrap { display: flex; align-items: center; gap: 5px; }
+    .wiz-sel-aantal-lbl { font-size: 0.75rem; color: var(--muted); }
+    .wiz-sel-aantal {
+      background: var(--surface3); border: 1px solid var(--border); color: var(--text);
+      border-radius: 6px; padding: 5px 8px; font-size: 0.88rem; width: 64px; text-align: center; font-family: inherit;
+    }
+    .wiz-sel-stukprijs { font-size: 0.75rem; color: var(--muted); flex: 1; }
+    .wiz-sel-subtotaal { font-size: 0.85rem; color: var(--accent); font-weight: 600; flex-shrink: 0; }
+    .wiz-sel-factureer { display: flex; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--text2); cursor: pointer; }
+    .wiz-sel-factureer input { accent-color: var(--accent); width: 15px; height: 15px; }
+    .wiz-totaal-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); margin-top: 4px; font-size: 0.85rem; }
+    .wiz-totaal-lbl { color: var(--muted); }
+    .wiz-totaal-val { color: var(--accent); font-weight: 700; font-size: 0.95rem; }
   </style>
 </head>
 <body>
@@ -1027,6 +1183,7 @@
       </div>
     </div>
     <div class="mftr">
+      <button class="btn-cancel" onclick="openPrijsBeheer()" title="Beheer productprijzen">💰 Prijzen</button>
       <button class="btn-cancel" onclick="closeSettings()">Annuleren</button>
       <button class="btn-save"   onclick="saveSettings()">Opslaan</button>
     </div>
@@ -1047,6 +1204,41 @@
     <div class="mftr">
       <button class="btn-cancel" onclick="clearDayBlocks()">Alles vrijmaken</button>
       <button class="btn-cancel" onclick="closeBlock()">Sluiten</button>
+    </div>
+  </div>
+</div>
+
+<!-- Prijsbeheer admin modal -->
+<div class="overlay" id="prijs-overlay" onclick="closePrijsBeheer(event)">
+  <div class="modal" id="prijs-modal">
+    <!-- Password gate (verborgen na auth) -->
+    <div id="prijs-gate" class="prijs-gate">
+      <div class="prijs-gate-icon">🔒</div>
+      <div class="prijs-gate-title">Prijsbeheer</div>
+      <div class="prijs-gate-sub">Voer het beheerderswachtwoord in om de prijslijst te beheren.</div>
+      <input class="prijs-gate-input" id="prijs-gate-input" type="password" placeholder="••••••••"
+        onkeydown="if(event.key==='Enter')prijsGateSubmit()" autocomplete="current-password" />
+      <div style="display:flex;gap:8px">
+        <button class="btn-cancel" onclick="closePrijsBeheer()">Annuleren</button>
+        <button class="btn-save"   onclick="prijsGateSubmit()">Inloggen</button>
+      </div>
+      <div id="prijs-gate-err" style="font-size:0.78rem;color:var(--red);min-height:18px"></div>
+    </div>
+    <!-- Editor (zichtbaar na auth) -->
+    <div id="prijs-editor" style="display:none;flex-direction:column;height:100%">
+      <div class="prijs-hdr">
+        <div class="prijs-hdr-title">💰 Prijsbeheer</div>
+        <div class="prijs-hdr-meta" id="prijs-meta">—</div>
+        <button class="btn-cancel" onclick="closePrijsBeheer()" style="margin-left:8px">✕</button>
+      </div>
+      <div class="prijs-body" id="prijs-body">
+        <!-- Ingevuld door renderPrijsEditor() -->
+      </div>
+      <div class="prijs-ftr">
+        <button class="btn-cancel" onclick="prijsReset()">Ongedaan maken</button>
+        <button class="btn-cancel" onclick="closePrijsBeheer()">Sluiten</button>
+        <button class="btn-save"   id="prijs-save-btn" onclick="prijsOpslaan()">Opslaan</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1140,6 +1332,10 @@
 // ══════════════════════════════════════════════
 const TEST_MODE = new URLSearchParams(window.location.search).has('test');
 
+function escHtml(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 const DUMMY_DATA = {
   tickets: [
     { id:'t1', number:'1001', subject:'Laadpaal offline na stroomuitval', status:'Service in te plannen', priority:'high', assignee:'Tim', contact:'Jan Peeters', email:'jan@test.be', phone:'0475123456', account:'EV Park Geel', address:'Antwerpseweg 50, 2440 Geel', hasAddress:true, naamEindklant:'Jan Peeters', emailEindklant:'jan@test.be', telefoonEindklant:'0475123456', serienummer:'CHARX-2291', partner:'Proxes', probleemtype:'Verbindingsfout', regio:'Kempen', dueDate: (() => { const d = new Date(); d.setDate(d.getDate()-2); return d.toISOString(); })(), createdTime:'2026-06-18T08:00:00Z' },
@@ -1221,6 +1417,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('person-menu')?.classList.remove('open');
   });
   initMap();
+  loadPrijzen();
   loadTickets();
   // Initialiseer tab indicator op de actieve tab
   setTimeout(() => updateTabIndicator('tab-tickets'), 0);
@@ -3026,8 +3223,17 @@ function wizSaveOmschrijving() {
 }
 
 // ── Stap 5: Status & onderdelen ──
+// Actieve tag-filters voor cataloguszoeken
+let _wizActiveTags = [];
+
 function wizRenderStatus(el) {
-  const partsHtml = R.onderdelen.map((p, i) => wizPartItemHtml(i, p)).join('');
+  const selHtml = _wizRenderGeselecteerd();
+  // Populaire tags (max 8 meest voorkomende)
+  const allTags = getAlleTags().slice(0, 12);
+  const tagFilterHtml = allTags.map(t =>
+    `<button class="wiz-tag-filter${_wizActiveTags.includes(t)?' active':''}" onclick="wizToggleTagFilter('${escHtml(t)}')">${escHtml(t)}</button>`
+  ).join('');
+
   el.innerHTML = `
     <div class="wiz-step-title">Status &amp; onderdelen</div>
     <div class="wiz-field">
@@ -3046,44 +3252,159 @@ function wizRenderStatus(el) {
     </div>
     <div class="wiz-sep"></div>
     <div class="wiz-field">
-      <label class="wiz-field-label">Vervangen onderdelen</label>
-      <div class="wiz-parts-list" id="wiz-parts-list">${partsHtml}</div>
-      <button class="wiz-add-part" onclick="wizAddPart()">+ Onderdeel toevoegen</button>
+      <label class="wiz-field-label">Onderdelen toevoegen</label>
+      <div class="wiz-cat-search-wrap">
+        <span class="wiz-cat-search-icon">🔍</span>
+        <input class="wiz-cat-search" id="wiz-cat-q" type="search"
+          placeholder="Zoek op naam of tag…" oninput="wizCatFilter()" autocomplete="off" />
+      </div>
+      <div class="wiz-tag-filters" id="wiz-tag-filters">${tagFilterHtml}</div>
+      <div class="wiz-cat-results" id="wiz-cat-results"></div>
+      <button class="wiz-add-part" onclick="wizAddVrijeRegel()" style="margin-bottom:8px">+ Vrije regel (handmatig)</button>
+    </div>
+    <div class="wiz-field" id="wiz-sel-section">
+      <label class="wiz-field-label">Geselecteerde onderdelen</label>
+      <div id="wiz-sel-list">${selHtml}</div>
+      ${_wizTotaalRij()}
     </div>
     <div class="wiz-sep"></div>
     <div class="wiz-field">
       <label class="wiz-field-label">Varia / opmerkingen</label>
       <textarea class="wiz-textarea" id="f-varia" rows="3" placeholder="Bijzonderheden, extra info...">${R.varia}</textarea>
     </div>`;
+
+  // Render catalogusresultaten
+  _wizUpdateCatResults();
 }
-function wizPartItemHtml(i, p) {
-  return `<div class="wiz-part-item" id="wiz-part-${i}">
-    <input class="wiz-part-omschr" type="text" placeholder="Omschrijving onderdeel" value="${p.omschr||''}" oninput="wizUpdatePart(${i},'omschr',this.value)" />
-    <button class="wiz-part-del" onclick="wizRemovePart(${i})" title="Verwijderen">✕</button>
-    <div class="wiz-part-bottom">
-      <input class="wiz-part-prijs" type="number" placeholder="€ prijs ex btw" min="0" step="0.01" value="${p.prijs||''}" oninput="wizUpdatePart(${i},'prijs',this.value)" />
-      <label class="wiz-part-factureer">
-        <input type="checkbox" ${p.factureren!==false?'checked':''} onchange="wizUpdatePart(${i},'factureren',this.checked)" />
-        Factureren
-      </label>
-    </div>
+
+function _wizRenderGeselecteerd() {
+  if (!R.onderdelen.length) return '<div style="font-size:0.8rem;color:var(--muted);padding:4px 0">Nog geen onderdelen geselecteerd</div>';
+  return R.onderdelen.map((p, i) => {
+    const subtotaal = (parseFloat(p.prijs) || 0) * (parseInt(p.aantal) || 1);
+    const isVrij = (p.id || '').startsWith('vrij-');
+    return `<div class="wiz-sel-item">
+      <div class="wiz-sel-top">
+        ${isVrij
+          ? `<input class="wiz-part-omschr" style="flex:1;font-size:0.85rem" type="text" placeholder="Omschrijving" value="${escHtml(p.naam||'')}" oninput="wizUpdSelNaam(${i},this.value)" />`
+          : `<span class="wiz-sel-naam">${escHtml(p.naam)}</span>`
+        }
+        <button class="wiz-sel-del" onclick="wizRemovePart(${i})" title="Verwijderen">✕</button>
+      </div>
+      <div class="wiz-sel-bottom">
+        <div class="wiz-sel-aantal-wrap">
+          <span class="wiz-sel-aantal-lbl">Aantal</span>
+          <input class="wiz-sel-aantal" type="number" min="1" step="1" value="${p.aantal||1}"
+            oninput="wizUpdSelAantal(${i},this.value)" />
+        </div>
+        ${isVrij
+          ? `<input class="wiz-part-prijs" type="number" placeholder="€ prijs" min="0" step="0.01"
+              style="width:80px;font-size:0.82rem" value="${p.prijs||''}"
+              oninput="wizUpdSelPrijs(${i},this.value)" />`
+          : `<span class="wiz-sel-stukprijs">€ ${(parseFloat(p.prijs)||0).toFixed(2)} / stuk</span>`
+        }
+        <span class="wiz-sel-subtotaal">€ ${subtotaal.toFixed(2)}</span>
+        <label class="wiz-sel-factureer">
+          <input type="checkbox" ${p.factureren!==false?'checked':''} onchange="wizUpdSelFact(${i},this.checked)" />
+          Factureren
+        </label>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function _wizTotaalRij() {
+  const totaal = R.onderdelen.reduce((sum, p) => sum + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+  if (!R.onderdelen.length) return '';
+  return `<div class="wiz-totaal-row">
+    <span class="wiz-totaal-lbl">Totaal (excl. btw)</span>
+    <span class="wiz-totaal-val">€ ${totaal.toFixed(2)}</span>
   </div>`;
 }
-function wizAddPart() {
-  wizSaveStatus();
-  R.onderdelen.push({ omschr:'', prijs:'', factureren:true });
-  wizRenderStatus(document.getElementById('wiz-body'));
-  const items = document.querySelectorAll('.wiz-part-omschr');
-  if (items.length) items[items.length-1].focus();
+
+function _wizUpdateCatResults() {
+  const q = document.getElementById('wiz-cat-q')?.value || '';
+  const resultEl = document.getElementById('wiz-cat-results');
+  if (!resultEl) return;
+  const resultaten = zoekOnderdelen(q, _wizActiveTags);
+  if (!resultaten.length) {
+    resultEl.innerHTML = `<div class="wiz-cat-empty">Geen onderdelen gevonden</div>`;
+    return;
+  }
+  resultEl.innerHTML = resultaten.slice(0, 20).map(o =>
+    `<div class="wiz-cat-item" onclick="wizVoegCatToe('${o.id}')">
+      <span class="wiz-cat-item-naam">${escHtml(o.naam)}</span>
+      <span class="wiz-cat-item-prijs">€ ${(o.prijs||0).toFixed(2)}</span>
+    </div>`
+  ).join('');
 }
+
+function wizCatFilter() {
+  _wizUpdateCatResults();
+}
+
+function wizToggleTagFilter(tag) {
+  const idx = _wizActiveTags.indexOf(tag);
+  if (idx >= 0) _wizActiveTags.splice(idx, 1);
+  else _wizActiveTags.push(tag);
+  // Update filter buttons
+  document.querySelectorAll('.wiz-tag-filter').forEach(btn => {
+    btn.classList.toggle('active', _wizActiveTags.includes(btn.textContent));
+  });
+  _wizUpdateCatResults();
+}
+
+function wizVoegCatToe(id) {
+  wizSaveStatus();
+  const src = PRIJZEN || PRIJZEN_DEFAULTS;
+  const o = src.onderdelen.find(x => x.id === id);
+  if (!o) return;
+  // Check of al aanwezig → verhoog aantal
+  const existing = R.onderdelen.find(p => p.id === id);
+  if (existing) {
+    existing.aantal = (parseInt(existing.aantal) || 1) + 1;
+  } else {
+    R.onderdelen.push({ id: o.id, naam: o.naam, prijs: o.prijs, aantal: 1, factureren: true });
+  }
+  _wizHertekenGeselecteerd();
+}
+
+function wizAddVrijeRegel() {
+  wizSaveStatus();
+  R.onderdelen.push({ id: 'vrij-' + Date.now(), naam: '', prijs: '', aantal: 1, factureren: true });
+  _wizHertekenGeselecteerd();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.wiz-part-omschr');
+    if (inputs.length) inputs[inputs.length-1].focus();
+  }, 50);
+}
+
 function wizRemovePart(i) {
   wizSaveStatus();
   R.onderdelen.splice(i, 1);
-  wizRenderStatus(document.getElementById('wiz-body'));
+  _wizHertekenGeselecteerd();
 }
+
+function wizUpdSelNaam(i, val)  { if (R.onderdelen[i]) R.onderdelen[i].naam      = val; _wizHertekenGeselecteerd(); }
+function wizUpdSelAantal(i, val){ if (R.onderdelen[i]) R.onderdelen[i].aantal    = parseInt(val)||1; _wizHertekenGeselecteerd(); }
+function wizUpdSelPrijs(i, val) { if (R.onderdelen[i]) R.onderdelen[i].prijs     = parseFloat(val)||0; _wizHertekenGeselecteerd(); }
+function wizUpdSelFact(i, val)  { if (R.onderdelen[i]) R.onderdelen[i].factureren = val; }
+
+function _wizHertekenGeselecteerd() {
+  const selList = document.getElementById('wiz-sel-list');
+  const selSection = document.getElementById('wiz-sel-section');
+  if (!selList) return;
+  selList.innerHTML = _wizRenderGeselecteerd();
+  // Herrender totaal
+  let totaalEl = selSection?.querySelector('.wiz-totaal-row');
+  if (totaalEl) totaalEl.outerHTML = _wizTotaalRij();
+  else if (selSection) selSection.insertAdjacentHTML('beforeend', _wizTotaalRij());
+}
+
+// Oud compat alias (niet meer nodig maar voorkomt errors als ergens anders wizUpdatePart staat)
 function wizUpdatePart(i, key, val) {
   if (R.onderdelen[i]) R.onderdelen[i][key] = val;
 }
+function wizAddPart() { wizAddVrijeRegel(); }
 function wizSaveStatus() {
   R.hersteld   = wizChecked('f-hersteld')    || 'nee';
   R.nieuwInter = wizChecked('f-nieuw-inter') || 'nee';
@@ -3189,10 +3510,28 @@ function printRapport() {
     ? new Date(R.datum + 'T12:00:00').toLocaleDateString('nl-BE', { day:'numeric', month:'long', year:'numeric' })
     : '—';
 
-  let partsHtml = R.onderdelen
-    .filter(p => p.omschr)
-    .map(p => `<tr><td>${p.omschr}</td><td>€ ${p.prijs || '—'}</td><td>${p.factureren !== false ? 'Ja' : 'Nee'}</td></tr>`)
-    .join('');
+  const geldigeOnderdelen = R.onderdelen.filter(p => p.naam);
+  const totaalOnderdelen  = geldigeOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+  let partsHtml = geldigeOnderdelen
+    .map(p => {
+      const aantal    = parseInt(p.aantal) || 1;
+      const stukprijs = parseFloat(p.prijs) || 0;
+      const subtotaal = stukprijs * aantal;
+      return `<tr>
+        <td>${escHtml(p.naam)}</td>
+        <td style="text-align:center">${aantal}</td>
+        <td style="text-align:right">€ ${stukprijs.toFixed(2)}</td>
+        <td style="text-align:right">€ ${subtotaal.toFixed(2)}</td>
+        <td style="text-align:center">${p.factureren !== false ? 'Ja' : 'Nee'}</td>
+      </tr>`;
+    }).join('');
+  if (geldigeOnderdelen.length) {
+    partsHtml += `<tr style="background:#f0fdf9;font-weight:700">
+      <td colspan="3" style="text-align:right;font-size:8pt;text-transform:uppercase;letter-spacing:.05em;color:#555">Totaal (excl. btw)</td>
+      <td style="text-align:right">€ ${totaalOnderdelen.toFixed(2)}</td>
+      <td></td>
+    </tr>`;
+  }
 
   const sigTechImg  = (_sigTech  && !_sigTech.isEmpty())
     ? `<img src="${_sigTech.toDataURL()}" style="max-width:220px;max-height:90px;display:block">`
@@ -3274,8 +3613,8 @@ function printRapport() {
   <div class="status-cell"><div class="info-lbl">Definitief hersteld</div><strong>${R.hersteld==='ja'?'Ja':'Nee'}</strong></div>
   <div class="status-cell"><div class="info-lbl">Nieuwe interventie nodig</div><strong>${R.nieuwInter==='ja'?'Ja':'Nee'}</strong></div>
 </div>
-${partsHtml ? `<div class="sec">Vervangen onderdelen</div>
-<table class="parts"><thead><tr><th>Omschrijving</th><th>Prijs (ex btw)</th><th>Factureren</th></tr></thead>
+${geldigeOnderdelen.length ? `<div class="sec">Vervangen onderdelen</div>
+<table class="parts"><thead><tr><th>Omschrijving</th><th style="text-align:center">Aantal</th><th style="text-align:right">Stukprijs</th><th style="text-align:right">Subtotaal</th><th style="text-align:center">Factureren</th></tr></thead>
 <tbody>${partsHtml}</tbody></table>` : ''}
 ${R.varia ? `<div class="sec">Varia</div><div class="block">${R.varia}</div>` : ''}
 <div class="sec">Handtekeningen</div>
@@ -3318,10 +3657,387 @@ async function uploadRapportToZoho(html, ticketId, filename) {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    closeDet(); closeSettings(); closeOpl(); closeBlock(); closeResult(); closeProposal();
+    closeDet(); closeSettings(); closeOpl(); closeBlock(); closeResult(); closeProposal(); closePrijsBeheer();
     if (document.getElementById('rapport-wizard').classList.contains('open')) closeWizard();
   }
 });
+
+// ══════════════════════════════════════════════
+// PRIJSBEHEER
+// ══════════════════════════════════════════════
+
+// Globale prijzenstate
+let PRIJZEN = null;          // { versie, bijgewerkt, onderdelen, tarieven }
+let PRIJZEN_DIRTY = null;    // werkkopie tijdens bewerking (null = niet gewijzigd)
+let PRIJZEN_TOKEN = null;    // Bearer-token voor huidige sessie
+
+const PRIJZEN_LS_CACHE   = 'blitz_prijzen_cache';
+const PRIJZEN_LS_TOKEN   = 'blitz_admin_token_session';
+const PRIJZEN_API_URL    = '/api/prijzen';
+
+// ── Defaults (zelfde als server, client-side fallback) ───────────────────────
+const PRIJZEN_DEFAULTS = {
+  versie: 1,
+  bijgewerkt: new Date().toISOString(),
+  onderdelen: [
+    { id:'charx-3000',        naam:'Controller - CHARX 3000',            categorie:'controller',   tags:['controller','Phoenix Contact','3000'],              prijs:442.13, eenheid:'stuk' },
+    { id:'charx-3100',        naam:'Controller - CHARX 3100',            categorie:'controller',   tags:['controller','Phoenix Contact','3100'],              prijs:693,    eenheid:'stuk' },
+    { id:'charx-3050',        naam:'Controller - CHARX 3050',            categorie:'controller',   tags:['controller','Phoenix Contact','3050'],              prijs:525,    eenheid:'stuk' },
+    { id:'charx-3050-slave',  naam:'Controller - CHARX 3050 Slave',      categorie:'controller',   tags:['controller','Phoenix Contact','3050','slave'],      prijs:498.58, eenheid:'stuk' },
+    { id:'charx-3150',        naam:'Controller - CHARX 3150',            categorie:'controller',   tags:['controller','Phoenix Contact','3150'],              prijs:627.35, eenheid:'stuk' },
+    { id:'charx-1000',        naam:'Controller - CHARX 1000',            categorie:'controller',   tags:['controller','Phoenix Contact','1000'],              prijs:255,    eenheid:'stuk' },
+    { id:'meter-sdm54-m',     naam:'Energiemeter - Eastron SDM54-M',     categorie:'energiemeter', tags:['energiemeter','Eastron','SDM54','modbus','RS485'],  prijs:160, eenheid:'stuk' },
+    { id:'meter-sdm72d-m',    naam:'Energiemeter - Eastron SDM72D-M',    categorie:'energiemeter', tags:['energiemeter','Eastron','SDM72','modbus','RS485'],  prijs:160, eenheid:'stuk' },
+    { id:'meter-tcpip-direct',naam:'Energiemeter - TCP/IP Direct',       categorie:'energiemeter', tags:['energiemeter','TCP','IP','direct'],                 prijs:400, eenheid:'stuk' },
+    { id:'meter-tcpip-indirect',naam:'Energiemeter - TCP/IP Indirect',   categorie:'energiemeter', tags:['energiemeter','TCP','IP','indirect'],               prijs:400, eenheid:'stuk' },
+    { id:'ct-1000a', naam:'CT-klem 1000A/1A', categorie:'ct-klem', tags:['ct-klem','meetklem','1000A'], prijs:32,    eenheid:'stuk' },
+    { id:'ct-600a',  naam:'CT-klem 600A/1A',  categorie:'ct-klem', tags:['ct-klem','meetklem','600A'],  prijs:27,    eenheid:'stuk' },
+    { id:'ct-300a',  naam:'CT-klem 300A/1A',  categorie:'ct-klem', tags:['ct-klem','meetklem','300A'],  prijs:24,    eenheid:'stuk' },
+    { id:'ct-80a',   naam:'CT-klem 80A/1A',   categorie:'ct-klem', tags:['ct-klem','meetklem','80A'],   prijs:10,    eenheid:'stuk' },
+    { id:'contactor-4p-40a', naam:'Contactor 4P 40A', categorie:'overig', tags:['contactor','4P','40A'],                            prijs:40.50, eenheid:'stuk' },
+    { id:'charx-rfid',       naam:'CHARX RFID',        categorie:'overig', tags:['rfid','kaartlezer','authenticatie'],               prijs:84,    eenheid:'stuk' },
+    { id:'led',              naam:'LED',               categorie:'overig', tags:['led','indicatie'],                                 prijs:8,     eenheid:'stuk' },
+    { id:'rcm',              naam:'RCM',               categorie:'overig', tags:['rcm','lekstroom','aardlek','veiligheid','residuele stroom'], prijs:29.50, eenheid:'stuk' },
+    { id:'kabel-7m-zwart',       naam:'Laadkabel 7m Zwart',        categorie:'kabel', tags:['kabel','laadkabel','7m','zwart'],          prijs:170, eenheid:'stuk' },
+    { id:'kabel-5m-zwart',       naam:'Laadkabel 5m Zwart',        categorie:'kabel', tags:['kabel','laadkabel','5m','zwart'],          prijs:120, eenheid:'stuk' },
+    { id:'kabel-5m-grijs',       naam:'Laadkabel 5m Grijs',        categorie:'kabel', tags:['kabel','laadkabel','5m','grijs'],          prijs:160, eenheid:'stuk' },
+    { id:'kabel-5m-rood',        naam:'Laadkabel 5m Rood',         categorie:'kabel', tags:['kabel','laadkabel','5m','rood'],           prijs:160, eenheid:'stuk' },
+    { id:'kabel-spiraal-5m-11kw',naam:'Laadkabel Spiraal 5m 11kW', categorie:'kabel', tags:['kabel','laadkabel','spiraal','5m','11kW'], prijs:184, eenheid:'stuk' },
+    { id:'kabel-spiraal-5m-22kw',naam:'Laadkabel Spiraal 5m 22kW', categorie:'kabel', tags:['kabel','laadkabel','spiraal','5m','22kW'], prijs:231, eenheid:'stuk' },
+    { id:'socket',               naam:'Socket',                     categorie:'kabel', tags:['socket','aansluiting'],                   prijs:88,  eenheid:'stuk' },
+  ],
+  tarieven: [
+    { id:'interventie-3u', naam:'Interventie (3u, incl. aanrijtijden)',              prijs:175, eenheid:'forfait' },
+    { id:'extra-uur',      naam:'Extra uur',                                         prijs:75,  eenheid:'uur'     },
+    { id:'1st-line-uur',   naam:'1st line interventie per uur (excl. aanrijtijden)', prijs:115, eenheid:'uur'     },
+  ],
+};
+
+// ── Laden bij startup ─────────────────────────────────────────────────────────
+async function loadPrijzen() {
+  if (TEST_MODE) {
+    // Testomgeving: gebruik localStorage-cache of defaults
+    const cached = localStorage.getItem(PRIJZEN_LS_CACHE);
+    PRIJZEN = cached ? JSON.parse(cached) : JSON.parse(JSON.stringify(PRIJZEN_DEFAULTS));
+    return;
+  }
+  try {
+    const res = await fetch(PRIJZEN_API_URL);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    PRIJZEN = await res.json();
+    // Bijwerken lokale cache
+    localStorage.setItem(PRIJZEN_LS_CACHE, JSON.stringify(PRIJZEN));
+  } catch {
+    // Fallback: cache → defaults
+    const cached = localStorage.getItem(PRIJZEN_LS_CACHE);
+    PRIJZEN = cached ? JSON.parse(cached) : JSON.parse(JSON.stringify(PRIJZEN_DEFAULTS));
+    console.warn('[Prijzen] Kon niet laden van server, cache/defaults gebruikt');
+  }
+}
+
+// ── Admin-modal openen/sluiten ─────────────────────────────────────────────────
+function openPrijsBeheer() {
+  closeSettings();
+  const overlay = document.getElementById('prijs-overlay');
+  overlay.classList.add('open');
+  // Controleer of we al een sessietoken hebben
+  const savedToken = sessionStorage.getItem(PRIJZEN_LS_TOKEN);
+  if (savedToken) {
+    PRIJZEN_TOKEN = savedToken;
+    showPrijsEditor();
+  } else {
+    document.getElementById('prijs-gate').style.display = '';
+    document.getElementById('prijs-editor').style.display = 'none';
+    setTimeout(() => document.getElementById('prijs-gate-input')?.focus(), 50);
+  }
+}
+
+function closePrijsBeheer(event) {
+  if (event && event.target !== document.getElementById('prijs-overlay')) return;
+  if (PRIJZEN_DIRTY) {
+    if (!confirm('Je hebt onopgeslagen wijzigingen. Toch sluiten?')) return;
+  }
+  document.getElementById('prijs-overlay').classList.remove('open');
+  PRIJZEN_DIRTY = null;
+}
+
+// ── Wachtwoord-gate ───────────────────────────────────────────────────────────
+async function prijsGateSubmit() {
+  const input  = document.getElementById('prijs-gate-input');
+  const errEl  = document.getElementById('prijs-gate-err');
+  const token  = input.value.trim();
+  if (!token) return;
+  errEl.textContent = '';
+
+  if (TEST_MODE) {
+    // In testmodus: elk niet-leeg wachtwoord werkt
+    PRIJZEN_TOKEN = token;
+    sessionStorage.setItem(PRIJZEN_LS_TOKEN, token);
+    input.value = '';
+    showPrijsEditor();
+    return;
+  }
+
+  // Verifieer token via een probe PUT met een no-op (leeg body → zal 400 teruggeven, maar 401 als token fout)
+  try {
+    const probe = await fetch(PRIJZEN_API_URL, {
+      method: 'PUT',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),   // opzettelijk leeg → 400 als auth OK, 401 als token fout
+    });
+    if (probe.status === 401) {
+      errEl.textContent = 'Ongeldig wachtwoord';
+      input.value = '';
+      input.focus();
+      return;
+    }
+    // 400 (validatiefout) of 200 = auth OK
+    PRIJZEN_TOKEN = token;
+    sessionStorage.setItem(PRIJZEN_LS_TOKEN, token);
+    input.value = '';
+    showPrijsEditor();
+  } catch {
+    errEl.textContent = 'Verbindingsfout — probeer opnieuw';
+  }
+}
+
+// ── Editor weergeven ──────────────────────────────────────────────────────────
+function showPrijsEditor() {
+  document.getElementById('prijs-gate').style.display = 'none';
+  const editorEl = document.getElementById('prijs-editor');
+  editorEl.style.display = 'flex';
+  PRIJZEN_DIRTY = null;
+  renderPrijsEditor();
+}
+
+function getPrijzen() {
+  return PRIJZEN_DIRTY || PRIJZEN || PRIJZEN_DEFAULTS;
+}
+
+function markDirty() {
+  if (!PRIJZEN_DIRTY) {
+    PRIJZEN_DIRTY = JSON.parse(JSON.stringify(getPrijzen()));
+  }
+  document.getElementById('prijs-save-btn').classList.add('btn-dirty');
+}
+
+function prijsReset() {
+  if (!confirm('Alle wijzigingen ongedaan maken?')) return;
+  PRIJZEN_DIRTY = null;
+  document.getElementById('prijs-save-btn').classList.remove('btn-dirty');
+  renderPrijsEditor();
+}
+
+// ── Renderer ──────────────────────────────────────────────────────────────────
+function renderPrijsEditor() {
+  const data = getPrijzen();
+  // Meta
+  const meta = document.getElementById('prijs-meta');
+  if (data.bijgewerkt) {
+    const d = new Date(data.bijgewerkt);
+    meta.textContent = `v${data.versie} · ${d.toLocaleDateString('nl-BE')} ${d.toLocaleTimeString('nl-BE', {hour:'2-digit',minute:'2-digit'})}`;
+  }
+  // Controleer of data van cache komt
+  const body = document.getElementById('prijs-body');
+  let html = '';
+  if (!TEST_MODE && !navigator.onLine) {
+    html += `<div class="prijs-cache-banner">⚠️ Offline — prijzen uit lokale cache</div>`;
+  }
+
+  // Categorieën
+  const cats = [
+    { id:'controller',   label:'Controllers' },
+    { id:'energiemeter', label:'Energiemeters' },
+    { id:'ct-klem',      label:'CT-klemmen' },
+    { id:'overig',       label:'Overige componenten' },
+    { id:'kabel',        label:'Laadkabels & aansluitingen' },
+  ];
+  for (const cat of cats) {
+    const items = data.onderdelen.filter(o => o.categorie === cat.id);
+    if (!items.length) continue;
+    html += `<div class="prijs-cat">
+      <div class="prijs-cat-title">${cat.label}</div>`;
+    for (let i = 0; i < items.length; i++) {
+      const o = items[i];
+      const globalIdx = data.onderdelen.indexOf(o);
+      const tagsHtml = (o.tags || []).map((t, ti) =>
+        `<span class="prijs-tag">${t}<span class="prijs-tag-del" onclick="prijsVerwijderTag(${globalIdx},${ti})">×</span></span>`
+      ).join('') +
+      `<button class="prijs-tag-add" onclick="prijsVoegTagToe(${globalIdx})">+ tag</button>`;
+      html += `<div class="prijs-row">
+        <div class="prijs-row-main">
+          <input class="prijs-naam-input" value="${escHtml(o.naam)}"
+            oninput="prijsUpdateNaam(${globalIdx},this.value)" placeholder="Naam" />
+          <div class="prijs-tags-wrap">${tagsHtml}</div>
+        </div>
+        <div class="prijs-row-right">
+          <div class="prijs-input-wrap">
+            <span class="prijs-euro">€</span>
+            <input class="prijs-prijs-input" type="number" min="0" step="0.01"
+              value="${o.prijs}" oninput="prijsUpdatePrijs(${globalIdx},this.value)" />
+          </div>
+          <span class="prijs-eenheid">/ ${o.eenheid}</span>
+          <button class="prijs-del-btn" onclick="prijsVerwijderOnderdeel(${globalIdx})" title="Verwijder">🗑</button>
+        </div>
+      </div>`;
+    }
+    html += `<button class="prijs-add-btn" onclick="prijsVoegOnderdeel('${cat.id}')">+ Onderdeel toevoegen</button>
+    </div>`;
+  }
+
+  // Tarieven
+  html += `<div class="prijs-tarieven-sep"></div>
+    <div class="prijs-cat-title">Tarieven</div>`;
+  for (let i = 0; i < data.tarieven.length; i++) {
+    const t = data.tarieven[i];
+    html += `<div class="prijs-tarief-row">
+      <span class="prijs-tarief-naam">${escHtml(t.naam)}</span>
+      <div class="prijs-input-wrap">
+        <span class="prijs-euro">€</span>
+        <input class="prijs-prijs-input" type="number" min="0" step="0.01"
+          value="${t.prijs}" oninput="prijsTariefUpdate(${i},this.value)" />
+      </div>
+      <span class="prijs-eenheid">/ ${t.eenheid}</span>
+    </div>`;
+  }
+
+  body.innerHTML = html;
+}
+
+// ── Mutatie-helpers ───────────────────────────────────────────────────────────
+function prijsUpdateNaam(idx, val) {
+  markDirty();
+  PRIJZEN_DIRTY.onderdelen[idx].naam = val;
+}
+function prijsUpdatePrijs(idx, val) {
+  markDirty();
+  PRIJZEN_DIRTY.onderdelen[idx].prijs = parseFloat(val) || 0;
+}
+function prijsTariefUpdate(idx, val) {
+  markDirty();
+  PRIJZEN_DIRTY.tarieven[idx].prijs = parseFloat(val) || 0;
+}
+function prijsVerwijderOnderdeel(idx) {
+  markDirty();
+  PRIJZEN_DIRTY.onderdelen.splice(idx, 1);
+  renderPrijsEditor();
+}
+function prijsVerwijderTag(ondIdx, tagIdx) {
+  markDirty();
+  PRIJZEN_DIRTY.onderdelen[ondIdx].tags.splice(tagIdx, 1);
+  renderPrijsEditor();
+}
+function prijsVoegTagToe(ondIdx) {
+  const tag = prompt('Nieuwe tag:');
+  if (!tag || !tag.trim()) return;
+  markDirty();
+  PRIJZEN_DIRTY.onderdelen[ondIdx].tags.push(tag.trim());
+  renderPrijsEditor();
+}
+function prijsVoegOnderdeel(categorie) {
+  markDirty();
+  const id = 'nieuw-' + Date.now();
+  PRIJZEN_DIRTY.onderdelen.push({ id, naam:'', categorie, tags:[], prijs:0, eenheid:'stuk' });
+  renderPrijsEditor();
+  // Scroll naar het nieuwe item
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.prijs-naam-input');
+    inputs[inputs.length - 1]?.focus();
+  }, 50);
+}
+
+// ── Opslaan ───────────────────────────────────────────────────────────────────
+async function prijsOpslaan() {
+  if (!PRIJZEN_DIRTY) { showToast('Geen wijzigingen'); return; }
+  const btn = document.getElementById('prijs-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Bezig...';
+
+  const payload = {
+    ...PRIJZEN_DIRTY,
+    versie: PRIJZEN ? PRIJZEN.versie : 1,
+  };
+
+  if (TEST_MODE) {
+    // Testomgeving: sla op in localStorage
+    payload.versie = (payload.versie || 1) + 1;
+    payload.bijgewerkt = new Date().toISOString();
+    PRIJZEN = payload;
+    PRIJZEN_DIRTY = null;
+    localStorage.setItem(PRIJZEN_LS_CACHE, JSON.stringify(PRIJZEN));
+    btn.disabled = false;
+    btn.textContent = 'Opslaan';
+    btn.classList.remove('btn-dirty');
+    showToast('Prijzen opgeslagen (test)');
+    renderPrijsEditor();
+    return;
+  }
+
+  try {
+    const res = await fetch(PRIJZEN_API_URL, {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Bearer ' + PRIJZEN_TOKEN,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (res.status === 409) {
+        showToast('⚠️ Conflict: prijslijst werd elders gewijzigd. Herlaad de pagina.');
+      } else if (res.status === 401) {
+        showToast('Sessie verlopen — log opnieuw in');
+        sessionStorage.removeItem(PRIJZEN_LS_TOKEN);
+        PRIJZEN_TOKEN = null;
+      } else {
+        showToast('Fout: ' + (data.error || res.status));
+      }
+      btn.disabled = false;
+      btn.textContent = 'Opslaan';
+      return;
+    }
+    PRIJZEN = data;
+    PRIJZEN_DIRTY = null;
+    localStorage.setItem(PRIJZEN_LS_CACHE, JSON.stringify(PRIJZEN));
+    btn.disabled = false;
+    btn.textContent = 'Opslaan';
+    btn.classList.remove('btn-dirty');
+    showToast('✓ Prijzen opgeslagen');
+    renderPrijsEditor();
+  } catch (err) {
+    showToast('Verbindingsfout: ' + err.message);
+    btn.disabled = false;
+    btn.textContent = 'Opslaan';
+  }
+}
+
+// ── Zoekfunctie voor wizard (exported) ───────────────────────────────────────
+function zoekOnderdelen(query, activeTags) {
+  const src = PRIJZEN || PRIJZEN_DEFAULTS;
+  const q = (query || '').toLowerCase().trim();
+  return src.onderdelen.filter(o => {
+    if (activeTags && activeTags.length) {
+      const oTags = (o.tags || []).map(t => t.toLowerCase());
+      if (!activeTags.every(t => oTags.includes(t.toLowerCase()))) return false;
+    }
+    if (!q) return true;
+    return o.naam.toLowerCase().includes(q) || (o.tags || []).some(t => t.toLowerCase().includes(q));
+  });
+}
+
+function getAlleTags() {
+  const src = PRIJZEN || PRIJZEN_DEFAULTS;
+  const set = new Set();
+  src.onderdelen.forEach(o => (o.tags || []).forEach(t => set.add(t)));
+  return [...set].sort();
+}
+
+function getPrijsVoorId(id) {
+  const src = PRIJZEN || PRIJZEN_DEFAULTS;
+  const o = src.onderdelen.find(x => x.id === id);
+  return o ? o.prijs : null;
+}
 </script>
 </body>
 </html>
