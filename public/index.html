@@ -419,6 +419,24 @@
     .btn-autoplan:hover  { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,223,163,0.38); }
     .btn-autoplan:active { transform: translateY(0); box-shadow: 0 1px 3px rgba(0,223,163,0.2); }
     .btn-autoplan:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+    /* ── View toggle (week / maand) ── */
+    .kal-view-toggle { display: flex; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .kal-view-btn { background: transparent; border: none; color: var(--muted); padding: 5px 11px; font-size: 0.75rem; font-weight: 500; cursor: pointer; font-family: inherit; transition: background 0.1s, color 0.1s; }
+    .kal-view-btn.active { background: var(--surface3); color: var(--text); font-weight: 700; }
+    /* ── Maand-view ── */
+    .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); border-left: 1px solid var(--border); border-top: 1px solid var(--border); }
+    .month-dow-hdr { font-size: 0.63rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 5px 6px; text-align: center; background: var(--surface); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .month-cell { min-height: 88px; padding: 4px 5px; background: var(--surface); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+    .month-cell.other-month { background: var(--bg); opacity: 0.5; }
+    .month-cell.today-cell { background: rgba(0,223,163,0.04); }
+    .month-cell-num { font-size: 0.72rem; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
+    .month-cell-num.today-num { color: var(--green); font-size: 0.78rem; }
+    .month-chip { font-size: 0.62rem; padding: 2px 5px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; line-height: 1.3; }
+    .month-chip.pending  { background: var(--orange-dim); color: var(--orange); }
+    .month-chip.confirmed { background: var(--green-dim); color: var(--green); }
+    .month-chip.local    { background: rgba(124,92,252,0.15); color: #7c5cfc; }
+    .month-chip.blocked  { background: var(--red-dim); color: var(--red); }
+    .month-more { font-size: 0.59rem; color: var(--muted); padding: 1px 4px; }
 
     /* Week grid */
     .week-grid { display: flex; flex: 1; overflow-x: auto; min-height: 400px; }
@@ -1203,6 +1221,10 @@
 <!-- ══ KALENDER TAB ══ -->
 <div class="view" id="view-kalender">
   <div class="kal-header">
+    <div class="kal-view-toggle">
+      <button class="kal-view-btn active" id="kal-view-week" onclick="setKalView('week')">Week</button>
+      <button class="kal-view-btn" id="kal-view-month" onclick="setKalView('month')">Maand</button>
+    </div>
     <button class="kal-nav" onclick="kalNav(-1)">‹</button>
     <span class="kal-week-label" id="kal-label">—</span>
     <button class="kal-nav" onclick="kalNav(1)">›</button>
@@ -1552,6 +1574,7 @@ let planning = {};
 let routeData = null, currentRouteDate = null;
 let leafletMap, routeLayer;
 let kalOffset = 0, gepOffset = 0;
+let kalView   = 'week'; // 'week' | 'month'
 // activeBlockDate → vervangen door _avFormDate (zie beschikbaarheidssysteem)
 // (drag-blokkering verwijderd — vervangen door beschikbaarheidssysteem)
 let activeAssigneeFilter = 'all';
@@ -1954,13 +1977,18 @@ function removeTicketFromAllDays(ticketId) {
 // ══════════════════════════════════════════════
 // KALENDER
 // ══════════════════════════════════════════════
+function setKalView(v) {
+  kalView = v;
+  document.getElementById('kal-view-week').classList.toggle('active',  v === 'week');
+  document.getElementById('kal-view-month').classList.toggle('active', v === 'month');
+  kalOffset = 0; // reset offset bij wisselen
+  renderKalender();
+}
+
 function renderKalender() {
   const today     = new Date(); today.setHours(0,0,0,0);
-  const weekStart = getWeekStart(today, kalOffset);
-  const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
-  document.getElementById('kal-label').textContent = fmtDateShort(weekStart) + ' – ' + fmtDateShort(weekEnd);
 
-  // Pending zonder datum — compacte pill + uitklap-panel
+  // Pending zonder datum — gemeenschappelijk voor week én maandweergave
   const noDueDate = allPending.filter(t => !t.dueDate);
   const pill      = document.getElementById('kal-pending-pill');
   const noDateSec = document.getElementById('kal-no-date-section');
@@ -1990,8 +2018,20 @@ function renderKalender() {
     noDateSec.classList.remove('open');
   }
 
-  // Week grid
+  // Branch: week of maand
+  if (kalView === 'month') {
+    document.getElementById('week-grid').className = 'month-grid';
+    renderMonthView(today);
+    return;
+  }
+
+  // Week-view
+  const weekStart = getWeekStart(today, kalOffset);
+  const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+  document.getElementById('kal-label').textContent = fmtDateShort(weekStart) + ' – ' + fmtDateShort(weekEnd);
+
   const grid = document.getElementById('week-grid');
+  grid.className = 'week-grid';
   grid.innerHTML = '';
 
   for (let i = 0; i < 7; i++) {
@@ -2103,6 +2143,106 @@ function renderKalender() {
 }
 
 function kalNav(dir) { kalOffset += dir; renderKalender(); }
+
+function renderMonthView(today) {
+  // Maand bepalen via kalOffset (aantal maanden tov vandaag)
+  const ref = new Date(today.getFullYear(), today.getMonth() + kalOffset, 1);
+  const maandLabel = ref.toLocaleDateString('nl-BE', { month: 'long', year: 'numeric' });
+  document.getElementById('kal-label').textContent = maandLabel.charAt(0).toUpperCase() + maandLabel.slice(1);
+
+  const grid = document.getElementById('week-grid');
+  grid.innerHTML = '';
+
+  // Dag-headers (ma–zo)
+  const dagNamen = ['Ma','Di','Wo','Do','Vr','Za','Zo'];
+  dagNamen.forEach(d => {
+    const hdr = document.createElement('div');
+    hdr.className = 'month-dow-hdr';
+    hdr.textContent = d;
+    grid.appendChild(hdr);
+  });
+
+  // Begin van het kalenderraster: maandag van de week die de 1e bevat
+  const firstOfMonth = new Date(ref.getFullYear(), ref.getMonth(), 1);
+  const lastOfMonth  = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
+  // getDay() → 0=zo,1=ma; pas aan naar ma=0
+  const startDow = (firstOfMonth.getDay() + 6) % 7;
+  const gridStart = new Date(firstOfMonth);
+  gridStart.setDate(gridStart.getDate() - startDow);
+
+  const myPerson = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+  const MAX_CHIPS = 4;
+
+  for (let row = 0; row < 6; row++) {
+    for (let col = 0; col < 7; col++) {
+      const day = new Date(gridStart);
+      day.setDate(gridStart.getDate() + row * 7 + col);
+      day.setHours(0,0,0,0);
+
+      const dateStr      = localISO(day);
+      const isThisMonth  = day.getMonth() === ref.getMonth();
+      const isToday      = day.getTime() === today.getTime();
+      const isPast       = day < today;
+
+      const cell = document.createElement('div');
+      cell.className = `month-cell${!isThisMonth ? ' other-month' : ''}${isToday ? ' today-cell' : ''}`;
+
+      const numDiv = document.createElement('div');
+      numDiv.className = 'month-cell-num' + (isToday ? ' today-num' : '');
+      numDiv.textContent = day.getDate();
+      cell.appendChild(numDiv);
+
+      // Chips verzamelen
+      let chips = [];
+
+      // Blokkering?
+      const isBlocked = avExceptions.some(e =>
+        e.date === dateStr && e.kind === 'fullday' &&
+        (e.scope === 'global' || (myPerson && e.person === myPerson))
+      );
+      if (isBlocked) chips.push({ label: '🔒 Geblokkeerd', cls: 'blocked' });
+
+      // Zoho tickets
+      const dayStops = (planning[dateStr] || []).filter(p =>
+        activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
+      );
+      dayStops.forEach(s => {
+        const isPend = s.ticket.status === 'Wachten op bevestiging planning';
+        chips.push({ label: `#${s.ticket.number} ${s.ticket.subject || ''}`.trim(), cls: isPend ? 'pending' : 'confirmed' });
+      });
+
+      // Lokale afspraken
+      const dayEvents = localEvents.filter(e => {
+        if (e.datum !== dateStr) return false;
+        if (activeAssigneeFilter === 'all') return true;
+        return !e.persoon || e.persoon === activeAssigneeFilter;
+      });
+      dayEvents.forEach(ev => {
+        const tijdPfx = ev.uur ? ev.uur + ' ' : '';
+        chips.push({ label: tijdPfx + ev.titel, cls: 'local' });
+      });
+
+      // Render chips (max MAX_CHIPS, rest als +N)
+      const visible = chips.slice(0, MAX_CHIPS);
+      const rest    = chips.length - visible.length;
+      visible.forEach(c => {
+        const chip = document.createElement('div');
+        chip.className = `month-chip ${c.cls}`;
+        chip.textContent = c.label;
+        chip.title = c.label;
+        cell.appendChild(chip);
+      });
+      if (rest > 0) {
+        const more = document.createElement('div');
+        more.className = 'month-more';
+        more.textContent = `+${rest} meer`;
+        cell.appendChild(more);
+      }
+
+      grid.appendChild(cell);
+    }
+  }
+}
 
 function onBlockBtnClick(btn) {
   openBlockModal(btn.dataset.date);
