@@ -67,6 +67,8 @@ export default async (req, context) => {
       hersteld:        body.hersteld   === 'ja' ? 'ja' : 'nee',
       servicetype:     String(body.servicetype      || ''),
       facturatie:      String(body.facturatie       || ''),
+      prioriteit:      String(body.prioriteit       || ''),
+      interventieType: String(body.interventieType  || 'Interventie'),
       totaalOnderdelen: parseFloat(body.totaalOnderdelen) || 0,
       // Bewaar het volledige R-object om rapport te kunnen hergeneren
       rapportData:     body.rapportData || null,

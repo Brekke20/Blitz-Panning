@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<title>TicketLog Export Demo</title>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+  body { font-family: Arial, sans-serif; background: #1a1f26; color: #e0e0e0; padding: 32px; max-width: 1000px; margin: 0 auto; }
+  h2 { color: #00dfa3; margin-bottom: 4px; }
+  p  { color: #8a9aaa; margin-top: 0; font-size: 0.9rem; }
+  .controls { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin: 20px 0; }
+  label { font-size: 0.82rem; color: #8a9aaa; display: block; margin-bottom: 4px; }
+  input[type=date] { background: #242b35; border: 1px solid #333; color: #e0e0e0; padding: 6px 10px; border-radius: 6px; font-size: 0.85rem; }
+  button { background: #00dfa3; color: #000; border: none; padding: 9px 20px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.9rem; }
+  button:hover { background: #00c490; }
+  button:disabled { background: #4a6a60; color: #666; cursor: not-allowed; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-top: 24px; }
+  th { background: #1f3864; color: #fff; padding: 8px 10px; text-align: left; border-bottom: 2px solid #00dfa3; white-space: nowrap; font-size: 0.75rem; }
+  td { padding: 7px 10px; border-bottom: 1px solid #2a3140; vertical-align: top; }
+  tr:nth-child(even) td { background: #1e242e; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 700; }
+  .ja  { background: rgba(0,223,163,.15); color: #00dfa3; }
+  .nee { background: rgba(255,80,80,.1); color: #f55; }
+  .prio-hoog   { background: #C00000; color: #fff; }
+  .prio-middel { background: #FFC000; color: #7B3F00; }
+  .prio-laag   { background: #375623; color: #fff; }
+  #status { margin-top: 16px; font-size: 0.85rem; color: #00dfa3; min-height: 20px; }
+</style>
+</head>
+<body>
+
+<h2>📊 TicketLog Excel Export — Demo</h2>
+<p>ExcelJS · auto-breedte kolommen · auto-hoogte rijen · prio-kleuren · freeze pane · autofilter</p>
+
+<div class="controls">
+  <div><label>Van</label><input type="date" id="van" value="2026-06-01"></div>
+  <div><label>Tot</label><input type="date" id="tot" value="2026-07-31"></div>
+  <div><button id="exportBtn" onclick="doExport()">📥 Download TicketLog.xlsx</button></div>
+</div>
+<div id="status"></div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Ticket</th><th>Datum</th><th>Technieker</th><th>Klant</th>
+      <th>Type</th><th>Prio</th><th>Install.</th><th>Hersteld</th>
+      <th>Garantie</th><th>Factureerbaar</th><th>€</th>
+      <th>Notities</th><th>Actie</th>
+    </tr>
+  </thead>
+  <tbody id="preview"></tbody>
+</table>
+
+<script>
+const MOCK = [
+  {
+    id: 'r1', datum: '2026-06-04', technieker: 'Jonas De Smet',
+    ticketId: '10456', ticketNumber: '10456',
+    klant: 'Electro Janssen NV',
+    hersteld: 'ja', nieuwInter: 'nee', servicetype: 'forfait',
+    prioriteit: 'high', interventieType: 'Interventie',
+    rapportData: {
+      interventieType: 'Interventie', installateur: 'Janssen Installaties',
+      servicetype: 'forfait', start: '08:30', stop: '11:15',
+      probleem: 'CHARX 3100 communiceert niet via OCPP. Controller toont E-code E05.',
+      acties: 'Firmware update naar 1.9.0. OCPP-URL opnieuw geconfigureerd. Hertest OK.',
+      onderdelen: [
+        { naam: 'Controller - CHARX 3100', prijs: 693, aantal: 1, factureren: true },
+        { naam: 'RCM', prijs: 29.50, aantal: 2, factureren: true },
+      ],
+    },
+  },
+  {
+    id: 'r2', datum: '2026-06-10', technieker: 'Brent Calaerts',
+    ticketId: '10512', ticketNumber: '10512',
+    klant: 'Garage Peeters',
+    hersteld: 'ja', nieuwInter: 'nee', servicetype: 'garantie',
+    prioriteit: 'medium', interventieType: 'Interventie',
+    rapportData: {
+      interventieType: 'Interventie', installateur: '',
+      servicetype: 'garantie', start: '09:00', stop: '10:30',
+      probleem: 'Laadpaal geeft geen stroom na stroomstoring vorige week.',
+      acties: 'Interne zekering vervangen. Netspanning gecontroleerd. Testlading OK.',
+      onderdelen: [],
+    },
+  },
+  {
+    id: 'r3', datum: '2026-06-18', technieker: 'Jonas De Smet',
+    ticketId: '10589', ticketNumber: '10589',
+    klant: 'Logistics Group BE',
+    hersteld: 'nee', nieuwInter: 'ja', servicetype: 'uur',
+    prioriteit: 'high', interventieType: 'Interventie',
+    rapportData: {
+      interventieType: 'Interventie', installateur: 'Vermeersch Elektro',
+      servicetype: 'uur', werktijd: '3,5',
+      probleem: 'Energiemeter levert geen meetdata. Load balancing werkt niet — alle palen laden op max stroom tegelijk.',
+      acties: '2 CT-klemmen defect. Nieuwe SDM54-M + CT-klemmen geplaatst. RS485 herinsteld. Nog instabiel bij piekbelasting — nieuwe interventie nodig voor fijnafstelling firmware parameters.',
+      onderdelen: [
+        { naam: 'Energiemeter - Eastron SDM54-M (Modbus)', prijs: 160, aantal: 1, factureren: true },
+        { naam: 'CT-klem 1000A/1A', prijs: 32, aantal: 3, factureren: true },
+      ],
+    },
+  },
+  {
+    id: 'r4', datum: '2026-07-02', technieker: 'Brent Calaerts',
+    ticketId: '10634', ticketNumber: '10634',
+    klant: 'Retail Solutions BV',
+    hersteld: 'ja', nieuwInter: 'nee', servicetype: 'forfait',
+    prioriteit: 'low', interventieType: 'Installatie',
+    rapportData: {
+      interventieType: 'Installatie', installateur: '',
+      servicetype: 'forfait', start: '13:00', stop: '16:30',
+      probleem: 'Nieuwe installatie CHARX 3100 — parkeergarage uitbreiding fase 2.',
+      acties: 'CHARX 3100 gemonteerd en bekabeld. OCPP geconfigureerd op backoffice. Laadkabel type 2 gemonteerd. 3 testladingen OK. Oplevering getekend.',
+      onderdelen: [
+        { naam: 'Laadkabel 7m Zwart', prijs: 170, aantal: 1, factureren: true },
+        { naam: 'Socket', prijs: 88, aantal: 1, factureren: false },
+      ],
+    },
+  },
+  {
+    id: 'r5', datum: '2026-07-14', technieker: 'Jonas De Smet',
+    ticketId: '10701', ticketNumber: '10701',
+    klant: 'De Leeuw & Zonen',
+    hersteld: 'ja', nieuwInter: 'nee', servicetype: 'garantie',
+    prioriteit: 'medium', interventieType: 'Interventie',
+    rapportData: {
+      interventieType: 'Interventie', installateur: 'De Leeuw Elektro',
+      servicetype: 'garantie', start: '10:00', stop: '11:45',
+      probleem: 'Laadpaal reageert niet op RFID-kaart. Klant kan niet authenticeren.',
+      acties: 'RFID-module firmware update uitgevoerd. Testkaarten werken opnieuw. Garantiegeval conform.',
+      onderdelen: [],
+    },
+  },
+];
+
+const PRIO_NL  = { high: 'Hoog', medium: 'Middel', low: 'Laag' };
+const PRIO_CSS = { Hoog: 'prio-hoog', Middel: 'prio-middel', Laag: 'prio-laag' };
+
+function renderPreview(rows) {
+  document.getElementById('preview').innerHTML = rows.map(r => {
+    const rd  = r.rapportData || {};
+    const ond = (rd.onderdelen || []).filter(p => p.naam);
+    const tot = ond.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+    const fac = ond.some(p => p.factureren !== false);
+    const prio = PRIO_NL[(r.prioriteit||'').toLowerCase()] || r.prioriteit || '—';
+    const type = r.interventieType || rd.interventieType || 'Interventie';
+    return `<tr>
+      <td>#${r.ticketNumber}</td>
+      <td>${r.datum}</td>
+      <td>${r.technieker}</td>
+      <td>${r.klant}</td>
+      <td>${type}</td>
+      <td><span class="badge ${PRIO_CSS[prio]||''}">${prio}</span></td>
+      <td><span class="badge ${rd.installateur?'ja':'nee'}">${rd.installateur?'Ja':'Nee'}</span></td>
+      <td><span class="badge ${r.hersteld==='ja'?'ja':'nee'}">${r.hersteld==='ja'?'Ja':'Nee'}</span></td>
+      <td><span class="badge ${rd.servicetype==='garantie'?'ja':'nee'}">${rd.servicetype==='garantie'?'Ja':'Nee'}</span></td>
+      <td><span class="badge ${fac?'ja':'nee'}">${fac?'Ja':'Nee'}</span></td>
+      <td>${tot > 0 ? '€ '+tot.toFixed(2) : '—'}</td>
+      <td style="max-width:200px;color:#b0bec5;font-size:0.72rem">${(rd.probleem||'—').slice(0,80)}${(rd.probleem||'').length>80?'…':''}</td>
+      <td style="max-width:200px;color:#b0bec5;font-size:0.72rem">${(rd.acties||'—').slice(0,80)}${(rd.acties||'').length>80?'…':''}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function doExport() {
+  const van = document.getElementById('van').value;
+  const tot = document.getElementById('tot').value;
+  const btn = document.getElementById('exportBtn');
+  const statusEl = document.getElementById('status');
+
+  let rows = MOCK;
+  if (van) rows = rows.filter(r => r.datum >= van);
+  if (tot) rows = rows.filter(r => r.datum <= tot);
+
+  renderPreview(rows);
+
+  if (!rows.length) {
+    statusEl.textContent = '⚠️ Geen rapporten in dit datumbereik';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Bezig…';
+  statusEl.textContent = 'Excel wordt opgemaakt…';
+
+  try {
+    const vanLabel = van || 'begin';
+    const totLabel = tot || 'huidig';
+
+    const PRIO_ARGB = {
+      Hoog:   { font: 'FFFFFFFF', fill: 'FFC00000' },
+      Middel: { font: 'FF7B3F00', fill: 'FFFFC000' },
+      Laag:   { font: 'FFFFFFFF', fill: 'FF375623' },
+    };
+
+    const headers = [
+      'Ticket ID', 'Datum open', 'Datum interventie',
+      'Technieker', 'Klant / Installateur', 'Type', 'Prio',
+      'Installateur betrokken', 'Uren besteed', 'Status',
+      'Remote opgelost', 'Garantiegeval', 'Component verzenden',
+      'Componentbeschrijving', 'Factureerbaar', 'Bedrag EUR',
+      'Factuur verzonden', 'Dagen open', 'SLA-flag',
+      'PB', 'Notities', 'Actie',
+    ];
+    const ncols = headers.length; // 22
+
+    // 0-indexed kolommen met wrapText (lange tekst)
+    // N=13 (Componentbeschrijving), U=20 (Notities), V=21 (Actie)
+    const WRAP_COLS = new Set([13, 20, 21]);
+    const WRAP_MAX  = { 13: 42, 20: 58, 21: 58 };
+
+    const data = rows.map(r => {
+      const rd  = r.rapportData || {};
+      const ond = (rd.onderdelen || []).filter(p => p.naam);
+      const totaal = ond.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+      const fac    = ond.some(p => p.factureren !== false) ? 'Ja' : 'Nee';
+      const cmp    = ond.map(p => `${p.naam}${parseInt(p.aantal) > 1 ? ' x' + p.aantal : ''}`).join('; ');
+
+      let uren = '';
+      if (rd.werktijd) {
+        uren = rd.werktijd;
+      } else if (rd.start && rd.stop) {
+        const [sh, sm] = rd.start.split(':').map(Number);
+        const [eh, em] = rd.stop.split(':').map(Number);
+        const min = (eh*60+em) - (sh*60+sm);
+        if (min > 0) uren = (min/60).toFixed(2).replace('.', ',');
+      }
+
+      const prioNl  = PRIO_NL[(r.prioriteit||'').toLowerCase()] || r.prioriteit || '';
+      const garantie = (rd.servicetype || r.servicetype) === 'garantie' ? 'Ja' : 'Nee';
+      const type    = r.interventieType || rd.interventieType || 'Interventie';
+
+      return [
+        r.ticketNumber || r.ticketId || '',        // A
+        '',                                         // B
+        r.datum || '',                              // C
+        r.technieker || '',                         // D
+        r.klant || rd.installateur || '',           // E
+        type,                                       // F
+        prioNl,                                     // G
+        rd.installateur ? 'Ja' : 'Nee',            // H
+        uren,                                       // I
+        r.hersteld === 'ja' ? 'Gesloten' : 'Open', // J
+        '',                                         // K
+        garantie,                                   // L
+        '',                                         // M
+        cmp,                                        // N
+        fac,                                        // O
+        totaal > 0 ? parseFloat(totaal.toFixed(2)) : '', // P
+        '', '', '', '',                             // Q R S T
+        rd.probleem || '',                          // U: Notities
+        rd.acties   || '',                          // V: Actie
+      ];
+    });
+
+    // Auto-bereken kolombreedte op basis van header + data-inhoud
+    const colWidths = headers.map((h, i) => {
+      const hLen   = h.length + 2;
+      const maxVal = data.reduce((m, row) => Math.max(m, String(row[i] || '').length + 1), 0);
+      const raw    = Math.max(hLen, maxVal, 8);
+      return WRAP_COLS.has(i) ? Math.min(raw, WRAP_MAX[i] || 50) : Math.min(raw, 36);
+    });
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Blitz Planning';
+    const ws = wb.addWorksheet('TicketLog');
+
+    ws.columns = colWidths.map(w => ({ width: w }));
+    ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3, activeCell: 'A4' }];
+
+    // Rij 1 — Titel
+    const r1 = ws.addRow(Array(ncols).fill(''));
+    r1.height = 26;
+    ws.mergeCells(1, 1, 1, ncols);
+    Object.assign(r1.getCell(1), {
+      value:     'TICKETLOG - BLITZ POWER',
+      font:      { bold: true, size: 14, color: { argb: 'FFFFFFFF' } },
+      fill:      { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF101820' } },
+      alignment: { horizontal: 'left', vertical: 'middle' },
+    });
+
+    // Rij 2 — Subtitel
+    const r2 = ws.addRow(Array(ncols).fill(''));
+    r2.height = 16;
+    ws.mergeCells(2, 1, 2, ncols);
+    Object.assign(r2.getCell(1), {
+      value:     `Periode: ${vanLabel} - ${totLabel}  |  Export: ${new Date().toLocaleDateString('nl-BE')}  |  ${rows.length} record${rows.length !== 1 ? 's' : ''}`,
+      font:      { size: 9, color: { argb: 'FFAAAAAA' } },
+      fill:      { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF101820' } },
+      alignment: { horizontal: 'left', vertical: 'middle' },
+    });
+
+    // Rij 3 — Headers (geen wrapText: kolombreedte zorgt voor leesbaarheid)
+    const r3 = ws.addRow(headers);
+    r3.height = 22;
+    for (let c = 1; c <= ncols; c++) {
+      const cell     = r3.getCell(c);
+      cell.font      = { bold: true, size: 9, color: { argb: 'FFFFFFFF' } };
+      cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border    = { bottom: { style: 'medium', color: { argb: 'FF00DFA3' } } };
+    }
+
+    ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: ncols } };
+
+    // Datarijen
+    const PRIO_COL = 7; // kolom G (ExcelJS 1-indexed)
+    data.forEach((rowData, ri) => {
+      const row = ws.addRow(rowData);
+
+      // Auto-hoogte: bereken aantal regels voor wrapped kolommen
+      let maxLines = 1;
+      WRAP_COLS.forEach(i => {
+        const text  = String(rowData[i] || '');
+        if (!text) return;
+        const cpl   = colWidths[i] * 1.15; // geschatte chars per regel (font 9pt)
+        const lines = Math.max(1, Math.ceil(text.length / cpl));
+        maxLines    = Math.max(maxLines, lines);
+      });
+      row.height = Math.max(15, maxLines * 14 + 2);
+
+      const rowBg = ri % 2 === 0 ? 'FFFFFFFF' : 'FFEEF2F7';
+      const prio  = rowData[PRIO_COL - 1]; // 0-indexed
+      for (let c = 1; c <= ncols; c++) {
+        const i    = c - 1;
+        const cell = row.getCell(c);
+        if (c === PRIO_COL && PRIO_ARGB[prio]) {
+          cell.font      = { bold: true, size: 9, color: { argb: PRIO_ARGB[prio].font } };
+          cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: PRIO_ARGB[prio].fill } };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        } else {
+          cell.font      = { size: 9 };
+          cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+          cell.alignment = { vertical: WRAP_COLS.has(i) ? 'top' : 'middle', wrapText: WRAP_COLS.has(i) };
+        }
+        cell.border = { bottom: { style: 'thin', color: { argb: 'FFDDDDDD' } } };
+      }
+    });
+
+    // Download
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob   = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url    = URL.createObjectURL(blob);
+    const a      = document.createElement('a');
+    a.href       = url;
+    a.download   = `TicketLog_${vanLabel}_${totLabel}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    statusEl.textContent = `✓ ${rows.length} rijen geexporteerd naar TicketLog_${vanLabel}_${totLabel}.xlsx`;
+  } catch (err) {
+    statusEl.textContent = `Fout: ${err.message}`;
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📥 Download TicketLog.xlsx';
+  }
+}
+
+renderPreview(MOCK);
+</script>
+</body>
+</html>
