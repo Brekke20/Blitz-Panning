@@ -1738,7 +1738,7 @@ async function loadTickets() {
       const date = t.dueDate.split('T')[0];
       if (!planning[date]) planning[date] = [];
       if (!planning[date].find(p => p.ticket.id === t.id)) {
-        planning[date].push({ ticket: t, address: t.address });
+        planning[date].push({ ticket: t, address: t.address, uur: extractLocalHour(t.dueDate) });
       }
     });
 
@@ -2040,6 +2040,15 @@ function renderKalender() {
         <div class="t-top"><span class="tnum">#${t.number}</span><span class="stag pending">Wacht bevestiging</span>${t.assignee ? `<span class="atag">${t.assignee}</span>` : ''}</div>
         <div class="tsub">${t.subject || '—'}</div>
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? t.address : 'Geen adres bekend'}</div>
+        <div class="t-assign-row" id="assign-row-${t.id}" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
+          <input type="date" id="assign-date-${t.id}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
+          <input type="time" id="assign-time-${t.id}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)" value="09:00">
+          <button onclick="event.stopPropagation();saveToewijzen('${t.id}')" style="font-size:0.75rem;padding:3px 8px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:600">✓ Opslaan</button>
+          <button onclick="event.stopPropagation();document.getElementById('assign-row-${t.id}').style.display='none'" style="font-size:0.75rem;padding:3px 6px;background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--muted)">✕</button>
+        </div>
+        <div style="margin-top:6px">
+          <button onclick="event.stopPropagation();toggleAssignRow('${t.id}')" style="font-size:0.75rem;padding:3px 8px;background:var(--accent-dim,rgba(0,223,163,.15));color:var(--accent);border:1px solid var(--accent);border-radius:4px;cursor:pointer;font-weight:600">📅 Toewijzen</button>
+        </div>
       </div>`;
       card.addEventListener('click', () => openDetail(t));
       inner.appendChild(card);
@@ -2118,6 +2127,7 @@ function renderKalender() {
           <div style="flex:1;min-width:0">
             <div class="cal-num">#${stop.ticket.number}</div>
             <span class="cal-badge ${cardClass}">${badgeLabel}</span>
+            ${stop.uur ? `<div class="cal-meta" style="font-weight:600">🕐 ${stop.uur}</div>` : ''}
             <div class="cal-sub">${stop.ticket.subject || '—'}</div>
             ${stop.ticket.assignee ? `<div class="cal-meta">${stop.ticket.assignee}</div>` : ''}
             <div class="cal-addr ${stop.ticket.hasAddress ? '' : 'miss'}">${stop.ticket.hasAddress ? stop.address : 'Geen adres'}</div>
@@ -3645,6 +3655,10 @@ async function sendProposal() {
   }
 
   try {
+    // Bereken UTC-tijdstip in de browser (die kent de lokale tijdzone)
+    const timeStr    = rawTime || '09:00';
+    const utcDueDate = new Date(`${date}T${timeStr}:00`).toISOString();
+
     const res  = await fetch('/api/propose', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -3652,6 +3666,7 @@ async function sendProposal() {
         ticketId,
         date,
         time:          rawTime,
+        utcDueDate,
         recipientEmail,
         recipientName: activeTicket.naamEindklant || activeTicket.contact || '',
         subject:       activeTicket.subject || '',
@@ -3670,7 +3685,7 @@ async function sendProposal() {
     if (!allPending.find(t => t.id === ticketId)) allPending.push({ ...activeTicket });
     if (!planning[date]) planning[date] = [];
     if (!planning[date].find(p => p.ticket.id === ticketId)) {
-      planning[date].push({ ticket: activeTicket, address: activeTicket.address });
+      planning[date].push({ ticket: activeTicket, address: activeTicket.address, uur: extractLocalHour(data.dueDate) });
     }
 
     document.getElementById('proposal-overlay').classList.remove('open');
@@ -3697,6 +3712,60 @@ function navigate(enc) { window.open(`https://www.google.com/maps/dir/?api=1&des
 function fmtDate(s)     { return new Date(s).toLocaleDateString('nl-BE', { weekday:'short', day:'numeric', month:'short', year:'numeric' }); }
 function fmtDateShort(d){ const date = d instanceof Date ? d : new Date(d + 'T12:00:00'); return date.toLocaleDateString('nl-BE', { day:'numeric', month:'short' }); }
 function fmtSec(s)      { const h = Math.floor(s/3600), m = Math.round((s%3600)/60); return h > 0 ? `${h}u ${m}min` : `${m}min`; }
+// Haal lokaal uur:minuten op uit een ISO dueDate-string (null als 00:00 = geen uur)
+function extractLocalHour(dueDate) {
+  if (!dueDate) return null;
+  const d = new Date(dueDate);
+  const h = d.getHours(), m = d.getMinutes();
+  if (h === 0 && m === 0) return null;
+  return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+}
+
+function toggleAssignRow(ticketId) {
+  const row = document.getElementById('assign-row-' + ticketId);
+  if (!row) return;
+  const wasHidden = row.style.display === 'none';
+  row.style.display = wasHidden ? 'flex' : 'none';
+  if (wasHidden) {
+    // Zet datum op vandaag als nog leeg
+    const inp = document.getElementById('assign-date-' + ticketId);
+    if (inp && !inp.value) inp.value = localISO(new Date());
+  }
+}
+
+async function saveToewijzen(ticketId) {
+  const dateInp = document.getElementById('assign-date-' + ticketId);
+  const timeInp = document.getElementById('assign-time-' + ticketId);
+  const date    = dateInp?.value;
+  const time    = timeInp?.value || '09:00';
+  if (!date) return toast('⚠️ Selecteer een datum');
+
+  const utcDueDate = new Date(`${date}T${time}:00`).toISOString();
+
+  try {
+    const res  = await fetch('/api/plan-datum', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ ticketId, utcDueDate }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Onbekende fout');
+
+    // Update lokale state
+    const t = allPending.find(p => p.id === ticketId);
+    if (t) {
+      t.dueDate = utcDueDate;
+      if (!planning[date]) planning[date] = [];
+      if (!planning[date].find(p => p.ticket.id === ticketId)) {
+        planning[date].push({ ticket: t, address: t.address, uur: extractLocalHour(utcDueDate) });
+      }
+    }
+    renderKalender();
+    toast(`✓ Datum ingesteld op ${date} om ${time}`);
+  } catch (err) {
+    toast('❌ ' + err.message, 5000);
+  }
+}
 function localISO(d)    { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function getWeekStart(baseDate, offset) {
   const d = new Date(baseDate); d.setHours(0,0,0,0);

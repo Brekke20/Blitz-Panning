@@ -121,7 +121,7 @@ export async function handler(event) {
   }
 
   try {
-    const { ticketId, date, time, recipientEmail, recipientName, subject, serienummer } =
+    const { ticketId, date, time, recipientEmail, recipientName, subject, serienummer, utcDueDate } =
       JSON.parse(event.body || '{}');
 
     if (!ticketId || !date) {
@@ -139,7 +139,10 @@ export async function handler(event) {
 
     // Tijd afronden naar volgend kwartier
     const appointmentTime = roundToNextQuarter(time || '09:00');
-    const dueDate         = `${date}T${appointmentTime}:00.000Z`;
+    // Gebruik utcDueDate van de client (browser kent de lokale tijdzone).
+    // Fallback: sla op zonder Z-suffix zodat Zoho het als lokale tijd leest
+    // ipv als UTC (vermijdt 2u verschuiving in CEST).
+    const dueDate = utcDueDate || `${date}T${appointmentTime}:00`;
 
     // 1. Ticket PATCH: status → Wachten op bevestiging planning + dueDate met tijd
     const patchRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
