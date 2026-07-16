@@ -367,11 +367,13 @@
     }
     /* Uitklap-lijst pending tickets */
     #kal-no-date-section {
+      position: relative; z-index: 27;
       background: var(--surface); border-bottom: 1px solid var(--border);
-      overflow: hidden; transition: max-height 0.25s var(--ease);
+      overflow: hidden; transition: max-height 0.3s var(--ease);
       max-height: 0;
     }
-    #kal-no-date-section.open { max-height: 600px; }
+    #kal-no-date-section.open { max-height: 700px; overflow-y: auto; }
+    #kal-no-date-section .kal-pending-inner { padding-top: 12px; }
     .kal-pending-inner { padding: 10px 14px; display: flex; flex-direction: column; gap: 5px; }
     .kal-pending-hdr {
       font-size: 0.7rem; font-weight: 700; color: var(--orange); text-transform: uppercase;
@@ -498,12 +500,27 @@
     .cal-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border); }
 
     /* ── Tijdsgrid ── */
-    .time-grid { display: grid; grid-template-columns: 42px 1fr; gap: 1px; background: var(--border); border-radius: var(--r); overflow: hidden; max-height: 340px; overflow-y: auto; }
-    .tg-label { background: var(--surface); padding: 2px 6px; font-size: 0.62rem; color: var(--muted); display: flex; align-items: center; justify-content: flex-end; }
-    .tg-slot { background: var(--surface2); height: 15px; cursor: pointer; transition: background 0.08s; }
-    .tg-slot:hover { background: var(--surface3); }
-    .tg-slot.blocked { background: rgba(248,81,73,0.22); }
-    .tg-slot.hour-start { border-top: 1px solid var(--border); }
+    /* ── Beschikbaarheid / Blokkering modal ── */
+    .av-section-title { font-size: 0.68rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .av-existing { margin-bottom: 14px; min-height: 0; }
+    .av-empty { font-size: 0.8rem; color: var(--muted); padding: 4px 0; }
+    .av-item { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; padding: 6px 0; border-bottom: 1px solid var(--border); }
+    .av-item:last-child { border-bottom: none; }
+    .av-item-label { flex: 1; }
+    .av-item-who { font-size: 0.72rem; color: var(--muted); margin-left: 4px; }
+    .av-item-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: 0 4px; line-height: 1; }
+    .av-item-del:hover { color: var(--red); }
+    .av-form { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border); padding-top: 12px; }
+    .av-radio-group { display: flex; gap: 6px; flex-wrap: wrap; }
+    .av-radio-btn { padding: 5px 14px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text2); font-size: 0.78rem; cursor: pointer; font-family: inherit; transition: all 0.12s; }
+    .av-radio-btn.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent-glow); font-weight: 600; }
+    .av-time-row { display: flex; gap: 8px; align-items: center; }
+    .av-time-input { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 5px 8px; font-size: 0.82rem; font-family: inherit; width: 90px; }
+    .av-time-input:focus { outline: none; border-color: var(--accent); }
+    .av-reden-input { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 5px 8px; font-size: 0.82rem; font-family: inherit; width: 100%; }
+    .av-reden-input:focus { outline: none; border-color: var(--accent); }
+    .av-add-btn { align-self: flex-end; padding: 6px 18px; background: var(--accent); border: none; border-radius: var(--r); color: #fff; font-size: 0.82rem; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.15s; }
+    .av-add-btn:hover { opacity: 0.85; }
 
     /* ── Route tab ── */
     #view-planning.active { display: flex; flex-direction: column; }
@@ -1251,15 +1268,13 @@
 <div class="overlay" id="block-overlay" onclick="closeBlock(event)">
   <div class="modal" id="block-modal">
     <div class="mhdr">
-      <div class="mhdr-title">⏱ Beschikbaarheid</div>
+      <div class="mhdr-title">⛔ Beschikbaarheid</div>
       <div id="block-date-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
-    <div class="mbody">
-      <p style="font-size:0.78rem;color:var(--muted);margin-bottom:10px">Klik of sleep om slots te blokkeren (rood = geblokkeerd)</p>
-      <div class="time-grid" id="time-grid"></div>
+    <div class="mbody" id="block-modal-body">
+      <!-- Ingevuld door renderBlockModal() -->
     </div>
     <div class="mftr">
-      <button class="btn-cancel" onclick="clearDayBlocks()">Alles vrijmaken</button>
       <button class="btn-cancel" onclick="closeBlock()">Sluiten</button>
     </div>
   </div>
@@ -1420,15 +1435,19 @@ let planning = {};
 let routeData = null, currentRouteDate = null;
 let leafletMap, routeLayer;
 let kalOffset = 0, gepOffset = 0;
-let activeBlockDate = null;
-let isDragging = false, dragBlocking = null;
+// activeBlockDate → vervangen door _avFormDate (zie beschikbaarheidssysteem)
+// (drag-blokkering verwijderd — vervangen door beschikbaarheidssysteem)
 let activeAssigneeFilter = 'all';
 let inFlightTickets = new Set(); // voorkomt dubbele API calls
 let proposalSentTickets = new Set(JSON.parse(localStorage.getItem('blitz_proposal_sent') || '[]'));
 let arrivalData = JSON.parse(localStorage.getItem('blitz_arrivals') || '{}');
 
-const blockedSlots = JSON.parse(localStorage.getItem('blitz_blocked')      || '{}');
-const blockedDays  = JSON.parse(localStorage.getItem('blitz_blocked_days') || '{}');
+// Beschikbaarheids-uitzonderingen (geladen vanuit Netlify Blobs)
+let avExceptions = [];   // { id, scope, person, date, kind, from, to, reason }
+let avVersie     = 0;
+// Migratie: old localStorage data verwijderen
+localStorage.removeItem('blitz_blocked');
+localStorage.removeItem('blitz_blocked_days');
 
 const DEFAULT_SETTINGS = {
   startlocatie: 'Heirbaan 9, 9150 Kruibeke',
@@ -1443,7 +1462,13 @@ function settingsKey(person) {
   return person && person !== 'all' ? `blitz_settings_${person}` : 'blitz_settings';
 }
 function loadPersonSettings(person) {
-  return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(settingsKey(person)) || '{}') };
+  const saved = JSON.parse(localStorage.getItem(settingsKey(person)) || '{}');
+  return {
+    ...DEFAULT_SETTINGS,
+    ...saved,
+    // Lege strings mogen de default niet overschrijven
+    startlocatie: saved.startlocatie || DEFAULT_SETTINGS.startlocatie,
+  };
 }
 function savePersonSettings(person) {
   localStorage.setItem(settingsKey(person), JSON.stringify(settings));
@@ -1479,6 +1504,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   initMap();
   loadPrijzen();
+  loadAvailability();
   loadTickets();
   // Initialiseer tab indicator op de actieve tab
   setTimeout(() => updateTabIndicator('tab-tickets'), 0);
@@ -1853,11 +1879,17 @@ function renderKalender() {
     const dateStr       = localISO(day);
     const isToday       = day.getTime() === today.getTime();
     const isPast        = day.getTime() < today.getTime();
-    const isDayBlocked  = !!blockedDays[dateStr];
+    const myPerson       = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+    const isDayBlocked   = avExceptions.some(e =>
+      e.date === dateStr && e.kind === 'fullday' &&
+      (e.scope === 'global' || (myPerson && e.person === myPerson))
+    );
     const dayStops      = (planning[dateStr] || []).filter(p =>
       activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
     );
-    const slotCount     = (blockedSlots[dateStr] || []).length;
+    const dayBlockCount = avExceptions.filter(e => e.date === dateStr &&
+      (e.scope === 'global' || (myPerson && e.person === myPerson))
+    ).length;
     const travelEst     = 30; // conservatief voor capaciteitsweergave
     const cap           = capacityForDay(dateStr, travelEst);
     const capLabel      = `${dayStops.length}/${cap} stops · ±${Math.round(dayStops.length * (settings.duurMinuten + travelEst) / 60 * 10) / 10}u`;
@@ -1871,7 +1903,7 @@ function renderKalender() {
         <div class="day-hdr-num${isToday ? ' today' : ''}">${day.getDate()}</div>
         <div class="day-cap ${capFull ? 'full' : ''}">${isDayBlocked ? '🔒 Geblokkeerd' : capLabel}</div>
         <button class="day-block-btn ${isDayBlocked ? 'blocked' : ''}" data-date="${dateStr}" onclick="event.stopPropagation(); onBlockBtnClick(this)">
-          ${isDayBlocked ? '🔒 Deblokkeer' : slotCount > 0 ? `⏱ ${slotCount} slots geblokkeerd` : '⏱ Beschikbaar'}
+          ${isDayBlocked ? '🔒 Geblokkeerd' : dayBlockCount > 0 ? `⏱ ${dayBlockCount} uitzondering${dayBlockCount > 1 ? 'en' : ''}` : '⏱ Beschikbaar'}
         </button>
       </div>
       <div class="day-body${isDayBlocked ? ' blocked-day' : ''}" id="daybody-${dateStr}">
@@ -1924,14 +1956,7 @@ function renderKalender() {
 function kalNav(dir) { kalOffset += dir; renderKalender(); }
 
 function onBlockBtnClick(btn) {
-  const dateStr = btn.dataset.date;
-  if (blockedDays[dateStr]) {
-    delete blockedDays[dateStr];
-    localStorage.setItem('blitz_blocked_days', JSON.stringify(blockedDays));
-    renderKalender();
-  } else {
-    openBlockModal(dateStr);
-  }
+  openBlockModal(btn.dataset.date);
 }
 
 function getPlanningTicket(id) {
@@ -1942,72 +1967,196 @@ function getPlanningTicket(id) {
 }
 
 // ══════════════════════════════════════════════
-// TIJDSBLOKKERING
+// BESCHIKBAARHEID (cloud-synced)
 // ══════════════════════════════════════════════
+
+const AV_API = '/api/availability';
+
+async function loadAvailability() {
+  try {
+    const res = await fetch(AV_API);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    avExceptions = data.exceptions || [];
+    avVersie     = data.versie     || 0;
+  } catch (err) {
+    console.warn('Beschikbaarheid laden mislukt:', err);
+    avExceptions = [];
+    avVersie     = 0;
+  }
+  renderKalender();
+}
+
+async function saveAvailability() {
+  try {
+    const res = await fetch(AV_API, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ versie: avVersie, exceptions: avExceptions }),
+    });
+    if (res.status === 409) {
+      // Conflict: herladen en opnieuw toepassen
+      const body = await res.json();
+      avExceptions = body.data?.exceptions || [];
+      avVersie     = body.data?.versie     || 0;
+      toast('⚠ Conflict — data herladen', 3000);
+      renderBlockModal();
+      renderKalender();
+      return false;
+    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    avVersie = data.versie;
+    return true;
+  } catch (err) {
+    console.error('Beschikbaarheid opslaan mislukt:', err);
+    toast('❌ Opslaan mislukt', 3000);
+    return false;
+  }
+}
+
+// Status: welke knop actief is in het formulier
+let _avFormKind  = 'fullday'; // 'fullday' | 'range'
+let _avFormScope = 'person';  // 'person'  | 'global'
+let _avFormDate  = null;
+
 function openBlockModal(dateStr) {
-  activeBlockDate = dateStr;
+  _avFormDate  = dateStr;
+  _avFormKind  = 'fullday';
+  _avFormScope = activeAssigneeFilter !== 'all' ? 'person' : 'global';
   const d = new Date(dateStr + 'T12:00:00');
   document.getElementById('block-date-label').textContent =
     d.toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long' });
-
-  const grid = document.getElementById('time-grid');
-  grid.innerHTML = '';
-  const [vanH, vanM] = settings.vanTijd.split(':').map(Number);
-  const [totH, totM] = settings.totTijd.split(':').map(Number);
-  const startSlot = vanH * 4 + Math.floor(vanM / 15);
-  const endSlot   = totH * 4 + Math.floor(totM / 15);
-  const blocked   = new Set(blockedSlots[dateStr] || []);
-
-  for (let slot = startSlot; slot < endSlot; slot++) {
-    const h = Math.floor(slot / 4), m = (slot % 4) * 15;
-    const timeStr    = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-    const isHourStart = m === 0;
-    const isBlocked  = blocked.has(timeStr);
-
-    const label = document.createElement('div');
-    label.className = 'tg-label';
-    label.textContent = isHourStart ? timeStr : '';
-    if (isHourStart) label.style.borderTop = '1px solid var(--border)';
-    grid.appendChild(label);
-
-    const slotEl = document.createElement('div');
-    slotEl.className = 'tg-slot' + (isBlocked ? ' blocked' : '') + (isHourStart ? ' hour-start' : '');
-    slotEl.dataset.time = timeStr;
-    slotEl.addEventListener('mousedown', () => {
-      isDragging   = true;
-      dragBlocking = !slotEl.classList.contains('blocked');
-      toggleSlot(slotEl, dateStr);
-    });
-    slotEl.addEventListener('mouseenter', () => { if (isDragging) toggleSlot(slotEl, dateStr); });
-    grid.appendChild(slotEl);
-  }
-
+  renderBlockModal();
   document.getElementById('block-overlay').classList.add('open');
-}
-
-document.addEventListener('mouseup', () => { isDragging = false; dragBlocking = null; });
-
-function toggleSlot(slotEl, dateStr) {
-  const timeStr = slotEl.dataset.time;
-  const arr     = blockedSlots[dateStr] || [];
-  const idx     = arr.indexOf(timeStr);
-  if (dragBlocking && idx === -1) { arr.push(timeStr); slotEl.classList.add('blocked'); }
-  else if (!dragBlocking && idx !== -1) { arr.splice(idx, 1); slotEl.classList.remove('blocked'); }
-  if (arr.length) blockedSlots[dateStr] = arr; else delete blockedSlots[dateStr];
-  localStorage.setItem('blitz_blocked', JSON.stringify(blockedSlots));
-  renderKalender();
-}
-
-function clearDayBlocks() {
-  delete blockedSlots[activeBlockDate];
-  localStorage.setItem('blitz_blocked', JSON.stringify(blockedSlots));
-  document.getElementById('block-overlay').classList.remove('open');
-  renderKalender();
 }
 
 function closeBlock(e) {
   if (e && e.target !== document.getElementById('block-overlay')) return;
   document.getElementById('block-overlay').classList.remove('open');
+}
+
+function renderBlockModal() {
+  const dateStr   = _avFormDate;
+  const myPerson  = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+  const body      = document.getElementById('block-modal-body');
+  if (!body || !dateStr) return;
+
+  // Bestaande uitzonderingen voor deze dag
+  const existing = avExceptions.filter(e => e.date === dateStr);
+
+  const existingHtml = existing.length === 0
+    ? `<div class="av-empty">Geen blokkeringen voor deze dag.</div>`
+    : existing.map(e => {
+        const whoLabel = e.scope === 'global' ? 'Iedereen' : (e.person || '?');
+        const kindLabel = e.kind === 'fullday'
+          ? '🔒 Hele dag'
+          : `⏱ ${e.from}–${e.to}`;
+        const reasonPart = e.reason ? ` — ${escHtml(e.reason)}` : '';
+        return `<div class="av-item">
+          <span class="av-item-label">${kindLabel}${reasonPart} <span class="av-item-who">(${escHtml(whoLabel)})</span></span>
+          <button class="av-item-del" onclick="avRemoveException('${e.id}')" title="Verwijderen">✕</button>
+        </div>`;
+      }).join('');
+
+  const defaultVan = settings.vanTijd || '08:00';
+  const defaultTot = settings.totTijd || '17:00';
+  const personName = myPerson || 'Ik';
+  const scopeOptions = myPerson
+    ? `<button class="av-radio-btn ${_avFormScope === 'person' ? 'active' : ''}" onclick="avSetScope('person')">👤 ${escHtml(myPerson.split(' ')[0])}</button>
+       <button class="av-radio-btn ${_avFormScope === 'global' ? 'active' : ''}" onclick="avSetScope('global')">👥 Iedereen</button>`
+    : `<button class="av-radio-btn active" disabled>👥 Iedereen</button>`;
+
+  body.innerHTML = `
+    <div class="av-section-title">Bestaande blokkeringen</div>
+    <div class="av-existing">${existingHtml}</div>
+
+    <div class="av-form">
+      <div>
+        <div class="av-section-title">Type</div>
+        <div class="av-radio-group">
+          <button class="av-radio-btn ${_avFormKind === 'fullday' ? 'active' : ''}" onclick="avSetKind('fullday')">🔒 Hele dag</button>
+          <button class="av-radio-btn ${_avFormKind === 'range'   ? 'active' : ''}" onclick="avSetKind('range')">⏱ Tijdvak</button>
+        </div>
+      </div>
+      ${_avFormKind === 'range' ? `
+      <div>
+        <div class="av-section-title">Tijdvak</div>
+        <div class="av-time-row">
+          <span style="font-size:0.8rem;color:var(--muted)">Van</span>
+          <input class="av-time-input" id="av-van" type="time" value="${defaultVan}" />
+          <span style="font-size:0.8rem;color:var(--muted)">Tot</span>
+          <input class="av-time-input" id="av-tot" type="time" value="${defaultTot}" />
+        </div>
+      </div>` : ''}
+      <div>
+        <div class="av-section-title">Voor</div>
+        <div class="av-radio-group">${scopeOptions}</div>
+      </div>
+      <div>
+        <div class="av-section-title">Reden <span style="font-weight:400;text-transform:none;letter-spacing:0">(optioneel)</span></div>
+        <input class="av-reden-input" id="av-reden" type="text" placeholder="bv. Verlof, dokter, opleiding…" />
+      </div>
+      <button class="av-add-btn" onclick="avAddException()">➕ Toevoegen</button>
+    </div>`;
+}
+
+function avSetKind(kind) {
+  _avFormKind = kind;
+  renderBlockModal();
+}
+
+function avSetScope(scope) {
+  _avFormScope = scope;
+  renderBlockModal();
+}
+
+async function avAddException() {
+  const myPerson = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+  const scope    = (myPerson && _avFormScope === 'person') ? 'person' : 'global';
+  const from     = _avFormKind === 'range' ? (document.getElementById('av-van')?.value || settings.vanTijd) : null;
+  const to       = _avFormKind === 'range' ? (document.getElementById('av-tot')?.value || settings.totTijd) : null;
+  const reason   = document.getElementById('av-reden')?.value?.trim() || '';
+
+  if (_avFormKind === 'range' && from >= to) {
+    toast('⚠ Eindtijd moet na begintijd liggen', 2500);
+    return;
+  }
+
+  const ex = {
+    id:     crypto.randomUUID(),
+    scope,
+    person: scope === 'person' ? myPerson : null,
+    date:   _avFormDate,
+    kind:   _avFormKind,
+    from,
+    to,
+    reason,
+  };
+
+  avExceptions.push(ex);
+  renderBlockModal();
+  renderKalender();
+  const ok = await saveAvailability();
+  if (!ok) {
+    // Rollback lokale toevoeging bij fout
+    avExceptions = avExceptions.filter(e => e.id !== ex.id);
+    renderBlockModal();
+    renderKalender();
+  }
+}
+
+async function avRemoveException(id) {
+  const removed = avExceptions.find(e => e.id === id);
+  avExceptions  = avExceptions.filter(e => e.id !== id);
+  renderBlockModal();
+  renderKalender();
+  const ok = await saveAvailability();
+  if (!ok && removed) {
+    avExceptions.push(removed);
+    renderBlockModal();
+    renderKalender();
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -2016,10 +2165,30 @@ function closeBlock(e) {
 function capacityForDay(dateStr, travelMin = 30) {
   const [vanH, vanM] = settings.vanTijd.split(':').map(Number);
   const [totH, totM] = settings.totTijd.split(':').map(Number);
-  const totalMin   = (totH * 60 + totM) - (vanH * 60 + vanM);
-  const blockedMin = (blockedSlots[dateStr] || []).length * 15;
-  const available  = totalMin - blockedMin;
-  const perSlot    = settings.duurMinuten + travelMin;
+  const totalMin     = (totH * 60 + totM) - (vanH * 60 + vanM);
+  const myPerson     = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+
+  // Controleer volledige dagblokkering
+  const dayBlocked = avExceptions.some(e =>
+    e.date === dateStr && e.kind === 'fullday' &&
+    (e.scope === 'global' || (myPerson && e.person === myPerson))
+  );
+  if (dayBlocked) return 0;
+
+  // Bereken geblokkeerde minuten vanuit tijdvak-uitzonderingen
+  const dayExceptions = avExceptions.filter(e =>
+    e.date === dateStr && e.kind === 'range' &&
+    (e.scope === 'global' || (myPerson && e.person === myPerson))
+  );
+  let blockedMin = 0;
+  for (const e of dayExceptions) {
+    const [fh, fm] = e.from.split(':').map(Number);
+    const [th, tm] = e.to.split(':').map(Number);
+    blockedMin += Math.max(0, (th * 60 + tm) - (fh * 60 + fm));
+  }
+
+  const available = Math.max(0, totalMin - blockedMin);
+  const perSlot   = settings.duurMinuten + travelMin;
   return Math.min(Math.floor(available / perSlot), settings.maxPerDag);
 }
 
@@ -2029,7 +2198,7 @@ function nextAvailableDay(fromDate) {
   for (let i = 0; i < 60; i++) {
     if (d >= today) {
       const dStr = localISO(d);
-      if (settings.werkdagen.includes(d.getDay()) && !blockedDays[dStr]) {
+      if (settings.werkdagen.includes(d.getDay())) {
         const alreadyPlanned = (planning[dStr] || []).filter(p =>
           activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
         ).length;
@@ -2110,7 +2279,6 @@ async function autoPlan() {
       if (d < today) continue;  // verleden overslaan
       const dStr = localISO(d);
       if (!settings.werkdagen.includes(d.getDay())) continue;
-      if (blockedDays[dStr]) continue;
       const alreadyPlanned = (planning[dStr] || []).filter(p =>
         activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
       ).length;
