@@ -3325,7 +3325,7 @@ function renderRouteList(date) {
     let curMin = h * 60 + m; // vertrek depot in minuten na middernacht
     // Stop 0: aankomst = vertrek depot + reistijd leg 0
     for (let i = 0; i < stops.length; i++) {
-      const legSec = routeData.legs[i]?.travelTimeSeconds ?? 0;
+      const legSec = routeData.legs[i]?.travelTimeSeconds ?? 30 * 60;
       curMin += Math.round(legSec / 60); // reistijd naar dit stop
       arrivalTimes.push(curMin);
       curMin += settings.duurMinuten || 60; // interventieduur
