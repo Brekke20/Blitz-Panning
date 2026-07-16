@@ -1310,7 +1310,7 @@
       <button class="btn-save"   id="d-plan-btn" onclick="togglePlanFromDetail()"></button>
       <button class="btn-cancel" onclick="openOpl()">✏️ Oplossing</button>
       <button class="btn-cancel" id="d-btn-arrival" style="display:none" title="Aankomst registreren" onclick="registerArrival(activeTicket?.id,_detailDate)">⏱️ Aankomst</button>
-      <button class="btn-cancel" id="d-btn-proposal" style="display:none" title="Afspraakvoorstel sturen" onclick="openProposal(activeTicket?.id,_detailDate)">📨 Voorstel</button>
+      <button class="btn-cancel" id="d-btn-proposal" style="display:none" title="Afspraakvoorstel sturen" onclick="openProposal(activeTicket?.id,_detailDate,(()=>{const t=computeArrivalTimes(_detailDate);return activeTicket?t[activeTicket.id]??null:null})())">📨 Voorstel</button>
       <button class="btn-cancel" id="d-btn-rapport"  style="display:none" title="Service rapport" onclick="openRapport(activeTicket?.id,_detailDate)">📋 Rapport</button>
     </div>
   </div>
@@ -1624,6 +1624,19 @@ let kbVersie = 0;
 function kbFor(id)         { return klantBeschikbaarheid[id] || null; }
 function kbBlocked(id, d)  { return !!(kbFor(id)?.geblokkeerd?.includes(d)); }
 function kbPreferred(id)   { return kbFor(id)?.voorkeur || null; }
+
+// ── Module-scope plannings-scoring (gedeeld door autoPlan + wachtrij) ─────────
+const PRIO_WEIGHT = { high: 1, medium: 3, low: 6 };
+function urgencyFactor(t) {
+  if (!t.dueDate) return 1.0;
+  const today0 = new Date(); today0.setHours(0,0,0,0);
+  const due    = new Date(t.dueDate); due.setHours(0,0,0,0);
+  return Math.max(0.1, Math.min(1.0, (due - today0) / 86400000 / 7));
+}
+function queueScore(t) {
+  const pw = PRIO_WEIGHT[(t.priority||'').toLowerCase()] ?? 9;
+  return pw * urgencyFactor(t);
+}
 // Migratie: old localStorage data verwijderen
 localStorage.removeItem('blitz_blocked');
 localStorage.removeItem('blitz_blocked_days');
@@ -1704,6 +1717,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAfspraken();
   loadKlantBeschikbaarheid();
   loadTickets();
+  startTicketPolling();
   // Initialiseer tab indicator op de actieve tab
   setTimeout(() => updateTabIndicator('tab-tickets'), 0);
   window.addEventListener('resize', () => {
@@ -1770,9 +1784,14 @@ async function loadTickets() {
     renderRouteList(document.getElementById('plan-date').value);
     updateRouteBtns(document.getElementById('plan-date').value);
 
-    // GC: wees-entries verwijderen van gesloten tickets
+    // Ghost-reconciliatie: planning-entries van gesloten/verwijderde tickets opruimen
     const liveIds = new Set([...allTickets, ...allPending, ...allGepland].map(t => t.id));
+    reconcilePlanning(liveIds);
+
+    // GC: wees-entries verwijderen van gesloten tickets
     gcKlantBeschikbaarheid(liveIds);
+
+    _lastTicketLoad = Date.now();
 
     if (TEST_MODE) toast('🧪 Testmodus actief — dummy data geladen');
     else toast(`${allTickets.length} te plannen · ${allPending.length} wacht bevestiging · ${allGepland.length} gepland`);
@@ -1880,14 +1899,11 @@ function renderTickets() {
   if (!filtered.length) { empty.style.display = ''; return; }
   empty.style.display = 'none';
 
-  // Sortering: 1) overdue eerst  2) prioriteit (high→medium→low→geen)
-  const PRIO_SORT = { high: 0, medium: 1, low: 2 };
+  // Sortering: 1) overdue eerst  2) queueScore (prio × urgentie — zelfde formule als autoPlan)
   filtered.sort((a, b) => {
     const aOd = isOverdue(a) ? 0 : 1, bOd = isOverdue(b) ? 0 : 1;
     if (aOd !== bOd) return aOd - bOd;
-    const pa = PRIO_SORT[(a.priority||'').toLowerCase()] ?? 3;
-    const pb = PRIO_SORT[(b.priority||'').toLowerCase()] ?? 3;
-    return pa - pb;
+    return queueScore(a) - queueScore(b);
   });
 
   filtered.forEach(t => {
@@ -2452,6 +2468,45 @@ function gcKlantBeschikbaarheid(liveIds) {
   if (changed) saveKlantBeschikbaarheid();
 }
 
+// ══════════════════════════════════════════════
+// GHOST TICKET RECONCILIATIE (#10)
+// ══════════════════════════════════════════════
+function reconcilePlanning(knownIds) {
+  // Verwijder planning-entries van tickets die niet meer in Zoho bestaan.
+  // Uitzondering: entries die nog in-flight zijn (optimistische update loopt nog).
+  const ghosts = [];
+  for (const date of Object.keys(planning)) {
+    const before = planning[date].length;
+    planning[date] = planning[date].filter(p => {
+      const id = p.ticket?.id;
+      if (!id) return true; // onbekende structuur — bewaren
+      if (inFlightTickets.has(id)) return true; // optimistische update — niet verwijderen
+      if (knownIds.has(id)) return true;
+      ghosts.push(`#${p.ticket.number || id}`);
+      return false;
+    });
+    if (!planning[date].length) delete planning[date];
+  }
+  if (ghosts.length) {
+    console.warn('Ghost tickets verwijderd uit planning:', ghosts);
+    toast(`⚠️ ${ghosts.length} afspraak${ghosts.length > 1 ? 'en' : ''} verwijderd (ticket gesloten in Zoho): ${ghosts.join(', ')}`, 5000);
+    renderKalender();
+    renderRouteList(document.getElementById('plan-date')?.value || localISO(new Date()));
+  }
+}
+
+// Polling: herlaad tickets elke 5 min als tab zichtbaar is
+let _lastTicketLoad = 0;
+let _pollInterval   = null;
+function startTicketPolling() {
+  if (_pollInterval) return;
+  _pollInterval = setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - _lastTicketLoad < 5 * 60 * 1000) return;
+    loadTickets();
+  }, 30 * 1000); // check elke 30s, laad pas als 5min verstreken
+}
+
 // Fuzzy resp-matching: deelnaam in beide richtingen, case-insensitive
 function matchRespToPerson(resp, agents) {
   if (!resp || !agents?.length) return null;
@@ -2999,16 +3054,8 @@ async function autoPlan() {
     //                    tickets zonder due date krijgen factor 1.0 (neutraal)
     //   Seed van elke dag = ticket met laagste score t.o.v. startlocatie/depot
     //   Fill = ticket met laagste score t.o.v. huidige positie op die dag
-    const PRIO_WEIGHT = { high: 1, medium: 3, low: 6 };
+    // PRIO_WEIGHT en urgencyFactor zijn module-scope (gedeeld met wachtrij-sortering)
     const PREF_BONUS  = 0.9; // zachte -10% op voorkeursdag — kan prioriteit nooit overrulen
-    const today0 = new Date(); today0.setHours(0,0,0,0);
-
-    function urgencyFactor(t) {
-      if (!t.dueDate) return 1.0;
-      const due = new Date(t.dueDate); due.setHours(0,0,0,0);
-      const daysLeft = (due - today0) / 86400000;
-      return Math.max(0.1, Math.min(1.0, daysLeft / 7));
-    }
 
     function prefFactor(t, dayStr) {
       const pref = kbPreferred(t.id);
@@ -3661,6 +3708,27 @@ function minToTimeStr(totalMin) {
   return `${hh}:${mm}`;
 }
 
+// Bereken aankomsttijden (minuten na middernacht) per ticket voor een dag.
+// Gebruikt routeData als beschikbaar, anders positie-schatting (30 min reistijd).
+// Geeft { [ticketId]: arrivalMin } terug.
+function computeArrivalTimes(date) {
+  const stops = (planning[date] || []).filter(p =>
+    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
+  );
+  if (!stops.length) return {};
+  const [h, m]   = (settings.vanTijd || '08:00').split(':').map(Number);
+  const hasRoute = routeData?.legs && currentRouteDate === date;
+  let curMin     = h * 60 + m;
+  const result   = {};
+  for (let i = 0; i < stops.length; i++) {
+    const legSec = hasRoute ? (routeData.legs[i]?.travelTimeSeconds ?? 30 * 60) : 30 * 60;
+    curMin += Math.round(legSec / 60);
+    result[stops[i].ticket.id] = curMin;
+    curMin += settings.duurMinuten || 60;
+  }
+  return result;
+}
+
 function roundToNextQuarterStr(timeStr) {
   const [h, m] = (timeStr || '09:00').split(':').map(Number);
   const raw = Math.ceil(m / 15) * 15;
@@ -3923,9 +3991,18 @@ function toggleAssignRow(ticketId) {
   const wasHidden = row.style.display === 'none';
   row.style.display = wasHidden ? 'flex' : 'none';
   if (wasHidden) {
-    // Zet datum op vandaag als nog leeg
-    const inp = document.getElementById('assign-date-' + ticketId);
-    if (inp && !inp.value) inp.value = localISO(new Date());
+    const dateInp = document.getElementById('assign-date-' + ticketId);
+    if (dateInp && !dateInp.value) dateInp.value = localISO(new Date());
+    // Prefill tijdstip met berekende aankomsttijd als beschikbaar
+    const timeInp = document.getElementById('assign-time-' + ticketId);
+    if (timeInp) {
+      const date    = dateInp?.value || localISO(new Date());
+      const times   = computeArrivalTimes(date);
+      const arrival = times[ticketId];
+      timeInp.value = arrival != null
+        ? roundToNextQuarterStr(minToTimeStr(arrival))
+        : '09:00';
+    }
   }
 }
 
