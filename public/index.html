@@ -561,6 +561,16 @@
     .man-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
     /* ── Beschikbaarheid / Blokkering modal ── */
+    /* ── Klantbeschikbaarheid in detail-overlay ──────────────────────────── */
+    .kb-section { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+    .kb-section-title { font-size: 0.68rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+    .kb-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    .kb-label { font-size: 0.78rem; color: var(--muted); min-width: 90px; }
+    .kb-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; padding: 2px 7px; border-radius: 12px; background: rgba(255,80,80,.12); color: #f55; border: 1px solid #f55; }
+    .kb-chip-pref { background: rgba(0,223,163,.12); color: var(--accent); border-color: var(--accent); }
+    .kb-chip-del { background: none; border: none; cursor: pointer; color: inherit; padding: 0; font-size: 0.8rem; line-height: 1; }
+    .kb-add-btn { font-size: 0.72rem; padding: 2px 8px; background: none; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; color: var(--muted); }
+    .kb-notitie { width: 100%; font-size: 0.8rem; padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); resize: vertical; min-height: 40px; }
     .av-section-title { font-size: 0.68rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
     .av-existing { margin-bottom: 14px; min-height: 0; }
     .av-empty { font-size: 0.8rem; color: var(--muted); padding: 4px 0; }
@@ -1293,7 +1303,7 @@
     </div>
     <div class="mbody">
       <div class="msec"><div class="msec-title">Klantgegevens</div><div id="d-klant"></div></div>
-      <div class="msec"><div class="msec-title">Ticketdetails</div><div id="d-ticket"></div></div>
+      <div class="msec"><div class="msec-title">Ticketdetails</div><div id="d-ticket"></div><div id="kb-section"></div></div>
     </div>
     <div class="mftr">
       <button class="btn-cancel" onclick="closeDet()">Sluiten</button>
@@ -1607,6 +1617,13 @@ let _pendingImport     = []; // staging area voor import review
 // Beschikbaarheids-uitzonderingen (geladen vanuit Netlify Blobs)
 let avExceptions = [];   // { id, scope, person, date, kind, from, to, reason }
 let avVersie     = 0;
+
+// Klantbeschikbaarheid per ticket (cloud synced)
+let klantBeschikbaarheid = {};  // { [ticketId]: { voorkeur, geblokkeerd[], notitie, bijgewerkt } }
+let kbVersie = 0;
+function kbFor(id)         { return klantBeschikbaarheid[id] || null; }
+function kbBlocked(id, d)  { return !!(kbFor(id)?.geblokkeerd?.includes(d)); }
+function kbPreferred(id)   { return kbFor(id)?.voorkeur || null; }
 // Migratie: old localStorage data verwijderen
 localStorage.removeItem('blitz_blocked');
 localStorage.removeItem('blitz_blocked_days');
@@ -1685,6 +1702,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadPrijzen();
   loadAvailability();
   loadAfspraken();
+  loadKlantBeschikbaarheid();
   loadTickets();
   // Initialiseer tab indicator op de actieve tab
   setTimeout(() => updateTabIndicator('tab-tickets'), 0);
@@ -1751,6 +1769,10 @@ async function loadTickets() {
     renderGepland();
     renderRouteList(document.getElementById('plan-date').value);
     updateRouteBtns(document.getElementById('plan-date').value);
+
+    // GC: wees-entries verwijderen van gesloten tickets
+    const liveIds = new Set([...allTickets, ...allPending, ...allGepland].map(t => t.id));
+    gcKlantBeschikbaarheid(liveIds);
 
     if (TEST_MODE) toast('🧪 Testmodus actief — dummy data geladen');
     else toast(`${allTickets.length} te plannen · ${allPending.length} wacht bevestiging · ${allGepland.length} gepland`);
@@ -1881,6 +1903,8 @@ function renderTickets() {
           ${overdue ? `<span class="stag">Verlopen</span>` : ''}
           ${t.priority ? `<span class="prtag ${(t.priority||'').toLowerCase()}">${t.priority}</span>` : ''}
           ${t.assignee ? `<span class="atag">${t.assignee}</span>` : ''}
+          ${kbPreferred(t.id) ? `<span class="atag" title="Voorkeursdatum klant: ${kbPreferred(t.id)}" style="background:rgba(0,223,163,.15);color:var(--accent);border:1px solid var(--accent)">📌 ${fmtDateShort(kbPreferred(t.id))}</span>` : ''}
+          ${(kbFor(t.id)?.geblokkeerd?.length) ? `<span class="atag" title="Klant kan niet: ${kbFor(t.id).geblokkeerd.join(', ')}" style="background:rgba(255,80,80,.1);color:#f55;border:1px solid #f55">🚫 ${kbFor(t.id).geblokkeerd.length}</span>` : ''}
         </div>
         <div class="tsub">${t.subject || '—'}</div>
         ${meta ? `<div class="tmeta">${meta}</div>` : ''}
@@ -1910,6 +1934,12 @@ async function addTicketToDate(ticketId, date) {
   if (!t) return false;
   if (!planning[date]) planning[date] = [];
   if (planning[date].find(p => p.ticket.id === ticketId)) return true; // al ingepland
+
+  // Waarschuwing als klant deze datum heeft geblokkeerd
+  if (kbBlocked(ticketId, date)) {
+    const ok = confirm(`⚠️ Klant gaf aan NIET beschikbaar te zijn op ${fmtDateShort(date)}.\nToch inplannen?`);
+    if (!ok) return false;
+  }
 
   // Optimistische update
   planning[date].push({ ticket: t, address: t.address });
@@ -2348,6 +2378,78 @@ async function saveAfspraken() {
     toast('❌ Afspraken opslaan mislukt', 3000);
     return false;
   }
+}
+
+// ══════════════════════════════════════════════
+// KLANTBESCHIKBAARHEID — load / save / GC
+// ══════════════════════════════════════════════
+const KB_API = '/api/klantbeschikbaarheid';
+
+async function loadKlantBeschikbaarheid() {
+  try {
+    const res  = await fetch(KB_API);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    klantBeschikbaarheid = data.items  || {};
+    kbVersie             = data.versie || 0;
+  } catch (err) {
+    console.warn('Klantbeschikbaarheid laden mislukt:', err);
+    klantBeschikbaarheid = {};
+    kbVersie = 0;
+  }
+}
+
+async function saveKlantBeschikbaarheid() {
+  try {
+    const res = await fetch(KB_API, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ versie: kbVersie, items: klantBeschikbaarheid }),
+    });
+    if (res.status === 409) {
+      // Merge: pas onze lokale wijziging toe op de server-versie
+      const srv = await res.json();
+      const serverItems = srv.data?.items || {};
+      // Kopieer server-state, overschrijf enkel de gewijzigde tickets
+      const merged = { ...serverItems };
+      for (const [id, entry] of Object.entries(klantBeschikbaarheid)) {
+        merged[id] = entry;
+      }
+      klantBeschikbaarheid = merged;
+      kbVersie             = srv.data?.versie || 0;
+      // Retry
+      const res2 = await fetch(KB_API, {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ versie: kbVersie, items: klantBeschikbaarheid }),
+      });
+      if (!res2.ok) throw new Error('HTTP ' + res2.status);
+      const data2 = await res2.json();
+      kbVersie = data2.versie;
+      return true;
+    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    kbVersie = data.versie;
+    return true;
+  } catch (err) {
+    console.error('Klantbeschikbaarheid opslaan mislukt:', err);
+    toast('❌ Klantbeschikbaarheid opslaan mislukt', 3000);
+    return false;
+  }
+}
+
+// GC: verwijder entries van tickets die al >90 dagen geleden bijgewerkt zijn
+// én niet meer in een levende set zitten
+function gcKlantBeschikbaarheid(liveIds) {
+  const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+  let changed = false;
+  for (const id of Object.keys(klantBeschikbaarheid)) {
+    if (liveIds.has(id)) continue;
+    const ts = new Date(klantBeschikbaarheid[id]?.bijgewerkt || 0).getTime();
+    if (ts < cutoff) { delete klantBeschikbaarheid[id]; changed = true; }
+  }
+  if (changed) saveKlantBeschikbaarheid();
 }
 
 // Fuzzy resp-matching: deelnaam in beide richtingen, case-insensitive
@@ -2898,6 +3000,7 @@ async function autoPlan() {
     //   Seed van elke dag = ticket met laagste score t.o.v. startlocatie/depot
     //   Fill = ticket met laagste score t.o.v. huidige positie op die dag
     const PRIO_WEIGHT = { high: 1, medium: 3, low: 6 };
+    const PREF_BONUS  = 0.9; // zachte -10% op voorkeursdag — kan prioriteit nooit overrulen
     const today0 = new Date(); today0.setHours(0,0,0,0);
 
     function urgencyFactor(t) {
@@ -2907,20 +3010,24 @@ async function autoPlan() {
       return Math.max(0.1, Math.min(1.0, daysLeft / 7));
     }
 
-    // Seed-score: alleen prio × urgentie — afstand irrelevant voor dagvolgorde
-    // De meest urgente cluster gaat altijd op dag 1, ongeacht hoe ver die ligt.
-    function seedScore(t) {
-      const pw = PRIO_WEIGHT[(t.priority||'').toLowerCase()] ?? 9;
-      return pw * urgencyFactor(t);
+    function prefFactor(t, dayStr) {
+      const pref = kbPreferred(t.id);
+      return (pref && pref === dayStr) ? PREF_BONUS : 1.0;
     }
 
-    // Fill-score: prio × afstand × urgentie — binnen de dag telt efficiënte route wél
-    function fillScore(t, fromLat, fromLon) {
+    // Seed-score: prio × urgentie × voorkeurbonus — afstand irrelevant voor dagvolgorde
+    function seedScore(t, dayStr) {
+      const pw = PRIO_WEIGHT[(t.priority||'').toLowerCase()] ?? 9;
+      return pw * urgencyFactor(t) * prefFactor(t, dayStr);
+    }
+
+    // Fill-score: prio × afstand × urgentie × voorkeurbonus
+    function fillScore(t, fromLat, fromLon, dayStr) {
       const pw   = PRIO_WEIGHT[(t.priority||'').toLowerCase()] ?? 9;
       const dist = (t._lat && t._lon && fromLat && fromLon)
         ? haversine(fromLat, fromLon, t._lat, t._lon)
         : 999; // geen coords → achteraan
-      return pw * dist * urgencyFactor(t);
+      return pw * dist * urgencyFactor(t) * prefFactor(t, dayStr);
     }
 
     const pool = toplan.slice();
@@ -2928,16 +3035,24 @@ async function autoPlan() {
     for (const day of availDays) {
       if (!pool.length) break;
 
+      // Harde filter: tickets die klant geblokkeerd heeft op deze dag overslaan
+      const dayPool = pool.filter(t => !kbBlocked(t.id, day.date));
+
       // Seed: meest urgente ticket ongeacht locatie (bepaalt welke regio die dag bezocht wordt)
-      pool.sort((a, b) => seedScore(a) - seedScore(b));
-      const seed = pool.splice(0, 1)[0];
+      dayPool.sort((a, b) => seedScore(a, day.date) - seedScore(b, day.date));
+      if (!dayPool.length) continue;
+      const seed = dayPool[0];
+      pool.splice(pool.indexOf(seed), 1);
       const dayTickets = [seed];
 
       // Fill: ticket met laagste score t.o.v. huidige positie op die dag
       let curLat = seed._lat, curLon = seed._lon;
       for (let s = 1; s < day.cap && pool.length; s++) {
-        pool.sort((a, b) => fillScore(a, curLat, curLon) - fillScore(b, curLat, curLon));
-        const chosen = pool.splice(0, 1)[0];
+        const fillPool = pool.filter(t => !kbBlocked(t.id, day.date));
+        if (!fillPool.length) break;
+        fillPool.sort((a, b) => fillScore(a, curLat, curLon, day.date) - fillScore(b, curLat, curLon, day.date));
+        const chosen = fillPool[0];
+        pool.splice(pool.indexOf(chosen), 1);
         dayTickets.push(chosen);
         if (chosen._lat && chosen._lon) { curLat = chosen._lat; curLon = chosen._lon; }
       }
@@ -3402,6 +3517,9 @@ function openDetail(t) {
     row('Aangemaakt',   t.createdTime && fmtDate(t.createdTime)),
   ].join('') || '<div class="mrow"><span class="mval" style="color:var(--muted)">—</span></div>';
 
+  // Klantbeschikbaarheid sectie
+  renderKbSection(t.id);
+
   // Plan-knop: zichtbaar voor te-plannen en pending tickets
   const STATUS_TE_PLANNEN = ['Service in te plannen', 'Wachten op planning'];
   const STATUS_PENDING    = ['Wachten op bevestiging planning'];
@@ -3719,6 +3837,84 @@ function extractLocalHour(dueDate) {
   const h = d.getHours(), m = d.getMinutes();
   if (h === 0 && m === 0) return null;
   return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+}
+
+// ══════════════════════════════════════════════
+// KLANTBESCHIKBAARHEID — UI
+// ══════════════════════════════════════════════
+function renderKbSection(ticketId) {
+  const el = document.getElementById('kb-section');
+  if (!el) return;
+  const kb = kbFor(ticketId) || { voorkeur: null, geblokkeerd: [], notitie: '' };
+
+  const prefChip = kb.voorkeur
+    ? `<span class="kb-chip kb-chip-pref">📌 ${kb.voorkeur} <button class="kb-chip-del" onclick="updateKb('${ticketId}','voorkeur',null)" title="Verwijderen">✕</button></span>`
+    : '';
+
+  const blockChips = (kb.geblokkeerd || []).map(d =>
+    `<span class="kb-chip">🚫 ${d} <button class="kb-chip-del" onclick="updateKb('${ticketId}','removeBlok','${d}')" title="Verwijderen">✕</button></span>`
+  ).join(' ');
+
+  el.innerHTML = `
+    <div class="kb-section">
+      <div class="kb-section-title">Klantbeschikbaarheid</div>
+
+      <div class="kb-row">
+        <span class="kb-label">Voorkeursdatum</span>
+        ${prefChip || `<input type="date" id="kb-pref-${ticketId}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
+        <button class="kb-add-btn" onclick="updateKb('${ticketId}','voorkeur',document.getElementById('kb-pref-${ticketId}').value)">✓ Instellen</button>`}
+      </div>
+
+      <div class="kb-row" style="align-items:flex-start;flex-direction:column;gap:6px">
+        <span class="kb-label">Klant kan NIET op</span>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+          ${blockChips}
+          <input type="date" id="kb-blok-${ticketId}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
+          <button class="kb-add-btn" onclick="updateKb('${ticketId}','addBlok',document.getElementById('kb-blok-${ticketId}').value)">+ Blokkeer datum</button>
+        </div>
+      </div>
+
+      <div class="kb-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+        <span class="kb-label">Notitie</span>
+        <textarea class="kb-notitie" id="kb-notitie-${ticketId}" placeholder="bv. enkel na 14u, niet op vrijdag...">${escHtml(kb.notitie || '')}</textarea>
+        <button class="kb-add-btn" onclick="updateKb('${ticketId}','notitie',document.getElementById('kb-notitie-${ticketId}').value)">✓ Opslaan</button>
+      </div>
+    </div>`;
+}
+
+async function updateKb(ticketId, action, value) {
+  if (!ticketId) return;
+  if (!klantBeschikbaarheid[ticketId]) {
+    klantBeschikbaarheid[ticketId] = { voorkeur: null, geblokkeerd: [], notitie: '', bijgewerkt: new Date().toISOString() };
+  }
+  const kb = klantBeschikbaarheid[ticketId];
+
+  if (action === 'voorkeur') {
+    if (!value) return;
+    if (kb.geblokkeerd.includes(value)) return toast('⚠️ Deze datum staat al als geblokkeerd');
+    kb.voorkeur = value;
+  } else if (action === 'addBlok') {
+    if (!value) return;
+    if (kb.voorkeur === value) return toast('⚠️ Deze datum is al de voorkeursdatum');
+    if (!kb.geblokkeerd.includes(value)) {
+      kb.geblokkeerd = [...kb.geblokkeerd, value].sort();
+    }
+  } else if (action === 'removeBlok') {
+    kb.geblokkeerd = kb.geblokkeerd.filter(d => d !== value);
+  } else if (action === 'notitie') {
+    kb.notitie = value || '';
+  }
+
+  kb.bijgewerkt = new Date().toISOString();
+  // Verwijder lege entry
+  if (!kb.voorkeur && !kb.geblokkeerd.length && !kb.notitie) {
+    delete klantBeschikbaarheid[ticketId];
+  }
+
+  renderKbSection(ticketId);
+  renderTickets(); // badges bijwerken
+  await saveKlantBeschikbaarheid();
+  toast('✓ Klantbeschikbaarheid opgeslagen');
 }
 
 function toggleAssignRow(ticketId) {

@@ -204,6 +204,7 @@ export async function handler(event) {
           contentType:      'html',
           content:          emailHtml,
           fromEmailAddress,
+          to:               recipientEmail,
         }),
       });
 
