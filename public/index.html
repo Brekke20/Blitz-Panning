@@ -1207,6 +1207,7 @@
   <div class="tab"        id="tab-kalender" onclick="event.stopPropagation(); setTab('kalender')">Kalender</div>
   <div class="tab"        id="tab-planning" onclick="event.stopPropagation(); setTab('planning')">Route</div>
   <div class="tab"        id="tab-gepland"  onclick="event.stopPropagation(); setTab('gepland')">Ingepland <span class="badge" id="cnt-gepland">0</span></div>
+  <div class="tab"        id="tab-rapporten" onclick="event.stopPropagation(); setTab('rapporten')">Rapporten</div>
 </div>
 
 <div id="offline-banner">📶 Geen internetverbinding — wijzigingen worden niet opgeslagen in Zoho</div>
@@ -1265,6 +1266,21 @@
     <button onclick="gepNav(1)">›</button>
   </div>
   <div id="gep-body" class="ticket-list"></div>
+</div>
+
+<!-- ══ RAPPORTEN TAB ══ -->
+<div class="view" id="view-rapporten">
+  <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--surface);position:sticky;top:92px;z-index:26">
+    <span style="font-size:0.84rem;font-weight:600;flex:1">📋 Rapport archief</span>
+    <input type="date" id="rapp-van"  style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:4px 7px;font-size:0.75rem;font-family:inherit" title="Export van" />
+    <span style="font-size:0.75rem;color:var(--muted)">–</span>
+    <input type="date" id="rapp-tot"  style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:4px 7px;font-size:0.75rem;font-family:inherit" title="Export tot" />
+    <button class="btn-sec" onclick="exportTicketLog()" style="font-size:0.75rem;padding:5px 10px">📊 Excel export</button>
+    <button class="btn-sec" onclick="laadRapportArchief()" style="font-size:0.75rem;padding:5px 10px">↺ Herladen</button>
+  </div>
+  <div id="rapp-archief-body" class="ticket-list" style="padding:12px 16px">
+    <div style="color:var(--muted);font-size:0.82rem">Laden…</div>
+  </div>
 </div>
 
 <!-- Detail modal -->
@@ -1537,6 +1553,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.1.7/signature_pad.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ══════════════════════════════════════════════
 // TESTMODUS: ?test in URL laadt dummy data
@@ -1624,6 +1641,23 @@ let settings = loadPersonSettings(localStorage.getItem('blitz_active_person') ||
 // ══════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════
+// ── Eenmalige migratie: vervang oud Geel-adres door nieuw Kruibeke-adres ──
+if (!localStorage.getItem('blitz_mig_startloc_v1')) {
+  const OLD = 'Blitz Power, Geel';
+  Object.keys(localStorage)
+    .filter(k => k === 'blitz_settings' || k.startsWith('blitz_settings_'))
+    .forEach(key => {
+      try {
+        const s = JSON.parse(localStorage.getItem(key) || '{}');
+        if (s.startlocatie === OLD) {
+          s.startlocatie = DEFAULT_SETTINGS.startlocatie;
+          localStorage.setItem(key, JSON.stringify(s));
+        }
+      } catch {}
+    });
+  localStorage.setItem('blitz_mig_startloc_v1', '1');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // Thema initialiseren (fallback als inline-script niet gelopen heeft)
   if (!document.documentElement.getAttribute('data-theme')) {
@@ -3309,8 +3343,9 @@ function setTab(tab) {
   updateTabIndicator('tab-' + tab);
   if (tab === 'planning') setTimeout(() => leafletMap?.invalidateSize(), 50);
   // Defer kalender/gepland render één tick zodat de tab-click geen elementen in de nieuw gerenderde view raakt
-  if (tab === 'kalender') setTimeout(() => renderKalender(), 0);
-  if (tab === 'gepland')  setTimeout(() => renderGepland(), 0);
+  if (tab === 'kalender')  setTimeout(() => renderKalender(), 0);
+  if (tab === 'gepland')   setTimeout(() => renderGepland(), 0);
+  if (tab === 'rapporten') setTimeout(() => laadRapportArchief(), 0);
 }
 
 // ══════════════════════════════════════════════
@@ -4426,6 +4461,38 @@ ${R.varia ? `<div class="sec">Varia</div><div class="block">${R.varia}</div>` : 
   // Upload PDF als bijlage naar Zoho in achtergrond
   const rapportFilename = `rapport-${_wizTicket.number || _wizTicket.id}-${R.datum || 'onbekend'}.pdf`;
   uploadRapportToZoho(html, _wizTicket.id, rapportFilename);
+
+  // Archiveer rapport in Netlify Blobs
+  archiveerRapport(html);
+}
+
+async function archiveerRapport(html) {
+  const totaal = R.onderdelen
+    .filter(p => p.naam)
+    .reduce((s, p) => s + (parseFloat(p.prijs) || 0) * (parseInt(p.aantal) || 1), 0);
+
+  try {
+    await fetch('/api/rapport-archief', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        datum:           R.datum,
+        technieker:      R.technieker,
+        ticketId:        _wizTicket.id   || '',
+        ticketNumber:    _wizTicket.number ? String(_wizTicket.number) : '',
+        klant:           _wizTicket.contact || _wizTicket.account || '',
+        adres:           R.adres,
+        nieuwInter:      R.nieuwInter,
+        hersteld:        R.hersteld,
+        servicetype:     R.servicetype,
+        facturatie:      R.facturatie,
+        totaalOnderdelen: totaal,
+        rapportData:     { ...R, _html: html }, // bewaar voor hergen
+      }),
+    });
+  } catch (err) {
+    console.warn('Rapport archiveren mislukt:', err);
+  }
 }
 
 async function uploadRapportToZoho(html, ticketId, filename) {
@@ -4442,6 +4509,171 @@ async function uploadRapportToZoho(html, ticketId, filename) {
   } catch (err) {
     toast('⚠️ Zoho upload mislukt: ' + err.message);
   }
+}
+
+// ══════════════════════════════════════════════
+// RAPPORT ARCHIEF
+// ══════════════════════════════════════════════
+
+let _rapportArchief = [];
+
+async function laadRapportArchief() {
+  const body = document.getElementById('rapp-archief-body');
+  if (!body) return;
+  body.innerHTML = '<div style="color:var(--muted);font-size:0.82rem">Laden…</div>';
+  try {
+    const res  = await fetch('/api/rapport-archief');
+    const data = await res.json();
+    _rapportArchief = data.rapports || [];
+    renderRapportArchief();
+  } catch (err) {
+    body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">❌ Laden mislukt: ${err.message}</div>`;
+  }
+}
+
+function renderRapportArchief() {
+  const body = document.getElementById('rapp-archief-body');
+  if (!body) return;
+  if (!_rapportArchief.length) {
+    body.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:20px 0">Nog geen rapporten gearchiveerd.</div>';
+    return;
+  }
+  body.innerHTML = _rapportArchief.map((r, i) => {
+    const datumStr = r.datum
+      ? new Date(r.datum + 'T12:00:00').toLocaleDateString('nl-BE', { weekday:'short', day:'numeric', month:'short', year:'numeric' })
+      : '—';
+    const totStr   = r.totaalOnderdelen ? `€ ${r.totaalOnderdelen.toFixed(2)}` : '';
+    const hersteld = r.hersteld === 'ja' ? '<span style="color:var(--green);font-weight:600">✓ Hersteld</span>' : '<span style="color:var(--orange)">⚠ Niet hersteld</span>';
+    const nieuw    = r.nieuwInter === 'ja' ? '<span style="color:var(--orange)">🔁 Nieuwe interventie</span>' : '';
+    return `<div class="ticket" style="margin-bottom:8px">
+      <div class="t-body">
+        <div class="t-top" style="flex-wrap:wrap;gap:4px">
+          ${r.ticketNumber ? `<span class="tnum">#${escHtml(r.ticketNumber)}</span>` : ''}
+          <span style="font-size:0.72rem;color:var(--muted)">${datumStr}</span>
+          ${r.technieker ? `<span class="atag">${escHtml(r.technieker)}</span>` : ''}
+          ${hersteld} ${nieuw}
+          ${totStr ? `<span style="font-size:0.72rem;font-weight:600;color:var(--text2);margin-left:auto">${totStr}</span>` : ''}
+        </div>
+        ${r.klant ? `<div class="tsub">${escHtml(r.klant)}</div>` : ''}
+        ${r.adres ? `<div class="taddr ok">${escHtml(r.adres)}</div>` : ''}
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          ${r.rapportData?._html ? `<button class="cal-btn" onclick="herOpenRapport(${i})">📄 Openen</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function herOpenRapport(idx) {
+  const r = _rapportArchief[idx];
+  if (!r?.rapportData?._html) return toast('Geen opgeslagen HTML beschikbaar');
+  const blob    = new Blob([r.rapportData._html], { type: 'text/html; charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+  const win     = window.open(blobUrl, '_blank');
+  if (!win) return toast('Pop-upblokkering actief');
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
+}
+
+function exportTicketLog() {
+  if (!_rapportArchief.length) return toast('Geen rapporten beschikbaar om te exporteren', 2500);
+
+  const vanVal = document.getElementById('rapp-van')?.value;
+  const totVal = document.getElementById('rapp-tot')?.value;
+
+  let rows = _rapportArchief;
+  if (vanVal) rows = rows.filter(r => r.datum >= vanVal);
+  if (totVal) rows = rows.filter(r => r.datum <= totVal);
+
+  if (!rows.length) return toast('Geen rapporten in dit datumbereik', 2500);
+
+  // 22 kolommen — TicketLog layout (A–V)
+  // A: Ticket ID, B: Datum open, C: Datum gesloten (= interventiedatum),
+  // D: Technieker, E: Klant/Installateur, F: Type, G: Prio,
+  // H: Installateur betrokken, I: Uren besteed, J: Status,
+  // K: Remote opgelost (leeg), L: Garantiegeval, M: Component verzenden (leeg),
+  // N: Componentbeschrijving, O: Factureerbaar, P: Bedrag EUR,
+  // Q: Factuur verzonden (leeg), R: Dagen open, S: SLA-flag,
+  // T: PB (leeg), U: Notities, V: Actie
+
+  const headers = [
+    'Ticket ID', 'Datum open', 'Datum interventie',
+    'Technieker', 'Klant / Installateur', 'Type', 'Prio',
+    'Installateur betrokken', 'Uren besteed', 'Status',
+    'Remote opgelost', 'Garantiegeval', 'Component verzenden',
+    'Componentbeschrijving', 'Factureerbaar', 'Bedrag EUR',
+    'Factuur verzonden', 'Dagen open', 'SLA-flag',
+    'PB', 'Notities', 'Actie',
+  ];
+
+  const data = rows.map(r => {
+    const rd     = r.rapportData || {};
+    const ticket = r.ticketId    ? { id: r.ticketId } : {};
+    const onderdelen = rd.onderdelen?.filter(p => p.naam) || [];
+    const totaal = onderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+    const factureerbaar = onderdelen.some(p => p.factureren !== false) ? 'Ja' : 'Nee';
+    const compDesc = onderdelen.map(p => `${p.naam}${parseInt(p.aantal) > 1 ? ' ×' + p.aantal : ''}`).join('; ');
+
+    // Uren: uit werktijd (bv. "2u30") of bereken uit start/stop
+    let uren = '';
+    if (rd.werktijd) {
+      uren = rd.werktijd;
+    } else if (rd.start && rd.stop) {
+      const [sh, sm] = rd.start.split(':').map(Number);
+      const [eh, em] = rd.stop.split(':').map(Number);
+      const min = (eh * 60 + em) - (sh * 60 + sm);
+      if (min > 0) uren = (min / 60).toFixed(2).replace('.', ',');
+    }
+
+    // Garantiegeval: servicetype === 'garantie'
+    const garantie = rd.servicetype === 'garantie' ? 'Ja' : 'Nee';
+
+    return [
+      r.ticketNumber || r.ticketId || '',  // A
+      '',                                   // B: datum open (onbekend)
+      r.datum        || '',                 // C: interventiedatum
+      r.technieker   || '',                 // D
+      r.klant        || r.rapportData?.installateur || '', // E
+      r.rapportData?.type || 'Service',     // F
+      '',                                   // G: prio (onbekend)
+      r.rapportData?.installateur ? 'Ja' : 'Nee', // H
+      uren,                                 // I
+      r.hersteld === 'ja' ? 'Gesloten' : 'Open', // J
+      '',                                   // K: remote (leeg)
+      garantie,                             // L
+      '',                                   // M: component verzenden (leeg)
+      compDesc,                             // N
+      factureerbaar,                        // O
+      totaal > 0 ? totaal.toFixed(2) : '', // P
+      '',                                   // Q: factuur (leeg)
+      '',                                   // R: dagen open
+      '',                                   // S: SLA
+      '',                                   // T: PB (leeg)
+      r.adres || '',                        // U: notities (adres als notitie)
+      r.nieuwInter === 'ja' ? 'Nieuwe interventie nodig' : '', // V
+    ];
+  });
+
+  const wsData = [headers, ...data];
+  const ws     = XLSX.utils.aoa_to_sheet(wsData);
+
+  // Kolombreedte
+  ws['!cols'] = headers.map((h, i) =>
+    ({ wch: [12,13,15,18,25,10,6,20,12,12,14,13,18,30,12,10,16,10,8,6,30,25][i] || 15 })
+  );
+
+  // Header stijl (vetgedrukt)
+  headers.forEach((_, c) => {
+    const cell = XLSX.utils.encode_cell({ r: 0, c });
+    if (ws[cell]) ws[cell].s = { font: { bold: true } };
+  });
+
+  const wb       = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'TicketLog');
+
+  const vanLabel = vanVal || 'begin';
+  const totLabel = totVal || 'huidig';
+  XLSX.writeFile(wb, `TicketLog_${vanLabel}_${totLabel}.xlsx`);
+  toast(`✓ ${rows.length} rijen geëxporteerd`, 2500);
 }
 
 // ── Pending-panel toggle ─────────────────────────────────────────────────────
