@@ -3,30 +3,36 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#181e24" />
+  <meta name="theme-color" content="#181e24" id="meta-theme-color" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Blitz Planning</title>
   <link rel="manifest" href="/manifest.json" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script>
+    // Thema toepassen voor eerste render (voorkomt flash)
+    (function(){
+      const t = localStorage.getItem('blitz_theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+      document.getElementById('meta-theme-color')?.setAttribute('content', t === 'light' ? '#f5f6f7' : '#181e24');
+    })();
+  </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
       /* ── Blitz Power brand kleuren ── */
-      --bg:       #181e24;   /* Blitz dark navy */
-      --surface:  #1d252d;   /* Blitz secondary dark */
+      --bg:       #181e24;
+      --surface:  #1d252d;
       --surface2: #232d37;
       --surface3: #2b3542;
       --border:   #2e3a46;
-      /* Accent = Blitz mint groen #00DFA3 */
       --accent:       #00dfa3;
       --accent-dim:   rgba(0,223,163,0.1);
       --accent-glow:  rgba(0,223,163,0.22);
       --accent-hover: #00f5b5;
-      /* Semantische kleuren */
-      --green:      #00dfa3;   /* = accent bij Blitz */
+      --green:      #00dfa3;
       --green-dim:  rgba(0,223,163,0.1);
       --red:        #ff5a52;
       --red-dim:    rgba(255,90,82,0.1);
@@ -34,15 +40,31 @@
       --orange-dim: rgba(245,158,11,0.1);
       --blue:       #5ba3f5;
       --blue-dim:   rgba(91,163,245,0.1);
-      /* Typografie */
-      --text:  #d9d9d6;   /* Blitz light grey text */
+      --text:  #d9d9d6;
       --text2: #a8b0ba;
       --muted: #6b7784;
-      /* Radius + easing */
       --r:    8px;
       --r-lg: 12px;
       --ease:        cubic-bezier(0.4, 0, 0.2, 1);
       --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    /* ── Light theme ── */
+    :root[data-theme="light"] {
+      --bg:       #f0f2f5;
+      --surface:  #ffffff;
+      --surface2: #f5f6f8;
+      --surface3: #eaecef;
+      --border:   #d4d8de;
+      --text:     #1a2433;
+      --text2:    #4a5568;
+      --muted:    #8896a8;
+      --accent-dim:  rgba(0,180,130,0.12);
+      --accent-glow: rgba(0,180,130,0.20);
+      --red-dim:     rgba(220,38,38,0.10);
+      --orange-dim:  rgba(217,119,6,0.10);
+      --blue-dim:    rgba(59,130,246,0.10);
+      --green-dim:   rgba(0,180,130,0.10);
     }
 
     html, body {
@@ -329,15 +351,40 @@
     .empty { text-align: center; color: var(--muted); padding: 64px 20px; font-size: 0.875rem; line-height: 1.6; }
 
     /* ── Warn sectie ── */
-    .warn-section {
-      margin: 10px 14px;
-      border: 1px solid rgba(210,153,34,0.2);
-      border-left: 3px solid var(--orange);
-      border-radius: var(--r);
-      background: var(--orange-dim);
-      padding: 10px 13px;
+    /* Compacte "nog in te plannen" pill */
+    .kal-pending-pill {
+      display: flex; align-items: center; gap: 5px;
+      background: var(--orange-dim); border: 1px solid rgba(245,158,11,0.3);
+      border-radius: 20px; padding: 4px 10px; cursor: pointer;
+      font-size: 0.75rem; font-weight: 600; color: var(--orange);
+      transition: background 0.15s, transform 0.12s;
+      white-space: nowrap; flex-shrink: 0;
     }
-    .warn-section-title { font-size: 0.71rem; font-weight: 600; color: var(--orange); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .kal-pending-pill:hover { background: rgba(245,158,11,0.2); transform: scale(1.03); }
+    .kal-pending-pill .pill-count {
+      background: var(--orange); color: #fff;
+      border-radius: 10px; padding: 0 6px; font-size: 0.7rem; font-weight: 700;
+    }
+    /* Uitklap-lijst pending tickets */
+    #kal-no-date-section {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      overflow: hidden; transition: max-height 0.25s var(--ease);
+      max-height: 0;
+    }
+    #kal-no-date-section.open { max-height: 600px; }
+    .kal-pending-inner { padding: 10px 14px; display: flex; flex-direction: column; gap: 5px; }
+    .kal-pending-hdr {
+      font-size: 0.7rem; font-weight: 700; color: var(--orange); text-transform: uppercase;
+      letter-spacing: 0.07em; margin-bottom: 4px;
+    }
+    /* Thema-toggle knop */
+    .hbtn-theme { font-size: 1.05rem; }
+    :root[data-theme="light"] .theme-icon-dark  { display: none; }
+    :root[data-theme="light"] .theme-icon-light { display: inline; }
+    :root[data-theme="dark"]  .theme-icon-light { display: none; }
+    :root[data-theme="dark"]  .theme-icon-dark  { display: inline; }
+    :root .theme-icon-light { display: none; }
+    :root .theme-icon-dark  { display: inline; }
 
     /* ── Kalender ── */
     #view-kalender.active { display: flex; flex-direction: column; }
@@ -1071,6 +1118,10 @@
     <div class="person-menu" id="person-menu"></div>
   </div>
   <button class="hbtn" onclick="loadTickets()" title="Vernieuwen">↺</button>
+  <button class="hbtn hbtn-theme" onclick="toggleTheme()" title="Wissel licht/donker">
+    <span class="theme-icon-dark">🌙</span>
+    <span class="theme-icon-light">☀️</span>
+  </button>
   <button class="hbtn" onclick="openSettings()" title="Instellingen">⚙</button>
 </header>
 
@@ -1096,6 +1147,9 @@
     <button class="kal-nav" onclick="kalNav(-1)">‹</button>
     <span class="kal-week-label" id="kal-label">—</span>
     <button class="kal-nav" onclick="kalNav(1)">›</button>
+    <button class="kal-pending-pill" id="kal-pending-pill" onclick="togglePendingPanel()" style="display:none">
+      ⚠ <span class="pill-count" id="kal-pending-count">0</span> zonder datum
+    </button>
     <button class="btn-autoplan" id="btn-autoplan" onclick="autoPlan()">⚡ Plan deze week</button>
   </div>
   <div id="kal-no-date-section"></div>
@@ -1401,6 +1455,10 @@ let settings = loadPersonSettings(localStorage.getItem('blitz_active_person') ||
 // INIT
 // ══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
+  // Thema initialiseren (fallback als inline-script niet gelopen heeft)
+  if (!document.documentElement.getAttribute('data-theme')) {
+    document.documentElement.setAttribute('data-theme', localStorage.getItem('blitz_theme') || 'dark');
+  }
   document.getElementById('plan-date').value = localISO(new Date());
   activeAssigneeFilter = localStorage.getItem('blitz_active_person') || 'all';
   updatePersonHeader();
@@ -1753,29 +1811,34 @@ function renderKalender() {
   const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
   document.getElementById('kal-label').textContent = fmtDateShort(weekStart) + ' – ' + fmtDateShort(weekEnd);
 
-  // Pending zonder datum
+  // Pending zonder datum — compacte pill + uitklap-panel
   const noDueDate = allPending.filter(t => !t.dueDate);
+  const pill      = document.getElementById('kal-pending-pill');
   const noDateSec = document.getElementById('kal-no-date-section');
   if (noDueDate.length) {
-    noDateSec.innerHTML = '';
-    const wrap = document.createElement('div');
-    wrap.className = 'warn-section';
-    wrap.innerHTML = `<div class="warn-section-title">Wachten op bevestiging — geen datum (${noDueDate.length})</div>`;
+    document.getElementById('kal-pending-count').textContent = noDueDate.length;
+    pill.style.display = '';
+    const inner = document.createElement('div');
+    inner.className = 'kal-pending-inner';
+    inner.innerHTML = `<div class="kal-pending-hdr">Wacht bevestiging — zonder datum</div>`;
     noDueDate.forEach(t => {
       const card = document.createElement('div');
       card.className = 'ticket';
-      card.style.cssText = 'margin-bottom:5px;cursor:pointer';
+      card.style.cssText = 'cursor:pointer';
       card.innerHTML = `<div class="t-body">
         <div class="t-top"><span class="tnum">#${t.number}</span><span class="stag pending">Wacht bevestiging</span>${t.assignee ? `<span class="atag">${t.assignee}</span>` : ''}</div>
         <div class="tsub">${t.subject || '—'}</div>
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? t.address : 'Geen adres bekend'}</div>
       </div>`;
       card.addEventListener('click', () => openDetail(t));
-      wrap.appendChild(card);
+      inner.appendChild(card);
     });
-    noDateSec.appendChild(wrap);
-  } else {
     noDateSec.innerHTML = '';
+    noDateSec.appendChild(inner);
+  } else {
+    pill.style.display = 'none';
+    noDateSec.innerHTML = '';
+    noDateSec.classList.remove('open');
   }
 
   // Week grid
@@ -3656,6 +3719,21 @@ async function uploadRapportToZoho(html, ticketId, filename) {
   } catch (err) {
     toast('⚠️ Zoho upload mislukt: ' + err.message);
   }
+}
+
+// ── Pending-panel toggle ─────────────────────────────────────────────────────
+function togglePendingPanel() {
+  document.getElementById('kal-no-date-section').classList.toggle('open');
+}
+
+// ── Light/dark toggle ────────────────────────────────────────────────────────
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next    = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('blitz_theme', next);
+  document.getElementById('meta-theme-color')
+    ?.setAttribute('content', next === 'light' ? '#f5f6f7' : '#181e24');
 }
 
 document.addEventListener('keydown', e => {
