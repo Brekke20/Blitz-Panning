@@ -2472,15 +2472,18 @@ function gcKlantBeschikbaarheid(liveIds) {
 // GHOST TICKET RECONCILIATIE (#10)
 // ══════════════════════════════════════════════
 function reconcilePlanning(knownIds) {
-  // Verwijder planning-entries van tickets die niet meer in Zoho bestaan.
-  // Uitzondering: entries die nog in-flight zijn (optimistische update loopt nog).
+  // Verwijder planning-entries van tickets die niet meer in Zoho bestaan,
+  // maar ALLEEN voor toekomstige datums. Vandaag en verleden blijven intact:
+  // de technieker is actief bezig op die stops en tickets kunnen gesloten zijn
+  // na rapport genereren zonder dat ze uit de dagroute mogen verdwijnen.
+  const today = localISO(new Date());
   const ghosts = [];
   for (const date of Object.keys(planning)) {
-    const before = planning[date].length;
+    if (date <= today) continue; // vandaag + verleden: niet aanraken
     planning[date] = planning[date].filter(p => {
       const id = p.ticket?.id;
-      if (!id) return true; // onbekende structuur — bewaren
-      if (inFlightTickets.has(id)) return true; // optimistische update — niet verwijderen
+      if (!id) return true;
+      if (inFlightTickets.has(id)) return true;
       if (knownIds.has(id)) return true;
       ghosts.push(`#${p.ticket.number || id}`);
       return false;
@@ -2489,7 +2492,7 @@ function reconcilePlanning(knownIds) {
   }
   if (ghosts.length) {
     console.warn('Ghost tickets verwijderd uit planning:', ghosts);
-    toast(`⚠️ ${ghosts.length} afspraak${ghosts.length > 1 ? 'en' : ''} verwijderd (ticket gesloten in Zoho): ${ghosts.join(', ')}`, 5000);
+    toast(`⚠️ ${ghosts.length} toekomstige afspraak${ghosts.length > 1 ? 'en' : ''} verwijderd (ticket gesloten in Zoho): ${ghosts.join(', ')}`, 5000);
     renderKalender();
     renderRouteList(document.getElementById('plan-date')?.value || localISO(new Date()));
   }
