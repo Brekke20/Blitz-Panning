@@ -499,7 +499,49 @@
     }
     .cal-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border); }
 
-    /* ── Tijdsgrid ── */
+    /* ── Lokale afspraken (import / manueel) ── */
+    .cal-local-event {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 7px 9px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .cal-local-event::before {
+      content: '';
+      position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+      background: #7c5cfc;
+    }
+    .cal-local-event .cal-sub { margin-bottom: 2px; }
+    .cal-local-type { font-size: 0.59rem; font-weight: 600; padding: 1px 6px; border-radius: 20px; display: inline-block; margin: 0 0 3px 4px; background: rgba(124,92,252,0.15); color: #7c5cfc; }
+    .cal-local-time { font-size: 0.65rem; color: var(--muted); margin-left: 4px; }
+    .cal-local-del { position: absolute; top: 5px; right: 6px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem; padding: 0 2px; }
+    .cal-local-del:hover { color: var(--red); }
+
+    /* ── Import modal ── */
+    #import-overlay { align-items: flex-start; padding: 24px; }
+    #import-modal { border-radius: var(--r-lg); max-width: 520px; max-height: calc(100vh - 48px); display: flex; flex-direction: column; }
+    .imp-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 0; }
+    .imp-item { border: 1px solid var(--border); border-radius: var(--r); padding: 10px 12px; background: var(--surface2); }
+    .imp-item-title { font-size: 0.84rem; font-weight: 600; margin-bottom: 4px; }
+    .imp-item-meta  { font-size: 0.72rem; color: var(--muted); margin-bottom: 6px; }
+    .imp-person-row { display: flex; gap: 6px; align-items: center; }
+    .imp-person-label { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+    .imp-person-sel { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 4px 7px; font-size: 0.78rem; font-family: inherit; }
+    .imp-match-tag { font-size: 0.65rem; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+    .imp-match-tag.ok  { background: var(--green-dim); color: var(--green); }
+    .imp-match-tag.mis { background: var(--orange-dim); color: var(--orange); }
+
+    /* ── Manuele afspraak modal ── */
+    #manueel-overlay { align-items: center; padding: 24px; }
+    #manueel-modal { border-radius: var(--r-lg); max-width: 400px; }
+    .man-form { display: flex; flex-direction: column; gap: 10px; }
+    .man-label { font-size: 0.72rem; color: var(--muted); margin-bottom: 3px; }
+    .man-input, .man-select { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 6px 9px; font-size: 0.82rem; font-family: inherit; }
+    .man-input:focus, .man-select:focus { outline: none; border-color: var(--accent); }
+    .man-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
     /* ── Beschikbaarheid / Blokkering modal ── */
     .av-section-title { font-size: 0.68rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
     .av-existing { margin-bottom: 14px; min-height: 0; }
@@ -1168,6 +1210,9 @@
       ⚠ <span class="pill-count" id="kal-pending-count">0</span> zonder datum
     </button>
     <button class="btn-autoplan" id="btn-autoplan" onclick="autoPlan()">⚡ Plan deze week</button>
+    <button class="btn-sec" onclick="document.getElementById('import-file-input').click()" title="Importeer installaties JSON" style="padding:5px 10px;font-size:0.75rem">📥 Import</button>
+    <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="handleImportFile(this)" />
+    <button class="btn-sec" onclick="openManueelModal()" title="Manuele afspraak toevoegen" style="padding:5px 10px;font-size:0.75rem">➕ Afspraak</button>
   </div>
   <div id="kal-no-date-section"></div>
   <div class="week-grid" id="week-grid"></div>
@@ -1315,6 +1360,78 @@
   </div>
 </div>
 
+<!-- Import review modal -->
+<div class="overlay" id="import-overlay" onclick="closeImportModal(event)">
+  <div class="modal" id="import-modal">
+    <div class="mhdr">
+      <div class="mhdr-title">📥 Importeer installaties</div>
+      <div id="import-subtitle" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
+    </div>
+    <div class="mbody imp-list" id="import-list">
+      <!-- Ingevuld door renderImportModal() -->
+    </div>
+    <div class="mftr">
+      <button class="btn-cancel" onclick="closeImportModal()">Annuleren</button>
+      <button class="btn-save"   onclick="confirmImport()">✓ Importeren</button>
+    </div>
+  </div>
+</div>
+
+<!-- Manuele afspraak modal -->
+<div class="overlay" id="manueel-overlay" onclick="closeManueelModal(event)">
+  <div class="modal" id="manueel-modal">
+    <div class="mhdr">
+      <div class="mhdr-title">➕ Afspraak toevoegen</div>
+    </div>
+    <div class="mbody">
+      <div class="man-form">
+        <div>
+          <div class="man-label">Titel</div>
+          <input class="man-input" id="man-titel" type="text" placeholder="bv. Installatie Pietersen" />
+        </div>
+        <div class="man-row2">
+          <div>
+            <div class="man-label">Datum</div>
+            <input class="man-input" id="man-datum" type="date" />
+          </div>
+          <div>
+            <div class="man-label">Type</div>
+            <select class="man-select" id="man-type">
+              <option value="Installatie">Installatie</option>
+              <option value="Service">Service</option>
+              <option value="Overige">Overige</option>
+            </select>
+          </div>
+        </div>
+        <div class="man-row2">
+          <div>
+            <div class="man-label">Van</div>
+            <input class="man-input" id="man-van" type="time" value="09:00" />
+          </div>
+          <div>
+            <div class="man-label">Tot</div>
+            <input class="man-input" id="man-tot" type="time" value="11:00" />
+          </div>
+        </div>
+        <div>
+          <div class="man-label">Technieker</div>
+          <select class="man-select" id="man-persoon">
+            <!-- Ingevuld door openManueelModal() -->
+          </select>
+        </div>
+        <div>
+          <div class="man-label">Adres / notitie</div>
+          <input class="man-input" id="man-notitie" type="text" placeholder="bv. Kerkstraat 5, 9000 Gent" />
+        </div>
+      </div>
+    </div>
+    <div class="mftr">
+      <button class="btn-cancel" onclick="closeManueelModal()">Annuleren</button>
+      <button class="btn-save"   onclick="saveManueelAfspraak()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
 <!-- Auto-plan resultaat modal -->
 <div class="overlay" id="result-overlay" onclick="closeResult(event)">
   <div class="modal" id="result-modal">
@@ -1442,6 +1559,11 @@ let inFlightTickets = new Set(); // voorkomt dubbele API calls
 let proposalSentTickets = new Set(JSON.parse(localStorage.getItem('blitz_proposal_sent') || '[]'));
 let arrivalData = JSON.parse(localStorage.getItem('blitz_arrivals') || '{}');
 
+// Lokale afspraken (import + manueel) — cloud synced
+let localEvents        = [];
+let localEventsVersie  = 0;
+let _pendingImport     = []; // staging area voor import review
+
 // Beschikbaarheids-uitzonderingen (geladen vanuit Netlify Blobs)
 let avExceptions = [];   // { id, scope, person, date, kind, from, to, reason }
 let avVersie     = 0;
@@ -1505,6 +1627,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initMap();
   loadPrijzen();
   loadAvailability();
+  loadAfspraken();
   loadTickets();
   // Initialiseer tab indicator op de actieve tab
   setTimeout(() => updateTabIndicator('tab-tickets'), 0);
@@ -1935,6 +2058,32 @@ function renderKalender() {
       col.querySelector('.day-body').appendChild(card);
     });
 
+    // Lokale afspraken (import / manueel)
+    const dayEvents = localEvents.filter(e => {
+      if (e.datum !== dateStr) return false;
+      if (activeAssigneeFilter === 'all') return true;
+      return !e.persoon || e.persoon === activeAssigneeFilter;
+    });
+    dayEvents.forEach(ev => {
+      const card = document.createElement('div');
+      card.className = 'cal-local-event';
+      const tijdLabel = ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '';
+      card.innerHTML = `
+        <button class="cal-local-del" onclick="event.stopPropagation();removeLocalEvent('${ev.id}')" title="Verwijderen">✕</button>
+        <span class="cal-local-type">${escHtml(ev.type)}</span>
+        <div class="cal-sub" style="margin-top:2px">${escHtml(ev.titel)}</div>
+        ${tijdLabel ? `<div class="cal-local-time">⏱ ${tijdLabel}</div>` : ''}
+        ${ev.notitie ? `<div class="cal-addr">${escHtml(ev.notitie)}</div>` : ''}
+        ${ev.persoon ? `<div class="cal-meta">${escHtml(ev.persoon)}</div>` : ''}`;
+      col.querySelector('.day-body').appendChild(card);
+    });
+
+    // "—" placeholder verwijderen als er nu events zijn
+    if (dayStops.length === 0 && dayEvents.length > 0) {
+      const empty = col.querySelector('.day-empty');
+      if (empty) empty.remove();
+    }
+
     // Route knop als er stops zijn
     if (dayStops.length > 0) {
       const rb = document.createElement('button');
@@ -1969,6 +2118,272 @@ function getPlanningTicket(id) {
 // ══════════════════════════════════════════════
 // BESCHIKBAARHEID (cloud-synced)
 // ══════════════════════════════════════════════
+
+// ══════════════════════════════════════════════
+// LOKALE AFSPRAKEN (import + manueel)
+// ══════════════════════════════════════════════
+
+const AFG_API = '/api/afspraken';
+
+async function loadAfspraken() {
+  try {
+    const res  = await fetch(AFG_API);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    localEvents       = data.afspraken || [];
+    localEventsVersie = data.versie    || 0;
+  } catch (err) {
+    console.warn('Afspraken laden mislukt:', err);
+    localEvents       = [];
+    localEventsVersie = 0;
+  }
+  renderKalender();
+}
+
+async function saveAfspraken() {
+  try {
+    const res = await fetch(AFG_API, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ versie: localEventsVersie, afspraken: localEvents }),
+    });
+    if (res.status === 409) {
+      const body = await res.json();
+      localEvents       = body.data?.afspraken || [];
+      localEventsVersie = body.data?.versie    || 0;
+      toast('⚠ Conflict — afspraken herladen', 3000);
+      renderKalender();
+      return false;
+    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    localEventsVersie = data.versie;
+    return true;
+  } catch (err) {
+    console.error('Afspraken opslaan mislukt:', err);
+    toast('❌ Afspraken opslaan mislukt', 3000);
+    return false;
+  }
+}
+
+// Fuzzy resp-matching: deelnaam in beide richtingen, case-insensitive
+function matchRespToPerson(resp, agents) {
+  if (!resp || !agents?.length) return null;
+  const r    = resp.toLowerCase().trim();
+  const rParts = r.split(/\s+/);
+  // Exacte match
+  let hit = agents.find(a => a.toLowerCase() === r);
+  if (hit) return hit;
+  // Partial: resp bevat agentsnaam of omgekeerd
+  hit = agents.find(a => {
+    const aL = a.toLowerCase();
+    return aL.includes(r) || r.includes(aL);
+  });
+  if (hit) return hit;
+  // Woorddelen matchen (voornaam)
+  hit = agents.find(a => {
+    const aParts = a.toLowerCase().split(/\s+/);
+    return aParts.some(ap => rParts.some(rp => ap === rp && rp.length > 2));
+  });
+  return hit || null;
+}
+
+// File-input handler
+function handleImportFile(input) {
+  const file = input.files[0];
+  input.value = ''; // reset zodat hetzelfde bestand opnieuw kan
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      startImport(data);
+    } catch {
+      toast('❌ Ongeldig JSON-bestand', 3000);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function startImport(data) {
+  const afspraken = data.afspraken || data; // tolereer ook bare array
+  if (!Array.isArray(afspraken) || !afspraken.length) {
+    toast('⚠ Geen afspraken gevonden in bestand', 3000);
+    return;
+  }
+
+  // Huidige agents uit tickets
+  const agents = [...new Set([
+    ...allTickets.map(t => t.assignee),
+    ...allGepland.map(t => t.assignee),
+    ...allPending.map(t => t.assignee),
+    ...localEvents.map(e => e.persoon).filter(Boolean),
+  ])].filter(Boolean).sort();
+
+  _pendingImport = afspraken.map(a => {
+    const matched = matchRespToPerson(a.resp, agents);
+    return {
+      id:       crypto.randomUUID(),
+      titel:    a.titel || `${a.type || 'Afspraak'}: ${a.linkLabel || a.notitie || ''}`,
+      datum:    a.datum || '',
+      uur:      a.uur   || '',
+      einduur:  a.einduur || '',
+      type:     a.type  || 'Installatie',
+      persoon:  matched,
+      notitie:  a.notitie || '',
+      telefoon: a.telefoon || '',
+      email:    a.email   || '',
+      bron:     'import',
+      origResp: a.resp   || '',
+      _agents:  agents,  // tijdelijk voor de modal
+    };
+  });
+
+  renderImportModal(agents);
+  document.getElementById('import-overlay').classList.add('open');
+}
+
+function renderImportModal(agents) {
+  const sub  = document.getElementById('import-subtitle');
+  const list = document.getElementById('import-list');
+  if (!sub || !list) return;
+
+  const unmatched = _pendingImport.filter(a => !a.persoon).length;
+  sub.textContent = `${_pendingImport.length} afspraken · ${unmatched} onbekende technicus`;
+
+  const agentOpts = (agents || []).map(a => `<option value="${escHtml(a)}">${escHtml(a)}</option>`).join('');
+
+  list.innerHTML = _pendingImport.map((a, i) => {
+    const matched = !!a.persoon;
+    const dateLabel = a.datum
+      ? new Date(a.datum + 'T12:00:00').toLocaleDateString('nl-BE', { weekday:'short', day:'numeric', month:'short' })
+      : '?';
+    const tijdLabel = a.uur ? `${a.uur}${a.einduur ? '–' + a.einduur : ''}` : '';
+    return `<div class="imp-item">
+      <div class="imp-item-title">${escHtml(a.titel)}</div>
+      <div class="imp-item-meta">${dateLabel}${tijdLabel ? ' · ' + tijdLabel : ''}${a.notitie ? ' · ' + escHtml(a.notitie) : ''}</div>
+      <div class="imp-person-row">
+        <span class="imp-person-label">Technieker:</span>
+        <select class="imp-person-sel" onchange="_pendingImport[${i}].persoon = this.value || null"
+          data-idx="${i}">
+          <option value="">— Niet toewijzen —</option>
+          ${agents.map(ag => `<option value="${escHtml(ag)}"${a.persoon === ag ? ' selected' : ''}>${escHtml(ag)}</option>`).join('')}
+        </select>
+        <span class="imp-match-tag ${matched ? 'ok' : 'mis'}">${matched ? '✓ Match' : '⚠ Handmatig'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function closeImportModal(e) {
+  if (e && e.target !== document.getElementById('import-overlay')) return;
+  document.getElementById('import-overlay').classList.remove('open');
+  _pendingImport = [];
+}
+
+async function confirmImport() {
+  // Duplicaten overslaan op basis van datum+titel+uur
+  const nieuweItems = _pendingImport.filter(a => {
+    if (!a.datum) return false;
+    return !localEvents.some(e =>
+      e.datum === a.datum && e.titel === a.titel && e.uur === a.uur
+    );
+  }).map(({ _agents, ...rest }) => rest); // _agents niet opslaan
+
+  if (!nieuweItems.length) {
+    toast('Alle afspraken zijn al aanwezig', 2000);
+    document.getElementById('import-overlay').classList.remove('open');
+    return;
+  }
+
+  localEvents.push(...nieuweItems);
+  renderKalender();
+  document.getElementById('import-overlay').classList.remove('open');
+  _pendingImport = [];
+
+  const ok = await saveAfspraken();
+  if (!ok) {
+    localEvents = localEvents.filter(e => !nieuweItems.some(n => n.id === e.id));
+    renderKalender();
+  } else {
+    toast(`✓ ${nieuweItems.length} afspraken geïmporteerd`, 2500);
+  }
+}
+
+// ── Manuele afspraak ──────────────────────────────────────────────────────
+
+function openManueelModal(prefillDate) {
+  const agents = [...new Set([
+    ...allTickets.map(t => t.assignee),
+    ...allGepland.map(t => t.assignee),
+    ...allPending.map(t => t.assignee),
+    ...localEvents.map(e => e.persoon).filter(Boolean),
+  ])].filter(Boolean).sort();
+
+  const sel = document.getElementById('man-persoon');
+  if (sel) {
+    const myPerson = activeAssigneeFilter !== 'all' ? activeAssigneeFilter : null;
+    sel.innerHTML = `<option value="">— Geen —</option>` +
+      agents.map(a => `<option value="${escHtml(a)}"${a === myPerson ? ' selected' : ''}>${escHtml(a)}</option>`).join('');
+  }
+  if (prefillDate) {
+    const datEl = document.getElementById('man-datum');
+    if (datEl) datEl.value = prefillDate;
+  }
+  document.getElementById('manueel-overlay').classList.add('open');
+}
+
+function closeManueelModal(e) {
+  if (e && e.target !== document.getElementById('manueel-overlay')) return;
+  document.getElementById('manueel-overlay').classList.remove('open');
+}
+
+async function saveManueelAfspraak() {
+  const titel   = document.getElementById('man-titel')?.value?.trim();
+  const datum   = document.getElementById('man-datum')?.value;
+  const type    = document.getElementById('man-type')?.value || 'Overige';
+  const van     = document.getElementById('man-van')?.value || '';
+  const tot     = document.getElementById('man-tot')?.value || '';
+  const persoon = document.getElementById('man-persoon')?.value || null;
+  const notitie = document.getElementById('man-notitie')?.value?.trim() || '';
+
+  if (!titel) { toast('⚠ Voer een titel in', 2000); return; }
+  if (!datum) { toast('⚠ Kies een datum', 2000); return; }
+
+  const event = {
+    id: crypto.randomUUID(),
+    titel, datum, uur: van, einduur: tot, type,
+    persoon: persoon || null, notitie,
+    telefoon: '', email: '',
+    bron: 'manueel', origResp: null,
+  };
+
+  localEvents.push(event);
+  renderKalender();
+  document.getElementById('manueel-overlay').classList.remove('open');
+
+  // Reset formulier
+  ['man-titel','man-notitie'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+
+  const ok = await saveAfspraken();
+  if (!ok) {
+    localEvents = localEvents.filter(e => e.id !== event.id);
+    renderKalender();
+  } else {
+    toast('✓ Afspraak opgeslagen', 2000);
+  }
+}
+
+async function removeLocalEvent(id) {
+  const removed = localEvents.find(e => e.id === id);
+  localEvents   = localEvents.filter(e => e.id !== id);
+  renderKalender();
+  const ok = await saveAfspraken();
+  if (!ok && removed) {
+    localEvents.push(removed);
+    renderKalender();
+  }
+}
 
 const AV_API = '/api/availability';
 
