@@ -546,6 +546,7 @@
       border: 1px solid var(--border);
       border-radius: var(--r);
       cursor: pointer;
+      transition: transform 0.15s var(--ease), box-shadow 0.15s, background 0.12s;
       padding: 7px 9px;
       background: var(--surface);
       overflow: hidden;
@@ -559,6 +560,8 @@
     .cal-local-type { font-size: 0.59rem; font-weight: 600; padding: 1px 6px; border-radius: 20px; display: inline-block; margin: 0 0 3px 4px; background: rgba(124,92,252,0.15); color: #7c5cfc; }
     .cal-local-time { font-size: 0.65rem; color: var(--muted); margin-left: 4px; }
     .cal-local-del { position: absolute; top: 5px; right: 6px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem; padding: 0 2px; }
+    .cal-local-event:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); background: var(--surface2); }
+    .cal-local-event:active { transform: none; }
     .cal-local-del:hover { color: var(--red); }
 
     /* ── Import modal ── */
@@ -2297,7 +2300,16 @@ function renderKalender() {
         <div class="cal-sub" style="margin-top:2px">${escHtml(ev.titel)}</div>
         ${tijdLabel ? `<div class="cal-local-time">⏱ ${tijdLabel}</div>` : ''}
         ${adresLabel ? `<div class="cal-addr">${escHtml(adresLabel)}</div>` : ''}
-        ${ev.persoon ? `<div class="cal-meta">${escHtml(ev.persoon)}</div>` : ''}`;
+        ${ev.persoon ? `<div class="cal-meta">${escHtml(ev.persoon)}</div>` : ''}
+        <div class="cal-actions">
+          ${adresLabel ? `<a class="cal-btn cal-ev-maps" href="https://maps.google.com/?q=${encodeURIComponent(adresLabel)}" target="_blank">Maps</a>` : ''}
+          ${ev.telefoon ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(ev.telefoon)}">Bellen</a>` : ''}
+          <button class="cal-btn cal-ev-det">Details</button>
+        </div>`;
+      card.querySelector('.cal-ev-maps')?.addEventListener('click', e => e.stopPropagation());
+      card.querySelector('.cal-ev-call')?.addEventListener('click', e => e.stopPropagation());
+      const detBtn = card.querySelector('.cal-ev-det');
+      if (detBtn) detBtn.addEventListener('click', e => { e.stopPropagation(); openLocalEventDetail(ev); });
       card.addEventListener('click', () => openLocalEventDetail(ev));
       col.querySelector('.day-body').appendChild(card);
     });
@@ -2309,7 +2321,7 @@ function renderKalender() {
     }
 
     // Route knop als er stops zijn
-    if (dayStops.length > 0) {
+    if (dayStops.length > 0 || dayEvents.some(e => e.adres || e.notitie)) {
       const rb = document.createElement('button');
       rb.className = 'cal-btn';
       rb.style.cssText = 'width:100%;margin-top:4px;background:var(--accent-dim);border:1px solid rgba(245,158,11,0.2);color:var(--accent);padding:4px;border-radius:4px;cursor:pointer;font-size:0.7rem;font-weight:600;font-family:inherit;';
@@ -4367,7 +4379,7 @@ const WIZ_STEPS = [
   { id: 'sig-klant',    label: 'Handtekening 2', render: wizRenderSigKlant,     save: () => {}            },
 ];
 
-function openRapport(ticketId, date) {
+async function openRapport(ticketId, date) {
   const ticket = getPlanningTicket(ticketId);
   if (!ticket) return toast('Ticket niet gevonden');
   closeDet();
@@ -4400,6 +4412,31 @@ function openRapport(ticketId, date) {
     if (stopIdx >= 0 && routeData.legs[stopIdx]) {
       R.aanrijtijdMin = Math.round(routeData.legs[stopIdx].travelTimeSeconds / 60);
     }
+  }
+  // Geen routeData beschikbaar maar adres en startlocatie zijn bekend → TomTom direct bevragen
+  if (R.aanrijtijdMin === 0 && ticket.hasAddress && settings.startlocatie) {
+    try {
+      toast('📡 Aanrijtijd berekenen...', 5000);
+      const gRes  = await fetch('/api/optimize', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ origin: settings.startlocatie, stops: [ticket.address] }),
+      });
+      const gData = await gRes.json();
+      const origin = gData.locations?.[0];
+      const dest   = gData.locations?.[1];
+      if (origin && dest) {
+        const rRes  = await fetch('/api/route', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ waypoints: [origin, dest] }),
+        });
+        const rData = await rRes.json();
+        if (rData.legs?.[0]?.travelTimeSeconds) {
+          R.aanrijtijdMin = Math.round(rData.legs[0].travelTimeSeconds / 60);
+        }
+      }
+    } catch { /* niet fataal, aanrijtijd blijft 0 */ }
   }
   R.type = ''; R.uitvoering = ''; R.kabel = ''; R.kabellengte = '';
   R.hersteld = 'nee'; R.nieuwInter = 'nee';
