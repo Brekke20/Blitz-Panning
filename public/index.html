@@ -1136,19 +1136,6 @@
       font-size: 0.85rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .btn-dirty { background: var(--accent); color: var(--bg); }
-    /* Password gate */
-    .prijs-gate {
-      padding: 24px 20px; display: flex; flex-direction: column; align-items: center; gap: 14px;
-    }
-    .prijs-gate-icon { font-size: 2rem; }
-    .prijs-gate-title { font-size: 0.95rem; font-weight: 700; }
-    .prijs-gate-sub { font-size: 0.8rem; color: var(--muted); text-align: center; }
-    .prijs-gate-input {
-      background: var(--surface3); border: 1px solid var(--border); color: var(--text);
-      border-radius: var(--r); padding: 12px 14px; font-size: 1rem; width: 100%;
-      max-width: 280px; text-align: center; letter-spacing: 0.2em; font-family: inherit;
-    }
-    .prijs-gate-input:focus { outline: none; border-color: var(--accent); }
     /* Banner */
     .prijs-cache-banner {
       background: var(--orange-dim); border: 1px solid var(--orange); border-radius: var(--r);
@@ -1403,20 +1390,6 @@
 <!-- Prijsbeheer admin modal -->
 <div class="overlay" id="prijs-overlay" onclick="closePrijsBeheer(event)">
   <div class="modal" id="prijs-modal">
-    <!-- Password gate (verborgen na auth) -->
-    <div id="prijs-gate" class="prijs-gate">
-      <div class="prijs-gate-icon">🔒</div>
-      <div class="prijs-gate-title">Prijsbeheer</div>
-      <div class="prijs-gate-sub">Voer het beheerderswachtwoord in om de prijslijst te beheren.</div>
-      <input class="prijs-gate-input" id="prijs-gate-input" type="password" placeholder="••••••••"
-        onkeydown="if(event.key==='Enter')prijsGateSubmit()" autocomplete="current-password" />
-      <div style="display:flex;gap:8px">
-        <button class="btn-cancel" onclick="closePrijsBeheer()">Annuleren</button>
-        <button class="btn-save"   onclick="prijsGateSubmit()">Inloggen</button>
-      </div>
-      <div id="prijs-gate-err" style="font-size:0.78rem;color:var(--red);min-height:18px"></div>
-    </div>
-    <!-- Editor (zichtbaar na auth) -->
     <div id="prijs-editor" style="display:none;flex-direction:column;flex:1;min-height:0">
       <div class="prijs-hdr">
         <div class="prijs-hdr-title">💰 Prijsbeheer</div>
@@ -5477,11 +5450,9 @@ document.addEventListener('keydown', e => {
 // Globale prijzenstate
 let PRIJZEN = null;          // { versie, bijgewerkt, onderdelen, tarieven }
 let PRIJZEN_DIRTY = null;    // werkkopie tijdens bewerking (null = niet gewijzigd)
-let PRIJZEN_TOKEN = null;    // Bearer-token voor huidige sessie
 
-const PRIJZEN_LS_CACHE   = 'blitz_prijzen_cache';
-const PRIJZEN_LS_TOKEN   = 'blitz_admin_token_session';
-const PRIJZEN_API_URL    = '/api/prijzen';
+const PRIJZEN_LS_CACHE = 'blitz_prijzen_cache';
+const PRIJZEN_API_URL  = '/api/prijzen';
 
 // ── Defaults (zelfde als server, client-side fallback) ───────────────────────
 const PRIJZEN_DEFAULTS = {
@@ -5548,16 +5519,7 @@ function openPrijsBeheer() {
   closeSettings();
   const overlay = document.getElementById('prijs-overlay');
   overlay.classList.add('open');
-  // Controleer of we al een sessietoken hebben
-  const savedToken = sessionStorage.getItem(PRIJZEN_LS_TOKEN);
-  if (savedToken) {
-    PRIJZEN_TOKEN = savedToken;
-    showPrijsEditor();
-  } else {
-    document.getElementById('prijs-gate').style.display = '';
-    document.getElementById('prijs-editor').style.display = 'none';
-    setTimeout(() => document.getElementById('prijs-gate-input')?.focus(), 50);
-  }
+  showPrijsEditor(); // geen wachtwoord meer vereist
 }
 
 function closePrijsBeheer(event) {
@@ -5569,51 +5531,9 @@ function closePrijsBeheer(event) {
   PRIJZEN_DIRTY = null;
 }
 
-// ── Wachtwoord-gate ───────────────────────────────────────────────────────────
-async function prijsGateSubmit() {
-  const input  = document.getElementById('prijs-gate-input');
-  const errEl  = document.getElementById('prijs-gate-err');
-  const token  = input.value.trim();
-  if (!token) return;
-  errEl.textContent = '';
-
-  if (TEST_MODE) {
-    // In testmodus: elk niet-leeg wachtwoord werkt
-    PRIJZEN_TOKEN = token;
-    sessionStorage.setItem(PRIJZEN_LS_TOKEN, token);
-    input.value = '';
-    showPrijsEditor();
-    return;
-  }
-
-  // Verifieer token via een probe PUT met een no-op (leeg body → zal 400 teruggeven, maar 401 als token fout)
-  try {
-    const probe = await fetch(PRIJZEN_API_URL, {
-      method: 'PUT',
-      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),   // opzettelijk leeg → 400 als auth OK, 401 als token fout
-    });
-    if (probe.status === 401) {
-      errEl.textContent = 'Ongeldig wachtwoord';
-      input.value = '';
-      input.focus();
-      return;
-    }
-    // 400 (validatiefout) of 200 = auth OK
-    PRIJZEN_TOKEN = token;
-    sessionStorage.setItem(PRIJZEN_LS_TOKEN, token);
-    input.value = '';
-    showPrijsEditor();
-  } catch {
-    errEl.textContent = 'Verbindingsfout — probeer opnieuw';
-  }
-}
-
 // ── Editor weergeven ──────────────────────────────────────────────────────────
 function showPrijsEditor() {
-  document.getElementById('prijs-gate').style.display = 'none';
-  const editorEl = document.getElementById('prijs-editor');
-  editorEl.style.display = 'flex';
+  document.getElementById('prijs-editor').style.display = 'flex';
   PRIJZEN_DIRTY = null;
   renderPrijsEditor();
 }
@@ -5784,20 +5704,13 @@ async function prijsOpslaan() {
   try {
     const res = await fetch(PRIJZEN_API_URL, {
       method: 'PUT',
-      headers: {
-        'Authorization': 'Bearer ' + PRIJZEN_TOKEN,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!res.ok) {
       if (res.status === 409) {
         showToast('⚠️ Conflict: prijslijst werd elders gewijzigd. Herlaad de pagina.');
-      } else if (res.status === 401) {
-        showToast('Sessie verlopen — log opnieuw in');
-        sessionStorage.removeItem(PRIJZEN_LS_TOKEN);
-        PRIJZEN_TOKEN = null;
       } else {
         showToast('Fout: ' + (data.error || res.status));
       }

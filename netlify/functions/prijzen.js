@@ -106,15 +106,6 @@ export default async (req) => {
 
   // ── PUT ──────────────────────────────────────────────────────────────────────
   if (req.method === 'PUT') {
-    const authHeader = req.headers.get('authorization') || req.headers.get('Authorization') || '';
-    const token      = authHeader.replace(/^Bearer\s+/i, '').trim();
-    const expected   = process.env.ADMIN_TOKEN || '';
-    if (!expected || token !== expected) {
-      return new Response(JSON.stringify({ error: 'Ongeldig wachtwoord' }), {
-        status: 401, headers: { ...hdrs, 'Content-Type': 'application/json' },
-      });
-    }
-
     let body;
     try { body = await req.json(); }
     catch {
