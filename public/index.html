@@ -73,8 +73,11 @@
       color: var(--text);
       height: 100%;
       -webkit-font-smoothing: antialiased;
+      /* overflow-x op html/body vermeden: breekt position:sticky op .tabs */
     }
     body { display: flex; flex-direction: column; }
+    /* Geen overflow-x op html of body: verstoort position:sticky op .tabs.
+       Horizontale overflow wordt per element afgehandeld (.tabs en .week-grid hebben overflow-x:auto). */
 
     /* ── Animaties ── */
     @keyframes slideUp {
@@ -183,19 +186,27 @@
     .pm-item-sub  { font-size: 0.72rem; color: var(--muted); }
 
     /* ── Tabs ── */
+    /* .tabs = sticky wrapper (GEEN overflow — dat breekt position:sticky in browsers) */
     .tabs {
-      display: flex;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       position: sticky;
       top: 52px;
       z-index: 29;
-      padding: 0 8px;
-      /* Slider indicator via CSS var (JS vult in) */
+      /* Indicator via CSS var (JS vult in) — ::after is relatief aan .tabs, buiten de scroll-zone */
       --ind-left: 0px;
       --ind-width: 0px;
     }
-    /* Animated sliding underline */
+    /* .tabs-inner = de scrollbare flex-rij met de tab-knoppen */
+    .tabs-inner {
+      display: flex;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding: 0 8px;
+    }
+    .tabs-inner::-webkit-scrollbar { display: none; }
+    /* Animated sliding underline — op .tabs zodat het BUITEN de scroll-clip valt */
     .tabs::after {
       content: '';
       position: absolute;
@@ -398,7 +409,9 @@
       position: sticky; top: 92px; z-index: 28;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
-    .kal-week-label { font-size: 0.84rem; font-weight: 600; flex: 1; min-width: 100px; color: var(--text2); }
+    .kal-week-label { font-size: 0.84rem; font-weight: 600; width: 112px; text-align: center; color: var(--text2); white-space: nowrap; }
+    .kal-nav-group  { display: flex; align-items: center; gap: 2px; }
+    .kal-actions    { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
     .kal-nav {
       background: var(--surface2); border: 1px solid var(--border); color: var(--text);
       width: 30px; height: 30px; border-radius: var(--r);
@@ -408,6 +421,13 @@
     }
     .kal-nav:hover  { background: var(--surface3); transform: scale(1.05); }
     .kal-nav:active { transform: scale(0.94); }
+    .kal-today {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text2);
+      height: 30px; padding: 0 9px; border-radius: var(--r);
+      cursor: pointer; font-size: 0.76rem; font-weight: 600;
+      transition: background 0.12s;
+    }
+    .kal-today:hover { background: var(--surface3); color: var(--text); }
     .btn-autoplan {
       background: var(--accent); border: none; color: #000;
       padding: 6px 13px; border-radius: var(--r);
@@ -1213,11 +1233,13 @@
 </header>
 
 <div class="tabs">
-  <div class="tab active" id="tab-tickets"  onclick="event.stopPropagation(); setTab('tickets')">Wachtrij <span class="badge" id="cnt-tickets">0</span></div>
-  <div class="tab"        id="tab-kalender" onclick="event.stopPropagation(); setTab('kalender')">Kalender</div>
-  <div class="tab"        id="tab-planning" onclick="event.stopPropagation(); setTab('planning')">Route</div>
-  <div class="tab"        id="tab-gepland"  onclick="event.stopPropagation(); setTab('gepland')">Ingepland <span class="badge" id="cnt-gepland">0</span></div>
-  <div class="tab"        id="tab-rapporten" onclick="event.stopPropagation(); setTab('rapporten')">Rapporten</div>
+  <div class="tabs-inner">
+    <div class="tab active" id="tab-tickets"  onclick="event.stopPropagation(); setTab('tickets')">Wachtrij <span class="badge" id="cnt-tickets">0</span></div>
+    <div class="tab"        id="tab-kalender" onclick="event.stopPropagation(); setTab('kalender')">Kalender</div>
+    <div class="tab"        id="tab-planning" onclick="event.stopPropagation(); setTab('planning')">Route</div>
+    <div class="tab"        id="tab-gepland"  onclick="event.stopPropagation(); setTab('gepland')">Ingepland <span class="badge" id="cnt-gepland">0</span></div>
+    <div class="tab"        id="tab-rapporten" onclick="event.stopPropagation(); setTab('rapporten')">Rapporten</div>
+  </div>
 </div>
 
 <div id="offline-banner">📶 Geen internetverbinding — wijzigingen worden niet opgeslagen in Zoho</div>
@@ -1236,16 +1258,21 @@
       <button class="kal-view-btn active" id="kal-view-week" onclick="setKalView('week')">Week</button>
       <button class="kal-view-btn" id="kal-view-month" onclick="setKalView('month')">Maand</button>
     </div>
-    <button class="kal-nav" onclick="kalNav(-1)">‹</button>
-    <span class="kal-week-label" id="kal-label">—</span>
-    <button class="kal-nav" onclick="kalNav(1)">›</button>
-    <button class="kal-pending-pill" id="kal-pending-pill" onclick="togglePendingPanel()" style="display:none">
-      ⚠ <span class="pill-count" id="kal-pending-count">0</span> zonder datum
-    </button>
-    <button class="btn-autoplan" id="btn-autoplan" onclick="autoPlan()">⚡ Plan deze week</button>
-    <button class="btn-sec" onclick="document.getElementById('import-file-input').click()" title="Importeer installaties JSON" style="padding:5px 10px;font-size:0.75rem">📥 Import</button>
-    <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="handleImportFile(this)" />
-    <button class="btn-sec" onclick="openManueelModal()" title="Manuele afspraak toevoegen" style="padding:5px 10px;font-size:0.75rem">➕ Afspraak</button>
+    <div class="kal-nav-group">
+      <button class="kal-nav" onclick="kalNav(-1)">‹</button>
+      <span class="kal-week-label" id="kal-label">—</span>
+      <button class="kal-nav" onclick="kalNav(1)">›</button>
+      <button class="kal-today" id="kal-today-btn" onclick="kalToday()">Vandaag</button>
+    </div>
+    <div class="kal-actions">
+      <button class="kal-pending-pill" id="kal-pending-pill" onclick="togglePendingPanel()" style="display:none">
+        ⚠ <span class="pill-count" id="kal-pending-count">0</span> zonder datum
+      </button>
+      <button class="btn-autoplan" id="btn-autoplan" onclick="autoPlan()">⚡ Plan deze week</button>
+      <button class="btn-sec" onclick="document.getElementById('import-file-input').click()" title="Importeer installaties JSON" style="padding:5px 10px;font-size:0.75rem">📥 Import</button>
+      <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="handleImportFile(this)" />
+      <button class="btn-sec" onclick="openManueelModal()" title="Manuele afspraak toevoegen" style="padding:5px 10px;font-size:0.75rem">➕ Afspraak</button>
+    </div>
   </div>
   <div id="kal-no-date-section"></div>
   <div class="week-grid" id="week-grid"></div>
@@ -1624,6 +1651,11 @@ let kbVersie = 0;
 function kbFor(id)         { return klantBeschikbaarheid[id] || null; }
 function kbBlocked(id, d)  { return !!(kbFor(id)?.geblokkeerd?.includes(d)); }
 function kbPreferred(id)   { return kbFor(id)?.voorkeur || null; }
+// Effectieve interventieduur voor een ticket: override ?? globale standaard
+function duurVoor(id) {
+  const override = kbFor(id)?.duurOverride;
+  return (override && override > 0) ? override : (settings.duurMinuten || 120);
+}
 
 // ── Module-scope plannings-scoring (gedeeld door autoPlan + wachtrij) ─────────
 const PRIO_WEIGHT = { high: 1, medium: 3, low: 6 };
@@ -1721,6 +1753,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialiseer tab indicator op de actieve tab
   setTimeout(() => updateTabIndicator('tab-tickets'), 0);
   window.addEventListener('resize', () => {
+    const active = document.querySelector('.tab.active');
+    if (active) updateTabIndicator(active.id);
+  });
+  // Herbereken indicator als gebruiker de tabbalk horizontaal scrollt
+  document.querySelector('.tabs-inner')?.addEventListener('scroll', () => {
     const active = document.querySelector('.tab.active');
     if (active) updateTabIndicator(active.id);
   });
@@ -2233,6 +2270,11 @@ function renderKalender() {
 }
 
 function kalNav(dir) { kalOffset += dir; renderKalender(); }
+function kalToday() {
+  if (kalOffset === 0) return;
+  kalOffset = 0;
+  renderKalender();
+}
 
 function renderMonthView(today) {
   // Maand bepalen via kalOffset (aantal maanden tov vandaag)
@@ -2775,14 +2817,18 @@ async function saveAvailability() {
 }
 
 // Status: welke knop actief is in het formulier
-let _avFormKind  = 'fullday'; // 'fullday' | 'range'
-let _avFormScope = 'person';  // 'person'  | 'global'
-let _avFormDate  = null;
+let _avFormKind     = 'fullday'; // 'fullday' | 'range'
+let _avFormScope    = 'person';  // 'person'  | 'global'
+let _avFormDate     = null;
+let _avFormDateTot  = null;      // einde datumrange (alleen bij fullday + meerdere dagen)
+let _avFormMultiDay = false;     // true = verlof over meerdere werkdagen
 
 function openBlockModal(dateStr) {
-  _avFormDate  = dateStr;
-  _avFormKind  = 'fullday';
-  _avFormScope = activeAssigneeFilter !== 'all' ? 'person' : 'global';
+  _avFormDate     = dateStr;
+  _avFormDateTot  = null;
+  _avFormMultiDay = false;
+  _avFormKind     = 'fullday';
+  _avFormScope    = activeAssigneeFilter !== 'all' ? 'person' : 'global';
   const d = new Date(dateStr + 'T12:00:00');
   document.getElementById('block-date-label').textContent =
     d.toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long' });
@@ -2838,7 +2884,23 @@ function renderBlockModal() {
           <button class="av-radio-btn ${_avFormKind === 'range'   ? 'active' : ''}" onclick="avSetKind('range')">⏱ Tijdvak</button>
         </div>
       </div>
-      ${_avFormKind === 'range' ? `
+      ${_avFormKind === 'fullday' ? `
+      <div>
+        <div class="av-section-title">Periode</div>
+        <div class="av-time-row" style="gap:8px;align-items:center">
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer">
+            <input type="checkbox" id="av-multiday" onchange="avSetMultiDay(this.checked)" ${_avFormMultiDay ? 'checked' : ''} />
+            Meerdere werkdagen (verlof)
+          </label>
+        </div>
+        ${_avFormMultiDay ? `
+        <div class="av-time-row" style="gap:8px;margin-top:8px">
+          <span style="font-size:0.8rem;color:var(--muted)">Van</span>
+          <input type="date" class="av-time-input" id="av-date-van" value="${_avFormDate}" onchange="_avFormDate=this.value" />
+          <span style="font-size:0.8rem;color:var(--muted)">Tot</span>
+          <input type="date" class="av-time-input" id="av-date-tot" value="${_avFormDateTot || ''}" onchange="_avFormDateTot=this.value" />
+        </div>` : ''}
+      </div>` : `
       <div>
         <div class="av-section-title">Tijdvak</div>
         <div class="av-time-row">
@@ -2847,7 +2909,7 @@ function renderBlockModal() {
           <span style="font-size:0.8rem;color:var(--muted)">Tot</span>
           <input class="av-time-input" id="av-tot" type="time" value="${defaultTot}" />
         </div>
-      </div>` : ''}
+      </div>`}
       <div>
         <div class="av-section-title">Voor</div>
         <div class="av-radio-group">${scopeOptions}</div>
@@ -2862,11 +2924,18 @@ function renderBlockModal() {
 
 function avSetKind(kind) {
   _avFormKind = kind;
+  if (kind !== 'fullday') _avFormMultiDay = false; // multiday alleen bij fullday
   renderBlockModal();
 }
 
 function avSetScope(scope) {
   _avFormScope = scope;
+  renderBlockModal();
+}
+
+function avSetMultiDay(checked) {
+  _avFormMultiDay = checked;
+  if (!checked) _avFormDateTot = null;
   renderBlockModal();
 }
 
@@ -2882,6 +2951,53 @@ async function avAddException() {
     return;
   }
 
+  // Meerdere werkdagen (verlof-range)
+  if (_avFormKind === 'fullday' && _avFormMultiDay && _avFormDateTot) {
+    const vanDate = new Date(_avFormDate   + 'T12:00:00');
+    const totDate = new Date(_avFormDateTot + 'T12:00:00');
+    if (totDate < vanDate) {
+      toast('⚠ Einddatum moet na startdatum liggen', 2500);
+      return;
+    }
+    const newExceptions = [];
+    const cur = new Date(vanDate);
+    while (cur <= totDate) {
+      // Alleen werkdagen opnemen
+      if (settings.werkdagen.includes(cur.getDay())) {
+        newExceptions.push({
+          id:     crypto.randomUUID(),
+          scope,
+          person: scope === 'person' ? myPerson : null,
+          date:   cur.toISOString().split('T')[0],
+          kind:   'fullday',
+          from:   null,
+          to:     null,
+          reason,
+        });
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+    if (!newExceptions.length) {
+      toast('⚠ Geen werkdagen in de geselecteerde periode', 2500);
+      return;
+    }
+    avExceptions.push(...newExceptions);
+    _avFormMultiDay = false;
+    _avFormDateTot  = null;
+    renderBlockModal();
+    renderKalender();
+    const ok = await saveAvailability();
+    if (!ok) {
+      // Rollback alle toegevoegde exceptions
+      const ids = new Set(newExceptions.map(e => e.id));
+      avExceptions = avExceptions.filter(e => !ids.has(e.id));
+      renderBlockModal();
+      renderKalender();
+    }
+    return;
+  }
+
+  // Enkelvoudige dag (bestaand gedrag)
   const ex = {
     id:     crypto.randomUUID(),
     scope,
@@ -3095,15 +3211,20 @@ async function autoPlan() {
       pool.splice(pool.indexOf(seed), 1);
       const dayTickets = [seed];
 
-      // Fill: ticket met laagste score t.o.v. huidige positie op die dag
+      // Fill: ticket met laagste score t.o.v. huidige positie op die dag.
+      // Tickets met duurOverride tellen als meerdere slots (naar boven afgerond).
       let curLat = seed._lat, curLon = seed._lon;
-      for (let s = 1; s < day.cap && pool.length; s++) {
+      let usedSlots = Math.ceil(duurVoor(seed.id) / settings.duurMinuten); // seed telt al mee
+      while (usedSlots < day.cap && pool.length) {
         const fillPool = pool.filter(t => !kbBlocked(t.id, day.date));
         if (!fillPool.length) break;
         fillPool.sort((a, b) => fillScore(a, curLat, curLon, day.date) - fillScore(b, curLat, curLon, day.date));
         const chosen = fillPool[0];
+        const chosenSlots = Math.ceil(duurVoor(chosen.id) / settings.duurMinuten);
+        if (usedSlots + chosenSlots > day.cap) break; // past niet meer
         pool.splice(pool.indexOf(chosen), 1);
         dayTickets.push(chosen);
+        usedSlots += chosenSlots;
         if (chosen._lat && chosen._lon) { curLat = chosen._lat; curLon = chosen._lon; }
       }
 
@@ -3328,7 +3449,7 @@ function renderRouteList(date) {
       const legSec = routeData.legs[i]?.travelTimeSeconds ?? 30 * 60;
       curMin += Math.round(legSec / 60); // reistijd naar dit stop
       arrivalTimes.push(curMin);
-      curMin += settings.duurMinuten || 60; // interventieduur
+      curMin += duurVoor(stops[i]?.ticket?.id) || 60; // interventieduur (per-ticket override of standaard)
     }
   }
 
@@ -3506,6 +3627,8 @@ function updateTabIndicator(tabId) {
   if (!tab || !tabs) return;
   const tr = tab.getBoundingClientRect();
   const pr = tabs.getBoundingClientRect();
+  // tr.left - pr.left geeft de huidige visuele positie van de tab t.o.v. .tabs,
+  // ook na horizontaal scrollen van .tabs-inner — geen scrollLeft nodig.
   tabs.style.setProperty('--ind-left',  (tr.left - pr.left) + 'px');
   tabs.style.setProperty('--ind-width', tr.width + 'px');
 }
@@ -3727,7 +3850,7 @@ function computeArrivalTimes(date) {
     const legSec = hasRoute ? (routeData.legs[i]?.travelTimeSeconds ?? 30 * 60) : 30 * 60;
     curMin += Math.round(legSec / 60);
     result[stops[i].ticket.id] = curMin;
-    curMin += settings.duurMinuten || 60;
+    curMin += duurVoor(stops[i].ticket.id); // per-ticket duur override of standaard
   }
   return result;
 }
@@ -3906,7 +4029,10 @@ function extractLocalHour(dueDate) {
   if (!dueDate) return null;
   const d = new Date(dueDate);
   const h = d.getHours(), m = d.getMinutes();
+  // Sentinel: lokale middernacht (00:00) = geen tijdstip.
+  // Ook UTC-middernacht detecteren voor backward compat met oude plan.js records (T00:00:00.000Z).
   if (h === 0 && m === 0) return null;
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && dueDate.endsWith('Z')) return null;
   return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
 }
 
@@ -3945,6 +4071,18 @@ function renderKbSection(ticketId) {
         </div>
       </div>
 
+      <div class="kb-row">
+        <span class="kb-label">Verwachte duur</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="number" id="kb-duur-${ticketId}" min="15" max="480" step="15"
+            value="${kb.duurOverride || settings.duurMinuten}"
+            style="width:70px;font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
+          <span style="font-size:0.78rem;color:var(--muted)">min</span>
+          <button class="kb-add-btn" onclick="updateKb('${ticketId}','duur',document.getElementById('kb-duur-${ticketId}').value)">✓ Instellen</button>
+          ${kb.duurOverride ? `<button class="kb-chip-del" onclick="updateKb('${ticketId}','duur',null)" title="Reset naar standaard">↺</button>` : ''}
+        </div>
+      </div>
+
       <div class="kb-row" style="flex-direction:column;align-items:flex-start;gap:4px">
         <span class="kb-label">Notitie</span>
         <textarea class="kb-notitie" id="kb-notitie-${ticketId}" placeholder="bv. enkel na 14u, niet op vrijdag...">${escHtml(kb.notitie || '')}</textarea>
@@ -3974,11 +4112,18 @@ async function updateKb(ticketId, action, value) {
     kb.geblokkeerd = kb.geblokkeerd.filter(d => d !== value);
   } else if (action === 'notitie') {
     kb.notitie = value || '';
+  } else if (action === 'duur') {
+    const min = value ? parseInt(value, 10) : null;
+    if (min && min > 0 && min !== settings.duurMinuten) {
+      kb.duurOverride = min;
+    } else {
+      delete kb.duurOverride; // reset naar standaard
+    }
   }
 
   kb.bijgewerkt = new Date().toISOString();
   // Verwijder lege entry
-  if (!kb.voorkeur && !kb.geblokkeerd.length && !kb.notitie) {
+  if (!kb.voorkeur && !kb.geblokkeerd.length && !kb.notitie && !kb.duurOverride) {
     delete klantBeschikbaarheid[ticketId];
   }
 
@@ -4087,7 +4232,8 @@ let _sigKlant  = null;
 const R = {
   datum: '', technieker: '', adres: '', start: '', stop: '', werktijd: '',
   facturatie: 'klant', facturatieVrij: '',
-  servicetype: 'forfait',
+  servicetype: '2e-lijn',
+  aanrijtijdMin: 0,
   interventieType: 'Interventie',
   installateur: '', serienummer: '', type: '', uitvoering: '', kabel: '', kabellengte: '',
   probleem: '', acties: '',
@@ -4128,12 +4274,22 @@ function openRapport(ticketId, date) {
   R.varia        = '';
   R.onderdelen   = [];
   R.technieker   = R.technieker || ''; // bewaar als al ingevuld
-  R.facturatie   = 'klant';
+  R.facturatie     = 'klant';
   R.facturatieVrij = '';
-  R.servicetype  = 'forfait';
+  R.servicetype    = '2e-lijn';
+  // Aanrijtijd ophalen uit TomTom routeData als die beschikbaar is voor deze datum
+  R.aanrijtijdMin = 0;
+  if (routeData?.legs && currentRouteDate === date) {
+    const dayStops = (planning[date] || []);
+    const stopIdx  = dayStops.findIndex(p => p.ticket.id === ticketId);
+    if (stopIdx >= 0 && routeData.legs[stopIdx]) {
+      R.aanrijtijdMin = Math.round(routeData.legs[stopIdx].travelTimeSeconds / 60);
+    }
+  }
   R.type = ''; R.uitvoering = ''; R.kabel = ''; R.kabellengte = '';
   R.hersteld = 'nee'; R.nieuwInter = 'nee';
   _sigTech = _sigKlant = null;
+  _rapportUploaded = false; // reset guard bij nieuwe wizard-sessie
 
   _wizStep = 0;
   document.getElementById('rapport-wizard').classList.add('open');
@@ -4141,7 +4297,8 @@ function openRapport(ticketId, date) {
 }
 
 function closeWizard() {
-  if (confirm('Rapport sluiten? Niet-opgeslagen wijzigingen gaan verloren.')) {
+  // Na een geslaagd rapport is er niets meer te verliezen — geen bevestiging nodig.
+  if (_rapportUploaded || confirm('Rapport sluiten? Niet-opgeslagen wijzigingen gaan verloren.')) {
     document.getElementById('rapport-wizard').classList.remove('open');
   }
 }
@@ -4202,6 +4359,13 @@ function calcWerktijd(start, stop) {
   const m = totalMin % 60;
   if (h === 0) return `${m} min`;
   return m > 0 ? `${h}u${String(m).padStart(2,'0')}` : `${h}u`;
+}
+function calcWerktijdMin(start, stop) {
+  if (!start || !stop) return 0;
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = stop.split(':').map(Number);
+  const diff = (eh * 60 + em) - (sh * 60 + sm);
+  return diff > 0 ? diff : 0;
 }
 function updateWerktijd() {
   const start = wizV('f-start');
@@ -4279,7 +4443,64 @@ function wizSaveAlgemeen() {
 }
 
 // ── Stap 2: Facturatie & Servicetype ──
+function berekenLoonkost(servicetype, werktijdMin, aanrijtijdMin) {
+  if (servicetype === '2e-lijn') {
+    const totMin    = (werktijdMin || 0) + (aanrijtijdMin || 0);
+    const totUren   = totMin / 60;
+    const extraUren = totUren > 3 ? Math.ceil(totUren - 3) : 0;
+    return { bruto: 175 + extraUren * 75, totMin, extraUren };
+  }
+  if (servicetype === '1e-lijn') {
+    const bruto = Math.round((werktijdMin || 0) / 60 * 115 * 100) / 100;
+    return { bruto, totMin: werktijdMin || 0, extraUren: 0 };
+  }
+  // garantie: bereken alsof 1e lijn maar netto = 0
+  const bruto = Math.round((werktijdMin || 0) / 60 * 115 * 100) / 100;
+  return { bruto, netto: 0, totMin: werktijdMin || 0, extraUren: 0 };
+}
+
+function wizLoonkostPreview() {
+  const st       = wizChecked('f-servicetype') || R.servicetype;
+  const wMin     = calcWerktijdMin(R.start, R.stop);
+  const aMin     = parseInt(document.getElementById('f-aanrijtijd')?.value) || 0;
+  const { bruto, totMin, extraUren } = berekenLoonkost(st, wMin, aMin);
+
+  const fmt = m => {
+    const h = Math.floor(m / 60), mn = m % 60;
+    return h > 0 ? (mn > 0 ? `${h}u${String(mn).padStart(2,'0')}` : `${h}u`) : `${mn} min`;
+  };
+
+  let regels = [];
+  if (st === '2e-lijn') {
+    if (aMin) regels.push(`Aanrijtijd: ${fmt(aMin)}`);
+    regels.push(`Werktijd: ${fmt(wMin)}`);
+    regels.push(`Totaal: ${fmt(totMin)} → forfait €175`);
+    if (extraUren > 0) regels.push(`+ ${extraUren}u extra × €75 = €${extraUren * 75}`);
+  } else if (st === '1e-lijn') {
+    regels.push(`Werktijd: ${fmt(wMin)} × €115/u`);
+  } else {
+    regels.push(`Werktijd: ${fmt(wMin)} → loonkost gedekt door garantie`);
+  }
+
+  const isGarantie = st === 'garantie';
+  const netto = isGarantie ? 0 : bruto;
+
+  const el = document.getElementById('wiz-loonkost-preview');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="font-size:0.78rem;color:var(--muted);margin-bottom:4px">${regels.join(' · ')}</div>
+    <div style="display:flex;align-items:baseline;gap:6px">
+      ${isGarantie && bruto > 0
+        ? `<span style="text-decoration:line-through;color:var(--muted);font-size:0.85rem">€ ${bruto.toFixed(2)}</span>
+           <span style="font-size:1rem;font-weight:700;color:var(--accent)">€ 0,00</span>
+           <span style="font-size:0.72rem;color:var(--muted)">(100% korting — garantie)</span>`
+        : `<span style="font-size:1rem;font-weight:700;color:var(--accent)">€ ${netto.toFixed(2)}</span>`
+      }
+    </div>`;
+}
+
 function wizRenderFacturatie(el) {
+  const isGarantie = R.servicetype === 'garantie';
   el.innerHTML = `
     <div class="wiz-step-title">Facturatie &amp; Servicetype</div>
     <div class="wiz-field">
@@ -4304,31 +4525,60 @@ function wizRenderFacturatie(el) {
     </div>
     <div class="wiz-sep"></div>
     <div class="wiz-field">
-      <label class="wiz-field-label">Servicetype</label>
+      <label class="wiz-field-label">Type interventie</label>
       <div class="wiz-radio-cards">
         <label class="wiz-radio-card">
-          <input type="radio" name="f-servicetype" value="forfait" ${R.servicetype==='forfait'?'checked':''}>
-          <div><div class="wiz-radio-card-label">€175 forfait (3u)</div></div>
+          <input type="radio" name="f-servicetype" value="2e-lijn" ${R.servicetype==='2e-lijn'?'checked':''} onchange="wizServicetypeChange()">
+          <div>
+            <div class="wiz-radio-card-label">2e lijns interventie</div>
+            <div class="wiz-radio-card-sub">€175 forfait (3u) · €75/gestart uur extra · aanrijtijd inbegrepen</div>
+          </div>
         </label>
         <label class="wiz-radio-card">
-          <input type="radio" name="f-servicetype" value="garantie" ${R.servicetype==='garantie'?'checked':''}>
-          <div><div class="wiz-radio-card-label">Garantie</div></div>
+          <input type="radio" name="f-servicetype" value="1e-lijn" ${R.servicetype==='1e-lijn'?'checked':''} onchange="wizServicetypeChange()">
+          <div>
+            <div class="wiz-radio-card-label">1e lijns interventie</div>
+            <div class="wiz-radio-card-sub">€115/uur · aanrijtijd niet aangerekend</div>
+          </div>
         </label>
         <label class="wiz-radio-card">
-          <input type="radio" name="f-servicetype" value="uur" ${R.servicetype==='uur'?'checked':''}>
-          <div><div class="wiz-radio-card-label">Interventie per uur</div></div>
+          <input type="radio" name="f-servicetype" value="garantie" ${R.servicetype==='garantie'?'checked':''} onchange="wizServicetypeChange()">
+          <div>
+            <div class="wiz-radio-card-label">Garantie</div>
+            <div class="wiz-radio-card-sub">100% korting op loonkosten</div>
+          </div>
         </label>
       </div>
-    </div>`;
+    </div>
+    <div id="aanrijtijd-wrap" style="${R.servicetype==='2e-lijn'?'':'display:none'};margin-top:6px">
+      <div class="wiz-field">
+        <label class="wiz-field-label">Aanrijtijd (minuten, enkel heen)
+          ${R.aanrijtijdMin > 0 ? '<span style="font-size:0.72rem;color:var(--accent);margin-left:6px">📡 TomTom</span>' : ''}
+        </label>
+        <input class="wiz-input" id="f-aanrijtijd" type="number" min="0" step="1"
+          value="${R.aanrijtijdMin || ''}" placeholder="bijv. 35"
+          oninput="wizLoonkostPreview()" style="max-width:120px" />
+      </div>
+    </div>
+    <div class="wiz-sep"></div>
+    <div style="background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:12px 14px" id="wiz-loonkost-preview"></div>`;
+  wizLoonkostPreview();
 }
 function wizFacturatieChange() {
   const val = wizChecked('f-facturatie');
   document.getElementById('facturatie-vrij-wrap').style.display = val === 'vrij' ? '' : 'none';
 }
+function wizServicetypeChange() {
+  const st = wizChecked('f-servicetype');
+  const wrap = document.getElementById('aanrijtijd-wrap');
+  if (wrap) wrap.style.display = st === '2e-lijn' ? '' : 'none';
+  wizLoonkostPreview();
+}
 function wizSaveFacturatie() {
   R.facturatie     = wizChecked('f-facturatie') || 'klant';
   R.facturatieVrij = wizV('f-facturatie-vrij');
-  R.servicetype    = wizChecked('f-servicetype') || 'forfait';
+  R.servicetype    = wizChecked('f-servicetype') || '2e-lijn';
+  R.aanrijtijdMin  = parseInt(document.getElementById('f-aanrijtijd')?.value) || 0;
 }
 
 // ── Stap 3: Productinfo ──
@@ -4639,11 +4889,18 @@ function wizClearSigTech() {
 
 // ── Stap 7: Handtekening klant ──
 function wizRenderSigKlant(el) {
+  // Bouw rapport-preview (klant kan scrollen en lezen voor te tekenen)
+  const previewHtml = buildRapportHtml();
   el.innerHTML = `
     <div class="wiz-step-title">✍️ Handtekening klant</div>
-    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:14px;line-height:1.5">
-      Geef het apparaat aan de klant om te ondertekenen.
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;line-height:1.5">
+      Geef het apparaat aan de klant. Klant leest het rapport en tekent onderaan.
     </p>
+    <iframe id="rapport-preview-frame"
+      srcdoc=""
+      style="width:100%;height:420px;border:1px solid var(--border);border-radius:6px;margin-bottom:14px;background:#fff"
+      sandbox="allow-same-origin">
+    </iframe>
     <div class="wiz-sig-container" id="sig-klant-wrap">
       <canvas id="sig-klant-canvas"></canvas>
       <div class="wiz-sig-hint" id="sig-klant-hint"><div style="font-size:2rem">✍️</div><div>Teken hier</div></div>
@@ -4653,6 +4910,10 @@ function wizRenderSigKlant(el) {
       <div class="wiz-sig-status" id="sig-klant-status">Nog niet getekend</div>
     </div>`;
   requestAnimationFrame(() => {
+    // Vul de rapport-preview iframe (na render zodat het DOM beschikbaar is)
+    const frame = document.getElementById('rapport-preview-frame');
+    if (frame) frame.srcdoc = previewHtml;
+
     const canvas = document.getElementById('sig-klant-canvas');
     const wrap   = document.getElementById('sig-klant-wrap');
     canvas.width  = wrap.offsetWidth;
@@ -4680,11 +4941,19 @@ function wizClearSigKlant() {
 }
 
 // ── PDF ──
-function printRapport() {
+// Guard: voorkomt dubbele upload/archivering per wizard-sessie
+let _rapportUploaded = false;
+
+// Bouwt de rapport-HTML-string zonder side effects (herbruikbaar voor preview + afdrukken).
+function buildRapportHtml() {
   const facturatieLabel = R.facturatie === 'vrij'
     ? (R.facturatieVrij || '—')
     : R.facturatie === 'klant' ? 'Klant' : 'Partner / installateur';
-  const stLabel = { forfait: '€175 forfait (3u)', garantie: 'Garantie', uur: 'Interventie per uur' }[R.servicetype] || '—';
+  const stLabel = {
+    '2e-lijn': '2e lijns interventie',
+    '1e-lijn': '1e lijns interventie',
+    'garantie': 'Garantie',
+  }[R.servicetype] || '—';
   const kabelStr = R.kabel === 'kabel'
     ? ('Vaste kabel' + (R.kabellengte ? ' ' + R.kabellengte : ''))
     : R.kabel === 'socket' ? 'Socket' : '';
@@ -4694,26 +4963,26 @@ function printRapport() {
     ? new Date(R.datum + 'T12:00:00').toLocaleDateString('nl-BE', { day:'numeric', month:'long', year:'numeric' })
     : '—';
 
-  const geldigeOnderdelen = R.onderdelen.filter(p => p.naam);
-  const totaalOnderdelen  = geldigeOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+  const geldigeOnderdelen  = R.onderdelen.filter(p => p.naam);
+  const billableOnderdelen = geldigeOnderdelen.filter(p => p.factureren !== false);
+  const totaalOnderdelen   = billableOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
   let partsHtml = geldigeOnderdelen
     .map(p => {
-      const aantal    = parseInt(p.aantal) || 1;
-      const stukprijs = parseFloat(p.prijs) || 0;
-      const subtotaal = stukprijs * aantal;
+      const aantal      = parseInt(p.aantal) || 1;
+      const factureren  = p.factureren !== false;
+      const stukprijs   = parseFloat(p.prijs) || 0;
+      const subtotaal   = stukprijs * aantal;
       return `<tr>
-        <td>${escHtml(p.naam)}</td>
+        <td>${escHtml(p.naam)}${!factureren ? ' <span style="font-size:7.5pt;color:#888;font-style:italic">(niet aangerekend)</span>' : ''}</td>
         <td style="text-align:center">${aantal}</td>
-        <td style="text-align:right">€ ${stukprijs.toFixed(2)}</td>
-        <td style="text-align:right">€ ${subtotaal.toFixed(2)}</td>
-        <td style="text-align:center">${p.factureren !== false ? 'Ja' : 'Nee'}</td>
+        <td style="text-align:right">${factureren ? `€ ${stukprijs.toFixed(2)}` : '—'}</td>
+        <td style="text-align:right">${factureren ? `€ ${subtotaal.toFixed(2)}` : '—'}</td>
       </tr>`;
     }).join('');
   if (geldigeOnderdelen.length) {
     partsHtml += `<tr style="background:#f0fdf9;font-weight:700">
-      <td colspan="3" style="text-align:right;font-size:8pt;text-transform:uppercase;letter-spacing:.05em;color:#555">Totaal (excl. btw)</td>
-      <td style="text-align:right">€ ${totaalOnderdelen.toFixed(2)}</td>
-      <td></td>
+      <td colspan="2" style="text-align:right;font-size:8pt;text-transform:uppercase;letter-spacing:.05em;color:#555">Totaal onderdelen (excl. btw)</td>
+      <td colspan="2" style="text-align:right">€ ${totaalOnderdelen.toFixed(2)}</td>
     </tr>`;
   }
 
@@ -4798,9 +5067,52 @@ function printRapport() {
   <div class="status-cell"><div class="info-lbl">Nieuwe interventie nodig</div><strong>${R.nieuwInter==='ja'?'Ja':'Nee'}</strong></div>
 </div>
 ${geldigeOnderdelen.length ? `<div class="sec">Vervangen onderdelen</div>
-<table class="parts"><thead><tr><th>Omschrijving</th><th style="text-align:center">Aantal</th><th style="text-align:right">Stukprijs</th><th style="text-align:right">Subtotaal</th><th style="text-align:center">Factureren</th></tr></thead>
+<table class="parts"><thead><tr><th>Omschrijving</th><th style="text-align:center">Aantal</th><th style="text-align:right">Stukprijs</th><th style="text-align:right">Subtotaal</th></tr></thead>
 <tbody>${partsHtml}</tbody></table>` : ''}
 ${R.varia ? `<div class="sec">Varia</div><div class="block">${R.varia}</div>` : ''}
+${(() => {
+  const wMin = calcWerktijdMin(R.start, R.stop);
+  const aMin = parseInt(R.aanrijtijdMin) || 0;
+  const st   = R.servicetype;
+  const { bruto, totMin, extraUren } = berekenLoonkost(st, wMin, aMin);
+  const isGarantie = st === 'garantie';
+  const netto = isGarantie ? 0 : bruto;
+
+  const fmtMin = m => {
+    const h = Math.floor(m / 60), mn = m % 60;
+    return h > 0 ? (mn > 0 ? `${h}u${String(mn).padStart(2,'0')}` : `${h}u`) : `${mn} min`;
+  };
+
+  let detail = '';
+  if (st === '2e-lijn') {
+    const delen = [];
+    if (aMin) delen.push(`Aanrijtijd: ${fmtMin(aMin)}`);
+    delen.push(`Werktijd: ${fmtMin(wMin)}`);
+    delen.push(`Totaal: ${fmtMin(totMin)} → forfait €175 (eerste 3u)`);
+    if (extraUren > 0) delen.push(`${extraUren} extra gestart${extraUren > 1 ? 'e' : ''} uur × €75 = €${extraUren * 75}`);
+    detail = delen.join(' &nbsp;·&nbsp; ');
+  } else if (st === '1e-lijn') {
+    detail = `Werktijd: ${fmtMin(wMin)} × €115/u`;
+  } else {
+    detail = `Werktijd: ${fmtMin(wMin)} — volledig gedekt door garantie`;
+  }
+
+  const nettoCel = isGarantie
+    ? `<td style="text-align:right"><span style="text-decoration:line-through;color:#aaa;font-size:8pt">€ ${bruto.toFixed(2)}</span> &nbsp; <strong style="color:#00b87a">€ 0,00</strong></td>`
+    : `<td style="text-align:right"><strong>€ ${netto.toFixed(2)}</strong></td>`;
+
+  return `<div class="sec">Loonkosten</div>
+<table class="parts"><thead><tr><th>Omschrijving</th><th style="text-align:right">Bedrag (excl. btw)</th></tr></thead>
+<tbody>
+<tr>
+  <td>${stLabel}${isGarantie ? ' <span style="font-size:7.5pt;color:#888;font-style:italic">(100% korting)</span>' : ''}<br>
+    <span style="font-size:7.5pt;color:#777">${detail}</span></td>
+  ${nettoCel}
+</tr>
+${isGarantie ? `<tr style="background:#f0fdf9;font-weight:700"><td style="text-align:right;font-size:8pt;text-transform:uppercase;letter-spacing:.05em;color:#555">Totaal loonkosten (excl. btw)</td><td style="text-align:right">€ 0,00</td></tr>`
+             : `<tr style="background:#f0fdf9;font-weight:700"><td style="text-align:right;font-size:8pt;text-transform:uppercase;letter-spacing:.05em;color:#555">Totaal loonkosten (excl. btw)</td><td style="text-align:right">€ ${netto.toFixed(2)}</td></tr>`}
+</tbody></table>`;
+})()}
 <div class="sec">Handtekeningen</div>
 <div class="sig-row">
   <div class="sig-box"><div class="sig-box-title">Technieker</div>${sigTechImg}</div>
@@ -4808,9 +5120,14 @@ ${R.varia ? `<div class="sec">Varia</div><div class="block">${R.varia}</div>` : 
 </div>
 </body></html>`;
 
-  const blob   = new Blob([html], { type: 'text/html; charset=utf-8' });
+  return html;
+}
+
+function printRapport() {
+  const html    = buildRapportHtml();
+  const blob    = new Blob([html], { type: 'text/html; charset=utf-8' });
   const blobUrl = URL.createObjectURL(blob);
-  const win    = window.open(blobUrl, '_blank');
+  const win     = window.open(blobUrl, '_blank');
   if (!win) {
     URL.revokeObjectURL(blobUrl);
     return toast('Pop-upblokkering actief — sta pop-ups toe voor deze pagina');
@@ -4818,12 +5135,16 @@ ${R.varia ? `<div class="sec">Varia</div><div class="block">${R.varia}</div>` : 
   // Revoke na 2 min — genoeg tijd om te printen
   setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
 
-  // Upload PDF als bijlage naar Zoho in achtergrond
-  const rapportFilename = `rapport-${_wizTicket.number || _wizTicket.id}-${R.datum || 'onbekend'}.pdf`;
-  uploadRapportToZoho(html, _wizTicket.id, rapportFilename);
+  // Upload en archiveer slechts één keer per wizard-sessie (guard tegen dubbele uploads)
+  if (!_rapportUploaded) {
+    _rapportUploaded = true;
+    const rapportFilename = `rapport-${_wizTicket.number || _wizTicket.id}-${R.datum || 'onbekend'}.pdf`;
+    uploadRapportToZoho(html, _wizTicket.id, rapportFilename);
+    archiveerRapport(html);
+  }
 
-  // Archiveer rapport in Netlify Blobs
-  archiveerRapport(html);
+  // Wizard sluiten na geslaagd rapport — geen bevestigingsdialog meer nodig
+  document.getElementById('rapport-wizard').classList.remove('open');
 }
 
 async function archiveerRapport(html) {
