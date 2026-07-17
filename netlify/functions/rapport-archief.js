@@ -16,7 +16,7 @@ function corsHeaders(req) {
   const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
   return {
     'Access-Control-Allow-Origin':  allowed,
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Vary': 'Origin',
   };
@@ -74,9 +74,22 @@ export default async (req, context) => {
       rapportData:     body.rapportData || null,
     };
 
+    // Dedup: als er al een rapport bestaat voor hetzelfde ticket op dezelfde datum,
+    // update die entry i.p.v. een duplicaat te prependen (1 ticket = 1 interventie).
+    const dupIdx = current.rapports.findIndex(
+      r => r.ticketId === entry.ticketId && r.datum === entry.datum && entry.ticketId
+    );
+    let updatedList;
+    if (dupIdx >= 0) {
+      updatedList = [...current.rapports];
+      updatedList[dupIdx] = { ...updatedList[dupIdx], ...entry, id: updatedList[dupIdx].id };
+    } else {
+      updatedList = [entry, ...current.rapports];
+    }
+
     const nieuw = {
       versie:   current.versie + 1,
-      rapports: [entry, ...current.rapports].slice(0, 500), // max 500 bewaren
+      rapports: updatedList.slice(0, 500), // max 500 bewaren
     };
     await store.setJSON(BLOB_KEY, nieuw);
 
@@ -84,6 +97,28 @@ export default async (req, context) => {
       status: 200,
       headers: { ...hdrs, 'Content-Type': 'application/json' },
     });
+  }
+
+  // ── DELETE ────────────────────────────────────────────────────────────────
+  if (req.method === 'DELETE') {
+    let body;
+    try { body = await req.json(); }
+    catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers: { ...hdrs, 'Content-Type': 'application/json' } }); }
+
+    const { id } = body;
+    if (!id) return new Response(JSON.stringify({ error: 'id vereist' }), { status: 400, headers: { ...hdrs, 'Content-Type': 'application/json' } });
+
+    let current = EMPTY;
+    try { current = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY; }
+    catch {}
+
+    const filtered = current.rapports.filter(r => r.id !== id);
+    if (filtered.length === current.rapports.length) {
+      return new Response(JSON.stringify({ error: 'Rapport niet gevonden' }), { status: 404, headers: { ...hdrs, 'Content-Type': 'application/json' } });
+    }
+
+    await store.setJSON(BLOB_KEY, { versie: current.versie + 1, rapports: filtered });
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...hdrs, 'Content-Type': 'application/json' } });
   }
 
   return new Response('Method Not Allowed', { status: 405, headers: hdrs });

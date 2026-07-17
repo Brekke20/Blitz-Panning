@@ -4424,12 +4424,12 @@ function berekenLoonkost(servicetype, werktijdMin, aanrijtijdMin) {
     return { bruto: 175 + extraUren * 75, totMin, extraUren };
   }
   if (servicetype === '1e-lijn') {
-    const bruto = Math.round((werktijdMin || 0) / 60 * 115 * 100) / 100;
-    return { bruto, totMin: werktijdMin || 0, extraUren: 0 };
+    const gestartUren = Math.ceil((werktijdMin || 0) / 60);
+    return { bruto: gestartUren * 115, gestartUren, totMin: werktijdMin || 0, extraUren: 0 };
   }
-  // garantie: bereken alsof 1e lijn maar netto = 0
-  const bruto = Math.round((werktijdMin || 0) / 60 * 115 * 100) / 100;
-  return { bruto, netto: 0, totMin: werktijdMin || 0, extraUren: 0 };
+  // garantie: zelfde berekening als 1e lijn maar netto = 0
+  const gestartUren = Math.ceil((werktijdMin || 0) / 60);
+  return { bruto: gestartUren * 115, gestartUren, netto: 0, totMin: werktijdMin || 0, extraUren: 0 };
 }
 
 function wizLoonkostPreview() {
@@ -4450,9 +4450,11 @@ function wizLoonkostPreview() {
     regels.push(`Totaal: ${fmt(totMin)} → forfait €175`);
     if (extraUren > 0) regels.push(`+ ${extraUren}u extra × €75 = €${extraUren * 75}`);
   } else if (st === '1e-lijn') {
-    regels.push(`Werktijd: ${fmt(wMin)} × €115/u`);
+    const gu = Math.ceil(wMin / 60);
+    regels.push(`Werktijd: ${fmt(wMin)} → ${gu} gestart${gu !== 1 ? 'e' : ''} uur × €115`);
   } else {
-    regels.push(`Werktijd: ${fmt(wMin)} → loonkost gedekt door garantie`);
+    const gu = Math.ceil(wMin / 60);
+    regels.push(`Werktijd: ${fmt(wMin)} → ${gu} gestart${gu !== 1 ? 'e' : ''} uur × €115 (gedekt door garantie)`);
   }
 
   const isGarantie = st === 'garantie';
@@ -5065,9 +5067,11 @@ ${(() => {
     if (extraUren > 0) delen.push(`${extraUren} extra gestart${extraUren > 1 ? 'e' : ''} uur × €75 = €${extraUren * 75}`);
     detail = delen.join(' &nbsp;·&nbsp; ');
   } else if (st === '1e-lijn') {
-    detail = `Werktijd: ${fmtMin(wMin)} × €115/u`;
+    const gu = Math.ceil(wMin / 60);
+    detail = `Werktijd: ${fmtMin(wMin)} → ${gu} gestart${gu !== 1 ? 'e' : ''} uur × €115`;
   } else {
-    detail = `Werktijd: ${fmtMin(wMin)} — volledig gedekt door garantie`;
+    const gu = Math.ceil(wMin / 60);
+    detail = `Werktijd: ${fmtMin(wMin)} → ${gu} gestart${gu !== 1 ? 'e' : ''} uur × €115 — volledig gedekt door garantie`;
   }
 
   const nettoCel = isGarantie
@@ -5195,29 +5199,84 @@ function renderRapportArchief() {
     return;
   }
   body.innerHTML = _rapportArchief.map((r, i) => {
-    const datumStr = r.datum
+    const datumStr  = r.datum
       ? new Date(r.datum + 'T12:00:00').toLocaleDateString('nl-BE', { weekday:'short', day:'numeric', month:'short', year:'numeric' })
       : '—';
-    const totStr   = r.totaalOnderdelen ? `€ ${r.totaalOnderdelen.toFixed(2)}` : '';
-    const hersteld = r.hersteld === 'ja' ? '<span style="color:var(--green);font-weight:600">✓ Hersteld</span>' : '<span style="color:var(--orange)">⚠ Niet hersteld</span>';
-    const nieuw    = r.nieuwInter === 'ja' ? '<span style="color:var(--orange)">🔁 Nieuwe interventie</span>' : '';
+    const hersteld  = r.hersteld === 'ja'
+      ? '<span style="color:var(--green);font-weight:600">✓ Hersteld</span>'
+      : '<span style="color:var(--orange)">⚠ Niet hersteld</span>';
+    const nieuw     = r.nieuwInter === 'ja' ? '<span style="color:var(--orange)">🔁 Nieuwe interventie</span>' : '';
+
+    // ── Prijs berekenen ──
+    const rd       = r.rapportData || {};
+    const st       = rd.servicetype || r.servicetype || '';
+    const isGarantie = st === 'garantie';
+    const wMin     = calcWerktijdMin(rd.start, rd.stop);
+    const aMin     = parseInt(rd.aanrijtijdMin) || 0;
+    const { bruto: loonBruto } = wMin > 0 ? berekenLoonkost(st, wMin, aMin) : { bruto: 0 };
+    const loonNetto = isGarantie ? 0 : loonBruto;
+
+    const billableOnderdelen = (rd.onderdelen || []).filter(p => p.naam && p.factureren !== false);
+    const totOnderdelen = billableOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+    const totFactureerbaar = loonNetto + totOnderdelen;
+
+    // Labels voor servicetype
+    const stLabels = { '2e-lijn': '2e lijns', '1e-lijn': '1e lijns', 'garantie': 'Garantie' };
+    const stBadge = st ? `<span style="font-size:0.68rem;padding:1px 6px;border-radius:20px;font-weight:600;background:${isGarantie ? 'var(--surface3)' : 'var(--accent-dim)'};color:${isGarantie ? 'var(--muted)' : 'var(--accent)'}">${stLabels[st] || st}</span>` : '';
+
+    // Prijsweergave
+    let prijsHtml = '';
+    if (isGarantie && loonBruto > 0) {
+      prijsHtml = `<span style="margin-left:auto;text-align:right;line-height:1.3">
+        <span style="font-size:0.68rem;color:var(--muted);display:block">Niet factureerbaar</span>
+        <span style="text-decoration:line-through;color:var(--muted);font-size:0.72rem">€ ${(loonBruto + (r.totaalOnderdelen||0)).toFixed(2)}</span>
+        <span style="color:var(--muted);font-size:0.72rem;margin-left:4px">garantie</span>
+      </span>`;
+    } else if (!isGarantie && (totFactureerbaar > 0)) {
+      prijsHtml = `<span style="margin-left:auto;text-align:right;line-height:1.3">
+        <span style="font-size:0.68rem;color:var(--muted);display:block">Factureerbaar</span>
+        <span style="font-size:0.85rem;font-weight:700;color:var(--accent)">€ ${totFactureerbaar.toFixed(2)}</span>
+      </span>`;
+    }
+
+    const rapportId = r.id || '';
+
     return `<div class="ticket" style="margin-bottom:8px">
       <div class="t-body">
-        <div class="t-top" style="flex-wrap:wrap;gap:4px">
+        <div class="t-top" style="flex-wrap:wrap;gap:4px;align-items:flex-start">
           ${r.ticketNumber ? `<span class="tnum">#${escHtml(r.ticketNumber)}</span>` : ''}
           <span style="font-size:0.72rem;color:var(--muted)">${datumStr}</span>
           ${r.technieker ? `<span class="atag">${escHtml(r.technieker)}</span>` : ''}
+          ${stBadge}
           ${hersteld} ${nieuw}
-          ${totStr ? `<span style="font-size:0.72rem;font-weight:600;color:var(--text2);margin-left:auto">${totStr}</span>` : ''}
+          ${prijsHtml}
         </div>
         ${r.klant ? `<div class="tsub">${escHtml(r.klant)}</div>` : ''}
         ${r.adres ? `<div class="taddr ok">${escHtml(r.adres)}</div>` : ''}
-        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
-          ${r.rapportData?._html ? `<button class="cal-btn" onclick="herOpenRapport(${i})">📄 Openen</button>` : ''}
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center">
+          ${rd._html ? `<button class="cal-btn" onclick="herOpenRapport(${i})">📄 Openen</button>` : ''}
+          ${rapportId ? `<button class="cal-btn" style="color:var(--red);border-color:var(--red)" onclick="verwijderRapport('${escHtml(rapportId)}','${escHtml(r.ticketNumber||r.ticketId||'?')}','${escHtml(datumStr)}')">🗑 Verwijderen</button>` : ''}
         </div>
       </div>
     </div>`;
   }).join('');
+}
+
+async function verwijderRapport(id, ticketRef, datumStr) {
+  if (!confirm(`Rapport verwijderen?\n\nTicket: ${ticketRef}\nDatum: ${datumStr}\n\nDeze actie kan niet ongedaan worden gemaakt.`)) return;
+  try {
+    const res = await fetch('/api/rapport-archief', {
+      method:  'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ id }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.status);
+    toast('✅ Rapport verwijderd');
+    await laadRapportArchief();
+  } catch (err) {
+    toast('❌ Verwijderen mislukt: ' + err.message);
+  }
 }
 
 function herOpenRapport(idx) {
