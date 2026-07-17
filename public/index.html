@@ -456,6 +456,7 @@
     .month-chip.confirmed { background: var(--green-dim); color: var(--green); }
     .month-chip.local    { background: rgba(124,92,252,0.15); color: #7c5cfc; }
     .month-chip.blocked  { background: var(--red-dim); color: var(--red); }
+    .month-chip.holiday  { background: rgba(251,191,36,0.15); color: #d97706; }
     .month-more { font-size: 0.59rem; color: var(--muted); padding: 1px 4px; }
 
     /* Week grid */
@@ -494,9 +495,11 @@
       transition: background 0.12s, color 0.12s;
     }
     .day-block-btn:hover { background: var(--surface2); color: var(--text2); border-color: var(--border); }
-    .day-block-btn.blocked { background: var(--red-dim); color: var(--red); border-color: rgba(248,81,73,0.2); }
+    .day-block-btn.blocked  { background: var(--red-dim); color: var(--red); border-color: rgba(248,81,73,0.2); }
+    .day-block-btn.holiday  { background: rgba(251,191,36,0.15); color: #d97706; border-color: rgba(251,191,36,0.3); }
     .day-body { flex: 1; padding: 6px; background: var(--bg); display: flex; flex-direction: column; gap: 5px; }
-    .day-body.blocked-day { background: repeating-linear-gradient(135deg, var(--bg), var(--bg) 8px, rgba(248,81,73,0.025) 8px, rgba(248,81,73,0.025) 16px); }
+    .day-body.blocked-day  { background: repeating-linear-gradient(135deg, var(--bg), var(--bg) 8px, rgba(248,81,73,0.025)  8px, rgba(248,81,73,0.025)  16px); }
+    .day-body.holiday-day  { background: repeating-linear-gradient(135deg, var(--bg), var(--bg) 8px, rgba(251,191,36,0.04)  8px, rgba(251,191,36,0.04)  16px); }
     .day-empty { font-size: 0.69rem; color: var(--muted); text-align: center; padding: 20px 4px; opacity: 0.35; }
 
     /* Kalender ticket */
@@ -542,6 +545,7 @@
       position: relative;
       border: 1px solid var(--border);
       border-radius: var(--r);
+      cursor: pointer;
       padding: 7px 9px;
       background: var(--surface);
       overflow: hidden;
@@ -1425,6 +1429,24 @@
   </div>
 </div>
 
+<!-- Lokale afspraak detail modal -->
+<div class="overlay" id="local-det-overlay" onclick="closeLocalDet(event)">
+  <div class="modal">
+    <div class="mhdr">
+      <div class="mhdr-tags" id="ld-type"></div>
+      <div class="mhdr-title" id="ld-titel"></div>
+      <div class="mhdr-num" id="ld-datum" style="font-size:0.78rem;color:var(--muted);margin-top:2px"></div>
+    </div>
+    <div class="mbody">
+      <div class="msec" id="ld-body"></div>
+    </div>
+    <div class="mftr">
+      <button class="btn-cancel" onclick="closeLocalDet()">Sluiten</button>
+      <button class="btn-cancel" id="ld-del-btn" style="color:var(--red);border-color:var(--red)" onclick="deleteFromLocalDet()">🗑 Verwijderen</button>
+    </div>
+  </div>
+</div>
+
 <!-- Manuele afspraak modal -->
 <div class="overlay" id="manueel-overlay" onclick="closeManueelModal(event)">
   <div class="modal" id="manueel-modal">
@@ -1468,8 +1490,22 @@
           </select>
         </div>
         <div>
-          <div class="man-label">Adres / notitie</div>
-          <input class="man-input" id="man-notitie" type="text" placeholder="bv. Kerkstraat 5, 9000 Gent" />
+          <div class="man-label">Adres</div>
+          <input class="man-input" id="man-adres" type="text" placeholder="bv. Kerkstraat 5, 9000 Gent" />
+        </div>
+        <div class="man-row2">
+          <div>
+            <div class="man-label">Telefoon</div>
+            <input class="man-input" id="man-telefoon" type="tel" placeholder="+32 ..." />
+          </div>
+          <div>
+            <div class="man-label">E-mail</div>
+            <input class="man-input" id="man-email" type="email" placeholder="naam@voorbeeld.be" />
+          </div>
+        </div>
+        <div>
+          <div class="man-label">Notitie</div>
+          <input class="man-input" id="man-notitie" type="text" placeholder="Extra info ..." />
         </div>
       </div>
     </div>
@@ -1615,6 +1651,44 @@ let localEventsVersie  = 0;
 let _pendingImport     = []; // staging area voor import review
 
 // Beschikbaarheids-uitzonderingen (geladen vanuit Netlify Blobs)
+// ── Belgische wettelijke feestdagen ──────────────────────────────────────────
+function easterDate(year) {
+  // Meeus/Jones/Butcher algoritme
+  const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day   = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+function getBelgianHolidays(year) {
+  const e = easterDate(year);
+  const d = (base, n) => { const r = new Date(base); r.setDate(r.getDate() + n); return localISO(r); };
+  const f = (m, day) => `${year}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  return {
+    [f(1,  1)]: 'Nieuwjaar',
+    [d(e, 1)]:  'Paasmaandag',
+    [f(5,  1)]: 'Dag van de Arbeid',
+    [d(e,39)]:  'Hemelvaartsdag',
+    [d(e,50)]:  'Pinkstermaandag',
+    [f(7, 21)]: 'Nationale Feestdag',
+    [f(8, 15)]: 'O.L.V. Hemelvaart',
+    [f(11, 1)]: 'Allerheiligen',
+    [f(11,11)]: 'Wapenstilstand',
+    [f(12,25)]: 'Kerstmis',
+  };
+}
+const _holidayCache = {};
+function getHolidayName(dateStr) {
+  const year = parseInt(dateStr.slice(0, 4));
+  if (!_holidayCache[year]) _holidayCache[year] = getBelgianHolidays(year);
+  return _holidayCache[year][dateStr] || null;
+}
+
 let avExceptions = [];   // { id, scope, person, date, kind, from, to, reason }
 let avVersie     = 0;
 
@@ -1961,6 +2035,13 @@ async function addTicketToDate(ticketId, date) {
   if (!planning[date]) planning[date] = [];
   if (planning[date].find(p => p.ticket.id === ticketId)) return true; // al ingepland
 
+  // Waarschuwing bij wettelijke feestdag
+  const feestdag = getHolidayName(date);
+  if (feestdag) {
+    const ok = confirm(`🎌 ${feestdag} is een wettelijke feestdag (${fmtDateShort(date)}).\nToch inplannen?`);
+    if (!ok) return false;
+  }
+
   // Waarschuwing als klant deze datum heeft geblokkeerd
   if (kbBlocked(ticketId, date)) {
     const ok = confirm(`⚠️ Klant gaf aan NIET beschikbaar te zijn op ${fmtDateShort(date)}.\nToch inplannen?`);
@@ -2142,7 +2223,8 @@ function renderKalender() {
     const isToday       = day.getTime() === today.getTime();
     const isPast        = day.getTime() < today.getTime();
     const myPerson       = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
-    const isDayBlocked   = avExceptions.some(e =>
+    const holidayName    = getHolidayName(dateStr);
+    const isDayBlocked   = !!holidayName || avExceptions.some(e =>
       e.date === dateStr && e.kind === 'fullday' &&
       (e.scope === 'global' || (myPerson && e.person === myPerson))
     );
@@ -2163,12 +2245,12 @@ function renderKalender() {
       <div class="day-hdr">
         <div class="day-hdr-name ${isToday ? 'today' : isPast ? 'past' : ''}">${day.toLocaleDateString('nl-BE', { weekday:'short' })}</div>
         <div class="day-hdr-num${isToday ? ' today' : ''}">${day.getDate()}</div>
-        <div class="day-cap ${capFull ? 'full' : ''}">${isDayBlocked ? '🔒 Geblokkeerd' : capLabel}</div>
-        <button class="day-block-btn ${isDayBlocked ? 'blocked' : ''}" data-date="${dateStr}" onclick="event.stopPropagation(); onBlockBtnClick(this)">
-          ${isDayBlocked ? '🔒 Geblokkeerd' : dayBlockCount > 0 ? `⏱ ${dayBlockCount} uitzondering${dayBlockCount > 1 ? 'en' : ''}` : '⏱ Beschikbaar'}
+        <div class="day-cap ${capFull ? 'full' : ''}">${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔒 Geblokkeerd' : capLabel}</div>
+        <button class="day-block-btn ${holidayName ? 'holiday' : isDayBlocked ? 'blocked' : ''}" data-date="${dateStr}" onclick="event.stopPropagation(); onBlockBtnClick(this)">
+          ${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔒 Geblokkeerd' : dayBlockCount > 0 ? `⏱ ${dayBlockCount} uitzondering${dayBlockCount > 1 ? 'en' : ''}` : '⏱ Beschikbaar'}
         </button>
       </div>
-      <div class="day-body${isDayBlocked ? ' blocked-day' : ''}" id="daybody-${dateStr}">
+      <div class="day-body${holidayName ? ' holiday-day' : isDayBlocked ? ' blocked-day' : ''}" id="daybody-${dateStr}">
         ${dayStops.length === 0 ? '<div class="day-empty">—</div>' : ''}
       </div>`;
 
@@ -2208,13 +2290,15 @@ function renderKalender() {
       const card = document.createElement('div');
       card.className = 'cal-local-event';
       const tijdLabel = ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '';
+      const adresLabel = ev.adres || ev.notitie;
       card.innerHTML = `
         <button class="cal-local-del" onclick="event.stopPropagation();removeLocalEvent('${ev.id}')" title="Verwijderen">✕</button>
         <span class="cal-local-type">${escHtml(ev.type)}</span>
         <div class="cal-sub" style="margin-top:2px">${escHtml(ev.titel)}</div>
         ${tijdLabel ? `<div class="cal-local-time">⏱ ${tijdLabel}</div>` : ''}
-        ${ev.notitie ? `<div class="cal-addr">${escHtml(ev.notitie)}</div>` : ''}
+        ${adresLabel ? `<div class="cal-addr">${escHtml(adresLabel)}</div>` : ''}
         ${ev.persoon ? `<div class="cal-meta">${escHtml(ev.persoon)}</div>` : ''}`;
+      card.addEventListener('click', () => openLocalEventDetail(ev));
       col.querySelector('.day-body').appendChild(card);
     });
 
@@ -2299,6 +2383,10 @@ function renderMonthView(today) {
 
       // Chips verzamelen
       let chips = [];
+
+      // Feestdag?
+      const holidayName = getHolidayName(dateStr);
+      if (holidayName) chips.push({ label: `🎌 ${holidayName}`, cls: 'holiday' });
 
       // Blokkering?
       const isBlocked = avExceptions.some(e =>
@@ -2703,8 +2791,11 @@ async function saveManueelAfspraak() {
   const type    = document.getElementById('man-type')?.value || 'Overige';
   const van     = document.getElementById('man-van')?.value || '';
   const tot     = document.getElementById('man-tot')?.value || '';
-  const persoon = document.getElementById('man-persoon')?.value || null;
-  const notitie = document.getElementById('man-notitie')?.value?.trim() || '';
+  const persoon  = document.getElementById('man-persoon')?.value || null;
+  const adres    = document.getElementById('man-adres')?.value?.trim()    || '';
+  const telefoon = document.getElementById('man-telefoon')?.value?.trim() || '';
+  const email    = document.getElementById('man-email')?.value?.trim()    || '';
+  const notitie  = document.getElementById('man-notitie')?.value?.trim()  || '';
 
   if (!titel) { toast('⚠ Voer een titel in', 2000); return; }
   if (!datum) { toast('⚠ Kies een datum', 2000); return; }
@@ -2712,8 +2803,7 @@ async function saveManueelAfspraak() {
   const event = {
     id: crypto.randomUUID(),
     titel, datum, uur: van, einduur: tot, type,
-    persoon: persoon || null, notitie,
-    telefoon: '', email: '',
+    persoon: persoon || null, adres, notitie, telefoon, email,
     bron: 'manueel', origResp: null,
   };
 
@@ -2722,7 +2812,7 @@ async function saveManueelAfspraak() {
   document.getElementById('manueel-overlay').classList.remove('open');
 
   // Reset formulier
-  ['man-titel','man-notitie'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['man-titel','man-adres','man-telefoon','man-email','man-notitie'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 
   const ok = await saveAfspraken();
   if (!ok) {
@@ -2742,6 +2832,58 @@ async function removeLocalEvent(id) {
     localEvents.push(removed);
     renderKalender();
   }
+}
+
+// ── Lokale afspraak detail ─────────────────────────────────
+let _localDetEvent = null;
+
+function openLocalEventDetail(ev) {
+  _localDetEvent = ev;
+  document.getElementById('ld-type').innerHTML  = `<span class="cal-local-type">${escHtml(ev.type)}</span>`;
+  document.getElementById('ld-titel').textContent = ev.titel || '—';
+
+  const datumTijd = [
+    ev.datum ? fmtDate(ev.datum) : '',
+    ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '',
+  ].filter(Boolean).join(' · ');
+  document.getElementById('ld-datum').textContent = datumTijd;
+
+  const adres = ev.adres || ev.notitie;
+  const row = (label, val) => val
+    ? `<div class="mrow"><span class="mlabel">${label}</span><span class="mval">${escHtml(val)}</span></div>`
+    : '';
+  const linkRow = (label, val, href) => val
+    ? `<div class="mrow"><span class="mlabel">${label}</span><span class="mval"><a href="${href}">${escHtml(val)}</a></span></div>`
+    : '';
+
+  const rows = [
+    adres
+      ? `<div class="mrow"><span class="mlabel">Adres</span><span class="mval"><a href="https://maps.google.com/?q=${encodeURIComponent(adres)}" target="_blank">${escHtml(adres)} ↗</a></span></div>`
+      : '',
+    linkRow('Telefoon', ev.telefoon, `tel:${ev.telefoon}`),
+    linkRow('E-mail',   ev.email,    `mailto:${ev.email}`),
+    ev.adres && ev.notitie ? row('Notitie', ev.notitie) : '',
+    row('Technieker', ev.persoon),
+  ].filter(Boolean).join('');
+
+  document.getElementById('ld-body').innerHTML = rows
+    || '<div class="mrow"><span class="mval" style="color:var(--muted)">Geen contactgegevens beschikbaar</span></div>';
+
+  document.getElementById('local-det-overlay').classList.add('open');
+}
+
+function closeLocalDet(e) {
+  if (e && e.target !== document.getElementById('local-det-overlay')) return;
+  document.getElementById('local-det-overlay').classList.remove('open');
+}
+
+async function deleteFromLocalDet() {
+  if (!_localDetEvent) return;
+  const ev = _localDetEvent;
+  if (!confirm(`🗑 "${ev.titel}" verwijderen (${ev.datum ? fmtDate(ev.datum) : ev.datum})?`)) return;
+  document.getElementById('local-det-overlay').classList.remove('open');
+  _localDetEvent = null;
+  await removeLocalEvent(ev.id);
 }
 
 const AV_API = '/api/availability';
