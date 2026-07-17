@@ -3562,21 +3562,35 @@ function renderRouteList(date) {
   const stops = (planning[date] || []).filter(p =>
     activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
   );
+  const localForDate = localEvents.filter(e =>
+    e.datum === date && (e.adres || e.notitie) &&
+    (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
+  );
+  // Gecombineerde lijst: eerst Zoho-tickets, dan lokale events
+  const allStops = [
+    ...stops.map(s => ({ kind: 'ticket', item: s })),
+    ...localForDate.map(e => ({ kind: 'local', item: e })),
+  ];
   list.innerHTML = '';
-  if (!stops.length) { list.innerHTML = '<div class="route-empty">Voeg tickets toe via de Wachtrij of Kalender</div>'; return; }
+  if (!allStops.length) { list.innerHTML = '<div class="route-empty">Voeg tickets of installaties toe via de Kalender</div>'; return; }
 
   // Bereken cumulatieve aankomsttijden als routeData beschikbaar is
   const hasRoute = routeData?.legs && currentRouteDate === date;
   let arrivalTimes = [];
   if (hasRoute) {
     const [h, m] = (settings.vanTijd || '08:00').split(':').map(Number);
-    let curMin = h * 60 + m; // vertrek depot in minuten na middernacht
-    // Stop 0: aankomst = vertrek depot + reistijd leg 0
-    for (let i = 0; i < stops.length; i++) {
+    let curMin = h * 60 + m;
+    for (let i = 0; i < allStops.length; i++) {
       const legSec = routeData.legs[i]?.travelTimeSeconds ?? 30 * 60;
-      curMin += Math.round(legSec / 60); // reistijd naar dit stop
+      curMin += Math.round(legSec / 60);
       arrivalTimes.push(curMin);
-      curMin += duurVoor(stops[i]?.ticket?.id) || 60; // interventieduur (per-ticket override of standaard)
+      const entry = allStops[i];
+      if (entry.kind === 'ticket') {
+        curMin += duurVoor(entry.item.ticket.id) || 60;
+      } else {
+        const ev = entry.item;
+        curMin += (ev.uur && ev.einduur ? calcWerktijdMin(ev.uur, ev.einduur) : 0) || 60;
+      }
     }
   }
 
@@ -3586,7 +3600,7 @@ function renderRouteList(date) {
     return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
   };
 
-  stops.forEach((item, i) => {
+  allStops.forEach((entry, i) => {
     if (i > 0 && hasRoute && routeData.legs[i-1]) {
       const leg = routeData.legs[i-1];
       const d   = document.createElement('div');
@@ -3594,49 +3608,71 @@ function renderRouteList(date) {
       d.textContent = `🚗 ${Math.round(leg.travelTimeSeconds / 60)} min · ${(leg.distanceMeters / 1000).toFixed(1)} km`;
       list.appendChild(d);
     }
-    const timeHtml = hasRoute
+    const timeHtml = hasRoute && arrivalTimes[i] !== undefined
       ? `<div class="stop-time">⏱ ${fmtTime(arrivalTimes[i])}</div>`
-      : '';
-    const arrKey     = `${date}__${item.ticket.id}`;
-    const arrivalHtml = arrivalData[arrKey]
-      ? `<div class="stop-arrival">✅ Aangekomen ${arrivalData[arrKey]}</div>`
       : '';
     const stop = document.createElement('div');
     stop.className = 'stop';
-    stop.innerHTML = `
-      <div class="stop-num">${i+1}</div>
-      <div class="stop-info">
-        <div class="stop-sub">${item.ticket.subject || '—'}</div>
-        <div class="stop-addr">${item.address || 'Geen adres'}</div>
-        ${timeHtml}
-        ${arrivalHtml}
-      ${proposalSentTickets.has(item.ticket.id) ? '<div class="stop-proposal-sent">✉️ Voorstel verstuurd</div>' : ''}
-      </div>
-      <div class="stop-actions">
-        <button class="sico" title="Navigeren" onclick="navigate('${encodeURIComponent(item.address||'')}')">🧭</button>
-        <button class="sico" title="Afspraakvoorstel sturen" onclick="openProposal('${item.ticket.id}','${date}',${arrivalTimes[i] !== undefined ? arrivalTimes[i] : 'null'})">📨</button>
-        <button class="sico" title="Aankomst registreren" onclick="registerArrival('${item.ticket.id}','${date}')">⏱️</button>
-        <button class="sico" title="Service rapport" onclick="openRapport('${item.ticket.id}','${date}')">📋</button>
-        <button class="sico" title="Oplossing invoeren" onclick="activeTicket=getPlanningTicket('${item.ticket.id}');openOpl()">✏️</button>
-        <button class="sico" title="Verwijderen" onclick="removeTicketFromDate('${item.ticket.id}','${date}')">✕</button>
-      </div>`;
-    if (window.innerWidth > 680) {
-      stop.draggable = true; stop.style.cursor = 'grab';
-      stop.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', i); stop.style.opacity = '0.4'; });
-      stop.addEventListener('dragend',   () => stop.style.opacity = '');
-      stop.addEventListener('dragover',  e => { e.preventDefault(); stop.classList.add('drag-over'); });
-      stop.addEventListener('dragleave', () => stop.classList.remove('drag-over'));
-      stop.addEventListener('drop', e => {
-        e.preventDefault(); stop.classList.remove('drag-over');
-        const from = +e.dataTransfer.getData('text/plain');
-        if (from !== i) {
-          const arr = planning[date];
-          arr.splice(i, 0, arr.splice(from, 1)[0]);
-          routeData = null;
-          renderRouteList(date);
-          updateRouteBtns(date);
-        }
-      });
+
+    if (entry.kind === 'ticket') {
+      const item = entry.item;
+      const arrKey     = `${date}__${item.ticket.id}`;
+      const arrivalHtml = arrivalData[arrKey]
+        ? `<div class="stop-arrival">✅ Aangekomen ${arrivalData[arrKey]}</div>`
+        : '';
+      stop.innerHTML = `
+        <div class="stop-num">${i+1}</div>
+        <div class="stop-info">
+          <div class="stop-sub">${item.ticket.subject || '—'}</div>
+          <div class="stop-addr">${item.address || 'Geen adres'}</div>
+          ${timeHtml}${arrivalHtml}
+          ${proposalSentTickets.has(item.ticket.id) ? '<div class="stop-proposal-sent">✉️ Voorstel verstuurd</div>' : ''}
+        </div>
+        <div class="stop-actions">
+          <button class="sico" title="Navigeren" onclick="navigate('${encodeURIComponent(item.address||'')}')">🧭</button>
+          <button class="sico" title="Afspraakvoorstel sturen" onclick="openProposal('${item.ticket.id}','${date}',${arrivalTimes[i] !== undefined ? arrivalTimes[i] : 'null'})">📨</button>
+          <button class="sico" title="Aankomst registreren" onclick="registerArrival('${item.ticket.id}','${date}')">⏱️</button>
+          <button class="sico" title="Service rapport" onclick="openRapport('${item.ticket.id}','${date}')">📋</button>
+          <button class="sico" title="Oplossing invoeren" onclick="activeTicket=getPlanningTicket('${item.ticket.id}');openOpl()">✏️</button>
+          <button class="sico" title="Verwijderen" onclick="removeTicketFromDate('${item.ticket.id}','${date}')">✕</button>
+        </div>`;
+      if (window.innerWidth > 680) {
+        stop.draggable = true; stop.style.cursor = 'grab';
+        stop.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', i); stop.style.opacity = '0.4'; });
+        stop.addEventListener('dragend',   () => stop.style.opacity = '');
+        stop.addEventListener('dragover',  e => { e.preventDefault(); stop.classList.add('drag-over'); });
+        stop.addEventListener('dragleave', () => stop.classList.remove('drag-over'));
+        stop.addEventListener('drop', e => {
+          e.preventDefault(); stop.classList.remove('drag-over');
+          const from = +e.dataTransfer.getData('text/plain');
+          if (from !== i && from < stops.length && i < stops.length) {
+            const arr = planning[date];
+            arr.splice(i, 0, arr.splice(from, 1)[0]);
+            routeData = null;
+            renderRouteList(date);
+            updateRouteBtns(date);
+          }
+        });
+      }
+    } else {
+      // Lokaal event (installatie / afspraak)
+      const ev = entry.item;
+      const adres = ev.adres || ev.notitie || '';
+      const tijdLabel = ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '';
+      stop.innerHTML = `
+        <div class="stop-num" style="background:rgba(124,92,252,0.15);color:#7c5cfc;border-color:#7c5cfc">${i+1}</div>
+        <div class="stop-info">
+          <div class="stop-sub" style="color:#7c5cfc">${escHtml(ev.type)} — ${escHtml(ev.titel)}</div>
+          <div class="stop-addr">${escHtml(adres) || 'Geen adres'}</div>
+          ${tijdLabel ? `<div class="stop-time" style="color:var(--muted)">🗓 ${tijdLabel}</div>` : ''}
+          ${timeHtml}
+          ${ev.persoon ? `<div class="stop-arrival">${escHtml(ev.persoon)}</div>` : ''}
+        </div>
+        <div class="stop-actions">
+          ${adres ? `<button class="sico" title="Navigeren" onclick="navigate('${encodeURIComponent(adres)}')">🧭</button>` : ''}
+          ${ev.telefoon ? `<a class="sico" href="tel:${escHtml(ev.telefoon)}" title="Bellen">📞</a>` : ''}
+          <button class="sico" title="Details" onclick="openLocalEventDetail(localEvents.find(e=>e.id==='${ev.id}'))">📋</button>
+        </div>`;
     }
     list.appendChild(stop);
   });
@@ -3673,10 +3709,11 @@ async function optimizeRoute() {
 async function calculateRoute() {
   const date  = document.getElementById('plan-date').value;
   const stops = planning[date] || [];
-  if (!stops.length) return;
+  const localForDate = localEvents.filter(e => e.datum === date && (e.adres || e.notitie));
+  if (!stops.length && !localForDate.length) return;
   toast('Route berekenen...', 8000);
   try {
-    // Geocodeer enkel stops die een adres hebben en nog geen coördinaten
+    // Geocodeer Zoho stops zonder coördinaten
     const needsGeo = stops.filter(p => !p._lat && p.ticket?.hasAddress && p.address);
     if (needsGeo.length) {
       const gRes  = await fetch('/api/optimize', {
@@ -3687,6 +3724,17 @@ async function calculateRoute() {
       const gData = await gRes.json();
       if (gData.locations) needsGeo.forEach((p, i) => { p._lat = gData.locations[i+1]?.lat; p._lon = gData.locations[i+1]?.lon; });
     }
+    // Geocodeer lokale events zonder coördinaten
+    const localNeedsGeo = localForDate.filter(e => !e._lat);
+    if (localNeedsGeo.length) {
+      const gRes  = await fetch('/api/optimize', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ origin: settings.startlocatie, stops: localNeedsGeo.map(e => e.adres || e.notitie) }),
+      });
+      const gData = await gRes.json();
+      if (gData.locations) localNeedsGeo.forEach((e, i) => { e._lat = gData.locations[i+1]?.lat; e._lon = gData.locations[i+1]?.lon; });
+    }
     const orgRes  = await fetch('/api/optimize', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -3695,7 +3743,12 @@ async function calculateRoute() {
     const orgData = await orgRes.json();
     const origin  = orgData.locations?.[0];
     if (!origin) throw new Error('Startlocatie niet gevonden');
-    const wps = [{ lat: origin.lat, lon: origin.lon }, ...stops.filter(p => p._lat).map(p => ({ lat: p._lat, lon: p._lon }))];
+    // Combineer geocoded Zoho stops + lokale events als waypoints (Zoho eerst, dan lokale events)
+    const allWpStops = [
+      ...stops.filter(p => p._lat),
+      ...localForDate.filter(e => e._lat),
+    ];
+    const wps = [{ lat: origin.lat, lon: origin.lon }, ...allWpStops.map(p => ({ lat: p._lat, lon: p._lon }))];
     if (wps.length < 2) return;
     const rRes  = await fetch('/api/route', {
       method:  'POST',
