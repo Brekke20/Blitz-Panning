@@ -4614,7 +4614,10 @@ function wizRenderStep() {
 
 function wizNext() {
   const step = WIZ_STEPS[_wizStep];
-  if (step.save && step.save() === false) return;
+  if (step.save && step.save() === false) {
+    toast('⚠️ Selecteer minstens één oorzaak storing', 3500);
+    return;
+  }
   if (_wizStep < WIZ_STEPS.length - 1) {
     _wizStep++;
     wizRenderStep();
@@ -4960,10 +4963,7 @@ function wizSaveOmschrijving() {
   R.oorzaakStoring = Object.entries(OORZAAK_STORING_MAP)
     .filter(([id]) => document.getElementById(id)?.checked)
     .map(([, label]) => label);
-  if (!R.oorzaakStoring.length) {
-    toast('⚠️ Selecteer minstens één oorzaak storing', 3500);
-    return false;
-  }
+  return R.oorzaakStoring.length > 0;
 }
 
 // ── Stap 5: Status & onderdelen ──
