@@ -4614,6 +4614,7 @@ function wizRenderStep() {
 
 function wizNext() {
   const step = WIZ_STEPS[_wizStep];
+  // NOTE: toast text is Omschrijving-specific; generalize (e.g. save() returning the message) if another step opts into save()===false
   if (step.save && step.save() === false) {
     toast('⚠️ Selecteer minstens één oorzaak storing', 3500);
     return;
