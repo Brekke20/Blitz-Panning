@@ -4731,6 +4731,11 @@ function wizSaveAlgemeen() {
   R.interventieType = document.querySelector('input[name="f-interventieType"]:checked')?.value || 'Interventie';
 }
 
+function fmtDuur(min) {
+  const h = Math.floor(min / 60), mn = min % 60;
+  return h > 0 ? (mn > 0 ? `${h}u${String(mn).padStart(2,'0')}` : `${h}u`) : `${mn} min`;
+}
+
 // ── Stap 2: Facturatie & Servicetype ──
 function berekenLoonkost(servicetype, werktijdMin, aanrijtijdMin) {
   if (servicetype === '2e-lijn') {
@@ -5324,6 +5329,7 @@ function buildRapportHtml() {
   .info-grid{display:grid;gap:6px;margin-bottom:4px}
   .info-row{display:grid;gap:6px}
   .info-row.cols-3{grid-template-columns:1fr 1fr 1fr}
+  .info-row.cols-4{grid-template-columns:1fr 1fr 1fr 1fr}
   .info-row.cols-2{grid-template-columns:1fr 1fr}
   .info-row.cols-21{grid-template-columns:2fr 1fr}
   .info-row.cols-1{grid-template-columns:1fr}
@@ -5353,10 +5359,11 @@ function buildRapportHtml() {
   <div class="info-row cols-1">
     <div class="info-cell"><div class="info-lbl">Interventie adres</div><div class="info-val">${R.adres||'—'}</div></div>
   </div>
-  <div class="info-row cols-3">
+  <div class="info-row ${R.aanrijtijdMin > 0 ? 'cols-4' : 'cols-3'}">
     <div class="info-cell accent"><div class="info-lbl">Starttijd</div><div class="info-val">${R.start||'—'}</div></div>
     <div class="info-cell accent"><div class="info-lbl">Stoptijd</div><div class="info-val">${R.stop||'—'}</div></div>
     <div class="info-cell accent"><div class="info-lbl">Totale werktijd</div><div class="info-val">${R.werktijd||'—'}</div></div>
+    ${R.aanrijtijdMin > 0 ? `<div class="info-cell accent"><div class="info-lbl">Aanrijtijd</div><div class="info-val">${fmtDuur(R.aanrijtijdMin)}</div></div>` : ''}
   </div>
   <div class="info-row cols-3">
     <div class="info-cell"><div class="info-lbl">Servicetype</div><div class="info-val">${stLabel}</div></div>
@@ -5372,6 +5379,8 @@ function buildRapportHtml() {
 <div class="block">${R.probleem||'&nbsp;'}</div>
 <div class="sec">Ondernomen acties</div>
 <div class="block">${R.acties||'&nbsp;'}</div>
+<div class="sec">Oorzaak storing</div>
+<div class="block">${R.oorzaakStoring.join(', ') || '&nbsp;'}</div>
 <div class="sec">Status laadinfrastructuur</div>
 <div class="status-row">
   <div class="status-cell"><div class="info-lbl">Definitief hersteld</div><strong>${R.hersteld==='ja'?'Ja':'Nee'}</strong></div>
