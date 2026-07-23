@@ -3910,6 +3910,7 @@ function setTab(tab) {
   if (tab === 'rapporten') setTimeout(() => laadRapportArchief(), 0);
 }
 
+// NOTE: 'kalender' is the mobile fallback tab and must never carry the desktop-only class.
 function enforceMobileTabRestriction() {
   if (!window.matchMedia('(max-width: 1023px)').matches) return;
   const active = document.querySelector('.tab.active');
