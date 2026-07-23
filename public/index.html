@@ -2029,7 +2029,7 @@ async function quickAdd(ticketId) {
   const today = localISO(new Date());
   const date  = nextAvailableDay(today);
   if (!date) return toast('Geen beschikbare werkdag gevonden');
-  await addTicketToDate(ticketId, date);
+  if (!(await addTicketToDate(ticketId, date))) return;
   toast('✓ Toegevoegd aan ' + fmtDateShort(date));
 }
 
@@ -3982,7 +3982,7 @@ async function togglePlanFromDetail() {
     const date = nextAvailableDay(localISO(new Date()));
     if (!date) return toast('Geen beschikbare dag gevonden');
     closeDet();
-    await addTicketToDate(activeTicket.id, date);
+    if (!(await addTicketToDate(activeTicket.id, date))) return;
     toast('✓ Toegevoegd aan ' + fmtDateShort(date));
   } else if (activeTicket.status === 'Wachten op bevestiging planning') {
     const date = Object.keys(planning).find(d => planning[d].find(p => p.ticket.id === activeTicket.id));
