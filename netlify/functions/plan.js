@@ -60,7 +60,9 @@ export async function handler(event) {
       // Inplannen: ISO datetime die Zoho verwacht
       patch = {
         status:  'Wachten op bevestiging planning',
-        dueDate: `${date}T00:00:00.000Z`,
+        // Geen Z-suffix: Zoho leest dit als lokale org-tijdzone (middernacht).
+        // Met Z (UTC midnight) toonde Zoho 01:00/02:00 in Belgische tijdzone.
+        dueDate: `${date}T00:00:00`,
       };
     } else {
       // Uit planning halen → terug naar "Wachten op planning" (werkelijke Zoho statusnaam)

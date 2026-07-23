@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blitz Planning — Testscript</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #0f1318; color: #c9d1d9; padding: 32px 24px; max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; font-weight: 700; color: #00dfa3; margin-bottom: 4px; }
+  .subtitle { font-size: 0.85rem; color: #8b949e; margin-bottom: 32px; }
+
+  .legend { display: flex; gap: 20px; margin-bottom: 28px; flex-wrap: wrap; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
+  .badge.local  { background: #1a2f1a; color: #56d364; border: 1px solid #2ea043; }
+  .badge.dev    { background: #1a1f2f; color: #79c0ff; border: 1px solid #388bfd; }
+  .badge.live   { background: #2f1a1a; color: #ff7b72; border: 1px solid #f85149; }
+
+  .section { margin-bottom: 12px; border: 1px solid #21262d; border-radius: 10px; overflow: hidden; }
+  .section-header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; cursor: pointer; background: #161b22; user-select: none; }
+  .section-header:hover { background: #1c2128; }
+  .section-title { font-weight: 600; font-size: 0.95rem; color: #e6edf3; flex: 1; }
+  .section-toggle { color: #8b949e; font-size: 0.8rem; transition: transform 0.2s; }
+  .section-toggle.open { transform: rotate(90deg); }
+
+  .section-body { display: none; padding: 0 18px 18px; }
+  .section-body.open { display: block; }
+
+  .env-req { font-size: 0.78rem; font-weight: 600; margin-bottom: 16px; padding: 8px 12px; border-radius: 6px; }
+  .env-req.local  { background: #1a2f1a; color: #56d364; border-left: 3px solid #2ea043; }
+  .env-req.dev    { background: #1a1f2f; color: #79c0ff; border-left: 3px solid #388bfd; }
+  .env-req.live   { background: #2f1a1a; color: #ff7b72; border-left: 3px solid #f85149; }
+
+  .setup { background: #1c2128; border: 1px solid #30363d; border-radius: 6px; padding: 12px 14px; margin-bottom: 16px; font-size: 0.83rem; color: #8b949e; }
+  .setup strong { color: #c9d1d9; }
+  .setup code { background: #0d1117; color: #00dfa3; padding: 1px 6px; border-radius: 4px; font-family: monospace; font-size: 0.82rem; }
+
+  .steps { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .step { display: flex; gap: 12px; align-items: flex-start; }
+  .step-check { width: 20px; height: 20px; min-width: 20px; border: 2px solid #30363d; border-radius: 4px; cursor: pointer; margin-top: 1px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .step-check:hover { border-color: #00dfa3; }
+  .step-check.checked { background: #00dfa3; border-color: #00dfa3; }
+  .step-check.checked::after { content: '✓'; color: #0f1318; font-size: 12px; font-weight: 800; }
+  .step-text { font-size: 0.88rem; line-height: 1.55; color: #c9d1d9; padding-top: 1px; }
+  .step-text .verwacht { display: block; margin-top: 4px; font-size: 0.8rem; color: #56d364; }
+  .step-text .verwacht::before { content: '✓ Verwacht: '; font-weight: 600; }
+  .step-text .let-op { display: block; margin-top: 4px; font-size: 0.8rem; color: #f0a830; }
+  .step-text .let-op::before { content: '⚠ Let op: '; font-weight: 600; }
+
+  .result-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid #21262d; }
+  .result-btn { padding: 6px 14px; border-radius: 6px; border: none; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+  .btn-ok  { background: #1f6feb; color: #fff; }
+  .btn-ok:hover  { background: #388bfd; }
+  .btn-nok { background: #da3633; color: #fff; }
+  .btn-nok:hover { background: #f85149; }
+  .result-label { font-size: 0.82rem; color: #8b949e; }
+  .result-status { font-size: 0.82rem; font-weight: 600; margin-left: auto; }
+  .result-status.ok  { color: #56d364; }
+  .result-status.nok { color: #ff7b72; }
+
+  .progress-bar-wrap { background: #21262d; border-radius: 20px; height: 8px; margin-bottom: 28px; overflow: hidden; }
+  .progress-bar { height: 100%; background: #00dfa3; border-radius: 20px; transition: width 0.3s; width: 0%; }
+  .progress-label { font-size: 0.8rem; color: #8b949e; margin-bottom: 8px; }
+
+  .skip-note { font-size: 0.78rem; color: #8b949e; margin-top: 8px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<h1>Blitz Planning — Testscript</h1>
+<p class="subtitle">Doorloop de items hieronder. Vink stappen af en markeer elk item als OK of NOK.</p>
+
+<div class="legend">
+  <span class="badge local">● Enkel browser</span>
+  <span class="badge dev">● Vereist netlify dev</span>
+  <span class="badge live">● Enkel live (volgende week)</span>
+</div>
+
+<p class="progress-label" id="prog-label">0 van 7 items afgewerkt</p>
+<div class="progress-bar-wrap"><div class="progress-bar" id="prog-bar"></div></div>
+
+<!-- ─── ITEM 4+5 ─────────────────────────────────────────────────── -->
+<div class="section" id="s-nav">
+  <div class="section-header" onclick="toggle('nav')">
+    <span class="badge local">Enkel browser</span>
+    <span class="section-title">Items 4+5 — Kalendernavigatie + Vandaag-knop</span>
+    <span class="section-toggle" id="tog-nav">▶</span>
+  </div>
+  <div class="section-body" id="body-nav">
+    <div class="env-req local">Geen server nodig — open index.html rechtstreeks in browser</div>
+    <div class="setup">
+      <strong>Voorbereiding:</strong> Open <code>public/index.html</code> in Chrome. Ga naar de <strong>Kalender</strong>-tab.
+    </div>
+    <ul class="steps">
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Controleer dat de ‹ en › pijlen samen staan met de weeklabel ertussen als één groep<span class="verwacht">Pijlen en label staan aaneengesloten, niet verspreid over de balk</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Klik een paar keer op › om naar een volgende week te navigeren</span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Klik op de <strong>Vandaag</strong>-knop<span class="verwacht">Kalender springt terug naar de huidige week</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Klik nogmaals op Vandaag terwijl je al op de huidige week zit<span class="verwacht">Niets verandert, geen fout</span></span></li>
+    </ul>
+    <div class="result-row">
+      <button class="result-btn btn-ok"  onclick="setResult('nav','ok')">✓ OK</button>
+      <button class="result-btn btn-nok" onclick="setResult('nav','nok')">✗ NOK</button>
+      <span class="result-label">Markeer dit item</span>
+      <span class="result-status" id="res-nav"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ─── ITEM 6 ─────────────────────────────────────────────────────── -->
+<div class="section" id="s-mob">
+  <div class="section-header" onclick="toggle('mob')">
+    <span class="badge local">Enkel browser</span>
+    <span class="section-title">Item 6 — Mobiel horizontaal scrollen</span>
+    <span class="section-toggle" id="tog-mob">▶</span>
+  </div>
+  <div class="section-body" id="body-mob">
+    <div class="env-req local">Geen server nodig — open index.html rechtstreeks in browser</div>
+    <div class="setup">
+      <strong>Voorbereiding:</strong> Open DevTools (F12) → Toggle device toolbar (Ctrl+Shift+M) → kies een klein scherm (bv. 390px breed, iPhone 14).
+    </div>
+    <ul class="steps">
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Verklein het browservenster tot mobiele breedte (of gebruik DevTools device mode)<span class="verwacht">Geen horizontale scrollbar op de pagina zelf</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Controleer de tabs-balk bovenaan — heeft die meer tabs dan er passen?<span class="verwacht">Tabs scrollen horizontaal, de rest van de pagina beweegt niet mee</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Swipe/scroll horizontaal in de tabs-balk<span class="verwacht">Soepel scrollen, geen visuele glitch</span></span></li>
+    </ul>
+    <div class="result-row">
+      <button class="result-btn btn-ok"  onclick="setResult('mob','ok')">✓ OK</button>
+      <button class="result-btn btn-nok" onclick="setResult('mob','nok')">✗ NOK</button>
+      <span class="result-label">Markeer dit item</span>
+      <span class="result-status" id="res-mob"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ─── ITEM 7 ─────────────────────────────────────────────────────── -->
+<div class="section" id="s-sig">
+  <div class="section-header" onclick="toggle('sig')">
+    <span class="badge local">Enkel browser</span>
+    <span class="section-title">Item 7 — Rapport preview boven handtekening klant</span>
+    <span class="section-toggle" id="tog-sig">▶</span>
+  </div>
+  <div class="section-body" id="body-sig">
+    <div class="env-req local">Geen server nodig — open index.html rechtstreeks in browser</div>
+    <div class="setup">
+      <strong>Voorbereiding:</strong> Open index.html. Open een ticket en klik op <strong>Rapport</strong>. Doorloop de wizard tot de stap "Handtekening klant".
+    </div>
+    <ul class="steps">
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Ga naar de stap "Handtekening klant" in de rapport-wizard<span class="verwacht">Bovenaan zie je een <strong>preview van het rapport</strong> (iframe), eronder het tekencanvas</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Scroll in de preview omhoog/omlaag om het rapport te bekijken<span class="verwacht">Preview scrollt onafhankelijk, canvas blijft eronder staan</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Teken een handtekening in het canvas onderaan<span class="verwacht">Handtekening verschijnt correct, geen overlap met preview</span></span></li>
+    </ul>
+    <div class="result-row">
+      <button class="result-btn btn-ok"  onclick="setResult('sig','ok')">✓ OK</button>
+      <button class="result-btn btn-nok" onclick="setResult('sig','nok')">✗ NOK</button>
+      <span class="result-label">Markeer dit item</span>
+      <span class="result-status" id="res-sig"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ─── NIEUW: EXIT UX ────────────────────────────────────────────── -->
+<div class="section" id="s-exit">
+  <div class="section-header" onclick="toggle('exit')">
+    <span class="badge local">Enkel browser</span>
+    <span class="section-title">Nieuw — Exit UX rapport-wizard</span>
+    <span class="section-toggle" id="tog-exit">▶</span>
+  </div>
+  <div class="section-body" id="body-exit">
+    <div class="env-req local">Geen server nodig — open index.html rechtstreeks in browser</div>
+    <div class="setup">
+      <strong>Voorbereiding:</strong> Open index.html. Open een ticket en start de rapport-wizard.
+    </div>
+    <ul class="steps">
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text"><strong>Scenario A — Sluiten zónder rapport te genereren:</strong> Klik op de sluitknop van de wizard zonder eerst af te drukken<span class="verwacht">Bevestigingsdialoog verschijnt: "Rapport sluiten? Niet-opgeslagen wijzigingen gaan verloren."</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Klik "Annuleren" in de dialoog<span class="verwacht">Wizard blijft open</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text"><strong>Scenario B — Sluiten ná rapport genereren:</strong> Doorloop de wizard volledig en druk het rapport af<span class="verwacht">Wizard sluit automatisch na het afdrukken, géén dialoog</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Open de wizard opnieuw voor hetzelfde ticket en sluit direct<span class="verwacht">Bevestigingsdialoog verschijnt opnieuw (nieuwe sessie, guard gereset)</span></span></li>
+    </ul>
+    <div class="result-row">
+      <button class="result-btn btn-ok"  onclick="setResult('exit','ok')">✓ OK</button>
+      <button class="result-btn btn-nok" onclick="setResult('exit','nok')">✗ NOK</button>
+      <span class="result-label">Markeer dit item</span>
+      <span class="result-status" id="res-exit"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ─── ITEM 2 ─────────────────────────────────────────────────────── -->
+<div class="section" id="s-duur">
+  <div class="section-header" onclick="toggle('duur')">
+    <span class="badge dev">Vereist netlify dev</span>
+    <span class="section-title">Item 2 — Duur per ticket</span>
+    <span class="section-toggle" id="tog-duur">▶</span>
+  </div>
+  <div class="section-body" id="body-duur">
+    <div class="env-req dev">Vereist lokale server: <code>netlify dev</code> in de projectmap</div>
+    <div class="setup">
+      <strong>Voorbereiding:</strong> Voer <code>netlify dev</code> uit in <code>blitz-planning/</code>. Open <code>http://localhost:8888</code>. Je hebt een ticket nodig dat zichtbaar is in de kalender.
+    </div>
+    <ul class="steps">
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Open een ticket en scrol naar de sectie "Klantbeschikbaarheid"<span class="verwacht">Je ziet een veld "Duur interventie" (in minuten) met een reset-knop</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Stel de duur in op <strong>240 minuten</strong> (2× de standaard) en sla op</span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Open de kalender en gebruik <strong>AutoPlan</strong><span class="verwacht">Dit ticket neemt 2 slots in — er wordt geen ander ticket meer op dezelfde dag ingepland als de capaciteit vol is</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Bekijk de routelijst voor die dag<span class="verwacht">De reistijdberekening rekent ook met 240 min voor dit ticket</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Klik op de reset-knop naast het duurveld<span class="verwacht">Duur springt terug naar de standaard instelling uit de settings</span></span></li>
+    </ul>
+    <div class="result-row">
+      <button class="result-btn btn-ok"  onclick="setResult('duur','ok')">✓ OK</button>
+      <button class="result-btn btn-nok" onclick="setResult('duur','nok')">✗ NOK</button>
+      <span class="result-label">Markeer dit item</span>
+      <span class="result-status" id="res-duur"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ─── ITEM 3 ─────────────────────────────────────────────────────── -->
+<div class="section" id="s-verlof">
+  <div class="section-header" onclick="toggle('verlof')">
+    <span class="badge dev">Vereist netlify dev</span>
+    <span class="section-title">Item 3 — Verlofblok weekends overslaan</span>
+    <span class="section-toggle" id="tog-verlof">▶</span>
+  </div>
+  <div class="section-body" id="body-verlof">
+    <div class="env-req dev">Vereist lokale server: <code>netlify dev</code> in de projectmap</div>
+    <div class="setup">
+      <strong>Voorbereiding:</strong> Open <code>http://localhost:8888</code>. Ga naar <strong>Instellingen → Verlof / uitzonderingen</strong>.
+    </div>
+    <ul class="steps">
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Maak een verlofblok aan dat een weekend overlapt — bv. van <strong>maandag t/m de volgende maandag</strong> (9 kalenderdagen)</span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Sla het verlofblok op en open de kalender<span class="verwacht">Alleen de 7 werkdagen zijn geblokkeerd. Zaterdag en zondag staan NIET in het verlofblok.</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Probeer AutoPlan te draaien voor een datum in het verlofblok<span class="verwacht">Geen tickets worden ingepland op de geblokkeerde werkdagen</span></span></li>
+    </ul>
+    <div class="result-row">
+      <button class="result-btn btn-ok"  onclick="setResult('verlof','ok')">✓ OK</button>
+      <button class="result-btn btn-nok" onclick="setResult('verlof','nok')">✗ NOK</button>
+      <span class="result-label">Markeer dit item</span>
+      <span class="result-status" id="res-verlof"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ─── LIVE ITEMS ────────────────────────────────────────────────── -->
+<div class="section" id="s-live">
+  <div class="section-header" onclick="toggle('live')">
+    <span class="badge live">Enkel live</span>
+    <span class="section-title">Items 1 + 8 — E-mail versturen &amp; tijdstip Zoho (volgende week)</span>
+    <span class="section-toggle" id="tog-live">▶</span>
+  </div>
+  <div class="section-body" id="body-live">
+    <div class="env-req live">Vereist deployment op productie — test volgende week na merge</div>
+    <p class="skip-note">Deze items kunnen niet lokaal getest worden omdat ze de live Zoho-koppeling vereisen.</p>
+    <ul class="steps" style="margin-top:14px">
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text"><strong>Item 1 — E-mail:</strong> Plan een ticket in en verstuur een afspraakvoorstel. Open Zoho Desk en controleer of de e-mail in de thread van het ticket staat (niet als losse mail).<span class="verwacht">E-mail zichtbaar in ticket-thread, verzonden vanuit support@blitzpower.com</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text"><strong>Item 8 — Tijdstip:</strong> Plan een ticket in op datum X. Open het ticket in Zoho Desk en bekijk de "Due Date".<span class="verwacht">Due Date toont middernacht (00:00), niet 01:00 of 02:00</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text"><strong>Item 9 — Dedup:</strong> Genereer het rapport voor hetzelfde ticket twee keer. Controleer het rapportarchief.<span class="verwacht">Slechts 1 entry in het archief voor dat ticket op die datum — geen duplicaat</span></span></li>
+    </ul>
+    <div class="result-row">
+      <button class="result-btn btn-ok"  onclick="setResult('live','ok')">✓ OK</button>
+      <button class="result-btn btn-nok" onclick="setResult('live','nok')">✗ NOK</button>
+      <span class="result-label">Markeer dit item</span>
+      <span class="result-status" id="res-live"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+  const ITEMS = ['nav','mob','sig','exit','duur','verlof','live'];
+  const results = {};
+
+  function toggle(id) {
+    const body = document.getElementById('body-' + id);
+    const tog  = document.getElementById('tog-' + id);
+    const open = body.classList.toggle('open');
+    tog.classList.toggle('open', open);
+  }
+
+  function check(el) {
+    el.classList.toggle('checked');
+  }
+
+  function setResult(id, val) {
+    results[id] = val;
+    const el = document.getElementById('res-' + id);
+    el.textContent = val === 'ok' ? '✓ OK' : '✗ NOK';
+    el.className = 'result-status ' + val;
+    updateProgress();
+  }
+
+  function updateProgress() {
+    const done = Object.keys(results).length;
+    const total = ITEMS.length;
+    const pct = Math.round(done / total * 100);
+    document.getElementById('prog-bar').style.width = pct + '%';
+    document.getElementById('prog-label').textContent = `${done} van ${total} items afgewerkt`;
+  }
+
+  // Open eerste item automatisch
+  toggle('nav');
+</script>
+</body>
+</html>

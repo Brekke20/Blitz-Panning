@@ -144,39 +144,27 @@ export async function handler(event) {
     // ipv als UTC (vermijdt 2u verschuiving in CEST).
     const dueDate = utcDueDate || `${date}T${appointmentTime}:00`;
 
-    // 1. Ticket PATCH: status → Wachten op bevestiging planning + dueDate met tijd
-    const patchRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
-      method:  'PATCH',
-      headers: {
-        Authorization:  `Zoho-oauthtoken ${accessToken}`,
-        orgId,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        status:  'Wachten op bevestiging planning',
-        dueDate,
-      }),
-    });
-
-    const patchText = await patchRes.text();
-    let patchData = {};
-    if (patchText) try { patchData = JSON.parse(patchText); } catch (_) {}
-    if (!patchRes.ok) {
-      throw new Error(`Zoho PATCH fout (${patchRes.status}): ${JSON.stringify(patchData)}`);
-    }
-
-    // Haal het from-adres op uit de Zoho e-mailconfiguratie
+    // Haal het from-adres op uit de Zoho e-mailconfiguratie.
+    // Voorkeur: ZOHO_FROM_EMAIL env-var (zet dit in Netlify UI → Site settings → Environment variables).
     let fromEmailAddress = process.env.ZOHO_FROM_EMAIL || null;
     if (!fromEmailAddress) {
-      const emailRes = await fetch(`${ZOHO_DESK}/emailAddresses?limit=1`, {
+      // Fallback: haal alle adressen op en kies het eerste geverifieerde/actieve support-adres.
+      const emailRes = await fetch(`${ZOHO_DESK}/emailAddresses?limit=50`, {
         headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
       });
       const emailData = await emailRes.json();
-      fromEmailAddress = emailData?.data?.[0]?.emailAddress || null;
+      const addresses = emailData?.data || [];
+      const candidate = addresses.find(a => a.emailAddress && a.emailAddress.includes('@'));
+      fromEmailAddress = candidate?.emailAddress || null;
+      if (!fromEmailAddress) {
+        throw new Error(
+          `Geen from-emailadres gevonden in Zoho (${addresses.length} adressen opgehaald). ` +
+          `Stel ZOHO_FROM_EMAIL in als Netlify env-var om dit te omzeilen.`
+        );
+      }
     }
-    if (!fromEmailAddress) throw new Error('Geen from-emailadres gevonden in Zoho configuratie');
 
-    // 2. E-mail via sendReply (alleen als er een e-mailadres is)
+    // 1. E-mail via sendReply EERST (anders overschrijft Zoho de status terug naar "Wachten op klant")
     let emailSent = false;
     if (recipientEmail) {
       const dateObj       = new Date(`${date}T12:00:00`);
@@ -213,16 +201,38 @@ export async function handler(event) {
       if (replyText) try { replyData = JSON.parse(replyText); } catch (_) {}
       if (!replyRes.ok) {
         // "Empty Recipients" = ticket heeft geen inbound email thread (bv. Phone-ticket).
-        // PATCH is al geslaagd; email sturen is niet mogelijk zonder bestaande email-thread.
         const isEmptyRecipients = JSON.stringify(replyData).includes('Empty Recipients');
         if (isEmptyRecipients) {
-          emailSent = false; // soft fail: ticket bijgewerkt, email niet verstuurd
+          emailSent = false; // soft fail: email niet verstuurd maar verder gaan
         } else {
           throw new Error(`Zoho sendReply fout (${replyRes.status}): ${JSON.stringify(replyData)}`);
         }
       } else {
         emailSent = true;
       }
+    }
+
+    // 2. Ticket PATCH NA sendReply: status → Wachten op bevestiging planning + dueDate
+    // Volgorde is belangrijk: Zoho zet status automatisch op "Wachten op klant" na sendReply,
+    // dus de PATCH moet daarna komen om de juiste status te garanderen.
+    const patchRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
+      method:  'PATCH',
+      headers: {
+        Authorization:  `Zoho-oauthtoken ${accessToken}`,
+        orgId,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        status:  'Wachten op bevestiging planning',
+        dueDate,
+      }),
+    });
+
+    const patchText = await patchRes.text();
+    let patchData = {};
+    if (patchText) try { patchData = JSON.parse(patchText); } catch (_) {}
+    if (!patchRes.ok) {
+      throw new Error(`Zoho PATCH fout (${patchRes.status}): ${JSON.stringify(patchData)}`);
     }
 
     return {

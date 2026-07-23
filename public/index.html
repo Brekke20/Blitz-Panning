@@ -1445,6 +1445,7 @@
     </div>
     <div class="mftr">
       <button class="btn-cancel" onclick="closeLocalDet()">Sluiten</button>
+      <button class="btn-cancel" id="ld-edit-btn" onclick="editFromLocalDet()">✏️ Bewerken</button>
       <button class="btn-cancel" id="ld-del-btn" style="color:var(--red);border-color:var(--red)" onclick="deleteFromLocalDet()">🗑 Verwijderen</button>
     </div>
   </div>
@@ -1454,7 +1455,7 @@
 <div class="overlay" id="manueel-overlay" onclick="closeManueelModal(event)">
   <div class="modal" id="manueel-modal">
     <div class="mhdr">
-      <div class="mhdr-title">➕ Afspraak toevoegen</div>
+      <div class="mhdr-title" id="manueel-modal-title">➕ Afspraak toevoegen</div>
     </div>
     <div class="mbody">
       <div class="man-form">
@@ -1513,6 +1514,7 @@
       </div>
     </div>
     <div class="mftr">
+      <input type="hidden" id="man-edit-id" value="" />
       <button class="btn-cancel" onclick="closeManueelModal()">Annuleren</button>
       <button class="btn-save"   onclick="saveManueelAfspraak()">Opslaan</button>
     </div>
@@ -2789,7 +2791,40 @@ function openManueelModal(prefillDate) {
     const datEl = document.getElementById('man-datum');
     if (datEl) datEl.value = prefillDate;
   }
+  // Reset edit mode
+  const editId = document.getElementById('man-edit-id');
+  if (editId) editId.value = '';
+  const titleEl = document.getElementById('manueel-modal-title');
+  if (titleEl) titleEl.textContent = '➕ Afspraak toevoegen';
   document.getElementById('manueel-overlay').classList.add('open');
+}
+
+function openManueelModalEdit(ev) {
+  if (!ev) return;
+  // Populate agents list
+  openManueelModal(null);
+  // Override with event values
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+  set('man-edit-id', ev.id);
+  set('man-titel',   ev.titel   || '');
+  set('man-datum',   ev.datum   || '');
+  set('man-van',     ev.uur     || '');
+  set('man-tot',     ev.einduur || '');
+  set('man-adres',   ev.adres   || '');
+  set('man-telefoon',ev.telefoon|| '');
+  set('man-email',   ev.email   || '');
+  set('man-notitie', ev.notitie || '');
+  // Type
+  const typeEl = document.getElementById('man-type');
+  if (typeEl && ev.type) typeEl.value = ev.type;
+  // Persoon
+  const selEl = document.getElementById('man-persoon');
+  if (selEl && ev.persoon) selEl.value = ev.persoon;
+  // Update modal title
+  const titleEl = document.getElementById('manueel-modal-title');
+  if (titleEl) titleEl.textContent = '✏️ Afspraak bewerken';
+  // Close detail modal, keep edit form open
+  document.getElementById('local-det-overlay').classList.remove('open');
 }
 
 function closeManueelModal(e) {
@@ -2798,40 +2833,56 @@ function closeManueelModal(e) {
 }
 
 async function saveManueelAfspraak() {
-  const titel   = document.getElementById('man-titel')?.value?.trim();
-  const datum   = document.getElementById('man-datum')?.value;
-  const type    = document.getElementById('man-type')?.value || 'Overige';
-  const van     = document.getElementById('man-van')?.value || '';
-  const tot     = document.getElementById('man-tot')?.value || '';
+  const titel    = document.getElementById('man-titel')?.value?.trim();
+  const datum    = document.getElementById('man-datum')?.value;
+  const type     = document.getElementById('man-type')?.value || 'Overige';
+  const van      = document.getElementById('man-van')?.value || '';
+  const tot      = document.getElementById('man-tot')?.value || '';
   const persoon  = document.getElementById('man-persoon')?.value || null;
   const adres    = document.getElementById('man-adres')?.value?.trim()    || '';
   const telefoon = document.getElementById('man-telefoon')?.value?.trim() || '';
   const email    = document.getElementById('man-email')?.value?.trim()    || '';
   const notitie  = document.getElementById('man-notitie')?.value?.trim()  || '';
+  const editId   = document.getElementById('man-edit-id')?.value || '';
 
   if (!titel) { toast('⚠ Voer een titel in', 2000); return; }
   if (!datum) { toast('⚠ Kies een datum', 2000); return; }
 
-  const event = {
-    id: crypto.randomUUID(),
-    titel, datum, uur: van, einduur: tot, type,
-    persoon: persoon || null, adres, notitie, telefoon, email,
-    bron: 'manueel', origResp: null,
-  };
-
-  localEvents.push(event);
-  renderKalender();
   document.getElementById('manueel-overlay').classList.remove('open');
-
   // Reset formulier
-  ['man-titel','man-adres','man-telefoon','man-email','man-notitie'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['man-titel','man-adres','man-telefoon','man-email','man-notitie','man-edit-id'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 
-  const ok = await saveAfspraken();
-  if (!ok) {
-    localEvents = localEvents.filter(e => e.id !== event.id);
+  if (editId) {
+    // Edit mode: update bestaand event
+    const idx = localEvents.findIndex(e => e.id === editId);
+    if (idx === -1) { toast('⚠ Afspraak niet gevonden', 2000); return; }
+    const oldEvent = { ...localEvents[idx] };
+    localEvents[idx] = { ...oldEvent, titel, datum, uur: van, einduur: tot, type, persoon: persoon || null, adres, notitie, telefoon, email };
     renderKalender();
+    const ok = await saveAfspraken();
+    if (!ok) {
+      localEvents[idx] = oldEvent;
+      renderKalender();
+    } else {
+      toast('✓ Afspraak bijgewerkt', 2000);
+    }
   } else {
-    toast('✓ Afspraak opgeslagen', 2000);
+    // Nieuw event
+    const event = {
+      id: crypto.randomUUID(),
+      titel, datum, uur: van, einduur: tot, type,
+      persoon: persoon || null, adres, notitie, telefoon, email,
+      bron: 'manueel', origResp: null,
+    };
+    localEvents.push(event);
+    renderKalender();
+    const ok = await saveAfspraken();
+    if (!ok) {
+      localEvents = localEvents.filter(e => e.id !== event.id);
+      renderKalender();
+    } else {
+      toast('✓ Afspraak opgeslagen', 2000);
+    }
   }
 }
 
@@ -2887,6 +2938,11 @@ function openLocalEventDetail(ev) {
 function closeLocalDet(e) {
   if (e && e.target !== document.getElementById('local-det-overlay')) return;
   document.getElementById('local-det-overlay').classList.remove('open');
+}
+
+function editFromLocalDet() {
+  if (!_localDetEvent) return;
+  openManueelModalEdit(_localDetEvent);
 }
 
 async function deleteFromLocalDet() {
@@ -3301,40 +3357,56 @@ async function autoPlan() {
     //   Seed van elke dag = ticket met laagste score t.o.v. startlocatie/depot
     //   Fill = ticket met laagste score t.o.v. huidige positie op die dag
     // PRIO_WEIGHT en urgencyFactor zijn module-scope (gedeeld met wachtrij-sortering)
-    const PREF_BONUS  = 0.9; // zachte -10% op voorkeursdag — kan prioriteit nooit overrulen
-
-    function prefFactor(t, dayStr) {
-      const pref = kbPreferred(t.id);
-      return (pref && pref === dayStr) ? PREF_BONUS : 1.0;
-    }
-
-    // Seed-score: prio × urgentie × voorkeurbonus — afstand irrelevant voor dagvolgorde
-    function seedScore(t, dayStr) {
-      const pw = PRIO_WEIGHT[(t.priority||'').toLowerCase()] ?? 9;
-      return pw * urgencyFactor(t) * prefFactor(t, dayStr);
-    }
-
-    // Fill-score: prio × afstand × urgentie × voorkeurbonus
-    function fillScore(t, fromLat, fromLon, dayStr) {
+    // Fill-score: prio × afstand × urgentie — lagere score = betere kandidaat
+    function fillScore(t, fromLat, fromLon) {
       const pw   = PRIO_WEIGHT[(t.priority||'').toLowerCase()] ?? 9;
       const dist = (t._lat && t._lon && fromLat && fromLon)
         ? haversine(fromLat, fromLon, t._lat, t._lon)
         : 999; // geen coords → achteraan
-      return pw * dist * urgencyFactor(t) * prefFactor(t, dayStr);
+      return pw * dist * urgencyFactor(t);
     }
 
     const pool = toplan.slice();
 
+    // ── Fix 1: Voorkeursplanning ──────────────────────────────────────────────
+    // Pre-compute voor elke ticket of de voorkeursdag beschikbaar (cap > 0) is.
+    // Zo'n ticket wordt NIET aangeboden aan eerdere dagen — het wacht op zijn voorkeursdag.
+    const prefDayAvailable = new Map(); // ticketId → dayStr
+    for (const t of pool) {
+      const pref = kbPreferred(t.id);
+      if (!pref) continue;
+      const prefDay = availDays.find(d => d.date === pref);
+      if (prefDay && prefDay.cap > 0 && !kbBlocked(t.id, pref)) {
+        prefDayAvailable.set(t.id, pref);
+      }
+    }
+
     for (const day of availDays) {
       if (!pool.length) break;
 
-      // Harde filter: tickets die klant geblokkeerd heeft op deze dag overslaan
-      const dayPool = pool.filter(t => !kbBlocked(t.id, day.date));
+      // Harde filter: geblokkeerde tickets + tickets gereserveerd voor een andere dag
+      const dayPool = pool.filter(t => {
+        if (kbBlocked(t.id, day.date)) return false;
+        const pref = prefDayAvailable.get(t.id);
+        if (pref && pref !== day.date) return false; // wacht op voorkeursdag
+        return true;
+      });
 
-      // Seed: meest urgente ticket ongeacht locatie (bepaalt welke regio die dag bezocht wordt)
-      dayPool.sort((a, b) => seedScore(a, day.date) - seedScore(b, day.date));
-      if (!dayPool.length) continue;
-      const seed = dayPool[0];
+      // ── Fix 2: Geografisch seeden ─────────────────────────────────────────
+      // Startpositie = positie van het laatste al ingeplande ticket op deze dag
+      // (zodat we verder bundelen vanuit de bestaande regio), of anders de depot.
+      const existingOnDay = (planning[day.date] || []).filter(p =>
+        activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
+      );
+      const lastExisting = existingOnDay[existingOnDay.length - 1];
+      const startLat = lastExisting?._lat ?? lastExisting?.ticket?._lat ?? originCoords?.lat ?? null;
+      const startLon = lastExisting?._lon ?? lastExisting?.ticket?._lon ?? originCoords?.lon ?? null;
+
+      // Seed: geografisch dichtste ticket (met urgentie/prio als tiebreaker via fillScore)
+      const seedPool = [...dayPool];
+      seedPool.sort((a, b) => fillScore(a, startLat, startLon) - fillScore(b, startLat, startLon));
+      if (!seedPool.length) continue;
+      const seed = seedPool[0];
       pool.splice(pool.indexOf(seed), 1);
       const dayTickets = [seed];
 
@@ -3343,9 +3415,14 @@ async function autoPlan() {
       let curLat = seed._lat, curLon = seed._lon;
       let usedSlots = Math.ceil(duurVoor(seed.id) / settings.duurMinuten); // seed telt al mee
       while (usedSlots < day.cap && pool.length) {
-        const fillPool = pool.filter(t => !kbBlocked(t.id, day.date));
+        const fillPool = pool.filter(t => {
+          if (kbBlocked(t.id, day.date)) return false;
+          const pref = prefDayAvailable.get(t.id);
+          if (pref && pref !== day.date) return false;
+          return true;
+        });
         if (!fillPool.length) break;
-        fillPool.sort((a, b) => fillScore(a, curLat, curLon, day.date) - fillScore(b, curLat, curLon, day.date));
+        fillPool.sort((a, b) => fillScore(a, curLat, curLon) - fillScore(b, curLat, curLon));
         const chosen = fillPool[0];
         const chosenSlots = Math.ceil(duurVoor(chosen.id) / settings.duurMinuten);
         if (usedSlots + chosenSlots > day.cap) break; // past niet meer
