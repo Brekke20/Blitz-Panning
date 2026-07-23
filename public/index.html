@@ -947,7 +947,7 @@
       border-radius: var(--r); padding: 12px 15px; cursor: pointer; min-height: 50px;
       transition: border-color 0.15s, background 0.15s;
     }
-    .wiz-radio-card input[type=radio] { accent-color: var(--accent); width: 20px; height: 20px; flex-shrink: 0; cursor: pointer; }
+    .wiz-radio-card input[type=radio], .wiz-radio-card input[type=checkbox] { accent-color: var(--accent); width: 20px; height: 20px; flex-shrink: 0; cursor: pointer; }
     .wiz-radio-card:has(input:checked) { border-color: var(--accent); background: var(--accent-dim); }
     .wiz-radio-card-label { font-size: 0.88rem; font-weight: 500; }
     .wiz-radio-card-sub   { font-size: 0.73rem; color: var(--muted); margin-top: 1px; }
@@ -4494,6 +4494,7 @@ const R = {
   interventieType: 'Interventie',
   installateur: '', serienummer: '', type: '', uitvoering: '', kabel: '', kabellengte: '',
   probleem: '', acties: '',
+  oorzaakStoring: [],
   hersteld: 'nee', nieuwInter: 'nee',
   varia: '',
   onderdelen: [],
@@ -4528,6 +4529,7 @@ async function openRapport(ticketId, date) {
   R.stop         = `${p2(now.getHours())}:${p2(now.getMinutes())}`;
   R.probleem     = ticket.subject || '';
   R.acties       = '';
+  R.oorzaakStoring = [];
   R.varia        = '';
   R.onderdelen   = [];
   R.technieker   = R.technieker || ''; // bewaar als al ingevuld
@@ -4611,7 +4613,8 @@ function wizRenderStep() {
 }
 
 function wizNext() {
-  if (WIZ_STEPS[_wizStep].save) WIZ_STEPS[_wizStep].save();
+  const step = WIZ_STEPS[_wizStep];
+  if (step.save && step.save() === false) return;
   if (_wizStep < WIZ_STEPS.length - 1) {
     _wizStep++;
     wizRenderStep();
@@ -4923,6 +4926,13 @@ function wizSaveProduct() {
 }
 
 // ── Stap 4: Omschrijving & acties ──
+const OORZAAK_STORING_MAP = {
+  'f-oorzaak-product':      'Productfout',
+  'f-oorzaak-installatie':  'Installatiefout',
+  'f-oorzaak-configuratie': 'Configuratiefout',
+  'f-oorzaak-andere':       'Andere',
+};
+
 function wizRenderOmschrijving(el) {
   el.innerHTML = `
     <div class="wiz-step-title">Omschrijving &amp; acties</div>
@@ -4933,11 +4943,27 @@ function wizRenderOmschrijving(el) {
     <div class="wiz-field">
       <label class="wiz-field-label">Ondernomen acties</label>
       <textarea class="wiz-textarea" id="f-acties" rows="6" placeholder="Beschrijf de uitgevoerde werkzaamheden...">${R.acties}</textarea>
+    </div>
+    <div class="wiz-field">
+      <label class="wiz-field-label">Oorzaak storing</label>
+      <div class="wiz-radio-cards row">
+        <label class="wiz-radio-card"><input type="checkbox" id="f-oorzaak-product" ${R.oorzaakStoring.includes('Productfout')?'checked':''}><div><div class="wiz-radio-card-label">Productfout</div></div></label>
+        <label class="wiz-radio-card"><input type="checkbox" id="f-oorzaak-installatie" ${R.oorzaakStoring.includes('Installatiefout')?'checked':''}><div><div class="wiz-radio-card-label">Installatiefout</div></div></label>
+        <label class="wiz-radio-card"><input type="checkbox" id="f-oorzaak-configuratie" ${R.oorzaakStoring.includes('Configuratiefout')?'checked':''}><div><div class="wiz-radio-card-label">Configuratiefout</div></div></label>
+        <label class="wiz-radio-card"><input type="checkbox" id="f-oorzaak-andere" ${R.oorzaakStoring.includes('Andere')?'checked':''}><div><div class="wiz-radio-card-label">Andere</div></div></label>
+      </div>
     </div>`;
 }
 function wizSaveOmschrijving() {
   R.probleem = wizV('f-probleem');
   R.acties   = wizV('f-acties');
+  R.oorzaakStoring = Object.entries(OORZAAK_STORING_MAP)
+    .filter(([id]) => document.getElementById(id)?.checked)
+    .map(([, label]) => label);
+  if (!R.oorzaakStoring.length) {
+    toast('⚠️ Selecteer minstens één oorzaak storing', 3500);
+    return false;
+  }
 }
 
 // ── Stap 5: Status & onderdelen ──
