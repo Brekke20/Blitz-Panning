@@ -1053,6 +1053,11 @@
       .day-col { min-width: unset; border-right: none; border-bottom: 1px solid var(--border); }
     }
 
+    /* Beperkte technieker-weergave: verbergt coördinator/planning-functionaliteit onder 1024px */
+    @media (max-width: 1023px) {
+      .desktop-only { display: none !important; }
+    }
+
     /* ── Prijsbeheer admin modal ────────────────────────────────────────────── */
     #prijs-overlay { z-index: 110; }
     #prijs-overlay .modal {
@@ -1223,16 +1228,16 @@
     <span class="theme-icon-dark">🌙</span>
     <span class="theme-icon-light">☀️</span>
   </button>
-  <button class="hbtn" onclick="openSettings()" title="Instellingen">⚙</button>
+  <button class="hbtn desktop-only" onclick="openSettings()" title="Instellingen">⚙</button>
 </header>
 
 <div class="tabs">
   <div class="tabs-inner">
-    <div class="tab active" id="tab-tickets"  onclick="event.stopPropagation(); setTab('tickets')">Wachtrij <span class="badge" id="cnt-tickets">0</span></div>
+    <div class="tab active desktop-only" id="tab-tickets"  onclick="event.stopPropagation(); setTab('tickets')">Wachtrij <span class="badge" id="cnt-tickets">0</span></div>
     <div class="tab"        id="tab-kalender" onclick="event.stopPropagation(); setTab('kalender')">Kalender</div>
-    <div class="tab"        id="tab-planning" onclick="event.stopPropagation(); setTab('planning')">Route</div>
+    <div class="tab desktop-only" id="tab-planning" onclick="event.stopPropagation(); setTab('planning')">Route</div>
     <div class="tab"        id="tab-gepland"  onclick="event.stopPropagation(); setTab('gepland')">Ingepland <span class="badge" id="cnt-gepland">0</span></div>
-    <div class="tab"        id="tab-rapporten" onclick="event.stopPropagation(); setTab('rapporten')">Rapporten</div>
+    <div class="tab desktop-only" id="tab-rapporten" onclick="event.stopPropagation(); setTab('rapporten')">Rapporten</div>
   </div>
 </div>
 
@@ -1324,14 +1329,14 @@
     </div>
     <div class="mbody">
       <div class="msec"><div class="msec-title">Klantgegevens</div><div id="d-klant"></div></div>
-      <div class="msec"><div class="msec-title">Ticketdetails</div><div id="d-ticket"></div><div id="kb-section"></div></div>
+      <div class="msec"><div class="msec-title">Ticketdetails</div><div id="d-ticket"></div><div class="desktop-only" id="kb-section"></div></div>
     </div>
     <div class="mftr">
       <button class="btn-cancel" onclick="closeDet()">Sluiten</button>
-      <button class="btn-save"   id="d-plan-btn" onclick="togglePlanFromDetail()"></button>
+      <button class="btn-save desktop-only" id="d-plan-btn" onclick="togglePlanFromDetail()"></button>
       <button class="btn-cancel" onclick="openOpl()">✏️ Oplossing</button>
       <button class="btn-cancel" id="d-btn-arrival" style="display:none" title="Aankomst registreren" onclick="registerArrival(activeTicket?.id,_detailDate)">⏱️ Aankomst</button>
-      <button class="btn-cancel" id="d-btn-proposal" style="display:none" title="Afspraakvoorstel sturen" onclick="openProposal(activeTicket?.id,_detailDate,(()=>{const t=computeArrivalTimes(_detailDate);return activeTicket?t[activeTicket.id]??null:null})())">📨 Voorstel</button>
+      <button class="btn-cancel desktop-only" id="d-btn-proposal" style="display:none" title="Afspraakvoorstel sturen" onclick="openProposal(activeTicket?.id,_detailDate,(()=>{const t=computeArrivalTimes(_detailDate);return activeTicket?t[activeTicket.id]??null:null})())">📨 Voorstel</button>
       <button class="btn-cancel" id="d-btn-rapport"  style="display:none" title="Service rapport" onclick="openRapport(activeTicket?.id,_detailDate)">📋 Rapport</button>
     </div>
   </div>
@@ -1808,6 +1813,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const active = document.querySelector('.tab.active');
     if (active) updateTabIndicator(active.id);
   });
+  enforceMobileTabRestriction();
+  window.matchMedia('(max-width: 1023px)').addEventListener('change', enforceMobileTabRestriction);
   // Herbereken indicator als gebruiker de tabbalk horizontaal scrollt
   document.querySelector('.tabs-inner')?.addEventListener('scroll', () => {
     const active = document.querySelector('.tab.active');
@@ -1927,7 +1934,7 @@ function buildPersonSelector() {
 
   // "Alle" optie
   const allItem = document.createElement('button');
-  allItem.className = `pm-item${activeAssigneeFilter === 'all' ? ' active' : ''}`;
+  allItem.className = `pm-item desktop-only${activeAssigneeFilter === 'all' ? ' active' : ''}`;
   allItem.innerHTML = `<div class="pm-avatar">A</div><div class="pm-item-info"><div class="pm-item-name">Alle technici</div><div class="pm-item-sub">Gecombineerde weergave</div></div>`;
   allItem.onclick = () => selectPerson('all');
   menu.appendChild(allItem);
@@ -2250,8 +2257,8 @@ function renderKalender() {
       <div class="day-hdr">
         <div class="day-hdr-name ${isToday ? 'today' : isPast ? 'past' : ''}">${day.toLocaleDateString('nl-BE', { weekday:'short' })}</div>
         <div class="day-hdr-num${isToday ? ' today' : ''}">${day.getDate()}</div>
-        <div class="day-cap ${capFull ? 'full' : ''}">${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔒 Geblokkeerd' : capLabel}</div>
-        <button class="day-block-btn ${holidayName ? 'holiday' : isDayBlocked ? 'blocked' : ''}" data-date="${dateStr}" onclick="event.stopPropagation(); onBlockBtnClick(this)">
+        <div class="day-cap desktop-only ${capFull ? 'full' : ''}">${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔒 Geblokkeerd' : capLabel}</div>
+        <button class="day-block-btn desktop-only ${holidayName ? 'holiday' : isDayBlocked ? 'blocked' : ''}" data-date="${dateStr}" onclick="event.stopPropagation(); onBlockBtnClick(this)">
           ${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔒 Geblokkeerd' : dayBlockCount > 0 ? `⏱ ${dayBlockCount} uitzondering${dayBlockCount > 1 ? 'en' : ''}` : '⏱ Beschikbaar'}
         </button>
       </div>
@@ -2325,7 +2332,7 @@ function renderKalender() {
     // Route knop als er stops zijn
     if (dayStops.length > 0 || dayEvents.some(e => e.adres || e.notitie)) {
       const rb = document.createElement('button');
-      rb.className = 'cal-btn';
+      rb.className = 'cal-btn desktop-only';
       rb.style.cssText = 'width:100%;margin-top:4px;background:var(--accent-dim);border:1px solid rgba(245,158,11,0.2);color:var(--accent);padding:4px;border-radius:4px;cursor:pointer;font-size:0.7rem;font-weight:600;font-family:inherit;';
       rb.textContent = 'Route berekenen';
       rb.onclick = () => {
@@ -3901,6 +3908,13 @@ function setTab(tab) {
   if (tab === 'kalender')  setTimeout(() => renderKalender(), 0);
   if (tab === 'gepland')   setTimeout(() => renderGepland(), 0);
   if (tab === 'rapporten') setTimeout(() => laadRapportArchief(), 0);
+}
+
+// NOTE: 'kalender' is the mobile fallback tab and must never carry the desktop-only class.
+function enforceMobileTabRestriction() {
+  if (!window.matchMedia('(max-width: 1023px)').matches) return;
+  const active = document.querySelector('.tab.active');
+  if (active && active.classList.contains('desktop-only')) setTab('kalender');
 }
 
 // ══════════════════════════════════════════════
