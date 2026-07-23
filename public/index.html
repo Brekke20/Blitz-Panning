@@ -531,11 +531,12 @@
     .cal-meta { font-size: 0.65rem; color: var(--muted); margin-left: 4px; }
     .cal-addr { font-size: 0.64rem; color: var(--muted); margin: 2px 0 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .cal-addr.miss { color: rgba(248,81,73,0.75); }
-    .cal-actions { display: flex; gap: 4px; margin: 6px 0 0 4px; flex-wrap: wrap; }
+    .cal-actions { display: flex; gap: 6px; margin: 8px 4px 0 4px; }
     .cal-btn {
-      background: transparent; border: 1px solid var(--border); color: var(--muted);
-      padding: 3px 8px; border-radius: 4px; font-size: 0.67rem;
-      cursor: pointer; font-family: inherit;
+      flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text2);
+      padding: 7px 6px; border-radius: 6px; font-size: 0.74rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; text-decoration: none;
       transition: background 0.1s, color 0.1s, border-color 0.1s;
     }
     .cal-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border); }
@@ -1264,16 +1265,16 @@
       <button class="kal-today" id="kal-today-btn" onclick="kalToday()">Vandaag</button>
     </div>
     <div class="kal-actions">
-      <button class="kal-pending-pill" id="kal-pending-pill" onclick="togglePendingPanel()" style="display:none">
+      <button class="kal-pending-pill desktop-only" id="kal-pending-pill" onclick="togglePendingPanel()" style="display:none">
         ⚠ <span class="pill-count" id="kal-pending-count">0</span> zonder datum
       </button>
-      <button class="btn-autoplan" id="btn-autoplan" onclick="autoPlan()">⚡ Plan deze week</button>
-      <button class="btn-sec" onclick="document.getElementById('import-file-input').click()" title="Importeer installaties JSON" style="padding:5px 10px;font-size:0.75rem">📥 Import</button>
+      <button class="btn-autoplan desktop-only" id="btn-autoplan" onclick="autoPlan()">⚡ Plan deze week</button>
+      <button class="btn-sec desktop-only" onclick="document.getElementById('import-file-input').click()" title="Importeer installaties JSON" style="padding:5px 10px;font-size:0.75rem">📥 Import</button>
       <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="handleImportFile(this)" />
-      <button class="btn-sec" onclick="openManueelModal()" title="Manuele afspraak toevoegen" style="padding:5px 10px;font-size:0.75rem">➕ Afspraak</button>
+      <button class="btn-sec desktop-only" onclick="openManueelModal()" title="Manuele afspraak toevoegen" style="padding:5px 10px;font-size:0.75rem">➕ Afspraak</button>
     </div>
   </div>
-  <div id="kal-no-date-section"></div>
+  <div class="desktop-only" id="kal-no-date-section"></div>
   <div class="week-grid" id="week-grid"></div>
 </div>
 
@@ -2285,8 +2286,8 @@ function renderKalender() {
           <button onclick="event.stopPropagation();removeTicketFromDate('${stop.ticket.id}','${dateStr}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;flex-shrink:0;padding:2px 4px;line-height:1">×</button>
         </div>
         <div class="cal-actions">
-          ${stop.ticket.phone || stop.ticket.telefoonEindklant ? `<a class="cal-btn" href="tel:${stop.ticket.telefoonEindklant||stop.ticket.phone}">Bellen</a>` : ''}
-          <button class="cal-btn" onclick="event.stopPropagation();openDetail(getPlanningTicket('${stop.ticket.id}'))">Details</button>
+          ${stop.ticket.phone || stop.ticket.telefoonEindklant ? `<a class="cal-btn" href="tel:${stop.ticket.telefoonEindklant||stop.ticket.phone}">📞 Bellen</a>` : ''}
+          ${stop.ticket.hasAddress ? `<button class="cal-btn" onclick="event.stopPropagation();navigate('${encodeURIComponent(stop.address||stop.ticket.address||'')}')">🧭 Navigeer</button>` : ''}
         </div>`;
       card.addEventListener('click', () => openDetail(stop.ticket));
       col.querySelector('.day-body').appendChild(card);
