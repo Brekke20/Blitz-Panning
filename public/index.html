@@ -1813,6 +1813,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const active = document.querySelector('.tab.active');
     if (active) updateTabIndicator(active.id);
   });
+  enforceMobileTabRestriction();
+  window.matchMedia('(max-width: 1023px)').addEventListener('change', enforceMobileTabRestriction);
   // Herbereken indicator als gebruiker de tabbalk horizontaal scrollt
   document.querySelector('.tabs-inner')?.addEventListener('scroll', () => {
     const active = document.querySelector('.tab.active');
@@ -3906,6 +3908,12 @@ function setTab(tab) {
   if (tab === 'kalender')  setTimeout(() => renderKalender(), 0);
   if (tab === 'gepland')   setTimeout(() => renderGepland(), 0);
   if (tab === 'rapporten') setTimeout(() => laadRapportArchief(), 0);
+}
+
+function enforceMobileTabRestriction() {
+  if (!window.matchMedia('(max-width: 1023px)').matches) return;
+  const active = document.querySelector('.tab.active');
+  if (active && active.classList.contains('desktop-only')) setTab('kalender');
 }
 
 // ══════════════════════════════════════════════
