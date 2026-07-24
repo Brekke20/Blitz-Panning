@@ -1458,6 +1458,7 @@
     </div>
     <div class="mftr">
       <button class="btn-cancel" onclick="closeLocalDet()">Sluiten</button>
+      <button class="btn-cancel" onclick="openFotoModal(_localDetEvent?.id)">📷 Foto's</button>
       <button class="btn-cancel" id="ld-edit-btn" onclick="editFromLocalDet()">✏️ Bewerken</button>
       <button class="btn-cancel" id="ld-del-btn" style="color:var(--red);border-color:var(--red)" onclick="deleteFromLocalDet()">🗑 Verwijderen</button>
     </div>
@@ -2332,14 +2333,11 @@ function renderKalender() {
         ${adresLabel ? `<div class="cal-addr">${escHtml(adresLabel)}</div>` : ''}
         ${ev.persoon ? `<div class="cal-meta">${escHtml(ev.persoon)}</div>` : ''}
         <div class="cal-actions">
-          ${adresLabel ? `<a class="cal-btn cal-ev-maps" href="https://maps.google.com/?q=${encodeURIComponent(adresLabel)}" target="_blank">Maps</a>` : ''}
-          ${ev.telefoon ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(ev.telefoon)}">Bellen</a>` : ''}
-          <button class="cal-btn cal-ev-det">Details</button>
+          ${ev.telefoon ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(ev.telefoon)}">📞 Bellen</a>` : ''}
+          ${adresLabel ? `<button class="cal-btn cal-ev-nav">🧭 Navigeer</button>` : ''}
         </div>`;
-      card.querySelector('.cal-ev-maps')?.addEventListener('click', e => e.stopPropagation());
       card.querySelector('.cal-ev-call')?.addEventListener('click', e => e.stopPropagation());
-      const detBtn = card.querySelector('.cal-ev-det');
-      if (detBtn) detBtn.addEventListener('click', e => { e.stopPropagation(); openLocalEventDetail(ev); });
+      card.querySelector('.cal-ev-nav')?.addEventListener('click', e => { e.stopPropagation(); navigate(encodeURIComponent(adresLabel)); });
       card.addEventListener('click', () => openLocalEventDetail(ev));
       col.querySelector('.day-body').appendChild(card);
     });
