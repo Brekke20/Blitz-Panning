@@ -1343,6 +1343,7 @@
       <button class="btn-cancel" onclick="openOpl()">✏️ Oplossing</button>
       <button class="btn-cancel" id="d-btn-arrival" style="display:none" title="Aankomst registreren" onclick="registerArrival(activeTicket?.id,_detailDate)">⏱️ Aankomst</button>
       <button class="btn-cancel desktop-only" id="d-btn-proposal" style="display:none" title="Afspraakvoorstel sturen" onclick="openProposal(activeTicket?.id,_detailDate,(()=>{const t=computeArrivalTimes(_detailDate);return activeTicket?t[activeTicket.id]??null:null})())">📨 Voorstel</button>
+      <button class="btn-cancel" id="d-btn-fotos" style="display:none" title="Foto's" onclick="openFotoModal(activeTicket?.id)">📷 Foto's</button>
       <button class="btn-cancel" id="d-btn-rapport"  style="display:none" title="Service rapport" onclick="openRapport(activeTicket?.id,_detailDate)">📋 Rapport</button>
     </div>
   </div>
@@ -1552,6 +1553,19 @@
     <div class="row-btns">
       <button class="btn-cancel" onclick="closeOpl()">Annuleren</button>
       <button class="btn-save"   onclick="saveOpl()">Opslaan in Zoho</button>
+    </div>
+  </div>
+</div>
+
+<!-- Foto's modal -->
+<div class="overlay" id="foto-overlay" onclick="closeFotoModal(event)">
+  <div class="modal" id="foto-modal">
+    <h3>📷 Foto's</h3>
+    <div id="foto-grid" class="foto-grid"></div>
+    <input type="file" id="foto-file-input" accept="image/*" multiple style="display:none" onchange="handleFotoFiles(this)">
+    <button class="foto-add-btn" onclick="document.getElementById('foto-file-input').click()">+ Foto toevoegen</button>
+    <div class="row-btns">
+      <button class="btn-cancel" onclick="closeFotoModal()">Sluiten</button>
     </div>
   </div>
 </div>
@@ -4010,6 +4024,7 @@ function openDetail(t) {
   const showPlanBtns = !!_detailDate;
   document.getElementById('d-btn-arrival').style.display  = showPlanBtns ? '' : 'none';
   document.getElementById('d-btn-proposal').style.display = showPlanBtns ? '' : 'none';
+  document.getElementById('d-btn-fotos').style.display    = showPlanBtns ? '' : 'none';
   document.getElementById('d-btn-rapport').style.display  = showPlanBtns ? '' : 'none';
   document.getElementById('d-num').textContent   = '#' + t.number;
   document.getElementById('d-title').textContent = t.subject || '—';
@@ -4155,6 +4170,68 @@ function openOpl() {
 function closeOpl(e) {
   if (e && e.target !== document.getElementById('opl-overlay')) return;
   document.getElementById('opl-overlay').classList.remove('open');
+}
+
+async function openFotoModal(ticketId) {
+  if (!ticketId) return;
+  const { versie, fotos } = await loadFotos(ticketId);
+  _fotoState = { ticketId, versie, fotos };
+  renderFotoGridInto('foto-grid');
+  document.getElementById('foto-overlay').classList.add('open');
+}
+
+function closeFotoModal(e) {
+  if (e && e.target !== document.getElementById('foto-overlay')) return;
+  document.getElementById('foto-overlay').classList.remove('open');
+}
+
+function renderFotoGridInto(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  renderFotoGrid(el, _fotoState.fotos, {
+    onDelete:      (id) => persistFotoChange(_fotoState.fotos.filter(f => f.id !== id), containerId),
+    onCaptionInput: (id, value) => persistFotoChange(
+      _fotoState.fotos.map(f => f.id === id ? { ...f, caption: value } : f), containerId
+    ),
+  });
+}
+
+async function persistFotoChange(newFotos, containerId) {
+  try {
+    const result = await saveFotos(_fotoState.ticketId, _fotoState.versie, newFotos);
+    _fotoState.versie = result.versie;
+    _fotoState.fotos  = result.fotos;
+  } catch (err) {
+    if (err.status === 409) {
+      toast('⚠️ Foto\'s zijn elders gewijzigd, herladen...', 3000);
+      const fresh = await loadFotos(_fotoState.ticketId);
+      _fotoState.versie = fresh.versie;
+      _fotoState.fotos  = fresh.fotos;
+    } else {
+      toast('❌ Foto opslaan mislukt: ' + err.message, 4000);
+    }
+  }
+  renderFotoGridInto(containerId);
+}
+
+async function handleFotoFiles(input) {
+  const files = Array.from(input.files || []);
+  input.value = '';
+  if (!files.length) return;
+  if (_fotoState.fotos.length + files.length > FOTO_MAX_COUNT) {
+    return toast(`⚠️ Maximaal ${FOTO_MAX_COUNT} foto's per ticket`, 3500);
+  }
+  toast(`📷 ${files.length} foto${files.length > 1 ? "'s" : ''} verwerken...`, 4000);
+  const nieuwe = [];
+  for (const file of files) {
+    try {
+      const dataUrl = await compressFotoFile(file);
+      nieuwe.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, dataUrl, caption: '', tijdstip: new Date().toISOString() });
+    } catch (err) {
+      toast('❌ Foto verwerken mislukt: ' + err.message, 4000);
+    }
+  }
+  if (nieuwe.length) await persistFotoChange([..._fotoState.fotos, ...nieuwe], 'foto-grid');
 }
 
 async function saveOpl() {
@@ -4576,6 +4653,7 @@ let _wizDate   = null;
 let _wizStep   = 0;
 let _sigTech   = null;
 let _sigKlant  = null;
+let _fotoState = { ticketId: null, versie: 0, fotos: [] };
 
 // Rapport data object — gevuld doorheen wizard
 const R = {
