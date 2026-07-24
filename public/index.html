@@ -2646,10 +2646,10 @@ function renderFotoGrid(container, fotos, callbacks) {
     return;
   }
   container.innerHTML = fotos.map(f => `
-    <div class="foto-thumb" data-id="${f.id}">
-      <img src="${f.dataUrl}" alt="">
-      <button class="foto-thumb-del" title="Verwijderen" data-action="del" data-id="${f.id}">✕</button>
-      <input class="foto-caption" type="text" placeholder="Bijschrift..." value="${escHtml(f.caption || '')}" data-action="caption" data-id="${f.id}">
+    <div class="foto-thumb" data-id="${escHtml(f.id)}">
+      <img src="${escHtml(f.dataUrl)}" alt="">
+      <button class="foto-thumb-del" title="Verwijderen" data-action="del" data-id="${escHtml(f.id)}">✕</button>
+      <input class="foto-caption" type="text" placeholder="Bijschrift..." value="${escHtml(f.caption || '')}" data-action="caption" data-id="${escHtml(f.id)}">
     </div>`).join('');
   container.querySelectorAll('[data-action="del"]').forEach(btn =>
     btn.addEventListener('click', () => callbacks.onDelete(btn.dataset.id)));
