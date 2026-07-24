@@ -660,20 +660,22 @@
     #route-list { width: 300px; flex-shrink: 0; overflow-y: auto; padding: 6px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
     .stop {
       background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r);
-      padding: 10px 12px; display: flex; gap: 9px; align-items: flex-start;
+      padding: 10px 12px;
       transition: background 0.12s, transform 0.12s;
     }
     .stop:hover { background: var(--surface3); transform: translateX(2px); }
     .stop.drag-over { border-color: var(--accent); }
+    .stop-top { display: flex; gap: 9px; align-items: flex-start; }
     .stop-num { background: var(--accent); color: #000; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.7rem; flex-shrink: 0; }
     .stop-info { flex: 1; min-width: 0; }
     .stop-sub  { font-weight: 600; font-size: 0.82rem; margin-bottom: 2px; }
     .stop-addr { font-size: 0.71rem; color: var(--muted); }
     .stop-leg  { font-size: 0.68rem; color: var(--muted); padding: 2px 0 3px 31px; }
-    .stop-actions { display: flex; gap: 3px; flex-shrink: 0; flex-wrap: wrap; max-width: 168px; justify-content: flex-end; }
+    .stop-actions { display: flex; gap: 4px; flex-wrap: wrap; margin: 8px 0 0 31px; }
     .sico {
       background: transparent; border: 1px solid var(--border); color: var(--muted);
-      padding: 4px 7px; border-radius: 5px; cursor: pointer; font-size: 0.74rem;
+      padding: 4px 8px; border-radius: 5px; cursor: pointer; font-size: 0.68rem; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 3px; white-space: nowrap;
       transition: background 0.1s, color 0.1s, transform 0.1s var(--ease-spring);
     }
     .sico:hover  { background: var(--surface); color: var(--text2); transform: scale(1.07); }
@@ -3796,20 +3798,22 @@ function renderRouteList(date) {
         ? `<div class="stop-arrival">✅ Aangekomen ${arrivalData[arrKey]}</div>`
         : '';
       stop.innerHTML = `
-        <div class="stop-num">${i+1}</div>
-        <div class="stop-info">
-          <div class="stop-sub">${item.ticket.subject || '—'}</div>
-          <div class="stop-addr">${item.address || 'Geen adres'}</div>
-          ${timeHtml}${arrivalHtml}
-          ${proposalSentTickets.has(item.ticket.id) ? '<div class="stop-proposal-sent">✉️ Voorstel verstuurd</div>' : ''}
+        <div class="stop-top">
+          <div class="stop-num">${i+1}</div>
+          <div class="stop-info">
+            <div class="stop-sub">${item.ticket.subject || '—'}</div>
+            <div class="stop-addr">${item.address || 'Geen adres'}</div>
+            ${timeHtml}${arrivalHtml}
+            ${proposalSentTickets.has(item.ticket.id) ? '<div class="stop-proposal-sent">✉️ Voorstel verstuurd</div>' : ''}
+          </div>
         </div>
         <div class="stop-actions">
-          <button class="sico" title="Navigeren" onclick="navigate('${encodeURIComponent(item.address||'')}')">🧭</button>
-          <button class="sico" title="Afspraakvoorstel sturen" onclick="openProposal('${item.ticket.id}','${date}',${arrivalTimes[i] !== undefined ? arrivalTimes[i] : 'null'})">📨</button>
-          <button class="sico" title="Aankomst registreren" onclick="registerArrival('${item.ticket.id}','${date}')">⏱️</button>
-          <button class="sico" title="Service rapport" onclick="openRapport('${item.ticket.id}','${date}')">📋</button>
-          <button class="sico" title="Oplossing invoeren" onclick="activeTicket=getPlanningTicket('${item.ticket.id}');openOpl()">✏️</button>
-          <button class="sico" title="Verwijderen" onclick="removeTicketFromDate('${item.ticket.id}','${date}')">✕</button>
+          <button class="sico" title="Navigeren" onclick="navigate('${encodeURIComponent(item.address||'')}')">🧭 Navigeer</button>
+          <button class="sico" title="Afspraakvoorstel sturen" onclick="openProposal('${item.ticket.id}','${date}',${arrivalTimes[i] !== undefined ? arrivalTimes[i] : 'null'})">📨 Voorstel</button>
+          <button class="sico" title="Aankomst registreren" onclick="registerArrival('${item.ticket.id}','${date}')">⏱️ Aankomst</button>
+          <button class="sico" title="Service rapport" onclick="openRapport('${item.ticket.id}','${date}')">📋 Rapport</button>
+          <button class="sico" title="Oplossing invoeren" onclick="activeTicket=getPlanningTicket('${item.ticket.id}');openOpl()">✏️ Oplossing</button>
+          <button class="sico" title="Verwijderen" onclick="removeTicketFromDate('${item.ticket.id}','${date}')">✕ Verwijderen</button>
         </div>`;
       if (window.innerWidth > 680) {
         stop.draggable = true; stop.style.cursor = 'grab';
@@ -3835,18 +3839,20 @@ function renderRouteList(date) {
       const adres = ev.adres || ev.notitie || '';
       const tijdLabel = ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '';
       stop.innerHTML = `
-        <div class="stop-num" style="background:rgba(124,92,252,0.15);color:#7c5cfc;border-color:#7c5cfc">${i+1}</div>
-        <div class="stop-info">
-          <div class="stop-sub" style="color:#7c5cfc">${escHtml(ev.type)} — ${escHtml(ev.titel)}</div>
-          <div class="stop-addr">${escHtml(adres) || 'Geen adres'}</div>
-          ${tijdLabel ? `<div class="stop-time" style="color:var(--muted)">🗓 ${tijdLabel}</div>` : ''}
-          ${timeHtml}
-          ${ev.persoon ? `<div class="stop-arrival">${escHtml(ev.persoon)}</div>` : ''}
+        <div class="stop-top">
+          <div class="stop-num" style="background:rgba(124,92,252,0.15);color:#7c5cfc;border-color:#7c5cfc">${i+1}</div>
+          <div class="stop-info">
+            <div class="stop-sub" style="color:#7c5cfc">${escHtml(ev.type)} — ${escHtml(ev.titel)}</div>
+            <div class="stop-addr">${escHtml(adres) || 'Geen adres'}</div>
+            ${tijdLabel ? `<div class="stop-time" style="color:var(--muted)">🗓 ${tijdLabel}</div>` : ''}
+            ${timeHtml}
+            ${ev.persoon ? `<div class="stop-arrival">${escHtml(ev.persoon)}</div>` : ''}
+          </div>
         </div>
         <div class="stop-actions">
-          ${adres ? `<button class="sico" title="Navigeren" onclick="navigate('${encodeURIComponent(adres)}')">🧭</button>` : ''}
-          ${ev.telefoon ? `<a class="sico" href="tel:${escHtml(ev.telefoon)}" title="Bellen">📞</a>` : ''}
-          <button class="sico" title="Details" onclick="openLocalEventDetail(localEvents.find(e=>e.id==='${ev.id}'))">📋</button>
+          ${ev.telefoon ? `<a class="sico" href="tel:${escHtml(ev.telefoon)}" title="Bellen">📞 Bellen</a>` : ''}
+          ${adres ? `<button class="sico" title="Navigeren" onclick="navigate('${encodeURIComponent(adres)}')">🧭 Navigeer</button>` : ''}
+          <button class="sico" title="Details" onclick="openLocalEventDetail(localEvents.find(e=>e.id==='${ev.id}'))">📋 Details</button>
         </div>`;
     }
     list.appendChild(stop);
