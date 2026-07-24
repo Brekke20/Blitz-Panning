@@ -4214,7 +4214,7 @@ async function persistFotoChange(newFotos, containerId) {
   renderFotoGridInto(containerId);
 }
 
-async function handleFotoFiles(input) {
+async function handleFotoFiles(input, containerId = 'foto-grid') {
   const files = Array.from(input.files || []);
   input.value = '';
   if (!files.length) return;
@@ -4231,7 +4231,7 @@ async function handleFotoFiles(input) {
       toast('❌ Foto verwerken mislukt: ' + err.message, 4000);
     }
   }
-  if (nieuwe.length) await persistFotoChange([..._fotoState.fotos, ...nieuwe], 'foto-grid');
+  if (nieuwe.length) await persistFotoChange([..._fotoState.fotos, ...nieuwe], containerId);
 }
 
 async function saveOpl() {
@@ -4665,6 +4665,7 @@ const R = {
   installateur: '', serienummer: '', type: '', uitvoering: '', kabel: '', kabellengte: '',
   probleem: '', acties: '',
   oorzaakStoring: [],
+  fotos: [],
   hersteld: 'nee', nieuwInter: 'nee',
   varia: '',
   onderdelen: [],
@@ -4675,6 +4676,7 @@ const WIZ_STEPS = [
   { id: 'facturatie',   label: 'Facturatie',     render: wizRenderFacturatie,   save: wizSaveFacturatie   },
   { id: 'product',      label: 'Product',        render: wizRenderProduct,      save: wizSaveProduct      },
   { id: 'omschrijving', label: 'Omschrijving',   render: wizRenderOmschrijving, save: wizSaveOmschrijving },
+  { id: 'fotos',        label: "Foto's",         render: wizRenderFotos,        save: wizSaveFotos        },
   { id: 'status',       label: 'Status',         render: wizRenderStatus,       save: wizSaveStatus       },
   { id: 'sig-tech',     label: 'Handtekening 1', render: wizRenderSigTech,      save: () => {}            },
   { id: 'sig-klant',    label: 'Handtekening 2', render: wizRenderSigKlant,     save: () => {}            },
@@ -4702,6 +4704,9 @@ async function openRapport(ticketId, date) {
   R.oorzaakStoring = [];
   R.varia        = '';
   R.onderdelen   = [];
+  const fotoData  = await loadFotos(ticketId);
+  _fotoState      = { ticketId, versie: fotoData.versie, fotos: fotoData.fotos };
+  R.fotos         = _fotoState.fotos;
   R.technieker   = R.technieker || ''; // bewaar als al ingevuld
   R.facturatie     = 'klant';
   R.facturatieVrij = '';
@@ -5140,6 +5145,25 @@ function wizSaveOmschrijving() {
     .filter(([id]) => document.getElementById(id)?.checked)
     .map(([, label]) => label);
   return R.oorzaakStoring.length > 0;
+}
+
+// ── Stap 4b: Foto's ──
+function wizRenderFotos(el) {
+  el.innerHTML = `
+    <div class="wiz-step-title">Foto's</div>
+    <div class="wiz-field">
+      <div id="wiz-foto-grid" class="foto-grid"></div>
+      <input type="file" id="wiz-foto-file-input" accept="image/*" multiple style="display:none" onchange="handleWizFotoFiles(this)">
+      <button class="foto-add-btn" onclick="document.getElementById('wiz-foto-file-input').click()">+ Foto toevoegen</button>
+    </div>`;
+  renderFotoGridInto('wiz-foto-grid');
+}
+function wizSaveFotos() {
+  R.fotos = _fotoState.fotos;
+}
+async function handleWizFotoFiles(input) {
+  await handleFotoFiles(input, 'wiz-foto-grid');
+  R.fotos = _fotoState.fotos;
 }
 
 // ── Stap 5: Status & onderdelen ──
