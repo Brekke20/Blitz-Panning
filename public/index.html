@@ -4203,7 +4203,7 @@ async function persistFotoChange(newFotos, containerId) {
     _fotoState.fotos  = result.fotos;
   } catch (err) {
     if (err.status === 409) {
-      toast('⚠️ Foto\'s zijn elders gewijzigd, herladen...', 3000);
+      toast('⚠️ Foto\'s zijn elders gewijzigd — je laatste wijziging is niet opgeslagen, probeer opnieuw', 4500);
       const fresh = await loadFotos(_fotoState.ticketId);
       _fotoState.versie = fresh.versie;
       _fotoState.fotos  = fresh.fotos;
