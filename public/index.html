@@ -5578,7 +5578,7 @@ function buildRapportHtml() {
 <div class="sec">Oorzaak storing</div>
 <div class="block">${R.oorzaakStoring.join(', ') || '&nbsp;'}</div>
 ${R.fotos.length ? `<div class="sec">Foto's</div>
-<div class="foto-report-grid">${R.fotos.map(f => `<div class="foto-report-item"><img src="${f.dataUrl}" style="max-width:100%;border-radius:3px"><div style="font-size:7.5pt;color:#777;margin-top:2px">${new Date(f.tijdstip).toLocaleString('nl-BE')}${f.caption ? ' — ' + f.caption : ''}</div></div>`).join('')}</div>` : ''}
+<div class="foto-report-grid">${R.fotos.map(f => `<div class="foto-report-item"><img src="${escHtml(f.dataUrl)}" style="max-width:100%;border-radius:3px"><div style="font-size:7.5pt;color:#777;margin-top:2px">${escHtml(new Date(f.tijdstip).toLocaleString('nl-BE'))}${f.caption ? ' — ' + escHtml(f.caption) : ''}</div></div>`).join('')}</div>` : ''}
 <div class="sec">Status laadinfrastructuur</div>
 <div class="status-row">
   <div class="status-cell"><div class="info-lbl">Definitief hersteld</div><strong>${R.hersteld==='ja'?'Ja':'Nee'}</strong></div>
