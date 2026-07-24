@@ -598,6 +598,12 @@
     .kb-chip-pref { background: rgba(0,223,163,.12); color: var(--accent); border-color: var(--accent); }
     .kb-chip-del { background: none; border: none; cursor: pointer; color: inherit; padding: 0; font-size: 0.8rem; line-height: 1; }
     .kb-add-btn { font-size: 0.72rem; padding: 2px 8px; background: none; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; color: var(--muted); }
+    .foto-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; margin: 8px 0; }
+    .foto-thumb { position: relative; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; background: var(--surface2); }
+    .foto-thumb img { width: 100%; height: 90px; object-fit: cover; display: block; }
+    .foto-thumb-del { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,.55); color: #fff; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 0.75rem; line-height: 1; }
+    .foto-caption { width: 100%; box-sizing: border-box; font-size: 0.68rem; padding: 3px 5px; border: none; border-top: 1px solid var(--border); background: var(--surface); color: var(--text); font-family: inherit; }
+    .foto-add-btn { padding: 8px 14px; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); border-radius: var(--r); font-weight: 600; cursor: pointer; font-family: inherit; }
     .kb-notitie { width: 100%; font-size: 0.8rem; padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); resize: vertical; min-height: 40px; }
     .av-section-title { font-size: 0.68rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
     .av-existing { margin-bottom: 14px; min-height: 0; }
@@ -1338,6 +1344,7 @@
       <button class="btn-cancel" onclick="openOpl()">✏️ Oplossing</button>
       <button class="btn-cancel" id="d-btn-arrival" style="display:none" title="Aankomst registreren" onclick="registerArrival(activeTicket?.id,_detailDate)">⏱️ Aankomst</button>
       <button class="btn-cancel desktop-only" id="d-btn-proposal" style="display:none" title="Afspraakvoorstel sturen" onclick="openProposal(activeTicket?.id,_detailDate,(()=>{const t=computeArrivalTimes(_detailDate);return activeTicket?t[activeTicket.id]??null:null})())">📨 Voorstel</button>
+      <button class="btn-cancel" id="d-btn-fotos" style="display:none" title="Foto's" onclick="openFotoModal(activeTicket?.id)">📷 Foto's</button>
       <button class="btn-cancel" id="d-btn-rapport"  style="display:none" title="Service rapport" onclick="openRapport(activeTicket?.id,_detailDate)">📋 Rapport</button>
     </div>
   </div>
@@ -1547,6 +1554,19 @@
     <div class="row-btns">
       <button class="btn-cancel" onclick="closeOpl()">Annuleren</button>
       <button class="btn-save"   onclick="saveOpl()">Opslaan in Zoho</button>
+    </div>
+  </div>
+</div>
+
+<!-- Foto's modal -->
+<div class="overlay" id="foto-overlay" onclick="closeFotoModal(event)">
+  <div class="modal" id="foto-modal">
+    <h3>📷 Foto's</h3>
+    <div id="foto-grid" class="foto-grid"></div>
+    <input type="file" id="foto-file-input" accept="image/*" multiple style="display:none" onchange="handleFotoFiles(this)">
+    <button class="foto-add-btn" onclick="document.getElementById('foto-file-input').click()">+ Foto toevoegen</button>
+    <div class="row-btns">
+      <button class="btn-cancel" onclick="closeFotoModal()">Sluiten</button>
     </div>
   </div>
 </div>
@@ -2578,6 +2598,78 @@ async function saveKlantBeschikbaarheid() {
     toast('❌ Klantbeschikbaarheid opslaan mislukt', 3000);
     return false;
   }
+}
+
+// ══════════════════════════════════════════════
+// FOTO'S (service rapport bijlagen)
+// ══════════════════════════════════════════════
+const FOTO_API           = '/api/fotos';
+const FOTO_MAX_DIM       = 1600;
+const FOTO_JPEG_QUALITY  = 0.7;
+const FOTO_MAX_COUNT     = 30;
+
+function compressFotoFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Bestand lezen mislukt'));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Afbeelding laden mislukt'));
+      img.onload = () => {
+        let width = img.width, height = img.height;
+        if (width > FOTO_MAX_DIM || height > FOTO_MAX_DIM) {
+          const scale = FOTO_MAX_DIM / Math.max(width, height);
+          width  = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', FOTO_JPEG_QUALITY));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function loadFotos(ticketId) {
+  try {
+    const res = await fetch(`${FOTO_API}?ticketId=${encodeURIComponent(ticketId)}`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return await res.json();
+  } catch (err) {
+    console.warn("Foto's laden mislukt:", err);
+    return { versie: 0, fotos: [] };
+  }
+}
+
+async function saveFotos(ticketId, versie, fotos) {
+  const res = await fetch(FOTO_API, {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ ticketId, versie, fotos }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error || ('HTTP ' + res.status)), { status: res.status, data });
+  return data;
+}
+
+function renderFotoGrid(container, fotos, callbacks) {
+  if (!fotos.length) {
+    container.innerHTML = '<div style="font-size:0.78rem;color:var(--muted);padding:6px 0">Nog geen foto\'s toegevoegd.</div>';
+    return;
+  }
+  container.innerHTML = fotos.map(f => `
+    <div class="foto-thumb" data-id="${escHtml(f.id)}">
+      <img src="${escHtml(f.dataUrl)}" alt="">
+      <button class="foto-thumb-del" title="Verwijderen" data-action="del" data-id="${escHtml(f.id)}">✕</button>
+      <input class="foto-caption" type="text" placeholder="Bijschrift..." value="${escHtml(f.caption || '')}" data-action="caption" data-id="${escHtml(f.id)}">
+    </div>`).join('');
+  container.querySelectorAll('[data-action="del"]').forEach(btn =>
+    btn.addEventListener('click', () => callbacks.onDelete(btn.dataset.id)));
+  container.querySelectorAll('[data-action="caption"]').forEach(inp =>
+    inp.addEventListener('change', () => callbacks.onCaptionInput(inp.dataset.id, inp.value)));
 }
 
 // GC: verwijder entries van tickets die al >90 dagen geleden bijgewerkt zijn
@@ -3933,6 +4025,7 @@ function openDetail(t) {
   const showPlanBtns = !!_detailDate;
   document.getElementById('d-btn-arrival').style.display  = showPlanBtns ? '' : 'none';
   document.getElementById('d-btn-proposal').style.display = showPlanBtns ? '' : 'none';
+  document.getElementById('d-btn-fotos').style.display    = showPlanBtns ? '' : 'none';
   document.getElementById('d-btn-rapport').style.display  = showPlanBtns ? '' : 'none';
   document.getElementById('d-num').textContent   = '#' + t.number;
   document.getElementById('d-title').textContent = t.subject || '—';
@@ -4078,6 +4171,68 @@ function openOpl() {
 function closeOpl(e) {
   if (e && e.target !== document.getElementById('opl-overlay')) return;
   document.getElementById('opl-overlay').classList.remove('open');
+}
+
+async function openFotoModal(ticketId) {
+  if (!ticketId) return;
+  const { versie, fotos } = await loadFotos(ticketId);
+  _fotoState = { ticketId, versie, fotos };
+  renderFotoGridInto('foto-grid');
+  document.getElementById('foto-overlay').classList.add('open');
+}
+
+function closeFotoModal(e) {
+  if (e && e.target !== document.getElementById('foto-overlay')) return;
+  document.getElementById('foto-overlay').classList.remove('open');
+}
+
+function renderFotoGridInto(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  renderFotoGrid(el, _fotoState.fotos, {
+    onDelete:      (id) => persistFotoChange(_fotoState.fotos.filter(f => f.id !== id), containerId),
+    onCaptionInput: (id, value) => persistFotoChange(
+      _fotoState.fotos.map(f => f.id === id ? { ...f, caption: value } : f), containerId
+    ),
+  });
+}
+
+async function persistFotoChange(newFotos, containerId) {
+  try {
+    const result = await saveFotos(_fotoState.ticketId, _fotoState.versie, newFotos);
+    _fotoState.versie = result.versie;
+    _fotoState.fotos  = result.fotos;
+  } catch (err) {
+    if (err.status === 409) {
+      toast('⚠️ Foto\'s zijn elders gewijzigd — je laatste wijziging is niet opgeslagen, probeer opnieuw', 4500);
+      const fresh = await loadFotos(_fotoState.ticketId);
+      _fotoState.versie = fresh.versie;
+      _fotoState.fotos  = fresh.fotos;
+    } else {
+      toast('❌ Foto opslaan mislukt: ' + err.message, 4000);
+    }
+  }
+  renderFotoGridInto(containerId);
+}
+
+async function handleFotoFiles(input, containerId = 'foto-grid') {
+  const files = Array.from(input.files || []);
+  input.value = '';
+  if (!files.length) return;
+  if (_fotoState.fotos.length + files.length > FOTO_MAX_COUNT) {
+    return toast(`⚠️ Maximaal ${FOTO_MAX_COUNT} foto's per ticket`, 3500);
+  }
+  toast(`📷 ${files.length} foto${files.length > 1 ? "'s" : ''} verwerken...`, 4000);
+  const nieuwe = [];
+  for (const file of files) {
+    try {
+      const dataUrl = await compressFotoFile(file);
+      nieuwe.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, dataUrl, caption: '', tijdstip: new Date().toISOString() });
+    } catch (err) {
+      toast('❌ Foto verwerken mislukt: ' + err.message, 4000);
+    }
+  }
+  if (nieuwe.length) await persistFotoChange([..._fotoState.fotos, ...nieuwe], containerId);
 }
 
 async function saveOpl() {
@@ -4499,6 +4654,7 @@ let _wizDate   = null;
 let _wizStep   = 0;
 let _sigTech   = null;
 let _sigKlant  = null;
+let _fotoState = { ticketId: null, versie: 0, fotos: [] };
 
 // Rapport data object — gevuld doorheen wizard
 const R = {
@@ -4510,6 +4666,7 @@ const R = {
   installateur: '', serienummer: '', type: '', uitvoering: '', kabel: '', kabellengte: '',
   probleem: '', acties: '',
   oorzaakStoring: [],
+  fotos: [],
   hersteld: 'nee', nieuwInter: 'nee',
   varia: '',
   onderdelen: [],
@@ -4520,6 +4677,7 @@ const WIZ_STEPS = [
   { id: 'facturatie',   label: 'Facturatie',     render: wizRenderFacturatie,   save: wizSaveFacturatie   },
   { id: 'product',      label: 'Product',        render: wizRenderProduct,      save: wizSaveProduct      },
   { id: 'omschrijving', label: 'Omschrijving',   render: wizRenderOmschrijving, save: wizSaveOmschrijving },
+  { id: 'fotos',        label: "Foto's",         render: wizRenderFotos,        save: wizSaveFotos        },
   { id: 'status',       label: 'Status',         render: wizRenderStatus,       save: wizSaveStatus       },
   { id: 'sig-tech',     label: 'Handtekening 1', render: wizRenderSigTech,      save: () => {}            },
   { id: 'sig-klant',    label: 'Handtekening 2', render: wizRenderSigKlant,     save: () => {}            },
@@ -4547,6 +4705,9 @@ async function openRapport(ticketId, date) {
   R.oorzaakStoring = [];
   R.varia        = '';
   R.onderdelen   = [];
+  const fotoData  = await loadFotos(ticketId);
+  _fotoState      = { ticketId, versie: fotoData.versie, fotos: fotoData.fotos };
+  R.fotos         = _fotoState.fotos;
   R.technieker   = R.technieker || ''; // bewaar als al ingevuld
   R.facturatie     = 'klant';
   R.facturatieVrij = '';
@@ -4987,6 +5148,25 @@ function wizSaveOmschrijving() {
   return R.oorzaakStoring.length > 0;
 }
 
+// ── Stap 4b: Foto's ──
+function wizRenderFotos(el) {
+  el.innerHTML = `
+    <div class="wiz-step-title">Foto's</div>
+    <div class="wiz-field">
+      <div id="wiz-foto-grid" class="foto-grid"></div>
+      <input type="file" id="wiz-foto-file-input" accept="image/*" multiple style="display:none" onchange="handleWizFotoFiles(this)">
+      <button class="foto-add-btn" onclick="document.getElementById('wiz-foto-file-input').click()">+ Foto toevoegen</button>
+    </div>`;
+  renderFotoGridInto('wiz-foto-grid');
+}
+function wizSaveFotos() {
+  R.fotos = _fotoState.fotos;
+}
+async function handleWizFotoFiles(input) {
+  await handleFotoFiles(input, 'wiz-foto-grid');
+  R.fotos = _fotoState.fotos;
+}
+
 // ── Stap 5: Status & onderdelen ──
 // Actieve tag-filters voor cataloguszoeken
 let _wizActiveTags = [];
@@ -5361,6 +5541,8 @@ function buildRapportHtml() {
   .sig-row{display:flex;gap:20px;margin-top:7px}
   .sig-box{flex:1;border:1px solid #ccc;border-radius:3px;padding:7px 9px;min-height:105px}
   .sig-box-title{font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;margin-bottom:7px}
+  .foto-report-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px}
+  .foto-report-item{border:1px solid #e0e0e0;border-radius:4px;padding:4px;background:#fafafa}
 </style>
 </head><body>
 <div class="header">${bolt}<div><div class="logo-text">BLITZ POWER</div><div class="logo-sub">SERVICE RAPPORT</div></div></div>
@@ -5396,6 +5578,8 @@ function buildRapportHtml() {
 <div class="block">${R.acties||'&nbsp;'}</div>
 <div class="sec">Oorzaak storing</div>
 <div class="block">${R.oorzaakStoring.join(', ') || '&nbsp;'}</div>
+${R.fotos.length ? `<div class="sec">Foto's</div>
+<div class="foto-report-grid">${R.fotos.map(f => `<div class="foto-report-item"><img src="${escHtml(f.dataUrl)}" style="max-width:100%;border-radius:3px"><div style="font-size:7.5pt;color:#777;margin-top:2px">${escHtml(new Date(f.tijdstip).toLocaleString('nl-BE'))}${f.caption ? ' — ' + escHtml(f.caption) : ''}</div></div>`).join('')}</div>` : ''}
 <div class="sec">Status laadinfrastructuur</div>
 <div class="status-row">
   <div class="status-cell"><div class="info-lbl">Definitief hersteld</div><strong>${R.hersteld==='ja'?'Ja':'Nee'}</strong></div>
