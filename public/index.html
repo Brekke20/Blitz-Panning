@@ -5540,6 +5540,8 @@ function buildRapportHtml() {
   .sig-row{display:flex;gap:20px;margin-top:7px}
   .sig-box{flex:1;border:1px solid #ccc;border-radius:3px;padding:7px 9px;min-height:105px}
   .sig-box-title{font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;margin-bottom:7px}
+  .foto-report-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px}
+  .foto-report-item{border:1px solid #e0e0e0;border-radius:4px;padding:4px;background:#fafafa}
 </style>
 </head><body>
 <div class="header">${bolt}<div><div class="logo-text">BLITZ POWER</div><div class="logo-sub">SERVICE RAPPORT</div></div></div>
@@ -5575,6 +5577,8 @@ function buildRapportHtml() {
 <div class="block">${R.acties||'&nbsp;'}</div>
 <div class="sec">Oorzaak storing</div>
 <div class="block">${R.oorzaakStoring.join(', ') || '&nbsp;'}</div>
+${R.fotos.length ? `<div class="sec">Foto's</div>
+<div class="foto-report-grid">${R.fotos.map(f => `<div class="foto-report-item"><img src="${f.dataUrl}" style="max-width:100%;border-radius:3px"><div style="font-size:7.5pt;color:#777;margin-top:2px">${new Date(f.tijdstip).toLocaleString('nl-BE')}${f.caption ? ' — ' + f.caption : ''}</div></div>`).join('')}</div>` : ''}
 <div class="sec">Status laadinfrastructuur</div>
 <div class="status-row">
   <div class="status-cell"><div class="info-lbl">Definitief hersteld</div><strong>${R.hersteld==='ja'?'Ja':'Nee'}</strong></div>
