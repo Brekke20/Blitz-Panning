@@ -3,6 +3,25 @@
 // POST body:
 //   { ticketId, date, time, recipientEmail, recipientName, subject, serienummer }
 //   time wordt afgerond naar het volgende kwartier.
+// Bij recipientEmail wordt ook de service-voorwaarden-PDF als bijlage meegestuurd.
+
+import fs   from 'node:fs';
+import path from 'node:path';
+import url  from 'node:url';
+
+// Netlify bundelt deze ESM-syntax functie naar CommonJS voor de echte
+// productie-runtime — daar bestaat al een werkende __dirname (CJS-stijl),
+// en import.meta.url is onbetrouwbaar ("path" argument must be of type
+// string, Received undefined"). Lokaal (dev-server.mjs) draait dit
+// bestand als echte ESM, waar __dirname niet bestaat maar import.meta.url
+// wel werkt. `typeof __dirname` is veilig op een niet-gedeclareerde naam
+// (geeft "undefined" terug, gooit geen ReferenceError) — vandaar deze
+// fallback die in beide omgevingen werkt.
+const functionDir = typeof __dirname !== 'undefined'
+  ? __dirname
+  : path.dirname(url.fileURLToPath(import.meta.url));
+const TERMS_PDF_PATH = path.join(functionDir, 'assets', 'service-voorwaarden.pdf');
+const TERMS_PDF_DISPLAY_NAME = 'Service Voorwaarden Blitz Power.pdf';
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
@@ -28,6 +47,25 @@ async function getAccessToken() {
   cachedToken = data.access_token;
   tokenExpiry = Date.now() + 55 * 60 * 1000;
   return cachedToken;
+}
+
+async function uploadTermsAttachment(accessToken, orgId) {
+  const fileBuffer = fs.readFileSync(TERMS_PDF_PATH);
+  const formData = new FormData();
+  formData.append('file', new Blob([fileBuffer], { type: 'application/pdf' }), TERMS_PDF_DISPLAY_NAME);
+
+  // Zoho's generieke /uploads-endpoint (Desk.basic.CREATE-scope) — NIET
+  // /tickets/{id}/attachments (dat is voor ticket-bijlagen zoals rapport.js
+  // gebruikt, en die attachmentIds neemt sendReply niet mee in de mail,
+  // ongeacht isPublic — live getest en bevestigd via een echte testmail).
+  const uploadRes = await fetch(`${ZOHO_DESK}/uploads`, {
+    method:  'POST',
+    headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
+    body:    formData,
+  });
+  const uploadData = await uploadRes.json().catch(() => ({}));
+  if (!uploadRes.ok) throw new Error(`Zoho attachment-upload fout (${uploadRes.status}): ${JSON.stringify(uploadData)}`);
+  return uploadData.id;
 }
 
 function roundToNextQuarter(timeStr) {
@@ -90,7 +128,9 @@ function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime
     </table>
 
     <p style="margin:0 0 16px;font-size:14px;color:#3a3a3a;line-height:1.65">
-      Kan dit tijdstip u niet schikken? Beantwoord dan deze e-mail en wij zoeken samen naar een alternatief.
+      Gelieve deze afspraak te bevestigen door op deze e-mail te antwoorden. Komt het voorgestelde tijdstip u
+      niet uit? Laat het ons dan ook weten, zodat we samen een alternatief zoeken. In bijlage vindt u onze
+      service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.
     </p>
     <p style="margin:0;font-size:14px;color:#3a3a3a;line-height:1.65">
       Met vriendelijke groeten,<br>
@@ -180,6 +220,10 @@ export async function handler(event) {
         serienummer:   serienummer || '',
       });
 
+      // Service-voorwaarden-PDF als bijlage: eerst uploaden via /uploads,
+      // dan de resulterende id meegeven aan sendReply.
+      const attachmentId = await uploadTermsAttachment(accessToken, orgId);
+
       const replyRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/sendReply`, {
         method:  'POST',
         headers: {
@@ -193,6 +237,7 @@ export async function handler(event) {
           content:          emailHtml,
           fromEmailAddress,
           to:               recipientEmail,
+          attachmentIds:    [attachmentId],
         }),
       });
 
