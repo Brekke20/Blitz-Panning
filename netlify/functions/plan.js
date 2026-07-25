@@ -1,8 +1,8 @@
 // /api/plan
-// Zet een ticket op de planning (status + dueDate) of haal het eraf.
+// Zet een ticket op de planning (status + interventieDatum) of haal het eraf.
 // POST body:
-//   { ticketId: "...", date: "2026-06-23" }   → Wachten op bevestiging planning
-//   { ticketId: "...", date: null }            → Service in te plannen
+//   { ticketId: "...", date: "2026-06-23", utcInterventieDatum: "..." }   → Wachten op bevestiging planning
+//   { ticketId: "...", date: null }                                       → Service in te plannen
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
