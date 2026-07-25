@@ -5547,7 +5547,8 @@ function buildRapportHtml() {
   .logo-text{font-size:15pt;font-weight:900;letter-spacing:4px;color:#181e24}
   .logo-sub{font-size:7pt;color:#999;letter-spacing:3px;margin-top:1px}
   .accent-bar{height:3px;background:#00dfa3;margin-bottom:14px}
-  .sec{font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#555;border-bottom:1px solid #ddd;padding-bottom:2px;margin:12px 0 7px}
+  .sec{font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#555;border-bottom:1px solid #ddd;padding-bottom:2px;margin:12px 0 7px;break-after:avoid;page-break-after:avoid}
+  .rapport-section{break-inside:avoid;page-break-inside:avoid}
   .info-grid{display:grid;gap:6px;margin-bottom:4px}
   .info-row{display:grid;gap:6px}
   .info-row.cols-3{grid-template-columns:1fr 1fr 1fr}
@@ -5561,6 +5562,8 @@ function buildRapportHtml() {
   .info-val{font-size:9.5pt;color:#111;font-weight:500;line-height:1.3}
   .block{border:1px solid #e0e0e0;border-radius:3px;padding:7px 9px;min-height:36px;font-size:9.5pt;white-space:pre-wrap;background:#fafafa}
   table.parts{width:100%;border-collapse:collapse;font-size:9pt}
+  table.parts thead{display:table-header-group}
+  table.parts tr{break-inside:avoid;page-break-inside:avoid}
   table.parts th{background:#f5f5f5;border:1px solid #ddd;padding:4px 7px;font-size:7.5pt;text-transform:uppercase;letter-spacing:.05em;text-align:left}
   table.parts td{border:1px solid #ddd;padding:4px 7px}
   .status-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px}
@@ -5569,12 +5572,12 @@ function buildRapportHtml() {
   .sig-box{flex:1;border:1px solid #ccc;border-radius:3px;padding:7px 9px;min-height:105px}
   .sig-box-title{font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;margin-bottom:7px}
   .foto-report-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px}
-  .foto-report-item{border:1px solid #e0e0e0;border-radius:4px;padding:4px;background:#fafafa}
+  .foto-report-item{border:1px solid #e0e0e0;border-radius:4px;padding:4px;background:#fafafa;break-inside:avoid;page-break-inside:avoid}
 </style>
 </head><body>
 <div class="header">${bolt}<div><div class="logo-text">BLITZ POWER</div><div class="logo-sub">SERVICE RAPPORT</div></div></div>
 <div class="accent-bar"></div>
-<div class="info-grid">
+<div class="rapport-section info-grid">
   <div class="info-row cols-3">
     <div class="info-cell"><div class="info-lbl">Datum</div><div class="info-val">${datumStr}</div></div>
     <div class="info-cell"><div class="info-lbl">Technieker</div><div class="info-val">${R.technieker||'—'}</div></div>
@@ -5599,23 +5602,31 @@ function buildRapportHtml() {
     <div class="info-cell"><div class="info-lbl">Type / uitvoering</div><div class="info-val">${productInfo}</div></div>
   </div>
 </div>
+<div class="rapport-section">
 <div class="sec">Omschrijving probleem</div>
 <div class="block">${R.probleem||'&nbsp;'}</div>
+</div>
+<div class="rapport-section">
 <div class="sec">Ondernomen acties</div>
 <div class="block">${R.acties||'&nbsp;'}</div>
+</div>
+<div class="rapport-section">
 <div class="sec">Oorzaak storing</div>
 <div class="block">${R.oorzaakStoring.join(', ') || '&nbsp;'}</div>
+</div>
 ${R.fotos.length ? `<div class="sec">Foto's</div>
 <div class="foto-report-grid">${R.fotos.map(f => `<div class="foto-report-item"><img src="${escHtml(f.dataUrl)}" style="max-width:100%;border-radius:3px"><div style="font-size:7.5pt;color:#777;margin-top:2px">${escHtml(new Date(f.tijdstip).toLocaleString('nl-BE'))}${f.caption ? ' — ' + escHtml(f.caption) : ''}</div></div>`).join('')}</div>` : ''}
+<div class="rapport-section">
 <div class="sec">Status laadinfrastructuur</div>
 <div class="status-row">
   <div class="status-cell"><div class="info-lbl">Definitief hersteld</div><strong>${R.hersteld==='ja'?'Ja':'Nee'}</strong></div>
   <div class="status-cell"><div class="info-lbl">Nieuwe interventie nodig</div><strong>${R.nieuwInter==='ja'?'Ja':'Nee'}</strong></div>
 </div>
+</div>
 ${geldigeOnderdelen.length ? `<div class="sec">Vervangen onderdelen</div>
 <table class="parts"><thead><tr><th>Omschrijving</th><th style="text-align:center">Aantal</th><th style="text-align:right">Stukprijs</th><th style="text-align:right">Subtotaal</th></tr></thead>
 <tbody>${partsHtml}</tbody></table>` : ''}
-${R.varia ? `<div class="sec">Varia</div><div class="block">${R.varia}</div>` : ''}
+${R.varia ? `<div class="rapport-section"><div class="sec">Varia</div><div class="block">${R.varia}</div></div>` : ''}
 ${(() => {
   const wMin = calcWerktijdMin(R.start, R.stop);
   const aMin = parseInt(R.aanrijtijdMin) || 0;
@@ -5661,10 +5672,12 @@ ${isGarantie ? `<tr style="background:#f0fdf9;font-weight:700"><td style="text-a
              : `<tr style="background:#f0fdf9;font-weight:700"><td style="text-align:right;font-size:8pt;text-transform:uppercase;letter-spacing:.05em;color:#555">Totaal loonkosten (excl. btw)</td><td style="text-align:right">€ ${netto.toFixed(2)}</td></tr>`}
 </tbody></table>`;
 })()}
+<div class="rapport-section">
 <div class="sec">Handtekeningen</div>
 <div class="sig-row">
   <div class="sig-box"><div class="sig-box-title">Technieker</div>${sigTechImg}</div>
   <div class="sig-box"><div class="sig-box-title">Klant</div>${sigKlantImg}</div>
+</div>
 </div>
 </body></html>`;
 
