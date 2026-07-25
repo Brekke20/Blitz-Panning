@@ -53,6 +53,9 @@ async function uploadTermsAttachment(accessToken, orgId, ticketId) {
   const fileBuffer = fs.readFileSync(TERMS_PDF_PATH);
   const formData = new FormData();
   formData.append('file', new Blob([fileBuffer], { type: 'application/pdf' }), TERMS_PDF_DISPLAY_NAME);
+  // isPublic: anders blijft de bijlage enkel op het ticket staan en neemt
+  // sendReply hem niet mee in de uitgaande mail (bevestigd via live test).
+  formData.append('isPublic', 'true');
 
   const uploadRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/attachments`, {
     method:  'POST',
