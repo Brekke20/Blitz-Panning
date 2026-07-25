@@ -49,16 +49,16 @@ async function getAccessToken() {
   return cachedToken;
 }
 
-async function uploadTermsAttachment(accessToken, orgId, ticketId) {
+async function uploadTermsAttachment(accessToken, orgId) {
   const fileBuffer = fs.readFileSync(TERMS_PDF_PATH);
   const formData = new FormData();
   formData.append('file', new Blob([fileBuffer], { type: 'application/pdf' }), TERMS_PDF_DISPLAY_NAME);
 
-  // isPublic is een query-parameter op deze endpoint (bevestigd via Zoho's
-  // officiële OpenAPI-spec, github.com/zoho/zohodesk-oas), GEEN multipart
-  // form-veld — als form-veld genegeerd, waardoor de bijlage niet-publiek
-  // bleef en sendReply hem niet meenam in de uitgaande mail (live getest).
-  const uploadRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/attachments?isPublic=true`, {
+  // Zoho's generieke /uploads-endpoint (Desk.basic.CREATE-scope) — NIET
+  // /tickets/{id}/attachments (dat is voor ticket-bijlagen zoals rapport.js
+  // gebruikt, en die attachmentIds neemt sendReply niet mee in de mail,
+  // ongeacht isPublic — live getest en bevestigd via een echte testmail).
+  const uploadRes = await fetch(`${ZOHO_DESK}/uploads`, {
     method:  'POST',
     headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
     body:    formData,
@@ -220,9 +220,9 @@ export async function handler(event) {
         serienummer:   serienummer || '',
       });
 
-      // Service-voorwaarden-PDF als bijlage: eerst uploaden naar het ticket
-      // (zelfde bewezen patroon als rapport.js), dan meegeven aan sendReply.
-      const attachmentId = await uploadTermsAttachment(accessToken, orgId, ticketId);
+      // Service-voorwaarden-PDF als bijlage: eerst uploaden via /uploads,
+      // dan de resulterende id meegeven aan sendReply.
+      const attachmentId = await uploadTermsAttachment(accessToken, orgId);
 
       const replyRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/sendReply`, {
         method:  'POST',
