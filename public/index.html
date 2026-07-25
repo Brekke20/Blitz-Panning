@@ -1646,16 +1646,16 @@ function escHtml(str) {
 
 const DUMMY_DATA = {
   tickets: [
-    { id:'t1', number:'1001', subject:'Laadpaal offline na stroomuitval', status:'Service in te plannen', priority:'high', assignee:'Tim', contact:'Jan Peeters', email:'jan@test.be', phone:'0475123456', account:'EV Park Geel', address:'Antwerpseweg 50, 2440 Geel', hasAddress:true, naamEindklant:'Jan Peeters', emailEindklant:'jan@test.be', telefoonEindklant:'0475123456', serienummer:'CHARX-2291', partner:'Proxes', probleemtype:'Verbindingsfout', regio:'Kempen', dueDate: (() => { const d = new Date(); d.setDate(d.getDate()-2); return d.toISOString(); })(), createdTime:'2026-06-18T08:00:00Z' },
-    { id:'t2', number:'1002', subject:'Controller reageert niet op OCPP commando', status:'Service in te plannen', priority:'medium', assignee:'Tim', contact:'Marie Claes', email:'marie@test.be', phone:'0476234567', account:'Parking Hasselt', address:'Kuringersteenweg 12, 3500 Hasselt', hasAddress:true, naamEindklant:'Marie Claes', emailEindklant:'marie@test.be', telefoonEindklant:'0476234567', serienummer:'CHARX-1844', partner:'', probleemtype:'OCPP fout', regio:'Limburg', dueDate:null, createdTime:'2026-06-20T10:00:00Z' },
-    { id:'t3', number:'1003', subject:'Laadstation geeft foutcode E05', status:'Service in te plannen', priority:'low', assignee:'Roel', contact:'', email:'', phone:'', account:'Residentie Turnhout', address:'', hasAddress:false, naamEindklant:'', emailEindklant:'', telefoonEindklant:'', serienummer:'', partner:'', probleemtype:'Foutcode', regio:'', dueDate:null, createdTime:'2026-06-21T09:00:00Z' },
+    { id:'t1', number:'1001', subject:'Laadpaal offline na stroomuitval', status:'Service in te plannen', priority:'high', assignee:'Tim', contact:'Jan Peeters', email:'jan@test.be', phone:'0475123456', account:'EV Park Geel', address:'Antwerpseweg 50, 2440 Geel', hasAddress:true, naamEindklant:'Jan Peeters', emailEindklant:'jan@test.be', telefoonEindklant:'0475123456', serienummer:'CHARX-2291', partner:'Proxes', probleemtype:'Verbindingsfout', regio:'Kempen', interventieDatum: (() => { const d = new Date(); d.setDate(d.getDate()-2); return d.toISOString(); })(), createdTime:'2026-06-18T08:00:00Z' },
+    { id:'t2', number:'1002', subject:'Controller reageert niet op OCPP commando', status:'Service in te plannen', priority:'medium', assignee:'Tim', contact:'Marie Claes', email:'marie@test.be', phone:'0476234567', account:'Parking Hasselt', address:'Kuringersteenweg 12, 3500 Hasselt', hasAddress:true, naamEindklant:'Marie Claes', emailEindklant:'marie@test.be', telefoonEindklant:'0476234567', serienummer:'CHARX-1844', partner:'', probleemtype:'OCPP fout', regio:'Limburg', interventieDatum:null, createdTime:'2026-06-20T10:00:00Z' },
+    { id:'t3', number:'1003', subject:'Laadstation geeft foutcode E05', status:'Service in te plannen', priority:'low', assignee:'Roel', contact:'', email:'', phone:'', account:'Residentie Turnhout', address:'', hasAddress:false, naamEindklant:'', emailEindklant:'', telefoonEindklant:'', serienummer:'', partner:'', probleemtype:'Foutcode', regio:'', interventieDatum:null, createdTime:'2026-06-21T09:00:00Z' },
   ],
   pendingTickets: [
-    { id:'p1', number:'1004', subject:'Energiemeting klopt niet', status:'Wachten op bevestiging planning', priority:'medium', assignee:'Tim', contact:'Luc Wouters', email:'luc@test.be', phone:'0477345678', account:'Industrie Beringen', address:'Koerselsesteenweg 88, 3580 Beringen', hasAddress:true, naamEindklant:'Luc Wouters', emailEindklant:'luc@test.be', telefoonEindklant:'0477345678', serienummer:'CHARX-3301', partner:'', probleemtype:'Metering', regio:'Limburg', dueDate: (() => { const d = new Date(); d.setDate(d.getDate()+2); return d.toISOString(); })(), createdTime:'2026-06-15T08:00:00Z' },
-    { id:'p2', number:'1005', subject:'Firmware update mislukt', status:'Wachten op bevestiging planning', priority:'high', assignee:'Tim', contact:'Sara Mertens', email:'sara@test.be', phone:'0478456789', account:'Kantoorpark Mechelen', address:'Battelsesteenweg 455, 2800 Mechelen', hasAddress:true, naamEindklant:'Sara Mertens', emailEindklant:'sara@test.be', telefoonEindklant:'0478456789', serienummer:'CHARX-2987', partner:'', probleemtype:'Firmware', regio:'', dueDate:null, createdTime:'2026-06-14T08:00:00Z' },
+    { id:'p1', number:'1004', subject:'Energiemeting klopt niet', status:'Wachten op bevestiging planning', priority:'medium', assignee:'Tim', contact:'Luc Wouters', email:'luc@test.be', phone:'0477345678', account:'Industrie Beringen', address:'Koerselsesteenweg 88, 3580 Beringen', hasAddress:true, naamEindklant:'Luc Wouters', emailEindklant:'luc@test.be', telefoonEindklant:'0477345678', serienummer:'CHARX-3301', partner:'', probleemtype:'Metering', regio:'Limburg', interventieDatum: (() => { const d = new Date(); d.setDate(d.getDate()+2); return d.toISOString(); })(), createdTime:'2026-06-15T08:00:00Z' },
+    { id:'p2', number:'1005', subject:'Firmware update mislukt', status:'Wachten op bevestiging planning', priority:'high', assignee:'Tim', contact:'Sara Mertens', email:'sara@test.be', phone:'0478456789', account:'Kantoorpark Mechelen', address:'Battelsesteenweg 455, 2800 Mechelen', hasAddress:true, naamEindklant:'Sara Mertens', emailEindklant:'sara@test.be', telefoonEindklant:'0478456789', serienummer:'CHARX-2987', partner:'', probleemtype:'Firmware', regio:'', interventieDatum:null, createdTime:'2026-06-14T08:00:00Z' },
   ],
   plannedTickets: [
-    { id:'g1', number:'1006', subject:'Periodiek onderhoud laadpalen', status:'Geplande service', priority:'low', assignee:'Tim', contact:'Peter Van den Berg', email:'peter@test.be', phone:'0479567890', account:'Shopping Antwerpen', address:'Groenplaats 1, 2000 Antwerpen', hasAddress:true, naamEindklant:'Peter Van den Berg', emailEindklant:'peter@test.be', telefoonEindklant:'0479567890', serienummer:'CHARX-0012', partner:'', probleemtype:'Onderhoud', regio:'Antwerpen', dueDate: (() => { const d = new Date(); d.setDate(d.getDate()+4); return d.toISOString(); })(), createdTime:'2026-06-10T08:00:00Z' },
+    { id:'g1', number:'1006', subject:'Periodiek onderhoud laadpalen', status:'Geplande service', priority:'low', assignee:'Tim', contact:'Peter Van den Berg', email:'peter@test.be', phone:'0479567890', account:'Shopping Antwerpen', address:'Groenplaats 1, 2000 Antwerpen', hasAddress:true, naamEindklant:'Peter Van den Berg', emailEindklant:'peter@test.be', telefoonEindklant:'0479567890', serienummer:'CHARX-0012', partner:'', probleemtype:'Onderhoud', regio:'Antwerpen', interventieDatum: (() => { const d = new Date(); d.setDate(d.getDate()+4); return d.toISOString(); })(), createdTime:'2026-06-10T08:00:00Z' },
   ],
 };
 
@@ -1741,9 +1741,9 @@ function duurVoor(id) {
 // ── Module-scope plannings-scoring (gedeeld door autoPlan + wachtrij) ─────────
 const PRIO_WEIGHT = { high: 1, medium: 3, low: 6 };
 function urgencyFactor(t) {
-  if (!t.dueDate) return 1.0;
+  if (!t.interventieDatum) return 1.0;
   const today0 = new Date(); today0.setHours(0,0,0,0);
-  const due    = new Date(t.dueDate); due.setHours(0,0,0,0);
+  const due    = new Date(t.interventieDatum); due.setHours(0,0,0,0);
   return Math.max(0.1, Math.min(1.0, (due - today0) / 86400000 / 7));
 }
 function queueScore(t) {
@@ -1869,7 +1869,7 @@ async function loadTickets() {
     allGepland = data.plannedTickets || [];
 
     // Zoho is bron van waarheid: seed planning vanuit pendingTickets + geplande tickets
-    // Wis alle pending/gepland entries eerst (dueDate kan gewijzigd zijn → re-seed hieronder)
+    // Wis alle pending/gepland entries eerst (interventieDatum kan gewijzigd zijn → re-seed hieronder)
     const pendingIds = new Set(allPending.map(t => t.id));
     const teplanIds  = new Set(allTickets.map(t => t.id));
     const geplandIds = new Set(allGepland.map(t => t.id));
@@ -1877,20 +1877,20 @@ async function loadTickets() {
       planning[date] = planning[date].filter(p => {
         // Ticket terug in wachtrij (klant geweigerd) → verwijder uit planning
         if (teplanIds.has(p.ticket.id)) return false;
-        // Pending/gepland: verwijder zodat we opnieuw seeden met correcte dueDate
+        // Pending/gepland: verwijder zodat we opnieuw seeden met correcte interventieDatum
         if (pendingIds.has(p.ticket.id) || geplandIds.has(p.ticket.id)) return false;
         return true;
       });
       if (!planning[date].length) delete planning[date];
     });
 
-    // Voeg pendingTickets én geplande tickets toe op hun (mogelijk gewijzigde) dueDate
+    // Voeg pendingTickets én geplande tickets toe op hun (mogelijk gewijzigde) interventieDatum
     [...allPending, ...allGepland].forEach(t => {
-      if (!t.dueDate) return;
-      const date = localISO(new Date(t.dueDate));
+      if (!t.interventieDatum) return;
+      const date = localISO(new Date(t.interventieDatum));
       if (!planning[date]) planning[date] = [];
       if (!planning[date].find(p => p.ticket.id === t.id)) {
-        planning[date].push({ ticket: t, address: t.address, uur: extractLocalHour(t.dueDate) });
+        planning[date].push({ ticket: t, address: t.address, uur: extractLocalHour(t.interventieDatum) });
       }
     });
 
@@ -2004,7 +2004,7 @@ function selectPerson(name) {
 function todayStr() { return localISO(new Date()); }
 
 function isOverdue(t) {
-  return t.dueDate && localISO(new Date(t.dueDate)) < todayStr();
+  return t.interventieDatum && localISO(new Date(t.interventieDatum)) < todayStr();
 }
 
 function renderTickets() {
@@ -2093,10 +2093,11 @@ async function addTicketToDate(ticketId, date) {
   let success = true;
   if (!TEST_MODE) {
     try {
+      const utcInterventieDatum = new Date(`${date}T00:00:00`).toISOString();
       const res  = await fetch('/api/plan', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ ticketId, date }),
+        body:    JSON.stringify({ ticketId, date, utcInterventieDatum }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -2156,7 +2157,7 @@ async function removeTicketFromDate(ticketId, date) {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       // Ticket is terug "Service in te plannen" — voeg terug toe aan allTickets
-      stop.ticket.dueDate = null;
+      stop.ticket.interventieDatum = null;
       allTickets.push(stop.ticket);
       allTickets.sort((a, b) => (a.number || 0) - (b.number || 0));
       document.getElementById('cnt-tickets').textContent = allTickets.length;
@@ -2167,7 +2168,7 @@ async function removeTicketFromDate(ticketId, date) {
       toast('❌ Zoho update mislukt: ' + err.message, 4000);
     }
   } else {
-    stop.ticket.dueDate = null;
+    stop.ticket.interventieDatum = null;
     allTickets.push(stop.ticket);
     document.getElementById('cnt-tickets').textContent = allTickets.length;
   }
@@ -2198,16 +2199,16 @@ function renderKalender() {
   const today     = new Date(); today.setHours(0,0,0,0);
 
   // Pending zonder datum — gemeenschappelijk voor week én maandweergave
-  const noDueDate = allPending.filter(t => !t.dueDate);
+  const noInterventieDatum = allPending.filter(t => !t.interventieDatum);
   const pill      = document.getElementById('kal-pending-pill');
   const noDateSec = document.getElementById('kal-no-date-section');
-  if (noDueDate.length) {
-    document.getElementById('kal-pending-count').textContent = noDueDate.length;
+  if (noInterventieDatum.length) {
+    document.getElementById('kal-pending-count').textContent = noInterventieDatum.length;
     pill.style.display = '';
     const inner = document.createElement('div');
     inner.className = 'kal-pending-inner';
     inner.innerHTML = `<div class="kal-pending-hdr">Wacht bevestiging — zonder datum</div>`;
-    noDueDate.forEach(t => {
+    noInterventieDatum.forEach(t => {
       const card = document.createElement('div');
       card.className = 'ticket';
       card.style.cssText = 'cursor:pointer';
@@ -3673,7 +3674,7 @@ function renderGepland() {
   allGepland
     .filter(t => activeAssigneeFilter === 'all' || t.assignee === activeAssigneeFilter)
     .forEach(t => {
-      const key = t.dueDate ? localISO(new Date(t.dueDate)) : 'none';
+      const key = t.interventieDatum ? localISO(new Date(t.interventieDatum)) : 'none';
       (byDate[key] = byDate[key] || []).push(t);
     });
 
@@ -4057,7 +4058,7 @@ function openDetail(t) {
     row('Serienummer',  t.serienummer),
     row('Partner',      t.partner),
     row('Regio',        t.regio),
-    row('Vervaldatum',  t.dueDate && fmtDate(t.dueDate)),
+    row('Interventiedatum',  t.interventieDatum && fmtDate(t.interventieDatum)),
     row('Aangemaakt',   t.createdTime && fmtDate(t.createdTime)),
   ].join('') || '<div class="mrow"><span class="mval" style="color:var(--muted)">—</span></div>';
 
@@ -4401,8 +4402,8 @@ async function sendProposal() {
 
   try {
     // Bereken UTC-tijdstip in de browser (die kent de lokale tijdzone)
-    const timeStr    = rawTime || '09:00';
-    const utcDueDate = new Date(`${date}T${timeStr}:00`).toISOString();
+    const timeStr             = rawTime || '09:00';
+    const utcInterventieDatum = new Date(`${date}T${timeStr}:00`).toISOString();
 
     const res  = await fetch('/api/propose', {
       method:  'POST',
@@ -4410,8 +4411,8 @@ async function sendProposal() {
       body:    JSON.stringify({
         ticketId,
         date,
-        time:          rawTime,
-        utcDueDate,
+        time: rawTime,
+        utcInterventieDatum,
         recipientEmail,
         recipientName: activeTicket.naamEindklant || activeTicket.contact || '',
         subject:       activeTicket.subject || '',
@@ -4423,14 +4424,14 @@ async function sendProposal() {
 
     proposalSentTickets.add(ticketId);
     localStorage.setItem('blitz_proposal_sent', JSON.stringify([...proposalSentTickets]));
-    activeTicket.status  = 'Wachten op bevestiging planning';
-    activeTicket.dueDate = data.dueDate;
+    activeTicket.status           = 'Wachten op bevestiging planning';
+    activeTicket.interventieDatum = data.interventieDatum;
 
     allTickets = allTickets.filter(t => t.id !== ticketId);
     if (!allPending.find(t => t.id === ticketId)) allPending.push({ ...activeTicket });
     if (!planning[date]) planning[date] = [];
     if (!planning[date].find(p => p.ticket.id === ticketId)) {
-      planning[date].push({ ticket: activeTicket, address: activeTicket.address, uur: extractLocalHour(data.dueDate) });
+      planning[date].push({ ticket: activeTicket, address: activeTicket.address, uur: extractLocalHour(data.interventieDatum) });
     }
 
     document.getElementById('proposal-overlay').classList.remove('open');
@@ -4457,15 +4458,15 @@ function navigate(enc) { window.open(`https://www.google.com/maps/dir/?api=1&des
 function fmtDate(s)     { return new Date(s).toLocaleDateString('nl-BE', { weekday:'short', day:'numeric', month:'short', year:'numeric' }); }
 function fmtDateShort(d){ const date = d instanceof Date ? d : new Date(d + 'T12:00:00'); return date.toLocaleDateString('nl-BE', { day:'numeric', month:'short' }); }
 function fmtSec(s)      { const h = Math.floor(s/3600), m = Math.round((s%3600)/60); return h > 0 ? `${h}u ${m}min` : `${m}min`; }
-// Haal lokaal uur:minuten op uit een ISO dueDate-string (null als 00:00 = geen uur)
-function extractLocalHour(dueDate) {
-  if (!dueDate) return null;
-  const d = new Date(dueDate);
+// Haal lokaal uur:minuten op uit een ISO interventieDatum-string (null als 00:00 = geen uur)
+function extractLocalHour(interventieDatum) {
+  if (!interventieDatum) return null;
+  const d = new Date(interventieDatum);
   const h = d.getHours(), m = d.getMinutes();
   // Sentinel: lokale middernacht (00:00) = geen tijdstip.
   // Ook UTC-middernacht detecteren voor backward compat met oude plan.js records (T00:00:00.000Z).
   if (h === 0 && m === 0) return null;
-  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && dueDate.endsWith('Z')) return null;
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && interventieDatum.endsWith('Z')) return null;
   return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
 }
 
@@ -4594,13 +4595,13 @@ async function saveToewijzen(ticketId) {
   const time    = timeInp?.value || '09:00';
   if (!date) return toast('⚠️ Selecteer een datum');
 
-  const utcDueDate = new Date(`${date}T${time}:00`).toISOString();
+  const utcInterventieDatum = new Date(`${date}T${time}:00`).toISOString();
 
   try {
     const res  = await fetch('/api/plan-datum', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ ticketId, utcDueDate }),
+      body:    JSON.stringify({ ticketId, utcInterventieDatum }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Onbekende fout');
@@ -4608,10 +4609,10 @@ async function saveToewijzen(ticketId) {
     // Update lokale state
     const t = allPending.find(p => p.id === ticketId);
     if (t) {
-      t.dueDate = utcDueDate;
+      t.interventieDatum = utcInterventieDatum;
       if (!planning[date]) planning[date] = [];
       if (!planning[date].find(p => p.ticket.id === ticketId)) {
-        planning[date].push({ ticket: t, address: t.address, uur: extractLocalHour(utcDueDate) });
+        planning[date].push({ ticket: t, address: t.address, uur: extractLocalHour(utcInterventieDatum) });
       }
     }
     renderKalender();
