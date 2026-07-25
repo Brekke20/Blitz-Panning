@@ -1,8 +1,8 @@
 // /api/plan
-// Zet een ticket op de planning (status + interventieDatum) of haal het eraf.
+// Zet een ticket op de planning (status + dueDate) of haal het eraf.
 // POST body:
-//   { ticketId: "...", date: "2026-06-23", utcInterventieDatum: "..." }   → Wachten op bevestiging planning
-//   { ticketId: "...", date: null }                                       → Service in te plannen
+//   { ticketId: "...", date: "2026-06-23" }   → Wachten op bevestiging planning
+//   { ticketId: "...", date: null }            → Service in te plannen
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
@@ -39,7 +39,7 @@ export async function handler(event) {
   }
 
   try {
-    const { ticketId, date, utcDueDate } = JSON.parse(event.body || '{}');
+    const { ticketId, date } = JSON.parse(event.body || '{}');
     if (!ticketId) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'ticketId verplicht' }) };
     }
@@ -57,13 +57,12 @@ export async function handler(event) {
     // Bepaal patch body
     let patch;
     if (date) {
-      // Inplannen: Zoho vereist geldige ISO8601 (bv. "2025-12-01T10:00:00.000Z").
-      // utcDueDate komt van de client als DST-correcte UTC-omzetting van lokale
-      // middernacht (new Date(`${date}T00:00:00`).toISOString()); zonder Z-suffix
-      // verwerpt Zoho de PATCH met een 422 INVALID_DATA op dueDate.
+      // Inplannen: ISO datetime die Zoho verwacht
       patch = {
         status:  'Wachten op bevestiging planning',
-        dueDate: utcDueDate || `${date}T00:00:00.000Z`,
+        // Geen Z-suffix: Zoho leest dit als lokale org-tijdzone (middernacht).
+        // Met Z (UTC midnight) toonde Zoho 01:00/02:00 in Belgische tijdzone.
+        dueDate: `${date}T00:00:00`,
       };
     } else {
       // Uit planning halen → terug naar "Wachten op planning" (werkelijke Zoho statusnaam)
