@@ -121,7 +121,7 @@ export async function handler(event) {
   }
 
   try {
-    const { ticketId, date, time, recipientEmail, recipientName, subject, serienummer, utcDueDate } =
+    const { ticketId, date, time, recipientEmail, recipientName, subject, serienummer, utcInterventieDatum } =
       JSON.parse(event.body || '{}');
 
     if (!ticketId || !date) {
@@ -139,10 +139,10 @@ export async function handler(event) {
 
     // Tijd afronden naar volgend kwartier
     const appointmentTime = roundToNextQuarter(time || '09:00');
-    // Gebruik utcDueDate van de client (browser kent de lokale tijdzone).
-    // Fallback: sla op zonder Z-suffix zodat Zoho het als lokale tijd leest
-    // ipv als UTC (vermijdt 2u verschuiving in CEST).
-    const dueDate = utcDueDate || `${date}T${appointmentTime}:00`;
+    // Gebruik utcInterventieDatum van de client (browser kent de lokale
+    // tijdzone en rekent DST-correct om naar UTC). Fallback moet geldige
+    // ISO8601 zijn (met .000Z) voor het cf_interventie_datm custom field.
+    const interventieDatum = utcInterventieDatum || `${date}T${appointmentTime}:00.000Z`;
 
     // Haal het from-adres op uit de Zoho e-mailconfiguratie.
     // Voorkeur: ZOHO_FROM_EMAIL env-var (zet dit in Netlify UI → Site settings → Environment variables).
@@ -212,7 +212,7 @@ export async function handler(event) {
       }
     }
 
-    // 2. Ticket PATCH NA sendReply: status → Wachten op bevestiging planning + dueDate
+    // 2. Ticket PATCH NA sendReply: status → Wachten op bevestiging planning + interventieDatum
     // Volgorde is belangrijk: Zoho zet status automatisch op "Wachten op klant" na sendReply,
     // dus de PATCH moet daarna komen om de juiste status te garanderen.
     const patchRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
@@ -223,8 +223,8 @@ export async function handler(event) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        status:  'Wachten op bevestiging planning',
-        dueDate,
+        status: 'Wachten op bevestiging planning',
+        cf:     { cf_interventie_datm: interventieDatum },
       }),
     });
 
@@ -238,7 +238,7 @@ export async function handler(event) {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, ticketId, dueDate, appointmentTime, emailSent }),
+      body: JSON.stringify({ success: true, ticketId, interventieDatum, appointmentTime, emailSent }),
     };
   } catch (err) {
     return {
