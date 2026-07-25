@@ -9,11 +9,17 @@ import fs   from 'node:fs';
 import path from 'node:path';
 import url  from 'node:url';
 
-// Niet "__dirname" noemen: Netlify's gebundelde runtime definieert die naam
-// zelf al in scope, wat botst met een eigen const-declaratie (SyntaxError
-// "Identifier '__dirname' has already been declared" — enkel zichtbaar in
-// de echte deploy, niet lokaal via dev-server.mjs).
-const functionDir = path.dirname(url.fileURLToPath(import.meta.url));
+// Netlify bundelt deze ESM-syntax functie naar CommonJS voor de echte
+// productie-runtime — daar bestaat al een werkende __dirname (CJS-stijl),
+// en import.meta.url is onbetrouwbaar ("path" argument must be of type
+// string, Received undefined"). Lokaal (dev-server.mjs) draait dit
+// bestand als echte ESM, waar __dirname niet bestaat maar import.meta.url
+// wel werkt. `typeof __dirname` is veilig op een niet-gedeclareerde naam
+// (geeft "undefined" terug, gooit geen ReferenceError) — vandaar deze
+// fallback die in beide omgevingen werkt.
+const functionDir = typeof __dirname !== 'undefined'
+  ? __dirname
+  : path.dirname(url.fileURLToPath(import.meta.url));
 const TERMS_PDF_PATH = path.join(functionDir, 'assets', 'service-voorwaarden.pdf');
 const TERMS_PDF_DISPLAY_NAME = 'Service Voorwaarden Blitz Power.pdf';
 
