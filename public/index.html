@@ -2156,6 +2156,7 @@ async function removeTicketFromDate(ticketId, date) {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       // Ticket is terug "Service in te plannen" — voeg terug toe aan allTickets
+      stop.ticket.dueDate = null;
       allTickets.push(stop.ticket);
       allTickets.sort((a, b) => (a.number || 0) - (b.number || 0));
       document.getElementById('cnt-tickets').textContent = allTickets.length;
@@ -2166,6 +2167,7 @@ async function removeTicketFromDate(ticketId, date) {
       toast('❌ Zoho update mislukt: ' + err.message, 4000);
     }
   } else {
+    stop.ticket.dueDate = null;
     allTickets.push(stop.ticket);
     document.getElementById('cnt-tickets').textContent = allTickets.length;
   }
