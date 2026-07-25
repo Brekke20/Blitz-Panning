@@ -75,8 +75,15 @@ export async function handler(event) {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'networkidle0' });
     const pdfBuffer = await page.pdf({
-      format:          'A4',
-      printBackground: true,
+      format:             'A4',
+      printBackground:    true,
+      displayHeaderFooter: true,
+      headerTemplate:      '<span></span>',
+      footerTemplate: `
+        <div style="font-size:8px;width:100%;text-align:center;color:#888;font-family:Arial,Helvetica,sans-serif">
+          Pagina <span class="pageNumber"></span> van <span class="totalPages"></span>
+        </div>`,
+      margin: { top: '0mm', bottom: '12mm', left: '0mm', right: '0mm' },
     });
     await browser.close();
     browser = null;
