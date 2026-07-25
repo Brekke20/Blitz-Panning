@@ -1,7 +1,7 @@
 // /api/plan-datum
 // Stelt de geplande datum/tijd in op een Zoho-ticket (geen e-mail).
-// POST body: { ticketId, utcDueDate }   (utcDueDate = volledige ISO-string in UTC)
-// Zet status op "Wachten op bevestiging planning" als die nog niet zo staat.
+// POST body: { ticketId, utcInterventieDatum }   (volledige ISO-string in UTC)
+// Schrijft naar het cf_interventie_datm custom field (niet Zoho's dueDate).
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
@@ -39,9 +39,9 @@ export default async (req, context) => {
   try { body = await req.json(); }
   catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }); }
 
-  const { ticketId, utcDueDate } = body;
-  if (!ticketId || !utcDueDate) {
-    return new Response(JSON.stringify({ error: 'ticketId en utcDueDate zijn verplicht' }), {
+  const { ticketId, utcInterventieDatum } = body;
+  if (!ticketId || !utcInterventieDatum) {
+    return new Response(JSON.stringify({ error: 'ticketId en utcInterventieDatum zijn verplicht' }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
@@ -56,14 +56,14 @@ export default async (req, context) => {
     const patchRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
       method:  'PATCH',
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId, 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ dueDate: utcDueDate }),
+      body:    JSON.stringify({ cf: { cf_interventie_datm: utcInterventieDatum } }),
     });
     if (!patchRes.ok) {
       const txt = await patchRes.text();
       throw new Error(`Zoho PATCH fout (${patchRes.status}): ${txt}`);
     }
 
-    return new Response(JSON.stringify({ ok: true, dueDate: utcDueDate }), {
+    return new Response(JSON.stringify({ ok: true, interventieDatum: utcInterventieDatum }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
