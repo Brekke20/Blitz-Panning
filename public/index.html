@@ -1887,7 +1887,7 @@ async function loadTickets() {
     // Voeg pendingTickets én geplande tickets toe op hun (mogelijk gewijzigde) dueDate
     [...allPending, ...allGepland].forEach(t => {
       if (!t.dueDate) return;
-      const date = t.dueDate.split('T')[0];
+      const date = localISO(new Date(t.dueDate));
       if (!planning[date]) planning[date] = [];
       if (!planning[date].find(p => p.ticket.id === t.id)) {
         planning[date].push({ ticket: t, address: t.address, uur: extractLocalHour(t.dueDate) });
@@ -2004,7 +2004,7 @@ function selectPerson(name) {
 function todayStr() { return localISO(new Date()); }
 
 function isOverdue(t) {
-  return t.dueDate && t.dueDate.split('T')[0] < todayStr();
+  return t.dueDate && localISO(new Date(t.dueDate)) < todayStr();
 }
 
 function renderTickets() {
@@ -3671,7 +3671,7 @@ function renderGepland() {
   allGepland
     .filter(t => activeAssigneeFilter === 'all' || t.assignee === activeAssigneeFilter)
     .forEach(t => {
-      const key = t.dueDate ? t.dueDate.split('T')[0] : 'none';
+      const key = t.dueDate ? localISO(new Date(t.dueDate)) : 'none';
       (byDate[key] = byDate[key] || []).push(t);
     });
 
