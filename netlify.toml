@@ -13,3 +13,6 @@
 
 [functions.rapport]
   timeout = 26
+
+[functions.propose]
+  included_files = ["netlify/functions/assets/*.pdf"]

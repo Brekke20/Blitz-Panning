@@ -3,6 +3,15 @@
 // POST body:
 //   { ticketId, date, time, recipientEmail, recipientName, subject, serienummer }
 //   time wordt afgerond naar het volgende kwartier.
+// Bij recipientEmail wordt ook de service-voorwaarden-PDF als bijlage meegestuurd.
+
+import fs   from 'node:fs';
+import path from 'node:path';
+import url  from 'node:url';
+
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+const TERMS_PDF_PATH = path.join(__dirname, 'assets', 'service-voorwaarden.pdf');
+const TERMS_PDF_DISPLAY_NAME = 'Service Voorwaarden Blitz Power.pdf';
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
@@ -28,6 +37,21 @@ async function getAccessToken() {
   cachedToken = data.access_token;
   tokenExpiry = Date.now() + 55 * 60 * 1000;
   return cachedToken;
+}
+
+async function uploadTermsAttachment(accessToken, orgId, ticketId) {
+  const fileBuffer = fs.readFileSync(TERMS_PDF_PATH);
+  const formData = new FormData();
+  formData.append('file', new Blob([fileBuffer], { type: 'application/pdf' }), TERMS_PDF_DISPLAY_NAME);
+
+  const uploadRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/attachments`, {
+    method:  'POST',
+    headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
+    body:    formData,
+  });
+  const uploadData = await uploadRes.json().catch(() => ({}));
+  if (!uploadRes.ok) throw new Error(`Zoho attachment-upload fout (${uploadRes.status}): ${JSON.stringify(uploadData)}`);
+  return uploadData.id;
 }
 
 function roundToNextQuarter(timeStr) {
@@ -90,7 +114,9 @@ function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime
     </table>
 
     <p style="margin:0 0 16px;font-size:14px;color:#3a3a3a;line-height:1.65">
-      Kan dit tijdstip u niet schikken? Beantwoord dan deze e-mail en wij zoeken samen naar een alternatief.
+      Gelieve deze afspraak te bevestigen door op deze e-mail te antwoorden. Komt het voorgestelde tijdstip u
+      niet uit? Laat het ons dan ook weten, zodat we samen een alternatief zoeken. In bijlage vindt u onze
+      service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.
     </p>
     <p style="margin:0;font-size:14px;color:#3a3a3a;line-height:1.65">
       Met vriendelijke groeten,<br>
@@ -180,6 +206,10 @@ export async function handler(event) {
         serienummer:   serienummer || '',
       });
 
+      // Service-voorwaarden-PDF als bijlage: eerst uploaden naar het ticket
+      // (zelfde bewezen patroon als rapport.js), dan meegeven aan sendReply.
+      const attachmentId = await uploadTermsAttachment(accessToken, orgId, ticketId);
+
       const replyRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/sendReply`, {
         method:  'POST',
         headers: {
@@ -193,6 +223,7 @@ export async function handler(event) {
           content:          emailHtml,
           fromEmailAddress,
           to:               recipientEmail,
+          attachmentIds:    [attachmentId],
         }),
       });
 
