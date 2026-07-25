@@ -137,7 +137,7 @@ export async function handler(event) {
         partner:           cf.cf_partner_installateur || '',
         probleemtype:      cf.cf_probleemtype         || '',
         regio:             (cf.cf_regio && cf.cf_regio !== '-Geen-') ? cf.cf_regio : '',
-        dueDate:           t.dueDate     || null,
+        interventieDatum:  cf.cf_interventie_datm || null,
         createdTime:       t.createdTime || null,
       };
     };
