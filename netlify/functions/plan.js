@@ -39,7 +39,7 @@ export async function handler(event) {
   }
 
   try {
-    const { ticketId, date } = JSON.parse(event.body || '{}');
+    const { ticketId, date, utcInterventieDatum } = JSON.parse(event.body || '{}');
     if (!ticketId) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'ticketId verplicht' }) };
     }
@@ -57,18 +57,19 @@ export async function handler(event) {
     // Bepaal patch body
     let patch;
     if (date) {
-      // Inplannen: ISO datetime die Zoho verwacht
+      // Inplannen: Zoho custom Date/Time-velden verwachten geldige ISO8601
+      // (bv. "2025-12-01T10:00:00.000Z"), genest onder "cf". utcInterventieDatum
+      // komt van de client als DST-correcte UTC-omzetting van lokale middernacht
+      // (new Date(`${date}T00:00:00`).toISOString()).
       patch = {
-        status:  'Wachten op bevestiging planning',
-        // Geen Z-suffix: Zoho leest dit als lokale org-tijdzone (middernacht).
-        // Met Z (UTC midnight) toonde Zoho 01:00/02:00 in Belgische tijdzone.
-        dueDate: `${date}T00:00:00`,
+        status: 'Wachten op bevestiging planning',
+        cf:     { cf_interventie_datm: utcInterventieDatum || `${date}T00:00:00.000Z` },
       };
     } else {
       // Uit planning halen → terug naar "Wachten op planning" (werkelijke Zoho statusnaam)
       patch = {
-        status:  'Wachten op planning',
-        dueDate: '',
+        status: 'Wachten op planning',
+        cf:     { cf_interventie_datm: '' },
       };
     }
 
