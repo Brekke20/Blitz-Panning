@@ -3722,7 +3722,9 @@ function onDateChange(val) {
 
 function clearDay() {
   const date  = document.getElementById('plan-date').value;
-  const stops = [...(planning[date] || [])];
+  const stops = (planning[date] || []).filter(p =>
+    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
+  );
   if (!stops.length) return;
   if (!confirm(`Alle ${stops.length} stop${stops.length > 1 ? 's' : ''} verwijderen op ${date}?`)) return;
   stops.forEach(s => removeTicketFromDate(s.ticket.id, date));
@@ -3865,7 +3867,15 @@ function renderRouteList(date) {
 
 async function optimizeRoute() {
   const date  = document.getElementById('plan-date').value;
-  const stops = planning[date] || [];
+  const allStops = planning[date] || [];
+  // Stops van andere technici blijven ongemoeid — enkel de geselecteerde
+  // technieker (of iedereen bij 'all') wordt herordend.
+  const otherStops = allStops.filter(p =>
+    activeAssigneeFilter !== 'all' && p.ticket.assignee !== activeAssigneeFilter
+  );
+  const stops = allStops.filter(p =>
+    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
+  );
   // Optimaliseer enkel stops met adres
   const withAddr = stops.filter(p => p.ticket?.hasAddress && p.address);
   if (withAddr.length < 2) return toast('Minimaal 2 stops met adres nodig voor optimalisatie');
@@ -3883,7 +3893,7 @@ async function optimizeRoute() {
       ...withAddr[i], _lat: data.locations?.[i+1]?.lat, _lon: data.locations?.[i+1]?.lon,
     }));
     const noAddr = stops.filter(p => !p.ticket?.hasAddress || !p.address);
-    planning[date] = [...reordered, ...noAddr];
+    planning[date] = [...reordered, ...noAddr, ...otherStops];
     toast('Route geoptimaliseerd ✓');
     renderRouteList(date);
     await calculateRoute();
@@ -3892,8 +3902,13 @@ async function optimizeRoute() {
 
 async function calculateRoute() {
   const date  = document.getElementById('plan-date').value;
-  const stops = planning[date] || [];
-  const localForDate = localEvents.filter(e => e.datum === date && (e.adres || e.notitie));
+  const stops = (planning[date] || []).filter(p =>
+    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
+  );
+  const localForDate = localEvents.filter(e =>
+    e.datum === date && (e.adres || e.notitie) &&
+    (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
+  );
   if (!stops.length && !localForDate.length) return;
   toast('Route berekenen...', 8000);
   try {
@@ -3963,7 +3978,9 @@ function initMap() {
 
 function updateMap(date) {
   routeLayer.clearLayers();
-  const stops = planning[date] || [];
+  const stops = (planning[date] || []).filter(p =>
+    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
+  );
   if (!stops.length) return;
   if (routeData?.polyline?.length && currentRouteDate === date) {
     const poly = L.polyline(routeData.polyline, { color:'#f59e0b', weight:4, opacity:0.85 }).addTo(routeLayer);
