@@ -9,8 +9,12 @@ import fs   from 'node:fs';
 import path from 'node:path';
 import url  from 'node:url';
 
-const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
-const TERMS_PDF_PATH = path.join(__dirname, 'assets', 'service-voorwaarden.pdf');
+// Niet "__dirname" noemen: Netlify's gebundelde runtime definieert die naam
+// zelf al in scope, wat botst met een eigen const-declaratie (SyntaxError
+// "Identifier '__dirname' has already been declared" — enkel zichtbaar in
+// de echte deploy, niet lokaal via dev-server.mjs).
+const functionDir = path.dirname(url.fileURLToPath(import.meta.url));
+const TERMS_PDF_PATH = path.join(functionDir, 'assets', 'service-voorwaarden.pdf');
 const TERMS_PDF_DISPLAY_NAME = 'Service Voorwaarden Blitz Power.pdf';
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
