@@ -3834,8 +3834,27 @@ function renderRouteList(date) {
           e.preventDefault(); stop.classList.remove('drag-over');
           const from = +e.dataTransfer.getData('text/plain');
           if (from !== i && from < stops.length && i < stops.length) {
+            // `stops` is de GEFILTERDE lijst (zie boven in renderRouteList) — splice die zelf,
+            // en herschrijf dan planning[date] zodat enkel de volgorde van de eigen (gefilterde)
+            // stops verandert; stops van andere technici blijven op hun eigen relatieve plek staan.
+            const movedTicketIds = stops.map(s => s.ticket.id);
+            const [movedId] = movedTicketIds.splice(from, 1);
+            movedTicketIds.splice(i, 0, movedId);
+
             const arr = planning[date];
-            arr.splice(i, 0, arr.splice(from, 1)[0]);
+            const reordered = [];
+            let ownIdx = 0;
+            for (const entry of arr) {
+              const isOwn = stops.some(s => s.ticket.id === entry.ticket.id);
+              if (isOwn) {
+                const targetId = movedTicketIds[ownIdx++];
+                reordered.push(arr.find(a => a.ticket.id === targetId));
+              } else {
+                reordered.push(entry);
+              }
+            }
+            planning[date] = reordered;
+
             routeData = null;
             renderRouteList(date);
             updateRouteBtns(date);
