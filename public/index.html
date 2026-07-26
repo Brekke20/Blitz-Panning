@@ -6062,11 +6062,34 @@ async function verwijderRapport(id, ticketRef, datumStr) {
 function herOpenRapport(idx) {
   const r = _rapportArchief[idx];
   if (!r?.rapportData?._html) return toast('Geen opgeslagen HTML beschikbaar');
-  const blob    = new Blob([r.rapportData._html], { type: 'text/html; charset=utf-8' });
-  const blobUrl = URL.createObjectURL(blob);
-  const win     = window.open(blobUrl, '_blank');
+  // rapportData._html komt uit de niet-geauthenticeerde rapport-archief blob. Een blob:-URL
+  // erft de origin van deze app, dus script in die opgeslagen HTML zou met volledige
+  // app-rechten lopen (localStorage, /api/*, ...). Daarom niet meer als top-level document
+  // openen, maar renderen in een sandboxed iframe ZONDER allow-scripts. allow-same-origin
+  // staat er alleen bij om de inhoudshoogte te kunnen meten (zie hieronder); zonder
+  // allow-scripts kan die origin niet misbruikt worden en draait er geen enkel script —
+  // ook niet in geneste iframes, want sandbox-flags worden geërfd.
+  const win = window.open('', '_blank');
   if (!win) return toast('Pop-upblokkering actief');
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
+  win.document.write(
+    '<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8">' +
+    '<title>Service rapport</title>' +
+    '<style>html,body{margin:0;padding:0;background:#fff}iframe{display:block;width:100%;border:0}</style>' +
+    '</head><body></body></html>'
+  );
+  win.document.close();
+  const frame = win.document.createElement('iframe');
+  frame.setAttribute('sandbox', 'allow-same-origin'); // géén allow-scripts
+  frame.style.height = '100vh';
+  // Meegroeien met de inhoud zodat de volledige rapportinhoud zichtbaar/printbaar blijft.
+  frame.addEventListener('load', () => {
+    try {
+      const h = frame.contentDocument?.documentElement?.scrollHeight;
+      if (h) frame.style.height = h + 'px';
+    } catch { /* hoogte niet meetbaar → viewporthoogte met eigen scrollbar blijft staan */ }
+  });
+  win.document.body.appendChild(frame);
+  frame.srcdoc = r.rapportData._html;
 }
 
 async function exportTicketLog() {
