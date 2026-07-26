@@ -2035,7 +2035,7 @@ function renderTickets() {
     card.innerHTML = `
       <div class="t-body">
         <div class="t-top">
-          <span class="tnum">#${t.number}</span>
+          <span class="tnum">#${escHtml(t.number)}</span>
           ${overdue ? `<span class="stag">Verlopen</span>` : ''}
           ${t.priority ? `<span class="prtag ${escHtml((t.priority||'').toLowerCase())}">${escHtml(t.priority)}</span>` : ''}
           ${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}
@@ -2213,7 +2213,7 @@ function renderKalender() {
       card.className = 'ticket';
       card.style.cssText = 'cursor:pointer';
       card.innerHTML = `<div class="t-body">
-        <div class="t-top"><span class="tnum">#${t.number}</span><span class="stag pending">Wacht bevestiging</span>${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}</div>
+        <div class="t-top"><span class="tnum">#${escHtml(t.number)}</span><span class="stag pending">Wacht bevestiging</span>${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}</div>
         <div class="tsub">${escHtml(t.subject) || '—'}</div>
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
         <div class="t-assign-row" id="assign-row-${t.id}" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
@@ -2302,7 +2302,7 @@ function renderKalender() {
       card.innerHTML    = `
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px">
           <div style="flex:1;min-width:0">
-            <div class="cal-num">#${stop.ticket.number}</div>
+            <div class="cal-num">#${escHtml(stop.ticket.number)}</div>
             <span class="cal-badge ${cardClass}">${badgeLabel}</span>
             ${stop.uur ? `<div class="cal-meta" style="font-weight:600">🕐 ${stop.uur}</div>` : ''}
             <div class="cal-sub">${escHtml(stop.ticket.subject) || '—'}</div>
@@ -3623,7 +3623,7 @@ function showResult(geplande, overflow, skipped, bericht) {
     s.innerHTML = `<div class="result-section-title">Ingepland (${geplande.length})</div>`;
     geplande.forEach(({ ticket, date }) => {
       const row = document.createElement('div'); row.className = 'result-item';
-      row.innerHTML = `<div class="result-dot ok"></div><div><b>#${ticket.number}</b> ${escHtml(ticket.subject)} → ${fmtDateShort(date)}</div>`;
+      row.innerHTML = `<div class="result-dot ok"></div><div><b>#${escHtml(ticket.number)}</b> ${escHtml(ticket.subject)} → ${fmtDateShort(date)}</div>`;
       s.appendChild(row);
     });
     body.appendChild(s);
@@ -3634,7 +3634,7 @@ function showResult(geplande, overflow, skipped, bericht) {
     s.innerHTML = `<div class="result-section-title">➡️ Past niet deze week — verschoven (${overflow.length})</div>`;
     overflow.forEach(t => {
       const row = document.createElement('div'); row.className = 'result-item';
-      row.innerHTML = `<div class="result-dot skip"></div><div><b>#${t.number}</b> ${escHtml(t.subject)}</div>`;
+      row.innerHTML = `<div class="result-dot skip"></div><div><b>#${escHtml(t.number)}</b> ${escHtml(t.subject)}</div>`;
       s.appendChild(row);
     });
     body.appendChild(s);
@@ -3645,7 +3645,7 @@ function showResult(geplande, overflow, skipped, bericht) {
     s.innerHTML = `<div class="result-section-title">Overgeslagen — geen adres (${skipped.length})</div>`;
     skipped.forEach(t => {
       const row = document.createElement('div'); row.className = 'result-item';
-      row.innerHTML = `<div class="result-dot skip"></div><div><b>#${t.number}</b> ${escHtml(t.subject)}</div>`;
+      row.innerHTML = `<div class="result-dot skip"></div><div><b>#${escHtml(t.number)}</b> ${escHtml(t.subject)}</div>`;
       s.appendChild(row);
     });
     body.appendChild(s);
@@ -3693,7 +3693,7 @@ function renderGepland() {
       card.style.cursor = 'pointer';
       const meta = [escHtml(t.account || t.naamEindklant), escHtml(t.assignee)].filter(Boolean).join(' · ');
       card.innerHTML = `<div class="t-body">
-        <div class="t-top"><span class="tnum">#${t.number}</span><span class="stag confirmed">Ingepland</span>${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}</div>
+        <div class="t-top"><span class="tnum">#${escHtml(t.number)}</span><span class="stag confirmed">Ingepland</span>${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}</div>
         <div class="tsub">${escHtml(t.subject) || '—'}</div>
         ${meta ? `<div class="tmeta">${meta}</div>` : ''}
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
