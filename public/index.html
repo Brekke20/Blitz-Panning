@@ -4761,30 +4761,43 @@ async function openRapport(ticketId, date) {
       R.aanrijtijdMin = Math.round(routeData.legs[stopIdx].travelTimeSeconds / 60);
     }
   }
-  // Geen routeData beschikbaar maar adres en startlocatie zijn bekend → TomTom direct bevragen
-  if (R.aanrijtijdMin === 0 && ticket.hasAddress && settings.startlocatie) {
-    try {
-      toast('📡 Aanrijtijd berekenen...', 5000);
-      const gRes  = await fetch('/api/optimize', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ origin: settings.startlocatie, stops: [ticket.address] }),
-      });
-      const gData = await gRes.json();
-      const origin = gData.locations?.[0];
-      const dest   = gData.locations?.[1];
-      if (origin && dest) {
-        const rRes  = await fetch('/api/route', {
+  // Geen routeData beschikbaar → TomTom direct bevragen, maar vertrek vanaf de vorige
+  // stop van diezelfde dag/technieker (op basis van geplande tijd) indien die er is —
+  // anders wordt elke stop na de eerste onterecht gefactureerd alsof de technieker apart
+  // van het bureau vertrok. Enkel voor de rapport-facturatie; de routeplanning zelf
+  // (calculateRoute/autoPlan/optimizeRoute) gebruikt deze functie niet en blijft ongewijzigd.
+  if (R.aanrijtijdMin === 0 && ticket.hasAddress) {
+    const sameDayOwnStops = (planning[date] || [])
+      .filter(p => p.ticket.assignee === ticket.assignee && p.ticket.hasAddress)
+      .sort((a, b) => (a.uur || '').localeCompare(b.uur || ''));
+    const ownIdx   = sameDayOwnStops.findIndex(p => p.ticket.id === ticketId);
+    const prevStop = ownIdx > 0 ? sameDayOwnStops[ownIdx - 1] : null;
+    const aanrijOrigin = prevStop ? prevStop.address : settings.startlocatie;
+
+    if (aanrijOrigin) {
+      try {
+        toast('📡 Aanrijtijd berekenen...', 5000);
+        const gRes  = await fetch('/api/optimize', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ waypoints: [origin, dest] }),
+          body:    JSON.stringify({ origin: aanrijOrigin, stops: [ticket.address] }),
         });
-        const rData = await rRes.json();
-        if (rData.legs?.[0]?.travelTimeSeconds) {
-          R.aanrijtijdMin = Math.round(rData.legs[0].travelTimeSeconds / 60);
+        const gData = await gRes.json();
+        const origin = gData.locations?.[0];
+        const dest   = gData.locations?.[1];
+        if (origin && dest) {
+          const rRes  = await fetch('/api/route', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ waypoints: [origin, dest] }),
+          });
+          const rData = await rRes.json();
+          if (rData.legs?.[0]?.travelTimeSeconds) {
+            R.aanrijtijdMin = Math.round(rData.legs[0].travelTimeSeconds / 60);
+          }
         }
-      }
-    } catch { /* niet fataal, aanrijtijd blijft 0 */ }
+      } catch { /* niet fataal, aanrijtijd blijft 0 */ }
+    }
   }
   R.type = ''; R.uitvoering = ''; R.kabel = ''; R.kabellengte = '';
   R.hersteld = 'nee'; R.nieuwInter = 'nee';
