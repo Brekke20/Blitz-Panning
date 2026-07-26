@@ -5584,7 +5584,7 @@ function buildRapportHtml() {
     <div class="info-cell"><div class="info-lbl">#Zoho</div><div class="info-val">${zohoRef||'—'}</div></div>
   </div>
   <div class="info-row cols-1">
-    <div class="info-cell"><div class="info-lbl">Interventie adres</div><div class="info-val">${R.adres||'—'}</div></div>
+    <div class="info-cell"><div class="info-lbl">Interventie adres</div><div class="info-val">${escHtml(R.adres)||'—'}</div></div>
   </div>
   <div class="info-row ${R.aanrijtijdMin > 0 ? 'cols-4' : 'cols-3'}">
     <div class="info-cell accent"><div class="info-lbl">Starttijd</div><div class="info-val">${R.start||'—'}</div></div>
@@ -5595,20 +5595,20 @@ function buildRapportHtml() {
   <div class="info-row cols-3">
     <div class="info-cell"><div class="info-lbl">Servicetype</div><div class="info-val">${stLabel}</div></div>
     <div class="info-cell"><div class="info-lbl">Facturatie aan</div><div class="info-val">${facturatieLabel}</div></div>
-    <div class="info-cell"><div class="info-lbl">Installateur</div><div class="info-val">${R.installateur||'—'}</div></div>
+    <div class="info-cell"><div class="info-lbl">Installateur</div><div class="info-val">${escHtml(R.installateur)||'—'}</div></div>
   </div>
   <div class="info-row cols-2">
-    <div class="info-cell"><div class="info-lbl">Serienummer</div><div class="info-val">${R.serienummer||'—'}</div></div>
+    <div class="info-cell"><div class="info-lbl">Serienummer</div><div class="info-val">${escHtml(R.serienummer)||'—'}</div></div>
     <div class="info-cell"><div class="info-lbl">Type / uitvoering</div><div class="info-val">${productInfo}</div></div>
   </div>
 </div>
 <div class="rapport-section">
 <div class="sec">Omschrijving probleem</div>
-<div class="block">${R.probleem||'&nbsp;'}</div>
+<div class="block">${escHtml(R.probleem)||'&nbsp;'}</div>
 </div>
 <div class="rapport-section">
 <div class="sec">Ondernomen acties</div>
-<div class="block">${R.acties||'&nbsp;'}</div>
+<div class="block">${escHtml(R.acties)||'&nbsp;'}</div>
 </div>
 <div class="rapport-section">
 <div class="sec">Oorzaak storing</div>
@@ -5626,7 +5626,7 @@ ${R.fotos.length ? `<div class="sec">Foto's</div>
 ${geldigeOnderdelen.length ? `<div class="sec">Vervangen onderdelen</div>
 <table class="parts"><thead><tr><th>Omschrijving</th><th style="text-align:center">Aantal</th><th style="text-align:right">Stukprijs</th><th style="text-align:right">Subtotaal</th></tr></thead>
 <tbody>${partsHtml}</tbody></table>` : ''}
-${R.varia ? `<div class="rapport-section"><div class="sec">Varia</div><div class="block">${R.varia}</div></div>` : ''}
+${R.varia ? `<div class="rapport-section"><div class="sec">Varia</div><div class="block">${escHtml(R.varia)}</div></div>` : ''}
 ${(() => {
   const wMin = calcWerktijdMin(R.start, R.stop);
   const aMin = parseInt(R.aanrijtijdMin) || 0;
