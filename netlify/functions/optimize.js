@@ -54,20 +54,22 @@ export async function handler(event) {
       };
     }
 
-    // TomTom Waypoint Optimization
+    // TomTom Waypoint Optimization v1: origin/destination zijn zelf waypoints
+    // (eerste en laatste element), en de opties horen in de body onder "options" —
+    // niet als query-parameters (die worden door deze API genegeerd).
+    const allPoints = [originGeo, ...stopsGeo, originGeo]; // start en eind bij het vertrekpunt
     const waypointsBody = {
-      waypoints: stopsGeo.map((s, i) => ({
+      waypoints: allPoints.map((s) => ({
         point: { latitude: s.lat, longitude: s.lon },
-        waypoint_id: String(i),
       })),
-      departureTime: new Date().toISOString(),
+      options: {
+        travelMode: 'car',
+        departAt: new Date().toISOString(),
+      },
     };
 
     const optRes = await fetch(
-      `${TOMTOM_BASE}/routing/waypointoptimization/1?key=${API_KEY()}` +
-      `&origin=${originGeo.lat},${originGeo.lon}` +
-      `&destination=${originGeo.lat},${originGeo.lon}` + // return to origin optional
-      `&travelMode=car`,
+      `${TOMTOM_BASE}/routing/waypointoptimization/1?key=${API_KEY()}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,10 +77,29 @@ export async function handler(event) {
       }
     );
 
-    const optData = await optRes.json();
+    if (!optRes.ok) {
+      const errBody = await optRes.json().catch(() => ({}));
+      return {
+        statusCode: 502,
+        headers,
+        body: JSON.stringify({ error: `TomTom route-optimalisatie mislukt (${optRes.status})`, details: errBody }),
+      };
+    }
 
-    // Extract optimized order
-    const optimizedOrder = optData.optimizedOrder || stopsGeo.map((_, i) => i);
+    const optData = await optRes.json();
+    if (!Array.isArray(optData.optimizedOrder)) {
+      return {
+        statusCode: 502,
+        headers,
+        body: JSON.stringify({ error: 'TomTom gaf geen geldige optimizedOrder terug', details: optData }),
+      };
+    }
+
+    // Eerste en laatste waypoint zijn het vertrekpunt (index 0 in allPoints) — die horen niet
+    // in de teruggegeven volgorde van de tussenliggende stops.
+    const optimizedOrder = optData.optimizedOrder
+      .filter(i => i !== 0 && i !== allPoints.length - 1)
+      .map(i => i - 1); // terug naar 0-based index in stopsGeo
 
     return {
       statusCode: 200,
