@@ -3025,8 +3025,12 @@ function openLocalEventDetail(ev) {
   const row = (label, val) => val
     ? `<div class="mrow"><span class="mlabel">${label}</span><span class="mval">${escHtml(val)}</span></div>`
     : '';
+  // href moet óók door escHtml: ev.telefoon/ev.email komen uit de (niet-geauthenticeerde)
+  // afspraken-blob, en een dubbele quote daarin brak anders uit het href-attribuut. Het
+  // schema staat vast in de call-site (tel:/mailto:), dus escapen is hier voldoende —
+  // vergelijk de Google-Maps-link hieronder, die de waarde via encodeURIComponent dicht zet.
   const linkRow = (label, val, href) => val
-    ? `<div class="mrow"><span class="mlabel">${label}</span><span class="mval"><a href="${href}">${escHtml(val)}</a></span></div>`
+    ? `<div class="mrow"><span class="mlabel">${label}</span><span class="mval"><a href="${escHtml(href)}">${escHtml(val)}</a></span></div>`
     : '';
 
   const rows = [
