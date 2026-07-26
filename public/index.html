@@ -3942,6 +3942,21 @@ async function optimizeRoute() {
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
+    // /api/optimize geeft 200 + locations + optimizeError als geocoding lukte maar de
+    // waypoint-optimalisatie niet. Dan de bestaande volgorde behouden (nooit planning[date]
+    // herschrijven op basis van een onbetrouwbare/ontbrekende optimizedOrder), maar de
+    // coördinaten wél bewaren zodat calculateRoute() niet opnieuw hoeft te geocoderen.
+    if (data.optimizeError || !Array.isArray(data.optimizedOrder)
+        || data.optimizedOrder.length !== withAddr.length) {
+      withAddr.forEach((p, i) => {
+        const loc = data.locations?.[i+1];
+        if (loc) { p._lat = loc.lat; p._lon = loc.lon; }
+      });
+      toast('⚠️ Optimalisatie niet beschikbaar — volgorde ongewijzigd', 4500);
+      renderRouteList(date);
+      await calculateRoute();
+      return;
+    }
     // Herorden stops-met-adres volgens optimizedOrder, houd stops-zonder-adres aan het einde
     const reordered = data.optimizedOrder.map(i => ({
       ...withAddr[i], _lat: data.locations?.[i+1]?.lat, _lon: data.locations?.[i+1]?.lon,

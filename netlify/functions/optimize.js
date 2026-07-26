@@ -77,22 +77,31 @@ export async function handler(event) {
       }
     );
 
+    // Geocoding is hier al gelukt. Een deel van de frontend (calculateRoute()) roept dit
+    // endpoint uitsluitend aan om te geocoderen en leest alleen `locations` — een harde 502
+    // bij een mislukte waypoint-optimalisatie zou dat werkende resultaat weggooien. Daarom:
+    // altijd 200 + `locations`, met `optimizeError` als de optimalisatie zelf faalde. Callers
+    // die de volgorde wél nodig hebben (optimizeRoute()) checken op `optimizeError` en vallen
+    // terug op de bestaande volgorde. `optimizedOrder` wordt in dat geval NIET meegestuurd,
+    // zodat een korte/kapotte array nooit als betrouwbaar bij een caller aankomt.
+    const geocodeOnly = (optimizeError, details) => ({
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        locations: [originGeo, ...stopsGeo],
+        optimizeError,
+        ...(details ? { details } : {}),
+      }),
+    });
+
     if (!optRes.ok) {
       const errBody = await optRes.json().catch(() => ({}));
-      return {
-        statusCode: 502,
-        headers,
-        body: JSON.stringify({ error: `TomTom route-optimalisatie mislukt (${optRes.status})`, details: errBody }),
-      };
+      return geocodeOnly(`TomTom route-optimalisatie mislukt (${optRes.status})`, errBody);
     }
 
-    const optData = await optRes.json();
-    if (!Array.isArray(optData.optimizedOrder)) {
-      return {
-        statusCode: 502,
-        headers,
-        body: JSON.stringify({ error: 'TomTom gaf geen geldige optimizedOrder terug', details: optData }),
-      };
+    const optData = await optRes.json().catch(() => null);
+    if (!optData || !Array.isArray(optData.optimizedOrder)) {
+      return geocodeOnly('TomTom gaf geen geldige optimizedOrder terug', optData ?? undefined);
     }
 
     // Eerste en laatste waypoint zijn het vertrekpunt (index 0 in allPoints) — die horen niet
@@ -100,6 +109,21 @@ export async function handler(event) {
     const optimizedOrder = optData.optimizedOrder
       .filter(i => i !== 0 && i !== allPoints.length - 1)
       .map(i => i - 1); // terug naar 0-based index in stopsGeo
+
+    // Defensief: de volgorde moet exact één keer naar elke stop verwijzen. Een korte of
+    // kapotte array zou bij de caller stops laten verdwijnen of dupliceren (planning[date]
+    // wordt daarmee overschreven), dus behandelen we dat als een mislukte optimalisatie.
+    const isVolledigePermutatie =
+      optimizedOrder.length === stopsGeo.length &&
+      new Set(optimizedOrder).size === stopsGeo.length &&
+      optimizedOrder.every(i => Number.isInteger(i) && i >= 0 && i < stopsGeo.length);
+
+    if (!isVolledigePermutatie) {
+      return geocodeOnly(
+        `TomTom gaf een onbruikbare optimizedOrder terug (${optimizedOrder.length} van ${stopsGeo.length} stops)`,
+        optData,
+      );
+    }
 
     return {
       statusCode: 200,
