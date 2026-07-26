@@ -4749,7 +4749,10 @@ async function openRapport(ticketId, date) {
   R.aanrijtijdMin = 0;
   if (routeData?.legs && currentRouteDate === date) {
     const filterPerson = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
-    const dayStops = (planning[date] || []).filter(p => !filterPerson || p.ticket.assignee === filterPerson);
+    // Zelfde filter als calculateRoute()'s `stops.filter(p => p._lat)` (public/index.html:~3953):
+    // enkel stops die daadwerkelijk als waypoint meegingen tellen mee — anders schuift stopIdx
+    // uit fase met routeData.legs zodra er een niet-geocodeerde/adresloze stop tussen zit.
+    const dayStops = (planning[date] || []).filter(p => (!filterPerson || p.ticket.assignee === filterPerson) && p._lat);
     const stopIdx  = dayStops.findIndex(p => p.ticket.id === ticketId);
     // stopIdx is 0-based binnen de gefilterde lijst die ook de waypoints van calculateRoute vormde;
     // legs[stopIdx] is de rit die aankomt bij deze stop (empirisch bevestigd: legs[i] = leg die
