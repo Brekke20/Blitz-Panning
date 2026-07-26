@@ -73,10 +73,14 @@ function escHtml(str) {
 }
 
 function roundToNextQuarter(timeStr) {
-  const [h, m] = (timeStr || '09:00').split(':').map(Number);
+  const [hRaw, mRaw] = (timeStr || '09:00').split(':').map(Number);
+  const h = Number.isFinite(hRaw) ? hRaw : 9;
+  const m = Number.isFinite(mRaw) ? mRaw : 0;
   const raw = Math.ceil(m / 15) * 15;
-  if (raw >= 60) return `${String(h + 1).padStart(2, '0')}:00`;
-  return `${String(h).padStart(2, '0')}:${String(raw).padStart(2, '0')}`;
+  const totalMin = (h * 60 + raw) % (24 * 60); // uur-overloop wrapt naar 00:xx i.p.v. "24:00"
+  const outH = Math.floor(totalMin / 60);
+  const outM = totalMin % 60;
+  return `${String(outH).padStart(2, '0')}:${String(outM).padStart(2, '0')}`;
 }
 
 function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime, serienummer }) {
