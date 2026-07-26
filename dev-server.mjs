@@ -135,6 +135,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`\n🚀  Dev server draait op http://localhost:${PORT}`);
-  console.log(`    Test mode:  http://localhost:${PORT}/?test`);
-  console.log(`    Debug:      http://localhost:${PORT}/api/debug-ticket?id=TICKET_ID\n`);
+  console.log(`    Test mode:  http://localhost:${PORT}/?test\n`);
 });
