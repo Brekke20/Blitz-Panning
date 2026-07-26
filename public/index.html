@@ -3787,8 +3787,8 @@ function renderRouteList(date) {
   };
 
   allStops.forEach((entry, i) => {
-    if (i > 0 && hasRoute && routeData.legs[i-1]) {
-      const leg = routeData.legs[i-1];
+    if (i > 0 && hasRoute && routeData.legs[i]) {
+      const leg = routeData.legs[i];
       const d   = document.createElement('div');
       d.className   = 'stop-leg';
       d.textContent = `🚗 ${Math.round(leg.travelTimeSeconds / 60)} min · ${(leg.distanceMeters / 1000).toFixed(1)} km`;
@@ -4748,8 +4748,12 @@ async function openRapport(ticketId, date) {
   // Aanrijtijd ophalen uit TomTom routeData als die beschikbaar is voor deze datum
   R.aanrijtijdMin = 0;
   if (routeData?.legs && currentRouteDate === date) {
-    const dayStops = (planning[date] || []);
+    const filterPerson = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+    const dayStops = (planning[date] || []).filter(p => !filterPerson || p.ticket.assignee === filterPerson);
     const stopIdx  = dayStops.findIndex(p => p.ticket.id === ticketId);
+    // stopIdx is 0-based binnen de gefilterde lijst die ook de waypoints van calculateRoute vormde;
+    // legs[stopIdx] is de rit die aankomt bij deze stop (empirisch bevestigd: legs[i] = leg die
+    // aankomt bij allStops[i], zelfde conventie als hierboven in renderRouteList) — geen offset nodig.
     if (stopIdx >= 0 && routeData.legs[stopIdx]) {
       R.aanrijtijdMin = Math.round(routeData.legs[stopIdx].travelTimeSeconds / 60);
     }
