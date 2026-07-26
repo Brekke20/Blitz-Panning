@@ -6,7 +6,7 @@ import { getStore } from '@netlify/blobs';
 
 const BLOB_KEY = 'rapportlijst';
 const ALLOWED_ORIGINS = [
-  'https://blitz-power.netlify.app',
+  'https://blitz-planning.netlify.app',
   'http://localhost:8888',
 ];
 const EMPTY = { versie: 0, rapports: [] };

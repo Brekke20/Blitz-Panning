@@ -6,7 +6,7 @@ import { getStore } from '@netlify/blobs';
 
 const BLOB_KEY    = 'availability';
 const ALLOWED_ORIGINS = [
-  'https://blitz-power.netlify.app',
+  'https://blitz-planning.netlify.app',
   'http://localhost:8888',
 ];
 
