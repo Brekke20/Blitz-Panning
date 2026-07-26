@@ -2338,7 +2338,7 @@ function renderKalender() {
       const tijdLabel = ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '';
       const adresLabel = ev.adres || ev.notitie;
       card.innerHTML = `
-        <button class="cal-local-del" onclick="event.stopPropagation();removeLocalEvent('${ev.id}')" title="Verwijderen">✕</button>
+        <button class="cal-local-del" title="Verwijderen">✕</button>
         <span class="cal-local-type">${escHtml(ev.type)}</span>
         <div class="cal-sub" style="margin-top:2px">${escHtml(ev.titel)}</div>
         ${tijdLabel ? `<div class="cal-local-time">⏱ ${tijdLabel}</div>` : ''}
@@ -2348,6 +2348,9 @@ function renderKalender() {
           ${ev.telefoon ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(ev.telefoon)}">📞 Bellen</a>` : ''}
           ${adresLabel ? `<button class="cal-btn cal-ev-nav">🧭 Navigeer</button>` : ''}
         </div>`;
+      // ev.id komt uit de afspraken-blob (niet-geauthenticeerd) — via closure doorgeven i.p.v.
+      // inline onclick, want een inline JS-string is niet veilig tegen apostrofs in de brondata.
+      card.querySelector('.cal-local-del')?.addEventListener('click', e => { e.stopPropagation(); removeLocalEvent(ev.id); });
       card.querySelector('.cal-ev-call')?.addEventListener('click', e => e.stopPropagation());
       card.querySelector('.cal-ev-nav')?.addEventListener('click', e => { e.stopPropagation(); navigate(encodeURIComponent(adresLabel)); });
       card.addEventListener('click', () => openLocalEventDetail(ev));
@@ -3157,7 +3160,7 @@ function renderBlockModal() {
         const reasonPart = e.reason ? ` — ${escHtml(e.reason)}` : '';
         return `<div class="av-item">
           <span class="av-item-label">${kindLabel}${reasonPart} <span class="av-item-who">(${escHtml(whoLabel)})</span></span>
-          <button class="av-item-del" onclick="avRemoveException('${e.id}')" title="Verwijderen">✕</button>
+          <button class="av-item-del" data-exception-id="${escHtml(e.id)}" title="Verwijderen">✕</button>
         </div>`;
       }).join('');
 
@@ -3217,6 +3220,12 @@ function renderBlockModal() {
       </div>
       <button class="av-add-btn" onclick="avAddException()">➕ Toevoegen</button>
     </div>`;
+
+  // e.id komt uit de beschikbaarheid-blob (niet-geauthenticeerd) — data-attribuut +
+  // addEventListener i.p.v. inline onclick (zelfde reden als .btn-navigeer-knoppen).
+  body.querySelectorAll('.av-item-del').forEach(btn => {
+    btn.addEventListener('click', () => avRemoveException(btn.dataset.exceptionId || ''));
+  });
 }
 
 function avSetKind(kind) {
@@ -3909,11 +3918,13 @@ function renderRouteList(date) {
         <div class="stop-actions">
           ${ev.telefoon ? `<a class="sico" href="tel:${escHtml(ev.telefoon)}" title="Bellen">📞 Bellen</a>` : ''}
           ${adres ? `<button class="sico btn-navigeer" title="Navigeren" data-adres="${escHtml(adres)}">🧭 Navigeer</button>` : ''}
-          <button class="sico" title="Details" onclick="openLocalEventDetail(localEvents.find(e=>e.id==='${ev.id}'))">📋 Details</button>
+          <button class="sico btn-ev-details" title="Details">📋 Details</button>
         </div>`;
     }
     const navBtn = stop.querySelector('.btn-navigeer');
     navBtn?.addEventListener('click', () => navigate(encodeURIComponent(navBtn.dataset.adres)));
+    // ev via closure i.p.v. lookup-string in inline onclick (zelfde reden als .cal-local-del hierboven).
+    stop.querySelector('.btn-ev-details')?.addEventListener('click', () => openLocalEventDetail(entry.item));
     list.appendChild(stop);
   });
   updateRouteBtns(date);
@@ -4584,11 +4595,11 @@ function renderKbSection(ticketId) {
   const kb = kbFor(ticketId) || { voorkeur: null, geblokkeerd: [], notitie: '' };
 
   const prefChip = kb.voorkeur
-    ? `<span class="kb-chip kb-chip-pref">📌 ${kb.voorkeur} <button class="kb-chip-del" onclick="updateKb('${ticketId}','voorkeur',null)" title="Verwijderen">✕</button></span>`
+    ? `<span class="kb-chip kb-chip-pref">📌 ${kb.voorkeur} <button class="kb-chip-del kb-btn-voorkeur-del" title="Verwijderen">✕</button></span>`
     : '';
 
   const blockChips = (kb.geblokkeerd || []).map(d =>
-    `<span class="kb-chip">🚫 ${d} <button class="kb-chip-del" onclick="updateKb('${ticketId}','removeBlok','${d}')" title="Verwijderen">✕</button></span>`
+    `<span class="kb-chip">🚫 ${d} <button class="kb-chip-del kb-btn-removeblok" data-datum="${escHtml(d)}" title="Verwijderen">✕</button></span>`
   ).join(' ');
 
   el.innerHTML = `
@@ -4598,7 +4609,7 @@ function renderKbSection(ticketId) {
       <div class="kb-row">
         <span class="kb-label">Voorkeursdatum</span>
         ${prefChip || `<input type="date" id="kb-pref-${ticketId}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
-        <button class="kb-add-btn" onclick="updateKb('${ticketId}','voorkeur',document.getElementById('kb-pref-${ticketId}').value)">✓ Instellen</button>`}
+        <button class="kb-add-btn kb-btn-voorkeur-set">✓ Instellen</button>`}
       </div>
 
       <div class="kb-row" style="align-items:flex-start;flex-direction:column;gap:6px">
@@ -4606,7 +4617,7 @@ function renderKbSection(ticketId) {
         <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
           ${blockChips}
           <input type="date" id="kb-blok-${ticketId}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
-          <button class="kb-add-btn" onclick="updateKb('${ticketId}','addBlok',document.getElementById('kb-blok-${ticketId}').value)">+ Blokkeer datum</button>
+          <button class="kb-add-btn kb-btn-addblok">+ Blokkeer datum</button>
         </div>
       </div>
 
@@ -4617,17 +4628,30 @@ function renderKbSection(ticketId) {
             value="${kb.duurOverride || settings.duurMinuten}"
             style="width:70px;font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
           <span style="font-size:0.78rem;color:var(--muted)">min</span>
-          <button class="kb-add-btn" onclick="updateKb('${ticketId}','duur',document.getElementById('kb-duur-${ticketId}').value)">✓ Instellen</button>
-          ${kb.duurOverride ? `<button class="kb-chip-del" onclick="updateKb('${ticketId}','duur',null)" title="Reset naar standaard">↺</button>` : ''}
+          <button class="kb-add-btn kb-btn-duur-set">✓ Instellen</button>
+          ${kb.duurOverride ? `<button class="kb-chip-del kb-btn-duur-reset" title="Reset naar standaard">↺</button>` : ''}
         </div>
       </div>
 
       <div class="kb-row" style="flex-direction:column;align-items:flex-start;gap:4px">
         <span class="kb-label">Notitie</span>
         <textarea class="kb-notitie" id="kb-notitie-${ticketId}" placeholder="bv. enkel na 14u, niet op vrijdag...">${escHtml(kb.notitie || '')}</textarea>
-        <button class="kb-add-btn" onclick="updateKb('${ticketId}','notitie',document.getElementById('kb-notitie-${ticketId}').value)">✓ Opslaan</button>
+        <button class="kb-add-btn kb-btn-notitie-save">✓ Opslaan</button>
       </div>
     </div>`;
+
+  // ticketId komt uit de kennisbank-blob (niet-geauthenticeerd) — via closure doorgeven
+  // i.p.v. inline onclick (zelfde reden als .btn-navigeer-knoppen). Alleen de per-item
+  // geblokkeerde datum (kb-btn-removeblok) heeft nog een data-attribuut nodig.
+  el.querySelector('.kb-btn-voorkeur-del')?.addEventListener('click', () => updateKb(ticketId, 'voorkeur', null));
+  el.querySelector('.kb-btn-voorkeur-set')?.addEventListener('click', () => updateKb(ticketId, 'voorkeur', document.getElementById(`kb-pref-${ticketId}`).value));
+  el.querySelectorAll('.kb-btn-removeblok').forEach(btn => {
+    btn.addEventListener('click', () => updateKb(ticketId, 'removeBlok', btn.dataset.datum || ''));
+  });
+  el.querySelector('.kb-btn-addblok')?.addEventListener('click', () => updateKb(ticketId, 'addBlok', document.getElementById(`kb-blok-${ticketId}`).value));
+  el.querySelector('.kb-btn-duur-set')?.addEventListener('click', () => updateKb(ticketId, 'duur', document.getElementById(`kb-duur-${ticketId}`).value));
+  el.querySelector('.kb-btn-duur-reset')?.addEventListener('click', () => updateKb(ticketId, 'duur', null));
+  el.querySelector('.kb-btn-notitie-save')?.addEventListener('click', () => updateKb(ticketId, 'notitie', document.getElementById(`kb-notitie-${ticketId}`).value));
 }
 
 async function updateKb(ticketId, action, value) {
@@ -6473,7 +6497,7 @@ function renderPrijsEditor() {
         </div>
       </div>`;
     }
-    html += `<button class="prijs-add-btn" onclick="prijsVoegOnderdeel('${cat.id}')">+ Onderdeel toevoegen</button>
+    html += `<button class="prijs-add-btn prijs-btn-voegtoe" data-cat-id="${escHtml(cat.id)}">+ Onderdeel toevoegen</button>
     </div>`;
   }
 
@@ -6494,6 +6518,12 @@ function renderPrijsEditor() {
   }
 
   body.innerHTML = html;
+
+  // cat.id komt uit een hardcoded lijst (geen risico), maar data-attribuut + addEventListener
+  // voor consistentie met de rest van de prijzen-blob-afgeleide knoppen.
+  body.querySelectorAll('.prijs-btn-voegtoe').forEach(btn => {
+    btn.addEventListener('click', () => prijsVoegOnderdeel(btn.dataset.catId || ''));
+  });
 }
 
 // ── Mutatie-helpers ───────────────────────────────────────────────────────────
