@@ -88,7 +88,11 @@ export async function handler(event) {
         req.abort();
       }
     });
-    await page.setContent(html, { waitUntil: 'domcontentloaded' });
+    // 'load' (niet 'domcontentloaded'): page.pdf() moet de base64-foto's en handtekeningen
+    // gedecodeerd én gelayoutet hebben, en dat garandeert alleen het load-event. De geblokte
+    // requests hierboven kunnen dit niet ophouden — een abort settelt onmiddellijk — en alle
+    // resources zijn data:-URLs zonder netwerk-roundtrip, dus dit blijft even snel.
+    await page.setContent(html, { waitUntil: 'load' });
     const pdfBuffer = await page.pdf({
       format:             'A4',
       printBackground:    true,
