@@ -5735,11 +5735,12 @@ async function archiveerRapport(html) {
         rapportData:     { ...R, _html: html }, // bewaar voor hergen
       }),
     });
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
       toast('⚠️ Rapport niet gearchiveerd: ' + (data.error || res.status), 5000);
       return;
     }
+    if (typeof data.versie === 'number') _archiefVersie = data.versie;
   } catch (err) {
     toast('⚠️ Rapport archiveren mislukt (netwerkfout) — controleer het Rapporten-tabblad', 5000);
     console.warn('Rapport archiveren mislukt:', err);
@@ -5872,6 +5873,7 @@ async function verwijderRapport(id, ticketRef, datumStr) {
       return;
     }
     if (!res.ok) throw new Error(data.error || res.status);
+    if (typeof data.versie === 'number') _archiefVersie = data.versie;
     toast('✅ Rapport verwijderd');
     await laadRapportArchief();
   } catch (err) {

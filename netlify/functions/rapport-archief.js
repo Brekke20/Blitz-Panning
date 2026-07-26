@@ -104,7 +104,7 @@ export default async (req, context) => {
     };
     await store.setJSON(BLOB_KEY, nieuw);
 
-    return new Response(JSON.stringify({ ok: true, id: entry.id }), {
+    return new Response(JSON.stringify({ ok: true, id: entry.id, versie: nieuw.versie }), {
       status: 200,
       headers: { ...hdrs, 'Content-Type': 'application/json' },
     });
@@ -139,8 +139,9 @@ export default async (req, context) => {
       return new Response(JSON.stringify({ error: 'Rapport niet gevonden' }), { status: 404, headers: { ...hdrs, 'Content-Type': 'application/json' } });
     }
 
-    await store.setJSON(BLOB_KEY, { versie: current.versie + 1, rapports: filtered });
-    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...hdrs, 'Content-Type': 'application/json' } });
+    const nieuweVersie = current.versie + 1;
+    await store.setJSON(BLOB_KEY, { versie: nieuweVersie, rapports: filtered });
+    return new Response(JSON.stringify({ ok: true, versie: nieuweVersie }), { status: 200, headers: { ...hdrs, 'Content-Type': 'application/json' } });
   }
 
   return new Response('Method Not Allowed', { status: 405, headers: hdrs });
