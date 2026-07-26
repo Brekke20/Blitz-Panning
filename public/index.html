@@ -5994,10 +5994,11 @@ async function exportTicketLog() {
   const WRAP_MAX   = { 13: 42, 20: 58, 21: 58, 22: 40 };
 
   const data = rows.map(r => {
-    const rd         = r.rapportData || {};
-    const onderdelen = (rd.onderdelen || []).filter(p => p.naam);
-    const totaal     = onderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
-    const fac        = onderdelen.some(p => p.factureren !== false) ? 'Ja' : 'Nee';
+    const rd                = r.rapportData || {};
+    const onderdelen         = (rd.onderdelen || []).filter(p => p.naam);
+    const billableOnderdelen = onderdelen.filter(p => p.factureren !== false);
+    const totaal             = billableOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+    const fac                = billableOnderdelen.length > 0 ? 'Ja' : 'Nee';
     const cmp        = onderdelen.map(p => `${p.naam}${parseInt(p.aantal) > 1 ? ' ×' + p.aantal : ''}`).join('; ');
 
     let uren = '';
