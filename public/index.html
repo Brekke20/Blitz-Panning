@@ -3328,6 +3328,8 @@ async function avRemoveException(id) {
 // CAPACITEIT & CLUSTERING
 // ══════════════════════════════════════════════
 function capacityForDay(dateStr, travelMin = 30) {
+  if (getHolidayName(dateStr)) return 0;
+
   const [vanH, vanM] = settings.vanTijd.split(':').map(Number);
   const [totH, totM] = settings.totTijd.split(':').map(Number);
   const totalMin     = (totH * 60 + totM) - (vanH * 60 + vanM);
