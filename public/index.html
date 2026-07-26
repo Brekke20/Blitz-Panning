@@ -3771,12 +3771,29 @@ function renderRouteList(date) {
 
   // Bereken cumulatieve aankomsttijden als routeData beschikbaar is
   const hasRoute = routeData?.legs && currentRouteDate === date;
+  // Zelfde waypoint-membership test als calculateRoute() (`stops.filter(p => p._lat)` +
+  // `localForDate.filter(e => e._lat)`, public/index.html:~3977): alleen geocodeerde stops
+  // gingen daadwerkelijk als waypoint mee, dus alleen die hebben een leg in routeData.legs.
+  // allStops bevat óók de niet-geocodeerde stops (die moeten in de lijst blijven staan), dus
+  // legIdx[i] mapt de allStops-index naar de juiste index in routeData.legs. Zonder die
+  // mapping schuift elke stop ná een adresloze/niet-geocodeerde stop een leg uit fase —
+  // dezelfde bug die Task 13 in openRapport() oploste.
+  const legIdx = [];
+  {
+    let wp = 0;
+    for (let i = 0; i < allStops.length; i++) {
+      if (allStops[i].item._lat) legIdx[i] = wp++;
+    }
+  }
   let arrivalTimes = [];
   if (hasRoute) {
     const [h, m] = (settings.vanTijd || '08:00').split(':').map(Number);
     let curMin = h * 60 + m;
     for (let i = 0; i < allStops.length; i++) {
-      const legSec = routeData.legs[i]?.travelTimeSeconds ?? 30 * 60;
+      // Geen waypoint → geen echte leg; val terug op de bestaande 30-min-schatting.
+      const legSec = (legIdx[i] !== undefined
+        ? routeData.legs[legIdx[i]]?.travelTimeSeconds
+        : undefined) ?? 30 * 60;
       curMin += Math.round(legSec / 60);
       arrivalTimes.push(curMin);
       const entry = allStops[i];
@@ -3796,8 +3813,11 @@ function renderRouteList(date) {
   };
 
   allStops.forEach((entry, i) => {
-    if (i > 0 && hasRoute && routeData.legs[i]) {
-      const leg = routeData.legs[i];
+    // Idem: via legIdx i.p.v. i, anders hoort de getoonde rit bij de verkeerde stop.
+    // legIdx[i] > 0 vervangt de oude `i > 0`-guard: leg 0 is de rit vertrekpunt→eerste
+    // waypoint en wordt (net als voorheen) niet als tussenrit getoond.
+    if (hasRoute && legIdx[i] > 0 && routeData.legs[legIdx[i]]) {
+      const leg = routeData.legs[legIdx[i]];
       const d   = document.createElement('div');
       d.className   = 'stop-leg';
       d.textContent = `🚗 ${Math.round(leg.travelTimeSeconds / 60)} min · ${(leg.distanceMeters / 1000).toFixed(1)} km`;
@@ -4331,8 +4351,20 @@ function computeArrivalTimes(date) {
   const hasRoute = routeData?.legs && currentRouteDate === date;
   let curMin     = h * 60 + m;
   const result   = {};
+  // Zelfde waypoint-membership test als calculateRoute() (`stops.filter(p => p._lat)`,
+  // public/index.html:~3977) en als renderRouteList/openRapport: alleen geocodeerde stops
+  // hebben een leg in routeData.legs. Een eigen teller houdt de leg-index in fase met de
+  // waypoint-lijst; zonder dat schuift elke stop ná een niet-geocodeerde stop een leg op en
+  // krijgt de klant een verkeerd afspraakvoorstel-tijdstip (zelfde bug als Task 13).
+  // Lokale events staan in calculateRoute() ná de ticket-stops in de waypoint-lijst, dus ze
+  // beïnvloeden deze indices niet.
+  let legIdx = 0;
   for (let i = 0; i < stops.length; i++) {
-    const legSec = hasRoute ? (routeData.legs[i]?.travelTimeSeconds ?? 30 * 60) : 30 * 60;
+    const isWaypoint = !!stops[i]._lat;
+    const legSec = (hasRoute && isWaypoint)
+      ? (routeData.legs[legIdx]?.travelTimeSeconds ?? 30 * 60)
+      : 30 * 60;
+    if (isWaypoint) legIdx++;
     curMin += Math.round(legSec / 60);
     result[stops[i].ticket.id] = curMin;
     curMin += duurVoor(stops[i].ticket.id); // per-ticket duur override of standaard
