@@ -43,6 +43,9 @@ export async function handler(event) {
     if (!ticketId) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'ticketId verplicht' }) };
     }
+    if (!/^\d+$/.test(String(ticketId))) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Ongeldig ticketId' }) };
+    }
 
     const accessToken = await getAccessToken();
 

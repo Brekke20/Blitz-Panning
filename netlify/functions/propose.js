@@ -167,6 +167,9 @@ export async function handler(event) {
     if (!ticketId || !date) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'ticketId en date zijn verplicht' }) };
     }
+    if (!/^\d+$/.test(String(ticketId))) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Ongeldig ticketId' }) };
+    }
 
     const accessToken = await getAccessToken();
 

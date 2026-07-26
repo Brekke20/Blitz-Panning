@@ -62,6 +62,9 @@ export async function handler(event) {
     if (!html || !ticketId) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'html en ticketId zijn verplicht' }) };
     }
+    if (!/^\d+$/.test(String(ticketId))) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Ongeldig ticketId' }) };
+    }
 
     // ── 1. PDF genereren ──────────────────────────────────────────────────────
     const executablePath = await chromium.executablePath(CHROMIUM_URL);
