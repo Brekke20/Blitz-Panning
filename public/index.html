@@ -4017,7 +4017,7 @@ function updateMap(date) {
     L.marker([p._lat, p._lon], { icon: L.divIcon({
       html:`<div style="background:#f59e0b;color:#000;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;border:2px solid #000;box-shadow:0 2px 5px rgba(0,0,0,.4)">${i+1}</div>`,
       iconSize:[24,24], iconAnchor:[12,12], className:'',
-    })}).bindPopup(`<b>#${i+1}</b> ${p.ticket.subject}<br>${p.address}`).addTo(routeLayer);
+    })}).bindPopup(`<b>#${i+1}</b> ${escHtml(p.ticket.subject)}<br>${escHtml(p.address)}`).addTo(routeLayer);
     pts.push([p._lat, p._lon]);
   });
   if (pts.length && !(routeData?.polyline?.length && currentRouteDate === date))
