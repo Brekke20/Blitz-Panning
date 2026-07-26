@@ -1641,7 +1641,7 @@
 const TEST_MODE = new URLSearchParams(window.location.search).has('test');
 
 function escHtml(str) {
-  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 const DUMMY_DATA = {
@@ -2313,8 +2313,12 @@ function renderKalender() {
         </div>
         <div class="cal-actions">
           ${stop.ticket.phone || stop.ticket.telefoonEindklant ? `<a class="cal-btn" href="tel:${escHtml(stop.ticket.telefoonEindklant||stop.ticket.phone)}">📞 Bellen</a>` : ''}
-          ${stop.ticket.hasAddress ? `<button class="cal-btn" onclick="event.stopPropagation();navigate('${encodeURIComponent(stop.address||stop.ticket.address||'')}')">🧭 Navigeer</button>` : ''}
+          ${stop.ticket.hasAddress ? `<button class="cal-btn btn-navigeer" data-adres="${escHtml(stop.address||stop.ticket.address||'')}">🧭 Navigeer</button>` : ''}
         </div>`;
+      card.querySelector('.btn-navigeer')?.addEventListener('click', e => {
+        e.stopPropagation();
+        navigate(encodeURIComponent(e.currentTarget.dataset.adres));
+      });
       card.addEventListener('click', () => openDetail(stop.ticket));
       col.querySelector('.day-body').appendChild(card);
     });
@@ -3813,7 +3817,7 @@ function renderRouteList(date) {
           </div>
         </div>
         <div class="stop-actions">
-          <button class="sico" title="Navigeren" onclick="navigate('${encodeURIComponent(item.address||'')}')">🧭 Navigeer</button>
+          <button class="sico btn-navigeer" title="Navigeren" data-adres="${escHtml(item.address||'')}">🧭 Navigeer</button>
           <button class="sico" title="Afspraakvoorstel sturen" onclick="openProposal('${item.ticket.id}','${date}',${arrivalTimes[i] !== undefined ? arrivalTimes[i] : 'null'})">📨 Voorstel</button>
           <button class="sico" title="Aankomst registreren" onclick="registerArrival('${item.ticket.id}','${date}')">⏱️ Aankomst</button>
           <button class="sico" title="Service rapport" onclick="openRapport('${item.ticket.id}','${date}')">📋 Rapport</button>
@@ -3856,10 +3860,12 @@ function renderRouteList(date) {
         </div>
         <div class="stop-actions">
           ${ev.telefoon ? `<a class="sico" href="tel:${escHtml(ev.telefoon)}" title="Bellen">📞 Bellen</a>` : ''}
-          ${adres ? `<button class="sico" title="Navigeren" onclick="navigate('${encodeURIComponent(adres)}')">🧭 Navigeer</button>` : ''}
+          ${adres ? `<button class="sico btn-navigeer" title="Navigeren" data-adres="${escHtml(adres)}">🧭 Navigeer</button>` : ''}
           <button class="sico" title="Details" onclick="openLocalEventDetail(localEvents.find(e=>e.id==='${ev.id}'))">📋 Details</button>
         </div>`;
     }
+    const navBtn = stop.querySelector('.btn-navigeer');
+    navBtn?.addEventListener('click', () => navigate(encodeURIComponent(navBtn.dataset.adres)));
     list.appendChild(stop);
   });
   updateRouteBtns(date);
@@ -6251,7 +6257,7 @@ function renderPrijsEditor() {
       const o = items[i];
       const globalIdx = data.onderdelen.indexOf(o);
       const tagsHtml = (o.tags || []).map((t, ti) =>
-        `<span class="prijs-tag">${t}<span class="prijs-tag-del" onclick="prijsVerwijderTag(${globalIdx},${ti})">×</span></span>`
+        `<span class="prijs-tag">${escHtml(t)}<span class="prijs-tag-del" onclick="prijsVerwijderTag(${globalIdx},${ti})">×</span></span>`
       ).join('') +
       `<button class="prijs-tag-add" onclick="prijsVoegTagToe(${globalIdx})">+ tag</button>`;
       html += `<div class="prijs-row">
