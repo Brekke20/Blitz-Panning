@@ -5767,7 +5767,10 @@ async function uploadRapportToZoho(html, ticketId, filename) {
 // ══════════════════════════════════════════════
 
 let _rapportArchief = [];
-let _archiefVersie = 0;
+// null = archief nog niet geladen deze sessie (bv. rapport gesloten zonder ooit het
+// Rapporten-tabblad te openen) → server-check slaat de versie-vergelijking dan over
+// (typeof null !== 'number'), net als bij een niet-herladen oud tabblad.
+let _archiefVersie = null;
 
 async function laadRapportArchief() {
   const body = document.getElementById('rapp-archief-body');
