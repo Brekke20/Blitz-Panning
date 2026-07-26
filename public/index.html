@@ -5330,10 +5330,12 @@ function _wizRenderGeselecteerd() {
 }
 
 function _wizTotaalRij() {
-  const totaal = R.onderdelen.reduce((sum, p) => sum + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+  const billable = R.onderdelen.filter(p => p.factureren !== false);
+  const totaal   = billable.reduce((sum, p) => sum + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
   if (!R.onderdelen.length) return '';
+  const nietFactureerbaar = R.onderdelen.length - billable.length;
   return `<div class="wiz-totaal-row">
-    <span class="wiz-totaal-lbl">Totaal (excl. btw)</span>
+    <span class="wiz-totaal-lbl">Totaal factureerbaar (excl. btw)${nietFactureerbaar ? ` <span style="font-size:0.75em;color:var(--muted)">(${nietFactureerbaar} niet aangerekend)</span>` : ''}</span>
     <span class="wiz-totaal-val">€ ${totaal.toFixed(2)}</span>
   </div>`;
 }
@@ -5755,7 +5757,7 @@ function printRapport() {
 
 async function archiveerRapport(html) {
   const totaal = R.onderdelen
-    .filter(p => p.naam)
+    .filter(p => p.naam && p.factureren !== false)
     .reduce((s, p) => s + (parseFloat(p.prijs) || 0) * (parseInt(p.aantal) || 1), 0);
 
   try {
@@ -5868,13 +5870,20 @@ function renderRapportArchief() {
 
     // Prijsweergave
     let prijsHtml = '';
-    if (isGarantie && loonBruto > 0) {
-      prijsHtml = `<span style="margin-left:auto;text-align:right;line-height:1.3">
-        <span style="font-size:0.68rem;color:var(--muted);display:block">Niet factureerbaar</span>
-        <span style="text-decoration:line-through;color:var(--muted);font-size:0.72rem">€ ${(loonBruto + (r.totaalOnderdelen||0)).toFixed(2)}</span>
-        <span style="color:var(--muted);font-size:0.72rem;margin-left:4px">garantie</span>
-      </span>`;
-    } else if (!isGarantie && (totFactureerbaar > 0)) {
+    if (isGarantie) {
+      // Bij garantie is enkel het loon 100% korting — onderdelen blijven factureerbaar
+      // (zelfde regel als in buildRapportHtml: "100% korting" geldt op de loonkosten-post, niet op onderdelen).
+      const rows = [];
+      if (loonBruto > 0) {
+        rows.push(`<span style="font-size:0.68rem;color:var(--muted);display:block">Loon niet factureerbaar (garantie): <s>€ ${loonBruto.toFixed(2)}</s></span>`);
+      }
+      if (totOnderdelen > 0) {
+        rows.push(`<span style="font-size:0.85rem;font-weight:700;color:var(--accent)">Onderdelen factureerbaar: € ${totOnderdelen.toFixed(2)}</span>`);
+      }
+      if (rows.length) {
+        prijsHtml = `<span style="margin-left:auto;text-align:right;line-height:1.3">${rows.join('')}</span>`;
+      }
+    } else if (totFactureerbaar > 0) {
       prijsHtml = `<span style="margin-left:auto;text-align:right;line-height:1.3">
         <span style="font-size:0.68rem;color:var(--muted);display:block">Factureerbaar</span>
         <span style="font-size:0.85rem;font-weight:700;color:var(--accent)">€ ${totFactureerbaar.toFixed(2)}</span>
