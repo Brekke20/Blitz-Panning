@@ -4820,6 +4820,8 @@ async function openRapport(ticketId, date) {
   }
   R.type = ''; R.uitvoering = ''; R.kabel = ''; R.kabellengte = '';
   R.hersteld = 'nee'; R.nieuwInter = 'nee';
+  R.interventieType = 'Interventie'; // default; radio in stap Algemeen kan dit expliciet naar 'Installatie' zetten
+  R.handtekeningTech = null; R.handtekeningKlant = null; // zie Task 23
   _sigTech = _sigKlant = null;
   _rapportUploaded = false; // reset guard bij nieuwe wizard-sessie
 
