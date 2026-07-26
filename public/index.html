@@ -3772,7 +3772,7 @@ function renderRouteList(date) {
   // Bereken cumulatieve aankomsttijden als routeData beschikbaar is
   const hasRoute = routeData?.legs && currentRouteDate === date;
   // Zelfde waypoint-membership test als calculateRoute() (`stops.filter(p => p._lat)` +
-  // `localForDate.filter(e => e._lat)`, public/index.html:~3977): alleen geocodeerde stops
+  // `localForDate.filter(e => e._lat)`, zie allWpStops in calculateRoute): alleen geocodeerde stops
   // gingen daadwerkelijk als waypoint mee, dus alleen die hebben een leg in routeData.legs.
   // allStops bevat óók de niet-geocodeerde stops (die moeten in de lijst blijven staan), dus
   // legIdx[i] mapt de allStops-index naar de juiste index in routeData.legs. Zonder die
@@ -4366,8 +4366,8 @@ function computeArrivalTimes(date) {
   const hasRoute = routeData?.legs && currentRouteDate === date;
   let curMin     = h * 60 + m;
   const result   = {};
-  // Zelfde waypoint-membership test als calculateRoute() (`stops.filter(p => p._lat)`,
-  // public/index.html:~3977) en als renderRouteList/openRapport: alleen geocodeerde stops
+  // Zelfde waypoint-membership test als calculateRoute() (`stops.filter(p => p._lat)`, zie
+  // allWpStops in calculateRoute) en als renderRouteList/openRapport: alleen geocodeerde stops
   // hebben een leg in routeData.legs. Een eigen teller houdt de leg-index in fase met de
   // waypoint-lijst; zonder dat schuift elke stop ná een niet-geocodeerde stop een leg op en
   // krijgt de klant een verkeerd afspraakvoorstel-tijdstip (zelfde bug als Task 13).
@@ -4828,7 +4828,7 @@ async function openRapport(ticketId, date) {
   R.aanrijtijdMin = 0;
   if (routeData?.legs && currentRouteDate === date) {
     const filterPerson = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
-    // Zelfde filter als calculateRoute()'s `stops.filter(p => p._lat)` (public/index.html:~3953):
+    // Zelfde filter als calculateRoute()'s `stops.filter(p => p._lat)` (zie allWpStops daar):
     // enkel stops die daadwerkelijk als waypoint meegingen tellen mee — anders schuift stopIdx
     // uit fase met routeData.legs zodra er een niet-geocodeerde/adresloze stop tussen zit.
     const dayStops = (planning[date] || []).filter(p => (!filterPerson || p.ticket.assignee === filterPerson) && p._lat);
