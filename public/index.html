@@ -5714,10 +5714,11 @@ async function archiveerRapport(html) {
     .reduce((s, p) => s + (parseFloat(p.prijs) || 0) * (parseInt(p.aantal) || 1), 0);
 
   try {
-    await fetch('/api/rapport-archief', {
+    const res = await fetch('/api/rapport-archief', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
+        versie:          _archiefVersie,
         datum:           R.datum,
         technieker:      R.technieker,
         ticketId:        _wizTicket.id   || '',
@@ -5734,7 +5735,13 @@ async function archiveerRapport(html) {
         rapportData:     { ...R, _html: html }, // bewaar voor hergen
       }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      toast('⚠️ Rapport niet gearchiveerd: ' + (data.error || res.status), 5000);
+      return;
+    }
   } catch (err) {
+    toast('⚠️ Rapport archiveren mislukt (netwerkfout) — controleer het Rapporten-tabblad', 5000);
     console.warn('Rapport archiveren mislukt:', err);
   }
 }
@@ -5760,6 +5767,7 @@ async function uploadRapportToZoho(html, ticketId, filename) {
 // ══════════════════════════════════════════════
 
 let _rapportArchief = [];
+let _archiefVersie = 0;
 
 async function laadRapportArchief() {
   const body = document.getElementById('rapp-archief-body');
@@ -5769,6 +5777,7 @@ async function laadRapportArchief() {
     const res  = await fetch('/api/rapport-archief');
     const data = await res.json();
     _rapportArchief = data.rapports || [];
+    _archiefVersie = data.versie || 0;
     renderRapportArchief();
   } catch (err) {
     body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">❌ Laden mislukt: ${err.message}</div>`;
@@ -5852,9 +5861,13 @@ async function verwijderRapport(id, ticketRef, datumStr) {
     const res = await fetch('/api/rapport-archief', {
       method:  'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ id }),
+      body:    JSON.stringify({ id, versie: _archiefVersie }),
     });
     const data = await res.json();
+    if (res.status === 409) {
+      toast('⚠️ Archief gewijzigd — herlaad de pagina en probeer opnieuw', 5000);
+      return;
+    }
     if (!res.ok) throw new Error(data.error || res.status);
     toast('✅ Rapport verwijderd');
     await laadRapportArchief();

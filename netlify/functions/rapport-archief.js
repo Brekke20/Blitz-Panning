@@ -50,9 +50,20 @@ export default async (req, context) => {
     try { body = await req.json(); }
     catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers: { ...hdrs, 'Content-Type': 'application/json' } }); }
 
-    let current = EMPTY;
+    let current;
     try { current = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY; }
-    catch {}
+    catch {
+      return new Response(JSON.stringify({ error: 'Rapportarchief tijdelijk niet bereikbaar, probeer opnieuw.' }), {
+        status: 503, headers: { ...hdrs, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (typeof body.versie === 'number' && body.versie !== current.versie) {
+      return new Response(JSON.stringify({
+        error: 'Rapportarchief werd ondertussen gewijzigd door iemand anders. Herlaad en probeer opnieuw.',
+        serverVersie: current.versie,
+      }), { status: 409, headers: { ...hdrs, 'Content-Type': 'application/json' } });
+    }
 
     const entry = {
       id:              String(body.id || crypto.randomUUID()),
@@ -108,9 +119,20 @@ export default async (req, context) => {
     const { id } = body;
     if (!id) return new Response(JSON.stringify({ error: 'id vereist' }), { status: 400, headers: { ...hdrs, 'Content-Type': 'application/json' } });
 
-    let current = EMPTY;
+    let current;
     try { current = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY; }
-    catch {}
+    catch {
+      return new Response(JSON.stringify({ error: 'Rapportarchief tijdelijk niet bereikbaar, probeer opnieuw.' }), {
+        status: 503, headers: { ...hdrs, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (typeof body.versie === 'number' && body.versie !== current.versie) {
+      return new Response(JSON.stringify({
+        error: 'Rapportarchief werd ondertussen gewijzigd door iemand anders. Herlaad en probeer opnieuw.',
+        serverVersie: current.versie,
+      }), { status: 409, headers: { ...hdrs, 'Content-Type': 'application/json' } });
+    }
 
     const filtered = current.rapports.filter(r => r.id !== id);
     if (filtered.length === current.rapports.length) {
