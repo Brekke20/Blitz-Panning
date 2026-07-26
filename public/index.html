@@ -4768,7 +4768,7 @@ async function openRapport(ticketId, date) {
   // (calculateRoute/autoPlan/optimizeRoute) gebruikt deze functie niet en blijft ongewijzigd.
   if (R.aanrijtijdMin === 0 && ticket.hasAddress) {
     const sameDayOwnStops = (planning[date] || [])
-      .filter(p => p.ticket.assignee === ticket.assignee && p.ticket.hasAddress)
+      .filter(p => p.ticket.assignee === ticket.assignee && p.ticket.hasAddress && p.uur)
       .sort((a, b) => (a.uur || '').localeCompare(b.uur || ''));
     const ownIdx   = sameDayOwnStops.findIndex(p => p.ticket.id === ticketId);
     const prevStop = ownIdx > 0 ? sameDayOwnStops[ownIdx - 1] : null;
