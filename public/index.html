@@ -1773,6 +1773,9 @@ function loadPersonSettings(person) {
     ...saved,
     // Lege strings mogen de default niet overschrijven
     startlocatie: saved.startlocatie || DEFAULT_SETTINGS.startlocatie,
+    // Eigen array-kopie — anders deelt elke technieker zonder opgeslagen werkdagen
+    // hetzelfde array-object, en muteert openSettings() dat in-place (zie regel ~4148).
+    werkdagen: [...(saved.werkdagen || DEFAULT_SETTINGS.werkdagen)],
   };
 }
 function savePersonSettings(person) {
