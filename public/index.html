@@ -4933,26 +4933,26 @@ function wizRenderAlgemeen(el) {
   el.innerHTML = `
     <div class="wiz-step-title">Algemeen</div>
     <div class="wiz-info-chip">
-      <strong>${_wizTicket.subject||''}</strong><br>
-      ${[_wizTicket.account, _wizTicket.address].filter(Boolean).join(' · ')}
+      <strong>${escHtml(_wizTicket.subject||'')}</strong><br>
+      ${[_wizTicket.account, _wizTicket.address].filter(Boolean).map(escHtml).join(' · ')}
     </div>
     <div class="wiz-field-row">
       <div class="wiz-field">
         <label class="wiz-field-label">Datum</label>
-        <input class="wiz-input" id="f-datum" type="date" value="${R.datum}" />
+        <input class="wiz-input" id="f-datum" type="date" value="${escHtml(R.datum)}" />
       </div>
       <div class="wiz-field">
         <label class="wiz-field-label">#Zoho</label>
-        <input class="wiz-input" id="f-zoho" type="text" value="${zohoRef}" readonly />
+        <input class="wiz-input" id="f-zoho" type="text" value="${escHtml(zohoRef)}" readonly />
       </div>
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Technieker Blitz</label>
-      <input class="wiz-input" id="f-technieker" type="text" placeholder="Naam technieker" value="${R.technieker}" />
+      <input class="wiz-input" id="f-technieker" type="text" placeholder="Naam technieker" value="${escHtml(R.technieker)}" />
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Interventie adres</label>
-      <input class="wiz-input" id="f-adres" type="text" value="${R.adres}" />
+      <input class="wiz-input" id="f-adres" type="text" value="${escHtml(R.adres)}" />
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Type bezoek</label>
@@ -4970,11 +4970,11 @@ function wizRenderAlgemeen(el) {
     <div class="wiz-field-row">
       <div class="wiz-field">
         <label class="wiz-field-label">Starttijd (aankomst)</label>
-        <input class="wiz-input" id="f-start" type="time" value="${R.start}" oninput="updateWerktijd()" />
+        <input class="wiz-input" id="f-start" type="time" value="${escHtml(R.start)}" oninput="updateWerktijd()" />
       </div>
       <div class="wiz-field">
         <label class="wiz-field-label">Stoptijd (einde)</label>
-        <input class="wiz-input" id="f-stop" type="time" value="${R.stop}" oninput="updateWerktijd()" />
+        <input class="wiz-input" id="f-stop" type="time" value="${escHtml(R.stop)}" oninput="updateWerktijd()" />
       </div>
     </div>
     <div id="werktijd-chip" style="display:${R.start&&R.stop?'flex':'none'};align-items:center;gap:8px;background:var(--accent-dim);border:1px solid rgba(0,223,163,0.2);border-radius:8px;padding:10px 14px;font-size:0.85rem;margin-bottom:4px">
@@ -5069,7 +5069,7 @@ function wizRenderFacturatie(el) {
         </label>
         <label class="wiz-radio-card">
           <input type="radio" name="f-facturatie" value="partner" ${R.facturatie==='partner'?'checked':''} onchange="wizFacturatieChange()">
-          <div><div class="wiz-radio-card-label">Partner / installateur</div>${_wizTicket.partner ? `<div class="wiz-radio-card-sub">${_wizTicket.partner}</div>` : ''}</div>
+          <div><div class="wiz-radio-card-label">Partner / installateur</div>${_wizTicket.partner ? `<div class="wiz-radio-card-sub">${escHtml(_wizTicket.partner)}</div>` : ''}</div>
         </label>
         <label class="wiz-radio-card">
           <input type="radio" name="f-facturatie" value="vrij" ${R.facturatie==='vrij'?'checked':''} onchange="wizFacturatieChange()">
@@ -5077,7 +5077,7 @@ function wizRenderFacturatie(el) {
         </label>
       </div>
       <div id="facturatie-vrij-wrap" style="${R.facturatie==='vrij'?'':'display:none'};margin-top:10px">
-        <input class="wiz-input" id="f-facturatie-vrij" type="text" placeholder="Facturatie aan..." value="${R.facturatieVrij}" />
+        <input class="wiz-input" id="f-facturatie-vrij" type="text" placeholder="Facturatie aan..." value="${escHtml(R.facturatieVrij)}" />
       </div>
     </div>
     <div class="wiz-sep"></div>
@@ -5144,11 +5144,11 @@ function wizRenderProduct(el) {
     <div class="wiz-step-title">Productinformatie</div>
     <div class="wiz-field">
       <label class="wiz-field-label">Installateur / partner</label>
-      <input class="wiz-input" id="f-installateur" type="text" value="${R.installateur}" placeholder="Installateur" />
+      <input class="wiz-input" id="f-installateur" type="text" value="${escHtml(R.installateur)}" placeholder="Installateur" />
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Serienummer</label>
-      <input class="wiz-input" id="f-serienummer" type="text" value="${R.serienummer}" placeholder="CHARX-XXXX" />
+      <input class="wiz-input" id="f-serienummer" type="text" value="${escHtml(R.serienummer)}" placeholder="CHARX-XXXX" />
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Type</label>
@@ -5208,11 +5208,11 @@ function wizRenderOmschrijving(el) {
     <div class="wiz-step-title">Omschrijving &amp; acties</div>
     <div class="wiz-field">
       <label class="wiz-field-label">Omschrijving probleem</label>
-      <textarea class="wiz-textarea" id="f-probleem" rows="4" placeholder="Beschrijf het probleem...">${R.probleem}</textarea>
+      <textarea class="wiz-textarea" id="f-probleem" rows="4" placeholder="Beschrijf het probleem...">${escHtml(R.probleem)}</textarea>
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Ondernomen acties</label>
-      <textarea class="wiz-textarea" id="f-acties" rows="6" placeholder="Beschrijf de uitgevoerde werkzaamheden...">${R.acties}</textarea>
+      <textarea class="wiz-textarea" id="f-acties" rows="6" placeholder="Beschrijf de uitgevoerde werkzaamheden...">${escHtml(R.acties)}</textarea>
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Oorzaak storing</label>
@@ -5305,7 +5305,7 @@ function wizRenderStatus(el) {
     <div class="wiz-sep"></div>
     <div class="wiz-field">
       <label class="wiz-field-label">Varia / opmerkingen</label>
-      <textarea class="wiz-textarea" id="f-varia" rows="3" placeholder="Bijzonderheden, extra info...">${R.varia}</textarea>
+      <textarea class="wiz-textarea" id="f-varia" rows="3" placeholder="Bijzonderheden, extra info...">${escHtml(R.varia)}</textarea>
     </div>`;
 
   // Tag-filterknoppen: click via addEventListener i.p.v. inline onclick (zie comment hierboven)
@@ -5688,7 +5688,7 @@ function buildRapportHtml() {
   <div class="info-row cols-3">
     <div class="info-cell"><div class="info-lbl">Datum</div><div class="info-val">${datumStr}</div></div>
     <div class="info-cell"><div class="info-lbl">Technieker</div><div class="info-val">${R.technieker||'—'}</div></div>
-    <div class="info-cell"><div class="info-lbl">#Zoho</div><div class="info-val">${zohoRef||'—'}</div></div>
+    <div class="info-cell"><div class="info-lbl">#Zoho</div><div class="info-val">${escHtml(zohoRef)||'—'}</div></div>
   </div>
   <div class="info-row cols-1">
     <div class="info-cell"><div class="info-lbl">Interventie adres</div><div class="info-val">${escHtml(R.adres)||'—'}</div></div>
