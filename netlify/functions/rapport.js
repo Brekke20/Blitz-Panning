@@ -76,7 +76,19 @@ export async function handler(event) {
     });
 
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    // De rapport-HTML is volledig zelfvoorzienend (foto's als base64 data:-URLs) en
+    // heeft dus nooit netwerktoegang nodig — alles behalve data:/about:blank blokkeren
+    // sluit het SSRF-risico (interne endpoints/metadata uitlezen) volledig af.
+    await page.setRequestInterception(true);
+    page.on('request', req => {
+      const reqUrl = req.url();
+      if (reqUrl.startsWith('data:') || reqUrl.startsWith('about:blank')) {
+        req.continue();
+      } else {
+        req.abort();
+      }
+    });
+    await page.setContent(html, { waitUntil: 'domcontentloaded' });
     const pdfBuffer = await page.pdf({
       format:             'A4',
       printBackground:    true,
