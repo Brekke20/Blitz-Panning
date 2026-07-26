@@ -6320,7 +6320,7 @@ function prijsVoegOnderdeel(categorie) {
 
 // ── Opslaan ───────────────────────────────────────────────────────────────────
 async function prijsOpslaan() {
-  if (!PRIJZEN_DIRTY) { showToast('Geen wijzigingen'); return; }
+  if (!PRIJZEN_DIRTY) { toast('Geen wijzigingen'); return; }
   const btn = document.getElementById('prijs-save-btn');
   btn.disabled = true;
   btn.textContent = 'Bezig...';
@@ -6340,7 +6340,7 @@ async function prijsOpslaan() {
     btn.disabled = false;
     btn.textContent = 'Opslaan';
     btn.classList.remove('btn-dirty');
-    showToast('Prijzen opgeslagen (test)');
+    toast('Prijzen opgeslagen (test)');
     renderPrijsEditor();
     return;
   }
@@ -6354,9 +6354,9 @@ async function prijsOpslaan() {
     const data = await res.json();
     if (!res.ok) {
       if (res.status === 409) {
-        showToast('⚠️ Conflict: prijslijst werd elders gewijzigd. Herlaad de pagina.');
+        toast('⚠️ Conflict: prijslijst werd elders gewijzigd. Herlaad de pagina.');
       } else {
-        showToast('Fout: ' + (data.error || res.status));
+        toast('Fout: ' + (data.error || res.status));
       }
       btn.disabled = false;
       btn.textContent = 'Opslaan';
@@ -6368,10 +6368,10 @@ async function prijsOpslaan() {
     btn.disabled = false;
     btn.textContent = 'Opslaan';
     btn.classList.remove('btn-dirty');
-    showToast('✓ Prijzen opgeslagen');
+    toast('✓ Prijzen opgeslagen');
     renderPrijsEditor();
   } catch (err) {
-    showToast('Verbindingsfout: ' + err.message);
+    toast('Verbindingsfout: ' + err.message);
     btn.disabled = false;
     btn.textContent = 'Opslaan';
   }
