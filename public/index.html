@@ -4740,8 +4740,8 @@ const WIZ_STEPS = [
   { id: 'omschrijving', label: 'Omschrijving',   render: wizRenderOmschrijving, save: wizSaveOmschrijving },
   { id: 'fotos',        label: "Foto's",         render: wizRenderFotos,        save: wizSaveFotos        },
   { id: 'status',       label: 'Status',         render: wizRenderStatus,       save: wizSaveStatus       },
-  { id: 'sig-tech',     label: 'Handtekening 1', render: wizRenderSigTech,      save: () => {}            },
-  { id: 'sig-klant',    label: 'Handtekening 2', render: wizRenderSigKlant,     save: () => {}            },
+  { id: 'sig-tech',     label: 'Handtekening 1', render: wizRenderSigTech,      save: wizSaveSigTech      },
+  { id: 'sig-klant',    label: 'Handtekening 2', render: wizRenderSigKlant,     save: wizSaveSigKlant     },
 ];
 
 async function openRapport(ticketId, date) {
@@ -5450,6 +5450,13 @@ function wizSaveStatus() {
   R.varia      = wizV('f-varia');
 }
 
+function wizSaveSigTech() {
+  R.handtekeningTech = (_sigTech && !_sigTech.isEmpty()) ? _sigTech.toDataURL() : null;
+}
+function wizSaveSigKlant() {
+  R.handtekeningKlant = (_sigKlant && !_sigKlant.isEmpty()) ? _sigKlant.toDataURL() : null;
+}
+
 // ── Stap 6: Handtekening technieker ──
 function wizRenderSigTech(el) {
   el.innerHTML = `
@@ -5478,12 +5485,21 @@ function wizRenderSigTech(el) {
         if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent)'; }
         wrap.classList.add('has-sig');
       });
+      // Terugnavigeren mag een eerder getekende handtekening niet wissen.
+      if (R.handtekeningTech) {
+        _sigTech.fromDataURL(R.handtekeningTech);
+        document.getElementById('sig-tech-hint').style.display = 'none';
+        const st = document.getElementById('sig-tech-status');
+        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent)'; }
+        wrap.classList.add('has-sig');
+      }
     }
   });
 }
 function wizClearSigTech() {
   if (_sigTech) {
     _sigTech.clear();
+    R.handtekeningTech = null;
     const hint = document.getElementById('sig-tech-hint');
     if (hint) hint.style.display = '';
     const st = document.getElementById('sig-tech-status');
@@ -5531,12 +5547,21 @@ function wizRenderSigKlant(el) {
         if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent)'; }
         wrap.classList.add('has-sig');
       });
+      // Terugnavigeren mag een eerder getekende handtekening niet wissen.
+      if (R.handtekeningKlant) {
+        _sigKlant.fromDataURL(R.handtekeningKlant);
+        document.getElementById('sig-klant-hint').style.display = 'none';
+        const st = document.getElementById('sig-klant-status');
+        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent)'; }
+        wrap.classList.add('has-sig');
+      }
     }
   });
 }
 function wizClearSigKlant() {
   if (_sigKlant) {
     _sigKlant.clear();
+    R.handtekeningKlant = null;
     const hint = document.getElementById('sig-klant-hint');
     if (hint) hint.style.display = '';
     const st = document.getElementById('sig-klant-status');
@@ -5591,11 +5616,11 @@ function buildRapportHtml() {
     </tr>`;
   }
 
-  const sigTechImg  = (_sigTech  && !_sigTech.isEmpty())
-    ? `<img src="${_sigTech.toDataURL()}" style="max-width:220px;max-height:90px;display:block">`
+  const sigTechImg  = R.handtekeningTech
+    ? `<img src="${R.handtekeningTech}" style="max-width:220px;max-height:90px;display:block">`
     : '<span style="color:#aaa;font-style:italic;font-size:9pt">(niet getekend)</span>';
-  const sigKlantImg = (_sigKlant && !_sigKlant.isEmpty())
-    ? `<img src="${_sigKlant.toDataURL()}" style="max-width:220px;max-height:90px;display:block">`
+  const sigKlantImg = R.handtekeningKlant
+    ? `<img src="${R.handtekeningKlant}" style="max-width:220px;max-height:90px;display:block">`
     : '<span style="color:#aaa;font-style:italic;font-size:9pt">(niet getekend)</span>';
 
   const bolt = `<svg width="12" height="20" viewBox="0 0 12 20" xmlns="http://www.w3.org/2000/svg" style="display:inline-block;vertical-align:middle;margin-right:5px">
