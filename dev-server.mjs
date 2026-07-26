@@ -59,15 +59,35 @@ async function callFunction(fnName, req, body) {
   const parsedUrl  = new URL(req.url, 'http://localhost');
   const queryStringParameters = Object.fromEntries(parsedUrl.searchParams.entries());
 
-  const event = {
-    httpMethod:            req.method,
-    path:                  parsedUrl.pathname,
-    headers:               req.headers,
-    queryStringParameters,
-    body:                  body || null,
-  };
+  // Classic-stijl: export async function handler(event) { ... }
+  if (typeof mod.handler === 'function') {
+    const event = {
+      httpMethod:            req.method,
+      path:                  parsedUrl.pathname,
+      headers:               req.headers,
+      queryStringParameters,
+      body:                  body || null,
+    };
+    return mod.handler(event);
+  }
 
-  return mod.handler(event);
+  // Netlify Functions v2-stijl: export default async (req) => new Response(...)
+  if (typeof mod.default === 'function') {
+    const fetchHeaders = new Headers();
+    for (const [k, v] of Object.entries(req.headers)) {
+      if (v !== undefined) fetchHeaders.set(k, Array.isArray(v) ? v.join(', ') : String(v));
+    }
+    const init = { method: req.method, headers: fetchHeaders };
+    if (body && req.method !== 'GET' && req.method !== 'HEAD') init.body = body;
+    const request  = new Request(`http://localhost${req.url}`, init);
+    const response = await mod.default(request);
+    const resBody    = await response.text();
+    const resHeaders = {};
+    response.headers.forEach((v, k) => { resHeaders[k] = v; });
+    return { statusCode: response.status, headers: resHeaders, body: resBody };
+  }
+
+  return { statusCode: 500, body: JSON.stringify({ error: `${fnName}.js exporteert geen 'handler' en geen 'default'` }) };
 }
 
 // ── HTTP server ────────────────────────────────────────────────────────────────
