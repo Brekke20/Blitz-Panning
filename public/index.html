@@ -1641,7 +1641,7 @@
 const TEST_MODE = new URLSearchParams(window.location.search).has('test');
 
 function escHtml(str) {
-  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 const DUMMY_DATA = {
@@ -1773,6 +1773,9 @@ function loadPersonSettings(person) {
     ...saved,
     // Lege strings mogen de default niet overschrijven
     startlocatie: saved.startlocatie || DEFAULT_SETTINGS.startlocatie,
+    // Eigen array-kopie — anders deelt elke technieker zonder opgeslagen werkdagen
+    // hetzelfde array-object, en muteert openSettings() dat in-place (zie regel ~4148).
+    werkdagen: [...(saved.werkdagen || DEFAULT_SETTINGS.werkdagen)],
   };
 }
 function savePersonSettings(person) {
@@ -2030,21 +2033,21 @@ function renderTickets() {
     const overdue = isOverdue(t);
     const card = document.createElement('div');
     card.className = 'ticket' + (overdue ? ' overdue' : '');
-    const meta = [t.account || t.naamEindklant, t.regio].filter(Boolean).join(' · ');
+    const meta = [escHtml(t.account || t.naamEindklant), escHtml(t.regio)].filter(Boolean).join(' · ');
     const prClass = { high:'ph', medium:'pm', low:'pl' }[(t.priority||'').toLowerCase()] || '';
     card.innerHTML = `
       <div class="t-body">
         <div class="t-top">
-          <span class="tnum">#${t.number}</span>
+          <span class="tnum">#${escHtml(t.number)}</span>
           ${overdue ? `<span class="stag">Verlopen</span>` : ''}
-          ${t.priority ? `<span class="prtag ${(t.priority||'').toLowerCase()}">${t.priority}</span>` : ''}
-          ${t.assignee ? `<span class="atag">${t.assignee}</span>` : ''}
+          ${t.priority ? `<span class="prtag ${escHtml((t.priority||'').toLowerCase())}">${escHtml(t.priority)}</span>` : ''}
+          ${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}
           ${kbPreferred(t.id) ? `<span class="atag" title="Voorkeursdatum klant: ${kbPreferred(t.id)}" style="background:rgba(0,223,163,.15);color:var(--accent);border:1px solid var(--accent)">📌 ${fmtDateShort(kbPreferred(t.id))}</span>` : ''}
           ${(kbFor(t.id)?.geblokkeerd?.length) ? `<span class="atag" title="Klant kan niet: ${kbFor(t.id).geblokkeerd.join(', ')}" style="background:rgba(255,80,80,.1);color:#f55;border:1px solid #f55">🚫 ${kbFor(t.id).geblokkeerd.length}</span>` : ''}
         </div>
-        <div class="tsub">${t.subject || '—'}</div>
+        <div class="tsub">${escHtml(t.subject) || '—'}</div>
         ${meta ? `<div class="tmeta">${meta}</div>` : ''}
-        <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? t.address : 'Geen adres bekend'}</div>
+        <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
       </div>
       <div class="t-action">
         <button class="btn-add" ${inFlightTickets.has(t.id) ? 'disabled' : ''} onclick="event.stopPropagation();quickAdd('${t.id}')">+</button>
@@ -2213,9 +2216,9 @@ function renderKalender() {
       card.className = 'ticket';
       card.style.cssText = 'cursor:pointer';
       card.innerHTML = `<div class="t-body">
-        <div class="t-top"><span class="tnum">#${t.number}</span><span class="stag pending">Wacht bevestiging</span>${t.assignee ? `<span class="atag">${t.assignee}</span>` : ''}</div>
-        <div class="tsub">${t.subject || '—'}</div>
-        <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? t.address : 'Geen adres bekend'}</div>
+        <div class="t-top"><span class="tnum">#${escHtml(t.number)}</span><span class="stag pending">Wacht bevestiging</span>${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}</div>
+        <div class="tsub">${escHtml(t.subject) || '—'}</div>
+        <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
         <div class="t-assign-row" id="assign-row-${t.id}" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
           <input type="date" id="assign-date-${t.id}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
           <input type="time" id="assign-time-${t.id}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)" value="09:00">
@@ -2302,19 +2305,23 @@ function renderKalender() {
       card.innerHTML    = `
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px">
           <div style="flex:1;min-width:0">
-            <div class="cal-num">#${stop.ticket.number}</div>
+            <div class="cal-num">#${escHtml(stop.ticket.number)}</div>
             <span class="cal-badge ${cardClass}">${badgeLabel}</span>
             ${stop.uur ? `<div class="cal-meta" style="font-weight:600">🕐 ${stop.uur}</div>` : ''}
-            <div class="cal-sub">${stop.ticket.subject || '—'}</div>
-            ${stop.ticket.assignee ? `<div class="cal-meta">${stop.ticket.assignee}</div>` : ''}
-            <div class="cal-addr ${stop.ticket.hasAddress ? '' : 'miss'}">${stop.ticket.hasAddress ? stop.address : 'Geen adres'}</div>
+            <div class="cal-sub">${escHtml(stop.ticket.subject) || '—'}</div>
+            ${stop.ticket.assignee ? `<div class="cal-meta">${escHtml(stop.ticket.assignee)}</div>` : ''}
+            <div class="cal-addr ${stop.ticket.hasAddress ? '' : 'miss'}">${stop.ticket.hasAddress ? escHtml(stop.address) : 'Geen adres'}</div>
           </div>
           <button onclick="event.stopPropagation();removeTicketFromDate('${stop.ticket.id}','${dateStr}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;flex-shrink:0;padding:2px 4px;line-height:1">×</button>
         </div>
         <div class="cal-actions">
-          ${stop.ticket.phone || stop.ticket.telefoonEindklant ? `<a class="cal-btn" href="tel:${stop.ticket.telefoonEindklant||stop.ticket.phone}">📞 Bellen</a>` : ''}
-          ${stop.ticket.hasAddress ? `<button class="cal-btn" onclick="event.stopPropagation();navigate('${encodeURIComponent(stop.address||stop.ticket.address||'')}')">🧭 Navigeer</button>` : ''}
+          ${stop.ticket.phone || stop.ticket.telefoonEindklant ? `<a class="cal-btn" href="tel:${escHtml(stop.ticket.telefoonEindklant||stop.ticket.phone)}">📞 Bellen</a>` : ''}
+          ${stop.ticket.hasAddress ? `<button class="cal-btn btn-navigeer" data-adres="${escHtml(stop.address||stop.ticket.address||'')}">🧭 Navigeer</button>` : ''}
         </div>`;
+      card.querySelector('.btn-navigeer')?.addEventListener('click', e => {
+        e.stopPropagation();
+        navigate(encodeURIComponent(e.currentTarget.dataset.adres));
+      });
       card.addEventListener('click', () => openDetail(stop.ticket));
       col.querySelector('.day-body').appendChild(card);
     });
@@ -2331,7 +2338,7 @@ function renderKalender() {
       const tijdLabel = ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '';
       const adresLabel = ev.adres || ev.notitie;
       card.innerHTML = `
-        <button class="cal-local-del" onclick="event.stopPropagation();removeLocalEvent('${ev.id}')" title="Verwijderen">✕</button>
+        <button class="cal-local-del" title="Verwijderen">✕</button>
         <span class="cal-local-type">${escHtml(ev.type)}</span>
         <div class="cal-sub" style="margin-top:2px">${escHtml(ev.titel)}</div>
         ${tijdLabel ? `<div class="cal-local-time">⏱ ${tijdLabel}</div>` : ''}
@@ -2341,6 +2348,9 @@ function renderKalender() {
           ${ev.telefoon ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(ev.telefoon)}">📞 Bellen</a>` : ''}
           ${adresLabel ? `<button class="cal-btn cal-ev-nav">🧭 Navigeer</button>` : ''}
         </div>`;
+      // ev.id komt uit de afspraken-blob (niet-geauthenticeerd) — via closure doorgeven i.p.v.
+      // inline onclick, want een inline JS-string is niet veilig tegen apostrofs in de brondata.
+      card.querySelector('.cal-local-del')?.addEventListener('click', e => { e.stopPropagation(); removeLocalEvent(ev.id); });
       card.querySelector('.cal-ev-call')?.addEventListener('click', e => e.stopPropagation());
       card.querySelector('.cal-ev-nav')?.addEventListener('click', e => { e.stopPropagation(); navigate(encodeURIComponent(adresLabel)); });
       card.addEventListener('click', () => openLocalEventDetail(ev));
@@ -3018,8 +3028,12 @@ function openLocalEventDetail(ev) {
   const row = (label, val) => val
     ? `<div class="mrow"><span class="mlabel">${label}</span><span class="mval">${escHtml(val)}</span></div>`
     : '';
+  // href moet óók door escHtml: ev.telefoon/ev.email komen uit de (niet-geauthenticeerde)
+  // afspraken-blob, en een dubbele quote daarin brak anders uit het href-attribuut. Het
+  // schema staat vast in de call-site (tel:/mailto:), dus escapen is hier voldoende —
+  // vergelijk de Google-Maps-link hieronder, die de waarde via encodeURIComponent dicht zet.
   const linkRow = (label, val, href) => val
-    ? `<div class="mrow"><span class="mlabel">${label}</span><span class="mval"><a href="${href}">${escHtml(val)}</a></span></div>`
+    ? `<div class="mrow"><span class="mlabel">${label}</span><span class="mval"><a href="${escHtml(href)}">${escHtml(val)}</a></span></div>`
     : '';
 
   const rows = [
@@ -3146,7 +3160,7 @@ function renderBlockModal() {
         const reasonPart = e.reason ? ` — ${escHtml(e.reason)}` : '';
         return `<div class="av-item">
           <span class="av-item-label">${kindLabel}${reasonPart} <span class="av-item-who">(${escHtml(whoLabel)})</span></span>
-          <button class="av-item-del" onclick="avRemoveException('${e.id}')" title="Verwijderen">✕</button>
+          <button class="av-item-del" data-exception-id="${escHtml(e.id)}" title="Verwijderen">✕</button>
         </div>`;
       }).join('');
 
@@ -3206,6 +3220,12 @@ function renderBlockModal() {
       </div>
       <button class="av-add-btn" onclick="avAddException()">➕ Toevoegen</button>
     </div>`;
+
+  // e.id komt uit de beschikbaarheid-blob (niet-geauthenticeerd) — data-attribuut +
+  // addEventListener i.p.v. inline onclick (zelfde reden als .btn-navigeer-knoppen).
+  body.querySelectorAll('.av-item-del').forEach(btn => {
+    btn.addEventListener('click', () => avRemoveException(btn.dataset.exceptionId || ''));
+  });
 }
 
 function avSetKind(kind) {
@@ -3324,6 +3344,8 @@ async function avRemoveException(id) {
 // CAPACITEIT & CLUSTERING
 // ══════════════════════════════════════════════
 function capacityForDay(dateStr, travelMin = 30) {
+  if (getHolidayName(dateStr)) return 0;
+
   const [vanH, vanM] = settings.vanTijd.split(':').map(Number);
   const [totH, totM] = settings.totTijd.split(':').map(Number);
   const totalMin     = (totH * 60 + totM) - (vanH * 60 + vanM);
@@ -3623,7 +3645,7 @@ function showResult(geplande, overflow, skipped, bericht) {
     s.innerHTML = `<div class="result-section-title">Ingepland (${geplande.length})</div>`;
     geplande.forEach(({ ticket, date }) => {
       const row = document.createElement('div'); row.className = 'result-item';
-      row.innerHTML = `<div class="result-dot ok"></div><div><b>#${ticket.number}</b> ${ticket.subject} → ${fmtDateShort(date)}</div>`;
+      row.innerHTML = `<div class="result-dot ok"></div><div><b>#${escHtml(ticket.number)}</b> ${escHtml(ticket.subject)} → ${fmtDateShort(date)}</div>`;
       s.appendChild(row);
     });
     body.appendChild(s);
@@ -3634,7 +3656,7 @@ function showResult(geplande, overflow, skipped, bericht) {
     s.innerHTML = `<div class="result-section-title">➡️ Past niet deze week — verschoven (${overflow.length})</div>`;
     overflow.forEach(t => {
       const row = document.createElement('div'); row.className = 'result-item';
-      row.innerHTML = `<div class="result-dot skip"></div><div><b>#${t.number}</b> ${t.subject}</div>`;
+      row.innerHTML = `<div class="result-dot skip"></div><div><b>#${escHtml(t.number)}</b> ${escHtml(t.subject)}</div>`;
       s.appendChild(row);
     });
     body.appendChild(s);
@@ -3645,7 +3667,7 @@ function showResult(geplande, overflow, skipped, bericht) {
     s.innerHTML = `<div class="result-section-title">Overgeslagen — geen adres (${skipped.length})</div>`;
     skipped.forEach(t => {
       const row = document.createElement('div'); row.className = 'result-item';
-      row.innerHTML = `<div class="result-dot skip"></div><div><b>#${t.number}</b> ${t.subject}</div>`;
+      row.innerHTML = `<div class="result-dot skip"></div><div><b>#${escHtml(t.number)}</b> ${escHtml(t.subject)}</div>`;
       s.appendChild(row);
     });
     body.appendChild(s);
@@ -3691,12 +3713,12 @@ function renderGepland() {
       const card = document.createElement('div');
       card.className = 'ticket';
       card.style.cursor = 'pointer';
-      const meta = [t.account || t.naamEindklant, t.assignee].filter(Boolean).join(' · ');
+      const meta = [escHtml(t.account || t.naamEindklant), escHtml(t.assignee)].filter(Boolean).join(' · ');
       card.innerHTML = `<div class="t-body">
-        <div class="t-top"><span class="tnum">#${t.number}</span><span class="stag confirmed">Ingepland</span>${t.assignee ? `<span class="atag">${t.assignee}</span>` : ''}</div>
-        <div class="tsub">${t.subject || '—'}</div>
+        <div class="t-top"><span class="tnum">#${escHtml(t.number)}</span><span class="stag confirmed">Ingepland</span>${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}</div>
+        <div class="tsub">${escHtml(t.subject) || '—'}</div>
         ${meta ? `<div class="tmeta">${meta}</div>` : ''}
-        <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? t.address : 'Geen adres bekend'}</div>
+        <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
       </div>`;
       card.addEventListener('click', () => openDetail(t));
       wrapper.appendChild(card);
@@ -3758,12 +3780,29 @@ function renderRouteList(date) {
 
   // Bereken cumulatieve aankomsttijden als routeData beschikbaar is
   const hasRoute = routeData?.legs && currentRouteDate === date;
+  // Zelfde waypoint-membership test als calculateRoute() (`stops.filter(p => p._lat)` +
+  // `localForDate.filter(e => e._lat)`, zie allWpStops in calculateRoute): alleen geocodeerde stops
+  // gingen daadwerkelijk als waypoint mee, dus alleen die hebben een leg in routeData.legs.
+  // allStops bevat óók de niet-geocodeerde stops (die moeten in de lijst blijven staan), dus
+  // legIdx[i] mapt de allStops-index naar de juiste index in routeData.legs. Zonder die
+  // mapping schuift elke stop ná een adresloze/niet-geocodeerde stop een leg uit fase —
+  // dezelfde bug die Task 13 in openRapport() oploste.
+  const legIdx = [];
+  {
+    let wp = 0;
+    for (let i = 0; i < allStops.length; i++) {
+      if (allStops[i].item._lat) legIdx[i] = wp++;
+    }
+  }
   let arrivalTimes = [];
   if (hasRoute) {
     const [h, m] = (settings.vanTijd || '08:00').split(':').map(Number);
     let curMin = h * 60 + m;
     for (let i = 0; i < allStops.length; i++) {
-      const legSec = routeData.legs[i]?.travelTimeSeconds ?? 30 * 60;
+      // Geen waypoint → geen echte leg; val terug op de bestaande 30-min-schatting.
+      const legSec = (legIdx[i] !== undefined
+        ? routeData.legs[legIdx[i]]?.travelTimeSeconds
+        : undefined) ?? 30 * 60;
       curMin += Math.round(legSec / 60);
       arrivalTimes.push(curMin);
       const entry = allStops[i];
@@ -3783,8 +3822,11 @@ function renderRouteList(date) {
   };
 
   allStops.forEach((entry, i) => {
-    if (i > 0 && hasRoute && routeData.legs[i-1]) {
-      const leg = routeData.legs[i-1];
+    // Idem: via legIdx i.p.v. i, anders hoort de getoonde rit bij de verkeerde stop.
+    // legIdx[i] > 0 vervangt de oude `i > 0`-guard: leg 0 is de rit vertrekpunt→eerste
+    // waypoint en wordt (net als voorheen) niet als tussenrit getoond.
+    if (hasRoute && legIdx[i] > 0 && routeData.legs[legIdx[i]]) {
+      const leg = routeData.legs[legIdx[i]];
       const d   = document.createElement('div');
       d.className   = 'stop-leg';
       d.textContent = `🚗 ${Math.round(leg.travelTimeSeconds / 60)} min · ${(leg.distanceMeters / 1000).toFixed(1)} km`;
@@ -3806,14 +3848,14 @@ function renderRouteList(date) {
         <div class="stop-top">
           <div class="stop-num">${i+1}</div>
           <div class="stop-info">
-            <div class="stop-sub">${item.ticket.subject || '—'}</div>
-            <div class="stop-addr">${item.address || 'Geen adres'}</div>
+            <div class="stop-sub">${escHtml(item.ticket.subject) || '—'}</div>
+            <div class="stop-addr">${escHtml(item.address) || 'Geen adres'}</div>
             ${timeHtml}${arrivalHtml}
             ${proposalSentTickets.has(item.ticket.id) ? '<div class="stop-proposal-sent">✉️ Voorstel verstuurd</div>' : ''}
           </div>
         </div>
         <div class="stop-actions">
-          <button class="sico" title="Navigeren" onclick="navigate('${encodeURIComponent(item.address||'')}')">🧭 Navigeer</button>
+          <button class="sico btn-navigeer" title="Navigeren" data-adres="${escHtml(item.address||'')}">🧭 Navigeer</button>
           <button class="sico" title="Afspraakvoorstel sturen" onclick="openProposal('${item.ticket.id}','${date}',${arrivalTimes[i] !== undefined ? arrivalTimes[i] : 'null'})">📨 Voorstel</button>
           <button class="sico" title="Aankomst registreren" onclick="registerArrival('${item.ticket.id}','${date}')">⏱️ Aankomst</button>
           <button class="sico" title="Service rapport" onclick="openRapport('${item.ticket.id}','${date}')">📋 Rapport</button>
@@ -3830,8 +3872,27 @@ function renderRouteList(date) {
           e.preventDefault(); stop.classList.remove('drag-over');
           const from = +e.dataTransfer.getData('text/plain');
           if (from !== i && from < stops.length && i < stops.length) {
+            // `stops` is de GEFILTERDE lijst (zie boven in renderRouteList) — splice die zelf,
+            // en herschrijf dan planning[date] zodat enkel de volgorde van de eigen (gefilterde)
+            // stops verandert; stops van andere technici blijven op hun eigen relatieve plek staan.
+            const movedTicketIds = stops.map(s => s.ticket.id);
+            const [movedId] = movedTicketIds.splice(from, 1);
+            movedTicketIds.splice(i, 0, movedId);
+
             const arr = planning[date];
-            arr.splice(i, 0, arr.splice(from, 1)[0]);
+            const reordered = [];
+            let ownIdx = 0;
+            for (const entry of arr) {
+              const isOwn = stops.some(s => s.ticket.id === entry.ticket.id);
+              if (isOwn) {
+                const targetId = movedTicketIds[ownIdx++];
+                reordered.push(arr.find(a => a.ticket.id === targetId));
+              } else {
+                reordered.push(entry);
+              }
+            }
+            planning[date] = reordered;
+
             routeData = null;
             renderRouteList(date);
             updateRouteBtns(date);
@@ -3856,10 +3917,14 @@ function renderRouteList(date) {
         </div>
         <div class="stop-actions">
           ${ev.telefoon ? `<a class="sico" href="tel:${escHtml(ev.telefoon)}" title="Bellen">📞 Bellen</a>` : ''}
-          ${adres ? `<button class="sico" title="Navigeren" onclick="navigate('${encodeURIComponent(adres)}')">🧭 Navigeer</button>` : ''}
-          <button class="sico" title="Details" onclick="openLocalEventDetail(localEvents.find(e=>e.id==='${ev.id}'))">📋 Details</button>
+          ${adres ? `<button class="sico btn-navigeer" title="Navigeren" data-adres="${escHtml(adres)}">🧭 Navigeer</button>` : ''}
+          <button class="sico btn-ev-details" title="Details">📋 Details</button>
         </div>`;
     }
+    const navBtn = stop.querySelector('.btn-navigeer');
+    navBtn?.addEventListener('click', () => navigate(encodeURIComponent(navBtn.dataset.adres)));
+    // ev via closure i.p.v. lookup-string in inline onclick (zelfde reden als .cal-local-del hierboven).
+    stop.querySelector('.btn-ev-details')?.addEventListener('click', () => openLocalEventDetail(entry.item));
     list.appendChild(stop);
   });
   updateRouteBtns(date);
@@ -3888,6 +3953,21 @@ async function optimizeRoute() {
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
+    // /api/optimize geeft 200 + locations + optimizeError als geocoding lukte maar de
+    // waypoint-optimalisatie niet. Dan de bestaande volgorde behouden (nooit planning[date]
+    // herschrijven op basis van een onbetrouwbare/ontbrekende optimizedOrder), maar de
+    // coördinaten wél bewaren zodat calculateRoute() niet opnieuw hoeft te geocoderen.
+    if (data.optimizeError || !Array.isArray(data.optimizedOrder)
+        || data.optimizedOrder.length !== withAddr.length) {
+      withAddr.forEach((p, i) => {
+        const loc = data.locations?.[i+1];
+        if (loc) { p._lat = loc.lat; p._lon = loc.lon; }
+      });
+      toast('⚠️ Optimalisatie niet beschikbaar — volgorde ongewijzigd', 4500);
+      renderRouteList(date);
+      await calculateRoute();
+      return;
+    }
     // Herorden stops-met-adres volgens optimizedOrder, houd stops-zonder-adres aan het einde
     const reordered = data.optimizedOrder.map(i => ({
       ...withAddr[i], _lat: data.locations?.[i+1]?.lat, _lon: data.locations?.[i+1]?.lon,
@@ -3992,7 +4072,7 @@ function updateMap(date) {
     L.marker([p._lat, p._lon], { icon: L.divIcon({
       html:`<div style="background:#f59e0b;color:#000;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;border:2px solid #000;box-shadow:0 2px 5px rgba(0,0,0,.4)">${i+1}</div>`,
       iconSize:[24,24], iconAnchor:[12,12], className:'',
-    })}).bindPopup(`<b>#${i+1}</b> ${p.ticket.subject}<br>${p.address}`).addTo(routeLayer);
+    })}).bindPopup(`<b>#${i+1}</b> ${escHtml(p.ticket.subject)}<br>${escHtml(p.address)}`).addTo(routeLayer);
     pts.push([p._lat, p._lon]);
   });
   if (pts.length && !(routeData?.polyline?.length && currentRouteDate === date))
@@ -4055,18 +4135,18 @@ function openDetail(t) {
   document.getElementById('d-title').textContent = t.subject || '—';
 
   const tags = document.getElementById('d-tags');
-  tags.innerHTML = `<span class="mtag status">${t.status}</span>`;
-  if (t.priority) { const pc = {high:'prtag high',medium:'prtag medium',low:'prtag low'}[(t.priority||'').toLowerCase()]||'mtag'; tags.innerHTML += `<span class="${pc}">${t.priority}</span>`; }
-  if (t.assignee) tags.innerHTML += `<span class="mtag assignee">${t.assignee}</span>`;
+  tags.innerHTML = `<span class="mtag status">${escHtml(t.status)}</span>`;
+  if (t.priority) { const pc = {high:'prtag high',medium:'prtag medium',low:'prtag low'}[(t.priority||'').toLowerCase()]||'mtag'; tags.innerHTML += `<span class="${pc}">${escHtml(t.priority)}</span>`; }
+  if (t.assignee) tags.innerHTML += `<span class="mtag assignee">${escHtml(t.assignee)}</span>`;
 
-  const row = (l, v, href) => v ? `<div class="mrow"><span class="mlabel">${l}</span><span class="mval">${href ? `<a href="${href}${v}">${v}</a>` : v}</span></div>` : '';
+  const row = (l, v, href) => v ? `<div class="mrow"><span class="mlabel">${l}</span><span class="mval">${href ? `<a href="${href}${escHtml(v)}">${escHtml(v)}</a>` : escHtml(v)}</span></div>` : '';
   document.getElementById('d-klant').innerHTML = [
     row('Contact',  t.naamEindklant || t.contact),
     row('Bedrijf',  t.account),
     row('E-mail',   t.emailEindklant  || t.email, 'mailto:'),
     row('Telefoon', t.telefoonEindklant || t.phone, 'tel:'),
     t.hasAddress
-      ? `<div class="mrow"><span class="mlabel">Adres</span><span class="mval"><a href="https://maps.google.com/?q=${encodeURIComponent(t.address)}" target="_blank">${t.address} ↗</a></span></div>`
+      ? `<div class="mrow"><span class="mlabel">Adres</span><span class="mval"><a href="https://maps.google.com/?q=${encodeURIComponent(t.address)}" target="_blank">${escHtml(t.address)} ↗</a></span></div>`
       : `<div class="mrow"><span class="mlabel">Adres</span><span class="mval miss">Geen adres bekend</span></div>`,
   ].join('');
 
@@ -4297,8 +4377,20 @@ function computeArrivalTimes(date) {
   const hasRoute = routeData?.legs && currentRouteDate === date;
   let curMin     = h * 60 + m;
   const result   = {};
+  // Zelfde waypoint-membership test als calculateRoute() (`stops.filter(p => p._lat)`, zie
+  // allWpStops in calculateRoute) en als renderRouteList/openRapport: alleen geocodeerde stops
+  // hebben een leg in routeData.legs. Een eigen teller houdt de leg-index in fase met de
+  // waypoint-lijst; zonder dat schuift elke stop ná een niet-geocodeerde stop een leg op en
+  // krijgt de klant een verkeerd afspraakvoorstel-tijdstip (zelfde bug als Task 13).
+  // Lokale events staan in calculateRoute() ná de ticket-stops in de waypoint-lijst, dus ze
+  // beïnvloeden deze indices niet.
+  let legIdx = 0;
   for (let i = 0; i < stops.length; i++) {
-    const legSec = hasRoute ? (routeData.legs[i]?.travelTimeSeconds ?? 30 * 60) : 30 * 60;
+    const isWaypoint = !!stops[i]._lat;
+    const legSec = (hasRoute && isWaypoint)
+      ? (routeData.legs[legIdx]?.travelTimeSeconds ?? 30 * 60)
+      : 30 * 60;
+    if (isWaypoint) legIdx++;
     curMin += Math.round(legSec / 60);
     result[stops[i].ticket.id] = curMin;
     curMin += duurVoor(stops[i].ticket.id); // per-ticket duur override of standaard
@@ -4307,10 +4399,14 @@ function computeArrivalTimes(date) {
 }
 
 function roundToNextQuarterStr(timeStr) {
-  const [h, m] = (timeStr || '09:00').split(':').map(Number);
+  const [hRaw, mRaw] = (timeStr || '09:00').split(':').map(Number);
+  const h = Number.isFinite(hRaw) ? hRaw : 9;
+  const m = Number.isFinite(mRaw) ? mRaw : 0;
   const raw = Math.ceil(m / 15) * 15;
-  if (raw >= 60) return `${String(h + 1).padStart(2, '0')}:00`;
-  return `${String(h).padStart(2, '0')}:${String(raw).padStart(2, '0')}`;
+  const totalMin = (h * 60 + raw) % (24 * 60); // uur-overloop wrapt naar 00:xx i.p.v. "24:00"
+  const outH = Math.floor(totalMin / 60);
+  const outM = totalMin % 60;
+  return `${String(outH).padStart(2, '0')}:${String(outM).padStart(2, '0')}`;
 }
 
 function openProposal(ticketId, date, arrivalMin) {
@@ -4347,9 +4443,9 @@ function updateProposalPreview() {
   const dateFmt  = date
     ? new Date(date + 'T12:00:00').toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
     : '—';
-  const name     = activeTicket.naamEindklant || activeTicket.contact || 'klant';
-  const subj     = activeTicket.subject || 'servicebezoek';
-  const sn       = activeTicket.serienummer || '';
+  const name     = escHtml(activeTicket.naamEindklant || activeTicket.contact || 'klant');
+  const subj     = escHtml(activeTicket.subject || 'servicebezoek');
+  const sn       = escHtml(activeTicket.serienummer || '');
 
   document.getElementById('proposal-no-email').style.display = email ? 'none' : '';
 
@@ -4499,11 +4595,11 @@ function renderKbSection(ticketId) {
   const kb = kbFor(ticketId) || { voorkeur: null, geblokkeerd: [], notitie: '' };
 
   const prefChip = kb.voorkeur
-    ? `<span class="kb-chip kb-chip-pref">📌 ${kb.voorkeur} <button class="kb-chip-del" onclick="updateKb('${ticketId}','voorkeur',null)" title="Verwijderen">✕</button></span>`
+    ? `<span class="kb-chip kb-chip-pref">📌 ${kb.voorkeur} <button class="kb-chip-del kb-btn-voorkeur-del" title="Verwijderen">✕</button></span>`
     : '';
 
   const blockChips = (kb.geblokkeerd || []).map(d =>
-    `<span class="kb-chip">🚫 ${d} <button class="kb-chip-del" onclick="updateKb('${ticketId}','removeBlok','${d}')" title="Verwijderen">✕</button></span>`
+    `<span class="kb-chip">🚫 ${d} <button class="kb-chip-del kb-btn-removeblok" data-datum="${escHtml(d)}" title="Verwijderen">✕</button></span>`
   ).join(' ');
 
   el.innerHTML = `
@@ -4513,7 +4609,7 @@ function renderKbSection(ticketId) {
       <div class="kb-row">
         <span class="kb-label">Voorkeursdatum</span>
         ${prefChip || `<input type="date" id="kb-pref-${ticketId}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
-        <button class="kb-add-btn" onclick="updateKb('${ticketId}','voorkeur',document.getElementById('kb-pref-${ticketId}').value)">✓ Instellen</button>`}
+        <button class="kb-add-btn kb-btn-voorkeur-set">✓ Instellen</button>`}
       </div>
 
       <div class="kb-row" style="align-items:flex-start;flex-direction:column;gap:6px">
@@ -4521,7 +4617,7 @@ function renderKbSection(ticketId) {
         <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
           ${blockChips}
           <input type="date" id="kb-blok-${ticketId}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
-          <button class="kb-add-btn" onclick="updateKb('${ticketId}','addBlok',document.getElementById('kb-blok-${ticketId}').value)">+ Blokkeer datum</button>
+          <button class="kb-add-btn kb-btn-addblok">+ Blokkeer datum</button>
         </div>
       </div>
 
@@ -4532,17 +4628,30 @@ function renderKbSection(ticketId) {
             value="${kb.duurOverride || settings.duurMinuten}"
             style="width:70px;font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
           <span style="font-size:0.78rem;color:var(--muted)">min</span>
-          <button class="kb-add-btn" onclick="updateKb('${ticketId}','duur',document.getElementById('kb-duur-${ticketId}').value)">✓ Instellen</button>
-          ${kb.duurOverride ? `<button class="kb-chip-del" onclick="updateKb('${ticketId}','duur',null)" title="Reset naar standaard">↺</button>` : ''}
+          <button class="kb-add-btn kb-btn-duur-set">✓ Instellen</button>
+          ${kb.duurOverride ? `<button class="kb-chip-del kb-btn-duur-reset" title="Reset naar standaard">↺</button>` : ''}
         </div>
       </div>
 
       <div class="kb-row" style="flex-direction:column;align-items:flex-start;gap:4px">
         <span class="kb-label">Notitie</span>
         <textarea class="kb-notitie" id="kb-notitie-${ticketId}" placeholder="bv. enkel na 14u, niet op vrijdag...">${escHtml(kb.notitie || '')}</textarea>
-        <button class="kb-add-btn" onclick="updateKb('${ticketId}','notitie',document.getElementById('kb-notitie-${ticketId}').value)">✓ Opslaan</button>
+        <button class="kb-add-btn kb-btn-notitie-save">✓ Opslaan</button>
       </div>
     </div>`;
+
+  // ticketId komt uit de kennisbank-blob (niet-geauthenticeerd) — via closure doorgeven
+  // i.p.v. inline onclick (zelfde reden als .btn-navigeer-knoppen). Alleen de per-item
+  // geblokkeerde datum (kb-btn-removeblok) heeft nog een data-attribuut nodig.
+  el.querySelector('.kb-btn-voorkeur-del')?.addEventListener('click', () => updateKb(ticketId, 'voorkeur', null));
+  el.querySelector('.kb-btn-voorkeur-set')?.addEventListener('click', () => updateKb(ticketId, 'voorkeur', document.getElementById(`kb-pref-${ticketId}`).value));
+  el.querySelectorAll('.kb-btn-removeblok').forEach(btn => {
+    btn.addEventListener('click', () => updateKb(ticketId, 'removeBlok', btn.dataset.datum || ''));
+  });
+  el.querySelector('.kb-btn-addblok')?.addEventListener('click', () => updateKb(ticketId, 'addBlok', document.getElementById(`kb-blok-${ticketId}`).value));
+  el.querySelector('.kb-btn-duur-set')?.addEventListener('click', () => updateKb(ticketId, 'duur', document.getElementById(`kb-duur-${ticketId}`).value));
+  el.querySelector('.kb-btn-duur-reset')?.addEventListener('click', () => updateKb(ticketId, 'duur', null));
+  el.querySelector('.kb-btn-notitie-save')?.addEventListener('click', () => updateKb(ticketId, 'notitie', document.getElementById(`kb-notitie-${ticketId}`).value));
 }
 
 async function updateKb(ticketId, action, value) {
@@ -4706,8 +4815,8 @@ const WIZ_STEPS = [
   { id: 'omschrijving', label: 'Omschrijving',   render: wizRenderOmschrijving, save: wizSaveOmschrijving },
   { id: 'fotos',        label: "Foto's",         render: wizRenderFotos,        save: wizSaveFotos        },
   { id: 'status',       label: 'Status',         render: wizRenderStatus,       save: wizSaveStatus       },
-  { id: 'sig-tech',     label: 'Handtekening 1', render: wizRenderSigTech,      save: () => {}            },
-  { id: 'sig-klant',    label: 'Handtekening 2', render: wizRenderSigKlant,     save: () => {}            },
+  { id: 'sig-tech',     label: 'Handtekening 1', render: wizRenderSigTech,      save: wizSaveSigTech      },
+  { id: 'sig-klant',    label: 'Handtekening 2', render: wizRenderSigKlant,     save: wizSaveSigKlant     },
 ];
 
 async function openRapport(ticketId, date) {
@@ -4742,39 +4851,61 @@ async function openRapport(ticketId, date) {
   // Aanrijtijd ophalen uit TomTom routeData als die beschikbaar is voor deze datum
   R.aanrijtijdMin = 0;
   if (routeData?.legs && currentRouteDate === date) {
-    const dayStops = (planning[date] || []);
+    const filterPerson = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+    // Zelfde filter als calculateRoute()'s `stops.filter(p => p._lat)` (zie allWpStops daar):
+    // enkel stops die daadwerkelijk als waypoint meegingen tellen mee — anders schuift stopIdx
+    // uit fase met routeData.legs zodra er een niet-geocodeerde/adresloze stop tussen zit.
+    const dayStops = (planning[date] || []).filter(p => (!filterPerson || p.ticket.assignee === filterPerson) && p._lat);
     const stopIdx  = dayStops.findIndex(p => p.ticket.id === ticketId);
+    // stopIdx is 0-based binnen de gefilterde lijst die ook de waypoints van calculateRoute vormde;
+    // legs[stopIdx] is de rit die aankomt bij deze stop (empirisch bevestigd: legs[i] = leg die
+    // aankomt bij allStops[i], zelfde conventie als hierboven in renderRouteList) — geen offset nodig.
     if (stopIdx >= 0 && routeData.legs[stopIdx]) {
       R.aanrijtijdMin = Math.round(routeData.legs[stopIdx].travelTimeSeconds / 60);
     }
   }
-  // Geen routeData beschikbaar maar adres en startlocatie zijn bekend → TomTom direct bevragen
-  if (R.aanrijtijdMin === 0 && ticket.hasAddress && settings.startlocatie) {
-    try {
-      toast('📡 Aanrijtijd berekenen...', 5000);
-      const gRes  = await fetch('/api/optimize', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ origin: settings.startlocatie, stops: [ticket.address] }),
-      });
-      const gData = await gRes.json();
-      const origin = gData.locations?.[0];
-      const dest   = gData.locations?.[1];
-      if (origin && dest) {
-        const rRes  = await fetch('/api/route', {
+  // Geen routeData beschikbaar → TomTom direct bevragen, maar vertrek vanaf de vorige
+  // stop van diezelfde dag/technieker (op basis van geplande tijd) indien die er is —
+  // anders wordt elke stop na de eerste onterecht gefactureerd alsof de technieker apart
+  // van het bureau vertrok. Enkel voor de rapport-facturatie; de routeplanning zelf
+  // (calculateRoute/autoPlan/optimizeRoute) gebruikt deze functie niet en blijft ongewijzigd.
+  if (R.aanrijtijdMin === 0 && ticket.hasAddress) {
+    const sameDayOwnStops = (planning[date] || [])
+      .filter(p => p.ticket.assignee === ticket.assignee && p.ticket.hasAddress && p.uur)
+      .sort((a, b) => (a.uur || '').localeCompare(b.uur || ''));
+    const ownIdx   = sameDayOwnStops.findIndex(p => p.ticket.id === ticketId);
+    const prevStop = ownIdx > 0 ? sameDayOwnStops[ownIdx - 1] : null;
+    const aanrijOrigin = prevStop ? prevStop.address : settings.startlocatie;
+
+    if (aanrijOrigin) {
+      try {
+        toast('📡 Aanrijtijd berekenen...', 5000);
+        const gRes  = await fetch('/api/optimize', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ waypoints: [origin, dest] }),
+          body:    JSON.stringify({ origin: aanrijOrigin, stops: [ticket.address] }),
         });
-        const rData = await rRes.json();
-        if (rData.legs?.[0]?.travelTimeSeconds) {
-          R.aanrijtijdMin = Math.round(rData.legs[0].travelTimeSeconds / 60);
+        const gData = await gRes.json();
+        const origin = gData.locations?.[0];
+        const dest   = gData.locations?.[1];
+        if (origin && dest) {
+          const rRes  = await fetch('/api/route', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ waypoints: [origin, dest] }),
+          });
+          const rData = await rRes.json();
+          if (rData.legs?.[0]?.travelTimeSeconds) {
+            R.aanrijtijdMin = Math.round(rData.legs[0].travelTimeSeconds / 60);
+          }
         }
-      }
-    } catch { /* niet fataal, aanrijtijd blijft 0 */ }
+      } catch { /* niet fataal, aanrijtijd blijft 0 */ }
+    }
   }
   R.type = ''; R.uitvoering = ''; R.kabel = ''; R.kabellengte = '';
   R.hersteld = 'nee'; R.nieuwInter = 'nee';
+  R.interventieType = 'Interventie'; // default; radio in stap Algemeen kan dit expliciet naar 'Installatie' zetten
+  R.handtekeningTech = null; R.handtekeningKlant = null; // zie Task 23
   _sigTech = _sigKlant = null;
   _rapportUploaded = false; // reset guard bij nieuwe wizard-sessie
 
@@ -4846,6 +4977,7 @@ function calcWerktijd(start, stop) {
   const [sh, sm] = start.split(':').map(Number);
   const [eh, em] = stop.split(':').map(Number);
   let totalMin = (eh * 60 + em) - (sh * 60 + sm);
+  if (totalMin < 0) totalMin += 24 * 60; // interventie loopt over middernacht heen
   if (totalMin <= 0) return '';
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
@@ -4856,7 +4988,8 @@ function calcWerktijdMin(start, stop) {
   if (!start || !stop) return 0;
   const [sh, sm] = start.split(':').map(Number);
   const [eh, em] = stop.split(':').map(Number);
-  const diff = (eh * 60 + em) - (sh * 60 + sm);
+  let diff = (eh * 60 + em) - (sh * 60 + sm);
+  if (diff < 0) diff += 24 * 60; // interventie loopt over middernacht heen
   return diff > 0 ? diff : 0;
 }
 function updateWerktijd() {
@@ -4875,26 +5008,26 @@ function wizRenderAlgemeen(el) {
   el.innerHTML = `
     <div class="wiz-step-title">Algemeen</div>
     <div class="wiz-info-chip">
-      <strong>${_wizTicket.subject||''}</strong><br>
-      ${[_wizTicket.account, _wizTicket.address].filter(Boolean).join(' · ')}
+      <strong>${escHtml(_wizTicket.subject||'')}</strong><br>
+      ${[_wizTicket.account, _wizTicket.address].filter(Boolean).map(escHtml).join(' · ')}
     </div>
     <div class="wiz-field-row">
       <div class="wiz-field">
         <label class="wiz-field-label">Datum</label>
-        <input class="wiz-input" id="f-datum" type="date" value="${R.datum}" />
+        <input class="wiz-input" id="f-datum" type="date" value="${escHtml(R.datum)}" />
       </div>
       <div class="wiz-field">
         <label class="wiz-field-label">#Zoho</label>
-        <input class="wiz-input" id="f-zoho" type="text" value="${zohoRef}" readonly />
+        <input class="wiz-input" id="f-zoho" type="text" value="${escHtml(zohoRef)}" readonly />
       </div>
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Technieker Blitz</label>
-      <input class="wiz-input" id="f-technieker" type="text" placeholder="Naam technieker" value="${R.technieker}" />
+      <input class="wiz-input" id="f-technieker" type="text" placeholder="Naam technieker" value="${escHtml(R.technieker)}" />
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Interventie adres</label>
-      <input class="wiz-input" id="f-adres" type="text" value="${R.adres}" />
+      <input class="wiz-input" id="f-adres" type="text" value="${escHtml(R.adres)}" />
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Type bezoek</label>
@@ -4912,11 +5045,11 @@ function wizRenderAlgemeen(el) {
     <div class="wiz-field-row">
       <div class="wiz-field">
         <label class="wiz-field-label">Starttijd (aankomst)</label>
-        <input class="wiz-input" id="f-start" type="time" value="${R.start}" oninput="updateWerktijd()" />
+        <input class="wiz-input" id="f-start" type="time" value="${escHtml(R.start)}" oninput="updateWerktijd()" />
       </div>
       <div class="wiz-field">
         <label class="wiz-field-label">Stoptijd (einde)</label>
-        <input class="wiz-input" id="f-stop" type="time" value="${R.stop}" oninput="updateWerktijd()" />
+        <input class="wiz-input" id="f-stop" type="time" value="${escHtml(R.stop)}" oninput="updateWerktijd()" />
       </div>
     </div>
     <div id="werktijd-chip" style="display:${R.start&&R.stop?'flex':'none'};align-items:center;gap:8px;background:var(--accent-dim);border:1px solid rgba(0,223,163,0.2);border-radius:8px;padding:10px 14px;font-size:0.85rem;margin-bottom:4px">
@@ -5011,7 +5144,7 @@ function wizRenderFacturatie(el) {
         </label>
         <label class="wiz-radio-card">
           <input type="radio" name="f-facturatie" value="partner" ${R.facturatie==='partner'?'checked':''} onchange="wizFacturatieChange()">
-          <div><div class="wiz-radio-card-label">Partner / installateur</div>${_wizTicket.partner ? `<div class="wiz-radio-card-sub">${_wizTicket.partner}</div>` : ''}</div>
+          <div><div class="wiz-radio-card-label">Partner / installateur</div>${_wizTicket.partner ? `<div class="wiz-radio-card-sub">${escHtml(_wizTicket.partner)}</div>` : ''}</div>
         </label>
         <label class="wiz-radio-card">
           <input type="radio" name="f-facturatie" value="vrij" ${R.facturatie==='vrij'?'checked':''} onchange="wizFacturatieChange()">
@@ -5019,7 +5152,7 @@ function wizRenderFacturatie(el) {
         </label>
       </div>
       <div id="facturatie-vrij-wrap" style="${R.facturatie==='vrij'?'':'display:none'};margin-top:10px">
-        <input class="wiz-input" id="f-facturatie-vrij" type="text" placeholder="Facturatie aan..." value="${R.facturatieVrij}" />
+        <input class="wiz-input" id="f-facturatie-vrij" type="text" placeholder="Facturatie aan..." value="${escHtml(R.facturatieVrij)}" />
       </div>
     </div>
     <div class="wiz-sep"></div>
@@ -5086,11 +5219,11 @@ function wizRenderProduct(el) {
     <div class="wiz-step-title">Productinformatie</div>
     <div class="wiz-field">
       <label class="wiz-field-label">Installateur / partner</label>
-      <input class="wiz-input" id="f-installateur" type="text" value="${R.installateur}" placeholder="Installateur" />
+      <input class="wiz-input" id="f-installateur" type="text" value="${escHtml(R.installateur)}" placeholder="Installateur" />
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Serienummer</label>
-      <input class="wiz-input" id="f-serienummer" type="text" value="${R.serienummer}" placeholder="CHARX-XXXX" />
+      <input class="wiz-input" id="f-serienummer" type="text" value="${escHtml(R.serienummer)}" placeholder="CHARX-XXXX" />
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Type</label>
@@ -5150,11 +5283,11 @@ function wizRenderOmschrijving(el) {
     <div class="wiz-step-title">Omschrijving &amp; acties</div>
     <div class="wiz-field">
       <label class="wiz-field-label">Omschrijving probleem</label>
-      <textarea class="wiz-textarea" id="f-probleem" rows="4" placeholder="Beschrijf het probleem...">${R.probleem}</textarea>
+      <textarea class="wiz-textarea" id="f-probleem" rows="4" placeholder="Beschrijf het probleem...">${escHtml(R.probleem)}</textarea>
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Ondernomen acties</label>
-      <textarea class="wiz-textarea" id="f-acties" rows="6" placeholder="Beschrijf de uitgevoerde werkzaamheden...">${R.acties}</textarea>
+      <textarea class="wiz-textarea" id="f-acties" rows="6" placeholder="Beschrijf de uitgevoerde werkzaamheden...">${escHtml(R.acties)}</textarea>
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Oorzaak storing</label>
@@ -5202,8 +5335,13 @@ function wizRenderStatus(el) {
   const selHtml = _wizRenderGeselecteerd();
   // Populaire tags (max 8 meest voorkomende)
   const allTags = getAlleTags().slice(0, 12);
+  // Tags komen uit prijsbeheer (vrij tekstveld, opgeslagen in de prijzen-blob). Een inline
+  // onclick met een JS-string is daar niet veilig voor: de browser decodeert HTML-entities in
+  // een attribuutwaarde vóórdat de handler als JS gecompileerd wordt, dus escHtml()'s &#39;
+  // wordt weer een echte apostrof en breekt de JS-string open. Daarom de tag als
+  // data-attribuut meegeven + addEventListener (zelfde patroon als de .btn-navigeer-knoppen).
   const tagFilterHtml = allTags.map(t =>
-    `<button class="wiz-tag-filter${_wizActiveTags.includes(t)?' active':''}" onclick="wizToggleTagFilter('${escHtml(t)}')">${escHtml(t)}</button>`
+    `<button class="wiz-tag-filter${_wizActiveTags.includes(t)?' active':''}" data-tag="${escHtml(t)}">${escHtml(t)}</button>`
   ).join('');
 
   el.innerHTML = `
@@ -5242,8 +5380,13 @@ function wizRenderStatus(el) {
     <div class="wiz-sep"></div>
     <div class="wiz-field">
       <label class="wiz-field-label">Varia / opmerkingen</label>
-      <textarea class="wiz-textarea" id="f-varia" rows="3" placeholder="Bijzonderheden, extra info...">${R.varia}</textarea>
+      <textarea class="wiz-textarea" id="f-varia" rows="3" placeholder="Bijzonderheden, extra info...">${escHtml(R.varia)}</textarea>
     </div>`;
+
+  // Tag-filterknoppen: click via addEventListener i.p.v. inline onclick (zie comment hierboven)
+  el.querySelectorAll('.wiz-tag-filter').forEach(btn => {
+    btn.addEventListener('click', () => wizToggleTagFilter(btn.dataset.tag || ''));
+  });
 
   // Render catalogusresultaten
   _wizUpdateCatResults();
@@ -5285,10 +5428,12 @@ function _wizRenderGeselecteerd() {
 }
 
 function _wizTotaalRij() {
-  const totaal = R.onderdelen.reduce((sum, p) => sum + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+  const billable = R.onderdelen.filter(p => p.factureren !== false);
+  const totaal   = billable.reduce((sum, p) => sum + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
   if (!R.onderdelen.length) return '';
+  const nietFactureerbaar = R.onderdelen.length - billable.length;
   return `<div class="wiz-totaal-row">
-    <span class="wiz-totaal-lbl">Totaal (excl. btw)</span>
+    <span class="wiz-totaal-lbl">Totaal factureerbaar (excl. btw)${nietFactureerbaar ? ` <span style="font-size:0.75em;color:var(--muted)">(${nietFactureerbaar} niet aangerekend)</span>` : ''}</span>
     <span class="wiz-totaal-val">€ ${totaal.toFixed(2)}</span>
   </div>`;
 }
@@ -5302,12 +5447,17 @@ function _wizUpdateCatResults() {
     resultEl.innerHTML = `<div class="wiz-cat-empty">Geen onderdelen gevonden</div>`;
     return;
   }
+  // o.id komt uit de prijzen-blob → net als bij de tag-filters geen inline onclick met een
+  // JS-string, maar een data-attribuut + addEventListener.
   resultEl.innerHTML = resultaten.slice(0, 20).map(o =>
-    `<div class="wiz-cat-item" onclick="wizVoegCatToe('${o.id}')">
+    `<div class="wiz-cat-item" data-ond-id="${escHtml(o.id)}">
       <span class="wiz-cat-item-naam">${escHtml(o.naam)}</span>
       <span class="wiz-cat-item-prijs">€ ${(o.prijs||0).toFixed(2)}</span>
     </div>`
   ).join('');
+  resultEl.querySelectorAll('.wiz-cat-item').forEach(item => {
+    item.addEventListener('click', () => wizVoegCatToe(item.dataset.ondId || ''));
+  });
 }
 
 function wizCatFilter() {
@@ -5320,7 +5470,7 @@ function wizToggleTagFilter(tag) {
   else _wizActiveTags.push(tag);
   // Update filter buttons
   document.querySelectorAll('.wiz-tag-filter').forEach(btn => {
-    btn.classList.toggle('active', _wizActiveTags.includes(btn.textContent));
+    btn.classList.toggle('active', _wizActiveTags.includes(btn.dataset.tag || ''));
   });
   _wizUpdateCatResults();
 }
@@ -5356,20 +5506,27 @@ function wizRemovePart(i) {
   _wizHertekenGeselecteerd();
 }
 
-function wizUpdSelNaam(i, val)  { if (R.onderdelen[i]) R.onderdelen[i].naam      = val; _wizHertekenGeselecteerd(); }
-function wizUpdSelAantal(i, val){ if (R.onderdelen[i]) R.onderdelen[i].aantal    = parseInt(val)||1; _wizHertekenGeselecteerd(); }
-function wizUpdSelPrijs(i, val) { if (R.onderdelen[i]) R.onderdelen[i].prijs     = parseFloat(val)||0; _wizHertekenGeselecteerd(); }
-function wizUpdSelFact(i, val)  { if (R.onderdelen[i]) R.onderdelen[i].factureren = val; }
+function wizUpdSelNaam(i, val)  { if (R.onderdelen[i]) R.onderdelen[i].naam      = val; _wizUpdateTotaalRow(); }
+function wizUpdSelAantal(i, val){ if (R.onderdelen[i]) R.onderdelen[i].aantal    = parseInt(val)||1; _wizUpdateTotaalRow(); }
+function wizUpdSelPrijs(i, val) { if (R.onderdelen[i]) R.onderdelen[i].prijs     = val; _wizUpdateTotaalRow(); }
+function wizUpdSelFact(i, val)  { if (R.onderdelen[i]) R.onderdelen[i].factureren = val; _wizUpdateTotaalRow(); }
 
+// Werkt enkel het totaal-rijtje bij — laat de input-elementen zelf (en dus de focus/cursorpositie) met rust.
+function _wizUpdateTotaalRow() {
+  const selSection = document.getElementById('wiz-sel-section');
+  if (!selSection) return;
+  let totaalEl = selSection.querySelector('.wiz-totaal-row');
+  if (totaalEl) totaalEl.outerHTML = _wizTotaalRij();
+  else selSection.insertAdjacentHTML('beforeend', _wizTotaalRij());
+}
+
+// Volledige her-render blijft nodig zodra een rij wordt toegevoegd/verwijderd
+// (aantal DOM-nodes verandert) — gebruikt door wizAddVrijeRegel/wizRemovePart/wizVoegCatToe.
 function _wizHertekenGeselecteerd() {
   const selList = document.getElementById('wiz-sel-list');
-  const selSection = document.getElementById('wiz-sel-section');
   if (!selList) return;
   selList.innerHTML = _wizRenderGeselecteerd();
-  // Herrender totaal
-  let totaalEl = selSection?.querySelector('.wiz-totaal-row');
-  if (totaalEl) totaalEl.outerHTML = _wizTotaalRij();
-  else if (selSection) selSection.insertAdjacentHTML('beforeend', _wizTotaalRij());
+  _wizUpdateTotaalRow();
 }
 
 // Oud compat alias (niet meer nodig maar voorkomt errors als ergens anders wizUpdatePart staat)
@@ -5381,6 +5538,13 @@ function wizSaveStatus() {
   R.hersteld   = wizChecked('f-hersteld')    || 'nee';
   R.nieuwInter = wizChecked('f-nieuw-inter') || 'nee';
   R.varia      = wizV('f-varia');
+}
+
+function wizSaveSigTech() {
+  R.handtekeningTech = (_sigTech && !_sigTech.isEmpty()) ? _sigTech.toDataURL() : null;
+}
+function wizSaveSigKlant() {
+  R.handtekeningKlant = (_sigKlant && !_sigKlant.isEmpty()) ? _sigKlant.toDataURL() : null;
 }
 
 // ── Stap 6: Handtekening technieker ──
@@ -5411,12 +5575,21 @@ function wizRenderSigTech(el) {
         if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent)'; }
         wrap.classList.add('has-sig');
       });
+      // Terugnavigeren mag een eerder getekende handtekening niet wissen.
+      if (R.handtekeningTech) {
+        _sigTech.fromDataURL(R.handtekeningTech);
+        document.getElementById('sig-tech-hint').style.display = 'none';
+        const st = document.getElementById('sig-tech-status');
+        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent)'; }
+        wrap.classList.add('has-sig');
+      }
     }
   });
 }
 function wizClearSigTech() {
   if (_sigTech) {
     _sigTech.clear();
+    R.handtekeningTech = null;
     const hint = document.getElementById('sig-tech-hint');
     if (hint) hint.style.display = '';
     const st = document.getElementById('sig-tech-status');
@@ -5464,12 +5637,21 @@ function wizRenderSigKlant(el) {
         if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent)'; }
         wrap.classList.add('has-sig');
       });
+      // Terugnavigeren mag een eerder getekende handtekening niet wissen.
+      if (R.handtekeningKlant) {
+        _sigKlant.fromDataURL(R.handtekeningKlant);
+        document.getElementById('sig-klant-hint').style.display = 'none';
+        const st = document.getElementById('sig-klant-status');
+        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent)'; }
+        wrap.classList.add('has-sig');
+      }
     }
   });
 }
 function wizClearSigKlant() {
   if (_sigKlant) {
     _sigKlant.clear();
+    R.handtekeningKlant = null;
     const hint = document.getElementById('sig-klant-hint');
     if (hint) hint.style.display = '';
     const st = document.getElementById('sig-klant-status');
@@ -5524,11 +5706,11 @@ function buildRapportHtml() {
     </tr>`;
   }
 
-  const sigTechImg  = (_sigTech  && !_sigTech.isEmpty())
-    ? `<img src="${_sigTech.toDataURL()}" style="max-width:220px;max-height:90px;display:block">`
+  const sigTechImg  = R.handtekeningTech
+    ? `<img src="${R.handtekeningTech}" style="max-width:220px;max-height:90px;display:block">`
     : '<span style="color:#aaa;font-style:italic;font-size:9pt">(niet getekend)</span>';
-  const sigKlantImg = (_sigKlant && !_sigKlant.isEmpty())
-    ? `<img src="${_sigKlant.toDataURL()}" style="max-width:220px;max-height:90px;display:block">`
+  const sigKlantImg = R.handtekeningKlant
+    ? `<img src="${R.handtekeningKlant}" style="max-width:220px;max-height:90px;display:block">`
     : '<span style="color:#aaa;font-style:italic;font-size:9pt">(niet getekend)</span>';
 
   const bolt = `<svg width="12" height="20" viewBox="0 0 12 20" xmlns="http://www.w3.org/2000/svg" style="display:inline-block;vertical-align:middle;margin-right:5px">
@@ -5581,10 +5763,10 @@ function buildRapportHtml() {
   <div class="info-row cols-3">
     <div class="info-cell"><div class="info-lbl">Datum</div><div class="info-val">${datumStr}</div></div>
     <div class="info-cell"><div class="info-lbl">Technieker</div><div class="info-val">${R.technieker||'—'}</div></div>
-    <div class="info-cell"><div class="info-lbl">#Zoho</div><div class="info-val">${zohoRef||'—'}</div></div>
+    <div class="info-cell"><div class="info-lbl">#Zoho</div><div class="info-val">${escHtml(zohoRef)||'—'}</div></div>
   </div>
   <div class="info-row cols-1">
-    <div class="info-cell"><div class="info-lbl">Interventie adres</div><div class="info-val">${R.adres||'—'}</div></div>
+    <div class="info-cell"><div class="info-lbl">Interventie adres</div><div class="info-val">${escHtml(R.adres)||'—'}</div></div>
   </div>
   <div class="info-row ${R.aanrijtijdMin > 0 ? 'cols-4' : 'cols-3'}">
     <div class="info-cell accent"><div class="info-lbl">Starttijd</div><div class="info-val">${R.start||'—'}</div></div>
@@ -5595,20 +5777,20 @@ function buildRapportHtml() {
   <div class="info-row cols-3">
     <div class="info-cell"><div class="info-lbl">Servicetype</div><div class="info-val">${stLabel}</div></div>
     <div class="info-cell"><div class="info-lbl">Facturatie aan</div><div class="info-val">${facturatieLabel}</div></div>
-    <div class="info-cell"><div class="info-lbl">Installateur</div><div class="info-val">${R.installateur||'—'}</div></div>
+    <div class="info-cell"><div class="info-lbl">Installateur</div><div class="info-val">${escHtml(R.installateur)||'—'}</div></div>
   </div>
   <div class="info-row cols-2">
-    <div class="info-cell"><div class="info-lbl">Serienummer</div><div class="info-val">${R.serienummer||'—'}</div></div>
+    <div class="info-cell"><div class="info-lbl">Serienummer</div><div class="info-val">${escHtml(R.serienummer)||'—'}</div></div>
     <div class="info-cell"><div class="info-lbl">Type / uitvoering</div><div class="info-val">${productInfo}</div></div>
   </div>
 </div>
 <div class="rapport-section">
 <div class="sec">Omschrijving probleem</div>
-<div class="block">${R.probleem||'&nbsp;'}</div>
+<div class="block">${escHtml(R.probleem)||'&nbsp;'}</div>
 </div>
 <div class="rapport-section">
 <div class="sec">Ondernomen acties</div>
-<div class="block">${R.acties||'&nbsp;'}</div>
+<div class="block">${escHtml(R.acties)||'&nbsp;'}</div>
 </div>
 <div class="rapport-section">
 <div class="sec">Oorzaak storing</div>
@@ -5626,7 +5808,7 @@ ${R.fotos.length ? `<div class="sec">Foto's</div>
 ${geldigeOnderdelen.length ? `<div class="sec">Vervangen onderdelen</div>
 <table class="parts"><thead><tr><th>Omschrijving</th><th style="text-align:center">Aantal</th><th style="text-align:right">Stukprijs</th><th style="text-align:right">Subtotaal</th></tr></thead>
 <tbody>${partsHtml}</tbody></table>` : ''}
-${R.varia ? `<div class="rapport-section"><div class="sec">Varia</div><div class="block">${R.varia}</div></div>` : ''}
+${R.varia ? `<div class="rapport-section"><div class="sec">Varia</div><div class="block">${escHtml(R.varia)}</div></div>` : ''}
 ${(() => {
   const wMin = calcWerktijdMin(R.start, R.stop);
   const aMin = parseInt(R.aanrijtijdMin) || 0;
@@ -5710,14 +5892,15 @@ function printRapport() {
 
 async function archiveerRapport(html) {
   const totaal = R.onderdelen
-    .filter(p => p.naam)
+    .filter(p => p.naam && p.factureren !== false)
     .reduce((s, p) => s + (parseFloat(p.prijs) || 0) * (parseInt(p.aantal) || 1), 0);
 
   try {
-    await fetch('/api/rapport-archief', {
+    const res = await fetch('/api/rapport-archief', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
+        versie:          _archiefVersie,
         datum:           R.datum,
         technieker:      R.technieker,
         ticketId:        _wizTicket.id   || '',
@@ -5734,7 +5917,14 @@ async function archiveerRapport(html) {
         rapportData:     { ...R, _html: html }, // bewaar voor hergen
       }),
     });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast('⚠️ Rapport niet gearchiveerd: ' + (data.error || res.status), 5000);
+      return;
+    }
+    if (typeof data.versie === 'number') _archiefVersie = data.versie;
   } catch (err) {
+    toast('⚠️ Rapport archiveren mislukt (netwerkfout) — controleer het Rapporten-tabblad', 5000);
     console.warn('Rapport archiveren mislukt:', err);
   }
 }
@@ -5760,6 +5950,10 @@ async function uploadRapportToZoho(html, ticketId, filename) {
 // ══════════════════════════════════════════════
 
 let _rapportArchief = [];
+// null = archief nog niet geladen deze sessie (bv. rapport gesloten zonder ooit het
+// Rapporten-tabblad te openen) → server-check slaat de versie-vergelijking dan over
+// (typeof null !== 'number'), net als bij een niet-herladen oud tabblad.
+let _archiefVersie = null;
 
 async function laadRapportArchief() {
   const body = document.getElementById('rapp-archief-body');
@@ -5769,6 +5963,7 @@ async function laadRapportArchief() {
     const res  = await fetch('/api/rapport-archief');
     const data = await res.json();
     _rapportArchief = data.rapports || [];
+    _archiefVersie = data.versie || 0;
     renderRapportArchief();
   } catch (err) {
     body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">❌ Laden mislukt: ${err.message}</div>`;
@@ -5810,13 +6005,20 @@ function renderRapportArchief() {
 
     // Prijsweergave
     let prijsHtml = '';
-    if (isGarantie && loonBruto > 0) {
-      prijsHtml = `<span style="margin-left:auto;text-align:right;line-height:1.3">
-        <span style="font-size:0.68rem;color:var(--muted);display:block">Niet factureerbaar</span>
-        <span style="text-decoration:line-through;color:var(--muted);font-size:0.72rem">€ ${(loonBruto + (r.totaalOnderdelen||0)).toFixed(2)}</span>
-        <span style="color:var(--muted);font-size:0.72rem;margin-left:4px">garantie</span>
-      </span>`;
-    } else if (!isGarantie && (totFactureerbaar > 0)) {
+    if (isGarantie) {
+      // Bij garantie is enkel het loon 100% korting — onderdelen blijven factureerbaar
+      // (zelfde regel als in buildRapportHtml: "100% korting" geldt op de loonkosten-post, niet op onderdelen).
+      const rows = [];
+      if (loonBruto > 0) {
+        rows.push(`<span style="font-size:0.68rem;color:var(--muted);display:block">Loon niet factureerbaar (garantie): <s>€ ${loonBruto.toFixed(2)}</s></span>`);
+      }
+      if (totOnderdelen > 0) {
+        rows.push(`<span style="font-size:0.85rem;font-weight:700;color:var(--accent)">Onderdelen factureerbaar: € ${totOnderdelen.toFixed(2)}</span>`);
+      }
+      if (rows.length) {
+        prijsHtml = `<span style="margin-left:auto;text-align:right;line-height:1.3">${rows.join('')}</span>`;
+      }
+    } else if (totFactureerbaar > 0) {
       prijsHtml = `<span style="margin-left:auto;text-align:right;line-height:1.3">
         <span style="font-size:0.68rem;color:var(--muted);display:block">Factureerbaar</span>
         <span style="font-size:0.85rem;font-weight:700;color:var(--accent)">€ ${totFactureerbaar.toFixed(2)}</span>
@@ -5839,11 +6041,24 @@ function renderRapportArchief() {
         ${r.adres ? `<div class="taddr ok">${escHtml(r.adres)}</div>` : ''}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center">
           ${rd._html ? `<button class="cal-btn" onclick="herOpenRapport(${i})">📄 Openen</button>` : ''}
-          ${rapportId ? `<button class="cal-btn" style="color:var(--red);border-color:var(--red)" onclick="verwijderRapport('${escHtml(rapportId)}','${escHtml(r.ticketNumber||r.ticketId||'?')}','${escHtml(datumStr)}')">🗑 Verwijderen</button>` : ''}
+          ${rapportId ? `<button class="cal-btn btn-verwijder-rapport" style="color:var(--red);border-color:var(--red)" data-rapport-id="${escHtml(rapportId)}" data-ticket-ref="${escHtml(r.ticketNumber||r.ticketId||'?')}" data-datum="${escHtml(datumStr)}">🗑 Verwijderen</button>` : ''}
         </div>
       </div>
     </div>`;
   }).join('');
+
+  // De archiefvelden komen uit de rapport-archief blob (niet-geauthenticeerd). Een inline
+  // onclick met JS-strings is daar niet veilig voor: HTML-entities in een attribuut worden
+  // gedecodeerd vóórdat de handler als JS gecompileerd wordt, dus escHtml()'s &#39; wordt
+  // weer een echte apostrof. Daarom data-attributen + addEventListener (zelfde patroon als
+  // de .btn-navigeer-knoppen).
+  body.querySelectorAll('.btn-verwijder-rapport').forEach(btn => {
+    btn.addEventListener('click', () => verwijderRapport(
+      btn.dataset.rapportId || '',
+      btn.dataset.ticketRef || '',
+      btn.dataset.datum     || '',
+    ));
+  });
 }
 
 async function verwijderRapport(id, ticketRef, datumStr) {
@@ -5852,10 +6067,15 @@ async function verwijderRapport(id, ticketRef, datumStr) {
     const res = await fetch('/api/rapport-archief', {
       method:  'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ id }),
+      body:    JSON.stringify({ id, versie: _archiefVersie }),
     });
     const data = await res.json();
+    if (res.status === 409) {
+      toast('⚠️ Archief gewijzigd — herlaad de pagina en probeer opnieuw', 5000);
+      return;
+    }
     if (!res.ok) throw new Error(data.error || res.status);
+    if (typeof data.versie === 'number') _archiefVersie = data.versie;
     toast('✅ Rapport verwijderd');
     await laadRapportArchief();
   } catch (err) {
@@ -5866,11 +6086,34 @@ async function verwijderRapport(id, ticketRef, datumStr) {
 function herOpenRapport(idx) {
   const r = _rapportArchief[idx];
   if (!r?.rapportData?._html) return toast('Geen opgeslagen HTML beschikbaar');
-  const blob    = new Blob([r.rapportData._html], { type: 'text/html; charset=utf-8' });
-  const blobUrl = URL.createObjectURL(blob);
-  const win     = window.open(blobUrl, '_blank');
+  // rapportData._html komt uit de niet-geauthenticeerde rapport-archief blob. Een blob:-URL
+  // erft de origin van deze app, dus script in die opgeslagen HTML zou met volledige
+  // app-rechten lopen (localStorage, /api/*, ...). Daarom niet meer als top-level document
+  // openen, maar renderen in een sandboxed iframe ZONDER allow-scripts. allow-same-origin
+  // staat er alleen bij om de inhoudshoogte te kunnen meten (zie hieronder); zonder
+  // allow-scripts kan die origin niet misbruikt worden en draait er geen enkel script —
+  // ook niet in geneste iframes, want sandbox-flags worden geërfd.
+  const win = window.open('', '_blank');
   if (!win) return toast('Pop-upblokkering actief');
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
+  win.document.write(
+    '<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8">' +
+    '<title>Service rapport</title>' +
+    '<style>html,body{margin:0;padding:0;background:#fff}iframe{display:block;width:100%;border:0}</style>' +
+    '</head><body></body></html>'
+  );
+  win.document.close();
+  const frame = win.document.createElement('iframe');
+  frame.setAttribute('sandbox', 'allow-same-origin'); // géén allow-scripts
+  frame.style.height = '100vh';
+  // Meegroeien met de inhoud zodat de volledige rapportinhoud zichtbaar/printbaar blijft.
+  frame.addEventListener('load', () => {
+    try {
+      const h = frame.contentDocument?.documentElement?.scrollHeight;
+      if (h) frame.style.height = h + 'px';
+    } catch { /* hoogte niet meetbaar → viewporthoogte met eigen scrollbar blijft staan */ }
+  });
+  win.document.body.appendChild(frame);
+  frame.srcdoc = r.rapportData._html;
 }
 
 async function exportTicketLog() {
@@ -5914,10 +6157,11 @@ async function exportTicketLog() {
   const WRAP_MAX   = { 13: 42, 20: 58, 21: 58, 22: 40 };
 
   const data = rows.map(r => {
-    const rd         = r.rapportData || {};
-    const onderdelen = (rd.onderdelen || []).filter(p => p.naam);
-    const totaal     = onderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
-    const fac        = onderdelen.some(p => p.factureren !== false) ? 'Ja' : 'Nee';
+    const rd                = r.rapportData || {};
+    const onderdelen         = (rd.onderdelen || []).filter(p => p.naam);
+    const billableOnderdelen = onderdelen.filter(p => p.factureren !== false);
+    const totaal             = billableOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+    const fac                = billableOnderdelen.length > 0 ? 'Ja' : 'Nee';
     const cmp        = onderdelen.map(p => `${p.naam}${parseInt(p.aantal) > 1 ? ' ×' + p.aantal : ''}`).join('; ');
 
     let uren = '';
@@ -6233,7 +6477,7 @@ function renderPrijsEditor() {
       const o = items[i];
       const globalIdx = data.onderdelen.indexOf(o);
       const tagsHtml = (o.tags || []).map((t, ti) =>
-        `<span class="prijs-tag">${t}<span class="prijs-tag-del" onclick="prijsVerwijderTag(${globalIdx},${ti})">×</span></span>`
+        `<span class="prijs-tag">${escHtml(t)}<span class="prijs-tag-del" onclick="prijsVerwijderTag(${globalIdx},${ti})">×</span></span>`
       ).join('') +
       `<button class="prijs-tag-add" onclick="prijsVoegTagToe(${globalIdx})">+ tag</button>`;
       html += `<div class="prijs-row">
@@ -6253,7 +6497,7 @@ function renderPrijsEditor() {
         </div>
       </div>`;
     }
-    html += `<button class="prijs-add-btn" onclick="prijsVoegOnderdeel('${cat.id}')">+ Onderdeel toevoegen</button>
+    html += `<button class="prijs-add-btn prijs-btn-voegtoe" data-cat-id="${escHtml(cat.id)}">+ Onderdeel toevoegen</button>
     </div>`;
   }
 
@@ -6274,6 +6518,12 @@ function renderPrijsEditor() {
   }
 
   body.innerHTML = html;
+
+  // cat.id komt uit een hardcoded lijst (geen risico), maar data-attribuut + addEventListener
+  // voor consistentie met de rest van de prijzen-blob-afgeleide knoppen.
+  body.querySelectorAll('.prijs-btn-voegtoe').forEach(btn => {
+    btn.addEventListener('click', () => prijsVoegOnderdeel(btn.dataset.catId || ''));
+  });
 }
 
 // ── Mutatie-helpers ───────────────────────────────────────────────────────────
@@ -6320,7 +6570,7 @@ function prijsVoegOnderdeel(categorie) {
 
 // ── Opslaan ───────────────────────────────────────────────────────────────────
 async function prijsOpslaan() {
-  if (!PRIJZEN_DIRTY) { showToast('Geen wijzigingen'); return; }
+  if (!PRIJZEN_DIRTY) { toast('Geen wijzigingen'); return; }
   const btn = document.getElementById('prijs-save-btn');
   btn.disabled = true;
   btn.textContent = 'Bezig...';
@@ -6340,7 +6590,7 @@ async function prijsOpslaan() {
     btn.disabled = false;
     btn.textContent = 'Opslaan';
     btn.classList.remove('btn-dirty');
-    showToast('Prijzen opgeslagen (test)');
+    toast('Prijzen opgeslagen (test)');
     renderPrijsEditor();
     return;
   }
@@ -6354,9 +6604,9 @@ async function prijsOpslaan() {
     const data = await res.json();
     if (!res.ok) {
       if (res.status === 409) {
-        showToast('⚠️ Conflict: prijslijst werd elders gewijzigd. Herlaad de pagina.');
+        toast('⚠️ Conflict: prijslijst werd elders gewijzigd. Herlaad de pagina.');
       } else {
-        showToast('Fout: ' + (data.error || res.status));
+        toast('Fout: ' + (data.error || res.status));
       }
       btn.disabled = false;
       btn.textContent = 'Opslaan';
@@ -6368,10 +6618,10 @@ async function prijsOpslaan() {
     btn.disabled = false;
     btn.textContent = 'Opslaan';
     btn.classList.remove('btn-dirty');
-    showToast('✓ Prijzen opgeslagen');
+    toast('✓ Prijzen opgeslagen');
     renderPrijsEditor();
   } catch (err) {
-    showToast('Verbindingsfout: ' + err.message);
+    toast('Verbindingsfout: ' + err.message);
     btn.disabled = false;
     btn.textContent = 'Opslaan';
   }

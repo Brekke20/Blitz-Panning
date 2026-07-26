@@ -62,6 +62,9 @@ export async function handler(event) {
     if (!html || !ticketId) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'html en ticketId zijn verplicht' }) };
     }
+    if (!/^\d+$/.test(String(ticketId))) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Ongeldig ticketId' }) };
+    }
 
     // ── 1. PDF genereren ──────────────────────────────────────────────────────
     const executablePath = await chromium.executablePath(CHROMIUM_URL);
@@ -73,7 +76,23 @@ export async function handler(event) {
     });
 
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    // De rapport-HTML is volledig zelfvoorzienend (foto's als base64 data:-URLs) en
+    // heeft dus nooit netwerktoegang nodig — alles behalve data:/about:blank blokkeren
+    // sluit het SSRF-risico (interne endpoints/metadata uitlezen) volledig af.
+    await page.setRequestInterception(true);
+    page.on('request', req => {
+      const reqUrl = req.url();
+      if (reqUrl.startsWith('data:') || reqUrl.startsWith('about:blank')) {
+        req.continue();
+      } else {
+        req.abort();
+      }
+    });
+    // 'load' (niet 'domcontentloaded'): page.pdf() moet de base64-foto's en handtekeningen
+    // gedecodeerd én gelayoutet hebben, en dat garandeert alleen het load-event. De geblokte
+    // requests hierboven kunnen dit niet ophouden — een abort settelt onmiddellijk — en alle
+    // resources zijn data:-URLs zonder netwerk-roundtrip, dus dit blijft even snel.
+    await page.setContent(html, { waitUntil: 'load' });
     const pdfBuffer = await page.pdf({
       format:             'A4',
       printBackground:    true,

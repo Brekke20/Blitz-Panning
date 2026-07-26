@@ -6,7 +6,6 @@ import { getStore } from '@netlify/blobs';
 
 const BLOB_KEY = 'prijslijst';
 const ALLOWED_ORIGINS = [
-  'https://blitz-power.netlify.app',
   'https://blitz-planning.netlify.app',
   'http://localhost:8888',
 ];
@@ -121,19 +120,33 @@ export default async (req) => {
       });
     }
 
-    try {
-      const current = await store.get(BLOB_KEY, { type: 'json' });
-      if (current && typeof body.versie === 'number' && body.versie < current.versie) {
-        return new Response(JSON.stringify({
-          error: 'Prijslijst werd ondertussen aangepast door iemand anders. Herlaad en probeer opnieuw.',
-          serverVersie: current.versie,
-        }), { status: 409, headers: { ...hdrs, 'Content-Type': 'application/json' } });
-      }
-      // Backup van vorige versie (max 5 bewaard)
-      if (current) await store.setJSON(`${BLOB_KEY}-backup-${current.versie}`, current);
-    } catch { /* blob niet bereikbaar, ga door */ }
+    if (typeof body.versie !== 'number') {
+      return new Response(JSON.stringify({ error: 'versie is verplicht en moet een getal zijn' }), {
+        status: 400, headers: { ...hdrs, 'Content-Type': 'application/json' },
+      });
+    }
 
-    const nieuweVersie = (typeof body.versie === 'number' ? body.versie : 0) + 1;
+    let current;
+    try {
+      current = await store.get(BLOB_KEY, { type: 'json' });
+    } catch {
+      return new Response(JSON.stringify({ error: 'Prijslijst-opslag tijdelijk niet bereikbaar, probeer opnieuw.' }), {
+        status: 503, headers: { ...hdrs, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (current && body.versie !== current.versie) {
+      return new Response(JSON.stringify({
+        error: 'Prijslijst werd ondertussen aangepast door iemand anders. Herlaad en probeer opnieuw.',
+        serverVersie: current.versie,
+      }), { status: 409, headers: { ...hdrs, 'Content-Type': 'application/json' } });
+    }
+    // Backup van vorige versie (max 5 bewaard)
+    if (current) {
+      try { await store.setJSON(`${BLOB_KEY}-backup-${current.versie}`, current); } catch { /* backup is best-effort */ }
+    }
+
+    const nieuweVersie = (current?.versie ?? 0) + 1;
     const opslaan = {
       versie:     nieuweVersie,
       bijgewerkt: new Date().toISOString(),

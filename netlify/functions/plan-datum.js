@@ -45,6 +45,11 @@ export default async (req, context) => {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
+  if (!/^\d+$/.test(String(ticketId))) {
+    return new Response(JSON.stringify({ error: 'Ongeldig ticketId' }), {
+      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
 
   try {
     const accessToken = await getAccessToken();

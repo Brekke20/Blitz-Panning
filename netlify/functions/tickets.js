@@ -76,6 +76,10 @@ export async function handler(event) {
       const res  = await fetch(`${ZOHO_DESK}/tickets?limit=100&from=${from}`, {
         headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
       });
+      if (!res.ok) {
+        const errBody = await safeJson(res);
+        throw new Error(`Zoho tickets-ophalen mislukt (${res.status}): ${JSON.stringify(errBody)}`);
+      }
       const data = await safeJson(res);
       const page = data.data || [];
       const relevantOnPage = page.filter(t => RELEVANT.includes(t.status)).length;
@@ -100,11 +104,16 @@ export async function handler(event) {
     for (let i = 0; i < relevantIds.length; i += 5) {
       const batch = relevantIds.slice(i, i + 5);
       const results = await Promise.all(
-        batch.map(id =>
-          fetch(`${ZOHO_DESK}/tickets/${id}`, {
+        batch.map(async id => {
+          const res = await fetch(`${ZOHO_DESK}/tickets/${id}`, {
             headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
-          }).then(safeJson)
-        )
+          });
+          if (!res.ok) {
+            const errBody = await safeJson(res);
+            throw new Error(`Zoho ticketdetail ${id} mislukt (${res.status}): ${JSON.stringify(errBody)}`);
+          }
+          return safeJson(res);
+        })
       );
       detailed.push(...results);
     }

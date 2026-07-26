@@ -6,7 +6,7 @@ import { getStore } from '@netlify/blobs';
 
 const BLOB_KEY = 'rapportlijst';
 const ALLOWED_ORIGINS = [
-  'https://blitz-power.netlify.app',
+  'https://blitz-planning.netlify.app',
   'http://localhost:8888',
 ];
 const EMPTY = { versie: 0, rapports: [] };
@@ -50,9 +50,20 @@ export default async (req, context) => {
     try { body = await req.json(); }
     catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers: { ...hdrs, 'Content-Type': 'application/json' } }); }
 
-    let current = EMPTY;
+    let current;
     try { current = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY; }
-    catch {}
+    catch {
+      return new Response(JSON.stringify({ error: 'Rapportarchief tijdelijk niet bereikbaar, probeer opnieuw.' }), {
+        status: 503, headers: { ...hdrs, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (typeof body.versie === 'number' && body.versie !== current.versie) {
+      return new Response(JSON.stringify({
+        error: 'Rapportarchief werd ondertussen gewijzigd door iemand anders. Herlaad en probeer opnieuw.',
+        serverVersie: current.versie,
+      }), { status: 409, headers: { ...hdrs, 'Content-Type': 'application/json' } });
+    }
 
     const entry = {
       id:              String(body.id || crypto.randomUUID()),
@@ -93,7 +104,7 @@ export default async (req, context) => {
     };
     await store.setJSON(BLOB_KEY, nieuw);
 
-    return new Response(JSON.stringify({ ok: true, id: entry.id }), {
+    return new Response(JSON.stringify({ ok: true, id: entry.id, versie: nieuw.versie }), {
       status: 200,
       headers: { ...hdrs, 'Content-Type': 'application/json' },
     });
@@ -108,17 +119,29 @@ export default async (req, context) => {
     const { id } = body;
     if (!id) return new Response(JSON.stringify({ error: 'id vereist' }), { status: 400, headers: { ...hdrs, 'Content-Type': 'application/json' } });
 
-    let current = EMPTY;
+    let current;
     try { current = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY; }
-    catch {}
+    catch {
+      return new Response(JSON.stringify({ error: 'Rapportarchief tijdelijk niet bereikbaar, probeer opnieuw.' }), {
+        status: 503, headers: { ...hdrs, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (typeof body.versie === 'number' && body.versie !== current.versie) {
+      return new Response(JSON.stringify({
+        error: 'Rapportarchief werd ondertussen gewijzigd door iemand anders. Herlaad en probeer opnieuw.',
+        serverVersie: current.versie,
+      }), { status: 409, headers: { ...hdrs, 'Content-Type': 'application/json' } });
+    }
 
     const filtered = current.rapports.filter(r => r.id !== id);
     if (filtered.length === current.rapports.length) {
       return new Response(JSON.stringify({ error: 'Rapport niet gevonden' }), { status: 404, headers: { ...hdrs, 'Content-Type': 'application/json' } });
     }
 
-    await store.setJSON(BLOB_KEY, { versie: current.versie + 1, rapports: filtered });
-    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...hdrs, 'Content-Type': 'application/json' } });
+    const nieuweVersie = current.versie + 1;
+    await store.setJSON(BLOB_KEY, { versie: nieuweVersie, rapports: filtered });
+    return new Response(JSON.stringify({ ok: true, versie: nieuweVersie }), { status: 200, headers: { ...hdrs, 'Content-Type': 'application/json' } });
   }
 
   return new Response('Method Not Allowed', { status: 405, headers: hdrs });
