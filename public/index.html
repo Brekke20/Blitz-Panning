@@ -5260,8 +5260,13 @@ function wizRenderStatus(el) {
   const selHtml = _wizRenderGeselecteerd();
   // Populaire tags (max 8 meest voorkomende)
   const allTags = getAlleTags().slice(0, 12);
+  // Tags komen uit prijsbeheer (vrij tekstveld, opgeslagen in de prijzen-blob). Een inline
+  // onclick met een JS-string is daar niet veilig voor: de browser decodeert HTML-entities in
+  // een attribuutwaarde vóórdat de handler als JS gecompileerd wordt, dus escHtml()'s &#39;
+  // wordt weer een echte apostrof en breekt de JS-string open. Daarom de tag als
+  // data-attribuut meegeven + addEventListener (zelfde patroon als de .btn-navigeer-knoppen).
   const tagFilterHtml = allTags.map(t =>
-    `<button class="wiz-tag-filter${_wizActiveTags.includes(t)?' active':''}" onclick="wizToggleTagFilter('${escHtml(t)}')">${escHtml(t)}</button>`
+    `<button class="wiz-tag-filter${_wizActiveTags.includes(t)?' active':''}" data-tag="${escHtml(t)}">${escHtml(t)}</button>`
   ).join('');
 
   el.innerHTML = `
@@ -5302,6 +5307,11 @@ function wizRenderStatus(el) {
       <label class="wiz-field-label">Varia / opmerkingen</label>
       <textarea class="wiz-textarea" id="f-varia" rows="3" placeholder="Bijzonderheden, extra info...">${R.varia}</textarea>
     </div>`;
+
+  // Tag-filterknoppen: click via addEventListener i.p.v. inline onclick (zie comment hierboven)
+  el.querySelectorAll('.wiz-tag-filter').forEach(btn => {
+    btn.addEventListener('click', () => wizToggleTagFilter(btn.dataset.tag || ''));
+  });
 
   // Render catalogusresultaten
   _wizUpdateCatResults();
@@ -5362,12 +5372,17 @@ function _wizUpdateCatResults() {
     resultEl.innerHTML = `<div class="wiz-cat-empty">Geen onderdelen gevonden</div>`;
     return;
   }
+  // o.id komt uit de prijzen-blob → net als bij de tag-filters geen inline onclick met een
+  // JS-string, maar een data-attribuut + addEventListener.
   resultEl.innerHTML = resultaten.slice(0, 20).map(o =>
-    `<div class="wiz-cat-item" onclick="wizVoegCatToe('${o.id}')">
+    `<div class="wiz-cat-item" data-ond-id="${escHtml(o.id)}">
       <span class="wiz-cat-item-naam">${escHtml(o.naam)}</span>
       <span class="wiz-cat-item-prijs">€ ${(o.prijs||0).toFixed(2)}</span>
     </div>`
   ).join('');
+  resultEl.querySelectorAll('.wiz-cat-item').forEach(item => {
+    item.addEventListener('click', () => wizVoegCatToe(item.dataset.ondId || ''));
+  });
 }
 
 function wizCatFilter() {
@@ -5380,7 +5395,7 @@ function wizToggleTagFilter(tag) {
   else _wizActiveTags.push(tag);
   // Update filter buttons
   document.querySelectorAll('.wiz-tag-filter').forEach(btn => {
-    btn.classList.toggle('active', _wizActiveTags.includes(btn.textContent));
+    btn.classList.toggle('active', _wizActiveTags.includes(btn.dataset.tag || ''));
   });
   _wizUpdateCatResults();
 }
@@ -5951,11 +5966,24 @@ function renderRapportArchief() {
         ${r.adres ? `<div class="taddr ok">${escHtml(r.adres)}</div>` : ''}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center">
           ${rd._html ? `<button class="cal-btn" onclick="herOpenRapport(${i})">📄 Openen</button>` : ''}
-          ${rapportId ? `<button class="cal-btn" style="color:var(--red);border-color:var(--red)" onclick="verwijderRapport('${escHtml(rapportId)}','${escHtml(r.ticketNumber||r.ticketId||'?')}','${escHtml(datumStr)}')">🗑 Verwijderen</button>` : ''}
+          ${rapportId ? `<button class="cal-btn btn-verwijder-rapport" style="color:var(--red);border-color:var(--red)" data-rapport-id="${escHtml(rapportId)}" data-ticket-ref="${escHtml(r.ticketNumber||r.ticketId||'?')}" data-datum="${escHtml(datumStr)}">🗑 Verwijderen</button>` : ''}
         </div>
       </div>
     </div>`;
   }).join('');
+
+  // De archiefvelden komen uit de rapport-archief blob (niet-geauthenticeerd). Een inline
+  // onclick met JS-strings is daar niet veilig voor: HTML-entities in een attribuut worden
+  // gedecodeerd vóórdat de handler als JS gecompileerd wordt, dus escHtml()'s &#39; wordt
+  // weer een echte apostrof. Daarom data-attributen + addEventListener (zelfde patroon als
+  // de .btn-navigeer-knoppen).
+  body.querySelectorAll('.btn-verwijder-rapport').forEach(btn => {
+    btn.addEventListener('click', () => verwijderRapport(
+      btn.dataset.rapportId || '',
+      btn.dataset.ticketRef || '',
+      btn.dataset.datum     || '',
+    ));
+  });
 }
 
 async function verwijderRapport(id, ticketRef, datumStr) {
