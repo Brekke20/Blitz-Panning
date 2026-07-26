@@ -68,6 +68,10 @@ async function uploadTermsAttachment(accessToken, orgId) {
   return uploadData.id;
 }
 
+function escHtml(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function roundToNextQuarter(timeStr) {
   const [h, m] = (timeStr || '09:00').split(':').map(Number);
   const raw = Math.ceil(m / 15) * 15;
@@ -83,7 +87,7 @@ function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime
     `</svg>`;
 
   const serial = serienummer
-    ? `<div style="font-size:12px;color:#8a9aaa;margin-top:10px;border-top:1px solid #e8e8e8;padding-top:10px">Serienummer: ${serienummer}</div>`
+    ? `<div style="font-size:12px;color:#8a9aaa;margin-top:10px;border-top:1px solid #e8e8e8;padding-top:10px">Serienummer: ${escHtml(serienummer)}</div>`
     : '';
 
   return `<!DOCTYPE html>
@@ -112,9 +116,9 @@ function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime
 
   <!-- Body -->
   <tr><td style="padding:32px 36px 24px">
-    <p style="margin:0 0 16px;font-size:15px;color:#181e24">Geachte ${recipientName || 'klant'},</p>
+    <p style="margin:0 0 16px;font-size:15px;color:#181e24">Geachte ${escHtml(recipientName) || 'klant'},</p>
     <p style="margin:0 0 24px;font-size:15px;color:#3a3a3a;line-height:1.65">
-      Wij plannen een servicebezoek voor: <strong style="color:#181e24">${subject}</strong>.
+      Wij plannen een servicebezoek voor: <strong style="color:#181e24">${escHtml(subject)}</strong>.
     </p>
 
     <!-- Afspraakbox -->
@@ -179,6 +183,31 @@ export async function handler(event) {
     const orgData = await orgRes.json();
     const orgId   = orgData.data?.[0]?.id;
     if (!orgId) throw new Error('Zoho org ID niet gevonden');
+
+    // Haal het ticket op en controleer dat recipientEmail bij dit ticket hoort —
+    // voorkomt dat dit endpoint als open mail-relay naar een willekeurig adres misbruikt wordt.
+    if (recipientEmail) {
+      const ticketRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
+        headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
+      });
+      const ticketData = await ticketRes.json().catch(() => ({}));
+      if (!ticketRes.ok) {
+        return {
+          statusCode: 404, headers,
+          body: JSON.stringify({ error: 'Ticket niet gevonden' }),
+        };
+      }
+      const cf = ticketData.cf || {};
+      const geldigeAdressen = [
+        ticketData.email, ticketData.contact?.email, ticketData.contact?.emailId, cf.cf_e_mail_eindklant,
+      ].filter(Boolean).map(e => e.toLowerCase());
+      if (!geldigeAdressen.includes(String(recipientEmail).toLowerCase())) {
+        return {
+          statusCode: 400, headers,
+          body: JSON.stringify({ error: 'recipientEmail komt niet overeen met een geregistreerd adres op dit ticket' }),
+        };
+      }
+    }
 
     // Tijd afronden naar volgend kwartier
     const appointmentTime = roundToNextQuarter(time || '09:00');
