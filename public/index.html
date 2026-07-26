@@ -5416,20 +5416,27 @@ function wizRemovePart(i) {
   _wizHertekenGeselecteerd();
 }
 
-function wizUpdSelNaam(i, val)  { if (R.onderdelen[i]) R.onderdelen[i].naam      = val; _wizHertekenGeselecteerd(); }
-function wizUpdSelAantal(i, val){ if (R.onderdelen[i]) R.onderdelen[i].aantal    = parseInt(val)||1; _wizHertekenGeselecteerd(); }
-function wizUpdSelPrijs(i, val) { if (R.onderdelen[i]) R.onderdelen[i].prijs     = parseFloat(val)||0; _wizHertekenGeselecteerd(); }
-function wizUpdSelFact(i, val)  { if (R.onderdelen[i]) R.onderdelen[i].factureren = val; }
+function wizUpdSelNaam(i, val)  { if (R.onderdelen[i]) R.onderdelen[i].naam      = val; _wizUpdateTotaalRow(); }
+function wizUpdSelAantal(i, val){ if (R.onderdelen[i]) R.onderdelen[i].aantal    = parseInt(val)||1; _wizUpdateTotaalRow(); }
+function wizUpdSelPrijs(i, val) { if (R.onderdelen[i]) R.onderdelen[i].prijs     = val; _wizUpdateTotaalRow(); }
+function wizUpdSelFact(i, val)  { if (R.onderdelen[i]) R.onderdelen[i].factureren = val; _wizUpdateTotaalRow(); }
 
+// Werkt enkel het totaal-rijtje bij — laat de input-elementen zelf (en dus de focus/cursorpositie) met rust.
+function _wizUpdateTotaalRow() {
+  const selSection = document.getElementById('wiz-sel-section');
+  if (!selSection) return;
+  let totaalEl = selSection.querySelector('.wiz-totaal-row');
+  if (totaalEl) totaalEl.outerHTML = _wizTotaalRij();
+  else selSection.insertAdjacentHTML('beforeend', _wizTotaalRij());
+}
+
+// Volledige her-render blijft nodig zodra een rij wordt toegevoegd/verwijderd
+// (aantal DOM-nodes verandert) — gebruikt door wizAddVrijeRegel/wizRemovePart/wizVoegCatToe.
 function _wizHertekenGeselecteerd() {
   const selList = document.getElementById('wiz-sel-list');
-  const selSection = document.getElementById('wiz-sel-section');
   if (!selList) return;
   selList.innerHTML = _wizRenderGeselecteerd();
-  // Herrender totaal
-  let totaalEl = selSection?.querySelector('.wiz-totaal-row');
-  if (totaalEl) totaalEl.outerHTML = _wizTotaalRij();
-  else if (selSection) selSection.insertAdjacentHTML('beforeend', _wizTotaalRij());
+  _wizUpdateTotaalRow();
 }
 
 // Oud compat alias (niet meer nodig maar voorkomt errors als ergens anders wizUpdatePart staat)
