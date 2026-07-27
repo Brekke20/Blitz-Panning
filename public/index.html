@@ -5911,9 +5911,15 @@ function printRapport() {
   // Upload en archiveer slechts één keer per wizard-sessie (guard tegen dubbele uploads)
   if (!_rapportUploaded) {
     _rapportUploaded = true;
-    const rapportFilename = `rapport-${_wizTicket.number || _wizTicket.id}-${R.datum || 'onbekend'}.pdf`;
-    uploadRapportToZoho(html, _wizTicket.id, rapportFilename);
-    archiveerRapport(html);
+    if (_wizTicket.isLocal) {
+      // Geen Zoho-ticket gekoppeld aan manuele/geïmporteerde afspraken — enkel archiveren.
+      archiveerRapport(html);
+      toast('✅ Rapport opgeslagen in archief — geen Zoho-ticket gekoppeld', 4000);
+    } else {
+      const rapportFilename = `rapport-${_wizTicket.number || _wizTicket.id}-${R.datum || 'onbekend'}.pdf`;
+      uploadRapportToZoho(html, _wizTicket.id, rapportFilename);
+      archiveerRapport(html);
+    }
   }
 
   // Wizard sluiten na geslaagd rapport — geen bevestigingsdialog meer nodig
