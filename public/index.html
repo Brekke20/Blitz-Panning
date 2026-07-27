@@ -4831,7 +4831,7 @@ const R = {
   servicetype: '2e-lijn',
   aanrijtijdMin: 0,
   interventieType: 'Interventie',
-  installateur: '', serienummer: '', type: '', uitvoering: '', kabel: '', kabellengte: '',
+  installateur: '', serienummer: '', aantalLaadpalen: 1, type: '', uitvoering: '', kabel: '', kabellengte: '',
   probleem: '', acties: '',
   oorzaakStoring: [],
   fotos: [],
@@ -4911,7 +4911,7 @@ async function openRapport(ticketId, date) {
       }
     } catch { /* niet fataal, aanrijtijd blijft 0 */ }
   }
-  R.type = ''; R.uitvoering = ''; R.kabel = ''; R.kabellengte = '';
+  R.type = ''; R.uitvoering = ''; R.kabel = ''; R.kabellengte = ''; R.aantalLaadpalen = 1;
   R.hersteld = 'nee'; R.nieuwInter = 'nee';
   R.interventieType = 'Interventie'; // default; radio in stap Algemeen kan dit expliciet naar 'Installatie' zetten
   R.handtekeningTech = null; R.handtekeningKlant = null; // zie Task 23
@@ -5230,9 +5230,15 @@ function wizRenderProduct(el) {
       <label class="wiz-field-label">Installateur / partner</label>
       <input class="wiz-input" id="f-installateur" type="text" value="${escHtml(R.installateur)}" placeholder="Installateur" />
     </div>
-    <div class="wiz-field">
-      <label class="wiz-field-label">Serienummer</label>
-      <input class="wiz-input" id="f-serienummer" type="text" value="${escHtml(R.serienummer)}" placeholder="CHARX-XXXX" />
+    <div class="wiz-field-row">
+      <div class="wiz-field">
+        <label class="wiz-field-label">Serienummer (master laadpaal)</label>
+        <input class="wiz-input" id="f-serienummer" type="text" value="${escHtml(R.serienummer)}" placeholder="CHARX-XXXX" />
+      </div>
+      <div class="wiz-field">
+        <label class="wiz-field-label">Aantal laadpalen</label>
+        <input class="wiz-input" id="f-aantal-laadpalen" type="number" min="1" step="1" value="${R.aantalLaadpalen || 1}" />
+      </div>
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Type</label>
@@ -5271,12 +5277,13 @@ function wizKabelChange() {
   if (wrap) wrap.style.display = val === 'kabel' ? '' : 'none';
 }
 function wizSaveProduct() {
-  R.installateur = wizV('f-installateur');
-  R.serienummer  = wizV('f-serienummer');
-  R.type         = wizChecked('f-type');
-  R.uitvoering   = wizChecked('f-uitvoering');
-  R.kabel        = wizChecked('f-kabel');
-  R.kabellengte  = wizChecked('f-kabellengte');
+  R.installateur     = wizV('f-installateur');
+  R.serienummer      = wizV('f-serienummer');
+  R.aantalLaadpalen  = parseInt(wizV('f-aantal-laadpalen')) || 1;
+  R.type             = wizChecked('f-type');
+  R.uitvoering       = wizChecked('f-uitvoering');
+  R.kabel            = wizChecked('f-kabel');
+  R.kabellengte      = wizChecked('f-kabellengte');
 }
 
 // ── Stap 4: Omschrijving & acties ──
@@ -5789,7 +5796,7 @@ function buildRapportHtml() {
     <div class="info-cell"><div class="info-lbl">Installateur</div><div class="info-val">${escHtml(R.installateur)||'—'}</div></div>
   </div>
   <div class="info-row cols-2">
-    <div class="info-cell"><div class="info-lbl">Serienummer</div><div class="info-val">${escHtml(R.serienummer)||'—'}</div></div>
+    <div class="info-cell"><div class="info-lbl">Serienummer</div><div class="info-val">${R.aantalLaadpalen > 1 ? `${escHtml(R.serienummer)||'—'} (master) — ${R.aantalLaadpalen}×` : (escHtml(R.serienummer)||'—')}</div></div>
     <div class="info-cell"><div class="info-lbl">Type / uitvoering</div><div class="info-val">${productInfo}</div></div>
   </div>
 </div>
