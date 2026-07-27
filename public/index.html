@@ -1461,6 +1461,7 @@
     <div class="mftr">
       <button class="btn-cancel" onclick="closeLocalDet()">Sluiten</button>
       <button class="btn-cancel" onclick="openFotoModal(_localDetEvent?.id)">📷 Foto's</button>
+      <button class="btn-cancel" id="ld-btn-rapport" onclick="openRapport(_localDetEvent?.id, _localDetEvent?.datum)">📋 Rapport</button>
       <button class="btn-cancel" id="ld-edit-btn" onclick="editFromLocalDet()">✏️ Bewerken</button>
       <button class="btn-cancel" id="ld-del-btn" style="color:var(--red);border-color:var(--red)" onclick="deleteFromLocalDet()">🗑 Verwijderen</button>
     </div>
@@ -2508,10 +2509,27 @@ function onBlockBtnClick(btn) {
 }
 
 function getPlanningTicket(id) {
-  return allTickets.find(t => t.id === id)
+  const real = allTickets.find(t => t.id === id)
       || allPending.find(t => t.id === id)
       || allGepland.find(t => t.id === id)
       || Object.values(planning).flat().find(p => p.ticket.id === id)?.ticket;
+  if (real) return real;
+
+  const ev = localEvents.find(e => e.id === id);
+  if (!ev) return undefined;
+  // Pseudo-ticket voor manuele/geïmporteerde afspraken zonder Zoho-ticket, zodat
+  // openRapport() ze kan behandelen als een gewoon ticket. account/partner blijven
+  // bewust leeg (niet ev.titel) — R.installateur leest ticket.partner||ticket.account,
+  // en zou anders bij élke afspraak foutief op "Ja" komen te staan.
+  return {
+    id: ev.id, number: '', subject: ev.titel,
+    address: ev.adres || '', hasAddress: !!ev.adres,
+    assignee: ev.persoon || '',
+    phone: ev.telefoon || '', telefoonEindklant: ev.telefoon || '',
+    contact: ev.titel, account: '', partner: '',
+    serienummer: '', priority: '',
+    isLocal: true,
+  };
 }
 
 // ══════════════════════════════════════════════
@@ -3026,6 +3044,7 @@ let _localDetEvent = null;
 
 function openLocalEventDetail(ev) {
   _localDetEvent = ev;
+  document.getElementById('ld-btn-rapport').style.display = ev.type === 'Installatie' ? 'none' : '';
   document.getElementById('ld-type').innerHTML  = `<span class="cal-local-type">${escHtml(ev.type)}</span>`;
   document.getElementById('ld-titel').textContent = ev.titel || '—';
 
@@ -6667,3 +6686,4 @@ function getPrijsVoorId(id) {
 </script>
 </body>
 </html>
+
