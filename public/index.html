@@ -521,6 +521,8 @@
     }
     .cal-ticket.pending::before  { background: var(--orange); }
     .cal-ticket.confirmed::before { background: var(--green); }
+    .cal-ticket.afgerond::before { background: var(--muted); }
+    .cal-ticket.afgerond { opacity: 0.7; }
     .cal-ticket:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); background: var(--surface2); }
     .cal-ticket:active { transform: none; }
     .cal-num { font-size: 0.62rem; font-weight: 600; color: var(--muted); font-family: monospace; margin: 0 0 3px 4px; }
@@ -528,6 +530,7 @@
     .cal-badge { font-size: 0.59rem; font-weight: 600; padding: 1px 6px; border-radius: 20px; display: inline-block; margin: 0 0 4px 4px; }
     .cal-badge.pending  { background: var(--orange-dim); color: var(--orange); }
     .cal-badge.confirmed { background: var(--green-dim);  color: var(--green); }
+    .cal-badge.afgerond { background: var(--surface3); color: var(--muted); }
     .cal-meta { font-size: 0.8rem; color: var(--text); margin-left: 4px; }
     .cal-addr { font-size: 0.64rem; color: var(--muted); margin: 2px 0 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .cal-addr.miss { color: rgba(248,81,73,0.75); }
@@ -2230,6 +2233,26 @@ function buildTicketCard(stop, dateStr) {
   return card;
 }
 
+function buildReportCard(entry) {
+  const rd = entry.rapportData || {};
+  const tijdLabel = rd.start ? `${rd.start}${rd.stop ? '–' + rd.stop : ''}` : '';
+  const card = document.createElement('div');
+  card.className = 'cal-ticket afgerond';
+  card.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px">
+      <div style="flex:1;min-width:0">
+        <div class="cal-num">#${escHtml(entry.ticketNumber || entry.ticketId || '')}</div>
+        <span class="cal-badge afgerond">✅ Afgerond</span>
+        ${tijdLabel ? `<div class="cal-meta" style="font-weight:600">🕐 ${tijdLabel}</div>` : ''}
+        <div class="cal-sub">${escHtml(entry.klant) || '—'}</div>
+        ${entry.technieker ? `<div class="cal-meta">${escHtml(entry.technieker)}</div>` : ''}
+        <div class="cal-addr ${entry.adres ? '' : 'miss'}">${entry.adres ? escHtml(entry.adres) : 'Geen adres'}</div>
+      </div>
+    </div>`;
+  card.addEventListener('click', () => herOpenRapport(_rapportArchief.indexOf(entry)));
+  return card;
+}
+
 function buildLocalEventCard(ev) {
   const card = document.createElement('div');
   card.className = 'cal-local-event';
@@ -2360,20 +2383,30 @@ function renderKalender() {
       return !e.persoon || e.persoon === activeAssigneeFilter;
     });
 
+    // Afgeronde tickets met een rapport (blijven zichtbaar ook nadat Zoho ze sluit/verwijdert).
+    // Uitgesloten als het ticket toevallig nog live in dayStops staat (rapport al gemaakt,
+    // ticket in Zoho nog niet gesloten) — anders zie je hetzelfde ticket dubbel.
+    const dayReports = _rapportArchief.filter(r =>
+      r.datum === dateStr &&
+      (activeAssigneeFilter === 'all' || r.technieker === activeAssigneeFilter) &&
+      !dayStops.some(s => s.ticket.id === r.ticketId)
+    );
+
     const timeline = [
       ...dayStops.map(stop => ({ kind: 'ticket', sortKey: stop.uur || '99:99', stop })),
       ...dayEvents.map(ev   => ({ kind: 'event',  sortKey: ev.uur   || '99:99', ev })),
+      ...dayReports.map(r    => ({ kind: 'report', sortKey: r.rapportData?.start || '99:99', report: r })),
     ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
     timeline.forEach(item => {
-      const card = item.kind === 'ticket'
-        ? buildTicketCard(item.stop, dateStr)
-        : buildLocalEventCard(item.ev);
+      const card = item.kind === 'ticket' ? buildTicketCard(item.stop, dateStr)
+        : item.kind === 'event' ? buildLocalEventCard(item.ev)
+        : buildReportCard(item.report);
       col.querySelector('.day-body').appendChild(card);
     });
 
-    // "—" placeholder verwijderen als er nu events zijn
-    if (dayStops.length === 0 && dayEvents.length > 0) {
+    // "—" placeholder verwijderen als er nu events of afgeronde rapporten zijn
+    if (dayStops.length === 0 && (dayEvents.length > 0 || dayReports.length > 0)) {
       const empty = col.querySelector('.day-empty');
       if (empty) empty.remove();
     }
