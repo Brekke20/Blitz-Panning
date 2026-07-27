@@ -79,6 +79,23 @@ export async function handler(event) {
 
     const gisterenDatum = gisterenBrusselDatum();
 
+    // Klantbeschikbaarheid-duur-overrides opvragen. Ontbrekend/falend mag de
+    // hele export niet laten falen -- valt terug op DEFAULT_DUUR_MIN.
+    // Let op: kbData.items[ticketId].duurOverride wordt momenteel NOOIT
+    // server-side gepersisteerd (klantbeschikbaarheid.js's PUT-handler slaat
+    // enkel voorkeur/geblokkeerd/notitie/bijgewerkt op -- gekend, bewust
+    // uitgesteld euvel, zie docs/superpowers/plans/2026-07-25-bug-fix-roadmap.md
+    // regel 2211). Deze code is dus correct maar inert totdat dat gefixt is;
+    // ze pikt de override automatisch op zodra dat gebeurt.
+    const kbRes = await fetch(`${url}/api/klantbeschikbaarheid`);
+    const kbData = kbRes.ok ? await kbRes.json().catch(() => ({})) : {};
+    const kbPerTicket = kbData.items || {};
+
+    const duurVoor = (ticketId) => {
+      const override = kbPerTicket[ticketId]?.duurOverride;
+      return (typeof override === 'number' && override > 0) ? override : DEFAULT_DUUR_MIN;
+    };
+
     const geplandeTickets = alleTickets.filter(t => t.interventieDatum);
 
     const items = geplandeTickets
@@ -87,7 +104,7 @@ export async function handler(event) {
         if (isNaN(dt.getTime())) return null;
         const { datum, uur, uurNum, minNum } = brusselVelden(dt);
         if (datum < gisterenDatum) return null;
-        const eindMin = uurNum * 60 + minNum + DEFAULT_DUUR_MIN;
+        const eindMin = uurNum * 60 + minNum + duurVoor(t.id);
         const eindtijd = `${String(Math.floor(eindMin / 60) % 24).padStart(2, '0')}:${String(eindMin % 60).padStart(2, '0')}`;
         return {
           id: t.id,
@@ -106,9 +123,43 @@ export async function handler(event) {
       })
       .filter(Boolean);
 
-    items.sort((a, b) => (a.datum + a.starttijd).localeCompare(b.datum + b.starttijd));
+    // Handmatige afspraken ophalen en samenvoegen. Let op: afspraken.js'
+    // PUT-handler slaat enkel {id,titel,datum,uur,einduur,type,persoon,
+    // notitie,telefoon,email,bron,origResp} op -- GEEN `adres`, hoewel de
+    // client (index.html) dat veld wel op elk event zet. Dat veld wordt dus
+    // stil weggegooid bij elke save; `adres` hieronder is bijgevolg altijd
+    // null voor bron:'handmatig'-items totdat afspraken.js dat ook bewaart
+    // (nieuw ontdekt tijdens deze implementatie, apart gemeld -- niet in de
+    // bestaande bug-roadmap).
+    const afsprakenRes = await fetch(`${url}/api/afspraken`);
+    if (!afsprakenRes.ok) {
+      const errBody = await afsprakenRes.json().catch(() => ({}));
+      throw new Error(`Afspraken ophalen mislukt (${afsprakenRes.status}): ${JSON.stringify(errBody)}`);
+    }
+    const afsprakenData = await afsprakenRes.json();
+    const lokaleAfspraken = afsprakenData.afspraken || [];
 
-    return { statusCode: 200, headers, body: JSON.stringify(items) };
+    const lokaleItems = lokaleAfspraken
+      .filter(ev => ev.datum && ev.datum >= gisterenDatum)
+      .map(ev => ({
+        id: ev.id,
+        bron: 'handmatig',
+        ticketnummer: null,
+        type: ev.type || null,
+        datum: ev.datum,
+        starttijd: ev.uur || null,
+        eindtijd: ev.einduur || null,
+        technieker: ev.persoon || null,
+        klant: ev.notitie || null,
+        adres: ev.adres || null,
+        omschrijving: ev.titel || null,
+        status: 'gepland',
+      }));
+
+    const alleItems = [...items, ...lokaleItems];
+    alleItems.sort((a, b) => (a.datum + (a.starttijd || '')).localeCompare(b.datum + (b.starttijd || '')));
+
+    return { statusCode: 200, headers, body: JSON.stringify(alleItems) };
   } catch (err) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
   }
