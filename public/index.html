@@ -2245,6 +2245,8 @@ function buildLocalEventCard(ev) {
       ${ev.telefoon ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(ev.telefoon)}">📞 Bellen</a>` : ''}
       ${adresLabel ? `<button class="cal-btn cal-ev-nav">🧭 Navigeer</button>` : ''}
     </div>`;
+  // ev.id komt uit de afspraken-blob (niet-geauthenticeerd) — via closure doorgeven i.p.v.
+  // inline onclick, want een inline JS-string is niet veilig tegen apostrofs in de brondata.
   card.querySelector('.cal-local-del')?.addEventListener('click', e => { e.stopPropagation(); removeLocalEvent(ev.id); });
   card.querySelector('.cal-ev-call')?.addEventListener('click', e => e.stopPropagation());
   card.querySelector('.cal-ev-nav')?.addEventListener('click', e => { e.stopPropagation(); navigate(encodeURIComponent(adresLabel)); });
@@ -2523,7 +2525,7 @@ function getPlanningTicket(id) {
   // en zou anders bij élke afspraak foutief op "Ja" komen te staan.
   return {
     id: ev.id, number: '', subject: ev.titel,
-    address: ev.adres || '', hasAddress: !!ev.adres,
+    address: ev.adres || ev.notitie || '', hasAddress: !!(ev.adres || ev.notitie),
     assignee: ev.persoon || '',
     phone: ev.telefoon || '', telefoonEindklant: ev.telefoon || '',
     contact: ev.titel, account: '', partner: '',
@@ -4853,6 +4855,7 @@ async function openRapport(ticketId, date) {
   const ticket = getPlanningTicket(ticketId);
   if (!ticket) return toast('Ticket niet gevonden');
   closeDet();
+  closeLocalDet();
   _wizTicket = ticket;
   _wizDate   = date;
 
@@ -4881,6 +4884,8 @@ async function openRapport(ticketId, date) {
   // Aanrijtijd wordt altijd berekend vanaf de ingestelde startlocatie naar het
   // interventie-adres — nooit hergebruikt uit een al-berekende route, nooit vanaf
   // de vorige stop van de dag. Geldt voor elk ticket (Zoho én lokale afspraken).
+  // De routeplanning zelf (calculateRoute/autoPlan/optimizeRoute) gebruikt deze
+  // berekening niet en blijft ongewijzigd.
   R.aanrijtijdMin = 0;
   if (ticket.hasAddress && settings.startlocatie) {
     try {
@@ -5008,7 +5013,7 @@ function updateWerktijd() {
 
 // ── Stap 1: Algemeen ──
 function wizRenderAlgemeen(el) {
-  const zohoRef = _wizTicket.number ? `#${_wizTicket.number}` : (_wizTicket.id || '');
+  const zohoRef = _wizTicket.number ? `#${_wizTicket.number}` : (_wizTicket.isLocal ? '' : (_wizTicket.id || ''));
   el.innerHTML = `
     <div class="wiz-step-title">Algemeen</div>
     <div class="wiz-info-chip">
@@ -5682,7 +5687,7 @@ function buildRapportHtml() {
     ? ('Vaste kabel' + (R.kabellengte ? ' ' + R.kabellengte : ''))
     : R.kabel === 'socket' ? 'Socket' : '';
   const productInfo = [R.type, R.uitvoering, kabelStr].filter(Boolean).join(' · ') || '—';
-  const zohoRef     = _wizTicket.number ? `#${_wizTicket.number}` : (_wizTicket.id || '');
+  const zohoRef     = _wizTicket.number ? `#${_wizTicket.number}` : (_wizTicket.isLocal ? '' : (_wizTicket.id || ''));
   const datumStr    = R.datum
     ? new Date(R.datum + 'T12:00:00').toLocaleDateString('nl-BE', { day:'numeric', month:'long', year:'numeric' })
     : '—';
