@@ -1834,6 +1834,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAfspraken();
   loadKlantBeschikbaarheid();
   loadTickets();
+  laadRapportArchief();
   startTicketPolling();
   // Initialiseer tab indicator op de actieve tab
   setTimeout(() => updateTabIndicator('tab-tickets'), 0);
@@ -5990,6 +5991,7 @@ async function laadRapportArchief() {
     _rapportArchief = data.rapports || [];
     _archiefVersie = data.versie || 0;
     renderRapportArchief();
+    renderKalender();
   } catch (err) {
     body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">❌ Laden mislukt: ${err.message}</div>`;
   }
