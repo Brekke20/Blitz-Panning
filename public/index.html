@@ -528,7 +528,7 @@
     .cal-badge { font-size: 0.59rem; font-weight: 600; padding: 1px 6px; border-radius: 20px; display: inline-block; margin: 0 0 4px 4px; }
     .cal-badge.pending  { background: var(--orange-dim); color: var(--orange); }
     .cal-badge.confirmed { background: var(--green-dim);  color: var(--green); }
-    .cal-meta { font-size: 0.65rem; color: var(--muted); margin-left: 4px; }
+    .cal-meta { font-size: 0.8rem; color: var(--text); margin-left: 4px; }
     .cal-addr { font-size: 0.64rem; color: var(--muted); margin: 2px 0 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .cal-addr.miss { color: rgba(248,81,73,0.75); }
     .cal-actions { display: flex; gap: 6px; margin: 8px 4px 0 4px; }
@@ -559,7 +559,7 @@
     }
     .cal-local-event .cal-sub { margin-bottom: 2px; }
     .cal-local-type { font-size: 0.59rem; font-weight: 600; padding: 1px 6px; border-radius: 20px; display: inline-block; margin: 0 0 3px 4px; background: rgba(124,92,252,0.15); color: #7c5cfc; }
-    .cal-local-time { font-size: 0.65rem; color: var(--muted); margin-left: 4px; }
+    .cal-local-time { font-size: 0.8rem; color: var(--text); font-weight: 600; margin-left: 4px; }
     .cal-local-del { position: absolute; top: 5px; right: 6px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem; padding: 0 2px; }
     .cal-local-event:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); background: var(--surface2); }
     .cal-local-event:active { transform: none; }
@@ -1461,6 +1461,7 @@
     <div class="mftr">
       <button class="btn-cancel" onclick="closeLocalDet()">Sluiten</button>
       <button class="btn-cancel" onclick="openFotoModal(_localDetEvent?.id)">📷 Foto's</button>
+      <button class="btn-cancel" id="ld-btn-rapport" onclick="openRapport(_localDetEvent?.id, _localDetEvent?.datum)">📋 Rapport</button>
       <button class="btn-cancel" id="ld-edit-btn" onclick="editFromLocalDet()">✏️ Bewerken</button>
       <button class="btn-cancel" id="ld-del-btn" style="color:var(--red);border-color:var(--red)" onclick="deleteFromLocalDet()">🗑 Verwijderen</button>
     </div>
@@ -2198,6 +2199,61 @@ function setKalView(v) {
   renderKalender();
 }
 
+function buildTicketCard(stop, dateStr) {
+  const isPending   = stop.ticket.status === 'Wachten op bevestiging planning';
+  const cardClass   = isPending ? 'pending' : 'confirmed';
+  const badgeLabel  = isPending ? 'Wacht bevestiging' : 'Bevestigd';
+  const card        = document.createElement('div');
+  card.className    = `cal-ticket ${cardClass}`;
+  card.innerHTML    = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px">
+      <div style="flex:1;min-width:0">
+        <div class="cal-num">#${escHtml(stop.ticket.number)}</div>
+        <span class="cal-badge ${cardClass}">${badgeLabel}</span>
+        ${stop.uur ? `<div class="cal-meta" style="font-weight:600">🕐 ${stop.uur}</div>` : ''}
+        <div class="cal-sub">${escHtml(stop.ticket.subject) || '—'}</div>
+        ${stop.ticket.assignee ? `<div class="cal-meta">${escHtml(stop.ticket.assignee)}</div>` : ''}
+        <div class="cal-addr ${stop.ticket.hasAddress ? '' : 'miss'}">${stop.ticket.hasAddress ? escHtml(stop.address) : 'Geen adres'}</div>
+      </div>
+      <button onclick="event.stopPropagation();removeTicketFromDate('${stop.ticket.id}','${dateStr}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;flex-shrink:0;padding:2px 4px;line-height:1">×</button>
+    </div>
+    <div class="cal-actions">
+      ${stop.ticket.phone || stop.ticket.telefoonEindklant ? `<a class="cal-btn" href="tel:${escHtml(stop.ticket.telefoonEindklant||stop.ticket.phone)}">📞 Bellen</a>` : ''}
+      ${stop.ticket.hasAddress ? `<button class="cal-btn btn-navigeer" data-adres="${escHtml(stop.address||stop.ticket.address||'')}">🧭 Navigeer</button>` : ''}
+    </div>`;
+  card.querySelector('.btn-navigeer')?.addEventListener('click', e => {
+    e.stopPropagation();
+    navigate(encodeURIComponent(e.currentTarget.dataset.adres));
+  });
+  card.addEventListener('click', () => openDetail(stop.ticket));
+  return card;
+}
+
+function buildLocalEventCard(ev) {
+  const card = document.createElement('div');
+  card.className = 'cal-local-event';
+  const tijdLabel = ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '';
+  const adresLabel = ev.adres || ev.notitie;
+  card.innerHTML = `
+    <button class="cal-local-del" title="Verwijderen">✕</button>
+    <span class="cal-local-type">${escHtml(ev.type)}</span>
+    <div class="cal-sub" style="margin-top:2px">${escHtml(ev.titel)}</div>
+    ${tijdLabel ? `<div class="cal-local-time">⏱ ${tijdLabel}</div>` : ''}
+    ${adresLabel ? `<div class="cal-addr">${escHtml(adresLabel)}</div>` : ''}
+    ${ev.persoon ? `<div class="cal-meta">${escHtml(ev.persoon)}</div>` : ''}
+    <div class="cal-actions">
+      ${ev.telefoon ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(ev.telefoon)}">📞 Bellen</a>` : ''}
+      ${adresLabel ? `<button class="cal-btn cal-ev-nav">🧭 Navigeer</button>` : ''}
+    </div>`;
+  // ev.id komt uit de afspraken-blob (niet-geauthenticeerd) — via closure doorgeven i.p.v.
+  // inline onclick, want een inline JS-string is niet veilig tegen apostrofs in de brondata.
+  card.querySelector('.cal-local-del')?.addEventListener('click', e => { e.stopPropagation(); removeLocalEvent(ev.id); });
+  card.querySelector('.cal-ev-call')?.addEventListener('click', e => e.stopPropagation());
+  card.querySelector('.cal-ev-nav')?.addEventListener('click', e => { e.stopPropagation(); navigate(encodeURIComponent(adresLabel)); });
+  card.addEventListener('click', () => openLocalEventDetail(ev));
+  return card;
+}
+
 function renderKalender() {
   const today     = new Date(); today.setHours(0,0,0,0);
 
@@ -2296,64 +2352,22 @@ function renderKalender() {
         ${dayStops.length === 0 ? '<div class="day-empty">—</div>' : ''}
       </div>`;
 
-    dayStops.forEach(stop => {
-      const isPending   = stop.ticket.status === 'Wachten op bevestiging planning';
-      const cardClass   = isPending ? 'pending' : 'confirmed';
-      const badgeLabel  = isPending ? 'Wacht bevestiging' : 'Bevestigd';
-      const card        = document.createElement('div');
-      card.className    = `cal-ticket ${cardClass}`;
-      card.innerHTML    = `
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px">
-          <div style="flex:1;min-width:0">
-            <div class="cal-num">#${escHtml(stop.ticket.number)}</div>
-            <span class="cal-badge ${cardClass}">${badgeLabel}</span>
-            ${stop.uur ? `<div class="cal-meta" style="font-weight:600">🕐 ${stop.uur}</div>` : ''}
-            <div class="cal-sub">${escHtml(stop.ticket.subject) || '—'}</div>
-            ${stop.ticket.assignee ? `<div class="cal-meta">${escHtml(stop.ticket.assignee)}</div>` : ''}
-            <div class="cal-addr ${stop.ticket.hasAddress ? '' : 'miss'}">${stop.ticket.hasAddress ? escHtml(stop.address) : 'Geen adres'}</div>
-          </div>
-          <button onclick="event.stopPropagation();removeTicketFromDate('${stop.ticket.id}','${dateStr}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;flex-shrink:0;padding:2px 4px;line-height:1">×</button>
-        </div>
-        <div class="cal-actions">
-          ${stop.ticket.phone || stop.ticket.telefoonEindklant ? `<a class="cal-btn" href="tel:${escHtml(stop.ticket.telefoonEindklant||stop.ticket.phone)}">📞 Bellen</a>` : ''}
-          ${stop.ticket.hasAddress ? `<button class="cal-btn btn-navigeer" data-adres="${escHtml(stop.address||stop.ticket.address||'')}">🧭 Navigeer</button>` : ''}
-        </div>`;
-      card.querySelector('.btn-navigeer')?.addEventListener('click', e => {
-        e.stopPropagation();
-        navigate(encodeURIComponent(e.currentTarget.dataset.adres));
-      });
-      card.addEventListener('click', () => openDetail(stop.ticket));
-      col.querySelector('.day-body').appendChild(card);
-    });
-
     // Lokale afspraken (import / manueel)
     const dayEvents = localEvents.filter(e => {
       if (e.datum !== dateStr) return false;
       if (activeAssigneeFilter === 'all') return true;
       return !e.persoon || e.persoon === activeAssigneeFilter;
     });
-    dayEvents.forEach(ev => {
-      const card = document.createElement('div');
-      card.className = 'cal-local-event';
-      const tijdLabel = ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '';
-      const adresLabel = ev.adres || ev.notitie;
-      card.innerHTML = `
-        <button class="cal-local-del" title="Verwijderen">✕</button>
-        <span class="cal-local-type">${escHtml(ev.type)}</span>
-        <div class="cal-sub" style="margin-top:2px">${escHtml(ev.titel)}</div>
-        ${tijdLabel ? `<div class="cal-local-time">⏱ ${tijdLabel}</div>` : ''}
-        ${adresLabel ? `<div class="cal-addr">${escHtml(adresLabel)}</div>` : ''}
-        ${ev.persoon ? `<div class="cal-meta">${escHtml(ev.persoon)}</div>` : ''}
-        <div class="cal-actions">
-          ${ev.telefoon ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(ev.telefoon)}">📞 Bellen</a>` : ''}
-          ${adresLabel ? `<button class="cal-btn cal-ev-nav">🧭 Navigeer</button>` : ''}
-        </div>`;
-      // ev.id komt uit de afspraken-blob (niet-geauthenticeerd) — via closure doorgeven i.p.v.
-      // inline onclick, want een inline JS-string is niet veilig tegen apostrofs in de brondata.
-      card.querySelector('.cal-local-del')?.addEventListener('click', e => { e.stopPropagation(); removeLocalEvent(ev.id); });
-      card.querySelector('.cal-ev-call')?.addEventListener('click', e => e.stopPropagation());
-      card.querySelector('.cal-ev-nav')?.addEventListener('click', e => { e.stopPropagation(); navigate(encodeURIComponent(adresLabel)); });
-      card.addEventListener('click', () => openLocalEventDetail(ev));
+
+    const timeline = [
+      ...dayStops.map(stop => ({ kind: 'ticket', sortKey: stop.uur || '99:99', stop })),
+      ...dayEvents.map(ev   => ({ kind: 'event',  sortKey: ev.uur   || '99:99', ev })),
+    ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+    timeline.forEach(item => {
+      const card = item.kind === 'ticket'
+        ? buildTicketCard(item.stop, dateStr)
+        : buildLocalEventCard(item.ev);
       col.querySelector('.day-body').appendChild(card);
     });
 
@@ -2497,10 +2511,27 @@ function onBlockBtnClick(btn) {
 }
 
 function getPlanningTicket(id) {
-  return allTickets.find(t => t.id === id)
+  const real = allTickets.find(t => t.id === id)
       || allPending.find(t => t.id === id)
       || allGepland.find(t => t.id === id)
       || Object.values(planning).flat().find(p => p.ticket.id === id)?.ticket;
+  if (real) return real;
+
+  const ev = localEvents.find(e => e.id === id);
+  if (!ev) return undefined;
+  // Pseudo-ticket voor manuele/geïmporteerde afspraken zonder Zoho-ticket, zodat
+  // openRapport() ze kan behandelen als een gewoon ticket. account/partner blijven
+  // bewust leeg (niet ev.titel) — R.installateur leest ticket.partner||ticket.account,
+  // en zou anders bij élke afspraak foutief op "Ja" komen te staan.
+  return {
+    id: ev.id, number: '', subject: ev.titel,
+    address: ev.adres || ev.notitie || '', hasAddress: !!(ev.adres || ev.notitie),
+    assignee: ev.persoon || '',
+    phone: ev.telefoon || '', telefoonEindklant: ev.telefoon || '',
+    contact: ev.titel, account: '', partner: '',
+    serienummer: '', priority: '',
+    isLocal: true,
+  };
 }
 
 // ══════════════════════════════════════════════
@@ -3015,6 +3046,7 @@ let _localDetEvent = null;
 
 function openLocalEventDetail(ev) {
   _localDetEvent = ev;
+  document.getElementById('ld-btn-rapport').style.display = ev.type === 'Installatie' ? 'none' : '';
   document.getElementById('ld-type').innerHTML  = `<span class="cal-local-type">${escHtml(ev.type)}</span>`;
   document.getElementById('ld-titel').textContent = ev.titel || '—';
 
@@ -4823,6 +4855,7 @@ async function openRapport(ticketId, date) {
   const ticket = getPlanningTicket(ticketId);
   if (!ticket) return toast('Ticket niet gevonden');
   closeDet();
+  closeLocalDet();
   _wizTicket = ticket;
   _wizDate   = date;
 
@@ -4848,59 +4881,35 @@ async function openRapport(ticketId, date) {
   R.facturatie     = 'klant';
   R.facturatieVrij = '';
   R.servicetype    = '2e-lijn';
-  // Aanrijtijd ophalen uit TomTom routeData als die beschikbaar is voor deze datum
+  // Aanrijtijd wordt altijd berekend vanaf de ingestelde startlocatie naar het
+  // interventie-adres — nooit hergebruikt uit een al-berekende route, nooit vanaf
+  // de vorige stop van de dag. Geldt voor elk ticket (Zoho én lokale afspraken).
+  // De routeplanning zelf (calculateRoute/autoPlan/optimizeRoute) gebruikt deze
+  // berekening niet en blijft ongewijzigd.
   R.aanrijtijdMin = 0;
-  if (routeData?.legs && currentRouteDate === date) {
-    const filterPerson = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
-    // Zelfde filter als calculateRoute()'s `stops.filter(p => p._lat)` (zie allWpStops daar):
-    // enkel stops die daadwerkelijk als waypoint meegingen tellen mee — anders schuift stopIdx
-    // uit fase met routeData.legs zodra er een niet-geocodeerde/adresloze stop tussen zit.
-    const dayStops = (planning[date] || []).filter(p => (!filterPerson || p.ticket.assignee === filterPerson) && p._lat);
-    const stopIdx  = dayStops.findIndex(p => p.ticket.id === ticketId);
-    // stopIdx is 0-based binnen de gefilterde lijst die ook de waypoints van calculateRoute vormde;
-    // legs[stopIdx] is de rit die aankomt bij deze stop (empirisch bevestigd: legs[i] = leg die
-    // aankomt bij allStops[i], zelfde conventie als hierboven in renderRouteList) — geen offset nodig.
-    if (stopIdx >= 0 && routeData.legs[stopIdx]) {
-      R.aanrijtijdMin = Math.round(routeData.legs[stopIdx].travelTimeSeconds / 60);
-    }
-  }
-  // Geen routeData beschikbaar → TomTom direct bevragen, maar vertrek vanaf de vorige
-  // stop van diezelfde dag/technieker (op basis van geplande tijd) indien die er is —
-  // anders wordt elke stop na de eerste onterecht gefactureerd alsof de technieker apart
-  // van het bureau vertrok. Enkel voor de rapport-facturatie; de routeplanning zelf
-  // (calculateRoute/autoPlan/optimizeRoute) gebruikt deze functie niet en blijft ongewijzigd.
-  if (R.aanrijtijdMin === 0 && ticket.hasAddress) {
-    const sameDayOwnStops = (planning[date] || [])
-      .filter(p => p.ticket.assignee === ticket.assignee && p.ticket.hasAddress && p.uur)
-      .sort((a, b) => (a.uur || '').localeCompare(b.uur || ''));
-    const ownIdx   = sameDayOwnStops.findIndex(p => p.ticket.id === ticketId);
-    const prevStop = ownIdx > 0 ? sameDayOwnStops[ownIdx - 1] : null;
-    const aanrijOrigin = prevStop ? prevStop.address : settings.startlocatie;
-
-    if (aanrijOrigin) {
-      try {
-        toast('📡 Aanrijtijd berekenen...', 5000);
-        const gRes  = await fetch('/api/optimize', {
+  if (ticket.hasAddress && settings.startlocatie) {
+    try {
+      toast('📡 Aanrijtijd berekenen...', 5000);
+      const gRes  = await fetch('/api/optimize', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ origin: settings.startlocatie, stops: [ticket.address] }),
+      });
+      const gData = await gRes.json();
+      const origin = gData.locations?.[0];
+      const dest   = gData.locations?.[1];
+      if (origin && dest) {
+        const rRes  = await fetch('/api/route', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ origin: aanrijOrigin, stops: [ticket.address] }),
+          body:    JSON.stringify({ waypoints: [origin, dest] }),
         });
-        const gData = await gRes.json();
-        const origin = gData.locations?.[0];
-        const dest   = gData.locations?.[1];
-        if (origin && dest) {
-          const rRes  = await fetch('/api/route', {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ waypoints: [origin, dest] }),
-          });
-          const rData = await rRes.json();
-          if (rData.legs?.[0]?.travelTimeSeconds) {
-            R.aanrijtijdMin = Math.round(rData.legs[0].travelTimeSeconds / 60);
-          }
+        const rData = await rRes.json();
+        if (rData.legs?.[0]?.travelTimeSeconds) {
+          R.aanrijtijdMin = Math.round(rData.legs[0].travelTimeSeconds / 60);
         }
-      } catch { /* niet fataal, aanrijtijd blijft 0 */ }
-    }
+      }
+    } catch { /* niet fataal, aanrijtijd blijft 0 */ }
   }
   R.type = ''; R.uitvoering = ''; R.kabel = ''; R.kabellengte = '';
   R.hersteld = 'nee'; R.nieuwInter = 'nee';
@@ -5004,7 +5013,7 @@ function updateWerktijd() {
 
 // ── Stap 1: Algemeen ──
 function wizRenderAlgemeen(el) {
-  const zohoRef = _wizTicket.number ? `#${_wizTicket.number}` : (_wizTicket.id || '');
+  const zohoRef = _wizTicket.number ? `#${_wizTicket.number}` : (_wizTicket.isLocal ? '' : (_wizTicket.id || ''));
   el.innerHTML = `
     <div class="wiz-step-title">Algemeen</div>
     <div class="wiz-info-chip">
@@ -5678,7 +5687,7 @@ function buildRapportHtml() {
     ? ('Vaste kabel' + (R.kabellengte ? ' ' + R.kabellengte : ''))
     : R.kabel === 'socket' ? 'Socket' : '';
   const productInfo = [R.type, R.uitvoering, kabelStr].filter(Boolean).join(' · ') || '—';
-  const zohoRef     = _wizTicket.number ? `#${_wizTicket.number}` : (_wizTicket.id || '');
+  const zohoRef     = _wizTicket.number ? `#${_wizTicket.number}` : (_wizTicket.isLocal ? '' : (_wizTicket.id || ''));
   const datumStr    = R.datum
     ? new Date(R.datum + 'T12:00:00').toLocaleDateString('nl-BE', { day:'numeric', month:'long', year:'numeric' })
     : '—';
@@ -5881,9 +5890,15 @@ function printRapport() {
   // Upload en archiveer slechts één keer per wizard-sessie (guard tegen dubbele uploads)
   if (!_rapportUploaded) {
     _rapportUploaded = true;
-    const rapportFilename = `rapport-${_wizTicket.number || _wizTicket.id}-${R.datum || 'onbekend'}.pdf`;
-    uploadRapportToZoho(html, _wizTicket.id, rapportFilename);
-    archiveerRapport(html);
+    if (_wizTicket.isLocal) {
+      // Geen Zoho-ticket gekoppeld aan manuele/geïmporteerde afspraken — enkel archiveren.
+      archiveerRapport(html);
+      toast('✅ Rapport opgeslagen in archief — geen Zoho-ticket gekoppeld', 4000);
+    } else {
+      const rapportFilename = `rapport-${_wizTicket.number || _wizTicket.id}-${R.datum || 'onbekend'}.pdf`;
+      uploadRapportToZoho(html, _wizTicket.id, rapportFilename);
+      archiveerRapport(html);
+    }
   }
 
   // Wizard sluiten na geslaagd rapport — geen bevestigingsdialog meer nodig
@@ -6656,3 +6671,4 @@ function getPrijsVoorId(id) {
 </script>
 </body>
 </html>
+
