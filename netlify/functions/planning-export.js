@@ -1,0 +1,180 @@
+// /api/planning-export
+// Geeft alle geplande Blitz Planning-activiteit (Zoho-tickets met ingevulde
+// interventiedatum + handmatige afspraken) terug als JSON, voor externe
+// koppelingen (bv. de Base44-planningsapp van een collega). Read-only,
+// machine-naar-machine — geen gebruikersauthenticatie, enkel een gedeelde
+// API-sleutel via de Authorization-header.
+// Zie docs/superpowers/specs/2026-07-27-planning-export-integratie-design.md
+
+const DEFAULT_DUUR_MIN = 120; // zelfde standaardwaarde als DEFAULT_SETTINGS.duurMinuten in index.html
+
+// Zet een Date (die intern altijd UTC/epoch is) om naar Brussel-lokale
+// kalenderdag/-tijd, ongeacht de tijdzone waarin het serverproces zelf
+// draait (Netlify Functions draaien standaard op TZ=UTC). Intl.DateTimeFormat
+// met timeZone: 'Europe/Brussels' handelt zomer-/wintertijd automatisch af.
+function brusselVelden(dt) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Brussels',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(dt).map(p => [p.type, p.value]));
+  return {
+    datum: `${parts.year}-${parts.month}-${parts.day}`,
+    uur: `${parts.hour}:${parts.minute}`,
+    uurNum: parseInt(parts.hour, 10),
+    minNum: parseInt(parts.minute, 10),
+  };
+}
+
+// Brussel-lokale kalenderdag van "gisteren", als YYYY-MM-DD-string, voor de
+// afkap-vergelijking. Rekent in UTC-kalenderdagen (met het middaguur als anker
+// om DST-randgevallen te vermijden) zodat er geen server-tijdzone in sluipt.
+function gisterenBrusselDatum() {
+  const { datum } = brusselVelden(new Date());
+  const [y, m, d] = datum.split('-').map(Number);
+  const anker = new Date(Date.UTC(y, m - 1, d, 12));
+  anker.setUTCDate(anker.getUTCDate() - 1);
+  return anker.toISOString().slice(0, 10);
+}
+
+function baseUrl(event) {
+  const host = event.headers.host || event.headers.Host;
+  const proto = host && host.startsWith('localhost') ? 'http' : 'https';
+  return `${proto}://${host}`;
+}
+
+function checkAuth(event) {
+  const header = event.headers.authorization || event.headers.Authorization || '';
+  const expected = process.env.PLANNING_EXPORT_API_KEY;
+  if (!expected) return false; // fail-closed: geen sleutel geconfigureerd = geen toegang
+  return header === `Bearer ${expected}`;
+}
+
+export async function handler(event) {
+  const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
+
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers };
+  if (event.httpMethod !== 'GET') {
+    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
+  }
+  if (!checkAuth(event)) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
+
+  try {
+    const url = baseUrl(event);
+
+    const ticketsRes = await fetch(`${url}/api/tickets`);
+    if (!ticketsRes.ok) {
+      const errBody = await ticketsRes.json().catch(() => ({}));
+      throw new Error(`Tickets ophalen mislukt (${ticketsRes.status}): ${JSON.stringify(errBody)}`);
+    }
+    const ticketsData = await ticketsRes.json();
+    const alleTickets = [
+      ...(ticketsData.tickets || []),
+      ...(ticketsData.pendingTickets || []),
+      ...(ticketsData.plannedTickets || []),
+    ];
+
+    const gisterenDatum = gisterenBrusselDatum();
+
+    // Klantbeschikbaarheid-duur-overrides opvragen. Ontbrekend/falend mag de
+    // hele export niet laten falen -- valt terug op DEFAULT_DUUR_MIN.
+    // Let op: kbData.items[ticketId].duurOverride wordt momenteel NOOIT
+    // server-side gepersisteerd (klantbeschikbaarheid.js's PUT-handler slaat
+    // enkel voorkeur/geblokkeerd/notitie/bijgewerkt op -- gekend, bewust
+    // uitgesteld euvel, zie docs/superpowers/plans/2026-07-25-bug-fix-roadmap.md
+    // regel 2211). Deze code is dus correct maar inert totdat dat gefixt is;
+    // ze pikt de override automatisch op zodra dat gebeurt.
+    const kbRes = await fetch(`${url}/api/klantbeschikbaarheid`);
+    const kbData = kbRes.ok ? await kbRes.json().catch(() => ({})) : {};
+    const kbPerTicket = kbData.items || {};
+
+    const duurVoor = (ticketId) => {
+      const override = kbPerTicket[ticketId]?.duurOverride;
+      return (typeof override === 'number' && override > 0) ? override : DEFAULT_DUUR_MIN;
+    };
+
+    const geplandeTickets = alleTickets.filter(t => t.interventieDatum);
+
+    const items = geplandeTickets
+      .map(t => {
+        const dt = new Date(t.interventieDatum);
+        if (isNaN(dt.getTime())) return null;
+        const { datum, uur, uurNum, minNum } = brusselVelden(dt);
+        if (datum < gisterenDatum) return null;
+        // Sentinel: lokale middernacht (00:00) = geen tijdstip ingevuld. Dit is
+        // hoe addTicketToDate() in index.html een kalender-inplanning zonder
+        // expliciet uur wegschrijft (quickAdd/autoplan/ticketdetail-pad), en
+        // extractLocalHour() leest diezelfde waarde bewust terug als "geen uur".
+        // Zonder deze check zou dit endpoint zo'n ticket als een echte 00:00-02:00
+        // afspraak exporteren, terwijl Blitz Planning zelf geen uur toont.
+        const geenUur = (uurNum === 0 && minNum === 0);
+        let starttijd = null;
+        let eindtijd = null;
+        if (!geenUur) {
+          const eindMin = uurNum * 60 + minNum + duurVoor(t.id);
+          eindtijd = `${String(Math.floor(eindMin / 60) % 24).padStart(2, '0')}:${String(eindMin % 60).padStart(2, '0')}`;
+          starttijd = uur;
+        }
+        return {
+          id: t.id,
+          bron: 'zoho',
+          ticketnummer: t.number || null,
+          type: 'Interventie',
+          datum,
+          starttijd,
+          eindtijd,
+          technieker: t.assignee || null,
+          klant: t.account || t.naamEindklant || null,
+          adres: t.address || null,
+          omschrijving: t.subject || null,
+          status: t.status || null,
+        };
+      })
+      .filter(Boolean);
+
+    // Handmatige afspraken ophalen en samenvoegen. Let op: afspraken.js'
+    // PUT-handler slaat enkel {id,titel,datum,uur,einduur,type,persoon,
+    // notitie,telefoon,email,bron,origResp} op -- GEEN `adres`, hoewel de
+    // client (index.html) dat veld wel op elk event zet. Dat veld wordt dus
+    // stil weggegooid bij elke save (nieuw ontdekt tijdens deze implementatie,
+    // apart gemeld -- niet in de bestaande bug-roadmap). Omdat `adres`
+    // daardoor structureel ontbreekt, valt `adres` hieronder terug op
+    // `ev.notitie`, exact zoals elke consument in index.html dat ook al doet
+    // (:2339, :3027, :3905, :4012) -- `notitie` is in de praktijk hét
+    // adresveld van dit datamodel totdat afspraken.js `adres` ook bewaart.
+    const afsprakenRes = await fetch(`${url}/api/afspraken`);
+    if (!afsprakenRes.ok) {
+      const errBody = await afsprakenRes.json().catch(() => ({}));
+      throw new Error(`Afspraken ophalen mislukt (${afsprakenRes.status}): ${JSON.stringify(errBody)}`);
+    }
+    const afsprakenData = await afsprakenRes.json();
+    const lokaleAfspraken = afsprakenData.afspraken || [];
+
+    const lokaleItems = lokaleAfspraken
+      .filter(ev => ev.datum && ev.datum >= gisterenDatum)
+      .map(ev => ({
+        id: ev.id,
+        bron: 'handmatig',
+        ticketnummer: null,
+        type: ev.type || null,
+        datum: ev.datum,
+        starttijd: ev.uur || null,
+        eindtijd: ev.einduur || null,
+        technieker: ev.persoon || null,
+        klant: ev.notitie || null,
+        adres: ev.adres || ev.notitie || null,
+        omschrijving: ev.titel || null,
+        status: 'gepland',
+      }));
+
+    const alleItems = [...items, ...lokaleItems];
+    alleItems.sort((a, b) => (a.datum + (a.starttijd || '')).localeCompare(b.datum + (b.starttijd || '')));
+
+    return { statusCode: 200, headers, body: JSON.stringify(alleItems) };
+  } catch (err) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+  }
+}
