@@ -4956,10 +4956,10 @@ function wizRenderStep() {
 }
 
 function wizNext() {
-  const step = WIZ_STEPS[_wizStep];
-  // NOTE: toast text is Omschrijving-specific; generalize (e.g. save() returning the message) if another step opts into save()===false
-  if (step.save && step.save() === false) {
-    toast('⚠️ Selecteer minstens één oorzaak storing', 3500);
+  const step   = WIZ_STEPS[_wizStep];
+  const result = step.save ? step.save() : undefined;
+  if (result === false || typeof result === 'string') {
+    toast(typeof result === 'string' ? result : '⚠️ Kan niet doorgaan naar de volgende stap', 3500);
     return;
   }
   if (_wizStep < WIZ_STEPS.length - 1) {
@@ -5074,6 +5074,9 @@ function wizSaveAlgemeen() {
   R.stop            = wizV('f-stop');
   R.werktijd        = calcWerktijd(R.start, R.stop);
   R.interventieType = document.querySelector('input[name="f-interventieType"]:checked')?.value || 'Interventie';
+  if (R.interventieType === 'Installatie') {
+    return '⚠️ Voor installaties wordt geen rapport aangemaakt — de klant kreeg hiervoor al een offerte.';
+  }
 }
 
 function fmtDuur(min) {
@@ -5321,7 +5324,7 @@ function wizSaveOmschrijving() {
   R.oorzaakStoring = Object.entries(OORZAAK_STORING_MAP)
     .filter(([id]) => document.getElementById(id)?.checked)
     .map(([, label]) => label);
-  return R.oorzaakStoring.length > 0;
+  if (!R.oorzaakStoring.length) return '⚠️ Selecteer minstens één oorzaak storing';
 }
 
 // ── Stap 4b: Foto's ──
