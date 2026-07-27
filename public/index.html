@@ -4878,59 +4878,33 @@ async function openRapport(ticketId, date) {
   R.facturatie     = 'klant';
   R.facturatieVrij = '';
   R.servicetype    = '2e-lijn';
-  // Aanrijtijd ophalen uit TomTom routeData als die beschikbaar is voor deze datum
+  // Aanrijtijd wordt altijd berekend vanaf de ingestelde startlocatie naar het
+  // interventie-adres — nooit hergebruikt uit een al-berekende route, nooit vanaf
+  // de vorige stop van de dag. Geldt voor elk ticket (Zoho én lokale afspraken).
   R.aanrijtijdMin = 0;
-  if (routeData?.legs && currentRouteDate === date) {
-    const filterPerson = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
-    // Zelfde filter als calculateRoute()'s `stops.filter(p => p._lat)` (zie allWpStops daar):
-    // enkel stops die daadwerkelijk als waypoint meegingen tellen mee — anders schuift stopIdx
-    // uit fase met routeData.legs zodra er een niet-geocodeerde/adresloze stop tussen zit.
-    const dayStops = (planning[date] || []).filter(p => (!filterPerson || p.ticket.assignee === filterPerson) && p._lat);
-    const stopIdx  = dayStops.findIndex(p => p.ticket.id === ticketId);
-    // stopIdx is 0-based binnen de gefilterde lijst die ook de waypoints van calculateRoute vormde;
-    // legs[stopIdx] is de rit die aankomt bij deze stop (empirisch bevestigd: legs[i] = leg die
-    // aankomt bij allStops[i], zelfde conventie als hierboven in renderRouteList) — geen offset nodig.
-    if (stopIdx >= 0 && routeData.legs[stopIdx]) {
-      R.aanrijtijdMin = Math.round(routeData.legs[stopIdx].travelTimeSeconds / 60);
-    }
-  }
-  // Geen routeData beschikbaar → TomTom direct bevragen, maar vertrek vanaf de vorige
-  // stop van diezelfde dag/technieker (op basis van geplande tijd) indien die er is —
-  // anders wordt elke stop na de eerste onterecht gefactureerd alsof de technieker apart
-  // van het bureau vertrok. Enkel voor de rapport-facturatie; de routeplanning zelf
-  // (calculateRoute/autoPlan/optimizeRoute) gebruikt deze functie niet en blijft ongewijzigd.
-  if (R.aanrijtijdMin === 0 && ticket.hasAddress) {
-    const sameDayOwnStops = (planning[date] || [])
-      .filter(p => p.ticket.assignee === ticket.assignee && p.ticket.hasAddress && p.uur)
-      .sort((a, b) => (a.uur || '').localeCompare(b.uur || ''));
-    const ownIdx   = sameDayOwnStops.findIndex(p => p.ticket.id === ticketId);
-    const prevStop = ownIdx > 0 ? sameDayOwnStops[ownIdx - 1] : null;
-    const aanrijOrigin = prevStop ? prevStop.address : settings.startlocatie;
-
-    if (aanrijOrigin) {
-      try {
-        toast('📡 Aanrijtijd berekenen...', 5000);
-        const gRes  = await fetch('/api/optimize', {
+  if (ticket.hasAddress && settings.startlocatie) {
+    try {
+      toast('📡 Aanrijtijd berekenen...', 5000);
+      const gRes  = await fetch('/api/optimize', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ origin: settings.startlocatie, stops: [ticket.address] }),
+      });
+      const gData = await gRes.json();
+      const origin = gData.locations?.[0];
+      const dest   = gData.locations?.[1];
+      if (origin && dest) {
+        const rRes  = await fetch('/api/route', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ origin: aanrijOrigin, stops: [ticket.address] }),
+          body:    JSON.stringify({ waypoints: [origin, dest] }),
         });
-        const gData = await gRes.json();
-        const origin = gData.locations?.[0];
-        const dest   = gData.locations?.[1];
-        if (origin && dest) {
-          const rRes  = await fetch('/api/route', {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ waypoints: [origin, dest] }),
-          });
-          const rData = await rRes.json();
-          if (rData.legs?.[0]?.travelTimeSeconds) {
-            R.aanrijtijdMin = Math.round(rData.legs[0].travelTimeSeconds / 60);
-          }
+        const rData = await rRes.json();
+        if (rData.legs?.[0]?.travelTimeSeconds) {
+          R.aanrijtijdMin = Math.round(rData.legs[0].travelTimeSeconds / 60);
         }
-      } catch { /* niet fataal, aanrijtijd blijft 0 */ }
-    }
+      }
+    } catch { /* niet fataal, aanrijtijd blijft 0 */ }
   }
   R.type = ''; R.uitvoering = ''; R.kabel = ''; R.kabellengte = '';
   R.hersteld = 'nee'; R.nieuwInter = 'nee';
