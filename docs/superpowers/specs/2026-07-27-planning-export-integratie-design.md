@@ -108,8 +108,8 @@ Veldherkomst:
 | `ticketnummer` | `t.number` | `null` |
 | `type` | altijd `"Interventie"` — Blitz Planning kent het onderscheid Interventie/Installatie pas ná het bezoek (ingevuld in het service-rapport), niet al bij het inplannen zelf | `ev.type` |
 | `datum` | uit `cf_interventie_datm` | `ev.datum` |
-| `starttijd` | uit `cf_interventie_datm` (lokale tijd) | `ev.uur` |
-| `eindtijd` | `starttijd + duurVoor(ticketId)` (of `settings.duurMinuten` als er geen override is) | `ev.einduur` (indien ingevuld, anders `null`) |
+| `starttijd` | uit `cf_interventie_datm` (lokale tijd) — **behalve** wanneer die op lokale middernacht (00:00) valt: dat is de sentinel die `addTicketToDate()` in `index.html` schrijft voor "wel datum, nog geen uur" (kalender/autoplan-pad), en dan is `starttijd` (net als `eindtijd`) `null`, consistent met hoe `extractLocalHour()` diezelfde waarde leest | `ev.uur` |
+| `eindtijd` | `starttijd + duurVoor(ticketId)` (of `settings.duurMinuten` als er geen override is); `null` bij de middernacht-sentinel hierboven | `ev.einduur` (indien ingevuld, anders `null`) |
 | `technieker` | `t.assignee` | `ev.persoon` |
 | `klant` | `t.account \|\| t.naamEindklant` | `ev.notitie` (beste beschikbare aanduiding) |
 | `adres` | `t.address` | `ev.adres` |

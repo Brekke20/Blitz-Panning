@@ -104,15 +104,27 @@ export async function handler(event) {
         if (isNaN(dt.getTime())) return null;
         const { datum, uur, uurNum, minNum } = brusselVelden(dt);
         if (datum < gisterenDatum) return null;
-        const eindMin = uurNum * 60 + minNum + duurVoor(t.id);
-        const eindtijd = `${String(Math.floor(eindMin / 60) % 24).padStart(2, '0')}:${String(eindMin % 60).padStart(2, '0')}`;
+        // Sentinel: lokale middernacht (00:00) = geen tijdstip ingevuld. Dit is
+        // hoe addTicketToDate() in index.html een kalender-inplanning zonder
+        // expliciet uur wegschrijft (quickAdd/autoplan/ticketdetail-pad), en
+        // extractLocalHour() leest diezelfde waarde bewust terug als "geen uur".
+        // Zonder deze check zou dit endpoint zo'n ticket als een echte 00:00-02:00
+        // afspraak exporteren, terwijl Blitz Planning zelf geen uur toont.
+        const geenUur = (uurNum === 0 && minNum === 0);
+        let starttijd = null;
+        let eindtijd = null;
+        if (!geenUur) {
+          const eindMin = uurNum * 60 + minNum + duurVoor(t.id);
+          eindtijd = `${String(Math.floor(eindMin / 60) % 24).padStart(2, '0')}:${String(eindMin % 60).padStart(2, '0')}`;
+          starttijd = uur;
+        }
         return {
           id: t.id,
           bron: 'zoho',
           ticketnummer: t.number || null,
           type: 'Interventie',
           datum,
-          starttijd: uur,
+          starttijd,
           eindtijd,
           technieker: t.assignee || null,
           klant: t.account || t.naamEindklant || null,
@@ -127,10 +139,12 @@ export async function handler(event) {
     // PUT-handler slaat enkel {id,titel,datum,uur,einduur,type,persoon,
     // notitie,telefoon,email,bron,origResp} op -- GEEN `adres`, hoewel de
     // client (index.html) dat veld wel op elk event zet. Dat veld wordt dus
-    // stil weggegooid bij elke save; `adres` hieronder is bijgevolg altijd
-    // null voor bron:'handmatig'-items totdat afspraken.js dat ook bewaart
-    // (nieuw ontdekt tijdens deze implementatie, apart gemeld -- niet in de
-    // bestaande bug-roadmap).
+    // stil weggegooid bij elke save (nieuw ontdekt tijdens deze implementatie,
+    // apart gemeld -- niet in de bestaande bug-roadmap). Omdat `adres`
+    // daardoor structureel ontbreekt, valt `adres` hieronder terug op
+    // `ev.notitie`, exact zoals elke consument in index.html dat ook al doet
+    // (:2339, :3027, :3905, :4012) -- `notitie` is in de praktijk hét
+    // adresveld van dit datamodel totdat afspraken.js `adres` ook bewaart.
     const afsprakenRes = await fetch(`${url}/api/afspraken`);
     if (!afsprakenRes.ok) {
       const errBody = await afsprakenRes.json().catch(() => ({}));
@@ -151,7 +165,7 @@ export async function handler(event) {
         eindtijd: ev.einduur || null,
         technieker: ev.persoon || null,
         klant: ev.notitie || null,
-        adres: ev.adres || null,
+        adres: ev.adres || ev.notitie || null,
         omschrijving: ev.titel || null,
         status: 'gepland',
       }));
