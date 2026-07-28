@@ -4273,6 +4273,64 @@ function closeDet(e) {
   document.getElementById('det-overlay').classList.remove('open');
 }
 
+function toggleRescheduleRow() {
+  const row = document.getElementById('d-reschedule-row');
+  const opening = row.style.display === 'none';
+  row.style.display = opening ? '' : 'none';
+  if (opening && activeTicket) {
+    const d = activeTicket.interventieDatum ? new Date(activeTicket.interventieDatum) : new Date();
+    document.getElementById('d-reschedule-date').value = localISO(d);
+    document.getElementById('d-reschedule-time').value =
+      `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+}
+
+async function saveReschedule() {
+  if (!activeTicket || !_detailDate) return;
+  const date = document.getElementById('d-reschedule-date').value;
+  const time = document.getElementById('d-reschedule-time').value || '09:00';
+  if (!date) return toast('⚠️ Selecteer een datum');
+
+  const oldDate  = _detailDate;
+  const ticketId = activeTicket.id;
+
+  // Zelfde waarschuwingen als bij een eerste toewijzing (addTicketToDate) — enkel
+  // relevant als de dag effectief verandert.
+  if (date !== oldDate) {
+    const feestdag = getHolidayName(date);
+    if (feestdag && !confirm(`🎌 ${feestdag} is een wettelijke feestdag (${fmtDateShort(date)}).\nToch inplannen?`)) return;
+    if (kbBlocked(ticketId, date) && !confirm(`⚠️ Klant gaf aan NIET beschikbaar te zijn op ${fmtDateShort(date)}.\nToch inplannen?`)) return;
+  }
+
+  const utcInterventieDatum = new Date(`${date}T${time}:00`).toISOString();
+  closeDet();
+  try {
+    const res  = await fetch('/api/plan', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ ticketId, date, utcInterventieDatum }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    // Lokale state: uit de oude dag halen, aan de nieuwe dag toevoegen.
+    if (planning[oldDate]) {
+      planning[oldDate] = planning[oldDate].filter(p => p.ticket.id !== ticketId);
+      if (!planning[oldDate].length) delete planning[oldDate];
+    }
+    activeTicket.interventieDatum = utcInterventieDatum;
+    activeTicket.status = 'Wachten op bevestiging planning';
+    if (!planning[date]) planning[date] = [];
+    if (!planning[date].find(p => p.ticket.id === ticketId)) {
+      planning[date].push({ ticket: activeTicket, address: activeTicket.address, uur: extractLocalHour(utcInterventieDatum) });
+    }
+    renderKalender();
+    toast(`✓ Verzet naar ${fmtDateShort(date)} om ${time}`);
+  } catch (err) {
+    toast('❌ Zoho update mislukt: ' + err.message, 4000);
+  }
+}
+
 async function togglePlanFromDetail() {
   if (!activeTicket) return;
   if (['Service in te plannen','Wachten op planning'].includes(activeTicket.status)) {
