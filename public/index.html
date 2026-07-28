@@ -4389,7 +4389,7 @@ async function saveReschedule() {
     allGepland = allGepland.filter(x => x.id !== ticketId);
     if (!allPending.find(x => x.id === ticketId)) allPending.push(t);
 
-    renderTickets(); renderKalender(); renderRouteList(document.getElementById('plan-date').value); updateRouteBtns(document.getElementById('plan-date').value);
+    renderTickets(); renderKalender(); renderGepland(); renderRouteList(document.getElementById('plan-date').value); updateRouteBtns(document.getElementById('plan-date').value);
     toast(`✓ Verzet naar ${fmtDateShort(date)} om ${time}`);
   } catch (err) {
     toast('❌ Zoho update mislukt: ' + err.message, 4000);
