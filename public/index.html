@@ -4434,6 +4434,11 @@ function minToTimeStr(totalMin) {
   return `${hh}:${mm}`;
 }
 
+function timeStrToMin(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
 // Bereken aankomsttijden (minuten na middernacht) per ticket voor een dag.
 // Gebruikt routeData als beschikbaar, anders positie-schatting (30 min reistijd).
 // Geeft { [ticketId]: arrivalMin } terug.
@@ -4460,7 +4465,11 @@ function computeArrivalTimes(date) {
       ? (routeData.legs[legIdx]?.travelTimeSeconds ?? 30 * 60)
       : 30 * 60;
     if (isWaypoint) legIdx++;
-    curMin += Math.round(legSec / 60);
+    // Vastgezet tijdstip (via "Toewijzen" of "Datum/tijd wijzigen"): de berekening
+    // springt naar dat tijdstip i.p.v. de opgetelde rijtijd te gebruiken, en rekent
+    // nadien verder vanaf vast-tijdstip + duur. Geen botsingsdetectie (zie designdoc)
+    // — als eerdere afspraken dit tijdstip eigenlijk niet halen, wordt dat niet gemeld.
+    curMin = stops[i].uur ? timeStrToMin(stops[i].uur) : curMin + Math.round(legSec / 60);
     result[stops[i].ticket.id] = curMin;
     curMin += duurVoor(stops[i].ticket.id); // per-ticket duur override of standaard
   }
