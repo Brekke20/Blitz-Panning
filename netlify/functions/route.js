@@ -5,6 +5,21 @@
 const TOMTOM_BASE = 'https://api.tomtom.com';
 const API_KEY = () => process.env.TOMTOM_API_KEY;
 
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// TomTom's routing-tier laat maar een beperkt aantal aanvragen per seconde toe. De
+// max-reistijd-check in autoPlan() roept dit endpoint nu potentieel meerdere keren na
+// elkaar aan tijdens één "Plan deze week"-run — zelfde retry-met-backoff-patroon als
+// optimize.js's geocode() voor exact hetzelfde soort probleem.
+async function fetchTomTomRoute(url, attempt = 1) {
+  const res = await fetch(url);
+  if (res.status === 429 && attempt <= 3) {
+    await sleep(attempt * 400);
+    return fetchTomTomRoute(url, attempt + 1);
+  }
+  return res;
+}
+
 export async function handler(event) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -36,7 +51,7 @@ export async function handler(event) {
       `&sectionType=traffic` +
       `&report=effectiveSettings`;
 
-    const res = await fetch(url);
+    const res = await fetchTomTomRoute(url);
     const data = await res.json();
 
     const route = data.routes?.[0];
