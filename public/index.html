@@ -2235,13 +2235,13 @@ function buildTicketCard(stop, dateStr) {
 
 function buildReportCard(entry) {
   const rd = entry.rapportData || {};
-  const tijdLabel = rd.start ? `${rd.start}${rd.stop ? '–' + rd.stop : ''}` : '';
+  const tijdLabel = rd.start ? `${escHtml(rd.start)}${rd.stop ? '–' + escHtml(rd.stop) : ''}` : '';
   const card = document.createElement('div');
   card.className = 'cal-ticket afgerond';
   card.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px">
       <div style="flex:1;min-width:0">
-        <div class="cal-num">#${escHtml(entry.ticketNumber || entry.ticketId || '')}</div>
+        ${entry.ticketNumber ? `<div class="cal-num">#${escHtml(entry.ticketNumber)}</div>` : ''}
         <span class="cal-badge afgerond">✅ Afgerond</span>
         ${tijdLabel ? `<div class="cal-meta" style="font-weight:600">🕐 ${tijdLabel}</div>` : ''}
         <div class="cal-sub">${escHtml(entry.klant) || '—'}</div>
@@ -2389,7 +2389,8 @@ function renderKalender() {
     const dayReports = _rapportArchief.filter(r =>
       r.datum === dateStr &&
       (activeAssigneeFilter === 'all' || r.technieker === activeAssigneeFilter) &&
-      !dayStops.some(s => s.ticket.id === r.ticketId)
+      !dayStops.some(s => s.ticket.id === r.ticketId) &&
+      !dayEvents.some(e => e.id === r.ticketId)
     );
 
     const timeline = [
