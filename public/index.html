@@ -1387,6 +1387,10 @@
         <input class="set-input" id="set-max" type="number" min="1" max="20" />
       </div>
       <div class="set-field">
+        <label class="set-label">Max. reistijd tussen interventies (minuten)</label>
+        <input class="set-input" id="set-maxreistijd" type="number" min="0" max="240" step="5" />
+      </div>
+      <div class="set-field">
         <label class="set-label">Werkuren</label>
         <div class="set-row">
           <input class="set-input" id="set-van" type="time" />
@@ -1770,12 +1774,13 @@ localStorage.removeItem('blitz_blocked');
 localStorage.removeItem('blitz_blocked_days');
 
 const DEFAULT_SETTINGS = {
-  startlocatie: 'Heirbaan 9, 9150 Kruibeke',
-  duurMinuten:  120,
-  maxPerDag:    4,
-  vanTijd:      '08:00',
-  totTijd:      '17:00',
-  werkdagen:    [1,2,3,4,5],
+  startlocatie:   'Heirbaan 9, 9150 Kruibeke',
+  duurMinuten:    120,
+  maxPerDag:      4,
+  vanTijd:        '08:00',
+  totTijd:        '17:00',
+  werkdagen:      [1,2,3,4,5],
+  maxReistijdMin: 45,
 };
 
 function settingsKey(person) {
@@ -4268,64 +4273,6 @@ function closeDet(e) {
   document.getElementById('det-overlay').classList.remove('open');
 }
 
-function toggleRescheduleRow() {
-  const row = document.getElementById('d-reschedule-row');
-  const opening = row.style.display === 'none';
-  row.style.display = opening ? '' : 'none';
-  if (opening && activeTicket) {
-    const d = activeTicket.interventieDatum ? new Date(activeTicket.interventieDatum) : new Date();
-    document.getElementById('d-reschedule-date').value = localISO(d);
-    document.getElementById('d-reschedule-time').value =
-      `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-  }
-}
-
-async function saveReschedule() {
-  if (!activeTicket || !_detailDate) return;
-  const date = document.getElementById('d-reschedule-date').value;
-  const time = document.getElementById('d-reschedule-time').value || '09:00';
-  if (!date) return toast('⚠️ Selecteer een datum');
-
-  const oldDate  = _detailDate;
-  const ticketId = activeTicket.id;
-
-  // Zelfde waarschuwingen als bij een eerste toewijzing (addTicketToDate) — enkel
-  // relevant als de dag effectief verandert.
-  if (date !== oldDate) {
-    const feestdag = getHolidayName(date);
-    if (feestdag && !confirm(`🎌 ${feestdag} is een wettelijke feestdag (${fmtDateShort(date)}).\nToch inplannen?`)) return;
-    if (kbBlocked(ticketId, date) && !confirm(`⚠️ Klant gaf aan NIET beschikbaar te zijn op ${fmtDateShort(date)}.\nToch inplannen?`)) return;
-  }
-
-  const utcInterventieDatum = new Date(`${date}T${time}:00`).toISOString();
-  closeDet();
-  try {
-    const res  = await fetch('/api/plan', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ ticketId, date, utcInterventieDatum }),
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-
-    // Lokale state: uit de oude dag halen, aan de nieuwe dag toevoegen.
-    if (planning[oldDate]) {
-      planning[oldDate] = planning[oldDate].filter(p => p.ticket.id !== ticketId);
-      if (!planning[oldDate].length) delete planning[oldDate];
-    }
-    activeTicket.interventieDatum = utcInterventieDatum;
-    activeTicket.status = 'Wachten op bevestiging planning';
-    if (!planning[date]) planning[date] = [];
-    if (!planning[date].find(p => p.ticket.id === ticketId)) {
-      planning[date].push({ ticket: activeTicket, address: activeTicket.address, uur: extractLocalHour(utcInterventieDatum) });
-    }
-    renderKalender();
-    toast(`✓ Verzet naar ${fmtDateShort(date)} om ${time}`);
-  } catch (err) {
-    toast('❌ Zoho update mislukt: ' + err.message, 4000);
-  }
-}
-
 async function togglePlanFromDetail() {
   if (!activeTicket) return;
   if (['Service in te plannen','Wachten op planning'].includes(activeTicket.status)) {
@@ -4353,6 +4300,7 @@ function openSettings() {
   document.getElementById('set-start').value    = settings.startlocatie;
   document.getElementById('set-duration').value = settings.duurMinuten;
   document.getElementById('set-max').value      = settings.maxPerDag;
+  document.getElementById('set-maxreistijd').value = settings.maxReistijdMin;
   document.getElementById('set-van').value      = settings.vanTijd;
   document.getElementById('set-tot').value      = settings.totTijd;
   const grid = document.getElementById('days-grid');
@@ -4377,21 +4325,24 @@ function closeSettings(e) {
 }
 
 function saveSettings() {
-  const duur   = +document.getElementById('set-duration').value;
-  const max    = +document.getElementById('set-max').value;
-  const van    = document.getElementById('set-van').value;
-  const tot    = document.getElementById('set-tot').value;
+  const duur        = +document.getElementById('set-duration').value;
+  const max         = +document.getElementById('set-max').value;
+  const van         = document.getElementById('set-van').value;
+  const tot         = document.getElementById('set-tot').value;
+  const maxReistijd = +document.getElementById('set-maxreistijd').value;
 
   if (van && tot && van >= tot) return toast('⚠️ Begintijd moet voor eindtijd liggen', 3500);
   if (duur < 15)                return toast('⚠️ Minimale interventieduur is 15 minuten', 3500);
   if (max < 1)                  return toast('⚠️ Maximaal per dag moet minstens 1 zijn', 3500);
+  if (maxReistijd < 0)          return toast('⚠️ Max. reistijd kan niet negatief zijn', 3500);
   if (!settings.werkdagen.length) return toast('⚠️ Selecteer minstens één werkdag', 3500);
 
-  settings.startlocatie = document.getElementById('set-start').value.trim() || DEFAULT_SETTINGS.startlocatie;
-  settings.duurMinuten  = duur || DEFAULT_SETTINGS.duurMinuten;
-  settings.maxPerDag    = max  || DEFAULT_SETTINGS.maxPerDag;
-  settings.vanTijd      = van  || DEFAULT_SETTINGS.vanTijd;
-  settings.totTijd      = tot  || DEFAULT_SETTINGS.totTijd;
+  settings.startlocatie   = document.getElementById('set-start').value.trim() || DEFAULT_SETTINGS.startlocatie;
+  settings.duurMinuten    = duur || DEFAULT_SETTINGS.duurMinuten;
+  settings.maxPerDag      = max  || DEFAULT_SETTINGS.maxPerDag;
+  settings.vanTijd        = van  || DEFAULT_SETTINGS.vanTijd;
+  settings.totTijd        = tot  || DEFAULT_SETTINGS.totTijd;
+  settings.maxReistijdMin = maxReistijd || maxReistijd === 0 ? maxReistijd : DEFAULT_SETTINGS.maxReistijdMin;
   savePersonSettings(activeAssigneeFilter);
   document.getElementById('set-overlay').classList.remove('open');
   renderTickets();
@@ -6797,5 +6748,4 @@ function getPrijsVoorId(id) {
 </script>
 </body>
 </html>
-
 
