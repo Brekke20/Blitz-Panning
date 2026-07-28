@@ -60,6 +60,7 @@ export async function handler(event) {
     const summary = route.summary;
     const legs = route.legs?.map(leg => ({
       travelTimeSeconds: leg.summary.travelTimeInSeconds,
+      noTrafficTravelTimeSeconds: leg.summary.noTrafficTravelTimeInSeconds,
       travelTimeWithTrafficSeconds: leg.summary.trafficDelayInSeconds + leg.summary.travelTimeInSeconds,
       distanceMeters: leg.summary.lengthInMeters,
       trafficDelaySeconds: leg.summary.trafficDelayInSeconds,

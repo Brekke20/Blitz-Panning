@@ -3492,7 +3492,7 @@ async function travelTimeMin(from, to) {
       body:    JSON.stringify({ waypoints: [from, to] }),
     });
     const data = await res.json();
-    const sec  = data.legs?.[0]?.travelTimeSeconds;
+    const sec  = data.legs?.[0]?.noTrafficTravelTimeSeconds ?? data.legs?.[0]?.travelTimeSeconds;
     return typeof sec === 'number' ? sec / 60 : null;
   } catch { return null; }
 }
@@ -3530,26 +3530,52 @@ async function autoPlan() {
   const overflow   = [];
 
   try {
+    // Werkdagen deze week (verleden overslaan) — vooraf bepaald zodat we bestaande
+    // laatste-stops per dag ook kunnen meenemen in de geocode-batch hieronder (nodig
+    // voor de max-reistijd-check t.o.v. een bestaand/manueel verzet ticket, i.p.v.
+    // stilzwijgend op het depot terug te vallen als die coördinaten ontbreken).
+    const today     = new Date(); today.setHours(0,0,0,0);
+    const weekStart = getWeekStart(today, kalOffset);
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
+      if (d < today) continue;
+      if (!settings.werkdagen.includes(d.getDay())) continue;
+      weekDates.push(localISO(d));
+    }
+
+    // Bestaande laatste stops zonder coördinaten: nodig als ankerpunt voor de
+    // reistijd-check (seedExempt) — anders valt de check terug op het depot.
+    const existingLastStops = weekDates
+      .map(dStr => {
+        const dayStops = (planning[dStr] || []).filter(p =>
+          activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
+        );
+        return dayStops[dayStops.length - 1];
+      })
+      .filter(stop => stop && !stop._lat && !stop.ticket._lat && stop.ticket.address);
+
     // Geocoding + reistijdschatting via TomTom
     let travelMin = 30;
     let originCoords = null;
-    if (!TEST_MODE && toplan.length) {
+    const geocodeStops = [...toplan, ...existingLastStops.map(s => s.ticket)];
+    if (!TEST_MODE && geocodeStops.length) {
       toast('Adressen geocoden...', 8000);
       try {
         const gRes  = await fetch('/api/optimize', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ origin: settings.startlocatie, stops: toplan.map(t => t.address) }),
+          body:    JSON.stringify({ origin: settings.startlocatie, stops: geocodeStops.map(t => t.address) }),
         });
         const gData = await gRes.json();
         if (gData.locations) {
-          toplan.forEach((t, i) => {
+          geocodeStops.forEach((t, i) => {
             t._lat = gData.locations[i+1]?.lat;
             t._lon = gData.locations[i+1]?.lon;
           });
-          // TomTom rijtijdschatting
+          // TomTom rijtijdschatting (enkel op basis van de nog te plannen tickets)
           originCoords = gData.locations[0];
-          if (originCoords) {
+          if (originCoords && toplan.length) {
             toast('Rijtijden berekenen...', 8000);
             const rRes  = await fetch('/api/route', {
               method:  'POST',
@@ -3563,15 +3589,8 @@ async function autoPlan() {
       } catch (e) { /* gebruik fallback 30 min */ }
     }
 
-    // Werkdagen deze week (verleden overslaan)
-    const today     = new Date(); today.setHours(0,0,0,0);
-    const weekStart = getWeekStart(today, kalOffset);
     const availDays = [];
-    for (let i = 0; i < 7; i++) {
-      const d    = new Date(weekStart); d.setDate(weekStart.getDate() + i);
-      if (d < today) continue;  // verleden overslaan
-      const dStr = localISO(d);
-      if (!settings.werkdagen.includes(d.getDay())) continue;
+    for (const dStr of weekDates) {
       const alreadyPlanned = (planning[dStr] || []).filter(p =>
         activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
       ).length;
@@ -3634,18 +3653,24 @@ async function autoPlan() {
         activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
       );
       const lastExisting = existingOnDay[existingOnDay.length - 1];
-      const startLat = lastExisting?._lat ?? lastExisting?.ticket?._lat ?? originCoords?.lat ?? null;
-      const startLon = lastExisting?._lon ?? lastExisting?.ticket?._lon ?? originCoords?.lon ?? null;
+      // Ankerpunt = de positie van het bestaande ticket zelf (nu betrouwbaar beschikbaar
+      // dankzij de geocode-uitbreiding hierboven). Enkel als die coördinaten écht
+      // ontbreken (geocoding mislukt/geen adres) vallen we terug op fail-open (exempt) —
+      // NIET op het depot, dat zou een onterecht ankerpunt zijn.
+      const anchorLat = lastExisting?._lat ?? lastExisting?.ticket?._lat ?? null;
+      const anchorLon = lastExisting?._lon ?? lastExisting?.ticket?._lon ?? null;
+      const startLat  = anchorLat ?? originCoords?.lat ?? null; // sortering (fillScore) ongewijzigd
+      const startLon  = anchorLon ?? originCoords?.lon ?? null;
 
       // Seed: geografisch dichtste ticket (met urgentie/prio als tiebreaker via fillScore).
-      // Enkel een volledig lege dag (geen lastExisting) is vrijgesteld van de
-      // reistijd-check — de aanrijtijd vanaf het depot telt niet mee. Zodra de dag al
-      // een ticket bevat (manueel verzet of van een eerdere planningsronde), moet ook
-      // de eerste toevoeging binnen settings.maxReistijdMin vallen (bevestigd door Brent).
+      // Een volledig lege dag (geen lastExisting), of een dag waarvan het bestaande
+      // ticket se locatie we niet kennen, is vrijgesteld van de reistijd-check. Zodra
+      // de dag al een ticket bevat MET bekende locatie, moet ook de eerste toevoeging
+      // binnen settings.maxReistijdMin vallen (bevestigd door Brent).
       const seedPool = [...dayPool];
       seedPool.sort((a, b) => fillScore(a, startLat, startLon) - fillScore(b, startLat, startLon));
       if (!seedPool.length) continue;
-      const seedExempt = !lastExisting;
+      const seedExempt = !lastExisting || anchorLat == null || anchorLon == null;
       const seed = seedExempt ? seedPool[0] : await pickNearbyCandidate(seedPool, startLat, startLon);
       if (!seed) continue; // dag heeft al een ticket, maar niemand past binnen de max-reistijd
       pool.splice(pool.indexOf(seed), 1);
@@ -4326,7 +4351,8 @@ async function saveReschedule() {
   if (!date) return toast('⚠️ Selecteer een datum');
 
   const oldDate  = _detailDate;
-  const ticketId = activeTicket.id;
+  const t        = activeTicket; // vastleggen: activeTicket kan tijdens de await al naar een ander ticket wijzen
+  const ticketId = t.id;
 
   // Zelfde waarschuwingen als bij een eerste toewijzing (addTicketToDate) — enkel
   // relevant als de dag effectief verandert.
@@ -4352,13 +4378,18 @@ async function saveReschedule() {
       planning[oldDate] = planning[oldDate].filter(p => p.ticket.id !== ticketId);
       if (!planning[oldDate].length) delete planning[oldDate];
     }
-    activeTicket.interventieDatum = utcInterventieDatum;
-    activeTicket.status = 'Wachten op bevestiging planning';
+    t.interventieDatum = utcInterventieDatum;
+    t.status = 'Wachten op bevestiging planning';
     if (!planning[date]) planning[date] = [];
     if (!planning[date].find(p => p.ticket.id === ticketId)) {
-      planning[date].push({ ticket: activeTicket, address: activeTicket.address, uur: extractLocalHour(utcInterventieDatum) });
+      planning[date].push({ ticket: t, address: t.address, uur: extractLocalHour(utcInterventieDatum) });
     }
-    renderKalender();
+    // Array-membership bijwerken: een verzet ticket kan tot nu toe "Bevestigd" (allGepland)
+    // geweest zijn; de status hierboven gaat terug naar "Wachten op bevestiging planning".
+    allGepland = allGepland.filter(x => x.id !== ticketId);
+    if (!allPending.find(x => x.id === ticketId)) allPending.push(t);
+
+    renderTickets(); renderKalender(); renderRouteList(document.getElementById('plan-date').value); updateRouteBtns(document.getElementById('plan-date').value);
     toast(`✓ Verzet naar ${fmtDateShort(date)} om ${time}`);
   } catch (err) {
     toast('❌ Zoho update mislukt: ' + err.message, 4000);
