@@ -3484,6 +3484,33 @@ function haversine(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
+async function travelTimeMin(from, to) {
+  try {
+    const res  = await fetch('/api/route', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ waypoints: [from, to] }),
+    });
+    const data = await res.json();
+    const sec  = data.legs?.[0]?.travelTimeSeconds;
+    return typeof sec === 'number' ? sec / 60 : null;
+  } catch { return null; }
+}
+
+// Doorloopt candidates in de gegeven (reeds op fillScore gesorteerde) volgorde en
+// geeft de eerste terug die binnen settings.maxReistijdMin ligt t.o.v. (fromLat, fromLon).
+// Geen vaste pogingslimiet: de hele lijst komt in aanmerking (zie designdoc voor de reden
+// — rechte-lijn-afstand is niet altijd representatief voor echte rijtijd in deze regio).
+// Fail-open bij ontbrekende coords of een mislukte /api/route-aanroep: blokkeert niet.
+async function pickNearbyCandidate(candidates, fromLat, fromLon) {
+  for (const candidate of candidates) {
+    if (!fromLat || !fromLon || !candidate._lat || !candidate._lon) return candidate;
+    const travelMin = await travelTimeMin({ lat: fromLat, lon: fromLon }, { lat: candidate._lat, lon: candidate._lon });
+    if (travelMin === null || travelMin <= settings.maxReistijdMin) return candidate;
+  }
+  return null;
+}
+
 // ══════════════════════════════════════════════
 // AUTO-PLAN
 // ══════════════════════════════════════════════
@@ -3610,11 +3637,17 @@ async function autoPlan() {
       const startLat = lastExisting?._lat ?? lastExisting?.ticket?._lat ?? originCoords?.lat ?? null;
       const startLon = lastExisting?._lon ?? lastExisting?.ticket?._lon ?? originCoords?.lon ?? null;
 
-      // Seed: geografisch dichtste ticket (met urgentie/prio als tiebreaker via fillScore)
+      // Seed: geografisch dichtste ticket (met urgentie/prio als tiebreaker via fillScore).
+      // Enkel een volledig lege dag (geen lastExisting) is vrijgesteld van de
+      // reistijd-check — de aanrijtijd vanaf het depot telt niet mee. Zodra de dag al
+      // een ticket bevat (manueel verzet of van een eerdere planningsronde), moet ook
+      // de eerste toevoeging binnen settings.maxReistijdMin vallen (bevestigd door Brent).
       const seedPool = [...dayPool];
       seedPool.sort((a, b) => fillScore(a, startLat, startLon) - fillScore(b, startLat, startLon));
       if (!seedPool.length) continue;
-      const seed = seedPool[0];
+      const seedExempt = !lastExisting;
+      const seed = seedExempt ? seedPool[0] : await pickNearbyCandidate(seedPool, startLat, startLon);
+      if (!seed) continue; // dag heeft al een ticket, maar niemand past binnen de max-reistijd
       pool.splice(pool.indexOf(seed), 1);
       const dayTickets = [seed];
 
@@ -3631,7 +3664,8 @@ async function autoPlan() {
         });
         if (!fillPool.length) break;
         fillPool.sort((a, b) => fillScore(a, curLat, curLon) - fillScore(b, curLat, curLon));
-        const chosen = fillPool[0];
+        const chosen = await pickNearbyCandidate(fillPool, curLat, curLon);
+        if (!chosen) break; // niemand in de wachtrij past nog binnen de max-reistijd voor deze dag
         const chosenSlots = Math.ceil(duurVoor(chosen.id) / settings.duurMinuten);
         if (usedSlots + chosenSlots > day.cap) break; // past niet meer
         pool.splice(pool.indexOf(chosen), 1);
