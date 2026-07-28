@@ -4090,7 +4090,7 @@ async function calculateRoute() {
     });
     const orgData = await orgRes.json();
     const origin  = orgData.locations?.[0];
-    if (!origin) throw new Error('Startlocatie niet gevonden');
+    if (!origin) throw new Error(orgData.error || 'Startlocatie niet gevonden');
     // Combineer geocoded Zoho stops + lokale events als waypoints (Zoho eerst, dan lokale events)
     const allWpStops = [
       ...stops.filter(p => p._lat),

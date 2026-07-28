@@ -5,12 +5,30 @@
 const TOMTOM_BASE = 'https://api.tomtom.com';
 const API_KEY = () => process.env.TOMTOM_API_KEY;
 
-async function geocode(address) {
-  const url = `${TOMTOM_BASE}/search/2/geocode/${encodeURIComponent(address)}.json?key=${API_KEY()}&countrySet=BE`;
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// TomTom's geocode-tier laat maar een handvol aanvragen per seconde toe. Deze app vuurt per
+// knopklik gemakkelijk 5-10 gelijktijdige geocode-aanvragen af (elk ticketadres + de
+// startlocatie, soms meermaals na elkaar via optimizeRoute() -> calculateRoute()) — dat
+// overschrijdt die limiet vaak (HTTP 429 "TooManyRequests"), vandaar de eerder
+// onbetrouwbare/onverklaarbare foutmeldingen. Retry met backoff lost het overgrote deel
+// hiervan vanzelf op; de foutmelding bij een écht mislukte geocoding blijft ook duidelijker.
+async function geocode(address, attempt = 1) {
+  // Niet enkel België: Blitz Power rijdt ook grensklanten (bv. net over de grens in
+  // Nederland) — countrySet=BE alleen liet zulke adressen nooit geocoderen (TomTom gaf
+  // dan gewoon 0 resultaten, geen fout), ook al was het adres perfect geldig.
+  const url = `${TOMTOM_BASE}/search/2/geocode/${encodeURIComponent(address)}.json?key=${API_KEY()}&countrySet=BE,NL,LU,FR,DE`;
   const res = await fetch(url);
+  if (res.status === 429 && attempt <= 3) {
+    await sleep(attempt * 400);
+    return geocode(address, attempt + 1);
+  }
   const data = await res.json();
   const pos = data.results?.[0]?.position;
-  if (!pos) throw new Error(`Geocoding failed for: ${address}`);
+  if (!pos) {
+    const reason = data.detailedError?.message || `HTTP ${res.status}`;
+    throw new Error(`Geocoding failed for: ${address} (${reason})`);
+  }
   return { lat: pos.lat, lon: pos.lon, address };
 }
 
