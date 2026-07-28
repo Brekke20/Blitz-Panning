@@ -87,6 +87,7 @@ export default async (req, context) => {
       einduur:  String(a.einduur || ''),
       type:     String(a.type  || 'Overige'),
       persoon:  a.persoon ? String(a.persoon) : null,
+      adres:    String(a.adres || ''),
       notitie:  String(a.notitie || ''),
       telefoon: String(a.telefoon || ''),
       email:    String(a.email || ''),

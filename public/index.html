@@ -2388,7 +2388,7 @@ function renderKalender() {
     // ticket in Zoho nog niet gesloten) — anders zie je hetzelfde ticket dubbel.
     const dayReports = _rapportArchief.filter(r =>
       r.datum === dateStr &&
-      (activeAssigneeFilter === 'all' || r.technieker === activeAssigneeFilter) &&
+      (activeAssigneeFilter === 'all' || matchRespToPerson(r.technieker, [activeAssigneeFilter]) === activeAssigneeFilter) &&
       !dayStops.some(s => s.ticket.id === r.ticketId) &&
       !dayEvents.some(e => e.id === r.ticketId)
     );
