@@ -3914,11 +3914,14 @@ function renderRouteList(date) {
     e.datum === date && (e.adres || e.notitie) &&
     (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
   );
-  // Gecombineerde lijst: eerst Zoho-tickets, dan lokale events
+  // Gecombineerde lijst, gesorteerd op ingesteld uur (geen uur = achteraan) zodat dit de
+  // echte geplande volgorde toont i.p.v. altijd tickets vóór handmatige afspraken te zetten
+  // -- moet exact dezelfde sortering gebruiken als allWpStops in calculateRoute(), anders
+  // klopt legIdx hieronder niet meer.
   const allStops = [
-    ...stops.map(s => ({ kind: 'ticket', item: s })),
-    ...localForDate.map(e => ({ kind: 'local', item: e })),
-  ];
+    ...stops.map(s => ({ kind: 'ticket', item: s, uur: s.uur })),
+    ...localForDate.map(e => ({ kind: 'local', item: e, uur: e.uur })),
+  ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
   list.innerHTML = '';
   if (!allStops.length) { list.innerHTML = '<div class="route-empty">Voeg tickets of installaties toe via de Kalender</div>'; return; }
 
@@ -4166,11 +4169,13 @@ async function calculateRoute() {
     const orgData = await orgRes.json();
     const origin  = orgData.locations?.[0];
     if (!origin) throw new Error(orgData.error || 'Startlocatie niet gevonden');
-    // Combineer geocoded Zoho stops + lokale events als waypoints (Zoho eerst, dan lokale events)
+    // Combineer geocoded Zoho stops + lokale events als waypoints, gesorteerd op ingesteld
+    // uur (geen uur = achteraan) zodat de route de echte geplande volgorde volgt i.p.v.
+    // altijd Zoho-tickets vóór handmatige afspraken te zetten.
     const allWpStops = [
       ...stops.filter(p => p._lat),
       ...localForDate.filter(e => e._lat),
-    ];
+    ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
     const wps = [{ lat: origin.lat, lon: origin.lon }, ...allWpStops.map(p => ({ lat: p._lat, lon: p._lon }))];
     if (wps.length < 2) return;
     const rRes  = await fetch('/api/route', {
@@ -4202,9 +4207,11 @@ function initMap() {
 
 function updateMap(date) {
   routeLayer.clearLayers();
+  // Zelfde sortering als calculateRoute()/renderRouteList(), zodat de kaartnummering (1,2,3...)
+  // de echte geplande volgorde toont i.p.v. toevoegvolgorde.
   const stops = (planning[date] || []).filter(p =>
     activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-  );
+  ).sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
   if (!stops.length) return;
   if (routeData?.polyline?.length && currentRouteDate === date) {
     const poly = L.polyline(routeData.polyline, { color:'#f59e0b', weight:4, opacity:0.85 }).addTo(routeLayer);
