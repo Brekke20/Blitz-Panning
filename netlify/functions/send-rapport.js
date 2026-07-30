@@ -3,7 +3,9 @@
 // verstuurt die naar klant en/of installateur (wie een e-mailadres heeft), via Zoho Desk
 // sendReply -- zelfde aanpak als propose.js. Manuele, bewuste actie vanuit het
 // Rapporten-tabblad, nooit automatisch.
-// POST body: { ticketId, html, ticketNumber }
+// POST body: { ticketId, html, ticketNumber, preview? }
+// preview: true -> bouwt de e-mail-inhoud per ontvanger op en geeft die terug zonder iets
+// te versturen (voor het voorbeeldvenster in de app); anders (of ontbrekend): echte verzending.
 
 import chromium from '@sparticuz/chromium-min';
 import puppeteer from 'puppeteer-core';
@@ -35,6 +37,10 @@ async function getAccessToken() {
   return cachedToken;
 }
 
+function escHtml(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 async function getOrgId(token) {
   const res  = await fetch(`${ZOHO_DESK}/organizations`, {
     headers: { Authorization: `Zoho-oauthtoken ${token}` },
@@ -45,15 +51,16 @@ async function getOrgId(token) {
   return orgId;
 }
 
-function buildRapportEmailHtml({ ticketNumber }) {
+function buildRapportEmailHtml({ ticketNumber, naam }) {
   const bolt = `<svg width="20" height="30" viewBox="0 0 20 30" xmlns="http://www.w3.org/2000/svg"><line x1="15" y1="2" x2="3" y2="16" stroke="#00dfa3" stroke-width="4" stroke-linecap="round"/><line x1="17" y1="14" x2="5" y2="28" stroke="#00dfa3" stroke-width="4" stroke-linecap="round"/></svg>`;
+  const greeting = naam ? `Geachte ${escHtml(naam)}` : 'Beste';
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f2f2f2;font-family:Arial,Helvetica,sans-serif">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2f2;padding:32px 0"><tr><td>
   <table width="600" align="center" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.10)">
     <tr><td style="background:#181e24;padding:26px 32px">${bolt}<span style="font-family:'Arial Black',Arial,sans-serif;font-size:24px;font-weight:900;letter-spacing:4px;color:#00dfa3;margin-left:12px">BLITZ</span></td></tr>
     <tr><td style="background:#00dfa3;height:3px;font-size:0;line-height:0">&nbsp;</td></tr>
     <tr><td style="padding:32px 36px">
-      <p style="margin:0 0 16px;font-size:15px;color:#181e24">Beste,</p>
+      <p style="margin:0 0 16px;font-size:15px;color:#181e24">${greeting},</p>
       <p style="margin:0 0 16px;font-size:14px;color:#3a3a3a;line-height:1.65">In bijlage vindt u het service rapport${ticketNumber ? ` voor ticket #${ticketNumber}` : ''}.</p>
       <p style="margin:0;font-size:14px;color:#3a3a3a;line-height:1.65">Met vriendelijke groeten,<br><strong style="color:#181e24">Team Blitz Power &mdash; Service &amp; Support</strong></p>
     </td></tr>
@@ -67,7 +74,7 @@ export async function handler(event) {
 
   let browser;
   try {
-    const { ticketId, html, ticketNumber } = JSON.parse(event.body || '{}');
+    const { ticketId, html, ticketNumber, preview } = JSON.parse(event.body || '{}');
     if (!ticketId || !html) return { statusCode: 400, headers, body: JSON.stringify({ error: 'ticketId en html zijn verplicht' }) };
     if (!/^\d+$/.test(String(ticketId))) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Ongeldig ticketId' }) };
 
@@ -80,11 +87,33 @@ export async function handler(event) {
     const cf = ticketData.cf || {};
     const klantEmail        = ticketData.email || ticketData.contact?.email || ticketData.contact?.emailId || cf.cf_e_mail_eindklant || '';
     const installateurEmail = cf.cf_e_mail_installateur || '';
+    const klantNaam         = cf.cf_naam_eindklant       || '';
+    const installateurNaam  = cf.cf_partner_installateur || '';
     const ontvangers = [
-      klantEmail        ? { doelgroep: 'klant',        email: klantEmail }        : null,
-      installateurEmail ? { doelgroep: 'installateur', email: installateurEmail } : null,
+      klantEmail        ? { doelgroep: 'klant',        email: klantEmail,        naam: klantNaam }        : null,
+      installateurEmail ? { doelgroep: 'installateur', email: installateurEmail, naam: installateurNaam } : null,
     ].filter(Boolean);
     if (!ontvangers.length) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Geen gekend e-mailadres (klant of installateur) op dit ticket' }) };
+
+    // Voorbeeldmodus: dezelfde ticket-opzoeking en e-mail-opbouw als een echte verzending,
+    // maar zonder PDF te genereren of Zoho's upload/sendReply-endpoints aan te roepen -- dit
+    // garandeert dat het voorbeeld dat de gebruiker ziet exact is wat er bij een echte
+    // verzending verstuurd wordt (zelfde functie, zelfde data), niet een aparte kopie die
+    // uit sync kan lopen.
+    if (preview) {
+      return {
+        statusCode: 200, headers,
+        body: JSON.stringify({
+          preview: true,
+          ontvangers: ontvangers.map(o => ({
+            doelgroep: o.doelgroep,
+            naam:      o.naam,
+            email:     o.email,
+            html:      buildRapportEmailHtml({ ticketNumber, naam: o.naam }),
+          })),
+        }),
+      };
+    }
 
     const executablePath = await chromium.executablePath(CHROMIUM_URL);
     browser = await puppeteer.launch({ args: chromium.args, defaultViewport: chromium.defaultViewport, executablePath, headless: chromium.headless });
@@ -109,7 +138,7 @@ export async function handler(event) {
     // een 500 is voorbehouden aan fouten vóór deze lus (token/org/ticket/PDF).
     const emailSent = { klant: false, installateur: false };
     const fouten    = [];
-    for (const { doelgroep, email } of ontvangers) {
+    for (const { doelgroep, email, naam } of ontvangers) {
       try {
         const formData = new FormData();
         formData.append('file', new Blob([pdfBuffer], { type: 'application/pdf' }), `service-rapport-${ticketNumber || ticketId}.pdf`);
@@ -121,7 +150,7 @@ export async function handler(event) {
           method: 'POST',
           headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            channel: 'EMAIL', contentType: 'html', content: buildRapportEmailHtml({ ticketNumber }),
+            channel: 'EMAIL', contentType: 'html', content: buildRapportEmailHtml({ ticketNumber, naam }),
             fromEmailAddress, to: email, attachmentIds: [uploadData.id],
           }),
         });
