@@ -1627,6 +1627,22 @@
   </div>
 </div>
 
+<div class="overlay" id="rapport-preview-overlay" onclick="closeRapportPreview(event)">
+  <div class="modal" id="rapport-preview-modal" style="max-width:560px">
+    <div class="mhdr">
+      <div class="mhdr-title">📤 Rapport versturen</div>
+      <div id="rapport-preview-ticket-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
+    </div>
+    <div class="mbody" id="rapport-preview-body">
+      <!-- gevuld door voorbeeldRapport() -->
+    </div>
+    <div class="mftr">
+      <button class="btn-cancel" onclick="closeRapportPreview()">Annuleren</button>
+      <button class="btn-save" id="rapport-preview-send-btn">✅ Bevestig en verstuur</button>
+    </div>
+  </div>
+</div>
+
 <div id="rapport-wizard">
   <div class="wiz-hdr">
     <div class="wiz-hdr-top">
@@ -6405,7 +6421,7 @@ function renderRapportArchief() {
   // weer een echte apostrof. Daarom data-attributen + addEventListener (zelfde patroon als
   // de .btn-navigeer-knoppen).
   body.querySelectorAll('.btn-verstuur-rapport').forEach(btn => {
-    btn.addEventListener('click', () => verstuurRapport(btn.dataset.rapportId || '', btn));
+    btn.addEventListener('click', () => voorbeeldRapport(btn.dataset.rapportId || '', btn));
   });
 
   body.querySelectorAll('.btn-verwijder-rapport').forEach(btn => {
@@ -6415,6 +6431,52 @@ function renderRapportArchief() {
       btn.dataset.datum     || '',
     ));
   });
+}
+
+async function voorbeeldRapport(rapportId, btn) {
+  const r = _rapportArchief.find(x => x.id === rapportId);
+  if (!r) return toast('⚠️ Rapport niet gevonden');
+  if (!r.ticketId) return toast('⚠️ Geen ticket gekoppeld aan dit rapport');
+  const html = r.rapportData?._html;
+  if (!html) return toast('⚠️ Geen opgeslagen rapport-inhoud om te versturen');
+
+  if (TEST_MODE) return verstuurRapport(rapportId, btn);
+
+  toast('🔎 Voorbeeld ophalen...', 4000);
+  try {
+    const res  = await fetch('/api/send-rapport', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ ticketId: r.ticketId, html, ticketNumber: r.ticketNumber, preview: true }),
+    });
+    const data = await res.json();
+    if (data.error) return toast('⚠️ ' + data.error, 4500);
+    if (!data.ontvangers?.length) return toast('⚠️ Geen gekend e-mailadres (klant of installateur) op dit ticket', 4500);
+
+    document.getElementById('rapport-preview-ticket-label').textContent =
+      `Ticket #${r.ticketNumber || r.ticketId}`;
+    document.getElementById('rapport-preview-body').innerHTML = data.ontvangers.map(o => `
+      <div style="font-size:0.72rem;color:var(--muted);margin:10px 0 5px">
+        Aan ${o.doelgroep === 'klant' ? 'klant' : 'installateur'} — ${escHtml(o.email)}
+      </div>
+      <iframe srcdoc="${escHtml(o.html)}" sandbox=""
+        style="width:100%;height:260px;border:1px solid var(--border);border-radius:6px"></iframe>
+    `).join('');
+
+    const sendBtn = document.getElementById('rapport-preview-send-btn');
+    sendBtn.onclick = () => {
+      document.getElementById('rapport-preview-overlay').classList.remove('open');
+      verstuurRapport(rapportId, btn);
+    };
+    document.getElementById('rapport-preview-overlay').classList.add('open');
+  } catch (err) {
+    toast('❌ Voorbeeld ophalen mislukt: ' + err.message, 5000);
+  }
+}
+
+function closeRapportPreview(e) {
+  if (e && e.target !== document.getElementById('rapport-preview-overlay')) return;
+  document.getElementById('rapport-preview-overlay').classList.remove('open');
 }
 
 // btn (optioneel): de aangeklikte knop, wordt uitgeschakeld tijdens het versturen tegen
@@ -6435,7 +6497,6 @@ async function verstuurRapport(rapportId, btn) {
     return toast('🧪 Testmodus — rapport verstuurd (demo)', 3500);
   }
 
-  if (!confirm(`Rapport versturen naar alle gekende adressen voor ticket ${r.ticketNumber || r.ticketId}?\n\nDit verstuurt een echte e-mail (en kan niet ongedaan gemaakt worden).`)) return;
   if (btn) btn.disabled = true;
 
   toast('📤 Rapport versturen...', 6000);
