@@ -6465,7 +6465,12 @@ async function verstuurRapport(rapportId, btn) {
           : '✓ Rapport verstuurd naar installateur';
       toast(msg, 3500);
     } else if (emailedMaarNietOpgeslagen.length === 0) {
-      toast('⚠️ Rapport kon niet verstuurd worden (geen adressen bekend)', 4500);
+      if (Array.isArray(data.fouten) && data.fouten.length > 0) {
+        const details = data.fouten.map(f => `${f.doelgroep}: ${f.fout}`).join('; ');
+        toast(`⚠️ Rapport versturen geweigerd door Zoho (${details})`, 6000);
+      } else {
+        toast('⚠️ Rapport kon niet verstuurd worden (geen adressen bekend)', 4500);
+      }
     }
     if (emailedMaarNietOpgeslagen.length > 0) {
       toast(`✓ Rapport verstuurd naar ${emailedMaarNietOpgeslagen.join(' en ')}, maar status kon niet opgeslagen worden — NIET opnieuw versturen, herlaad eerst de pagina`, 8000);

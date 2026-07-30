@@ -19,6 +19,7 @@
 
 [functions.propose]
   included_files = ["netlify/functions/assets/*.pdf"]
+  timeout = 26
 
 [functions.planning-export]
   timeout = 26
