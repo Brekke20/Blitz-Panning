@@ -1610,7 +1610,7 @@
         <input class="set-input" id="proposal-time" type="time" step="900" oninput="updateProposalPreview()" />
       </div>
       <div class="set-field">
-        <label class="set-label">E-mailadres klant</label>
+        <label class="set-label">Ontvangers</label>
         <div class="set-input" id="proposal-email" style="min-height:auto"></div>
       </div>
       <div id="proposal-no-email" style="display:none;font-size:0.78rem;color:#f59e0b;padding:4px 0 8px">
@@ -4864,6 +4864,7 @@ async function sendProposal() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ ticketId, doelgroep, tijdstip, versie: _voorstelStatusVersie }),
       }).then(r => r.json()).then(d => {
+        if (d.error) { console.warn('Voorstel-status opslaan mislukt:', d.error); return; }
         if (typeof d.versie === 'number') _voorstelStatusVersie = d.versie;
         if (!voorstelStatus[ticketId]) voorstelStatus[ticketId] = {};
         voorstelStatus[ticketId][doelgroep] = tijdstip;
