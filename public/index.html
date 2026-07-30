@@ -1699,7 +1699,10 @@ let inFlightTickets = new Set(); // voorkomt dubbele API calls
 // Centraal (niet-lokaal) bijgehouden "voorstel verzonden"-status, eager geladen bij
 // app-start (zie loadVoorstelStatus()) -- vervangt de vorige localStorage-aanpak volledig.
 let voorstelStatus = {};
-let _voorstelStatusVersie = 0;
+// null (niet 0) zolang de echte serverversie onbekend is: `typeof null !== 'number'` laat
+// de server zijn optimistic-locking check overslaan i.p.v. eeuwig te 409'en op versie 0
+// als loadVoorstelStatus() faalde (zelfde patroon als _archiefVersie).
+let _voorstelStatusVersie = null;
 async function loadVoorstelStatus() {
   try {
     const res  = await fetch('/api/voorstel-status');
@@ -6379,7 +6382,7 @@ function renderRapportArchief() {
   // weer een echte apostrof. Daarom data-attributen + addEventListener (zelfde patroon als
   // de .btn-navigeer-knoppen).
   body.querySelectorAll('.btn-verstuur-rapport').forEach(btn => {
-    btn.addEventListener('click', () => verstuurRapport(btn.dataset.rapportId || ''));
+    btn.addEventListener('click', () => verstuurRapport(btn.dataset.rapportId || '', btn));
   });
 
   body.querySelectorAll('.btn-verwijder-rapport').forEach(btn => {
@@ -6391,12 +6394,26 @@ function renderRapportArchief() {
   });
 }
 
-async function verstuurRapport(rapportId) {
+// btn (optioneel): de aangeklikte knop, wordt uitgeschakeld tijdens het versturen tegen
+// dubbelklikken. Terug inschakelen hoeft niet -- renderRapportArchief() bouwt alle knoppen
+// opnieuw op met de juiste toestand.
+async function verstuurRapport(rapportId, btn) {
   const r = _rapportArchief.find(x => x.id === rapportId);
   if (!r) return toast('⚠️ Rapport niet gevonden');
   if (!r.ticketId) return toast('⚠️ Geen ticket gekoppeld aan dit rapport');
   const html = r.rapportData?._html;
   if (!html) return toast('⚠️ Geen opgeslagen rapport-inhoud om te versturen');
+
+  if (TEST_MODE) {
+    if (btn) btn.disabled = true;
+    await new Promise(res => setTimeout(res, 600));
+    r.verzondenKlant = new Date().toISOString();
+    renderRapportArchief();
+    return toast('🧪 Testmodus — rapport verstuurd (demo)', 3500);
+  }
+
+  if (!confirm(`Rapport versturen naar alle gekende adressen voor ticket ${r.ticketNumber || r.ticketId}?\n\nDit verstuurt een echte e-mail (en kan niet ongedaan gemaakt worden).`)) return;
+  if (btn) btn.disabled = true;
 
   toast('📤 Rapport versturen...', 6000);
   try {
@@ -6408,18 +6425,29 @@ async function verstuurRapport(rapportId) {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
-    const verzondenOntvangers = [];
+    // verzondenOntvangers = mail verstuurd EN status-write geslaagd (alleen dit mag het
+    // "✅ Verzonden"-badge voeden -- een badge mag enkel bevestigd-opgeslagen status tonen).
+    // emailedMaarNietOpgeslagen = mail is écht buiten, maar de status-write faalde: de
+    // gebruiker mag dan nooit een boodschap zien die suggereert dat er niets verstuurd is.
+    const verzondenOntvangers        = [];
+    const emailedMaarNietOpgeslagen  = [];
     for (const doelgroep of ['klant', 'installateur']) {
       if (!data.emailSent?.[doelgroep]) continue;
       const tijdstip = new Date().toISOString();
-      const statusRes = await fetch('/api/rapport-verzonden', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ id: rapportId, doelgroep, tijdstip, versie: _archiefVersie }),
-      });
-      const statusData = await statusRes.json();
+      let statusData = {};
+      try {
+        const statusRes = await fetch('/api/rapport-verzonden', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ id: rapportId, doelgroep, tijdstip, versie: _archiefVersie }),
+        });
+        statusData = await statusRes.json();
+      } catch (statusErr) {
+        statusData = { error: statusErr.message };
+      }
       if (statusData.error) {
         console.warn(`Rapport-verzonden opslaan voor ${doelgroep} mislukt:`, statusData.error);
+        emailedMaarNietOpgeslagen.push(doelgroep);
         continue;
       }
       if (typeof statusData.versie === 'number') _archiefVersie = statusData.versie;
@@ -6429,15 +6457,18 @@ async function verstuurRapport(rapportId) {
     }
 
     renderRapportArchief();
-    if (verzondenOntvangers.length === 0) {
-      toast('⚠️ Rapport kon niet verstuurd worden (geen adressen bekend)', 4500);
-    } else {
+    if (verzondenOntvangers.length > 0) {
       const msg = verzondenOntvangers.length === 2
         ? '✓ Rapport verstuurd naar klant en installateur'
         : verzondenOntvangers[0] === 'klant'
           ? '✓ Rapport verstuurd naar klant'
           : '✓ Rapport verstuurd naar installateur';
       toast(msg, 3500);
+    } else if (emailedMaarNietOpgeslagen.length === 0) {
+      toast('⚠️ Rapport kon niet verstuurd worden (geen adressen bekend)', 4500);
+    }
+    if (emailedMaarNietOpgeslagen.length > 0) {
+      toast(`✓ Rapport verstuurd naar ${emailedMaarNietOpgeslagen.join(' en ')}, maar status kon niet opgeslagen worden — NIET opnieuw versturen, herlaad eerst de pagina`, 8000);
     }
   } catch (err) {
     toast('❌ ' + err.message, 5000);

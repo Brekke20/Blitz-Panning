@@ -103,35 +103,46 @@ export async function handler(event) {
       if (!fromEmailAddress) throw new Error('Geen from-emailadres gevonden in Zoho. Stel ZOHO_FROM_EMAIL in als Netlify env-var.');
     }
 
+    // Een harde fout bij ontvanger 2 mag de al-verstuurde mail naar ontvanger 1 niet
+    // weggooien: per ontvanger de fout opvangen, opslaan in `fouten` en doorgaan met de
+    // volgende. De caller rapporteert op basis van emailSent, dus dit blijft een 200 --
+    // een 500 is voorbehouden aan fouten vóór deze lus (token/org/ticket/PDF).
     const emailSent = { klant: false, installateur: false };
+    const fouten    = [];
     for (const { doelgroep, email } of ontvangers) {
-      const formData = new FormData();
-      formData.append('file', new Blob([pdfBuffer], { type: 'application/pdf' }), `service-rapport-${ticketNumber || ticketId}.pdf`);
-      const uploadRes = await fetch(`${ZOHO_DESK}/uploads`, { method: 'POST', headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId }, body: formData });
-      const uploadData = await uploadRes.json().catch(() => ({}));
-      if (!uploadRes.ok) throw new Error(`Zoho attachment-upload fout (${uploadRes.status}) voor ${doelgroep}: ${JSON.stringify(uploadData)}`);
+      try {
+        const formData = new FormData();
+        formData.append('file', new Blob([pdfBuffer], { type: 'application/pdf' }), `service-rapport-${ticketNumber || ticketId}.pdf`);
+        const uploadRes = await fetch(`${ZOHO_DESK}/uploads`, { method: 'POST', headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId }, body: formData });
+        const uploadData = await uploadRes.json().catch(() => ({}));
+        if (!uploadRes.ok) throw new Error(`Zoho attachment-upload fout (${uploadRes.status}) voor ${doelgroep}: ${JSON.stringify(uploadData)}`);
 
-      const replyRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/sendReply`, {
-        method: 'POST',
-        headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channel: 'EMAIL', contentType: 'html', content: buildRapportEmailHtml({ ticketNumber }),
-          fromEmailAddress, to: email, attachmentIds: [uploadData.id],
-        }),
-      });
-      const replyText = await replyRes.text();
-      let replyData = {};
-      if (replyText) try { replyData = JSON.parse(replyText); } catch (_) {}
-      if (!replyRes.ok) {
-        if (!JSON.stringify(replyData).includes('Empty Recipients')) {
-          throw new Error(`Zoho sendReply fout (${replyRes.status}) naar ${doelgroep}: ${JSON.stringify(replyData)}`);
+        const replyRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/sendReply`, {
+          method: 'POST',
+          headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            channel: 'EMAIL', contentType: 'html', content: buildRapportEmailHtml({ ticketNumber }),
+            fromEmailAddress, to: email, attachmentIds: [uploadData.id],
+          }),
+        });
+        const replyText = await replyRes.text();
+        let replyData = {};
+        if (replyText) try { replyData = JSON.parse(replyText); } catch (_) {}
+        if (!replyRes.ok) {
+          if (!JSON.stringify(replyData).includes('Empty Recipients')) {
+            throw new Error(`Zoho sendReply fout (${replyRes.status}) naar ${doelgroep}: ${JSON.stringify(replyData)}`);
+          }
+          // soft fail: emailSent[doelgroep] blijft false, geen fout melden
+        } else {
+          emailSent[doelgroep] = true;
         }
-      } else {
-        emailSent[doelgroep] = true;
+      } catch (ontvangerErr) {
+        console.error(`Versturen naar ${doelgroep} mislukt:`, ontvangerErr.message);
+        fouten.push({ doelgroep, fout: ontvangerErr.message });
       }
     }
 
-    return { statusCode: 200, headers, body: JSON.stringify({ success: true, emailSent }) };
+    return { statusCode: 200, headers, body: JSON.stringify({ success: true, emailSent, fouten }) };
   } catch (err) {
     if (browser) await browser.close().catch(() => {});
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };

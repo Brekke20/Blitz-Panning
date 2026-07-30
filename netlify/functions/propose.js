@@ -239,51 +239,65 @@ export async function handler(event) {
     // 1 aparte sendReply-aanroep per ontvanger (klant en/of installateur) -- elk met zijn eigen
     // upload van de service-voorwaarden-PDF, zodat elke afzonderlijke mail zijn eigen geldige
     // bijlage-verwijzing heeft.
+    // Een harde fout bij ontvanger 2 mag niet de al-verstuurde mail naar ontvanger 1
+    // weggooien, en al zeker niet de PATCH hieronder overslaan (dan staat de klant met een
+    // echt voorstel in de mailbox terwijl het ticket onaangeroerd blijft). Daarom per
+    // ontvanger opvangen + opslaan in `fouten`, en gewoon doorgaan. De caller rapporteert
+    // op basis van emailSent, dus dit blijft altijd een 200 -- een 500 is voorbehouden aan
+    // fouten vóór deze lus (token/org-lookup of de initiële ticket-GET).
     const emailSent = { klant: false, installateur: false };
+    const fouten    = [];
     for (const { doelgroep, email } of ontvangers) {
-      const dateObj       = new Date(`${date}T12:00:00`);
-      const formattedDate = dateObj.toLocaleDateString('nl-BE', {
-        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-      });
+      try {
+        const dateObj       = new Date(`${date}T12:00:00`);
+        const formattedDate = dateObj.toLocaleDateString('nl-BE', {
+          weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+        });
 
-      const emailHtml = buildEmailHtml({
-        recipientName: recipientName || '',
-        subject:       subject || 'Servicebezoek',
-        formattedDate,
-        appointmentTime,
-        serienummer:   serienummer || '',
-      });
+        const emailHtml = buildEmailHtml({
+          recipientName: recipientName || '',
+          subject:       subject || 'Servicebezoek',
+          formattedDate,
+          appointmentTime,
+          serienummer:   serienummer || '',
+        });
 
-      const attachmentId = await uploadTermsAttachment(accessToken, orgId);
+        const attachmentId = await uploadTermsAttachment(accessToken, orgId);
 
-      const replyRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/sendReply`, {
-        method:  'POST',
-        headers: {
-          Authorization:  `Zoho-oauthtoken ${accessToken}`,
-          orgId,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          channel:          'EMAIL',
-          contentType:      'html',
-          content:          emailHtml,
-          fromEmailAddress,
-          to:               email,
-          attachmentIds:    [attachmentId],
-        }),
-      });
+        const replyRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/sendReply`, {
+          method:  'POST',
+          headers: {
+            Authorization:  `Zoho-oauthtoken ${accessToken}`,
+            orgId,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            channel:          'EMAIL',
+            contentType:      'html',
+            content:          emailHtml,
+            fromEmailAddress,
+            to:               email,
+            attachmentIds:    [attachmentId],
+          }),
+        });
 
-      const replyText = await replyRes.text();
-      let replyData = {};
-      if (replyText) try { replyData = JSON.parse(replyText); } catch (_) {}
-      if (!replyRes.ok) {
-        const isEmptyRecipients = JSON.stringify(replyData).includes('Empty Recipients');
-        if (!isEmptyRecipients) {
-          throw new Error(`Zoho sendReply fout (${replyRes.status}) naar ${doelgroep}: ${JSON.stringify(replyData)}`);
+        const replyText = await replyRes.text();
+        let replyData = {};
+        if (replyText) try { replyData = JSON.parse(replyText); } catch (_) {}
+        if (!replyRes.ok) {
+          const isEmptyRecipients = JSON.stringify(replyData).includes('Empty Recipients');
+          if (!isEmptyRecipients) {
+            throw new Error(`Zoho sendReply fout (${replyRes.status}) naar ${doelgroep}: ${JSON.stringify(replyData)}`);
+          }
+          // soft fail: emailSent[doelgroep] blijft false, ga door met een eventuele volgende ontvanger
+        } else {
+          emailSent[doelgroep] = true;
         }
-        // soft fail: emailSent[doelgroep] blijft false, ga door met een eventuele volgende ontvanger
-      } else {
-        emailSent[doelgroep] = true;
+      } catch (ontvangerErr) {
+        // harde fout voor deze ontvanger: registreren en doorgaan, zodat een eventuele
+        // volgende ontvanger nog aan bod komt en de PATCH hieronder toch uitgevoerd wordt.
+        console.error(`Versturen naar ${doelgroep} mislukt:`, ontvangerErr.message);
+        fouten.push({ doelgroep, fout: ontvangerErr.message });
       }
     }
 
@@ -313,7 +327,7 @@ export async function handler(event) {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, ticketId, interventieDatum, appointmentTime, emailSent, ontvangers: ontvangers.map(o => o.doelgroep) }),
+      body: JSON.stringify({ success: true, ticketId, interventieDatum, appointmentTime, emailSent, fouten, ontvangers: ontvangers.map(o => o.doelgroep) }),
     };
   } catch (err) {
     return {
