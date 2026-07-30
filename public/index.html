@@ -3486,31 +3486,54 @@ function haversine(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-async function travelTimeMin(from, to) {
+// Vraagt in 1 aanvraag de historische reistijd op vanaf (fromLat, fromLon) naar alle
+// candidates tegelijk (TomTom Matrix Routing API), voor het gegeven vertrekmoment.
+// Geeft een Map terug: candidate.id → reistijd in minuten. Kandidaten zonder coords, of
+// waarvoor de batch geen resultaat gaf (individuele mislukking), komen niet in de Map --
+// de aanroeper behandelt dat fail-open.
+async function batchTravelTimes(candidates, fromLat, fromLon, departAtIso) {
+  const withCoords = candidates.filter(c => c._lat && c._lon);
+  if (!fromLat || !fromLon || !withCoords.length) return new Map();
   try {
-    const res  = await fetch('/api/route', {
+    const res  = await fetch('/api/matrix', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ waypoints: [from, to] }),
+      body:    JSON.stringify({
+        origin:       { lat: fromLat, lon: fromLon },
+        destinations: withCoords.map(c => ({ lat: c._lat, lon: c._lon })),
+        departAt:     departAtIso,
+      }),
     });
     const data = await res.json();
-    const sec  = data.legs?.[0]?.noTrafficTravelTimeSeconds ?? data.legs?.[0]?.travelTimeSeconds;
-    return typeof sec === 'number' ? sec / 60 : null;
-  } catch { return null; }
+    const map = new Map();
+    (data.results || []).forEach((r, i) => {
+      if (typeof r?.travelTimeSeconds === 'number') map.set(withCoords[i].id, r.travelTimeSeconds / 60);
+    });
+    return map;
+  } catch { return new Map(); }
 }
 
-// Doorloopt candidates in de gegeven (reeds op fillScore gesorteerde) volgorde en
-// geeft de eerste terug die binnen settings.maxReistijdMin ligt t.o.v. (fromLat, fromLon).
-// Geen vaste pogingslimiet: de hele lijst komt in aanmerking (zie designdoc voor de reden
-// — rechte-lijn-afstand is niet altijd representatief voor echte rijtijd in deze regio).
-// Fail-open bij ontbrekende coords of een mislukte /api/route-aanroep: blokkeert niet.
-async function pickNearbyCandidate(candidates, fromLat, fromLon) {
+// Doorloopt candidates in de gegeven (reeds op fillScore gesorteerde) volgorde en geeft de
+// eerste terug die binnen settings.maxReistijdMin ligt t.o.v. (fromLat, fromLon), samen met
+// de effectieve reistijd (om het lopend geschat uur bij te werken). Geen vaste
+// pogingslimiet: de hele lijst komt in aanmerking (ongewijzigd t.o.v. het vorige ontwerp).
+// Fail-open: kandidaten zonder coords, of zonder batch-resultaat, worden meteen aanvaard.
+async function pickNearbyCandidate(candidates, fromLat, fromLon, departAtIso) {
+  const times = await batchTravelTimes(candidates, fromLat, fromLon, departAtIso);
   for (const candidate of candidates) {
-    if (!fromLat || !fromLon || !candidate._lat || !candidate._lon) return candidate;
-    const travelMin = await travelTimeMin({ lat: fromLat, lon: fromLon }, { lat: candidate._lat, lon: candidate._lon });
-    if (travelMin === null || travelMin <= settings.maxReistijdMin) return candidate;
+    if (!fromLat || !fromLon || !candidate._lat || !candidate._lon) return { candidate, legMin: 0 };
+    const legMin = times.get(candidate.id);
+    if (legMin === undefined || legMin <= settings.maxReistijdMin) return { candidate, legMin: legMin ?? 0 };
   }
   return null;
+}
+
+// Zet minuten-na-middernacht om naar een ISO-datetime voor de gegeven dag, voor gebruik als
+// departAt bij de historische-reistijd-opzoeking hierboven.
+function minToDepartAt(dateStr, minutesSinceMidnight) {
+  const h = Math.floor(minutesSinceMidnight / 60) % 24;
+  const m = Math.floor(minutesSinceMidnight) % 60;
+  return new Date(`${dateStr}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`).toISOString();
 }
 
 // ══════════════════════════════════════════════
@@ -3664,6 +3687,15 @@ async function autoPlan() {
       const startLat  = anchorLat ?? originCoords?.lat ?? null; // sortering (fillScore) ongewijzigd
       const startLon  = anchorLon ?? originCoords?.lon ?? null;
 
+      // Lopend geschat uur voor deze dag (minuten na middernacht), voor de historische-
+      // reistijd-opzoeking. Start bij het bestaande ticket zijn eigen uur + duur indien
+      // gekend; anders (lege dag, of bestaand ticket zonder gekend uur) bij de ingestelde
+      // starttijd -- een bewuste benadering, zie designdoc.
+      const [vanH, vanM] = (settings.vanTijd || '08:00').split(':').map(Number);
+      let curTimeOfDay = lastExisting?.uur
+        ? timeStrToMin(lastExisting.uur) + duurVoor(lastExisting.ticket.id)
+        : vanH * 60 + vanM;
+
       // Seed: geografisch dichtste ticket (met urgentie/prio als tiebreaker via fillScore).
       // Een volledig lege dag (geen lastExisting), of een dag waarvan het bestaande
       // ticket se locatie we niet kennen, is vrijgesteld van de reistijd-check. Zodra
@@ -3673,10 +3705,18 @@ async function autoPlan() {
       seedPool.sort((a, b) => fillScore(a, startLat, startLon) - fillScore(b, startLat, startLon));
       if (!seedPool.length) continue;
       const seedExempt = !lastExisting || anchorLat == null || anchorLon == null;
-      const seed = seedExempt ? seedPool[0] : await pickNearbyCandidate(seedPool, startLat, startLon);
-      if (!seed) continue; // dag heeft al een ticket, maar niemand past binnen de max-reistijd
+      let seed;
+      if (seedExempt) {
+        seed = seedPool[0];
+      } else {
+        const result = await pickNearbyCandidate(seedPool, startLat, startLon, minToDepartAt(day.date, curTimeOfDay));
+        if (!result) continue; // dag heeft al een ticket, maar niemand past binnen de max-reistijd
+        seed = result.candidate;
+        curTimeOfDay += result.legMin;
+      }
       pool.splice(pool.indexOf(seed), 1);
       const dayTickets = [seed];
+      curTimeOfDay += duurVoor(seed.id);
 
       // Fill: ticket met laagste score t.o.v. huidige positie op die dag.
       // Tickets met duurOverride tellen als meerdere slots (naar boven afgerond).
@@ -3691,13 +3731,15 @@ async function autoPlan() {
         });
         if (!fillPool.length) break;
         fillPool.sort((a, b) => fillScore(a, curLat, curLon) - fillScore(b, curLat, curLon));
-        const chosen = await pickNearbyCandidate(fillPool, curLat, curLon);
-        if (!chosen) break; // niemand in de wachtrij past nog binnen de max-reistijd voor deze dag
+        const result = await pickNearbyCandidate(fillPool, curLat, curLon, minToDepartAt(day.date, curTimeOfDay));
+        if (!result) break; // niemand in de wachtrij past nog binnen de max-reistijd voor deze dag
+        const chosen = result.candidate;
         const chosenSlots = Math.ceil(duurVoor(chosen.id) / settings.duurMinuten);
         if (usedSlots + chosenSlots > day.cap) break; // past niet meer
         pool.splice(pool.indexOf(chosen), 1);
         dayTickets.push(chosen);
         usedSlots += chosenSlots;
+        curTimeOfDay += result.legMin + duurVoor(chosen.id);
         if (chosen._lat && chosen._lon) { curLat = chosen._lat; curLon = chosen._lon; }
       }
 
