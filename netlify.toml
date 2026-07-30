@@ -14,8 +14,12 @@
 [functions.rapport]
   timeout = 26
 
+[functions.send-rapport]
+  timeout = 26
+
 [functions.propose]
   included_files = ["netlify/functions/assets/*.pdf"]
+  timeout = 26
 
 [functions.planning-export]
   timeout = 26

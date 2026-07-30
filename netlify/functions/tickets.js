@@ -144,6 +144,7 @@ export async function handler(event) {
         telefoonEindklant: cf.cf_telefoon_eindklant   || '',
         serienummer:       cf.cf_serienummer          || '',
         partner:           cf.cf_partner_installateur || '',
+        emailInstallateur: cf.cf_e_mail_installateur   || '',
         probleemtype:      cf.cf_probleemtype         || '',
         regio:             (cf.cf_regio && cf.cf_regio !== '-Geen-') ? cf.cf_regio : '',
         interventieDatum:  cf.cf_interventie_datm || null,
