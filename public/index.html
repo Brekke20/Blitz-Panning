@@ -3123,7 +3123,7 @@ function openLocalEventDetail(ev) {
 
   const rows = [
     adres
-      ? `<div class="mrow"><span class="mlabel">Adres</span><span class="mval"><a href="https://maps.google.com/?q=${encodeURIComponent(adres)}" target="_blank">${escHtml(adres)} ↗</a></span></div>`
+      ? `<div class="mrow"><span class="mlabel">Adres</span><span class="mval"><a href="#" class="mval-nav-link" data-adres="${escHtml(adres)}">${escHtml(adres)} ↗</a></span></div>`
       : '',
     linkRow('Telefoon', ev.telefoon, `tel:${ev.telefoon}`),
     linkRow('E-mail',   ev.email,    `mailto:${ev.email}`),
@@ -3133,6 +3133,10 @@ function openLocalEventDetail(ev) {
 
   document.getElementById('ld-body').innerHTML = rows
     || '<div class="mrow"><span class="mval" style="color:var(--muted)">Geen contactgegevens beschikbaar</span></div>';
+  document.getElementById('ld-body').querySelector('.mval-nav-link')?.addEventListener('click', e => {
+    e.preventDefault();
+    navigate(encodeURIComponent(e.currentTarget.dataset.adres));
+  });
 
   document.getElementById('local-det-overlay').classList.add('open');
 }
@@ -4371,9 +4375,13 @@ function openDetail(t) {
     row('E-mail',   t.emailEindklant  || t.email, 'mailto:'),
     row('Telefoon', t.telefoonEindklant || t.phone, 'tel:'),
     t.hasAddress
-      ? `<div class="mrow"><span class="mlabel">Adres</span><span class="mval"><a href="https://maps.google.com/?q=${encodeURIComponent(t.address)}" target="_blank">${escHtml(t.address)} ↗</a></span></div>`
+      ? `<div class="mrow"><span class="mlabel">Adres</span><span class="mval"><a href="#" class="mval-nav-link" data-adres="${escHtml(t.address)}">${escHtml(t.address)} ↗</a></span></div>`
       : `<div class="mrow"><span class="mlabel">Adres</span><span class="mval miss">Geen adres bekend</span></div>`,
   ].join('');
+  document.getElementById('d-klant').querySelector('.mval-nav-link')?.addEventListener('click', e => {
+    e.preventDefault();
+    navigate(encodeURIComponent(e.currentTarget.dataset.adres));
+  });
 
   document.getElementById('d-ticket').innerHTML = [
     row('Probleemtype', t.probleemtype),
@@ -4872,7 +4880,17 @@ async function sendProposal() {
 // ══════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════
-function navigate(enc) { window.open(`https://www.google.com/maps/dir/?api=1&destination=${enc}&travelmode=driving`, '_blank'); }
+function navigate(enc) {
+  // Android toont zelf een native keuzemenu (met "1 keer"/"altijd") wanneer een geo:-
+  // koppeling geopend wordt, omdat alle navigatie-apps (Google Maps, Waze, ...) zich
+  // hiervoor registreren bij het besturingssysteem -- geen eigen menu nodig. Niet-Android
+  // toestellen (zeldzaam in dit team) vallen terug op het bestaande Google Maps-gedrag.
+  if (/Android/i.test(navigator.userAgent)) {
+    window.location.href = `geo:0,0?q=${enc}`;
+  } else {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${enc}&travelmode=driving`, '_blank');
+  }
+}
 function fmtDate(s)     { return new Date(s).toLocaleDateString('nl-BE', { weekday:'short', day:'numeric', month:'short', year:'numeric' }); }
 function fmtDateShort(d){ const date = d instanceof Date ? d : new Date(d + 'T12:00:00'); return date.toLocaleDateString('nl-BE', { day:'numeric', month:'short' }); }
 function fmtSec(s)      { const h = Math.floor(s/3600), m = Math.round((s%3600)/60); return h > 0 ? `${h}u ${m}min` : `${m}min`; }
