@@ -6366,6 +6366,8 @@ function renderRapportArchief() {
         ${r.adres ? `<div class="taddr ok">${escHtml(r.adres)}</div>` : ''}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center">
           ${rd._html ? `<button class="cal-btn" onclick="herOpenRapport(${i})">📄 Openen</button>` : ''}
+          ${(rapportId && rd._html && r.ticketId) ? `<button class="cal-btn" onclick="verstuurRapport('${escHtml(rapportId)}', 'klant')" title="${r.verzondenKlant ? 'Al verzonden op ' + escHtml(fmtDate(r.verzondenKlant)) + ' — opnieuw versturen?' : ''}">${r.verzondenKlant ? '✅ Verzonden naar klant' : '✉️ Verstuur naar klant'}</button>` : ''}
+          ${(rapportId && rd._html && r.ticketId) ? `<button class="cal-btn" onclick="verstuurRapport('${escHtml(rapportId)}', 'installateur')" title="${r.verzondenInstallateur ? 'Al verzonden op ' + escHtml(fmtDate(r.verzondenInstallateur)) + ' — opnieuw versturen?' : ''}">${r.verzondenInstallateur ? '✅ Verzonden naar installateur' : '✉️ Verstuur naar installateur'}</button>` : ''}
           ${rapportId ? `<button class="cal-btn btn-verwijder-rapport" style="color:var(--red);border-color:var(--red)" data-rapport-id="${escHtml(rapportId)}" data-ticket-ref="${escHtml(r.ticketNumber||r.ticketId||'?')}" data-datum="${escHtml(datumStr)}">🗑 Verwijderen</button>` : ''}
         </div>
       </div>
@@ -6384,6 +6386,44 @@ function renderRapportArchief() {
       btn.dataset.datum     || '',
     ));
   });
+}
+
+async function verstuurRapport(rapportId, doelgroep) {
+  const r = _rapportArchief.find(x => x.id === rapportId);
+  if (!r) return toast('⚠️ Rapport niet gevonden');
+  if (!r.ticketId) return toast('⚠️ Geen ticket gekoppeld aan dit rapport');
+  const html = r.rapportData?._html;
+  if (!html) return toast('⚠️ Geen opgeslagen rapport-inhoud om te versturen');
+
+  const label = doelgroep === 'klant' ? 'klant' : 'installateur';
+  toast(`📤 Rapport versturen naar ${label}...`, 6000);
+  try {
+    const res  = await fetch('/api/send-rapport', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ ticketId: r.ticketId, html, ticketNumber: r.ticketNumber }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    if (!data.emailSent?.[doelgroep]) {
+      toast(`⚠️ Rapport kon niet verstuurd worden naar ${label} (geen adres of Zoho-fout)`, 4500);
+      return;
+    }
+    const tijdstip = new Date().toISOString();
+    const statusRes = await fetch('/api/rapport-verzonden', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ id: rapportId, doelgroep, tijdstip, versie: _archiefVersie }),
+    });
+    const statusData = await statusRes.json();
+    if (typeof statusData.versie === 'number') _archiefVersie = statusData.versie;
+    const veld = doelgroep === 'klant' ? 'verzondenKlant' : 'verzondenInstallateur';
+    r[veld] = tijdstip;
+    renderRapportArchief();
+    toast(`✓ Rapport verstuurd naar ${label}`, 3500);
+  } catch (err) {
+    toast('❌ ' + err.message, 5000);
+  }
 }
 
 async function verwijderRapport(id, ticketRef, datumStr) {
