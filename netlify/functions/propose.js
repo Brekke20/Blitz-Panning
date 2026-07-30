@@ -1,9 +1,10 @@
 // /api/propose
-// Verstuurt een afspraakvoorstel naar de klant via Zoho Desk sendReply.
+// Verstuurt een afspraakvoorstel naar klant en/of installateur via Zoho Desk sendReply.
+// De server bepaalt zelf de ontvangers (klant + installateur) op basis van de ticketdata.
 // POST body:
-//   { ticketId, date, time, recipientEmail, recipientName, subject, serienummer }
+//   { ticketId, date, time, recipientName, subject, serienummer }
 //   time wordt afgerond naar het volgende kwartier.
-// Bij recipientEmail wordt ook de service-voorwaarden-PDF als bijlage meegestuurd.
+// Elke verstuurde mail krijgt ook de service-voorwaarden-PDF als bijlage.
 
 import fs   from 'node:fs';
 import path from 'node:path';
@@ -169,7 +170,7 @@ export async function handler(event) {
   }
 
   try {
-    const { ticketId, date, time, recipientEmail, recipientName, subject, serienummer, utcInterventieDatum } =
+    const { ticketId, date, time, recipientName, subject, serienummer, utcInterventieDatum } =
       JSON.parse(event.body || '{}');
 
     if (!ticketId || !date) {
@@ -188,30 +189,24 @@ export async function handler(event) {
     const orgId   = orgData.data?.[0]?.id;
     if (!orgId) throw new Error('Zoho org ID niet gevonden');
 
-    // Haal het ticket op en controleer dat recipientEmail bij dit ticket hoort —
-    // voorkomt dat dit endpoint als open mail-relay naar een willekeurig adres misbruikt wordt.
-    if (recipientEmail) {
-      const ticketRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
-        headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
-      });
-      const ticketData = await ticketRes.json().catch(() => ({}));
-      if (!ticketRes.ok) {
-        return {
-          statusCode: 404, headers,
-          body: JSON.stringify({ error: 'Ticket niet gevonden' }),
-        };
-      }
-      const cf = ticketData.cf || {};
-      const geldigeAdressen = [
-        ticketData.email, ticketData.contact?.email, ticketData.contact?.emailId, cf.cf_e_mail_eindklant,
-      ].filter(Boolean).map(e => e.toLowerCase());
-      if (!geldigeAdressen.includes(String(recipientEmail).toLowerCase())) {
-        return {
-          statusCode: 400, headers,
-          body: JSON.stringify({ error: 'recipientEmail komt niet overeen met een geregistreerd adres op dit ticket' }),
-        };
-      }
+    // Ticket ophalen om zelf de geldige e-mailadressen te bepalen -- niet langer een
+    // client-aangeleverd adres vertrouwen/valideren, de server kent nu zelf de bron van
+    // waarheid (voorkomt bovendien elk misbruik als open mail-relay).
+    const ticketRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
+      headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
+    });
+    const ticketData = await ticketRes.json().catch(() => ({}));
+    if (!ticketRes.ok) {
+      return { statusCode: 404, headers, body: JSON.stringify({ error: 'Ticket niet gevonden' }) };
     }
+    const cf = ticketData.cf || {};
+    const klantEmail        = ticketData.email || ticketData.contact?.email || ticketData.contact?.emailId || cf.cf_e_mail_eindklant || '';
+    const installateurEmail = cf.cf_e_mail_installateur || '';
+
+    const ontvangers = [
+      klantEmail        ? { doelgroep: 'klant',        email: klantEmail }        : null,
+      installateurEmail ? { doelgroep: 'installateur', email: installateurEmail } : null,
+    ].filter(Boolean);
 
     // Tijd afronden naar volgend kwartier
     const appointmentTime = roundToNextQuarter(time || '09:00');
@@ -240,9 +235,12 @@ export async function handler(event) {
       }
     }
 
-    // 1. E-mail via sendReply EERST (anders overschrijft Zoho de status terug naar "Wachten op klant")
-    let emailSent = false;
-    if (recipientEmail) {
+    // 1. E-mail via sendReply EERST (anders overschrijft Zoho de status terug naar "Wachten op klant").
+    // 1 aparte sendReply-aanroep per ontvanger (klant en/of installateur) -- elk met zijn eigen
+    // upload van de service-voorwaarden-PDF, zodat elke afzonderlijke mail zijn eigen geldige
+    // bijlage-verwijzing heeft.
+    const emailSent = { klant: false, installateur: false };
+    for (const { doelgroep, email } of ontvangers) {
       const dateObj       = new Date(`${date}T12:00:00`);
       const formattedDate = dateObj.toLocaleDateString('nl-BE', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -256,8 +254,6 @@ export async function handler(event) {
         serienummer:   serienummer || '',
       });
 
-      // Service-voorwaarden-PDF als bijlage: eerst uploaden via /uploads,
-      // dan de resulterende id meegeven aan sendReply.
       const attachmentId = await uploadTermsAttachment(accessToken, orgId);
 
       const replyRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/sendReply`, {
@@ -272,7 +268,7 @@ export async function handler(event) {
           contentType:      'html',
           content:          emailHtml,
           fromEmailAddress,
-          to:               recipientEmail,
+          to:               email,
           attachmentIds:    [attachmentId],
         }),
       });
@@ -281,15 +277,13 @@ export async function handler(event) {
       let replyData = {};
       if (replyText) try { replyData = JSON.parse(replyText); } catch (_) {}
       if (!replyRes.ok) {
-        // "Empty Recipients" = ticket heeft geen inbound email thread (bv. Phone-ticket).
         const isEmptyRecipients = JSON.stringify(replyData).includes('Empty Recipients');
-        if (isEmptyRecipients) {
-          emailSent = false; // soft fail: email niet verstuurd maar verder gaan
-        } else {
-          throw new Error(`Zoho sendReply fout (${replyRes.status}): ${JSON.stringify(replyData)}`);
+        if (!isEmptyRecipients) {
+          throw new Error(`Zoho sendReply fout (${replyRes.status}) naar ${doelgroep}: ${JSON.stringify(replyData)}`);
         }
+        // soft fail: emailSent[doelgroep] blijft false, ga door met een eventuele volgende ontvanger
       } else {
-        emailSent = true;
+        emailSent[doelgroep] = true;
       }
     }
 
@@ -319,7 +313,7 @@ export async function handler(event) {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, ticketId, interventieDatum, appointmentTime, emailSent }),
+      body: JSON.stringify({ success: true, ticketId, interventieDatum, appointmentTime, emailSent, ontvangers: ontvangers.map(o => o.doelgroep) }),
     };
   } catch (err) {
     return {
