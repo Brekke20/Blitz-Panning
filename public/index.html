@@ -1611,7 +1611,7 @@
       </div>
       <div class="set-field">
         <label class="set-label">E-mailadres klant</label>
-        <input class="set-input" id="proposal-email" type="email" placeholder="klant@bedrijf.be" oninput="updateProposalPreview()" />
+        <div class="set-input" id="proposal-email" style="min-height:auto"></div>
       </div>
       <div id="proposal-no-email" style="display:none;font-size:0.78rem;color:#f59e0b;padding:4px 0 8px">
         ⚠️ Geen e-mailadres — ticket wordt bijgewerkt maar er wordt geen mail verstuurd.
@@ -1683,6 +1683,7 @@ const DUMMY_DATA = {
 // ══════════════════════════════════════════════
 let allTickets = [], allPending = [], allGepland = [];
 let activeTicket = null;
+let _proposalOntvangers = []; // ontvangerslijst berekend door openProposal(), gebruikt door updateProposalPreview()/sendProposal()
 let _detailDate  = null; // datum waarop het actieve ticket ingepland staat
 // planning: { "2026-06-23": [{ ticket, address, _lat, _lon }] }
 // Zoho is bron van waarheid: allPending seeds planning bij laden
@@ -1695,7 +1696,20 @@ let kalView   = 'week'; // 'week' | 'month'
 // (drag-blokkering verwijderd — vervangen door beschikbaarheidssysteem)
 let activeAssigneeFilter = 'all';
 let inFlightTickets = new Set(); // voorkomt dubbele API calls
-let proposalSentTickets = new Set(JSON.parse(localStorage.getItem('blitz_proposal_sent') || '[]'));
+// Centraal (niet-lokaal) bijgehouden "voorstel verzonden"-status, eager geladen bij
+// app-start (zie loadVoorstelStatus()) -- vervangt de vorige localStorage-aanpak volledig.
+let voorstelStatus = {};
+let _voorstelStatusVersie = 0;
+async function loadVoorstelStatus() {
+  try {
+    const res  = await fetch('/api/voorstel-status');
+    const data = await res.json();
+    voorstelStatus       = data.status  || {};
+    _voorstelStatusVersie = data.versie || 0;
+  } catch (err) {
+    console.warn('Voorstel-status laden mislukt:', err);
+  }
+}
 let arrivalData = JSON.parse(localStorage.getItem('blitz_arrivals') || '{}');
 
 // Lokale afspraken (import + manueel) — cloud synced
@@ -1852,6 +1866,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAvailability();
   loadAfspraken();
   loadKlantBeschikbaarheid();
+  loadVoorstelStatus();
   loadTickets();
   laadRapportArchief();
   startTicketPolling();
@@ -4051,7 +4066,7 @@ function renderRouteList(date) {
             <div class="stop-sub">${escHtml(item.ticket.subject) || '—'}</div>
             <div class="stop-addr">${escHtml(item.address) || 'Geen adres'}</div>
             ${timeHtml}${arrivalHtml}
-            ${proposalSentTickets.has(item.ticket.id) ? '<div class="stop-proposal-sent">✉️ Voorstel verstuurd</div>' : ''}
+            ${(voorstelStatus[item.ticket.id]?.klant || voorstelStatus[item.ticket.id]?.installateur) ? '<div class="stop-proposal-sent">✉️ Voorstel verstuurd</div>' : ''}
           </div>
         </div>
         <div class="stop-actions">
@@ -4725,8 +4740,14 @@ function openProposal(ticketId, date, arrivalMin) {
   }
   document.getElementById('proposal-time').value = timeVal;
 
-  const email = activeTicket.emailEindklant || activeTicket.email || '';
-  document.getElementById('proposal-email').value = email;
+  const ontvangers = [
+    activeTicket.emailEindklant || activeTicket.email || null,
+    activeTicket.emailInstallateur || null,
+  ].filter(Boolean);
+  _proposalOntvangers = ontvangers;
+  document.getElementById('proposal-email').textContent = ontvangers.length
+    ? `Wordt verstuurd naar: ${ontvangers.join(', ')}`
+    : 'Geen gekend e-mailadres — ticket wordt bijgewerkt maar er wordt geen mail verstuurd.';
 
   const name = activeTicket.naamEindklant || activeTicket.contact || '';
   document.getElementById('proposal-ticket-label').textContent =
@@ -4740,7 +4761,6 @@ function updateProposalPreview() {
   if (!activeTicket) return;
   const date     = document.getElementById('proposal-date').value;
   const rawTime  = document.getElementById('proposal-time').value;
-  const email    = document.getElementById('proposal-email').value.trim();
   const apptTime = rawTime ? roundToNextQuarterStr(rawTime) : '—';
   const dateFmt  = date
     ? new Date(date + 'T12:00:00').toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
@@ -4749,7 +4769,7 @@ function updateProposalPreview() {
   const subj     = escHtml(activeTicket.subject || 'servicebezoek');
   const sn       = escHtml(activeTicket.serienummer || '');
 
-  document.getElementById('proposal-no-email').style.display = email ? 'none' : '';
+  document.getElementById('proposal-no-email').style.display = _proposalOntvangers.length ? 'none' : '';
 
   const bolt = `<svg width="14" height="22" viewBox="0 0 14 22" xmlns="http://www.w3.org/2000/svg">`
     + `<line x1="9" y1="5" x2="6" y2="11" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/>`
@@ -4796,7 +4816,6 @@ async function sendProposal() {
   const ticketId       = activeTicket.id;
   const date           = document.getElementById('proposal-date').value;
   const rawTime        = document.getElementById('proposal-time').value;
-  const recipientEmail = document.getElementById('proposal-email').value.trim();
 
   if (!date) return toast('⚠️ Selecteer een datum');
 
@@ -4806,15 +4825,13 @@ async function sendProposal() {
 
   if (TEST_MODE) {
     await new Promise(r => setTimeout(r, 600));
-    proposalSentTickets.add(ticketId);
-    localStorage.setItem('blitz_proposal_sent', JSON.stringify([...proposalSentTickets]));
     activeTicket.status = 'Wachten op bevestiging planning';
     allTickets = allTickets.filter(t => t.id !== ticketId);
     if (!allPending.find(t => t.id === ticketId)) allPending.push(activeTicket);
     document.getElementById('proposal-overlay').classList.remove('open');
     btn.disabled = false; btn.textContent = '✉️ Verstuur voorstel';
     renderTickets(); renderKalender(); renderRouteList(date); updateRouteBtns(date);
-    toast(`🧪 Testmodus — ${recipientEmail ? 'voorstel verstuurd (demo)' : 'status bijgewerkt (geen e-mail)'}`, 3500);
+    toast(`🧪 Testmodus — ${_proposalOntvangers.length ? 'voorstel verstuurd (demo)' : 'status bijgewerkt (geen e-mail)'}`, 3500);
     return;
   }
 
@@ -4831,7 +4848,6 @@ async function sendProposal() {
         date,
         time: rawTime,
         utcInterventieDatum,
-        recipientEmail,
         recipientName: activeTicket.naamEindklant || activeTicket.contact || '',
         subject:       activeTicket.subject || '',
         serienummer:   activeTicket.serienummer || '',
@@ -4840,8 +4856,19 @@ async function sendProposal() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
-    proposalSentTickets.add(ticketId);
-    localStorage.setItem('blitz_proposal_sent', JSON.stringify([...proposalSentTickets]));
+    for (const doelgroep of ['klant', 'installateur']) {
+      if (!data.emailSent?.[doelgroep]) continue;
+      const tijdstip = new Date().toISOString();
+      fetch('/api/voorstel-status', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ticketId, doelgroep, tijdstip, versie: _voorstelStatusVersie }),
+      }).then(r => r.json()).then(d => {
+        if (typeof d.versie === 'number') _voorstelStatusVersie = d.versie;
+        if (!voorstelStatus[ticketId]) voorstelStatus[ticketId] = {};
+        voorstelStatus[ticketId][doelgroep] = tijdstip;
+      }).catch(err => console.warn('Voorstel-status opslaan mislukt:', err));
+    }
     activeTicket.status           = 'Wachten op bevestiging planning';
     activeTicket.interventieDatum = data.interventieDatum;
 
@@ -4856,9 +4883,10 @@ async function sendProposal() {
     btn.disabled = false; btn.textContent = '✉️ Verstuur voorstel';
 
     renderTickets(); renderKalender(); renderRouteList(date); updateRouteBtns(date);
-    const msg = data.emailSent
-      ? `✓ Voorstel verstuurd naar ${recipientEmail}`
-      : recipientEmail
+    const gelukt = (data.ontvangers || []).filter(d => data.emailSent?.[d]);
+    const msg = gelukt.length
+      ? `✓ Voorstel verstuurd naar ${gelukt.join(' en ')}`
+      : (data.ontvangers || []).length
         ? '✓ Ticket bijgewerkt — e-mail kon niet verstuurd worden via Zoho'
         : '✓ Status bijgewerkt (geen e-mailadres)';
     toast(msg, 3500);
