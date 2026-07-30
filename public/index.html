@@ -3505,12 +3505,19 @@ async function batchTravelTimes(candidates, fromLat, fromLon, departAtIso) {
       }),
     });
     const data = await res.json();
+    if (!res.ok) {
+      console.warn('Matrix-opzoeking mislukt, valt fail-open terug (max-reistijd-check overgeslagen voor deze stap):', data.error || res.status);
+      return new Map();
+    }
     const map = new Map();
     (data.results || []).forEach((r, i) => {
       if (typeof r?.travelTimeSeconds === 'number') map.set(withCoords[i].id, r.travelTimeSeconds / 60);
     });
     return map;
-  } catch { return new Map(); }
+  } catch (err) {
+    console.warn('Matrix-opzoeking mislukt (netwerkfout), valt fail-open terug (max-reistijd-check overgeslagen voor deze stap):', err.message);
+    return new Map();
+  }
 }
 
 // Doorloopt candidates in de gegeven (reeds op fillScore gesorteerde) volgorde en geeft de
@@ -3575,7 +3582,7 @@ async function autoPlan() {
       .map(dStr => {
         const dayStops = (planning[dStr] || []).filter(p =>
           activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-        );
+        ).sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
         return dayStops[dayStops.length - 1];
       })
       .filter(stop => stop && !stop._lat && !stop.ticket._lat && stop.ticket.address);
@@ -3676,7 +3683,7 @@ async function autoPlan() {
       // (zodat we verder bundelen vanuit de bestaande regio), of anders de depot.
       const existingOnDay = (planning[day.date] || []).filter(p =>
         activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-      );
+      ).sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
       const lastExisting = existingOnDay[existingOnDay.length - 1];
       // Ankerpunt = de positie van het bestaande ticket zelf (nu betrouwbaar beschikbaar
       // dankzij de geocode-uitbreiding hierboven). Enkel als die coördinaten écht
