@@ -3933,6 +3933,7 @@ function onDateChange(val) {
   renderRouteList(val);
   updateRouteBtns(val);
   routeData = null;
+  calculateRoute();
 }
 
 function clearDay() {
@@ -3995,13 +3996,16 @@ function renderRouteList(date) {
     const [h, m] = (settings.vanTijd || '08:00').split(':').map(Number);
     let curMin = h * 60 + m;
     for (let i = 0; i < allStops.length; i++) {
-      // Geen waypoint → geen echte leg; val terug op de bestaande 30-min-schatting.
+      const entry = allStops[i];
+      // Vastgezet tijdstip (via "Toewijzen" of "Datum/tijd wijzigen"): toon dat effectief
+      // afgesproken uur i.p.v. de opgetelde rijtijd -- zelfde principe als
+      // computeArrivalTimes() al toepast voor de Kalender/het Voorstel. Geen
+      // botsingsdetectie (bewust, zie eerdere designdoc over computeArrivalTimes).
       const legSec = (legIdx[i] !== undefined
         ? routeData.legs[legIdx[i]]?.travelTimeSeconds
         : undefined) ?? 30 * 60;
-      curMin += Math.round(legSec / 60);
+      curMin = entry.uur ? timeStrToMin(entry.uur) : curMin + Math.round(legSec / 60);
       arrivalTimes.push(curMin);
-      const entry = allStops[i];
       if (entry.kind === 'ticket') {
         curMin += duurVoor(entry.item.ticket.id) || 60;
       } else {
@@ -4256,24 +4260,36 @@ function initMap() {
 
 function updateMap(date) {
   routeLayer.clearLayers();
-  // Zelfde sortering als calculateRoute()/renderRouteList(), zodat de kaartnummering (1,2,3...)
-  // de echte geplande volgorde toont i.p.v. toevoegvolgorde.
+  // Zelfde combinatie + sortering als renderRouteList()/calculateRoute(), zodat de
+  // kaartnummering (1,2,3...) exact overeenkomt met de lijst ernaast, en handmatige
+  // afspraken ook zichtbaar worden (voorheen enkel Zoho-tickets).
   const stops = (planning[date] || []).filter(p =>
     activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-  ).sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
-  if (!stops.length) return;
+  );
+  const localForDate = localEvents.filter(e =>
+    e.datum === date && (e.adres || e.notitie) &&
+    (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
+  );
+  const allStops = [
+    ...stops.map(s => ({ kind: 'ticket', item: s, uur: s.uur })),
+    ...localForDate.map(e => ({ kind: 'local', item: e, uur: e.uur })),
+  ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
+  if (!allStops.length) return;
   if (routeData?.polyline?.length && currentRouteDate === date) {
     const poly = L.polyline(routeData.polyline, { color:'#f59e0b', weight:4, opacity:0.85 }).addTo(routeLayer);
     leafletMap.fitBounds(poly.getBounds(), { padding:[30,30] });
   }
   const pts = [];
-  stops.forEach((p, i) => {
-    if (!p._lat) return;
-    L.marker([p._lat, p._lon], { icon: L.divIcon({
+  allStops.forEach((entry, i) => {
+    const item = entry.item;
+    if (!item._lat) return;
+    const label = entry.kind === 'ticket' ? escHtml(item.ticket.subject) : escHtml(item.titel || 'Afspraak');
+    const addr  = entry.kind === 'ticket' ? item.address : (item.adres || item.notitie);
+    L.marker([item._lat, item._lon], { icon: L.divIcon({
       html:`<div style="background:#f59e0b;color:#000;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;border:2px solid #000;box-shadow:0 2px 5px rgba(0,0,0,.4)">${i+1}</div>`,
       iconSize:[24,24], iconAnchor:[12,12], className:'',
-    })}).bindPopup(`<b>#${i+1}</b> ${escHtml(p.ticket.subject)}<br>${escHtml(p.address)}`).addTo(routeLayer);
-    pts.push([p._lat, p._lon]);
+    })}).bindPopup(`<b>#${i+1}</b> ${label}<br>${escHtml(addr || '')}`).addTo(routeLayer);
+    pts.push([item._lat, item._lon]);
   });
   if (pts.length && !(routeData?.polyline?.length && currentRouteDate === date))
     leafletMap.fitBounds(L.latLngBounds(pts), { padding:[40,40] });
@@ -4300,7 +4316,14 @@ function setTab(tab) {
   document.getElementById('tab-' + tab).classList.add('active');
   document.getElementById('view-' + tab).classList.add('active');
   updateTabIndicator('tab-' + tab);
-  if (tab === 'planning') setTimeout(() => leafletMap?.invalidateSize(), 50);
+  if (tab === 'planning') {
+    setTimeout(() => leafletMap?.invalidateSize(), 50);
+    const date = document.getElementById('plan-date').value;
+    // Automatisch berekenen (in de al-geplande volgorde, niet optimaliseren) als er nog
+    // geen actuele route voor deze dag in het geheugen zit -- vermijdt onnodige
+    // TomTom-aanvragen bij elke tabwissel zonder wijzigingen.
+    if (date && !(routeData?.polyline?.length && currentRouteDate === date)) calculateRoute();
+  }
   // Defer kalender/gepland render één tick zodat de tab-click geen elementen in de nieuw gerenderde view raakt
   if (tab === 'kalender')  setTimeout(() => renderKalender(), 0);
   if (tab === 'gepland')   setTimeout(() => renderGepland(), 0);
