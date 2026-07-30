@@ -1585,7 +1585,7 @@
   <div class="modal" id="foto-modal">
     <h3>📷 Foto's</h3>
     <div id="foto-grid" class="foto-grid"></div>
-    <input type="file" id="foto-file-input" accept="image/*" multiple style="display:none" onchange="handleFotoFiles(this)">
+    <input type="file" id="foto-file-input" multiple style="display:none" onchange="handleFotoFiles(this)">
     <button class="foto-add-btn" onclick="document.getElementById('foto-file-input').click()">+ Foto toevoegen</button>
     <div class="row-btns">
       <button class="btn-cancel" onclick="closeFotoModal()">Sluiten</button>
@@ -5621,7 +5621,7 @@ function wizRenderFotos(el) {
     <div class="wiz-step-title">Foto's</div>
     <div class="wiz-field">
       <div id="wiz-foto-grid" class="foto-grid"></div>
-      <input type="file" id="wiz-foto-file-input" accept="image/*" multiple style="display:none" onchange="handleWizFotoFiles(this)">
+      <input type="file" id="wiz-foto-file-input" multiple style="display:none" onchange="handleWizFotoFiles(this)">
       <button class="foto-add-btn" onclick="document.getElementById('wiz-foto-file-input').click()">+ Foto toevoegen</button>
     </div>`;
   renderFotoGridInto('wiz-foto-grid');
