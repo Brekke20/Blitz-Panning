@@ -5292,7 +5292,7 @@ function wizRenderStep() {
   const btnBack = document.getElementById('wiz-btn-back');
   const btnNext = document.getElementById('wiz-btn-next');
   btnBack.style.display = _wizStep > 0 ? '' : 'none';
-  btnNext.textContent   = _wizStep === total - 1 ? '🖨️ Afdrukken / PDF' : 'Volgende →';
+  btnNext.textContent   = visibleIndex === total - 1 ? '🖨️ Afdrukken / PDF' : 'Volgende →';
 
   const body = document.getElementById('wiz-body');
   body.scrollTop = 0;
