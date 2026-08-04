@@ -2618,6 +2618,7 @@ function getPlanningTicket(id) {
     contact: ev.titel, account: '', partner: '',
     serienummer: '', priority: '',
     isLocal: true,
+    type: ev.type || '',
   };
 }
 
@@ -3133,7 +3134,7 @@ let _localDetEvent = null;
 
 function openLocalEventDetail(ev) {
   _localDetEvent = ev;
-  document.getElementById('ld-btn-rapport').style.display = ev.type === 'Installatie' ? 'none' : '';
+  document.getElementById('ld-btn-rapport').style.display = '';
   document.getElementById('ld-type').innerHTML  = `<span class="cal-local-type">${escHtml(ev.type)}</span>`;
   document.getElementById('ld-titel').textContent = ev.titel || '—';
 
@@ -5249,7 +5250,10 @@ async function openRapport(ticketId, date) {
   }
   R.type = ''; R.uitvoering = ''; R.kabel = ''; R.kabellengte = ''; R.aantalLaadpalen = 1;
   R.hersteld = 'nee'; R.nieuwInter = 'nee';
-  R.interventieType = 'Interventie'; // default; radio in stap Algemeen kan dit expliciet naar 'Installatie' zetten
+  // Automatisch bepaald uit de bron: een Zoho-ticket is altijd een interventie, een lokale
+  // afspraak van het type "Installatie" is een installatie. Radio in stap Algemeen kan dit
+  // nog steeds manueel overschrijven.
+  R.interventieType = (ticket.isLocal && ticket.type === 'Installatie') ? 'Installatie' : 'Interventie';
   R.handtekeningTech = null; R.handtekeningKlant = null; // zie Task 23
   _sigTech = _sigKlant = null;
   _rapportUploaded = false; // reset guard bij nieuwe wizard-sessie
@@ -5410,9 +5414,6 @@ function wizSaveAlgemeen() {
   R.stop            = wizV('f-stop');
   R.werktijd        = calcWerktijd(R.start, R.stop);
   R.interventieType = document.querySelector('input[name="f-interventieType"]:checked')?.value || 'Interventie';
-  if (R.interventieType === 'Installatie') {
-    return '⚠️ Voor installaties wordt geen rapport aangemaakt — de klant kreeg hiervoor al een offerte.';
-  }
 }
 
 function fmtDuur(min) {
