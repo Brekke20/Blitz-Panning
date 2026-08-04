@@ -5786,15 +5786,19 @@ function _wizRenderGeselecteerd() {
       </div>
       <div class="wiz-sel-bottom">
         <div class="wiz-sel-aantal-wrap">
-          <span class="wiz-sel-aantal-lbl">Aantal</span>
+          <span class="wiz-sel-aantal-lbl">Aantal${p.eenheid==='meter' ? ' (meter)' : ''}</span>
           <input class="wiz-sel-aantal" type="number" min="1" step="1" value="${p.aantal||1}"
             oninput="wizUpdSelAantal(${i},this.value)" />
         </div>
         ${isVrij
           ? `<input class="wiz-part-prijs" type="number" placeholder="€ prijs" min="0" step="0.01"
               style="width:80px;font-size:0.82rem" value="${p.prijs||''}"
-              oninput="wizUpdSelPrijs(${i},this.value)" />`
-          : `<span class="wiz-sel-stukprijs">€ ${(parseFloat(p.prijs)||0).toFixed(2)} / stuk</span>`
+              oninput="wizUpdSelPrijs(${i},this.value)" />
+             <select class="wiz-part-eenheid" style="width:60px;font-size:0.8rem" onchange="wizUpdSelEenheid(${i},this.value)">
+               <option value="stuk" ${p.eenheid!=='meter'?'selected':''}>stuk</option>
+               <option value="meter" ${p.eenheid==='meter'?'selected':''}>meter</option>
+             </select>`
+          : `<span class="wiz-sel-stukprijs">€ ${(parseFloat(p.prijs)||0).toFixed(2)} / ${p.eenheid || 'stuk'}</span>`
         }
         <span class="wiz-sel-subtotaal">€ ${subtotaal.toFixed(2)}</span>
         <label class="wiz-sel-factureer">
@@ -5864,14 +5868,14 @@ function wizVoegCatToe(id) {
   if (existing) {
     existing.aantal = (parseInt(existing.aantal) || 1) + 1;
   } else {
-    R.onderdelen.push({ id: o.id, naam: o.naam, prijs: o.prijs, aantal: 1, factureren: true });
+    R.onderdelen.push({ id: o.id, naam: o.naam, prijs: o.prijs, aantal: 1, factureren: true, eenheid: o.eenheid || 'stuk' });
   }
   _wizHertekenGeselecteerd();
 }
 
 function wizAddVrijeRegel() {
   wizSaveStatus();
-  R.onderdelen.push({ id: 'vrij-' + Date.now(), naam: '', prijs: '', aantal: 1, factureren: true });
+  R.onderdelen.push({ id: 'vrij-' + Date.now(), naam: '', prijs: '', aantal: 1, factureren: true, eenheid: 'stuk' });
   _wizHertekenGeselecteerd();
   setTimeout(() => {
     const inputs = document.querySelectorAll('.wiz-part-omschr');
@@ -5889,6 +5893,7 @@ function wizUpdSelNaam(i, val)  { if (R.onderdelen[i]) R.onderdelen[i].naam     
 function wizUpdSelAantal(i, val){ if (R.onderdelen[i]) R.onderdelen[i].aantal    = parseInt(val)||1; _wizUpdateTotaalRow(); }
 function wizUpdSelPrijs(i, val) { if (R.onderdelen[i]) R.onderdelen[i].prijs     = val; _wizUpdateTotaalRow(); }
 function wizUpdSelFact(i, val)  { if (R.onderdelen[i]) R.onderdelen[i].factureren = val; _wizUpdateTotaalRow(); }
+function wizUpdSelEenheid(i, val) { if (R.onderdelen[i]) R.onderdelen[i].eenheid = val; _wizHertekenGeselecteerd(); }
 
 // Werkt enkel het totaal-rijtje bij — laat de input-elementen zelf (en dus de focus/cursorpositie) met rust.
 function _wizUpdateTotaalRow() {
