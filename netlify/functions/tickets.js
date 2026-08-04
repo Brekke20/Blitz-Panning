@@ -148,6 +148,8 @@ export async function handler(event) {
         probleemtype:      cf.cf_probleemtype         || '',
         regio:             (cf.cf_regio && cf.cf_regio !== '-Geen-') ? cf.cf_regio : '',
         interventieDatum:  cf.cf_interventie_datm || null,
+        garantieStatus:             cf.cf_garantie_status               || '',
+        installateurAlLangsGeweest: cf.cf_installateur_al_langs_geweest || '',
         createdTime:       t.createdTime || null,
       };
     };
