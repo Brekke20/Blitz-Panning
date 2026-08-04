@@ -5218,6 +5218,7 @@ async function openRapport(ticketId, date) {
   R.facturatie     = 'klant';
   R.facturatieVrij = '';
   R.servicetype    = '2e-lijn';
+  R._servicetypeAutoApplied = false;
   // Aanrijtijd wordt altijd berekend vanaf de ingestelde startlocatie naar het
   // interventie-adres — nooit hergebruikt uit een al-berekende route, nooit vanaf
   // de vorige stop van de dag. Geldt voor elk ticket (Zoho én lokale afspraken).
@@ -5272,16 +5273,20 @@ function closeWizard() {
 
 // ── Nav ──
 function wizRenderStep() {
-  const total = WIZ_STEPS.length;
   const step  = WIZ_STEPS[_wizStep];
+  const visibleSteps = R.interventieType === 'Installatie'
+    ? WIZ_STEPS.filter(s => s.id !== 'facturatie')
+    : WIZ_STEPS;
+  const total = visibleSteps.length;
+  const visibleIndex = visibleSteps.indexOf(step);
 
   // Dots
   const dotsEl = document.getElementById('wiz-dots');
-  dotsEl.innerHTML = WIZ_STEPS.map((s, i) =>
-    `<div class="wiz-step-dot ${i === _wizStep ? 'active' : i < _wizStep ? 'done' : ''}"></div>`
+  dotsEl.innerHTML = visibleSteps.map((s, i) =>
+    `<div class="wiz-step-dot ${i === visibleIndex ? 'active' : i < visibleIndex ? 'done' : ''}"></div>`
   ).join('');
 
-  document.getElementById('wiz-step-label').textContent = `${_wizStep+1} / ${total} — ${step.label}`;
+  document.getElementById('wiz-step-label').textContent = `${visibleIndex+1} / ${total} — ${step.label}`;
   document.getElementById('wiz-ftr-info').textContent   = step.label;
 
   const btnBack = document.getElementById('wiz-btn-back');
@@ -5302,8 +5307,10 @@ function wizNext() {
     toast(typeof result === 'string' ? result : '⚠️ Kan niet doorgaan naar de volgende stap', 3500);
     return;
   }
-  if (_wizStep < WIZ_STEPS.length - 1) {
-    _wizStep++;
+  let nextStep = _wizStep + 1;
+  if (R.interventieType === 'Installatie' && WIZ_STEPS[nextStep]?.id === 'facturatie') nextStep++;
+  if (nextStep < WIZ_STEPS.length) {
+    _wizStep = nextStep;
     wizRenderStep();
   } else {
     printRapport();
@@ -5312,8 +5319,10 @@ function wizNext() {
 
 function wizBack() {
   if (WIZ_STEPS[_wizStep].save) WIZ_STEPS[_wizStep].save();
-  if (_wizStep > 0) {
-    _wizStep--;
+  let prevStep = _wizStep - 1;
+  if (R.interventieType === 'Installatie' && WIZ_STEPS[prevStep]?.id === 'facturatie') prevStep--;
+  if (prevStep >= 0) {
+    _wizStep = prevStep;
     wizRenderStep();
   }
 }
@@ -5480,7 +5489,21 @@ function wizLoonkostPreview() {
     </div>`;
 }
 
+function wizAutoServicetype() {
+  const garantie = String(_wizTicket?.garantieStatus || '').trim().toLowerCase();
+  const langsgeweest = String(_wizTicket?.installateurAlLangsGeweest || '').trim().toLowerCase();
+  if (garantie === 'binnen garantie') return 'garantie';
+  if (langsgeweest === 'ja') return '2e-lijn';
+  if (langsgeweest === 'nee') return '1e-lijn';
+  return null; // onduidelijk -- geen auto-selectie, huidige/handmatige waarde van R.servicetype blijft staan
+}
+
 function wizRenderFacturatie(el) {
+  if (!R._servicetypeAutoApplied) {
+    const auto = wizAutoServicetype();
+    if (auto) R.servicetype = auto;
+    R._servicetypeAutoApplied = true;
+  }
   const isGarantie = R.servicetype === 'garantie';
   el.innerHTML = `
     <div class="wiz-step-title">Facturatie &amp; Servicetype</div>
