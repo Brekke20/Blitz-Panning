@@ -43,9 +43,9 @@ Tijdens de uitwerking gaf Brent 2 nieuwe, al-bestaande Zoho-velden door die de i
 6. **De onderdelentabel krijgt een eenheid-veld (stuk/meter)** i.p.v. altijd impliciet "stuk", met automatische totaalberekening — voor beide rapporttypes bruikbaar (een interventie kan ook per-meter materiaal gebruiken).
 7. **Het rapportenoverzicht krijgt een filter Service/Installatie.**
 
-## Belangrijke aanname om te bevestigen
+## Belangrijke aanname om te bevestigen — BEVESTIGD, met correctie
 
-De vergelijkingslogica in punt 3 gaat ervan uit dat Zoho voor beide velden letterlijk de tekst "ja"/"nee"/"onzeker" opslaat (hoofdletterongevoelig vergeleken). Als het Zoho-veld andere interne waarden gebruikt (bv. een andere spelling of taal), zal de automatische invulling stil niets doen (veilige uitval naar de huidige handmatige keuze) — even nakijken in Zoho's veldconfiguratie welke exacte tekst er per keuze opgeslagen wordt.
+De vergelijkingslogica in punt 3 ging er aanvankelijk van uit dat Zoho voor beide velden letterlijk de tekst "ja"/"nee"/"onzeker" opslaat. Live verificatie tijdens de implementatie (Task 1) toonde dat `cf_garantie_status` in werkelijkheid **"Binnen garantie" / "Buiten garantie" / "Onzeker"** als keuzes gebruikt (bevestigd door Brent) — niet "ja"/"nee". Voor `cf_installateur_al_langs_geweest` klopte de aanname wel: **"Ja" / "Nee" / "Onzeker"** (ook bevestigd). Het implementatieplan (Task 3) is hierop aangepast: `garantie === 'binnen garantie'` (hoofdletterongevoelig) i.p.v. `garantie === 'ja'`, de rest van de tabel/logica uit punt 3 blijft ongewijzigd van toepassing (enkel de letterlijke tekst voor de garantie-kant verandert, de structuur van de beslissingstabel niet).
 
 ---
 

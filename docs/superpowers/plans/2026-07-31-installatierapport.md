@@ -172,12 +172,14 @@ Zoek `function wizRenderFacturatie`, `function wizNext`, `function wizBack`, en 
 
 - [ ] **Step 2: `wizAutoServicetype()` toevoegen + toepassen in `wizRenderFacturatie()`**
 
+**Belangrijk — bijgewerkt na live verificatie in Task 1:** de werkelijke Zoho-keuzelijst voor `cf_garantie_status` bevat NIET "ja"/"nee"/"onzeker" (zoals het designdoc aanvankelijk aannam), maar de letterlijke keuzes **"Binnen garantie" / "Buiten garantie" / "Onzeker"** (bevestigd door Brent). Voor `cf_installateur_al_langs_geweest` zijn de keuzes wel degelijk **"Ja" / "Nee" / "Onzeker"** (ook bevestigd). De vergelijkingslogica hieronder is al aangepast aan deze bevestigde waarden — dit is de correcte, finale versie, gebruik deze code letterlijk.
+
 Voeg toe, vlak vóór `function wizRenderFacturatie`:
 ```js
 function wizAutoServicetype() {
   const garantie = String(_wizTicket?.garantieStatus || '').trim().toLowerCase();
   const langsgeweest = String(_wizTicket?.installateurAlLangsGeweest || '').trim().toLowerCase();
-  if (garantie === 'ja') return 'garantie';
+  if (garantie === 'binnen garantie') return 'garantie';
   if (langsgeweest === 'ja') return '2e-lijn';
   if (langsgeweest === 'nee') return '1e-lijn';
   return null; // onduidelijk -- geen auto-selectie, huidige/handmatige waarde van R.servicetype blijft staan
@@ -311,7 +313,7 @@ Start `node dev-server.mjs`, open `http://localhost:3333/?test`.
 
 **Installatie-pad (nieuw):** open een installatie-afspraak-rapport (zie Task 2), doorloop stap "Algemeen" → klik "Volgende" → bevestig dat je RECHTSTREEKS op de stap "Product" terechtkomt (facturatiestap volledig overgeslagen), met voortgangsindicator "2 / 7" (niet "3 / 8"). Klik "Terug" vanaf "Product" → bevestig dat je terug op "Algemeen" belandt (niet op de overgeslagen facturatiestap).
 
-Test ook de auto-invulling zelf: als je in de browserconsole tijdelijk `_wizTicket.garantieStatus='ja'` zet vóór je een INTERVENTIE-rapport opent op stap "Facturatie" (via een Zoho-ticket, waar de facturatiestap wél getoond wordt), moet "Garantie" voorgevinkt staan. Herhaal met `_wizTicket.installateurAlLangsGeweest='ja'` (zonder garantieStatus) → "2e lijn" moet voorgevinkt staan.
+Test ook de auto-invulling zelf: als je in de browserconsole tijdelijk `_wizTicket.garantieStatus='Binnen garantie'` zet vóór je een INTERVENTIE-rapport opent op stap "Facturatie" (via een Zoho-ticket, waar de facturatiestap wél getoond wordt), moet "Garantie" voorgevinkt staan. Herhaal met `_wizTicket.installateurAlLangsGeweest='Ja'` (zonder garantieStatus, of met `garantieStatus='Buiten garantie'`) → "2e lijn" moet voorgevinkt staan.
 
 - [ ] **Step 7: Commit**
 
