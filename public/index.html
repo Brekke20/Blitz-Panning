@@ -6320,6 +6320,7 @@ let _rapportArchief = [];
 // Rapporten-tabblad te openen) → server-check slaat de versie-vergelijking dan over
 // (typeof null !== 'number'), net als bij een niet-herladen oud tabblad.
 let _archiefVersie = null;
+let _previewSeq = 0;
 
 async function laadRapportArchief() {
   const body = document.getElementById('rapp-archief-body');
@@ -6440,9 +6441,11 @@ async function voorbeeldRapport(rapportId, btn) {
   const html = r.rapportData?._html;
   if (!html) return toast('⚠️ Geen opgeslagen rapport-inhoud om te versturen');
 
+  const mySeq = ++_previewSeq;
+
   if (TEST_MODE) return verstuurRapport(rapportId, btn);
 
-  toast('🔎 Voorbeeld ophalen...', 4000);
+  toast('🔎 Voorbeeld ophalen...', 8000);
   try {
     const res  = await fetch('/api/send-rapport', {
       method:  'POST',
@@ -6452,6 +6455,8 @@ async function voorbeeldRapport(rapportId, btn) {
     const data = await res.json();
     if (data.error) return toast('⚠️ ' + data.error, 4500);
     if (!data.ontvangers?.length) return toast('⚠️ Geen gekend e-mailadres (klant of installateur) op dit ticket', 4500);
+
+    if (mySeq !== _previewSeq) return; // een nieuwere klik overschreef deze aanvraag al
 
     document.getElementById('rapport-preview-ticket-label').textContent =
       `Ticket #${r.ticketNumber || r.ticketId}`;
@@ -6464,7 +6469,9 @@ async function voorbeeldRapport(rapportId, btn) {
     `).join('');
 
     const sendBtn = document.getElementById('rapport-preview-send-btn');
+    sendBtn.disabled = false;
     sendBtn.onclick = () => {
+      sendBtn.disabled = true;
       document.getElementById('rapport-preview-overlay').classList.remove('open');
       verstuurRapport(rapportId, btn);
     };
@@ -6829,7 +6836,7 @@ function toggleTheme() {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    closeDet(); closeSettings(); closeOpl(); closeBlock(); closeResult(); closeProposal(); closePrijsBeheer();
+    closeDet(); closeSettings(); closeOpl(); closeBlock(); closeResult(); closeProposal(); closeRapportPreview(); closePrijsBeheer();
     if (document.getElementById('rapport-wizard').classList.contains('open')) closeWizard();
   }
 });
