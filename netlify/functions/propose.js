@@ -249,7 +249,7 @@ export async function handler(event) {
     // ontvanger opvangen + opslaan in `fouten`, en gewoon doorgaan. De caller rapporteert
     // op basis van emailSent, dus dit blijft altijd een 200 -- een 500 is voorbehouden aan
     // fouten vóór deze lus (token/org-lookup of de initiële ticket-GET).
-    const emailSent = { klant: false, installateur: false };
+    const emailSent = { contact: false, klant: false, installateur: false };
     const fouten    = [];
     for (const { doelgroep, email } of ontvangers) {
       try {
