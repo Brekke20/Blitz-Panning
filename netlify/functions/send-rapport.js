@@ -85,13 +85,19 @@ export async function handler(event) {
     const ticketData = await ticketRes.json().catch(() => ({}));
     if (!ticketRes.ok) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Ticket niet gevonden' }) };
     const cf = ticketData.cf || {};
-    const klantEmail        = ticketData.email || ticketData.contact?.email || ticketData.contact?.emailId || cf.cf_e_mail_eindklant || '';
-    const installateurEmail = cf.cf_e_mail_installateur || '';
+    const contactEmail      = ticketData.email || ticketData.contact?.email || ticketData.contact?.emailId || '';
+    const contactNaam       = ticketData.contact?.name || ticketData.contact?.fullName
+                             || (ticketData.contact?.firstName ? `${ticketData.contact.firstName} ${ticketData.contact.lastName || ''}`.trim() : '')
+                             || '';
+    const klantEmail        = cf.cf_e_mail_eindklant || '';
     const klantNaam         = cf.cf_naam_eindklant       || '';
+    const installateurEmail = cf.cf_e_mail_installateur || '';
     const installateurNaam  = cf.cf_partner_installateur || '';
+    const klantIsContact = klantEmail && contactEmail && klantEmail.toLowerCase() === contactEmail.toLowerCase();
     const ontvangers = [
-      klantEmail        ? { doelgroep: 'klant',        email: klantEmail,        naam: klantNaam }        : null,
-      installateurEmail ? { doelgroep: 'installateur', email: installateurEmail, naam: installateurNaam } : null,
+      contactEmail                    ? { doelgroep: 'contact',      email: contactEmail,      naam: contactNaam }      : null,
+      (klantEmail && !klantIsContact) ? { doelgroep: 'klant',        email: klantEmail,        naam: klantNaam }        : null,
+      installateurEmail               ? { doelgroep: 'installateur', email: installateurEmail, naam: installateurNaam } : null,
     ].filter(Boolean);
     if (!ontvangers.length) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Geen gekend e-mailadres (klant of installateur) op dit ticket' }) };
 
@@ -136,7 +142,7 @@ export async function handler(event) {
     // weggooien: per ontvanger de fout opvangen, opslaan in `fouten` en doorgaan met de
     // volgende. De caller rapporteert op basis van emailSent, dus dit blijft een 200 --
     // een 500 is voorbehouden aan fouten vóór deze lus (token/org/ticket/PDF).
-    const emailSent = { klant: false, installateur: false };
+    const emailSent = { contact: false, klant: false, installateur: false };
     const fouten    = [];
     for (const { doelgroep, email, naam } of ontvangers) {
       try {
