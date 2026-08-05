@@ -6172,9 +6172,9 @@ function buildRapportHtml() {
     <div class="info-cell accent"><div class="info-lbl">Totale werktijd</div><div class="info-val">${R.werktijd||'—'}</div></div>
     ${R.aanrijtijdMin > 0 ? `<div class="info-cell accent"><div class="info-lbl">Aanrijtijd</div><div class="info-val">${fmtDuur(R.aanrijtijdMin)}</div></div>` : ''}
   </div>
-  <div class="info-row cols-3">
-    <div class="info-cell"><div class="info-lbl">Servicetype</div><div class="info-val">${stLabel}</div></div>
-    <div class="info-cell"><div class="info-lbl">Facturatie aan</div><div class="info-val">${facturatieLabel}</div></div>
+  <div class="info-row ${isInstallatie ? 'cols-1' : 'cols-3'}">
+    ${isInstallatie ? '' : `<div class="info-cell"><div class="info-lbl">Servicetype</div><div class="info-val">${stLabel}</div></div>
+    <div class="info-cell"><div class="info-lbl">Facturatie aan</div><div class="info-val">${facturatieLabel}</div></div>`}
     <div class="info-cell"><div class="info-lbl">Installateur</div><div class="info-val">${escHtml(R.installateur)||'—'}</div></div>
   </div>
   <div class="info-row cols-2">
@@ -6411,19 +6411,21 @@ function renderRapportArchief() {
     const datumStr  = r.datum
       ? new Date(r.datum + 'T12:00:00').toLocaleDateString('nl-BE', { weekday:'short', day:'numeric', month:'short', year:'numeric' })
       : '—';
-    const hersteld  = r.hersteld === 'ja'
-      ? '<span style="color:var(--green);font-weight:600">✓ Hersteld</span>'
-      : '<span style="color:var(--orange)">⚠ Niet hersteld</span>';
-    const nieuw     = r.nieuwInter === 'ja' ? '<span style="color:var(--orange)">🔁 Nieuwe interventie</span>' : '';
-
     // ── Prijs berekenen ──
     const rd       = r.rapportData || {};
+    const isInstallatieRapport = (r.interventieType || rd.interventieType || 'Interventie') === 'Installatie';
+    const hersteld  = isInstallatieRapport
+      ? '<span style="color:var(--accent);font-weight:600">🔧 Installatie</span>'
+      : r.hersteld === 'ja'
+        ? '<span style="color:var(--green);font-weight:600">✓ Hersteld</span>'
+        : '<span style="color:var(--orange)">⚠ Niet hersteld</span>';
+    const nieuw     = (!isInstallatieRapport && r.nieuwInter === 'ja') ? '<span style="color:var(--orange)">🔁 Nieuwe interventie</span>' : '';
     const st       = rd.servicetype || r.servicetype || '';
     const isGarantie = st === 'garantie';
     const wMin     = calcWerktijdMin(rd.start, rd.stop);
     const aMin     = parseInt(rd.aanrijtijdMin) || 0;
     const { bruto: loonBruto } = wMin > 0 ? berekenLoonkost(st, wMin, aMin) : { bruto: 0 };
-    const loonNetto = isGarantie ? 0 : loonBruto;
+    const loonNetto = (isGarantie || isInstallatieRapport) ? 0 : loonBruto;
 
     const billableOnderdelen = (rd.onderdelen || []).filter(p => p.naam && p.factureren !== false);
     const totOnderdelen = billableOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
@@ -6431,7 +6433,7 @@ function renderRapportArchief() {
 
     // Labels voor servicetype
     const stLabels = { '2e-lijn': '2e lijns', '1e-lijn': '1e lijns', 'garantie': 'Garantie' };
-    const stBadge = st ? `<span style="font-size:0.68rem;padding:1px 6px;border-radius:20px;font-weight:600;background:${isGarantie ? 'var(--surface3)' : 'var(--accent-dim)'};color:${isGarantie ? 'var(--muted)' : 'var(--accent)'}">${stLabels[st] || st}</span>` : '';
+    const stBadge = (st && !isInstallatieRapport) ? `<span style="font-size:0.68rem;padding:1px 6px;border-radius:20px;font-weight:600;background:${isGarantie ? 'var(--surface3)' : 'var(--accent-dim)'};color:${isGarantie ? 'var(--muted)' : 'var(--accent)'}">${stLabels[st] || st}</span>` : '';
 
     // Prijsweergave
     let prijsHtml = '';
@@ -6761,7 +6763,7 @@ async function exportTicketLog() {
       prioNl,                                       // G
       rd.installateur ? 'Ja' : 'Nee',              // H
       uren,                                         // I
-      r.hersteld === 'ja' ? 'Gesloten' : 'Open',   // J
+      type === 'Installatie' ? 'Afgerond' : (r.hersteld === 'ja' ? 'Gesloten' : 'Open'),   // J
       '',                                           // K
       garantie,                                     // L
       '',                                           // M
