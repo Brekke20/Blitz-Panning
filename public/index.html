@@ -1512,8 +1512,8 @@
           <div>
             <div class="man-label">Type</div>
             <select class="man-select" id="man-type">
-              <option value="Installatie">Installatie</option>
               <option value="Service">Service</option>
+              <option value="Installatie">Installatie</option>
               <option value="Overige">Overige</option>
             </select>
           </div>
@@ -2930,7 +2930,7 @@ function startImport(data) {
       datum:    a.datum || '',
       uur:      a.uur   || '',
       einduur:  a.einduur || '',
-      type:     a.type  || 'Installatie',
+      type:     a.type  || 'Overige',
       persoon:  matched,
       notitie:  a.notitie || '',
       telefoon: a.telefoon || '',
@@ -3035,6 +3035,8 @@ function openManueelModal(prefillDate) {
   // Reset edit mode
   const editId = document.getElementById('man-edit-id');
   if (editId) editId.value = '';
+  const typeElReset = document.getElementById('man-type');
+  if (typeElReset) typeElReset.value = 'Service';
   const titleEl = document.getElementById('manueel-modal-title');
   if (titleEl) titleEl.textContent = '➕ Afspraak toevoegen';
   document.getElementById('manueel-overlay').classList.add('open');
