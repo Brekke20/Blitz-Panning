@@ -200,13 +200,22 @@ export async function handler(event) {
       return { statusCode: 404, headers, body: JSON.stringify({ error: 'Ticket niet gevonden' }) };
     }
     const cf = ticketData.cf || {};
-    const klantEmail        = ticketData.email || ticketData.contact?.email || ticketData.contact?.emailId || cf.cf_e_mail_eindklant || '';
+    const contactEmail      = ticketData.contact?.email || ticketData.contact?.emailId || ticketData.email || '';
+    const klantEmail        = cf.cf_e_mail_eindklant || '';
     const installateurEmail = cf.cf_e_mail_installateur || '';
-
+    // Als klant en/of installateur hetzelfde adres hebben als de contactpersoon (of elkaar),
+    // telt dat als 1 ontvanger -- geen dubbele mail naar hetzelfde adres.
+    const seenEmails = new Set();
     const ontvangers = [
-      klantEmail        ? { doelgroep: 'klant',        email: klantEmail }        : null,
-      installateurEmail ? { doelgroep: 'installateur', email: installateurEmail } : null,
-    ].filter(Boolean);
+      { doelgroep: 'contact',      email: contactEmail },
+      { doelgroep: 'klant',        email: klantEmail },
+      { doelgroep: 'installateur', email: installateurEmail },
+    ].filter(o => {
+      const key = o.email.toLowerCase();
+      if (!o.email || seenEmails.has(key)) return false;
+      seenEmails.add(key);
+      return true;
+    });
 
     // Tijd afronden naar volgend kwartier
     const appointmentTime = roundToNextQuarter(time || '09:00');
@@ -245,7 +254,7 @@ export async function handler(event) {
     // ontvanger opvangen + opslaan in `fouten`, en gewoon doorgaan. De caller rapporteert
     // op basis van emailSent, dus dit blijft altijd een 200 -- een 500 is voorbehouden aan
     // fouten vóór deze lus (token/org-lookup of de initiële ticket-GET).
-    const emailSent = { klant: false, installateur: false };
+    const emailSent = { contact: false, klant: false, installateur: false };
     const fouten    = [];
     for (const { doelgroep, email } of ontvangers) {
       try {

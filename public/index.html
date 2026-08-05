@@ -4089,7 +4089,7 @@ function renderRouteList(date) {
             <div class="stop-sub">${escHtml(item.ticket.subject) || '—'}</div>
             <div class="stop-addr">${escHtml(item.address) || 'Geen adres'}</div>
             ${timeHtml}${arrivalHtml}
-            ${(voorstelStatus[item.ticket.id]?.klant || voorstelStatus[item.ticket.id]?.installateur) ? '<div class="stop-proposal-sent">✉️ Voorstel verstuurd</div>' : ''}
+            ${(voorstelStatus[item.ticket.id]?.contact || voorstelStatus[item.ticket.id]?.klant || voorstelStatus[item.ticket.id]?.installateur) ? '<div class="stop-proposal-sent">✉️ Voorstel verstuurd</div>' : ''}
           </div>
         </div>
         <div class="stop-actions">
@@ -4767,10 +4767,16 @@ function openProposal(ticketId, date, arrivalMin) {
   }
   document.getElementById('proposal-time').value = timeVal;
 
-  const ontvangers = [
-    activeTicket.emailEindklant || activeTicket.email || null,
-    activeTicket.emailInstallateur || null,
-  ].filter(Boolean);
+  const contactEmail = activeTicket.email || null;
+  const seenEmails = new Set();
+  const ontvangers = [contactEmail, activeTicket.emailEindklant || null, activeTicket.emailInstallateur || null]
+    .filter(email => {
+      if (!email) return false;
+      const key = email.toLowerCase();
+      if (seenEmails.has(key)) return false;
+      seenEmails.add(key);
+      return true;
+    });
   _proposalOntvangers = ontvangers;
   document.getElementById('proposal-email').textContent = ontvangers.length
     ? `Wordt verstuurd naar: ${ontvangers.join(', ')}`
@@ -4838,6 +4844,12 @@ function closeProposal(e) {
   document.getElementById('proposal-overlay').classList.remove('open');
 }
 
+function joinNL(items) {
+  if (items.length <= 1) return items.join('');
+  return items.slice(0, -1).join(', ') + ' en ' + items[items.length - 1];
+}
+const DOELGROEP_LABEL = { contact: 'contactpersoon', klant: 'klant', installateur: 'installateur' };
+
 async function sendProposal() {
   if (!activeTicket) return;
   const ticketId       = activeTicket.id;
@@ -4883,7 +4895,7 @@ async function sendProposal() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
-    for (const doelgroep of ['klant', 'installateur']) {
+    for (const doelgroep of ['contact', 'klant', 'installateur']) {
       if (!data.emailSent?.[doelgroep]) continue;
       const tijdstip = new Date().toISOString();
       fetch('/api/voorstel-status', {
@@ -4913,7 +4925,7 @@ async function sendProposal() {
     renderTickets(); renderKalender(); renderRouteList(date); updateRouteBtns(date);
     const gelukt = (data.ontvangers || []).filter(d => data.emailSent?.[d]);
     const msg = gelukt.length
-      ? `✓ Voorstel verstuurd naar ${gelukt.join(' en ')}`
+      ? `✓ Voorstel verstuurd naar ${joinNL(gelukt.map(d => DOELGROEP_LABEL[d] || d))}`
       : (data.ontvangers || []).length
         ? '✓ Ticket bijgewerkt — e-mail kon niet verstuurd worden via Zoho'
         : '✓ Status bijgewerkt (geen e-mailadres)';
@@ -6409,7 +6421,7 @@ function renderRapportArchief() {
         ${r.adres ? `<div class="taddr ok">${escHtml(r.adres)}</div>` : ''}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center">
           ${rd._html ? `<button class="cal-btn" onclick="herOpenRapport(${i})">📄 Openen</button>` : ''}
-          ${(rapportId && rd._html && r.ticketId) ? `<button class="cal-btn btn-verstuur-rapport" data-rapport-id="${escHtml(rapportId)}" title="${(r.verzondenKlant || r.verzondenInstallateur) ? 'Al verzonden op ' + escHtml(fmtDate(r.verzondenKlant || r.verzondenInstallateur)) + ' — opnieuw versturen?' : ''}">${(r.verzondenKlant || r.verzondenInstallateur) ? '✅ Verzonden' : '✉️ Verstuur rapport'}</button>` : ''}
+          ${(rapportId && rd._html && r.ticketId) ? `<button class="cal-btn btn-verstuur-rapport" data-rapport-id="${escHtml(rapportId)}" title="${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? 'Al verzonden op ' + escHtml(fmtDate(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur)) + ' — opnieuw versturen?' : ''}">${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? '✅ Verzonden' : '✉️ Verstuur rapport'}</button>` : ''}
           ${rapportId ? `<button class="cal-btn btn-verwijder-rapport" style="color:var(--red);border-color:var(--red)" data-rapport-id="${escHtml(rapportId)}" data-ticket-ref="${escHtml(r.ticketNumber||r.ticketId||'?')}" data-datum="${escHtml(datumStr)}">🗑 Verwijderen</button>` : ''}
         </div>
       </div>
@@ -6462,7 +6474,7 @@ async function voorbeeldRapport(rapportId, btn) {
       `Ticket #${r.ticketNumber || r.ticketId}`;
     document.getElementById('rapport-preview-body').innerHTML = data.ontvangers.map(o => `
       <div style="font-size:0.72rem;color:var(--muted);margin:10px 0 5px">
-        Aan ${o.doelgroep === 'klant' ? 'klant' : 'installateur'} — ${escHtml(o.email)}
+        Aan ${escHtml(DOELGROEP_LABEL[o.doelgroep] || o.doelgroep)} — ${escHtml(o.email)}
       </div>
       <iframe srcdoc="${escHtml(o.html)}" sandbox=""
         style="width:100%;height:260px;border:1px solid var(--border);border-radius:6px"></iframe>
@@ -6522,7 +6534,7 @@ async function verstuurRapport(rapportId, btn) {
     // gebruiker mag dan nooit een boodschap zien die suggereert dat er niets verstuurd is.
     const verzondenOntvangers        = [];
     const emailedMaarNietOpgeslagen  = [];
-    for (const doelgroep of ['klant', 'installateur']) {
+    for (const doelgroep of ['contact', 'klant', 'installateur']) {
       if (!data.emailSent?.[doelgroep]) continue;
       const tijdstip = new Date().toISOString();
       let statusData = {};
@@ -6542,19 +6554,14 @@ async function verstuurRapport(rapportId, btn) {
         continue;
       }
       if (typeof statusData.versie === 'number') _archiefVersie = statusData.versie;
-      const veld = doelgroep === 'klant' ? 'verzondenKlant' : 'verzondenInstallateur';
+      const veld = doelgroep === 'contact' ? 'verzondenContact' : doelgroep === 'klant' ? 'verzondenKlant' : 'verzondenInstallateur';
       r[veld] = tijdstip;
       verzondenOntvangers.push(doelgroep);
     }
 
     renderRapportArchief();
     if (verzondenOntvangers.length > 0) {
-      const msg = verzondenOntvangers.length === 2
-        ? '✓ Rapport verstuurd naar klant en installateur'
-        : verzondenOntvangers[0] === 'klant'
-          ? '✓ Rapport verstuurd naar klant'
-          : '✓ Rapport verstuurd naar installateur';
-      toast(msg, 3500);
+      toast(`✓ Rapport verstuurd naar ${joinNL(verzondenOntvangers.map(d => DOELGROEP_LABEL[d] || d))}`, 3500);
     } else if (emailedMaarNietOpgeslagen.length === 0) {
       if (Array.isArray(data.fouten) && data.fouten.length > 0) {
         const details = data.fouten.map(f => `${f.doelgroep}: ${f.fout}`).join('; ');
@@ -6564,7 +6571,7 @@ async function verstuurRapport(rapportId, btn) {
       }
     }
     if (emailedMaarNietOpgeslagen.length > 0) {
-      toast(`✓ Rapport verstuurd naar ${emailedMaarNietOpgeslagen.join(' en ')}, maar status kon niet opgeslagen worden — NIET opnieuw versturen, herlaad eerst de pagina`, 8000);
+      toast(`✓ Rapport verstuurd naar ${joinNL(emailedMaarNietOpgeslagen.map(d => DOELGROEP_LABEL[d] || d))}, maar status kon niet opgeslagen worden — NIET opnieuw versturen, herlaad eerst de pagina`, 8000);
     }
   } catch (err) {
     toast('❌ ' + err.message, 5000);

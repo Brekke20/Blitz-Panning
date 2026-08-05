@@ -11,8 +11,8 @@ export default async (req, context) => {
   let body;
   try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers }); }
   const { id, doelgroep, tijdstip } = body;
-  if (!id || !['klant', 'installateur'].includes(doelgroep) || !tijdstip) {
-    return new Response(JSON.stringify({ error: 'id, doelgroep (klant|installateur) en tijdstip zijn verplicht' }), { status: 400, headers });
+  if (!id || !['contact', 'klant', 'installateur'].includes(doelgroep) || !tijdstip) {
+    return new Response(JSON.stringify({ error: 'id, doelgroep (contact|klant|installateur) en tijdstip zijn verplicht' }), { status: 400, headers });
   }
 
   const store = getStore({ name: 'blitz-data', consistency: 'strong' });
@@ -23,7 +23,7 @@ export default async (req, context) => {
   const idx = current.rapports.findIndex(r => r.id === id);
   if (idx < 0) return new Response(JSON.stringify({ error: 'Rapport niet gevonden' }), { status: 404, headers });
 
-  const veld = doelgroep === 'klant' ? 'verzondenKlant' : 'verzondenInstallateur';
+  const veld = doelgroep === 'contact' ? 'verzondenContact' : doelgroep === 'klant' ? 'verzondenKlant' : 'verzondenInstallateur';
   const updated = [...current.rapports];
   updated[idx] = { ...updated[idx], [veld]: tijdstip };
 

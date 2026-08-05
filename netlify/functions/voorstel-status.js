@@ -20,8 +20,8 @@ export default async (req, context) => {
     let body;
     try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers }); }
     const { ticketId, doelgroep, tijdstip } = body;
-    if (!ticketId || !['klant', 'installateur'].includes(doelgroep) || !tijdstip) {
-      return new Response(JSON.stringify({ error: 'ticketId, doelgroep (klant|installateur) en tijdstip zijn verplicht' }), { status: 400, headers });
+    if (!ticketId || !['contact', 'klant', 'installateur'].includes(doelgroep) || !tijdstip) {
+      return new Response(JSON.stringify({ error: 'ticketId, doelgroep (contact|klant|installateur) en tijdstip zijn verplicht' }), { status: 400, headers });
     }
     const current = (await store.get('voorstel-status', { type: 'json' }).catch(() => null)) || EMPTY;
     if (typeof body.versie === 'number' && body.versie !== current.versie) {
