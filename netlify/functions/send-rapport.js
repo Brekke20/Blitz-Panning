@@ -85,7 +85,7 @@ export async function handler(event) {
     const ticketData = await ticketRes.json().catch(() => ({}));
     if (!ticketRes.ok) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Ticket niet gevonden' }) };
     const cf = ticketData.cf || {};
-    const contactEmail      = ticketData.email || ticketData.contact?.email || ticketData.contact?.emailId || '';
+    const contactEmail      = ticketData.contact?.email || ticketData.contact?.emailId || ticketData.email || '';
     const contactNaam       = ticketData.contact?.name || ticketData.contact?.fullName
                              || (ticketData.contact?.firstName ? `${ticketData.contact.firstName} ${ticketData.contact.lastName || ''}`.trim() : '')
                              || '';
@@ -93,12 +93,17 @@ export async function handler(event) {
     const klantNaam         = cf.cf_naam_eindklant       || '';
     const installateurEmail = cf.cf_e_mail_installateur || '';
     const installateurNaam  = cf.cf_partner_installateur || '';
-    const klantIsContact = klantEmail && contactEmail && klantEmail.toLowerCase() === contactEmail.toLowerCase();
+    const seenEmails = new Set();
     const ontvangers = [
-      contactEmail                    ? { doelgroep: 'contact',      email: contactEmail,      naam: contactNaam }      : null,
-      (klantEmail && !klantIsContact) ? { doelgroep: 'klant',        email: klantEmail,        naam: klantNaam }        : null,
-      installateurEmail               ? { doelgroep: 'installateur', email: installateurEmail, naam: installateurNaam } : null,
-    ].filter(Boolean);
+      { doelgroep: 'contact',      email: contactEmail,      naam: contactNaam },
+      { doelgroep: 'klant',        email: klantEmail,        naam: klantNaam },
+      { doelgroep: 'installateur', email: installateurEmail, naam: installateurNaam },
+    ].filter(o => {
+      const key = o.email.toLowerCase();
+      if (!o.email || seenEmails.has(key)) return false;
+      seenEmails.add(key);
+      return true;
+    });
     if (!ontvangers.length) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Geen gekend e-mailadres (klant of installateur) op dit ticket' }) };
 
     // Voorbeeldmodus: dezelfde ticket-opzoeking en e-mail-opbouw als een echte verzending,

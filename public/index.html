@@ -4768,13 +4768,15 @@ function openProposal(ticketId, date, arrivalMin) {
   document.getElementById('proposal-time').value = timeVal;
 
   const contactEmail = activeTicket.email || null;
-  const klantIsContact = activeTicket.emailEindklant && contactEmail
-    && activeTicket.emailEindklant.toLowerCase() === contactEmail.toLowerCase();
-  const ontvangers = [
-    contactEmail,
-    (activeTicket.emailEindklant && !klantIsContact) ? activeTicket.emailEindklant : null,
-    activeTicket.emailInstallateur || null,
-  ].filter(Boolean);
+  const seenEmails = new Set();
+  const ontvangers = [contactEmail, activeTicket.emailEindklant || null, activeTicket.emailInstallateur || null]
+    .filter(email => {
+      if (!email) return false;
+      const key = email.toLowerCase();
+      if (seenEmails.has(key)) return false;
+      seenEmails.add(key);
+      return true;
+    });
   _proposalOntvangers = ontvangers;
   document.getElementById('proposal-email').textContent = ontvangers.length
     ? `Wordt verstuurd naar: ${ontvangers.join(', ')}`

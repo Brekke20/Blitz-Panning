@@ -200,17 +200,22 @@ export async function handler(event) {
       return { statusCode: 404, headers, body: JSON.stringify({ error: 'Ticket niet gevonden' }) };
     }
     const cf = ticketData.cf || {};
-    const contactEmail      = ticketData.email || ticketData.contact?.email || ticketData.contact?.emailId || '';
+    const contactEmail      = ticketData.contact?.email || ticketData.contact?.emailId || ticketData.email || '';
     const klantEmail        = cf.cf_e_mail_eindklant || '';
     const installateurEmail = cf.cf_e_mail_installateur || '';
-    // Als klant hetzelfde adres heeft als de contactpersoon, telt dat als 1 ontvanger --
-    // geen dubbele mail naar hetzelfde adres.
-    const klantIsContact = klantEmail && contactEmail && klantEmail.toLowerCase() === contactEmail.toLowerCase();
+    // Als klant en/of installateur hetzelfde adres hebben als de contactpersoon (of elkaar),
+    // telt dat als 1 ontvanger -- geen dubbele mail naar hetzelfde adres.
+    const seenEmails = new Set();
     const ontvangers = [
-      contactEmail                    ? { doelgroep: 'contact',      email: contactEmail }      : null,
-      (klantEmail && !klantIsContact) ? { doelgroep: 'klant',        email: klantEmail }        : null,
-      installateurEmail               ? { doelgroep: 'installateur', email: installateurEmail } : null,
-    ].filter(Boolean);
+      { doelgroep: 'contact',      email: contactEmail },
+      { doelgroep: 'klant',        email: klantEmail },
+      { doelgroep: 'installateur', email: installateurEmail },
+    ].filter(o => {
+      const key = o.email.toLowerCase();
+      if (!o.email || seenEmails.has(key)) return false;
+      seenEmails.add(key);
+      return true;
+    });
 
     // Tijd afronden naar volgend kwartier
     const appointmentTime = roundToNextQuarter(time || '09:00');
