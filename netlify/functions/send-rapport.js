@@ -182,7 +182,33 @@ export async function handler(event) {
       }
     }
 
-    return { statusCode: 200, headers, body: JSON.stringify({ success: true, emailSent, fouten }) };
+    // Ticket-status -> Gesloten - ov, maar enkel als er effectief minstens één mail
+    // verstuurd is (anders zou een mislukte verzending het ticket toch al sluiten).
+    // PATCH komt na de verzend-lus, zelfde reden als in propose.js: Zoho past de status
+    // soms zelf aan na sendReply, dus de PATCH moet daarna komen om te garanderen dat de
+    // juiste status blijft staan. Een mislukte status-write mag de al-verstuurde mail(s)
+    // niet verbergen, dus dit blijft een 200 met statusFout in de body.
+    let statusUpdated = false;
+    let statusFout = null;
+    if (Object.values(emailSent).some(Boolean)) {
+      try {
+        const patchRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
+          method:  'PATCH',
+          headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId, 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ status: 'Gesloten - ov' }),
+        });
+        const patchText = await patchRes.text();
+        let patchData = {};
+        if (patchText) try { patchData = JSON.parse(patchText); } catch (_) {}
+        if (!patchRes.ok) throw new Error(`Zoho PATCH fout (${patchRes.status}): ${JSON.stringify(patchData)}`);
+        statusUpdated = true;
+      } catch (patchErr) {
+        console.error('Ticketstatus naar Gesloten - ov zetten mislukt:', patchErr.message);
+        statusFout = patchErr.message;
+      }
+    }
+
+    return { statusCode: 200, headers, body: JSON.stringify({ success: true, emailSent, fouten, statusUpdated, statusFout }) };
   } catch (err) {
     if (browser) await browser.close().catch(() => {});
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };

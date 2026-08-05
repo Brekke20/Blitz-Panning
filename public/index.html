@@ -6640,6 +6640,9 @@ async function verstuurRapport(rapportId, btn) {
     if (emailedMaarNietOpgeslagen.length > 0) {
       toast(`✓ Rapport verstuurd naar ${joinNL(emailedMaarNietOpgeslagen.map(d => DOELGROEP_LABEL[d] || d))}, maar status kon niet opgeslagen worden — NIET opnieuw versturen, herlaad eerst de pagina`, 8000);
     }
+    if (data.statusFout) {
+      toast(`⚠️ Mail verstuurd, maar ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: ${data.statusFout}`, 8000);
+    }
   } catch (err) {
     toast('❌ ' + err.message, 5000);
   }
