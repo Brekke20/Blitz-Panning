@@ -661,6 +661,7 @@
     }
     .btn-sec:hover  { background: var(--surface2); color: var(--text); transform: translateY(-1px); }
     .btn-sec:active { transform: translateY(0); }
+    .rapp-filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
     .plan-body { display: flex; flex: 1; min-height: 0; }
     #route-list { width: 300px; flex-shrink: 0; overflow-y: auto; padding: 6px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
     .stop {
@@ -1322,6 +1323,11 @@
 <div class="view" id="view-rapporten">
   <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--surface);position:sticky;top:92px;z-index:26">
     <span style="font-size:0.84rem;font-weight:600;flex:1">📋 Rapport archief</span>
+    <div style="display:flex;gap:4px" id="rapp-filter-btns">
+      <button class="btn-sec rapp-filter-btn active" data-filter="alle" style="font-size:0.75rem;padding:5px 10px">Alle</button>
+      <button class="btn-sec rapp-filter-btn" data-filter="Interventie" style="font-size:0.75rem;padding:5px 10px">Interventie</button>
+      <button class="btn-sec rapp-filter-btn" data-filter="Installatie" style="font-size:0.75rem;padding:5px 10px">Installatie</button>
+    </div>
     <input type="date" id="rapp-van"  style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:4px 7px;font-size:0.75rem;font-family:inherit" title="Export van" />
     <span style="font-size:0.75rem;color:var(--muted)">–</span>
     <input type="date" id="rapp-tot"  style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:4px 7px;font-size:0.75rem;font-family:inherit" title="Export tot" />
@@ -1879,6 +1885,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', (e) => {
     if (!document.getElementById('person-sel')?.contains(e.target))
       document.getElementById('person-menu')?.classList.remove('open');
+  });
+  document.querySelectorAll('.rapp-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => setRapportFilter(btn.dataset.filter));
   });
   initMap();
   loadPrijzen();
@@ -2618,6 +2627,7 @@ function getPlanningTicket(id) {
     contact: ev.titel, account: '', partner: '',
     serienummer: '', priority: '',
     isLocal: true,
+    type: ev.type || '',
   };
 }
 
@@ -3133,7 +3143,7 @@ let _localDetEvent = null;
 
 function openLocalEventDetail(ev) {
   _localDetEvent = ev;
-  document.getElementById('ld-btn-rapport').style.display = ev.type === 'Installatie' ? 'none' : '';
+  document.getElementById('ld-btn-rapport').style.display = '';
   document.getElementById('ld-type').innerHTML  = `<span class="cal-local-type">${escHtml(ev.type)}</span>`;
   document.getElementById('ld-titel').textContent = ev.titel || '—';
 
@@ -5229,6 +5239,7 @@ async function openRapport(ticketId, date) {
   R.facturatie     = 'klant';
   R.facturatieVrij = '';
   R.servicetype    = '2e-lijn';
+  R._servicetypeAutoApplied = false;
   // Aanrijtijd wordt altijd berekend vanaf de ingestelde startlocatie naar het
   // interventie-adres — nooit hergebruikt uit een al-berekende route, nooit vanaf
   // de vorige stop van de dag. Geldt voor elk ticket (Zoho én lokale afspraken).
@@ -5261,7 +5272,10 @@ async function openRapport(ticketId, date) {
   }
   R.type = ''; R.uitvoering = ''; R.kabel = ''; R.kabellengte = ''; R.aantalLaadpalen = 1;
   R.hersteld = 'nee'; R.nieuwInter = 'nee';
-  R.interventieType = 'Interventie'; // default; radio in stap Algemeen kan dit expliciet naar 'Installatie' zetten
+  // Automatisch bepaald uit de bron: een Zoho-ticket is altijd een interventie, een lokale
+  // afspraak van het type "Installatie" is een installatie. Radio in stap Algemeen kan dit
+  // nog steeds manueel overschrijven.
+  R.interventieType = (ticket.isLocal && ticket.type === 'Installatie') ? 'Installatie' : 'Interventie';
   R.handtekeningTech = null; R.handtekeningKlant = null; // zie Task 23
   _sigTech = _sigKlant = null;
   _rapportUploaded = false; // reset guard bij nieuwe wizard-sessie
@@ -5280,22 +5294,26 @@ function closeWizard() {
 
 // ── Nav ──
 function wizRenderStep() {
-  const total = WIZ_STEPS.length;
   const step  = WIZ_STEPS[_wizStep];
+  const visibleSteps = R.interventieType === 'Installatie'
+    ? WIZ_STEPS.filter(s => s.id !== 'facturatie')
+    : WIZ_STEPS;
+  const total = visibleSteps.length;
+  const visibleIndex = visibleSteps.indexOf(step);
 
   // Dots
   const dotsEl = document.getElementById('wiz-dots');
-  dotsEl.innerHTML = WIZ_STEPS.map((s, i) =>
-    `<div class="wiz-step-dot ${i === _wizStep ? 'active' : i < _wizStep ? 'done' : ''}"></div>`
+  dotsEl.innerHTML = visibleSteps.map((s, i) =>
+    `<div class="wiz-step-dot ${i === visibleIndex ? 'active' : i < visibleIndex ? 'done' : ''}"></div>`
   ).join('');
 
-  document.getElementById('wiz-step-label').textContent = `${_wizStep+1} / ${total} — ${step.label}`;
+  document.getElementById('wiz-step-label').textContent = `${visibleIndex+1} / ${total} — ${step.label}`;
   document.getElementById('wiz-ftr-info').textContent   = step.label;
 
   const btnBack = document.getElementById('wiz-btn-back');
   const btnNext = document.getElementById('wiz-btn-next');
   btnBack.style.display = _wizStep > 0 ? '' : 'none';
-  btnNext.textContent   = _wizStep === total - 1 ? '🖨️ Afdrukken / PDF' : 'Volgende →';
+  btnNext.textContent   = visibleIndex === total - 1 ? '🖨️ Afdrukken / PDF' : 'Volgende →';
 
   const body = document.getElementById('wiz-body');
   body.scrollTop = 0;
@@ -5310,8 +5328,10 @@ function wizNext() {
     toast(typeof result === 'string' ? result : '⚠️ Kan niet doorgaan naar de volgende stap', 3500);
     return;
   }
-  if (_wizStep < WIZ_STEPS.length - 1) {
-    _wizStep++;
+  let nextStep = _wizStep + 1;
+  if (R.interventieType === 'Installatie' && WIZ_STEPS[nextStep]?.id === 'facturatie') nextStep++;
+  if (nextStep < WIZ_STEPS.length) {
+    _wizStep = nextStep;
     wizRenderStep();
   } else {
     printRapport();
@@ -5320,8 +5340,10 @@ function wizNext() {
 
 function wizBack() {
   if (WIZ_STEPS[_wizStep].save) WIZ_STEPS[_wizStep].save();
-  if (_wizStep > 0) {
-    _wizStep--;
+  let prevStep = _wizStep - 1;
+  if (R.interventieType === 'Installatie' && WIZ_STEPS[prevStep]?.id === 'facturatie') prevStep--;
+  if (prevStep >= 0) {
+    _wizStep = prevStep;
     wizRenderStep();
   }
 }
@@ -5422,9 +5444,6 @@ function wizSaveAlgemeen() {
   R.stop            = wizV('f-stop');
   R.werktijd        = calcWerktijd(R.start, R.stop);
   R.interventieType = document.querySelector('input[name="f-interventieType"]:checked')?.value || 'Interventie';
-  if (R.interventieType === 'Installatie') {
-    return '⚠️ Voor installaties wordt geen rapport aangemaakt — de klant kreeg hiervoor al een offerte.';
-  }
 }
 
 function fmtDuur(min) {
@@ -5491,7 +5510,21 @@ function wizLoonkostPreview() {
     </div>`;
 }
 
+function wizAutoServicetype() {
+  const garantie = String(_wizTicket?.garantieStatus || '').trim().toLowerCase();
+  const langsgeweest = String(_wizTicket?.installateurAlLangsGeweest || '').trim().toLowerCase();
+  if (garantie === 'binnen garantie') return 'garantie';
+  if (langsgeweest === 'ja') return '2e-lijn';
+  if (langsgeweest === 'nee') return '1e-lijn';
+  return null; // onduidelijk -- geen auto-selectie, huidige/handmatige waarde van R.servicetype blijft staan
+}
+
 function wizRenderFacturatie(el) {
+  if (!R._servicetypeAutoApplied) {
+    const auto = wizAutoServicetype();
+    if (auto) R.servicetype = auto;
+    R._servicetypeAutoApplied = true;
+  }
   const isGarantie = R.servicetype === 'garantie';
   el.innerHTML = `
     <div class="wiz-step-title">Facturatie &amp; Servicetype</div>
@@ -5646,16 +5679,18 @@ const OORZAAK_STORING_MAP = {
 };
 
 function wizRenderOmschrijving(el) {
+  const isInstallatie = R.interventieType === 'Installatie';
   el.innerHTML = `
     <div class="wiz-step-title">Omschrijving &amp; acties</div>
     <div class="wiz-field">
-      <label class="wiz-field-label">Omschrijving probleem</label>
-      <textarea class="wiz-textarea" id="f-probleem" rows="4" placeholder="Beschrijf het probleem...">${escHtml(R.probleem)}</textarea>
+      <label class="wiz-field-label">${isInstallatie ? 'Omschrijving installatie' : 'Omschrijving probleem'}</label>
+      <textarea class="wiz-textarea" id="f-probleem" rows="4" placeholder="${isInstallatie ? 'Beschrijf de uitgevoerde installatie...' : 'Beschrijf het probleem...'}">${escHtml(R.probleem)}</textarea>
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Ondernomen acties</label>
       <textarea class="wiz-textarea" id="f-acties" rows="6" placeholder="Beschrijf de uitgevoerde werkzaamheden...">${escHtml(R.acties)}</textarea>
     </div>
+    ${isInstallatie ? '' : `
     <div class="wiz-field">
       <label class="wiz-field-label">Oorzaak storing</label>
       <div class="wiz-radio-cards row">
@@ -5664,11 +5699,12 @@ function wizRenderOmschrijving(el) {
         <label class="wiz-radio-card"><input type="checkbox" id="f-oorzaak-configuratie" ${R.oorzaakStoring.includes('Configuratiefout')?'checked':''}><div><div class="wiz-radio-card-label">Configuratiefout</div></div></label>
         <label class="wiz-radio-card"><input type="checkbox" id="f-oorzaak-andere" ${R.oorzaakStoring.includes('Andere')?'checked':''}><div><div class="wiz-radio-card-label">Andere</div></div></label>
       </div>
-    </div>`;
+    </div>`}`;
 }
 function wizSaveOmschrijving() {
   R.probleem = wizV('f-probleem');
   R.acties   = wizV('f-acties');
+  if (R.interventieType === 'Installatie') { R.oorzaakStoring = []; return; }
   R.oorzaakStoring = Object.entries(OORZAAK_STORING_MAP)
     .filter(([id]) => document.getElementById(id)?.checked)
     .map(([, label]) => label);
@@ -5711,8 +5747,10 @@ function wizRenderStatus(el) {
     `<button class="wiz-tag-filter${_wizActiveTags.includes(t)?' active':''}" data-tag="${escHtml(t)}">${escHtml(t)}</button>`
   ).join('');
 
+  const isInstallatie = R.interventieType === 'Installatie';
   el.innerHTML = `
-    <div class="wiz-step-title">Status &amp; onderdelen</div>
+    <div class="wiz-step-title">${isInstallatie ? 'Materialen' : 'Status &amp; onderdelen'}</div>
+    ${isInstallatie ? '' : `
     <div class="wiz-field">
       <label class="wiz-field-label">Definitief hersteld</label>
       <div class="wiz-radio-cards row">
@@ -5726,7 +5764,7 @@ function wizRenderStatus(el) {
         <label class="wiz-radio-card"><input type="radio" name="f-nieuw-inter" value="ja" ${R.nieuwInter==='ja'?'checked':''}><div><div class="wiz-radio-card-label">Ja</div></div></label>
         <label class="wiz-radio-card"><input type="radio" name="f-nieuw-inter" value="nee" ${R.nieuwInter!=='ja'?'checked':''}><div><div class="wiz-radio-card-label">Nee</div></div></label>
       </div>
-    </div>
+    </div>`}
     <div class="wiz-sep"></div>
     <div class="wiz-field">
       <label class="wiz-field-label">Onderdelen toevoegen</label>
@@ -5774,15 +5812,19 @@ function _wizRenderGeselecteerd() {
       </div>
       <div class="wiz-sel-bottom">
         <div class="wiz-sel-aantal-wrap">
-          <span class="wiz-sel-aantal-lbl">Aantal</span>
+          <span class="wiz-sel-aantal-lbl">Aantal${p.eenheid==='meter' ? ' (meter)' : ''}</span>
           <input class="wiz-sel-aantal" type="number" min="1" step="1" value="${p.aantal||1}"
             oninput="wizUpdSelAantal(${i},this.value)" />
         </div>
         ${isVrij
           ? `<input class="wiz-part-prijs" type="number" placeholder="€ prijs" min="0" step="0.01"
               style="width:80px;font-size:0.82rem" value="${p.prijs||''}"
-              oninput="wizUpdSelPrijs(${i},this.value)" />`
-          : `<span class="wiz-sel-stukprijs">€ ${(parseFloat(p.prijs)||0).toFixed(2)} / stuk</span>`
+              oninput="wizUpdSelPrijs(${i},this.value)" />
+             <select class="wiz-part-eenheid" style="width:60px;font-size:0.8rem" onchange="wizUpdSelEenheid(${i},this.value)">
+               <option value="stuk" ${p.eenheid!=='meter'?'selected':''}>stuk</option>
+               <option value="meter" ${p.eenheid==='meter'?'selected':''}>meter</option>
+             </select>`
+          : `<span class="wiz-sel-stukprijs">€ ${(parseFloat(p.prijs)||0).toFixed(2)} / ${p.eenheid || 'stuk'}</span>`
         }
         <span class="wiz-sel-subtotaal">€ ${subtotaal.toFixed(2)}</span>
         <label class="wiz-sel-factureer">
@@ -5852,14 +5894,14 @@ function wizVoegCatToe(id) {
   if (existing) {
     existing.aantal = (parseInt(existing.aantal) || 1) + 1;
   } else {
-    R.onderdelen.push({ id: o.id, naam: o.naam, prijs: o.prijs, aantal: 1, factureren: true });
+    R.onderdelen.push({ id: o.id, naam: o.naam, prijs: o.prijs, aantal: 1, factureren: true, eenheid: o.eenheid || 'stuk' });
   }
   _wizHertekenGeselecteerd();
 }
 
 function wizAddVrijeRegel() {
   wizSaveStatus();
-  R.onderdelen.push({ id: 'vrij-' + Date.now(), naam: '', prijs: '', aantal: 1, factureren: true });
+  R.onderdelen.push({ id: 'vrij-' + Date.now(), naam: '', prijs: '', aantal: 1, factureren: true, eenheid: 'stuk' });
   _wizHertekenGeselecteerd();
   setTimeout(() => {
     const inputs = document.querySelectorAll('.wiz-part-omschr');
@@ -5877,6 +5919,7 @@ function wizUpdSelNaam(i, val)  { if (R.onderdelen[i]) R.onderdelen[i].naam     
 function wizUpdSelAantal(i, val){ if (R.onderdelen[i]) R.onderdelen[i].aantal    = parseInt(val)||1; _wizUpdateTotaalRow(); }
 function wizUpdSelPrijs(i, val) { if (R.onderdelen[i]) R.onderdelen[i].prijs     = val; _wizUpdateTotaalRow(); }
 function wizUpdSelFact(i, val)  { if (R.onderdelen[i]) R.onderdelen[i].factureren = val; _wizUpdateTotaalRow(); }
+function wizUpdSelEenheid(i, val) { if (R.onderdelen[i]) R.onderdelen[i].eenheid = val; _wizHertekenGeselecteerd(); }
 
 // Werkt enkel het totaal-rijtje bij — laat de input-elementen zelf (en dus de focus/cursorpositie) met rust.
 function _wizUpdateTotaalRow() {
@@ -6033,6 +6076,7 @@ let _rapportUploaded = false;
 
 // Bouwt de rapport-HTML-string zonder side effects (herbruikbaar voor preview + afdrukken).
 function buildRapportHtml() {
+  const isInstallatie = R.interventieType === 'Installatie';
   const facturatieLabel = R.facturatie === 'vrij'
     ? (R.facturatieVrij || '—')
     : R.facturatie === 'klant' ? 'Klant' : 'Partner / installateur';
@@ -6067,7 +6111,7 @@ function buildRapportHtml() {
       const subtotaal   = stukprijs * aantal;
       return `<tr>
         <td>${escHtml(p.naam)}${!factureren ? ' <span style="font-size:7.5pt;color:#888;font-style:italic">(niet aangerekend)</span>' : ''}</td>
-        <td style="text-align:center">${aantal}</td>
+        <td style="text-align:center">${aantal}${p.eenheid==='meter' ? ' meter' : ''}</td>
         <td style="text-align:right">${factureren ? `€ ${stukprijs.toFixed(2)}` : '—'}</td>
         <td style="text-align:right">${factureren ? `€ ${subtotaal.toFixed(2)}` : '—'}</td>
       </tr>`;
@@ -6132,7 +6176,7 @@ function buildRapportHtml() {
     <div class="info-cell"><div class="info-lbl">#Zoho</div><div class="info-val">${escHtml(zohoRef)||'—'}</div></div>
   </div>
   <div class="info-row cols-1">
-    <div class="info-cell"><div class="info-lbl">Interventie adres</div><div class="info-val">${escHtml(R.adres)||'—'}</div></div>
+    <div class="info-cell"><div class="info-lbl">${isInstallatie ? 'Installatie adres' : 'Interventie adres'}</div><div class="info-val">${escHtml(R.adres)||'—'}</div></div>
   </div>
   <div class="info-row ${R.aanrijtijdMin > 0 ? 'cols-4' : 'cols-3'}">
     <div class="info-cell accent"><div class="info-lbl">Starttijd</div><div class="info-val">${R.start||'—'}</div></div>
@@ -6140,9 +6184,9 @@ function buildRapportHtml() {
     <div class="info-cell accent"><div class="info-lbl">Totale werktijd</div><div class="info-val">${R.werktijd||'—'}</div></div>
     ${R.aanrijtijdMin > 0 ? `<div class="info-cell accent"><div class="info-lbl">Aanrijtijd</div><div class="info-val">${fmtDuur(R.aanrijtijdMin)}</div></div>` : ''}
   </div>
-  <div class="info-row cols-3">
-    <div class="info-cell"><div class="info-lbl">Servicetype</div><div class="info-val">${stLabel}</div></div>
-    <div class="info-cell"><div class="info-lbl">Facturatie aan</div><div class="info-val">${facturatieLabel}</div></div>
+  <div class="info-row ${isInstallatie ? 'cols-1' : 'cols-3'}">
+    ${isInstallatie ? '' : `<div class="info-cell"><div class="info-lbl">Servicetype</div><div class="info-val">${stLabel}</div></div>
+    <div class="info-cell"><div class="info-lbl">Facturatie aan</div><div class="info-val">${facturatieLabel}</div></div>`}
     <div class="info-cell"><div class="info-lbl">Installateur</div><div class="info-val">${escHtml(R.installateur)||'—'}</div></div>
   </div>
   <div class="info-row cols-2">
@@ -6151,31 +6195,33 @@ function buildRapportHtml() {
   </div>
 </div>
 <div class="rapport-section">
-<div class="sec">Omschrijving probleem</div>
+<div class="sec">${isInstallatie ? 'Omschrijving installatie' : 'Omschrijving probleem'}</div>
 <div class="block">${escHtml(R.probleem)||'&nbsp;'}</div>
 </div>
 <div class="rapport-section">
 <div class="sec">Ondernomen acties</div>
 <div class="block">${escHtml(R.acties)||'&nbsp;'}</div>
 </div>
+${isInstallatie ? '' : `
 <div class="rapport-section">
 <div class="sec">Oorzaak storing</div>
 <div class="block">${R.oorzaakStoring.join(', ') || '&nbsp;'}</div>
-</div>
+</div>`}
 ${R.fotos.length ? `<div class="sec">Foto's</div>
 <div class="foto-report-grid">${R.fotos.map(f => `<div class="foto-report-item"><img src="${escHtml(f.dataUrl)}" style="max-width:100%;border-radius:3px"><div style="font-size:7.5pt;color:#777;margin-top:2px">${escHtml(new Date(f.tijdstip).toLocaleString('nl-BE'))}${f.caption ? ' — ' + escHtml(f.caption) : ''}</div></div>`).join('')}</div>` : ''}
+${isInstallatie ? '' : `
 <div class="rapport-section">
 <div class="sec">Status laadinfrastructuur</div>
 <div class="status-row">
   <div class="status-cell"><div class="info-lbl">Definitief hersteld</div><strong>${R.hersteld==='ja'?'Ja':'Nee'}</strong></div>
   <div class="status-cell"><div class="info-lbl">Nieuwe interventie nodig</div><strong>${R.nieuwInter==='ja'?'Ja':'Nee'}</strong></div>
 </div>
-</div>
-${geldigeOnderdelen.length ? `<div class="sec">Vervangen onderdelen</div>
+</div>`}
+${geldigeOnderdelen.length ? `<div class="sec">${isInstallatie ? 'Gebruikte materialen' : 'Vervangen onderdelen'}</div>
 <table class="parts"><thead><tr><th>Omschrijving</th><th style="text-align:center">Aantal</th><th style="text-align:right">Stukprijs</th><th style="text-align:right">Subtotaal</th></tr></thead>
 <tbody>${partsHtml}</tbody></table>` : ''}
 ${R.varia ? `<div class="rapport-section"><div class="sec">Varia</div><div class="block">${escHtml(R.varia)}</div></div>` : ''}
-${(() => {
+${isInstallatie ? '' : (() => {
   const wMin = calcWerktijdMin(R.start, R.stop);
   const aMin = parseInt(R.aanrijtijdMin) || 0;
   const st   = R.servicetype;
@@ -6222,8 +6268,8 @@ ${(() => {
 <div class="sec">Kostenoverzicht</div>
 <table class="parts"><tbody>
 <tr><td>Onderdelen (excl. btw)</td><td style="text-align:right">€ ${totaalOnderdelen.toFixed(2)}</td></tr>
-<tr><td>Loonkosten (excl. btw)${isGarantieTotaal ? ' <span style="font-size:7.5pt;color:#888;font-style:italic">(100% korting)</span>' : ''}</td><td style="text-align:right">€ ${nettoTotaal.toFixed(2)}</td></tr>
-<tr style="background:#111;color:#fff;font-weight:700"><td style="text-transform:uppercase;letter-spacing:.05em;font-size:8pt">Totaal te factureren (excl. btw)</td><td style="text-align:right;font-size:11pt">€ ${(totaalOnderdelen + nettoTotaal).toFixed(2)}</td></tr>
+${isInstallatie ? '' : `<tr><td>Loonkosten (excl. btw)${isGarantieTotaal ? ' <span style="font-size:7.5pt;color:#888;font-style:italic">(100% korting)</span>' : ''}</td><td style="text-align:right">€ ${nettoTotaal.toFixed(2)}</td></tr>`}
+<tr style="background:#111;color:#fff;font-weight:700"><td style="text-transform:uppercase;letter-spacing:.05em;font-size:8pt">Totaal te factureren (excl. btw)</td><td style="text-align:right;font-size:11pt">€ ${(totaalOnderdelen + (isInstallatie ? 0 : nettoTotaal)).toFixed(2)}</td></tr>
 </tbody></table>
 </div>
 <div class="rapport-section">
@@ -6350,6 +6396,15 @@ async function laadRapportArchief() {
   }
 }
 
+let _rapportFilter = 'alle'; // 'alle' | 'Interventie' | 'Installatie'
+function setRapportFilter(type) {
+  _rapportFilter = type;
+  document.querySelectorAll('.rapp-filter-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === type);
+  });
+  renderRapportArchief();
+}
+
 function renderRapportArchief() {
   const body = document.getElementById('rapp-archief-body');
   if (!body) return;
@@ -6357,23 +6412,32 @@ function renderRapportArchief() {
     body.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:20px 0">Nog geen rapporten gearchiveerd.</div>';
     return;
   }
-  body.innerHTML = _rapportArchief.map((r, i) => {
+  const gefilterd = _rapportFilter === 'alle'
+    ? _rapportArchief
+    : _rapportArchief.filter(r => (r.interventieType || 'Interventie') === _rapportFilter);
+  if (!gefilterd.length) {
+    body.innerHTML = `<div style="color:var(--muted);font-size:0.82rem;padding:20px 0">Geen rapporten van het type "${escHtml(_rapportFilter)}" gevonden.</div>`;
+    return;
+  }
+  body.innerHTML = gefilterd.map((r, i) => {
     const datumStr  = r.datum
       ? new Date(r.datum + 'T12:00:00').toLocaleDateString('nl-BE', { weekday:'short', day:'numeric', month:'short', year:'numeric' })
       : '—';
-    const hersteld  = r.hersteld === 'ja'
-      ? '<span style="color:var(--green);font-weight:600">✓ Hersteld</span>'
-      : '<span style="color:var(--orange)">⚠ Niet hersteld</span>';
-    const nieuw     = r.nieuwInter === 'ja' ? '<span style="color:var(--orange)">🔁 Nieuwe interventie</span>' : '';
-
     // ── Prijs berekenen ──
     const rd       = r.rapportData || {};
+    const isInstallatieRapport = (r.interventieType || rd.interventieType || 'Interventie') === 'Installatie';
+    const hersteld  = isInstallatieRapport
+      ? '<span style="color:var(--accent);font-weight:600">🔧 Installatie</span>'
+      : r.hersteld === 'ja'
+        ? '<span style="color:var(--green);font-weight:600">✓ Hersteld</span>'
+        : '<span style="color:var(--orange)">⚠ Niet hersteld</span>';
+    const nieuw     = (!isInstallatieRapport && r.nieuwInter === 'ja') ? '<span style="color:var(--orange)">🔁 Nieuwe interventie</span>' : '';
     const st       = rd.servicetype || r.servicetype || '';
     const isGarantie = st === 'garantie';
     const wMin     = calcWerktijdMin(rd.start, rd.stop);
     const aMin     = parseInt(rd.aanrijtijdMin) || 0;
     const { bruto: loonBruto } = wMin > 0 ? berekenLoonkost(st, wMin, aMin) : { bruto: 0 };
-    const loonNetto = isGarantie ? 0 : loonBruto;
+    const loonNetto = (isGarantie || isInstallatieRapport) ? 0 : loonBruto;
 
     const billableOnderdelen = (rd.onderdelen || []).filter(p => p.naam && p.factureren !== false);
     const totOnderdelen = billableOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
@@ -6381,7 +6445,7 @@ function renderRapportArchief() {
 
     // Labels voor servicetype
     const stLabels = { '2e-lijn': '2e lijns', '1e-lijn': '1e lijns', 'garantie': 'Garantie' };
-    const stBadge = st ? `<span style="font-size:0.68rem;padding:1px 6px;border-radius:20px;font-weight:600;background:${isGarantie ? 'var(--surface3)' : 'var(--accent-dim)'};color:${isGarantie ? 'var(--muted)' : 'var(--accent)'}">${stLabels[st] || st}</span>` : '';
+    const stBadge = (st && !isInstallatieRapport) ? `<span style="font-size:0.68rem;padding:1px 6px;border-radius:20px;font-weight:600;background:${isGarantie ? 'var(--surface3)' : 'var(--accent-dim)'};color:${isGarantie ? 'var(--muted)' : 'var(--accent)'}">${stLabels[st] || st}</span>` : '';
 
     // Prijsweergave
     let prijsHtml = '';
@@ -6406,6 +6470,7 @@ function renderRapportArchief() {
     }
 
     const rapportId = r.id || '';
+    const origIdx = _rapportArchief.indexOf(r);
 
     return `<div class="ticket" style="margin-bottom:8px">
       <div class="t-body">
@@ -6420,7 +6485,7 @@ function renderRapportArchief() {
         ${r.klant ? `<div class="tsub">${escHtml(r.klant)}</div>` : ''}
         ${r.adres ? `<div class="taddr ok">${escHtml(r.adres)}</div>` : ''}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center">
-          ${rd._html ? `<button class="cal-btn" onclick="herOpenRapport(${i})">📄 Openen</button>` : ''}
+          ${rd._html ? `<button class="cal-btn" onclick="herOpenRapport(${origIdx})">📄 Openen</button>` : ''}
           ${(rapportId && rd._html && r.ticketId) ? `<button class="cal-btn btn-verstuur-rapport" data-rapport-id="${escHtml(rapportId)}" title="${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? 'Al verzonden op ' + escHtml(fmtDate(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur)) + ' — opnieuw versturen?' : ''}">${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? '✅ Verzonden' : '✉️ Verstuur rapport'}</button>` : ''}
           ${rapportId ? `<button class="cal-btn btn-verwijder-rapport" style="color:var(--red);border-color:var(--red)" data-rapport-id="${escHtml(rapportId)}" data-ticket-ref="${escHtml(r.ticketNumber||r.ticketId||'?')}" data-datum="${escHtml(datumStr)}">🗑 Verwijderen</button>` : ''}
         </div>
@@ -6705,7 +6770,7 @@ async function exportTicketLog() {
       prioNl,                                       // G
       rd.installateur ? 'Ja' : 'Nee',              // H
       uren,                                         // I
-      r.hersteld === 'ja' ? 'Gesloten' : 'Open',   // J
+      type === 'Installatie' ? 'Afgerond' : (r.hersteld === 'ja' ? 'Gesloten' : 'Open'),   // J
       '',                                           // K
       garantie,                                     // L
       '',                                           // M
