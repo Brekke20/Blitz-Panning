@@ -4767,8 +4767,12 @@ function openProposal(ticketId, date, arrivalMin) {
   }
   document.getElementById('proposal-time').value = timeVal;
 
+  const contactEmail = activeTicket.email || null;
+  const klantIsContact = activeTicket.emailEindklant && contactEmail
+    && activeTicket.emailEindklant.toLowerCase() === contactEmail.toLowerCase();
   const ontvangers = [
-    activeTicket.emailEindklant || activeTicket.email || null,
+    contactEmail,
+    (activeTicket.emailEindklant && !klantIsContact) ? activeTicket.emailEindklant : null,
     activeTicket.emailInstallateur || null,
   ].filter(Boolean);
   _proposalOntvangers = ontvangers;
@@ -4838,6 +4842,12 @@ function closeProposal(e) {
   document.getElementById('proposal-overlay').classList.remove('open');
 }
 
+function joinNL(items) {
+  if (items.length <= 1) return items.join('');
+  return items.slice(0, -1).join(', ') + ' en ' + items[items.length - 1];
+}
+const DOELGROEP_LABEL = { contact: 'contactpersoon', klant: 'klant', installateur: 'installateur' };
+
 async function sendProposal() {
   if (!activeTicket) return;
   const ticketId       = activeTicket.id;
@@ -4883,7 +4893,7 @@ async function sendProposal() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
-    for (const doelgroep of ['klant', 'installateur']) {
+    for (const doelgroep of ['contact', 'klant', 'installateur']) {
       if (!data.emailSent?.[doelgroep]) continue;
       const tijdstip = new Date().toISOString();
       fetch('/api/voorstel-status', {
@@ -4913,7 +4923,7 @@ async function sendProposal() {
     renderTickets(); renderKalender(); renderRouteList(date); updateRouteBtns(date);
     const gelukt = (data.ontvangers || []).filter(d => data.emailSent?.[d]);
     const msg = gelukt.length
-      ? `✓ Voorstel verstuurd naar ${gelukt.join(' en ')}`
+      ? `✓ Voorstel verstuurd naar ${joinNL(gelukt.map(d => DOELGROEP_LABEL[d] || d))}`
       : (data.ontvangers || []).length
         ? '✓ Ticket bijgewerkt — e-mail kon niet verstuurd worden via Zoho'
         : '✓ Status bijgewerkt (geen e-mailadres)';
