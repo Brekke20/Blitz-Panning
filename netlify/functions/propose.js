@@ -200,12 +200,16 @@ export async function handler(event) {
       return { statusCode: 404, headers, body: JSON.stringify({ error: 'Ticket niet gevonden' }) };
     }
     const cf = ticketData.cf || {};
-    const klantEmail        = ticketData.email || ticketData.contact?.email || ticketData.contact?.emailId || cf.cf_e_mail_eindklant || '';
+    const contactEmail      = ticketData.email || ticketData.contact?.email || ticketData.contact?.emailId || '';
+    const klantEmail        = cf.cf_e_mail_eindklant || '';
     const installateurEmail = cf.cf_e_mail_installateur || '';
-
+    // Als klant hetzelfde adres heeft als de contactpersoon, telt dat als 1 ontvanger --
+    // geen dubbele mail naar hetzelfde adres.
+    const klantIsContact = klantEmail && contactEmail && klantEmail.toLowerCase() === contactEmail.toLowerCase();
     const ontvangers = [
-      klantEmail        ? { doelgroep: 'klant',        email: klantEmail }        : null,
-      installateurEmail ? { doelgroep: 'installateur', email: installateurEmail } : null,
+      contactEmail                    ? { doelgroep: 'contact',      email: contactEmail }      : null,
+      (klantEmail && !klantIsContact) ? { doelgroep: 'klant',        email: klantEmail }        : null,
+      installateurEmail               ? { doelgroep: 'installateur', email: installateurEmail } : null,
     ].filter(Boolean);
 
     // Tijd afronden naar volgend kwartier
