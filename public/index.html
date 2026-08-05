@@ -6055,6 +6055,7 @@ let _rapportUploaded = false;
 
 // Bouwt de rapport-HTML-string zonder side effects (herbruikbaar voor preview + afdrukken).
 function buildRapportHtml() {
+  const isInstallatie = R.interventieType === 'Installatie';
   const facturatieLabel = R.facturatie === 'vrij'
     ? (R.facturatieVrij || '—')
     : R.facturatie === 'klant' ? 'Klant' : 'Partner / installateur';
@@ -6089,7 +6090,7 @@ function buildRapportHtml() {
       const subtotaal   = stukprijs * aantal;
       return `<tr>
         <td>${escHtml(p.naam)}${!factureren ? ' <span style="font-size:7.5pt;color:#888;font-style:italic">(niet aangerekend)</span>' : ''}</td>
-        <td style="text-align:center">${aantal}</td>
+        <td style="text-align:center">${aantal}${p.eenheid==='meter' ? ' meter' : ''}</td>
         <td style="text-align:right">${factureren ? `€ ${stukprijs.toFixed(2)}` : '—'}</td>
         <td style="text-align:right">${factureren ? `€ ${subtotaal.toFixed(2)}` : '—'}</td>
       </tr>`;
@@ -6154,7 +6155,7 @@ function buildRapportHtml() {
     <div class="info-cell"><div class="info-lbl">#Zoho</div><div class="info-val">${escHtml(zohoRef)||'—'}</div></div>
   </div>
   <div class="info-row cols-1">
-    <div class="info-cell"><div class="info-lbl">Interventie adres</div><div class="info-val">${escHtml(R.adres)||'—'}</div></div>
+    <div class="info-cell"><div class="info-lbl">${isInstallatie ? 'Installatie adres' : 'Interventie adres'}</div><div class="info-val">${escHtml(R.adres)||'—'}</div></div>
   </div>
   <div class="info-row ${R.aanrijtijdMin > 0 ? 'cols-4' : 'cols-3'}">
     <div class="info-cell accent"><div class="info-lbl">Starttijd</div><div class="info-val">${R.start||'—'}</div></div>
@@ -6173,31 +6174,33 @@ function buildRapportHtml() {
   </div>
 </div>
 <div class="rapport-section">
-<div class="sec">Omschrijving probleem</div>
+<div class="sec">${isInstallatie ? 'Omschrijving installatie' : 'Omschrijving probleem'}</div>
 <div class="block">${escHtml(R.probleem)||'&nbsp;'}</div>
 </div>
 <div class="rapport-section">
 <div class="sec">Ondernomen acties</div>
 <div class="block">${escHtml(R.acties)||'&nbsp;'}</div>
 </div>
+${isInstallatie ? '' : `
 <div class="rapport-section">
 <div class="sec">Oorzaak storing</div>
 <div class="block">${R.oorzaakStoring.join(', ') || '&nbsp;'}</div>
-</div>
+</div>`}
 ${R.fotos.length ? `<div class="sec">Foto's</div>
 <div class="foto-report-grid">${R.fotos.map(f => `<div class="foto-report-item"><img src="${escHtml(f.dataUrl)}" style="max-width:100%;border-radius:3px"><div style="font-size:7.5pt;color:#777;margin-top:2px">${escHtml(new Date(f.tijdstip).toLocaleString('nl-BE'))}${f.caption ? ' — ' + escHtml(f.caption) : ''}</div></div>`).join('')}</div>` : ''}
+${isInstallatie ? '' : `
 <div class="rapport-section">
 <div class="sec">Status laadinfrastructuur</div>
 <div class="status-row">
   <div class="status-cell"><div class="info-lbl">Definitief hersteld</div><strong>${R.hersteld==='ja'?'Ja':'Nee'}</strong></div>
   <div class="status-cell"><div class="info-lbl">Nieuwe interventie nodig</div><strong>${R.nieuwInter==='ja'?'Ja':'Nee'}</strong></div>
 </div>
-</div>
-${geldigeOnderdelen.length ? `<div class="sec">Vervangen onderdelen</div>
+</div>`}
+${geldigeOnderdelen.length ? `<div class="sec">${isInstallatie ? 'Gebruikte materialen' : 'Vervangen onderdelen'}</div>
 <table class="parts"><thead><tr><th>Omschrijving</th><th style="text-align:center">Aantal</th><th style="text-align:right">Stukprijs</th><th style="text-align:right">Subtotaal</th></tr></thead>
 <tbody>${partsHtml}</tbody></table>` : ''}
 ${R.varia ? `<div class="rapport-section"><div class="sec">Varia</div><div class="block">${escHtml(R.varia)}</div></div>` : ''}
-${(() => {
+${isInstallatie ? '' : (() => {
   const wMin = calcWerktijdMin(R.start, R.stop);
   const aMin = parseInt(R.aanrijtijdMin) || 0;
   const st   = R.servicetype;
@@ -6244,8 +6247,8 @@ ${(() => {
 <div class="sec">Kostenoverzicht</div>
 <table class="parts"><tbody>
 <tr><td>Onderdelen (excl. btw)</td><td style="text-align:right">€ ${totaalOnderdelen.toFixed(2)}</td></tr>
-<tr><td>Loonkosten (excl. btw)${isGarantieTotaal ? ' <span style="font-size:7.5pt;color:#888;font-style:italic">(100% korting)</span>' : ''}</td><td style="text-align:right">€ ${nettoTotaal.toFixed(2)}</td></tr>
-<tr style="background:#111;color:#fff;font-weight:700"><td style="text-transform:uppercase;letter-spacing:.05em;font-size:8pt">Totaal te factureren (excl. btw)</td><td style="text-align:right;font-size:11pt">€ ${(totaalOnderdelen + nettoTotaal).toFixed(2)}</td></tr>
+${isInstallatie ? '' : `<tr><td>Loonkosten (excl. btw)${isGarantieTotaal ? ' <span style="font-size:7.5pt;color:#888;font-style:italic">(100% korting)</span>' : ''}</td><td style="text-align:right">€ ${nettoTotaal.toFixed(2)}</td></tr>`}
+<tr style="background:#111;color:#fff;font-weight:700"><td style="text-transform:uppercase;letter-spacing:.05em;font-size:8pt">Totaal te factureren (excl. btw)</td><td style="text-align:right;font-size:11pt">€ ${(totaalOnderdelen + (isInstallatie ? 0 : nettoTotaal)).toFixed(2)}</td></tr>
 </tbody></table>
 </div>
 <div class="rapport-section">
