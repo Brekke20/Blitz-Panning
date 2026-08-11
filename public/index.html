@@ -1908,6 +1908,12 @@ document.addEventListener('DOMContentLoaded', () => {
   loadTickets();
   laadRapportArchief();
   startTicketPolling();
+  refreshOutboxCache();
+  flushOutbox();
+  window.addEventListener('online', flushOutbox);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') flushOutbox();
+  });
   // Initialiseer tab indicator op de actieve tab
   setTimeout(() => updateTabIndicator('tab-tickets'), 0);
   window.addEventListener('resize', () => {
@@ -6474,89 +6480,95 @@ ${isInstallatie ? '' : `<tr><td>Loonkosten (excl. btw)${isGarantieTotaal ? ' <sp
   return html;
 }
 
-function printRapport() {
+async function printRapport() {
   const html    = buildRapportHtml();
   const blob    = new Blob([html], { type: 'text/html; charset=utf-8' });
   const blobUrl = URL.createObjectURL(blob);
-  const win     = window.open(blobUrl, '_blank');
-  if (!win) {
-    URL.revokeObjectURL(blobUrl);
-    return toast('Pop-upblokkering actief — sta pop-ups toe voor deze pagina');
-  }
-  // Revoke na 2 min — genoeg tijd om te printen
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
 
-  // Upload en archiveer slechts één keer per wizard-sessie (guard tegen dubbele uploads)
+  // Wachtrij-item aanmaken en proberen te verzenden vóórdat het afdrukvoorbeeld opent —
+  // op mobiel duwt window.open() de tab naar de achtergrond, en dat mocht niet meer
+  // gelijktijdig lopen met de niet-afgewachte verzending zoals voorheen (zie design doc
+  // 2026-08-11-rapport-verzend-betrouwbaarheid-design.md, "Root cause").
   if (!_rapportUploaded) {
     _rapportUploaded = true;
-    if (_wizTicket.isLocal) {
-      // Geen Zoho-ticket gekoppeld aan manuele/geïmporteerde afspraken — enkel archiveren.
-      archiveerRapport(html);
-      toast('✅ Rapport opgeslagen in archief — geen Zoho-ticket gekoppeld', 4000);
-    } else {
-      const rapportFilename = `rapport-${_wizTicket.number || _wizTicket.id}-${R.datum || 'onbekend'}.pdf`;
-      uploadRapportToZoho(html, _wizTicket.id, rapportFilename);
-      archiveerRapport(html);
-    }
+
+    const totaal = R.onderdelen
+      .filter(p => p.naam && p.factureren !== false)
+      .reduce((s, p) => s + (parseFloat(p.prijs) || 0) * (parseInt(p.aantal) || 1), 0);
+
+    const item = {
+      id:           crypto.randomUUID(),
+      html,
+      isLocal:      !!_wizTicket.isLocal,
+      archived:     false,
+      zohoUploaded: false,
+      attempts:     0,
+      lastError:    null,
+      createdAt:    new Date().toISOString(),
+      ticket: {
+        id:       _wizTicket.id   || '',
+        number:   _wizTicket.number || '',
+        filename: `rapport-${_wizTicket.number || _wizTicket.id}-${R.datum || 'onbekend'}.pdf`,
+      },
+      archiveBody: {
+        datum:            R.datum,
+        technieker:       R.technieker,
+        ticketId:         _wizTicket.id   || '',
+        ticketNumber:     _wizTicket.number ? String(_wizTicket.number) : '',
+        klant:            _wizTicket.contact || _wizTicket.account || '',
+        adres:            R.adres,
+        nieuwInter:       R.nieuwInter,
+        hersteld:         R.hersteld,
+        servicetype:      R.servicetype,
+        facturatie:       R.facturatie,
+        prioriteit:       _wizTicket.priority || '',
+        interventieType:  R.interventieType || 'Interventie',
+        totaalOnderdelen: totaal,
+        rapportData:      { ...R, _html: html },
+        // Geen 'versie' hier — dedup gebeurt server-side op ticketId+datum
+        // (rapport-archief.js), zodat opgestapelde wachtrij-items elkaar niet
+        // vals-positief als conflict blokkeren.
+      },
+    };
+
+    await outboxAdd(item);
+    await refreshOutboxCache();
+
+    const TIMEOUT_MS = 5000;
+    const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), TIMEOUT_MS));
+    const result  = await Promise.race([attemptOutboxItem(item), timeout]);
+
+    toast(result === 'timeout'
+      ? '⏳ Rapport wordt verstuurd — je kan gewoon verder, dit gebeurt op de achtergrond'
+      : (item.isLocal
+          ? '✅ Rapport opgeslagen in archief — geen Zoho-ticket gekoppeld'
+          : '✅ Rapport bewaard en doorgestuurd naar Zoho'),
+      4500);
+
+    await refreshOutboxCache();
+    renderRapportArchief();
   }
 
-  // Wizard sluiten na geslaagd rapport — geen bevestigingsdialog meer nodig
+  const win = window.open(blobUrl, '_blank');
+  if (!win) {
+    URL.revokeObjectURL(blobUrl);
+    toast('Pop-upblokkering actief — sta pop-ups toe voor deze pagina');
+  } else {
+    // Revoke na 2 min — genoeg tijd om te printen
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
+  }
+
+  // Wizard sluiten na geslaagd rapport — geen bevestigingsdialoog meer nodig
   document.getElementById('rapport-wizard').classList.remove('open');
 }
 
-async function archiveerRapport(html) {
-  const totaal = R.onderdelen
-    .filter(p => p.naam && p.factureren !== false)
-    .reduce((s, p) => s + (parseFloat(p.prijs) || 0) * (parseInt(p.aantal) || 1), 0);
-
-  try {
-    const res = await fetch('/api/rapport-archief', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        versie:          _archiefVersie,
-        datum:           R.datum,
-        technieker:      R.technieker,
-        ticketId:        _wizTicket.id   || '',
-        ticketNumber:    _wizTicket.number ? String(_wizTicket.number) : '',
-        klant:           _wizTicket.contact || _wizTicket.account || '',
-        adres:           R.adres,
-        nieuwInter:      R.nieuwInter,
-        hersteld:        R.hersteld,
-        servicetype:     R.servicetype,
-        facturatie:      R.facturatie,
-        prioriteit:      _wizTicket.priority || '',
-        interventieType: R.interventieType || 'Interventie',
-        totaalOnderdelen: totaal,
-        rapportData:     { ...R, _html: html }, // bewaar voor hergen
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      toast('⚠️ Rapport niet gearchiveerd: ' + (data.error || res.status), 5000);
-      return;
-    }
-    if (typeof data.versie === 'number') _archiefVersie = data.versie;
-  } catch (err) {
-    toast('⚠️ Rapport archiveren mislukt (netwerkfout) — controleer het Rapporten-tabblad', 5000);
-    console.warn('Rapport archiveren mislukt:', err);
+async function flushOutbox() {
+  const items = await outboxGetAll();
+  for (const item of items) {
+    await attemptOutboxItem(item);
   }
-}
-
-async function uploadRapportToZoho(html, ticketId, filename) {
-  toast('📤 Rapport uploaden naar Zoho…');
-  try {
-    const res = await fetch('/api/rapport', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ html, ticketId, filename }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Upload mislukt');
-    toast('✅ Rapport opgeslagen als bijlage in Zoho');
-  } catch (err) {
-    toast('⚠️ Zoho upload mislukt: ' + err.message);
-  }
+  await refreshOutboxCache();
+  renderRapportArchief();
 }
 
 // ══════════════════════════════════════════════
@@ -6622,6 +6634,9 @@ function renderRapportArchief() {
         ? '<span style="color:var(--green);font-weight:600">✓ Hersteld</span>'
         : '<span style="color:var(--orange)">⚠ Niet hersteld</span>';
     const nieuw     = (!isInstallatieRapport && r.nieuwInter === 'ja') ? '<span style="color:var(--orange)">🔁 Nieuwe interventie</span>' : '';
+    const inWachtrij = _outboxItems.some(o => o.id === r.id)
+      ? '<span style="color:var(--accent);font-weight:600">⏳ In wachtrij</span>'
+      : '';
     const st       = rd.servicetype || r.servicetype || '';
     const isGarantie = st === 'garantie';
     const wMin     = calcWerktijdMin(rd.start, rd.stop);
@@ -6669,7 +6684,7 @@ function renderRapportArchief() {
           <span style="font-size:0.72rem;color:var(--muted)">${datumStr}</span>
           ${r.technieker ? `<span class="atag">${escHtml(r.technieker)}</span>` : ''}
           ${stBadge}
-          ${hersteld} ${nieuw}
+          ${hersteld} ${nieuw} ${inWachtrij}
           ${prijsHtml}
         </div>
         ${r.klant ? `<div class="tsub">${escHtml(r.klant)}</div>` : ''}
