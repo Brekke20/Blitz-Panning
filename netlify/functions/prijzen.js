@@ -45,6 +45,41 @@ const DEFAULTS = {
     { id:'kabel-spiraal-5m-11kw', naam:'Laadkabel Spiraal 5m 11kW', categorie:'kabel', tags:['kabel','laadkabel','spiraal','5m','11kW'], prijs:184, eenheid:'stuk' },
     { id:'kabel-spiraal-5m-22kw', naam:'Laadkabel Spiraal 5m 22kW', categorie:'kabel', tags:['kabel','laadkabel','spiraal','5m','22kW'], prijs:231, eenheid:'stuk' },
     { id:'socket',                naam:'Socket',                     categorie:'kabel', tags:['socket','aansluiting'],                   prijs:88,  eenheid:'stuk' },
+    // ── Meerkosten Installatie 2026 (bron: "Particuliere Installaties - Extra Kosten buiten Standaard 2026.xlsx") ──
+    // Kabels & benodigdheden
+    { id:'inst-elek-datakabel-boven10m',      naam:'Elektriciteitskabel + datakabel boven 10 meter', categorie:'inst-kabels', tags:['kabel','elektriciteit','data','boven 10m'],      prijs:17.72, eenheid:'meter' },
+    { id:'inst-elekkabel-boven10m',           naam:'Elektriciteitskabel boven 10 meter',             categorie:'inst-kabels', tags:['kabel','elektriciteit','boven 10m'],              prijs:14.49, eenheid:'meter' },
+    { id:'inst-datakabel-boven10m',           naam:'Datakabel boven 10 meter',                       categorie:'inst-kabels', tags:['kabel','data','boven 10m'],                      prijs:4.57,  eenheid:'meter' },
+    { id:'inst-datakabel-cat6',               naam:'Data kabel CAT6',                                categorie:'inst-kabels', tags:['kabel','data','cat6'],                           prijs:6.5,   eenheid:'stuk' },
+    { id:'inst-xgb5g10-datakabel-boven10m',   naam:'Elektriciteitskabel XGB5G10 + datakabel boven 10 meter', categorie:'inst-kabels', tags:['kabel','xgb5g10','data','boven 10m'],     prijs:22.65, eenheid:'meter' },
+    { id:'inst-kabel-xgb5g10',                naam:'Kabel XGB5G10',                                  categorie:'inst-kabels', tags:['kabel','xgb5g10'],                               prijs:20.77, eenheid:'stuk' },
+    { id:'inst-aardingkabel',                 naam:'Aardingkabel 6mm² - 25mm²',                      categorie:'inst-kabels', tags:['kabel','aarding'],                               prijs:9.27,  eenheid:'stuk' },
+    // Automaten & differentieels
+    { id:'inst-automaat-4p-20a',              naam:'Automaat 4P 20A',                                categorie:'inst-automaten', tags:['automaat','4p','20a'],                        prijs:39.21, eenheid:'stuk' },
+    { id:'inst-automaat-4p-40a',              naam:'Automaat 4P 40A',                                categorie:'inst-automaten', tags:['automaat','4p','40a'],                        prijs:51.74, eenheid:'stuk' },
+    { id:'inst-diff-30ma-40a',                naam:'Differentieel Automaat 30mA 40A',                categorie:'inst-automaten', tags:['differentieel','30ma','40a'],                 prijs:115,   eenheid:'stuk' },
+    { id:'inst-automaat-4p-32a',              naam:'Automaat 4P 32A',                                categorie:'inst-automaten', tags:['automaat','4p','32a'],                        prijs:55.70, eenheid:'stuk' },
+    { id:'inst-diff-typea-40a-3ka-4p-30ma',   naam:'Differentieel Type A 40A 3KA 4P 30mA',           categorie:'inst-automaten', tags:['differentieel','type a','40a','4p','30ma'],   prijs:67.05, eenheid:'stuk' },
+    { id:'inst-diff-typea-63a-3ka-4p-300ma',  naam:'Differentieel Type A 63A 3KA 4P 300mA',          categorie:'inst-automaten', tags:['differentieel','type a','63a','4p','300ma'],  prijs:107.50,eenheid:'stuk' },
+    { id:'inst-diff-typeb-63a-10ka-4p',       naam:'Differentieel Type B 63A 10kA 4P 30mA/300mA',    categorie:'inst-automaten', tags:['differentieel','type b','63a','4p'],          prijs:263,   eenheid:'stuk' },
+    // Kasten & benodigdheden
+    { id:'inst-kast-6mod',                    naam:'Zekeringskastje 6 modules',                      categorie:'inst-kasten', tags:['kast','zekeringskastje','6 modules'],            prijs:46.73, eenheid:'stuk' },
+    { id:'inst-kast-9mod',                    naam:'Zekeringskastje 9 modules',                      categorie:'inst-kasten', tags:['kast','zekeringskastje','9 modules'],            prijs:53.12, eenheid:'stuk' },
+    { id:'inst-kast-12mod',                   naam:'Zekeringskastje 12 modules',                     categorie:'inst-kasten', tags:['kast','zekeringskastje','12 modules'],           prijs:78.74, eenheid:'stuk' },
+    { id:'inst-kast-18mod',                   naam:'Zekeringskastje 18 modules',                     categorie:'inst-kasten', tags:['kast','zekeringskastje','18 modules'],           prijs:120.48,eenheid:'stuk' },
+    // Extra's
+    { id:'inst-doorboring-32mm',              naam:'Standaard doorboring tot 32mm per muur',         categorie:'inst-extras', tags:['doorboring','muur'],                             prijs:16.37, eenheid:'stuk' },
+    { id:'inst-diamantboring',                naam:'Diamant boring',                                 categorie:'inst-extras', tags:['boring','diamant'],                              prijs:133.38,eenheid:'stuk' },
+    { id:'inst-klein-materiaal-1',            naam:'Klein materiaal (optie 1)',                      categorie:'inst-extras', tags:['klein materiaal'],                               prijs:20.52, eenheid:'stuk' },
+    { id:'inst-klein-materiaal-2',            naam:'Klein materiaal (optie 2)',                      categorie:'inst-extras', tags:['klein materiaal'],                               prijs:30.78, eenheid:'stuk' },
+    { id:'inst-klein-materiaal-3',            naam:'Klein materiaal (optie 3)',                      categorie:'inst-extras', tags:['klein materiaal'],                               prijs:41.04, eenheid:'stuk' },
+    { id:'inst-kabelgoot-pvc-2m',             naam:'Kabelgoot PVC uv-bestendig per 2m',              categorie:'inst-extras', tags:['kabelgoot','pvc'],                               prijs:23.04, eenheid:'stuk' },
+    { id:'inst-accessoires-hoeken',           naam:'Accessoires hoeken, eindstukken',                categorie:'inst-extras', tags:['kabelgoot','accessoires'],                       prijs:5.76,  eenheid:'stuk' },
+    { id:'inst-wachtbuis-rood',               naam:'Rode wachtbuis extra',                           categorie:'inst-extras', tags:['wachtbuis'],                                     prijs:2.20,  eenheid:'stuk' },
+    { id:'inst-connectiviteitsoplossing',     naam:'Connectiviteitsoplossing (stopcontact, automaat, uplift zekeringskast)', categorie:'inst-extras', tags:['connectiviteit'],       prijs:49.17, eenheid:'stuk' },
+    { id:'inst-switch-5poorten',              naam:'Switch 5 poorten',                               categorie:'inst-extras', tags:['switch','netwerk','5 poorten'],                  prijs:102.60,eenheid:'stuk' },
+    // Infra, graafwerken en buiten de standaard
+    { id:'inst-paal-grondinstallatie',        naam:'Paal model installatie in de grond (aangeleverd anker, betonnen sokkel, snelbeton)', categorie:'inst-infra', tags:['paal','graafwerk','infra'], prijs:150.56, eenheid:'stuk' },
   ],
   tarieven: [
     { id:'interventie-3u', naam:'Interventie (3u, incl. aanrijtijden)',              prijs:175, eenheid:'forfait' },
