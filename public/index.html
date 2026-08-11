@@ -7546,10 +7546,11 @@ async function prijsOpslaan() {
 }
 
 // ── Zoekfunctie voor wizard (exported) ───────────────────────────────────────
-function zoekOnderdelen(query, activeTags) {
+function zoekOnderdelen(query, activeTags, categorieIds) {
   const src = PRIJZEN || PRIJZEN_DEFAULTS;
   const q = (query || '').toLowerCase().trim();
   return src.onderdelen.filter(o => {
+    if (categorieIds && !categorieIds.includes(o.categorie)) return false;
     if (activeTags && activeTags.length) {
       const oTags = (o.tags || []).map(t => t.toLowerCase());
       if (!activeTags.every(t => oTags.includes(t.toLowerCase()))) return false;
@@ -7559,10 +7560,12 @@ function zoekOnderdelen(query, activeTags) {
   });
 }
 
-function getAlleTags() {
+function getAlleTags(categorieIds) {
   const src = PRIJZEN || PRIJZEN_DEFAULTS;
   const set = new Set();
-  src.onderdelen.forEach(o => (o.tags || []).forEach(t => set.add(t)));
+  src.onderdelen
+    .filter(o => !categorieIds || categorieIds.includes(o.categorie))
+    .forEach(o => (o.tags || []).forEach(t => set.add(t)));
   return [...set].sort();
 }
 
