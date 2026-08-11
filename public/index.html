@@ -6538,12 +6538,15 @@ async function printRapport() {
     const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), TIMEOUT_MS));
     const result  = await Promise.race([attemptOutboxItem(item), timeout]);
 
-    toast(result === 'timeout'
-      ? '⏳ Rapport wordt verstuurd — je kan gewoon verder, dit gebeurt op de achtergrond'
-      : (item.isLocal
-          ? '✅ Rapport opgeslagen in archief — geen Zoho-ticket gekoppeld'
-          : '✅ Rapport bewaard en doorgestuurd naar Zoho'),
-      4500);
+    if (result === 'timeout') {
+      toast('⏳ Rapport wordt verstuurd — je kan gewoon verder, dit gebeurt op de achtergrond', 5000);
+    } else if (nextOutboxAction(result) === 'done') {
+      toast(item.isLocal
+        ? '✅ Rapport opgeslagen in archief — geen Zoho-ticket gekoppeld'
+        : '✅ Rapport bewaard en doorgestuurd naar Zoho', 4500);
+    } else {
+      toast('⏳ Rapport nog niet bevestigd — wordt automatisch opnieuw geprobeerd', 5000);
+    }
 
     await refreshOutboxCache();
     renderRapportArchief();
