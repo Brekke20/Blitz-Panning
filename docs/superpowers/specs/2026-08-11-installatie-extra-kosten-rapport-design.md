@@ -84,6 +84,45 @@ doorloopt en herbruikt het bestaande onderdelen-mechanisme voor de nieuwe meerko
      + eindtotaal. Geen loonkosten-regel (zoals al sinds 31/07 het geval is bij installatie).
    - Documenttitel: **"Rapport Meerkost Installatie"** i.p.v. "Service Rapport".
 
+## Addendum (2026-08-12) — lengte-afhankelijke tarieven voor kabels
+
+Tijdens Brent's lokale acceptatietest bleek de "boven 10 meter"-naamgeving in de Prijzen-2026-
+kabelitems niet zomaar een letterlijk label te zijn, maar een echte tarief-logica die de
+oorspronkelijke import (§3, "Meerkosten-catalogus") niet correct verwerkte. **Voorlopige aanname,
+nog te bevestigen door Brent's supervisor:**
+
+- **"Datakabel" (was 2 losse catalogus-items: "Datakabel boven 10 meter" € 4,57/m en "Data kabel
+  CAT6" € 6,50/m)** — dit is hetzelfde materiaal, twee tarieven naargelang lengte. Samengevoegd tot
+  1 item "Datakabel": bij een ingegeven lengte ≤ 10m geldt € 6,50/m voor de volledige lengte, bij
+  > 10m geldt € 4,57/m voor de volledige lengte (1 tarief voor de hele lengte, geen mix). De
+  technieker ziet nu nog maar 1 materiaal, geen CAT6-benaming meer.
+- **De overige 3 "boven 10 meter"-items** (Elektriciteitskabel boven 10m € 14,49/m;
+  Elektriciteitskabel + datakabel boven 10m € 17,72/m; Elektriciteitskabel XGB5G10 + datakabel
+  boven 10m € 22,65/m) — voorlopige aanname: de eerste 10 meter zit al in de standaardofferte,
+  enkel het aantal meter **daarboven** wordt aangerekend (`(lengte - 10) × tarief`, minimum € 0).
+- **Kabel XGB5G10 en Aardingkabel** blijven een vast tarief per meter (geen drempel), maar stonden
+  aanvankelijk foutief op eenheid "stuk" i.p.v. "meter" — gecorrigeerd.
+
+Technisch: nieuwe, optionele velden op een catalogus-/onderdelen-item — `prijsmodel: 'overschot' |
+'drempel'`, `drempel` (meter), `prijsOnder` (enkel bij `'drempel'`) — gelezen door een nieuwe,
+overal herbruikte helper `berekenOnderdeelSubtotaal(p)`. Zonder `prijsmodel` verandert er niets
+(`aantal × prijs`, exact zoals voorheen — interventierapporten gebruiken dit veld nooit).
+
+**Belangrijk:** deze helper is nu de ENIGE plek waar een onderdeel-subtotaal berekend wordt, en
+wordt gebruikt door alle 6 plekken die dat ooit deden: de wizard-preview
+(`_wizRenderGeselecteerd`/`_wizTotaalRij`), de PDF (`buildRapportHtml`), het archiefoverzicht
+(`renderRapportArchief`), de TicketLog-Excel-export, en de outbox-archiefpayload
+(`printRapport`). Vóór dit addendum berekenden minstens 2 van die plekken (archiefoverzicht en
+TicketLog-export) een eigen, ongesynchroniseerde `aantal × prijs`-som — exact het patroon dat de
+finale review van deze PR al eerder blootlegde voor `extraMaterialenTotaal` (zie git-historiek).
+Bij een volgende prijsmodel-wijziging: enkel `berekenOnderdeelSubtotaal()` aanpassen, nooit een
+nieuwe losse berekening toevoegen.
+
+**Nog niet gebouwd:** een beheerscherm voor `prijsmodel`/`drempel`/`prijsOnder` — die 6 velden
+zijn enkel in de broncode aanpasbaar, niet via Prijsbeheer. Bewust uitgesteld gezien de regel nog
+niet definitief bevestigd is; als de regel standhoudt na bevestiging door Brent's supervisor, is
+een beheer-UI hiervoor een aparte, kleine vervolgtaak.
+
 ## Niet in scope
 
 - Geen wijziging aan Zoho (installaties blijven volledig lokaal, zoals sinds 31/07 vastgelegd).

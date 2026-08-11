@@ -6050,10 +6050,34 @@ function wizRenderStatus(el) {
   _wizUpdateCatResults();
 }
 
+// Prijsberekening voor onderdelen met een lengte-afhankelijk tarief (meerkost-kabels
+// met een 10m-drempel, zie PRIJZEN_DEFAULTS). Gedeeld door de wizard-preview, de PDF
+// (buildRapportHtml) en het archiefoverzicht (renderRapportArchief) — allemaal moeten
+// exact hetzelfde bedrag tonen voor hetzelfde onderdeel.
+// - Geen `prijsmodel` (of 'vast'): aantal * prijs (standaardgedrag, ongewijzigd).
+// - 'overschot': eerste `drempel` meter is inbegrepen, enkel het aantal daarboven
+//   wordt aangerekend: max(0, aantal - drempel) * prijs.
+// - 'drempel': volledige aantal aan 1 tarief — welk tarief hangt af van of aantal
+//   boven de drempel valt (dan `prijs`) of niet (dan `prijsOnder`).
+function berekenOnderdeelSubtotaal(p) {
+  const aantal = parseInt(p.aantal) || 1;
+  const prijs  = parseFloat(p.prijs) || 0;
+  if (p.prijsmodel === 'overschot') {
+    const drempel = parseFloat(p.drempel) || 0;
+    return Math.max(0, aantal - drempel) * prijs;
+  }
+  if (p.prijsmodel === 'drempel') {
+    const drempel    = parseFloat(p.drempel) || 0;
+    const prijsOnder = parseFloat(p.prijsOnder) || prijs;
+    return aantal * (aantal > drempel ? prijs : prijsOnder);
+  }
+  return aantal * prijs;
+}
+
 function _wizRenderGeselecteerd() {
   if (!R.onderdelen.length) return '<div style="font-size:0.8rem;color:var(--muted);padding:4px 0">Nog geen onderdelen geselecteerd</div>';
   return R.onderdelen.map((p, i) => {
-    const subtotaal = (parseFloat(p.prijs) || 0) * (parseInt(p.aantal) || 1);
+    const subtotaal = berekenOnderdeelSubtotaal(p);
     const isVrij = (p.id || '').startsWith('vrij-');
     return `<div class="wiz-sel-item">
       <div class="wiz-sel-top">
@@ -6091,7 +6115,7 @@ function _wizRenderGeselecteerd() {
 
 function _wizTotaalRij() {
   const billable = R.onderdelen.filter(p => p.factureren !== false);
-  const totaal   = billable.reduce((sum, p) => sum + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+  const totaal   = billable.reduce((sum, p) => sum + berekenOnderdeelSubtotaal(p), 0);
   if (!R.onderdelen.length) return '';
   const nietFactureerbaar = R.onderdelen.length - billable.length;
   return `<div class="wiz-totaal-row">
@@ -6148,7 +6172,11 @@ function wizVoegCatToe(id) {
   if (existing) {
     existing.aantal = (parseInt(existing.aantal) || 1) + 1;
   } else {
-    R.onderdelen.push({ id: o.id, naam: o.naam, prijs: o.prijs, aantal: 1, factureren: true, eenheid: o.eenheid || 'stuk' });
+    R.onderdelen.push({
+      id: o.id, naam: o.naam, prijs: o.prijs, aantal: 1, factureren: true, eenheid: o.eenheid || 'stuk',
+      // Lengte-afhankelijk tarief (indien van toepassing) meekopiëren, zie berekenOnderdeelSubtotaal().
+      ...(o.prijsmodel ? { prijsmodel: o.prijsmodel, drempel: o.drempel, prijsOnder: o.prijsOnder } : {}),
+    });
   }
   _wizHertekenGeselecteerd();
 }
@@ -6370,7 +6398,7 @@ function buildRapportHtml() {
 
   const geldigeOnderdelen  = R.onderdelen.filter(p => p.naam);
   const billableOnderdelen = geldigeOnderdelen.filter(p => p.factureren !== false);
-  const totaalOnderdelen   = billableOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+  const totaalOnderdelen   = billableOnderdelen.reduce((s, p) => s + berekenOnderdeelSubtotaal(p), 0);
   const extraMaterialenTotaalNum = parseFloat(R.extraMaterialenTotaal) || 0;
   // Loonkost hier al berekenen (i.p.v. enkel lokaal in de Loonkosten-tabel-IIFE verderop),
   // zodat het gecombineerde Kostenoverzicht onderaan dit bedrag kan hergebruiken zonder
@@ -6383,7 +6411,7 @@ function buildRapportHtml() {
       const aantal      = parseInt(p.aantal) || 1;
       const factureren  = p.factureren !== false;
       const stukprijs   = parseFloat(p.prijs) || 0;
-      const subtotaal   = stukprijs * aantal;
+      const subtotaal   = berekenOnderdeelSubtotaal(p);
       return `<tr>
         <td>${escHtml(p.naam)}${!factureren ? ' <span style="font-size:7.5pt;color:#888;font-style:italic">(niet aangerekend)</span>' : ''}</td>
         <td style="text-align:center">${aantal}${p.eenheid==='meter' ? ' meter' : ''}</td>
@@ -6595,7 +6623,7 @@ async function printRapport() {
     try {
       const totaal = R.onderdelen
         .filter(p => p.naam && p.factureren !== false)
-        .reduce((s, p) => s + (parseFloat(p.prijs) || 0) * (parseInt(p.aantal) || 1), 0);
+        .reduce((s, p) => s + berekenOnderdeelSubtotaal(p), 0);
 
       const item = {
         id:           crypto.randomUUID(),
@@ -6759,7 +6787,7 @@ function renderRapportArchief() {
     const loonNetto = (isGarantie || isInstallatieRapport) ? 0 : loonBruto;
 
     const billableOnderdelen = (rd.onderdelen || []).filter(p => p.naam && p.factureren !== false);
-    const totOnderdelen = billableOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+    const totOnderdelen = billableOnderdelen.reduce((s, p) => s + berekenOnderdeelSubtotaal(p), 0);
     const extraMaterialenTotaalNum = isInstallatieRapport ? (parseFloat(rd.extraMaterialenTotaal) || 0) : 0;
     const totFactureerbaar = loonNetto + totOnderdelen + extraMaterialenTotaalNum;
 
@@ -7065,7 +7093,7 @@ async function exportTicketLog() {
     const rd                = r.rapportData || {};
     const onderdelen         = (rd.onderdelen || []).filter(p => p.naam);
     const billableOnderdelen = onderdelen.filter(p => p.factureren !== false);
-    const totaal             = billableOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+    const totaal             = billableOnderdelen.reduce((s, p) => s + berekenOnderdeelSubtotaal(p), 0);
     const fac                = billableOnderdelen.length > 0 ? 'Ja' : 'Nee';
     const cmp        = onderdelen.map(p => `${p.naam}${parseInt(p.aantal) > 1 ? ' ×' + p.aantal : ''}`).join('; ');
 
@@ -7279,13 +7307,18 @@ const PRIJZEN_DEFAULTS = {
     { id:'socket',               naam:'Socket',                     categorie:'kabel', tags:['socket','aansluiting'],                   prijs:88,  eenheid:'stuk' },
     // ── Meerkosten Installatie 2026 (bron: "Particuliere Installaties - Extra Kosten buiten Standaard 2026.xlsx") ──
     // Kabels & benodigdheden
-    { id:'inst-elek-datakabel-boven10m',      naam:'Elektriciteitskabel + datakabel boven 10 meter', categorie:'inst-kabels', tags:['kabel','elektriciteit','data','boven 10m'],      prijs:17.72, eenheid:'meter' },
-    { id:'inst-elekkabel-boven10m',           naam:'Elektriciteitskabel boven 10 meter',             categorie:'inst-kabels', tags:['kabel','elektriciteit','boven 10m'],              prijs:14.49, eenheid:'meter' },
-    { id:'inst-datakabel-boven10m',           naam:'Datakabel boven 10 meter',                       categorie:'inst-kabels', tags:['kabel','data','boven 10m'],                      prijs:4.57,  eenheid:'meter' },
-    { id:'inst-datakabel-cat6',               naam:'Data kabel CAT6',                                categorie:'inst-kabels', tags:['kabel','data','cat6'],                           prijs:6.5,   eenheid:'stuk' },
-    { id:'inst-xgb5g10-datakabel-boven10m',   naam:'Elektriciteitskabel XGB5G10 + datakabel boven 10 meter', categorie:'inst-kabels', tags:['kabel','xgb5g10','data','boven 10m'],     prijs:22.65, eenheid:'meter' },
-    { id:'inst-kabel-xgb5g10',                naam:'Kabel XGB5G10',                                  categorie:'inst-kabels', tags:['kabel','xgb5g10'],                               prijs:20.77, eenheid:'stuk' },
-    { id:'inst-aardingkabel',                 naam:'Aardingkabel 6mm² - 25mm²',                      categorie:'inst-kabels', tags:['kabel','aarding'],                               prijs:9.27,  eenheid:'stuk' },
+    // Prijsmodel 'overschot': eerste `drempel` meter zit al in de standaardofferte,
+    // enkel het aantal daarboven wordt aangerekend (aantal - drempel) * prijs, min 0.
+    // Prijsmodel 'drempel': volledige aantal aan 1 tarief — welk tarief hangt af van
+    // of aantal > drempel (dan `prijs`) of niet (dan `prijsOnder`).
+    // VOORLOPIGE AANNAME (2026-08-12, nog te bevestigen door Brent's supervisor) — zie
+    // docs/superpowers/specs/2026-08-11-installatie-extra-kosten-rapport-design.md.
+    { id:'inst-elek-datakabel-boven10m',      naam:'Elektriciteitskabel + datakabel boven 10 meter', categorie:'inst-kabels', tags:['kabel','elektriciteit','data','boven 10m'],      prijs:17.72, eenheid:'meter', prijsmodel:'overschot', drempel:10 },
+    { id:'inst-elekkabel-boven10m',           naam:'Elektriciteitskabel boven 10 meter',             categorie:'inst-kabels', tags:['kabel','elektriciteit','boven 10m'],              prijs:14.49, eenheid:'meter', prijsmodel:'overschot', drempel:10 },
+    { id:'inst-datakabel-boven10m',           naam:'Datakabel',                                      categorie:'inst-kabels', tags:['kabel','data','cat6','boven 10m'],                prijs:4.57,  eenheid:'meter', prijsmodel:'drempel', drempel:10, prijsOnder:6.5 },
+    { id:'inst-xgb5g10-datakabel-boven10m',   naam:'Elektriciteitskabel XGB5G10 + datakabel boven 10 meter', categorie:'inst-kabels', tags:['kabel','xgb5g10','data','boven 10m'],     prijs:22.65, eenheid:'meter', prijsmodel:'overschot', drempel:10 },
+    { id:'inst-kabel-xgb5g10',                naam:'Kabel XGB5G10',                                  categorie:'inst-kabels', tags:['kabel','xgb5g10'],                               prijs:20.77, eenheid:'meter' },
+    { id:'inst-aardingkabel',                 naam:'Aardingkabel 6mm² - 25mm²',                      categorie:'inst-kabels', tags:['kabel','aarding'],                               prijs:9.27,  eenheid:'meter' },
     // Automaten & differentieels
     { id:'inst-automaat-4p-20a',              naam:'Automaat 4P 20A',                                categorie:'inst-automaten', tags:['automaat','4p','20a'],                        prijs:39.21, eenheid:'stuk' },
     { id:'inst-automaat-4p-40a',              naam:'Automaat 4P 40A',                                categorie:'inst-automaten', tags:['automaat','4p','40a'],                        prijs:51.74, eenheid:'stuk' },

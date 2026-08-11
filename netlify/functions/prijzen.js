@@ -47,13 +47,18 @@ const DEFAULTS = {
     { id:'socket',                naam:'Socket',                     categorie:'kabel', tags:['socket','aansluiting'],                   prijs:88,  eenheid:'stuk' },
     // ── Meerkosten Installatie 2026 (bron: "Particuliere Installaties - Extra Kosten buiten Standaard 2026.xlsx") ──
     // Kabels & benodigdheden
-    { id:'inst-elek-datakabel-boven10m',      naam:'Elektriciteitskabel + datakabel boven 10 meter', categorie:'inst-kabels', tags:['kabel','elektriciteit','data','boven 10m'],      prijs:17.72, eenheid:'meter' },
-    { id:'inst-elekkabel-boven10m',           naam:'Elektriciteitskabel boven 10 meter',             categorie:'inst-kabels', tags:['kabel','elektriciteit','boven 10m'],              prijs:14.49, eenheid:'meter' },
-    { id:'inst-datakabel-boven10m',           naam:'Datakabel boven 10 meter',                       categorie:'inst-kabels', tags:['kabel','data','boven 10m'],                      prijs:4.57,  eenheid:'meter' },
-    { id:'inst-datakabel-cat6',               naam:'Data kabel CAT6',                                categorie:'inst-kabels', tags:['kabel','data','cat6'],                           prijs:6.5,   eenheid:'stuk' },
-    { id:'inst-xgb5g10-datakabel-boven10m',   naam:'Elektriciteitskabel XGB5G10 + datakabel boven 10 meter', categorie:'inst-kabels', tags:['kabel','xgb5g10','data','boven 10m'],     prijs:22.65, eenheid:'meter' },
-    { id:'inst-kabel-xgb5g10',                naam:'Kabel XGB5G10',                                  categorie:'inst-kabels', tags:['kabel','xgb5g10'],                               prijs:20.77, eenheid:'stuk' },
-    { id:'inst-aardingkabel',                 naam:'Aardingkabel 6mm² - 25mm²',                      categorie:'inst-kabels', tags:['kabel','aarding'],                               prijs:9.27,  eenheid:'stuk' },
+    // Prijsmodel 'overschot': eerste `drempel` meter zit al in de standaardofferte,
+    // enkel het aantal daarboven wordt aangerekend (aantal - drempel) * prijs, min 0.
+    // Prijsmodel 'drempel': volledige aantal aan 1 tarief — welk tarief hangt af van
+    // of aantal > drempel (dan `prijs`) of niet (dan `prijsOnder`).
+    // VOORLOPIGE AANNAME (2026-08-12, nog te bevestigen door Brent's supervisor) — zie
+    // docs/superpowers/specs/2026-08-11-installatie-extra-kosten-rapport-design.md.
+    { id:'inst-elek-datakabel-boven10m',      naam:'Elektriciteitskabel + datakabel boven 10 meter', categorie:'inst-kabels', tags:['kabel','elektriciteit','data','boven 10m'],      prijs:17.72, eenheid:'meter', prijsmodel:'overschot', drempel:10 },
+    { id:'inst-elekkabel-boven10m',           naam:'Elektriciteitskabel boven 10 meter',             categorie:'inst-kabels', tags:['kabel','elektriciteit','boven 10m'],              prijs:14.49, eenheid:'meter', prijsmodel:'overschot', drempel:10 },
+    { id:'inst-datakabel-boven10m',           naam:'Datakabel',                                      categorie:'inst-kabels', tags:['kabel','data','cat6','boven 10m'],                prijs:4.57,  eenheid:'meter', prijsmodel:'drempel', drempel:10, prijsOnder:6.5 },
+    { id:'inst-xgb5g10-datakabel-boven10m',   naam:'Elektriciteitskabel XGB5G10 + datakabel boven 10 meter', categorie:'inst-kabels', tags:['kabel','xgb5g10','data','boven 10m'],     prijs:22.65, eenheid:'meter', prijsmodel:'overschot', drempel:10 },
+    { id:'inst-kabel-xgb5g10',                naam:'Kabel XGB5G10',                                  categorie:'inst-kabels', tags:['kabel','xgb5g10'],                               prijs:20.77, eenheid:'meter' },
+    { id:'inst-aardingkabel',                 naam:'Aardingkabel 6mm² - 25mm²',                      categorie:'inst-kabels', tags:['kabel','aarding'],                               prijs:9.27,  eenheid:'meter' },
     // Automaten & differentieels
     { id:'inst-automaat-4p-20a',              naam:'Automaat 4P 20A',                                categorie:'inst-automaten', tags:['automaat','4p','20a'],                        prijs:39.21, eenheid:'stuk' },
     { id:'inst-automaat-4p-40a',              naam:'Automaat 4P 40A',                                categorie:'inst-automaten', tags:['automaat','4p','40a'],                        prijs:51.74, eenheid:'stuk' },
