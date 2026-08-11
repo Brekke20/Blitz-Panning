@@ -5184,6 +5184,65 @@ let _sigTech   = null;
 let _sigKlant  = null;
 let _fotoState = { ticketId: null, versie: 0, fotos: [] };
 
+// ══════════════════════════════════════════════
+// RAPPORT VERZEND-WACHTRIJ (OUTBOX)
+// ══════════════════════════════════════════════
+const OUTBOX_DB_NAME    = 'blitz-rapport-outbox';
+const OUTBOX_DB_VERSION = 1;
+const OUTBOX_STORE      = 'items';
+let _outboxItems = [];
+
+function outboxOpenDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(OUTBOX_DB_NAME, OUTBOX_DB_VERSION);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(OUTBOX_STORE, { keyPath: 'id' });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+async function outboxAdd(item) {
+  const db = await outboxOpenDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(OUTBOX_STORE, 'readwrite');
+    tx.objectStore(OUTBOX_STORE).put(item);
+    tx.oncomplete = () => resolve();
+    tx.onerror    = () => reject(tx.error);
+  });
+}
+
+const outboxPut = outboxAdd; // put() op een keyPath-store is ook een upsert
+
+async function outboxGetAll() {
+  const db = await outboxOpenDb();
+  return new Promise((resolve, reject) => {
+    const tx  = db.transaction(OUTBOX_STORE, 'readonly');
+    const req = tx.objectStore(OUTBOX_STORE).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+async function outboxRemove(id) {
+  const db = await outboxOpenDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(OUTBOX_STORE, 'readwrite');
+    tx.objectStore(OUTBOX_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror    = () => reject(tx.error);
+  });
+}
+
+// Pure functie — geen I/O — bepaalt welke stap van een wachtrij-item nog moet gebeuren.
+function nextOutboxAction(item) {
+  if (!item.archived) return 'archive';
+  if (item.isLocal)   return 'done';
+  if (!item.zohoUploaded) return 'check-zoho';
+  return 'done';
+}
+
 // Rapport data object — gevuld doorheen wizard
 const R = {
   datum: '', technieker: '', adres: '', start: '', stop: '', werktijd: '',
