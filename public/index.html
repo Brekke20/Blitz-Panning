@@ -5208,8 +5208,8 @@ async function outboxAdd(item) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(OUTBOX_STORE, 'readwrite');
     tx.objectStore(OUTBOX_STORE).put(item);
-    tx.oncomplete = () => resolve();
-    tx.onerror    = () => reject(tx.error);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror    = () => { db.close(); reject(tx.error); };
   });
 }
 
@@ -5220,8 +5220,8 @@ async function outboxGetAll() {
   return new Promise((resolve, reject) => {
     const tx  = db.transaction(OUTBOX_STORE, 'readonly');
     const req = tx.objectStore(OUTBOX_STORE).getAll();
-    req.onsuccess = () => resolve(req.result || []);
-    req.onerror   = () => reject(req.error);
+    req.onsuccess = () => { db.close(); resolve(req.result || []); };
+    req.onerror   = () => { db.close(); reject(req.error); };
   });
 }
 
@@ -5230,8 +5230,8 @@ async function outboxRemove(id) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(OUTBOX_STORE, 'readwrite');
     tx.objectStore(OUTBOX_STORE).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror    = () => reject(tx.error);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror    = () => { db.close(); reject(tx.error); };
   });
 }
 
