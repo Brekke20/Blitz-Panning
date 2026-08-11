@@ -5,3 +5,6 @@ node_modules/
 *.log
 tickets-response.json
 .superpowers/
+# Lokale verificatie-tooling (Netlify Blobs-emulatie), geen onderdeel van de app
+blobs-local-bootstrap.mjs
+.blobs-local-test/

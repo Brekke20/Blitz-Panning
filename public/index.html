@@ -860,6 +860,14 @@
       position: sticky; top: 92px; z-index: 27;
     }
 
+    /* ── Outbox banner (rapport nog niet bevestigd verzonden) ── */
+    #outbox-banner {
+      display: none; align-items: center; gap: 8px;
+      background: var(--accent-dim); border-bottom: 1px solid rgba(0,223,163,0.3);
+      padding: 7px 14px; font-size: 0.78rem; color: var(--accent);
+      position: sticky; top: 92px; z-index: 27; cursor: pointer;
+    }
+
     /* ── Test mode badge ── */
     #test-badge {
       display: none; background: var(--orange); color: #000;
@@ -1257,6 +1265,8 @@
 </div>
 
 <div id="offline-banner">📶 Geen internetverbinding — wijzigingen worden niet opgeslagen in Zoho</div>
+
+<div id="outbox-banner" onclick="flushOutbox()"></div>
 
 <!-- ══ TICKETS TAB ══ -->
 <div class="view active" id="view-tickets">
@@ -1898,6 +1908,12 @@ document.addEventListener('DOMContentLoaded', () => {
   loadTickets();
   laadRapportArchief();
   startTicketPolling();
+  refreshOutboxCache();
+  flushOutbox();
+  window.addEventListener('online', flushOutbox);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') flushOutbox();
+  });
   // Initialiseer tab indicator op de actieve tab
   setTimeout(() => updateTabIndicator('tab-tickets'), 0);
   window.addEventListener('resize', () => {
@@ -5184,6 +5200,209 @@ let _sigTech   = null;
 let _sigKlant  = null;
 let _fotoState = { ticketId: null, versie: 0, fotos: [] };
 
+// ══════════════════════════════════════════════
+// RAPPORT VERZEND-WACHTRIJ (OUTBOX)
+// ══════════════════════════════════════════════
+const OUTBOX_DB_NAME    = 'blitz-rapport-outbox';
+const OUTBOX_DB_VERSION = 1;
+const OUTBOX_STORE      = 'items';
+let _outboxItems = [];
+
+function outboxOpenDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(OUTBOX_DB_NAME, OUTBOX_DB_VERSION);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(OUTBOX_STORE, { keyPath: 'id' });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+async function outboxAdd(item) {
+  const db = await outboxOpenDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(OUTBOX_STORE, 'readwrite');
+    tx.objectStore(OUTBOX_STORE).put(item);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror    = () => { db.close(); reject(tx.error); };
+  });
+}
+
+const outboxPut = outboxAdd; // put() op een keyPath-store is ook een upsert
+
+async function outboxGetAll() {
+  const db = await outboxOpenDb();
+  return new Promise((resolve, reject) => {
+    const tx  = db.transaction(OUTBOX_STORE, 'readonly');
+    const req = tx.objectStore(OUTBOX_STORE).getAll();
+    req.onsuccess = () => { db.close(); resolve(req.result || []); };
+    req.onerror   = () => { db.close(); reject(req.error); };
+  });
+}
+
+async function outboxRemove(id) {
+  const db = await outboxOpenDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(OUTBOX_STORE, 'readwrite');
+    tx.objectStore(OUTBOX_STORE).delete(id);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror    = () => { db.close(); reject(tx.error); };
+  });
+}
+
+// Pure functie — geen I/O — bepaalt welke stap van een wachtrij-item nog moet gebeuren.
+function nextOutboxAction(item) {
+  if (!item.archived) return 'archive';
+  if (item.isLocal)   return 'done';
+  if (!item.zohoUploaded) return 'check-zoho';
+  return 'done';
+}
+
+async function refreshOutboxCache() {
+  _outboxItems = await outboxGetAll();
+  renderOutboxBanner();
+}
+
+function renderOutboxBanner() {
+  const banner = document.getElementById('outbox-banner');
+  if (!_outboxItems.length) { banner.style.display = 'none'; return; }
+  const offlineBanner  = document.getElementById('offline-banner');
+  const offlineVisible = offlineBanner && getComputedStyle(offlineBanner).display !== 'none';
+  banner.style.top = offlineVisible ? `${92 + offlineBanner.offsetHeight}px` : '92px';
+  banner.textContent = _outboxItems.length === 1
+    ? '⏳ 1 rapport nog niet bevestigd — wordt automatisch opnieuw geprobeerd (tik om nu te proberen)'
+    : `⏳ ${_outboxItems.length} rapporten nog niet bevestigd — wordt automatisch opnieuw geprobeerd (tik om nu te proberen)`;
+  banner.style.display = 'flex';
+}
+
+async function logOutboxFailure(item, stap, fout) {
+  item.attempts  = (item.attempts || 0) + 1;
+  item.lastError = fout;
+  try { await outboxPut(item); } catch { /* best-effort */ }
+  try {
+    await fetch('/api/client-log', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        ticketId:     item.ticket?.id     || '',
+        ticketNumber: item.ticket?.number || '',
+        stap,
+        fout,
+        poging: item.attempts,
+      }),
+    });
+  } catch { /* diagnostisch, best-effort — falen hier mag genegeerd worden */ }
+}
+
+async function attemptOutboxItem(item) {
+  const action = nextOutboxAction(item);
+
+  if (action === 'archive') {
+    try {
+      const res  = await fetch('/api/rapport-archief', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ...item.archiveBody, id: item.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || String(res.status));
+      item.archived = true;
+      await outboxPut(item);
+      // Houd de globale archief-versie synchroon — verwijderRapport()/verstuurRapport()
+      // gebruiken _archiefVersie voor hun eigen optimistic-lock en zouden anders een
+      // vals-positief conflict kunnen krijgen na een outbox-archivering.
+      if (typeof data.versie === 'number') _archiefVersie = data.versie;
+    } catch (err) {
+      await logOutboxFailure(item, 'archiveren', err.message);
+      return item;
+    }
+    return attemptOutboxItem(item);
+  }
+
+  if (action === 'check-zoho') {
+    let alreadyDone = false;
+    try {
+      const res  = await fetch(`/api/rapport-archief?id=${encodeURIComponent(item.id)}`);
+      const data = await res.json();
+      alreadyDone = data?.rapport?.zohoUploaded === true;
+    } catch { /* check mislukt — probeer de upload gewoon, geen erg bij een extra check-poging later */ }
+
+    if (alreadyDone) {
+      item.zohoUploaded = true;
+      await outboxPut(item);
+      return attemptOutboxItem(item);
+    }
+
+    try {
+      const res  = await fetch('/api/rapport', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ html: item.html, ticketId: item.ticket.id, filename: item.ticket.filename }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload mislukt');
+
+      // De Zoho-upload zelf is gelukt — dit ONMIDDELLIJK lokaal vastleggen, nog
+      // vóór de bevestigings-call hieronder. Zo herhaalt een latere mislukte
+      // confirm-call nooit de upload zelf (dat zou de PDF een tweede keer aan
+      // hetzelfde ticket hangen — precies wat deze functie moet voorkomen).
+      item.zohoUploaded = true;
+      await outboxPut(item);
+    } catch (err) {
+      await logOutboxFailure(item, 'zoho-upload', err.message);
+      return item;
+    }
+
+    // Archief-bevestiging is best-effort: mislukt ze, dan blijft de server-side
+    // zohoUploaded-vlag mogelijk (stil) false — aanvaardbaar, want dit item wordt
+    // sowieso niet opnieuw geprobeerd (lokaal al als geüpload gemarkeerd), dus er
+    // is geen risico meer op een dubbele upload. Enkel diagnostisch loggen.
+    try {
+      const confirmRes  = await fetch('/api/rapport-archief', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ...item.archiveBody, id: item.id, zohoUploaded: true }),
+      });
+      const confirmData = await confirmRes.json().catch(() => ({}));
+      if (!confirmRes.ok) throw new Error('Bevestigen van Zoho-upload in archief mislukt');
+      if (typeof confirmData.versie === 'number') _archiefVersie = confirmData.versie;
+    } catch (err) {
+      await logOutboxFailure(item, 'zoho-confirm', err.message);
+    }
+    return attemptOutboxItem(item);
+  }
+
+  // action === 'done'
+  await outboxRemove(item.id);
+  return item;
+}
+
+// Beschermt tegen twee gelijktijdige attemptOutboxItem-pogingen voor hetzelfde item —
+// bv. de achtergrond-poging na printRapport()'s 5s-timeout en een onafhankelijke
+// flushOutbox() (page load / online / visibilitychange / banner-klik) die op hetzelfde
+// item botsen. Zonder deze guard konden beide onafhankelijk de check-zoho-stap bereiken
+// en dus tweemaal naar Zoho uploaden.
+const _outboxInFlight = new Set();
+
+async function runOutboxItem(item) {
+  if (_outboxInFlight.has(item.id)) return item; // al bezig via een andere weg, niet nogmaals starten
+  _outboxInFlight.add(item.id);
+  try {
+    // Vers herlezen uit IndexedDB: de in-flight-Set beschermt enkel tegen twee
+    // gelijktijdige doorlopen, niet tegen een doorloop die met een verouderde
+    // momentopname (uit een eerdere outboxGetAll) blijft wachten tot het slot
+    // vrijkomt. Zonder deze hercontrole zou zo'n stale kopie (met bv. nog
+    // zohoUploaded:false) na afloop van een geslaagde doorloop alsnog opnieuw
+    // naar Zoho uploaden — precies de dubbele bijlage die we willen vermijden.
+    const fresh = (await outboxGetAll()).find(i => i.id === item.id);
+    if (!fresh) return item; // al verwijderd door een andere doorloop — klaar, niets meer te doen
+    return await attemptOutboxItem(fresh);
+  } finally {
+    _outboxInFlight.delete(item.id);
+  }
+}
+
 // Rapport data object — gevuld doorheen wizard
 const R = {
   datum: '', technieker: '', adres: '', start: '', stop: '', werktijd: '',
@@ -6286,89 +6505,128 @@ ${isInstallatie ? '' : `<tr><td>Loonkosten (excl. btw)${isGarantieTotaal ? ' <sp
   return html;
 }
 
-function printRapport() {
+async function printRapport() {
+  // Venster synchroon openen, vóór elke await. Browsers laten window.open() enkel toe
+  // binnen de korte "transient user activation" na de klik (Chrome: ~5s). Wachten we
+  // eerst de outbox-poging af (tot 5s), dan is die activation op het trage/offline-pad
+  // — precies het scenario waarvoor deze flow bestaat — net verlopen en blokkeert de
+  // browser het afdrukvoorbeeld alsnog. html/blob/blobUrl zijn stuk voor stuk synchroon
+  // te berekenen (geen enkele await nodig), dus window.open() kan de echte inhoud meteen
+  // krijgen — geen tussentijds leeg tabblad nodig, en dus ook geen risico dat dat lege
+  // tabblad blijft hangen als de tab intussen naar de achtergrond gaat.
   const html    = buildRapportHtml();
   const blob    = new Blob([html], { type: 'text/html; charset=utf-8' });
   const blobUrl = URL.createObjectURL(blob);
   const win     = window.open(blobUrl, '_blank');
   if (!win) {
-    URL.revokeObjectURL(blobUrl);
-    return toast('Pop-upblokkering actief — sta pop-ups toe voor deze pagina');
+    toast('Pop-upblokkering actief — sta pop-ups toe voor deze pagina');
   }
-  // Revoke na 2 min — genoeg tijd om te printen
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
 
-  // Upload en archiveer slechts één keer per wizard-sessie (guard tegen dubbele uploads)
+  // Wachtrij-item aanmaken en proberen te verzenden vóórdat het afdrukvoorbeeld
+  // gevuld wordt — op mobiel duwt het openen van de tab de app naar de achtergrond,
+  // en dat mocht niet meer gelijktijdig lopen met de niet-afgewachte verzending zoals
+  // voorheen (zie design doc 2026-08-11-rapport-verzend-betrouwbaarheid-design.md,
+  // "Root cause").
   if (!_rapportUploaded) {
     _rapportUploaded = true;
-    if (_wizTicket.isLocal) {
-      // Geen Zoho-ticket gekoppeld aan manuele/geïmporteerde afspraken — enkel archiveren.
-      archiveerRapport(html);
-      toast('✅ Rapport opgeslagen in archief — geen Zoho-ticket gekoppeld', 4000);
-    } else {
-      const rapportFilename = `rapport-${_wizTicket.number || _wizTicket.id}-${R.datum || 'onbekend'}.pdf`;
-      uploadRapportToZoho(html, _wizTicket.id, rapportFilename);
-      archiveerRapport(html);
+
+    // Alles hieronder in try/catch: faalt de IndexedDB-schrijfactie (quota vol,
+    // privémodus, geblokkeerde DB), dan mag dat printRapport niet afbreken.
+    // _rapportUploaded staat immers al op true, dus een tweede poging in dezelfde
+    // wizard-sessie zou dit blok overslaan en het rapport stil verloren laten gaan.
+    // We tonen daarom een duidelijke fout, maar lopen sowieso door naar het
+    // afdrukvoorbeeld en het sluiten van de wizard.
+    try {
+      const totaal = R.onderdelen
+        .filter(p => p.naam && p.factureren !== false)
+        .reduce((s, p) => s + (parseFloat(p.prijs) || 0) * (parseInt(p.aantal) || 1), 0);
+
+      const item = {
+        id:           crypto.randomUUID(),
+        html,
+        isLocal:      !!_wizTicket.isLocal,
+        archived:     false,
+        zohoUploaded: false,
+        attempts:     0,
+        lastError:    null,
+        createdAt:    new Date().toISOString(),
+        ticket: {
+          id:       _wizTicket.id   || '',
+          number:   _wizTicket.number || '',
+          filename: `rapport-${_wizTicket.number || _wizTicket.id}-${R.datum || 'onbekend'}.pdf`,
+        },
+        archiveBody: {
+          datum:            R.datum,
+          technieker:       R.technieker,
+          ticketId:         _wizTicket.id   || '',
+          ticketNumber:     _wizTicket.number ? String(_wizTicket.number) : '',
+          klant:            _wizTicket.contact || _wizTicket.account || '',
+          adres:            R.adres,
+          nieuwInter:       R.nieuwInter,
+          hersteld:         R.hersteld,
+          servicetype:      R.servicetype,
+          facturatie:       R.facturatie,
+          prioriteit:       _wizTicket.priority || '',
+          interventieType:  R.interventieType || 'Interventie',
+          totaalOnderdelen: totaal,
+          rapportData:      { ...R, _html: html },
+          // Geen 'versie' hier — dedup gebeurt server-side op ticketId+datum
+          // (rapport-archief.js), zodat opgestapelde wachtrij-items elkaar niet
+          // vals-positief als conflict blokkeren.
+        },
+      };
+
+      await outboxAdd(item);
+      await refreshOutboxCache();
+
+      const TIMEOUT_MS = 5000;
+      const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), TIMEOUT_MS));
+      const result  = await Promise.race([runOutboxItem(item), timeout]);
+
+      if (result === 'timeout') {
+        toast('⏳ Rapport wordt verstuurd — je kan gewoon verder, dit gebeurt op de achtergrond', 5000);
+      } else if (nextOutboxAction(result) === 'done') {
+        toast(item.isLocal
+          ? '✅ Rapport opgeslagen in archief — geen Zoho-ticket gekoppeld'
+          : '✅ Rapport bewaard en doorgestuurd naar Zoho', 4500);
+      } else {
+        toast('⏳ Rapport nog niet bevestigd — wordt automatisch opnieuw geprobeerd', 5000);
+      }
+
+      await refreshOutboxCache();
+      renderRapportArchief();
+    } catch (err) {
+      toast('⚠️ Rapport kon niet lokaal bewaard worden — controleer opslagruimte, herlaad de pagina en probeer opnieuw', 6000);
+      console.warn('printRapport: onverwachte fout bij het wegschrijven naar de outbox:', err);
     }
   }
 
-  // Wizard sluiten na geslaagd rapport — geen bevestigingsdialog meer nodig
+  if (win) {
+    // Revoke na 2 min — genoeg tijd om te printen
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
+  } else {
+    URL.revokeObjectURL(blobUrl);
+  }
+
+  // Wizard sluiten na geslaagd rapport — geen bevestigingsdialoog meer nodig
   document.getElementById('rapport-wizard').classList.remove('open');
 }
 
-async function archiveerRapport(html) {
-  const totaal = R.onderdelen
-    .filter(p => p.naam && p.factureren !== false)
-    .reduce((s, p) => s + (parseFloat(p.prijs) || 0) * (parseInt(p.aantal) || 1), 0);
-
-  try {
-    const res = await fetch('/api/rapport-archief', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        versie:          _archiefVersie,
-        datum:           R.datum,
-        technieker:      R.technieker,
-        ticketId:        _wizTicket.id   || '',
-        ticketNumber:    _wizTicket.number ? String(_wizTicket.number) : '',
-        klant:           _wizTicket.contact || _wizTicket.account || '',
-        adres:           R.adres,
-        nieuwInter:      R.nieuwInter,
-        hersteld:        R.hersteld,
-        servicetype:     R.servicetype,
-        facturatie:      R.facturatie,
-        prioriteit:      _wizTicket.priority || '',
-        interventieType: R.interventieType || 'Interventie',
-        totaalOnderdelen: totaal,
-        rapportData:     { ...R, _html: html }, // bewaar voor hergen
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      toast('⚠️ Rapport niet gearchiveerd: ' + (data.error || res.status), 5000);
-      return;
+async function flushOutbox() {
+  const items = await outboxGetAll();
+  for (const item of items) {
+    // Per item afschermen: gooit één wachtrij-item een onverwachte fout (bv. een
+    // mislukte IndexedDB-schrijfactie in attemptOutboxItem), dan mag dat de rest
+    // van de wachtrij niet blokkeren. flushOutbox hangt bovendien rechtstreeks aan
+    // het 'online'-event, dus een doorgegooide fout zou een unhandled rejection zijn.
+    try {
+      await runOutboxItem(item);
+    } catch (err) {
+      console.warn('flushOutbox: onverwachte fout bij wachtrij-item', item.id, err);
     }
-    if (typeof data.versie === 'number') _archiefVersie = data.versie;
-  } catch (err) {
-    toast('⚠️ Rapport archiveren mislukt (netwerkfout) — controleer het Rapporten-tabblad', 5000);
-    console.warn('Rapport archiveren mislukt:', err);
   }
-}
-
-async function uploadRapportToZoho(html, ticketId, filename) {
-  toast('📤 Rapport uploaden naar Zoho…');
-  try {
-    const res = await fetch('/api/rapport', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ html, ticketId, filename }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Upload mislukt');
-    toast('✅ Rapport opgeslagen als bijlage in Zoho');
-  } catch (err) {
-    toast('⚠️ Zoho upload mislukt: ' + err.message);
-  }
+  await refreshOutboxCache();
+  renderRapportArchief();
 }
 
 // ══════════════════════════════════════════════
@@ -6434,6 +6692,9 @@ function renderRapportArchief() {
         ? '<span style="color:var(--green);font-weight:600">✓ Hersteld</span>'
         : '<span style="color:var(--orange)">⚠ Niet hersteld</span>';
     const nieuw     = (!isInstallatieRapport && r.nieuwInter === 'ja') ? '<span style="color:var(--orange)">🔁 Nieuwe interventie</span>' : '';
+    const inWachtrij = _outboxItems.some(o => o.id === r.id)
+      ? '<span style="color:var(--accent);font-weight:600">⏳ In wachtrij</span>'
+      : '';
     const st       = rd.servicetype || r.servicetype || '';
     const isGarantie = st === 'garantie';
     const wMin     = calcWerktijdMin(rd.start, rd.stop);
@@ -6481,7 +6742,7 @@ function renderRapportArchief() {
           <span style="font-size:0.72rem;color:var(--muted)">${datumStr}</span>
           ${r.technieker ? `<span class="atag">${escHtml(r.technieker)}</span>` : ''}
           ${stBadge}
-          ${hersteld} ${nieuw}
+          ${hersteld} ${nieuw} ${inWachtrij}
           ${prijsHtml}
         </div>
         ${r.klant ? `<div class="tsub">${escHtml(r.klant)}</div>` : ''}

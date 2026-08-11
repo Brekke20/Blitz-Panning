@@ -30,14 +30,23 @@ export default async (req, context) => {
 
   // ── GET ───────────────────────────────────────────────────────────────────
   if (req.method === 'GET') {
+    const id = new URL(req.url).searchParams.get('id');
     try {
-      const raw = await store.get(BLOB_KEY, { type: 'json' });
-      return new Response(JSON.stringify(raw ?? EMPTY), {
+      const raw = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY;
+      if (id) {
+        const rapport = raw.rapports.find(r => r.id === id) || null;
+        return new Response(JSON.stringify({ versie: raw.versie, rapport }), {
+          status: 200,
+          headers: { ...hdrs, 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify(raw), {
         status: 200,
         headers: { ...hdrs, 'Content-Type': 'application/json' },
       });
     } catch {
-      return new Response(JSON.stringify(EMPTY), {
+      const fallback = id ? { versie: EMPTY.versie, rapport: null } : EMPTY;
+      return new Response(JSON.stringify(fallback), {
         status: 200,
         headers: { ...hdrs, 'Content-Type': 'application/json' },
       });
@@ -90,10 +99,30 @@ export default async (req, context) => {
     const dupIdx = current.rapports.findIndex(
       r => r.ticketId === entry.ticketId && r.datum === entry.datum && entry.ticketId
     );
+
+    // zohoUploaded: enkel overerven van de bestaande entry als dit hetzelfde
+    // wachtrij-item is dat zichzelf opnieuw bevestigt (zelfde id) — bv. na een
+    // mislukte confirm-call. Botst een ANDER item via dedup (zelfde ticket+datum,
+    // maar een nieuw, later aangemaakt rapport dezelfde dag), dan begint dat item
+    // altijd met zohoUploaded:false, zodat het zelf een verse PDF naar Zoho stuurt
+    // i.p.v. stil te veronderstellen dat het al gebeurd is.
+    if (dupIdx >= 0) {
+      const zelfdeItem = entry.id === current.rapports[dupIdx].id;
+      entry.zohoUploaded = body.zohoUploaded === true || (zelfdeItem && current.rapports[dupIdx].zohoUploaded === true);
+    } else {
+      entry.zohoUploaded = body.zohoUploaded === true;
+    }
+
     let updatedList;
     if (dupIdx >= 0) {
       updatedList = [...current.rapports];
-      updatedList[dupIdx] = { ...updatedList[dupIdx], ...entry, id: updatedList[dupIdx].id };
+      // Bewust het id van de HUIDIGE POST behouden (entry.id, want entry wordt als
+      // laatste gespreid) en NIET dat van de oude entry: het antwoord hieronder
+      // rapporteert entry.id, en de client zoekt dit rapport later terug via
+      // GET ?id=<dat id> (check-zoho-voorcontrole in de outbox). Zou het opgeslagen
+      // id afwijken van het gerapporteerde, dan vindt die lookup niets en valt de
+      // dubbele-Zoho-upload-bescherming stil weg voor dat wachtrij-item.
+      updatedList[dupIdx] = { ...updatedList[dupIdx], ...entry };
     } else {
       updatedList = [entry, ...current.rapports];
     }
