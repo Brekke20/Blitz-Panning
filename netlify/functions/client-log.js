@@ -51,7 +51,11 @@ export default async (req, context) => {
     catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers: { ...hdrs, 'Content-Type': 'application/json' } }); }
 
     let current;
-    try { current = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY; }
+    let readSucceeded = false;
+    try {
+      current = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY;
+      readSucceeded = true;
+    }
     catch { current = EMPTY; }
 
     const entry = {
@@ -63,9 +67,12 @@ export default async (req, context) => {
       poging:       parseInt(body.poging) || 1,
     };
 
-    const nieuw = { fouten: [entry, ...current.fouten].slice(0, MAX_ENTRIES) };
-    try { await store.setJSON(BLOB_KEY, nieuw); }
-    catch { /* diagnostisch, best-effort — falen hier mag genegeerd worden */ }
+    // Only write if the read succeeded; if read failed, skip write to avoid data loss
+    if (readSucceeded) {
+      const nieuw = { fouten: [entry, ...current.fouten].slice(0, MAX_ENTRIES) };
+      try { await store.setJSON(BLOB_KEY, nieuw); }
+      catch { /* diagnostisch, best-effort — falen hier mag genegeerd worden */ }
+    }
 
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
