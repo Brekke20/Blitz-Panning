@@ -6370,6 +6370,7 @@ function buildRapportHtml() {
   const geldigeOnderdelen  = R.onderdelen.filter(p => p.naam);
   const billableOnderdelen = geldigeOnderdelen.filter(p => p.factureren !== false);
   const totaalOnderdelen   = billableOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+  const extraMaterialenTotaalNum = parseFloat(R.extraMaterialenTotaal) || 0;
   // Loonkost hier al berekenen (i.p.v. enkel lokaal in de Loonkosten-tabel-IIFE verderop),
   // zodat het gecombineerde Kostenoverzicht onderaan dit bedrag kan hergebruiken zonder
   // bedragen op meerdere, verspreide plekken te tonen.
@@ -6404,7 +6405,7 @@ function buildRapportHtml() {
   const html = `<!DOCTYPE html>
 <html lang="nl"><head>
 <meta charset="utf-8">
-<title>Service Rapport Blitz Power — ${R.datum}</title>
+<title>${isInstallatie ? 'Rapport Meerkost Installatie' : 'Service Rapport'} Blitz Power — ${R.datum}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#111;padding:13mm 17mm}
@@ -6440,7 +6441,7 @@ function buildRapportHtml() {
   .foto-report-item{border:1px solid #e0e0e0;border-radius:4px;padding:4px;background:#fafafa;break-inside:avoid;page-break-inside:avoid}
 </style>
 </head><body>
-<div class="header">${bolt}<div><div class="logo-text">BLITZ POWER</div><div class="logo-sub">SERVICE RAPPORT</div></div></div>
+<div class="header">${bolt}<div><div class="logo-text">BLITZ POWER</div><div class="logo-sub">${isInstallatie ? 'RAPPORT MEERKOST INSTALLATIE' : 'SERVICE RAPPORT'}</div></div></div>
 <div class="accent-bar"></div>
 <div class="rapport-section info-grid">
   <div class="info-row cols-3">
@@ -6462,20 +6463,20 @@ function buildRapportHtml() {
     <div class="info-cell"><div class="info-lbl">Facturatie aan</div><div class="info-val">${facturatieLabel}</div></div>`}
     <div class="info-cell"><div class="info-lbl">Installateur</div><div class="info-val">${escHtml(R.installateur)||'—'}</div></div>
   </div>
-  <div class="info-row cols-2">
+  <div class="info-row ${isInstallatie ? 'cols-1' : 'cols-2'}">
     <div class="info-cell"><div class="info-lbl">Serienummer</div><div class="info-val">${R.aantalLaadpalen > 1 ? `${escHtml(R.serienummer) || 'Geen serienummer'} (master) — ${R.aantalLaadpalen}×` : (escHtml(R.serienummer)||'—')}</div></div>
-    <div class="info-cell"><div class="info-lbl">Type / uitvoering</div><div class="info-val">${productInfo}</div></div>
+    ${isInstallatie ? '' : `<div class="info-cell"><div class="info-lbl">Type / uitvoering</div><div class="info-val">${productInfo}</div></div>`}
   </div>
 </div>
+${isInstallatie ? '' : `
 <div class="rapport-section">
-<div class="sec">${isInstallatie ? 'Omschrijving installatie' : 'Omschrijving probleem'}</div>
+<div class="sec">Omschrijving probleem</div>
 <div class="block">${escHtml(R.probleem)||'&nbsp;'}</div>
 </div>
 <div class="rapport-section">
 <div class="sec">Ondernomen acties</div>
 <div class="block">${escHtml(R.acties)||'&nbsp;'}</div>
 </div>
-${isInstallatie ? '' : `
 <div class="rapport-section">
 <div class="sec">Oorzaak storing</div>
 <div class="block">${R.oorzaakStoring.join(', ') || '&nbsp;'}</div>
@@ -6490,7 +6491,7 @@ ${isInstallatie ? '' : `
   <div class="status-cell"><div class="info-lbl">Nieuwe interventie nodig</div><strong>${R.nieuwInter==='ja'?'Ja':'Nee'}</strong></div>
 </div>
 </div>`}
-${geldigeOnderdelen.length ? `<div class="sec">${isInstallatie ? 'Gebruikte materialen' : 'Vervangen onderdelen'}</div>
+${geldigeOnderdelen.length ? `<div class="sec">${isInstallatie ? 'Meerkost' : 'Vervangen onderdelen'}</div>
 <table class="parts"><thead><tr><th>Omschrijving</th><th style="text-align:center">Aantal</th><th style="text-align:right">Stukprijs</th><th style="text-align:right">Subtotaal</th></tr></thead>
 <tbody>${partsHtml}</tbody></table>` : ''}
 ${R.varia ? `<div class="rapport-section"><div class="sec">Varia</div><div class="block">${escHtml(R.varia)}</div></div>` : ''}
@@ -6540,9 +6541,11 @@ ${isInstallatie ? '' : (() => {
 <div class="rapport-section">
 <div class="sec">Kostenoverzicht</div>
 <table class="parts"><tbody>
-<tr><td>Onderdelen (excl. btw)</td><td style="text-align:right">€ ${totaalOnderdelen.toFixed(2)}</td></tr>
-${isInstallatie ? '' : `<tr><td>Loonkosten (excl. btw)${isGarantieTotaal ? ' <span style="font-size:7.5pt;color:#888;font-style:italic">(100% korting)</span>' : ''}</td><td style="text-align:right">€ ${nettoTotaal.toFixed(2)}</td></tr>`}
-<tr style="background:#111;color:#fff;font-weight:700"><td style="text-transform:uppercase;letter-spacing:.05em;font-size:8pt">Totaal te factureren (excl. btw)</td><td style="text-align:right;font-size:11pt">€ ${(totaalOnderdelen + (isInstallatie ? 0 : nettoTotaal)).toFixed(2)}</td></tr>
+<tr><td>${isInstallatie ? 'Meerkost' : 'Onderdelen'} (excl. btw)</td><td style="text-align:right">€ ${totaalOnderdelen.toFixed(2)}</td></tr>
+${isInstallatie
+  ? `<tr><td>Extra materialen (excl. btw)</td><td style="text-align:right">€ ${extraMaterialenTotaalNum.toFixed(2)}</td></tr>`
+  : `<tr><td>Loonkosten (excl. btw)${isGarantieTotaal ? ' <span style="font-size:7.5pt;color:#888;font-style:italic">(100% korting)</span>' : ''}</td><td style="text-align:right">€ ${nettoTotaal.toFixed(2)}</td></tr>`}
+<tr style="background:#111;color:#fff;font-weight:700"><td style="text-transform:uppercase;letter-spacing:.05em;font-size:8pt">Totaal te factureren (excl. btw)</td><td style="text-align:right;font-size:11pt">€ ${(totaalOnderdelen + (isInstallatie ? extraMaterialenTotaalNum : nettoTotaal)).toFixed(2)}</td></tr>
 </tbody></table>
 </div>
 <div class="rapport-section">
