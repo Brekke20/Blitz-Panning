@@ -5337,6 +5337,22 @@ async function attemptOutboxItem(item) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload mislukt');
 
+      // De Zoho-upload zelf is gelukt — dit ONMIDDELLIJK lokaal vastleggen, nog
+      // vóór de bevestigings-call hieronder. Zo herhaalt een latere mislukte
+      // confirm-call nooit de upload zelf (dat zou de PDF een tweede keer aan
+      // hetzelfde ticket hangen — precies wat deze functie moet voorkomen).
+      item.zohoUploaded = true;
+      await outboxPut(item);
+    } catch (err) {
+      await logOutboxFailure(item, 'zoho-upload', err.message);
+      return item;
+    }
+
+    // Archief-bevestiging is best-effort: mislukt ze, dan blijft de server-side
+    // zohoUploaded-vlag mogelijk (stil) false — aanvaardbaar, want dit item wordt
+    // sowieso niet opnieuw geprobeerd (lokaal al als geüpload gemarkeerd), dus er
+    // is geen risico meer op een dubbele upload. Enkel diagnostisch loggen.
+    try {
       const confirmRes  = await fetch('/api/rapport-archief', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -5345,12 +5361,8 @@ async function attemptOutboxItem(item) {
       const confirmData = await confirmRes.json().catch(() => ({}));
       if (!confirmRes.ok) throw new Error('Bevestigen van Zoho-upload in archief mislukt');
       if (typeof confirmData.versie === 'number') _archiefVersie = confirmData.versie;
-
-      item.zohoUploaded = true;
-      await outboxPut(item);
     } catch (err) {
-      await logOutboxFailure(item, 'zoho-upload', err.message);
-      return item;
+      await logOutboxFailure(item, 'zoho-confirm', err.message);
     }
     return attemptOutboxItem(item);
   }
