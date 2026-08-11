@@ -5627,6 +5627,7 @@ function updateWerktijd() {
 // ── Stap 1: Algemeen ──
 function wizRenderAlgemeen(el) {
   const zohoRef = _wizTicket.number ? `#${_wizTicket.number}` : (_wizTicket.isLocal ? '' : (_wizTicket.id || ''));
+  const isInstallatie = R.interventieType === 'Installatie';
   el.innerHTML = `
     <div class="wiz-step-title">Algemeen</div>
     <div class="wiz-info-chip">
@@ -5664,6 +5665,11 @@ function wizRenderAlgemeen(el) {
         </label>
       </div>
     </div>
+    ${isInstallatie ? `
+    <div class="wiz-field">
+      <label class="wiz-field-label">Serienummer</label>
+      <input class="wiz-input" id="f-serienummer" type="text" value="${escHtml(R.serienummer)}" placeholder="CHARX-XXXX" />
+    </div>` : ''}
     <div class="wiz-field-row">
       <div class="wiz-field">
         <label class="wiz-field-label">Starttijd (aankomst)</label>
@@ -5683,6 +5689,11 @@ function wizSaveAlgemeen() {
   R.datum           = wizV('f-datum');
   R.technieker      = wizV('f-technieker');
   R.adres           = wizV('f-adres');
+  // Enkel overschrijven als het veld op dit moment gerenderd was (installatierapport) —
+  // bij een interventierapport bestaat #f-serienummer hier niet en zou wizV() anders
+  // R.serienummer blindelings leegmaken (dat veld wordt daar via de "Product"-stap beheerd).
+  const serienummerEl = document.getElementById('f-serienummer');
+  if (serienummerEl) R.serienummer = serienummerEl.value;
   R.start           = wizV('f-start');
   R.stop            = wizV('f-stop');
   R.werktijd        = calcWerktijd(R.start, R.stop);
