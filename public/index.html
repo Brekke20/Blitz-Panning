@@ -5389,7 +5389,15 @@ async function runOutboxItem(item) {
   if (_outboxInFlight.has(item.id)) return item; // al bezig via een andere weg, niet nogmaals starten
   _outboxInFlight.add(item.id);
   try {
-    return await attemptOutboxItem(item);
+    // Vers herlezen uit IndexedDB: de in-flight-Set beschermt enkel tegen twee
+    // gelijktijdige doorlopen, niet tegen een doorloop die met een verouderde
+    // momentopname (uit een eerdere outboxGetAll) blijft wachten tot het slot
+    // vrijkomt. Zonder deze hercontrole zou zo'n stale kopie (met bv. nog
+    // zohoUploaded:false) na afloop van een geslaagde doorloop alsnog opnieuw
+    // naar Zoho uploaden — precies de dubbele bijlage die we willen vermijden.
+    const fresh = (await outboxGetAll()).find(i => i.id === item.id);
+    if (!fresh) return item; // al verwijderd door een andere doorloop — klaar, niets meer te doen
+    return await attemptOutboxItem(fresh);
   } finally {
     _outboxInFlight.delete(item.id);
   }
@@ -6498,84 +6506,109 @@ ${isInstallatie ? '' : `<tr><td>Loonkosten (excl. btw)${isGarantieTotaal ? ' <sp
 }
 
 async function printRapport() {
+  // Het venster MOET synchroon geopend worden, vóór elke await. Browsers laten
+  // window.open() enkel toe binnen de korte "transient user activation" na de klik
+  // (Chrome: ~5s). Wachten we eerst de outbox-poging af (tot 5s), dan is die
+  // activation op het trage/offline-pad — precies het scenario waarvoor deze flow
+  // bestaat — net verlopen en blokkeert de browser het afdrukvoorbeeld alsnog.
+  // Daarom meteen een leeg tabblad openen en dat pas naderhand naar de echte
+  // inhoud navigeren.
+  // De melding bij een geblokkeerde pop-up volgt pas onderaan, samen met het
+  // navigeren van het venster: een toast hier zou op het snelle pad enkele
+  // honderden ms later meteen overschreven worden door de bevestigings-toast.
+  const win = window.open('about:blank', '_blank');
+
   const html    = buildRapportHtml();
   const blob    = new Blob([html], { type: 'text/html; charset=utf-8' });
   const blobUrl = URL.createObjectURL(blob);
 
-  // Wachtrij-item aanmaken en proberen te verzenden vóórdat het afdrukvoorbeeld opent —
-  // op mobiel duwt window.open() de tab naar de achtergrond, en dat mocht niet meer
-  // gelijktijdig lopen met de niet-afgewachte verzending zoals voorheen (zie design doc
-  // 2026-08-11-rapport-verzend-betrouwbaarheid-design.md, "Root cause").
+  // Wachtrij-item aanmaken en proberen te verzenden vóórdat het afdrukvoorbeeld
+  // gevuld wordt — op mobiel duwt het openen van de tab de app naar de achtergrond,
+  // en dat mocht niet meer gelijktijdig lopen met de niet-afgewachte verzending zoals
+  // voorheen (zie design doc 2026-08-11-rapport-verzend-betrouwbaarheid-design.md,
+  // "Root cause").
   if (!_rapportUploaded) {
     _rapportUploaded = true;
 
-    const totaal = R.onderdelen
-      .filter(p => p.naam && p.factureren !== false)
-      .reduce((s, p) => s + (parseFloat(p.prijs) || 0) * (parseInt(p.aantal) || 1), 0);
+    // Alles hieronder in try/catch: faalt de IndexedDB-schrijfactie (quota vol,
+    // privémodus, geblokkeerde DB), dan mag dat printRapport niet afbreken.
+    // _rapportUploaded staat immers al op true, dus een tweede poging in dezelfde
+    // wizard-sessie zou dit blok overslaan en het rapport stil verloren laten gaan.
+    // We tonen daarom een duidelijke fout, maar lopen sowieso door naar het
+    // afdrukvoorbeeld en het sluiten van de wizard.
+    try {
+      const totaal = R.onderdelen
+        .filter(p => p.naam && p.factureren !== false)
+        .reduce((s, p) => s + (parseFloat(p.prijs) || 0) * (parseInt(p.aantal) || 1), 0);
 
-    const item = {
-      id:           crypto.randomUUID(),
-      html,
-      isLocal:      !!_wizTicket.isLocal,
-      archived:     false,
-      zohoUploaded: false,
-      attempts:     0,
-      lastError:    null,
-      createdAt:    new Date().toISOString(),
-      ticket: {
-        id:       _wizTicket.id   || '',
-        number:   _wizTicket.number || '',
-        filename: `rapport-${_wizTicket.number || _wizTicket.id}-${R.datum || 'onbekend'}.pdf`,
-      },
-      archiveBody: {
-        datum:            R.datum,
-        technieker:       R.technieker,
-        ticketId:         _wizTicket.id   || '',
-        ticketNumber:     _wizTicket.number ? String(_wizTicket.number) : '',
-        klant:            _wizTicket.contact || _wizTicket.account || '',
-        adres:            R.adres,
-        nieuwInter:       R.nieuwInter,
-        hersteld:         R.hersteld,
-        servicetype:      R.servicetype,
-        facturatie:       R.facturatie,
-        prioriteit:       _wizTicket.priority || '',
-        interventieType:  R.interventieType || 'Interventie',
-        totaalOnderdelen: totaal,
-        rapportData:      { ...R, _html: html },
-        // Geen 'versie' hier — dedup gebeurt server-side op ticketId+datum
-        // (rapport-archief.js), zodat opgestapelde wachtrij-items elkaar niet
-        // vals-positief als conflict blokkeren.
-      },
-    };
+      const item = {
+        id:           crypto.randomUUID(),
+        html,
+        isLocal:      !!_wizTicket.isLocal,
+        archived:     false,
+        zohoUploaded: false,
+        attempts:     0,
+        lastError:    null,
+        createdAt:    new Date().toISOString(),
+        ticket: {
+          id:       _wizTicket.id   || '',
+          number:   _wizTicket.number || '',
+          filename: `rapport-${_wizTicket.number || _wizTicket.id}-${R.datum || 'onbekend'}.pdf`,
+        },
+        archiveBody: {
+          datum:            R.datum,
+          technieker:       R.technieker,
+          ticketId:         _wizTicket.id   || '',
+          ticketNumber:     _wizTicket.number ? String(_wizTicket.number) : '',
+          klant:            _wizTicket.contact || _wizTicket.account || '',
+          adres:            R.adres,
+          nieuwInter:       R.nieuwInter,
+          hersteld:         R.hersteld,
+          servicetype:      R.servicetype,
+          facturatie:       R.facturatie,
+          prioriteit:       _wizTicket.priority || '',
+          interventieType:  R.interventieType || 'Interventie',
+          totaalOnderdelen: totaal,
+          rapportData:      { ...R, _html: html },
+          // Geen 'versie' hier — dedup gebeurt server-side op ticketId+datum
+          // (rapport-archief.js), zodat opgestapelde wachtrij-items elkaar niet
+          // vals-positief als conflict blokkeren.
+        },
+      };
 
-    await outboxAdd(item);
-    await refreshOutboxCache();
+      await outboxAdd(item);
+      await refreshOutboxCache();
 
-    const TIMEOUT_MS = 5000;
-    const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), TIMEOUT_MS));
-    const result  = await Promise.race([runOutboxItem(item), timeout]);
+      const TIMEOUT_MS = 5000;
+      const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), TIMEOUT_MS));
+      const result  = await Promise.race([runOutboxItem(item), timeout]);
 
-    if (result === 'timeout') {
-      toast('⏳ Rapport wordt verstuurd — je kan gewoon verder, dit gebeurt op de achtergrond', 5000);
-    } else if (nextOutboxAction(result) === 'done') {
-      toast(item.isLocal
-        ? '✅ Rapport opgeslagen in archief — geen Zoho-ticket gekoppeld'
-        : '✅ Rapport bewaard en doorgestuurd naar Zoho', 4500);
-    } else {
-      toast('⏳ Rapport nog niet bevestigd — wordt automatisch opnieuw geprobeerd', 5000);
+      if (result === 'timeout') {
+        toast('⏳ Rapport wordt verstuurd — je kan gewoon verder, dit gebeurt op de achtergrond', 5000);
+      } else if (nextOutboxAction(result) === 'done') {
+        toast(item.isLocal
+          ? '✅ Rapport opgeslagen in archief — geen Zoho-ticket gekoppeld'
+          : '✅ Rapport bewaard en doorgestuurd naar Zoho', 4500);
+      } else {
+        toast('⏳ Rapport nog niet bevestigd — wordt automatisch opnieuw geprobeerd', 5000);
+      }
+
+      await refreshOutboxCache();
+      renderRapportArchief();
+    } catch (err) {
+      toast('⚠️ Rapport kon niet lokaal bewaard worden — controleer opslagruimte, herlaad de pagina en probeer opnieuw', 6000);
+      console.warn('printRapport: onverwachte fout bij het wegschrijven naar de outbox:', err);
     }
-
-    await refreshOutboxCache();
-    renderRapportArchief();
   }
 
-  const win = window.open(blobUrl, '_blank');
-  if (!win) {
-    URL.revokeObjectURL(blobUrl);
-    toast('Pop-upblokkering actief — sta pop-ups toe voor deze pagina');
-  } else {
+  if (win) {
+    // Het al geopende (lege) tabblad nu pas naar de rapport-inhoud sturen.
+    win.location = blobUrl;
     // Revoke na 2 min — genoeg tijd om te printen
     setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
+  } else {
+    URL.revokeObjectURL(blobUrl);
+    toast('Pop-upblokkering actief — sta pop-ups toe voor deze pagina');
   }
 
   // Wizard sluiten na geslaagd rapport — geen bevestigingsdialoog meer nodig
@@ -6585,7 +6618,15 @@ async function printRapport() {
 async function flushOutbox() {
   const items = await outboxGetAll();
   for (const item of items) {
-    await runOutboxItem(item);
+    // Per item afschermen: gooit één wachtrij-item een onverwachte fout (bv. een
+    // mislukte IndexedDB-schrijfactie in attemptOutboxItem), dan mag dat de rest
+    // van de wachtrij niet blokkeren. flushOutbox hangt bovendien rechtstreeks aan
+    // het 'online'-event, dus een doorgegooide fout zou een unhandled rejection zijn.
+    try {
+      await runOutboxItem(item);
+    } catch (err) {
+      console.warn('flushOutbox: onverwachte fout bij wachtrij-item', item.id, err);
+    }
   }
   await refreshOutboxCache();
   renderRapportArchief();

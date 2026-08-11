@@ -111,7 +111,13 @@ export default async (req, context) => {
     let updatedList;
     if (dupIdx >= 0) {
       updatedList = [...current.rapports];
-      updatedList[dupIdx] = { ...updatedList[dupIdx], ...entry, id: updatedList[dupIdx].id };
+      // Bewust het id van de HUIDIGE POST behouden (entry.id, want entry wordt als
+      // laatste gespreid) en NIET dat van de oude entry: het antwoord hieronder
+      // rapporteert entry.id, en de client zoekt dit rapport later terug via
+      // GET ?id=<dat id> (check-zoho-voorcontrole in de outbox). Zou het opgeslagen
+      // id afwijken van het gerapporteerde, dan vindt die lookup niets en valt de
+      // dubbele-Zoho-upload-bescherming stil weg voor dat wachtrij-item.
+      updatedList[dupIdx] = { ...updatedList[dupIdx], ...entry };
     } else {
       updatedList = [entry, ...current.rapports];
     }
