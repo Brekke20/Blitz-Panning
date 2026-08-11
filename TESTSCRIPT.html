@@ -263,8 +263,36 @@
   </div>
 </div>
 
+<!-- ─── NIEUW: RAPPORT-VERZENDING BETROUWBAARHEID (OUTBOX) ────────── -->
+<div class="section" id="s-outbox">
+  <div class="section-header" onclick="toggle('outbox')">
+    <span class="badge dev">Vereist netlify dev</span>
+    <span class="section-title">Nieuw — Rapport-verzending betrouwbaarheid (outbox)</span>
+    <span class="section-toggle" id="tog-outbox">▶</span>
+  </div>
+  <div class="section-body" id="body-outbox">
+    <div class="env-req dev">Vereist lokale server: <code>netlify dev</code> of <code>node dev-server.mjs</code></div>
+    <div class="setup">
+      <strong>Voorbereiding:</strong> Open een ticket (of lokale afspraak) en start de rapport-wizard.
+    </div>
+    <ul class="steps">
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Doorloop de wizard en klik op "Afdrukken/Verzenden" met een normale verbinding<span class="verwacht">Bevestigingstoast binnen ~5s, geen "⏳ In wachtrij"-banner, rapport staat meteen in het Rapporten-tabblad</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Zet devtools Network-tab op "Offline", maak een nieuw rapport aan en klik "Afdrukken/Verzenden"<span class="verwacht">Na ~5s toast "wordt verstuurd, je kan gewoon verder"; afdrukvoorbeeld opent alsnog; "⏳ N rapport(en) nog niet bevestigd"-banner verschijnt</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Zet Network-tab terug "Online" en herlaad de pagina<span class="verwacht">Banner verdwijnt vanzelf binnen enkele seconden, rapport staat nu in het Rapporten-tabblad</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text">Herhaal met een Zoho-gekoppeld ticket (niet lokaal) i.p.v. een lokale afspraak<span class="verwacht">Zelfde gedrag, en de PDF-bijlage staat maar één keer op het Zoho-ticket, ook na de offline/online-cyclus</span></span></li>
+      <li class="step"><span class="step-check" onclick="check(this)"></span><span class="step-text"><strong>Openstaand — echte telefoon:</strong> verstuur bewust een rapport met wifi/4G uitgeschakeld op een telefoon, en observeer of het signaal en de latere automatische verzending werken<span class="let-op">Dit specifieke achtergrond-gedrag is vanaf een computer niet volledig te simuleren — pas na deze test is het probleem met zekerheid bevestigd opgelost</span></span></li>
+    </ul>
+    <div class="result-row">
+      <button class="result-btn btn-ok"  onclick="setResult('outbox','ok')">✓ OK</button>
+      <button class="result-btn btn-nok" onclick="setResult('outbox','nok')">✗ NOK</button>
+      <span class="result-label">Markeer dit item</span>
+      <span class="result-status" id="res-outbox"></span>
+    </div>
+  </div>
+</div>
+
 <script>
-  const ITEMS = ['nav','mob','sig','exit','duur','verlof','live'];
+  const ITEMS = ['nav','mob','sig','exit','duur','verlof','live','outbox'];
   const results = {};
 
   function toggle(id) {
