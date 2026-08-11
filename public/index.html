@@ -5990,8 +5990,9 @@ let _wizActiveTags = [];
 
 function wizRenderStatus(el) {
   const selHtml = _wizRenderGeselecteerd();
-  // Populaire tags (max 8 meest voorkomende)
-  const allTags = getAlleTags().slice(0, 12);
+  const isInstallatieVoorTags = R.interventieType === 'Installatie';
+  // Populaire tags (max 8 meest voorkomende) — bij installatie enkel uit de meerkosten-catalogus
+  const allTags = getAlleTags(isInstallatieVoorTags ? categorieenVoorGroep('installatie') : null).slice(0, 12);
   // Tags komen uit prijsbeheer (vrij tekstveld, opgeslagen in de prijzen-blob). Een inline
   // onclick met een JS-string is daar niet veilig voor: de browser decodeert HTML-entities in
   // een attribuutwaarde vóórdat de handler als JS gecompileerd wordt, dus escHtml()'s &#39;
@@ -6003,7 +6004,7 @@ function wizRenderStatus(el) {
 
   const isInstallatie = R.interventieType === 'Installatie';
   el.innerHTML = `
-    <div class="wiz-step-title">${isInstallatie ? 'Materialen' : 'Status &amp; onderdelen'}</div>
+    <div class="wiz-step-title">${isInstallatie ? 'Meerkost' : 'Status &amp; onderdelen'}</div>
     ${isInstallatie ? '' : `
     <div class="wiz-field">
       <label class="wiz-field-label">Definitief hersteld</label>
@@ -6021,7 +6022,7 @@ function wizRenderStatus(el) {
     </div>`}
     <div class="wiz-sep"></div>
     <div class="wiz-field">
-      <label class="wiz-field-label">Onderdelen toevoegen</label>
+      <label class="wiz-field-label">${isInstallatie ? 'Meerkost toevoegen' : 'Onderdelen toevoegen'}</label>
       <div class="wiz-cat-search-wrap">
         <span class="wiz-cat-search-icon">🔍</span>
         <input class="wiz-cat-search" id="wiz-cat-q" type="search"
@@ -6105,7 +6106,8 @@ function _wizUpdateCatResults() {
   const q = document.getElementById('wiz-cat-q')?.value || '';
   const resultEl = document.getElementById('wiz-cat-results');
   if (!resultEl) return;
-  const resultaten = zoekOnderdelen(q, _wizActiveTags);
+  const categorieIds = R.interventieType === 'Installatie' ? categorieenVoorGroep('installatie') : null;
+  const resultaten = zoekOnderdelen(q, _wizActiveTags, categorieIds);
   if (!resultaten.length) {
     resultEl.innerHTML = `<div class="wiz-cat-empty">Geen onderdelen gevonden</div>`;
     return;
