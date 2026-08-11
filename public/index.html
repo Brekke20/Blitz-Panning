@@ -5480,6 +5480,7 @@ async function openRapport(ticketId, date) {
   R.varia        = '';
   R.onderdelen   = [];
   R.extraMaterialenTotaal = '';
+  _wizActiveTags = [];
   const fotoData  = await loadFotos(ticketId);
   _fotoState      = { ticketId, versie: fotoData.versie, fotos: fotoData.fotos };
   R.fotos         = _fotoState.fotos;
@@ -6759,7 +6760,8 @@ function renderRapportArchief() {
 
     const billableOnderdelen = (rd.onderdelen || []).filter(p => p.naam && p.factureren !== false);
     const totOnderdelen = billableOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
-    const totFactureerbaar = loonNetto + totOnderdelen;
+    const extraMaterialenTotaalNum = isInstallatieRapport ? (parseFloat(rd.extraMaterialenTotaal) || 0) : 0;
+    const totFactureerbaar = loonNetto + totOnderdelen + extraMaterialenTotaalNum;
 
     // Labels voor servicetype
     const stLabels = { '2e-lijn': '2e lijns', '1e-lijn': '1e lijns', 'garantie': 'Garantie' };
@@ -7430,7 +7432,6 @@ function renderPrijsEditor() {
   const cats = PRIJS_CATEGORIEEN.filter(c => c.groep === _prijsTab);
   for (const cat of cats) {
     const items = data.onderdelen.filter(o => o.categorie === cat.id);
-    if (!items.length) continue;
     html += `<div class="prijs-cat">
       <div class="prijs-cat-title">${cat.label}</div>`;
     for (let i = 0; i < items.length; i++) {
