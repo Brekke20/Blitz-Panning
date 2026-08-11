@@ -1176,6 +1176,14 @@
       background: var(--orange-dim); border: 1px solid var(--orange); border-radius: var(--r);
       padding: 8px 12px; font-size: 0.78rem; color: var(--orange); margin-bottom: 10px;
     }
+    /* Tabs (Interventies/Installaties) */
+    .prijs-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+    .prijs-tab-btn {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text2);
+      border-radius: var(--r); padding: 7px 14px; font-size: 0.82rem; cursor: pointer;
+      font-family: inherit;
+    }
+    .prijs-tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
     /* ── Wizard onderdelen (catalogus-modus) ────────────────────────────────── */
     .wiz-cat-search-wrap { position: relative; margin-bottom: 8px; }
@@ -7345,6 +7353,12 @@ function prijsReset() {
 }
 
 // ── Renderer ──────────────────────────────────────────────────────────────────
+let _prijsTab = 'interventie'; // 'interventie' | 'installatie'
+function setPrijsTab(tab) {
+  _prijsTab = tab;
+  renderPrijsEditor();
+}
+
 function renderPrijsEditor() {
   const data = getPrijzen();
   // Meta
@@ -7360,14 +7374,13 @@ function renderPrijsEditor() {
     html += `<div class="prijs-cache-banner">⚠️ Offline — prijzen uit lokale cache</div>`;
   }
 
-  // Categorieën
-  const cats = [
-    { id:'controller',   label:'Controllers' },
-    { id:'energiemeter', label:'Energiemeters' },
-    { id:'ct-klem',      label:'CT-klemmen' },
-    { id:'overig',       label:'Overige componenten' },
-    { id:'kabel',        label:'Laadkabels & aansluitingen' },
-  ];
+  html += `<div class="prijs-tabs">
+    <button class="prijs-tab-btn${_prijsTab==='interventie'?' active':''}" data-tab="interventie">Interventies</button>
+    <button class="prijs-tab-btn${_prijsTab==='installatie'?' active':''}" data-tab="installatie">Installaties</button>
+  </div>`;
+
+  // Categorieën (enkel de actieve tab/groep)
+  const cats = PRIJS_CATEGORIEEN.filter(c => c.groep === _prijsTab);
   for (const cat of cats) {
     const items = data.onderdelen.filter(o => o.categorie === cat.id);
     if (!items.length) continue;
@@ -7401,24 +7414,29 @@ function renderPrijsEditor() {
     </div>`;
   }
 
-  // Tarieven
-  html += `<div class="prijs-tarieven-sep"></div>
-    <div class="prijs-cat-title">Tarieven</div>`;
-  for (let i = 0; i < data.tarieven.length; i++) {
-    const t = data.tarieven[i];
-    html += `<div class="prijs-tarief-row">
-      <span class="prijs-tarief-naam">${escHtml(t.naam)}</span>
-      <div class="prijs-input-wrap">
-        <span class="prijs-euro">€</span>
-        <input class="prijs-prijs-input" type="number" min="0" step="0.01"
-          value="${t.prijs}" oninput="prijsTariefUpdate(${i},this.value)" />
-      </div>
-      <span class="prijs-eenheid">/ ${t.eenheid}</span>
-    </div>`;
+  // Tarieven (enkel bij Interventies — arbeidsforfaits, niet relevant bij installatie-meerkost)
+  if (_prijsTab === 'interventie') {
+    html += `<div class="prijs-tarieven-sep"></div>
+      <div class="prijs-cat-title">Tarieven</div>`;
+    for (let i = 0; i < data.tarieven.length; i++) {
+      const t = data.tarieven[i];
+      html += `<div class="prijs-tarief-row">
+        <span class="prijs-tarief-naam">${escHtml(t.naam)}</span>
+        <div class="prijs-input-wrap">
+          <span class="prijs-euro">€</span>
+          <input class="prijs-prijs-input" type="number" min="0" step="0.01"
+            value="${t.prijs}" oninput="prijsTariefUpdate(${i},this.value)" />
+        </div>
+        <span class="prijs-eenheid">/ ${t.eenheid}</span>
+      </div>`;
+    }
   }
 
   body.innerHTML = html;
 
+  body.querySelectorAll('.prijs-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => setPrijsTab(btn.dataset.tab));
+  });
   // cat.id komt uit een hardcoded lijst (geen risico), maar data-attribuut + addEventListener
   // voor consistentie met de rest van de prijzen-blob-afgeleide knoppen.
   body.querySelectorAll('.prijs-btn-voegtoe').forEach(btn => {
