@@ -90,7 +90,6 @@ export default async (req, context) => {
       prioriteit:      String(body.prioriteit       || ''),
       interventieType: String(body.interventieType  || 'Interventie'),
       totaalOnderdelen: parseFloat(body.totaalOnderdelen) || 0,
-      zohoUploaded:    body.zohoUploaded === true,
       // Bewaar het volledige R-object om rapport te kunnen hergeneren
       rapportData:     body.rapportData || null,
     };
@@ -100,6 +99,15 @@ export default async (req, context) => {
     const dupIdx = current.rapports.findIndex(
       r => r.ticketId === entry.ticketId && r.datum === entry.datum && entry.ticketId
     );
+
+    // zohoUploaded: op update, behoud bestaande waarde tenzij expliciet op true gezet
+    // op create, default to body value (false als niet vermeld)
+    if (dupIdx >= 0) {
+      entry.zohoUploaded = body.zohoUploaded === true || current.rapports[dupIdx].zohoUploaded === true;
+    } else {
+      entry.zohoUploaded = body.zohoUploaded === true;
+    }
+
     let updatedList;
     if (dupIdx >= 0) {
       updatedList = [...current.rapports];
