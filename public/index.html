@@ -5378,6 +5378,23 @@ async function attemptOutboxItem(item) {
   return item;
 }
 
+// Beschermt tegen twee gelijktijdige attemptOutboxItem-pogingen voor hetzelfde item —
+// bv. de achtergrond-poging na printRapport()'s 5s-timeout en een onafhankelijke
+// flushOutbox() (page load / online / visibilitychange / banner-klik) die op hetzelfde
+// item botsen. Zonder deze guard konden beide onafhankelijk de check-zoho-stap bereiken
+// en dus tweemaal naar Zoho uploaden.
+const _outboxInFlight = new Set();
+
+async function runOutboxItem(item) {
+  if (_outboxInFlight.has(item.id)) return item; // al bezig via een andere weg, niet nogmaals starten
+  _outboxInFlight.add(item.id);
+  try {
+    return await attemptOutboxItem(item);
+  } finally {
+    _outboxInFlight.delete(item.id);
+  }
+}
+
 // Rapport data object — gevuld doorheen wizard
 const R = {
   datum: '', technieker: '', adres: '', start: '', stop: '', werktijd: '',
@@ -6536,7 +6553,7 @@ async function printRapport() {
 
     const TIMEOUT_MS = 5000;
     const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), TIMEOUT_MS));
-    const result  = await Promise.race([attemptOutboxItem(item), timeout]);
+    const result  = await Promise.race([runOutboxItem(item), timeout]);
 
     if (result === 'timeout') {
       toast('⏳ Rapport wordt verstuurd — je kan gewoon verder, dit gebeurt op de achtergrond', 5000);
@@ -6568,7 +6585,7 @@ async function printRapport() {
 async function flushOutbox() {
   const items = await outboxGetAll();
   for (const item of items) {
-    await attemptOutboxItem(item);
+    await runOutboxItem(item);
   }
   await refreshOutboxCache();
   renderRapportArchief();
