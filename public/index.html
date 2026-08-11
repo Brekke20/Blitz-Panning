@@ -5933,18 +5933,16 @@ const OORZAAK_STORING_MAP = {
 };
 
 function wizRenderOmschrijving(el) {
-  const isInstallatie = R.interventieType === 'Installatie';
   el.innerHTML = `
     <div class="wiz-step-title">Omschrijving &amp; acties</div>
     <div class="wiz-field">
-      <label class="wiz-field-label">${isInstallatie ? 'Omschrijving installatie' : 'Omschrijving probleem'}</label>
-      <textarea class="wiz-textarea" id="f-probleem" rows="4" placeholder="${isInstallatie ? 'Beschrijf de uitgevoerde installatie...' : 'Beschrijf het probleem...'}">${escHtml(R.probleem)}</textarea>
+      <label class="wiz-field-label">Omschrijving probleem</label>
+      <textarea class="wiz-textarea" id="f-probleem" rows="4" placeholder="Beschrijf het probleem...">${escHtml(R.probleem)}</textarea>
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Ondernomen acties</label>
       <textarea class="wiz-textarea" id="f-acties" rows="6" placeholder="Beschrijf de uitgevoerde werkzaamheden...">${escHtml(R.acties)}</textarea>
     </div>
-    ${isInstallatie ? '' : `
     <div class="wiz-field">
       <label class="wiz-field-label">Oorzaak storing</label>
       <div class="wiz-radio-cards row">
@@ -5953,12 +5951,11 @@ function wizRenderOmschrijving(el) {
         <label class="wiz-radio-card"><input type="checkbox" id="f-oorzaak-configuratie" ${R.oorzaakStoring.includes('Configuratiefout')?'checked':''}><div><div class="wiz-radio-card-label">Configuratiefout</div></div></label>
         <label class="wiz-radio-card"><input type="checkbox" id="f-oorzaak-andere" ${R.oorzaakStoring.includes('Andere')?'checked':''}><div><div class="wiz-radio-card-label">Andere</div></div></label>
       </div>
-    </div>`}`;
+    </div>`;
 }
 function wizSaveOmschrijving() {
   R.probleem = wizV('f-probleem');
   R.acties   = wizV('f-acties');
-  if (R.interventieType === 'Installatie') { R.oorzaakStoring = []; return; }
   R.oorzaakStoring = Object.entries(OORZAAK_STORING_MAP)
     .filter(([id]) => document.getElementById(id)?.checked)
     .map(([, label]) => label);
