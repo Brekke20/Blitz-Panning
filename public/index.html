@@ -860,6 +860,14 @@
       position: sticky; top: 92px; z-index: 27;
     }
 
+    /* ── Outbox banner (rapport nog niet bevestigd verzonden) ── */
+    #outbox-banner {
+      display: none; align-items: center; gap: 8px;
+      background: var(--accent-dim); border-bottom: 1px solid rgba(0,223,163,0.3);
+      padding: 7px 14px; font-size: 0.78rem; color: var(--accent);
+      position: sticky; top: 92px; z-index: 27; cursor: pointer;
+    }
+
     /* ── Test mode badge ── */
     #test-badge {
       display: none; background: var(--orange); color: #000;
@@ -1257,6 +1265,8 @@
 </div>
 
 <div id="offline-banner">📶 Geen internetverbinding — wijzigingen worden niet opgeslagen in Zoho</div>
+
+<div id="outbox-banner" onclick="flushOutbox()"></div>
 
 <!-- ══ TICKETS TAB ══ -->
 <div class="view active" id="view-tickets">
@@ -5241,6 +5251,23 @@ function nextOutboxAction(item) {
   if (item.isLocal)   return 'done';
   if (!item.zohoUploaded) return 'check-zoho';
   return 'done';
+}
+
+async function refreshOutboxCache() {
+  _outboxItems = await outboxGetAll();
+  renderOutboxBanner();
+}
+
+function renderOutboxBanner() {
+  const banner = document.getElementById('outbox-banner');
+  if (!_outboxItems.length) { banner.style.display = 'none'; return; }
+  const offlineBanner  = document.getElementById('offline-banner');
+  const offlineVisible = offlineBanner && getComputedStyle(offlineBanner).display !== 'none';
+  banner.style.top = offlineVisible ? `${92 + offlineBanner.offsetHeight}px` : '92px';
+  banner.textContent = _outboxItems.length === 1
+    ? '⏳ 1 rapport nog niet bevestigd — wordt automatisch opnieuw geprobeerd (tik om nu te proberen)'
+    : `⏳ ${_outboxItems.length} rapporten nog niet bevestigd — wordt automatisch opnieuw geprobeerd (tik om nu te proberen)`;
+  banner.style.display = 'flex';
 }
 
 // Rapport data object — gevuld doorheen wizard
