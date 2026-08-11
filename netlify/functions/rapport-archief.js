@@ -30,14 +30,23 @@ export default async (req, context) => {
 
   // ── GET ───────────────────────────────────────────────────────────────────
   if (req.method === 'GET') {
+    const id = new URL(req.url).searchParams.get('id');
     try {
-      const raw = await store.get(BLOB_KEY, { type: 'json' });
-      return new Response(JSON.stringify(raw ?? EMPTY), {
+      const raw = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY;
+      if (id) {
+        const rapport = raw.rapports.find(r => r.id === id) || null;
+        return new Response(JSON.stringify({ versie: raw.versie, rapport }), {
+          status: 200,
+          headers: { ...hdrs, 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify(raw), {
         status: 200,
         headers: { ...hdrs, 'Content-Type': 'application/json' },
       });
     } catch {
-      return new Response(JSON.stringify(EMPTY), {
+      const fallback = id ? { versie: EMPTY.versie, rapport: null } : EMPTY;
+      return new Response(JSON.stringify(fallback), {
         status: 200,
         headers: { ...hdrs, 'Content-Type': 'application/json' },
       });
@@ -81,6 +90,7 @@ export default async (req, context) => {
       prioriteit:      String(body.prioriteit       || ''),
       interventieType: String(body.interventieType  || 'Interventie'),
       totaalOnderdelen: parseFloat(body.totaalOnderdelen) || 0,
+      zohoUploaded:    body.zohoUploaded === true,
       // Bewaar het volledige R-object om rapport te kunnen hergeneren
       rapportData:     body.rapportData || null,
     };
