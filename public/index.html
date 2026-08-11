@@ -5425,9 +5425,10 @@ const R = {
   hersteld: 'nee', nieuwInter: 'nee',
   varia: '',
   onderdelen: [],
+  extraMaterialenTotaal: '',
 };
 
-const WIZ_STEPS = [
+const WIZ_STEPS_INTERVENTIE = [
   { id: 'algemeen',     label: 'Algemeen',      render: wizRenderAlgemeen,     save: wizSaveAlgemeen     },
   { id: 'facturatie',   label: 'Facturatie',     render: wizRenderFacturatie,   save: wizSaveFacturatie   },
   { id: 'product',      label: 'Product',        render: wizRenderProduct,      save: wizSaveProduct      },
@@ -5437,6 +5438,23 @@ const WIZ_STEPS = [
   { id: 'sig-tech',     label: 'Handtekening 1', render: wizRenderSigTech,      save: wizSaveSigTech      },
   { id: 'sig-klant',    label: 'Handtekening 2', render: wizRenderSigKlant,     save: wizSaveSigKlant     },
 ];
+
+// Installatierapport: geen Facturatie/Product/Omschrijving — enkel wat het
+// meerkosten-rapport nodig heeft. "meerkost" hergebruikt bewust dezelfde
+// render/save als de interventie-stap "status" (zie Task 6): identiek
+// onderdelen-catalogus-mechanisme, enkel titel + zoekscope verschillen.
+const WIZ_STEPS_INSTALLATIE = [
+  { id: 'algemeen',   label: 'Algemeen',        render: wizRenderAlgemeen,          save: wizSaveAlgemeen          },
+  { id: 'fotos',      label: "Foto's",          render: wizRenderFotos,             save: wizSaveFotos             },
+  { id: 'meerkost',   label: 'Meerkost',        render: wizRenderStatus,            save: wizSaveStatus            },
+  { id: 'materialen', label: 'Extra materialen',render: wizRenderMaterialenTotaal,  save: wizSaveMaterialenTotaal  },
+  { id: 'sig-tech',   label: 'Handtekening 1',  render: wizRenderSigTech,           save: wizSaveSigTech           },
+  { id: 'sig-klant',  label: 'Handtekening 2',  render: wizRenderSigKlant,          save: wizSaveSigKlant          },
+];
+
+function activeWizSteps() {
+  return R.interventieType === 'Installatie' ? WIZ_STEPS_INSTALLATIE : WIZ_STEPS_INTERVENTIE;
+}
 
 async function openRapport(ticketId, date) {
   const ticket = getPlanningTicket(ticketId);
@@ -5461,6 +5479,7 @@ async function openRapport(ticketId, date) {
   R.oorzaakStoring = [];
   R.varia        = '';
   R.onderdelen   = [];
+  R.extraMaterialenTotaal = '';
   const fotoData  = await loadFotos(ticketId);
   _fotoState      = { ticketId, versie: fotoData.versie, fotos: fotoData.fotos };
   R.fotos         = _fotoState.fotos;
@@ -5523,26 +5542,23 @@ function closeWizard() {
 
 // ── Nav ──
 function wizRenderStep() {
-  const step  = WIZ_STEPS[_wizStep];
-  const visibleSteps = R.interventieType === 'Installatie'
-    ? WIZ_STEPS.filter(s => s.id !== 'facturatie')
-    : WIZ_STEPS;
-  const total = visibleSteps.length;
-  const visibleIndex = visibleSteps.indexOf(step);
+  const steps = activeWizSteps();
+  const step  = steps[_wizStep];
+  const total = steps.length;
 
   // Dots
   const dotsEl = document.getElementById('wiz-dots');
-  dotsEl.innerHTML = visibleSteps.map((s, i) =>
-    `<div class="wiz-step-dot ${i === visibleIndex ? 'active' : i < visibleIndex ? 'done' : ''}"></div>`
+  dotsEl.innerHTML = steps.map((s, i) =>
+    `<div class="wiz-step-dot ${i === _wizStep ? 'active' : i < _wizStep ? 'done' : ''}"></div>`
   ).join('');
 
-  document.getElementById('wiz-step-label').textContent = `${visibleIndex+1} / ${total} — ${step.label}`;
+  document.getElementById('wiz-step-label').textContent = `${_wizStep+1} / ${total} — ${step.label}`;
   document.getElementById('wiz-ftr-info').textContent   = step.label;
 
   const btnBack = document.getElementById('wiz-btn-back');
   const btnNext = document.getElementById('wiz-btn-next');
   btnBack.style.display = _wizStep > 0 ? '' : 'none';
-  btnNext.textContent   = visibleIndex === total - 1 ? '🖨️ Afdrukken / PDF' : 'Volgende →';
+  btnNext.textContent   = _wizStep === total - 1 ? '🖨️ Afdrukken / PDF' : 'Volgende →';
 
   const body = document.getElementById('wiz-body');
   body.scrollTop = 0;
@@ -5551,16 +5567,15 @@ function wizRenderStep() {
 }
 
 function wizNext() {
-  const step   = WIZ_STEPS[_wizStep];
+  const steps  = activeWizSteps();
+  const step   = steps[_wizStep];
   const result = step.save ? step.save() : undefined;
   if (result === false || typeof result === 'string') {
     toast(typeof result === 'string' ? result : '⚠️ Kan niet doorgaan naar de volgende stap', 3500);
     return;
   }
-  let nextStep = _wizStep + 1;
-  if (R.interventieType === 'Installatie' && WIZ_STEPS[nextStep]?.id === 'facturatie') nextStep++;
-  if (nextStep < WIZ_STEPS.length) {
-    _wizStep = nextStep;
+  if (_wizStep < steps.length - 1) {
+    _wizStep++;
     wizRenderStep();
   } else {
     printRapport();
@@ -5568,11 +5583,10 @@ function wizNext() {
 }
 
 function wizBack() {
-  if (WIZ_STEPS[_wizStep].save) WIZ_STEPS[_wizStep].save();
-  let prevStep = _wizStep - 1;
-  if (R.interventieType === 'Installatie' && WIZ_STEPS[prevStep]?.id === 'facturatie') prevStep--;
-  if (prevStep >= 0) {
-    _wizStep = prevStep;
+  const steps = activeWizSteps();
+  if (steps[_wizStep].save) steps[_wizStep].save();
+  if (_wizStep > 0) {
+    _wizStep--;
     wizRenderStep();
   }
 }
@@ -6184,6 +6198,26 @@ function wizSaveSigTech() {
 }
 function wizSaveSigKlant() {
   R.handtekeningKlant = (_sigKlant && !_sigKlant.isEmpty()) ? _sigKlant.toDataURL() : null;
+}
+
+// ── Stap: Extra materialen (enkel installatierapport) ──
+function wizRenderMaterialenTotaal(el) {
+  el.innerHTML = `
+    <div class="wiz-step-title">Extra materialen</div>
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:14px;line-height:1.5">
+      Materiaal dat niet in de meerkosten-catalogus staat — vul hier het totaalbedrag in.
+    </p>
+    <div class="wiz-field">
+      <label class="wiz-field-label">Totaalbedrag extra materialen (excl. btw)</label>
+      <div style="position:relative">
+        <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted)">€</span>
+        <input class="wiz-input" id="f-extra-materialen" type="number" min="0" step="0.01"
+          style="padding-left:26px" value="${R.extraMaterialenTotaal || ''}" placeholder="0.00" />
+      </div>
+    </div>`;
+}
+function wizSaveMaterialenTotaal() {
+  R.extraMaterialenTotaal = wizV('f-extra-materialen');
 }
 
 // ── Stap 6: Handtekening technieker ──
