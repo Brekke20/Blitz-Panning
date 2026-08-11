@@ -5270,6 +5270,96 @@ function renderOutboxBanner() {
   banner.style.display = 'flex';
 }
 
+async function logOutboxFailure(item, stap, fout) {
+  item.attempts  = (item.attempts || 0) + 1;
+  item.lastError = fout;
+  try { await outboxPut(item); } catch { /* best-effort */ }
+  try {
+    await fetch('/api/client-log', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        ticketId:     item.ticket?.id     || '',
+        ticketNumber: item.ticket?.number || '',
+        stap,
+        fout,
+        poging: item.attempts,
+      }),
+    });
+  } catch { /* diagnostisch, best-effort — falen hier mag genegeerd worden */ }
+}
+
+async function attemptOutboxItem(item) {
+  const action = nextOutboxAction(item);
+
+  if (action === 'archive') {
+    try {
+      const res  = await fetch('/api/rapport-archief', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ...item.archiveBody, id: item.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || String(res.status));
+      item.archived = true;
+      await outboxPut(item);
+      // Houd de globale archief-versie synchroon — verwijderRapport()/verstuurRapport()
+      // gebruiken _archiefVersie voor hun eigen optimistic-lock en zouden anders een
+      // vals-positief conflict kunnen krijgen na een outbox-archivering.
+      if (typeof data.versie === 'number') _archiefVersie = data.versie;
+    } catch (err) {
+      await logOutboxFailure(item, 'archiveren', err.message);
+      return item;
+    }
+    return attemptOutboxItem(item);
+  }
+
+  if (action === 'check-zoho') {
+    let alreadyDone = false;
+    try {
+      const res  = await fetch(`/api/rapport-archief?id=${encodeURIComponent(item.id)}`);
+      const data = await res.json();
+      alreadyDone = data?.rapport?.zohoUploaded === true;
+    } catch { /* check mislukt — probeer de upload gewoon, geen erg bij een extra check-poging later */ }
+
+    if (alreadyDone) {
+      item.zohoUploaded = true;
+      await outboxPut(item);
+      return attemptOutboxItem(item);
+    }
+
+    try {
+      const res  = await fetch('/api/rapport', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ html: item.html, ticketId: item.ticket.id, filename: item.ticket.filename }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload mislukt');
+
+      const confirmRes  = await fetch('/api/rapport-archief', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ...item.archiveBody, id: item.id, zohoUploaded: true }),
+      });
+      const confirmData = await confirmRes.json().catch(() => ({}));
+      if (!confirmRes.ok) throw new Error('Bevestigen van Zoho-upload in archief mislukt');
+      if (typeof confirmData.versie === 'number') _archiefVersie = confirmData.versie;
+
+      item.zohoUploaded = true;
+      await outboxPut(item);
+    } catch (err) {
+      await logOutboxFailure(item, 'zoho-upload', err.message);
+      return item;
+    }
+    return attemptOutboxItem(item);
+  }
+
+  // action === 'done'
+  await outboxRemove(item.id);
+  return item;
+}
+
 // Rapport data object — gevuld doorheen wizard
 const R = {
   datum: '', technieker: '', adres: '', start: '', stop: '', werktijd: '',
