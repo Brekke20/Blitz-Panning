@@ -100,10 +100,15 @@ export default async (req, context) => {
       r => r.ticketId === entry.ticketId && r.datum === entry.datum && entry.ticketId
     );
 
-    // zohoUploaded: op update, behoud bestaande waarde tenzij expliciet op true gezet
-    // op create, default to body value (false als niet vermeld)
+    // zohoUploaded: enkel overerven van de bestaande entry als dit hetzelfde
+    // wachtrij-item is dat zichzelf opnieuw bevestigt (zelfde id) — bv. na een
+    // mislukte confirm-call. Botst een ANDER item via dedup (zelfde ticket+datum,
+    // maar een nieuw, later aangemaakt rapport dezelfde dag), dan begint dat item
+    // altijd met zohoUploaded:false, zodat het zelf een verse PDF naar Zoho stuurt
+    // i.p.v. stil te veronderstellen dat het al gebeurd is.
     if (dupIdx >= 0) {
-      entry.zohoUploaded = body.zohoUploaded === true || current.rapports[dupIdx].zohoUploaded === true;
+      const zelfdeItem = entry.id === current.rapports[dupIdx].id;
+      entry.zohoUploaded = body.zohoUploaded === true || (zelfdeItem && current.rapports[dupIdx].zohoUploaded === true);
     } else {
       entry.zohoUploaded = body.zohoUploaded === true;
     }

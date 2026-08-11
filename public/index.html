@@ -6506,21 +6506,21 @@ ${isInstallatie ? '' : `<tr><td>Loonkosten (excl. btw)${isGarantieTotaal ? ' <sp
 }
 
 async function printRapport() {
-  // Het venster MOET synchroon geopend worden, vóór elke await. Browsers laten
-  // window.open() enkel toe binnen de korte "transient user activation" na de klik
-  // (Chrome: ~5s). Wachten we eerst de outbox-poging af (tot 5s), dan is die
-  // activation op het trage/offline-pad — precies het scenario waarvoor deze flow
-  // bestaat — net verlopen en blokkeert de browser het afdrukvoorbeeld alsnog.
-  // Daarom meteen een leeg tabblad openen en dat pas naderhand naar de echte
-  // inhoud navigeren.
-  // De melding bij een geblokkeerde pop-up volgt pas onderaan, samen met het
-  // navigeren van het venster: een toast hier zou op het snelle pad enkele
-  // honderden ms later meteen overschreven worden door de bevestigings-toast.
-  const win = window.open('about:blank', '_blank');
-
+  // Venster synchroon openen, vóór elke await. Browsers laten window.open() enkel toe
+  // binnen de korte "transient user activation" na de klik (Chrome: ~5s). Wachten we
+  // eerst de outbox-poging af (tot 5s), dan is die activation op het trage/offline-pad
+  // — precies het scenario waarvoor deze flow bestaat — net verlopen en blokkeert de
+  // browser het afdrukvoorbeeld alsnog. html/blob/blobUrl zijn stuk voor stuk synchroon
+  // te berekenen (geen enkele await nodig), dus window.open() kan de echte inhoud meteen
+  // krijgen — geen tussentijds leeg tabblad nodig, en dus ook geen risico dat dat lege
+  // tabblad blijft hangen als de tab intussen naar de achtergrond gaat.
   const html    = buildRapportHtml();
   const blob    = new Blob([html], { type: 'text/html; charset=utf-8' });
   const blobUrl = URL.createObjectURL(blob);
+  const win     = window.open(blobUrl, '_blank');
+  if (!win) {
+    toast('Pop-upblokkering actief — sta pop-ups toe voor deze pagina');
+  }
 
   // Wachtrij-item aanmaken en proberen te verzenden vóórdat het afdrukvoorbeeld
   // gevuld wordt — op mobiel duwt het openen van de tab de app naar de achtergrond,
@@ -6602,13 +6602,10 @@ async function printRapport() {
   }
 
   if (win) {
-    // Het al geopende (lege) tabblad nu pas naar de rapport-inhoud sturen.
-    win.location = blobUrl;
     // Revoke na 2 min — genoeg tijd om te printen
     setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
   } else {
     URL.revokeObjectURL(blobUrl);
-    toast('Pop-upblokkering actief — sta pop-ups toe voor deze pagina');
   }
 
   // Wizard sluiten na geslaagd rapport — geen bevestigingsdialoog meer nodig
