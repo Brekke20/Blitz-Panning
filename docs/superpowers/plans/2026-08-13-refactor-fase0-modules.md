@@ -15,8 +15,35 @@ gebeuren via die `window.`-referentie, niet via `import`/`export` tussen de 5 ni
 onderling — dat maakt de 5 extractietaken onderling onafhankelijk uitvoerbaar (geen
 laadvolgorde-afhankelijkheid tussen bv. de wizard-module en de outbox-module).
 `public/index.html` zelf blijft over als het "restbestand" (kalender/planning/tickets/
-beschikbaarheid/UI-chrome) en wordt zelf ook `type="module"` (voor consistente uitvoeringstiming
-t.o.v. de andere modules — zie Task 1).
+beschikbaarheid/UI-chrome).
+
+**Amendement (na Task 1-review, 2026-08-13): het hoofdscript wordt NIET `type="module"`.**
+Oorspronkelijk plan (foutief, zie hieronder): maak het hoofdscript zelf ook `type="module"` voor
+consistente uitvoeringstiming. Task 1's review vond hierdoor een kritieke, live-reproduceerbare
+regressie: een ES-modulescript maakt zijn top-level `function`-declaraties GEEN impliciete
+`window`-properties (in tegenstelling tot een klassiek script) — en op het moment dat Task 1 als
+enige taak klaar is, staan nog ~49 van de ~50 unieke `onclick`-aangeroepen functies (calendar/
+planning/tickets/UI-chrome/wizard/prijzen — alles wat pas in Taken 2-5 verplaatst wordt, of wat
+voorgoed in het restbestand blijft staan) nog gewoon in dat hoofdscript. Zodra dat een module
+wordt, breekt letterlijk elke `onclick=` in de hele app (`ReferenceError: ... is not defined`) —
+dat gaat ver voorbij wat de windowbridge-conventie per taak dekt, want de meeste van die functies
+worden NOOIT verplaatst (ze horen bij het restbestand, niet bij één van de 5 domeinen) en zouden
+dus nooit een eigen windowbridge krijgen.
+
+**Correcte aanpak:** het hoofdscript blijft een klassiek (niet-module) script, maar krijgt het
+`defer`-attribuut: `<script defer>` in plaats van kaal `<script>` of `type="module"`. Dit lost
+beide problemen tegelijk op:
+- `defer` en `type="module"` gedragen zich beide als "uitgesteld tot na het parsen, in
+  documentvolgorde t.o.v. elkaar" — dus de volgorde-garantie t.o.v. de `type="module"`-tags van
+  Task 1/2/3/4/5 (bv. `window.flushOutbox` moet bestaan vóór het hoofdscript het gebruikt) blijft
+  behouden, exact zoals bedoeld.
+- Een klassiek script (ook met `defer`) behoudt wél het gedrag dat top-level `function`-
+  declaraties impliciete `window`-properties worden — dus elke bestaande `onclick="..."` in het
+  hele bestand (ook alles wat nooit verplaatst wordt) blijft werken zonder dat er ook maar één
+  extra windowbridge nodig is.
+- Het hoofdscript stond vroeger helemaal onderaan de `<body>` (dus DOM al volledig geparsed
+  tegen de tijd dat het liep) — functioneel identiek aan `defer`-timing, dus dit is geen
+  gedragswijziging t.o.v. de huidige (pre-Fase-0) situatie.
 
 **Tech Stack:** Vanille JS, browser-native ES modules, geen build-stap (bevestigd: geen bundler/
 transpiler in dit project — `netlify.toml` zegt letterlijk `command = "echo 'No build step
@@ -130,15 +157,18 @@ printRapport, enz.) volledig ongewijzigd staan.
 
 - [ ] **Step 4: Nieuwe `<script>`-tags toevoegen**
 
-Zoek de bestaande `<script>`-tag die het hele huidige inline script bevat (waarschijnlijk
-`<script>` zonder attributen, ergens na de HTML-body). Vervang de openende tag door
-`<script type="module">` (dit maakt het HOOFDSCRIPT zelf ook een module — nodig zodat alle
-scripts in consistente, gedefereerde volgorde uitvoeren). Voeg er vlak vóór, in deze volgorde,
-een nieuwe tag toe:
+**Gecorrigeerd na review (zie Architecture-sectie hierboven, "Amendement na Task 1-review"):**
+NIET `type="module"` op het hoofdscript zetten — dat breekt elke `onclick=` van een functie die
+nog niet verplaatst is (bijna alles, in Task 1). Zoek de bestaande `<script>`-tag die het hele
+huidige inline script bevat (`<script>` zonder attributen, vlak vóór `</body>`). Vervang de
+openende tag door `<script defer>` (blijft een KLASSIEK script — geen `type="module"` — enkel
+`defer` toegevoegd, zodat de uitvoeringsvolgorde t.o.v. de nieuwe `type="module"`-tags toch
+gegarandeerd blijft, zonder de impliciete-`window`-globals van bestaande `onclick`-functies te
+verliezen). Voeg er vlak vóór, in deze volgorde, een nieuwe tag toe:
 
 ```html
 <script type="module" src="/js/outbox.js"></script>
-<script type="module">
+<script defer>
   <!-- bestaande hoofdscript-inhoud, nu met de 16 outbox-declaraties eruit -->
 </script>
 ```
@@ -152,10 +182,20 @@ effectief ophalen.
 
 - [ ] **Step 6: Verifieer live in de browser**
 
-Start `node dev-server.mjs`, open `http://localhost:3333/?test`. Open de browserconsole:
+Start `node dev-server.mjs` **vanuit deze worktree zelf** (niet de hoofd-checkout of een andere
+worktree — bevestig dit expliciet, bv. via de response van `fetch('/')` die `<script defer>` en
+NIET `OUTBOX_DB_NAME` mag bevatten). Open `http://localhost:3333/?test`. Open de browserconsole:
 bevestig GEEN rode fouten bij het laden (met name geen "flushOutbox is not defined" of
-gelijkaardig — dat zou wijzen op een ontbrekende window-bridge). Doorloop een volledig
-interventierapport tot en met "🖨️ Afdrukken / PDF" — bevestig dat het rapport nog steeds in de
+gelijkaardig — dat zou wijzen op een ontbrekende window-bridge).
+
+**Expliciete check op de `defer`-fix:** bevestig met een klein sweep-scriptje dat elke functie die
+ergens in `index.html` via `onclick="..."` aangeroepen wordt (niet enkel outbox-gerelateerde) nog
+gewoon als `window`-property bestaat — bv. `document.querySelectorAll('[onclick]')` doorlopen, de
+functienaam uit elk `onclick`-attribuut halen, en `typeof window[naam] === 'function'` toetsen
+voor elk. Dit moet voor ALLE gevonden namen kloppen (niet enkel de 16 outbox-declaraties) — een
+enkele `"undefined"` hier wijst op een verkeerd scripttype op het hoofdscript.
+
+Doorloop een volledig interventierapport tot en met "🖨️ Afdrukken / PDF" — bevestig dat het rapport nog steeds in de
 outbox terechtkomt en normaal verwerkt wordt (zelfde gedrag als vóór deze taak: archiveren lukt,
 of bij offline/trage verbinding het "⏳ nog niet bevestigd"-banner verschijnt). Zet de browser
 kort offline (devtools → Network → Offline), maak nog een rapport, zet weer online, bevestig dat
