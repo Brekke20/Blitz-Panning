@@ -184,11 +184,23 @@ git commit -m "refactor: outbox-module uit index.html trekken naar public/js/out
   (roept `renderRapportArchief()` aan na het verwerken van de wachtrij) en door Task 5's
   `printRapport`/rapport-wizard-flow.
 
+**Amendement (na Task 1, 2026-08-13):** Task 1's implementer vond dat `_archiefVersie` (regel
+6421, direct na `_rapportArchief` op regel 6417) ONTBRAK in de oorspronkelijke declaratielijst
+hieronder, terwijl het fysiek middenin ditzelfde blok staat en gebruikt wordt door
+`verwijderRapport`/de archiveer-flow (optimistic-locking versienummer). Task 1 heeft er tijdelijk
+een `window`-accessor voor gezet in `index.html` (met een `// Blijft nodig totdat...`-commentaar).
+**Deze taak (Task 2) moet `_archiefVersie` mee verplaatsen naar `rapport-archief.js` (7de
+declaratie, niet 6) en Task 1's tijdelijke `Object.defineProperty(window, '_archiefVersie', ...)`
+uit `index.html` verwijderen** — de rest van deze taak (window-bridge voor de overige 6, enz.)
+blijft ongewijzigd.
+
 - [ ] **Step 1: Lees de huidige code ter controle**
 
-Zoek `_rapportArchief`, `laadRapportArchief`, `setRapportFilter`, `renderRapportArchief`,
-`verwijderRapport`, `herOpenRapport` — deze 6 declaraties liggen aaneengesloten (van
-`let _rapportArchief = []` tot net vóór `exportTicketLog`).
+Zoek `_rapportArchief`, `_archiefVersie`, `laadRapportArchief`, `setRapportFilter`,
+`renderRapportArchief`, `verwijderRapport`, `herOpenRapport` — deze 7 declaraties liggen
+aaneengesloten (van `let _rapportArchief = []` tot net vóór `exportTicketLog`). Zoek ook Task 1's
+tijdelijke `_archiefVersie`-bridge op (`grep -n "Blijft nodig totdat" public/index.html`) — die
+moet in Step 3 mee verwijderd worden.
 
 - [ ] **Step 2: Nieuw bestand `public/js/rapport-archief.js`**
 
@@ -198,19 +210,30 @@ Zoek `_rapportArchief`, `laadRapportArchief`, `setRapportFilter`, `renderRapport
 // Excel-export-aanroep (zie excel-export.js). Leest `R`/rapport-records uit de outbox-archivering.
 
 export let _rapportArchief = [];
+export let _archiefVersie = null;
 
 export async function laadRapportArchief() {
   // ... exacte, ongewijzigde body
 }
 
 // ... setRapportFilter, renderRapportArchief, verwijderRapport, herOpenRapport — telkens exact
-// dezelfde body, enkel `export` ervoor.
+// dezelfde body, enkel `export` ervoor. Alle bestaande lees/schrijf-plekken van `_archiefVersie`
+// binnen dit blok (in laadRapportArchief/verwijderRapport/herOpenRapport) blijven ongewijzigd,
+// enkel nu binnen dit bestand.
 
 window.renderRapportArchief = renderRapportArchief;
 window.laadRapportArchief   = laadRapportArchief;
 window.setRapportFilter     = setRapportFilter;
 window.verwijderRapport     = verwijderRapport;
 window.herOpenRapport       = herOpenRapport;
+// _archiefVersie wordt van BUITEN dit bestand gebruikt (o.a. door de rapport-wizard-module bij het
+// versturen/archiveren) — net als bij PRIJZEN in Task 4 is dit een `let`, dus een statische
+// `window._archiefVersie = _archiefVersie` zou een momentopname vastzetten. Gebruik in plaats
+// daarvan dezelfde live-accessor die Task 1 al gebruikte:
+Object.defineProperty(window, '_archiefVersie', {
+  get: () => _archiefVersie,
+  set: (v) => { _archiefVersie = v; },
+});
 ```
 
 Controleer met `grep -n "_rapportArchief"` of dat array ook van BUITEN dit bestand rechtstreeks
