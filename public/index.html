@@ -1176,6 +1176,14 @@
       background: var(--orange-dim); border: 1px solid var(--orange); border-radius: var(--r);
       padding: 8px 12px; font-size: 0.78rem; color: var(--orange); margin-bottom: 10px;
     }
+    /* Tabs (Interventies/Installaties) */
+    .prijs-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+    .prijs-tab-btn {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text2);
+      border-radius: var(--r); padding: 7px 14px; font-size: 0.82rem; cursor: pointer;
+      font-family: inherit;
+    }
+    .prijs-tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
     /* ── Wizard onderdelen (catalogus-modus) ────────────────────────────────── */
     .wiz-cat-search-wrap { position: relative; margin-bottom: 8px; }
@@ -5417,9 +5425,10 @@ const R = {
   hersteld: 'nee', nieuwInter: 'nee',
   varia: '',
   onderdelen: [],
+  extraMaterialenTotaal: '',
 };
 
-const WIZ_STEPS = [
+const WIZ_STEPS_INTERVENTIE = [
   { id: 'algemeen',     label: 'Algemeen',      render: wizRenderAlgemeen,     save: wizSaveAlgemeen     },
   { id: 'facturatie',   label: 'Facturatie',     render: wizRenderFacturatie,   save: wizSaveFacturatie   },
   { id: 'product',      label: 'Product',        render: wizRenderProduct,      save: wizSaveProduct      },
@@ -5429,6 +5438,23 @@ const WIZ_STEPS = [
   { id: 'sig-tech',     label: 'Handtekening 1', render: wizRenderSigTech,      save: wizSaveSigTech      },
   { id: 'sig-klant',    label: 'Handtekening 2', render: wizRenderSigKlant,     save: wizSaveSigKlant     },
 ];
+
+// Installatierapport: geen Facturatie/Product/Omschrijving — enkel wat het
+// meerkosten-rapport nodig heeft. "meerkost" hergebruikt bewust dezelfde
+// render/save als de interventie-stap "status" (zie Task 6): identiek
+// onderdelen-catalogus-mechanisme, enkel titel + zoekscope verschillen.
+const WIZ_STEPS_INSTALLATIE = [
+  { id: 'algemeen',   label: 'Algemeen',        render: wizRenderAlgemeen,          save: wizSaveAlgemeen          },
+  { id: 'fotos',      label: "Foto's",          render: wizRenderFotos,             save: wizSaveFotos             },
+  { id: 'meerkost',   label: 'Meerkost',        render: wizRenderStatus,            save: wizSaveStatus            },
+  { id: 'materialen', label: 'Extra materialen',render: wizRenderMaterialenTotaal,  save: wizSaveMaterialenTotaal  },
+  { id: 'sig-tech',   label: 'Handtekening 1',  render: wizRenderSigTech,           save: wizSaveSigTech           },
+  { id: 'sig-klant',  label: 'Handtekening 2',  render: wizRenderSigKlant,          save: wizSaveSigKlant          },
+];
+
+function activeWizSteps() {
+  return R.interventieType === 'Installatie' ? WIZ_STEPS_INSTALLATIE : WIZ_STEPS_INTERVENTIE;
+}
 
 async function openRapport(ticketId, date) {
   const ticket = getPlanningTicket(ticketId);
@@ -5453,6 +5479,8 @@ async function openRapport(ticketId, date) {
   R.oorzaakStoring = [];
   R.varia        = '';
   R.onderdelen   = [];
+  R.extraMaterialenTotaal = '';
+  _wizActiveTags = [];
   const fotoData  = await loadFotos(ticketId);
   _fotoState      = { ticketId, versie: fotoData.versie, fotos: fotoData.fotos };
   R.fotos         = _fotoState.fotos;
@@ -5515,26 +5543,23 @@ function closeWizard() {
 
 // ── Nav ──
 function wizRenderStep() {
-  const step  = WIZ_STEPS[_wizStep];
-  const visibleSteps = R.interventieType === 'Installatie'
-    ? WIZ_STEPS.filter(s => s.id !== 'facturatie')
-    : WIZ_STEPS;
-  const total = visibleSteps.length;
-  const visibleIndex = visibleSteps.indexOf(step);
+  const steps = activeWizSteps();
+  const step  = steps[_wizStep];
+  const total = steps.length;
 
   // Dots
   const dotsEl = document.getElementById('wiz-dots');
-  dotsEl.innerHTML = visibleSteps.map((s, i) =>
-    `<div class="wiz-step-dot ${i === visibleIndex ? 'active' : i < visibleIndex ? 'done' : ''}"></div>`
+  dotsEl.innerHTML = steps.map((s, i) =>
+    `<div class="wiz-step-dot ${i === _wizStep ? 'active' : i < _wizStep ? 'done' : ''}"></div>`
   ).join('');
 
-  document.getElementById('wiz-step-label').textContent = `${visibleIndex+1} / ${total} — ${step.label}`;
+  document.getElementById('wiz-step-label').textContent = `${_wizStep+1} / ${total} — ${step.label}`;
   document.getElementById('wiz-ftr-info').textContent   = step.label;
 
   const btnBack = document.getElementById('wiz-btn-back');
   const btnNext = document.getElementById('wiz-btn-next');
   btnBack.style.display = _wizStep > 0 ? '' : 'none';
-  btnNext.textContent   = visibleIndex === total - 1 ? '🖨️ Afdrukken / PDF' : 'Volgende →';
+  btnNext.textContent   = _wizStep === total - 1 ? '🖨️ Afdrukken / PDF' : 'Volgende →';
 
   const body = document.getElementById('wiz-body');
   body.scrollTop = 0;
@@ -5543,16 +5568,15 @@ function wizRenderStep() {
 }
 
 function wizNext() {
-  const step   = WIZ_STEPS[_wizStep];
+  const steps  = activeWizSteps();
+  const step   = steps[_wizStep];
   const result = step.save ? step.save() : undefined;
   if (result === false || typeof result === 'string') {
     toast(typeof result === 'string' ? result : '⚠️ Kan niet doorgaan naar de volgende stap', 3500);
     return;
   }
-  let nextStep = _wizStep + 1;
-  if (R.interventieType === 'Installatie' && WIZ_STEPS[nextStep]?.id === 'facturatie') nextStep++;
-  if (nextStep < WIZ_STEPS.length) {
-    _wizStep = nextStep;
+  if (_wizStep < steps.length - 1) {
+    _wizStep++;
     wizRenderStep();
   } else {
     printRapport();
@@ -5560,11 +5584,10 @@ function wizNext() {
 }
 
 function wizBack() {
-  if (WIZ_STEPS[_wizStep].save) WIZ_STEPS[_wizStep].save();
-  let prevStep = _wizStep - 1;
-  if (R.interventieType === 'Installatie' && WIZ_STEPS[prevStep]?.id === 'facturatie') prevStep--;
-  if (prevStep >= 0) {
-    _wizStep = prevStep;
+  const steps = activeWizSteps();
+  if (steps[_wizStep].save) steps[_wizStep].save();
+  if (_wizStep > 0) {
+    _wizStep--;
     wizRenderStep();
   }
 }
@@ -5605,6 +5628,7 @@ function updateWerktijd() {
 // ── Stap 1: Algemeen ──
 function wizRenderAlgemeen(el) {
   const zohoRef = _wizTicket.number ? `#${_wizTicket.number}` : (_wizTicket.isLocal ? '' : (_wizTicket.id || ''));
+  const isInstallatie = R.interventieType === 'Installatie';
   el.innerHTML = `
     <div class="wiz-step-title">Algemeen</div>
     <div class="wiz-info-chip">
@@ -5642,6 +5666,11 @@ function wizRenderAlgemeen(el) {
         </label>
       </div>
     </div>
+    ${isInstallatie ? `
+    <div class="wiz-field">
+      <label class="wiz-field-label">Serienummer</label>
+      <input class="wiz-input" id="f-serienummer" type="text" value="${escHtml(R.serienummer)}" placeholder="CHARX-XXXX" />
+    </div>` : ''}
     <div class="wiz-field-row">
       <div class="wiz-field">
         <label class="wiz-field-label">Starttijd (aankomst)</label>
@@ -5661,6 +5690,11 @@ function wizSaveAlgemeen() {
   R.datum           = wizV('f-datum');
   R.technieker      = wizV('f-technieker');
   R.adres           = wizV('f-adres');
+  // Enkel overschrijven als het veld op dit moment gerenderd was (installatierapport) —
+  // bij een interventierapport bestaat #f-serienummer hier niet en zou wizV() anders
+  // R.serienummer blindelings leegmaken (dat veld wordt daar via de "Product"-stap beheerd).
+  const serienummerEl = document.getElementById('f-serienummer');
+  if (serienummerEl) R.serienummer = serienummerEl.value;
   R.start           = wizV('f-start');
   R.stop            = wizV('f-stop');
   R.werktijd        = calcWerktijd(R.start, R.stop);
@@ -5900,18 +5934,16 @@ const OORZAAK_STORING_MAP = {
 };
 
 function wizRenderOmschrijving(el) {
-  const isInstallatie = R.interventieType === 'Installatie';
   el.innerHTML = `
     <div class="wiz-step-title">Omschrijving &amp; acties</div>
     <div class="wiz-field">
-      <label class="wiz-field-label">${isInstallatie ? 'Omschrijving installatie' : 'Omschrijving probleem'}</label>
-      <textarea class="wiz-textarea" id="f-probleem" rows="4" placeholder="${isInstallatie ? 'Beschrijf de uitgevoerde installatie...' : 'Beschrijf het probleem...'}">${escHtml(R.probleem)}</textarea>
+      <label class="wiz-field-label">Omschrijving probleem</label>
+      <textarea class="wiz-textarea" id="f-probleem" rows="4" placeholder="Beschrijf het probleem...">${escHtml(R.probleem)}</textarea>
     </div>
     <div class="wiz-field">
       <label class="wiz-field-label">Ondernomen acties</label>
       <textarea class="wiz-textarea" id="f-acties" rows="6" placeholder="Beschrijf de uitgevoerde werkzaamheden...">${escHtml(R.acties)}</textarea>
     </div>
-    ${isInstallatie ? '' : `
     <div class="wiz-field">
       <label class="wiz-field-label">Oorzaak storing</label>
       <div class="wiz-radio-cards row">
@@ -5920,12 +5952,11 @@ function wizRenderOmschrijving(el) {
         <label class="wiz-radio-card"><input type="checkbox" id="f-oorzaak-configuratie" ${R.oorzaakStoring.includes('Configuratiefout')?'checked':''}><div><div class="wiz-radio-card-label">Configuratiefout</div></div></label>
         <label class="wiz-radio-card"><input type="checkbox" id="f-oorzaak-andere" ${R.oorzaakStoring.includes('Andere')?'checked':''}><div><div class="wiz-radio-card-label">Andere</div></div></label>
       </div>
-    </div>`}`;
+    </div>`;
 }
 function wizSaveOmschrijving() {
   R.probleem = wizV('f-probleem');
   R.acties   = wizV('f-acties');
-  if (R.interventieType === 'Installatie') { R.oorzaakStoring = []; return; }
   R.oorzaakStoring = Object.entries(OORZAAK_STORING_MAP)
     .filter(([id]) => document.getElementById(id)?.checked)
     .map(([, label]) => label);
@@ -5957,8 +5988,9 @@ let _wizActiveTags = [];
 
 function wizRenderStatus(el) {
   const selHtml = _wizRenderGeselecteerd();
-  // Populaire tags (max 8 meest voorkomende)
-  const allTags = getAlleTags().slice(0, 12);
+  const isInstallatieVoorTags = R.interventieType === 'Installatie';
+  // Populaire tags (max 8 meest voorkomende) — bij installatie enkel uit de meerkosten-catalogus
+  const allTags = getAlleTags(isInstallatieVoorTags ? categorieenVoorGroep('installatie') : null).slice(0, 12);
   // Tags komen uit prijsbeheer (vrij tekstveld, opgeslagen in de prijzen-blob). Een inline
   // onclick met een JS-string is daar niet veilig voor: de browser decodeert HTML-entities in
   // een attribuutwaarde vóórdat de handler als JS gecompileerd wordt, dus escHtml()'s &#39;
@@ -5970,7 +6002,7 @@ function wizRenderStatus(el) {
 
   const isInstallatie = R.interventieType === 'Installatie';
   el.innerHTML = `
-    <div class="wiz-step-title">${isInstallatie ? 'Materialen' : 'Status &amp; onderdelen'}</div>
+    <div class="wiz-step-title">${isInstallatie ? 'Meerkost' : 'Status &amp; onderdelen'}</div>
     ${isInstallatie ? '' : `
     <div class="wiz-field">
       <label class="wiz-field-label">Definitief hersteld</label>
@@ -5988,7 +6020,7 @@ function wizRenderStatus(el) {
     </div>`}
     <div class="wiz-sep"></div>
     <div class="wiz-field">
-      <label class="wiz-field-label">Onderdelen toevoegen</label>
+      <label class="wiz-field-label">${isInstallatie ? 'Meerkost toevoegen' : 'Onderdelen toevoegen'}</label>
       <div class="wiz-cat-search-wrap">
         <span class="wiz-cat-search-icon">🔍</span>
         <input class="wiz-cat-search" id="wiz-cat-q" type="search"
@@ -6018,10 +6050,34 @@ function wizRenderStatus(el) {
   _wizUpdateCatResults();
 }
 
+// Prijsberekening voor onderdelen met een lengte-afhankelijk tarief (meerkost-kabels
+// met een 10m-drempel, zie PRIJZEN_DEFAULTS). Gedeeld door de wizard-preview, de PDF
+// (buildRapportHtml) en het archiefoverzicht (renderRapportArchief) — allemaal moeten
+// exact hetzelfde bedrag tonen voor hetzelfde onderdeel.
+// - Geen `prijsmodel` (of 'vast'): aantal * prijs (standaardgedrag, ongewijzigd).
+// - 'overschot': eerste `drempel` meter is inbegrepen, enkel het aantal daarboven
+//   wordt aangerekend: max(0, aantal - drempel) * prijs.
+// - 'drempel': volledige aantal aan 1 tarief — welk tarief hangt af van of aantal
+//   boven de drempel valt (dan `prijs`) of niet (dan `prijsOnder`).
+function berekenOnderdeelSubtotaal(p) {
+  const aantal = parseInt(p.aantal) || 1;
+  const prijs  = parseFloat(p.prijs) || 0;
+  if (p.prijsmodel === 'overschot') {
+    const drempel = parseFloat(p.drempel) || 0;
+    return Math.max(0, aantal - drempel) * prijs;
+  }
+  if (p.prijsmodel === 'drempel') {
+    const drempel    = parseFloat(p.drempel) || 0;
+    const prijsOnder = parseFloat(p.prijsOnder) || prijs;
+    return aantal * (aantal > drempel ? prijs : prijsOnder);
+  }
+  return aantal * prijs;
+}
+
 function _wizRenderGeselecteerd() {
   if (!R.onderdelen.length) return '<div style="font-size:0.8rem;color:var(--muted);padding:4px 0">Nog geen onderdelen geselecteerd</div>';
   return R.onderdelen.map((p, i) => {
-    const subtotaal = (parseFloat(p.prijs) || 0) * (parseInt(p.aantal) || 1);
+    const subtotaal = berekenOnderdeelSubtotaal(p);
     const isVrij = (p.id || '').startsWith('vrij-');
     return `<div class="wiz-sel-item">
       <div class="wiz-sel-top">
@@ -6059,7 +6115,7 @@ function _wizRenderGeselecteerd() {
 
 function _wizTotaalRij() {
   const billable = R.onderdelen.filter(p => p.factureren !== false);
-  const totaal   = billable.reduce((sum, p) => sum + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+  const totaal   = billable.reduce((sum, p) => sum + berekenOnderdeelSubtotaal(p), 0);
   if (!R.onderdelen.length) return '';
   const nietFactureerbaar = R.onderdelen.length - billable.length;
   return `<div class="wiz-totaal-row">
@@ -6072,7 +6128,8 @@ function _wizUpdateCatResults() {
   const q = document.getElementById('wiz-cat-q')?.value || '';
   const resultEl = document.getElementById('wiz-cat-results');
   if (!resultEl) return;
-  const resultaten = zoekOnderdelen(q, _wizActiveTags);
+  const categorieIds = R.interventieType === 'Installatie' ? categorieenVoorGroep('installatie') : null;
+  const resultaten = zoekOnderdelen(q, _wizActiveTags, categorieIds);
   if (!resultaten.length) {
     resultEl.innerHTML = `<div class="wiz-cat-empty">Geen onderdelen gevonden</div>`;
     return;
@@ -6115,7 +6172,11 @@ function wizVoegCatToe(id) {
   if (existing) {
     existing.aantal = (parseInt(existing.aantal) || 1) + 1;
   } else {
-    R.onderdelen.push({ id: o.id, naam: o.naam, prijs: o.prijs, aantal: 1, factureren: true, eenheid: o.eenheid || 'stuk' });
+    R.onderdelen.push({
+      id: o.id, naam: o.naam, prijs: o.prijs, aantal: 1, factureren: true, eenheid: o.eenheid || 'stuk',
+      // Lengte-afhankelijk tarief (indien van toepassing) meekopiëren, zie berekenOnderdeelSubtotaal().
+      ...(o.prijsmodel ? { prijsmodel: o.prijsmodel, drempel: o.drempel, prijsOnder: o.prijsOnder } : {}),
+    });
   }
   _wizHertekenGeselecteerd();
 }
@@ -6176,6 +6237,26 @@ function wizSaveSigTech() {
 }
 function wizSaveSigKlant() {
   R.handtekeningKlant = (_sigKlant && !_sigKlant.isEmpty()) ? _sigKlant.toDataURL() : null;
+}
+
+// ── Stap: Extra materialen (enkel installatierapport) ──
+function wizRenderMaterialenTotaal(el) {
+  el.innerHTML = `
+    <div class="wiz-step-title">Extra materialen</div>
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:14px;line-height:1.5">
+      Materiaal dat niet in de meerkosten-catalogus staat — vul hier het totaalbedrag in.
+    </p>
+    <div class="wiz-field">
+      <label class="wiz-field-label">Totaalbedrag extra materialen (excl. btw)</label>
+      <div style="position:relative">
+        <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted)">€</span>
+        <input class="wiz-input" id="f-extra-materialen" type="number" min="0" step="0.01"
+          style="padding-left:26px" value="${R.extraMaterialenTotaal || ''}" placeholder="0.00" />
+      </div>
+    </div>`;
+}
+function wizSaveMaterialenTotaal() {
+  R.extraMaterialenTotaal = wizV('f-extra-materialen');
 }
 
 // ── Stap 6: Handtekening technieker ──
@@ -6317,7 +6398,8 @@ function buildRapportHtml() {
 
   const geldigeOnderdelen  = R.onderdelen.filter(p => p.naam);
   const billableOnderdelen = geldigeOnderdelen.filter(p => p.factureren !== false);
-  const totaalOnderdelen   = billableOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+  const totaalOnderdelen   = billableOnderdelen.reduce((s, p) => s + berekenOnderdeelSubtotaal(p), 0);
+  const extraMaterialenTotaalNum = parseFloat(R.extraMaterialenTotaal) || 0;
   // Loonkost hier al berekenen (i.p.v. enkel lokaal in de Loonkosten-tabel-IIFE verderop),
   // zodat het gecombineerde Kostenoverzicht onderaan dit bedrag kan hergebruiken zonder
   // bedragen op meerdere, verspreide plekken te tonen.
@@ -6329,7 +6411,7 @@ function buildRapportHtml() {
       const aantal      = parseInt(p.aantal) || 1;
       const factureren  = p.factureren !== false;
       const stukprijs   = parseFloat(p.prijs) || 0;
-      const subtotaal   = stukprijs * aantal;
+      const subtotaal   = berekenOnderdeelSubtotaal(p);
       return `<tr>
         <td>${escHtml(p.naam)}${!factureren ? ' <span style="font-size:7.5pt;color:#888;font-style:italic">(niet aangerekend)</span>' : ''}</td>
         <td style="text-align:center">${aantal}${p.eenheid==='meter' ? ' meter' : ''}</td>
@@ -6352,7 +6434,7 @@ function buildRapportHtml() {
   const html = `<!DOCTYPE html>
 <html lang="nl"><head>
 <meta charset="utf-8">
-<title>Service Rapport Blitz Power — ${R.datum}</title>
+<title>${isInstallatie ? 'Rapport Meerkost Installatie' : 'Service Rapport'} Blitz Power — ${R.datum}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#111;padding:13mm 17mm}
@@ -6388,7 +6470,7 @@ function buildRapportHtml() {
   .foto-report-item{border:1px solid #e0e0e0;border-radius:4px;padding:4px;background:#fafafa;break-inside:avoid;page-break-inside:avoid}
 </style>
 </head><body>
-<div class="header">${bolt}<div><div class="logo-text">BLITZ POWER</div><div class="logo-sub">SERVICE RAPPORT</div></div></div>
+<div class="header">${bolt}<div><div class="logo-text">BLITZ POWER</div><div class="logo-sub">${isInstallatie ? 'RAPPORT MEERKOST INSTALLATIE' : 'SERVICE RAPPORT'}</div></div></div>
 <div class="accent-bar"></div>
 <div class="rapport-section info-grid">
   <div class="info-row cols-3">
@@ -6410,20 +6492,20 @@ function buildRapportHtml() {
     <div class="info-cell"><div class="info-lbl">Facturatie aan</div><div class="info-val">${facturatieLabel}</div></div>`}
     <div class="info-cell"><div class="info-lbl">Installateur</div><div class="info-val">${escHtml(R.installateur)||'—'}</div></div>
   </div>
-  <div class="info-row cols-2">
+  <div class="info-row ${isInstallatie ? 'cols-1' : 'cols-2'}">
     <div class="info-cell"><div class="info-lbl">Serienummer</div><div class="info-val">${R.aantalLaadpalen > 1 ? `${escHtml(R.serienummer) || 'Geen serienummer'} (master) — ${R.aantalLaadpalen}×` : (escHtml(R.serienummer)||'—')}</div></div>
-    <div class="info-cell"><div class="info-lbl">Type / uitvoering</div><div class="info-val">${productInfo}</div></div>
+    ${isInstallatie ? '' : `<div class="info-cell"><div class="info-lbl">Type / uitvoering</div><div class="info-val">${productInfo}</div></div>`}
   </div>
 </div>
+${isInstallatie ? '' : `
 <div class="rapport-section">
-<div class="sec">${isInstallatie ? 'Omschrijving installatie' : 'Omschrijving probleem'}</div>
+<div class="sec">Omschrijving probleem</div>
 <div class="block">${escHtml(R.probleem)||'&nbsp;'}</div>
 </div>
 <div class="rapport-section">
 <div class="sec">Ondernomen acties</div>
 <div class="block">${escHtml(R.acties)||'&nbsp;'}</div>
 </div>
-${isInstallatie ? '' : `
 <div class="rapport-section">
 <div class="sec">Oorzaak storing</div>
 <div class="block">${R.oorzaakStoring.join(', ') || '&nbsp;'}</div>
@@ -6438,7 +6520,7 @@ ${isInstallatie ? '' : `
   <div class="status-cell"><div class="info-lbl">Nieuwe interventie nodig</div><strong>${R.nieuwInter==='ja'?'Ja':'Nee'}</strong></div>
 </div>
 </div>`}
-${geldigeOnderdelen.length ? `<div class="sec">${isInstallatie ? 'Gebruikte materialen' : 'Vervangen onderdelen'}</div>
+${geldigeOnderdelen.length ? `<div class="sec">${isInstallatie ? 'Meerkost' : 'Vervangen onderdelen'}</div>
 <table class="parts"><thead><tr><th>Omschrijving</th><th style="text-align:center">Aantal</th><th style="text-align:right">Stukprijs</th><th style="text-align:right">Subtotaal</th></tr></thead>
 <tbody>${partsHtml}</tbody></table>` : ''}
 ${R.varia ? `<div class="rapport-section"><div class="sec">Varia</div><div class="block">${escHtml(R.varia)}</div></div>` : ''}
@@ -6488,9 +6570,11 @@ ${isInstallatie ? '' : (() => {
 <div class="rapport-section">
 <div class="sec">Kostenoverzicht</div>
 <table class="parts"><tbody>
-<tr><td>Onderdelen (excl. btw)</td><td style="text-align:right">€ ${totaalOnderdelen.toFixed(2)}</td></tr>
-${isInstallatie ? '' : `<tr><td>Loonkosten (excl. btw)${isGarantieTotaal ? ' <span style="font-size:7.5pt;color:#888;font-style:italic">(100% korting)</span>' : ''}</td><td style="text-align:right">€ ${nettoTotaal.toFixed(2)}</td></tr>`}
-<tr style="background:#111;color:#fff;font-weight:700"><td style="text-transform:uppercase;letter-spacing:.05em;font-size:8pt">Totaal te factureren (excl. btw)</td><td style="text-align:right;font-size:11pt">€ ${(totaalOnderdelen + (isInstallatie ? 0 : nettoTotaal)).toFixed(2)}</td></tr>
+<tr><td>${isInstallatie ? 'Meerkost' : 'Onderdelen'} (excl. btw)</td><td style="text-align:right">€ ${totaalOnderdelen.toFixed(2)}</td></tr>
+${isInstallatie
+  ? `<tr><td>Extra materialen (excl. btw)</td><td style="text-align:right">€ ${extraMaterialenTotaalNum.toFixed(2)}</td></tr>`
+  : `<tr><td>Loonkosten (excl. btw)${isGarantieTotaal ? ' <span style="font-size:7.5pt;color:#888;font-style:italic">(100% korting)</span>' : ''}</td><td style="text-align:right">€ ${nettoTotaal.toFixed(2)}</td></tr>`}
+<tr style="background:#111;color:#fff;font-weight:700"><td style="text-transform:uppercase;letter-spacing:.05em;font-size:8pt">Totaal te factureren (excl. btw)</td><td style="text-align:right;font-size:11pt">€ ${(totaalOnderdelen + (isInstallatie ? extraMaterialenTotaalNum : nettoTotaal)).toFixed(2)}</td></tr>
 </tbody></table>
 </div>
 <div class="rapport-section">
@@ -6539,7 +6623,7 @@ async function printRapport() {
     try {
       const totaal = R.onderdelen
         .filter(p => p.naam && p.factureren !== false)
-        .reduce((s, p) => s + (parseFloat(p.prijs) || 0) * (parseInt(p.aantal) || 1), 0);
+        .reduce((s, p) => s + berekenOnderdeelSubtotaal(p), 0);
 
       const item = {
         id:           crypto.randomUUID(),
@@ -6703,8 +6787,9 @@ function renderRapportArchief() {
     const loonNetto = (isGarantie || isInstallatieRapport) ? 0 : loonBruto;
 
     const billableOnderdelen = (rd.onderdelen || []).filter(p => p.naam && p.factureren !== false);
-    const totOnderdelen = billableOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
-    const totFactureerbaar = loonNetto + totOnderdelen;
+    const totOnderdelen = billableOnderdelen.reduce((s, p) => s + berekenOnderdeelSubtotaal(p), 0);
+    const extraMaterialenTotaalNum = isInstallatieRapport ? (parseFloat(rd.extraMaterialenTotaal) || 0) : 0;
+    const totFactureerbaar = loonNetto + totOnderdelen + extraMaterialenTotaalNum;
 
     // Labels voor servicetype
     const stLabels = { '2e-lijn': '2e lijns', '1e-lijn': '1e lijns', 'garantie': 'Garantie' };
@@ -7008,7 +7093,7 @@ async function exportTicketLog() {
     const rd                = r.rapportData || {};
     const onderdelen         = (rd.onderdelen || []).filter(p => p.naam);
     const billableOnderdelen = onderdelen.filter(p => p.factureren !== false);
-    const totaal             = billableOnderdelen.reduce((s, p) => s + (parseFloat(p.prijs)||0) * (parseInt(p.aantal)||1), 0);
+    const totaal             = billableOnderdelen.reduce((s, p) => s + berekenOnderdeelSubtotaal(p), 0);
     const fac                = billableOnderdelen.length > 0 ? 'Ja' : 'Nee';
     const cmp        = onderdelen.map(p => `${p.naam}${parseInt(p.aantal) > 1 ? ' ×' + p.aantal : ''}`).join('; ');
 
@@ -7220,6 +7305,46 @@ const PRIJZEN_DEFAULTS = {
     { id:'kabel-spiraal-5m-11kw',naam:'Laadkabel Spiraal 5m 11kW', categorie:'kabel', tags:['kabel','laadkabel','spiraal','5m','11kW'], prijs:184, eenheid:'stuk' },
     { id:'kabel-spiraal-5m-22kw',naam:'Laadkabel Spiraal 5m 22kW', categorie:'kabel', tags:['kabel','laadkabel','spiraal','5m','22kW'], prijs:231, eenheid:'stuk' },
     { id:'socket',               naam:'Socket',                     categorie:'kabel', tags:['socket','aansluiting'],                   prijs:88,  eenheid:'stuk' },
+    // ── Meerkosten Installatie 2026 (bron: "Particuliere Installaties - Extra Kosten buiten Standaard 2026.xlsx") ──
+    // Kabels & benodigdheden
+    // Prijsmodel 'overschot': eerste `drempel` meter zit al in de standaardofferte,
+    // enkel het aantal daarboven wordt aangerekend (aantal - drempel) * prijs, min 0.
+    // Prijsmodel 'drempel': volledige aantal aan 1 tarief — welk tarief hangt af van
+    // of aantal > drempel (dan `prijs`) of niet (dan `prijsOnder`).
+    // VOORLOPIGE AANNAME (2026-08-12, nog te bevestigen door Brent's supervisor) — zie
+    // docs/superpowers/specs/2026-08-11-installatie-extra-kosten-rapport-design.md.
+    { id:'inst-elek-datakabel-boven10m',      naam:'Elektriciteitskabel + datakabel boven 10 meter', categorie:'inst-kabels', tags:['kabel','elektriciteit','data','boven 10m'],      prijs:17.72, eenheid:'meter', prijsmodel:'overschot', drempel:10 },
+    { id:'inst-elekkabel-boven10m',           naam:'Elektriciteitskabel boven 10 meter',             categorie:'inst-kabels', tags:['kabel','elektriciteit','boven 10m'],              prijs:14.49, eenheid:'meter', prijsmodel:'overschot', drempel:10 },
+    { id:'inst-datakabel-boven10m',           naam:'Datakabel',                                      categorie:'inst-kabels', tags:['kabel','data','cat6','boven 10m'],                prijs:4.57,  eenheid:'meter', prijsmodel:'drempel', drempel:10, prijsOnder:6.5 },
+    { id:'inst-xgb5g10-datakabel-boven10m',   naam:'Elektriciteitskabel XGB5G10 + datakabel boven 10 meter', categorie:'inst-kabels', tags:['kabel','xgb5g10','data','boven 10m'],     prijs:22.65, eenheid:'meter', prijsmodel:'overschot', drempel:10 },
+    { id:'inst-kabel-xgb5g10',                naam:'Kabel XGB5G10',                                  categorie:'inst-kabels', tags:['kabel','xgb5g10'],                               prijs:20.77, eenheid:'meter' },
+    { id:'inst-aardingkabel',                 naam:'Aardingkabel 6mm² - 25mm²',                      categorie:'inst-kabels', tags:['kabel','aarding'],                               prijs:9.27,  eenheid:'meter' },
+    // Automaten & differentieels
+    { id:'inst-automaat-4p-20a',              naam:'Automaat 4P 20A',                                categorie:'inst-automaten', tags:['automaat','4p','20a'],                        prijs:39.21, eenheid:'stuk' },
+    { id:'inst-automaat-4p-40a',              naam:'Automaat 4P 40A',                                categorie:'inst-automaten', tags:['automaat','4p','40a'],                        prijs:51.74, eenheid:'stuk' },
+    { id:'inst-diff-30ma-40a',                naam:'Differentieel Automaat 30mA 40A',                categorie:'inst-automaten', tags:['differentieel','30ma','40a'],                 prijs:115,   eenheid:'stuk' },
+    { id:'inst-automaat-4p-32a',              naam:'Automaat 4P 32A',                                categorie:'inst-automaten', tags:['automaat','4p','32a'],                        prijs:55.70, eenheid:'stuk' },
+    { id:'inst-diff-typea-40a-3ka-4p-30ma',   naam:'Differentieel Type A 40A 3KA 4P 30mA',           categorie:'inst-automaten', tags:['differentieel','type a','40a','4p','30ma'],   prijs:67.05, eenheid:'stuk' },
+    { id:'inst-diff-typea-63a-3ka-4p-300ma',  naam:'Differentieel Type A 63A 3KA 4P 300mA',          categorie:'inst-automaten', tags:['differentieel','type a','63a','4p','300ma'],  prijs:107.50,eenheid:'stuk' },
+    { id:'inst-diff-typeb-63a-10ka-4p',       naam:'Differentieel Type B 63A 10kA 4P 30mA/300mA',    categorie:'inst-automaten', tags:['differentieel','type b','63a','4p'],          prijs:263,   eenheid:'stuk' },
+    // Kasten & benodigdheden
+    { id:'inst-kast-6mod',                    naam:'Zekeringskastje 6 modules',                      categorie:'inst-kasten', tags:['kast','zekeringskastje','6 modules'],            prijs:46.73, eenheid:'stuk' },
+    { id:'inst-kast-9mod',                    naam:'Zekeringskastje 9 modules',                      categorie:'inst-kasten', tags:['kast','zekeringskastje','9 modules'],            prijs:53.12, eenheid:'stuk' },
+    { id:'inst-kast-12mod',                   naam:'Zekeringskastje 12 modules',                     categorie:'inst-kasten', tags:['kast','zekeringskastje','12 modules'],           prijs:78.74, eenheid:'stuk' },
+    { id:'inst-kast-18mod',                   naam:'Zekeringskastje 18 modules',                     categorie:'inst-kasten', tags:['kast','zekeringskastje','18 modules'],           prijs:120.48,eenheid:'stuk' },
+    // Extra's
+    { id:'inst-doorboring-32mm',              naam:'Standaard doorboring tot 32mm per muur',         categorie:'inst-extras', tags:['doorboring','muur'],                             prijs:16.37, eenheid:'stuk' },
+    { id:'inst-diamantboring',                naam:'Diamant boring',                                 categorie:'inst-extras', tags:['boring','diamant'],                              prijs:133.38,eenheid:'stuk' },
+    { id:'inst-klein-materiaal-1',            naam:'Klein materiaal (optie 1)',                      categorie:'inst-extras', tags:['klein materiaal'],                               prijs:20.52, eenheid:'stuk' },
+    { id:'inst-klein-materiaal-2',            naam:'Klein materiaal (optie 2)',                      categorie:'inst-extras', tags:['klein materiaal'],                               prijs:30.78, eenheid:'stuk' },
+    { id:'inst-klein-materiaal-3',            naam:'Klein materiaal (optie 3)',                      categorie:'inst-extras', tags:['klein materiaal'],                               prijs:41.04, eenheid:'stuk' },
+    { id:'inst-kabelgoot-pvc-2m',             naam:'Kabelgoot PVC uv-bestendig per 2m',              categorie:'inst-extras', tags:['kabelgoot','pvc'],                               prijs:23.04, eenheid:'stuk' },
+    { id:'inst-accessoires-hoeken',           naam:'Accessoires hoeken, eindstukken',                categorie:'inst-extras', tags:['kabelgoot','accessoires'],                       prijs:5.76,  eenheid:'stuk' },
+    { id:'inst-wachtbuis-rood',               naam:'Rode wachtbuis extra',                           categorie:'inst-extras', tags:['wachtbuis'],                                     prijs:2.20,  eenheid:'stuk' },
+    { id:'inst-connectiviteitsoplossing',     naam:'Connectiviteitsoplossing (stopcontact, automaat, uplift zekeringskast)', categorie:'inst-extras', tags:['connectiviteit'],       prijs:49.17, eenheid:'stuk' },
+    { id:'inst-switch-5poorten',              naam:'Switch 5 poorten',                               categorie:'inst-extras', tags:['switch','netwerk','5 poorten'],                  prijs:102.60,eenheid:'stuk' },
+    // Infra, graafwerken en buiten de standaard
+    { id:'inst-paal-grondinstallatie',        naam:'Paal model installatie in de grond (aangeleverd anker, betonnen sokkel, snelbeton)', categorie:'inst-infra', tags:['paal','graafwerk','infra'], prijs:150.56, eenheid:'stuk' },
   ],
   tarieven: [
     { id:'interventie-3u', naam:'Interventie (3u, incl. aanrijtijden)',              prijs:175, eenheid:'forfait' },
@@ -7227,6 +7352,23 @@ const PRIJZEN_DEFAULTS = {
     { id:'1st-line-uur',   naam:'1st line interventie per uur (excl. aanrijtijden)', prijs:115, eenheid:'uur'     },
   ],
 };
+
+// ── Categorieën, per prijzen-beheer-tab (Task 1 van het meerkosten-installatie-plan) ──
+const PRIJS_CATEGORIEEN = [
+  { id:'controller',     label:'Controllers',                groep:'interventie' },
+  { id:'energiemeter',   label:'Energiemeters',              groep:'interventie' },
+  { id:'ct-klem',        label:'CT-klemmen',                 groep:'interventie' },
+  { id:'overig',         label:'Overige componenten',        groep:'interventie' },
+  { id:'kabel',          label:'Laadkabels & aansluitingen', groep:'interventie' },
+  { id:'inst-kabels',    label:'Kabels & benodigdheden',     groep:'installatie' },
+  { id:'inst-automaten', label:'Automaten & differentieels', groep:'installatie' },
+  { id:'inst-kasten',    label:'Kasten & benodigdheden',     groep:'installatie' },
+  { id:'inst-extras',    label:"Extra's",                    groep:'installatie' },
+  { id:'inst-infra',     label:'Infra & graafwerken',        groep:'installatie' },
+];
+function categorieenVoorGroep(groep) {
+  return PRIJS_CATEGORIEEN.filter(c => c.groep === groep).map(c => c.id);
+}
 
 // ── Laden bij startup ─────────────────────────────────────────────────────────
 async function loadPrijzen() {
@@ -7293,6 +7435,12 @@ function prijsReset() {
 }
 
 // ── Renderer ──────────────────────────────────────────────────────────────────
+let _prijsTab = 'interventie'; // 'interventie' | 'installatie'
+function setPrijsTab(tab) {
+  _prijsTab = tab;
+  renderPrijsEditor();
+}
+
 function renderPrijsEditor() {
   const data = getPrijzen();
   // Meta
@@ -7308,17 +7456,15 @@ function renderPrijsEditor() {
     html += `<div class="prijs-cache-banner">⚠️ Offline — prijzen uit lokale cache</div>`;
   }
 
-  // Categorieën
-  const cats = [
-    { id:'controller',   label:'Controllers' },
-    { id:'energiemeter', label:'Energiemeters' },
-    { id:'ct-klem',      label:'CT-klemmen' },
-    { id:'overig',       label:'Overige componenten' },
-    { id:'kabel',        label:'Laadkabels & aansluitingen' },
-  ];
+  html += `<div class="prijs-tabs">
+    <button class="prijs-tab-btn${_prijsTab==='interventie'?' active':''}" data-tab="interventie">Interventies</button>
+    <button class="prijs-tab-btn${_prijsTab==='installatie'?' active':''}" data-tab="installatie">Installaties</button>
+  </div>`;
+
+  // Categorieën (enkel de actieve tab/groep)
+  const cats = PRIJS_CATEGORIEEN.filter(c => c.groep === _prijsTab);
   for (const cat of cats) {
     const items = data.onderdelen.filter(o => o.categorie === cat.id);
-    if (!items.length) continue;
     html += `<div class="prijs-cat">
       <div class="prijs-cat-title">${cat.label}</div>`;
     for (let i = 0; i < items.length; i++) {
@@ -7349,24 +7495,29 @@ function renderPrijsEditor() {
     </div>`;
   }
 
-  // Tarieven
-  html += `<div class="prijs-tarieven-sep"></div>
-    <div class="prijs-cat-title">Tarieven</div>`;
-  for (let i = 0; i < data.tarieven.length; i++) {
-    const t = data.tarieven[i];
-    html += `<div class="prijs-tarief-row">
-      <span class="prijs-tarief-naam">${escHtml(t.naam)}</span>
-      <div class="prijs-input-wrap">
-        <span class="prijs-euro">€</span>
-        <input class="prijs-prijs-input" type="number" min="0" step="0.01"
-          value="${t.prijs}" oninput="prijsTariefUpdate(${i},this.value)" />
-      </div>
-      <span class="prijs-eenheid">/ ${t.eenheid}</span>
-    </div>`;
+  // Tarieven (enkel bij Interventies — arbeidsforfaits, niet relevant bij installatie-meerkost)
+  if (_prijsTab === 'interventie') {
+    html += `<div class="prijs-tarieven-sep"></div>
+      <div class="prijs-cat-title">Tarieven</div>`;
+    for (let i = 0; i < data.tarieven.length; i++) {
+      const t = data.tarieven[i];
+      html += `<div class="prijs-tarief-row">
+        <span class="prijs-tarief-naam">${escHtml(t.naam)}</span>
+        <div class="prijs-input-wrap">
+          <span class="prijs-euro">€</span>
+          <input class="prijs-prijs-input" type="number" min="0" step="0.01"
+            value="${t.prijs}" oninput="prijsTariefUpdate(${i},this.value)" />
+        </div>
+        <span class="prijs-eenheid">/ ${t.eenheid}</span>
+      </div>`;
+    }
   }
 
   body.innerHTML = html;
 
+  body.querySelectorAll('.prijs-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => setPrijsTab(btn.dataset.tab));
+  });
   // cat.id komt uit een hardcoded lijst (geen risico), maar data-attribuut + addEventListener
   // voor consistentie met de rest van de prijzen-blob-afgeleide knoppen.
   body.querySelectorAll('.prijs-btn-voegtoe').forEach(btn => {
@@ -7476,10 +7627,11 @@ async function prijsOpslaan() {
 }
 
 // ── Zoekfunctie voor wizard (exported) ───────────────────────────────────────
-function zoekOnderdelen(query, activeTags) {
+function zoekOnderdelen(query, activeTags, categorieIds) {
   const src = PRIJZEN || PRIJZEN_DEFAULTS;
   const q = (query || '').toLowerCase().trim();
   return src.onderdelen.filter(o => {
+    if (categorieIds && !categorieIds.includes(o.categorie)) return false;
     if (activeTags && activeTags.length) {
       const oTags = (o.tags || []).map(t => t.toLowerCase());
       if (!activeTags.every(t => oTags.includes(t.toLowerCase()))) return false;
@@ -7489,10 +7641,12 @@ function zoekOnderdelen(query, activeTags) {
   });
 }
 
-function getAlleTags() {
+function getAlleTags(categorieIds) {
   const src = PRIJZEN || PRIJZEN_DEFAULTS;
   const set = new Set();
-  src.onderdelen.forEach(o => (o.tags || []).forEach(t => set.add(t)));
+  src.onderdelen
+    .filter(o => !categorieIds || categorieIds.includes(o.categorie))
+    .forEach(o => (o.tags || []).forEach(t => set.add(t)));
   return [...set].sort();
 }
 
