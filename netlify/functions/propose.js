@@ -143,7 +143,7 @@ function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime
     <tr><td style="background:#f7f7f7;border-left:4px solid #00dfa3;border-radius:0 4px 4px 0;padding:18px 22px">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#8a9aaa;margin-bottom:8px">Voorgestelde afspraak</div>
       <div style="font-size:22px;font-weight:700;color:#181e24;margin-bottom:4px">${formattedDate}</div>
-      <div style="font-size:16px;color:#3a3a3a">tussen <strong>${appointmentWindow || appointmentTime}</strong> uur</div>
+      <div style="font-size:16px;color:#3a3a3a">tussen <strong>${escHtml(appointmentWindow || appointmentTime)}</strong> uur</div>
       ${serial}
     </td></tr>
     </table>

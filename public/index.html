@@ -1109,8 +1109,7 @@ function buildTicketCard(stop, dateStr) {
           // klant, ook de exacte geplande tijd als kleiner detail — nuttig voor zijn eigen
           // planning-efficiëntie. buildTicketCard() wordt gedeeld door de desktop-tijdlijn en
           // de mobiele gestapelde lijst, dus dit geldt voor beide (geen mobiel/desktop-verschil).
-          const [h, m] = stop.uur.split(':').map(Number);
-          const win = tijdslotVoor(h * 60 + m).label;
+          const win = tijdslotVoor(timeStrToMin(stop.uur)).label;
           return `<div class="cal-meta" style="font-weight:600">🕐 ${win} <span style="opacity:0.65;font-size:0.85em">(gepland ${stop.uur})</span></div>`;
         })() : ''}
         <div class="cal-sub">${escHtml(stop.ticket.subject) || '—'}</div>
@@ -1538,7 +1537,7 @@ function renderMonthView(today) {
         // Tijdslot-prefix (Task 9, Blok 1C): geeft in de maandweergave meteen een indicatie van
         // het (klant-zichtbare) tijdslot zonder de cel te hoeven openen. Enkel toegevoegd als de
         // stop een uur heeft; geen wijziging aan de onderliggende exacte tijd.
-        const winLabel = s.uur ? tijdslotVoor((() => { const [h,m]=s.uur.split(':').map(Number); return h*60+m; })()).label + ' · ' : '';
+        const winLabel = s.uur ? tijdslotVoor(timeStrToMin(s.uur)).label + ' · ' : '';
         chips.push({ label: `${winLabel}#${s.ticket.number} ${s.ticket.subject || ''}`.trim(), cls: isPend ? 'pending' : 'confirmed' });
       });
 
@@ -3990,7 +3989,7 @@ function updateProposalPreview() {
   // configureerbare tijdslot (bv. "10:00–13:00") waarin apptTime valt. computeArrivalTimes()
   // en de exacte opgeslagen tijd blijven hierdoor volledig ongewijzigd — dit is uitsluitend
   // een weergave-laag via tijdslotVoor() (Task 6).
-  const apptMin    = rawTime ? (() => { const [h,m]=roundToNextQuarterStr(rawTime).split(':').map(Number); return h*60+m; })() : null;
+  const apptMin    = rawTime ? timeStrToMin(roundToNextQuarterStr(rawTime)) : null;
   const apptWindow = apptMin !== null ? tijdslotVoor(apptMin).label : '—';
   const dateFmt  = date
     ? new Date(date + 'T12:00:00').toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
@@ -4078,7 +4077,7 @@ async function sendProposal() {
     // Weergave-tijdslot (Task 9, Blok 1C) — zelfde berekening als updateProposalPreview(), maar
     // hier opnieuw uitgevoerd omdat sendProposal() een aparte functie-scope is. Uitsluitend voor
     // weergave in de mail; utcInterventieDatum/interventieDatum hierboven blijven de exacte tijd.
-    const apptMinSend = rawTime ? (() => { const [h,m]=roundToNextQuarterStr(rawTime).split(':').map(Number); return h*60+m; })() : null;
+    const apptMinSend = rawTime ? timeStrToMin(roundToNextQuarterStr(rawTime)) : null;
     const apptWindowSend = apptMinSend !== null ? tijdslotVoor(apptMinSend).label : '';
 
     const res  = await fetch('/api/propose', {
