@@ -216,6 +216,10 @@
         </div>
       </div>
       <div class="set-field">
+        <label class="set-label">Tijdslot-grootte voor klant/technieker (minuten)</label>
+        <input class="set-input" id="set-tijdslot" type="number" min="60" max="360" step="30" />
+      </div>
+      <div class="set-field">
         <label class="set-label">Werkdagen</label>
         <div class="days-grid" id="days-grid"></div>
       </div>
@@ -639,6 +643,7 @@ const DEFAULT_SETTINGS = {
   totTijd:        '17:00',
   werkdagen:      [1,2,3,4,5],
   maxReistijdMin: 45,
+  tijdslotMinuten: 180, // 3 uur — configureerbaar tijdvak i.p.v. exact tijdstip (Blok 1C)
 };
 
 function settingsKey(person) {
@@ -3571,6 +3576,7 @@ function openSettings() {
   document.getElementById('set-maxreistijd').value = settings.maxReistijdMin;
   document.getElementById('set-van').value      = settings.vanTijd;
   document.getElementById('set-tot').value      = settings.totTijd;
+  document.getElementById('set-tijdslot').value = settings.tijdslotMinuten;
   const grid = document.getElementById('days-grid');
   grid.innerHTML = '';
   DAGEN.forEach((dag, i) => {
@@ -3611,6 +3617,7 @@ function saveSettings() {
   settings.vanTijd        = van  || DEFAULT_SETTINGS.vanTijd;
   settings.totTijd        = tot  || DEFAULT_SETTINGS.totTijd;
   settings.maxReistijdMin = maxReistijd || maxReistijd === 0 ? maxReistijd : DEFAULT_SETTINGS.maxReistijdMin;
+  settings.tijdslotMinuten = parseInt(document.getElementById('set-tijdslot').value, 10) || DEFAULT_SETTINGS.tijdslotMinuten;
   savePersonSettings(activeAssigneeFilter);
   document.getElementById('set-overlay').classList.remove('open');
   renderTickets();
@@ -3725,6 +3732,25 @@ function minToTimeStr(totalMin) {
 function timeStrToMin(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;
+}
+
+// Vertaalt een exact tijdstip (minuten sinds middernacht) naar een configureerbaar tijdslot,
+// uitgelijnd op settings.vanTijd zodat sloten er "netjes" uitzien (bv. 08:00–11:00, 11:00–14:00
+// i.p.v. willekeurige offsets). computeArrivalTimes() zelf blijft ongewijzigd exacte minuten
+// berekenen — dit is uitsluitend een weergave-laag (zie Global Constraints).
+function tijdslotVoor(minuten, slotMinuten) {
+  const slot = slotMinuten || settings.tijdslotMinuten || 180;
+  const [vanH, vanM] = (settings.vanTijd || '08:00').split(':').map(Number);
+  const dagStart = vanH * 60 + vanM;
+  const offset = Math.max(0, minuten - dagStart);
+  const slotIndex = Math.floor(offset / slot);
+  const slotStartMin = dagStart + slotIndex * slot;
+  const slotEndMin = slotStartMin + slot;
+  return {
+    startMin: slotStartMin,
+    endMin: slotEndMin,
+    label: `${minToTimeStr(slotStartMin)}–${minToTimeStr(slotEndMin)}`,
+  };
 }
 
 // Bereken aankomsttijden (minuten na middernacht) per ticket voor een dag.
