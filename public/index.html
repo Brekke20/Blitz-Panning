@@ -747,6 +747,23 @@ document.addEventListener('DOMContentLoaded', () => {
 // ══════════════════════════════════════════════
 // DATA LADEN
 // ══════════════════════════════════════════════
+// Generieke cache-first-helpers (Blok 1D). Elke loader die dit gebruikt: leest eerst synchroon
+// uit localStorage en past dat toe (render meteen "wat lokaal bekend is"), start dan de echte
+// fetch op de achtergrond, en werkt bij zodra die binnenkomt ("stale-while-revalidate"). Dit is
+// een BEWUSTE gedragswijziging t.o.v. vandaag (waar deze 3 loaders bij een fetch-fout terugvallen
+// naar een LEGE staat) — bij een fetch-fout blijft nu de laatst gekende cache staan i.p.v. leeg te
+// worden, wat een verbetering is, geen toevallige bijwerking (zie Task 12's Let op).
+function loadFromCache(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveToCache(key, data) {
+  try { localStorage.setItem(key, JSON.stringify(data)); } catch { /* quota vol o.i.d. — cache is best-effort */ }
+}
+
 async function loadTickets() {
   document.getElementById('empty-tickets').textContent = 'Laden...';
   try {
