@@ -1271,11 +1271,20 @@ function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime
   // ...
   // regel 134, was: <div ...>om <strong>${appointmentTime}</strong> uur</div>
   // wordt:
-  <div style="font-size:16px;color:#3a3a3a">tussen <strong>${appointmentWindow || appointmentTime}</strong> uur</div>
+  <div style="font-size:16px;color:#3a3a3a">tussen <strong>${escHtml(appointmentWindow || appointmentTime)}</strong> uur</div>
 ```
 
-(De `|| appointmentTime`-fallback dekt het geval dat een oudere/andere aanroeper
-`appointmentWindow` niet meestuurt — voorkomt een lege weergave i.p.v. een harde eis.)
+**Correctie (na Task 9-review, 2026-08-14): `escHtml()` is verplicht rond deze interpolatie.**
+Deze code-sample miste oorspronkelijk `escHtml()`, in tegenstelling tot elk ander
+gebruiker-aangeleverd veld in dezelfde functie (`recipientName`/`subject`/`serienummer` worden
+wél al ge-escaped). `appointmentWindow` komt rechtstreeks uit de POST-body van een
+ongeauthenticeerd endpoint (`/api/propose` heeft geen enkele auth-check), zonder
+formaatvalidatie — zonder `escHtml()` is dit een HTML-injectie/phishing-vector in een
+transactionele e-mail die naar echte klant-/installateur-adressen verstuurd wordt via Zoho
+`sendReply`. Gebruik in de praktijk levert de UI altijd een veilig, intern geformatteerd label,
+dus dit was latent (niet via de app zelf uitbuitbaar), maar wel een reëel nieuw aanvalsoppervlak
+dat gefixt moest worden. De `|| appointmentTime`-fallback (dekt het geval dat een oudere/andere
+aanroeper `appointmentWindow` niet meestuurt) blijft ongewijzigd, enkel binnen `escHtml(...)`.
 
 - [ ] **Step 5: Technieker-kaart in de tijdlijn**
 
