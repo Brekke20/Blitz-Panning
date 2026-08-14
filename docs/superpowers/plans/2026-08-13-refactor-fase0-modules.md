@@ -30,20 +30,31 @@ dat gaat ver voorbij wat de windowbridge-conventie per taak dekt, want de meeste
 worden NOOIT verplaatst (ze horen bij het restbestand, niet bij één van de 5 domeinen) en zouden
 dus nooit een eigen windowbridge krijgen.
 
-**Correcte aanpak:** het hoofdscript blijft een klassiek (niet-module) script, maar krijgt het
+**Correcte aanpak:** het hoofdscript blijft een klassiek (niet-module) script met het
 `defer`-attribuut: `<script defer>` in plaats van kaal `<script>` of `type="module"`. Dit lost
-beide problemen tegelijk op:
-- `defer` en `type="module"` gedragen zich beide als "uitgesteld tot na het parsen, in
-  documentvolgorde t.o.v. elkaar" — dus de volgorde-garantie t.o.v. de `type="module"`-tags van
-  Task 1/2/3/4/5 (bv. `window.flushOutbox` moet bestaan vóór het hoofdscript het gebruikt) blijft
-  behouden, exact zoals bedoeld.
-- Een klassiek script (ook met `defer`) behoudt wél het gedrag dat top-level `function`-
-  declaraties impliciete `window`-properties worden — dus elke bestaande `onclick="..."` in het
-  hele bestand (ook alles wat nooit verplaatst wordt) blijft werken zonder dat er ook maar één
-  extra windowbridge nodig is.
+het onclick-probleem op:
+- Een klassiek script (ook met `defer`) behoudt het gedrag dat top-level `function`-declaraties
+  impliciete `window`-properties worden — dus elke bestaande `onclick="..."` in het hele bestand
+  (ook alles wat nooit verplaatst wordt) blijft werken zonder dat er ook maar één extra
+  windowbridge nodig is.
 - Het hoofdscript stond vroeger helemaal onderaan de `<body>` (dus DOM al volledig geparsed
   tegen de tijd dat het liep) — functioneel identiek aan `defer`-timing, dus dit is geen
   gedragswijziging t.o.v. de huidige (pre-Fase-0) situatie.
+
+**Correctie (na de finale Fase-0-review, 2026-08-14): de volgorde-garantie hierboven klopt NIET.**
+`defer` heeft, per HTML-spec, GEEN effect op een *inline* classic script (zonder `src`) — enkel op
+een script met een `src`-attribuut. Live geverifieerd: het hoofdscript voert **onmiddellijk bij
+het parsen uit, vóór alle `type="module"`-tags**, niet erna — het omgekeerde van wat hierboven
+beweerd wordt. Dit brak in de praktijk niets, om een andere reden dan gedocumenteerd: elke
+cross-module-aanroep in het hoofdscript zit binnen de bestaande `DOMContentLoaded`-handler (die
+wél ná alle module-scripts vuurt), en de enkele top-level statements buiten die handler
+(`localStorage.removeItem`, een migratie-`if`, 2×`addEventListener`) raken geen enkele
+window-bridge aan. **De werkelijke garantie is dus: elke aanroep van een window-bridge vanuit het
+hoofdscript moet binnen `DOMContentLoaded` (of later) staan, niet op het top-level van het
+script.** Bij een toekomstige wijziging die een bridge-aanroep vóór `DOMContentLoaded` toevoegt:
+dat breekt met een `ReferenceError`, ondanks `defer`. Het `defer`-attribuut zelf is onschadelijk om
+te laten staan (verwijderen verandert niets), maar vertrouw niet op de volgorde-garantie die hier
+eerder beweerd werd.
 
 **Tech Stack:** Vanille JS, browser-native ES modules, geen build-stap (bevestigd: geen bundler/
 transpiler in dit project — `netlify.toml` zegt letterlijk `command = "echo 'No build step
@@ -71,14 +82,28 @@ de rest van dit project.
 - **Windowbridge-conventie** (herhaald in elke taak, dit is de kernregel van heel dit plan):
   - Voor elke top-level `function`/`const` die je verplaatst EN die (a) vanuit een HTML
     `onclick=`/`onchange=`/`oninput=`-attribuut wordt aangeroepen, OF (b) vanuit code buiten dit
-    nieuwe bestand wordt aangeroepen (zoek dit na met `grep -n "functieNaam("` over heel
-    `public/index.html`, exclusief de plek waar hij zelf staat) — voeg onderaan het nieuwe
-    bestand een regel toe: `window.functieNaam = functieNaam;`.
+    nieuwe bestand wordt aangeroepen — voeg onderaan het nieuwe bestand een regel toe:
+    `window.functieNaam = functieNaam;`.
+  - **Correctie (na de finale Fase-0-review, 2026-08-14): zoek (b) na met
+    `grep -rn "functieNaam(" public/index.html public/js/`, NIET enkel over `public/index.html`.**
+    De oorspronkelijke instructie (enkel `index.html`) was correct zolang er nog geen andere
+    module bestond, maar werd stilzwijgend fout zodra Task 2+ eerder verplaatste code aanriep
+    vanuit een NIEUWE module i.p.v. vanuit `index.html` — dit veroorzaakte precies zo'n gemiste
+    bridge (`berekenLoonkost`, verplaatst naar `rapport-wizard.js` in Task 5, maar al vanaf Task 2
+    aangeroepen vanuit `rapport-archief.js` i.p.v. vanuit `index.html`), pas gevonden bij de
+    finale whole-branch review, niet bij Task 5's eigen taakreview. Doe bij elke taak dus een
+    zoekopdracht over de VOLLEDIGE huidige boom (`index.html` + alles wat al in `public/js/`
+    staat), niet enkel over het restbestand.
   - Functies die uitsluitend intern binnen de nieuwe module gebruikt worden (geen enkele
     `onclick=`/externe aanroep) hoeven niet aan `window` gehangen te worden.
   - Bij twijfel: wél aan `window` hangen — een overbodige window-toewijzing is onschadelijk, een
     ontbrekende breekt de app zichtbaar (ReferenceError in de console, functionaliteit die niet
     meer reageert op een klik).
+  - **Standaard-Eindcontrole-item voor elke toekomstige extractiefase:** voer, ná alle taken, een
+    volledige boomsweep uit: voor elke top-level naam in elke module, als die naam ook ergens
+    BUITEN die module voorkomt (in `index.html` of een andere module), moet hij op `window`
+    hangen. Eén zo'n sweep op het einde had deze bug bij Task 5 zelf gevangen i.p.v. pas bij de
+    finale review.
 
 ---
 
