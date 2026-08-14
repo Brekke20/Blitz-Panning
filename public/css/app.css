@@ -812,3 +812,28 @@
       .desktop-only { display: none !important; }
     }
 
+    /* ── Kalender dagtijdlijn (desktop, week-view) ── */
+    .tl-wrap { position: relative; margin: 0 -6px; }
+    .tl-hour-line {
+      position: absolute; left: 0; right: 0; border-top: 1px dashed var(--border); height: 0;
+    }
+    .tl-hour-label {
+      position: absolute; left: 0; top: -9px; font-size: 0.68rem; color: var(--muted);
+      background: var(--surface2); padding: 0 4px;
+    }
+    .tl-block {
+      position: absolute; left: 34px; right: 6px; overflow: hidden; border-radius: var(--r);
+    }
+    .tl-block .cal-ticket, .tl-block .cal-local-event { height: 100%; margin: 0; }
+    .tl-ongepositioneerd {
+      margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border);
+      display: flex; flex-direction: column; gap: 5px;
+    }
+
+    @media (max-width: 1023px) {
+      /* Tijdlijn wordt sowieso nooit gerenderd onder 1024px (zie de JS-vertakking in
+         renderKalender()), maar voor de zeldzame situatie van een venster-resize zonder
+         herlaad: verberg 'm defensief. */
+      .tl-wrap, .tl-ongepositioneerd { display: none; }
+    }
+

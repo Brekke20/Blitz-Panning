@@ -1167,6 +1167,101 @@ function buildLocalEventCard(ev) {
   return card;
 }
 
+// Tekent één dag als een echte tijdlijn (uur-as, blokken proportioneel aan duur) — enkel voor
+// desktop/web (zie renderKalender()'s responsieve vertakking). Mobiel behoudt de bestaande
+// gestapelde-kaartjeslijst volledig ongewijzigd.
+// Let op: bouwt met echte DOM-nodes (niet HTML-strings) — buildTicketCard/buildLocalEventCard/
+// buildReportCard maken elementen met addEventListener-listeners (klik → detail, navigeer-knop);
+// via een HTML-string (bv. .outerHTML) zouden die listeners bij het opnieuw parsen verloren gaan.
+const TIMELINE_PX_PER_MIN = 1.2;
+const TIMELINE_MIN_BLOCK_PX = 26;
+
+function timelineTopHeight(startMin, endMin, dagStartMin) {
+  const top = Math.max(0, (startMin - dagStartMin) * TIMELINE_PX_PER_MIN);
+  const height = Math.max(TIMELINE_MIN_BLOCK_PX, (endMin - startMin) * TIMELINE_PX_PER_MIN);
+  return { top, height };
+}
+
+function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports) {
+  const [vanH, vanM] = (settings.vanTijd || '08:00').split(':').map(Number);
+  const [totH, totM] = (settings.totTijd || '17:00').split(':').map(Number);
+  const dagStartMin = vanH * 60 + vanM;
+  const dagEindMin  = totH * 60 + totM;
+  const totalHeight = Math.max(TIMELINE_MIN_BLOCK_PX, (dagEindMin - dagStartMin) * TIMELINE_PX_PER_MIN);
+
+  const frag = document.createDocumentFragment();
+
+  const wrap = document.createElement('div');
+  wrap.className = 'tl-wrap';
+  wrap.style.height = `${totalHeight}px`;
+
+  for (let h = vanH; h <= totH; h++) {
+    const top = (h * 60 - dagStartMin) * TIMELINE_PX_PER_MIN;
+    const line = document.createElement('div');
+    line.className = 'tl-hour-line';
+    line.style.top = `${top}px`;
+    const label = document.createElement('span');
+    label.className = 'tl-hour-label';
+    label.textContent = `${String(h).padStart(2,'0')}:00`;
+    line.appendChild(label);
+    wrap.appendChild(line);
+  }
+
+  dayStops.forEach(stop => {
+    if (!stop.uur) return; // geen tijdstip toegekend — blijft ongepositioneerd, zie hieronder
+    const [h, m] = stop.uur.split(':').map(Number);
+    const startMin = h * 60 + m;
+    const duur = duurVoor(stop.ticket.id);
+    const endMin = startMin + duur;
+    const { top, height } = timelineTopHeight(startMin, endMin, dagStartMin);
+    const block = document.createElement('div');
+    block.className = 'tl-block tl-ticket';
+    block.style.top = `${top}px`;
+    block.style.height = `${height}px`;
+    block.dataset.ticketId = stop.ticket.id;
+    block.appendChild(buildTicketCard(stop, dateStr));
+    wrap.appendChild(block);
+  });
+
+  dayEvents.forEach(ev => {
+    if (!ev.uur) return;
+    const [h, m] = ev.uur.split(':').map(Number);
+    const startMin = h * 60 + m;
+    let endMin = startMin + (settings.tijdslotMinuten || 180) / 3; // fallback: 1u als geen einduur
+    if (ev.einduur) {
+      const [eh, em] = ev.einduur.split(':').map(Number);
+      endMin = eh * 60 + em;
+    }
+    const { top, height } = timelineTopHeight(startMin, endMin, dagStartMin);
+    const block = document.createElement('div');
+    block.className = 'tl-block tl-event';
+    block.style.top = `${top}px`;
+    block.style.height = `${height}px`;
+    block.appendChild(buildLocalEventCard(ev));
+    wrap.appendChild(block);
+  });
+
+  frag.appendChild(wrap);
+
+  // Rapporten (afgeronde bezoeken) blijven, net als vandaag, gewoon in de lijst ONDER de
+  // tijdlijn getekend — ze hebben geen "gepland tijdstip" om te positioneren (rapportData.start
+  // is de WERKELIJKE starttijd achteraf, geen planningstijd), dus geen zinvolle positie op de
+  // vooruit-geplande-tijdlijn. Consistente behandeling met hoe niet-gepositioneerde tickets
+  // hieronder ook als losse rij getoond worden.
+  const ongepositioneerd = [
+    ...dayStops.filter(s => !s.uur).map(s => buildTicketCard(s, dateStr)),
+    ...dayReports.map(r => buildReportCard(r)),
+  ];
+  if (ongepositioneerd.length) {
+    const onderaan = document.createElement('div');
+    onderaan.className = 'tl-ongepositioneerd';
+    ongepositioneerd.forEach(el => onderaan.appendChild(el));
+    frag.appendChild(onderaan);
+  }
+
+  return frag;
+}
+
 function renderKalender() {
   const today     = new Date(); today.setHours(0,0,0,0);
 
@@ -1282,18 +1377,25 @@ function renderKalender() {
       !dayEvents.some(e => e.id === r.ticketId)
     );
 
-    const timeline = [
-      ...dayStops.map(stop => ({ kind: 'ticket', sortKey: stop.uur || '99:99', stop })),
-      ...dayEvents.map(ev   => ({ kind: 'event',  sortKey: ev.uur   || '99:99', ev })),
-      ...dayReports.map(r    => ({ kind: 'report', sortKey: r.rapportData?.start || '99:99', report: r })),
-    ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+    const dayBodyEl = col.querySelector('.day-body');
+    const isDesktopTijdlijn = window.innerWidth >= 1024;
+    if (isDesktopTijdlijn) {
+      dayBodyEl.appendChild(renderDayTimeline(dateStr, dayStops, dayEvents, dayReports));
+    } else {
+      // Bestaande gestapelde-kaartjeslijst-logica — VOLLEDIG ONGEWIJZIGD.
+      const timeline = [
+        ...dayStops.map(stop => ({ kind: 'ticket', sortKey: stop.uur || '99:99', stop })),
+        ...dayEvents.map(ev   => ({ kind: 'event',  sortKey: ev.uur   || '99:99', ev })),
+        ...dayReports.map(r    => ({ kind: 'report', sortKey: r.rapportData?.start || '99:99', report: r })),
+      ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
-    timeline.forEach(item => {
-      const card = item.kind === 'ticket' ? buildTicketCard(item.stop, dateStr)
-        : item.kind === 'event' ? buildLocalEventCard(item.ev)
-        : buildReportCard(item.report);
-      col.querySelector('.day-body').appendChild(card);
-    });
+      timeline.forEach(item => {
+        const card = item.kind === 'ticket' ? buildTicketCard(item.stop, dateStr)
+          : item.kind === 'event' ? buildLocalEventCard(item.ev)
+          : buildReportCard(item.report);
+        dayBodyEl.appendChild(card);
+      });
+    }
 
     // "—" placeholder verwijderen als er nu events of afgeronde rapporten zijn
     if (dayStops.length === 0 && (dayEvents.length > 0 || dayReports.length > 0)) {
@@ -1314,7 +1416,7 @@ function renderKalender() {
         setTab('planning');
         renderRouteList(dateStr);
       };
-      col.querySelector('.day-body').prepend(rb);
+      dayBodyEl.prepend(rb);
     }
 
     grid.appendChild(col);
