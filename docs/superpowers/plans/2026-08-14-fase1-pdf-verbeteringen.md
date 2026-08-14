@@ -58,7 +58,25 @@ Task 1). Geen build-stap, geen bundler, geen testframework — verificatie via `
 
 ## Blok 1A — Bevestigingsknop in de voorstelmail
 
-### Task 1: HMAC-ondertekende bevestigingslink + nieuwe `confirm-afspraak.js`-functie
+### Task 1: HMAC-ondertekende bevestigingslink + nieuwe `confirm-afspraak.js`-functie (met expliciete tweede bevestigingsstap + IP/tijdstip-logging)
+
+**Amendement (2026-08-14, na overleg met Brent — juridische/technische afweging vóór de bouw):**
+een link die BIJ HET OPENEN meteen bevestigt (een kale `GET` met side-effects) is riskant: veel
+zakelijke mailservers/beveiligingsfilters (bv. Microsoft Defender for Office 365 "Safe Links")
+**openen automatisch elke link in een binnenkomende e-mail om hem te scannen op phishing/malware**
+— vóór de klant de mail zelf ooit geopend heeft. Met een directe GET-bevestiging zou zo'n
+automatische scan de afspraak per ongeluk kunnen bevestigen zonder dat de klant ooit zelf geklikt
+heeft — zowel een technisch lek als het zwakste mogelijke bewijspunt in een eventueel geschil
+("ik heb nooit bevestigd, dat deed mijn mailserver"). **Daarom, gewijzigd t.o.v. de oorspronkelijke
+opzet: de `GET` toont enkel een pagina met een echte "Ja, ik bevestig deze afspraak"-knop (een
+HTML-`<form method="POST">`, geen JavaScript-afhankelijkheid, geen side-effects) — pas de
+`POST` die de klant zelf via die knop verstuurt, voert de eigenlijke bevestiging uit** (Zoho-status
+wijzigen + IP-adres/tijdstip vastleggen als interne notitie op het ticket, zie Step 4).
+**Brent heeft dit expliciet gevraagd na een uitleg over de juridische/technische risico's van een
+directe GET-bevestiging — dit is geen eigen aanname, maar een bevestigde ontwerpkeuze.**
+Brent bespreekt de juridische geldigheid van deze bevestigingsmethode zelf nog met een
+jurist/boekhouder — dit plan bouwt de technisch meest verdedigbare variant (expliciete
+menselijke actie, IP+tijdstip vastgelegd), maar de uiteindelijke juridische beoordeling is aan hem.
 
 **Files:**
 - Create: `netlify/functions/confirm-afspraak.js`
@@ -69,7 +87,7 @@ Task 1). Geen build-stap, geen bundler, geen testframework — verificatie via `
 - Produces: `signConfirmToken(ticketId, expiresAtEpochSeconds)` / `verifyConfirmToken(ticketId, expiresAtEpochSeconds, signature)` — gebruikt door Task 2 (die de link opbouwt bij het versturen van een voorstel).
 - Consumes: niets van eerdere taken.
 
-- [ ] **Step 1: Lees de bestaande PATCH- en CORS-patronen ter controle**
+- [ ] **Step 1: Lees de bestaande PATCH-, comment-, en CORS-patronen ter controle**
 
 Bevestig met een `Read` van `netlify/functions/propose.js` (regels 316-327) het exacte
 PATCH-patroon (`Authorization: Zoho-oauthtoken <token>`, `orgId`-header, body
@@ -78,7 +96,12 @@ publieke-functie-patroon: `export default async (req) => {...}`, een `ALLOWED_OR
 `corsHeaders(req)`-helper, en `export const config = { path: '/api/...' };` onderaan het bestand
 (in tegenstelling tot `propose.js`, dat de oudere CommonJS `exports.handler`-stijl gebruikt en op
 de `netlify.toml` `/api/*`-redirect leunt — de nieuwe functie volgt het `fotos.js`-patroon, niet
-het `propose.js`-patroon).
+het `propose.js`-patroon). **Bevestig ook met Zoho Desk's officiële REST API-documentatie
+(desk.zoho.com/DeskAPIDocument — een ticket-comment toevoegen is een publiek, stabiel
+Zoho-endpoint) het exacte pad en body-formaat voor `POST /tickets/{ticketId}/comments`** —
+dit project gebruikt dat endpoint nergens vandaag (enkel `resolution`-veld-PATCHes in
+`comment.js`, dat is iets anders), dus dit is nieuw en moet tegen Zoho's eigen documentatie
+geverifieerd worden, niet enkel tegen deze planningstekst.
 
 - [ ] **Step 2: `netlify/functions/confirm-afspraak.js` aanmaken**
 
@@ -87,6 +110,13 @@ het `propose.js`-patroon).
 // Publieke, token-gevalideerde bevestigingslink uit de voorstelmail (Blok 1A). Geen login/auth
 // zoals de rest van deze app — geldigheid wordt bewezen door een HMAC-ondertekende token in de
 // URL (ticketId + vervaldatum + signature), niet door een sessie/wachtwoord.
+//
+// Bewust TWEE stappen (zie het amendement bovenaan Task 1 in het plan):
+//   GET  -> toont een pagina met een "Ja, ik bevestig"-knop, GEEN side-effects (veilig voor
+//           e-mail-scanners die links automatisch openen/pre-fetchen).
+//   POST -> enkel bereikbaar door een echte klik op die knop (een <form>, geen link) -- voert
+//           de eigenlijke bevestiging uit: Zoho-status wijzigen + IP/tijdstip als interne notitie
+//           op het ticket vastleggen.
 import crypto from 'node:crypto';
 
 const ALLOWED_ORIGINS = [
@@ -124,7 +154,7 @@ function verify(ticketId, exp, sig) {
   return crypto.timingSafeEqual(a, b);
 }
 
-function htmlPage({ title, message, ok }) {
+function htmlPage({ title, message, ok, confirmForm }) {
   return `<!DOCTYPE html>
 <html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${title}</title>
@@ -132,24 +162,75 @@ function htmlPage({ title, message, ok }) {
   body{font-family:Arial,Helvetica,sans-serif;background:#f4f6f8;margin:0;padding:40px 16px;display:flex;justify-content:center}
   .card{max-width:420px;background:#fff;border-radius:8px;padding:32px 28px;box-shadow:0 2px 12px rgba(0,0,0,.08);text-align:center}
   h1{font-size:18px;color:#181e24;margin:0 0 12px}
-  p{font-size:14px;color:#3a3a3a;line-height:1.5;margin:0}
+  p{font-size:14px;color:#3a3a3a;line-height:1.5;margin:0 0 18px}
   .icon{font-size:40px;margin-bottom:12px}
+  .confirm-btn{display:inline-block;background:#00dfa3;color:#181e24;text-decoration:none;
+    font-weight:700;font-size:14px;padding:12px 28px;border-radius:6px;border:none;cursor:pointer}
 </style></head>
 <body><div class="card">
   <div class="icon">${ok ? '✅' : '⚠️'}</div>
   <h1>${title}</h1>
   <p>${message}</p>
+  ${confirmForm || ''}
 </div></body></html>`;
+}
+
+function confirmFormHtml(ticketId, exp, sig) {
+  return `<form method="POST" action="/api/confirm-afspraak">
+    <input type="hidden" name="ticketId" value="${ticketId}">
+    <input type="hidden" name="exp" value="${exp}">
+    <input type="hidden" name="sig" value="${sig}">
+    <button type="submit" class="confirm-btn">✅ Ja, ik bevestig deze afspraak</button>
+  </form>`;
+}
+
+async function addZohoComment(ticketId, accessToken, orgId, content) {
+  // Interne notitie op het ticket (isPublic:false -- niet zichtbaar voor de klant, enkel intern).
+  // Bevestig het exacte pad/body-formaat tegen Zoho Desk's officiële API-documentatie (zie
+  // Step 1) vóór je dit als correct aanneemt.
+  const res = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/comments`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Zoho-oauthtoken ${accessToken}`,
+      orgId,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ content, isPublic: false }),
+  });
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    console.error('Zoho ticket-comment mislukt:', res.status, errBody);
+    // Bewust NIET de hele bevestiging laten falen als enkel de comment mislukt -- de
+    // status-PATCH (het functioneel belangrijkste deel) gebeurt apart en eerst. Wel loggen
+    // zodat dit zichtbaar is in de Netlify function-logs.
+  }
+}
+
+function clientIp(req) {
+  // Netlify Functions zetten het echte client-IP in deze header (niet 'x-forwarded-for', dat
+  // kan door de klant zelf vervalst worden op sommige platformen) -- BEVESTIG dit exact tegen
+  // Netlify's actuele documentatie vóór je dit vertrouwt voor een bewijsdoeleinde, en test het
+  // live op een echte deploy (lokaal via `node dev-server.mjs` zal deze header ontbreken/leeg
+  // zijn -- dat is verwacht, geen bug, zie Step 5).
+  return req.headers.get('x-nf-client-connection-ip') || req.headers.get('x-forwarded-for') || 'onbekend';
 }
 
 export default async (req) => {
   const headers = { ...corsHeaders(req), 'Content-Type': 'text/html; charset=utf-8' };
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
-  const url = new URL(req.url);
-  const ticketId = url.searchParams.get('ticketId') || '';
-  const exp = url.searchParams.get('exp') || '';
-  const sig = url.searchParams.get('sig') || '';
+  let ticketId, exp, sig;
+  if (req.method === 'POST') {
+    const form = await req.formData();
+    ticketId = form.get('ticketId') || '';
+    exp = form.get('exp') || '';
+    sig = form.get('sig') || '';
+  } else {
+    const url = new URL(req.url);
+    ticketId = url.searchParams.get('ticketId') || '';
+    exp = url.searchParams.get('exp') || '';
+    sig = url.searchParams.get('sig') || '';
+  }
 
   if (!verify(ticketId, exp, sig)) {
     return new Response(htmlPage({
@@ -159,6 +240,17 @@ export default async (req) => {
     }), { status: 400, headers });
   }
 
+  if (req.method === 'GET') {
+    // Enkel de bevestigingspagina tonen -- GEEN side-effects, veilig voor e-mail-scanners.
+    return new Response(htmlPage({
+      title: 'Afspraak bevestigen',
+      message: 'Klik hieronder om deze afspraak te bevestigen.',
+      ok: true,
+      confirmForm: confirmFormHtml(ticketId, exp, sig),
+    }), { status: 200, headers });
+  }
+
+  // Vanaf hier: enkel bereikbaar via de POST die de "Ja, ik bevestig"-knop verstuurt.
   try {
     const accessToken = await getAccessToken();
     const orgId = await getOrgId(accessToken);
@@ -180,6 +272,11 @@ export default async (req) => {
         ok: false,
       }), { status: 502, headers });
     }
+
+    const ip = clientIp(req);
+    const timestamp = new Date().toLocaleString('nl-BE', { timeZone: 'Europe/Brussels' });
+    await addZohoComment(ticketId, accessToken, orgId,
+      `Afspraak bevestigd door klant via bevestigingslink op ${timestamp} (Europe/Brussels). IP-adres: ${ip}.`);
   } catch (e) {
     console.error('confirm-afspraak fout:', e);
     return new Response(htmlPage({
@@ -238,20 +335,26 @@ Voeg, naar analogie van de bestaande `[functions.propose]`/`[functions.rapport]`
 
 Start `node dev-server.mjs`. Zet in je lokale `.env.local` een test-`CONFIRM_LINK_SECRET`. Test
 via een klein Node-scriptje (of `node -e`) dat `signConfirmToken('t1', Math.floor(Date.now()/1000)+3600)`
-een hex-string teruggeeft, en dat een GET naar
-`http://localhost:3333/api/confirm-afspraak?ticketId=t1&exp=<toekomstig>&sig=<juiste-signature>`
-een 200 met de "Afspraak bevestigd"-pagina teruggeeft (de Zoho-PATCH zal lokaal falen zonder
-geldige Zoho-credentials in `.env.local` — bevestig in dat geval dat je een 500/502 met de
-"Er ging iets mis"-pagina krijgt, niet een crash/onafgehandelde exception — en test apart, met een
-verkeerde `sig` of een `exp` in het verleden, dat je de 400 "Link ongeldig of verlopen"-pagina
-krijgt). Dit is voldoende dekking voor dit geïsoleerde taakonderdeel; de volledige end-to-end-flow
-(inclusief een echte Zoho-PATCH) wordt in Task 3 getest.
+een hex-string teruggeeft. Test de GET: `http://localhost:3333/api/confirm-afspraak?ticketId=t1&exp=<toekomstig>&sig=<juiste-signature>`
+moet een 200 met de "Ja, ik bevestig"-knop-pagina teruggeven, **zonder dat er een Zoho-PATCH
+gebeurt** (bevestig dit expliciet — bv. door tijdelijk een `console.log`/breakpoint te zetten in
+het POST-pad en te controleren dat die NIET geraakt wordt bij een GET). Test daarna de POST (via
+de knop zelf in de browser, of een curl/fetch met dezelfde form-velden): bevestig dat de
+Zoho-PATCH nu wél gebeurt (zal lokaal falen zonder geldige Zoho-credentials in `.env.local` —
+bevestig in dat geval een 500/502 met de "Er ging iets mis"-pagina, geen crash/onafgehandelde
+exception). Test apart, met een verkeerde `sig` of een `exp` in het verleden, dat je de 400
+"Link ongeldig of verlopen"-pagina krijgt (zowel op GET als POST). **`clientIp(req)` zal lokaal
+`'onbekend'` teruggeven** (de `x-nf-client-connection-ip`-header bestaat enkel op een echte
+Netlify-deploy) — dit is verwacht voor de lokale test; de echte IP-vastlegging kan pas na een
+echte deploy grondig geverifieerd worden (meld dit als een openstaand na-deploy-controlepunt in
+je taakrapport). Dit is voldoende dekking voor dit geïsoleerde taakonderdeel; de volledige
+end-to-end-flow (inclusief een echte Zoho-PATCH + comment) wordt in Task 3 getest.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add netlify/functions/confirm-afspraak.js .env.local.example netlify.toml
-git commit -m "feat: bevestigingslink-endpoint (HMAC-token) voor voorstelmail"
+git commit -m "feat: bevestigingslink-endpoint (HMAC-token, tweestaps GET+POST, IP/tijdstip-logging) voor voorstelmail"
 ```
 
 ---
@@ -347,9 +450,13 @@ bevestigen door te antwoorden) een knop toe, in dezelfde inline-stijl als de res
 Laat de bestaande tekst "Gelieve deze afspraak te bevestigen door op deze e-mail te
 antwoorden…" (rond regel 139-143) ongewijzigd staan — de knop is een snellere ALTERNATIEVE weg,
 geen vervanging; pas de tekst wel licht aan zodat hij niet tegenstrijdig klinkt, bv.:
-"Klik op de knop hierboven om deze afspraak te bevestigen, of antwoord op deze e-mail. Komt het
-voorgestelde tijdstip u niet uit? Laat het ons dan weten via een antwoord op deze e-mail, zodat
-we samen een alternatief zoeken."
+"Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen, of
+antwoord op deze e-mail. Komt het voorgestelde tijdstip u niet uit? Laat het ons dan weten via een
+antwoord op deze e-mail, zodat we samen een alternatief zoeken." **Let op de exacte formulering
+"klik... en bevestig op de volgende pagina"** — de knop zelf bevestigt niet meteen (zie Task 1's
+amendement: de link opent een tussenpagina met een eigen "Ja, ik bevestig"-knop); de e-mailtekst
+mag niet suggereren dat de klik zelf al de bevestiging is, dat zou zowel verwarrend zijn als de
+bewijswaarde van de expliciete tweede stap ondermijnen.
 
 - [ ] **Step 5: Verifieer live**
 
@@ -358,8 +465,10 @@ Start `node dev-server.mjs`, gebruik de bestaande `?test`-testmodus of een echte
 de gegenereerde e-mail-HTML (te zien via de lokale dev-server console-log of, als er geen echte
 Zoho-mailversturing lokaal werkt, door `buildEmailHtml(...)` direct aan te roepen met testdata in
 een Node-REPL) bevat de nieuwe knop met een geldige, ondertekende `confirmUrl`. Klik de link
-(lokaal, via de fallback-poort uit Step 3) en bevestig dat `confirm-afspraak.js` reageert zoals in
-Task 1 getest. **Bevestig ook dat het bestaande "antwoorden op de mail"-pad (de status-PATCH naar
+(lokaal, via de fallback-poort uit Step 3): bevestig dat je op de tussenpagina met de "Ja, ik
+bevestig"-knop landt (GEEN meteen-bevestigen), klik die knop, en bevestig dat de eigenlijke
+bevestiging (met IP/tijdstip-notitie) dan pas gebeurt, zoals in Task 1 getest. **Bevestig ook dat
+het bestaande "antwoorden op de mail"-pad (de status-PATCH naar
 `'Wachten op bevestiging planning'`, regel 316-327) volledig ongewijzigd blijft werken** — dat
 pad hoort dit blok niet te raken.
 
@@ -381,11 +490,15 @@ git commit -m "feat: bevestigingsknop in voorstelmail (Blok 1A)"
 Start `node dev-server.mjs`. Doorloop: open een ticket in de Wachtrij → "📨 Voorstel" → verstuur
 een voorstel → bevestig dat de status-PATCH (`'Wachten op bevestiging planning'`) nog steeds
 correct gebeurt (ongewijzigd bestaand gedrag) → haal de gegenereerde bevestigingslink op (uit de
-dev-server-log of door `buildEmailHtml`/`signConfirmToken` direct te testen) → klik de link →
-bevestig dat de statuspagina "Afspraak bevestigd" toont en dat (indien geldige lokale
-Zoho-credentials beschikbaar zijn) de Zoho-status effectief naar `'Geplande support'` verandert.
-Test ook het foutpad: een verlopen of onjuist ondertekende link → "Link ongeldig of
-verlopen"-pagina, geen crash.
+dev-server-log of door `buildEmailHtml`/`signConfirmToken` direct te testen) → open de link (GET):
+bevestig dat dit ENKEL de tussenpagina met de "Ja, ik bevestig"-knop toont en dat er geen
+Zoho-PATCH gebeurt op dit punt (test dit expliciet, bv. door de Zoho-credentials tijdelijk
+onjuist te zetten en te bevestigen dat de GET alsnog gewoon de tussenpagina toont in plaats van
+een fout — het foutpad hoort pas bij de POST te horen) → klik de "Ja, ik bevestig"-knop (de POST):
+bevestig dat de statuspagina "Afspraak bevestigd" nu pas toont en dat (indien geldige lokale
+Zoho-credentials beschikbaar zijn) de Zoho-status effectief naar `'Geplande support'` verandert
+mét een interne notitie op het ticket (IP + tijdstip). Test ook het foutpad: een verlopen of
+onjuist ondertekende link → "Link ongeldig of verlopen"-pagina op zowel GET als POST, geen crash.
 
 - [ ] **Step 2: Commit (indien fixes nodig waren tijdens deze test)**
 
