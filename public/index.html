@@ -186,7 +186,11 @@
       <div class="mhdr-title">⚙️ Instellingen</div>
       <div class="mhdr-num" id="set-person-label" style="font-size:0.78rem;color:var(--accent);margin-top:2px"></div>
     </div>
-    <div class="mbody">
+    <div class="set-subtabs">
+      <button class="set-subtab active" id="set-subtab-algemeen" onclick="setSettingsTab('algemeen')">Algemeen</button>
+      <button class="set-subtab" id="set-subtab-beschikbaarheden" onclick="setSettingsTab('beschikbaarheden')">Beschikbaarheden</button>
+    </div>
+    <div class="mbody" id="set-tab-algemeen">
       <div class="set-field">
         <label class="set-label">Startlocatie</label>
         <input class="set-input" id="set-start" type="text" placeholder="bv. Heirbaan 9, 9150 Kruibeke" />
@@ -216,10 +220,13 @@
         <div class="days-grid" id="days-grid"></div>
       </div>
     </div>
+    <div class="mbody" id="set-tab-beschikbaarheden" style="display:none">
+      <!-- Ingevuld door renderBeschikbaarhedenTab() -->
+    </div>
     <div class="mftr">
       <button class="btn-cancel" onclick="openPrijsBeheer()" title="Beheer productprijzen">💰 Prijzen</button>
       <button class="btn-cancel" onclick="closeSettings()">Annuleren</button>
-      <button class="btn-save"   onclick="saveSettings()">Opslaan</button>
+      <button class="btn-save" id="set-save-btn" onclick="saveSettings()">Opslaan</button>
     </div>
   </div>
 </div>
@@ -3370,7 +3377,192 @@ async function togglePlanFromDetail() {
 // ══════════════════════════════════════════════
 const DAGEN = ['Zo','Ma','Di','Wo','Do','Vr','Za'];
 
+let _settingsActiveTab = 'algemeen';
+
+function setSettingsTab(tab) {
+  _settingsActiveTab = tab;
+  document.getElementById('set-subtab-algemeen').classList.toggle('active', tab === 'algemeen');
+  document.getElementById('set-subtab-beschikbaarheden').classList.toggle('active', tab === 'beschikbaarheden');
+  document.getElementById('set-tab-algemeen').style.display = tab === 'algemeen' ? '' : 'none';
+  document.getElementById('set-tab-beschikbaarheden').style.display = tab === 'beschikbaarheden' ? '' : 'none';
+  document.getElementById('set-save-btn').style.display = tab === 'algemeen' ? '' : 'none';
+  if (tab === 'beschikbaarheden') renderBeschikbaarhedenTab();
+}
+
+let _bavFormDate  = new Date().toISOString().split('T')[0];
+let _bavFormDateTot = null;
+let _bavFormMultiDay = false;
+let _bavFormKind  = 'fullday';
+let _bavFormScope = activeAssigneeFilter !== 'all' ? 'person' : 'global';
+
+function renderBeschikbaarhedenTab() {
+  const body = document.getElementById('set-tab-beschikbaarheden');
+  if (!body) return;
+
+  const today = new Date().toISOString().split('T')[0];
+  const upcoming = avExceptions
+    .filter(e => e.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const existingHtml = upcoming.length === 0
+    ? `<div class="av-empty">Geen geplande beschikbaarheids-uitzonderingen.</div>`
+    : upcoming.map(e => {
+        const whoLabel = e.scope === 'global' ? 'Iedereen' : (e.person || '?');
+        const kindLabel = e.kind === 'fullday' ? '🔒 Hele dag' : `⏱ ${e.from}–${e.to}`;
+        const dateLabel = new Date(e.date + 'T12:00:00').toLocaleDateString('nl-BE', { day:'numeric', month:'short', year:'numeric' });
+        const reasonPart = e.reason ? ` — ${escHtml(e.reason)}` : '';
+        return `<div class="av-item">
+          <span class="av-item-label">${escHtml(dateLabel)} · ${kindLabel}${reasonPart} <span class="av-item-who">(${escHtml(whoLabel)})</span></span>
+          <button class="av-item-del" data-exception-id="${escHtml(e.id)}" title="Verwijderen">✕</button>
+        </div>`;
+      }).join('');
+
+  const myPerson = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+  const defaultVan = settings.vanTijd || '08:00';
+  const defaultTot = settings.totTijd || '17:00';
+  const scopeOptions = myPerson
+    ? `<button class="av-radio-btn ${_bavFormScope === 'person' ? 'active' : ''}" onclick="bavSetScope('person')">👤 ${escHtml(myPerson.split(' ')[0])}</button>
+       <button class="av-radio-btn ${_bavFormScope === 'global' ? 'active' : ''}" onclick="bavSetScope('global')">👥 Iedereen</button>`
+    : `<button class="av-radio-btn active" disabled>👥 Iedereen</button>`;
+
+  body.innerHTML = `
+    <div class="av-section-title">Geplande uitzonderingen</div>
+    <div class="av-existing">${existingHtml}</div>
+    <div class="av-form">
+      <div>
+        <div class="av-section-title">Datum</div>
+        <input type="date" class="av-time-input" id="bav-date" value="${_bavFormDate}" onchange="_bavFormDate=this.value" />
+      </div>
+      <div>
+        <div class="av-section-title">Type</div>
+        <div class="av-radio-group">
+          <button class="av-radio-btn ${_bavFormKind === 'fullday' ? 'active' : ''}" onclick="bavSetKind('fullday')">🔒 Hele dag</button>
+          <button class="av-radio-btn ${_bavFormKind === 'range'   ? 'active' : ''}" onclick="bavSetKind('range')">⏱ Tijdvak</button>
+        </div>
+      </div>
+      ${_bavFormKind === 'fullday' ? `
+      <div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer">
+          <input type="checkbox" id="bav-multiday" onchange="bavSetMultiDay(this.checked)" ${_bavFormMultiDay ? 'checked' : ''} />
+          Meerdere werkdagen (verlof)
+        </label>
+        ${_bavFormMultiDay ? `
+        <div class="av-time-row" style="gap:8px;margin-top:8px">
+          <span style="font-size:0.8rem;color:var(--muted)">Tot</span>
+          <input type="date" class="av-time-input" id="bav-date-tot" value="${_bavFormDateTot || ''}" onchange="_bavFormDateTot=this.value" />
+        </div>` : ''}
+      </div>` : `
+      <div>
+        <div class="av-section-title">Tijdvak</div>
+        <div class="av-time-row">
+          <span style="font-size:0.8rem;color:var(--muted)">Van</span>
+          <input class="av-time-input" id="bav-van" type="time" value="${defaultVan}" />
+          <span style="font-size:0.8rem;color:var(--muted)">Tot</span>
+          <input class="av-time-input" id="bav-tot" type="time" value="${defaultTot}" />
+        </div>
+      </div>`}
+      <div>
+        <div class="av-section-title">Voor</div>
+        <div class="av-radio-group">${scopeOptions}</div>
+      </div>
+      <div>
+        <div class="av-section-title">Reden <span style="font-weight:400;text-transform:none;letter-spacing:0">(optioneel)</span></div>
+        <input class="av-reden-input" id="bav-reden" type="text" placeholder="bv. Verlof, dokter, opleiding…" />
+      </div>
+      <button class="av-add-btn" onclick="avAddExceptionFromSettings()">➕ Toevoegen</button>
+    </div>`;
+
+  body.querySelectorAll('.av-item-del').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await avRemoveException(btn.dataset.exceptionId || '');
+      renderBeschikbaarhedenTab();
+    });
+  });
+}
+
+function bavSetKind(kind) {
+  _bavFormKind = kind;
+  if (kind !== 'fullday') _bavFormMultiDay = false;
+  renderBeschikbaarhedenTab();
+}
+
+function bavSetScope(scope) {
+  _bavFormScope = scope;
+  renderBeschikbaarhedenTab();
+}
+
+function bavSetMultiDay(checked) {
+  _bavFormMultiDay = checked;
+  if (!checked) _bavFormDateTot = null;
+  renderBeschikbaarhedenTab();
+}
+
+async function avAddExceptionFromSettings() {
+  const myPerson = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+  const scope    = (myPerson && _bavFormScope === 'person') ? 'person' : 'global';
+  const from     = _bavFormKind === 'range' ? (document.getElementById('bav-van')?.value || settings.vanTijd) : null;
+  const to       = _bavFormKind === 'range' ? (document.getElementById('bav-tot')?.value || settings.totTijd) : null;
+  const reason   = document.getElementById('bav-reden')?.value?.trim() || '';
+
+  if (_bavFormKind === 'range' && from >= to) {
+    toast('⚠ Eindtijd moet na begintijd liggen', 2500);
+    return;
+  }
+
+  if (_bavFormKind === 'fullday' && _bavFormMultiDay && _bavFormDateTot) {
+    const vanDate = new Date(_bavFormDate    + 'T12:00:00');
+    const totDate = new Date(_bavFormDateTot + 'T12:00:00');
+    if (totDate < vanDate) {
+      toast('⚠ Einddatum moet na startdatum liggen', 2500);
+      return;
+    }
+    const newExceptions = [];
+    const cur = new Date(vanDate);
+    while (cur <= totDate) {
+      if (settings.werkdagen.includes(cur.getDay())) {
+        newExceptions.push({
+          id: crypto.randomUUID(), scope, person: scope === 'person' ? myPerson : null,
+          date: cur.toISOString().split('T')[0], kind: 'fullday', from: null, to: null, reason,
+        });
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+    if (!newExceptions.length) {
+      toast('⚠ Geen werkdagen in de geselecteerde periode', 2500);
+      return;
+    }
+    avExceptions.push(...newExceptions);
+    _bavFormMultiDay = false;
+    _bavFormDateTot  = null;
+    renderBeschikbaarhedenTab();
+    renderKalender();
+    const ok = await saveAvailability();
+    if (!ok) {
+      const ids = new Set(newExceptions.map(e => e.id));
+      avExceptions = avExceptions.filter(e => !ids.has(e.id));
+      renderBeschikbaarhedenTab();
+      renderKalender();
+    }
+    return;
+  }
+
+  const ex = {
+    id: crypto.randomUUID(), scope, person: scope === 'person' ? myPerson : null,
+    date: _bavFormDate, kind: _bavFormKind, from, to, reason,
+  };
+  avExceptions.push(ex);
+  renderBeschikbaarhedenTab();
+  renderKalender();
+  const ok = await saveAvailability();
+  if (!ok) {
+    avExceptions = avExceptions.filter(e => e.id !== ex.id);
+    renderBeschikbaarhedenTab();
+    renderKalender();
+  }
+}
+
 function openSettings() {
+  setSettingsTab('algemeen');
   const who = activeAssigneeFilter === 'all' ? 'Standaard (alle technici)' : activeAssigneeFilter;
   document.getElementById('set-person-label').textContent = `Instellingen voor: ${who}`;
   document.getElementById('set-start').value    = settings.startlocatie;

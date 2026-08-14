@@ -679,6 +679,13 @@
     /* ── Instellingen ── */
     #set-overlay { align-items: center; padding: 24px; }
     #set-modal { border-radius: var(--r-lg); max-width: 460px; }
+    .set-subtabs { display:flex; gap:4px; padding:0 16px; border-bottom:1px solid var(--border); }
+    .set-subtab {
+      background:none; border:none; padding:10px 14px; font-size:0.85rem; color:var(--muted);
+      cursor:pointer; border-bottom:2px solid transparent; font-weight:600;
+    }
+    .set-subtab.active { color:var(--accent); border-bottom-color:var(--accent); }
+    .set-subtab:hover { color:var(--text); }
     .set-field { margin-bottom: 15px; }
     .set-label { font-size: 0.73rem; font-weight: 500; color: var(--muted); margin-bottom: 6px; display: block; }
     .set-input {
