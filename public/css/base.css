@@ -1,0 +1,74 @@
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* ── Blitz Power brand kleuren ── */
+      --bg:       #181e24;
+      --surface:  #1d252d;
+      --surface2: #232d37;
+      --surface3: #2b3542;
+      --border:   #2e3a46;
+      --accent:       #00dfa3;
+      --accent-dim:   rgba(0,223,163,0.1);
+      --accent-glow:  rgba(0,223,163,0.22);
+      --accent-hover: #00f5b5;
+      --green:      #00dfa3;
+      --green-dim:  rgba(0,223,163,0.1);
+      --red:        #ff5a52;
+      --red-dim:    rgba(255,90,82,0.1);
+      --orange:     #f59e0b;
+      --orange-dim: rgba(245,158,11,0.1);
+      --blue:       #5ba3f5;
+      --blue-dim:   rgba(91,163,245,0.1);
+      --text:  #d9d9d6;
+      --text2: #a8b0ba;
+      --muted: #6b7784;
+      --r:    8px;
+      --r-lg: 12px;
+      --ease:        cubic-bezier(0.4, 0, 0.2, 1);
+      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    /* ── Light theme ── */
+    :root[data-theme="light"] {
+      --bg:       #f0f2f5;
+      --surface:  #ffffff;
+      --surface2: #f5f6f8;
+      --surface3: #eaecef;
+      --border:   #d4d8de;
+      --text:     #1a2433;
+      --text2:    #4a5568;
+      --muted:    #8896a8;
+      --accent-dim:  rgba(0,180,130,0.12);
+      --accent-glow: rgba(0,180,130,0.20);
+      --red-dim:     rgba(220,38,38,0.10);
+      --orange-dim:  rgba(217,119,6,0.10);
+      --blue-dim:    rgba(59,130,246,0.10);
+      --green-dim:   rgba(0,180,130,0.10);
+    }
+
+    html, body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100%;
+      -webkit-font-smoothing: antialiased;
+      /* overflow-x op html/body vermeden: breekt position:sticky op .tabs */
+    }
+    body { display: flex; flex-direction: column; }
+    /* Geen overflow-x op html of body: verstoort position:sticky op .tabs.
+       Horizontale overflow wordt per element afgehandeld (.tabs en .week-grid hebben overflow-x:auto). */
+
+    /* ── Animaties ── */
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px) scale(0.98); }
+      to   { opacity: 1; transform: translateY(0)    scale(1); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.5; }
+    }
+

@@ -1,0 +1,96 @@
+    /* ── Prijsbeheer admin modal ────────────────────────────────────────────── */
+    #prijs-overlay { z-index: 110; }
+    #prijs-overlay .modal {
+      max-width: 600px; width: 96%; max-height: 88vh; display: flex; flex-direction: column;
+      padding: 0; overflow: hidden;
+    }
+    .prijs-hdr {
+      padding: 16px 20px 14px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .prijs-hdr-title { font-size: 1rem; font-weight: 700; flex: 1; }
+    .prijs-hdr-meta  { font-size: 0.72rem; color: var(--muted); text-align: right; line-height: 1.4; }
+    .prijs-body { flex: 1; overflow-y: auto; padding: 14px 20px; min-height: 0; }
+    .prijs-ftr {
+      padding: 12px 20px; border-top: 1px solid var(--border); display: flex;
+      gap: 8px; justify-content: flex-end; flex-shrink: 0; background: var(--surface);
+    }
+    /* Categorie-sectie */
+    .prijs-cat { margin-bottom: 18px; }
+    .prijs-cat-title {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 8px;
+    }
+    /* Rij per onderdeel */
+    .prijs-row {
+      display: grid; grid-template-columns: 1fr auto; gap: 6px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 8px 10px; margin-bottom: 5px;
+    }
+    .prijs-row-main { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+    .prijs-naam-input {
+      background: var(--surface3); border: 1px solid var(--border); color: var(--text);
+      border-radius: 6px; padding: 7px 10px; font-size: 0.88rem; width: 100%;
+      font-family: inherit;
+    }
+    .prijs-naam-input:focus { outline: none; border-color: var(--accent); }
+    .prijs-tags-wrap { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .prijs-tag {
+      background: var(--surface3); border: 1px solid var(--border); border-radius: 12px;
+      padding: 2px 8px; font-size: 0.72rem; color: var(--text2); display: flex;
+      align-items: center; gap: 3px;
+    }
+    .prijs-tag-del { cursor: pointer; color: var(--muted); font-size: 0.7rem; line-height: 1; }
+    .prijs-tag-del:hover { color: var(--red); }
+    .prijs-tag-add {
+      background: none; border: 1px dashed var(--border); border-radius: 12px;
+      color: var(--muted); padding: 2px 8px; font-size: 0.72rem; cursor: pointer;
+      font-family: inherit;
+    }
+    .prijs-tag-add:hover { border-color: var(--accent); color: var(--accent); }
+    .prijs-tag-input {
+      background: var(--surface3); border: 1px solid var(--accent); border-radius: 12px;
+      color: var(--text); padding: 2px 8px; font-size: 0.72rem; width: 90px;
+      font-family: inherit;
+    }
+    .prijs-row-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+    .prijs-input-wrap { display: flex; align-items: center; gap: 4px; }
+    .prijs-euro { font-size: 0.78rem; color: var(--muted); }
+    .prijs-prijs-input {
+      background: var(--surface3); border: 1px solid var(--border); color: var(--text);
+      border-radius: 6px; padding: 7px 9px; font-size: 0.88rem; width: 90px;
+      text-align: right; font-family: inherit;
+    }
+    .prijs-prijs-input:focus { outline: none; border-color: var(--accent); }
+    .prijs-prijs-input::-webkit-outer-spin-button,
+    .prijs-prijs-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .prijs-prijs-input[type=number] { -moz-appearance: textfield; }
+    .prijs-eenheid { font-size: 0.68rem; color: var(--muted); }
+    .prijs-del-btn {
+      background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem;
+      padding: 2px 4px; line-height: 1; margin-top: auto;
+    }
+    .prijs-del-btn:hover { color: var(--red); }
+    .prijs-add-btn {
+      background: none; border: 1px dashed var(--border); color: var(--accent);
+      border-radius: var(--r); padding: 8px 12px; font-size: 0.82rem; cursor: pointer;
+      width: 100%; font-family: inherit; margin-top: 2px; transition: background 0.12s;
+    }
+    .prijs-add-btn:hover { background: var(--accent-dim); border-color: var(--accent); }
+    /* Tarieven-sectie */
+    .prijs-tarieven-sep { border-top: 2px solid var(--border); margin: 18px 0 14px; }
+    .prijs-tarief-row {
+      display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 8px 10px; margin-bottom: 5px;
+    }
+    .prijs-tarief-naam {
+      font-size: 0.85rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .btn-dirty { background: var(--accent); color: var(--bg); }
+    /* Banner */
+    .prijs-cache-banner {
+      background: var(--orange-dim); border: 1px solid var(--orange); border-radius: var(--r);
+      padding: 8px 12px; font-size: 0.78rem; color: var(--orange); margin-bottom: 10px;
+    }
+

@@ -15,8 +15,46 @@ gebeuren via die `window.`-referentie, niet via `import`/`export` tussen de 5 ni
 onderling — dat maakt de 5 extractietaken onderling onafhankelijk uitvoerbaar (geen
 laadvolgorde-afhankelijkheid tussen bv. de wizard-module en de outbox-module).
 `public/index.html` zelf blijft over als het "restbestand" (kalender/planning/tickets/
-beschikbaarheid/UI-chrome) en wordt zelf ook `type="module"` (voor consistente uitvoeringstiming
-t.o.v. de andere modules — zie Task 1).
+beschikbaarheid/UI-chrome).
+
+**Amendement (na Task 1-review, 2026-08-13): het hoofdscript wordt NIET `type="module"`.**
+Oorspronkelijk plan (foutief, zie hieronder): maak het hoofdscript zelf ook `type="module"` voor
+consistente uitvoeringstiming. Task 1's review vond hierdoor een kritieke, live-reproduceerbare
+regressie: een ES-modulescript maakt zijn top-level `function`-declaraties GEEN impliciete
+`window`-properties (in tegenstelling tot een klassiek script) — en op het moment dat Task 1 als
+enige taak klaar is, staan nog ~49 van de ~50 unieke `onclick`-aangeroepen functies (calendar/
+planning/tickets/UI-chrome/wizard/prijzen — alles wat pas in Taken 2-5 verplaatst wordt, of wat
+voorgoed in het restbestand blijft staan) nog gewoon in dat hoofdscript. Zodra dat een module
+wordt, breekt letterlijk elke `onclick=` in de hele app (`ReferenceError: ... is not defined`) —
+dat gaat ver voorbij wat de windowbridge-conventie per taak dekt, want de meeste van die functies
+worden NOOIT verplaatst (ze horen bij het restbestand, niet bij één van de 5 domeinen) en zouden
+dus nooit een eigen windowbridge krijgen.
+
+**Correcte aanpak:** het hoofdscript blijft een klassiek (niet-module) script met het
+`defer`-attribuut: `<script defer>` in plaats van kaal `<script>` of `type="module"`. Dit lost
+het onclick-probleem op:
+- Een klassiek script (ook met `defer`) behoudt het gedrag dat top-level `function`-declaraties
+  impliciete `window`-properties worden — dus elke bestaande `onclick="..."` in het hele bestand
+  (ook alles wat nooit verplaatst wordt) blijft werken zonder dat er ook maar één extra
+  windowbridge nodig is.
+- Het hoofdscript stond vroeger helemaal onderaan de `<body>` (dus DOM al volledig geparsed
+  tegen de tijd dat het liep) — functioneel identiek aan `defer`-timing, dus dit is geen
+  gedragswijziging t.o.v. de huidige (pre-Fase-0) situatie.
+
+**Correctie (na de finale Fase-0-review, 2026-08-14): de volgorde-garantie hierboven klopt NIET.**
+`defer` heeft, per HTML-spec, GEEN effect op een *inline* classic script (zonder `src`) — enkel op
+een script met een `src`-attribuut. Live geverifieerd: het hoofdscript voert **onmiddellijk bij
+het parsen uit, vóór alle `type="module"`-tags**, niet erna — het omgekeerde van wat hierboven
+beweerd wordt. Dit brak in de praktijk niets, om een andere reden dan gedocumenteerd: elke
+cross-module-aanroep in het hoofdscript zit binnen de bestaande `DOMContentLoaded`-handler (die
+wél ná alle module-scripts vuurt), en de enkele top-level statements buiten die handler
+(`localStorage.removeItem`, een migratie-`if`, 2×`addEventListener`) raken geen enkele
+window-bridge aan. **De werkelijke garantie is dus: elke aanroep van een window-bridge vanuit het
+hoofdscript moet binnen `DOMContentLoaded` (of later) staan, niet op het top-level van het
+script.** Bij een toekomstige wijziging die een bridge-aanroep vóór `DOMContentLoaded` toevoegt:
+dat breekt met een `ReferenceError`, ondanks `defer`. Het `defer`-attribuut zelf is onschadelijk om
+te laten staan (verwijderen verandert niets), maar vertrouw niet op de volgorde-garantie die hier
+eerder beweerd werd.
 
 **Tech Stack:** Vanille JS, browser-native ES modules, geen build-stap (bevestigd: geen bundler/
 transpiler in dit project — `netlify.toml` zegt letterlijk `command = "echo 'No build step
@@ -44,14 +82,28 @@ de rest van dit project.
 - **Windowbridge-conventie** (herhaald in elke taak, dit is de kernregel van heel dit plan):
   - Voor elke top-level `function`/`const` die je verplaatst EN die (a) vanuit een HTML
     `onclick=`/`onchange=`/`oninput=`-attribuut wordt aangeroepen, OF (b) vanuit code buiten dit
-    nieuwe bestand wordt aangeroepen (zoek dit na met `grep -n "functieNaam("` over heel
-    `public/index.html`, exclusief de plek waar hij zelf staat) — voeg onderaan het nieuwe
-    bestand een regel toe: `window.functieNaam = functieNaam;`.
+    nieuwe bestand wordt aangeroepen — voeg onderaan het nieuwe bestand een regel toe:
+    `window.functieNaam = functieNaam;`.
+  - **Correctie (na de finale Fase-0-review, 2026-08-14): zoek (b) na met
+    `grep -rn "functieNaam(" public/index.html public/js/`, NIET enkel over `public/index.html`.**
+    De oorspronkelijke instructie (enkel `index.html`) was correct zolang er nog geen andere
+    module bestond, maar werd stilzwijgend fout zodra Task 2+ eerder verplaatste code aanriep
+    vanuit een NIEUWE module i.p.v. vanuit `index.html` — dit veroorzaakte precies zo'n gemiste
+    bridge (`berekenLoonkost`, verplaatst naar `rapport-wizard.js` in Task 5, maar al vanaf Task 2
+    aangeroepen vanuit `rapport-archief.js` i.p.v. vanuit `index.html`), pas gevonden bij de
+    finale whole-branch review, niet bij Task 5's eigen taakreview. Doe bij elke taak dus een
+    zoekopdracht over de VOLLEDIGE huidige boom (`index.html` + alles wat al in `public/js/`
+    staat), niet enkel over het restbestand.
   - Functies die uitsluitend intern binnen de nieuwe module gebruikt worden (geen enkele
     `onclick=`/externe aanroep) hoeven niet aan `window` gehangen te worden.
   - Bij twijfel: wél aan `window` hangen — een overbodige window-toewijzing is onschadelijk, een
     ontbrekende breekt de app zichtbaar (ReferenceError in de console, functionaliteit die niet
     meer reageert op een klik).
+  - **Standaard-Eindcontrole-item voor elke toekomstige extractiefase:** voer, ná alle taken, een
+    volledige boomsweep uit: voor elke top-level naam in elke module, als die naam ook ergens
+    BUITEN die module voorkomt (in `index.html` of een andere module), moet hij op `window`
+    hangen. Eén zo'n sweep op het einde had deze bug bij Task 5 zelf gevangen i.p.v. pas bij de
+    finale review.
 
 ---
 
@@ -131,15 +183,18 @@ printRapport, enz.) volledig ongewijzigd staan.
 
 - [ ] **Step 4: Nieuwe `<script>`-tags toevoegen**
 
-Zoek de bestaande `<script>`-tag die het hele huidige inline script bevat (waarschijnlijk
-`<script>` zonder attributen, ergens na de HTML-body). Vervang de openende tag door
-`<script type="module">` (dit maakt het HOOFDSCRIPT zelf ook een module — nodig zodat alle
-scripts in consistente, gedefereerde volgorde uitvoeren). Voeg er vlak vóór, in deze volgorde,
-een nieuwe tag toe:
+**Gecorrigeerd na review (zie Architecture-sectie hierboven, "Amendement na Task 1-review"):**
+NIET `type="module"` op het hoofdscript zetten — dat breekt elke `onclick=` van een functie die
+nog niet verplaatst is (bijna alles, in Task 1). Zoek de bestaande `<script>`-tag die het hele
+huidige inline script bevat (`<script>` zonder attributen, vlak vóór `</body>`). Vervang de
+openende tag door `<script defer>` (blijft een KLASSIEK script — geen `type="module"` — enkel
+`defer` toegevoegd, zodat de uitvoeringsvolgorde t.o.v. de nieuwe `type="module"`-tags toch
+gegarandeerd blijft, zonder de impliciete-`window`-globals van bestaande `onclick`-functies te
+verliezen). Voeg er vlak vóór, in deze volgorde, een nieuwe tag toe:
 
 ```html
 <script type="module" src="/js/outbox.js"></script>
-<script type="module">
+<script defer>
   <!-- bestaande hoofdscript-inhoud, nu met de 16 outbox-declaraties eruit -->
 </script>
 ```
@@ -153,10 +208,20 @@ effectief ophalen.
 
 - [ ] **Step 6: Verifieer live in de browser**
 
-Start `node dev-server.mjs`, open `http://localhost:3333/?test`. Open de browserconsole:
+Start `node dev-server.mjs` **vanuit deze worktree zelf** (niet de hoofd-checkout of een andere
+worktree — bevestig dit expliciet, bv. via de response van `fetch('/')` die `<script defer>` en
+NIET `OUTBOX_DB_NAME` mag bevatten). Open `http://localhost:3333/?test`. Open de browserconsole:
 bevestig GEEN rode fouten bij het laden (met name geen "flushOutbox is not defined" of
-gelijkaardig — dat zou wijzen op een ontbrekende window-bridge). Doorloop een volledig
-interventierapport tot en met "🖨️ Afdrukken / PDF" — bevestig dat het rapport nog steeds in de
+gelijkaardig — dat zou wijzen op een ontbrekende window-bridge).
+
+**Expliciete check op de `defer`-fix:** bevestig met een klein sweep-scriptje dat elke functie die
+ergens in `index.html` via `onclick="..."` aangeroepen wordt (niet enkel outbox-gerelateerde) nog
+gewoon als `window`-property bestaat — bv. `document.querySelectorAll('[onclick]')` doorlopen, de
+functienaam uit elk `onclick`-attribuut halen, en `typeof window[naam] === 'function'` toetsen
+voor elk. Dit moet voor ALLE gevonden namen kloppen (niet enkel de 16 outbox-declaraties) — een
+enkele `"undefined"` hier wijst op een verkeerd scripttype op het hoofdscript.
+
+Doorloop een volledig interventierapport tot en met "🖨️ Afdrukken / PDF" — bevestig dat het rapport nog steeds in de
 outbox terechtkomt en normaal verwerkt wordt (zelfde gedrag als vóór deze taak: archiveren lukt,
 of bij offline/trage verbinding het "⏳ nog niet bevestigd"-banner verschijnt). Zet de browser
 kort offline (devtools → Network → Offline), maak nog een rapport, zet weer online, bevestig dat
@@ -185,11 +250,23 @@ git commit -m "refactor: outbox-module uit index.html trekken naar public/js/out
   (roept `renderRapportArchief()` aan na het verwerken van de wachtrij) en door Task 5's
   `printRapport`/rapport-wizard-flow.
 
+**Amendement (na Task 1, 2026-08-13):** Task 1's implementer vond dat `_archiefVersie` (regel
+6421, direct na `_rapportArchief` op regel 6417) ONTBRAK in de oorspronkelijke declaratielijst
+hieronder, terwijl het fysiek middenin ditzelfde blok staat en gebruikt wordt door
+`verwijderRapport`/de archiveer-flow (optimistic-locking versienummer). Task 1 heeft er tijdelijk
+een `window`-accessor voor gezet in `index.html` (met een `// Blijft nodig totdat...`-commentaar).
+**Deze taak (Task 2) moet `_archiefVersie` mee verplaatsen naar `rapport-archief.js` (7de
+declaratie, niet 6) en Task 1's tijdelijke `Object.defineProperty(window, '_archiefVersie', ...)`
+uit `index.html` verwijderen** — de rest van deze taak (window-bridge voor de overige 6, enz.)
+blijft ongewijzigd.
+
 - [ ] **Step 1: Lees de huidige code ter controle**
 
-Zoek `_rapportArchief`, `laadRapportArchief`, `setRapportFilter`, `renderRapportArchief`,
-`verwijderRapport`, `herOpenRapport` — deze 6 declaraties liggen aaneengesloten (van
-`let _rapportArchief = []` tot net vóór `exportTicketLog`).
+Zoek `_rapportArchief`, `_archiefVersie`, `laadRapportArchief`, `setRapportFilter`,
+`renderRapportArchief`, `verwijderRapport`, `herOpenRapport` — deze 7 declaraties liggen
+aaneengesloten (van `let _rapportArchief = []` tot net vóór `exportTicketLog`). Zoek ook Task 1's
+tijdelijke `_archiefVersie`-bridge op (`grep -n "Blijft nodig totdat" public/index.html`) — die
+moet in Step 3 mee verwijderd worden.
 
 - [ ] **Step 2: Nieuw bestand `public/js/rapport-archief.js`**
 
@@ -199,19 +276,30 @@ Zoek `_rapportArchief`, `laadRapportArchief`, `setRapportFilter`, `renderRapport
 // Excel-export-aanroep (zie excel-export.js). Leest `R`/rapport-records uit de outbox-archivering.
 
 export let _rapportArchief = [];
+export let _archiefVersie = null;
 
 export async function laadRapportArchief() {
   // ... exacte, ongewijzigde body
 }
 
 // ... setRapportFilter, renderRapportArchief, verwijderRapport, herOpenRapport — telkens exact
-// dezelfde body, enkel `export` ervoor.
+// dezelfde body, enkel `export` ervoor. Alle bestaande lees/schrijf-plekken van `_archiefVersie`
+// binnen dit blok (in laadRapportArchief/verwijderRapport/herOpenRapport) blijven ongewijzigd,
+// enkel nu binnen dit bestand.
 
 window.renderRapportArchief = renderRapportArchief;
 window.laadRapportArchief   = laadRapportArchief;
 window.setRapportFilter     = setRapportFilter;
 window.verwijderRapport     = verwijderRapport;
 window.herOpenRapport       = herOpenRapport;
+// _archiefVersie wordt van BUITEN dit bestand gebruikt (o.a. door de rapport-wizard-module bij het
+// versturen/archiveren) — net als bij PRIJZEN in Task 4 is dit een `let`, dus een statische
+// `window._archiefVersie = _archiefVersie` zou een momentopname vastzetten. Gebruik in plaats
+// daarvan dezelfde live-accessor die Task 1 al gebruikte:
+Object.defineProperty(window, '_archiefVersie', {
+  get: () => _archiefVersie,
+  set: (v) => { _archiefVersie = v; },
+});
 ```
 
 Controleer met `grep -n "_rapportArchief"` of dat array ook van BUITEN dit bestand rechtstreeks
@@ -640,3 +728,11 @@ van de PR die dit hele plan oplevert.
 - [ ] Doorloop nog eens, in dezelfde sessie na elkaar: een interventierapport, een
   Excel-export, een prijsbeheer-wijziging, en een rapport-archief-filter — bevestig dat geen
   van deze features elkaar stoort (elke module reset/werkt onafhankelijk).
+- [ ] **Toegevoegd na Task 5-review (2026-08-14):** `_fotoState`-cross-boundary smoke test op een
+  echte, composite browser (Task 5's implementatiesessie kon dit niet visueel testen). Open een
+  ticket → "📷 Foto's" → voeg een foto toe of verwijder er een → sluit → "📋 Rapport" → stap
+  "Foto's" → bevestig dat dezelfde foto's te zien zijn en de console proper blijft.
+- [ ] **Toegevoegd na Task 5-review (2026-08-14):** visueel bevestigen dat de
+  handtekening-canvassen (technieker + klant) en de live klant-preview-iframe in de wizard
+  daadwerkelijk renderen/vullen op een echte composite browser (zat achter
+  `requestAnimationFrame`, niet visueel te testen in Task 5's sessie).
