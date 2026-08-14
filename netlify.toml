@@ -23,3 +23,6 @@
 
 [functions.planning-export]
   timeout = 26
+
+[functions.confirm-afspraak]
+  timeout = 15
