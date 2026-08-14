@@ -6,9 +6,18 @@
 //   time wordt afgerond naar het volgende kwartier.
 // Elke verstuurde mail krijgt ook de service-voorwaarden-PDF als bijlage.
 
-import fs   from 'node:fs';
-import path from 'node:path';
-import url  from 'node:url';
+import fs     from 'node:fs';
+import path   from 'node:path';
+import url    from 'node:url';
+import crypto from 'node:crypto';
+
+// ── HMAC-token (letterlijk gekopieerd uit confirm-afspraak.js — dit project deelt geen module
+// tussen netlify/functions/*.js-bestanden, elke functie dupliceert dit patroon zelf) ────────────
+function signConfirmToken(ticketId, expiresAtEpochSeconds) {
+  const secret = process.env.CONFIRM_LINK_SECRET;
+  if (!secret) throw new Error('CONFIRM_LINK_SECRET niet geconfigureerd');
+  return crypto.createHmac('sha256', secret).update(`${ticketId}.${expiresAtEpochSeconds}`).digest('hex');
+}
 
 // Netlify bundelt deze ESM-syntax functie naar CommonJS voor de echte
 // productie-runtime — daar bestaat al een werkende __dirname (CJS-stijl),
@@ -84,7 +93,7 @@ function roundToNextQuarter(timeStr) {
   return `${String(outH).padStart(2, '0')}:${String(outM).padStart(2, '0')}`;
 }
 
-function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime, serienummer }) {
+function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime, serienummer, confirmUrl }) {
   // SVG: 2 diagonale afgeronde lijnen in Blitz-brandkleur #00dfa3
   const bolt = `<svg width="20" height="30" viewBox="0 0 20 30" xmlns="http://www.w3.org/2000/svg">` +
     `<line x1="15" y1="2" x2="3" y2="16" stroke="#00dfa3" stroke-width="4" stroke-linecap="round"/>` +
@@ -136,9 +145,17 @@ function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime
     </td></tr>
     </table>
 
+    <div style="text-align:center;margin:18px 0">
+      <a href="${confirmUrl}" style="display:inline-block;background:#00dfa3;color:#181e24;
+        text-decoration:none;font-weight:700;font-size:14px;padding:12px 28px;border-radius:6px">
+        ✅ Bevestig deze afspraak
+      </a>
+    </div>
+
     <p style="margin:0 0 16px;font-size:14px;color:#3a3a3a;line-height:1.65">
-      Gelieve deze afspraak te bevestigen door op deze e-mail te antwoorden. Komt het voorgestelde tijdstip u
-      niet uit? Laat het ons dan ook weten, zodat we samen een alternatief zoeken. In bijlage vindt u onze
+      Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen, of
+      antwoord op deze e-mail. Komt het voorgestelde tijdstip u niet uit? Laat het ons dan weten via een
+      antwoord op deze e-mail, zodat we samen een alternatief zoeken. In bijlage vindt u onze
       service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.
     </p>
     <p style="margin:0;font-size:14px;color:#3a3a3a;line-height:1.65">
@@ -244,6 +261,16 @@ export async function handler(event) {
       }
     }
 
+    // Bevestigingslink (Blok 1A, Task 2): 14 dagen geldig HMAC-ondertekende link naar
+    // /api/confirm-afspraak, opgenomen als knop in de mail hieronder. `process.env.URL` is een
+    // door Netlify automatisch gezette env-var met de site's eigen basis-URL; lokaal (dev-server.mjs)
+    // is die niet gezet, vandaar de localhost-fallback op Netlify dev's eigen poort (netlify.toml).
+    const CONFIRM_LINK_TTL_SECONDS = 14 * 24 * 60 * 60; // 14 dagen geldig
+    const confirmExp = Math.floor(Date.now() / 1000) + CONFIRM_LINK_TTL_SECONDS;
+    const confirmSig = signConfirmToken(ticketId, confirmExp);
+    const confirmUrl = `${process.env.URL || 'http://localhost:8888'}/api/confirm-afspraak`
+      + `?ticketId=${encodeURIComponent(ticketId)}&exp=${confirmExp}&sig=${confirmSig}`;
+
     // 1. E-mail via sendReply EERST (anders overschrijft Zoho de status terug naar "Wachten op klant").
     // 1 aparte sendReply-aanroep per ontvanger (klant en/of installateur) -- elk met zijn eigen
     // upload van de service-voorwaarden-PDF, zodat elke afzonderlijke mail zijn eigen geldige
@@ -269,6 +296,7 @@ export async function handler(event) {
           formattedDate,
           appointmentTime,
           serienummer:   serienummer || '',
+          confirmUrl,
         });
 
         const attachmentId = await uploadTermsAttachment(accessToken, orgId);
