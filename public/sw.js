@@ -1,6 +1,6 @@
 // Service Worker — caches app shell for offline fallback
-const CACHE_NAME = 'blitz-planning-v4';
-const SHELL = ['/', '/index.html', '/manifest.json', '/js/outbox.js', '/js/rapport-archief.js', '/js/excel-export.js'];
+const CACHE_NAME = 'blitz-planning-v5';
+const SHELL = ['/', '/index.html', '/manifest.json', '/js/outbox.js', '/js/rapport-archief.js', '/js/excel-export.js', '/js/prijzen.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(SHELL)));
