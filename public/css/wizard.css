@@ -177,20 +177,6 @@
     .wiz-part-prijs  { background: var(--surface3); border: 1px solid var(--border); color: var(--text); border-radius: var(--r); padding: 7px 10px; font-size: 0.88rem; width: 120px; }
     .wiz-part-factureer { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--text2); cursor: pointer; }
 
-    @media (max-width: 680px) {
-      .plan-body { flex-direction: column; }
-      #route-list { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
-      #map-wrap { height: 260px; } #map { height: 260px; }
-      .week-grid { flex-direction: column; }
-      .day-col { min-width: unset; border-right: none; border-bottom: 1px solid var(--border); }
-    }
-
-    /* Beperkte technieker-weergave: verbergt coördinator/planning-functionaliteit onder 1024px */
-    @media (max-width: 1023px) {
-      .desktop-only { display: none !important; }
-    }
-
-
     /* ── Wizard onderdelen (catalogus-modus) ────────────────────────────────── */
     .wiz-cat-search-wrap { position: relative; margin-bottom: 8px; }
     .wiz-cat-search {

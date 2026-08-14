@@ -8,13 +8,14 @@ export const OUTBOX_DB_VERSION = 1;
 export const OUTBOX_STORE      = 'items';
 export let _outboxItems = [];
 
-// Tijdelijke window-bridge: index.html's renderRapportArchief() (nog niet verplaatst) leest dit
-// array nog rechtstreeks (module-scope kan er anders niet bij). refreshOutboxCache() hieronder
-// vervangt _outboxItems telkens door een NIEUW array (geen in-place mutatie), dus een statische
-// `window._outboxItems = _outboxItems`-toewijzing zou na de eerste refresh alweer verouderd zijn
-// — vandaar een live getter in plaats van een eenmalige kopie.
+// Permanente window-bridge: rapport-archief.js's renderRapportArchief() leest dit array
+// rechtstreeks (module-scope kan er anders niet bij zonder import/export tussen deze bestanden).
+// refreshOutboxCache() hieronder vervangt _outboxItems telkens door een NIEUW array (geen
+// in-place mutatie), dus een statische `window._outboxItems = _outboxItems`-toewijzing zou na de
+// eerste refresh alweer verouderd zijn — vandaar een live getter in plaats van een eenmalige kopie.
 Object.defineProperty(window, '_outboxItems', {
   get: () => _outboxItems,
+  configurable: true,
 });
 
 export function outboxOpenDb() {

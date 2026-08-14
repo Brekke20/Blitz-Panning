@@ -355,8 +355,8 @@ window.getPrijsVoorId          = getPrijsVoorId;
 window.PRIJZEN_DEFAULTS = PRIJZEN_DEFAULTS;
 
 // PRIJZEN wordt van BUITEN dit bestand rechtstreeks gelezen als bare variabele (niet enkel
-// via zoekOnderdelen/getAlleTags/getPrijsVoorId): index.html's wizVoegCatToe (rapport-wizard,
-// stap "Status & onderdelen") doet `PRIJZEN || PRIJZEN_DEFAULTS` rechtstreeks. PRIJZEN is een
+// via zoekOnderdelen/getAlleTags/getPrijsVoorId): public/js/rapport-wizard.js's wizVoegCatToe
+// (rapport-wizard, stap "Status & onderdelen") doet `PRIJZEN || PRIJZEN_DEFAULTS` rechtstreeks. PRIJZEN is een
 // `let` die bij elke loadPrijzen()/prijsOpslaan() een NIEUWE waarde krijgt (geen in-place
 // mutatie) — een statische `window.PRIJZEN = PRIJZEN` zou dus een verouderde momentopname
 // vastzetten die nooit meer bijwerkt. Vandaar een live getter, net als bij `_rapportArchief`
@@ -364,4 +364,5 @@ window.PRIJZEN_DEFAULTS = PRIJZEN_DEFAULTS;
 // (enkel lezen), dus enkel een getter is nodig, geen setter.
 Object.defineProperty(window, 'PRIJZEN', {
   get: () => PRIJZEN,
+  configurable: true,
 });

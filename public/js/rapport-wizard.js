@@ -1258,6 +1258,11 @@ window.printRapport          = printRapport;
 // via de globale scope-chain (window), dus enkel deze bridge is nodig, geen wijziging daar.
 window.calcWerktijdMin = calcWerktijdMin;
 
+// berekenLoonkost wordt ook aangeroepen vanuit rapport-archief.js (renderRapportArchief,
+// voor de prijsweergave op archiefkaarten) — zonder deze bridge gooit dat een
+// ReferenceError zodra er een archiefkaart met werktijd > 0 gerenderd wordt.
+window.berekenLoonkost = berekenLoonkost;
+
 // _fotoState wordt van BUITEN dit bestand zowel gelezen ALS herwezen: index.html's
 // openFotoModal()/persistFotoChange()/handleFotoFiles() (het generieke foto-beheer voor de
 // ticket-detail "Foto's"-knop, NIET onderdeel van de wizard-brief) delen dit ene state-object
@@ -1269,4 +1274,5 @@ window.calcWerktijdMin = calcWerktijdMin;
 Object.defineProperty(window, '_fotoState', {
   get: () => _fotoState,
   set: (v) => { _fotoState = v; },
+  configurable: true,
 });

@@ -792,3 +792,16 @@
       margin-top: 3px; display: inline-block;
     }
 
+    @media (max-width: 680px) {
+      .plan-body { flex-direction: column; }
+      #route-list { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+      #map-wrap { height: 260px; } #map { height: 260px; }
+      .week-grid { flex-direction: column; }
+      .day-col { min-width: unset; border-right: none; border-bottom: 1px solid var(--border); }
+    }
+
+    /* Beperkte technieker-weergave: verbergt coördinator/planning-functionaliteit onder 1024px */
+    @media (max-width: 1023px) {
+      .desktop-only { display: none !important; }
+    }
+

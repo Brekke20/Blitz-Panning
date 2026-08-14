@@ -208,14 +208,15 @@ window.herOpenRapport       = herOpenRapport;
 
 // _rapportArchief wordt van BUITEN dit bestand rechtstreeks gelezen (niet enkel via de functies
 // hierboven): de kalenderweergave in index.html (herOpenRapport(_rapportArchief.indexOf(entry)),
-// _rapportArchief.filter(...) voor dagoverzichten) en exportTicketLog (Excel-export, blijft voorlopig
-// in index.html) lezen dit array rechtstreeks. laadRapportArchief() vervangt het array bovendien
+// _rapportArchief.filter(...) voor dagoverzichten) en exportTicketLog (Excel-export, zit in
+// public/js/excel-export.js) lezen dit array rechtstreeks. laadRapportArchief() vervangt het array bovendien
 // telkens door een NIEUW array (geen in-place mutatie), dus een statische
 // `window._rapportArchief = _rapportArchief`-toewijzing zou na de eerste herlaad alweer verouderd
 // zijn — vandaar een live getter, net als bij _outboxItems in outbox.js (Task 1). Niets buiten dit
 // bestand herschrijft het array zelf (enkel lezen), dus enkel een getter is nodig.
 Object.defineProperty(window, '_rapportArchief', {
   get: () => _rapportArchief,
+  configurable: true,
 });
 
 // _archiefVersie wordt van BUITEN dit bestand gebruikt (o.a. door de rapport-wizard-module bij het
@@ -225,4 +226,5 @@ Object.defineProperty(window, '_rapportArchief', {
 Object.defineProperty(window, '_archiefVersie', {
   get: () => _archiefVersie,
   set: (v) => { _archiefVersie = v; },
+  configurable: true,
 });
