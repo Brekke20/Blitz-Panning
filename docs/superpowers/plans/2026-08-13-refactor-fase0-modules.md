@@ -702,3 +702,11 @@ van de PR die dit hele plan oplevert.
 - [ ] Doorloop nog eens, in dezelfde sessie na elkaar: een interventierapport, een
   Excel-export, een prijsbeheer-wijziging, en een rapport-archief-filter — bevestig dat geen
   van deze features elkaar stoort (elke module reset/werkt onafhankelijk).
+- [ ] **Toegevoegd na Task 5-review (2026-08-14):** `_fotoState`-cross-boundary smoke test op een
+  echte, composite browser (Task 5's implementatiesessie kon dit niet visueel testen). Open een
+  ticket → "📷 Foto's" → voeg een foto toe of verwijder er een → sluit → "📋 Rapport" → stap
+  "Foto's" → bevestig dat dezelfde foto's te zien zijn en de console proper blijft.
+- [ ] **Toegevoegd na Task 5-review (2026-08-14):** visueel bevestigen dat de
+  handtekening-canvassen (technieker + klant) en de live klant-preview-iframe in de wizard
+  daadwerkelijk renderen/vullen op een echte composite browser (zat achter
+  `requestAnimationFrame`, niet visueel te testen in Task 5's sessie).
