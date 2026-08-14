@@ -2,8 +2,11 @@
 // Verstuurt een afspraakvoorstel naar klant en/of installateur via Zoho Desk sendReply.
 // De server bepaalt zelf de ontvangers (klant + installateur) op basis van de ticketdata.
 // POST body:
-//   { ticketId, date, time, recipientName, subject, serienummer }
+//   { ticketId, date, time, recipientName, subject, serienummer, appointmentWindow }
 //   time wordt afgerond naar het volgende kwartier.
+//   appointmentWindow (optioneel, Task 9/Blok 1C): klant-vriendelijk tijdslot-label
+//   (bv. "10:00–13:00"), uitsluitend voor de e-mailweergave — heeft geen invloed op
+//   appointmentTime/interventieDatum, die blijven de exacte, afgeronde tijd.
 // Elke verstuurde mail krijgt ook de service-voorwaarden-PDF als bijlage.
 
 import fs     from 'node:fs';
@@ -93,7 +96,7 @@ function roundToNextQuarter(timeStr) {
   return `${String(outH).padStart(2, '0')}:${String(outM).padStart(2, '0')}`;
 }
 
-function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime, serienummer, confirmUrl }) {
+function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime, appointmentWindow, serienummer, confirmUrl }) {
   // SVG: 2 diagonale afgeronde lijnen in Blitz-brandkleur #00dfa3
   const bolt = `<svg width="20" height="30" viewBox="0 0 20 30" xmlns="http://www.w3.org/2000/svg">` +
     `<line x1="15" y1="2" x2="3" y2="16" stroke="#00dfa3" stroke-width="4" stroke-linecap="round"/>` +
@@ -140,7 +143,7 @@ function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime
     <tr><td style="background:#f7f7f7;border-left:4px solid #00dfa3;border-radius:0 4px 4px 0;padding:18px 22px">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#8a9aaa;margin-bottom:8px">Voorgestelde afspraak</div>
       <div style="font-size:22px;font-weight:700;color:#181e24;margin-bottom:4px">${formattedDate}</div>
-      <div style="font-size:16px;color:#3a3a3a">om <strong>${appointmentTime}</strong> uur</div>
+      <div style="font-size:16px;color:#3a3a3a">tussen <strong>${appointmentWindow || appointmentTime}</strong> uur</div>
       ${serial}
     </td></tr>
     </table>
@@ -187,7 +190,7 @@ export async function handler(event) {
   }
 
   try {
-    const { ticketId, date, time, recipientName, subject, serienummer, utcInterventieDatum } =
+    const { ticketId, date, time, recipientName, subject, serienummer, utcInterventieDatum, appointmentWindow } =
       JSON.parse(event.body || '{}');
 
     if (!ticketId || !date) {
@@ -295,6 +298,7 @@ export async function handler(event) {
           subject:       subject || 'Servicebezoek',
           formattedDate,
           appointmentTime,
+          appointmentWindow,
           serienummer:   serienummer || '',
           confirmUrl,
         });

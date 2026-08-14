@@ -1103,7 +1103,16 @@ function buildTicketCard(stop, dateStr) {
       <div style="flex:1;min-width:0">
         <div class="cal-num">#${escHtml(stop.ticket.number)}</div>
         <span class="cal-badge ${cardClass}">${badgeLabel}</span>
-        ${stop.uur ? `<div class="cal-meta" style="font-weight:600">🕐 ${stop.uur}</div>` : ''}
+        ${stop.uur ? (() => {
+          // Tijdslot (Task 9, Blok 1C): primair label, consistent met wat de klant ziet in de
+          // voorstel-mail. Bewuste keuze (zie taakbrief Step 5): de technieker ziet, i.t.t. de
+          // klant, ook de exacte geplande tijd als kleiner detail — nuttig voor zijn eigen
+          // planning-efficiëntie. buildTicketCard() wordt gedeeld door de desktop-tijdlijn en
+          // de mobiele gestapelde lijst, dus dit geldt voor beide (geen mobiel/desktop-verschil).
+          const [h, m] = stop.uur.split(':').map(Number);
+          const win = tijdslotVoor(h * 60 + m).label;
+          return `<div class="cal-meta" style="font-weight:600">🕐 ${win} <span style="opacity:0.65;font-size:0.85em">(gepland ${stop.uur})</span></div>`;
+        })() : ''}
         <div class="cal-sub">${escHtml(stop.ticket.subject) || '—'}</div>
         ${stop.ticket.assignee ? `<div class="cal-meta">${escHtml(stop.ticket.assignee)}</div>` : ''}
         <div class="cal-addr ${stop.ticket.hasAddress ? '' : 'miss'}">${stop.ticket.hasAddress ? escHtml(stop.address) : 'Geen adres'}</div>
@@ -1526,7 +1535,11 @@ function renderMonthView(today) {
       );
       dayStops.forEach(s => {
         const isPend = s.ticket.status === 'Wachten op bevestiging planning';
-        chips.push({ label: `#${s.ticket.number} ${s.ticket.subject || ''}`.trim(), cls: isPend ? 'pending' : 'confirmed' });
+        // Tijdslot-prefix (Task 9, Blok 1C): geeft in de maandweergave meteen een indicatie van
+        // het (klant-zichtbare) tijdslot zonder de cel te hoeven openen. Enkel toegevoegd als de
+        // stop een uur heeft; geen wijziging aan de onderliggende exacte tijd.
+        const winLabel = s.uur ? tijdslotVoor((() => { const [h,m]=s.uur.split(':').map(Number); return h*60+m; })()).label + ' · ' : '';
+        chips.push({ label: `${winLabel}#${s.ticket.number} ${s.ticket.subject || ''}`.trim(), cls: isPend ? 'pending' : 'confirmed' });
       });
 
       // Lokale afspraken
@@ -3973,6 +3986,12 @@ function updateProposalPreview() {
   const date     = document.getElementById('proposal-date').value;
   const rawTime  = document.getElementById('proposal-time').value;
   const apptTime = rawTime ? roundToNextQuarterStr(rawTime) : '—';
+  // Weergave-tijdslot (Task 9, Blok 1C): de klant ziet nooit de exacte tijd, enkel het
+  // configureerbare tijdslot (bv. "10:00–13:00") waarin apptTime valt. computeArrivalTimes()
+  // en de exacte opgeslagen tijd blijven hierdoor volledig ongewijzigd — dit is uitsluitend
+  // een weergave-laag via tijdslotVoor() (Task 6).
+  const apptMin    = rawTime ? (() => { const [h,m]=roundToNextQuarterStr(rawTime).split(':').map(Number); return h*60+m; })() : null;
+  const apptWindow = apptMin !== null ? tijdslotVoor(apptMin).label : '—';
   const dateFmt  = date
     ? new Date(date + 'T12:00:00').toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
     : '—';
@@ -4002,7 +4021,7 @@ function updateProposalPreview() {
       <div style="background:#f7f7f7;border-left:3px solid #00dfa3;padding:12px 14px;margin-bottom:14px;border-radius:0 4px 4px 0">
         <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#8a9aaa;margin-bottom:4px">Voorgestelde afspraak</div>
         <div style="font-size:15px;font-weight:700;color:#181e24">${dateFmt}</div>
-        <div style="font-size:12px;color:#3a3a3a">om <strong>${apptTime}</strong> uur</div>
+        <div style="font-size:12px;color:#3a3a3a">tussen <strong>${apptWindow}</strong> uur</div>
         ${sn ? `<div style="font-size:10px;color:#8a9aaa;margin-top:6px">Serienummer: ${sn}</div>` : ''}
       </div>
       <p style="margin:0 0 10px;font-size:12px;color:#3a3a3a">Gelieve deze afspraak te bevestigen door op deze e-mail te antwoorden. Komt het voorgestelde tijdstip u niet uit? Laat het ons dan ook weten, zodat we samen een alternatief zoeken. In bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.</p>
@@ -4056,6 +4075,11 @@ async function sendProposal() {
     // Bereken UTC-tijdstip in de browser (die kent de lokale tijdzone)
     const timeStr             = rawTime || '09:00';
     const utcInterventieDatum = new Date(`${date}T${timeStr}:00`).toISOString();
+    // Weergave-tijdslot (Task 9, Blok 1C) — zelfde berekening als updateProposalPreview(), maar
+    // hier opnieuw uitgevoerd omdat sendProposal() een aparte functie-scope is. Uitsluitend voor
+    // weergave in de mail; utcInterventieDatum/interventieDatum hierboven blijven de exacte tijd.
+    const apptMinSend = rawTime ? (() => { const [h,m]=roundToNextQuarterStr(rawTime).split(':').map(Number); return h*60+m; })() : null;
+    const apptWindowSend = apptMinSend !== null ? tijdslotVoor(apptMinSend).label : '';
 
     const res  = await fetch('/api/propose', {
       method:  'POST',
@@ -4068,6 +4092,7 @@ async function sendProposal() {
         recipientName: activeTicket.naamEindklant || activeTicket.contact || '',
         subject:       activeTicket.subject || '',
         serienummer:   activeTicket.serienummer || '',
+        appointmentWindow: apptWindowSend,
       }),
     });
     const data = await res.json();
