@@ -15,7 +15,13 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
-## [1.0.0] — nog niet gereleased
+## [1.0.0] — 2026-08-14
 
 Eerste versie onder de nieuwe versiediscipline — markeert het einde van de bèta-fase.
-Wordt ingevuld en getagd bij de eerstvolgende deploy naar productie.
+
+### Changed
+- `public/index.html` (voorheen ~7.500 regels) opgesplitst in aparte modules: `public/js/`
+  (outbox, rapport-wizard, rapport-archief, excel-export, prijzen) en `public/css/` (base, app,
+  wizard, prijzen) — geen zichtbare functionaliteitswijziging, wel een onderhoudbaarder
+  codebase (`public/index.html` nu ~4.160 regels, enkel nog kalender/planning/tickets/
+  beschikbaarheid/UI-chrome) voor de features die hierna komen.
