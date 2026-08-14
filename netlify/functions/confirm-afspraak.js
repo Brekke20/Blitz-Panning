@@ -127,21 +127,27 @@ async function addZohoComment(ticketId, accessToken, orgId, content) {
   // POST /tickets/{ticketId}/comments, headers Authorization + orgId (zelfde patroon als
   // overal elders in dit project), body { content, isPublic } (contentType optioneel,
   // default 'html' -- onze content is platte tekst zonder opmaak, dus dat is onschadelijk).
-  const res = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/comments`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Zoho-oauthtoken ${accessToken}`,
-      orgId,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ content, isPublic: false }),
-  });
-  if (!res.ok) {
-    const errBody = await res.text().catch(() => '');
-    console.error('Zoho ticket-comment mislukt:', res.status, errBody);
-    // Bewust NIET de hele bevestiging laten falen als enkel de comment mislukt -- de
-    // status-PATCH (het functioneel belangrijkste deel) gebeurt apart en eerst. Wel loggen
-    // zodat dit zichtbaar is in de Netlify function-logs.
+  // Bewust een eigen try/catch: de status-PATCH (het functioneel belangrijkste deel, en de
+  // bron van waarheid voor "is de afspraak bevestigd") is op dit punt al gelukt. Een fout
+  // HIER -- of dat nu een niet-ok response is, of de fetch zelf die throwt (netwerkblip, DNS,
+  // timeout) -- mag de klant nooit een "Er ging iets mis"-pagina tonen voor iets dat in
+  // werkelijkheid wel gelukt is. Deze functie mag dus nooit méér doen dan loggen.
+  try {
+    const res = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/comments`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Zoho-oauthtoken ${accessToken}`,
+        orgId,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ content, isPublic: false }),
+    });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      console.error('Zoho ticket-comment mislukt:', res.status, errBody);
+    }
+  } catch (e) {
+    console.error('Zoho ticket-comment mislukt (exception):', e);
   }
 }
 
@@ -160,10 +166,25 @@ export default async (req) => {
 
   let ticketId, exp, sig;
   if (req.method === 'POST') {
-    const form = await req.formData();
-    ticketId = form.get('ticketId') || '';
-    exp = form.get('exp') || '';
-    sig = form.get('sig') || '';
+    // req.formData() kan throwen op een misvormde/corrupte body (verkeerde Content-Type,
+    // afgebroken multipart-boundary, ...). Dit is een publiek, ongeauthenticeerd endpoint dat
+    // ook door bots/scanners met willekeurige request-bodies bereikt kan worden -- niet enkel
+    // door de echte knop -- dus dit moet even netjes afgehandeld worden als een ongeldige
+    // signature, niet als een onafgehandelde exception die Netlify's generieke platform-
+    // foutpagina toont.
+    try {
+      const form = await req.formData();
+      ticketId = form.get('ticketId') || '';
+      exp = form.get('exp') || '';
+      sig = form.get('sig') || '';
+    } catch (e) {
+      console.error('confirm-afspraak: ongeldige POST-body:', e);
+      return new Response(htmlPage({
+        title: 'Link ongeldig of verlopen',
+        message: 'Deze bevestigingslink is niet (meer) geldig. Neem contact op met Blitz Power als u de afspraak alsnog wil bevestigen.',
+        ok: false,
+      }), { status: 400, headers });
+    }
   } else {
     const url = new URL(req.url);
     ticketId = url.searchParams.get('ticketId') || '';
