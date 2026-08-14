@@ -764,8 +764,70 @@ function saveToCache(key, data) {
   try { localStorage.setItem(key, JSON.stringify(data)); } catch { /* quota vol o.i.d. — cache is best-effort */ }
 }
 
+// Past geladen tickets-data (van cache of van een verse fetch) toe op de globale state en rendert.
+// reconcile: true betekent dat `data` verse fetch-data is waarvan de ticket-ID's als "live" mogen
+// gelden — enkel dan mogen reconcilePlanning()/gcKlantBeschikbaarheid() draaien (zie Task 12). Bij
+// cache-toepassing (reconcile: false, default) NIET aanroepen: verouderde cache-ID's zouden anders
+// planning-entries kunnen opschonen die in de echte, huidige data nog wel bestaan.
+function applyTicketsData(data, { reconcile = false } = {}) {
+  allTickets = data.tickets        || [];
+  allPending = data.pendingTickets || [];
+  allGepland = data.plannedTickets || [];
+
+  // Zoho is bron van waarheid: seed planning vanuit pendingTickets + geplande tickets
+  // Wis alle pending/gepland entries eerst (interventieDatum kan gewijzigd zijn → re-seed hieronder)
+  const pendingIds = new Set(allPending.map(t => t.id));
+  const teplanIds  = new Set(allTickets.map(t => t.id));
+  const geplandIds = new Set(allGepland.map(t => t.id));
+  Object.keys(planning).forEach(date => {
+    planning[date] = planning[date].filter(p => {
+      // Ticket terug in wachtrij (klant geweigerd) → verwijder uit planning
+      if (teplanIds.has(p.ticket.id)) return false;
+      // Pending/gepland: verwijder zodat we opnieuw seeden met correcte interventieDatum
+      if (pendingIds.has(p.ticket.id) || geplandIds.has(p.ticket.id)) return false;
+      return true;
+    });
+    if (!planning[date].length) delete planning[date];
+  });
+
+  // Voeg pendingTickets én geplande tickets toe op hun (mogelijk gewijzigde) interventieDatum
+  [...allPending, ...allGepland].forEach(t => {
+    if (!t.interventieDatum) return;
+    const date = localISO(new Date(t.interventieDatum));
+    if (!planning[date]) planning[date] = [];
+    if (!planning[date].find(p => p.ticket.id === t.id)) {
+      planning[date].push({ ticket: t, address: t.address, uur: extractLocalHour(t.interventieDatum) });
+    }
+  });
+
+  document.getElementById('cnt-tickets').textContent = allTickets.length;
+  document.getElementById('cnt-gepland').textContent = allGepland.length;
+
+  buildPersonSelector();
+  renderTickets();
+  renderKalender();
+  renderGepland();
+  renderRouteList(document.getElementById('plan-date').value);
+  updateRouteBtns(document.getElementById('plan-date').value);
+
+  if (reconcile) {
+    // Ghost-reconciliatie: planning-entries van gesloten/verwijderde tickets opruimen
+    const liveIds = new Set([...allTickets, ...allPending, ...allGepland].map(t => t.id));
+    reconcilePlanning(liveIds);
+
+    // GC: wees-entries verwijderen van gesloten tickets
+    gcKlantBeschikbaarheid(liveIds);
+  }
+
+  _lastTicketLoad = Date.now();
+}
+
 async function loadTickets() {
   document.getElementById('empty-tickets').textContent = 'Laden...';
+  if (!TEST_MODE) {
+    const cached = loadFromCache('blitz_tickets_cache');
+    if (cached) applyTicketsData(cached);
+  }
   try {
     let data;
     if (TEST_MODE) {
@@ -778,54 +840,8 @@ async function loadTickets() {
       if (data.error) throw new Error(data.error);
     }
 
-    allTickets = data.tickets        || [];
-    allPending = data.pendingTickets || [];
-    allGepland = data.plannedTickets || [];
-
-    // Zoho is bron van waarheid: seed planning vanuit pendingTickets + geplande tickets
-    // Wis alle pending/gepland entries eerst (interventieDatum kan gewijzigd zijn → re-seed hieronder)
-    const pendingIds = new Set(allPending.map(t => t.id));
-    const teplanIds  = new Set(allTickets.map(t => t.id));
-    const geplandIds = new Set(allGepland.map(t => t.id));
-    Object.keys(planning).forEach(date => {
-      planning[date] = planning[date].filter(p => {
-        // Ticket terug in wachtrij (klant geweigerd) → verwijder uit planning
-        if (teplanIds.has(p.ticket.id)) return false;
-        // Pending/gepland: verwijder zodat we opnieuw seeden met correcte interventieDatum
-        if (pendingIds.has(p.ticket.id) || geplandIds.has(p.ticket.id)) return false;
-        return true;
-      });
-      if (!planning[date].length) delete planning[date];
-    });
-
-    // Voeg pendingTickets én geplande tickets toe op hun (mogelijk gewijzigde) interventieDatum
-    [...allPending, ...allGepland].forEach(t => {
-      if (!t.interventieDatum) return;
-      const date = localISO(new Date(t.interventieDatum));
-      if (!planning[date]) planning[date] = [];
-      if (!planning[date].find(p => p.ticket.id === t.id)) {
-        planning[date].push({ ticket: t, address: t.address, uur: extractLocalHour(t.interventieDatum) });
-      }
-    });
-
-    document.getElementById('cnt-tickets').textContent = allTickets.length;
-    document.getElementById('cnt-gepland').textContent = allGepland.length;
-
-    buildPersonSelector();
-    renderTickets();
-    renderKalender();
-    renderGepland();
-    renderRouteList(document.getElementById('plan-date').value);
-    updateRouteBtns(document.getElementById('plan-date').value);
-
-    // Ghost-reconciliatie: planning-entries van gesloten/verwijderde tickets opruimen
-    const liveIds = new Set([...allTickets, ...allPending, ...allGepland].map(t => t.id));
-    reconcilePlanning(liveIds);
-
-    // GC: wees-entries verwijderen van gesloten tickets
-    gcKlantBeschikbaarheid(liveIds);
-
-    _lastTicketLoad = Date.now();
+    if (!TEST_MODE) saveToCache('blitz_tickets_cache', data);
+    applyTicketsData(data, { reconcile: true });
 
     if (TEST_MODE) toast('🧪 Testmodus actief — dummy data geladen');
     else toast(`${allTickets.length} te plannen · ${allPending.length} wacht bevestiging · ${allGepland.length} gepland`);
@@ -1631,16 +1647,30 @@ function getPlanningTicket(id) {
 const AFG_API = '/api/afspraken';
 
 async function loadAfspraken() {
+  if (!TEST_MODE) {
+    const cached = loadFromCache('blitz_afspraken_cache');
+    if (cached) {
+      localEvents       = cached.afspraken || [];
+      localEventsVersie = cached.versie || 0;
+      renderKalender();
+    }
+  }
   try {
     const res  = await fetch(AFG_API);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     localEvents       = data.afspraken || [];
     localEventsVersie = data.versie    || 0;
+    if (!TEST_MODE) saveToCache('blitz_afspraken_cache', { afspraken: localEvents, versie: localEventsVersie });
   } catch (err) {
     console.warn('Afspraken laden mislukt:', err);
-    localEvents       = [];
-    localEventsVersie = 0;
+    // Bewuste gedragswijziging (Blok 1D): bij een fout NIET meer terugvallen naar een lege staat
+    // als er al cache-data toegepast werd hierboven; enkel als er ook geen cache was, resetten we
+    // (zelfde gedrag als pre-Blok-1D in dat specifieke geval).
+    if (TEST_MODE || !loadFromCache('blitz_afspraken_cache')) {
+      localEvents       = [];
+      localEventsVersie = 0;
+    }
   }
   renderKalender();
 }
@@ -1677,16 +1707,29 @@ async function saveAfspraken() {
 const KB_API = '/api/klantbeschikbaarheid';
 
 async function loadKlantBeschikbaarheid() {
+  if (!TEST_MODE) {
+    const cached = loadFromCache('blitz_klantbeschikbaarheid_cache');
+    if (cached) {
+      klantBeschikbaarheid = cached.items || {};
+      kbVersie             = cached.versie || 0;
+    }
+  }
   try {
     const res  = await fetch(KB_API);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     klantBeschikbaarheid = data.items  || {};
     kbVersie             = data.versie || 0;
+    if (!TEST_MODE) saveToCache('blitz_klantbeschikbaarheid_cache', { items: klantBeschikbaarheid, versie: kbVersie });
   } catch (err) {
     console.warn('Klantbeschikbaarheid laden mislukt:', err);
-    klantBeschikbaarheid = {};
-    kbVersie = 0;
+    // Bewuste gedragswijziging (Blok 1D): bij een fout NIET meer terugvallen naar een lege staat
+    // als er al cache-data toegepast werd hierboven; enkel als er ook geen cache was, resetten we
+    // (zelfde gedrag als pre-Blok-1D in dat specifieke geval).
+    if (TEST_MODE || !loadFromCache('blitz_klantbeschikbaarheid_cache')) {
+      klantBeschikbaarheid = {};
+      kbVersie = 0;
+    }
   }
 }
 
@@ -2198,16 +2241,30 @@ async function deleteFromLocalDet() {
 const AV_API = '/api/availability';
 
 async function loadAvailability() {
+  if (!TEST_MODE) {
+    const cached = loadFromCache('blitz_availability_cache');
+    if (cached) {
+      avExceptions = cached.exceptions || [];
+      avVersie     = cached.versie || 0;
+      renderKalender();
+    }
+  }
   try {
     const res = await fetch(AV_API);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     avExceptions = data.exceptions || [];
     avVersie     = data.versie     || 0;
+    if (!TEST_MODE) saveToCache('blitz_availability_cache', { exceptions: avExceptions, versie: avVersie });
   } catch (err) {
     console.warn('Beschikbaarheid laden mislukt:', err);
-    avExceptions = [];
-    avVersie     = 0;
+    // Bewuste gedragswijziging (Blok 1D): bij een fout NIET meer terugvallen naar een lege staat
+    // als er al cache-data toegepast werd hierboven; enkel als er ook geen cache was, resetten we
+    // (zelfde gedrag als pre-Blok-1D in dat specifieke geval).
+    if (TEST_MODE || !loadFromCache('blitz_availability_cache')) {
+      avExceptions = [];
+      avVersie     = 0;
+    }
   }
   renderKalender();
 }
