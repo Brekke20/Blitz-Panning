@@ -1207,6 +1207,34 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports) {
     wrap.appendChild(line);
   }
 
+  // Geblokkeerde/verlof-tijdvakken (avExceptions, kind==='range') als gepositioneerd segment —
+  // vóór dayStops/dayEvents toegevoegd zodat ze in DOM-volgorde ONDER de ticket/event-blokken
+  // liggen (die zelf geen z-index zetten, dus DOM-volgorde bepaalt de zichtbare laag). Hele-dag
+  // (kind==='fullday') uitzonderingen krijgen hier geen los blok — die worden al elders als
+  // kolom-brede stripe (blocked-day-klasse) getoond.
+  const myPersonTl = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+  const dayExceptions = avExceptions.filter(e =>
+    e.date === dateStr && e.kind === 'range' &&
+    (e.scope === 'global' || (myPersonTl && e.person === myPersonTl))
+  );
+  dayExceptions.forEach(e => {
+    const [fromH, fromM] = e.from.split(':').map(Number);
+    const [toH, toM]     = e.to.split(':').map(Number);
+    const startMin = fromH * 60 + fromM;
+    const endMin   = toH * 60 + toM;
+    const { top, height } = timelineTopHeight(startMin, endMin, dagStartMin);
+    // Let op: dit is textContent/title (DOM-property), geen innerHTML — dus GEEN escHtml() hier;
+    // die zou entities dubbel encoderen ("&" -> "&amp;" zichtbaar als tekst i.p.v. "&").
+    const reasonPart = e.reason ? `: ${e.reason}` : '';
+    const block = document.createElement('div');
+    block.className = 'tl-block tl-blocked';
+    block.style.top = `${top}px`;
+    block.style.height = `${height}px`;
+    block.title = `Niet beschikbaar${reasonPart}`;
+    block.textContent = `🔒 ${e.from}–${e.to}${reasonPart}`;
+    wrap.appendChild(block);
+  });
+
   dayStops.forEach(stop => {
     if (!stop.uur) return; // geen tijdstip toegekend — blijft ongepositioneerd, zie hieronder
     const [h, m] = stop.uur.split(':').map(Number);

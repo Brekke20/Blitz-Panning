@@ -825,6 +825,13 @@
       position: absolute; left: 34px; right: 6px; overflow: hidden; border-radius: var(--r);
     }
     .tl-block .cal-ticket, .tl-block .cal-local-event { height: 100%; margin: 0; }
+    .tl-blocked {
+      background: repeating-linear-gradient(45deg, rgba(255,90,90,0.15), rgba(255,90,90,0.15) 6px, rgba(255,90,90,0.25) 6px, rgba(255,90,90,0.25) 12px);
+      border: 1px solid rgba(255,90,90,0.4); font-size: 0.75rem; color: var(--text); padding: 4px 6px;
+      z-index: 0; /* onder de ticket/event-blokken, die zelf geen z-index zetten en dus op 'auto'
+                     (effectief boven deze regel) renderen door DOM-volgorde — ticket/event-blokken
+                     worden in renderDayTimeline() NA de geblokkeerde segmenten toegevoegd */
+    }
     .tl-ongepositioneerd {
       margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border);
       display: flex; flex-direction: column; gap: 5px;
