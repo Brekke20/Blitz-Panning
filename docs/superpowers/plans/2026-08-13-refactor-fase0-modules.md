@@ -54,13 +54,14 @@ de rest van dit project.
 
 ## Global Constraints
 
-- **Voorwaarde vóór je start:** PR #2 (`worktree-installatie-extra-kosten-rapport`, de
-  installatie-meerkosten-rapport-feature) raakt zwaar dezelfde code als Task 5 hieronder
-  (rapport-wizard). Merge die branch EERST (na bevestiging door Brent's supervisor over de
-  kabelprijzen — zie memory `project_meerkost_kabel_drempel_prijs.md`), vóór je aan dit plan
-  begint. Anders moet die hele PR nadien herschreven worden tegen de nieuwe bestandsstructuur.
-  Als je hieraan begint zonder dat PR #2 gemerged is: stop en meld dit — vraag niet zelf om
-  alvast te beginnen "want het kan toch nog aangepast worden."
+- **Beslissing 2026-08-13 (Brent):** PR #2 (`worktree-installatie-extra-kosten-rapport`, de
+  installatie-meerkosten-rapport-feature) staat on-hold zonder duidelijke einddatum (wacht op
+  bevestiging van Brent's supervisor over de kabelprijzen — zie memory
+  `project_meerkost_kabel_drempel_prijs.md`). PR #2 raakt zwaar dezelfde code als Task 5 hieronder
+  (rapport-wizard), maar Brent heeft expliciet gekozen om Fase 0 NU te starten zonder op PR #2 te
+  wachten. Gevolg: PR #2 moet, zodra de kabelprijs bevestigd is, handmatig herschreven/gerebaset
+  worden tegen de nieuwe bestandsstructuur uit dit plan (met name tegen `public/js/prijzen.js` en
+  `public/js/rapport-wizard.js` uit Task 4/5) — dat is bekend en aanvaard meerwerk, geen fout.
 - **Geen enkele gedragswijziging in dit hele plan.** Elke taak is een pure verplaatsing van
   bestaande code. Als je tijdens het werk een bug vindt in verplaatste code: verplaats hem mee
   zoals hij is, en meld de bug apart — fix hem niet stiekem terwijl je toch bezig bent (dat maakt
