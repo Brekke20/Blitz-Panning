@@ -735,7 +735,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (active) updateTabIndicator(active.id);
   });
   enforceMobileTabRestriction();
-  window.matchMedia('(max-width: 1023px)').addEventListener('change', enforceMobileTabRestriction);
+  // Fix 2 (finale review): renderKalender() beslist bij RENDER TIME op basis van window.innerWidth
+  // of het de desktop-tijdlijn of de mobiele lijst toont, maar werd tot nu toe nergens herberekend
+  // wanneer de viewport na de eerste render over deze breakpoint heen ging (window resizen, tablet
+  // roteren) -- zonder volledige page reload bleef het kalenderscherm dan leeg (CSS verbergt de
+  // tijdlijn-elementen onder 1023px, en de mobiele lijst werd nooit opnieuw gegenereerd). Dezelfde
+  // matchMedia-listener die de tab-restrictie herberekent is het logische punt om ook de kalender
+  // opnieuw te renderen -- renderKalender() is overal elders in de app veilig aanroepbaar.
+  window.matchMedia('(max-width: 1023px)').addEventListener('change', () => {
+    enforceMobileTabRestriction();
+    renderKalender();
+  });
   // Herbereken indicator als gebruiker de tabbalk horizontaal scrollt
   document.querySelector('.tabs-inner')?.addEventListener('scroll', () => {
     const active = document.querySelector('.tab.active');
@@ -817,9 +827,14 @@ function applyTicketsData(data, { reconcile = false } = {}) {
 
     // GC: wees-entries verwijderen van gesloten tickets
     gcKlantBeschikbaarheid(liveIds);
-  }
 
-  _lastTicketLoad = Date.now();
+    // Fix 5 (finale review): enkel bij een échte, gelukte fetch (reconcile:true) de poll-throttle
+    // bijwerken. Deze regel stond voorheen onvoorwaardelijk aan het einde van de functie, waardoor
+    // ook het toepassen van een stale cache (reconcile:false, bv. tijdens een netwerkstoring) de
+    // tickets als "net succesvol geladen" markeerde en de poll-retry-lus 5 minuten onderdrukte --
+    // net tijdens het offline-scenario dat Blok 1D net moest verzachten.
+    _lastTicketLoad = Date.now();
+  }
 }
 
 async function loadTickets() {
@@ -3610,7 +3625,11 @@ function setSettingsTab(tab) {
   if (tab === 'beschikbaarheden') renderBeschikbaarhedenTab();
 }
 
-let _bavFormDate  = new Date().toISOString().split('T')[0];
+// Fix 6 (finale review): localISO() i.p.v. toISOString().split('T')[0] -- toISOString() geeft
+// UTC terug, en tussen lokale middernacht en 01:00/02:00 (België is UTC+1/+2) resolveerde dat naar
+// GISTEREN, wat zowel het default-datumveld hieronder als de "upcoming"-filter in
+// renderBeschikbaarhedenTab() liet knallen.
+let _bavFormDate  = localISO(new Date());
 let _bavFormDateTot = null;
 let _bavFormMultiDay = false;
 let _bavFormKind  = 'fullday';
@@ -3620,7 +3639,7 @@ function renderBeschikbaarhedenTab() {
   const body = document.getElementById('set-tab-beschikbaarheden');
   if (!body) return;
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = localISO(new Date()); // Fix 6 (finale review): lokale datum, niet UTC (zie boven)
   const upcoming = avExceptions
     .filter(e => e.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -3815,16 +3834,22 @@ function closeSettings(e) {
 }
 
 function saveSettings() {
-  const duur        = +document.getElementById('set-duration').value;
-  const max         = +document.getElementById('set-max').value;
-  const van         = document.getElementById('set-van').value;
-  const tot         = document.getElementById('set-tot').value;
-  const maxReistijd = +document.getElementById('set-maxreistijd').value;
+  const duur            = +document.getElementById('set-duration').value;
+  const max             = +document.getElementById('set-max').value;
+  const van             = document.getElementById('set-van').value;
+  const tot             = document.getElementById('set-tot').value;
+  const maxReistijd     = +document.getElementById('set-maxreistijd').value;
+  const tijdslotMinuten = +document.getElementById('set-tijdslot').value;
 
   if (van && tot && van >= tot) return toast('⚠️ Begintijd moet voor eindtijd liggen', 3500);
   if (duur < 15)                return toast('⚠️ Minimale interventieduur is 15 minuten', 3500);
   if (max < 1)                  return toast('⚠️ Maximaal per dag moet minstens 1 zijn', 3500);
   if (maxReistijd < 0)          return toast('⚠️ Max. reistijd kan niet negatief zijn', 3500);
+  // Fix 7 (finale review): ontbrekende guard voor tijdslotMinuten -- elk ander numeriek veld hier
+  // heeft er één, en een negatieve/te kleine waarde laat tijdslotVoor() omgekeerde tijdvak-labels
+  // produceren (bv. "08:00–07:30") in klant-gerichte mails. Grens komt overeen met het HTML-veld
+  // zijn eigen min="60"-attribuut.
+  if (tijdslotMinuten < 60)     return toast('⚠️ Tijdslot moet minstens 60 minuten zijn', 3500);
   if (!settings.werkdagen.length) return toast('⚠️ Selecteer minstens één werkdag', 3500);
 
   settings.startlocatie   = document.getElementById('set-start').value.trim() || DEFAULT_SETTINGS.startlocatie;
@@ -4058,7 +4083,6 @@ function updateProposalPreview() {
   if (!activeTicket) return;
   const date     = document.getElementById('proposal-date').value;
   const rawTime  = document.getElementById('proposal-time').value;
-  const apptTime = rawTime ? roundToNextQuarterStr(rawTime) : '—';
   // Weergave-tijdslot (Task 9, Blok 1C): de klant ziet nooit de exacte tijd, enkel het
   // configureerbare tijdslot (bv. "10:00–13:00") waarin apptTime valt. computeArrivalTimes()
   // en de exacte opgeslagen tijd blijven hierdoor volledig ongewijzigd — dit is uitsluitend
@@ -4097,7 +4121,18 @@ function updateProposalPreview() {
         <div style="font-size:12px;color:#3a3a3a">tussen <strong>${apptWindow}</strong> uur</div>
         ${sn ? `<div style="font-size:10px;color:#8a9aaa;margin-top:6px">Serienummer: ${sn}</div>` : ''}
       </div>
-      <p style="margin:0 0 10px;font-size:12px;color:#3a3a3a">Gelieve deze afspraak te bevestigen door op deze e-mail te antwoorden. Komt het voorgestelde tijdstip u niet uit? Laat het ons dan ook weten, zodat we samen een alternatief zoeken. In bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.</p>
+      <!-- Fix 3 (finale review): dit spiegelt de bevestigingsknop uit propose.js's buildEmailHtml()
+           (Fix 1/2), zodat de coördinator hier ziet wat de klant écht ontvangt. Bewust GEEN echte
+           confirmUrl/href nodig -- dit is een preview, geen live link, dus een inert element
+           (href="#") kan geen per-ongeluk-klik veroorzaken. Stijl (kleuren/padding/radius) moet
+           gelijk blijven aan de echte knop. -->
+      <div style="text-align:center;margin:14px 0">
+        <a href="#" onclick="return false" style="display:inline-block;background:#00dfa3;color:#181e24;
+          text-decoration:none;font-weight:700;font-size:13px;padding:10px 24px;border-radius:6px">
+          ✅ Bevestig deze afspraak
+        </a>
+      </div>
+      <p style="margin:0 0 10px;font-size:12px;color:#3a3a3a">Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen, of antwoord op deze e-mail. Komt het voorgestelde tijdstip u niet uit? Laat het ons dan weten via een antwoord op deze e-mail, zodat we samen een alternatief zoeken. In bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.</p>
       <p style="margin:0;font-size:12px;color:#3a3a3a">Met vriendelijke groeten,<br><strong>Team Blitz Power — Service &amp; Support</strong></p>
     </div>
     <div style="background:#f7f7f7;border-top:1px solid #e8e8e8;padding:10px 18px;font-size:10px;color:#8a9aaa">

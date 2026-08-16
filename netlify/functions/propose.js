@@ -16,10 +16,14 @@ import crypto from 'node:crypto';
 
 // ── HMAC-token (letterlijk gekopieerd uit confirm-afspraak.js — dit project deelt geen module
 // tussen netlify/functions/*.js-bestanden, elke functie dupliceert dit patroon zelf) ────────────
-function signConfirmToken(ticketId, expiresAtEpochSeconds) {
+// Fix 4 (finale review): de datum zit nu ook in het ondertekende bericht, zodat de audit-notitie
+// in confirm-afspraak.js kan tonen vóór welke datum bevestigd werd. BEIDE bestanden (dit bestand
+// en confirm-afspraak.js's sign()) moeten exact dezelfde `${ticketId}.${date}.${exp}`-string
+// samenstellen, anders faalt elke verificatie.
+function signConfirmToken(ticketId, date, expiresAtEpochSeconds) {
   const secret = process.env.CONFIRM_LINK_SECRET;
   if (!secret) throw new Error('CONFIRM_LINK_SECRET niet geconfigureerd');
-  return crypto.createHmac('sha256', secret).update(`${ticketId}.${expiresAtEpochSeconds}`).digest('hex');
+  return crypto.createHmac('sha256', secret).update(`${ticketId}.${date}.${expiresAtEpochSeconds}`).digest('hex');
 }
 
 // Netlify bundelt deze ESM-syntax functie naar CommonJS voor de echte
@@ -107,6 +111,26 @@ function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime
     ? `<div style="font-size:12px;color:#8a9aaa;margin-top:10px;border-top:1px solid #e8e8e8;padding-top:10px">Serienummer: ${escHtml(serienummer)}</div>`
     : '';
 
+  // Fix 1 (finale review): confirmUrl kan null zijn als de bevestigingslink niet gebouwd kon
+  // worden (bv. CONFIRM_LINK_SECRET nog niet gezet). De knop mag dan niet verschijnen, en de
+  // begeleidende tekst moet zonder de knop even goed kloppen (geen "klik op de knop hierboven"
+  // als er geen knop is).
+  const confirmButton = confirmUrl ? `<div style="text-align:center;margin:18px 0">
+      <a href="${confirmUrl}" style="display:inline-block;background:#00dfa3;color:#181e24;
+        text-decoration:none;font-weight:700;font-size:14px;padding:12px 28px;border-radius:6px">
+        ✅ Bevestig deze afspraak
+      </a>
+    </div>` : '';
+
+  const confirmParagraph = confirmUrl
+    ? `Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen, of
+      antwoord op deze e-mail. Komt het voorgestelde tijdstip u niet uit? Laat het ons dan weten via een
+      antwoord op deze e-mail, zodat we samen een alternatief zoeken. In bijlage vindt u onze
+      service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.`
+    : `Gelieve deze afspraak te bevestigen door op deze e-mail te antwoorden. Komt het voorgestelde
+      tijdstip u niet uit? Laat het ons dan ook weten, zodat we samen een alternatief zoeken. In
+      bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.`;
+
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f2f2f2;font-family:Arial,Helvetica,sans-serif">
@@ -148,18 +172,10 @@ function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime
     </td></tr>
     </table>
 
-    <div style="text-align:center;margin:18px 0">
-      <a href="${confirmUrl}" style="display:inline-block;background:#00dfa3;color:#181e24;
-        text-decoration:none;font-weight:700;font-size:14px;padding:12px 28px;border-radius:6px">
-        ✅ Bevestig deze afspraak
-      </a>
-    </div>
+    ${confirmButton}
 
     <p style="margin:0 0 16px;font-size:14px;color:#3a3a3a;line-height:1.65">
-      Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen, of
-      antwoord op deze e-mail. Komt het voorgestelde tijdstip u niet uit? Laat het ons dan weten via een
-      antwoord op deze e-mail, zodat we samen een alternatief zoeken. In bijlage vindt u onze
-      service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.
+      ${confirmParagraph}
     </p>
     <p style="margin:0;font-size:14px;color:#3a3a3a;line-height:1.65">
       Met vriendelijke groeten,<br>
@@ -268,11 +284,21 @@ export async function handler(event) {
     // /api/confirm-afspraak, opgenomen als knop in de mail hieronder. `process.env.URL` is een
     // door Netlify automatisch gezette env-var met de site's eigen basis-URL; lokaal (dev-server.mjs)
     // is die niet gezet, vandaar de localhost-fallback op Netlify dev's eigen poort (netlify.toml).
+    // Fix 1 (finale review): CONFIRM_LINK_SECRET staat niet meteen na deze deploy in de productie-
+    // omgeving (bewust uitgesteld tot de mens-eigenaar de env-var zet in Netlify) — signConfirmToken()
+    // gooit dan een Error. Dat mag de rest van deze aanvraag (mail versturen + status-PATCH hieronder)
+    // nooit blokkeren: dus eigen try/catch, en bij falen blijft confirmUrl gewoon null (buildEmailHtml()
+    // laat de bevestigingsknop dan gewoon weg, zie hierboven).
     const CONFIRM_LINK_TTL_SECONDS = 14 * 24 * 60 * 60; // 14 dagen geldig
-    const confirmExp = Math.floor(Date.now() / 1000) + CONFIRM_LINK_TTL_SECONDS;
-    const confirmSig = signConfirmToken(ticketId, confirmExp);
-    const confirmUrl = `${process.env.URL || 'http://localhost:8888'}/api/confirm-afspraak`
-      + `?ticketId=${encodeURIComponent(ticketId)}&exp=${confirmExp}&sig=${confirmSig}`;
+    let confirmUrl = null;
+    try {
+      const confirmExp = Math.floor(Date.now() / 1000) + CONFIRM_LINK_TTL_SECONDS;
+      const confirmSig = signConfirmToken(ticketId, date, confirmExp);
+      confirmUrl = `${process.env.URL || 'http://localhost:8888'}/api/confirm-afspraak`
+        + `?ticketId=${encodeURIComponent(ticketId)}&date=${encodeURIComponent(date)}&exp=${confirmExp}&sig=${confirmSig}`;
+    } catch (e) {
+      console.error('Bevestigingslink niet gegenereerd:', e.message);
+    }
 
     // 1. E-mail via sendReply EERST (anders overschrijft Zoho de status terug naar "Wachten op klant").
     // 1 aparte sendReply-aanroep per ontvanger (klant en/of installateur) -- elk met zijn eigen

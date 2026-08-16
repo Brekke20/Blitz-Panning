@@ -68,20 +68,30 @@ async function getOrgId(accessToken) {
 }
 
 // ── HMAC-token ────────────────────────────────────────────────────────────────────────────────
-function sign(ticketId, exp) {
+// Fix 4 (finale review): de datum zit nu in het ondertekende bericht (`${ticketId}.${date}.${exp}`)
+// zodat de audit-notitie hieronder kan tonen vóór welke datum bevestigd werd, en een re-send van
+// een voorstel voor een andere datum geen verwarrende/dubbelzinnige notities meer oplevert. Dit
+// MOET exact dezelfde string samenstellen als propose.js's signConfirmToken(), anders faalt elke
+// verificatie van een nieuw gegenereerde link.
+function sign(ticketId, date, exp) {
   const secret = process.env.CONFIRM_LINK_SECRET;
   if (!secret) throw new Error('CONFIRM_LINK_SECRET niet geconfigureerd');
-  return crypto.createHmac('sha256', secret).update(`${ticketId}.${exp}`).digest('hex');
+  return crypto.createHmac('sha256', secret).update(`${ticketId}.${date}.${exp}`).digest('hex');
 }
 
-export function signConfirmToken(ticketId, expiresAtEpochSeconds) {
-  return sign(ticketId, expiresAtEpochSeconds);
+export function signConfirmToken(ticketId, date, expiresAtEpochSeconds) {
+  return sign(ticketId, date, expiresAtEpochSeconds);
 }
 
-function verify(ticketId, exp, sig) {
-  if (!ticketId || !exp || !sig) return false;
+function verify(ticketId, date, exp, sig) {
+  if (!ticketId || !date || !exp || !sig) return false;
+  // Defense-in-depth (Fix 4, finale review): confirm-afspraak.js vertrouwde tot nu toe blind op
+  // propose.js's validatie van ticketId. Dit endpoint is publiek/ongeauthenticeerd, dus hier
+  // opnieuw controleren dat ticketId een zuiver numeriek Zoho-ticket-id is (sluit ook elke
+  // theoretische dubbelzinnigheid tussen veldcombinaties in de delimiter-loze signature uit).
+  if (!/^\d+$/.test(ticketId)) return false;
   if (Date.now() / 1000 > Number(exp)) return false; // verlopen
-  const expected = sign(ticketId, exp);
+  const expected = sign(ticketId, date, exp);
   // timingSafeEqual vereist gelijke lengte — ongelijke lengte betekent sowieso ongeldig
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
@@ -111,9 +121,10 @@ function htmlPage({ title, message, ok, confirmForm }) {
 </div></body></html>`;
 }
 
-function confirmFormHtml(ticketId, exp, sig) {
+function confirmFormHtml(ticketId, date, exp, sig) {
   return `<form method="POST" action="/api/confirm-afspraak">
     <input type="hidden" name="ticketId" value="${ticketId}">
+    <input type="hidden" name="date" value="${date}">
     <input type="hidden" name="exp" value="${exp}">
     <input type="hidden" name="sig" value="${sig}">
     <button type="submit" class="confirm-btn">✅ Ja, ik bevestig deze afspraak</button>
@@ -164,7 +175,7 @@ export default async (req) => {
   const headers = { ...corsHeaders(req), 'Content-Type': 'text/html; charset=utf-8' };
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
-  let ticketId, exp, sig;
+  let ticketId, date, exp, sig;
   if (req.method === 'POST') {
     // req.formData() kan throwen op een misvormde/corrupte body (verkeerde Content-Type,
     // afgebroken multipart-boundary, ...). Dit is een publiek, ongeauthenticeerd endpoint dat
@@ -175,6 +186,7 @@ export default async (req) => {
     try {
       const form = await req.formData();
       ticketId = form.get('ticketId') || '';
+      date = form.get('date') || '';
       exp = form.get('exp') || '';
       sig = form.get('sig') || '';
     } catch (e) {
@@ -188,11 +200,12 @@ export default async (req) => {
   } else {
     const url = new URL(req.url);
     ticketId = url.searchParams.get('ticketId') || '';
+    date = url.searchParams.get('date') || '';
     exp = url.searchParams.get('exp') || '';
     sig = url.searchParams.get('sig') || '';
   }
 
-  if (!verify(ticketId, exp, sig)) {
+  if (!verify(ticketId, date, exp, sig)) {
     return new Response(htmlPage({
       title: 'Link ongeldig of verlopen',
       message: 'Deze bevestigingslink is niet (meer) geldig. Neem contact op met Blitz Power als u de afspraak alsnog wil bevestigen.',
@@ -206,7 +219,7 @@ export default async (req) => {
       title: 'Afspraak bevestigen',
       message: 'Klik hieronder om deze afspraak te bevestigen.',
       ok: true,
-      confirmForm: confirmFormHtml(ticketId, exp, sig),
+      confirmForm: confirmFormHtml(ticketId, date, exp, sig),
     }), { status: 200, headers });
   }
 
@@ -218,6 +231,42 @@ export default async (req) => {
   try {
     const accessToken = await getAccessToken();
     const orgId = await getOrgId(accessToken);
+
+    // Fix 4, deel B (finale review): status van het ticket controleren vóór de PATCH. Een
+    // ondertekende link blijft 14 dagen geldig, ongeacht wat er intussen met het ticket gebeurd
+    // is -- een klant kan een oude mail terugvinden en een voorstel bevestigen dat al bevestigd
+    // is, of dat intussen verplaatst/geannuleerd/anders afgehandeld werd. Enkel de PATCH
+    // uitvoeren als de status nog exact 'Wachten op bevestiging planning' is.
+    // Als de status-check zelf faalt (netwerk/Zoho-uitval): NIET blokkeren op deze extra
+    // afhankelijkheid -- terugvallen op het oude gedrag (gewoon de PATCH proberen), zodat een
+    // tijdelijke Zoho-hik een verder legitieme bevestiging niet in de weg staat.
+    let currentStatus = null;
+    let statusCheckFailed = false;
+    try {
+      const statusRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
+        headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
+      });
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        currentStatus = statusData.status || null;
+      } else {
+        statusCheckFailed = true;
+      }
+    } catch (e) {
+      console.error('Ticket-status ophalen mislukt (confirm-afspraak):', e);
+      statusCheckFailed = true;
+    }
+
+    if (!statusCheckFailed && currentStatus !== 'Wachten op bevestiging planning') {
+      // Verwacht, geldig scenario (dubbele klik, verouderde link, ticket al elders afgehandeld)
+      // -- geen system failure, dus geen 500 en geen "Er ging iets mis"-pagina.
+      return new Response(htmlPage({
+        title: 'Afspraak niet meer actueel',
+        message: 'Deze afspraak is al bevestigd of niet meer actueel. Neem contact op met Blitz Power als u vragen heeft.',
+        ok: false,
+      }), { status: 409, headers });
+    }
+
     const patchRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
       method: 'PATCH',
       headers: {
@@ -240,7 +289,7 @@ export default async (req) => {
     const ip = clientIp(req);
     const timestamp = new Date().toLocaleString('nl-BE', { timeZone: 'Europe/Brussels' });
     await addZohoComment(ticketId, accessToken, orgId,
-      `Afspraak bevestigd door klant via bevestigingslink op ${timestamp} (Europe/Brussels). IP-adres: ${ip}.`);
+      `Afspraak bevestigd voor ${date} door klant via bevestigingslink op ${timestamp} (Europe/Brussels). IP-adres: ${ip}.`);
   } catch (e) {
     console.error('confirm-afspraak fout:', e);
     return new Response(htmlPage({
