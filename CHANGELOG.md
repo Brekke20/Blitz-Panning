@@ -15,6 +15,24 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.1.2] — 2026-08-17
+
+Verdere bugfixes op de kalender-tijdlijn, op basis van live gebruikersfeedback na v1.1.1.
+
+### Fixed
+- De in v1.1.1 toegevoegde per-dag-kolom-scroll (elke dag met een eigen vaste hoogte en
+  scrollbalk, onderling gesynchroniseerd) zorgde in de praktijk voor een tragere, haperende
+  pagina. Teruggedraaid: de tijdlijn neemt nu weer gewoon zijn volledige hoogte in en de hele
+  pagina scrollt, zoals voorheen.
+- Tickets met een korte geplande duur waren te kort om hun eigen inhoud (nummer, tijd, onderwerp,
+  adres) volledig te tonen — de onderkant van de kaart werd afgekapt. Elk tijdlijn-blok krijgt nu
+  een minimumhoogte die de volledige kaart toont, ongeacht de geplande duur.
+
+### Changed
+- De bel-/navigeerknoppen op ticketkaarten staan er enkel nog op mobiel — op de pc-weergave
+  volstaat een klik op de kaart, die opent het ticketdetail (met bel/navigeer erin). Ticketblokken
+  zijn hierdoor ook wat compacter, wat de minimumhoogte hierboven mee beperkt houdt.
+
 ## [1.1.1] — 2026-08-17
 
 Bugfixes op de kalender-tijdlijn en Beschikbaarheden-tab, op basis van feedback na de v1.1.0-lancering.

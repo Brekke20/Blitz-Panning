@@ -1140,7 +1140,7 @@ function setKalView(v) {
   renderKalender();
 }
 
-function buildTicketCard(stop, dateStr) {
+function buildTicketCard(stop, dateStr, { showActions = true } = {}) {
   const isPending   = stop.ticket.status === 'Wachten op bevestiging planning';
   const cardClass   = isPending ? 'pending' : 'confirmed';
   const badgeLabel  = isPending ? 'Wacht bevestiging' : 'Bevestigd';
@@ -1166,10 +1166,10 @@ function buildTicketCard(stop, dateStr) {
       </div>
       <button onclick="event.stopPropagation();removeTicketFromDate('${stop.ticket.id}','${dateStr}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;flex-shrink:0;padding:2px 4px;line-height:1">×</button>
     </div>
-    <div class="cal-actions">
+    ${showActions ? `<div class="cal-actions">
       ${stop.ticket.phone || stop.ticket.telefoonEindklant ? `<a class="cal-btn" href="tel:${escHtml(stop.ticket.telefoonEindklant||stop.ticket.phone)}">📞 Bellen</a>` : ''}
       ${stop.ticket.hasAddress ? `<button class="cal-btn btn-navigeer" data-adres="${escHtml(stop.address||stop.ticket.address||'')}">🧭 Navigeer</button>` : ''}
-    </div>`;
+    </div>` : ''}`;
   card.querySelector('.btn-navigeer')?.addEventListener('click', e => {
     e.stopPropagation();
     navigate(encodeURIComponent(e.currentTarget.dataset.adres));
@@ -1229,8 +1229,13 @@ function buildLocalEventCard(ev) {
 // Let op: bouwt met echte DOM-nodes (niet HTML-strings) — buildTicketCard/buildLocalEventCard/
 // buildReportCard maken elementen met addEventListener-listeners (klik → detail, navigeer-knop);
 // via een HTML-string (bv. .outerHTML) zouden die listeners bij het opnieuw parsen verloren gaan.
-const TIMELINE_PX_PER_MIN = 1.2;
-const TIMELINE_MIN_BLOCK_PX = 26;
+const TIMELINE_PX_PER_MIN = 1.3;
+// Post-launch feedback (2026-08-17): 26px liet de tickettekst (nummer/tijd/onderwerp/adres)
+// afkappen zodra de blokhoogte (duur × TIMELINE_PX_PER_MIN) korter was dan de kaart zelf nodig
+// heeft (~150px gemeten zonder de bel-/navigeerknoppen, die enkel op mobiel getoond worden — zie
+// buildTicketCard()'s showActions) -- deze vloer garandeert dat elk blok, ongeacht duur, minstens
+// de volledige kaart toont.
+const TIMELINE_MIN_BLOCK_PX = 155;
 
 function timelineTopHeight(startMin, endMin, dagStartMin) {
   const top = Math.max(0, (startMin - dagStartMin) * TIMELINE_PX_PER_MIN);
@@ -1383,7 +1388,9 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, isFirstCol)
     }
     if (item.type === 'ticket') {
       block.dataset.ticketId = item.stop.ticket.id;
-      block.appendChild(buildTicketCard(item.stop, dateStr));
+      // Post-launch feedback (2026-08-17): bel-/navigeerknoppen enkel op mobiel nodig — op
+      // desktop opent een klik op de kaart toch al het detail (met bel/navigeer erin).
+      block.appendChild(buildTicketCard(item.stop, dateStr, { showActions: false }));
     } else {
       block.appendChild(buildLocalEventCard(item.ev));
     }
@@ -1398,7 +1405,7 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, isFirstCol)
   // vooruit-geplande-tijdlijn. Consistente behandeling met hoe niet-gepositioneerde tickets
   // hieronder ook als losse rij getoond worden.
   const ongepositioneerd = [
-    ...dayStops.filter(s => !s.uur).map(s => buildTicketCard(s, dateStr)),
+    ...dayStops.filter(s => !s.uur).map(s => buildTicketCard(s, dateStr, { showActions: false })),
     ...dayReports.map(r => buildReportCard(r)),
   ];
   if (ongepositioneerd.length) {
@@ -1534,7 +1541,6 @@ function renderKalender() {
     const dayBodyEl = col.querySelector('.day-body');
     const isDesktopTijdlijn = window.innerWidth >= 1024;
     if (isDesktopTijdlijn) {
-      dayBodyEl.classList.add('tl-active');
       dayBodyEl.appendChild(renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, !_tlFirstColRendered));
       _tlFirstColRendered = true;
     } else {
@@ -1576,26 +1582,6 @@ function renderKalender() {
     }
 
     grid.appendChild(col);
-  }
-
-  // Post-launch feedback (2026-08-17): elke dag-kolom se .day-body (met de tijdlijn) krijgt een
-  // vaste maximumhoogte + eigen verticale scroll (zie .tl-active in app.css), zodat een 8u-18u-
-  // tijdlijn (10u * 1.2px/min = 720px) de pagina niet eindeloos lang maakt. Om te voorkomen dat
-  // het gedeelde uur-label (enkel op de eerste kolom, zie renderDayTimeline()'s isFirstCol) uit
-  // beeld raakt terwijl de andere kolommen los scrollen, wordt de scrollpositie van alle
-  // .tl-active-kolommen gesynchroniseerd: scrollen in willekeurig welke kolom beweegt ze allemaal
-  // gelijk mee.
-  const tlColumns = Array.from(grid.querySelectorAll('.day-body.tl-active'));
-  if (tlColumns.length > 1) {
-    let tlSyncing = false;
-    tlColumns.forEach(colEl => {
-      colEl.addEventListener('scroll', () => {
-        if (tlSyncing) return;
-        tlSyncing = true;
-        tlColumns.forEach(other => { if (other !== colEl) other.scrollTop = colEl.scrollTop; });
-        tlSyncing = false;
-      });
-    });
   }
 }
 
