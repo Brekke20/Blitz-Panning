@@ -1401,12 +1401,29 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports) {
     }
     positioned.push({ type: 'event', startMin, endMin, ev });
   });
+  // Post-launch feedback (2026-08-17): afgeronde rapporten met een gekende werkelijke start-/
+  // stoptijd (rapportData.start/.stop) tonen we voortaan OOK op hun eigen plaats op de tijdlijn
+  // i.p.v. altijd onderaan gebundeld — die werkelijke tijd is net zo goed een geldige positie.
+  // Enkel rapporten ZONDER gekende tijd blijven in de ongepositioneerde lijst hieronder.
+  dayReports.filter(r => r.rapportData?.start).forEach(r => {
+    const rd = r.rapportData;
+    const [h, m] = rd.start.split(':').map(Number);
+    const startMin = h * 60 + m;
+    let endMin = startMin + settings.duurMinuten;
+    if (rd.stop) {
+      const [eh, em] = rd.stop.split(':').map(Number);
+      endMin = eh * 60 + em;
+    }
+    positioned.push({ type: 'report', startMin, endMin, report: r });
+  });
   assignTimelineLanes(positioned);
 
   positioned.forEach(item => {
     const { top, height } = timelineTopHeight(item.startMin, item.endMin, dagStartMin);
     const block = document.createElement('div');
-    block.className = item.type === 'ticket' ? 'tl-block tl-ticket' : 'tl-block tl-event';
+    block.className = item.type === 'ticket' ? 'tl-block tl-ticket'
+      : item.type === 'report' ? 'tl-block tl-report'
+      : 'tl-block tl-event';
     block.style.top = `${top}px`;
     block.style.height = `${height}px`;
     // Laan-breedte/positie via CSS calc() t.o.v. de 6px links-/rechtermarge (zie .tl-block in
@@ -1422,6 +1439,8 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports) {
       // Post-launch feedback (2026-08-17): bel-/navigeerknoppen enkel op mobiel nodig — op
       // desktop opent een klik op de kaart toch al het detail (met bel/navigeer erin).
       block.appendChild(buildTicketCard(item.stop, dateStr, { showActions: false }));
+    } else if (item.type === 'report') {
+      block.appendChild(buildReportCard(item.report));
     } else {
       block.appendChild(buildLocalEventCard(item.ev, { showActions: false }));
     }
@@ -1430,14 +1449,12 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports) {
 
   frag.appendChild(wrap);
 
-  // Rapporten (afgeronde bezoeken) blijven, net als vandaag, gewoon in de lijst ONDER de
-  // tijdlijn getekend — ze hebben geen "gepland tijdstip" om te positioneren (rapportData.start
-  // is de WERKELIJKE starttijd achteraf, geen planningstijd), dus geen zinvolle positie op de
-  // vooruit-geplande-tijdlijn. Consistente behandeling met hoe niet-gepositioneerde tickets
-  // hieronder ook als losse rij getoond worden.
+  // Rapporten ZONDER gekende werkelijke starttijd (uitzondering — de meeste hebben er wel een,
+  // zie hierboven) blijven, net als niet-gepositioneerde tickets, gewoon in de lijst ONDER de
+  // tijdlijn staan.
   const ongepositioneerd = [
     ...dayStops.filter(s => !s.uur).map(s => buildTicketCard(s, dateStr, { showActions: false })),
-    ...dayReports.map(r => buildReportCard(r)),
+    ...dayReports.filter(r => !r.rapportData?.start).map(r => buildReportCard(r)),
   ];
   if (ongepositioneerd.length) {
     const onderaan = document.createElement('div');

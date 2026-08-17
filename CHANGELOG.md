@@ -15,6 +15,15 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.2.1] — 2026-08-17
+
+### Fixed
+- **Afgeronde rapporten stonden altijd onderaan de kalender-tijdlijn**, los van hun werkelijke
+  tijdstip — ook al is dat tijdstip (start/stop) net zo goed gekend als bij een ingepland ticket.
+  Ze tonen nu op hun eigen plaats op de tijdlijn, inclusief correcte naast-elkaar-plaatsing bij
+  overlap met andere tickets/afspraken. Rapporten zonder gekende tijd blijven zoals voorheen
+  onderaan staan.
+
 ## [1.2.0] — 2026-08-17
 
 Opkuis van het ticketdetail-scherm en de kalender-tijdlijn, plus een fix aan de planningslogica —
