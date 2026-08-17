@@ -10,6 +10,17 @@
     }
     .prijs-hdr-title { font-size: 1rem; font-weight: 700; flex: 1; }
     .prijs-hdr-meta  { font-size: 0.72rem; color: var(--muted); text-align: right; line-height: 1.4; }
+    /* Zelfde visuele stijl als .mhdr-close (app.css), maar inline in de flex-rij i.p.v. absoluut
+       gepositioneerd -- .prijs-hdr heeft geen mhdr-structuur (titel + meta al in dezelfde rij). */
+    .prijs-hdr-close {
+      width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+      background: transparent; border: 1px solid transparent; color: var(--muted);
+      font-size: 0.95rem; line-height: 1; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.12s, color 0.12s, transform 0.12s var(--ease-spring);
+    }
+    .prijs-hdr-close:hover  { background: var(--surface2); color: var(--text); border-color: var(--border); transform: scale(1.08); }
+    .prijs-hdr-close:active { transform: scale(0.94); }
     .prijs-body { flex: 1; overflow-y: auto; padding: 14px 20px; min-height: 0; }
     .prijs-ftr {
       padding: 12px 20px; border-top: 1px solid var(--border); display: flex;

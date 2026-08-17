@@ -1186,6 +1186,15 @@ export async function printRapport() {
       await outboxAdd(item);
       await refreshOutboxCache();
 
+      // Post-launch feedback (2026-08-17): geen apart "Oplossing invoeren"-knopje meer -- de
+      // uitgevoerde acties staan toch al hier (R.acties), dus die worden meteen als oplossing op
+      // het Zoho-ticket gezet. Enkel zinvol bij een echt gekoppeld ticket (niet bij een lokale,
+      // manueel toegevoegde afspraak) en enkel als er effectief iets ingevuld is. Best-effort,
+      // niet afgewacht: mag de rapport-verzending zelf niet vertragen of laten falen.
+      if (!item.isLocal && R.acties?.trim()) {
+        window.syncOplossingNaarZoho?.(item.ticket.id, R.acties);
+      }
+
       const TIMEOUT_MS = 5000;
       const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), TIMEOUT_MS));
       const result  = await Promise.race([runOutboxItem(item), timeout]);

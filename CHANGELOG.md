@@ -15,6 +15,43 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.2.0] — 2026-08-17
+
+Opkuis van het ticketdetail-scherm en de kalender-tijdlijn, plus een fix aan de planningslogica —
+alles op basis van live gebruikersfeedback.
+
+### Added
+- **Datum/tijd wijzigen** is nu een eigen pop-up venster i.p.v. een inklapbare rij onderaan het
+  ticketdetail.
+
+### Changed
+- **Sluiten-knop overal vervangen door een kruisje** rechtsboven — ticketdetail, detail van een
+  manueel toegevoegde afspraak/installatie, Instellingen, Beschikbaarheid-blokkering, Prijsbeheer,
+  Rapport-import, Manuele afspraak, Foto's, Planningsresultaat, Afspraakvoorstel en Rapport
+  versturen.
+- **"Oplossing invoeren"-knop verwijderd**: de uitgevoerde acties die je toch al in het service
+  rapport noteert, worden bij het versturen van het rapport nu automatisch als oplossing op het
+  Zoho-ticket gezet — geen aparte stap meer nodig.
+- Bel-/navigeerknoppen op de kaartjes in de kalender-tijdlijn (desktop) staan er nu ook bij
+  manueel toegevoegde afspraken/installaties enkel nog op mobiel, consistent met de tickets zelf.
+
+### Fixed
+- **"Aankomst geregistreerd"-melding was onzichtbaar** wanneer ze verscheen terwijl het
+  ticketdetail nog open stond — de melding lag achter de modal. Toont nu altijd zichtbaar boven
+  een openstaande pop-up.
+- **Kop- en tabbladbalk bovenaan konden een zichtbare naad tonen** (achtergrondkleur zichtbaar
+  ertussen) — beide zitten nu in één gezamenlijke balk zodat ze altijd naadloos aansluiten.
+- **Kalender-tijdlijn**: de dag-kolommen (maandag t.e.m. vrijdag) hadden ongelijke afmetingen —
+  maandag reserveerde ruimte voor de uur-labels, de andere dagen reserveerden dezelfde ruimte
+  zonder ze te tonen, wat als lege ruimte in de tickets opviel. De uren staan nu in een eigen
+  smalle kolom vóór maandag; alle dag-kolommen hebben voortaan exact dezelfde breedte. Ook een
+  bijkomende verticale inconsistentie verholpen (dagen met/zonder de "Route berekenen"-knop
+  begonnen hun tijdlijn op een net iets andere hoogte).
+- **"Plan deze week" negeerde een voorkeursdatum van de klant** zodra die in een latere week viel
+  dan de week die net bekeken werd — het ticket werd dan gewoon deze week ingepland i.p.v. te
+  wachten op zijn voorkeursdag. De planning kijkt nu verder dan de bekeken week zodra een nog te
+  plannen ticket dat nodig heeft.
+
 ## [1.1.2] — 2026-08-17
 
 Verdere bugfixes op de kalender-tijdlijn, op basis van live gebruikersfeedback na v1.1.1.

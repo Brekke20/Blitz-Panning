@@ -1,4 +1,13 @@
-    /* ── Header ── */
+    /* ── Topbar (header + tabs) ── */
+    /* header en .tabs zaten voorheen elk apart met hun eigen position:sticky (top:0 / top:52px) --
+       zodra hun werkelijke hoogte ook maar een fractie afweek van die aangenomen 52px, ontstond
+       een zichtbare naad met de paginaverkleuring erdoorheen. Beide zitten nu in één gezamenlijke
+       sticky wrapper, zodat ze altijd naadloos aansluiten ongeacht hun exacte hoogte. */
+    .topbar-sticky {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+    }
     header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
@@ -7,9 +16,6 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      position: sticky;
-      top: 0;
-      z-index: 30;
       /* Subtiele schaduw zodat content er onder doorscrollt */
       box-shadow: 0 1px 0 var(--border), 0 4px 16px rgba(0,0,0,0.3);
     }
@@ -91,13 +97,13 @@
     .pm-item-sub  { font-size: 0.72rem; color: var(--muted); }
 
     /* ── Tabs ── */
-    /* .tabs = sticky wrapper (GEEN overflow — dat breekt position:sticky in browsers) */
+    /* .tabs zit nu binnen .topbar-sticky (zie hierboven) i.p.v. zelf te stickyen -- position:
+       relative blijft nodig zodat de ::after-indicator (position:absolute) hieraan verankerd
+       blijft i.p.v. aan een verdere/verkeerde positioned ancestor. */
     .tabs {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      position: sticky;
-      top: 52px;
-      z-index: 29;
+      position: relative;
       /* Indicator via CSS var (JS vult in) — ::after is relatief aan .tabs, buiten de scroll-zone */
       --ind-left: 0px;
       --ind-width: 0px;
@@ -638,6 +644,16 @@
       .modal { border-radius: var(--r-lg); box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04); }
     }
     .mhdr { padding: 18px 20px 13px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 1; }
+    .mhdr-close {
+      position: absolute; top: 14px; right: 14px;
+      width: 28px; height: 28px; border-radius: 50%;
+      background: transparent; border: 1px solid transparent; color: var(--muted);
+      font-size: 0.95rem; line-height: 1; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.12s, color 0.12s, transform 0.12s var(--ease-spring);
+    }
+    .mhdr-close:hover  { background: var(--surface2); color: var(--text); border-color: var(--border); transform: scale(1.08); }
+    .mhdr-close:active { transform: scale(0.94); }
     .mhdr-num { font-size: 0.68rem; font-weight: 600; color: var(--muted); font-family: monospace; margin-bottom: 4px; letter-spacing: 0.04em; }
     .mhdr-title { font-size: 0.97rem; font-weight: 700; line-height: 1.35; color: var(--text); }
     .mhdr-tags { display: flex; gap: 5px; margin-top: 9px; flex-wrap: wrap; }
@@ -710,23 +726,12 @@
     #block-overlay { align-items: center; padding: 24px; }
     #block-modal { border-radius: var(--r-lg); max-width: 360px; }
 
-    /* ── Oplossing modal ── */
-    #opl-overlay { align-items: center; padding: 24px; }
-    #opl-modal { border-radius: var(--r-lg); max-width: 460px; padding: 22px; }
-    #opl-modal h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 4px; }
-    #opl-modal .sub { font-size: 0.75rem; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
-    #opl-modal textarea {
-      width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      padding: 10px 12px; border-radius: var(--r); font-size: 0.85rem; font-family: inherit;
-      min-height: 90px; resize: vertical; margin-bottom: 13px;
-      transition: border-color 0.15s, box-shadow 0.15s;
-    }
-    #opl-modal textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
     .row-btns { display: flex; gap: 8px; justify-content: flex-end; }
+    #foto-modal { position: relative; }
 
     /* ── Auto-plan resultaat ── */
     #result-overlay { align-items: center; padding: 24px; }
-    #result-modal { border-radius: var(--r-lg); max-width: 480px; padding: 22px; }
+    #result-modal { border-radius: var(--r-lg); max-width: 480px; padding: 22px; position: relative; }
     #result-modal h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 14px; }
     .result-section { margin-bottom: 14px; }
     .result-section-title { font-size: 0.64rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
@@ -745,7 +750,9 @@
       color: var(--text);
       padding: 9px 18px; border-radius: 24px;
       font-size: 0.8rem; font-weight: 500;
-      z-index: 999; opacity: 0;
+      /* Boven .overlay (z-index 9999) -- anders vuurt bv. de "Aankomst geregistreerd"-melding
+         wel, maar rendert ze onzichtbaar achter een openstaande modal (2026-08-17). */
+      z-index: 10000; opacity: 0;
       transition: opacity 0.2s var(--ease), transform 0.2s var(--ease-spring);
       pointer-events: none; white-space: nowrap; max-width: 90vw; text-align: center;
       box-shadow: 0 6px 24px rgba(0,0,0,0.5);
@@ -813,16 +820,28 @@
     }
 
     /* ── Kalender dagtijdlijn (desktop, week-view) ── */
+    /* Post-launch feedback (2026-08-17): het uur-label stond voorheen IN de eerste dag-kolom
+       (Maandag), die daardoor een vaste 34px-marge reserveerde voor tickets/afspraken -- de
+       andere dag-kolommen reserveerden dezelfde 34px uit een oogpunt van consistente uitlijning,
+       maar hadden zelf geen label staan, dus bleef daar telkens lege ruimte over. Het uur-label
+       staat nu in een eigen smalle kolom vóór maandag (zie .tl-gutter/renderTimelineGutter()) --
+       alle dag-kolommen (incl. maandag) zijn hierdoor weer identiek qua afmetingen. */
     .tl-wrap { position: relative; margin: 0 -6px; }
     .tl-hour-line {
       position: absolute; left: 0; right: 0; border-top: 1px dashed var(--border); height: 0;
     }
-    .tl-hour-label {
-      position: absolute; left: 0; top: -9px; font-size: 0.68rem; color: var(--muted);
-      background: var(--surface2); padding: 0 4px;
-    }
     .tl-block {
-      position: absolute; left: 34px; right: 6px; overflow: hidden; border-radius: var(--r);
+      position: absolute; left: 6px; right: 6px; overflow: hidden; border-radius: var(--r);
+    }
+    /* Gedeelde uren-kolom vóór maandag (zie renderTimelineGutter() in index.html) */
+    .day-col.tl-gutter { flex: 0 0 40px; min-width: 40px; }
+    .tl-gutter-wrap { position: relative; }
+    .tl-gutter-label {
+      position: absolute; right: 0; top: -8px; font-size: 0.68rem; color: var(--muted);
+      white-space: nowrap;
+    }
+    @media (max-width: 1023px) {
+      .day-col.tl-gutter { display: none; }
     }
     .tl-block .cal-ticket, .tl-block .cal-local-event { height: 100%; margin: 0; }
     .tl-blocked {

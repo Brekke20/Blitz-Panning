@@ -27,6 +27,7 @@
 </head>
 <body>
 
+<div class="topbar-sticky">
 <header>
   <div class="logo">
     <div class="logo-icon"><svg width="16" height="24" viewBox="0 0 14 22" xmlns="http://www.w3.org/2000/svg"><line x1="9" y1="5" x2="6" y2="11" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/><line x1="8" y1="12" x2="5" y2="18" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/></svg></div>
@@ -59,6 +60,7 @@
     <div class="tab"        id="tab-gepland"  onclick="event.stopPropagation(); setTab('gepland')">Ingepland <span class="badge" id="cnt-gepland">0</span></div>
     <div class="tab desktop-only" id="tab-rapporten" onclick="event.stopPropagation(); setTab('rapporten')">Rapporten</div>
   </div>
+</div>
 </div>
 
 <div id="offline-banner">📶 Geen internetverbinding — wijzigingen worden niet opgeslagen in Zoho</div>
@@ -150,6 +152,7 @@
 <div class="overlay" id="det-overlay" onclick="closeDet(event)">
   <div class="modal">
     <div class="mhdr">
+      <button class="mhdr-close" onclick="closeDet()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-num" id="d-num"></div>
       <div class="mhdr-title" id="d-title"></div>
       <div class="mhdr-tags" id="d-tags"></div>
@@ -157,24 +160,35 @@
     <div class="mbody">
       <div class="msec"><div class="msec-title">Klantgegevens</div><div id="d-klant"></div></div>
       <div class="msec"><div class="msec-title">Ticketdetails</div><div id="d-ticket"></div><div class="desktop-only" id="kb-section"></div></div>
-      <div class="msec" id="d-reschedule-row" style="display:none">
-        <div class="msec-title">Nieuwe datum/tijd</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-          <input type="date" id="d-reschedule-date" class="set-input" style="width:auto">
-          <input type="time" id="d-reschedule-time" class="set-input" style="width:auto">
-          <button class="btn-save" onclick="saveReschedule()">✓ Opslaan</button>
-        </div>
-      </div>
     </div>
     <div class="mftr">
-      <button class="btn-cancel" onclick="closeDet()">Sluiten</button>
       <button class="btn-save desktop-only" id="d-plan-btn" onclick="togglePlanFromDetail()"></button>
-      <button class="btn-cancel" onclick="openOpl()">✏️ Oplossing</button>
       <button class="btn-cancel" id="d-btn-arrival" style="display:none" title="Aankomst registreren" onclick="registerArrival(activeTicket?.id,_detailDate)">⏱️ Aankomst</button>
       <button class="btn-cancel desktop-only" id="d-btn-proposal" style="display:none" title="Afspraakvoorstel sturen" onclick="openProposal(activeTicket?.id,_detailDate,(()=>{const t=computeArrivalTimes(_detailDate);return activeTicket?t[activeTicket.id]??null:null})())">📨 Voorstel</button>
       <button class="btn-cancel" id="d-btn-fotos" style="display:none" title="Foto's" onclick="openFotoModal(activeTicket?.id)">📷 Foto's</button>
       <button class="btn-cancel" id="d-btn-rapport"  style="display:none" title="Service rapport" onclick="openRapport(activeTicket?.id,_detailDate)">📋 Rapport</button>
-      <button class="btn-cancel" id="d-btn-reschedule" style="display:none" title="Datum/tijd wijzigen" onclick="toggleRescheduleRow()">📅 Datum/tijd</button>
+      <button class="btn-cancel" id="d-btn-reschedule" style="display:none" title="Datum/tijd wijzigen" onclick="openRescheduleModal()">📅 Datum/tijd</button>
+    </div>
+  </div>
+</div>
+
+<!-- Datum/tijd wijzigen modal (eigen pop-up i.p.v. inklapbare rij — 2026-08-17 feedback:
+     "onduidelijk", stapelt op det-overlay net als Foto's/Rapport/Voorstel hierboven) -->
+<div class="overlay" id="reschedule-overlay" onclick="closeRescheduleModal(event)">
+  <div class="modal" style="max-width:380px">
+    <div class="mhdr">
+      <button class="mhdr-close" onclick="closeRescheduleModal()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <div class="mhdr-title">📅 Nieuwe datum/tijd</div>
+    </div>
+    <div class="mbody">
+      <div class="msec" style="margin-bottom:0;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <input type="date" id="d-reschedule-date" class="set-input" style="width:auto">
+        <input type="time" id="d-reschedule-time" class="set-input" style="width:auto">
+      </div>
+    </div>
+    <div class="mftr">
+      <button class="btn-cancel" onclick="closeRescheduleModal()">Annuleren</button>
+      <button class="btn-save" onclick="saveReschedule()">✓ Opslaan</button>
     </div>
   </div>
 </div>
@@ -183,6 +197,7 @@
 <div class="overlay" id="set-overlay" onclick="closeSettings(event)">
   <div class="modal" id="set-modal">
     <div class="mhdr">
+      <button class="mhdr-close" onclick="closeSettings()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title">⚙️ Instellingen</div>
       <div class="mhdr-num" id="set-person-label" style="font-size:0.78rem;color:var(--accent);margin-top:2px"></div>
     </div>
@@ -239,14 +254,12 @@
 <div class="overlay" id="block-overlay" onclick="closeBlock(event)">
   <div class="modal" id="block-modal">
     <div class="mhdr">
+      <button class="mhdr-close" onclick="closeBlock()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title">⛔ Beschikbaarheid</div>
       <div id="block-date-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="mbody" id="block-modal-body">
       <!-- Ingevuld door renderBlockModal() -->
-    </div>
-    <div class="mftr">
-      <button class="btn-cancel" onclick="closeBlock()">Sluiten</button>
     </div>
   </div>
 </div>
@@ -258,14 +271,13 @@
       <div class="prijs-hdr">
         <div class="prijs-hdr-title">💰 Prijsbeheer</div>
         <div class="prijs-hdr-meta" id="prijs-meta">—</div>
-        <button class="btn-cancel" onclick="closePrijsBeheer()" style="margin-left:8px">✕</button>
+        <button class="prijs-hdr-close" onclick="closePrijsBeheer()" title="Sluiten" aria-label="Sluiten">✕</button>
       </div>
       <div class="prijs-body" id="prijs-body">
         <!-- Ingevuld door renderPrijsEditor() -->
       </div>
       <div class="prijs-ftr">
         <button class="btn-cancel" onclick="prijsReset()">Ongedaan maken</button>
-        <button class="btn-cancel" onclick="closePrijsBeheer()">Sluiten</button>
         <button class="btn-save"   id="prijs-save-btn" onclick="prijsOpslaan()">Opslaan</button>
       </div>
     </div>
@@ -276,6 +288,7 @@
 <div class="overlay" id="import-overlay" onclick="closeImportModal(event)">
   <div class="modal" id="import-modal">
     <div class="mhdr">
+      <button class="mhdr-close" onclick="closeImportModal()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title">📥 Importeer installaties</div>
       <div id="import-subtitle" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
@@ -293,6 +306,7 @@
 <div class="overlay" id="local-det-overlay" onclick="closeLocalDet(event)">
   <div class="modal">
     <div class="mhdr">
+      <button class="mhdr-close" onclick="closeLocalDet()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-tags" id="ld-type"></div>
       <div class="mhdr-title" id="ld-titel"></div>
       <div class="mhdr-num" id="ld-datum" style="font-size:0.78rem;color:var(--muted);margin-top:2px"></div>
@@ -301,7 +315,6 @@
       <div class="msec" id="ld-body"></div>
     </div>
     <div class="mftr">
-      <button class="btn-cancel" onclick="closeLocalDet()">Sluiten</button>
       <button class="btn-cancel" onclick="openFotoModal(_localDetEvent?.id)">📷 Foto's</button>
       <button class="btn-cancel" id="ld-btn-rapport" onclick="openRapport(_localDetEvent?.id, _localDetEvent?.datum)">📋 Rapport</button>
       <button class="btn-cancel" id="ld-edit-btn" onclick="editFromLocalDet()">✏️ Bewerken</button>
@@ -314,6 +327,7 @@
 <div class="overlay" id="manueel-overlay" onclick="closeManueelModal(event)">
   <div class="modal" id="manueel-modal">
     <div class="mhdr">
+      <button class="mhdr-close" onclick="closeManueelModal()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title" id="manueel-modal-title">➕ Afspraak toevoegen</div>
     </div>
     <div class="mbody">
@@ -383,37 +397,20 @@
 <!-- Auto-plan resultaat modal -->
 <div class="overlay" id="result-overlay" onclick="closeResult(event)">
   <div class="modal" id="result-modal">
+    <button class="mhdr-close" onclick="closeResult()" title="Sluiten" aria-label="Sluiten">✕</button>
     <h3>⚡ Planningsresultaat</h3>
     <div id="result-body"></div>
-    <div class="row-btns" style="margin-top:12px">
-      <button class="btn-cancel" onclick="closeResult()">Sluiten</button>
-    </div>
-  </div>
-</div>
-
-<!-- Oplossing modal -->
-<div class="overlay" id="opl-overlay" onclick="closeOpl(event)">
-  <div class="modal" id="opl-modal">
-    <h3>Oplossing invoeren</h3>
-    <div class="sub" id="opl-label"></div>
-    <textarea id="opl-text" placeholder="Beschrijf de uitgevoerde interventie..."></textarea>
-    <div class="row-btns">
-      <button class="btn-cancel" onclick="closeOpl()">Annuleren</button>
-      <button class="btn-save"   onclick="saveOpl()">Opslaan in Zoho</button>
-    </div>
   </div>
 </div>
 
 <!-- Foto's modal -->
 <div class="overlay" id="foto-overlay" onclick="closeFotoModal(event)">
   <div class="modal" id="foto-modal">
+    <button class="mhdr-close" onclick="closeFotoModal()" title="Sluiten" aria-label="Sluiten">✕</button>
     <h3>📷 Foto's</h3>
     <div id="foto-grid" class="foto-grid"></div>
     <input type="file" id="foto-file-input" multiple style="display:none" onchange="handleFotoFiles(this)">
     <button class="foto-add-btn" onclick="document.getElementById('foto-file-input').click()">+ Foto toevoegen</button>
-    <div class="row-btns">
-      <button class="btn-cancel" onclick="closeFotoModal()">Sluiten</button>
-    </div>
   </div>
 </div>
 
@@ -421,6 +418,7 @@
 <div class="overlay" id="proposal-overlay" onclick="closeProposal(event)">
   <div class="modal" id="proposal-modal" style="max-width:480px">
     <div class="mhdr">
+      <button class="mhdr-close" onclick="closeProposal()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title">📨 Afspraakvoorstel</div>
       <div id="proposal-ticket-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
@@ -454,6 +452,7 @@
 <div class="overlay" id="rapport-preview-overlay" onclick="closeRapportPreview(event)">
   <div class="modal" id="rapport-preview-modal" style="max-width:560px">
     <div class="mhdr">
+      <button class="mhdr-close" onclick="closeRapportPreview()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title">📤 Rapport versturen</div>
       <div id="rapport-preview-ticket-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
@@ -1198,7 +1197,7 @@ function buildReportCard(entry) {
   return card;
 }
 
-function buildLocalEventCard(ev) {
+function buildLocalEventCard(ev, { showActions = true } = {}) {
   const card = document.createElement('div');
   card.className = 'cal-local-event';
   const tijdLabel = ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '';
@@ -1210,10 +1209,10 @@ function buildLocalEventCard(ev) {
     ${tijdLabel ? `<div class="cal-local-time">⏱ ${tijdLabel}</div>` : ''}
     ${adresLabel ? `<div class="cal-addr">${escHtml(adresLabel)}</div>` : ''}
     ${ev.persoon ? `<div class="cal-meta">${escHtml(ev.persoon)}</div>` : ''}
-    <div class="cal-actions">
+    ${showActions ? `<div class="cal-actions">
       ${ev.telefoon ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(ev.telefoon)}">📞 Bellen</a>` : ''}
       ${adresLabel ? `<button class="cal-btn cal-ev-nav">🧭 Navigeer</button>` : ''}
-    </div>`;
+    </div>` : ''}`;
   // ev.id komt uit de afspraken-blob (niet-geauthenticeerd) — via closure doorgeven i.p.v.
   // inline onclick, want een inline JS-string is niet veilig tegen apostrofs in de brondata.
   card.querySelector('.cal-local-del')?.addEventListener('click', e => { e.stopPropagation(); removeLocalEvent(ev.id); });
@@ -1241,6 +1240,52 @@ function timelineTopHeight(startMin, endMin, dagStartMin) {
   const top = Math.max(0, (startMin - dagStartMin) * TIMELINE_PX_PER_MIN);
   const height = Math.max(TIMELINE_MIN_BLOCK_PX, (endMin - startMin) * TIMELINE_PX_PER_MIN);
   return { top, height };
+}
+
+// Post-launch feedback (2026-08-17): gedeeld door renderDayTimeline() (elke dag-kolom) EN
+// renderTimelineGutter() (de uren-kolom vóór maandag) -- beide MOETEN exact dezelfde
+// dagStartMin/dagEindMin/totalHeight gebruiken, anders lopen de uur-lijnen in de dag-kolommen niet
+// meer gelijk met de uur-labels in de gutter. Waarden zijn dag-onafhankelijk (komen enkel uit de
+// globale settings), dus één berekening per renderKalender()-call volstaat.
+function computeTimelineRange() {
+  const [vanH, vanM] = (settings.vanTijd || '08:00').split(':').map(Number);
+  const [totH, totM] = (settings.totTijd || '17:00').split(':').map(Number);
+  const dagStartMin = Math.min(vanH * 60 + vanM, 8 * 60);
+  const dagEindMin  = Math.max(totH * 60 + totM, 18 * 60);
+  const displayStartH = Math.floor(dagStartMin / 60);
+  const displayEndH   = Math.ceil(dagEindMin / 60);
+  const totalHeight = Math.max(TIMELINE_MIN_BLOCK_PX, (dagEindMin - dagStartMin) * TIMELINE_PX_PER_MIN);
+  return { dagStartMin, dagEindMin, displayStartH, displayEndH, totalHeight };
+}
+
+// Smalle kolom vóór maandag met enkel de uur-labels (zie .day-col.tl-gutter in app.css) --
+// voorheen stonden deze labels IN de eerste dag-kolom, die daardoor een 34px-marge reserveerde
+// die de andere kolommen ook reserveerden (voor uitlijning) maar nooit gebruikten: lege ruimte in
+// elke kolom behalve de eerste, en alle kolommen "verschillend" qua bruikbare breedte. Nu krijgen
+// alle dag-kolommen exact dezelfde afmetingen.
+function renderTimelineGutter() {
+  const { dagStartMin, displayStartH, displayEndH, totalHeight } = computeTimelineRange();
+  const col = document.createElement('div');
+  col.className = 'day-col tl-gutter';
+  const hdr = document.createElement('div');
+  hdr.className = 'day-hdr';
+  const body = document.createElement('div');
+  body.className = 'day-body';
+  const wrap = document.createElement('div');
+  wrap.className = 'tl-gutter-wrap';
+  wrap.style.height = `${totalHeight}px`;
+  for (let h = displayStartH; h <= displayEndH; h++) {
+    const top = (h * 60 - dagStartMin) * TIMELINE_PX_PER_MIN;
+    const label = document.createElement('div');
+    label.className = 'tl-gutter-label';
+    label.style.top = `${top}px`;
+    label.textContent = `${String(h).padStart(2,'0')}:00`;
+    wrap.appendChild(label);
+  }
+  body.appendChild(wrap);
+  col.appendChild(hdr);
+  col.appendChild(body);
+  return col;
 }
 
 // Post-launch feedback (2026-08-17): wijst elk blok een "lane" (kolom binnen de dag) toe zodat
@@ -1283,18 +1328,12 @@ function assignTimelineLanes(items) {
   });
 }
 
-function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, isFirstCol) {
+function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports) {
   // Post-launch feedback (2026-08-17): vaste 8u-18u-weergave i.p.v. enkel settings.vanTijd/totTijd
   // (die vandaag 08:00/17:00 zijn, maar konden ook smaller/breder ingesteld staan) — de tijdlijn
   // toont nu altijd MINSTENS 08:00-18:00, en breidt vanzelf verder uit als de werkuren-instelling
   // ruimer is (bv. een technieker met totTijd 19:00 verliest zo geen zichtbare afspraken).
-  const [vanH, vanM] = (settings.vanTijd || '08:00').split(':').map(Number);
-  const [totH, totM] = (settings.totTijd || '17:00').split(':').map(Number);
-  const dagStartMin = Math.min(vanH * 60 + vanM, 8 * 60);
-  const dagEindMin  = Math.max(totH * 60 + totM, 18 * 60);
-  const displayStartH = Math.floor(dagStartMin / 60);
-  const displayEndH   = Math.ceil(dagEindMin / 60);
-  const totalHeight = Math.max(TIMELINE_MIN_BLOCK_PX, (dagEindMin - dagStartMin) * TIMELINE_PX_PER_MIN);
+  const { dagStartMin, displayStartH, displayEndH, totalHeight } = computeTimelineRange();
 
   const frag = document.createDocumentFragment();
 
@@ -1302,21 +1341,13 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, isFirstCol)
   wrap.className = 'tl-wrap';
   wrap.style.height = `${totalHeight}px`;
 
+  // Uur-labels staan niet meer hier (zie renderTimelineGutter()) -- enkel de streeplijnen zelf,
+  // voor de visuele uitlijning van blokken met het uur-raster.
   for (let h = displayStartH; h <= displayEndH; h++) {
     const top = (h * 60 - dagStartMin) * TIMELINE_PX_PER_MIN;
     const line = document.createElement('div');
     line.className = 'tl-hour-line';
     line.style.top = `${top}px`;
-    // Post-launch feedback (2026-08-17): het uur-label (tekst "08:00" enz.) hier alleen tonen op
-    // de EERSTE dag-kolom van de week — voorheen herhaalde elke dag-kolom dezelfde uren, wat
-    // onoverzichtelijk was. De streeplijn zelf blijft in elke kolom staan (voor de visuele
-    // uitlijning van blokken met het uur-raster), enkel het tekstlabel wordt niet herhaald.
-    if (isFirstCol) {
-      const label = document.createElement('span');
-      label.className = 'tl-hour-label';
-      label.textContent = `${String(h).padStart(2,'0')}:00`;
-      line.appendChild(label);
-    }
     wrap.appendChild(line);
   }
 
@@ -1378,12 +1409,12 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, isFirstCol)
     block.className = item.type === 'ticket' ? 'tl-block tl-ticket' : 'tl-block tl-event';
     block.style.top = `${top}px`;
     block.style.height = `${height}px`;
-    // Laan-breedte/positie via CSS calc() t.o.v. de bestaande 34px (uur-as-marge) / 6px
-    // (rechtermarge): de beschikbare breedte wordt gelijk verdeeld over laneCount lanen, met een
-    // kleine 2px-tussenruimte zodat naast-elkaar-staande blokken visueel gescheiden blijven.
+    // Laan-breedte/positie via CSS calc() t.o.v. de 6px links-/rechtermarge (zie .tl-block in
+    // app.css): de beschikbare breedte wordt gelijk verdeeld over laneCount lanen, met een kleine
+    // 2px-tussenruimte zodat naast-elkaar-staande blokken visueel gescheiden blijven.
     if (item.laneCount > 1) {
-      block.style.left  = `calc(34px + (100% - 40px) * ${item.lane} / ${item.laneCount})`;
-      block.style.width = `calc((100% - 40px) / ${item.laneCount} - 2px)`;
+      block.style.left  = `calc(6px + (100% - 12px) * ${item.lane} / ${item.laneCount})`;
+      block.style.width = `calc((100% - 12px) / ${item.laneCount} - 2px)`;
       block.style.right = 'auto';
     }
     if (item.type === 'ticket') {
@@ -1392,7 +1423,7 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, isFirstCol)
       // desktop opent een klik op de kaart toch al het detail (met bel/navigeer erin).
       block.appendChild(buildTicketCard(item.stop, dateStr, { showActions: false }));
     } else {
-      block.appendChild(buildLocalEventCard(item.ev));
+      block.appendChild(buildLocalEventCard(item.ev, { showActions: false }));
     }
     wrap.appendChild(block);
   });
@@ -1476,10 +1507,11 @@ function renderKalender() {
   grid.className = 'week-grid';
   grid.innerHTML = '';
 
-  // Post-launch feedback (2026-08-17): telt de eerst DAADWERKELIJK gerenderde kolom (niet
-  // noodzakelijk i===0, want een niet-werkdag wordt overgeslagen) — enkel die kolom krijgt de
-  // uur-labels op de tijdlijn, zie renderDayTimeline()'s isFirstCol-parameter.
-  let _tlFirstColRendered = false;
+  // Post-launch feedback (2026-08-17): de uren staan vóór maandag in een eigen smalle kolom (zie
+  // renderTimelineGutter()) i.p.v. IN de eerste dag-kolom -- zo hebben alle dag-kolommen exact
+  // dezelfde afmetingen. Enkel relevant in de desktop-tijdlijn-weergave.
+  const isDesktopTijdlijnWeek = window.innerWidth >= 1024;
+  if (isDesktopTijdlijnWeek) grid.appendChild(renderTimelineGutter());
 
   for (let i = 0; i < 7; i++) {
     const day    = new Date(weekStart); day.setDate(weekStart.getDate() + i);
@@ -1541,8 +1573,7 @@ function renderKalender() {
     const dayBodyEl = col.querySelector('.day-body');
     const isDesktopTijdlijn = window.innerWidth >= 1024;
     if (isDesktopTijdlijn) {
-      dayBodyEl.appendChild(renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, !_tlFirstColRendered));
-      _tlFirstColRendered = true;
+      dayBodyEl.appendChild(renderDayTimeline(dateStr, dayStops, dayEvents, dayReports));
     } else {
       // Bestaande gestapelde-kaartjeslijst-logica — VOLLEDIG ONGEWIJZIGD.
       const timeline = [
@@ -1582,6 +1613,35 @@ function renderKalender() {
     }
 
     grid.appendChild(col);
+  }
+
+  if (isDesktopTijdlijnWeek) {
+    // De gutter's .day-hdr is een lege spacer (enkel om de tl-gutter-wrap eronder verticaal uit
+    // te lijnen met de echte dag-kolommen se tl-wrap) -- inhoudsloos heeft hij een andere hoogte
+    // dan een echte .day-hdr (die weekdag/datum/capaciteit/blokkeer-knop toont). Hoogte hier
+    // expliciet gelijkzetten aan een echte kolom i.p.v. de opbouw te dupliceren, zodat dit ook
+    // correct blijft als de inhoud van .day-hdr ooit verandert.
+    const realHdr   = grid.querySelector('.day-col:not(.tl-gutter) .day-hdr');
+    const gutterHdr = grid.querySelector('.day-col.tl-gutter .day-hdr');
+    if (realHdr && gutterHdr) gutterHdr.style.height = `${realHdr.offsetHeight}px`;
+
+    // Post-launch feedback (2026-08-17): vóór de tijdlijn zelf staat per dag soms een "—"
+    // leeg-placeholder (geen stops) of de "Route berekenen"-knop (wel stops) -- verschillend qua
+    // hoogte, dus startten de uur-lijnen van elke kolom vroeger op een ANDERE hoogte, ook al leek
+    // dat door de gedeelde uren-gutter hierboven niet meer zo. I.p.v. deze twee gevallen apart
+    // hard te coderen: gewoon meten hoeveel ruimte elke kolom vóór zijn tijdlijn inneemt, en de
+    // kortste kolommen (incl. de gutter zelf) met een marge naar beneden duwen tot ze allemaal
+    // op dezelfde hoogte beginnen als de kolom die het meeste ruimte nodig had.
+    const wraps = Array.from(grid.querySelectorAll('.tl-wrap, .tl-gutter-wrap'));
+    const offsets = wraps.map(w => {
+      const body = w.closest('.day-body');
+      return w.getBoundingClientRect().top - body.getBoundingClientRect().top;
+    });
+    const maxOffset = Math.max(...offsets);
+    wraps.forEach((w, i) => {
+      const delta = maxOffset - offsets[i];
+      if (delta > 0) w.style.marginTop = `${delta}px`;
+    });
   }
 }
 
@@ -2757,9 +2817,24 @@ async function autoPlan() {
     // stilzwijgend op het depot terug te vallen als die coördinaten ontbreken).
     const today     = new Date(); today.setHours(0,0,0,0);
     const weekStart = getWeekStart(today, kalOffset);
+    const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+
+    // Fix (2026-08-18): een voorkeursdatum die buiten de bekeken week viel, werd stilzwijgend
+    // genegeerd — "Fix 1: Voorkeursplanning" hieronder reserveert een ticket wel voor zijn
+    // voorkeursdag, maar enkel als die dag al in weekDates zit. De scanrange wordt daarom verlengd
+    // tot en met de verste voorkeursdatum onder de nog te plannen tickets (indien die verder ligt
+    // dan het einde van de bekeken week), zodat "Plan deze week" een voorkeur ook effectief haalt
+    // ongeacht welke week net bekeken wordt op het moment van klikken.
+    let scanEnd = new Date(weekEnd);
+    for (const t of toplan) {
+      const pref = kbPreferred(t.id);
+      if (!pref) continue;
+      const prefDate = new Date(pref + 'T00:00:00');
+      if (prefDate > scanEnd) scanEnd = prefDate;
+    }
+
     const weekDates = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
+    for (let d = new Date(weekStart); d <= scanEnd; d.setDate(d.getDate() + 1)) {
       if (d < today) continue;
       if (!settings.werkdagen.includes(d.getDay())) continue;
       weekDates.push(localISO(d));
@@ -3248,7 +3323,6 @@ function renderRouteList(date) {
           <button class="sico" title="Afspraakvoorstel sturen" onclick="openProposal('${item.ticket.id}','${date}',${arrivalTimes[i] !== undefined ? arrivalTimes[i] : 'null'})">📨 Voorstel</button>
           <button class="sico" title="Aankomst registreren" onclick="registerArrival('${item.ticket.id}','${date}')">⏱️ Aankomst</button>
           <button class="sico" title="Service rapport" onclick="openRapport('${item.ticket.id}','${date}')">📋 Rapport</button>
-          <button class="sico" title="Oplossing invoeren" onclick="activeTicket=getPlanningTicket('${item.ticket.id}');openOpl()">✏️ Oplossing</button>
           <button class="sico" title="Verwijderen" onclick="removeTicketFromDate('${item.ticket.id}','${date}')">✕ Verwijderen</button>
         </div>`;
       if (window.innerWidth > 680) {
@@ -3544,7 +3618,6 @@ function openDetail(t) {
   document.getElementById('d-btn-fotos').style.display    = showPlanBtns ? '' : 'none';
   document.getElementById('d-btn-rapport').style.display  = showPlanBtns ? '' : 'none';
   document.getElementById('d-btn-reschedule').style.display = showPlanBtns ? '' : 'none';
-  document.getElementById('d-reschedule-row').style.display = 'none'; // altijd ingeklapt bij (her)openen
   document.getElementById('d-num').textContent   = '#' + t.number;
   document.getElementById('d-title').textContent = t.subject || '—';
 
@@ -3606,16 +3679,18 @@ function closeDet(e) {
   document.getElementById('det-overlay').classList.remove('open');
 }
 
-function toggleRescheduleRow() {
-  const row = document.getElementById('d-reschedule-row');
-  const opening = row.style.display === 'none';
-  row.style.display = opening ? '' : 'none';
-  if (opening && activeTicket) {
-    const d = activeTicket.interventieDatum ? new Date(activeTicket.interventieDatum) : new Date();
-    document.getElementById('d-reschedule-date').value = localISO(d);
-    document.getElementById('d-reschedule-time').value =
-      `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-  }
+function openRescheduleModal() {
+  if (!activeTicket) return;
+  const d = activeTicket.interventieDatum ? new Date(activeTicket.interventieDatum) : new Date();
+  document.getElementById('d-reschedule-date').value = localISO(d);
+  document.getElementById('d-reschedule-time').value =
+    `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  document.getElementById('reschedule-overlay').classList.add('open');
+}
+
+function closeRescheduleModal(e) {
+  if (e && e.target !== document.getElementById('reschedule-overlay')) return;
+  document.getElementById('reschedule-overlay').classList.remove('open');
 }
 
 async function saveReschedule() {
@@ -3637,6 +3712,7 @@ async function saveReschedule() {
   }
 
   const utcInterventieDatum = new Date(`${date}T${time}:00`).toISOString();
+  closeRescheduleModal();
   closeDet();
   try {
     const res  = await fetch('/api/plan', {
@@ -4026,22 +4102,6 @@ function saveSettings() {
   toast('✓ Instellingen opgeslagen voor ' + (activeAssigneeFilter === 'all' ? 'alle technici' : activeAssigneeFilter.split(' ')[0]));
 }
 
-// ══════════════════════════════════════════════
-// OPLOSSING
-// ══════════════════════════════════════════════
-function openOpl() {
-  if (!activeTicket) return;
-  document.getElementById('opl-label').textContent = activeTicket.subject || '';
-  document.getElementById('opl-text').value = '';
-  document.getElementById('opl-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('opl-text').focus(), 80);
-}
-
-function closeOpl(e) {
-  if (e && e.target !== document.getElementById('opl-overlay')) return;
-  document.getElementById('opl-overlay').classList.remove('open');
-}
-
 async function openFotoModal(ticketId) {
   if (!ticketId) return;
   const { versie, fotos } = await loadFotos(ticketId);
@@ -4104,22 +4164,29 @@ async function handleFotoFiles(input, containerId = 'foto-grid') {
   if (nieuwe.length) await persistFotoChange([..._fotoState.fotos, ...nieuwe], containerId);
 }
 
-async function saveOpl() {
-  const content = document.getElementById('opl-text').value.trim();
-  if (!content || !activeTicket) return;
-  document.getElementById('opl-overlay').classList.remove('open');
-  if (TEST_MODE) return toast('🧪 Testmodus — oplossing niet opgeslagen in Zoho');
+// ══════════════════════════════════════════════
+// OPLOSSING
+// ══════════════════════════════════════════════
+// Post-launch feedback (2026-08-17): geen apart "Oplossing invoeren"-knopje/venster meer -- de
+// uitgevoerde acties worden toch al in het service rapport genoteerd (R.acties), dus die tekst
+// wordt bij het versturen van een rapport automatisch als oplossing op het Zoho-ticket gezet.
+// Aangeroepen vanuit printRapport() (rapport-wizard.js) via window.syncOplossingNaarZoho — enkel
+// als het rapport aan een echt Zoho-ticket hangt (niet isLocal) en er effectief tekst is ingevuld.
+async function syncOplossingNaarZoho(ticketId, content) {
+  if (!ticketId || !content?.trim() || TEST_MODE) return;
   try {
     const res  = await fetch('/api/comment', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ ticketId: activeTicket.id, content }),
+      body:    JSON.stringify({ ticketId, content: content.trim() }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    toast('✓ Oplossing opgeslagen');
-  } catch (err) { toast('❌ ' + err.message, 4000); }
+  } catch (err) {
+    toast('⚠️ Oplossing kon niet automatisch bijgewerkt worden in Zoho: ' + err.message, 4500);
+  }
 }
+window.syncOplossingNaarZoho = syncOplossingNaarZoho;
 
 // ══════════════════════════════════════════════
 // AFSPRAAKVOORSTEL
@@ -4791,7 +4858,7 @@ function toggleTheme() {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    closeDet(); closeSettings(); closeOpl(); closeBlock(); closeResult(); closeProposal(); closeRapportPreview(); closePrijsBeheer();
+    closeDet(); closeSettings(); closeRescheduleModal(); closeBlock(); closeResult(); closeProposal(); closeRapportPreview(); closePrijsBeheer();
     if (document.getElementById('rapport-wizard').classList.contains('open')) closeWizard();
   }
 });
