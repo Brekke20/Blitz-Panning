@@ -15,6 +15,22 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.1.1] — 2026-08-17
+
+Bugfixes op de kalender-tijdlijn en Beschikbaarheden-tab, op basis van feedback na de v1.1.0-lancering.
+
+### Fixed
+- **Kalender-tijdlijn**: toont voortaan altijd minstens 08:00–18:00 (voorheen enkel de ingestelde
+  werkuren, waardoor vroege/late afspraken buiten beeld konden vallen). Overlappende tickets/
+  afspraken worden nu naast elkaar getoond in plaats van elkaar te verbergen. Het uur-overzicht
+  (08:00, 09:00, …) stond voorheen bij elke dag herhaald — dit staat nu enkel nog bij de eerste
+  dag van de week, met de verticale scroll gesynchroniseerd tussen alle dagen zodat het uur-
+  overzicht mee blijft passen.
+- **Beschikbaarheden-tab**: een filter bovenaan laat nu toe per persoon te bekijken/beheren i.p.v.
+  alles door elkaar te tonen. Verlof over meerdere dagen toont als één periode (met begin- en
+  einddatum) in plaats van een aparte regel per dag. Het invoerformulier staat nu bovenaan, vóór
+  de lijst met geplande uitzonderingen.
+
 ## [1.1.0] — 2026-08-17
 
 Fase 1: de PDF-verbeterpunten. Nieuwe, backward-compatible functionaliteit — geen bestaand
