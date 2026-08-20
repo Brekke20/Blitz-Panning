@@ -15,6 +15,29 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.3.0] — 2026-08-20
+
+Fase 2: het inventarissysteem. Nieuwe, backward-compatible functionaliteit — geen bestaand
+gedrag gewijzigd of verwijderd.
+
+### Added
+- **Nieuw tabblad "Inventaris"**: elke technieker houdt er zijn wagenvoorraad bij (materiaal +
+  aantal), zichtbaar op zowel mobiel als desktop. De weergave hangt af van de bestaande
+  technieker-kiezer: sta je op een naam, dan zie je die technieker's voorraad; sta je op "Alle
+  technici", dan zie je in plaats daarvan een neemlog — wie heeft wanneer wat uit de algemene
+  stock genomen, met een "Verwerkt"-knop zodra jij dat manueel in AFAS geboekt hebt. Geen
+  AFAS-integratie, enkel dit overzicht.
+- **"+ Materiaal"-knop**: een technieker kan materiaal manueel toevoegen aan zijn wagenvoorraad
+  (aanvulling uit de algemene stock) of corrigeren — bv. kapot, verloren, een telfout rechtzetten
+  — via een negatief aantal. Hergebruikt de bestaande materiaalzoeker uit het rapport, geen
+  tweede zoekscherm.
+- **Automatische voorraad-aftrek**: materiaal dat op een afgerond rapport staat, wordt bij het
+  afronden automatisch van de wagenvoorraad van de betrokken technieker afgetrokken — geen
+  extra stap nodig, en dit kan het afronden van een rapport nooit tegenhouden of vertragen.
+- **Lage-voorraadmelding**: een badge op de Inventaris-tab (enkel zichtbaar zodra iets op 0 of
+  minder staat) + een rode markering op de betrokken rij in de lijst zelf — enkel zichtbaar voor
+  de technieker zelf, geen e-mail of melding naar de supervisor.
+
 ## [1.2.2] — 2026-08-20
 
 ### Fixed
