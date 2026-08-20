@@ -45,6 +45,17 @@ export async function loadInventaris() {
 // rechtstreeks aan en omzeilen deze bewuste bescherming.
 export function renderInventaris(persoon) {
   if (_invEditActive && _invEditPersoon === persoon) return;
+  if (_invEditActive && _invEditPersoon !== persoon) {
+    // Actieve edit-sessie voor een ANDERE technieker dan wie nu getoond wordt -- die sessie is
+    // per definitie verweesd (de gebruiker is weggeschakeld zonder op te slaan/te annuleren).
+    // Reset ze stil, zodat renderInventaris nooit op de verkeerde technieker blijft
+    // "vastzitten" bij een latere terugkeer naar de oorspronkelijke persoon (zie eindreview
+    // 2026-08-21, gevonden tijdens de her-review van de vorige fixronde).
+    _invEditActive   = false;
+    _invEditPersoon  = null;
+    _invEditSnapshot = null;
+    _invEditVersie   = null;
+  }
   doRenderInventaris(persoon);
 }
 
