@@ -247,6 +247,32 @@ async function submitInventarisMutatie(materiaalId, materiaalNaam, aantal) {
   }
 }
 
+// ── Automatische aftrek bij rapport-afronding ──
+// Aangeroepen (niet afgewacht, best-effort) vanuit public/js/rapport-wizard.js's printRapport().
+// 'vrije regel'-onderdelen (id begint met 'vrij-') zijn handmatig ingevoerde tekst zonder
+// koppeling aan de prijzencatalogus — die hebben geen materiaalId om tegen af te boeken, en
+// worden dus bewust overgeslagen (geen fout, gewoon genegeerd).
+export async function registreerVerbruik(technieker, onderdelen) {
+  if (!technieker) return;
+  const items = (onderdelen || [])
+    .filter(p => p.naam && !String(p.id || '').startsWith('vrij-') && (parseInt(p.aantal) || 0) > 0)
+    .map(p => ({ materiaalId: p.id, materiaalNaam: p.naam, aantal: parseInt(p.aantal) || 1 }));
+  if (!items.length) return;
+
+  try {
+    const res = await fetch(INV_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ versie: _invData.versie, technieker, actie: 'verbruik', items }),
+    });
+    if (!res.ok) { console.warn('Inventaris-aftrek (verbruik) niet gelukt, HTTP', res.status); return; }
+    _invData = await res.json();
+    saveToCache(INV_CACHE_KEY, _invData);
+  } catch (err) {
+    console.warn('Inventaris-aftrek (verbruik) niet gelukt:', err);
+  }
+}
+
 // ── Window-bridge ──
 // Zelfde patroon als prijzen.js/rapport-wizard.js: functies die vanuit index.html (onclick=,
 // setTab/selectPerson/DOMContentLoaded) aangeroepen worden, moeten expliciet op window staan
@@ -258,3 +284,4 @@ window.closeInventarisAddModal = closeInventarisAddModal;
 window.invZoekInput            = invZoekInput;
 window.invZoekOpnieuw          = invZoekOpnieuw;
 window.invSubmitAdd            = invSubmitAdd;
+window.registreerVerbruik      = registreerVerbruik;

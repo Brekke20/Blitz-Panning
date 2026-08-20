@@ -1206,6 +1206,12 @@ export async function printRapport() {
         window.syncOplossingNaarZoho?.(item.ticket.id, R.acties);
       }
 
+      // Zelfde best-effort-aanpak als hierboven: wagenvoorraad-aftrek voor gebruikt materiaal
+      // mag het afronden van het rapport nooit vertragen of laten falen (zie
+      // docs/superpowers/specs/2026-08-20-inventarissysteem-design.md, "Randgevallen").
+      registreerVerbruik(R.technieker, R.onderdelen).catch(err =>
+        console.warn('Inventaris-aftrek mislukt (niet blokkerend):', err));
+
       const TIMEOUT_MS = 5000;
       const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), TIMEOUT_MS));
       const result  = await Promise.race([runOutboxItem(item), timeout]);
