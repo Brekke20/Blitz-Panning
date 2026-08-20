@@ -404,19 +404,6 @@
   </div>
 </div>
 
-<!-- Inventaris: materiaal toevoegen/corrigeren modal -->
-<div class="overlay" id="inv-add-overlay" onclick="closeInventarisAddModal(event)">
-  <div class="modal" id="inv-add-modal" style="max-width:420px">
-    <div class="mhdr">
-      <button class="mhdr-close" onclick="closeInventarisAddModal()" title="Sluiten" aria-label="Sluiten">✕</button>
-      <div class="mhdr-title">📦 Materiaal toevoegen/corrigeren</div>
-    </div>
-    <div class="mbody" id="inv-add-body">
-      <!-- Ingevuld door openInventarisAddModal()/_invRenderAddModal() -->
-    </div>
-  </div>
-</div>
-
 <!-- Auto-plan resultaat modal -->
 <div class="overlay" id="result-overlay" onclick="closeResult(event)">
   <div class="modal" id="result-modal">
@@ -563,6 +550,25 @@ let kalView   = 'week'; // 'week' | 'month'
 // activeBlockDate → vervangen door _avFormDate (zie beschikbaarheidssysteem)
 // (drag-blokkering verwijderd — vervangen door beschikbaarheidssysteem)
 let activeAssigneeFilter = 'all';
+// Live-detectie van nieuwe Inventaris-log-regels (enkel relevant op de supervisor-weergave,
+// "Alle technici") -- bewust HIER, niet in inventaris.js: enkel de classic-script van deze
+// pagina leest activeAssigneeFilter als bare variabele (zie CLAUDE.md/module-conventie).
+let _invPollTimer = null;
+
+function startInvPoll() {
+  stopInvPoll(); // idempotent: nooit twee actieve timers naast elkaar
+  _invPollTimer = setInterval(() => {
+    if (activeAssigneeFilter !== 'all') return;
+    loadInventaris().then(() => {
+      renderInventaris(activeAssigneeFilter);
+      updateInventarisBadge(activeAssigneeFilter);
+    });
+  }, 30000);
+}
+
+function stopInvPoll() {
+  if (_invPollTimer) { clearInterval(_invPollTimer); _invPollTimer = null; }
+}
 let inFlightTickets = new Set(); // voorkomt dubbele API calls
 // Centraal (niet-lokaal) bijgehouden "voorstel verzonden"-status, eager geladen bij
 // app-start (zie loadVoorstelStatus()) -- vervangt de vorige localStorage-aanpak volledig.
@@ -3645,12 +3651,18 @@ function setTab(tab) {
   if (tab === 'kalender')  setTimeout(() => renderKalender(), 0);
   if (tab === 'gepland')   setTimeout(() => renderGepland(), 0);
   if (tab === 'rapporten') setTimeout(() => laadRapportArchief(), 0);
-  if (tab === 'inventaris') setTimeout(() => {
-    loadInventaris().then(() => {
-      renderInventaris(activeAssigneeFilter);
-      updateInventarisBadge(activeAssigneeFilter);
-    });
-  }, 0);
+  if (tab === 'inventaris') {
+    setTimeout(() => {
+      loadInventaris().then(() => {
+        renderInventaris(activeAssigneeFilter);
+        updateInventarisBadge(activeAssigneeFilter);
+      });
+    }, 0);
+    startInvPoll();
+  } else {
+    stopInvPoll();
+    resetInvSeenLog();
+  }
 }
 
 // NOTE: 'kalender' is the mobile fallback tab and must never carry the desktop-only class.
