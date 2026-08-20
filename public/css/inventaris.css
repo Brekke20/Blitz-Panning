@@ -1,0 +1,66 @@
+/* Inventaris-tab: wagenvoorraad per technieker + supervisor-neemlog */
+
+.inv-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 16px;
+}
+
+.inv-empty {
+  padding: 20px 16px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.inv-list {
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inv-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+
+.inv-row.inv-low {
+  border-color: var(--red);
+  background: var(--red-dim);
+}
+
+.inv-row-naam { font-size: 0.85rem; }
+.inv-row-aantal { font-size: 0.85rem; font-weight: 700; }
+.inv-row.inv-low .inv-row-aantal { color: var(--red); }
+
+.inv-log-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface);
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+}
+
+.inv-log-type {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  text-transform: uppercase;
+}
+.inv-log-type.inv-log-aanvulling { background: var(--accent-dim); color: var(--accent); }
+.inv-log-type.inv-log-correctie  { background: var(--red-dim); color: var(--red); }
+.inv-log-type.inv-log-verbruik   { background: var(--surface3); color: var(--muted); }
+
+.inv-log-materiaal { flex: 1; min-width: 140px; }
+.inv-log-datum { color: var(--muted); font-size: 0.75rem; }
+.inv-log-status-done { color: var(--muted); font-size: 0.75rem; }

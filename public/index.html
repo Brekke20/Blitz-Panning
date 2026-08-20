@@ -24,6 +24,7 @@
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/css/wizard.css">
   <link rel="stylesheet" href="/css/prijzen.css">
+  <link rel="stylesheet" href="/css/inventaris.css">
 </head>
 <body>
 
@@ -58,6 +59,7 @@
     <div class="tab"        id="tab-kalender" onclick="event.stopPropagation(); setTab('kalender')">Kalender</div>
     <div class="tab desktop-only" id="tab-planning" onclick="event.stopPropagation(); setTab('planning')">Route</div>
     <div class="tab"        id="tab-gepland"  onclick="event.stopPropagation(); setTab('gepland')">Ingepland <span class="badge" id="cnt-gepland">0</span></div>
+    <div class="tab"        id="tab-inventaris" onclick="event.stopPropagation(); setTab('inventaris')">Inventaris <span class="badge" id="cnt-inventaris" style="display:none">0</span></div>
     <div class="tab desktop-only" id="tab-rapporten" onclick="event.stopPropagation(); setTab('rapporten')">Rapporten</div>
   </div>
 </div>
@@ -145,6 +147,13 @@
   </div>
   <div id="rapp-archief-body" class="ticket-list" style="padding:12px 16px">
     <div style="color:var(--muted);font-size:0.82rem">Laden…</div>
+  </div>
+</div>
+
+<!-- ══ INVENTARIS TAB ══ -->
+<div class="view" id="view-inventaris">
+  <div id="inventaris-body">
+    <div class="inv-empty">Laden...</div>
   </div>
 </div>
 
@@ -498,6 +507,7 @@
 <script type="module" src="/js/excel-export.js"></script>
 <script type="module" src="/js/prijzen.js"></script>
 <script type="module" src="/js/rapport-wizard.js"></script>
+<script type="module" src="/js/inventaris.js"></script>
 <script defer>
 // ══════════════════════════════════════════════
 // TESTMODUS: ?test in URL laadt dummy data
@@ -716,6 +726,10 @@ document.addEventListener('DOMContentLoaded', () => {
   initMap();
   loadPrijzen();
   loadAvailability();
+  loadInventaris().then(() => {
+    renderInventaris(activeAssigneeFilter);
+    updateInventarisBadge(activeAssigneeFilter);
+  });
   loadAfspraken();
   loadKlantBeschikbaarheid();
   loadVoorstelStatus();
@@ -940,6 +954,8 @@ function selectPerson(name) {
   renderKalender();
   renderGepland();
   renderRouteList(document.getElementById('plan-date')?.value || localISO(new Date()));
+  renderInventaris(activeAssigneeFilter);
+  updateInventarisBadge(activeAssigneeFilter);
 }
 
 // ══════════════════════════════════════════════
@@ -3614,6 +3630,7 @@ function setTab(tab) {
   if (tab === 'kalender')  setTimeout(() => renderKalender(), 0);
   if (tab === 'gepland')   setTimeout(() => renderGepland(), 0);
   if (tab === 'rapporten') setTimeout(() => laadRapportArchief(), 0);
+  if (tab === 'inventaris') setTimeout(() => renderInventaris(activeAssigneeFilter), 0);
 }
 
 // NOTE: 'kalender' is the mobile fallback tab and must never carry the desktop-only class.
