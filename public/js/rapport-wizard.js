@@ -1209,7 +1209,7 @@ export async function printRapport() {
       // Zelfde best-effort-aanpak als hierboven: wagenvoorraad-aftrek voor gebruikt materiaal
       // mag het afronden van het rapport nooit vertragen of laten falen (zie
       // docs/superpowers/specs/2026-08-20-inventarissysteem-design.md, "Randgevallen").
-      registreerVerbruik(R.technieker, R.onderdelen).catch(err =>
+      window.registreerVerbruik?.(_wizTicket.assignee, R.onderdelen)?.catch(err =>
         console.warn('Inventaris-aftrek mislukt (niet blokkerend):', err));
 
       const TIMEOUT_MS = 5000;
