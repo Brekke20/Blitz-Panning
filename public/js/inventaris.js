@@ -229,6 +229,7 @@ async function submitInventarisMutatie(materiaalId, materiaalNaam, aantal) {
       toast('⚠ Conflict — inventaris herladen, probeer opnieuw', 3000);
       closeInventarisAddModal();
       renderInventaris(technieker);
+      updateInventarisBadge(technieker);
       return;
     }
     if (!res.ok) {
