@@ -257,7 +257,11 @@ export function updateInventarisBadge(persoon) {
     count = (_invData.log || []).filter(e => e.type === 'aanvulling' && e.status === 'nieuw').length;
   } else {
     const stock = _invData.wagenvoorraad[persoon] || {};
-    count = Object.values(stock).filter(entry => entry.aantal <= 0 && !entry.gedempt).length;
+    const src = PRIJZEN || PRIJZEN_DEFAULTS;
+    count = src.onderdelen.filter(o => {
+      const entry = stock[o.id] || { aantal: 0, gedempt: false };
+      return entry.aantal <= 0 && !entry.gedempt;
+    }).length;
   }
   el.textContent = String(count);
   el.style.display = count > 0 ? '' : 'none';
