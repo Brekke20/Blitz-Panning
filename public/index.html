@@ -559,7 +559,9 @@ function startInvPoll() {
   stopInvPoll(); // idempotent: nooit twee actieve timers naast elkaar
   _invPollTimer = setInterval(() => {
     if (activeAssigneeFilter !== 'all') return;
+    const versieVoor = window._invVersie;
     loadInventaris().then(() => {
+      if (window._invVersie === versieVoor) return; // niets gewijzigd -- geen onnodige re-render
       renderInventaris(activeAssigneeFilter);
       updateInventarisBadge(activeAssigneeFilter);
     });

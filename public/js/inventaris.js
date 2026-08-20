@@ -11,7 +11,10 @@ export let _invData = { versie: 0, wagenvoorraad: {}, log: [] };
 let _invEditActive   = false;  // is de technieker-weergave momenteel in Edit-modus?
 let _invEditPersoon  = null;   // voor welke technieker die Edit-modus loopt
 let _invEditSnapshot = null;   // Map<materiaalId, {aantal, gedempt}> -- stand bij het openen van Edit
+let _invEditVersie   = null;   // versie op het moment dat Edit geopend werd (voor Opslaan)
 let _invSeenLogIds   = null;   // Set<id> -- null = nog niet ge-baseline'd deze weergave-sessie
+let _invExportVan    = '';
+let _invExportTot    = '';
 
 const INV_API       = '/api/inventaris';
 const INV_CACHE_KEY = 'blitz_inventaris_cache';
@@ -34,7 +37,18 @@ export async function loadInventaris() {
 }
 
 // ── Weergave ──
+// Aangeroepen van BUITEN deze module (index.html: setTab/selectPerson/poll). Overschrijft de
+// DOM bewust NIET zolang er actief bewerkt wordt voor deze persoon -- anders zou een
+// achtergrond-verversing (poll, of registreerVerbruik dat toevallig voor dezelfde technieker
+// afrondt) ingetikte, nog niet opgeslagen waarden stilzwijgend wegvegen. Interne
+// state-overgangen (invStartEdit/invCancelEdit/invSaveEdit) roepen doRenderInventaris()
+// rechtstreeks aan en omzeilen deze bewuste bescherming.
 export function renderInventaris(persoon) {
+  if (_invEditActive && _invEditPersoon === persoon) return;
+  doRenderInventaris(persoon);
+}
+
+function doRenderInventaris(persoon) {
   const body = document.getElementById('inventaris-body');
   if (!body) return;
 
@@ -118,7 +132,8 @@ function invStartEdit(persoon) {
   });
   _invEditActive  = true;
   _invEditPersoon = persoon;
-  renderInventaris(persoon);
+  _invEditVersie  = _invData.versie;
+  doRenderInventaris(persoon);
 }
 
 function invCancelEdit() {
@@ -126,11 +141,13 @@ function invCancelEdit() {
   _invEditActive   = false;
   _invEditPersoon  = null;
   _invEditSnapshot = null;
-  renderInventaris(persoon);
+  _invEditVersie   = null;
+  doRenderInventaris(persoon);
 }
 
 async function invSaveEdit() {
   const persoon = _invEditPersoon;
+  const versieBijStart = _invEditVersie;
   const body = document.getElementById('inventaris-body');
   const items = [];
 
@@ -157,14 +174,14 @@ async function invSaveEdit() {
     const res = await fetch(INV_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ versie: _invData.versie, technieker: persoon, actie: 'mutatie', items }),
+      body: JSON.stringify({ versie: versieBijStart, technieker: persoon, actie: 'mutatie', items }),
     });
     if (res.status === 409) {
       const errBody = await res.json();
       _invData = errBody.data || _invData;
-      toast('⚠ Conflict — inventaris herladen, probeer opnieuw', 3000);
-      _invEditActive = false; _invEditPersoon = null; _invEditSnapshot = null;
-      renderInventaris(persoon);
+      toast('⚠ Inventaris ondertussen gewijzigd — je bewerking is niet opgeslagen, herlaad en probeer opnieuw', 4000);
+      _invEditActive = false; _invEditPersoon = null; _invEditSnapshot = null; _invEditVersie = null;
+      doRenderInventaris(persoon);
       updateInventarisBadge(persoon);
       return;
     }
@@ -174,8 +191,8 @@ async function invSaveEdit() {
     }
     _invData = await res.json();
     saveToCache(INV_CACHE_KEY, _invData);
-    _invEditActive = false; _invEditPersoon = null; _invEditSnapshot = null;
-    renderInventaris(persoon);
+    _invEditActive = false; _invEditPersoon = null; _invEditSnapshot = null; _invEditVersie = null;
+    doRenderInventaris(persoon);
     updateInventarisBadge(persoon);
     toast('✓ Wagenvoorraad opgeslagen', 2500);
   } catch (err) {
@@ -197,9 +214,9 @@ function renderSupervisorLog() {
   }
 
   const toolbar = `<div class="inv-toolbar inv-export-toolbar">
-    <input type="date" id="inv-export-van" title="Export van" />
+    <input type="date" id="inv-export-van" title="Export van" value="${escHtml(_invExportVan)}" />
     <span style="color:var(--muted);font-size:0.75rem">–</span>
-    <input type="date" id="inv-export-tot" title="Export tot" />
+    <input type="date" id="inv-export-tot" title="Export tot" value="${escHtml(_invExportTot)}" />
     <button class="btn-sec" id="inv-export-btn">📊 Excel export</button>
   </div>`;
 
@@ -239,6 +256,8 @@ function wireSupervisorLog(body) {
     btn.addEventListener('click', () => markVerwerkt(btn.dataset.logId));
   });
   body.querySelector('#inv-export-btn')?.addEventListener('click', () => exportInventarisLog());
+  body.querySelector('#inv-export-van')?.addEventListener('change', e => { _invExportVan = e.target.value; });
+  body.querySelector('#inv-export-tot')?.addEventListener('change', e => { _invExportTot = e.target.value; });
 }
 
 // Aangeroepen vanuit public/index.html's setTab() zodra een ANDER tabblad dan Inventaris
@@ -434,6 +453,14 @@ export async function registreerVerbruik(technieker, onderdelen) {
 // window staan (modules maken geen impliciete globals). Functies die enkel via addEventListener
 // vanuit dit bestand zelf aangeroepen worden (invStartEdit, invSaveEdit, invCancelEdit,
 // markVerwerkt, exportInventarisLog, ...) hebben GEEN bridge nodig.
+// Live getter (net als PRIJZEN in prijzen.js): _invData wordt bij elke lading/mutatie volledig
+// vervangen, dus een statische window-toewijzing zou een verouderd versienummer vastzetten.
+// Gebruikt door index.html's poll om een overbodige re-render over te slaan als er niets
+// gewijzigd is (zie eindreview 2026-08-21).
+Object.defineProperty(window, '_invVersie', {
+  get: () => _invData.versie,
+  configurable: true,
+});
 window.loadInventaris        = loadInventaris;
 window.renderInventaris      = renderInventaris;
 window.updateInventarisBadge = updateInventarisBadge;

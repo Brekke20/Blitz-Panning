@@ -72,11 +72,13 @@ async function pruneAndGet(store) {
   try { current = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY; }
   catch { return { current: null, error: true }; }
 
-  const pruned = pruneOldLog(current.log);
-  if (pruned.length !== (current.log || []).length) {
-    current = { ...current, log: pruned };
-    try { await store.setJSON(BLOB_KEY, current); } catch { /* best effort, niet fataal */ }
-  }
+  // Enkel in-memory prunen -- NIET meteen terugschrijven. Een write hier, buiten elke
+  // optimistic-lock om, kan een gelijktijdige, versie-bumpende POST/PATCH-write overschrijven
+  // (lost update, zie eindreview 2026-08-21). De geprunede staat wordt wél degelijk serverside
+  // gepersisteerd, maar pas bij de volgende echte mutatie: POST/PATCH bouwen hun 'nieuw'-object
+  // toch al op uit deze geprunede current.log, en schrijven het via hun eigen, veilige,
+  // versie-gecontroleerde store.setJSON-aanroep.
+  current = { ...current, log: pruneOldLog(current.log) };
   return { current, error: false };
 }
 
@@ -139,21 +141,27 @@ export default async (req) => {
       if (it.aantal !== undefined) {
         // verbruik: 'aantal' is de gebruikte hoeveelheid (positief) -> wagenvoorraad daalt.
         // mutatie: 'aantal' is al signed (positief = aanvulling, negatief = correctie).
-        const delta = actie === 'verbruik' ? -Math.abs(it.aantal) : it.aantal;
-        nieuweAantal = bestaand.aantal + delta;
+        const rawDelta = actie === 'verbruik' ? -Math.abs(it.aantal) : it.aantal;
+        // Nooit onder 0 -- ook niet als een verlopen/racende client een te grote aftrek stuurt.
+        // De gelogde 'aantal' is de ECHT toegepaste verandering (na klemmen), niet de
+        // gevraagde -- zo blijft de log een waarheidsgetrouwe weergave van de voorraad.
+        nieuweAantal = Math.max(0, bestaand.aantal + rawDelta);
+        const toegepasteDelta = nieuweAantal - bestaand.aantal;
 
-        const type   = actie === 'verbruik' ? 'verbruik' : (delta > 0 ? 'aanvulling' : 'correctie');
-        const status = type === 'aanvulling' ? 'nieuw' : null;
-        nieuweLogRegels.push({
-          id: crypto.randomUUID(),
-          technieker,
-          materiaalId:   it.materiaalId,
-          materiaalNaam: it.materiaalNaam,
-          aantal: delta,
-          datum: nu,
-          type,
-          status,
-        });
+        if (toegepasteDelta !== 0) {
+          const type   = actie === 'verbruik' ? 'verbruik' : (toegepasteDelta > 0 ? 'aanvulling' : 'correctie');
+          const status = type === 'aanvulling' ? 'nieuw' : null;
+          nieuweLogRegels.push({
+            id: crypto.randomUUID(),
+            technieker,
+            materiaalId:   it.materiaalId,
+            materiaalNaam: it.materiaalNaam,
+            aantal: toegepasteDelta,
+            datum: nu,
+            type,
+            status,
+          });
+        }
       }
       if (it.gedempt !== undefined) nieuweGedempt = it.gedempt;
 
