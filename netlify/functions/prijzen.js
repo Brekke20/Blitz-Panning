@@ -49,7 +49,7 @@ const DEFAULTS = {
   tarieven: [
     { id:'interventie-3u', naam:'Interventie (3u, incl. aanrijtijden)',              prijs:175, eenheid:'forfait' },
     { id:'extra-uur',      naam:'Extra uur',                                         prijs:75,  eenheid:'uur'     },
-    { id:'1st-line-uur',   naam:'1st line interventie per uur (excl. aanrijtijden)', prijs:115, eenheid:'uur'     },
+    { id:'1st-line-uur',   naam:'1st line interventie per uur (incl. aanrijtijden)', prijs:115, eenheid:'uur'     },
   ],
 };
 

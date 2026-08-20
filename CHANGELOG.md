@@ -15,6 +15,17 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.2.2] — 2026-08-20
+
+### Fixed
+- **1e lijns interventies rekenden geen aanrijtijd aan** — enkel de effectieve werktijd bij de
+  klant telde mee voor de €115/uur-berekening. De aanrijtijd (kantoor → klant) telt nu, net als
+  bij 2e lijns interventies, mee in het aantal gestarte uren. Hetzelfde geldt voor
+  garantie-bezoeken (die dezelfde basisformule gebruiken; het gefactureerde bedrag blijft €0).
+- **De knop "⏱️ Aankomst" ontbrak bij manuele afspraken/interventies** (niet afkomstig uit Zoho)
+  — die knop bestond enkel voor Zoho-tickets. Toegevoegd aan zowel de dagplanning-rij als het
+  detailvenster van manuele afspraken.
+
 ## [1.2.1] — 2026-08-17
 
 ### Fixed

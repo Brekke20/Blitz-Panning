@@ -316,6 +316,7 @@
     </div>
     <div class="mftr">
       <button class="btn-cancel" onclick="openFotoModal(_localDetEvent?.id)">📷 Foto's</button>
+      <button class="btn-cancel" id="ld-btn-arrival" title="Aankomst registreren" onclick="registerArrival(_localDetEvent?.id, _localDetEvent?.datum)">⏱️ Aankomst</button>
       <button class="btn-cancel" id="ld-btn-rapport" onclick="openRapport(_localDetEvent?.id, _localDetEvent?.datum)">📋 Rapport</button>
       <button class="btn-cancel" id="ld-edit-btn" onclick="editFromLocalDet()">✏️ Bewerken</button>
       <button class="btn-cancel" id="ld-del-btn" style="color:var(--red);border-color:var(--red)" onclick="deleteFromLocalDet()">🗑 Verwijderen</button>
@@ -3384,6 +3385,10 @@ function renderRouteList(date) {
       const ev = entry.item;
       const adres = ev.adres || ev.notitie || '';
       const tijdLabel = ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '';
+      const evArrKey     = `${date}__${ev.id}`;
+      const evArrivalHtml = arrivalData[evArrKey]
+        ? `<div class="stop-arrival">✅ Aangekomen ${arrivalData[evArrKey]}</div>`
+        : '';
       stop.innerHTML = `
         <div class="stop-top">
           <div class="stop-num" style="background:rgba(124,92,252,0.15);color:#7c5cfc;border-color:#7c5cfc">${i+1}</div>
@@ -3391,13 +3396,14 @@ function renderRouteList(date) {
             <div class="stop-sub" style="color:#7c5cfc">${escHtml(ev.type)} — ${escHtml(ev.titel)}</div>
             <div class="stop-addr">${escHtml(adres) || 'Geen adres'}</div>
             ${tijdLabel ? `<div class="stop-time" style="color:var(--muted)">🗓 ${tijdLabel}</div>` : ''}
-            ${timeHtml}
+            ${timeHtml}${evArrivalHtml}
             ${ev.persoon ? `<div class="stop-arrival">${escHtml(ev.persoon)}</div>` : ''}
           </div>
         </div>
         <div class="stop-actions">
           ${ev.telefoon ? `<a class="sico" href="tel:${escHtml(ev.telefoon)}" title="Bellen">📞 Bellen</a>` : ''}
           ${adres ? `<button class="sico btn-navigeer" title="Navigeren" data-adres="${escHtml(adres)}">🧭 Navigeer</button>` : ''}
+          <button class="sico" title="Aankomst registreren" onclick="registerArrival('${ev.id}','${date}')">⏱️ Aankomst</button>
           <button class="sico btn-ev-details" title="Details">📋 Details</button>
         </div>`;
     }

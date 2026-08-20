@@ -288,12 +288,14 @@ export function berekenLoonkost(servicetype, werktijdMin, aanrijtijdMin) {
     return { bruto: 175 + extraUren * 75, totMin, extraUren };
   }
   if (servicetype === '1e-lijn') {
-    const gestartUren = Math.ceil((werktijdMin || 0) / 60);
-    return { bruto: gestartUren * 115, gestartUren, totMin: werktijdMin || 0, extraUren: 0 };
+    const totMin = (werktijdMin || 0) + (aanrijtijdMin || 0);
+    const gestartUren = Math.ceil(totMin / 60);
+    return { bruto: gestartUren * 115, gestartUren, totMin, extraUren: 0 };
   }
   // garantie: zelfde berekening als 1e lijn maar netto = 0
-  const gestartUren = Math.ceil((werktijdMin || 0) / 60);
-  return { bruto: gestartUren * 115, gestartUren, netto: 0, totMin: werktijdMin || 0, extraUren: 0 };
+  const totMin = (werktijdMin || 0) + (aanrijtijdMin || 0);
+  const gestartUren = Math.ceil(totMin / 60);
+  return { bruto: gestartUren * 115, gestartUren, netto: 0, totMin, extraUren: 0 };
 }
 
 export function wizLoonkostPreview() {
@@ -314,11 +316,15 @@ export function wizLoonkostPreview() {
     regels.push(`Totaal: ${fmt(totMin)} → forfait €175`);
     if (extraUren > 0) regels.push(`+ ${extraUren}u extra × €75 = €${extraUren * 75}`);
   } else if (st === '1e-lijn') {
-    const gu = Math.ceil(wMin / 60);
-    regels.push(`Werktijd: ${fmt(wMin)} → ${gu} gestart${gu !== 1 ? 'e' : ''} uur × €115`);
+    if (aMin) regels.push(`Aanrijtijd: ${fmt(aMin)}`);
+    regels.push(`Werktijd: ${fmt(wMin)}`);
+    const gu = Math.ceil(totMin / 60);
+    regels.push(`Totaal: ${fmt(totMin)} → ${gu} gestart${gu !== 1 ? 'e' : ''} uur × €115`);
   } else {
-    const gu = Math.ceil(wMin / 60);
-    regels.push(`Werktijd: ${fmt(wMin)} → ${gu} gestart${gu !== 1 ? 'e' : ''} uur × €115 (gedekt door garantie)`);
+    if (aMin) regels.push(`Aanrijtijd: ${fmt(aMin)}`);
+    regels.push(`Werktijd: ${fmt(wMin)}`);
+    const gu = Math.ceil(totMin / 60);
+    regels.push(`Totaal: ${fmt(totMin)} → ${gu} gestart${gu !== 1 ? 'e' : ''} uur × €115 (gedekt door garantie)`);
   }
 
   const isGarantie = st === 'garantie';
@@ -391,7 +397,7 @@ export function wizRenderFacturatie(el) {
           <input type="radio" name="f-servicetype" value="1e-lijn" ${R.servicetype==='1e-lijn'?'checked':''} onchange="wizServicetypeChange()">
           <div>
             <div class="wiz-radio-card-label">1e lijns interventie</div>
-            <div class="wiz-radio-card-sub">€115/uur · aanrijtijd niet aangerekend</div>
+            <div class="wiz-radio-card-sub">€115/uur · aanrijtijd inbegrepen</div>
           </div>
         </label>
         <label class="wiz-radio-card">
@@ -403,7 +409,7 @@ export function wizRenderFacturatie(el) {
         </label>
       </div>
     </div>
-    <div id="aanrijtijd-wrap" style="${R.servicetype==='2e-lijn'?'':'display:none'};margin-top:6px">
+    <div id="aanrijtijd-wrap" style="margin-top:6px">
       <div class="wiz-field">
         <label class="wiz-field-label">Aanrijtijd (minuten, enkel heen)
           ${R.aanrijtijdMin > 0 ? '<span style="font-size:0.72rem;color:var(--accent);margin-left:6px">📡 TomTom</span>' : ''}
@@ -422,9 +428,6 @@ export function wizFacturatieChange() {
   document.getElementById('facturatie-vrij-wrap').style.display = val === 'vrij' ? '' : 'none';
 }
 export function wizServicetypeChange() {
-  const st = wizChecked('f-servicetype');
-  const wrap = document.getElementById('aanrijtijd-wrap');
-  if (wrap) wrap.style.display = st === '2e-lijn' ? '' : 'none';
   wizLoonkostPreview();
 }
 export function wizSaveFacturatie() {
@@ -1071,11 +1074,19 @@ ${isInstallatie ? '' : (() => {
     if (extraUren > 0) delen.push(`${extraUren} extra gestart${extraUren > 1 ? 'e' : ''} uur × €75 = €${extraUren * 75}`);
     detail = delen.join(' &nbsp;·&nbsp; ');
   } else if (st === '1e-lijn') {
-    const gu = Math.ceil(wMin / 60);
-    detail = `Werktijd: ${fmtMin(wMin)} → ${gu} gestart${gu !== 1 ? 'e' : ''} uur × €115`;
+    const delen = [];
+    if (aMin) delen.push(`Aanrijtijd: ${fmtMin(aMin)}`);
+    delen.push(`Werktijd: ${fmtMin(wMin)}`);
+    const gu = Math.ceil(totMin / 60);
+    delen.push(`Totaal: ${fmtMin(totMin)} → ${gu} gestart${gu !== 1 ? 'e' : ''} uur × €115`);
+    detail = delen.join(' &nbsp;·&nbsp; ');
   } else {
-    const gu = Math.ceil(wMin / 60);
-    detail = `Werktijd: ${fmtMin(wMin)} → ${gu} gestart${gu !== 1 ? 'e' : ''} uur × €115 — volledig gedekt door garantie`;
+    const delen = [];
+    if (aMin) delen.push(`Aanrijtijd: ${fmtMin(aMin)}`);
+    delen.push(`Werktijd: ${fmtMin(wMin)}`);
+    const gu = Math.ceil(totMin / 60);
+    delen.push(`Totaal: ${fmtMin(totMin)} → ${gu} gestart${gu !== 1 ? 'e' : ''} uur × €115 — volledig gedekt door garantie`);
+    detail = delen.join(' &nbsp;·&nbsp; ');
   }
 
   const nettoCel = isGarantie
