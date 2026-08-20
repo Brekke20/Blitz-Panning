@@ -15,6 +15,30 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.3.1] — 2026-08-21
+
+Herwerking van de Inventaris-tab op basis van live gebruikersfeedback. Nieuwe,
+backward-compatible functionaliteit — geen bestaand gedrag verwijderd.
+
+### Added
+- **Edit-modus voor de eigen wagenvoorraad**: de technieker-weergave toont voortaan altijd de
+  volledige materialenlijst (niet enkel wat je al hebt). Één "Edit"-knop schakelt de hele lijst
+  om: elk item krijgt een `−`/intikbaar aantal/`+` en een bel-icoon om de lage-voorraadmelding
+  voor dat item persoonlijk te dempen (bv. materiaal dat je toch niet standaard meeneemt). Niets
+  wordt verstuurd tot je op "Opslaan" klikt; "Annuleren" verwerpt alles.
+- **Dag-gegroepeerde supervisor-log**: het overzicht bij "Alle technici" toont voortaan een
+  duidelijke datum-scheiding per dag, met per beweging enkel het uur. Nieuwe bewegingen die
+  binnenkomen terwijl je op dat scherm staat (elke 30 seconden gecontroleerd) krijgen een
+  pulserende gloed, die verdwijnt zodra je naar een ander tabblad wisselt.
+- **Excel-export van de inventaris-historiek**: met een van/tot-datumfilter, in dezelfde stijl
+  als de bestaande Rapporten-export.
+
+### Changed
+- **Log-historiek wordt nu beperkt tot 3 maanden** — bewegingen ouder dan 3 maanden worden niet
+  langer bewaard (dit voorkomt onbeperkte opslaggroei, maar betekent ook dat een jaaroverzicht
+  of oudere accounting-terugblik op deze data niet meer mogelijk is eens ze verwijderd is).
+- De vorige "+ Materiaal"-zoek-en-kiesmodal is vervangen door de altijd-volledige lijst hierboven.
+
 ## [1.3.0] — 2026-08-20
 
 Fase 2: het inventarissysteem. Nieuwe, backward-compatible functionaliteit — geen bestaand
