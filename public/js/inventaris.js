@@ -117,12 +117,14 @@ async function markVerwerkt(logId) {
       _invData = body.data || _invData;
       toast('⚠ Conflict — inventaris herladen, probeer opnieuw', 3000);
       renderInventaris('all');
+      updateInventarisBadge('all');
       return;
     }
     if (!res.ok) throw new Error('HTTP ' + res.status);
     _invData = await res.json();
     saveToCache(INV_CACHE_KEY, _invData);
     renderInventaris('all');
+    updateInventarisBadge('all');
     toast('✓ Gemarkeerd als verwerkt', 2500);
   } catch (err) {
     toast('❌ Verwerkt-markering mislukt: ' + err.message, 4000);
