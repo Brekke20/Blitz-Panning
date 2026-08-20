@@ -1,7 +1,10 @@
 // /api/inventaris
-// GET   → volledige inventarisstaat (wagenvoorraad per technieker + volledige log)
-// POST  → mutatie (technieker vult wagenvoorraad bij of corrigeert) of verbruik (automatische
-//         aftrek bij een afgerond rapport) — beide muteren wagenvoorraad + loggen een regel
+// GET   → volledige inventarisstaat (wagenvoorraad per technieker + volledige log, altijd
+//         genormaliseerd + max. 3 maanden log-historiek)
+// POST  → mutatie (technieker vult wagenvoorraad bij, corrigeert, en/of dempt de
+//         lage-voorraadmelding voor een materiaal) of verbruik (automatische aftrek bij een
+//         afgerond rapport) — beide muteren wagenvoorraad + loggen een regel (behalve een
+//         zuivere demp-wijziging, die niet gelogd wordt)
 // PATCH → een 'aanvulling'-logregel op status 'verwerkt' zetten (supervisor heeft ze in AFAS geboekt)
 import { getStore } from '@netlify/blobs';
 
@@ -10,6 +13,7 @@ const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
   'http://localhost:8888',
 ];
+const RETENTIE_MAANDEN = 3;
 
 const EMPTY = { versie: 0, wagenvoorraad: {}, log: [] };
 
@@ -28,6 +32,54 @@ function json(data, status, hdrs) {
   return new Response(JSON.stringify(data), { status, headers: { ...hdrs, 'Content-Type': 'application/json' } });
 }
 
+// Oude opslag had per materiaal enkel een getal (aantal); nieuwe opslag heeft {aantal, gedempt}.
+// Bestaande, nog niet aangeraakte data blijft in de oude vorm tot ze opnieuw geschreven wordt --
+// elk antwoord aan de frontend normaliseert daarom altijd naar de nieuwe vorm, zodat de
+// frontend nooit met de oude vorm rekening moet houden.
+function normStock(val) {
+  if (val == null) return { aantal: 0, gedempt: false };
+  if (typeof val === 'number') return { aantal: val, gedempt: false };
+  return { aantal: val.aantal || 0, gedempt: !!val.gedempt };
+}
+
+function normalizeWagenvoorraad(wv) {
+  const out = {};
+  for (const [tech, stock] of Object.entries(wv || {})) {
+    out[tech] = {};
+    for (const [id, val] of Object.entries(stock || {})) {
+      out[tech][id] = normStock(val);
+    }
+  }
+  return out;
+}
+
+function toResponse(data) {
+  return { ...data, wagenvoorraad: normalizeWagenvoorraad(data.wagenvoorraad) };
+}
+
+// Log-historiek wordt beperkt tot RETENTIE_MAANDEN, om de opslag niet onbeperkt te laten
+// aangroeien. Bewuste keuze: dit bumpt de 'versie' niet -- het is opschoning, geen inhoudelijke
+// wijziging waarop een client optimistic-lock zou moeten conflicteren op.
+function pruneOldLog(log) {
+  const grens = new Date();
+  grens.setMonth(grens.getMonth() - RETENTIE_MAANDEN);
+  const grensISO = grens.toISOString();
+  return (log || []).filter(e => e.datum >= grensISO);
+}
+
+async function pruneAndGet(store) {
+  let current;
+  try { current = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY; }
+  catch { return { current: null, error: true }; }
+
+  const pruned = pruneOldLog(current.log);
+  if (pruned.length !== (current.log || []).length) {
+    current = { ...current, log: pruned };
+    try { await store.setJSON(BLOB_KEY, current); } catch { /* best effort, niet fataal */ }
+  }
+  return { current, error: false };
+}
+
 export default async (req) => {
   const hdrs = corsHeaders(req);
 
@@ -37,12 +89,9 @@ export default async (req) => {
 
   // ── GET ──────────────────────────────────────────────────────────────────────
   if (req.method === 'GET') {
-    try {
-      const data = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY;
-      return json(data, 200, hdrs);
-    } catch {
-      return json(EMPTY, 200, { ...hdrs, 'X-Source': 'fallback' });
-    }
+    const { current, error } = await pruneAndGet(store);
+    if (error) return json(toResponse(EMPTY), 200, { ...hdrs, 'X-Source': 'fallback' });
+    return json(toResponse(current), 200, hdrs);
   }
 
   // ── POST (mutatie of verbruik) ──────────────────────────────────────────────
@@ -60,15 +109,21 @@ export default async (req) => {
     for (const it of items) {
       if (!it.materiaalId || typeof it.materiaalId !== 'string') return json({ error: 'elk item heeft een materiaalId nodig' }, 400, hdrs);
       if (!it.materiaalNaam || typeof it.materiaalNaam !== 'string') return json({ error: 'elk item heeft een materiaalNaam nodig' }, 400, hdrs);
-      if (typeof it.aantal !== 'number' || !Number.isFinite(it.aantal) || it.aantal === 0) return json({ error: `ongeldig aantal voor ${it.materiaalId}` }, 400, hdrs);
+      const heeftAantal  = it.aantal  !== undefined;
+      const heeftGedempt = it.gedempt !== undefined;
+      if (!heeftAantal && !heeftGedempt) return json({ error: `item voor ${it.materiaalId} heeft aantal of gedempt nodig` }, 400, hdrs);
+      if (heeftAantal && (typeof it.aantal !== 'number' || !Number.isFinite(it.aantal) || it.aantal === 0)) {
+        return json({ error: `ongeldig aantal voor ${it.materiaalId}` }, 400, hdrs);
+      }
+      if (heeftGedempt && typeof it.gedempt !== 'boolean') return json({ error: `ongeldige gedempt-waarde voor ${it.materiaalId}` }, 400, hdrs);
+      if (heeftGedempt && actie !== 'mutatie') return json({ error: 'gedempt kan enkel bij actie mutatie' }, 400, hdrs);
     }
 
-    let current;
-    try { current = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY; }
-    catch { return json({ error: 'Inventaris-opslag tijdelijk niet bereikbaar, probeer opnieuw.' }, 503, hdrs); }
+    const { current, error } = await pruneAndGet(store);
+    if (error) return json({ error: 'Inventaris-opslag tijdelijk niet bereikbaar, probeer opnieuw.' }, 503, hdrs);
 
     if (versie !== current.versie) {
-      return json({ error: 'Inventaris ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: current.versie, data: current }, 409, hdrs);
+      return json({ error: 'Inventaris ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: current.versie, data: toResponse(current) }, 409, hdrs);
     }
 
     const wagenvoorraad = { ...current.wagenvoorraad };
@@ -77,24 +132,32 @@ export default async (req) => {
     const nu = new Date().toISOString();
 
     for (const it of items) {
-      // verbruik: 'aantal' is de gebruikte hoeveelheid (positief) -> wagenvoorraad daalt.
-      // mutatie: 'aantal' is al signed (positief = aanvulling, negatief = correctie).
-      const delta = actie === 'verbruik' ? -Math.abs(it.aantal) : it.aantal;
-      stock[it.materiaalId] = (stock[it.materiaalId] || 0) + delta;
+      const bestaand = normStock(stock[it.materiaalId]);
+      let nieuweAantal  = bestaand.aantal;
+      let nieuweGedempt = bestaand.gedempt;
 
-      const type   = actie === 'verbruik' ? 'verbruik' : (delta > 0 ? 'aanvulling' : 'correctie');
-      const status = type === 'aanvulling' ? 'nieuw' : null;
+      if (it.aantal !== undefined) {
+        // verbruik: 'aantal' is de gebruikte hoeveelheid (positief) -> wagenvoorraad daalt.
+        // mutatie: 'aantal' is al signed (positief = aanvulling, negatief = correctie).
+        const delta = actie === 'verbruik' ? -Math.abs(it.aantal) : it.aantal;
+        nieuweAantal = bestaand.aantal + delta;
 
-      nieuweLogRegels.push({
-        id: crypto.randomUUID(),
-        technieker,
-        materiaalId:   it.materiaalId,
-        materiaalNaam: it.materiaalNaam,
-        aantal: delta,
-        datum: nu,
-        type,
-        status,
-      });
+        const type   = actie === 'verbruik' ? 'verbruik' : (delta > 0 ? 'aanvulling' : 'correctie');
+        const status = type === 'aanvulling' ? 'nieuw' : null;
+        nieuweLogRegels.push({
+          id: crypto.randomUUID(),
+          technieker,
+          materiaalId:   it.materiaalId,
+          materiaalNaam: it.materiaalNaam,
+          aantal: delta,
+          datum: nu,
+          type,
+          status,
+        });
+      }
+      if (it.gedempt !== undefined) nieuweGedempt = it.gedempt;
+
+      stock[it.materiaalId] = { aantal: nieuweAantal, gedempt: nieuweGedempt };
     }
 
     wagenvoorraad[technieker] = stock;
@@ -107,7 +170,7 @@ export default async (req) => {
 
     try {
       await store.setJSON(BLOB_KEY, nieuw);
-      return json(nieuw, 200, hdrs);
+      return json(toResponse(nieuw), 200, hdrs);
     } catch (err) {
       return json({ error: 'Opslaan mislukt: ' + err.message }, 500, hdrs);
     }
@@ -123,12 +186,11 @@ export default async (req) => {
     if (typeof versie !== 'number') return json({ error: 'versie is verplicht en moet een getal zijn' }, 400, hdrs);
     if (!id || typeof id !== 'string') return json({ error: 'id is verplicht' }, 400, hdrs);
 
-    let current;
-    try { current = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY; }
-    catch { return json({ error: 'Inventaris-opslag tijdelijk niet bereikbaar, probeer opnieuw.' }, 503, hdrs); }
+    const { current, error } = await pruneAndGet(store);
+    if (error) return json({ error: 'Inventaris-opslag tijdelijk niet bereikbaar, probeer opnieuw.' }, 503, hdrs);
 
     if (versie !== current.versie) {
-      return json({ error: 'Inventaris ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: current.versie, data: current }, 409, hdrs);
+      return json({ error: 'Inventaris ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: current.versie, data: toResponse(current) }, 409, hdrs);
     }
 
     const idx = current.log.findIndex(e => e.id === id);
@@ -142,7 +204,7 @@ export default async (req) => {
 
     try {
       await store.setJSON(BLOB_KEY, nieuw);
-      return json(nieuw, 200, hdrs);
+      return json(toResponse(nieuw), 200, hdrs);
     } catch (err) {
       return json({ error: 'Opslaan mislukt: ' + err.message }, 500, hdrs);
     }
