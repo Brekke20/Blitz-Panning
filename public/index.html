@@ -404,6 +404,19 @@
   </div>
 </div>
 
+<!-- Inventaris: materiaal toevoegen/corrigeren modal -->
+<div class="overlay" id="inv-add-overlay" onclick="closeInventarisAddModal(event)">
+  <div class="modal" id="inv-add-modal" style="max-width:420px">
+    <div class="mhdr">
+      <button class="mhdr-close" onclick="closeInventarisAddModal()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <div class="mhdr-title">📦 Materiaal toevoegen/corrigeren</div>
+    </div>
+    <div class="mbody" id="inv-add-body">
+      <!-- Ingevuld door openInventarisAddModal()/_invRenderAddModal() -->
+    </div>
+  </div>
+</div>
+
 <!-- Auto-plan resultaat modal -->
 <div class="overlay" id="result-overlay" onclick="closeResult(event)">
   <div class="modal" id="result-modal">

@@ -131,14 +131,119 @@ async function markVerwerkt(logId) {
   }
 }
 
-// ── "+ Materiaal"-modal (Task 3 vult dit verder aan — openInventarisAddModal wordt hier al
-// aangeroepen vanuit renderEigenVoorraad, dus de functie moet vanaf deze taak al bestaan.
-// De modal-markup zelf (#inv-add-overlay) bestaat pas vanaf Task 3 — deze placeholder raakt
-// dus bewust geen DOM-elementen aan die nog niet bestaan, enkel een zichtbare toast) ──
+// ── "+ Materiaal"-modal ──
 export function openInventarisAddModal(persoon) {
   _invPersoon  = persoon;
   _invSelected = null;
-  toast('⚠️ "+ Materiaal" komt in de volgende taak — nog niet geïmplementeerd', 3000);
+  document.getElementById('inv-add-overlay').classList.add('open');
+  _invRenderAddModal();
+}
+
+export function closeInventarisAddModal(e) {
+  if (e && e.target !== document.getElementById('inv-add-overlay')) return;
+  document.getElementById('inv-add-overlay').classList.remove('open');
+}
+
+export function invZoekOpnieuw() {
+  _invSelected = null;
+  _invRenderAddModal();
+}
+
+export function invZoekInput() {
+  _invUpdateZoekResults();
+}
+
+export function invSubmitAdd() {
+  const aantal = parseInt(document.getElementById('inv-aantal')?.value, 10);
+  if (!aantal) { toast('⚠️ Vul een aantal in (niet 0)', 3000); return; }
+  submitInventarisMutatie(_invSelected.id, _invSelected.naam, aantal);
+}
+
+function _invRenderAddModal() {
+  const body = document.getElementById('inv-add-body');
+  if (!_invSelected) {
+    body.innerHTML = `
+      <div class="wiz-cat-search-wrap">
+        <span class="wiz-cat-search-icon">🔍</span>
+        <input class="wiz-cat-search" id="inv-zoek-q" type="search"
+          placeholder="Zoek op naam of tag…" oninput="invZoekInput()" autocomplete="off" />
+      </div>
+      <div class="wiz-cat-results" id="inv-zoek-results"></div>`;
+    _invUpdateZoekResults();
+  } else {
+    body.innerHTML = `
+      <div class="inv-gekozen-naam" style="font-weight:600;margin-bottom:10px">${escHtml(_invSelected.naam)}</div>
+      <label class="wiz-field-label" for="inv-aantal">Aantal (negatief = correctie: kapot, verloren, telfout)</label>
+      <input class="man-input" id="inv-aantal" type="number" step="1" value="1" />
+      <div class="mftr" style="padding:12px 0 0">
+        <button class="btn-cancel" onclick="invZoekOpnieuw()">‹ Ander materiaal</button>
+        <button class="btn-save" onclick="invSubmitAdd()">Toevoegen</button>
+      </div>`;
+    document.getElementById('inv-aantal')?.focus();
+  }
+}
+
+function _invUpdateZoekResults() {
+  const q = document.getElementById('inv-zoek-q')?.value || '';
+  const resultEl = document.getElementById('inv-zoek-results');
+  if (!resultEl) return;
+  const resultaten = zoekOnderdelen(q, []);
+  if (!resultaten.length) {
+    resultEl.innerHTML = '<div class="wiz-cat-empty">Geen onderdelen gevonden</div>';
+    return;
+  }
+  resultEl.innerHTML = resultaten.slice(0, 20).map(o =>
+    `<div class="wiz-cat-item" data-ond-id="${escHtml(o.id)}">
+      <span class="wiz-cat-item-naam">${escHtml(o.naam)}</span>
+    </div>`
+  ).join('');
+  resultEl.querySelectorAll('.wiz-cat-item').forEach(item => {
+    item.addEventListener('click', () => invKiesMateriaal(item.dataset.ondId || ''));
+  });
+}
+
+function invKiesMateriaal(id) {
+  const src = PRIJZEN || PRIJZEN_DEFAULTS;
+  const o = src.onderdelen.find(x => x.id === id);
+  if (!o) return;
+  _invSelected = { id: o.id, naam: o.naam };
+  _invRenderAddModal();
+}
+
+async function submitInventarisMutatie(materiaalId, materiaalNaam, aantal) {
+  const technieker = _invPersoon;
+  try {
+    const res = await fetch(INV_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        versie: _invData.versie,
+        technieker,
+        actie: 'mutatie',
+        items: [{ materiaalId, materiaalNaam, aantal }],
+      }),
+    });
+    if (res.status === 409) {
+      const body = await res.json();
+      _invData = body.data || _invData;
+      toast('⚠ Conflict — inventaris herladen, probeer opnieuw', 3000);
+      closeInventarisAddModal();
+      renderInventaris(technieker);
+      return;
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody.error || ('HTTP ' + res.status));
+    }
+    _invData = await res.json();
+    saveToCache(INV_CACHE_KEY, _invData);
+    closeInventarisAddModal();
+    renderInventaris(technieker);
+    updateInventarisBadge(technieker);
+    toast(aantal > 0 ? '✓ Toegevoegd aan wagenvoorraad' : '✓ Correctie geregistreerd', 2500);
+  } catch (err) {
+    toast('❌ Opslaan mislukt: ' + err.message, 4000);
+  }
 }
 
 // ── Window-bridge ──
@@ -148,3 +253,7 @@ export function openInventarisAddModal(persoon) {
 window.loadInventaris        = loadInventaris;
 window.renderInventaris      = renderInventaris;
 window.updateInventarisBadge = updateInventarisBadge;
+window.closeInventarisAddModal = closeInventarisAddModal;
+window.invZoekInput            = invZoekInput;
+window.invZoekOpnieuw          = invZoekOpnieuw;
+window.invSubmitAdd            = invSubmitAdd;
