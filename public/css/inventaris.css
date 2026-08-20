@@ -1,8 +1,10 @@
-/* Inventaris-tab: wagenvoorraad per technieker + supervisor-neemlog */
+/* Inventaris-tab: wagenvoorraad per technieker (volledige catalogus + Edit-modus) +
+   supervisor-neemlog (dag-gegroepeerd, met live nieuw-detectie) */
 
 .inv-toolbar {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   padding: 10px 16px;
 }
 
@@ -38,6 +40,64 @@
 .inv-row-aantal { font-size: 0.85rem; font-weight: 700; }
 .inv-row.inv-low .inv-row-aantal { color: var(--red); }
 
+/* ── Editeerbare rij (technieker-weergave, Edit-modus) ── */
+.inv-qty-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inv-qty-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.inv-qty-btn:hover { background: var(--surface3); }
+
+.inv-qty-input {
+  width: 52px;
+  text-align: center;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text);
+  padding: 4px 2px;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.inv-bell-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.inv-bell-btn.inv-bell-muted { opacity: 0.5; }
+
+/* ── Supervisor-log: dag-scheiding + regels ── */
+.inv-day-sep {
+  padding: 10px 16px 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
 .inv-log-row {
   display: flex;
   align-items: center;
@@ -62,5 +122,31 @@
 .inv-log-type.inv-log-verbruik   { background: var(--surface3); color: var(--muted); }
 
 .inv-log-materiaal { flex: 1; min-width: 140px; }
-.inv-log-datum { color: var(--muted); font-size: 0.75rem; }
+.inv-log-tijd { color: var(--muted); font-size: 0.75rem; }
 .inv-log-status-done { color: var(--muted); font-size: 0.75rem; }
+
+/* Nieuwe regel, ontdekt terwijl je op dit scherm staat: pulserende gloed. Verdwijnt door
+   resetInvSeenLog() (aangeroepen bij het verlaten van de Inventaris-tab) en een her-render. */
+@keyframes invNewGlow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-dim); }
+  50%      { box-shadow: 0 0 0 6px var(--accent-dim); }
+}
+.inv-log-row.inv-day-new {
+  border-color: var(--accent);
+  animation: invNewGlow 1.6s ease-in-out infinite;
+}
+
+/* ── Export-toolbar (datumfilters + knop) ── */
+.inv-export-toolbar {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+.inv-export-toolbar input[type="date"] {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text);
+  padding: 4px 7px;
+  font-size: 0.75rem;
+  font-family: inherit;
+}
