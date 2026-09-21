@@ -15,6 +15,37 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.4.0] — 2026-09-21
+
+Invoering van klantvoorkeuren voor uur en datum, echte route-aanpassingen met
+bewaring, en permanente bewaring van gemailde uurblokken.
+
+### Added
+- **Voorkeursuur van de klant**: naast een voorkeursdatum kan nu ook een uur
+  (of enkel een uur) ingesteld worden; "Plan deze week" en de "+"-knop zetten
+  het ticket dan op exact dat uur. Botst dat met een ander vast uur van die
+  technieker, dan kiest de planner een andere dag.
+- **Route-tab: kaartjes slepen wijzigt nu écht de volgorde**: de app rekent
+  de nieuwe tijdstippen uit, bewaart ze en werkt kaart, rijtijden en kalender
+  bij. Stops met een verstuurd voorstel of bevestigde afspraak zijn vergrendeld
+  (🔒) en blijven op hun uur; handmatige afspraken zijn een vast anker.
+- **Het uurblok dat naar de klant gemaild is, wordt bewaard en overal getoond**
+  (kalender, maandoverzicht, route), zodat technieker en klant altijd hetzelfde
+  blok zien — ook als de instelling voor de blokgrootte later wijzigt.
+
+### Changed
+- **Uurblok in het afspraakvoorstel**: start 30 min vóór de geschatte aankomst
+  (afgerond op het halve uur), 3 uur breed (instelbaar), begrensd door de
+  werkdag. Bv. aankomst 09:15 → "tussen 08:30–11:30". Voorheen een vast raster
+  (08–11/11–14/14–17) met wisselende marges.
+- **"Optimaliseer" start altijd vanaf nul** (negeert wat je versleept hebt),
+  laat vergrendelde stops en afspraken op hun uur staan, en bewaart het
+  resultaat als tijdstippen (voorheen bleef een optimalisatie niet bewaard).
+
+### Fixed
+- **Een ingestelde voorkeursdatum kon niet meer gewijzigd of gewist worden.**
+- **De "verwachte duur" per ticket werd niet bewaard na herladen.**
+
 ## [1.3.1] — 2026-08-21
 
 Herwerking van de Inventaris-tab op basis van live gebruikersfeedback. Nieuwe,
