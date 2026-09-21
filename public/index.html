@@ -3334,6 +3334,17 @@ function isStopLocked(item) {
   return ['Geplande service', 'Geplande support'].includes(item.ticket?.status);
 }
 
+// Fix-ronde 1 (#3, Controller-ruling): slepen/optimaliseren mag enkel als de gefilterde
+// tickets van de dag van hoogstens één technieker zijn — anders zou de volgorde/persist-
+// logica tijden van meerdere technici als één sequentiële route door elkaar husselen.
+// Ontbrekend/leeg `assignee` telt als een eigen groep. `stops` = platte lijst ticket-stop-
+// objecten ({ticket,...}), zoals overal elders in de Route-tab; lokale afspraken tellen hier
+// niet mee (worden nooit aan een technieker-route toegewezen in deze context).
+function dagHeeftEenTechnieker(stops) {
+  const groepen = new Set(stops.map(p => p.ticket?.assignee || ''));
+  return groepen.size <= 1;
+}
+
 // Pure helper (Taak 4), geëxtraheerd uit renderRouteList(): berekent cumulatieve
 // aankomsttijden (minuten na middernacht) voor een allStops-lijst, plus de legIdx-mapping
 // (allStops-index → routeData.legs-index, enkel voor geocodeerde stops -- zie de uitleg bij
@@ -3379,6 +3390,10 @@ function renderRouteList(date) {
     e.datum === date && (e.adres || e.notitie) &&
     (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
   );
+  // Fix-ronde 1 (#3): slepen mag enkel als de dag (na filter) van hoogstens één technieker is
+  // -- anders zou de volgorde/persist-logica tijden van meerdere technici als één
+  // sequentiële route door elkaar husselen.
+  const eenTechnieker = dagHeeftEenTechnieker(stops);
   // Gecombineerde lijst, gesorteerd op ingesteld uur (geen uur = achteraan) zodat dit de
   // echte geplande volgorde toont i.p.v. altijd tickets vóór handmatige afspraken te zetten
   // -- moet exact dezelfde sortering gebruiken als allWpStops in calculateRoute(), anders
@@ -3456,7 +3471,7 @@ function renderRouteList(date) {
         </div>
         <div class="stop-actions">
           <button class="sico btn-navigeer" title="Navigeren" data-adres="${escHtml(item.address||'')}">🧭 Navigeer</button>
-          <button class="sico" title="Afspraakvoorstel sturen" onclick="openProposal('${item.ticket.id}','${date}',${arrivalTimes[i] !== undefined ? arrivalTimes[i] : 'null'})">📨 Voorstel</button>
+          <button class="sico" title="Afspraakvoorstel sturen" onclick="openProposal('${item.ticket.id}','${date}',${hasRoute && arrivalTimes[i] !== undefined ? arrivalTimes[i] : 'null'})">📨 Voorstel</button>
           <button class="sico" title="Aankomst registreren" onclick="registerArrival('${item.ticket.id}','${date}')">⏱️ Aankomst</button>
           <button class="sico" title="Service rapport" onclick="openRapport('${item.ticket.id}','${date}')">📋 Rapport</button>
           <button class="sico" title="Verwijderen" onclick="removeTicketFromDate('${item.ticket.id}','${date}')">✕ Verwijderen</button>
@@ -3494,19 +3509,25 @@ function renderRouteList(date) {
     // afspraken) zijn een geldig drop-doel, zodat een ticket vóór/na een anker gedropt kan
     // worden. Werkt op allStops-indices (`i` = index in de forEach), niet op de gefilterde
     // ticket-only `stops`-lijst (dat was de mismatch-bug hiervoor).
+    // Fix-ronde 1 (#3): bij meerdere technici (filter 'Alle') is de dag geen sequentiële
+    // route van één persoon meer -- dan is niets versleepbaar (zie eenTechnieker hierboven).
     if (window.innerWidth > 680) {
       if (isTicket && !locked) {
-        stop.draggable = true;
-        stop.style.cursor = 'grab';
-        stop.addEventListener('dragstart', e => {
-          e.dataTransfer.setData('text/plain', String(i));
-          stop.style.opacity = '0.4';
-          list.classList.add('dragging');
-        });
-        stop.addEventListener('dragend', () => {
-          stop.style.opacity = '';
-          list.classList.remove('dragging');
-        });
+        if (eenTechnieker) {
+          stop.draggable = true;
+          stop.style.cursor = 'grab';
+          stop.addEventListener('dragstart', e => {
+            e.dataTransfer.setData('text/plain', String(i));
+            stop.style.opacity = '0.4';
+            list.classList.add('dragging');
+          });
+          stop.addEventListener('dragend', () => {
+            stop.style.opacity = '';
+            list.classList.remove('dragging');
+          });
+        } else {
+          stop.title = 'Kies eerst een technieker om de volgorde aan te passen';
+        }
       }
       stop.addEventListener('dragover',  e => { e.preventDefault(); stop.classList.add('drag-over'); });
       stop.addEventListener('dragleave', () => stop.classList.remove('drag-over'));
@@ -3556,6 +3577,24 @@ function renderRouteList(date) {
 // concrete tijdstippen en bewaart die (Taak 4, Beslissing Brent 2026-09-21). Aangeroepen door
 // de drop-handlers hierboven én door optimizeRoute().
 async function applyRouteOrder(date, orderedEntries) {
+  // Fix-ronde 1 (#3, defensief): dagHeeftEenTechnieker() blokkeert dit al in de UI (niet
+  // versleepbaar / Optimaliseren geeft een toast), maar dit is de laatste linie zodat geen
+  // enkel code-pad ooit tijden van meerdere technici als één sequentiële route kan bewaren.
+  const ticketItems = orderedEntries.filter(e => e.kind === 'ticket').map(e => e.item);
+  if (!dagHeeftEenTechnieker(ticketItems)) {
+    return toast('⚠️ Kies eerst een technieker — de dag bevat stops van meerdere technici');
+  }
+
+  // Fix-ronde 1 (#4): originele uren van de verplaatsbare tickets bewaren vóór we ze in stap 1
+  // overschrijven, zodat we bij een mislukte routeberekening niets hoeven te gokken en alles
+  // gewoon kunnen terugdraaien i.p.v. de ruwe 30-min-schatting te bewaren.
+  const origineleUren = new Map();
+  for (const entry of orderedEntries) {
+    if (entry.kind === 'ticket' && !isStopLocked(entry.item)) {
+      origineleUren.set(entry, entry.item.uur);
+    }
+  }
+
   // Stap 1: voorlopige uren toekennen zodat de bestaande uur-sort (renderRouteList/
   // calculateRoute/updateMap) de gesleepte volgorde exact reproduceert, nog vóór er een
   // (nieuwe) route berekend is. Ankers (lokale afspraken + vergrendelde tickets) behouden hun
@@ -3586,49 +3625,72 @@ async function applyRouteOrder(date, orderedEntries) {
   routeData = null;
   await calculateRoute();
 
-  // Stap 3: als de route gelukt is, de ruwe (30-min-fallback) uren van de verplaatsbare
-  // tickets vervangen door tijden gebaseerd op de echte reistijden.
+  // Fix-ronde 1 (#4): geen (geldige) route → nooit gokken. De ruwe stap-1-schatting is geen
+  // betrouwbare tijd om te tonen/bewaren, dus alles terugdraaien naar de originele uren en
+  // stoppen (geen verfijning, geen persist).
+  if (!(routeData?.legs && currentRouteDate === date)) {
+    for (const [entry, origUur] of origineleUren) {
+      entry.uur = origUur;
+      entry.item.uur = origUur;
+    }
+    toast('❌ Route kon niet berekend worden — volgorde niet bewaard', 5000);
+    renderRouteList(date);
+    updateMap(date);
+    updateRouteBtns(date);
+    return;
+  }
+
+  // Stap 3: de ruwe (30-min-fallback) uren van de verplaatsbare tickets vervangen door tijden
+  // gebaseerd op de echte reistijden. Draait ook in TEST_MODE (enkel stap 4 hieronder, het
+  // echte persisteren, wordt daar overgeslagen) zodat dit ook lokaal testbaar is.
   //
   // Ontwerpkeuze (zie brief, ter documentatie): berekenAankomsten() springt naar `entry.uur`
   // zodra dat gezet is (bestaand "vastgezet tijdstip"-gedrag, nodig voor ankers). Na stap 1
   // hebben ook de verplaatsbare tickets al een (ruw) uur — een aanroep zou voor hen dus altijd
   // gewoon naar dat reeds bestaande uur "springen" en de echte routeData.legs volledig
-  // negeren, hoe vaak je de aanroep ook herhaalt (twee volle aanroepen met de uren nog gezet
-  // zijn dus een no-op). In plaats daarvan wissen we hier eenmalig het `uur` van de
-  // verplaatsbare entries vóór de aanroep (ankers blijven ongemoeid) — de array-volgorde ligt
-  // al vast via de sort hierboven, enkel de uur-waarden worden verfijnd — zodat de cumulatieve
-  // klok voor hen wél op de echte legSec steunt; nadien schrijven we het resultaat terug. Eén
-  // aanroep volstaat zo.
-  if (routeData?.legs && currentRouteDate === date) {
-    const stops = (planning[date] || []).filter(p =>
-      activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-    );
-    const localForDate = localEvents.filter(e =>
-      e.datum === date && (e.adres || e.notitie) &&
-      (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
-    );
-    const allStops = [
-      ...stops.map(s => ({ kind: 'ticket', item: s, uur: s.uur })),
-      ...localForDate.map(e => ({ kind: 'local', item: e, uur: e.uur })),
-    ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
+  // negeren, hoe vaak je de aanroep ook herhaalt. In plaats daarvan wissen we hier eenmalig het
+  // `uur` van de verplaatsbare entries vóór de aanroep (ankers blijven ongemoeid) — de array-
+  // volgorde ligt al vast via de sort hierboven, enkel de uur-waarden worden verfijnd — zodat
+  // de cumulatieve klok voor hen wél op de echte legSec steunt. Eén aanroep volstaat zo.
+  //
+  // FIX (ronde 1, #1 CRITICAL): berekenAankomsten() leest het WRAPPER-veld `entry.uur` (dat bij
+  // de opbouw hieronder als snapshot `uur: s.uur` wordt meegegeven), niet `entry.item.uur`. De
+  // eerste versie wiste enkel `entry.item.uur`, waardoor de (stale) wrapper-waarde bleef staan
+  // en elke entry gewoon naar dat oude uur "sprong" -- de verfijning was zo een complete no-op
+  // en de bewaarde tijden waren altijd de ruwe stap-1-gok. Beide velden moeten dus gewist én
+  // teruggeschreven worden.
+  const stops = (planning[date] || []).filter(p =>
+    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
+  );
+  const localForDate = localEvents.filter(e =>
+    e.datum === date && (e.adres || e.notitie) &&
+    (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
+  );
+  const allStops = [
+    ...stops.map(s => ({ kind: 'ticket', item: s, uur: s.uur })),
+    ...localForDate.map(e => ({ kind: 'local', item: e, uur: e.uur })),
+  ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
 
-    for (const entry of allStops) {
-      if (entry.kind === 'ticket' && !isStopLocked(entry.item)) entry.item.uur = undefined;
+  for (const entry of allStops) {
+    if (entry.kind === 'ticket' && !isStopLocked(entry.item)) {
+      entry.uur = undefined;
+      entry.item.uur = undefined;
     }
-    const { arrivalTimes } = berekenAankomsten(allStops, routeData.legs);
-    allStops.forEach((entry, i) => {
-      if (entry.kind === 'ticket' && !isStopLocked(entry.item)) {
-        entry.item.uur = roundToNextQuarterStr(minToTimeStr(arrivalTimes[i]));
-      }
-    });
   }
+  const { arrivalTimes } = berekenAankomsten(allStops, routeData.legs);
+  allStops.forEach((entry, i) => {
+    if (entry.kind === 'ticket' && !isStopLocked(entry.item)) {
+      const nieuwUur = roundToNextQuarterStr(minToTimeStr(arrivalTimes[i]));
+      entry.uur = nieuwUur;
+      entry.item.uur = nieuwUur;
+    }
+  });
 
   // Stap 4: persisteren naar Zoho — overgeslagen in testmodus (dummy ticket-id's zijn niet
-  // numeriek; /api/plan-datum accepteert enkel numerieke Zoho-ticket-id's).
+  // numeriek; /api/plan-datum accepteert enkel numerieke Zoho-ticket-id's). `stops` is
+  // hetzelfde gefilterde array als hierboven in stap 3 (membership verandert niet door de
+  // uur-mutaties) -- hergebruikt i.p.v. opnieuw op te bouwen.
   if (!TEST_MODE) {
-    const stops = (planning[date] || []).filter(p =>
-      activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-    );
     for (const item of stops) {
       if (isStopLocked(item)) continue;
       const huidigUur = extractLocalHour(item.ticket.interventieDatum);
@@ -3707,6 +3769,13 @@ async function optimizeRoute() {
     e.datum === date && (e.adres || e.notitie) &&
     (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
   );
+
+  // Fix-ronde 1 (#3, Controller-ruling): niet optimaliseren zolang de dag (na filter) stops
+  // van meerdere technici bevat -- anders zou de resulterende volgorde/tijden hen als één
+  // sequentiële route door elkaar husselen. Zelfde regel als in renderRouteList() voor drag.
+  if (!dagHeeftEenTechnieker(stops)) {
+    return toast('⚠️ Kies eerst een technieker — de dag bevat stops van meerdere technici');
+  }
 
   // Optimaliseren start altijd vanaf nul (Beslissing Brent, 2026-09-21): negeert de
   // sleepvolgorde/huidige uren van vrije tickets. Ankers (lokale afspraken + vergrendelde
