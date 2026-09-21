@@ -244,6 +244,14 @@
         <input class="set-input" id="set-tijdslot" type="number" min="60" max="360" step="30" />
       </div>
       <div class="set-field">
+        <label class="set-label">Kleur routelijn</label>
+        <input class="set-input" id="set-routekleur" type="color">
+      </div>
+      <div class="set-field">
+        <label class="set-label">Drukte tonen op de route (verwachte vertraging per wegstuk)</label>
+        <label class="set-row"><input type="checkbox" id="set-drukte"> <span>Aan</span></label>
+      </div>
+      <div class="set-field">
         <label class="set-label">Werkdagen</label>
         <div class="days-grid" id="days-grid"></div>
       </div>
@@ -691,6 +699,9 @@ const DEFAULT_SETTINGS = {
   werkdagen:      [1,2,3,4,5],
   maxReistijdMin: 45,
   tijdslotMinuten: 180, // 3 uur — configureerbaar tijdvak i.p.v. exact tijdstip (Blok 1C)
+  kaartStijl:     'standaard',
+  routeKleur:     '#f59e0b',
+  drukteKleuring: true,
 };
 
 function settingsKey(person) {
@@ -948,6 +959,7 @@ function buildPersonSelector() {
     activeAssigneeFilter = 'all';
     localStorage.setItem('blitz_active_person', 'all');
     settings = loadPersonSettings('all');
+    applyKaartStijl();
     updatePersonHeader();
   }
 
@@ -985,6 +997,7 @@ function togglePersonMenu() {
 function selectPerson(name) {
   activeAssigneeFilter = name;
   settings = loadPersonSettings(name);
+  applyKaartStijl();
   localStorage.setItem('blitz_active_person', name);
   document.getElementById('person-menu')?.classList.remove('open');
   updatePersonHeader();
@@ -3986,10 +3999,16 @@ async function calculateRoute() {
     ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
     const wps = [{ lat: origin.lat, lon: origin.lon }, ...allWpStops.map(p => ({ lat: p._lat, lon: p._lon }))];
     if (wps.length < 2) return;
+    // Vertrektijd = vroegste geplande uur van de dag (of settings.vanTijd zonder vaste uren).
+    // TomTom rekent dan met historische verkeerspatronen voor die dag/dat uur i.p.v. het
+    // verkeer van nu; verleden/vandaag zonder toekomstig tijdstip → live verkeer (geen departAt).
+    const tijd    = allWpStops.find(p => p.uur)?.uur || settings.vanTijd;
+    const vertrek = new Date(`${date}T${tijd}:00`);
+    const departAt = vertrek > new Date() ? vertrek.toISOString() : undefined;
     const rRes  = await fetch('/api/route', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ waypoints: wps }),
+      body:    JSON.stringify({ waypoints: wps, departAt }),
     });
     const rData = await rRes.json();
     if (rData.error) throw new Error(rData.error);
@@ -4007,14 +4026,55 @@ async function calculateRoute() {
 // ══════════════════════════════════════════════
 // KAART
 // ══════════════════════════════════════════════
+// Kaartlagen — 4 gratis basiskaarten, keuze wordt per persoon onthouden in settings.kaartStijl.
+const KAART_LAGEN = {
+  standaard: { naam: 'Standaard', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', opts: { attribution: '© OpenStreetMap', maxZoom: 19 } },
+  licht:     { naam: 'Licht',     url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', opts: { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 20 } },
+  donker:    { naam: 'Donker',    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',  opts: { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 20 } },
+  satelliet: { naam: 'Satelliet', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', opts: { attribution: 'Tiles © Esri', maxZoom: 19 } },
+};
+let kaartBaseLayers = {};
+let routeLegendeControl = null;
+
+// Drukte-kleuring per wegstuk (TomTom TRAFFIC-secties, magnitudeOfDelay 0-4)
+const DRUKTE_KLEUR = { 0: '#9ca3af', 1: '#facc15', 2: '#f97316', 3: '#ef4444', 4: '#7f1d1d' };
+const DRUKTE_LABEL = { 0: 'onbekend', 1: 'lichte vertraging', 2: 'matige vertraging', 3: 'zware vertraging', 4: 'afsluiting/omleiding' };
+const CAT_LABEL = { JAM: 'file', ROAD_WORK: 'wegenwerken', ROAD_CLOSURE: 'wegafsluiting', OTHER: 'hinder' };
+
 function initMap() {
   leafletMap  = L.map('map', { zoomControl: true }).setView([51.0, 4.5], 8);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap', maxZoom:18 }).addTo(leafletMap);
+  kaartBaseLayers = {};
+  Object.entries(KAART_LAGEN).forEach(([sleutel, laag]) => {
+    kaartBaseLayers[laag.naam] = L.tileLayer(laag.url, laag.opts);
+  });
+  const startSleutel = KAART_LAGEN[settings.kaartStijl] ? settings.kaartStijl : 'standaard';
+  kaartBaseLayers[KAART_LAGEN[startSleutel].naam].addTo(leafletMap);
+  L.control.layers(kaartBaseLayers, null, { position: 'topright', collapsed: true }).addTo(leafletMap);
+  leafletMap.on('baselayerchange', e => {
+    const sleutel = Object.keys(KAART_LAGEN).find(k => KAART_LAGEN[k].naam === e.name);
+    if (!sleutel) return;
+    settings.kaartStijl = sleutel;
+    savePersonSettings(activeAssigneeFilter);
+  });
   routeLayer  = L.layerGroup().addTo(leafletMap);
+}
+
+// Schakelt de actieve basislaag om naar settings.kaartStijl — gebruikt na een persoonswissel
+// zodat de kaart meteen de eigen kaartstijl van die persoon toont.
+function applyKaartStijl() {
+  if (!leafletMap) return;
+  const sleutel = KAART_LAGEN[settings.kaartStijl] ? settings.kaartStijl : 'standaard';
+  const doelLaag = kaartBaseLayers[KAART_LAGEN[sleutel].naam];
+  if (!doelLaag) return;
+  Object.values(kaartBaseLayers).forEach(laag => { if (leafletMap.hasLayer(laag)) leafletMap.removeLayer(laag); });
+  doelLaag.addTo(leafletMap);
 }
 
 function updateMap(date) {
   routeLayer.clearLayers();
+  // Legende hoort bij de drukte-overlay, dus eerst weghalen — wordt hieronder opnieuw
+  // toegevoegd als er effectief een route + drukte-kleuring getoond wordt.
+  if (routeLegendeControl) { leafletMap.removeControl(routeLegendeControl); routeLegendeControl = null; }
   // Zelfde combinatie + sortering als renderRouteList()/calculateRoute(), zodat de
   // kaartnummering (1,2,3...) exact overeenkomt met de lijst ernaast, en handmatige
   // afspraken ook zichtbaar worden (voorheen enkel Zoho-tickets).
@@ -4031,8 +4091,55 @@ function updateMap(date) {
   ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
   if (!allStops.length) return;
   if (routeData?.polyline?.length && currentRouteDate === date) {
-    const poly = L.polyline(routeData.polyline, { color:'#f59e0b', weight:4, opacity:0.85 }).addTo(routeLayer);
+    const poly = L.polyline(routeData.polyline, { color: settings.routeKleur || '#f59e0b', weight:4, opacity:0.85 }).addTo(routeLayer);
     leafletMap.fitBounds(poly.getBounds(), { padding:[30,30] });
+
+    if (settings.drukteKleuring) {
+      if (routeData.sections?.length) {
+        // Echte TomTom-drukte per wegstuk — indices passen 1-op-1 op de polyline.
+        routeData.sections.forEach(sec => {
+          const pts = routeData.polyline.slice(sec.startPointIndex, sec.endPointIndex + 1);
+          if (pts.length < 2) return;
+          const kleur = DRUKTE_KLEUR[sec.magnitudeOfDelay] || DRUKTE_KLEUR[0];
+          const label = DRUKTE_LABEL[sec.magnitudeOfDelay] || DRUKTE_LABEL[0];
+          const catLabel = CAT_LABEL[sec.simpleCategory] || 'hinder';
+          L.polyline(pts, { color: kleur, weight: 6, opacity: 0.95 })
+            .bindPopup(`<b>+${Math.round(sec.delayInSeconds / 60)} min</b> · ${escHtml(catLabel)} (${escHtml(label)})`)
+            .addTo(routeLayer);
+        });
+      } else {
+        // Vangnet: TomTom gaf geen sections terug — kleur per leg o.b.v. de verhouding
+        // vertraging/reistijd, zodat er toch een indicatie van drukte zichtbaar is.
+        let offset = 0;
+        (routeData.legs || []).forEach(leg => {
+          const pointCount = leg.pointCount || 0;
+          const ratio = (leg.trafficDelaySeconds || 0) / Math.max(1, leg.travelTimeSeconds || 0);
+          let magnitude = 0;
+          if (ratio >= 0.25) magnitude = 3;
+          else if (ratio >= 0.10) magnitude = 2;
+          else if (ratio >= 0.03) magnitude = 1;
+          if (magnitude > 0) {
+            const pts = routeData.polyline.slice(offset, offset + pointCount);
+            if (pts.length >= 2) {
+              L.polyline(pts, { color: DRUKTE_KLEUR[magnitude], weight: 6, opacity: 0.95 })
+                .bindPopup(`+${Math.round((leg.trafficDelaySeconds || 0) / 60)} min verwachte vertraging op deze rit`)
+                .addTo(routeLayer);
+            }
+          }
+          offset += pointCount;
+        });
+      }
+      // Legende — module-scope referentie zodat er nooit twee tegelijk staan.
+      routeLegendeControl = L.control({ position: 'bottomright' });
+      routeLegendeControl.onAdd = () => {
+        const div = L.DomUtil.create('div', 'route-legende');
+        div.innerHTML = [1, 2, 3, 4].map(m =>
+          `<div class="rl-item"><span class="rl-streep" style="background:${DRUKTE_KLEUR[m]}"></span>${escHtml(DRUKTE_LABEL[m])}</div>`
+        ).join('');
+        return div;
+      };
+      routeLegendeControl.addTo(leafletMap);
+    }
   }
   const pts = [];
   allStops.forEach((entry, i) => {
@@ -4552,6 +4659,8 @@ function openSettings() {
   document.getElementById('set-van').value      = settings.vanTijd;
   document.getElementById('set-tot').value      = settings.totTijd;
   document.getElementById('set-tijdslot').value = settings.tijdslotMinuten;
+  document.getElementById('set-routekleur').value = settings.routeKleur || DEFAULT_SETTINGS.routeKleur;
+  document.getElementById('set-drukte').checked   = settings.drukteKleuring !== false;
   const grid = document.getElementById('days-grid');
   grid.innerHTML = '';
   DAGEN.forEach((dag, i) => {
@@ -4599,10 +4708,15 @@ function saveSettings() {
   settings.totTijd        = tot  || DEFAULT_SETTINGS.totTijd;
   settings.maxReistijdMin = maxReistijd || maxReistijd === 0 ? maxReistijd : DEFAULT_SETTINGS.maxReistijdMin;
   settings.tijdslotMinuten = parseInt(document.getElementById('set-tijdslot').value, 10) || DEFAULT_SETTINGS.tijdslotMinuten;
+  const routeKleurInput = document.getElementById('set-routekleur').value;
+  settings.routeKleur    = /^#[0-9a-f]{6}$/i.test(routeKleurInput) ? routeKleurInput : DEFAULT_SETTINGS.routeKleur;
+  settings.drukteKleuring = document.getElementById('set-drukte').checked;
   savePersonSettings(activeAssigneeFilter);
   document.getElementById('set-overlay').classList.remove('open');
   renderTickets();
   renderKalender();
+  // Kleur/drukte meteen zichtbaar wisselen als er al een berekende route staat
+  if (routeData && currentRouteDate) updateMap(currentRouteDate);
   toast('✓ Instellingen opgeslagen voor ' + (activeAssigneeFilter === 'all' ? 'alle technici' : activeAssigneeFilter.split(' ')[0]));
 }
 

@@ -32,6 +32,12 @@ bewaring, en permanente bewaring van gemailde uurblokken.
 - **Het uurblok dat naar de klant gemaild is, wordt bewaard en overal getoond**
   (kalender, maandoverzicht, route), zodat technieker en klant altijd hetzelfde
   blok zien — ook als de instelling voor de blokgrootte later wijzigt.
+- **Kaartstijl-keuze op de Route-tab kaart** (Standaard/Licht/Donker/Satelliet),
+  onthouden per persoon.
+- **Instelbare kleur van de routelijn.**
+- **Verwachte drukte per wegstuk op de route** (geel/oranje/rood/donkerrood,
+  met legende en uitleg bij klik), berekend voor de geplande dag en het
+  geplande uur i.p.v. het verkeer van dit moment.
 
 ### Changed
 - **Uurblok in het afspraakvoorstel**: start 30 min vóór de geschatte aankomst
@@ -44,6 +50,8 @@ bewaring, en permanente bewaring van gemailde uurblokken.
 - Slepen en Optimaliseren in de Route-tab werken enkel wanneer de dag (na filter) stops van
   één technieker bevat — kies eerst een technieker. Tickets met een voorkeursuur van de klant
   houden altijd hun uur.
+- **Rijtijden en vertraging in de Route-tab worden berekend voor de geplande dag/uur
+  (verwacht verkeer) i.p.v. het verkeer op het moment van berekenen.**
 
 ### Fixed
 - **Een ingestelde voorkeursdatum kon niet meer gewijzigd of gewist worden.**

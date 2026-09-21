@@ -1,6 +1,8 @@
 // /api/route  (POST)
-// Body: { waypoints: [{lat, lon}, ...] }
+// Body: { waypoints: [{lat, lon}, ...], departAt? }
 // Returns full route with travel times, distance, traffic info
+// departAt (optioneel, ISO-8601 UTC, moet in de toekomst liggen): laat TomTom rekenen met
+// historische verkeerspatronen voor die dag/dat uur i.p.v. het verkeer van "nu".
 
 const TOMTOM_BASE = 'https://api.tomtom.com';
 const API_KEY = () => process.env.TOMTOM_API_KEY;
@@ -31,7 +33,7 @@ export async function handler(event) {
   }
 
   try {
-    const { waypoints } = JSON.parse(event.body || '{}');
+    const { waypoints, departAt } = JSON.parse(event.body || '{}');
     if (!waypoints?.length || waypoints.length < 2) {
       return {
         statusCode: 400,
@@ -39,6 +41,14 @@ export async function handler(event) {
         body: JSON.stringify({ error: 'Need at least 2 waypoints' }),
       };
     }
+
+    // departAt moet een geldige ISO-8601 UTC-string in de toekomst zijn — TomTom weigert
+    // een vertrektijd in het verleden. Ongeldig/verleden wordt genegeerd (= nu, live verkeer).
+    const departAtGeldig =
+      typeof departAt === 'string' &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(departAt) &&
+      Date.parse(departAt) > Date.now() + 60_000;
+    const departAtUsed = departAtGeldig ? departAt : null;
 
     const coordString = waypoints.map(w => `${w.lat},${w.lon}`).join(':');
     const url =
@@ -49,7 +59,8 @@ export async function handler(event) {
       `&routeType=fastest` +
       `&computeTravelTimeFor=all` +
       `&sectionType=traffic` +
-      `&report=effectiveSettings`;
+      `&report=effectiveSettings` +
+      (departAtUsed ? `&departAt=${encodeURIComponent(departAtUsed)}` : '');
 
     const res = await fetchTomTomRoute(url);
     const data = await res.json();
@@ -64,7 +75,21 @@ export async function handler(event) {
       travelTimeWithTrafficSeconds: leg.summary.trafficDelayInSeconds + leg.summary.travelTimeInSeconds,
       distanceMeters: leg.summary.lengthInMeters,
       trafficDelaySeconds: leg.summary.trafficDelayInSeconds,
+      pointCount: leg.points?.length || 0,
     })) || [];
+
+    // TRAFFIC-secties: indices verwijzen naar de geconcateneerde puntenlijst van alle legs,
+    // exact zoals `polyline` hieronder is opgebouwd — passen dus 1-op-1 op `polyline`.
+    const sections = route.sections
+      ?.filter(s => s.sectionType === 'TRAFFIC')
+      .map(s => ({
+        startPointIndex: s.startPointIndex,
+        endPointIndex: s.endPointIndex,
+        magnitudeOfDelay: s.magnitudeOfDelay ?? 0,
+        delayInSeconds: s.delayInSeconds ?? 0,
+        simpleCategory: s.simpleCategory || '',
+        effectiveSpeedInKmh: s.effectiveSpeedInKmh ?? null,
+      })) || [];
 
     return {
       statusCode: 200,
@@ -76,6 +101,8 @@ export async function handler(event) {
         arrivalTime: summary.arrivalTime,
         departureTime: summary.departureTime,
         legs,
+        sections,
+        departAtUsed,
         polyline: route.legs?.flatMap(leg =>
           leg.points?.map(p => [p.latitude, p.longitude]) || []
         ) || [],
