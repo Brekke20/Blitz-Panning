@@ -1,9 +1,15 @@
 // /api/voorstel-status
 // Centraal (niet-lokaal) register van wanneer een afspraaksvoorstel verstuurd is per
 // ticket/doelgroep. Los van Zoho -- puur voor de "verzonden"-vinkjes in de UI.
+// Sinds v1.4.0 ook: het tijdslot dat effectief naar de klant gemaild is (`tijdslot`, bv.
+// "08:30–11:30") + de datum waarvoor het gold (`tijdslotDatum`), zodat de technieker exact
+// hetzelfde blok ziet als de klant, ongeacht latere wijzigingen aan de slot-instelling.
+// Structuur: { versie, status: { [ticketId]: { contact?, klant?, installateur?, tijdslot?, tijdslotDatum? } } }
 import { getStore } from '@netlify/blobs';
 
 const EMPTY = { versie: 0, status: {} };
+const TIJDSLOT_RE = /^([01]\d|2[0-3]):[0-5]\d–([01]\d|2[0-3]):[0-5]\d$/;
+const DATE_RE     = /^\d{4}-\d{2}-\d{2}$/;
 
 export default async (req, context) => {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
@@ -27,9 +33,14 @@ export default async (req, context) => {
     if (typeof body.versie === 'number' && body.versie !== current.versie) {
       return new Response(JSON.stringify({ error: 'Register ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: current.versie }), { status: 409, headers });
     }
+    // Optioneel: gemaild tijdslot + bijhorende datum (enkel opslaan als beide geldig zijn).
+    const slotExtra = (typeof body.tijdslot === 'string' && TIJDSLOT_RE.test(body.tijdslot)
+                       && typeof body.tijdslotDatum === 'string' && DATE_RE.test(body.tijdslotDatum))
+      ? { tijdslot: body.tijdslot, tijdslotDatum: body.tijdslotDatum }
+      : {};
     const nieuw = {
       versie: current.versie + 1,
-      status: { ...current.status, [ticketId]: { ...current.status[ticketId], [doelgroep]: tijdstip } },
+      status: { ...current.status, [ticketId]: { ...current.status[ticketId], [doelgroep]: tijdstip, ...slotExtra } },
     };
     await store.setJSON('voorstel-status', nieuw);
     return new Response(JSON.stringify({ ok: true, versie: nieuw.versie }), { status: 200, headers });

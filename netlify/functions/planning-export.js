@@ -81,12 +81,8 @@ export async function handler(event) {
 
     // Klantbeschikbaarheid-duur-overrides opvragen. Ontbrekend/falend mag de
     // hele export niet laten falen -- valt terug op DEFAULT_DUUR_MIN.
-    // Let op: kbData.items[ticketId].duurOverride wordt momenteel NOOIT
-    // server-side gepersisteerd (klantbeschikbaarheid.js's PUT-handler slaat
-    // enkel voorkeur/geblokkeerd/notitie/bijgewerkt op -- gekend, bewust
-    // uitgesteld euvel, zie docs/superpowers/plans/2026-07-25-bug-fix-roadmap.md
-    // regel 2211). Deze code is dus correct maar inert totdat dat gefixt is;
-    // ze pikt de override automatisch op zodra dat gebeurt.
+    // Sinds v1.4.0 persisteert klantbeschikbaarheid.js's PUT-handler ook
+    // duurOverride, dus deze opzoeking levert nu effectief afwijkende duren op.
     const kbRes = await fetch(`${url}/api/klantbeschikbaarheid`);
     const kbData = kbRes.ok ? await kbRes.json().catch(() => ({})) : {};
     const kbPerTicket = kbData.items || {};

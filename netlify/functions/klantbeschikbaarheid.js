@@ -1,7 +1,14 @@
 // /api/klantbeschikbaarheid
 // GET → volledige map van klant-beschikbaarheid per ticket-id
 // PUT → opslaan (open, geen auth)
-// Structuur: { versie, bijgewerkt, items: { [ticketId]: { voorkeur, geblokkeerd, notitie, bijgewerkt } } }
+// Structuur: { versie, bijgewerkt, items: { [ticketId]: {
+//   voorkeur      : 'YYYY-MM-DD' | null   — voorkeursdatum van de klant
+//   voorkeurTijd  : 'HH:MM'     | null   — voorkeursuur (los van of samen met de datum)
+//   geblokkeerd   : ['YYYY-MM-DD', ...]  — dagen waarop de klant NIET kan
+//   notitie       : string
+//   duurOverride  : number | undefined   — afwijkende interventieduur in minuten
+//   bijgewerkt    : ISO-timestamp
+// } } }
 
 import { getStore } from '@netlify/blobs';
 
@@ -12,6 +19,7 @@ const ALLOWED_ORIGINS = [
 ];
 const EMPTY = { versie: 0, items: {} };
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function corsHeaders(req) {
   const origin  = req.headers.get('origin') || '';
@@ -72,21 +80,28 @@ export default async (req) => {
     const cleaned = {};
     for (const [ticketId, entry] of Object.entries(items)) {
       if (!ticketId || typeof ticketId !== 'string') continue;
-      const voorkeur   = (entry.voorkeur && DATE_RE.test(entry.voorkeur)) ? entry.voorkeur : null;
+      const voorkeur     = (entry.voorkeur && DATE_RE.test(entry.voorkeur)) ? entry.voorkeur : null;
+      const voorkeurTijd = (typeof entry.voorkeurTijd === 'string' && TIME_RE.test(entry.voorkeurTijd)) ? entry.voorkeurTijd : null;
       const geblokkeerd = [...new Set(
         (Array.isArray(entry.geblokkeerd) ? entry.geblokkeerd : [])
           .filter(d => DATE_RE.test(d))
       )].sort();
       const notitie = String(entry.notitie || '').slice(0, 500);
+      // duurOverride: positief geheel aantal minuten, anders weglaten. Werd voorheen NOOIT
+      // gepersisteerd (gekend euvel, zie planning-export.js) — vanaf nu wel.
+      const duurRaw = Number(entry.duurOverride);
+      const duurOverride = (Number.isInteger(duurRaw) && duurRaw > 0 && duurRaw <= 1440) ? duurRaw : undefined;
       // Voorkeur mag niet ook geblokkeerd zijn
       const voorkeurClean = (voorkeur && geblokkeerd.includes(voorkeur)) ? null : voorkeur;
       // Sla lege entries niet op
-      if (!voorkeurClean && !geblokkeerd.length && !notitie) continue;
+      if (!voorkeurClean && !voorkeurTijd && !geblokkeerd.length && !notitie && !duurOverride) continue;
       cleaned[ticketId] = {
-        voorkeur:    voorkeurClean,
+        voorkeur:     voorkeurClean,
+        voorkeurTijd,
         geblokkeerd,
         notitie,
-        bijgewerkt:  entry.bijgewerkt || new Date().toISOString(),
+        ...(duurOverride ? { duurOverride } : {}),
+        bijgewerkt:   entry.bijgewerkt || new Date().toISOString(),
       };
     }
 
