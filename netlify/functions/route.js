@@ -75,6 +75,10 @@ export async function handler(event) {
       travelTimeWithTrafficSeconds: leg.summary.trafficDelayInSeconds + leg.summary.travelTimeInSeconds,
       distanceMeters: leg.summary.lengthInMeters,
       trafficDelaySeconds: leg.summary.trafficDelayInSeconds,
+      // Historische (typische) reistijd voor het opgegeven departAt-tijdstip — bij een
+      // toekomstig departAt geeft TomTom geen TRAFFIC-sections en trafficDelaySeconds
+      // blijft 0, dus dit is het enige bruikbare signaal voor verwachte drukte.
+      historicTrafficTravelTimeSeconds: leg.summary.historicTrafficTravelTimeInSeconds ?? null,
       pointCount: leg.points?.length || 0,
     })) || [];
 
@@ -98,6 +102,8 @@ export async function handler(event) {
         totalTravelTimeSeconds: summary.travelTimeInSeconds,
         totalDistanceMeters: summary.lengthInMeters,
         totalTrafficDelaySeconds: summary.trafficDelayInSeconds,
+        totalNoTrafficTravelTimeSeconds: summary.noTrafficTravelTimeInSeconds ?? null,
+        totalHistoricTrafficTravelTimeSeconds: summary.historicTrafficTravelTimeInSeconds ?? null,
         arrivalTime: summary.arrivalTime,
         departureTime: summary.departureTime,
         legs,

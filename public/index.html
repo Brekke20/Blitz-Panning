@@ -4017,7 +4017,19 @@ async function calculateRoute() {
     updateMap(date);
     document.getElementById('s-dist').textContent  = (rData.totalDistanceMeters / 1000).toFixed(0) + ' km';
     document.getElementById('s-time').textContent  = fmtSec(rData.totalTravelTimeSeconds);
-    document.getElementById('s-delay').textContent = rData.totalTrafficDelaySeconds > 60 ? '+' + fmtSec(rData.totalTrafficDelaySeconds) : 'geen';
+    // Live vertraging (trafficDelaySeconds) is bij een toekomstig departAt altijd ~0 —
+    // TomTom levert dan geen live sections. Val in dat geval terug op het verschil tussen
+    // de historische (typische) reistijd en de vrije doorstroming als "verwachte" vertraging.
+    const verwachtVerschil = (rData.totalHistoricTrafficTravelTimeSeconds != null && rData.totalNoTrafficTravelTimeSeconds != null)
+      ? rData.totalHistoricTrafficTravelTimeSeconds - rData.totalNoTrafficTravelTimeSeconds
+      : 0;
+    if (rData.totalTrafficDelaySeconds > 60) {
+      document.getElementById('s-delay').textContent = '+' + fmtSec(rData.totalTrafficDelaySeconds);
+    } else if (verwachtVerschil > 60) {
+      document.getElementById('s-delay').textContent = '+' + fmtSec(verwachtVerschil) + ' (verwacht)';
+    } else {
+      document.getElementById('s-delay').textContent = 'geen';
+    }
     document.getElementById('s-eta').textContent   = rData.arrivalTime ? new Date(rData.arrivalTime).toLocaleTimeString('nl-BE', { hour:'2-digit', minute:'2-digit' }) : '—';
     toast('Route berekend ✓');
   } catch (err) { toast('❌ Route: ' + err.message, 4000); updateMap(date); }
@@ -4029,8 +4041,11 @@ async function calculateRoute() {
 // Kaartlagen — 4 gratis basiskaarten, keuze wordt per persoon onthouden in settings.kaartStijl.
 const KAART_LAGEN = {
   standaard: { naam: 'Standaard', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', opts: { attribution: '© OpenStreetMap', maxZoom: 19 } },
-  licht:     { naam: 'Licht',     url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', opts: { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 20 } },
-  donker:    { naam: 'Donker',    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',  opts: { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 20 } },
+  // CARTO's gratis anonieme tegels vereisen sinds kort een API-key (watermerk "API KEY
+  // REQUIRED") — vervangen door Esri's gratis Canvas-basemaps. Die stoppen op zoom 16;
+  // maxNativeZoom houdt de laatst geladen tegel scherp bij verder inzoomen i.p.v. blanco.
+  licht:     { naam: 'Licht',     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', opts: { attribution: 'Tiles © Esri', maxZoom: 19, maxNativeZoom: 16 } },
+  donker:    { naam: 'Donker',    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',  opts: { attribution: 'Tiles © Esri', maxZoom: 19, maxNativeZoom: 16 } },
   satelliet: { naam: 'Satelliet', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', opts: { attribution: 'Tiles © Esri', maxZoom: 19 } },
 };
 let kaartBaseLayers = {};
@@ -4108,21 +4123,42 @@ function updateMap(date) {
             .addTo(routeLayer);
         });
       } else {
-        // Vangnet: TomTom gaf geen sections terug — kleur per leg o.b.v. de verhouding
-        // vertraging/reistijd, zodat er toch een indicatie van drukte zichtbaar is.
+        // Vangnet: TomTom gaf geen sections terug — kleur per leg o.b.v. twee signalen:
+        // (1) live vertraging/reistijd-verhouding (werkt voor vandaag, met live verkeer);
+        // (2) bij een toekomstig departAt geeft TomTom geen TRAFFIC-sections en blijft
+        //     trafficDelaySeconds 0, dus daar is het enige bruikbare signaal het verschil
+        //     tussen de historische (typische) reistijd voor dat tijdstip en de vrije
+        //     doorstroming (noTrafficTravelTimeSeconds). We nemen de zwaarste van de twee.
         let offset = 0;
         (routeData.legs || []).forEach(leg => {
           const pointCount = leg.pointCount || 0;
-          const ratio = (leg.trafficDelaySeconds || 0) / Math.max(1, leg.travelTimeSeconds || 0);
-          let magnitude = 0;
-          if (ratio >= 0.25) magnitude = 3;
-          else if (ratio >= 0.10) magnitude = 2;
-          else if (ratio >= 0.03) magnitude = 1;
+
+          const liveRatio = (leg.trafficDelaySeconds || 0) / Math.max(1, leg.travelTimeSeconds || 0);
+          let liveMagnitude = 0;
+          if (liveRatio >= 0.25) liveMagnitude = 3;
+          else if (liveRatio >= 0.10) liveMagnitude = 2;
+          else if (liveRatio >= 0.03) liveMagnitude = 1;
+
+          const basis    = leg.noTrafficTravelTimeSeconds || 0;
+          const verwacht = leg.historicTrafficTravelTimeSeconds ?? leg.travelTimeSeconds;
+          let historMagnitude = 0;
+          let historRatio = 0;
+          if (basis > 0) {
+            historRatio = verwacht / basis;
+            if (historRatio >= 1.25) historMagnitude = 3;
+            else if (historRatio >= 1.10) historMagnitude = 2;
+            else if (historRatio >= 1.03) historMagnitude = 1;
+          }
+
+          const magnitude = Math.max(liveMagnitude, historMagnitude);
           if (magnitude > 0) {
             const pts = routeData.polyline.slice(offset, offset + pointCount);
             if (pts.length >= 2) {
+              const popup = historMagnitude >= liveMagnitude && basis > 0
+                ? `+${Math.round((verwacht - basis) / 60)} min verwachte vertraging op deze rit (${Math.round((historRatio - 1) * 100)}% trager dan vrije doorstroming)`
+                : `+${Math.round((leg.trafficDelaySeconds || 0) / 60)} min verwachte vertraging op deze rit`;
               L.polyline(pts, { color: DRUKTE_KLEUR[magnitude], weight: 6, opacity: 0.95 })
-                .bindPopup(`+${Math.round((leg.trafficDelaySeconds || 0) / 60)} min verwachte vertraging op deze rit`)
+                .bindPopup(popup)
                 .addTo(routeLayer);
             }
           }

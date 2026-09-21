@@ -37,7 +37,9 @@ bewaring, en permanente bewaring van gemailde uurblokken.
 - **Instelbare kleur van de routelijn.**
 - **Verwachte drukte per wegstuk op de route** (geel/oranje/rood/donkerrood,
   met legende en uitleg bij klik), berekend voor de geplande dag en het
-  geplande uur i.p.v. het verkeer van dit moment.
+  geplande uur i.p.v. het verkeer van dit moment. Voor een dag in de toekomst
+  is de kleuring gebaseerd op de verwachte vertraging volgens historische
+  verkeerspatronen per rit; voor vandaag op het live verkeer.
 
 ### Changed
 - **Uurblok in het afspraakvoorstel**: start 30 min vóór de geschatte aankomst
