@@ -89,8 +89,12 @@ export default async (req) => {
       const notitie = String(entry.notitie || '').slice(0, 500);
       // duurOverride: positief geheel aantal minuten, anders weglaten. Werd voorheen NOOIT
       // gepersisteerd (gekend euvel, zie planning-export.js) — vanaf nu wel.
-      const duurRaw = Number(entry.duurOverride);
-      const duurOverride = (Number.isInteger(duurRaw) && duurRaw > 0 && duurRaw <= 1440) ? duurRaw : undefined;
+      // M11 (eindreview v1.4.0): eerst een typeof-guard vóór Number.isInteger() -- Number(x)
+      // coerceert bv. `true` naar 1 en `"120"` naar 120, waardoor een onbedoeld/foutief
+      // getypeerde waarde uit de request-body alsnog als geldige duur werd aanvaard.
+      const duurOverride = (typeof entry.duurOverride === 'number'
+        && Number.isInteger(entry.duurOverride) && entry.duurOverride > 0 && entry.duurOverride <= 1440)
+        ? entry.duurOverride : undefined;
       // Voorkeur mag niet ook geblokkeerd zijn
       const voorkeurClean = (voorkeur && geblokkeerd.includes(voorkeur)) ? null : voorkeur;
       // Sla lege entries niet op

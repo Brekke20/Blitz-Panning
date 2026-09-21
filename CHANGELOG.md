@@ -41,6 +41,9 @@ bewaring, en permanente bewaring van gemailde uurblokken.
 - **"Optimaliseer" start altijd vanaf nul** (negeert wat je versleept hebt),
   laat vergrendelde stops en afspraken op hun uur staan, en bewaart het
   resultaat als tijdstippen (voorheen bleef een optimalisatie niet bewaard).
+- Slepen en Optimaliseren in de Route-tab werken enkel wanneer de dag (na filter) stops van
+  één technieker bevat — kies eerst een technieker. Tickets met een voorkeursuur van de klant
+  houden altijd hun uur.
 
 ### Fixed
 - **Een ingestelde voorkeursdatum kon niet meer gewijzigd of gewist worden.**

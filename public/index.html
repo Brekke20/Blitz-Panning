@@ -448,6 +448,9 @@
       <div id="proposal-no-email" style="display:none;font-size:0.78rem;color:#f59e0b;padding:4px 0 8px">
         ⚠️ Geen e-mailadres — ticket wordt bijgewerkt maar er wordt geen mail verstuurd.
       </div>
+      <div id="proposal-outside-workday" style="display:none;font-size:0.78rem;color:#f59e0b;padding:4px 0 8px">
+        ⚠️ Tijdstip valt buiten de werkdag
+      </div>
       <!-- E-mail preview -->
       <div style="font-size:0.72rem;color:var(--muted);margin-bottom:5px;margin-top:4px">Voorbeeld e-mail:</div>
       <div id="proposal-preview" style="border:1px solid var(--border);border-radius:6px;overflow:hidden;max-height:300px;overflow-y:auto;font-size:12px"></div>
@@ -572,6 +575,12 @@ function stopInvPoll() {
   if (_invPollTimer) { clearInterval(_invPollTimer); _invPollTimer = null; }
 }
 let inFlightTickets = new Set(); // voorkomt dubbele API calls
+// I4 (eindreview v1.4.0): true zolang applyRouteOrder() bezig is met het muteren van
+// planning[date]-objecten (tijdstippen toekennen/verfijnen/persisteren). De 5-min ticket-poll
+// herseedt planning[date] met NIEUWE objecten (zie applyTicketsData) -- zonder deze guard kan
+// een poll die net tijdens een sleep/optimize-actie binnenkomt de objecten waar applyRouteOrder
+// nog op werkt vervangen, met een race tussen twee versies van dezelfde tickets als gevolg.
+let _routeOrderBezig = false;
 // Centraal (niet-lokaal) bijgehouden "voorstel verzonden"-status, eager geladen bij
 // app-start (zie loadVoorstelStatus()) -- vervangt de vorige localStorage-aanpak volledig.
 let voorstelStatus = {};
@@ -579,14 +588,20 @@ let voorstelStatus = {};
 // de server zijn optimistic-locking check overslaan i.p.v. eeuwig te 409'en op versie 0
 // als loadVoorstelStatus() faalde (zelfde patroon als _archiefVersie).
 let _voorstelStatusVersie = null;
+// I3 (eindreview v1.4.0): geeft true/false terug zodat applyRouteOrder() kan beslissen of de
+// vergrendelstatus vers genoeg is om op te beslissen wat anker is en wat niet -- bij een
+// mislukte refresh mag er nooit op een mogelijk stale voorstelStatus verder gewerkt worden.
 async function loadVoorstelStatus() {
   try {
     const res  = await fetch('/api/voorstel-status');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     voorstelStatus       = data.status  || {};
     _voorstelStatusVersie = data.versie || 0;
+    return true;
   } catch (err) {
     console.warn('Voorstel-status laden mislukt:', err);
+    return false;
   }
 }
 let arrivalData = JSON.parse(localStorage.getItem('blitz_arrivals') || '{}');
@@ -2118,8 +2133,14 @@ function startTicketPolling() {
   if (_pollInterval) return;
   _pollInterval = setInterval(() => {
     if (document.visibilityState !== 'visible') return;
+    // I4: applyRouteOrder() muteert planning[date]-objecten; een herseed via loadTickets()
+    // tijdens die actie zou die objecten onder de lopende berekening vandaan vervangen.
+    if (_routeOrderBezig) return;
     if (Date.now() - _lastTicketLoad < 5 * 60 * 1000) return;
     loadTickets();
+    // I3: ✉️/🔒-badges (isStopLocked/isStopAnchored) vers houden -- fire-and-forget, eigen
+    // error-handling in loadVoorstelStatus() zelf.
+    loadVoorstelStatus();
   }, 30 * 1000); // check elke 30s, laad pas als 5min verstreken
 }
 
@@ -3334,6 +3355,17 @@ function isStopLocked(item) {
   return ['Geplande service', 'Geplande support'].includes(item.ticket?.status);
 }
 
+// Anker in de tijdstip-toekenning (C1, eindreview v1.4.0): naast vergrendelde tickets
+// (isStopLocked) telt ook een ticket met een voorkeursuur van de klant (kbPreferredTime) als
+// anker -- het uur wordt nooit door slepen/optimaliseren herschikt en nooit naar Zoho gepost
+// (zie applyRouteOrder/optimizeRoute/mergeMetAnkers). LET OP: `draggable` in renderRouteList
+// blijft bewust gekoppeld aan isStopLocked, niet aan deze functie -- een voorkeursuur-ticket
+// mag nog wél als kaartje versleept worden (bv. om het ergens anders in de lijst te tonen),
+// enkel het tijdstip zelf staat vast. De kaart krijgt een 🕐-marker zodat dat duidelijk is.
+function isStopAnchored(item) {
+  return isStopLocked(item) || !!kbPreferredTime(item.ticket?.id);
+}
+
 // Fix-ronde 1 (#3, Controller-ruling): slepen/optimaliseren mag enkel als de gefilterde
 // tickets van de dag van hoogstens één technieker zijn — anders zou de volgorde/persist-
 // logica tijden van meerdere technici als één sequentiële route door elkaar husselen.
@@ -3459,13 +3491,21 @@ function renderRouteList(date) {
         ? `<div class="stop-arrival">✅ Aangekomen ${arrivalData[arrKey]}</div>`
         : '';
       const blok = locked ? tijdslotLabelVoor(item, date) : '';
+      // M9: het blok komt ofwel uit een effectief gemaild/bevestigd tijdslot (📨), ofwel is het
+      // een herberekening op basis van het huidige uur (🕐) -- enkel het eerste geval is
+      // daadwerkelijk aan de klant gecommuniceerd.
+      const blokIsGemaild = !!(voorstelStatus[item.ticket.id]?.tijdslot && voorstelStatus[item.ticket.id]?.tijdslotDatum === date);
+      // C1: voorkeursuur van de klant -- telt als anker in de tijdstip-toekenning
+      // (isStopAnchored) maar blijft, i.t.t. isStopLocked, wél versleepbaar als kaart; de
+      // marker maakt duidelijk waarom het tijdstip zelf niet meeschuift.
+      const heeftVoorkeursuur = !!kbPreferredTime(item.ticket.id);
       stop.innerHTML = `
         <div class="stop-top">
-          <div class="stop-num"${locked ? ' title="Tijdstip is aan de klant gecommuniceerd"' : ''}>${i+1}${locked ? '🔒' : ''}</div>
+          <div class="stop-num"${locked ? ' title="Tijdstip is aan de klant gecommuniceerd"' : ''}>${i+1}${locked ? '🔒' : ''}${heeftVoorkeursuur ? '<span class="stop-preftime" title="Voorkeursuur van de klant — tijdstip wordt niet verzet">🕐</span>' : ''}</div>
           <div class="stop-info">
             <div class="stop-sub">${escHtml(item.ticket.subject) || '—'}</div>
             <div class="stop-addr">${escHtml(item.address) || 'Geen adres'}</div>
-            ${timeHtml}${blok ? `<div class="stop-time">📨 ${escHtml(blok)}</div>` : ''}${arrivalHtml}
+            ${timeHtml}${blok ? `<div class="stop-time">${blokIsGemaild ? '📨' : '🕐'} ${escHtml(blok)}</div>` : ''}${arrivalHtml}
             ${(voorstelStatus[item.ticket.id]?.contact || voorstelStatus[item.ticket.id]?.klant || voorstelStatus[item.ticket.id]?.installateur) ? '<div class="stop-proposal-sent">✉️ Voorstel verstuurd</div>' : ''}
           </div>
         </div>
@@ -3538,7 +3578,11 @@ function renderRouteList(date) {
         if (Number.isNaN(from) || from === to) return;
         const nieuw = allStops.slice();
         const [verplaatst] = nieuw.splice(from, 1);
-        nieuw.splice(to, 0, verplaatst);
+        // M7: droppen op een kaart plaatst het gesleepte item VÓÓR die kaart (i.p.v. erop/erna).
+        // Na het wegsnijden op `from` schuift alles ná `from` één index op, dus als `from < to`
+        // moet de invoegpositie ook één lager (`to - 1`) om alsnog vóór het doel te landen.
+        const invoegPositie = from < to ? to - 1 : to;
+        nieuw.splice(invoegPositie, 0, verplaatst);
         applyRouteOrder(date, nieuw);
       });
     }
@@ -3585,26 +3629,63 @@ async function applyRouteOrder(date, orderedEntries) {
     return toast('⚠️ Kies eerst een technieker — de dag bevat stops van meerdere technici');
   }
 
+  // I4 (eindreview v1.4.0): vanaf hier tot de finally muteert deze functie planning[date]-
+  // objecten -- de 5-min ticket-poll moet in die periode geen loadTickets() draaien (zie
+  // startTicketPolling()).
+  _routeOrderBezig = true;
+  try {
+  // I3 (eindreview v1.4.0): vergrendelstatus verversen vóórdat we beslissen wat anker is en
+  // wat niet -- anders kan een net (elders) verstuurd voorstel/bevestiging hier nog als "vrij"
+  // behandeld worden en per ongeluk verplaatst/herpost worden. isStopLocked/isStopAnchored
+  // hieronder lezen allemaal uit de globale `voorstelStatus`, dus deze ene refresh vóór stap 1
+  // volstaat om de rest van de functie op verse data te laten werken.
+  const statusOk = await loadVoorstelStatus();
+  if (!statusOk) {
+    return toast('❌ Vergrendelstatus kon niet geladen worden — volgorde niet bewaard', 5000);
+  }
+
   // Fix-ronde 1 (#4): originele uren van de verplaatsbare tickets bewaren vóór we ze in stap 1
   // overschrijven, zodat we bij een mislukte routeberekening niets hoeven te gokken en alles
   // gewoon kunnen terugdraaien i.p.v. de ruwe 30-min-schatting te bewaren.
+  // C1: isStopAnchored (i.p.v. isStopLocked) zodat ook voorkeursuur-tickets hier als anker
+  // gelden -- hun uur wordt nooit overschreven, dus hoeft ook nooit teruggedraaid te worden.
   const origineleUren = new Map();
   for (const entry of orderedEntries) {
-    if (entry.kind === 'ticket' && !isStopLocked(entry.item)) {
+    if (entry.kind === 'ticket' && !isStopAnchored(entry.item)) {
       origineleUren.set(entry, entry.item.uur);
     }
   }
+  const restoreOrigineleUren = () => {
+    for (const [entry, origUur] of origineleUren) {
+      entry.uur = origUur;
+      entry.item.uur = origUur;
+    }
+  };
+
+  // I2 (eindreview v1.4.0): begrenzing van de dagklok voor verplaatsbare tickets -- nooit een
+  // tijdstip toekennen/bewaren dat naar (lokale) 00:00 zou wrappen (botst met de "geen
+  // tijdstip"-sentinel, zie extractLocalHour) of meer dan 2u na het einde van de werkdag valt.
+  const dagKlokLimiet = timeStrToMin(settings.totTijd || '17:00') + 120;
+  const buitenDagklok = (minutenRuw, uurStr) =>
+    minutenRuw >= 1440 || uurStr === '00:00' || timeStrToMin(uurStr) > dagKlokLimiet;
+  const abortDagklok = () => {
+    restoreOrigineleUren();
+    toast('❌ Te veel stops voor één dag — volgorde niet bewaard', 5000);
+    renderRouteList(date);
+    updateMap(date);
+    updateRouteBtns(date);
+  };
 
   // Stap 1: voorlopige uren toekennen zodat de bestaande uur-sort (renderRouteList/
   // calculateRoute/updateMap) de gesleepte volgorde exact reproduceert, nog vóór er een
-  // (nieuwe) route berekend is. Ankers (lokale afspraken + vergrendelde tickets) behouden hun
-  // eigen uur als vast punt — de klok springt ernaartoe vooruit (nooit terug); verplaatsbare
-  // tickets krijgen een ruwe 30-min-reistijd-schatting, die stap 3 hieronder verfijnt met de
-  // echte (TomTom-)reistijden zodra die gekend zijn.
+  // (nieuwe) route berekend is. Ankers (lokale afspraken + vergrendelde/voorkeursuur-tickets)
+  // behouden hun eigen uur als vast punt — de klok springt ernaartoe vooruit (nooit terug);
+  // verplaatsbare tickets krijgen een ruwe 30-min-reistijd-schatting, die stap 3 hieronder
+  // verfijnt met de echte (TomTom-)reistijden zodra die gekend zijn.
   let cur = timeStrToMin(settings.vanTijd || '08:00');
   for (const entry of orderedEntries) {
     const item = entry.item;
-    const isAnker = entry.kind === 'local' || isStopLocked(item);
+    const isAnker = entry.kind === 'local' || isStopAnchored(item);
     if (isAnker) {
       if (item.uur) cur = Math.max(cur, timeStrToMin(item.uur));
       const duur = entry.kind === 'ticket'
@@ -3613,7 +3694,9 @@ async function applyRouteOrder(date, orderedEntries) {
       cur += duur;
     } else {
       cur += 30;
-      item.uur = roundToNextQuarterStr(minToTimeStr(cur));
+      const nieuwUur = roundToNextQuarterStr(minToTimeStr(cur));
+      if (buitenDagklok(cur, nieuwUur)) { abortDagklok(); return; }
+      item.uur = nieuwUur;
       cur = timeStrToMin(item.uur) + duurVoor(item.ticket.id);
     }
   }
@@ -3629,10 +3712,7 @@ async function applyRouteOrder(date, orderedEntries) {
   // betrouwbare tijd om te tonen/bewaren, dus alles terugdraaien naar de originele uren en
   // stoppen (geen verfijning, geen persist).
   if (!(routeData?.legs && currentRouteDate === date)) {
-    for (const [entry, origUur] of origineleUren) {
-      entry.uur = origUur;
-      entry.item.uur = origUur;
-    }
+    restoreOrigineleUren();
     toast('❌ Route kon niet berekend worden — volgorde niet bewaard', 5000);
     renderRouteList(date);
     updateMap(date);
@@ -3672,27 +3752,32 @@ async function applyRouteOrder(date, orderedEntries) {
   ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
 
   for (const entry of allStops) {
-    if (entry.kind === 'ticket' && !isStopLocked(entry.item)) {
+    if (entry.kind === 'ticket' && !isStopAnchored(entry.item)) {
       entry.uur = undefined;
       entry.item.uur = undefined;
     }
   }
   const { arrivalTimes } = berekenAankomsten(allStops, routeData.legs);
-  allStops.forEach((entry, i) => {
-    if (entry.kind === 'ticket' && !isStopLocked(entry.item)) {
+  for (let i = 0; i < allStops.length; i++) {
+    const entry = allStops[i];
+    if (entry.kind === 'ticket' && !isStopAnchored(entry.item)) {
       const nieuwUur = roundToNextQuarterStr(minToTimeStr(arrivalTimes[i]));
+      // I2: ook de verfijnde (echte-reistijd) uren begrenzen -- de stap-1-schatting kon binnen
+      // de klok vallen, maar de echte reistijden kunnen nog altijd over de grens duwen.
+      if (buitenDagklok(arrivalTimes[i], nieuwUur)) { abortDagklok(); return; }
       entry.uur = nieuwUur;
       entry.item.uur = nieuwUur;
     }
-  });
+  }
 
   // Stap 4: persisteren naar Zoho — overgeslagen in testmodus (dummy ticket-id's zijn niet
   // numeriek; /api/plan-datum accepteert enkel numerieke Zoho-ticket-id's). `stops` is
   // hetzelfde gefilterde array als hierboven in stap 3 (membership verandert niet door de
-  // uur-mutaties) -- hergebruikt i.p.v. opnieuw op te bouwen.
+  // uur-mutaties) -- hergebruikt i.p.v. opnieuw op te bouwen. C1: isStopAnchored zodat een
+  // voorkeursuur-ticket nooit gepost wordt, ook al staat het (toevallig) niet op zijn oude uur.
   if (!TEST_MODE) {
     for (const item of stops) {
-      if (isStopLocked(item)) continue;
+      if (isStopAnchored(item)) continue;
       const huidigUur = extractLocalHour(item.ticket.interventieDatum);
       if (item.uur === huidigUur) continue;
       const utcInterventieDatum = new Date(`${date}T${item.uur}:00`).toISOString();
@@ -3713,12 +3798,31 @@ async function applyRouteOrder(date, orderedEntries) {
     }
   }
 
+  // M8 (eindreview v1.4.0): de opgeslagen volgorde kan afwijken van de gevraagde sleep-/
+  // optimaliseer-volgorde, omdat ankers (vergrendeld of voorkeursuur) altijd op hun eigen uur
+  // blijven staan en de rest daar omheen herschikt wordt. Zelfde sortering als renderRouteList
+  // (op `uur`, geen uur = achteraan) zodat de vergelijking exact overeenkomt met wat de
+  // coördinator nadien te zien krijgt.
+  const idVoor = e => e.kind === 'ticket' ? `t:${e.item.ticket.id}` : `l:${e.item.id}`;
+  const uiteindelijkeVolgorde = allStops
+    .slice()
+    .sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'))
+    .map(idVoor);
+  const gevraagdeVolgorde = orderedEntries.map(idVoor);
+  const volgordeAangepast = uiteindelijkeVolgorde.length !== gevraagdeVolgorde.length
+    || uiteindelijkeVolgorde.some((id, i) => id !== gevraagdeVolgorde[i]);
+
   // Stap 5: UI verversen.
   renderRouteList(date);
   updateMap(date);
   renderKalender();
   updateRouteBtns(date);
-  toast('✓ Volgorde en tijdstippen bijgewerkt');
+  toast(volgordeAangepast
+    ? 'ℹ️ Volgorde aangepast rond een vast tijdstip'
+    : '✓ Volgorde en tijdstippen bijgewerkt');
+  } finally {
+    _routeOrderBezig = false;
+  }
 }
 
 // mergeMetAnkers(geoptimaliseerd, ankers): voegt de TomTom-geoptimaliseerde volgorde van vrije
@@ -3781,12 +3885,15 @@ async function optimizeRoute() {
   // sleepvolgorde/huidige uren van vrije tickets. Ankers (lokale afspraken + vergrendelde
   // tickets, incl. bevestigde afspraken) blijven op hun uur staan; enkel de rest wordt vrij
   // herschikt via TomTom.
+  // C1: isStopAnchored (i.p.v. isStopLocked) zodat een ticket met een voorkeursuur van de
+  // klant ook bij "Optimaliseren" op zijn uur blijft staan en nooit door TomTom herschikt
+  // wordt -- enkel de écht vrije tickets gaan mee in de optimalisatie-aanvraag.
   const ankers = [
     ...localForDate.map(e => ({ kind: 'local', item: e, uur: e.uur })),
-    ...stops.filter(p => isStopLocked(p)).map(p => ({ kind: 'ticket', item: p, uur: p.uur })),
+    ...stops.filter(p => isStopAnchored(p)).map(p => ({ kind: 'ticket', item: p, uur: p.uur })),
   ];
-  const vrij   = stops.filter(p => !isStopLocked(p) && p.ticket?.hasAddress && p.address);
-  const noAddr = stops.filter(p => !isStopLocked(p) && (!p.ticket?.hasAddress || !p.address));
+  const vrij   = stops.filter(p => !isStopAnchored(p) && p.ticket?.hasAddress && p.address);
+  const noAddr = stops.filter(p => !isStopAnchored(p) && (!p.ticket?.hasAddress || !p.address));
 
   if (vrij.length < 2) return toast('Minimaal 2 verplaatsbare stops met adres nodig voor optimalisatie');
   toast('Route optimaliseren...', 8000);
@@ -4604,6 +4711,12 @@ function timeStrToMin(hhmm) {
 // uur, en is settings.tijdslotMinuten breed (default 3u); begrensd door de werkdag. Een
 // technieker komt zelden vroeger dan gepland, wel later — vandaar de kleine marge ervoor.
 // Bv. (3u, 08–17): 09:15 → 08:30–11:30 · 08:10 → 08:00–11:00 · 15:30 → 14:00–17:00.
+// I5 (controller-ruling, eindreview v1.4.0): de werkdag-klem hierboven kan de schatting zelf
+// buiten het resulterende blok duwen (bv. een schatting ver ná totTijd klemt dan alsnog op het
+// laatste blok van de dag, terwijl de technieker daar realistisch niet meer aankomt). Valt de
+// schatting na de klem niet meer binnen [start, eind), dan laten we de klem voor déze aanroep
+// los en volgt het blok gewoon de schatting (kan dus buiten de werkdag liggen) -- de
+// coördinator ziet in dat geval een aparte waarschuwing (zie updateProposalPreview()).
 function tijdslotVoor(minuten, slotMinuten) {
   const slot     = slotMinuten || settings.tijdslotMinuten || 180;
   const dagStart = timeStrToMin(settings.vanTijd || '08:00');
@@ -4612,6 +4725,10 @@ function tijdslotVoor(minuten, slotMinuten) {
   start = Math.max(dagStart, start);
   let eind = start + slot;
   if (eind > dagEind) { eind = dagEind; start = Math.max(dagStart, eind - slot); }
+  if (minuten < start || minuten >= eind) {
+    start = Math.max(0, Math.floor((minuten - 30) / 30) * 30);
+    eind  = start + slot;
+  }
   return { startMin: start, endMin: eind, label: `${minToTimeStr(start)}–${minToTimeStr(eind)}` };
 }
 
@@ -4716,9 +4833,17 @@ function updateProposalPreview() {
   // Weergave-tijdslot (Task 9, Blok 1C): de klant ziet nooit de exacte tijd, enkel het
   // configureerbare tijdslot (bv. "10:00–13:00") waarin apptTime valt. computeArrivalTimes()
   // en de exacte opgeslagen tijd blijven hierdoor volledig ongewijzigd — dit is uitsluitend
-  // een weergave-laag via tijdslotVoor() (Task 6).
+  // een weergave-laag via tijdslotVoor() (Task 6). I5 (eindreview v1.4.0): tijdslotVoor() volgt
+  // de schatting nu ook buiten de werkdag (zie aldaar) -- hieronder tonen we in dat geval een
+  // aparte waarschuwing, puur informatief voor de coördinator, geen blokkering.
   const apptMin    = rawTime ? timeStrToMin(roundToNextQuarterStr(rawTime)) : null;
   const apptWindow = apptMin !== null ? tijdslotVoor(apptMin).label : '—';
+  const buitenWerkdag = apptMin !== null && (
+    apptMin < timeStrToMin(settings.vanTijd || '08:00') ||
+    apptMin >= timeStrToMin(settings.totTijd || '17:00')
+  );
+  const outsideEl = document.getElementById('proposal-outside-workday');
+  if (outsideEl) outsideEl.style.display = buitenWerkdag ? '' : 'none';
   const dateFmt  = date
     ? new Date(date + 'T12:00:00').toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
     : '—';
@@ -4942,7 +5067,7 @@ function renderKbSection(ticketId) {
           <input type="date" id="kb-pref-${ticketId}" value="${escHtml(kb.voorkeur || '')}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
           <input type="time" id="kb-pref-tijd-${ticketId}" step="900" value="${escHtml(kb.voorkeurTijd || '')}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
           <button class="kb-add-btn kb-btn-voorkeur-set">✓ Instellen</button>
-          ${(kb.voorkeur || kb.voorkeurTijd) ? `<button class="kb-chip-del kb-btn-voorkeur-del" title="Voorkeur wissen">✕</button>` : ''}
+          ${(kb.voorkeur || kb.voorkeurTijd) ? `<button class="kb-btn-clear kb-btn-voorkeur-del" title="Voorkeur wissen">✕</button>` : ''}
         </div>
       </div>
 
@@ -5009,6 +5134,10 @@ async function updateKb(ticketId, action, value) {
     const tijd  = value?.tijd  || null;
     // Eerst valideren, dan pas muteren — anders kan één helft al gezet zijn terwijl
     // de andere wordt afgewezen (dubbele toast / stille deel-opslag).
+    // M10: 00:00 apart weigeren -- dat is de sentinel voor "geen tijdstip" (zie
+    // extractLocalHour), dus zou als voorkeursuur onopgemerkt hetzelfde betekenen als geen
+    // voorkeur.
+    if (tijd === '00:00') return toast('⚠️ 00:00 is geen geldig voorkeursuur');
     if (tijd && !/^([01]\d|2[0-3]):[0-5]\d$/.test(tijd)) return toast('⚠️ Ongeldig uur');
     if (datum && kb.geblokkeerd.includes(datum)) return toast('⚠️ Deze datum staat al als geblokkeerd');
     kb.voorkeur = datum;

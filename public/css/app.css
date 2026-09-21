@@ -512,6 +512,9 @@
     .kb-chip-pref { background: rgba(0,223,163,.12); color: var(--accent); border-color: var(--accent); }
     .kb-chip-del { background: none; border: none; cursor: pointer; color: inherit; padding: 0; font-size: 0.8rem; line-height: 1; }
     .kb-add-btn { font-size: 0.72rem; padding: 2px 8px; background: none; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; color: var(--muted); }
+    /* M13 (eindreview v1.4.0): de ✕-knop om de KB-voorkeur te wissen had voorheen geen border
+       (via .kb-chip-del), waardoor ze onzichtbaar tussen de andere knoppen stond. */
+    .kb-btn-clear { font-size: 0.72rem; padding: 2px 8px; background: none; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; color: var(--muted); }
     .foto-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; margin: 8px 0; }
     .foto-thumb { position: relative; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; background: var(--surface2); }
     .foto-thumb img { width: 100%; height: 90px; object-fit: cover; display: block; }
@@ -591,7 +594,11 @@
     #route-list.dragging .route-drop-end { display: block; }
     .route-drop-end.drag-over { border-color: var(--accent); }
     .stop-top { display: flex; gap: 9px; align-items: flex-start; }
-    .stop-num { background: var(--accent); color: #000; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.7rem; flex-shrink: 0; }
+    .stop-num { background: var(--accent); color: #000; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.7rem; flex-shrink: 0; position: relative; }
+    /* C1 (eindreview v1.4.0): kleine indicator op de stop-num-cirkel voor tickets met een
+       voorkeursuur van de klant -- absoluut gepositioneerd zodat het cijfer/slotje in de cirkel
+       zelf niet moet inkrimpen. */
+    .stop-preftime { position: absolute; right: -5px; bottom: -5px; font-size: 0.6rem; line-height: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 50%; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; }
     .stop-info { flex: 1; min-width: 0; }
     .stop-sub  { font-weight: 600; font-size: 0.82rem; margin-bottom: 2px; }
     .stop-addr { font-size: 0.71rem; color: var(--muted); }
