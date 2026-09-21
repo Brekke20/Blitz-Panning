@@ -76,8 +76,12 @@ export async function handler(event) {
       distanceMeters: leg.summary.lengthInMeters,
       trafficDelaySeconds: leg.summary.trafficDelayInSeconds,
       // Historische (typische) reistijd voor het opgegeven departAt-tijdstip — bij een
-      // toekomstig departAt geeft TomTom geen TRAFFIC-sections en trafficDelaySeconds
-      // blijft 0, dus dit is het enige bruikbare signaal voor verwachte drukte.
+      // toekomstig departAt geeft TomTom voor congestie geen TRAFFIC-sections en blijft
+      // trafficDelaySeconds 0, dus dit is het enige bruikbare signaal voor verwachte
+      // drukte. TomTom geeft dan wél sections voor geplande wegenwerken/afsluitingen
+      // (simpleCategory ROAD_WORK/ROAD_CLOSURE) terug, maar die hebben delayInSeconds 0 —
+      // dat zijn geen drukte-signalen, zie updateMap() in index.html voor hoe die apart
+      // (gestippeld) getoond worden.
       historicTrafficTravelTimeSeconds: leg.summary.historicTrafficTravelTimeInSeconds ?? null,
       pointCount: leg.points?.length || 0,
     })) || [];

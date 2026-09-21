@@ -19,9 +19,11 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ### Fixed
 - Drukte-stukjes op de kaart toonden soms keerlussen of omweggetjes bij de tussenpunten.
-  De stukjes worden nu langs de eigen routelijn doorgerekend (route-reconstructie) en
-  altijd op die lijn getekend; een stukje waarvan de berekening toch een omweg bevat,
-  wordt niet ingekleurd in plaats van fout ingekleurd.
+  De gekleurde stukjes worden nu altijd op de eigen routelijn getekend; een stukje waarvan
+  de berekening een omweg bevat, wordt niet ingekleurd in plaats van fout ingekleurd.
+- Op toekomstige dagen verdween de verwachte-drukte-kleuring zodra er ergens wegenwerken
+  op de route lagen; wegenwerken en wegafsluitingen worden nu apart getoond (gestippeld)
+  bovenop de drukte-kleuring, met een waarschuwing bij een wegafsluiting op de route.
 
 ## [1.5.0] — 2026-09-22
 

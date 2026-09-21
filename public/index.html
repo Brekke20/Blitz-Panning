@@ -117,6 +117,7 @@
   </div>
   <div class="plan-summary">
     Stops: <b id="s-stops">0</b> &nbsp;·&nbsp; Afstand: <b id="s-dist">—</b> &nbsp;·&nbsp; Rijtijd: <b id="s-time">—</b> &nbsp;·&nbsp; Vertraging: <b id="s-delay">—</b> &nbsp;·&nbsp; ETA: <b id="s-eta">—</b>
+    <span id="s-warn"></span>
   </div>
 </div>
 
@@ -3949,6 +3950,10 @@ async function optimizeRoute() {
 }
 
 async function calculateRoute() {
+  // Nieuwe routeberekening → de wegafsluiting-toast (als die van toepassing is) mag
+  // opnieuw één keer verschijnen, ook al roept deze berekening updateMap() nog meermaals
+  // aan (rit-vangnet meteen, dan het per-wegvak-detail dat asynchroon binnenkomt).
+  wegafsluitingToastGetoond = false;
   const date  = document.getElementById('plan-date').value;
   const stops = (planning[date] || []).filter(p =>
     activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
@@ -4041,7 +4046,10 @@ async function calculateRoute() {
 // historische reistijd per ±1,5 km-stukje op via /api/drukte, ná de gewone routeberekening.
 // Enkel zinvol als er een toekomstig departAt is (anders geeft route.js al live sections).
 async function laadDrukteDetail(date, rData) {
-  if (!settings.drukteKleuring || !rData.departAtUsed || !(rData.polyline?.length >= 2) || rData.sections?.length) return;
+  // rData.sections?.length blokkeert dit niet meer: TomTom geeft voor een toekomstig
+  // departAt wél sections terug, maar dat zijn geplande wegenwerken/afsluitingen (geen
+  // drukte-signaal) — zie updateMap() voor hoe die er los bovenop getekend worden.
+  if (!settings.drukteKleuring || !rData.departAtUsed || !(rData.polyline?.length >= 2)) return;
   try {
     const res  = await fetch('/api/drukte', {
       method:  'POST',
@@ -4079,13 +4087,24 @@ const KAART_LAGEN = {
 let kaartBaseLayers = {};
 let routeLegendeControl = null;
 
-// Drukte-kleuring per wegstuk (TomTom TRAFFIC-secties, magnitudeOfDelay 0-4)
+// Drukte-kleuring per wegstuk (TomTom TRAFFIC-secties, magnitudeOfDelay 0-4). Enkel voor
+// JAM/OTHER — een ROAD_WORK- of ROAD_CLOSURE-sectie gebruikt altijd zijn eigen stijl
+// hieronder (tekenWerkOfSluitingSectie), nooit DRUKTE_KLEUR[4]/DRUKTE_LABEL[4] (dat gaf
+// voorheen een wegenwerken-sectie zónder vertraging misleidend weer als "afsluiting").
 const DRUKTE_KLEUR = { 0: '#9ca3af', 1: '#facc15', 2: '#f97316', 3: '#ef4444', 4: '#7f1d1d' };
-const DRUKTE_LABEL = { 0: 'onbekend', 1: 'lichte vertraging', 2: 'matige vertraging', 3: 'zware vertraging', 4: 'afsluiting/omleiding' };
-const CAT_LABEL = { JAM: 'file', ROAD_WORK: 'wegenwerken', ROAD_CLOSURE: 'wegafsluiting', OTHER: 'hinder' };
+const DRUKTE_LABEL = { 0: 'onbekend', 1: 'lichte vertraging', 2: 'matige vertraging', 3: 'zware vertraging', 4: 'zware file' };
+const CAT_LABEL = { JAM: 'file', OTHER: 'hinder' };
+// Wegenwerken/wegafsluitingen zijn geen drukte-signaal (delayInSeconds is er zo goed als
+// altijd 0, zie drukte.js) — eigen, herkenbare gestippelde stijl i.p.v. de drukte-kleuren.
+const WEGWERK_KLEUR = '#a855f7';
+const WEGSLUITING_KLEUR = '#7f1d1d';
 // Lengte van de wegvak-stukjes voor het /api/drukte-detail (zie laadDrukteDetail) — een
 // instelling is YAGNI, dit is geen keuze die een gebruiker per rit wil aanpassen.
 const DRUKTE_SEGMENT_METERS = 1500;
+// Reset in calculateRoute() zodat de wegafsluiting-toast maar één keer per routeberekening
+// verschijnt, ook al wordt updateMap() daarna nog meermaals aangeroepen (rit-vangnet, dan
+// het per-wegvak-detail dat asynchroon binnenkomt).
+let wegafsluitingToastGetoond = false;
 
 // Verwachte-drukte-klasse uit de verhouding (historische of live) reistijd / vrije doorstroming.
 function drukteMagnitude(ratio) {
@@ -4093,6 +4112,31 @@ function drukteMagnitude(ratio) {
   if (ratio >= 1.10) return 2;
   if (ratio >= 1.03) return 1;
   return 0;
+}
+
+// Tekent een ROAD_WORK- of ROAD_CLOSURE-sectie in zijn eigen gestippelde stijl (geen
+// drukte-kleur — zie DRUKTE_KLEUR hierboven) en geeft true terug als het er een was, zodat
+// de aanroeper JAM/OTHER-afhandeling kan overslaan. `waarschuw()` wordt aangeroepen bij een
+// wegafsluiting zodat de aanroeper de kaart-brede waarschuwing kan tonen.
+function tekenWerkOfSluitingSectie(sec, pts, waarschuw) {
+  if (sec.simpleCategory === 'ROAD_WORK') {
+    const vertragingTxt = sec.delayInSeconds > 0
+      ? ` · +${Math.round(sec.delayInSeconds / 60)} min`
+      : ' · geen vertraging verwacht';
+    const snelheidTxt = sec.effectiveSpeedInKmh != null ? ` · ${Math.round(sec.effectiveSpeedInKmh)} km/u` : '';
+    L.polyline(pts, { color: WEGWERK_KLEUR, weight: 5, opacity: 0.95, dashArray: '8 6' })
+      .bindPopup(`<b>Wegenwerken</b>${escHtml(vertragingTxt)}${escHtml(snelheidTxt)}`)
+      .addTo(routeLayer);
+    return true;
+  }
+  if (sec.simpleCategory === 'ROAD_CLOSURE') {
+    L.polyline(pts, { color: WEGSLUITING_KLEUR, weight: 7, opacity: 1, dashArray: '10 6' })
+      .bindPopup('<b>Wegafsluiting op de route</b><br>TomTom kon er niet omheen — controleer de bereikbaarheid van het adres.')
+      .addTo(routeLayer);
+    waarschuw();
+    return true;
+  }
+  return false;
 }
 
 function initMap() {
@@ -4129,6 +4173,10 @@ function updateMap(date) {
   // Legende hoort bij de drukte-overlay, dus eerst weghalen — wordt hieronder opnieuw
   // toegevoegd als er effectief een route + drukte-kleuring getoond wordt.
   if (routeLegendeControl) { leafletMap.removeControl(routeLegendeControl); routeLegendeControl = null; }
+  // Wegafsluiting-waarschuwing hoort bij deze render — altijd wissen, wordt verderop
+  // opnieuw gezet als er dit keer effectief een ROAD_CLOSURE-sectie op de route ligt.
+  const warnEl0 = document.getElementById('s-warn');
+  if (warnEl0) warnEl0.textContent = '';
   // Zelfde combinatie + sortering als renderRouteList()/calculateRoute(), zodat de
   // kaartnummering (1,2,3...) exact overeenkomt met de lijst ernaast, en handmatige
   // afspraken ook zichtbaar worden (voorheen enkel Zoho-tickets).
@@ -4149,11 +4197,20 @@ function updateMap(date) {
     leafletMap.fitBounds(poly.getBounds(), { padding:[30,30] });
 
     if (settings.drukteKleuring) {
-      if (routeData.sections?.length) {
-        // Echte TomTom-drukte per wegstuk — indices passen 1-op-1 op de polyline.
-        routeData.sections.forEach(sec => {
+      let wegafsluitingGevonden = false;
+      const waarschuwWegafsluiting = () => { wegafsluitingGevonden = true; };
+
+      // Gedeeld door de "vandaag"- en "toekomstige dag"-tak hieronder: tekent JAM/OTHER-
+      // secties met de drukte-kleuren, en laat een ROAD_WORK/ROAD_CLOSURE-sectie in zijn
+      // eigen gestippelde stijl tekenen (nooit als drukte-kleur). `alleenMetVertraging`
+      // slaat een JAM/OTHER-sectie zonder effectieve vertraging over — enkel relevant voor
+      // een toekomstige dag, waar zo'n sectie sowieso zeldzaam is (zie drukte.js).
+      const tekenDrukteSecties = (secties, alleenMetVertraging) => {
+        secties.forEach(sec => {
           const pts = routeData.polyline.slice(sec.startPointIndex, sec.endPointIndex + 1);
           if (pts.length < 2) return;
+          if (tekenWerkOfSluitingSectie(sec, pts, waarschuwWegafsluiting)) return;
+          if (alleenMetVertraging && (sec.delayInSeconds || 0) <= 0) return;
           const kleur = DRUKTE_KLEUR[sec.magnitudeOfDelay] || DRUKTE_KLEUR[0];
           const label = DRUKTE_LABEL[sec.magnitudeOfDelay] || DRUKTE_LABEL[0];
           const catLabel = CAT_LABEL[sec.simpleCategory] || 'hinder';
@@ -4161,34 +4218,16 @@ function updateMap(date) {
             .bindPopup(`<b>+${Math.round(sec.delayInSeconds / 60)} min</b> · ${escHtml(catLabel)} (${escHtml(label)})`)
             .addTo(routeLayer);
         });
-      } else if (routeData.drukteDetail?.length) {
-        // Verwachte drukte per wegvak (±1,5 km) voor een toekomstige dag — komt na de
-        // gewone routeberekening binnen via laadDrukteDetail()/updateMap(). Preciezer dan
-        // het leg-vangnet hieronder omdat het binnen één rit toont wáár het druk wordt.
-        routeData.drukteDetail.forEach(seg => {
-          if (seg.betrouwbaar === false) return;
-          // Altijd op de eigen routelijn tekenen — nooit TomTom's teruggegeven
-          // leg-geometrie (die kan bij een geweigerde/mislukte reconstructie een
-          // keerlus/omweg bevatten, vandaar ook de sanity-check hierboven).
-          const pts = routeData.polyline.slice(seg.startIndex, seg.endIndex + 1);
-          if (pts.length < 2) return;
-          const ratio = (seg.historicSeconds && seg.noTrafficSeconds) ? seg.historicSeconds / seg.noTrafficSeconds : 0;
-          const m = drukteMagnitude(ratio);
-          if (m === 0) return;
-          const hhmm = escHtml(new Date(Date.parse(routeData.departAtUsed) + seg.vertrekOffsetSeconds * 1000)
-            .toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' }));
-          L.polyline(pts, { color: DRUKTE_KLEUR[m], weight: 6, opacity: 0.95 })
-            .bindPopup(`<b>+${Math.round((seg.historicSeconds - seg.noTrafficSeconds) / 60)} min</b> · ${Math.round((ratio - 1) * 100)}% trager dan vrije doorstroming<br><span style="opacity:.7">verwacht rond ${hhmm}</span>`)
-            .addTo(routeLayer);
-        });
-      } else {
-        // Vangnet: TomTom gaf geen sections terug en er is (nog) geen drukte-detail — kleur
-        // per leg o.b.v. twee signalen:
-        // (1) live vertraging/reistijd-verhouding (werkt voor vandaag, met live verkeer);
-        // (2) bij een toekomstig departAt geeft TomTom geen TRAFFIC-sections en blijft
-        //     trafficDelaySeconds 0, dus daar is het enige bruikbare signaal het verschil
-        //     tussen de historische (typische) reistijd voor dat tijdstip en de vrije
-        //     doorstroming (noTrafficTravelTimeSeconds). We nemen de zwaarste van de twee.
+      };
+
+      // Vangnet: kleur per leg o.b.v. twee signalen — (1) live vertraging/reistijd-
+      // verhouding (werkt voor vandaag, met live verkeer); (2) bij een toekomstig departAt
+      // is het enige bruikbare congestiesignaal het verschil tussen de historische
+      // (typische) reistijd voor dat tijdstip en de vrije doorstroming
+      // (noTrafficTravelTimeSeconds) — we nemen de zwaarste van de twee. Gebruikt zowel
+      // vandaag (geen sections) als op een toekomstige dag zolang het per-wegvak-detail nog
+      // laadt of niet lukte.
+      const tekenLegVangnet = () => {
         let offset = 0;
         (routeData.legs || []).forEach(leg => {
           const pointCount = leg.pointCount || 0;
@@ -4219,14 +4258,62 @@ function updateMap(date) {
           }
           offset += pointCount;
         });
+      };
+
+      if (routeData.departAtUsed) {
+        // Toekomstige dag: het per-wegvak-detail (of het leg-vangnet zolang dat nog laadt)
+        // is de basis-kleuring; TomTom's sections voor een toekomstig departAt zijn geen
+        // drukte-signaal (zie drukte.js/route.js) maar geplande wegenwerken/afsluitingen —
+        // die tekenen we er bovenop, apart herkenbaar, i.p.v. ze de drukte-kleuring te
+        // laten verdringen (v1.5.0-gedrag: zodra er ergens wegenwerken op de route lagen,
+        // verscheen er geen drukte-kleuring meer omdat sections voorrang kregen).
+        if (routeData.drukteDetail?.length) {
+          routeData.drukteDetail.forEach(seg => {
+            if (seg.betrouwbaar === false) return;
+            // Altijd op de eigen routelijn tekenen — nooit TomTom's teruggegeven
+            // leg-geometrie (die kan bij een geweigerde/mislukte reconstructie een
+            // keerlus/omweg bevatten, vandaar ook de sanity-check in drukte.js).
+            const pts = routeData.polyline.slice(seg.startIndex, seg.endIndex + 1);
+            if (pts.length < 2) return;
+            const ratio = (seg.historicSeconds && seg.noTrafficSeconds) ? seg.historicSeconds / seg.noTrafficSeconds : 0;
+            const m = drukteMagnitude(ratio);
+            if (m === 0) return;
+            const hhmm = escHtml(new Date(Date.parse(routeData.departAtUsed) + seg.vertrekOffsetSeconds * 1000)
+              .toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' }));
+            L.polyline(pts, { color: DRUKTE_KLEUR[m], weight: 6, opacity: 0.95 })
+              .bindPopup(`<b>+${Math.round((seg.historicSeconds - seg.noTrafficSeconds) / 60)} min</b> · ${Math.round((ratio - 1) * 100)}% trager dan vrije doorstroming<br><span style="opacity:.7">verwacht rond ${hhmm}</span>`)
+              .addTo(routeLayer);
+          });
+        } else {
+          tekenLegVangnet();
+        }
+        if (routeData.sections?.length) tekenDrukteSecties(routeData.sections, true);
+      } else if (routeData.sections?.length) {
+        // Vandaag/live: TomTom's live sections zijn het preciestse signaal.
+        tekenDrukteSecties(routeData.sections, false);
+      } else {
+        tekenLegVangnet();
       }
+
+      if (wegafsluitingGevonden) {
+        const warnEl = document.getElementById('s-warn');
+        if (warnEl) warnEl.textContent = '⚠️ wegafsluiting op de route';
+        if (!wegafsluitingToastGetoond) {
+          wegafsluitingToastGetoond = true;
+          toast('⚠️ Wegafsluiting op de route — controleer de bereikbaarheid van het adres', 6000);
+        }
+      }
+
       // Legende — module-scope referentie zodat er nooit twee tegelijk staan.
       routeLegendeControl = L.control({ position: 'bottomright' });
       routeLegendeControl.onAdd = () => {
         const div = L.DomUtil.create('div', 'route-legende');
-        div.innerHTML = [1, 2, 3, 4].map(m =>
+        const drukteItems = [1, 2, 3, 4].map(m =>
           `<div class="rl-item"><span class="rl-streep" style="background:${DRUKTE_KLEUR[m]}"></span>${escHtml(DRUKTE_LABEL[m])}</div>`
         ).join('');
+        div.innerHTML = drukteItems +
+          `<div class="rl-item"><span class="rl-streep" style="background:${WEGWERK_KLEUR}"></span>wegenwerken</div>` +
+          `<div class="rl-item"><span class="rl-streep" style="background:${WEGSLUITING_KLEUR}"></span>wegafsluiting</div>`;
         return div;
       };
       routeLegendeControl.addTo(leafletMap);

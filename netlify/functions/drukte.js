@@ -1,36 +1,39 @@
 // /api/drukte  (POST)
 // Body: { polyline: [[lat, lon], ...], departAt, segmentMeters? }
-// Waarom: bij een toekomstig departAt geeft TomTom geen TRAFFIC-sections (zie route.js),
-// dus is er geen "waar precies wordt het druk"-signaal binnen één rit. Dit endpoint knipt
-// de al berekende routelijn om de ±segmentMeters op in tussenpunten (liggen op de weg, de
-// route zelf wijzigt niet) en laat TomTom die reeks in één keer doorrekenen met
+// Waarom: bij een toekomstig departAt geeft TomTom voor congestie geen TRAFFIC-sections
+// (zie route.js) — enkel geplande wegenwerken/afsluitingen komen als section terug, met
+// delayInSeconds 0 (zie ROAD_WORK/ROAD_CLOSURE hieronder). Er is dus geen "waar precies
+// wordt het druk"-signaal binnen één rit via sections alleen. Dit endpoint knipt de al
+// berekende routelijn om de ±segmentMeters op in tussenpunten (liggen op de weg, de route
+// zelf wijzigt niet) en laat TomTom die reeks in één keer doorrekenen met
 // computeTravelTimeFor=all, zodat we per stukje de historische vs. vrije-doorstroming-
-// rijtijd terugkrijgen. Kostprijs: 1-3 TomTom-aanvragen per berekening (chunks van max
-// 100 waypoints).
+// rijtijd terugkrijgen. Kostprijs: normaal 1 TomTom-aanvraag per chunk (chunks van max
+// 100 waypoints) — zie "Route-reconstructie" hieronder voor de uitzondering.
 //
 // Route-reconstructie (v1.5.1): de tussenpunten zijn gewone TomTom-"stops" — valt zo'n
 // punt toevallig op de verkeerde rijbaan van een gescheiden weg (bv. een op- of afrit),
 // dan tekent TomTom een keerlus/omweg om er exact langs te rijden, met een navenant
-// foute rijtijd. Om dat te vermijden proberen we per chunk eerst "route reconstruction":
-// een POST met `supportingPoints` (de originele routelijn zelf) die TomTom vertelt welk
-// pad te volgen i.p.v. er zelf een te zoeken, op hetzelfde
-// `calculateRoute/{lat,lon:...}/json`-pad als de GET-variant.
+// foute rijtijd. Om dat te vermijden proberen we "route reconstruction": een POST met
+// `supportingPoints` (de originele routelijn zelf) die TomTom vertelt welk pad te volgen
+// i.p.v. er zelf een te zoeken, op hetzelfde `calculateRoute/{lat,lon:...}/json`-pad als
+// de GET-variant.
 // Live vastgesteld (2026-09-22, echte TomTom-call): met méér dan 2 locations in het
-// URL-pad (dus zodra een chunk tussenliggende stops bevat, wat bij een normale route
-// altijd het geval is) weigert TomTom de combinatie met supportingPoints altijd, met
-// HTTP 400 en `{"detailedError":{"message":"Invalid request: When supportingPoints are
-// provided for the entire route, routePlanningLocations must not contain waypoints.",
-// "code":"BAD_INPUT"}}`. Met exact 2 locations (enkel start+eind, geen tussenstops)
-// aanvaardt TomTom de POST wel en volgt hij de supportingPoints exact (apart
-// geverifieerd met een losse 2-punts-aanvraag). Reconstructie op chunk-niveau (zoals
-// hieronder geïmplementeerd, conform de brief) faalt dus in de praktijk voor zo goed als
-// elke chunk — `reconstructie` staat daardoor meestal op `false`. Bewust niet omgebouwd
-// naar reconstructie per leg (elk paar opeenvolgende tussenpunten apart posten): dat zou
-// het aantal TomTom-aanvragen per berekening doen exploderen (van 1-3 naar tot
-// honderden bij een lange route), met alle kans-op-rate-limiting van dien. Bij een
-// geweigerde chunk wordt de weigering gelogd en valt die chunk terug op de gewone
-// GET-aanvraag — de sanity-check hieronder vangt eventuele afwijkende geometrie sowieso
-// op (niet inkleuren i.p.v. fout inkleuren), ongeacht welke aanvraag gebruikt werd.
+// URL-pad (dus zodra een chunk tussenliggende stops bevat) weigert TomTom de combinatie
+// met supportingPoints altijd, met HTTP 400 en `{"detailedError":{"message":"Invalid
+// request: When supportingPoints are provided for the entire route, routePlanningLocations
+// must not contain waypoints.","code":"BAD_INPUT"}}`. Met exact 2 locations (enkel
+// start+eind, geen tussenstops) aanvaardt TomTom de POST wel en volgt hij de
+// supportingPoints exact. Daarom wordt reconstructie alléén nog geprobeerd wanneer een
+// chunk precies 2 punten telt (typisch een erg korte route zonder gekozen tussenpunten) —
+// voor elke andere chunk zou de POST toch altijd geweigerd worden, dus die extra
+// TomTom-aanvraag wordt niet meer verspild en er wordt meteen de gewone GET-aanvraag
+// gedaan. Bewust niet omgebouwd naar reconstructie per leg (elk paar opeenvolgende
+// tussenpunten apart posten): dat zou het aantal TomTom-aanvragen per berekening doen
+// exploderen (van ±1 per chunk naar tot honderden bij een lange route), met alle
+// kans-op-rate-limiting van dien. Bij een geweigerde 2-punts-chunk wordt de weigering
+// gelogd en valt die chunk terug op de gewone GET-aanvraag — de sanity-check hieronder
+// vangt eventuele afwijkende geometrie sowieso op (niet inkleuren i.p.v. fout inkleuren),
+// ongeacht welke aanvraag gebruikt werd.
 
 const TOMTOM_BASE = 'https://api.tomtom.com';
 const API_KEY = () => process.env.TOMTOM_API_KEY;
@@ -48,18 +51,23 @@ const MAX_SUPPORTING_POINTS = 2000;
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // Zelfde retry-met-backoff-patroon als route.js's fetchTomTomRoute — TomTom's routing-tier
-// laat maar een beperkt aantal aanvragen per seconde toe.
-async function fetchTomTomRoute(url, attempt = 1) {
+// laat maar een beperkt aantal aanvragen per seconde toe. `teller` is een gedeeld
+// { n: 0 }-object dat elke echte HTTP-aanvraag (ook een 429-retry) meetelt, zodat de
+// response `aantalAanvragen` het werkelijke aantal TomTom-aanvragen weergeeft i.p.v. enkel
+// het aantal chunks.
+async function fetchTomTomRoute(url, teller, attempt = 1) {
+  teller.n++;
   const res = await fetch(url);
   if (res.status === 429 && attempt <= 3) {
     await sleep(attempt * 400);
-    return fetchTomTomRoute(url, attempt + 1);
+    return fetchTomTomRoute(url, teller, attempt + 1);
   }
   return res;
 }
 
 // Zelfde patroon, maar voor de POST-reconstructie-aanvraag (body met supportingPoints).
-async function fetchTomTomRoutePost(url, body, attempt = 1) {
+async function fetchTomTomRoutePost(url, body, teller, attempt = 1) {
+  teller.n++;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -67,7 +75,7 @@ async function fetchTomTomRoutePost(url, body, attempt = 1) {
   });
   if (res.status === 429 && attempt <= 3) {
     await sleep(attempt * 400);
-    return fetchTomTomRoutePost(url, body, attempt + 1);
+    return fetchTomTomRoutePost(url, body, teller, attempt + 1);
   }
   return res;
 }
@@ -209,6 +217,7 @@ export async function handler(event) {
     let cumulatieveTravelSeconds = 0;
     let chunkDepartAt = departAt;
     let alleChunksReconstructie = true;
+    const teller = { n: 0 };
 
     for (const chunk of chunks) {
       const coordString = chunk.map(t => `${t.punt[0]},${t.punt[1]}`).join(':');
@@ -223,25 +232,28 @@ export async function handler(event) {
 
       let route = null;
 
-      // Probeer eerst route-reconstructie: TomTom volgt dan de originele routelijn i.p.v.
-      // zelf een pad tussen de tussenpunten te zoeken.
-      try {
-        const supportingPoints = bouwSupportingPoints(polyline, chunk);
-        const postRes = await fetchTomTomRoutePost(url, { supportingPoints });
-        if (postRes.ok) {
-          const postData = await postRes.json();
-          route = postData.routes?.[0] || null;
-        } else {
-          const body = await postRes.text();
-          console.warn('drukte: reconstructie geweigerd', postRes.status, body.slice(0, 300));
+      // Reconstructie enkel proberen bij exact 2 locations — TomTom weigert de combinatie
+      // altijd zodra er tussenliggende stops zijn (zie bovenaan dit bestand), dus voor elke
+      // andere chunk zou de POST enkel een verspilde aanvraag zijn.
+      if (chunk.length === 2) {
+        try {
+          const supportingPoints = bouwSupportingPoints(polyline, chunk);
+          const postRes = await fetchTomTomRoutePost(url, { supportingPoints }, teller);
+          if (postRes.ok) {
+            const postData = await postRes.json();
+            route = postData.routes?.[0] || null;
+          } else {
+            const body = await postRes.text();
+            console.warn('drukte: reconstructie geweigerd', postRes.status, body.slice(0, 300));
+          }
+        } catch (err) {
+          console.warn('drukte: reconstructie-aanvraag mislukt', err.message);
         }
-      } catch (err) {
-        console.warn('drukte: reconstructie-aanvraag mislukt', err.message);
       }
 
       if (!route) {
         alleChunksReconstructie = false;
-        const getRes = await fetchTomTomRoute(url);
+        const getRes = await fetchTomTomRoute(url, teller);
         const getData = await getRes.json();
         route = getData.routes?.[0];
         if (!route) throw new Error(getData.error?.description || 'Geen route van TomTom voor drukte-detail');
@@ -260,18 +272,30 @@ export async function handler(event) {
         const betrouwbaar = origineleLengteMeters > 0
           ? (tomtomLengte <= 1.3 * origineleLengteMeters && tomtomLengte >= 0.7 * origineleLengteMeters)
           : true;
+        // Bij een onbetrouwbaar stuk volgde TomTom een omweg — zijn travelTimeInSeconds is
+        // dan navenant opgeblazen (voor de omweg, niet voor het originele stuk). Die
+        // opgeblazen tijd mag niet doorwegen in de cumulatieve tijdlijn (vertrekOffsetSeconds
+        // van elk volgend stuk / chunkDepartAt van de volgende chunk zouden anders ook fout
+        // worden), dus schatten we de rijtijd i.p.v. op basis van de originele (correcte)
+        // afstand, geschaald op TomTom's eigen tempo (afstand/tijd-verhouding) voor die omweg.
+        // historicSeconds/noTrafficSeconds zijn hier sowieso zinloos (ze gaan over de omweg,
+        // niet over het getekende stuk) en worden daarom op null gezet.
+        const tomtomTravelSeconds = leg.summary?.travelTimeInSeconds ?? 0;
+        const geschatTravelSeconds = betrouwbaar
+          ? tomtomTravelSeconds
+          : Math.round(tomtomTravelSeconds * origineleLengteMeters / Math.max(1, tomtomLengte));
         segmenten.push({
           startIndex,
           endIndex,
-          noTrafficSeconds: leg.summary?.noTrafficTravelTimeInSeconds ?? null,
-          historicSeconds: leg.summary?.historicTrafficTravelTimeInSeconds ?? null,
-          travelSeconds: leg.summary?.travelTimeInSeconds,
+          noTrafficSeconds: betrouwbaar ? (leg.summary?.noTrafficTravelTimeInSeconds ?? null) : null,
+          historicSeconds: betrouwbaar ? (leg.summary?.historicTrafficTravelTimeInSeconds ?? null) : null,
+          travelSeconds: geschatTravelSeconds,
           lengteMeters: tomtomLengte,
           origineleLengteMeters: Math.round(origineleLengteMeters),
           betrouwbaar,
           vertrekOffsetSeconds: cumulatieveTravelSeconds + chunkTravelSeconds,
         });
-        chunkTravelSeconds += leg.summary?.travelTimeInSeconds || 0;
+        chunkTravelSeconds += geschatTravelSeconds;
       });
 
       cumulatieveTravelSeconds += chunkTravelSeconds;
@@ -286,7 +310,7 @@ export async function handler(event) {
       body: JSON.stringify({
         segmenten,
         departAtUsed: departAt,
-        aantalAanvragen: chunks.length,
+        aantalAanvragen: teller.n,
         aantalWaypoints: tussenpunten.length,
         reconstructie: alleChunksReconstructie,
         onbetrouwbaar,
