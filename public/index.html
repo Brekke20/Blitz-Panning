@@ -1208,8 +1208,8 @@ function buildTicketCard(stop, dateStr, { showActions = true } = {}) {
           // klant, ook de exacte geplande tijd als kleiner detail — nuttig voor zijn eigen
           // planning-efficiëntie. buildTicketCard() wordt gedeeld door de desktop-tijdlijn en
           // de mobiele gestapelde lijst, dus dit geldt voor beide (geen mobiel/desktop-verschil).
-          const win = tijdslotVoor(timeStrToMin(stop.uur)).label;
-          return `<div class="cal-meta" style="font-weight:600">🕐 ${win} <span style="opacity:0.65;font-size:0.85em">(gepland ${stop.uur})</span></div>`;
+          const win = tijdslotLabelVoor(stop, dateStr);
+          return `<div class="cal-meta" style="font-weight:600">🕐 ${escHtml(win)} <span style="opacity:0.65;font-size:0.85em">(gepland ${stop.uur})</span></div>`;
         })() : ''}
         <div class="cal-sub">${escHtml(stop.ticket.subject) || '—'}</div>
         ${stop.ticket.assignee ? `<div class="cal-meta">${escHtml(stop.ticket.assignee)}</div>` : ''}
@@ -1792,7 +1792,8 @@ function renderMonthView(today) {
         // Tijdslot-prefix (Task 9, Blok 1C): geeft in de maandweergave meteen een indicatie van
         // het (klant-zichtbare) tijdslot zonder de cel te hoeven openen. Enkel toegevoegd als de
         // stop een uur heeft; geen wijziging aan de onderliggende exacte tijd.
-        const winLabel = s.uur ? tijdslotVoor(timeStrToMin(s.uur)).label + ' · ' : '';
+        const lbl = tijdslotLabelVoor(s, dateStr);
+        const winLabel = lbl ? lbl + ' · ' : '';
         chips.push({ label: `${winLabel}#${s.ticket.number} ${s.ticket.subject || ''}`.trim(), cls: isPend ? 'pending' : 'confirmed' });
       });
 
@@ -4322,23 +4323,29 @@ function timeStrToMin(hhmm) {
   return h * 60 + m;
 }
 
-// Vertaalt een exact tijdstip (minuten sinds middernacht) naar een configureerbaar tijdslot,
-// uitgelijnd op settings.vanTijd zodat sloten er "netjes" uitzien (bv. 08:00–11:00, 11:00–14:00
-// i.p.v. willekeurige offsets). computeArrivalTimes() zelf blijft ongewijzigd exacte minuten
-// berekenen — dit is uitsluitend een weergave-laag (zie Global Constraints).
+// Vertaalt een exact (geschat) tijdstip naar het klant-zichtbare tijdslot. Regel (Brent,
+// 2026-09-21): het blok start 30 min vóór de schatting, afgerond naar beneden op het halve
+// uur, en is settings.tijdslotMinuten breed (default 3u); begrensd door de werkdag. Een
+// technieker komt zelden vroeger dan gepland, wel later — vandaar de kleine marge ervoor.
+// Bv. (3u, 08–17): 09:15 → 08:30–11:30 · 08:10 → 08:00–11:00 · 15:30 → 14:00–17:00.
 function tijdslotVoor(minuten, slotMinuten) {
-  const slot = slotMinuten || settings.tijdslotMinuten || 180;
-  const [vanH, vanM] = (settings.vanTijd || '08:00').split(':').map(Number);
-  const dagStart = vanH * 60 + vanM;
-  const offset = Math.max(0, minuten - dagStart);
-  const slotIndex = Math.floor(offset / slot);
-  const slotStartMin = dagStart + slotIndex * slot;
-  const slotEndMin = slotStartMin + slot;
-  return {
-    startMin: slotStartMin,
-    endMin: slotEndMin,
-    label: `${minToTimeStr(slotStartMin)}–${minToTimeStr(slotEndMin)}`,
-  };
+  const slot     = slotMinuten || settings.tijdslotMinuten || 180;
+  const dagStart = timeStrToMin(settings.vanTijd || '08:00');
+  const dagEind  = timeStrToMin(settings.totTijd || '17:00');
+  let start = Math.floor((minuten - 30) / 30) * 30;
+  start = Math.max(dagStart, start);
+  let eind = start + slot;
+  if (eind > dagEind) { eind = dagEind; start = Math.max(dagStart, eind - slot); }
+  return { startMin: start, endMin: eind, label: `${minToTimeStr(start)}–${minToTimeStr(eind)}` };
+}
+
+// Het tijdslot dat aan de klant gecommuniceerd is heeft voorrang op een herberekening:
+// als er voor dit ticket een voorstel verstuurd is voor exact deze datum, toon dat blok.
+// Anders (nog niets gemaild, of ondertussen verzet naar een andere datum) herberekenen.
+function tijdslotLabelVoor(stop, date) {
+  const vs = voorstelStatus[stop.ticket?.id];
+  if (vs?.tijdslot && vs.tijdslotDatum === date) return vs.tijdslot;
+  return stop.uur ? tijdslotVoor(timeStrToMin(stop.uur)).label : '';
 }
 
 // Bereken aankomsttijden (minuten na middernacht) per ticket voor een dag.
@@ -4514,11 +4521,22 @@ async function sendProposal() {
   btn.disabled    = true;
   btn.textContent = 'Bezig...';
 
+  // Weergave-tijdslot (Task 9, Blok 1C) — zelfde berekening als updateProposalPreview(). Vóór de
+  // TEST_MODE-tak berekend (Taak 3, punt 4), zodat ook in testmodus het lokaal opgeslagen
+  // voorstelStatus het gemailde tijdslot bevat en de UI dat kan tonen.
+  const apptMinSend    = rawTime ? timeStrToMin(roundToNextQuarterStr(rawTime)) : null;
+  const apptWindowSend = apptMinSend !== null ? tijdslotVoor(apptMinSend).label : '';
+
   if (TEST_MODE) {
     await new Promise(r => setTimeout(r, 600));
     activeTicket.status = 'Wachten op bevestiging planning';
     allTickets = allTickets.filter(t => t.id !== ticketId);
     if (!allPending.find(t => t.id === ticketId)) allPending.push(activeTicket);
+    if (apptWindowSend) {
+      if (!voorstelStatus[ticketId]) voorstelStatus[ticketId] = {};
+      voorstelStatus[ticketId].tijdslot      = apptWindowSend;
+      voorstelStatus[ticketId].tijdslotDatum = date;
+    }
     document.getElementById('proposal-overlay').classList.remove('open');
     btn.disabled = false; btn.textContent = '✉️ Verstuur voorstel';
     renderTickets(); renderKalender(); renderRouteList(date); updateRouteBtns(date);
@@ -4530,11 +4548,6 @@ async function sendProposal() {
     // Bereken UTC-tijdstip in de browser (die kent de lokale tijdzone)
     const timeStr             = rawTime || '09:00';
     const utcInterventieDatum = new Date(`${date}T${timeStr}:00`).toISOString();
-    // Weergave-tijdslot (Task 9, Blok 1C) — zelfde berekening als updateProposalPreview(), maar
-    // hier opnieuw uitgevoerd omdat sendProposal() een aparte functie-scope is. Uitsluitend voor
-    // weergave in de mail; utcInterventieDatum/interventieDatum hierboven blijven de exacte tijd.
-    const apptMinSend = rawTime ? timeStrToMin(roundToNextQuarterStr(rawTime)) : null;
-    const apptWindowSend = apptMinSend !== null ? tijdslotVoor(apptMinSend).label : '';
 
     const res  = await fetch('/api/propose', {
       method:  'POST',
@@ -4559,12 +4572,19 @@ async function sendProposal() {
       fetch('/api/voorstel-status', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ ticketId, doelgroep, tijdstip, versie: _voorstelStatusVersie }),
+        body:    JSON.stringify({
+          ticketId, doelgroep, tijdstip, versie: _voorstelStatusVersie,
+          ...(apptWindowSend ? { tijdslot: apptWindowSend, tijdslotDatum: date } : {}),
+        }),
       }).then(r => r.json()).then(d => {
         if (d.error) { console.warn('Voorstel-status opslaan mislukt:', d.error); return; }
         if (typeof d.versie === 'number') _voorstelStatusVersie = d.versie;
         if (!voorstelStatus[ticketId]) voorstelStatus[ticketId] = {};
         voorstelStatus[ticketId][doelgroep] = tijdstip;
+        if (apptWindowSend) {
+          voorstelStatus[ticketId].tijdslot      = apptWindowSend;
+          voorstelStatus[ticketId].tijdslotDatum = date;
+        }
       }).catch(err => console.warn('Voorstel-status opslaan mislukt:', err));
     }
     activeTicket.status           = 'Wachten op bevestiging planning';
