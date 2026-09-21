@@ -15,6 +15,22 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.5.0] — 2026-09-22
+
+Verfijning van de drukte-kleuring op de Route-tab kaart voor toekomstige dagen: van per
+rit naar per wegvak.
+
+### Added
+- **Verwachte drukte per wegvak voor toekomstige dagen**: de route wordt in stukken van
+  ±1,5 km doorgerekend voor het uur waarop de technieker daar rijdt, zodat je binnen één
+  rit ziet waar het druk wordt (geel/oranje/rood) en waar niet — zoals in Google Maps.
+  Klik op een stuk voor de verwachte vertraging en het tijdstip. Vandaag blijft het live
+  verkeer.
+
+### Changed
+- Kleuring per volledige rit is nu enkel nog het vangnet als de detailberekening niet
+  beschikbaar is.
+
 ## [1.4.0] — 2026-09-21
 
 Invoering van klantvoorkeuren voor uur en datum, echte route-aanpassingen met
