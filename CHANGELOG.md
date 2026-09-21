@@ -15,6 +15,14 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.5.1] — 2026-09-22
+
+### Fixed
+- Drukte-stukjes op de kaart toonden soms keerlussen of omweggetjes bij de tussenpunten.
+  De stukjes worden nu langs de eigen routelijn doorgerekend (route-reconstructie) en
+  altijd op die lijn getekend; een stukje waarvan de berekening toch een omweg bevat,
+  wordt niet ingekleurd in plaats van fout ingekleurd.
+
 ## [1.5.0] — 2026-09-22
 
 Verfijning van de drukte-kleuring op de Route-tab kaart voor toekomstige dagen: van per
