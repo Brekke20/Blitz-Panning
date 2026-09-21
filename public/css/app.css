@@ -580,6 +580,16 @@
     }
     .stop:hover { background: var(--surface3); transform: translateX(2px); }
     .stop.drag-over { border-color: var(--accent); }
+    /* Taak 4: vergrendelde stop (voorstel verstuurd / bevestigde afspraak) — niet versleepbaar. */
+    .stop.locked { opacity: .85; }
+    .stop.locked .stop-num { background: var(--muted); }
+    .route-drop-end {
+      display: none;
+      border: 1px dashed var(--border); color: var(--muted); text-align: center;
+      padding: 8px; font-size: .7rem; border-radius: var(--r);
+    }
+    #route-list.dragging .route-drop-end { display: block; }
+    .route-drop-end.drag-over { border-color: var(--accent); }
     .stop-top { display: flex; gap: 9px; align-items: flex-start; }
     .stop-num { background: var(--accent); color: #000; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.7rem; flex-shrink: 0; }
     .stop-info { flex: 1; min-width: 0; }
