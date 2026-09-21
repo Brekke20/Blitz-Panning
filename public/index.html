@@ -4054,6 +4054,8 @@ async function laadDrukteDetail(date, rData) {
     // detail verouderd en negeren we het.
     if (routeData === rData && currentRouteDate === date) {
       rData.drukteDetail = data.segmenten;
+      rData.drukteDetailInfo = { reconstructie: data.reconstructie, onbetrouwbaar: data.onbetrouwbaar, aantalAanvragen: data.aantalAanvragen };
+      console.info('drukte-detail:', rData.drukteDetailInfo);
       updateMap(date);
     }
   } catch (err) {
@@ -4164,13 +4166,18 @@ function updateMap(date) {
         // gewone routeberekening binnen via laadDrukteDetail()/updateMap(). Preciezer dan
         // het leg-vangnet hieronder omdat het binnen één rit toont wáár het druk wordt.
         routeData.drukteDetail.forEach(seg => {
-          if (!(seg.punten?.length >= 2)) return;
+          if (seg.betrouwbaar === false) return;
+          // Altijd op de eigen routelijn tekenen — nooit TomTom's teruggegeven
+          // leg-geometrie (die kan bij een geweigerde/mislukte reconstructie een
+          // keerlus/omweg bevatten, vandaar ook de sanity-check hierboven).
+          const pts = routeData.polyline.slice(seg.startIndex, seg.endIndex + 1);
+          if (pts.length < 2) return;
           const ratio = (seg.historicSeconds && seg.noTrafficSeconds) ? seg.historicSeconds / seg.noTrafficSeconds : 0;
           const m = drukteMagnitude(ratio);
           if (m === 0) return;
           const hhmm = escHtml(new Date(Date.parse(routeData.departAtUsed) + seg.vertrekOffsetSeconds * 1000)
             .toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' }));
-          L.polyline(seg.punten, { color: DRUKTE_KLEUR[m], weight: 6, opacity: 0.95 })
+          L.polyline(pts, { color: DRUKTE_KLEUR[m], weight: 6, opacity: 0.95 })
             .bindPopup(`<b>+${Math.round((seg.historicSeconds - seg.noTrafficSeconds) / 60)} min</b> · ${Math.round((ratio - 1) * 100)}% trager dan vrije doorstroming<br><span style="opacity:.7">verwacht rond ${hhmm}</span>`)
             .addTo(routeLayer);
         });
