@@ -639,11 +639,12 @@ let avExceptions = [];   // { id, scope, person, date, kind, from, to, reason }
 let avVersie     = 0;
 
 // Klantbeschikbaarheid per ticket (cloud synced)
-let klantBeschikbaarheid = {};  // { [ticketId]: { voorkeur, geblokkeerd[], notitie, bijgewerkt } }
+let klantBeschikbaarheid = {};  // { [ticketId]: { voorkeur, voorkeurTijd, geblokkeerd, notitie, duurOverride?, bijgewerkt } }
 let kbVersie = 0;
 function kbFor(id)         { return klantBeschikbaarheid[id] || null; }
 function kbBlocked(id, d)  { return !!(kbFor(id)?.geblokkeerd?.includes(d)); }
 function kbPreferred(id)   { return kbFor(id)?.voorkeur || null; }
+function kbPreferredTime(id) { return kbFor(id)?.voorkeurTijd || null; }
 // Effectieve interventieduur voor een ticket: override ?? globale standaard
 function duurVoor(id) {
   const override = kbFor(id)?.duurOverride;
@@ -1016,6 +1017,13 @@ function renderTickets() {
     card.className = 'ticket' + (overdue ? ' overdue' : '');
     const meta = [escHtml(t.account || t.naamEindklant), escHtml(t.regio)].filter(Boolean).join(' · ');
     const prClass = { high:'ph', medium:'pm', low:'pl' }[(t.priority||'').toLowerCase()] || '';
+    const kbPrefDatum = kbPreferred(t.id);
+    const kbPrefUur   = kbPreferredTime(t.id);
+    const kbPrefLabel = kbPrefDatum
+      ? `📌 ${fmtDateShort(kbPrefDatum)}${kbPrefUur ? ' ' + kbPrefUur : ''}`
+      : (kbPrefUur ? `🕐 ${kbPrefUur}` : '');
+    const kbPrefTitle = [kbPrefDatum ? `Voorkeursdatum klant: ${kbPrefDatum}` : '', kbPrefUur ? `Voorkeursuur klant: ${kbPrefUur}` : '']
+      .filter(Boolean).join(' — ');
     card.innerHTML = `
       <div class="t-body">
         <div class="t-top">
@@ -1023,7 +1031,7 @@ function renderTickets() {
           ${overdue ? `<span class="stag">Verlopen</span>` : ''}
           ${t.priority ? `<span class="prtag ${escHtml((t.priority||'').toLowerCase())}">${escHtml(t.priority)}</span>` : ''}
           ${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}
-          ${kbPreferred(t.id) ? `<span class="atag" title="Voorkeursdatum klant: ${kbPreferred(t.id)}" style="background:rgba(0,223,163,.15);color:var(--accent);border:1px solid var(--accent)">📌 ${fmtDateShort(kbPreferred(t.id))}</span>` : ''}
+          ${kbPrefLabel ? `<span class="atag" title="${escHtml(kbPrefTitle)}" style="background:rgba(0,223,163,.15);color:var(--accent);border:1px solid var(--accent)">${escHtml(kbPrefLabel)}</span>` : ''}
           ${(kbFor(t.id)?.geblokkeerd?.length) ? `<span class="atag" title="Klant kan niet: ${kbFor(t.id).geblokkeerd.join(', ')}" style="background:rgba(255,80,80,.1);color:#f55;border:1px solid #f55">🚫 ${kbFor(t.id).geblokkeerd.length}</span>` : ''}
         </div>
         <div class="tsub">${escHtml(t.subject) || '—'}</div>
@@ -1068,8 +1076,11 @@ async function addTicketToDate(ticketId, date) {
     if (!ok) return false;
   }
 
+  // Voorkeursuur klant = vast tijdstip
+  const uur = kbPreferredTime(ticketId) || null;
+
   // Optimistische update
-  planning[date].push({ ticket: t, address: t.address });
+  planning[date].push({ ticket: t, address: t.address, uur });
   inFlightTickets.add(ticketId);
   renderTickets();
   renderKalender();
@@ -1077,7 +1088,8 @@ async function addTicketToDate(ticketId, date) {
   let success = true;
   if (!TEST_MODE) {
     try {
-      const utcInterventieDatum = new Date(`${date}T00:00:00`).toISOString();
+      // 00:00 blijft de "geen tijdstip"-sentinel (zie extractLocalHour())
+      const utcInterventieDatum = new Date(`${date}T${uur || '00:00'}:00`).toISOString();
       const res  = await fetch('/api/plan', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2973,6 +2985,38 @@ async function autoPlan() {
       return pw * dist * urgencyFactor(t);
     }
 
+    // Voorkeursuur = vast tijdstip. Een ticket met voorkeurTijd past enkel op een dag waar
+    // zijn interval [voorkeurTijd, voorkeurTijd + duur) niet overlapt met (a) een bestaande
+    // stop met uur op die dag (zelfde assignee-filter), (b) een lokale afspraak met uur op die
+    // dag voor die persoon, (c) een al gekozen dayTickets-ticket met voorkeurTijd.
+    function botstMetVastUur(ticketId, dayStr, dayTickets) {
+      const tijd = kbPreferredTime(ticketId);
+      if (!tijd) return false;
+      const start = timeStrToMin(tijd), eind = start + duurVoor(ticketId);
+      const overlapt = (s, e) => s < eind && start < e;
+      const bestaand = (planning[dayStr] || []).filter(p =>
+        activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter);
+      for (const p of bestaand) {
+        if (!p.uur) continue;
+        const s = timeStrToMin(p.uur);
+        if (overlapt(s, s + duurVoor(p.ticket.id))) return true;
+      }
+      for (const e of localEvents) {
+        if (e.datum !== dayStr || !e.uur) continue;
+        if (activeAssigneeFilter !== 'all' && e.persoon && e.persoon !== activeAssigneeFilter) continue;
+        const s = timeStrToMin(e.uur);
+        const len = (e.einduur ? calcWerktijdMin(e.uur, e.einduur) : 0) || 60;
+        if (overlapt(s, s + len)) return true;
+      }
+      for (const t of dayTickets) {
+        const tt = kbPreferredTime(t.id);
+        if (!tt) continue;
+        const s = timeStrToMin(tt);
+        if (overlapt(s, s + duurVoor(t.id))) return true;
+      }
+      return false;
+    }
+
     const pool = toplan.slice();
 
     // ── Fix 1: Voorkeursplanning ──────────────────────────────────────────────
@@ -2996,6 +3040,7 @@ async function autoPlan() {
         if (kbBlocked(t.id, day.date)) return false;
         const pref = prefDayAvailable.get(t.id);
         if (pref && pref !== day.date) return false; // wacht op voorkeursdag
+        if (botstMetVastUur(t.id, day.date, [])) return false;
         return true;
       });
 
@@ -3055,6 +3100,7 @@ async function autoPlan() {
           if (kbBlocked(t.id, day.date)) return false;
           const pref = prefDayAvailable.get(t.id);
           if (pref && pref !== day.date) return false;
+          if (botstMetVastUur(t.id, day.date, dayTickets)) return false;
           return true;
         });
         if (!fillPool.length) break;
@@ -4584,11 +4630,7 @@ function extractLocalHour(interventieDatum) {
 function renderKbSection(ticketId) {
   const el = document.getElementById('kb-section');
   if (!el) return;
-  const kb = kbFor(ticketId) || { voorkeur: null, geblokkeerd: [], notitie: '' };
-
-  const prefChip = kb.voorkeur
-    ? `<span class="kb-chip kb-chip-pref">📌 ${kb.voorkeur} <button class="kb-chip-del kb-btn-voorkeur-del" title="Verwijderen">✕</button></span>`
-    : '';
+  const kb = kbFor(ticketId) || { voorkeur: null, voorkeurTijd: null, geblokkeerd: [], notitie: '' };
 
   const blockChips = (kb.geblokkeerd || []).map(d =>
     `<span class="kb-chip">🚫 ${d} <button class="kb-chip-del kb-btn-removeblok" data-datum="${escHtml(d)}" title="Verwijderen">✕</button></span>`
@@ -4599,9 +4641,13 @@ function renderKbSection(ticketId) {
       <div class="kb-section-title">Klantbeschikbaarheid</div>
 
       <div class="kb-row">
-        <span class="kb-label">Voorkeursdatum</span>
-        ${prefChip || `<input type="date" id="kb-pref-${ticketId}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
-        <button class="kb-add-btn kb-btn-voorkeur-set">✓ Instellen</button>`}
+        <span class="kb-label">Voorkeur</span>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+          <input type="date" id="kb-pref-${ticketId}" value="${escHtml(kb.voorkeur || '')}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
+          <input type="time" id="kb-pref-tijd-${ticketId}" step="900" value="${escHtml(kb.voorkeurTijd || '')}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
+          <button class="kb-add-btn kb-btn-voorkeur-set">✓ Instellen</button>
+          ${(kb.voorkeur || kb.voorkeurTijd) ? `<button class="kb-chip-del kb-btn-voorkeur-del" title="Voorkeur wissen">✕</button>` : ''}
+        </div>
       </div>
 
       <div class="kb-row" style="align-items:flex-start;flex-direction:column;gap:6px">
@@ -4635,8 +4681,14 @@ function renderKbSection(ticketId) {
   // ticketId komt uit de kennisbank-blob (niet-geauthenticeerd) — via closure doorgeven
   // i.p.v. inline onclick (zelfde reden als .btn-navigeer-knoppen). Alleen de per-item
   // geblokkeerde datum (kb-btn-removeblok) heeft nog een data-attribuut nodig.
-  el.querySelector('.kb-btn-voorkeur-del')?.addEventListener('click', () => updateKb(ticketId, 'voorkeur', null));
-  el.querySelector('.kb-btn-voorkeur-set')?.addEventListener('click', () => updateKb(ticketId, 'voorkeur', document.getElementById(`kb-pref-${ticketId}`).value));
+  el.querySelector('.kb-btn-voorkeur-del')?.addEventListener('click', () => {
+    updateKb(ticketId, 'voorkeur', null, { skipSave: true });
+    updateKb(ticketId, 'voorkeurTijd', null);
+  });
+  el.querySelector('.kb-btn-voorkeur-set')?.addEventListener('click', () => {
+    updateKb(ticketId, 'voorkeur', document.getElementById(`kb-pref-${ticketId}`).value, { skipSave: true });
+    updateKb(ticketId, 'voorkeurTijd', document.getElementById(`kb-pref-tijd-${ticketId}`).value);
+  });
   el.querySelectorAll('.kb-btn-removeblok').forEach(btn => {
     btn.addEventListener('click', () => updateKb(ticketId, 'removeBlok', btn.dataset.datum || ''));
   });
@@ -4646,17 +4698,27 @@ function renderKbSection(ticketId) {
   el.querySelector('.kb-btn-notitie-save')?.addEventListener('click', () => updateKb(ticketId, 'notitie', document.getElementById(`kb-notitie-${ticketId}`).value));
 }
 
-async function updateKb(ticketId, action, value) {
+async function updateKb(ticketId, action, value, opts = { skipSave: false }) {
   if (!ticketId) return;
   if (!klantBeschikbaarheid[ticketId]) {
-    klantBeschikbaarheid[ticketId] = { voorkeur: null, geblokkeerd: [], notitie: '', bijgewerkt: new Date().toISOString() };
+    klantBeschikbaarheid[ticketId] = { voorkeur: null, voorkeurTijd: null, geblokkeerd: [], notitie: '', bijgewerkt: new Date().toISOString() };
   }
   const kb = klantBeschikbaarheid[ticketId];
 
   if (action === 'voorkeur') {
-    if (!value) return;
-    if (kb.geblokkeerd.includes(value)) return toast('⚠️ Deze datum staat al als geblokkeerd');
-    kb.voorkeur = value;
+    if (!value) {
+      kb.voorkeur = null;
+    } else {
+      if (kb.geblokkeerd.includes(value)) return toast('⚠️ Deze datum staat al als geblokkeerd');
+      kb.voorkeur = value;
+    }
+  } else if (action === 'voorkeurTijd') {
+    if (!value) {
+      kb.voorkeurTijd = null;
+    } else {
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return toast('⚠️ Ongeldig uur');
+      kb.voorkeurTijd = value;
+    }
   } else if (action === 'addBlok') {
     if (!value) return;
     if (kb.voorkeur === value) return toast('⚠️ Deze datum is al de voorkeursdatum');
@@ -4678,9 +4740,11 @@ async function updateKb(ticketId, action, value) {
 
   kb.bijgewerkt = new Date().toISOString();
   // Verwijder lege entry
-  if (!kb.voorkeur && !kb.geblokkeerd.length && !kb.notitie && !kb.duurOverride) {
+  if (!kb.voorkeur && !kb.voorkeurTijd && !kb.geblokkeerd.length && !kb.notitie && !kb.duurOverride) {
     delete klantBeschikbaarheid[ticketId];
   }
+
+  if (opts?.skipSave) return;
 
   renderKbSection(ticketId);
   renderTickets(); // badges bijwerken
@@ -4696,15 +4760,21 @@ function toggleAssignRow(ticketId) {
   if (wasHidden) {
     const dateInp = document.getElementById('assign-date-' + ticketId);
     if (dateInp && !dateInp.value) dateInp.value = localISO(new Date());
-    // Prefill tijdstip met berekende aankomsttijd als beschikbaar
+    // Prefill tijdstip: voorkeursuur klant (vast tijdstip) heeft voorrang,
+    // anders berekende aankomsttijd als beschikbaar
     const timeInp = document.getElementById('assign-time-' + ticketId);
     if (timeInp) {
-      const date    = dateInp?.value || localISO(new Date());
-      const times   = computeArrivalTimes(date);
-      const arrival = times[ticketId];
-      timeInp.value = arrival != null
-        ? roundToNextQuarterStr(minToTimeStr(arrival))
-        : '09:00';
+      const voorkeurTijd = kbPreferredTime(ticketId);
+      if (voorkeurTijd) {
+        timeInp.value = voorkeurTijd;
+      } else {
+        const date    = dateInp?.value || localISO(new Date());
+        const times   = computeArrivalTimes(date);
+        const arrival = times[ticketId];
+        timeInp.value = arrival != null
+          ? roundToNextQuarterStr(minToTimeStr(arrival))
+          : '09:00';
+      }
     }
   }
 }
