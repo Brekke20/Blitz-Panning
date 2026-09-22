@@ -3377,9 +3377,17 @@ function renderGepland() {
       card.className = 'ticket';
       card.style.cursor = 'pointer';
       const meta = [escHtml(t.account || t.naamEindklant), escHtml(t.assignee)].filter(Boolean).join(' · ');
+      // Fix (UX-ronde 2026-09-22, snelle winst): tijdstip toevoegen, zelfde weergave als de
+      // Kalender-tab (buildTicketCard()) en Route-tab -- gebaseerd op de planning[]-stop van dit
+      // ticket op deze datum, die (i.t.t. het platte allGepland-ticket) het .uur-veld draagt.
+      const stop = (planning[key] || []).find(p => p.ticket.id === t.id);
+      const tijdHtml = stop?.uur
+        ? `<div class="tmeta" style="font-weight:600">🕐 ${escHtml(tijdslotLabelVoor(stop, key))} <span style="opacity:0.65;font-size:0.85em">(gepland ${escHtml(stop.uur)})</span></div>`
+        : '';
       card.innerHTML = `<div class="t-body">
         <div class="t-top"><span class="tnum">#${escHtml(t.number)}</span><span class="stag confirmed">Ingepland</span>${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}</div>
         <div class="tsub">${escHtml(t.subject) || '—'}</div>
+        ${tijdHtml}
         ${meta ? `<div class="tmeta">${meta}</div>` : ''}
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
       </div>`;
