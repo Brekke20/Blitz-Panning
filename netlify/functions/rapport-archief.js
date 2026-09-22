@@ -92,6 +92,10 @@ export default async (req, context) => {
       totaalOnderdelen: parseFloat(body.totaalOnderdelen) || 0,
       // Bewaar het volledige R-object om rapport te kunnen hergeneren
       rapportData:     body.rapportData || null,
+      // (T20) Gezet door outboxCancelItem() (public/js/outbox.js) wanneer een technieker een
+      // reeds-gearchiveerd, nog-niet-naar-Zoho-verstuurd rapport annuleert. Ontbreekt dit veld
+      // (oudere/andere POSTs), dan blijft het gewoon false -- geen breaking change.
+      geannuleerd:     body.geannuleerd === true,
     };
 
     // Dedup: als er al een rapport bestaat voor hetzelfde ticket op dezelfde datum,

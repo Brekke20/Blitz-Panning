@@ -63,9 +63,14 @@ export function renderRapportArchief() {
         ? '<span style="color:var(--green);font-weight:600">✓ Hersteld</span>'
         : '<span style="color:var(--orange)">⚠ Niet hersteld</span>';
     const nieuw     = (!isInstallatieRapport && r.nieuwInter === 'ja') ? '<span style="color:var(--orange)">🔁 Nieuwe interventie</span>' : '';
-    const inWachtrij = _outboxItems.some(o => o.id === r.id)
-      ? '<span style="color:var(--accent);font-weight:600">⏳ In wachtrij</span>'
-      : '';
+    // (T20) Een geannuleerd rapport (outboxCancelItem, public/js/outbox.js) moet zichtbaar
+    // anders ogen dan een dat nog gewoon in de wachtrij zit -- anders verdwijnt de "In
+    // wachtrij"-tag bij annuleren spoorloos, zonder enig teken dat dit bewust was.
+    const inWachtrij = r.geannuleerd
+      ? '<span style="color:var(--red)">❌ Niet verzonden (geannuleerd)</span>'
+      : _outboxItems.some(o => o.id === r.id)
+        ? '<span style="color:var(--accent);font-weight:600">⏳ In wachtrij</span>'
+        : '';
     const st       = rd.servicetype || r.servicetype || '';
     const isGarantie = st === 'garantie';
     const wMin     = calcWerktijdMin(rd.start, rd.stop);

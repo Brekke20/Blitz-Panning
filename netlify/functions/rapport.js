@@ -1,12 +1,77 @@
 // /api/rapport
 // Genereert PDF van service rapport HTML en uploadt naar Zoho Desk als bijlage.
-// POST body: { html: string, ticketId: string, filename: string }
+// POST body: { html: string, ticketId: string, filename: string, verzendId: string }
+//
+// (T20) verzendId is het stabiele item.id van het outbox-item (public/js/rapport-wizard.js,
+// crypto.randomUUID() bij aanmaak) -- dient hier als idempotentiesleutel tegen een dubbele
+// PDF-bijlage op hetzelfde Zoho-ticket wanneer een eerdere upload wél server-side lukte, maar
+// het antwoord de client nooit bereikte (zie docs/reviews/2026-09-22-outbox-onderzoek.md).
 
 import chromium from '@sparticuz/chromium-min';
 import puppeteer from 'puppeteer-core';
+import { getStore } from '@netlify/blobs';
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
+
+// Zelfde store/key als rapport-archief.js -- bewust hergebruikt, geen aparte blob-key: de
+// 'archive'-stap die outbox.js altijd vóór deze upload-stap uitvoert heeft op dit punt al een
+// entry met dit id aangemaakt in 'rapportlijst'.
+const BLOB_KEY = 'rapportlijst';
+
+// ── Pure logica (geen I/O) -- apart van de Blobs-aanroepen zodat dit zonder Netlify Blobs-
+// emulatie met een klein Node-scriptje te verifiëren is (zie Global Constraints, "lokaal 500"). ──
+
+// Bepaalt of een verzendId al een succesvolle Zoho-upload heeft. Retourneert de bestaande
+// entry (met o.a. zohoAttachmentId) bij een match, anders null -- geen match is normaal
+// (nieuw item, of item zonder rapports-array-entry) en blokkeert de upload niet.
+export function isAlVerzonden(verzendId, rapporten) {
+  if (!verzendId) return null;
+  const entry = (rapporten || []).find(r => r.id === verzendId);
+  return entry?.zohoUploaded === true ? entry : null;
+}
+
+// Bepaalt HOE de rapports-array bijgewerkt moet worden na een geslaagde upload. Retourneert
+// null als er niets te doen is (geen bijhorende archief-entry gevonden, of al gemarkeerd --
+// dat laatste kan gebeuren bij een retry-poging op een 409/versie-conflict), anders het nieuwe
+// array (onveranderd op de bijgewerkte index na).
+export function pasMarkeringToe(rapporten, verzendId, attachmentId) {
+  if (!verzendId) return null;
+  const idx = (rapporten || []).findIndex(r => r.id === verzendId);
+  if (idx < 0) return null;
+  if (rapporten[idx].zohoUploaded === true) return null;
+  const updated = [...rapporten];
+  updated[idx] = { ...updated[idx], zohoUploaded: true, zohoAttachmentId: attachmentId };
+  return updated;
+}
+
+// Best-effort: een falende check laat de upload gewoon normaal doorgaan (zoals vóór deze taak) --
+// geen enkele idempotentie-check mag de kernflow (PDF genereren + uploaden) blokkeren.
+async function checkAlUpgeload(verzendId) {
+  if (!verzendId) return null;
+  try {
+    const store = getStore({ name: 'blitz-data', consistency: 'strong' });
+    const data  = await store.get(BLOB_KEY, { type: 'json' });
+    return isAlVerzonden(verzendId, data?.rapports);
+  } catch { return null; }
+}
+
+// Best-effort met een paar retries op een 409/versie-conflict (strong consistency, zelfde
+// patroon als rapport-archief.js) -- lukt dit uiteindelijk niet, dan blijft de client-side
+// confirm-call (outbox.js, bestaande 'zoho-confirm'-stap) als terugvalnet bestaan.
+async function markeerUpgeload(verzendId, attachmentId) {
+  if (!verzendId) return;
+  const store = getStore({ name: 'blitz-data', consistency: 'strong' });
+  for (let poging = 0; poging < 3; poging++) {
+    try {
+      const data    = (await store.get(BLOB_KEY, { type: 'json' })) || { versie: 0, rapports: [] };
+      const updated = pasMarkeringToe(data.rapports, verzendId, attachmentId);
+      if (!updated) return; // geen match, of al gemarkeerd -- niets te doen
+      await store.setJSON(BLOB_KEY, { versie: data.versie + 1, rapports: updated });
+      return;
+    } catch { /* conflict of tijdelijke fout -- volgende poging leest de nieuwste versie opnieuw */ }
+  }
+}
 
 // Chromium release URL — moet overeenkomen met @sparticuz/chromium-min versie
 const CHROMIUM_URL =
@@ -58,12 +123,24 @@ export async function handler(event) {
 
   let browser;
   try {
-    const { html, ticketId, filename = 'service-rapport.pdf' } = JSON.parse(event.body || '{}');
+    const { html, ticketId, filename = 'service-rapport.pdf', verzendId } = JSON.parse(event.body || '{}');
     if (!html || !ticketId) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'html en ticketId zijn verplicht' }) };
     }
     if (!/^\d+$/.test(String(ticketId))) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Ongeldig ticketId' }) };
+    }
+
+    // (T20) Idempotentie: was dit verzendId al eerder succesvol geüpload (server-side gelukt,
+    // maar het antwoord bereikte de client toen nooit)? Dan niet nogmaals genereren/uploaden --
+    // gewoon hetzelfde resultaat teruggeven. Geen match/falende check → gewoon normaal doorgaan.
+    const alGedaan = await checkAlUpgeload(verzendId);
+    if (alGedaan) {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ success: true, attachmentId: alGedaan.zohoAttachmentId || null, alreadyUploaded: true }),
+      };
     }
 
     // ── 1. PDF genereren ──────────────────────────────────────────────────────
@@ -131,6 +208,9 @@ export async function handler(event) {
 
     const uploadData = await uploadRes.json().catch(() => ({}));
     if (!uploadRes.ok) throw new Error(JSON.stringify(uploadData));
+
+    // Best-effort, mag de respons niet blokkeren/vertragen -- zie markeerUpgeload hierboven.
+    await markeerUpgeload(verzendId, uploadData.id);
 
     return {
       statusCode: 200,

@@ -145,10 +145,14 @@ export async function attemptOutboxItem(item) {
     }
 
     try {
+      // (T20) verzendId = item.id -- al een stabiele UUID sinds Task 1 (keyPath van de
+      // IndexedDB-store, dus gegarandeerd aanwezig op elk item, ook op een outbox-item dat al
+      // van vóór deze release in de wachtrij van een technieker staat). Dient server-side
+      // (rapport.js) als idempotentiesleutel tegen een dubbele Zoho-bijlage.
       const res  = await fetch('/api/rapport', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ html: item.html, ticketId: item.ticket.id, filename: item.ticket.filename }),
+        body:    JSON.stringify({ html: item.html, ticketId: item.ticket.id, filename: item.ticket.filename, verzendId: item.id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload mislukt');
