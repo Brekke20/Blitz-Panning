@@ -530,6 +530,14 @@ function escHtml(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// Vertaalt de ruwe Zoho-prioriteitswaarde (high/medium/low, wisselende hoofdletter) naar de
+// Nederlandse UI-tekst. Dezelfde vertaling als excel-export.js's PRIO_NL (UX-ronde 2026-09-22,
+// item 1) -- t.priority zelf blijft ongewijzigd, enkel de weergave verandert.
+const PRIO_LABEL = { high: 'Hoog', medium: 'Middel', low: 'Laag' };
+function prioLabel(priority) {
+  return PRIO_LABEL[(priority || '').toLowerCase()] || priority || '';
+}
+
 const DUMMY_DATA = {
   tickets: [
     { id:'t1', number:'1001', subject:'Laadpaal offline na stroomuitval', status:'Service in te plannen', priority:'high', assignee:'Tim', contact:'Jan Peeters', email:'jan@test.be', phone:'0475123456', account:'EV Park Geel', address:'Antwerpseweg 50, 2440 Geel', hasAddress:true, naamEindklant:'Jan Peeters', emailEindklant:'jan@test.be', telefoonEindklant:'0475123456', serienummer:'CHARX-2291', partner:'Proxes', probleemtype:'Verbindingsfout', regio:'Kempen', interventieDatum: (() => { const d = new Date(); d.setDate(d.getDate()-2); return d.toISOString(); })(), createdTime:'2026-06-18T08:00:00Z' },
@@ -1072,7 +1080,7 @@ function renderTickets() {
         <div class="t-top">
           <span class="tnum">#${escHtml(t.number)}</span>
           ${overdue ? `<span class="stag">Verlopen</span>` : ''}
-          ${t.priority ? `<span class="prtag ${escHtml((t.priority||'').toLowerCase())}">${escHtml(t.priority)}</span>` : ''}
+          ${t.priority ? `<span class="prtag ${escHtml((t.priority||'').toLowerCase())}">${escHtml(prioLabel(t.priority))}</span>` : ''}
           ${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}
           ${kbPrefLabel ? `<span class="atag" title="${escHtml(kbPrefTitle)}" style="background:rgba(0,223,163,.15);color:var(--accent);border:1px solid var(--accent)">${escHtml(kbPrefLabel)}</span>` : ''}
           ${(kbFor(t.id)?.geblokkeerd?.length) ? `<span class="atag" title="Klant kan niet: ${kbFor(t.id).geblokkeerd.join(', ')}" style="background:rgba(255,80,80,.1);color:#f55;border:1px solid #f55">🚫 ${kbFor(t.id).geblokkeerd.length}</span>` : ''}
@@ -4467,7 +4475,7 @@ function openDetail(t) {
 
   const tags = document.getElementById('d-tags');
   tags.innerHTML = `<span class="mtag status">${escHtml(t.status)}</span>`;
-  if (t.priority) { const pc = {high:'prtag high',medium:'prtag medium',low:'prtag low'}[(t.priority||'').toLowerCase()]||'mtag'; tags.innerHTML += `<span class="${pc}">${escHtml(t.priority)}</span>`; }
+  if (t.priority) { const pc = {high:'prtag high',medium:'prtag medium',low:'prtag low'}[(t.priority||'').toLowerCase()]||'mtag'; tags.innerHTML += `<span class="${pc}">${escHtml(prioLabel(t.priority))}</span>`; }
   if (t.assignee) tags.innerHTML += `<span class="mtag assignee">${escHtml(t.assignee)}</span>`;
 
   const row = (l, v, href) => v ? `<div class="mrow"><span class="mlabel">${l}</span><span class="mval">${href ? `<a href="${href}${escHtml(v)}">${escHtml(v)}</a>` : escHtml(v)}</span></div>` : '';
