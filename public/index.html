@@ -5088,40 +5088,34 @@ function tijdslotLabelVoor(stop, date) {
   return stop.uur ? tijdslotVoor(timeStrToMin(stop.uur)).label : '';
 }
 
-// Bereken aankomsttijden (minuten na middernacht) per ticket voor een dag.
-// Gebruikt routeData als beschikbaar, anders positie-schatting (30 min reistijd).
-// Geeft { [ticketId]: arrivalMin } terug.
+// Bereken aankomsttijden (minuten na middernacht) per ticket voor een dag. Hergebruikt
+// berekenAankomsten() (dezelfde functie als renderRouteList()/de Route-tab) op dezelfde
+// allStops-opbouw (tickets + lokale afspraken, gesorteerd op uur) -- zodat het ticketdetail-
+// venster en de Route-tab nooit meer een ander voorgesteld tijdstip tonen voor hetzelfde ticket
+// (bugronde 2026-09-22, item F). Geeft { [ticketId]: arrivalMin } terug.
 function computeArrivalTimes(date) {
   const stops = (planning[date] || []).filter(p =>
     activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
   );
-  if (!stops.length) return {};
-  const [h, m]   = (settings.vanTijd || '08:00').split(':').map(Number);
+  // Zelfde filter als renderRouteList() (rond regel 3488) — niet wijzigen, anders wijkt de
+  // waypoint-membership (en dus legIdx binnen berekenAankomsten()) weer af tussen beide functies.
+  const localForDate = localEvents.filter(e =>
+    e.datum === date && (e.adres || e.notitie) &&
+    (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
+  );
+  const allStops = [
+    ...stops.map(s => ({ kind: 'ticket', item: s, uur: s.uur })),
+    ...localForDate.map(e => ({ kind: 'local', item: e, uur: e.uur })),
+  ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
+  if (!allStops.length) return {};
+
   const hasRoute = routeData?.legs && currentRouteDate === date;
-  let curMin     = h * 60 + m;
-  const result   = {};
-  // Zelfde waypoint-membership test als calculateRoute() (`stops.filter(p => p._lat)`, zie
-  // allWpStops in calculateRoute) en als renderRouteList/openRapport: alleen geocodeerde stops
-  // hebben een leg in routeData.legs. Een eigen teller houdt de leg-index in fase met de
-  // waypoint-lijst; zonder dat schuift elke stop ná een niet-geocodeerde stop een leg op en
-  // krijgt de klant een verkeerd afspraakvoorstel-tijdstip (zelfde bug als Task 13).
-  // Lokale events staan in calculateRoute() ná de ticket-stops in de waypoint-lijst, dus ze
-  // beïnvloeden deze indices niet.
-  let legIdx = 0;
-  for (let i = 0; i < stops.length; i++) {
-    const isWaypoint = !!stops[i]._lat;
-    const legSec = (hasRoute && isWaypoint)
-      ? (routeData.legs[legIdx]?.travelTimeSeconds ?? 30 * 60)
-      : 30 * 60;
-    if (isWaypoint) legIdx++;
-    // Vastgezet tijdstip (via "Toewijzen" of "Datum/tijd wijzigen"): de berekening
-    // springt naar dat tijdstip i.p.v. de opgetelde rijtijd te gebruiken, en rekent
-    // nadien verder vanaf vast-tijdstip + duur. Geen botsingsdetectie (zie designdoc)
-    // — als eerdere afspraken dit tijdstip eigenlijk niet halen, wordt dat niet gemeld.
-    curMin = stops[i].uur ? timeStrToMin(stops[i].uur) : curMin + Math.round(legSec / 60);
-    result[stops[i].ticket.id] = curMin;
-    curMin += duurVoor(stops[i].ticket.id); // per-ticket duur override of standaard
-  }
+  const { arrivalTimes } = berekenAankomsten(allStops, hasRoute ? routeData.legs : null);
+
+  const result = {};
+  allStops.forEach((entry, i) => {
+    if (entry.kind === 'ticket') result[entry.item.ticket.id] = arrivalTimes[i];
+  });
   return result;
 }
 
