@@ -665,6 +665,10 @@ let avVersie     = 0;
 // Klantbeschikbaarheid per ticket (cloud synced)
 let klantBeschikbaarheid = {};  // { [ticketId]: { voorkeur, voorkeurTijd, geblokkeerd, notitie, duurOverride?, bijgewerkt } }
 let kbVersie = 0;
+// Ticket-ID's die deze sessie lokaal volledig gewist zijn (alle kb-velden leeg) -- bijgehouden
+// zodat een 409-merge in saveKlantBeschikbaarheid() zo'n verwijdering niet stil ongedaan maakt
+// door de server-versie voor dat ticket terug over te nemen (bugronde 2026-09-22, item B).
+let kbLocallyDeleted = new Set();
 function kbFor(id)         { return klantBeschikbaarheid[id] || null; }
 function kbBlocked(id, d)  { return !!(kbFor(id)?.geblokkeerd?.includes(d)); }
 function kbPreferred(id)   { return kbFor(id)?.voorkeur || null; }
@@ -2016,6 +2020,11 @@ async function saveKlantBeschikbaarheid() {
       const merged = { ...serverItems };
       for (const [id, entry] of Object.entries(klantBeschikbaarheid)) {
         merged[id] = entry;
+      }
+      // Een lokaal verwijderde entry mag niet terugkomen uit de server-state, ook al staat hij
+      // daar nog (bugronde 2026-09-22, item B) -- de gebruiker heeft 'm hier expliciet gewist.
+      for (const id of kbLocallyDeleted) {
+        delete merged[id];
       }
       klantBeschikbaarheid = merged;
       kbVersie             = srv.data?.versie || 0;
@@ -5481,9 +5490,13 @@ async function updateKb(ticketId, action, value) {
   }
 
   kb.bijgewerkt = new Date().toISOString();
+  // Ticket weer gevuld na een eerdere lokale verwijdering: telt niet langer als "lokaal
+  // verwijderd" voor de 409-merge (zie kbLocallyDeleted hierboven).
+  kbLocallyDeleted.delete(ticketId);
   // Verwijder lege entry
   if (!kb.voorkeur && !kb.voorkeurTijd && !kb.geblokkeerd.length && !kb.notitie && !kb.duurOverride) {
     delete klantBeschikbaarheid[ticketId];
+    kbLocallyDeleted.add(ticketId);
   }
 
   renderKbSection(ticketId);
