@@ -5190,6 +5190,21 @@ function openProposal(ticketId, date, arrivalMin) {
   document.getElementById('proposal-overlay').classList.add('open');
 }
 
+// Kuist een ruwe (vaak doorgestuurde-mail-)ticket-titel op tot een klantvriendelijke
+// omschrijving voor gebruik in het afspraaksvoorstel-mailtje. Strip herhaalde forward-/
+// antwoord-prefixen (FW:/Fwd:/RE:, ongeacht hoofdletters, ook genest zoals "RE: FW: ...") en de
+// automatisch gegenereerde titel van een doorgestuurd contactformulier-bericht ("Nieuw
+// contactbericht van ..."). Blijft er niets bruikbaars over, dan een neutrale fallback-tekst
+// (UX-ronde 2026-09-22, item 2).
+function cleanTicketSubject(raw) {
+  let s = String(raw || '').trim();
+  const prefixRe = /^(fw|fwd|re)\s*:\s*/i;
+  let prev;
+  do { prev = s; s = s.replace(prefixRe, '').trim(); } while (s !== prev);
+  if (/^nieuw contactbericht van\b/i.test(s)) s = '';
+  return s || 'uw laadstation';
+}
+
 function updateProposalPreview() {
   if (!activeTicket) return;
   const date     = document.getElementById('proposal-date').value;
@@ -5212,7 +5227,7 @@ function updateProposalPreview() {
     ? new Date(date + 'T12:00:00').toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
     : '—';
   const name     = escHtml(activeTicket.naamEindklant || activeTicket.contact || 'klant');
-  const subj     = escHtml(activeTicket.subject || 'servicebezoek');
+  const subj     = escHtml(cleanTicketSubject(activeTicket.subject));
   const sn       = escHtml(activeTicket.serienummer || '');
 
   document.getElementById('proposal-no-email').style.display = _proposalOntvangers.length ? 'none' : '';
@@ -5323,7 +5338,7 @@ async function sendProposal() {
         time: rawTime,
         utcInterventieDatum,
         recipientName: activeTicket.naamEindklant || activeTicket.contact || '',
-        subject:       activeTicket.subject || '',
+        subject:       cleanTicketSubject(activeTicket.subject),
         serienummer:   activeTicket.serienummer || '',
         appointmentWindow: apptWindowSend,
       }),

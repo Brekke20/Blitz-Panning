@@ -100,6 +100,24 @@ function roundToNextQuarter(timeStr) {
   return `${String(outH).padStart(2, '0')}:${String(outM).padStart(2, '0')}`;
 }
 
+// Kuist een ruwe (vaak doorgestuurde-mail-)ticket-titel op tot een klantvriendelijke
+// omschrijving voor gebruik in het afspraaksvoorstel-mailtje. Strip herhaalde forward-/
+// antwoord-prefixen (FW:/Fwd:/RE:, ongeacht hoofdletters, ook genest zoals "RE: FW: ...") en de
+// automatisch gegenereerde titel van een doorgestuurd contactformulier-bericht ("Nieuw
+// contactbericht van ..."). Blijft er niets bruikbaars over, dan een neutrale fallback-tekst
+// (UX-ronde 2026-09-22, item 2). Gedupliceerd t.o.v. dezelfde functie in public/index.html --
+// client en server delen geen module. De server kuist zelf nogmaals op (defense-in-depth), ook
+// al stuurt de client al een opgekuiste waarde: cleanTicketSubject() is idempotent, dus dubbel
+// toepassen is onschadelijk en beschermt tegen een toekomstig ander aanroeppad naar /api/propose.
+function cleanTicketSubject(raw) {
+  let s = String(raw || '').trim();
+  const prefixRe = /^(fw|fwd|re)\s*:\s*/i;
+  let prev;
+  do { prev = s; s = s.replace(prefixRe, '').trim(); } while (s !== prev);
+  if (/^nieuw contactbericht van\b/i.test(s)) s = '';
+  return s || 'uw laadstation';
+}
+
 function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime, appointmentWindow, serienummer, confirmUrl }) {
   // SVG: 2 diagonale afgeronde lijnen in Blitz-brandkleur #00dfa3
   const bolt = `<svg width="20" height="30" viewBox="0 0 20 30" xmlns="http://www.w3.org/2000/svg">` +
@@ -208,6 +226,7 @@ export async function handler(event) {
   try {
     const { ticketId, date, time, recipientName, subject, serienummer, utcInterventieDatum, appointmentWindow } =
       JSON.parse(event.body || '{}');
+    const subjectClean = cleanTicketSubject(subject);
 
     if (!ticketId || !date) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'ticketId en date zijn verplicht' }) };
@@ -321,7 +340,7 @@ export async function handler(event) {
 
         const emailHtml = buildEmailHtml({
           recipientName: recipientName || '',
-          subject:       subject || 'Servicebezoek',
+          subject:       subjectClean,
           formattedDate,
           appointmentTime,
           appointmentWindow,
