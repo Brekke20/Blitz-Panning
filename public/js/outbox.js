@@ -69,6 +69,26 @@ export function nextOutboxAction(item) {
   return 'done';
 }
 
+// (T20) Per-stap client-timeout: zonder AbortController wachtte de client onbeperkt op een
+// hangende fetch (zie docs/reviews/2026-09-22-outbox-onderzoek.md, punt 4). De timeouts hieronder
+// liggen royaal boven het server-side 26s-maximum (netlify.toml, [functions.rapport] timeout = 26)
+// zodat dit enkel een volledig hangende verbinding opvangt, niet legitiem trage serververwerking.
+async function fetchWithTimeout(url, opts, timeoutMs) {
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// (T20) Exponentiële backoff tussen AUTOMATISCHE pogingen binnen één sessie. In-memory (geen
+// IndexedDB), dus reset bij een paginaherlaad -- dat is bewust: een verse pagina-load mag altijd
+// meteen proberen. "Opnieuw proberen" (zie renderOutboxBanner) reset dit expliciet per item.
+const OUTBOX_BACKOFF_MS = [10000, 30000, 90000];
+const _outboxNextAttempt = new Map(); // id -> timestamp vanaf wanneer een automatische poging weer mag
+
 export async function refreshOutboxCache() {
   _outboxItems = await outboxGetAll();
   renderOutboxBanner();
@@ -89,6 +109,9 @@ export function renderOutboxBanner() {
 export async function logOutboxFailure(item, stap, fout) {
   item.attempts  = (item.attempts || 0) + 1;
   item.lastError = fout;
+  // (T20) Volgende automatische poging voor dit item mag pas na de backoff-vertraging —
+  // "Opnieuw proberen" (renderOutboxBanner) verwijdert deze entry expliciet om dat te omzeilen.
+  _outboxNextAttempt.set(item.id, Date.now() + OUTBOX_BACKOFF_MS[Math.min(item.attempts - 1, OUTBOX_BACKOFF_MS.length - 1)]);
   try { await outboxPut(item); } catch { /* best-effort */ }
   try {
     await fetch('/api/client-log', {
@@ -110,11 +133,11 @@ export async function attemptOutboxItem(item) {
 
   if (action === 'archive') {
     try {
-      const res  = await fetch('/api/rapport-archief', {
+      const res  = await fetchWithTimeout('/api/rapport-archief', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ ...item.archiveBody, id: item.id }),
-      });
+      }, 60000);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || String(res.status));
       item.archived = true;
@@ -124,7 +147,8 @@ export async function attemptOutboxItem(item) {
       // vals-positief conflict kunnen krijgen na een outbox-archivering.
       if (typeof data.versie === 'number') _archiefVersie = data.versie;
     } catch (err) {
-      await logOutboxFailure(item, 'archiveren', err.message);
+      const msg = err.name === 'AbortError' ? 'Geen antwoord van de server (time-out)' : err.message;
+      await logOutboxFailure(item, 'archiveren', msg);
       return item;
     }
     return attemptOutboxItem(item);
@@ -133,10 +157,10 @@ export async function attemptOutboxItem(item) {
   if (action === 'check-zoho') {
     let alreadyDone = false;
     try {
-      const res  = await fetch(`/api/rapport-archief?id=${encodeURIComponent(item.id)}`);
+      const res  = await fetchWithTimeout(`/api/rapport-archief?id=${encodeURIComponent(item.id)}`, {}, 30000);
       const data = await res.json();
       alreadyDone = data?.rapport?.zohoUploaded === true;
-    } catch { /* check mislukt — probeer de upload gewoon, geen erg bij een extra check-poging later */ }
+    } catch { /* check mislukt (ook bij een time-out) — probeer de upload gewoon, geen erg bij een extra check-poging later */ }
 
     if (alreadyDone) {
       item.zohoUploaded = true;
@@ -149,11 +173,11 @@ export async function attemptOutboxItem(item) {
       // IndexedDB-store, dus gegarandeerd aanwezig op elk item, ook op een outbox-item dat al
       // van vóór deze release in de wachtrij van een technieker staat). Dient server-side
       // (rapport.js) als idempotentiesleutel tegen een dubbele Zoho-bijlage.
-      const res  = await fetch('/api/rapport', {
+      const res  = await fetchWithTimeout('/api/rapport', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ html: item.html, ticketId: item.ticket.id, filename: item.ticket.filename, verzendId: item.id }),
-      });
+      }, 120000);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload mislukt');
 
@@ -164,7 +188,12 @@ export async function attemptOutboxItem(item) {
       item.zohoUploaded = true;
       await outboxPut(item);
     } catch (err) {
-      await logOutboxFailure(item, 'zoho-upload', err.message);
+      // Let op: een AbortError hier betekent NIET noodzakelijk dat de upload zelf mislukte —
+      // de server kan de Zoho-upload alsnog voltooien terwijl de client al opgaf op de
+      // time-out. Precies dat scenario dekt de server-side verzendId-idempotentie (rapport.js)
+      // af: een volgende poging met hetzelfde item.id/verzendId hangt dan geen tweede PDF aan.
+      const msg = err.name === 'AbortError' ? 'Geen antwoord van de server (time-out)' : err.message;
+      await logOutboxFailure(item, 'zoho-upload', msg);
       return item;
     }
 
@@ -173,16 +202,17 @@ export async function attemptOutboxItem(item) {
     // sowieso niet opnieuw geprobeerd (lokaal al als geüpload gemarkeerd), dus er
     // is geen risico meer op een dubbele upload. Enkel diagnostisch loggen.
     try {
-      const confirmRes  = await fetch('/api/rapport-archief', {
+      const confirmRes  = await fetchWithTimeout('/api/rapport-archief', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ ...item.archiveBody, id: item.id, zohoUploaded: true }),
-      });
+      }, 60000);
       const confirmData = await confirmRes.json().catch(() => ({}));
       if (!confirmRes.ok) throw new Error('Bevestigen van Zoho-upload in archief mislukt');
       if (typeof confirmData.versie === 'number') _archiefVersie = confirmData.versie;
     } catch (err) {
-      await logOutboxFailure(item, 'zoho-confirm', err.message);
+      const msg = err.name === 'AbortError' ? 'Geen antwoord van de server (time-out)' : err.message;
+      await logOutboxFailure(item, 'zoho-confirm', msg);
     }
     return attemptOutboxItem(item);
   }
@@ -220,6 +250,11 @@ export async function runOutboxItem(item) {
 export async function flushOutbox() {
   const items = await outboxGetAll();
   for (const item of items) {
+    // (T20) Backoff nog niet verstreken voor dit item -- overslaan tot een volgende
+    // flushOutbox()-trigger (opstart/online/zichtbaar-worden) of een handmatige "Opnieuw
+    // proberen" (die dit expliciet reset, zie renderOutboxBanner/outboxRetryNow).
+    const wachtTot = _outboxNextAttempt.get(item.id);
+    if (wachtTot && Date.now() < wachtTot) continue;
     // Per item afschermen: gooit één wachtrij-item een onverwachte fout (bv. een
     // mislukte IndexedDB-schrijfactie in attemptOutboxItem), dan mag dat de rest
     // van de wachtrij niet blokkeren. flushOutbox hangt bovendien rechtstreeks aan
