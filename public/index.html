@@ -3157,7 +3157,13 @@ async function autoPlan() {
       // ticket se locatie we niet kennen, is vrijgesteld van de reistijd-check. Zodra
       // de dag al een ticket bevat MET bekende locatie, moet ook de eerste toevoeging
       // binnen settings.maxReistijdMin vallen (bevestigd door Brent).
-      const seedPool = [...dayPool];
+      // Fix (bugronde 2026-09-22, item D, fix round 1): filteren op "past de seed in day.cap"
+      // gebeurt VÓÓR het sorteren op fillScore, niet erna -- zo blijven kleinere tickets die wél
+      // passen in aanmerking als seed wanneer de best-scorende kandidaat (bv. hoge prio, grote
+      // duurOverride) te groot is voor deze dag. Enkel wanneer NIEMAND in dayPool nog past, wordt
+      // de dag overgeslagen (het ticket/de tickets blijven in de pool voor een volgende/grotere
+      // dag, of eindigen uiteindelijk in de overflow-lijst).
+      const seedPool = [...dayPool].filter(t => Math.ceil(duurVoor(t.id) / settings.duurMinuten) <= day.cap);
       seedPool.sort((a, b) => fillScore(a, startLat, startLon) - fillScore(b, startLat, startLon));
       if (!seedPool.length) continue;
       const seedExempt = !lastExisting || anchorLat == null || anchorLon == null;
@@ -3170,13 +3176,6 @@ async function autoPlan() {
         seed = result.candidate;
         curTimeOfDay += result.legMin;
       }
-      // Fix (bugronde 2026-09-22, item D): een seed-ticket met duurOverride kan groter zijn dan de
-      // volledige dagcapaciteit -- zonder deze check werd het toch altijd toegevoegd, waardoor de
-      // dag méér tijdslots kreeg dan de instelling toelaat. Past de seed niet, dan slaan we deze dag
-      // over; het ticket blijft in de pool en komt aan bod bij een volgende (grotere) dag of eindigt
-      // anders in de overflow-lijst.
-      const seedSlots = Math.ceil(duurVoor(seed.id) / settings.duurMinuten);
-      if (seedSlots > day.cap) continue;
       pool.splice(pool.indexOf(seed), 1);
       const dayTickets = [seed];
       curTimeOfDay += duurVoor(seed.id);
@@ -3184,7 +3183,7 @@ async function autoPlan() {
       // Fill: ticket met laagste score t.o.v. huidige positie op die dag.
       // Tickets met duurOverride tellen als meerdere slots (naar boven afgerond).
       let curLat = seed._lat, curLon = seed._lon;
-      let usedSlots = Math.ceil(duurVoor(seed.id) / settings.duurMinuten); // seed telt al mee
+      let usedSlots = Math.ceil(duurVoor(seed.id) / settings.duurMinuten); // seed telt al mee, past altijd (seedPool is al gefilterd)
       while (usedSlots < day.cap && pool.length) {
         const fillPool = pool.filter(t => {
           if (kbBlocked(t.id, day.date)) return false;
