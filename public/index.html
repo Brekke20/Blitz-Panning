@@ -865,6 +865,43 @@ function saveToCache(key, data) {
   try { localStorage.setItem(key, JSON.stringify(data)); } catch { /* quota vol o.i.d. — cache is best-effort */ }
 }
 
+// Persistente geocode-cache (kaart-snelheid-onderzoek 2026-09-22, oorzaak 1): coördinaten die
+// TomTom al eens opzocht voor een adres, blijven bewaard tussen pagina-herladen/sessies — i.p.v.
+// enkel in-memory op planning[]-objecten te staan, die applyTicketsData() bij elke ticketherlaad
+// (dus ook de 5-min-poll) stilzwijgend wegwerpt (zie hieronder). Cap ~500 adressen, oudste
+// timestamp sneuvelt eerst bij overschrijding; 90 dagen TTL (een adres dat 3 maanden niet meer
+// gebruikt werd, wordt gewoon stilzwijgend opnieuw geocodeerd -- geen harde foutmelding nodig).
+const GEOCACHE_KEY    = 'blitz_geocache';
+const GEOCACHE_MAX    = 500;
+const GEOCACHE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
+function normAdres(adres) {
+  return String(adres || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+function loadGeocache() {
+  try { return JSON.parse(localStorage.getItem(GEOCACHE_KEY) || '{}'); } catch { return {}; }
+}
+function geocacheLookup(adres) {
+  const key = normAdres(adres);
+  if (!key) return null;
+  const hit = loadGeocache()[key];
+  if (!hit || (Date.now() - hit.t) > GEOCACHE_TTL_MS) return null;
+  return { lat: hit.lat, lon: hit.lon };
+}
+function geocacheStore(adres, lat, lon) {
+  const key = normAdres(adres);
+  if (!key || lat == null || lon == null) return;
+  const cache = loadGeocache();
+  cache[key] = { lat, lon, t: Date.now() };
+  const keys = Object.keys(cache);
+  if (keys.length > GEOCACHE_MAX) {
+    keys.sort((a, b) => cache[a].t - cache[b].t)
+        .slice(0, keys.length - GEOCACHE_MAX)
+        .forEach(k => delete cache[k]);
+  }
+  try { localStorage.setItem(GEOCACHE_KEY, JSON.stringify(cache)); } catch { /* quota vol — best-effort */ }
+}
+
 // Past geladen tickets-data (van cache of van een verse fetch) toe op de globale state en rendert.
 // reconcile: true betekent dat `data` verse fetch-data is waarvan de ticket-ID's als "live" mogen
 // gelden — enkel dan mogen reconcilePlanning()/gcKlantBeschikbaarheid() draaien (zie Task 12). Bij
@@ -897,7 +934,15 @@ function applyTicketsData(data, { reconcile = false } = {}) {
     const date = localISO(new Date(t.interventieDatum));
     if (!planning[date]) planning[date] = [];
     if (!planning[date].find(p => p.ticket.id === t.id)) {
-      planning[date].push({ ticket: t, address: t.address, uur: extractLocalHour(t.interventieDatum) });
+      const entry = { ticket: t, address: t.address, uur: extractLocalHour(t.interventieDatum) };
+      // Fix (kaart-snelheid-onderzoek 2026-09-22, oorzaak 1): dit entry-object wordt hier
+      // ALTIJD vers aangemaakt (elke loadTickets(), dus ook de 5-min-poll) zonder ooit de
+      // _lat/_lon van een eventueel eerder entry over te nemen. Een cache-hit op t.address is de
+      // meest voorkomende weg om dat te herstellen -- zonder deze regel gooit elke ticketherlaad
+      // de geocode stilzwijgend weg, ook al is het adres niet gewijzigd.
+      const hit = t.hasAddress && t.address ? geocacheLookup(t.address) : null;
+      if (hit) { entry._lat = hit.lat; entry._lon = hit.lon; }
+      planning[date].push(entry);
     }
   });
 
@@ -3019,35 +3064,42 @@ async function autoPlan() {
 
     // Geocoding + reistijdschatting via TomTom
     let travelMin = 30;
-    let originCoords = null;
     const geocodeStops = [...toplan, ...existingLastStops.map(s => s.ticket)];
-    if (!TEST_MODE && geocodeStops.length) {
+    // Cache raadplegen (geocode-cache) vóór TomTom nodig is.
+    geocodeStops.forEach(t => {
+      if (!t._lat) { const hit = geocacheLookup(t.address); if (hit) { t._lat = hit.lat; t._lon = hit.lon; } }
+    });
+    const nogTeGeocoden = geocodeStops.filter(t => !t._lat);
+    let originCoords = geocacheLookup(settings.startlocatie);
+
+    if (!TEST_MODE && nogTeGeocoden.length) {
       toast('Adressen geocoden...', 8000);
       try {
         const gRes  = await fetch('/api/optimize', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ origin: settings.startlocatie, stops: geocodeStops.map(t => t.address) }),
+          body:    JSON.stringify({ origin: settings.startlocatie, stops: nogTeGeocoden.map(t => t.address) }),
         });
         const gData = await gRes.json();
         if (gData.locations) {
-          geocodeStops.forEach((t, i) => {
-            t._lat = gData.locations[i+1]?.lat;
-            t._lon = gData.locations[i+1]?.lon;
+          nogTeGeocoden.forEach((t, i) => {
+            const loc = gData.locations[i+1];
+            if (loc) { t._lat = loc.lat; t._lon = loc.lon; geocacheStore(t.address, loc.lat, loc.lon); }
           });
-          // TomTom rijtijdschatting (enkel op basis van de nog te plannen tickets)
-          originCoords = gData.locations[0];
-          if (originCoords && toplan.length) {
-            toast('Rijtijden berekenen...', 8000);
-            const rRes  = await fetch('/api/route', {
-              method:  'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body:    JSON.stringify({ waypoints: [originCoords, ...toplan.filter(t => t._lat).map(t => ({ lat:t._lat, lon:t._lon }))] }),
-            });
-            const rData = await rRes.json();
-            if (rData.legs?.length) travelMin = Math.round(rData.totalTravelTimeSeconds / rData.legs.length / 60);
-          }
+          if (!originCoords && gData.locations[0]) { originCoords = gData.locations[0]; geocacheStore(settings.startlocatie, originCoords.lat, originCoords.lon); }
         }
+      } catch (e) { /* gebruik fallback 30 min */ }
+    }
+    if (!TEST_MODE && originCoords && toplan.length) {
+      toast('Rijtijden berekenen...', 8000);
+      try {
+        const rRes  = await fetch('/api/route', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ waypoints: [originCoords, ...toplan.filter(t => t._lat).map(t => ({ lat:t._lat, lon:t._lon }))] }),
+        });
+        const rData = await rRes.json();
+        if (rData.legs?.length) travelMin = Math.round(rData.totalTravelTimeSeconds / rData.legs.length / 60);
       } catch (e) { /* gebruik fallback 30 min */ }
     }
 
@@ -4002,7 +4054,7 @@ async function optimizeRoute() {
         || data.optimizedOrder.length !== vrij.length) {
       vrij.forEach((p, i) => {
         const loc = data.locations?.[i+1];
-        if (loc) { p._lat = loc.lat; p._lon = loc.lon; }
+        if (loc) { p._lat = loc.lat; p._lon = loc.lon; geocacheStore(p.address, loc.lat, loc.lon); }
       });
       toast('⚠️ Optimalisatie niet beschikbaar — volgorde ongewijzigd', 4500);
       renderRouteList(date);
@@ -4014,7 +4066,7 @@ async function optimizeRoute() {
     const geoptimaliseerd = data.optimizedOrder.map(i => {
       const p   = vrij[i];
       const loc = data.locations?.[i+1];
-      if (loc) { p._lat = loc.lat; p._lon = loc.lon; }
+      if (loc) { p._lat = loc.lat; p._lon = loc.lon; geocacheStore(p.address, loc.lat, loc.lon); }
       return p;
     });
     const samengevoegd = mergeMetAnkers(geoptimaliseerd, ankers);
@@ -4022,6 +4074,23 @@ async function optimizeRoute() {
     noAddr.forEach(p => samengevoegd.push({ kind: 'ticket', item: p, uur: p.uur }));
     await applyRouteOrder(date, samengevoegd);
   } catch (err) { toast('❌ ' + err.message, 4000); await calculateRoute(); }
+}
+
+// Vroeg inzoomen (kaart-snelheid-onderzoek, voorstellen): zoomt de kaart alvast in op de stops
+// die al coördinaten hebben (uit de geocode-cache of een eerdere berekening deze sessie), vóór
+// calculateRoute() zijn eigen netwerkaanroepen doet — de juiste tegels beginnen dan al te laden
+// terwijl TomTom de effectieve route nog berekent. Geen effect als er nog niets gekend is (dan
+// blijft de kaart gewoon op zijn huidige stand). Leaflet's fitBounds() hierna in updateMap()
+// blijft gewoon opnieuw gebeuren op de definitieve polylijn zodra de route binnen is; overlappen
+// de bounds al (het normale geval bij een cache-hit), dan is er visueel geen tweede sprong.
+function fitBoundsToKnownStops(date, stops, localForDate) {
+  if (!leafletMap || (currentRouteDate === date && routeData?.polyline?.length)) return;
+  const pts = [
+    ...stops.filter(p => p._lat).map(p => [p._lat, p._lon]),
+    ...localForDate.filter(e => e._lat).map(e => [e._lat, e._lon]),
+  ];
+  if (!pts.length) return;
+  try { leafletMap.fitBounds(L.latLngBounds(pts), { padding: [40, 40] }); } catch { /* kaart nog niet klaar — negeren */ }
 }
 
 async function calculateRoute() {
@@ -4038,38 +4107,48 @@ async function calculateRoute() {
     (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
   );
   if (!stops.length && !localForDate.length) return;
-  toast('Route berekenen...', 8000);
+
+  // Cache-hydratatie (punt a) — vóór er iets van TomTom nodig is.
+  stops.forEach(p => { if (!p._lat) { const hit = geocacheLookup(p.address); if (hit) { p._lat = hit.lat; p._lon = hit.lon; } } });
+  localForDate.forEach(e => { if (!e._lat) { const hit = geocacheLookup(e.adres || e.notitie); if (hit) { e._lat = hit.lat; e._lon = hit.lon; } } });
+
+  // Vroeg inzoomen (punt d) — vóór de netwerkaanroepen, op wat al gekend is.
+  fitBoundsToKnownStops(date, stops, localForDate);
+
+  const needsGeo      = stops.filter(p => !p._lat && p.ticket?.hasAddress && p.address);
+  const localNeedsGeo = localForDate.filter(e => !e._lat);
+  let origin = geocacheLookup(settings.startlocatie);
+
+  if (needsGeo.length || localNeedsGeo.length) toast('Adressen opzoeken...', 8000);
+  else toast('Route berekenen...', 8000);
   try {
-    // Geocodeer Zoho stops zonder coördinaten
-    const needsGeo = stops.filter(p => !p._lat && p.ticket?.hasAddress && p.address);
-    if (needsGeo.length) {
+    // Gebundelde geocode-aanvraag (i.p.v. 3 sequentiële): needsGeo + localNeedsGeo in ÉÉN
+    // /api/optimize-call — optimize.js geocodeert zijn `stops`-array toch al parallel
+    // server-side (optimize.js:58-61). `origin` is een verplicht veld van /api/optimize; is de
+    // startlocatie al gekend uit de cache, dan sturen we 'm toch mee (anders faalt de aanvraag
+    // op "Missing origin"), maar negeren we `locations[0]` van het antwoord. Is er helemaal
+    // niets te geocoderen (alles al gekend, incl. startlocatie), dan wordt /api/optimize
+    // volledig overgeslagen.
+    if (needsGeo.length || localNeedsGeo.length || !origin) {
+      const combinedAdressen = [...needsGeo.map(p => p.address), ...localNeedsGeo.map(e => e.adres || e.notitie)];
       const gRes  = await fetch('/api/optimize', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ origin: settings.startlocatie, stops: needsGeo.map(p => p.address) }),
+        body:    JSON.stringify({
+          origin: settings.startlocatie,
+          stops:  combinedAdressen.length ? combinedAdressen : [settings.startlocatie],
+        }),
       });
       const gData = await gRes.json();
-      if (gData.locations) needsGeo.forEach((p, i) => { p._lat = gData.locations[i+1]?.lat; p._lon = gData.locations[i+1]?.lon; });
+      if (gData.locations) {
+        let i = 1;
+        needsGeo.forEach(p => { const loc = gData.locations[i++]; if (loc) { p._lat = loc.lat; p._lon = loc.lon; geocacheStore(p.address, loc.lat, loc.lon); } });
+        localNeedsGeo.forEach(e => { const loc = gData.locations[i++]; if (loc) { e._lat = loc.lat; e._lon = loc.lon; geocacheStore(e.adres || e.notitie, loc.lat, loc.lon); } });
+        if (!origin && gData.locations[0]) { origin = gData.locations[0]; geocacheStore(settings.startlocatie, origin.lat, origin.lon); }
+      }
     }
-    // Geocodeer lokale events zonder coördinaten
-    const localNeedsGeo = localForDate.filter(e => !e._lat);
-    if (localNeedsGeo.length) {
-      const gRes  = await fetch('/api/optimize', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ origin: settings.startlocatie, stops: localNeedsGeo.map(e => e.adres || e.notitie) }),
-      });
-      const gData = await gRes.json();
-      if (gData.locations) localNeedsGeo.forEach((e, i) => { e._lat = gData.locations[i+1]?.lat; e._lon = gData.locations[i+1]?.lon; });
-    }
-    const orgRes  = await fetch('/api/optimize', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ origin: settings.startlocatie, stops: [settings.startlocatie] }),
-    });
-    const orgData = await orgRes.json();
-    const origin  = orgData.locations?.[0];
-    if (!origin) throw new Error(orgData.error || 'Startlocatie niet gevonden');
+    if (!origin) throw new Error('Startlocatie niet gevonden');
+    toast('Route berekenen...', 8000);
     // Combineer geocoded Zoho stops + lokale events als waypoints, gesorteerd op ingesteld
     // uur (geen uur = achteraan) zodat de route de echte geplande volgorde volgt i.p.v.
     // altijd Zoho-tickets vóór handmatige afspraken te zetten.
