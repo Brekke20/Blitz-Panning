@@ -4204,6 +4204,7 @@ async function laadDrukteDetail(date, rData) {
   // departAt wél sections terug, maar dat zijn geplande wegenwerken/afsluitingen (geen
   // drukte-signaal) — zie updateMap() voor hoe die er los bovenop getekend worden.
   if (!settings.drukteKleuring || !rData.departAtUsed || !(rData.polyline?.length >= 2)) return;
+  toast('Drukte laden...', 4000);
   try {
     const res  = await fetch('/api/drukte', {
       method:  'POST',
@@ -4228,9 +4229,15 @@ async function laadDrukteDetail(date, rData) {
 // ══════════════════════════════════════════════
 // KAART
 // ══════════════════════════════════════════════
-// Kaartlagen — 4 gratis basiskaarten, keuze wordt per persoon onthouden in settings.kaartStijl.
+// Kaartlagen — 5 gratis basiskaarten, keuze wordt per persoon onthouden in settings.kaartStijl.
+// Esri als 'standaard' (kaart-snelheid-onderzoek 2026-09-22): commerciële CDN zonder OSM's
+// "fair use"-beleid/throttling-risico. OpenStreetMap blijft gewoon kiesbaar (sleutel 'osm').
+// Migratie: een eerder opgeslagen settings.kaartStijl === 'standaard' wijst voortaan automatisch
+// naar deze nieuwe laag — 'standaard' blijft een geldige sleutel, enkel de laag erachter wijzigt
+// (aanvaardbaar, geen aparte migratiecode nodig).
 const KAART_LAGEN = {
-  standaard: { naam: 'Standaard', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', opts: { attribution: '© OpenStreetMap', maxZoom: 19 } },
+  standaard: { naam: 'Standaard', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', opts: { attribution: 'Tiles © Esri', maxZoom: 19 } },
+  osm:       { naam: 'OpenStreetMap', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', opts: { attribution: '© OpenStreetMap', maxZoom: 19 } },
   // CARTO's gratis anonieme tegels vereisen sinds kort een API-key (watermerk "API KEY
   // REQUIRED") — vervangen door Esri's gratis Canvas-basemaps. Die stoppen op zoom 16;
   // maxNativeZoom houdt de laatst geladen tegel scherp bij verder inzoomen i.p.v. blanco.
