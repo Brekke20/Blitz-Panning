@@ -455,6 +455,10 @@
     }
     .cal-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border); }
 
+    @media (max-width: 767px) {
+      .cal-btn { min-height: 44px; padding: 10px 6px; }
+    }
+
     /* ── Lokale afspraken (import / manueel) ── */
     .cal-local-event {
       position: relative;
