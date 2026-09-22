@@ -246,7 +246,10 @@
       </div>
       <div class="set-field">
         <label class="set-label">Kleur routelijn</label>
-        <input class="set-input" id="set-routekleur" type="color">
+        <div class="set-row" style="gap:10px;align-items:center">
+          <input class="set-color-swatch" id="set-routekleur" type="color">
+          <span class="set-color-hex" id="set-routekleur-hex"></span>
+        </div>
       </div>
       <div class="set-field">
         <label class="set-label">Drukte tonen op de route (verwachte vertraging per wegstuk)</label>
@@ -783,6 +786,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.querySelectorAll('.rapp-filter-btn').forEach(btn => {
     btn.addEventListener('click', () => setRapportFilter(btn.dataset.filter));
+  });
+  document.getElementById('set-routekleur')?.addEventListener('input', (e) => {
+    document.getElementById('set-routekleur-hex').textContent = e.target.value.toUpperCase();
   });
   try {
     initMap();
@@ -4901,6 +4907,7 @@ function openSettings() {
   document.getElementById('set-tot').value      = settings.totTijd;
   document.getElementById('set-tijdslot').value = settings.tijdslotMinuten;
   document.getElementById('set-routekleur').value = settings.routeKleur || DEFAULT_SETTINGS.routeKleur;
+  document.getElementById('set-routekleur-hex').textContent = (settings.routeKleur || DEFAULT_SETTINGS.routeKleur).toUpperCase();
   document.getElementById('set-drukte').checked   = settings.drukteKleuring !== false;
   const grid = document.getElementById('days-grid');
   grid.innerHTML = '';

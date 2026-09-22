@@ -736,6 +736,11 @@
     .set-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
     .set-row { display: flex; gap: 8px; align-items: center; }
     .set-row .set-input { flex: 1; }
+    .set-color-swatch {
+      width: 44px; height: 32px; padding: 2px; border: 1px solid var(--border); border-radius: var(--r);
+      background: var(--surface2); cursor: pointer; flex-shrink: 0;
+    }
+    .set-color-hex { font-size: 0.82rem; font-family: 'SF Mono', 'Consolas', monospace; color: var(--text); text-transform: uppercase; }
     .days-grid { display: flex; gap: 5px; flex-wrap: wrap; }
     .day-btn {
       padding: 5px 11px; border-radius: 20px; font-size: 0.76rem; font-weight: 500;
