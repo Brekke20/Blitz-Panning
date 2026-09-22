@@ -2827,11 +2827,33 @@ function capacityForDay(dateStr, travelMin = 30) {
     e.date === dateStr && e.kind === 'range' &&
     (e.scope === 'global' || (myPerson && e.person === myPerson))
   );
+
+  // Clip elke uitzondering op de werkdag [vanTijd, totTijd], dan sorteren en unie-en
+  // (union) vóór het optellen zodat overlappende blokken niet dubbel geteld worden.
+  const dagStart = vanH * 60 + vanM;
+  const dagEind  = totH * 60 + totM;
+  const intervals = dayExceptions
+    .map(e => {
+      const [fh, fm] = e.from.split(':').map(Number);
+      const [th, tm] = e.to.split(':').map(Number);
+      const start = Math.max(dagStart, fh * 60 + fm);
+      const eind  = Math.min(dagEind, th * 60 + tm);
+      return eind > start ? [start, eind] : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a[0] - b[0]);
+
   let blockedMin = 0;
-  for (const e of dayExceptions) {
-    const [fh, fm] = e.from.split(':').map(Number);
-    const [th, tm] = e.to.split(':').map(Number);
-    blockedMin += Math.max(0, (th * 60 + tm) - (fh * 60 + fm));
+  let curEnd = -Infinity;
+  for (const [start, eind] of intervals) {
+    if (start >= curEnd) {
+      blockedMin += eind - start;
+      curEnd = eind;
+    } else if (eind > curEnd) {
+      blockedMin += eind - curEnd;
+      curEnd = eind;
+    }
+    // else: volledig binnen het al geteld interval -- niets toevoegen
   }
 
   const available = Math.max(0, totalMin - blockedMin);
