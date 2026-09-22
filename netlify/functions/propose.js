@@ -111,7 +111,7 @@ function roundToNextQuarter(timeStr) {
 // toepassen is onschadelijk en beschermt tegen een toekomstig ander aanroeppad naar /api/propose.
 function cleanTicketSubject(raw) {
   let s = String(raw || '').trim();
-  const prefixRe = /^(fw|fwd|re)\s*:\s*/i;
+  const prefixRe = /^(fw|fwd|re|aw|wg|tr)\s*:\s*/i;
   let prev;
   do { prev = s; s = s.replace(prefixRe, '').trim(); } while (s !== prev);
   if (/^nieuw contactbericht van\b/i.test(s)) s = '';

@@ -5198,7 +5198,7 @@ function openProposal(ticketId, date, arrivalMin) {
 // (UX-ronde 2026-09-22, item 2).
 function cleanTicketSubject(raw) {
   let s = String(raw || '').trim();
-  const prefixRe = /^(fw|fwd|re)\s*:\s*/i;
+  const prefixRe = /^(fw|fwd|re|aw|wg|tr)\s*:\s*/i;
   let prev;
   do { prev = s; s = s.replace(prefixRe, '').trim(); } while (s !== prev);
   if (/^nieuw contactbericht van\b/i.test(s)) s = '';
