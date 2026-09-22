@@ -772,7 +772,17 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.rapp-filter-btn').forEach(btn => {
     btn.addEventListener('click', () => setRapportFilter(btn.dataset.filter));
   });
-  initMap();
+  try {
+    initMap();
+  } catch (err) {
+    // Fix (bugronde 2026-09-22, item G): een falende kaart-bibliotheek (Leaflet-CDN onbereikbaar)
+    // mag de rest van de opstartreeks (tickets, polling, ...) niet blokkeren.
+    console.error('Kaart kon niet geladen worden (Leaflet):', err);
+    const mapWrap = document.getElementById('map-wrap') || document.getElementById('map');
+    if (mapWrap) {
+      mapWrap.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:0.85rem">⚠️ Kaart kon niet geladen worden. De rest van de app werkt gewoon — herlaad de pagina om de kaart opnieuw te proberen.</div>';
+    }
+  }
   loadPrijzen();
   loadAvailability();
   loadInventaris().then(() => {
@@ -4175,6 +4185,8 @@ function applyKaartStijl() {
 }
 
 function updateMap(date) {
+  // Fix (bugronde 2026-09-22, item G): geen kaart (Leaflet-CDN faalde) -- niets te tekenen.
+  if (!leafletMap || !routeLayer) return;
   routeLayer.clearLayers();
   // Legende hoort bij de drukte-overlay, dus eerst weghalen — wordt hieronder opnieuw
   // toegevoegd als er effectief een route + drukte-kleuring getoond wordt.
