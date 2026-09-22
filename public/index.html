@@ -4214,7 +4214,7 @@ function initMap() {
   });
   const startSleutel = KAART_LAGEN[settings.kaartStijl] ? settings.kaartStijl : 'standaard';
   kaartBaseLayers[KAART_LAGEN[startSleutel].naam].addTo(leafletMap);
-  L.control.layers(kaartBaseLayers, null, { position: 'topright', collapsed: true }).addTo(leafletMap);
+  L.control.layers(kaartBaseLayers, null, { position: 'topright', collapsed: false }).addTo(leafletMap);
   leafletMap.on('baselayerchange', e => {
     const sleutel = Object.keys(KAART_LAGEN).find(k => KAART_LAGEN[k].naam === e.name);
     if (!sleutel) return;
