@@ -2868,9 +2868,9 @@ function nextAvailableDay(fromDate) {
     if (d >= today) {
       const dStr = localISO(d);
       if (settings.werkdagen.includes(d.getDay())) {
-        const alreadyPlanned = (planning[dStr] || []).filter(p =>
-          activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-        ).length;
+        const alreadyPlanned = (planning[dStr] || [])
+          .filter(p => activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter)
+          .reduce((sum, p) => sum + Math.ceil(duurVoor(p.ticket.id) / settings.duurMinuten), 0);
         if (capacityForDay(dStr) - alreadyPlanned > 0) return dStr;
       }
     }
@@ -3039,9 +3039,9 @@ async function autoPlan() {
 
     const availDays = [];
     for (const dStr of weekDates) {
-      const alreadyPlanned = (planning[dStr] || []).filter(p =>
-        activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-      ).length;
+      const alreadyPlanned = (planning[dStr] || [])
+        .filter(p => activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter)
+        .reduce((sum, p) => sum + Math.ceil(duurVoor(p.ticket.id) / settings.duurMinuten), 0);
       const cap = capacityForDay(dStr, travelMin) - alreadyPlanned;
       if (cap > 0) availDays.push({ date: dStr, cap });
     }
@@ -3170,6 +3170,13 @@ async function autoPlan() {
         seed = result.candidate;
         curTimeOfDay += result.legMin;
       }
+      // Fix (bugronde 2026-09-22, item D): een seed-ticket met duurOverride kan groter zijn dan de
+      // volledige dagcapaciteit -- zonder deze check werd het toch altijd toegevoegd, waardoor de
+      // dag méér tijdslots kreeg dan de instelling toelaat. Past de seed niet, dan slaan we deze dag
+      // over; het ticket blijft in de pool en komt aan bod bij een volgende (grotere) dag of eindigt
+      // anders in de overflow-lijst.
+      const seedSlots = Math.ceil(duurVoor(seed.id) / settings.duurMinuten);
+      if (seedSlots > day.cap) continue;
       pool.splice(pool.indexOf(seed), 1);
       const dayTickets = [seed];
       curTimeOfDay += duurVoor(seed.id);
