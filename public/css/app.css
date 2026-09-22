@@ -455,7 +455,8 @@
     }
     .cal-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border); }
 
-    @media (max-width: 767px) {
+    /* 44px tikbare knoppen op technieker-weergave (tablet + mobiel, gelijk aan .desktop-only grens) */
+    @media (max-width: 1023px) {
       .cal-btn { min-height: 44px; padding: 10px 6px; }
     }
 
