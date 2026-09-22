@@ -537,6 +537,7 @@
     .av-radio-btn.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent-glow); font-weight: 600; }
     .av-time-row { display: flex; gap: 8px; align-items: center; }
     .av-time-input { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 5px 8px; font-size: 0.82rem; font-family: inherit; width: 90px; }
+    input[type="date"].av-time-input { width: 136px; }
     .av-time-input:focus { outline: none; border-color: var(--accent); }
     .av-reden-input { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 5px 8px; font-size: 0.82rem; font-family: inherit; width: 100%; }
     .av-reden-input:focus { outline: none; border-color: var(--accent); }
