@@ -206,6 +206,24 @@ export async function outboxRetryNow(id) {
   renderRapportArchief();
 }
 
+// (Fix-ronde 2, punt 2) Een 409 "al bezig in een ander venster" (server-side in-flight-
+// reservering, zie rapport.js) is een BENIGNE, verwachte wachttoestand -- geen echte fout: een
+// andere sessie/tab is gewoon nog bezig met exact hetzelfde rapport. We tonen dit wel via
+// item.lastError (dezelfde banner-weergave als een echte fout) en passen dezelfde backoff toe,
+// maar tellen het niet bij élke herhaalde 409 opnieuw mee in item.attempts -- anders zou het
+// balkje bij een lang wachtende andere sessie een steeds oplopend "poging N" tonen alsof er
+// iets misloopt, terwijl het gewoon normaal aan het wachten is. Wél één keer meegeteld (bij de
+// eerste 409 voor dit item) zodat er zichtbaar íets gebeurd is. Geen /api/client-log-melding --
+// dit is geen fout om te diagnosticeren.
+async function logOutboxWait(item, fout) {
+  if (item.lastError !== fout) {
+    item.attempts = (item.attempts || 0) + 1;
+  }
+  item.lastError = fout;
+  _outboxNextAttempt.set(item.id, Date.now() + OUTBOX_BACKOFF_MS[Math.min(Math.max(item.attempts, 1) - 1, OUTBOX_BACKOFF_MS.length - 1)]);
+  try { await outboxPut(item); } catch { /* best-effort */ }
+}
+
 export async function logOutboxFailure(item, stap, fout) {
   item.attempts  = (item.attempts || 0) + 1;
   item.lastError = fout;
@@ -278,7 +296,14 @@ export async function attemptOutboxItem(item) {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ html: item.html, ticketId: item.ticket.id, filename: item.ticket.filename, verzendId: item.id }),
       }, 120000, item.id);
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      // (Fix-ronde 2, punt 2) Server-side in-flight-reservering: een andere sessie/tab is al
+      // bezig met exact hetzelfde rapport (zelfde verzendId). Geen echte fout -- gewoon wachten
+      // en later opnieuw proberen (normale backoff, zie logOutboxWait hierboven).
+      if (res.status === 409 && data?.inProgress) {
+        await logOutboxWait(item, 'Verzending is al bezig in een ander venster — even wachten');
+        return item;
+      }
       if (!res.ok) throw new Error(data.error || 'Upload mislukt');
 
       // De Zoho-upload zelf is gelukt — dit ONMIDDELLIJK lokaal vastleggen, nog

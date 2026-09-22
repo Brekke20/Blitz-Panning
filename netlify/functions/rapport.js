@@ -52,13 +52,69 @@ export function isAlVerzonden(verzendId, rapporten) {
 // definitie niet geannuleerd, ongeacht wat een racende cancel-call ervoor schreef. Dit dekt de
 // volgorde "cancel eerst, upload-bevestiging erna" (het scenario uit de review); de omgekeerde
 // volgorde wordt afgedekt door dezelfde bescherming in het dedup-blok van rapport-archief.js.
+//
+// (Fix-ronde 2, punt 2) Zet ook uploadInFlightSince op null -- de definitieve markering wist de
+// in-flight-reservering (zie hieronder), zodat een latere (overbodige) poging voor ditzelfde
+// verzendId niet per ongeluk nog als "in-progress" beschouwd zou worden.
 export function pasMarkeringToe(rapporten, verzendId, attachmentId) {
   if (!verzendId) return null;
   const idx = (rapporten || []).findIndex(r => r.id === verzendId);
   if (idx < 0) return null;
   if (rapporten[idx].zohoUploaded === true) return null;
   const updated = [...rapporten];
-  updated[idx] = { ...updated[idx], zohoUploaded: true, zohoAttachmentId: attachmentId, geannuleerd: false };
+  updated[idx] = { ...updated[idx], zohoUploaded: true, zohoAttachmentId: attachmentId, geannuleerd: false, uploadInFlightSince: null };
+  return updated;
+}
+
+// ── Fix-ronde 2, punt 2: vroege in-flight-reservering (NIET atomair) ──────────────────────────
+// De review vroeg om een atomaire reservering via conditional writes (`onlyIfMatch` op
+// `store.setJSON`). Die primitive bestaat niet in het geïnstalleerde `@netlify/blobs@8.2.0` (zie
+// Fix-ronde 1 in task-20-report.md voor de volledige onderbouwing: `set`/`setJSON` accepteren
+// enkel `{ metadata }`, geen conditioneel-schrijf-argument, geen `modified`-resultaat). Controller-
+// beslissing (Fix-ronde 2): geen SDK-upgrade in deze release -- dit is dus een BEST-EFFORT
+// mitigatie, geen harde garantie. Een gewone read-modify-write (zelfde patroon als
+// pasMarkeringToe/markeerUpgeload hierboven) kan nog steeds "verliezen": als twee aanvragen voor
+// hetzelfde verzendId de blob binnen enkele tientallen milliseconden van elkaar lezen, zien beide
+// "nog geen actieve reservering" en schrijven beide een reservering (de laatste schrijver wint,
+// zonder foutmelding). Het venster waarin dit kan gebeuren krimpt echter van de volledige
+// PDF-generatie+Zoho-upload-duur (typisch enkele seconden tot een kleine minuut) naar de GET→SET-
+// latentie van deze functie alleen (~100ms) -- dat is het best haalbare zonder een compare-and-
+// swap-primitive. Vervolgstap (niet in deze release): @netlify/blobs upgraden naar een versie met
+// `onlyIfMatch`/conditionele writes en dit alsnog echt atomair maken.
+const IN_FLIGHT_TIMEOUT_MS = 3 * 60 * 1000; // 3 minuten
+
+// Pure functie -- bepaalt of een archief-entry een nog-actieve in-flight-reservering heeft.
+export function heeftActieveReservering(entry, nu = Date.now()) {
+  if (!entry?.uploadInFlightSince) return false;
+  const sinds = Date.parse(entry.uploadInFlightSince);
+  if (Number.isNaN(sinds)) return false; // corrupte/onverwachte waarde -- geen blocker, behandel als "geen reservering"
+  return (nu - sinds) < IN_FLIGHT_TIMEOUT_MS;
+}
+
+// Pure functie -- bepaalt HOE de rapports-array bijgewerkt moet worden om een in-flight-
+// reservering te zetten. Retourneert null als er niets te doen is: geen bijhorende archief-entry
+// (defensief -- zou niet mogen gebeuren gezien de vaste volgorde archive→upload, zie
+// checkAlUpgeload hierboven voor dezelfde redenering), of een reeds actieve reservering (die de
+// caller normaliter al via heeftActieveReservering() heeft afgevangen vóór deze aan te roepen).
+export function pasReserveringToe(rapporten, verzendId, nu = Date.now()) {
+  if (!verzendId) return null;
+  const idx = (rapporten || []).findIndex(r => r.id === verzendId);
+  if (idx < 0) return null;
+  if (heeftActieveReservering(rapporten[idx], nu)) return null;
+  const updated = [...rapporten];
+  updated[idx] = { ...updated[idx], uploadInFlightSince: new Date(nu).toISOString() };
+  return updated;
+}
+
+// Pure functie -- wist een in-flight-reservering (best-effort na een mislukte poging, zodat een
+// retry niet nodeloos tot 3 minuten moet wachten op zijn eigen vorige, mislukte reservering).
+// Retourneert null als er niets te wissen valt (geen match, of al leeg).
+export function wisReservering(rapporten, verzendId) {
+  if (!verzendId) return null;
+  const idx = (rapporten || []).findIndex(r => r.id === verzendId);
+  if (idx < 0 || !rapporten[idx].uploadInFlightSince) return null;
+  const updated = [...rapporten];
+  updated[idx] = { ...updated[idx], uploadInFlightSince: null };
   return updated;
 }
 
@@ -88,6 +144,45 @@ async function markeerUpgeload(verzendId, attachmentId) {
       return;
     } catch { /* conflict of tijdelijke fout -- volgende poging leest de nieuwste versie opnieuw */ }
   }
+}
+
+// (Fix-ronde 2, punt 2) Best-effort: probeert een in-flight-reservering te zetten. Retourneert
+// 'in-progress' als een ANDERE, nog-actieve poging deze al gezet heeft (caller moet dan een 409
+// teruggeven), 'gereserveerd' bij succes, of 'doorgaan' in elk ander geval (geen verzendId, geen
+// archief-entry gevonden, of de check/schrijf zelf faalde) -- in dat laatste geval gaat de upload
+// gewoon normaal door, precies zoals vóór deze fix-ronde. Niet atomair, zie het commentaarblok
+// bij IN_FLIGHT_TIMEOUT_MS hierboven.
+async function reserveerOfWeiger(verzendId) {
+  if (!verzendId) return 'doorgaan';
+  try {
+    const store = getStore({ name: 'blitz-data', consistency: 'strong' });
+    const data  = (await store.get(BLOB_KEY, { type: 'json' })) || { versie: 0, rapports: [] };
+    const idx   = (data.rapports || []).findIndex(r => r.id === verzendId);
+    if (idx >= 0 && heeftActieveReservering(data.rapports[idx])) return 'in-progress';
+    const updated = pasReserveringToe(data.rapports, verzendId);
+    if (!updated) return 'doorgaan'; // geen archief-entry (nog) gevonden -- niets te reserveren
+    await store.setJSON(BLOB_KEY, { versie: data.versie + 1, rapports: updated });
+    return 'gereserveerd';
+  } catch {
+    return 'doorgaan'; // best-effort -- een falende reservering mag de upload niet blokkeren
+  }
+}
+
+// (Fix-ronde 2, punt 2) Best-effort: wist een eerder gezette in-flight-reservering ná een
+// mislukte poging (Puppeteer-fout, Zoho-fout, ...), zodat een volgende retry niet nodeloos tot
+// 3 minuten moet wachten op zijn eigen vorige, mislukte reservering. Faalt dit zelf, dan blijft
+// de reservering gewoon staan tot ze na 3 minuten vanzelf als verlopen behandeld wordt
+// (heeftActieveReservering) -- geen blijvend geblokkeerde staat.
+async function wisReserveringBestEffort(verzendId) {
+  if (!verzendId) return;
+  try {
+    const store = getStore({ name: 'blitz-data', consistency: 'strong' });
+    const data  = await store.get(BLOB_KEY, { type: 'json' });
+    if (!data) return;
+    const updated = wisReservering(data.rapports, verzendId);
+    if (!updated) return;
+    await store.setJSON(BLOB_KEY, { versie: data.versie + 1, rapports: updated });
+  } catch { /* best-effort, zie hierboven */ }
 }
 
 // Chromium release URL — moet overeenkomen met @sparticuz/chromium-min versie
@@ -139,6 +234,11 @@ export async function handler(event) {
   }
 
   let browser;
+  // (Fix-ronde 2, punt 2) Buiten de try gedeclareerd (net als `browser`), zodat de catch
+  // hieronder er ook bij kan om een eventuele in-flight-reservering na een mislukte poging op
+  // te ruimen.
+  let verzendId;
+  let reserveringGezet = false;
   try {
     const { html, ticketId, filename = 'service-rapport.pdf', verzendId: rawVerzendId } = JSON.parse(event.body || '{}');
     if (!html || !ticketId) {
@@ -149,7 +249,7 @@ export async function handler(event) {
     }
     // (Fix-ronde 1, punt 3) Een ongeldig-gevormd verzendId wordt genegeerd i.p.v. de aanvraag te
     // weigeren -- de idempotentie is een bonus, geen vereiste voor het kernpad.
-    const verzendId = normaliseerVerzendId(rawVerzendId);
+    verzendId = normaliseerVerzendId(rawVerzendId);
 
     // (T20) Idempotentie: was dit verzendId al eerder succesvol geüpload (server-side gelukt,
     // maar het antwoord bereikte de client toen nooit)? Dan niet nogmaals genereren/uploaden --
@@ -162,6 +262,21 @@ export async function handler(event) {
         body: JSON.stringify({ success: true, attachmentId: alGedaan.zohoAttachmentId || null, alreadyUploaded: true }),
       };
     }
+
+    // (Fix-ronde 2, punt 2) Vroege in-flight-reservering -- VÓÓR Puppeteer/de Zoho-upload (het
+    // dure, meerdere-seconden-durende deel), zodat een gelijktijdige tweede aanvraag voor
+    // hetzelfde verzendId al vroeg met een 409 kan afgewezen worden i.p.v. zelf ook nog eens een
+    // volledige PDF te genereren en te uploaden. Best-effort/niet-atomair, zie het commentaarblok
+    // bij IN_FLIGHT_TIMEOUT_MS hierboven.
+    const reservering = await reserveerOfWeiger(verzendId);
+    if (reservering === 'in-progress') {
+      return {
+        statusCode: 409,
+        headers,
+        body: JSON.stringify({ error: 'Upload van dit rapport is al bezig', inProgress: true }),
+      };
+    }
+    reserveringGezet = reservering === 'gereserveerd';
 
     // ── 1. PDF genereren ──────────────────────────────────────────────────────
     const executablePath = await chromium.executablePath(CHROMIUM_URL);
@@ -239,6 +354,10 @@ export async function handler(event) {
     };
   } catch (err) {
     if (browser) await browser.close().catch(() => {});
+    // (Fix-ronde 2, punt 2) Alleen opruimen als DEZE aanroep de reservering zette -- staat er een
+    // reservering van een ANDERE, nog lopende poging (bv. 'in-progress' hierboven al afgehandeld,
+    // of 'doorgaan' omdat de check zelf faalde), dan raken we die hier niet aan.
+    if (reserveringGezet) await wisReserveringBestEffort(verzendId);
     return {
       statusCode: 500,
       headers,
