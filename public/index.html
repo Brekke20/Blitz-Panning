@@ -3584,7 +3584,7 @@ function renderRouteList(date) {
         <div class="stop-top">
           <div class="stop-num"${locked ? ' title="Tijdstip is aan de klant gecommuniceerd"' : ''}>${i+1}${locked ? '🔒' : ''}${heeftVoorkeursuur ? '<span class="stop-preftime" title="Voorkeursuur van de klant — tijdstip wordt niet verzet">🕐</span>' : ''}</div>
           <div class="stop-info">
-            <div class="stop-sub">${escHtml(item.ticket.subject) || '—'}</div>
+            <div class="stop-sub"><span class="stop-numtag">#${escHtml(item.ticket.number)}</span>${escHtml(item.ticket.subject) || '—'}</div>
             <div class="stop-addr">${escHtml(item.address) || 'Geen adres'}</div>
             ${timeHtml}${blok ? `<div class="stop-time">${blokIsGemaild ? '📨' : '🕐'} ${escHtml(blok)}</div>` : ''}${arrivalHtml}
             ${(voorstelStatus[item.ticket.id]?.contact || voorstelStatus[item.ticket.id]?.klant || voorstelStatus[item.ticket.id]?.installateur) ? '<div class="stop-proposal-sent">✉️ Voorstel verstuurd</div>' : ''}
