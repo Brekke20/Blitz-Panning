@@ -1185,6 +1185,9 @@ async function removeTicketFromDate(ticketId, date) {
       stop.ticket.interventieDatum = null;
       allTickets.push(stop.ticket);
       allTickets.sort((a, b) => (a.number || 0) - (b.number || 0));
+      // Fix (bugronde 2026-09-22, item A): ticket ook uit wachtrij/gepland-lijsten halen
+      allPending = allPending.filter(t => t.id !== ticketId);
+      allGepland = allGepland.filter(t => t.id !== ticketId);
       document.getElementById('cnt-tickets').textContent = allTickets.length;
     } catch (err) {
       // Revert
@@ -1195,6 +1198,9 @@ async function removeTicketFromDate(ticketId, date) {
   } else {
     stop.ticket.interventieDatum = null;
     allTickets.push(stop.ticket);
+    // Fix (bugronde 2026-09-22, item A): ticket ook uit wachtrij/gepland-lijsten halen
+    allPending = allPending.filter(t => t.id !== ticketId);
+    allGepland = allGepland.filter(t => t.id !== ticketId);
     document.getElementById('cnt-tickets').textContent = allTickets.length;
   }
 
