@@ -5291,6 +5291,15 @@ async function sendProposal() {
 
     allTickets = allTickets.filter(t => t.id !== ticketId);
     if (!allPending.find(t => t.id === ticketId)) allPending.push({ ...activeTicket });
+
+    // Fix (bugronde 2026-09-22, item E): een datumwijziging via het voorstel-venster mag het
+    // ticket niet op zowel de oude als de nieuwe datum laten staan -- eerst overal weghalen.
+    Object.keys(planning).forEach(d => {
+      if (d === date) return;
+      planning[d] = planning[d].filter(p => p.ticket.id !== ticketId);
+      if (!planning[d].length) delete planning[d];
+    });
+
     if (!planning[date]) planning[date] = [];
     if (!planning[date].find(p => p.ticket.id === ticketId)) {
       planning[date].push({ ticket: activeTicket, address: activeTicket.address, uur: extractLocalHour(data.interventieDatum) });
