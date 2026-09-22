@@ -22,6 +22,15 @@ const BLOB_KEY = 'rapportlijst';
 // ── Pure logica (geen I/O) -- apart van de Blobs-aanroepen zodat dit zonder Netlify Blobs-
 // emulatie met een klein Node-scriptje te verifiëren is (zie Global Constraints, "lokaal 500"). ──
 
+// (Fix-ronde 1, punt 3) verzendId is client-gestuurde input (JSON body) en komt uiteindelijk in
+// een Blobs-key-lookup terecht -- valideer het formaat (UUID-achtig) vóór gebruik. Een ongeldige
+// waarde wordt gewoon genegeerd (behandeld als "geen verzendId"), niet als fout: de idempotentie
+// is een bonus bovenop de kernflow, geen vereiste ervoor.
+export function normaliseerVerzendId(verzendId) {
+  if (typeof verzendId !== 'string') return null;
+  return /^[A-Za-z0-9-]{8,64}$/.test(verzendId) ? verzendId : null;
+}
+
 // Bepaalt of een verzendId al een succesvolle Zoho-upload heeft. Retourneert de bestaande
 // entry (met o.a. zohoAttachmentId) bij een match, anders null -- geen match is normaal
 // (nieuw item, of item zonder rapports-array-entry) en blokkeert de upload niet.
@@ -35,13 +44,21 @@ export function isAlVerzonden(verzendId, rapporten) {
 // null als er niets te doen is (geen bijhorende archief-entry gevonden, of al gemarkeerd --
 // dat laatste kan gebeuren bij een retry-poging op een 409/versie-conflict), anders het nieuwe
 // array (onveranderd op de bijgewerkte index na).
+//
+// (Fix-ronde 1, punt 1a) Zet ook geannuleerd:false. Zonder deze regel kon een cancel-POST
+// (outboxCancelItem, public/js/outbox.js) die vlak vóór een tóch-nog-gelukte upload werd
+// verstuurd (geannuleerd:true, zohoUploaded:false) blijvend "❌ Niet verzonden (geannuleerd)"
+// tonen voor een rapport dat wél op het Zoho-ticket staat -- een geslaagde upload is per
+// definitie niet geannuleerd, ongeacht wat een racende cancel-call ervoor schreef. Dit dekt de
+// volgorde "cancel eerst, upload-bevestiging erna" (het scenario uit de review); de omgekeerde
+// volgorde wordt afgedekt door dezelfde bescherming in het dedup-blok van rapport-archief.js.
 export function pasMarkeringToe(rapporten, verzendId, attachmentId) {
   if (!verzendId) return null;
   const idx = (rapporten || []).findIndex(r => r.id === verzendId);
   if (idx < 0) return null;
   if (rapporten[idx].zohoUploaded === true) return null;
   const updated = [...rapporten];
-  updated[idx] = { ...updated[idx], zohoUploaded: true, zohoAttachmentId: attachmentId };
+  updated[idx] = { ...updated[idx], zohoUploaded: true, zohoAttachmentId: attachmentId, geannuleerd: false };
   return updated;
 }
 
@@ -123,13 +140,16 @@ export async function handler(event) {
 
   let browser;
   try {
-    const { html, ticketId, filename = 'service-rapport.pdf', verzendId } = JSON.parse(event.body || '{}');
+    const { html, ticketId, filename = 'service-rapport.pdf', verzendId: rawVerzendId } = JSON.parse(event.body || '{}');
     if (!html || !ticketId) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'html en ticketId zijn verplicht' }) };
     }
     if (!/^\d+$/.test(String(ticketId))) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Ongeldig ticketId' }) };
     }
+    // (Fix-ronde 1, punt 3) Een ongeldig-gevormd verzendId wordt genegeerd i.p.v. de aanvraag te
+    // weigeren -- de idempotentie is een bonus, geen vereiste voor het kernpad.
+    const verzendId = normaliseerVerzendId(rawVerzendId);
 
     // (T20) Idempotentie: was dit verzendId al eerder succesvol geüpload (server-side gelukt,
     // maar het antwoord bereikte de client toen nooit)? Dan niet nogmaals genereren/uploaden --

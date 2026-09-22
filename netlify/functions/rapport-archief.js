@@ -22,6 +22,25 @@ function corsHeaders(req) {
   };
 }
 
+// ── Pure logica (geen I/O) -- apart van de Blobs-aanroepen zodat dit zonder Netlify Blobs-
+// emulatie met een klein Node-scriptje te verifiëren is (zelfde patroon als rapport.js). ──
+//
+// (Fix-ronde 1, punt 1) Bepaalt de definitieve zohoUploaded/geannuleerd-velden voor een
+// binnenkomende POST t.o.v. een eventuele bestaande dedup-match (zelfde ticketId+datum).
+// `bestaandeEntry` is de huidige entry op dupIdx (of null bij een nieuw rapport), `zelfdeItem`
+// geeft aan of het binnenkomende `id` gelijk is aan dat van de bestaande entry (zelfde
+// wachtrij-item dat zichzelf opnieuw bevestigt, i.p.v. een ander item dat via ticket+datum botst).
+export function bepaalDedupVelden(bestaandeEntry, zelfdeItem, body) {
+  const alGeupload = !!(zelfdeItem && bestaandeEntry?.zohoUploaded === true);
+  return {
+    zohoUploaded: body.zohoUploaded === true || alGeupload,
+    // Een reeds bevestigde Zoho-upload kan nooit met terugwerkende kracht "geannuleerd" worden
+    // door een racende/verlate cancel-POST -- zie rapport.js's pasMarkeringToe() voor de
+    // omgekeerde volgorde (upload-bevestiging ná een eerder geschreven cancel).
+    geannuleerd: alGeupload ? false : body.geannuleerd === true,
+  };
+}
+
 export default async (req, context) => {
   const hdrs  = corsHeaders(req);
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: hdrs });
@@ -94,8 +113,9 @@ export default async (req, context) => {
       rapportData:     body.rapportData || null,
       // (T20) Gezet door outboxCancelItem() (public/js/outbox.js) wanneer een technieker een
       // reeds-gearchiveerd, nog-niet-naar-Zoho-verstuurd rapport annuleert. Ontbreekt dit veld
-      // (oudere/andere POSTs), dan blijft het gewoon false -- geen breaking change.
-      geannuleerd:     body.geannuleerd === true,
+      // (oudere/andere POSTs), dan blijft het gewoon false -- geen breaking change. Definitieve
+      // waarde wordt hieronder gezet (samen met zohoUploaded, zie de dedup-bescherming erna).
+      geannuleerd:     false,
     };
 
     // Dedup: als er al een rapport bestaat voor hetzelfde ticket op dezelfde datum,
@@ -104,18 +124,14 @@ export default async (req, context) => {
       r => r.ticketId === entry.ticketId && r.datum === entry.datum && entry.ticketId
     );
 
-    // zohoUploaded: enkel overerven van de bestaande entry als dit hetzelfde
-    // wachtrij-item is dat zichzelf opnieuw bevestigt (zelfde id) — bv. na een
-    // mislukte confirm-call. Botst een ANDER item via dedup (zelfde ticket+datum,
-    // maar een nieuw, later aangemaakt rapport dezelfde dag), dan begint dat item
-    // altijd met zohoUploaded:false, zodat het zelf een verse PDF naar Zoho stuurt
-    // i.p.v. stil te veronderstellen dat het al gebeurd is.
-    if (dupIdx >= 0) {
-      const zelfdeItem = entry.id === current.rapports[dupIdx].id;
-      entry.zohoUploaded = body.zohoUploaded === true || (zelfdeItem && current.rapports[dupIdx].zohoUploaded === true);
-    } else {
-      entry.zohoUploaded = body.zohoUploaded === true;
-    }
+    // zohoUploaded/geannuleerd: enkel overerven van de bestaande entry als dit hetzelfde
+    // wachtrij-item is dat zichzelf opnieuw bevestigt (zelfde id) — bv. na een mislukte
+    // confirm-call. Botst een ANDER item via dedup (zelfde ticket+datum, maar een nieuw, later
+    // aangemaakt rapport dezelfde dag), dan begint dat item altijd fris, zodat het zelf een
+    // verse PDF naar Zoho stuurt i.p.v. stil te veronderstellen dat het al gebeurd is. Zie
+    // bepaalDedupVelden() hierboven voor de geannuleerd-bescherming bij een al-geüploade entry.
+    const zelfdeItem = dupIdx >= 0 && entry.id === current.rapports[dupIdx].id;
+    Object.assign(entry, bepaalDedupVelden(dupIdx >= 0 ? current.rapports[dupIdx] : null, zelfdeItem, body));
 
     let updatedList;
     if (dupIdx >= 0) {
