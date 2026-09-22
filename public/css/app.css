@@ -814,13 +814,37 @@
       position: sticky; top: 92px; z-index: 27;
     }
 
-    /* ── Outbox banner (rapport nog niet bevestigd verzonden) ── */
+    /* ── Outbox banner (rapport nog niet bevestigd verzonden) ──
+       (T20) Verticale lijst i.p.v. één platte tekstregel -- per item ticketnummer, stap,
+       pogingen, laatste fout en twee knoppen (Opnieuw proberen / Annuleren). */
     #outbox-banner {
-      display: none; align-items: center; gap: 8px;
+      display: none; flex-direction: column; gap: 2px;
       background: var(--accent-dim); border-bottom: 1px solid rgba(0,223,163,0.3);
-      padding: 7px 14px; font-size: 0.78rem; color: var(--accent);
-      position: sticky; top: 92px; z-index: 27; cursor: pointer;
+      padding: 4px 14px; font-size: 0.78rem; color: var(--accent);
+      position: sticky; top: 92px; z-index: 27;
     }
+    .outbox-item {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+      padding: 4px 0;
+    }
+    .outbox-item + .outbox-item { border-top: 1px solid rgba(0,223,163,0.2); }
+    .outbox-item-tnum  { font-weight: 700; }
+    .outbox-item-step  { color: var(--accent); }
+    .outbox-item-attempts { font-size: 0.72rem; color: var(--muted); }
+    .outbox-item-error {
+      flex-basis: 100%; font-size: 0.72rem; color: var(--orange);
+      opacity: 0.85; white-space: normal;
+    }
+    .outbox-item-btn {
+      margin-left: auto; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text2); padding: 4px 10px; border-radius: 6px; font-size: 0.72rem;
+      font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: background 0.1s, color 0.1s, border-color 0.1s;
+    }
+    .outbox-item-btn:hover { background: var(--surface3); color: var(--text); }
+    .outbox-item-btn + .outbox-item-btn { margin-left: 0; }
+    .outbox-item-btn-cancel { color: var(--red); border-color: rgba(248,81,73,0.3); }
+    .outbox-item-btn-cancel:hover { background: var(--red-dim); border-color: var(--red); }
 
     /* ── Test mode badge ── */
     #test-badge {

@@ -16,6 +16,11 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
+// (T20) Geen 'sync'-event/Background Sync geregistreerd: dat zou een onderbroken rapport-verzending
+// ook kunnen afwerken terwijl de app/tab gesloten is, maar wordt bewust niet gebruikt -- niet
+// beschikbaar op iOS (waar deze app ook draait) en nergens elders in deze app aanwezig. De
+// outbox (public/js/outbox.js) herneemt in plaats daarvan gewoon bij de eerstvolgende
+// app-opening, dankzij de IndexedDB-wachtrij die het punt onthoudt waar een poging bleef steken.
 self.addEventListener('fetch', e => {
   // Network first voor API calls
   if (e.request.url.includes('/api/')) return;

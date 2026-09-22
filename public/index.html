@@ -67,7 +67,9 @@
 
 <div id="offline-banner">📶 Geen internetverbinding — wijzigingen worden niet opgeslagen in Zoho</div>
 
-<div id="outbox-banner" onclick="flushOutbox()"></div>
+<!-- (T20) Geen outer onclick meer -- elke actie loopt via de twee knoppen per item
+     (renderOutboxBanner, public/js/outbox.js). -->
+<div id="outbox-banner"></div>
 
 <!-- ══ TICKETS TAB ══ -->
 <div class="view active" id="view-tickets">

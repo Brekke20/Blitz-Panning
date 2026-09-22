@@ -94,16 +94,75 @@ export async function refreshOutboxCache() {
   renderOutboxBanner();
 }
 
+// (T20) 2 zichtbare stappen, niet 3: zodra de Zoho-upload lukt zet attemptOutboxItem()
+// meteen item.zohoUploaded = true en de daaropvolgende recursieve aanroep ziet via
+// nextOutboxAction() onmiddellijk 'done' -- de archief-bevestigingscall gebeurt daartussen
+// wel, maar zonder eigen persistente/zichtbare toestand (zie task-20-brief.md, "Huidig gedrag").
+export function outboxStepLabel(item) {
+  if (!item.archived) return 'Archiveren (1/2)';
+  if (!item.isLocal && !item.zohoUploaded) return 'PDF naar Zoho versturen (2/2)';
+  return 'Bijna klaar...';
+}
+
 export function renderOutboxBanner() {
   const banner = document.getElementById('outbox-banner');
-  if (!_outboxItems.length) { banner.style.display = 'none'; return; }
+  if (!_outboxItems.length) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
   const offlineBanner  = document.getElementById('offline-banner');
   const offlineVisible = offlineBanner && getComputedStyle(offlineBanner).display !== 'none';
   banner.style.top = offlineVisible ? `${92 + offlineBanner.offsetHeight}px` : '92px';
-  banner.textContent = _outboxItems.length === 1
-    ? '⏳ 1 rapport nog niet bevestigd — wordt automatisch opnieuw geprobeerd (tik om nu te proberen)'
-    : `⏳ ${_outboxItems.length} rapporten nog niet bevestigd — wordt automatisch opnieuw geprobeerd (tik om nu te proberen)`;
+  // escHtml op alle vrije tekst (ticketnummer, foutmelding) -- die komen respectievelijk uit
+  // Zoho-ticketdata en uit fetch-foutmeldingen, geen van beide vertrouwd/gegarandeerd veilig.
+  banner.innerHTML = _outboxItems.map(item => `
+    <div class="outbox-item">
+      <span class="outbox-item-tnum">${item.ticket?.number ? '#' + escHtml(item.ticket.number) : (item.isLocal ? 'Lokale afspraak' : '—')}</span>
+      <span class="outbox-item-step">⏳ ${escHtml(outboxStepLabel(item))}</span>
+      ${item.attempts ? `<span class="outbox-item-attempts">poging ${escHtml(String(item.attempts))}</span>` : ''}
+      ${item.lastError ? `<span class="outbox-item-error">${escHtml(item.lastError)}</span>` : ''}
+      <button type="button" class="outbox-item-btn" onclick="event.stopPropagation(); window.outboxRetryNow('${escHtml(item.id)}')">Opnieuw proberen</button>
+      <button type="button" class="outbox-item-btn outbox-item-btn-cancel" onclick="event.stopPropagation(); window.outboxCancelItem('${escHtml(item.id)}')">Annuleren</button>
+    </div>
+  `).join('');
   banner.style.display = 'flex';
+}
+
+// (T20) "Annuleren" -- de waarschuwing verschilt naargelang het item al gearchiveerd is: vóór
+// die stap gaat het rapport volledig verloren (nergens bewaard), erna blijft het bewaard in het
+// archief maar gemarkeerd als niet verzonden (zie ook renderRapportArchief in rapport-archief.js).
+export async function outboxCancelItem(id) {
+  const item = _outboxItems.find(i => i.id === id);
+  if (!item) return;
+  const msg = item.archived
+    ? 'Dit rapport wordt NIET naar Zoho verstuurd. Het blijft wel bewaard in het archief, gemarkeerd als "niet verzonden". Doorgaan?'
+    : 'Dit rapport gaat volledig verloren — het is nog nergens bewaard. Doorgaan?';
+  if (!confirm(msg)) return;
+  if (item.archived) {
+    // Best-effort: de archief-kopie markeren als geannuleerd/niet verzonden. Lukt dit niet
+    // (offline, server-fout), dan verwijderen we het item hieronder alsnog uit de lokale
+    // wachtrij — annuleren moet altijd werken, ook offline; de archief-markering is een
+    // bijkomend gemak, geen harde voorwaarde.
+    try {
+      await fetchWithTimeout('/api/rapport-archief', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ...item.archiveBody, id: item.id, zohoUploaded: item.zohoUploaded || false, geannuleerd: true }),
+      }, 60000);
+    } catch { /* best-effort, zie hierboven */ }
+  }
+  _outboxNextAttempt.delete(item.id);
+  await outboxRemove(item.id);
+  await refreshOutboxCache();
+  renderRapportArchief();
+}
+
+// (T20) Forceert een onmiddellijke poging, ongeacht een eventuele backoff -- een handmatige
+// klik mag niet wachten op de automatische backoff-vertraging (zie logOutboxFailure).
+export async function outboxRetryNow(id) {
+  const item = _outboxItems.find(i => i.id === id);
+  if (!item) return;
+  _outboxNextAttempt.delete(id);
+  await runOutboxItem(item);
+  await refreshOutboxCache();
+  renderRapportArchief();
 }
 
 export async function logOutboxFailure(item, stap, fout) {
@@ -276,3 +335,5 @@ window.outboxAdd           = outboxAdd;
 window.runOutboxItem       = runOutboxItem;
 window.nextOutboxAction    = nextOutboxAction;
 window.refreshOutboxCache  = refreshOutboxCache;
+window.outboxCancelItem    = outboxCancelItem; // (T20) knop "Annuleren" in de per-item banner
+window.outboxRetryNow      = outboxRetryNow;   // (T20) knop "Opnieuw proberen" in de per-item banner
