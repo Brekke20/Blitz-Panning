@@ -1187,7 +1187,12 @@ export async function printRapport() {
           prioriteit:       _wizTicket.priority || '',
           interventieType:  R.interventieType || 'Interventie',
           totaalOnderdelen: totaal,
-          rapportData:      { ...R, _html: html },
+          // Fix (bugronde 2026-09-22, item H): R.fotos (de losse dataUrl's) NIET apart
+          // meesturen -- die foto's staan al ingebakken als <img>-tags in `html`/`_html`
+          // (zie de Foto's-sectie hierboven in dit bestand). Zonder deze exclusie werd elke
+          // foto ~2× opgeslagen binnen hetzelfde archiefrecord, wat bij rapporten met veel
+          // foto's het archiveren stil kon laten mislukken (payload te groot voor Netlify Blobs).
+          rapportData:      { ...(({ fotos, ...rest }) => rest)(R), _html: html },
           // Geen 'versie' hier — dedup gebeurt server-side op ticketId+datum
           // (rapport-archief.js), zodat opgestapelde wachtrij-items elkaar niet
           // vals-positief als conflict blokkeren.
