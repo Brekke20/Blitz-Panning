@@ -15,6 +15,48 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.6.0] — 2026-09-23
+
+### Fixed
+- Een ticket dat van een dag verwijderd werd, of waarvan de datum via het voorstel-venster
+  gewijzigd werd, kon tot de volgende automatische ververs dubbel/op de verkeerde plek in de
+  planning blijven staan.
+- De automatische weekplanner ("Plan deze week") kon een dag meer tijdslots toewijzen dan de
+  ingestelde capaciteit toeliet, met name bij een ticket met een lange (multi-slot)
+  interventieduur.
+- Twee coördinatoren die bijna gelijktijdig klantvoorkeuren wijzigden, konden elkaars
+  verwijdering stil ongedaan maken.
+- De restcapaciteit van een dag met meerdere, deels overlappende verlof-/blokkeer-uitzonderingen
+  werd soms te laag berekend.
+- Het voorgestelde tijdstip in een afspraaksvoorstel kon verschillen naargelang je het opende
+  vanuit het ticketdetail-scherm of vanuit de Route-tab.
+- De app startte niet meer op (geen tickets, geen polling) als de kaart-bibliotheek (Leaflet)
+  een keer niet laadde; een falende kaart blokkeert de rest van de app nu niet meer.
+- Foto's bij een service-rapport werden dubbel opgeslagen in het archief, wat bij rapporten met
+  veel foto's het archiveren stil kon laten mislukken.
+- Een rapport kon in een zeldzaam geval als een dubbele PDF-bijlage op hetzelfde Zoho-ticket
+  terechtkomen als de verbinding wegviel net nadat de upload server-side al gelukt was.
+
+### Changed
+- Prioriteit (Laag/Middel/Hoog) staat overal consequent in het Nederlands, niet meer soms in het
+  Engels of met wisselende hoofdletters.
+- De "Geblokkeerd"-knop op een volledig geblokkeerde kalenderdag heet voortaan "Blokkade
+  opheffen".
+- De kleurkiezer "Kleur routelijn" in Instellingen toont een duidelijk kleurstaaltje + hex-code.
+- Het datumveld bij Beschikbaarheden toont de volledige datum (niet langer afgekapt).
+- De Bellen/Navigeer-knoppen op een ticketkaart zijn op mobiel minstens 44px hoog.
+- De "Ingepland"-lijst op mobiel toont ook het tijdstip van de afspraak.
+- Het afspraaksvoorstel-mailtje toont een opgekuiste, klantvriendelijke omschrijving i.p.v. de
+  ruwe interne ticket-titel (bv. geen "FW:"/"Nieuw contactbericht van ..." meer).
+- Het kaartstijl-keuzemenu op de Route-tab-kaart is altijd zichtbaar i.p.v. pas bij hover.
+- Het ticketnummer op ticketkaarten (Wachtrij, Kalender, Route-stops, ticketdetail) is groter en
+  duidelijker leesbaar.
+- De kaart en routeberekening zijn merkbaar sneller bij een tweede berekening op dezelfde dag
+  (adressen worden lokaal onthouden i.p.v. telkens opnieuw opgezocht) en de standaardkaartstijl
+  is vervangen door een snellere kaartbron; OpenStreetMap blijft apart kiesbaar.
+- Het "rapport nog niet verzonden"-balkje toont voortaan per rapport het ticketnummer, de stap,
+  het aantal pogingen en de laatste fout, met knoppen om opnieuw te proberen of te annuleren.
+
 ## [1.5.1] — 2026-09-22
 
 ### Fixed

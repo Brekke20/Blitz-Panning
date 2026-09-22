@@ -1,6 +1,6 @@
 {
   "name": "blitz-planning",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Field service planning app for Blitz Power",
   "private": true,
   "dependencies": {
