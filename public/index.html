@@ -1672,7 +1672,7 @@ function renderKalender() {
         <div class="day-hdr-num${isToday ? ' today' : ''}">${day.getDate()}</div>
         <div class="day-cap desktop-only ${capFull ? 'full' : ''}">${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔒 Geblokkeerd' : capLabel}</div>
         <button class="day-block-btn desktop-only ${holidayName ? 'holiday' : isDayBlocked ? 'blocked' : ''}" data-date="${dateStr}" onclick="event.stopPropagation(); onBlockBtnClick(this)">
-          ${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔒 Geblokkeerd' : dayBlockCount > 0 ? `⏱ ${dayBlockCount} uitzondering${dayBlockCount > 1 ? 'en' : ''}` : '⏱ Beschikbaar'}
+          ${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔓 Blokkade opheffen' : dayBlockCount > 0 ? `⏱ ${dayBlockCount} uitzondering${dayBlockCount > 1 ? 'en' : ''}` : '⏱ Beschikbaar'}
         </button>
       </div>
       <div class="day-body${holidayName ? ' holiday-day' : isDayBlocked ? ' blocked-day' : ''}" id="daybody-${dateStr}">
