@@ -1282,6 +1282,10 @@ async function removeTicketFromDate(ticketId, date) {
   inFlightTickets.delete(ticketId);
   renderTickets();
   renderKalender();
+  // (I3) allGepland is hierboven bijgewerkt (zowel in het succes- als het TEST_MODE-pad) --
+  // zonder deze call bleef de "Ingepland"-lijst en de cnt-gepland-badge de oude waarde tonen
+  // tot de volgende tabwissel.
+  renderGepland();
 }
 
 function removeTicketFromAllDays(ticketId) {
@@ -2098,11 +2102,22 @@ async function saveKlantBeschikbaarheid() {
       if (!res2.ok) throw new Error('HTTP ' + res2.status);
       const data2 = await res2.json();
       kbVersie = data2.versie;
+      // (M1) De retry-PUT is geslaagd met `merged` (dat de kbLocallyDeleted-ids al uitsloot) als
+      // body -- de server heeft nu dus GEEN entry meer voor die ids. Pas nu leegmaken: bij een
+      // mislukte retry moeten de ids uitgesloten BLIJVEN tot een volgende poging wél lukt (anders
+      // kan een tussentijdse GC/refresh de "verwijderde" entry weer laten terugkomen uit een
+      // stale server-read).
+      kbLocallyDeleted.clear();
       return true;
     }
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     kbVersie = data.versie;
+    // (M1) Geslaagde (niet-409) PUT: `klantBeschikbaarheid` bevatte al geen entries meer voor de
+    // kbLocallyDeleted-ids, dus de server-state komt nu overeen -- de ids zijn "op de server"
+    // verwijderd en hoeven niet langer apart onthouden te worden. Een latere legitieme
+    // her-instelling door een collega mag vanaf nu gewoon weer binnenkomen.
+    kbLocallyDeleted.clear();
     return true;
   } catch (err) {
     console.error('Klantbeschikbaarheid opslaan mislukt:', err);
@@ -3252,8 +3267,17 @@ async function autoPlan() {
       // Tickets met duurOverride tellen als meerdere slots (naar boven afgerond).
       let curLat = seed._lat, curLon = seed._lon;
       let usedSlots = Math.ceil(duurVoor(seed.id) / settings.duurMinuten); // seed telt al mee, past altijd (seedPool is al gefilterd)
+      // (M2, controller-ruling) Een kandidaat die zelf te groot is voor de resterende capaciteit
+      // sluit niet meer de hele dag af (break) -- enkel DIE kandidaat wordt voor deze dag
+      // uitgesloten (excludedForDay) en de lus probeert de eerstvolgende, kleinere kandidaat.
+      // Consistent met de seedPool-prefilter hierboven (T4): een te grote kandidaat mag geen
+      // kleinere tickets verdringen die nog wél passen. Begrensd: excludedForDay groeit elke keer
+      // dat dit pad genomen wordt, dus fillPool krimpt monotoon en de lus stopt uiterlijk zodra
+      // niemand nog overblijft.
+      const excludedForDay = new Set();
       while (usedSlots < day.cap && pool.length) {
         const fillPool = pool.filter(t => {
+          if (excludedForDay.has(t.id)) return false;
           if (kbBlocked(t.id, day.date)) return false;
           const pref = prefDayAvailable.get(t.id);
           if (pref && pref !== day.date) return false;
@@ -3266,7 +3290,7 @@ async function autoPlan() {
         if (!result) break; // niemand in de wachtrij past nog binnen de max-reistijd voor deze dag
         const chosen = result.candidate;
         const chosenSlots = Math.ceil(duurVoor(chosen.id) / settings.duurMinuten);
-        if (usedSlots + chosenSlots > day.cap) break; // past niet meer
+        if (usedSlots + chosenSlots > day.cap) { excludedForDay.add(chosen.id); continue; } // past niet meer -- volgende kandidaat proberen
         pool.splice(pool.indexOf(chosen), 1);
         dayTickets.push(chosen);
         usedSlots += chosenSlots;
@@ -4148,8 +4172,13 @@ async function calculateRoute() {
         localNeedsGeo.forEach(e => { const loc = gData.locations[i++]; if (loc) { e._lat = loc.lat; e._lon = loc.lon; geocacheStore(e.adres || e.notitie, loc.lat, loc.lon); } });
         if (!origin && gData.locations[0]) { origin = gData.locations[0]; geocacheStore(settings.startlocatie, origin.lat, origin.lon); }
       }
+      // (C2b/I2) /api/optimize is nu tolerant voor losse mislukte stops (Promise.allSettled,
+      // zie optimize.js) en geeft enkel een harde fout terug als het VERTREKPUNT zelf niet
+      // gevonden werd (statusCode 400 + `error`, geen `locations`). Toon in dat geval de echte
+      // serverfout i.p.v. altijd dezelfde vaste "Startlocatie niet gevonden"-melding.
+      if (!origin) throw new Error(gData.error || `Vertrekpunt '${settings.startlocatie}' kon niet opgezocht worden`);
     }
-    if (!origin) throw new Error('Startlocatie niet gevonden');
+    if (!origin) throw new Error(`Vertrekpunt '${settings.startlocatie}' kon niet opgezocht worden`);
     toast('Route berekenen...', 8000);
     // Combineer geocoded Zoho stops + lokale events als waypoints, gesorteerd op ingesteld
     // uur (geen uur = achteraan) zodat de route de echte geplande volgorde volgt i.p.v.
@@ -4192,7 +4221,17 @@ async function calculateRoute() {
       document.getElementById('s-delay').textContent = 'geen';
     }
     document.getElementById('s-eta').textContent   = rData.arrivalTime ? new Date(rData.arrivalTime).toLocaleTimeString('nl-BE', { hour:'2-digit', minute:'2-digit' }) : '—';
-    toast('Route berekend ✓');
+    // (C2c) Stops die nog steeds geen coördinaten hebben na de geocode-stap hierboven (adres
+    // niet gevonden, of een lokale afspraak met een vrije-tekst-notitie i.p.v. een echt adres)
+    // staan niet op `allWpStops`/de berekende route -- dat gebeurt stil, dus altijd één duidelijke
+    // toast i.p.v. de gewone "Route berekend ✓" als dat hier is voorgevallen. De route zelf is al
+    // berekend en getekend (updateMap() hierboven) mét de rest van de stops.
+    const nietGevonden = needsGeo.filter(p => !p._lat).length + localNeedsGeo.filter(e => !e._lat).length;
+    if (nietGevonden > 0) {
+      toast(`⚠️ ${nietGevonden} adres(sen) niet gevonden — die stops staan niet op de route`, 6000);
+    } else {
+      toast('Route berekend ✓');
+    }
     // Zonder await: de kaart met het rit-vangnet staat al, het per-wegvak-detail kleurt na.
     laadDrukteDetail(date, rData);
   } catch (err) { toast('❌ Route: ' + err.message, 4000); updateMap(date); }
