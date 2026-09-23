@@ -34,8 +34,6 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
   een keer niet laadde; een falende kaart blokkeert de rest van de app nu niet meer.
 - Foto's bij een service-rapport werden dubbel opgeslagen in het archief, wat bij rapporten met
   veel foto's het archiveren stil kon laten mislukken.
-- Een rapport kon in een zeldzaam geval als een dubbele PDF-bijlage op hetzelfde Zoho-ticket
-  terechtkomen als de verbinding wegviel net nadat de upload server-side al gelukt was.
 
 ### Changed
 - Prioriteit (Laag/Middel/Hoog) staat overal consequent in het Nederlands, niet meer soms in het
@@ -44,7 +42,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
   opheffen".
 - De kleurkiezer "Kleur routelijn" in Instellingen toont een duidelijk kleurstaaltje + hex-code.
 - Het datumveld bij Beschikbaarheden toont de volledige datum (niet langer afgekapt).
-- De Bellen/Navigeer-knoppen op een ticketkaart zijn op mobiel minstens 44px hoog.
+- De Bellen/Navigeer-knoppen op een ticketkaart zijn op mobiel en tablet minstens 44 px hoog.
 - De "Ingepland"-lijst op mobiel toont ook het tijdstip van de afspraak.
 - Het afspraaksvoorstel-mailtje toont een opgekuiste, klantvriendelijke omschrijving i.p.v. de
   ruwe interne ticket-titel (bv. geen "FW:"/"Nieuw contactbericht van ..." meer).
@@ -56,6 +54,15 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
   is vervangen door een snellere kaartbron; OpenStreetMap blijft apart kiesbaar.
 - Het "rapport nog niet verzonden"-balkje toont voortaan per rapport het ticketnummer, de stap,
   het aantal pogingen en de laatste fout, met knoppen om opnieuw te proberen of te annuleren.
+- Het risico dat een rapport als dubbele PDF-bijlage op hetzelfde Zoho-ticket terechtkomt (bv.
+  als de verbinding wegviel net nadat de upload server-side al gelukt was) wordt nu zo goed als
+  uitgesloten (een herhaalde verzending wordt server-side herkend); een klein restrisico blijft
+  bij een netwerkonderbreking op exact het verkeerde moment.
+- Probeert de wachtrij een rapport te verzenden dat op datzelfde moment al vanuit een ander
+  venster/toestel verstuurd wordt, dan toont het balkje een duidelijke melding ("Verzending is
+  al bezig in een ander venster") i.p.v. een foutmelding; het opzoeken van adressen en het
+  berekenen van de route tonen nu ook tussentijdse voortgangsmeldingen ("Adressen opzoeken…",
+  "Route berekenen…", "Drukte laden…").
 
 ## [1.5.1] — 2026-09-22
 
