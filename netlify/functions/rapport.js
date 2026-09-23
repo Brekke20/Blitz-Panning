@@ -14,10 +14,23 @@ import { getStore } from '@netlify/blobs';
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
 
-// Zelfde store/key als rapport-archief.js -- bewust hergebruikt, geen aparte blob-key: de
-// 'archive'-stap die outbox.js altijd vóór deze upload-stap uitvoert heeft op dit punt al een
-// entry met dit id aangemaakt in 'rapportlijst'.
-const BLOB_KEY = 'rapportlijst';
+// Zelfde store als rapport-archief.js ('blitz-data'), maar met een APARTE key voor de
+// idempotentie-/reserveringsadministratie (zie I1 in de fix-wave, 2026-09-23): `rapportlijst` is
+// de gedeelde archieflijst waarin ook rapport-archief.js/rapport-verzonden.js schrijven (nieuwe
+// rapporten, annuleren, verzonden-tijdstip, dedup...) -- een ongelockte read-modify-write van
+// deze functie daarop zou een gelijktijdig archief-schrijf van een collega kunnen overschrijven
+// (klassieke RMW-race op een gedeelde blob). Reservering + de definitieve "al geüpload"-markering
+// leven daarom in een eigen key (REGISTER_KEY) binnen dezelfde store -- geen contention meer met
+// rapportlijst voor die administratie. Enkel de allerlaatste, best-effort label-write
+// (zohoUploaded/zohoAttachmentId/geannuleerd, puur voor de weergave in het Rapporten-tabblad)
+// gebeurt nog EENMALIG op rapportlijst zelf, ná een geslaagde upload (zie markeerUpgeload
+// hieronder) -- dat blijft de enige ongelockte write van deze functie op die gedeelde blob.
+const BLOB_KEY      = 'rapportlijst';
+const REGISTER_KEY  = 'rapport-verzend-status';
+// Begrenzing van het register: voorkomt onbeperkte groei (elk verzonden rapport ooit) op een
+// blob die bij elke upload gelezen/geschreven wordt. 1000 entries is ruim boven het aantal
+// rapporten dat realistisch tegelijk "recent" is; oudste entries (op `bijgewerkt`) worden geruimd.
+const MAX_REGISTER_ENTRIES = 1000;
 
 // ── Pure logica (geen I/O) -- apart van de Blobs-aanroepen zodat dit zonder Netlify Blobs-
 // emulatie met een klein Node-scriptje te verifiëren is (zie Global Constraints, "lokaal 500"). ──
@@ -31,59 +44,59 @@ export function normaliseerVerzendId(verzendId) {
   return /^[A-Za-z0-9-]{8,64}$/.test(verzendId) ? verzendId : null;
 }
 
+// ── Register (rapport-verzend-status) ─────────────────────────────────────────────────────────
+// Vorm: { versie, entries: { [verzendId]: { verzendId, zohoAttachmentId, done,
+// uploadInFlightSince, bijgewerkt } } } -- een object-map (i.p.v. array, zoals rapportlijst) voor
+// O(1)-opzoeking per verzendId; `bijgewerkt` (ms sinds epoch) laat begrensRegister() de oudste
+// entries ruimen zodra de grens overschreden wordt.
+
+function begrensRegister(entries) {
+  const keys = Object.keys(entries);
+  if (keys.length <= MAX_REGISTER_ENTRIES) return entries;
+  const oudsteEerst   = keys.sort((a, b) => (entries[a]?.bijgewerkt || 0) - (entries[b]?.bijgewerkt || 0));
+  const teVerwijderen = oudsteEerst.slice(0, keys.length - MAX_REGISTER_ENTRIES);
+  const begrensd = { ...entries };
+  for (const k of teVerwijderen) delete begrensd[k];
+  return begrensd;
+}
+
 // Bepaalt of een verzendId al een succesvolle Zoho-upload heeft. Retourneert de bestaande
 // entry (met o.a. zohoAttachmentId) bij een match, anders null -- geen match is normaal
-// (nieuw item, of item zonder rapports-array-entry) en blokkeert de upload niet.
-export function isAlVerzonden(verzendId, rapporten) {
+// (nieuw item) en blokkeert de upload niet.
+export function isAlVerzonden(verzendId, entries) {
   if (!verzendId) return null;
-  const entry = (rapporten || []).find(r => r.id === verzendId);
-  return entry?.zohoUploaded === true ? entry : null;
+  const entry = entries?.[verzendId];
+  return entry?.done === true ? entry : null;
 }
 
-// Bepaalt HOE de rapports-array bijgewerkt moet worden na een geslaagde upload. Retourneert
-// null als er niets te doen is (geen bijhorende archief-entry gevonden, of al gemarkeerd --
-// dat laatste kan gebeuren bij een retry-poging op een 409/versie-conflict), anders het nieuwe
-// array (onveranderd op de bijgewerkte index na).
-//
-// (Fix-ronde 1, punt 1a) Zet ook geannuleerd:false. Zonder deze regel kon een cancel-POST
-// (outboxCancelItem, public/js/outbox.js) die vlak vóór een tóch-nog-gelukte upload werd
-// verstuurd (geannuleerd:true, zohoUploaded:false) blijvend "❌ Niet verzonden (geannuleerd)"
-// tonen voor een rapport dat wél op het Zoho-ticket staat -- een geslaagde upload is per
-// definitie niet geannuleerd, ongeacht wat een racende cancel-call ervoor schreef. Dit dekt de
-// volgorde "cancel eerst, upload-bevestiging erna" (het scenario uit de review); de omgekeerde
-// volgorde wordt afgedekt door dezelfde bescherming in het dedup-blok van rapport-archief.js.
-//
-// (Fix-ronde 2, punt 2) Zet ook uploadInFlightSince op null -- de definitieve markering wist de
-// in-flight-reservering (zie hieronder), zodat een latere (overbodige) poging voor ditzelfde
-// verzendId niet per ongeluk nog als "in-progress" beschouwd zou worden.
-export function pasMarkeringToe(rapporten, verzendId, attachmentId) {
+// Bepaalt HOE het register bijgewerkt moet worden na een geslaagde upload. Retourneert null als
+// er niets te doen is (geen verzendId, of de entry staat al op done -- kan gebeuren bij een retry
+// op een transiënte fout, zie markeerUpgeload hieronder: dat is GEEN 409/versie-conflict, want
+// deze store/key kent geen conditional writes, zie M11).
+export function pasRegisterMarkeringToe(entries, verzendId, attachmentId, nu = Date.now()) {
   if (!verzendId) return null;
-  const idx = (rapporten || []).findIndex(r => r.id === verzendId);
-  if (idx < 0) return null;
-  if (rapporten[idx].zohoUploaded === true) return null;
-  const updated = [...rapporten];
-  updated[idx] = { ...updated[idx], zohoUploaded: true, zohoAttachmentId: attachmentId, geannuleerd: false, uploadInFlightSince: null };
-  return updated;
+  if (entries?.[verzendId]?.done === true) return null;
+  const updated = { ...(entries || {}) };
+  updated[verzendId] = { verzendId, zohoAttachmentId: attachmentId, done: true, uploadInFlightSince: null, bijgewerkt: nu };
+  return begrensRegister(updated);
 }
 
-// ── Fix-ronde 2, punt 2: vroege in-flight-reservering (NIET atomair) ──────────────────────────
-// De review vroeg om een atomaire reservering via conditional writes (`onlyIfMatch` op
-// `store.setJSON`). Die primitive bestaat niet in het geïnstalleerde `@netlify/blobs@8.2.0` (zie
-// Fix-ronde 1 in task-20-report.md voor de volledige onderbouwing: `set`/`setJSON` accepteren
-// enkel `{ metadata }`, geen conditioneel-schrijf-argument, geen `modified`-resultaat). Controller-
-// beslissing (Fix-ronde 2): geen SDK-upgrade in deze release -- dit is dus een BEST-EFFORT
-// mitigatie, geen harde garantie. Een gewone read-modify-write (zelfde patroon als
-// pasMarkeringToe/markeerUpgeload hierboven) kan nog steeds "verliezen": als twee aanvragen voor
-// hetzelfde verzendId de blob binnen enkele tientallen milliseconden van elkaar lezen, zien beide
-// "nog geen actieve reservering" en schrijven beide een reservering (de laatste schrijver wint,
-// zonder foutmelding). Het venster waarin dit kan gebeuren krimpt echter van de volledige
-// PDF-generatie+Zoho-upload-duur (typisch enkele seconden tot een kleine minuut) naar de GET→SET-
-// latentie van deze functie alleen (~100ms) -- dat is het best haalbare zonder een compare-and-
-// swap-primitive. Vervolgstap (niet in deze release): @netlify/blobs upgraden naar een versie met
-// `onlyIfMatch`/conditionele writes en dit alsnog echt atomair maken.
+// ── Vroege in-flight-reservering (NIET atomair) ───────────────────────────────────────────────
+// Oorspronkelijk uit T20/Fix-ronde 2: de review vroeg om een atomaire reservering via conditional
+// writes (`onlyIfMatch` op `store.setJSON`). Die primitive bestaat niet in het geïnstalleerde
+// `@netlify/blobs@8.2.0` (zie task-20-report.md, Fix-ronde 1, voor de volledige onderbouwing:
+// `set`/`setJSON` accepteren enkel `{ metadata }`, geen conditioneel-schrijf-argument, geen
+// `modified`-resultaat). Controller-beslissing: geen SDK-upgrade in deze release -- dit is dus
+// een BEST-EFFORT mitigatie, geen harde garantie. Twee aanvragen voor hetzelfde verzendId die de
+// registerblob binnen enkele tientallen milliseconden van elkaar lezen, zien allebei "nog geen
+// actieve reservering" en schrijven beide een reservering (laatste schrijver wint, zonder
+// foutmelding) -- maar het venster waarin dat kan gebeuren is nu de GET→SET-latentie van déze
+// functie alleen (~100ms), niet meer de volledige PDF-generatie+Zoho-upload-duur (typisch enkele
+// seconden tot een kleine minuut). Vervolgstap (niet in deze release): @netlify/blobs upgraden
+// naar een versie met `onlyIfMatch`/conditionele writes en dit alsnog echt atomair maken.
 const IN_FLIGHT_TIMEOUT_MS = 3 * 60 * 1000; // 3 minuten
 
-// Pure functie -- bepaalt of een archief-entry een nog-actieve in-flight-reservering heeft.
+// Pure functie -- bepaalt of een register-entry een nog-actieve in-flight-reservering heeft.
 export function heeftActieveReservering(entry, nu = Date.now()) {
   if (!entry?.uploadInFlightSince) return false;
   const sinds = Date.parse(entry.uploadInFlightSince);
@@ -91,31 +104,51 @@ export function heeftActieveReservering(entry, nu = Date.now()) {
   return (nu - sinds) < IN_FLIGHT_TIMEOUT_MS;
 }
 
-// Pure functie -- bepaalt HOE de rapports-array bijgewerkt moet worden om een in-flight-
-// reservering te zetten. Retourneert null als er niets te doen is: geen bijhorende archief-entry
-// (defensief -- zou niet mogen gebeuren gezien de vaste volgorde archive→upload, zie
-// checkAlUpgeload hierboven voor dezelfde redenering), of een reeds actieve reservering (die de
-// caller normaliter al via heeftActieveReservering() heeft afgevangen vóór deze aan te roepen).
-export function pasReserveringToe(rapporten, verzendId, nu = Date.now()) {
+// Pure functie -- bepaalt HOE het register bijgewerkt moet worden om een in-flight-reservering
+// te zetten. Retourneert null als er niets te doen is: geen verzendId, of een reeds actieve
+// reservering (die de caller normaliter al via heeftActieveReservering() heeft afgevangen).
+export function pasReserveringToe(entries, verzendId, nu = Date.now()) {
   if (!verzendId) return null;
-  const idx = (rapporten || []).findIndex(r => r.id === verzendId);
-  if (idx < 0) return null;
-  if (heeftActieveReservering(rapporten[idx], nu)) return null;
-  const updated = [...rapporten];
-  updated[idx] = { ...updated[idx], uploadInFlightSince: new Date(nu).toISOString() };
-  return updated;
+  const bestaand = entries?.[verzendId];
+  if (heeftActieveReservering(bestaand, nu)) return null;
+  const updated = { ...(entries || {}) };
+  updated[verzendId] = { ...(bestaand || {}), verzendId, uploadInFlightSince: new Date(nu).toISOString(), bijgewerkt: nu };
+  return begrensRegister(updated);
 }
 
 // Pure functie -- wist een in-flight-reservering (best-effort na een mislukte poging, zodat een
 // retry niet nodeloos tot 3 minuten moet wachten op zijn eigen vorige, mislukte reservering).
 // Retourneert null als er niets te wissen valt (geen match, of al leeg).
-export function wisReservering(rapporten, verzendId) {
+export function wisReservering(entries, verzendId) {
+  if (!verzendId) return null;
+  const bestaand = entries?.[verzendId];
+  if (!bestaand?.uploadInFlightSince) return null;
+  const updated = { ...(entries || {}) };
+  updated[verzendId] = { ...bestaand, uploadInFlightSince: null, bijgewerkt: Date.now() };
+  return updated;
+}
+
+// ── rapportlijst: de ENE resterende best-effort write op de gedeelde archieflijst ───────────────
+// Bepaalt HOE de rapports-array bijgewerkt moet worden na een geslaagde upload, puur voor
+// label-consistentie in het Rapporten-tabblad (de idempotentie zelf steunt volledig op het
+// register hierboven). Retourneert null als er niets te doen is: geen bijhorende archief-entry
+// (defensief -- zou niet mogen gebeuren gezien de vaste volgorde archive→upload), of de entry
+// staat al correct (geen nutteloze write/versie-increment).
+export function pasMarkeringToe(rapporten, verzendId, attachmentId) {
   if (!verzendId) return null;
   const idx = (rapporten || []).findIndex(r => r.id === verzendId);
-  if (idx < 0 || !rapporten[idx].uploadInFlightSince) return null;
+  if (idx < 0) return null;
+  const bestaand = rapporten[idx];
+  if (bestaand.zohoUploaded === true && bestaand.zohoAttachmentId === attachmentId && bestaand.geannuleerd === false) {
+    return null; // al correct -- niets te doen
+  }
   const updated = [...rapporten];
-  updated[idx] = { ...updated[idx], uploadInFlightSince: null };
+  updated[idx] = { ...updated[idx], zohoUploaded: true, zohoAttachmentId: attachmentId, geannuleerd: false };
   return updated;
+}
+
+async function leesRegister(store) {
+  return (await store.get(REGISTER_KEY, { type: 'json' })) || { versie: 0, entries: {} };
 }
 
 // Best-effort: een falende check laat de upload gewoon normaal doorgaan (zoals vóór deze taak) --
@@ -124,51 +157,33 @@ async function checkAlUpgeload(verzendId) {
   if (!verzendId) return null;
   try {
     const store = getStore({ name: 'blitz-data', consistency: 'strong' });
-    const data  = await store.get(BLOB_KEY, { type: 'json' });
-    return isAlVerzonden(verzendId, data?.rapports);
+    const data  = await leesRegister(store);
+    return isAlVerzonden(verzendId, data.entries);
   } catch { return null; }
 }
 
-// Best-effort met een paar retries op een 409/versie-conflict (strong consistency, zelfde
-// patroon als rapport-archief.js) -- lukt dit uiteindelijk niet, dan blijft de client-side
-// confirm-call (outbox.js, bestaande 'zoho-confirm'-stap) als terugvalnet bestaan.
-async function markeerUpgeload(verzendId, attachmentId) {
-  if (!verzendId) return;
-  const store = getStore({ name: 'blitz-data', consistency: 'strong' });
-  for (let poging = 0; poging < 3; poging++) {
-    try {
-      const data    = (await store.get(BLOB_KEY, { type: 'json' })) || { versie: 0, rapports: [] };
-      const updated = pasMarkeringToe(data.rapports, verzendId, attachmentId);
-      if (!updated) return; // geen match, of al gemarkeerd -- niets te doen
-      await store.setJSON(BLOB_KEY, { versie: data.versie + 1, rapports: updated });
-      return;
-    } catch { /* conflict of tijdelijke fout -- volgende poging leest de nieuwste versie opnieuw */ }
-  }
-}
-
-// (Fix-ronde 2, punt 2) Best-effort: probeert een in-flight-reservering te zetten. Retourneert
-// 'in-progress' als een ANDERE, nog-actieve poging deze al gezet heeft (caller moet dan een 409
-// teruggeven), 'gereserveerd' bij succes, of 'doorgaan' in elk ander geval (geen verzendId, geen
-// archief-entry gevonden, of de check/schrijf zelf faalde) -- in dat laatste geval gaat de upload
-// gewoon normaal door, precies zoals vóór deze fix-ronde. Niet atomair, zie het commentaarblok
-// bij IN_FLIGHT_TIMEOUT_MS hierboven.
+// (I1) Best-effort: probeert een in-flight-reservering te zetten in het REGISTER (niet meer op
+// rapportlijst). Retourneert 'in-progress' als een ANDERE, nog-actieve poging deze al gezet heeft
+// (caller moet dan een 409 teruggeven), 'gereserveerd' bij succes, of 'doorgaan' in elk ander
+// geval (geen verzendId, of de check/schrijf zelf faalde) -- in dat laatste geval gaat de upload
+// gewoon normaal door, precies zoals zonder reservering. Niet atomair, zie IN_FLIGHT_TIMEOUT_MS
+// hierboven.
 async function reserveerOfWeiger(verzendId) {
   if (!verzendId) return 'doorgaan';
   try {
     const store = getStore({ name: 'blitz-data', consistency: 'strong' });
-    const data  = (await store.get(BLOB_KEY, { type: 'json' })) || { versie: 0, rapports: [] };
-    const idx   = (data.rapports || []).findIndex(r => r.id === verzendId);
-    if (idx >= 0 && heeftActieveReservering(data.rapports[idx])) return 'in-progress';
-    const updated = pasReserveringToe(data.rapports, verzendId);
-    if (!updated) return 'doorgaan'; // geen archief-entry (nog) gevonden -- niets te reserveren
-    await store.setJSON(BLOB_KEY, { versie: data.versie + 1, rapports: updated });
+    const data  = await leesRegister(store);
+    if (heeftActieveReservering(data.entries?.[verzendId])) return 'in-progress';
+    const updated = pasReserveringToe(data.entries, verzendId);
+    if (!updated) return 'doorgaan'; // defensief -- pasReserveringToe faalt enkel bij ontbrekend verzendId
+    await store.setJSON(REGISTER_KEY, { versie: data.versie + 1, entries: updated });
     return 'gereserveerd';
   } catch {
     return 'doorgaan'; // best-effort -- een falende reservering mag de upload niet blokkeren
   }
 }
 
-// (Fix-ronde 2, punt 2) Best-effort: wist een eerder gezette in-flight-reservering ná een
+// (I1) Best-effort: wist een eerder gezette in-flight-reservering in het REGISTER ná een
 // mislukte poging (Puppeteer-fout, Zoho-fout, ...), zodat een volgende retry niet nodeloos tot
 // 3 minuten moet wachten op zijn eigen vorige, mislukte reservering. Faalt dit zelf, dan blijft
 // de reservering gewoon staan tot ze na 3 minuten vanzelf als verlopen behandeld wordt
@@ -177,12 +192,65 @@ async function wisReserveringBestEffort(verzendId) {
   if (!verzendId) return;
   try {
     const store = getStore({ name: 'blitz-data', consistency: 'strong' });
-    const data  = await store.get(BLOB_KEY, { type: 'json' });
-    if (!data) return;
-    const updated = wisReservering(data.rapports, verzendId);
+    const data  = await leesRegister(store);
+    const updated = wisReservering(data.entries, verzendId);
     if (!updated) return;
-    await store.setJSON(BLOB_KEY, { versie: data.versie + 1, rapports: updated });
+    await store.setJSON(REGISTER_KEY, { versie: data.versie + 1, entries: updated });
   } catch { /* best-effort, zie hierboven */ }
+}
+
+// (C1) getStore() zit hier -- net als in elke andere functie hierboven -- BINNEN elke eigen try.
+// Vóór deze fix stond de allereerste getStore()-aanroep in deze functie NIET in een try: als
+// getStore() zelf gooide (deze functie is de enige v1-stijl handler(event) die @netlify/blobs
+// gebruikt, en de blobs-context in de Lambda-compat-runtime is onbewezen), eindigde een
+// GESLAAGDE Zoho-upload alsnog als HTTP 500 -- de client retryt, en zonder de idempotentie/
+// reservering (die op dat moment ook niet correct opgeruimd was) leidt dat tot een tweede PDF op
+// hetzelfde ticket: exact de bug die T20 moest oplossen. Beide stappen hieronder (register-write
+// en rapportlijst-write) zitten daarom nu allebei in hun eigen buitenste try/catch, en de AANROEP
+// van markeerUpgeload() in de handler zit óók nog eens in een try/catch (defense in depth) --
+// zie de call site verderop in dit bestand.
+//
+// (M11) Deze functie kent GEEN 409/versie-conflict: er is geen conditional write op deze store/
+// key (zie IN_FLIGHT_TIMEOUT_MS-commentaar hierboven), dus er kan hier ook geen 409 optreden. De
+// retries hieronder dekken enkel transiënte fouten (netwerk, tijdelijke Blobs-hik) en een
+// gelijktijdige schrijf van een ANDERE aanvraag (last-write-wins, stil, geen foutcode) -- vandaar
+// de post-write read-back die dat laatste geval alsnog detecteert en opnieuw probeert.
+async function markeerUpgeload(verzendId, attachmentId) {
+  if (!verzendId) return;
+
+  // 1) Register: definitieve idempotentie-markering (done:true). Dit is de bron van waarheid
+  //    voor checkAlUpgeload()/reserveerOfWeiger() bij een volgende poging voor ditzelfde
+  //    verzendId.
+  try {
+    const store    = getStore({ name: 'blitz-data', consistency: 'strong' });
+    const data     = await leesRegister(store);
+    const updated  = pasRegisterMarkeringToe(data.entries, verzendId, attachmentId);
+    if (updated) await store.setJSON(REGISTER_KEY, { versie: data.versie + 1, entries: updated });
+  } catch { /* best-effort -- mag de respons nooit blokkeren, zie C1 hierboven */ }
+
+  // 2) rapportlijst: de ENE resterende best-effort write op de gedeelde archieflijst (I1) --
+  //    ongelockt (geen conditional write beschikbaar), dus read-merge-write MET een post-write
+  //    read-back: als de verificatie na het schrijven faalt (een collega schreef er intussen
+  //    overheen -- bv. een eigen nieuw archief-item of een cancel-POST), wordt de merge tot 3x
+  //    herhaald vóór we opgeven.
+  try {
+    const store = getStore({ name: 'blitz-data', consistency: 'strong' });
+    for (let poging = 0; poging < 3; poging++) {
+      try {
+        const data    = (await store.get(BLOB_KEY, { type: 'json' })) || { versie: 0, rapports: [] };
+        const updated = pasMarkeringToe(data.rapports, verzendId, attachmentId);
+        if (!updated) return; // geen match, of de entry staat al correct -- niets te doen
+        await store.setJSON(BLOB_KEY, { versie: data.versie + 1, rapports: updated });
+        const verify = await store.get(BLOB_KEY, { type: 'json' }).catch(() => null);
+        const verifyEntry = verify?.rapports?.find(r => r.id === verzendId);
+        if (verifyEntry?.zohoUploaded === true && verifyEntry.zohoAttachmentId === attachmentId && verifyEntry.geannuleerd === false) {
+          return; // bevestigd via read-back
+        }
+        // Niet bevestigd -- een gelijktijdige schrijver overschreef onze write; volgende poging
+        // leest de nieuwste versie opnieuw en mergt opnieuw.
+      } catch { /* conflict of tijdelijke fout -- volgende poging */ }
+    }
+  } catch { /* getStore() zelf faalde -- best-effort, zie C1 hierboven */ }
 }
 
 // Chromium release URL — moet overeenkomen met @sparticuz/chromium-min versie
@@ -344,8 +412,13 @@ export async function handler(event) {
     const uploadData = await uploadRes.json().catch(() => ({}));
     if (!uploadRes.ok) throw new Error(JSON.stringify(uploadData));
 
-    // Best-effort, mag de respons niet blokkeren/vertragen -- zie markeerUpgeload hierboven.
-    await markeerUpgeload(verzendId, uploadData.id);
+    // Best-effort, mag de respons niet blokkeren/vertragen. (C1) markeerUpgeload() vangt intern
+    // al elke fout op (register + rapportlijst zitten allebei in hun eigen try/catch), maar deze
+    // buitenste try/catch is defense-in-depth: een GESLAAGDE upload mag NOOIT alsnog als 500
+    // eindigen door iets dat hierna misloopt.
+    try {
+      await markeerUpgeload(verzendId, uploadData.id);
+    } catch { /* zie hierboven -- de respons hieronder blijft altijd 200 na een geslaagde upload */ }
 
     return {
       statusCode: 200,
