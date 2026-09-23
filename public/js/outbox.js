@@ -123,17 +123,29 @@ export function renderOutboxBanner() {
   banner.style.top = offlineVisible ? `${92 + offlineBanner.offsetHeight}px` : '92px';
   // escHtml op alle vrije tekst (ticketnummer, foutmelding) -- die komen respectievelijk uit
   // Zoho-ticketdata en uit fetch-foutmeldingen, geen van beide vertrouwd/gegarandeerd veilig.
+  // (M6) data-id-attributen + addEventListener na render, i.p.v. een in de HTML-string
+  // geïnjecteerde onclick="...('${id}')"-string -- geen vrije/afgeleide tekst komt zo nog in
+  // uitvoerbare JS terecht (defense in depth, ook al is item.id in de praktijk altijd een
+  // crypto.randomUUID()).
   banner.innerHTML = _outboxItems.map(item => `
     <div class="outbox-item">
       <span class="outbox-item-tnum">${item.ticket?.number ? '#' + escHtml(item.ticket.number) : (item.isLocal ? 'Lokale afspraak' : '—')}</span>
       <span class="outbox-item-step">⏳ ${escHtml(outboxStepLabel(item))}</span>
       ${item.attempts ? `<span class="outbox-item-attempts">poging ${escHtml(String(item.attempts))}</span>` : ''}
       ${item.lastError ? `<span class="outbox-item-error">${escHtml(item.lastError)}</span>` : ''}
-      <button type="button" class="outbox-item-btn" onclick="event.stopPropagation(); window.outboxRetryNow('${escHtml(item.id)}')">Opnieuw proberen</button>
-      <button type="button" class="outbox-item-btn outbox-item-btn-cancel" onclick="event.stopPropagation(); window.outboxCancelItem('${escHtml(item.id)}')">Annuleren</button>
+      <button type="button" class="outbox-item-btn" data-action="retry" data-id="${escHtml(item.id)}">Opnieuw proberen</button>
+      <button type="button" class="outbox-item-btn outbox-item-btn-cancel" data-action="cancel" data-id="${escHtml(item.id)}">Annuleren</button>
     </div>
   `).join('');
   banner.style.display = 'flex';
+  banner.querySelectorAll('[data-action="retry"]').forEach(btn => btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    outboxRetryNow(btn.dataset.id);
+  }));
+  banner.querySelectorAll('[data-action="cancel"]').forEach(btn => btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    outboxCancelItem(btn.dataset.id);
+  }));
 }
 
 // (T20) "Annuleren" -- de waarschuwing verschilt naargelang het item al gearchiveerd is: vóór
