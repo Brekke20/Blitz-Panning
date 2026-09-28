@@ -141,7 +141,7 @@ export function wizRenderStep() {
   const btnBack = document.getElementById('wiz-btn-back');
   const btnNext = document.getElementById('wiz-btn-next');
   btnBack.style.display = _wizStep > 0 ? '' : 'none';
-  btnNext.textContent   = visibleIndex === total - 1 ? '🖨️ Afdrukken / PDF' : 'Volgende →';
+  btnNext.textContent   = visibleIndex === total - 1 ? '✓ Rapport versturen' : 'Volgende →';
 
   const body = document.getElementById('wiz-body');
   body.scrollTop = 0;
@@ -162,7 +162,22 @@ export function wizNext() {
     _wizStep = nextStep;
     wizRenderStep();
   } else {
-    printRapport();
+    // Bevestiging vóór versturen; printRapport enkel via onBevestig (binnen de klik-gesture, voor window.open)
+    const isLokaal = !!_wizTicket?.isLocal;
+    const nr = _wizTicket?.number || _wizTicket?.id || '';
+    const tekst = ['Het rapport wordt gearchiveerd.'];
+    if (!isLokaal) {
+      tekst.push(`De PDF wordt aan ticket #${nr} toegevoegd.`);
+      tekst.push('De uitgevoerde acties komen als oplossing op het Zoho-ticket.');
+    }
+    tekst.push('Gebruikte onderdelen worden van je wagenvoorraad afgeboekt.');
+    tekst.push('Het afdrukvoorbeeld opent in een nieuw venster.');
+    window.appConfirm({
+      titel: 'Rapport versturen?',
+      tekst,
+      bevestigLabel: 'Versturen',
+      onBevestig: () => printRapport()
+    });
   }
 }
 
