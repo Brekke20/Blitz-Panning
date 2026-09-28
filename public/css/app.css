@@ -903,6 +903,7 @@
     /* Beperkte technieker-weergave: verbergt coördinator/planning-functionaliteit onder 1024px */
     @media (max-width: 1023px) {
       .desktop-only { display: none !important; }
+      .cal-unplan-x { display: none; }
     }
 
     /* ── Kalender dagtijdlijn (desktop, week-view) ── */

@@ -1289,6 +1289,20 @@ async function removeTicketFromDate(ticketId, date) {
   renderGepland();
 }
 
+// Vraagt bevestiging vóór een ticket uit de planning gehaald wordt (× op kaart, routestop, detail).
+async function bevestigUitplannen(ticketId, date) {
+  const t = (planning[date] || []).find(p => p.ticket.id === ticketId)?.ticket;
+  const nr = t?.number ?? '';
+  const ok = await window.appConfirm({
+    titel: 'Ticket #' + nr + ' uit de planning halen?',
+    tekst: 'Het ticket gaat terug naar de wachtrij.',
+    bevestigLabel: 'Uit planning halen',
+    gevaar: true,
+  });
+  if (ok) await removeTicketFromDate(ticketId, date);
+  return ok;
+}
+
 function removeTicketFromAllDays(ticketId) {
   Object.keys(planning).forEach(date => {
     removeTicketFromDate(ticketId, date);
@@ -1330,7 +1344,7 @@ function buildTicketCard(stop, dateStr, { showActions = true } = {}) {
         ${stop.ticket.assignee ? `<div class="cal-meta">${escHtml(stop.ticket.assignee)}</div>` : ''}
         <div class="cal-addr ${stop.ticket.hasAddress ? '' : 'miss'}">${stop.ticket.hasAddress ? escHtml(stop.address) : 'Geen adres'}</div>
       </div>
-      <button onclick="event.stopPropagation();removeTicketFromDate('${stop.ticket.id}','${dateStr}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;flex-shrink:0;padding:2px 4px;line-height:1">×</button>
+      <button class="cal-unplan-x" title="Uit planning halen" aria-label="Uit planning halen" onclick="event.stopPropagation();bevestigUitplannen('${stop.ticket.id}','${dateStr}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;flex-shrink:0;padding:2px 4px;line-height:1">×</button>
     </div>
     ${showActions ? `<div class="cal-actions">
       ${stop.ticket.phone || stop.ticket.telefoonEindklant ? `<a class="cal-btn" href="tel:${escHtml(stop.ticket.telefoonEindklant||stop.ticket.phone)}">📞 Bellen</a>` : ''}
@@ -3682,7 +3696,7 @@ function renderRouteList(date) {
           <button class="sico" title="Afspraakvoorstel sturen" onclick="openProposal('${item.ticket.id}','${date}',${hasRoute && arrivalTimes[i] !== undefined ? arrivalTimes[i] : 'null'})">📨 Voorstel</button>
           <button class="sico" title="Aankomst registreren" onclick="registerArrival('${item.ticket.id}','${date}')">⏱️ Aankomst</button>
           <button class="sico" title="Service rapport" onclick="openRapport('${item.ticket.id}','${date}')">📋 Rapport</button>
-          <button class="sico" title="Verwijderen" onclick="removeTicketFromDate('${item.ticket.id}','${date}')">✕ Verwijderen</button>
+          <button class="sico" title="✕ Uit planning halen" onclick="bevestigUitplannen('${item.ticket.id}','${date}')">✕ Uit planning halen</button>
         </div>`;
     } else {
       // Lokaal event (installatie / afspraak) — nooit versleepbaar, wel een geldig drop-doel.
@@ -4656,11 +4670,13 @@ function openDetail(t) {
     planBtn.textContent      = '+ Voeg toe aan planning';
     planBtn.style.background = 'var(--green)';
     planBtn.style.color      = 'var(--on-accent)';
+    planBtn.style.border     = '';
   } else if (STATUS_PENDING.includes(t.status)) {
     planBtn.style.display    = '';
-    planBtn.textContent      = '✕ Verwijder uit planning';
-    planBtn.style.background = 'var(--red)';
-    planBtn.style.color      = '#fff';
+    planBtn.textContent      = '✕ Uit planning halen';
+    planBtn.style.background = 'transparent';
+    planBtn.style.color      = 'var(--red)';
+    planBtn.style.border     = '1px solid var(--red)';
   } else {
     planBtn.style.display = 'none';
   }
@@ -4751,8 +4767,9 @@ async function togglePlanFromDetail() {
   } else if (activeTicket.status === 'Wachten op bevestiging planning') {
     const date = Object.keys(planning).find(d => planning[d].find(p => p.ticket.id === activeTicket.id));
     if (!date) return toast('Ticket niet gevonden in planning');
+    const ticketId = activeTicket.id;
+    if (!(await bevestigUitplannen(ticketId, date))) return;
     closeDet();
-    await removeTicketFromDate(activeTicket.id, date);
   }
 }
 
