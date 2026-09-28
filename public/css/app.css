@@ -797,6 +797,28 @@
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+    /* ── In-app bevestigingsvenster (appConfirm, public/js/app-dialog.js) ──
+       Zelfde z-index als .overlay maar later in de DOM => erboven; #toast (10000) blijft erboven. */
+    .app-dialog-overlay { align-items: center; padding: 16px; }
+    .app-dialog { border-radius: var(--r-lg); padding: 20px; max-width: 440px; }
+    .app-dialog-titel { font-size: 1.05rem; font-weight: 700; color: var(--text); line-height: 1.35; margin-bottom: 10px; }
+    .app-dialog-tekst { font-size: 0.9rem; line-height: 1.5; color: var(--text2); margin-bottom: 18px; }
+    ul.app-dialog-tekst { padding-left: 20px; }
+    ul.app-dialog-tekst li { margin-bottom: 4px; }
+    .app-dialog-knoppen { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+    .app-dialog-btn {
+      min-height: 44px; padding: 10px 20px; border-radius: var(--r);
+      font: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+      border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+    }
+    .app-dialog-btn:hover { background: var(--surface3); }
+    .app-dialog-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+    .app-dialog-ok { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    .app-dialog-ok:hover { background: var(--accent-hover); }
+    .app-dialog-ok.gevaar { background: transparent; border: 2px solid var(--red); color: var(--red); }
+    .app-dialog-ok.gevaar:hover { background: var(--red-dim); }
+    @media (max-width: 480px) { .app-dialog-knoppen .app-dialog-btn { flex: 1 1 100%; } }
+
     /* ── Aankomsttijd per stop ── */
     .stop-time {
       font-size: 0.68rem; font-weight: 600;
