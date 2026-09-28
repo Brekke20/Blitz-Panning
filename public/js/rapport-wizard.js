@@ -813,7 +813,7 @@ export function wizRenderSigTech(el) {
       _sigTech.addEventListener('endStroke', () => {
         document.getElementById('sig-tech-hint').style.display = 'none';
         const st = document.getElementById('sig-tech-status');
-        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent)'; }
+        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent-ink)'; }
         wrap.classList.add('has-sig');
       });
       // Terugnavigeren mag een eerder getekende handtekening niet wissen.
@@ -821,7 +821,7 @@ export function wizRenderSigTech(el) {
         _sigTech.fromDataURL(R.handtekeningTech);
         document.getElementById('sig-tech-hint').style.display = 'none';
         const st = document.getElementById('sig-tech-status');
-        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent)'; }
+        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent-ink)'; }
         wrap.classList.add('has-sig');
       }
     }
@@ -875,7 +875,7 @@ export function wizRenderSigKlant(el) {
       _sigKlant.addEventListener('endStroke', () => {
         document.getElementById('sig-klant-hint').style.display = 'none';
         const st = document.getElementById('sig-klant-status');
-        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent)'; }
+        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent-ink)'; }
         wrap.classList.add('has-sig');
       });
       // Terugnavigeren mag een eerder getekende handtekening niet wissen.
@@ -883,7 +883,7 @@ export function wizRenderSigKlant(el) {
         _sigKlant.fromDataURL(R.handtekeningKlant);
         document.getElementById('sig-klant-hint').style.display = 'none';
         const st = document.getElementById('sig-klant-status');
-        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent)'; }
+        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent-ink)'; }
         wrap.classList.add('has-sig');
       }
     }
