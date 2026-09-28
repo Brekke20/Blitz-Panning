@@ -284,9 +284,10 @@
     }
     .kal-pending-pill:hover { background: rgba(245,158,11,0.2); transform: scale(1.03); }
     .kal-pending-pill .pill-count {
-      background: var(--orange); color: #fff;
+      background: var(--orange); color: var(--on-accent);
       border-radius: 10px; padding: 0 6px; font-size: 0.7rem; font-weight: 700;
     }
+    :root[data-theme="light"] .kal-pending-pill .pill-count { color: #fff; }
     /* Uitklap-lijst pending tickets */
     #kal-no-date-section {
       position: relative; z-index: 27;
