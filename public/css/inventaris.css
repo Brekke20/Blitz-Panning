@@ -132,7 +132,7 @@
   50%      { box-shadow: 0 0 0 6px var(--accent-dim); }
 }
 .inv-log-row.inv-day-new {
-  border-color: var(--accent-ink);
+  border-color: var(--accent);
   animation: invNewGlow 1.6s ease-in-out infinite;
 }
 
