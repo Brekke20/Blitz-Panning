@@ -800,7 +800,9 @@
     /* ── In-app bevestigingsvenster (appConfirm, public/js/app-dialog.js) ──
        Zelfde z-index als .overlay maar later in de DOM => erboven; #toast (10000) blijft erboven. */
     .app-dialog-overlay { align-items: center; padding: 16px; }
-    .app-dialog { border-radius: var(--r-lg); padding: 20px; max-width: 440px; }
+    /* Alleen fade (geen scale/slideUp uit .modal): een scale-transform maakt de knoppen tijdens/bij
+       bevroren animatie <44px hoog in getBoundingClientRect. */
+    .app-dialog { border-radius: var(--r-lg); padding: 20px; max-width: 440px; animation: fadeIn 0.2s var(--ease); }
     .app-dialog-titel { font-size: 1.05rem; font-weight: 700; color: var(--text); line-height: 1.35; margin-bottom: 10px; }
     .app-dialog-tekst { font-size: 0.9rem; line-height: 1.5; color: var(--text2); margin-bottom: 18px; }
     ul.app-dialog-tekst { padding-left: 20px; }
