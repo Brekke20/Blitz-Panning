@@ -56,7 +56,7 @@
       font-size: 0.82rem; font-weight: 500; font-family: inherit;
       transition: background 0.15s, border-color 0.15s;
     }
-    .person-btn:hover { background: var(--surface3); border-color: var(--accent-ink); }
+    .person-btn:hover { background: var(--surface3); border-color: var(--accent); }
     .person-avatar {
       width: 24px; height: 24px; border-radius: 50%;
       background: var(--accent-dim); color: var(--accent-ink);
@@ -504,7 +504,7 @@
     .man-form { display: flex; flex-direction: column; gap: 10px; }
     .man-label { font-size: 0.72rem; color: var(--muted); margin-bottom: 3px; }
     .man-input, .man-select { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 6px 9px; font-size: 0.82rem; font-family: inherit; }
-    .man-input:focus, .man-select:focus { outline: none; border-color: var(--accent-ink); }
+    .man-input:focus, .man-select:focus { outline: none; border-color: var(--accent); }
     .man-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
     /* ── Beschikbaarheid / Blokkering modal ── */
@@ -514,7 +514,7 @@
     .kb-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
     .kb-label { font-size: 0.78rem; color: var(--muted); min-width: 90px; }
     .kb-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; padding: 2px 7px; border-radius: 12px; background: rgba(255,80,80,.12); color: #f55; border: 1px solid #f55; }
-    .kb-chip-pref { background: rgba(0,223,163,.12); color: var(--accent-ink); border-color: var(--accent-ink); }
+    .kb-chip-pref { background: rgba(0,223,163,.12); color: var(--accent-ink); border-color: var(--accent); }
     .kb-chip-del { background: none; border: none; cursor: pointer; color: inherit; padding: 0; font-size: 0.8rem; line-height: 1; }
     .kb-add-btn { font-size: 0.72rem; padding: 2px 8px; background: none; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; color: var(--muted); }
     /* M13 (eindreview v1.4.0): de ✕-knop om de KB-voorkeur te wissen had voorheen geen border
@@ -543,9 +543,9 @@
     .av-time-row { display: flex; gap: 8px; align-items: center; }
     .av-time-input { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 5px 8px; font-size: 0.82rem; font-family: inherit; width: 90px; }
     input[type="date"].av-time-input { width: 136px; }
-    .av-time-input:focus { outline: none; border-color: var(--accent-ink); }
+    .av-time-input:focus { outline: none; border-color: var(--accent); }
     .av-reden-input { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 5px 8px; font-size: 0.82rem; font-family: inherit; width: 100%; }
-    .av-reden-input:focus { outline: none; border-color: var(--accent-ink); }
+    .av-reden-input:focus { outline: none; border-color: var(--accent); }
     .av-add-btn { align-self: flex-end; padding: 6px 18px; background: var(--accent); border: none; border-radius: var(--r); color: var(--on-accent); font-size: 0.82rem; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.15s; }
     .av-add-btn:hover { opacity: 0.85; }
 
@@ -560,7 +560,7 @@
       padding: 6px 10px; border-radius: var(--r); font-size: 0.82rem; font-family: inherit;
       transition: border-color 0.15s;
     }
-    .plan-header input[type=date]:focus { outline: none; border-color: var(--accent-ink); }
+    .plan-header input[type=date]:focus { outline: none; border-color: var(--accent); }
     .btn-primary {
       background: var(--accent); border: none; color: var(--on-accent);
       padding: 7px 14px; border-radius: var(--r);
@@ -579,7 +579,7 @@
     }
     .btn-sec:hover  { background: var(--surface2); color: var(--text); transform: translateY(-1px); }
     .btn-sec:active { transform: translateY(0); }
-    .rapp-filter-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent-ink); }
+    .rapp-filter-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
     .plan-body { display: flex; flex: 1; min-height: 0; }
     #route-list { width: 300px; flex-shrink: 0; overflow-y: auto; padding: 6px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
     .stop {
@@ -588,7 +588,7 @@
       transition: background 0.12s, transform 0.12s;
     }
     .stop:hover { background: var(--surface3); transform: translateX(2px); }
-    .stop.drag-over { border-color: var(--accent-ink); }
+    .stop.drag-over { border-color: var(--accent); }
     /* Taak 4: vergrendelde stop (voorstel verstuurd / bevestigde afspraak) — niet versleepbaar. */
     .stop.locked { opacity: .85; }
     .stop.locked .stop-num { background: var(--muted); }
@@ -598,7 +598,7 @@
       padding: 8px; font-size: .7rem; border-radius: var(--r);
     }
     #route-list.dragging .route-drop-end { display: block; }
-    .route-drop-end.drag-over { border-color: var(--accent-ink); }
+    .route-drop-end.drag-over { border-color: var(--accent); }
     .stop-top { display: flex; gap: 9px; align-items: flex-start; }
     .stop-num { background: var(--accent); color: var(--on-accent); border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.7rem; flex-shrink: 0; position: relative; }
     /* C1 (eindreview v1.4.0): kleine indicator op de stop-num-cirkel voor tickets met een
@@ -700,7 +700,7 @@
     .mval { font-size: 0.83rem; flex: 1; word-break: break-word; color: var(--text2); line-height: 1.4; }
     .mval.miss { color: var(--red); }
     .mval a { color: var(--accent-ink); text-decoration: none; transition: color 0.1s; }
-    .mval a:hover { color: var(--accent-hover); text-decoration: underline; }
+    .mval a:hover { color: var(--accent-ink); text-decoration: underline; }
     .mftr {
       padding: 13px 20px; border-top: 1px solid var(--border);
       display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
@@ -732,7 +732,7 @@
       background:none; border:none; padding:10px 14px; font-size:0.85rem; color:var(--muted);
       cursor:pointer; border-bottom:2px solid transparent; font-weight:600;
     }
-    .set-subtab.active { color:var(--accent-ink); border-bottom-color:var(--accent-ink); }
+    .set-subtab.active { color:var(--accent-ink); border-bottom-color:var(--accent); }
     .set-subtab:hover { color:var(--text); }
     .set-field { margin-bottom: 15px; }
     .set-label { font-size: 0.73rem; font-weight: 500; color: var(--muted); margin-bottom: 6px; display: block; }
@@ -741,7 +741,7 @@
       padding: 8px 11px; border-radius: var(--r); font-size: 0.85rem; font-family: inherit;
       transition: border-color 0.15s, box-shadow 0.15s;
     }
-    .set-input:focus { outline: none; border-color: var(--accent-ink); box-shadow: 0 0 0 3px var(--accent-dim); }
+    .set-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
     .set-row { display: flex; gap: 8px; align-items: center; }
     .set-row .set-input { flex: 1; }
     .set-color-swatch {

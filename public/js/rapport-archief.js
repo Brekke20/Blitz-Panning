@@ -58,9 +58,9 @@ export function renderRapportArchief() {
     const rd       = r.rapportData || {};
     const isInstallatieRapport = (r.interventieType || rd.interventieType || 'Interventie') === 'Installatie';
     const hersteld  = isInstallatieRapport
-      ? '<span style="color:var(--accent);font-weight:600">🔧 Installatie</span>'
+      ? '<span style="color:var(--accent-ink);font-weight:600">🔧 Installatie</span>'
       : r.hersteld === 'ja'
-        ? '<span style="color:var(--green);font-weight:600">✓ Hersteld</span>'
+        ? '<span style="color:var(--accent-ink);font-weight:600">✓ Hersteld</span>'
         : '<span style="color:var(--orange)">⚠ Niet hersteld</span>';
     const nieuw     = (!isInstallatieRapport && r.nieuwInter === 'ja') ? '<span style="color:var(--orange)">🔁 Nieuwe interventie</span>' : '';
     // (T20) Een geannuleerd rapport (outboxCancelItem, public/js/outbox.js) moet zichtbaar
@@ -69,7 +69,7 @@ export function renderRapportArchief() {
     const inWachtrij = r.geannuleerd
       ? '<span style="color:var(--red)">❌ Niet verzonden (geannuleerd)</span>'
       : _outboxItems.some(o => o.id === r.id)
-        ? '<span style="color:var(--accent);font-weight:600">⏳ In wachtrij</span>'
+        ? '<span style="color:var(--accent-ink);font-weight:600">⏳ In wachtrij</span>'
         : '';
     const st       = rd.servicetype || r.servicetype || '';
     const isGarantie = st === 'garantie';
@@ -96,7 +96,7 @@ export function renderRapportArchief() {
         rows.push(`<span style="font-size:0.68rem;color:var(--muted);display:block">Loon niet factureerbaar (garantie): <s>€ ${loonBruto.toFixed(2)}</s></span>`);
       }
       if (totOnderdelen > 0) {
-        rows.push(`<span style="font-size:0.85rem;font-weight:700;color:var(--accent)">Onderdelen factureerbaar: € ${totOnderdelen.toFixed(2)}</span>`);
+        rows.push(`<span style="font-size:0.85rem;font-weight:700;color:var(--accent-ink)">Onderdelen factureerbaar: € ${totOnderdelen.toFixed(2)}</span>`);
       }
       if (rows.length) {
         prijsHtml = `<span style="margin-left:auto;text-align:right;line-height:1.3">${rows.join('')}</span>`;
@@ -104,7 +104,7 @@ export function renderRapportArchief() {
     } else if (totFactureerbaar > 0) {
       prijsHtml = `<span style="margin-left:auto;text-align:right;line-height:1.3">
         <span style="font-size:0.68rem;color:var(--muted);display:block">Factureerbaar</span>
-        <span style="font-size:0.85rem;font-weight:700;color:var(--accent)">€ ${totFactureerbaar.toFixed(2)}</span>
+        <span style="font-size:0.85rem;font-weight:700;color:var(--accent-ink)">€ ${totFactureerbaar.toFixed(2)}</span>
       </span>`;
     }
 

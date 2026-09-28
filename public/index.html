@@ -211,7 +211,7 @@
     <div class="mhdr">
       <button class="mhdr-close" onclick="closeSettings()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title">⚙️ Instellingen</div>
-      <div class="mhdr-num" id="set-person-label" style="font-size:0.78rem;color:var(--accent);margin-top:2px"></div>
+      <div class="mhdr-num" id="set-person-label" style="font-size:0.78rem;color:var(--accent-ink);margin-top:2px"></div>
     </div>
     <div class="set-subtabs">
       <button class="set-subtab active" id="set-subtab-algemeen" onclick="setSettingsTab('algemeen')">Algemeen</button>
@@ -1135,7 +1135,7 @@ function renderTickets() {
           ${overdue ? `<span class="stag">Verlopen</span>` : ''}
           ${t.priority ? `<span class="prtag ${escHtml((t.priority||'').toLowerCase())}">${escHtml(prioLabel(t.priority))}</span>` : ''}
           ${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}
-          ${kbPrefLabel ? `<span class="atag" title="${escHtml(kbPrefTitle)}" style="background:rgba(0,223,163,.15);color:var(--accent);border:1px solid var(--accent)">${escHtml(kbPrefLabel)}</span>` : ''}
+          ${kbPrefLabel ? `<span class="atag" title="${escHtml(kbPrefTitle)}" style="background:rgba(0,223,163,.15);color:var(--accent-ink);border:1px solid var(--accent)">${escHtml(kbPrefLabel)}</span>` : ''}
           ${(kbFor(t.id)?.geblokkeerd?.length) ? `<span class="atag" title="Klant kan niet: ${kbFor(t.id).geblokkeerd.join(', ')}" style="background:rgba(255,80,80,.1);color:#f55;border:1px solid #f55">🚫 ${kbFor(t.id).geblokkeerd.length}</span>` : ''}
         </div>
         <div class="tsub">${escHtml(t.subject) || '—'}</div>
@@ -1656,11 +1656,11 @@ function renderKalender() {
         <div class="t-assign-row" id="assign-row-${t.id}" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
           <input type="date" id="assign-date-${t.id}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
           <input type="time" id="assign-time-${t.id}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)" value="09:00">
-          <button onclick="event.stopPropagation();saveToewijzen('${t.id}')" style="font-size:0.75rem;padding:3px 8px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:600">✓ Opslaan</button>
+          <button onclick="event.stopPropagation();saveToewijzen('${t.id}')" style="font-size:0.75rem;padding:3px 8px;background:var(--accent);color:var(--on-accent);border:none;border-radius:4px;cursor:pointer;font-weight:600">✓ Opslaan</button>
           <button onclick="event.stopPropagation();document.getElementById('assign-row-${t.id}').style.display='none'" style="font-size:0.75rem;padding:3px 6px;background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--muted)">✕</button>
         </div>
         <div style="margin-top:6px">
-          <button onclick="event.stopPropagation();toggleAssignRow('${t.id}')" style="font-size:0.75rem;padding:3px 8px;background:var(--accent-dim,rgba(0,223,163,.15));color:var(--accent);border:1px solid var(--accent);border-radius:4px;cursor:pointer;font-weight:600">📅 Toewijzen</button>
+          <button onclick="event.stopPropagation();toggleAssignRow('${t.id}')" style="font-size:0.75rem;padding:3px 8px;background:var(--accent-dim,rgba(0,223,163,.15));color:var(--accent-ink);border:1px solid var(--accent);border-radius:4px;cursor:pointer;font-weight:600">📅 Toewijzen</button>
         </div>
       </div>`;
       card.addEventListener('click', () => openDetail(t));
@@ -1785,7 +1785,7 @@ function renderKalender() {
     if (dayStops.length > 0 || dayEvents.some(e => e.adres || e.notitie)) {
       const rb = document.createElement('button');
       rb.className = 'cal-btn desktop-only';
-      rb.style.cssText = 'flex:none;width:100%;margin-bottom:4px;background:var(--accent-dim);border:1px solid rgba(245,158,11,0.2);color:var(--accent);padding:4px;border-radius:4px;cursor:pointer;font-size:0.7rem;font-weight:600;font-family:inherit;';
+      rb.style.cssText = 'flex:none;width:100%;margin-bottom:4px;background:var(--accent-dim);border:1px solid rgba(245,158,11,0.2);color:var(--accent-ink);padding:4px;border-radius:4px;cursor:pointer;font-size:0.7rem;font-weight:600;font-family:inherit;';
       rb.textContent = 'Route berekenen';
       rb.onclick = () => {
         document.getElementById('plan-date').value = dateStr;

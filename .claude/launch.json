@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "blitz-fase1-worktree",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["blobs-local-bootstrap.mjs"],
+      "port": 3333
+    }
+  ]
+}

@@ -261,7 +261,7 @@ export function wizRenderAlgemeen(el) {
     </div>
     <div id="werktijd-chip" style="display:${R.start&&R.stop?'flex':'none'};align-items:center;gap:8px;background:var(--accent-dim);border:1px solid rgba(0,223,163,0.2);border-radius:8px;padding:10px 14px;font-size:0.85rem;margin-bottom:4px">
       <span style="color:var(--muted)">⏱ Totale werktijd:</span>
-      <strong id="werktijd-val" style="color:var(--accent)">${calcWerktijd(R.start,R.stop)}</strong>
+      <strong id="werktijd-val" style="color:var(--accent-ink)">${calcWerktijd(R.start,R.stop)}</strong>
     </div>`;
 }
 export function wizSaveAlgemeen() {
@@ -337,9 +337,9 @@ export function wizLoonkostPreview() {
     <div style="display:flex;align-items:baseline;gap:6px">
       ${isGarantie && bruto > 0
         ? `<span style="text-decoration:line-through;color:var(--muted);font-size:0.85rem">€ ${bruto.toFixed(2)}</span>
-           <span style="font-size:1rem;font-weight:700;color:var(--accent)">€ 0,00</span>
+           <span style="font-size:1rem;font-weight:700;color:var(--accent-ink)">€ 0,00</span>
            <span style="font-size:0.72rem;color:var(--muted)">(100% korting — garantie)</span>`
-        : `<span style="font-size:1rem;font-weight:700;color:var(--accent)">€ ${netto.toFixed(2)}</span>`
+        : `<span style="font-size:1rem;font-weight:700;color:var(--accent-ink)">€ ${netto.toFixed(2)}</span>`
       }
     </div>`;
 }
@@ -412,7 +412,7 @@ export function wizRenderFacturatie(el) {
     <div id="aanrijtijd-wrap" style="margin-top:6px">
       <div class="wiz-field">
         <label class="wiz-field-label">Aanrijtijd (minuten, enkel heen)
-          ${R.aanrijtijdMin > 0 ? '<span style="font-size:0.72rem;color:var(--accent);margin-left:6px">📡 TomTom</span>' : ''}
+          ${R.aanrijtijdMin > 0 ? '<span style="font-size:0.72rem;color:var(--accent-ink);margin-left:6px">📡 TomTom</span>' : ''}
         </label>
         <input class="wiz-input" id="f-aanrijtijd" type="number" min="0" step="1"
           value="${R.aanrijtijdMin || ''}" placeholder="bijv. 35"

@@ -117,7 +117,7 @@
   border-radius: 20px;
   text-transform: uppercase;
 }
-.inv-log-type.inv-log-aanvulling { background: var(--accent-dim); color: var(--accent); }
+.inv-log-type.inv-log-aanvulling { background: var(--accent-dim); color: var(--accent-ink); }
 .inv-log-type.inv-log-correctie  { background: var(--red-dim); color: var(--red); }
 .inv-log-type.inv-log-verbruik   { background: var(--surface3); color: var(--muted); }
 
@@ -132,7 +132,7 @@
   50%      { box-shadow: 0 0 0 6px var(--accent-dim); }
 }
 .inv-log-row.inv-day-new {
-  border-color: var(--accent);
+  border-color: var(--accent-ink);
   animation: invNewGlow 1.6s ease-in-out infinite;
 }
 
