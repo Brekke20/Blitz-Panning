@@ -246,3 +246,14 @@
     html[data-aanraak="ja"] .wiz-sel-item .wiz-part-omschr { font-size: 16px; }
     html[data-aanraak="ja"] .wiz-sel-item .wiz-part-prijs { font-size: 16px; }
     html[data-aanraak="ja"] .wiz-sel-item .wiz-part-eenheid { font-size: 16px; }
+
+    /* Overzichtsstap */
+    .wiz-sam-intro { font-size: 0.85rem; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+    .wiz-sam-kaart { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); padding: 10px 12px; margin-bottom: 10px; }
+    .wiz-sam-kop { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .wiz-sam-titel { font-size: 0.9rem; font-weight: 700; margin: 0; }
+    .wiz-sam-rij { display: flex; gap: 10px; padding: 3px 0; font-size: 0.85rem; }
+    .wiz-sam-lbl { color: var(--muted); flex: 0 0 38%; min-width: 0; }
+    .wiz-sam-val { color: var(--text); flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+    .wiz-sam-ok { color: var(--accent-ink); font-weight: 600; }
+    .wiz-sam-waarschuw { color: var(--red); font-weight: 600; }

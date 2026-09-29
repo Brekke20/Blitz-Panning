@@ -35,7 +35,70 @@ export const WIZ_STEPS = [
   { id: 'status',       label: 'Status',         render: wizRenderStatus,       save: wizSaveStatus       },
   { id: 'sig-tech',     label: 'Handtekening 1', render: wizRenderSigTech,      save: wizSaveSigTech      },
   { id: 'sig-klant',    label: 'Handtekening 2', render: wizRenderSigKlant,     save: wizSaveSigKlant     },
+  { id: 'samenvatting', label: 'Overzicht',      render: wizRenderSamenvatting },
 ];
+
+// ── Concept per ticket (localStorage) ──
+// Bewaart de ingevulde velden zodat een rapport niet verloren gaat bij herladen of sluiten.
+// Foto's en handtekeningen (zwaar, en de handtekening is bewijs) worden bewust NIET bewaard.
+const CONCEPT_MAX_DAGEN = 7;
+const CONCEPT_UIT = ['fotos', 'handtekeningTech', 'handtekeningKlant'];
+let _wizTicketId = null;
+let _wizVanOverzicht = false;
+let _conceptTimer = null;
+
+export function conceptSleutel(ticketId, datum) {
+  return `${TEST_MODE ? 'blitz_test_rapportconcept' : 'blitz_rapportconcept'}:${ticketId}:${datum}`;
+}
+export function wisConcept(ticketId, datum) {
+  clearTimeout(_conceptTimer);
+  try { localStorage.removeItem(conceptSleutel(ticketId, datum)); } catch { /* privémodus */ }
+}
+export function leesConcept(ticketId, datum) {
+  try {
+    const sleutel = conceptSleutel(ticketId, datum);
+    const raw = localStorage.getItem(sleutel);
+    if (!raw) return null;
+    let c = null;
+    try { c = JSON.parse(raw); } catch { /* ongeldig */ }
+    const t = c && Date.parse(c.opgeslagen);
+    const oud = !t || (Date.now() - t) > CONCEPT_MAX_DAGEN * 86400000;
+    if (!c || c.v !== 1 || !c.R || typeof c.R !== 'object' || oud) {
+      localStorage.removeItem(sleutel);
+      return null;
+    }
+    return c;
+  } catch { return null; }
+}
+export function bewaarConcept() {
+  if (!_wizTicketId || _rapportUploaded) return;
+  try {
+    const kopie = {};
+    for (const k of Object.keys(R)) if (!CONCEPT_UIT.includes(k)) kopie[k] = R[k];
+    localStorage.setItem(conceptSleutel(_wizTicketId, _wizDate), JSON.stringify({
+      v: 1, opgeslagen: new Date().toISOString(), stap: WIZ_STEPS[_wizStep].id, R: kopie,
+    }));
+  } catch { /* privémodus of vol: concept is een extraatje */ }
+}
+function wizWizardOpen() {
+  return !!document.getElementById('rapport-wizard')?.classList.contains('open');
+}
+// Leest de velden van de zichtbare stap (de wizSave*-functies schrijven enkel naar R; het
+// resultaat — de validatie — negeren we hier) en bewaart.
+function wizBewaarHuidig() {
+  if (!wizWizardOpen() || !_wizTicketId) return;
+  try { WIZ_STEPS[_wizStep].save?.(); } catch { /* DOM niet klaar */ }
+  bewaarConcept();
+}
+function wizConceptDebounce() {
+  if (!wizWizardOpen()) return;
+  clearTimeout(_conceptTimer);
+  _conceptTimer = setTimeout(wizBewaarHuidig, 1000);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') wizBewaarHuidig(); });
+window.addEventListener('pagehide', wizBewaarHuidig);
+document.getElementById('wiz-body')?.addEventListener('input', wizConceptDebounce);
+document.getElementById('wiz-body')?.addEventListener('change', wizConceptDebounce);
 
 export async function openRapport(ticketId, date) {
   const ticket = getPlanningTicket(ticketId);
@@ -44,6 +107,8 @@ export async function openRapport(ticketId, date) {
   closeLocalDet();
   _wizTicket = ticket;
   _wizDate   = date;
+  _wizTicketId = ticketId;
+  _wizVanOverzicht = false;
 
   const now = new Date();
   const p2  = n => String(n).padStart(2,'0');
@@ -109,13 +174,36 @@ export async function openRapport(ticketId, date) {
   _rapportUploaded = false; // reset guard bij nieuwe wizard-sessie
 
   _wizStep = 0;
+
+  // Concept hervatten? (na het resetten van R; foto's/handtekeningen blijven vers)
+  const concept = leesConcept(ticketId, date);
+  if (concept) {
+    const d = new Date(concept.opgeslagen);
+    const dd = `${p2(d.getDate())}/${p2(d.getMonth() + 1)}`;
+    const uu = `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    const hervat = await window.appConfirm({
+      titel: 'Concept hervatten?',
+      tekst: [`Je begon eerder aan een rapport voor dit ticket (bewaard op ${dd} om ${uu}).`, 'Wil je verdergaan waar je gebleven was?'],
+      bevestigLabel: 'Hervatten',
+      annuleerLabel: 'Opnieuw beginnen',
+    });
+    if (hervat) {
+      for (const k of Object.keys(concept.R)) if (!CONCEPT_UIT.includes(k)) R[k] = concept.R[k];
+      const i = WIZ_STEPS.findIndex(st => st.id === concept.stap);
+      if (i >= 0) _wizStep = i;
+    } else {
+      wisConcept(ticketId, date);
+    }
+  }
+
   document.getElementById('rapport-wizard').classList.add('open');
   wizRenderStep();
 }
 
 export function closeWizard() {
   // Na een geslaagd rapport is er niets meer te verliezen — geen bevestiging nodig.
-  if (_rapportUploaded || confirm('Rapport sluiten? Niet-opgeslagen wijzigingen gaan verloren.')) {
+  if (_rapportUploaded || confirm('Rapport sluiten? Je concept blijft bewaard.')) {
+    if (!_rapportUploaded) wizBewaarHuidig();
     document.getElementById('rapport-wizard').classList.remove('open');
   }
 }
@@ -141,7 +229,8 @@ export function wizRenderStep() {
   const btnBack = document.getElementById('wiz-btn-back');
   const btnNext = document.getElementById('wiz-btn-next');
   btnBack.style.display = _wizStep > 0 ? '' : 'none';
-  btnNext.textContent   = visibleIndex === total - 1 ? '✓ Rapport versturen' : 'Volgende →';
+  btnNext.textContent   = visibleIndex === total - 1 ? '✓ Rapport versturen'
+    : (_wizVanOverzicht ? 'Terug naar overzicht' : 'Volgende →');
 
   const body = document.getElementById('wiz-body');
   body.scrollTop = 0;
@@ -158,8 +247,15 @@ export function wizNext() {
   }
   let nextStep = _wizStep + 1;
   if (R.interventieType === 'Installatie' && WIZ_STEPS[nextStep]?.id === 'facturatie') nextStep++;
-  if (nextStep < WIZ_STEPS.length) {
+  if (_wizVanOverzicht) {
+    // "Wijzig" vanuit het overzicht: na de aanpassing terug naar het overzicht
+    _wizVanOverzicht = false;
+    _wizStep = WIZ_STEPS.findIndex(st => st.id === 'samenvatting');
+    bewaarConcept();
+    wizRenderStep();
+  } else if (nextStep < WIZ_STEPS.length) {
     _wizStep = nextStep;
+    bewaarConcept();
     wizRenderStep();
   } else {
     // Bevestiging vóór versturen; printRapport enkel via onBevestig (binnen de klik-gesture, voor window.open)
@@ -197,10 +293,59 @@ export function wizBack() {
   if (WIZ_STEPS[_wizStep].save) WIZ_STEPS[_wizStep].save();
   let prevStep = _wizStep - 1;
   if (R.interventieType === 'Installatie' && WIZ_STEPS[prevStep]?.id === 'facturatie') prevStep--;
+  _wizVanOverzicht = false;
   if (prevStep >= 0) {
     _wizStep = prevStep;
+    bewaarConcept();
     wizRenderStep();
   }
+}
+
+// Vanuit het overzicht ("Wijzig") naar een stap; wizNext brengt je daarna terug.
+export function wizGaNaar(stapId) {
+  const i = WIZ_STEPS.findIndex(st => st.id === stapId);
+  if (i < 0) return;
+  _wizVanOverzicht = true;
+  _wizStep = i;
+  bewaarConcept();
+  wizRenderStep();
+}
+
+// ── Overzichtsstap (laatste; blokkeert niets) ──
+export function wizRenderSamenvatting(el) {
+  const rij = (l, w) => `<div class="wiz-sam-rij"><span class="wiz-sam-lbl">${escHtml(l)}</span><span class="wiz-sam-val">${w ? escHtml(String(w)) : '—'}</span></div>`;
+  const kaart = (titel, id, rijen) => `
+    <section class="wiz-sam-kaart">
+      <div class="wiz-sam-kop"><h3 class="wiz-sam-titel">${escHtml(titel)}</h3>
+        <button type="button" class="btn btn--secondary btn--sm wiz-sam-wijzig" onclick="wizGaNaar('${id}')">Wijzig</button></div>
+      ${rijen}
+    </section>`;
+  const inst = R.interventieType === 'Installatie';
+  const sigRij = (l, ok) => `<div class="wiz-sam-rij"><span class="wiz-sam-lbl">${escHtml(l)}</span><span class="wiz-sam-val ${ok ? 'wiz-sam-ok' : 'wiz-sam-waarschuw'}">${ok ? '✓ gezet' : '⚠ Handtekening ' + escHtml(l.toLowerCase()) + ' ontbreekt'}</span></div>`;
+  const fact = { klant: 'Klant', partner: 'Partner / installateur', vrij: R.facturatieVrij || 'Vrij invulveld' }[R.facturatie] || R.facturatie;
+  const stype = { '2e-lijn': '2e lijns interventie', '1e-lijn': '1e lijns interventie', garantie: 'Garantie' }[R.servicetype] || R.servicetype;
+  const onderdelen = (R.onderdelen || []).filter(p => p.naam);
+  const onderdelenHtml = onderdelen.length
+    ? onderdelen.map(p => `<div class="wiz-sam-rij"><span class="wiz-sam-val">${escHtml(p.naam)} × ${escHtml(String(parseInt(p.aantal) || 1))}</span></div>`).join('')
+    : '<div class="wiz-sam-rij"><span class="wiz-sam-val">Geen onderdelen</span></div>';
+  const ja = v => (v === 'ja' ? 'Ja' : 'Nee');
+  const nFotos = (R.fotos || []).length;
+  el.innerHTML = `
+    <div class="wiz-step-title">Overzicht</div>
+    <p class="wiz-sam-intro">Controleer je rapport. Met "Wijzig" pas je een onderdeel aan en kom je hier terug.</p>
+    ${kaart('Algemeen', 'algemeen',
+      rij('Datum', R.datum) + rij('Technieker', R.technieker) + rij('Adres', R.adres) +
+      rij('Start – stop', `${R.start || '?'} – ${R.stop || '?'}`) + rij('Werktijd', R.werktijd) + rij('Type bezoek', R.interventieType))}
+    ${inst ? '' : kaart('Facturatie', 'facturatie', rij('Facturatie aan', fact) + rij('Type interventie', stype) + rij('Aanrijtijd', R.aanrijtijdMin ? `${R.aanrijtijdMin} min` : ''))}
+    ${kaart('Product', 'product',
+      rij('Installateur', R.installateur) + rij('Serienummer', R.serienummer) + rij('Aantal laadpalen', R.aantalLaadpalen) +
+      rij('Type', R.type) + rij('Uitvoering', R.uitvoering) + rij('Kabel', [R.kabel, R.kabellengte].filter(Boolean).join(' ')))}
+    ${kaart('Omschrijving', 'omschrijving',
+      rij(inst ? 'Installatie' : 'Probleem', R.probleem) + rij('Acties', R.acties) + (inst ? '' : rij('Oorzaak', (R.oorzaakStoring || []).join(', '))))}
+    ${kaart("Foto's", 'fotos', rij("Foto's", `${nFotos} foto's`))}
+    ${kaart('Onderdelen', 'status', onderdelenHtml)}
+    ${kaart('Status', 'status', rij('Hersteld', ja(R.hersteld)) + rij('Nieuwe interventie', ja(R.nieuwInter)))}
+    ${kaart('Handtekeningen', 'sig-tech', sigRij('Technieker', !!R.handtekeningTech) + sigRij('Klant', !!R.handtekeningKlant))}`;
 }
 
 // ── Helpers ──
@@ -1179,6 +1324,7 @@ export async function printRapport() {
   // afdrukvoorbeeld (hierboven al synchroon geopend) en het sluiten van de wizard.
   if (TEST_MODE) {
     toast('🧪 Testmodus — rapport niet verzonden (enkel afdrukvoorbeeld)', 5000);
+    wisConcept(_wizTicketId, _wizDate);
   } else if (!_rapportUploaded) {
     _rapportUploaded = true;
 
@@ -1234,6 +1380,7 @@ export async function printRapport() {
       };
 
       await outboxAdd(item);
+      wisConcept(_wizTicketId, _wizDate); // rapport staat veilig in de outbox
       await refreshOutboxCache();
 
       // Post-launch feedback (2026-08-17): geen apart "Oplossing invoeren"-knopje meer -- de
@@ -1295,6 +1442,7 @@ window.openRapport          = openRapport;
 window.closeWizard          = closeWizard;
 window.wizNext               = wizNext;
 window.wizBack               = wizBack;
+window.wizGaNaar             = wizGaNaar;
 window.updateWerktijd        = updateWerktijd;
 window.wizFacturatieChange   = wizFacturatieChange;
 window.wizServicetypeChange  = wizServicetypeChange;
