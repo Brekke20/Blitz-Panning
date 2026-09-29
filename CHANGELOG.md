@@ -15,6 +15,39 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.8.0] — 2026-09-29
+
+Tablet-fase (spec `docs/superpowers/specs/2026-09-29-tablet-fase-design.md`).
+
+### Added
+- Centrale apparaatherkenning: de app kijkt naar hoe het toestel bediend wordt (vinger of muis)
+  en naar de kortste schermzijde (gsm < 600, tablet ≥ 600) in plaats van enkel de
+  schermbreedte. Draaien, andere beeldverhoudingen of het schermtoetsenbord gooien de indeling
+  niet meer om.
+- Instellingen → "Dit toestel": toont wat herkend werd, met de keuze van de rol
+  (coördinator/technieker) en een vaste weergave. Het tandwiel is voor iedereen bereikbaar;
+  techniekers zien er enkel dit deel.
+- Een tablet vraagt bij het eerste gebruik één keer "Wie gebruikt deze tablet?".
+- Tablet rechtop: een 24u-tijdlijn van 3 werkdagen (per dag verder schuiven, weekend
+  overgeslagen).
+- Routestops verschuiven: met de muis meteen slepen, met de vinger een halve seconde vasthouden
+  (het toestel trilt kort) en dan verschuiven. Meteen vegen scrolt gewoon.
+- Na een herstart van de app kom je terug op hetzelfde tabblad en dezelfde scrollpositie
+  (tot 10 minuten).
+- Tijdelijke diagnose: springt het scherm onverwacht naar boven, dan wordt een klein, anoniem
+  logbericht bewaard (wordt verwijderd na analyse).
+
+### Changed
+- Planknoppen en -tabbladen volgen de rol op het toestel, niet de schermbreedte: een
+  coördinator ziet ze ook op de tablet, een technieker nergens.
+- Op aanraakschermen zijn knoppen minstens 44 punten hoog. De gsm-kopbalk past op smalle
+  toestellen.
+- Bij nieuwe gegevens springt het scherm niet meer naar boven. Een tabwissel begint wel
+  altijd bovenaan.
+
+### Fixed
+- Het logboek-endpoint weigert grote berichten en bewaart enkel vooraf bepaalde velden.
+
 ## [1.7.0] — 2026-09-29
 
 UI/UX-traject fase 2: agenda over 24 uur.
