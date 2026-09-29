@@ -165,13 +165,28 @@ export function wizNext() {
     // Bevestiging vóór versturen; printRapport enkel via onBevestig (binnen de klik-gesture, voor window.open)
     const isLokaal = !!_wizTicket?.isLocal;
     const nr = _wizTicket?.number || _wizTicket?.id || '';
-    const tekst = ['Het rapport wordt gearchiveerd.'];
-    if (!isLokaal) {
-      tekst.push(`De PDF wordt aan ticket #${nr} toegevoegd.`);
-      tekst.push('De uitgevoerde acties komen als oplossing op het Zoho-ticket.');
+    let tekst;
+    if (TEST_MODE) {
+      tekst = ['🧪 Testmodus: er wordt niets verstuurd of opgeslagen.', 'Enkel het afdrukvoorbeeld opent in een nieuw venster.'];
+    } else {
+      tekst = ['Het rapport wordt gearchiveerd.'];
+      if (!isLokaal) {
+        tekst.push(`De PDF wordt aan ticket #${nr} toegevoegd.`);
+        tekst.push('De uitgevoerde acties komen als oplossing op het Zoho-ticket.');
+      }
+      // Zelfde filter als registreerVerbruik: enkel echte voorraadonderdelen
+      const heeftVoorraadOnderdeel = (R.onderdelen || []).some(p => p.naam && !String(p.id || '').startsWith('vrij-') && (parseInt(p.aantal) || 0) > 0);
+      if (heeftVoorraadOnderdeel) tekst.push('Gebruikte onderdelen worden van je wagenvoorraad afgeboekt.');
+      tekst.push('Het afdrukvoorbeeld opent in een nieuw venster.');
     }
-    tekst.push('Gebruikte onderdelen worden van je wagenvoorraad afgeboekt.');
-    tekst.push('Het afdrukvoorbeeld opent in een nieuw venster.');
+    if (typeof window.appConfirm !== 'function') {
+      // Terugval als app-dialog.js niet geladen is: native confirm, zelfde titel + tekst
+      if (confirm('Rapport versturen?
+
+' + tekst.join('
+'))) printRapport();
+      return;
+    }
     window.appConfirm({
       titel: 'Rapport versturen?',
       tekst,
@@ -1152,7 +1167,9 @@ export async function printRapport() {
   const blobUrl = URL.createObjectURL(blob);
   const win     = window.open(blobUrl, '_blank');
   if (!win) {
-    toast('Het PDF-venster werd geblokkeerd. Je rapport is wel bewaard. Sta pop-ups toe om de PDF te zien.');
+    toast(TEST_MODE
+      ? 'Pop-upblokkering actief — sta pop-ups toe om het afdrukvoorbeeld te zien.'
+      : 'Pop-upblokkering actief — sta pop-ups toe om het afdrukvoorbeeld te zien. Het rapport wordt wel verstuurd.');
   }
 
   // Wachtrij-item aanmaken en proberen te verzenden vóórdat het afdrukvoorbeeld

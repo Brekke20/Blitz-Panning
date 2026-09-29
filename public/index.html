@@ -65,7 +65,7 @@
 </div>
 </div>
 
-<div id="offline-banner">📶 Geen verbinding. Wijzigingen worden pas in Zoho opgeslagen zodra je weer online bent.</div>
+<div id="offline-banner">📶 Geen verbinding. Rapporten worden bewaard en verstuurd zodra je weer online bent; andere wijzigingen lukken pas als je weer verbinding hebt.</div>
 
 <!-- (T20) Geen outer onclick meer -- elke actie loopt via de twee knoppen per item
      (renderOutboxBanner, public/js/outbox.js). -->
@@ -1293,12 +1293,14 @@ async function removeTicketFromDate(ticketId, date) {
 async function bevestigUitplannen(ticketId, date) {
   const t = (planning[date] || []).find(p => p.ticket.id === ticketId)?.ticket;
   const nr = t?.number ?? '';
-  const ok = await window.appConfirm({
-    titel: 'Ticket #' + nr + ' uit de planning halen?',
-    tekst: 'Het ticket gaat terug naar de wachtrij.',
-    bevestigLabel: 'Uit planning halen',
-    gevaar: true,
-  });
+  const titel = 'Ticket #' + nr + ' uit de planning halen?';
+  const tekst = 'Het ticket gaat terug naar de wachtrij.';
+  // Terugval op native confirm als app-dialog.js niet geladen is
+  const ok = typeof window.appConfirm === 'function'
+    ? await window.appConfirm({ titel, tekst, bevestigLabel: 'Uit planning halen', gevaar: true })
+    : confirm(titel + '
+
+' + tekst);
   if (ok) await removeTicketFromDate(ticketId, date);
   return ok;
 }
@@ -3696,7 +3698,7 @@ function renderRouteList(date) {
           <button class="sico" title="Afspraakvoorstel sturen" onclick="openProposal('${item.ticket.id}','${date}',${hasRoute && arrivalTimes[i] !== undefined ? arrivalTimes[i] : 'null'})">📨 Voorstel</button>
           <button class="sico" title="Aankomst registreren" onclick="registerArrival('${item.ticket.id}','${date}')">⏱️ Aankomst</button>
           <button class="sico" title="Service rapport" onclick="openRapport('${item.ticket.id}','${date}')">📋 Rapport</button>
-          <button class="sico" title="✕ Uit planning halen" onclick="bevestigUitplannen('${item.ticket.id}','${date}')">✕ Uit planning halen</button>
+          <button class="sico" title="Uit planning halen" onclick="bevestigUitplannen('${item.ticket.id}','${date}')">✕ Uit planning halen</button>
         </div>`;
     } else {
       // Lokaal event (installatie / afspraak) — nooit versleepbaar, wel een geldig drop-doel.
