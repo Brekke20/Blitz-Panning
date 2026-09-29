@@ -1751,7 +1751,7 @@ function renderKalender() {
   document.getElementById('kal-label').textContent = fmtDateShort(weekStart) + ' – ' + fmtDateShort(weekEnd);
 
   const grid = document.getElementById('week-grid');
-  const isDesktopTijdlijnWeek = window.innerWidth >= 1024;
+  const isDesktopTijdlijnWeek = window.apparaat.indeling !== 'smal';
   // scrollpositie bewaren: innerHTML = '' zet die anders terug op 0 bij elke her-render (polling)
   const bewaardTop = grid.scrollTop, bewaardLeft = grid.scrollLeft;
   grid.className = isDesktopTijdlijnWeek ? 'week-grid tl-mode' : 'week-grid';
@@ -1822,7 +1822,7 @@ function renderKalender() {
     );
 
     const dayBodyEl = col.querySelector('.day-body');
-    const isDesktopTijdlijn = window.innerWidth >= 1024;
+    const isDesktopTijdlijn = window.apparaat.indeling !== 'smal';
     if (isDesktopTijdlijn) {
       dayBodyEl.appendChild(renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, col.querySelector('.day-hdr')));
     } else {

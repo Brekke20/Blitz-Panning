@@ -231,12 +231,10 @@
     .wiz-totaal-lbl { color: var(--muted); }
     .wiz-totaal-val { color: var(--accent-ink); font-weight: 700; font-size: 0.95rem; }
 
-    /* iOS zoom fix: invoervelden minimaal 16px onder 1024px viewport */
-    @media (max-width: 1023px) {
-      input, select, textarea { font-size: 16px; }
-      .wiz-cat-search { font-size: 16px; }
-      .wiz-sel-aantal { font-size: 16px; }
-      .wiz-sel-item .wiz-part-omschr { font-size: 16px; }
-      .wiz-sel-item .wiz-part-prijs { font-size: 16px; }
-      .wiz-sel-item .wiz-part-eenheid { font-size: 16px; }
-    }
+    /* iOS zoom fix: invoervelden minimaal 16px bij aanraken */
+    html[data-aanraak="ja"] input, html[data-aanraak="ja"] select, html[data-aanraak="ja"] textarea { font-size: 16px; }
+    html[data-aanraak="ja"] .wiz-cat-search { font-size: 16px; }
+    html[data-aanraak="ja"] .wiz-sel-aantal { font-size: 16px; }
+    html[data-aanraak="ja"] .wiz-sel-item .wiz-part-omschr { font-size: 16px; }
+    html[data-aanraak="ja"] .wiz-sel-item .wiz-part-prijs { font-size: 16px; }
+    html[data-aanraak="ja"] .wiz-sel-item .wiz-part-eenheid { font-size: 16px; }

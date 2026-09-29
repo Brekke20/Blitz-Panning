@@ -149,9 +149,7 @@
   font-family: inherit;
 }
 
-    /* iOS zoom fix: invoervelden minimaal 16px onder 1024px viewport */
-    @media (max-width: 1023px) {
-      input, select, textarea { font-size: 16px; }
-      .inv-qty-input { font-size: 16px; }
-      .inv-export-toolbar input[type="date"] { font-size: 16px; }
-    }
+    /* iOS zoom fix: invoervelden minimaal 16px bij aanraken */
+    html[data-aanraak="ja"] input, html[data-aanraak="ja"] select, html[data-aanraak="ja"] textarea { font-size: 16px; }
+    html[data-aanraak="ja"] .inv-qty-input { font-size: 16px; }
+    html[data-aanraak="ja"] .inv-export-toolbar input[type="date"] { font-size: 16px; }
