@@ -96,6 +96,16 @@
 <!-- ══ TICKETS TAB ══ -->
 <div class="view active" id="view-tickets">
   <div class="ticket-list" id="ticket-list">
+    <div class="wq-toolbar">
+      <input type="search" id="wq-zoek" class="wq-zoek" placeholder="Zoek op nummer, klant, adres of onderwerp…" aria-label="Zoek in de wachtrij" autocomplete="off">
+      <select id="wq-sorteer" class="wq-sorteer" aria-label="Sorteren">
+        <option value="standaard">Prioriteit (standaard)</option>
+        <option value="oudst">Oudste eerst</option>
+        <option value="nieuwst">Nieuwste eerst</option>
+        <option value="interventie">Interventiedatum</option>
+      </select>
+      <span id="wq-teller" class="wq-teller" aria-live="polite"></span>
+    </div>
     <div class="empty" id="empty-tickets">Laden...</div>
   </div>
 </div>
@@ -1320,6 +1330,23 @@ function isOverdue(t) {
   return t.interventieDatum && localISO(new Date(t.interventieDatum)) < todayStr();
 }
 
+// Wachtrij zoeken en sorteren. De zoektekst wordt niet bewaard; de sorteerkeuze wel.
+let wqZoek = '';
+let wqSorteer = 'standaard'; // 'standaard' | 'oudst' | 'nieuwst' | 'interventie'
+const WQ_SORTEER_OPTIES = ['standaard', 'oudst', 'nieuwst', 'interventie'];
+try {
+  const w = localStorage.getItem('blitz_wachtrij_sorteer');
+  if (WQ_SORTEER_OPTIES.includes(w)) wqSorteer = w;
+} catch {}
+
+// Hoofdletter- en accentongevoelig
+function wqNorm(x) {
+  return String(x == null ? '' : x).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+function wqZoekTekst(t) {
+  return wqNorm([t.number, t.subject, t.account, t.naamEindklant, t.contact, t.regio, t.address, t.assignee].join(' '));
+}
+
 function renderTickets() {
   sjLog('renderTickets'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
   const list  = document.getElementById('ticket-list');
@@ -1329,18 +1356,58 @@ function renderTickets() {
   const filtered = allTickets.filter(t =>
     activeAssigneeFilter === 'all' || t.assignee === activeAssigneeFilter
   );
+  const totaal = filtered.length;
 
-  if (!filtered.length) { empty.style.display = ''; return; }
+  // Zoeken: alle woorden moeten voorkomen
+  const woorden = wqNorm(wqZoek).split(/\s+/).filter(Boolean);
+  const gevonden = woorden.length
+    ? filtered.filter(t => { const h = wqZoekTekst(t); return woorden.every(w => h.includes(w)); })
+    : filtered;
+
+  // Teller en lege-tekst
+  const teller = document.getElementById('wq-teller');
+  if (teller) teller.textContent = woorden.length ? `${gevonden.length} van ${totaal} tickets` : `${totaal} ticket${totaal === 1 ? '' : 's'}`;
+  if (woorden.length && !gevonden.length && totaal) {
+    if (empty.dataset.orig === undefined) empty.dataset.orig = empty.textContent;
+    empty.textContent = `Geen tickets gevonden voor '${wqZoek.trim()}'`;
+  } else if (empty.dataset.orig !== undefined) {
+    empty.textContent = empty.dataset.orig;
+    delete empty.dataset.orig;
+  }
+  // Badge toont het totaal (na assignee-filter, vóór zoeken)
+  document.getElementById('cnt-tickets').textContent = totaal;
+
+  if (!gevonden.length) { empty.style.display = ''; return; }
   empty.style.display = 'none';
 
-  // Sortering: 1) overdue eerst  2) queueScore (prio × urgentie — zelfde formule als autoPlan)
-  filtered.sort((a, b) => {
-    const aOd = isOverdue(a) ? 0 : 1, bOd = isOverdue(b) ? 0 : 1;
-    if (aOd !== bOd) return aOd - bOd;
-    return queueScore(a) - queueScore(b);
-  });
+  const tijd = (x) => { const n = Date.parse(x); return isNaN(n) ? null : n; };
+  if (wqSorteer === 'oudst' || wqSorteer === 'nieuwst') {
+    const r = wqSorteer === 'oudst' ? 1 : -1;
+    gevonden.sort((a, b) => {
+      const ta = tijd(a.createdTime), tb = tijd(b.createdTime);
+      if (ta === null && tb === null) return 0;
+      if (ta === null) return 1;
+      if (tb === null) return -1;
+      return (ta - tb) * r;
+    });
+  } else if (wqSorteer === 'interventie') {
+    gevonden.sort((a, b) => {
+      const ta = tijd(a.interventieDatum), tb = tijd(b.interventieDatum);
+      if (ta === null && tb === null) return 0;
+      if (ta === null) return 1;
+      if (tb === null) return -1;
+      return ta - tb;
+    });
+  } else {
+    // Sortering: 1) overdue eerst  2) queueScore (prio × urgentie — zelfde formule als autoPlan)
+    gevonden.sort((a, b) => {
+      const aOd = isOverdue(a) ? 0 : 1, bOd = isOverdue(b) ? 0 : 1;
+      if (aOd !== bOd) return aOd - bOd;
+      return queueScore(a) - queueScore(b);
+    });
+  }
 
-  filtered.forEach(t => {
+  gevonden.forEach(t => {
     const overdue = isOverdue(t);
     const card = document.createElement('div');
     card.className = 'ticket' + (overdue ? ' overdue' : '');
@@ -1374,9 +1441,24 @@ function renderTickets() {
     maakActiveerbaar(card, () => openDetail(t), 'Open ticket #' + t.number);
     list.appendChild(card);
   });
-  // Badge toont gefilterd aantal
-  document.getElementById('cnt-tickets').textContent = filtered.length;
 }
+
+// Zoekveld en sorteerkeuze: eenmalig gekoppeld; de balk zit buiten wat renderTickets herbouwt.
+(function wqKoppel() {
+  const zoek = document.getElementById('wq-zoek'), sel = document.getElementById('wq-sorteer');
+  if (!zoek || !sel) return;
+  sel.value = wqSorteer;
+  let timer = null;
+  zoek.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { wqZoek = zoek.value; renderTickets(); }, 150);
+  });
+  sel.addEventListener('change', () => {
+    wqSorteer = WQ_SORTEER_OPTIES.includes(sel.value) ? sel.value : 'standaard';
+    try { localStorage.setItem('blitz_wachtrij_sorteer', wqSorteer); } catch {}
+    renderTickets();
+  });
+})();
 
 async function quickAdd(ticketId) {
   const today = localISO(new Date());

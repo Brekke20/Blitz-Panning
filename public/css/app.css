@@ -191,6 +191,12 @@
 
     /* ── Ticket cards ── */
     .ticket-list { padding: 12px 14px; max-width: 740px; margin: 0 auto; }
+    .wq-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .wq-zoek { flex: 1 1 220px; min-width: 0; min-height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); color: var(--text); font-family: inherit; font-size: var(--fs-sm); }
+    .wq-sorteer { min-height: 36px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); color: var(--text); font-family: inherit; font-size: var(--fs-sm); }
+    .wq-zoek:focus-visible, .wq-sorteer:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+    .wq-teller { flex: 1 0 100%; font-size: var(--fs-xs); color: var(--muted); }
+    html[data-aanraak="ja"] .wq-zoek, html[data-aanraak="ja"] .wq-sorteer { min-height: 44px; font-size: 16px; }
     .ticket {
       position: relative;
       background: var(--surface);
