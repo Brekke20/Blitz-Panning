@@ -902,6 +902,11 @@
       .plan-body { flex-direction: column; }
       #route-list { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
       #map-wrap { height: 260px; } #map { height: 260px; }
+    }
+
+    /* Tablet rechtop (bv. Galaxy Tab S7 FE: 800px breed) kreeg 5 samengedrukte dagkolommen naast
+       elkaar -- onder 1024px (geen tijdlijn) nu dagen onder elkaar, zoals op de gsm (2026-09-29). */
+    @media (max-width: 1023px) {
       .week-grid { flex-direction: column; }
       .day-col { min-width: unset; border-right: none; border-bottom: 1px solid var(--border); }
     }
