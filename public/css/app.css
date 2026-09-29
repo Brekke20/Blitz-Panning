@@ -777,7 +777,7 @@
       font-family: inherit;
       font-weight: 600;
       font-size: var(--fs-sm);
-      line-height: 1;
+      line-height: 1.2;
       cursor: pointer;
       border: 1px solid transparent;
       transition: background 0.12s, color 0.12s, transform 0.12s var(--ease-spring), border-color 0.12s;
@@ -819,7 +819,7 @@
 
     .btn--danger {
       background: transparent;
-      border-color: var(--red-line);
+      border-color: var(--red);
       color: var(--red);
     }
     .btn--danger:hover:not(:disabled):not([aria-disabled="true"]) {
@@ -877,9 +877,11 @@
     }
 
     /* ── Contactknoppen (ticketdetail + Ingepland) ── */
-    .contact-acties { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: var(--sp-2); margin: 0 0 18px; }
+    .contact-acties { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0,1fr); gap: var(--sp-2); margin: 0 0 18px; }
     .t-body .contact-acties { margin: var(--sp-2) 0 0; }
-    .contact-acties .btn { text-decoration: none; padding-inline: var(--sp-2); white-space: nowrap; }
+    .contact-acties .btn { text-decoration: none; padding-inline: var(--sp-2); white-space: nowrap; min-width: 0; }
+    .contact-acties .btn > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    @media (max-width: 380px) { .contact-acties .btn { padding-inline: 4px; gap: 4px; font-size: var(--fs-sm); } }
     html[data-aanraak="nee"][data-rol="coordinator"] .contact-acties .btn { min-height: 32px; font-size: var(--fs-xs); }
     .mftr { justify-content: flex-end; }
     html[data-rol="technieker"] #d-btn-rapport { order: -1; flex: 1 1 100%; }

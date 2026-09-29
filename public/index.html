@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#181e24" id="meta-theme-color" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Blitz Planning</title>
@@ -1359,7 +1359,7 @@ function renderTickets() {
   const totaal = filtered.length;
 
   // Zoeken: alle woorden moeten voorkomen
-  const woorden = wqNorm(wqZoek).split(/\s+/).filter(Boolean);
+  const woorden = wqNorm(wqZoek).split(/\s+/).map(w => w.replace(/^#+/, '')).filter(Boolean);
   const gevonden = woorden.length
     ? filtered.filter(t => { const h = wqZoekTekst(t); return woorden.every(w => h.includes(w)); })
     : filtered;
@@ -5140,9 +5140,11 @@ function contactActiesHtml(t) {
   const tel  = t.telefoonEindklant || t.phone;
   const mail = t.emailEindklant || t.email;
   const knoppen = [];
-  if (tel)  knoppen.push(`<a class="btn btn--secondary btn--lg" href="tel:${escHtml(String(tel).replace(/[^\d+]/g, ''))}">📞 Bellen</a>`);
-  if (mail) knoppen.push(`<a class="btn btn--secondary btn--lg" href="mailto:${escHtml(mail)}">✉ Mailen</a>`);
-  if (t.hasAddress) knoppen.push(`<button type="button" class="btn btn--secondary btn--lg btn-navigeer-groot" data-adres="${escHtml(t.address || '')}">🧭 Navigeer</button>`);
+  const telNr = tel ? String(tel).replace(/[^\d+]/g, '') : '';
+  if (/\d/.test(telNr)) knoppen.push(`<a class="btn btn--secondary btn--lg" href="tel:${escHtml(telNr)}"><span>📞 Bellen</span></a>`);
+  const mailAdres = mail ? String(mail).trim() : '';
+  if (/^[^\s@,;<>?&]+@[^\s@,;<>?&]+\.[^\s@,;<>?&]+$/.test(mailAdres)) knoppen.push(`<a class="btn btn--secondary btn--lg" href="mailto:${escHtml(encodeURIComponent(mailAdres).replace(/%40/g, '@'))}"><span>✉ Mailen</span></a>`);
+  if (t.hasAddress) knoppen.push(`<button type="button" class="btn btn--secondary btn--lg btn-navigeer-groot" data-adres="${escHtml(t.address || '')}"><span>🧭 Navigeer</span></button>`);
   return knoppen.length ? `<div class="contact-acties">${knoppen.join('')}</div>` : '';
 }
 function koppelAdresNavigatie(root) {
@@ -6212,7 +6214,7 @@ function renderKbSection(ticketId) {
         <div class="kb-fields">
           <span class="kb-chips"></span>
           <input type="date" class="kb-input" id="kb-blok-${ticketId}" aria-label="Datum waarop de klant niet kan">
-          <button type="button" class="btn btn--sm kb-btn-addblok">+ Datum toevoegen</button>
+          <button type="button" class="btn btn--secondary btn--sm kb-btn-addblok">+ Datum toevoegen</button>
         </div>
       </div>
 
@@ -6266,14 +6268,18 @@ function renderKbSection(ticketId) {
   q('.kb-btn-voorkeur-del').addEventListener('click', () => {
     prefEl.value = ''; tijdEl.value = ''; draft.voorkeur = ''; draft.voorkeurTijd = ''; sync();
   });
-  q('.kb-btn-addblok').addEventListener('click', () => {
+  // Een gekozen datum gaat meteen in het concept (bij change) zodat Opslaan ze nooit stil verliest;
+  // de knop blijft werken als bevestiging voor wie de datum met de hand intikt.
+  function voegBlokToe() {
     const v = blokEl.value;
     if (!v) return;
     if (draft.voorkeur === v) return toast('⚠️ Deze datum is al de voorkeursdatum');
     if (!draft.geblokkeerd.includes(v)) draft.geblokkeerd = [...draft.geblokkeerd, v].sort();
     blokEl.value = '';
     tekenChips(); sync();
-  });
+  }
+  blokEl.addEventListener('change', voegBlokToe);
+  q('.kb-btn-addblok').addEventListener('click', voegBlokToe);
   duurEl.addEventListener('input', () => { draft.duur = duurEl.value === '' ? null : Number(duurEl.value); sync(); });
   q('.kb-btn-duur-reset').addEventListener('click', () => {
     draft.duur = settings.duurMinuten; duurEl.value = String(settings.duurMinuten); sync();

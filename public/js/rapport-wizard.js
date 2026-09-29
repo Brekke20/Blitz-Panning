@@ -46,6 +46,8 @@ const CONCEPT_UIT = ['fotos', 'handtekeningTech', 'handtekeningKlant'];
 let _wizTicketId = null;
 let _wizVanOverzicht = false;
 let _conceptTimer = null;
+let _conceptGewijzigd = false; // is er in deze sessie echt iets aangepast? (autosave schrijft anders niets)
+let _conceptBasis = null;      // R bij het openen: een ongewijzigd formulier overschrijft nooit een bewaard concept
 
 export function conceptSleutel(ticketId, datum) {
   return `${TEST_MODE ? 'blitz_test_rapportconcept' : 'blitz_rapportconcept'}:${ticketId}:${datum}`;
@@ -75,6 +77,7 @@ export function bewaarConcept() {
   try {
     const kopie = {};
     for (const k of Object.keys(R)) if (!CONCEPT_UIT.includes(k)) kopie[k] = R[k];
+    if (_conceptBasis !== null && JSON.stringify(kopie) === _conceptBasis) return;
     localStorage.setItem(conceptSleutel(_wizTicketId, _wizDate), JSON.stringify({
       v: 1, opgeslagen: new Date().toISOString(), stap: WIZ_STEPS[_wizStep].id, R: kopie,
     }));
@@ -86,12 +89,13 @@ function wizWizardOpen() {
 // Leest de velden van de zichtbare stap (de wizSave*-functies schrijven enkel naar R; het
 // resultaat — de validatie — negeren we hier) en bewaart.
 function wizBewaarHuidig() {
-  if (!wizWizardOpen() || !_wizTicketId) return;
+  if (!wizWizardOpen() || !_wizTicketId || !_conceptGewijzigd) return;
   try { WIZ_STEPS[_wizStep].save?.(); } catch { /* DOM niet klaar */ }
   bewaarConcept();
 }
 function wizConceptDebounce() {
   if (!wizWizardOpen()) return;
+  _conceptGewijzigd = true;
   clearTimeout(_conceptTimer);
   _conceptTimer = setTimeout(wizBewaarHuidig, 1000);
 }
@@ -208,8 +212,10 @@ async function openRapportIntern(ticketId, date) {
       if (i >= 0) _wizStep = i;
     }
     // false (Opnieuw beginnen, Escape, achtergrond): concept NIET wissen; leeg formulier, het oude
-    // concept wordt door de eerstvolgende autosave overschreven of verloopt na 7 dagen.
+    // concept wordt pas overschreven zodra de gebruiker iets wijzigt, of verloopt na 7 dagen.
   }
+  _conceptGewijzigd = false;
+  _conceptBasis = (() => { const k = {}; for (const key of Object.keys(R)) if (!CONCEPT_UIT.includes(key)) k[key] = R[key]; return JSON.stringify(k); })();
 
   document.getElementById('rapport-wizard').classList.add('open');
   wizRenderStep();
@@ -245,7 +251,7 @@ export function wizRenderStep() {
   const btnNext = document.getElementById('wiz-btn-next');
   btnBack.style.display = _wizStep > 0 ? '' : 'none';
   btnNext.textContent   = visibleIndex === total - 1 ? '✓ Rapport versturen'
-    : (_wizVanOverzicht ? 'Terug naar overzicht' : 'Volgende →');
+    : (_wizVanOverzicht && step.id !== 'sig-tech' ? 'Terug naar overzicht' : 'Volgende →');
 
   const body = document.getElementById('wiz-body');
   body.scrollTop = 0;
@@ -262,7 +268,13 @@ export function wizNext() {
   }
   let nextStep = _wizStep + 1;
   if (R.interventieType === 'Installatie' && WIZ_STEPS[nextStep]?.id === 'facturatie') nextStep++;
-  if (_wizVanOverzicht) {
+  if (_wizVanOverzicht && step.id === 'sig-tech') {
+    // Handtekeningen wijzigen: eerst technieker, dan klant, dan terug naar het overzicht
+    _wizStep = WIZ_STEPS.findIndex(st => st.id === 'sig-klant');
+    _conceptGewijzigd = true;
+    bewaarConcept();
+    wizRenderStep();
+  } else if (_wizVanOverzicht) {
     // "Wijzig" vanuit het overzicht: na de aanpassing terug naar het overzicht
     _wizVanOverzicht = false;
     _wizStep = WIZ_STEPS.findIndex(st => st.id === 'samenvatting');

@@ -40,8 +40,13 @@ function registreer({ el, isOpen, sluit }) {
     } else {
       const f = v.vorigeFocus;
       v.vorigeFocus = null;
-      if (f && document.contains(f) && zichtbaar(f) && !appDialogOpen() && !bovenste()) {
+      if (appDialogOpen()) return;
+      const boven = bovenste();
+      if (f && document.contains(f) && zichtbaar(f) && (!boven || boven.el.contains(f))) {
         try { f.focus({ preventScroll: true }); } catch (e) {}
+      } else if (boven && !boven.el.contains(document.activeElement)) {
+        // Gestapeld venster gesloten en de opener is weg: focus naar het venster eronder, niet naar <body>
+        (focusbaar(boven.el).find(x => !x.matches(TEKSTVELD)) || boven.el).focus({ preventScroll: true });
       }
     }
   }).observe(el, { attributes: true, attributeFilter: ['class'] });
