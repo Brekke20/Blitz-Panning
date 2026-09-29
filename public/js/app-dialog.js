@@ -45,11 +45,11 @@ export function appConfirm({ titel, tekst, bevestigLabel, annuleerLabel = 'Terug
     knoppen.className = 'app-dialog-knoppen';
     const btnAnnuleer = document.createElement('button');
     btnAnnuleer.type = 'button';
-    btnAnnuleer.className = 'app-dialog-btn app-dialog-annuleer';
+    btnAnnuleer.className = 'btn btn--secondary app-dialog-btn app-dialog-annuleer';
     btnAnnuleer.textContent = annuleerLabel;
     const btnOk = document.createElement('button');
     btnOk.type = 'button';
-    btnOk.className = 'app-dialog-btn app-dialog-ok' + (gevaar ? ' gevaar' : '');
+    btnOk.className = 'btn app-dialog-btn app-dialog-ok ' + (gevaar ? 'btn--danger btn--solid gevaar' : 'btn--primary');
     btnOk.textContent = bevestigLabel || 'OK';
     knoppen.append(btnAnnuleer, btnOk);
     dlg.appendChild(knoppen);

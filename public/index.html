@@ -186,7 +186,7 @@
 <div class="overlay" id="det-overlay" onclick="closeDet(event)">
   <div class="modal">
     <div class="mhdr">
-      <button class="mhdr-close" onclick="closeDet()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeDet()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-num" id="d-num"></div>
       <div class="mhdr-title" id="d-title"></div>
       <div class="mhdr-tags" id="d-tags"></div>
@@ -196,12 +196,12 @@
       <div class="msec"><div class="msec-title">Ticketdetails</div><div id="d-ticket"></div><div class="coord-only" id="kb-section"></div></div>
     </div>
     <div class="mftr">
-      <button class="btn-save coord-only" id="d-plan-btn" onclick="togglePlanFromDetail()"></button>
-      <button class="btn-cancel" id="d-btn-arrival" style="display:none" title="Aankomst registreren" onclick="registerArrival(activeTicket?.id,_detailDate)">⏱️ Aankomst</button>
-      <button class="btn-cancel coord-only" id="d-btn-proposal" style="display:none" title="Afspraakvoorstel sturen" onclick="openProposal(activeTicket?.id,_detailDate,(()=>{const t=computeArrivalTimes(_detailDate);return activeTicket?t[activeTicket.id]??null:null})())">📨 Voorstel</button>
-      <button class="btn-cancel" id="d-btn-fotos" style="display:none" title="Foto's" onclick="openFotoModal(activeTicket?.id)">📷 Foto's</button>
-      <button class="btn-cancel" id="d-btn-rapport"  style="display:none" title="Service rapport" onclick="openRapport(activeTicket?.id,_detailDate)">📋 Rapport</button>
-      <button class="btn-cancel" id="d-btn-reschedule" style="display:none" title="Datum/tijd wijzigen" onclick="openRescheduleModal()">📅 Datum/tijd</button>
+      <button class="btn btn--primary coord-only" id="d-plan-btn" onclick="togglePlanFromDetail()"></button>
+      <button class="btn btn--secondary" id="d-btn-arrival" style="display:none" title="Aankomst registreren" onclick="registerArrival(activeTicket?.id,_detailDate)">⏱️ Aankomst</button>
+      <button class="btn btn--secondary coord-only" id="d-btn-proposal" style="display:none" title="Afspraakvoorstel sturen" onclick="openProposal(activeTicket?.id,_detailDate,(()=>{const t=computeArrivalTimes(_detailDate);return activeTicket?t[activeTicket.id]??null:null})())">📨 Voorstel</button>
+      <button class="btn btn--secondary" id="d-btn-fotos" style="display:none" title="Foto's" onclick="openFotoModal(activeTicket?.id)">📷 Foto's</button>
+      <button class="btn btn--primary" id="d-btn-rapport"  style="display:none" title="Service rapport" onclick="openRapport(activeTicket?.id,_detailDate)">📋 Rapport</button>
+      <button class="btn btn--secondary" id="d-btn-reschedule" style="display:none" title="Datum/tijd wijzigen" onclick="openRescheduleModal()">📅 Datum/tijd</button>
     </div>
   </div>
 </div>
@@ -211,7 +211,7 @@
 <div class="overlay" id="reschedule-overlay" onclick="closeRescheduleModal(event)">
   <div class="modal" style="max-width:380px">
     <div class="mhdr">
-      <button class="mhdr-close" onclick="closeRescheduleModal()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeRescheduleModal()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title">📅 Nieuwe datum/tijd</div>
     </div>
     <div class="mbody">
@@ -221,8 +221,8 @@
       </div>
     </div>
     <div class="mftr">
-      <button class="btn-cancel" onclick="closeRescheduleModal()">Annuleren</button>
-      <button class="btn-save" onclick="saveReschedule()">✓ Opslaan</button>
+      <button class="btn btn--secondary" onclick="closeRescheduleModal()">Annuleren</button>
+      <button class="btn btn--primary" onclick="saveReschedule()">✓ Opslaan</button>
     </div>
   </div>
 </div>
@@ -231,7 +231,7 @@
 <div class="overlay" id="set-overlay" onclick="closeSettings(event)">
   <div class="modal" id="set-modal">
     <div class="mhdr">
-      <button class="mhdr-close" onclick="closeSettings()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeSettings()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title">⚙️ Instellingen</div>
       <div class="mhdr-num coord-only" id="set-person-label" style="font-size:0.78rem;color:var(--accent-ink);margin-top:2px"></div>
     </div>
@@ -308,13 +308,13 @@
       <div class="set-field" id="set-testdata-blok" style="display:none;margin-top:16px">
         <label class="set-label">Testgegevens</label>
         <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">Je werkt in testmodus met een kopie van de echte gegevens.</div>
-        <button type="button" class="btn-cancel" id="set-testdata-btn" onclick="resetTestdata()">Testgegevens opnieuw kopiëren</button>
+        <button type="button" class="btn btn--secondary" id="set-testdata-btn" onclick="resetTestdata()">Testgegevens opnieuw kopiëren</button>
       </div>
     </div>
     <div class="mftr">
-      <button class="btn-cancel coord-only" onclick="openPrijsBeheer()" title="Beheer productprijzen">💰 Prijzen</button>
-      <button class="btn-cancel" onclick="closeSettings()">Annuleren</button>
-      <button class="btn-save" id="set-save-btn" onclick="saveSettings()">Opslaan</button>
+      <button class="btn btn--secondary coord-only" onclick="openPrijsBeheer()" title="Beheer productprijzen">💰 Prijzen</button>
+      <button class="btn btn--secondary" onclick="closeSettings()">Annuleren</button>
+      <button class="btn btn--primary" id="set-save-btn" onclick="saveSettings()">Opslaan</button>
     </div>
   </div>
 </div>
@@ -323,7 +323,7 @@
 <div class="overlay" id="block-overlay" onclick="closeBlock(event)">
   <div class="modal" id="block-modal">
     <div class="mhdr">
-      <button class="mhdr-close" onclick="closeBlock()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeBlock()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title">⛔ Beschikbaarheid</div>
       <div id="block-date-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
@@ -357,7 +357,7 @@
 <div class="overlay" id="import-overlay" onclick="closeImportModal(event)">
   <div class="modal" id="import-modal">
     <div class="mhdr">
-      <button class="mhdr-close" onclick="closeImportModal()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeImportModal()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title">📥 Importeer installaties</div>
       <div id="import-subtitle" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
@@ -375,7 +375,7 @@
 <div class="overlay" id="local-det-overlay" onclick="closeLocalDet(event)">
   <div class="modal">
     <div class="mhdr">
-      <button class="mhdr-close" onclick="closeLocalDet()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeLocalDet()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-tags" id="ld-type"></div>
       <div class="mhdr-title" id="ld-titel"></div>
       <div class="mhdr-num" id="ld-datum" style="font-size:0.78rem;color:var(--muted);margin-top:2px"></div>
@@ -397,7 +397,7 @@
 <div class="overlay" id="manueel-overlay" onclick="closeManueelModal(event)">
   <div class="modal" id="manueel-modal">
     <div class="mhdr">
-      <button class="mhdr-close" onclick="closeManueelModal()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeManueelModal()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title" id="manueel-modal-title">➕ Afspraak toevoegen</div>
     </div>
     <div class="mbody">
@@ -467,7 +467,7 @@
 <!-- Auto-plan resultaat modal -->
 <div class="overlay" id="result-overlay" onclick="closeResult(event)">
   <div class="modal" id="result-modal">
-    <button class="mhdr-close" onclick="closeResult()" title="Sluiten" aria-label="Sluiten">✕</button>
+    <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeResult()" title="Sluiten" aria-label="Sluiten">✕</button>
     <h3>⚡ Planningsresultaat</h3>
     <div id="result-body"></div>
   </div>
@@ -476,7 +476,7 @@
 <!-- Foto's modal -->
 <div class="overlay" id="foto-overlay" onclick="closeFotoModal(event)">
   <div class="modal" id="foto-modal">
-    <button class="mhdr-close" onclick="closeFotoModal()" title="Sluiten" aria-label="Sluiten">✕</button>
+    <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeFotoModal()" title="Sluiten" aria-label="Sluiten">✕</button>
     <h3>📷 Foto's</h3>
     <div id="foto-grid" class="foto-grid"></div>
     <input type="file" id="foto-file-input" multiple style="display:none" onchange="handleFotoFiles(this)">
@@ -488,7 +488,7 @@
 <div class="overlay" id="proposal-overlay" onclick="closeProposal(event)">
   <div class="modal" id="proposal-modal" style="max-width:480px">
     <div class="mhdr">
-      <button class="mhdr-close" onclick="closeProposal()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeProposal()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title">📨 Afspraakvoorstel</div>
       <div id="proposal-ticket-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
@@ -525,7 +525,7 @@
 <div class="overlay" id="rapport-preview-overlay" onclick="closeRapportPreview(event)">
   <div class="modal" id="rapport-preview-modal" style="max-width:560px">
     <div class="mhdr">
-      <button class="mhdr-close" onclick="closeRapportPreview()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeRapportPreview()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title">📤 Rapport versturen</div>
       <div id="rapport-preview-ticket-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
@@ -554,8 +554,8 @@
   <div class="wiz-ftr">
     <div class="wiz-ftr-info" id="wiz-ftr-info"></div>
     <div class="wiz-ftr-btns">
-      <button class="btn-wiz-back" id="wiz-btn-back" onclick="wizBack()" style="display:none">← Vorige</button>
-      <button class="btn-wiz-next" id="wiz-btn-next" onclick="wizNext()">Volgende →</button>
+      <button class="btn btn--secondary" id="wiz-btn-back" onclick="wizBack()" style="display:none">← Vorige</button>
+      <button class="btn btn--primary" id="wiz-btn-next" onclick="wizNext()">Volgende →</button>
     </div>
   </div>
 </div>
@@ -5072,15 +5072,11 @@ function openDetail(t) {
   if (STATUS_TE_PLANNEN.includes(t.status)) {
     planBtn.style.display    = '';
     planBtn.textContent      = '+ Voeg toe aan planning';
-    planBtn.style.background = 'var(--green)';
-    planBtn.style.color      = 'var(--on-accent)';
-    planBtn.style.border     = '';
+    planBtn.classList.add('btn--primary'); planBtn.classList.remove('btn--danger');
   } else if (STATUS_PENDING.includes(t.status)) {
     planBtn.style.display    = '';
     planBtn.textContent      = '✕ Uit planning halen';
-    planBtn.style.background = 'transparent';
-    planBtn.style.color      = 'var(--red)';
-    planBtn.style.border     = '1px solid var(--red)';
+    planBtn.classList.add('btn--danger'); planBtn.classList.remove('btn--primary');
   } else {
     planBtn.style.display = 'none';
   }

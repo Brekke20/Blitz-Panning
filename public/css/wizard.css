@@ -51,6 +51,9 @@
     .btn-wiz-next:hover  { background: var(--accent-hover); }
     .btn-wiz-next:active { transform: scale(0.97); }
 
+    /* Footerknoppen: .btn-familie, maar behoud 44 px zodat de footer niet verspringt */
+    .wiz-ftr .btn { min-height: 44px; }
+
     /* Wizard form */
     .wiz-field { margin-bottom: 15px; }
     .wiz-field-row { display: flex; gap: 11px; margin-bottom: 15px; }

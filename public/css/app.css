@@ -952,17 +952,8 @@
     ul.app-dialog-tekst { padding-left: 20px; }
     ul.app-dialog-tekst li { margin-bottom: 4px; }
     .app-dialog-knoppen { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
-    .app-dialog-btn {
-      min-height: 44px; padding: 10px 20px; border-radius: var(--r);
-      font: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer;
-      border: 1px solid var(--border); background: var(--surface2); color: var(--text);
-    }
-    .app-dialog-btn:hover { background: var(--surface3); }
-    .app-dialog-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
-    .app-dialog-ok { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-    .app-dialog-ok:hover { background: var(--accent-hover); }
-    .app-dialog-ok.gevaar { background: transparent; border: 2px solid var(--red); color: var(--red); }
-    .app-dialog-ok.gevaar:hover { background: var(--red-dim); }
+    /* Kleur en rand komen van .btn-varianten; hier enkel maat (zelfde 44 px-doel als voorheen). */
+    .app-dialog-btn { min-height: 44px; padding: 10px 20px; font-size: 0.9rem; }
     @media (max-width: 480px) { .app-dialog-knoppen .app-dialog-btn { flex: 1 1 100%; } }
 
     /* ── Aankomsttijd per stop ── */
