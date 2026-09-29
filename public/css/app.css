@@ -460,7 +460,7 @@
     }
     .cal-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border); }
 
-    /* 44px tikbare knoppen op technieker-weergave (tablet + mobiel, gelijk aan .desktop-only grens) */
+    /* 44px tikbare knoppen op technieker-weergave (tablet + mobiel, gelijk aan .coord-only grens) */
     @media (max-width: 1023px) {
       .cal-btn { min-height: 44px; padding: 10px 6px; }
     }
@@ -911,9 +911,9 @@
       .day-col { min-width: unset; border-right: none; border-bottom: 1px solid var(--border); }
     }
 
-    /* Beperkte technieker-weergave: verbergt coördinator/planning-functionaliteit onder 1024px */
+    /* Beperkte technieker-weergave: de rol (niet de schermbreedte) verbergt coördinatorfuncties */
+    html[data-rol="technieker"] .coord-only { display: none !important; }
     @media (max-width: 1023px) {
-      .desktop-only { display: none !important; }
       .cal-unplan-x { display: none; }
     }
 

@@ -49,7 +49,8 @@
     var nu = bepaal();
     window.apparaat = nu;
     zetAttributen(nu);
-    if (vorig && (vorig.indeling !== nu.indeling || vorig.rol !== nu.rol || vorig.aanraak !== nu.aanraak)) {
+    if (vorig && (vorig.soort !== nu.soort || vorig.staand !== nu.staand || vorig.indeling !== nu.indeling ||
+                  vorig.rol !== nu.rol || vorig.aanraak !== nu.aanraak)) {
       window.dispatchEvent(new CustomEvent('apparaatwijziging', { detail: nu }));
     }
   }
@@ -77,6 +78,10 @@
     if (grofMQ.addEventListener) grofMQ.addEventListener('change', evalueer);
     else if (grofMQ.addListener) grofMQ.addListener(evalueer);
   }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') evalueer();
+  });
 
   evalueer();
 })();
