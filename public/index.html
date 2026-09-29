@@ -573,6 +573,7 @@ let planning = {};
 let routeData = null, currentRouteDate = null;
 let leafletMap, routeLayer;
 let kalOffset = 0, gepOffset = 0;
+let kalDagOffset = 0; // tablet rechtop: verschuiving in WERKDAGEN t.o.v. vandaag (los van kalOffset, mag negatief)
 let kalView   = 'week'; // 'week' | 'month'
 // activeBlockDate → vervangen door _avFormDate (zie beschikbaarheidssysteem)
 // (drag-blokkering verwijderd — vervangen door beschikbaarheidssysteem)
@@ -1318,7 +1319,7 @@ function setKalView(v) {
   kalView = v;
   document.getElementById('kal-view-week').classList.toggle('active',  v === 'week');
   document.getElementById('kal-view-month').classList.toggle('active', v === 'month');
-  kalOffset = 0; // reset offset bij wisselen
+  kalOffset = 0; kalDagOffset = 0; // reset offsets bij wisselen
   renderKalender();
   kalAutoScroll(true);
 }
@@ -1694,6 +1695,27 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, hdrEl) {
   return frag;
 }
 
+// Zichtbare dagen van de weekweergave: gewoon de werkdagen van de week (kalOffset), behalve op een
+// tablet rechtop: dan 3 opeenvolgende werkdagen vanaf vandaag, verschoven met kalDagOffset werkdagen.
+function kalZichtbareDagen(today) {
+  const wd = settings.werkdagen || [];
+  const dagen = [];
+  if (window.apparaat.indeling === 'tablet-staand' && wd.length) {
+    const d = new Date(today);
+    const volgende = (stap) => { do { d.setDate(d.getDate() + stap); } while (!wd.includes(d.getDay())); };
+    if (!wd.includes(d.getDay())) volgende(1);          // vandaag geen werkdag: eerstvolgende werkdag
+    for (let n = Math.abs(kalDagOffset); n > 0; n--) volgende(kalDagOffset > 0 ? 1 : -1);
+    for (let n = 0; n < 3; n++) { dagen.push(new Date(d)); if (n < 2) volgende(1); }
+    return dagen;
+  }
+  const weekStart = getWeekStart(today, kalOffset);
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(weekStart); day.setDate(weekStart.getDate() + i);
+    if (wd.includes(day.getDay())) dagen.push(day);
+  }
+  return dagen;
+}
+
 function renderKalender() {
   const today     = new Date(); today.setHours(0,0,0,0);
 
@@ -1748,7 +1770,12 @@ function renderKalender() {
   // Week-view
   const weekStart = getWeekStart(today, kalOffset);
   const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
-  document.getElementById('kal-label').textContent = fmtDateShort(weekStart) + ' – ' + fmtDateShort(weekEnd);
+  const zichtbareDagen = kalZichtbareDagen(today);
+  if (window.apparaat.indeling === 'tablet-staand' && zichtbareDagen.length) {
+    document.getElementById('kal-label').textContent = fmtDateShort(zichtbareDagen[0]) + ' – ' + fmtDateShort(zichtbareDagen[zichtbareDagen.length - 1]);
+  } else {
+    document.getElementById('kal-label').textContent = fmtDateShort(weekStart) + ' – ' + fmtDateShort(weekEnd);
+  }
 
   const grid = document.getElementById('week-grid');
   const isDesktopTijdlijnWeek = window.apparaat.indeling !== 'smal';
@@ -1763,11 +1790,7 @@ function renderKalender() {
   // dezelfde afmetingen. Enkel relevant in de desktop-tijdlijn-weergave.
   if (isDesktopTijdlijnWeek) grid.appendChild(renderTimelineGutter());
 
-  for (let i = 0; i < 7; i++) {
-    const day    = new Date(weekStart); day.setDate(weekStart.getDate() + i);
-    const dow    = day.getDay();
-    if (!settings.werkdagen.includes(dow)) continue;
-
+  for (const day of zichtbareDagen) {
     const dateStr       = localISO(day);
     const isToday       = day.getTime() === today.getTime();
     const isPast        = day.getTime() < today.getTime();
@@ -1958,11 +1981,18 @@ function kalAutoScroll(force) {
   const grid = document.getElementById('week-grid');
   if (!grid || !grid.classList.contains('tl-mode')) return;
   const today = new Date(); today.setHours(0,0,0,0);
-  const weekStart = getWeekStart(today, kalOffset);
+  let weekStart = getWeekStart(today, kalOffset);
+  let weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 7);
+  if (window.apparaat.indeling === 'tablet-staand') {
+    const dagen = kalZichtbareDagen(today);
+    if (dagen.length) {
+      weekStart = dagen[0];
+      weekEnd = new Date(dagen[dagen.length - 1]); weekEnd.setDate(weekEnd.getDate() + 1);
+    }
+  }
   const key = `${localISO(weekStart)}|${kalView}`;
   if (!force && key === _kalAutoScrollKey) return;
   _kalAutoScrollKey = key;
-  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 7);
   const nu = new Date();
   const heeftVandaag = nu >= weekStart && nu < weekEnd;
   const doelMin = heeftVandaag ? Math.max(0, nu.getHours() * 60 + nu.getMinutes() - 60) : 8 * 60;
@@ -2022,10 +2052,15 @@ function startNuLijnTimer() {
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) updateNuLijn(); });
 
-function kalNav(dir) { kalOffset += dir; renderKalender(); kalAutoScroll(true); }
+function kalNav(dir) {
+  // Tablet rechtop + weekweergave: ‹ › schuiven 1 werkdag; maandweergave blijft per maand (kalOffset)
+  if (window.apparaat.indeling === 'tablet-staand' && kalView !== 'month') kalDagOffset += dir; else kalOffset += dir;
+  renderKalender(); kalAutoScroll(true);
+}
 function kalToday() {
-  if (kalOffset === 0) { kalAutoScroll(true); return; }
-  kalOffset = 0;
+  const dagModus = window.apparaat.indeling === 'tablet-staand' && kalView !== 'month';
+  if (dagModus ? kalDagOffset === 0 : kalOffset === 0) { kalAutoScroll(true); return; }
+  if (dagModus) kalDagOffset = 0; else kalOffset = 0;
   renderKalender();
   kalAutoScroll(true);
 }
