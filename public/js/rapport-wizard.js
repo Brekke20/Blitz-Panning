@@ -651,7 +651,7 @@ export function _wizRenderGeselecteerd() {
     return `<div class="wiz-sel-item">
       <div class="wiz-sel-top">
         ${isVrij
-          ? `<input class="wiz-part-omschr" style="flex:1;font-size:0.85rem" type="text" placeholder="Omschrijving" value="${escHtml(p.naam||'')}" oninput="wizUpdSelNaam(${i},this.value)" />`
+          ? `<input class="wiz-part-omschr" style="flex:1" type="text" placeholder="Omschrijving" value="${escHtml(p.naam||'')}" oninput="wizUpdSelNaam(${i},this.value)" />`
           : `<span class="wiz-sel-naam">${escHtml(p.naam)}</span>`
         }
         <button class="wiz-sel-del" onclick="wizRemovePart(${i})" title="Verwijderen">✕</button>
@@ -664,9 +664,9 @@ export function _wizRenderGeselecteerd() {
         </div>
         ${isVrij
           ? `<input class="wiz-part-prijs" type="number" placeholder="€ prijs" min="0" step="0.01"
-              style="width:80px;font-size:0.82rem" value="${p.prijs||''}"
+              style="width:80px" value="${p.prijs||''}"
               oninput="wizUpdSelPrijs(${i},this.value)" />
-             <select class="wiz-part-eenheid" style="width:60px;font-size:0.8rem" onchange="wizUpdSelEenheid(${i},this.value)">
+             <select class="wiz-part-eenheid" style="width:60px" onchange="wizUpdSelEenheid(${i},this.value)">
                <option value="stuk" ${p.eenheid!=='meter'?'selected':''}>stuk</option>
                <option value="meter" ${p.eenheid==='meter'?'selected':''}>meter</option>
              </select>`

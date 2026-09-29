@@ -176,6 +176,10 @@
     .wiz-part-bottom { display: flex; align-items: center; gap: 12px; clear: both; }
     .wiz-part-prijs  { background: var(--surface3); border: 1px solid var(--border); color: var(--text); border-radius: var(--r); padding: 7px 10px; width: 120px; }
     .wiz-part-factureer { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--text2); cursor: pointer; }
+    /* Vrije regel (custom/free item) sizes: moved from inline styles to CSS */
+    .wiz-sel-item .wiz-part-omschr { font-size: 0.85rem; }
+    .wiz-sel-item .wiz-part-prijs { font-size: 0.82rem; }
+    .wiz-sel-item .wiz-part-eenheid { font-size: 0.8rem; }
 
     /* ── Wizard onderdelen (catalogus-modus) ────────────────────────────────── */
     .wiz-cat-search-wrap { position: relative; margin-bottom: 8px; }
@@ -232,4 +236,7 @@
       input, select, textarea { font-size: 16px; }
       .wiz-cat-search { font-size: 16px; }
       .wiz-sel-aantal { font-size: 16px; }
+      .wiz-sel-item .wiz-part-omschr { font-size: 16px; }
+      .wiz-sel-item .wiz-part-prijs { font-size: 16px; }
+      .wiz-sel-item .wiz-part-eenheid { font-size: 16px; }
     }
