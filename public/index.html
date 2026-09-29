@@ -1417,26 +1417,53 @@ const TIMELINE_PX_PER_MIN = 1.3;
 // de volledige kaart toont.
 const TIMELINE_MIN_BLOCK_PX = 155;
 
-function timelineTopHeight(startMin, endMin, dagStartMin) {
-  const top = Math.max(0, (startMin - dagStartMin) * TIMELINE_PX_PER_MIN);
+// Werkuren (fase 2 v1.7.0): de tijdlijn toont het volledige etmaal; buiten deze uren komt een
+// donkere band. Start vóór 08:30 of op/na 17:00 = "buiten werkuren".
+const WERKUUR_START = 8 * 60 + 30;
+const WERKUUR_EIND  = 17 * 60;
+function isBuitenWerkuren(hhmm) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
+  if (!m) return false;
+  const min = Number(m[1]) * 60 + Number(m[2]);
+  return min < WERKUUR_START || min >= WERKUUR_EIND;
+}
+
+function timelineTopHeight(startMin, endMin, dagStartMin, totalHeight) {
+  endMin = Math.min(endMin, 1440);
+  let top = Math.max(0, (startMin - dagStartMin) * TIMELINE_PX_PER_MIN);
   const height = Math.max(TIMELINE_MIN_BLOCK_PX, (endMin - startMin) * TIMELINE_PX_PER_MIN);
+  // Een laat blok (bv. 23:30) moet volledig zichtbaar blijven binnen de tijdlijn.
+  if (totalHeight != null && top + height > totalHeight) top = Math.max(0, totalHeight - height);
   return { top, height };
 }
 
 // Post-launch feedback (2026-08-17): gedeeld door renderDayTimeline() (elke dag-kolom) EN
 // renderTimelineGutter() (de uren-kolom vóór maandag) -- beide MOETEN exact dezelfde
 // dagStartMin/dagEindMin/totalHeight gebruiken, anders lopen de uur-lijnen in de dag-kolommen niet
-// meer gelijk met de uur-labels in de gutter. Waarden zijn dag-onafhankelijk (komen enkel uit de
-// globale settings), dus één berekening per renderKalender()-call volstaat.
+// meer gelijk met de uur-labels in de gutter. Fase 2 (v1.7.0): vast 00:00-24:00 (het volledige
+// etmaal), zodat ook vroege/late afspraken zichtbaar zijn; de werkuren-instelling speelt geen rol meer.
 function computeTimelineRange() {
-  const [vanH, vanM] = (settings.vanTijd || '08:00').split(':').map(Number);
-  const [totH, totM] = (settings.totTijd || '17:00').split(':').map(Number);
-  const dagStartMin = Math.min(vanH * 60 + vanM, 8 * 60);
-  const dagEindMin  = Math.max(totH * 60 + totM, 18 * 60);
-  const displayStartH = Math.floor(dagStartMin / 60);
-  const displayEndH   = Math.ceil(dagEindMin / 60);
-  const totalHeight = Math.max(TIMELINE_MIN_BLOCK_PX, (dagEindMin - dagStartMin) * TIMELINE_PX_PER_MIN);
+  const dagStartMin = 0;
+  const dagEindMin = 1440;
+  const displayStartH = 0;
+  const displayEndH = 24;
+  const totalHeight = (dagEindMin - dagStartMin) * TIMELINE_PX_PER_MIN;
   return { dagStartMin, dagEindMin, displayStartH, displayEndH, totalHeight };
+}
+
+// Twee achtergrondbanden (00:00-werkuurstart en werkuureinde-24:00); eerste kinderen van de wrap.
+function appendOffhoursBands(wrap, dagStartMin, totalHeight) {
+  const boven = document.createElement('div');
+  boven.className = 'tl-offhours';
+  boven.style.top = '0px';
+  boven.style.height = `${(WERKUUR_START - dagStartMin) * TIMELINE_PX_PER_MIN}px`;
+  const onder = document.createElement('div');
+  onder.className = 'tl-offhours';
+  const onderTop = (WERKUUR_EIND - dagStartMin) * TIMELINE_PX_PER_MIN;
+  onder.style.top = `${onderTop}px`;
+  onder.style.height = `${totalHeight - onderTop}px`;
+  wrap.appendChild(boven);
+  wrap.appendChild(onder);
 }
 
 // Smalle kolom vóór maandag met enkel de uur-labels (zie .day-col.tl-gutter in app.css) --
@@ -1455,6 +1482,7 @@ function renderTimelineGutter() {
   const wrap = document.createElement('div');
   wrap.className = 'tl-gutter-wrap';
   wrap.style.height = `${totalHeight}px`;
+  appendOffhoursBands(wrap, dagStartMin, totalHeight);
   for (let h = displayStartH; h <= displayEndH; h++) {
     const top = (h * 60 - dagStartMin) * TIMELINE_PX_PER_MIN;
     const label = document.createElement('div');
@@ -1510,10 +1538,7 @@ function assignTimelineLanes(items) {
 }
 
 function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports) {
-  // Post-launch feedback (2026-08-17): vaste 8u-18u-weergave i.p.v. enkel settings.vanTijd/totTijd
-  // (die vandaag 08:00/17:00 zijn, maar konden ook smaller/breder ingesteld staan) — de tijdlijn
-  // toont nu altijd MINSTENS 08:00-18:00, en breidt vanzelf verder uit als de werkuren-instelling
-  // ruimer is (bv. een technieker met totTijd 19:00 verliest zo geen zichtbare afspraken).
+  // Fase 2 (v1.7.0): de tijdlijn toont vast het volledige etmaal 00:00-24:00 (zie computeTimelineRange()).
   const { dagStartMin, displayStartH, displayEndH, totalHeight } = computeTimelineRange();
 
   const frag = document.createDocumentFragment();
@@ -1521,6 +1546,7 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports) {
   const wrap = document.createElement('div');
   wrap.className = 'tl-wrap';
   wrap.style.height = `${totalHeight}px`;
+  appendOffhoursBands(wrap, dagStartMin, totalHeight);
 
   // Uur-labels staan niet meer hier (zie renderTimelineGutter()) -- enkel de streeplijnen zelf,
   // voor de visuele uitlijning van blokken met het uur-raster.
@@ -1547,7 +1573,7 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports) {
     const [toH, toM]     = e.to.split(':').map(Number);
     const startMin = fromH * 60 + fromM;
     const endMin   = toH * 60 + toM;
-    const { top, height } = timelineTopHeight(startMin, endMin, dagStartMin);
+    const { top, height } = timelineTopHeight(startMin, endMin, dagStartMin, totalHeight);
     // Let op: dit is textContent/title (DOM-property), geen innerHTML — dus GEEN escHtml() hier;
     // die zou entities dubbel encoderen ("&" -> "&amp;" zichtbaar als tekst i.p.v. "&").
     const reasonPart = e.reason ? `: ${e.reason}` : '';
@@ -1600,7 +1626,7 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports) {
   assignTimelineLanes(positioned);
 
   positioned.forEach(item => {
-    const { top, height } = timelineTopHeight(item.startMin, item.endMin, dagStartMin);
+    const { top, height } = timelineTopHeight(item.startMin, item.endMin, dagStartMin, totalHeight);
     const block = document.createElement('div');
     block.className = item.type === 'ticket' ? 'tl-block tl-ticket'
       : item.type === 'report' ? 'tl-block tl-report'

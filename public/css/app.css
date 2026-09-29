@@ -919,6 +919,8 @@
     .tl-hour-line {
       position: absolute; left: 0; right: 0; border-top: 1px dashed var(--border); height: 0;
     }
+    /* Donkere banden buiten de werkuren (voor 08:30 en vanaf 17:00) */
+    .tl-offhours { position: absolute; left: 0; right: 0; background: var(--tl-offhours); pointer-events: none; }
     .tl-block {
       position: absolute; left: 6px; right: 6px; overflow: hidden; border-radius: var(--r);
     }
