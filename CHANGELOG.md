@@ -15,6 +15,27 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.7.0] — 2026-09-29
+
+UI/UX-traject fase 2: agenda over 24 uur.
+
+### Added
+- De weekagenda (computer) toont het hele etmaal, 00:00–24:00. Uren buiten de werkuren
+  (08:30–17:00) hebben een donkerdere achtergrond.
+- Rode "nu"-lijn met het uur in de kolom van vandaag; schuift elke minuut mee.
+- Bij het openen springt de agenda naar de werkdag (een uur vóór nu, of 08:00 in een andere week).
+- Tickets zonder uur staan als klikbare labeltjes ("Zonder uur") in de dagkop, altijd zichtbaar.
+- Op gsm/tablet rechtop: een rood "nu"-streepje tussen voorbije en komende afspraken, en een
+  label "buiten werkuren" bij afspraken vóór 08:30 of vanaf 17:00.
+
+### Changed
+- Eén scrollbalk voor de agenda; de dagkoppen blijven bovenaan staan tijdens het scrollen.
+- De geïnstalleerde app draait nu mee naar liggend (was vergrendeld op staand).
+- Op een tablet rechtop staan de dagen onder elkaar in plaats van vijf samengedrukte kolommen.
+
+### Fixed
+- Afspraken vóór 08:00 of na 18:00 verdwenen onzichtbaar uit de weekagenda.
+
 ## [1.6.1] — 2026-09-29
 
 UI/UX-traject fase 1: veiligheid en leesbaarheid (audit `docs/reviews/2026-09-28-ui-ux-audit/`).
