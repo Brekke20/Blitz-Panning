@@ -305,6 +305,11 @@
         <label class="set-row"><input type="radio" name="set-weergave" value="computer" onchange="kiesToestelWeergave(this.value)"> <span>Computer</span></label>
       </div>
       <div style="font-size:0.78rem;color:var(--muted)">Deze keuzes gelden enkel voor dit toestel. De rol verbergt knoppen maar is geen beveiliging.</div>
+      <div class="set-field" id="set-testdata-blok" style="display:none;margin-top:16px">
+        <label class="set-label">Testgegevens</label>
+        <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">Je werkt in testmodus met een kopie van de echte gegevens.</div>
+        <button type="button" class="btn-cancel" id="set-testdata-btn" onclick="resetTestdata()">Testgegevens opnieuw kopiëren</button>
+      </div>
     </div>
     <div class="mftr">
       <button class="btn-cancel coord-only" onclick="openPrijsBeheer()" title="Beheer productprijzen">💰 Prijzen</button>
@@ -5183,7 +5188,30 @@ const DAGEN = ['Zo','Ma','Di','Wo','Do','Vr','Za'];
 let _settingsActiveTab = 'algemeen';
 
 const SOORT_LABEL = { gsm: 'Gsm', tablet: 'Tablet', computer: 'Computer' };
+// Testmodus: kopie van de echte gegevens opnieuw maken (testwijzigingen gaan verloren)
+async function resetTestdata() {
+  if (!TEST_MODE) return;
+  const ok = await window.appConfirm({
+    titel: 'Testgegevens opnieuw kopiëren?',
+    tekst: 'Alle testwijzigingen gaan verloren. De echte gegevens worden niet aangeraakt.',
+    bevestigLabel: 'Opnieuw kopiëren'
+  });
+  if (!ok) return;
+  const btn = document.getElementById('set-testdata-btn');
+  if (btn) btn.disabled = true;
+  try {
+    const r = await fetch('/api/testdata', { method: 'POST' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    toast('🧪 Testgegevens opnieuw gekopieerd', 2500);
+    setTimeout(() => location.reload(), 800);
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    toast('Testgegevens kopiëren mislukt — probeer opnieuw', 4000);
+  }
+}
 function vulToestelTab() {
+  const blok = document.getElementById('set-testdata-blok');
+  if (blok) blok.style.display = TEST_MODE ? '' : 'none';
   const a = window.apparaat;
   if (!a) return;
   let tekst = `Herkend als: ${SOORT_LABEL[a.automatischeSoort] || a.automatischeSoort} · ${a.staand ? 'rechtop' : 'liggend'} · ${a.aanraak ? 'aanraakscherm' : 'muis/trackpad'}`;
