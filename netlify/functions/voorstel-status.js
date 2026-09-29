@@ -6,6 +6,7 @@
 // hetzelfde blok ziet als de klant, ongeacht latere wijzigingen aan de slot-instelling.
 // Structuur: { versie, status: { [ticketId]: { contact?, klant?, installateur?, tijdslot?, tijdslotDatum? } } }
 import { getStore } from '@netlify/blobs';
+import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
 
 const EMPTY = { versie: 0, status: {} };
 const TIJDSLOT_RE = /^([01]\d|2[0-3]):[0-5]\d–([01]\d|2[0-3]):[0-5]\d$/;
@@ -15,7 +16,9 @@ export default async (req, context) => {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
-  const store = getStore({ name: 'blitz-data', consistency: 'strong' });
+  const store = getStore({ name: winkelNaam(req), consistency: 'strong' });
+
+  if (isTestVerzoek(req)) await zorgVoorTestkopie(getStore);
 
   if (req.method === 'GET') {
     const data = await store.get('voorstel-status', { type: 'json' }).catch(() => null);

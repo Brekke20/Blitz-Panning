@@ -11,6 +11,7 @@
 // } } }
 
 import { getStore } from '@netlify/blobs';
+import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
 
 const BLOB_KEY = 'klantbeschikbaarheid';
 const ALLOWED_ORIGINS = [
@@ -36,7 +37,9 @@ export default async (req) => {
   const hdrs  = corsHeaders(req);
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: hdrs });
 
-  const store = getStore({ name: 'blitz-data', consistency: 'strong' });
+  const store = getStore({ name: winkelNaam(req), consistency: 'strong' });
+
+  if (isTestVerzoek(req)) await zorgVoorTestkopie(getStore);
 
   // ── GET ───────────────────────────────────────────────────────────────────
   if (req.method === 'GET') {

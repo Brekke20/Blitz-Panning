@@ -3,6 +3,7 @@
 // PUT  → lijst opslaan (open, geen auth vereist)
 
 import { getStore } from '@netlify/blobs';
+import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
 
 const BLOB_KEY    = 'afspraken';
 const ALLOWED_ORIGINS = [
@@ -30,7 +31,9 @@ export default async (req, context) => {
     return new Response(null, { status: 204, headers: hdrs });
   }
 
-  const store = getStore({ name: 'blitz-data', consistency: 'strong' });
+  const store = getStore({ name: winkelNaam(req), consistency: 'strong' });
+
+  if (isTestVerzoek(req)) await zorgVoorTestkopie(getStore);
 
   // ── GET ───────────────────────────────────────────────────────────────────
   if (req.method === 'GET') {

@@ -2,6 +2,7 @@
 // Zet verzondenKlant/verzondenInstallateur op een bestaand rapport-archief-item, zonder
 // de rest van dat item (o.a. de mogelijk grote rapportData._html) opnieuw te versturen.
 import { getStore } from '@netlify/blobs';
+import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
 
 export default async (req, context) => {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
@@ -15,7 +16,9 @@ export default async (req, context) => {
     return new Response(JSON.stringify({ error: 'id, doelgroep (contact|klant|installateur) en tijdstip zijn verplicht' }), { status: 400, headers });
   }
 
-  const store = getStore({ name: 'blitz-data', consistency: 'strong' });
+  const store = getStore({ name: winkelNaam(req), consistency: 'strong' });
+
+  if (isTestVerzoek(req)) await zorgVoorTestkopie(getStore);
   const current = (await store.get('rapportlijst', { type: 'json' }).catch(() => null)) || { versie: 0, rapports: [] };
   if (typeof body.versie === 'number' && body.versie !== current.versie) {
     return new Response(JSON.stringify({ error: 'Rapportarchief ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: current.versie }), { status: 409, headers });
