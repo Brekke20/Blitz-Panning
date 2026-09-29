@@ -95,7 +95,7 @@ function renderEigenVoorraad(persoon) {
       <span class="inv-row-naam">${escHtml(o.naam)}</span>
       <div class="inv-qty-edit">
         <button class="inv-qty-btn inv-qty-minus" type="button" title="Verminder">−</button>
-        <input class="inv-qty-input" type="number" min="0" step="1" value="${aantal}" />
+        <input class="inv-qty-input" type="number" min="0" step="1" inputmode="numeric" value="${aantal}" />
         <button class="inv-qty-btn inv-qty-plus" type="button" title="Vermeerder">+</button>
         <button class="inv-bell-btn${gedempt ? ' inv-bell-muted' : ''}" type="button" title="Lage-voorraadmelding voor dit item ${gedempt ? 'inschakelen' : 'uitschakelen'}">${gedempt ? '🔕' : '🔔'}</button>
       </div>
@@ -107,7 +107,7 @@ function renderEigenVoorraad(persoon) {
          <button class="btn-cancel" id="inv-cancel-btn">Annuleren</button>
          <button class="btn-save" id="inv-save-btn">✓ Opslaan</button>
        </div>`
-    : `<div class="inv-toolbar"><button class="btn-primary" id="inv-edit-btn">✏️ Edit</button></div>`;
+    : `<div class="inv-toolbar"><button class="btn-primary" id="inv-edit-btn">✏️ Bewerken</button></div>`;
 
   return toolbar + `<div class="inv-list">${rijen}</div>`;
 }

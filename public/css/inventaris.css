@@ -71,7 +71,6 @@
   border-radius: var(--r);
   color: var(--text);
   padding: 4px 2px;
-  font-size: 0.85rem;
   font-family: inherit;
 }
 
@@ -147,6 +146,12 @@
   border-radius: var(--r);
   color: var(--text);
   padding: 4px 7px;
-  font-size: 0.75rem;
   font-family: inherit;
 }
+
+    /* iOS zoom fix: invoervelden minimaal 16px onder 1024px viewport */
+    @media (max-width: 1023px) {
+      input, select, textarea { font-size: 16px; }
+      .inv-qty-input { font-size: 16px; }
+      .inv-export-toolbar input[type="date"] { font-size: 16px; }
+    }

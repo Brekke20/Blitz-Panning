@@ -952,3 +952,14 @@
       .tl-wrap, .tl-ongepositioneerd { display: none; }
     }
 
+    /* iOS zoom fix: invoervelden minimaal 16px onder 1024px viewport */
+    @media (max-width: 1023px) {
+      input, select, textarea { font-size: 16px; }
+      .man-input, .man-select { font-size: 16px; }
+      .av-time-input { font-size: 16px; }
+      .av-reden-input { font-size: 16px; }
+      .plan-header input[type=date] { font-size: 16px; }
+      .set-input { font-size: 16px; }
+      .kb-notitie { font-size: 16px; }
+      .foto-caption { font-size: 16px; }
+    }

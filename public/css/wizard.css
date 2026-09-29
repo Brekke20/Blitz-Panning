@@ -170,11 +170,11 @@
     }
     .wiz-add-part:hover { border-color: var(--accent); color: var(--accent-ink); }
     /* Part item sub-fields */
-    .wiz-part-omschr { background: var(--surface3); border: 1px solid var(--border); color: var(--text); border-radius: var(--r); padding: 9px 12px; width: 100%; font-size: 0.9rem; margin-bottom: 7px; }
+    .wiz-part-omschr { background: var(--surface3); border: 1px solid var(--border); color: var(--text); border-radius: var(--r); padding: 9px 12px; width: 100%; margin-bottom: 7px; }
     .wiz-part-del    { float: right; background: none; border: none; color: var(--muted); font-size: 1rem; cursor: pointer; padding: 0 2px; margin-top: -2px; }
     .wiz-part-del:hover { color: var(--red); }
     .wiz-part-bottom { display: flex; align-items: center; gap: 12px; clear: both; }
-    .wiz-part-prijs  { background: var(--surface3); border: 1px solid var(--border); color: var(--text); border-radius: var(--r); padding: 7px 10px; font-size: 0.88rem; width: 120px; }
+    .wiz-part-prijs  { background: var(--surface3); border: 1px solid var(--border); color: var(--text); border-radius: var(--r); padding: 7px 10px; width: 120px; }
     .wiz-part-factureer { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--text2); cursor: pointer; }
 
     /* ── Wizard onderdelen (catalogus-modus) ────────────────────────────────── */
@@ -226,3 +226,10 @@
     .wiz-totaal-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); margin-top: 4px; font-size: 0.85rem; }
     .wiz-totaal-lbl { color: var(--muted); }
     .wiz-totaal-val { color: var(--accent-ink); font-weight: 700; font-size: 0.95rem; }
+
+    /* iOS zoom fix: invoervelden minimaal 16px onder 1024px viewport */
+    @media (max-width: 1023px) {
+      input, select, textarea { font-size: 16px; }
+      .wiz-cat-search { font-size: 16px; }
+      .wiz-sel-aantal { font-size: 16px; }
+    }
