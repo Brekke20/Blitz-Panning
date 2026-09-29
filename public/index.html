@@ -6099,10 +6099,18 @@ function renderKbSection(ticketId) {
   const el = document.getElementById('kb-section');
   if (!el) return;
   const kb = kbFor(ticketId) || { voorkeur: null, voorkeurTijd: null, geblokkeerd: [], notitie: '' };
-
-  const blockChips = (kb.geblokkeerd || []).map(d =>
-    `<span class="kb-chip">🚫 ${d} <button class="kb-chip-del kb-btn-removeblok" data-datum="${escHtml(d)}" title="Verwijderen">✕</button></span>`
-  ).join(' ');
+  // Lokaal concept: de velden werken enkel hierop; pas "✓ Opslaan" schrijft naar klantBeschikbaarheid.
+  const draft = {
+    voorkeur:     kb.voorkeur || '',
+    voorkeurTijd: kb.voorkeurTijd || '',
+    geblokkeerd:  [...(kb.geblokkeerd || [])],
+    duur:         kb.duurOverride || settings.duurMinuten,
+    notitie:      kb.notitie || '',
+  };
+  const stand = () => JSON.stringify([draft.voorkeur, draft.voorkeurTijd, [...draft.geblokkeerd].sort(),
+    draft.duur == null ? settings.duurMinuten : draft.duur, draft.notitie]);
+  const saved = stand();
+  const isDirty = () => stand() !== saved;
 
   el.innerHTML = `
     <div class="kb-section">
@@ -6110,103 +6118,128 @@ function renderKbSection(ticketId) {
 
       <div class="kb-row">
         <span class="kb-label">Voorkeur</span>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-          <input type="date" id="kb-pref-${ticketId}" value="${escHtml(kb.voorkeur || '')}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
-          <input type="time" id="kb-pref-tijd-${ticketId}" step="900" value="${escHtml(kb.voorkeurTijd || '')}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
-          <button class="kb-add-btn kb-btn-voorkeur-set">✓ Instellen</button>
-          ${(kb.voorkeur || kb.voorkeurTijd) ? `<button class="kb-btn-clear kb-btn-voorkeur-del" title="Voorkeur wissen">✕</button>` : ''}
+        <div class="kb-fields">
+          <input type="date" class="kb-input" id="kb-pref-${ticketId}" aria-label="Voorkeursdatum" value="${escHtml(draft.voorkeur)}">
+          <input type="time" class="kb-input" id="kb-pref-tijd-${ticketId}" aria-label="Voorkeursuur" step="900" value="${escHtml(draft.voorkeurTijd)}">
+          <button type="button" class="btn btn--ghost btn--sm kb-btn-voorkeur-del">Wissen</button>
         </div>
       </div>
 
-      <div class="kb-row" style="align-items:flex-start;flex-direction:column;gap:6px">
+      <div class="kb-row kb-row--col">
         <span class="kb-label">Klant kan NIET op</span>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-          ${blockChips}
-          <input type="date" id="kb-blok-${ticketId}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
-          <button class="kb-add-btn kb-btn-addblok">+ Blokkeer datum</button>
+        <div class="kb-fields">
+          <span class="kb-chips"></span>
+          <input type="date" class="kb-input" id="kb-blok-${ticketId}" aria-label="Datum waarop de klant niet kan">
+          <button type="button" class="btn btn--sm kb-btn-addblok">+ Datum toevoegen</button>
         </div>
       </div>
 
       <div class="kb-row">
         <span class="kb-label">Verwachte duur</span>
-        <div style="display:flex;align-items:center;gap:6px">
-          <input type="number" id="kb-duur-${ticketId}" min="15" max="480" step="15"
-            value="${kb.duurOverride || settings.duurMinuten}"
-            style="width:70px;font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
-          <span style="font-size:0.78rem;color:var(--muted)">min</span>
-          <button class="kb-add-btn kb-btn-duur-set">✓ Instellen</button>
-          ${kb.duurOverride ? `<button class="kb-chip-del kb-btn-duur-reset" title="Reset naar standaard">↺</button>` : ''}
+        <div class="kb-fields">
+          <input type="number" class="kb-input kb-input--duur" id="kb-duur-${ticketId}" aria-label="Verwachte duur in minuten" min="15" max="480" step="15" value="${escHtml(String(draft.duur))}">
+          <span class="kb-unit">min</span>
+          <button type="button" class="btn btn--ghost btn--sm kb-btn-duur-reset">Standaard</button>
         </div>
       </div>
 
-      <div class="kb-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+      <div class="kb-row kb-row--col">
         <span class="kb-label">Notitie</span>
-        <textarea class="kb-notitie" id="kb-notitie-${ticketId}" placeholder="bv. enkel na 14u, niet op vrijdag...">${escHtml(kb.notitie || '')}</textarea>
-        <button class="kb-add-btn kb-btn-notitie-save">✓ Opslaan</button>
+        <textarea class="kb-notitie" id="kb-notitie-${ticketId}" aria-label="Notitie" placeholder="bv. enkel na 14u, niet op vrijdag...">${escHtml(draft.notitie)}</textarea>
+      </div>
+
+      <div class="kb-save-row">
+        <button type="button" class="btn btn--primary kb-btn-save" disabled>✓ Opslaan</button>
+        <span class="kb-dirty-hint" hidden>Niet-opgeslagen wijzigingen</span>
       </div>
     </div>`;
 
-  // ticketId komt uit de kennisbank-blob (niet-geauthenticeerd) — via closure doorgeven
-  // i.p.v. inline onclick (zelfde reden als .btn-navigeer-knoppen). Alleen de per-item
-  // geblokkeerde datum (kb-btn-removeblok) heeft nog een data-attribuut nodig.
-  el.querySelector('.kb-btn-voorkeur-del')?.addEventListener('click', () => {
-    updateKb(ticketId, 'voorkeur', { datum: null, tijd: null });
-  });
-  el.querySelector('.kb-btn-voorkeur-set')?.addEventListener('click', () => {
-    updateKb(ticketId, 'voorkeur', {
-      datum: document.getElementById(`kb-pref-${ticketId}`).value,
-      tijd:  document.getElementById(`kb-pref-tijd-${ticketId}`).value,
+  const q = (s) => el.querySelector(s);
+  const chipsEl = q('.kb-chips'), saveBtn = q('.kb-btn-save'), hint = q('.kb-dirty-hint');
+  const prefEl = q(`#kb-pref-${ticketId}`), tijdEl = q(`#kb-pref-tijd-${ticketId}`);
+  const blokEl = q(`#kb-blok-${ticketId}`), duurEl = q(`#kb-duur-${ticketId}`), notEl = q(`#kb-notitie-${ticketId}`);
+
+  function sync() {
+    const dirty = isDirty();
+    saveBtn.disabled = !dirty;
+    hint.hidden = !dirty;
+  }
+  function tekenChips() {
+    chipsEl.innerHTML = draft.geblokkeerd.map(d =>
+      `<span class="kb-chip">🚫 ${escHtml(d)} <button type="button" class="kb-chip-del kb-btn-removeblok" data-datum="${escHtml(d)}" title="Verwijderen" aria-label="Verwijder ${escHtml(d)}">✕</button></span>`
+    ).join(' ');
+    // ticketId komt uit de kennisbank-blob (niet-geauthenticeerd) — niet inline; de datum staat in een data-attribuut.
+    chipsEl.querySelectorAll('.kb-btn-removeblok').forEach(btn => {
+      btn.addEventListener('click', () => {
+        draft.geblokkeerd = draft.geblokkeerd.filter(d => d !== btn.dataset.datum);
+        tekenChips(); sync();
+      });
     });
+  }
+  tekenChips();
+  sync();
+
+  prefEl.addEventListener('input', () => { draft.voorkeur = prefEl.value; sync(); });
+  tijdEl.addEventListener('input', () => { draft.voorkeurTijd = tijdEl.value; sync(); });
+  q('.kb-btn-voorkeur-del').addEventListener('click', () => {
+    prefEl.value = ''; tijdEl.value = ''; draft.voorkeur = ''; draft.voorkeurTijd = ''; sync();
   });
-  el.querySelectorAll('.kb-btn-removeblok').forEach(btn => {
-    btn.addEventListener('click', () => updateKb(ticketId, 'removeBlok', btn.dataset.datum || ''));
+  q('.kb-btn-addblok').addEventListener('click', () => {
+    const v = blokEl.value;
+    if (!v) return;
+    if (draft.voorkeur === v) return toast('⚠️ Deze datum is al de voorkeursdatum');
+    if (!draft.geblokkeerd.includes(v)) draft.geblokkeerd = [...draft.geblokkeerd, v].sort();
+    blokEl.value = '';
+    tekenChips(); sync();
   });
-  el.querySelector('.kb-btn-addblok')?.addEventListener('click', () => updateKb(ticketId, 'addBlok', document.getElementById(`kb-blok-${ticketId}`).value));
-  el.querySelector('.kb-btn-duur-set')?.addEventListener('click', () => updateKb(ticketId, 'duur', document.getElementById(`kb-duur-${ticketId}`).value));
-  el.querySelector('.kb-btn-duur-reset')?.addEventListener('click', () => updateKb(ticketId, 'duur', null));
-  el.querySelector('.kb-btn-notitie-save')?.addEventListener('click', () => updateKb(ticketId, 'notitie', document.getElementById(`kb-notitie-${ticketId}`).value));
+  duurEl.addEventListener('input', () => { draft.duur = duurEl.value === '' ? null : Number(duurEl.value); sync(); });
+  q('.kb-btn-duur-reset').addEventListener('click', () => {
+    draft.duur = settings.duurMinuten; duurEl.value = String(settings.duurMinuten); sync();
+  });
+  notEl.addEventListener('input', () => { draft.notitie = notEl.value; sync(); });
+  saveBtn.addEventListener('click', async () => {
+    if (saveBtn.disabled) return;
+    saveBtn.disabled = true;
+    const ok = await saveKbAll(ticketId, {
+      voorkeur: draft.voorkeur || null, voorkeurTijd: draft.voorkeurTijd || null,
+      geblokkeerd: draft.geblokkeerd, duur: draft.duur, notitie: draft.notitie,
+    });
+    if (!ok) sync(); // concept blijft staan; opnieuw proberen kan
+  });
 }
 
-async function updateKb(ticketId, action, value) {
-  if (!ticketId) return;
+// Eén opslag voor het hele klantbeschikbaarheid-formulier. Valideert alles vóór er iets
+// gemuteerd wordt (volgorde en meldingen zoals de vroegere losse acties), past het concept dan
+// toe op de bewaarde entry en gebruikt hetzelfde persist-pad (saveKlantBeschikbaarheid, incl.
+// 409-merge en kbLocallyDeleted-bescherming).
+async function saveKbAll(ticketId, draft) {
+  if (!ticketId) return false;
+  const datum = draft.voorkeur || null;
+  const tijd  = draft.voorkeurTijd || null;
+  // M10: 00:00 apart weigeren -- dat is de sentinel voor "geen tijdstip" (zie extractLocalHour).
+  if (tijd === '00:00') { toast('⚠️ 00:00 is geen geldig voorkeursuur'); return false; }
+  if (tijd && !/^([01]\d|2[0-3]):[0-5]\d$/.test(tijd)) { toast('⚠️ Ongeldig uur'); return false; }
+  const geblokkeerd = [...new Set(draft.geblokkeerd || [])].sort();
+  if (datum && geblokkeerd.includes(datum)) { toast('⚠️ Deze datum staat al als geblokkeerd'); return false; }
+  const duur = (draft.duur === null || draft.duur === undefined || draft.duur === '') ? null : Number(draft.duur);
+  if (duur !== null && (!Number.isInteger(duur) || duur < 15 || duur > 480)) {
+    toast('⚠️ Verwachte duur moet tussen 15 en 480 minuten liggen'); return false;
+  }
+
+  // Momentopname om bij een mislukte opslag terug te draaien (het concept blijft dan staan).
+  const vorige = klantBeschikbaarheid[ticketId] ? JSON.parse(JSON.stringify(klantBeschikbaarheid[ticketId])) : null;
+  const wasLokaalVerwijderd = kbLocallyDeleted.has(ticketId);
+
   if (!klantBeschikbaarheid[ticketId]) {
     klantBeschikbaarheid[ticketId] = { voorkeur: null, voorkeurTijd: null, geblokkeerd: [], notitie: '', bijgewerkt: new Date().toISOString() };
   }
   const kb = klantBeschikbaarheid[ticketId];
-
-  if (action === 'voorkeur') {
-    // Eén atomaire actie voor datum + uur samen (value = { datum, tijd }), zodat een
-    // afwijzing (geblokkeerde datum / ongeldig uur) nooit een halve wijziging opslaat.
-    const datum = value?.datum || null;
-    const tijd  = value?.tijd  || null;
-    // Eerst valideren, dan pas muteren — anders kan één helft al gezet zijn terwijl
-    // de andere wordt afgewezen (dubbele toast / stille deel-opslag).
-    // M10: 00:00 apart weigeren -- dat is de sentinel voor "geen tijdstip" (zie
-    // extractLocalHour), dus zou als voorkeursuur onopgemerkt hetzelfde betekenen als geen
-    // voorkeur.
-    if (tijd === '00:00') return toast('⚠️ 00:00 is geen geldig voorkeursuur');
-    if (tijd && !/^([01]\d|2[0-3]):[0-5]\d$/.test(tijd)) return toast('⚠️ Ongeldig uur');
-    if (datum && kb.geblokkeerd.includes(datum)) return toast('⚠️ Deze datum staat al als geblokkeerd');
-    kb.voorkeur = datum;
-    kb.voorkeurTijd = tijd;
-  } else if (action === 'addBlok') {
-    if (!value) return;
-    if (kb.voorkeur === value) return toast('⚠️ Deze datum is al de voorkeursdatum');
-    if (!kb.geblokkeerd.includes(value)) {
-      kb.geblokkeerd = [...kb.geblokkeerd, value].sort();
-    }
-  } else if (action === 'removeBlok') {
-    kb.geblokkeerd = kb.geblokkeerd.filter(d => d !== value);
-  } else if (action === 'notitie') {
-    kb.notitie = value || '';
-  } else if (action === 'duur') {
-    const min = value ? parseInt(value, 10) : null;
-    if (min && min > 0 && min !== settings.duurMinuten) {
-      kb.duurOverride = min;
-    } else {
-      delete kb.duurOverride; // reset naar standaard
-    }
-  }
+  kb.voorkeur = datum;
+  kb.voorkeurTijd = tijd;
+  kb.geblokkeerd = geblokkeerd;
+  kb.notitie = draft.notitie || '';
+  if (duur && duur > 0 && duur !== settings.duurMinuten) kb.duurOverride = duur;
+  else delete kb.duurOverride; // gelijk aan standaard = geen override
 
   kb.bijgewerkt = new Date().toISOString();
   // Ticket weer gevuld na een eerdere lokale verwijdering: telt niet langer als "lokaal
@@ -6218,10 +6251,17 @@ async function updateKb(ticketId, action, value) {
     kbLocallyDeleted.add(ticketId);
   }
 
-  renderKbSection(ticketId);
   renderTickets(); // badges bijwerken
-  await saveKlantBeschikbaarheid();
+  const ok = await saveKlantBeschikbaarheid();
+  if (!ok) {
+    if (vorige) klantBeschikbaarheid[ticketId] = vorige; else delete klantBeschikbaarheid[ticketId];
+    if (wasLokaalVerwijderd) kbLocallyDeleted.add(ticketId); else kbLocallyDeleted.delete(ticketId);
+    renderTickets();
+    return false; // saveKlantBeschikbaarheid toonde al de foutmelding
+  }
+  renderKbSection(ticketId);
   toast('✓ Klantbeschikbaarheid opgeslagen');
+  return true;
 }
 
 function toggleAssignRow(ticketId) {

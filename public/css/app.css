@@ -547,10 +547,13 @@
     .kb-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; padding: 2px 7px; border-radius: 12px; background: var(--red-dim); color: var(--red); border: 1px solid var(--red); }
     .kb-chip-pref { background: rgba(0,223,163,.12); color: var(--accent-ink); border-color: var(--accent); }
     .kb-chip-del { background: none; border: none; cursor: pointer; color: inherit; padding: 0; font-size: 0.8rem; line-height: 1; }
-    .kb-add-btn { font-size: var(--fs-2xs); padding: 2px 8px; background: none; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; color: var(--muted); }
-    /* M13 (eindreview v1.4.0): de ✕-knop om de KB-voorkeur te wissen had voorheen geen border
-       (via .kb-chip-del), waardoor ze onzichtbaar tussen de andere knoppen stond. */
-    .kb-btn-clear { font-size: var(--fs-2xs); padding: 2px 8px; background: none; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; color: var(--muted); }
+    .kb-fields { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .kb-row--col { flex-direction: column; align-items: flex-start; gap: 6px; }
+    .kb-input { font-size: 0.8rem; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); font-family: inherit; }
+    .kb-input--duur { width: 70px; }
+    .kb-unit { font-size: 0.78rem; color: var(--muted); }
+    .kb-save-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+    .kb-dirty-hint { font-size: var(--fs-xs); color: var(--muted); }
     .foto-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; margin: 8px 0; }
     .foto-thumb { position: relative; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; background: var(--surface2); }
     .foto-thumb img { width: 100%; height: 90px; object-fit: cover; display: block; }
@@ -1126,5 +1129,6 @@
     html[data-aanraak="ja"] .av-reden-input { font-size: 16px; }
     html[data-aanraak="ja"] .plan-header input[type=date] { font-size: 16px; }
     html[data-aanraak="ja"] .set-input { font-size: 16px; }
-    html[data-aanraak="ja"] .kb-notitie { font-size: 16px; }
+    html[data-aanraak="ja"] .kb-notitie, html[data-aanraak="ja"] .kb-input { font-size: 16px; }
+    html[data-aanraak="ja"] .kb-input { min-height: 44px; }
     html[data-aanraak="ja"] .foto-caption { font-size: 16px; }
