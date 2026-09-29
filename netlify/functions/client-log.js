@@ -46,8 +46,21 @@ export default async (req, context) => {
   }
 
   if (req.method === 'POST') {
+    // Publiek, ongeauthenticeerd endpoint: bodies groter dan 4 KB weigeren (header én werkelijke lengte).
+    const MAX_BODY = 4096;
+    const jsonHdr = { ...hdrs, 'Content-Type': 'application/json' };
+    if (parseInt(req.headers.get('content-length') || '0', 10) > MAX_BODY) {
+      return new Response(JSON.stringify({ error: 'Te groot' }), { status: 413, headers: jsonHdr });
+    }
     let body;
-    try { body = await req.json(); }
+    try {
+      const tekst = await req.text();
+      if (tekst.length > MAX_BODY) {
+        return new Response(JSON.stringify({ error: 'Te groot' }), { status: 413, headers: jsonHdr });
+      }
+      body = JSON.parse(tekst);
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('geen object');
+    }
     catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers: { ...hdrs, 'Content-Type': 'application/json' } }); }
 
     let current;
@@ -60,17 +73,25 @@ export default async (req, context) => {
 
     const entry = {
       tijdstip:     new Date().toISOString(),
-      ticketId:     String(body.ticketId     || ''),
-      ticketNumber: String(body.ticketNumber || ''),
-      stap:         String(body.stap         || ''),
+      ticketId:     String(body.ticketId     || '').slice(0, 100),
+      ticketNumber: String(body.ticketNumber || '').slice(0, 100),
+      stap:         String(body.stap         || '').slice(0, 100),
       fout:         String(body.fout         || '').slice(0, 500),
       poging:       parseInt(body.poging) || 1,
     };
 
-    // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse: bewaar de volledige diagnose.
+    // TIJDELIJK scrollsprong-verklikker — verwijderen na analyse: enkel whitelisted velden, types afgedwongen.
     if (body.soort === 'scrollsprong') {
+      const tekst = (v, max) => String(v ?? '').slice(0, max);
+      const getal = (v) => (Number.isFinite(Number(v)) ? Math.round(Number(v)) : 0);
+      const recent = (Array.isArray(body.recent) ? body.recent : []).slice(0, 20).map(r => ({
+        t: getal(r && (r.t ?? r.vooraf_ms)), wat: tekst(r && r.wat, 40),
+      }));
       entry.soort = 'scrollsprong';
-      entry.details = JSON.stringify(body).slice(0, 2500);
+      entry.details = JSON.stringify({
+        soort: 'scrollsprong', tab: tekst(body.tab, 40), van: getal(body.van), naar: getal(body.naar),
+        indeling: tekst(body.indeling, 20), rol: tekst(body.rol, 20), recent, stack: tekst(body.stack, 800),
+      });
     }
 
     // Only write if the read succeeded; if read failed, skip write to avoid data loss

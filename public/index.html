@@ -967,6 +967,7 @@ function vraagRolOpTablet() {
     annuleerLabel: 'Technieker'
   }).then(ok => {
     window._rolVraagOpen = false;
+    _herstelGebruikerActie = false; // de tik op de dialoogknop telt niet als eigen scrollen
     window.zetRol(ok ? 'coordinator' : 'technieker');
     if (_herstelUitgesteld) { _herstelUitgesteld = false; planHerstelSchermStaat(); }
   });
@@ -1043,9 +1044,9 @@ function metBehoudScroll(fn) {
     return fn();
   } finally {
     if (document.querySelector('.view.active') === view) {
-      if ((view && view.scrollTop !== viewTop) || window.scrollY !== winY || window.scrollX !== winX) {
+      if ((view && view.scrollTop !== viewTop) || window.scrollY !== winY || window.scrollX !== winX) { // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
         sjLog('metBehoudScroll:herstel'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
-      }
+      } // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
       if (view && view.scrollTop !== viewTop) view.scrollTop = viewTop;
       if (window.scrollY !== winY || window.scrollX !== winX) window.scrollTo(winX, winY);
     }
