@@ -40,7 +40,7 @@ function registreer({ el, isOpen, sluit }) {
     } else {
       const f = v.vorigeFocus;
       v.vorigeFocus = null;
-      if (f && document.contains(f) && zichtbaar(f) && !appDialogOpen()) {
+      if (f && document.contains(f) && zichtbaar(f) && !appDialogOpen() && !bovenste()) {
         try { f.focus({ preventScroll: true }); } catch (e) {}
       }
     }

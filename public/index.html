@@ -1971,6 +1971,7 @@ function renderKalender() {
         </div>
       </div>`;
       card.addEventListener('click', () => openDetail(t));
+      maakActiveerbaar(card, () => openDetail(t), 'Open ticket #' + t.number);
       inner.appendChild(card);
     });
     noDateSec.innerHTML = '';
