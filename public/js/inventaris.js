@@ -181,6 +181,13 @@ async function invSaveEdit() {
 
   if (!items.length) { invCancelEdit(); return; }
 
+  // Testmodus (?test, ook op de live site): geen schrijfactie naar de echte wagenvoorraad
+  if (TEST_MODE) {
+    invCancelEdit();
+    toast('🧪 Testmodus — niet opgeslagen', 3500);
+    return;
+  }
+
   try {
     const res = await fetch(INV_API, {
       method: 'POST',
@@ -299,6 +306,7 @@ export function updateInventarisBadge(persoon) {
 
 // ── Verwerkt-actie (supervisor) ──
 async function markVerwerkt(logId) {
+  if (TEST_MODE) { toast('🧪 Testmodus — niet opgeslagen', 3500); return; }
   try {
     const res = await fetch(INV_API, {
       method: 'PATCH',

@@ -4727,13 +4727,16 @@ async function saveReschedule() {
   closeRescheduleModal();
   closeDet();
   try {
-    const res  = await fetch('/api/plan', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ ticketId, date, utcInterventieDatum }),
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
+    // Testmodus (?test, ook op de live site): niets naar Zoho schrijven, lokale wijziging blijft
+    if (!TEST_MODE) {
+      const res  = await fetch('/api/plan', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ticketId, date, utcInterventieDatum }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+    }
 
     // Lokale state: uit de oude dag halen, aan de nieuwe dag toevoegen.
     if (planning[oldDate]) {
@@ -4752,7 +4755,7 @@ async function saveReschedule() {
     if (!allPending.find(x => x.id === ticketId)) allPending.push(t);
 
     renderTickets(); renderKalender(); renderGepland(); renderRouteList(document.getElementById('plan-date').value); updateRouteBtns(document.getElementById('plan-date').value);
-    toast(`✓ Verzet naar ${fmtDateShort(date)} om ${time}`);
+    toast(TEST_MODE ? '🧪 Testmodus — niet opgeslagen' : `✓ Verzet naar ${fmtDateShort(date)} om ${time}`);
   } catch (err) {
     toast('❌ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
   }
@@ -5749,13 +5752,16 @@ async function saveToewijzen(ticketId) {
   const utcInterventieDatum = new Date(`${date}T${time}:00`).toISOString();
 
   try {
-    const res  = await fetch('/api/plan-datum', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ ticketId, utcInterventieDatum }),
-    });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'Onbekende fout');
+    // Testmodus (?test, ook op de live site): niets naar Zoho schrijven, lokale wijziging blijft
+    if (!TEST_MODE) {
+      const res  = await fetch('/api/plan-datum', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ticketId, utcInterventieDatum }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Onbekende fout');
+    }
 
     // Update lokale state
     const t = allPending.find(p => p.id === ticketId);
@@ -5767,7 +5773,7 @@ async function saveToewijzen(ticketId) {
       }
     }
     renderKalender();
-    toast(`✓ Datum ingesteld op ${date} om ${time}`);
+    toast(TEST_MODE ? '🧪 Testmodus — niet opgeslagen' : `✓ Datum ingesteld op ${date} om ${time}`);
   } catch (err) {
     toast('❌ ' + err.message, 5000);
   }

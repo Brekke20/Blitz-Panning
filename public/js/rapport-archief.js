@@ -152,6 +152,7 @@ export function renderRapportArchief() {
 
 export async function verwijderRapport(id, ticketRef, datumStr) {
   if (!confirm(`Rapport verwijderen?\n\nTicket: ${ticketRef}\nDatum: ${datumStr}\n\nDeze actie kan niet ongedaan worden gemaakt.`)) return;
+  if (TEST_MODE) { toast('🧪 Testmodus — niet opgeslagen', 3500); return; }
   try {
     const res = await fetch('/api/rapport-archief', {
       method:  'DELETE',
