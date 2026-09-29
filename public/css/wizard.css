@@ -55,7 +55,7 @@
     .wiz-field { margin-bottom: 15px; }
     .wiz-field-row { display: flex; gap: 11px; margin-bottom: 15px; }
     .wiz-field-row .wiz-field { flex: 1; margin-bottom: 0; }
-    .wiz-field-label { display: block; font-size: 0.65rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
+    .wiz-field-label { display: block; font-size: var(--fs-2xs); font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
     .wiz-input {
       width: 100%; background: var(--surface2); border: 1px solid var(--border);
       color: var(--text); padding: 11px 13px; border-radius: var(--r);
@@ -82,7 +82,7 @@
     .wiz-radio-card input[type=radio], .wiz-radio-card input[type=checkbox] { accent-color: var(--accent); width: 20px; height: 20px; flex-shrink: 0; cursor: pointer; }
     .wiz-radio-card:has(input:checked) { border-color: var(--accent); background: var(--accent-dim); }
     .wiz-radio-card-label { font-size: 0.88rem; font-weight: 500; }
-    .wiz-radio-card-sub   { font-size: 0.73rem; color: var(--muted); margin-top: 1px; }
+    .wiz-radio-card-sub   { font-size: var(--fs-2xs); color: var(--muted); margin-top: 1px; }
 
     .wiz-radio-row { display: flex; gap: 8px; }
     .wiz-radio-btn {
@@ -130,7 +130,7 @@
     .wiz-part-factureer { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--text2); flex-shrink: 0; }
     .wiz-part-factureer input { accent-color: var(--accent); width: 18px; height: 18px; cursor: pointer; }
     .wiz-part-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.2rem; padding: 4px; flex-shrink: 0; }
-    .wiz-part-del:hover { color: #ef4444; }
+    .wiz-part-del:hover { color: var(--red); }
     .wiz-btn-add-part {
       width: 100%; background: none; border: 1.5px dashed var(--border);
       color: var(--accent-ink); border-radius: var(--r); padding: 13px;
@@ -192,7 +192,7 @@
     .wiz-tag-filters { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
     .wiz-tag-filter {
       background: var(--surface3); border: 1px solid var(--border); border-radius: 12px;
-      padding: 3px 10px; font-size: 0.72rem; cursor: pointer; color: var(--text2);
+      padding: 3px 10px; font-size: var(--fs-2xs); cursor: pointer; color: var(--text2);
       transition: all 0.12s;
     }
     .wiz-tag-filter.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }

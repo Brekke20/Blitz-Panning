@@ -1,5 +1,5 @@
     /* ── Prijsbeheer admin modal ────────────────────────────────────────────── */
-    #prijs-overlay { z-index: 110; }
+    #prijs-overlay { z-index: var(--z-modal); }
     #prijs-overlay .modal {
       max-width: 600px; width: 96%; max-height: 88vh; display: flex; flex-direction: column;
       padding: 0; overflow: hidden;
@@ -9,7 +9,7 @@
       display: flex; align-items: center; gap: 10px; flex-shrink: 0;
     }
     .prijs-hdr-title { font-size: 1rem; font-weight: 700; flex: 1; }
-    .prijs-hdr-meta  { font-size: 0.72rem; color: var(--muted); text-align: right; line-height: 1.4; }
+    .prijs-hdr-meta  { font-size: var(--fs-2xs); color: var(--muted); text-align: right; line-height: 1.4; }
     /* Zelfde visuele stijl als .mhdr-close (app.css), maar inline in de flex-rij i.p.v. absoluut
        gepositioneerd -- .prijs-hdr heeft geen mhdr-structuur (titel + meta al in dezelfde rij). */
     .prijs-hdr-close {
@@ -48,20 +48,20 @@
     .prijs-tags-wrap { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
     .prijs-tag {
       background: var(--surface3); border: 1px solid var(--border); border-radius: 12px;
-      padding: 2px 8px; font-size: 0.72rem; color: var(--text2); display: flex;
+      padding: 2px 8px; font-size: var(--fs-2xs); color: var(--text2); display: flex;
       align-items: center; gap: 3px;
     }
     .prijs-tag-del { cursor: pointer; color: var(--muted); font-size: 0.7rem; line-height: 1; }
     .prijs-tag-del:hover { color: var(--red); }
     .prijs-tag-add {
       background: none; border: 1px dashed var(--border); border-radius: 12px;
-      color: var(--muted); padding: 2px 8px; font-size: 0.72rem; cursor: pointer;
+      color: var(--muted); padding: 2px 8px; font-size: var(--fs-2xs); cursor: pointer;
       font-family: inherit;
     }
     .prijs-tag-add:hover { border-color: var(--accent); color: var(--accent-ink); }
     .prijs-tag-input {
       background: var(--surface3); border: 1px solid var(--accent); border-radius: 12px;
-      color: var(--text); padding: 2px 8px; font-size: 0.72rem; width: 90px;
+      color: var(--text); padding: 2px 8px; font-size: var(--fs-2xs); width: 90px;
       font-family: inherit;
     }
     .prijs-row-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
@@ -76,7 +76,7 @@
     .prijs-prijs-input::-webkit-outer-spin-button,
     .prijs-prijs-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     .prijs-prijs-input[type=number] { -moz-appearance: textfield; }
-    .prijs-eenheid { font-size: 0.68rem; color: var(--muted); }
+    .prijs-eenheid { font-size: var(--fs-2xs); color: var(--muted); }
     .prijs-del-btn {
       background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem;
       padding: 2px 4px; line-height: 1; margin-top: auto;
