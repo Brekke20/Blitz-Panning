@@ -602,17 +602,15 @@
       transition: background 0.12s, transform 0.12s;
     }
     .stop:hover { background: var(--surface3); transform: translateX(2px); }
-    .stop.drag-over { border-color: var(--accent); }
+    /* Sorteren (tablet-fase Taak 5): vasthouden en verschuiven */
+    .stop[data-sleepbaar] { -webkit-user-select: none; user-select: none; }
+    html[data-aanraak="nee"] .stop[data-sleepbaar] { cursor: grab; }
+    .stop.sorteer-actief { opacity: .92; box-shadow: 0 8px 24px rgba(0,0,0,.35); border-color: var(--accent); cursor: grabbing; transition: none; }
+    .stop.sorteer-actief:hover { transform: none; }
+    .sorteer-placeholder { border: 2px dashed var(--accent); border-radius: var(--r); background: transparent; flex-shrink: 0; }
     /* Taak 4: vergrendelde stop (voorstel verstuurd / bevestigde afspraak) — niet versleepbaar. */
     .stop.locked { opacity: .85; }
     .stop.locked .stop-num { background: var(--muted); }
-    .route-drop-end {
-      display: none;
-      border: 1px dashed var(--border); color: var(--muted); text-align: center;
-      padding: 8px; font-size: .7rem; border-radius: var(--r);
-    }
-    #route-list.dragging .route-drop-end { display: block; }
-    .route-drop-end.drag-over { border-color: var(--accent); }
     .stop-top { display: flex; gap: 9px; align-items: flex-start; }
     .stop-num { background: var(--accent); color: var(--on-accent); border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.7rem; flex-shrink: 0; position: relative; }
     /* C1 (eindreview v1.4.0): kleine indicator op de stop-num-cirkel voor tickets met een

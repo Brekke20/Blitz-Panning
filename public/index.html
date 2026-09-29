@@ -527,6 +527,7 @@
 <script type="module" src="/js/prijzen.js"></script>
 <script type="module" src="/js/rapport-wizard.js"></script>
 <script type="module" src="/js/inventaris.js"></script>
+<script type="module" src="/js/sorteer.js"></script>
 <script defer>
 // ══════════════════════════════════════════════
 // TESTMODUS: ?test in URL laadt dummy data
@@ -3755,7 +3756,7 @@ function isStopLocked(item) {
 // Anker in de tijdstip-toekenning (C1, eindreview v1.4.0): naast vergrendelde tickets
 // (isStopLocked) telt ook een ticket met een voorkeursuur van de klant (kbPreferredTime) als
 // anker -- het uur wordt nooit door slepen/optimaliseren herschikt en nooit naar Zoho gepost
-// (zie applyRouteOrder/optimizeRoute/mergeMetAnkers). LET OP: `draggable` in renderRouteList
+// (zie applyRouteOrder/optimizeRoute/mergeMetAnkers). LET OP: de versleepbaarheid in renderRouteList
 // blijft bewust gekoppeld aan isStopLocked, niet aan deze functie -- een voorkeursuur-ticket
 // mag nog wél als kaartje versleept worden (bv. om het ergens anders in de lijst te tonen),
 // enkel het tijdstip zelf staat vast. De kaart krijgt een 🕐-marker zodat dat duidelijk is.
@@ -3831,6 +3832,7 @@ function renderRouteList(date) {
     ...stops.map(s => ({ kind: 'ticket', item: s, uur: s.uur })),
     ...localForDate.map(e => ({ kind: 'local', item: e, uur: e.uur })),
   ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
+  window._routeSorteer?.vernietig(); window._routeSorteer = null;
   list.innerHTML = '';
   if (!allStops.length) { list.innerHTML = '<div class="route-empty">Voeg tickets of installaties toe via de Kalender</div>'; return; }
 
@@ -3941,47 +3943,13 @@ function renderRouteList(date) {
         </div>`;
     }
 
-    // Drag & drop (Taak 4): sleepvolgorde → tijdstippen via applyRouteOrder(). Enkel
-    // niet-vergrendelde tickets zijn zelf versleepbaar; ALLE kaartjes (ook ankers/lokale
-    // afspraken) zijn een geldig drop-doel, zodat een ticket vóór/na een anker gedropt kan
-    // worden. Werkt op allStops-indices (`i` = index in de forEach), niet op de gefilterde
-    // ticket-only `stops`-lijst (dat was de mismatch-bug hiervoor).
-    // Fix-ronde 1 (#3): bij meerdere technici (filter 'Alle') is de dag geen sequentiële
-    // route van één persoon meer -- dan is niets versleepbaar (zie eenTechnieker hierboven).
-    if (window.innerWidth > 680) {
-      if (isTicket && !locked) {
-        if (eenTechnieker) {
-          stop.draggable = true;
-          stop.style.cursor = 'grab';
-          stop.addEventListener('dragstart', e => {
-            e.dataTransfer.setData('text/plain', String(i));
-            stop.style.opacity = '0.4';
-            list.classList.add('dragging');
-          });
-          stop.addEventListener('dragend', () => {
-            stop.style.opacity = '';
-            list.classList.remove('dragging');
-          });
-        } else {
-          stop.title = 'Kies eerst een technieker om de volgorde aan te passen';
-        }
-      }
-      stop.addEventListener('dragover',  e => { e.preventDefault(); stop.classList.add('drag-over'); });
-      stop.addEventListener('dragleave', () => stop.classList.remove('drag-over'));
-      stop.addEventListener('drop', e => {
-        e.preventDefault(); stop.classList.remove('drag-over');
-        const from = +e.dataTransfer.getData('text/plain');
-        const to   = i;
-        if (Number.isNaN(from) || from === to) return;
-        const nieuw = allStops.slice();
-        const [verplaatst] = nieuw.splice(from, 1);
-        // M7: droppen op een kaart plaatst het gesleepte item VÓÓR die kaart (i.p.v. erop/erna).
-        // Na het wegsnijden op `from` schuift alles ná `from` één index op, dus als `from < to`
-        // moet de invoegpositie ook één lager (`to - 1`) om alsnog vóór het doel te landen.
-        const invoegPositie = from < to ? to - 1 : to;
-        nieuw.splice(invoegPositie, 0, verplaatst);
-        applyRouteOrder(date, nieuw);
-      });
+    // Slepen (Taak 4 + tablet-fase Taak 5): vasthouden en verschuiven via maakSorteerbaar()
+    // (zie na de forEach). Enkel niet-vergrendelde tickets zijn zelf versleepbaar; ALLE kaartjes
+    // (ook ankers/lokale afspraken) zijn een geldig doel. Fix-ronde 1 (#3): bij meerdere
+    // technici is niets versleepbaar (eenTechnieker). data-sleepbaar markeert de kaartjes.
+    if (isTicket && !locked) {
+      if (eenTechnieker) stop.dataset.sleepbaar = '1';
+      else stop.title = 'Kies eerst een technieker om de volgorde aan te passen';
     }
 
     const navBtn = stop.querySelector('.btn-navigeer');
@@ -3991,25 +3959,22 @@ function renderRouteList(date) {
     list.appendChild(stop);
   });
 
-  // Drop-end-zone (Taak 4): laat toe een ticket helemaal achteraan te plaatsen. Permanent in
-  // de DOM aanwezig, enkel zichtbaar tijdens het slepen (zie CSS `#route-list.dragging`).
-  if (window.innerWidth > 680) {
-    const dropEnd = document.createElement('div');
-    dropEnd.className = 'route-drop-end';
-    dropEnd.textContent = 'Achteraan plaatsen';
-    dropEnd.addEventListener('dragover',  e => { e.preventDefault(); dropEnd.classList.add('drag-over'); });
-    dropEnd.addEventListener('dragleave', () => dropEnd.classList.remove('drag-over'));
-    dropEnd.addEventListener('drop', e => {
-      e.preventDefault(); dropEnd.classList.remove('drag-over');
-      const from = +e.dataTransfer.getData('text/plain');
-      if (Number.isNaN(from)) return;
+  // Eén sorteer-instantie per render: de vorige eerst vernietigen (geen dubbele listeners).
+  // De .stop-kaartjes staan in DOM-volgorde 1:1 met allStops (stop-leg-regels zijn andere
+  // elementen), dus posities = allStops-indices. naar = eindpositie van het verplaatste item
+  // (M7: vóór het doel; bij van < naar schuift het doel na het wegsnijden één op -- dat is
+  // hier al verrekend in `naar`, ook voor "helemaal achteraan").
+  window._routeSorteer?.vernietig();
+  window._routeSorteer = window.maakSorteerbaar?.(list, {
+    itemSelector: '.stop',
+    isVersleepbaar: el => el.dataset.sleepbaar === '1',
+    opVolgorde: (van, naar) => {
       const nieuw = allStops.slice();
-      const [verplaatst] = nieuw.splice(from, 1);
-      nieuw.push(verplaatst);
+      const [verplaatst] = nieuw.splice(van, 1);
+      nieuw.splice(naar, 0, verplaatst);
       applyRouteOrder(date, nieuw);
-    });
-    list.appendChild(dropEnd);
-  }
+    },
+  });
   updateRouteBtns(date);
 }
 
