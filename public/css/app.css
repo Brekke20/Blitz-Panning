@@ -534,7 +534,8 @@
     .man-form { display: flex; flex-direction: column; gap: 10px; }
     .man-label { font-size: var(--fs-2xs); color: var(--muted); margin-bottom: 3px; }
     .man-input, .man-select { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 6px 9px; font-size: 0.82rem; font-family: inherit; }
-    .man-input:focus, .man-select:focus { outline: none; border-color: var(--accent); }
+    .man-input:focus, .man-select:focus { border-color: var(--accent); }
+    .man-input:focus-visible, .man-select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
     .man-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
     /* ── Beschikbaarheid / Blokkering modal ── */
@@ -573,9 +574,11 @@
     .av-time-row { display: flex; gap: 8px; align-items: center; }
     .av-time-input { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 5px 8px; font-size: 0.82rem; font-family: inherit; width: 90px; }
     input[type="date"].av-time-input { width: 136px; }
-    .av-time-input:focus { outline: none; border-color: var(--accent); }
+    .av-time-input:focus { border-color: var(--accent); }
+    .av-time-input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
     .av-reden-input { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 5px 8px; font-size: 0.82rem; font-family: inherit; width: 100%; }
-    .av-reden-input:focus { outline: none; border-color: var(--accent); }
+    .av-reden-input:focus { border-color: var(--accent); }
+    .av-reden-input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
     .av-add-btn { align-self: flex-end; padding: 6px 18px; background: var(--accent); border: none; border-radius: var(--r); color: var(--on-accent); font-size: 0.82rem; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.15s; }
     .av-add-btn:hover { opacity: 0.85; }
 
@@ -590,7 +593,8 @@
       padding: 6px 10px; border-radius: var(--r); font-size: 0.82rem; font-family: inherit;
       transition: border-color 0.15s;
     }
-    .plan-header input[type=date]:focus { outline: none; border-color: var(--accent); }
+    .plan-header input[type=date]:focus { border-color: var(--accent); }
+    .plan-header input[type=date]:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
     .btn-primary {
       background: var(--accent); border: none; color: var(--on-accent);
       padding: 7px 14px; border-radius: var(--r);
@@ -880,7 +884,8 @@
       padding: 8px 11px; border-radius: var(--r); font-size: 0.85rem; font-family: inherit;
       transition: border-color 0.15s, box-shadow 0.15s;
     }
-    .set-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+    .set-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+    .set-input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
     .set-row { display: flex; gap: 8px; align-items: center; }
     .set-row .set-input { flex: 1; }
     /* Aanraak: hele rij is het tikdoel (label), grotere keuzerondjes */
@@ -1015,9 +1020,14 @@
 
     /* ── Focus ring globaal ── */
     :focus-visible {
-      outline: 2px solid var(--accent);
+      outline: 2px solid var(--focus-ring);
       outline-offset: 2px;
     }
+    button:focus:not(:focus-visible) { outline: none; }
+    /* Tab als <button>: de bestaande .tab-regels blijven, enkel de knop-standaarden weg */
+    button.tab { background: none; border: 0; font: inherit; font-size: 0.81rem; font-weight: 500; color: var(--muted); }
+    button.tab.active { font-weight: 600; color: var(--text); }
+    .tab:focus-visible { outline-offset: -2px; }
 
     /* ── Arrival badge per stop ── */
     .stop-arrival {

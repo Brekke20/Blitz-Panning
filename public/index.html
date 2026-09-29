@@ -76,13 +76,13 @@
 </header>
 
 <div class="tabs">
-  <div class="tabs-inner">
-    <div class="tab active coord-only" id="tab-tickets"  onclick="event.stopPropagation(); setTab('tickets')">Wachtrij <span class="badge" id="cnt-tickets">0</span></div>
-    <div class="tab"        id="tab-kalender" onclick="event.stopPropagation(); setTab('kalender')">Kalender</div>
-    <div class="tab coord-only" id="tab-planning" onclick="event.stopPropagation(); setTab('planning')">Route</div>
-    <div class="tab"        id="tab-gepland"  onclick="event.stopPropagation(); setTab('gepland')">Ingepland <span class="badge" id="cnt-gepland">0</span></div>
-    <div class="tab"        id="tab-inventaris" onclick="event.stopPropagation(); setTab('inventaris')">Inventaris <span class="badge" id="cnt-inventaris" style="display:none">0</span></div>
-    <div class="tab coord-only" id="tab-rapporten" onclick="event.stopPropagation(); setTab('rapporten')">Rapporten</div>
+  <div class="tabs-inner" role="tablist">
+    <button type="button" class="tab active coord-only" role="tab" aria-selected="true" tabindex="0" id="tab-tickets"  onclick="event.stopPropagation(); setTab('tickets')">Wachtrij <span class="badge" id="cnt-tickets">0</span></button>
+    <button type="button" class="tab" role="tab" aria-selected="false" tabindex="-1"        id="tab-kalender" onclick="event.stopPropagation(); setTab('kalender')">Kalender</button>
+    <button type="button" class="tab coord-only" role="tab" aria-selected="false" tabindex="-1" id="tab-planning" onclick="event.stopPropagation(); setTab('planning')">Route</button>
+    <button type="button" class="tab" role="tab" aria-selected="false" tabindex="-1"        id="tab-gepland"  onclick="event.stopPropagation(); setTab('gepland')">Ingepland <span class="badge" id="cnt-gepland">0</span></button>
+    <button type="button" class="tab" role="tab" aria-selected="false" tabindex="-1"        id="tab-inventaris" onclick="event.stopPropagation(); setTab('inventaris')">Inventaris <span class="badge" id="cnt-inventaris" style="display:none">0</span></button>
+    <button type="button" class="tab coord-only" role="tab" aria-selected="false" tabindex="-1" id="tab-rapporten" onclick="event.stopPropagation(); setTab('rapporten')">Rapporten</button>
   </div>
 </div>
 </div>
@@ -566,6 +566,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.1.7/signature_pad.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script type="module" src="/js/app-dialog.js"></script>
+<script type="module" src="/js/venster.js"></script>
 <script type="module" src="/js/outbox.js"></script>
 <script type="module" src="/js/rapport-archief.js"></script>
 <script type="module" src="/js/excel-export.js"></script>
@@ -1369,6 +1370,7 @@ function renderTickets() {
         <button class="btn-add" title="Toevoegen aan planning" aria-label="Toevoegen aan planning" ${inFlightTickets.has(t.id) ? 'disabled' : ''} onclick="event.stopPropagation();quickAdd('${t.id}')">+</button>
       </div>`;
     card.addEventListener('click', () => openDetail(t));
+    maakActiveerbaar(card, () => openDetail(t), 'Open ticket #' + t.number);
     list.appendChild(card);
   });
   // Badge toont gefilterd aantal
@@ -1578,6 +1580,7 @@ function buildTicketCard(stop, dateStr, { showActions = true } = {}) {
     navigate(encodeURIComponent(e.currentTarget.dataset.adres));
   });
   card.addEventListener('click', () => openDetail(stop.ticket));
+  maakActiveerbaar(card, () => openDetail(stop.ticket), 'Open ticket #' + stop.ticket.number);
   return card;
 }
 
@@ -3923,6 +3926,7 @@ function renderGepland() {
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
       </div>`;
       card.addEventListener('click', () => openDetail(t));
+      maakActiveerbaar(card, () => openDetail(t), 'Open ticket #' + t.number);
       wrapper.appendChild(card);
     });
     body.appendChild(wrapper);
@@ -4959,6 +4963,32 @@ function updateMap(date) {
 // ══════════════════════════════════════════════
 // TABS
 // ══════════════════════════════════════════════
+// Maakt een niet-<button> element toetsenbord-bedienbaar (Enter/Space); toetsen uit binnenste
+// knoppen/links/velden worden genegeerd zodat die hun eigen gedrag houden.
+function maakActiveerbaar(el, handler, label) {
+  el.tabIndex = 0;
+  el.setAttribute('role', 'button');
+  if (label) el.setAttribute('aria-label', label);
+  el.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.target !== el && e.target.closest('button, a, input, select, textarea')) return;
+    e.preventDefault();
+    handler(e);
+  });
+}
+
+// Pijltjestoetsen in de tabbalk (roving tabindex): alleen zichtbare tabs tellen (coord-only kan verborgen zijn).
+document.querySelector('.tabs-inner')?.addEventListener('keydown', e => {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+  const tabs = [...document.querySelectorAll('.tabs-inner .tab')].filter(t => t.offsetParent !== null);
+  const i = tabs.indexOf(document.activeElement);
+  if (i < 0) return;
+  e.preventDefault();
+  const n = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1
+    : (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+  tabs[n].focus();
+});
+
 function updateTabIndicator(tabId) {
   const tab  = document.getElementById(tabId);
   const tabs = document.querySelector('.tabs');
@@ -4973,9 +5003,10 @@ function updateTabIndicator(tabId) {
 
 function setTab(tab) {
   _sjSetTab = Date.now(); sjLog('setTab:' + tab); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
-  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el => { el.classList.remove('active'); el.setAttribute('aria-selected', 'false'); el.tabIndex = -1; });
   document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
-  document.getElementById('tab-' + tab).classList.add('active');
+  const _tabEl = document.getElementById('tab-' + tab);
+  _tabEl.classList.add('active'); _tabEl.setAttribute('aria-selected', 'true'); _tabEl.tabIndex = 0;
   document.getElementById('view-' + tab).classList.add('active');
   updateTabIndicator('tab-' + tab);
   if (tab === 'planning') {
@@ -6419,12 +6450,7 @@ function toggleTheme() {
     ?.setAttribute('content', next === 'light' ? '#f5f6f7' : '#181e24');
 }
 
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    closeDet(); closeSettings(); closeRescheduleModal(); closeBlock(); closeResult(); closeProposal(); closeRapportPreview(); closePrijsBeheer();
-    if (document.getElementById('rapport-wizard').classList.contains('open')) closeWizard();
-  }
-});
+// Escape/focusval per venster: zie public/js/venster.js
 </script>
 </body>
 </html>
