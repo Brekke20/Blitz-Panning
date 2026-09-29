@@ -15,6 +15,34 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.6.1] — 2026-09-29
+
+UI/UX-traject fase 1: veiligheid en leesbaarheid (audit `docs/reviews/2026-09-28-ui-ux-audit/`).
+
+### Added
+- Eigen bevestigingsvenster in de stijl van de app (grote knoppen, Escape of "Terug" annuleert).
+- Rapport versturen vraagt eerst bevestiging en toont wat er gebeurt (archiveren, PDF naar het
+  ticket, oplossing naar Zoho, voorraad afboeken). De laatste knop heet nu "✓ Rapport versturen".
+- "Uit planning halen" vraagt overal eerst bevestiging (kalenderkaart, routestop, ticketdetail).
+
+### Changed
+- Licht thema volledig leesbaar: groene tekst op wit wordt donkere tekst, groene knoppen krijgen
+  donkere tekst, diepere tinten voor oranje/rood/blauw, grijze bijtekst donkerder. Het Blitz-groen
+  `#00dfa3` blijft overal exact behouden.
+- "Verwijder uit planning" in het ticketdetail is een rustige knop met rood kader; het kleine
+  kruisje op de kalenderkaart is op gsm verborgen.
+- Meldingen blijven langer staan (4 s, fouten 7 s), lopen over meerdere regels, bedekken de
+  wizardknoppen niet meer en zijn in gewone taal geschreven.
+- Labels: "Bewerken" i.p.v. "Edit", "Blokkade beheren" i.p.v. "Blokkade opheffen", uitleg bij de
+  "+" in de wachtrij. De offline-melding belooft niet langer dat alle wijzigingen later doorgaan.
+- Invulvelden zijn op gsm/tablet minstens 16 px, zodat iPhone niet meer inzoomt; aantalvelden
+  openen het cijfertoetsenbord.
+
+### Fixed
+- Testmodus (`?test`) schrijft niets meer naar de server: geen rapportverzending of -archivering,
+  geen voorraadwijziging, geen archief-verwijdering, geen datumwijziging. Voorheen kon testen op
+  de live site echte gegevens aanpassen.
+
 ## [1.6.0] — 2026-09-23
 
 ### Fixed
