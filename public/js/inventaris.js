@@ -15,6 +15,7 @@ let _invEditVersie   = null;   // versie op het moment dat Edit geopend werd (vo
 let _invSeenLogIds   = null;   // Set<id> -- null = nog niet ge-baseline'd deze weergave-sessie
 let _invExportVan    = '';
 let _invExportTot    = '';
+let _invZoek         = '';     // zoektekst in de onderdelenlijst; blijft over herrenders heen
 
 const INV_API       = '/api/inventaris';
 // Testmodus heeft een aparte cache, zodat een testmomentopname nooit in echte modus verschijnt
@@ -103,17 +104,48 @@ function renderEigenVoorraad(persoon) {
     </div>`;
   }).join('');
 
-  const toolbar = editing
-    ? `<div class="inv-toolbar">
-         <button class="btn-cancel" id="inv-cancel-btn">Annuleren</button>
-         <button class="btn-save" id="inv-save-btn">✓ Opslaan</button>
-       </div>`
-    : `<div class="inv-toolbar"><button class="btn-primary" id="inv-edit-btn">✏️ Bewerken</button></div>`;
+  const zoek = `<div class="inv-zoek-wrap"><input type="search" class="inv-zoek" id="inv-zoek" placeholder="Zoek onderdeel…" aria-label="Zoek onderdeel" enterkeyhint="search" autocomplete="off" value="${escHtml(_invZoek)}"></div>`;
+  const leeg = `<div class="inv-empty inv-zoek-leeg" role="status" hidden></div>`;
+  const lijst = `<div class="inv-list">${rijen}${leeg}</div>`;
 
-  return toolbar + `<div class="inv-list">${rijen}</div>`;
+  if (!editing) {
+    return `<div class="inv-toolbar"><button class="btn btn--primary" id="inv-edit-btn">✏️ Bewerken</button></div>` + zoek + lijst;
+  }
+  // Bewerkmodus: werkbalk NA de lijst en vastgeplakt onderaan, zodat Opslaan altijd bereikbaar blijft
+  return zoek + lijst + `<div class="inv-toolbar inv-toolbar-vast">
+         <button class="btn btn--secondary" id="inv-cancel-btn">Annuleren</button>
+         <button class="btn btn--primary" id="inv-save-btn">✓ Opslaan</button>
+       </div>`;
+}
+
+// Normaliseer voor zoeken: kleine letters, zonder accenten
+function invNorm(t) {
+  return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+
+// Verbergt (niet verwijderen!) rijen die niet passen bij _invZoek, zodat ingetikte aantallen blijven staan
+function invPasZoekToe(body) {
+  const q = invNorm(_invZoek);
+  const rijen = body.querySelectorAll('.inv-list .inv-row');
+  let zichtbaar = 0;
+  rijen.forEach(r => {
+    const naam = invNorm(r.dataset.matNaam || r.querySelector('.inv-row-naam')?.textContent);
+    const toon = !q || naam.includes(q);
+    r.hidden = !toon;
+    if (toon) zichtbaar++;
+  });
+  const leeg = body.querySelector('.inv-zoek-leeg');
+  if (leeg) {
+    const geen = q && rijen.length && !zichtbaar;
+    leeg.hidden = !geen;
+    leeg.textContent = geen ? `Geen onderdelen gevonden voor '${_invZoek.trim()}'` : '';
+  }
 }
 
 function wireEigenVoorraad(body, persoon) {
+  const zoekEl = body.querySelector('#inv-zoek');
+  zoekEl?.addEventListener('input', () => { _invZoek = zoekEl.value; invPasZoekToe(body); });
+  invPasZoekToe(body);
   body.querySelector('#inv-edit-btn')?.addEventListener('click', () => invStartEdit(persoon));
   body.querySelector('#inv-cancel-btn')?.addEventListener('click', () => invCancelEdit());
   body.querySelector('#inv-save-btn')?.addEventListener('click', () => invSaveEdit());

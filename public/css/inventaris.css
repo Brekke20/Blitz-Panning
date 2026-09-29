@@ -36,6 +36,37 @@
   background: var(--red-dim);
 }
 
+.inv-row[hidden] { display: none; }
+.inv-zoek-wrap { padding: 0 16px 8px; }
+.inv-zoek {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 16px;
+  font-family: inherit;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text);
+}
+html[data-aanraak="ja"] .inv-zoek { min-height: 44px; }
+
+/* Bewerkmodus: werkbalk vastgeplakt onderaan; lijst heeft eigen onderruimte zodat de laatste rij vrij blijft */
+.inv-toolbar-vast {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-sticky);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding-bottom: calc(var(--sp-2) + env(safe-area-inset-bottom));
+}
+.inv-list { padding-bottom: 24px; }
+
+html[data-aanraak="ja"] .inv-qty-btn { width: 44px; height: 44px; }
+html[data-aanraak="ja"] .inv-bell-btn { width: 44px; height: 44px; }
+html[data-aanraak="ja"] .inv-qty-edit { gap: var(--sp-2); }
+html[data-aanraak="ja"] .inv-qty-input { min-height: 44px; box-sizing: border-box; }
+
 .inv-row-naam { font-size: 0.85rem; }
 .inv-row-aantal { font-size: 0.85rem; font-weight: 700; }
 .inv-row.inv-low .inv-row-aantal { color: var(--red); }
