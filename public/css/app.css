@@ -953,7 +953,7 @@
                      worden in renderDayTimeline() NA de geblokkeerde segmenten toegevoegd */
     }
     .tl-ongepositioneerd {
-      margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border);
+      margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed var(--border);
       display: flex; flex-direction: column; gap: 5px;
     }
 

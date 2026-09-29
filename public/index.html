@@ -1655,21 +1655,21 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports) {
     wrap.appendChild(block);
   });
 
-  frag.appendChild(wrap);
-
-  // Rapporten ZONDER gekende werkelijke starttijd (uitzondering — de meeste hebben er wel een,
-  // zie hierboven) blijven, net als niet-gepositioneerde tickets, gewoon in de lijst ONDER de
-  // tijdlijn staan.
+  // Items ZONDER gekend uur (tickets zonder uur, rapporten zonder starttijd) staan BOVEN de
+  // tijdlijn, direct onder de dagkop: in de 24u-weergave zouden ze anders onder 24:00 verdwijnen.
+  // De marginTop-gelijkzetting in renderKalender() meet de ruimte vóór .tl-wrap, dus dit blok telt mee.
   const ongepositioneerd = [
     ...dayStops.filter(s => !s.uur).map(s => buildTicketCard(s, dateStr, { showActions: false })),
     ...dayReports.filter(r => !r.rapportData?.start).map(r => buildReportCard(r)),
   ];
   if (ongepositioneerd.length) {
-    const onderaan = document.createElement('div');
-    onderaan.className = 'tl-ongepositioneerd';
-    ongepositioneerd.forEach(el => onderaan.appendChild(el));
-    frag.appendChild(onderaan);
+    const bovenaan = document.createElement('div');
+    bovenaan.className = 'tl-ongepositioneerd';
+    ongepositioneerd.forEach(el => bovenaan.appendChild(el));
+    frag.appendChild(bovenaan);
   }
+
+  frag.appendChild(wrap);
 
   return frag;
 }
@@ -1906,9 +1906,25 @@ function renderKalender() {
 function kalPasGridHoogteAan() {
   const grid = document.getElementById('week-grid');
   if (!grid || !grid.classList.contains('tl-mode')) return;
-  const top = grid.getBoundingClientRect().top;
+  // Niet meten als het grid geen layoutbox heeft (verborgen tab): top is dan 0 en de hoogte fout.
+  if (!grid.getClientRects().length) return;
+  // Document-relatief meten (niet t.o.v. de viewport): anders klopt de hoogte niet als de pagina gescrold is.
+  const top = grid.getBoundingClientRect().top + window.scrollY;
   grid.style.height = `${Math.max(400, Math.round(window.innerHeight - top - 16))}px`;
 }
+// Eén ResizeObserver (eenmalig aangemaakt) op alles wat boven het grid staat: verandert dat van
+// hoogte (zonder-datum-paneel, offline-/outbox-banner, tab zichtbaar) dan wordt de hoogte herberekend.
+let _kalRO = null, _kalROFrame = 0;
+function kalStartHoogteObserver() {
+  if (_kalRO || typeof ResizeObserver === 'undefined') return;
+  _kalRO = new ResizeObserver(() => {
+    cancelAnimationFrame(_kalROFrame);
+    _kalROFrame = requestAnimationFrame(kalPasGridHoogteAan);
+  });
+  ['offline-banner', 'outbox-banner', 'kal-header', 'kal-no-date-section']
+    .forEach(id => { const el = document.getElementById(id) || document.querySelector('#view-kalender .' + id); if (el) _kalRO.observe(el); });
+}
+kalStartHoogteObserver();
 let _kalResizeTimer = null;
 window.addEventListener('resize', () => {
   clearTimeout(_kalResizeTimer);
@@ -4727,6 +4743,7 @@ function setTab(tab) {
     if (date && !(routeData?.polyline?.length && currentRouteDate === date)) calculateRoute();
   }
   // Defer kalender/gepland render één tick zodat de tab-click geen elementen in de nieuw gerenderde view raakt
+  if (tab === 'kalender')  window.scrollTo(0, 0);
   if (tab === 'kalender')  setTimeout(() => { renderKalender(); kalAutoScroll(true); }, 0);
   if (tab === 'gepland')   setTimeout(() => renderGepland(), 0);
   if (tab === 'rapporten') setTimeout(() => laadRapportArchief(), 0);
