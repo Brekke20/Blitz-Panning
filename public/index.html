@@ -851,18 +851,32 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', () => {
     const active = document.querySelector('.tab.active');
     if (active) updateTabIndicator(active.id);
+    zetTopbarHoogte();
   });
+  zetTopbarHoogte();
+  try {
+    const tb = document.querySelector('.topbar-sticky');
+    if (tb && window.ResizeObserver) new ResizeObserver(zetTopbarHoogte).observe(tb);
+  } catch { /* best-effort */ }
   pasRolBeperkingToe();
   // De rol/indeling op het toestel bepaalt de coördinatorfuncties en de kalenderweergave:
   // bij een wijziging (rol, roteren, weergave) de tab-restrictie en de schermen herberekenen.
   if (!window._apparaatListener) {
     window._apparaatListener = true;
     window.addEventListener('apparaatwijziging', () => {
-      pasRolBeperkingToe();
-      renderKalender();
-      if (document.querySelector('.tab.active')?.id === 'tab-planning') {
-        renderRouteList(document.getElementById('plan-date').value);
-      }
+      sjLog('apparaatwijziging'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
+      metBehoudScroll(() => {
+        pasRolBeperkingToe();
+        renderKalender();
+        if (document.querySelector('.tab.active')?.id === 'tab-planning') {
+          renderRouteList(document.getElementById('plan-date').value);
+        }
+      });
+      // Tabs kunnen verschijnen/verdwijnen (rol) en de kop kan van hoogte wisselen (aanraak): onderstreping
+      // en sticky-offset volgen.
+      zetTopbarHoogte();
+      const actief = document.querySelector('.tab.active');
+      if (actief) updateTabIndicator(actief.id);
     });
   }
   // Herbereken indicator als gebruiker de tabbalk horizontaal scrollt
@@ -872,7 +886,72 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   vraagRolOpTablet();
+  planHerstelSchermStaat();
 });
+
+// De sticky kopjes (filterbalk, kalenderkop, ...) plakken onder de topbar; die is 96.8px op aanraak
+// (tabs 44px) en 92px op muis -> volg de echte hoogte via --topbar-h.
+function zetTopbarHoogte() {
+  const tb = document.querySelector('.topbar-sticky');
+  if (!tb) return;
+  const h = Math.round(tb.getBoundingClientRect().height * 10) / 10;
+  if (h > 0) document.documentElement.style.setProperty('--topbar-h', h + 'px');
+}
+
+// ── Tab + scrollpositie herstellen na een volledige herlaad (cache eerst, dan verse data; of het OS
+// dat de PWA herstart). Bij pagehide / onzichtbaar worden bewaren we in sessionStorage; bij het laden
+// herstellen we als het jonger is dan 10 minuten. Nooit een coord-only tab voor een technieker, en niet
+// zolang de rolvraag op een tablet openstaat (dan pas na het antwoord).
+const SCHERMSTAAT_KEY = 'blitz_schermstaat';
+let _schermStaatBewaarOk = false, _herstelUitgesteld = false, _herstelGebruikerActie = false;
+function bewaarSchermStaat() {
+  if (!_schermStaatBewaarOk) return; // nog niet hersteld: bewaar de oude staat niet met een lege
+  try {
+    const tab = (document.querySelector('.tab.active')?.id || '').replace(/^tab-/, '');
+    if (!tab) return;
+    const view = document.querySelector('.view.active');
+    const grid = document.getElementById('week-grid');
+    sessionStorage.setItem(SCHERMSTAAT_KEY, JSON.stringify({
+      tab, scrollY: window.scrollY, viewScrollTop: view ? view.scrollTop : 0,
+      gridScrollTop: grid ? grid.scrollTop : 0, t: Date.now(),
+    }));
+  } catch { /* sessionStorage kan ontbreken */ }
+}
+window.addEventListener('pagehide', bewaarSchermStaat);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') bewaarSchermStaat();
+});
+['pointerdown', 'wheel', 'keydown', 'touchstart'].forEach(ev =>
+  document.addEventListener(ev, () => { _herstelGebruikerActie = true; _schermStaatBewaarOk = true; }, { capture: true, passive: true }));
+
+function planHerstelSchermStaat() {
+  if (window._rolVraagOpen) { _herstelUitgesteld = true; return; } // na het antwoord (zie vraagRolOpTablet)
+  let st = null;
+  try { st = JSON.parse(sessionStorage.getItem(SCHERMSTAAT_KEY) || 'null'); } catch { /* negeer */ }
+  const klaar = () => { _schermStaatBewaarOk = true; };
+  if (!st || typeof st.t !== 'number' || Date.now() - st.t > 10 * 60 * 1000 || typeof st.tab !== 'string') {
+    klaar(); return;
+  }
+  const tabEl = document.getElementById('tab-' + st.tab);
+  const toegestaan = tabEl && !(window.apparaat?.rol === 'technieker' && tabEl.classList.contains('coord-only'))
+    && st.tab !== 'planning'; // Route rekent bij openen (TomTom): niet automatisch herstellen
+  if (!toegestaan) { klaar(); return; }
+  if (document.querySelector('.tab.active')?.id !== 'tab-' + st.tab) setTab(st.tab);
+  const num = (v) => (typeof v === 'number' && isFinite(v) && v > 0 ? v : 0);
+  const zet = () => {
+    if (_herstelGebruikerActie) return; // de gebruiker is zelf al gaan scrollen
+    if (document.querySelector('.tab.active')?.id !== 'tab-' + st.tab) return;
+    const view = document.querySelector('.view.active');
+    if (view && num(st.viewScrollTop)) view.scrollTop = num(st.viewScrollTop);
+    const grid = document.getElementById('week-grid');
+    if (st.tab === 'kalender' && grid && num(st.gridScrollTop)) grid.scrollTop = num(st.gridScrollTop);
+    if (num(st.scrollY)) window.scrollTo(0, num(st.scrollY));
+  };
+  // setTab('kalender') plant zelf een render + kalAutoScroll(true) in een timeout(0): herstel erná.
+  zet();
+  setTimeout(zet, 60);
+  setTimeout(() => { zet(); klaar(); }, 500);
+}
 
 // Eerste gebruik op een tablet: eenmalig vragen wie het toestel gebruikt (keuze wordt bewaard).
 let _rolVraagGesteld = false;
@@ -880,12 +959,17 @@ function vraagRolOpTablet() {
   const a = window.apparaat;
   if (_rolVraagGesteld || !a || a.soort !== 'tablet' || a.rolGekozen || !window.appConfirm) return;
   _rolVraagGesteld = true;
+  window._rolVraagOpen = true;
   window.appConfirm({
     titel: 'Wie gebruikt deze tablet?',
     tekst: 'Dit kan je later wijzigen in Instellingen → Dit toestel.',
     bevestigLabel: 'Coördinator',
     annuleerLabel: 'Technieker'
-  }).then(ok => window.zetRol(ok ? 'coordinator' : 'technieker'));
+  }).then(ok => {
+    window._rolVraagOpen = false;
+    window.zetRol(ok ? 'coordinator' : 'technieker');
+    if (_herstelUitgesteld) { _herstelUitgesteld = false; planHerstelSchermStaat(); }
+  });
 }
 
 // ══════════════════════════════════════════════
@@ -959,11 +1043,57 @@ function metBehoudScroll(fn) {
     return fn();
   } finally {
     if (document.querySelector('.view.active') === view) {
+      if ((view && view.scrollTop !== viewTop) || window.scrollY !== winY || window.scrollX !== winX) {
+        sjLog('metBehoudScroll:herstel'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
+      }
       if (view && view.scrollTop !== viewTop) view.scrollTop = viewTop;
       if (window.scrollY !== winY || window.scrollX !== winX) window.scrollTo(winX, winY);
     }
   }
 }
+
+// ── TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse ──
+// Doel: uitzoeken waarom op de gsm (Kalender) de scrollpositie soms naar boven springt zodra verse data
+// binnenkomt. Ringbuffer van recente sync/render-stappen; bij een sprong (>=150px -> <=5px in één
+// scroll-event zonder recente gebruikersinvoer/tabwissel) gaat één diagnostische regel naar
+// /api/client-log (max 5 per paginalading, geen persoonsgegevens: enkel functienamen en tijden).
+var _sjRing = [], _sjInvoer = 0, _sjSetTab = 0, _sjVerstuurd = 0, _sjPos = {};
+function sjLog(wat) { // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
+  _sjRing.push({ t: Date.now(), wat });
+  if (_sjRing.length > 15) _sjRing.shift();
+}
+window.sjLog = sjLog; // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
+(function sjInit() { // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
+  const invoer = () => { _sjInvoer = Date.now(); };
+  ['pointerdown', 'wheel', 'keydown', 'touchstart', 'touchmove', 'touchend'].forEach(ev =>
+    document.addEventListener(ev, invoer, { capture: true, passive: true }));
+  document.addEventListener('scroll', (e) => {
+    const doel = e.target;
+    const isWin = doel === document || doel === document.documentElement || doel === document.body;
+    const view = document.querySelector('.view.active');
+    if (!isWin && doel !== view) return;
+    const sleutel = isWin ? 'window' : doel.id;
+    const nu = isWin ? window.scrollY : doel.scrollTop;
+    const van = _sjPos[sleutel] || 0;
+    _sjPos[sleutel] = nu;
+    if (!(van >= 150 && nu <= 5)) return;
+    const t = Date.now();
+    if (t - _sjInvoer < 700 || t - _sjSetTab < 1000 || _sjVerstuurd >= 5) return;
+    _sjVerstuurd++;
+    const payload = {
+      soort: 'scrollsprong', stap: 'scrollsprong', tab: document.querySelector('.tab.active')?.id || '',
+      doel: sleutel, van, naar: nu,
+      indeling: window.apparaat?.indeling, rol: window.apparaat?.rol,
+      recent: _sjRing.map(r => ({ vooraf_ms: t - r.t, wat: r.wat })),
+      stack: (new Error().stack || '').slice(0, 800),
+    };
+    if (TEST_MODE) { console.warn('scrollsprong-verklikker (testmodus, niet verzonden):', payload); return; }
+    try {
+      fetch('/api/client-log', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload), keepalive: true }).catch(() => {});
+    } catch { /* diagnostisch */ }
+  }, { capture: true, passive: true });
+})();
 
 // Past geladen tickets-data (van cache of van een verse fetch) toe op de globale state en rendert.
 // reconcile: true betekent dat `data` verse fetch-data is waarvan de ticket-ID's als "live" mogen
@@ -971,6 +1101,7 @@ function metBehoudScroll(fn) {
 // cache-toepassing (reconcile: false, default) NIET aanroepen: verouderde cache-ID's zouden anders
 // planning-entries kunnen opschonen die in de echte, huidige data nog wel bestaan.
 function applyTicketsData(data, opties = {}) {
+  sjLog('applyTicketsData'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
   return metBehoudScroll(() => _applyTicketsData(data, opties));
 }
 function _applyTicketsData(data, { reconcile = false } = {}) {
@@ -1161,6 +1292,7 @@ function isOverdue(t) {
 }
 
 function renderTickets() {
+  sjLog('renderTickets'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
   const list  = document.getElementById('ticket-list');
   const empty = document.getElementById('empty-tickets');
   [...list.querySelectorAll('.ticket')].forEach(el => el.remove());
@@ -1408,7 +1540,7 @@ function buildTicketCard(stop, dateStr, { showActions = true } = {}) {
         ${stop.ticket.assignee ? `<div class="cal-meta">${escHtml(stop.ticket.assignee)}</div>` : ''}
         <div class="cal-addr ${stop.ticket.hasAddress ? '' : 'miss'}">${stop.ticket.hasAddress ? escHtml(stop.address) : 'Geen adres'}</div>
       </div>
-      <button class="cal-unplan-x" title="Uit planning halen" aria-label="Uit planning halen" onclick="event.stopPropagation();bevestigUitplannen('${stop.ticket.id}','${dateStr}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;flex-shrink:0;padding:2px 4px;line-height:1">×</button>
+      <button class="cal-unplan-x coord-only" title="Uit planning halen" aria-label="Uit planning halen" onclick="event.stopPropagation();bevestigUitplannen('${stop.ticket.id}','${dateStr}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;flex-shrink:0;padding:2px 4px;line-height:1">×</button>
     </div>
     ${showActions ? `<div class="cal-actions">
       ${stop.ticket.phone || stop.ticket.telefoonEindklant ? `<a class="cal-btn" href="tel:${escHtml(stop.ticket.telefoonEindklant||stop.ticket.phone)}">📞 Bellen</a>` : ''}
@@ -1777,6 +1909,7 @@ function kalZichtbareDagen(today) {
 }
 
 function renderKalender() {
+  sjLog('renderKalender'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
   const today     = new Date(); today.setHours(0,0,0,0);
 
   // Pending zonder datum — gemeenschappelijk voor week én maandweergave
@@ -2274,6 +2407,7 @@ function getPlanningTicket(id) {
 const AFG_API = '/api/afspraken';
 
 async function loadAfspraken() {
+  sjLog('loadAfspraken'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
   if (!TEST_MODE) {
     const cached = loadFromCache('blitz_afspraken_cache');
     if (cached) {
@@ -2890,6 +3024,7 @@ async function deleteFromLocalDet() {
 const AV_API = '/api/availability';
 
 async function loadAvailability() {
+  sjLog('loadAvailability'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
   if (!TEST_MODE) {
     const cached = loadFromCache('blitz_availability_cache');
     if (cached) {
@@ -3716,6 +3851,7 @@ function closeResult(e) {
 // GEPLAND TAB
 // ══════════════════════════════════════════════
 function renderGepland() {
+  sjLog('renderGepland'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
   const today     = new Date(); today.setHours(0,0,0,0);
   const weekStart = getWeekStart(today, gepOffset);
   const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
@@ -4809,6 +4945,7 @@ function updateTabIndicator(tabId) {
 }
 
 function setTab(tab) {
+  _sjSetTab = Date.now(); sjLog('setTab:' + tab); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
   document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
@@ -5036,8 +5173,10 @@ function vulToestelTab() {
   try { const o = localStorage.getItem('blitz_weergave'); if (o === 'gsm' || o === 'tablet' || o === 'computer') w = o; } catch {}
   document.querySelectorAll('input[name="set-weergave"]').forEach(r => { r.checked = r.value === w; });
 }
-function kiesToestelRol(r) { window.zetRol(r); }
-function kiesToestelWeergave(w) { window.zetWeergave(w); }
+// Direct bijwerken (naast de apparaatwijziging-listener): als de keuze de effectieve staat niet wijzigt
+// komt er geen event en zou "(handmatig: X)" achterblijven. vulToestelTab is goedkoop en idempotent.
+function kiesToestelRol(r) { window.zetRol(r); vulToestelTab(); }
+function kiesToestelWeergave(w) { window.zetWeergave(w); vulToestelTab(); }
 window.addEventListener('apparaatwijziging', () => {
   if (!document.getElementById('set-overlay').classList.contains('open')) return;
   if (window.apparaat?.rol === 'technieker' && _settingsActiveTab !== 'toestel') setSettingsTab('toestel');

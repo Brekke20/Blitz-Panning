@@ -67,6 +67,12 @@ export default async (req, context) => {
       poging:       parseInt(body.poging) || 1,
     };
 
+    // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse: bewaar de volledige diagnose.
+    if (body.soort === 'scrollsprong') {
+      entry.soort = 'scrollsprong';
+      entry.details = JSON.stringify(body).slice(0, 2500);
+    }
+
     // Only write if the read succeeded; if read failed, skip write to avoid data loss
     if (readSucceeded) {
       const nieuw = { fouten: [entry, ...current.fouten].slice(0, MAX_ENTRIES) };

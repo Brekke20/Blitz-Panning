@@ -15,14 +15,18 @@ let _rapportFilter = 'alle'; // 'alle' | 'Interventie' | 'Installatie'
 export async function laadRapportArchief() {
   const body = document.getElementById('rapp-archief-body');
   if (!body) return;
-  body.innerHTML = '<div style="color:var(--muted);font-size:0.82rem">Laden…</div>';
+  // Bestaande inhoud blijft staan tijdens het herladen (geen inklappende pagina -> scrollsprong);
+  // enkel bij een leeg overzicht tonen we "Laden…".
+  if (!body.children.length) body.innerHTML = '<div style="color:var(--muted);font-size:0.82rem">Laden…</div>';
   try {
     const res  = await fetch('/api/rapport-archief');
     const data = await res.json();
     _rapportArchief = data.rapports || [];
     _archiefVersie = data.versie || 0;
-    renderRapportArchief();
-    renderKalender();
+    window.sjLog?.('laadRapportArchief:render'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
+    const render = () => { renderRapportArchief(); renderKalender(); };
+    // Scrollpositie behouden (her-render tijdens sync); metBehoudScroll is een klassiek-script-global.
+    if (typeof metBehoudScroll === 'function') metBehoudScroll(render); else render();
   } catch (err) {
     body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">❌ Laden mislukt: ${err.message}</div>`;
   }
