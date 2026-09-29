@@ -6243,8 +6243,9 @@ function renderKbSection(ticketId) {
   const prefEl = q(`#kb-pref-${ticketId}`), tijdEl = q(`#kb-pref-tijd-${ticketId}`);
   const blokEl = q(`#kb-blok-${ticketId}`), duurEl = q(`#kb-duur-${ticketId}`), notEl = q(`#kb-notitie-${ticketId}`);
 
+  const geldigeBlok = () => /^\d{4}-\d{2}-\d{2}$/.test(blokEl.value) && Number(blokEl.value.slice(0, 4)) >= 2000 ? blokEl.value : '';
   function sync() {
-    const dirty = isDirty();
+    const dirty = isDirty() || !!geldigeBlok();
     saveBtn.disabled = !dirty;
     hint.hidden = !dirty;
   }
@@ -6268,8 +6269,7 @@ function renderKbSection(ticketId) {
   q('.kb-btn-voorkeur-del').addEventListener('click', () => {
     prefEl.value = ''; tijdEl.value = ''; draft.voorkeur = ''; draft.voorkeurTijd = ''; sync();
   });
-  // Een gekozen datum gaat meteen in het concept (bij change) zodat Opslaan ze nooit stil verliest;
-  // de knop blijft werken als bevestiging voor wie de datum met de hand intikt.
+  // Een nog niet toegevoegde (volledige, geldige) datum telt mee bij Opslaan; de knop voegt ze expliciet toe.
   function voegBlokToe() {
     const v = blokEl.value;
     if (!v) return;
@@ -6278,8 +6278,9 @@ function renderKbSection(ticketId) {
     blokEl.value = '';
     tekenChips(); sync();
   }
-  blokEl.addEventListener('change', voegBlokToe);
   q('.kb-btn-addblok').addEventListener('click', voegBlokToe);
+  blokEl.addEventListener('input', sync);
+  blokEl.addEventListener('change', sync);
   duurEl.addEventListener('input', () => { draft.duur = duurEl.value === '' ? null : Number(duurEl.value); sync(); });
   q('.kb-btn-duur-reset').addEventListener('click', () => {
     draft.duur = settings.duurMinuten; duurEl.value = String(settings.duurMinuten); sync();
@@ -6288,9 +6289,11 @@ function renderKbSection(ticketId) {
   saveBtn.addEventListener('click', async () => {
     if (saveBtn.disabled) return;
     saveBtn.disabled = true;
+    const hangend = geldigeBlok();
+    if (hangend && hangend === draft.voorkeur) { toast('⚠️ Deze datum is al de voorkeursdatum'); sync(); return; }
     const ok = await saveKbAll(ticketId, {
       voorkeur: draft.voorkeur || null, voorkeurTijd: draft.voorkeurTijd || null,
-      geblokkeerd: draft.geblokkeerd, duur: draft.duur, notitie: draft.notitie,
+      geblokkeerd: hangend ? [...new Set([...draft.geblokkeerd, hangend])] : draft.geblokkeerd, duur: draft.duur, notitie: draft.notitie,
     });
     if (!ok) sync(); // concept blijft staan; opnieuw proberen kan
   });

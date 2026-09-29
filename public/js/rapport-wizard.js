@@ -77,7 +77,7 @@ export function bewaarConcept() {
   try {
     const kopie = {};
     for (const k of Object.keys(R)) if (!CONCEPT_UIT.includes(k)) kopie[k] = R[k];
-    if (_conceptBasis !== null && JSON.stringify(kopie) === _conceptBasis) return;
+    if (_conceptBasis !== null && JSON.stringify(kopie) + '|' + WIZ_STEPS[_wizStep].id === _conceptBasis) return;
     localStorage.setItem(conceptSleutel(_wizTicketId, _wizDate), JSON.stringify({
       v: 1, opgeslagen: new Date().toISOString(), stap: WIZ_STEPS[_wizStep].id, R: kopie,
     }));
@@ -103,6 +103,9 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 window.addEventListener('pagehide', wizBewaarHuidig);
 document.getElementById('wiz-body')?.addEventListener('input', wizConceptDebounce);
 document.getElementById('wiz-body')?.addEventListener('change', wizConceptDebounce);
+// Klik-only wijzigingen (onderdeel toevoegen/verwijderen, chips, knoppen): de bubbel van elke klik markeert het concept als gewijzigd
+// (een ongewijzigd formulier wordt sowieso niet geschreven: zie _conceptBasis in bewaarConcept).
+document.getElementById('wiz-body')?.addEventListener('click', e => { if (e.target.closest('button, label, input, [onclick]')) wizConceptDebounce(); });
 
 let _openBezig = false;
 // Dubbele tik terwijl het openen nog loopt (aanrijtijd-fetch, hervat-dialoog): tweede oproep negeren.
@@ -215,7 +218,7 @@ async function openRapportIntern(ticketId, date) {
     // concept wordt pas overschreven zodra de gebruiker iets wijzigt, of verloopt na 7 dagen.
   }
   _conceptGewijzigd = false;
-  _conceptBasis = (() => { const k = {}; for (const key of Object.keys(R)) if (!CONCEPT_UIT.includes(key)) k[key] = R[key]; return JSON.stringify(k); })();
+  _conceptBasis = (() => { const k = {}; for (const key of Object.keys(R)) if (!CONCEPT_UIT.includes(key)) k[key] = R[key]; return JSON.stringify(k) + '|' + WIZ_STEPS[_wizStep].id; })();
 
   document.getElementById('rapport-wizard').classList.add('open');
   wizRenderStep();
