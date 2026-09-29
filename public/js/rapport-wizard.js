@@ -181,10 +181,7 @@ export function wizNext() {
     }
     if (typeof window.appConfirm !== 'function') {
       // Terugval als app-dialog.js niet geladen is: native confirm, zelfde titel + tekst
-      if (confirm('Rapport versturen?
-
-' + tekst.join('
-'))) printRapport();
+      if (confirm('Rapport versturen?\n\n' + tekst.join('\n'))) printRapport();
       return;
     }
     window.appConfirm({

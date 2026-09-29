@@ -1298,9 +1298,7 @@ async function bevestigUitplannen(ticketId, date) {
   // Terugval op native confirm als app-dialog.js niet geladen is
   const ok = typeof window.appConfirm === 'function'
     ? await window.appConfirm({ titel, tekst, bevestigLabel: 'Uit planning halen', gevaar: true })
-    : confirm(titel + '
-
-' + tekst);
+    : confirm(titel + '\n\n' + tekst);
   if (ok) await removeTicketFromDate(ticketId, date);
   return ok;
 }
