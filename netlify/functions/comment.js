@@ -2,6 +2,8 @@
 // Updates the "resolution" field on a Zoho Desk ticket.
 // POST body: { ticketId, content }
 
+import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
+
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK = 'https://desk.zoho.eu/api/v1';
 
@@ -46,6 +48,11 @@ export async function handler(event) {
     }
     if (!/^\d+$/.test(String(ticketId))) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid ticketId' }) };
+    }
+
+    // Testmodus: nooit naar Zoho schrijven, meteen nep-succes
+    if (isTestVerzoek(event)) {
+      return { statusCode: 200, headers, body: JSON.stringify(nepZohoAntwoord({ success: true })) };
     }
 
     const accessToken = await getAccessToken();

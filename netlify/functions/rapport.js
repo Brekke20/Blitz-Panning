@@ -10,6 +10,7 @@
 import chromium from '@sparticuz/chromium-min';
 import puppeteer from 'puppeteer-core';
 import { getStore } from '@netlify/blobs';
+import { isTestVerzoek, winkelNaam, nepZohoAntwoord } from '../lib/testmodus.js';
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
@@ -153,10 +154,10 @@ async function leesRegister(store) {
 
 // Best-effort: een falende check laat de upload gewoon normaal doorgaan (zoals vóór deze taak) --
 // geen enkele idempotentie-check mag de kernflow (PDF genereren + uploaden) blokkeren.
-async function checkAlUpgeload(verzendId) {
+async function checkAlUpgeload(verzendId, event) {
   if (!verzendId) return null;
   try {
-    const store = getStore({ name: 'blitz-data', consistency: 'strong' });
+    const store = getStore({ name: winkelNaam(event), consistency: 'strong' });
     const data  = await leesRegister(store);
     return isAlVerzonden(verzendId, data.entries);
   } catch { return null; }
@@ -168,10 +169,10 @@ async function checkAlUpgeload(verzendId) {
 // geval (geen verzendId, of de check/schrijf zelf faalde) -- in dat laatste geval gaat de upload
 // gewoon normaal door, precies zoals zonder reservering. Niet atomair, zie IN_FLIGHT_TIMEOUT_MS
 // hierboven.
-async function reserveerOfWeiger(verzendId) {
+async function reserveerOfWeiger(verzendId, event) {
   if (!verzendId) return 'doorgaan';
   try {
-    const store = getStore({ name: 'blitz-data', consistency: 'strong' });
+    const store = getStore({ name: winkelNaam(event), consistency: 'strong' });
     const data  = await leesRegister(store);
     if (heeftActieveReservering(data.entries?.[verzendId])) return 'in-progress';
     const updated = pasReserveringToe(data.entries, verzendId);
@@ -188,10 +189,10 @@ async function reserveerOfWeiger(verzendId) {
 // 3 minuten moet wachten op zijn eigen vorige, mislukte reservering. Faalt dit zelf, dan blijft
 // de reservering gewoon staan tot ze na 3 minuten vanzelf als verlopen behandeld wordt
 // (heeftActieveReservering) -- geen blijvend geblokkeerde staat.
-async function wisReserveringBestEffort(verzendId) {
+async function wisReserveringBestEffort(verzendId, event) {
   if (!verzendId) return;
   try {
-    const store = getStore({ name: 'blitz-data', consistency: 'strong' });
+    const store = getStore({ name: winkelNaam(event), consistency: 'strong' });
     const data  = await leesRegister(store);
     const updated = wisReservering(data.entries, verzendId);
     if (!updated) return;
@@ -215,14 +216,14 @@ async function wisReserveringBestEffort(verzendId) {
 // retries hieronder dekken enkel transiënte fouten (netwerk, tijdelijke Blobs-hik) en een
 // gelijktijdige schrijf van een ANDERE aanvraag (last-write-wins, stil, geen foutcode) -- vandaar
 // de post-write read-back die dat laatste geval alsnog detecteert en opnieuw probeert.
-async function markeerUpgeload(verzendId, attachmentId) {
+async function markeerUpgeload(verzendId, attachmentId, event) {
   if (!verzendId) return;
 
   // 1) Register: definitieve idempotentie-markering (done:true). Dit is de bron van waarheid
   //    voor checkAlUpgeload()/reserveerOfWeiger() bij een volgende poging voor ditzelfde
   //    verzendId.
   try {
-    const store    = getStore({ name: 'blitz-data', consistency: 'strong' });
+    const store    = getStore({ name: winkelNaam(event), consistency: 'strong' });
     const data     = await leesRegister(store);
     const updated  = pasRegisterMarkeringToe(data.entries, verzendId, attachmentId);
     if (updated) await store.setJSON(REGISTER_KEY, { versie: data.versie + 1, entries: updated });
@@ -234,7 +235,7 @@ async function markeerUpgeload(verzendId, attachmentId) {
   //    overheen -- bv. een eigen nieuw archief-item of een cancel-POST), wordt de merge tot 3x
   //    herhaald vóór we opgeven.
   try {
-    const store = getStore({ name: 'blitz-data', consistency: 'strong' });
+    const store = getStore({ name: winkelNaam(event), consistency: 'strong' });
     for (let poging = 0; poging < 3; poging++) {
       try {
         const data    = (await store.get(BLOB_KEY, { type: 'json' })) || { versie: 0, rapports: [] };
@@ -319,10 +320,16 @@ export async function handler(event) {
     // weigeren -- de idempotentie is een bonus, geen vereiste voor het kernpad.
     verzendId = normaliseerVerzendId(rawVerzendId);
 
+    // Testmodus: geen PDF (chromium), geen Zoho-upload, geen idempotentie-register --
+    // meteen het succesantwoord dat outbox.js verwacht (res.ok; attachmentId is optioneel).
+    if (isTestVerzoek(event)) {
+      return { statusCode: 200, headers, body: JSON.stringify(nepZohoAntwoord({ success: true, attachmentId: 'test-bijlage' })) };
+    }
+
     // (T20) Idempotentie: was dit verzendId al eerder succesvol geüpload (server-side gelukt,
     // maar het antwoord bereikte de client toen nooit)? Dan niet nogmaals genereren/uploaden --
     // gewoon hetzelfde resultaat teruggeven. Geen match/falende check → gewoon normaal doorgaan.
-    const alGedaan = await checkAlUpgeload(verzendId);
+    const alGedaan = await checkAlUpgeload(verzendId, event);
     if (alGedaan) {
       return {
         statusCode: 200,
@@ -336,7 +343,7 @@ export async function handler(event) {
     // hetzelfde verzendId al vroeg met een 409 kan afgewezen worden i.p.v. zelf ook nog eens een
     // volledige PDF te genereren en te uploaden. Best-effort/niet-atomair, zie het commentaarblok
     // bij IN_FLIGHT_TIMEOUT_MS hierboven.
-    const reservering = await reserveerOfWeiger(verzendId);
+    const reservering = await reserveerOfWeiger(verzendId, event);
     if (reservering === 'in-progress') {
       return {
         statusCode: 409,
@@ -417,7 +424,7 @@ export async function handler(event) {
     // buitenste try/catch is defense-in-depth: een GESLAAGDE upload mag NOOIT alsnog als 500
     // eindigen door iets dat hierna misloopt.
     try {
-      await markeerUpgeload(verzendId, uploadData.id);
+      await markeerUpgeload(verzendId, uploadData.id, event);
     } catch { /* zie hierboven -- de respons hieronder blijft altijd 200 na een geslaagde upload */ }
 
     return {
@@ -430,7 +437,7 @@ export async function handler(event) {
     // (Fix-ronde 2, punt 2) Alleen opruimen als DEZE aanroep de reservering zette -- staat er een
     // reservering van een ANDERE, nog lopende poging (bv. 'in-progress' hierboven al afgehandeld,
     // of 'doorgaan' omdat de check zelf faalde), dan raken we die hier niet aan.
-    if (reserveringGezet) await wisReserveringBestEffort(verzendId);
+    if (reserveringGezet) await wisReserveringBestEffort(verzendId, event);
     return {
       statusCode: 500,
       headers,

@@ -9,6 +9,7 @@
 
 import chromium from '@sparticuz/chromium-min';
 import puppeteer from 'puppeteer-core';
+import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
@@ -77,6 +78,15 @@ export async function handler(event) {
     const { ticketId, html, ticketNumber, preview } = JSON.parse(event.body || '{}');
     if (!ticketId || !html) return { statusCode: 400, headers, body: JSON.stringify({ error: 'ticketId en html zijn verplicht' }) };
     if (!/^\d+$/.test(String(ticketId))) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Ongeldig ticketId' }) };
+
+    // Testmodus: geen token, geen Zoho, geen PDF, geen mail -- meteen nep-succes. Het voorbeeld
+    // toont één testontvanger; de echte verzending meldt emailSent.contact = true.
+    if (isTestVerzoek(event)) {
+      const extra = preview
+        ? { preview: true, ontvangers: [{ doelgroep: 'contact', naam: 'Testcontact', email: 'test@example.invalid', html: buildRapportEmailHtml({ ticketNumber, naam: 'Testcontact' }) }] }
+        : { success: true, emailSent: { contact: true, klant: false, installateur: false }, fouten: [], statusUpdated: true, statusFout: null };
+      return { statusCode: 200, headers, body: JSON.stringify(nepZohoAntwoord(extra)) };
+    }
 
     const token = await getAccessToken();
     const orgId = await getOrgId(token);

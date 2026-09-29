@@ -3,6 +3,8 @@
 // POST body: { ticketId, utcInterventieDatum }   (volledige ISO-string in UTC)
 // Schrijft naar het cf_interventie_datm custom field (niet Zoho's dueDate).
 
+import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
+
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
 
@@ -48,6 +50,13 @@ export default async (req, context) => {
   if (!/^\d+$/.test(String(ticketId))) {
     return new Response(JSON.stringify({ error: 'Ongeldig ticketId' }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Testmodus: nooit naar Zoho schrijven, meteen nep-succes
+  if (isTestVerzoek(req)) {
+    return new Response(JSON.stringify(nepZohoAntwoord({ interventieDatum: utcInterventieDatum })), {
+      status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 

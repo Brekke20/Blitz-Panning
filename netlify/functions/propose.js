@@ -13,6 +13,7 @@ import fs     from 'node:fs';
 import path   from 'node:path';
 import url    from 'node:url';
 import crypto from 'node:crypto';
+import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
 
 // ── HMAC-token (letterlijk gekopieerd uit confirm-afspraak.js — dit project deelt geen module
 // tussen netlify/functions/*.js-bestanden, elke functie dupliceert dit patroon zelf) ────────────
@@ -235,9 +236,23 @@ export async function handler(event) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Ongeldig ticketId' }) };
     }
 
+    // Testmodus: geen token, geen Zoho, geen mail -- meteen nep-succes in de vorm die de app
+    // verwacht (interventieDatum + emailSent/ontvangers voor de toast en voorstel-status).
+    if (isTestVerzoek(event)) {
+      const appointmentTime  = roundToNextQuarter(time || '09:00');
+      const interventieDatum = utcInterventieDatum || `${date}T${appointmentTime}:00.000Z`;
+      return {
+        statusCode: 200, headers,
+        body: JSON.stringify(nepZohoAntwoord({
+          success: true, ticketId, interventieDatum, appointmentTime,
+          emailSent: { contact: true, klant: false, installateur: false }, fouten: [], ontvangers: ['contact'],
+        })),
+      };
+    }
+
     const accessToken = await getAccessToken();
 
-    const orgRes  = await fetch(`${ZOHO_DESK}/organizations`, {
+    const orgRes = await fetch(`${ZOHO_DESK}/organizations`, {
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
     });
     const orgData = await orgRes.json();
