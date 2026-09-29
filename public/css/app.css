@@ -223,8 +223,8 @@
     .ticket:hover::before { background: var(--accent); }
     .ticket:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
     .ticket.overdue::before { background: var(--red); }
-    .ticket.overdue { background: var(--red-line); }
-    .ticket.overdue:hover { background: var(--red-line); }
+    .ticket.overdue { background: color-mix(in srgb, var(--red) 3%, transparent); }
+    .ticket.overdue:hover { background: color-mix(in srgb, var(--red) 6%, transparent); }
     .ticket.overdue:hover::before { background: var(--red); }
 
     .t-body { flex: 1; min-width: 0; padding-left: 6px; }
@@ -441,7 +441,7 @@
     .day-block-btn.blocked  { background: var(--red-dim); color: var(--red); border-color: var(--red-line); }
     .day-block-btn.holiday  { background: rgba(251,191,36,0.15); color: #d97706; border-color: rgba(251,191,36,0.3); }
     .day-body { flex: 1; padding: 6px; background: var(--bg); display: flex; flex-direction: column; gap: 5px; }
-    .day-body.blocked-day  { background: repeating-linear-gradient(135deg, var(--bg), var(--bg) 8px, var(--red-line)  8px, var(--red-line)  16px); }
+    .day-body.blocked-day  { background: repeating-linear-gradient(135deg, var(--bg), var(--bg) 8px, color-mix(in srgb, var(--red) 2.5%, transparent)  8px, color-mix(in srgb, var(--red) 2.5%, transparent)  16px); }
     .day-body.holiday-day  { background: repeating-linear-gradient(135deg, var(--bg), var(--bg) 8px, rgba(251,191,36,0.04)  8px, rgba(251,191,36,0.04)  16px); }
     .day-empty { font-size: var(--fs-2xs); color: var(--muted); text-align: center; padding: 20px 4px; opacity: 0.35; }
 
