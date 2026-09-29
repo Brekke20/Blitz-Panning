@@ -183,7 +183,7 @@ export function herOpenRapport(idx) {
   // allow-scripts kan die origin niet misbruikt worden en draait er geen enkel script —
   // ook niet in geneste iframes, want sandbox-flags worden geërfd.
   const win = window.open('', '_blank');
-  if (!win) return toast('Pop-upblokkering actief');
+  if (!win) return toast('Het PDF-venster werd geblokkeerd. Sta pop-ups toe om de PDF te zien.');
   win.document.write(
     '<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8">' +
     '<title>Service rapport</title>' +

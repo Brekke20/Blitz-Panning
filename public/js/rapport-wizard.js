@@ -76,7 +76,7 @@ export async function openRapport(ticketId, date) {
   R.aanrijtijdMin = 0;
   if (ticket.hasAddress && settings.startlocatie) {
     try {
-      toast('📡 Aanrijtijd berekenen...', 5000);
+      toast('📡 Aanrijtijd wordt berekend…', 5000);
       const gRes  = await fetch('/api/optimize', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -153,7 +153,7 @@ export function wizNext() {
   const step   = WIZ_STEPS[_wizStep];
   const result = step.save ? step.save() : undefined;
   if (result === false || typeof result === 'string') {
-    toast(typeof result === 'string' ? result : '⚠️ Kan niet doorgaan naar de volgende stap', 3500);
+    toast(typeof result === 'string' ? result : '⚠️ Vul eerst de verplichte velden in (gemarkeerd).', 3500);
     return;
   }
   let nextStep = _wizStep + 1;
@@ -554,7 +554,7 @@ export function wizSaveOmschrijving() {
   R.oorzaakStoring = Object.entries(OORZAAK_STORING_MAP)
     .filter(([id]) => document.getElementById(id)?.checked)
     .map(([, label]) => label);
-  if (!R.oorzaakStoring.length) return '⚠️ Selecteer minstens één oorzaak storing';
+  if (!R.oorzaakStoring.length) return '⚠️ Kies minstens één oorzaak.';
 }
 
 // ── Stap 4b: Foto's ──
@@ -1152,7 +1152,7 @@ export async function printRapport() {
   const blobUrl = URL.createObjectURL(blob);
   const win     = window.open(blobUrl, '_blank');
   if (!win) {
-    toast('Pop-upblokkering actief — sta pop-ups toe voor deze pagina');
+    toast('Het PDF-venster werd geblokkeerd. Je rapport is wel bewaard. Sta pop-ups toe om de PDF te zien.');
   }
 
   // Wachtrij-item aanmaken en proberen te verzenden vóórdat het afdrukvoorbeeld
@@ -1243,7 +1243,7 @@ export async function printRapport() {
           ? '✅ Rapport opgeslagen in archief — geen Zoho-ticket gekoppeld'
           : '✅ Rapport bewaard en doorgestuurd naar Zoho', 4500);
       } else {
-        toast('⏳ Rapport nog niet bevestigd — wordt automatisch opnieuw geprobeerd', 5000);
+        toast('⏳ Rapport staat klaar om te versturen. We proberen opnieuw zodra je verbinding hebt. Je hoeft niets te doen.', 5000);
       }
 
       await refreshOutboxCache();

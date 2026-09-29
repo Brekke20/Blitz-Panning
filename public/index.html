@@ -65,7 +65,7 @@
 </div>
 </div>
 
-<div id="offline-banner">📶 Geen internetverbinding — wijzigingen worden niet opgeslagen in Zoho</div>
+<div id="offline-banner">📶 Geen verbinding. Wijzigingen worden pas in Zoho opgeslagen zodra je weer online bent.</div>
 
 <!-- (T20) Geen outer onclick meer -- elke actie loopt via de twee knoppen per item
      (renderOutboxBanner, public/js/outbox.js). -->
@@ -514,7 +514,7 @@
   </div>
 </div>
 
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.1.7/signature_pad.umd.min.js"></script>
@@ -1005,9 +1005,9 @@ async function loadTickets() {
     const msg = err.message || '';
     const isAuth = /401|403|invalid.token|expired|unauthorized/i.test(msg);
     if (isAuth) {
-      toast('🔑 Authenticatie verlopen — herinstalleer via /api/setup', 6000);
+      toast('🔑 Sessie met Zoho verlopen. Meld dit aan Brent; de koppeling moet opnieuw ingesteld worden.', 6000);
       document.getElementById('empty-tickets').textContent =
-        'Authenticatie verlopen. Ga naar /api/setup om opnieuw in te loggen.';
+        'Sessie met Zoho verlopen. Meld dit aan Brent; de koppeling moet opnieuw ingesteld worden.';
     } else {
       toast('❌ ' + msg, 4000);
       document.getElementById('empty-tickets').textContent = 'Kon tickets niet laden: ' + msg;
@@ -1212,7 +1212,7 @@ async function addTicketToDate(ticketId, date) {
       // Revert
       planning[date] = planning[date].filter(p => p.ticket.id !== ticketId);
       if (!planning[date].length) delete planning[date];
-      toast('❌ Zoho update mislukt: ' + err.message, 4000);
+      toast('❌ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
       success = false;
     }
   } else {
@@ -1269,7 +1269,7 @@ async function removeTicketFromDate(ticketId, date) {
       // Revert
       if (!planning[date]) planning[date] = [];
       planning[date].push(stop);
-      toast('❌ Zoho update mislukt: ' + err.message, 4000);
+      toast('❌ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
     }
   } else {
     stop.ticket.interventieDatum = null;
@@ -2038,7 +2038,7 @@ async function saveAfspraken() {
       const body = await res.json();
       localEvents       = body.data?.afspraken || [];
       localEventsVersie = body.data?.versie    || 0;
-      toast('⚠ Conflict — afspraken herladen', 3000);
+      toast('⚠ Iemand anders wijzigde dit net. De afspraken zijn opnieuw geladen.', 3000);
       renderKalender();
       return false;
     }
@@ -2655,7 +2655,7 @@ async function saveAvailability() {
       const body = await res.json();
       avExceptions = body.data?.exceptions || [];
       avVersie     = body.data?.versie     || 0;
-      toast('⚠ Conflict — data herladen', 3000);
+      toast('⚠ Iemand anders wijzigde dit net. De gegevens zijn opnieuw geladen.', 3000);
       renderBlockModal();
       renderKalender();
       return false;
@@ -2666,7 +2666,7 @@ async function saveAvailability() {
     return true;
   } catch (err) {
     console.error('Beschikbaarheid opslaan mislukt:', err);
-    toast('❌ Opslaan mislukt', 3000);
+    toast('❌ Opslaan is niet gelukt. Controleer je verbinding en probeer opnieuw.', 3000);
     return false;
   }
 }
@@ -2839,7 +2839,7 @@ async function avAddException() {
       cur.setDate(cur.getDate() + 1);
     }
     if (!newExceptions.length) {
-      toast('⚠ Geen werkdagen in de geselecteerde periode', 2500);
+      toast('⚠ In deze periode zijn er geen werkdagen. Kies andere data.', 2500);
       return;
     }
     avExceptions.push(...newExceptions);
@@ -4752,7 +4752,7 @@ async function saveReschedule() {
     renderTickets(); renderKalender(); renderGepland(); renderRouteList(document.getElementById('plan-date').value); updateRouteBtns(document.getElementById('plan-date').value);
     toast(`✓ Verzet naar ${fmtDateShort(date)} om ${time}`);
   } catch (err) {
-    toast('❌ Zoho update mislukt: ' + err.message, 4000);
+    toast('❌ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
   }
 }
 
@@ -4766,7 +4766,7 @@ async function togglePlanFromDetail() {
     toast('✓ Toegevoegd aan ' + fmtDateShort(date));
   } else if (activeTicket.status === 'Wachten op bevestiging planning') {
     const date = Object.keys(planning).find(d => planning[d].find(p => p.ticket.id === activeTicket.id));
-    if (!date) return toast('Ticket niet gevonden in planning');
+    if (!date) return toast('Dit ticket staat niet (meer) in de planning.');
     const ticketId = activeTicket.id;
     if (!(await bevestigUitplannen(ticketId, date))) return;
     closeDet();
@@ -5015,7 +5015,7 @@ async function avAddExceptionFromSettings() {
       cur.setDate(cur.getDate() + 1);
     }
     if (!newExceptions.length) {
-      toast('⚠ Geen werkdagen in de geselecteerde periode', 2500);
+      toast('⚠ In deze periode zijn er geen werkdagen. Kies andere data.', 2500);
       return;
     }
     avExceptions.push(...newExceptions);
@@ -5778,12 +5778,17 @@ function getWeekStart(baseDate, offset) {
 }
 
 let toastTimer;
-function toast(msg, ms = 2500) {
+function toast(msg, ms) {
   const el = document.getElementById('toast');
-  el.textContent = msg;
+  // Standaard 4 s; foutmeldingen minstens 7 s. Een meegegeven duur mag enkel verlengen.
+  const tekst = String(msg ?? '');
+  const isFout = /^\s*(⚠|❌)/.test(tekst) || /mislukt|fout/i.test(tekst);
+  const standaard = isFout ? 7000 : 4000;
+  const duur = Math.max(ms || 0, standaard);
+  el.textContent = tekst;
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
+  toastTimer = setTimeout(() => el.classList.remove('show'), duur);
 }
 
 // ══════════════════════════════════════════════

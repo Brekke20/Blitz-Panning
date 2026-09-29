@@ -207,7 +207,7 @@ async function invSaveEdit() {
     updateInventarisBadge(persoon);
     toast('✓ Wagenvoorraad opgeslagen', 2500);
   } catch (err) {
-    toast('❌ Opslaan mislukt: ' + err.message, 4000);
+    toast('❌ Opslaan is niet gelukt. Controleer je verbinding en probeer opnieuw. (Detail: ' + err.message + ')', 4000);
   }
 }
 
@@ -308,7 +308,7 @@ async function markVerwerkt(logId) {
     if (res.status === 409) {
       const body = await res.json();
       _invData = body.data || _invData;
-      toast('⚠ Conflict — inventaris herladen, probeer opnieuw', 3000);
+      toast('⚠ Iemand anders wijzigde dit net. De voorraad is opnieuw geladen; probeer opnieuw.', 3000);
       renderInventaris('all');
       updateInventarisBadge('all');
       return;

@@ -276,7 +276,7 @@ export async function prijsOpslaan() {
     const data = await res.json();
     if (!res.ok) {
       if (res.status === 409) {
-        toast('⚠️ Conflict: prijslijst werd elders gewijzigd. Herlaad de pagina.');
+        toast('⚠️ Iemand anders wijzigde de prijslijst net. Herlaad de pagina en probeer opnieuw.');
       } else {
         toast('Fout: ' + (data.error || res.status));
       }

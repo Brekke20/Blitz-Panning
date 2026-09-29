@@ -132,7 +132,7 @@ export function renderOutboxBanner() {
       <span class="outbox-item-tnum">${item.ticket?.number ? '#' + escHtml(item.ticket.number) : (item.isLocal ? 'Lokale afspraak' : '—')}</span>
       <span class="outbox-item-step">⏳ ${escHtml(outboxStepLabel(item))}</span>
       ${item.attempts ? `<span class="outbox-item-attempts">poging ${escHtml(String(item.attempts))}</span>` : ''}
-      ${item.lastError ? `<span class="outbox-item-error">${escHtml(item.lastError)}</span>` : ''}
+      ${item.lastError ? `<span class="outbox-item-error">${escHtml(menselijkeOutboxFout(item.lastError))}</span>` : ''}
       <button type="button" class="outbox-item-btn" data-action="retry" data-id="${escHtml(item.id)}">Opnieuw proberen</button>
       <button type="button" class="outbox-item-btn outbox-item-btn-cancel" data-action="cancel" data-id="${escHtml(item.id)}">Annuleren</button>
     </div>
@@ -234,6 +234,14 @@ async function logOutboxWait(item, fout) {
   item.lastError = fout;
   _outboxNextAttempt.set(item.id, Date.now() + OUTBOX_BACKOFF_MS[Math.min(Math.max(item.attempts, 1) - 1, OUTBOX_BACKOFF_MS.length - 1)]);
   try { await outboxPut(item); } catch { /* best-effort */ }
+}
+
+// Toont bekende technische serverfouten als mensentaal. Enkel weergave: item.lastError blijft ongewijzigd.
+function menselijkeOutboxFout(fout) {
+  const s = String(fout || '');
+  if (/ongeldig ticketid|invalid ticketid/i.test(s)) return 'Dit ticket werd niet gevonden in Zoho. Meld dit aan de planner.';
+  if (/ticketid and content required/i.test(s)) return 'Het rapport mist gegevens. Meld dit aan de planner.';
+  return s;
 }
 
 export async function logOutboxFailure(item, stap, fout) {
