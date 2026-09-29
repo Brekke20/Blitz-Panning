@@ -375,6 +375,10 @@
     .week-grid { display: flex; flex: 1; overflow-x: auto; min-height: 400px; }
     .day-col { flex: 1; min-width: 155px; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
     .day-col:last-child { border-right: none; }
+    /* Tijdlijnweergave: #week-grid is de enige verticale scrollcontainer (hoogte via JS);
+       kolommen krijgen hun inhoudshoogte zodat de sticky kop over de volle scroll blijft staan */
+    .week-grid.tl-mode { overflow: auto; align-items: flex-start; flex: none; }
+    .week-grid.tl-mode .day-hdr { position: sticky; top: 0; z-index: 5; }
     .day-hdr { padding: 12px 10px 8px; background: var(--surface); border-bottom: 1px solid var(--border); }
     .day-hdr-name { font-size: 0.65rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
     .day-hdr-name.today { color: var(--accent-ink); }

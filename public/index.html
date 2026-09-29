@@ -1318,6 +1318,7 @@ function setKalView(v) {
   document.getElementById('kal-view-month').classList.toggle('active', v === 'month');
   kalOffset = 0; // reset offset bij wisselen
   renderKalender();
+  kalAutoScroll(true);
 }
 
 function buildTicketCard(stop, dateStr, { showActions = true } = {}) {
@@ -1728,13 +1729,16 @@ function renderKalender() {
   document.getElementById('kal-label').textContent = fmtDateShort(weekStart) + ' – ' + fmtDateShort(weekEnd);
 
   const grid = document.getElementById('week-grid');
-  grid.className = 'week-grid';
+  const isDesktopTijdlijnWeek = window.innerWidth >= 1024;
+  // scrollpositie bewaren: innerHTML = '' zet die anders terug op 0 bij elke her-render (polling)
+  const bewaardTop = grid.scrollTop, bewaardLeft = grid.scrollLeft;
+  grid.className = isDesktopTijdlijnWeek ? 'week-grid tl-mode' : 'week-grid';
   grid.innerHTML = '';
+  if (isDesktopTijdlijnWeek) kalPasGridHoogteAan(); else grid.style.height = '';
 
   // Post-launch feedback (2026-08-17): de uren staan vóór maandag in een eigen smalle kolom (zie
   // renderTimelineGutter()) i.p.v. IN de eerste dag-kolom -- zo hebben alle dag-kolommen exact
   // dezelfde afmetingen. Enkel relevant in de desktop-tijdlijn-weergave.
-  const isDesktopTijdlijnWeek = window.innerWidth >= 1024;
   if (isDesktopTijdlijnWeek) grid.appendChild(renderTimelineGutter());
 
   for (let i = 0; i < 7; i++) {
@@ -1873,7 +1877,47 @@ function renderKalender() {
   if (isDesktopTijdlijnWeek) {
     updateNuLijn();
     startNuLijnTimer();
+    // Scrollpositie terugzetten, tenzij de week/weergave gewisseld is (dan scrolt kalAutoScroll)
+    grid.scrollTop = bewaardTop; grid.scrollLeft = bewaardLeft;
+    kalAutoScroll(false);
   }
+}
+
+// Eén verticale scrollbalk: in de tijdlijnweergave is #week-grid de scrollcontainer met een
+// hoogte die het resterende venster vult (meten bij render time: er staat UI boven het grid).
+function kalPasGridHoogteAan() {
+  const grid = document.getElementById('week-grid');
+  if (!grid || !grid.classList.contains('tl-mode')) return;
+  const top = grid.getBoundingClientRect().top;
+  grid.style.height = `${Math.max(400, Math.round(window.innerHeight - top - 16))}px`;
+}
+let _kalResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_kalResizeTimer);
+  _kalResizeTimer = setTimeout(kalPasGridHoogteAan, 100);
+});
+
+// Automatisch naar de werkdag scrollen: enkel bij wissel van week/weergave (sleutel) of force.
+let _kalAutoScrollKey = null;
+function kalAutoScroll(force) {
+  const grid = document.getElementById('week-grid');
+  if (!grid || !grid.classList.contains('tl-mode')) return;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const weekStart = getWeekStart(today, kalOffset);
+  const key = `${localISO(weekStart)}|${kalView}`;
+  if (!force && key === _kalAutoScrollKey) return;
+  _kalAutoScrollKey = key;
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 7);
+  const nu = new Date();
+  const heeftVandaag = nu >= weekStart && nu < weekEnd;
+  const doelMin = heeftVandaag ? Math.max(0, nu.getHours() * 60 + nu.getMinutes() - 60) : 8 * 60;
+  const wrap = grid.querySelector('.tl-wrap');
+  const hdr = grid.querySelector('.day-hdr');
+  if (!wrap) return;
+  const gridTop = grid.getBoundingClientRect().top;
+  const wrapOffset = wrap.getBoundingClientRect().top - gridTop + grid.scrollTop;
+  const hdrH = hdr ? hdr.offsetHeight : 0;
+  grid.scrollTop = Math.max(0, wrapOffset + doelMin * TIMELINE_PX_PER_MIN - hdrH);
 }
 
 // Rode "nu"-lijn: staat in de .tl-wrap van de kolom van vandaag (enkel de tijdlijnweergave);
@@ -1905,11 +1949,12 @@ function startNuLijnTimer() {
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) updateNuLijn(); });
 
-function kalNav(dir) { kalOffset += dir; renderKalender(); }
+function kalNav(dir) { kalOffset += dir; renderKalender(); kalAutoScroll(true); }
 function kalToday() {
-  if (kalOffset === 0) return;
+  if (kalOffset === 0) { kalAutoScroll(true); return; }
   kalOffset = 0;
   renderKalender();
+  kalAutoScroll(true);
 }
 
 function renderMonthView(today) {
@@ -4646,7 +4691,7 @@ function setTab(tab) {
     if (date && !(routeData?.polyline?.length && currentRouteDate === date)) calculateRoute();
   }
   // Defer kalender/gepland render één tick zodat de tab-click geen elementen in de nieuw gerenderde view raakt
-  if (tab === 'kalender')  setTimeout(() => renderKalender(), 0);
+  if (tab === 'kalender')  setTimeout(() => { renderKalender(); kalAutoScroll(true); }, 0);
   if (tab === 'gepland')   setTimeout(() => renderGepland(), 0);
   if (tab === 'rapporten') setTimeout(() => laadRapportArchief(), 0);
   if (tab === 'inventaris') {
