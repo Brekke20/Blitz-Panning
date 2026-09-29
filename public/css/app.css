@@ -928,6 +928,8 @@
     /* Rode nu-lijn (boven blokken en banden; klikt niet door) */
     .tl-now { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--red); z-index: 4; pointer-events: none; }
     .tl-now::before { content: ''; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+    .badge-buitenuren { font-size: 0.59rem; font-weight: 600; padding: 1px 6px; border-radius: 20px; display: inline-block; margin: 0 0 4px 4px; background: var(--orange-dim); color: var(--orange); }
+    .kal-nu-marker { flex: none; border-top: 2px solid var(--red); margin: 6px 0; padding-top: 2px; font-size: 0.7rem; font-weight: 700; line-height: 1.2; color: var(--red); text-align: right; }
     .tl-now-label { position: absolute; right: 0; top: -9px; font-size: 0.7rem; font-weight: 700; line-height: 1; padding: 2px 4px; border-radius: 3px; color: #fff; background: #c81e1e; }
     .tl-block {
       position: absolute; left: 6px; right: 6px; overflow: hidden; border-radius: var(--r);

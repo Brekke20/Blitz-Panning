@@ -1817,6 +1817,15 @@ function renderKalender() {
         const card = item.kind === 'ticket' ? buildTicketCard(item.stop, dateStr)
           : item.kind === 'event' ? buildLocalEventCard(item.ev)
           : buildReportCard(item.report);
+        card.dataset.sortkey = item.sortKey;
+        // Badge "buiten werkuren" (enkel gsm-lijst; op de tijdlijn tonen de donkere banden dit al)
+        if (item.kind !== 'report' && item.sortKey !== '99:99' && isBuitenWerkuren(item.sortKey)) {
+          const badge = document.createElement('span');
+          badge.className = 'badge-buitenuren';
+          badge.textContent = 'buiten werkuren';
+          const anker = card.querySelector('.cal-badge, .cal-local-type');
+          if (anker) anker.after(badge); else card.prepend(badge);
+        }
         dayBodyEl.appendChild(card);
       });
     }
@@ -1881,10 +1890,11 @@ function renderKalender() {
     cols.forEach(c => { c.style.minHeight = `${maxH}px`; });
   }
 
-  // Rode nu-lijn (fase 2): na elke tijdlijn-render herplaatsen; één gedeelde minuut-timer.
+  // Rode nu-lijn (fase 2): na elke render herplaatsen; één gedeelde minuut-timer
+  // (drijft ook de nu-markering in de gsm-lijst).
+  updateNuLijn();
+  startNuLijnTimer();
   if (isDesktopTijdlijnWeek) {
-    updateNuLijn();
-    startNuLijnTimer();
     // Scrollpositie terugzetten, tenzij de week/weergave gewisseld is (dan scrolt kalAutoScroll)
     grid.scrollTop = bewaardTop; grid.scrollLeft = bewaardLeft;
     kalAutoScroll(false);
@@ -1931,7 +1941,25 @@ function kalAutoScroll(force) {
 // Rode "nu"-lijn: staat in de .tl-wrap van de kolom van vandaag (enkel de tijdlijnweergave);
 // in maand-/lijstweergave of een andere week is er geen kolom en verdwijnt ze gewoon.
 let _nuLijnTimer = null;
+// Nu-markering in de gsm-lijst (gestapelde kaartjes): één dunne rode regel vóór de eerste kaart
+// van vandaag met sortKey > nu (kaarten zonder uur = '99:99' tellen als later).
+function updateNuMarker() {
+  const grid = document.getElementById('week-grid');
+  if (!grid) return;
+  const nu = new Date();
+  const hhmm = `${String(nu.getHours()).padStart(2,'0')}:${String(nu.getMinutes()).padStart(2,'0')}`;
+  const body = grid.querySelector(`.day-col[data-date="${localISO(nu)}"] .day-body`);
+  grid.querySelectorAll('.kal-nu-marker').forEach(el => { if (!body || el.parentNode !== body) el.remove(); });
+  if (!body || body.querySelector('.tl-wrap')) return;   // geen lijstweergave van vandaag
+  let marker = body.querySelector(':scope > .kal-nu-marker');
+  if (!marker) { marker = document.createElement('div'); marker.className = 'kal-nu-marker'; }
+  marker.textContent = `nu ${hhmm}`;
+  const kaarten = Array.from(body.querySelectorAll(':scope > [data-sortkey]'));
+  const volgende = kaarten.find(k => k.dataset.sortkey > hhmm);
+  if (volgende) body.insertBefore(marker, volgende); else body.appendChild(marker);
+}
 function updateNuLijn() {
+  updateNuMarker();
   const grid = document.getElementById('week-grid');
   if (!grid) return;
   const nu = new Date();
