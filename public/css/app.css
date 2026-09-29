@@ -952,16 +952,22 @@
                      (effectief boven deze regel) renderen door DOM-volgorde — ticket/event-blokken
                      worden in renderDayTimeline() NA de geblokkeerde segmenten toegevoegd */
     }
-    .tl-ongepositioneerd {
-      margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed var(--border);
-      display: flex; flex-direction: column; gap: 5px;
+    /* "Zonder uur"-chips in de sticky dagkop (tijdlijnweergave) */
+    .day-hdr-zonderuur { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; }
+    .zu-label { font-size: 0.68rem; font-weight: 600; color: var(--muted); }
+    .zu-chip {
+      min-height: 28px; padding: 2px 8px; border-radius: 14px; cursor: pointer;
+      border: 1px solid var(--accent); background: var(--accent-dim, rgba(0,223,163,.15));
+      color: var(--accent-ink); font-size: 0.75rem; font-weight: 600; max-width: 100%;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
+    .zu-meer { font-size: 0.72rem; color: var(--muted); }
 
     @media (max-width: 1023px) {
       /* Tijdlijn wordt sowieso nooit gerenderd onder 1024px (zie de JS-vertakking in
          renderKalender()), maar voor de zeldzame situatie van een venster-resize zonder
          herlaad: verberg 'm defensief. */
-      .tl-wrap, .tl-ongepositioneerd { display: none; }
+      .tl-wrap { display: none; }
     }
 
     /* iOS zoom fix: invoervelden minimaal 16px onder 1024px viewport */

@@ -1538,7 +1538,7 @@ function assignTimelineLanes(items) {
   });
 }
 
-function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports) {
+function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, hdrEl) {
   // Fase 2 (v1.7.0): de tijdlijn toont vast het volledige etmaal 00:00-24:00 (zie computeTimelineRange()).
   const { dagStartMin, displayStartH, displayEndH, totalHeight } = computeTimelineRange();
 
@@ -1655,18 +1655,36 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports) {
     wrap.appendChild(block);
   });
 
-  // Items ZONDER gekend uur (tickets zonder uur, rapporten zonder starttijd) staan BOVEN de
-  // tijdlijn, direct onder de dagkop: in de 24u-weergave zouden ze anders onder 24:00 verdwijnen.
-  // De marginTop-gelijkzetting in renderKalender() meet de ruimte vóór .tl-wrap, dus dit blok telt mee.
-  const ongepositioneerd = [
-    ...dayStops.filter(s => !s.uur).map(s => buildTicketCard(s, dateStr, { showActions: false })),
-    ...dayReports.filter(r => !r.rapportData?.start).map(r => buildReportCard(r)),
+  // Items ZONDER gekend uur (tickets zonder uur, rapporten zonder starttijd) staan als compacte
+  // klikbare chips IN de sticky dagkop (altijd zichtbaar, ook na de auto-scroll naar de werkdag).
+  const zonderUur = [
+    ...dayStops.filter(s => !s.uur).map(s => ({ label: `#${s.ticket.number}`, title: s.ticket.subject || '', open: () => openDetail(s.ticket) })),
+    ...dayReports.filter(r => !r.rapportData?.start).map(r => ({ label: r.ticketNumber ? `#${r.ticketNumber}` : (r.klant || 'Rapport'), title: r.klant || '', open: () => herOpenRapport(_rapportArchief.indexOf(r)) })),
   ];
-  if (ongepositioneerd.length) {
-    const bovenaan = document.createElement('div');
-    bovenaan.className = 'tl-ongepositioneerd';
-    ongepositioneerd.forEach(el => bovenaan.appendChild(el));
-    frag.appendChild(bovenaan);
+  if (zonderUur.length && hdrEl) {
+    const rij = document.createElement('div');
+    rij.className = 'day-hdr-zonderuur';
+    const lbl = document.createElement('span');
+    lbl.className = 'zu-label';
+    lbl.textContent = 'Zonder uur:';
+    rij.appendChild(lbl);
+    zonderUur.slice(0, 4).forEach(it => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'zu-chip';
+      chip.textContent = it.label;
+      if (it.title) chip.title = it.title;
+      chip.addEventListener('click', e => { e.stopPropagation(); it.open(); });
+      rij.appendChild(chip);
+    });
+    if (zonderUur.length > 4) {
+      const meer = document.createElement('span');
+      meer.className = 'zu-meer';
+      meer.textContent = `+${zonderUur.length - 4} meer`;
+      meer.title = zonderUur.slice(4).map(it => it.label).join(', ');
+      rij.appendChild(meer);
+    }
+    hdrEl.appendChild(rij);
   }
 
   frag.appendChild(wrap);
@@ -1804,7 +1822,7 @@ function renderKalender() {
     const dayBodyEl = col.querySelector('.day-body');
     const isDesktopTijdlijn = window.innerWidth >= 1024;
     if (isDesktopTijdlijn) {
-      dayBodyEl.appendChild(renderDayTimeline(dateStr, dayStops, dayEvents, dayReports));
+      dayBodyEl.appendChild(renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, col.querySelector('.day-hdr')));
     } else {
       // Bestaande gestapelde-kaartjeslijst-logica — VOLLEDIG ONGEWIJZIGD.
       const timeline = [
@@ -1861,9 +1879,10 @@ function renderKalender() {
     // dan een echte .day-hdr (die weekdag/datum/capaciteit/blokkeer-knop toont). Hoogte hier
     // expliciet gelijkzetten aan een echte kolom i.p.v. de opbouw te dupliceren, zodat dit ook
     // correct blijft als de inhoud van .day-hdr ooit verandert.
-    const realHdr   = grid.querySelector('.day-col:not(.tl-gutter) .day-hdr');
-    const gutterHdr = grid.querySelector('.day-col.tl-gutter .day-hdr');
-    if (realHdr && gutterHdr) gutterHdr.style.height = `${realHdr.offsetHeight}px`;
+    // Alle koppen (incl. de gutter-spacer) krijgen de hoogte van de HOOGSTE kop (chips "zonder uur").
+    const hdrs = Array.from(grid.querySelectorAll('.day-col .day-hdr'));
+    const maxHdr = Math.max(...hdrs.map(h => h.offsetHeight));
+    hdrs.forEach(h => { h.style.boxSizing = 'border-box'; h.style.minHeight = `${maxHdr}px`; });
 
     // Post-launch feedback (2026-08-17): vóór de tijdlijn zelf staat per dag soms een "—"
     // leeg-placeholder (geen stops) of de "Route berekenen"-knop (wel stops) -- verschillend qua
