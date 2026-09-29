@@ -756,6 +756,10 @@
     .set-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
     .set-row { display: flex; gap: 8px; align-items: center; }
     .set-row .set-input { flex: 1; }
+    /* Aanraak: hele rij is het tikdoel (label), grotere keuzerondjes */
+    html[data-aanraak="ja"] .set-row { min-height: 44px; }
+    html[data-aanraak="ja"] .set-row input[type="radio"] { width: 22px; height: 22px; flex-shrink: 0; }
+    html[data-aanraak="ja"] .set-subtab { min-height: 44px; }
     .set-color-swatch {
       width: 44px; height: 32px; padding: 2px; border: 1px solid var(--border); border-radius: var(--r);
       background: var(--surface2); cursor: pointer; flex-shrink: 0;

@@ -271,13 +271,13 @@
       <div class="set-field">
         <div id="set-toestel-status" style="font-size:0.85rem;font-weight:500"></div>
       </div>
-      <div class="set-field">
-        <label class="set-label">Rol op dit toestel</label>
+      <div class="set-field" role="radiogroup" aria-labelledby="set-rol-label">
+        <label class="set-label" id="set-rol-label">Rol op dit toestel</label>
         <label class="set-row"><input type="radio" name="set-rol" value="coordinator" onchange="kiesToestelRol(this.value)"> <span>Coördinator</span></label>
         <label class="set-row"><input type="radio" name="set-rol" value="technieker" onchange="kiesToestelRol(this.value)"> <span>Technieker</span></label>
       </div>
-      <div class="set-field">
-        <label class="set-label">Weergave</label>
+      <div class="set-field" role="radiogroup" aria-labelledby="set-weergave-label">
+        <label class="set-label" id="set-weergave-label">Weergave</label>
         <label class="set-row"><input type="radio" name="set-weergave" value="auto" onchange="kiesToestelWeergave(this.value)"> <span>Automatisch</span></label>
         <label class="set-row"><input type="radio" name="set-weergave" value="gsm" onchange="kiesToestelWeergave(this.value)"> <span>Gsm</span></label>
         <label class="set-row"><input type="radio" name="set-weergave" value="tablet" onchange="kiesToestelWeergave(this.value)"> <span>Tablet</span></label>
@@ -5036,8 +5036,8 @@ function vulToestelTab() {
   try { const o = localStorage.getItem('blitz_weergave'); if (o === 'gsm' || o === 'tablet' || o === 'computer') w = o; } catch {}
   document.querySelectorAll('input[name="set-weergave"]').forEach(r => { r.checked = r.value === w; });
 }
-function kiesToestelRol(r) { window.zetRol(r); vulToestelTab(); }
-function kiesToestelWeergave(w) { window.zetWeergave(w); vulToestelTab(); }
+function kiesToestelRol(r) { window.zetRol(r); }
+function kiesToestelWeergave(w) { window.zetWeergave(w); }
 window.addEventListener('apparaatwijziging', () => {
   if (!document.getElementById('set-overlay').classList.contains('open')) return;
   if (window.apparaat?.rol === 'technieker' && _settingsActiveTab !== 'toestel') setSettingsTab('toestel');
