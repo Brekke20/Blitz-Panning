@@ -1160,7 +1160,12 @@ export async function printRapport() {
   // en dat mocht niet meer gelijktijdig lopen met de niet-afgewachte verzending zoals
   // voorheen (zie design doc 2026-08-11-rapport-verzend-betrouwbaarheid-design.md,
   // "Root cause").
-  if (!_rapportUploaded) {
+  // Testmodus (?test, ook op de live site): niets naar de server. Geen outbox-item (dus geen
+  // archief, geen Zoho-upload), geen oplossing-sync en geen voorraadaftrek. Enkel het
+  // afdrukvoorbeeld (hierboven al synchroon geopend) en het sluiten van de wizard.
+  if (TEST_MODE) {
+    toast('🧪 Testmodus — rapport niet verzonden (enkel afdrukvoorbeeld)', 5000);
+  } else if (!_rapportUploaded) {
     _rapportUploaded = true;
 
     // Alles hieronder in try/catch: faalt de IndexedDB-schrijfactie (quota vol,

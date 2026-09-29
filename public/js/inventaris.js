@@ -438,6 +438,9 @@ export async function exportInventarisLog() {
 // koppeling aan de prijzencatalogus -- die hebben geen materiaalId om tegen af te boeken, en
 // worden dus bewust overgeslagen (geen fout, gewoon genegeerd).
 export async function registreerVerbruik(technieker, onderdelen) {
+  // Testmodus (?test) wordt ook op de live site gebruikt: zonder deze guard zou een testrapport
+  // de echte wagenvoorraad wijzigen.
+  if (TEST_MODE) return;
   if (!technieker) return;
   const items = (onderdelen || [])
     .filter(p => p.naam && !String(p.id || '').startsWith('vrij-') && (parseInt(p.aantal) || 0) > 0)

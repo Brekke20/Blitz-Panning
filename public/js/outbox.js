@@ -267,6 +267,15 @@ export async function logOutboxFailure(item, stap, fout) {
 }
 
 export async function attemptOutboxItem(item) {
+  // Testmodus (?test, ook op de live site): nooit iets naar de server sturen. Het item blijft
+  // met een duidelijke melding in de wachtrij; de bestaande backoff voorkomt dat flushOutbox
+  // het bij elke trigger opnieuw probeert.
+  if (TEST_MODE) {
+    item.lastError = 'Testmodus — niet verzonden';
+    _outboxNextAttempt.set(item.id, Date.now() + OUTBOX_BACKOFF_MS[OUTBOX_BACKOFF_MS.length - 1]);
+    try { await outboxPut(item); } catch { /* best-effort */ }
+    return item;
+  }
   const action = nextOutboxAction(item);
 
   if (action === 'archive') {
