@@ -17,7 +17,8 @@ let _invExportVan    = '';
 let _invExportTot    = '';
 
 const INV_API       = '/api/inventaris';
-const INV_CACHE_KEY = 'blitz_inventaris_cache';
+// Testmodus heeft een aparte cache, zodat een testmomentopname nooit in echte modus verschijnt
+const INV_CACHE_KEY = TEST_MODE ? 'blitz_inventaris_cache_test' : 'blitz_inventaris_cache';
 
 const TYPE_LABEL = { aanvulling: 'Aanvulling', correctie: 'Correctie', verbruik: 'Verbruik' };
 

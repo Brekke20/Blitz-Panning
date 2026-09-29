@@ -6,7 +6,7 @@ const ECHTE_WINKEL = 'blitz-data';
 const TEST_WINKEL  = 'blitz-data-test';
 const MARKER_KEY   = '_testkopie';
 // Sleutels die niet naar de testopslag gekopieerd worden
-const NIET_KOPIEREN = [/^client-log/, /^rapport-verzend-status/, /^foto-/];
+const NIET_KOPIEREN = [/^client-log/, /^foutenlog$/, /^rapport-verzend-status/, /^foto-/];
 
 let kopieKlaar = false;   // geheugenvlag per koude start
 let kopieBezig = null;    // lopende kopie (voorkomt gelijktijdige kopieën)
@@ -14,8 +14,16 @@ let kopieBezig = null;    // lopende kopie (voorkomt gelijktijdige kopieën)
 export function isTestVerzoek(reqOfEvent) {
   const h = reqOfEvent?.headers;
   if (!h) return false;
-  const v = typeof h.get === 'function' ? h.get('x-blitz-test') : h['x-blitz-test'];
-  return v === '1';
+  if (typeof h.get === 'function') return h.get('x-blitz-test') === '1';
+  // v1-event: gewone objecten, sleutelnaam hoofdletterongevoelig zoeken
+  const zoek = obj => {
+    if (!obj || typeof obj !== 'object') return undefined;
+    const k = Object.keys(obj).find(x => x.toLowerCase() === 'x-blitz-test');
+    return k === undefined ? undefined : obj[k];
+  };
+  if (zoek(h) === '1') return true;
+  const mv = zoek(reqOfEvent.multiValueHeaders);
+  return Array.isArray(mv) ? mv.length === 1 && mv[0] === '1' : mv === '1';
 }
 
 export function winkelNaam(reqOfEvent) {
@@ -35,9 +43,11 @@ async function kopieer(getStore) {
   const echt = getStore({ name: ECHTE_WINKEL, consistency: 'strong' });
   const test = getStore({ name: TEST_WINKEL, consistency: 'strong' });
   if (await test.get(MARKER_KEY, { type: 'text' }) != null) return 0;
+  // Bestaande testsleutels nooit overschrijven (gelijktijdige instantie of testwrite tijdens het kopiëren)
+  const bestaand = new Set(await alleSleutels(test));
   let n = 0;
   for (const key of await alleSleutels(echt)) {
-    if (key === MARKER_KEY || NIET_KOPIEREN.some(re => re.test(key))) continue;
+    if (key === MARKER_KEY || bestaand.has(key) || NIET_KOPIEREN.some(re => re.test(key))) continue;
     const data = await echt.get(key, { type: 'arrayBuffer' });
     if (data == null) continue;
     await test.set(key, data);
