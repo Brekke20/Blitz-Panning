@@ -1718,7 +1718,9 @@ function renderKalender() {
 
   // Branch: week of maand
   if (kalView === 'month') {
-    document.getElementById('week-grid').className = 'month-grid';
+    const mg = document.getElementById('week-grid');
+    mg.className = 'month-grid';
+    mg.style.height = '';
     renderMonthView(today);
     return;
   }
@@ -1734,7 +1736,7 @@ function renderKalender() {
   const bewaardTop = grid.scrollTop, bewaardLeft = grid.scrollLeft;
   grid.className = isDesktopTijdlijnWeek ? 'week-grid tl-mode' : 'week-grid';
   grid.innerHTML = '';
-  if (isDesktopTijdlijnWeek) kalPasGridHoogteAan(); else grid.style.height = '';
+  if (isDesktopTijdlijnWeek) kalPasGridHoogteAan(); else { grid.style.height = ''; _kalAutoScrollKey = null; }
 
   // Post-launch feedback (2026-08-17): de uren staan vóór maandag in een eigen smalle kolom (zie
   // renderTimelineGutter()) i.p.v. IN de eerste dag-kolom -- zo hebben alle dag-kolommen exact
@@ -1871,6 +1873,12 @@ function renderKalender() {
       const delta = maxOffset - offsets[i];
       if (delta > 0) w.style.marginTop = `${delta}px`;
     });
+
+    // Alle dag-kolommen (en de gutter) even hoog: align-items:flex-start geeft ze inhoudshoogte
+    // (nodig voor de sticky kop), dus kolommen met minder inhoud zouden vroeg eindigen.
+    const cols = Array.from(grid.querySelectorAll('.day-col'));
+    const maxH = Math.max(...cols.map(c => c.offsetHeight));
+    cols.forEach(c => { c.style.minHeight = `${maxH}px`; });
   }
 
   // Rode nu-lijn (fase 2): na elke tijdlijn-render herplaatsen; één gedeelde minuut-timer.
