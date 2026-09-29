@@ -209,6 +209,21 @@
   `blitz_rol` en `blitz_weergave` achteraf opruimen.
 - [ ] **Stap 5:** Commit: `feat(instellingen): "Dit toestel" met rol en weergave, eenmalige rolvraag op tablet`.
 
+### Task 6b: Scrollpositie behouden bij synchronisatie (model: sonnet)
+
+**Aanleiding (Brent, 2026-09-29):** op de gsm toont de app eerst de gecachte inhoud. Wanneer daarna de verse data binnenkomt en de app opnieuw rendert, springt het scherm terug naar boven, ook terwijl je aan het lezen bent.
+
+**Files:** `public/index.html`. Zoek de plaats waar de gecachte data getoond wordt (`saveToCache`/de cache-lees-logica rond de ticket-load ±982–1001) en de herrender na de fetch (`renderTickets`, `renderKalender`, `renderGepland`, eventueel een tijdelijke "Laden…"-toestand die de hoogte laat inklappen).
+
+- [ ] **Stap 1:** De oorzaak vaststellen en in het rapport beschrijven. Mogelijke oorzaken: de pagina- of view-container wordt leeggemaakt (de hoogte klapt in, dus de scroll wordt 0), of er is een expliciete `scrollTo`/`scrollTop = 0`, of een `setTab` bij het verversen.
+- [ ] **Stap 2:** De oplossing: bij een verversing door synchronisatie (niet bij een tabwissel of navigatie door de gebruiker) de scrollpositie van het actieve scrollende element (venster en/of `.view.active`) vóór het renderen bewaren en erna terugzetten. Alternatief: de container niet leegmaken voor de nieuwe inhoud er is. De bestaande scroll-restore van de kalendergrid (v1.7.0) blijft werken.
+- [ ] **Stap 3:** Browsercontrole op 375×812 in `?test`:
+  - op de tabbladen Kalender, Ingepland en Inventaris naar beneden scrollen (bv. `scrollY = 600` of `scrollTop` van de view);
+  - de sync-herrender uitvoeren (de functie die na een verse fetch aangeroepen wordt, of de periodieke poll);
+  - de scrollpositie is binnen 5 px gelijk gebleven (ruwe uitvoer).
+  Een tabwissel zet de scroll wel nog bovenaan, zoals nu.
+- [ ] **Stap 4:** Commit: `fix(sync): scherm springt niet meer naar boven na verversen`.
+
 ### Task 7: Afronden (hoofdsessie)
 - [ ] Eindreview over de hele branch (model: **opus**).
 - [ ] Browsercontrole door de hoofdsessie op de toestellen uit spec §7.
