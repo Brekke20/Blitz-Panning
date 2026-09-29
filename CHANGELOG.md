@@ -15,6 +15,33 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.9.0] — 2026-09-30
+
+UI/UX-traject fase 3: één stijl en betere technieker-schermen
+(plan `docs/superpowers/plans/2026-09-30-uiux-fase3.md`).
+
+### Added
+- Rapport: het ingevulde rapport wordt per ticket als concept bewaard (7 dagen). Bij opnieuw
+  openen vraagt de app "Concept hervatten?"; een misklik wist het concept nooit. Nieuwe
+  overzichtsstap vóór het versturen, met "Wijzig" per onderdeel.
+- Ticketdetail en Ingepland: grote knoppen Bellen, Mailen en Navigeer; "Rapport" is de hoofdknop.
+- Inventaris: zoekveld, grotere −/+ en een Opslaan-balk die onderaan in beeld blijft.
+- Wachtrij (computer): zoeken (ook op ticketnummer) en sorteren; de sorteerkeuze wordt onthouden.
+- Toetsenbord: tabbladen en kaarten zijn met Tab/Enter/Spatie te bedienen, zichtbare focusrand,
+  Escape sluit enkel het bovenste venster, de focus blijft binnen een open venster.
+
+### Changed
+- Eén vaste knopstijl (hoofd-, gewone, gevaar- en tekstknop) in ticketdetail, rapport,
+  instellingen en bevestigingsvensters; vaste tekstgroottes (niets meer onder 12 px), afstanden en
+  afrondingen. Het Blitz-groen blijft exact.
+- Klantbeschikbaarheid: één "✓ Opslaan" voor alle velden i.p.v. een knop per veld.
+- "Datum/tijd" in het ticketdetail is enkel nog voor coördinatoren; de technieker wordt in het
+  rapport vooraf ingevuld.
+- Foto's kiezen opent direct camera of galerij.
+
+### Fixed
+- Het prijzenvenster kon achter het rapport verdwijnen.
+
 ## [1.8.1] — 2026-09-30
 
 Testopslag (spec `docs/superpowers/specs/2026-09-29-testopslag-design.md`).
