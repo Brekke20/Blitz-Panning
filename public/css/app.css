@@ -867,6 +867,14 @@
       min-height: 48px;
     }
 
+    /* ── Contactknoppen (ticketdetail + Ingepland) ── */
+    .contact-acties { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: var(--sp-2); margin: 0 0 18px; }
+    .t-body .contact-acties { margin: var(--sp-2) 0 0; }
+    .contact-acties .btn { text-decoration: none; padding-inline: var(--sp-2); white-space: nowrap; }
+    html[data-aanraak="nee"][data-rol="coordinator"] .contact-acties .btn { min-height: 32px; font-size: var(--fs-xs); }
+    .mftr { justify-content: flex-end; }
+    html[data-rol="technieker"] #d-btn-rapport { order: -1; flex: 1 1 100%; }
+
     /* ── Instellingen ── */
     #set-overlay { align-items: center; padding: 24px; }
     #set-modal { border-radius: var(--r-lg); max-width: 460px; }

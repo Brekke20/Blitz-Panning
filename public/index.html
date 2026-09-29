@@ -192,6 +192,7 @@
       <div class="mhdr-tags" id="d-tags"></div>
     </div>
     <div class="mbody">
+      <div id="d-contact"></div>
       <div class="msec"><div class="msec-title">Klantgegevens</div><div id="d-klant"></div></div>
       <div class="msec"><div class="msec-title">Ticketdetails</div><div id="d-ticket"></div><div class="coord-only" id="kb-section"></div></div>
     </div>
@@ -201,7 +202,7 @@
       <button class="btn btn--secondary coord-only" id="d-btn-proposal" style="display:none" title="Afspraakvoorstel sturen" onclick="openProposal(activeTicket?.id,_detailDate,(()=>{const t=computeArrivalTimes(_detailDate);return activeTicket?t[activeTicket.id]??null:null})())">📨 Voorstel</button>
       <button class="btn btn--secondary" id="d-btn-fotos" style="display:none" title="Foto's" onclick="openFotoModal(activeTicket?.id)">📷 Foto's</button>
       <button class="btn btn--primary" id="d-btn-rapport"  style="display:none" title="Service rapport" onclick="openRapport(activeTicket?.id,_detailDate)">📋 Rapport</button>
-      <button class="btn btn--secondary" id="d-btn-reschedule" style="display:none" title="Datum/tijd wijzigen" onclick="openRescheduleModal()">📅 Datum/tijd</button>
+      <button class="btn btn--secondary coord-only" id="d-btn-reschedule" style="display:none" title="Datum/tijd wijzigen" onclick="openRescheduleModal()">📅 Datum/tijd</button>
     </div>
   </div>
 </div>
@@ -479,7 +480,7 @@
     <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeFotoModal()" title="Sluiten" aria-label="Sluiten">✕</button>
     <h3>📷 Foto's</h3>
     <div id="foto-grid" class="foto-grid"></div>
-    <input type="file" id="foto-file-input" multiple style="display:none" onchange="handleFotoFiles(this)">
+    <input type="file" id="foto-file-input" accept="image/*" multiple style="display:none" onchange="handleFotoFiles(this)">
     <button class="foto-add-btn" onclick="document.getElementById('foto-file-input').click()">+ Foto toevoegen</button>
   </div>
 </div>
@@ -3925,7 +3926,11 @@ function renderGepland() {
         ${tijdHtml}
         ${meta ? `<div class="tmeta">${meta}</div>` : ''}
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
+        ${contactActiesHtml(t)}
       </div>`;
+      koppelAdresNavigatie(card);
+      // Klik op Bellen/Mailen opent niet het detail (Navigeer stopt de bubbel zelf).
+      card.querySelectorAll('.contact-acties a').forEach(a => a.addEventListener('click', e => e.stopPropagation()));
       card.addEventListener('click', () => openDetail(t));
       maakActiveerbaar(card, () => openDetail(t), 'Open ticket #' + t.number);
       wrapper.appendChild(card);
@@ -5047,6 +5052,26 @@ function pasRolBeperkingToe() {
 // ══════════════════════════════════════════════
 // DETAIL MODAL
 // ══════════════════════════════════════════════
+// Grote contactknoppen (Bellen, Mailen, Navigeer) — gedeeld door ticketdetail en Ingepland.
+// Navigeer krijgt geen inline onclick: koppelAdresNavigatie() hangt de luisteraar eraan.
+function contactActiesHtml(t) {
+  const tel  = t.telefoonEindklant || t.phone;
+  const mail = t.emailEindklant || t.email;
+  const knoppen = [];
+  if (tel)  knoppen.push(`<a class="btn btn--secondary btn--lg" href="tel:${escHtml(String(tel).replace(/[^\d+]/g, ''))}">📞 Bellen</a>`);
+  if (mail) knoppen.push(`<a class="btn btn--secondary btn--lg" href="mailto:${escHtml(mail)}">✉ Mailen</a>`);
+  if (t.hasAddress) knoppen.push(`<button type="button" class="btn btn--secondary btn--lg btn-navigeer-groot" data-adres="${escHtml(t.address || '')}">🧭 Navigeer</button>`);
+  return knoppen.length ? `<div class="contact-acties">${knoppen.join('')}</div>` : '';
+}
+function koppelAdresNavigatie(root) {
+  root.querySelector('.btn-navigeer-groot')?.addEventListener('click', e => {
+    e.stopPropagation();
+    navigate(encodeURIComponent(e.currentTarget.dataset.adres));
+  });
+}
+// Voor modules (rapport-wizard.js): `activeAssigneeFilter` is een `let` in dit classic script.
+window.getActiveAssignee = () => activeAssigneeFilter;
+
 function openDetail(t) {
   if (!t) return;
   activeTicket = t;
@@ -5069,6 +5094,10 @@ function openDetail(t) {
   tags.innerHTML = `<span class="mtag status">${escHtml(t.status)}</span>`;
   if (t.priority) { const pc = {high:'prtag high',medium:'prtag medium',low:'prtag low'}[(t.priority||'').toLowerCase()]||'mtag'; tags.innerHTML += `<span class="${pc}">${escHtml(prioLabel(t.priority))}</span>`; }
   if (t.assignee) tags.innerHTML += `<span class="mtag assignee">${escHtml(t.assignee)}</span>`;
+
+  const contactEl = document.getElementById('d-contact');
+  contactEl.innerHTML = contactActiesHtml(t);
+  koppelAdresNavigatie(contactEl);
 
   const row = (l, v, href) => v ? `<div class="mrow"><span class="mlabel">${l}</span><span class="mval">${href ? `<a href="${href}${escHtml(v)}">${escHtml(v)}</a>` : escHtml(v)}</span></div>` : '';
   document.getElementById('d-klant').innerHTML = [

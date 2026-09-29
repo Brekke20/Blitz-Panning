@@ -135,7 +135,11 @@ async function openRapportIntern(ticketId, date) {
   const fotoData  = await loadFotos(ticketId);
   _fotoState      = { ticketId, versie: fotoData.versie, fotos: fotoData.fotos };
   R.fotos         = _fotoState.fotos;
-  R.technieker   = R.technieker || ''; // bewaar als al ingevuld
+  // Technieker: de persoon op dit toestel, anders de toegewezen technieker van het ticket.
+  // Een teruggezet concept (Taak 5) zet R.technieker daarna opnieuw en wint dus.
+  // Altijd vers berekend: R blijft tussen tickets bestaan, een oude waarde mag niet blijven hangen.
+  const actief = window.getActiveAssignee ? window.getActiveAssignee() : 'all';
+  R.technieker = (actief && actief !== 'all') ? actief : (ticket.assignee || '');
   R.facturatie     = 'klant';
   R.facturatieVrij = '';
   R.servicetype    = '2e-lijn';
@@ -731,7 +735,7 @@ export function wizRenderFotos(el) {
     <div class="wiz-step-title">Foto's</div>
     <div class="wiz-field">
       <div id="wiz-foto-grid" class="foto-grid"></div>
-      <input type="file" id="wiz-foto-file-input" multiple style="display:none" onchange="handleWizFotoFiles(this)">
+      <input type="file" id="wiz-foto-file-input" accept="image/*" multiple style="display:none" onchange="handleWizFotoFiles(this)">
       <button class="foto-add-btn" onclick="document.getElementById('wiz-foto-file-input').click()">+ Foto toevoegen</button>
     </div>`;
   renderFotoGridInto('wiz-foto-grid');
