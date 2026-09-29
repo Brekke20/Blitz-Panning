@@ -752,6 +752,114 @@
     .btn-save:hover  { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,223,163,0.35); }
     .btn-save:active { transform: translateY(0); box-shadow: 0 1px 3px rgba(245,158,11,0.2); }
 
+    /* ── Knoppen (.btn) ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--sp-2);
+      min-height: 36px;
+      padding: 0 var(--sp-4);
+      border-radius: var(--r);
+      font: 600 var(--fs-sm) / 1 inherit;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background 0.12s, color 0.12s, transform 0.12s var(--ease-spring), border-color 0.12s;
+    }
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+    .btn:active {
+      transform: translateY(0);
+    }
+    .btn:disabled,
+    .btn[aria-disabled="true"] {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .btn:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 2px;
+    }
+
+    /* Variants */
+    .btn--primary {
+      background: var(--accent);
+      color: var(--on-accent);
+    }
+    .btn--primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn--secondary {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--text);
+    }
+    .btn--secondary:hover {
+      background: var(--surface2);
+    }
+
+    .btn--danger {
+      background: transparent;
+      border-color: var(--red-line);
+      color: var(--red);
+    }
+    .btn--danger:hover {
+      background: transparent;
+    }
+    .btn--danger.btn--solid {
+      background: var(--red);
+      color: var(--on-red);
+      border-color: var(--red);
+    }
+    .btn--danger.btn--solid:hover {
+      background: var(--red);
+    }
+
+    .btn--ghost {
+      background: transparent;
+      border: none;
+      color: var(--text2);
+    }
+    .btn--ghost:hover {
+      background: transparent;
+    }
+
+    /* Sizes */
+    .btn--sm {
+      min-height: 32px;
+      font-size: var(--fs-xs);
+      padding: 0 var(--sp-3);
+    }
+
+    .btn--lg {
+      min-height: 48px;
+      font-size: var(--fs-md);
+    }
+
+    .btn-icon {
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+      min-height: 36px;
+      padding: 0;
+      border-radius: var(--r);
+    }
+
+    /* Touch targets */
+    html[data-aanraak="ja"] .btn {
+      min-height: 44px;
+    }
+    html[data-aanraak="ja"] .btn-icon {
+      min-width: 44px;
+      min-height: 44px;
+    }
+    html[data-aanraak="ja"] .btn--lg {
+      min-height: 48px;
+    }
+
     /* ── Instellingen ── */
     #set-overlay { align-items: center; padding: 24px; }
     #set-modal { border-radius: var(--r-lg); max-width: 460px; }
