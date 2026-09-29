@@ -212,11 +212,12 @@
     <div class="mhdr">
       <button class="mhdr-close" onclick="closeSettings()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title">⚙️ Instellingen</div>
-      <div class="mhdr-num" id="set-person-label" style="font-size:0.78rem;color:var(--accent-ink);margin-top:2px"></div>
+      <div class="mhdr-num coord-only" id="set-person-label" style="font-size:0.78rem;color:var(--accent-ink);margin-top:2px"></div>
     </div>
     <div class="set-subtabs">
-      <button class="set-subtab active" id="set-subtab-algemeen" onclick="setSettingsTab('algemeen')">Algemeen</button>
-      <button class="set-subtab" id="set-subtab-beschikbaarheden" onclick="setSettingsTab('beschikbaarheden')">Beschikbaarheden</button>
+      <button class="set-subtab active coord-only" id="set-subtab-algemeen" onclick="setSettingsTab('algemeen')">Algemeen</button>
+      <button class="set-subtab coord-only" id="set-subtab-beschikbaarheden" onclick="setSettingsTab('beschikbaarheden')">Beschikbaarheden</button>
+      <button class="set-subtab" id="set-subtab-toestel" onclick="setSettingsTab('toestel')">Dit toestel</button>
     </div>
     <div class="mbody" id="set-tab-algemeen">
       <div class="set-field">
@@ -266,8 +267,26 @@
     <div class="mbody" id="set-tab-beschikbaarheden" style="display:none">
       <!-- Ingevuld door renderBeschikbaarhedenTab() -->
     </div>
+    <div class="mbody" id="set-tab-toestel" style="display:none">
+      <div class="set-field">
+        <div id="set-toestel-status" style="font-size:0.85rem;font-weight:500"></div>
+      </div>
+      <div class="set-field">
+        <label class="set-label">Rol op dit toestel</label>
+        <label class="set-row"><input type="radio" name="set-rol" value="coordinator" onchange="kiesToestelRol(this.value)"> <span>Coördinator</span></label>
+        <label class="set-row"><input type="radio" name="set-rol" value="technieker" onchange="kiesToestelRol(this.value)"> <span>Technieker</span></label>
+      </div>
+      <div class="set-field">
+        <label class="set-label">Weergave</label>
+        <label class="set-row"><input type="radio" name="set-weergave" value="auto" onchange="kiesToestelWeergave(this.value)"> <span>Automatisch</span></label>
+        <label class="set-row"><input type="radio" name="set-weergave" value="gsm" onchange="kiesToestelWeergave(this.value)"> <span>Gsm</span></label>
+        <label class="set-row"><input type="radio" name="set-weergave" value="tablet" onchange="kiesToestelWeergave(this.value)"> <span>Tablet</span></label>
+        <label class="set-row"><input type="radio" name="set-weergave" value="computer" onchange="kiesToestelWeergave(this.value)"> <span>Computer</span></label>
+      </div>
+      <div style="font-size:0.78rem;color:var(--muted)">Deze keuzes gelden enkel voor dit toestel. De rol verbergt knoppen maar is geen beveiliging.</div>
+    </div>
     <div class="mftr">
-      <button class="btn-cancel" onclick="openPrijsBeheer()" title="Beheer productprijzen">💰 Prijzen</button>
+      <button class="btn-cancel coord-only" onclick="openPrijsBeheer()" title="Beheer productprijzen">💰 Prijzen</button>
       <button class="btn-cancel" onclick="closeSettings()">Annuleren</button>
       <button class="btn-save" id="set-save-btn" onclick="saveSettings()">Opslaan</button>
     </div>
@@ -850,7 +869,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (active) updateTabIndicator(active.id);
   });
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  vraagRolOpTablet();
 });
+
+// Eerste gebruik op een tablet: eenmalig vragen wie het toestel gebruikt (keuze wordt bewaard).
+let _rolVraagGesteld = false;
+function vraagRolOpTablet() {
+  const a = window.apparaat;
+  if (_rolVraagGesteld || !a || a.soort !== 'tablet' || a.rolGekozen || !window.appConfirm) return;
+  _rolVraagGesteld = true;
+  window.appConfirm({
+    titel: 'Wie gebruikt deze tablet?',
+    tekst: 'Dit kan je later wijzigen in Instellingen → Dit toestel.',
+    bevestigLabel: 'Coördinator',
+    annuleerLabel: 'Technieker'
+  }).then(ok => window.zetRol(ok ? 'coordinator' : 'technieker'));
+}
 
 // ══════════════════════════════════════════════
 // DATA LADEN
@@ -4964,8 +4998,33 @@ const DAGEN = ['Zo','Ma','Di','Wo','Do','Vr','Za'];
 
 let _settingsActiveTab = 'algemeen';
 
+const SOORT_LABEL = { gsm: 'Gsm', tablet: 'Tablet', computer: 'Computer' };
+function vulToestelTab() {
+  const a = window.apparaat;
+  if (!a) return;
+  let tekst = `Herkend als: ${SOORT_LABEL[a.automatischeSoort] || a.automatischeSoort} · ${a.staand ? 'rechtop' : 'liggend'} · ${a.aanraak ? 'aanraakscherm' : 'muis/trackpad'}`;
+  if (a.soort !== a.automatischeSoort) tekst += ` (handmatig: ${SOORT_LABEL[a.soort] || a.soort})`;
+  const el = document.getElementById('set-toestel-status');
+  if (el) el.textContent = tekst;
+  document.querySelectorAll('input[name="set-rol"]').forEach(r => { r.checked = r.value === a.rol; });
+  let w = 'auto';
+  try { const o = localStorage.getItem('blitz_weergave'); if (o === 'gsm' || o === 'tablet' || o === 'computer') w = o; } catch {}
+  document.querySelectorAll('input[name="set-weergave"]').forEach(r => { r.checked = r.value === w; });
+}
+function kiesToestelRol(r) { window.zetRol(r); vulToestelTab(); }
+function kiesToestelWeergave(w) { window.zetWeergave(w); vulToestelTab(); }
+window.addEventListener('apparaatwijziging', () => {
+  if (!document.getElementById('set-overlay').classList.contains('open')) return;
+  if (window.apparaat?.rol === 'technieker' && _settingsActiveTab !== 'toestel') setSettingsTab('toestel');
+  else vulToestelTab();
+});
+
 function setSettingsTab(tab) {
+  if (window.apparaat?.rol === 'technieker') tab = 'toestel';
   _settingsActiveTab = tab;
+  document.getElementById('set-subtab-toestel').classList.toggle('active', tab === 'toestel');
+  document.getElementById('set-tab-toestel').style.display = tab === 'toestel' ? '' : 'none';
+  if (tab === 'toestel') vulToestelTab();
   document.getElementById('set-subtab-algemeen').classList.toggle('active', tab === 'algemeen');
   document.getElementById('set-subtab-beschikbaarheden').classList.toggle('active', tab === 'beschikbaarheden');
   document.getElementById('set-tab-algemeen').style.display = tab === 'algemeen' ? '' : 'none';
@@ -5233,7 +5292,7 @@ async function avAddExceptionFromSettings() {
 }
 
 function openSettings() {
-  setSettingsTab('algemeen');
+  setSettingsTab(window.apparaat?.rol === 'technieker' ? 'toestel' : 'algemeen');
   const who = activeAssigneeFilter === 'all' ? 'Standaard (alle technici)' : activeAssigneeFilter;
   document.getElementById('set-person-label').textContent = `Instellingen voor: ${who}`;
   document.getElementById('set-start').value    = settings.startlocatie;
