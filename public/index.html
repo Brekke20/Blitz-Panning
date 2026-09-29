@@ -610,8 +610,10 @@ function startInvPoll() {
     const versieVoor = window._invVersie;
     loadInventaris().then(() => {
       if (window._invVersie === versieVoor) return; // niets gewijzigd -- geen onnodige re-render
-      renderInventaris(activeAssigneeFilter);
-      updateInventarisBadge(activeAssigneeFilter);
+      metBehoudScroll(() => {
+        renderInventaris(activeAssigneeFilter);
+        updateInventarisBadge(activeAssigneeFilter);
+      });
     });
   }, 30000);
 }
@@ -828,10 +830,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   loadPrijzen();
   loadAvailability();
-  loadInventaris().then(() => {
+  loadInventaris().then(() => metBehoudScroll(() => {
     renderInventaris(activeAssigneeFilter);
     updateInventarisBadge(activeAssigneeFilter);
-  });
+  }));
   loadAfspraken();
   loadKlantBeschikbaarheid();
   loadVoorstelStatus();
@@ -943,12 +945,35 @@ function geocacheStore(adres, lat, lon) {
   try { localStorage.setItem(GEOCACHE_KEY, JSON.stringify(cache)); } catch { /* quota vol — best-effort */ }
 }
 
+// Scrollpositie behouden bij verversen door synchronisatie (cache-eerst, ticket-poll, inventaris-poll,
+// afspraken/beschikbaarheid): een her-render maakt containers leeg en bouwt ze opnieuw op; als daartussen
+// een layout gebeurt klapt de pagina in en zet de browser de scroll op 0 (of lager). Bewaar daarom het
+// venster + de actieve .view vóór het renderen en zet ze erna terug. NIET gebruiken bij een tabwissel of
+// navigatie door de gebruiker -- die start bewust bovenaan. Wisselde de actieve view tijdens fn, dan blijft
+// de scroll ongemoeid.
+function metBehoudScroll(fn) {
+  const view = document.querySelector('.view.active');
+  const winY = window.scrollY, winX = window.scrollX;
+  const viewTop = view ? view.scrollTop : 0;
+  try {
+    return fn();
+  } finally {
+    if (document.querySelector('.view.active') === view) {
+      if (view && view.scrollTop !== viewTop) view.scrollTop = viewTop;
+      if (window.scrollY !== winY || window.scrollX !== winX) window.scrollTo(winX, winY);
+    }
+  }
+}
+
 // Past geladen tickets-data (van cache of van een verse fetch) toe op de globale state en rendert.
 // reconcile: true betekent dat `data` verse fetch-data is waarvan de ticket-ID's als "live" mogen
 // gelden — enkel dan mogen reconcilePlanning()/gcKlantBeschikbaarheid() draaien (zie Task 12). Bij
 // cache-toepassing (reconcile: false, default) NIET aanroepen: verouderde cache-ID's zouden anders
 // planning-entries kunnen opschonen die in de echte, huidige data nog wel bestaan.
-function applyTicketsData(data, { reconcile = false } = {}) {
+function applyTicketsData(data, opties = {}) {
+  return metBehoudScroll(() => _applyTicketsData(data, opties));
+}
+function _applyTicketsData(data, { reconcile = false } = {}) {
   allTickets = data.tickets        || [];
   allPending = data.pendingTickets || [];
   allGepland = data.plannedTickets || [];
@@ -2254,7 +2279,7 @@ async function loadAfspraken() {
     if (cached) {
       localEvents       = cached.afspraken || [];
       localEventsVersie = cached.versie || 0;
-      renderKalender();
+      metBehoudScroll(renderKalender);
     }
   }
   try {
@@ -2274,7 +2299,7 @@ async function loadAfspraken() {
       localEventsVersie = 0;
     }
   }
-  renderKalender();
+  metBehoudScroll(renderKalender);
 }
 
 async function saveAfspraken() {
@@ -2870,7 +2895,7 @@ async function loadAvailability() {
     if (cached) {
       avExceptions = cached.exceptions || [];
       avVersie     = cached.versie || 0;
-      renderKalender();
+      metBehoudScroll(renderKalender);
     }
   }
   try {
@@ -2890,7 +2915,7 @@ async function loadAvailability() {
       avVersie     = 0;
     }
   }
-  renderKalender();
+  metBehoudScroll(renderKalender);
 }
 
 async function saveAvailability() {
@@ -4798,7 +4823,7 @@ function setTab(tab) {
     if (date && !(routeData?.polyline?.length && currentRouteDate === date)) calculateRoute();
   }
   // Defer kalender/gepland render één tick zodat de tab-click geen elementen in de nieuw gerenderde view raakt
-  if (tab === 'kalender')  window.scrollTo(0, 0);
+  window.scrollTo(0, 0); // tabwissel door de gebruiker start altijd bovenaan (sync-herrenders behouden de scroll: metBehoudScroll)
   if (tab === 'kalender')  setTimeout(() => { renderKalender(); kalAutoScroll(true); }, 0);
   if (tab === 'gepland')   setTimeout(() => renderGepland(), 0);
   if (tab === 'rapporten') setTimeout(() => laadRapportArchief(), 0);
