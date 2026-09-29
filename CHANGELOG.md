@@ -15,6 +15,20 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.8.1] — 2026-09-30
+
+Testopslag (spec `docs/superpowers/specs/2026-09-29-testopslag-design.md`).
+
+### Added
+- Testmodus (`?test`) is volledig losgekoppeld: elke vraag van de app in testmodus krijgt een
+  testmarkering, en de server gebruikt dan een aparte testopslag (bij de eerste keer een kopie
+  van de echte gegevens) en schrijft nooit naar Zoho. Echte planning, voorraad, prijzen,
+  afspraken en het archief worden in testmodus niet meer aangeraakt.
+- Instellingen → "Dit toestel" (enkel in testmodus): knop "Testgegevens opnieuw kopiëren".
+
+### Changed
+- De bestaande blokkades in de app blijven daarnaast bestaan (dubbel slot).
+
 ## [1.8.0] — 2026-09-29
 
 Tablet-fase (spec `docs/superpowers/specs/2026-09-29-tablet-fase-design.md`).
