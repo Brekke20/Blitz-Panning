@@ -100,7 +100,14 @@ window.addEventListener('pagehide', wizBewaarHuidig);
 document.getElementById('wiz-body')?.addEventListener('input', wizConceptDebounce);
 document.getElementById('wiz-body')?.addEventListener('change', wizConceptDebounce);
 
+let _openBezig = false;
+// Dubbele tik terwijl het openen nog loopt (aanrijtijd-fetch, hervat-dialoog): tweede oproep negeren.
 export async function openRapport(ticketId, date) {
+  if (_openBezig) return;
+  _openBezig = true;
+  try { await openRapportIntern(ticketId, date); } finally { _openBezig = false; }
+}
+async function openRapportIntern(ticketId, date) {
   const ticket = getPlanningTicket(ticketId);
   if (!ticket) return toast('Ticket niet gevonden');
   closeDet();
@@ -188,12 +195,16 @@ export async function openRapport(ticketId, date) {
       annuleerLabel: 'Opnieuw beginnen',
     });
     if (hervat) {
-      for (const k of Object.keys(concept.R)) if (!CONCEPT_UIT.includes(k)) R[k] = concept.R[k];
+      for (const k of Object.keys(concept.R)) {
+        if (CONCEPT_UIT.includes(k)) continue;
+        if ((k === 'onderdelen' || k === 'oorzaakStoring') && !Array.isArray(concept.R[k])) continue;
+        R[k] = concept.R[k];
+      }
       const i = WIZ_STEPS.findIndex(st => st.id === concept.stap);
       if (i >= 0) _wizStep = i;
-    } else {
-      wisConcept(ticketId, date);
     }
+    // false (Opnieuw beginnen, Escape, achtergrond): concept NIET wissen; leeg formulier, het oude
+    // concept wordt door de eerstvolgende autosave overschreven of verloopt na 7 dagen.
   }
 
   document.getElementById('rapport-wizard').classList.add('open');
