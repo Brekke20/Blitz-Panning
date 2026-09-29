@@ -37,6 +37,7 @@
       --surface2: #232d37;
       --surface3: #2b3542;
       --border:   #2e3a46;
+      --border-strong: #7a8694; /* knoprand, ≥3:1 op --surface/--bg (4.18/4.53) */
       --accent:       #00dfa3;
       --accent-dim:   rgba(0,223,163,0.1);
       --accent-glow:  rgba(0,223,163,0.22);
