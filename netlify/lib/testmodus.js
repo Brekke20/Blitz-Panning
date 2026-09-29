@@ -37,7 +37,7 @@ async function kopieer(getStore) {
   if (await test.get(MARKER_KEY, { type: 'text' }) != null) return 0;
   let n = 0;
   for (const key of await alleSleutels(echt)) {
-    if (NIET_KOPIEREN.some(re => re.test(key))) continue;
+    if (key === MARKER_KEY || NIET_KOPIEREN.some(re => re.test(key))) continue;
     const data = await echt.get(key, { type: 'arrayBuffer' });
     if (data == null) continue;
     await test.set(key, data);
@@ -48,22 +48,30 @@ async function kopieer(getStore) {
 }
 
 // Idempotent; geeft het aantal gekopieerde sleutels terug (0 als er niets te doen was).
-// Bij een fout wordt gelogd en het verzoek gaat door.
-export async function zorgVoorTestkopie(getStore) {
+// Standaard: bij een fout loggen en het verzoek laten doorgaan. Met { gooiFout: true }
+// (enkel /api/testdata) wordt de fout doorgegeven aan de aanroeper.
+export async function zorgVoorTestkopie(getStore, { gooiFout = false } = {}) {
   if (kopieKlaar) return 0;
   if (!kopieBezig) {
     kopieBezig = kopieer(getStore)
-      .then(n => { kopieKlaar = true; return n; })
-      .catch(err => { console.error('[testmodus] kopiëren mislukt:', err?.message || err); return 0; })
+      .then(n => { kopieKlaar = true; return { n }; })
+      .catch(err => { console.error('[testmodus] kopiëren mislukt:', err?.message || err); return { fout: err }; })
       .finally(() => { kopieBezig = null; });
   }
-  return kopieBezig;
+  const res = await kopieBezig;
+  if (res.fout) {
+    if (gooiFout) throw res.fout;
+    return 0;
+  }
+  return res.n;
 }
 
-// Wist de volledige testopslag (incl. markering) en de geheugenvlag.
+// Wist de volledige testopslag en de geheugenvlag. De markering gaat eerst weg,
+// zodat een crash halverwege bij het volgende verzoek een nieuwe kopie uitlokt.
 export async function wisTestopslag(getStore) {
   if (kopieBezig) await kopieBezig;
-  const test = getStore({ name: TEST_WINKEL, consistency: 'strong' });
-  for (const key of await alleSleutels(test)) await test.delete(key);
   kopieKlaar = false;
+  const test = getStore({ name: TEST_WINKEL, consistency: 'strong' });
+  await test.delete(MARKER_KEY);
+  for (const key of await alleSleutels(test)) await test.delete(key);
 }

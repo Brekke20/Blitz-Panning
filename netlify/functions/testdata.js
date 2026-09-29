@@ -33,9 +33,12 @@ export default async (req) => {
 
   try {
     await wisTestopslag(getStore);
-    const gekopieerd = await zorgVoorTestkopie(getStore);
+    const gekopieerd = await zorgVoorTestkopie(getStore, { gooiFout: true });
     return new Response(JSON.stringify({ ok: true, gekopieerd }), { status: 200, headers: hdrs });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err?.message || String(err) }), { status: 500, headers: hdrs });
+    console.error('[testdata]', err?.message || err);
+    return new Response(JSON.stringify({ error: 'Kopiëren mislukt' }), { status: 500, headers: hdrs });
   }
 };
+
+export const config = { path: '/api/testdata' };
