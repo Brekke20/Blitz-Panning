@@ -17,7 +17,11 @@
   function bepaal() {
     var grof = !!(grofMQ && grofMQ.matches);
     var b = window.innerWidth, h = window.innerHeight;
-    var kortsteZijde = Math.min(b, h);
+    // kortsteZijde komt van het SCHERM (screen.width/height), niet van het venster: een schermtoetsenbord
+    // (Android, liggend) verkleint de viewporthoogte tot < 600 en zou een tablet anders 'gsm' maken.
+    // Val terug op het venster als de schermmaten ontbreken/0 zijn. `staand` blijft van het venster.
+    var sb = window.screen && window.screen.width, sh = window.screen && window.screen.height;
+    var kortsteZijde = (sb > 0 && sh > 0) ? Math.min(sb, sh) : Math.min(b, h);
     var staand = h >= b;
 
     var auto = !grof ? 'computer' : (kortsteZijde < 600 ? 'gsm' : 'tablet');
@@ -57,6 +61,10 @@
 
   window.herevalueerApparaat = evalueer;
   window.zetWeergave = function (w) {
+    // Nog nooit een rol gekozen? Leg eerst de HUIDIGE rol vast: de standaardrol volgt de effectieve
+    // soort en zou anders meeflippen bij het wisselen van weergave.
+    var huidig = window.apparaat;
+    if (huidig && !huidig.rolGekozen) bewaar('blitz_rol', huidig.rol);
     bewaar('blitz_weergave', (w === 'gsm' || w === 'tablet' || w === 'computer') ? w : 'auto');
     evalueer();
   };

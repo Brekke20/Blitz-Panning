@@ -171,7 +171,7 @@
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
-      position: sticky; top: 92px; z-index: 28;
+      position: sticky; top: var(--topbar-h, 92px); z-index: 28;
     }
     .filter-label { font-size: 0.71rem; color: var(--muted); font-weight: 500; margin-right: 4px; }
     .filter-pill {
@@ -318,7 +318,7 @@
       border-bottom: 1px solid var(--border);
       padding: 8px 14px;
       display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-      position: sticky; top: 92px; z-index: 28;
+      position: sticky; top: var(--topbar-h, 92px); z-index: 28;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
     .kal-week-label { font-size: 0.84rem; font-weight: 600; width: 112px; text-align: center; color: var(--text2); white-space: nowrap; }
@@ -366,6 +366,22 @@
     html[data-aanraak="ja"] .kal-today { min-height: 44px; }
     html[data-aanraak="ja"] .kal-nav, html[data-aanraak="ja"] .hbtn, html[data-aanraak="ja"] .mhdr-close,
     html[data-aanraak="ja"] .prijs-hdr-close { min-width: 44px; }
+    /* Kleine pictogramknoppen (✕ op foto/chip/onderdeel) blijven visueel klein: geen 44px-hoogte
+       (zou er een pil van maken) maar een onzichtbaar groter tikvlak via ::after. */
+    html[data-aanraak="ja"] .foto-thumb-del, html[data-aanraak="ja"] .kb-chip-del,
+    html[data-aanraak="ja"] .wiz-part-del { min-height: 0; position: relative; }
+    html[data-aanraak="ja"] .foto-thumb-del { position: absolute; }
+    html[data-aanraak="ja"] .foto-thumb-del::after, html[data-aanraak="ja"] .kb-chip-del::after,
+    html[data-aanraak="ja"] .wiz-part-del::after { content: ''; position: absolute; inset: -12px; }
+
+    /* Gsm: smalle kop (320-360px) -- logo-tekst weg (icoon blijft), kleinere marges, 44px-knoppen blijven */
+    html[data-indeling="smal"] header { padding: 0 8px; gap: 4px; }
+    html[data-indeling="smal"] .logo-text { display: none; }
+    html[data-indeling="smal"] .logo { flex: 1 1 0; min-width: 0; }
+    html[data-indeling="smal"] .person-btn { max-width: 108px; padding: 5px 6px; gap: 4px; }
+    html[data-indeling="smal"] #person-name-hdr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    html[data-indeling="smal"] .hbtn { min-width: 40px; width: 40px; }
+    html[data-indeling="smal"][data-aanraak="ja"] .hbtn { min-width: 44px; width: 44px; }
     /* ── Maand-view ── */
     .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); border-left: 1px solid var(--border); border-top: 1px solid var(--border); }
     .month-dow-hdr { font-size: 0.63rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 5px 6px; text-align: center; background: var(--surface); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
@@ -647,7 +663,7 @@
     .gep-week {
       background: var(--surface); border-bottom: 1px solid var(--border);
       padding: 8px 14px; display: flex; align-items: center; gap: 8px;
-      position: sticky; top: 92px; z-index: 28;
+      position: sticky; top: var(--topbar-h, 92px); z-index: 28;
     }
     .gep-week span { font-size: 0.84rem; font-weight: 600; flex: 1; color: var(--text2); }
     .gep-week button {
@@ -853,7 +869,7 @@
       display: none; align-items: center; gap: 8px;
       background: var(--orange-dim); border-bottom: 1px solid rgba(245,158,11,0.3);
       padding: 7px 14px; font-size: 0.78rem; color: var(--orange);
-      position: sticky; top: 92px; z-index: 27;
+      position: sticky; top: var(--topbar-h, 92px); z-index: 27;
     }
 
     /* ── Outbox banner (rapport nog niet bevestigd verzonden) ──
@@ -863,7 +879,7 @@
       display: none; flex-direction: column; gap: 2px;
       background: var(--accent-dim); border-bottom: 1px solid rgba(0,223,163,0.3);
       padding: 4px 14px; font-size: 0.78rem; color: var(--accent-ink);
-      position: sticky; top: 92px; z-index: 27;
+      position: sticky; top: var(--topbar-h, 92px); z-index: 27;
     }
     .outbox-item {
       display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
@@ -927,6 +943,7 @@
 
     /* Beperkte technieker-weergave: de rol (niet de schermbreedte) verbergt coördinatorfuncties */
     html[data-rol="technieker"] .coord-only { display: none !important; }
+    /* × (uit planning halen): nooit op gsm (per ongeluk tikken); voor technieker via .coord-only */
     html[data-indeling="smal"] .cal-unplan-x { display: none; }
 
     /* ── Kalender dagtijdlijn (desktop, week-view) ── */
