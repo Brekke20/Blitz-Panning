@@ -1424,7 +1424,7 @@ const WERKUUR_START = 8 * 60 + 30;
 const WERKUUR_EIND  = 17 * 60;
 function isBuitenWerkuren(hhmm) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
-  if (!m) return false;
+  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return false;
   const min = Number(m[1]) * 60 + Number(m[2]);
   return min < WERKUUR_START || min >= WERKUUR_EIND;
 }
@@ -1819,7 +1819,7 @@ function renderKalender() {
           : buildReportCard(item.report);
         card.dataset.sortkey = item.sortKey;
         // Badge "buiten werkuren" (enkel gsm-lijst; op de tijdlijn tonen de donkere banden dit al)
-        if (item.kind !== 'report' && item.sortKey !== '99:99' && isBuitenWerkuren(item.sortKey)) {
+        if (item.kind !== 'report' && isBuitenWerkuren(item.sortKey)) {
           const badge = document.createElement('span');
           badge.className = 'badge-buitenuren';
           badge.textContent = 'buiten werkuren';
