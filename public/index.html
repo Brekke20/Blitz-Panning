@@ -1764,6 +1764,7 @@ function renderKalender() {
 
     const col = document.createElement('div');
     col.className = 'day-col';
+    col.dataset.date = dateStr;
     col.innerHTML = `
       <div class="day-hdr">
         <div class="day-hdr-name ${isToday ? 'today' : isPast ? 'past' : ''}">${day.toLocaleDateString('nl-BE', { weekday:'short' })}</div>
@@ -1867,7 +1868,42 @@ function renderKalender() {
       if (delta > 0) w.style.marginTop = `${delta}px`;
     });
   }
+
+  // Rode nu-lijn (fase 2): na elke tijdlijn-render herplaatsen; één gedeelde minuut-timer.
+  if (isDesktopTijdlijnWeek) {
+    updateNuLijn();
+    startNuLijnTimer();
+  }
 }
+
+// Rode "nu"-lijn: staat in de .tl-wrap van de kolom van vandaag (enkel de tijdlijnweergave);
+// in maand-/lijstweergave of een andere week is er geen kolom en verdwijnt ze gewoon.
+let _nuLijnTimer = null;
+function updateNuLijn() {
+  const grid = document.getElementById('week-grid');
+  if (!grid) return;
+  const nu = new Date();
+  const wrap = grid.querySelector(`.day-col[data-date="${localISO(nu)}"] .tl-wrap`);
+  grid.querySelectorAll('.tl-now').forEach(el => { if (!wrap || el.parentNode !== wrap) el.remove(); });
+  if (!wrap) return;
+  let lijn = wrap.querySelector(':scope > .tl-now');
+  if (!lijn) {
+    lijn = document.createElement('div');
+    lijn.className = 'tl-now';
+    const label = document.createElement('span');
+    label.className = 'tl-now-label';
+    lijn.appendChild(label);
+    wrap.appendChild(lijn);
+  }
+  const { dagStartMin } = computeTimelineRange();
+  const nuMin = nu.getHours() * 60 + nu.getMinutes();
+  lijn.style.top = `${(nuMin - dagStartMin) * TIMELINE_PX_PER_MIN}px`;
+  lijn.firstChild.textContent = `${String(nu.getHours()).padStart(2,'0')}:${String(nu.getMinutes()).padStart(2,'0')}`;
+}
+function startNuLijnTimer() {
+  if (!_nuLijnTimer) _nuLijnTimer = setInterval(updateNuLijn, 60000);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) updateNuLijn(); });
 
 function kalNav(dir) { kalOffset += dir; renderKalender(); }
 function kalToday() {
