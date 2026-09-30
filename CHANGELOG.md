@@ -15,6 +15,29 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.9.1] — 2026-09-30
+
+UI/UX-traject fase 5: toegankelijkheid afronden en opruimen
+(plan `docs/superpowers/plans/2026-09-30-uiux-fase5.md`).
+
+### Added
+- Schermlezers: vaste structuur (hoofdinhoud, menu, titel), "Naar inhoud"-sprong, alle vensters
+  als dialoog met titel, labels bij alle invulvelden en namen voor alle pictogramknoppen,
+  aan/uit-toestand van schakelaars wordt meegedeeld, de verzendwachtrij kondigt haar status aan.
+- Wie "minder beweging" instelt op zijn toestel, krijgt gedempte animaties.
+- Klantbeschikbaarheid: waarschuwing bij sluiten met niet-opgeslagen wijzigingen.
+
+### Changed
+- Kalenderkop compact op één rij (‹ periode › en Week|Maand); "↺ Vandaag" verschijnt onder de
+  periode als je niet op vandaag staat; dagkoppen in de lijst op één regel ("MA 28").
+- Overal hetzelfde sluit-, vink- en waarschuwingsteken (✕ ✓ ⚠).
+- Datum in het rapportoverzicht als dd/mm/jjjj; "1 ticket" i.p.v. "1 tickets".
+
+### Fixed
+- Telefoonnummers met "(0)" (bv. +32 (0)9 …) bellen nu correct; geen Bel-knop meer zonder nummer.
+- Zoekveld in de inventaris wordt leeggemaakt bij wisselen van technieker.
+- Oude, ongebruikte stijlen opgeruimd.
+
 ## [1.9.0] — 2026-09-30
 
 UI/UX-traject fase 3: één stijl en betere technieker-schermen
