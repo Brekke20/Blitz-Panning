@@ -88,3 +88,55 @@ const SNAPSHOT = [
   { ticketId: 't5', datum: '2026-10-07', verwachteAankomst: '08:00' },
   { ticketId: 't6', datum: '2026-10-07', verwachteAankomst: '10:05' },
 ];
+
+// ---- max-reistijd-pad (karakterisatie) -------------------------------------
+// Bestaande stop met coords op 1 dag => seedExempt=false, dus de 45-min-check geldt al voor de seed.
+const VER = { id: 'ver', number: '201', priority: 'High', interventieDatum: null, lat: 50.93, lon: 5.34, duurMin: 120 }; // Hasselt, ~90 min
+const NABIJ = { id: 'nabij', number: '202', priority: 'Low', interventieDatum: null, lat: 51.22, lon: 4.40, duurMin: 120 }; // ~3 min
+const BESTAAND = { '2026-10-05': [{ id: 'x', uur: '08:00', duurMin: 120, lat: 51.2, lon: 4.4 }] };
+
+function maakEenDag(kandidaten, extra = {}) {
+  return maakInvoer({
+    kandidaten: kandidaten.map(k => ({ ...k })),
+    dagen: ['2026-10-05'],
+    capPerDag: { '2026-10-05': 3 },
+    bestaandPerDag: BESTAAND,
+    ...extra,
+  });
+}
+const ids = u => u.geplaatst.map(g => g.ticketId);
+
+test('huidig: te verre kandidaat wordt niet geseed of gevuld na bestaande stop, nabije wel', async () => {
+  const u = await planWeek(maakEenDag([VER, NABIJ]));
+  assert.deepEqual(ids(u), ['nabij']);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'geen-plaats' }]);
+});
+
+test('huidig: lege reistijden-Map (fout) is fail-open, verre kandidaat wordt aanvaard', async () => {
+  // als seed (enige kandidaat): zonder fail-open zou VER (~90 min) geweigerd worden
+  const alleen = await planWeek(maakEenDag([VER], { reistijden: async () => new Map() }));
+  assert.deepEqual(ids(alleen), ['ver']);
+  // seed = NABIJ (beste score), daarna wordt VER in de fill-lus fail-open aanvaard
+  const u = await planWeek(maakEenDag([VER, NABIJ], { reistijden: async () => new Map() }));
+  assert.deepEqual(ids(u), ['nabij', 'ver']);
+  assert.deepEqual(u.nietGepland, []);
+});
+
+test('huidig: null-cel voor de verre kandidaat is fail-open, verre kandidaat wordt aanvaard', async () => {
+  const reistijden = async (van, naar) => new Map(naar.map(n => [n.id, n.id === 'ver' ? null : 3]));
+  const alleen = await planWeek(maakEenDag([VER], { reistijden }));
+  assert.deepEqual(ids(alleen), ['ver']);
+  const u = await planWeek(maakEenDag([VER, NABIJ], { reistijden }));
+  assert.deepEqual(ids(u), ['nabij', 'ver']);
+  assert.deepEqual(u.nietGepland, []);
+});
+
+test('huidig: fill-lus slaat te verre kandidaat over ten voordele van de volgende binnen 45 min', async () => {
+  // Lege dag => seed vrijgesteld (seed = beste score t.o.v. depot). Daarna in de fill-lus
+  // sorteert VER (High) vóór FILL (Low), maar VER ligt > 45 min => FILL wordt gekozen.
+  const SEED = { id: 'seed', number: '203', priority: 'High', interventieDatum: null, lat: 51.17, lon: 4.33, duurMin: 120 };
+  const FILL = { id: 'fill', number: '204', priority: 'Low', interventieDatum: null, lat: 51.35, lon: 4.40, duurMin: 120 }; // ~26 min
+  const u = await planWeek(maakEenDag([VER, FILL, SEED], { bestaandPerDag: {} }));
+  assert.deepEqual(ids(u), ['seed', 'fill']);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'geen-plaats' }]);
+});
