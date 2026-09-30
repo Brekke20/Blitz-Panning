@@ -15,6 +15,12 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.9.3] — 2026-09-30
+
+### Changed
+- Routekaart: de druktekleuren lopen vloeiend in elkaar over (±300 m) in plaats van abrupt te
+  wisselen; wegenwerken en afsluitingen blijven scherp afgelijnd.
+
 ## [1.9.2] — 2026-09-30
 
 ### Changed
