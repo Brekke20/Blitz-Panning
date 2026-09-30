@@ -655,7 +655,7 @@
     .ws-dag.actief { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
     .ws-dag.vandaag .ws-naam { text-decoration: underline; text-underline-offset: 3px; }
     .ws-naam { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em; }
-    .ws-aantal { font-size: 1rem; font-weight: 700; line-height: 1.2; }
+    .ws-aantal { font-size: 0.85rem; font-weight: 700; line-height: 1.2; }
     .ws-status { font-size: 0.68rem; font-weight: 600; white-space: nowrap; }
     .ws-dag.klaar .ws-status { color: var(--accent-ink); }
     .ws-dag.nodig .ws-status { color: var(--orange); }

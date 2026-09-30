@@ -4245,7 +4245,7 @@ function renderWeekstrook(date) {
     const tab = sel || (!geselecteerd && idx === 0) ? 0 : -1;
     html += `<button type="button" class="ws-dag ${cls}${sel ? ' actief' : ''}${iso === vandaag ? ' vandaag' : ''}" data-ws="${iso}" tabindex="${tab}" aria-pressed="${sel}"${sel ? ' aria-current="date"' : ''}` +
       ` aria-label="${WEEKSTROOK_DAG[d.getDay()]} ${d.getDate()}: ${meervoud(stops.length, 'stop', 'stops')}, ${zonder ? zonder + ' zonder tijdstip' : (stops.length ? 'alle tijden klaar' : 'niets gepland')}">` +
-      `<span class="ws-naam">${WEEKSTROOK_DAG[d.getDay()]} ${d.getDate()}</span><span class="ws-aantal">${stops.length}</span><span class="ws-status">${status}</span></button>`;
+      `<span class="ws-naam">${WEEKSTROOK_DAG[d.getDay()]} ${d.getDate()}</span><span class="ws-aantal">${meervoud(stops.length, 'stop', 'stops')}</span><span class="ws-status">${status}</span></button>`;
   });
   html += '</div><button type="button" class="ws-nav" data-ws="volgende" aria-label="Volgende week" title="Volgende week">›</button>';
   el.innerHTML = html;
@@ -4284,8 +4284,15 @@ function renderRouteList(date) {
     bar.className = 'route-tijdbalk';
     bar.innerHTML = `<span>⏱ ${meervoud(zonderTijd, 'ticket', 'tickets')} zonder tijdstip</span>`;
     const knop = document.createElement('button');
-    knop.type = 'button'; knop.className = 'btn btn--primary'; knop.textContent = 'Bereken tijden';
-    knop.onclick = () => calculateRoute();
+    knop.type = 'button'; knop.className = 'btn btn--primary'; knop.textContent = 'Tijden vastleggen';
+    // Zelfde pad als slepen: huidige volgorde behouden en de tijdstippen bewaren (ankers blijven staan).
+    if (eenTechnieker) {
+      knop.title = 'Houdt de huidige volgorde en legt de tijdstippen vast';
+      knop.onclick = () => { knop.disabled = true; applyRouteOrder(date, allStops.slice()); };
+    } else {
+      knop.disabled = true;
+      knop.title = 'Kies eerst één technieker via het filter bovenaan';
+    }
     bar.appendChild(knop);
     list.appendChild(bar);
   }

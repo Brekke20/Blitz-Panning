@@ -21,8 +21,8 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Tabblad Route: weekstrook boven de lijst en kaart met per werkdag het aantal stops en de
   tijdstatus (tijden klaar, tijden nodig of niets gepland), met vorige/volgende week en
   pijltjestoetsen. De datumkiezer blijft bestaan voor verre datums.
-- Tabblad Route: balk "zonder tijdstip" met knop Bereken tijden wanneer de gekozen dag stops
-  zonder tijdstip heeft.
+- Tabblad Route: balk "zonder tijdstip" met knop Tijden vastleggen (houdt de volgorde en bewaart
+  de tijdstippen zoals bij slepen; bij meerdere technici eerst één kiezen).
 
 ### Changed
 - Routekaart: de druktekleuren lopen ook vloeiend over in de gewone routekleur waar er geen
