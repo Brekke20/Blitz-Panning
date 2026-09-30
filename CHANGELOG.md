@@ -30,6 +30,9 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ### Fixed
 - Het personenmenu verdween op het tabblad Route achter de kaart.
+- Na het verwijderen van stops bleef de oude route (met drukte-kleuren, markers en samenvatting) op
+  de kaart van het tabblad Route staan; de kaart wordt nu leeggemaakt, met een hint om opnieuw te
+  berekenen.
 
 ## [1.9.4] — 2026-09-30
 

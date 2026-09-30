@@ -4078,6 +4078,8 @@ function gepNav(dir) { gepOffset += dir; renderGepland(); }
 // ROUTE TAB
 // ══════════════════════════════════════════════
 function onDateChange(val) {
+  wisRouteWeergave();   // route/markers/samenvatting van de vorige dag mogen niet blijven staan
+  routeVerouderdDatum = null;
   renderRouteList(val);
   updateRouteBtns(val);
   routeData = null;
@@ -4197,6 +4199,33 @@ function weekstrookKies(iso) {
 function weekstrookVerschuif(date, dagen) {
   const d = isoNaarDatum(date); d.setDate(d.getDate() + dagen); return localISO(d);
 }
+// Ankers (vergrendeld of voorkeursuur) krijgen nooit een uur van applyRouteOrder, dus tellen
+// ze niet mee als "zonder tijdstip" (anders zou de balk nooit verdwijnen).
+function stopZonderTijdstip(p) { return !p.uur && !isStopAnchored(p); }
+
+// Handtekening van de stops waarvoor een route berekend is (onafhankelijk van volgorde/uur):
+// verschilt die van de huidige stops, dan staat er een verouderde route op de kaart.
+function routeHandtekening(date) {
+  const ids = (planning[date] || [])
+    .filter(p => activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter)
+    .map(p => 't' + p.ticket.id);
+  localEvents.filter(e => e.datum === date && (e.adres || e.notitie) &&
+    (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter))
+    .forEach(e => ids.push('l' + e.id));
+  return ids.sort().join('|');
+}
+// Wist route, markers, legende en samenvatting (kaart en statistiekbalk) van de Route-tab.
+let routeVerouderdDatum = null;
+function wisRouteWeergave() {
+  routeData = null; currentRouteDate = null;
+  if (leafletMap && routeLayer) {
+    routeLayer.clearLayers();
+    if (routeLegendeControl) { leafletMap.removeControl(routeLegendeControl); routeLegendeControl = null; }
+  }
+  ['s-dist', 's-time', 's-delay', 's-eta'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+  const w = document.getElementById('s-warn'); if (w) w.textContent = '';
+}
+
 function renderWeekstrook(date) {
   const el = document.getElementById('week-strip');
   if (!el || !date) return;
@@ -4219,11 +4248,11 @@ function renderWeekstrook(date) {
       const { dagen } = weekstrookDagen(b.dataset.ws);
       const isos = dagen.map(localISO);
       const i = isos.indexOf(b.dataset.ws) + dir;
-      el._focusNaRender = true;
-      if (i >= 0 && i < isos.length) return weekstrookKies(isos[i]);
+      if (i >= 0 && i < isos.length) { el._focusNaRender = true; return weekstrookKies(isos[i]); }
       // Week-omslag: eerste/laatste werkdag van de volgende/vorige week
       const buur = weekstrookDagen(weekstrookVerschuif(b.dataset.ws, dir * 7)).dagen;
       if (!buur.length) return;
+      el._focusNaRender = true;
       weekstrookKies(localISO(dir > 0 ? buur[0] : buur[buur.length - 1]));
     });
   }
@@ -4236,7 +4265,7 @@ function renderWeekstrook(date) {
   dagen.forEach((d, idx) => {
     const iso = localISO(d);
     const stops = (planning[iso] || []).filter(p => activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter);
-    const zonder = stops.filter(p => !p.uur).length;
+    const zonder = stops.filter(stopZonderTijdstip).length;
     let status, cls;
     if (!stops.length) { status = '—'; cls = 'leeg'; }
     else if (zonder) { status = '⏱ nodig'; cls = 'nodig'; }
@@ -4275,10 +4304,26 @@ function renderRouteList(date) {
     ...stops.map(s => ({ kind: 'ticket', item: s, uur: s.uur })),
     ...localForDate.map(e => ({ kind: 'local', item: e, uur: e.uur })),
   ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
+  // Verouderde route (stops verwijderd/gewisseld, andere dag of filter): kaart en samenvatting
+  // leegmaken, markers van de resterende stops opnieuw tekenen; geen automatische TomTom-aanroep.
+  if (routeData && (currentRouteDate !== date || routeData._sig !== routeHandtekening(date))) {
+    wisRouteWeergave();
+    routeVerouderdDatum = allStops.length ? date : null;
+    updateMap(date);
+  } else if (!routeData && !allStops.length) {
+    wisRouteWeergave();
+    updateMap(date);
+  }
   window._routeSorteer?.vernietig(); window._routeSorteer = null;
   list.innerHTML = '';
   if (!allStops.length) { list.innerHTML = '<div class="route-empty">Voeg tickets of installaties toe via de Kalender</div>'; return; }
-  const zonderTijd = stops.filter(p => !p.uur).length;
+  if (routeVerouderdDatum === date && !(routeData && currentRouteDate === date)) {
+    const hint = document.createElement('div');
+    hint.className = 'route-tijdbalk route-hint';
+    hint.textContent = 'De route is verouderd en van de kaart gehaald. Klik op Bereken tijden om ze opnieuw te tekenen.';
+    list.appendChild(hint);
+  }
+  const zonderTijd = stops.filter(stopZonderTijdstip).length;
   if (zonderTijd) {
     const bar = document.createElement('div');
     bar.className = 'route-tijdbalk';
@@ -4288,7 +4333,13 @@ function renderRouteList(date) {
     // Zelfde pad als slepen: huidige volgorde behouden en de tijdstippen bewaren (ankers blijven staan).
     if (eenTechnieker) {
       knop.title = 'Houdt de huidige volgorde en legt de tijdstippen vast';
-      knop.onclick = () => { knop.disabled = true; applyRouteOrder(date, allStops.slice()); };
+      knop.onclick = async () => {
+        knop.disabled = true;
+        // Vroege returns in applyRouteOrder (meerdere technici, vergrendelstatus niet geladen)
+        // her-renderen niet: knop dan weer beschikbaar maken.
+        try { await applyRouteOrder(date, allStops.slice()); }
+        finally { if (knop.isConnected) knop.disabled = false; }
+      };
     } else {
       knop.disabled = true;
       knop.title = 'Kies eerst één technieker via het filter bovenaan';
@@ -4858,7 +4909,7 @@ async function calculateRoute() {
     });
     const rData = await rRes.json();
     if (rData.error) throw new Error(rData.error);
-    routeData = rData; currentRouteDate = date;
+    routeData = rData; currentRouteDate = date; routeData._sig = routeHandtekening(date); routeVerouderdDatum = null;
     renderRouteList(date);
     updateMap(date);
     document.getElementById('s-dist').textContent  = (rData.totalDistanceMeters / 1000).toFixed(0) + ' km';
