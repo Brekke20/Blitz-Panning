@@ -15,6 +15,38 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.11.0] — 2026-10-01
+
+### Added
+- "In planning sinds" in het ticketdetail: sinds wanneer een ticket in het planningstraject zit
+  (opgezocht in de Zoho-statusgeschiedenis via het nieuwe endpoint `/api/planning-sinds`,
+  onthouden in de opslag, zodat Zoho maar één keer per ticket gevraagd wordt).
+- Instelling "Laatste start" (standaard 16:00, één waarde voor iedereen): na dat uur plant
+  "Plan deze week" geen nieuw ticket meer in.
+- Resultaatvenster van "Plan deze week" toont per niet-gepland ticket de reden (geen plaats, te
+  ver, klant niet beschikbaar, voorkeursdag vol of te ver, voorkeursuur botst, adres niet
+  gevonden, Zoho-fout) en waarschuwt als reistijden geschat moesten worden.
+
+### Changed
+- "Plan deze week" herschreven als apart, getest planner-onderdeel (`public/js/planner.js`):
+  - werkt enkel met een gekozen technieker (bij "Iedereen" een melding);
+  - plant enkel in de bekeken week; alleen een ticket met een latere voorkeursdatum krijgt die dag;
+  - voorrang = prioriteit + wachttijd (+0,5 per week in planning, max +1,5 na 3 weken);
+    dringende en lang wachtende tickets krijgen eerst een lege dag;
+  - rekent de dag uur per uur af: eigen afspraken, blokkeringen en voorkeursuren tellen als
+    bezette tijd, de rit vanaf het depot telt mee;
+  - tussen opeenvolgende stops nooit meer dan de maximale reistijd (45 min), ook richting een
+    vaste afspraak later op de dag, en elke stop moet die afspraak op tijd kunnen halen;
+  - tickets met een voorkeursdag worden eerst op die dag gezet; botsen twee voorkeursdagen qua
+    afstand, dan wordt het tweede gemeld in plaats van ingepland;
+  - valt TomTom uit, dan wordt de reistijd geschat uit de afstand (met melding) in plaats van de
+    controle over te slaan.
+- Route-tab: de stops van een dag worden op één plaats bepaald (was zes kopieën); geen
+  zichtbare wijziging.
+
+### Removed
+- Ongebruikte oude clustercode (`geoCluster`, `geoClusterFrom`, `estimateTravelMinFromRoute`).
+
 ## [1.10.1] — 2026-09-30
 
 ### Fixed
