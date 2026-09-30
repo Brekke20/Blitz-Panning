@@ -12,20 +12,11 @@
 import fs     from 'node:fs';
 import path   from 'node:path';
 import url    from 'node:url';
-import crypto from 'node:crypto';
 import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
+import { maakBevestigingsUrl } from '../lib/bevestigingslink.js';
 
-// ── HMAC-token (letterlijk gekopieerd uit confirm-afspraak.js — dit project deelt geen module
-// tussen netlify/functions/*.js-bestanden, elke functie dupliceert dit patroon zelf) ────────────
-// Fix 4 (finale review): de datum zit nu ook in het ondertekende bericht, zodat de audit-notitie
-// in confirm-afspraak.js kan tonen vóór welke datum bevestigd werd. BEIDE bestanden (dit bestand
-// en confirm-afspraak.js's sign()) moeten exact dezelfde `${ticketId}.${date}.${exp}`-string
-// samenstellen, anders faalt elke verificatie.
-function signConfirmToken(ticketId, date, expiresAtEpochSeconds) {
-  const secret = process.env.CONFIRM_LINK_SECRET;
-  if (!secret) throw new Error('CONFIRM_LINK_SECRET niet geconfigureerd');
-  return crypto.createHmac('sha256', secret).update(`${ticketId}.${date}.${expiresAtEpochSeconds}`).digest('hex');
-}
+// De bevestigingslink wordt ondertekend via de gedeelde module bevestigingslink.js (dezelfde
+// als waarmee confirm-afspraak.js controleert), met de ontvanger (doelgroep) in de handtekening.
 
 // Netlify bundelt deze ESM-syntax functie naar CommonJS voor de echte
 // productie-runtime — daar bestaat al een werkende __dirname (CJS-stijl),
@@ -323,16 +314,10 @@ export async function handler(event) {
     // gooit dan een Error. Dat mag de rest van deze aanvraag (mail versturen + status-PATCH hieronder)
     // nooit blokkeren: dus eigen try/catch, en bij falen blijft confirmUrl gewoon null (buildEmailHtml()
     // laat de bevestigingsknop dan gewoon weg, zie hierboven).
+    // De link wordt per ontvanger ondertekend (in de lus hieronder), zodat de bevestiging kan
+    // tonen wie er bevestigd heeft.
     const CONFIRM_LINK_TTL_SECONDS = 14 * 24 * 60 * 60; // 14 dagen geldig
-    let confirmUrl = null;
-    try {
-      const confirmExp = Math.floor(Date.now() / 1000) + CONFIRM_LINK_TTL_SECONDS;
-      const confirmSig = signConfirmToken(ticketId, date, confirmExp);
-      confirmUrl = `${process.env.URL || 'http://localhost:8888'}/api/confirm-afspraak`
-        + `?ticketId=${encodeURIComponent(ticketId)}&date=${encodeURIComponent(date)}&exp=${confirmExp}&sig=${confirmSig}`;
-    } catch (e) {
-      console.error('Bevestigingslink niet gegenereerd:', e.message);
-    }
+    const confirmExp = Math.floor(Date.now() / 1000) + CONFIRM_LINK_TTL_SECONDS;
 
     // 1. E-mail via sendReply EERST (anders overschrijft Zoho de status terug naar "Wachten op klant").
     // 1 aparte sendReply-aanroep per ontvanger (klant en/of installateur) -- elk met zijn eigen
@@ -348,6 +333,16 @@ export async function handler(event) {
     const fouten    = [];
     for (const { doelgroep, email } of ontvangers) {
       try {
+        let confirmUrl = null;
+        try {
+          confirmUrl = maakBevestigingsUrl({
+            basis: process.env.URL || 'http://localhost:8888',
+            ticketId, date, exp: confirmExp, doelgroep,
+          });
+        } catch (e) {
+          console.error('Bevestigingslink niet gegenereerd:', e.message);
+        }
+
         const dateObj       = new Date(`${date}T12:00:00`);
         const formattedDate = dateObj.toLocaleDateString('nl-BE', {
           weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',

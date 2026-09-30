@@ -10,7 +10,7 @@
 //           de eigenlijke bevestiging uit: Zoho-status wijzigen + IP/tijdstip als interne notitie
 //           op het ticket vastleggen.
 
-import crypto from 'node:crypto';
+import { controleerLink } from '../lib/bevestigingslink.js';
 
 const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
@@ -68,36 +68,10 @@ async function getOrgId(accessToken) {
 }
 
 // ── HMAC-token ────────────────────────────────────────────────────────────────────────────────
-// Fix 4 (finale review): de datum zit nu in het ondertekende bericht (`${ticketId}.${date}.${exp}`)
-// zodat de audit-notitie hieronder kan tonen vóór welke datum bevestigd werd, en een re-send van
-// een voorstel voor een andere datum geen verwarrende/dubbelzinnige notities meer oplevert. Dit
-// MOET exact dezelfde string samenstellen als propose.js's signConfirmToken(), anders faalt elke
-// verificatie van een nieuw gegenereerde link.
-function sign(ticketId, date, exp) {
-  const secret = process.env.CONFIRM_LINK_SECRET;
-  if (!secret) throw new Error('CONFIRM_LINK_SECRET niet geconfigureerd');
-  return crypto.createHmac('sha256', secret).update(`${ticketId}.${date}.${exp}`).digest('hex');
-}
-
-export function signConfirmToken(ticketId, date, expiresAtEpochSeconds) {
-  return sign(ticketId, date, expiresAtEpochSeconds);
-}
-
-function verify(ticketId, date, exp, sig) {
-  if (!ticketId || !date || !exp || !sig) return false;
-  // Defense-in-depth (Fix 4, finale review): confirm-afspraak.js vertrouwde tot nu toe blind op
-  // propose.js's validatie van ticketId. Dit endpoint is publiek/ongeauthenticeerd, dus hier
-  // opnieuw controleren dat ticketId een zuiver numeriek Zoho-ticket-id is (sluit ook elke
-  // theoretische dubbelzinnigheid tussen veldcombinaties in de delimiter-loze signature uit).
-  if (!/^\d+$/.test(ticketId)) return false;
-  if (Date.now() / 1000 > Number(exp)) return false; // verlopen
-  const expected = sign(ticketId, date, exp);
-  // timingSafeEqual vereist gelijke lengte — ongelijke lengte betekent sowieso ongeldig
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
-}
+// Ondertekenen en controleren gebeuren in de gedeelde module bevestigingslink.js (dezelfde als
+// waarmee propose.js de link maakt), zodat beide kanten nooit uit elkaar lopen. De handtekening
+// bevat datum én ontvanger (`d`); links zonder `d` (al verstuurde mails) blijven geldig.
+// Niemand importeert de oude `signConfirmToken`-export van dit bestand; hij is bewust weggehaald.
 
 // ── HTML ──────────────────────────────────────────────────────────────────────────────────────
 function htmlPage({ title, message, ok, confirmForm }) {
@@ -121,11 +95,14 @@ function htmlPage({ title, message, ok, confirmForm }) {
 </div></body></html>`;
 }
 
-function confirmFormHtml(ticketId, date, exp, sig) {
+function confirmFormHtml(ticketId, date, exp, sig, d) {
+  // `d` is hier al door controleerLink() tegen de vaste lijst doelgroepen gecontroleerd, dus
+  // veilig om letterlijk in te voegen; bij een oude link (zonder d) laten we het veld weg.
   return `<form method="POST" action="/api/confirm-afspraak">
     <input type="hidden" name="ticketId" value="${ticketId}">
     <input type="hidden" name="date" value="${date}">
     <input type="hidden" name="exp" value="${exp}">
+    ${d ? `<input type="hidden" name="d" value="${d}">` : ''}
     <input type="hidden" name="sig" value="${sig}">
     <button type="submit" class="confirm-btn">✅ Ja, ik bevestig deze afspraak</button>
   </form>`;
@@ -175,7 +152,7 @@ export default async (req) => {
   const headers = { ...corsHeaders(req), 'Content-Type': 'text/html; charset=utf-8' };
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
-  let ticketId, date, exp, sig;
+  let ticketId, date, exp, sig, d;
   if (req.method === 'POST') {
     // req.formData() kan throwen op een misvormde/corrupte body (verkeerde Content-Type,
     // afgebroken multipart-boundary, ...). Dit is een publiek, ongeauthenticeerd endpoint dat
@@ -188,6 +165,7 @@ export default async (req) => {
       ticketId = form.get('ticketId') || '';
       date = form.get('date') || '';
       exp = form.get('exp') || '';
+      d = form.get('d') || '';
       sig = form.get('sig') || '';
     } catch (e) {
       console.error('confirm-afspraak: ongeldige POST-body:', e);
@@ -202,10 +180,13 @@ export default async (req) => {
     ticketId = url.searchParams.get('ticketId') || '';
     date = url.searchParams.get('date') || '';
     exp = url.searchParams.get('exp') || '';
+    d = url.searchParams.get('d') || '';
     sig = url.searchParams.get('sig') || '';
   }
 
-  if (!verify(ticketId, date, exp, sig)) {
+  // `doelgroep` (wie bevestigt) wordt in Taak 3 gebruikt; nu enkel de controle.
+  const { geldig: linkGeldig } = controleerLink({ ticketId, date, exp, d, sig });
+  if (!linkGeldig) {
     return new Response(htmlPage({
       title: 'Link ongeldig of verlopen',
       message: 'Deze bevestigingslink is niet (meer) geldig. Neem contact op met Blitz Power als u de afspraak alsnog wil bevestigen.',
@@ -219,7 +200,7 @@ export default async (req) => {
       title: 'Afspraak bevestigen',
       message: 'Klik hieronder om deze afspraak te bevestigen.',
       ok: true,
-      confirmForm: confirmFormHtml(ticketId, date, exp, sig),
+      confirmForm: confirmFormHtml(ticketId, date, exp, sig, d),
     }), { status: 200, headers });
   }
 
