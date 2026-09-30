@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { planWeek, haversine, bouwDagen } from '../public/js/planner.js';
+import { planWeek, haversine, bouwDagen, voorrang } from '../public/js/planner.js';
 
 // ---- hulpfuncties ----------------------------------------------------------
 const nepReistijden = async (van, naar) =>
@@ -116,9 +116,9 @@ test('huidig: lege reistijden-Map (fout) is fail-open, verre kandidaat wordt aan
   // als seed (enige kandidaat): zonder fail-open zou VER (~90 min) geweigerd worden
   const alleen = await planWeek(maakEenDag([VER], { reistijden: async () => new Map() }));
   assert.deepEqual(ids(alleen), ['ver']);
-  // seed = NABIJ (beste score), daarna wordt VER in de fill-lus fail-open aanvaard
+  // gewijzigd door R3: seed = VER (High, hoogste voorrang) en wordt fail-open aanvaard; NABIJ volgt in de fill-lus
   const u = await planWeek(maakEenDag([VER, NABIJ], { reistijden: async () => new Map() }));
-  assert.deepEqual(ids(u), ['nabij', 'ver']);
+  assert.deepEqual(ids(u), ['ver', 'nabij']);
   assert.deepEqual(u.nietGepland, []);
 });
 
@@ -126,8 +126,9 @@ test('huidig: null-cel voor de verre kandidaat is fail-open, verre kandidaat wor
   const reistijden = async (van, naar) => new Map(naar.map(n => [n.id, n.id === 'ver' ? null : 3]));
   const alleen = await planWeek(maakEenDag([VER], { reistijden }));
   assert.deepEqual(ids(alleen), ['ver']);
+  // gewijzigd door R3: seed = VER (High, hoogste voorrang), null-cel is fail-open; NABIJ volgt in de fill-lus
   const u = await planWeek(maakEenDag([VER, NABIJ], { reistijden }));
-  assert.deepEqual(ids(u), ['nabij', 'ver']);
+  assert.deepEqual(ids(u), ['ver', 'nabij']);
   assert.deepEqual(u.nietGepland, []);
 });
 
@@ -182,4 +183,71 @@ test('planWeek: op extra dag enkel het voorkeursticket', async () => {
   }));
   assert.deepEqual(datumsVan(u, 't5'), [EXTRA]);
   assert.deepEqual(u.geplaatst.filter(g => g.datum === EXTRA).map(g => g.ticketId), ['t5']);
+});
+
+// ---- R3: voorrangsscore en starter ------------------------------------------
+const V = '2026-10-05';
+const vr = (priority, sinds = null, interventieDatum = null) => voorrang({ priority, inPlanningSinds: sinds, interventieDatum }, V);
+
+test('voorrang: High nieuw = 3, Medium nieuw = 2, Low nieuw = 1, leeg = 1', () => {
+  assert.equal(vr('High'), 3);
+  assert.equal(vr('medium'), 2);
+  assert.equal(vr('Low'), 1);
+  assert.equal(vr(null), 1);
+  assert.equal(vr('iets anders'), 1);
+});
+
+test('voorrang: Low 21 dagen = 2.5; Low 60 dagen = 2.5 (plafond)', () => {
+  assert.equal(vr('Low', '2026-09-14T08:00:00Z'), 2.5);
+  assert.equal(vr('Low', '2026-08-06T08:00:00Z'), 2.5);
+});
+
+test('voorrang: Low 7 dagen = 1.5', () => {
+  assert.equal(vr('Low', '2026-09-28T08:00:00Z'), 1.5);
+});
+
+test('voorrang: achterstallige interventieDatum = prio + 1.5', () => {
+  assert.equal(vr('Medium', null, '2026-10-04'), 3.5);
+  assert.equal(vr('Medium', null, '2026-10-05'), 2); // vandaag is nog niet achterstallig
+});
+
+test('voorrang: inPlanningSinds null = geen bonus', () => {
+  assert.equal(vr('High', null), 3);
+});
+
+const dagEen = kandidaten => maakInvoer({
+  kandidaten, dagen: ['2026-10-05'], capPerDag: { '2026-10-05': 1 },
+});
+const basisK = { interventieDatum: null, lat: 51.2, lon: 4.4, duurMin: 120, inPlanningSinds: null };
+
+test('starter: Laag-ticket van 21 dagen wint van nieuw Middel, verliest van nieuw Hoog', async () => {
+  const laag = { ...basisK, id: 'laag', number: '1', priority: 'Low', inPlanningSinds: '2026-09-14T08:00:00Z' };
+  const middel = { ...basisK, id: 'middel', number: '2', priority: 'Medium' };
+  const hoog = { ...basisK, id: 'hoog', number: '3', priority: 'High' };
+  assert.deepEqual(ids(await planWeek(dagEen([middel, laag]))), ['laag']);
+  assert.deepEqual(ids(await planWeek(dagEen([laag, middel, hoog]))), ['hoog']);
+});
+
+test('starter: gelijke voorrang => kortste reistijd vanaf depot, dan laagste ticketnummer', async () => {
+  const ver = { ...basisK, id: 'ver', number: '1', priority: 'High', lat: 51.4, lon: 4.6 };
+  const nabij = { ...basisK, id: 'nabij', number: '9', priority: 'High', lat: 51.18, lon: 4.34 };
+  assert.deepEqual(ids(await planWeek(dagEen([ver, nabij]))), ['nabij']);
+  const a = { ...basisK, id: 'a', number: '20', priority: 'High' };
+  const b = { ...basisK, id: 'b', number: '3', priority: 'High' };
+  assert.deepEqual(ids(await planWeek(dagEen([a, b]))), ['b']);
+});
+
+test('starter: tie-break valt terug op hemelsbreed als reistijden ontbreken', async () => {
+  const ver = { ...basisK, id: 'ver', number: '1', priority: 'High', lat: 51.4, lon: 4.6 };
+  const nabij = { ...basisK, id: 'nabij', number: '9', priority: 'High', lat: 51.18, lon: 4.34 };
+  const u = await planWeek({ ...dagEen([ver, nabij]), reistijden: async () => new Map() });
+  assert.deepEqual(ids(u), ['nabij']);
+});
+
+test('starter: met bestaande stop wint hoogste voorrang die binnen max-reistijd valt', async () => {
+  const hoogVer = { ...VER, priority: 'High' };
+  const middelNabij = { ...NABIJ, priority: 'Medium' };
+  const laagNabij = { ...NABIJ, id: 'laagnabij', number: '203', priority: 'Low' };
+  const u = await planWeek(maakEenDag([laagNabij, hoogVer, middelNabij], { capPerDag: { '2026-10-05': 1 } }));
+  assert.deepEqual(ids(u), ['nabij']);
 });

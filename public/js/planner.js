@@ -30,6 +30,32 @@ function urgentieFactor(t, vandaag) {
   return Math.max(0.1, Math.min(1.0, (due - today0) / 86400000 / 7));
 }
 
+// Kalenderdag 'YYYY-MM-DD' van een datum of ISO-tijdstip (lokale dag, zoals urgentieFactor).
+function dagVan(x) {
+  if (!x) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(x)) return x;
+  const d = new Date(x);
+  if (isNaN(d)) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const VOORRANG_PRIO = { high: 3, medium: 2, low: 1 };
+
+// R3 (spec 3.2): prioBasis + wachtBonus. Doorlopend: min(1.5, 0.5 x dagenInPlanning / 7);
+// achterstallig (interventieDatum < vandaag) => 1.5; zonder inPlanningSinds geen wachtbonus.
+export function voorrang(kandidaat, vandaag) {
+  const basis = VOORRANG_PRIO[String(kandidaat.priority || '').toLowerCase()] ?? 1;
+  let bonus = 0;
+  const sinds = dagVan(kandidaat.inPlanningSinds);
+  if (sinds) {
+    const dagen = (Date.parse(vandaag + 'T00:00:00Z') - Date.parse(sinds + 'T00:00:00Z')) / 86400000;
+    bonus = Math.min(1.5, 0.5 * Math.max(0, dagen) / 7);
+  }
+  const due = dagVan(kandidaat.interventieDatum);
+  if (due && due < vandaag) bonus = 1.5;
+  return basis + bonus;
+}
+
 // Zet minuten-na-middernacht om naar een ISO-datetime voor de gegeven dag (vertrekmoment).
 function minToDepartAt(dateStr, minutesSinceMidnight) {
   const h = Math.floor(minutesSinceMidnight / 60) % 24;
@@ -177,7 +203,18 @@ export async function planWeek(invoer) {
 
     // Filter op "past in day.cap" vóór het sorteren op fillScore.
     const seedPool = [...dayPool].filter(t => Math.ceil(t.duurMin / duurMinuten) <= day.cap);
-    seedPool.sort((a, b) => fillScore(a, startLat, startLon) - fillScore(b, startLat, startLon));
+    // R3: starter = hoogste voorrang; gelijk => kortste reistijd vanaf het depot; dan laagste ticketnummer.
+    const depotTijden = await batchTravelTimes(seedPool, depot?.lat ?? null, depot?.lon ?? null, minToDepartAt(day.date, curTimeOfDay));
+    const vanDepot = t => {
+      const m = depotTijden.get(t.id);
+      if (m !== undefined && m !== null) return m;
+      return (depot?.lat && depot?.lon && t.lat && t.lon) ? haversine(depot.lat, depot.lon, t.lat, t.lon) : Infinity;
+    };
+    const vrScore = new Map(seedPool.map(t => [t.id, voorrang(t, vandaag)]));
+    seedPool.sort((a, b) =>
+      (vrScore.get(b.id) - vrScore.get(a.id)) ||
+      (vanDepot(a) - vanDepot(b) || 0) ||
+      String(a.number ?? '').localeCompare(String(b.number ?? ''), 'nl', { numeric: true }));
     if (!seedPool.length) continue;
     const seedExempt = !lastExisting || anchorLat == null || anchorLon == null;
     let seed;

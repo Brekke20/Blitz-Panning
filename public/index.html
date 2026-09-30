@@ -3768,7 +3768,7 @@ async function autoPlan() {
     const invoer = {
       kandidaten: toplan.map(t => ({
         id: t.id, number: t.number, priority: t.priority, interventieDatum: t.interventieDatum,
-        inPlanningSinds: null, lat: t._lat ?? null, lon: t._lon ?? null, duurMin: duurVoor(t.id),
+        inPlanningSinds: t.inPlanningSinds ?? null, lat: t._lat ?? null, lon: t._lon ?? null, duurMin: duurVoor(t.id),
       })),
       dagen: weekDates,
       extraVoor,
