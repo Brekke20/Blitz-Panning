@@ -4991,7 +4991,8 @@ function tekenWerkOfSluitingSectie(sec, pts, waarschuw) {
 }
 
 // Laat de drukte-kleuren vloeiend in elkaar overlopen: op elke grens tussen twee opeenvolgende
-// drukte-segmenten met een ANDERE kleur komt een overgangszone van DRUKTE_OVERGANG_METERS aan
+// drukte-segmenten (of een drukte-segment en een ongetekend segment zonder vertraging, dat de
+// gewone routekleur krijgt) met een ANDERE kleur komt een overgangszone van DRUKTE_OVERGANG_METERS aan
 // weerszijden (max. 25% van de lengte van het aanliggende segment). De kleur loopt er lineair
 // (RGB) van links naar rechts, met het midden precies op de grens. De segmenten zelf (met hun
 // popup) blijven als basis staan; de overgang komt er als korte, niet-klikbare stukjes
@@ -5185,6 +5186,7 @@ function updateMap(date) {
         // verscheen er geen drukte-kleuring meer omdat sections voorrang kregen).
         if (routeData.drukteDetail?.length) {
           const getekendeSegmenten = [];
+          const overgangsSegmenten = [];
           routeData.drukteDetail.forEach(seg => {
             if (seg.betrouwbaar === false) return;
             // Altijd op de eigen routelijn tekenen — nooit TomTom's teruggegeven
@@ -5194,15 +5196,20 @@ function updateMap(date) {
             if (pts.length < 2) return;
             const ratio = (seg.historicSeconds && seg.noTrafficSeconds) ? seg.historicSeconds / seg.noTrafficSeconds : 0;
             const m = drukteMagnitude(ratio);
-            if (m === 0) return;
+            if (m === 0) { overgangsSegmenten.push({ startIndex: seg.startIndex, endIndex: seg.endIndex, m: 0 }); return; }
             const hhmm = escHtml(new Date(Date.parse(routeData.departAtUsed) + seg.vertrekOffsetSeconds * 1000)
               .toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' }));
             L.polyline(pts, { color: DRUKTE_KLEUR[m], weight: 6, opacity: 0.95 })
               .bindPopup(`<b>+${Math.round((seg.historicSeconds - seg.noTrafficSeconds) / 60)} min</b> · ${Math.round((ratio - 1) * 100)}% trager dan vrije doorstroming<br><span style="opacity:.7">verwacht rond ${hhmm}</span>`)
               .addTo(routeLayer);
             getekendeSegmenten.push({ startIndex: seg.startIndex, endIndex: seg.endIndex, m });
+            overgangsSegmenten.push(getekendeSegmenten[getekendeSegmenten.length - 1]);
           });
-          routeData.drukteOvergangAantal = tekenDrukteOvergangen(routeData.polyline, getekendeSegmenten, sg => DRUKTE_KLEUR[sg.m]);
+          // Betrouwbare segmenten zonder vertraging (m = 0) tekenen we niet, maar ze tellen wél
+          // mee als "normale routekleur" voor de overgang; onbetrouwbare segmenten ontbreken hier
+          // en vormen dus een harde grens (nooit doorvloeien in een segment zonder betrouwbare data).
+          const basisKleur = /^#[0-9a-f]{6}$/i.test(settings.routeKleur || '') ? settings.routeKleur : DEFAULT_SETTINGS.routeKleur;
+          routeData.drukteOvergangAantal = tekenDrukteOvergangen(routeData.polyline, overgangsSegmenten, sg => sg.m === 0 ? basisKleur : DRUKTE_KLEUR[sg.m]);
         } else {
           tekenLegVangnet();
         }
