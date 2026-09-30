@@ -282,6 +282,10 @@
         <input class="set-input" id="set-maxreistijd" type="number" min="0" max="240" step="5" />
       </div>
       <div class="set-field">
+        <label class="set-label" for="set-laatste-start">Laatste start</label>
+        <input class="set-input" id="set-laatste-start" type="time" />
+      </div>
+      <div class="set-field">
         <label class="set-label" for="set-van">Werkuren</label>
         <div class="set-row">
           <input class="set-input" id="set-van" type="time" />
@@ -673,6 +677,11 @@ const DUMMY_DATA = {
   ],
 };
 
+// Wachttijd-testdata: 1, 10 en 25 dagen geleden (relatief t.o.v. nu).
+DUMMY_DATA.tickets.forEach((t, i) => {
+  t.inPlanningSinds = new Date(Date.now() - [1, 10, 25][i % 3] * 86400000).toISOString();
+});
+
 // ══════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════
@@ -832,6 +841,7 @@ const DEFAULT_SETTINGS = {
   maxPerDag:      4,
   vanTijd:        '08:00',
   totTijd:        '17:00',
+  laatsteStart:   '16:00', // laatste aankomsttijd die de planner mag kiezen
   werkdagen:      [1,2,3,4,5],
   maxReistijdMin: 45,
   tijdslotMinuten: 180, // 3 uur — configureerbaar tijdvak i.p.v. exact tijdstip (Blok 1C)
@@ -1194,6 +1204,33 @@ window.sjLog = sjLog; // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijde
 // gelden — enkel dan mogen reconcilePlanning()/gcKlantBeschikbaarheid() draaien (zie Task 12). Bij
 // cache-toepassing (reconcile: false, default) NIET aanroepen: verouderde cache-ID's zouden anders
 // planning-entries kunnen opschonen die in de echte, huidige data nog wel bestaan.
+// "In planning sinds": module-level register id -> ISO. Elke (her)load maakt verse ticketobjecten,
+// dus de bekende waarden worden hier opnieuw opgelegd; zo wist de 5-min-poll niets uit voor het
+// nieuwe antwoord van /api/planning-sinds binnen is. In TEST_MODE komen de waarden uit DUMMY_DATA.
+const _planningSinds = new Map();
+function pasPlanningSindsToe() {
+  [...allTickets, ...allPending, ...allGepland].forEach(t => {
+    if (_planningSinds.has(t.id)) t.inPlanningSinds = _planningSinds.get(t.id);
+  });
+}
+// Fire-and-forget: vraagt de wachttijden op; fouten enkel loggen, nooit de UI blokkeren.
+function laadPlanningSinds() {
+  if (TEST_MODE) return;
+  const actief = [...allTickets, ...allPending, ...allGepland].map(t => t.id);
+  const opzoeken = allTickets.map(t => t.id);
+  if (!actief.length) return;
+  fetch('/api/planning-sinds', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ opzoeken, actief }),
+  }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(d => {
+      Object.entries(d?.sinds || {}).forEach(([id, iso]) => { if (iso) _planningSinds.set(id, iso); });
+      pasPlanningSindsToe();
+      if (activeTicket) { const t = [...allTickets, ...allPending, ...allGepland].find(x => x.id === activeTicket.id); if (t) activeTicket.inPlanningSinds = t.inPlanningSinds; }
+    })
+    .catch(e => console.warn('planning-sinds mislukt:', e.message || e));
+}
+
 function applyTicketsData(data, opties = {}) {
   sjLog('applyTicketsData'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
   return metBehoudScroll(() => _applyTicketsData(data, opties));
@@ -1202,6 +1239,7 @@ function _applyTicketsData(data, { reconcile = false } = {}) {
   allTickets = data.tickets        || [];
   allPending = data.pendingTickets || [];
   allGepland = data.plannedTickets || [];
+  pasPlanningSindsToe();
 
   // Zoho is bron van waarheid: seed planning vanuit pendingTickets + geplande tickets
   // Wis alle pending/gepland entries eerst (interventieDatum kan gewijzigd zijn → re-seed hieronder)
@@ -1286,6 +1324,7 @@ async function loadTickets() {
 
     if (!TEST_MODE) saveToCache('blitz_tickets_cache', data);
     applyTicketsData(data, { reconcile: true });
+    laadPlanningSinds();
 
     if (TEST_MODE) toast('🧪 Testmodus actief — dummy data geladen');
     else toast(`${allTickets.length} te plannen · ${allPending.length} wacht bevestiging · ${allGepland.length} gepland`);
@@ -5361,6 +5400,7 @@ function openDetail(t) {
     row('Partner',      t.partner),
     row('Regio',        t.regio),
     row('Interventiedatum',  t.interventieDatum && fmtDate(t.interventieDatum)),
+    row('In planning sinds', t.inPlanningSinds && fmtDateShort(t.inPlanningSinds)),
     row('Aangemaakt',   t.createdTime && fmtDate(t.createdTime)),
   ].join('') || '<div class="mrow"><span class="mval" style="color:var(--muted)">—</span></div>';
 
@@ -5835,6 +5875,7 @@ function openSettings() {
   document.getElementById('set-maxreistijd').value = settings.maxReistijdMin;
   document.getElementById('set-van').value      = settings.vanTijd;
   document.getElementById('set-tot').value      = settings.totTijd;
+  document.getElementById('set-laatste-start').value = settings.laatsteStart || DEFAULT_SETTINGS.laatsteStart;
   document.getElementById('set-tijdslot').value = settings.tijdslotMinuten;
   document.getElementById('set-routekleur').value = settings.routeKleur || DEFAULT_SETTINGS.routeKleur;
   document.getElementById('set-routekleur-hex').textContent = (settings.routeKleur || DEFAULT_SETTINGS.routeKleur).toUpperCase();
@@ -5867,10 +5908,12 @@ function saveSettings() {
   const max             = +document.getElementById('set-max').value;
   const van             = document.getElementById('set-van').value;
   const tot             = document.getElementById('set-tot').value;
+  const laatsteStart    = document.getElementById('set-laatste-start').value;
   const maxReistijd     = +document.getElementById('set-maxreistijd').value;
   const tijdslotMinuten = +document.getElementById('set-tijdslot').value;
 
   if (van && tot && van >= tot) return toast('⚠ Begintijd moet voor eindtijd liggen', 3500);
+  if (laatsteStart && ((van && laatsteStart < van) || (tot && laatsteStart > tot))) return toast('⚠ Laatste start moet tussen begin- en eindtijd liggen', 3500);
   if (duur < 15)                return toast('⚠ Minimale interventieduur is 15 minuten', 3500);
   if (max < 1)                  return toast('⚠ Maximaal per dag moet minstens 1 zijn', 3500);
   if (maxReistijd < 0)          return toast('⚠ Max. reistijd kan niet negatief zijn', 3500);
@@ -5886,6 +5929,7 @@ function saveSettings() {
   settings.maxPerDag      = max  || DEFAULT_SETTINGS.maxPerDag;
   settings.vanTijd        = van  || DEFAULT_SETTINGS.vanTijd;
   settings.totTijd        = tot  || DEFAULT_SETTINGS.totTijd;
+  settings.laatsteStart   = laatsteStart || DEFAULT_SETTINGS.laatsteStart;
   settings.maxReistijdMin = maxReistijd || maxReistijd === 0 ? maxReistijd : DEFAULT_SETTINGS.maxReistijdMin;
   settings.tijdslotMinuten = parseInt(document.getElementById('set-tijdslot').value, 10) || DEFAULT_SETTINGS.tijdslotMinuten;
   const routeKleurInput = document.getElementById('set-routekleur').value;
@@ -6636,7 +6680,7 @@ function navigate(enc) {
 // Enkelvoud/meervoud bij een telzin: meervoud(2, 'ticket', 'tickets') → '2 tickets'
 function meervoud(n, e, m) { return `${n} ${n === 1 ? e : m}`; }
 function fmtDate(s)     { return new Date(s).toLocaleDateString('nl-BE', { weekday:'short', day:'numeric', month:'short', year:'numeric' }); }
-function fmtDateShort(d){ const date = d instanceof Date ? d : new Date(d + 'T12:00:00'); return date.toLocaleDateString('nl-BE', { day:'numeric', month:'short' }); }
+function fmtDateShort(d){ const date = d instanceof Date ? d : new Date(String(d).includes('T') ? d : d + 'T12:00:00'); return date.toLocaleDateString('nl-BE', { day:'numeric', month:'short' }); }
 function fmtSec(s)      { const h = Math.floor(s/3600), m = Math.round((s%3600)/60); return h > 0 ? `${h}u ${m}min` : `${m}min`; }
 // Haal lokaal uur:minuten op uit een ISO interventieDatum-string (null als 00:00 = geen uur)
 function extractLocalHour(interventieDatum) {
