@@ -10,7 +10,9 @@
 //           de eigenlijke bevestiging uit: Zoho-status wijzigen + IP/tijdstip als interne notitie
 //           op het ticket vastleggen.
 
-import { controleerLink } from '../lib/bevestigingslink.js';
+import { getStore } from '@netlify/blobs';
+import { controleerLink, datumInBrussel, bevestigingsNotitie } from '../lib/bevestigingslink.js';
+import { markeerBevestigd } from '../lib/voorstelregister.js';
 
 const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
@@ -184,8 +186,7 @@ export default async (req) => {
     sig = url.searchParams.get('sig') || '';
   }
 
-  // `doelgroep` (wie bevestigt) wordt in Taak 3 gebruikt; nu enkel de controle.
-  const { geldig: linkGeldig } = controleerLink({ ticketId, date, exp, d, sig });
+  const { geldig: linkGeldig, doelgroep } = controleerLink({ ticketId, date, exp, d, sig });
   if (!linkGeldig) {
     return new Response(htmlPage({
       title: 'Link ongeldig of verlopen',
@@ -222,6 +223,7 @@ export default async (req) => {
     // afhankelijkheid -- terugvallen op het oude gedrag (gewoon de PATCH proberen), zodat een
     // tijdelijke Zoho-hik een verder legitieme bevestiging niet in de weg staat.
     let currentStatus = null;
+    let ticketData = null;
     let statusCheckFailed = false;
     try {
       const statusRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
@@ -229,6 +231,7 @@ export default async (req) => {
       });
       if (statusRes.ok) {
         const statusData = await statusRes.json();
+        ticketData = statusData;
         currentStatus = statusData.status || null;
       } else {
         statusCheckFailed = true;
@@ -238,7 +241,13 @@ export default async (req) => {
       statusCheckFailed = true;
     }
 
-    if (!statusCheckFailed && currentStatus !== 'Wachten op bevestiging planning') {
+    // Ook de datum moet nog kloppen: is het voorstel intussen verplaatst, dan is een oude link
+    // (nog geldig tot 14 dagen) niet meer van toepassing. cf_interventie_datm staat in UTC, dus
+    // vergelijken we de Brusselse kalenderdatum.
+    const datumKlopt = statusCheckFailed
+      || datumInBrussel(ticketData?.cf?.cf_interventie_datm) === date;
+
+    if (!statusCheckFailed && (currentStatus !== 'Wachten op bevestiging planning' || !datumKlopt)) {
       // Verwacht, geldig scenario (dubbele klik, verouderde link, ticket al elders afgehandeld)
       // -- geen system failure, dus geen 500 en geen "Er ging iets mis"-pagina.
       return new Response(htmlPage({
@@ -269,8 +278,22 @@ export default async (req) => {
 
     const ip = clientIp(req);
     const timestamp = new Date().toLocaleString('nl-BE', { timeZone: 'Europe/Brussels' });
+    const cf = ticketData?.cf || {};
+    const email = doelgroep === 'klant' ? cf.cf_e_mail_eindklant
+      : doelgroep === 'installateur' ? cf.cf_e_mail_installateur
+      : doelgroep === 'contact' ? (ticketData?.contact?.email || ticketData?.contact?.emailId || ticketData?.email)
+      : null;
     await addZohoComment(ticketId, accessToken, orgId,
-      `Afspraak bevestigd voor ${date} door klant via bevestigingslink op ${timestamp} (Europe/Brussels). IP-adres: ${ip}.`);
+      bevestigingsNotitie({ date, doelgroep, email: email || '', tijdstip: timestamp, ip }));
+
+    // Registreren wie bevestigd heeft (voor de planner). Vaste store: de externe link draagt
+    // nooit de testheader. Mag de klant nooit een foutpagina opleveren -- enkel loggen.
+    try {
+      const store = getStore({ name: 'blitz-data', consistency: 'strong' });
+      await markeerBevestigd(store, ticketId, { door: doelgroep, tijdstip: new Date().toISOString() });
+    } catch (e) {
+      console.error('confirm-afspraak: register bijwerken mislukt:', e);
+    }
   } catch (e) {
     console.error('confirm-afspraak fout:', e);
     return new Response(htmlPage({

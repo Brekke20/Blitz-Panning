@@ -68,3 +68,11 @@ export function datumInBrussel(iso) {
     timeZone: 'Europe/Brussels', year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(t);
 }
+
+// Interne Zoho-notitie bij een bevestiging via de link.
+export function bevestigingsNotitie({ date, doelgroep, email, tijdstip, ip }) {
+  const wie = doelgroep
+    ? `${doelgroep}${email ? ` (${email})` : ''}`
+    : 'onbekende ontvanger (oude link)';
+  return `Afspraak bevestigd voor ${date} door ${wie} via bevestigingslink op ${tijdstip} (Europe/Brussels). IP-adres: ${ip}.`;
+}
