@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { planWeek, haversine } from '../public/js/planner.js';
+import { planWeek, haversine, bouwDagen } from '../public/js/planner.js';
 
 // ---- hulpfuncties ----------------------------------------------------------
 const nepReistijden = async (van, naar) =>
@@ -139,4 +139,47 @@ test('huidig: fill-lus slaat te verre kandidaat over ten voordele van de volgend
   const u = await planWeek(maakEenDag([VER, FILL, SEED], { bestaandPerDag: {} }));
   assert.deepEqual(ids(u), ['seed', 'fill']);
   assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'geen-plaats' }]);
+});
+
+// ---- R2: bouwDagen / reikwijdte --------------------------------------------
+const WERKDAGEN = [1, 2, 3, 4, 5];
+
+test('bouwDagen: enkel bekeken week vanaf vandaag', () => {
+  const r = bouwDagen({ weekStart: '2026-10-05', vandaag: '2026-10-07', werkdagen: WERKDAGEN, uitgesloten: () => false, voorkeuren: [] });
+  assert.deepEqual(r.dagen, ['2026-10-07', '2026-10-08', '2026-10-09']);
+  assert.deepEqual(r.extraVoor, {});
+});
+
+test('bouwDagen: voorkeursdatum over 3 weken komt erbij als extra dag voor enkel dat ticket', () => {
+  const r = bouwDagen({
+    weekStart: '2026-10-05', vandaag: '2026-10-05', werkdagen: WERKDAGEN, uitgesloten: () => false,
+    voorkeuren: [{ ticketId: 't5', datum: '2026-10-26' }, { ticketId: 't6', datum: '2026-10-07' }, { ticketId: 't7', datum: '2026-10-25' }],
+  });
+  assert.deepEqual(r.dagen, [...DAGEN, '2026-10-26']); // zondag 25/10 is geen werkdag
+  assert.deepEqual(r.extraVoor, { '2026-10-26': ['t5'] });
+});
+
+test('bouwDagen: uitgesloten dag valt weg', () => {
+  const r = bouwDagen({
+    weekStart: '2026-10-05', vandaag: '2026-10-05', werkdagen: WERKDAGEN,
+    uitgesloten: d => d === '2026-10-06' || d === '2026-10-26',
+    voorkeuren: [{ ticketId: 't5', datum: '2026-10-26' }],
+  });
+  assert.deepEqual(r.dagen, ['2026-10-05', '2026-10-07', '2026-10-08', '2026-10-09']);
+  assert.deepEqual(r.extraVoor, {});
+});
+
+test('planWeek: op extra dag enkel het voorkeursticket', async () => {
+  const EXTRA = '2026-10-26';
+  const { dagen, extraVoor } = bouwDagen({
+    weekStart: '2026-10-05', vandaag: '2026-10-05', werkdagen: WERKDAGEN, uitgesloten: () => false,
+    voorkeuren: [{ ticketId: 't5', datum: EXTRA }],
+  });
+  const u = await planWeek(maakInvoer({
+    dagen, extraVoor,
+    klant: { t5: { voorkeur: EXTRA } },
+    capPerDag: Object.fromEntries(dagen.map(d => [d, 3])),
+  }));
+  assert.deepEqual(datumsVan(u, 't5'), [EXTRA]);
+  assert.deepEqual(u.geplaatst.filter(g => g.datum === EXTRA).map(g => g.ticketId), ['t5']);
 });

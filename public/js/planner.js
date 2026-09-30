@@ -37,13 +37,41 @@ function minToDepartAt(dateStr, minutesSinceMidnight) {
   return new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).toISOString();
 }
 
+function isoPlusDagen(datum, n) {
+  const d = new Date(datum + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+// R2: de te plannen dagen = werkdagen van de bekeken week (vanaf vandaag, niet uitgesloten),
+// plus voorkeursdatums na die week (werkdag, niet uitgesloten) als extra dag voor enkel die tickets.
+export function bouwDagen({ weekStart, vandaag, werkdagen, uitgesloten, voorkeuren = [] }) {
+  const isWerkdag = d => werkdagen.includes(new Date(d + 'T00:00:00Z').getUTCDay()) && !uitgesloten(d);
+  const dagen = [];
+  for (let i = 0; i < 7; i++) {
+    const d = isoPlusDagen(weekStart, i);
+    if (d >= vandaag && isWerkdag(d)) dagen.push(d);
+  }
+  const weekEinde = isoPlusDagen(weekStart, 6);
+  const extraVoor = {};
+  for (const { ticketId, datum } of voorkeuren) {
+    if (!datum || datum <= weekEinde || datum < vandaag || !isWerkdag(datum)) continue;
+    (extraVoor[datum] ||= []).push(ticketId);
+  }
+  for (const d of Object.keys(extraVoor).sort()) dagen.push(d);
+  return { dagen, extraVoor };
+}
+
 export async function planWeek(invoer) {
   const {
-    kandidaten, dagen, bestaandPerDag = {}, eigenAfspraken = {}, klant = {},
+    kandidaten, dagen, extraVoor = {}, bestaandPerDag = {}, eigenAfspraken = {}, klant = {},
     instellingen, depot, vandaag, reistijden, capPerDag = {},
   } = invoer;
   const maxReistijdMin = instellingen.maxReistijdMin;
   const duurMinuten = instellingen.duurMinuten; // tijdelijk (Taak 1): slotgrootte voor capPerDag
+
+  // Op een extra dag (buiten de bekeken week) mogen enkel de tickets uit extraVoor[datum].
+  const magOpDag = (id, d) => !extraVoor[d] || extraVoor[d].includes(id);
 
   const kbFor = id => klant[id] || null;
   const kbBlocked = (id, d) => !!(kbFor(id)?.geblokkeerd?.includes(d));
@@ -123,6 +151,7 @@ export async function planWeek(invoer) {
     if (!pool.length) break;
 
     const dayPool = pool.filter(t => {
+      if (!magOpDag(t.id, day.date)) return false;
       if (kbBlocked(t.id, day.date)) return false;
       const pref = prefDayAvailable.get(t.id);
       if (pref && pref !== day.date) return false;
@@ -172,6 +201,7 @@ export async function planWeek(invoer) {
     while (usedSlots < day.cap && pool.length) {
       const fillPool = pool.filter(t => {
         if (excludedForDay.has(t.id)) return false;
+        if (!magOpDag(t.id, day.date)) return false;
         if (kbBlocked(t.id, day.date)) return false;
         const pref = prefDayAvailable.get(t.id);
         if (pref && pref !== day.date) return false;
@@ -200,4 +230,4 @@ export async function planWeek(invoer) {
   return { geplaatst, nietGepland, waarschuwingen: [] };
 }
 
-if (typeof window !== 'undefined') window.planWeek = planWeek;
+if (typeof window !== 'undefined') { window.planWeek = planWeek; window.bouwDagen = bouwDagen; }

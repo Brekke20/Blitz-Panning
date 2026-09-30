@@ -3641,6 +3641,7 @@ async function batchTravelTimes(candidates, fromLat, fromLon, departAtIso) {
 // AUTO-PLAN
 // ══════════════════════════════════════════════
 async function autoPlan() {
+  if (activeAssigneeFilter === 'all') return toast('Kies eerst een technieker');
   const pendingIds  = new Set(allPending.map(t => t.id));
   const myTickets   = allTickets.filter(t => activeAssigneeFilter === 'all' || t.assignee === activeAssigneeFilter);
   const toplan      = myTickets.filter(t => t.hasAddress && !pendingIds.has(t.id));
@@ -3662,28 +3663,19 @@ async function autoPlan() {
     // stilzwijgend op het depot terug te vallen als die coördinaten ontbreken).
     const today     = new Date(); today.setHours(0,0,0,0);
     const weekStart = getWeekStart(today, kalOffset);
-    const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
 
-    // Fix (2026-08-18): een voorkeursdatum die buiten de bekeken week viel, werd stilzwijgend
-    // genegeerd — "Fix 1: Voorkeursplanning" hieronder reserveert een ticket wel voor zijn
-    // voorkeursdag, maar enkel als die dag al in weekDates zit. De scanrange wordt daarom verlengd
-    // tot en met de verste voorkeursdatum onder de nog te plannen tickets (indien die verder ligt
-    // dan het einde van de bekeken week), zodat "Plan deze week" een voorkeur ook effectief haalt
-    // ongeacht welke week net bekeken wordt op het moment van klikken.
-    let scanEnd = new Date(weekEnd);
-    for (const t of toplan) {
-      const pref = kbPreferred(t.id);
-      if (!pref) continue;
-      const prefDate = new Date(pref + 'T00:00:00');
-      if (prefDate > scanEnd) scanEnd = prefDate;
-    }
-
-    const weekDates = [];
-    for (let d = new Date(weekStart); d <= scanEnd; d.setDate(d.getDate() + 1)) {
-      if (d < today) continue;
-      if (!settings.werkdagen.includes(d.getDay())) continue;
-      weekDates.push(localISO(d));
-    }
+    // R2: enkel de bekeken week (vanaf vandaag) plus voorkeursdatums na die week als extra dag
+    // voor enkel het ticket dat die voorkeur heeft (zie bouwDagen in public/js/planner.js).
+    const uitgesloten = d => !!getHolidayName(d) || avExceptions.some(e =>
+      e.date === d && e.kind === 'fullday' &&
+      (e.scope === 'global' || (activeAssigneeFilter !== 'all' && e.person === activeAssigneeFilter)));
+    const { dagen: weekDates, extraVoor } = window.bouwDagen({
+      weekStart: localISO(weekStart),
+      vandaag: localISO(today),
+      werkdagen: settings.werkdagen,
+      uitgesloten,
+      voorkeuren: toplan.map(t => ({ ticketId: t.id, datum: kbPreferred(t.id) })).filter(v => v.datum),
+    });
 
     // Bestaande laatste stops zonder coördinaten: nodig als ankerpunt voor de
     // reistijd-check (seedExempt) — anders valt de check terug op het depot.
@@ -3779,7 +3771,7 @@ async function autoPlan() {
         inPlanningSinds: null, lat: t._lat ?? null, lon: t._lon ?? null, duurMin: duurVoor(t.id),
       })),
       dagen: weekDates,
-      extraVoor: {},
+      extraVoor,
       bestaandPerDag,
       eigenAfspraken,
       blokkeringen: {},
