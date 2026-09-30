@@ -118,7 +118,7 @@ test('huidig: lege reistijden-Map (fout) → schatting, verre kandidaat wordt ge
   const alleen = await planWeek(maakEenDag([VER], { reistijden: async () => new Map() }));
   assert.deepEqual(ids(alleen), []);
   assert.deepEqual(alleen.nietGepland, [{ ticketId: 'ver', reden: 'te-ver' }]);
-  assert.deepEqual(alleen.waarschuwingen, [{ soort: 'reistijd-geschat', ticketIds: ['ver'] }]);
+  assert.deepEqual(alleen.waarschuwingen, []); // gewijzigd door eindreview: 'reistijd-geschat' enkel voor geplaatste tickets (was ['ver'])
   const u = await planWeek(maakEenDag([VER, NABIJ], { reistijden: async () => new Map() }));
   assert.deepEqual(ids(u), ['nabij']);
   assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'te-ver' }]);
@@ -132,7 +132,7 @@ test('huidig: null-cel voor de verre kandidaat → schatting, verre kandidaat wo
   const u = await planWeek(maakEenDag([VER, NABIJ], { reistijden }));
   assert.deepEqual(ids(u), ['nabij']);
   assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'te-ver' }]);
-  assert.deepEqual(u.waarschuwingen, [{ soort: 'reistijd-geschat', ticketIds: ['ver'] }]);
+  assert.deepEqual(u.waarschuwingen, []); // gewijzigd door eindreview: 'ver' werd niet geplaatst, 'nabij' had een echte reistijd (was ['ver'])
 });
 
 test('huidig: fill-lus slaat te verre kandidaat over ten voordele van de volgende binnen 45 min', async () => {
@@ -453,7 +453,7 @@ test('uitval: reistijden geeft null → 45-min-regel werkt op schatting en waars
   assert.deepEqual(ids(u), ['dicht']);
   assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'te-ver' }]);
   const w = u.waarschuwingen.find(x => x.soort === 'reistijd-geschat');
-  assert.ok(w && w.ticketIds.includes('ver') && w.ticketIds.includes('dicht'));
+  assert.deepEqual(w?.ticketIds, ['dicht']); // gewijzigd door eindreview: enkel geplaatste tickets (was: ook 'ver')
 });
 
 test('uitval: reistijden die gooit → schatting i.p.v. crash', async () => {
@@ -645,4 +645,98 @@ test('voorkeursuur-only als vulling: exact op zijn uur, vrije tickets overlappen
   const iv = u.geplaatst.map(g => [min(g.verwachteAankomst), min(g.verwachteAankomst) + ks.find(k => k.id === g.ticketId).duurMin]).sort((a, b) => a[0] - b[0]);
   for (let i = 1; i < iv.length; i++) assert.ok(iv[i][0] >= iv[i - 1][1], JSON.stringify(iv));
   assert.equal(u.geplaatst.length, 4);
+});
+
+// ---- eindreview: vooruitcontrole t.o.v. de VOLGENDE stop met locatie ----------------
+// Depot Kruibeke, kandidaten in Antwerpen, vaste stop later op de dag in Hasselt (~98 geschatte min).
+const HAS = { lat: 50.93, lon: 5.34 };
+const BIJ_HAS = { lat: 50.95, lon: 5.30 }; // ~3 km van Hasselt
+const aankMin = g => min(g.verwachteAankomst);
+// Controleert voor elk geplaatst ticket de rit naar de volgende stop met locatie (bestaand of geplaatst):
+// hoogstens maxMin en op tijd (aankomst + duur + rit <= start volgende). Rit = hemelsbreed x 1,3 (zoals nepReistijden).
+function controleerVooruit(u, kandidaten, vaste, maxMin = 45) {
+  const stops = [
+    ...vaste.map(v => ({ id: v.id, s: min(v.uur), lat: v.lat, lon: v.lon })),
+    ...u.geplaatst.map(g => {
+      const k = kandidaten.find(x => x.id === g.ticketId);
+      return { id: k.id, s: aankMin(g), e: aankMin(g) + k.duurMin, lat: k.lat, lon: k.lon };
+    }),
+  ].sort((a, b) => a.s - b.s);
+  for (const g of u.geplaatst) {
+    const k = stops.find(x => x.id === g.ticketId);
+    const volgende = stops.find(x => x.s >= k.e && x.lat);
+    if (!volgende) continue;
+    const rit = haversine(k.lat, k.lon, volgende.lat, volgende.lon) * 1.3;
+    assert.ok(rit <= maxMin, `${k.id} → ${volgende.id}: ${Math.round(rit)} min rijden`);
+    assert.ok(k.e + rit <= volgende.s + 0.5, `${k.id} komt te laat op ${volgende.id}`);
+  }
+}
+
+test('bestaande 13:00-stop ver weg → geen ochtendticket dat de technieker te laat of >45 min weg maakt', async () => {
+  const vaste = [{ id: 'x', uur: '13:00', duurMin: 60, ...HAS }];
+  const ks = [mk('a1', 1, { duurMin: 120 }), mk('a2', 2, { duurMin: 120 }), mk('h1', 3, { priority: 'Low', ...BIJ_HAS, duurMin: 60 })];
+  const u = await planWeek(maakInvoer({ kandidaten: ks, dagen: [EEN], bestaandPerDag: { [EEN]: vaste }, instellingen: inst() }));
+  assert.ok(!ids(u).includes('a1') && !ids(u).includes('a2'), JSON.stringify(u.geplaatst));
+  assert.ok(ids(u).includes('h1'), 'ticket vlak bij Hasselt past wel');
+  controleerVooruit(u, ks, vaste);
+  assert.deepEqual(u.nietGepland.map(n => n.reden), ['te-ver', 'te-ver']);
+});
+
+test('vooruitcontrole: vrij ticket moet op tijd bij de volgende vaste stop zijn, anders na die stop', async () => {
+  const vaste = { [EEN]: [{ id: 'x', uur: '13:00', duurMin: 60, ...ANT }] };
+  const opTijd = await planWeek(maakInvoer({ kandidaten: [mk('a', 1, { duurMin: 240 })], dagen: [EEN], bestaandPerDag: vaste, instellingen: inst(), reistijden: vast({}, 30) }));
+  assert.deepEqual(opTijd.geplaatst, [{ ticketId: 'a', datum: EEN, verwachteAankomst: '08:30' }]); // 12:30 + 30 = 13:00: net op tijd
+  const teLaat = await planWeek(maakInvoer({ kandidaten: [mk('a', 1, { duurMin: 250 })], dagen: [EEN], bestaandPerDag: vaste, instellingen: inst(), reistijden: vast({}, 30) }));
+  assert.deepEqual(teLaat.geplaatst, [{ ticketId: 'a', datum: EEN, verwachteAankomst: '14:30' }]); // 12:40 + 30 > 13:00 → na de stop
+});
+
+for (const uur of ['12:00', '14:00']) {
+  test(`voorkeursuur-starter ver weg (${uur}) → de rest van de dag blijft binnen 45 min ervan`, async () => {
+    const ks = [
+      mk('u', 1, { priority: 'High', ...HAS, duurMin: 120 }),
+      mk('a1', 2, { priority: 'Low', duurMin: 60 }), mk('a2', 3, { priority: 'Low', duurMin: 60 }),
+      mk('h1', 4, { priority: 'Low', ...BIJ_HAS, duurMin: 60 }),
+    ];
+    const u = await planWeek(maakInvoer({ kandidaten: ks, dagen: [EEN], klant: { u: { voorkeurTijd: uur } }, instellingen: inst() }));
+    assert.equal(u.geplaatst.find(g => g.ticketId === 'u')?.verwachteAankomst, uur);
+    assert.ok(!ids(u).includes('a1') && !ids(u).includes('a2'), JSON.stringify(u.geplaatst));
+    assert.ok(ids(u).includes('h1'));
+    controleerVooruit(u, ks, []);
+  });
+}
+
+test('vooruitcontrole in probeerUur: voorkeursuur-ticket vóór een verre vaste stop → te-ver', async () => {
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('v', 1, { duurMin: 60 })], dagen: [EEN], klant: { v: { voorkeurTijd: '10:00' } },
+    bestaandPerDag: { [EEN]: [{ id: 'x', uur: '13:00', duurMin: 60, ...HAS }] }, instellingen: inst(),
+  }));
+  assert.deepEqual(u.geplaatst, []);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'v', reden: 'te-ver' }]);
+});
+
+test('vooruitcontrole in probeerUur: voorkeursuur-ticket dat de volgende vaste stop niet op tijd haalt → vast-uur-botst', async () => {
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('v', 1, { duurMin: 120 })], dagen: [EEN], klant: { v: { voorkeurTijd: '11:00' } },
+    bestaandPerDag: { [EEN]: [{ id: 'x', uur: '13:00', duurMin: 60, ...ANT }] }, instellingen: inst(), reistijden: vast({}, 30),
+  }));
+  assert.deepEqual(u.geplaatst, []);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'v', reden: 'vast-uur-botst' }]);
+});
+
+test('reistijd-geschat enkel voor tickets die effectief geplaatst werden', async () => {
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('dicht', 1), mk('ver', 2, HAS)], dagen: [EEN], bestaandPerDag: bestaandAnt(), reistijden: async () => new Map(),
+  }));
+  assert.deepEqual(ids(u), ['dicht']);
+  assert.deepEqual(u.waarschuwingen, [{ soort: 'reistijd-geschat', ticketIds: ['dicht'] }]);
+});
+
+test('keten: bestaande stop zonder uur die over een blok springt, rekent de rit opnieuw vanaf de positie', async () => {
+  // depot → x: 30 min → 08:30 botst met eigen afspraak 08:15–09:00 (zonder locatie) → klok 09:00, rit 30 → x 09:30–10:30
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('a', 1, { duurMin: 60 })], dagen: [EEN], instellingen: inst(), reistijden: vast({}, 30),
+    bestaandPerDag: { [EEN]: [{ id: 'x', uur: null, duurMin: 60, ...ANT }] },
+    eigenAfspraken: { [EEN]: [{ uur: '08:15', duurMin: 45, lat: null, lon: null }] },
+  }));
+  assert.deepEqual(u.geplaatst, [{ ticketId: 'a', datum: EEN, verwachteAankomst: '11:00' }]);
 });

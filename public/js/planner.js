@@ -1,5 +1,8 @@
-// Planner-brein: puur (geen DOM, geen globals). Bepaalt welk ticket op welke dag komt.
-// Taak 1: het bestaande algoritme van autoPlan() ongewijzigd verhuisd (karakterisatie).
+// Planner-brein: puur (geen DOM, geen globals). Bepaalt welk ticket op welke dag en om welk uur komt.
+// Per dag een tijdlijn (vaste blokken, bestaande stops, eigen afspraken, blokkeringen); eerst de
+// voorkeursdag-tickets, dan een starter op een lege dag (hoogste voorrang), dan aanvullen op reistijd/voorrang.
+// Elk geplaatst ticket blijft binnen maxReistijdMin van de vorige EN de volgende stop met locatie en haalt
+// die volgende stop op tijd (spec 2026-09-30-planner-brein, §1/§3.3–3.5).
 // Tijden binnen het brein zijn minuten na middernacht (lokaal); datums 'YYYY-MM-DD'.
 
 function timeStrToMin(hhmm) {
@@ -122,9 +125,8 @@ export async function planWeek(invoer) {
     for (const c of lijst) uit.set(c.id, geheugen.get(sleutel(c)));
     return uit;
   }
-  const geschatIds = new Set();   // waarschuwing 'reistijd-geschat'
+  const geschatIds = new Set();   // waarschuwing 'reistijd-geschat': enkel tickets die effectief geplaatst werden
   const onbekendIds = new Set();  // waarschuwing 'locatie-onbekend' (stop-ids)
-  const noteerGeschat = (id, r) => { if (r?.geschat) geschatIds.add(id); };
 
   // Redenen, van meest naar minst specifiek (3.6): het brein houdt de meest specifieke bij.
   const REDEN_RANG = ['adres-niet-gevonden', 'voorkeursdag-afstand', 'voorkeursdag-vol', 'vast-uur-botst', 'te-ver', 'klant-geblokkeerd', 'geen-plaats'];
@@ -204,38 +206,64 @@ export async function planWeek(invoer) {
     const isVoorkeurHier = t => prefDayAvailable.get(t.id) === dag;
     const noteerVast = (t, reden) => noteer(t.id, !isVoorkeurHier(t) ? reden
       : reden === 'te-ver' ? 'voorkeursdag-afstand' : 'voorkeursdag-vol');
-    // Probeer een ticket exact op zijn voorkeursuur te zetten (overlap + 45-min-regel vanaf de stop net vóór dat uur).
-    // Geeft { ok, reden, s } terug; muteert niets. Vrijgesteld van laatsteStart.
+    // Alle stops van de dag in tijd: vaste blokken plus de reeds geplaatste vrije tickets (die staan niet in `blokken`).
+    const stopsVanDag = () => {
+      const idsInBlokken = new Set(blokken.map(b => b.id));
+      return [...blokken, ...dagGeplaatst.filter(g => !idsInBlokken.has(g.t.id))
+        .map(g => ({ s: g.aank, e: g.aank + g.t.duurMin, lat: g.t.lat, lon: g.t.lon, stop: true, id: g.t.id }))];
+    };
+    // Vooruitcontrole (§1, R6): t.o.v. de eerstvolgende stop met locatie ná het ticket moet de rit
+    // (a) hoogstens maxReistijdMin duren en (b) daar op tijd aankomen (aank + duur + rit <= start volgende).
+    // De rit wordt in één batch opgevraagd vanaf die volgende stop naar de kandidaten (`lijst`), met als
+    // vertrek het startuur van die stop: reistijd benaderd als symmetrisch, zo blijft het één opvraging per stop.
+    // Geeft { ok, reden: 'te-ver' | 'te-laat', r, volgende } terug.
+    const vooruit = async (c, aank, stops, lijst = [c]) => {
+      const e = aank + c.duurMin;
+      const volgende = stops.filter(b => b.stop && heeftLoc(b) && b.id !== c.id && b.s >= e)
+        .sort((a, b) => a.s - b.s)[0];
+      if (!volgende) return { ok: true, r: null };
+      const r = (await reistijdenVan(volgende, lijst, dag, volgende.s)).get(c.id);
+      if (r && r.min > maxReistijdMin) return { ok: false, reden: 'te-ver', r, volgende };
+      if (r && e + r.min > volgende.s) return { ok: false, reden: 'te-laat', r, volgende };
+      return { ok: true, r, volgende };
+    };
+
+    // Probeer een ticket exact op zijn voorkeursuur te zetten: geen overlap, 45-min-regel en op tijd vanaf de
+    // stop net vóór dat uur, en de vooruitcontrole naar de stop erna. Geeft { ok, reden, s, geschat } terug;
+    // muteert niets. Vrijgesteld van laatsteStart.
     const probeerUur = async t => {
       const s = timeStrToMin(kbPreferredTime(t.id));
-      // Vaste blokken plus de reeds geplaatste vrije tickets van deze dag (die staan niet in `blokken`).
-      const idsInBlokken = new Set(blokken.map(b => b.id));
-      const alle = [...blokken, ...dagGeplaatst.filter(g => !idsInBlokken.has(g.t.id))
-        .map(g => ({ s: g.aank, e: g.aank + g.t.duurMin, lat: g.t.lat, lon: g.t.lon, stop: true, id: g.t.id }))];
+      const alle = stopsVanDag();
       if (overlapt(alle, s, s + t.duurMin).length) return { ok: false, reden: 'vast-uur-botst' };
       // Referentiestop: de laatste eerdere stop (in tijd) met locatie; de stop vlak ervoor mag locatie-loos zijn.
       const eerder = alle.filter(b => b.stop && b.e <= s).sort((a, b) => a.e - b.e);
       let vorige = eerder[eerder.length - 1] ?? null;
       let ref = [...eerder].reverse().find(heeftLoc) ?? null;
-      let refVertrek = ref ? ref.e : vanTijdMin;
+      const refVertrek = ref ? ref.e : vanTijdMin;
+      const refEindeGekend = !!ref; // een ketenstop heeft hier nog geen gekend einde
       if (!vorige && keten.length && s >= vanTijdMin) { // geen blok vóór dit uur: de keten staat vooraan de dag
         vorige = keten[keten.length - 1];
         ref = [...keten].reverse().find(heeftLoc) ?? null;
       }
+      let geschat = false;
       if (ref) {
         const r = (await reistijdenVan(ref, [t], dag, refVertrek)).get(t.id);
-        noteerGeschat(t.id, r);
+        geschat = !!r?.geschat;
         if (r && r.min > maxReistijdMin) return { ok: false, reden: 'te-ver' };
-        if (vorige && !heeftLoc(vorige)) onbekendIds.add(vorige.id);
+        if (r && refEindeGekend && refVertrek + r.min > s) return { ok: false, reden: 'vast-uur-botst' }; // vorige stop → hier niet op tijd
       }
-      return { ok: true, s };
+      const v = await vooruit(t, s, alle);
+      if (!v.ok) return { ok: false, reden: v.reden === 'te-ver' ? 'te-ver' : 'vast-uur-botst' };
+      if (ref && vorige && !heeftLoc(vorige)) onbekendIds.add(vorige.id);
+      return { ok: true, s, geschat: geschat || !!v.r?.geschat };
     };
-    const zetOpUur = (t, s) => {
+    const zetOpUur = (t, s, geschat) => {
       blokken.push({ s, e: s + t.duurMin, lat: t.lat, lon: t.lon, stop: true, id: t.id });
       blokken.sort((a, b) => a.s - b.s);
       dagGeplaatst.push({ t, aank: s });
       pool.splice(pool.indexOf(t), 1);
       aantal++;
+      if (geschat) geschatIds.add(t.id);
     };
 
     // Stap 1 (R7/3.5): enkel tickets MET voorkeursdag = deze dag en een voorkeursuur staan hier op hun uur.
@@ -246,7 +274,7 @@ export async function planWeek(invoer) {
       if (aantal >= maxPerDag) { noteerVast(t, 'geen-plaats'); continue; }
       const p = await probeerUur(t);
       if (!p.ok) { noteerVast(t, p.reden); continue; }
-      zetOpUur(t, p.s);
+      zetOpUur(t, p.s, p.geschat);
     }
 
     // De klok, de laatste stop (vorige) en de laatste stop met gekende locatie (anker).
@@ -266,12 +294,13 @@ export async function planWeek(invoer) {
     const reis = (cands, vertrek) => reistijdenVan(positie(), cands, dag, vertrek);
 
     // Bestaande stops zonder uur: vooraan in de keten vanaf vanTijd, in hun huidige volgorde.
+    const legNaar = async p => heeftLoc(p) ? ((await reis([p], klok)).get(p.id)?.min ?? 0) : 0;
     for (const p of keten) {
       normaliseer();
-      const leg = heeftLoc(p) ? ((await reis([p], klok)).get(p.id)?.min ?? 0) : 0;
-      let aank = klok + leg;
+      let aank = klok + await legNaar(p);
       let b;
-      while ((b = overlapt(blokken, aank, aank + p.duurMin)[0])) { klok = b.e; normaliseer(); aank = klok; }
+      // Sprong over een blok: de rit wordt opnieuw berekend vanaf de positie na dat blok.
+      while ((b = overlapt(blokken, aank, aank + p.duurMin)[0])) { klok = b.e; normaliseer(); aank = klok + await legNaar(p); }
       passeer(aank);
       klok = aank + p.duurMin;
       vorige = p;
@@ -279,71 +308,80 @@ export async function planWeek(invoer) {
     }
 
     // Vrije tickets. Lege dag (geen stop met locatie): starter = hoogste voorrang, geen afstandscontrole.
-    // Anders aanvullen op laagste reistijdMin / voorrang, met de 45-min-regel vanaf de vorige stop met locatie.
+    // Anders aanvullen op laagste reistijdMin / voorrang, met de 45-min-regel vanaf de vorige stop met locatie
+    // (zonder vorige stop met locatie is de rit vanaf het depot vrij, 3.3) én de vooruitcontrole naar de
+    // volgende stop met locatie (op tijd en binnen maxReistijdMin).
     // R7: fase 1 plaatst eerst de tickets met voorkeursdag = deze dag (op voorrang); fase 2 vult aan met de rest.
     const vul = async voorkeurFase => {
-    while (aantal < maxPerDag && pool.length) {
-      normaliseer();
-      // Na laatsteStart kunnen enkel nog tickets met voorkeursuur (vrijgesteld) geplaatst worden.
-      const naLaatste = klok > laatsteStartMin;
-      const fillPool = pool.filter(t => toegelaten(t) && (voorkeurFase
-        ? isVoorkeurHier(t) && !kbPreferredTime(t.id)
-        : !isVoorkeurHier(t) && (!naLaatste || kbPreferredTime(t.id))));
-      if (!fillPool.length) break;
-      const tijden = await reis(fillPool, klok);
-      const reisMin = c => tijden.get(c.id)?.min ?? 0;
-      const vr = new Map(fillPool.map(t => [t.id, voorrang(t, vandaag)]));
-      const nummer = (a, b) => String(a.number ?? '').localeCompare(String(b.number ?? ''), 'nl', { numeric: true });
-      const starter = !dagHeeftLocatie();
-      if (voorkeurFase) {
-        fillPool.sort((a, b) => (vr.get(b.id) - vr.get(a.id)) || (reisMin(a) - reisMin(b)) || nummer(a, b));
-      } else if (starter) {
-        fillPool.forEach(t => legeDagGehad.add(t.id));
-        fillPool.sort((a, b) => (vr.get(b.id) - vr.get(a.id)) || (reisMin(a) - reisMin(b)) || nummer(a, b));
-      } else {
-        const score = c => reisMin(c) / vr.get(c.id);
-        fillPool.sort((a, b) => (score(a) - score(b)) || (vr.get(b.id) - vr.get(a.id)) || nummer(a, b));
-      }
+      while (aantal < maxPerDag && pool.length) {
+        normaliseer();
+        // Na laatsteStart kunnen enkel nog tickets met voorkeursuur (vrijgesteld) geplaatst worden.
+        const naLaatste = klok > laatsteStartMin;
+        const fillPool = pool.filter(t => toegelaten(t) && (voorkeurFase
+          ? isVoorkeurHier(t) && !kbPreferredTime(t.id)
+          : !isVoorkeurHier(t) && (!naLaatste || kbPreferredTime(t.id))));
+        if (!fillPool.length) break;
+        const tijden = await reis(fillPool, klok);
+        const reisMin = c => tijden.get(c.id)?.min ?? 0;
+        const vr = new Map(fillPool.map(t => [t.id, voorrang(t, vandaag)]));
+        const nummer = (a, b) => String(a.number ?? '').localeCompare(String(b.number ?? ''), 'nl', { numeric: true });
+        const starter = !dagHeeftLocatie();
+        if (voorkeurFase) {
+          fillPool.sort((a, b) => (vr.get(b.id) - vr.get(a.id)) || (reisMin(a) - reisMin(b)) || nummer(a, b));
+        } else if (starter) {
+          fillPool.forEach(t => legeDagGehad.add(t.id));
+          fillPool.sort((a, b) => (vr.get(b.id) - vr.get(a.id)) || (reisMin(a) - reisMin(b)) || nummer(a, b));
+        } else {
+          const score = c => reisMin(c) / vr.get(c.id);
+          fillPool.sort((a, b) => (score(a) - score(b)) || (vr.get(b.id) - vr.get(a.id)) || nummer(a, b));
+        }
 
-      let gekozen = null, sprong = null;
-      for (const c of fillPool) {
-        const r = tijden.get(c.id);
-        if (kbPreferredTime(c.id)) { // gewone kandidaat met voorkeursuur: exact op zijn uur, niet op de klok
-          const p = await probeerUur(c);
-          if (!p.ok) { noteer(c.id, p.reden); continue; }
-          gekozen = { c, aank: p.s, opUur: true };
+        let gekozen = null, sprong = null;
+        for (const c of fillPool) {
+          const r = tijden.get(c.id);
+          if (kbPreferredTime(c.id)) { // gewone kandidaat met voorkeursuur: exact op zijn uur, niet op de klok
+            const p = await probeerUur(c);
+            if (!p.ok) { noteer(c.id, p.reden); continue; }
+            gekozen = { c, aank: p.s, opUur: true, geschat: p.geschat };
+            break;
+          }
+          const aank = klok + (r?.min ?? 0);
+          if (aank > laatsteStartMin) continue;
+          const b = overlapt(blokken, aank, aank + c.duurMin)[0];
+          if (b) { if (!sprong || b.e < sprong.e) sprong = b; continue; }
+          if (!starter && anker && r && r.min > maxReistijdMin) { noteer(c.id, voorkeurFase ? 'voorkeursdag-afstand' : 'te-ver'); continue; }
+          const v = await vooruit(c, aank, stopsVanDag(), fillPool);
+          if (!v.ok) {
+            if (v.reden === 'te-ver') noteer(c.id, voorkeurFase ? 'voorkeursdag-afstand' : 'te-ver');
+            // Vóór die stop past dit ticket niet (latere klok helpt niet): eventueel verder na die stop.
+            if (!sprong || v.volgende.e < sprong.e) sprong = v.volgende;
+            continue;
+          }
+          gekozen = { c, aank, geschat: !!(r?.geschat || v.r?.geschat) };
           break;
         }
-        const aank = klok + (r?.min ?? 0);
-        if (aank > laatsteStartMin) continue;
-        const b = overlapt(blokken, aank, aank + c.duurMin)[0];
-        if (b) { if (!sprong || b.e < sprong.e) sprong = b; continue; }
-        noteerGeschat(c.id, r);
-        if (!starter && anker && r && r.min > maxReistijdMin) { noteer(c.id, voorkeurFase ? 'voorkeursdag-afstand' : 'te-ver'); continue; }
-        gekozen = { c, aank };
-        break;
+        if (gekozen && gekozen.opUur) {
+          // Op zijn uur gezet; klok en keten lopen door vanaf de huidige klok en springen over dit blok (3.3).
+          zetOpUur(gekozen.c, gekozen.aank, gekozen.geschat);
+          ketenLoc = true;
+        } else if (gekozen) {
+          const { c, aank } = gekozen;
+          passeer(aank);
+          if (!starter && anker && vorige && !heeftLoc(vorige)) onbekendIds.add(vorige.id);
+          pool.splice(pool.indexOf(c), 1);
+          dagGeplaatst.push({ t: c, aank });
+          aantal++;
+          if (gekozen.geschat) geschatIds.add(c.id);
+          klok = aank + c.duurMin;
+          vorige = c;
+          anker = { lat: c.lat, lon: c.lon };
+          ketenLoc = true;
+        } else if (sprong) {
+          klok = sprong.e; // klok springt naar het einde van het blok; normaliseer() zet het anker
+        } else {
+          break;
+        }
       }
-      if (gekozen && gekozen.opUur) {
-        // Op zijn uur gezet; klok en keten lopen door vanaf de huidige klok en springen over dit blok (3.3).
-        zetOpUur(gekozen.c, gekozen.aank);
-        ketenLoc = true;
-      } else if (gekozen) {
-        const { c, aank } = gekozen;
-        passeer(aank);
-        if (!starter && anker && vorige && !heeftLoc(vorige)) onbekendIds.add(vorige.id);
-        pool.splice(pool.indexOf(c), 1);
-        dagGeplaatst.push({ t: c, aank });
-        aantal++;
-        klok = aank + c.duurMin;
-        vorige = c;
-        anker = { lat: c.lat, lon: c.lon };
-        ketenLoc = true;
-      } else if (sprong) {
-        klok = sprong.e; // klok springt naar het einde van het blok; normaliseer() zet het anker
-      } else {
-        break;
-      }
-    }
     };
     await vul(true);
     // Voorkeursdag-tickets die hier niet pasten, komen nergens anders meer: afstand of vol.
