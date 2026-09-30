@@ -6389,6 +6389,9 @@ async function sendProposal() {
 
     // Eén atomische POST met alle doelgroepen die een mail kregen; reset vervangt de oude entry.
     const verzonden = ['contact', 'klant', 'installateur'].filter(d => data.emailSent?.[d] === true);
+    const hertekenStatus = () => {
+      try { renderTickets(); renderKalender(); renderRouteList(date); } catch (e) { console.warn('Hertekenen mislukt:', e); }
+    };
     if (verzonden.length) {
       const tijdstip = new Date().toISOString();
       const schrijfStatus = async (poging) => {
@@ -6400,7 +6403,10 @@ async function sendProposal() {
             ...(apptWindowSend ? { tijdslot: apptWindowSend, tijdslotDatum: date } : {}),
           }),
         });
-        if (r.status === 409 && poging === 0) { await loadVoorstelStatus(); return schrijfStatus(1); }
+        if (r.status === 409 && poging === 0) {
+          if (!(await loadVoorstelStatus())) return;
+          return schrijfStatus(1);
+        }
         const d = await r.json();
         if (d.error) { console.warn('Voorstel-status opslaan mislukt:', d.error); return; }
         if (typeof d.versie === 'number') _voorstelStatusVersie = d.versie;
@@ -6408,8 +6414,20 @@ async function sendProposal() {
         verzonden.forEach(x => { entry[x] = tijdstip; });
         if (apptWindowSend) { entry.tijdslot = apptWindowSend; entry.tijdslotDatum = date; }
         voorstelStatus[ticketId] = entry;
+        hertekenStatus();
       };
       schrijfStatus(0).catch(err => console.warn('Voorstel-status opslaan mislukt:', err));
+    } else {
+      // Geen enkele mail verstuurd: een oude registerentry (verzonden-vinkje, tijdslot, bevestigd) wissen.
+      fetch('/api/voorstel-status?ticketId=' + encodeURIComponent(ticketId), { method: 'DELETE' })
+        .then(r => r.json())
+        .then(d => {
+          if (d.error) { console.warn('Voorstel-status wissen mislukt:', d.error); return; }
+          if (typeof d.versie === 'number') _voorstelStatusVersie = d.versie;
+          delete voorstelStatus[ticketId];
+          hertekenStatus();
+        })
+        .catch(err => console.warn('Voorstel-status wissen mislukt:', err));
     }
     activeTicket.status           = 'Wachten op bevestiging planning';
     activeTicket.interventieDatum = data.interventieDatum;

@@ -32,7 +32,7 @@ export default async (req, context) => {
     let body;
     try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers }); }
     const { ticketId, tijdstip } = body;
-    const doelgroepen = Array.isArray(body.doelgroepen) ? body.doelgroepen : [body.doelgroep];
+    const doelgroepen = [...new Set(Array.isArray(body.doelgroepen) ? body.doelgroepen : [body.doelgroep])];
     if (!ticketId || !tijdstip || !doelgroepen.length || !doelgroepen.every(d => DOELGROEPEN.includes(d))) {
       return new Response(JSON.stringify({ error: 'ticketId, doelgroep(en) (contact|klant|installateur) en tijdstip zijn verplicht' }), { status: 400, headers });
     }
