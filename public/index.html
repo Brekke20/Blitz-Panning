@@ -121,15 +121,17 @@
 <!-- ══ KALENDER TAB ══ -->
 <div class="view" id="view-kalender" role="tabpanel" aria-labelledby="tab-kalender">
   <div class="kal-header">
+    <div class="kal-nav-group">
+      <button class="kal-nav" onclick="kalNav(-1)" aria-label="Vorige periode" title="Vorige periode">‹</button>
+      <div class="kal-label-wrap">
+        <button class="kal-week-label" id="kal-label" onclick="kalToday()" aria-label="Naar vandaag" title="Naar vandaag">—</button>
+        <button class="kal-today" id="kal-today-btn" onclick="kalToday()" hidden>↺ Vandaag</button>
+      </div>
+      <button class="kal-nav" onclick="kalNav(1)" aria-label="Volgende periode" title="Volgende periode">›</button>
+    </div>
     <div class="kal-view-toggle">
       <button class="kal-view-btn active" id="kal-view-week" aria-pressed="true" onclick="setKalView('week')">Week</button>
       <button class="kal-view-btn" id="kal-view-month" aria-pressed="false" onclick="setKalView('month')">Maand</button>
-    </div>
-    <div class="kal-nav-group">
-      <button class="kal-nav" onclick="kalNav(-1)" aria-label="Vorige periode" title="Vorige periode">‹</button>
-      <span class="kal-week-label" id="kal-label">—</span>
-      <button class="kal-nav" onclick="kalNav(1)" aria-label="Volgende periode" title="Volgende periode">›</button>
-      <button class="kal-today" id="kal-today-btn" onclick="kalToday()">Vandaag</button>
     </div>
     <div class="kal-actions">
       <button class="kal-pending-pill coord-only" id="kal-pending-pill" aria-expanded="false" onclick="togglePendingPanel()" style="display:none">
@@ -2048,7 +2050,15 @@ function kalZichtbareDagen(today) {
   return dagen;
 }
 
+function kalZetVandaagKnop() {
+  // "↺ Vandaag" enkel tonen als de getoonde periode niet de huidige is
+  const dagModus = window.apparaat.indeling === 'tablet-staand' && kalView !== 'month';
+  const nietVandaag = dagModus ? kalDagOffset !== 0 : kalOffset !== 0;
+  const knop = document.getElementById('kal-today-btn');
+  if (knop) knop.hidden = !nietVandaag;
+}
 function renderKalender() {
+  kalZetVandaagKnop();
   sjLog('renderKalender'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
   const today     = new Date(); today.setHours(0,0,0,0);
 
@@ -2151,8 +2161,10 @@ function renderKalender() {
     col.dataset.date = dateStr;
     col.innerHTML = `
       <div class="day-hdr">
-        <div class="day-hdr-name ${isToday ? 'today' : isPast ? 'past' : ''}">${day.toLocaleDateString('nl-BE', { weekday:'short' })}</div>
-        <div class="day-hdr-num${isToday ? ' today' : ''}">${day.getDate()}</div>
+        <div class="day-hdr-top">
+          <div class="day-hdr-name ${isToday ? 'today' : isPast ? 'past' : ''}">${day.toLocaleDateString('nl-BE', { weekday:'short' })}</div>
+          <div class="day-hdr-num${isToday ? ' today' : ''}">${day.getDate()}</div>
+        </div>
         <div class="day-cap coord-only ${capFull ? 'full' : ''}">${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔒 Geblokkeerd' : capLabel}</div>
         <button class="day-block-btn coord-only ${holidayName ? 'holiday' : isDayBlocked ? 'blocked' : ''}" data-date="${dateStr}" onclick="event.stopPropagation(); onBlockBtnClick(this)">
           ${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔓 Blokkade beheren' : dayBlockCount > 0 ? `⏱ ${dayBlockCount} uitzondering${dayBlockCount > 1 ? 'en' : ''}` : '⏱ Beschikbaar'}

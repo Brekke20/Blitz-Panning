@@ -332,13 +332,15 @@
     .kal-header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 8px 14px;
+      padding: 4px 14px;
       display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
       position: sticky; top: var(--topbar-h, 92px); z-index: 28;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
-    .kal-week-label { font-size: 0.84rem; font-weight: 600; width: 112px; text-align: center; color: var(--text2); white-space: nowrap; }
-    .kal-nav-group  { display: flex; align-items: center; gap: 2px; }
+    .kal-week-label { font-size: 0.84rem; font-weight: 600; text-align: center; color: var(--text2); white-space: nowrap; background: transparent; border: none; font-family: inherit; cursor: pointer; padding: 4px 2px; border-radius: var(--r); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    .kal-week-label:hover { background: var(--surface2); color: var(--text); }
+    .kal-nav-group  { display: flex; align-items: center; gap: 2px; flex: 1 1 0; min-width: 180px; }
+    .kal-label-wrap { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; }
     .kal-actions    { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
     .kal-nav {
       background: var(--surface2); border: 1px solid var(--border); color: var(--text);
@@ -350,12 +352,13 @@
     .kal-nav:hover  { background: var(--surface3); transform: scale(1.05); }
     .kal-nav:active { transform: scale(0.94); }
     .kal-today {
-      background: var(--surface2); border: 1px solid var(--border); color: var(--text2);
-      height: 30px; padding: 0 9px; border-radius: var(--r);
-      cursor: pointer; font-size: 0.76rem; font-weight: 600;
+      background: transparent; border: none; color: var(--accent-ink);
+      padding: 2px 8px; border-radius: var(--r);
+      cursor: pointer; font-size: 0.74rem; font-weight: 600; font-family: inherit;
       transition: background 0.12s;
     }
-    .kal-today:hover { background: var(--surface3); color: var(--text); }
+    .kal-today[hidden] { display: none; }
+    .kal-today:hover { background: var(--surface2); }
     .btn-autoplan {
       background: var(--accent); border: none; color: var(--on-accent);
       padding: 6px 13px; border-radius: var(--r);
@@ -368,7 +371,7 @@
     .btn-autoplan:active { transform: translateY(0); box-shadow: 0 1px 3px rgba(0,223,163,0.2); }
     .btn-autoplan:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
     /* ── View toggle (week / maand) ── */
-    .kal-view-toggle { display: flex; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .kal-view-toggle { display: flex; flex-shrink: 0; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
     .kal-view-btn { background: transparent; border: none; color: var(--muted); padding: 5px 11px; font-size: 0.75rem; font-weight: 500; cursor: pointer; font-family: inherit; transition: background 0.1s, color 0.1s; }
     .kal-view-btn.active { background: var(--surface3); color: var(--text); font-weight: 700; }
 
@@ -379,7 +382,9 @@
     /* Aanraken: alle tikbare bedieningselementen minstens 44px hoog (pictogramknoppen ook 44px breed) */
     html[data-aanraak="ja"] button, html[data-aanraak="ja"] .tab, html[data-aanraak="ja"] .kal-nav,
     html[data-aanraak="ja"] .kal-view-btn, html[data-aanraak="ja"] .hbtn, html[data-aanraak="ja"] .zu-chip,
+    html[data-aanraak="ja"] .kal-today, html[data-aanraak="ja"] .kal-week-label { min-height: 44px; }
     html[data-aanraak="ja"] .kal-today { min-height: 44px; }
+    html[data-aanraak="ja"] .kal-view-btn { min-width: 56px; padding: 5px 6px; }
     html[data-aanraak="ja"] .kal-nav, html[data-aanraak="ja"] .hbtn, html[data-aanraak="ja"] .mhdr-close,
     html[data-aanraak="ja"] .prijs-hdr-close { min-width: 44px; }
     /* Kleine pictogramknoppen (✕ op foto/chip/onderdeel) blijven visueel klein: geen 44px-hoogte
@@ -426,6 +431,7 @@
     .week-grid.tl-mode { overflow: auto; align-items: flex-start; flex: none; }
     .week-grid.tl-mode .day-hdr { position: sticky; top: 0; z-index: 5; }
     .day-hdr { padding: 12px 10px 8px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .day-hdr-top { display: block; }
     .day-hdr-name { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
     .day-hdr-name.today { color: var(--accent-ink); }
     .day-hdr-name.past { opacity: 0.3; }
@@ -1087,10 +1093,16 @@
     /* Tablet rechtop (bv. Galaxy Tab S7 FE: 800px breed) kreeg 5 samengedrukte dagkolommen naast
        elkaar -- onder 1024px (geen tijdlijn) nu dagen onder elkaar, zoals op de gsm (2026-09-29). */
     html[data-indeling="smal"] .week-grid { flex-direction: column; }
+    /* Lijstweergave: dagnaam en datum op één regel ("MA 28") */
+    html[data-indeling="smal"] .day-hdr { padding: 8px 10px 6px; }
+    html[data-indeling="smal"] .day-hdr-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    html[data-indeling="smal"] .day-hdr-name { margin-bottom: 0; }
+    html[data-indeling="smal"] .day-hdr-num { margin: 0; }
     html[data-indeling="smal"] .day-col { min-width: unset; border-right: none; border-bottom: 1px solid var(--border); }
 
     /* Beperkte technieker-weergave: de rol (niet de schermbreedte) verbergt coördinatorfuncties */
     html[data-rol="technieker"] .coord-only { display: none !important; }
+    html[data-rol="technieker"] .kal-actions { display: none; } /* geen lege tweede rij */
     /* × (uit planning halen): nooit op gsm (per ongeluk tikken); voor technieker via .coord-only */
     html[data-indeling="smal"] .cal-unplan-x { display: none; }
 
