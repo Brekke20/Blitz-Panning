@@ -3841,58 +3841,6 @@ async function autoPlan() {
   }
 }
 
-function geoCluster(tickets) {
-  if (!tickets.length) return [];
-  const withCoords = tickets.filter(t => t._lat && t._lon);
-  const noCoords   = tickets.filter(t => !t._lat || !t._lon);
-  if (!withCoords.length) return [...noCoords];
-  const result    = [];
-  const remaining = [...withCoords];
-  let   current   = remaining.splice(0, 1)[0];
-  result.push(current);
-  while (remaining.length) {
-    let nearestIdx = 0, minDist = Infinity;
-    remaining.forEach((t, i) => { const d = haversine(current._lat, current._lon, t._lat, t._lon); if (d < minDist) { minDist = d; nearestIdx = i; } });
-    current = remaining.splice(nearestIdx, 1)[0];
-    result.push(current);
-  }
-  return [...result, ...noCoords];
-}
-
-// Geo-cluster met extern startpunt (bijv. depot/startlocatie) — betere eerste keuze dan willekeurig ticket
-function geoClusterFrom(tickets, startLat, startLon) {
-  if (!tickets.length) return [];
-  const withCoords = tickets.filter(t => t._lat && t._lon);
-  const noCoords   = tickets.filter(t => !t._lat || !t._lon);
-  if (!withCoords.length) return [...noCoords];
-  const result    = [];
-  const remaining = [...withCoords];
-  let   curLat = startLat, curLon = startLon;
-  while (remaining.length) {
-    let nearestIdx = 0, minDist = Infinity;
-    remaining.forEach((t, i) => { const d = haversine(curLat, curLon, t._lat, t._lon); if (d < minDist) { minDist = d; nearestIdx = i; } });
-    const chosen = remaining.splice(nearestIdx, 1)[0];
-    result.push(chosen);
-    curLat = chosen._lat; curLon = chosen._lon;
-  }
-  return [...result, ...noCoords];
-}
-
-async function estimateTravelMinFromRoute(tickets, originCoords) {
-  const withCoords = [originCoords, ...tickets.filter(t => t._lat && t._lon)];
-  if (withCoords.length < 2) return 30;
-  try {
-    const res  = await fetch('/api/route', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ waypoints: withCoords.map(p => ({ lat: p.lat ?? p._lat, lon: p.lon ?? p._lon })) }),
-    });
-    const data = await res.json();
-    if (data.error || !data.legs?.length) return 30;
-    return Math.round(data.totalTravelTimeSeconds / data.legs.length / 60);
-  } catch { return 30; }
-}
-
 function showResult(geplande, overflow, skipped, bericht) {
   const body = document.getElementById('result-body');
   body.innerHTML = '';
@@ -4092,6 +4040,30 @@ function dagHeeftEenTechnieker(stops) {
   return groepen.size <= 1;
 }
 
+// Gedeelde opbouw van de stops van één dag, voor de Route-tab en het ticketdetail:
+// `stops` = planning[date] gefilterd op activeAssigneeFilter, `localForDate` = eigen afspraken
+// (met adres of notitie) van die dag en technieker, `allStops` = beide gecombineerd als
+// { kind: 'ticket'|'local', item, uur }, gesorteerd op uur (geen uur = achteraan).
+// Filter en sortering moeten overal identiek zijn: calculateRoute() bouwt de waypoints op
+// dezelfde manier, en berekenAankomsten() leidt daaruit legIdx af. Wijkt één kopie af, dan
+// klopt de legIdx-mapping (en dus de aankomsttijden) niet meer.
+// De wrapper-objecten zijn telkens vers (`uur` is een snapshot), maar `item` blijft hetzelfde
+// object als in planning[date]/localEvents: applyRouteOrder() muteert dat rechtstreeks.
+function stopsVoorDag(date) {
+  const stops = (planning[date] || []).filter(p =>
+    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
+  );
+  const localForDate = localEvents.filter(e =>
+    e.datum === date && (e.adres || e.notitie) &&
+    (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
+  );
+  const allStops = [
+    ...stops.map(s => ({ kind: 'ticket', item: s, uur: s.uur })),
+    ...localForDate.map(e => ({ kind: 'local', item: e, uur: e.uur })),
+  ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
+  return { stops, localForDate, allStops };
+}
+
 // Pure helper (Taak 4), geëxtraheerd uit renderRouteList(): berekent cumulatieve
 // aankomsttijden (minuten na middernacht) voor een allStops-lijst, plus de legIdx-mapping
 // (allStops-index → routeData.legs-index, enkel voor geocodeerde stops -- zie de uitleg bij
@@ -4239,25 +4211,11 @@ function renderWeekstrook(date) {
 function renderRouteList(date) {
   const list  = document.getElementById('route-list');
   renderWeekstrook(date);
-  const stops = (planning[date] || []).filter(p =>
-    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-  );
-  const localForDate = localEvents.filter(e =>
-    e.datum === date && (e.adres || e.notitie) &&
-    (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
-  );
+  const { stops, allStops } = stopsVoorDag(date);
   // Fix-ronde 1 (#3): slepen mag enkel als de dag (na filter) van hoogstens één technieker is
   // -- anders zou de volgorde/persist-logica tijden van meerdere technici als één
   // sequentiële route door elkaar husselen.
   const eenTechnieker = dagHeeftEenTechnieker(stops);
-  // Gecombineerde lijst, gesorteerd op ingesteld uur (geen uur = achteraan) zodat dit de
-  // echte geplande volgorde toont i.p.v. altijd tickets vóór handmatige afspraken te zetten
-  // -- moet exact dezelfde sortering gebruiken als allWpStops in calculateRoute(), anders
-  // klopt legIdx hieronder niet meer.
-  const allStops = [
-    ...stops.map(s => ({ kind: 'ticket', item: s, uur: s.uur })),
-    ...localForDate.map(e => ({ kind: 'local', item: e, uur: e.uur })),
-  ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
   // Verouderde route (stops verwijderd/gewisseld, andere dag of filter): kaart en samenvatting
   // leegmaken, markers van de resterende stops opnieuw tekenen; geen automatische TomTom-aanroep.
   if (routeData && (currentRouteDate !== date || routeData._sig !== routeHandtekening(date))) {
@@ -4578,17 +4536,7 @@ async function applyRouteOrder(date, orderedEntries) {
   // en elke entry gewoon naar dat oude uur "sprong" -- de verfijning was zo een complete no-op
   // en de bewaarde tijden waren altijd de ruwe stap-1-gok. Beide velden moeten dus gewist én
   // teruggeschreven worden.
-  const stops = (planning[date] || []).filter(p =>
-    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-  );
-  const localForDate = localEvents.filter(e =>
-    e.datum === date && (e.adres || e.notitie) &&
-    (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
-  );
-  const allStops = [
-    ...stops.map(s => ({ kind: 'ticket', item: s, uur: s.uur })),
-    ...localForDate.map(e => ({ kind: 'local', item: e, uur: e.uur })),
-  ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
+  const { stops, allStops } = stopsVoorDag(date);
 
   for (const entry of allStops) {
     if (entry.kind === 'ticket' && !isStopAnchored(entry.item)) {
@@ -4705,13 +4653,7 @@ async function optimizeRoute() {
   // Zelfde filter als renderRouteList() — stops van andere technici raakt deze functie nooit
   // aan (die zitten simpelweg niet in `stops`/`localForDate`, en applyRouteOrder() muteert
   // enkel de objecten die het zelf meekrijgt).
-  const stops = (planning[date] || []).filter(p =>
-    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-  );
-  const localForDate = localEvents.filter(e =>
-    e.datum === date && (e.adres || e.notitie) &&
-    (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
-  );
+  const { stops, localForDate } = stopsVoorDag(date);
 
   // Fix-ronde 1 (#3, Controller-ruling): niet optimaliseren zolang de dag (na filter) stops
   // van meerdere technici bevat -- anders zou de resulterende volgorde/tijden hen als één
@@ -4797,13 +4739,7 @@ async function calculateRoute() {
   // aan (rit-vangnet meteen, dan het per-wegvak-detail dat asynchroon binnenkomt).
   wegafsluitingToastGetoond = false;
   const date  = document.getElementById('plan-date').value;
-  const stops = (planning[date] || []).filter(p =>
-    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-  );
-  const localForDate = localEvents.filter(e =>
-    e.datum === date && (e.adres || e.notitie) &&
-    (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
-  );
+  const { stops, localForDate } = stopsVoorDag(date);
   if (!stops.length && !localForDate.length) return;
 
   // Cache-hydratatie (punt a) — vóór er iets van TomTom nodig is.
@@ -6133,19 +6069,7 @@ function tijdslotLabelVoor(stop, date) {
 // venster en de Route-tab nooit meer een ander voorgesteld tijdstip tonen voor hetzelfde ticket
 // (bugronde 2026-09-22, item F). Geeft { [ticketId]: arrivalMin } terug.
 function computeArrivalTimes(date) {
-  const stops = (planning[date] || []).filter(p =>
-    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-  );
-  // Zelfde filter als renderRouteList() (rond regel 3488) — niet wijzigen, anders wijkt de
-  // waypoint-membership (en dus legIdx binnen berekenAankomsten()) weer af tussen beide functies.
-  const localForDate = localEvents.filter(e =>
-    e.datum === date && (e.adres || e.notitie) &&
-    (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
-  );
-  const allStops = [
-    ...stops.map(s => ({ kind: 'ticket', item: s, uur: s.uur })),
-    ...localForDate.map(e => ({ kind: 'local', item: e, uur: e.uur })),
-  ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
+  const { allStops } = stopsVoorDag(date);
   if (!allStops.length) return {};
 
   const hasRoute = routeData?.legs && currentRouteDate === date;
