@@ -544,3 +544,72 @@ test('reden: te ver op dag 1 maar verliest de starter op lege dag 2 → geen-pla
   assert.deepEqual(datumsVan(u, 'hoog'), ['2026-10-06']);
   assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'geen-plaats' }]);
 });
+
+// ---- R7: voorkeursdag eerst, botsingen ---------------------------------------
+test('voorkeursdag: ticket krijgt zijn dag ook als nabije tickets meer zouden passen', async () => {
+  const voorkeur = mk('v', 1, { priority: 'Low', lat: 51.3, lon: 4.5 });
+  const nabij = [mk('n1', 2, { priority: 'High' }), mk('n2', 3, { priority: 'High' })];
+  const u = await planWeek(maakInvoer({
+    kandidaten: [...nabij, voorkeur], dagen: [EEN, '2026-10-06'], instellingen: inst({ maxPerDag: 2 }),
+    klant: { v: { voorkeur: EEN } }, reistijden: vast({}, 5),
+  }));
+  assert.deepEqual(datumsVan(u, 'v'), [EEN]);
+  assert.equal(u.geplaatst.filter(g => g.datum === EEN).length, 2);
+  assert.equal(u.geplaatst.filter(g => g.datum === EEN && g.ticketId.startsWith('n')).length, 1);
+  assert.equal(u.geplaatst.filter(g => g.datum === '2026-10-06').length, 1); // de andere nabije schuift door
+});
+
+test('voorkeursdag: twee voorkeuren 150 km uit elkaar → hoogste voorrang geplaatst, andere voorkeursdag-afstand', async () => {
+  const hoog = mk('hoog', 1, { priority: 'High' });
+  const laag = mk('laag', 2, { priority: 'Low', lat: 49.85, lon: 4.4 });
+  const u = await planWeek(maakInvoer({
+    kandidaten: [laag, hoog], dagen: [EEN, '2026-10-06'],
+    klant: { hoog: { voorkeur: EEN }, laag: { voorkeur: EEN } },
+  }));
+  assert.deepEqual(datumsVan(u, 'hoog'), [EEN]);
+  assert.deepEqual(datumsVan(u, 'laag'), []);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'laag', reden: 'voorkeursdag-afstand' }]);
+});
+
+test('voorkeursdag: dag vol door blokkering → voorkeursdag-vol', async () => {
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('v', 1)], dagen: [EEN, '2026-10-06'],
+    blokkeringen: { [EEN]: [{ van: '08:00', tot: '17:00' }] },
+    klant: { v: { voorkeur: EEN } },
+  }));
+  assert.deepEqual(u.geplaatst, []);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'v', reden: 'voorkeursdag-vol' }]);
+});
+
+test('voorkeursdag: dag vol door maxPerDag → voorkeursdag-vol, en niet op een andere dag', async () => {
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('a', 1, { priority: 'High' }), mk('b', 2, { priority: 'Low' })], dagen: [EEN, '2026-10-06'],
+    instellingen: inst({ maxPerDag: 1 }), klant: { a: { voorkeur: EEN }, b: { voorkeur: EEN } }, reistijden: vast({}, 5),
+  }));
+  assert.deepEqual(datumsVan(u, 'a'), [EEN]);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'b', reden: 'voorkeursdag-vol' }]);
+});
+
+test('voorkeursdag: voorkeursdag op feestdag (niet in dagen) → gewone kandidaat', async () => {
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('v', 1)], dagen: [EEN, '2026-10-06'], klant: { v: { voorkeur: '2026-10-07' } },
+  }));
+  assert.deepEqual(datumsVan(u, 'v'), [EEN]);
+});
+
+test('voorkeursdag + voorkeursuur: geplaatst op die dag en dat uur; botsing → voorkeursdag-vol; te ver → voorkeursdag-afstand', async () => {
+  const ok = await planWeek(maakInvoer({
+    kandidaten: [mk('v', 1)], dagen: [EEN, '2026-10-06'], klant: { v: { voorkeur: '2026-10-06', voorkeurTijd: '10:00' } },
+  }));
+  assert.deepEqual(ok.geplaatst, [{ ticketId: 'v', datum: '2026-10-06', verwachteAankomst: '10:00' }]);
+  const botst = await planWeek(maakInvoer({
+    kandidaten: [mk('v', 1)], dagen: [EEN, '2026-10-06'], klant: { v: { voorkeur: EEN, voorkeurTijd: '10:00' } },
+    bestaandPerDag: { [EEN]: [{ id: 'x', uur: '09:30', duurMin: 120, ...ANT }] },
+  }));
+  assert.deepEqual(botst.nietGepland, [{ ticketId: 'v', reden: 'voorkeursdag-vol' }]);
+  const ver = await planWeek(maakInvoer({
+    kandidaten: [mk('v', 1)], dagen: [EEN], klant: { v: { voorkeur: EEN, voorkeurTijd: '12:00' } },
+    bestaandPerDag: bestaandAnt(), reistijden: vast({ v: 60 }),
+  }));
+  assert.deepEqual(ver.nietGepland, [{ ticketId: 'v', reden: 'voorkeursdag-afstand' }]);
+});

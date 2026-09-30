@@ -163,11 +163,6 @@ export async function planWeek(invoer) {
   }
   const overlapt = (blokken, s, e) => blokken.filter(b => b.s < e && s < b.e);
 
-  // Een dag is bruikbaar als er nog plaats is volgens maxPerDag en de klok de laatste start haalt.
-  const dagBruikbaar = d =>
-    dagen.includes(d) &&
-    (bestaandPerDag[d] || []).length < maxPerDag &&
-    voorbijBlokken(vasteBlokken(d), vanTijdMin) <= laatsteStartMin;
 
   const geplaatst = [];
   // Kandidaten zonder coordinaten worden nooit geplaatst (Review Focus 1): reden 'adres-niet-gevonden'.
@@ -179,7 +174,7 @@ export async function planWeek(invoer) {
   for (const t of pool) {
     const pref = kbPreferred(t.id);
     if (!pref) continue;
-    if (dagBruikbaar(pref) && !kbBlocked(t.id, pref)) prefDayAvailable.set(t.id, pref);
+    if (dagen.includes(pref) && !kbBlocked(t.id, pref)) prefDayAvailable.set(t.id, pref); // R7: ook een volle dag is bruikbaar: dan voorkeursdag-vol
   }
 
   for (const dag of dagen) {
@@ -204,12 +199,17 @@ export async function planWeek(invoer) {
 
     // Pass 0: tickets met voorkeursuur staan exact op hun uur (buiten de laatsteStart-grens).
     // 45-min-regel (3.4): reistijd vanaf de stop net vóór dat uur met gekende locatie.
+    // R7: een ticket met voorkeursdag EN voorkeursuur wordt hier op zijn dag geplaatst (voorkeursdag eerst);
+    // zijn mislukkingen krijgen de specifiekere voorkeursdag-redenen.
+    const isVoorkeurHier = t => prefDayAvailable.get(t.id) === dag;
+    const noteerVast = (t, reden) => noteer(t.id, !isVoorkeurHier(t) ? reden
+      : reden === 'te-ver' ? 'voorkeursdag-afstand' : 'voorkeursdag-vol');
     const vastePool = pool.filter(t => kbPreferredTime(t.id) && toegelaten(t))
-      .sort((a, b) => voorrang(b, vandaag) - voorrang(a, vandaag));
+      .sort((a, b) => (isVoorkeurHier(b) - isVoorkeurHier(a)) || (voorrang(b, vandaag) - voorrang(a, vandaag)));
     for (const t of vastePool) {
-      if (aantal >= maxPerDag) { noteer(t.id, 'geen-plaats'); continue; }
+      if (aantal >= maxPerDag) { noteerVast(t, 'geen-plaats'); continue; }
       const s = timeStrToMin(kbPreferredTime(t.id));
-      if (overlapt(blokken, s, s + t.duurMin).length) { noteer(t.id, 'vast-uur-botst'); continue; }
+      if (overlapt(blokken, s, s + t.duurMin).length) { noteerVast(t, 'vast-uur-botst'); continue; }
       // Referentiestop: de laatste eerdere stop (in tijd) met locatie; de stop vlak ervoor mag locatie-loos zijn.
       const eerder = blokken.filter(b => b.stop && b.e <= s).sort((a, b) => a.e - b.e);
       let vorige = eerder[eerder.length - 1] ?? null;
@@ -222,7 +222,7 @@ export async function planWeek(invoer) {
       if (ref) {
         const r = (await reistijdenVan(ref, [t], dag, refVertrek)).get(t.id);
         noteerGeschat(t.id, r);
-        if (r && r.min > maxReistijdMin) { noteer(t.id, 'te-ver'); continue; }
+        if (r && r.min > maxReistijdMin) { noteerVast(t, 'te-ver'); continue; }
         if (vorige && !heeftLoc(vorige)) onbekendIds.add(vorige.id);
       }
       blokken.push({ s, e: s + t.duurMin, lat: t.lat, lon: t.lon, stop: true, id: t.id });
@@ -263,17 +263,21 @@ export async function planWeek(invoer) {
 
     // Vrije tickets. Lege dag (geen stop met locatie): starter = hoogste voorrang, geen afstandscontrole.
     // Anders aanvullen op laagste reistijdMin / voorrang, met de 45-min-regel vanaf de vorige stop met locatie.
+    // R7: fase 1 plaatst eerst de tickets met voorkeursdag = deze dag (op voorrang); fase 2 vult aan met de rest.
+    const vul = async voorkeurFase => {
     while (aantal < maxPerDag && pool.length) {
       normaliseer();
       if (klok > laatsteStartMin) break;
-      const fillPool = pool.filter(t => !kbPreferredTime(t.id) && toegelaten(t));
+      const fillPool = pool.filter(t => !kbPreferredTime(t.id) && toegelaten(t) && isVoorkeurHier(t) === voorkeurFase);
       if (!fillPool.length) break;
       const tijden = await reis(fillPool, klok);
       const reisMin = c => tijden.get(c.id)?.min ?? 0;
       const vr = new Map(fillPool.map(t => [t.id, voorrang(t, vandaag)]));
       const nummer = (a, b) => String(a.number ?? '').localeCompare(String(b.number ?? ''), 'nl', { numeric: true });
       const starter = !dagHeeftLocatie();
-      if (starter) {
+      if (voorkeurFase) {
+        fillPool.sort((a, b) => (vr.get(b.id) - vr.get(a.id)) || (reisMin(a) - reisMin(b)) || nummer(a, b));
+      } else if (starter) {
         fillPool.forEach(t => legeDagGehad.add(t.id));
         fillPool.sort((a, b) => (vr.get(b.id) - vr.get(a.id)) || (reisMin(a) - reisMin(b)) || nummer(a, b));
       } else {
@@ -289,7 +293,7 @@ export async function planWeek(invoer) {
         const b = overlapt(blokken, aank, aank + c.duurMin)[0];
         if (b) { if (!sprong || b.e < sprong.e) sprong = b; continue; }
         noteerGeschat(c.id, r);
-        if (!starter && anker && r && r.min > maxReistijdMin) { noteer(c.id, 'te-ver'); continue; }
+        if (!starter && anker && r && r.min > maxReistijdMin) { noteer(c.id, voorkeurFase ? 'voorkeursdag-afstand' : 'te-ver'); continue; }
         gekozen = { c, aank };
         break;
       }
@@ -310,6 +314,14 @@ export async function planWeek(invoer) {
         break;
       }
     }
+    };
+    await vul(true);
+    // Voorkeursdag-tickets die hier niet pasten, komen nergens anders meer: afstand of vol.
+    for (const t of pool.filter(isVoorkeurHier)) {
+      noteer(t.id, 'voorkeursdag-vol'); // de rangorde houdt 'voorkeursdag-afstand' vast als die al genoteerd was
+      pool.splice(pool.indexOf(t), 1);
+    }
+    await vul(false);
 
     dagGeplaatst.sort((a, b) => a.aank - b.aank)
       .forEach(({ t, aank }) => geplaatst.push({ ticketId: t.id, datum: dag, verwachteAankomst: minNaarUur(aank) }));
