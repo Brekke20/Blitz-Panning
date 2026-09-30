@@ -6356,11 +6356,8 @@ async function sendProposal() {
     activeTicket.status = 'Wachten op bevestiging planning';
     allTickets = allTickets.filter(t => t.id !== ticketId);
     if (!allPending.find(t => t.id === ticketId)) allPending.push(activeTicket);
-    if (apptWindowSend) {
-      if (!voorstelStatus[ticketId]) voorstelStatus[ticketId] = {};
-      voorstelStatus[ticketId].tijdslot      = apptWindowSend;
-      voorstelStatus[ticketId].tijdslotDatum = date;
-    }
+    // Nieuw voorstel vervangt de oude registerentry (geen oude doelgroepen/bevestiging laten staan).
+    voorstelStatus[ticketId] = apptWindowSend ? { tijdslot: apptWindowSend, tijdslotDatum: date } : {};
     document.getElementById('proposal-overlay').classList.remove('open');
     btn.disabled = false; btn.textContent = '✉️ Verstuur voorstel';
     renderTickets(); renderKalender(); renderRouteList(date); updateRouteBtns(date);
@@ -6390,26 +6387,29 @@ async function sendProposal() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
-    for (const doelgroep of ['contact', 'klant', 'installateur']) {
-      if (!data.emailSent?.[doelgroep]) continue;
+    // Eén atomische POST met alle doelgroepen die een mail kregen; reset vervangt de oude entry.
+    const verzonden = ['contact', 'klant', 'installateur'].filter(d => data.emailSent?.[d] === true);
+    if (verzonden.length) {
       const tijdstip = new Date().toISOString();
-      fetch('/api/voorstel-status', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          ticketId, doelgroep, tijdstip, versie: _voorstelStatusVersie,
-          ...(apptWindowSend ? { tijdslot: apptWindowSend, tijdslotDatum: date } : {}),
-        }),
-      }).then(r => r.json()).then(d => {
+      const schrijfStatus = async (poging) => {
+        const r = await fetch('/api/voorstel-status', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            ticketId, doelgroepen: verzonden, tijdstip, reset: true, versie: _voorstelStatusVersie,
+            ...(apptWindowSend ? { tijdslot: apptWindowSend, tijdslotDatum: date } : {}),
+          }),
+        });
+        if (r.status === 409 && poging === 0) { await loadVoorstelStatus(); return schrijfStatus(1); }
+        const d = await r.json();
         if (d.error) { console.warn('Voorstel-status opslaan mislukt:', d.error); return; }
         if (typeof d.versie === 'number') _voorstelStatusVersie = d.versie;
-        if (!voorstelStatus[ticketId]) voorstelStatus[ticketId] = {};
-        voorstelStatus[ticketId][doelgroep] = tijdstip;
-        if (apptWindowSend) {
-          voorstelStatus[ticketId].tijdslot      = apptWindowSend;
-          voorstelStatus[ticketId].tijdslotDatum = date;
-        }
-      }).catch(err => console.warn('Voorstel-status opslaan mislukt:', err));
+        const entry = {};
+        verzonden.forEach(x => { entry[x] = tijdstip; });
+        if (apptWindowSend) { entry.tijdslot = apptWindowSend; entry.tijdslotDatum = date; }
+        voorstelStatus[ticketId] = entry;
+      };
+      schrijfStatus(0).catch(err => console.warn('Voorstel-status opslaan mislukt:', err));
     }
     activeTicket.status           = 'Wachten op bevestiging planning';
     activeTicket.interventieDatum = data.interventieDatum;

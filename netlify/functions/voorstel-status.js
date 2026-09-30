@@ -4,16 +4,20 @@
 // Sinds v1.4.0 ook: het tijdslot dat effectief naar de klant gemaild is (`tijdslot`, bv.
 // "08:30–11:30") + de datum waarvoor het gold (`tijdslotDatum`), zodat de technieker exact
 // hetzelfde blok ziet als de klant, ongeacht latere wijzigingen aan de slot-instelling.
-// Structuur: { versie, status: { [ticketId]: { contact?, klant?, installateur?, tijdslot?, tijdslotDatum? } } }
+// Sinds v1.10.0: POST aanvaardt `doelgroepen[]` (atomisch) + `reset`, DELETE wist een ticket.
+// Structuur: { versie, status: { [ticketId]: { contact?, klant?, installateur?, tijdslot?, tijdslotDatum?, bevestigd? } } }
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
+import { leesRegister, schrijfVoorstel, wisVoorstel } from '../lib/voorstelregister.js';
 
-const EMPTY = { versie: 0, status: {} };
-const TIJDSLOT_RE = /^([01]\d|2[0-3]):[0-5]\d–([01]\d|2[0-3]):[0-5]\d$/;
-const DATE_RE     = /^\d{4}-\d{2}-\d{2}$/;
+const DOELGROEPEN = ['contact', 'klant', 'installateur'];
 
 export default async (req, context) => {
-  const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Content-Type': 'application/json',
+  };
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
   const store = getStore({ name: winkelNaam(req), consistency: 'strong' });
@@ -21,32 +25,36 @@ export default async (req, context) => {
   if (isTestVerzoek(req)) await zorgVoorTestkopie(getStore);
 
   if (req.method === 'GET') {
-    const data = await store.get('voorstel-status', { type: 'json' }).catch(() => null);
-    return new Response(JSON.stringify(data || EMPTY), { status: 200, headers });
+    return new Response(JSON.stringify(await leesRegister(store)), { status: 200, headers });
   }
 
   if (req.method === 'POST') {
     let body;
     try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers }); }
-    const { ticketId, doelgroep, tijdstip } = body;
-    if (!ticketId || !['contact', 'klant', 'installateur'].includes(doelgroep) || !tijdstip) {
-      return new Response(JSON.stringify({ error: 'ticketId, doelgroep (contact|klant|installateur) en tijdstip zijn verplicht' }), { status: 400, headers });
+    const { ticketId, tijdstip } = body;
+    const doelgroepen = Array.isArray(body.doelgroepen) ? body.doelgroepen : [body.doelgroep];
+    if (!ticketId || !tijdstip || !doelgroepen.length || !doelgroepen.every(d => DOELGROEPEN.includes(d))) {
+      return new Response(JSON.stringify({ error: 'ticketId, doelgroep(en) (contact|klant|installateur) en tijdstip zijn verplicht' }), { status: 400, headers });
     }
-    const current = (await store.get('voorstel-status', { type: 'json' }).catch(() => null)) || EMPTY;
-    if (typeof body.versie === 'number' && body.versie !== current.versie) {
-      return new Response(JSON.stringify({ error: 'Register ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: current.versie }), { status: 409, headers });
+    const r = await schrijfVoorstel(store, {
+      ticketId, doelgroepen, tijdstip,
+      tijdslot: body.tijdslot, tijdslotDatum: body.tijdslotDatum,
+      reset: body.reset === true,
+      versie: typeof body.versie === 'number' ? body.versie : undefined,
+    });
+    if (r.conflict) {
+      return new Response(JSON.stringify({ error: 'Register ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: r.serverVersie }), { status: 409, headers });
     }
-    // Optioneel: gemaild tijdslot + bijhorende datum (enkel opslaan als beide geldig zijn).
-    const slotExtra = (typeof body.tijdslot === 'string' && TIJDSLOT_RE.test(body.tijdslot)
-                       && typeof body.tijdslotDatum === 'string' && DATE_RE.test(body.tijdslotDatum))
-      ? { tijdslot: body.tijdslot, tijdslotDatum: body.tijdslotDatum }
-      : {};
-    const nieuw = {
-      versie: current.versie + 1,
-      status: { ...current.status, [ticketId]: { ...current.status[ticketId], [doelgroep]: tijdstip, ...slotExtra } },
-    };
-    await store.setJSON('voorstel-status', nieuw);
-    return new Response(JSON.stringify({ ok: true, versie: nieuw.versie }), { status: 200, headers });
+    return new Response(JSON.stringify({ ok: true, versie: r.versie }), { status: 200, headers });
+  }
+
+  if (req.method === 'DELETE') {
+    const ticketId = new URL(req.url).searchParams.get('ticketId') || '';
+    if (!/^\d+$/.test(ticketId)) {
+      return new Response(JSON.stringify({ error: 'ticketId (numeriek) is verplicht' }), { status: 400, headers });
+    }
+    const r = await wisVoorstel(store, ticketId);
+    return new Response(JSON.stringify({ ok: true, versie: r.versie }), { status: 200, headers });
   }
 
   return new Response('Method Not Allowed', { status: 405, headers });
