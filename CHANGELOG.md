@@ -15,6 +15,22 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.9.5] — 2026-09-30
+
+### Added
+- Tabblad Route: weekstrook boven de lijst en kaart met per werkdag het aantal stops en de
+  tijdstatus (tijden klaar, tijden nodig of niets gepland), met vorige/volgende week en
+  pijltjestoetsen. De datumkiezer blijft bestaan voor verre datums.
+- Tabblad Route: balk "zonder tijdstip" met knop Bereken tijden wanneer de gekozen dag stops
+  zonder tijdstip heeft.
+
+### Changed
+- Routekaart: de druktekleuren lopen ook vloeiend over in de gewone routekleur waar er geen
+  vertraging is (niet naar onbetrouwbare stukken).
+
+### Fixed
+- Het personenmenu verdween op het tabblad Route achter de kaart.
+
 ## [1.9.4] — 2026-09-30
 
 ### Fixed
