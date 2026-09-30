@@ -337,9 +337,9 @@
       position: sticky; top: var(--topbar-h, 92px); z-index: 28;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
-    .kal-week-label { font-size: 0.84rem; font-weight: 600; text-align: center; color: var(--text2); white-space: nowrap; background: transparent; border: none; font-family: inherit; cursor: pointer; padding: 4px 2px; border-radius: var(--r); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    .kal-week-label { font-size: 0.84rem; font-weight: 600; text-align: center; color: var(--text2); white-space: nowrap; background: transparent; border: none; font-family: inherit; cursor: pointer; padding: 2px 2px; line-height: 1.2; border-radius: var(--r); max-width: 100%; min-width: 0; overflow: hidden; }
     .kal-week-label:hover { background: var(--surface2); color: var(--text); }
-    .kal-nav-group  { display: flex; align-items: center; gap: 2px; flex: 1 1 0; min-width: 180px; }
+    .kal-nav-group  { display: flex; align-items: center; gap: 2px; flex: 1 1 0; min-width: 150px; }
     .kal-label-wrap { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; }
     .kal-actions    { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
     .kal-nav {
@@ -351,14 +351,10 @@
     }
     .kal-nav:hover  { background: var(--surface3); transform: scale(1.05); }
     .kal-nav:active { transform: scale(0.94); }
-    .kal-today {
-      background: transparent; border: none; color: var(--accent-ink);
-      padding: 2px 8px; border-radius: var(--r);
-      cursor: pointer; font-size: 0.74rem; font-weight: 600; font-family: inherit;
-      transition: background 0.12s;
-    }
-    .kal-today[hidden] { display: none; }
-    .kal-today:hover { background: var(--surface2); }
+    /* Tweede regel "↺ Vandaag" in de labelknop: hoogte altijd gereserveerd (kop verandert nooit van hoogte) */
+    .kal-lbl-tekst { display: block; overflow: hidden; text-overflow: ellipsis; }
+    .kal-lbl-vandaag { display: block; font-size: 0.75rem; font-weight: 600; color: var(--accent-ink); visibility: hidden; }
+    .kal-week-label.niet-vandaag .kal-lbl-vandaag { visibility: visible; }
     .btn-autoplan {
       background: var(--accent); border: none; color: var(--on-accent);
       padding: 6px 13px; border-radius: var(--r);
@@ -382,8 +378,7 @@
     /* Aanraken: alle tikbare bedieningselementen minstens 44px hoog (pictogramknoppen ook 44px breed) */
     html[data-aanraak="ja"] button, html[data-aanraak="ja"] .tab, html[data-aanraak="ja"] .kal-nav,
     html[data-aanraak="ja"] .kal-view-btn, html[data-aanraak="ja"] .hbtn, html[data-aanraak="ja"] .zu-chip,
-    html[data-aanraak="ja"] .kal-today, html[data-aanraak="ja"] .kal-week-label { min-height: 44px; }
-    html[data-aanraak="ja"] .kal-today { min-height: 44px; }
+    html[data-aanraak="ja"] .kal-week-label { min-height: 44px; }
     html[data-aanraak="ja"] .kal-view-btn { min-width: 56px; padding: 5px 6px; }
     html[data-aanraak="ja"] .kal-nav, html[data-aanraak="ja"] .hbtn, html[data-aanraak="ja"] .mhdr-close,
     html[data-aanraak="ja"] .prijs-hdr-close { min-width: 44px; }

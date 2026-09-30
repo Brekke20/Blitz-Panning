@@ -124,8 +124,7 @@
     <div class="kal-nav-group">
       <button class="kal-nav" onclick="kalNav(-1)" aria-label="Vorige periode" title="Vorige periode">‹</button>
       <div class="kal-label-wrap">
-        <button class="kal-week-label" id="kal-label" onclick="kalToday()" aria-label="Naar vandaag" title="Naar vandaag">—</button>
-        <button class="kal-today" id="kal-today-btn" onclick="kalToday()" hidden>↺ Vandaag</button>
+        <button class="kal-week-label" id="kal-label" onclick="kalToday()" title="Naar vandaag"><span class="kal-lbl-tekst" id="kal-label-tekst">—</span><span class="kal-lbl-vandaag" aria-hidden="true">↺ Vandaag</span></button>
       </div>
       <button class="kal-nav" onclick="kalNav(1)" aria-label="Volgende periode" title="Volgende periode">›</button>
     </div>
@@ -2054,8 +2053,15 @@ function kalZetVandaagKnop() {
   // "↺ Vandaag" enkel tonen als de getoonde periode niet de huidige is
   const dagModus = window.apparaat.indeling === 'tablet-staand' && kalView !== 'month';
   const nietVandaag = dagModus ? kalDagOffset !== 0 : kalOffset !== 0;
-  const knop = document.getElementById('kal-today-btn');
-  if (knop) knop.hidden = !nietVandaag;
+  const knop = document.getElementById('kal-label');
+  if (knop) knop.classList.toggle('niet-vandaag', nietVandaag);
+}
+// Label zetten + aria-label met de periode (enkel "naar vandaag" aankondigen als dat iets doet)
+function kalZetLabel(tekst) {
+  const knop = document.getElementById('kal-label');
+  document.getElementById('kal-label-tekst').textContent = tekst;
+  if (knop.classList.contains('niet-vandaag')) knop.setAttribute('aria-label', tekst + ', naar vandaag');
+  else knop.removeAttribute('aria-label');
 }
 function renderKalender() {
   kalZetVandaagKnop();
@@ -2117,9 +2123,9 @@ function renderKalender() {
   const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
   const zichtbareDagen = kalZichtbareDagen(today);
   if (window.apparaat.indeling === 'tablet-staand' && zichtbareDagen.length) {
-    document.getElementById('kal-label').textContent = fmtDateShort(zichtbareDagen[0]) + ' – ' + fmtDateShort(zichtbareDagen[zichtbareDagen.length - 1]);
+    kalZetLabel(fmtDateShort(zichtbareDagen[0]) + ' – ' + fmtDateShort(zichtbareDagen[zichtbareDagen.length - 1]));
   } else {
-    document.getElementById('kal-label').textContent = fmtDateShort(weekStart) + ' – ' + fmtDateShort(weekEnd);
+    kalZetLabel(fmtDateShort(weekStart) + ' – ' + fmtDateShort(weekEnd));
   }
 
   const grid = document.getElementById('week-grid');
@@ -2416,7 +2422,7 @@ function renderMonthView(today) {
   // Maand bepalen via kalOffset (aantal maanden tov vandaag)
   const ref = new Date(today.getFullYear(), today.getMonth() + kalOffset, 1);
   const maandLabel = ref.toLocaleDateString('nl-BE', { month: 'long', year: 'numeric' });
-  document.getElementById('kal-label').textContent = maandLabel.charAt(0).toUpperCase() + maandLabel.slice(1);
+  kalZetLabel(maandLabel.charAt(0).toUpperCase() + maandLabel.slice(1));
 
   const grid = document.getElementById('week-grid');
   grid.innerHTML = '';
