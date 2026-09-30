@@ -3688,8 +3688,7 @@ async function autoPlan() {
       })
       .filter(stop => stop && !stop._lat && !stop.ticket._lat && stop.ticket.address);
 
-    // Geocoding + reistijdschatting via TomTom
-    let travelMin = 30;
+    // Geocoding via TomTom
     const geocodeStops = [...toplan, ...existingLastStops.map(s => s.ticket)];
     // Cache raadplegen (geocode-cache) vóór TomTom nodig is.
     geocodeStops.forEach(t => {
@@ -3714,33 +3713,9 @@ async function autoPlan() {
           });
           if (!originCoords && gData.locations[0]) { originCoords = gData.locations[0]; geocacheStore(settings.startlocatie, originCoords.lat, originCoords.lon); }
         }
-      } catch (e) { /* gebruik fallback 30 min */ }
+      } catch (e) { /* geocoding mislukt: kandidaten zonder coördinaten */ }
     }
-    if (!TEST_MODE && originCoords && toplan.length) {
-      toast('Rijtijden berekenen...', 8000);
-      try {
-        const rRes  = await fetch('/api/route', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ waypoints: [originCoords, ...toplan.filter(t => t._lat).map(t => ({ lat:t._lat, lon:t._lon }))] }),
-        });
-        const rData = await rRes.json();
-        if (rData.legs?.length) travelMin = Math.round(rData.totalTravelTimeSeconds / rData.legs.length / 60);
-      } catch (e) { /* gebruik fallback 30 min */ }
-    }
-
-    const capPerDag = {};
-    const availDays = [];
-    for (const dStr of weekDates) {
-      const alreadyPlanned = (planning[dStr] || [])
-        .filter(p => activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter)
-        .reduce((sum, p) => sum + Math.ceil(duurVoor(p.ticket.id) / settings.duurMinuten), 0);
-      const cap = capacityForDay(dStr, travelMin) - alreadyPlanned;
-      capPerDag[dStr] = cap;
-      if (cap > 0) availDays.push({ date: dStr, cap });
-    }
-
-    if (!availDays.length) {
+    if (!weekDates.length) {
       showResult([], toplan, skipped, 'Geen beschikbare dagen meer deze week');
       return;
     }
@@ -3748,7 +3723,7 @@ async function autoPlan() {
     // Invoer voor het brein (public/js/planner.js) opbouwen. Het brein is puur: alles wat het
     // nodig heeft komt via deze invoer, reistijden via de adapter op /api/matrix.
     const perId = new Map(toplan.map(t => [t.id, t]));
-    const bestaandPerDag = {}, eigenAfspraken = {};
+    const bestaandPerDag = {}, eigenAfspraken = {}, blokkeringen = {};
     for (const dStr of weekDates) {
       bestaandPerDag[dStr] = (planning[dStr] || [])
         .filter(p => activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter)
@@ -3764,6 +3739,11 @@ async function autoPlan() {
           duurMin: (e.einduur ? calcWerktijdMin(e.uur, e.einduur) : 0) || 60,
           lat: null, lon: null,
         }));
+      // Tijdvak-blokkeringen (avExceptions kind 'range'), globaal of voor deze technieker.
+      blokkeringen[dStr] = avExceptions
+        .filter(e => e.date === dStr && e.kind === 'range' &&
+          (e.scope === 'global' || e.person === activeAssigneeFilter))
+        .map(e => ({ van: e.from, tot: e.to }));
     }
     const invoer = {
       kandidaten: toplan.map(t => ({
@@ -3774,15 +3754,14 @@ async function autoPlan() {
       extraVoor,
       bestaandPerDag,
       eigenAfspraken,
-      blokkeringen: {},
+      blokkeringen,
       klant: Object.fromEntries(toplan.map(t => [t.id, kbFor(t.id)]).filter(([, v]) => v)),
       instellingen: {
-        vanTijd: settings.vanTijd, laatsteStart: settings.laatsteStart, maxPerDag: settings.maxPerDag,
-        maxReistijdMin: settings.maxReistijdMin, duurMinuten: settings.duurMinuten,
+        vanTijd: settings.vanTijd, laatsteStart: settings.laatsteStart || '16:00', maxPerDag: settings.maxPerDag,
+        maxReistijdMin: settings.maxReistijdMin,
       },
       depot: originCoords || null,
       vandaag: localISO(today),
-      capPerDag, // tijdelijk (verdwijnt in Taak 5)
       // Adapter op /api/matrix: null voor ontbrekende cellen, lege Map bij een fout (fail-open).
       reistijden: async (van, naar, vertrekIso) => {
         try {

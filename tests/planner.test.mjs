@@ -29,11 +29,10 @@ function maakInvoer(extra = {}) {
     eigenAfspraken: {},
     blokkeringen: {},
     klant: {},
-    instellingen: { vanTijd: '08:00', laatsteStart: '16:00', maxPerDag: 3, maxReistijdMin: 45, duurMinuten: 120 },
+    instellingen: { vanTijd: '08:00', laatsteStart: '16:00', maxPerDag: 3, maxReistijdMin: 45 },
     depot: { lat: 51.17, lon: 4.33 },
     vandaag: '2026-10-05',
     reistijden: nepReistijden,
-    capPerDag: Object.fromEntries(DAGEN.map(d => [d, 3])),
     ...extra,
   };
 }
@@ -41,7 +40,7 @@ function maakInvoer(extra = {}) {
 const datumsVan = (uitkomst, id) => uitkomst.geplaatst.filter(g => g.ticketId === id).map(g => g.datum);
 
 // ---- tests -----------------------------------------------------------------
-test('huidig: vult dagen chronologisch en respecteert capPerDag', async () => {
+test('huidig: vult dagen chronologisch en respecteert maxPerDag', async () => {
   const u = await planWeek(maakInvoer());
   const perDag = {};
   for (const g of u.geplaatst) perDag[g.datum] = (perDag[g.datum] || 0) + 1;
@@ -78,15 +77,17 @@ test('huidig: snapshot', async () => {
   assert.deepEqual(u.geplaatst, SNAPSHOT);
 });
 
+// gewijzigd door R8: de rit depot → eerste stop telt nu mee in de klok (was 08:00 voor de eerste stop van elke dag);
+// volgorde en dagen zijn ongewijzigd, enkel de aankomsttijden schuiven op.
 const SNAPSHOT = [
-  { ticketId: 't7', datum: '2026-10-05', verwachteAankomst: '08:00' },
-  { ticketId: 't1', datum: '2026-10-05', verwachteAankomst: '10:03' },
-  { ticketId: 't2', datum: '2026-10-05', verwachteAankomst: '12:10' },
-  { ticketId: 't4', datum: '2026-10-06', verwachteAankomst: '08:00' },
-  { ticketId: 't3', datum: '2026-10-06', verwachteAankomst: '10:03' },
-  { ticketId: 't8', datum: '2026-10-06', verwachteAankomst: '12:07' },
-  { ticketId: 't5', datum: '2026-10-07', verwachteAankomst: '08:00' },
-  { ticketId: 't6', datum: '2026-10-07', verwachteAankomst: '10:05' },
+  { ticketId: 't7', datum: '2026-10-05', verwachteAankomst: '08:06' },
+  { ticketId: 't1', datum: '2026-10-05', verwachteAankomst: '10:10' },
+  { ticketId: 't2', datum: '2026-10-05', verwachteAankomst: '12:16' },
+  { ticketId: 't4', datum: '2026-10-06', verwachteAankomst: '08:55' },
+  { ticketId: 't3', datum: '2026-10-06', verwachteAankomst: '10:58' },
+  { ticketId: 't8', datum: '2026-10-06', verwachteAankomst: '13:01' },
+  { ticketId: 't5', datum: '2026-10-07', verwachteAankomst: '09:38' },
+  { ticketId: 't6', datum: '2026-10-07', verwachteAankomst: '11:43' },
 ];
 
 // ---- max-reistijd-pad (karakterisatie) -------------------------------------
@@ -99,7 +100,6 @@ function maakEenDag(kandidaten, extra = {}) {
   return maakInvoer({
     kandidaten: kandidaten.map(k => ({ ...k })),
     dagen: ['2026-10-05'],
-    capPerDag: { '2026-10-05': 3 },
     bestaandPerDag: BESTAAND,
     ...extra,
   });
@@ -179,7 +179,6 @@ test('planWeek: op extra dag enkel het voorkeursticket', async () => {
   const u = await planWeek(maakInvoer({
     dagen, extraVoor,
     klant: { t5: { voorkeur: EXTRA } },
-    capPerDag: Object.fromEntries(dagen.map(d => [d, 3])),
   }));
   assert.deepEqual(datumsVan(u, 't5'), [EXTRA]);
   assert.deepEqual(u.geplaatst.filter(g => g.datum === EXTRA).map(g => g.ticketId), ['t5']);
@@ -216,7 +215,8 @@ test('voorrang: inPlanningSinds null = geen bonus', () => {
 });
 
 const dagEen = kandidaten => maakInvoer({
-  kandidaten, dagen: ['2026-10-05'], capPerDag: { '2026-10-05': 1 },
+  kandidaten, dagen: ['2026-10-05'],
+  instellingen: { vanTijd: '08:00', laatsteStart: '16:00', maxPerDag: 1, maxReistijdMin: 45 }, // gewijzigd door R8: maxPerDag telt tickets i.p.v. capPerDag-slots
 });
 const basisK = { interventieDatum: null, lat: 51.2, lon: 4.4, duurMin: 120, inPlanningSinds: null };
 
@@ -248,6 +248,117 @@ test('starter: met bestaande stop wint hoogste voorrang die binnen max-reistijd 
   const hoogVer = { ...VER, priority: 'High' };
   const middelNabij = { ...NABIJ, priority: 'Medium' };
   const laagNabij = { ...NABIJ, id: 'laagnabij', number: '203', priority: 'Low' };
-  const u = await planWeek(maakEenDag([laagNabij, hoogVer, middelNabij], { capPerDag: { '2026-10-05': 1 } }));
+  const u = await planWeek(maakEenDag([laagNabij, hoogVer, middelNabij], { instellingen: { vanTijd: '08:00', laatsteStart: '16:00', maxPerDag: 2, maxReistijdMin: 45 } })); // gewijzigd door R8: maxPerDag telt ook de bestaande stop
   assert.deepEqual(ids(u), ['nabij']);
+});
+
+// ---- R8: tijdlijn per dag ----------------------------------------------------
+const EEN = '2026-10-05';
+const inst = (extra = {}) => ({ vanTijd: '08:00', laatsteStart: '16:00', maxPerDag: 10, maxReistijdMin: 45, ...extra });
+const opDepot = { lat: 51.17, lon: 4.33 };
+const kand = (id, nr, extra = {}) => ({ ...basisK, id, number: String(nr), priority: 'Medium', lat: 51.17, lon: 4.33, ...extra });
+const min = hhmm => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
+const geenReis = async () => new Map();
+const tijdlijn = (kandidaten, extra = {}) => maakInvoer({
+  kandidaten, dagen: [EEN], depot: opDepot, reistijden: geenReis, instellingen: inst(), ...extra,
+});
+
+test('tijdlijn: eigen afspraak 10:00–12:00 → geen ticket overlapt, klok springt erover', async () => {
+  const ks = [kand('a', 1), kand('b', 2), kand('c', 3), kand('d', 4)];
+  const u = await planWeek(tijdlijn(ks, { eigenAfspraken: { [EEN]: [{ uur: '10:00', duurMin: 120, lat: null, lon: null }] } }));
+  assert.ok(u.geplaatst.length >= 2);
+  for (const g of u.geplaatst) {
+    const s = min(g.verwachteAankomst), e = s + 120;
+    assert.ok(e <= min('10:00') || s >= min('12:00'), `overlap op ${g.verwachteAankomst}`);
+  }
+  assert.ok(u.geplaatst.some(g => g.verwachteAankomst === '12:00'));
+});
+
+test('tijdlijn: geen verwachteAankomst na 16:00', async () => {
+  const ks = Array.from({ length: 12 }, (_, i) => kand('k' + i, i + 1, { duurMin: 60 }));
+  const u = await planWeek(tijdlijn(ks));
+  assert.ok(u.geplaatst.length > 0);
+  for (const g of u.geplaatst) assert.ok(min(g.verwachteAankomst) <= min('16:00'), g.verwachteAankomst);
+  assert.equal(u.geplaatst.length, 9); // 08:00 t/m 16:00
+});
+
+test('tijdlijn: instellingen zonder laatsteStart gebruikt 16:00', async () => {
+  const ks = Array.from({ length: 12 }, (_, i) => kand('k' + i, i + 1, { duurMin: 60 }));
+  const { laatsteStart, ...zonder } = inst();
+  const u = await planWeek(tijdlijn(ks, { instellingen: zonder }));
+  const laatste = Math.max(...u.geplaatst.map(g => min(g.verwachteAankomst)));
+  assert.equal(laatste, min('16:00'));
+  assert.equal(u.geplaatst.length, 9);
+});
+
+test('tijdlijn: voorkeursuur 16:30 wordt toch geplaatst op 16:30', async () => {
+  const u = await planWeek(tijdlijn([kand('v', 1)], { klant: { v: { voorkeurTijd: '16:30' } } }));
+  assert.deepEqual(u.geplaatst, [{ ticketId: 'v', datum: EEN, verwachteAankomst: '16:30' }]);
+});
+
+test('tijdlijn: voorkeursuur 07:00 vóór vanTijd wordt geplaatst indien vrij', async () => {
+  const u = await planWeek(tijdlijn([kand('v', 1)], { klant: { v: { voorkeurTijd: '07:00' } } }));
+  assert.deepEqual(u.geplaatst, [{ ticketId: 'v', datum: EEN, verwachteAankomst: '07:00' }]);
+});
+
+test('tijdlijn: blokkering 08:00–17:00 → niets op die dag, tickets naar volgende dag, planWeek eindigt', async () => {
+  const D2 = '2026-10-06';
+  const u = await planWeek(tijdlijn([kand('a', 1), kand('b', 2)], {
+    dagen: [EEN, D2], blokkeringen: { [EEN]: [{ van: '08:00', tot: '17:00' }] },
+  }));
+  assert.equal(u.geplaatst.length, 2);
+  assert.ok(u.geplaatst.every(g => g.datum === D2));
+  assert.deepEqual(u.nietGepland, []);
+});
+
+test('tijdlijn: dag volledig bezet door eigen afspraken → niets geplaatst, geen oneindige lus', async () => {
+  const u = await planWeek(tijdlijn([kand('a', 1)], {
+    eigenAfspraken: { [EEN]: [{ uur: '08:00', duurMin: 240, lat: null, lon: null }, { uur: '12:00', duurMin: 300, lat: null, lon: null }] },
+  }));
+  assert.deepEqual(u.geplaatst, []);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'a', reden: 'geen-plaats' }]);
+});
+
+test('tijdlijn: maxPerDag 2 met 1 bestaande → hoogstens 1 nieuw', async () => {
+  const u = await planWeek(tijdlijn([kand('a', 1), kand('b', 2), kand('c', 3)], {
+    instellingen: inst({ maxPerDag: 2 }),
+    bestaandPerDag: { [EEN]: [{ id: 'x', uur: '08:00', duurMin: 60, lat: null, lon: null }] },
+  }));
+  assert.equal(u.geplaatst.length, 1);
+});
+
+test('tijdlijn: rit depot→eerste stop telt mee in verwachteAankomst', async () => {
+  const dertig = async (van, naar) => new Map(naar.map(n => [n.id, 30]));
+  const u = await planWeek(tijdlijn([kand('a', 1, { lat: 51.4, lon: 4.6 })], { reistijden: dertig }));
+  assert.equal(u.geplaatst[0].verwachteAankomst, '08:30');
+});
+
+test('tijdlijn: bestaande stop zonder uur staat vooraan en neemt tijd in', async () => {
+  const u = await planWeek(tijdlijn([kand('a', 1)], {
+    bestaandPerDag: { [EEN]: [{ id: 'x', uur: null, duurMin: 120, lat: null, lon: null }] },
+  }));
+  assert.equal(u.geplaatst[0].verwachteAankomst, '10:00');
+});
+
+test('reden: ticket met voorkeurTijd dat elke dag botst → vast-uur-botst', async () => {
+  const D2 = '2026-10-06';
+  const u = await planWeek(tijdlijn([kand('v', 1)], {
+    dagen: [EEN, D2], klant: { v: { voorkeurTijd: '10:00' } },
+    bestaandPerDag: {
+      [EEN]: [{ id: 'x', uur: '09:30', duurMin: 120, lat: null, lon: null }],
+      [D2]: [{ id: 'y', uur: '10:00', duurMin: 60, lat: null, lon: null }],
+    },
+  }));
+  assert.deepEqual(u.geplaatst, []);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'v', reden: 'vast-uur-botst' }]);
+});
+
+test('reden: alle dagen klant-geblokkeerd → klant-geblokkeerd', async () => {
+  const u = await planWeek(tijdlijn([kand('g', 1)], { klant: { g: { geblokkeerd: [EEN] } } }));
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'g', reden: 'klant-geblokkeerd' }]);
+});
+
+test('reden: week vol → geen-plaats', async () => {
+  const u = await planWeek(tijdlijn([kand('a', 1), kand('b', 2)], { instellingen: inst({ maxPerDag: 1 }) }));
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'b', reden: 'geen-plaats' }]);
 });
