@@ -106,11 +106,11 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
       return json(200, { html });
     }
 
-    const v = valideerAnnulatie(body);
+    const test = isTestVerzoek(req);
+    const v = valideerAnnulatie(body, { test });
     if (!v.ok) return json(400, { error: v.fout });
     const { ticketId, reden, toelichting, mailKlant, door } = v.waarde;
 
-    const test = isTestVerzoek(req);
     if (test) await zorgVoorTestkopie(haalStore);
     const store = haalStore({ name: winkelNaam(req), consistency: 'strong' });
 

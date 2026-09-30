@@ -4143,8 +4143,14 @@ function clearDay() {
     activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
   );
   if (!stops.length) return;
-  if (!confirm(`Alle ${meervoud(stops.length, 'stop', 'stops')} verwijderen op ${date}?`)) return;
-  stops.forEach(s => removeTicketFromDate(s.ticket.id, date));
+  // Tickets met een verstuurd/bevestigd voorstel blijven staan: die moeten via "Afspraak annuleren".
+  const vrij = stops.filter(p => !heeftLopendVoorstel(p.ticket));
+  const overgeslagen = stops.length - vrij.length;
+  if (vrij.length) {
+    if (!confirm(`Alle ${meervoud(vrij.length, 'stop', 'stops')} verwijderen op ${date}?`)) return;
+    vrij.forEach(s => removeTicketFromDate(s.ticket.id, date));
+  }
+  if (overgeslagen) toast(`${meervoud(overgeslagen, 'stop', 'stops')} met verstuurd voorstel niet verwijderd — annuleer ze afzonderlijk.`, 7000);
 }
 
 function updateRouteBtns(date) {
@@ -6410,17 +6416,25 @@ function closeProposal(e) {
 // AFSPRAAK ANNULEREN (v1.10.0)
 // ══════════════════════════════════════════════
 // Lopend voorstel = er is een register-entry (contact/klant/installateur/bevestigd) of de
-// status staat al op bevestiging/gepland.
+// status al op gepland staat. 'Wachten op bevestiging planning' alleen telt NIET: gewoon inplannen
+// (/api/plan) zet die status ook, zonder dat er een voorstel naar de klant ging.
 function heeftLopendVoorstel(t) {
   if (!t) return false;
   const vs = voorstelStatus[t.id];
   if (vs && (vs.contact || vs.klant || vs.installateur || vs.bevestigd)) return true;
-  return ['Wachten op bevestiging planning', 'Geplande service', 'Geplande support'].includes(t.status);
+  return ['Geplande service', 'Geplande support'].includes(t.status);
 }
 
 let _annuleerRedenen = null; // [{code,label}] -- één keer opgehaald
 let _ann = null;             // toestand van het openstaande venster
 const ANN_DOELGROEP = { contact: 'contactpersoon', klant: 'klant', installateur: 'installateur' };
+
+// Gekozen persoon op dit toestel (persoonskiezer bewaart 'all' voor "Alle technici"); niemand = leeg.
+function annuleerDoor() {
+  let d = '';
+  try { d = localStorage.getItem('blitz_active_person') || ''; } catch (e) {}
+  return d === 'all' ? '' : d;
+}
 
 async function laadAnnuleerRedenen() {
   if (_annuleerRedenen) return _annuleerRedenen;
@@ -6599,7 +6613,7 @@ async function verstuurAnnulatie() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ticketId: s.ticketId, reden: v.reden, toelichting: v.toelichting, mailKlant: v.mailKlant,
-        door: activeAssigneeFilter === 'all' ? '' : activeAssigneeFilter, naam: s.naam,
+        door: annuleerDoor(), naam: s.naam,
       }),
     });
     data = await res.json().catch(() => ({}));

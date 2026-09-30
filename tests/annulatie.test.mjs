@@ -245,3 +245,18 @@ test('endpoint echt: ticket-GET 500 geeft 502, 404 geeft 404', async () => {
     assert.equal(r.status, verwacht);
   }
 });
+
+test('ticketId p1: testmodus geeft 200 test:true, echt geeft 400 zonder fetch', async () => {
+  const body = { ticketId: 'p1', reden: 'weer', toelichting: '', mailKlant: false };
+  const w = maakWinkels();
+  const { fn, calls } = maakFetch();
+  const h = maakHandler({ getStore: w.getStore, fetch: fn });
+  const t = await h(post(body, { 'X-Blitz-Test': '1' }));
+  assert.equal(t.status, 200);
+  assert.equal((await t.json()).test, true);
+  const e = await h(post(body));
+  assert.equal(e.status, 400);
+  assert.equal(calls.length, 0);
+  assert.equal(valideerAnnulatie({ ...body, ticketId: 'p1/../x' }, { test: true }).ok, false);
+  assert.equal(valideerAnnulatie(body).ok, false);
+});

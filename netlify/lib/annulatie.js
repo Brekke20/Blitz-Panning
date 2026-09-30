@@ -29,9 +29,12 @@ export function valideerRedenToelichting(body) {
   return { ok: true, waarde: { reden: r.code, toelichting } };
 }
 
-export function valideerAnnulatie(body) {
+// Buiten testmodus is ticketId strikt numeriek; enkel in testmodus (voorbeeldtickets als "p1")
+// volstaat een korte veilige id.
+export function valideerAnnulatie(body, { test = false } = {}) {
   const b = body || {};
-  if (!/^\d+$/.test(String(b.ticketId ?? ''))) return { ok: false, fout: 'ticketId (numeriek) is verplicht' };
+  const idOk = test ? /^[A-Za-z0-9_-]{1,20}$/ : /^\d+$/;
+  if (!idOk.test(String(b.ticketId ?? ''))) return { ok: false, fout: 'ticketId (numeriek) is verplicht' };
   const rt = valideerRedenToelichting(b);
   if (!rt.ok) return rt;
   if (typeof b.mailKlant !== 'boolean') return { ok: false, fout: 'mailKlant (boolean) is verplicht' };
