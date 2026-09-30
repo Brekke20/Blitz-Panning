@@ -63,19 +63,19 @@
   </div>
   <div id="test-badge">TEST</div>
   <div class="person-sel" id="person-sel">
-    <button class="person-btn" id="person-btn" onclick="togglePersonMenu()">
+    <button class="person-btn" id="person-btn" onclick="togglePersonMenu()" aria-haspopup="menu" aria-expanded="false">
       <div class="person-avatar" id="person-avatar-hdr">A</div>
       <span id="person-name-hdr">Alle</span>
       <span class="person-chevron">▾</span>
     </button>
     <div class="person-menu" id="person-menu"></div>
   </div>
-  <button class="hbtn" onclick="loadTickets()" title="Vernieuwen">↺</button>
-  <button class="hbtn hbtn-theme" onclick="toggleTheme()" title="Wissel licht/donker">
-    <span class="theme-icon-dark">🌙</span>
-    <span class="theme-icon-light">☀️</span>
+  <button class="hbtn" onclick="loadTickets()" title="Vernieuwen" aria-label="Vernieuwen">↺</button>
+  <button class="hbtn hbtn-theme" onclick="toggleTheme()" title="Wissel licht/donker" aria-label="Wissel licht/donker">
+    <span class="theme-icon-dark" aria-hidden="true">🌙</span>
+    <span class="theme-icon-light" aria-hidden="true">☀️</span>
   </button>
-  <button class="hbtn" onclick="openSettings()" title="Instellingen">⚙</button>
+  <button class="hbtn" onclick="openSettings()" title="Instellingen" aria-label="Instellingen">⚙</button>
 </header>
 
 <nav aria-label="Hoofdmenu">
@@ -125,9 +125,9 @@
       <button class="kal-view-btn" id="kal-view-month" onclick="setKalView('month')">Maand</button>
     </div>
     <div class="kal-nav-group">
-      <button class="kal-nav" onclick="kalNav(-1)">‹</button>
+      <button class="kal-nav" onclick="kalNav(-1)" aria-label="Vorige periode" title="Vorige periode">‹</button>
       <span class="kal-week-label" id="kal-label">—</span>
-      <button class="kal-nav" onclick="kalNav(1)">›</button>
+      <button class="kal-nav" onclick="kalNav(1)" aria-label="Volgende periode" title="Volgende periode">›</button>
       <button class="kal-today" id="kal-today-btn" onclick="kalToday()">Vandaag</button>
     </div>
     <div class="kal-actions">
@@ -147,7 +147,7 @@
 <!-- ══ ROUTE TAB ══ -->
 <div class="view" id="view-planning" role="tabpanel" aria-labelledby="tab-planning">
   <div class="plan-header">
-    <input type="date" id="plan-date" onchange="onDateChange(this.value)" />
+    <input type="date" id="plan-date" onchange="onDateChange(this.value)" aria-label="Datum voor de route" />
     <button class="btn-primary" id="btn-optimize" onclick="optimizeRoute()" disabled title="Herorden stops voor kortste reistijd, daarna rijtijden berekenen">⚡ Optimaliseer</button>
     <button class="btn-sec"     id="btn-route"    onclick="calculateRoute()" disabled title="Bereken rijtijden in huidige volgorde">Bereken tijden</button>
     <button class="btn-sec"     onclick="clearDay()">✕ Leeg</button>
@@ -165,9 +165,9 @@
 <!-- ══ GEPLAND TAB ══ -->
 <div class="view" id="view-gepland" role="tabpanel" aria-labelledby="tab-gepland">
   <div class="gep-week">
-    <button onclick="gepNav(-1)">‹</button>
+    <button onclick="gepNav(-1)" aria-label="Vorige periode" title="Vorige periode">‹</button>
     <span id="gep-label">—</span>
-    <button onclick="gepNav(1)">›</button>
+    <button onclick="gepNav(1)" aria-label="Volgende periode" title="Volgende periode">›</button>
   </div>
   <div id="gep-body" class="ticket-list"></div>
 </div>
@@ -181,9 +181,9 @@
       <button class="btn-sec rapp-filter-btn" data-filter="Interventie" style="font-size:0.75rem;padding:5px 10px">Interventie</button>
       <button class="btn-sec rapp-filter-btn" data-filter="Installatie" style="font-size:0.75rem;padding:5px 10px">Installatie</button>
     </div>
-    <input type="date" id="rapp-van"  style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:4px 7px;font-size:0.75rem;font-family:inherit" title="Export van" />
+    <input type="date" id="rapp-van"  style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:4px 7px;font-size:0.75rem;font-family:inherit" title="Export van" aria-label="Van datum" />
     <span style="font-size:0.75rem;color:var(--muted)">–</span>
-    <input type="date" id="rapp-tot"  style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:4px 7px;font-size:0.75rem;font-family:inherit" title="Export tot" />
+    <input type="date" id="rapp-tot"  style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:4px 7px;font-size:0.75rem;font-family:inherit" title="Export tot" aria-label="Tot datum" />
     <button class="btn-sec" onclick="exportTicketLog()" style="font-size:0.75rem;padding:5px 10px">📊 Excel export</button>
     <button class="btn-sec" onclick="laadRapportArchief()" style="font-size:0.75rem;padding:5px 10px">↺ Herladen</button>
   </div>
@@ -262,23 +262,23 @@
     </div>
     <div class="mbody" id="set-tab-algemeen">
       <div class="set-field">
-        <label class="set-label">Startlocatie</label>
+        <label class="set-label" for="set-start">Startlocatie</label>
         <input class="set-input" id="set-start" type="text" placeholder="bv. Heirbaan 9, 9150 Kruibeke" />
       </div>
       <div class="set-field">
-        <label class="set-label">Tijd per interventie (minuten)</label>
+        <label class="set-label" for="set-duration">Tijd per interventie (minuten)</label>
         <input class="set-input" id="set-duration" type="number" min="15" max="480" step="15" />
       </div>
       <div class="set-field">
-        <label class="set-label">Max interventies per dag</label>
+        <label class="set-label" for="set-max">Max interventies per dag</label>
         <input class="set-input" id="set-max" type="number" min="1" max="20" />
       </div>
       <div class="set-field">
-        <label class="set-label">Max. reistijd tussen interventies (minuten)</label>
+        <label class="set-label" for="set-maxreistijd">Max. reistijd tussen interventies (minuten)</label>
         <input class="set-input" id="set-maxreistijd" type="number" min="0" max="240" step="5" />
       </div>
       <div class="set-field">
-        <label class="set-label">Werkuren</label>
+        <label class="set-label" for="set-van">Werkuren</label>
         <div class="set-row">
           <input class="set-input" id="set-van" type="time" />
           <span style="color:var(--muted);font-size:0.83rem;flex-shrink:0">tot</span>
@@ -286,23 +286,23 @@
         </div>
       </div>
       <div class="set-field">
-        <label class="set-label">Tijdslot-grootte voor klant/technieker (minuten)</label>
+        <label class="set-label" for="set-tijdslot">Tijdslot-grootte voor klant/technieker (minuten)</label>
         <input class="set-input" id="set-tijdslot" type="number" min="60" max="360" step="30" />
       </div>
       <div class="set-field">
-        <label class="set-label">Kleur routelijn</label>
+        <label class="set-label" for="set-routekleur">Kleur routelijn</label>
         <div class="set-row" style="gap:10px;align-items:center">
           <input class="set-color-swatch" id="set-routekleur" type="color">
           <span class="set-color-hex" id="set-routekleur-hex"></span>
         </div>
       </div>
       <div class="set-field">
-        <label class="set-label">Drukte tonen op de route (verwachte vertraging per wegstuk)</label>
+        <label class="set-label" for="set-drukte">Drukte tonen op de route (verwachte vertraging per wegstuk)</label>
         <label class="set-row"><input type="checkbox" id="set-drukte"> <span>Aan</span></label>
       </div>
       <div class="set-field">
-        <label class="set-label">Werkdagen</label>
-        <div class="days-grid" id="days-grid"></div>
+        <label class="set-label" id="set-werkdagen-label">Werkdagen</label>
+        <div class="days-grid" id="days-grid" role="group" aria-labelledby="set-werkdagen-label"></div>
       </div>
     </div>
     <div class="mbody" id="set-tab-beschikbaarheden" style="display:none">
@@ -423,16 +423,16 @@
     <div class="mbody">
       <div class="man-form">
         <div>
-          <div class="man-label">Titel</div>
-          <input class="man-input" id="man-titel" type="text" placeholder="bv. Installatie Pietersen" />
+          <label class="man-label" for="man-titel">Titel *</label>
+          <input class="man-input" id="man-titel" type="text" placeholder="bv. Installatie Pietersen" required aria-required="true" />
         </div>
         <div class="man-row2">
           <div>
-            <div class="man-label">Datum</div>
-            <input class="man-input" id="man-datum" type="date" />
+            <label class="man-label" for="man-datum">Datum *</label>
+            <input class="man-input" id="man-datum" type="date" required aria-required="true" />
           </div>
           <div>
-            <div class="man-label">Type</div>
+            <label class="man-label" for="man-type">Type</label>
             <select class="man-select" id="man-type">
               <option value="Service">Service</option>
               <option value="Installatie">Installatie</option>
@@ -442,38 +442,39 @@
         </div>
         <div class="man-row2">
           <div>
-            <div class="man-label">Van</div>
-            <input class="man-input" id="man-van" type="time" value="09:00" />
+            <label class="man-label" for="man-van">Van *</label>
+            <input class="man-input" id="man-van" type="time" value="09:00" required aria-required="true" />
           </div>
           <div>
-            <div class="man-label">Tot</div>
-            <input class="man-input" id="man-tot" type="time" value="11:00" />
+            <label class="man-label" for="man-tot">Tot *</label>
+            <input class="man-input" id="man-tot" type="time" value="11:00" required aria-required="true" />
           </div>
         </div>
         <div>
-          <div class="man-label">Technieker</div>
+          <label class="man-label" for="man-persoon">Technieker</label>
           <select class="man-select" id="man-persoon">
             <!-- Ingevuld door openManueelModal() -->
           </select>
         </div>
         <div>
-          <div class="man-label">Adres</div>
+          <label class="man-label" for="man-adres">Adres</label>
           <input class="man-input" id="man-adres" type="text" placeholder="bv. Kerkstraat 5, 9000 Gent" />
         </div>
         <div class="man-row2">
           <div>
-            <div class="man-label">Telefoon</div>
+            <label class="man-label" for="man-telefoon">Telefoon</label>
             <input class="man-input" id="man-telefoon" type="tel" placeholder="+32 ..." />
           </div>
           <div>
-            <div class="man-label">E-mail</div>
+            <label class="man-label" for="man-email">E-mail</label>
             <input class="man-input" id="man-email" type="email" placeholder="naam@voorbeeld.be" />
           </div>
         </div>
         <div>
-          <div class="man-label">Notitie</div>
+          <label class="man-label" for="man-notitie">Notitie</label>
           <input class="man-input" id="man-notitie" type="text" placeholder="Extra info ..." />
         </div>
+        <div class="man-hint">* verplicht</div>
       </div>
     </div>
     <div class="mftr">
@@ -514,16 +515,16 @@
     </div>
     <div class="mbody">
       <div class="set-field">
-        <label class="set-label">Datum</label>
+        <label class="set-label" for="proposal-date">Datum</label>
         <input class="set-input" id="proposal-date" type="date" oninput="updateProposalPreview()" />
       </div>
       <div class="set-field">
-        <label class="set-label">Tijdstip (wordt afgerond naar volgend kwartier)</label>
+        <label class="set-label" for="proposal-time">Tijdstip (wordt afgerond naar volgend kwartier)</label>
         <input class="set-input" id="proposal-time" type="time" step="900" oninput="updateProposalPreview()" />
       </div>
       <div class="set-field">
-        <label class="set-label">Ontvangers</label>
-        <div class="set-input" id="proposal-email" style="min-height:auto"></div>
+        <label class="set-label" id="proposal-email-label">Ontvangers</label>
+        <div class="set-input" id="proposal-email" style="min-height:auto" role="region" aria-labelledby="proposal-email-label"></div>
       </div>
       <div id="proposal-no-email" style="display:none;font-size:0.78rem;color:#f59e0b;padding:4px 0 8px">
         ⚠️ Geen e-mailadres — ticket wordt bijgewerkt maar er wordt geen mail verstuurd.

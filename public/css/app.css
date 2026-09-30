@@ -548,7 +548,8 @@
     #manueel-overlay { align-items: center; padding: 24px; }
     #manueel-modal { border-radius: var(--r-lg); max-width: 400px; }
     .man-form { display: flex; flex-direction: column; gap: 10px; }
-    .man-label { font-size: var(--fs-2xs); color: var(--muted); margin-bottom: 3px; }
+    .man-label { display: block; font-size: var(--fs-2xs); color: var(--muted); margin-bottom: 3px; }
+    .man-hint { font-size: var(--fs-xs); color: var(--muted); margin-top: 12px; }
     .man-input, .man-select { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 6px 9px; font-size: 0.82rem; font-family: inherit; }
     .man-input:focus, .man-select:focus { border-color: var(--accent); }
     .man-input:focus-visible, .man-select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
