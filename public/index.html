@@ -1684,7 +1684,7 @@ function buildTicketCard(stop, dateStr, { showActions = true } = {}) {
       <button class="cal-unplan-x coord-only" title="Uit planning halen" aria-label="Uit planning halen" onclick="event.stopPropagation();bevestigUitplannen('${stop.ticket.id}','${dateStr}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;flex-shrink:0;padding:2px 4px;line-height:1">×</button>
     </div>
     ${showActions ? `<div class="cal-actions">
-      ${stop.ticket.phone || stop.ticket.telefoonEindklant ? `<a class="cal-btn" href="tel:${escHtml(stop.ticket.telefoonEindklant||stop.ticket.phone)}">📞 Bellen</a>` : ''}
+      ${stop.ticket.phone || stop.ticket.telefoonEindklant ? `<a class="cal-btn" href="tel:${escHtml(telNummer(stop.ticket.telefoonEindklant||stop.ticket.phone))}">📞 Bellen</a>` : ''}
       ${stop.ticket.hasAddress ? `<button class="cal-btn btn-navigeer" data-adres="${escHtml(stop.address||stop.ticket.address||'')}">🧭 Navigeer</button>` : ''}
     </div>` : ''}`;
   card.querySelector('.btn-navigeer')?.addEventListener('click', e => {
@@ -1729,7 +1729,7 @@ function buildLocalEventCard(ev, { showActions = true } = {}) {
     ${adresLabel ? `<div class="cal-addr">${escHtml(adresLabel)}</div>` : ''}
     ${ev.persoon ? `<div class="cal-meta">${escHtml(ev.persoon)}</div>` : ''}
     ${showActions ? `<div class="cal-actions">
-      ${ev.telefoon ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(ev.telefoon)}">📞 Bellen</a>` : ''}
+      ${ev.telefoon ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(telNummer(ev.telefoon))}">📞 Bellen</a>` : ''}
       ${adresLabel ? `<button class="cal-btn cal-ev-nav">🧭 Navigeer</button>` : ''}
     </div>` : ''}`;
   // ev.id komt uit de afspraken-blob (niet-geauthenticeerd) — via closure doorgeven i.p.v.
@@ -3140,7 +3140,7 @@ function openLocalEventDetail(ev) {
     adres
       ? `<div class="mrow"><span class="mlabel">Adres</span><span class="mval"><a href="#" class="mval-nav-link" data-adres="${escHtml(adres)}">${escHtml(adres)} ↗</a></span></div>`
       : '',
-    linkRow('Telefoon', ev.telefoon, `tel:${ev.telefoon}`),
+    linkRow('Telefoon', ev.telefoon, `tel:${telNummer(ev.telefoon)}`),
     linkRow('E-mail',   ev.email,    `mailto:${ev.email}`),
     ev.adres && ev.notitie ? row('Notitie', ev.notitie) : '',
     row('Technieker', ev.persoon),
@@ -4290,7 +4290,7 @@ function renderRouteList(date) {
           </div>
         </div>
         <div class="stop-actions">
-          ${ev.telefoon ? `<a class="sico" href="tel:${escHtml(ev.telefoon)}" title="Bellen">📞 Bellen</a>` : ''}
+          ${ev.telefoon ? `<a class="sico" href="tel:${escHtml(telNummer(ev.telefoon))}" title="Bellen">📞 Bellen</a>` : ''}
           ${adres ? `<button class="sico btn-navigeer" title="Navigeren" data-adres="${escHtml(adres)}">🧭 Navigeer</button>` : ''}
           <button class="sico" title="Aankomst registreren" onclick="registerArrival('${ev.id}','${date}')">⏱️ Aankomst</button>
           <button class="sico btn-ev-details" title="Details">📋 Details</button>
@@ -5199,6 +5199,7 @@ function koppelAdresNavigatie(root) {
 window.getActiveAssignee = () => activeAssigneeFilter;
 
 function openDetail(t) {
+  _kbIsDirty = null; // nieuw ticket: oud concept niet meenemen (renderKbSection zet het opnieuw)
   if (!t) return;
   activeTicket = t;
 
@@ -5225,12 +5226,12 @@ function openDetail(t) {
   contactEl.innerHTML = contactActiesHtml(t);
   koppelAdresNavigatie(contactEl);
 
-  const row = (l, v, href) => v ? `<div class="mrow"><span class="mlabel">${l}</span><span class="mval">${href ? `<a href="${href}${escHtml(v)}">${escHtml(v)}</a>` : escHtml(v)}</span></div>` : '';
+  const row = (l, v, href, tel) => v ? `<div class="mrow"><span class="mlabel">${l}</span><span class="mval">${tel ? `<a href="tel:${escHtml(tel)}">${escHtml(v)}</a>` : href ? `<a href="${href}${escHtml(v)}">${escHtml(v)}</a>` : escHtml(v)}</span></div>` : '';
   document.getElementById('d-klant').innerHTML = [
     row('Contact',  t.naamEindklant || t.contact),
     row('Bedrijf',  t.account),
     row('E-mail',   t.emailEindklant  || t.email, 'mailto:'),
-    row('Telefoon', t.telefoonEindklant || t.phone, 'tel:'),
+    row('Telefoon', t.telefoonEindklant || t.phone, null, telNummer(t.telefoonEindklant || t.phone)),
     t.hasAddress
       ? `<div class="mrow"><span class="mlabel">Adres</span><span class="mval"><a href="#" class="mval-nav-link" data-adres="${escHtml(t.address)}">${escHtml(t.address)} ↗</a></span></div>`
       : `<div class="mrow"><span class="mlabel">Adres</span><span class="mval miss">Geen adres bekend</span></div>`,
@@ -5273,6 +5274,13 @@ function openDetail(t) {
 
 // Dirty-controle van het KB-concept (gezet door renderKbSection; zelfde bron als de opslaan-knop)
 let _kbIsDirty = null;
+// Stil sluiten voor programmatische paden (plannen, verzetten, voorstel, rapport openen):
+// geen KB-bewaarwaarschuwing, want die acties raken de klantbeschikbaarheid niet.
+function sluitDetailStil() {
+  _kbIsDirty = null;
+  document.getElementById('det-overlay').classList.remove('open');
+}
+// Gebruikerssluiting (✕, Escape via venster.js, achtergrondklik): met bewaarwaarschuwing.
 function closeDet(e) {
   if (e && e.target !== document.getElementById('det-overlay')) return;
   if (_kbIsDirty && _kbIsDirty() && window.appConfirm) {
@@ -5322,7 +5330,7 @@ async function saveReschedule() {
 
   const utcInterventieDatum = new Date(`${date}T${time}:00`).toISOString();
   closeRescheduleModal();
-  closeDet();
+  sluitDetailStil();
   try {
     // Testmodus (?test, ook op de live site): niets naar Zoho schrijven, lokale wijziging blijft
     if (!TEST_MODE) {
@@ -5363,7 +5371,7 @@ async function togglePlanFromDetail() {
   if (['Service in te plannen','Wachten op planning'].includes(activeTicket.status)) {
     const date = nextAvailableDay(localISO(new Date()));
     if (!date) return toast('Geen beschikbare dag gevonden');
-    closeDet();
+    sluitDetailStil();
     if (!(await addTicketToDate(activeTicket.id, date))) return;
     toast('✓ Toegevoegd aan ' + fmtDateShort(date));
   } else if (activeTicket.status === 'Wachten op bevestiging planning') {
@@ -5371,7 +5379,7 @@ async function togglePlanFromDetail() {
     if (!date) return toast('Dit ticket staat niet (meer) in de planning.');
     const ticketId = activeTicket.id;
     if (!(await bevestigUitplannen(ticketId, date))) return;
-    closeDet();
+    sluitDetailStil();
   }
 }
 
@@ -5955,7 +5963,7 @@ function roundToNextQuarterStr(timeStr) {
 function openProposal(ticketId, date, arrivalMin) {
   activeTicket = getPlanningTicket(ticketId);
   if (!activeTicket) return toast('Ticket niet gevonden');
-  closeDet();
+  sluitDetailStil();
 
   document.getElementById('proposal-date').value = date;
 
