@@ -144,28 +144,28 @@ export function renderPrijsEditor() {
     const items = data.onderdelen.filter(o => o.categorie === cat.id);
     if (!items.length) continue;
     html += `<div class="prijs-cat">
-      <div class="prijs-cat-title">${cat.label}</div>`;
+      <div class="prijs-cat-title" role="heading" aria-level="3">${cat.label}</div>`;
     for (let i = 0; i < items.length; i++) {
       const o = items[i];
       const globalIdx = data.onderdelen.indexOf(o);
       const tagsHtml = (o.tags || []).map((t, ti) =>
-        `<span class="prijs-tag">${escHtml(t)}<span class="prijs-tag-del" onclick="prijsVerwijderTag(${globalIdx},${ti})">×</span></span>`
+        `<span class="prijs-tag">${escHtml(t)}<button type="button" class="prijs-tag-del" aria-label="Verwijder label ${escHtml(t)}" onclick="prijsVerwijderTag(${globalIdx},${ti})">✕</button></span>`
       ).join('') +
       `<button class="prijs-tag-add" onclick="prijsVoegTagToe(${globalIdx})">+ tag</button>`;
       html += `<div class="prijs-row">
         <div class="prijs-row-main">
-          <input class="prijs-naam-input" value="${escHtml(o.naam)}"
+          <input class="prijs-naam-input" aria-label="Naam onderdeel" value="${escHtml(o.naam)}"
             oninput="prijsUpdateNaam(${globalIdx},this.value)" placeholder="Naam" />
           <div class="prijs-tags-wrap">${tagsHtml}</div>
         </div>
         <div class="prijs-row-right">
           <div class="prijs-input-wrap">
             <span class="prijs-euro">€</span>
-            <input class="prijs-prijs-input" type="number" min="0" step="0.01"
+            <input class="prijs-prijs-input" type="number" min="0" step="0.01" aria-label="Prijs ${escHtml(o.naam)}"
               value="${o.prijs}" oninput="prijsUpdatePrijs(${globalIdx},this.value)" />
           </div>
           <span class="prijs-eenheid">/ ${o.eenheid}</span>
-          <button class="prijs-del-btn" onclick="prijsVerwijderOnderdeel(${globalIdx})" title="Verwijder">🗑</button>
+          <button class="prijs-del-btn" onclick="prijsVerwijderOnderdeel(${globalIdx})" title="Verwijder" aria-label="Verwijder ${escHtml(o.naam)}">🗑</button>
         </div>
       </div>`;
     }
@@ -175,14 +175,14 @@ export function renderPrijsEditor() {
 
   // Tarieven
   html += `<div class="prijs-tarieven-sep"></div>
-    <div class="prijs-cat-title">Tarieven</div>`;
+    <div class="prijs-cat-title" role="heading" aria-level="3">Tarieven</div>`;
   for (let i = 0; i < data.tarieven.length; i++) {
     const t = data.tarieven[i];
     html += `<div class="prijs-tarief-row">
       <span class="prijs-tarief-naam">${escHtml(t.naam)}</span>
       <div class="prijs-input-wrap">
         <span class="prijs-euro">€</span>
-        <input class="prijs-prijs-input" type="number" min="0" step="0.01"
+        <input class="prijs-prijs-input" type="number" min="0" step="0.01" aria-label="Tarief ${escHtml(t.naam)}"
           value="${t.prijs}" oninput="prijsTariefUpdate(${i},this.value)" />
       </div>
       <span class="prijs-eenheid">/ ${t.eenheid}</span>

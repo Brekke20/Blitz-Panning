@@ -121,8 +121,8 @@
 <div class="view" id="view-kalender" role="tabpanel" aria-labelledby="tab-kalender">
   <div class="kal-header">
     <div class="kal-view-toggle">
-      <button class="kal-view-btn active" id="kal-view-week" onclick="setKalView('week')">Week</button>
-      <button class="kal-view-btn" id="kal-view-month" onclick="setKalView('month')">Maand</button>
+      <button class="kal-view-btn active" id="kal-view-week" aria-pressed="true" onclick="setKalView('week')">Week</button>
+      <button class="kal-view-btn" id="kal-view-month" aria-pressed="false" onclick="setKalView('month')">Maand</button>
     </div>
     <div class="kal-nav-group">
       <button class="kal-nav" onclick="kalNav(-1)" aria-label="Vorige periode" title="Vorige periode">‹</button>
@@ -131,7 +131,7 @@
       <button class="kal-today" id="kal-today-btn" onclick="kalToday()">Vandaag</button>
     </div>
     <div class="kal-actions">
-      <button class="kal-pending-pill coord-only" id="kal-pending-pill" onclick="togglePendingPanel()" style="display:none">
+      <button class="kal-pending-pill coord-only" id="kal-pending-pill" aria-expanded="false" onclick="togglePendingPanel()" style="display:none">
         ⚠ <span class="pill-count" id="kal-pending-count">0</span> zonder datum
       </button>
       <button class="btn-autoplan coord-only" id="btn-autoplan" onclick="autoPlan()">⚡ Plan deze week</button>
@@ -177,9 +177,9 @@
   <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--surface);position:sticky;top:92px;z-index:26">
     <span style="font-size:0.84rem;font-weight:600;flex:1">📋 Rapport archief</span>
     <div style="display:flex;gap:4px" id="rapp-filter-btns">
-      <button class="btn-sec rapp-filter-btn active" data-filter="alle" style="font-size:0.75rem;padding:5px 10px">Alle</button>
-      <button class="btn-sec rapp-filter-btn" data-filter="Interventie" style="font-size:0.75rem;padding:5px 10px">Interventie</button>
-      <button class="btn-sec rapp-filter-btn" data-filter="Installatie" style="font-size:0.75rem;padding:5px 10px">Installatie</button>
+      <button class="btn-sec rapp-filter-btn active" aria-pressed="true" data-filter="alle" style="font-size:0.75rem;padding:5px 10px">Alle</button>
+      <button class="btn-sec rapp-filter-btn" aria-pressed="false" data-filter="Interventie" style="font-size:0.75rem;padding:5px 10px">Interventie</button>
+      <button class="btn-sec rapp-filter-btn" aria-pressed="false" data-filter="Installatie" style="font-size:0.75rem;padding:5px 10px">Installatie</button>
     </div>
     <input type="date" id="rapp-van"  style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:4px 7px;font-size:0.75rem;font-family:inherit" title="Export van" aria-label="Van datum" />
     <span style="font-size:0.75rem;color:var(--muted)">–</span>
@@ -282,7 +282,7 @@
         <div class="set-row">
           <input class="set-input" id="set-van" type="time" />
           <span style="color:var(--muted);font-size:0.83rem;flex-shrink:0">tot</span>
-          <input class="set-input" id="set-tot" type="time" />
+          <input class="set-input" id="set-tot" type="time" aria-label="Werkuren tot" />
         </div>
       </div>
       <div class="set-field">
@@ -564,7 +564,7 @@
   <div class="wiz-hdr">
     <div class="wiz-hdr-top">
       <div class="wiz-title" id="wiz-titel" role="heading" aria-level="2">📋 Service Rapport</div>
-      <button class="wiz-close" onclick="closeWizard()" title="Sluiten">✕</button>
+      <button class="wiz-close" onclick="closeWizard()" title="Sluiten" aria-label="Sluiten">✕</button>
     </div>
     <div style="display:flex;align-items:center;gap:7px">
       <div id="wiz-dots" style="display:flex;gap:5px"></div>
@@ -857,7 +857,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Sluit persoon-menu bij klik buiten
   document.addEventListener('click', (e) => {
     if (!document.getElementById('person-sel')?.contains(e.target))
-      document.getElementById('person-menu')?.classList.remove('open');
+      zetPersonMenuOpen(false);
   });
   document.querySelectorAll('.rapp-filter-btn').forEach(btn => {
     btn.addEventListener('click', () => setRapportFilter(btn.dataset.filter));
@@ -1310,8 +1310,18 @@ function updatePersonHeader() {
   if (nm) nm.textContent = activeAssigneeFilter === 'all' ? 'Alle' : activeAssigneeFilter.split(' ')[0];
 }
 
+// aria-pressed bijwerken waar de 'active'-klasse gezet wordt (één helper, geen aparte state)
+function zetPressed(el, aan) {
+  if (el) el.setAttribute('aria-pressed', aan ? 'true' : 'false');
+}
+
+function zetPersonMenuOpen(open) {
+  document.getElementById('person-menu')?.classList.toggle('open', open);
+  document.getElementById('person-btn')?.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
 function togglePersonMenu() {
-  document.getElementById('person-menu')?.classList.toggle('open');
+  zetPersonMenuOpen(!document.getElementById('person-menu')?.classList.contains('open'));
 }
 
 function selectPerson(name) {
@@ -1319,7 +1329,7 @@ function selectPerson(name) {
   settings = loadPersonSettings(name);
   applyKaartStijl();
   localStorage.setItem('blitz_active_person', name);
-  document.getElementById('person-menu')?.classList.remove('open');
+  zetPersonMenuOpen(false);
   updatePersonHeader();
   buildPersonSelector();
   renderTickets();
@@ -1445,7 +1455,7 @@ function renderTickets() {
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
       </div>
       <div class="t-action">
-        <button class="btn-add" title="Toevoegen aan planning" aria-label="Toevoegen aan planning" ${inFlightTickets.has(t.id) ? 'disabled' : ''} onclick="event.stopPropagation();quickAdd('${t.id}')">+</button>
+        <button class="btn-add" title="Inplannen op eerstvolgende vrije dag" aria-label="Inplannen op eerstvolgende vrije dag" ${inFlightTickets.has(t.id) ? 'disabled' : ''} onclick="event.stopPropagation();quickAdd('${t.id}')">+</button>
       </div>`;
     card.addEventListener('click', () => openDetail(t));
     maakActiveerbaar(card, () => openDetail(t), 'Open ticket #' + t.number);
@@ -1633,6 +1643,8 @@ function setKalView(v) {
   kalView = v;
   document.getElementById('kal-view-week').classList.toggle('active',  v === 'week');
   document.getElementById('kal-view-month').classList.toggle('active', v === 'month');
+  zetPressed(document.getElementById('kal-view-week'),  v === 'week');
+  zetPressed(document.getElementById('kal-view-month'), v === 'month');
   kalOffset = 0; kalDagOffset = 0; // reset offsets bij wisselen
   renderKalender();
   kalAutoScroll(true);
@@ -1703,7 +1715,7 @@ function buildLocalEventCard(ev, { showActions = true } = {}) {
   const tijdLabel = ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '';
   const adresLabel = ev.adres || ev.notitie;
   card.innerHTML = `
-    <button class="cal-local-del" title="Verwijderen">✕</button>
+    <button class="cal-local-del" title="Verwijderen" aria-label="Afspraak verwijderen">✕</button>
     <span class="cal-local-type">${escHtml(ev.type)}</span>
     <div class="cal-sub" style="margin-top:2px">${escHtml(ev.titel)}</div>
     ${tijdLabel ? `<div class="cal-local-time">⏱ ${tijdLabel}</div>` : ''}
@@ -2054,10 +2066,10 @@ function renderKalender() {
         <div class="tsub">${escHtml(t.subject) || '—'}</div>
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
         <div class="t-assign-row" id="assign-row-${t.id}" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
-          <input type="date" id="assign-date-${t.id}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
-          <input type="time" id="assign-time-${t.id}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)" value="09:00">
+          <input type="date" id="assign-date-${t.id}" aria-label="Datum toewijzen" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
+          <input type="time" id="assign-time-${t.id}" aria-label="Tijd toewijzen" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)" value="09:00">
           <button onclick="event.stopPropagation();saveToewijzen('${t.id}')" style="font-size:0.75rem;padding:3px 8px;background:var(--accent);color:var(--on-accent);border:none;border-radius:4px;cursor:pointer;font-weight:600">✓ Opslaan</button>
-          <button onclick="event.stopPropagation();document.getElementById('assign-row-${t.id}').style.display='none'" style="font-size:0.75rem;padding:3px 6px;background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--muted)">✕</button>
+          <button aria-label="Sluiten" onclick="event.stopPropagation();document.getElementById('assign-row-${t.id}').style.display='none'" style="font-size:0.75rem;padding:3px 6px;background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--muted)">✕</button>
         </div>
         <div style="margin-top:6px">
           <button onclick="event.stopPropagation();toggleAssignRow('${t.id}')" style="font-size:0.75rem;padding:3px 8px;background:var(--accent-dim,rgba(0,223,163,.15));color:var(--accent-ink);border:1px solid var(--accent);border-radius:4px;cursor:pointer;font-weight:600">📅 Toewijzen</button>
@@ -2071,6 +2083,7 @@ function renderKalender() {
     noDateSec.appendChild(inner);
   } else {
     pill.style.display = 'none';
+    pill.setAttribute('aria-expanded', 'false');
     noDateSec.innerHTML = '';
     noDateSec.classList.remove('open');
   }
@@ -2737,8 +2750,8 @@ function renderFotoGrid(container, fotos, callbacks) {
   container.innerHTML = fotos.map(f => `
     <div class="foto-thumb" data-id="${escHtml(f.id)}">
       <img src="${escHtml(f.dataUrl)}" alt="">
-      <button class="foto-thumb-del" title="Verwijderen" data-action="del" data-id="${escHtml(f.id)}">✕</button>
-      <input class="foto-caption" type="text" placeholder="Bijschrift..." value="${escHtml(f.caption || '')}" data-action="caption" data-id="${escHtml(f.id)}">
+      <button class="foto-thumb-del" title="Verwijderen" aria-label="Foto verwijderen" data-action="del" data-id="${escHtml(f.id)}">✕</button>
+      <input class="foto-caption" type="text" aria-label="Bijschrift" placeholder="Bijschrift..." value="${escHtml(f.caption || '')}" data-action="caption" data-id="${escHtml(f.id)}">
     </div>`).join('');
   container.querySelectorAll('[data-action="del"]').forEach(btn =>
     btn.addEventListener('click', () => callbacks.onDelete(btn.dataset.id)));
@@ -2905,7 +2918,7 @@ function renderImportModal(agents) {
       <div class="imp-item-meta">${dateLabel}${tijdLabel ? ' · ' + tijdLabel : ''}${a.notitie ? ' · ' + escHtml(a.notitie) : ''}</div>
       <div class="imp-person-row">
         <span class="imp-person-label">Technieker:</span>
-        <select class="imp-person-sel" onchange="_pendingImport[${i}].persoon = this.value || null"
+        <select class="imp-person-sel" aria-label="Toewijzen aan technieker" onchange="_pendingImport[${i}].persoon = this.value || null"
           data-idx="${i}">
           <option value="">— Niet toewijzen —</option>
           ${agents.map(ag => `<option value="${escHtml(ag)}"${a.persoon === ag ? ' selected' : ''}>${escHtml(ag)}</option>`).join('')}
@@ -3249,7 +3262,7 @@ function renderBlockModal() {
         const reasonPart = e.reason ? ` — ${escHtml(e.reason)}` : '';
         return `<div class="av-item">
           <span class="av-item-label">${kindLabel}${reasonPart} <span class="av-item-who">(${escHtml(whoLabel)})</span></span>
-          <button class="av-item-del" data-exception-id="${escHtml(e.id)}" title="Verwijderen">✕</button>
+          <button class="av-item-del" data-exception-id="${escHtml(e.id)}" title="Verwijderen" aria-label="Blokkering verwijderen">✕</button>
         </div>`;
       }).join('');
 
@@ -3257,25 +3270,25 @@ function renderBlockModal() {
   const defaultTot = settings.totTijd || '17:00';
   const personName = myPerson || 'Ik';
   const scopeOptions = myPerson
-    ? `<button class="av-radio-btn ${_avFormScope === 'person' ? 'active' : ''}" onclick="avSetScope('person')">👤 ${escHtml(myPerson.split(' ')[0])}</button>
-       <button class="av-radio-btn ${_avFormScope === 'global' ? 'active' : ''}" onclick="avSetScope('global')">👥 Iedereen</button>`
-    : `<button class="av-radio-btn active" disabled>👥 Iedereen</button>`;
+    ? `<button class="av-radio-btn ${_avFormScope === 'person' ? 'active' : ''}" aria-pressed="${_avFormScope === 'person'}" onclick="avSetScope('person')">👤 ${escHtml(myPerson.split(' ')[0])}</button>
+       <button class="av-radio-btn ${_avFormScope === 'global' ? 'active' : ''}" aria-pressed="${_avFormScope === 'global'}" onclick="avSetScope('global')">👥 Iedereen</button>`
+    : `<button class="av-radio-btn active" aria-pressed="true" disabled>👥 Iedereen</button>`;
 
   body.innerHTML = `
-    <div class="av-section-title">Bestaande blokkeringen</div>
+    <div class="av-section-title" role="heading" aria-level="3">Bestaande blokkeringen</div>
     <div class="av-existing">${existingHtml}</div>
 
     <div class="av-form">
       <div>
-        <div class="av-section-title">Type</div>
+        <div class="av-section-title" role="heading" aria-level="3">Type</div>
         <div class="av-radio-group">
-          <button class="av-radio-btn ${_avFormKind === 'fullday' ? 'active' : ''}" onclick="avSetKind('fullday')">🔒 Hele dag</button>
-          <button class="av-radio-btn ${_avFormKind === 'range'   ? 'active' : ''}" onclick="avSetKind('range')">⏱ Tijdvak</button>
+          <button class="av-radio-btn ${_avFormKind === 'fullday' ? 'active' : ''}" aria-pressed="${_avFormKind === 'fullday'}" onclick="avSetKind('fullday')">🔒 Hele dag</button>
+          <button class="av-radio-btn ${_avFormKind === 'range'   ? 'active' : ''}" aria-pressed="${_avFormKind === 'range'}" onclick="avSetKind('range')">⏱ Tijdvak</button>
         </div>
       </div>
       ${_avFormKind === 'fullday' ? `
       <div>
-        <div class="av-section-title">Periode</div>
+        <div class="av-section-title" role="heading" aria-level="3">Periode</div>
         <div class="av-time-row" style="gap:8px;align-items:center">
           <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer">
             <input type="checkbox" id="av-multiday" onchange="avSetMultiDay(this.checked)" ${_avFormMultiDay ? 'checked' : ''} />
@@ -3285,27 +3298,27 @@ function renderBlockModal() {
         ${_avFormMultiDay ? `
         <div class="av-time-row" style="gap:8px;margin-top:8px">
           <span style="font-size:0.8rem;color:var(--muted)">Van</span>
-          <input type="date" class="av-time-input" id="av-date-van" value="${_avFormDate}" onchange="_avFormDate=this.value" />
+          <input type="date" class="av-time-input" id="av-date-van" aria-label="Van datum" value="${_avFormDate}" onchange="_avFormDate=this.value" />
           <span style="font-size:0.8rem;color:var(--muted)">Tot</span>
-          <input type="date" class="av-time-input" id="av-date-tot" value="${_avFormDateTot || ''}" onchange="_avFormDateTot=this.value" />
+          <input type="date" class="av-time-input" id="av-date-tot" aria-label="Tot datum" value="${_avFormDateTot || ''}" onchange="_avFormDateTot=this.value" />
         </div>` : ''}
       </div>` : `
       <div>
-        <div class="av-section-title">Tijdvak</div>
+        <div class="av-section-title" role="heading" aria-level="3">Tijdvak</div>
         <div class="av-time-row">
           <span style="font-size:0.8rem;color:var(--muted)">Van</span>
-          <input class="av-time-input" id="av-van" type="time" value="${defaultVan}" />
+          <input class="av-time-input" id="av-van" aria-label="Van (tijd)" type="time" value="${defaultVan}" />
           <span style="font-size:0.8rem;color:var(--muted)">Tot</span>
-          <input class="av-time-input" id="av-tot" type="time" value="${defaultTot}" />
+          <input class="av-time-input" id="av-tot" aria-label="Tot (tijd)" type="time" value="${defaultTot}" />
         </div>
       </div>`}
       <div>
-        <div class="av-section-title">Voor</div>
+        <div class="av-section-title" role="heading" aria-level="3">Voor</div>
         <div class="av-radio-group">${scopeOptions}</div>
       </div>
       <div>
-        <div class="av-section-title">Reden <span style="font-weight:400;text-transform:none;letter-spacing:0">(optioneel)</span></div>
-        <input class="av-reden-input" id="av-reden" type="text" placeholder="bv. Verlof, dokter, opleiding…" />
+        <div class="av-section-title" role="heading" aria-level="3">Reden <span style="font-weight:400;text-transform:none;letter-spacing:0">(optioneel)</span></div>
+        <input class="av-reden-input" id="av-reden" aria-label="Reden" type="text" placeholder="bv. Verlof, dokter, opleiding…" />
       </div>
       <button class="av-add-btn" onclick="avAddException()">➕ Toevoegen</button>
     </div>`;
@@ -5501,7 +5514,7 @@ function renderBeschikbaarhedenTab() {
         const idsAttr = escHtml(g.items.map(e => e.id).join(','));
         return `<div class="av-item">
           <span class="av-item-label">${escHtml(dateLabel)} · ${kindLabel}${reasonPart} <span class="av-item-who">(${escHtml(whoLabel)})</span></span>
-          <button class="av-item-del" data-exception-ids="${idsAttr}" title="Verwijderen">✕</button>
+          <button class="av-item-del" data-exception-ids="${idsAttr}" title="Verwijderen" aria-label="Blokkering verwijderen">✕</button>
         </div>`;
       }).join('');
 
@@ -5509,28 +5522,28 @@ function renderBeschikbaarhedenTab() {
   const defaultVan = settings.vanTijd || '08:00';
   const defaultTot = settings.totTijd || '17:00';
   const scopeOptions = myPerson
-    ? `<button class="av-radio-btn ${_bavFormScope === 'person' ? 'active' : ''}" onclick="bavSetScope('person')">👤 ${escHtml(myPerson.split(' ')[0])}</button>
-       <button class="av-radio-btn ${_bavFormScope === 'global' ? 'active' : ''}" onclick="bavSetScope('global')">👥 Iedereen</button>`
-    : `<button class="av-radio-btn active" disabled>👥 Iedereen</button>`;
+    ? `<button class="av-radio-btn ${_bavFormScope === 'person' ? 'active' : ''}" aria-pressed="${_bavFormScope === 'person'}" onclick="bavSetScope('person')">👤 ${escHtml(myPerson.split(' ')[0])}</button>
+       <button class="av-radio-btn ${_bavFormScope === 'global' ? 'active' : ''}" aria-pressed="${_bavFormScope === 'global'}" onclick="bavSetScope('global')">👥 Iedereen</button>`
+    : `<button class="av-radio-btn active" aria-pressed="true" disabled>👥 Iedereen</button>`;
 
   body.innerHTML = `
     <div>
-      <div class="av-section-title">Filter op persoon</div>
-      <select class="av-time-input" id="bav-filter-person" onchange="bavSetFilterPerson(this.value)" style="width:100%">
+      <div class="av-section-title" role="heading" aria-level="3">Filter op persoon</div>
+      <select class="av-time-input" id="bav-filter-person" aria-label="Filter op persoon" onchange="bavSetFilterPerson(this.value)" style="width:100%">
         <option value="all" ${_bavFilterPerson === 'all' ? 'selected' : ''}>Alle personen</option>
         ${knownAgents.map(a => `<option value="${escHtml(a)}" ${_bavFilterPerson === a ? 'selected' : ''}>${escHtml(a)}</option>`).join('')}
       </select>
     </div>
     <div class="av-form" style="margin-top:10px">
       <div>
-        <div class="av-section-title">Datum</div>
-        <input type="date" class="av-time-input" id="bav-date" value="${_bavFormDate}" onchange="_bavFormDate=this.value" />
+        <div class="av-section-title" role="heading" aria-level="3">Datum</div>
+        <input type="date" class="av-time-input" id="bav-date" aria-label="Datum" value="${_bavFormDate}" onchange="_bavFormDate=this.value" />
       </div>
       <div>
-        <div class="av-section-title">Type</div>
+        <div class="av-section-title" role="heading" aria-level="3">Type</div>
         <div class="av-radio-group">
-          <button class="av-radio-btn ${_bavFormKind === 'fullday' ? 'active' : ''}" onclick="bavSetKind('fullday')">🔒 Hele dag</button>
-          <button class="av-radio-btn ${_bavFormKind === 'range'   ? 'active' : ''}" onclick="bavSetKind('range')">⏱ Tijdvak</button>
+          <button class="av-radio-btn ${_bavFormKind === 'fullday' ? 'active' : ''}" aria-pressed="${_bavFormKind === 'fullday'}" onclick="bavSetKind('fullday')">🔒 Hele dag</button>
+          <button class="av-radio-btn ${_bavFormKind === 'range'   ? 'active' : ''}" aria-pressed="${_bavFormKind === 'range'}" onclick="bavSetKind('range')">⏱ Tijdvak</button>
         </div>
       </div>
       ${_bavFormKind === 'fullday' ? `
@@ -5542,29 +5555,29 @@ function renderBeschikbaarhedenTab() {
         ${_bavFormMultiDay ? `
         <div class="av-time-row" style="gap:8px;margin-top:8px">
           <span style="font-size:0.8rem;color:var(--muted)">Tot</span>
-          <input type="date" class="av-time-input" id="bav-date-tot" value="${_bavFormDateTot || ''}" onchange="_bavFormDateTot=this.value" />
+          <input type="date" class="av-time-input" id="bav-date-tot" aria-label="Tot datum" value="${_bavFormDateTot || ''}" onchange="_bavFormDateTot=this.value" />
         </div>` : ''}
       </div>` : `
       <div>
-        <div class="av-section-title">Tijdvak</div>
+        <div class="av-section-title" role="heading" aria-level="3">Tijdvak</div>
         <div class="av-time-row">
           <span style="font-size:0.8rem;color:var(--muted)">Van</span>
-          <input class="av-time-input" id="bav-van" type="time" value="${defaultVan}" />
+          <input class="av-time-input" id="bav-van" aria-label="Van (tijd)" type="time" value="${defaultVan}" />
           <span style="font-size:0.8rem;color:var(--muted)">Tot</span>
-          <input class="av-time-input" id="bav-tot" type="time" value="${defaultTot}" />
+          <input class="av-time-input" id="bav-tot" aria-label="Tot (tijd)" type="time" value="${defaultTot}" />
         </div>
       </div>`}
       <div>
-        <div class="av-section-title">Voor</div>
+        <div class="av-section-title" role="heading" aria-level="3">Voor</div>
         <div class="av-radio-group">${scopeOptions}</div>
       </div>
       <div>
-        <div class="av-section-title">Reden <span style="font-weight:400;text-transform:none;letter-spacing:0">(optioneel)</span></div>
-        <input class="av-reden-input" id="bav-reden" type="text" placeholder="bv. Verlof, dokter, opleiding…" />
+        <div class="av-section-title" role="heading" aria-level="3">Reden <span style="font-weight:400;text-transform:none;letter-spacing:0">(optioneel)</span></div>
+        <input class="av-reden-input" id="bav-reden" aria-label="Reden" type="text" placeholder="bv. Verlof, dokter, opleiding…" />
       </div>
       <button class="av-add-btn" onclick="avAddExceptionFromSettings()">➕ Toevoegen</button>
     </div>
-    <div class="av-section-title" style="margin-top:14px">Geplande uitzonderingen</div>
+    <div class="av-section-title" role="heading" aria-level="3" style="margin-top:14px">Geplande uitzonderingen</div>
     <div class="av-existing">${existingHtml}</div>`;
 
   body.querySelectorAll('.av-item-del').forEach(btn => {
@@ -5676,10 +5689,12 @@ function openSettings() {
     const btn = document.createElement('button');
     btn.className   = 'day-btn' + (settings.werkdagen.includes(i) ? ' on' : '');
     btn.textContent = dag;
+    btn.setAttribute('aria-pressed', settings.werkdagen.includes(i) ? 'true' : 'false');
     btn.onclick     = () => {
       const idx = settings.werkdagen.indexOf(i);
       if (idx >= 0) settings.werkdagen.splice(idx, 1); else settings.werkdagen.push(i);
       btn.classList.toggle('on');
+      zetPressed(btn, btn.classList.contains('on'));
     };
     grid.appendChild(btn);
   });
@@ -6608,7 +6623,8 @@ async function verstuurRapport(rapportId, btn) {
 
 // ── Pending-panel toggle ─────────────────────────────────────────────────────
 function togglePendingPanel() {
-  document.getElementById('kal-no-date-section').classList.toggle('open');
+  const open = document.getElementById('kal-no-date-section').classList.toggle('open');
+  document.getElementById('kal-pending-pill')?.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 // ── Light/dark toggle ────────────────────────────────────────────────────────

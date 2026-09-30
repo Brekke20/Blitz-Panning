@@ -96,10 +96,10 @@ function renderEigenVoorraad(persoon) {
     return `<div class="inv-row inv-cat-row" data-mat-id="${escHtml(o.id)}" data-mat-naam="${escHtml(o.naam)}">
       <span class="inv-row-naam">${escHtml(o.naam)}</span>
       <div class="inv-qty-edit">
-        <button class="inv-qty-btn inv-qty-minus" type="button" title="Verminder">−</button>
-        <input class="inv-qty-input" type="number" min="0" step="1" inputmode="numeric" value="${aantal}" />
-        <button class="inv-qty-btn inv-qty-plus" type="button" title="Vermeerder">+</button>
-        <button class="inv-bell-btn${gedempt ? ' inv-bell-muted' : ''}" type="button" title="Lage-voorraadmelding voor dit item ${gedempt ? 'inschakelen' : 'uitschakelen'}">${gedempt ? '🔕' : '🔔'}</button>
+        <button class="inv-qty-btn inv-qty-minus" type="button" title="Verminder" aria-label="Verminder ${escHtml(o.naam)}">−</button>
+        <input class="inv-qty-input" type="number" aria-label="Aantal ${escHtml(o.naam)}" min="0" step="1" inputmode="numeric" value="${aantal}" />
+        <button class="inv-qty-btn inv-qty-plus" type="button" title="Vermeerder" aria-label="Vermeerder ${escHtml(o.naam)}">+</button>
+        <button class="inv-bell-btn${gedempt ? ' inv-bell-muted' : ''}" type="button" aria-label="${gedempt ? 'Lage-voorraadmelding inschakelen' : 'Lage-voorraadmelding uitschakelen'}" title="Lage-voorraadmelding voor dit item ${gedempt ? 'inschakelen' : 'uitschakelen'}">${gedempt ? '🔕' : '🔔'}</button>
       </div>
     </div>`;
   }).join('');
@@ -162,6 +162,7 @@ function wireEigenVoorraad(body, persoon) {
       const nowMuted = !btn.classList.contains('inv-bell-muted');
       btn.classList.toggle('inv-bell-muted', nowMuted);
       btn.textContent = nowMuted ? '🔕' : '🔔';
+      btn.setAttribute('aria-label', nowMuted ? 'Lage-voorraadmelding inschakelen' : 'Lage-voorraadmelding uitschakelen');
     });
   });
 }
@@ -265,9 +266,9 @@ function renderSupervisorLog() {
   }
 
   const toolbar = `<div class="inv-toolbar inv-export-toolbar">
-    <input type="date" id="inv-export-van" title="Export van" value="${escHtml(_invExportVan)}" />
+    <input type="date" id="inv-export-van" title="Export van" aria-label="Export van" value="${escHtml(_invExportVan)}" />
     <span style="color:var(--muted);font-size:0.75rem">–</span>
-    <input type="date" id="inv-export-tot" title="Export tot" value="${escHtml(_invExportTot)}" />
+    <input type="date" id="inv-export-tot" title="Export tot" aria-label="Export tot" value="${escHtml(_invExportTot)}" />
     <button class="btn-sec" id="inv-export-btn">📊 Excel export</button>
   </div>`;
 

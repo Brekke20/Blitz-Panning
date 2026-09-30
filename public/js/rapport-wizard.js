@@ -361,7 +361,7 @@ export function wizRenderSamenvatting(el) {
   const ja = v => (v === 'ja' ? 'Ja' : 'Nee');
   const nFotos = (R.fotos || []).length;
   el.innerHTML = `
-    <div class="wiz-step-title">Overzicht</div>
+    <div class="wiz-step-title" role="heading" aria-level="3">Overzicht</div>
     <p class="wiz-sam-intro">Controleer je rapport. Met "Wijzig" pas je een onderdeel aan en kom je hier terug.</p>
     ${kaart('Algemeen', 'algemeen',
       rij('Datum', R.datum) + rij('Technieker', R.technieker) + rij('Adres', R.adres) +
@@ -415,27 +415,27 @@ export function updateWerktijd() {
 export function wizRenderAlgemeen(el) {
   const zohoRef = _wizTicket.number ? `#${_wizTicket.number}` : (_wizTicket.isLocal ? '' : (_wizTicket.id || ''));
   el.innerHTML = `
-    <div class="wiz-step-title">Algemeen</div>
+    <div class="wiz-step-title" role="heading" aria-level="3">Algemeen</div>
     <div class="wiz-info-chip">
       <strong>${escHtml(_wizTicket.subject||'')}</strong><br>
       ${[_wizTicket.account, _wizTicket.address].filter(Boolean).map(escHtml).join(' · ')}
     </div>
     <div class="wiz-field-row">
       <div class="wiz-field">
-        <label class="wiz-field-label">Datum</label>
+        <label class="wiz-field-label" for="f-datum">Datum</label>
         <input class="wiz-input" id="f-datum" type="date" value="${escHtml(R.datum)}" />
       </div>
       <div class="wiz-field">
-        <label class="wiz-field-label">#Zoho</label>
+        <label class="wiz-field-label" for="f-zoho">#Zoho</label>
         <input class="wiz-input" id="f-zoho" type="text" value="${escHtml(zohoRef)}" readonly />
       </div>
     </div>
     <div class="wiz-field">
-      <label class="wiz-field-label">Technieker Blitz</label>
+      <label class="wiz-field-label" for="f-technieker">Technieker Blitz</label>
       <input class="wiz-input" id="f-technieker" type="text" placeholder="Naam technieker" value="${escHtml(R.technieker)}" />
     </div>
     <div class="wiz-field">
-      <label class="wiz-field-label">Interventie adres</label>
+      <label class="wiz-field-label" for="f-adres">Interventie adres</label>
       <input class="wiz-input" id="f-adres" type="text" value="${escHtml(R.adres)}" />
     </div>
     <div class="wiz-field">
@@ -453,11 +453,11 @@ export function wizRenderAlgemeen(el) {
     </div>
     <div class="wiz-field-row">
       <div class="wiz-field">
-        <label class="wiz-field-label">Starttijd (aankomst)</label>
+        <label class="wiz-field-label" for="f-start">Starttijd (aankomst)</label>
         <input class="wiz-input" id="f-start" type="time" value="${escHtml(R.start)}" oninput="updateWerktijd()" />
       </div>
       <div class="wiz-field">
-        <label class="wiz-field-label">Stoptijd (einde)</label>
+        <label class="wiz-field-label" for="f-stop">Stoptijd (einde)</label>
         <input class="wiz-input" id="f-stop" type="time" value="${escHtml(R.stop)}" oninput="updateWerktijd()" />
       </div>
     </div>
@@ -563,7 +563,7 @@ export function wizRenderFacturatie(el) {
   }
   const isGarantie = R.servicetype === 'garantie';
   el.innerHTML = `
-    <div class="wiz-step-title">Facturatie &amp; Servicetype</div>
+    <div class="wiz-step-title" role="heading" aria-level="3">Facturatie &amp; Servicetype</div>
     <div class="wiz-field">
       <label class="wiz-field-label">Facturatie aan</label>
       <div class="wiz-radio-cards">
@@ -613,7 +613,7 @@ export function wizRenderFacturatie(el) {
     </div>
     <div id="aanrijtijd-wrap" style="margin-top:6px">
       <div class="wiz-field">
-        <label class="wiz-field-label">Aanrijtijd (minuten, enkel heen)
+        <label class="wiz-field-label" for="f-aanrijtijd">Aanrijtijd (minuten, enkel heen)
           ${R.aanrijtijdMin > 0 ? '<span style="font-size:0.72rem;color:var(--accent-ink);margin-left:6px">📡 TomTom</span>' : ''}
         </label>
         <input class="wiz-input" id="f-aanrijtijd" type="number" min="0" step="1"
@@ -642,18 +642,18 @@ export function wizSaveFacturatie() {
 // ── Stap 3: Productinfo ──
 export function wizRenderProduct(el) {
   el.innerHTML = `
-    <div class="wiz-step-title">Productinformatie</div>
+    <div class="wiz-step-title" role="heading" aria-level="3">Productinformatie</div>
     <div class="wiz-field">
-      <label class="wiz-field-label">Installateur / partner</label>
+      <label class="wiz-field-label" for="f-installateur">Installateur / partner</label>
       <input class="wiz-input" id="f-installateur" type="text" value="${escHtml(R.installateur)}" placeholder="Installateur" />
     </div>
     <div class="wiz-field-row">
       <div class="wiz-field">
-        <label class="wiz-field-label">Serienummer (master laadpaal)</label>
+        <label class="wiz-field-label" for="f-serienummer">Serienummer (master laadpaal)</label>
         <input class="wiz-input" id="f-serienummer" type="text" value="${escHtml(R.serienummer)}" placeholder="CHARX-XXXX" />
       </div>
       <div class="wiz-field">
-        <label class="wiz-field-label">Aantal laadpalen</label>
+        <label class="wiz-field-label" for="f-aantal-laadpalen">Aantal laadpalen</label>
         <input class="wiz-input" id="f-aantal-laadpalen" type="number" min="1" step="1" value="${R.aantalLaadpalen || 1}" />
       </div>
     </div>
@@ -714,13 +714,13 @@ export const OORZAAK_STORING_MAP = {
 export function wizRenderOmschrijving(el) {
   const isInstallatie = R.interventieType === 'Installatie';
   el.innerHTML = `
-    <div class="wiz-step-title">Omschrijving &amp; acties</div>
+    <div class="wiz-step-title" role="heading" aria-level="3">Omschrijving &amp; acties</div>
     <div class="wiz-field">
-      <label class="wiz-field-label">${isInstallatie ? 'Omschrijving installatie' : 'Omschrijving probleem'}</label>
+      <label class="wiz-field-label" for="f-probleem">${isInstallatie ? 'Omschrijving installatie' : 'Omschrijving probleem'}</label>
       <textarea class="wiz-textarea" id="f-probleem" rows="4" placeholder="${isInstallatie ? 'Beschrijf de uitgevoerde installatie...' : 'Beschrijf het probleem...'}">${escHtml(R.probleem)}</textarea>
     </div>
     <div class="wiz-field">
-      <label class="wiz-field-label">Ondernomen acties</label>
+      <label class="wiz-field-label" for="f-acties">Ondernomen acties</label>
       <textarea class="wiz-textarea" id="f-acties" rows="6" placeholder="Beschrijf de uitgevoerde werkzaamheden...">${escHtml(R.acties)}</textarea>
     </div>
     ${isInstallatie ? '' : `
@@ -747,10 +747,10 @@ export function wizSaveOmschrijving() {
 // ── Stap 4b: Foto's ──
 export function wizRenderFotos(el) {
   el.innerHTML = `
-    <div class="wiz-step-title">Foto's</div>
+    <div class="wiz-step-title" role="heading" aria-level="3">Foto's</div>
     <div class="wiz-field">
       <div id="wiz-foto-grid" class="foto-grid"></div>
-      <input type="file" id="wiz-foto-file-input" accept="image/*" multiple style="display:none" onchange="handleWizFotoFiles(this)">
+      <input type="file" id="wiz-foto-file-input" aria-label="Foto's kiezen" accept="image/*" multiple style="display:none" onchange="handleWizFotoFiles(this)">
       <button class="foto-add-btn" onclick="document.getElementById('wiz-foto-file-input').click()">+ Foto toevoegen</button>
     </div>`;
   renderFotoGridInto('wiz-foto-grid');
@@ -777,12 +777,12 @@ export function wizRenderStatus(el) {
   // wordt weer een echte apostrof en breekt de JS-string open. Daarom de tag als
   // data-attribuut meegeven + addEventListener (zelfde patroon als de .btn-navigeer-knoppen).
   const tagFilterHtml = allTags.map(t =>
-    `<button class="wiz-tag-filter${_wizActiveTags.includes(t)?' active':''}" data-tag="${escHtml(t)}">${escHtml(t)}</button>`
+    `<button class="wiz-tag-filter${_wizActiveTags.includes(t)?' active':''}" aria-pressed="${_wizActiveTags.includes(t)}" data-tag="${escHtml(t)}">${escHtml(t)}</button>`
   ).join('');
 
   const isInstallatie = R.interventieType === 'Installatie';
   el.innerHTML = `
-    <div class="wiz-step-title">${isInstallatie ? 'Materialen' : 'Status &amp; onderdelen'}</div>
+    <div class="wiz-step-title" role="heading" aria-level="3">${isInstallatie ? 'Materialen' : 'Status &amp; onderdelen'}</div>
     ${isInstallatie ? '' : `
     <div class="wiz-field">
       <label class="wiz-field-label">Definitief hersteld</label>
@@ -800,7 +800,7 @@ export function wizRenderStatus(el) {
     </div>`}
     <div class="wiz-sep"></div>
     <div class="wiz-field">
-      <label class="wiz-field-label">Onderdelen toevoegen</label>
+      <label class="wiz-field-label" for="wiz-cat-q">Onderdelen toevoegen</label>
       <div class="wiz-cat-search-wrap">
         <span class="wiz-cat-search-icon">🔍</span>
         <input class="wiz-cat-search" id="wiz-cat-q" type="search"
@@ -817,7 +817,7 @@ export function wizRenderStatus(el) {
     </div>
     <div class="wiz-sep"></div>
     <div class="wiz-field">
-      <label class="wiz-field-label">Varia / opmerkingen</label>
+      <label class="wiz-field-label" for="f-varia">Varia / opmerkingen</label>
       <textarea class="wiz-textarea" id="f-varia" rows="3" placeholder="Bijzonderheden, extra info...">${escHtml(R.varia)}</textarea>
     </div>`;
 
@@ -838,22 +838,22 @@ export function _wizRenderGeselecteerd() {
     return `<div class="wiz-sel-item">
       <div class="wiz-sel-top">
         ${isVrij
-          ? `<input class="wiz-part-omschr" style="flex:1" type="text" placeholder="Omschrijving" value="${escHtml(p.naam||'')}" oninput="wizUpdSelNaam(${i},this.value)" />`
+          ? `<input class="wiz-part-omschr" style="flex:1" type="text" aria-label="Omschrijving onderdeel" placeholder="Omschrijving" value="${escHtml(p.naam||'')}" oninput="wizUpdSelNaam(${i},this.value)" />`
           : `<span class="wiz-sel-naam">${escHtml(p.naam)}</span>`
         }
-        <button class="wiz-sel-del" onclick="wizRemovePart(${i})" title="Verwijderen">✕</button>
+        <button class="wiz-sel-del" onclick="wizRemovePart(${i})" title="Verwijderen" aria-label="Verwijder ${escHtml(p.naam||'onderdeel')}">✕</button>
       </div>
       <div class="wiz-sel-bottom">
         <div class="wiz-sel-aantal-wrap">
           <span class="wiz-sel-aantal-lbl">Aantal${p.eenheid==='meter' ? ' (meter)' : ''}</span>
-          <input class="wiz-sel-aantal" type="number" min="1" step="1" value="${p.aantal||1}"
+          <input class="wiz-sel-aantal" type="number" min="1" step="1" aria-label="Aantal ${escHtml(p.naam||'onderdeel')}" value="${p.aantal||1}"
             oninput="wizUpdSelAantal(${i},this.value)" />
         </div>
         ${isVrij
-          ? `<input class="wiz-part-prijs" type="number" placeholder="€ prijs" min="0" step="0.01"
+          ? `<input class="wiz-part-prijs" type="number" aria-label="Prijs" placeholder="€ prijs" min="0" step="0.01"
               style="width:80px" value="${p.prijs||''}"
               oninput="wizUpdSelPrijs(${i},this.value)" />
-             <select class="wiz-part-eenheid" style="width:60px" onchange="wizUpdSelEenheid(${i},this.value)">
+             <select class="wiz-part-eenheid" aria-label="Eenheid" style="width:60px" onchange="wizUpdSelEenheid(${i},this.value)">
                <option value="stuk" ${p.eenheid!=='meter'?'selected':''}>stuk</option>
                <option value="meter" ${p.eenheid==='meter'?'selected':''}>meter</option>
              </select>`
@@ -861,7 +861,7 @@ export function _wizRenderGeselecteerd() {
         }
         <span class="wiz-sel-subtotaal">€ ${subtotaal.toFixed(2)}</span>
         <label class="wiz-sel-factureer">
-          <input type="checkbox" ${p.factureren!==false?'checked':''} onchange="wizUpdSelFact(${i},this.checked)" />
+          <input type="checkbox" aria-label="Factureren ${escHtml(p.naam||'onderdeel')}" ${p.factureren!==false?'checked':''} onchange="wizUpdSelFact(${i},this.checked)" />
           Factureren
         </label>
       </div>
@@ -913,6 +913,7 @@ export function wizToggleTagFilter(tag) {
   // Update filter buttons
   document.querySelectorAll('.wiz-tag-filter').forEach(btn => {
     btn.classList.toggle('active', _wizActiveTags.includes(btn.dataset.tag || ''));
+    btn.setAttribute('aria-pressed', _wizActiveTags.includes(btn.dataset.tag || '') ? 'true' : 'false');
   });
   _wizUpdateCatResults();
 }
@@ -993,7 +994,7 @@ export function wizSaveSigKlant() {
 // ── Stap 6: Handtekening technieker ──
 export function wizRenderSigTech(el) {
   el.innerHTML = `
-    <div class="wiz-step-title">✍️ Handtekening technieker</div>
+    <div class="wiz-step-title" role="heading" aria-level="3">✍️ Handtekening technieker</div>
     <p style="font-size:0.85rem;color:var(--muted);margin-bottom:14px;line-height:1.5">
       Teken hieronder ter bevestiging van de uitgevoerde werkzaamheden.
     </p>
@@ -1046,7 +1047,7 @@ export function wizRenderSigKlant(el) {
   // Bouw rapport-preview (klant kan scrollen en lezen voor te tekenen)
   const previewHtml = buildRapportHtml();
   el.innerHTML = `
-    <div class="wiz-step-title">✍️ Handtekening klant</div>
+    <div class="wiz-step-title" role="heading" aria-level="3">✍️ Handtekening klant</div>
     <p style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;line-height:1.5">
       Geef het apparaat aan de klant. Klant leest het rapport en tekent onderaan.
     </p>

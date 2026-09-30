@@ -36,6 +36,7 @@ export function setRapportFilter(type) {
   _rapportFilter = type;
   document.querySelectorAll('.rapp-filter-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.filter === type);
+    btn.setAttribute('aria-pressed', btn.dataset.filter === type ? 'true' : 'false');
   });
   renderRapportArchief();
 }
