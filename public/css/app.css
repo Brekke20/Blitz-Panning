@@ -158,6 +158,16 @@
     }
     .tab.active .badge { background: var(--accent-dim); color: var(--accent-ink); }
 
+    /* ── Main content ── */
+    #hoofdinhoud {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    /* programmatisch focusdoel na skip-link: geen UA-focusring nodig */
+    #hoofdinhoud:focus { outline: none; }
+
     /* ── Views ── */
     .view { display: none; }
     .view.active { display: block; }

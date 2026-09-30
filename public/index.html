@@ -50,8 +50,11 @@
 </head>
 <body>
 
+<a class="skip-link" href="#hoofdinhoud">Naar hoofdinhoud</a>
+
 <div class="topbar-sticky">
 <header>
+  <h1 class="sr-only">Blitz Planning</h1>
   <div class="logo">
     <div class="logo-icon"><svg width="16" height="24" viewBox="0 0 14 22" xmlns="http://www.w3.org/2000/svg"><line x1="9" y1="5" x2="6" y2="11" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/><line x1="8" y1="12" x2="5" y2="18" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/></svg></div>
     <div>
@@ -75,16 +78,18 @@
   <button class="hbtn" onclick="openSettings()" title="Instellingen">⚙</button>
 </header>
 
+<nav aria-label="Hoofdmenu">
 <div class="tabs">
   <div class="tabs-inner" role="tablist">
-    <button type="button" class="tab active coord-only" role="tab" aria-selected="true" tabindex="0" id="tab-tickets"  onclick="event.stopPropagation(); setTab('tickets')">Wachtrij <span class="badge" id="cnt-tickets">0</span></button>
-    <button type="button" class="tab" role="tab" aria-selected="false" tabindex="-1"        id="tab-kalender" onclick="event.stopPropagation(); setTab('kalender')">Kalender</button>
-    <button type="button" class="tab coord-only" role="tab" aria-selected="false" tabindex="-1" id="tab-planning" onclick="event.stopPropagation(); setTab('planning')">Route</button>
-    <button type="button" class="tab" role="tab" aria-selected="false" tabindex="-1"        id="tab-gepland"  onclick="event.stopPropagation(); setTab('gepland')">Ingepland <span class="badge" id="cnt-gepland">0</span></button>
-    <button type="button" class="tab" role="tab" aria-selected="false" tabindex="-1"        id="tab-inventaris" onclick="event.stopPropagation(); setTab('inventaris')">Inventaris <span class="badge" id="cnt-inventaris" style="display:none">0</span></button>
-    <button type="button" class="tab coord-only" role="tab" aria-selected="false" tabindex="-1" id="tab-rapporten" onclick="event.stopPropagation(); setTab('rapporten')">Rapporten</button>
+    <button type="button" class="tab active coord-only" role="tab" aria-selected="true" aria-controls="view-tickets" tabindex="0" id="tab-tickets"  onclick="event.stopPropagation(); setTab('tickets')">Wachtrij <span class="badge" id="cnt-tickets">0</span></button>
+    <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="view-kalender" tabindex="-1"        id="tab-kalender" onclick="event.stopPropagation(); setTab('kalender')">Kalender</button>
+    <button type="button" class="tab coord-only" role="tab" aria-selected="false" aria-controls="view-planning" tabindex="-1" id="tab-planning" onclick="event.stopPropagation(); setTab('planning')">Route</button>
+    <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="view-gepland" tabindex="-1"        id="tab-gepland"  onclick="event.stopPropagation(); setTab('gepland')">Ingepland <span class="badge" id="cnt-gepland">0</span></button>
+    <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="view-inventaris" tabindex="-1"        id="tab-inventaris" onclick="event.stopPropagation(); setTab('inventaris')">Inventaris <span class="badge" id="cnt-inventaris" style="display:none">0</span></button>
+    <button type="button" class="tab coord-only" role="tab" aria-selected="false" aria-controls="view-rapporten" tabindex="-1" id="tab-rapporten" onclick="event.stopPropagation(); setTab('rapporten')">Rapporten</button>
   </div>
 </div>
+</nav>
 </div>
 
 <div id="offline-banner">📶 Geen verbinding. Rapporten worden bewaard en verstuurd zodra je weer online bent; andere wijzigingen lukken pas als je weer verbinding hebt.</div>
@@ -93,8 +98,10 @@
      (renderOutboxBanner, public/js/outbox.js). -->
 <div id="outbox-banner"></div>
 
+<main id="hoofdinhoud" tabindex="-1">
+
 <!-- ══ TICKETS TAB ══ -->
-<div class="view active" id="view-tickets">
+<div class="view active" id="view-tickets" role="tabpanel" aria-labelledby="tab-tickets">
   <div class="ticket-list" id="ticket-list">
     <div class="wq-toolbar">
       <input type="search" id="wq-zoek" class="wq-zoek" placeholder="Zoek op nummer, klant, adres of onderwerp…" aria-label="Zoek in de wachtrij" autocomplete="off">
@@ -111,7 +118,7 @@
 </div>
 
 <!-- ══ KALENDER TAB ══ -->
-<div class="view" id="view-kalender">
+<div class="view" id="view-kalender" role="tabpanel" aria-labelledby="tab-kalender">
   <div class="kal-header">
     <div class="kal-view-toggle">
       <button class="kal-view-btn active" id="kal-view-week" onclick="setKalView('week')">Week</button>
@@ -138,7 +145,7 @@
 </div>
 
 <!-- ══ ROUTE TAB ══ -->
-<div class="view" id="view-planning">
+<div class="view" id="view-planning" role="tabpanel" aria-labelledby="tab-planning">
   <div class="plan-header">
     <input type="date" id="plan-date" onchange="onDateChange(this.value)" />
     <button class="btn-primary" id="btn-optimize" onclick="optimizeRoute()" disabled title="Herorden stops voor kortste reistijd, daarna rijtijden berekenen">⚡ Optimaliseer</button>
@@ -156,7 +163,7 @@
 </div>
 
 <!-- ══ GEPLAND TAB ══ -->
-<div class="view" id="view-gepland">
+<div class="view" id="view-gepland" role="tabpanel" aria-labelledby="tab-gepland">
   <div class="gep-week">
     <button onclick="gepNav(-1)">‹</button>
     <span id="gep-label">—</span>
@@ -166,7 +173,7 @@
 </div>
 
 <!-- ══ RAPPORTEN TAB ══ -->
-<div class="view" id="view-rapporten">
+<div class="view" id="view-rapporten" role="tabpanel" aria-labelledby="tab-rapporten">
   <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--surface);position:sticky;top:92px;z-index:26">
     <span style="font-size:0.84rem;font-weight:600;flex:1">📋 Rapport archief</span>
     <div style="display:flex;gap:4px" id="rapp-filter-btns">
@@ -186,11 +193,13 @@
 </div>
 
 <!-- ══ INVENTARIS TAB ══ -->
-<div class="view" id="view-inventaris">
+<div class="view" id="view-inventaris" role="tabpanel" aria-labelledby="tab-inventaris">
   <div id="inventaris-body">
     <div class="inv-empty">Laden...</div>
   </div>
 </div>
+
+</main>
 
 <!-- Detail modal -->
 <div class="overlay" id="det-overlay" onclick="closeDet(event)">
@@ -198,13 +207,13 @@
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeDet()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-num" id="d-num"></div>
-      <div class="mhdr-title" id="d-title"></div>
+      <div class="mhdr-title" id="d-title" role="heading" aria-level="2"></div>
       <div class="mhdr-tags" id="d-tags"></div>
     </div>
     <div class="mbody">
       <div id="d-contact"></div>
-      <div class="msec"><div class="msec-title">Klantgegevens</div><div id="d-klant"></div></div>
-      <div class="msec"><div class="msec-title">Ticketdetails</div><div id="d-ticket"></div><div class="coord-only" id="kb-section"></div></div>
+      <div class="msec"><div class="msec-title" role="heading" aria-level="3">Klantgegevens</div><div id="d-klant"></div></div>
+      <div class="msec"><div class="msec-title" role="heading" aria-level="3">Ticketdetails</div><div id="d-ticket"></div><div class="coord-only" id="kb-section"></div></div>
     </div>
     <div class="mftr">
       <button class="btn btn--primary coord-only" id="d-plan-btn" onclick="togglePlanFromDetail()"></button>
@@ -223,7 +232,7 @@
   <div class="modal" style="max-width:380px">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeRescheduleModal()" title="Sluiten" aria-label="Sluiten">✕</button>
-      <div class="mhdr-title">📅 Nieuwe datum/tijd</div>
+      <div class="mhdr-title" role="heading" aria-level="2">📅 Nieuwe datum/tijd</div>
     </div>
     <div class="mbody">
       <div class="msec" style="margin-bottom:0;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -243,7 +252,7 @@
   <div class="modal" id="set-modal">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeSettings()" title="Sluiten" aria-label="Sluiten">✕</button>
-      <div class="mhdr-title">⚙️ Instellingen</div>
+      <div class="mhdr-title" role="heading" aria-level="2">⚙️ Instellingen</div>
       <div class="mhdr-num coord-only" id="set-person-label" style="font-size:0.78rem;color:var(--accent-ink);margin-top:2px"></div>
     </div>
     <div class="set-subtabs">
@@ -335,7 +344,7 @@
   <div class="modal" id="block-modal">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeBlock()" title="Sluiten" aria-label="Sluiten">✕</button>
-      <div class="mhdr-title">⛔ Beschikbaarheid</div>
+      <div class="mhdr-title" role="heading" aria-level="2">⛔ Beschikbaarheid</div>
       <div id="block-date-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="mbody" id="block-modal-body">
@@ -369,7 +378,7 @@
   <div class="modal" id="import-modal">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeImportModal()" title="Sluiten" aria-label="Sluiten">✕</button>
-      <div class="mhdr-title">📥 Importeer installaties</div>
+      <div class="mhdr-title" role="heading" aria-level="2">📥 Importeer installaties</div>
       <div id="import-subtitle" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="mbody imp-list" id="import-list">
@@ -388,7 +397,7 @@
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeLocalDet()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-tags" id="ld-type"></div>
-      <div class="mhdr-title" id="ld-titel"></div>
+      <div class="mhdr-title" id="ld-titel" role="heading" aria-level="2"></div>
       <div class="mhdr-num" id="ld-datum" style="font-size:0.78rem;color:var(--muted);margin-top:2px"></div>
     </div>
     <div class="mbody">
@@ -409,7 +418,7 @@
   <div class="modal" id="manueel-modal">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeManueelModal()" title="Sluiten" aria-label="Sluiten">✕</button>
-      <div class="mhdr-title" id="manueel-modal-title">➕ Afspraak toevoegen</div>
+      <div class="mhdr-title" id="manueel-modal-title" role="heading" aria-level="2">➕ Afspraak toevoegen</div>
     </div>
     <div class="mbody">
       <div class="man-form">
@@ -500,7 +509,7 @@
   <div class="modal" id="proposal-modal" style="max-width:480px">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeProposal()" title="Sluiten" aria-label="Sluiten">✕</button>
-      <div class="mhdr-title">📨 Afspraakvoorstel</div>
+      <div class="mhdr-title" role="heading" aria-level="2">📨 Afspraakvoorstel</div>
       <div id="proposal-ticket-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="mbody">
@@ -537,7 +546,7 @@
   <div class="modal" id="rapport-preview-modal" style="max-width:560px">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeRapportPreview()" title="Sluiten" aria-label="Sluiten">✕</button>
-      <div class="mhdr-title">📤 Rapport versturen</div>
+      <div class="mhdr-title" role="heading" aria-level="2">📤 Rapport versturen</div>
       <div id="rapport-preview-ticket-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="mbody" id="rapport-preview-body">
@@ -553,7 +562,7 @@
 <div id="rapport-wizard">
   <div class="wiz-hdr">
     <div class="wiz-hdr-top">
-      <div class="wiz-title">📋 Service Rapport</div>
+      <div class="wiz-title" role="heading" aria-level="2">📋 Service Rapport</div>
       <button class="wiz-close" onclick="closeWizard()" title="Sluiten">✕</button>
     </div>
     <div style="display:flex;align-items:center;gap:7px">
