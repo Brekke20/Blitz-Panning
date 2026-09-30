@@ -15,6 +15,13 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.10.1] — 2026-09-30
+
+### Fixed
+- Kalender: korte blokken (bv. een afgerond ticket van 36 minuten) worden minstens zo hoog getekend
+  als de kaart nodig heeft, maar de kolomverdeling keek naar de werkelijke duur. Daardoor
+  overlapten kaarten die kort na elkaar stonden. Ze staan nu naast elkaar.
+
 ## [1.10.0] — 2026-09-30
 
 ### Added
