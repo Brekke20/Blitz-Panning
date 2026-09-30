@@ -1196,3 +1196,20 @@
     html[data-aanraak="ja"] .kb-notitie, html[data-aanraak="ja"] .kb-input { font-size: 16px; }
     html[data-aanraak="ja"] .kb-input { min-height: 44px; }
     html[data-aanraak="ja"] .foto-caption { font-size: 16px; }
+
+    /* ── Afspraak annuleren (annuleer-overlay) ── */
+    .ann-kop { font-size: var(--fs-sm); color: var(--muted); margin-top: 3px; padding-right: 36px; }
+    .ann-groep { border: 0; margin: 0 0 15px; padding: 0; min-width: 0; }
+    .ann-groep legend { padding: 0; }
+    .ann-optie { display: flex; gap: 10px; align-items: center; min-height: 32px; padding: 4px 0; font-size: 1rem; color: var(--text); cursor: pointer; }
+    .ann-optie input[type="radio"] { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--accent); margin: 0; }
+    .ann-optie input:disabled + span { color: var(--muted); }
+    .ann-tekst { font-size: 1rem; resize: vertical; min-height: 72px; }
+    .ann-hint { font-size: var(--fs-xs); color: var(--muted); margin-top: 6px; }
+    .ann-details { margin-bottom: 4px; }
+    .ann-details summary { cursor: pointer; font-size: var(--fs-sm); font-weight: 600; color: var(--accent-ink); padding: 6px 0; }
+    .ann-frame { display: block; width: 100%; height: 320px; max-height: 320px; margin-top: 8px; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
+    #annuleer-overlay:focus { outline: none; }
+    html[data-aanraak="ja"] .ann-optie { min-height: 44px; }
+    html[data-aanraak="ja"] .ann-optie input[type="radio"] { width: 22px; height: 22px; }
+    html[data-aanraak="ja"] .ann-details summary { min-height: 44px; display: flex; align-items: center; }
