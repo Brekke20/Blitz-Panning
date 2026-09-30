@@ -149,7 +149,7 @@ export function renderPrijsEditor() {
       const o = items[i];
       const globalIdx = data.onderdelen.indexOf(o);
       const tagsHtml = (o.tags || []).map((t, ti) =>
-        `<span class="prijs-tag">${escHtml(t)}<button type="button" class="prijs-tag-del" aria-label="Verwijder label ${escHtml(t)}" onclick="prijsVerwijderTag(${globalIdx},${ti})">✕</button></span>`
+        `<span class="prijs-tag">${escHtml(t)}<button type="button" class="prijs-tag-del" aria-label="Verwijder label ${escHtml(t || '(leeg)')}" onclick="prijsVerwijderTag(${globalIdx},${ti})">✕</button></span>`
       ).join('') +
       `<button class="prijs-tag-add" onclick="prijsVoegTagToe(${globalIdx})">+ tag</button>`;
       html += `<div class="prijs-row">
@@ -161,11 +161,11 @@ export function renderPrijsEditor() {
         <div class="prijs-row-right">
           <div class="prijs-input-wrap">
             <span class="prijs-euro">€</span>
-            <input class="prijs-prijs-input" type="number" min="0" step="0.01" aria-label="Prijs ${escHtml(o.naam)}"
+            <input class="prijs-prijs-input" type="number" min="0" step="0.01" aria-label="Prijs ${escHtml(o.naam || 'naamloos item')}"
               value="${o.prijs}" oninput="prijsUpdatePrijs(${globalIdx},this.value)" />
           </div>
           <span class="prijs-eenheid">/ ${o.eenheid}</span>
-          <button class="prijs-del-btn" onclick="prijsVerwijderOnderdeel(${globalIdx})" title="Verwijder" aria-label="Verwijder ${escHtml(o.naam)}">🗑</button>
+          <button class="prijs-del-btn" onclick="prijsVerwijderOnderdeel(${globalIdx})" title="Verwijder" aria-label="Verwijder ${escHtml(o.naam || 'naamloos item')}">🗑</button>
         </div>
       </div>`;
     }
@@ -182,7 +182,7 @@ export function renderPrijsEditor() {
       <span class="prijs-tarief-naam">${escHtml(t.naam)}</span>
       <div class="prijs-input-wrap">
         <span class="prijs-euro">€</span>
-        <input class="prijs-prijs-input" type="number" min="0" step="0.01" aria-label="Tarief ${escHtml(t.naam)}"
+        <input class="prijs-prijs-input" type="number" min="0" step="0.01" aria-label="Tarief ${escHtml(t.naam || 'naamloos tarief')}"
           value="${t.prijs}" oninput="prijsTariefUpdate(${i},this.value)" />
       </div>
       <span class="prijs-eenheid">/ ${t.eenheid}</span>

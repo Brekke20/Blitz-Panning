@@ -96,9 +96,9 @@ function renderEigenVoorraad(persoon) {
     return `<div class="inv-row inv-cat-row" data-mat-id="${escHtml(o.id)}" data-mat-naam="${escHtml(o.naam)}">
       <span class="inv-row-naam">${escHtml(o.naam)}</span>
       <div class="inv-qty-edit">
-        <button class="inv-qty-btn inv-qty-minus" type="button" title="Verminder" aria-label="Verminder ${escHtml(o.naam)}">−</button>
-        <input class="inv-qty-input" type="number" aria-label="Aantal ${escHtml(o.naam)}" min="0" step="1" inputmode="numeric" value="${aantal}" />
-        <button class="inv-qty-btn inv-qty-plus" type="button" title="Vermeerder" aria-label="Vermeerder ${escHtml(o.naam)}">+</button>
+        <button class="inv-qty-btn inv-qty-minus" type="button" title="Verminder" aria-label="Verminder ${escHtml(o.naam || 'naamloos item')}">−</button>
+        <input class="inv-qty-input" type="number" aria-label="Aantal ${escHtml(o.naam || 'naamloos item')}" min="0" step="1" inputmode="numeric" value="${aantal}" />
+        <button class="inv-qty-btn inv-qty-plus" type="button" title="Vermeerder" aria-label="Vermeerder ${escHtml(o.naam || 'naamloos item')}">+</button>
         <button class="inv-bell-btn${gedempt ? ' inv-bell-muted' : ''}" type="button" aria-label="${gedempt ? 'Lage-voorraadmelding inschakelen' : 'Lage-voorraadmelding uitschakelen'}" title="Lage-voorraadmelding voor dit item ${gedempt ? 'inschakelen' : 'uitschakelen'}">${gedempt ? '🔕' : '🔔'}</button>
       </div>
     </div>`;

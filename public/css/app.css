@@ -389,6 +389,9 @@
     html[data-aanraak="ja"] .foto-thumb-del { position: absolute; }
     html[data-aanraak="ja"] .foto-thumb-del::after, html[data-aanraak="ja"] .kb-chip-del::after,
     html[data-aanraak="ja"] .wiz-part-del::after { content: ''; position: absolute; inset: -12px; }
+    /* Prijs-tag ✕: pil behoudt zijn hoogte; tikvlak >= 24px via ::after (WCAG 2.5.8) */
+    html[data-aanraak="ja"] .prijs-tag-del { min-height: 0; min-width: 0; position: relative; }
+    html[data-aanraak="ja"] .prijs-tag-del::after { content: ''; position: absolute; inset: -9px; }
 
     /* Gsm: smalle kop (320-360px) -- logo-tekst weg (icoon blijft), kleinere marges, 44px-knoppen blijven */
     html[data-indeling="smal"] header { padding: 0 8px; gap: 4px; }

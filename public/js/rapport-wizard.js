@@ -581,7 +581,7 @@ export function wizRenderFacturatie(el) {
         </label>
       </div>
       <div id="facturatie-vrij-wrap" style="${R.facturatie==='vrij'?'':'display:none'};margin-top:10px">
-        <input class="wiz-input" id="f-facturatie-vrij" type="text" placeholder="Facturatie aan..." value="${escHtml(R.facturatieVrij)}" />
+        <input class="wiz-input" id="f-facturatie-vrij" type="text" aria-label="Facturatie aan (vrije invoer)" placeholder="Facturatie aan..." value="${escHtml(R.facturatieVrij)}" />
       </div>
     </div>
     <div class="wiz-sep"></div>
