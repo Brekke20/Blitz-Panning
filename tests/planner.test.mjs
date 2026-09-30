@@ -613,3 +613,36 @@ test('voorkeursdag + voorkeursuur: geplaatst op die dag en dat uur; botsing → 
   }));
   assert.deepEqual(ver.nietGepland, [{ ticketId: 'v', reden: 'voorkeursdag-afstand' }]);
 });
+
+// ---- R7 fix: voorkeursuur-only tickets zijn gewone kandidaten (R3, spec 3.5) --------
+test('voorkeursuur-only: Laag ticket ver weg met uur neemt de lege dag niet af van de Hoog-starter', async () => {
+  const hoog = mk('hoog', 1, { priority: 'High' });
+  const laag = mk('laag', 2, { priority: 'Low', lat: 50.93, lon: 5.34 });
+  const u = await planWeek(maakInvoer({
+    kandidaten: [laag, hoog], dagen: [EEN, '2026-10-06'], instellingen: inst({ maxPerDag: 1 }),
+    klant: { laag: { voorkeurTijd: '12:00' } }, reistijden: vast({ laag: 90 }, 5),
+  }));
+  assert.deepEqual(datumsVan(u, 'hoog'), [EEN]);
+  assert.deepEqual(u.geplaatst.find(g => g.ticketId === 'laag'), { ticketId: 'laag', datum: '2026-10-06', verwachteAankomst: '12:00' });
+});
+
+test('voorkeursuur-only neemt de maxPerDag-plek van een voorkeursdag-ticket niet in', async () => {
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('w', 1, { priority: 'High' }), mk('v', 2, { priority: 'Low' })], dagen: [EEN],
+    instellingen: inst({ maxPerDag: 1 }), klant: { v: { voorkeur: EEN }, w: { voorkeurTijd: '12:00' } }, reistijden: vast({}, 5),
+  }));
+  assert.deepEqual(ids(u), ['v']);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'w', reden: 'geen-plaats' }]);
+});
+
+test('voorkeursuur-only als vulling: exact op zijn uur, vrije tickets overlappen er niet mee', async () => {
+  const ks = [mk('u', 9, { priority: 'High' }), ...['f1', 'f2', 'f3'].map((id, i) => mk(id, i + 1, { priority: i ? 'Low' : 'High', duurMin: 90 }))];
+  const u = await planWeek(maakInvoer({
+    kandidaten: ks, dagen: [EEN], instellingen: inst(), klant: { u: { voorkeurTijd: '10:00' } }, reistijden: vast({}, 5),
+  }));
+  const min = h => Number(h.slice(0, 2)) * 60 + Number(h.slice(3));
+  assert.equal(u.geplaatst.find(g => g.ticketId === 'u').verwachteAankomst, '10:00');
+  const iv = u.geplaatst.map(g => [min(g.verwachteAankomst), min(g.verwachteAankomst) + ks.find(k => k.id === g.ticketId).duurMin]).sort((a, b) => a[0] - b[0]);
+  for (let i = 1; i < iv.length; i++) assert.ok(iv[i][0] >= iv[i - 1][1], JSON.stringify(iv));
+  assert.equal(u.geplaatst.length, 4);
+});
