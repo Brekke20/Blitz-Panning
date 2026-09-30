@@ -184,7 +184,7 @@ export async function planWeek(invoer) {
     // Kandidaten die deze dag in aanmerking komen (klant, voorkeursdag, extra dag).
     const toegelaten = t => {
       if (!magOpDag(t.id, dag)) return false;
-      if (kbBlocked(t.id, dag)) { noteer(t.id, 'klant-geblokkeerd'); return false; }
+      if (kbBlocked(t.id, dag)) return false;
       const pref = prefDayAvailable.get(t.id);
       if (pref && pref !== dag) return false;
       return true;
@@ -256,7 +256,7 @@ export async function planWeek(invoer) {
           (vanDepot(a) - vanDepot(b) || 0) ||
           String(a.number ?? '').localeCompare(String(b.number ?? ''), 'nl', { numeric: true }));
       } else {
-        fillPool.sort((a, b) => fillScore(a, pos.lat, pos.lon) - fillScore(b, pos.lat, pos.lon));
+        fillPool.sort((a, b) => fillScore(a, pos?.lat ?? null, pos?.lon ?? null) - fillScore(b, pos?.lat ?? null, pos?.lon ?? null));
       }
 
       let gekozen = null, sprong = null;
@@ -289,6 +289,12 @@ export async function planWeek(invoer) {
 
     dagGeplaatst.sort((a, b) => a.aank - b.aank)
       .forEach(({ t, aank }) => geplaatst.push({ ticketId: t.id, datum: dag, verwachteAankomst: minNaarUur(aank) }));
+  }
+
+  // 3.6: 'klant-geblokkeerd' enkel als de klant ALLE dagen blokkeerde waarop het ticket anders mocht.
+  for (const t of pool) {
+    const toegestaneDagen = dagen.filter(d => magOpDag(t.id, d) && (!prefDayAvailable.get(t.id) || prefDayAvailable.get(t.id) === d));
+    if (toegestaneDagen.length && toegestaneDagen.every(d => kbBlocked(t.id, d))) noteer(t.id, 'klant-geblokkeerd');
   }
 
   const nietGepland = pool.map(t => ({ ticketId: t.id, reden: redenVan.get(t.id) || 'geen-plaats' }));

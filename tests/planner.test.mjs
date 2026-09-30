@@ -319,6 +319,11 @@ test('tijdlijn: dag volledig bezet door eigen afspraken → niets geplaatst, gee
   assert.deepEqual(u.nietGepland, [{ ticketId: 'a', reden: 'geen-plaats' }]);
 });
 
+test('tijdlijn: dag volledig bezet door blokkering → reden geen-plaats', async () => {
+  const u = await planWeek(tijdlijn([kand('a', 1)], { blokkeringen: { [EEN]: [{ van: '08:00', tot: '17:00' }] } }));
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'a', reden: 'geen-plaats' }]);
+});
+
 test('tijdlijn: maxPerDag 2 met 1 bestaande → hoogstens 1 nieuw', async () => {
   const u = await planWeek(tijdlijn([kand('a', 1), kand('b', 2), kand('c', 3)], {
     instellingen: inst({ maxPerDag: 2 }),
@@ -361,4 +366,25 @@ test('reden: alle dagen klant-geblokkeerd → klant-geblokkeerd', async () => {
 test('reden: week vol → geen-plaats', async () => {
   const u = await planWeek(tijdlijn([kand('a', 1), kand('b', 2)], { instellingen: inst({ maxPerDag: 1 }) }));
   assert.deepEqual(u.nietGepland, [{ ticketId: 'b', reden: 'geen-plaats' }]);
+});
+
+test('reden: geblokkeerd op maandag, rest van de week vol → geen-plaats', async () => {
+  const vol = { van: '08:00', tot: '17:00' };
+  const u = await planWeek(tijdlijn([kand('a', 1)], {
+    dagen: DAGEN, klant: { a: { geblokkeerd: [DAGEN[0]] } },
+    blokkeringen: Object.fromEntries(DAGEN.slice(1).map(d => [d, [vol]])),
+  }));
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'a', reden: 'geen-plaats' }]);
+});
+
+test('reden: geblokkeerd op alle dagen → klant-geblokkeerd', async () => {
+  const u = await planWeek(tijdlijn([kand('a', 1)], { dagen: DAGEN, klant: { a: { geblokkeerd: DAGEN } } }));
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'a', reden: 'klant-geblokkeerd' }]);
+});
+
+test('fail-open: depot null en kandidaten zonder coördinaten → geen crash, alles geplaatst', async () => {
+  const ks = [kand('a', 1, { lat: null, lon: null }), kand('b', 2, { lat: null, lon: null }), kand('c', 3, { lat: null, lon: null })];
+  const u = await planWeek(tijdlijn(ks, { depot: null }));
+  assert.equal(u.geplaatst.length, 3);
+  assert.deepEqual(u.nietGepland, []);
 });
