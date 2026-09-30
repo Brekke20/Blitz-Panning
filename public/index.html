@@ -282,7 +282,7 @@
         <input class="set-input" id="set-maxreistijd" type="number" min="0" max="240" step="5" />
       </div>
       <div class="set-field">
-        <label class="set-label" for="set-laatste-start">Laatste start</label>
+        <label class="set-label" for="set-laatste-start">Laatste start (geldt voor iedereen)</label>
         <input class="set-input" id="set-laatste-start" type="time" />
       </div>
       <div class="set-field">
@@ -853,11 +853,23 @@ const DEFAULT_SETTINGS = {
 function settingsKey(person) {
   return person && person !== 'all' ? `blitz_settings_${person}` : 'blitz_settings';
 }
+// R8: "Laatste start" is één instelling voor iedereen — eigen sleutel, los van de gekozen technieker.
+// Eerder per persoon opgeslagen waarden worden genegeerd.
+const LAATSTE_START_KEY = 'blitz_laatste_start';
+function leesLaatsteStart() {
+  let v = null;
+  try { v = localStorage.getItem(LAATSTE_START_KEY); } catch { /* opslag niet beschikbaar */ }
+  return /^\d{2}:\d{2}$/.test(v || '') ? v : DEFAULT_SETTINGS.laatsteStart;
+}
+function bewaarLaatsteStart(v) {
+  try { localStorage.setItem(LAATSTE_START_KEY, v); } catch { /* quota vol — best-effort */ }
+}
 function loadPersonSettings(person) {
   const saved = JSON.parse(localStorage.getItem(settingsKey(person)) || '{}');
   return {
     ...DEFAULT_SETTINGS,
     ...saved,
+    laatsteStart: leesLaatsteStart(),
     // Lege strings mogen de default niet overschrijven
     startlocatie: saved.startlocatie || DEFAULT_SETTINGS.startlocatie,
     // Eigen array-kopie — anders deelt elke technieker zonder opgeslagen werkdagen
@@ -3662,10 +3674,9 @@ async function autoPlan() {
   const nietGepland = [];
 
   try {
-    // Werkdagen deze week (verleden overslaan) — vooraf bepaald zodat we bestaande
-    // laatste-stops per dag ook kunnen meenemen in de geocode-batch hieronder (nodig
-    // voor de max-reistijd-check t.o.v. een bestaand/manueel verzet ticket, i.p.v.
-    // stilzwijgend op het depot terug te vallen als die coördinaten ontbreken).
+    // Werkdagen deze week (verleden overslaan) — vooraf bepaald zodat we de bestaande
+    // stops van die dagen ook kunnen meenemen in de geocode-batch hieronder (nodig voor de
+    // max-reistijd-check t.o.v. een bestaand/manueel verzet ticket).
     const today     = new Date(); today.setHours(0,0,0,0);
     const weekStart = getWeekStart(today, kalOffset);
 
@@ -3682,19 +3693,15 @@ async function autoPlan() {
       voorkeuren: toplan.map(t => ({ ticketId: t.id, datum: kbPreferred(t.id) })).filter(v => v.datum),
     });
 
-    // Bestaande laatste stops zonder coördinaten: nodig als ankerpunt voor de
-    // reistijd-check (seedExempt) — anders valt de check terug op het depot.
-    const existingLastStops = weekDates
-      .map(dStr => {
-        const dayStops = (planning[dStr] || []).filter(p =>
-          activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-        ).sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
-        return dayStops[dayStops.length - 1];
-      })
-      .filter(stop => stop && !stop._lat && !stop.ticket._lat && stop.ticket.address);
+    // ALLE bestaande stops van de plandagen zonder coördinaten: elke stop met locatie is een
+    // ankerpunt voor de 45-min-regel en de vooruitcontrole van het brein (spec 3.3), niet enkel de laatste.
+    const bestaandeStops = weekDates
+      .flatMap(dStr => (planning[dStr] || []).filter(p =>
+        activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter))
+      .filter(stop => !stop._lat && !stop.ticket._lat && stop.ticket.address);
 
-    // Geocoding via TomTom
-    const geocodeStops = [...toplan, ...existingLastStops.map(s => s.ticket)];
+    // Geocoding via TomTom (geocode-cache eerst)
+    const geocodeStops = [...new Set([...toplan, ...bestaandeStops.map(s => s.ticket)])];
     // Cache raadplegen (geocode-cache) vóór TomTom nodig is.
     geocodeStops.forEach(t => {
       if (!t._lat) { const hit = geocacheLookup(t.address); if (hit) { t._lat = hit.lat; t._lon = hit.lon; } }
@@ -3767,7 +3774,7 @@ async function autoPlan() {
       blokkeringen,
       klant: Object.fromEntries(toplan.map(t => [t.id, kbFor(t.id)]).filter(([, v]) => v)),
       instellingen: {
-        vanTijd: settings.vanTijd, laatsteStart: settings.laatsteStart || '16:00', maxPerDag: settings.maxPerDag,
+        vanTijd: settings.vanTijd, laatsteStart: leesLaatsteStart(), maxPerDag: settings.maxPerDag,
         maxReistijdMin: settings.maxReistijdMin,
       },
       depot: originCoords || null,
@@ -3873,7 +3880,7 @@ function showResult(geplande, nietGepland, skipped, bericht, waarschuwingen = []
 
   if (nietGepland.length) {
     const s = document.createElement('div'); s.className = 'result-section';
-    s.innerHTML = `<div class="result-section-title">➡️ Past niet deze week — verschoven (${nietGepland.length})</div>`;
+    s.innerHTML = `<div class="result-section-title">Niet ingepland (${nietGepland.length})</div>`;
     nietGepland.forEach(({ ticket: t, reden }) => {
       const row = document.createElement('div'); row.className = 'result-item';
       row.innerHTML = `<div class="result-dot skip"></div><div><b>#${escHtml(t.number)}</b> ${escHtml(t.subject)}<div style="color:var(--muted);font-size:0.78rem">${escHtml(redenTekst(reden))}</div></div>`;
@@ -5069,17 +5076,7 @@ function updateMap(date) {
   // Zelfde combinatie + sortering als renderRouteList()/calculateRoute(), zodat de
   // kaartnummering (1,2,3...) exact overeenkomt met de lijst ernaast, en handmatige
   // afspraken ook zichtbaar worden (voorheen enkel Zoho-tickets).
-  const stops = (planning[date] || []).filter(p =>
-    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-  );
-  const localForDate = localEvents.filter(e =>
-    e.datum === date && (e.adres || e.notitie) &&
-    (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
-  );
-  const allStops = [
-    ...stops.map(s => ({ kind: 'ticket', item: s, uur: s.uur })),
-    ...localForDate.map(e => ({ kind: 'local', item: e, uur: e.uur })),
-  ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
+  const { allStops } = stopsVoorDag(date);
   if (!allStops.length) return;
   if (routeData?.polyline?.length && currentRouteDate === date) {
     const poly = L.polyline(routeData.polyline, { color: settings.routeKleur || '#f59e0b', weight:4, opacity:0.85 }).addTo(routeLayer);
@@ -5875,7 +5872,7 @@ function openSettings() {
   document.getElementById('set-maxreistijd').value = settings.maxReistijdMin;
   document.getElementById('set-van').value      = settings.vanTijd;
   document.getElementById('set-tot').value      = settings.totTijd;
-  document.getElementById('set-laatste-start').value = settings.laatsteStart || DEFAULT_SETTINGS.laatsteStart;
+  document.getElementById('set-laatste-start').value = leesLaatsteStart(); // R8: zelfde waarde voor elke technieker
   document.getElementById('set-tijdslot').value = settings.tijdslotMinuten;
   document.getElementById('set-routekleur').value = settings.routeKleur || DEFAULT_SETTINGS.routeKleur;
   document.getElementById('set-routekleur-hex').textContent = (settings.routeKleur || DEFAULT_SETTINGS.routeKleur).toUpperCase();
@@ -5913,7 +5910,7 @@ function saveSettings() {
   const tijdslotMinuten = +document.getElementById('set-tijdslot').value;
 
   if (van && tot && van >= tot) return toast('⚠ Begintijd moet voor eindtijd liggen', 3500);
-  if (laatsteStart && ((van && laatsteStart < van) || (tot && laatsteStart > tot))) return toast('⚠ Laatste start moet tussen begin- en eindtijd liggen', 3500);
+  if (laatsteStart && (laatsteStart < (van || DEFAULT_SETTINGS.vanTijd) || laatsteStart > (tot || DEFAULT_SETTINGS.totTijd))) return toast('⚠ Laatste start moet tussen begin- en eindtijd liggen', 3500);
   if (duur < 15)                return toast('⚠ Minimale interventieduur is 15 minuten', 3500);
   if (max < 1)                  return toast('⚠ Maximaal per dag moet minstens 1 zijn', 3500);
   if (maxReistijd < 0)          return toast('⚠ Max. reistijd kan niet negatief zijn', 3500);
@@ -5930,6 +5927,7 @@ function saveSettings() {
   settings.vanTijd        = van  || DEFAULT_SETTINGS.vanTijd;
   settings.totTijd        = tot  || DEFAULT_SETTINGS.totTijd;
   settings.laatsteStart   = laatsteStart || DEFAULT_SETTINGS.laatsteStart;
+  bewaarLaatsteStart(settings.laatsteStart); // R8: één waarde voor iedereen
   settings.maxReistijdMin = maxReistijd || maxReistijd === 0 ? maxReistijd : DEFAULT_SETTINGS.maxReistijdMin;
   settings.tijdslotMinuten = parseInt(document.getElementById('set-tijdslot').value, 10) || DEFAULT_SETTINGS.tijdslotMinuten;
   const routeKleurInput = document.getElementById('set-routekleur').value;
