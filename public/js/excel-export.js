@@ -190,9 +190,10 @@ export async function exportTicketLog() {
 
     toast(`✓ ${rows.length} rijen geëxporteerd`, 2500);
   } catch (err) {
-    toast(`❌ Export mislukt: ${err.message}`, 4000);
+    toast(`✕ Export mislukt: ${err.message}`, 4000);
     console.error('exportTicketLog:', err);
   }
 }
 
 window.exportTicketLog = exportTicketLog;
+

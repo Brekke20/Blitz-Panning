@@ -35,23 +35,7 @@
     .wiz-ftr-info { font-size: 0.7rem; color: var(--muted); }
     .wiz-ftr-btns { display: flex; gap: 8px; }
 
-    .btn-wiz-back {
-      background: transparent; border: 1px solid var(--border); color: var(--muted);
-      padding: 10px 16px; border-radius: var(--r); cursor: pointer;
-      font-size: 0.83rem; font-weight: 600; min-height: 44px;
-      transition: background 0.1s, color 0.1s;
-    }
-    .btn-wiz-back:hover { background: var(--surface2); color: var(--text); }
-    .btn-wiz-next {
-      background: var(--accent); color: var(--on-accent); border: none;
-      padding: 10px 20px; border-radius: var(--r); cursor: pointer;
-      font-size: 0.83rem; font-weight: 800; min-height: 44px;
-      transition: background 0.1s, transform 0.1s var(--ease-spring);
-    }
-    .btn-wiz-next:hover  { background: var(--accent-hover); }
-    .btn-wiz-next:active { transform: scale(0.97); }
-
-    /* Footerknoppen: .btn-familie, maar behoud 44 px zodat de footer niet verspringt */
+    /* Footerknoppen: behoud 44 px zodat de footer niet verspringt */
     .wiz-ftr .btn { min-height: 44px; }
 
     /* Wizard form */

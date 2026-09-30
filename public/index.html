@@ -528,10 +528,10 @@
         <div class="set-input" id="proposal-email" style="min-height:auto" role="region" aria-labelledby="proposal-email-label"></div>
       </div>
       <div id="proposal-no-email" style="display:none;font-size:0.78rem;color:#f59e0b;padding:4px 0 8px">
-        ⚠️ Geen e-mailadres — ticket wordt bijgewerkt maar er wordt geen mail verstuurd.
+        ⚠ Geen e-mailadres — ticket wordt bijgewerkt maar er wordt geen mail verstuurd.
       </div>
       <div id="proposal-outside-workday" style="display:none;font-size:0.78rem;color:#f59e0b;padding:4px 0 8px">
-        ⚠️ Tijdstip valt buiten de werkdag
+        ⚠ Tijdstip valt buiten de werkdag
       </div>
       <!-- E-mail preview -->
       <div style="font-size:0.72rem;color:var(--muted);margin-bottom:5px;margin-top:4px">Voorbeeld e-mail:</div>
@@ -556,7 +556,7 @@
     </div>
     <div class="mftr">
       <button class="btn-cancel" onclick="closeRapportPreview()">Annuleren</button>
-      <button class="btn-save" id="rapport-preview-send-btn">✅ Bevestig en verstuur</button>
+      <button class="btn-save" id="rapport-preview-send-btn">✓ Bevestig en verstuur</button>
     </div>
   </div>
 </div>
@@ -874,7 +874,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error('Kaart kon niet geladen worden (Leaflet):', err);
     const mapWrap = document.getElementById('map-wrap') || document.getElementById('map');
     if (mapWrap) {
-      mapWrap.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:0.85rem">⚠️ Kaart kon niet geladen worden. De rest van de app werkt gewoon — herlaad de pagina om de kaart opnieuw te proberen.</div>';
+      mapWrap.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:0.85rem">⚠ Kaart kon niet geladen worden. De rest van de app werkt gewoon — herlaad de pagina om de kaart opnieuw te proberen.</div>';
     }
   }
   loadPrijzen();
@@ -1253,7 +1253,7 @@ async function loadTickets() {
       document.getElementById('empty-tickets').textContent =
         'Sessie met Zoho verlopen. Meld dit aan Brent; de koppeling moet opnieuw ingesteld worden.';
     } else {
-      toast('❌ ' + msg, 4000);
+      toast('✕ ' + msg, 4000);
       document.getElementById('empty-tickets').textContent = 'Kon tickets niet laden: ' + msg;
     }
   }
@@ -1505,7 +1505,7 @@ async function addTicketToDate(ticketId, date) {
 
   // Waarschuwing als klant deze datum heeft geblokkeerd
   if (kbBlocked(ticketId, date)) {
-    const ok = confirm(`⚠️ Klant gaf aan NIET beschikbaar te zijn op ${fmtDateShort(date)}.\nToch inplannen?`);
+    const ok = confirm(`⚠ Klant gaf aan NIET beschikbaar te zijn op ${fmtDateShort(date)}.\nToch inplannen?`);
     if (!ok) return false;
   }
 
@@ -1540,7 +1540,7 @@ async function addTicketToDate(ticketId, date) {
       // Revert
       planning[date] = planning[date].filter(p => p.ticket.id !== ticketId);
       if (!planning[date].length) delete planning[date];
-      toast('❌ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
+      toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
       success = false;
     }
   } else {
@@ -1597,7 +1597,7 @@ async function removeTicketFromDate(ticketId, date) {
       // Revert
       if (!planning[date]) planning[date] = [];
       planning[date].push(stop);
-      toast('❌ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
+      toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
     }
   } else {
     stop.ticket.interventieDatum = null;
@@ -1699,7 +1699,7 @@ function buildReportCard(entry) {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px">
       <div style="flex:1;min-width:0">
         ${entry.ticketNumber ? `<div class="cal-num">#${escHtml(entry.ticketNumber)}</div>` : ''}
-        <span class="cal-badge afgerond">✅ Afgerond</span>
+        <span class="cal-badge afgerond">✓ Afgerond</span>
         ${tijdLabel ? `<div class="cal-meta" style="font-weight:600">🕐 ${tijdLabel}</div>` : ''}
         <div class="cal-sub">${escHtml(entry.klant) || '—'}</div>
         ${entry.technieker ? `<div class="cal-meta">${escHtml(entry.technieker)}</div>` : ''}
@@ -2595,7 +2595,7 @@ async function saveAfspraken() {
     return true;
   } catch (err) {
     console.error('Afspraken opslaan mislukt:', err);
-    toast('❌ Afspraken opslaan mislukt', 3000);
+    toast('✕ Afspraken opslaan mislukt', 3000);
     return false;
   }
 }
@@ -2683,7 +2683,7 @@ async function saveKlantBeschikbaarheid() {
     return true;
   } catch (err) {
     console.error('Klantbeschikbaarheid opslaan mislukt:', err);
-    toast('❌ Klantbeschikbaarheid opslaan mislukt', 3000);
+    toast('✕ Klantbeschikbaarheid opslaan mislukt', 3000);
     return false;
   }
 }
@@ -2797,7 +2797,7 @@ function reconcilePlanning(knownIds) {
   }
   if (ghosts.length) {
     console.warn('Ghost tickets verwijderd uit planning:', ghosts);
-    toast(`⚠️ ${ghosts.length} toekomstige afspraak${ghosts.length > 1 ? 'en' : ''} verwijderd (ticket gesloten in Zoho): ${ghosts.join(', ')}`, 5000);
+    toast(`⚠ ${ghosts.length} toekomstige afspraak${ghosts.length > 1 ? 'en' : ''} verwijderd (ticket gesloten in Zoho): ${ghosts.join(', ')}`, 5000);
     renderKalender();
     renderRouteList(document.getElementById('plan-date')?.value || localISO(new Date()));
   }
@@ -2854,7 +2854,7 @@ function handleImportFile(input) {
       const data = JSON.parse(e.target.result);
       startImport(data);
     } catch {
-      toast('❌ Ongeldig JSON-bestand', 3000);
+      toast('✕ Ongeldig JSON-bestand', 3000);
     }
   };
   reader.readAsText(file);
@@ -3214,7 +3214,7 @@ async function saveAvailability() {
     return true;
   } catch (err) {
     console.error('Beschikbaarheid opslaan mislukt:', err);
-    toast('❌ Opslaan is niet gelukt. Controleer je verbinding en probeer opnieuw.', 3000);
+    toast('✕ Opslaan is niet gelukt. Controleer je verbinding en probeer opnieuw.', 3000);
     return false;
   }
 }
@@ -3877,7 +3877,7 @@ async function autoPlan() {
 
     showResult(geplande, overflow, skipped, null);
   } catch (err) {
-    toast('❌ ' + err.message, 4000);
+    toast('✕ ' + err.message, 4000);
   } finally {
     btn.disabled    = false;
     btn.textContent = '⚡ Plan deze week';
@@ -4225,7 +4225,7 @@ function renderRouteList(date) {
       const item = entry.item;
       const arrKey     = `${date}__${item.ticket.id}`;
       const arrivalHtml = arrivalData[arrKey]
-        ? `<div class="stop-arrival">✅ Aangekomen ${arrivalData[arrKey]}</div>`
+        ? `<div class="stop-arrival">✓ Aangekomen ${arrivalData[arrKey]}</div>`
         : '';
       const blok = locked ? tijdslotLabelVoor(item, date) : '';
       // M9: het blok komt ofwel uit een effectief gemaild/bevestigd tijdslot (📨), ofwel is het
@@ -4260,7 +4260,7 @@ function renderRouteList(date) {
       const tijdLabel = ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '';
       const evArrKey     = `${date}__${ev.id}`;
       const evArrivalHtml = arrivalData[evArrKey]
-        ? `<div class="stop-arrival">✅ Aangekomen ${arrivalData[evArrKey]}</div>`
+        ? `<div class="stop-arrival">✓ Aangekomen ${arrivalData[evArrKey]}</div>`
         : '';
       stop.innerHTML = `
         <div class="stop-top">
@@ -4326,7 +4326,7 @@ async function applyRouteOrder(date, orderedEntries) {
   // enkel code-pad ooit tijden van meerdere technici als één sequentiële route kan bewaren.
   const ticketItems = orderedEntries.filter(e => e.kind === 'ticket').map(e => e.item);
   if (!dagHeeftEenTechnieker(ticketItems)) {
-    return toast('⚠️ Kies eerst een technieker — de dag bevat stops van meerdere technici');
+    return toast('⚠ Kies eerst een technieker — de dag bevat stops van meerdere technici');
   }
 
   // I4 (eindreview v1.4.0): vanaf hier tot de finally muteert deze functie planning[date]-
@@ -4341,7 +4341,7 @@ async function applyRouteOrder(date, orderedEntries) {
   // volstaat om de rest van de functie op verse data te laten werken.
   const statusOk = await loadVoorstelStatus();
   if (!statusOk) {
-    return toast('❌ Vergrendelstatus kon niet geladen worden — volgorde niet bewaard', 5000);
+    return toast('✕ Vergrendelstatus kon niet geladen worden — volgorde niet bewaard', 5000);
   }
 
   // Fix-ronde 1 (#4): originele uren van de verplaatsbare tickets bewaren vóór we ze in stap 1
@@ -4370,7 +4370,7 @@ async function applyRouteOrder(date, orderedEntries) {
     minutenRuw >= 1440 || uurStr === '00:00' || timeStrToMin(uurStr) > dagKlokLimiet;
   const abortDagklok = () => {
     restoreOrigineleUren();
-    toast('❌ Te veel stops voor één dag — volgorde niet bewaard', 5000);
+    toast('✕ Te veel stops voor één dag — volgorde niet bewaard', 5000);
     renderRouteList(date);
     updateMap(date);
     updateRouteBtns(date);
@@ -4413,7 +4413,7 @@ async function applyRouteOrder(date, orderedEntries) {
   // stoppen (geen verfijning, geen persist).
   if (!(routeData?.legs && currentRouteDate === date)) {
     restoreOrigineleUren();
-    toast('❌ Route kon niet berekend worden — volgorde niet bewaard', 5000);
+    toast('✕ Route kon niet berekend worden — volgorde niet bewaard', 5000);
     renderRouteList(date);
     updateMap(date);
     updateRouteBtns(date);
@@ -4491,7 +4491,7 @@ async function applyRouteOrder(date, orderedEntries) {
         if (!data.ok) throw new Error(data.error || 'Onbekende fout');
         item.ticket.interventieDatum = utcInterventieDatum;
       } catch (err) {
-        toast('❌ Volgorde bewaren mislukt voor #' + item.ticket.number, 5000);
+        toast('✕ Volgorde bewaren mislukt voor #' + item.ticket.number, 5000);
         await loadTickets();
         return;
       }
@@ -4578,7 +4578,7 @@ async function optimizeRoute() {
   // van meerdere technici bevat -- anders zou de resulterende volgorde/tijden hen als één
   // sequentiële route door elkaar husselen. Zelfde regel als in renderRouteList() voor drag.
   if (!dagHeeftEenTechnieker(stops)) {
-    return toast('⚠️ Kies eerst een technieker — de dag bevat stops van meerdere technici');
+    return toast('⚠ Kies eerst een technieker — de dag bevat stops van meerdere technici');
   }
 
   // Optimaliseren start altijd vanaf nul (Beslissing Brent, 2026-09-21): negeert de
@@ -4615,7 +4615,7 @@ async function optimizeRoute() {
         const loc = data.locations?.[i+1];
         if (loc) { p._lat = loc.lat; p._lon = loc.lon; geocacheStore(p.address, loc.lat, loc.lon); }
       });
-      toast('⚠️ Optimalisatie niet beschikbaar — volgorde ongewijzigd', 4500);
+      toast('⚠ Optimalisatie niet beschikbaar — volgorde ongewijzigd', 4500);
       renderRouteList(date);
       await calculateRoute();
       return;
@@ -4632,7 +4632,7 @@ async function optimizeRoute() {
     // Adresloze niet-vergrendelde tickets konden sowieso niet meegerekend worden — achteraan.
     noAddr.forEach(p => samengevoegd.push({ kind: 'ticket', item: p, uur: p.uur }));
     await applyRouteOrder(date, samengevoegd);
-  } catch (err) { toast('❌ ' + err.message, 4000); await calculateRoute(); }
+  } catch (err) { toast('✕ ' + err.message, 4000); await calculateRoute(); }
 }
 
 // Vroeg inzoomen (kaart-snelheid-onderzoek, voorstellen): zoomt de kaart alvast in op de stops
@@ -4761,13 +4761,13 @@ async function calculateRoute() {
     // berekend en getekend (updateMap() hierboven) mét de rest van de stops.
     const nietGevonden = needsGeo.filter(p => !p._lat).length + localNeedsGeo.filter(e => !e._lat).length;
     if (nietGevonden > 0) {
-      toast(`⚠️ ${nietGevonden} adres(sen) niet gevonden — die stops staan niet op de route`, 6000);
+      toast(`⚠ ${nietGevonden} adres(sen) niet gevonden — die stops staan niet op de route`, 6000);
     } else {
       toast('Route berekend ✓');
     }
     // Zonder await: de kaart met het rit-vangnet staat al, het per-wegvak-detail kleurt na.
     laadDrukteDetail(date, rData);
-  } catch (err) { toast('❌ Route: ' + err.message, 4000); updateMap(date); }
+  } catch (err) { toast('✕ Route: ' + err.message, 4000); updateMap(date); }
 }
 
 // Verwachte drukte per wegvak (i.p.v. per rit) voor een toekomstige dag: haalt TomTom's
@@ -5034,10 +5034,10 @@ function updateMap(date) {
 
       if (wegafsluitingGevonden) {
         const warnEl = document.getElementById('s-warn');
-        if (warnEl) warnEl.textContent = '⚠️ wegafsluiting op de route';
+        if (warnEl) warnEl.textContent = '⚠ wegafsluiting op de route';
         if (!wegafsluitingToastGetoond) {
           wegafsluitingToastGetoond = true;
-          toast('⚠️ Wegafsluiting op de route — controleer de bereikbaarheid van het adres', 6000);
+          toast('⚠ Wegafsluiting op de route — controleer de bereikbaarheid van het adres', 6000);
         }
       }
 
@@ -5276,7 +5276,7 @@ async function saveReschedule() {
   if (!activeTicket || !_detailDate) return;
   const date = document.getElementById('d-reschedule-date').value;
   const time = document.getElementById('d-reschedule-time').value || '09:00';
-  if (!date) return toast('⚠️ Selecteer een datum');
+  if (!date) return toast('⚠ Selecteer een datum');
 
   const oldDate  = _detailDate;
   const t        = activeTicket; // vastleggen: activeTicket kan tijdens de await al naar een ander ticket wijzen
@@ -5287,7 +5287,7 @@ async function saveReschedule() {
   if (date !== oldDate) {
     const feestdag = getHolidayName(date);
     if (feestdag && !confirm(`🎌 ${feestdag} is een wettelijke feestdag (${fmtDateShort(date)}).\nToch inplannen?`)) return;
-    if (kbBlocked(ticketId, date) && !confirm(`⚠️ Klant gaf aan NIET beschikbaar te zijn op ${fmtDateShort(date)}.\nToch inplannen?`)) return;
+    if (kbBlocked(ticketId, date) && !confirm(`⚠ Klant gaf aan NIET beschikbaar te zijn op ${fmtDateShort(date)}.\nToch inplannen?`)) return;
   }
 
   const utcInterventieDatum = new Date(`${date}T${time}:00`).toISOString();
@@ -5324,7 +5324,7 @@ async function saveReschedule() {
     renderTickets(); renderKalender(); renderGepland(); renderRouteList(document.getElementById('plan-date').value); updateRouteBtns(document.getElementById('plan-date').value);
     toast(TEST_MODE ? '🧪 Testmodus — niet opgeslagen' : `✓ Verzet naar ${fmtDateShort(date)} om ${time}`);
   } catch (err) {
-    toast('❌ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
+    toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
   }
 }
 
@@ -5715,16 +5715,16 @@ function saveSettings() {
   const maxReistijd     = +document.getElementById('set-maxreistijd').value;
   const tijdslotMinuten = +document.getElementById('set-tijdslot').value;
 
-  if (van && tot && van >= tot) return toast('⚠️ Begintijd moet voor eindtijd liggen', 3500);
-  if (duur < 15)                return toast('⚠️ Minimale interventieduur is 15 minuten', 3500);
-  if (max < 1)                  return toast('⚠️ Maximaal per dag moet minstens 1 zijn', 3500);
-  if (maxReistijd < 0)          return toast('⚠️ Max. reistijd kan niet negatief zijn', 3500);
+  if (van && tot && van >= tot) return toast('⚠ Begintijd moet voor eindtijd liggen', 3500);
+  if (duur < 15)                return toast('⚠ Minimale interventieduur is 15 minuten', 3500);
+  if (max < 1)                  return toast('⚠ Maximaal per dag moet minstens 1 zijn', 3500);
+  if (maxReistijd < 0)          return toast('⚠ Max. reistijd kan niet negatief zijn', 3500);
   // Fix 7 (finale review): ontbrekende guard voor tijdslotMinuten -- elk ander numeriek veld hier
   // heeft er één, en een negatieve/te kleine waarde laat tijdslotVoor() omgekeerde tijdvak-labels
   // produceren (bv. "08:00–07:30") in klant-gerichte mails. Grens komt overeen met het HTML-veld
   // zijn eigen min="60"-attribuut.
-  if (tijdslotMinuten < 60)     return toast('⚠️ Tijdslot moet minstens 60 minuten zijn', 3500);
-  if (!settings.werkdagen.length) return toast('⚠️ Selecteer minstens één werkdag', 3500);
+  if (tijdslotMinuten < 60)     return toast('⚠ Tijdslot moet minstens 60 minuten zijn', 3500);
+  if (!settings.werkdagen.length) return toast('⚠ Selecteer minstens één werkdag', 3500);
 
   settings.startlocatie   = document.getElementById('set-start').value.trim() || DEFAULT_SETTINGS.startlocatie;
   settings.duurMinuten    = duur || DEFAULT_SETTINGS.duurMinuten;
@@ -5776,12 +5776,12 @@ async function persistFotoChange(newFotos, containerId) {
     _fotoState.fotos  = result.fotos;
   } catch (err) {
     if (err.status === 409) {
-      toast('⚠️ Foto\'s zijn elders gewijzigd — je laatste wijziging is niet opgeslagen, probeer opnieuw', 4500);
+      toast('⚠ Foto\'s zijn elders gewijzigd — je laatste wijziging is niet opgeslagen, probeer opnieuw', 4500);
       const fresh = await loadFotos(_fotoState.ticketId);
       _fotoState.versie = fresh.versie;
       _fotoState.fotos  = fresh.fotos;
     } else {
-      toast('❌ Foto opslaan mislukt: ' + err.message, 4000);
+      toast('✕ Foto opslaan mislukt: ' + err.message, 4000);
     }
   }
   renderFotoGridInto(containerId);
@@ -5792,7 +5792,7 @@ async function handleFotoFiles(input, containerId = 'foto-grid') {
   input.value = '';
   if (!files.length) return;
   if (_fotoState.fotos.length + files.length > FOTO_MAX_COUNT) {
-    return toast(`⚠️ Maximaal ${FOTO_MAX_COUNT} foto's per ticket`, 3500);
+    return toast(`⚠ Maximaal ${FOTO_MAX_COUNT} foto's per ticket`, 3500);
   }
   toast(`📷 ${files.length} foto${files.length > 1 ? "'s" : ''} verwerken...`, 4000);
   const nieuwe = [];
@@ -5801,7 +5801,7 @@ async function handleFotoFiles(input, containerId = 'foto-grid') {
       const dataUrl = await compressFotoFile(file);
       nieuwe.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, dataUrl, caption: '', tijdstip: new Date().toISOString() });
     } catch (err) {
-      toast('❌ Foto verwerken mislukt: ' + err.message, 4000);
+      toast('✕ Foto verwerken mislukt: ' + err.message, 4000);
     }
   }
   if (nieuwe.length) await persistFotoChange([..._fotoState.fotos, ...nieuwe], containerId);
@@ -5826,7 +5826,7 @@ async function syncOplossingNaarZoho(ticketId, content) {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
   } catch (err) {
-    toast('⚠️ Oplossing kon niet automatisch bijgewerkt worden in Zoho: ' + err.message, 4500);
+    toast('⚠ Oplossing kon niet automatisch bijgewerkt worden in Zoho: ' + err.message, 4500);
   }
 }
 window.syncOplossingNaarZoho = syncOplossingNaarZoho;
@@ -6032,7 +6032,7 @@ function updateProposalPreview() {
       <div style="text-align:center;margin:14px 0">
         <a href="#" onclick="return false" style="display:inline-block;background:#00dfa3;color:#181e24;
           text-decoration:none;font-weight:700;font-size:13px;padding:10px 24px;border-radius:6px">
-          ✅ Bevestig deze afspraak
+          ✓ Bevestig deze afspraak
         </a>
       </div>
       <p style="margin:0 0 10px;font-size:12px;color:#3a3a3a">Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen, of antwoord op deze e-mail. Komt het voorgestelde tijdstip u niet uit? Laat het ons dan weten via een antwoord op deze e-mail, zodat we samen een alternatief zoeken. In bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.</p>
@@ -6064,7 +6064,7 @@ async function sendProposal() {
   const date           = document.getElementById('proposal-date').value;
   const rawTime        = document.getElementById('proposal-time').value;
 
-  if (!date) return toast('⚠️ Selecteer een datum');
+  if (!date) return toast('⚠ Selecteer een datum');
 
   const btn = document.getElementById('proposal-send-btn');
   btn.disabled    = true;
@@ -6169,7 +6169,7 @@ async function sendProposal() {
   } catch (err) {
     btn.disabled    = false;
     btn.textContent = '✉️ Verstuur voorstel';
-    toast('❌ ' + err.message, 5000);
+    toast('✕ ' + err.message, 5000);
   }
 }
 
@@ -6299,7 +6299,7 @@ function renderKbSection(ticketId) {
   function voegBlokToe() {
     const v = blokEl.value;
     if (!v) return;
-    if (draft.voorkeur === v) return toast('⚠️ Deze datum is al de voorkeursdatum');
+    if (draft.voorkeur === v) return toast('⚠ Deze datum is al de voorkeursdatum');
     if (!draft.geblokkeerd.includes(v)) draft.geblokkeerd = [...draft.geblokkeerd, v].sort();
     blokEl.value = '';
     tekenChips(); sync();
@@ -6316,7 +6316,7 @@ function renderKbSection(ticketId) {
     if (saveBtn.disabled) return;
     saveBtn.disabled = true;
     const hangend = geldigeBlok();
-    if (hangend && hangend === draft.voorkeur) { toast('⚠️ Deze datum is al de voorkeursdatum'); sync(); return; }
+    if (hangend && hangend === draft.voorkeur) { toast('⚠ Deze datum is al de voorkeursdatum'); sync(); return; }
     const ok = await saveKbAll(ticketId, {
       voorkeur: draft.voorkeur || null, voorkeurTijd: draft.voorkeurTijd || null,
       geblokkeerd: hangend ? [...new Set([...draft.geblokkeerd, hangend])] : draft.geblokkeerd, duur: draft.duur, notitie: draft.notitie,
@@ -6334,13 +6334,13 @@ async function saveKbAll(ticketId, draft) {
   const datum = draft.voorkeur || null;
   const tijd  = draft.voorkeurTijd || null;
   // M10: 00:00 apart weigeren -- dat is de sentinel voor "geen tijdstip" (zie extractLocalHour).
-  if (tijd === '00:00') { toast('⚠️ 00:00 is geen geldig voorkeursuur'); return false; }
-  if (tijd && !/^([01]\d|2[0-3]):[0-5]\d$/.test(tijd)) { toast('⚠️ Ongeldig uur'); return false; }
+  if (tijd === '00:00') { toast('⚠ 00:00 is geen geldig voorkeursuur'); return false; }
+  if (tijd && !/^([01]\d|2[0-3]):[0-5]\d$/.test(tijd)) { toast('⚠ Ongeldig uur'); return false; }
   const geblokkeerd = [...new Set(draft.geblokkeerd || [])].sort();
-  if (datum && geblokkeerd.includes(datum)) { toast('⚠️ Deze datum staat al als geblokkeerd'); return false; }
+  if (datum && geblokkeerd.includes(datum)) { toast('⚠ Deze datum staat al als geblokkeerd'); return false; }
   const duur = (draft.duur === null || draft.duur === undefined || draft.duur === '') ? null : Number(draft.duur);
   if (duur !== null && (!Number.isInteger(duur) || duur < 15 || duur > 480)) {
-    toast('⚠️ Verwachte duur moet tussen 15 en 480 minuten liggen'); return false;
+    toast('⚠ Verwachte duur moet tussen 15 en 480 minuten liggen'); return false;
   }
 
   // Momentopname om bij een mislukte opslag terug te draaien (het concept blijft dan staan).
@@ -6413,7 +6413,7 @@ async function saveToewijzen(ticketId) {
   const timeInp = document.getElementById('assign-time-' + ticketId);
   const date    = dateInp?.value;
   const time    = timeInp?.value || '09:00';
-  if (!date) return toast('⚠️ Selecteer een datum');
+  if (!date) return toast('⚠ Selecteer een datum');
 
   const utcInterventieDatum = new Date(`${date}T${time}:00`).toISOString();
 
@@ -6441,7 +6441,7 @@ async function saveToewijzen(ticketId) {
     renderKalender();
     toast(TEST_MODE ? '🧪 Testmodus — niet opgeslagen' : `✓ Datum ingesteld op ${date} om ${time}`);
   } catch (err) {
-    toast('❌ ' + err.message, 5000);
+    toast('✕ ' + err.message, 5000);
   }
 }
 function localISO(d)    { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
@@ -6456,7 +6456,7 @@ function toast(msg, ms) {
   const el = document.getElementById('toast');
   // Standaard 4 s; foutmeldingen minstens 7 s. Een meegegeven duur mag enkel verlengen.
   const tekst = String(msg ?? '');
-  const isFout = /^\s*(⚠|❌)/.test(tekst) || /mislukt|fout/i.test(tekst);
+  const isFout = /^\s*(⚠|✕)/.test(tekst) || /mislukt|fout/i.test(tekst);
   const standaard = isFout ? 7000 : 4000;
   const duur = Math.max(ms || 0, standaard);
   el.textContent = tekst;
@@ -6489,10 +6489,10 @@ let _previewSeq = 0;
 
 async function voorbeeldRapport(rapportId, btn) {
   const r = _rapportArchief.find(x => x.id === rapportId);
-  if (!r) return toast('⚠️ Rapport niet gevonden');
-  if (!r.ticketId) return toast('⚠️ Geen ticket gekoppeld aan dit rapport');
+  if (!r) return toast('⚠ Rapport niet gevonden');
+  if (!r.ticketId) return toast('⚠ Geen ticket gekoppeld aan dit rapport');
   const html = r.rapportData?._html;
-  if (!html) return toast('⚠️ Geen opgeslagen rapport-inhoud om te versturen');
+  if (!html) return toast('⚠ Geen opgeslagen rapport-inhoud om te versturen');
 
   const mySeq = ++_previewSeq;
 
@@ -6506,8 +6506,8 @@ async function voorbeeldRapport(rapportId, btn) {
       body:    JSON.stringify({ ticketId: r.ticketId, html, ticketNumber: r.ticketNumber, preview: true }),
     });
     const data = await res.json();
-    if (data.error) return toast('⚠️ ' + data.error, 4500);
-    if (!data.ontvangers?.length) return toast('⚠️ Geen gekend e-mailadres (klant of installateur) op dit ticket', 4500);
+    if (data.error) return toast('⚠ ' + data.error, 4500);
+    if (!data.ontvangers?.length) return toast('⚠ Geen gekend e-mailadres (klant of installateur) op dit ticket', 4500);
 
     if (mySeq !== _previewSeq) return; // een nieuwere klik overschreef deze aanvraag al
 
@@ -6530,7 +6530,7 @@ async function voorbeeldRapport(rapportId, btn) {
     };
     document.getElementById('rapport-preview-overlay').classList.add('open');
   } catch (err) {
-    toast('❌ Voorbeeld ophalen mislukt: ' + err.message, 5000);
+    toast('✕ Voorbeeld ophalen mislukt: ' + err.message, 5000);
   }
 }
 
@@ -6544,10 +6544,10 @@ function closeRapportPreview(e) {
 // opnieuw op met de juiste toestand.
 async function verstuurRapport(rapportId, btn) {
   const r = _rapportArchief.find(x => x.id === rapportId);
-  if (!r) return toast('⚠️ Rapport niet gevonden');
-  if (!r.ticketId) return toast('⚠️ Geen ticket gekoppeld aan dit rapport');
+  if (!r) return toast('⚠ Rapport niet gevonden');
+  if (!r.ticketId) return toast('⚠ Geen ticket gekoppeld aan dit rapport');
   const html = r.rapportData?._html;
-  if (!html) return toast('⚠️ Geen opgeslagen rapport-inhoud om te versturen');
+  if (!html) return toast('⚠ Geen opgeslagen rapport-inhoud om te versturen');
 
   if (TEST_MODE) {
     if (btn) btn.disabled = true;
@@ -6570,7 +6570,7 @@ async function verstuurRapport(rapportId, btn) {
     if (data.error) throw new Error(data.error);
 
     // verzondenOntvangers = mail verstuurd EN status-write geslaagd (alleen dit mag het
-    // "✅ Verzonden"-badge voeden -- een badge mag enkel bevestigd-opgeslagen status tonen).
+    // "✓ Verzonden"-badge voeden -- een badge mag enkel bevestigd-opgeslagen status tonen).
     // emailedMaarNietOpgeslagen = mail is écht buiten, maar de status-write faalde: de
     // gebruiker mag dan nooit een boodschap zien die suggereert dat er niets verstuurd is.
     const verzondenOntvangers        = [];
@@ -6606,19 +6606,19 @@ async function verstuurRapport(rapportId, btn) {
     } else if (emailedMaarNietOpgeslagen.length === 0) {
       if (Array.isArray(data.fouten) && data.fouten.length > 0) {
         const details = data.fouten.map(f => `${f.doelgroep}: ${f.fout}`).join('; ');
-        toast(`⚠️ Rapport versturen geweigerd door Zoho (${details})`, 6000);
+        toast(`⚠ Rapport versturen geweigerd door Zoho (${details})`, 6000);
       } else {
-        toast('⚠️ Rapport kon niet verstuurd worden (geen adressen bekend)', 4500);
+        toast('⚠ Rapport kon niet verstuurd worden (geen adressen bekend)', 4500);
       }
     }
     if (emailedMaarNietOpgeslagen.length > 0) {
       toast(`✓ Rapport verstuurd naar ${joinNL(emailedMaarNietOpgeslagen.map(d => DOELGROEP_LABEL[d] || d))}, maar status kon niet opgeslagen worden — NIET opnieuw versturen, herlaad eerst de pagina`, 8000);
     }
     if (data.statusFout) {
-      toast(`⚠️ Mail verstuurd, maar ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: ${data.statusFout}`, 8000);
+      toast(`⚠ Mail verstuurd, maar ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: ${data.statusFout}`, 8000);
     }
   } catch (err) {
-    toast('❌ ' + err.message, 5000);
+    toast('✕ ' + err.message, 5000);
   }
 }
 
@@ -6642,4 +6642,5 @@ function toggleTheme() {
 </script>
 </body>
 </html>
+
 

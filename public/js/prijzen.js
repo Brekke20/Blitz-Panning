@@ -129,7 +129,7 @@ export function renderPrijsEditor() {
   const body = document.getElementById('prijs-body');
   let html = '';
   if (!TEST_MODE && !navigator.onLine) {
-    html += `<div class="prijs-cache-banner">⚠️ Offline — prijzen uit lokale cache</div>`;
+    html += `<div class="prijs-cache-banner">⚠ Offline — prijzen uit lokale cache</div>`;
   }
 
   // Categorieën
@@ -276,7 +276,7 @@ export async function prijsOpslaan() {
     const data = await res.json();
     if (!res.ok) {
       if (res.status === 409) {
-        toast('⚠️ Iemand anders wijzigde de prijslijst net. Herlaad de pagina en probeer opnieuw.');
+        toast('⚠ Iemand anders wijzigde de prijslijst net. Herlaad de pagina en probeer opnieuw.');
       } else {
         toast('Fout: ' + (data.error || res.status));
       }

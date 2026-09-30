@@ -51,6 +51,7 @@
       --red-dim:    rgba(255,90,82,0.1);
       --red-line:   rgba(255,90,82,0.3);
       --on-red:     #2a0c0a;
+      --red-ink:    #4a2020; /* ≥4.5:1 op red-dim (4.50), --surface (1.12) */
       --purple:     #9d86ff;
       --purple-dim: rgba(157,134,255,0.1);
       --yellow:     #facc15;
@@ -84,6 +85,7 @@
       --red: #c81e1e;
       --red-line: rgba(200,30,30,0.3);
       --on-red: #ffffff;
+      --red-ink: #6b1c1c; /* ≥4.5:1 op red-dim (2.41), --surface (11.61) */
       --purple: #5938a5;
       --purple-dim: rgba(89,56,165,0.1);
       --yellow: #9a6600;

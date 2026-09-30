@@ -564,7 +564,7 @@
     .kb-section-title { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
     .kb-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
     .kb-label { font-size: 0.78rem; color: var(--muted); min-width: 90px; }
-    .kb-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; padding: 2px 7px; border-radius: 12px; background: var(--red-dim); color: var(--red); border: 1px solid var(--red); }
+    .kb-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; padding: 2px 7px; border-radius: 12px; background: var(--red-dim); color: var(--red-ink); border: 1px solid var(--red); }
     .kb-chip-pref { background: rgba(0,223,163,.12); color: var(--accent-ink); border-color: var(--accent); }
     .kb-chip-del { background: none; border: none; cursor: pointer; color: inherit; padding: 0; font-size: 0.8rem; line-height: 1; }
     .kb-fields { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

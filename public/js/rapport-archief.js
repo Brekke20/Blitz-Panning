@@ -28,7 +28,7 @@ export async function laadRapportArchief() {
     // Scrollpositie behouden (her-render tijdens sync); metBehoudScroll is een klassiek-script-global.
     if (typeof metBehoudScroll === 'function') metBehoudScroll(render); else render();
   } catch (err) {
-    body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">❌ Laden mislukt: ${err.message}</div>`;
+    body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">✕ Laden mislukt: ${err.message}</div>`;
   }
 }
 
@@ -72,7 +72,7 @@ export function renderRapportArchief() {
     // anders ogen dan een dat nog gewoon in de wachtrij zit -- anders verdwijnt de "In
     // wachtrij"-tag bij annuleren spoorloos, zonder enig teken dat dit bewust was.
     const inWachtrij = r.geannuleerd
-      ? '<span style="color:var(--red)">❌ Niet verzonden (geannuleerd)</span>'
+      ? '<span style="color:var(--red)">✕ Niet verzonden (geannuleerd)</span>'
       : _outboxItems.some(o => o.id === r.id)
         ? '<span style="color:var(--accent-ink);font-weight:600">⏳ In wachtrij</span>'
         : '';
@@ -130,7 +130,7 @@ export function renderRapportArchief() {
         ${r.adres ? `<div class="taddr ok">${escHtml(r.adres)}</div>` : ''}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center">
           ${rd._html ? `<button class="cal-btn" onclick="herOpenRapport(${origIdx})">📄 Openen</button>` : ''}
-          ${(rapportId && rd._html && r.ticketId) ? `<button class="cal-btn btn-verstuur-rapport" data-rapport-id="${escHtml(rapportId)}" title="${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? 'Al verzonden op ' + escHtml(fmtDate(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur)) + ' — opnieuw versturen?' : ''}">${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? '✅ Verzonden' : '✉️ Verstuur rapport'}</button>` : ''}
+          ${(rapportId && rd._html && r.ticketId) ? `<button class="cal-btn btn-verstuur-rapport" data-rapport-id="${escHtml(rapportId)}" title="${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? 'Al verzonden op ' + escHtml(fmtDate(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur)) + ' — opnieuw versturen?' : ''}">${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? '✓ Verzonden' : '✉️ Verstuur rapport'}</button>` : ''}
           ${rapportId ? `<button class="cal-btn btn-verwijder-rapport" style="color:var(--red);border-color:var(--red)" data-rapport-id="${escHtml(rapportId)}" data-ticket-ref="${escHtml(r.ticketNumber||r.ticketId||'?')}" data-datum="${escHtml(datumStr)}">🗑 Verwijderen</button>` : ''}
         </div>
       </div>
@@ -166,15 +166,15 @@ export async function verwijderRapport(id, ticketRef, datumStr) {
     });
     const data = await res.json();
     if (res.status === 409) {
-      toast('⚠️ Archief gewijzigd — herlaad de pagina en probeer opnieuw', 5000);
+      toast('⚠ Archief gewijzigd — herlaad de pagina en probeer opnieuw', 5000);
       return;
     }
     if (!res.ok) throw new Error(data.error || res.status);
     if (typeof data.versie === 'number') _archiefVersie = data.versie;
-    toast('✅ Rapport verwijderd');
+    toast('✓ Rapport verwijderd');
     await laadRapportArchief();
   } catch (err) {
-    toast('❌ Verwijderen mislukt: ' + err.message);
+    toast('✕ Verwijderen mislukt: ' + err.message);
   }
 }
 
@@ -239,3 +239,4 @@ Object.defineProperty(window, '_archiefVersie', {
   set: (v) => { _archiefVersie = v; },
   configurable: true,
 });
+

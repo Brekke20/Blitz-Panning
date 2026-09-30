@@ -248,7 +248,7 @@ async function invSaveEdit() {
     updateInventarisBadge(persoon);
     toast('✓ Wagenvoorraad opgeslagen', 2500);
   } catch (err) {
-    toast('❌ Opslaan is niet gelukt. Controleer je verbinding en probeer opnieuw. (Detail: ' + err.message + ')', 4000);
+    toast('✕ Opslaan is niet gelukt. Controleer je verbinding en probeer opnieuw. (Detail: ' + err.message + ')', 4000);
   }
 }
 
@@ -362,7 +362,7 @@ async function markVerwerkt(logId) {
     updateInventarisBadge('all');
     toast('✓ Gemarkeerd als verwerkt', 2500);
   } catch (err) {
-    toast('❌ Verwerkt-markering mislukt: ' + err.message, 4000);
+    toast('✕ Verwerkt-markering mislukt: ' + err.message, 4000);
   }
 }
 
@@ -469,7 +469,7 @@ export async function exportInventarisLog() {
 
     toast(`✓ ${rows.length} rijen geëxporteerd`, 2500);
   } catch (err) {
-    toast(`❌ Export mislukt: ${err.message}`, 4000);
+    toast(`✕ Export mislukt: ${err.message}`, 4000);
     console.error('exportInventarisLog:', err);
   }
 }
@@ -522,3 +522,4 @@ window.renderInventaris      = renderInventaris;
 window.updateInventarisBadge = updateInventarisBadge;
 window.registreerVerbruik    = registreerVerbruik;
 window.resetInvSeenLog       = resetInvSeenLog;
+

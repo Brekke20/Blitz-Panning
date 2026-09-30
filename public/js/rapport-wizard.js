@@ -266,7 +266,7 @@ export function wizNext() {
   const step   = WIZ_STEPS[_wizStep];
   const result = step.save ? step.save() : undefined;
   if (result === false || typeof result === 'string') {
-    toast(typeof result === 'string' ? result : '⚠️ Vul eerst de verplichte velden in (gemarkeerd).', 3500);
+    toast(typeof result === 'string' ? result : '⚠ Vul eerst de verplichte velden in (gemarkeerd).', 3500);
     return;
   }
   let nextStep = _wizStep + 1;
@@ -741,7 +741,7 @@ export function wizSaveOmschrijving() {
   R.oorzaakStoring = Object.entries(OORZAAK_STORING_MAP)
     .filter(([id]) => document.getElementById(id)?.checked)
     .map(([, label]) => label);
-  if (!R.oorzaakStoring.length) return '⚠️ Kies minstens één oorzaak.';
+  if (!R.oorzaakStoring.length) return '⚠ Kies minstens één oorzaak.';
 }
 
 // ── Stap 4b: Foto's ──
@@ -1016,7 +1016,7 @@ export function wizRenderSigTech(el) {
       _sigTech.addEventListener('endStroke', () => {
         document.getElementById('sig-tech-hint').style.display = 'none';
         const st = document.getElementById('sig-tech-status');
-        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent-ink)'; }
+        if (st) { st.textContent = '✓ Getekend'; st.style.color = 'var(--accent-ink)'; }
         wrap.classList.add('has-sig');
       });
       // Terugnavigeren mag een eerder getekende handtekening niet wissen.
@@ -1024,7 +1024,7 @@ export function wizRenderSigTech(el) {
         _sigTech.fromDataURL(R.handtekeningTech);
         document.getElementById('sig-tech-hint').style.display = 'none';
         const st = document.getElementById('sig-tech-status');
-        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent-ink)'; }
+        if (st) { st.textContent = '✓ Getekend'; st.style.color = 'var(--accent-ink)'; }
         wrap.classList.add('has-sig');
       }
     }
@@ -1078,7 +1078,7 @@ export function wizRenderSigKlant(el) {
       _sigKlant.addEventListener('endStroke', () => {
         document.getElementById('sig-klant-hint').style.display = 'none';
         const st = document.getElementById('sig-klant-status');
-        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent-ink)'; }
+        if (st) { st.textContent = '✓ Getekend'; st.style.color = 'var(--accent-ink)'; }
         wrap.classList.add('has-sig');
       });
       // Terugnavigeren mag een eerder getekende handtekening niet wissen.
@@ -1086,7 +1086,7 @@ export function wizRenderSigKlant(el) {
         _sigKlant.fromDataURL(R.handtekeningKlant);
         document.getElementById('sig-klant-hint').style.display = 'none';
         const st = document.getElementById('sig-klant-status');
-        if (st) { st.textContent = '✅ Getekend'; st.style.color = 'var(--accent-ink)'; }
+        if (st) { st.textContent = '✓ Getekend'; st.style.color = 'var(--accent-ink)'; }
         wrap.classList.add('has-sig');
       }
     }
@@ -1437,8 +1437,8 @@ export async function printRapport() {
         toast('⏳ Rapport wordt verstuurd — je kan gewoon verder, dit gebeurt op de achtergrond', 5000);
       } else if (nextOutboxAction(result) === 'done') {
         toast(item.isLocal
-          ? '✅ Rapport opgeslagen in archief — geen Zoho-ticket gekoppeld'
-          : '✅ Rapport bewaard en doorgestuurd naar Zoho', 4500);
+          ? '✓ Rapport opgeslagen in archief — geen Zoho-ticket gekoppeld'
+          : '✓ Rapport bewaard en doorgestuurd naar Zoho', 4500);
       } else {
         toast('⏳ Rapport staat klaar om te versturen. We proberen opnieuw zodra je verbinding hebt. Je hoeft niets te doen.', 5000);
       }
@@ -1446,7 +1446,7 @@ export async function printRapport() {
       await refreshOutboxCache();
       renderRapportArchief();
     } catch (err) {
-      toast('⚠️ Rapport kon niet lokaal bewaard worden — controleer opslagruimte, herlaad de pagina en probeer opnieuw', 6000);
+      toast('⚠ Rapport kon niet lokaal bewaard worden — controleer opslagruimte, herlaad de pagina en probeer opnieuw', 6000);
       console.warn('printRapport: onverwachte fout bij het wegschrijven naar de outbox:', err);
     }
   }
@@ -1520,3 +1520,4 @@ Object.defineProperty(window, '_fotoState', {
   set: (v) => { _fotoState = v; },
   configurable: true,
 });
+
