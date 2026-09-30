@@ -4117,7 +4117,17 @@ function isStopLocked(item) {
   const id = item.ticket?.id;
   const vs = voorstelStatus[id];
   if (vs?.contact || vs?.klant || vs?.installateur) return true;
+  if (vs?.bevestigd) return true;
   return ['Geplande service', 'Geplande support'].includes(item.ticket?.status);
+}
+
+// Task 6: Label voor bevestiging — toont via welke ontvanger een afspraak bevestigd werd.
+// Taak 3 zet voorstelStatus[id].bevestigd = { door: 'contact'|'klant'|'installateur'|null, tijdstip }.
+function bevestigdLabel(vs) {
+  if (!vs?.bevestigd) return null;
+  const { door } = vs.bevestigd;
+  const doorNaam = door ? { contact: 'contactpersoon', klant: 'klant', installateur: 'installateur' }[door] : null;
+  return doorNaam ? `✓ Bevestigd door ${doorNaam}` : '✓ Bevestigd';
 }
 
 // Anker in de tijdstip-toekenning (C1, eindreview v1.4.0): naast vergrendelde tickets
@@ -4421,7 +4431,18 @@ function renderRouteList(date) {
             <div class="stop-sub"><span class="stop-numtag">#${escHtml(item.ticket.number)}</span>${escHtml(item.ticket.subject) || '—'}</div>
             <div class="stop-addr">${escHtml(item.address) || 'Geen adres'}</div>
             ${timeHtml}${blok ? `<div class="stop-time">${blokIsGemaild ? '📨' : '🕐'} ${escHtml(blok)}</div>` : ''}${arrivalHtml}
-            ${(voorstelStatus[item.ticket.id]?.contact || voorstelStatus[item.ticket.id]?.klant || voorstelStatus[item.ticket.id]?.installateur) ? '<div class="stop-proposal-sent">✉️ Voorstel verstuurd</div>' : ''}
+            ${(() => {
+              const vs = voorstelStatus[item.ticket.id];
+              const blabel = bevestigdLabel(vs);
+              if (blabel && vs?.bevestigd?.tijdstip) {
+                const ts = new Date(vs.bevestigd.tijdstip).toLocaleString('nl-BE', {dateStyle:'short', timeStyle:'short'});
+                return `<div class="stop-confirmed-by" title="${escHtml(ts)} — Via welke mail bevestigd werd, niet wie er fysiek op drukte">${escHtml(blabel)}</div>`;
+              }
+              if ((vs?.contact || vs?.klant || vs?.installateur)) {
+                return '<div class="stop-proposal-sent">✉️ Voorstel verstuurd</div>';
+              }
+              return '';
+            })()}
           </div>
         </div>
         <div class="stop-actions">
@@ -5458,6 +5479,14 @@ function openDetail(t) {
   tags.innerHTML = `<span class="mtag status">${escHtml(t.status)}</span>`;
   if (t.priority) { const pc = {high:'prtag high',medium:'prtag medium',low:'prtag low'}[(t.priority||'').toLowerCase()]||'mtag'; tags.innerHTML += `<span class="${pc}">${escHtml(prioLabel(t.priority))}</span>`; }
   if (t.assignee) tags.innerHTML += `<span class="mtag assignee">${escHtml(t.assignee)}</span>`;
+
+  // Task 6: Bevestigingslabel als beschikbaar
+  const vs = voorstelStatus[t.id];
+  const blabel = bevestigdLabel(vs);
+  if (blabel && vs?.bevestigd?.tijdstip) {
+    const ts = new Date(vs.bevestigd.tijdstip).toLocaleString('nl-BE', {dateStyle:'short', timeStyle:'short'});
+    tags.innerHTML += `<span class="mtag confirmed-by" title="${escHtml(ts)} — Via welke mail bevestigd werd, niet wie er fysiek op drukte">${escHtml(blabel)}</span>`;
+  }
 
   const contactEl = document.getElementById('d-contact');
   contactEl.innerHTML = contactActiesHtml(t);
