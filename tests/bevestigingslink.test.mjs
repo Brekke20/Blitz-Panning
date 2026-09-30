@@ -112,3 +112,9 @@ test('bevestigingsNotitie oude link', () => {
     bevestigingsNotitie({ date: '2026-10-14', doelgroep: null, email: 'a@b.be', tijdstip: 'T', ip: 'x' }),
     'Afspraak bevestigd voor 2026-10-14 door onbekende ontvanger (oude link) via bevestigingslink op T (Europe/Brussels). IP-adres: x.');
 });
+
+test('bevestigingsNotitie escapet vrije velden', () => {
+  const n = bevestigingsNotitie({ date: '2026-10-14', doelgroep: 'klant', email: '<b>x</b>@b.be', tijdstip: 'T', ip: '<i>' });
+  assert.ok(!n.includes('<b>') && !n.includes('<i>'));
+  assert.match(n, /&lt;b&gt;x&lt;\/b&gt;@b\.be/);
+});

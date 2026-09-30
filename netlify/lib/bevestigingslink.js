@@ -8,6 +8,7 @@
 //   oud:   `${ticketId}.${date}.${exp}` -- links uit al verstuurde mails (14 dagen geldig) blijven
 //          werken; de ontvanger is dan onbekend (doelgroep null).
 
+import { escHtml } from './annulatie.js';
 import crypto from 'node:crypto';
 
 export const DOELGROEPEN = ['contact', 'klant', 'installateur'];
@@ -72,7 +73,7 @@ export function datumInBrussel(iso) {
 // Interne Zoho-notitie bij een bevestiging via de link.
 export function bevestigingsNotitie({ date, doelgroep, email, tijdstip, ip }) {
   const wie = doelgroep
-    ? `${doelgroep}${email ? ` (${email})` : ''}`
+    ? `${escHtml(doelgroep)}${email ? ` (${escHtml(email)})` : ''}`
     : 'onbekende ontvanger (oude link)';
-  return `Afspraak bevestigd voor ${date} door ${wie} via bevestigingslink op ${tijdstip} (Europe/Brussels). IP-adres: ${ip}.`;
+  return `Afspraak bevestigd voor ${escHtml(date)} door ${wie} via bevestigingslink op ${escHtml(tijdstip)} (Europe/Brussels). IP-adres: ${escHtml(ip)}.`;
 }

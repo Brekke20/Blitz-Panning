@@ -6415,13 +6415,17 @@ function closeProposal(e) {
 // ══════════════════════════════════════════════
 // AFSPRAAK ANNULEREN (v1.10.0)
 // ══════════════════════════════════════════════
-// Lopend voorstel = er is een register-entry (contact/klant/installateur/bevestigd) of de
-// status al op gepland staat. 'Wachten op bevestiging planning' alleen telt NIET: gewoon inplannen
-// (/api/plan) zet die status ook, zonder dat er een voorstel naar de klant ging.
+// Lopend voorstel = er is een register-entry (contact/klant/installateur/bevestigd) MET een
+// gepland-status, of de status staat al op 'Geplande service/support'. Een register-entry bij een
+// ticket dat in Zoho al op 'Wachten op planning' e.d. staat is een restant en telt niet (anders
+// zou de annuleerknop een mail sturen voor een afspraak die niet meer bestaat).
+// 'Wachten op bevestiging planning' alleen telt NIET: gewoon inplannen (/api/plan) zet die status
+// ook, zonder dat er een voorstel naar de klant ging.
 function heeftLopendVoorstel(t) {
   if (!t) return false;
   const vs = voorstelStatus[t.id];
-  if (vs && (vs.contact || vs.klant || vs.installateur || vs.bevestigd)) return true;
+  const GEPLAND = ['Wachten op bevestiging planning', 'Geplande service', 'Geplande support'];
+  if (vs && (vs.contact || vs.klant || vs.installateur || vs.bevestigd) && GEPLAND.includes(t.status)) return true;
   return ['Geplande service', 'Geplande support'].includes(t.status);
 }
 
@@ -6573,7 +6577,7 @@ async function annuleerVoorbeeld() {
     const data = await res.json().catch(() => ({}));
     if (mijn !== s.seq || _ann !== s) return;
     if (!res.ok || !data.html) throw new Error(data.error || 'HTTP ' + res.status);
-    frame.srcdoc = data.html;
+    frame.srcdoc = data.html.replace('</head>', '<style>table[width="600"]{width:100%!important}img{max-width:100%;height:auto}body{overflow-x:hidden;margin:0}</style></head>');
   } catch (e) {
     if (mijn === s.seq && _ann === s) plaatshouder('Voorbeeld laden mislukt.');
   }
@@ -6590,6 +6594,7 @@ function sluitAnnuleerVenster(e) {
 async function verstuurAnnulatie() {
   const s = _ann;
   if (!s || s.busy) return; // dubbele klik: geen tweede verzoek
+  if (inFlightTickets.has(s.ticketId)) { toast('Even geduld — dit ticket wordt nog bijgewerkt.'); return; }
   const v = annuleerLees();
   if (!v.geldig) return;
   s.busy = true;
@@ -6619,6 +6624,16 @@ async function verstuurAnnulatie() {
     data = await res.json().catch(() => ({}));
   } catch (err) {
     return mislukt(err.message || 'netwerkfout', v.mailKlant);
+  }
+  if (res.status === 409 && data.nietGepland) {
+    // Niets verstuurd: venster blijft open, keuze 'Nee' voorgeselecteerd.
+    s.busy = false;
+    document.getElementById('annuleer-terug').disabled = false;
+    btn.textContent = 'Afspraak annuleren';
+    document.getElementById('annuleer-mail-nee').checked = true;
+    annuleerWijzig();
+    toast('⚠ ' + data.error, 7000);
+    return;
   }
   if (!res.ok || data.error) {
     const mailVerstuurd = Object.values(data.emailSent || {}).some(Boolean);
@@ -6661,14 +6676,17 @@ async function verstuurAnnulatie() {
 
   const fouten = Array.isArray(data.fouten) ? data.fouten : [];
   const delen = [];
-  if (fouten.length) {
+  if (data.opgeruimd) {
+    delen.push('Vergrendeling opgeruimd — ticket stond al niet meer gepland in Zoho');
+  } else if (fouten.length) {
     const wie = joinNL([...new Set(fouten.map(f => ANN_DOELGROEP[f.doelgroep] || f.doelgroep))]);
     delen.push(`Afspraak geannuleerd, maar de mail naar ${wie} kon niet verstuurd worden. Verwittig de klant zelf.`);
   } else {
     delen.push('Afspraak geannuleerd — ' + (v.mailKlant ? 'klant verwittigd per mail' : 'klant niet gemaild'));
   }
   if (data.waarschuwing) delen.push(data.waarschuwing);
-  toast(delen.join(' '), fouten.length || data.waarschuwing ? 7000 : undefined);
+  const testSuffix = data.test ? ' (testmodus — niets verstuurd)' : '';
+  toast(delen.join(' ') + testSuffix, fouten.length || data.waarschuwing ? 7000 : undefined);
 }
 
 function joinNL(items) {
@@ -6701,7 +6719,15 @@ async function sendProposal() {
     allTickets = allTickets.filter(t => t.id !== ticketId);
     if (!allPending.find(t => t.id === ticketId)) allPending.push(activeTicket);
     // Nieuw voorstel vervangt de oude registerentry (geen oude doelgroepen/bevestiging laten staan).
-    voorstelStatus[ticketId] = apptWindowSend ? { tijdslot: apptWindowSend, tijdslotDatum: date } : {};
+    // Realistisch register-effect: doelgroepen met tijdstip, zodat 🔒 en de annuleerknop verschijnen.
+    const nuIso = new Date().toISOString();
+    const lc = e => (e || '').toLowerCase();
+    const inLijst = e => !!e && _proposalOntvangers.some(o => lc(o) === lc(e));
+    const regEntry = apptWindowSend ? { tijdslot: apptWindowSend, tijdslotDatum: date } : {};
+    if (inLijst(activeTicket.email)) regEntry.contact = nuIso;
+    if (inLijst(activeTicket.emailEindklant)) regEntry.klant = nuIso;
+    if (inLijst(activeTicket.emailInstallateur)) regEntry.installateur = nuIso;
+    voorstelStatus[ticketId] = regEntry;
     document.getElementById('proposal-overlay').classList.remove('open');
     btn.disabled = false; btn.textContent = '✉️ Verstuur voorstel';
     renderTickets(); renderKalender(); renderRouteList(date); updateRouteBtns(date);

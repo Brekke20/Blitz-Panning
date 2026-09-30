@@ -26,3 +26,6 @@
 
 [functions.confirm-afspraak]
   timeout = 15
+
+[functions.annuleer]
+  timeout = 26

@@ -31,7 +31,7 @@ function maakWinkels(initieel = {}) {
 
 const REG = JSON.stringify({ versie: 3, status: { 555: { klant: 'x', tijdslot: '08:30–11:30', tijdslotDatum: '2026-10-14' }, 777: { klant: 'y' } } });
 
-function maakFetch({ patchStatus = 200, cf = { cf_interventie_datm: '2026-10-14T06:30:00.000Z', cf_e_mail_eindklant: 'klant@x.be' }, contactEmail = 'contact@x.be' } = {}) {
+function maakFetch({ patchStatus = 200, cf = { cf_interventie_datm: '2026-10-14T06:30:00.000Z', cf_e_mail_eindklant: 'klant@x.be' }, contactEmail = 'contact@x.be', status = 'Wachten op bevestiging planning' } = {}) {
   const calls = [];
   const fn = async (url, opts = {}) => {
     const method = opts.method || 'GET';
@@ -43,7 +43,7 @@ function maakFetch({ patchStatus = 200, cf = { cf_interventie_datm: '2026-10-14T
     if (url.includes('/sendReply')) return res(200, {});
     if (url.includes('/comments')) return res(200, {});
     if (url.includes('/tickets/555') && method === 'PATCH') return res(patchStatus, {});
-    if (url.includes('/tickets/555')) return res(200, { cf, contact: { email: contactEmail, firstName: 'An', lastName: 'Peeters' } });
+    if (url.includes('/tickets/555')) return res(200, { status, cf, contact: { email: contactEmail, firstName: 'An', lastName: 'Peeters' } });
     return res(404, {});
   };
   return { fn, calls };
@@ -259,4 +259,34 @@ test('ticketId p1: testmodus geeft 200 test:true, echt geeft 400 zonder fetch', 
   assert.equal(calls.length, 0);
   assert.equal(valideerAnnulatie({ ...body, ticketId: 'p1/../x' }, { test: true }).ok, false);
   assert.equal(valideerAnnulatie(body).ok, false);
+});
+
+test('endpoint echt: status Wachten op planning + mailKlant:true -> 409, geen mail/PATCH, register intact', async () => {
+  const w = maakWinkels({ 'blitz-data': { 'voorstel-status': REG } });
+  const { fn, calls } = maakFetch({ status: 'Wachten op planning' });
+  const r = await maakHandler({ getStore: w.getStore, fetch: fn })(post({ ticketId: '555', reden: 'weer', toelichting: '', mailKlant: true }));
+  assert.equal(r.status, 409);
+  const j = await r.json();
+  assert.equal(j.nietGepland, true);
+  assert.deepEqual(j.emailSent, { contact: false, klant: false, installateur: false });
+  assert.equal(calls.filter(c => c.url.includes('/sendReply')).length, 0);
+  assert.equal(calls.filter(c => c.method === 'PATCH').length, 0);
+  assert.equal(calls.filter(c => c.url.includes('/comments')).length, 0);
+  assert.ok(JSON.parse(w.get('blitz-data').get('voorstel-status')).status['555']);
+});
+
+test('endpoint echt: status Wachten op planning + mailKlant:false -> 200 opgeruimd, geen PATCH, register gewist', async () => {
+  const w = maakWinkels({ 'blitz-data': { 'voorstel-status': REG } });
+  const { fn, calls } = maakFetch({ status: 'Wachten op planning' });
+  const r = await maakHandler({ getStore: w.getStore, fetch: fn })(post({ ticketId: '555', reden: 'weer', toelichting: '', mailKlant: false, door: 'Brent' }));
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.opgeruimd, true);
+  assert.equal(j.ok, true);
+  assert.deepEqual(j.fouten, []);
+  assert.equal(calls.filter(c => c.method === 'PATCH').length, 0);
+  assert.equal(calls.filter(c => c.url.includes('/sendReply')).length, 0);
+  const nota = calls.find(c => c.url.includes('/comments'));
+  assert.match(JSON.parse(nota.body).content, /Vergrendeling opgeruimd.*Wachten op planning/);
+  assert.equal(JSON.parse(w.get('blitz-data').get('voorstel-status')).status['555'], undefined);
 });

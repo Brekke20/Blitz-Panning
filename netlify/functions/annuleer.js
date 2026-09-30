@@ -10,12 +10,14 @@ import { isTestVerzoek, winkelNaam, nepZohoAntwoord, zorgVoorTestkopie } from '.
 import { leesRegister, wisVoorstel } from '../lib/voorstelregister.js';
 import { datumInBrussel } from '../lib/bevestigingslink.js';
 import {
-  REDENEN, valideerAnnulatie, valideerRedenToelichting, bouwAnnulatieMail, bouwAnnulatieNotitie,
+  REDENEN, valideerAnnulatie, valideerRedenToelichting, bouwAnnulatieMail, bouwAnnulatieNotitie, escHtml,
 } from '../lib/annulatie.js';
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// Statussen waarin een afspraak effectief 'gepland' is (annuleren heeft dan zin).
+const GEPLAND = ['Wachten op bevestiging planning', 'Geplande service', 'Geplande support'];
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -135,6 +137,32 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
       const ticketData = await ticketRes.json().catch(() => ({}));
       if (ticketRes.status === 404) return json(404, { error: 'Ticket niet gevonden' });
       if (!ticketRes.ok) return json(502, { error: 'Zoho ticket ophalen mislukt' });
+
+      // Niet (meer) gepland in Zoho: nooit een annulatiemail sturen; enkel vergrendeling opruimen.
+      const ticketStatus = ticketData.status || '';
+      if (!GEPLAND.includes(ticketStatus)) {
+        if (mailKlant) {
+          return json(409, {
+            error: 'Afspraak is niet (meer) gepland in Zoho — klant niet gemaild. Kies "Nee, ik verwittig zelf" om enkel de vergrendeling op te ruimen.',
+            emailSent: { contact: false, klant: false, installateur: false },
+            nietGepland: true,
+          });
+        }
+        const redenLabel = REDENEN.find(r => r.code === reden).label;
+        const opruimNotitie = `Vergrendeling opgeruimd via Blitz Planning${door ? ` door ${escHtml(door)}` : ''} op ${tijdstipNu()}. Ticket stond al op ${escHtml(ticketStatus || 'onbekend')}. Reden: ${escHtml(redenLabel)}${toelichting ? ` — ${escHtml(toelichting)}` : ''}.`;
+        await addZohoComment(ticketId, accessToken, orgId, opruimNotitie);
+        const leeg = { contact: false, klant: false, installateur: false };
+        try {
+          await wisVoorstel(store, ticketId);
+        } catch (e) {
+          console.error('Register wissen mislukt bij opruimen:', e?.message || e);
+          return json(200, {
+            ok: true, emailSent: leeg, fouten: [], opgeruimd: true,
+            waarschuwing: 'Vergrendeling opruimen: het voorstel-register kon niet bijgewerkt worden. Herlaad de planner.',
+          });
+        }
+        return json(200, { ok: true, emailSent: leeg, fouten: [], opgeruimd: true });
+      }
 
       const cf = ticketData.cf || {};
       const contactEmail      = ticketData.contact?.email || ticketData.contact?.emailId || ticketData.email || '';
