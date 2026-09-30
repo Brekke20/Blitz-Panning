@@ -115,8 +115,28 @@ export function outboxStepLabel(item) {
   return 'Bijna klaar...';
 }
 
+// Samenvatting voor schermlezers (#outbox-live): alleen bij een wijziging van de samenvatting
+// wordt de tekst gezet, zodat herrenders (stap-/pogingteller) niet opnieuw worden voorgelezen.
+let _outboxLiveVorige = '';
+function outboxSamenvatting() {
+  const fout = _outboxItems.filter(i => i.lastError).length;
+  const wacht = _outboxItems.length - fout;
+  if (fout) return fout === 1 ? '1 rapport kon niet worden verzonden' : `${fout} rapporten konden niet worden verzonden`;
+  if (wacht) return wacht === 1 ? '1 rapport wacht op verzending' : `${wacht} rapporten wachten op verzending`;
+  return '';
+}
+function werkOutboxLiveBij() {
+  const live = document.getElementById('outbox-live');
+  if (!live) return;
+  const nu = outboxSamenvatting();
+  if (nu === _outboxLiveVorige) return;
+  live.textContent = nu || 'Alle rapporten verstuurd';
+  _outboxLiveVorige = nu;
+}
+
 export function renderOutboxBanner() {
   const banner = document.getElementById('outbox-banner');
+  werkOutboxLiveBij();
   if (!_outboxItems.length) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
   const offlineBanner  = document.getElementById('offline-banner');
   const offlineVisible = offlineBanner && getComputedStyle(offlineBanner).display !== 'none';

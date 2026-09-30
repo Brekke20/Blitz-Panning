@@ -124,6 +124,25 @@
       50%       { opacity: 0.5; }
     }
 
+    /* ── Reduced motion: dempen, niet verbergen ──
+       Animaties/overgangen worden vrijwel instant (toestandswissels blijven zichtbaar), hover-/
+       active-transforms vervallen. Functionele transforms (slepen, kalenderblokpositie, toast-
+       positie) blijven onaangeroerd. */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+      }
+      .sico:hover, .sico:active,
+      .filter-pill:hover, .filter-pill:active,
+      .mhdr-close:hover, .mhdr-close:active,
+      .btn:hover, .btn:active,
+      .btn-icon:hover, .btn-icon:active { transform: none !important; }
+      .inv-log-row.inv-day-new { animation: none !important; }
+    }
+
     /* ── Accessibility ── */
     .sr-only {
       position: absolute;

@@ -92,11 +92,12 @@
 </nav>
 </div>
 
-<div id="offline-banner">📶 Geen verbinding. Rapporten worden bewaard en verstuurd zodra je weer online bent; andere wijzigingen lukken pas als je weer verbinding hebt.</div>
+<div id="offline-banner" role="status">📶 Geen verbinding. Rapporten worden bewaard en verstuurd zodra je weer online bent; andere wijzigingen lukken pas als je weer verbinding hebt.</div>
 
 <!-- (T20) Geen outer onclick meer -- elke actie loopt via de twee knoppen per item
      (renderOutboxBanner, public/js/outbox.js). -->
 <div id="outbox-banner"></div>
+<span id="outbox-live" class="sr-only" aria-live="polite" aria-atomic="true"></span>
 
 <main id="hoofdinhoud" tabindex="-1">
 
@@ -581,7 +582,7 @@
   </div>
 </div>
 
-<div id="toast" role="status" aria-live="polite"></div>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.1.7/signature_pad.umd.min.js"></script>
