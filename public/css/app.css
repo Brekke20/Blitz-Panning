@@ -343,11 +343,14 @@
     .kal-label-wrap { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; }
     /* Computer/tablet: ‹ periode › als compact blok i.p.v. over de volle breedte (Brent, 2026-09-30) */
     html:not([data-indeling="smal"]) .kal-nav-group  { flex: 0 0 auto; }
-    html:not([data-indeling="smal"]) .kal-label-wrap { flex: 0 0 190px; }
+    /* Vaste width i.p.v. flex-basis: sommige browsers (Edge/Chrome op Brents pc) negeren flex-basis
+       bij het berekenen van de breedte van .kal-nav-group, waardoor de pijltjes platgedrukt werden
+       (v1.9.2-regressie, 2026-09-30). */
+    html:not([data-indeling="smal"]) .kal-label-wrap { flex: 0 0 auto; width: 190px; }
     .kal-actions    { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
     .kal-nav {
       background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      width: 30px; height: 30px; border-radius: var(--r);
+      width: 30px; height: 30px; border-radius: var(--r); flex-shrink: 0;
       cursor: pointer; font-size: 1rem;
       display: flex; align-items: center; justify-content: center;
       transition: background 0.12s, transform 0.12s var(--ease-spring);

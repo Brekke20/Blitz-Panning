@@ -15,6 +15,12 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.9.4] — 2026-09-30
+
+### Fixed
+- Kalenderkop op de computer: de pijltjes ‹ › werden in sommige browsers platgedrukt of
+  verdwenen achter Week|Maand (sinds v1.9.2).
+
 ## [1.9.3] — 2026-09-30
 
 ### Changed
