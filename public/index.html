@@ -3620,7 +3620,7 @@ async function autoPlan() {
   btn.textContent = 'Bezig...';
 
   const geplande   = [];
-  const overflow   = [];
+  const nietGepland = [];
 
   try {
     // Werkdagen deze week (verleden overslaan) — vooraf bepaald zodat we bestaande
@@ -3682,7 +3682,7 @@ async function autoPlan() {
       } catch (e) { /* geocoding mislukt: kandidaten zonder coördinaten */ }
     }
     if (!weekDates.length) {
-      showResult([], toplan, skipped, 'Geen beschikbare dagen meer deze week');
+      showResult([], toplan.map(t => ({ ticket: t, reden: 'geen-plaats' })), skipped, 'Geen beschikbare dagen meer deze week');
       return;
     }
 
@@ -3771,12 +3771,12 @@ async function autoPlan() {
       const t = perId.get(g.ticketId);
       const ok = await addTicketToDate(t.id, g.datum);
       if (ok) geplande.push({ ticket: t, date: g.datum });
-      else overflow.push(t); // mislukte tickets zichtbaar houden
+      else nietGepland.push({ ticket: t, reden: 'zoho-fout' }); // mislukte tickets zichtbaar houden
     }
-    // Past niet meer deze week
-    uitkomst.nietGepland.forEach(n => overflow.push(perId.get(n.ticketId)));
+    // Past niet meer deze week, elk met de reden uit het brein
+    uitkomst.nietGepland.forEach(n => nietGepland.push({ ticket: perId.get(n.ticketId), reden: n.reden }));
 
-    showResult(geplande, overflow, skipped, null);
+    showResult(geplande, nietGepland, skipped, null, uitkomst.waarschuwingen || []);
   } catch (err) {
     toast('✕ ' + err.message, 4000);
   } finally {
@@ -3785,13 +3785,41 @@ async function autoPlan() {
   }
 }
 
-function showResult(geplande, overflow, skipped, bericht) {
+// Redenen waarom een ticket niet gepland werd (planner-brein + 'zoho-fout' van de schil)
+function redenTekst(reden) {
+  const teksten = {
+    'geen-plaats':          'Geen plaats meer deze week',
+    'te-ver':               `Te ver van de andere afspraken (meer dan ${settings.maxReistijdMin ?? 45} min)`,
+    'klant-geblokkeerd':    'Klant is niet beschikbaar op de vrije dagen',
+    'voorkeursdag-afstand': 'Voorkeursdag botst qua afstand met een ander ticket',
+    'voorkeursdag-vol':     'Voorkeursdag is al vol',
+    'vast-uur-botst':       'Voorkeursuur botst met een andere afspraak',
+    'adres-niet-gevonden':  'Adres niet gevonden',
+    'zoho-fout':            'Kon niet opgeslagen worden in Zoho',
+  };
+  return teksten[reden] || 'Geen plaats meer deze week';
+}
+
+function showResult(geplande, nietGepland, skipped, bericht, waarschuwingen = []) {
   const body = document.getElementById('result-body');
   body.innerHTML = '';
 
   if (bericht) {
     body.innerHTML = `<p style="color:var(--muted);font-size:0.83rem">${bericht}</p>`;
   }
+
+  waarschuwingen.forEach(w => {
+    const tekst = w.soort === 'reistijd-geschat'
+      ? `⚠ Reistijd kon niet gecontroleerd worden voor ${(w.ticketIds || []).length} tickets — kijk de route na`
+      : w.soort === 'locatie-onbekend'
+        ? '⚠ Locatie van een bestaande afspraak onbekend — reistijdcontrole minder nauwkeurig'
+        : null;
+    if (!tekst) return;
+    const p = document.createElement('p');
+    p.style.cssText = 'color:var(--muted);font-size:0.83rem';
+    p.innerHTML = escHtml(tekst);
+    body.appendChild(p);
+  });
 
   if (geplande.length) {
     const s = document.createElement('div'); s.className = 'result-section';
@@ -3804,12 +3832,12 @@ function showResult(geplande, overflow, skipped, bericht) {
     body.appendChild(s);
   }
 
-  if (overflow.length) {
+  if (nietGepland.length) {
     const s = document.createElement('div'); s.className = 'result-section';
-    s.innerHTML = `<div class="result-section-title">➡️ Past niet deze week — verschoven (${overflow.length})</div>`;
-    overflow.forEach(t => {
+    s.innerHTML = `<div class="result-section-title">➡️ Past niet deze week — verschoven (${nietGepland.length})</div>`;
+    nietGepland.forEach(({ ticket: t, reden }) => {
       const row = document.createElement('div'); row.className = 'result-item';
-      row.innerHTML = `<div class="result-dot skip"></div><div><b>#${escHtml(t.number)}</b> ${escHtml(t.subject)}</div>`;
+      row.innerHTML = `<div class="result-dot skip"></div><div><b>#${escHtml(t.number)}</b> ${escHtml(t.subject)}<div style="color:var(--muted);font-size:0.78rem">${escHtml(redenTekst(reden))}</div></div>`;
       s.appendChild(row);
     });
     body.appendChild(s);
