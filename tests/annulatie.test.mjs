@@ -217,3 +217,31 @@ test('endpoint: validatiefout geeft 400', async () => {
   assert.equal(r.status, 400);
   assert.equal(calls.length, 0);
 });
+
+test('bouwAnnulatieMail: zonder datum en tijdslot', () => {
+  assert.match(bouwAnnulatieMail({ naam: 'An', reden: 'weer' }), /uw afspraak \(tijdstip nog te bevestigen\) annuleren/);
+});
+
+test('endpoint echt: registerfout na geslaagde PATCH geeft 200 met waarschuwing', async () => {
+  const w = maakWinkels({ 'blitz-data': { 'voorstel-status': REG } });
+  const basis = w.getStore;
+  const getStore = o => ({ ...basis(o), async setJSON() { throw new Error('blob stuk'); } });
+  const { fn, calls } = maakFetch();
+  const h = maakHandler({ getStore, fetch: fn });
+  const r = await h(post({ ticketId: '555', reden: 'weer', toelichting: '', mailKlant: false }));
+  const j = await r.json();
+  assert.equal(r.status, 200);
+  assert.equal(j.ok, true);
+  assert.match(j.waarschuwing, /register/);
+  assert.ok(calls.some(c => c.method === 'PATCH'));
+});
+
+test('endpoint echt: ticket-GET 500 geeft 502, 404 geeft 404', async () => {
+  for (const [st, verwacht] of [[500, 502], [404, 404]]) {
+    const w = maakWinkels({ 'blitz-data': { 'voorstel-status': REG } });
+    const { fn } = maakFetch();
+    const f = async (url, o = {}) => (String(url).includes('/tickets/555') && !o.method ? new Response('{}', { status: st }) : fn(url, o));
+    const r = await maakHandler({ getStore: w.getStore, fetch: f })(post({ ticketId: '555', reden: 'weer', toelichting: '', mailKlant: false }));
+    assert.equal(r.status, verwacht);
+  }
+});

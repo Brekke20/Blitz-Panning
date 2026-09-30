@@ -133,7 +133,8 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
         headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
       });
       const ticketData = await ticketRes.json().catch(() => ({}));
-      if (!ticketRes.ok) return json(404, { error: 'Ticket niet gevonden' });
+      if (ticketRes.status === 404) return json(404, { error: 'Ticket niet gevonden' });
+      if (!ticketRes.ok) return json(502, { error: 'Zoho ticket ophalen mislukt' });
 
       const cf = ticketData.cf || {};
       const contactEmail      = ticketData.contact?.email || ticketData.contact?.emailId || ticketData.email || '';
@@ -237,7 +238,15 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
       await addZohoComment(ticketId, accessToken, orgId, notitie);
 
       // 4. Register wissen.
-      await wisVoorstel(store, ticketId);
+      try {
+        await wisVoorstel(store, ticketId);
+      } catch (e) {
+        console.error('Register wissen mislukt na geslaagde annulatie:', e?.message || e);
+        return json(200, {
+          ok: true, emailSent, fouten,
+          waarschuwing: 'Afspraak geannuleerd in Zoho, maar het voorstel-register kon niet bijgewerkt worden. Herlaad de planner.',
+        });
+      }
 
       return json(200, { ok: true, emailSent, fouten });
     } catch (err) {

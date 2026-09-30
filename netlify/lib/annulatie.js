@@ -59,7 +59,7 @@ export function bouwAnnulatieMail({ naam, datum, tijdslot, uur, reden, toelichti
   const r = REDENEN.find(x => x.code === reden);
   const redenzin = r ? (r.code === 'andere' ? escHtml((toelichting || '').trim()) : r.klantzin) : '';
 
-  let afspraak = 'uw afspraak';
+  let afspraak = 'uw afspraak (tijdstip nog te bevestigen)';
   if (datum && /^\d{4}-\d{2}-\d{2}$/.test(datum)) {
     const d = new Date(`${datum}T12:00:00Z`).toLocaleDateString('nl-BE', {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels',
