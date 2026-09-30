@@ -639,6 +639,7 @@
 <script type="module" src="/js/rapport-wizard.js"></script>
 <script type="module" src="/js/inventaris.js"></script>
 <script type="module" src="/js/sorteer.js"></script>
+<script type="module" src="/js/planner.js"></script>
 <script defer>
 // ══════════════════════════════════════════════
 // TESTMODUS: ?test in URL laadt dummy data
@@ -3636,29 +3637,6 @@ async function batchTravelTimes(candidates, fromLat, fromLon, departAtIso) {
   }
 }
 
-// Doorloopt candidates in de gegeven (reeds op fillScore gesorteerde) volgorde en geeft de
-// eerste terug die binnen settings.maxReistijdMin ligt t.o.v. (fromLat, fromLon), samen met
-// de effectieve reistijd (om het lopend geschat uur bij te werken). Geen vaste
-// pogingslimiet: de hele lijst komt in aanmerking (ongewijzigd t.o.v. het vorige ontwerp).
-// Fail-open: kandidaten zonder coords, of zonder batch-resultaat, worden meteen aanvaard.
-async function pickNearbyCandidate(candidates, fromLat, fromLon, departAtIso) {
-  const times = await batchTravelTimes(candidates, fromLat, fromLon, departAtIso);
-  for (const candidate of candidates) {
-    if (!fromLat || !fromLon || !candidate._lat || !candidate._lon) return { candidate, legMin: 0 };
-    const legMin = times.get(candidate.id);
-    if (legMin === undefined || legMin <= settings.maxReistijdMin) return { candidate, legMin: legMin ?? 0 };
-  }
-  return null;
-}
-
-// Zet minuten-na-middernacht om naar een ISO-datetime voor de gegeven dag, voor gebruik als
-// departAt bij de historische-reistijd-opzoeking hierboven.
-function minToDepartAt(dateStr, minutesSinceMidnight) {
-  const h = Math.floor(minutesSinceMidnight / 60) % 24;
-  const m = Math.floor(minutesSinceMidnight) % 60;
-  return new Date(`${dateStr}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`).toISOString();
-}
-
 // ══════════════════════════════════════════════
 // AUTO-PLAN
 // ══════════════════════════════════════════════
@@ -3759,12 +3737,14 @@ async function autoPlan() {
       } catch (e) { /* gebruik fallback 30 min */ }
     }
 
+    const capPerDag = {};
     const availDays = [];
     for (const dStr of weekDates) {
       const alreadyPlanned = (planning[dStr] || [])
         .filter(p => activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter)
         .reduce((sum, p) => sum + Math.ceil(duurVoor(p.ticket.id) / settings.duurMinuten), 0);
       const cap = capacityForDay(dStr, travelMin) - alreadyPlanned;
+      capPerDag[dStr] = cap;
       if (cap > 0) availDays.push({ date: dStr, cap });
     }
 
@@ -3773,183 +3753,84 @@ async function autoPlan() {
       return;
     }
 
-    // Scoringformule: score = prio_gewicht × afstand_km × urgentie_factor
-    //   Lagere score = betere kandidaat voor die dag.
-    //   prio_gewicht  : {high:1, medium:3, low:6, geen:9}
-    //   urgentie_factor: daalt naarmate due date nadert (max 1.0, min 0.1)
-    //                    tickets zonder due date krijgen factor 1.0 (neutraal)
-    //   Seed van elke dag = ticket met laagste score t.o.v. startlocatie/depot
-    //   Fill = ticket met laagste score t.o.v. huidige positie op die dag
-    // PRIO_WEIGHT en urgencyFactor zijn module-scope (gedeeld met wachtrij-sortering)
-    // Fill-score: prio × afstand × urgentie — lagere score = betere kandidaat
-    function fillScore(t, fromLat, fromLon) {
-      const pw   = PRIO_WEIGHT[(t.priority||'').toLowerCase()] ?? 9;
-      const dist = (t._lat && t._lon && fromLat && fromLon)
-        ? haversine(fromLat, fromLon, t._lat, t._lon)
-        : 999; // geen coords → achteraan
-      return pw * dist * urgencyFactor(t);
+    // Invoer voor het brein (public/js/planner.js) opbouwen. Het brein is puur: alles wat het
+    // nodig heeft komt via deze invoer, reistijden via de adapter op /api/matrix.
+    const perId = new Map(toplan.map(t => [t.id, t]));
+    const bestaandPerDag = {}, eigenAfspraken = {};
+    for (const dStr of weekDates) {
+      bestaandPerDag[dStr] = (planning[dStr] || [])
+        .filter(p => activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter)
+        .map(p => ({
+          id: p.ticket.id, uur: p.uur || null, duurMin: duurVoor(p.ticket.id),
+          lat: p._lat ?? p.ticket._lat ?? null, lon: p._lon ?? p.ticket._lon ?? null,
+        }));
+      eigenAfspraken[dStr] = localEvents
+        .filter(e => e.datum === dStr && e.uur &&
+          !(activeAssigneeFilter !== 'all' && e.persoon && e.persoon !== activeAssigneeFilter))
+        .map(e => ({
+          uur: e.uur,
+          duurMin: (e.einduur ? calcWerktijdMin(e.uur, e.einduur) : 0) || 60,
+          lat: null, lon: null,
+        }));
     }
+    const invoer = {
+      kandidaten: toplan.map(t => ({
+        id: t.id, number: t.number, priority: t.priority, interventieDatum: t.interventieDatum,
+        inPlanningSinds: null, lat: t._lat ?? null, lon: t._lon ?? null, duurMin: duurVoor(t.id),
+      })),
+      dagen: weekDates,
+      extraVoor: {},
+      bestaandPerDag,
+      eigenAfspraken,
+      blokkeringen: {},
+      klant: Object.fromEntries(toplan.map(t => [t.id, kbFor(t.id)]).filter(([, v]) => v)),
+      instellingen: {
+        vanTijd: settings.vanTijd, laatsteStart: settings.laatsteStart, maxPerDag: settings.maxPerDag,
+        maxReistijdMin: settings.maxReistijdMin, duurMinuten: settings.duurMinuten,
+      },
+      depot: originCoords || null,
+      vandaag: localISO(today),
+      capPerDag, // tijdelijk (verdwijnt in Taak 5)
+      // Adapter op /api/matrix: null voor ontbrekende cellen, lege Map bij een fout (fail-open).
+      reistijden: async (van, naar, vertrekIso) => {
+        try {
+          const res  = await fetch('/api/matrix', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({
+              origin:       { lat: van.lat, lon: van.lon },
+              destinations: naar.map(n => ({ lat: n.lat, lon: n.lon })),
+              departAt:     vertrekIso,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            console.warn('Matrix-opzoeking mislukt, valt fail-open terug (max-reistijd-check overgeslagen voor deze stap):', data.error || res.status);
+            return new Map();
+          }
+          const map = new Map();
+          naar.forEach((n, i) => {
+            const r = (data.results || [])[i];
+            map.set(n.id, typeof r?.travelTimeSeconds === 'number' ? r.travelTimeSeconds / 60 : null);
+          });
+          return map;
+        } catch (err) {
+          console.warn('Matrix-opzoeking mislukt (netwerkfout), valt fail-open terug (max-reistijd-check overgeslagen voor deze stap):', err.message);
+          return new Map();
+        }
+      },
+    };
+    const uitkomst = await window.planWeek(invoer);
 
-    // Voorkeursuur = vast tijdstip. Een ticket met voorkeurTijd past enkel op een dag waar
-    // zijn interval [voorkeurTijd, voorkeurTijd + duur) niet overlapt met (a) een bestaande
-    // stop met uur op die dag (zelfde assignee-filter), (b) een lokale afspraak met uur op die
-    // dag voor die persoon, (c) een al gekozen dayTickets-ticket met voorkeurTijd.
-    function botstMetVastUur(ticketId, dayStr, dayTickets) {
-      const tijd = kbPreferredTime(ticketId);
-      if (!tijd) return false;
-      const start = timeStrToMin(tijd), eind = start + duurVoor(ticketId);
-      const overlapt = (s, e) => s < eind && start < e;
-      const bestaand = (planning[dayStr] || []).filter(p =>
-        activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter);
-      for (const p of bestaand) {
-        if (!p.uur) continue;
-        const s = timeStrToMin(p.uur);
-        if (overlapt(s, s + duurVoor(p.ticket.id))) return true;
-      }
-      for (const e of localEvents) {
-        if (e.datum !== dayStr || !e.uur) continue;
-        if (activeAssigneeFilter !== 'all' && e.persoon && e.persoon !== activeAssigneeFilter) continue;
-        const s = timeStrToMin(e.uur);
-        const len = (e.einduur ? calcWerktijdMin(e.uur, e.einduur) : 0) || 60;
-        if (overlapt(s, s + len)) return true;
-      }
-      for (const t of dayTickets) {
-        const tt = kbPreferredTime(t.id);
-        if (!tt) continue;
-        const s = timeStrToMin(tt);
-        if (overlapt(s, s + duurVoor(t.id))) return true;
-      }
-      return false;
+    // Inplannen — alleen tellen als de Zoho call slaagt
+    for (const g of uitkomst.geplaatst) {
+      const t = perId.get(g.ticketId);
+      const ok = await addTicketToDate(t.id, g.datum);
+      if (ok) geplande.push({ ticket: t, date: g.datum });
+      else overflow.push(t); // mislukte tickets zichtbaar houden
     }
-
-    const pool = toplan.slice();
-
-    // ── Fix 1: Voorkeursplanning ──────────────────────────────────────────────
-    // Pre-compute voor elke ticket of de voorkeursdag beschikbaar (cap > 0) is.
-    // Zo'n ticket wordt NIET aangeboden aan eerdere dagen — het wacht op zijn voorkeursdag.
-    const prefDayAvailable = new Map(); // ticketId → dayStr
-    for (const t of pool) {
-      const pref = kbPreferred(t.id);
-      if (!pref) continue;
-      const prefDay = availDays.find(d => d.date === pref);
-      if (prefDay && prefDay.cap > 0 && !kbBlocked(t.id, pref)) {
-        prefDayAvailable.set(t.id, pref);
-      }
-    }
-
-    for (const day of availDays) {
-      if (!pool.length) break;
-
-      // Harde filter: geblokkeerde tickets + tickets gereserveerd voor een andere dag
-      const dayPool = pool.filter(t => {
-        if (kbBlocked(t.id, day.date)) return false;
-        const pref = prefDayAvailable.get(t.id);
-        if (pref && pref !== day.date) return false; // wacht op voorkeursdag
-        if (botstMetVastUur(t.id, day.date, [])) return false;
-        return true;
-      });
-
-      // ── Fix 2: Geografisch seeden ─────────────────────────────────────────
-      // Startpositie = positie van het laatste al ingeplande ticket op deze dag
-      // (zodat we verder bundelen vanuit de bestaande regio), of anders de depot.
-      const existingOnDay = (planning[day.date] || []).filter(p =>
-        activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-      ).sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
-      const lastExisting = existingOnDay[existingOnDay.length - 1];
-      // Ankerpunt = de positie van het bestaande ticket zelf (nu betrouwbaar beschikbaar
-      // dankzij de geocode-uitbreiding hierboven). Enkel als die coördinaten écht
-      // ontbreken (geocoding mislukt/geen adres) vallen we terug op fail-open (exempt) —
-      // NIET op het depot, dat zou een onterecht ankerpunt zijn.
-      const anchorLat = lastExisting?._lat ?? lastExisting?.ticket?._lat ?? null;
-      const anchorLon = lastExisting?._lon ?? lastExisting?.ticket?._lon ?? null;
-      const startLat  = anchorLat ?? originCoords?.lat ?? null; // sortering (fillScore) ongewijzigd
-      const startLon  = anchorLon ?? originCoords?.lon ?? null;
-
-      // Lopend geschat uur voor deze dag (minuten na middernacht), voor de historische-
-      // reistijd-opzoeking. Start bij het bestaande ticket zijn eigen uur + duur indien
-      // gekend; anders (lege dag, of bestaand ticket zonder gekend uur) bij de ingestelde
-      // starttijd -- een bewuste benadering, zie designdoc.
-      const [vanH, vanM] = (settings.vanTijd || '08:00').split(':').map(Number);
-      let curTimeOfDay = lastExisting?.uur
-        ? timeStrToMin(lastExisting.uur) + duurVoor(lastExisting.ticket.id)
-        : vanH * 60 + vanM;
-
-      // Seed: geografisch dichtste ticket (met urgentie/prio als tiebreaker via fillScore).
-      // Een volledig lege dag (geen lastExisting), of een dag waarvan het bestaande
-      // ticket se locatie we niet kennen, is vrijgesteld van de reistijd-check. Zodra
-      // de dag al een ticket bevat MET bekende locatie, moet ook de eerste toevoeging
-      // binnen settings.maxReistijdMin vallen (bevestigd door Brent).
-      // Fix (bugronde 2026-09-22, item D, fix round 1): filteren op "past de seed in day.cap"
-      // gebeurt VÓÓR het sorteren op fillScore, niet erna -- zo blijven kleinere tickets die wél
-      // passen in aanmerking als seed wanneer de best-scorende kandidaat (bv. hoge prio, grote
-      // duurOverride) te groot is voor deze dag. Enkel wanneer NIEMAND in dayPool nog past, wordt
-      // de dag overgeslagen (het ticket/de tickets blijven in de pool voor een volgende/grotere
-      // dag, of eindigen uiteindelijk in de overflow-lijst).
-      const seedPool = [...dayPool].filter(t => Math.ceil(duurVoor(t.id) / settings.duurMinuten) <= day.cap);
-      seedPool.sort((a, b) => fillScore(a, startLat, startLon) - fillScore(b, startLat, startLon));
-      if (!seedPool.length) continue;
-      const seedExempt = !lastExisting || anchorLat == null || anchorLon == null;
-      let seed;
-      if (seedExempt) {
-        seed = seedPool[0];
-      } else {
-        const result = await pickNearbyCandidate(seedPool, startLat, startLon, minToDepartAt(day.date, curTimeOfDay));
-        if (!result) continue; // dag heeft al een ticket, maar niemand past binnen de max-reistijd
-        seed = result.candidate;
-        curTimeOfDay += result.legMin;
-      }
-      pool.splice(pool.indexOf(seed), 1);
-      const dayTickets = [seed];
-      curTimeOfDay += duurVoor(seed.id);
-
-      // Fill: ticket met laagste score t.o.v. huidige positie op die dag.
-      // Tickets met duurOverride tellen als meerdere slots (naar boven afgerond).
-      let curLat = seed._lat, curLon = seed._lon;
-      let usedSlots = Math.ceil(duurVoor(seed.id) / settings.duurMinuten); // seed telt al mee, past altijd (seedPool is al gefilterd)
-      // (M2, controller-ruling) Een kandidaat die zelf te groot is voor de resterende capaciteit
-      // sluit niet meer de hele dag af (break) -- enkel DIE kandidaat wordt voor deze dag
-      // uitgesloten (excludedForDay) en de lus probeert de eerstvolgende, kleinere kandidaat.
-      // Consistent met de seedPool-prefilter hierboven (T4): een te grote kandidaat mag geen
-      // kleinere tickets verdringen die nog wél passen. Begrensd: excludedForDay groeit elke keer
-      // dat dit pad genomen wordt, dus fillPool krimpt monotoon en de lus stopt uiterlijk zodra
-      // niemand nog overblijft.
-      const excludedForDay = new Set();
-      while (usedSlots < day.cap && pool.length) {
-        const fillPool = pool.filter(t => {
-          if (excludedForDay.has(t.id)) return false;
-          if (kbBlocked(t.id, day.date)) return false;
-          const pref = prefDayAvailable.get(t.id);
-          if (pref && pref !== day.date) return false;
-          if (botstMetVastUur(t.id, day.date, dayTickets)) return false;
-          return true;
-        });
-        if (!fillPool.length) break;
-        fillPool.sort((a, b) => fillScore(a, curLat, curLon) - fillScore(b, curLat, curLon));
-        const result = await pickNearbyCandidate(fillPool, curLat, curLon, minToDepartAt(day.date, curTimeOfDay));
-        if (!result) break; // niemand in de wachtrij past nog binnen de max-reistijd voor deze dag
-        const chosen = result.candidate;
-        const chosenSlots = Math.ceil(duurVoor(chosen.id) / settings.duurMinuten);
-        if (usedSlots + chosenSlots > day.cap) { excludedForDay.add(chosen.id); continue; } // past niet meer -- volgende kandidaat proberen
-        pool.splice(pool.indexOf(chosen), 1);
-        dayTickets.push(chosen);
-        usedSlots += chosenSlots;
-        curTimeOfDay += result.legMin + duurVoor(chosen.id);
-        if (chosen._lat && chosen._lon) { curLat = chosen._lat; curLon = chosen._lon; }
-      }
-
-      // Inplannen — alleen tellen als de Zoho call slaagt
-      const mislukt = [];
-      for (const t of dayTickets) {
-        const ok = await addTicketToDate(t.id, day.date);
-        if (ok) geplande.push({ ticket: t, date: day.date });
-        else mislukt.push(t);
-      }
-      // Mislukte tickets terugzetten in overflow zodat ze zichtbaar zijn
-      overflow.push(...mislukt);
-    }
-
-    // Overflow: past niet meer deze week
-    while (pool.length) overflow.push(pool.shift());
+    // Past niet meer deze week
+    uitkomst.nietGepland.forEach(n => overflow.push(perId.get(n.ticketId)));
 
     showResult(geplande, overflow, skipped, null);
   } catch (err) {
