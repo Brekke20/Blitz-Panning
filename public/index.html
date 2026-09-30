@@ -203,7 +203,7 @@
 
 <!-- Detail modal -->
 <div class="overlay" id="det-overlay" onclick="closeDet(event)">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="d-title">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeDet()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-num" id="d-num"></div>
@@ -229,10 +229,10 @@
 <!-- Datum/tijd wijzigen modal (eigen pop-up i.p.v. inklapbare rij — 2026-08-17 feedback:
      "onduidelijk", stapelt op det-overlay net als Foto's/Rapport/Voorstel hierboven) -->
 <div class="overlay" id="reschedule-overlay" onclick="closeRescheduleModal(event)">
-  <div class="modal" style="max-width:380px">
+  <div class="modal" style="max-width:380px" role="dialog" aria-modal="true" aria-labelledby="reschedule-titel">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeRescheduleModal()" title="Sluiten" aria-label="Sluiten">✕</button>
-      <div class="mhdr-title" role="heading" aria-level="2">📅 Nieuwe datum/tijd</div>
+      <div class="mhdr-title" id="reschedule-titel" role="heading" aria-level="2">📅 Nieuwe datum/tijd</div>
     </div>
     <div class="mbody">
       <div class="msec" style="margin-bottom:0;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -249,10 +249,10 @@
 
 <!-- Instellingen modal -->
 <div class="overlay" id="set-overlay" onclick="closeSettings(event)">
-  <div class="modal" id="set-modal">
+  <div class="modal" id="set-modal" role="dialog" aria-modal="true" aria-labelledby="set-titel">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeSettings()" title="Sluiten" aria-label="Sluiten">✕</button>
-      <div class="mhdr-title" role="heading" aria-level="2">⚙️ Instellingen</div>
+      <div class="mhdr-title" id="set-titel" role="heading" aria-level="2">⚙️ Instellingen</div>
       <div class="mhdr-num coord-only" id="set-person-label" style="font-size:0.78rem;color:var(--accent-ink);margin-top:2px"></div>
     </div>
     <div class="set-subtabs">
@@ -341,10 +341,10 @@
 
 <!-- Tijdsblokkering modal -->
 <div class="overlay" id="block-overlay" onclick="closeBlock(event)">
-  <div class="modal" id="block-modal">
+  <div class="modal" id="block-modal" role="dialog" aria-modal="true" aria-labelledby="block-titel">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeBlock()" title="Sluiten" aria-label="Sluiten">✕</button>
-      <div class="mhdr-title" role="heading" aria-level="2">⛔ Beschikbaarheid</div>
+      <div class="mhdr-title" id="block-titel" role="heading" aria-level="2">⛔ Beschikbaarheid</div>
       <div id="block-date-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="mbody" id="block-modal-body">
@@ -355,10 +355,10 @@
 
 <!-- Prijsbeheer admin modal -->
 <div class="overlay" id="prijs-overlay" onclick="closePrijsBeheer(event)">
-  <div class="modal" id="prijs-modal">
+  <div class="modal" id="prijs-modal" role="dialog" aria-modal="true" aria-labelledby="prijs-titel">
     <div id="prijs-editor" style="display:none;flex-direction:column;flex:1;min-height:0">
       <div class="prijs-hdr">
-        <div class="prijs-hdr-title">💰 Prijsbeheer</div>
+        <div class="prijs-hdr-title" id="prijs-titel" role="heading" aria-level="2">💰 Prijsbeheer</div>
         <div class="prijs-hdr-meta" id="prijs-meta">—</div>
         <button class="prijs-hdr-close" onclick="closePrijsBeheer()" title="Sluiten" aria-label="Sluiten">✕</button>
       </div>
@@ -375,10 +375,10 @@
 
 <!-- Import review modal -->
 <div class="overlay" id="import-overlay" onclick="closeImportModal(event)">
-  <div class="modal" id="import-modal">
+  <div class="modal" id="import-modal" role="dialog" aria-modal="true" aria-labelledby="import-titel">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeImportModal()" title="Sluiten" aria-label="Sluiten">✕</button>
-      <div class="mhdr-title" role="heading" aria-level="2">📥 Importeer installaties</div>
+      <div class="mhdr-title" id="import-titel" role="heading" aria-level="2">📥 Importeer installaties</div>
       <div id="import-subtitle" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="mbody imp-list" id="import-list">
@@ -393,7 +393,7 @@
 
 <!-- Lokale afspraak detail modal -->
 <div class="overlay" id="local-det-overlay" onclick="closeLocalDet(event)">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ld-titel">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeLocalDet()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-tags" id="ld-type"></div>
@@ -415,7 +415,7 @@
 
 <!-- Manuele afspraak modal -->
 <div class="overlay" id="manueel-overlay" onclick="closeManueelModal(event)">
-  <div class="modal" id="manueel-modal">
+  <div class="modal" id="manueel-modal" role="dialog" aria-modal="true" aria-labelledby="manueel-modal-title">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeManueelModal()" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title" id="manueel-modal-title" role="heading" aria-level="2">➕ Afspraak toevoegen</div>
@@ -486,18 +486,18 @@
 
 <!-- Auto-plan resultaat modal -->
 <div class="overlay" id="result-overlay" onclick="closeResult(event)">
-  <div class="modal" id="result-modal">
+  <div class="modal" id="result-modal" role="dialog" aria-modal="true" aria-labelledby="result-titel">
     <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeResult()" title="Sluiten" aria-label="Sluiten">✕</button>
-    <h3>⚡ Planningsresultaat</h3>
+    <h3 id="result-titel">⚡ Planningsresultaat</h3>
     <div id="result-body"></div>
   </div>
 </div>
 
 <!-- Foto's modal -->
 <div class="overlay" id="foto-overlay" onclick="closeFotoModal(event)">
-  <div class="modal" id="foto-modal">
+  <div class="modal" id="foto-modal" role="dialog" aria-modal="true" aria-labelledby="foto-titel">
     <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeFotoModal()" title="Sluiten" aria-label="Sluiten">✕</button>
-    <h3>📷 Foto's</h3>
+    <h3 id="foto-titel">📷 Foto's</h3>
     <div id="foto-grid" class="foto-grid"></div>
     <input type="file" id="foto-file-input" accept="image/*" multiple style="display:none" onchange="handleFotoFiles(this)">
     <button class="foto-add-btn" onclick="document.getElementById('foto-file-input').click()">+ Foto toevoegen</button>
@@ -506,10 +506,10 @@
 
 <!-- Afspraakvoorstel modal -->
 <div class="overlay" id="proposal-overlay" onclick="closeProposal(event)">
-  <div class="modal" id="proposal-modal" style="max-width:480px">
+  <div class="modal" id="proposal-modal" style="max-width:480px" role="dialog" aria-modal="true" aria-labelledby="proposal-titel">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeProposal()" title="Sluiten" aria-label="Sluiten">✕</button>
-      <div class="mhdr-title" role="heading" aria-level="2">📨 Afspraakvoorstel</div>
+      <div class="mhdr-title" id="proposal-titel" role="heading" aria-level="2">📨 Afspraakvoorstel</div>
       <div id="proposal-ticket-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="mbody">
@@ -543,10 +543,10 @@
 </div>
 
 <div class="overlay" id="rapport-preview-overlay" onclick="closeRapportPreview(event)">
-  <div class="modal" id="rapport-preview-modal" style="max-width:560px">
+  <div class="modal" id="rapport-preview-modal" style="max-width:560px" role="dialog" aria-modal="true" aria-labelledby="rapport-preview-titel">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeRapportPreview()" title="Sluiten" aria-label="Sluiten">✕</button>
-      <div class="mhdr-title" role="heading" aria-level="2">📤 Rapport versturen</div>
+      <div class="mhdr-title" id="rapport-preview-titel" role="heading" aria-level="2">📤 Rapport versturen</div>
       <div id="rapport-preview-ticket-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="mbody" id="rapport-preview-body">
@@ -559,10 +559,10 @@
   </div>
 </div>
 
-<div id="rapport-wizard">
+<div id="rapport-wizard" role="dialog" aria-modal="true" aria-labelledby="wiz-titel">
   <div class="wiz-hdr">
     <div class="wiz-hdr-top">
-      <div class="wiz-title" role="heading" aria-level="2">📋 Service Rapport</div>
+      <div class="wiz-title" id="wiz-titel" role="heading" aria-level="2">📋 Service Rapport</div>
       <button class="wiz-close" onclick="closeWizard()" title="Sluiten">✕</button>
     </div>
     <div style="display:flex;align-items:center;gap:7px">

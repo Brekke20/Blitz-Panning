@@ -17,7 +17,7 @@ export function appConfirm({ titel, tekst, bevestigLabel, annuleerLabel = 'Terug
 
     const dlg = document.createElement('div');
     dlg.className = 'modal app-dialog';
-    dlg.setAttribute('role', 'dialog');
+    dlg.setAttribute('role', 'alertdialog');
     dlg.setAttribute('aria-modal', 'true');
     dlg.setAttribute('aria-labelledby', uid + '-titel');
 
@@ -38,6 +38,8 @@ export function appConfirm({ titel, tekst, bevestigLabel, annuleerLabel = 'Terug
         body.textContent = tekst;
       }
       body.className = 'app-dialog-tekst';
+      body.id = uid + '-tekst';
+      dlg.setAttribute('aria-describedby', body.id);
       dlg.appendChild(body);
     }
 
