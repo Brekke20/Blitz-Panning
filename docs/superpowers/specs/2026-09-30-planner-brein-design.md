@@ -141,6 +141,7 @@ een gemiddelde reistijd en "slots".
   | `voorkeursdag-afstand` | zie 3.5, stap 1 |
   | `voorkeursdag-vol` | zie 3.5, stap 1 |
   | `vast-uur-botst` | het voorkeursuur overlapt op elke dag |
+  | `adres-niet-gevonden` | het adres van het ticket kon niet naar coördinaten omgezet worden, dus een reistijdcontrole is onmogelijk (toegevoegd in het plan) |
 
   Het brein houdt per ticket de meest specifieke reden bij die het tegenkwam.
   `zoho-fout` voegt de app zelf toe, na het wegschrijven.
@@ -216,15 +217,21 @@ een gemiddelde reistijd en "slots".
 ### 5.2 Register: blob `planning-sinds` (store `blitz-data`)
 - Structuur: `{ [ticketId]: { sinds } }`, met `leesRegister`/`schrijfRegister` in de stijl van
   `voorstelregister.js`.
-- **`tickets.js`**:
-  - leest het register;
-  - vult voor elk ticket in `tickets` (te plannen) zonder entry `sinds` aan via de history-aanroep;
-  - doet dat in batches van 5, met **maximaal 20 nieuwe opzoekingen per aanroep** om binnen de
-    tijdslimiet van de functie te blijven (de rest volgt bij de volgende keer laden);
-  - verwijdert entries van tickets die in geen enkele traject-status meer voorkomen;
-  - schrijft het register alleen als er iets veranderde.
-- Elk ticket in `tickets`, `pendingTickets` en `plannedTickets` krijgt `inPlanningSinds`
-  (ISO of `null`).
+- **Eigen endpoint `netlify/functions/planning-sinds.js`** (bijgesteld in het plan; `tickets.js`
+  blijft ongewijzigd, zodat het laden van de tickets nooit trager wordt of op een tijdslimiet
+  stukloopt). Het is een v2-handler via `maakHandler({ getStore, fetch })`, net als `annuleer.js`.
+  - Aanroep: `POST /api/planning-sinds` met `{ opzoeken: [ticketId, …], actief: [ticketId, …] }`:
+    - `opzoeken` bevat de te plannen tickets;
+    - `actief` bevat alle tickets in een traject-status.
+  - Leest het register en vult voor elk ticket in `opzoeken` zonder entry `sinds` aan via de
+    history-aanroep. Dat gebeurt in batches van 5, met **maximaal 20 nieuwe opzoekingen per
+    aanroep** (de rest volgt bij de volgende keer laden).
+  - Verwijdert entries van tickets die niet in `actief` staan, en schrijft het register alleen als
+    er iets veranderde.
+  - Antwoord: `{ sinds: { [ticketId]: ISO | null } }`.
+  - In testmodus antwoordt het endpoint met `{ sinds: {} }`, zonder Zoho.
+- De app roept het endpoint aan na het laden van de tickets, zonder erop te wachten, en zet
+  `t.inPlanningSinds` op de tickets.
 - Een ticket dat tussen twee keer laden het traject verlaat en er weer in komt, behoudt zijn oude
   datum. Dat is aanvaard: een zeldzaam randgeval.
 
@@ -258,7 +265,7 @@ Het ticketdetail krijgt een rij "In planning sinds" (dd/mm), naast "Interventied
    Bij elke taak worden de karakterisatietests die het bewust wijzigt, expliciet aangepast, met een
    verwijzing naar de regel.
 3. **Wachttijd**: `planningsinds.js` met tests (`tests/planningsinds.test.mjs`), daarna het
-   register in `tickets.js`, dan de weergave in het ticketdetail en de testmodus-data.
+   endpoint `planning-sinds.js`, dan de weergave in het ticketdetail en de testmodus-data.
 4. **Instelling** `laatsteStart`, en het resultaatvenster met redenen.
 5. **Afronden**: v1.11.0 (MINOR), `CHANGELOG.md`, `CACHE_NAME` +1 in `public/sw.js`, tag.
 
