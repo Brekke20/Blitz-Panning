@@ -149,11 +149,12 @@
 <!-- ══ ROUTE TAB ══ -->
 <div class="view" id="view-planning" role="tabpanel" aria-labelledby="tab-planning">
   <div class="plan-header">
-    <input type="date" id="plan-date" onchange="onDateChange(this.value)" aria-label="Datum voor de route" />
+    <input type="date" id="plan-date" class="plan-date-compact" onchange="onDateChange(this.value)" aria-label="Datum voor de route (verre datum kiezen)" title="Andere datum kiezen" />
     <button class="btn-primary" id="btn-optimize" onclick="optimizeRoute()" disabled title="Herorden stops voor kortste reistijd, daarna rijtijden berekenen">⚡ Optimaliseer</button>
     <button class="btn-sec"     id="btn-route"    onclick="calculateRoute()" disabled title="Bereken rijtijden in huidige volgorde">Bereken tijden</button>
     <button class="btn-sec"     onclick="clearDay()">✕ Leeg</button>
   </div>
+  <div class="week-strip" id="week-strip" role="group" aria-label="Week van de gekozen datum"></div>
   <div class="plan-body">
     <div id="route-list"><div class="route-empty">Voeg tickets toe via de Wachtrij of Kalender</div></div>
     <div id="map-wrap"><div id="map"></div></div>
@@ -4171,8 +4172,90 @@ function berekenAankomsten(allStops, legs) {
   return { arrivalTimes, legIdx };
 }
 
+// ── Weekstrook (v1.9.5) ──────────────────────────────────────────────
+// Week (ma..zo) van de gekozen datum: per werkdag aantal stops (met persoonsfilter, zoals de
+// routelijst) en tijdstatus. Wordt vanuit renderRouteList() ververst -- dat is het bestaande
+// her-render-pad (optimaliseren, slepen, herladen, datumwissel); luisteraars staan 1x op de strook.
+const WEEKSTROOK_DAG = ['ZO','MA','DI','WO','DO','VR','ZA'];
+function isoNaarDatum(iso) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); }
+function weekstrookDagen(date) {
+  const d0 = isoNaarDatum(date);
+  const maandag = new Date(d0); maandag.setDate(d0.getDate() - ((d0.getDay() + 6) % 7));
+  const dagen = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(maandag); d.setDate(maandag.getDate() + i);
+    if ((settings.werkdagen || [1,2,3,4,5]).includes(d.getDay())) dagen.push(d);
+  }
+  return { maandag, dagen };
+}
+function weekstrookKies(iso) {
+  const inp = document.getElementById('plan-date');
+  if (!iso || !inp) return;
+  inp.value = iso;
+  onDateChange(iso);
+}
+function weekstrookVerschuif(date, dagen) {
+  const d = isoNaarDatum(date); d.setDate(d.getDate() + dagen); return localISO(d);
+}
+function renderWeekstrook(date) {
+  const el = document.getElementById('week-strip');
+  if (!el || !date) return;
+  if (!el._gebonden) {
+    el._gebonden = true;
+    el.addEventListener('click', e => {
+      const b = e.target.closest('button[data-ws]');
+      if (!b) return;
+      const cur = document.getElementById('plan-date').value;
+      if (b.dataset.ws === 'vorige') weekstrookKies(weekstrookVerschuif(cur, -7));
+      else if (b.dataset.ws === 'volgende') weekstrookKies(weekstrookVerschuif(cur, 7));
+      else weekstrookKies(b.dataset.ws);
+    });
+    el.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const b = e.target.closest('button[data-ws]');
+      if (!b || b.dataset.ws === 'vorige' || b.dataset.ws === 'volgende') return;
+      e.preventDefault();
+      const dir = e.key === 'ArrowRight' ? 1 : -1;
+      const { dagen } = weekstrookDagen(b.dataset.ws);
+      const isos = dagen.map(localISO);
+      const i = isos.indexOf(b.dataset.ws) + dir;
+      el._focusNaRender = true;
+      if (i >= 0 && i < isos.length) return weekstrookKies(isos[i]);
+      // Week-omslag: eerste/laatste werkdag van de volgende/vorige week
+      const buur = weekstrookDagen(weekstrookVerschuif(b.dataset.ws, dir * 7)).dagen;
+      if (!buur.length) return;
+      weekstrookKies(localISO(dir > 0 ? buur[0] : buur[buur.length - 1]));
+    });
+  }
+  const hadFocus = el.contains(document.activeElement) || el._focusNaRender;
+  el._focusNaRender = false;
+  const { dagen } = weekstrookDagen(date);
+  const vandaag = localISO(new Date());
+  const geselecteerd = dagen.some(d => localISO(d) === date);
+  let html = '<button type="button" class="ws-nav" data-ws="vorige" aria-label="Vorige week" title="Vorige week">‹</button><div class="ws-dagen">';
+  dagen.forEach((d, idx) => {
+    const iso = localISO(d);
+    const stops = (planning[iso] || []).filter(p => activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter);
+    const zonder = stops.filter(p => !p.uur).length;
+    let status, cls;
+    if (!stops.length) { status = '—'; cls = 'leeg'; }
+    else if (zonder) { status = '⏱ nodig'; cls = 'nodig'; }
+    else { status = '✓ tijden'; cls = 'klaar'; }
+    const sel = iso === date;
+    const tab = sel || (!geselecteerd && idx === 0) ? 0 : -1;
+    html += `<button type="button" class="ws-dag ${cls}${sel ? ' actief' : ''}${iso === vandaag ? ' vandaag' : ''}" data-ws="${iso}" tabindex="${tab}" aria-pressed="${sel}"${sel ? ' aria-current="date"' : ''}` +
+      ` aria-label="${WEEKSTROOK_DAG[d.getDay()]} ${d.getDate()}: ${meervoud(stops.length, 'stop', 'stops')}, ${zonder ? zonder + ' zonder tijdstip' : (stops.length ? 'alle tijden klaar' : 'niets gepland')}">` +
+      `<span class="ws-naam">${WEEKSTROOK_DAG[d.getDay()]} ${d.getDate()}</span><span class="ws-aantal">${stops.length}</span><span class="ws-status">${status}</span></button>`;
+  });
+  html += '</div><button type="button" class="ws-nav" data-ws="volgende" aria-label="Volgende week" title="Volgende week">›</button>';
+  el.innerHTML = html;
+  if (hadFocus) (el.querySelector('.ws-dag.actief') || el.querySelector('.ws-dag'))?.focus();
+  el.querySelector('.ws-dag.actief')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+}
+
 function renderRouteList(date) {
   const list  = document.getElementById('route-list');
+  renderWeekstrook(date);
   const stops = (planning[date] || []).filter(p =>
     activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
   );
@@ -4195,6 +4278,17 @@ function renderRouteList(date) {
   window._routeSorteer?.vernietig(); window._routeSorteer = null;
   list.innerHTML = '';
   if (!allStops.length) { list.innerHTML = '<div class="route-empty">Voeg tickets of installaties toe via de Kalender</div>'; return; }
+  const zonderTijd = stops.filter(p => !p.uur).length;
+  if (zonderTijd) {
+    const bar = document.createElement('div');
+    bar.className = 'route-tijdbalk';
+    bar.innerHTML = `<span>⏱ ${meervoud(zonderTijd, 'ticket', 'tickets')} zonder tijdstip</span>`;
+    const knop = document.createElement('button');
+    knop.type = 'button'; knop.className = 'btn btn--primary'; knop.textContent = 'Bereken tijden';
+    knop.onclick = () => calculateRoute();
+    bar.appendChild(knop);
+    list.appendChild(bar);
+  }
 
   // Bereken cumulatieve aankomsttijden als routeData beschikbaar is
   const hasRoute = routeData?.legs && currentRouteDate === date;
