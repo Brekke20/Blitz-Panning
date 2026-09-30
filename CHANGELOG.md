@@ -15,6 +15,27 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.10.0] — 2026-09-30
+
+### Added
+- Afspraak annuleren (coördinator): knop in het ticketdetail bij een verstuurd of bevestigd
+  voorstel. Verplichte reden uit een vaste lijst (Andere = toelichting verplicht), optionele
+  interne toelichting, keuze om de klant per mail te verwittigen met live voorbeeld van de mail.
+  Het ticket gaat terug naar "Wachten op planning" zonder datum, met een interne Zoho-notitie
+  (reden, datum, wie, wie gemaild werd). Nieuw endpoint `/api/annuleer`.
+- Bevestiging per ontvanger: klant, installateur en contactpersoon krijgen elk een eigen
+  ondertekende bevestigingslink. Zoho-notitie en planner tonen "✓ Bevestigd door …".
+
+### Changed
+- × / "Uit planning halen" bij een ticket met verstuurd voorstel leidt naar het annuleervenster;
+  "Dag leegmaken" slaat zulke tickets over.
+- Een nieuw voorstel vervangt de vorige voorstel-registratie volledig.
+
+### Fixed
+- Slotje en "Voorstel verstuurd" bleven hangen na annuleren/opnieuw inplannen.
+- Een oude bevestigingslink kon een nieuw voorstel voor een andere dag bevestigen.
+- Bij een voorstel naar meerdere ontvangers ging de registratie van de tweede soms verloren.
+
 ## [1.9.5] — 2026-09-30
 
 ### Added
