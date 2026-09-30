@@ -364,7 +364,7 @@ export function wizRenderSamenvatting(el) {
     <div class="wiz-step-title" role="heading" aria-level="3">Overzicht</div>
     <p class="wiz-sam-intro">Controleer je rapport. Met "Wijzig" pas je een onderdeel aan en kom je hier terug.</p>
     ${kaart('Algemeen', 'algemeen',
-      rij('Datum', R.datum ? new Date(R.datum + 'T12:00:00').toLocaleDateString('nl-BE') : '') + rij('Technieker', R.technieker) + rij('Adres', R.adres) +
+      rij('Datum', R.datum ? new Date(R.datum + 'T12:00:00').toLocaleDateString('nl-BE', { day:'2-digit', month:'2-digit', year:'numeric' }) : '') + rij('Technieker', R.technieker) + rij('Adres', R.adres) +
       rij('Start – stop', `${R.start || '?'} – ${R.stop || '?'}`) + rij('Werktijd', R.werktijd) + rij('Type bezoek', R.interventieType))}
     ${inst ? '' : kaart('Facturatie', 'facturatie', rij('Facturatie aan', fact) + rij('Type interventie', stype) + rij('Aanrijtijd', R.aanrijtijdMin ? `${R.aanrijtijdMin} min` : ''))}
     ${kaart('Product', 'product',

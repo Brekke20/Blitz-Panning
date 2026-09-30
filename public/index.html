@@ -299,8 +299,8 @@
         </div>
       </div>
       <div class="set-field">
-        <label class="set-label" for="set-drukte">Drukte tonen op de route (verwachte vertraging per wegstuk)</label>
-        <label class="set-row"><input type="checkbox" id="set-drukte"> <span>Aan</span></label>
+        <div class="set-label" id="set-drukte-kop">Drukte tonen op de route (verwachte vertraging per wegstuk)</div>
+        <label class="set-row"><input type="checkbox" id="set-drukte" aria-describedby="set-drukte-kop"> <span>Aan</span></label>
       </div>
       <div class="set-field">
         <label class="set-label" id="set-werkdagen-label">Werkdagen</label>
@@ -1683,7 +1683,7 @@ function buildTicketCard(stop, dateStr, { showActions = true } = {}) {
       <button class="cal-unplan-x coord-only" title="Uit planning halen" aria-label="Uit planning halen" onclick="event.stopPropagation();bevestigUitplannen('${stop.ticket.id}','${dateStr}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;flex-shrink:0;padding:2px 4px;line-height:1">×</button>
     </div>
     ${showActions ? `<div class="cal-actions">
-      ${stop.ticket.phone || stop.ticket.telefoonEindklant ? `<a class="cal-btn" href="tel:${escHtml(telNummer(stop.ticket.telefoonEindklant||stop.ticket.phone))}">📞 Bellen</a>` : ''}
+      ${/\d/.test(telNummer(stop.ticket.telefoonEindklant||stop.ticket.phone)) ? `<a class="cal-btn" href="tel:${escHtml(telNummer(stop.ticket.telefoonEindklant||stop.ticket.phone))}">📞 Bellen</a>` : ''}
       ${stop.ticket.hasAddress ? `<button class="cal-btn btn-navigeer" data-adres="${escHtml(stop.address||stop.ticket.address||'')}">🧭 Navigeer</button>` : ''}
     </div>` : ''}`;
   card.querySelector('.btn-navigeer')?.addEventListener('click', e => {
@@ -1728,7 +1728,7 @@ function buildLocalEventCard(ev, { showActions = true } = {}) {
     ${adresLabel ? `<div class="cal-addr">${escHtml(adresLabel)}</div>` : ''}
     ${ev.persoon ? `<div class="cal-meta">${escHtml(ev.persoon)}</div>` : ''}
     ${showActions ? `<div class="cal-actions">
-      ${ev.telefoon ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(telNummer(ev.telefoon))}">📞 Bellen</a>` : ''}
+      ${/\d/.test(telNummer(ev.telefoon)) ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(telNummer(ev.telefoon))}">📞 Bellen</a>` : ''}
       ${adresLabel ? `<button class="cal-btn cal-ev-nav">🧭 Navigeer</button>` : ''}
     </div>` : ''}`;
   // ev.id komt uit de afspraken-blob (niet-geauthenticeerd) — via closure doorgeven i.p.v.
@@ -3146,7 +3146,7 @@ function openLocalEventDetail(ev) {
     adres
       ? `<div class="mrow"><span class="mlabel">Adres</span><span class="mval"><a href="#" class="mval-nav-link" data-adres="${escHtml(adres)}">${escHtml(adres)} ↗</a></span></div>`
       : '',
-    linkRow('Telefoon', ev.telefoon, `tel:${telNummer(ev.telefoon)}`),
+    /\d/.test(telNummer(ev.telefoon)) ? linkRow('Telefoon', ev.telefoon, `tel:${telNummer(ev.telefoon)}`) : row('Telefoon', ev.telefoon),
     linkRow('E-mail',   ev.email,    `mailto:${ev.email}`),
     ev.adres && ev.notitie ? row('Notitie', ev.notitie) : '',
     row('Technieker', ev.persoon),
@@ -4296,7 +4296,7 @@ function renderRouteList(date) {
           </div>
         </div>
         <div class="stop-actions">
-          ${ev.telefoon ? `<a class="sico" href="tel:${escHtml(telNummer(ev.telefoon))}" title="Bellen">📞 Bellen</a>` : ''}
+          ${/\d/.test(telNummer(ev.telefoon)) ? `<a class="sico" href="tel:${escHtml(telNummer(ev.telefoon))}" title="Bellen">📞 Bellen</a>` : ''}
           ${adres ? `<button class="sico btn-navigeer" title="Navigeren" data-adres="${escHtml(adres)}">🧭 Navigeer</button>` : ''}
           <button class="sico" title="Aankomst registreren" onclick="registerArrival('${ev.id}','${date}')">⏱️ Aankomst</button>
           <button class="sico btn-ev-details" title="Details">📋 Details</button>
@@ -5232,7 +5232,7 @@ function openDetail(t) {
   contactEl.innerHTML = contactActiesHtml(t);
   koppelAdresNavigatie(contactEl);
 
-  const row = (l, v, href, tel) => v ? `<div class="mrow"><span class="mlabel">${l}</span><span class="mval">${tel ? `<a href="tel:${escHtml(tel)}">${escHtml(v)}</a>` : href ? `<a href="${href}${escHtml(v)}">${escHtml(v)}</a>` : escHtml(v)}</span></div>` : '';
+  const row = (l, v, href, tel) => v ? `<div class="mrow"><span class="mlabel">${l}</span><span class="mval">${tel && /\d/.test(tel) ? `<a href="tel:${escHtml(tel)}">${escHtml(v)}</a>` : href ? `<a href="${href}${escHtml(v)}">${escHtml(v)}</a>` : escHtml(v)}</span></div>` : '';
   document.getElementById('d-klant').innerHTML = [
     row('Contact',  t.naamEindklant || t.contact),
     row('Bedrijf',  t.account),
@@ -6076,7 +6076,7 @@ function updateProposalPreview() {
       <div style="text-align:center;margin:14px 0">
         <a href="#" onclick="return false" style="display:inline-block;background:#00dfa3;color:#181e24;
           text-decoration:none;font-weight:700;font-size:13px;padding:10px 24px;border-radius:6px">
-          ✓ Bevestig deze afspraak
+          ✅ Bevestig deze afspraak
         </a>
       </div>
       <p style="margin:0 0 10px;font-size:12px;color:#3a3a3a">Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen, of antwoord op deze e-mail. Komt het voorgestelde tijdstip u niet uit? Laat het ons dan weten via een antwoord op deze e-mail, zodat we samen een alternatief zoeken. In bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.</p>
