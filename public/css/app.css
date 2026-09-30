@@ -341,6 +341,9 @@
     .kal-week-label:hover { background: var(--surface2); color: var(--text); }
     .kal-nav-group  { display: flex; align-items: center; gap: 2px; flex: 1 1 0; min-width: 150px; }
     .kal-label-wrap { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+    /* Computer/tablet: ‹ periode › als compact blok i.p.v. over de volle breedte (Brent, 2026-09-30) */
+    html:not([data-indeling="smal"]) .kal-nav-group  { flex: 0 0 auto; }
+    html:not([data-indeling="smal"]) .kal-label-wrap { flex: 0 0 190px; }
     .kal-actions    { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
     .kal-nav {
       background: var(--surface2); border: 1px solid var(--border); color: var(--text);

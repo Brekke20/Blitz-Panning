@@ -15,6 +15,12 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.9.2] — 2026-09-30
+
+### Changed
+- Kalenderkop op computer en tablet: de pijltjes ‹ › staan dicht bij de periode in plaats van
+  over de volle breedte.
+
 ## [1.9.1] — 2026-09-30
 
 UI/UX-traject fase 5: toegankelijkheid afronden en opruimen
