@@ -15,6 +15,7 @@ let _invEditVersie   = null;   // versie op het moment dat Edit geopend werd (vo
 let _invSeenLogIds   = null;   // Set<id> -- null = nog niet ge-baseline'd deze weergave-sessie
 let _invExportVan    = '';
 let _invExportTot    = '';
+let _invZoekPersoon  = null;   // voor wie de zoektekst gold; wisselen van technieker leegt ze
 let _invZoek         = '';     // zoektekst in de onderdelenlijst; blijft over herrenders heen
 
 const INV_API       = '/api/inventaris';
@@ -46,6 +47,7 @@ export async function loadInventaris() {
 // state-overgangen (invStartEdit/invCancelEdit/invSaveEdit) roepen doRenderInventaris()
 // rechtstreeks aan en omzeilen deze bewuste bescherming.
 export function renderInventaris(persoon) {
+  if (_invZoekPersoon !== persoon) { _invZoek = ''; _invZoekPersoon = persoon; }
   if (_invEditActive && _invEditPersoon === persoon) return;
   if (_invEditActive && _invEditPersoon !== persoon) {
     // Actieve edit-sessie voor een ANDERE technieker dan wie nu getoond wordt -- die sessie is

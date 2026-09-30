@@ -489,8 +489,10 @@
 <!-- Auto-plan resultaat modal -->
 <div class="overlay" id="result-overlay" onclick="closeResult(event)">
   <div class="modal" id="result-modal" role="dialog" aria-modal="true" aria-labelledby="result-titel">
-    <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeResult()" title="Sluiten" aria-label="Sluiten">✕</button>
-    <h3 id="result-titel">⚡ Planningsresultaat</h3>
+    <div class="mhdr">
+      <h3 id="result-titel">⚡ Planningsresultaat</h3>
+      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeResult()" title="Sluiten" aria-label="Sluiten">✕</button>
+    </div>
     <div id="result-body"></div>
   </div>
 </div>
@@ -498,8 +500,10 @@
 <!-- Foto's modal -->
 <div class="overlay" id="foto-overlay" onclick="closeFotoModal(event)">
   <div class="modal" id="foto-modal" role="dialog" aria-modal="true" aria-labelledby="foto-titel">
-    <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeFotoModal()" title="Sluiten" aria-label="Sluiten">✕</button>
-    <h3 id="foto-titel">📷 Foto's</h3>
+    <div class="mhdr">
+      <h3 id="foto-titel">📷 Foto's</h3>
+      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeFotoModal()" title="Sluiten" aria-label="Sluiten">✕</button>
+    </div>
     <div id="foto-grid" class="foto-grid"></div>
     <input type="file" id="foto-file-input" accept="image/*" multiple style="display:none" onchange="handleFotoFiles(this)">
     <button class="foto-add-btn" onclick="document.getElementById('foto-file-input').click()">+ Foto toevoegen</button>
@@ -1387,7 +1391,7 @@ function renderTickets() {
 
   // Teller en lege-tekst
   const teller = document.getElementById('wq-teller');
-  if (teller) teller.textContent = woorden.length ? `${gevonden.length} van ${totaal} tickets` : `${totaal} ticket${totaal === 1 ? '' : 's'}`;
+  if (teller) teller.textContent = woorden.length ? `${gevonden.length} van ${meervoud(totaal, 'ticket', 'tickets')}` : meervoud(totaal, 'ticket', 'tickets');
   if (woorden.length && !gevonden.length && totaal) {
     if (empty.dataset.orig === undefined) empty.dataset.orig = empty.textContent;
     empty.textContent = `Geen tickets gevonden voor '${wqZoek.trim()}'`;
@@ -2797,7 +2801,7 @@ function reconcilePlanning(knownIds) {
   }
   if (ghosts.length) {
     console.warn('Ghost tickets verwijderd uit planning:', ghosts);
-    toast(`⚠ ${ghosts.length} toekomstige afspraak${ghosts.length > 1 ? 'en' : ''} verwijderd (ticket gesloten in Zoho): ${ghosts.join(', ')}`, 5000);
+    toast(`⚠ ${meervoud(ghosts.length, 'toekomstige afspraak', 'toekomstige afspraken')} verwijderd (ticket gesloten in Zoho): ${ghosts.join(', ')}`, 5000);
     renderKalender();
     renderRouteList(document.getElementById('plan-date')?.value || localISO(new Date()));
   }
@@ -2904,7 +2908,7 @@ function renderImportModal(agents) {
   if (!sub || !list) return;
 
   const unmatched = _pendingImport.filter(a => !a.persoon).length;
-  sub.textContent = `${_pendingImport.length} afspraken · ${unmatched} onbekende technicus`;
+  sub.textContent = `${meervoud(_pendingImport.length, 'afspraak', 'afspraken')} · ${unmatched} onbekende technicus`;
 
   const agentOpts = (agents || []).map(a => `<option value="${escHtml(a)}">${escHtml(a)}</option>`).join('');
 
@@ -2961,7 +2965,7 @@ async function confirmImport() {
     localEvents = localEvents.filter(e => !nieuweItems.some(n => n.id === e.id));
     renderKalender();
   } else {
-    toast(`✓ ${nieuweItems.length} afspraken geïmporteerd`, 2500);
+    toast(`✓ ${meervoud(nieuweItems.length, 'afspraak', 'afspraken')} geïmporteerd`, 2500);
   }
 }
 
@@ -4067,7 +4071,7 @@ function clearDay() {
     activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
   );
   if (!stops.length) return;
-  if (!confirm(`Alle ${stops.length} stop${stops.length > 1 ? 's' : ''} verwijderen op ${date}?`)) return;
+  if (!confirm(`Alle ${meervoud(stops.length, 'stop', 'stops')} verwijderen op ${date}?`)) return;
   stops.forEach(s => removeTicketFromDate(s.ticket.id, date));
 }
 
@@ -5160,11 +5164,13 @@ function pasRolBeperkingToe() {
 // ══════════════════════════════════════════════
 // Grote contactknoppen (Bellen, Mailen, Navigeer) — gedeeld door ticketdetail en Ingepland.
 // Navigeer krijgt geen inline onclick: koppelAdresNavigatie() hangt de luisteraar eraan.
+// Nummer voor een tel:-link: "(0)" in Belgische notatie ("+32 (0)9 …") wordt weggelaten, daarna enkel cijfers en "+".
+function telNummer(tel) { return tel ? String(tel).replace(/\(0\)/g, '').replace(/[^\d+]/g, '') : ''; }
 function contactActiesHtml(t) {
   const tel  = t.telefoonEindklant || t.phone;
   const mail = t.emailEindklant || t.email;
   const knoppen = [];
-  const telNr = tel ? String(tel).replace(/[^\d+]/g, '') : '';
+  const telNr = telNummer(tel);
   if (/\d/.test(telNr)) knoppen.push(`<a class="btn btn--secondary btn--lg" href="tel:${escHtml(telNr)}"><span>📞 Bellen</span></a>`);
   const mailAdres = mail ? String(mail).trim() : '';
   if (/^[^\s@,;<>?&]+@[^\s@,;<>?&]+\.[^\s@,;<>?&]+$/.test(mailAdres)) knoppen.push(`<a class="btn btn--secondary btn--lg" href="mailto:${escHtml(encodeURIComponent(mailAdres).replace(/%40/g, '@'))}"><span>✉ Mailen</span></a>`);
@@ -5253,8 +5259,20 @@ function openDetail(t) {
   document.getElementById('det-overlay').classList.add('open');
 }
 
+// Dirty-controle van het KB-concept (gezet door renderKbSection; zelfde bron als de opslaan-knop)
+let _kbIsDirty = null;
 function closeDet(e) {
   if (e && e.target !== document.getElementById('det-overlay')) return;
+  if (_kbIsDirty && _kbIsDirty() && window.appConfirm) {
+    window.appConfirm({
+      titel: 'Niet-opgeslagen wijzigingen',
+      tekst: 'Je hebt wijzigingen in de klantbeschikbaarheid die nog niet zijn opgeslagen. Wil je ze weggooien?',
+      bevestigLabel: 'Weggooien', annuleerLabel: 'Terug', gevaar: true,
+      onBevestig: () => { _kbIsDirty = null; document.getElementById('det-overlay').classList.remove('open'); },
+    });
+    return;
+  }
+  _kbIsDirty = null;
   document.getElementById('det-overlay').classList.remove('open');
 }
 
@@ -6187,6 +6205,8 @@ function navigate(enc) {
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${enc}&travelmode=driving`, '_blank');
   }
 }
+// Enkelvoud/meervoud bij een telzin: meervoud(2, 'ticket', 'tickets') → '2 tickets'
+function meervoud(n, e, m) { return `${n} ${n === 1 ? e : m}`; }
 function fmtDate(s)     { return new Date(s).toLocaleDateString('nl-BE', { weekday:'short', day:'numeric', month:'short', year:'numeric' }); }
 function fmtDateShort(d){ const date = d instanceof Date ? d : new Date(d + 'T12:00:00'); return date.toLocaleDateString('nl-BE', { day:'numeric', month:'short' }); }
 function fmtSec(s)      { const h = Math.floor(s/3600), m = Math.round((s%3600)/60); return h > 0 ? `${h}u ${m}min` : `${m}min`; }
@@ -6221,6 +6241,7 @@ function renderKbSection(ticketId) {
     draft.duur == null ? settings.duurMinuten : draft.duur, draft.notitie]);
   const saved = stand();
   const isDirty = () => stand() !== saved;
+  _kbIsDirty = () => isDirty() || (/^\d{4}-\d{2}-\d{2}$/.test(el.querySelector(`#kb-blok-${ticketId}`)?.value || ''));
 
   el.innerHTML = `
     <div class="kb-section">

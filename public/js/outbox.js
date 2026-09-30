@@ -121,8 +121,8 @@ let _outboxLiveVorige = '';
 function outboxSamenvatting() {
   const fout = _outboxItems.filter(i => i.lastError).length;
   const wacht = _outboxItems.length - fout;
-  if (fout) return fout === 1 ? '1 rapport kon niet worden verzonden' : `${fout} rapporten konden niet worden verzonden`;
-  if (wacht) return wacht === 1 ? '1 rapport wacht op verzending' : `${wacht} rapporten wachten op verzending`;
+  if (fout) return fout === 1 ? '1 rapport kon niet worden verzonden' : `${meervoud(fout, 'rapport', 'rapporten')} konden niet worden verzonden`;
+  if (wacht) return wacht === 1 ? '1 rapport wacht op verzending' : `${meervoud(wacht, 'rapport', 'rapporten')} wachten op verzending`;
   return '';
 }
 function werkOutboxLiveBij() {

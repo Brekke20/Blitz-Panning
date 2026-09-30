@@ -950,7 +950,10 @@
     /* ── Auto-plan resultaat ── */
     #result-overlay { align-items: center; padding: 24px; }
     #result-modal { border-radius: var(--r-lg); max-width: 480px; padding: 22px; position: relative; }
-    #result-modal h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 14px; }
+    #result-modal h3 { font-size: 0.95rem; font-weight: 700; margin: 0; padding-right: 40px; }
+    #result-modal .mhdr { margin: -22px -22px 14px; top: -22px; border-radius: var(--r-lg) var(--r-lg) 0 0; }
+    #result-modal .mhdr, #foto-modal .mhdr { min-height: 58px; display: flex; align-items: center; }
+    #foto-modal .mhdr h3 { padding-right: 40px; }
     .result-section { margin-bottom: 14px; }
     .result-section-title { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
     .result-item { font-size: 0.8rem; padding: 5px 0; border-bottom: 1px solid var(--border); display: flex; gap: 9px; }
