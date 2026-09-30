@@ -2,8 +2,6 @@
 // Taak 1: het bestaande algoritme van autoPlan() ongewijzigd verhuisd (karakterisatie).
 // Tijden binnen het brein zijn minuten na middernacht (lokaal); datums 'YYYY-MM-DD'.
 
-const PRIO_WEIGHT = { high: 1, medium: 3, low: 6 };
-
 function timeStrToMin(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;
@@ -22,15 +20,7 @@ export function haversine(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Urgentie: daalt naarmate de due date nadert (max 1.0, min 0.1); zonder due date neutraal 1.0.
-function urgentieFactor(t, vandaag) {
-  if (!t.interventieDatum) return 1.0;
-  const today0 = new Date(vandaag + 'T00:00:00');
-  const due = new Date(t.interventieDatum); due.setHours(0, 0, 0, 0);
-  return Math.max(0.1, Math.min(1.0, (due - today0) / 86400000 / 7));
-}
-
-// Kalenderdag 'YYYY-MM-DD' van een datum of ISO-tijdstip (lokale dag, zoals urgentieFactor).
+// Kalenderdag 'YYYY-MM-DD' van een datum of ISO-tijdstip (lokale dag).
 function dagVan(x) {
   if (!x) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(x)) return x;
@@ -106,22 +96,35 @@ export async function planWeek(invoer) {
   const kbPreferred = id => kbFor(id)?.voorkeur || null;
   const kbPreferredTime = id => kbFor(id)?.voorkeurTijd || null;
 
-  // Reistijd vanaf (fromLat, fromLon) naar alle kandidaten met coords, via de ingespoten functie.
-  // Ontbrekende cellen (null/undefined) en een lege Map = fail-open.
-  async function batchTravelTimes(cands, fromLat, fromLon, departAtIso) {
-    const withCoords = cands.filter(c => c.lat && c.lon);
-    if (!fromLat || !fromLon || !withCoords.length) return new Map();
-    return (await reistijden({ lat: fromLat, lon: fromLon }, withCoords.map(c => ({ id: c.id, lat: c.lat, lon: c.lon })), departAtIso)) || new Map();
+  // Reistijdgeheugen (4.1): per planWeek-aanroep, sleutel `${van.lat},${van.lon}|${naar.id}|${vertrekkwartier}`.
+  // Alleen ontbrekende sleutels gaan naar `reistijden`. Een ontbrekende of ongeldige waarde (null, geen Map,
+  // gooit) wordt de schatting km x 1,3 (R6) met markering `geschat`; er is geen fail-open meer.
+  const geheugen = new Map(); // sleutel -> { min, geschat }
+  const heeftLoc = x => !!(x && x.lat && x.lon);
+  async function reistijdenVan(van, cands, dag, vertrekMin) {
+    const uit = new Map();
+    if (!heeftLoc(van)) return uit;
+    const lijst = cands.filter(heeftLoc);
+    const vertrekIso = minToDepartAt(dag, Math.floor(vertrekMin / 15) * 15);
+    const sleutel = c => `${van.lat},${van.lon}|${c.id}|${vertrekIso}`;
+    const ontbreekt = lijst.filter(c => !geheugen.has(sleutel(c)));
+    if (ontbreekt.length) {
+      let antwoord = null;
+      try { antwoord = await reistijden({ lat: van.lat, lon: van.lon }, ontbreekt.map(c => ({ id: c.id, lat: c.lat, lon: c.lon })), vertrekIso); }
+      catch { antwoord = null; }
+      for (const c of ontbreekt) {
+        const v = antwoord && typeof antwoord.get === 'function' ? antwoord.get(c.id) : null;
+        geheugen.set(sleutel(c), (typeof v === 'number' && isFinite(v))
+          ? { min: v, geschat: false }
+          : { min: haversine(van.lat, van.lon, c.lat, c.lon) * 1.3, geschat: true });
+      }
+    }
+    for (const c of lijst) uit.set(c.id, geheugen.get(sleutel(c)));
+    return uit;
   }
-
-  // Scoringformule: prio_gewicht x afstand_km x urgentie_factor; lagere score = betere kandidaat.
-  function fillScore(t, fromLat, fromLon) {
-    const pw = PRIO_WEIGHT[(t.priority || '').toLowerCase()] ?? 9;
-    const dist = (t.lat && t.lon && fromLat && fromLon)
-      ? haversine(fromLat, fromLon, t.lat, t.lon)
-      : 999; // geen coords → achteraan
-    return pw * dist * urgentieFactor(t, vandaag);
-  }
+  const geschatIds = new Set();   // waarschuwing 'reistijd-geschat'
+  const onbekendIds = new Set();  // waarschuwing 'locatie-onbekend' (stop-ids)
+  const noteerGeschat = (id, r) => { if (r?.geschat) geschatIds.add(id); };
 
   // Redenen, van meest naar minst specifiek (3.6): het brein houdt de meest specifieke bij.
   const REDEN_RANG = ['adres-niet-gevonden', 'voorkeursdag-afstand', 'voorkeursdag-vol', 'vast-uur-botst', 'te-ver', 'klant-geblokkeerd', 'geen-plaats'];
@@ -130,22 +133,25 @@ export async function planWeek(invoer) {
     const huidig = redenVan.get(id);
     if (!huidig || REDEN_RANG.indexOf(reden) < REDEN_RANG.indexOf(huidig)) redenVan.set(id, reden);
   };
+  const legeDagGehad = new Set(); // tickets die op een nog lege dag kans op de starterplaats kregen
 
-  // Tijdlijn-hulp (3.3): vaste blokken van een dag als { s, e, lat, lon } in minuten; lat/lon mogen null zijn.
+  // Tijdlijn-hulp (3.3): vaste blokken van een dag als { s, e, lat, lon, stop, id } in minuten.
+  // `stop` = een echte stop in de keten (bestaand ticket, of eigen afspraak met locatie); blokkeringen niet.
   function vasteBlokken(dag) {
     const blokken = [];
     for (const p of (bestaandPerDag[dag] || [])) {
       if (!p.uur) continue;
       const s = timeStrToMin(p.uur);
-      blokken.push({ s, e: s + p.duurMin, lat: p.lat ?? null, lon: p.lon ?? null });
+      blokken.push({ s, e: s + p.duurMin, lat: p.lat ?? null, lon: p.lon ?? null, stop: true, id: p.id });
     }
     for (const e of (eigenAfspraken[dag] || [])) {
       if (!e.uur) continue;
       const s = timeStrToMin(e.uur);
-      blokken.push({ s, e: s + (e.duurMin || 60), lat: e.lat ?? null, lon: e.lon ?? null });
+      const lat = e.lat ?? null, lon = e.lon ?? null;
+      blokken.push({ s, e: s + (e.duurMin || 60), lat, lon, stop: !!(lat && lon), id: 'eigen@' + e.uur });
     }
     for (const r of (blokkeringen[dag] || [])) {
-      blokken.push({ s: timeStrToMin(r.van), e: timeStrToMin(r.tot), lat: null, lon: null });
+      blokken.push({ s: timeStrToMin(r.van), e: timeStrToMin(r.tot), lat: null, lon: null, stop: false, id: null });
     }
     return blokken.sort((a, b) => a.s - b.s);
   }
@@ -164,7 +170,9 @@ export async function planWeek(invoer) {
     voorbijBlokken(vasteBlokken(d), vanTijdMin) <= laatsteStartMin;
 
   const geplaatst = [];
-  const pool = kandidaten.slice();
+  // Kandidaten zonder coordinaten worden nooit geplaatst (Review Focus 1): reden 'adres-niet-gevonden'.
+  for (const t of kandidaten) if (!heeftLoc(t)) noteer(t.id, 'adres-niet-gevonden');
+  const pool = kandidaten.filter(heeftLoc);
 
   // Voorkeursplanning: een ticket met bruikbare voorkeursdag wacht op die dag.
   const prefDayAvailable = new Map(); // ticketId → dayStr
@@ -180,8 +188,12 @@ export async function planWeek(invoer) {
     let aantal = bestaand.length; // maxPerDag telt tickets: bestaande + nieuwe
     const blokken = vasteBlokken(dag);
     const dagGeplaatst = []; // { t, aank }
+    const keten = bestaand.filter(x => !x.uur); // bestaande stops zonder uur, vooraan vanaf vanTijd
+    let ketenLoc = keten.some(heeftLoc);
+    // 3.4: heeft de dag minstens één stop met gekende locatie? Zo niet, dan geldt hij als leeg.
+    const dagHeeftLocatie = () => ketenLoc || blokken.some(b => b.stop && heeftLoc(b));
 
-    // Kandidaten die deze dag in aanmerking komen (klant, voorkeursdag, extra dag).
+    // Op een extra dag mogen enkel de tickets uit extraVoor[datum]; klant-, voorkeursdag-uitsluitingen.
     const toegelaten = t => {
       if (!magOpDag(t.id, dag)) return false;
       if (kbBlocked(t.id, dag)) return false;
@@ -191,95 +203,107 @@ export async function planWeek(invoer) {
     };
 
     // Pass 0: tickets met voorkeursuur staan exact op hun uur (buiten de laatsteStart-grens).
+    // 45-min-regel (3.4): reistijd vanaf de stop net vóór dat uur met gekende locatie.
     const vastePool = pool.filter(t => kbPreferredTime(t.id) && toegelaten(t))
       .sort((a, b) => voorrang(b, vandaag) - voorrang(a, vandaag));
     for (const t of vastePool) {
       if (aantal >= maxPerDag) { noteer(t.id, 'geen-plaats'); continue; }
       const s = timeStrToMin(kbPreferredTime(t.id));
       if (overlapt(blokken, s, s + t.duurMin).length) { noteer(t.id, 'vast-uur-botst'); continue; }
-      blokken.push({ s, e: s + t.duurMin, lat: t.lat ?? null, lon: t.lon ?? null });
+      // Referentiestop: de laatste eerdere stop (in tijd) met locatie; de stop vlak ervoor mag locatie-loos zijn.
+      const eerder = blokken.filter(b => b.stop && b.e <= s).sort((a, b) => a.e - b.e);
+      let vorige = eerder[eerder.length - 1] ?? null;
+      let ref = [...eerder].reverse().find(heeftLoc) ?? null;
+      let refVertrek = ref ? ref.e : vanTijdMin;
+      if (!vorige && keten.length && s >= vanTijdMin) { // geen blok vóór dit uur: de keten staat vooraan de dag
+        vorige = keten[keten.length - 1];
+        ref = [...keten].reverse().find(heeftLoc) ?? null;
+      }
+      if (ref) {
+        const r = (await reistijdenVan(ref, [t], dag, refVertrek)).get(t.id);
+        noteerGeschat(t.id, r);
+        if (r && r.min > maxReistijdMin) { noteer(t.id, 'te-ver'); continue; }
+        if (vorige && !heeftLoc(vorige)) onbekendIds.add(vorige.id);
+      }
+      blokken.push({ s, e: s + t.duurMin, lat: t.lat, lon: t.lon, stop: true, id: t.id });
       blokken.sort((a, b) => a.s - b.s);
       dagGeplaatst.push({ t, aank: s });
       pool.splice(pool.indexOf(t), 1);
       aantal++;
     }
 
-    // De klok en de laatste stop met gekende locatie (anker). Zonder anker geldt de dag als leeg.
+    // De klok, de laatste stop (vorige) en de laatste stop met gekende locatie (anker).
     let klok = vanTijdMin;
     let anker = null;
+    let vorige = null;
     const gepasseerd = new Set();
-    const passeer = t => { // blokken die vóór tijdstip t eindigen zijn voorbij: hun locatie is het anker
-      for (const b of blokken.filter(x => x.e <= t && !gepasseerd.has(x)).sort((a, c) => a.e - c.e)) {
+    const passeer = t => { // stops die vóór tijdstip t eindigen zijn voorbij
+      for (const b of blokken.filter(x => x.stop && x.e <= t && !gepasseerd.has(x)).sort((a, c) => a.e - c.e)) {
         gepasseerd.add(b);
-        if (b.lat && b.lon) anker = { lat: b.lat, lon: b.lon };
+        vorige = b;
+        if (heeftLoc(b)) anker = { lat: b.lat, lon: b.lon };
       }
     };
     const normaliseer = () => { klok = voorbijBlokken(blokken, klok); passeer(klok); };
-    const positie = () => anker ?? (depot?.lat && depot?.lon ? { lat: depot.lat, lon: depot.lon } : null);
-    const reis = async (cands, vertrek) => {
-      const pos = positie();
-      return batchTravelTimes(cands, pos?.lat ?? null, pos?.lon ?? null, minToDepartAt(dag, vertrek));
-    };
+    const positie = () => anker ?? (heeftLoc(depot) ? { lat: depot.lat, lon: depot.lon } : null);
+    const reis = (cands, vertrek) => reistijdenVan(positie(), cands, dag, vertrek);
 
     // Bestaande stops zonder uur: vooraan in de keten vanaf vanTijd, in hun huidige volgorde.
-    for (const p of bestaand.filter(x => !x.uur)) {
+    for (const p of keten) {
       normaliseer();
-      const heeftLoc = p.lat && p.lon;
-      const leg = heeftLoc ? ((await reis([{ id: p.id, lat: p.lat, lon: p.lon }], klok)).get(p.id) ?? 0) : 0;
+      const leg = heeftLoc(p) ? ((await reis([p], klok)).get(p.id)?.min ?? 0) : 0;
       let aank = klok + leg;
       let b;
       while ((b = overlapt(blokken, aank, aank + p.duurMin)[0])) { klok = b.e; normaliseer(); aank = klok; }
       passeer(aank);
       klok = aank + p.duurMin;
-      if (heeftLoc) anker = { lat: p.lat, lon: p.lon };
+      vorige = p;
+      if (heeftLoc(p)) anker = { lat: p.lat, lon: p.lon };
     }
 
-    // Vrije tickets: starter op de hoogste voorrang (lege dag), daarna aanvullen op fillScore.
-    let vrijGeplaatst = 0;
+    // Vrije tickets. Lege dag (geen stop met locatie): starter = hoogste voorrang, geen afstandscontrole.
+    // Anders aanvullen op laagste reistijdMin / voorrang, met de 45-min-regel vanaf de vorige stop met locatie.
     while (aantal < maxPerDag && pool.length) {
       normaliseer();
       if (klok > laatsteStartMin) break;
       const fillPool = pool.filter(t => !kbPreferredTime(t.id) && toegelaten(t));
       if (!fillPool.length) break;
-      const pos = positie();
       const tijden = await reis(fillPool, klok);
-      if (vrijGeplaatst === 0) {
-        // R3 (Taak 4 behouden tot Taak 6): eerste vrije ticket = hoogste voorrang; gelijk => kortste reistijd vanaf de huidige positie (depot of anker); dan laagste ticketnummer.
-        const vanDepot = t => {
-          const m = tijden.get(t.id);
-          if (m !== undefined && m !== null) return m;
-          return (depot?.lat && depot?.lon && t.lat && t.lon) ? haversine(depot.lat, depot.lon, t.lat, t.lon) : Infinity;
-        };
-        const vrScore = new Map(fillPool.map(t => [t.id, voorrang(t, vandaag)]));
-        fillPool.sort((a, b) =>
-          (vrScore.get(b.id) - vrScore.get(a.id)) ||
-          (vanDepot(a) - vanDepot(b) || 0) ||
-          String(a.number ?? '').localeCompare(String(b.number ?? ''), 'nl', { numeric: true }));
+      const reisMin = c => tijden.get(c.id)?.min ?? 0;
+      const vr = new Map(fillPool.map(t => [t.id, voorrang(t, vandaag)]));
+      const nummer = (a, b) => String(a.number ?? '').localeCompare(String(b.number ?? ''), 'nl', { numeric: true });
+      const starter = !dagHeeftLocatie();
+      if (starter) {
+        fillPool.forEach(t => legeDagGehad.add(t.id));
+        fillPool.sort((a, b) => (vr.get(b.id) - vr.get(a.id)) || (reisMin(a) - reisMin(b)) || nummer(a, b));
       } else {
-        fillPool.sort((a, b) => fillScore(a, pos?.lat ?? null, pos?.lon ?? null) - fillScore(b, pos?.lat ?? null, pos?.lon ?? null));
+        const score = c => reisMin(c) / vr.get(c.id);
+        fillPool.sort((a, b) => (score(a) - score(b)) || (vr.get(b.id) - vr.get(a.id)) || nummer(a, b));
       }
 
       let gekozen = null, sprong = null;
       for (const c of fillPool) {
-        const heeftLoc = c.lat && c.lon;
-        const reisMin = tijden.get(c.id);
-        // Afstandscontrole enkel met anker; ontbrekende reistijd = fail-open (Taak 6 vervangt dit door een schatting).
-        if (anker && heeftLoc && typeof reisMin === 'number' && reisMin > maxReistijdMin) continue;
-        const aank = klok + (typeof reisMin === 'number' ? reisMin : 0);
+        const r = tijden.get(c.id);
+        const aank = klok + (r?.min ?? 0);
         if (aank > laatsteStartMin) continue;
         const b = overlapt(blokken, aank, aank + c.duurMin)[0];
         if (b) { if (!sprong || b.e < sprong.e) sprong = b; continue; }
+        noteerGeschat(c.id, r);
+        if (!starter && anker && r && r.min > maxReistijdMin) { noteer(c.id, 'te-ver'); continue; }
         gekozen = { c, aank };
         break;
       }
       if (gekozen) {
         const { c, aank } = gekozen;
         passeer(aank);
+        if (!starter && anker && vorige && !heeftLoc(vorige)) onbekendIds.add(vorige.id);
         pool.splice(pool.indexOf(c), 1);
         dagGeplaatst.push({ t: c, aank });
-        aantal++; vrijGeplaatst++;
+        aantal++;
         klok = aank + c.duurMin;
-        if (c.lat && c.lon) anker = { lat: c.lat, lon: c.lon };
+        vorige = c;
+        anker = { lat: c.lat, lon: c.lon };
+        ketenLoc = true;
       } else if (sprong) {
         klok = sprong.e; // klok springt naar het einde van het blok; normaliseer() zet het anker
       } else {
@@ -295,10 +319,17 @@ export async function planWeek(invoer) {
   for (const t of pool) {
     const toegestaneDagen = dagen.filter(d => magOpDag(t.id, d) && (!prefDayAvailable.get(t.id) || prefDayAvailable.get(t.id) === d));
     if (toegestaneDagen.length && toegestaneDagen.every(d => kbBlocked(t.id, d))) noteer(t.id, 'klant-geblokkeerd');
+    // 'te-ver' enkel als er geen lege dag meer was: kreeg het ticket op een lege dag kans, dan was de week gewoon vol.
+    if (redenVan.get(t.id) === 'te-ver' && legeDagGehad.has(t.id)) redenVan.set(t.id, 'geen-plaats');
   }
 
-  const nietGepland = pool.map(t => ({ ticketId: t.id, reden: redenVan.get(t.id) || 'geen-plaats' }));
-  return { geplaatst, nietGepland, waarschuwingen: [] };
+  const geplaatstIds = new Set(geplaatst.map(g => g.ticketId));
+  const nietGepland = kandidaten.filter(t => !geplaatstIds.has(t.id))
+    .map(t => ({ ticketId: t.id, reden: redenVan.get(t.id) || 'geen-plaats' }));
+  const waarschuwingen = [];
+  if (geschatIds.size) waarschuwingen.push({ soort: 'reistijd-geschat', ticketIds: [...geschatIds] });
+  if (onbekendIds.size) waarschuwingen.push({ soort: 'locatie-onbekend', ticketIds: [...onbekendIds] });
+  return { geplaatst, nietGepland, waarschuwingen };
 }
 
 if (typeof window !== 'undefined') { window.planWeek = planWeek; window.bouwDagen = bouwDagen; }

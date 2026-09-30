@@ -109,27 +109,30 @@ const ids = u => u.geplaatst.map(g => g.ticketId);
 test('huidig: te verre kandidaat wordt niet geseed of gevuld na bestaande stop, nabije wel', async () => {
   const u = await planWeek(maakEenDag([VER, NABIJ]));
   assert.deepEqual(ids(u), ['nabij']);
-  assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'geen-plaats' }]);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'te-ver' }]); // gewijzigd door R6: enkel door de afstandsregel geweigerd, geen lege dag → 'te-ver' (was 'geen-plaats')
 });
 
-test('huidig: lege reistijden-Map (fout) is fail-open, verre kandidaat wordt aanvaard', async () => {
-  // als seed (enige kandidaat): zonder fail-open zou VER (~90 min) geweigerd worden
+// gewijzigd door R6: een lege Map (uitval) is niet langer fail-open; de 45-min-regel werkt op de schatting km x 1,3
+// (Antwerpen -> Hasselt is ~98 geschatte minuten) en er komt een waarschuwing 'reistijd-geschat'.
+test('huidig: lege reistijden-Map (fout) → schatting, verre kandidaat wordt geweigerd', async () => {
   const alleen = await planWeek(maakEenDag([VER], { reistijden: async () => new Map() }));
-  assert.deepEqual(ids(alleen), ['ver']);
-  // gewijzigd door R3: seed = VER (High, hoogste voorrang) en wordt fail-open aanvaard; NABIJ volgt in de fill-lus
+  assert.deepEqual(ids(alleen), []);
+  assert.deepEqual(alleen.nietGepland, [{ ticketId: 'ver', reden: 'te-ver' }]);
+  assert.deepEqual(alleen.waarschuwingen, [{ soort: 'reistijd-geschat', ticketIds: ['ver'] }]);
   const u = await planWeek(maakEenDag([VER, NABIJ], { reistijden: async () => new Map() }));
-  assert.deepEqual(ids(u), ['ver', 'nabij']);
-  assert.deepEqual(u.nietGepland, []);
+  assert.deepEqual(ids(u), ['nabij']);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'te-ver' }]);
 });
 
-test('huidig: null-cel voor de verre kandidaat is fail-open, verre kandidaat wordt aanvaard', async () => {
+// gewijzigd door R6: een null-cel is niet langer fail-open maar wordt de schatting (waarschuwing 'reistijd-geschat').
+test('huidig: null-cel voor de verre kandidaat → schatting, verre kandidaat wordt geweigerd', async () => {
   const reistijden = async (van, naar) => new Map(naar.map(n => [n.id, n.id === 'ver' ? null : 3]));
   const alleen = await planWeek(maakEenDag([VER], { reistijden }));
-  assert.deepEqual(ids(alleen), ['ver']);
-  // gewijzigd door R3: seed = VER (High, hoogste voorrang), null-cel is fail-open; NABIJ volgt in de fill-lus
+  assert.deepEqual(ids(alleen), []);
   const u = await planWeek(maakEenDag([VER, NABIJ], { reistijden }));
-  assert.deepEqual(ids(u), ['ver', 'nabij']);
-  assert.deepEqual(u.nietGepland, []);
+  assert.deepEqual(ids(u), ['nabij']);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'te-ver' }]);
+  assert.deepEqual(u.waarschuwingen, [{ soort: 'reistijd-geschat', ticketIds: ['ver'] }]);
 });
 
 test('huidig: fill-lus slaat te verre kandidaat over ten voordele van de volgende binnen 45 min', async () => {
@@ -382,9 +385,162 @@ test('reden: geblokkeerd op alle dagen → klant-geblokkeerd', async () => {
   assert.deepEqual(u.nietGepland, [{ ticketId: 'a', reden: 'klant-geblokkeerd' }]);
 });
 
-test('fail-open: depot null en kandidaten zonder coördinaten → geen crash, alles geplaatst', async () => {
+// gewijzigd door R6: kandidaten zonder coordinaten worden nooit geplaatst ('adres-niet-gevonden'); geen crash met depot null.
+test('geen coords: depot null en kandidaten zonder coördinaten → geen crash, niets geplaatst, adres-niet-gevonden', async () => {
   const ks = [kand('a', 1, { lat: null, lon: null }), kand('b', 2, { lat: null, lon: null }), kand('c', 3, { lat: null, lon: null })];
   const u = await planWeek(tijdlijn(ks, { depot: null }));
-  assert.equal(u.geplaatst.length, 3);
-  assert.deepEqual(u.nietGepland, []);
+  assert.deepEqual(u.geplaatst, []);
+  assert.deepEqual(u.nietGepland.map(n => n.reden), ['adres-niet-gevonden', 'adres-niet-gevonden', 'adres-niet-gevonden']);
+});
+
+// ---- R6: afstandsregel, aanvullen, geheugen, schatting ------------------------
+const ANT = { lat: 51.2, lon: 4.4 };
+const vast = (tabel, std = 3) => async (van, naar) => new Map(naar.map(n => [n.id, tabel[n.id] ?? std]));
+const bestaandAnt = (extra = {}) => ({ [EEN]: [{ id: 'x', uur: '08:00', duurMin: 60, ...ANT, ...extra }] });
+const mk = (id, nr, extra = {}) => ({ ...basisK, id, number: String(nr), priority: 'Medium', ...ANT, duurMin: 60, ...extra });
+
+test('afstand: twee Hoog-tickets 150 km uit elkaar komen op verschillende dagen', async () => {
+  const a = mk('a', 1, { priority: 'High' });
+  const b = mk('b', 2, { priority: 'High', lat: 49.85, lon: 4.4 });
+  const u = await planWeek(maakInvoer({ kandidaten: [a, b], dagen: ['2026-10-05', '2026-10-06'] }));
+  assert.equal(datumsVan(u, 'a')[0], '2026-10-05');
+  assert.equal(datumsVan(u, 'b')[0], '2026-10-06');
+});
+
+test('afstand: dag met bestaande stop → nieuw ticket op 60 min komt er niet bij, op 30 min wel', async () => {
+  const ins = { kandidaten: [mk('n', 1)], dagen: [EEN], bestaandPerDag: bestaandAnt() };
+  const ver = await planWeek(maakInvoer({ ...ins, reistijden: vast({ n: 60 }) }));
+  assert.deepEqual(ver.geplaatst, []);
+  assert.deepEqual(ver.nietGepland, [{ ticketId: 'n', reden: 'te-ver' }]);
+  const dicht = await planWeek(maakInvoer({ ...ins, reistijden: vast({ n: 30 }) }));
+  assert.deepEqual(ids(dicht), ['n']);
+});
+
+test('afstand: starter alleen op lege dag', async () => {
+  // dag 1 heeft een bestaande stop in Antwerpen, dag 2 is leeg: het verre Hoog-ticket (hoogste voorrang) mag enkel op dag 2
+  const hoogVer = mk('ver', 1, { priority: 'High', lat: 50.93, lon: 5.34 });
+  const laagNabij = mk('nabij', 2, { priority: 'Low' });
+  const u = await planWeek(maakInvoer({
+    kandidaten: [hoogVer, laagNabij], dagen: ['2026-10-05', '2026-10-06'], bestaandPerDag: bestaandAnt(),
+    instellingen: inst(),
+  }));
+  assert.deepEqual(datumsVan(u, 'nabij'), ['2026-10-05']);
+  assert.deepEqual(datumsVan(u, 'ver'), ['2026-10-06']);
+});
+
+test('aanvullen: Hoog op 40 min wint van Laag op 15 min (40/3 < 15/1)', async () => {
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('hoog', 1, { priority: 'High' }), mk('laag', 2, { priority: 'Low' })], dagen: [EEN],
+    bestaandPerDag: bestaandAnt(), instellingen: inst({ maxPerDag: 2 }), reistijden: vast({ hoog: 40, laag: 15 }),
+  }));
+  assert.deepEqual(ids(u), ['hoog']);
+});
+
+test('aanvullen: Laag op 10 min wint van Hoog op 44 min (10/1 < 44/3)', async () => {
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('hoog', 1, { priority: 'High' }), mk('laag', 2, { priority: 'Low' })], dagen: [EEN],
+    bestaandPerDag: bestaandAnt(), instellingen: inst({ maxPerDag: 2 }), reistijden: vast({ hoog: 44, laag: 10 }),
+  }));
+  assert.deepEqual(ids(u), ['laag']);
+});
+
+test('uitval: reistijden geeft null → 45-min-regel werkt op schatting en waarschuwing reistijd-geschat', async () => {
+  const nul = async (van, naar) => new Map(naar.map(n => [n.id, null]));
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('dicht', 1), mk('ver', 2, { lat: 50.93, lon: 5.34 })], dagen: [EEN],
+    bestaandPerDag: bestaandAnt(), reistijden: nul,
+  }));
+  assert.deepEqual(ids(u), ['dicht']);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'te-ver' }]);
+  const w = u.waarschuwingen.find(x => x.soort === 'reistijd-geschat');
+  assert.ok(w && w.ticketIds.includes('ver') && w.ticketIds.includes('dicht'));
+});
+
+test('uitval: reistijden die gooit → schatting i.p.v. crash', async () => {
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('ver', 1, { lat: 50.93, lon: 5.34 })], dagen: [EEN],
+    bestaandPerDag: bestaandAnt(), reistijden: async () => { throw new Error('netwerk'); },
+  }));
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'te-ver' }]);
+});
+
+test('geheugen: zelfde paar wordt niet twee keer opgevraagd', async () => {
+  const gezien = new Map();
+  const spion = async (van, naar, iso) => {
+    for (const n of naar) {
+      const k = `${van.lat},${van.lon}|${n.id}|${iso}`;
+      gezien.set(k, (gezien.get(k) || 0) + 1);
+    }
+    return new Map(naar.map(n => [n.id, 5]));
+  };
+  const ks = Array.from({ length: 6 }, (_, i) => mk('k' + i, i + 1, { priority: i % 2 ? 'High' : 'Low', lat: 51.2 + i * 0.01 }));
+  const u = await planWeek(maakInvoer({ kandidaten: ks, dagen: DAGEN.slice(0, 2), reistijden: spion, instellingen: inst({ maxPerDag: 3 }) }));
+  assert.ok(u.geplaatst.length >= 4);
+  assert.ok(gezien.size > 0);
+  for (const [k, n] of gezien) assert.equal(n, 1, `dubbel opgevraagd: ${k}`);
+});
+
+test('geen coords: kandidaat zonder lat → adres-niet-gevonden, rest gewoon gepland', async () => {
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('a', 1), mk('zonder', 2, { lat: null, lon: null }), mk('c', 3)], dagen: [EEN],
+  }));
+  assert.deepEqual(ids(u).sort(), ['a', 'c']);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'zonder', reden: 'adres-niet-gevonden' }]);
+});
+
+test('locatie-onbekend: laatste bestaande stop zonder coords → waarschuwing, anker = eerdere stop met coords', async () => {
+  const bestaand = { [EEN]: [
+    { id: 'a', uur: '08:00', duurMin: 60, ...ANT },
+    { id: 'b', uur: '09:00', duurMin: 60, lat: null, lon: null },
+  ] };
+  // Reistijd wordt gemeten vanaf 'a' (het anker): dicht = 10, ver = 90
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('dicht', 1), mk('ver', 2)], dagen: [EEN], bestaandPerDag: bestaand,
+    instellingen: inst({ maxPerDag: 4 }),
+    reistijden: async (van, naar) => {
+      assert.deepEqual({ lat: van.lat, lon: van.lon }, ANT);
+      return new Map(naar.map(n => [n.id, n.id === 'dicht' ? 10 : 90]));
+    },
+  }));
+  assert.deepEqual(ids(u), ['dicht']);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'te-ver' }]);
+  assert.deepEqual(u.waarschuwingen, [{ soort: 'locatie-onbekend', ticketIds: ['b'] }]);
+});
+
+test('locatie-onbekend: enkel stops zonder coords → dag geldt als leeg (starter zonder afstandscontrole)', async () => {
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('ver', 1, { lat: 50.93, lon: 5.34 })], dagen: [EEN],
+    bestaandPerDag: { [EEN]: [{ id: 'b', uur: '08:00', duurMin: 60, lat: null, lon: null }] },
+    reistijden: vast({ ver: 99 }),
+  }));
+  assert.deepEqual(ids(u), ['ver']);
+  assert.deepEqual(u.waarschuwingen.filter(w => w.soort === 'locatie-onbekend'), []);
+});
+
+test('voorkeursuur: 45-min-regel vanaf de stop net vóór het uur', async () => {
+  const ins = { dagen: [EEN], bestaandPerDag: bestaandAnt(), klant: { v: { voorkeurTijd: '12:00' } } };
+  const dicht = await planWeek(maakInvoer({ ...ins, kandidaten: [mk('v', 1)], reistijden: vast({ v: 30 }) }));
+  assert.deepEqual(dicht.geplaatst, [{ ticketId: 'v', datum: EEN, verwachteAankomst: '12:00' }]);
+  const ver = await planWeek(maakInvoer({ ...ins, kandidaten: [mk('v', 1)], reistijden: vast({ v: 60 }) }));
+  assert.deepEqual(ver.geplaatst, []);
+  assert.deepEqual(ver.nietGepland, [{ ticketId: 'v', reden: 'te-ver' }]);
+});
+
+test('reden: enkel te ver voor elke niet-lege dag en geen lege dag meer → te-ver', async () => {
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('ver', 1, { lat: 50.93, lon: 5.34 })], dagen: ['2026-10-05', '2026-10-06'],
+    bestaandPerDag: { '2026-10-05': bestaandAnt()[EEN], '2026-10-06': [{ id: 'y', uur: '08:00', duurMin: 60, ...ANT }] },
+    reistijden: vast({ ver: 90 }),
+  }));
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'te-ver' }]);
+});
+
+test('reden: te ver op dag 1 maar verliest de starter op lege dag 2 → geen-plaats', async () => {
+  const u = await planWeek(maakInvoer({
+    kandidaten: [mk('hoog', 1, { priority: 'High', lat: 50.93, lon: 5.34 }), mk('ver', 2, { lat: 50.93, lon: 5.34, priority: 'Low' })],
+    dagen: ['2026-10-05', '2026-10-06'], bestaandPerDag: bestaandAnt(),
+    instellingen: inst({ maxPerDag: 2 }), reistijden: vast({ hoog: 90, ver: 90 }),
+  }));
+  assert.deepEqual(datumsVan(u, 'hoog'), ['2026-10-06']);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'geen-plaats' }]);
 });
