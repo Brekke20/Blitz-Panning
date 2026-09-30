@@ -4083,8 +4083,12 @@ function onDateChange(val) {
   renderRouteList(val);
   updateRouteBtns(val);
   routeData = null;
-  calculateRoute();
+  // Kort uitstellen: snel door de dagen tikken (strook, pijltjestoetsen) mag geen reeks
+  // TomTom-aanroepen geven; enkel de laatst gekozen dag wordt berekend.
+  clearTimeout(dagBerekenTimer);
+  dagBerekenTimer = setTimeout(() => calculateRoute(), 300);
 }
+let dagBerekenTimer = null;
 
 function clearDay() {
   const date  = document.getElementById('plan-date').value;
@@ -4909,6 +4913,8 @@ async function calculateRoute() {
     });
     const rData = await rRes.json();
     if (rData.error) throw new Error(rData.error);
+    // Ondertussen een andere dag gekozen: dit (verouderde) antwoord niet meer tonen.
+    if (document.getElementById('plan-date').value !== date) return;
     routeData = rData; currentRouteDate = date; routeData._sig = routeHandtekening(date); routeVerouderdDatum = null;
     renderRouteList(date);
     updateMap(date);
