@@ -572,8 +572,17 @@ test.describe('kalender: navigatie verschuift precies één keer per klik', () =
     await rust(page);
     await expect(label).toHaveText('28 sep – 4 okt');
 
+    // kal-vandaag zet de offset op 0 en is dus idempotent: een dubbele handler blijkt niet uit het label. Start daarom
+    // vanaf een verschoven week (twee klikken voorbij de huidige: landt weer exact op de huidige week) en tel de hertekeningen: precies één per klik.
+    await volgende(page).click();
+    await volgende(page).click();
+    await expect(label).toHaveText('12 okt – 18 okt'); // vanaf 28 sep: twee stappen vooruit
+    await rust(page);
+    const voor = await page.evaluate(() => kern.kalender.renderTelling());
     await page.locator('#kal-label').click();
     await expect(label).toHaveText('5 okt – 11 okt');
+    await rust(page);
+    expect(await page.evaluate(() => kern.kalender.renderTelling()) - voor).toBe(1);
   });
 });
 const vorigeKnop = (page) => page.getByRole('button', { name: 'Vorige periode' }).first();
