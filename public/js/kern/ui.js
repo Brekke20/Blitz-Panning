@@ -1,5 +1,5 @@
 // kern/ui.js — UI-hulpen (puur, geen globale toestand)
-// Bevat: escHtml, toast, toastDuur, registreerActies
+// Bevat: escHtml, toast, toastDuur, registreerActies, maakActiveerbaar
 
 let toastTimer;
 
@@ -41,4 +41,18 @@ export function registreerActies(wortel, handlers) {
   return () => {
     wortel.removeEventListener('click', listener);
   };
+}
+
+// Maakt een niet-<button> element toetsenbord-bedienbaar (Enter/Space); toetsen uit binnenste
+// knoppen/links/velden worden genegeerd zodat die hun eigen gedrag houden.
+export function maakActiveerbaar(el, handler, label) {
+  el.tabIndex = 0;
+  el.setAttribute('role', 'button');
+  if (label) el.setAttribute('aria-label', label);
+  el.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.target !== el && e.target.closest('button, a, input, select, textarea')) return;
+    e.preventDefault();
+    handler(e);
+  });
 }

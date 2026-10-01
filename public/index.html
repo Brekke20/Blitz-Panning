@@ -804,18 +804,6 @@ function duurVoor(id) {
   return (override && override > 0) ? override : (settings.duurMinuten || 120);
 }
 
-// ── Module-scope plannings-scoring (gedeeld door autoPlan + wachtrij) ─────────
-const PRIO_WEIGHT = { high: 1, medium: 3, low: 6 };
-function urgencyFactor(t) {
-  if (!t.interventieDatum) return 1.0;
-  const today0 = new Date(); today0.setHours(0,0,0,0);
-  const due    = new Date(t.interventieDatum); due.setHours(0,0,0,0);
-  return Math.max(0.1, Math.min(1.0, (due - today0) / 86400000 / 7));
-}
-function queueScore(t) {
-  const pw = PRIO_WEIGHT[(t.priority||'').toLowerCase()] ?? 9;
-  return pw * urgencyFactor(t);
-}
 // Migratie: old localStorage data verwijderen
 localStorage.removeItem('blitz_blocked');
 localStorage.removeItem('blitz_blocked_days');
@@ -889,6 +877,8 @@ if (!localStorage.getItem('blitz_mig_startloc_v1')) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Capaciteit (schermen/capaciteit.js): leest `settings` pas bij gebruik; vóór koppelRenders().
+  kern.capaciteit.initCapaciteit({ duurVoor, getHolidayName });
   // Route-scherm (schermen/route.js): de afhankelijkheden van andere schermen (R11); vóór koppelRenders().
   kern.route.initRoute({
     duurVoor, werktijdMin: (a, b) => calcWerktijdMin(a, b), kbPreferredTime, geocacheLookup, geocacheStore,
@@ -1481,10 +1471,6 @@ function koppelRenders() {
 // ══════════════════════════════════════════════
 // TICKETS TAB
 // ══════════════════════════════════════════════
-function isOverdue(t) {
-  return t.interventieDatum && localISO(new Date(t.interventieDatum)) < todayStr();
-}
-
 // Wachtrij zoeken en sorteren. De zoektekst wordt niet bewaard; de sorteerkeuze wel.
 let wqZoek = '';
 let wqSorteer = 'standaard'; // 'standaard' | 'oudst' | 'nieuwst' | 'interventie'
@@ -1493,14 +1479,6 @@ try {
   const w = localStorage.getItem('blitz_wachtrij_sorteer');
   if (WQ_SORTEER_OPTIES.includes(w)) wqSorteer = w;
 } catch {}
-
-// Hoofdletter- en accentongevoelig
-function wqNorm(x) {
-  return String(x == null ? '' : x).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-}
-function wqZoekTekst(t) {
-  return wqNorm([t.number, t.subject, t.account, t.naamEindklant, t.contact, t.regio, t.address, t.assignee].join(' '));
-}
 
 function renderTickets() {
   sjLog('renderTickets'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
@@ -1512,10 +1490,8 @@ function renderTickets() {
   const totaal = filtered.length;
 
   // Zoeken: alle woorden moeten voorkomen
-  const woorden = wqNorm(wqZoek).split(/\s+/).map(w => w.replace(/^#+/, '')).filter(Boolean);
-  const gevonden = woorden.length
-    ? filtered.filter(t => { const h = wqZoekTekst(t); return woorden.every(w => h.includes(w)); })
-    : filtered;
+  const woorden = kern.wachtrijLogica.zoekWoorden(wqZoek);
+  const gevonden = kern.wachtrijLogica.filterOpZoek(filtered, wqZoek);
 
   // Teller en lege-tekst
   const teller = document.getElementById('wq-teller');
@@ -1533,35 +1509,10 @@ function renderTickets() {
   if (!gevonden.length) { empty.style.display = ''; return; }
   empty.style.display = 'none';
 
-  const tijd = (x) => { const n = Date.parse(x); return isNaN(n) ? null : n; };
-  if (wqSorteer === 'oudst' || wqSorteer === 'nieuwst') {
-    const r = wqSorteer === 'oudst' ? 1 : -1;
-    gevonden.sort((a, b) => {
-      const ta = tijd(a.createdTime), tb = tijd(b.createdTime);
-      if (ta === null && tb === null) return 0;
-      if (ta === null) return 1;
-      if (tb === null) return -1;
-      return (ta - tb) * r;
-    });
-  } else if (wqSorteer === 'interventie') {
-    gevonden.sort((a, b) => {
-      const ta = tijd(a.interventieDatum), tb = tijd(b.interventieDatum);
-      if (ta === null && tb === null) return 0;
-      if (ta === null) return 1;
-      if (tb === null) return -1;
-      return ta - tb;
-    });
-  } else {
-    // Sortering: 1) overdue eerst  2) queueScore (prio × urgentie — zelfde formule als autoPlan)
-    gevonden.sort((a, b) => {
-      const aOd = isOverdue(a) ? 0 : 1, bOd = isOverdue(b) ? 0 : 1;
-      if (aOd !== bOd) return aOd - bOd;
-      return queueScore(a) - queueScore(b);
-    });
-  }
+  const gesorteerd = kern.wachtrijLogica.sorteerWachtrij(gevonden, wqSorteer, { vandaag: todayStr(), nu: new Date() });
 
-  gevonden.forEach(t => {
-    const overdue = isOverdue(t);
+  gesorteerd.forEach(t => {
+    const overdue = kern.wachtrijLogica.isOverdue(t, todayStr());
     const card = document.createElement('div');
     card.className = 'ticket' + (overdue ? ' overdue' : '');
     const meta = [escHtml(t.account || t.naamEindklant), escHtml(t.regio)].filter(Boolean).join(' · ');
@@ -1591,7 +1542,7 @@ function renderTickets() {
         <button class="btn-add" title="Inplannen op eerstvolgende vrije dag" aria-label="Inplannen op eerstvolgende vrije dag" ${inFlightTickets.has(t.id) ? 'disabled' : ''} onclick="event.stopPropagation();quickAdd('${t.id}')">+</button>
       </div>`;
     card.addEventListener('click', () => openDetail(t));
-    maakActiveerbaar(card, () => openDetail(t), 'Open ticket #' + t.number);
+    kern.ui.maakActiveerbaar(card, () => openDetail(t), 'Open ticket #' + t.number);
     list.appendChild(card);
   });
 }
@@ -1790,12 +1741,6 @@ async function bevestigUitplannen(ticketId, date) {
   return ok;
 }
 
-function removeTicketFromAllDays(ticketId) {
-  Object.keys(planning).forEach(date => {
-    removeTicketFromDate(ticketId, date);
-  });
-}
-
 // ══════════════════════════════════════════════
 // KALENDER
 // ══════════════════════════════════════════════
@@ -1845,7 +1790,7 @@ function buildTicketCard(stop, dateStr, { showActions = true } = {}) {
     navigate(encodeURIComponent(e.currentTarget.dataset.adres));
   });
   card.addEventListener('click', () => openDetail(stop.ticket));
-  maakActiveerbaar(card, () => openDetail(stop.ticket), 'Open ticket #' + stop.ticket.number);
+  kern.ui.maakActiveerbaar(card, () => openDetail(stop.ticket), 'Open ticket #' + stop.ticket.number);
   return card;
 }
 
@@ -2060,11 +2005,7 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, hdrEl) {
   // liggen (die zelf geen z-index zetten, dus DOM-volgorde bepaalt de zichtbare laag). Hele-dag
   // (kind==='fullday') uitzonderingen krijgen hier geen los blok — die worden al elders als
   // kolom-brede stripe (blocked-day-klasse) getoond.
-  const myPersonTl = kern.selecties.persoonOfNull(activeAssigneeFilter);
-  const dayExceptions = avExceptions.filter(e =>
-    e.date === dateStr && e.kind === 'range' &&
-    (e.scope === 'global' || (myPersonTl && e.person === myPersonTl))
-  );
+  const dayExceptions = kern.selecties.blokkeringenVoor(avExceptions, dateStr, activeAssigneeFilter, 'range');
   dayExceptions.forEach(e => {
     const [fromH, fromM] = e.from.split(':').map(Number);
     const [toH, toM]     = e.to.split(':').map(Number);
@@ -2257,7 +2198,7 @@ function renderKalender() {
         </div>
       </div>`;
       card.addEventListener('click', () => openDetail(t));
-      maakActiveerbaar(card, () => openDetail(t), 'Open ticket #' + t.number);
+      kern.ui.maakActiveerbaar(card, () => openDetail(t), 'Open ticket #' + t.number);
       inner.appendChild(card);
     });
     noDateSec.innerHTML = '';
@@ -2305,20 +2246,13 @@ function renderKalender() {
     const dateStr       = localISO(day);
     const isToday       = day.getTime() === today.getTime();
     const isPast        = day.getTime() < today.getTime();
-    const myPerson       = kern.selecties.persoonOfNull(activeAssigneeFilter);
     const holidayName    = getHolidayName(dateStr);
-    const isDayBlocked   = !!holidayName || avExceptions.some(e =>
-      e.date === dateStr && e.kind === 'fullday' &&
-      (e.scope === 'global' || (myPerson && e.person === myPerson))
-    );
+    const isDayBlocked   = !!holidayName || kern.selecties.blokkeringenVoor(avExceptions, dateStr, activeAssigneeFilter, 'fullday').length > 0;
     const dayStops      = kern.selecties.planItemsVanTechnieker(planning[dateStr], activeAssigneeFilter);
-    const dayBlockCount = avExceptions.filter(e => e.date === dateStr &&
-      (e.scope === 'global' || (myPerson && e.person === myPerson))
-    ).length;
+    const dayBlockCount = kern.selecties.blokkeringenVoor(avExceptions, dateStr, activeAssigneeFilter).length;
     const travelEst     = 30; // conservatief voor capaciteitsweergave
     const cap           = capacityForDay(dateStr, travelEst);
-    const capLabel      = `${dayStops.length}/${cap} stops · ±${Math.round(dayStops.length * (settings.duurMinuten + travelEst) / 60 * 10) / 10}u`;
-    const capFull       = dayStops.length >= cap;
+    const { label: capLabel, vol: capFull } = kern.capaciteit.capaciteitsKop({ aantal: dayStops.length, cap, duurMinuten: settings.duurMinuten, travelMin: travelEst });
 
     const col = document.createElement('div');
     col.className = 'day-col';
@@ -2598,7 +2532,6 @@ function renderMonthView(today) {
   const gridStart = new Date(firstOfMonth);
   gridStart.setDate(gridStart.getDate() - startDow);
 
-  const myPerson = kern.selecties.persoonOfNull(activeAssigneeFilter);
   const MAX_CHIPS = 4;
 
   for (let row = 0; row < 6; row++) {
@@ -2628,10 +2561,7 @@ function renderMonthView(today) {
       if (holidayName) chips.push({ label: `🎌 ${holidayName}`, cls: 'holiday' });
 
       // Blokkering?
-      const isBlocked = avExceptions.some(e =>
-        e.date === dateStr && e.kind === 'fullday' &&
-        (e.scope === 'global' || (myPerson && e.person === myPerson))
-      );
+      const isBlocked = kern.selecties.blokkeringenVoor(avExceptions, dateStr, activeAssigneeFilter, 'fullday').length > 0;
       if (isBlocked) chips.push({ label: '🔒 Geblokkeerd', cls: 'blocked' });
 
       // Zoho tickets
@@ -3597,76 +3527,9 @@ async function avRemoveException(id) {
 // ══════════════════════════════════════════════
 // CAPACITEIT & CLUSTERING
 // ══════════════════════════════════════════════
-function capacityForDay(dateStr, travelMin = 30) {
-  if (getHolidayName(dateStr)) return 0;
-
-  const [vanH, vanM] = settings.vanTijd.split(':').map(Number);
-  const [totH, totM] = settings.totTijd.split(':').map(Number);
-  const totalMin     = (totH * 60 + totM) - (vanH * 60 + vanM);
-  const myPerson     = kern.selecties.persoonOfNull(activeAssigneeFilter);
-
-  // Controleer volledige dagblokkering
-  const dayBlocked = avExceptions.some(e =>
-    e.date === dateStr && e.kind === 'fullday' &&
-    (e.scope === 'global' || (myPerson && e.person === myPerson))
-  );
-  if (dayBlocked) return 0;
-
-  // Bereken geblokkeerde minuten vanuit tijdvak-uitzonderingen
-  const dayExceptions = avExceptions.filter(e =>
-    e.date === dateStr && e.kind === 'range' &&
-    (e.scope === 'global' || (myPerson && e.person === myPerson))
-  );
-
-  // Clip elke uitzondering op de werkdag [vanTijd, totTijd], dan sorteren en unie-en
-  // (union) vóór het optellen zodat overlappende blokken niet dubbel geteld worden.
-  const dagStart = vanH * 60 + vanM;
-  const dagEind  = totH * 60 + totM;
-  const intervals = dayExceptions
-    .map(e => {
-      const [fh, fm] = e.from.split(':').map(Number);
-      const [th, tm] = e.to.split(':').map(Number);
-      const start = Math.max(dagStart, fh * 60 + fm);
-      const eind  = Math.min(dagEind, th * 60 + tm);
-      return eind > start ? [start, eind] : null;
-    })
-    .filter(Boolean)
-    .sort((a, b) => a[0] - b[0]);
-
-  let blockedMin = 0;
-  let curEnd = -Infinity;
-  for (const [start, eind] of intervals) {
-    if (start >= curEnd) {
-      blockedMin += eind - start;
-      curEnd = eind;
-    } else if (eind > curEnd) {
-      blockedMin += eind - curEnd;
-      curEnd = eind;
-    }
-    // else: volledig binnen het al geteld interval -- niets toevoegen
-  }
-
-  const available = Math.max(0, totalMin - blockedMin);
-  const perSlot   = settings.duurMinuten + travelMin;
-  return Math.min(Math.floor(available / perSlot), settings.maxPerDag);
-}
-
-function nextAvailableDay(fromDate) {
-  const today = new Date(); today.setHours(0,0,0,0);
-  const d = new Date(fromDate + 'T12:00:00');
-  for (let i = 0; i < 60; i++) {
-    if (d >= today) {
-      const dStr = localISO(d);
-      if (settings.werkdagen.includes(d.getDay())) {
-        const alreadyPlanned = kern.selecties.planItemsVanTechnieker(planning[dStr], activeAssigneeFilter)
-          .reduce((sum, p) => sum + Math.ceil(duurVoor(p.ticket.id) / settings.duurMinuten), 0);
-        if (capacityForDay(dStr) - alreadyPlanned > 0) return dStr;
-      }
-    }
-    d.setDate(d.getDate() + 1);
-  }
-  return null;
-}
+// Het aantalmodel zelf staat in schermen/capaciteit.js; dit zijn de dunne oproepen voor de klassieke code.
+function capacityForDay(dateStr, travelMin) { return kern.capaciteit.capacityForDay(dateStr, travelMin); }
+function nextAvailableDay(fromDate) { return kern.capaciteit.nextAvailableDay(fromDate); }
 
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -3978,7 +3841,7 @@ function renderGepland() {
       // Klik op Bellen/Mailen opent niet het detail (Navigeer stopt de bubbel zelf).
       card.querySelectorAll('.contact-acties a').forEach(a => a.addEventListener('click', e => e.stopPropagation()));
       card.addEventListener('click', () => openDetail(t));
-      maakActiveerbaar(card, () => openDetail(t), 'Open ticket #' + t.number);
+      kern.ui.maakActiveerbaar(card, () => openDetail(t), 'Open ticket #' + t.number);
       wrapper.appendChild(card);
     });
     body.appendChild(wrapper);
@@ -4006,20 +3869,6 @@ function bevestigdLabel(vs) {
 // ══════════════════════════════════════════════
 // TABS
 // ══════════════════════════════════════════════
-// Maakt een niet-<button> element toetsenbord-bedienbaar (Enter/Space); toetsen uit binnenste
-// knoppen/links/velden worden genegeerd zodat die hun eigen gedrag houden.
-function maakActiveerbaar(el, handler, label) {
-  el.tabIndex = 0;
-  el.setAttribute('role', 'button');
-  if (label) el.setAttribute('aria-label', label);
-  el.addEventListener('keydown', e => {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
-    if (e.target !== el && e.target.closest('button, a, input, select, textarea')) return;
-    e.preventDefault();
-    handler(e);
-  });
-}
-
 // Pijltjestoetsen in de tabbalk (roving tabindex): alleen zichtbare tabs tellen (coord-only kan verborgen zijn).
 document.querySelector('.tabs-inner')?.addEventListener('keydown', e => {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;

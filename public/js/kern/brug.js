@@ -9,9 +9,14 @@ import { toestand, SLEUTELS } from './toestand.js';
 import * as routeTijden from '../schermen/route-tijden.js';
 import * as routeKaart from '../schermen/route-kaart.js';
 import * as route from '../schermen/route.js';
+import * as capaciteit from '../schermen/capaciteit.js';
+import * as wachtrijLogica from '../schermen/wachtrij-logica.js';
 
 window.kern = { tijd, ui, selecties, toestand, api };
 window.kern.route = { ...routeTijden, ...routeKaart, ...route };
+window.kern.capaciteit = { ...capaciteit };
+// Tijdelijk (Taak 3 vervangt dit door een directe import in schermen/wachtrij.js): renderTickets staat nog in index.html.
+window.kern.wachtrijLogica = { ...wachtrijLogica };
 
 // LEGACY-BRUG (verdwijnt in etappe 5): oude globale namen voor klassieke code en oudere modules
 Object.assign(window, {

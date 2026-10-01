@@ -1,5 +1,5 @@
 // kern/selecties.js — pure afleidingen op basis van de technieker-filter (geen globale toestand)
-// Bevat: isAlle, persoonOfNull, ticketsVanTechnieker, planItemsVanTechnieker, eigenAfsprakenVoor, stopsVoorDag
+// Bevat: isAlle, persoonOfNull, ticketsVanTechnieker, planItemsVanTechnieker, eigenAfsprakenVoor, blokkeringenVoor, stopsVoorDag
 
 export function isAlle(filter) {
   return filter === 'all';
@@ -26,6 +26,17 @@ export function eigenAfsprakenVoor(events, datum, filter, { alleenMetLocatie = f
     e.datum === datum &&
     (!alleenMetLocatie || (e.adres || e.notitie)) &&
     (filter === 'all' || !e.persoon || e.persoon === filter)
+  );
+}
+
+// Blokkeringen (avExceptions-records) van een datum die gelden voor een technieker: globale blokkeringen en die van
+// deze persoon (filter 'all' = enkel de globale). `soort` (optioneel): 'fullday' of 'range'; zonder soort alle soorten.
+export function blokkeringenVoor(avExceptions, datum, filter, soort) {
+  const persoon = persoonOfNull(filter);
+  return (avExceptions || []).filter(e =>
+    e.date === datum &&
+    (soort === undefined || e.kind === soort) &&
+    (e.scope === 'global' || (persoon && e.person === persoon))
   );
 }
 

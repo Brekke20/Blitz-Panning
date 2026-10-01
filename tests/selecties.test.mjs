@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import {
-  isAlle, persoonOfNull, ticketsVanTechnieker, planItemsVanTechnieker, eigenAfsprakenVoor, stopsVoorDag,
+  isAlle, persoonOfNull, ticketsVanTechnieker, planItemsVanTechnieker, eigenAfsprakenVoor, stopsVoorDag, blokkeringenVoor,
 } from '../public/js/kern/selecties.js';
 
 const tickets = [
@@ -114,4 +114,33 @@ test('stopsVoorDag: verse wrappers, maar item is hetzelfde object (referentie)',
 test('stopsVoorDag: ontbrekende planning-datum geeft lege lijsten', () => {
   assert.deepEqual(stopsVoorDag({ planning: {}, localEvents: [] }, 'Tim', '2026-10-05'),
     { stops: [], localForDate: [], allStops: [] });
+});
+
+// ── blokkeringenVoor ──
+const blokken = [
+  { id: 'a', date: '2026-10-05', scope: 'global', person: null, kind: 'fullday' },
+  { id: 'b', date: '2026-10-05', scope: 'person', person: 'Tim', kind: 'range', from: '09:00', to: '10:00' },
+  { id: 'c', date: '2026-10-05', scope: 'person', person: 'Sam', kind: 'fullday' },
+  { id: 'd', date: '2026-10-06', scope: 'global', person: null, kind: 'range', from: '08:00', to: '09:00' },
+];
+const ids = r => r.map(e => e.id);
+
+test('blokkeringenVoor: globaal plus eigen persoon, andere personen en andere data niet', () => {
+  assert.deepEqual(ids(blokkeringenVoor(blokken, '2026-10-05', 'Tim')), ['a', 'b']);
+  assert.deepEqual(ids(blokkeringenVoor(blokken, '2026-10-05', 'Sam')), ['a', 'c']);
+});
+
+test("blokkeringenVoor: filter 'all' geeft enkel de globale", () => {
+  assert.deepEqual(ids(blokkeringenVoor(blokken, '2026-10-05', 'all')), ['a']);
+});
+
+test('blokkeringenVoor: soort filtert op kind', () => {
+  assert.deepEqual(ids(blokkeringenVoor(blokken, '2026-10-05', 'Tim', 'range')), ['b']);
+  assert.deepEqual(ids(blokkeringenVoor(blokken, '2026-10-05', 'Tim', 'fullday')), ['a']);
+});
+
+test('blokkeringenVoor: lege of ontbrekende invoer geeft een lege array', () => {
+  assert.deepEqual(blokkeringenVoor([], '2026-10-05', 'Tim'), []);
+  assert.deepEqual(blokkeringenVoor(undefined, '2026-10-05', 'Tim'), []);
+  assert.deepEqual(blokkeringenVoor(blokken, '2030-01-01', 'Tim'), []);
 });
