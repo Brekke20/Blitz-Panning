@@ -9,11 +9,15 @@ test('SLEUTELS en beginwaarden', () => {
   assert.equal(SLEUTELS.length, 10);
   const t = maakToestand();
   assert.deepEqual(t.get('allTickets'), []);
+  assert.deepEqual(t.get('allPending'), []);
+  assert.deepEqual(t.get('allGepland'), []);
+  assert.deepEqual(t.get('planning'), {});
+  assert.deepEqual(t.get('localEvents'), []);
   assert.deepEqual(t.get('avExceptions'), []);
   assert.deepEqual(t.get('klantBeschikbaarheid'), {});
   assert.deepEqual(t.get('voorstelStatus'), {});
-  assert.equal(t.get('activeAssigneeFilter'), 'all');
   assert.equal(t.get('settings'), null);
+  assert.equal(t.get('activeAssigneeFilter'), 'all');
   assert.ok(toestand.get);
 });
 
@@ -96,7 +100,7 @@ test('transactie spoelt synchroon aan het einde, niet eerder (ook genest)', asyn
   assert.equal(n, 1);
 });
 
-test('transactie spoelt ook bij een fout, en gooit de fout opnieuw', () => {
+test('transactie spoelt ook bij een fout, en gooit de fout opnieuw', async () => {
   const t = maakToestand();
   let n = 0;
   t.abonneer(['allTickets'], () => n++);
@@ -105,6 +109,8 @@ test('transactie spoelt ook bij een fout, en gooit de fout opnieuw', () => {
   // diepte is hersteld: nieuwe set bundelt weer via microtask
   t.set('allTickets', [2]);
   assert.equal(n, 1);
+  await tick();
+  assert.equal(n, 2);
 });
 
 test('transactie geeft de returnwaarde terug', () => {
@@ -216,4 +222,72 @@ test('afmelden tijdens flush: afgemelde abonnee wordt overgeslagen', async () =>
   t.set('allTickets', [1]);
   await tick();
   assert.deepEqual(log, ['A']);
+});
+
+test('abonneer met een string als sleutel', async () => {
+  const t = maakToestand();
+  let n = 0;
+  t.abonneer('allTickets', () => n++);
+  t.set('allTickets', [1]);
+  await tick();
+  assert.equal(n, 1);
+});
+
+test('omhulling die gooit: wacht blijft niet hangen', async () => {
+  const t = maakToestand();
+  const err = mock.method(console, 'error', () => {});
+  try {
+    let n = 0;
+    t.abonneer(['allTickets'], () => n++);
+    t.zetOmhulling(() => { throw new Error('omhulling stuk'); });
+    t.set('allTickets', [1]);
+    await tick();
+    assert.equal(n, 0);
+    assert.equal(err.mock.callCount(), 1);
+    t.zetOmhulling(null);
+    t.set('planning', {});
+    await tick();
+    assert.equal(n, 0); // oude wijziging is gewist, niet alsnog uitgevoerd
+    t.set('allTickets', [2]);
+    await tick();
+    assert.equal(n, 1);
+  } finally {
+    err.mock.restore();
+  }
+});
+
+test('omhulling die de flush nooit aanroept: wacht gewist en gelogd', async () => {
+  const t = maakToestand();
+  const err = mock.method(console, 'error', () => {});
+  try {
+    t.zetOmhulling(() => {});
+    t.set('allTickets', [1]);
+    await tick();
+    assert.equal(err.mock.callCount(), 1);
+    t.zetOmhulling(null);
+    let n = 0;
+    t.abonneer(['allTickets'], () => n++);
+    t.spoel();
+    assert.equal(n, 0);
+  } finally {
+    err.mock.restore();
+  }
+});
+
+test('omhulling wikkelt alle rondes in één keer en draait niet zonder wijziging', async () => {
+  const t = maakToestand();
+  let omhullingen = 0;
+  const log = [];
+  t.zetOmhulling((flush) => { omhullingen++; log.push('voor'); flush(); log.push('na'); });
+  t.abonneer(['allTickets'], () => { log.push('A'); t.set('planning', {}); });
+  t.abonneer(['planning'], () => log.push('B'));
+  t.spoel();
+  assert.equal(omhullingen, 0);
+  t.set('allTickets', [1]);
+  await tick();
+  assert.equal(omhullingen, 1);
+  assert.deepEqual(log, ['voor', 'A', 'B', 'na']);
+  t.set('activeAssigneeFilter', 'all'); // identieke primitieve: geen wijziging
+  await tick();
+  assert.equal(omhullingen, 1);
 });

@@ -1,5 +1,8 @@
 // kern/toestand.js — observable store met gebundelde verwittiging (puur: geen window, geen DOM).
 // Toewijzing via set/patch verwittigt vanzelf; in-place mutatie van een array/object vraagt raak(sleutel).
+// Zelfde array/object-referentie zetten verwittigt altijd; een identieke primitieve niet. Na een in-place mutatie
+// (push, splice, eigenschap toewijzen) roep je raak(sleutel) aan.
+// transactie(async fn) spoelt op de synchrone grens (zodra fn zijn promise teruggeeft), niet na het await.
 // Verwittiging is gebundeld per microtask; transactie(fn) spoelt synchroon bij het einde van de buitenste transactie.
 
 export const SLEUTELS = ['allTickets', 'allPending', 'allGepland', 'planning', 'localEvents', 'avExceptions', 'klantBeschikbaarheid', 'voorstelStatus', 'settings', 'activeAssigneeFilter'];
@@ -11,7 +14,7 @@ function beginwaarden() {
     allTickets: [],
     allPending: [],
     allGepland: [],
-    planning: [],
+    planning: {},
     localEvents: [],
     avExceptions: [],
     klantBeschikbaarheid: {},
@@ -67,8 +70,16 @@ export function maakToestand(begin = {}) {
     if (bezig || !wacht.size) return; // een lopende flush verwerkt nieuwe wijzigingen zelf in een volgende ronde
     bezig = true;
     try {
-      if (omhulling) omhulling(() => echteFlush());
-      else echteFlush();
+      if (omhulling) {
+        omhulling(() => echteFlush());
+        if (wacht.size) { // omhulling riep de flush niet (volledig) aan: niet eeuwig blijven hangen
+          console.error('toestand: omhulling voerde de flush niet uit', [...wacht]);
+          wacht = new Set();
+        }
+      } else echteFlush();
+    } catch (e) {
+      console.error('toestand: flush faalde', e);
+      wacht = new Set();
     } finally {
       bezig = false;
     }
@@ -90,6 +101,7 @@ export function maakToestand(begin = {}) {
   function raak(k) { controleer(k); noteer(k); }
 
   function abonneer(sleutels, fn) {
+    if (typeof sleutels === 'string') sleutels = [sleutels];
     sleutels.forEach(controleer);
     const a = { sleutels: new Set(sleutels), fn, actief: true };
     abonnees.push(a);
