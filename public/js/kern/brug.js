@@ -31,7 +31,6 @@ Object.assign(window, {
   renderRouteList: route.renderRouteList,
   updateRouteBtns: route.updateRouteBtns,
   calculateRoute: route.calculateRoute,
-  updateMap: route.updateMap,
   computeArrivalTimes: route.aankomstTijdenVoorDag,
 });
 

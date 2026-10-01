@@ -308,7 +308,7 @@ export function renderRouteList(date) {
   }
 
   // Bereken cumulatieve aankomsttijden als routeData beschikbaar is
-  const hasRoute = routeData?.legs && currentRouteDate === date;
+  const hasRoute = !!legsVoorDag(date);
   // Zelfde waypoint-membership test als calculateRoute() (`stops.filter(p => p._lat)` +
   // `localForDate.filter(e => e._lat)`, zie allWpStops in calculateRoute): alleen geocodeerde stops
   // gingen daadwerkelijk als waypoint mee, dus alleen die hebben een leg in routeData.legs.

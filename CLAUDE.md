@@ -78,15 +78,17 @@ Gedeelde fundamenten (etappe 2 van de refactor): `tijd`, `ui`, `selecties`, `toe
 Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar via `initRoute(afh)` / `initKaart(afh)` in `DOMContentLoaded` initialiseren (vóór `koppelRenders`).
 
 **Etappe 3 (Route en kaart):**
-- `route-tijden.js`: pure berekeningen (aankomsttijden, samenvoegen met ankers, handtekening, dagklok). Enkel getest met `node --test`.
+- `route-tijden.js`: pure berekeningen (aankomsttijden, samenvoegen met ankers, handtekening, dagklok). Unit-getest met `node --test`.
 - `route-kaart.js`: Leaflet-kaart, markers, polylines, drukte-tekening, legende. Geen `L` of DOM op moduleniveau, enkel in functies.
-- `route.js`: Route-scherm (lijst, weekstrook, berekenen, slepen, optimaliseren, vastleggen). Private toestand: `routeData`, `currentRouteDate`, `routeVerouderdDatum`, `_routeOrderBezig`, sorteer-instantie.
+- `route.js`: Route-scherm (lijst, weekstrook, berekenen, slepen, optimaliseren, vastleggen). Private toestand: `routeData`, `currentRouteDate`, `routeVerouderdDatum`, `_routeOrderBezig`, sorteer-instantie. Unit-tests: `tests/route.test.mjs` en `tests/route-volgorde.test.mjs` (naast `route-tijden`).
 
 **Conventies:**
 - Routetoestand (private: `routeData`, `currentRouteDate`, …) blijft buiten de store; lezers gebruiken exports: `routeActueelVoor(date)`, `routeOrderBezig()`, `vernieuwKaart()`, `invalideerKaartGrootte()`.
 - Afhankelijkheden (functies uit andere schermen) worden via `afh` aangereikt; instellingen en toestandsgegevens uit `kern.toestand`.
-- Kaartaantallen en render-teller (`kern.route.renderTelling`) voor e2e-verifiëring.
-- Rendertelling stijgt niet door wijzigingen in de planning (R10).
+- `kern.route.renderTelling()` is de teller die de e2e-tests gebruiken (interne aanroepen omzeilen een wrapper op `window`). Een wijziging in de planning geeft via het abonnement precies één route-render.
+- `kern.route` is de namespace van het routescherm op `window.kern` (o.a. `renderTelling`); e2e-tests lezen daar de render-teller en de kaartaantallen uit.
+- Knoppen van het scherm gebruiken `data-actie="route-..."` (delegatie in `route.js`) in plaats van inline handlers; gegevens staan op `data-*` attributen van de stop.
+- Resterende LEGACY-BRUG-namen voor het routescherm: `renderRouteList`, `updateRouteBtns`, `calculateRoute`, `computeArrivalTimes`, `initMap`, `applyKaartStijl`. Ze verdwijnen in etappe 4/5; gebruik ze niet in nieuwe code.
 - Nieuwe schermen volgen dit patroon: module-privé toestand, expliciet aangereikte functies, exports voor lezers.
 
 ## Versioning & changelog
