@@ -14,6 +14,7 @@ const FIX = {
   optimize: fixture('optimize.json'),
   drukte: fixture('drukte.json'),
   planningSinds: fixture('planning-sinds.json'),
+  tickets: fixture('tickets.json'),
 };
 
 export const VASTE_NU = '2026-10-05T09:00:00+02:00'; // maandag, Europe/Brussels
@@ -88,7 +89,7 @@ export function verzamelVerzoeken(page) {
   return v;
 }
 
-function eigenApi(u) {
+export function eigenApi(u) {
   return (u.hostname === 'localhost' || u.hostname === '127.0.0.1') && u.pathname.startsWith('/api/');
 }
 
@@ -164,6 +165,8 @@ function maakStandaardStubs() {
     },
     drukte: () => json(200, structuredClone(FIX.drukte)),
     'planning-sinds': () => json(200, structuredClone(FIX.planningSinds)),
+    // Enkel in de productiemodus (zonder ?test) aangeroepen; in ?test komen de tickets uit DUMMY_DATA.
+    tickets: () => json(200, structuredClone(FIX.tickets)),
 
     afspraken: ({ methode, body }) => methode === 'PUT' ? afspraken.schrijf(body) : afspraken.get(),
     availability: ({ methode, body }) => methode === 'PUT' ? availability.schrijf(body) : availability.get(),
@@ -266,7 +269,7 @@ export async function stubExtern(page, { overschrijf = {} } = {}) {
 }
 
 // Verwachte wachtrijtelling voor een technieker-filter (DUMMY_DATA: Tim 2, Roel 1 te plannen).
-const TE_PLANNEN = { all: 3, Tim: 2, Roel: 1 };
+export const TE_PLANNEN = { all: 3, Tim: 2, Roel: 1 };
 
 export async function startApp(page, { rol = 'coordinator', technieker = 'all', viewport, overschrijf } = {}) {
   if (viewport) await page.setViewportSize(viewport);
