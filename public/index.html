@@ -1346,6 +1346,8 @@ async function loadTickets() {
     if (!TEST_MODE) saveToCache('blitz_tickets_cache', data);
     applyTicketsData(data, { reconcile: true });
     laadPlanningSinds();
+    // Geslaagde lading: 'Laden...' vervangen; bij een lege wachtrij (na het technieker-filter) de lege tekst; een lading met ongewijzigde data hertekent niet.
+    if (!kern.selecties.ticketsVanTechnieker(allTickets, activeAssigneeFilter).length) document.getElementById('empty-tickets').textContent = 'Geen tickets om in te plannen';
 
     if (TEST_MODE) toast('🧪 Testmodus actief — dummy data geladen');
     else toast(`${allTickets.length} te plannen · ${allPending.length} wacht bevestiging · ${allGepland.length} gepland`);

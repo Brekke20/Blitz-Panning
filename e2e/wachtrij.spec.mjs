@@ -257,8 +257,9 @@ test.describe('wachtrij: kaart en lege staat', () => {
     await expect(page.locator('#cnt-tickets')).toHaveText('0');
     await expect(page.locator('#ticket-list .ticket')).toHaveCount(0);
     await expect(page.locator('#empty-tickets')).toBeVisible();
-    // Gemeten: de tekst blijft de beginwaarde uit de HTML.
-    await expect(page.locator('#empty-tickets')).toHaveText('Laden...');
+    // Bewust gewijzigd (fix W5): vroeger bleef hier de beginwaarde 'Laden...' staan; nu de bestaande
+    // app-tekst uit autoPlan.
+    await expect(page.locator('#empty-tickets')).toHaveText('Geen tickets om in te plannen');
     await expect(teller(page)).toHaveText('0 tickets');
   });
 });
