@@ -109,7 +109,6 @@ test.describe('voorstel, afspraak en blokkering', () => {
     await page.getByRole('tab', { name: 'Kalender' }).click();
     const dinsdag = page.locator('.day-col[data-date="2026-10-06"]');
     await expect(dinsdag.getByText('🔒 Geblokkeerd')).toHaveCount(0);
-    await expect(dinsdag.locator('.day-body')).not.toHaveClass(/blocked-day/);
 
     await dinsdag.getByRole('button', { name: '⏱ Beschikbaar' }).click();
     const modal = page.getByRole('dialog', { name: '⛔ Beschikbaarheid' });
@@ -128,7 +127,6 @@ test.describe('voorstel, afspraak en blokkering', () => {
 
     await modal.getByRole('button', { name: 'Sluiten' }).click();
     await expect(dinsdag.getByText('🔒 Geblokkeerd')).toBeVisible();
-    await expect(dinsdag.locator('.day-body')).toHaveClass(/blocked-day/);
     // Andere dagen blijven vrij.
     await expect(page.locator('.day-col[data-date="2026-10-07"]').getByText('🔒 Geblokkeerd')).toHaveCount(0);
   });

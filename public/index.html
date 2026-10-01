@@ -149,7 +149,7 @@
 <!-- ══ ROUTE TAB ══ -->
 <div class="view" id="view-planning" role="tabpanel" aria-labelledby="tab-planning">
   <div class="plan-header">
-    <input type="date" id="plan-date" class="plan-date-compact" onchange="onDateChange(this.value)" aria-label="Datum voor de route (verre datum kiezen)" title="Andere datum kiezen" />
+    <input type="date" id="plan-date" data-testid="route-datum" class="plan-date-compact" onchange="onDateChange(this.value)" aria-label="Datum voor de route (verre datum kiezen)" title="Andere datum kiezen" />
     <button class="btn-primary" id="btn-optimize" onclick="optimizeRoute()" disabled title="Herorden stops voor kortste reistijd, daarna rijtijden berekenen">⚡ Optimaliseer</button>
     <button class="btn-sec"     id="btn-route"    onclick="calculateRoute()" disabled title="Bereken rijtijden in huidige volgorde">Bereken tijden</button>
     <button class="btn-sec"     onclick="clearDay()">✕ Leeg</button>
@@ -160,7 +160,7 @@
     <div id="map-wrap"><div id="map"></div></div>
   </div>
   <div class="plan-summary">
-    Stops: <b id="s-stops">0</b> &nbsp;·&nbsp; Afstand: <b id="s-dist">—</b> &nbsp;·&nbsp; Rijtijd: <b id="s-time">—</b> &nbsp;·&nbsp; Vertraging: <b id="s-delay">—</b> &nbsp;·&nbsp; ETA: <b id="s-eta">—</b>
+    Stops: <b id="s-stops" data-testid="route-aantal-stops">0</b> &nbsp;·&nbsp; Afstand: <b id="s-dist" data-testid="route-afstand">—</b> &nbsp;·&nbsp; Rijtijd: <b id="s-time">—</b> &nbsp;·&nbsp; Vertraging: <b id="s-delay">—</b> &nbsp;·&nbsp; ETA: <b id="s-eta">—</b>
     <span id="s-warn"></span>
   </div>
 </div>
@@ -209,7 +209,7 @@
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="d-title">
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeDet()" title="Sluiten" aria-label="Sluiten">✕</button>
-      <div class="mhdr-num" id="d-num"></div>
+      <div class="mhdr-num" id="d-num" data-testid="detail-nummer"></div>
       <div class="mhdr-title" id="d-title" role="heading" aria-level="2"></div>
       <div class="mhdr-tags" id="d-tags"></div>
     </div>
@@ -4313,10 +4313,11 @@ function renderRouteList(date) {
       list.appendChild(d);
     }
     const timeHtml = hasRoute && arrivalTimes[i] !== undefined
-      ? `<div class="stop-time">⏱ ${fmtTime(arrivalTimes[i])}</div>`
+      ? `<div class="stop-time" data-testid="route-stop-tijd">⏱ ${fmtTime(arrivalTimes[i])}</div>`
       : '';
     const stop = document.createElement('div');
     stop.className = 'stop';
+    stop.dataset.testid = 'route-stop';
 
     const isTicket = entry.kind === 'ticket';
     // Vergrendeld (Taak 4): tijdstip is aan de klant gecommuniceerd of bevestigd (zie
@@ -4344,9 +4345,9 @@ function renderRouteList(date) {
         <div class="stop-top">
           <div class="stop-num"${locked ? ' title="Tijdstip is aan de klant gecommuniceerd"' : ''}>${i+1}${locked ? '🔒' : ''}${heeftVoorkeursuur ? '<span class="stop-preftime" title="Voorkeursuur van de klant — tijdstip wordt niet verzet">🕐</span>' : ''}</div>
           <div class="stop-info">
-            <div class="stop-sub"><span class="stop-numtag">#${escHtml(item.ticket.number)}</span>${escHtml(item.ticket.subject) || '—'}</div>
+            <div class="stop-sub"><span class="stop-numtag" data-testid="route-stop-nummer">#${escHtml(item.ticket.number)}</span>${escHtml(item.ticket.subject) || '—'}</div>
             <div class="stop-addr">${escHtml(item.address) || 'Geen adres'}</div>
-            ${timeHtml}${blok ? `<div class="stop-time">${blokIsGemaild ? '📨' : '🕐'} ${escHtml(blok)}</div>` : ''}${arrivalHtml}
+            ${timeHtml}${blok ? `<div class="stop-time" data-testid="route-stop-tijd">${blokIsGemaild ? '📨' : '🕐'} ${escHtml(blok)}</div>` : ''}${arrivalHtml}
             ${(() => {
               const vs = voorstelStatus[item.ticket.id];
               const blabel = bevestigdLabel(vs);
@@ -4383,7 +4384,7 @@ function renderRouteList(date) {
           <div class="stop-info">
             <div class="stop-sub" style="color:#7c5cfc">${escHtml(ev.type)} — ${escHtml(ev.titel)}</div>
             <div class="stop-addr">${escHtml(adres) || 'Geen adres'}</div>
-            ${tijdLabel ? `<div class="stop-time" style="color:var(--muted)">🗓 ${tijdLabel}</div>` : ''}
+            ${tijdLabel ? `<div class="stop-time" data-testid="route-stop-tijd" style="color:var(--muted)">🗓 ${tijdLabel}</div>` : ''}
             ${timeHtml}${evArrivalHtml}
             ${ev.persoon ? `<div class="stop-arrival">${escHtml(ev.persoon)}</div>` : ''}
           </div>
@@ -5376,7 +5377,7 @@ function openDetail(t) {
   contactEl.innerHTML = contactActiesHtml(t);
   koppelAdresNavigatie(contactEl);
 
-  const row = (l, v, href, tel) => v ? `<div class="mrow"><span class="mlabel">${l}</span><span class="mval">${tel && /\d/.test(tel) ? `<a href="tel:${escHtml(tel)}">${escHtml(v)}</a>` : href ? `<a href="${href}${escHtml(v)}">${escHtml(v)}</a>` : escHtml(v)}</span></div>` : '';
+  const row = (l, v, href, tel) => v ? `<div class="mrow" data-testid="detail-rij"><span class="mlabel">${l}</span><span class="mval" data-testid="detail-waarde">${tel && /\d/.test(tel) ? `<a href="tel:${escHtml(tel)}">${escHtml(v)}</a>` : href ? `<a href="${href}${escHtml(v)}">${escHtml(v)}</a>` : escHtml(v)}</span></div>` : '';
   document.getElementById('d-klant').innerHTML = [
     row('Contact',  t.naamEindklant || t.contact),
     row('Bedrijf',  t.account),

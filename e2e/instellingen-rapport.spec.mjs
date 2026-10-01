@@ -151,20 +151,23 @@ test.describe('instellingen en rapport', () => {
     expect(verzoeken.van('/api/rapport-verzonden')).toEqual([]);
     expect(verzoeken.van('/api/rapport-archief', 'POST')).toEqual([]);
     expect(verzoeken.van('/api/rapport-archief', 'PUT')).toEqual([]);
+    // Alle verzoeken naar het archief zijn leesverzoeken (GET).
+    expect(verzoeken.van('/api/rapport-archief').filter(r => r.methode !== 'GET')).toEqual([]);
     expect(verzoeken.verboden).toEqual([]);
 
-    // Niets in de verzendwachtrij (IndexedDB-outbox).
+    // Niets in de verzendwachtrij (IndexedDB-outbox). De store moet bestaan, anders is "0" niets waard.
     const wachtrij = await page.evaluate(() => new Promise((resolve) => {
       const open = indexedDB.open('blitz-rapport-outbox');
-      open.onerror = () => resolve(0);
+      open.onerror = () => resolve({ bestaat: false, aantal: -1 });
       open.onsuccess = () => {
         const db = open.result;
-        if (!db.objectStoreNames.contains('items')) { db.close(); return resolve(0); }
+        if (!db.objectStoreNames.contains('items')) { db.close(); return resolve({ bestaat: false, aantal: -1 }); }
         const tel = db.transaction('items').objectStore('items').count();
-        tel.onsuccess = () => { db.close(); resolve(tel.result); };
-        tel.onerror = () => { db.close(); resolve(-1); };
+        tel.onsuccess = () => { db.close(); resolve({ bestaat: true, aantal: tel.result }); };
+        tel.onerror = () => { db.close(); resolve({ bestaat: true, aantal: -1 }); };
       };
     }));
-    expect(wachtrij).toBe(0);
+    expect(wachtrij.bestaat, 'outbox-store "items" bestaat').toBe(true);
+    expect(wachtrij.aantal).toBe(0);
   });
 });

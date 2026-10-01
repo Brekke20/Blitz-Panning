@@ -37,6 +37,12 @@ All Excel exports must auto-size columns and rows so all text is always visible:
 - `R.prioriteit` — comes from `_wizTicket.priority`, stored in archief POST body
 - Installateur betrokken: leeg = "Nee", gevuld = "Ja" (source: `rd.installateur`)
 
+## Tests
+
+- `node --test` (zonder pad) — logica-tests (136). Nooit `node --test tests/`.
+- `npm run test:e2e` — Playwright-flows (kernhandelingen van de app, alle `/api/*` gestubd). Draai dit na elke taak die een scherm raakt.
+- Eerste keer: `npm install` en daarna `npx playwright install chromium`.
+
 ## Versioning & changelog
 
 Sinds 2026-08-13 uit bèta — semver vanaf **v1.0.0**, bijgehouden in `package.json`

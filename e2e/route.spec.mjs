@@ -24,17 +24,17 @@ async function maakRouteMetStops(page) {
   await expect(maandag).toHaveCount(1);
   await maandag.getByRole('button', { name: 'Route berekenen' }).click();
   await expect(page.locator('#view-planning')).toBeVisible();
-  await expect(page.locator('#plan-date')).toHaveValue('2026-10-05');
-  await expect(page.locator('#s-stops')).toHaveText('2');
+  await expect(page.getByTestId('route-datum')).toHaveValue('2026-10-05');
+  await expect(page.getByTestId('route-aantal-stops')).toHaveText('2');
   // Het openen van de Route-tab berekent de route meteen; wacht tot beide stops een tijd tonen.
-  await expect(page.locator('#route-list .stop-time')).toHaveCount(2);
+  await expect(page.getByTestId('route-stop-tijd')).toHaveCount(2);
 }
 
-const stopNummers = (page) => page.locator('#route-list .stop-numtag').allTextContents();
+const stopNummers = (page) => page.getByTestId('route-stop-nummer').allTextContents();
 const stopTijden = async (page) => {
   // Eén aankomsttijd per stop: de ⏱-regel van elke kaart.
-  const tijden = await page.locator('#route-list .stop').evaluateAll(els =>
-    els.map(e => e.querySelector('.stop-time')?.textContent.trim() ?? null));
+  const tijden = await page.getByTestId('route-stop').evaluateAll(els =>
+    els.map(e => e.querySelector('[data-testid="route-stop-tijd"]')?.textContent.trim() ?? null));
   return tijden.map(t => t && t.replace('⏱ ', ''));
 };
 const minuten = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
@@ -42,8 +42,8 @@ const minuten = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); return h
 // Sleep de stop met nummer `van` boven de stop met nummer `naar`, met kleine muisstappen
 // (sorteer.js: muis begint na 4 px; het doel is "vóór het eerste item waarvan het midden onder de muis ligt").
 async function sleepBoven(page, van, naar) {
-  const bron = page.locator('#route-list .stop').filter({ hasText: van }).locator('.stop-top');
-  const doel = page.locator('#route-list .stop').filter({ hasText: naar });
+  const bron = page.getByTestId('route-stop').filter({ hasText: van }).locator('.stop-top');
+  const doel = page.getByTestId('route-stop').filter({ hasText: naar });
   const b = await bron.boundingBox();
   const d = await doel.boundingBox();
   const x = b.x + b.width / 2;
@@ -69,7 +69,7 @@ test.describe('route', () => {
     await page.locator('.day-col').filter({ hasText: '#1001' }).getByRole('button', { name: 'Route berekenen' }).click();
 
     // (De toast 'Route berekend ✓' wordt meteen door 'Drukte laden...' vervangen: niet bruikbaar.)
-    await expect(page.locator('#route-list .stop-time')).toHaveCount(2);
+    await expect(page.getByTestId('route-stop-tijd')).toHaveCount(2);
     expect(await stopNummers(page)).toEqual(['#1001', '#1002']);
 
     // Eerst geocodeert de app vertrekpunt en stops via /api/optimize (de stub geeft vaste coordinaten,
@@ -90,13 +90,13 @@ test.describe('route', () => {
     expect(route[0].body.departAt).toBe('2026-10-05T08:00:00.000Z');
 
     // Elke stop toont een aankomsttijd; eerste = 10:00 + 20 min rit, tweede = + duur eerste stop + 20 min rit.
-    await expect(page.locator('#route-list .stop-time')).toHaveCount(2);
+    await expect(page.getByTestId('route-stop-tijd')).toHaveCount(2);
     const tijden = await stopTijden(page);
     expect(tijden).toEqual(['10:20', '12:40']);
     // Tussenrit (20 min uit route.json), samenvatting.
     await expect(page.getByText('🚗 20 min · 20.0 km')).toBeVisible();
-    await expect(page.locator('#s-dist')).toHaveText('40 km');
-    await expect(page.locator('#s-stops')).toHaveText('2');
+    await expect(page.getByTestId('route-afstand')).toHaveText('40 km');
+    await expect(page.getByTestId('route-aantal-stops')).toHaveText('2');
 
     // Drukte-detail volgt voor de toekomstige vertrektijd, met dezelfde route als polyline.
     await expect.poll(() => verzoeken.van('/api/drukte', 'POST').length).toBe(1);
@@ -115,7 +115,6 @@ test.describe('route', () => {
     await startApp(page, { technieker: 'Tim' });
     await maakRouteMetStops(page);
     expect(await stopNummers(page)).toEqual(['#1001', '#1002']);
-    const voor = await stopTijden(page);
     const routeVoor = verzoeken.van('/api/route', 'POST').length;
 
     await sleepBoven(page, '#1002', '#1001');
@@ -124,11 +123,13 @@ test.describe('route', () => {
     await expect.poll(() => stopNummers(page)).toEqual(['#1002', '#1001']);
     // Na het slepen is de route in de nieuwe volgorde opnieuw berekend (extra aanvraag), met #1002 eerst.
     expect(verzoeken.van('/api/route', 'POST').length).toBeGreaterThan(routeVoor);
-    // Tijden zijn opnieuw berekend en nu bewaard: eerste stop vroeger dan tweede, en niet meer dezelfde als voordien.
+    // Tijden zijn opnieuw berekend en nu bewaard: eerste stop vroeger dan tweede.
     const na = await stopTijden(page);
     for (const t of na) expect(t).toMatch(/^\d{2}:\d{2}$/);
     expect(minuten(na[0])).toBeLessThan(minuten(na[1]));
-    expect(na).not.toEqual(voor);
+    // De laatste route-aanvraag volgt de nieuwe volgorde: #1002 (locations[2]) eerst, dan #1001 (locations[1]).
+    const laatste = verzoeken.van('/api/route', 'POST').at(-1);
+    expect(laatste.body.waypoints.slice(1)).toEqual([{ lat: 51.14, lon: 4.96 }, { lat: 51.12, lon: 4.93 }]);
     // Gemeten: de aankomsttijden zijn nu afgerond op een kwartier en bewaard (voordien 10:20 en 12:40).
     expect(na).toEqual(['10:30', '12:45']);
     // Alle stops hebben nu een tijdstip: de balk 'zonder tijdstip' is weg.
@@ -157,7 +158,7 @@ test.describe('route', () => {
     // 'Bij herladen van de route-tab': wissel naar Kalender en terug; de tijden staan er nog.
     await page.getByRole('tab', { name: 'Kalender' }).click();
     await page.getByRole('tab', { name: 'Route' }).click();
-    await expect(page.locator('#route-list .stop-time')).toHaveCount(2);
+    await expect(page.getByTestId('route-stop-tijd')).toHaveCount(2);
     expect(await stopNummers(page)).toEqual(['#1001', '#1002']);
     expect(await stopTijden(page)).toEqual(vast);
     await expect(page.getByRole('button', { name: 'Tijden vastleggen' })).toHaveCount(0);

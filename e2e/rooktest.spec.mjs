@@ -45,6 +45,8 @@ test('vangnet: door de app geopende pagina (window.open) is ook bewaakt', async 
   ]);
   await expect.poll(() => verzoeken.buitenHost).toContain('https://example.com/popup');
   await popup.close();
+  // Laat de afgebroken navigatie eerst uitrollen (ook de consolefout), vóór we opruimen.
+  await expect.poll(() => consoleFouten.length).toBeGreaterThan(0);
   verzoeken.buitenHost.length = 0;
   consoleFouten.length = 0; // de afgebroken popup-navigatie meldt zichzelf als requestfailed
 });
@@ -57,7 +59,14 @@ test('vangnet: elke spec importeert test uit ./helpers.mjs', async () => {
   const map = path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1'));
   const specs = fs.readdirSync(decodeURIComponent(map)).filter(f => f.endsWith('.spec.mjs'));
   expect(specs.length).toBeGreaterThan(0);
+  // Vangt: from '...', import '...', import('...'), require('...'), en ook 'playwright/test'.
+  const verboden = /(?:from|import|require)\s*\(?\s*['"](?:@playwright\/test|playwright\/test)['"]/;
   const overtreders = specs.filter(f =>
-    /from\s+['"]@playwright\/test['"]/.test(fs.readFileSync(path.join(decodeURIComponent(map), f), 'utf8')));
+    verboden.test(fs.readFileSync(path.join(decodeURIComponent(map), f), 'utf8')));
+  // Zelftest van het patroon (modulenaam samengesteld, zodat dit bestand zichzelf niet raakt).
+  const pw = '@play' + 'wright/test';
+  for (const s of [`import { test } from '${pw}'`, `await import('${pw}')`, `require('${pw}')`,
+    `import '${pw}'`, `import {test} from "${pw.slice(1)}"`]) expect(verboden.test(s), s).toBe(true);
+  expect(verboden.test("import { test } from './helpers.mjs'")).toBe(false);
   expect(overtreders, 'specs die @playwright/test rechtstreeks importeren').toEqual([]);
 });
