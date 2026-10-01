@@ -9,23 +9,18 @@ import { getStore } from '@netlify/blobs';
 import { isTestVerzoek, winkelNaam, nepZohoAntwoord, zorgVoorTestkopie } from '../lib/testmodus.js';
 import { leesRegister, wisVoorstel } from '../lib/voorstelregister.js';
 import { datumInBrussel } from '../lib/bevestigingslink.js';
+import { maakZoho } from '../lib/zoho.js';
+import { maakCors, v2Json, v2Opties } from '../lib/http.js';
 import {
   REDENEN, valideerAnnulatie, valideerRedenToelichting, bouwAnnulatieMail, bouwAnnulatieNotitie, escHtml,
 } from '../lib/annulatie.js';
 
-const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
-const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // Statussen waarin een afspraak effectief 'gepland' is (annuleren heeft dan zin).
 const GEPLAND = ['Wachten op bevestiging planning', 'Geplande service', 'Geplande support'];
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Blitz-Test',
-  'Content-Type': 'application/json',
-};
-const json = (status, obj) => new Response(JSON.stringify(obj), { status, headers: CORS });
+const CORS = maakCors({ methoden: 'GET, POST, OPTIONS', headers: 'Content-Type, X-Blitz-Test', inhoudType: 'application/json' });
+const json = (status, obj) => v2Json(status, obj, CORS);
 
 function uurInBrussel(iso) {
   const t = new Date(iso);
@@ -43,36 +38,13 @@ function tijdstipNu() {
 
 export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
   // Tokencache per handler-instantie (niet op moduleniveau: geen lekken tussen tests).
-  let cachedToken = null;
-  let tokenExpiry = 0;
-
-  async function getAccessToken() {
-    if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-    const params = new URLSearchParams({
-      refresh_token: process.env.ZOHO_REFRESH_TOKEN,
-      client_id:     process.env.ZOHO_CLIENT_ID,
-      client_secret: process.env.ZOHO_CLIENT_SECRET,
-      grant_type:    'refresh_token',
-    });
-    const res  = await doFetch(ZOHO_ACCOUNTS, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params,
-    });
-    const data = await res.json();
-    if (!data.access_token) throw new Error('Token refresh mislukt');
-    cachedToken = data.access_token;
-    tokenExpiry = Date.now() + 55 * 60 * 1000;
-    return cachedToken;
-  }
+  const zoho = maakZoho({ fetch: doFetch, tokenFoutMetData: false });
 
   async function addZohoComment(ticketId, accessToken, orgId, content) {
     // Enkel loggen bij een fout: de annulering zelf is op dit punt al gelukt.
     try {
-      const res = await doFetch(`${ZOHO_DESK}/tickets/${ticketId}/comments`, {
-        method: 'POST',
-        headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, isPublic: false }),
+      const res = await zoho.verzoek(`/tickets/${ticketId}/comments`, {
+        token: accessToken, orgId, methode: 'POST', json: { content, isPublic: false },
       });
       if (!res.ok) console.error('Zoho ticket-comment mislukt:', res.status, await res.text().catch(() => ''));
     } catch (e) {
@@ -81,7 +53,7 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
   }
 
   return async (req) => {
-    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+    if (req.method === 'OPTIONS') return v2Opties(CORS);
 
     if (req.method === 'GET') {
       return json(200, { redenen: REDENEN.map(({ code, label }) => ({ code, label })) });
@@ -125,15 +97,9 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
     }
 
     try {
-      const accessToken = await getAccessToken();
-      const orgRes  = await doFetch(`${ZOHO_DESK}/organizations`, { headers: { Authorization: `Zoho-oauthtoken ${accessToken}` } });
-      const orgData = await orgRes.json();
-      const orgId   = orgData.data?.[0]?.id;
-      if (!orgId) throw new Error('Zoho org ID niet gevonden');
+      const { token: accessToken, orgId } = await zoho.haalToegang();
 
-      const ticketRes  = await doFetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
-        headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
-      });
+      const ticketRes  = await zoho.verzoek(`/tickets/${ticketId}`, { token: accessToken, orgId });
       const ticketData = await ticketRes.json().catch(() => ({}));
       if (ticketRes.status === 404) return json(404, { error: 'Ticket niet gevonden' });
       if (!ticketRes.ok) return json(502, { error: 'Zoho ticket ophalen mislukt' });
@@ -198,9 +164,7 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
         let fromEmailAddress = process.env.ZOHO_FROM_EMAIL || null;
         try {
           if (!fromEmailAddress) {
-            const emailRes  = await doFetch(`${ZOHO_DESK}/emailAddresses?limit=50`, {
-              headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
-            });
+            const emailRes  = await zoho.verzoek('/emailAddresses?limit=50', { token: accessToken, orgId });
             const emailData = await emailRes.json();
             const cand = (emailData?.data || []).find(a => a.emailAddress && a.emailAddress.includes('@'));
             fromEmailAddress = cand?.emailAddress || null;
@@ -219,12 +183,9 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
           const emailHtml = bouwAnnulatieMail({ naam, datum, tijdslot, uur, reden, toelichting });
           for (const { doelgroep, email } of ontvangers) {
             try {
-              const replyRes = await doFetch(`${ZOHO_DESK}/tickets/${ticketId}/sendReply`, {
-                method: 'POST',
-                headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  channel: 'EMAIL', contentType: 'html', content: emailHtml, fromEmailAddress, to: email,
-                }),
+              const replyRes = await zoho.verzoek(`/tickets/${ticketId}/sendReply`, {
+                token: accessToken, orgId, methode: 'POST',
+                json: { channel: 'EMAIL', contentType: 'html', content: emailHtml, fromEmailAddress, to: email },
               });
               const replyText = await replyRes.text();
               let replyData = {};
@@ -245,10 +206,9 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
       }
 
       // 2. PATCH NA sendReply.
-      const patchRes = await doFetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
-        method: 'PATCH',
-        headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'Wachten op planning', cf: { cf_interventie_datm: '' } }),
+      const patchRes = await zoho.verzoek(`/tickets/${ticketId}`, {
+        token: accessToken, orgId, methode: 'PATCH',
+        json: { status: 'Wachten op planning', cf: { cf_interventie_datm: '' } },
       });
       if (!patchRes.ok) {
         const t = await patchRes.text().catch(() => '');
