@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import {
   berekenAankomsten, aankomstPerTicket, fmtTijd, dagHeeftEenTechnieker, buitenDagklok,
-  mergeMetAnkers, routeHandtekening, stopZonderTijdstip,
+  mergeMetAnkers, routeHandtekening, stopZonderTijdstip, drukteMagnitude,
 } from '../public/js/schermen/route-tijden.js';
 
 const duur = (d) => (id) => d[id];
@@ -121,4 +121,12 @@ test('stopZonderTijdstip', () => {
   assert.equal(stopZonderTijdstip({}, false), true);
   assert.equal(stopZonderTijdstip({ uur: '10:00' }, false), false);
   assert.equal(stopZonderTijdstip({}, true), false);
+});
+
+test('drukteMagnitude: klassen op de drempels 1,03 / 1,10 / 1,25', () => {
+  assert.equal(drukteMagnitude(1.25), 3);
+  assert.equal(drukteMagnitude(1.10), 2);
+  assert.equal(drukteMagnitude(1.03), 1);
+  assert.equal(drukteMagnitude(1.02), 0);
+  assert.equal(drukteMagnitude(1.2499), 2); // net onder de drempel
 });

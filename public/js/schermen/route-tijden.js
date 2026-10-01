@@ -127,3 +127,11 @@ export function routeHandtekening(stops, eigenAfspraken) {
 // ze niet mee als "zonder tijdstip" (anders zou de balk nooit verdwijnen). `isAnker` = de
 // uitkomst van isStopAnchored(p) (blijft in index.html: hangt af van vergrendeling en voorkeursuur).
 export function stopZonderTijdstip(p, isAnker) { return !p.uur && !isAnker; }
+
+// Verwachte-drukte-klasse uit de verhouding (historische of live) reistijd / vrije doorstroming.
+export function drukteMagnitude(ratio) {
+  if (ratio >= 1.25) return 3;
+  if (ratio >= 1.10) return 2;
+  if (ratio >= 1.03) return 1;
+  return 0;
+}
