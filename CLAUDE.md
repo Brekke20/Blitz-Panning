@@ -45,6 +45,22 @@ All Excel exports must auto-size columns and rows so all text is always visible:
 
 De e2e-suite heeft internet nodig: de app laadt zijn scripts van externe CDN's (cdnjs.cloudflare.com, cdn.jsdelivr.net) en die worden bewust niet gestubd. Faalt een run op netwerkfouten voor die hosts (bv. een script dat niet laadt), dan is dat geen regressie in de app: controleer de verbinding en draai opnieuw.
 
+## Kern (`public/js/kern/`)
+
+Gedeelde fundamenten (etappe 2 van de refactor): `tijd`, `ui`, `selecties`, `toestand`, `api`.
+
+- Het zijn pure ES-modules, importeerbaar in `node --test`. Enkel `kern/brug.js` raakt `window` aan
+  (`window.kern` + de oude globale namen en state-accessors in het `LEGACY-BRUG`-blok; dat blok verdwijnt in etappe 5).
+- Regel K3: klassieke code op het hoogste niveau van `index.html` gebruikt `window.kern`, accessors of
+  verhuisde functies nooit (de brug laadt pas als module); alleen binnen function-bodies. Controle bij een
+  verhuizing: `grep -nE "^(let|const|var) .*<naam>"`.
+- Muteer je een geabonneerde toestandssleutel in-place (`localEvents.push`, `avExceptions.splice`, `allTickets.sort`, ...),
+  roep dan `kern.toestand.raak('<sleutel>')` aan; een toewijzing verwittigt vanzelf.
+- Abonnementen op de toestand staan op één plek: `koppelRenders()` in `index.html`. Geen losse `renderX()` naast een abonnement.
+- Opslaan met optimistic locking via `kern.api.bewaarMetVersie` (merge + één retry bij 409), zoals `saveAfspraken` en `saveKlantBeschikbaarheid`.
+- Tijd-tests zetten `process.env.TZ = 'Europe/Brussels'` bovenaan; draai `node --test` zonder pad, nooit `node --test tests/`.
+- Een nieuw kern-bestand komt in dezelfde commit in `SHELL` van `public/sw.js`.
+
 ## Versioning & changelog
 
 Sinds 2026-08-13 uit bèta — semver vanaf **v1.0.0**, bijgehouden in `package.json`

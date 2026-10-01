@@ -44,8 +44,11 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
     controle over te slaan.
 - Route-tab: de stops van een dag worden op één plaats bepaald (was zes kopieën); geen
   zichtbare wijziging.
+- Interne herstructurering: gedeelde fundamenten in `public/js/kern/` (tijd, selecties, toestand met automatisch hertekenen, api, ui).
 
 ### Fixed
+- Afspraken opslaan bij een gelijktijdige wijziging door een collega: de eigen wijziging gaat niet meer verloren maar wordt samengevoegd met de nieuwe stand en opnieuw bewaard.
+- De TEST-badge in de kop is nu zichtbaar in de testmodus.
 - Een serverfout met een onleesbaar antwoord (bv. een HTML-foutpagina) toont bij route, optimaliseren en
   drukte nu "HTTP <status>" in plaats van een technische fouttekst.
 

@@ -919,7 +919,7 @@ document.addEventListener('DOMContentLoaded', () => {
   koppelRenders(); // vanaf hier volgen de schermen de toestand (K6/K7)
   updatePersonHeader();
   // TEST badge tonen indien actief
-  if (TEST_MODE) document.getElementById('test-badge').style.display = '';
+  if (TEST_MODE) document.getElementById('test-badge').style.display = 'inline-block';
   // Offline banner
   const offlineBanner = document.getElementById('offline-banner');
   const updateOnlineState = () => {
@@ -2728,23 +2728,44 @@ async function loadAfspraken() {
   }
 }
 
-async function saveAfspraken() {
+// Bij een 409 (collega schreef net) wordt de eigen wijziging over de server-stand gelegd en één keer
+// opnieuw bewaard (kern.api.bewaarMetVersie). Lukt ook dat niet (tweede 409): waarschuwing + server-stand.
+let _afsConflict = false; // true na een mislukte opslag waarbij localEvents door de server-stand is vervangen
+async function saveAfspraken({ toegevoegd = [], gewijzigd = [], verwijderd = [] } = {}) {
+  _afsConflict = false;
   try {
-    const res = await fetch(AFG_API, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ versie: localEventsVersie, afspraken: localEvents }),
+    const result = await kern.api.bewaarMetVersie({
+      pad: AFG_API, veld: 'afspraken', versie: localEventsVersie, waarde: localEvents,
+      voegSamen: (server) => {
+        let lijst = [...(server || [])];
+        if (verwijderd.length) lijst = lijst.filter(e => !verwijderd.includes(e.id));
+        for (const w of gewijzigd) {
+          const i = lijst.findIndex(e => e.id === w.id);
+          if (i === -1) lijst.push(w); else lijst[i] = w;
+        }
+        for (const t of toegevoegd) {
+          if (!lijst.some(e => e.id === t.id)) lijst.push(t);
+        }
+        return lijst;
+      },
     });
-    if (res.status === 409) {
-      const body = await res.json();
-      localEvents       = body.data?.afspraken || [];
-      localEventsVersie = body.data?.versie    || 0;
+    if (!result.ok && result.reden === 'conflict') {
+      // Tweede 409: toon de server-stand, niet onze mislukte poging.
+      if (result.laatsteServer !== undefined) {
+        localEvents       = result.laatsteServer || [];
+        localEventsVersie = result.laatsteVersie || 0;
+      } else {
+        localEvents       = result.waarde || [];
+        localEventsVersie = result.versie || 0;
+      }
+      _afsConflict = true;
       toast('⚠ Iemand anders wijzigde dit net. De afspraken zijn opnieuw geladen.', 3000);
       return false;
     }
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    localEventsVersie = data.versie;
+    // Na een 409-merge is `waarde` de samengevoegde stand en `versie` de serverversie (ook bij een mislukte retry).
+    if (result.waarde !== localEvents) localEvents = result.waarde;
+    localEventsVersie = result.versie;
+    if (!result.ok) throw new Error(result.reden === 'netwerk' ? 'netwerk' : 'HTTP ' + result.status);
     return true;
   } catch (err) {
     console.error('Afspraken opslaan mislukt:', err);
@@ -3084,7 +3105,7 @@ async function confirmImport() {
   document.getElementById('import-overlay').classList.remove('open');
   _pendingImport = [];
 
-  const ok = await saveAfspraken();
+  const ok = await saveAfspraken({ toegevoegd: nieuweItems });
   if (!ok) {
     localEvents = localEvents.filter(e => !nieuweItems.some(n => n.id === e.id));
   } else {
@@ -3180,12 +3201,17 @@ async function saveManueelAfspraak() {
     const idx = localEvents.findIndex(e => e.id === editId);
     if (idx === -1) { toast('⚠ Afspraak niet gevonden', 2000); return; }
     const oldEvent = { ...localEvents[idx] };
-    localEvents[idx] = { ...oldEvent, titel, datum, uur: van, einduur: tot, type, persoon: persoon || null, adres, notitie, telefoon, email };
+    const nieuwEvent = { ...oldEvent, titel, datum, uur: van, einduur: tot, type, persoon: persoon || null, adres, notitie, telefoon, email };
+    localEvents[idx] = nieuwEvent;
     kern.toestand.raak('localEvents'); // in-place
-    const ok = await saveAfspraken();
+    const ok = await saveAfspraken({ gewijzigd: [nieuwEvent] });
     if (!ok) {
-      localEvents[idx] = oldEvent;
-      kern.toestand.raak('localEvents'); // in-place
+      // Rollback op id, en enkel als onze wijziging er nog staat (bij een conflict is de server-stand geladen).
+      const nu = localEvents.findIndex(e => e.id === oldEvent.id);
+      if (nu !== -1 && localEvents[nu] === nieuwEvent) {
+        localEvents[nu] = oldEvent;
+        kern.toestand.raak('localEvents'); // in-place
+      }
     } else {
       toast('✓ Afspraak bijgewerkt', 2000);
     }
@@ -3199,7 +3225,7 @@ async function saveManueelAfspraak() {
     };
     localEvents.push(event);
     kern.toestand.raak('localEvents'); // in-place push
-    const ok = await saveAfspraken();
+    const ok = await saveAfspraken({ toegevoegd: [event] });
     if (!ok) {
       localEvents = localEvents.filter(e => e.id !== event.id);
     } else {
@@ -3211,8 +3237,9 @@ async function saveManueelAfspraak() {
 async function removeLocalEvent(id) {
   const removed = localEvents.find(e => e.id === id);
   localEvents   = localEvents.filter(e => e.id !== id);
-  const ok = await saveAfspraken();
-  if (!ok && removed) {
+  const ok = await saveAfspraken({ verwijderd: [id] });
+  // Na een conflict is de server-stand geladen: niets terugzetten. Anders enkel als het id niet al aanwezig is.
+  if (!ok && removed && !_afsConflict && !localEvents.some(e => e.id === id)) {
     localEvents.push(removed);
     kern.toestand.raak('localEvents'); // in-place push
   }
