@@ -261,6 +261,7 @@ const CHROMIUM_URL =
 let cachedToken = null;
 let tokenExpiry  = 0;
 
+// Bewust nog een eigen kopie (etappe 6, Z3): Chromium en het Blobs-register zijn zonder naden onbereikbaar voor tests. Zie netlify/lib/zoho.js.
 async function getAccessToken() {
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
   const params = new URLSearchParams({

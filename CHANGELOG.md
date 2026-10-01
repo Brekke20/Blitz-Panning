@@ -44,6 +44,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
     controle over te slaan.
 - Route-tab: de stops van een dag worden op één plaats bepaald (was zes kopieën); geen
   zichtbare wijziging.
+- Interne serverstructuur vernieuwd: gedeelde `netlify/lib/zoho.js` en `http.js`, 13 functies overgezet, identiek gedrag, nieuwe tests.
 - Interne herstructurering: gedeelde fundamenten in `public/js/kern/` (tijd, selecties, toestand met automatisch hertekenen, api, ui).
 
 ### Fixed
@@ -51,6 +52,10 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - De TEST-badge in de kop is nu zichtbaar in de testmodus.
 - Een serverfout met een onleesbaar antwoord (bv. een HTML-foutpagina) toont bij route, optimaliseren en
   drukte nu "HTTP <status>" in plaats van een technische fouttekst.
+- Oplossing doorzetten naar Zoho meldt niet langer ten onrechte een fout wanneer Zoho een leeg antwoord teruggeeft.
+
+### Bekend, ongewijzigd
+- Serverkant, bewust niet aangepast: token-foutdata komt in 8 van 10 functies mee, in 2 niet; `tickets` heeft geen OPTIONS; `route`, `optimize` en `drukte` hebben geen methodecontrole; `plan-datum` antwoordt 405 als tekst, de v1-functies als JSON; `comment` heeft Engelse validatie- en orgfouten, `plan` Nederlandse.
 
 ### Removed
 - Ongebruikte oude clustercode (`geoCluster`, `geoClusterFrom`, `estimateTravelMinFromRoute`).

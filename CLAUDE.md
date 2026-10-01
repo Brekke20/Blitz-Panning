@@ -39,11 +39,21 @@ All Excel exports must auto-size columns and rows so all text is always visible:
 
 ## Tests
 
-- `node --test` (zonder pad) — logica-tests (136). Nooit `node --test tests/`.
+- `node --test` (zonder pad) — logica-tests (476). Nooit `node --test tests/`.
 - `npm run test:e2e` — Playwright-flows (kernhandelingen van de app, alle `/api/*` gestubd). Draai dit na elke taak die een scherm raakt.
 - Eerste keer: `npm install` en daarna `npx playwright install chromium`.
 
 De e2e-suite heeft internet nodig: de app laadt zijn scripts van externe CDN's (cdnjs.cloudflare.com, cdn.jsdelivr.net) en die worden bewust niet gestubd. Faalt een run op netwerkfouten voor die hosts (bv. een script dat niet laadt), dan is dat geen regressie in de app: controleer de verbinding en draai opnieuw.
+
+## Serverkant (`netlify/lib/`)
+
+Etappe 6 van de refactor: gedeelde serverbouwstenen. Gebruik ze voor elke nieuwe Zoho- of TomTom-functie.
+
+- `netlify/lib/zoho.js`: `maakZoho({ fetch, env, nu, tokenFoutMetData, orgFoutTekst })` voor token (55 min cache in de instantie), org-id, headers en `verzoek`; `leesJsonVeilig` voor antwoorden die leeg of geen JSON kunnen zijn. Maak de instantie op moduleniveau van de functie.
+- `netlify/lib/http.js`: CORS-sets en v1/v2-antwoord-, OPTIONS- en methodehulpen. Geen eigen CORS-literals in functies.
+- Uitzonderingen met een eigen kopie: `rapport.js` (Chromium en Blobs-register zijn onbereikbaar voor tests) en `setup.js` (grant-code-uitwisseling).
+- Tests: `tests/nep-fetch.mjs` (`maakNepFetch`, `laadVers`, `metGlobaleFetch`, `v1Event`, `zetEnv`). Nooit echte Zoho-, TomTom- of mailaanroepen; `globalThis.fetch` staat standaard op een functie die gooit.
+- Karakterisering eerst: leg bij het migreren of wijzigen van een functie eerst het huidige gedrag vast (uitgaande verzoeken, statussen, headers, foutteksten) in `tests/server-*.test.mjs`. Een karakteriseringstest wijzig je alleen bewust (bv. bij een bugfix, met commentaar), nooit stilzwijgend.
 
 ## Kern (`public/js/kern/`)
 
