@@ -2,27 +2,26 @@
 // Specs in e2e/productie/ importeren `test` en `expect` uit dit bestand (NIET uit helpers.mjs en
 // niet uit @playwright/test). Dit is het strengste vangnet van de suite, want hier loopt de
 // echte Zoho-code van de app; elke fout in dit bestand kan een echte Zoho-, TomTom- of mailaanroep
-// betekenen. De vijf sloten:
+// betekenen. De zes sloten:
 //   1. de statische server (e2e/statische-server.mjs) heeft geen backend: elk /api-pad geeft 599;
 //   2. het host-vangnet van stubExtern (alles buiten 127.0.0.1/localhost:3338 en de CDN-lijst: afgebroken);
 //   3. per-pad stubs (stubExtern) + de catch-all 599 voor al het andere (`verzoeken.onverwacht`);
-//   4. de schrijfpaden-whitelist per test (`verwachtSchrijven`): elk niet-GET /api-verzoek buiten de lijst faalt;
-//   5. `isToegestaan` (vangnet-regels.mjs) als extra route met voorrang: CDN enkel GET/HEAD, geen Zoho/TomTom/mail.
+//   4. de schrijfpaden-whitelist per test (`verwachtSchrijven`): elk niet-GET verzoek naar de eigen server (ook buiten /api) buiten de lijst faalt;
+//   5. `isToegestaan` (vangnet-regels.mjs) als extra route met voorrang: CDN enkel GET/HEAD, geen Zoho/TomTom/mail;
+//   6. WebSocket-slot (context.routeWebSocket): elke verbinding faalt de test.
+// Lekmeldingen zijn niet te wissen vanuit een gewone spec: de waarnemer staat in productie-waarnemer.mjs en enkel
+// de zelftest (e2e/productie/zelftest-hulp.mjs) mag hem importeren (afgedwongen door tests/e2e-import-guard.test.mjs).
 import { test as basis, expect } from '@playwright/test';
 import {
   stubExtern, standaardStub, verzamelVerzoeken, TE_PLANNEN, VASTE_NU, TOEGESTANE_CONSOLERUIS,
 } from './helpers.mjs';
-import { isToegestaan } from './vangnet-regels.mjs';
+import { waarnemer, strengVangnet, zetWebSocketSlot } from './productie-waarnemer.mjs';
 
 export { expect, VASTE_NU };
 
 // Schrijfverzoeken die de app bij elke start zelf doet (POST /api/planning-sinds vraagt wachttijden op).
 export const OPSTART_SCHRIJVEN = ['/api/planning-sinds'];
 
-// Hosts die stubExtern zelf beantwoordt (kaarttegels, lettertypen): nooit echt opgehaald.
-const GESTUBDE_HOSTEN = /^(server\.arcgisonline\.com|[a-c]\.tile\.openstreetmap\.org|fonts\.googleapis\.com)$/;
-
-const PER_CONTEXT = new WeakMap(); // context -> { ongeoorloofd, testSignalen }
 const PER_VERZOEKEN = new WeakMap(); // verzoeken -> schrijfpaden (array)
 
 function schrijfpadenVan(verzoeken) {
@@ -35,57 +34,12 @@ export function verwachtSchrijven(verzoeken, paden) {
   schrijfpadenVan(verzoeken).push(...paden);
 }
 
-// Niet-GET /api-verzoeken die niet op de whitelist staan (als 'METHODE /pad').
+// Niet-GET verzoeken naar de eigen server die niet op de whitelist staan (als 'METHODE /pad').
 export function ongemeldeSchrijfverzoeken(alle, paden) {
   const toegestaan = new Set(paden);
   return alle
     .filter(r => r.methode !== 'GET' && !toegestaan.has(r.pad) && !toegestaan.has(`${r.methode} ${r.pad}`))
     .map(r => `${r.methode} ${r.pad}`);
-}
-
-// Registreert het strenge slot op de context. `metStubs`: mogen tegel-/fonthosts (GET) doorvallen naar
-// stubExtern? In de fixture (nog geen stubs) niet: daar wordt alles buiten de eigen server afgebroken.
-async function strengVangnet(context, verzoeken, { metStubs }) {
-  await context.route(u => /^https?:$/.test(u.protocol), (route) => {
-    const req = route.request();
-    const methode = req.method();
-    const u = new URL(req.url());
-    if (isToegestaan({ url: req.url(), methode }).ok) return route.fallback();
-    if (metStubs && methode === 'GET' && GESTUBDE_HOSTEN.test(u.hostname)) return route.fallback();
-    verzoeken.buitenHost.push(u.href);
-    return route.abort('blockedbyclient');
-  });
-}
-
-// Gedeelde waarnemer per context: ziet ook verzoeken die een route afbreekt of vervult.
-function waarnemer(context) {
-  if (PER_CONTEXT.has(context)) return PER_CONTEXT.get(context);
-  const w = { ongeoorloofd: [], testSignalen: [] };
-  context.on('request', (req) => {
-    const methode = req.method();
-    const u = new URL(req.url());
-    if (!/^https?:$/.test(u.protocol)) return;
-    const h = req.headers();
-    if ('x-blitz-test' in h) w.testSignalen.push(`x-blitz-test-header: ${methode} ${u.href}`);
-    if (u.searchParams.has('test') && (u.host === 'localhost:3338' || u.host === '127.0.0.1:3338')) {
-      w.testSignalen.push(`?test in URL: ${methode} ${u.href}`);
-    }
-    if (isToegestaan({ url: u.href, methode }).ok) return;
-    if (methode === 'GET' && GESTUBDE_HOSTEN.test(u.hostname)) return; // gestubd door stubExtern
-    w.ongeoorloofd.push(`${methode} ${u.href}`);
-  });
-  PER_CONTEXT.set(context, w);
-  return w;
-}
-
-// Enkel voor de zelftest van het vangnet: geeft de bewust uitgelokte, geblokkeerde verzoeken terug en
-// leegt ze, zodat het auto-vangnet daarna slaagt. Een test die dit gebruikt, moet eerst op de inhoud asserteren.
-export function neemGeblokkeerdeProbesOver(page, verzoeken) {
-  const w = waarnemer(page.context());
-  const uit = { buitenHost: [...verzoeken.buitenHost], ongeoorloofd: [...w.ongeoorloofd] };
-  verzoeken.buitenHost.length = 0;
-  w.ongeoorloofd.length = 0;
-  return uit;
 }
 
 // Opent de app zonder ?test. `technieker`: 'all' | 'Tim' | 'Roel' (bepaalt de verwachte wachtrijtelling).
@@ -140,6 +94,7 @@ export const test = basis.extend({
   verzoeken: async ({ page }, use) => {
     const verzoeken = verzamelVerzoeken(page);
     waarnemer(page.context());
+    await zetWebSocketSlot(page.context());
     // Lagere laag: ook als een test de app opent zonder startAppProductie, verlaat niets de eigen server.
     await strengVangnet(page.context(), verzoeken, { metStubs: false });
     await use(verzoeken);
@@ -167,11 +122,13 @@ export const test = basis.extend({
     const w = waarnemer(page.context());
     expect(verzoeken.buitenHost, 'verzoeken naar een niet-toegestane externe host (afgebroken)').toEqual([]);
     expect(w.ongeoorloofd, 'verzoeken die isToegestaan weigert').toEqual([]);
+    expect(w.websockets, 'WebSocket-verbindingen (de app gebruikt er geen)').toEqual([]);
     expect(w.testSignalen, 'testmodus-signalen (?test of X-Blitz-Test) in productiemodus').toEqual([]);
     expect(verzoeken.onverwacht, 'niet-gestubde /api-verzoeken').toEqual([]);
     const metHeader = verzoeken.alle.filter(r => r.headers['x-blitz-test'] !== null).map(r => `${r.methode} ${r.pad}`);
     expect(metHeader, 'X-Blitz-Test-header op een /api-verzoek').toEqual([]);
-    const ongemeld = ongemeldeSchrijfverzoeken(verzoeken.alle, toegestaneSchrijfpaden);
+    // De waarnemer ziet alle niet-GET verzoeken naar de eigen server, ook buiten /api.
+    const ongemeld = ongemeldeSchrijfverzoeken(w.schrijven, toegestaneSchrijfpaden);
     expect(ongemeld, 'schrijfverzoeken buiten de whitelist (verwachtSchrijven)').toEqual([]);
     for (const p of page.context().pages()) {
       expect(new URL(p.url(), 'http://x').searchParams.has('test'), `?test in de URL van ${p.url()}`).toBe(false);

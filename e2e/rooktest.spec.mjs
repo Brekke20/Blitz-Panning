@@ -45,23 +45,5 @@ test('vangnet: door de app geopende pagina (window.open) is ook bewaakt', async 
   verzoeken.buitenHost.length = 0;
   consoleFouten.length = 0; // de afgebroken popup-navigatie meldt zichzelf als requestfailed
 });
-
-// Afdwingen dat specs `test` uit helpers.mjs gebruiken: rechtstreeks uit @playwright/test importeren
-// zou de afterEach-controles omzeilen.
-test('vangnet: elke spec importeert test uit ./helpers.mjs', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const map = path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1'));
-  const specs = fs.readdirSync(decodeURIComponent(map)).filter(f => f.endsWith('.spec.mjs'));
-  expect(specs.length).toBeGreaterThan(0);
-  // Vangt: from '...', import '...', import('...'), require('...'), en ook 'playwright/test'.
-  const verboden = /(?:from|import|require)\s*\(?\s*['"](?:@playwright\/test|playwright\/test)['"]/;
-  const overtreders = specs.filter(f =>
-    verboden.test(fs.readFileSync(path.join(decodeURIComponent(map), f), 'utf8')));
-  // Zelftest van het patroon (modulenaam samengesteld, zodat dit bestand zichzelf niet raakt).
-  const pw = '@play' + 'wright/test';
-  for (const s of [`import { test } from '${pw}'`, `await import('${pw}')`, `require('${pw}')`,
-    `import '${pw}'`, `import {test} from "${pw.slice(1)}"`]) expect(verboden.test(s), s).toBe(true);
-  expect(verboden.test("import { test } from './helpers.mjs'")).toBe(false);
-  expect(overtreders, 'specs die @playwright/test rechtstreeks importeren').toEqual([]);
-});
+// De importguard (specs importeren `test` enkel uit de eigen fixture) staat in tests/e2e-import-guard.test.mjs
+// (node --test, recursief over e2e/), zodat hij niet met `playwright test <spec>` of `-g` te omzeilen is.
