@@ -6,56 +6,32 @@
 import { getStore } from '@netlify/blobs';
 import { isTestVerzoek, winkelNaam } from '../lib/testmodus.js';
 import { berekenSinds, volgendePaginaNodig, leesRegister, schrijfRegister } from '../lib/planningsinds.js';
-
-const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
-const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
+import { maakZoho } from '../lib/zoho.js';
+import { maakCors, v2Json, v2Methode } from '../lib/http.js';
 const PAGINA_GROOTTE = 50;
 const MAX_PAGINAS    = 4;
 const MAX_NIEUW      = 20;
 const BATCH          = 5;
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Blitz-Test',
-  'Content-Type': 'application/json',
-};
-const json = (status, obj) => new Response(JSON.stringify(obj), { status, headers: CORS });
+const CORS = maakCors({
+  methoden: 'POST, OPTIONS',
+  headers: 'Content-Type, X-Blitz-Test',
+  inhoudType: 'application/json',
+});
 
 const ticketIds = v => (Array.isArray(v) ? v : []).map(String).filter(id => /^\d+$/.test(id));
 
 export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
   // Tokencache per handler-instantie (niet op moduleniveau: geen lekken tussen tests).
-  let cachedToken = null;
-  let tokenExpiry = 0;
-
-  async function getAccessToken() {
-    if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-    const params = new URLSearchParams({
-      refresh_token: process.env.ZOHO_REFRESH_TOKEN,
-      client_id:     process.env.ZOHO_CLIENT_ID,
-      client_secret: process.env.ZOHO_CLIENT_SECRET,
-      grant_type:    'refresh_token',
-    });
-    const res  = await doFetch(ZOHO_ACCOUNTS, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params,
-    });
-    const data = await res.json();
-    if (!data.access_token) throw new Error('Token refresh mislukt');
-    cachedToken = data.access_token;
-    tokenExpiry = Date.now() + 55 * 60 * 1000;
-    return cachedToken;
-  }
+  const zoho = maakZoho({ fetch: doFetch, tokenFoutMetData: false });
 
   // Zoekt één ticket op; gooit bij elke Zoho-fout.
-  async function zoekSinds(id, headers) {
+  async function zoekSinds(id, { token, orgId }) {
     let events = [];
     for (let pagina = 0; pagina < MAX_PAGINAS; pagina++) {
       const from = 1 + pagina * PAGINA_GROOTTE;
-      const res = await doFetch(
-        `${ZOHO_DESK}/tickets/${id}/History?fieldName=status&limit=${PAGINA_GROOTTE}&from=${from}`, { headers });
+      const res = await zoho.verzoek(
+        `/tickets/${id}/History?fieldName=status&limit=${PAGINA_GROOTTE}&from=${from}`, { token, orgId });
       if (!res.ok) throw new Error(`Zoho history ${res.status}`);
       // 204 / lege body = geen (verdere) history.
       const tekst = await res.text();
@@ -67,7 +43,7 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
     // createdTime enkel ophalen als het nodig is (geen verlaat-event gevonden).
     let sinds = berekenSinds(events, null);
     if (!sinds) {
-      const res = await doFetch(`${ZOHO_DESK}/tickets/${id}`, { headers });
+      const res = await zoho.verzoek(`/tickets/${id}`, { token, orgId });
       if (!res.ok) throw new Error(`Zoho ticket ${res.status}`);
       const t = await res.json();
       sinds = berekenSinds(events, t.createdTime);
@@ -76,14 +52,14 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
   }
 
   return async (req) => {
-    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
-    if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405, headers: CORS });
+    const methode = v2Methode(req, ['POST'], CORS);
+    if (methode) return methode;
 
     let body;
-    try { body = await req.json(); } catch { return json(400, { error: 'Ongeldige JSON' }); }
-    if (!body || typeof body !== 'object') return json(400, { error: 'Ongeldige JSON' });
+    try { body = await req.json(); } catch { return v2Json(400, { error: 'Ongeldige JSON' }, CORS); }
+    if (!body || typeof body !== 'object') return v2Json(400, { error: 'Ongeldige JSON' }, CORS);
 
-    if (isTestVerzoek(req)) return json(200, { sinds: {} });
+    if (isTestVerzoek(req)) return v2Json(200, { sinds: {} }, CORS);
 
     const opzoeken = [...new Set(ticketIds(body.opzoeken))];
     const actiefGegeven = Array.isArray(body.actief);
@@ -111,17 +87,12 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
 
     if (teDoen.length) {
       try {
-        const accessToken = await getAccessToken();
-        const orgRes  = await doFetch(`${ZOHO_DESK}/organizations`, { headers: { Authorization: `Zoho-oauthtoken ${accessToken}` } });
-        const orgData = await orgRes.json();
-        const orgId   = orgData.data?.[0]?.id;
-        if (!orgId) throw new Error('Zoho org ID niet gevonden');
-        const headers = { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId };
+        const toegang = await zoho.haalToegang();
 
         for (let i = 0; i < teDoen.length; i += BATCH) {
           const batch = teDoen.slice(i, i + BATCH);
           const uitkomsten = await Promise.all(batch.map(async id => {
-            try { return await zoekSinds(id, headers); }
+            try { return await zoekSinds(id, toegang); }
             catch (e) { console.error(`planning-sinds: ticket ${id} mislukt:`, e?.message || e); return null; }
           }));
           batch.forEach((id, k) => {
@@ -148,7 +119,7 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
       catch (e) { console.error('planning-sinds: register schrijven mislukt:', e?.message || e); }
     }
 
-    return json(200, { sinds });
+    return v2Json(200, { sinds }, CORS);
   };
 }
 

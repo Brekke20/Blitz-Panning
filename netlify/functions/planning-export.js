@@ -6,6 +6,8 @@
 // API-sleutel via de Authorization-header.
 // Zie docs/superpowers/specs/2026-07-27-planning-export-integratie-design.md
 
+import { CORS_V1, v1Json, v1Opties } from '../lib/http.js';
+
 const DEFAULT_DUUR_MIN = 120; // zelfde standaardwaarde als DEFAULT_SETTINGS.duurMinuten in index.html
 
 // Zet een Date (die intern altijd UTC/epoch is) om naar Brussel-lokale
@@ -52,15 +54,11 @@ function checkAuth(event) {
 }
 
 export async function handler(event) {
-  const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
+  const headers = CORS_V1;
 
-  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers };
-  if (event.httpMethod !== 'GET') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
-  }
-  if (!checkAuth(event)) {
-    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
-  }
+  if (event.httpMethod === 'OPTIONS') return v1Opties(headers);
+  if (event.httpMethod !== 'GET') return v1Json(405, { error: 'Method not allowed' }, headers);
+  if (!checkAuth(event)) return v1Json(401, { error: 'Unauthorized' }, headers);
 
   try {
     const url = baseUrl(event);
@@ -169,8 +167,8 @@ export async function handler(event) {
     const alleItems = [...items, ...lokaleItems];
     alleItems.sort((a, b) => (a.datum + (a.starttijd || '')).localeCompare(b.datum + (b.starttijd || '')));
 
-    return { statusCode: 200, headers, body: JSON.stringify(alleItems) };
+    return v1Json(200, alleItems, headers);
   } catch (err) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+    return v1Json(500, { error: err.message }, headers);
   }
 }
