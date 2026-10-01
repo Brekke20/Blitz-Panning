@@ -43,6 +43,8 @@ All Excel exports must auto-size columns and rows so all text is always visible:
 - `npm run test:e2e` — Playwright-flows (kernhandelingen van de app, alle `/api/*` gestubd). Draai dit na elke taak die een scherm raakt.
 - Eerste keer: `npm install` en daarna `npx playwright install chromium`.
 
+De e2e-suite heeft internet nodig: de app laadt zijn scripts van externe CDN's (cdnjs.cloudflare.com, cdn.jsdelivr.net) en die worden bewust niet gestubd. Faalt een run op netwerkfouten voor die hosts (bv. een script dat niet laadt), dan is dat geen regressie in de app: controleer de verbinding en draai opnieuw.
+
 ## Versioning & changelog
 
 Sinds 2026-08-13 uit bèta — semver vanaf **v1.0.0**, bijgehouden in `package.json`

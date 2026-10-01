@@ -28,10 +28,10 @@ http.createServer((req, res) => {
     return res.end(JSON.stringify({ error: 'niet gestubd' }));
   }
   const bestand = path.normalize(path.join(PUBLIC, pad === '/' ? 'index.html' : pad));
-  if (!bestand.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
+  if (bestand !== PUBLIC && !bestand.startsWith(PUBLIC + path.sep)) { res.writeHead(403); return res.end(); }
   fs.readFile(bestand, (err, data) => {
     if (err) { res.writeHead(404); return res.end('niet gevonden'); }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(bestand)] || 'application/octet-stream' });
     res.end(data);
   });
-}).listen(POORT, () => console.log(`e2e statische server op http://localhost:${POORT}`));
+}).listen(POORT, '127.0.0.1', () => console.log(`e2e statische server op http://127.0.0.1:${POORT}`));

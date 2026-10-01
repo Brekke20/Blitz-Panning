@@ -110,6 +110,13 @@ function maakOpslag(leeg, veld) {
   };
 }
 
+// Voor tests die de opslag vooraf vullen: een stateful stub (GET + PUT) vanaf een eigen beginstand,
+// bv. overschrijf: { availability: opslagStub({ versie: 1, exceptions: [...] }, 'exceptions') }.
+export function opslagStub(begin, veld) {
+  const opslag = maakOpslag(begin, veld);
+  return ({ methode, body }) => methode === 'PUT' ? opslag.schrijf(body) : opslag.get();
+}
+
 function maakStandaardStubs() {
   const afspraken = maakOpslag({ versie: 0, afspraken: [] }, 'afspraken');
   const availability = maakOpslag({ versie: 0, exceptions: [] }, 'exceptions');
