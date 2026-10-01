@@ -5,6 +5,8 @@
 // aanvragen (nodig omdat de max-reistijd-check anders per kandidaat-ticket een aparte,
 // sequentiële aanvraag zou doen -- traag bij een lange wachtrij).
 
+import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
+
 const TOMTOM_BASE = 'https://api.tomtom.com';
 const API_KEY = () => process.env.TOMTOM_API_KEY;
 
@@ -24,16 +26,14 @@ async function fetchTomTomMatrix(body, attempt = 1) {
 }
 
 export async function handler(event) {
-  const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
-  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers };
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
-  }
+  const headers = CORS_V1;
+  const gate = v1Methode(event, ['POST'], headers);
+  if (gate) return gate;
 
   try {
     const { origin, destinations, departAt } = JSON.parse(event.body || '{}');
     if (!origin || !destinations?.length) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'origin en destinations zijn verplicht' }) };
+      return v1Json(400, { error: 'origin en destinations zijn verplicht' }, headers);
     }
 
     const body = {
@@ -61,8 +61,8 @@ export async function handler(event) {
         : null;
     });
 
-    return { statusCode: 200, headers, body: JSON.stringify({ results }) };
+    return v1Json(200, { results }, headers);
   } catch (err) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+    return v1Json(500, { error: err.message }, headers);
   }
 }

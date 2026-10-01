@@ -4,6 +4,8 @@
 // departAt (optioneel, ISO-8601 UTC, moet in de toekomst liggen): laat TomTom rekenen met
 // historische verkeerspatronen voor die dag/dat uur i.p.v. het verkeer van "nu".
 
+import { CORS_V1, v1Json, v1Opties } from '../lib/http.js';
+
 const TOMTOM_BASE = 'https://api.tomtom.com';
 const API_KEY = () => process.env.TOMTOM_API_KEY;
 
@@ -23,23 +25,14 @@ async function fetchTomTomRoute(url, attempt = 1) {
 }
 
 export async function handler(event) {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-  };
+  const headers = CORS_V1;
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers };
-  }
+  if (event.httpMethod === 'OPTIONS') return v1Opties(headers);
 
   try {
     const { waypoints, departAt } = JSON.parse(event.body || '{}');
     if (!waypoints?.length || waypoints.length < 2) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Need at least 2 waypoints' }),
-      };
+      return v1Json(400, { error: 'Need at least 2 waypoints' }, headers);
     }
 
     // departAt moet een geldige ISO-8601 UTC-string in de toekomst zijn — TomTom weigert
@@ -99,10 +92,7 @@ export async function handler(event) {
         effectiveSpeedInKmh: s.effectiveSpeedInKmh ?? null,
       })) || [];
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
+    return v1Json(200, {
         totalTravelTimeSeconds: summary.travelTimeInSeconds,
         totalDistanceMeters: summary.lengthInMeters,
         totalTrafficDelaySeconds: summary.trafficDelayInSeconds,
@@ -116,13 +106,8 @@ export async function handler(event) {
         polyline: route.legs?.flatMap(leg =>
           leg.points?.map(p => [p.latitude, p.longitude]) || []
         ) || [],
-      }),
-    };
+      }, headers);
   } catch (err) {
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: err.message }),
-    };
+    return v1Json(500, { error: err.message }, headers);
   }
 }

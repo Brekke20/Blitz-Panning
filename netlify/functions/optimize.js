@@ -2,6 +2,8 @@
 // Body: { origin: "Adres vertrekpunt", stops: ["adres1", "adres2", ...] }
 // Returns optimized order + geocoded coordinates via TomTom Waypoint Optimization API
 
+import { CORS_V1, v1Json, v1Opties } from '../lib/http.js';
+
 const TOMTOM_BASE = 'https://api.tomtom.com';
 const API_KEY = () => process.env.TOMTOM_API_KEY;
 
@@ -33,25 +35,16 @@ async function geocode(address, attempt = 1) {
 }
 
 export async function handler(event) {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-  };
+  const headers = CORS_V1;
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers };
-  }
+  if (event.httpMethod === 'OPTIONS') return v1Opties(headers);
 
   try {
     const body = JSON.parse(event.body || '{}');
     const { origin, stops } = body;
 
     if (!origin || !stops?.length) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Missing origin or stops' }),
-      };
+      return v1Json(400, { error: 'Missing origin or stops' }, headers);
     }
 
     // (C2) Geocode all locations — tolerant per stop met Promise.allSettled i.p.v. Promise.all:
@@ -66,11 +59,7 @@ export async function handler(event) {
 
     if (originResult.status === 'rejected') {
       const reason = originResult.reason?.message || String(originResult.reason);
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: `Vertrekpunt '${origin}' kon niet opgezocht worden (${reason})` }),
-      };
+      return v1Json(400, { error: `Vertrekpunt '${origin}' kon niet opgezocht worden (${reason})` }, headers);
     }
     const originGeo = originResult.value;
     // Index-uitlijning met `stops` blijft behouden: een mislukte stop wordt `null` i.p.v. uit de
@@ -87,15 +76,11 @@ export async function handler(event) {
     // (optimizeRoute()) checken op `optimizeError` en vallen terug op de bestaande volgorde.
     // `optimizedOrder` wordt in dat geval NIET meegestuurd, zodat een korte/kapotte array nooit
     // als betrouwbaar bij een caller aankomt.
-    const geocodeOnly = (optimizeError, details) => ({
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        locations: [originGeo, ...stopsGeo],
-        optimizeError,
-        ...(details ? { details } : {}),
-      }),
-    });
+    const geocodeOnly = (optimizeError, details) => v1Json(200, {
+      locations: [originGeo, ...stopsGeo],
+      optimizeError,
+      ...(details ? { details } : {}),
+    }, headers);
 
     if (stopsGeo.length === 0 || stopsGeo.every(s => !s)) {
       // Geen enkele stop kon gegeocodeerd worden (vertrekpunt wel) -- niets om te optimaliseren.
@@ -113,14 +98,10 @@ export async function handler(event) {
 
     if (stopsGeo.length === 1) {
       // Only one stop — no optimization needed
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
+      return v1Json(200, {
           optimizedOrder: [0],
           locations: [originGeo, ...stopsGeo],
-        }),
-      };
+        }, headers);
     }
 
     // TomTom Waypoint Optimization v1: origin/destination zijn zelf waypoints
@@ -177,20 +158,12 @@ export async function handler(event) {
       );
     }
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
+    return v1Json(200, {
         optimizedOrder,
         locations: [originGeo, ...stopsGeo],
         rawResponse: optData,
-      }),
-    };
+      }, headers);
   } catch (err) {
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: err.message }),
-    };
+    return v1Json(500, { error: err.message }, headers);
   }
 }
