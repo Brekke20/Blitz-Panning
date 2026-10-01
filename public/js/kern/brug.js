@@ -4,8 +4,9 @@
 import * as tijd from './tijd.js';
 import * as ui from './ui.js';
 import * as selecties from './selecties.js';
+import { toestand } from './toestand.js';
 
-window.kern = { tijd, ui, selecties };
+window.kern = { tijd, ui, selecties, toestand };
 
 // LEGACY-BRUG (verdwijnt in etappe 5): oude globale namen voor klassieke code en oudere modules
 Object.assign(window, {
