@@ -39,8 +39,8 @@ All Excel exports must auto-size columns and rows so all text is always visible:
 
 ## Tests
 
-- `node --test` (zonder pad) — logica-tests (476). Nooit `node --test tests/`.
-- `npm run test:e2e` — Playwright-flows (kernhandelingen van de app, alle `/api/*` gestubd). Draai dit na elke taak die een scherm raakt.
+- `node --test` (zonder pad) — logica-tests (586). Nooit `node --test tests/`.
+- `npx playwright test` — Playwright-flows (kernhandelingen van de app, alle `/api/*` gestubd); 137 scenario's. Draai dit na elke taak die een scherm raakt.
 - Eerste keer: `npm install` en daarna `npx playwright install chromium`.
 
 De e2e-suite heeft internet nodig: de app laadt zijn scripts van externe CDN's (cdnjs.cloudflare.com, cdn.jsdelivr.net) en die worden bewust niet gestubd. Faalt een run op netwerkfouten voor die hosts (bv. een script dat niet laadt), dan is dat geen regressie in de app: controleer de verbinding en draai opnieuw.
@@ -90,6 +90,22 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 - Knoppen van het scherm gebruiken `data-actie="route-..."` (delegatie in `route.js`) in plaats van inline handlers; gegevens staan op `data-*` attributen van de stop.
 - Resterende LEGACY-BRUG-namen voor het routescherm: `renderRouteList`, `updateRouteBtns`, `calculateRoute`, `computeArrivalTimes`, `initMap`, `applyKaartStijl`. Ze verdwijnen in etappe 4/5; gebruik ze niet in nieuwe code.
 - Nieuwe schermen volgen dit patroon: module-privé toestand, expliciet aangereikte functies, exports voor lezers.
+
+**Etappe 4 (Kalender en wachtrij):**
+- `capaciteit.js`: pure berekeningen (aantalmodel: `blokkeerMinuten`, `capaciteitVoorDag`, `volgendeBeschikbareDag`, `capaciteitsKop`, lezers `capacityForDay`/`nextAvailableDay`). Unit-getest met `node --test`.
+- `wachtrij-logica.js`: pure berekeningen (zoeken, sorteren, scoren: `filterOpZoek`, `sorteerWachtrij`, `queueScore`). Unit-getest.
+- `kalender-logica.js`: pure berekeningen (tijdlijnindeling, zichtbare dagen, maandraster: `bepaalLanes`, `zichtbareDagen`, `maandRaster`). Unit-getest met DST-weken.
+- `wachtrij.js`: Wachtrij-scherm (kaarten, zoeken, sorteren, teller). Private toestand: `wqSorteer`. Init via `initWachtrij(afh)` vóór `koppelRenders()`.
+- `kalender.js`: Kalender-scherm (week/maand, kaarten, navigatie, teller). Private toestand: `kalOffset` (weekdatum), `pendingPanel`. Init via `initKalender(afh)` vóór `koppelRenders()`.
+- `ingepland.js`: Ingepland-scherm (kaarten, teller). Init via `initIngepland(afh)` vóór `koppelRenders()`.
+
+**Conventies:**
+- Afhankelijkheden (functies uit klassieke code) worden via `afh` aangereikt; instellingen en toestandsgegevens uit `kern.toestand`.
+- `kern.wachtrij.renderTelling()`, `kern.kalender.renderTelling()`, `kern.ingepland.renderTelling()` zijn de tellers die de e2e-tests gebruiken.
+- Knoppen gebruiken `data-actie`-delegatie in plaats van inline handlers. Elke kaartluisteraar heeft een **bubbel-guard**: `if (e.target.closest('[data-actie]')) return;` om te voorkomen dat kaarten openen.
+- `quickAdd` en de capaciteitskop (`n/cap · ±u`) blijven op het aantalmodel in `index.html`, niet op het brein (spec C3).
+- Blokkeringen en selecties gebruiken `kern.selecties.blokkeringenVoor` en `kern.ui.maakActiveerbaar`.
+- Resterende LEGACY-BRUG-namen voor deze schermen: `renderTickets`, `renderKalender`, `renderGepland`. Ze verdwijnen in etappe 5; gebruik ze niet in nieuwe code.
 
 ## Versioning & changelog
 

@@ -28,6 +28,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
   gevonden, Zoho-fout) en waarschuwt als reistijden geschat moesten worden.
 
 ### Changed
+- Kalender, wachtrij en de lijst Ingepland zijn intern herbouwd en staan nu in eigen onderdelen; voor jou ziet alles er hetzelfde uit en werkt het hetzelfde.
 - Route-tab en kaart zijn intern herbouwd; aankomsttijden worden overal op één plaats berekend; de route-lijst ververst nu zelf bij elke wijziging in de planning.
 - Voorstel versturen: de route-lijst volgt daarna de gekozen datum in de Route-tab (plan-date) in plaats van de datum van het voorstel.
 - "Plan deze week" herschreven als apart, getest planner-onderdeel (`public/js/planner.js`):
