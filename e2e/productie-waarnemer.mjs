@@ -56,3 +56,47 @@ export function waarnemer(context) {
   PER_CONTEXT.set(context, w);
   return w;
 }
+
+// ── Alleen-lezen weergaven voor specs ─────────────────────────────────────────
+// Specs krijgen `verzoeken` en `consoleFouten` als live, alleen-lezen weergave: lezen volgt de originelen,
+// elke schrijfpoging (toewijzing, .length = 0, push/splice/pop/..., delete, defineProperty) gooit. De
+// originelen blijven hier privé; het afterEach-vangnet leest ze via origineelVan(). Zo kan een spec een
+// lekmelding niet wissen, ook niet via destructuring of haakjes-toegang.
+const ORIGINEEL = new WeakMap(); // weergave -> origineel
+const WEERGAVE = new WeakMap(); // origineel -> weergave (stabiele identiteit)
+const ARRAY_MUTATORS = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse', 'fill', 'copyWithin']);
+
+function weiger(wat) {
+  throw new TypeError(`alleen-lezen weergave van het productie-vangnet: ${wat} is niet toegestaan`);
+}
+
+export function alleenLezen(doel) {
+  if (doel === null || typeof doel !== 'object') return doel;
+  if (WEERGAVE.has(doel)) return WEERGAVE.get(doel);
+  const weergave = new Proxy(doel, {
+    get(t, k) {
+      const v = Reflect.get(t, k, t); // receiver = origineel, zodat getters op het origineel draaien
+      if (typeof v === 'function') {
+        if (k === 'constructor') return v;
+        if (Array.isArray(t) && ARRAY_MUTATORS.has(k)) return () => weiger(`.${String(k)}()`);
+        return (...args) => alleenLezen(v.apply(t, args));
+      }
+      return alleenLezen(v);
+    },
+    set(t, k) { return weiger(`toewijzing aan ${String(k)}`); },
+    defineProperty(t, k) { return weiger(`defineProperty ${String(k)}`); },
+    deleteProperty(t, k) { return weiger(`delete ${String(k)}`); },
+    setPrototypeOf() { return weiger('setPrototypeOf'); },
+    preventExtensions() { return weiger('preventExtensions'); },
+  });
+  ORIGINEEL.set(weergave, doel);
+  WEERGAVE.set(doel, weergave);
+  return weergave;
+}
+
+// Het muteerbare origineel achter een weergave; enkel voor het vangnet zelf en de zelftest-hulp.
+export function origineelVan(weergave) {
+  const o = ORIGINEEL.get(weergave);
+  if (!o) throw new Error('geen weergave van het productie-vangnet');
+  return o;
+}

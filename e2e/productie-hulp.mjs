@@ -15,7 +15,7 @@ import { test as basis, expect } from '@playwright/test';
 import {
   stubExtern, standaardStub, verzamelVerzoeken, TE_PLANNEN, VASTE_NU, TOEGESTANE_CONSOLERUIS,
 } from './helpers.mjs';
-import { waarnemer, strengVangnet, zetWebSocketSlot } from './productie-waarnemer.mjs';
+import { waarnemer, strengVangnet, zetWebSocketSlot, alleenLezen, origineelVan } from './productie-waarnemer.mjs';
 
 export { expect, VASTE_NU };
 
@@ -24,9 +24,12 @@ export const OPSTART_SCHRIJVEN = ['/api/planning-sinds'];
 
 const PER_VERZOEKEN = new WeakMap(); // verzoeken -> schrijfpaden (array)
 
+// `verzoeken` is de alleen-lezen weergave (of het origineel); de whitelist hangt aan het origineel.
 function schrijfpadenVan(verzoeken) {
-  if (!PER_VERZOEKEN.has(verzoeken)) PER_VERZOEKEN.set(verzoeken, []);
-  return PER_VERZOEKEN.get(verzoeken);
+  let o;
+  try { o = origineelVan(verzoeken); } catch { o = verzoeken; }
+  if (!PER_VERZOEKEN.has(o)) PER_VERZOEKEN.set(o, []);
+  return PER_VERZOEKEN.get(o);
 }
 
 // Per test een whitelist van niet-GET /api-paden: `'/api/plan'` of `'POST /api/plan'`.
@@ -58,7 +61,7 @@ export async function startAppProductie(page, { rol = 'coordinator', technieker 
   await page.goto('/'); // bewust zonder ?test
   if (vasteKlok) await page.clock.setFixedTime(new Date(VASTE_NU));
   await expect(page.locator('#cnt-tickets')).toHaveText(String(TE_PLANNEN[technieker] ?? 0));
-  return verzoeken;
+  return alleenLezen(verzoeken);
 }
 
 // Nep-Zoho: de zes Zoho-gebonden eindpunten met opname van elk verzoek en een instelbaar antwoord.
@@ -97,10 +100,10 @@ export const test = basis.extend({
     await zetWebSocketSlot(page.context());
     // Lagere laag: ook als een test de app opent zonder startAppProductie, verlaat niets de eigen server.
     await strengVangnet(page.context(), verzoeken, { metStubs: false });
-    await use(verzoeken);
+    await use(alleenLezen(verzoeken)); // specs zien enkel een alleen-lezen weergave
   },
   toegestaneSchrijfpaden: async ({ verzoeken }, use) => {
-    await use(schrijfpadenVan(verzoeken));
+    await use(schrijfpadenVan(verzoeken)); // de whitelist vul je enkel via verwachtSchrijven
   },
   consoleFouten: async ({ page }, use) => {
     const fouten = [];
@@ -115,10 +118,13 @@ export const test = basis.extend({
     context.on('response', r => {
       if (r.status() >= 400 && r.status() !== 599) voegToe(`HTTP ${r.status()}: ${r.url()}`);
     });
-    await use(fouten);
+    await use(alleenLezen(fouten)); // specs zien enkel een alleen-lezen weergave
   },
-  productieVangnet: [async ({ page, verzoeken, toegestaneSchrijfpaden, consoleFouten }, use) => {
+  productieVangnet: [async ({ page, verzoeken: verzoekenWeergave, toegestaneSchrijfpaden, consoleFouten: consoleFoutenWeergave }, use) => {
     await use();
+    // Het vangnet leest de muteerbare originelen, nooit de weergaven die specs kregen.
+    const verzoeken = origineelVan(verzoekenWeergave);
+    const consoleFouten = origineelVan(consoleFoutenWeergave);
     const w = waarnemer(page.context());
     expect(verzoeken.buitenHost, 'verzoeken naar een niet-toegestane externe host (afgebroken)').toEqual([]);
     expect(w.ongeoorloofd, 'verzoeken die isToegestaan weigert').toEqual([]);

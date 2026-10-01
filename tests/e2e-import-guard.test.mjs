@@ -4,6 +4,9 @@
 //    ../productie-hulp.mjs. @playwright/test, playwright/test en playwright(-core) rechtstreeks: fout.
 //  - Dynamische import/require met een niet-letterlijke naam: fout (niet te scannen).
 //  - Productiebestanden: geen waitForTimeout; ?test en X-Blitz-Test enkel in een expliciete bestandslijst.
+//  - Productiebestanden (behalve productie-hulp/-waarnemer): geen eigen routes (page.route, context.route,
+//    unroute, routeFromHAR, routeWebSocket, route.continue/fallback); stubs komen enkel uit de fixture-API.
+//  - Productiebestanden: geen node:module/createRequire, child_process, vm, eval, new Function.
 //  - Ontsnappingskleppen (waarnemer, buitenHost, lekmeldingen wissen) enkel in de zelftest-bestanden.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,6 +27,8 @@ const TESTWOORD_TOEGESTAAN = new Set([
   'e2e/productie-waarnemer.mjs',
   'e2e/productie/opstart.spec.mjs',
 ]);
+// De twee fixture-bestanden: enkel zij mogen routes registreren.
+const PRODUCTIE_FIXTURES = new Set(['e2e/productie-hulp.mjs', 'e2e/productie-waarnemer.mjs']);
 // Toegestane imports per productiebestand (naast node:*); een ander bestand mag enkel ../productie-hulp.mjs.
 const PRODUCTIE_IMPORTS = {
   'e2e/productie-hulp.mjs': ['@playwright/test', './helpers.mjs', './productie-waarnemer.mjs'],
@@ -39,6 +44,20 @@ const IMPORT_PATRONEN = [
 ];
 const DYNAMISCH_NIET_LETTERLIJK = /\b(?:import|require)\s*\(\s*(?!['"])/;
 const MUTATIE = '(?:\\.(?:length\\s*=(?!=)|splice\\s*\\(|pop\\s*\\(|shift\\s*\\(|push\\s*\\(|fill\\s*\\()|\\s*=(?!=))';
+// Routes (a): elke eigen route in een spec kan het strenge slot omzeilen (page.route gaat voor op context.route,
+// continue() laat een verzoek echt naar buiten). Alleen de fixture-bestanden mogen routes registreren.
+const ROUTE_PATRONEN = [
+  /\.\s*(?:un)?route\w*\s*\(/, // page.route(, context.route(, .unroute(, .unrouteAll(, .routeFromHAR(, .routeWebSocket(
+  /\b(?:unrouteAll|unroute|routeFromHAR|routeWebSocket)\b/, // ook zonder punt (destructuring, doorgegeven)
+  /\[\s*['"`](?:un)?route\w*['"`]\s*\]/, // page['route'](...)
+  /\broute\s*\.\s*(?:continue|fallback)\b/, // route.continue / route.fallback
+  /\.\s*(?:continue|fallback)\s*\(/, // route.continue() via een alias
+  /\.\s*route\s*(?:[;,)\]}=]|$)/m, // alias zonder aanroep: const r = page.route;
+  /\{[^}]*\broute\b[^}]*\}\s*=\s*(?:page|context)\b/, // const { route } = page;
+];
+// (b) Manieren om buiten de scan om code te laden of uit te voeren.
+const UITVOER_MODULES = /^(?:node:)?(?:module|child_process|vm|worker_threads|cluster)$/;
+const UITVOER_PATRONEN = [/\bcreateRequire\b/, /\beval\s*\(/, /\bnew\s+Function\b/, /\bFunction\s*\(/];
 const KLEP_NAMEN = /\b(buitenHost|ongeoorloofd|testSignalen|neemGeblokkeerdeProbesOver|productie-waarnemer|zelftest-hulp)\b/;
 const KLEP_MUTATIE = new RegExp(`\\.(?:onverwacht|alle|schrijven|websockets)\\s*${MUTATIE}|\\bconsoleFouten\\s*${MUTATIE}`);
 
@@ -52,12 +71,14 @@ function importsVan(tekst) {
 export function controleer(bestanden) {
   const fouten = [];
   for (const { pad, tekst } of bestanden) {
-    const imports = importsVan(tekst);
+    // Blokcommentaar eruit voor de scans (anders is `import/*x*/('...')` onzichtbaar).
+    const kaal = tekst.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const imports = importsVan(kaal);
     const isSpec = pad.endsWith('.spec.mjs');
     const productie = pad.startsWith('e2e/productie/') || pad.startsWith('e2e/productie-');
     const fout = (m) => fouten.push(`${pad}: ${m}`);
 
-    if (DYNAMISCH_NIET_LETTERLIJK.test(tekst)) fout('import/require met een niet-letterlijke naam');
+    if (DYNAMISCH_NIET_LETTERLIJK.test(kaal)) fout('import/require met een niet-letterlijke naam');
     if (!PLAYWRIGHT_TOEGESTAAN.has(pad)) {
       for (const i of imports) if (PLAYWRIGHT_MODULE.test(i)) fout(`importeert ${i} rechtstreeks`);
     }
@@ -77,6 +98,11 @@ export function controleer(bestanden) {
         fout('importeert test niet uit ../productie-hulp.mjs');
       }
       if (/waitForTimeout/.test(tekst)) fout('waitForTimeout');
+      for (const i of imports) if (UITVOER_MODULES.test(i)) fout(`importeert ${i}`);
+      for (const re of UITVOER_PATRONEN) if (re.test(kaal)) fout(`gebruikt ${re.source}`);
+      if (!PRODUCTIE_FIXTURES.has(pad)) {
+        for (const re of ROUTE_PATRONEN) if (re.test(kaal)) fout(`registreert of omzeilt routes (${re.source})`);
+      }
       if (!TESTWOORD_TOEGESTAAN.has(pad)) {
         if (/\?test\b/.test(tekst)) fout('?test');
         if (/x-blitz-test/i.test(tekst)) fout('X-Blitz-Test');
@@ -171,4 +197,38 @@ test('guard: ontsnappingskleppen alleen in de zelftest', () => {
   // Lezen van onverwacht/alle blijft toegestaan.
   assert.deepEqual(slecht('e2e/productie/x.spec.mjs', PROD + 'expect(verzoeken.onverwacht).toEqual([]);'), []);
   assert.deepEqual(slecht('e2e/productie/x.spec.mjs', PROD + "const n = verzoeken.alle.filter(r => r.pad === '/a');"), []);
+});
+
+test('guard: eigen routes in productiebestanden (behalve de fixtures) falen', () => {
+  for (const regel of [
+    "await page.route('**/*', r => r.continue());", "await context.route(u => true, r => r.fulfill({}));",
+    "await page.unroute('**/*');", "await context.unrouteAll();", "await page.routeFromHAR('x.har');",
+    "await page.routeWebSocket('/ws', () => {});", "route.continue();", "route.fallback();",
+    "await page['route']('**/*', h);", "await page.\n route('**/*', h);", "const r = page.route; r.call(page);",
+    "await page.route /* x */ ('**/*', h);", "const { unrouteAll } = context;", "h.continue();",
+  ]) {
+    assert.notDeepEqual(slecht('e2e/productie/x.spec.mjs', PROD + regel), [], regel);
+    assert.notDeepEqual(slecht('e2e/productie/vangnet-zelftest.spec.mjs', ZELF + regel), [], regel);
+  }
+  // De fixtures zelf mogen routes registreren.
+  assert.deepEqual(slecht('e2e/productie-waarnemer.mjs', "import { isToegestaan } from './vangnet-regels.mjs';\nawait context.route(u => true, r => r.fallback());"), []);
+  // Het woord 'route' in gewone tekst of een URL-pad is geen route-registratie.
+  assert.deepEqual(slecht('e2e/productie/x.spec.mjs', PROD + "await page.goto('/#route'); const p = '/api/route';"), []);
+});
+
+test('guard: commentaar verstopt een import niet', () => {
+  assert.notDeepEqual(slecht('e2e/x.spec.mjs', HELP + "await import/*x*/('" + PW + "');"), []);
+  assert.notDeepEqual(slecht('e2e/x.spec.mjs', HELP + "import /* x */ { test } from /* y */ '" + PW + "';"), []);
+});
+
+test('guard: geen module-/proces-/eval-ontsnapping in productiebestanden', () => {
+  for (const regel of [
+    "import { createRequire } from 'node:module';", "import module from 'module';", "import cp from 'node:child_process';",
+    "import cp from 'child_process';", "import vm from 'node:vm';", "const r = createRequire(import.meta.url);",
+    "eval('1');", "const f = new Function('return 1');", "const f = Function('return 1');",
+  ]) {
+    assert.notDeepEqual(slecht('e2e/productie/x.spec.mjs', PROD + regel), [], regel);
+    assert.notDeepEqual(slecht('e2e/productie-hulp.mjs', regel), [], regel);
+  }
+  assert.deepEqual(slecht('e2e/productie/x.spec.mjs', PROD + "import fs from 'node:fs'; import path from 'node:path';"), []);
 });

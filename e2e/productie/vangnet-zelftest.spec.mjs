@@ -18,21 +18,19 @@ test('Zelftest: Zoho, TomTom, mail en een POST naar een CDN worden geblokkeerd',
     const uitkomst = await page.evaluate(([m, u]) => fetch(u, { method: m }).then(() => 'bereikt', (e) => e.name), [methode, doel]);
     expect(uitkomst, `${methode} ${doel}`).toBe('TypeError');
   }
-  const gezien = neemGeblokkeerdeProbesOver(page, verzoeken);
+  const gezien = neemGeblokkeerdeProbesOver(page, verzoeken, consoleFouten);
   expect(gezien.buitenHost).toEqual(probes.map(([, doel]) => doel));
   expect(gezien.ongeoorloofd).toEqual(probes.map(([m, doel]) => `${m} ${doel}`));
   // De afgebroken fetches zijn ook requestfailed-meldingen; die horen bij deze bewuste probes.
-  expect(consoleFouten.length).toBeGreaterThan(0);
-  consoleFouten.length = 0;
+  expect(gezien.consoleFouten.length).toBeGreaterThan(0);
 });
 
 test('Zelftest: zonder startAppProductie verlaat ook niets de eigen server', async ({ page, verzoeken, consoleFouten }) => {
   await page.goto('/sw.js'); // een bestaand statisch bestand; geen app, geen stubs
   const uitkomst = await page.evaluate(() => fetch('https://desk.zoho.eu/api/v1/tickets').then(() => 'bereikt', () => 'geblokkeerd'));
   expect(uitkomst).toBe('geblokkeerd');
-  const gezien = neemGeblokkeerdeProbesOver(page, verzoeken);
+  const gezien = neemGeblokkeerdeProbesOver(page, verzoeken, consoleFouten);
   expect(gezien.buitenHost).toEqual(['https://desk.zoho.eu/api/v1/tickets']);
-  consoleFouten.length = 0;
 });
 
 test('Zelftest: de catch-all blijft dicht (/api/onbestaand geeft 599)', async ({ page, verzoeken, consoleFouten }) => {
@@ -42,8 +40,8 @@ test('Zelftest: de catch-all blijft dicht (/api/onbestaand geeft 599)', async ({
   expect(status).toBe(599);
   expect(verzoeken.onverwacht).toEqual(['/api/onbestaand']);
   expect(consoleFouten).toEqual([expect.stringContaining('599')]); // de browser meldt de 599 als console.error
-  verzoeken.onverwacht.length = 0;
-  consoleFouten.length = 0;
+  const gezien = neemGeblokkeerdeProbesOver(page, verzoeken, consoleFouten);
+  expect(gezien.onverwacht).toEqual(['/api/onbestaand']);
 });
 
 test('Zelftest: elk schrijfverzoek naar de eigen server buiten de whitelist wordt gemeld', async ({ page, verzoeken, consoleFouten }) => {
@@ -51,19 +49,54 @@ test('Zelftest: elk schrijfverzoek naar de eigen server buiten de whitelist word
   // /api/plan is gestubd (neutraal succes); /niet-api bestaat niet op de statische server (404).
   await page.evaluate(() => fetch('/api/plan', { method: 'POST', body: '{}' }));
   await page.evaluate(() => fetch('/niet-api/x', { method: 'PUT', body: '{}' }));
-  const gezien = neemGeblokkeerdeProbesOver(page, verzoeken);
+  const gezien = neemGeblokkeerdeProbesOver(page, verzoeken, consoleFouten);
   expect(ongemeldeSchrijfverzoeken(gezien.schrijven, [])).toEqual(['POST /api/planning-sinds', 'POST /api/plan', 'PUT /niet-api/x']);
   expect(ongemeldeSchrijfverzoeken(gezien.schrijven, [...OPSTART_SCHRIJVEN, 'POST /api/plan'])).toEqual(['PUT /niet-api/x']);
   expect(ongemeldeSchrijfverzoeken(gezien.schrijven, [...OPSTART_SCHRIJVEN, '/api/plan', 'PUT /niet-api/x'])).toEqual([]);
-  expect(consoleFouten.some(f => f.includes('404'))).toBe(true); // de 404 van /niet-api/x
-  consoleFouten.length = 0;
+  expect(gezien.consoleFouten.some(f => f.includes('404'))).toBe(true); // de 404 van /niet-api/x
 });
 
-test('Zelftest: een WebSocket wordt geblokkeerd en gemeld', async ({ page, verzoeken }) => {
+test('Zelftest: een WebSocket wordt geblokkeerd en gemeld', async ({ page, verzoeken, consoleFouten }) => {
   await startAppProductie(page, { technieker: 'Tim' });
   verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
   await page.evaluate(() => { window.__ws = new WebSocket('ws://127.0.0.1:3338/ws'); });
   await expect.poll(() => page.evaluate(() => window.__ws.readyState)).toBe(3); // gesloten
-  const gezien = neemGeblokkeerdeProbesOver(page, verzoeken);
+  const gezien = neemGeblokkeerdeProbesOver(page, verzoeken, consoleFouten);
   expect(gezien.websockets).toEqual(['ws://127.0.0.1:3338/ws']);
+});
+
+// Specs krijgen alleen-lezen weergaven: wissen van een lekmelding is onmogelijk, ook niet via destructuring
+// of haakjes-toegang, en de gemelde lek blijft voor het afterEach-vangnet bewaard.
+test('Zelftest: een spec kan lekmeldingen niet wissen (alleen-lezen weergaven)', async ({ page, verzoeken, consoleFouten }) => {
+  await startAppProductie(page, { technieker: 'Tim' });
+  verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
+  await page.evaluate(() => fetch('https://desk.zoho.eu/api/v1/tickets').then(() => 'bereikt', () => 'geblokkeerd'));
+  await page.evaluate(() => fetch('/api/onbestaand').then(r => r.status));
+  expect(verzoeken.buitenHost).toEqual(['https://desk.zoho.eu/api/v1/tickets']);
+
+  const { buitenHost, onverwacht, alle } = verzoeken; // destructuring
+  const poging = (f) => expect(f).toThrow(/alleen-lezen/);
+  poging(() => { buitenHost.length = 0; });
+  poging(() => { verzoeken['buitenHost'].length = 0; }); // haakjes-toegang
+  poging(() => { verzoeken.buitenHost.splice(0); });
+  poging(() => { verzoeken.buitenHost.pop(); });
+  poging(() => { verzoeken.buitenHost.push('x'); });
+  poging(() => { buitenHost[0] = 'x'; });
+  poging(() => { delete buitenHost[0]; });
+  poging(() => { onverwacht.length = 0; });
+  poging(() => { alle.length = 0; });
+  poging(() => { alle[0].pad = '/anders'; }); // ook de verzoekobjecten zelf
+  poging(() => { verzoeken.buitenHost = []; });
+  poging(() => { verzoeken['alle'] = []; });
+  poging(() => { consoleFouten.length = 0; });
+  poging(() => { consoleFouten.push('x'); });
+  poging(() => { consoleFouten[0] = 'x'; });
+  const { 0: eerste } = consoleFouten;
+  expect(typeof eerste).toBe('string');
+
+  // De originelen zijn onaangeroerd: de lekken zijn er nog en worden pas hier (zelftest-hulp) overgenomen.
+  const gezien = neemGeblokkeerdeProbesOver(page, verzoeken, consoleFouten);
+  expect(gezien.buitenHost).toEqual(['https://desk.zoho.eu/api/v1/tickets']);
+  expect(gezien.onverwacht).toEqual(['/api/onbestaand']);
+  expect(gezien.consoleFouten.length).toBeGreaterThan(0);
 });
