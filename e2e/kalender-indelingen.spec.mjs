@@ -72,6 +72,31 @@ test.describe('kalender: gsm (indeling smal)', () => {
     await expect(page.locator('#kal-label')).toContainText('5 okt – 11 okt');
     await expect(page.locator('.cal-ticket')).toHaveCount(3);
   });
+
+  test('Bellen op de ticketkaart start het gesprek maar opent het detail niet (bugfix W5)', async ({ page }) => {
+    await zetWeergave(page, 'gsm');
+    await startApp(page, { viewport: { width: 390, height: 844 }, overschrijf: seed() });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    const kaart = dag(page, '2026-10-07').locator('.day-body > [data-sortkey="09:00"]');
+    const bellen = kaart.locator('.cal-actions').getByText('📞 Bellen');
+    await expect(bellen).toBeVisible();
+    // Het tel:-protocol verlaat de pagina niet in de test: een capture-luisteraar op document annuleert de navigatie
+    // en onthoudt de href, zodat we zien dat de klik de link bereikte.
+    await page.evaluate(() => {
+      window.__tel = [];
+      document.addEventListener('click', e => {
+        const a = e.target.closest?.('a[href^="tel:"]');
+        if (a) { window.__tel.push(a.getAttribute('href')); e.preventDefault(); }
+      }, true);
+    });
+    await bellen.click();
+    await expect.poll(() => page.evaluate(() => window.__tel)).toHaveLength(1);
+    expect((await page.evaluate(() => window.__tel))[0]).toMatch(/^tel:\+?\d+$/);
+    await expect(page.locator('#d-num')).toBeHidden();
+    // Positief tegenstuk: een klik op de kaart zelf opent het detail wel.
+    await kaart.locator('.cal-sub').click();
+    await expect(page.locator('#d-num')).toBeVisible();
+  });
 });
 
 test.describe('kalender: gsm, kaartklik', () => {

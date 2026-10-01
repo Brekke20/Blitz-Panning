@@ -219,3 +219,64 @@ test('autoScrollSleutel: weekstart en weergave', () => {
   assert.equal(autoScrollSleutel(new Date(2026, 9, 5), 'week'), '2026-10-05|week');
   assert.equal(autoScrollSleutel(new Date(2026, 9, 5), 'month'), '2026-10-05|month');
 });
+
+// ── Zomertijd-einde: zondag 25 oktober 2026 (03:00 → 02:00, Europe/Brussels) ──
+// De week van 19–25 oktober bevat een dag van 25 uur; dagen tellen moet op kalenderdatums, niet op 24-uursblokken.
+test('DST: zichtbareDagen over het einde van de zomertijd, week met en zonder zondag', () => {
+  const woensdag = new Date(2026, 9, 21);
+  assert.deepEqual(isos(zichtbareDagen(woensdag, { werkdagen: [1, 2, 3, 4, 5], tabletStaand: false, weekOffset: 0, dagOffset: 0 })),
+    ['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']);
+  assert.deepEqual(isos(zichtbareDagen(woensdag, { werkdagen: [1, 2, 3, 4, 5, 6, 0], tabletStaand: false, weekOffset: 0, dagOffset: 0 })),
+    ['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25']);
+  // Zelf op de DST-zondag: nog dezelfde week; een week verder begint op maandag 26 oktober.
+  const zondag = new Date(2026, 9, 25);
+  assert.deepEqual(isos(zichtbareDagen(zondag, { werkdagen: [1, 2, 3, 4, 5], tabletStaand: false, weekOffset: 0, dagOffset: 0 })),
+    ['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']);
+  assert.deepEqual(isos(zichtbareDagen(zondag, { werkdagen: [1, 2, 3, 4, 5], tabletStaand: false, weekOffset: 1, dagOffset: 0 })),
+    ['2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30']);
+  assert.deepEqual(isos(zichtbareDagen(woensdag, { werkdagen: [1, 2, 3, 4, 5], tabletStaand: false, weekOffset: 1, dagOffset: 0 })),
+    ['2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30']);
+});
+
+test('DST: zichtbareDagen tablet staand slaat het weekend over rond de omschakeling', () => {
+  const vrijdag = new Date(2026, 9, 23);
+  const o = dagOffset => isos(zichtbareDagen(vrijdag, { werkdagen: [1, 2, 3, 4, 5], tabletStaand: true, weekOffset: 0, dagOffset }));
+  assert.deepEqual(o(0), ['2026-10-23', '2026-10-26', '2026-10-27']);
+  assert.deepEqual(o(1), ['2026-10-26', '2026-10-27', '2026-10-28']);
+  assert.deepEqual(o(-1), ['2026-10-22', '2026-10-23', '2026-10-26']);
+  // Vandaag is de DST-zondag (geen werkdag): eerstvolgende werkdag is maandag 26 oktober.
+  const zondag = new Date(2026, 9, 25);
+  assert.deepEqual(isos(zichtbareDagen(zondag, { werkdagen: [1, 2, 3, 4, 5], tabletStaand: true, weekOffset: 0, dagOffset: 0 })),
+    ['2026-10-26', '2026-10-27', '2026-10-28']);
+});
+
+test('DST: maandRaster oktober en november 2026 telt elke kalenderdag precies één keer, op middernacht', () => {
+  for (const [ref, eerste, laatste] of [[new Date(2026, 9, 1), '2026-09-28', '2026-11-08'], [new Date(2026, 10, 15), '2026-10-26', '2026-12-06']]) {
+    const r = maandRaster(ref);
+    assert.equal(r.length, 42);
+    assert.equal(localISO(r[0]), eerste);
+    assert.equal(localISO(r[41]), laatste);
+    r.forEach((d, i) => {
+      assert.equal(d.getHours(), 0);
+      assert.equal(d.getMinutes(), 0);
+      const verwacht = new Date(r[0].getFullYear(), r[0].getMonth(), r[0].getDate() + i);
+      assert.equal(localISO(d), localISO(verwacht));
+    });
+    // Geen dubbele of ontbrekende datums, ook niet bij de omschakeling.
+    assert.equal(new Set(isos(r)).size, 42);
+  }
+  const okt = isos(maandRaster(new Date(2026, 9, 1)));
+  assert.ok(okt.includes('2026-10-25') && okt.includes('2026-10-26'));
+  assert.equal(okt.indexOf('2026-10-26') - okt.indexOf('2026-10-25'), 1);
+});
+
+test('DST: bepaalLanes rekent in minuten en is dus onafhankelijk van de 25-uur-dag', () => {
+  // Blokken rond het dubbele uur 02:00–03:00 en de late avond van zondag 25 oktober.
+  const items = [
+    { startMin: 2 * 60 + 30, endMin: 3 * 60 + 30 },
+    { startMin: 3 * 60,      endMin: 4 * 60 },
+    { startMin: 22 * 60,     endMin: 22 * 60 + 30 },
+  ];
+  bepaalLanes(items);
+  assert.deepEqual(items.map(i => [i.lane, i.laneCount]), [[0, 2], [1, 2], [0, 1]]);
+});

@@ -884,6 +884,11 @@ document.addEventListener('DOMContentLoaded', () => {
     addTicketToDate, openDetail, prioLabel, kbFor, kbPreferred, kbPreferredTime, meervoud,
     inFlight: id => inFlightTickets.has(id), sjLog,
   });
+  // Kalender-scherm (schermen/kalender.js, deel 1): kaartjes, tijdlijn, nu-lijn en hoogte-effecten; vóór koppelRenders().
+  kern.kalender.initKalender({
+    tijdslotLabelVoor, telNummer, navigate, openDetail, openLocalEventDetail, removeLocalEvent, bevestigUitplannen,
+    herOpenRapport: (...a) => herOpenRapport(...a), rapportArchief: () => _rapportArchief, duurVoor,
+  });
   // Route-scherm (schermen/route.js): de afhankelijkheden van andere schermen (R11); vóór koppelRenders().
   kern.route.initRoute({
     duurVoor, werktijdMin: (a, b) => calcWerktijdMin(a, b), kbPreferredTime, geocacheLookup, geocacheStore,
@@ -1661,399 +1666,13 @@ function setKalView(v) {
   kalAutoScroll(true);
 }
 
-function buildTicketCard(stop, dateStr, { showActions = true } = {}) {
-  const isPending   = stop.ticket.status === 'Wachten op bevestiging planning';
-  const cardClass   = isPending ? 'pending' : 'confirmed';
-  const badgeLabel  = isPending ? 'Wacht bevestiging' : 'Bevestigd';
-  const card        = document.createElement('div');
-  card.className    = `cal-ticket ${cardClass}`;
-  card.innerHTML    = `
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px">
-      <div style="flex:1;min-width:0">
-        <div class="cal-num">#${escHtml(stop.ticket.number)}</div>
-        <span class="cal-badge ${cardClass}">${badgeLabel}</span>
-        ${stop.uur ? (() => {
-          // Tijdslot (Task 9, Blok 1C): primair label, consistent met wat de klant ziet in de
-          // voorstel-mail. Bewuste keuze (zie taakbrief Step 5): de technieker ziet, i.t.t. de
-          // klant, ook de exacte geplande tijd als kleiner detail — nuttig voor zijn eigen
-          // planning-efficiëntie. buildTicketCard() wordt gedeeld door de desktop-tijdlijn en
-          // de mobiele gestapelde lijst, dus dit geldt voor beide (geen mobiel/desktop-verschil).
-          const win = tijdslotLabelVoor(stop, dateStr);
-          return `<div class="cal-meta" style="font-weight:600">🕐 ${escHtml(win)} <span style="opacity:0.65;font-size:0.85em">(gepland ${stop.uur})</span></div>`;
-        })() : ''}
-        <div class="cal-sub">${escHtml(stop.ticket.subject) || '—'}</div>
-        ${stop.ticket.assignee ? `<div class="cal-meta">${escHtml(stop.ticket.assignee)}</div>` : ''}
-        <div class="cal-addr ${stop.ticket.hasAddress ? '' : 'miss'}">${stop.ticket.hasAddress ? escHtml(stop.address) : 'Geen adres'}</div>
-      </div>
-      <button class="cal-unplan-x coord-only" title="Uit planning halen" aria-label="Uit planning halen" onclick="event.stopPropagation();bevestigUitplannen('${stop.ticket.id}','${dateStr}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;flex-shrink:0;padding:2px 4px;line-height:1">×</button>
-    </div>
-    ${showActions ? `<div class="cal-actions">
-      ${/\d/.test(telNummer(stop.ticket.telefoonEindklant||stop.ticket.phone)) ? `<a class="cal-btn" href="tel:${escHtml(telNummer(stop.ticket.telefoonEindklant||stop.ticket.phone))}">📞 Bellen</a>` : ''}
-      ${stop.ticket.hasAddress ? `<button class="cal-btn btn-navigeer" data-adres="${escHtml(stop.address||stop.ticket.address||'')}">🧭 Navigeer</button>` : ''}
-    </div>` : ''}`;
-  card.querySelector('.btn-navigeer')?.addEventListener('click', e => {
-    e.stopPropagation();
-    navigate(encodeURIComponent(e.currentTarget.dataset.adres));
-  });
-  card.addEventListener('click', () => openDetail(stop.ticket));
-  kern.ui.maakActiveerbaar(card, () => openDetail(stop.ticket), 'Open ticket #' + stop.ticket.number);
-  return card;
-}
-
-function buildReportCard(entry) {
-  const rd = entry.rapportData || {};
-  const tijdLabel = rd.start ? `${escHtml(rd.start)}${rd.stop ? '–' + escHtml(rd.stop) : ''}` : '';
-  const card = document.createElement('div');
-  card.className = 'cal-ticket afgerond';
-  card.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px">
-      <div style="flex:1;min-width:0">
-        ${entry.ticketNumber ? `<div class="cal-num">#${escHtml(entry.ticketNumber)}</div>` : ''}
-        <span class="cal-badge afgerond">✓ Afgerond</span>
-        ${tijdLabel ? `<div class="cal-meta" style="font-weight:600">🕐 ${tijdLabel}</div>` : ''}
-        <div class="cal-sub">${escHtml(entry.klant) || '—'}</div>
-        ${entry.technieker ? `<div class="cal-meta">${escHtml(entry.technieker)}</div>` : ''}
-        <div class="cal-addr ${entry.adres ? '' : 'miss'}">${entry.adres ? escHtml(entry.adres) : 'Geen adres'}</div>
-      </div>
-    </div>`;
-  card.addEventListener('click', () => herOpenRapport(_rapportArchief.indexOf(entry)));
-  return card;
-}
-
-function buildLocalEventCard(ev, { showActions = true } = {}) {
-  const card = document.createElement('div');
-  card.className = 'cal-local-event';
-  const tijdLabel = ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '';
-  const adresLabel = ev.adres || ev.notitie;
-  card.innerHTML = `
-    <button class="cal-local-del" title="Verwijderen" aria-label="Afspraak verwijderen">✕</button>
-    <span class="cal-local-type">${escHtml(ev.type)}</span>
-    <div class="cal-sub" style="margin-top:2px">${escHtml(ev.titel)}</div>
-    ${tijdLabel ? `<div class="cal-local-time">⏱ ${tijdLabel}</div>` : ''}
-    ${adresLabel ? `<div class="cal-addr">${escHtml(adresLabel)}</div>` : ''}
-    ${ev.persoon ? `<div class="cal-meta">${escHtml(ev.persoon)}</div>` : ''}
-    ${showActions ? `<div class="cal-actions">
-      ${/\d/.test(telNummer(ev.telefoon)) ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(telNummer(ev.telefoon))}">📞 Bellen</a>` : ''}
-      ${adresLabel ? `<button class="cal-btn cal-ev-nav">🧭 Navigeer</button>` : ''}
-    </div>` : ''}`;
-  // ev.id komt uit de afspraken-blob (niet-geauthenticeerd) — via closure doorgeven i.p.v.
-  // inline onclick, want een inline JS-string is niet veilig tegen apostrofs in de brondata.
-  card.querySelector('.cal-local-del')?.addEventListener('click', e => { e.stopPropagation(); removeLocalEvent(ev.id); });
-  card.querySelector('.cal-ev-call')?.addEventListener('click', e => e.stopPropagation());
-  card.querySelector('.cal-ev-nav')?.addEventListener('click', e => { e.stopPropagation(); navigate(encodeURIComponent(adresLabel)); });
-  card.addEventListener('click', () => openLocalEventDetail(ev));
-  return card;
-}
-
-// Tekent één dag als een echte tijdlijn (uur-as, blokken proportioneel aan duur) — enkel voor
-// desktop/web (zie renderKalender()'s responsieve vertakking). Mobiel behoudt de bestaande
-// gestapelde-kaartjeslijst volledig ongewijzigd.
-// Let op: bouwt met echte DOM-nodes (niet HTML-strings) — buildTicketCard/buildLocalEventCard/
-// buildReportCard maken elementen met addEventListener-listeners (klik → detail, navigeer-knop);
-// via een HTML-string (bv. .outerHTML) zouden die listeners bij het opnieuw parsen verloren gaan.
-const TIMELINE_PX_PER_MIN = 1.3;
-// Post-launch feedback (2026-08-17): 26px liet de tickettekst (nummer/tijd/onderwerp/adres)
-// afkappen zodra de blokhoogte (duur × TIMELINE_PX_PER_MIN) korter was dan de kaart zelf nodig
-// heeft (~150px gemeten zonder de bel-/navigeerknoppen, die enkel op mobiel getoond worden — zie
-// buildTicketCard()'s showActions) -- deze vloer garandeert dat elk blok, ongeacht duur, minstens
-// de volledige kaart toont.
-const TIMELINE_MIN_BLOCK_PX = 155;
-
-// Werkuren (fase 2 v1.7.0): de tijdlijn toont het volledige etmaal; buiten deze uren komt een
-// donkere band. Start vóór 08:30 of op/na 17:00 = "buiten werkuren".
-const WERKUUR_START = 8 * 60 + 30;
-const WERKUUR_EIND  = 17 * 60;
-function isBuitenWerkuren(hhmm) {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
-  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return false;
-  const min = Number(m[1]) * 60 + Number(m[2]);
-  return min < WERKUUR_START || min >= WERKUUR_EIND;
-}
-
-function timelineTopHeight(startMin, endMin, dagStartMin, totalHeight) {
-  endMin = Math.min(endMin, 1440);
-  let top = Math.max(0, (startMin - dagStartMin) * TIMELINE_PX_PER_MIN);
-  const height = Math.max(TIMELINE_MIN_BLOCK_PX, (endMin - startMin) * TIMELINE_PX_PER_MIN);
-  // Een laat blok (bv. 23:30) moet volledig zichtbaar blijven binnen de tijdlijn.
-  if (totalHeight != null && top + height > totalHeight) top = Math.max(0, totalHeight - height);
-  return { top, height };
-}
-
-// Post-launch feedback (2026-08-17): gedeeld door renderDayTimeline() (elke dag-kolom) EN
-// renderTimelineGutter() (de uren-kolom vóór maandag) -- beide MOETEN exact dezelfde
-// dagStartMin/dagEindMin/totalHeight gebruiken, anders lopen de uur-lijnen in de dag-kolommen niet
-// meer gelijk met de uur-labels in de gutter. Fase 2 (v1.7.0): vast 00:00-24:00 (het volledige
-// etmaal), zodat ook vroege/late afspraken zichtbaar zijn; de werkuren-instelling speelt geen rol meer.
-function computeTimelineRange() {
-  const dagStartMin = 0;
-  const dagEindMin = 1440;
-  const displayStartH = 0;
-  const displayEndH = 24;
-  const totalHeight = (dagEindMin - dagStartMin) * TIMELINE_PX_PER_MIN;
-  return { dagStartMin, dagEindMin, displayStartH, displayEndH, totalHeight };
-}
-
-// Twee achtergrondbanden (00:00-werkuurstart en werkuureinde-24:00); eerste kinderen van de wrap.
-function appendOffhoursBands(wrap, dagStartMin, totalHeight) {
-  const boven = document.createElement('div');
-  boven.className = 'tl-offhours';
-  boven.style.top = '0px';
-  boven.style.height = `${(WERKUUR_START - dagStartMin) * TIMELINE_PX_PER_MIN}px`;
-  const onder = document.createElement('div');
-  onder.className = 'tl-offhours';
-  const onderTop = (WERKUUR_EIND - dagStartMin) * TIMELINE_PX_PER_MIN;
-  onder.style.top = `${onderTop}px`;
-  onder.style.height = `${totalHeight - onderTop}px`;
-  wrap.appendChild(boven);
-  wrap.appendChild(onder);
-}
-
-// Smalle kolom vóór maandag met enkel de uur-labels (zie .day-col.tl-gutter in app.css) --
-// voorheen stonden deze labels IN de eerste dag-kolom, die daardoor een 34px-marge reserveerde
-// die de andere kolommen ook reserveerden (voor uitlijning) maar nooit gebruikten: lege ruimte in
-// elke kolom behalve de eerste, en alle kolommen "verschillend" qua bruikbare breedte. Nu krijgen
-// alle dag-kolommen exact dezelfde afmetingen.
-function renderTimelineGutter() {
-  const { dagStartMin, displayStartH, displayEndH, totalHeight } = computeTimelineRange();
-  const col = document.createElement('div');
-  col.className = 'day-col tl-gutter';
-  const hdr = document.createElement('div');
-  hdr.className = 'day-hdr';
-  const body = document.createElement('div');
-  body.className = 'day-body';
-  const wrap = document.createElement('div');
-  wrap.className = 'tl-gutter-wrap';
-  wrap.style.height = `${totalHeight}px`;
-  appendOffhoursBands(wrap, dagStartMin, totalHeight);
-  for (let h = displayStartH; h <= displayEndH; h++) {
-    const top = (h * 60 - dagStartMin) * TIMELINE_PX_PER_MIN;
-    const label = document.createElement('div');
-    label.className = 'tl-gutter-label';
-    label.style.top = `${top}px`;
-    label.textContent = `${String(h).padStart(2,'0')}:00`;
-    wrap.appendChild(label);
-  }
-  body.appendChild(wrap);
-  col.appendChild(hdr);
-  col.appendChild(body);
-  return col;
-}
-
-// Post-launch feedback (2026-08-17): wijst elk blok een "lane" (kolom binnen de dag) toe zodat
-// tickets/afspraken die elkaar in tijd overlappen NAAST elkaar getoond worden i.p.v. elkaar
-// volledig te verbergen (voorheen stonden alle blokken op dezelfde breedte, dus een later
-// toegevoegd overlappend blok verborg het eerdere volledig). Geblokkeerde/verlof-segmenten
-// (tl-blocked) delen hier NIET in mee — die blijven bewust volle breedte als achtergrond-wash
-// (zie hun eigen z-index-commentaar verderop), enkel tickets/lokale afspraken worden verdeeld.
-// Algoritme: verbonden-componenten (twee blokken die -al dan niet via een tussenliggend blok-
-// overlappen delen dezelfde "cluster" en dus dezelfde laan-breedte), binnen elke cluster een
-// gulzige laan-toewijzing (eerste vrije laan wiens laatste blok al afgelopen is vóór dit blok
-// begint). Klein aantal items per dag in de praktijk, dus een simpele O(n²)-aanpak volstaat.
-function assignTimelineLanes(items) {
-  const n = items.length;
-  // v1.10.1: overlap bepalen op de ZICHTBARE hoogte van het blok, niet op de werkelijke duur. Een
-  // kort blok (bv. afgerond rapport 13:17–13:53) wordt minstens TIMELINE_MIN_BLOCK_PX hoog getekend
-  // (~2 u) en liep zo visueel over een blok om 14:23 heen, terwijl de laan-toewijzing ze als
-  // niet-overlappend zag.
-  const minDuurMin = TIMELINE_MIN_BLOCK_PX / TIMELINE_PX_PER_MIN;
-  const visEnd = it => Math.max(it.endMin, it.startMin + minDuurMin);
-  const parent = items.map((_, i) => i);
-  function find(i) { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; }
-  function union(a, b) { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; }
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      if (items[i].startMin < visEnd(items[j]) && items[j].startMin < visEnd(items[i])) union(i, j);
-    }
-  }
-  const clusters = new Map(); // root -> array van item-indices
-  for (let i = 0; i < n; i++) {
-    const root = find(i);
-    if (!clusters.has(root)) clusters.set(root, []);
-    clusters.get(root).push(i);
-  }
-  clusters.forEach(idxs => {
-    idxs.sort((a, b) => items[a].startMin - items[b].startMin);
-    const laneEnds = []; // laneEnds[lane] = endMin van het laatst toegewezen item in die laan
-    idxs.forEach(i => {
-      let lane = laneEnds.findIndex(end => end <= items[i].startMin);
-      if (lane === -1) { lane = laneEnds.length; laneEnds.push(visEnd(items[i])); }
-      else laneEnds[lane] = visEnd(items[i]);
-      items[i].lane = lane;
-    });
-    const laneCount = laneEnds.length;
-    idxs.forEach(i => { items[i].laneCount = laneCount; });
-  });
-}
-
-function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, hdrEl) {
-  // Fase 2 (v1.7.0): de tijdlijn toont vast het volledige etmaal 00:00-24:00 (zie computeTimelineRange()).
-  const { dagStartMin, displayStartH, displayEndH, totalHeight } = computeTimelineRange();
-
-  const frag = document.createDocumentFragment();
-
-  const wrap = document.createElement('div');
-  wrap.className = 'tl-wrap';
-  wrap.style.height = `${totalHeight}px`;
-  appendOffhoursBands(wrap, dagStartMin, totalHeight);
-
-  // Uur-labels staan niet meer hier (zie renderTimelineGutter()) -- enkel de streeplijnen zelf,
-  // voor de visuele uitlijning van blokken met het uur-raster.
-  for (let h = displayStartH; h <= displayEndH; h++) {
-    const top = (h * 60 - dagStartMin) * TIMELINE_PX_PER_MIN;
-    const line = document.createElement('div');
-    line.className = 'tl-hour-line';
-    line.style.top = `${top}px`;
-    wrap.appendChild(line);
-  }
-
-  // Geblokkeerde/verlof-tijdvakken (avExceptions, kind==='range') als gepositioneerd segment —
-  // vóór dayStops/dayEvents toegevoegd zodat ze in DOM-volgorde ONDER de ticket/event-blokken
-  // liggen (die zelf geen z-index zetten, dus DOM-volgorde bepaalt de zichtbare laag). Hele-dag
-  // (kind==='fullday') uitzonderingen krijgen hier geen los blok — die worden al elders als
-  // kolom-brede stripe (blocked-day-klasse) getoond.
-  const dayExceptions = kern.selecties.blokkeringenVoor(avExceptions, dateStr, activeAssigneeFilter, 'range');
-  dayExceptions.forEach(e => {
-    const [fromH, fromM] = e.from.split(':').map(Number);
-    const [toH, toM]     = e.to.split(':').map(Number);
-    const startMin = fromH * 60 + fromM;
-    const endMin   = toH * 60 + toM;
-    const { top, height } = timelineTopHeight(startMin, endMin, dagStartMin, totalHeight);
-    // Let op: dit is textContent/title (DOM-property), geen innerHTML — dus GEEN escHtml() hier;
-    // die zou entities dubbel encoderen ("&" -> "&amp;" zichtbaar als tekst i.p.v. "&").
-    const reasonPart = e.reason ? `: ${e.reason}` : '';
-    const block = document.createElement('div');
-    block.className = 'tl-block tl-blocked';
-    block.style.top = `${top}px`;
-    block.style.height = `${height}px`;
-    block.title = `Niet beschikbaar${reasonPart}`;
-    block.textContent = `🔒 ${e.from}–${e.to}${reasonPart}`;
-    wrap.appendChild(block);
-  });
-
-  // Post-launch feedback (2026-08-17): tickets + lokale afspraken samen door de laan-toewijzing
-  // halen (ze kunnen elkaar ook onderling overlappen, niet enkel binnen hun eigen soort), dan pas
-  // de DOM-elementen bouwen met de toegewezen lane/laneCount.
-  const positioned = [];
-  dayStops.forEach(stop => {
-    if (!stop.uur) return; // geen tijdstip toegekend — blijft ongepositioneerd, zie hieronder
-    const [h, m] = stop.uur.split(':').map(Number);
-    const startMin = h * 60 + m;
-    const endMin = startMin + duurVoor(stop.ticket.id);
-    positioned.push({ type: 'ticket', startMin, endMin, stop });
-  });
-  dayEvents.forEach(ev => {
-    if (!ev.uur) return;
-    const [h, m] = ev.uur.split(':').map(Number);
-    const startMin = h * 60 + m;
-    let endMin = startMin + (settings.tijdslotMinuten || 180) / 3; // fallback: 1u als geen einduur
-    if (ev.einduur) {
-      const [eh, em] = ev.einduur.split(':').map(Number);
-      endMin = eh * 60 + em;
-    }
-    positioned.push({ type: 'event', startMin, endMin, ev });
-  });
-  // Post-launch feedback (2026-08-17): afgeronde rapporten met een gekende werkelijke start-/
-  // stoptijd (rapportData.start/.stop) tonen we voortaan OOK op hun eigen plaats op de tijdlijn
-  // i.p.v. altijd onderaan gebundeld — die werkelijke tijd is net zo goed een geldige positie.
-  // Enkel rapporten ZONDER gekende tijd blijven in de ongepositioneerde lijst hieronder.
-  dayReports.filter(r => r.rapportData?.start).forEach(r => {
-    const rd = r.rapportData;
-    const [h, m] = rd.start.split(':').map(Number);
-    const startMin = h * 60 + m;
-    let endMin = startMin + settings.duurMinuten;
-    if (rd.stop) {
-      const [eh, em] = rd.stop.split(':').map(Number);
-      endMin = eh * 60 + em;
-    }
-    positioned.push({ type: 'report', startMin, endMin, report: r });
-  });
-  assignTimelineLanes(positioned);
-
-  positioned.forEach(item => {
-    const { top, height } = timelineTopHeight(item.startMin, item.endMin, dagStartMin, totalHeight);
-    const block = document.createElement('div');
-    block.className = item.type === 'ticket' ? 'tl-block tl-ticket'
-      : item.type === 'report' ? 'tl-block tl-report'
-      : 'tl-block tl-event';
-    block.style.top = `${top}px`;
-    block.style.height = `${height}px`;
-    // Laan-breedte/positie via CSS calc() t.o.v. de 6px links-/rechtermarge (zie .tl-block in
-    // app.css): de beschikbare breedte wordt gelijk verdeeld over laneCount lanen, met een kleine
-    // 2px-tussenruimte zodat naast-elkaar-staande blokken visueel gescheiden blijven.
-    if (item.laneCount > 1) {
-      block.style.left  = `calc(6px + (100% - 12px) * ${item.lane} / ${item.laneCount})`;
-      block.style.width = `calc((100% - 12px) / ${item.laneCount} - 2px)`;
-      block.style.right = 'auto';
-    }
-    if (item.type === 'ticket') {
-      block.dataset.ticketId = item.stop.ticket.id;
-      // Post-launch feedback (2026-08-17): bel-/navigeerknoppen enkel op mobiel nodig — op
-      // desktop opent een klik op de kaart toch al het detail (met bel/navigeer erin).
-      block.appendChild(buildTicketCard(item.stop, dateStr, { showActions: false }));
-    } else if (item.type === 'report') {
-      block.appendChild(buildReportCard(item.report));
-    } else {
-      block.appendChild(buildLocalEventCard(item.ev, { showActions: false }));
-    }
-    wrap.appendChild(block);
-  });
-
-  // Items ZONDER gekend uur (tickets zonder uur, rapporten zonder starttijd) staan als compacte
-  // klikbare chips IN de sticky dagkop (altijd zichtbaar, ook na de auto-scroll naar de werkdag).
-  const zonderUur = [
-    ...dayStops.filter(s => !s.uur).map(s => ({ label: `#${s.ticket.number}`, title: s.ticket.subject || '', open: () => openDetail(s.ticket) })),
-    ...dayReports.filter(r => !r.rapportData?.start).map(r => ({ label: r.ticketNumber ? `#${r.ticketNumber}` : (r.klant || 'Rapport'), title: r.klant || '', open: () => herOpenRapport(_rapportArchief.indexOf(r)) })),
-  ];
-  if (zonderUur.length && hdrEl) {
-    const rij = document.createElement('div');
-    rij.className = 'day-hdr-zonderuur';
-    const lbl = document.createElement('span');
-    lbl.className = 'zu-label';
-    lbl.textContent = 'Zonder uur:';
-    rij.appendChild(lbl);
-    zonderUur.slice(0, 4).forEach(it => {
-      const chip = document.createElement('button');
-      chip.type = 'button';
-      chip.className = 'zu-chip';
-      chip.textContent = it.label;
-      if (it.title) chip.title = it.title;
-      chip.addEventListener('click', e => { e.stopPropagation(); it.open(); });
-      rij.appendChild(chip);
-    });
-    if (zonderUur.length > 4) {
-      const meer = document.createElement('span');
-      meer.className = 'zu-meer';
-      meer.textContent = `+${zonderUur.length - 4} meer`;
-      meer.title = zonderUur.slice(4).map(it => it.label).join(', ');
-      rij.appendChild(meer);
-    }
-    hdrEl.appendChild(rij);
-  }
-
-  frag.appendChild(wrap);
-
-  return frag;
-}
-
 // Zichtbare dagen van de weekweergave: gewoon de werkdagen van de week (kalOffset), behalve op een
 // tablet rechtop: dan 3 opeenvolgende werkdagen vanaf vandaag, verschoven met kalDagOffset werkdagen.
 function kalZichtbareDagen(today) {
-  const wd = settings.werkdagen || [];
-  const dagen = [];
-  if (window.apparaat.indeling === 'tablet-staand' && wd.length) {
-    const d = new Date(today);
-    const volgende = (stap) => { do { d.setDate(d.getDate() + stap); } while (!wd.includes(d.getDay())); };
-    if (!wd.includes(d.getDay())) volgende(1);          // vandaag geen werkdag: eerstvolgende werkdag
-    for (let n = Math.abs(kalDagOffset); n > 0; n--) volgende(kalDagOffset > 0 ? 1 : -1);
-    for (let n = 0; n < 3; n++) { dagen.push(new Date(d)); if (n < 2) volgende(1); }
-    return dagen;
-  }
-  const weekStart = getWeekStart(today, kalOffset);
-  for (let i = 0; i < 7; i++) {
-    const day = new Date(weekStart); day.setDate(weekStart.getDate() + i);
-    if (wd.includes(day.getDay())) dagen.push(day);
-  }
-  return dagen;
+  return kern.kalender.zichtbareDagen(today, {
+    werkdagen: settings.werkdagen, tabletStaand: window.apparaat.indeling === 'tablet-staand',
+    weekOffset: kalOffset, dagOffset: kalDagOffset,
+  });
 }
 
 function kalZetVandaagKnop() {
@@ -2141,12 +1760,12 @@ function renderKalender() {
   const bewaardTop = grid.scrollTop, bewaardLeft = grid.scrollLeft;
   grid.className = isDesktopTijdlijnWeek ? 'week-grid tl-mode' : 'week-grid';
   grid.innerHTML = '';
-  if (isDesktopTijdlijnWeek) kalPasGridHoogteAan(); else { grid.style.height = ''; _kalAutoScrollKey = null; }
+  if (isDesktopTijdlijnWeek) kern.kalender.kalPasGridHoogteAan(); else { grid.style.height = ''; _kalAutoScrollKey = null; }
 
   // Post-launch feedback (2026-08-17): de uren staan vóór maandag in een eigen smalle kolom (zie
   // renderTimelineGutter()) i.p.v. IN de eerste dag-kolom -- zo hebben alle dag-kolommen exact
   // dezelfde afmetingen. Enkel relevant in de desktop-tijdlijn-weergave.
-  if (isDesktopTijdlijnWeek) grid.appendChild(renderTimelineGutter());
+  if (isDesktopTijdlijnWeek) grid.appendChild(kern.kalender.renderTimelineGutter());
 
   for (const day of zichtbareDagen) {
     const dateStr       = localISO(day);
@@ -2194,7 +1813,7 @@ function renderKalender() {
     const dayBodyEl = col.querySelector('.day-body');
     const isDesktopTijdlijn = window.apparaat.indeling !== 'smal';
     if (isDesktopTijdlijn) {
-      dayBodyEl.appendChild(renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, col.querySelector('.day-hdr')));
+      dayBodyEl.appendChild(kern.kalender.renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, col.querySelector('.day-hdr')));
     } else {
       // Bestaande gestapelde-kaartjeslijst-logica — VOLLEDIG ONGEWIJZIGD.
       const timeline = [
@@ -2204,12 +1823,12 @@ function renderKalender() {
       ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
       timeline.forEach(item => {
-        const card = item.kind === 'ticket' ? buildTicketCard(item.stop, dateStr)
-          : item.kind === 'event' ? buildLocalEventCard(item.ev)
-          : buildReportCard(item.report);
+        const card = item.kind === 'ticket' ? kern.kalender.buildTicketCard(item.stop, dateStr)
+          : item.kind === 'event' ? kern.kalender.buildLocalEventCard(item.ev)
+          : kern.kalender.buildReportCard(item.report);
         card.dataset.sortkey = item.sortKey;
         // Badge "buiten werkuren" (enkel gsm-lijst; op de tijdlijn tonen de donkere banden dit al)
-        if (item.kind !== 'report' && isBuitenWerkuren(item.sortKey)) {
+        if (item.kind !== 'report' && kern.kalender.isBuitenWerkuren(item.sortKey)) {
           const badge = document.createElement('span');
           badge.className = 'badge-buitenuren';
           badge.textContent = 'buiten werkuren';
@@ -2283,44 +1902,14 @@ function renderKalender() {
 
   // Rode nu-lijn (fase 2): na elke render herplaatsen; één gedeelde minuut-timer
   // (drijft ook de nu-markering in de gsm-lijst).
-  updateNuLijn();
-  startNuLijnTimer();
+  kern.kalender.updateNuLijn();
+  kern.kalender.startNuLijnTimer();
   if (isDesktopTijdlijnWeek) {
     // Scrollpositie terugzetten, tenzij de week/weergave gewisseld is (dan scrolt kalAutoScroll)
     grid.scrollTop = bewaardTop; grid.scrollLeft = bewaardLeft;
     kalAutoScroll(false);
   }
 }
-
-// Eén verticale scrollbalk: in de tijdlijnweergave is #week-grid de scrollcontainer met een
-// hoogte die het resterende venster vult (meten bij render time: er staat UI boven het grid).
-function kalPasGridHoogteAan() {
-  const grid = document.getElementById('week-grid');
-  if (!grid || !grid.classList.contains('tl-mode')) return;
-  // Niet meten als het grid geen layoutbox heeft (verborgen tab): top is dan 0 en de hoogte fout.
-  if (!grid.getClientRects().length) return;
-  // Document-relatief meten (niet t.o.v. de viewport): anders klopt de hoogte niet als de pagina gescrold is.
-  const top = grid.getBoundingClientRect().top + window.scrollY;
-  grid.style.height = `${Math.max(400, Math.round(window.innerHeight - top - 16))}px`;
-}
-// Eén ResizeObserver (eenmalig aangemaakt) op alles wat boven het grid staat: verandert dat van
-// hoogte (zonder-datum-paneel, offline-/outbox-banner, tab zichtbaar) dan wordt de hoogte herberekend.
-let _kalRO = null, _kalROFrame = 0;
-function kalStartHoogteObserver() {
-  if (_kalRO || typeof ResizeObserver === 'undefined') return;
-  _kalRO = new ResizeObserver(() => {
-    cancelAnimationFrame(_kalROFrame);
-    _kalROFrame = requestAnimationFrame(kalPasGridHoogteAan);
-  });
-  ['offline-banner', 'outbox-banner', 'kal-header', 'kal-no-date-section']
-    .forEach(id => { const el = document.getElementById(id) || document.querySelector('#view-kalender .' + id); if (el) _kalRO.observe(el); });
-}
-kalStartHoogteObserver();
-let _kalResizeTimer = null;
-window.addEventListener('resize', () => {
-  clearTimeout(_kalResizeTimer);
-  _kalResizeTimer = setTimeout(kalPasGridHoogteAan, 100);
-});
 
 // Automatisch naar de werkdag scrollen: enkel bij wissel van week/weergave (sleutel) of force.
 let _kalAutoScrollKey = null;
@@ -2349,55 +1938,8 @@ function kalAutoScroll(force) {
   const gridTop = grid.getBoundingClientRect().top;
   const wrapOffset = wrap.getBoundingClientRect().top - gridTop + grid.scrollTop;
   const hdrH = hdr ? hdr.offsetHeight : 0;
-  grid.scrollTop = Math.max(0, wrapOffset + doelMin * TIMELINE_PX_PER_MIN - hdrH);
+  grid.scrollTop = Math.max(0, wrapOffset + doelMin * kern.kalender.TIMELINE_PX_PER_MIN - hdrH);
 }
-
-// Rode "nu"-lijn: staat in de .tl-wrap van de kolom van vandaag (enkel de tijdlijnweergave);
-// in maand-/lijstweergave of een andere week is er geen kolom en verdwijnt ze gewoon.
-let _nuLijnTimer = null;
-// Nu-markering in de gsm-lijst (gestapelde kaartjes): één dunne rode regel vóór de eerste kaart
-// van vandaag met sortKey > nu (kaarten zonder uur = '99:99' tellen als later).
-function updateNuMarker() {
-  const grid = document.getElementById('week-grid');
-  if (!grid) return;
-  const nu = new Date();
-  const hhmm = `${String(nu.getHours()).padStart(2,'0')}:${String(nu.getMinutes()).padStart(2,'0')}`;
-  const body = grid.querySelector(`.day-col[data-date="${localISO(nu)}"] .day-body`);
-  grid.querySelectorAll('.kal-nu-marker').forEach(el => { if (!body || el.parentNode !== body) el.remove(); });
-  if (!body || body.querySelector('.tl-wrap')) return;   // geen lijstweergave van vandaag
-  let marker = body.querySelector(':scope > .kal-nu-marker');
-  if (!marker) { marker = document.createElement('div'); marker.className = 'kal-nu-marker'; }
-  marker.textContent = `nu ${hhmm}`;
-  const kaarten = Array.from(body.querySelectorAll(':scope > [data-sortkey]'));
-  const volgende = kaarten.find(k => k.dataset.sortkey > hhmm);
-  if (volgende) body.insertBefore(marker, volgende); else body.appendChild(marker);
-}
-function updateNuLijn() {
-  updateNuMarker();
-  const grid = document.getElementById('week-grid');
-  if (!grid) return;
-  const nu = new Date();
-  const wrap = grid.querySelector(`.day-col[data-date="${localISO(nu)}"] .tl-wrap`);
-  grid.querySelectorAll('.tl-now').forEach(el => { if (!wrap || el.parentNode !== wrap) el.remove(); });
-  if (!wrap) return;
-  let lijn = wrap.querySelector(':scope > .tl-now');
-  if (!lijn) {
-    lijn = document.createElement('div');
-    lijn.className = 'tl-now';
-    const label = document.createElement('span');
-    label.className = 'tl-now-label';
-    lijn.appendChild(label);
-    wrap.appendChild(lijn);
-  }
-  const { dagStartMin } = computeTimelineRange();
-  const nuMin = nu.getHours() * 60 + nu.getMinutes();
-  lijn.style.top = `${(nuMin - dagStartMin) * TIMELINE_PX_PER_MIN}px`;
-  lijn.firstChild.textContent = `${String(nu.getHours()).padStart(2,'0')}:${String(nu.getMinutes()).padStart(2,'0')}`;
-}
-function startNuLijnTimer() {
-  if (!_nuLijnTimer) _nuLijnTimer = setInterval(updateNuLijn, 60000);
-}
-document.addEventListener('visibilitychange', () => { if (!document.hidden) updateNuLijn(); });
 
 function kalNav(dir) {
   // Tablet rechtop + weekweergave: ‹ › schuiven 1 werkdag; maandweergave blijft per maand (kalOffset)
@@ -2430,21 +1972,14 @@ function renderMonthView(today) {
     grid.appendChild(hdr);
   });
 
-  // Begin van het kalenderraster: maandag van de week die de 1e bevat
-  const firstOfMonth = new Date(ref.getFullYear(), ref.getMonth(), 1);
-  const lastOfMonth  = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
-  // getDay() → 0=zo,1=ma; pas aan naar ma=0
-  const startDow = (firstOfMonth.getDay() + 6) % 7;
-  const gridStart = new Date(firstOfMonth);
-  gridStart.setDate(gridStart.getDate() - startDow);
+  // Maandraster (42 datums vanaf de maandag van de week die de 1e bevat): schermen/kalender-logica.js
+  const raster = kern.kalender.maandRaster(ref);
 
   const MAX_CHIPS = 4;
 
   for (let row = 0; row < 6; row++) {
     for (let col = 0; col < 7; col++) {
-      const day = new Date(gridStart);
-      day.setDate(gridStart.getDate() + row * 7 + col);
-      day.setHours(0,0,0,0);
+      const day = raster[row * 7 + col];
 
       const dateStr      = localISO(day);
       const isThisMonth  = day.getMonth() === ref.getMonth();
