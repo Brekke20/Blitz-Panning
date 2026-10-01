@@ -39,6 +39,12 @@ export const TOEGESTANE_CONSOLERUIS = [
     reden: "page.clock.install injecteert zijn script ook in het sandbox-iframe #annuleer-frame (sandbox=\"\", geen allow-scripts).",
   },
   {
+    // Zelfde oorzaak, ander frame: het rapportvoorbeeld in de wizard (#rapport-preview-frame,
+    // srcdoc met sandbox="allow-same-origin", rapport-wizard.js) krijgt het klokscript ook.
+    patroon: /^console\.error: Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed/,
+    reden: "page.clock.install injecteert zijn script ook in het sandbox-iframe #rapport-preview-frame (sandbox zonder allow-scripts).",
+  },
+  {
     // Leaflet annuleert tegels die nog laden zodra de kaart na een routeberekening inzoomt of tegels
     // verwijdert (img.src wordt leeggemaakt). De browser meldt dat als requestfailed ERR_ABORTED, ook al
     // is het een gestubde, niet-bestaande tegel; of het gebeurt hangt van de timing af (flaky zonder dit).
