@@ -13,11 +13,12 @@
 // de zelftest (e2e/productie/zelftest-hulp.mjs) mag hem importeren (afgedwongen door tests/e2e-import-guard.test.mjs).
 import { test as basis, expect } from '@playwright/test';
 import {
-  stubExtern, standaardStub, verzamelVerzoeken, TE_PLANNEN, VASTE_NU, TOEGESTANE_CONSOLERUIS,
+  stubExtern, standaardStub, verzamelVerzoeken, TE_PLANNEN, VASTE_NU, TOEGESTANE_CONSOLERUIS, opslagStub,
 } from './helpers.mjs';
 import { waarnemer, strengVangnet, zetWebSocketSlot, alleenLezen, origineelVan } from './productie-waarnemer.mjs';
 
-export { expect, VASTE_NU };
+// opslagStub: een stateful stub (GET + PUT met versie) voor specs die de opslag vooraf vullen (productiespecs importeren enkel hieruit).
+export { expect, VASTE_NU, opslagStub };
 
 // Schrijfverzoeken die de app bij elke start zelf doet (POST /api/planning-sinds vraagt wachttijden op).
 export const OPSTART_SCHRIJVEN = ['/api/planning-sinds'];
@@ -76,6 +77,10 @@ export function zohoStubs() {
   for (const naam of ZOHO_EINDPUNTEN) {
     opnames[naam] = [];
     antwoorden[naam] = standaardStub(naam); // elke oproep van standaardStub geeft een verse, stateful stub
+    // Antwoordvormen van de echte functies (tests/server-plan.test.mjs): plan -> { success, ticketId, date },
+    // plan-datum -> { ok, interventieDatum }.
+    if (naam === 'plan') antwoorden[naam] = ({ body }) => ({ status: 200, json: { success: true, ticketId: body?.ticketId, date: body?.date ?? null } });
+    if (naam === 'plan-datum') antwoorden[naam] = ({ body }) => ({ status: 200, json: { ok: true, interventieDatum: body?.utcInterventieDatum } });
     overschrijf[naam] = async (arg) => {
       opnames[naam].push({ methode: arg.methode, body: arg.body, query: Object.fromEntries(arg.query) });
       const a = antwoorden[naam];
