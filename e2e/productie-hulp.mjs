@@ -38,6 +38,18 @@ export function verwachtSchrijven(verzoeken, paden) {
   schrijfpadenVan(verzoeken).push(...paden);
 }
 
+const PER_HTTPFOUT = new WeakMap(); // verzoeken -> [{ pad, status, gezien }]
+
+// Per test een toegelaten HTTP-foutantwoord: exact dit pad met exakt deze status. Het vangnet negeert dan
+// enkel die combinatie (response-melding en de "Failed to load resource"-console.error van de browser) en
+// faalt in afterEach als de verwachte fout NIET voorkwam. Elke andere status >= 400 blijft een consolefout.
+export function verwachtHttpFout(verzoeken, fouten) {
+  let o;
+  try { o = origineelVan(verzoeken); } catch { o = verzoeken; }
+  if (!PER_HTTPFOUT.has(o)) PER_HTTPFOUT.set(o, []);
+  for (const f of fouten) PER_HTTPFOUT.get(o).push({ pad: f.pad, status: f.status, gezien: false });
+}
+
 // Niet-GET verzoeken naar de eigen server die niet op de whitelist staan (als 'METHODE /pad').
 export function ongemeldeSchrijfverzoeken(alle, paden) {
   const toegestaan = new Set(paden);
@@ -110,18 +122,34 @@ export const test = basis.extend({
   toegestaneSchrijfpaden: async ({ verzoeken }, use) => {
     await use(schrijfpadenVan(verzoeken)); // de whitelist vul je enkel via verwachtSchrijven
   },
-  consoleFouten: async ({ page }, use) => {
+  consoleFouten: async ({ page, verzoeken: verzoekenWeergave }, use) => {
     const fouten = [];
     const voegToe = (tekst) => {
       if (TOEGESTANE_CONSOLERUIS.some(r => r.patroon.test(tekst))) return;
       fouten.push(tekst);
     };
+    const toegelaten = () => PER_HTTPFOUT.get(origineelVan(verzoekenWeergave)) ?? [];
+    const padVan = (u) => { try { return new URL(u).pathname; } catch { return null; } };
+    // Zoek een toegelaten fout bij pad + status; markeert ze als gezien.
+    const neemToegelaten = (url, status) => {
+      const f = toegelaten().find(x => x.pad === padVan(url) && x.status === status);
+      if (f) f.gezien = true;
+      return !!f;
+    };
     const context = page.context();
-    context.on('console', m => { if (m.type() === 'error') voegToe(`console.error: ${m.text()} (${m.location().url})`); });
+    context.on('console', m => {
+      if (m.type() !== 'error') return;
+      const hit = /^Failed to load resource: the server responded with a status of (\d+)/.exec(m.text());
+      if (hit && neemToegelaten(m.location().url, Number(hit[1]))) return;
+      voegToe(`console.error: ${m.text()} (${m.location().url})`);
+    });
     context.on('weberror', w => voegToe(`pageerror: ${w.error().message}`));
     context.on('requestfailed', r => voegToe(`requestfailed: ${r.url()} (${r.failure()?.errorText})`));
     context.on('response', r => {
-      if (r.status() >= 400 && r.status() !== 599) voegToe(`HTTP ${r.status()}: ${r.url()}`);
+      if (r.status() >= 400 && r.status() !== 599) {
+        if (neemToegelaten(r.url(), r.status())) return;
+        voegToe(`HTTP ${r.status()}: ${r.url()}`);
+      }
     });
     await use(alleenLezen(fouten)); // specs zien enkel een alleen-lezen weergave
   },
@@ -145,5 +173,8 @@ export const test = basis.extend({
       expect(new URL(p.url(), 'http://x').searchParams.has('test'), `?test in de URL van ${p.url()}`).toBe(false);
     }
     expect(consoleFouten, 'consolefouten').toEqual([]);
+    // Een toegelaten HTTP-fout moet echt voorgekomen zijn (anders test de test niets).
+    const ontbrekend = (PER_HTTPFOUT.get(verzoeken) ?? []).filter(f => !f.gezien).map(f => `${f.status} ${f.pad}`);
+    expect(ontbrekend, 'verwachte HTTP-fouten (verwachtHttpFout) die niet voorkwamen').toEqual([]);
   }, { auto: true }],
 });

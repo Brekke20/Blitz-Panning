@@ -1,6 +1,6 @@
 // Zelftest van het productie-vangnet: bewijst dat de sloten echt dicht zijn. Draai deze eerst:
 //   npx playwright test e2e/productie/vangnet-zelftest.spec.mjs
-import { test, expect, startAppProductie, verwachtSchrijven, OPSTART_SCHRIJVEN, ongemeldeSchrijfverzoeken } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, OPSTART_SCHRIJVEN, ongemeldeSchrijfverzoeken } from '../productie-hulp.mjs';
 import { neemGeblokkeerdeProbesOver } from './zelftest-hulp.mjs';
 
 test.describe.configure({ mode: 'serial' });
@@ -99,4 +99,28 @@ test('Zelftest: een spec kan lekmeldingen niet wissen (alleen-lezen weergaven)',
   expect(gezien.buitenHost).toEqual(['https://desk.zoho.eu/api/v1/tickets']);
   expect(gezien.onverwacht).toEqual(['/api/onbestaand']);
   expect(gezien.consoleFouten.length).toBeGreaterThan(0);
+});
+
+// verwachtHttpFout: exact pad + status wordt toegelaten, alles anders blijft een consolefout.
+test('Zelftest: verwachtHttpFout laat enkel de aangegeven pad+status door', async ({ page, verzoeken, consoleFouten }) => {
+  const z = zohoStubs();
+  z.zetAntwoord('plan', { status: 500, json: { error: 'x' } });
+  z.zetAntwoord('plan-datum', { status: 500, json: { error: 'x' } });
+  verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/plan', '/api/plan-datum']);
+  verwachtHttpFout(verzoeken, [{ pad: '/api/plan', status: 500 }]);
+  await startAppProductie(page, { technieker: 'Tim', overschrijf: z.overschrijf });
+  await page.evaluate(() => fetch('/api/plan', { method: 'POST', body: '{}' })); // toegelaten
+  await page.evaluate(() => fetch('/api/plan-datum', { method: 'POST', body: '{}' })); // ander pad: blijft fout
+  await expect.poll(() => consoleFouten.length).toBeGreaterThan(0);
+  expect(consoleFouten.some(f => f.includes('/api/plan-datum'))).toBe(true);
+  expect(consoleFouten.some(f => f.includes('/api/plan ') || f.endsWith('/api/plan)') || /\/api\/plan(?!-)/.test(f))).toBe(false);
+  neemGeblokkeerdeProbesOver(page, verzoeken, consoleFouten);
+});
+
+// Een verwachte HTTP-fout die uitblijft laat de test falen (test.fail: het afterEach-vangnet moet breken).
+test('Zelftest: een verwachte HTTP-fout die uitblijft faalt de test', async ({ page, verzoeken }) => {
+  test.fail();
+  verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
+  verwachtHttpFout(verzoeken, [{ pad: '/api/plan', status: 500 }]);
+  await startAppProductie(page, { technieker: 'Tim' });
 });

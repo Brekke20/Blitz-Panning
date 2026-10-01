@@ -3,15 +3,27 @@
 // leggen het huidige gedrag vast, ook de eigenaardigheden (00:00-sentinel, venster sluit vóór de fetch).
 // Alle uitgaande schrijfverzoeken worden per test exact opgesomd (`schrijfLijst`): een ontbrekend of extra
 // verzoek laat de test falen. Een HTTP-status >= 400 telt in dit vangnet als consolefout; foutantwoorden
-// zijn daarom `{ error }` met status 200 (de client leest enkel data.error / data.ok, niet res.ok).
+// zijn daarom per test expliciet toegelaten met `verwachtHttpFout` (exact pad + status; faalt als de fout uitblijft).
+// De echte backend geeft bij een Zoho-fout 500 + `{ error }` (plan.js, plan-datum.js), bij een trage Zoho kan de
+// Netlify-gateway 502/504 met een HTML-body geven (dan faalt res.json() in de client).
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
-import { test, expect, startAppProductie, verwachtSchrijven, zohoStubs, opslagStub, OPSTART_SCHRIJVEN } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, opslagStub, OPSTART_SCHRIJVEN } from '../productie-hulp.mjs';
 
 const MAP = path.dirname(url.fileURLToPath(import.meta.url));
 const START = 'POST /api/planning-sinds';
-const schrijfLijst = (verzoeken) => verzoeken.alle.filter(r => r.methode !== 'GET').map(r => `${r.methode} ${r.pad}`);
+// Wacht tot alles gezet is (debounces, laatste antwoorden) vóórdat de schrijflijst gelezen wordt, zodat een extra
+// POST die na de toast binnenkomt de test laat falen: klok voorbij elke debounce, microtask-flush, netwerk rustig.
+async function settle(page) {
+  await page.clock.runFor(2000);
+  await page.evaluate(() => Promise.resolve());
+  await page.waitForLoadState('networkidle');
+}
+const schrijfLijst = async (page, verzoeken) => {
+  await settle(page);
+  return verzoeken.alle.filter(r => r.methode !== 'GET').map(r => `${r.methode} ${r.pad}`);
+};
 const planningVan = (page) => page.evaluate(() => Object.fromEntries(
   Object.entries(kern.toestand.get('planning')).map(([d, s]) => [d, s.map(p => p.ticket.id)])));
 const wachtrijKaart = (page, nummer) => page.locator('#ticket-list .ticket').filter({ hasText: `#${nummer}` });
@@ -25,8 +37,9 @@ const BASIS_PLANNING = { '2026-10-07': ['p1'], '2026-10-09': ['g1'] };
 const klantStub = (items) => ({ klantbeschikbaarheid: opslagStub({ versie: 1, items }, 'items') });
 const kbItem = (extra) => ({ voorkeur: null, voorkeurTijd: null, geblokkeerd: [], notitie: '', bijgewerkt: '2026-10-01T08:00:00.000Z', ...extra });
 
-async function start(page, verzoeken, { paden = ['/api/plan'], stubs = {}, technieker = 'Tim' } = {}) {
+async function start(page, verzoeken, { paden = ['/api/plan'], stubs = {}, technieker = 'Tim', httpFouten = [] } = {}) {
   verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, ...paden]);
+  if (httpFouten.length) verwachtHttpFout(verzoeken, httpFouten);
   const z = zohoStubs();
   await startAppProductie(page, { technieker, overschrijf: { ...z.overschrijf, ...stubs } });
   return z;
@@ -49,7 +62,7 @@ test.describe('+ in de wachtrij (addTicketToDate via quickAdd)', () => {
     const plan = verzoeken.van('/api/plan', 'POST');
     expect(plan).toHaveLength(1);
     expect(plan[0].headers['content-type']).toBe('application/json');
-    expect(schrijfLijst(verzoeken)).toEqual([START, 'POST /api/plan']);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
 
     await expect(page.locator('#cnt-tickets')).toHaveText('1');
     await expect(wachtrijKaart(page, 1001)).toHaveCount(0);
@@ -73,14 +86,14 @@ test.describe('+ in de wachtrij (addTicketToDate via quickAdd)', () => {
       query: {},
     }]);
     expect(verzoeken.van('/api/plan', 'POST')[0].headers['content-type']).toBe('application/json');
-    expect(schrijfLijst(verzoeken)).toEqual([START, 'POST /api/plan']);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
     // De stop krijgt het voorkeursuur als vast uur.
     expect(await page.evaluate(() => kern.toestand.get('planning')['2026-10-05'][0].uur)).toBe('10:00');
   });
 
   test('fout van Zoho: rollback, ticket terug in de wachtrij, planning zonder die dag', async ({ page, verzoeken }) => {
-    const z = await start(page, verzoeken);
-    z.zetAntwoord('plan', { status: 200, json: { error: 'Zoho kapot' } });
+    const z = await start(page, verzoeken, { httpFouten: [{ pad: '/api/plan', status: 500 }] });
+    z.zetAntwoord('plan', { status: 500, json: { error: 'Zoho kapot' } });
     await wachtrijKaart(page, 1001).locator('.btn-add').click();
 
     // Gemeten: de toast van addTicketToDate; quickAdd zet daarna geen "Toegevoegd"-toast.
@@ -90,14 +103,14 @@ test.describe('+ in de wachtrij (addTicketToDate via quickAdd)', () => {
       body: { ticketId: 't1', date: '2026-10-05', utcInterventieDatum: '2026-10-04T22:00:00.000Z' },
       query: {},
     }]);
-    expect(schrijfLijst(verzoeken)).toEqual([START, 'POST /api/plan']);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
     await expect(wachtrijKaart(page, 1001)).toHaveCount(1);
     await expect(page.locator('#cnt-tickets')).toHaveText('2');
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
     await expect(toastTekst(page)).not.toContainText('Toegevoegd');
   });
 
-  test('dubbelklik terwijl het eerste verzoek loopt geeft geen tweede verzoek', async ({ page, verzoeken }) => {
+  test('tweede aanroep terwijl het eerste verzoek loopt (inFlight-guard) geeft geen tweede verzoek', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken);
     let geef;
     const vast = new Promise(r => { geef = r; });
@@ -105,15 +118,20 @@ test.describe('+ in de wachtrij (addTicketToDate via quickAdd)', () => {
       await vast; // de test houdt het antwoord vast tot hij het zelf vrijgeeft
       return { status: 200, json: { success: true, ticketId: body.ticketId, date: body.date } };
     });
-    const knop = wachtrijKaart(page, 1001).locator('.btn-add');
-    await knop.dblclick();
+    await wachtrijKaart(page, 1001).locator('.btn-add').click();
     await expect.poll(() => z.opnames.plan.length).toBe(1);
-    // Terwijl het verzoek loopt: knop uitgeschakeld (inFlight) en optimistisch al in de planning.
-    await expect(knop).toBeDisabled();
-    expect((await planningVan(page))['2026-10-05']).toEqual(['t1']);
-    // Nog een klik via de DOM-klik op de (disabled) knop: geen tweede verzoek.
-    await page.evaluate(() => document.querySelector('#ticket-list .btn-add')?.click());
+    // Terwijl het verzoek loopt (de knop is disabled, een klik is dus een no-op): de functies zelf aanroepen,
+    // want enkel zo bewijst dit de inFlightTickets-guard van addTicketToDate. addTicketToDate staat als
+    // functiedeclaratie in het klassieke script (globaal bereikbaar).
+    const uitkomst = await page.evaluate(async () => {
+      const direct = await addTicketToDate('t1', '2026-10-05'); // guard: false, geen fetch
+      await kern.wachtrij.quickAdd('t1'); // zelfde guard via quickAdd; geen toast
+      await kern.wachtrij.quickAdd('t1');
+      return direct;
+    });
+    expect(uitkomst).toBe(false);
     expect(z.opnames.plan).toHaveLength(1);
+    expect((await planningVan(page))['2026-10-05']).toEqual(['t1']);
     geef();
     await expect(toastTekst(page)).toHaveText('✓ Toegevoegd aan 5 okt');
     expect(z.opnames.plan).toEqual([{
@@ -121,8 +139,24 @@ test.describe('+ in de wachtrij (addTicketToDate via quickAdd)', () => {
       body: { ticketId: 't1', date: '2026-10-05', utcInterventieDatum: '2026-10-04T22:00:00.000Z' },
       query: {},
     }]);
-    expect(schrijfLijst(verzoeken)).toEqual([START, 'POST /api/plan']);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
     await expect(page.locator('#cnt-tickets')).toHaveText('1');
+  });
+
+  // Bij een trage Zoho geeft de Netlify-gateway 502 met een HTML-body: res.json() gooit en de toast toont de
+  // technische SyntaxError-tekst. Gemeten en vastgelegd; de rollback gebeurt wel.
+  test('502 met HTML-body: rollback, toast met de technische parserfout', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { httpFouten: [{ pad: '/api/plan', status: 502 }] });
+    z.zetAntwoord('plan', { status: 502, raw: '<html><body>Bad Gateway</body></html>' });
+    await wachtrijKaart(page, 1001).locator('.btn-add').click();
+
+    // HUIDIG GEDRAG (bug?): de gebruiker ziet een technische JSON-parserfout in plaats van "Zoho antwoordt niet".
+    await expect(toastTekst(page)).toHaveText(`✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: Unexpected token '<', "<html><bod"... is not valid JSON)`);
+    expect(z.opnames.plan).toHaveLength(1);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
+    await expect(wachtrijKaart(page, 1001)).toHaveCount(1);
+    await expect(page.locator('#cnt-tickets')).toHaveText('2');
+    expect(await planningVan(page)).toEqual(BASIS_PLANNING);
   });
 });
 
@@ -147,7 +181,7 @@ test.describe('✕ uit planning halen in de kalender', () => {
     await expect(page.locator('#cnt-tickets')).toHaveText('3');
     expect(z.opnames.plan).toEqual([{ methode: 'POST', body: { ticketId: 'p1', date: null }, query: {} }]);
     expect(verzoeken.van('/api/plan', 'POST')[0].headers['content-type']).toBe('application/json');
-    expect(schrijfLijst(verzoeken)).toEqual([START, 'POST /api/plan']);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
     await expect(dag(page, '2026-10-07').locator('.tl-ticket[data-ticket-id="p1"]')).toHaveCount(0);
     expect(await planningVan(page)).toEqual({ '2026-10-09': ['g1'] });
     // Lokale staat: ticket terug in allTickets (op nummer gesorteerd), uit allPending, zonder interventiedatum.
@@ -168,21 +202,21 @@ test.describe('✕ uit planning halen in de kalender', () => {
     await bevestigDialoog(page).getByRole('button', { name: 'Terug' }).click();
     await expect(bevestigDialoog(page)).toBeHidden();
     expect(z.opnames.plan).toEqual([]);
-    expect(schrijfLijst(verzoeken)).toEqual([START]);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START]);
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
     await expect(page.locator('#cnt-tickets')).toHaveText('2');
   });
 
   test('fout van Zoho: rollback, ticket blijft op de dag', async ({ page, verzoeken }) => {
-    const z = await start(page, verzoeken);
-    z.zetAntwoord('plan', { status: 200, json: { error: 'Zoho kapot' } });
+    const z = await start(page, verzoeken, { httpFouten: [{ pad: '/api/plan', status: 500 }] });
+    z.zetAntwoord('plan', { status: 500, json: { error: 'Zoho kapot' } });
     await naarKalender(page);
     await kruis(page).click();
     await bevestigDialoog(page).getByRole('button', { name: 'Uit planning halen' }).click();
 
     await expect(toastTekst(page)).toHaveText('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: Zoho kapot)');
     expect(z.opnames.plan).toEqual([{ methode: 'POST', body: { ticketId: 'p1', date: null }, query: {} }]);
-    expect(schrijfLijst(verzoeken)).toEqual([START, 'POST /api/plan']);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
     await expect(dag(page, '2026-10-07').locator('.tl-ticket[data-ticket-id="p1"]')).toHaveCount(1);
     await expect(page.locator('#cnt-tickets')).toHaveText('2');
@@ -233,7 +267,7 @@ test.describe('verzetten in het ticketdetail (saveReschedule)', () => {
       query: {},
     }]);
     expect(verzoeken.van('/api/plan', 'POST')[0].headers['content-type']).toBe('application/json');
-    expect(schrijfLijst(verzoeken)).toEqual([START, 'POST /api/plan']);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
     expect(dialogen).toEqual([]);
     expect(await planningVan(page)).toEqual({ '2026-10-08': ['p1'], '2026-10-09': ['g1'] });
     const p1 = await page.evaluate(() => {
@@ -259,7 +293,7 @@ test.describe('verzetten in het ticketdetail (saveReschedule)', () => {
       body: { ticketId: 'g1', date: '2026-10-12', utcInterventieDatum: '2026-10-12T07:00:00.000Z' },
       query: {},
     }]);
-    expect(schrijfLijst(verzoeken)).toEqual([START, 'POST /api/plan']);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
     expect(await planningVan(page)).toEqual({ '2026-10-07': ['p1'], '2026-10-12': ['g1'] });
     expect(await staatLijsten(page)).toEqual({ pending: ['p1', 'p2', 'g1'], gepland: [] });
     expect(await page.evaluate(() => kern.toestand.get('planning')['2026-10-12'][0].ticket.status)).toBe('Wachten op bevestiging planning');
@@ -274,7 +308,7 @@ test.describe('verzetten in het ticketdetail (saveReschedule)', () => {
     await expect.poll(() => dialogen.length).toBe(1);
     expect(dialogen[0]).toBe('🎌 Wapenstilstand is een wettelijke feestdag (11 nov).\nToch inplannen?');
     expect(z.opnames.plan).toEqual([]);
-    expect(schrijfLijst(verzoeken)).toEqual([START]);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START]);
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
     // De confirm komt vóór het sluiten: het verzetvenster en het detail blijven open.
     await expect(page.locator('#reschedule-overlay')).toHaveClass(/open/);
@@ -294,7 +328,7 @@ test.describe('verzetten in het ticketdetail (saveReschedule)', () => {
       body: { ticketId: 'p1', date: '2026-11-11', utcInterventieDatum: '2026-11-11T09:00:00.000Z' },
       query: {},
     }]);
-    expect(schrijfLijst(verzoeken)).toEqual([START, 'POST /api/plan']);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
     expect(await planningVan(page)).toEqual({ '2026-10-09': ['g1'], '2026-11-11': ['p1'] });
   });
 
@@ -307,7 +341,7 @@ test.describe('verzetten in het ticketdetail (saveReschedule)', () => {
     await expect.poll(() => dialogen.length).toBe(1);
     expect(dialogen[0]).toBe('⚠ Klant gaf aan NIET beschikbaar te zijn op 8 okt.\nToch inplannen?');
     expect(z.opnames.plan).toEqual([]);
-    expect(schrijfLijst(verzoeken)).toEqual([START]);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START]);
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
   });
 
@@ -335,15 +369,15 @@ test.describe('verzetten in het ticketdetail (saveReschedule)', () => {
       { ticketId: 'p1', date: '2026-10-07', utcInterventieDatum: '2026-10-07T09:00:00.000Z' },
       { ticketId: 'p1', date: '2026-10-08', utcInterventieDatum: '2026-10-08T08:00:00.000Z' },
     ]);
-    expect(schrijfLijst(verzoeken)).toEqual([START, 'POST /api/plan', 'POST /api/plan']);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan', 'POST /api/plan']);
     expect(await planningVan(page)).toEqual({ '2026-10-08': ['p1'], '2026-10-09': ['g1'] });
   });
 
   test('fout van Zoho: de vensters sluiten vóór de fetch, daarna toast en ongewijzigde planning', async ({ page, verzoeken }) => {
-    const z = await start(page, verzoeken);
+    const z = await start(page, verzoeken, { httpFouten: [{ pad: '/api/plan', status: 500 }] });
     let geef;
     const vast = new Promise(r => { geef = r; });
-    z.zetAntwoord('plan', async () => { await vast; return { status: 200, json: { error: 'Zoho kapot' } }; });
+    z.zetAntwoord('plan', async () => { await vast; return { status: 500, json: { error: 'Zoho kapot' } }; });
     await openVerzet(page);
     await vulIn(page, '2026-10-08', '14:30');
 
@@ -360,7 +394,7 @@ test.describe('verzetten in het ticketdetail (saveReschedule)', () => {
       body: { ticketId: 'p1', date: '2026-10-08', utcInterventieDatum: '2026-10-08T12:30:00.000Z' },
       query: {},
     }]);
-    expect(schrijfLijst(verzoeken)).toEqual([START, 'POST /api/plan']);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
     expect(await staatLijsten(page)).toEqual({ pending: ['p1', 'p2'], gepland: ['g1'] });
     await expect(page.locator('#det-overlay')).not.toHaveClass(/open/);
@@ -374,7 +408,11 @@ test.describe('📅 toewijzen (saveToewijzen)', () => {
     await page.getByRole('tab', { name: 'Kalender' }).click();
     await page.locator('#kal-pending-pill').click();
     const kaart = page.locator('#kal-no-date-section .ticket').filter({ hasText: '#1005' });
-    await kaart.getByRole('button', { name: '📅 Toewijzen' }).click();
+    // De kalender hertekent één tick na het activeren van de tab (setTimeout 0): klik opnieuw als de rij daardoor weer dichtviel.
+    await expect(async () => {
+      await kaart.getByRole('button', { name: '📅 Toewijzen' }).click();
+      await expect(kaart.locator('.t-assign-row')).toBeVisible({ timeout: 1000 });
+    }).toPass();
     return kaart;
   }
 
@@ -393,7 +431,7 @@ test.describe('📅 toewijzen (saveToewijzen)', () => {
       query: {},
     }]);
     expect(verzoeken.van('/api/plan-datum', 'POST')[0].headers['content-type']).toBe('application/json');
-    expect(schrijfLijst(verzoeken)).toEqual([START, 'POST /api/plan-datum']);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan-datum']);
     expect(z.opnames.plan).toEqual([]);
     expect(await planningVan(page)).toEqual({ ...BASIS_PLANNING, '2026-10-06': ['p2'] });
     const stop = await page.evaluate(() => {
@@ -403,9 +441,9 @@ test.describe('📅 toewijzen (saveToewijzen)', () => {
     expect(stop).toEqual({ uur: '13:15', interventieDatum: '2026-10-06T11:15:00.000Z' });
   });
 
-  test('antwoord ok:false: toast met de fout, geen lokale wijziging', async ({ page, verzoeken }) => {
-    const z = await start(page, verzoeken, { paden: ['/api/plan-datum'] });
-    z.zetAntwoord('plan-datum', { status: 200, json: { ok: false, error: 'x' } });
+  test('fout 500 met {error}: toast met de fout, geen lokale wijziging', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/plan-datum'], httpFouten: [{ pad: '/api/plan-datum', status: 500 }] });
+    z.zetAntwoord('plan-datum', { status: 500, json: { error: 'x' } });
     const kaart = await openRij(page);
     await kaart.getByLabel('Datum toewijzen').fill('2026-10-06');
     await kaart.getByLabel('Tijd toewijzen').fill('13:15');
@@ -417,7 +455,24 @@ test.describe('📅 toewijzen (saveToewijzen)', () => {
       body: { ticketId: 'p2', utcInterventieDatum: '2026-10-06T11:15:00.000Z' },
       query: {},
     }]);
-    expect(schrijfLijst(verzoeken)).toEqual([START, 'POST /api/plan-datum']);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan-datum']);
+    expect(await planningVan(page)).toEqual(BASIS_PLANNING);
+    expect(await page.evaluate(() => kern.toestand.get('allPending').find(t => t.id === 'p2').interventieDatum)).toBeNull();
+  });
+
+  // Zelfde gateway-fout voor plan-datum: HTML-body, res.json() gooit, de toast toont de technische tekst.
+  test('502 met HTML-body: toast met de technische parserfout, geen lokale wijziging', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/plan-datum'], httpFouten: [{ pad: '/api/plan-datum', status: 502 }] });
+    z.zetAntwoord('plan-datum', { status: 502, raw: '<html><body>Bad Gateway</body></html>' });
+    const kaart = await openRij(page);
+    await kaart.getByLabel('Datum toewijzen').fill('2026-10-06');
+    await kaart.getByLabel('Tijd toewijzen').fill('13:15');
+    await kaart.getByRole('button', { name: '✓ Opslaan' }).click();
+
+    // HUIDIG GEDRAG (bug?): technische JSON-parserfout in de toast (zonder "Zoho"-uitleg).
+    await expect(toastTekst(page)).toHaveText(`✕ Unexpected token '<', "<html><bod"... is not valid JSON`);
+    expect(z.opnames['plan-datum']).toHaveLength(1);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan-datum']);
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
     expect(await page.evaluate(() => kern.toestand.get('allPending').find(t => t.id === 'p2').interventieDatum)).toBeNull();
   });
@@ -430,7 +485,7 @@ test.describe('📅 toewijzen (saveToewijzen)', () => {
 
     await expect(toastTekst(page)).toHaveText('⚠ Selecteer een datum');
     expect(z.opnames['plan-datum']).toEqual([]);
-    expect(schrijfLijst(verzoeken)).toEqual([START]);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START]);
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
   });
 });
@@ -445,7 +500,7 @@ const zonderCoords = () => {
 };
 const matrixVerzoeken = (verzoeken) => verzoeken.van('/api/matrix', 'POST');
 // Alle niet-GET verzoeken behalve /api/matrix (die telt apart, het aantal hangt van het brein af).
-const schrijfLijstZonderMatrix = (verzoeken) => schrijfLijst(verzoeken).filter(r => r !== 'POST /api/matrix');
+const schrijfLijstZonderMatrix = async (page, verzoeken) => (await schrijfLijst(page, verzoeken)).filter(r => r !== 'POST /api/matrix');
 
 test.describe('⚡ plan deze week (autoPlan)', () => {
   const resultaat = (page) => page.getByRole('dialog', { name: '⚡ Planningsresultaat' });
@@ -466,7 +521,7 @@ test.describe('⚡ plan deze week (autoPlan)', () => {
       { methode: 'POST', body: { ticketId: 't1', date: '2026-10-05', utcInterventieDatum: '2026-10-04T22:00:00.000Z' }, query: {} },
       { methode: 'POST', body: { ticketId: 't2', date: '2026-10-05', utcInterventieDatum: '2026-10-04T22:00:00.000Z' }, query: {} },
     ]);
-    expect(schrijfLijstZonderMatrix(verzoeken)).toEqual([START, 'POST /api/plan', 'POST /api/plan']);
+    expect(await schrijfLijstZonderMatrix(page, verzoeken)).toEqual([START, 'POST /api/plan', 'POST /api/plan']);
     expect(matrixVerzoeken(verzoeken).length).toBeGreaterThanOrEqual(1);
     expect(await planningVan(page)).toEqual({ ...BASIS_PLANNING, '2026-10-05': ['t1', 't2'] });
   });
@@ -492,16 +547,16 @@ test.describe('⚡ plan deze week (autoPlan)', () => {
       { ticketId: 't2', date: '2026-10-05', utcInterventieDatum: '2026-10-04T22:00:00.000Z' },
     ]);
     // De volgorde van de verzoeken: eerst geocoderen, dan plannen.
-    expect(schrijfLijstZonderMatrix(verzoeken)).toEqual([START, 'POST /api/optimize', 'POST /api/plan', 'POST /api/plan']);
+    expect(await schrijfLijstZonderMatrix(page, verzoeken)).toEqual([START, 'POST /api/optimize', 'POST /api/plan', 'POST /api/plan']);
     await expect(resultaat(page).getByText(/#1001 Laadpaal offline na stroomuitval → .*5 okt/)).toBeVisible();
     await expect(resultaat(page).getByText(/#1002 Controller reageert niet op OCPP commando → .*5 okt/)).toBeVisible();
     expect(await planningVan(page)).toEqual({ ...BASIS_PLANNING, '2026-10-05': ['t1', 't2'] });
   });
 
   test('fout bij één plan-verzoek: dat ticket staat bij "Niet ingepland" met reden zoho-fout', async ({ page, verzoeken }) => {
-    const z = await start(page, verzoeken, { paden: ['/api/plan', '/api/matrix'] });
+    const z = await start(page, verzoeken, { paden: ['/api/plan', '/api/matrix'], httpFouten: [{ pad: '/api/plan', status: 500 }] });
     z.zetAntwoord('plan', ({ body }) => body.ticketId === 't2'
-      ? { status: 200, json: { error: 'Zoho kapot' } }
+      ? { status: 500, json: { error: 'Zoho kapot' } }
       : { status: 200, json: { success: true, ticketId: body.ticketId, date: body.date } });
     await klikPlan(page);
     const venster = resultaat(page);
@@ -515,7 +570,7 @@ test.describe('⚡ plan deze week (autoPlan)', () => {
       { ticketId: 't1', date: '2026-10-05', utcInterventieDatum: '2026-10-04T22:00:00.000Z' },
       { ticketId: 't2', date: '2026-10-05', utcInterventieDatum: '2026-10-04T22:00:00.000Z' },
     ]);
-    expect(schrijfLijstZonderMatrix(verzoeken)).toEqual([START, 'POST /api/plan', 'POST /api/plan']);
+    expect(await schrijfLijstZonderMatrix(page, verzoeken)).toEqual([START, 'POST /api/plan', 'POST /api/plan']);
     // Rollback van t2: enkel t1 staat in de planning, t2 blijft in de wachtrij.
     expect(await planningVan(page)).toEqual({ ...BASIS_PLANNING, '2026-10-05': ['t1'] });
     await expect(page.locator('#cnt-tickets')).toHaveText('1');
@@ -544,11 +599,17 @@ test.describe('route: tijden vastleggen', () => {
     await expect(page.getByTestId('route-stop-tijd')).toHaveCount(2);
   }
   const PADEN = ['/api/plan', '/api/matrix', '/api/route', '/api/optimize', '/api/drukte', '/api/plan-datum', '/api/planning-sinds'];
-  // Gemeten: autoPlan (matrix, 2x plan), dan het openen van de Route-tab (optimize voor de startlocatie,
-  // route + drukte, en nogmaals route + drukte bij "Tijden vastleggen"). matrix, optimize, route en drukte
-  // zijn POST's die niets naar Zoho schrijven; ze staan er bewust in zodat de lijst volledig is.
-  const NAAR_ROUTE = [START, 'POST /api/matrix', 'POST /api/plan', 'POST /api/plan', 'POST /api/optimize', 'POST /api/route', 'POST /api/drukte'];
-  const VASTLEGGEN = ['POST /api/route', 'POST /api/drukte'];
+  // matrix, optimize, route en drukte zijn POST's die niets naar Zoho schrijven; hun aantal hangt van het brein en de
+  // route-heuristiek af (Gemeten: matrix 1, optimize 1, route 2, drukte 2). Daarom: telling met >=, exacte payload waar
+  // die deterministisch is (optimize), en een exacte lijst voor alle overige (Zoho-gebonden) schrijfverzoeken.
+  const BEREKEND = new Set(['POST /api/matrix', 'POST /api/optimize', 'POST /api/route', 'POST /api/drukte']);
+  const zohoLijst = async (page, verzoeken) => (await schrijfLijst(page, verzoeken)).filter(r => !BEREKEND.has(r));
+  const berekeningenGelopen = (verzoeken) => {
+    for (const pad of ['/api/matrix', '/api/optimize', '/api/route', '/api/drukte']) {
+      expect(verzoeken.van(pad, 'POST').length, pad).toBeGreaterThanOrEqual(1);
+    }
+  };
+  const NAAR_ROUTE = [START, 'POST /api/plan', 'POST /api/plan'];
 
   test('elke niet-verankerde stop met een nieuw uur: één POST /api/plan-datum, in stopvolgorde', async ({ page, verzoeken }) => {
     await zetStartTijd(page, '10:00');
@@ -566,7 +627,8 @@ test.describe('route: tijden vastleggen', () => {
     for (const r of verzoeken.van('/api/plan-datum', 'POST')) expect(r.headers['content-type']).toBe('application/json');
     // Gemeten: het openen van de Route-tab geocodeert (zoals bij autoPlan) de startlocatie en de adressen van de stops.
     expect(z.opnames.optimize.map(o => o.body)).toEqual([{ origin: 'Heirbaan 9, 9150 Kruibeke', stops: ['Antwerpseweg 50, 2440 Geel', 'Kuringersteenweg 12, 3500 Hasselt'] }]);
-    expect(schrijfLijst(verzoeken)).toEqual([...NAAR_ROUTE, ...VASTLEGGEN, 'POST /api/plan-datum', 'POST /api/plan-datum']);
+    berekeningenGelopen(verzoeken);
+    expect(await zohoLijst(page, verzoeken)).toEqual([...NAAR_ROUTE, 'POST /api/plan-datum', 'POST /api/plan-datum']);
     // Lokaal: de tickets onthouden de bewaarde datum.
     expect(await page.evaluate(() => kern.toestand.get('planning')['2026-10-05'].map(p => [p.ticket.id, p.ticket.interventieDatum, p.uur])))
       .toEqual([['t1', '2026-10-05T08:30:00.000Z', '10:30'], ['t2', '2026-10-05T10:45:00.000Z', '12:45']]);
@@ -596,15 +658,16 @@ test.describe('route: tijden vastleggen', () => {
     expect(z.opnames['plan-datum']).toEqual([
       { methode: 'POST', body: { ticketId: 't2', utcInterventieDatum: '2026-10-05T11:30:00.000Z' }, query: {} },
     ]);
-    expect(schrijfLijst(verzoeken)).toEqual([...NAAR_ROUTE, ...VASTLEGGEN, 'POST /api/plan-datum']);
+    berekeningenGelopen(verzoeken);
+    expect(await zohoLijst(page, verzoeken)).toEqual([...NAAR_ROUTE, 'POST /api/plan-datum']);
   });
 
   test('fout bij het tweede verzoek: toast, tickets herladen, geen derde verzoek', async ({ page, verzoeken }) => {
     await zetStartTijd(page, '10:00');
-    const z = await start(page, verzoeken, { paden: PADEN });
+    const z = await start(page, verzoeken, { paden: PADEN, httpFouten: [{ pad: '/api/plan-datum', status: 500 }] });
     // Eerste plan-datum lukt, de tweede niet (de opname staat er al vóór het antwoord).
     z.zetAntwoord('plan-datum', ({ body }) => z.opnames['plan-datum'].length === 2
-      ? { status: 200, json: { ok: false, error: 'Zoho kapot' } }
+      ? { status: 500, json: { error: 'Zoho kapot' } }
       : { status: 200, json: { ok: true, interventieDatum: body.utcInterventieDatum } });
     await naarRoute(page);
     const ticketsVoor = verzoeken.van('/api/tickets', 'GET').length;
@@ -619,6 +682,7 @@ test.describe('route: tijden vastleggen', () => {
       { methode: 'POST', body: { ticketId: 't2', utcInterventieDatum: '2026-10-05T10:45:00.000Z' }, query: {} },
     ]);
     // Na de fout herlaadt afh.loadTickets en vraagt de app de wachttijden opnieuw op (planning-sinds).
-    expect(schrijfLijst(verzoeken)).toEqual([...NAAR_ROUTE, ...VASTLEGGEN, 'POST /api/plan-datum', 'POST /api/plan-datum', START]);
+    berekeningenGelopen(verzoeken);
+    expect(await zohoLijst(page, verzoeken)).toEqual([...NAAR_ROUTE, 'POST /api/plan-datum', 'POST /api/plan-datum', START]);
   });
 });
