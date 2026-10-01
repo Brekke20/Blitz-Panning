@@ -4,7 +4,7 @@
 // DOMContentLoaded). Raakt `document` enkel binnen functies, nooit op moduleniveau. Alleen `kern/brug.js` wijst
 // `window`-namen toe. `quickAdd` houdt het aantalmodel aan (spec C3).
 import { toestand } from '../kern/toestand.js';
-import { toast, escHtml, registreerActies, maakActiveerbaar } from '../kern/ui.js';
+import { toast, escHtml, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
 import { localISO, todayISO, fmtDateShort } from '../kern/tijd.js';
 import { ticketsVanTechnieker } from '../kern/selecties.js';
 import { nextAvailableDay } from './capaciteit.js';
@@ -23,7 +23,7 @@ let renderTeller = 0; // e2e telt hertekeningen hiermee, ook interne oproepen
 export function renderTelling() { return renderTeller; }
 
 export function initWachtrij(afhankelijkheden) {
-  afh = afhankelijkheden;
+  afh = strengeAfh('wachtrij', afhankelijkheden);
   try {
     const w = localStorage.getItem('blitz_wachtrij_sorteer');
     if (WQ_SORTEER_OPTIES.includes(w)) wqSorteer = w;

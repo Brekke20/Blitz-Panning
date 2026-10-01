@@ -1,7 +1,7 @@
 // tests/ui.test.mjs — unit-tests voor kern/ui.js
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { escHtml, toastDuur, registreerActies, maakActiveerbaar } from '../public/js/kern/ui.js';
+import { escHtml, toastDuur, registreerActies, maakActiveerbaar, strengeAfh } from '../public/js/kern/ui.js';
 
 test('escHtml(null) → ""', () => {
   assert.equal(escHtml(null), '');
@@ -246,4 +246,11 @@ test('maakActiveerbaar: toets uit een binnenste element zonder knop/link/veld we
   const e = nepToets('Enter', { closest: () => null });
   el.keydown(e);
   assert.equal(n, 1);
+});
+
+test('strengeAfh: bestaande sleutel werkt, ontbrekende sleutel gooit een fout met de naam', () => {
+  const afh = strengeAfh('proef', { a: () => 1, nul: null });
+  assert.equal(afh.a(), 1);
+  assert.equal(afh.nul, null); // aanwezig met waarde null/undefined is geen ontbrekende sleutel
+  assert.throws(() => afh.ontbreekt, /proef: afhankelijkheid 'ontbreekt' ontbreekt in init/);
 });

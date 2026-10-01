@@ -168,9 +168,9 @@
 <!-- ══ GEPLAND TAB ══ -->
 <div class="view" id="view-gepland" role="tabpanel" aria-labelledby="tab-gepland">
   <div class="gep-week">
-    <button onclick="gepNav(-1)" aria-label="Vorige periode" title="Vorige periode">‹</button>
+    <button data-actie="gep-nav" data-arg="-1" aria-label="Vorige periode" title="Vorige periode">‹</button>
     <span id="gep-label">—</span>
-    <button onclick="gepNav(1)" aria-label="Volgende periode" title="Volgende periode">›</button>
+    <button data-actie="gep-nav" data-arg="1" aria-label="Volgende periode" title="Volgende periode">›</button>
   </div>
   <div id="gep-body" class="ticket-list"></div>
 </div>
@@ -690,7 +690,6 @@ DUMMY_DATA.tickets.forEach((t, i) => {
 let activeTicket = null;
 let _proposalOntvangers = []; // ontvangerslijst berekend door openProposal(), gebruikt door updateProposalPreview()/sendProposal()
 let _detailDate  = null; // datum waarop het actieve ticket ingepland staat
-let gepOffset = 0;
 // activeBlockDate → vervangen door _avFormDate (zie beschikbaarheidssysteem)
 // (drag-blokkering verwijderd — vervangen door beschikbaarheidssysteem)
 // Live-detectie van nieuwe Inventaris-log-regels (enkel relevant op de supervisor-weergave,
@@ -888,6 +887,8 @@ document.addEventListener('DOMContentLoaded', () => {
     herOpenRapport: (...a) => herOpenRapport(...a), rapportArchief: () => _rapportArchief, matchRespToPerson, duurVoor,
     getHolidayName, setTab, sjLog, toggleAssignRow, saveToewijzen, openBlockModal,
   });
+  // Ingepland-scherm (schermen/ingepland.js): week-knoppen en de afhankelijkheden van andere schermen; vóór koppelRenders().
+  kern.ingepland.initIngepland({ openDetail, tijdslotLabelVoor, contactActiesHtml, koppelAdresNavigatie, sjLog });
   // Route-scherm (schermen/route.js): de afhankelijkheden van andere schermen (R11); vóór koppelRenders().
   kern.route.initRoute({
     duurVoor, werktijdMin: (a, b) => calcWerktijdMin(a, b), kbPreferredTime, geocacheLookup, geocacheStore,
@@ -1464,7 +1465,7 @@ function koppelRenders() {
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => buildPersonSelector());
   st.abonneer(['allTickets', 'activeAssigneeFilter'], () => kern.wachtrij.renderTickets());
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'localEvents', 'avExceptions', 'activeAssigneeFilter'], () => kern.kalender.renderKalender());
-  st.abonneer(['allGepland', 'activeAssigneeFilter'], () => renderGepland());
+  st.abonneer(['allGepland', 'activeAssigneeFilter'], () => kern.ingepland.renderGepland());
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => {
     renderInventaris(activeAssigneeFilter);
     updateInventarisBadge(activeAssigneeFilter);
@@ -1621,7 +1622,7 @@ async function removeTicketFromDate(ticketId, date) {
   if (verwijderMislukt) {
     renderTickets();
     renderKalender();
-    renderGepland();
+    kern.ingepland.renderGepland();
   }
 }
 
@@ -2829,71 +2830,6 @@ function closeResult(e) {
 }
 
 // ══════════════════════════════════════════════
-// GEPLAND TAB
-// ══════════════════════════════════════════════
-function renderGepland() {
-  sjLog('renderGepland'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
-  const today     = new Date(); today.setHours(0,0,0,0);
-  const weekStart = getWeekStart(today, gepOffset);
-  const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
-  document.getElementById('gep-label').textContent = fmtDateShort(weekStart) + ' – ' + fmtDateShort(weekEnd);
-
-  const body   = document.getElementById('gep-body');
-  body.innerHTML = '';
-  const byDate = {};
-  kern.selecties.ticketsVanTechnieker(allGepland, activeAssigneeFilter)
-    .forEach(t => {
-      const key = t.interventieDatum ? localISO(new Date(t.interventieDatum)) : 'none';
-      (byDate[key] = byDate[key] || []).push(t);
-    });
-
-  let any = false;
-  for (let i = 0; i < 7; i++) {
-    const day = new Date(weekStart); day.setDate(weekStart.getDate() + i);
-    const key = localISO(day);
-    if (!byDate[key]?.length) continue;
-    any = true;
-    const isToday = day.getTime() === today.getTime();
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = `<div class="cal-day-hdr ${isToday ? 'today' : ''}">${isToday ? '⬤ ' : ''}${day.toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long' })}</div>`;
-    byDate[key].forEach(t => {
-      const card = document.createElement('div');
-      card.className = 'ticket';
-      card.style.cursor = 'pointer';
-      const meta = [escHtml(t.account || t.naamEindklant), escHtml(t.assignee)].filter(Boolean).join(' · ');
-      // Fix (UX-ronde 2026-09-22, snelle winst): tijdstip toevoegen, zelfde weergave als de
-      // Kalender-tab (buildTicketCard()) en Route-tab -- gebaseerd op de planning[]-stop van dit
-      // ticket op deze datum, die (i.t.t. het platte allGepland-ticket) het .uur-veld draagt.
-      const stop = (planning[key] || []).find(p => p.ticket.id === t.id);
-      const tijdHtml = stop?.uur
-        ? `<div class="tmeta" style="font-weight:600">🕐 ${escHtml(tijdslotLabelVoor(stop, key))} <span style="opacity:0.65;font-size:0.85em">(gepland ${escHtml(stop.uur)})</span></div>`
-        : '';
-      card.innerHTML = `<div class="t-body">
-        <div class="t-top"><span class="tnum">#${escHtml(t.number)}</span><span class="stag confirmed">Ingepland</span>${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}</div>
-        <div class="tsub">${escHtml(t.subject) || '—'}</div>
-        ${tijdHtml}
-        ${meta ? `<div class="tmeta">${meta}</div>` : ''}
-        <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
-        ${contactActiesHtml(t)}
-      </div>`;
-      koppelAdresNavigatie(card);
-      // Klik op Bellen/Mailen opent niet het detail (Navigeer stopt de bubbel zelf).
-      card.querySelectorAll('.contact-acties a').forEach(a => a.addEventListener('click', e => e.stopPropagation()));
-      card.addEventListener('click', () => openDetail(t));
-      kern.ui.maakActiveerbaar(card, () => openDetail(t), 'Open ticket #' + t.number);
-      wrapper.appendChild(card);
-    });
-    body.appendChild(wrapper);
-  }
-  if (!any) body.innerHTML = '<div class="empty">Geen geplande service deze week</div>';
-  // Badge toont gefilterd gepland-aantal
-  const filteredGepland = kern.selecties.ticketsVanTechnieker(allGepland, activeAssigneeFilter);
-  document.getElementById('cnt-gepland').textContent = filteredGepland.length;
-}
-
-function gepNav(dir) { gepOffset += dir; renderGepland(); }
-
-// ══════════════════════════════════════════════
 // ROUTE TAB
 // ══════════════════════════════════════════════
 // Task 6: Label voor bevestiging — toont via welke ontvanger een afspraak bevestigd werd.
@@ -2951,7 +2887,7 @@ function setTab(tab) {
   // Defer kalender/gepland render één tick zodat de tab-click geen elementen in de nieuw gerenderde view raakt
   window.scrollTo(0, 0); // tabwissel door de gebruiker start altijd bovenaan (sync-herrenders behouden de scroll: metBehoudScroll)
   if (tab === 'kalender')  setTimeout(() => kern.kalender.activeerKalender(), 0);
-  if (tab === 'gepland')   setTimeout(() => renderGepland(), 0);
+  if (tab === 'gepland')   setTimeout(() => kern.ingepland.renderGepland(), 0);
   if (tab === 'rapporten') setTimeout(() => laadRapportArchief(), 0);
   if (tab === 'inventaris') {
     setTimeout(() => {
@@ -4131,7 +4067,7 @@ async function verstuurAnnulatie() {
   const hertekenen = () => {
     try {
       const datum = document.getElementById('plan-date').value;
-      renderTickets(); renderKalender(); renderGepland(); renderRouteList(datum); updateRouteBtns(datum);
+      renderTickets(); renderKalender(); kern.ingepland.renderGepland(); renderRouteList(datum); updateRouteBtns(datum);
     } catch (e) { console.warn('Hertekenen mislukt:', e); }
   };
   loadVoorstelStatus().then(hertekenen);

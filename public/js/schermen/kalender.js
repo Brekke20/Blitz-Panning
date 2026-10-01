@@ -6,7 +6,7 @@
 // in `initKalender`. Alleen `kern/brug.js` wijst `window`-namen toe. De schermtoestand (`kalOffset`,
 // `kalDagOffset`, `kalView`, auto-scrollsleutel) is module-privé; de knoppen lopen via data-actie-delegatie (C8).
 import { toestand } from '../kern/toestand.js';
-import { escHtml, registreerActies, maakActiveerbaar } from '../kern/ui.js';
+import { escHtml, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
 import { localISO, getWeekStart, fmtDateShort } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
 import {
@@ -43,7 +43,7 @@ function zetPressed(el, aan) {
 }
 
 export function initKalender(afhankelijkheden) {
-  afh = afhankelijkheden;
+  afh = strengeAfh('kalender', afhankelijkheden);
   // Alle knoppen van dit scherm via data-actie-delegatie (de kaartluisteraars slaan zulke klikken over, C8).
   registreerActies(document.body, {
     'kal-uitplannen': el => afh.bevestigUitplannen(el.dataset.ticketId, el.dataset.datum),

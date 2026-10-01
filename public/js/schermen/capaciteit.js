@@ -3,6 +3,7 @@
 // De pure functies krijgen alles als parameter; de twee toestandslezers onderaan (capacityForDay, nextAvailableDay)
 // lezen de toestand. Importeert enkel pure kern-modules, dus ook importeerbaar in node.
 import { toestand } from '../kern/toestand.js';
+import { strengeAfh } from '../kern/ui.js';
 import { localISO } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker } from '../kern/selecties.js';
 
@@ -79,7 +80,7 @@ export function capaciteitsKop({ aantal, cap, duurMinuten, travelMin }) {
 // Afhankelijkheden uit het klassieke script (ingevuld door initCapaciteit); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('capaciteit: initCapaciteit() is niet aangeroepen'); } });
 export function initCapaciteit(afhankelijkheden) {
-  afh = afhankelijkheden; // { duurVoor, getHolidayName }
+  afh = strengeAfh('capaciteit', afhankelijkheden); // { duurVoor, getHolidayName }
 }
 
 export function capacityForDay(datum, travelMin = 30) {
@@ -89,7 +90,6 @@ export function capacityForDay(datum, travelMin = 30) {
   const avExceptions = toestand.get('avExceptions');
   return capaciteitVoorDag({
     datum,
-    isFeestdag: false,
     vanTijd: settings.vanTijd,
     totTijd: settings.totTijd,
     duurMinuten: settings.duurMinuten,

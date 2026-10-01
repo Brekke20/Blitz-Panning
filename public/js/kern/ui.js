@@ -24,6 +24,17 @@ export function toast(msg, ms) {
   toastTimer = setTimeout(() => el.classList.remove('show'), duur);
 }
 
+// Verpakt de afhankelijkheden van een scherm (`initX(afh)`): een ontbrekende sleutel gooit een duidelijke fout met
+// de naam van de sleutel, zoals vóór de init (een vergeten of onvolledige init faalt luid in plaats van undefined).
+export function strengeAfh(scherm, afhankelijkheden) {
+  return new Proxy(afhankelijkheden, {
+    get(doel, sleutel, ontvanger) {
+      if (typeof sleutel === 'string' && !(sleutel in doel)) throw new Error(`${scherm}: afhankelijkheid '${sleutel}' ontbreekt in init`);
+      return Reflect.get(doel, sleutel, ontvanger);
+    },
+  });
+}
+
 export function registreerActies(wortel, handlers) {
   const listener = (e) => {
     const el = e.target?.closest?.('[data-actie]');

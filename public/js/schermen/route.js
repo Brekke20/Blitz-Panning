@@ -4,7 +4,7 @@
 // van andere schermen via `initRoute(afh)` (aan het begin van DOMContentLoaded). Raakt `document` enkel binnen
 // functies, nooit op moduleniveau. Alleen `kern/brug.js` wijst `window`-namen toe.
 import { toestand } from '../kern/toestand.js';
-import { toast, escHtml, registreerActies } from '../kern/ui.js';
+import { toast, escHtml, registreerActies, strengeAfh } from '../kern/ui.js';
 import { localISO, fmtSec, timeStrToMin, minToTimeStr, extractLocalHour } from '../kern/tijd.js';
 import { apiVerzoek } from '../kern/api.js';
 import { planItemsVanTechnieker, stopsVoorDag as selStopsVoorDag } from '../kern/selecties.js';
@@ -18,7 +18,7 @@ import { updateKaart, wisKaart, herstelWegafsluitingToast, zoomOpGekendeStops } 
 // Afhankelijkheden uit het klassieke script (ingevuld door initRoute); een vergeten initRoute faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('route: initRoute() is niet aangeroepen'); } });
 export function initRoute(afhankelijkheden) {
-  afh = afhankelijkheden;
+  afh = strengeAfh('route', afhankelijkheden);
   // R9: de knoppen van dit scherm via data-actie-delegatie (de afhankelijkheden van andere schermen via afh).
   const kaart = el => el.closest('.stop').dataset;
   registreerActies(document.body, {

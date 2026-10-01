@@ -123,22 +123,11 @@ test.describe('kern: ui-delegatie', () => {
 // Telt hoe vaak de vier hoofdschermen hertekend worden. De aantallen leggen het gedrag vast: de
 // koppeling aan de toestand (koppelRenders) mag ze niet verhogen. Een renderlus zou bovendien
 // 'toestand: renderlus afgebroken' op de console zetten, wat de vangnetcontrole laat falen.
-// De drie eerste worden omwikkeld op `window`; de route-lijst staat in een module (R10), waarvan interne oproepen een
-// omwikkeling omzeilen: die teller komt uit kern.route.renderTelling().
-const WINDOW_RENDERS = ['renderGepland'];
-const RENDERS = ['renderKalender', ...WINDOW_RENDERS, 'renderTickets', 'renderRouteList'];
+// Alle vier de tellers komen uit de modules (kern.<scherm>.renderTelling()): die tellen ook interne oproepen, waar een
+// omwikkeling op `window` ze zou missen.
+const RENDERS = ['renderKalender', 'renderGepland', 'renderTickets', 'renderRouteList'];
 
-async function installeerTellers(page) {
-  await page.evaluate((namen) => {
-    window.__n = {};
-    for (const naam of namen) {
-      const oud = window[naam];
-      window.__n[naam] = 0;
-      window[naam] = (...a) => { window.__n[naam]++; return oud(...a); };
-    }
-  }, WINDOW_RENDERS);
-}
-const tellers = (page) => page.evaluate(() => ({ ...window.__n, renderTickets: kern.wachtrij.renderTelling(), renderKalender: kern.kalender.renderTelling(), renderRouteList: kern.route.renderTelling() }));
+const tellers = (page) => page.evaluate(() => ({ renderTickets: kern.wachtrij.renderTelling(), renderKalender: kern.kalender.renderTelling(), renderGepland: kern.ingepland.renderTelling(), renderRouteList: kern.route.renderTelling() }));
 // Wacht tot de pagina rustig is: twee animatieframes en daarna een macrotaak (MessageChannel). Alle verwittigingen
 // van de toestand lopen via microtasks, dus alles wat na de actie nog in de pijplijn zat, is dan afgehandeld.
 const rust = (page) => page.evaluate(() => new Promise((klaar) => {
@@ -163,7 +152,6 @@ async function meetDelta(page, actie) {
 test.describe('kern: renders', () => {
   test('technieker wisselen: elke hoofdrender precies 1 keer', async ({ page }) => {
     await startApp(page, { rol: 'coordinator' });
-    await installeerTellers(page);
     const delta = await meetDelta(page, async () => {
       await page.locator('#person-btn').click();
       await page.locator('#person-menu .pm-item', { hasText: 'Tim' }).click();
@@ -174,7 +162,6 @@ test.describe('kern: renders', () => {
 
   test('Vernieuwen: elke hoofdrender precies 1 keer', async ({ page }) => {
     await startApp(page, { rol: 'coordinator' });
-    await installeerTellers(page);
     const delta = await meetDelta(page, async () => {
       // De testmodus-toast staat al van het opstarten; wacht daarom op de eerste render van de herlaad
       // (conditie, geen vaste tijd). Late extra renders vangt de rust in meetDelta.
@@ -189,7 +176,6 @@ test.describe('kern: renders', () => {
   test('eigen afspraak toevoegen: kalender 1 keer, wachtrij niet', async ({ page }) => {
     await startApp(page, { rol: 'coordinator' });
     await page.getByRole('tab', { name: 'Kalender' }).click();
-    await installeerTellers(page);
     await page.getByRole('button', { name: '➕ Afspraak' }).click();
     const modal = page.locator('#manueel-overlay');
     await expect(modal).toHaveClass(/open/);
@@ -207,19 +193,11 @@ test.describe('kern: renders', () => {
   });
 
   test('onbekende opgeslagen technieker valt terug op Alle zonder renderlus', async ({ page }) => {
-    // Tellers vóór het opstarten van de app: DOMContentLoaded-luisteraar van de test loopt vóór die van de app.
-    await page.addInitScript(({ namen }) => {
+    // Onbekende opgeslagen technieker vóór het opstarten van de app (de tellers staan in de modules).
+    await page.addInitScript(() => {
       if (window !== window.top) return;
       try { if (!sessionStorage.getItem('geenOnbekend')) localStorage.setItem('blitz_active_person', 'Onbekend'); } catch {}
-      window.__n = {};
-      document.addEventListener('DOMContentLoaded', () => {
-        for (const naam of namen) {
-          const oud = window[naam];
-          window.__n[naam] = 0;
-          window[naam] = (...a) => { window.__n[naam]++; return oud(...a); };
-        }
-      });
-    }, { namen: WINDOW_RENDERS });
+    });
     await startApp(page, { rol: 'coordinator', technieker: 'all' });
     await expect(page.locator('#cnt-tickets')).toHaveText('3');
     await expect(page.locator('#person-name-hdr')).toHaveText('Alle');
@@ -253,7 +231,6 @@ test.describe('kern: renders', () => {
   test('inplannen en terugzetten: geen verouderd scherm, renders blijven eindig', async ({ page }) => {
     await startApp(page, { rol: 'coordinator' });
     const id = await page.evaluate(() => allTickets[0].id);
-    await installeerTellers(page);
 
     const na1 = await meetDelta(page, async () => {
       await page.evaluate(([id]) => addTicketToDate(id, '2026-10-06'), [id]);
@@ -278,7 +255,6 @@ test.describe('kern: renders', () => {
     await zetStartTijd(page, '10:00');
     await startApp(page, { technieker: 'Tim' });
     await maakRouteMetStops(page);
-    await installeerTellers(page);
     const delta = await meetDelta(page, async () => {
       // Enkel planning: een stop in-place weghalen en raak('planning'); geen andere sleutel, geen handmatige render.
       await page.evaluate(() => {

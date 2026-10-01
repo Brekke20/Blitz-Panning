@@ -550,3 +550,37 @@ test.describe('kalender: ✕ op een eigen afspraak (data-actie, etappe 4)', () =
     await expect(page.locator('#local-det-overlay')).not.toHaveClass(/open/);
   });
 });
+
+// Eén klik op ‹ ›, of op het label (Vandaag), verschuift de weergave precies één keer (geen dubbele handler:
+// de statische onclick-knoppen zijn vervangen door data-actie-delegatie).
+test.describe('kalender: navigatie verschuift precies één keer per klik', () => {
+  test('› volgende week, ‹ vorige week, label brengt terug naar vandaag', async ({ page }) => {
+    await startApp(page, { overschrijf: seed() });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    const label = page.locator('#kal-label-tekst');
+    await expect(label).toHaveText('5 okt – 11 okt');
+
+    await volgende(page).click();
+    await expect(label).toHaveText('12 okt – 18 okt'); // een dubbele handler gaf '19 okt – 25 okt'
+    await rust(page);
+    await expect(label).toHaveText('12 okt – 18 okt');
+
+    await vorigeKnop(page).click();
+    await expect(label).toHaveText('5 okt – 11 okt');
+    await vorigeKnop(page).click();
+    await expect(label).toHaveText('28 sep – 4 okt'); // een dubbele handler gaf '21 sep – 27 sep'
+    await rust(page);
+    await expect(label).toHaveText('28 sep – 4 okt');
+
+    await page.locator('#kal-label').click();
+    await expect(label).toHaveText('5 okt – 11 okt');
+  });
+});
+const vorigeKnop = (page) => page.getByRole('button', { name: 'Vorige periode' }).first();
+const rust = (page) => page.evaluate(() => new Promise((klaar) => {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const kanaal = new MessageChannel();
+    kanaal.port1.onmessage = () => klaar(true);
+    kanaal.port2.postMessage(0);
+  }));
+}));
