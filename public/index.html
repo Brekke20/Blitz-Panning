@@ -129,11 +129,11 @@
       <button class="kal-nav" data-actie="kal-nav" data-arg="1" aria-label="Volgende periode" title="Volgende periode">›</button>
     </div>
     <div class="kal-view-toggle">
-      <button class="kal-view-btn active" id="kal-view-week" aria-pressed="true" onclick="setKalView('week')">Week</button>
-      <button class="kal-view-btn" id="kal-view-month" aria-pressed="false" onclick="setKalView('month')">Maand</button>
+      <button class="kal-view-btn active" id="kal-view-week" aria-pressed="true" data-actie="kal-weergave" data-arg="week">Week</button>
+      <button class="kal-view-btn" id="kal-view-month" aria-pressed="false" data-actie="kal-weergave" data-arg="month">Maand</button>
     </div>
     <div class="kal-actions">
-      <button class="kal-pending-pill coord-only" id="kal-pending-pill" aria-expanded="false" onclick="togglePendingPanel()" style="display:none">
+      <button class="kal-pending-pill coord-only" id="kal-pending-pill" aria-expanded="false" data-actie="kal-pending" style="display:none">
         ⚠ <span class="pill-count" id="kal-pending-count">0</span> zonder datum
       </button>
       <button class="btn-autoplan coord-only" id="btn-autoplan" onclick="autoPlan()">⚡ Plan deze week</button>
@@ -690,9 +690,7 @@ DUMMY_DATA.tickets.forEach((t, i) => {
 let activeTicket = null;
 let _proposalOntvangers = []; // ontvangerslijst berekend door openProposal(), gebruikt door updateProposalPreview()/sendProposal()
 let _detailDate  = null; // datum waarop het actieve ticket ingepland staat
-let kalOffset = 0, gepOffset = 0;
-let kalDagOffset = 0; // tablet rechtop: verschuiving in WERKDAGEN t.o.v. vandaag (los van kalOffset, mag negatief)
-let kalView   = 'week'; // 'week' | 'month'
+let gepOffset = 0;
 // activeBlockDate → vervangen door _avFormDate (zie beschikbaarheidssysteem)
 // (drag-blokkering verwijderd — vervangen door beschikbaarheidssysteem)
 // Live-detectie van nieuwe Inventaris-log-regels (enkel relevant op de supervisor-weergave,
@@ -884,10 +882,11 @@ document.addEventListener('DOMContentLoaded', () => {
     addTicketToDate, openDetail, prioLabel, kbFor, kbPreferred, kbPreferredTime, meervoud,
     inFlight: id => inFlightTickets.has(id), sjLog,
   });
-  // Kalender-scherm (schermen/kalender.js, deel 1): kaartjes, tijdlijn, nu-lijn en hoogte-effecten; vóór koppelRenders().
+  // Kalender-scherm (schermen/kalender.js): kaartjes, tijdlijn, weergaven, navigatie en hoogte-effecten; vóór koppelRenders().
   kern.kalender.initKalender({
     tijdslotLabelVoor, telNummer, navigate, openDetail, openLocalEventDetail, removeLocalEvent, bevestigUitplannen,
-    herOpenRapport: (...a) => herOpenRapport(...a), rapportArchief: () => _rapportArchief, duurVoor,
+    herOpenRapport: (...a) => herOpenRapport(...a), rapportArchief: () => _rapportArchief, matchRespToPerson, duurVoor,
+    getHolidayName, setTab, sjLog, toggleAssignRow, saveToewijzen, openBlockModal,
   });
   // Route-scherm (schermen/route.js): de afhankelijkheden van andere schermen (R11); vóór koppelRenders().
   kern.route.initRoute({
@@ -895,7 +894,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadVoorstelStatus, loadTickets, heeftLopendVoorstel, removeTicketFromDate, tijdslotLabelVoor, bevestigdLabel,
     telNummer, meervoud, aankomstVoor: key => arrivalData[key], openProposal, registerArrival,
     openRapport: (...a) => openRapport(...a), bevestigUitplannen, openLocalEventDetail, navigate,
-    roundToNextQuarterStr, renderKalender: () => renderKalender(), testModus: () => TEST_MODE,
+    roundToNextQuarterStr, renderKalender: () => kern.kalender.renderKalender(), testModus: () => TEST_MODE,
   });
   kern.toestand.set('settings', loadPersonSettings(localStorage.getItem('blitz_active_person') || 'all'));
   // Delegatie voor pilot-knoppen (kern-ui)
@@ -903,9 +902,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'persoon-menu': () => togglePersonMenu(),
     'vernieuw': () => loadTickets(),
     'thema': () => toggleTheme(),
-    'instellingen': () => openSettings(),
-    'kal-nav': (el, e, arg) => kalNav(Number(arg)),
-    'kal-vandaag': () => kalToday()
+    'instellingen': () => openSettings()
   });
 
   // Thema initialiseren (fallback als inline-script niet gelopen heeft)
@@ -993,7 +990,7 @@ document.addEventListener('DOMContentLoaded', () => {
       sjLog('apparaatwijziging'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
       metBehoudScroll(() => {
         pasRolBeperkingToe();
-        renderKalender();
+        kern.kalender.renderKalender();
         if (document.querySelector('.tab.active')?.id === 'tab-planning') {
           renderRouteList(document.getElementById('plan-date').value);
         }
@@ -1073,7 +1070,7 @@ function planHerstelSchermStaat() {
     if (st.tab === 'kalender' && grid && num(st.gridScrollTop)) grid.scrollTop = num(st.gridScrollTop);
     if (num(st.scrollY)) window.scrollTo(0, num(st.scrollY));
   };
-  // setTab('kalender') plant zelf een render + kalAutoScroll(true) in een timeout(0): herstel erná.
+  // setTab('kalender') plant zelf een render + scroll (activeerKalender) in een timeout(0): herstel erná.
   zet();
   setTimeout(zet, 60);
   setTimeout(() => { zet(); klaar(); }, 500);
@@ -1466,7 +1463,7 @@ function koppelRenders() {
   st.abonneer(['activeAssigneeFilter'], () => updatePersonHeader());
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => buildPersonSelector());
   st.abonneer(['allTickets', 'activeAssigneeFilter'], () => kern.wachtrij.renderTickets());
-  st.abonneer(['allTickets', 'allPending', 'allGepland', 'localEvents', 'avExceptions', 'activeAssigneeFilter'], () => renderKalender());
+  st.abonneer(['allTickets', 'allPending', 'allGepland', 'localEvents', 'avExceptions', 'activeAssigneeFilter'], () => kern.kalender.renderKalender());
   st.abonneer(['allGepland', 'activeAssigneeFilter'], () => renderGepland());
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => {
     renderInventaris(activeAssigneeFilter);
@@ -1650,404 +1647,6 @@ async function bevestigUitplannen(ticketId, date) {
     : confirm(titel + '\n\n' + tekst);
   if (ok) await removeTicketFromDate(ticketId, date);
   return ok;
-}
-
-// ══════════════════════════════════════════════
-// KALENDER
-// ══════════════════════════════════════════════
-function setKalView(v) {
-  kalView = v;
-  document.getElementById('kal-view-week').classList.toggle('active',  v === 'week');
-  document.getElementById('kal-view-month').classList.toggle('active', v === 'month');
-  zetPressed(document.getElementById('kal-view-week'),  v === 'week');
-  zetPressed(document.getElementById('kal-view-month'), v === 'month');
-  kalOffset = 0; kalDagOffset = 0; // reset offsets bij wisselen
-  renderKalender();
-  kalAutoScroll(true);
-}
-
-// Zichtbare dagen van de weekweergave: gewoon de werkdagen van de week (kalOffset), behalve op een
-// tablet rechtop: dan 3 opeenvolgende werkdagen vanaf vandaag, verschoven met kalDagOffset werkdagen.
-function kalZichtbareDagen(today) {
-  return kern.kalender.zichtbareDagen(today, {
-    werkdagen: settings.werkdagen, tabletStaand: window.apparaat.indeling === 'tablet-staand',
-    weekOffset: kalOffset, dagOffset: kalDagOffset,
-  });
-}
-
-function kalZetVandaagKnop() {
-  // "↺ Vandaag" enkel tonen als de getoonde periode niet de huidige is
-  const dagModus = window.apparaat.indeling === 'tablet-staand' && kalView !== 'month';
-  const nietVandaag = dagModus ? kalDagOffset !== 0 : kalOffset !== 0;
-  const knop = document.getElementById('kal-label');
-  if (knop) knop.classList.toggle('niet-vandaag', nietVandaag);
-}
-// Label zetten + aria-label met de periode (enkel "naar vandaag" aankondigen als dat iets doet)
-function kalZetLabel(tekst) {
-  const knop = document.getElementById('kal-label');
-  document.getElementById('kal-label-tekst').textContent = tekst;
-  if (knop.classList.contains('niet-vandaag')) knop.setAttribute('aria-label', tekst + ', naar vandaag');
-  else knop.removeAttribute('aria-label');
-}
-function renderKalender() {
-  kalZetVandaagKnop();
-  sjLog('renderKalender'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
-  const today     = new Date(); today.setHours(0,0,0,0);
-
-  // Pending zonder datum — gemeenschappelijk voor week én maandweergave
-  const noInterventieDatum = allPending.filter(t => !t.interventieDatum);
-  const pill      = document.getElementById('kal-pending-pill');
-  const noDateSec = document.getElementById('kal-no-date-section');
-  if (noInterventieDatum.length) {
-    document.getElementById('kal-pending-count').textContent = noInterventieDatum.length;
-    pill.style.display = '';
-    const inner = document.createElement('div');
-    inner.className = 'kal-pending-inner';
-    inner.innerHTML = `<div class="kal-pending-hdr">Wacht bevestiging — zonder datum</div>`;
-    noInterventieDatum.forEach(t => {
-      const card = document.createElement('div');
-      card.className = 'ticket';
-      card.style.cssText = 'cursor:pointer';
-      card.innerHTML = `<div class="t-body">
-        <div class="t-top"><span class="tnum">#${escHtml(t.number)}</span><span class="stag pending">Wacht bevestiging</span>${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}</div>
-        <div class="tsub">${escHtml(t.subject) || '—'}</div>
-        <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
-        <div class="t-assign-row" id="assign-row-${t.id}" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
-          <input type="date" id="assign-date-${t.id}" aria-label="Datum toewijzen" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
-          <input type="time" id="assign-time-${t.id}" aria-label="Tijd toewijzen" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)" value="09:00">
-          <button onclick="event.stopPropagation();saveToewijzen('${t.id}')" style="font-size:0.75rem;padding:3px 8px;background:var(--accent);color:var(--on-accent);border:none;border-radius:4px;cursor:pointer;font-weight:600">✓ Opslaan</button>
-          <button aria-label="Sluiten" onclick="event.stopPropagation();document.getElementById('assign-row-${t.id}').style.display='none'" style="font-size:0.75rem;padding:3px 6px;background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--muted)">✕</button>
-        </div>
-        <div style="margin-top:6px">
-          <button onclick="event.stopPropagation();toggleAssignRow('${t.id}')" style="font-size:0.75rem;padding:3px 8px;background:var(--accent-dim,rgba(0,223,163,.15));color:var(--accent-ink);border:1px solid var(--accent);border-radius:4px;cursor:pointer;font-weight:600">📅 Toewijzen</button>
-        </div>
-      </div>`;
-      card.addEventListener('click', () => openDetail(t));
-      kern.ui.maakActiveerbaar(card, () => openDetail(t), 'Open ticket #' + t.number);
-      inner.appendChild(card);
-    });
-    noDateSec.innerHTML = '';
-    noDateSec.appendChild(inner);
-  } else {
-    pill.style.display = 'none';
-    pill.setAttribute('aria-expanded', 'false');
-    noDateSec.innerHTML = '';
-    noDateSec.classList.remove('open');
-  }
-
-  // Branch: week of maand
-  if (kalView === 'month') {
-    const mg = document.getElementById('week-grid');
-    mg.className = 'month-grid';
-    mg.style.height = '';
-    renderMonthView(today);
-    return;
-  }
-
-  // Week-view
-  const weekStart = getWeekStart(today, kalOffset);
-  const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
-  const zichtbareDagen = kalZichtbareDagen(today);
-  if (window.apparaat.indeling === 'tablet-staand' && zichtbareDagen.length) {
-    kalZetLabel(fmtDateShort(zichtbareDagen[0]) + ' – ' + fmtDateShort(zichtbareDagen[zichtbareDagen.length - 1]));
-  } else {
-    kalZetLabel(fmtDateShort(weekStart) + ' – ' + fmtDateShort(weekEnd));
-  }
-
-  const grid = document.getElementById('week-grid');
-  const isDesktopTijdlijnWeek = window.apparaat.indeling !== 'smal';
-  // scrollpositie bewaren: innerHTML = '' zet die anders terug op 0 bij elke her-render (polling)
-  const bewaardTop = grid.scrollTop, bewaardLeft = grid.scrollLeft;
-  grid.className = isDesktopTijdlijnWeek ? 'week-grid tl-mode' : 'week-grid';
-  grid.innerHTML = '';
-  if (isDesktopTijdlijnWeek) kern.kalender.kalPasGridHoogteAan(); else { grid.style.height = ''; _kalAutoScrollKey = null; }
-
-  // Post-launch feedback (2026-08-17): de uren staan vóór maandag in een eigen smalle kolom (zie
-  // renderTimelineGutter()) i.p.v. IN de eerste dag-kolom -- zo hebben alle dag-kolommen exact
-  // dezelfde afmetingen. Enkel relevant in de desktop-tijdlijn-weergave.
-  if (isDesktopTijdlijnWeek) grid.appendChild(kern.kalender.renderTimelineGutter());
-
-  for (const day of zichtbareDagen) {
-    const dateStr       = localISO(day);
-    const isToday       = day.getTime() === today.getTime();
-    const isPast        = day.getTime() < today.getTime();
-    const holidayName    = getHolidayName(dateStr);
-    const isDayBlocked   = !!holidayName || kern.selecties.blokkeringenVoor(avExceptions, dateStr, activeAssigneeFilter, 'fullday').length > 0;
-    const dayStops      = kern.selecties.planItemsVanTechnieker(planning[dateStr], activeAssigneeFilter);
-    const dayBlockCount = kern.selecties.blokkeringenVoor(avExceptions, dateStr, activeAssigneeFilter).length;
-    const travelEst     = 30; // conservatief voor capaciteitsweergave
-    const cap           = capacityForDay(dateStr, travelEst);
-    const { label: capLabel, vol: capFull } = kern.capaciteit.capaciteitsKop({ aantal: dayStops.length, cap, duurMinuten: settings.duurMinuten, travelMin: travelEst });
-
-    const col = document.createElement('div');
-    col.className = 'day-col';
-    col.dataset.date = dateStr;
-    col.innerHTML = `
-      <div class="day-hdr">
-        <div class="day-hdr-top">
-          <div class="day-hdr-name ${isToday ? 'today' : isPast ? 'past' : ''}">${day.toLocaleDateString('nl-BE', { weekday:'short' })}</div>
-          <div class="day-hdr-num${isToday ? ' today' : ''}">${day.getDate()}</div>
-        </div>
-        <div class="day-cap coord-only ${capFull ? 'full' : ''}">${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔒 Geblokkeerd' : capLabel}</div>
-        <button class="day-block-btn coord-only ${holidayName ? 'holiday' : isDayBlocked ? 'blocked' : ''}" data-date="${dateStr}" onclick="event.stopPropagation(); onBlockBtnClick(this)">
-          ${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔓 Blokkade beheren' : dayBlockCount > 0 ? `⏱ ${dayBlockCount} uitzondering${dayBlockCount > 1 ? 'en' : ''}` : '⏱ Beschikbaar'}
-        </button>
-      </div>
-      <div class="day-body${holidayName ? ' holiday-day' : isDayBlocked ? ' blocked-day' : ''}" id="daybody-${dateStr}">
-        ${dayStops.length === 0 ? '<div class="day-empty">—</div>' : ''}
-      </div>`;
-
-    // Lokale afspraken (import / manueel)
-    const dayEvents = kern.selecties.eigenAfsprakenVoor(localEvents, dateStr, activeAssigneeFilter);
-
-    // Afgeronde tickets met een rapport (blijven zichtbaar ook nadat Zoho ze sluit/verwijdert).
-    // Uitgesloten als het ticket toevallig nog live in dayStops staat (rapport al gemaakt,
-    // ticket in Zoho nog niet gesloten) — anders zie je hetzelfde ticket dubbel.
-    const dayReports = _rapportArchief.filter(r =>
-      r.datum === dateStr &&
-      (activeAssigneeFilter === 'all' || matchRespToPerson(r.technieker, [activeAssigneeFilter]) === activeAssigneeFilter) &&
-      !dayStops.some(s => s.ticket.id === r.ticketId) &&
-      !dayEvents.some(e => e.id === r.ticketId)
-    );
-
-    const dayBodyEl = col.querySelector('.day-body');
-    const isDesktopTijdlijn = window.apparaat.indeling !== 'smal';
-    if (isDesktopTijdlijn) {
-      dayBodyEl.appendChild(kern.kalender.renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, col.querySelector('.day-hdr')));
-    } else {
-      // Bestaande gestapelde-kaartjeslijst-logica — VOLLEDIG ONGEWIJZIGD.
-      const timeline = [
-        ...dayStops.map(stop => ({ kind: 'ticket', sortKey: stop.uur || '99:99', stop })),
-        ...dayEvents.map(ev   => ({ kind: 'event',  sortKey: ev.uur   || '99:99', ev })),
-        ...dayReports.map(r    => ({ kind: 'report', sortKey: r.rapportData?.start || '99:99', report: r })),
-      ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-
-      timeline.forEach(item => {
-        const card = item.kind === 'ticket' ? kern.kalender.buildTicketCard(item.stop, dateStr)
-          : item.kind === 'event' ? kern.kalender.buildLocalEventCard(item.ev)
-          : kern.kalender.buildReportCard(item.report);
-        card.dataset.sortkey = item.sortKey;
-        // Badge "buiten werkuren" (enkel gsm-lijst; op de tijdlijn tonen de donkere banden dit al)
-        if (item.kind !== 'report' && kern.kalender.isBuitenWerkuren(item.sortKey)) {
-          const badge = document.createElement('span');
-          badge.className = 'badge-buitenuren';
-          badge.textContent = 'buiten werkuren';
-          const anker = card.querySelector('.cal-badge, .cal-local-type');
-          if (anker) anker.after(badge); else card.prepend(badge);
-        }
-        dayBodyEl.appendChild(card);
-      });
-    }
-
-    // "—" placeholder verwijderen als er nu events of afgeronde rapporten zijn
-    if (dayStops.length === 0 && (dayEvents.length > 0 || dayReports.length > 0)) {
-      const empty = col.querySelector('.day-empty');
-      if (empty) empty.remove();
-    }
-
-    // Route knop als er stops zijn — bovenaan de kolom, vaste grootte (geen flex-grow,
-    // anders vult hij in .day-body (een verticale flex-kolom) alle overblijvende hoogte
-    // op — dat is exact de bug die dit oploste).
-    if (dayStops.length > 0 || dayEvents.some(e => e.adres || e.notitie)) {
-      const rb = document.createElement('button');
-      rb.className = 'cal-btn coord-only';
-      rb.style.cssText = 'flex:none;width:100%;margin-bottom:4px;background:var(--accent-dim);border:1px solid rgba(245,158,11,0.2);color:var(--accent-ink);padding:4px;border-radius:4px;cursor:pointer;font-size:0.7rem;font-weight:600;font-family:inherit;';
-      rb.textContent = 'Route berekenen';
-      rb.onclick = () => {
-        document.getElementById('plan-date').value = dateStr;
-        setTab('planning');
-        renderRouteList(dateStr);
-      };
-      dayBodyEl.prepend(rb);
-    }
-
-    grid.appendChild(col);
-  }
-
-  if (isDesktopTijdlijnWeek) {
-    // De gutter's .day-hdr is een lege spacer (enkel om de tl-gutter-wrap eronder verticaal uit
-    // te lijnen met de echte dag-kolommen se tl-wrap) -- inhoudsloos heeft hij een andere hoogte
-    // dan een echte .day-hdr (die weekdag/datum/capaciteit/blokkeer-knop toont). Hoogte hier
-    // expliciet gelijkzetten aan een echte kolom i.p.v. de opbouw te dupliceren, zodat dit ook
-    // correct blijft als de inhoud van .day-hdr ooit verandert.
-    // Alle koppen (incl. de gutter-spacer) krijgen de hoogte van de HOOGSTE kop (chips "zonder uur").
-    const hdrs = Array.from(grid.querySelectorAll('.day-col .day-hdr'));
-    const maxHdr = Math.max(...hdrs.map(h => h.offsetHeight));
-    hdrs.forEach(h => { h.style.boxSizing = 'border-box'; h.style.minHeight = `${maxHdr}px`; });
-
-    // Post-launch feedback (2026-08-17): vóór de tijdlijn zelf staat per dag soms een "—"
-    // leeg-placeholder (geen stops) of de "Route berekenen"-knop (wel stops) -- verschillend qua
-    // hoogte, dus startten de uur-lijnen van elke kolom vroeger op een ANDERE hoogte, ook al leek
-    // dat door de gedeelde uren-gutter hierboven niet meer zo. I.p.v. deze twee gevallen apart
-    // hard te coderen: gewoon meten hoeveel ruimte elke kolom vóór zijn tijdlijn inneemt, en de
-    // kortste kolommen (incl. de gutter zelf) met een marge naar beneden duwen tot ze allemaal
-    // op dezelfde hoogte beginnen als de kolom die het meeste ruimte nodig had.
-    const wraps = Array.from(grid.querySelectorAll('.tl-wrap, .tl-gutter-wrap'));
-    const offsets = wraps.map(w => {
-      const body = w.closest('.day-body');
-      return w.getBoundingClientRect().top - body.getBoundingClientRect().top;
-    });
-    const maxOffset = Math.max(...offsets);
-    wraps.forEach((w, i) => {
-      const delta = maxOffset - offsets[i];
-      if (delta > 0) w.style.marginTop = `${delta}px`;
-    });
-
-    // Alle dag-kolommen (en de gutter) even hoog: align-items:flex-start geeft ze inhoudshoogte
-    // (nodig voor de sticky kop), dus kolommen met minder inhoud zouden vroeg eindigen.
-    const cols = Array.from(grid.querySelectorAll('.day-col'));
-    const maxH = Math.max(...cols.map(c => c.offsetHeight));
-    cols.forEach(c => { c.style.minHeight = `${maxH}px`; });
-  }
-
-  // Rode nu-lijn (fase 2): na elke render herplaatsen; één gedeelde minuut-timer
-  // (drijft ook de nu-markering in de gsm-lijst).
-  kern.kalender.updateNuLijn();
-  kern.kalender.startNuLijnTimer();
-  if (isDesktopTijdlijnWeek) {
-    // Scrollpositie terugzetten, tenzij de week/weergave gewisseld is (dan scrolt kalAutoScroll)
-    grid.scrollTop = bewaardTop; grid.scrollLeft = bewaardLeft;
-    kalAutoScroll(false);
-  }
-}
-
-// Automatisch naar de werkdag scrollen: enkel bij wissel van week/weergave (sleutel) of force.
-let _kalAutoScrollKey = null;
-function kalAutoScroll(force) {
-  const grid = document.getElementById('week-grid');
-  if (!grid || !grid.classList.contains('tl-mode')) return;
-  const today = new Date(); today.setHours(0,0,0,0);
-  let weekStart = getWeekStart(today, kalOffset);
-  let weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 7);
-  if (window.apparaat.indeling === 'tablet-staand') {
-    const dagen = kalZichtbareDagen(today);
-    if (dagen.length) {
-      weekStart = dagen[0];
-      weekEnd = new Date(dagen[dagen.length - 1]); weekEnd.setDate(weekEnd.getDate() + 1);
-    }
-  }
-  const key = `${localISO(weekStart)}|${kalView}`;
-  if (!force && key === _kalAutoScrollKey) return;
-  _kalAutoScrollKey = key;
-  const nu = new Date();
-  const heeftVandaag = nu >= weekStart && nu < weekEnd;
-  const doelMin = heeftVandaag ? Math.max(0, nu.getHours() * 60 + nu.getMinutes() - 60) : 8 * 60;
-  const wrap = grid.querySelector('.tl-wrap');
-  const hdr = grid.querySelector('.day-hdr');
-  if (!wrap) return;
-  const gridTop = grid.getBoundingClientRect().top;
-  const wrapOffset = wrap.getBoundingClientRect().top - gridTop + grid.scrollTop;
-  const hdrH = hdr ? hdr.offsetHeight : 0;
-  grid.scrollTop = Math.max(0, wrapOffset + doelMin * kern.kalender.TIMELINE_PX_PER_MIN - hdrH);
-}
-
-function kalNav(dir) {
-  // Tablet rechtop + weekweergave: ‹ › schuiven 1 werkdag; maandweergave blijft per maand (kalOffset)
-  if (window.apparaat.indeling === 'tablet-staand' && kalView !== 'month') kalDagOffset += dir; else kalOffset += dir;
-  renderKalender(); kalAutoScroll(true);
-}
-function kalToday() {
-  const dagModus = window.apparaat.indeling === 'tablet-staand' && kalView !== 'month';
-  if (dagModus ? kalDagOffset === 0 : kalOffset === 0) { kalAutoScroll(true); return; }
-  if (dagModus) kalDagOffset = 0; else kalOffset = 0;
-  renderKalender();
-  kalAutoScroll(true);
-}
-
-function renderMonthView(today) {
-  // Maand bepalen via kalOffset (aantal maanden tov vandaag)
-  const ref = new Date(today.getFullYear(), today.getMonth() + kalOffset, 1);
-  const maandLabel = ref.toLocaleDateString('nl-BE', { month: 'long', year: 'numeric' });
-  kalZetLabel(maandLabel.charAt(0).toUpperCase() + maandLabel.slice(1));
-
-  const grid = document.getElementById('week-grid');
-  grid.innerHTML = '';
-
-  // Dag-headers (ma–zo)
-  const dagNamen = ['Ma','Di','Wo','Do','Vr','Za','Zo'];
-  dagNamen.forEach(d => {
-    const hdr = document.createElement('div');
-    hdr.className = 'month-dow-hdr';
-    hdr.textContent = d;
-    grid.appendChild(hdr);
-  });
-
-  // Maandraster (42 datums vanaf de maandag van de week die de 1e bevat): schermen/kalender-logica.js
-  const raster = kern.kalender.maandRaster(ref);
-
-  const MAX_CHIPS = 4;
-
-  for (let row = 0; row < 6; row++) {
-    for (let col = 0; col < 7; col++) {
-      const day = raster[row * 7 + col];
-
-      const dateStr      = localISO(day);
-      const isThisMonth  = day.getMonth() === ref.getMonth();
-      const isToday      = day.getTime() === today.getTime();
-      const isPast       = day < today;
-
-      const cell = document.createElement('div');
-      cell.className = `month-cell${!isThisMonth ? ' other-month' : ''}${isToday ? ' today-cell' : ''}`;
-
-      const numDiv = document.createElement('div');
-      numDiv.className = 'month-cell-num' + (isToday ? ' today-num' : '');
-      numDiv.textContent = day.getDate();
-      cell.appendChild(numDiv);
-
-      // Chips verzamelen
-      let chips = [];
-
-      // Feestdag?
-      const holidayName = getHolidayName(dateStr);
-      if (holidayName) chips.push({ label: `🎌 ${holidayName}`, cls: 'holiday' });
-
-      // Blokkering?
-      const isBlocked = kern.selecties.blokkeringenVoor(avExceptions, dateStr, activeAssigneeFilter, 'fullday').length > 0;
-      if (isBlocked) chips.push({ label: '🔒 Geblokkeerd', cls: 'blocked' });
-
-      // Zoho tickets
-      const dayStops = kern.selecties.planItemsVanTechnieker(planning[dateStr], activeAssigneeFilter);
-      dayStops.forEach(s => {
-        const isPend = s.ticket.status === 'Wachten op bevestiging planning';
-        // Tijdslot-prefix (Task 9, Blok 1C): geeft in de maandweergave meteen een indicatie van
-        // het (klant-zichtbare) tijdslot zonder de cel te hoeven openen. Enkel toegevoegd als de
-        // stop een uur heeft; geen wijziging aan de onderliggende exacte tijd.
-        const lbl = tijdslotLabelVoor(s, dateStr);
-        const winLabel = lbl ? lbl + ' · ' : '';
-        chips.push({ label: `${winLabel}#${s.ticket.number} ${s.ticket.subject || ''}`.trim(), cls: isPend ? 'pending' : 'confirmed' });
-      });
-
-      // Lokale afspraken
-      const dayEvents = kern.selecties.eigenAfsprakenVoor(localEvents, dateStr, activeAssigneeFilter);
-      dayEvents.forEach(ev => {
-        const tijdPfx = ev.uur ? ev.uur + ' ' : '';
-        chips.push({ label: tijdPfx + ev.titel, cls: 'local' });
-      });
-
-      // Render chips (max MAX_CHIPS, rest als +N)
-      const visible = chips.slice(0, MAX_CHIPS);
-      const rest    = chips.length - visible.length;
-      visible.forEach(c => {
-        const chip = document.createElement('div');
-        chip.className = `month-chip ${c.cls}`;
-        chip.textContent = c.label;
-        chip.title = c.label;
-        cell.appendChild(chip);
-      });
-      if (rest > 0) {
-        const more = document.createElement('div');
-        more.className = 'month-more';
-        more.textContent = `+${rest} meer`;
-        cell.appendChild(more);
-      }
-
-      grid.appendChild(cell);
-    }
-  }
-}
-
-function onBlockBtnClick(btn) {
-  openBlockModal(btn.dataset.date);
 }
 
 function getPlanningTicket(id) {
@@ -3003,7 +2602,7 @@ async function autoPlan() {
     // stops van die dagen ook kunnen meenemen in de geocode-batch hieronder (nodig voor de
     // max-reistijd-check t.o.v. een bestaand/manueel verzet ticket).
     const today     = new Date(); today.setHours(0,0,0,0);
-    const weekStart = getWeekStart(today, kalOffset);
+    const weekStart = getWeekStart(today, kern.kalender.weekOffset());
 
     // R2: enkel de bekeken week (vanaf vandaag) plus voorkeursdatums na die week als extra dag
     // voor enkel het ticket dat die voorkeur heeft (zie bouwDagen in public/js/planner.js).
@@ -3351,7 +2950,7 @@ function setTab(tab) {
   }
   // Defer kalender/gepland render één tick zodat de tab-click geen elementen in de nieuw gerenderde view raakt
   window.scrollTo(0, 0); // tabwissel door de gebruiker start altijd bovenaan (sync-herrenders behouden de scroll: metBehoudScroll)
-  if (tab === 'kalender')  setTimeout(() => { renderKalender(); kalAutoScroll(true); }, 0);
+  if (tab === 'kalender')  setTimeout(() => kern.kalender.activeerKalender(), 0);
   if (tab === 'gepland')   setTimeout(() => renderGepland(), 0);
   if (tab === 'rapporten') setTimeout(() => laadRapportArchief(), 0);
   if (tab === 'inventaris') {
@@ -5121,12 +4720,6 @@ async function verstuurRapport(rapportId, btn) {
   } catch (err) {
     toast('✕ ' + err.message, 5000);
   }
-}
-
-// ── Pending-panel toggle ─────────────────────────────────────────────────────
-function togglePendingPanel() {
-  const open = document.getElementById('kal-no-date-section').classList.toggle('open');
-  document.getElementById('kal-pending-pill')?.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 // ── Light/dark toggle ────────────────────────────────────────────────────────

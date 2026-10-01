@@ -125,8 +125,8 @@ test.describe('kern: ui-delegatie', () => {
 // 'toestand: renderlus afgebroken' op de console zetten, wat de vangnetcontrole laat falen.
 // De drie eerste worden omwikkeld op `window`; de route-lijst staat in een module (R10), waarvan interne oproepen een
 // omwikkeling omzeilen: die teller komt uit kern.route.renderTelling().
-const WINDOW_RENDERS = ['renderKalender', 'renderGepland'];
-const RENDERS = [...WINDOW_RENDERS, 'renderTickets', 'renderRouteList'];
+const WINDOW_RENDERS = ['renderGepland'];
+const RENDERS = ['renderKalender', ...WINDOW_RENDERS, 'renderTickets', 'renderRouteList'];
 
 async function installeerTellers(page) {
   await page.evaluate((namen) => {
@@ -138,7 +138,7 @@ async function installeerTellers(page) {
     }
   }, WINDOW_RENDERS);
 }
-const tellers = (page) => page.evaluate(() => ({ ...window.__n, renderTickets: kern.wachtrij.renderTelling(), renderRouteList: kern.route.renderTelling() }));
+const tellers = (page) => page.evaluate(() => ({ ...window.__n, renderTickets: kern.wachtrij.renderTelling(), renderKalender: kern.kalender.renderTelling(), renderRouteList: kern.route.renderTelling() }));
 // Wacht tot de pagina rustig is: twee animatieframes en daarna een macrotaak (MessageChannel). Alle verwittigingen
 // van de toestand lopen via microtasks, dus alles wat na de actie nog in de pijplijn zat, is dan afgehandeld.
 const rust = (page) => page.evaluate(() => new Promise((klaar) => {

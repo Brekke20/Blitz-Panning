@@ -536,3 +536,17 @@ test.describe('tab Ingepland: details', () => {
     await expect(page.locator('#cnt-gepland')).toHaveText('0');
   });
 });
+
+test.describe('kalender: ✕ op een eigen afspraak (data-actie, etappe 4)', () => {
+  test('✕ verwijdert de afspraak (PUT met het id) en opent het detail niet', async ({ page, verzoeken }) => {
+    await startApp(page, { overschrijf: seed() });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    const kaart = dag(page, '2026-10-07').locator('.cal-local-event');
+    await expect(kaart).toHaveCount(1);
+    await kaart.locator('.cal-local-del').click();
+    await expect(dag(page, '2026-10-07').locator('.cal-local-event')).toHaveCount(0);
+    await expect.poll(() => verzoeken.van('/api/afspraken', 'PUT').length).toBe(1);
+    expect(verzoeken.van('/api/afspraken', 'PUT')[0].body.afspraken.map(a => a.id)).not.toContain('a1');
+    await expect(page.locator('#local-det-overlay')).not.toHaveClass(/open/);
+  });
+});

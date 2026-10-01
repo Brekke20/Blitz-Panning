@@ -35,6 +35,7 @@ Object.assign(window, {
   initMap: routeKaart.initMap,
   applyKaartStijl: routeKaart.applyKaartStijl,
   renderTickets: wachtrij.renderTickets,
+  renderKalender: kalender.renderKalender,
   renderRouteList: route.renderRouteList,
   updateRouteBtns: route.updateRouteBtns,
   calculateRoute: route.calculateRoute,
