@@ -58,7 +58,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
   op "verouderd" als je de afspraak maakt terwijl de Route-tab openstaat.
 - Route-tab: een ticket toewijzen via "📅 Toewijzen" verschijnt nu meteen in de route. Voorheen bleef de lijst
   ongewijzigd tot je op "Bereken tijden" klikte.
-- Route-tab: de route volgt nu ook een mislukte "uit de planning halen" (de stop verschijnt weer na het terugdraaien).
+- Na een mislukte 'uit planning halen' verschijnt de teruggezette stop weer in de route.
 
 ### Bekend, ongewijzigd
 - Serverkant, bewust niet aangepast: token-foutdata komt in 8 van 10 functies mee, in 2 niet; `tickets` heeft geen OPTIONS; `route`, `optimize` en `drukte` hebben geen methodecontrole; `plan-datum` antwoordt 405 als tekst, de v1-functies als JSON; `comment` heeft Engelse validatie- en orgfouten, `plan` Nederlandse.

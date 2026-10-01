@@ -1641,7 +1641,8 @@ async function addTicketToDate(ticketId, date) {
 
   // Optimistische update
   planning[date].push({ ticket: t, address: t.address, uur });
-  kern.toestand.raak('planning'); // in-place push: koppelRenders hertekent de route
+  // Bewust geen raak('planning') hier: de route zou tijdens de Zoho-aanroep gewist worden en bij een mislukking
+  // niet terugkomen. Het succespad (raak hieronder + allTickets) en de rollback raken planning zelf.
   inFlightTickets.add(ticketId);
   renderTickets();
   renderKalender();
@@ -1685,7 +1686,8 @@ async function addTicketToDate(ticketId, date) {
 
   inFlightTickets.delete(ticketId);
   // Gelukt: allTickets is hierboven toegewezen, dus koppelRenders hertekent wachtrij, kalender en route.
-  // Mislukt: enkel planning is teruggedraaid (geen geabonneerde sleutel), dus hier zelf hertekenen.
+  // Mislukt: planning is teruggedraaid (raak in de rollback); wachtrij en kalender hertekenen hier zelf (etappe 4),
+  // de route-render staat er naast het abonnement (R7).
   if (!success) {
     renderTickets();
     renderKalender();
@@ -1750,7 +1752,8 @@ async function removeTicketFromDate(ticketId, date) {
   inFlightTickets.delete(ticketId);
   // Gelukt: allTickets/allPending/allGepland zijn hierboven bijgewerkt (I3: ook de "Ingepland"-lijst
   // en cnt-gepland), dus koppelRenders hertekent wachtrij, kalender en ingepland (plus route/inventaris).
-  // Mislukt: enkel planning is teruggedraaid (geen geabonneerde sleutel), dus hier zelf hertekenen.
+  // Mislukt: planning is teruggedraaid (raak in de rollback, dus de route volgt); wachtrij, kalender en ingepland
+  // hertekenen hier zelf (etappe 4).
   if (verwijderMislukt) {
     renderTickets();
     renderKalender();

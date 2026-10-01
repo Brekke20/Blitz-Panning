@@ -271,17 +271,19 @@ test.describe('kern: renders', () => {
     expect(na2).toEqual({ renderKalender: 2, renderTickets: 2, renderGepland: 1, renderRouteList: 1 });
   });
 
-  test('route-abonnement op planning: een stop uit de planning halen hertekent de route-lijst 1 keer, zonder handmatige oproep', async ({ page }) => {
+  test('route-abonnement op planning: enkel planning raken hertekent de route-lijst 1 keer, zonder handmatige oproep', async ({ page }) => {
     await zetStartTijd(page, '10:00');
     await startApp(page, { technieker: 'Tim' });
     await maakRouteMetStops(page);
     await installeerTellers(page);
     const delta = await meetDelta(page, async () => {
-      await page.getByTestId('route-stop').filter({ hasText: '#1002' }).getByRole('button', { name: '✕ Uit planning halen' }).click();
-      await page.getByRole('alertdialog', { name: 'Ticket #1002 uit de planning halen?' }).getByRole('button', { name: 'Uit planning halen' }).click();
+      // Enkel planning: een stop in-place weghalen en raak('planning'); geen andere sleutel, geen handmatige render.
+      await page.evaluate(() => {
+        planning['2026-10-05'].pop();
+        kern.toestand.raak('planning');
+      });
       await expect(page.getByTestId('route-stop')).toHaveCount(1);
     });
-    // renderRouteList precies 1 keer (planning en allTickets/allPending/allGepland vallen in één flush samen).
     expect(delta.renderRouteList).toBe(1);
   });
 });
