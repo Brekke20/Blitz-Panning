@@ -205,6 +205,12 @@ function maakStandaardStubs() {
   };
 }
 
+// De standaard-stub van één eindpunt, voor tests die hem stateful willen omwikkelen
+// (bv. eerste aanroep normaal, daarna een fout). Elke oproep geeft een verse stubset.
+export function standaardStub(naam) {
+  return maakStandaardStubs()[naam];
+}
+
 // 1x1 transparante PNG voor kaarttegels (geen verkeer naar tegelservers).
 const LEGE_TEGEL = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',

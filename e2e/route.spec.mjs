@@ -1,43 +1,5 @@
-import { test, expect, startApp } from './helpers.mjs';
-
-// Werkdag start om 10:00 (instelling van Tim). VASTE_NU is maandag 5 okt 09:00, dus de vertrektijd van
-// de route (10:00) ligt in de toekomst: de app stuurt dan een departAt mee en vraagt ook het
-// drukte-detail op. Alleen in het hoofdvenster en alleen als er nog niets staat (zoals plan-week.spec).
-async function zetStartTijd(page, vanTijd) {
-  await page.addInitScript((v) => {
-    if (window !== window.top) return;
-    if (localStorage.getItem('blitz_settings_Tim') === null) localStorage.setItem('blitz_settings_Tim', JSON.stringify({ vanTijd: v }));
-  }, vanTijd);
-}
-
-// Uitgangstoestand: Tim, "Plan deze week" zet #1001 en #1002 op maandag 5 okt (VASTE_NU), nog zonder
-// tijdstip. Vanuit de Kalender-kolom van die dag openen we de Route-tab. Dit werkt in testmodus zonder
-// extra data en geeft twee vrije, versleepbare stops (beide van Tim, geen anker).
-async function maakRouteMetStops(page) {
-  await page.getByRole('tab', { name: 'Kalender' }).click();
-  await page.getByRole('button', { name: '⚡ Plan deze week' }).click();
-  const resultaat = page.getByRole('dialog', { name: '⚡ Planningsresultaat' });
-  await expect(resultaat.getByText('Ingepland (2)', { exact: true })).toBeVisible();
-  await resultaat.getByRole('button', { name: 'Sluiten' }).click();
-  await expect(resultaat).toBeHidden();
-  const maandag = page.locator('.day-col').filter({ hasText: '#1001' });
-  await expect(maandag).toHaveCount(1);
-  await maandag.getByRole('button', { name: 'Route berekenen' }).click();
-  await expect(page.locator('#view-planning')).toBeVisible();
-  await expect(page.getByTestId('route-datum')).toHaveValue('2026-10-05');
-  await expect(page.getByTestId('route-aantal-stops')).toHaveText('2');
-  // Het openen van de Route-tab berekent de route meteen; wacht tot beide stops een tijd tonen.
-  await expect(page.getByTestId('route-stop-tijd')).toHaveCount(2);
-}
-
-const stopNummers = (page) => page.getByTestId('route-stop-nummer').allTextContents();
-const stopTijden = async (page) => {
-  // Eén aankomsttijd per stop: de ⏱-regel van elke kaart.
-  const tijden = await page.getByTestId('route-stop').evaluateAll(els =>
-    els.map(e => e.querySelector('[data-testid="route-stop-tijd"]')?.textContent.trim() ?? null));
-  return tijden.map(t => t && t.replace('⏱ ', ''));
-};
-const minuten = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
+import { test, expect, startApp, standaardStub, VASTE_NU } from './helpers.mjs';
+import { zetStartTijd, maakRouteMetStops, stopNummers, stopTijden, minuten } from './route-hulp.mjs';
 
 // Sleep de stop met nummer `van` boven de stop met nummer `naar`, met kleine muisstappen
 // (sorteer.js: muis begint na 4 px; het doel is "vóór het eerste item waarvan het midden onder de muis ligt").
@@ -199,5 +161,224 @@ test.describe('route', () => {
     expect(tijden).toEqual(['10:30', '12:45']);
     await expect(page.getByRole('button', { name: 'Tijden vastleggen' })).toHaveCount(0);
     expect(verzoeken.van('/api/plan-datum')).toEqual([]);
+  });
+
+  test('weekstrook: stops en tijdstatus van de dag', async ({ page }) => {
+    await zetStartTijd(page, '10:00');
+    await startApp(page, { technieker: 'Tim' });
+    await maakRouteMetStops(page);
+
+    // Maandag (5 okt) is geselecteerd: 2 stops, nog zonder tijdstip.
+    const maandag = page.getByRole('button', { name: /^MA 5:/ });
+    await expect(maandag).toHaveAttribute('aria-pressed', 'true');
+    await expect(maandag).toContainText('2 stops');
+    await expect(maandag).toContainText('⏱ nodig');
+    // Positief tegenstuk: een lege werkdag (dinsdag) toont 0 stops en geen tijdstatus.
+    const dinsdag = page.getByRole('button', { name: /^DI 6:/ });
+    await expect(dinsdag).toHaveAttribute('aria-pressed', 'false');
+    await expect(dinsdag).toContainText('0 stops');
+
+    await page.getByRole('button', { name: 'Tijden vastleggen' }).click();
+    await expect(page.getByText('✓ Volgorde en tijdstippen bijgewerkt')).toBeVisible();
+    await expect(maandag).toContainText('2 stops');
+    await expect(maandag).toContainText('✓ tijden');
+    await expect(maandag).not.toContainText('⏱ nodig');
+  });
+
+  test('een stop uit de planning halen maakt de route verouderd', async ({ page, verzoeken }) => {
+    await zetStartTijd(page, '10:00');
+    await startApp(page, { technieker: 'Tim' });
+    await maakRouteMetStops(page);
+    await expect(page.getByTestId('route-afstand')).toHaveText('40 km');
+    const hint = page.getByText('De route is verouderd en van de kaart gehaald');
+    await expect(hint).toHaveCount(0);
+
+    await page.getByTestId('route-stop').filter({ hasText: '#1002' }).getByRole('button', { name: '✕ Uit planning halen' }).click();
+    const bevestig = page.getByRole('alertdialog', { name: 'Ticket #1002 uit de planning halen?' });
+    await expect(bevestig).toBeVisible();
+    await bevestig.getByRole('button', { name: 'Uit planning halen' }).click();
+
+    // Gemeten: één stop over, de hint staat er, de samenvatting is leeg (—) en de tijden zijn weg;
+    // er is geen nieuwe routeaanvraag (geen automatische TomTom-aanroep) en geen plan-oproep (testmodus).
+    await expect(page.getByTestId('route-stop')).toHaveCount(1);
+    expect(await stopNummers(page)).toEqual(['#1001']);
+    await expect(hint).toBeVisible();
+    await expect(page.getByTestId('route-afstand')).toHaveText('—');
+    await expect(page.getByTestId('route-aantal-stops')).toHaveText('1');
+    await expect(page.getByTestId('route-stop-tijd')).toHaveCount(0);
+    await expect(page.locator('#s-time')).toHaveText('—');
+    await expect(page.locator('#s-eta')).toHaveText('—');
+    expect(verzoeken.van('/api/route', 'POST')).toHaveLength(1);
+    expect(verzoeken.van('/api/plan')).toEqual([]);
+
+    // "Bereken tijden" tekent de route opnieuw en haalt de hint weg.
+    await page.getByRole('button', { name: 'Bereken tijden' }).click();
+    await expect(page.getByTestId('route-stop-tijd')).toHaveCount(1);
+    await expect(hint).toHaveCount(0);
+    await expect(page.getByTestId('route-afstand')).toHaveText('20 km');
+  });
+
+  test('een nieuwe eigen afspraak met adres: de route-lijst blijft onveranderd tot opnieuw berekend', async ({ page, verzoeken }) => {
+    await zetStartTijd(page, '10:00');
+    await startApp(page, { technieker: 'Tim' });
+    await maakRouteMetStops(page);
+    expect(await stopTijden(page)).toEqual(['10:20', '12:40']);
+
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    // In-page toewijzing aan de globale accessor (zoals loadAfspraken/saveAfspraken doen): geen kalender-klikpad nodig.
+    await page.evaluate(() => {
+      localEvents = [...localEvents, { id: 'e-route-1', titel: 'Installatie Test', datum: '2026-10-05', uur: '14:00', einduur: '15:00',
+        type: 'Installatie', persoon: 'Tim', adres: 'Grote Markt 1, 2000 Antwerpen', notitie: '', telefoon: '', email: '', bron: 'manueel', origResp: null }];
+    });
+    await page.getByRole('tab', { name: 'Route' }).click();
+
+    // Gemeten (R6): de lijst is NIET vers en NIET als verouderd gemarkeerd. Er staan nog 2 stops, geen hint,
+    // dezelfde tijden en afstand, en er is geen nieuwe routeaanvraag. localEvents zit niet in het route-abonnement
+    // (koppelRenders); Taak 3 beslist op basis hiervan. Dit gedrag verandert bewust als localEvents erbij komt.
+    await expect(page.getByTestId('route-stop')).toHaveCount(2);
+    await expect(page.getByText('De route is verouderd en van de kaart gehaald')).toHaveCount(0);
+    await expect(page.getByTestId('route-afstand')).toHaveText('40 km');
+    expect(await stopTijden(page)).toEqual(['10:20', '12:40']);
+    expect(verzoeken.van('/api/route', 'POST')).toHaveLength(1);
+    await expect(page.getByText('Installatie — Installatie Test')).toHaveCount(0);
+
+    // Positief tegenstuk: na "Bereken tijden" staat de afspraak er wel (op 14:00, vóór de stops zonder uur).
+    await page.getByRole('button', { name: 'Bereken tijden' }).click();
+    await expect(page.getByTestId('route-stop')).toHaveCount(3);
+    await expect(page.getByTestId('route-stop').first()).toContainText('Installatie — Installatie Test');
+    await expect(page.getByTestId('route-stop').first()).toContainText('Grote Markt 1, 2000 Antwerpen');
+    // Gemeten: de afspraak toont zijn eigen tijdslot (🗓); de tickets rekenen daarna: 14:00 + 60 min + 20 min rit = 15:20.
+    await expect.poll(() => stopTijden(page)).toEqual(['🗓 14:00–15:00', '15:20', '17:40']);
+  });
+
+  test('dag met meerdere technici: niet versleepbaar, niet optimaliseerbaar, tijden niet vast te leggen', async ({ page }) => {
+    await zetStartTijd(page, '10:00');
+    await startApp(page, { technieker: 'Tim' });
+    await maakRouteMetStops(page);
+
+    // #1002 aan een andere technieker geven (in-place, zoals een Zoho-herlading) en naar "Alle technici"
+    // wisselen: de filterwissel hertekent de route-lijst.
+    await page.evaluate(() => { planning['2026-10-05'][1].ticket.assignee = 'Sam'; });
+    await page.locator('#person-btn').click();
+    await page.getByRole('button', { name: /Alle technici/ }).click();
+    await expect(page.getByTestId('route-aantal-stops')).toHaveText('2');
+    await expect(page.getByTestId('route-stop')).toHaveCount(2);
+
+    // Gemeten: geen kaartje is versleepbaar (data-sleepbaar ontbreekt) en de kaartjes dragen de uitleg als title.
+    await expect(page.locator('[data-testid="route-stop"][data-sleepbaar]')).toHaveCount(0);
+    await expect(page.getByTestId('route-stop').first()).toHaveAttribute('title', 'Kies eerst een technieker om de volgorde aan te passen');
+    // Tijden vastleggen staat er wel (stops zonder tijdstip) maar is uitgeschakeld.
+    await expect(page.getByText('⏱ 2 tickets zonder tijdstip')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Tijden vastleggen' })).toBeDisabled();
+    // Optimaliseren geeft een toast en doet niets.
+    await page.getByRole('button', { name: '⚡ Optimaliseer' }).click();
+    await expect(page.getByText('⚠ Kies eerst een technieker — de dag bevat stops van meerdere technici')).toBeVisible();
+
+    // Positief tegenstuk: met één technieker (Tim) zijn de kaartjes weer versleepbaar.
+    await page.locator('#person-btn').click();
+    await page.getByRole('button', { name: /Tim/ }).first().click();
+    await expect(page.getByTestId('route-stop')).toHaveCount(1);
+    await expect(page.locator('[data-testid="route-stop"][data-sleepbaar]')).toHaveCount(1);
+  });
+
+  test('mislukte routeberekening bij Tijden vastleggen: volgorde en tijden niet bewaard', async ({ page, consoleFouten }) => {
+    // Eerste aanroep normaal (openen van de Route-tab), daarna een serverfout.
+    const normaal = standaardStub('route');
+    let aanroepen = 0;
+    const route = (verzoek) => (++aanroepen === 1 ? normaal(verzoek) : { status: 502, json: { error: 'x' } });
+    await zetStartTijd(page, '10:00');
+    await startApp(page, { technieker: 'Tim', overschrijf: { route } });
+    await maakRouteMetStops(page);
+    expect(await stopTijden(page)).toEqual(['10:20', '12:40']);
+
+    await page.getByRole('button', { name: 'Tijden vastleggen' }).click();
+
+    await expect(page.getByText('✕ Route kon niet berekend worden — volgorde niet bewaard')).toBeVisible();
+    // Gemeten: de balk en de knop staan er nog (de tijden zijn niet vastgelegd), de volgorde is ongewijzigd
+    // en de berekende aankomsttijden zijn weg (routeData is leeg na de mislukte aanvraag); "Bereken tijden"
+    // is de weg terug.
+    await expect(page.getByText('⏱ 2 tickets zonder tijdstip')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Tijden vastleggen' })).toBeEnabled();
+    await expect(page.getByText('✓ Volgorde en tijdstippen bijgewerkt')).toHaveCount(0);
+    await expect(page.getByTestId('route-stop')).toHaveCount(2);
+    expect(await stopNummers(page)).toEqual(['#1001', '#1002']);
+    await expect(page.getByTestId('route-stop-tijd')).toHaveCount(0);
+    expect(aanroepen).toBeGreaterThanOrEqual(2);
+
+    // De 502 is hier bedoeld: de browser meldt hem als consolefout en als HTTP 502 voor /api/route.
+    const verwacht = consoleFouten.filter(f => /\/api\/route/.test(f) || /502/.test(f));
+    expect(verwacht.length).toBeGreaterThanOrEqual(1);
+    for (const f of verwacht) consoleFouten.splice(consoleFouten.indexOf(f), 1);
+  });
+
+  test('vergrendelstatus niet geladen bij Tijden vastleggen: volgorde niet bewaard', async ({ page, consoleFouten }) => {
+    // Eerste GET (app-start) normaal, daarna een serverfout.
+    const normaal = standaardStub('voorstel-status');
+    let gets = 0;
+    const voorstelStatus = (verzoek) => (verzoek.methode === 'GET' && ++gets > 1 ? { status: 500, json: { error: 'x' } } : normaal(verzoek));
+    await zetStartTijd(page, '10:00');
+    await startApp(page, { technieker: 'Tim', overschrijf: { 'voorstel-status': voorstelStatus } });
+    await maakRouteMetStops(page);
+
+    await page.getByRole('button', { name: 'Tijden vastleggen' }).click();
+
+    await expect(page.getByText('✕ Vergrendelstatus kon niet geladen worden — volgorde niet bewaard')).toBeVisible();
+    await expect(page.getByText('⏱ 2 tickets zonder tijdstip')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Tijden vastleggen' })).toBeEnabled();
+    await expect(page.getByText('✓ Volgorde en tijdstippen bijgewerkt')).toHaveCount(0);
+    expect(await stopTijden(page)).toEqual(['10:20', '12:40']);
+
+    const verwacht = consoleFouten.filter(f => /voorstel-status/.test(f) || /500/.test(f));
+    expect(verwacht.length).toBeGreaterThanOrEqual(1);
+    for (const f of verwacht) consoleFouten.splice(consoleFouten.indexOf(f), 1);
+  });
+
+  test('vergrendelstatus niet geladen bij slepen: volgorde niet bewaard', async ({ page, consoleFouten }) => {
+    const normaal = standaardStub('voorstel-status');
+    let gets = 0;
+    const voorstelStatus = (verzoek) => (verzoek.methode === 'GET' && ++gets > 1 ? { status: 500, json: { error: 'x' } } : normaal(verzoek));
+    await zetStartTijd(page, '10:00');
+    await startApp(page, { technieker: 'Tim', overschrijf: { 'voorstel-status': voorstelStatus } });
+    await maakRouteMetStops(page);
+
+    await sleepBoven(page, '#1002', '#1001');
+
+    await expect(page.getByText('✕ Vergrendelstatus kon niet geladen worden — volgorde niet bewaard')).toBeVisible();
+    // Gemeten: de lijst blijft in de oorspronkelijke volgorde en de tijden zijn niet bewaard.
+    expect(await stopNummers(page)).toEqual(['#1001', '#1002']);
+    await expect(page.getByText('✓ Volgorde en tijdstippen bijgewerkt')).toHaveCount(0);
+    expect(await stopTijden(page)).toEqual(['10:20', '12:40']);
+
+    const verwacht = consoleFouten.filter(f => /voorstel-status/.test(f) || /500/.test(f));
+    expect(verwacht.length).toBeGreaterThanOrEqual(1);
+    for (const f of verwacht) consoleFouten.splice(consoleFouten.indexOf(f), 1);
+  });
+
+  test('kaartknoppen: Aankomst registreren en Rapport openen', async ({ page }) => {
+    await zetStartTijd(page, '10:00');
+    await startApp(page, { technieker: 'Tim' });
+    await maakRouteMetStops(page);
+    const eerste = page.getByTestId('route-stop').first();
+    await expect(eerste).toContainText('#1001');
+    await expect(page.getByText(/Aangekomen/)).toHaveCount(0);
+
+    // Vaste klok, zodat het geregistreerde uur exact is.
+    await page.clock.setFixedTime(new Date(VASTE_NU));
+    await eerste.getByRole('button', { name: '⏱️ Aankomst' }).click();
+    await expect(page.getByText('⏱ Aankomst geregistreerd: 09:00')).toBeVisible();
+    await expect(page.getByTestId('route-stop').first()).toContainText('✓ Aangekomen 09:00');
+    // Alleen de eerste stop is geregistreerd.
+    await expect(page.getByText(/Aangekomen/)).toHaveCount(1);
+    const bewaard = await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_arrivals')));
+    expect(bewaard).toEqual({ '2026-10-05__t1': '09:00' });
+
+    // Rapport: de wizard opent; sluiten zonder iets te doen (bevestigt het native "Rapport sluiten?"-venster).
+    await page.getByTestId('route-stop').first().getByRole('button', { name: '📋 Rapport' }).click();
+    const wizard = page.getByRole('dialog', { name: '📋 Service Rapport' });
+    await expect(wizard).toHaveClass(/open/);
+    await expect(wizard.locator('#wiz-step-label')).toHaveText('1 / 9 — Algemeen');
+    page.once('dialog', d => d.accept());
+    await wizard.getByRole('button', { name: 'Sluiten' }).click();
+    await expect(wizard).toBeHidden();
   });
 });
