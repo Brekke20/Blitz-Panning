@@ -918,6 +918,7 @@ document.addEventListener('DOMContentLoaded', () => {
   _bavFormDate = localISO(new Date());
   document.getElementById('plan-date').value = localISO(new Date());
   activeAssigneeFilter = localStorage.getItem('blitz_active_person') || 'all';
+  koppelRenders(); // vanaf hier volgen de schermen de toestand (K6/K7)
   updatePersonHeader();
   // TEST badge tonen indien actief
   if (TEST_MODE) document.getElementById('test-badge').style.display = '';
@@ -1256,6 +1257,9 @@ function applyTicketsData(data, opties = {}) {
   return metBehoudScroll(() => _applyTicketsData(data, opties));
 }
 function _applyTicketsData(data, { reconcile = false } = {}) {
+  // Alle schrijfacties in één transactie: de abonnementen (koppelRenders) spoelen synchroon aan het
+  // einde, dus de schermen zijn hertekend nog vóór de reconciliatie hieronder.
+  kern.toestand.transactie(() => {
   allTickets = data.tickets        || [];
   allPending = data.pendingTickets || [];
   allGepland = data.plannedTickets || [];
@@ -1298,14 +1302,10 @@ function _applyTicketsData(data, { reconcile = false } = {}) {
   document.getElementById('cnt-tickets').textContent = allTickets.length;
   document.getElementById('cnt-gepland').textContent = allGepland.length;
 
-  buildPersonSelector();
-  renderTickets();
-  renderKalender();
-  renderGepland();
-  renderInventaris(activeAssigneeFilter);
-  updateInventarisBadge(activeAssigneeFilter);
-  renderRouteList(document.getElementById('plan-date').value);
-  updateRouteBtns(document.getElementById('plan-date').value);
+  // Een opgeslagen technieker die niet meer bestaat valt hier terug op 'all' (binnen de transactie,
+  // zodat de abonnees maar één ronde nodig hebben i.p.v. een tweede na een reset in buildPersonSelector).
+  valideerActievePersoon();
+  }); // einde transactie: koppelRenders hertekent hier (zie koppelRenders)
 
   if (reconcile) {
     // Ghost-reconciliatie: planning-entries van gesloten/verwijderde tickets opruimen
@@ -1371,21 +1371,30 @@ function initials(name) {
   return name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
-function buildPersonSelector() {
-  const agents = [...new Set([
+function personenUitTickets() {
+  return [...new Set([
     ...allTickets.map(t => t.assignee),
     ...allGepland.map(t => t.assignee),
     ...allPending.map(t => t.assignee),
   ])].filter(Boolean).sort();
+}
 
-  // Valideer: als opgeslagen persoon niet meer bestaat → reset naar 'all'
+// Valideer: als opgeslagen persoon niet meer bestaat → reset naar 'all'. Schrijft de toestand
+// (activeAssigneeFilter, settings); het koptekst-abonnement in koppelRenders werkt de kop bij.
+// Wordt in _applyTicketsData binnen de transactie aangeroepen, zodat buildPersonSelector (zelf een
+// abonnee) nooit meer terug hoeft te schrijven en er geen extra renderronde ontstaat.
+function valideerActievePersoon(agents = personenUitTickets()) {
   if (activeAssigneeFilter !== 'all' && !agents.includes(activeAssigneeFilter)) {
     activeAssigneeFilter = 'all';
     localStorage.setItem('blitz_active_person', 'all');
     settings = loadPersonSettings('all');
     applyKaartStijl();
-    updatePersonHeader();
   }
+}
+
+function buildPersonSelector() {
+  const agents = personenUitTickets();
+  valideerActievePersoon(agents); // vangnet; normaal al gedaan in _applyTicketsData
 
   const menu = document.getElementById('person-menu');
   menu.innerHTML = '';
@@ -1429,19 +1438,39 @@ function togglePersonMenu() {
 }
 
 function selectPerson(name) {
-  activeAssigneeFilter = name;
-  settings = loadPersonSettings(name);
-  applyKaartStijl();
-  localStorage.setItem('blitz_active_person', name);
-  zetPersonMenuOpen(false);
-  updatePersonHeader();
-  buildPersonSelector();
-  renderTickets();
-  renderKalender();
-  renderGepland();
-  renderRouteList(document.getElementById('plan-date')?.value || localISO(new Date()));
-  renderInventaris(activeAssigneeFilter);
-  updateInventarisBadge(activeAssigneeFilter);
+  // De schermen volgen via koppelRenders: kop, selector, wachtrij, kalender, ingepland, route, inventaris.
+  kern.toestand.transactie(() => {
+    activeAssigneeFilter = name;
+    settings = loadPersonSettings(name);
+    applyKaartStijl();
+    localStorage.setItem('blitz_active_person', name);
+    zetPersonMenuOpen(false);
+  });
+}
+
+// Eén plek met alle abonnementen van de schermen op de toestand (K6). Elk scherm één abonnement met de
+// unie van zijn sleutels, in de volgorde van de vroegere handmatige aanroepen (_applyTicketsData/selectPerson).
+// Bewust GEEN abonnement op planning, voorstelStatus, klantBeschikbaarheid en settings: er hangt geen
+// uniforme render-keten aan (de plaatsen die ze schrijven, hertekenen zelf wat ze nodig hebben).
+// Moet via arrow-functies naar de globale renders verwijzen (late binding; de e2e-teller wikkelt ze om).
+function koppelRenders() {
+  const st = kern.toestand;
+  st.spoel(); // beginwaarden van vóór de koppeling mogen niets hertekenen
+  st.zetOmhulling(draai => metBehoudScroll(draai));
+  const planDatum = () => document.getElementById('plan-date')?.value || localISO(new Date());
+  st.abonneer(['activeAssigneeFilter'], () => updatePersonHeader());
+  st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => buildPersonSelector());
+  st.abonneer(['allTickets', 'activeAssigneeFilter'], () => renderTickets());
+  st.abonneer(['allTickets', 'allPending', 'allGepland', 'localEvents', 'avExceptions', 'activeAssigneeFilter'], () => renderKalender());
+  st.abonneer(['allGepland', 'activeAssigneeFilter'], () => renderGepland());
+  st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => {
+    renderInventaris(activeAssigneeFilter);
+    updateInventarisBadge(activeAssigneeFilter);
+  });
+  st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => {
+    renderRouteList(planDatum());
+    updateRouteBtns(planDatum());
+  });
 }
 
 // ══════════════════════════════════════════════
@@ -1651,10 +1680,14 @@ async function addTicketToDate(ticketId, date) {
   }
 
   inFlightTickets.delete(ticketId);
-  renderTickets();
-  renderKalender();
-  renderRouteList(document.getElementById('plan-date').value);
-  updateRouteBtns(document.getElementById('plan-date').value);
+  // Gelukt: allTickets is hierboven toegewezen, dus koppelRenders hertekent wachtrij, kalender en route.
+  // Mislukt: enkel planning is teruggedraaid (geen geabonneerde sleutel), dus hier zelf hertekenen.
+  if (!success) {
+    renderTickets();
+    renderKalender();
+    renderRouteList(document.getElementById('plan-date').value);
+    updateRouteBtns(document.getElementById('plan-date').value);
+  }
   return success;
 }
 
@@ -1674,6 +1707,7 @@ async function removeTicketFromDate(ticketId, date) {
   renderRouteList(document.getElementById('plan-date').value);
   updateRouteBtns(document.getElementById('plan-date').value);
 
+  let verwijderMislukt = false;
   if (!TEST_MODE) {
     try {
       const res  = await fetch('/api/plan', {
@@ -1687,6 +1721,7 @@ async function removeTicketFromDate(ticketId, date) {
       stop.ticket.interventieDatum = null;
       allTickets.push(stop.ticket);
       allTickets.sort((a, b) => (a.number || 0) - (b.number || 0));
+      kern.toestand.raak('allTickets'); // in-place push/sort
       // Fix (bugronde 2026-09-22, item A): ticket ook uit wachtrij/gepland-lijsten halen
       allPending = allPending.filter(t => t.id !== ticketId);
       allGepland = allGepland.filter(t => t.id !== ticketId);
@@ -1695,11 +1730,13 @@ async function removeTicketFromDate(ticketId, date) {
       // Revert
       if (!planning[date]) planning[date] = [];
       planning[date].push(stop);
+      verwijderMislukt = true;
       toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
     }
   } else {
     stop.ticket.interventieDatum = null;
     allTickets.push(stop.ticket);
+    kern.toestand.raak('allTickets'); // in-place push
     // Fix (bugronde 2026-09-22, item A): ticket ook uit wachtrij/gepland-lijsten halen
     allPending = allPending.filter(t => t.id !== ticketId);
     allGepland = allGepland.filter(t => t.id !== ticketId);
@@ -1707,12 +1744,14 @@ async function removeTicketFromDate(ticketId, date) {
   }
 
   inFlightTickets.delete(ticketId);
-  renderTickets();
-  renderKalender();
-  // (I3) allGepland is hierboven bijgewerkt (zowel in het succes- als het TEST_MODE-pad) --
-  // zonder deze call bleef de "Ingepland"-lijst en de cnt-gepland-badge de oude waarde tonen
-  // tot de volgende tabwissel.
-  renderGepland();
+  // Gelukt: allTickets/allPending/allGepland zijn hierboven bijgewerkt (I3: ook de "Ingepland"-lijst
+  // en cnt-gepland), dus koppelRenders hertekent wachtrij, kalender en ingepland (plus route/inventaris).
+  // Mislukt: enkel planning is teruggedraaid (geen geabonneerde sleutel), dus hier zelf hertekenen.
+  if (verwijderMislukt) {
+    renderTickets();
+    renderKalender();
+    renderGepland();
+  }
 }
 
 // Vraagt bevestiging vóór een ticket uit de planning gehaald wordt (× op kaart, routestop, detail).
@@ -2670,7 +2709,7 @@ async function loadAfspraken() {
     if (cached) {
       localEvents       = cached.afspraken || [];
       localEventsVersie = cached.versie || 0;
-      metBehoudScroll(renderKalender);
+      // renderKalender volgt via koppelRenders (omhuld door metBehoudScroll)
     }
   }
   try {
@@ -2690,7 +2729,6 @@ async function loadAfspraken() {
       localEventsVersie = 0;
     }
   }
-  metBehoudScroll(renderKalender);
 }
 
 async function saveAfspraken() {
@@ -2705,7 +2743,6 @@ async function saveAfspraken() {
       localEvents       = body.data?.afspraken || [];
       localEventsVersie = body.data?.versie    || 0;
       toast('⚠ Iemand anders wijzigde dit net. De afspraken zijn opnieuw geladen.', 3000);
-      renderKalender();
       return false;
     }
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -3071,14 +3108,13 @@ async function confirmImport() {
   }
 
   localEvents.push(...nieuweItems);
-  renderKalender();
+  kern.toestand.raak('localEvents'); // in-place push
   document.getElementById('import-overlay').classList.remove('open');
   _pendingImport = [];
 
   const ok = await saveAfspraken();
   if (!ok) {
     localEvents = localEvents.filter(e => !nieuweItems.some(n => n.id === e.id));
-    renderKalender();
   } else {
     toast(`✓ ${meervoud(nieuweItems.length, 'afspraak', 'afspraken')} geïmporteerd`, 2500);
   }
@@ -3173,11 +3209,11 @@ async function saveManueelAfspraak() {
     if (idx === -1) { toast('⚠ Afspraak niet gevonden', 2000); return; }
     const oldEvent = { ...localEvents[idx] };
     localEvents[idx] = { ...oldEvent, titel, datum, uur: van, einduur: tot, type, persoon: persoon || null, adres, notitie, telefoon, email };
-    renderKalender();
+    kern.toestand.raak('localEvents'); // in-place
     const ok = await saveAfspraken();
     if (!ok) {
       localEvents[idx] = oldEvent;
-      renderKalender();
+      kern.toestand.raak('localEvents'); // in-place
     } else {
       toast('✓ Afspraak bijgewerkt', 2000);
     }
@@ -3190,11 +3226,10 @@ async function saveManueelAfspraak() {
       bron: 'manueel', origResp: null,
     };
     localEvents.push(event);
-    renderKalender();
+    kern.toestand.raak('localEvents'); // in-place push
     const ok = await saveAfspraken();
     if (!ok) {
       localEvents = localEvents.filter(e => e.id !== event.id);
-      renderKalender();
     } else {
       toast('✓ Afspraak opgeslagen', 2000);
     }
@@ -3204,11 +3239,10 @@ async function saveManueelAfspraak() {
 async function removeLocalEvent(id) {
   const removed = localEvents.find(e => e.id === id);
   localEvents   = localEvents.filter(e => e.id !== id);
-  renderKalender();
   const ok = await saveAfspraken();
   if (!ok && removed) {
     localEvents.push(removed);
-    renderKalender();
+    kern.toestand.raak('localEvents'); // in-place push
   }
 }
 
@@ -3287,7 +3321,7 @@ async function loadAvailability() {
     if (cached) {
       avExceptions = cached.exceptions || [];
       avVersie     = cached.versie || 0;
-      metBehoudScroll(renderKalender);
+      // renderKalender volgt via koppelRenders (omhuld door metBehoudScroll)
     }
   }
   try {
@@ -3307,7 +3341,6 @@ async function loadAvailability() {
       avVersie     = 0;
     }
   }
-  metBehoudScroll(renderKalender);
 }
 
 async function saveAvailability() {
@@ -3324,7 +3357,6 @@ async function saveAvailability() {
       avVersie     = body.data?.versie     || 0;
       toast('⚠ Iemand anders wijzigde dit net. De gegevens zijn opnieuw geladen.', 3000);
       renderBlockModal();
-      renderKalender();
       return false;
     }
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -3510,17 +3542,16 @@ async function avAddException() {
       return;
     }
     avExceptions.push(...newExceptions);
+    kern.toestand.raak('avExceptions'); // in-place push
     _avFormMultiDay = false;
     _avFormDateTot  = null;
     renderBlockModal();
-    renderKalender();
     const ok = await saveAvailability();
     if (!ok) {
       // Rollback alle toegevoegde exceptions
       const ids = new Set(newExceptions.map(e => e.id));
       avExceptions = avExceptions.filter(e => !ids.has(e.id));
       renderBlockModal();
-      renderKalender();
     }
     return;
   }
@@ -3538,14 +3569,13 @@ async function avAddException() {
   };
 
   avExceptions.push(ex);
+  kern.toestand.raak('avExceptions'); // in-place push
   renderBlockModal();
-  renderKalender();
   const ok = await saveAvailability();
   if (!ok) {
     // Rollback lokale toevoeging bij fout
     avExceptions = avExceptions.filter(e => e.id !== ex.id);
     renderBlockModal();
-    renderKalender();
   }
 }
 
@@ -3553,12 +3583,11 @@ async function avRemoveException(id) {
   const removed = avExceptions.find(e => e.id === id);
   avExceptions  = avExceptions.filter(e => e.id !== id);
   renderBlockModal();
-  renderKalender();
   const ok = await saveAvailability();
   if (!ok && removed) {
     avExceptions.push(removed);
+    kern.toestand.raak('avExceptions'); // in-place push
     renderBlockModal();
-    renderKalender();
   }
 }
 
@@ -5484,7 +5513,11 @@ async function saveReschedule() {
     allGepland = allGepland.filter(x => x.id !== ticketId);
     if (!allPending.find(x => x.id === ticketId)) allPending.push(t);
 
-    renderTickets(); renderKalender(); renderGepland(); renderRouteList(document.getElementById('plan-date').value); updateRouteBtns(document.getElementById('plan-date').value);
+    // allGepland is toegewezen en allPending in-place gewijzigd: koppelRenders hertekent kalender,
+    // ingepland en route. De wachtrij hertekende hier vroeger ook (t.status wijzigde): raak('allTickets')
+    // behoudt dat.
+    kern.toestand.raak('allTickets');
+    kern.toestand.raak('allPending');
     toast(TEST_MODE ? '🧪 Testmodus — niet opgeslagen' : `✓ Verzet naar ${fmtDateShort(date)} om ${time}`);
   } catch (err) {
     toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
@@ -5637,12 +5670,11 @@ async function avRemoveExceptionGroup(ids) {
   const removed = avExceptions.filter(e => idSet.has(e.id));
   avExceptions = avExceptions.filter(e => !idSet.has(e.id));
   renderBeschikbaarhedenTab();
-  renderKalender();
   const ok = await saveAvailability();
   if (!ok) {
     avExceptions.push(...removed);
+    kern.toestand.raak('avExceptions'); // in-place push
     renderBeschikbaarhedenTab();
-    renderKalender();
   }
 }
 
@@ -5804,16 +5836,15 @@ async function avAddExceptionFromSettings() {
       return;
     }
     avExceptions.push(...newExceptions);
+    kern.toestand.raak('avExceptions'); // in-place push
     _bavFormMultiDay = false;
     _bavFormDateTot  = null;
     renderBeschikbaarhedenTab();
-    renderKalender();
     const ok = await saveAvailability();
     if (!ok) {
       const ids = new Set(newExceptions.map(e => e.id));
       avExceptions = avExceptions.filter(e => !ids.has(e.id));
       renderBeschikbaarhedenTab();
-      renderKalender();
     }
     return;
   }
@@ -5823,13 +5854,12 @@ async function avAddExceptionFromSettings() {
     date: _bavFormDate, kind: _bavFormKind, from, to, reason,
   };
   avExceptions.push(ex);
+  kern.toestand.raak('avExceptions'); // in-place push
   renderBeschikbaarhedenTab();
-  renderKalender();
   const ok = await saveAvailability();
   if (!ok) {
     avExceptions = avExceptions.filter(e => e.id !== ex.id);
     renderBeschikbaarhedenTab();
-    renderKalender();
   }
 }
 
@@ -6445,18 +6475,21 @@ async function verstuurAnnulatie() {
     allTickets.push(tk);
     allTickets.sort((a, b) => (a.number || 0) - (b.number || 0));
   }
+  kern.toestand.raak('allTickets'); // in-place push/sort (en tk.status wijzigde)
   document.getElementById('cnt-tickets').textContent = allTickets.length;
 
   s.busy = false;
   sluitAnnuleerVenster();
   sluitDetailStil();
+  // Meteen: allPending/allGepland zijn toegewezen en allTickets geraakt, dus koppelRenders hertekent
+  // wachtrij, kalender, ingepland en route. Na het laden van voorstelStatus (geen geabonneerde sleutel)
+  // hertekenen we nog eens zelf.
   const hertekenen = () => {
     try {
       const datum = document.getElementById('plan-date').value;
       renderTickets(); renderKalender(); renderGepland(); renderRouteList(datum); updateRouteBtns(datum);
     } catch (e) { console.warn('Hertekenen mislukt:', e); }
   };
-  hertekenen();
   loadVoorstelStatus().then(hertekenen);
 
   const fouten = Array.isArray(data.fouten) ? data.fouten : [];
@@ -6503,6 +6536,7 @@ async function sendProposal() {
     activeTicket.status = 'Wachten op bevestiging planning';
     allTickets = allTickets.filter(t => t.id !== ticketId);
     if (!allPending.find(t => t.id === ticketId)) allPending.push(activeTicket);
+    kern.toestand.raak('allPending'); // in-place push
     // Nieuw voorstel vervangt de oude registerentry (geen oude doelgroepen/bevestiging laten staan).
     // Realistisch register-effect: doelgroepen met tijdstip, zodat 🔒 en de annuleerknop verschijnen.
     const nuIso = new Date().toISOString();
@@ -6515,7 +6549,8 @@ async function sendProposal() {
     voorstelStatus[ticketId] = regEntry;
     document.getElementById('proposal-overlay').classList.remove('open');
     btn.disabled = false; btn.textContent = '✉️ Verstuur voorstel';
-    renderTickets(); renderKalender(); renderRouteList(date); updateRouteBtns(date);
+    // allTickets is toegewezen: koppelRenders hertekent wachtrij, kalender en route (voorstelStatus
+    // en planning zijn dan al bijgewerkt: de flush volgt pas na dit synchrone blok).
     toast(`🧪 Testmodus — ${_proposalOntvangers.length ? 'voorstel verstuurd (demo)' : 'status bijgewerkt (geen e-mail)'}`, 3500);
     return;
   }
@@ -6589,6 +6624,7 @@ async function sendProposal() {
 
     allTickets = allTickets.filter(t => t.id !== ticketId);
     if (!allPending.find(t => t.id === ticketId)) allPending.push({ ...activeTicket });
+    kern.toestand.raak('allPending'); // in-place push
 
     // Fix (bugronde 2026-09-22, item E): een datumwijziging via het voorstel-venster mag het
     // ticket niet op zowel de oude als de nieuwe datum laten staan -- eerst overal weghalen.
@@ -6606,7 +6642,7 @@ async function sendProposal() {
     document.getElementById('proposal-overlay').classList.remove('open');
     btn.disabled = false; btn.textContent = '✉️ Verstuur voorstel';
 
-    renderTickets(); renderKalender(); renderRouteList(date); updateRouteBtns(date);
+    // allTickets is toegewezen: koppelRenders hertekent wachtrij, kalender en route (na dit synchrone blok).
     const gelukt = (data.ontvangers || []).filter(d => data.emailSent?.[d]);
     const msg = gelukt.length
       ? `✓ Voorstel verstuurd naar ${joinNL(gelukt.map(d => DOELGROEP_LABEL[d] || d))}`

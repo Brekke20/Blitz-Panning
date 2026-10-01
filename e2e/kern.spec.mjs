@@ -117,3 +117,98 @@ test.describe('kern: ui-delegatie', () => {
     expect(restoredTheme).toBe(originalTheme);
   });
 });
+
+// ── kern: renders ─────────────────────────────────────────────────────────────
+// Telt hoe vaak de vier hoofdschermen hertekend worden. De aantallen leggen het gedrag vast: de
+// koppeling aan de toestand (koppelRenders) mag ze niet verhogen. Een renderlus zou bovendien
+// 'toestand: renderlus afgebroken' op de console zetten, wat de vangnetcontrole laat falen.
+const RENDERS = ['renderKalender', 'renderTickets', 'renderGepland', 'renderRouteList'];
+
+async function installeerTellers(page) {
+  await page.evaluate((namen) => {
+    window.__n = {};
+    for (const naam of namen) {
+      const oud = window[naam];
+      window.__n[naam] = 0;
+      window[naam] = (...a) => { window.__n[naam]++; return oud(...a); };
+    }
+  }, RENDERS);
+}
+const nulTellers = (page) => page.evaluate(() => { for (const k of Object.keys(window.__n)) window.__n[k] = 0; });
+const tellers = (page) => page.evaluate(() => ({ ...window.__n }));
+
+test.describe('kern: renders', () => {
+  test('technieker wisselen: elke hoofdrender precies 1 keer', async ({ page }) => {
+    await startApp(page, { rol: 'coordinator' });
+    await installeerTellers(page);
+    await page.locator('#person-btn').click();
+    await page.locator('#person-menu .pm-item', { hasText: 'Tim' }).click();
+    await expect(page.locator('#cnt-tickets')).toHaveText('2');
+    await expect.poll(() => tellers(page)).toEqual({ renderKalender: 1, renderTickets: 1, renderGepland: 1, renderRouteList: 1 });
+    // Blijft stabiel: geen late extra renders.
+    await page.waitForFunction(() => new Promise(r => setTimeout(() => r(true), 100)));
+    expect(await tellers(page)).toEqual({ renderKalender: 1, renderTickets: 1, renderGepland: 1, renderRouteList: 1 });
+  });
+
+  test('Vernieuwen: elke hoofdrender precies 1 keer', async ({ page }) => {
+    await startApp(page, { rol: 'coordinator' });
+    await installeerTellers(page);
+    await page.locator('button[data-actie="vernieuw"]').click();
+    await expect(page.locator('#toast')).toContainText('Testmodus actief');
+    await expect.poll(() => tellers(page)).toEqual({ renderKalender: 1, renderTickets: 1, renderGepland: 1, renderRouteList: 1 });
+    await page.waitForFunction(() => new Promise(r => setTimeout(() => r(true), 100)));
+    expect(await tellers(page)).toEqual({ renderKalender: 1, renderTickets: 1, renderGepland: 1, renderRouteList: 1 });
+  });
+
+  test('eigen afspraak toevoegen: kalender 1 keer, wachtrij niet', async ({ page }) => {
+    await startApp(page, { rol: 'coordinator' });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await installeerTellers(page);
+    await page.getByRole('button', { name: '➕ Afspraak' }).click();
+    const modal = page.locator('#manueel-overlay');
+    await expect(modal).toHaveClass(/open/);
+    await modal.getByLabel('Titel *').fill('Teltest');
+    await modal.getByLabel('Datum *').fill('2026-10-06');
+    await modal.getByLabel('Van *').fill('10:00');
+    await modal.getByLabel('Tot *').fill('11:00');
+    await nulTellers(page);
+    await modal.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.locator('#toast')).toContainText('Afspraak opgeslagen');
+    expect(await tellers(page)).toEqual({ renderKalender: 1, renderTickets: 0, renderGepland: 0, renderRouteList: 0 });
+  });
+
+  test('onbekende opgeslagen technieker valt terug op Alle zonder renderlus', async ({ page }) => {
+    await startApp(page, { rol: 'coordinator' });
+    await page.evaluate(() => localStorage.setItem('blitz_active_person', 'Onbekend'));
+    await page.reload();
+    await expect(page.locator('#cnt-tickets')).toHaveText('3');
+    await expect(page.locator('#person-name-hdr')).toHaveText('Alle');
+    expect(await page.evaluate(() => localStorage.getItem('blitz_active_person'))).toBe('all');
+    expect(await page.evaluate(() => window.activeAssigneeFilter)).toBe('all');
+    await installeerTellers(page);
+    await page.waitForFunction(() => new Promise(r => setTimeout(() => r(true), 150)));
+    // Na het opstarten blijft de app rustig: geen doorlopende renders.
+    expect(await tellers(page)).toEqual({ renderKalender: 0, renderTickets: 0, renderGepland: 0, renderRouteList: 0 });
+  });
+
+  test('inplannen en terugzetten: geen verouderd scherm, renders blijven eindig', async ({ page }) => {
+    await startApp(page, { rol: 'coordinator' });
+    const id = await page.evaluate(() => allTickets[0].id);
+    await installeerTellers(page);
+
+    await page.evaluate(([id]) => addTicketToDate(id, '2026-10-06'), [id]);
+    await expect(page.locator('#cnt-tickets')).toHaveText('2');
+    await expect(page.locator('#ticket-list .ticket')).toHaveCount(2);
+    // wachtrij en kalender: optimistische render + render na de toewijzing; route: alleen na de toewijzing
+    await expect.poll(() => tellers(page)).toEqual({ renderKalender: 2, renderTickets: 2, renderGepland: 0, renderRouteList: 1 });
+
+    await nulTellers(page);
+    await page.evaluate(([id]) => removeTicketFromDate(id, '2026-10-06'), [id]);
+    await expect(page.locator('#cnt-tickets')).toHaveText('3');
+    await expect(page.locator('#ticket-list .ticket')).toHaveCount(3);
+    await page.waitForFunction(() => new Promise(r => setTimeout(() => r(true), 100)));
+    // zoals voorheen 2x wachtrij/kalender en 1x ingepland; de route krijgt na de optimistische render nu ook
+    // de render van het abonnement (allTickets/allPending/allGepland wijzigden): 2 i.p.v. 1
+    expect(await tellers(page)).toEqual({ renderKalender: 2, renderTickets: 2, renderGepland: 1, renderRouteList: 2 });
+  });
+});
