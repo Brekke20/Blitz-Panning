@@ -10,6 +10,7 @@
 import chromium from '@sparticuz/chromium-min';
 import puppeteer from 'puppeteer-core';
 import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
+import { globaleFetch } from '../lib/zoho.js';
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
@@ -18,7 +19,7 @@ const CHROMIUM_URL  = 'https://github.com/Sparticuz/chromium/releases/download/v
 let cachedToken = null;
 let tokenExpiry  = 0;
 
-async function getAccessToken() {
+async function getAccessToken(fetch) {
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
   const params = new URLSearchParams({
     refresh_token: process.env.ZOHO_REFRESH_TOKEN,
@@ -42,7 +43,7 @@ function escHtml(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-async function getOrgId(token) {
+async function getOrgId(fetch, token) {
   const res  = await fetch(`${ZOHO_DESK}/organizations`, {
     headers: { Authorization: `Zoho-oauthtoken ${token}` },
   });
@@ -68,74 +69,10 @@ function buildRapportEmailHtml({ ticketNumber, naam }) {
   </table></td></tr></table></body></html>`;
 }
 
-export async function handler(event) {
-  const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
-  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers };
-  if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
-
+// PDF-naad (Z9): het blok hieronder is letterlijk verplaatst uit de handler.
+async function standaardPdf(html) {
   let browser;
   try {
-    const { ticketId, html, ticketNumber, preview } = JSON.parse(event.body || '{}');
-    if (!ticketId || !html) return { statusCode: 400, headers, body: JSON.stringify({ error: 'ticketId en html zijn verplicht' }) };
-    if (!/^\d+$/.test(String(ticketId))) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Ongeldig ticketId' }) };
-
-    // Testmodus: geen token, geen Zoho, geen PDF, geen mail -- meteen nep-succes. Het voorbeeld
-    // toont één testontvanger; de echte verzending meldt emailSent.contact = true.
-    if (isTestVerzoek(event)) {
-      const extra = preview
-        ? { preview: true, ontvangers: [{ doelgroep: 'contact', naam: 'Testcontact', email: 'test@example.invalid', html: buildRapportEmailHtml({ ticketNumber, naam: 'Testcontact' }) }] }
-        : { success: true, emailSent: { contact: true, klant: false, installateur: false }, fouten: [], statusUpdated: true, statusFout: null };
-      return { statusCode: 200, headers, body: JSON.stringify(nepZohoAntwoord(extra)) };
-    }
-
-    const token = await getAccessToken();
-    const orgId = await getOrgId(token);
-
-    const ticketRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, { headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId } });
-    const ticketData = await ticketRes.json().catch(() => ({}));
-    if (!ticketRes.ok) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Ticket niet gevonden' }) };
-    const cf = ticketData.cf || {};
-    const contactEmail      = ticketData.contact?.email || ticketData.contact?.emailId || ticketData.email || '';
-    const contactNaam       = ticketData.contact?.name || ticketData.contact?.fullName
-                             || (ticketData.contact?.firstName ? `${ticketData.contact.firstName} ${ticketData.contact.lastName || ''}`.trim() : '')
-                             || '';
-    const klantEmail        = cf.cf_e_mail_eindklant || '';
-    const klantNaam         = cf.cf_naam_eindklant       || '';
-    const installateurEmail = cf.cf_e_mail_installateur || '';
-    const installateurNaam  = cf.cf_partner_installateur || '';
-    const seenEmails = new Set();
-    const ontvangers = [
-      { doelgroep: 'contact',      email: contactEmail,      naam: contactNaam },
-      { doelgroep: 'klant',        email: klantEmail,        naam: klantNaam },
-      { doelgroep: 'installateur', email: installateurEmail, naam: installateurNaam },
-    ].filter(o => {
-      const key = o.email.toLowerCase();
-      if (!o.email || seenEmails.has(key)) return false;
-      seenEmails.add(key);
-      return true;
-    });
-    if (!ontvangers.length) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Geen gekend e-mailadres (klant of installateur) op dit ticket' }) };
-
-    // Voorbeeldmodus: dezelfde ticket-opzoeking en e-mail-opbouw als een echte verzending,
-    // maar zonder PDF te genereren of Zoho's upload/sendReply-endpoints aan te roepen -- dit
-    // garandeert dat het voorbeeld dat de gebruiker ziet exact is wat er bij een echte
-    // verzending verstuurd wordt (zelfde functie, zelfde data), niet een aparte kopie die
-    // uit sync kan lopen.
-    if (preview) {
-      return {
-        statusCode: 200, headers,
-        body: JSON.stringify({
-          preview: true,
-          ontvangers: ontvangers.map(o => ({
-            doelgroep: o.doelgroep,
-            naam:      o.naam,
-            email:     o.email,
-            html:      buildRapportEmailHtml({ ticketNumber, naam: o.naam }),
-          })),
-        }),
-      };
-    }
-
     const executablePath = await chromium.executablePath(CHROMIUM_URL);
     browser = await puppeteer.launch({ args: chromium.args, defaultViewport: chromium.defaultViewport, executablePath, headless: chromium.headless });
     const page = await browser.newPage();
@@ -144,83 +81,161 @@ export async function handler(event) {
     await page.setContent(html, { waitUntil: 'load' });
     const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '0mm', bottom: '12mm', left: '0mm', right: '0mm' } });
     await browser.close(); browser = null;
-
-    let fromEmailAddress = process.env.ZOHO_FROM_EMAIL || null;
-    if (!fromEmailAddress) {
-      const emailRes = await fetch(`${ZOHO_DESK}/emailAddresses?limit=50`, { headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId } });
-      const emailData = await emailRes.json();
-      fromEmailAddress = (emailData?.data || []).find(a => a.emailAddress?.includes('@'))?.emailAddress || null;
-      if (!fromEmailAddress) throw new Error('Geen from-emailadres gevonden in Zoho. Stel ZOHO_FROM_EMAIL in als Netlify env-var.');
-    }
-
-    // Een harde fout bij ontvanger 2 mag de al-verstuurde mail naar ontvanger 1 niet
-    // weggooien: per ontvanger de fout opvangen, opslaan in `fouten` en doorgaan met de
-    // volgende. De caller rapporteert op basis van emailSent, dus dit blijft een 200 --
-    // een 500 is voorbehouden aan fouten vóór deze lus (token/org/ticket/PDF).
-    const emailSent = { contact: false, klant: false, installateur: false };
-    const fouten    = [];
-    for (const { doelgroep, email, naam } of ontvangers) {
-      try {
-        const formData = new FormData();
-        formData.append('file', new Blob([pdfBuffer], { type: 'application/pdf' }), `service-rapport-${ticketNumber || ticketId}.pdf`);
-        const uploadRes = await fetch(`${ZOHO_DESK}/uploads`, { method: 'POST', headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId }, body: formData });
-        const uploadData = await uploadRes.json().catch(() => ({}));
-        if (!uploadRes.ok) throw new Error(`Zoho attachment-upload fout (${uploadRes.status}) voor ${doelgroep}: ${JSON.stringify(uploadData)}`);
-
-        const replyRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/sendReply`, {
-          method: 'POST',
-          headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            channel: 'EMAIL', contentType: 'html', content: buildRapportEmailHtml({ ticketNumber, naam }),
-            fromEmailAddress, to: email, attachmentIds: [uploadData.id],
-          }),
-        });
-        const replyText = await replyRes.text();
-        let replyData = {};
-        if (replyText) try { replyData = JSON.parse(replyText); } catch (_) {}
-        if (!replyRes.ok) {
-          if (!JSON.stringify(replyData).includes('Empty Recipients')) {
-            throw new Error(`Zoho sendReply fout (${replyRes.status}) naar ${doelgroep}: ${JSON.stringify(replyData)}`);
-          }
-          // soft fail: emailSent[doelgroep] blijft false, geen fout melden
-        } else {
-          emailSent[doelgroep] = true;
-        }
-      } catch (ontvangerErr) {
-        console.error(`Versturen naar ${doelgroep} mislukt:`, ontvangerErr.message);
-        fouten.push({ doelgroep, fout: ontvangerErr.message });
-      }
-    }
-
-    // Ticket-status -> Gesloten - ov, maar enkel als er effectief minstens één mail
-    // verstuurd is (anders zou een mislukte verzending het ticket toch al sluiten).
-    // PATCH komt na de verzend-lus, zelfde reden als in propose.js: Zoho past de status
-    // soms zelf aan na sendReply, dus de PATCH moet daarna komen om te garanderen dat de
-    // juiste status blijft staan. Een mislukte status-write mag de al-verstuurde mail(s)
-    // niet verbergen, dus dit blijft een 200 met statusFout in de body.
-    let statusUpdated = false;
-    let statusFout = null;
-    if (Object.values(emailSent).some(Boolean)) {
-      try {
-        const patchRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
-          method:  'PATCH',
-          headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId, 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ status: 'Gesloten - ov' }),
-        });
-        const patchText = await patchRes.text();
-        let patchData = {};
-        if (patchText) try { patchData = JSON.parse(patchText); } catch (_) {}
-        if (!patchRes.ok) throw new Error(`Zoho PATCH fout (${patchRes.status}): ${JSON.stringify(patchData)}`);
-        statusUpdated = true;
-      } catch (patchErr) {
-        console.error('Ticketstatus naar Gesloten - ov zetten mislukt:', patchErr.message);
-        statusFout = patchErr.message;
-      }
-    }
-
-    return { statusCode: 200, headers, body: JSON.stringify({ success: true, emailSent, fouten, statusUpdated, statusFout }) };
+    return pdfBuffer;
   } catch (err) {
     if (browser) await browser.close().catch(() => {});
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+    throw err;
   }
 }
+
+export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf } = {}) {
+  return async function handler(event) {
+    const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
+    if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers };
+    if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
+
+    try {
+      const { ticketId, html, ticketNumber, preview } = JSON.parse(event.body || '{}');
+      if (!ticketId || !html) return { statusCode: 400, headers, body: JSON.stringify({ error: 'ticketId en html zijn verplicht' }) };
+      if (!/^\d+$/.test(String(ticketId))) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Ongeldig ticketId' }) };
+
+      // Testmodus: geen token, geen Zoho, geen PDF, geen mail -- meteen nep-succes. Het voorbeeld
+      // toont één testontvanger; de echte verzending meldt emailSent.contact = true.
+      if (isTestVerzoek(event)) {
+        const extra = preview
+          ? { preview: true, ontvangers: [{ doelgroep: 'contact', naam: 'Testcontact', email: 'test@example.invalid', html: buildRapportEmailHtml({ ticketNumber, naam: 'Testcontact' }) }] }
+          : { success: true, emailSent: { contact: true, klant: false, installateur: false }, fouten: [], statusUpdated: true, statusFout: null };
+        return { statusCode: 200, headers, body: JSON.stringify(nepZohoAntwoord(extra)) };
+      }
+
+      const token = await getAccessToken(fetch);
+      const orgId = await getOrgId(fetch, token);
+
+      const ticketRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, { headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId } });
+      const ticketData = await ticketRes.json().catch(() => ({}));
+      if (!ticketRes.ok) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Ticket niet gevonden' }) };
+      const cf = ticketData.cf || {};
+      const contactEmail      = ticketData.contact?.email || ticketData.contact?.emailId || ticketData.email || '';
+      const contactNaam       = ticketData.contact?.name || ticketData.contact?.fullName
+                               || (ticketData.contact?.firstName ? `${ticketData.contact.firstName} ${ticketData.contact.lastName || ''}`.trim() : '')
+                               || '';
+      const klantEmail        = cf.cf_e_mail_eindklant || '';
+      const klantNaam         = cf.cf_naam_eindklant       || '';
+      const installateurEmail = cf.cf_e_mail_installateur || '';
+      const installateurNaam  = cf.cf_partner_installateur || '';
+      const seenEmails = new Set();
+      const ontvangers = [
+        { doelgroep: 'contact',      email: contactEmail,      naam: contactNaam },
+        { doelgroep: 'klant',        email: klantEmail,        naam: klantNaam },
+        { doelgroep: 'installateur', email: installateurEmail, naam: installateurNaam },
+      ].filter(o => {
+        const key = o.email.toLowerCase();
+        if (!o.email || seenEmails.has(key)) return false;
+        seenEmails.add(key);
+        return true;
+      });
+      if (!ontvangers.length) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Geen gekend e-mailadres (klant of installateur) op dit ticket' }) };
+
+      // Voorbeeldmodus: dezelfde ticket-opzoeking en e-mail-opbouw als een echte verzending,
+      // maar zonder PDF te genereren of Zoho's upload/sendReply-endpoints aan te roepen -- dit
+      // garandeert dat het voorbeeld dat de gebruiker ziet exact is wat er bij een echte
+      // verzending verstuurd wordt (zelfde functie, zelfde data), niet een aparte kopie die
+      // uit sync kan lopen.
+      if (preview) {
+        return {
+          statusCode: 200, headers,
+          body: JSON.stringify({
+            preview: true,
+            ontvangers: ontvangers.map(o => ({
+              doelgroep: o.doelgroep,
+              naam:      o.naam,
+              email:     o.email,
+              html:      buildRapportEmailHtml({ ticketNumber, naam: o.naam }),
+            })),
+          }),
+        };
+      }
+
+      const pdfBuffer = await maakPdf(html);
+
+      let fromEmailAddress = process.env.ZOHO_FROM_EMAIL || null;
+      if (!fromEmailAddress) {
+        const emailRes = await fetch(`${ZOHO_DESK}/emailAddresses?limit=50`, { headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId } });
+        const emailData = await emailRes.json();
+        fromEmailAddress = (emailData?.data || []).find(a => a.emailAddress?.includes('@'))?.emailAddress || null;
+        if (!fromEmailAddress) throw new Error('Geen from-emailadres gevonden in Zoho. Stel ZOHO_FROM_EMAIL in als Netlify env-var.');
+      }
+
+      // Een harde fout bij ontvanger 2 mag de al-verstuurde mail naar ontvanger 1 niet
+      // weggooien: per ontvanger de fout opvangen, opslaan in `fouten` en doorgaan met de
+      // volgende. De caller rapporteert op basis van emailSent, dus dit blijft een 200 --
+      // een 500 is voorbehouden aan fouten vóór deze lus (token/org/ticket/PDF).
+      const emailSent = { contact: false, klant: false, installateur: false };
+      const fouten    = [];
+      for (const { doelgroep, email, naam } of ontvangers) {
+        try {
+          const formData = new FormData();
+          formData.append('file', new Blob([pdfBuffer], { type: 'application/pdf' }), `service-rapport-${ticketNumber || ticketId}.pdf`);
+          const uploadRes = await fetch(`${ZOHO_DESK}/uploads`, { method: 'POST', headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId }, body: formData });
+          const uploadData = await uploadRes.json().catch(() => ({}));
+          if (!uploadRes.ok) throw new Error(`Zoho attachment-upload fout (${uploadRes.status}) voor ${doelgroep}: ${JSON.stringify(uploadData)}`);
+
+          const replyRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/sendReply`, {
+            method: 'POST',
+            headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              channel: 'EMAIL', contentType: 'html', content: buildRapportEmailHtml({ ticketNumber, naam }),
+              fromEmailAddress, to: email, attachmentIds: [uploadData.id],
+            }),
+          });
+          const replyText = await replyRes.text();
+          let replyData = {};
+          if (replyText) try { replyData = JSON.parse(replyText); } catch (_) {}
+          if (!replyRes.ok) {
+            if (!JSON.stringify(replyData).includes('Empty Recipients')) {
+              throw new Error(`Zoho sendReply fout (${replyRes.status}) naar ${doelgroep}: ${JSON.stringify(replyData)}`);
+            }
+            // soft fail: emailSent[doelgroep] blijft false, geen fout melden
+          } else {
+            emailSent[doelgroep] = true;
+          }
+        } catch (ontvangerErr) {
+          console.error(`Versturen naar ${doelgroep} mislukt:`, ontvangerErr.message);
+          fouten.push({ doelgroep, fout: ontvangerErr.message });
+        }
+      }
+
+      // Ticket-status -> Gesloten - ov, maar enkel als er effectief minstens één mail
+      // verstuurd is (anders zou een mislukte verzending het ticket toch al sluiten).
+      // PATCH komt na de verzend-lus, zelfde reden als in propose.js: Zoho past de status
+      // soms zelf aan na sendReply, dus de PATCH moet daarna komen om te garanderen dat de
+      // juiste status blijft staan. Een mislukte status-write mag de al-verstuurde mail(s)
+      // niet verbergen, dus dit blijft een 200 met statusFout in de body.
+      let statusUpdated = false;
+      let statusFout = null;
+      if (Object.values(emailSent).some(Boolean)) {
+        try {
+          const patchRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
+            method:  'PATCH',
+            headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId, 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ status: 'Gesloten - ov' }),
+          });
+          const patchText = await patchRes.text();
+          let patchData = {};
+          if (patchText) try { patchData = JSON.parse(patchText); } catch (_) {}
+          if (!patchRes.ok) throw new Error(`Zoho PATCH fout (${patchRes.status}): ${JSON.stringify(patchData)}`);
+          statusUpdated = true;
+        } catch (patchErr) {
+          console.error('Ticketstatus naar Gesloten - ov zetten mislukt:', patchErr.message);
+          statusFout = patchErr.message;
+        }
+      }
+
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true, emailSent, fouten, statusUpdated, statusFout }) };
+    } catch (err) {
+      return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+    }
+  };
+}
+
+export const handler = maakHandler();
