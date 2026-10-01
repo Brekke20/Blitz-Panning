@@ -63,19 +63,19 @@
   </div>
   <div id="test-badge">TEST</div>
   <div class="person-sel" id="person-sel">
-    <button class="person-btn" id="person-btn" onclick="togglePersonMenu()" aria-haspopup="menu" aria-expanded="false">
+    <button class="person-btn" id="person-btn" data-actie="persoon-menu" aria-haspopup="menu" aria-expanded="false">
       <div class="person-avatar" id="person-avatar-hdr">A</div>
       <span id="person-name-hdr">Alle</span>
       <span class="person-chevron">▾</span>
     </button>
     <div class="person-menu" id="person-menu"></div>
   </div>
-  <button class="hbtn" onclick="loadTickets()" title="Vernieuwen" aria-label="Vernieuwen">↺</button>
-  <button class="hbtn hbtn-theme" onclick="toggleTheme()" title="Wissel licht/donker" aria-label="Wissel licht/donker">
+  <button class="hbtn" data-actie="vernieuw" title="Vernieuwen" aria-label="Vernieuwen">↺</button>
+  <button class="hbtn hbtn-theme" data-actie="thema" title="Wissel licht/donker" aria-label="Wissel licht/donker">
     <span class="theme-icon-dark" aria-hidden="true">🌙</span>
     <span class="theme-icon-light" aria-hidden="true">☀️</span>
   </button>
-  <button class="hbtn" onclick="openSettings()" title="Instellingen" aria-label="Instellingen">⚙</button>
+  <button class="hbtn" data-actie="instellingen" title="Instellingen" aria-label="Instellingen">⚙</button>
 </header>
 
 <nav aria-label="Hoofdmenu">
@@ -122,11 +122,11 @@
 <div class="view" id="view-kalender" role="tabpanel" aria-labelledby="tab-kalender">
   <div class="kal-header">
     <div class="kal-nav-group">
-      <button class="kal-nav" onclick="kalNav(-1)" aria-label="Vorige periode" title="Vorige periode">‹</button>
+      <button class="kal-nav" data-actie="kal-nav" data-arg="-1" aria-label="Vorige periode" title="Vorige periode">‹</button>
       <div class="kal-label-wrap">
-        <button class="kal-week-label" id="kal-label" onclick="kalToday()" title="Naar vandaag"><span class="kal-lbl-tekst" id="kal-label-tekst">—</span><span class="kal-lbl-vandaag" aria-hidden="true">↺ Vandaag</span></button>
+        <button class="kal-week-label" id="kal-label" data-actie="kal-vandaag" title="Naar vandaag"><span class="kal-lbl-tekst" id="kal-label-tekst">—</span><span class="kal-lbl-vandaag" aria-hidden="true">↺ Vandaag</span></button>
       </div>
-      <button class="kal-nav" onclick="kalNav(1)" aria-label="Volgende periode" title="Volgende periode">›</button>
+      <button class="kal-nav" data-actie="kal-nav" data-arg="1" aria-label="Volgende periode" title="Volgende periode">›</button>
     </div>
     <div class="kal-view-toggle">
       <button class="kal-view-btn active" id="kal-view-week" aria-pressed="true" onclick="setKalView('week')">Week</button>
@@ -651,9 +651,7 @@
 // ══════════════════════════════════════════════
 const TEST_MODE = new URLSearchParams(window.location.search).has('test');
 
-function escHtml(str) {
-  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
+// escHtml verhuist naar kern/ui.js
 
 // Vertaalt de ruwe Zoho-prioriteitswaarde (high/medium/low, wisselende hoofdletter) naar de
 // Nederlandse UI-tekst. Dezelfde vertaling als excel-export.js's PRIO_NL (UX-ronde 2026-09-22,
@@ -905,6 +903,16 @@ if (!localStorage.getItem('blitz_mig_startloc_v1')) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Delegatie voor pilot-knoppen (kern-ui)
+  kern.ui.registreerActies(document.body, {
+    'persoon-menu': () => togglePersonMenu(),
+    'vernieuw': () => loadTickets(),
+    'thema': () => toggleTheme(),
+    'instellingen': () => openSettings(),
+    'kal-nav': (el, e, arg) => kalNav(Number(arg)),
+    'kal-vandaag': () => kalToday()
+  });
+
   // Thema initialiseren (fallback als inline-script niet gelopen heeft)
   if (!document.documentElement.getAttribute('data-theme')) {
     document.documentElement.setAttribute('data-theme', localStorage.getItem('blitz_theme') || 'dark');
@@ -6910,19 +6918,7 @@ async function saveToewijzen(ticketId) {
   }
 }
 
-let toastTimer;
-function toast(msg, ms) {
-  const el = document.getElementById('toast');
-  // Standaard 4 s; foutmeldingen minstens 7 s. Een meegegeven duur mag enkel verlengen.
-  const tekst = String(msg ?? '');
-  const isFout = /^\s*(⚠|✕)/.test(tekst) || /mislukt|fout/i.test(tekst);
-  const standaard = isFout ? 7000 : 4000;
-  const duur = Math.max(ms || 0, standaard);
-  el.textContent = tekst;
-  el.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), duur);
-}
+// toast en toastTimer verhuizen naar kern/ui.js
 
 // ══════════════════════════════════════════════
 // AANKOMST REGISTRATIE

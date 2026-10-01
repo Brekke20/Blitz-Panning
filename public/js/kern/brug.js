@@ -2,8 +2,9 @@
 // (staat in index.html vóór app-dialog.js); modules draaien na het parsen, vóór DOMContentLoaded,
 // dus enkel code binnen functies/handlers van het klassieke script mag deze namen gebruiken.
 import * as tijd from './tijd.js';
+import * as ui from './ui.js';
 
-window.kern = { tijd };
+window.kern = { tijd, ui };
 
 // LEGACY-BRUG (verdwijnt in etappe 5): oude globale namen voor klassieke code en oudere modules
 Object.assign(window, {
@@ -16,4 +17,6 @@ Object.assign(window, {
   fmtDate: tijd.fmtDate,
   fmtDateShort: tijd.fmtDateShort,
   fmtSec: tijd.fmtSec,
+  escHtml: ui.escHtml,
+  toast: ui.toast,
 });
