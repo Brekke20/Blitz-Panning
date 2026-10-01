@@ -248,7 +248,7 @@ export async function startApp(page, { rol = 'coordinator', technieker = 'all', 
     // Sandboxed iframes (bv. #annuleer-frame) hebben geen localStorage: enkel in het hoofdvenster.
     if (window !== window.top) return;
     const zet = (k, v) => { if (localStorage.getItem(k) === null) localStorage.setItem(k, v); };
-    zet('blitz_rol', rol);
+    if (rol !== null) zet('blitz_rol', rol); // rol: null = nog nooit gekozen (tablet-vraag)
     zet('blitz_active_person', technieker);
     zet('blitz_theme', 'dark');
   }, { rol, technieker });
