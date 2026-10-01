@@ -82,10 +82,31 @@ export async function startAppProductie(page, { rol = 'coordinator', technieker 
 //   z.opnames.plan -> [{ methode, body, query }];  z.zetAntwoord('plan', { status: 500, json: {...} })
 // `antwoord` is een { status, json } of een functie ({ methode, body, query, pad }) => { status, json }.
 export const ZOHO_EINDPUNTEN = ['plan', 'plan-datum', 'propose', 'voorstel-status', 'annuleer', 'optimize'];
-export function zohoStubs() {
+// Redenen van netlify/lib/annulatie.js (REDENEN, zonder klantzin); dit bestand mag geen netlify/-code importeren.
+const ANNULEER_REDENEN = [
+  { code: 'ziek', label: 'Technieker ziek of onbeschikbaar' },
+  { code: 'onderdelen', label: 'Onderdelen niet op tijd geleverd' },
+  { code: 'klant', label: 'Klant vroeg om te verzetten' },
+  { code: 'weer', label: 'Weersomstandigheden' },
+  { code: 'fout', label: 'Dubbele of foute planning' },
+  { code: 'andere', label: 'Andere' },
+];
+const TIJDSLOT_RE = /^([01]\d|2[0-3]):[0-5]\d–([01]\d|2[0-3]):[0-5]\d$/;
+const DATUM_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Opties: `register` = beginstand van het voorstelregister ({ versie, status }); het register is stateful en
+// volgt netlify/lib/voorstelregister.js (versiecontrole met 409 + serverVersie, reset, tijdslot enkel als geldig,
+// DELETE ?ticketId=). Een geslaagde echte annulering wist het register zoals annuleer.js (wisVoorstel).
+// Bewust NIET nagebootst: de numerieke ticketId-validatie van de echte functies (de fixtures gebruiken 'p1').
+//   z.register()            -> huidige stand van het register (kopie)
+//   z.forceerConflicten(n)  -> de volgende n POST /api/voorstel-status geven 409 (en het register schuift één versie op)
+export function zohoStubs({ register } = {}) {
   const opnames = {};
   const antwoorden = {};
   const overschrijf = {};
+  let reg = structuredClone(register ?? { versie: 0, status: {} });
+  let conflicten = 0;
+  const conflict409 = () => ({ status: 409, json: { error: 'Register ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: reg.versie } });
   for (const naam of ZOHO_EINDPUNTEN) {
     opnames[naam] = [];
     antwoorden[naam] = standaardStub(naam); // elke oproep van standaardStub geeft een verse, stateful stub
@@ -93,6 +114,49 @@ export function zohoStubs() {
     // plan-datum -> { ok, interventieDatum }.
     if (naam === 'plan') antwoorden[naam] = ({ body }) => ({ status: 200, json: { success: true, ticketId: body?.ticketId, date: body?.date ?? null } });
     if (naam === 'plan-datum') antwoorden[naam] = ({ body }) => ({ status: 200, json: { ok: true, interventieDatum: body?.utcInterventieDatum } });
+    // propose.js: succes -> { success, ticketId, interventieDatum, appointmentTime, emailSent, fouten, ontvangers }.
+    // Standaard: één ontvanger (contact) die de mail kreeg; tests zetten een eigen antwoord voor andere gevallen.
+    if (naam === 'propose') {
+      antwoorden[naam] = ({ body }) => ({
+        status: 200,
+        json: {
+          success: true, ticketId: body?.ticketId, interventieDatum: body?.utcInterventieDatum, appointmentTime: body?.time,
+          emailSent: { contact: true, klant: false, installateur: false }, fouten: [], ontvangers: ['contact'],
+        },
+      });
+    }
+    // voorstel-status.js + lib/voorstelregister.js.
+    if (naam === 'voorstel-status') {
+      antwoorden[naam] = ({ methode, body, query }) => {
+        if (methode === 'GET') return { status: 200, json: structuredClone(reg) };
+        if (methode === 'DELETE') {
+          const status = { ...reg.status };
+          delete status[query.get('ticketId')];
+          reg = { versie: reg.versie + 1, status };
+          return { status: 200, json: { ok: true, versie: reg.versie } };
+        }
+        if (conflicten > 0) { conflicten--; reg = { ...reg, versie: reg.versie + 1 }; return conflict409(); }
+        if (typeof body?.versie === 'number' && body.versie !== reg.versie) return conflict409();
+        const slot = (typeof body.tijdslot === 'string' && TIJDSLOT_RE.test(body.tijdslot) && typeof body.tijdslotDatum === 'string' && DATUM_RE.test(body.tijdslotDatum))
+          ? { tijdslot: body.tijdslot, tijdslotDatum: body.tijdslotDatum } : {};
+        const entry = body.reset === true ? {} : { ...(reg.status[body.ticketId] || {}) };
+        for (const d of body.doelgroepen) entry[d] = body.tijdstip;
+        Object.assign(entry, slot);
+        reg = { versie: reg.versie + 1, status: { ...reg.status, [body.ticketId]: entry } };
+        return { status: 200, json: { ok: true, versie: reg.versie } };
+      };
+    }
+    // annuleer.js: GET -> { redenen }, POST { voorbeeld: true } -> { html }, POST echt -> { ok, emailSent, fouten }.
+    if (naam === 'annuleer') {
+      antwoorden[naam] = ({ methode, body }) => {
+        if (methode === 'GET') return { status: 200, json: { redenen: structuredClone(ANNULEER_REDENEN) } };
+        if (body?.voorbeeld === true) return { status: 200, json: { html: '<html><head></head><body><p>Nep-voorbeeld van de annulatiemail</p></body></html>' } };
+        const status = { ...reg.status };
+        delete status[body?.ticketId];
+        reg = { versie: reg.versie + 1, status };
+        return { status: 200, json: { ok: true, emailSent: { contact: body?.mailKlant === true, klant: false, installateur: false }, fouten: [] } };
+      };
+    }
     overschrijf[naam] = async (arg) => {
       opnames[naam].push({ methode: arg.methode, body: arg.body, query: Object.fromEntries(arg.query) });
       const a = antwoorden[naam];
@@ -102,6 +166,8 @@ export function zohoStubs() {
   return {
     overschrijf,
     opnames,
+    register: () => structuredClone(reg),
+    forceerConflicten(n) { conflicten = n; },
     zetAntwoord(naam, antwoord) {
       if (!(naam in antwoorden)) throw new Error(`geen Zoho-stub met naam ${naam}`);
       antwoorden[naam] = antwoord;

@@ -412,7 +412,7 @@ test.describe('📅 toewijzen (saveToewijzen)', () => {
     await expect(async () => {
       await kaart.getByRole('button', { name: '📅 Toewijzen' }).click();
       await expect(kaart.locator('.t-assign-row')).toBeVisible({ timeout: 1000 });
-    }).toPass();
+    }).toPass({ timeout: 5000 });
     return kaart;
   }
 
