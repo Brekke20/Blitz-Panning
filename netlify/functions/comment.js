@@ -3,91 +3,42 @@
 // POST body: { ticketId, content }
 
 import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
+import { maakZoho } from '../lib/zoho.js';
+import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
 
-const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
-const ZOHO_DESK = 'https://desk.zoho.eu/api/v1';
-
-let cachedToken = null;
-let tokenExpiry = 0;
-
-async function getAccessToken() {
-  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-  const params = new URLSearchParams({
-    refresh_token: process.env.ZOHO_REFRESH_TOKEN,
-    client_id:     process.env.ZOHO_CLIENT_ID,
-    client_secret: process.env.ZOHO_CLIENT_SECRET,
-    grant_type:    'refresh_token',
-  });
-  const res = await fetch(ZOHO_ACCOUNTS, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params,
-  });
-  const data = await res.json();
-  if (!data.access_token) throw new Error('Token refresh mislukt: ' + JSON.stringify(data));
-  cachedToken = data.access_token;
-  tokenExpiry = Date.now() + 55 * 60 * 1000;
-  return cachedToken;
-}
+// Instantie op moduleniveau: de tokencache (55 min) leeft zolang de functie warm is.
+const zoho = maakZoho({ orgFoutTekst: 'Could not find Zoho Desk org ID' });
 
 export async function handler(event) {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-  };
-
-  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers };
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
-  }
+  const methode = v1Methode(event, ['POST'], CORS_V1);
+  if (methode) return methode;
 
   try {
     const { ticketId, content } = JSON.parse(event.body || '{}');
     if (!ticketId || !content?.trim()) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'ticketId and content required' }) };
+      return v1Json(400, { error: 'ticketId and content required' }, CORS_V1);
     }
     if (!/^\d+$/.test(String(ticketId))) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid ticketId' }) };
+      return v1Json(400, { error: 'Invalid ticketId' }, CORS_V1);
     }
 
     // Testmodus: nooit naar Zoho schrijven, meteen nep-succes
     if (isTestVerzoek(event)) {
-      return { statusCode: 200, headers, body: JSON.stringify(nepZohoAntwoord({ success: true })) };
+      return v1Json(200, nepZohoAntwoord({ success: true }), CORS_V1);
     }
 
-    const accessToken = await getAccessToken();
-
-    const orgRes = await fetch(`${ZOHO_DESK}/organizations`, {
-      headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-    });
-    const orgData = await orgRes.json();
-    const orgId = orgData.data?.[0]?.id;
-    if (!orgId) throw new Error('Could not find Zoho Desk org ID');
+    const { token, orgId } = await zoho.haalToegang();
 
     // PATCH the resolution field on the ticket
-    const patchRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Zoho-oauthtoken ${accessToken}`,
-        orgId,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ resolution: content.trim() }),
+    const patchRes = await zoho.verzoek(`/tickets/${ticketId}`, {
+      token, orgId, methode: 'PATCH', json: { resolution: content.trim() },
     });
 
     const patchData = await patchRes.json();
     if (!patchRes.ok) throw new Error(JSON.stringify(patchData));
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ success: true }),
-    };
+    return v1Json(200, { success: true }, CORS_V1);
   } catch (err) {
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: err.message }),
-    };
+    return v1Json(500, { error: err.message }, CORS_V1);
   }
 }
