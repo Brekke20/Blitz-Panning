@@ -123,7 +123,10 @@ test.describe('kern: ui-delegatie', () => {
 // Telt hoe vaak de vier hoofdschermen hertekend worden. De aantallen leggen het gedrag vast: de
 // koppeling aan de toestand (koppelRenders) mag ze niet verhogen. Een renderlus zou bovendien
 // 'toestand: renderlus afgebroken' op de console zetten, wat de vangnetcontrole laat falen.
-const RENDERS = ['renderKalender', 'renderTickets', 'renderGepland', 'renderRouteList'];
+// De drie eerste worden omwikkeld op `window`; de route-lijst staat in een module (R10), waarvan interne oproepen een
+// omwikkeling omzeilen: die teller komt uit kern.route.renderTelling().
+const WINDOW_RENDERS = ['renderKalender', 'renderTickets', 'renderGepland'];
+const RENDERS = [...WINDOW_RENDERS, 'renderRouteList'];
 
 async function installeerTellers(page) {
   await page.evaluate((namen) => {
@@ -133,9 +136,9 @@ async function installeerTellers(page) {
       window.__n[naam] = 0;
       window[naam] = (...a) => { window.__n[naam]++; return oud(...a); };
     }
-  }, RENDERS);
+  }, WINDOW_RENDERS);
 }
-const tellers = (page) => page.evaluate(() => ({ ...window.__n }));
+const tellers = (page) => page.evaluate(() => ({ ...window.__n, renderRouteList: kern.route.renderTelling() }));
 // Wacht tot de pagina rustig is: twee animatieframes en daarna een macrotaak (MessageChannel). Alle verwittigingen
 // van de toestand lopen via microtasks, dus alles wat na de actie nog in de pijplijn zat, is dan afgehandeld.
 const rust = (page) => page.evaluate(() => new Promise((klaar) => {
@@ -216,7 +219,7 @@ test.describe('kern: renders', () => {
           window[naam] = (...a) => { window.__n[naam]++; return oud(...a); };
         }
       });
-    }, { namen: RENDERS });
+    }, { namen: WINDOW_RENDERS });
     await startApp(page, { rol: 'coordinator', technieker: 'all' });
     await expect(page.locator('#cnt-tickets')).toHaveText('3');
     await expect(page.locator('#person-name-hdr')).toHaveText('Alle');

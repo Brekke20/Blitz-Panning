@@ -42,7 +42,7 @@ export function berekenAankomsten(allStops, legs, { vanTijd, duurVoor, werktijdM
 }
 
 // Aankomstminuten per ticket ({ [ticketId]: min }); lokale afspraken tellen niet mee.
-// Vervangt de lus uit computeArrivalTimes().
+// Vervangt de lus uit computeArrivalTimes() (nu aankomstTijdenVoorDag() in route.js).
 export function aankomstPerTicket(allStops, arrivalTimes) {
   const result = {};
   allStops.forEach((entry, i) => {

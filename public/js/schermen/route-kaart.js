@@ -7,8 +7,9 @@ import { toast, escHtml } from '../kern/ui.js';
 import { drukteMagnitude } from './route-tijden.js';
 
 // Afhankelijkheden uit het klassieke script (ingevuld door initKaart).
-let instellingen = () => ({});
-let bewaarKaartStijl = () => {};
+const nietGeinitialiseerd = () => { throw new Error('route-kaart: initKaart() is niet aangeroepen'); };
+let instellingen = nietGeinitialiseerd;
+let bewaarKaartStijl = nietGeinitialiseerd;
 let standaardRouteKleur = '#f59e0b';
 export function initKaart(afh) {
   instellingen = afh.instellingen;
@@ -337,7 +338,6 @@ export function updateKaart({ date, allStops, routeData, currentRouteDate }) {
   if (pts.length && !(routeData?.polyline?.length && currentRouteDate === date))
     leafletMap.fitBounds(L.latLngBounds(pts), { padding:[40,40] });
 }
-export function heeftKaart() { return !!(leafletMap && routeLayer); }
 export function invalideerKaartGrootte() { leafletMap?.invalidateSize(); }
 
 // Kaartdeel van wisRouteWeergave(): laag leegmaken en de legende weghalen.
@@ -359,7 +359,7 @@ export function herstelWegafsluitingToast() { wegafsluitingToastGetoond = false;
 // blijft gewoon opnieuw gebeuren op de definitieve polylijn zodra de route binnen is; overlappen
 // de bounds al (het normale geval bij een cache-hit), dan is er visueel geen tweede sprong.
 // `routeActueel`: er staat al een berekende route voor deze dag (dan niet opnieuw inzoomen).
-export function zoomOpGekendeStops(date, stops, localForDate, routeActueel) {
+export function zoomOpGekendeStops(stops, localForDate, routeActueel) {
   if (!leafletMap || routeActueel) return;
   const pts = [
     ...stops.filter(p => p._lat).map(p => [p._lat, p._lon]),

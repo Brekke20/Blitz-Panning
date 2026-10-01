@@ -144,7 +144,7 @@ test.describe('getoonde aankomsttijden', () => {
     await planWeekZonderRoute(page);
 
     // Zonder berekende route. Gemeten: de datum staat standaard op vandaag (5 okt) en het tijdstip op
-    // 09:00: #1005 staat niet in planning[datum], dus computeArrivalTimes heeft geen aankomst voor dit
+    // 09:00: #1005 staat niet in planning[datum], dus aankomstTijdenVoorDag heeft geen aankomst voor dit
     // ticket en de terugvalwaarde 09:00 blijft staan.
     let kaart = await openToewijzenRij(page);
     await expect(kaart.getByLabel('Datum toewijzen')).toHaveValue('2026-10-05');

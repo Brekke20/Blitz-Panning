@@ -8,9 +8,10 @@ import * as api from './api.js';
 import { toestand, SLEUTELS } from './toestand.js';
 import * as routeTijden from '../schermen/route-tijden.js';
 import * as routeKaart from '../schermen/route-kaart.js';
+import * as route from '../schermen/route.js';
 
 window.kern = { tijd, ui, selecties, toestand, api };
-window.kern.route = { ...routeTijden, ...routeKaart };
+window.kern.route = { ...routeTijden, ...routeKaart, ...route };
 
 // LEGACY-BRUG (verdwijnt in etappe 5): oude globale namen voor klassieke code en oudere modules
 Object.assign(window, {
@@ -27,6 +28,13 @@ Object.assign(window, {
   toast: ui.toast,
   initMap: routeKaart.initMap,
   applyKaartStijl: routeKaart.applyKaartStijl,
+  renderRouteList: route.renderRouteList,
+  updateRouteBtns: route.updateRouteBtns,
+  onDateChange: route.onDateChange,
+  calculateRoute: route.calculateRoute,
+  clearDay: route.clearDay,
+  updateMap: route.updateMap,
+  computeArrivalTimes: route.aankomstTijdenVoorDag,
 });
 
 // Toestandssleutels als globale namen: lezen/schrijven gaat via de toestand (toewijzing verwittigt, in-place niet: raak()).

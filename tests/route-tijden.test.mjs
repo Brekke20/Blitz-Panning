@@ -129,4 +129,6 @@ test('drukteMagnitude: klassen op de drempels 1,03 / 1,10 / 1,25', () => {
   assert.equal(drukteMagnitude(1.03), 1);
   assert.equal(drukteMagnitude(1.02), 0);
   assert.equal(drukteMagnitude(1.2499), 2); // net onder de drempel
+  assert.equal(drukteMagnitude(0), 0);      // geen/ontbrekend signaal
+  assert.equal(drukteMagnitude(2), 3);      // ruim boven de hoogste drempel
 });
