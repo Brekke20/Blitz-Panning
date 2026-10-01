@@ -1,13 +1,12 @@
 // Karakterisering van propose (etappe 6, taak 6). W11-gevoelig: verstuurt klantmails en schrijft
 // de Zoho-status. Elke test controleert de VOLLEDIGE lijst uitgaande aanroepen (methode, url,
-// headers, body) en het volledige antwoord. De mail-HTML wordt in deze test onafhankelijk
-// opgebouwd (verbatim kopie van het sjabloon) en de bevestigingslink met node:crypto ondertekend.
+// headers, body) en het volledige antwoord. De mail-HTML staat als '<mail>' in die lijst en wordt apart
+// gecontroleerd: één goudkopie (tests/fixtures/propose-mail-contact.html) plus letterlijke fragmenten.
 // Nooit echte netwerkaanroepen of mails.
 process.env.TZ = 'Europe/Brussels';
 import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import crypto from 'node:crypto';
 import { maakNepFetch, metGlobaleFetch, laadVers, v1Event, zetEnv } from './nep-fetch.mjs';
 
 const NU = Date.parse('2026-10-01T10:00:00.000Z');
@@ -33,9 +32,9 @@ const uploadCall = () => ({
   headers: { Authorization: 'Zoho-oauthtoken TOK', orgId: 'ORG1' },
   body: [['file', PDF_NAAM, 'application/pdf', PDF_GROOTTE]],
 });
-const replyCall = (to, content, attId, from = FROM) => ({
+const replyCall = (to, attId, from = FROM) => ({
   method: 'POST', url: `${DESK}/tickets/555/sendReply`, headers: JSON_HEADERS,
-  body: JSON.stringify({ channel: 'EMAIL', contentType: 'html', content, fromEmailAddress: from, to, attachmentIds: [attId] }),
+  body: JSON.stringify({ channel: 'EMAIL', contentType: 'html', content: '<mail>', fromEmailAddress: from, to, attachmentIds: [attId] }),
 });
 const patchCall = (utc = '2026-10-14T07:15:00.000Z') => ({
   method: 'PATCH', url: `${DESK}/tickets/555`, headers: JSON_HEADERS,
@@ -49,110 +48,34 @@ const uit = calls => calls.map(c => ({ method: c.method, url: c.url, headers: c.
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
 const kort = calls => calls.map(c => c.method + ' ' + c.url.replace(DESK, ''));
 
-// ---- onafhankelijke opbouw van de verwachte mail en link ----
-function escHtml(str) {
-  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function linkVoor(doelgroep, { ticketId = '555', date = '2026-10-14', basis = BASIS } = {}) {
-  const sig = crypto.createHmac('sha256', SECRET).update(`${ticketId}.${date}.${EXP}.${doelgroep}`).digest('hex');
-  return `${basis}/api/confirm-afspraak?ticketId=${ticketId}&date=${date}&exp=${EXP}&d=${doelgroep}&sig=${sig}`;
-}
-function verwachteMail({ recipientName, subject, formattedDate, appointmentTime, appointmentWindow, serienummer, confirmUrl }) {
-  // SVG: 2 diagonale afgeronde lijnen in Blitz-brandkleur #00dfa3
-  const bolt = `<svg width="20" height="30" viewBox="0 0 20 30" xmlns="http://www.w3.org/2000/svg">` +
-    `<line x1="15" y1="2" x2="3" y2="16" stroke="#00dfa3" stroke-width="4" stroke-linecap="round"/>` +
-    `<line x1="17" y1="14" x2="5" y2="28" stroke="#00dfa3" stroke-width="4" stroke-linecap="round"/>` +
-    `</svg>`;
+// ---- letterlijke verwachtingen voor de mail (geen kopie van het sjabloon) ----
+// Links zijn gegenereerd door de code van VOOR de migratie (b516635) met secret 'geheim-voor-test',
+// URL https://blitz.test en de bevroren klok (exp = 2026-10-15T10:00:00Z).
+const LINKS = {
+  contact: 'https://blitz.test/api/confirm-afspraak?ticketId=555&date=2026-10-14&exp=1792058400&d=contact&sig=337de2d3e8b9ae058dc60a8b78366314ed9a16b5c6287e7ae609565cd4cb6071',
+  klant: 'https://blitz.test/api/confirm-afspraak?ticketId=555&date=2026-10-14&exp=1792058400&d=klant&sig=68dc3651be680c086647e8557a4e9500f8075312df64c3c94a899c19d1391a89',
+  installateur: 'https://blitz.test/api/confirm-afspraak?ticketId=555&date=2026-10-14&exp=1792058400&d=installateur&sig=eb1d6ebe450e1072ad247cf558486c412bb78147816166071f16646723d6a265',
+};
+const GOUD = fs.readFileSync(new URL('./fixtures/propose-mail-contact.html', import.meta.url), 'utf8')
+  .split(String.fromCharCode(13, 10)).join(String.fromCharCode(10)); // autocrlf-veilig
 
-  const serial = serienummer
-    ? `<div style="font-size:12px;color:#8a9aaa;margin-top:10px;border-top:1px solid #e8e8e8;padding-top:10px">Serienummer: ${escHtml(serienummer)}</div>`
-    : '';
-
-  // Fix 1 (finale review): confirmUrl kan null zijn als de bevestigingslink niet gebouwd kon
-  // worden (bv. CONFIRM_LINK_SECRET nog niet gezet). De knop mag dan niet verschijnen, en de
-  // begeleidende tekst moet zonder de knop even goed kloppen (geen "klik op de knop hierboven"
-  // als er geen knop is).
-  const confirmButton = confirmUrl ? `<div style="text-align:center;margin:18px 0">
-      <a href="${confirmUrl}" style="display:inline-block;background:#00dfa3;color:#181e24;
-        text-decoration:none;font-weight:700;font-size:14px;padding:12px 28px;border-radius:6px">
-        ✅ Bevestig deze afspraak
-      </a>
-    </div>` : '';
-
-  const confirmParagraph = confirmUrl
-    ? `Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen, of
-      antwoord op deze e-mail. Komt het voorgestelde tijdstip u niet uit? Laat het ons dan weten via een
-      antwoord op deze e-mail, zodat we samen een alternatief zoeken. In bijlage vindt u onze
-      service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.`
-    : `Gelieve deze afspraak te bevestigen door op deze e-mail te antwoorden. Komt het voorgestelde
-      tijdstip u niet uit? Laat het ons dan ook weten, zodat we samen een alternatief zoeken. In
-      bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.`;
-
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f2f2f2;font-family:Arial,Helvetica,sans-serif">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2f2;padding:32px 0">
-<tr><td>
-<table width="600" align="center" cellpadding="0" cellspacing="0"
-  style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.10)">
-
-  <!-- Header -->
-  <tr><td style="background:#181e24;padding:26px 32px">
-    <table cellpadding="0" cellspacing="0">
-    <tr>
-      <td style="padding-right:12px;vertical-align:middle">${bolt}</td>
-      <td style="vertical-align:middle">
-        <span style="font-family:'Arial Black',Arial,sans-serif;font-size:24px;font-weight:900;letter-spacing:4px;color:#00dfa3">BLITZ</span>
-        <span style="display:block;font-size:9px;color:#5a6472;letter-spacing:3px;margin-top:1px">POWER</span>
-      </td>
-    </tr>
-    </table>
-  </td></tr>
-
-  <!-- Accent bar -->
-  <tr><td style="background:#00dfa3;height:3px;font-size:0;line-height:0">&nbsp;</td></tr>
-
-  <!-- Body -->
-  <tr><td style="padding:32px 36px 24px">
-    <p style="margin:0 0 16px;font-size:15px;color:#181e24">Geachte ${escHtml(recipientName) || 'klant'},</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#3a3a3a;line-height:1.65">
-      Wij plannen een servicebezoek voor: <strong style="color:#181e24">${escHtml(subject)}</strong>.
-    </p>
-
-    <!-- Afspraakbox -->
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px">
-    <tr><td style="background:#f7f7f7;border-left:4px solid #00dfa3;border-radius:0 4px 4px 0;padding:18px 22px">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#8a9aaa;margin-bottom:8px">Voorgestelde afspraak</div>
-      <div style="font-size:22px;font-weight:700;color:#181e24;margin-bottom:4px">${formattedDate}</div>
-      <div style="font-size:16px;color:#3a3a3a">tussen <strong>${escHtml(appointmentWindow || appointmentTime)}</strong> uur</div>
-      ${serial}
-    </td></tr>
-    </table>
-
-    ${confirmButton}
-
-    <p style="margin:0 0 16px;font-size:14px;color:#3a3a3a;line-height:1.65">
-      ${confirmParagraph}
-    </p>
-    <p style="margin:0;font-size:14px;color:#3a3a3a;line-height:1.65">
-      Met vriendelijke groeten,<br>
-      <strong style="color:#181e24">Team Blitz Power &mdash; Service &amp; Support</strong>
-    </p>
-  </td></tr>
-
-  <!-- Footer -->
-  <tr><td style="background:#f7f7f7;border-top:1px solid #e8e8e8;padding:18px 36px">
-    <p style="margin:0;font-size:11px;color:#8a9aaa;line-height:2">
-      <strong style="color:#3a3a3a">Blitz Power BV</strong><br>
-      Tel: <a href="tel:+3233616404" style="color:#8a9aaa;text-decoration:none">+32 3 36 16 404</a> (Service &amp; Support)<br>
-      <a href="https://blitzpower.com" style="color:#00dfa3;text-decoration:none">www.blitzpower.com</a>
-    </p>
-  </td></tr>
-
-</table>
-</td></tr>
-</table>
-</body></html>`;
+// Controleert de letterlijke inhoudsfragmenten van één mail.
+function controleerMail(mail, { naam = 'Jan Peeters', tijdslot = '09:00–12:00', serienummer = 'SN123', link, datum = 'woensdag 14 oktober 2026' } = {}) {
+  assert.ok(mail.includes(`Geachte ${naam},`), 'aanhef met naam');
+  assert.ok(mail.includes(datum), 'datum');
+  assert.ok(mail.includes(`tussen <strong>${tijdslot}</strong> uur`), 'tijdslot');
+  if (serienummer) assert.ok(mail.includes(`Serienummer: ${serienummer}</div>`), 'serienummer');
+  else assert.ok(!mail.includes('Serienummer'), 'geen serienummer');
+  assert.ok(mail.includes('Team Blitz Power &mdash; Service &amp; Support'), 'afzender');
+  assert.ok(mail.includes('+32 3 36 16 404') && mail.includes('www.blitzpower.com'), 'footer');
+  if (link) {
+    assert.ok(mail.includes(`<a href="${link}"`), 'bevestigingslink');
+    assert.ok(mail.includes('✅ Bevestig deze afspraak'), 'knop');
+    assert.ok(mail.includes('Klik op de knop hierboven'), 'tekst bij knop');
+  } else {
+    assert.ok(!mail.includes('Bevestig deze afspraak') && !mail.includes('/api/confirm-afspraak'), 'geen knop');
+    assert.ok(mail.includes('Gelieve deze afspraak te bevestigen door op deze e-mail te antwoorden.'), 'tekst zonder knop');
+  }
 }
 
 const BODY = {
@@ -160,12 +83,6 @@ const BODY = {
   subject: 'FW: Laadpaal defect', serienummer: 'SN123',
   utcInterventieDatum: '2026-10-14T07:15:00.000Z', appointmentWindow: '09:00–12:00',
 };
-const MAIL_STD = { recipientName: 'Jan Peeters', subject: 'Laadpaal defect', formattedDate: 'woensdag 14 oktober 2026',
-  appointmentTime: '09:15', appointmentWindow: '09:00–12:00', serienummer: 'SN123' };
-// `over` mag confirmUrl: null en appointmentWindow: undefined expliciet zetten.
-const mailVoor = (doelgroep, over = {}, linkOpt = {}) =>
-  verwachteMail({ ...MAIL_STD, confirmUrl: linkVoor(doelgroep, linkOpt), ...over });
-
 const TICKET3 = {
   contact: { email: 'contact@x.be' },
   cf: { cf_e_mail_eindklant: 'klant@x.be', cf_e_mail_installateur: 'inst@x.be' },
@@ -205,7 +122,15 @@ async function draai(event, opts = {}) {
   const { fn, calls } = maakNepFetch(opts.router || maakRouter(opts));
   const mod = await laadVers('propose');
   const res = await metGlobaleFetch(fn, () => mod.handler(event));
-  return { res, calls: uit(calls), mod, fn };
+  // De mail-HTML gaat naar r.mails; in r.calls staat daar '<mail>' (de rest van het verzoek blijft exact).
+  const mails = [];
+  const uitgaand = uit(calls).map(c => {
+    if (!c.url.endsWith('/sendReply')) return c;
+    const b = JSON.parse(c.body);
+    mails.push(b.content);
+    return { ...c, body: JSON.stringify({ ...b, content: '<mail>' }) };
+  });
+  return { res, calls: uitgaand, mails, mod, fn };
 }
 const post = (body, headers) => v1Event('POST', body, headers);
 const antw = res => ({ statusCode: res.statusCode, headers: res.headers, body: JSON.parse(res.body) });
@@ -289,12 +214,16 @@ test('propose: drie verschillende ontvangers: per ontvanger upload dan sendReply
   const r = await draai(post(BODY));
   assert.deepEqual(r.calls, [
     TOKEN_CALL, ORG_CALL, TICKET_CALL,
-    uploadCall(), replyCall('contact@x.be', mailVoor('contact'), 'ATT1'),
-    uploadCall(), replyCall('klant@x.be', mailVoor('klant'), 'ATT2'),
-    uploadCall(), replyCall('inst@x.be', mailVoor('installateur'), 'ATT3'),
+    uploadCall(), replyCall('contact@x.be', 'ATT1'),
+    uploadCall(), replyCall('klant@x.be', 'ATT2'),
+    uploadCall(), replyCall('inst@x.be', 'ATT3'),
     patchCall(),
   ]);
   assert.deepEqual(r.res, ok200());
+  assert.equal(r.mails.length, 3);
+  controleerMail(r.mails[0], { link: LINKS.contact });
+  controleerMail(r.mails[1], { link: LINKS.klant });
+  controleerMail(r.mails[2], { link: LINKS.installateur });
   // projectregel: sendReply vóór de status-PATCH
   const idxPatch = r.calls.findIndex(c => c.method === 'PATCH');
   const idxLaatsteReply = r.calls.map(c => c.url.endsWith('/sendReply')).lastIndexOf(true);
@@ -303,17 +232,11 @@ test('propose: drie verschillende ontvangers: per ontvanger upload dan sendReply
   assert.deepEqual(fouten.mock.calls, []);
 });
 
-test('propose: de mail bevat de tijdslotlabel, datumtekst en een per ontvanger ondertekende link', async () => {
-  const r = await draai(post(BODY));
-  const inhoud = r.calls.filter(c => c.url.endsWith('/sendReply')).map(c => JSON.parse(c.body).content);
-  assert.equal(inhoud.length, 3);
-  assert.ok(inhoud[0].includes('woensdag 14 oktober 2026'));
-  assert.ok(inhoud[0].includes('tussen <strong>09:00–12:00</strong> uur'));
-  assert.ok(inhoud[0].includes(`href="${BASIS}/api/confirm-afspraak?ticketId=555&date=2026-10-14&exp=${EXP}&d=contact&sig=`));
-  assert.ok(inhoud[1].includes('&d=klant&sig='));
-  assert.ok(inhoud[2].includes('&d=installateur&sig='));
-  assert.notEqual(inhoud[0], inhoud[1]);
-  assert.equal(EXP, 1792058400);
+test('propose: standaardmail voor contact is byte-identiek aan de goudkopie (gegenereerd door de code van vóór de migratie)', async () => {
+  const r = await draai(post(BODY), { ticket: { contact: { email: 'contact@x.be' } } });
+  assert.equal(r.mails.length, 1);
+  assert.equal(r.mails[0], GOUD);
+  controleerMail(GOUD, { link: LINKS.contact });
 });
 
 test('propose: zonder appointmentWindow toont de mail de afgeronde tijd; lege naam wordt "klant"; HTML wordt ge-escaped', async () => {
@@ -322,16 +245,13 @@ test('propose: zonder appointmentWindow toont de mail de afgeronde tijd; lege na
   assert.deepEqual(r.calls, [
     TOKEN_CALL, ORG_CALL, TICKET_CALL,
     uploadCall(),
-    replyCall('contact@x.be', mailVoor('contact', {
-      recipientName: '', subject: 'Laad <b>paal</b> "X" & Y', serienummer: '', appointmentWindow: undefined,
-    }), 'ATT1'),
+    replyCall('contact@x.be', 'ATT1'),
     patchCall('2026-10-14T09:15:00.000Z'),
   ]);
-  const inhoud = JSON.parse(r.calls[4].body).content;
-  assert.ok(inhoud.includes('Geachte klant,'));
-  assert.ok(inhoud.includes('tussen <strong>09:15</strong> uur'));
+  const inhoud = r.mails[0];
+  controleerMail(inhoud, { naam: 'klant', tijdslot: '09:15', serienummer: '', link: LINKS.contact });
   assert.ok(inhoud.includes('Laad &lt;b&gt;paal&lt;/b&gt; &quot;X&quot; &amp; Y'));
-  assert.ok(!inhoud.includes('Serienummer'));
+  assert.ok(!inhoud.includes('<b>paal</b>'));
   assert.equal(r.res.statusCode, 200);
 });
 
@@ -344,8 +264,8 @@ test('propose: onderwerp wordt opgekuist (FW:/RE:, contactbericht, leeg)', async
   ];
   for (const [subject, verwacht] of geval) {
     const r = await draai(post({ ...BODY, subject }), { ticket: { contact: { email: 'c@x.be' } } });
-    const inhoud = JSON.parse(r.calls[4].body).content;
-    assert.equal(inhoud, mailVoor('contact', { subject: verwacht }));
+    assert.ok(r.mails[0].includes(`Wij plannen een servicebezoek voor: <strong style="color:#181e24">${verwacht}</strong>.`));
+    controleerMail(r.mails[0], { link: LINKS.contact });
   }
 });
 
@@ -356,13 +276,15 @@ test('propose: contact gelijk aan klant (hoofdletterongevoelig) wordt ontdubbeld
   } });
   assert.deepEqual(r.calls, [
     TOKEN_CALL, ORG_CALL, TICKET_CALL,
-    uploadCall(), replyCall('Klant@X.be', mailVoor('contact'), 'ATT1'),
-    uploadCall(), replyCall('inst@x.be', mailVoor('installateur'), 'ATT2'),
+    uploadCall(), replyCall('Klant@X.be', 'ATT1'),
+    uploadCall(), replyCall('inst@x.be', 'ATT2'),
     patchCall(),
   ]);
   assert.deepEqual(r.res, ok200({
     emailSent: { contact: true, klant: false, installateur: true }, ontvangers: ['contact', 'installateur'],
   }));
+  controleerMail(r.mails[0], { link: LINKS.contact });
+  controleerMail(r.mails[1], { link: LINKS.installateur });
 
   let r2 = await draai(post(BODY), { ticket: { contact: { emailId: 'id@x.be' } } });
   assert.equal(JSON.parse(r2.calls[4].body).to, 'id@x.be');
@@ -377,37 +299,41 @@ test('propose: installateur gelijk aan klant telt als één ontvanger (klant beh
   } });
   assert.deepEqual(r.calls, [
     TOKEN_CALL, ORG_CALL, TICKET_CALL,
-    uploadCall(), replyCall('zelfde@x.be', mailVoor('klant'), 'ATT1'),
+    uploadCall(), replyCall('zelfde@x.be', 'ATT1'),
     patchCall(),
   ]);
   assert.deepEqual(r.res, ok200({
     emailSent: { contact: false, klant: true, installateur: false }, ontvangers: ['klant'],
   }));
+  controleerMail(r.mails[0], { link: LINKS.klant });
 });
 
 test('propose: alleen contact', async () => {
   const r = await draai(post(BODY), { ticket: { contact: { email: 'contact@x.be' }, cf: {} } });
   assert.deepEqual(r.calls, [
     TOKEN_CALL, ORG_CALL, TICKET_CALL,
-    uploadCall(), replyCall('contact@x.be', mailVoor('contact'), 'ATT1'),
+    uploadCall(), replyCall('contact@x.be', 'ATT1'),
     patchCall(),
   ]);
   assert.deepEqual(r.res, ok200({
     emailSent: { contact: true, klant: false, installateur: false }, ontvangers: ['contact'],
   }));
+  assert.equal(r.mails[0], GOUD);
 });
 
 test('propose: alleen klant en installateur, zonder contact', async () => {
   const r = await draai(post(BODY), { ticket: { cf: { cf_e_mail_eindklant: 'klant@x.be', cf_e_mail_installateur: 'inst@x.be' } } });
   assert.deepEqual(r.calls, [
     TOKEN_CALL, ORG_CALL, TICKET_CALL,
-    uploadCall(), replyCall('klant@x.be', mailVoor('klant'), 'ATT1'),
-    uploadCall(), replyCall('inst@x.be', mailVoor('installateur'), 'ATT2'),
+    uploadCall(), replyCall('klant@x.be', 'ATT1'),
+    uploadCall(), replyCall('inst@x.be', 'ATT2'),
     patchCall(),
   ]);
   assert.deepEqual(r.res, ok200({
     emailSent: { contact: false, klant: true, installateur: true }, ontvangers: ['klant', 'installateur'],
   }));
+  controleerMail(r.mails[0], { link: LINKS.klant });
+  controleerMail(r.mails[1], { link: LINKS.installateur });
 });
 
 test('propose: geen enkele ontvanger: enkel de PATCH, geen mail', async () => {
@@ -428,12 +354,13 @@ test('propose: zonder ZOHO_FROM_EMAIL volgt emailAddresses?limit=50 en gebruikt 
     });
     assert.deepEqual(r.calls, [
       TOKEN_CALL, ORG_CALL, TICKET_CALL, EMAILS_CALL,
-      uploadCall(), replyCall('contact@x.be', mailVoor('contact'), 'ATT1', 'support@blitz.test'),
+      uploadCall(), replyCall('contact@x.be', 'ATT1', 'support@blitz.test'),
       patchCall(),
     ]);
     assert.deepEqual(r.res, ok200({
       emailSent: { contact: true, klant: false, installateur: false }, ontvangers: ['contact'],
     }));
+    assert.equal(r.mails[0], GOUD);
   } finally { herstel(); }
 });
 
@@ -462,7 +389,7 @@ test('propose: "Empty Recipients" is een zachte fout: emailSent false, PATCH geb
   });
   assert.deepEqual(r.calls, [
     TOKEN_CALL, ORG_CALL, TICKET_CALL,
-    uploadCall(), replyCall('contact@x.be', mailVoor('contact'), 'ATT1'),
+    uploadCall(), replyCall('contact@x.be', 'ATT1'),
     patchCall(),
   ]);
   assert.deepEqual(r.res, ok200({
@@ -477,9 +404,9 @@ test('propose: harde sendReply-fout bij ontvanger 2 komt in fouten; ontvanger 1 
   });
   assert.deepEqual(r.calls, [
     TOKEN_CALL, ORG_CALL, TICKET_CALL,
-    uploadCall(), replyCall('contact@x.be', mailVoor('contact'), 'ATT1'),
-    uploadCall(), replyCall('klant@x.be', mailVoor('klant'), 'ATT2'),
-    uploadCall(), replyCall('inst@x.be', mailVoor('installateur'), 'ATT3'),
+    uploadCall(), replyCall('contact@x.be', 'ATT1'),
+    uploadCall(), replyCall('klant@x.be', 'ATT2'),
+    uploadCall(), replyCall('inst@x.be', 'ATT3'),
     patchCall(),
   ]);
   const fout = `Zoho sendReply fout (500) naar klant: ${JSON.stringify(foutBody)}`;
@@ -501,6 +428,15 @@ test('propose: sendReply-fout met lege of niet-JSON body geeft {} in de foutmeld
   assert.deepEqual(JSON.parse(r.res.body).emailSent, { contact: true, klant: false, installateur: false });
 });
 
+test('propose: sendReply-antwoord met JSON null als body telt als succes (huidig gedrag)', async () => {
+  const r = await draai(post(BODY), { ticket: { contact: { email: 'c@x.be' } }, replyRes: () => new Response('null', { status: 200 }) });
+  assert.deepEqual(JSON.parse(r.res.body).emailSent, { contact: true, klant: false, installateur: false });
+  assert.deepEqual(JSON.parse(r.res.body).fouten, []);
+  // en bij een foutstatus: JSON.stringify(null) = "null" in de melding
+  const f = await draai(post(BODY), { ticket: { contact: { email: 'c@x.be' } }, replyRes: () => new Response('null', { status: 500 }) });
+  assert.deepEqual(JSON.parse(f.res.body).fouten, [{ doelgroep: 'contact', fout: 'Zoho sendReply fout (500) naar contact: null' }]);
+});
+
 test('propose: mislukte upload slaat sendReply voor die ontvanger over; volgende ontvanger en PATCH gaan door', async () => {
   const r = await draai(post(BODY), {
     ticket: { contact: { email: 'contact@x.be' }, cf: { cf_e_mail_eindklant: 'klant@x.be' } },
@@ -509,7 +445,7 @@ test('propose: mislukte upload slaat sendReply voor die ontvanger over; volgende
   assert.deepEqual(r.calls, [
     TOKEN_CALL, ORG_CALL, TICKET_CALL,
     uploadCall(),
-    uploadCall(), replyCall('klant@x.be', mailVoor('klant'), 'ATT2'),
+    uploadCall(), replyCall('klant@x.be', 'ATT2'),
     patchCall(),
   ]);
   assert.deepEqual(r.res, ok200({
@@ -615,13 +551,13 @@ test('propose: zonder CONFIRM_LINK_SECRET geen bevestigingsknop, rest ongewijzig
     const r = await draai(post(BODY), { ticket: { contact: { email: 'contact@x.be' }, cf: { cf_e_mail_eindklant: 'klant@x.be' } } });
     assert.deepEqual(r.calls, [
       TOKEN_CALL, ORG_CALL, TICKET_CALL,
-      uploadCall(), replyCall('contact@x.be', mailVoor('contact', { confirmUrl: null }), 'ATT1'),
-      uploadCall(), replyCall('klant@x.be', mailVoor('klant', { confirmUrl: null }), 'ATT2'),
+      uploadCall(), replyCall('contact@x.be', 'ATT1'),
+      uploadCall(), replyCall('klant@x.be', 'ATT2'),
       patchCall(),
     ]);
-    const inhoud = JSON.parse(r.calls[4].body).content;
-    assert.ok(!inhoud.includes('Bevestig deze afspraak'));
-    assert.ok(inhoud.includes('Gelieve deze afspraak te bevestigen door op deze e-mail te antwoorden.'));
+    assert.equal(r.mails.length, 2);
+    controleerMail(r.mails[0], {});
+    controleerMail(r.mails[1], {});
     assert.deepEqual(r.res, ok200({
       emailSent: { contact: true, klant: true, installateur: false }, ontvangers: ['contact', 'klant'],
     }));
@@ -638,9 +574,11 @@ test('propose: zonder URL valt de linkbasis terug op http://localhost:8888', asy
     const r = await draai(post(BODY), { ticket: { contact: { email: 'contact@x.be' } } });
     assert.deepEqual(r.calls, [
       TOKEN_CALL, ORG_CALL, TICKET_CALL,
-      uploadCall(), replyCall('contact@x.be', mailVoor('contact', {}, { basis: 'http://localhost:8888' }), 'ATT1'),
+      uploadCall(), replyCall('contact@x.be', 'ATT1'),
       patchCall(),
     ]);
+    controleerMail(r.mails[0], { link: LINKS.contact.replace('https://blitz.test', 'http://localhost:8888') });
+    assert.ok(r.mails[0].includes('<a href="http://localhost:8888/api/confirm-afspraak?ticketId=555&date=2026-10-14&exp=1792058400&d=contact&sig=337de2d3e8b9ae058dc60a8b78366314ed9a16b5c6287e7ae609565cd4cb6071"'));
   } finally { herstel(); }
 });
 
