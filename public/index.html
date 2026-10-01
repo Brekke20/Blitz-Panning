@@ -3231,7 +3231,7 @@ function bavSetFilterPerson(person) {
 // Groepeert opeenvolgende 'hele dag'-uitzondering-rijen met dezelfde persoon/scope/reden tot één
 // weergave-periode (bv. "17 aug – 21 aug 2026"), zodat een meerdaags verlof niet als N losse
 // regels verschijnt. Zuiver een WEERGAVE-groepering: de onderliggende data blijft N losse
-// avExceptions-records (nodig voor capacityForDay()/de kalender-dagblokkering, die per dag
+// avExceptions-records (nodig voor capacityForDay() in schermen/capaciteit.js en de kalender-dagblokkering, die per dag
 // werken) -- verwijderen van een periode verwijdert wel alle onderliggende records ineens, zie
 // avRemoveExceptionGroup(). Rijen worden enkel samengevoegd als ze ook echt op elkaar aansluiten
 // (via nextWorkday hieronder) -- anders zou bv. verlof op 24-26 aug gevolgd door los verlof op

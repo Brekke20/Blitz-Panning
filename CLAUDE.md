@@ -75,7 +75,7 @@ Gedeelde fundamenten (etappe 2 van de refactor): `tijd`, `ui`, `selecties`, `toe
 
 ## Schermen (`public/js/schermen/`)
 
-Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar via `initRoute(afh)` / `initKaart(afh)` in `DOMContentLoaded` initialiseren (vóór `koppelRenders`).
+Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar via `initRoute(afh)`, `initKaart(afh)`, `initWachtrij(afh)`, `initKalender(afh)`, `initIngepland(afh)` en `initCapaciteit(afh)` in `DOMContentLoaded` initialiseren (vóór `koppelRenders`).
 
 **Etappe 3 (Route en kaart):**
 - `route-tijden.js`: pure berekeningen (aankomsttijden, samenvoegen met ankers, handtekening, dagklok). Unit-getest met `node --test`.
@@ -88,24 +88,25 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 - `kern.route.renderTelling()` is de teller die de e2e-tests gebruiken (interne aanroepen omzeilen een wrapper op `window`). Een wijziging in de planning geeft via het abonnement precies één route-render.
 - `kern.route` is de namespace van het routescherm op `window.kern` (o.a. `renderTelling`); e2e-tests lezen daar de render-teller en de kaartaantallen uit.
 - Knoppen van het scherm gebruiken `data-actie="route-..."` (delegatie in `route.js`) in plaats van inline handlers; gegevens staan op `data-*` attributen van de stop.
-- Resterende LEGACY-BRUG-namen voor het routescherm: `renderRouteList`, `updateRouteBtns`, `calculateRoute`, `computeArrivalTimes`, `initMap`, `applyKaartStijl`. Ze verdwijnen in etappe 4/5; gebruik ze niet in nieuwe code.
+- Resterende LEGACY-BRUG-namen voor het routescherm: `renderRouteList`, `updateRouteBtns`, `calculateRoute`, `computeArrivalTimes`, `initMap`, `applyKaartStijl`. Ze verdwijnen in etappe 5; gebruik ze niet in nieuwe code.
 - Nieuwe schermen volgen dit patroon: module-privé toestand, expliciet aangereikte functies, exports voor lezers.
 
 **Etappe 4 (Kalender en wachtrij):**
-- `capaciteit.js`: pure berekeningen (aantalmodel: `blokkeerMinuten`, `capaciteitVoorDag`, `volgendeBeschikbareDag`, `capaciteitsKop`, lezers `capacityForDay`/`nextAvailableDay`). Unit-getest met `node --test`.
+- `capaciteit.js`: pure berekeningen (aantalmodel: `blokkeerMinuten`, `capaciteitVoorDag`, `volgendeBeschikbareDag`, `capaciteitsKop`, lezers `capacityForDay` en `kern.capaciteit.nextAvailableDay()`). Unit-getest met `node --test`.
 - `wachtrij-logica.js`: pure berekeningen (zoeken, sorteren, scoren: `filterOpZoek`, `sorteerWachtrij`, `queueScore`). Unit-getest.
 - `kalender-logica.js`: pure berekeningen (tijdlijnindeling, zichtbare dagen, maandraster: `bepaalLanes`, `zichtbareDagen`, `maandRaster`). Unit-getest met DST-weken.
-- `wachtrij.js`: Wachtrij-scherm (kaarten, zoeken, sorteren, teller). Private toestand: `wqSorteer`. Init via `initWachtrij(afh)` vóór `koppelRenders()`.
-- `kalender.js`: Kalender-scherm (week/maand, kaarten, navigatie, teller). Private toestand: `kalOffset` (weekdatum), `pendingPanel`. Init via `initKalender(afh)` vóór `koppelRenders()`.
-- `ingepland.js`: Ingepland-scherm (kaarten, teller). Init via `initIngepland(afh)` vóór `koppelRenders()`.
+- `wachtrij.js`: Wachtrij-scherm (kaarten, zoeken, sorteren, teller). Private toestand: `wqZoek` en de sorteerinstelling `wqSorteer`. Bevat ook `quickAdd`. Init via `initWachtrij(afh)` vóór `koppelRenders()`.
+- `kalender.js`: Kalender-scherm (week/maand, kaarten, navigatie, teller). Private toestand: `kalOffset` (een getal: weken, in maandweergave maanden), `kalDagOffset`, `kalView`, `_kalAutoScrollKey`. Lezers: `kern.kalender.weekOffset()` en `kern.kalender.activeerKalender()`. De capaciteitskop wordt hier getekend. Init via `initKalender(afh)` vóór `koppelRenders()`.
+- `ingepland.js`: Ingepland-scherm (kaarten, teller). Private toestand: `gepOffset`. Init via `initIngepland(afh)` vóór `koppelRenders()`.
 
 **Conventies:**
 - Afhankelijkheden (functies uit klassieke code) worden via `afh` aangereikt; instellingen en toestandsgegevens uit `kern.toestand`.
 - `kern.wachtrij.renderTelling()`, `kern.kalender.renderTelling()`, `kern.ingepland.renderTelling()` zijn de tellers die de e2e-tests gebruiken.
 - Knoppen gebruiken `data-actie`-delegatie in plaats van inline handlers. Elke kaartluisteraar heeft een **bubbel-guard**: `if (e.target.closest('[data-actie]')) return;` om te voorkomen dat kaarten openen.
-- `quickAdd` en de capaciteitskop (`n/cap · ±u`) blijven op het aantalmodel in `index.html`, niet op het brein (spec C3).
+- `quickAdd` (`wachtrij.js`) en de capaciteitskop (`n/cap · ±u`, getekend in `kalender.js`) gebruiken het aantalmodel van `capaciteit.js`, niet het brein (spec C3).
+- `kern.ui.strengeAfh(scherm, afh)` bewaakt de `afh`-objecten: een ontbrekende `afh`-sleutel gooit, zowel vóór als na de init.
 - Blokkeringen en selecties gebruiken `kern.selecties.blokkeringenVoor` en `kern.ui.maakActiveerbaar`.
-- Resterende LEGACY-BRUG-namen voor deze schermen: `renderTickets`, `renderKalender`, `renderGepland`. Ze verdwijnen in etappe 5; gebruik ze niet in nieuwe code.
+- Resterende LEGACY-BRUG-namen voor deze schermen: `renderTickets`, `renderKalender` (`renderGepland` is weg; gebruik `kern.ingepland.renderGepland()`). Ze verdwijnen in etappe 5; gebruik ze niet in nieuwe code.
 
 ## Versioning & changelog
 
