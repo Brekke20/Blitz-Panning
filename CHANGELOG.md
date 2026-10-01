@@ -28,6 +28,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
   gevonden, Zoho-fout) en waarschuwt als reistijden geschat moesten worden.
 
 ### Changed
+- Voorstel versturen: de route-lijst volgt daarna de gekozen datum in de Route-tab (plan-date) in plaats van de datum van het voorstel.
 - "Plan deze week" herschreven als apart, getest planner-onderdeel (`public/js/planner.js`):
   - werkt enkel met een gekozen technieker (bij "Iedereen" een melding);
   - plant enkel in de bekeken week; alleen een ticket met een latere voorkeursdatum krijgt die dag;

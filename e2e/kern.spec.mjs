@@ -178,17 +178,43 @@ test.describe('kern: renders', () => {
   });
 
   test('onbekende opgeslagen technieker valt terug op Alle zonder renderlus', async ({ page }) => {
-    await startApp(page, { rol: 'coordinator' });
-    await page.evaluate(() => localStorage.setItem('blitz_active_person', 'Onbekend'));
-    await page.reload();
+    // Tellers vóór het opstarten van de app: DOMContentLoaded-luisteraar van de test loopt vóór die van de app.
+    await page.addInitScript(({ namen }) => {
+      if (window !== window.top) return;
+      try { localStorage.setItem('blitz_active_person', 'Onbekend'); } catch {}
+      window.__n = {};
+      document.addEventListener('DOMContentLoaded', () => {
+        for (const naam of namen) {
+          const oud = window[naam];
+          window.__n[naam] = 0;
+          window[naam] = (...a) => { window.__n[naam]++; return oud(...a); };
+        }
+      });
+    }, { namen: RENDERS });
+    await startApp(page, { rol: 'coordinator', technieker: 'all' });
     await expect(page.locator('#cnt-tickets')).toHaveText('3');
     await expect(page.locator('#person-name-hdr')).toHaveText('Alle');
     expect(await page.evaluate(() => localStorage.getItem('blitz_active_person'))).toBe('all');
     expect(await page.evaluate(() => window.activeAssigneeFilter)).toBe('all');
-    await installeerTellers(page);
     await page.waitForFunction(() => new Promise(r => setTimeout(() => r(true), 150)));
-    // Na het opstarten blijft de app rustig: geen doorlopende renders.
-    expect(await tellers(page)).toEqual({ renderKalender: 0, renderTickets: 0, renderGepland: 0, renderRouteList: 0 });
+    // Opstart: precies één render per scherm door de dataload (één ronde, ondanks de filterreset);
+    // kalender: dataload + afspraken + beschikbaarheid + apparaat/rol (4). Een tweede ronde door de reset verhoogt dit.
+    const t = await tellers(page);
+    expect(t.renderTickets).toBe(1);
+    expect(t.renderGepland).toBe(1);
+    expect(t.renderRouteList).toBe(1);
+    expect(t.renderKalender).toBe(4);
+  });
+
+  test('laatste wachtrij-ticket van een technieker inplannen laat diens filter staan', async ({ page }) => {
+    await startApp(page, { rol: 'coordinator', technieker: 'Roel' }); // Roel heeft precies 1 wachtrij-ticket (t3)
+    await expect(page.locator('#person-name-hdr')).toHaveText('Roel');
+    await page.evaluate(() => addTicketToDate('t3', '2026-10-06'));
+    await expect(page.locator('#cnt-tickets')).toHaveText('0');
+    await page.waitForFunction(() => new Promise(r => setTimeout(() => r(true), 100)));
+    await expect(page.locator('#person-name-hdr')).toHaveText('Roel');
+    expect(await page.evaluate(() => localStorage.getItem('blitz_active_person'))).toBe('Roel');
+    expect(await page.evaluate(() => window.activeAssigneeFilter)).toBe('Roel');
   });
 
   test('inplannen en terugzetten: geen verouderd scherm, renders blijven eindig', async ({ page }) => {

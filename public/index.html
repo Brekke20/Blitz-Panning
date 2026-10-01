@@ -1381,8 +1381,8 @@ function personenUitTickets() {
 
 // Valideer: als opgeslagen persoon niet meer bestaat → reset naar 'all'. Schrijft de toestand
 // (activeAssigneeFilter, settings); het koptekst-abonnement in koppelRenders werkt de kop bij.
-// Wordt in _applyTicketsData binnen de transactie aangeroepen, zodat buildPersonSelector (zelf een
-// abonnee) nooit meer terug hoeft te schrijven en er geen extra renderronde ontstaat.
+// Wordt enkel in _applyTicketsData binnen de transactie aangeroepen (niet in de render-/abonneepad), zodat
+// er geen extra renderronde ontstaat en de filter tot de volgende dataload blijft staan.
 function valideerActievePersoon(agents = personenUitTickets()) {
   if (activeAssigneeFilter !== 'all' && !agents.includes(activeAssigneeFilter)) {
     activeAssigneeFilter = 'all';
@@ -1394,7 +1394,8 @@ function valideerActievePersoon(agents = personenUitTickets()) {
 
 function buildPersonSelector() {
   const agents = personenUitTickets();
-  valideerActievePersoon(agents); // vangnet; normaal al gedaan in _applyTicketsData
+  // Geen validatie hier: dit is een abonnee. Enkel _applyTicketsData (dataload) valideert; anders reset
+  // het inplannen van het laatste wachtrij-ticket van een technieker diens filter naar 'all'.
 
   const menu = document.getElementById('person-menu');
   menu.innerHTML = '';
