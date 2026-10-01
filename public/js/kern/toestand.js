@@ -4,6 +4,9 @@
 // (push, splice, eigenschap toewijzen) roep je raak(sleutel) aan.
 // transactie(async fn) spoelt op de synchrone grens (zodra fn zijn promise teruggeeft), niet na het await.
 // Verwittiging is gebundeld per microtask; transactie(fn) spoelt synchroon bij het einde van de buitenste transactie.
+// Een abonnee die gooit wordt gelogd ('toestand: abonnee faalde') en bereikt de oproeper niet; de andere abonnees lopen door.
+// Een abonnee die tijdens een flush wordt toegevoegd, mist de lopende ronde (hij hoort pas bij latere wijzigingen).
+// `settings` is null tot DOMContentLoaded (index.html zaait het daar); lees het nooit op het hoogste niveau van een script.
 
 export const SLEUTELS = ['allTickets', 'allPending', 'allGepland', 'planning', 'localEvents', 'avExceptions', 'klantBeschikbaarheid', 'voorstelStatus', 'settings', 'activeAssigneeFilter'];
 

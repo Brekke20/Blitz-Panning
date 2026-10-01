@@ -56,6 +56,8 @@ Gedeelde fundamenten (etappe 2 van de refactor): `tijd`, `ui`, `selecties`, `toe
   verhuizing: `grep -nE "^(let|const|var) .*<naam>"`.
 - Muteer je een geabonneerde toestandssleutel in-place (`localEvents.push`, `avExceptions.splice`, `allTickets.sort`, ...),
   roep dan `kern.toestand.raak('<sleutel>')` aan; een toewijzing verwittigt vanzelf.
+- Een abonnee die gooit wordt gelogd (`toestand: abonnee faalde`) en bereikt de oproeper niet; een abonnee die tijdens een flush
+  wordt toegevoegd mist die ronde; `settings` is `null` tot DOMContentLoaded.
 - Abonnementen op de toestand staan op één plek: `koppelRenders()` in `index.html`. Geen losse `renderX()` naast een abonnement.
 - Opslaan met optimistic locking via `kern.api.bewaarMetVersie` (merge + één retry bij 409), zoals `saveAfspraken` en `saveKlantBeschikbaarheid`.
 - Tijd-tests zetten `process.env.TZ = 'Europe/Brussels'` bovenaan; draai `node --test` zonder pad, nooit `node --test tests/`.
