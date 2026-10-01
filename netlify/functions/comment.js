@@ -36,7 +36,7 @@ export async function handler(event) {
 
     // Zoho geeft soms een lege body terug (204 of leeg 200): veilig parsen, succes volgt res.ok
     const patchData = await leesJsonVeilig(patchRes);
-    if (!patchRes.ok) throw new Error(JSON.stringify(patchData));
+    if (!patchRes.ok) throw new Error(`Zoho fout (${patchRes.status}): ${JSON.stringify(patchData)}`);
 
     return v1Json(200, { success: true }, CORS_V1);
   } catch (err) {

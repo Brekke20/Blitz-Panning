@@ -427,11 +427,11 @@ test('comment: succes met getrimde tekst, volledige aanroepenreeks', async () =>
   assert.deepEqual(ontleed(res), { status: 200, headers: CORS_V1, body: { success: true } });
 });
 
-test('comment: PATCH-fout geeft 500 met de gestringifyde body', async () => {
+test('comment: PATCH-fout geeft 500 met status en gestringifyde body (Z11 bugfix, W5)', async () => {
   const r = await draaiV1('comment', commentEvent({ ticketId: '123', content: 'x' }),
     url => url.endsWith('/tickets/123') ? json({ errorCode: 'X', message: 'nee' }, 422) : undefined);
   assert.equal(r.calls.length, 3);
-  assert.deepEqual(ontleed(r.res), { status: 500, headers: CORS_V1, body: { error: '{"errorCode":"X","message":"nee"}' } });
+  assert.deepEqual(ontleed(r.res), { status: 500, headers: CORS_V1, body: { error: 'Zoho fout (422): {"errorCode":"X","message":"nee"}' } });
 });
 
 // Z11 bugfix (W5): lege of niet-JSON PATCH-body is geen fout meer; succes volgt res.ok.
@@ -444,12 +444,18 @@ test('comment: lege PATCH-body (204 of leeg 200) geeft succes', async () => {
   }
 });
 
-// Z11 bugfix (W5): een 502 met HTML-body blijft een fout; de losse parse levert {}.
-test('comment: 502 met HTML-body geeft 500 met tekst {}', async () => {
+// Z11 bugfix (W5): een 502 met HTML-body blijft een fout; de losse parse levert {}, de tekst noemt de status.
+test('comment: 502 met HTML-body geeft 500 met tekst Zoho fout (502): {}', async () => {
   const r = await draaiV1('comment', commentEvent({ ticketId: '123', content: 'x' }),
     url => url.endsWith('/tickets/123') ? new Response('<html>', { status: 502 }) : undefined);
   assert.equal(r.calls.length, 3);
-  assert.deepEqual(ontleed(r.res), { status: 500, headers: CORS_V1, body: { error: '{}' } });
+  assert.deepEqual(ontleed(r.res), { status: 500, headers: CORS_V1, body: { error: 'Zoho fout (502): {}' } });
+});
+
+test('comment: 400 met JSON-foutbody noemt status en body', async () => {
+  const r = await draaiV1('comment', commentEvent({ ticketId: '123', content: 'x' }),
+    url => url.endsWith('/tickets/123') ? json({ errorCode: 'X' }, 400) : undefined);
+  assert.deepEqual(ontleed(r.res), { status: 500, headers: CORS_V1, body: { error: 'Zoho fout (400): {"errorCode":"X"}' } });
 });
 
 test('comment: tokenfout, org zonder id (Engelse tekst) en netwerkfouten', async () => {

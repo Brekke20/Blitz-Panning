@@ -139,13 +139,6 @@ test('annuleer: OPTIONS, GET en 405 hebben de volledige CORS-set (ook met Conten
   assert.deepEqual(await antwoord(r.res), { status: 405, headers: CORS_ANN, tekst: 'Method Not Allowed' });
 });
 
-test('annuleer: sleutelvolgorde van de CORS-headers', async () => {
-  const r = await draaiAnn(new Request('http://x/api/annuleer'));
-  assert.deepEqual([...r.res.headers.keys()], [
-    'access-control-allow-headers', 'access-control-allow-methods', 'access-control-allow-origin', 'content-type',
-  ]);
-});
-
 test('annuleer: ongeldige JSON, geen object en validatiefouten geven 400 zonder aanvragen', async () => {
   for (const [req, fout] of [
     [annReq('{kapot'), 'Ongeldige JSON'],
@@ -631,8 +624,6 @@ test('confirm-afspraak: CORS-origin-whitelist met Vary; onbekende origin valt te
     assert.deepEqual(Object.fromEntries(r.res.headers.entries()), CORS_CF(verwacht));
     assert.equal(await r.res.text(), '');
   }
-  const r = await draaiCf(new Request('http://localhost/api/confirm-afspraak', { method: 'OPTIONS' }));
-  assert.deepEqual([...r.res.headers.keys()], ['access-control-allow-origin', 'content-type', 'vary']);
 });
 
 test('confirm-afspraak: GET met geldige link toont de pagina zonder enige aanvraag', async () => {

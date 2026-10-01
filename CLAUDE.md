@@ -49,7 +49,7 @@ De e2e-suite heeft internet nodig: de app laadt zijn scripts van externe CDN's (
 
 Etappe 6 van de refactor: gedeelde serverbouwstenen. Gebruik ze voor elke nieuwe Zoho- of TomTom-functie.
 
-- `netlify/lib/zoho.js`: `maakZoho({ fetch, env, nu, tokenFoutMetData, orgFoutTekst })` voor token (55 min cache in de instantie), org-id, headers en `verzoek`; `leesJsonVeilig` voor antwoorden die leeg of geen JSON kunnen zijn. Maak de instantie op moduleniveau van de functie.
+- `netlify/lib/zoho.js`: `maakZoho({ fetch, env, nu, tokenFoutMetData, orgFoutTekst })` voor token (55 min cache in de instantie), org-id, headers en `verzoek`; `leesJsonVeilig` voor antwoorden die leeg of geen JSON kunnen zijn. Maak de instantie op moduleniveau, of in `maakHandler` voor functies met injecteerbare fetch.
 - `netlify/lib/http.js`: CORS-sets en v1/v2-antwoord-, OPTIONS- en methodehulpen. Geen eigen CORS-literals in functies.
 - Uitzonderingen met een eigen kopie: `rapport.js` (Chromium en Blobs-register zijn onbereikbaar voor tests) en `setup.js` (grant-code-uitwisseling).
 - Tests: `tests/nep-fetch.mjs` (`maakNepFetch`, `laadVers`, `metGlobaleFetch`, `v1Event`, `zetEnv`). Nooit echte Zoho-, TomTom- of mailaanroepen; `globalThis.fetch` staat standaard op een functie die gooit.
