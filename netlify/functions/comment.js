@@ -3,7 +3,7 @@
 // POST body: { ticketId, content }
 
 import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
-import { maakZoho } from '../lib/zoho.js';
+import { maakZoho, leesJsonVeilig } from '../lib/zoho.js';
 import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
 
 // Instantie op moduleniveau: de tokencache (55 min) leeft zolang de functie warm is.
@@ -34,7 +34,8 @@ export async function handler(event) {
       token, orgId, methode: 'PATCH', json: { resolution: content.trim() },
     });
 
-    const patchData = await patchRes.json();
+    // Zoho geeft soms een lege body terug (204 of leeg 200): veilig parsen, succes volgt res.ok
+    const patchData = await leesJsonVeilig(patchRes);
     if (!patchRes.ok) throw new Error(JSON.stringify(patchData));
 
     return v1Json(200, { success: true }, CORS_V1);

@@ -434,17 +434,22 @@ test('comment: PATCH-fout geeft 500 met de gestringifyde body', async () => {
   assert.deepEqual(ontleed(r.res), { status: 500, headers: CORS_V1, body: { error: '{"errorCode":"X","message":"nee"}' } });
 });
 
-test('comment: lege of niet-JSON PATCH-body geeft 500 met de parserfout (ook bij 200/204)', async () => {
-  for (const antwoord of [() => new Response(null, { status: 204 }), () => new Response('geen json', { status: 200 }), () => new Response('<html>', { status: 502 })]) {
+// Z11 bugfix (W5): lege of niet-JSON PATCH-body is geen fout meer; succes volgt res.ok.
+test('comment: lege PATCH-body (204 of leeg 200) geeft succes', async () => {
+  for (const antwoord of [() => new Response(null, { status: 204 }), () => new Response('', { status: 200 })]) {
     const r = await draaiV1('comment', commentEvent({ ticketId: '123', content: 'x' }),
       url => url.endsWith('/tickets/123') ? antwoord() : undefined);
     assert.equal(r.calls.length, 3);
-    const o = ontleed(r.res);
-    assert.equal(o.status, 500);
-    assert.deepEqual(o.headers, CORS_V1);
-    assert.equal(typeof o.body.error, 'string');
-    assert.match(o.body.error, /JSON|Unexpected|end of/i);
+    assert.deepEqual(ontleed(r.res), { status: 200, headers: CORS_V1, body: { success: true } });
   }
+});
+
+// Z11 bugfix (W5): een 502 met HTML-body blijft een fout; de losse parse levert {}.
+test('comment: 502 met HTML-body geeft 500 met tekst {}', async () => {
+  const r = await draaiV1('comment', commentEvent({ ticketId: '123', content: 'x' }),
+    url => url.endsWith('/tickets/123') ? new Response('<html>', { status: 502 }) : undefined);
+  assert.equal(r.calls.length, 3);
+  assert.deepEqual(ontleed(r.res), { status: 500, headers: CORS_V1, body: { error: '{}' } });
 });
 
 test('comment: tokenfout, org zonder id (Engelse tekst) en netwerkfouten', async () => {
