@@ -238,3 +238,94 @@ test.describe('kern: renders', () => {
     expect(await tellers(page)).toEqual({ renderKalender: 2, renderTickets: 2, renderGepland: 1, renderRouteList: 2 });
   });
 });
+
+// ── kern: api-payloads ────────────────────────────────────────────────────────
+// Legt de volledige request (methode, body, Content-Type, testheader) vast van de /api-aanroepen die via
+// kern/api.js lopen. Eerst op de oude fetch-code geschreven, daarna blijft de test ongewijzigd groen.
+// Niet gedekt (bewust): /api/planning-sinds, want laadPlanningSinds() doet niets in testmodus (?test).
+const JSON_CT = 'application/json';
+
+async function planWeek(page) {
+  await page.getByRole('tab', { name: 'Kalender' }).click();
+  await page.getByRole('button', { name: '⚡ Plan deze week' }).click();
+  const resultaat = page.getByRole('dialog', { name: '⚡ Planningsresultaat' });
+  await expect(resultaat.getByText('Ingepland (2)', { exact: true })).toBeVisible();
+  await resultaat.getByRole('button', { name: 'Sluiten' }).click();
+  await expect(resultaat).toBeHidden();
+}
+
+async function openRouteVanMaandag(page) {
+  await planWeek(page);
+  const maandag = page.locator('.day-col').filter({ hasText: '#1001' });
+  await expect(maandag).toHaveCount(1);
+  await maandag.getByRole('button', { name: 'Route berekenen' }).click();
+  await expect(page.getByTestId('route-stop-tijd')).toHaveCount(2);
+}
+
+test.describe('kern: api-payloads', () => {
+  test('laad-verzoeken zijn GET zonder body en zonder Content-Type, met de testheader', async ({ page, verzoeken }) => {
+    await startApp(page, { rol: 'coordinator' });
+    for (const pad of ['/api/voorstel-status', '/api/afspraken', '/api/availability', '/api/klantbeschikbaarheid']) {
+      const r = verzoeken.van(pad, 'GET');
+      expect(r.length, pad).toBeGreaterThanOrEqual(1);
+      expect(r[0], pad).toEqual({ methode: 'GET', pad, body: null, headers: { 'content-type': null, 'x-blitz-test': '1' } });
+    }
+  });
+
+  test('beschikbaarheid bewaren: PUT met versie en exceptions', async ({ page, verzoeken }) => {
+    await startApp(page, { rol: 'coordinator' });
+    const ex = { id: 'ex-1', scope: 'all', person: null, date: '2026-10-09', kind: 'full', from: null, to: null, reason: 'Test' };
+    const ok = await page.evaluate(async (e) => { avExceptions = [e]; return saveAvailability(); }, ex);
+    expect(ok).toBe(true);
+    const puts = verzoeken.van('/api/availability', 'PUT');
+    expect(puts).toHaveLength(1);
+    expect(puts[0].body).toEqual({ versie: 0, exceptions: [ex] });
+    expect(puts[0].headers).toEqual({ 'content-type': JSON_CT, 'x-blitz-test': '1' });
+    expect(await page.evaluate(() => avVersie)).toBe(1);
+  });
+
+  test('plan deze week: matrix-verzoek volledig', async ({ page, verzoeken }) => {
+    await startApp(page, { technieker: 'Tim' });
+    await planWeek(page);
+    const matrix = verzoeken.van('/api/matrix', 'POST');
+    expect(matrix.length).toBeGreaterThanOrEqual(1);
+    expect(matrix[0]).toEqual({
+      methode: 'POST', pad: '/api/matrix',
+      body: {
+        origin: { lat: 51.162, lon: 4.989 },
+        destinations: [{ lat: 50.9307, lon: 5.3325 }],
+        departAt: '2026-10-05T08:00:00.000Z',
+      },
+      headers: { 'content-type': JSON_CT, 'x-blitz-test': '1' },
+    });
+  });
+
+  test('route: optimize, route en drukte volledig', async ({ page, verzoeken }) => {
+    await page.addInitScript(() => {
+      if (window !== window.top) return;
+      if (localStorage.getItem('blitz_settings_Tim') === null) localStorage.setItem('blitz_settings_Tim', JSON.stringify({ vanTijd: '10:00' }));
+    });
+    await startApp(page, { technieker: 'Tim' });
+    await openRouteVanMaandag(page);
+    await expect.poll(() => verzoeken.van('/api/drukte', 'POST').length).toBe(1);
+    const headers = { 'content-type': JSON_CT, 'x-blitz-test': '1' };
+    const OPTIMIZE = {
+      methode: 'POST', pad: '/api/optimize', headers,
+      body: { origin: 'Heirbaan 9, 9150 Kruibeke', stops: ['Antwerpseweg 50, 2440 Geel', 'Kuringersteenweg 12, 3500 Hasselt'] },
+    };
+    // calculateRoute: geocoderen, route en drukte-detail
+    expect(verzoeken.van('/api/optimize', 'POST')).toEqual([OPTIMIZE]);
+    expect(verzoeken.van('/api/route', 'POST')).toEqual([{
+      methode: 'POST', pad: '/api/route', headers,
+      body: { waypoints: [{ lat: 51.1, lon: 4.9 }, { lat: 51.12, lon: 4.93 }, { lat: 51.14, lon: 4.96 }], departAt: '2026-10-05T08:00:00.000Z' },
+    }]);
+    expect(verzoeken.van('/api/drukte', 'POST')).toEqual([{
+      methode: 'POST', pad: '/api/drukte', headers,
+      body: { polyline: [[51.1, 4.9], [51.12, 4.93], [51.14, 4.96]], departAt: '2026-10-05T08:00:00.000Z', segmentMeters: 1500 },
+    }]);
+    // optimizeRoute (knop ⚡ Optimaliseer): zelfde optimize-verzoek
+    await page.getByRole('button', { name: '⚡ Optimaliseer' }).click();
+    await expect.poll(() => verzoeken.van('/api/optimize', 'POST').length).toBe(2);
+    expect(verzoeken.van('/api/optimize', 'POST')[1]).toEqual(OPTIMIZE);
+  });
+});

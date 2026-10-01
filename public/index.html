@@ -739,9 +739,7 @@ let _voorstelStatusVersie = null;
 // mislukte refresh mag er nooit op een mogelijk stale voorstelStatus verder gewerkt worden.
 async function loadVoorstelStatus() {
   try {
-    const res  = await fetch('/api/voorstel-status');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
+    const data = await kern.api.apiJson('/api/voorstel-status');
     voorstelStatus       = data.status  || {};
     _voorstelStatusVersie = data.versie || 0;
     return true;
@@ -2714,9 +2712,7 @@ async function loadAfspraken() {
     }
   }
   try {
-    const res  = await fetch(AFG_API);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
+    const data = await kern.api.apiJson(AFG_API);
     localEvents       = data.afspraken || [];
     localEventsVersie = data.versie    || 0;
     if (!TEST_MODE) saveToCache('blitz_afspraken_cache', { afspraken: localEvents, versie: localEventsVersie });
@@ -2771,9 +2767,7 @@ async function loadKlantBeschikbaarheid() {
     }
   }
   try {
-    const res  = await fetch(KB_API);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
+    const data = await kern.api.apiJson(KB_API);
     klantBeschikbaarheid = data.items  || {};
     kbVersie             = data.versie || 0;
     if (!TEST_MODE) saveToCache('blitz_klantbeschikbaarheid_cache', { items: klantBeschikbaarheid, versie: kbVersie });
@@ -2791,51 +2785,28 @@ async function loadKlantBeschikbaarheid() {
 
 async function saveKlantBeschikbaarheid() {
   try {
-    const res = await fetch(KB_API, {
-      method:  'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ versie: kbVersie, items: klantBeschikbaarheid }),
+    // Bij 409: server-stand nemen en de lokale wijziging erover leggen (kern.api.bewaarMetVersie).
+    const result = await kern.api.bewaarMetVersie({
+      pad: KB_API, veld: 'items', versie: kbVersie, waarde: klantBeschikbaarheid,
+      voegSamen: (server, lokaal) => {
+        // Kopieer server-state, overschrijf enkel de gewijzigde tickets
+        const merged = { ...(server || {}) };
+        Object.assign(merged, lokaal);
+        // Een lokaal verwijderde entry mag niet terugkomen uit de server-state, ook al staat hij
+        // daar nog (bugronde 2026-09-22, item B) -- de gebruiker heeft 'm hier expliciet gewist.
+        for (const id of kbLocallyDeleted) delete merged[id];
+        return merged;
+      },
     });
-    if (res.status === 409) {
-      // Merge: pas onze lokale wijziging toe op de server-versie
-      const srv = await res.json();
-      const serverItems = srv.data?.items || {};
-      // Kopieer server-state, overschrijf enkel de gewijzigde tickets
-      const merged = { ...serverItems };
-      for (const [id, entry] of Object.entries(klantBeschikbaarheid)) {
-        merged[id] = entry;
-      }
-      // Een lokaal verwijderde entry mag niet terugkomen uit de server-state, ook al staat hij
-      // daar nog (bugronde 2026-09-22, item B) -- de gebruiker heeft 'm hier expliciet gewist.
-      for (const id of kbLocallyDeleted) {
-        delete merged[id];
-      }
-      klantBeschikbaarheid = merged;
-      kbVersie             = srv.data?.versie || 0;
-      // Retry
-      const res2 = await fetch(KB_API, {
-        method:  'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ versie: kbVersie, items: klantBeschikbaarheid }),
-      });
-      if (!res2.ok) throw new Error('HTTP ' + res2.status);
-      const data2 = await res2.json();
-      kbVersie = data2.versie;
-      // (M1) De retry-PUT is geslaagd met `merged` (dat de kbLocallyDeleted-ids al uitsloot) als
-      // body -- de server heeft nu dus GEEN entry meer voor die ids. Pas nu leegmaken: bij een
-      // mislukte retry moeten de ids uitgesloten BLIJVEN tot een volgende poging wél lukt (anders
-      // kan een tussentijdse GC/refresh de "verwijderde" entry weer laten terugkomen uit een
-      // stale server-read).
-      kbLocallyDeleted.clear();
-      return true;
-    }
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    kbVersie = data.versie;
-    // (M1) Geslaagde (niet-409) PUT: `klantBeschikbaarheid` bevatte al geen entries meer voor de
-    // kbLocallyDeleted-ids, dus de server-state komt nu overeen -- de ids zijn "op de server"
-    // verwijderd en hoeven niet langer apart onthouden te worden. Een latere legitieme
-    // her-instelling door een collega mag vanaf nu gewoon weer binnenkomen.
+    // Na een 409 is `waarde` de samengevoegde stand en `versie` de laatst bekende serverversie (ook bij een
+    // mislukte retry, zoals voorheen); bij een gewone geslaagde/mislukte PUT blijft de lokale stand staan.
+    if (result.waarde !== klantBeschikbaarheid) klantBeschikbaarheid = result.waarde;
+    kbVersie = result.versie;
+    if (!result.ok) throw new Error(result.reden === 'netwerk' ? 'netwerk' : 'HTTP ' + result.status);
+    // (M1) Pas nu leegmaken: bij een mislukte retry moeten de ids uitgesloten BLIJVEN tot een volgende
+    // poging wél lukt (anders kan een tussentijdse GC/refresh de "verwijderde" entry weer laten
+    // terugkomen uit een stale server-read). Bij een geslaagde PUT bevatte `klantBeschikbaarheid`
+    // al geen entries meer voor die ids, dus de server-state komt overeen.
     kbLocallyDeleted.clear();
     return true;
   } catch (err) {
@@ -3326,9 +3297,7 @@ async function loadAvailability() {
     }
   }
   try {
-    const res = await fetch(AV_API);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
+    const data = await kern.api.apiJson(AV_API);
     avExceptions = data.exceptions || [];
     avVersie     = data.versie     || 0;
     if (!TEST_MODE) saveToCache('blitz_availability_cache', { exceptions: avExceptions, versie: avVersie });
@@ -3346,23 +3315,17 @@ async function loadAvailability() {
 
 async function saveAvailability() {
   try {
-    const res = await fetch(AV_API, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ versie: avVersie, exceptions: avExceptions }),
-    });
+    const res = await kern.api.apiVerzoek(AV_API, { methode: 'PUT', body: { versie: avVersie, exceptions: avExceptions } });
     if (res.status === 409) {
       // Conflict: herladen en opnieuw toepassen
-      const body = await res.json();
-      avExceptions = body.data?.exceptions || [];
-      avVersie     = body.data?.versie     || 0;
+      avExceptions = res.data?.data?.exceptions || [];
+      avVersie     = res.data?.data?.versie     || 0;
       toast('⚠ Iemand anders wijzigde dit net. De gegevens zijn opnieuw geladen.', 3000);
       renderBlockModal();
       return false;
     }
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    avVersie = data.versie;
+    avVersie = res.data.versie;
     return true;
   } catch (err) {
     console.error('Beschikbaarheid opslaan mislukt:', err);
@@ -3802,16 +3765,15 @@ async function autoPlan() {
       reistijden: async (van, naar, vertrekIso) => {
         const alleNull = () => new Map(naar.map(n => [n.id, null]));
         try {
-          const res  = await fetch('/api/matrix', {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({
+          const res  = await kern.api.apiVerzoek('/api/matrix', {
+            methode: 'POST',
+            body:    {
               origin:       { lat: van.lat, lon: van.lon },
               destinations: naar.map(n => ({ lat: n.lat, lon: n.lon })),
               departAt:     vertrekIso,
-            }),
+            },
           });
-          const data = await res.json();
+          const data = res.data;
           if (!res.ok) {
             console.warn('Matrix-opzoeking mislukt, het brein rekent met een schatting:', data.error || res.status);
             return alleNull();
@@ -4698,12 +4660,10 @@ async function optimizeRoute() {
   if (vrij.length < 2) return toast('Minimaal 2 verplaatsbare stops met adres nodig voor optimalisatie');
   toast('Route optimaliseren...', 8000);
   try {
-    const res  = await fetch('/api/optimize', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ origin: settings.startlocatie, stops: vrij.map(p => p.address) }),
-    });
-    const data = await res.json();
+    const data = (await kern.api.apiVerzoek('/api/optimize', {
+      methode: 'POST',
+      body:    { origin: settings.startlocatie, stops: vrij.map(p => p.address) },
+    })).data;
     if (data.error) throw new Error(data.error);
     // /api/optimize geeft 200 + locations + optimizeError als geocoding lukte maar de
     // waypoint-optimalisatie niet. Dan de bestaande volgorde behouden (nooit planning[date]
@@ -4784,15 +4744,13 @@ async function calculateRoute() {
     // volledig overgeslagen.
     if (needsGeo.length || localNeedsGeo.length || !origin) {
       const combinedAdressen = [...needsGeo.map(p => p.address), ...localNeedsGeo.map(e => e.adres || e.notitie)];
-      const gRes  = await fetch('/api/optimize', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
+      const gData = (await kern.api.apiVerzoek('/api/optimize', {
+        methode: 'POST',
+        body:    {
           origin: settings.startlocatie,
           stops:  combinedAdressen.length ? combinedAdressen : [settings.startlocatie],
-        }),
-      });
-      const gData = await gRes.json();
+        },
+      })).data;
       if (gData.locations) {
         let i = 1;
         needsGeo.forEach(p => { const loc = gData.locations[i++]; if (loc) { p._lat = loc.lat; p._lon = loc.lon; geocacheStore(p.address, loc.lat, loc.lon); } });
@@ -4822,12 +4780,10 @@ async function calculateRoute() {
     const tijd    = allWpStops.find(p => p.uur)?.uur || settings.vanTijd;
     const vertrek = new Date(`${date}T${tijd}:00`);
     const departAt = vertrek > new Date() ? vertrek.toISOString() : undefined;
-    const rRes  = await fetch('/api/route', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ waypoints: wps, departAt }),
-    });
-    const rData = await rRes.json();
+    const rData = (await kern.api.apiVerzoek('/api/route', {
+      methode: 'POST',
+      body:    { waypoints: wps, departAt },
+    })).data;
     if (rData.error) throw new Error(rData.error);
     // Ondertussen een andere dag gekozen: dit (verouderde) antwoord niet meer tonen.
     if (document.getElementById('plan-date').value !== date) return;
@@ -4876,12 +4832,10 @@ async function laadDrukteDetail(date, rData) {
   if (!settings.drukteKleuring || !rData.departAtUsed || !(rData.polyline?.length >= 2)) return;
   toast('Drukte laden...', 4000);
   try {
-    const res  = await fetch('/api/drukte', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ polyline: rData.polyline, departAt: rData.departAtUsed, segmentMeters: DRUKTE_SEGMENT_METERS }),
-    });
-    const data = await res.json();
+    const data = (await kern.api.apiVerzoek('/api/drukte', {
+      methode: 'POST',
+      body:    { polyline: rData.polyline, departAt: rData.departAtUsed, segmentMeters: DRUKTE_SEGMENT_METERS },
+    })).data;
     if (data.error) throw new Error(data.error);
     // De route kan ondertussen vervangen zijn door een nieuwe berekening — dan is dit
     // detail verouderd en negeren we het.

@@ -81,7 +81,8 @@ export function verzamelVerzoeken(page) {
     if (!eigenApi(u)) return;
     let body = null;
     try { body = req.postDataJSON(); } catch { body = null; }
-    v.alle.push({ methode: req.method(), pad: u.pathname, body });
+    const h = req.headers();
+    v.alle.push({ methode: req.method(), pad: u.pathname, body, headers: { 'content-type': h['content-type'] ?? null, 'x-blitz-test': h['x-blitz-test'] ?? null } });
   });
   PER_CONTEXT.set(context, v);
   return v;
