@@ -42,7 +42,7 @@ test('registreerActies — basic delegatie', () => {
   const handlers = {};
   let aanroepen = [];
   handlers['a'] = (el, event, arg) => {
-    aanroepen.push({ tag: el.dataset.actie, arg });
+    aanroepen.push({ el, event, arg, tag: el.dataset.actie });
   };
 
   const nep_wortel = {
@@ -57,13 +57,14 @@ test('registreerActies — basic delegatie', () => {
   const afmelden = registreerActies(nep_wortel, handlers);
 
   // Simuleer een click event
+  const nep_element = {
+    dataset: { actie: 'a', arg: '-1' }
+  };
   const nep_event = {
     target: {
       closest(selector) {
         if (selector === '[data-actie]') {
-          return {
-            dataset: { actie: 'a', arg: '-1' }
-          };
+          return nep_element;
         }
         return null;
       }
@@ -74,13 +75,18 @@ test('registreerActies — basic delegatie', () => {
 
   assert.equal(aanroepen.length, 1);
   assert.equal(aanroepen[0].arg, '-1');
+  assert.equal(aanroepen[0].tag, 'a');
+  assert.ok(aanroepen[0].el === nep_element, 'handler ontvangt el');
+  assert.ok(aanroepen[0].event === nep_event, 'handler ontvangt event');
 });
 
 test('registreerActies — onbekende actie wordt genegeerd', () => {
   const handlers = {};
-  handlers['a'] = () => { throw new Error('should not call'); };
+  let callCount = 0;
+  handlers['a'] = () => { callCount++; };
 
   const nep_wortel = {
+    _listener: null,
     addEventListener(type, fn) {
       this._listener = fn;
     },
@@ -90,6 +96,9 @@ test('registreerActies — onbekende actie wordt genegeerd', () => {
   };
 
   registreerActies(nep_wortel, handlers);
+
+  // Assert listener is geregistreerd
+  assert.ok(nep_wortel._listener, 'listener moet geregistreerd zijn');
 
   const nep_event = {
     target: {
@@ -105,14 +114,17 @@ test('registreerActies — onbekende actie wordt genegeerd', () => {
   };
 
   nep_wortel._listener(nep_event);
-  // Geen fout gegooid = test passed
+  // Handler mag niet opgeroepen zijn
+  assert.equal(callCount, 0, 'onbekende actie mag geen handler oproepen');
 });
 
 test('registreerActies — geen closest → niets', () => {
   const handlers = {};
-  handlers['a'] = () => { throw new Error('should not call'); };
+  let callCount = 0;
+  handlers['a'] = () => { callCount++; };
 
   const nep_wortel = {
+    _listener: null,
     addEventListener(type, fn) {
       this._listener = fn;
     },
@@ -123,12 +135,16 @@ test('registreerActies — geen closest → niets', () => {
 
   registreerActies(nep_wortel, handlers);
 
+  // Assert listener is geregistreerd
+  assert.ok(nep_wortel._listener, 'listener moet geregistreerd zijn');
+
   const nep_event = {
     target: { closest: null }
   };
 
   nep_wortel._listener(nep_event);
-  // Geen fout gegooid = test passed
+  // Handler mag niet opgeroepen zijn
+  assert.equal(callCount, 0, 'target zonder closest mag geen handler oproepen');
 });
 
 test('registreerActies — teruggegeven functie meldt af', () => {
@@ -155,7 +171,7 @@ test('registreerActies — teruggegeven functie meldt af', () => {
   // Roep afmelden aan
   afmelden();
 
-  // Controleer dat removeEventListener is aangeroepen
+  // Controleer dat removeEventListener is aangeroepen met dezelfde listener
   assert.equal(removedType, 'click');
-  assert.ok(removedFn);
+  assert.equal(removedFn, nep_wortel._listener, 'afmelden geeft dezelfde listener aan removeEventListener');
 });
