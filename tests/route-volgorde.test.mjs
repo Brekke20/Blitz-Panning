@@ -200,3 +200,93 @@ test('routeOrderBezig is true tijdens applyRouteOrder en false erna, ook bij een
   assert.equal(route.routeOrderBezig(), false);
   testModus = false;
 });
+
+// ── Fix-ronde 1: vergrendelde stops en afbreken na een mislukte POST ─────────────────────────────────────────
+// Toasts opvangen: toast() schrijft in het element #toast.
+const toasts = [];
+elementen.set('toast', { classList: { add() {}, remove() {} }, set textContent(v) { toasts.push(String(v)); } });
+const isAnker = (item) => {
+  const vs = toestand.get('voorstelStatus')[item.ticket.id];
+  return !!(vs?.contact || vs?.klant || vs?.installateur || vs?.bevestigd);
+};
+function zetScenarioMet(items, voorstelStatus = {}) {
+  toestand.set('settings', { vanTijd: '08:00', totTijd: '17:00', startlocatie: 'Start', drukteKleuring: false, werkdagen: [1, 2, 3, 4, 5] });
+  toestand.set('voorstelStatus', voorstelStatus);
+  toestand.set('localEvents', []);
+  toestand.set('activeAssigneeFilter', 'all');
+  toestand.set('planning', { [DATUM]: items });
+  zetFetch(async () => ({ ok: true, status: 200, json: async () => ({
+    legs: items.map(() => ({ travelTimeSeconds: 10 * 60, distanceMeters: 5000 })),
+    polyline: [[51, 4], [51.1, 4.1]], totalDistanceMeters: 13000,
+    totalTravelTimeSeconds: 1800, totalTrafficDelaySeconds: 0, arrivalTime: null,
+  }) }));
+  toasts.length = 0;
+  loadTicketsAantal = 0;
+}
+const alsEntries = (items) => items.map(item => ({ kind: 'ticket', item, uur: item.uur }));
+const klaarVoorOud = (items) => items.map(i => {
+  const k = ticket(i.ticket.id, i.ticket.interventieDatum); k.uur = i.uur; return k;
+});
+
+test('applyRouteOrder: een vergrendelde stop wordt nooit gepost, ook al verschilt zijn uur van interventieDatum (oud = nieuw)', async () => {
+  testModus = false;
+  const b = ticket('1002');
+  const c = ticket('1003', new Date(`${DATUM}T10:00:00`).toISOString()); c.uur = '11:00'; // vergrendeld, uur != interventieDatum
+  const d = ticket('1004');
+  const oorspronkelijk = klaarVoorOud([b, c, d]);
+  zetScenarioMet([b, c, d], { '1003': { contact: true } });
+  const echt = opnemendeFetch();
+  globalThis.fetch = echt.fn;
+  await route.applyRouteOrder(DATUM, alsEntries([b, c, d]));
+
+  assert.equal(c.uur, '11:00'); // anker blijft staan
+  assert.deepEqual(echt.log.map(r => JSON.parse(r.body).ticketId), ['1002', '1004']);
+  assert.ok(!echt.log.some(r => r.body.includes('1003')), 'vergrendelde stop mag niet gepost worden');
+
+  oorspronkelijk[0].uur = b.uur; oorspronkelijk[1].uur = c.uur; oorspronkelijk[2].uur = d.uur;
+  const oud = opnemendeFetch();
+  await oudPersistBlok({
+    TEST_MODE: false, stops: oorspronkelijk, date: DATUM,
+    isStopAnchored: isAnker, loadTickets: async () => {}, toast: () => {}, fetch: oud.fn,
+  });
+  assert.deepEqual(echt.log, oud.log);
+});
+
+for (const [naam, faal] of [['antwoord ok:false', 'antwoord'], ['fetch gooit', 'gooit']]) {
+  test(`applyRouteOrder: bij een mislukte eerste POST (${naam}) stopt het persisteren (oud = nieuw)`, async () => {
+    testModus = false;
+    const b = ticket('1002'), d = ticket('1004');
+    zetScenarioMet([b, d]);
+    const maakFout = () => {
+      const log = [];
+      const fn = async (url, opties) => {
+        log.push({ url, method: opties?.method, headers: opties?.headers, body: opties?.body });
+        if (faal === 'gooit') throw new Error('netwerk');
+        return { json: async () => ({ ok: false, error: 'nee' }) };
+      };
+      return { fn, log };
+    };
+    const echt = maakFout();
+    globalThis.fetch = echt.fn;
+    await route.applyRouteOrder(DATUM, alsEntries([b, d]));
+
+    assert.equal(echt.log.length, 1, 'de tweede stop mag niet meer gepost worden');
+    assert.ok(toasts.includes('✕ Volgorde bewaren mislukt voor #1002'), `toasts: ${toasts.join(' | ')}`);
+    assert.ok(!toasts.some(t => t.includes('Volgorde en tijdstippen bijgewerkt')));
+    assert.equal(loadTicketsAantal, 1);
+    assert.equal(b.ticket.interventieDatum, null);
+    assert.equal(d.ticket.interventieDatum, null);
+
+    const oudStops = klaarVoorOud([b, d]);
+    const oudToasts = []; let oudLoad = 0;
+    const oud = maakFout();
+    await oudPersistBlok({
+      TEST_MODE: false, stops: oudStops, date: DATUM, isStopAnchored: isAnker,
+      loadTickets: async () => { oudLoad++; }, toast: (t) => oudToasts.push(t), fetch: oud.fn,
+    });
+    assert.deepEqual(echt.log, oud.log);
+    assert.deepEqual(oudToasts, ['✕ Volgorde bewaren mislukt voor #1002']);
+    assert.equal(oudLoad, 1);
+    assert.equal(oudStops[1].ticket.interventieDatum, null);
+  });
+}
