@@ -54,17 +54,35 @@ test.describe('kalender: gsm (indeling smal)', () => {
     const acties = kaarten.nth(1).locator('.cal-actions');
     await expect(acties.getByText('📞 Bellen')).toBeVisible();
     await expect(acties.getByText('🧭 Navigeer')).toBeVisible();
+    // Navigeer klikken: window.open gestubd (niets verlaat de pagina); effect gebeurd, detail blijft dicht (C8).
+    await page.evaluate(() => { window.__open = []; window.open = (u) => { window.__open.push(u); return null; }; });
+    await acties.getByText('🧭 Navigeer').click();
+    await expect.poll(() => page.evaluate(() => window.__open)).toHaveLength(1);
+    expect((await page.evaluate(() => window.__open))[0]).toContain('destination=' + encodeURIComponent('Koerselsesteenweg 88, 3580 Beringen'));
+    await expect(page.locator('#d-num')).toBeHidden();
     await expect(kaarten.nth(0).locator('.cal-actions').getByText('📞 Bellen')).toBeVisible();
 
     // Positief tegenstuk: de weekwissel werkt ook in de lijstweergave.
     await volgende(page).click();
     await expect(page.locator('#kal-label')).toContainText('12 okt – 18 okt');
-    expect(await datums(page)).toEqual(['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16']);
+    await expect.poll(() => datums(page)).toEqual(['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16']);
     await expect(page.locator('.cal-ticket')).toHaveCount(0);
     await expect(page.locator('.kal-nu-marker')).toHaveCount(0);
     await vorige(page).click();
     await expect(page.locator('#kal-label')).toContainText('5 okt – 11 okt');
     await expect(page.locator('.cal-ticket')).toHaveCount(3);
+  });
+});
+
+test.describe('kalender: gsm, kaartklik', () => {
+  test('een klik op de kaart opent het detail', async ({ page }) => {
+    // Het tijdlijnblok (.tl-ticket) heeft zijn positieve tegenstuk al in voorstel-afspraak-blokkering.spec.mjs
+    // (openTicket1004, regel 6-13); dit is het tegenstuk voor de gsm-kaart (.cal-ticket).
+    await zetWeergave(page, 'gsm');
+    await startApp(page, { viewport: { width: 390, height: 844 }, overschrijf: seed() });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await dag(page, '2026-10-07').locator('.cal-ticket').locator('.cal-sub').click();
+    await expect(page.locator('#d-num')).toHaveText('#1004');
   });
 });
 
@@ -77,31 +95,31 @@ test.describe('kalender: tablet staand', () => {
     await page.getByRole('tab', { name: 'Kalender' }).click();
     const label = page.locator('#kal-label');
     await expect(page.locator('#kal-label-tekst')).toHaveText('5 okt – 7 okt');
-    expect(await datums(page)).toEqual(['2026-10-05', '2026-10-06', '2026-10-07']);
+    await expect.poll(() => datums(page)).toEqual(['2026-10-05', '2026-10-06', '2026-10-07']);
     await expect(label).not.toHaveClass(/niet-vandaag/);
     // De tijdlijn is er (enkel 'smal' gebruikt de lijst).
     await expect(page.locator('.tl-wrap')).toHaveCount(3);
 
     await volgende(page).click();
     await expect(page.locator('#kal-label-tekst')).toHaveText('6 okt – 8 okt');
-    expect(await datums(page)).toEqual(['2026-10-06', '2026-10-07', '2026-10-08']);
+    await expect.poll(() => datums(page)).toEqual(['2026-10-06', '2026-10-07', '2026-10-08']);
     await expect(label).toHaveClass(/niet-vandaag/);
     await volgende(page).click();
-    expect(await datums(page)).toEqual(['2026-10-07', '2026-10-08', '2026-10-09']);
+    await expect.poll(() => datums(page)).toEqual(['2026-10-07', '2026-10-08', '2026-10-09']);
     await expect(page.locator('#kal-label-tekst')).toHaveText('7 okt – 9 okt');
 
     await vorige(page).click();
-    expect(await datums(page)).toEqual(['2026-10-06', '2026-10-07', '2026-10-08']);
+    await expect.poll(() => datums(page)).toEqual(['2026-10-06', '2026-10-07', '2026-10-08']);
     await vorige(page).click();
     await vorige(page).click();
     // Het weekend wordt overgeslagen: één werkdag terug vanaf maandag is vrijdag 2 okt.
-    expect(await datums(page)).toEqual(['2026-10-02', '2026-10-05', '2026-10-06']);
+    await expect.poll(() => datums(page)).toEqual(['2026-10-02', '2026-10-05', '2026-10-06']);
     await expect(label).toHaveClass(/niet-vandaag/);
 
     // "↺ Vandaag" (de label-knop) brengt terug.
     await label.click();
     await expect(label).not.toHaveClass(/niet-vandaag/);
-    expect(await datums(page)).toEqual(['2026-10-05', '2026-10-06', '2026-10-07']);
+    await expect.poll(() => datums(page)).toEqual(['2026-10-05', '2026-10-06', '2026-10-07']);
   });
 
   test('in de maandweergave schuift › een maand, los van de dagverschuiving', async ({ page }) => {
@@ -130,7 +148,7 @@ test.describe('kalender: tablet staand', () => {
     await startApp(page, { viewport: tablet, technieker: 'Tim', overschrijf: seed() });
     await page.getByRole('tab', { name: 'Kalender' }).click();
     // Gemeten: dinsdag 6 okt is het beginpunt.
-    expect(await datums(page)).toEqual(['2026-10-06', '2026-10-07', '2026-10-08']);
+    await expect.poll(() => datums(page)).toEqual(['2026-10-06', '2026-10-07', '2026-10-08']);
     await expect(page.locator('#kal-label-tekst')).toHaveText('6 okt – 8 okt');
   });
 

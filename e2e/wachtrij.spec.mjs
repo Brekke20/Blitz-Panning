@@ -69,36 +69,54 @@ test.describe('wachtrij: zoeken', () => {
 });
 
 test.describe('wachtrij: sorteren', () => {
-  test('vier sorteeropties, bewaard in localStorage en na herladen nog actief', async ({ page }) => {
+  test('vier sorteeropties, elk met een eigen volgorde, bewaard in localStorage en na herladen nog actief', async ({ page }) => {
     await startApp(page);
     const sel = page.locator('#wq-sorteer');
+    const lijst = page.locator('#ticket-list .ticket .tnum');
+    const bewaard = () => page.evaluate(() => localStorage.getItem('blitz_wachtrij_sorteer'));
     // Gemeten uit DUMMY_DATA: standaard = verlopen eerst (#1001), daarna queueScore (medium 3 vóór low 6).
-    expect(await nummers(page)).toEqual(['#1001', '#1002', '#1003']);
+    await expect(lijst).toHaveText(['#1001', '#1002', '#1003']);
+
+    // Eigen data zodat elke optie een andere volgorde geeft (geen verlopen ticket meer):
+    //   aangemaakt: #1001 18 jun, #1002 19 jun, #1003 20 jun
+    //   interventie: #1001 +3 d, #1002 +5 d, #1003 +1 d
+    //   queueScore: #1001 high 1 x 3/7 = 0,43; #1003 low 6 x 1/7 = 0,86; #1002 medium 3 x 5/7 = 2,14
+    await page.evaluate(() => {
+      const dagen = (n) => new Date(Date.now() + n * 86400000).toISOString();
+      const data = { t1: ['2026-06-18T08:00:00Z', 3], t2: ['2026-06-19T08:00:00Z', 5], t3: ['2026-06-20T08:00:00Z', 1] };
+      for (const t of kern.toestand.get('allTickets')) {
+        t.createdTime = data[t.id][0];
+        t.interventieDatum = dagen(data[t.id][1]);
+      }
+      kern.toestand.raak('allTickets');
+    });
+    // Standaard: score oplopend.
+    await expect(lijst).toHaveText(['#1001', '#1003', '#1002']);
+    await expect(page.locator('#ticket-list .ticket.overdue')).toHaveCount(0);
 
     await sel.selectOption('oudst');
     await expect(sel).toHaveValue('oudst');
-    expect(await nummers(page)).toEqual(['#1001', '#1002', '#1003']); // createdTime 18, 20, 21 jun
-    expect(await page.evaluate(() => localStorage.getItem('blitz_wachtrij_sorteer'))).toBe('oudst');
+    await expect(lijst).toHaveText(['#1001', '#1002', '#1003']);
+    expect(await bewaard()).toBe('oudst');
 
     await sel.selectOption('nieuwst');
-    expect(await nummers(page)).toEqual(['#1003', '#1002', '#1001']);
-    expect(await page.evaluate(() => localStorage.getItem('blitz_wachtrij_sorteer'))).toBe('nieuwst');
+    await expect(lijst).toHaveText(['#1003', '#1002', '#1001']);
+    expect(await bewaard()).toBe('nieuwst');
 
-    // Interventiedatum: #1001 (twee dagen geleden) vóór de tickets zonder datum (die behouden hun volgorde).
     await sel.selectOption('interventie');
-    expect(await nummers(page)).toEqual(['#1001', '#1002', '#1003']);
-    expect(await page.evaluate(() => localStorage.getItem('blitz_wachtrij_sorteer'))).toBe('interventie');
+    await expect(lijst).toHaveText(['#1003', '#1001', '#1002']);
+    expect(await bewaard()).toBe('interventie');
 
     await sel.selectOption('standaard');
-    expect(await nummers(page)).toEqual(['#1001', '#1002', '#1003']);
-    expect(await page.evaluate(() => localStorage.getItem('blitz_wachtrij_sorteer'))).toBe('standaard');
+    await expect(lijst).toHaveText(['#1001', '#1003', '#1002']);
+    expect(await bewaard()).toBe('standaard');
 
-    // Na herladen blijft de laatst gekozen volgorde staan (select én volgorde).
+    // Na herladen blijft de laatst gekozen volgorde staan (select én volgorde; de data is weer DUMMY_DATA).
     await sel.selectOption('nieuwst');
     await page.reload();
     await expect(page.locator('#cnt-tickets')).toHaveText('3');
     await expect(sel).toHaveValue('nieuwst');
-    expect(await nummers(page)).toEqual(['#1003', '#1002', '#1001']);
+    await expect(lijst).toHaveText(['#1003', '#1002', '#1001']);
   });
 });
 

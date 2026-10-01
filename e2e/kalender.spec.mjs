@@ -497,8 +497,15 @@ test.describe('tab Ingepland: details', () => {
     await expect(bel).toHaveAttribute('href', 'tel:+32479567890');
     const mail = kaart.locator('.contact-acties a[href^="mailto:"]');
     await expect(mail).toHaveAttribute('href', 'mailto:peter@test.be');
-    // Navigeer bestaat, maar wordt niet aangeklikt: het opent een externe kaart-URL (niet bereikbaar in de suite).
-    await expect(kaart.locator('.btn-navigeer-groot')).toHaveAttribute('data-adres', 'Groenplaats 1, 2000 Antwerpen');
+    // Navigeer: window.open wordt gestubd, zodat er niets de pagina verlaat.
+    await page.evaluate(() => { window.__open = []; window.open = (u) => { window.__open.push(u); return null; }; });
+    const navigeer = kaart.locator('.btn-navigeer-groot');
+    await expect(navigeer).toHaveAttribute('data-adres', 'Groenplaats 1, 2000 Antwerpen');
+    await navigeer.click();
+    // Het navigatie-effect gebeurde (kaart-URL met het geëncodeerde adres) en het detail opent niet (C8).
+    await expect.poll(() => page.evaluate(() => window.__open)).toHaveLength(1);
+    expect((await page.evaluate(() => window.__open))[0]).toContain('destination=' + encodeURIComponent('Groenplaats 1, 2000 Antwerpen'));
+    await expect(page.locator('#d-num')).toBeHidden();
 
     // Echt navigeren naar tel:/mailto: voorkomen; de stopPropagation van de knoppen zelf blijft intact.
     await page.evaluate(() => document.addEventListener('click', e => e.preventDefault(), true));
