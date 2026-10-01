@@ -134,30 +134,52 @@ async function installeerTellers(page) {
     }
   }, RENDERS);
 }
-const nulTellers = (page) => page.evaluate(() => { for (const k of Object.keys(window.__n)) window.__n[k] = 0; });
 const tellers = (page) => page.evaluate(() => ({ ...window.__n }));
+// Wacht tot de pagina rustig is: twee animatieframes en daarna een macrotaak (MessageChannel). Alle verwittigingen
+// van de toestand lopen via microtasks, dus alles wat na de actie nog in de pijplijn zat, is dan afgehandeld.
+const rust = (page) => page.evaluate(() => new Promise((klaar) => {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const kanaal = new MessageChannel();
+    kanaal.port1.onmessage = () => klaar(true);
+    kanaal.port2.postMessage(0);
+  }));
+}));
+// Differentieel meten: tellers vóór de actie, de actie (inclusief wachten op zijn zichtbare resultaat), rust,
+// en dan het verschil. Zo hangt de test niet af van hoeveel renders er bij het opstarten waren, en tellen late
+// extra renders na de actie mee.
+async function meetDelta(page, actie) {
+  await rust(page);
+  const voor = await tellers(page);
+  await actie();
+  await rust(page);
+  const na = await tellers(page);
+  return Object.fromEntries(RENDERS.map(n => [n, na[n] - voor[n]]));
+}
 
 test.describe('kern: renders', () => {
   test('technieker wisselen: elke hoofdrender precies 1 keer', async ({ page }) => {
     await startApp(page, { rol: 'coordinator' });
     await installeerTellers(page);
-    await page.locator('#person-btn').click();
-    await page.locator('#person-menu .pm-item', { hasText: 'Tim' }).click();
-    await expect(page.locator('#cnt-tickets')).toHaveText('2');
-    await expect.poll(() => tellers(page)).toEqual({ renderKalender: 1, renderTickets: 1, renderGepland: 1, renderRouteList: 1 });
-    // Blijft stabiel: geen late extra renders.
-    await page.waitForFunction(() => new Promise(r => setTimeout(() => r(true), 100)));
-    expect(await tellers(page)).toEqual({ renderKalender: 1, renderTickets: 1, renderGepland: 1, renderRouteList: 1 });
+    const delta = await meetDelta(page, async () => {
+      await page.locator('#person-btn').click();
+      await page.locator('#person-menu .pm-item', { hasText: 'Tim' }).click();
+      await expect(page.locator('#cnt-tickets')).toHaveText('2');
+    });
+    expect(delta).toEqual({ renderKalender: 1, renderTickets: 1, renderGepland: 1, renderRouteList: 1 });
   });
 
   test('Vernieuwen: elke hoofdrender precies 1 keer', async ({ page }) => {
     await startApp(page, { rol: 'coordinator' });
     await installeerTellers(page);
-    await page.locator('button[data-actie="vernieuw"]').click();
-    await expect(page.locator('#toast')).toContainText('Testmodus actief');
-    await expect.poll(() => tellers(page)).toEqual({ renderKalender: 1, renderTickets: 1, renderGepland: 1, renderRouteList: 1 });
-    await page.waitForFunction(() => new Promise(r => setTimeout(() => r(true), 100)));
-    expect(await tellers(page)).toEqual({ renderKalender: 1, renderTickets: 1, renderGepland: 1, renderRouteList: 1 });
+    const delta = await meetDelta(page, async () => {
+      // De testmodus-toast staat al van het opstarten; wacht daarom op de eerste render van de herlaad
+      // (conditie, geen vaste tijd). Late extra renders vangt de rust in meetDelta.
+      const voor = await page.evaluate(() => window.__n.renderTickets);
+      await page.locator('button[data-actie="vernieuw"]').click();
+      await page.waitForFunction((v) => window.__n.renderTickets > v, voor);
+      await expect(page.locator('#toast')).toContainText('Testmodus actief');
+    });
+    expect(delta).toEqual({ renderKalender: 1, renderTickets: 1, renderGepland: 1, renderRouteList: 1 });
   });
 
   test('eigen afspraak toevoegen: kalender 1 keer, wachtrij niet', async ({ page }) => {
@@ -171,17 +193,18 @@ test.describe('kern: renders', () => {
     await modal.getByLabel('Datum *').fill('2026-10-06');
     await modal.getByLabel('Van *').fill('10:00');
     await modal.getByLabel('Tot *').fill('11:00');
-    await nulTellers(page);
-    await modal.getByRole('button', { name: 'Opslaan' }).click();
-    await expect(page.locator('#toast')).toContainText('Afspraak opgeslagen');
-    expect(await tellers(page)).toEqual({ renderKalender: 1, renderTickets: 0, renderGepland: 0, renderRouteList: 0 });
+    const delta = await meetDelta(page, async () => {
+      await modal.getByRole('button', { name: 'Opslaan' }).click();
+      await expect(page.locator('#toast')).toContainText('Afspraak opgeslagen');
+    });
+    expect(delta).toEqual({ renderKalender: 1, renderTickets: 0, renderGepland: 0, renderRouteList: 0 });
   });
 
   test('onbekende opgeslagen technieker valt terug op Alle zonder renderlus', async ({ page }) => {
     // Tellers vóór het opstarten van de app: DOMContentLoaded-luisteraar van de test loopt vóór die van de app.
     await page.addInitScript(({ namen }) => {
       if (window !== window.top) return;
-      try { localStorage.setItem('blitz_active_person', 'Onbekend'); } catch {}
+      try { if (!sessionStorage.getItem('geenOnbekend')) localStorage.setItem('blitz_active_person', 'Onbekend'); } catch {}
       window.__n = {};
       document.addEventListener('DOMContentLoaded', () => {
         for (const naam of namen) {
@@ -196,14 +219,18 @@ test.describe('kern: renders', () => {
     await expect(page.locator('#person-name-hdr')).toHaveText('Alle');
     expect(await page.evaluate(() => localStorage.getItem('blitz_active_person'))).toBe('all');
     expect(await page.evaluate(() => window.activeAssigneeFilter)).toBe('all');
-    await page.waitForFunction(() => new Promise(r => setTimeout(() => r(true), 150)));
-    // Opstart: precies één render per scherm door de dataload (één ronde, ondanks de filterreset);
-    // kalender: dataload + afspraken + beschikbaarheid + apparaat/rol (4). Een tweede ronde door de reset verhoogt dit.
-    const t = await tellers(page);
-    expect(t.renderTickets).toBe(1);
-    expect(t.renderGepland).toBe(1);
-    expect(t.renderRouteList).toBe(1);
-    expect(t.renderKalender).toBe(4);
+    await rust(page);
+    const metReset = await tellers(page);
+
+    // Controle: dezelfde opstart met een geldige opgeslagen technieker ('all'), dus zonder filterreset.
+    // De reset mag geen extra renders kosten (een tweede ronde zou de aantallen verhogen). Differentieel,
+    // zodat het aantal opstart-renders zelf mag veranderen zonder dat deze test om de verkeerde reden faalt.
+    await page.evaluate(() => { sessionStorage.setItem('geenOnbekend', '1'); localStorage.setItem('blitz_active_person', 'all'); });
+    await page.reload();
+    await expect(page.locator('#cnt-tickets')).toHaveText('3');
+    await rust(page);
+    const zonderReset = await tellers(page);
+    expect(metReset).toEqual(zonderReset);
   });
 
   test('laatste wachtrij-ticket van een technieker inplannen laat diens filter staan', async ({ page }) => {
@@ -211,7 +238,7 @@ test.describe('kern: renders', () => {
     await expect(page.locator('#person-name-hdr')).toHaveText('Roel');
     await page.evaluate(() => addTicketToDate('t3', '2026-10-06'));
     await expect(page.locator('#cnt-tickets')).toHaveText('0');
-    await page.waitForFunction(() => new Promise(r => setTimeout(() => r(true), 100)));
+    await rust(page);
     await expect(page.locator('#person-name-hdr')).toHaveText('Roel');
     expect(await page.evaluate(() => localStorage.getItem('blitz_active_person'))).toBe('Roel');
     expect(await page.evaluate(() => window.activeAssigneeFilter)).toBe('Roel');
@@ -222,20 +249,22 @@ test.describe('kern: renders', () => {
     const id = await page.evaluate(() => allTickets[0].id);
     await installeerTellers(page);
 
-    await page.evaluate(([id]) => addTicketToDate(id, '2026-10-06'), [id]);
-    await expect(page.locator('#cnt-tickets')).toHaveText('2');
-    await expect(page.locator('#ticket-list .ticket')).toHaveCount(2);
+    const na1 = await meetDelta(page, async () => {
+      await page.evaluate(([id]) => addTicketToDate(id, '2026-10-06'), [id]);
+      await expect(page.locator('#cnt-tickets')).toHaveText('2');
+      await expect(page.locator('#ticket-list .ticket')).toHaveCount(2);
+    });
     // wachtrij en kalender: optimistische render + render na de toewijzing; route: alleen na de toewijzing
-    await expect.poll(() => tellers(page)).toEqual({ renderKalender: 2, renderTickets: 2, renderGepland: 0, renderRouteList: 1 });
+    expect(na1).toEqual({ renderKalender: 2, renderTickets: 2, renderGepland: 0, renderRouteList: 1 });
 
-    await nulTellers(page);
-    await page.evaluate(([id]) => removeTicketFromDate(id, '2026-10-06'), [id]);
-    await expect(page.locator('#cnt-tickets')).toHaveText('3');
-    await expect(page.locator('#ticket-list .ticket')).toHaveCount(3);
-    await page.waitForFunction(() => new Promise(r => setTimeout(() => r(true), 100)));
+    const na2 = await meetDelta(page, async () => {
+      await page.evaluate(([id]) => removeTicketFromDate(id, '2026-10-06'), [id]);
+      await expect(page.locator('#cnt-tickets')).toHaveText('3');
+      await expect(page.locator('#ticket-list .ticket')).toHaveCount(3);
+    });
     // zoals voorheen 2x wachtrij/kalender en 1x ingepland; de route krijgt na de optimistische render nu ook
     // de render van het abonnement (allTickets/allPending/allGepland wijzigden): 2 i.p.v. 1
-    expect(await tellers(page)).toEqual({ renderKalender: 2, renderTickets: 2, renderGepland: 1, renderRouteList: 2 });
+    expect(na2).toEqual({ renderKalender: 2, renderTickets: 2, renderGepland: 1, renderRouteList: 2 });
   });
 });
 
