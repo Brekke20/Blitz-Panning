@@ -17,11 +17,11 @@ export const CORS_V1 = Object.freeze({
 
 // ---- v1 ----
 export function v1Json(statusCode, obj, headers) {
-  return { statusCode, headers, body: JSON.stringify(obj) };
+  return { statusCode, headers: { ...headers }, body: JSON.stringify(obj) };
 }
 
 export function v1Opties(headers) {
-  return { statusCode: 204, headers };
+  return { statusCode: 204, headers: { ...headers } };
 }
 
 // null = doorgaan; anders het antwoord (OPTIONS -> 204, niet toegestaan -> 405 JSON).

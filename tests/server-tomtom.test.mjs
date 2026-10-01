@@ -35,6 +35,14 @@ async function draai(naam, event, router) {
   return { res, calls: uit(calls) };
 }
 
+// Backoff-sleep versnellen: setTimeout meteen uitvoeren en de wachttijden onthouden.
+function snelleBackoff() {
+  const waits = [];
+  mock.method(globalThis, 'setTimeout', (fn, ms) => { waits.push(ms); fn(); return 0; });
+  return waits;
+}
+const NETWERKFOUT = () => { throw new Error('netwerk'); };
+
 // ======================= route =======================
 const ROUTE_BASIS = (coords, extra = '') =>
   `${BASIS}/routing/1/calculateRoute/${coords}/json?key=KEY&travelMode=car&traffic=true&routeType=fastest` +
@@ -149,6 +157,12 @@ test('route: geen route geeft 500 No route returned from TomTom', async () => {
   assert.deepEqual(ontleed(res), { status: 500, headers: CORS, body: { error: 'No route returned from TomTom' } });
 });
 
+test('route: netwerkfout geeft 500 met de foutmelding', async () => {
+  const { res, calls } = await draai('route', v1Event('POST', { waypoints: WP }), NETWERKFOUT);
+  assert.deepEqual(calls, [ROUTE_CALL]);
+  assert.deepEqual(ontleed(res), { status: 500, headers: CORS, body: { error: 'netwerk' } });
+});
+
 // ======================= matrix =======================
 const MATRIX_URL = `${BASIS}/routing/matrix/2?key=KEY`;
 
@@ -214,6 +228,36 @@ test('matrix: !res.ok geeft 500 met error.description of de statusvariant', asyn
   r = await draai('matrix', event, () => json({}, 503));
   assert.deepEqual(r.calls, verwacht);
   assert.deepEqual(ontleed(r.res), { status: 500, headers: CORS, body: { error: 'TomTom Matrix-fout (503)' } });
+});
+
+const MATRIX_EVENT = v1Event('POST', { origin: { lat: 50, lon: 3 }, destinations: [{ lat: 51, lon: 4 }] });
+const MATRIX_CALL = {
+  method: 'POST', url: MATRIX_URL, headers: JSON_H,
+  body: '{"origins":[{"point":{"latitude":50,"longitude":3}}],"destinations":[{"point":{"latitude":51,"longitude":4}}],"options":{"departAt":"any","traffic":"historical","travelMode":"car"}}',
+};
+
+test('matrix: 429, 429 en dan 200 doet drie identieke aanvragen (backoff 400 en 800 ms)', async () => {
+  const waits = snelleBackoff();
+  let n = 0;
+  const router = () => (++n <= 2 ? json({}, 429) : json({ data: [{ destinationIndex: 0, routeSummary: { travelTimeInSeconds: 100, lengthInMeters: 1000 } }] }));
+  const { res, calls } = await draai('matrix', MATRIX_EVENT, router);
+  assert.deepEqual(calls, [MATRIX_CALL, MATRIX_CALL, MATRIX_CALL]);
+  assert.deepEqual(waits, [400, 800]);
+  assert.deepEqual(ontleed(res), { status: 200, headers: CORS, body: { results: [{ travelTimeSeconds: 100, distanceMeters: 1000 }] } });
+});
+
+test('matrix: vier keer 429 geeft 4 aanvragen en 500 TomTom Matrix-fout (429)', async () => {
+  const waits = snelleBackoff();
+  const { res, calls } = await draai('matrix', MATRIX_EVENT, () => json({}, 429));
+  assert.deepEqual(calls, [MATRIX_CALL, MATRIX_CALL, MATRIX_CALL, MATRIX_CALL]);
+  assert.deepEqual(waits, [400, 800, 1200]);
+  assert.deepEqual(ontleed(res), { status: 500, headers: CORS, body: { error: 'TomTom Matrix-fout (429)' } });
+});
+
+test('matrix: netwerkfout geeft 500 met de foutmelding', async () => {
+  const { res, calls } = await draai('matrix', MATRIX_EVENT, NETWERKFOUT);
+  assert.deepEqual(calls, [MATRIX_CALL]);
+  assert.deepEqual(ontleed(res), { status: 500, headers: CORS, body: { error: 'netwerk' } });
 });
 
 // ======================= optimize =======================
@@ -326,6 +370,28 @@ test('optimize: geen array of onbruikbare permutatie geeft geocodeOnly', async (
   assert.deepEqual(ontleed(r.res).body, { locations: OPT_LOCS, optimizeError: 'TomTom gaf een onbruikbare optimizedOrder terug (2 van 2 stops)', details: dubbel });
 });
 
+test('optimize: netwerkfout bij het geocoderen van het vertrekpunt geeft het 400-pad', async () => {
+  const router = url => { if (url === geocodeUrl('Start 1, Gent')) throw new Error('netwerk'); return optRouter()(url); };
+  const { res, calls } = await draai('optimize', OPT_EVENT, router);
+  assert.deepEqual(calls, [geoCall('Start 1, Gent'), geoCall('A 1, Brugge'), geoCall('B 2, Hasselt')]);
+  assert.deepEqual(ontleed(res), { status: 400, headers: CORS, body: { error: "Vertrekpunt 'Start 1, Gent' kon niet opgezocht worden (netwerk)" } });
+});
+
+test('optimize: netwerkfout bij het geocoderen van een stop blijft tolerant', async () => {
+  const router = (url, opts) => { if (url === geocodeUrl('B 2, Hasselt')) throw new Error('netwerk'); return optRouter()(url, opts); };
+  const { res, calls } = await draai('optimize', OPT_EVENT, router);
+  assert.deepEqual(calls, [geoCall('Start 1, Gent'), geoCall('A 1, Brugge'), geoCall('B 2, Hasselt')]);
+  assert.deepEqual(ontleed(res), { status: 200, headers: CORS, body: {
+    locations: [loc3('Start 1, Gent'), loc3('A 1, Brugge'), null], optimizeError: 'Niet alle adressen gevonden',
+  } });
+});
+
+test('optimize: netwerkfout bij de optimalisatie-aanvraag geeft 500 met de foutmelding', async () => {
+  const { res, calls } = await draai('optimize', OPT_EVENT, optRouter(NETWERKFOUT));
+  assert.deepEqual(calls, OPT_CALLS);
+  assert.deepEqual(ontleed(res), { status: 500, headers: CORS, body: { error: 'netwerk' } });
+});
+
 // ======================= drukte =======================
 const PL2 = [[51, 4], [51.01, 4]];                       // ~1,1 km: precies 2 tussenpunten
 const PL3 = [[51, 4], [51.01, 4], [51.02, 4]];           // met segmentMeters 500: 3 tussenpunten, geen POST
@@ -366,7 +432,7 @@ test('drukte: 2-punts-polyline, POST wordt geweigerd (400) en valt terug op GET'
   const { res, calls } = await draai('drukte', v1Event('POST', { polyline: PL2, departAt: TOEKOMST }), router);
   assert.deepEqual(calls, [POST2, GET2]);
   assert.equal(warn.mock.callCount(), 1);
-  assert.equal(warn.mock.calls[0].arguments[0], 'drukte: reconstructie geweigerd');
+  assert.deepEqual(warn.mock.calls[0].arguments, ['drukte: reconstructie geweigerd', 400, JSON.stringify({ detailedError: { message: 'nee' } })]);
   assert.deepEqual(ontleed(res), { status: 200, headers: CORS, body: {
     segmenten: [{ startIndex: 0, endIndex: 1, noTrafficSeconds: 90, historicSeconds: 95, travelSeconds: 100, lengteMeters: 1112, origineleLengteMeters: 1112, betrouwbaar: true, vertrekOffsetSeconds: 0 }],
     departAtUsed: TOEKOMST, aantalAanvragen: 2, aantalWaypoints: 2, reconstructie: false, onbetrouwbaar: 0,

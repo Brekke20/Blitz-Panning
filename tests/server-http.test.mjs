@@ -97,3 +97,12 @@ test('v2Methode', async () => {
   assert.equal(r.headers.get('access-control-allow-origin'), '*');
   assert.equal(r.headers.get('content-type'), 'application/json');
 });
+
+test('v1Json, v1Opties en v1Methode geven een verse kopie van de headers', () => {
+  for (const r of [v1Json(200, {}, CORS_V1), v1Opties(CORS_V1), v1Methode({ httpMethod: 'GET' }, ['POST'], CORS_V1)]) {
+    assert.notEqual(r.headers, CORS_V1);
+    assert.deepEqual(entries(r.headers), entries(CORS_V1));
+    r.headers['X-Test'] = '1';
+  }
+  assert.equal(CORS_V1['X-Test'], undefined);
+});
