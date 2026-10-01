@@ -327,7 +327,7 @@ test.describe('route', () => {
     expect(aanroepen).toBeGreaterThanOrEqual(2);
 
     // De 502 is hier bedoeld: de browser meldt hem als consolefout en als HTTP 502 voor /api/route.
-    const verwacht = consoleFouten.filter(f => /\/api\/route/.test(f) || /502/.test(f));
+    const verwacht = consoleFouten.filter(f => /\/api\/route/.test(f) || /status of 502/.test(f));
     expect(verwacht.length).toBeGreaterThanOrEqual(1);
     for (const f of verwacht) consoleFouten.splice(consoleFouten.indexOf(f), 1);
   });
@@ -349,7 +349,7 @@ test.describe('route', () => {
     await expect(page.getByText('✓ Volgorde en tijdstippen bijgewerkt')).toHaveCount(0);
     expect(await stopTijden(page)).toEqual(['10:20', '12:40']);
 
-    const verwacht = consoleFouten.filter(f => /voorstel-status/.test(f) || /500/.test(f));
+    const verwacht = consoleFouten.filter(f => /voorstel-status/.test(f) || /status of 500/.test(f));
     expect(verwacht.length).toBeGreaterThanOrEqual(1);
     for (const f of verwacht) consoleFouten.splice(consoleFouten.indexOf(f), 1);
   });
@@ -370,7 +370,7 @@ test.describe('route', () => {
     await expect(page.getByText('✓ Volgorde en tijdstippen bijgewerkt')).toHaveCount(0);
     expect(await stopTijden(page)).toEqual(['10:20', '12:40']);
 
-    const verwacht = consoleFouten.filter(f => /voorstel-status/.test(f) || /500/.test(f));
+    const verwacht = consoleFouten.filter(f => /voorstel-status/.test(f) || /status of 500/.test(f));
     expect(verwacht.length).toBeGreaterThanOrEqual(1);
     for (const f of verwacht) consoleFouten.splice(consoleFouten.indexOf(f), 1);
   });

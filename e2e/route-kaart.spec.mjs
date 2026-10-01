@@ -176,14 +176,14 @@ test.describe('route-kaart', () => {
       if (drukte) await drukte;
       await expect.poll(() => verzoeken.van('/api/route', 'POST').length).toBe(routesVoor + 1);
       await rust(page);
-      expect(await meetKaart(page)).toEqual(eerste);
+      await expect.poll(() => meetKaart(page)).toEqual(eerste);
 
       // Kalender en terug: de route staat al in het geheugen, de kaart blijft zoals hij was.
       await page.getByRole('tab', { name: 'Kalender' }).click();
       await page.getByRole('tab', { name: 'Route' }).click();
       await expect(page.locator('#view-planning')).toBeVisible();
       await rust(page);
-      expect(await meetKaart(page)).toEqual(eerste);
+      await expect.poll(() => meetKaart(page)).toEqual(eerste);
       expect(verzoeken.van('/api/route', 'POST')).toHaveLength(routesVoor + 1);
     });
   }
@@ -203,6 +203,6 @@ test.describe('route-kaart', () => {
     // Gemeten: de testmodus bewaart de keuze per persoon in de instellingen (sleutel 'osm').
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('blitz_settings_Tim')).kaartStijl)).toBe('osm');
     // De route blijft getekend.
-    expect((await meetKaart(page)).markers).toEqual(['1', '2']);
+    await expect.poll(async () => (await meetKaart(page)).markers).toEqual(['1', '2']);
   });
 });
