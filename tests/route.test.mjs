@@ -103,9 +103,3 @@ test('aankomstenVoorDag: de allStops-parameter vervangt de stops van de dag en l
   const vast = [{ kind: 'ticket', item: ticket('z', { uur: '09:00' }), uur: '09:00' }];
   assert.deepEqual(route.aankomstenVoorDag(DATUM, vast).arrivalTimes, [9 * 60]);
 });
-
-test('wisRouteData: geen legs meer, ook niet voor de eigen dag', () => {
-  route.wisRouteData();
-  assert.equal(route.legsVoorDag(DATUM), null);
-  assert.equal(route.routeActueelVoor(DATUM), false);
-});
