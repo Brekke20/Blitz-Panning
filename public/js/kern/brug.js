@@ -3,8 +3,9 @@
 // dus enkel code binnen functies/handlers van het klassieke script mag deze namen gebruiken.
 import * as tijd from './tijd.js';
 import * as ui from './ui.js';
+import * as selecties from './selecties.js';
 
-window.kern = { tijd, ui };
+window.kern = { tijd, ui, selecties };
 
 // LEGACY-BRUG (verdwijnt in etappe 5): oude globale namen voor klassieke code en oudere modules
 Object.assign(window, {

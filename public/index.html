@@ -1476,9 +1476,7 @@ function renderTickets() {
   const empty = document.getElementById('empty-tickets');
   [...list.querySelectorAll('.ticket')].forEach(el => el.remove());
 
-  const filtered = allTickets.filter(t =>
-    activeAssigneeFilter === 'all' || t.assignee === activeAssigneeFilter
-  );
+  const filtered = kern.selecties.ticketsVanTechnieker(allTickets, activeAssigneeFilter);
   const totaal = filtered.length;
 
   // Zoeken: alle woorden moeten voorkomen
@@ -2013,7 +2011,7 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, hdrEl) {
   // liggen (die zelf geen z-index zetten, dus DOM-volgorde bepaalt de zichtbare laag). Hele-dag
   // (kind==='fullday') uitzonderingen krijgen hier geen los blok — die worden al elders als
   // kolom-brede stripe (blocked-day-klasse) getoond.
-  const myPersonTl = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+  const myPersonTl = kern.selecties.persoonOfNull(activeAssigneeFilter);
   const dayExceptions = avExceptions.filter(e =>
     e.date === dateStr && e.kind === 'range' &&
     (e.scope === 'global' || (myPersonTl && e.person === myPersonTl))
@@ -2258,15 +2256,13 @@ function renderKalender() {
     const dateStr       = localISO(day);
     const isToday       = day.getTime() === today.getTime();
     const isPast        = day.getTime() < today.getTime();
-    const myPerson       = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+    const myPerson       = kern.selecties.persoonOfNull(activeAssigneeFilter);
     const holidayName    = getHolidayName(dateStr);
     const isDayBlocked   = !!holidayName || avExceptions.some(e =>
       e.date === dateStr && e.kind === 'fullday' &&
       (e.scope === 'global' || (myPerson && e.person === myPerson))
     );
-    const dayStops      = (planning[dateStr] || []).filter(p =>
-      activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-    );
+    const dayStops      = kern.selecties.planItemsVanTechnieker(planning[dateStr], activeAssigneeFilter);
     const dayBlockCount = avExceptions.filter(e => e.date === dateStr &&
       (e.scope === 'global' || (myPerson && e.person === myPerson))
     ).length;
@@ -2294,11 +2290,7 @@ function renderKalender() {
       </div>`;
 
     // Lokale afspraken (import / manueel)
-    const dayEvents = localEvents.filter(e => {
-      if (e.datum !== dateStr) return false;
-      if (activeAssigneeFilter === 'all') return true;
-      return !e.persoon || e.persoon === activeAssigneeFilter;
-    });
+    const dayEvents = kern.selecties.eigenAfsprakenVoor(localEvents, dateStr, activeAssigneeFilter);
 
     // Afgeronde tickets met een rapport (blijven zichtbaar ook nadat Zoho ze sluit/verwijdert).
     // Uitgesloten als het ticket toevallig nog live in dayStops staat (rapport al gemaakt,
@@ -2557,7 +2549,7 @@ function renderMonthView(today) {
   const gridStart = new Date(firstOfMonth);
   gridStart.setDate(gridStart.getDate() - startDow);
 
-  const myPerson = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+  const myPerson = kern.selecties.persoonOfNull(activeAssigneeFilter);
   const MAX_CHIPS = 4;
 
   for (let row = 0; row < 6; row++) {
@@ -2594,9 +2586,7 @@ function renderMonthView(today) {
       if (isBlocked) chips.push({ label: '🔒 Geblokkeerd', cls: 'blocked' });
 
       // Zoho tickets
-      const dayStops = (planning[dateStr] || []).filter(p =>
-        activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-      );
+      const dayStops = kern.selecties.planItemsVanTechnieker(planning[dateStr], activeAssigneeFilter);
       dayStops.forEach(s => {
         const isPend = s.ticket.status === 'Wachten op bevestiging planning';
         // Tijdslot-prefix (Task 9, Blok 1C): geeft in de maandweergave meteen een indicatie van
@@ -2608,11 +2598,7 @@ function renderMonthView(today) {
       });
 
       // Lokale afspraken
-      const dayEvents = localEvents.filter(e => {
-        if (e.datum !== dateStr) return false;
-        if (activeAssigneeFilter === 'all') return true;
-        return !e.persoon || e.persoon === activeAssigneeFilter;
-      });
+      const dayEvents = kern.selecties.eigenAfsprakenVoor(localEvents, dateStr, activeAssigneeFilter);
       dayEvents.forEach(ev => {
         const tijdPfx = ev.uur ? ev.uur + ' ' : '';
         chips.push({ label: tijdPfx + ev.titel, cls: 'local' });
@@ -3112,7 +3098,7 @@ function openManueelModal(prefillDate) {
 
   const sel = document.getElementById('man-persoon');
   if (sel) {
-    const myPerson = activeAssigneeFilter !== 'all' ? activeAssigneeFilter : null;
+    const myPerson = kern.selecties.persoonOfNull(activeAssigneeFilter);
     sel.innerHTML = `<option value="">— Geen —</option>` +
       agents.map(a => `<option value="${escHtml(a)}"${a === myPerson ? ' selected' : ''}>${escHtml(a)}</option>`).join('');
   }
@@ -3381,7 +3367,7 @@ function closeBlock(e) {
 
 function renderBlockModal() {
   const dateStr   = _avFormDate;
-  const myPerson  = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+  const myPerson  = kern.selecties.persoonOfNull(activeAssigneeFilter);
   const body      = document.getElementById('block-modal-body');
   if (!body || !dateStr) return;
 
@@ -3484,7 +3470,7 @@ function avSetMultiDay(checked) {
 }
 
 async function avAddException() {
-  const myPerson = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+  const myPerson = kern.selecties.persoonOfNull(activeAssigneeFilter);
   const scope    = (myPerson && _avFormScope === 'person') ? 'person' : 'global';
   const from     = _avFormKind === 'range' ? (document.getElementById('av-van')?.value || settings.vanTijd) : null;
   const to       = _avFormKind === 'range' ? (document.getElementById('av-tot')?.value || settings.totTijd) : null;
@@ -3587,7 +3573,7 @@ function capacityForDay(dateStr, travelMin = 30) {
   const [vanH, vanM] = settings.vanTijd.split(':').map(Number);
   const [totH, totM] = settings.totTijd.split(':').map(Number);
   const totalMin     = (totH * 60 + totM) - (vanH * 60 + vanM);
-  const myPerson     = activeAssigneeFilter === 'all' ? null : activeAssigneeFilter;
+  const myPerson     = kern.selecties.persoonOfNull(activeAssigneeFilter);
 
   // Controleer volledige dagblokkering
   const dayBlocked = avExceptions.some(e =>
@@ -3642,8 +3628,7 @@ function nextAvailableDay(fromDate) {
     if (d >= today) {
       const dStr = localISO(d);
       if (settings.werkdagen.includes(d.getDay())) {
-        const alreadyPlanned = (planning[dStr] || [])
-          .filter(p => activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter)
+        const alreadyPlanned = kern.selecties.planItemsVanTechnieker(planning[dStr], activeAssigneeFilter)
           .reduce((sum, p) => sum + Math.ceil(duurVoor(p.ticket.id) / settings.duurMinuten), 0);
         if (capacityForDay(dStr) - alreadyPlanned > 0) return dStr;
       }
@@ -3667,7 +3652,7 @@ function haversine(lat1, lon1, lat2, lon2) {
 async function autoPlan() {
   if (activeAssigneeFilter === 'all') return toast('Kies eerst een technieker');
   const pendingIds  = new Set(allPending.map(t => t.id));
-  const myTickets   = allTickets.filter(t => activeAssigneeFilter === 'all' || t.assignee === activeAssigneeFilter);
+  const myTickets   = kern.selecties.ticketsVanTechnieker(allTickets, activeAssigneeFilter);
   const toplan      = myTickets.filter(t => t.hasAddress && !pendingIds.has(t.id));
   const skipped     = myTickets.filter(t => !t.hasAddress && !pendingIds.has(t.id));
 
@@ -3703,8 +3688,7 @@ async function autoPlan() {
     // ALLE bestaande stops van de plandagen zonder coördinaten: elke stop met locatie is een
     // ankerpunt voor de 45-min-regel en de vooruitcontrole van het brein (spec 3.3), niet enkel de laatste.
     const bestaandeStops = weekDates
-      .flatMap(dStr => (planning[dStr] || []).filter(p =>
-        activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter))
+      .flatMap(dStr => kern.selecties.planItemsVanTechnieker(planning[dStr], activeAssigneeFilter))
       .filter(stop => !stop._lat && !stop.ticket._lat && stop.ticket.address);
 
     // Geocoding via TomTom (geocode-cache eerst)
@@ -3749,8 +3733,7 @@ async function autoPlan() {
       return { lat: c?.lat ?? null, lon: c?.lon ?? null };
     };
     for (const dStr of weekDates) {
-      bestaandPerDag[dStr] = (planning[dStr] || [])
-        .filter(p => activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter)
+      bestaandPerDag[dStr] = kern.selecties.planItemsVanTechnieker(planning[dStr], activeAssigneeFilter)
         .map(p => ({
           id: p.ticket.id, uur: p.uur || null, duurMin: duurVoor(p.ticket.id),
           lat: p._lat ?? p.ticket._lat ?? null, lon: p._lon ?? p.ticket._lon ?? null,
@@ -3928,8 +3911,7 @@ function renderGepland() {
   const body   = document.getElementById('gep-body');
   body.innerHTML = '';
   const byDate = {};
-  allGepland
-    .filter(t => activeAssigneeFilter === 'all' || t.assignee === activeAssigneeFilter)
+  kern.selecties.ticketsVanTechnieker(allGepland, activeAssigneeFilter)
     .forEach(t => {
       const key = t.interventieDatum ? localISO(new Date(t.interventieDatum)) : 'none';
       (byDate[key] = byDate[key] || []).push(t);
@@ -3975,7 +3957,7 @@ function renderGepland() {
   }
   if (!any) body.innerHTML = '<div class="empty">Geen geplande service deze week</div>';
   // Badge toont gefilterd gepland-aantal
-  const filteredGepland = allGepland.filter(t => activeAssigneeFilter === 'all' || t.assignee === activeAssigneeFilter);
+  const filteredGepland = kern.selecties.ticketsVanTechnieker(allGepland, activeAssigneeFilter);
   document.getElementById('cnt-gepland').textContent = filteredGepland.length;
 }
 
@@ -3999,9 +3981,7 @@ let dagBerekenTimer = null;
 
 function clearDay() {
   const date  = document.getElementById('plan-date').value;
-  const stops = (planning[date] || []).filter(p =>
-    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-  );
+  const stops = kern.selecties.planItemsVanTechnieker(planning[date], activeAssigneeFilter);
   if (!stops.length) return;
   // Tickets met een verstuurd/bevestigd voorstel blijven staan: die moeten via "Afspraak annuleren".
   const vrij = stops.filter(p => !heeftLopendVoorstel(p.ticket));
@@ -4014,9 +3994,7 @@ function clearDay() {
 }
 
 function updateRouteBtns(date) {
-  const stops = (planning[date] || []).filter(p =>
-    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-  );
+  const stops = kern.selecties.planItemsVanTechnieker(planning[date], activeAssigneeFilter);
   document.getElementById('btn-optimize').disabled = stops.length < 2;
   document.getElementById('btn-route').disabled    = stops.length < 1;
   document.getElementById('s-stops').textContent   = stops.length;
@@ -4075,18 +4053,7 @@ function dagHeeftEenTechnieker(stops) {
 // De wrapper-objecten zijn telkens vers (`uur` is een snapshot), maar `item` blijft hetzelfde
 // object als in planning[date]/localEvents: applyRouteOrder() muteert dat rechtstreeks.
 function stopsVoorDag(date) {
-  const stops = (planning[date] || []).filter(p =>
-    activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter
-  );
-  const localForDate = localEvents.filter(e =>
-    e.datum === date && (e.adres || e.notitie) &&
-    (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter)
-  );
-  const allStops = [
-    ...stops.map(s => ({ kind: 'ticket', item: s, uur: s.uur })),
-    ...localForDate.map(e => ({ kind: 'local', item: e, uur: e.uur })),
-  ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
-  return { stops, localForDate, allStops };
+  return kern.selecties.stopsVoorDag({ planning, localEvents }, activeAssigneeFilter, date);
 }
 
 // Pure helper (Taak 4), geëxtraheerd uit renderRouteList(): berekent cumulatieve
@@ -4157,11 +4124,9 @@ function stopZonderTijdstip(p) { return !p.uur && !isStopAnchored(p); }
 // Handtekening van de stops waarvoor een route berekend is (onafhankelijk van volgorde/uur):
 // verschilt die van de huidige stops, dan staat er een verouderde route op de kaart.
 function routeHandtekening(date) {
-  const ids = (planning[date] || [])
-    .filter(p => activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter)
+  const ids = kern.selecties.planItemsVanTechnieker(planning[date], activeAssigneeFilter)
     .map(p => 't' + p.ticket.id);
-  localEvents.filter(e => e.datum === date && (e.adres || e.notitie) &&
-    (activeAssigneeFilter === 'all' || !e.persoon || e.persoon === activeAssigneeFilter))
+  kern.selecties.eigenAfsprakenVoor(localEvents, date, activeAssigneeFilter, { alleenMetLocatie: true })
     .forEach(e => ids.push('l' + e.id));
   return ids.sort().join('|');
 }
@@ -4215,7 +4180,7 @@ function renderWeekstrook(date) {
   let html = '<button type="button" class="ws-nav" data-ws="vorige" aria-label="Vorige week" title="Vorige week">‹</button><div class="ws-dagen">';
   dagen.forEach((d, idx) => {
     const iso = localISO(d);
-    const stops = (planning[iso] || []).filter(p => activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter);
+    const stops = kern.selecties.planItemsVanTechnieker(planning[iso], activeAssigneeFilter);
     const zonder = stops.filter(stopZonderTijdstip).length;
     let status, cls;
     if (!stops.length) { status = '—'; cls = 'leeg'; }
