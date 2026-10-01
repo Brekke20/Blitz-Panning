@@ -5,8 +5,8 @@ test.describe('kern: ui-delegatie', () => {
     await startApp(page, { rol: 'coordinator' });
 
     const toast = page.locator('#toast');
-    // Wacht tot startup-toast verdwenen is
-    await expect(toast).not.toHaveClass(/show/);
+    // Wacht tot startup-toast verdwenen is (tot 8s, startup toast is 4s)
+    await expect(toast).not.toHaveClass(/show/, { timeout: 8000 });
 
     // Klik vernieuwen
     await page.locator('button[data-actie="vernieuw"]').click();
@@ -15,7 +15,7 @@ test.describe('kern: ui-delegatie', () => {
     await expect(toast).toHaveClass(/show/);
     await expect(toast).toContainText('Testmodus actief');
 
-    // Ticker moet nog 3 zijn (Testmodus laadt niet echt)
+    // Ticket-teller moet nog 3 zijn (Testmodus laadt niet echt)
     await expect(page.locator('#cnt-tickets')).toContainText('3');
   });
 
@@ -65,27 +65,36 @@ test.describe('kern: ui-delegatie', () => {
     await expect(instellingenDlg).toBeVisible();
   });
 
-  test('kalender-navigatie (‹/›/vandaag) via delegatie', async ({ page }) => {
+  test('kalender-navigatie: › navigeert, ‹ terug, vandaag herstelt', async ({ page }) => {
     await startApp(page, { rol: 'coordinator' });
 
     // Zorg dat kalender tab zichtbaar is
     await page.getByRole('tab', { name: 'Kalender' }).click();
 
     const kalLabel = page.locator('#kal-label');
-    // Wacht tot label zichtbaar is
     await expect(kalLabel).toBeVisible();
-    const originalLabel = await kalLabel.textContent();
 
-    // Klik volgende periode (wacht tot button zichtbaar is)
+    // Onthoud de originele tekst
+    const originalText = await kalLabel.textContent();
+
+    // Stap 1: Navigeer weg met › (twee keer)
     await expect(page.getByRole('button', { name: 'Volgende periode' }).first()).toBeVisible();
     await page.getByRole('button', { name: 'Volgende periode' }).first().click();
-    const nextLabel = await kalLabel.textContent();
-    expect(nextLabel).not.toBe(originalLabel);
+    await expect(kalLabel).not.toHaveText(originalText);
 
-    // Klik vorige periode terug
+    await page.getByRole('button', { name: 'Volgende periode' }).first().click();
+    await expect(kalLabel).not.toHaveText(originalText);
+
+    // Stap 2: Klik "Naar vandaag" en controleer origineel hersteld
+    await page.locator('button[data-actie="kal-vandaag"]').click();
+    await expect(kalLabel).toHaveText(originalText);
+
+    // Stap 3: Navigeer weg met › en terug met ‹
+    await page.getByRole('button', { name: 'Volgende periode' }).first().click();
+    await expect(kalLabel).not.toHaveText(originalText);
+
     await page.getByRole('button', { name: 'Vorige periode' }).first().click();
-    const restoredLabel = await kalLabel.textContent();
-    expect(restoredLabel).toBe(originalLabel);
+    await expect(kalLabel).toHaveText(originalText);
   });
 
   test('thema-wissel werkt', async ({ page }) => {
