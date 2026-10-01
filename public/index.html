@@ -684,13 +684,12 @@ DUMMY_DATA.tickets.forEach((t, i) => {
 // ══════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════
+// planning: { "2026-06-23": [{ ticket, address, _lat, _lon }] }; Zoho is bron van waarheid (allPending seedt planning bij laden).
 // allTickets, allPending, allGepland, planning, localEvents, avExceptions, klantBeschikbaarheid, voorstelStatus,
 // settings en activeAssigneeFilter leven in kern.toestand en zijn als window-accessors bereikbaar (kern/brug.js).
 let activeTicket = null;
 let _proposalOntvangers = []; // ontvangerslijst berekend door openProposal(), gebruikt door updateProposalPreview()/sendProposal()
 let _detailDate  = null; // datum waarop het actieve ticket ingepland staat
-// planning: { "2026-06-23": [{ ticket, address, _lat, _lon }] }
-// Zoho is bron van waarheid: allPending seeds planning bij laden
 let routeData = null, currentRouteDate = null;
 let leafletMap, routeLayer;
 let kalOffset = 0, gepOffset = 0;
@@ -1296,6 +1295,7 @@ function _applyTicketsData(data, { reconcile = false } = {}) {
       planning[date].push(entry);
     }
   });
+  kern.toestand.raak('planning'); // in-place filter/push/delete over meerdere dagen: één raak na de lussen
 
   document.getElementById('cnt-tickets').textContent = allTickets.length;
   document.getElementById('cnt-gepland').textContent = allGepland.length;
@@ -1449,8 +1449,9 @@ function selectPerson(name) {
 
 // Eén plek met alle abonnementen van de schermen op de toestand (K6). Elk scherm één abonnement met de
 // unie van zijn sleutels, in de volgorde van de vroegere handmatige aanroepen (_applyTicketsData/selectPerson).
-// Bewust GEEN abonnement op planning, voorstelStatus, klantBeschikbaarheid en settings: er hangt geen
+// Bewust GEEN abonnement op voorstelStatus, klantBeschikbaarheid en settings: er hangt geen
 // uniforme render-keten aan (de plaatsen die ze schrijven, hertekenen zelf wat ze nodig hebben).
+// Het route-abonnement dekt wel planning en localEvents (etappe 3): elke in-place schrijf op planning roept raak('planning') aan.
 // Moet via arrow-functies naar de globale renders verwijzen (late binding; de e2e-teller wikkelt ze om).
 function koppelRenders() {
   const st = kern.toestand;
@@ -1466,7 +1467,7 @@ function koppelRenders() {
     renderInventaris(activeAssigneeFilter);
     updateInventarisBadge(activeAssigneeFilter);
   });
-  st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => {
+  st.abonneer(['planning', 'localEvents', 'allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => {
     renderRouteList(planDatum());
     updateRouteBtns(planDatum());
   });
@@ -1640,6 +1641,7 @@ async function addTicketToDate(ticketId, date) {
 
   // Optimistische update
   planning[date].push({ ticket: t, address: t.address, uur });
+  kern.toestand.raak('planning'); // in-place push: koppelRenders hertekent de route
   inFlightTickets.add(ticketId);
   renderTickets();
   renderKalender();
@@ -1660,12 +1662,14 @@ async function addTicketToDate(ticketId, date) {
       Object.values(planning).forEach(stops =>
         stops.forEach(p => { if (p.ticket.id === ticketId) p.ticket.status = 'Wachten op bevestiging planning'; })
       );
+      kern.toestand.raak('planning'); // entries in-place gewijzigd (status)
       allTickets = allTickets.filter(t => t.id !== ticketId);
       document.getElementById('cnt-tickets').textContent = allTickets.length;
     } catch (err) {
       // Revert
       planning[date] = planning[date].filter(p => p.ticket.id !== ticketId);
       if (!planning[date].length) delete planning[date];
+      kern.toestand.raak('planning'); // Zoho-gebonden rollback: de handmatige renders hieronder blijven staan (R7)
       toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
       success = false;
     }
@@ -1674,6 +1678,7 @@ async function addTicketToDate(ticketId, date) {
     Object.values(planning).forEach(stops =>
       stops.forEach(p => { if (p.ticket.id === ticketId) p.ticket.status = 'Wachten op bevestiging planning'; })
     );
+    kern.toestand.raak('planning'); // entries in-place gewijzigd (status)
     allTickets = allTickets.filter(tt => tt.id !== ticketId);
     document.getElementById('cnt-tickets').textContent = allTickets.length;
   }
@@ -1700,11 +1705,10 @@ async function removeTicketFromDate(ticketId, date) {
   // Optimistische update
   planning[date] = planning[date].filter(p => p.ticket.id !== ticketId);
   if (!planning[date].length) delete planning[date];
+  kern.toestand.raak('planning'); // koppelRenders hertekent de route (lijst, kaart, knoppen)
   inFlightTickets.add(ticketId);
   renderTickets();
   renderKalender();
-  renderRouteList(document.getElementById('plan-date').value);
-  updateRouteBtns(document.getElementById('plan-date').value);
 
   let verwijderMislukt = false;
   if (!TEST_MODE) {
@@ -1729,6 +1733,7 @@ async function removeTicketFromDate(ticketId, date) {
       // Revert
       if (!planning[date]) planning[date] = [];
       planning[date].push(stop);
+      kern.toestand.raak('planning'); // Zoho-gebonden rollback (R7)
       verwijderMislukt = true;
       toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
     }
@@ -2946,8 +2951,8 @@ function reconcilePlanning(knownIds) {
   if (ghosts.length) {
     console.warn('Ghost tickets verwijderd uit planning:', ghosts);
     toast(`⚠ ${meervoud(ghosts.length, 'toekomstige afspraak', 'toekomstige afspraken')} verwijderd (ticket gesloten in Zoho): ${ghosts.join(', ')}`, 5000);
+    kern.toestand.raak('planning'); // in-place filter/delete: koppelRenders hertekent de route
     renderKalender();
-    renderRouteList(document.getElementById('plan-date')?.value || localISO(new Date()));
   }
 }
 
@@ -3755,9 +3760,8 @@ async function autoPlan() {
           id: p.ticket.id, uur: p.uur || null, duurMin: duurVoor(p.ticket.id),
           lat: p._lat ?? p.ticket._lat ?? null, lon: p._lon ?? p.ticket._lon ?? null,
         }));
-      eigenAfspraken[dStr] = localEvents
-        .filter(e => e.datum === dStr && e.uur &&
-          !(activeAssigneeFilter !== 'all' && e.persoon && e.persoon !== activeAssigneeFilter))
+      eigenAfspraken[dStr] = kern.selecties.eigenAfsprakenVoor(localEvents, dStr, activeAssigneeFilter)
+        .filter(e => e.uur)
         .map(e => ({
           uur: e.uur,
           duurMin: (e.einduur ? calcWerktijdMin(e.uur, e.einduur) : 0) || 60,
@@ -5398,6 +5402,7 @@ async function saveReschedule() {
     if (!planning[date].find(p => p.ticket.id === ticketId)) {
       planning[date].push({ ticket: t, address: t.address, uur: extractLocalHour(utcInterventieDatum) });
     }
+    kern.toestand.raak('planning'); // in-place filter/delete/push (oude en nieuwe dag)
     // Array-membership bijwerken: een verzet ticket kan tot nu toe "Bevestigd" (allGepland)
     // geweest zijn; de status hierboven gaat terug naar "Wachten op bevestiging planning".
     allGepland = allGepland.filter(x => x.id !== ticketId);
@@ -6351,6 +6356,7 @@ async function verstuurAnnulatie() {
     planning[d].splice(i, 1);
     if (!planning[d].length) delete planning[d];
   });
+  kern.toestand.raak('planning'); // in-place splice/delete; de handmatige hertekening na loadVoorstelStatus blijft (R7)
   tk.status = 'Wachten op planning';
   tk.interventieDatum = null;
   allPending = allPending.filter(t => t.id !== id);
@@ -6522,6 +6528,7 @@ async function sendProposal() {
     if (!planning[date].find(p => p.ticket.id === ticketId)) {
       planning[date].push({ ticket: activeTicket, address: activeTicket.address, uur: extractLocalHour(data.interventieDatum) });
     }
+    kern.toestand.raak('planning'); // Zoho-gebonden succespad (R7): in-place filter/delete/push
 
     document.getElementById('proposal-overlay').classList.remove('open');
     btn.disabled = false; btn.textContent = '✉️ Verstuur voorstel';
@@ -6793,6 +6800,7 @@ async function saveToewijzen(ticketId) {
       if (!planning[date].find(p => p.ticket.id === ticketId)) {
         planning[date].push({ ticket: t, address: t.address, uur: extractLocalHour(utcInterventieDatum) });
       }
+      kern.toestand.raak('planning'); // koppelRenders hertekent de route (de lijst bleef hier voorheen verouderd)
     }
     renderKalender();
     toast(TEST_MODE ? '🧪 Testmodus — niet opgeslagen' : `✓ Datum ingesteld op ${date} om ${time}`);

@@ -218,37 +218,58 @@ test.describe('route', () => {
     await expect(page.getByTestId('route-afstand')).toHaveText('20 km');
   });
 
-  test('een nieuwe eigen afspraak met adres: de route-lijst blijft onveranderd tot opnieuw berekend', async ({ page, verzoeken }) => {
+  // BUGFIX (etappe 3, R6): localEvents zit nu in het route-abonnement. Voorheen bleef de route-lijst na een nieuwe
+  // eigen afspraak ongewijzigd (2 stops, oude tijden, geen hint) tot "Bereken tijden". Nu hertekent de lijst
+  // meteen (ook op de achtergrond): de oude route is verouderd, en bij het openen van de Route-tab rekent de app
+  // zelf opnieuw (setTab: geen actuele route voor de dag) met precies één extra /api/route-aanvraag.
+  const nieuweAfspraak = () => ({ id: 'e-route-1', titel: 'Installatie Test', datum: '2026-10-05', uur: '14:00', einduur: '15:00',
+    type: 'Installatie', persoon: 'Tim', adres: 'Grote Markt 1, 2000 Antwerpen', notitie: '', telefoon: '', email: '', bron: 'manueel', origResp: null });
+
+  test('BUGFIX (etappe 3, R6): een nieuwe eigen afspraak met adres: de Route-tab toont ze meteen en rekent vanzelf opnieuw', async ({ page, verzoeken }) => {
     await zetStartTijd(page, '10:00');
     await startApp(page, { technieker: 'Tim' });
     await maakRouteMetStops(page);
     expect(await stopTijden(page)).toEqual(['10:20', '12:40']);
+    expect(verzoeken.van('/api/route', 'POST')).toHaveLength(1);
 
     await page.getByRole('tab', { name: 'Kalender' }).click();
     // In-page toewijzing aan de globale accessor (zoals loadAfspraken/saveAfspraken doen): geen kalender-klikpad nodig.
-    await page.evaluate(() => {
-      localEvents = [...localEvents, { id: 'e-route-1', titel: 'Installatie Test', datum: '2026-10-05', uur: '14:00', einduur: '15:00',
-        type: 'Installatie', persoon: 'Tim', adres: 'Grote Markt 1, 2000 Antwerpen', notitie: '', telefoon: '', email: '', bron: 'manueel', origResp: null }];
-    });
+    await page.evaluate((e) => { localEvents = [...localEvents, e]; }, nieuweAfspraak());
     await page.getByRole('tab', { name: 'Route' }).click();
 
-    // Gemeten (R6): de lijst is NIET vers en NIET als verouderd gemarkeerd. Er staan nog 2 stops, geen hint,
-    // dezelfde tijden en afstand, en er is geen nieuwe routeaanvraag. localEvents zit niet in het route-abonnement
-    // (koppelRenders); Taak 3 beslist op basis hiervan. Dit gedrag verandert bewust als localEvents erbij komt.
-    await expect(page.getByTestId('route-stop')).toHaveCount(2);
-    await expect(page.getByText('De route is verouderd en van de kaart gehaald')).toHaveCount(0);
-    await expect(page.getByTestId('route-afstand')).toHaveText('40 km');
-    expect(await stopTijden(page)).toEqual(['10:20', '12:40']);
-    expect(verzoeken.van('/api/route', 'POST')).toHaveLength(1);
-    await expect(page.getByText('Installatie — Installatie Test')).toHaveCount(0);
-
-    // Positief tegenstuk: na "Bereken tijden" staat de afspraak er wel (op 14:00, vóór de stops zonder uur).
-    await page.getByRole('button', { name: 'Bereken tijden' }).click();
     await expect(page.getByTestId('route-stop')).toHaveCount(3);
     await expect(page.getByTestId('route-stop').first()).toContainText('Installatie — Installatie Test');
     await expect(page.getByTestId('route-stop').first()).toContainText('Grote Markt 1, 2000 Antwerpen');
     // Gemeten: de afspraak toont zijn eigen tijdslot (🗓); de tickets rekenen daarna: 14:00 + 60 min + 20 min rit = 15:20.
     await expect.poll(() => stopTijden(page)).toEqual(['🗓 14:00–15:00', '15:20', '17:40']);
+    // Vers berekend: geen "verouderd"-hint, precies één extra routeaanvraag (de automatische bij het openen van de tab).
+    await expect(page.getByText('De route is verouderd en van de kaart gehaald')).toHaveCount(0);
+    expect(verzoeken.van('/api/route', 'POST')).toHaveLength(2);
+  });
+
+  test('BUGFIX (etappe 3, R6): een nieuwe eigen afspraak terwijl de Route-tab openstaat: stop erbij, route verouderd, geen aanvraag', async ({ page, verzoeken }) => {
+    await zetStartTijd(page, '10:00');
+    await startApp(page, { technieker: 'Tim' });
+    await maakRouteMetStops(page);
+    expect(verzoeken.van('/api/route', 'POST')).toHaveLength(1);
+
+    await page.evaluate((e) => { localEvents = [...localEvents, e]; }, nieuweAfspraak());
+
+    // De afspraak staat er meteen; de oude route is van de kaart gehaald (hint, tijden en afstand weg);
+    // er volgt geen automatische TomTom-aanroep.
+    await expect(page.getByTestId('route-stop')).toHaveCount(3);
+    await expect(page.getByText('Installatie — Installatie Test')).toHaveCount(1);
+    await expect(page.getByText('De route is verouderd en van de kaart gehaald')).toBeVisible();
+    await expect(page.getByTestId('route-afstand')).toHaveText('—');
+    // Gemeten: enkel de afspraak toont nog zijn eigen tijdslot; de twee tickets hebben geen berekende tijd meer.
+    expect(await stopTijden(page)).toEqual(['🗓 14:00–15:00', null, null]);
+    expect(verzoeken.van('/api/route', 'POST')).toHaveLength(1);
+
+    // "Bereken tijden" tekent opnieuw: hint weg, precies één extra aanvraag.
+    await page.getByRole('button', { name: 'Bereken tijden' }).click();
+    await expect.poll(() => stopTijden(page)).toEqual(['🗓 14:00–15:00', '15:20', '17:40']);
+    await expect(page.getByText('De route is verouderd en van de kaart gehaald')).toHaveCount(0);
+    expect(verzoeken.van('/api/route', 'POST')).toHaveLength(2);
   });
 
   test('dag met meerdere technici: niet versleepbaar, niet optimaliseerbaar, tijden niet vast te leggen', async ({ page }) => {

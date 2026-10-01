@@ -72,16 +72,37 @@ test.describe('getoonde aankomsttijden', () => {
     await kaart.getByLabel('Tijd toewijzen').fill('11:00');
     await kaart.getByRole('button', { name: '✓ Opslaan' }).click();
     await page.getByRole('tab', { name: 'Route' }).click();
-    // Gemeten (R6): planning zit niet in het route-abonnement, dus de lijst toont de nieuwe stop pas na
-    // "Bereken tijden". Dit verandert bewust in Taak 3 als planning wordt geabonneerd.
-    await expect(page.getByTestId('route-stop')).toHaveCount(2);
-    expect(await stopNummers(page)).toEqual(['#1001', '#1002']);
     await page.getByRole('button', { name: 'Bereken tijden' }).click();
     await expect(page.getByTestId('route-aantal-stops')).toHaveText('3');
     // Gemeten: 11:00 (vast) + 120 min standaardduur + 20 min rit = 13:20; daarna nogmaals 120 + 20 = 15:40.
     await expect.poll(() => stopTijden(page)).toEqual(['11:00', '13:20', '15:40']);
     // Het vaste uur staat vooraan (stops zijn op uur gesorteerd, zonder uur achteraan).
     expect(await stopNummers(page)).toEqual(['#1005', '#1001', '#1002']);
+  });
+
+  // BUGFIX (etappe 3, R6): "📅 Toewijzen" raakt planning, en planning zit nu in het route-abonnement. Voorheen
+  // bleef de route-lijst na het toewijzen ongewijzigd (2 stops, oude tijden, geen hint) tot "Bereken tijden". Nu
+  // hertekent de lijst meteen (op de achtergrond): de oude route is verouderd, en bij het openen van de Route-tab
+  // rekent de app zelf opnieuw (setTab: geen actuele route voor de dag), met precies één extra /api/route-aanvraag.
+  test('BUGFIX (etappe 3, R6): na "📅 Toewijzen" toont de Route-tab de nieuwe stop meteen en rekent vanzelf opnieuw', async ({ page, verzoeken }) => {
+    await zetStartTijd(page, '10:00');
+    await startApp(page, { technieker: 'Tim' });
+    await maakRouteMetStops(page);
+    expect(await stopTijden(page)).toEqual(['10:20', '12:40']);
+    expect(verzoeken.van('/api/route', 'POST')).toHaveLength(1);
+
+    const kaart = await openToewijzenRij(page);
+    await kaart.getByLabel('Tijd toewijzen').fill('11:00');
+    await kaart.getByRole('button', { name: '✓ Opslaan' }).click();
+    await page.getByRole('tab', { name: 'Route' }).click();
+
+    // Zonder "Bereken tijden": 3 stops, op uur gesorteerd, met de tijden van de nieuwe berekening.
+    await expect(page.getByTestId('route-stop')).toHaveCount(3);
+    expect(await stopNummers(page)).toEqual(['#1005', '#1001', '#1002']);
+    await expect.poll(() => stopTijden(page)).toEqual(['11:00', '13:20', '15:40']);
+    // Vers berekend: geen "verouderd"-hint, precies één extra routeaanvraag (de automatische bij het openen van de tab).
+    await expect(page.getByText('De route is verouderd en van de kaart gehaald')).toHaveCount(0);
+    expect(verzoeken.van('/api/route', 'POST')).toHaveLength(2);
   });
 
   test('📨 Voorstel op de kaart in de route-lijst: afgerond op het volgende kwartier', async ({ page, verzoeken }) => {

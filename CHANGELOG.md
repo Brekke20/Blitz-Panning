@@ -53,6 +53,12 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Een serverfout met een onleesbaar antwoord (bv. een HTML-foutpagina) toont bij route, optimaliseren en
   drukte nu "HTTP <status>" in plaats van een technische fouttekst.
 - Oplossing doorzetten naar Zoho meldt niet langer ten onrechte een fout wanneer Zoho een leeg antwoord teruggeeft; een echte Zoho-fout noemt nu de Zoho-status.
+- Route-tab: een nieuwe afspraak van jezelf (met adres) staat nu meteen in de route. Voorheen bleef de lijst ongewijzigd
+  tot je op "Bereken tijden" klikte; nu rekent de app bij het openen van de Route-tab zelf opnieuw, en staat de route
+  op "verouderd" als je de afspraak maakt terwijl de Route-tab openstaat.
+- Route-tab: een ticket toewijzen via "📅 Toewijzen" verschijnt nu meteen in de route. Voorheen bleef de lijst
+  ongewijzigd tot je op "Bereken tijden" klikte.
+- Route-tab: de route volgt nu ook een mislukte "uit de planning halen" (de stop verschijnt weer na het terugdraaien).
 
 ### Bekend, ongewijzigd
 - Serverkant, bewust niet aangepast: token-foutdata komt in 8 van 10 functies mee, in 2 niet; `tickets` heeft geen OPTIONS; `route`, `optimize` en `drukte` hebben geen methodecontrole; `plan-datum` antwoordt 405 als tekst, de v1-functies als JSON; `comment` heeft Engelse validatie- en orgfouten, `plan` Nederlandse.

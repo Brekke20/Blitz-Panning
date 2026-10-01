@@ -1,4 +1,5 @@
 import { test, expect, startApp } from './helpers.mjs';
+import { zetStartTijd, maakRouteMetStops } from './route-hulp.mjs';
 
 test.describe('kern: ui-delegatie', () => {
   test('vernieuwen-knop toont testmodus-toast na startup', async ({ page }) => {
@@ -197,7 +198,9 @@ test.describe('kern: renders', () => {
       await modal.getByRole('button', { name: 'Opslaan' }).click();
       await expect(page.locator('#toast')).toContainText('Afspraak opgeslagen');
     });
-    expect(delta).toEqual({ renderKalender: 1, renderTickets: 0, renderGepland: 0, renderRouteList: 0 });
+    // BUGFIX (etappe 3, R6): localEvents zit nu in het route-abonnement, dus de route-lijst hertekent 1 keer
+    // (voorheen 0: een nieuwe eigen afspraak bleef onzichtbaar tot "Bereken tijden"). Bewuste stijging.
+    expect(delta).toEqual({ renderKalender: 1, renderTickets: 0, renderGepland: 0, renderRouteList: 1 });
   });
 
   test('onbekende opgeslagen technieker valt terug op Alle zonder renderlus', async ({ page }) => {
@@ -262,9 +265,24 @@ test.describe('kern: renders', () => {
       await expect(page.locator('#cnt-tickets')).toHaveText('3');
       await expect(page.locator('#ticket-list .ticket')).toHaveCount(3);
     });
-    // zoals voorheen 2x wachtrij/kalender en 1x ingepland; de route krijgt na de optimistische render nu ook
-    // de render van het abonnement (allTickets/allPending/allGepland wijzigden): 2 i.p.v. 1
-    expect(na2).toEqual({ renderKalender: 2, renderTickets: 2, renderGepland: 1, renderRouteList: 2 });
+    // zoals voorheen 2x wachtrij/kalender en 1x ingepland; de route is nu 1 i.p.v. 2 (etappe 3, R6): de
+    // handmatige render na de optimistische schrijf is weg en raak('planning') valt samen met allTickets/
+    // allPending/allGepland in dezelfde flush (samengevoegd, dus gedaald).
+    expect(na2).toEqual({ renderKalender: 2, renderTickets: 2, renderGepland: 1, renderRouteList: 1 });
+  });
+
+  test('route-abonnement op planning: een stop uit de planning halen hertekent de route-lijst 1 keer, zonder handmatige oproep', async ({ page }) => {
+    await zetStartTijd(page, '10:00');
+    await startApp(page, { technieker: 'Tim' });
+    await maakRouteMetStops(page);
+    await installeerTellers(page);
+    const delta = await meetDelta(page, async () => {
+      await page.getByTestId('route-stop').filter({ hasText: '#1002' }).getByRole('button', { name: '✕ Uit planning halen' }).click();
+      await page.getByRole('alertdialog', { name: 'Ticket #1002 uit de planning halen?' }).getByRole('button', { name: 'Uit planning halen' }).click();
+      await expect(page.getByTestId('route-stop')).toHaveCount(1);
+    });
+    // renderRouteList precies 1 keer (planning en allTickets/allPending/allGepland vallen in één flush samen).
+    expect(delta.renderRouteList).toBe(1);
   });
 });
 
