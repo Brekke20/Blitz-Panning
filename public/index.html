@@ -684,13 +684,13 @@ DUMMY_DATA.tickets.forEach((t, i) => {
 // ══════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════
-let allTickets = [], allPending = [], allGepland = [];
+// allTickets, allPending, allGepland, planning, localEvents, avExceptions, klantBeschikbaarheid, voorstelStatus,
+// settings en activeAssigneeFilter leven in kern.toestand en zijn als window-accessors bereikbaar (kern/brug.js).
 let activeTicket = null;
 let _proposalOntvangers = []; // ontvangerslijst berekend door openProposal(), gebruikt door updateProposalPreview()/sendProposal()
 let _detailDate  = null; // datum waarop het actieve ticket ingepland staat
 // planning: { "2026-06-23": [{ ticket, address, _lat, _lon }] }
 // Zoho is bron van waarheid: allPending seeds planning bij laden
-let planning = {};
 let routeData = null, currentRouteDate = null;
 let leafletMap, routeLayer;
 let kalOffset = 0, gepOffset = 0;
@@ -698,7 +698,6 @@ let kalDagOffset = 0; // tablet rechtop: verschuiving in WERKDAGEN t.o.v. vandaa
 let kalView   = 'week'; // 'week' | 'month'
 // activeBlockDate → vervangen door _avFormDate (zie beschikbaarheidssysteem)
 // (drag-blokkering verwijderd — vervangen door beschikbaarheidssysteem)
-let activeAssigneeFilter = 'all';
 // Live-detectie van nieuwe Inventaris-log-regels (enkel relevant op de supervisor-weergave,
 // "Alle technici") -- bewust HIER, niet in inventaris.js: enkel de classic-script van deze
 // pagina leest activeAssigneeFilter als bare variabele (zie CLAUDE.md/module-conventie).
@@ -731,7 +730,6 @@ let inFlightTickets = new Set(); // voorkomt dubbele API calls
 let _routeOrderBezig = false;
 // Centraal (niet-lokaal) bijgehouden "voorstel verzonden"-status, eager geladen bij
 // app-start (zie loadVoorstelStatus()) -- vervangt de vorige localStorage-aanpak volledig.
-let voorstelStatus = {};
 // null (niet 0) zolang de echte serverversie onbekend is: `typeof null !== 'number'` laat
 // de server zijn optimistic-locking check overslaan i.p.v. eeuwig te 409'en op versie 0
 // als loadVoorstelStatus() faalde (zelfde patroon als _archiefVersie).
@@ -755,7 +753,6 @@ async function loadVoorstelStatus() {
 let arrivalData = JSON.parse(localStorage.getItem('blitz_arrivals') || '{}');
 
 // Lokale afspraken (import + manueel) — cloud synced
-let localEvents        = [];
 let localEventsVersie  = 0;
 let _pendingImport     = []; // staging area voor import review
 
@@ -798,11 +795,11 @@ function getHolidayName(dateStr) {
   return _holidayCache[year][dateStr] || null;
 }
 
-let avExceptions = [];   // { id, scope, person, date, kind, from, to, reason }
+// avExceptions: { id, scope, person, date, kind, from, to, reason }
 let avVersie     = 0;
 
 // Klantbeschikbaarheid per ticket (cloud synced)
-let klantBeschikbaarheid = {};  // { [ticketId]: { voorkeur, voorkeurTijd, geblokkeerd, notitie, duurOverride?, bijgewerkt } }
+// klantBeschikbaarheid: { [ticketId]: { voorkeur, voorkeurTijd, geblokkeerd, notitie, duurOverride?, bijgewerkt } }
 let kbVersie = 0;
 // Ticket-ID's die deze sessie lokaal volledig gewist zijn (alle kb-velden leeg) -- bijgehouden
 // zodat een 409-merge in saveKlantBeschikbaarheid() zo'n verwijdering niet stil ongedaan maakt
@@ -880,7 +877,7 @@ function savePersonSettings(person) {
   localStorage.setItem(settingsKey(person), JSON.stringify(settings));
 }
 
-let settings = loadPersonSettings(localStorage.getItem('blitz_active_person') || 'all');
+// settings: gezaaid in DOMContentLoaded (kern-brug laadt pas na het klassieke script)
 
 // ══════════════════════════════════════════════
 // INIT
@@ -903,6 +900,7 @@ if (!localStorage.getItem('blitz_mig_startloc_v1')) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  kern.toestand.set('settings', loadPersonSettings(localStorage.getItem('blitz_active_person') || 'all'));
   // Delegatie voor pilot-knoppen (kern-ui)
   kern.ui.registreerActies(document.body, {
     'persoon-menu': () => togglePersonMenu(),

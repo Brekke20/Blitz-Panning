@@ -4,7 +4,7 @@
 import * as tijd from './tijd.js';
 import * as ui from './ui.js';
 import * as selecties from './selecties.js';
-import { toestand } from './toestand.js';
+import { toestand, SLEUTELS } from './toestand.js';
 
 window.kern = { tijd, ui, selecties, toestand };
 
@@ -22,3 +22,12 @@ Object.assign(window, {
   escHtml: ui.escHtml,
   toast: ui.toast,
 });
+
+// Toestandssleutels als globale namen: lezen/schrijven gaat via de toestand (toewijzing verwittigt, in-place niet: raak()).
+function installeerToestandAlsGlobals(store, sleutels) {
+  for (const k of sleutels) Object.defineProperty(window, k, {
+    configurable: true, enumerable: true,
+    get: () => store.get(k), set: v => store.set(k, v),
+  });
+}
+installeerToestandAlsGlobals(toestand, SLEUTELS);
