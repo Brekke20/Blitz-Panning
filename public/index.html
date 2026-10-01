@@ -4048,17 +4048,6 @@ function isStopAnchored(item) {
   return isStopLocked(item) || !!kbPreferredTime(item.ticket?.id);
 }
 
-// Fix-ronde 1 (#3, Controller-ruling): slepen/optimaliseren mag enkel als de gefilterde
-// tickets van de dag van hoogstens één technieker zijn — anders zou de volgorde/persist-
-// logica tijden van meerdere technici als één sequentiële route door elkaar husselen.
-// Ontbrekend/leeg `assignee` telt als een eigen groep. `stops` = platte lijst ticket-stop-
-// objecten ({ticket,...}), zoals overal elders in de Route-tab; lokale afspraken tellen hier
-// niet mee (worden nooit aan een technieker-route toegewezen in deze context).
-function dagHeeftEenTechnieker(stops) {
-  const groepen = new Set(stops.map(p => p.ticket?.assignee || ''));
-  return groepen.size <= 1;
-}
-
 // Gedeelde opbouw van de stops van één dag, voor de Route-tab en het ticketdetail:
 // `stops` = planning[date] gefilterd op activeAssigneeFilter, `localForDate` = eigen afspraken
 // (met adres of notitie) van die dag en technieker, `allStops` = beide gecombineerd als
@@ -4072,40 +4061,13 @@ function stopsVoorDag(date) {
   return kern.selecties.stopsVoorDag({ planning, localEvents }, activeAssigneeFilter, date);
 }
 
-// Pure helper (Taak 4), geëxtraheerd uit renderRouteList(): berekent cumulatieve
-// aankomsttijden (minuten na middernacht) voor een allStops-lijst, plus de legIdx-mapping
-// (allStops-index → routeData.legs-index, enkel voor geocodeerde stops -- zie de uitleg bij
-// het gebruik in renderRouteList). `legs` mag null zijn (geen route berekend): dan overal de
-// 30-min-reistijd-fallback. Gebruikt door renderRouteList() (weergave) en applyRouteOrder()
-// (sleepvolgorde → tijdstippen vertalen).
-function berekenAankomsten(allStops, legs) {
-  const legIdx = [];
-  {
-    let wp = 0;
-    for (let i = 0; i < allStops.length; i++) {
-      if (allStops[i].item._lat) legIdx[i] = wp++;
-    }
-  }
-  const arrivalTimes = [];
-  const [h, m] = (settings.vanTijd || '08:00').split(':').map(Number);
-  let curMin = h * 60 + m;
-  for (let i = 0; i < allStops.length; i++) {
-    const entry = allStops[i];
-    const legSec = (legs && legIdx[i] !== undefined
-      ? legs[legIdx[i]]?.travelTimeSeconds
-      : undefined) ?? 30 * 60;
-    // Vastgezet tijdstip: spring naar dat uur i.p.v. de opgetelde rijtijd te gebruiken
-    // (bestaand gedrag, nodig zodat ankers/vaste tijdstippen altijd kloppen).
-    curMin = entry.uur ? timeStrToMin(entry.uur) : curMin + Math.round(legSec / 60);
-    arrivalTimes.push(curMin);
-    if (entry.kind === 'ticket') {
-      curMin += duurVoor(entry.item.ticket.id) || 60;
-    } else {
-      const ev = entry.item;
-      curMin += (ev.uur && ev.einduur ? calcWerktijdMin(ev.uur, ev.einduur) : 0) || 60;
-    }
-  }
-  return { arrivalTimes, legIdx };
+// De enige aankomsttijd-berekening (kern.route.berekenAankomsten, puur) met de opties uit de
+// instellingen. `legs` enkel als de berekende route bij deze dag hoort; zonder route overal de
+// 30-min-reistijd-terugval. (Verhuist in Taak 5.)
+function legsVoorDag(date) { return routeData?.legs && currentRouteDate === date ? routeData.legs : null; }
+function aankomstenVoorDag(date, allStops = stopsVoorDag(date).allStops) {
+  return kern.route.berekenAankomsten(allStops, legsVoorDag(date),
+    { vanTijd: settings.vanTijd, duurVoor, werktijdMin: calcWerktijdMin });
 }
 
 // ── Weekstrook (v1.9.5) ──────────────────────────────────────────────
@@ -4133,18 +4095,10 @@ function weekstrookKies(iso) {
 function weekstrookVerschuif(date, dagen) {
   const d = isoNaarDatum(date); d.setDate(d.getDate() + dagen); return localISO(d);
 }
-// Ankers (vergrendeld of voorkeursuur) krijgen nooit een uur van applyRouteOrder, dus tellen
-// ze niet mee als "zonder tijdstip" (anders zou de balk nooit verdwijnen).
-function stopZonderTijdstip(p) { return !p.uur && !isStopAnchored(p); }
-
-// Handtekening van de stops waarvoor een route berekend is (onafhankelijk van volgorde/uur):
-// verschilt die van de huidige stops, dan staat er een verouderde route op de kaart.
-function routeHandtekening(date) {
-  const ids = kern.selecties.planItemsVanTechnieker(planning[date], activeAssigneeFilter)
-    .map(p => 't' + p.ticket.id);
-  kern.selecties.eigenAfsprakenVoor(localEvents, date, activeAssigneeFilter, { alleenMetLocatie: true })
-    .forEach(e => ids.push('l' + e.id));
-  return ids.sort().join('|');
+// Handtekening van de huidige (gefilterde) stops van een dag, voor de verouderd-controle.
+function routeHandtekeningVoorDag(date) {
+  const { stops, localForDate } = stopsVoorDag(date);
+  return kern.route.routeHandtekening(stops, localForDate);
 }
 // Wist route, markers, legende en samenvatting (kaart en statistiekbalk) van de Route-tab.
 let routeVerouderdDatum = null;
@@ -4197,7 +4151,7 @@ function renderWeekstrook(date) {
   dagen.forEach((d, idx) => {
     const iso = localISO(d);
     const stops = kern.selecties.planItemsVanTechnieker(planning[iso], activeAssigneeFilter);
-    const zonder = stops.filter(stopZonderTijdstip).length;
+    const zonder = stops.filter(p => kern.route.stopZonderTijdstip(p, isStopAnchored(p))).length;
     let status, cls;
     if (!stops.length) { status = '—'; cls = 'leeg'; }
     else if (zonder) { status = '⏱ nodig'; cls = 'nodig'; }
@@ -4221,10 +4175,10 @@ function renderRouteList(date) {
   // Fix-ronde 1 (#3): slepen mag enkel als de dag (na filter) van hoogstens één technieker is
   // -- anders zou de volgorde/persist-logica tijden van meerdere technici als één
   // sequentiële route door elkaar husselen.
-  const eenTechnieker = dagHeeftEenTechnieker(stops);
+  const eenTechnieker = kern.route.dagHeeftEenTechnieker(stops);
   // Verouderde route (stops verwijderd/gewisseld, andere dag of filter): kaart en samenvatting
   // leegmaken, markers van de resterende stops opnieuw tekenen; geen automatische TomTom-aanroep.
-  if (routeData && (currentRouteDate !== date || routeData._sig !== routeHandtekening(date))) {
+  if (routeData && (currentRouteDate !== date || routeData._sig !== routeHandtekeningVoorDag(date))) {
     wisRouteWeergave();
     routeVerouderdDatum = allStops.length ? date : null;
     updateMap(date);
@@ -4241,7 +4195,7 @@ function renderRouteList(date) {
     hint.textContent = 'De route is verouderd en van de kaart gehaald. Klik op Bereken tijden om ze opnieuw te tekenen.';
     list.appendChild(hint);
   }
-  const zonderTijd = stops.filter(stopZonderTijdstip).length;
+  const zonderTijd = stops.filter(p => kern.route.stopZonderTijdstip(p, isStopAnchored(p))).length;
   if (zonderTijd) {
     const bar = document.createElement('div');
     bar.className = 'route-tijdbalk';
@@ -4281,13 +4235,7 @@ function renderRouteList(date) {
   // designdoc over computeArrivalTimes). Bij !hasRoute wordt legs=null doorgegeven; het
   // resultaat wordt dan gewoon niet getoond (zie timeHtml hieronder) -- gedrag identiek aan
   // vroeger, enkel de berekening zelf is nu een herbruikbare helper (Taak 4).
-  const { arrivalTimes, legIdx } = berekenAankomsten(allStops, hasRoute ? routeData.legs : null);
-
-  const fmtTime = (totalMin) => {
-    const hh = Math.floor(totalMin / 60) % 24;
-    const mm = totalMin % 60;
-    return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
-  };
+  const { arrivalTimes, legIdx } = aankomstenVoorDag(date, allStops);
 
   allStops.forEach((entry, i) => {
     // Idem: via legIdx i.p.v. i, anders hoort de getoonde rit bij de verkeerde stop.
@@ -4301,7 +4249,7 @@ function renderRouteList(date) {
       list.appendChild(d);
     }
     const timeHtml = hasRoute && arrivalTimes[i] !== undefined
-      ? `<div class="stop-time" data-testid="route-stop-tijd">⏱ ${fmtTime(arrivalTimes[i])}</div>`
+      ? `<div class="stop-time" data-testid="route-stop-tijd">⏱ ${kern.route.fmtTijd(arrivalTimes[i])}</div>`
       : '';
     const stop = document.createElement('div');
     stop.className = 'stop';
@@ -4429,7 +4377,7 @@ async function applyRouteOrder(date, orderedEntries) {
   // versleepbaar / Optimaliseren geeft een toast), maar dit is de laatste linie zodat geen
   // enkel code-pad ooit tijden van meerdere technici als één sequentiële route kan bewaren.
   const ticketItems = orderedEntries.filter(e => e.kind === 'ticket').map(e => e.item);
-  if (!dagHeeftEenTechnieker(ticketItems)) {
+  if (!kern.route.dagHeeftEenTechnieker(ticketItems)) {
     return toast('⚠ Kies eerst een technieker — de dag bevat stops van meerdere technici');
   }
 
@@ -4466,12 +4414,8 @@ async function applyRouteOrder(date, orderedEntries) {
     }
   };
 
-  // I2 (eindreview v1.4.0): begrenzing van de dagklok voor verplaatsbare tickets -- nooit een
-  // tijdstip toekennen/bewaren dat naar (lokale) 00:00 zou wrappen (botst met de "geen
-  // tijdstip"-sentinel, zie extractLocalHour) of meer dan 2u na het einde van de werkdag valt.
-  const dagKlokLimiet = timeStrToMin(settings.totTijd || '17:00') + 120;
-  const buitenDagklok = (minutenRuw, uurStr) =>
-    minutenRuw >= 1440 || uurStr === '00:00' || timeStrToMin(uurStr) > dagKlokLimiet;
+  // I2: begrenzing van de dagklok -- zie kern.route.buitenDagklok.
+  const buitenDagklok = (minutenRuw, uurStr) => kern.route.buitenDagklok(minutenRuw, uurStr, settings.totTijd);
   const abortDagklok = () => {
     restoreOrigineleUren();
     toast('✕ Te veel stops voor één dag — volgorde niet bewaard', 5000);
@@ -4551,7 +4495,7 @@ async function applyRouteOrder(date, orderedEntries) {
       entry.item.uur = undefined;
     }
   }
-  const { arrivalTimes } = berekenAankomsten(allStops, routeData.legs);
+  const { arrivalTimes } = aankomstenVoorDag(date, allStops);
   for (let i = 0; i < allStops.length; i++) {
     const entry = allStops[i];
     if (entry.kind === 'ticket' && !isStopAnchored(entry.item)) {
@@ -4619,42 +4563,6 @@ async function applyRouteOrder(date, orderedEntries) {
   }
 }
 
-// mergeMetAnkers(geoptimaliseerd, ankers): voegt de TomTom-geoptimaliseerde volgorde van vrije
-// (niet-vergrendelde) tickets samen met de ankers (lokale afspraken + vergrendelde tickets,
-// die op hun vaste uur moeten blijven staan). `geoptimaliseerd` is een platte lijst van
-// ticket-stop-objecten (in de gewenste TomTom-volgorde); `ankers` is al allStops-vormig
-// ({kind,item,uur}[]). Geeft zelf ook een allStops-vormige lijst terug, die via
-// applyRouteOrder() naar definitieve tijdstippen vertaald wordt.
-function mergeMetAnkers(geoptimaliseerd, ankers) {
-  // Ankers zonder uur (zou zelden voorkomen) altijd achteraan — er is toch geen vast moment
-  // om op te wachten.
-  const ankersGesorteerd = [...ankers].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
-  const resultaat = [];
-  let ankerIdx = 0;
-  let klok = timeStrToMin(settings.vanTijd || '08:00');
-
-  for (const p of geoptimaliseerd) {
-    // Zolang het eerstvolgende anker een uur heeft en de lopende klok dat tijdstip al (bijna)
-    // haalt, eerst dat anker inplannen — zo respecteert de merge vaste tijdstippen zonder de
-    // TomTom-volgorde van de vrije tickets zelf te herschikken.
-    while (ankerIdx < ankersGesorteerd.length && ankersGesorteerd[ankerIdx].uur
-        && klok + 30 >= timeStrToMin(ankersGesorteerd[ankerIdx].uur)) {
-      const anker     = ankersGesorteerd[ankerIdx++];
-      const ankerUur  = timeStrToMin(anker.uur);
-      const ankerDuur = anker.kind === 'ticket'
-        ? duurVoor(anker.item.ticket.id)
-        : (calcWerktijdMin(anker.item.uur, anker.item.einduur) || 60);
-      klok = Math.max(klok, ankerUur) + ankerDuur;
-      resultaat.push(anker);
-    }
-    klok += 30 + duurVoor(p.ticket.id);
-    resultaat.push({ kind: 'ticket', item: p, uur: p.uur });
-  }
-  // Resterende ankers achteraan.
-  while (ankerIdx < ankersGesorteerd.length) resultaat.push(ankersGesorteerd[ankerIdx++]);
-  return resultaat;
-}
-
 async function optimizeRoute() {
   const date  = document.getElementById('plan-date').value;
   // Zelfde filter als renderRouteList() — stops van andere technici raakt deze functie nooit
@@ -4665,7 +4573,7 @@ async function optimizeRoute() {
   // Fix-ronde 1 (#3, Controller-ruling): niet optimaliseren zolang de dag (na filter) stops
   // van meerdere technici bevat -- anders zou de resulterende volgorde/tijden hen als één
   // sequentiële route door elkaar husselen. Zelfde regel als in renderRouteList() voor drag.
-  if (!dagHeeftEenTechnieker(stops)) {
+  if (!kern.route.dagHeeftEenTechnieker(stops)) {
     return toast('⚠ Kies eerst een technieker — de dag bevat stops van meerdere technici');
   }
 
@@ -4714,7 +4622,8 @@ async function optimizeRoute() {
       if (loc) { p._lat = loc.lat; p._lon = loc.lon; geocacheStore(p.address, loc.lat, loc.lon); }
       return p;
     });
-    const samengevoegd = mergeMetAnkers(geoptimaliseerd, ankers);
+    const samengevoegd = kern.route.mergeMetAnkers(geoptimaliseerd, ankers,
+      { vanTijd: settings.vanTijd, duurVoor, werktijdMin: calcWerktijdMin });
     // Adresloze niet-vergrendelde tickets konden sowieso niet meegerekend worden — achteraan.
     noAddr.forEach(p => samengevoegd.push({ kind: 'ticket', item: p, uur: p.uur }));
     await applyRouteOrder(date, samengevoegd);
@@ -4813,7 +4722,7 @@ async function calculateRoute() {
     if (rData.error) throw new Error(rData.error);
     // Ondertussen een andere dag gekozen: dit (verouderde) antwoord niet meer tonen.
     if (document.getElementById('plan-date').value !== date) return;
-    routeData = rData; currentRouteDate = date; routeData._sig = routeHandtekening(date); routeVerouderdDatum = null;
+    routeData = rData; currentRouteDate = date; routeData._sig = routeHandtekeningVoorDag(date); routeVerouderdDatum = null;
     renderRouteList(date);
     updateMap(date);
     document.getElementById('s-dist').textContent  = (rData.totalDistanceMeters / 1000).toFixed(0) + ' km';
@@ -6057,14 +5966,8 @@ function computeArrivalTimes(date) {
   const { allStops } = stopsVoorDag(date);
   if (!allStops.length) return {};
 
-  const hasRoute = routeData?.legs && currentRouteDate === date;
-  const { arrivalTimes } = berekenAankomsten(allStops, hasRoute ? routeData.legs : null);
-
-  const result = {};
-  allStops.forEach((entry, i) => {
-    if (entry.kind === 'ticket') result[entry.item.ticket.id] = arrivalTimes[i];
-  });
-  return result;
+  const { arrivalTimes } = aankomstenVoorDag(date, allStops);
+  return kern.route.aankomstPerTicket(allStops, arrivalTimes);
 }
 
 function roundToNextQuarterStr(timeStr) {

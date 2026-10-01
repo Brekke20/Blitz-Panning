@@ -6,8 +6,10 @@ import * as ui from './ui.js';
 import * as selecties from './selecties.js';
 import * as api from './api.js';
 import { toestand, SLEUTELS } from './toestand.js';
+import * as routeTijden from '../schermen/route-tijden.js';
 
 window.kern = { tijd, ui, selecties, toestand, api };
+window.kern.route = { ...routeTijden };
 
 // LEGACY-BRUG (verdwijnt in etappe 5): oude globale namen voor klassieke code en oudere modules
 Object.assign(window, {
