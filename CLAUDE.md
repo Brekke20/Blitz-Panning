@@ -52,3 +52,19 @@ Elke release die naar productie gaat: versie ophogen in `package.json`, een entr
 `CHANGELOG.md` (Keep a Changelog-stijl, secties **Added/Changed/Fixed/Deprecated**), git-tag zetten
 op de merge/deploy-commit. Dit gebeurt als aparte, expliciete stap bij het afronden van een
 branch (`finishing-a-development-branch`) — niet per taak/subagent-commit.
+
+## Branchbeleid (sinds 2026-10-01, besluit van Brent) — LEES DIT VOOR JE IETS BOUWT
+
+Er lopen twee sporen naast elkaar. Houd ze strikt gescheiden.
+
+| Tak | Wat | Wat mag erop |
+|---|---|---|
+| `main` | de **live versie** (Netlify deployt bij elke push) | **alleen bugfixes** (PATCH, v1.10.x). Geen nieuwe functies, geen herstructurering, geen refactors. |
+| `refactor` | de **volledige refactor** in uitvoering, te beginnen met het planner-brein (`public/js/planner.js`). Worktree `.claude/worktrees/planner-brein` | alle structurele werk en nieuwe functies, tot de volledige refactor klaar en getest is |
+
+Regels:
+- **Nooit `refactor` (of een tak die ervan afstamt) mergen naar `main` of pushen naar `main`**, tot Brent uitdrukkelijk zegt dat de volledige refactor klaar en getest is. Een lokale pre-push-hook (`.git/hooks/pre-push`) blokkeert zo'n push. Omzeil die hook nooit (`--no-verify` is verboden).
+- Een nieuwe functie of structurele wijziging die Brent vraagt, hoort op `refactor`, niet op `main`. Twijfel je of iets een "bugfix" is: vraag het Brent.
+- **Elke bugfix op `main` wordt daarna ook in `refactor` binnengehaald** (`git merge main` vanuit de refactor-worktree), zodat de twee sporen niet uit elkaar groeien. Noteer het in de ledger van de refactor.
+- Versienummers: `main` krijgt PATCH-versies (1.10.2, 1.10.3, …). Op `refactor` wordt de versie **niet** opgehoogd en `CACHE_NAME` in `public/sw.js` niet aangepast; dat gebeurt pas bij de uiteindelijke release (vermoedelijk 2.0.0 of 1.11.0, beslissing bij Brent). Wijzigingen op `refactor` staan in `CHANGELOG.md` onder "Refactor-tak — nog niet uitgebracht".
+- Stand van de refactor en alle beslissingen: `docs/superpowers/specs/2026-09-30-planner-brein-design.md`, `docs/superpowers/plans/2026-10-01-planner-brein.md` en de ledger `.superpowers/sdd/2026-10-01-planner-brein/progress.md` in de refactor-worktree.
