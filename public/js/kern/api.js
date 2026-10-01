@@ -1,7 +1,8 @@
 // kern/api.js — fetch-helpers en de gedeelde "bewaar met versie"-helper (puur: geen toasts, geen window).
 // Gebruikt de globale fetch laat-gebonden, zodat de testmodus-patch in <head> (X-Blitz-Test) gewoon meeloopt.
 //
-// bewaarMetVersie geeft { ok, versie, waarde, reden?, status? } terug; `versie`/`waarde` zijn de laatst bekende stand
+// bewaarMetVersie geeft { ok, versie, waarde, samengevoegd, reden?, status? } terug; `samengevoegd` is true als er na een
+// 409 samengevoegd werd (dan is `waarde` een nieuwe stand die de oproeper moet overnemen; anders is het de eigen waarde); `versie`/`waarde` zijn de laatst bekende stand
 // van de oproeper (bij een mislukte retry: samengevoegd + versie van de EERSTE 409, zoals saveKlantBeschikbaarheid).
 // reden: 'conflict' (409 zonder voegSamen, of een tweede 409), 'http' (andere status, ook een 409 zonder leesbare
 // serverstand), 'netwerk', 'samenvoegen' (voegSamen gooide). Bij reden 'conflict' na een tweede 409 bevatten
@@ -53,7 +54,7 @@ export async function apiJson(pad, opties = {}) {
 // PUT { versie, [veld]: waarde }. Bij 409 en een `voegSamen`: server-stand ophalen uit het 409-antwoord,
 // samenvoegen en één keer opnieuw bewaren met de server-versie. Geeft altijd de laatst bekende stand terug.
 export async function bewaarMetVersie({ pad, veld, versie, waarde, voegSamen }) {
-  const stand = (ok, extra) => ({ ok, ...extra });
+  const stand = (ok, extra) => ({ ok, samengevoegd: false, ...extra });
   try {
     const r = await apiVerzoek(pad, { methode: 'PUT', body: { versie, [veld]: waarde } });
     if (r.ok) return stand(true, { versie: r.data.versie, waarde });
@@ -69,14 +70,14 @@ export async function bewaarMetVersie({ pad, veld, versie, waarde, voegSamen }) 
     try { samen = voegSamen(server[veld], waarde); } catch { return stand(false, { reden: 'samenvoegen', versie, waarde }); }
     try {
       const r2 = await apiVerzoek(pad, { methode: 'PUT', body: { versie: serverVersie, [veld]: samen } });
-      if (r2.ok) return stand(true, { versie: r2.data.versie, waarde: samen });
+      if (r2.ok) return stand(true, { versie: r2.data.versie, waarde: samen, samengevoegd: true });
       if (r2.status === 409) {
         const s2 = r2.data?.data;
-        return stand(false, { reden: 'conflict', status: 409, versie: serverVersie, waarde: samen, laatsteServer: s2?.[veld], laatsteVersie: s2 ? (s2.versie || 0) : undefined });
+        return stand(false, { samengevoegd: true, reden: 'conflict', status: 409, versie: serverVersie, waarde: samen, laatsteServer: s2?.[veld], laatsteVersie: s2 ? (s2.versie || 0) : undefined });
       }
-      return stand(false, { reden: 'http', status: r2.status, versie: serverVersie, waarde: samen });
+      return stand(false, { samengevoegd: true, reden: 'http', status: r2.status, versie: serverVersie, waarde: samen });
     } catch {
-      return stand(false, { reden: 'netwerk', versie: serverVersie, waarde: samen });
+      return stand(false, { samengevoegd: true, reden: 'netwerk', versie: serverVersie, waarde: samen });
     }
   } catch {
     return stand(false, { reden: 'netwerk', versie, waarde });

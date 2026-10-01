@@ -60,7 +60,7 @@ test('bewaarMetVersie: 200 geeft de nieuwe versie en stuurt { versie, [veld] }',
   const f = nepFetch({ status: 200, json: { versie: 4 } });
   zetFetch(f);
   const r = await bewaarMetVersie({ pad: '/api/kb', veld: 'items', versie: 3, waarde: { t1: 1 } });
-  assert.deepEqual(r, { ok: true, versie: 4, waarde: { t1: 1 } });
+  assert.deepEqual(r, { ok: true, samengevoegd: false, versie: 4, waarde: { t1: 1 } });
   assert.deepEqual(JSON.parse(f.aanroepen[0].init.body), { versie: 3, items: { t1: 1 } });
   assert.equal(f.aanroepen[0].init.method, 'PUT');
 });
@@ -71,14 +71,14 @@ test('bewaarMetVersie: 409 met voegSamen bewaart opnieuw met de server-versie', 
     { status: 200, json: { versie: 6 } });
   zetFetch(f);
   const r = await bewaarMetVersie({ pad: '/api/kb', veld: 'items', versie: 0, waarde: { t1: 'ik' }, voegSamen });
-  assert.deepEqual(r, { ok: true, versie: 6, waarde: { t2: 'collega', t1: 'ik' } });
+  assert.deepEqual(r, { ok: true, samengevoegd: true, versie: 6, waarde: { t2: 'collega', t1: 'ik' } });
   assert.deepEqual(JSON.parse(f.aanroepen[1].init.body), { versie: 5, items: { t2: 'collega', t1: 'ik' } });
 });
 
 test('bewaarMetVersie: 409 zonder voegSamen geeft reden conflict met de serverstand', async () => {
   zetFetch(nepFetch({ status: 409, json: { data: { versie: 5, items: { t2: 'collega' } } } }));
   const r = await bewaarMetVersie({ pad: '/api/kb', veld: 'items', versie: 0, waarde: { t1: 'ik' } });
-  assert.deepEqual(r, { ok: false, reden: 'conflict', status: 409, versie: 5, waarde: { t2: 'collega' }, laatsteServer: { t2: 'collega' }, laatsteVersie: 5 });
+  assert.deepEqual(r, { ok: false, samengevoegd: false, reden: 'conflict', status: 409, versie: 5, waarde: { t2: 'collega' }, laatsteServer: { t2: 'collega' }, laatsteVersie: 5 });
 });
 
 test('bewaarMetVersie: 409 gevolgd door 409 geeft conflict met de laatste stand', async () => {
@@ -99,25 +99,36 @@ test('bewaarMetVersie: 409 gevolgd door 409 geeft conflict met de laatste stand'
 test('bewaarMetVersie: 409 zonder leesbare serverstand is reden http, geen lege serverstand', async () => {
   zetFetch(nepFetch({ status: 409 }));
   const r = await bewaarMetVersie({ pad: '/api/kb', veld: 'items', versie: 3, waarde: { t1: 1 }, voegSamen });
-  assert.deepEqual(r, { ok: false, reden: 'http', status: 409, versie: 3, waarde: { t1: 1 } });
+  assert.deepEqual(r, { ok: false, samengevoegd: false, reden: 'http', status: 409, versie: 3, waarde: { t1: 1 } });
 });
 
 test('bewaarMetVersie: gooiende voegSamen geeft reden samenvoegen en doet geen tweede PUT', async () => {
   const f = nepFetch({ status: 409, json: { data: { versie: 5, items: {} } } });
   zetFetch(f);
   const r = await bewaarMetVersie({ pad: '/api/kb', veld: 'items', versie: 3, waarde: { t1: 1 }, voegSamen: () => { throw new Error('kapot'); } });
-  assert.deepEqual(r, { ok: false, reden: 'samenvoegen', versie: 3, waarde: { t1: 1 } });
+  assert.deepEqual(r, { ok: false, samengevoegd: false, reden: 'samenvoegen', versie: 3, waarde: { t1: 1 } });
   assert.equal(f.aanroepen.length, 1);
 });
 
 test('bewaarMetVersie: 500 geeft reden http met status; stand blijft ongewijzigd', async () => {
   zetFetch(nepFetch({ status: 500 }));
   const r = await bewaarMetVersie({ pad: '/api/kb', veld: 'items', versie: 3, waarde: { t1: 1 } });
-  assert.deepEqual(r, { ok: false, reden: 'http', status: 500, versie: 3, waarde: { t1: 1 } });
+  assert.deepEqual(r, { ok: false, samengevoegd: false, reden: 'http', status: 500, versie: 3, waarde: { t1: 1 } });
 });
 
 test('bewaarMetVersie: gooiende fetch geeft reden netwerk', async () => {
   zetFetch(nepFetch(new TypeError('offline')));
   const r = await bewaarMetVersie({ pad: '/api/kb', veld: 'items', versie: 3, waarde: { t1: 1 } });
-  assert.deepEqual(r, { ok: false, reden: 'netwerk', versie: 3, waarde: { t1: 1 } });
+  assert.deepEqual(r, { ok: false, samengevoegd: false, reden: 'netwerk', versie: 3, waarde: { t1: 1 } });
+});
+
+test('bewaarMetVersie: samengevoegd is true na een 409-merge, ook bij een mislukte retry, en anders false', async () => {
+  zetFetch(nepFetch({ status: 409, json: { data: { versie: 5, items: { t2: 'a' } } } }, { status: 500 }));
+  const r = await bewaarMetVersie({ pad: '/api/kb', veld: 'items', versie: 0, waarde: { t1: 'ik' }, voegSamen });
+  assert.equal(r.reden, 'http');
+  assert.equal(r.samengevoegd, true);
+  zetFetch(nepFetch({ status: 409, json: { data: { versie: 5, items: {} } } }, { status: 409, json: { data: { versie: 6, items: {} } } }));
+  assert.equal((await bewaarMetVersie({ pad: '/api/kb', veld: 'items', versie: 0, waarde: {}, voegSamen })).samengevoegd, true);
+  zetFetch(nepFetch(new TypeError('offline')));
+  assert.equal((await bewaarMetVersie({ pad: '/api/kb', veld: 'items', versie: 0, waarde: {} })).samengevoegd, false);
 });

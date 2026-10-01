@@ -35,6 +35,38 @@ async function voegAfspraakToe(page, { titel, datum, van, tot }) {
   await modal.getByRole('button', { name: 'Opslaan' }).click();
 }
 
+// Haalt de verwachte consolemeldingen van een status weg (en eist dat ze er waren): per respons twee meldingen
+// (HTTP-respons + browserconsole).
+async function verwachtStatus(consoleFouten, pad, status, aantal) {
+  const isDeze = (f) => f.includes(pad) && f.includes(String(status));
+  await expect.poll(() => consoleFouten.filter(isDeze).length).toBe(aantal * 2);
+  for (const f of consoleFouten.filter(isDeze)) consoleFouten.splice(consoleFouten.indexOf(f), 1);
+}
+// De eigen console.error van de app bij een mislukte opslag.
+async function verwachtAppFout(consoleFouten, tekst) {
+  const isDeze = (f) => f.includes(tekst);
+  await expect.poll(() => consoleFouten.filter(isDeze).length).toBe(1);
+  for (const f of consoleFouten.filter(isDeze)) consoleFouten.splice(consoleFouten.indexOf(f), 1);
+}
+const ids = (page) => page.evaluate(() => localEvents.map(e => e.id));
+
+// Eerste PUT -> 409 met `serverStand`; tweede PUT (de merge-retry) -> 500.
+function stubRetry500(serverStand) {
+  let puts = 0;
+  let stand = { versie: 1, afspraken: [EIGEN_AFSPRAAK] };
+  return {
+    afspraken: ({ methode }) => {
+      if (methode !== 'PUT') return { status: 200, json: stand };
+      puts++;
+      if (puts === 1) {
+        stand = { versie: 5, afspraken: serverStand };
+        return { status: 409, json: { error: 'Versiematch mislukt', serverVersie: 5, data: stand } };
+      }
+      return { status: 500, json: { error: 'kapot' } };
+    },
+  };
+}
+
 test.describe('409-conflicten bij opslaan', () => {
   test('afspraken: lokale wijziging wordt gemerged met de server-stand en herhaald', async ({ page, verzoeken, consoleFouten }) => {
     // Eerste PUT -> 409 met server-versie 5 en een afspraak van een collega; daarna normaal.
@@ -172,6 +204,149 @@ test.describe('409-conflicten bij opslaan', () => {
     const isDeze = (f) => f.includes('/api/afspraken') && /409/.test(f);
     await expect.poll(() => consoleFouten.filter(isDeze).length).toBe(4);
     for (const f of consoleFouten.filter(isDeze)) consoleFouten.splice(consoleFouten.indexOf(f), 1);
+  });
+
+  test('afspraken: toevoegen, 409 en dan een fout bij de retry verwijdert enkel het toegevoegde id', async ({ page, verzoeken, consoleFouten }) => {
+    await startApp(page, { overschrijf: stubRetry500([TOEGEVOEGD_DOOR_COLLEGA]) });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await voegAfspraakToe(page, { titel: 'Eigen wijziging', datum: '2026-10-05', van: '14:00', tot: '15:00' });
+
+    await expect(page.getByText('✕ Afspraken opslaan mislukt')).toBeVisible();
+    await expect(page.getByText('✓ Afspraak opgeslagen')).toHaveCount(0);
+    await expect(page.getByText('Eigen wijziging')).toHaveCount(0);
+    // De samengevoegde stand (collega-afspraak) blijft; enkel ons id is weg.
+    await expect(page.locator('.day-col[data-date="2026-10-06"]').getByText('Collega-afspraak')).toBeVisible();
+    expect(await ids(page)).toEqual(['srv-1']);
+    expect(verzoeken.van('/api/afspraken', 'PUT')).toHaveLength(2);
+    await verwachtStatus(consoleFouten, '/api/afspraken', 409, 1);
+    await verwachtStatus(consoleFouten, '/api/afspraken', 500, 1);
+    await verwachtAppFout(consoleFouten, 'Afspraken opslaan mislukt');
+  });
+
+  test('afspraken: wijzigen, 409 en dan een fout bij de retry zet de oude waarde terug', async ({ page, verzoeken, consoleFouten }) => {
+    await startApp(page, { overschrijf: stubRetry500([TOEGEVOEGD_DOOR_COLLEGA, EIGEN_AFSPRAAK]) });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await page.evaluate(() => openManueelModalEdit(localEvents.find(e => e.id === 'eigen-1')));
+    const modal = page.locator('#manueel-overlay');
+    await expect(modal).toHaveClass(/open/);
+    await modal.getByLabel('Titel *').fill('Eigen aangepast');
+    await modal.getByRole('button', { name: 'Opslaan' }).click();
+
+    await expect(page.getByText('✕ Afspraken opslaan mislukt')).toBeVisible();
+    await expect(page.getByText('✓ Afspraak bijgewerkt')).toHaveCount(0);
+    await expect(page.getByText('Eigen aangepast')).toHaveCount(0);
+    await expect(page.getByText('Eigen afspraak')).toBeVisible();
+    await expect(page.locator('.day-col[data-date="2026-10-06"]').getByText('Collega-afspraak')).toBeVisible();
+    expect(await page.evaluate(() => localEvents.map(e => e.titel))).toEqual(['Collega-afspraak', 'Eigen afspraak']);
+    expect(verzoeken.van('/api/afspraken', 'PUT')).toHaveLength(2);
+    await verwachtStatus(consoleFouten, '/api/afspraken', 409, 1);
+    await verwachtStatus(consoleFouten, '/api/afspraken', 500, 1);
+    await verwachtAppFout(consoleFouten, 'Afspraken opslaan mislukt');
+  });
+
+  test('afspraken: verwijderen, 409 en dan een fout bij de retry zet het item terug (id ontbreekt)', async ({ page, verzoeken, consoleFouten }) => {
+    await startApp(page, { overschrijf: stubRetry500([EIGEN_AFSPRAAK, TOEGEVOEGD_DOOR_COLLEGA]) });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await expect(page.getByText('Eigen afspraak')).toBeVisible();
+    await page.evaluate(() => removeLocalEvent('eigen-1'));
+
+    await expect(page.getByText('✕ Afspraken opslaan mislukt')).toBeVisible();
+    await expect(page.getByText('Eigen afspraak')).toBeVisible();
+    await expect(page.locator('.day-col[data-date="2026-10-06"]').getByText('Collega-afspraak')).toBeVisible();
+    // Het item staat precies één keer terug (de samengevoegde stand bevatte het niet meer).
+    expect((await ids(page)).sort()).toEqual(['eigen-1', 'srv-1']);
+    expect(verzoeken.van('/api/afspraken', 'PUT')).toHaveLength(2);
+    await verwachtStatus(consoleFouten, '/api/afspraken', 409, 1);
+    await verwachtStatus(consoleFouten, '/api/afspraken', 500, 1);
+    await verwachtAppFout(consoleFouten, 'Afspraken opslaan mislukt');
+  });
+
+  test('afspraken: verwijderen met een dubbele 409 zet het verwijderde item NIET terug', async ({ page, verzoeken, consoleFouten }) => {
+    let puts = 0;
+    let stand = { versie: 1, afspraken: [EIGEN_AFSPRAAK] };
+    await startApp(page, {
+      overschrijf: {
+        afspraken: ({ methode }) => {
+          if (methode !== 'PUT') return { status: 200, json: stand };
+          puts++;
+          stand = { versie: 4 + puts, afspraken: [TOEGEVOEGD_DOOR_COLLEGA] };
+          return { status: 409, json: { error: 'Versiematch mislukt', serverVersie: stand.versie, data: stand } };
+        },
+      },
+    });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await expect(page.getByText('Eigen afspraak')).toBeVisible();
+    await page.evaluate(() => removeLocalEvent('eigen-1'));
+
+    await expect(page.getByText('⚠ Iemand anders wijzigde dit net. De afspraken zijn opnieuw geladen.')).toBeVisible();
+    await expect(page.getByText('Eigen afspraak')).toHaveCount(0);
+    await expect(page.locator('.day-col[data-date="2026-10-06"]').getByText('Collega-afspraak')).toBeVisible();
+    expect(await ids(page)).toEqual(['srv-1']);
+    expect(verzoeken.van('/api/afspraken', 'PUT')).toHaveLength(2);
+    await verwachtStatus(consoleFouten, '/api/afspraken', 409, 2);
+  });
+
+  test('afspraken: na een dubbele 409 stuurt de volgende opslag de versie uit het laatste 409-antwoord', async ({ page, verzoeken, consoleFouten }) => {
+    let puts = 0;
+    let stand = { versie: 0, afspraken: [] };
+    await startApp(page, {
+      overschrijf: {
+        afspraken: ({ methode, body }) => {
+          if (methode !== 'PUT') return { status: 200, json: stand };
+          puts++;
+          if (puts <= 2) {
+            stand = { versie: 4 + puts, afspraken: [TOEGEVOEGD_DOOR_COLLEGA] }; // 5, dan 6
+            return { status: 409, json: { error: 'Versiematch mislukt', serverVersie: stand.versie, data: stand } };
+          }
+          stand = { versie: stand.versie + 1, afspraken: body.afspraken };
+          return { status: 200, json: stand };
+        },
+      },
+    });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await voegAfspraakToe(page, { titel: 'Eerste poging', datum: '2026-10-05', van: '14:00', tot: '15:00' });
+    await expect(page.getByText('⚠ Iemand anders wijzigde dit net. De afspraken zijn opnieuw geladen.')).toBeVisible();
+    await voegAfspraakToe(page, { titel: 'Tweede poging', datum: '2026-10-05', van: '16:00', tot: '17:00' });
+    await expect(page.getByText('✓ Afspraak opgeslagen')).toBeVisible();
+
+    const alle = verzoeken.van('/api/afspraken', 'PUT');
+    expect(alle).toHaveLength(3);
+    expect(alle[1].body.versie).toBe(5); // merge-retry op de versie van de eerste 409
+    expect(alle[2].body.versie).toBe(6); // laatsteVersie uit de tweede 409
+    expect(alle[2].body.afspraken.map(a => a.titel)).toEqual(['Collega-afspraak', 'Tweede poging']);
+    await verwachtStatus(consoleFouten, '/api/afspraken', 409, 2);
+  });
+
+  test('afspraken: een toevoeging die nog bewaard wordt, herstelt een tussentijdse verwijdering niet', async ({ page, verzoeken }) => {
+    // Zonder 409 geeft bewaarMetVersie de verstuurde array terug; die mag localEvents niet overschrijven als
+    // er tijdens het await al een nieuwe array is toegewezen (verwijdering van een ander item).
+    let puts = 0;
+    let stand = { versie: 1, afspraken: [EIGEN_AFSPRAAK] };
+    let vrijgeven;
+    const poort = new Promise(r => { vrijgeven = r; });
+    await startApp(page, {
+      overschrijf: {
+        afspraken: async ({ methode, body }) => {
+          if (methode !== 'PUT') return { status: 200, json: stand };
+          puts++;
+          if (puts === 1) await poort; // de toevoeging blijft in vlucht
+          stand = { versie: stand.versie + 1, afspraken: body.afspraken };
+          return { status: 200, json: stand };
+        },
+      },
+    });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await voegAfspraakToe(page, { titel: 'Nieuwe', datum: '2026-10-06', van: '14:00', tot: '15:00' });
+    await expect.poll(() => verzoeken.van('/api/afspraken', 'PUT').length).toBe(1);
+
+    await page.evaluate(() => removeLocalEvent('eigen-1')); // wacht op de tweede PUT
+    expect(verzoeken.van('/api/afspraken', 'PUT')).toHaveLength(2);
+    vrijgeven();
+    await expect(page.getByText('✓ Afspraak opgeslagen')).toBeVisible();
+
+    expect(await page.evaluate(() => localEvents.map(e => e.titel))).toEqual(['Nieuwe']);
+    await expect(page.getByText('Eigen afspraak')).toHaveCount(0);
+    await expect(page.locator('.day-col[data-date="2026-10-06"]').getByText('Nieuwe')).toBeVisible();
   });
 
   test('klantbeschikbaarheid: lokale wijziging wordt gemerged met de server-stand en herhaald', async ({ page, verzoeken, consoleFouten }) => {

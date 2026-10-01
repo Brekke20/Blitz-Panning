@@ -2730,9 +2730,8 @@ async function loadAfspraken() {
 
 // Bij een 409 (collega schreef net) wordt de eigen wijziging over de server-stand gelegd en één keer
 // opnieuw bewaard (kern.api.bewaarMetVersie). Lukt ook dat niet (tweede 409): waarschuwing + server-stand.
-let _afsConflict = false; // true na een mislukte opslag waarbij localEvents door de server-stand is vervangen
+// Geeft 'ok', 'conflict' (localEvents is door de server-stand vervangen) of 'fout' (andere mislukking).
 async function saveAfspraken({ toegevoegd = [], gewijzigd = [], verwijderd = [] } = {}) {
-  _afsConflict = false;
   try {
     const result = await kern.api.bewaarMetVersie({
       pad: AFG_API, veld: 'afspraken', versie: localEventsVersie, waarde: localEvents,
@@ -2758,19 +2757,19 @@ async function saveAfspraken({ toegevoegd = [], gewijzigd = [], verwijderd = [] 
         localEvents       = result.waarde || [];
         localEventsVersie = result.versie || 0;
       }
-      _afsConflict = true;
       toast('⚠ Iemand anders wijzigde dit net. De afspraken zijn opnieuw geladen.', 3000);
-      return false;
+      return 'conflict';
     }
-    // Na een 409-merge is `waarde` de samengevoegde stand en `versie` de serverversie (ook bij een mislukte retry).
-    if (result.waarde !== localEvents) localEvents = result.waarde;
+    // Enkel na een 409-merge is `waarde` een nieuwe (samengevoegde) stand; anders is het de array die we verstuurden
+    // en kan localEvents tijdens het await al opnieuw toegewezen zijn (dan niet overschrijven).
+    if (result.samengevoegd) localEvents = result.waarde;
     localEventsVersie = result.versie;
     if (!result.ok) throw new Error(result.reden === 'netwerk' ? 'netwerk' : 'HTTP ' + result.status);
-    return true;
+    return 'ok';
   } catch (err) {
     console.error('Afspraken opslaan mislukt:', err);
     toast('✕ Afspraken opslaan mislukt', 3000);
-    return false;
+    return 'fout';
   }
 }
 
@@ -2821,7 +2820,7 @@ async function saveKlantBeschikbaarheid() {
     });
     // Na een 409 is `waarde` de samengevoegde stand en `versie` de laatst bekende serverversie (ook bij een
     // mislukte retry, zoals voorheen); bij een gewone geslaagde/mislukte PUT blijft de lokale stand staan.
-    if (result.waarde !== klantBeschikbaarheid) klantBeschikbaarheid = result.waarde;
+    if (result.samengevoegd) klantBeschikbaarheid = result.waarde;
     kbVersie = result.versie;
     if (!result.ok) throw new Error(result.reden === 'netwerk' ? 'netwerk' : 'HTTP ' + result.status);
     // (M1) Pas nu leegmaken: bij een mislukte retry moeten de ids uitgesloten BLIJVEN tot een volgende
@@ -3105,8 +3104,8 @@ async function confirmImport() {
   document.getElementById('import-overlay').classList.remove('open');
   _pendingImport = [];
 
-  const ok = await saveAfspraken({ toegevoegd: nieuweItems });
-  if (!ok) {
+  const res = await saveAfspraken({ toegevoegd: nieuweItems });
+  if (res !== 'ok') {
     localEvents = localEvents.filter(e => !nieuweItems.some(n => n.id === e.id));
   } else {
     toast(`✓ ${meervoud(nieuweItems.length, 'afspraak', 'afspraken')} geïmporteerd`, 2500);
@@ -3204,8 +3203,8 @@ async function saveManueelAfspraak() {
     const nieuwEvent = { ...oldEvent, titel, datum, uur: van, einduur: tot, type, persoon: persoon || null, adres, notitie, telefoon, email };
     localEvents[idx] = nieuwEvent;
     kern.toestand.raak('localEvents'); // in-place
-    const ok = await saveAfspraken({ gewijzigd: [nieuwEvent] });
-    if (!ok) {
+    const res = await saveAfspraken({ gewijzigd: [nieuwEvent] });
+    if (res !== 'ok') {
       // Rollback op id, en enkel als onze wijziging er nog staat (bij een conflict is de server-stand geladen).
       const nu = localEvents.findIndex(e => e.id === oldEvent.id);
       if (nu !== -1 && localEvents[nu] === nieuwEvent) {
@@ -3225,8 +3224,8 @@ async function saveManueelAfspraak() {
     };
     localEvents.push(event);
     kern.toestand.raak('localEvents'); // in-place push
-    const ok = await saveAfspraken({ toegevoegd: [event] });
-    if (!ok) {
+    const res = await saveAfspraken({ toegevoegd: [event] });
+    if (res !== 'ok') {
       localEvents = localEvents.filter(e => e.id !== event.id);
     } else {
       toast('✓ Afspraak opgeslagen', 2000);
@@ -3237,9 +3236,9 @@ async function saveManueelAfspraak() {
 async function removeLocalEvent(id) {
   const removed = localEvents.find(e => e.id === id);
   localEvents   = localEvents.filter(e => e.id !== id);
-  const ok = await saveAfspraken({ verwijderd: [id] });
+  const res = await saveAfspraken({ verwijderd: [id] });
   // Na een conflict is de server-stand geladen: niets terugzetten. Anders enkel als het id niet al aanwezig is.
-  if (!ok && removed && !_afsConflict && !localEvents.some(e => e.id === id)) {
+  if (res === 'fout' && removed && !localEvents.some(e => e.id === id)) {
     localEvents.push(removed);
     kern.toestand.raak('localEvents'); // in-place push
   }
