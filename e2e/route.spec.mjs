@@ -424,12 +424,16 @@ test.describe('route', () => {
     await expect(page.getByTestId('route-stop')).toHaveCount(0);
     await expect(page.getByText('Voeg tickets of installaties toe via de Kalender')).toBeVisible();
     await page.clock.runFor(300);
-    expect(verzoeken.van('/api/route', 'POST')).toHaveLength(1);
+    // Wacht op een settled state voordat je de aanvragen telt: fetch is asynchron.
+    await page.evaluate(() => new Promise(r => setTimeout(r, 0)));
+    await expect.poll(() => verzoeken.van('/api/route', 'POST').length).toBe(1);
 
     // Terug naar de dag met stops: lijst komt terug en na 300 ms volgt een extra routeaanvraag.
     await page.getByTestId('route-datum').fill('2026-10-05');
     await expect(page.getByTestId('route-stop')).toHaveCount(2);
     await page.clock.runFor(300);
+    // Wacht op een settled state voordat je de aanvragen telt: fetch is asynchron.
+    await page.evaluate(() => new Promise(r => setTimeout(r, 0)));
     await expect.poll(() => verzoeken.van('/api/route', 'POST').length).toBe(2);
   });
 });

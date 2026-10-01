@@ -28,6 +28,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
   gevonden, Zoho-fout) en waarschuwt als reistijden geschat moesten worden.
 
 ### Changed
+- Route-tab en kaart staan nu in eigen modules (`public/js/schermen/route-tijden.js`, `route-kaart.js`, `route.js`); één gedeelde aankomsttijd-berekening voor route, voorstel en toewijzen; de route-lijst hertekent nu automatisch bij elke wijziging in de planning (inclusief eigen afspraken).
 - Voorstel versturen: de route-lijst volgt daarna de gekozen datum in de Route-tab (plan-date) in plaats van de datum van het voorstel.
 - "Plan deze week" herschreven als apart, getest planner-onderdeel (`public/js/planner.js`):
   - werkt enkel met een gekozen technieker (bij "Iedereen" een melding);

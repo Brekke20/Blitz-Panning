@@ -73,6 +73,22 @@ Gedeelde fundamenten (etappe 2 van de refactor): `tijd`, `ui`, `selecties`, `toe
 - Tijd-tests zetten `process.env.TZ = 'Europe/Brussels'` bovenaan; draai `node --test` zonder pad, nooit `node --test tests/`.
 - Een nieuw kern-bestand komt in dezelfde commit in `SHELL` van `public/sw.js`.
 
+## Schermen (`public/js/schermen/`)
+
+Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar via `initRoute(afh)` / `initKaart(afh)` in `DOMContentLoaded` initialiseren (vóór `koppelRenders`).
+
+**Etappe 3 (Route en kaart):**
+- `route-tijden.js`: pure berekeningen (aankomsttijden, samenvoegen met ankers, handtekening, dagklok). Enkel getest met `node --test`.
+- `route-kaart.js`: Leaflet-kaart, markers, polylines, drukte-tekening, legende. Geen `L` of DOM op moduleniveau, enkel in functies.
+- `route.js`: Route-scherm (lijst, weekstrook, berekenen, slepen, optimaliseren, vastleggen). Private toestand: `routeData`, `currentRouteDate`, `routeVerouderdDatum`, `_routeOrderBezig`, sorteer-instantie.
+
+**Conventies:**
+- Routetoestand (private: `routeData`, `currentRouteDate`, …) blijft buiten de store; lezers gebruiken exports: `routeActueelVoor(date)`, `routeOrderBezig()`, `vernieuwKaart()`, `invalideerKaartGrootte()`.
+- Afhankelijkheden (functies uit andere schermen) worden via `afh` aangereikt; instellingen en toestandsgegevens uit `kern.toestand`.
+- Kaartaantallen en render-teller (`kern.route.renderTelling`) voor e2e-verifiëring.
+- Rendertelling stijgt niet door wijzigingen in de planning (R10).
+- Nieuwe schermen volgen dit patroon: module-privé toestand, expliciet aangereikte functies, exports voor lezers.
+
 ## Versioning & changelog
 
 Sinds 2026-08-13 uit bèta — semver vanaf **v1.0.0**, bijgehouden in `package.json`
