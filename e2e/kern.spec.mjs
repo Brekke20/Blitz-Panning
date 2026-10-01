@@ -328,4 +328,22 @@ test.describe('kern: api-payloads', () => {
     await expect.poll(() => verzoeken.van('/api/optimize', 'POST').length).toBe(2);
     expect(verzoeken.van('/api/optimize', 'POST')[1]).toEqual(OPTIMIZE);
   });
+
+  test('route: serverfout met onleesbaar antwoord toont "HTTP <status>"', async ({ page, consoleFouten }) => {
+    await page.addInitScript(() => {
+      if (window !== window.top) return;
+      if (localStorage.getItem('blitz_settings_Tim') === null) localStorage.setItem('blitz_settings_Tim', JSON.stringify({ vanTijd: '10:00' }));
+    });
+    await startApp(page, {
+      technieker: 'Tim',
+      overschrijf: { route: () => ({ status: 502, raw: '<html>Bad Gateway</html>' }) },
+    });
+    await planWeek(page);
+    await page.locator('.day-col').filter({ hasText: '#1001' }).getByRole('button', { name: 'Route berekenen' }).click();
+    await expect(page.getByText('✕ Route: HTTP 502')).toBeVisible();
+    // De 502 is hier bedoeld: de browser meldt hem als HTTP 502 en als consolefout; precies die twee halen we weg.
+    const isDeze = (f) => f.includes('/api/route') && /502/.test(f);
+    await expect.poll(() => consoleFouten.filter(isDeze).length).toBe(2);
+    for (const f of consoleFouten.filter(isDeze)) consoleFouten.splice(consoleFouten.indexOf(f), 1);
+  });
 });

@@ -45,6 +45,10 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Route-tab: de stops van een dag worden op één plaats bepaald (was zes kopieën); geen
   zichtbare wijziging.
 
+### Fixed
+- Een serverfout met een onleesbaar antwoord (bv. een HTML-foutpagina) toont bij route, optimaliseren en
+  drukte nu "HTTP <status>" in plaats van een technische fouttekst.
+
 ### Removed
 - Ongebruikte oude clustercode (`geoCluster`, `geoClusterFrom`, `estimateTravelMinFromRoute`).
 

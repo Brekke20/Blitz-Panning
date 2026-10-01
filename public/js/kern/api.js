@@ -1,5 +1,12 @@
 // kern/api.js — fetch-helpers en de gedeelde "bewaar met versie"-helper (puur: geen toasts, geen window).
 // Gebruikt de globale fetch laat-gebonden, zodat de testmodus-patch in <head> (X-Blitz-Test) gewoon meeloopt.
+//
+// bewaarMetVersie geeft { ok, versie, waarde, reden?, status? } terug; `versie`/`waarde` zijn de laatst bekende stand
+// van de oproeper (bij een mislukte retry: samengevoegd + versie van de EERSTE 409, zoals saveKlantBeschikbaarheid).
+// reden: 'conflict' (409 zonder voegSamen, of een tweede 409), 'http' (andere status, ook een 409 zonder leesbare
+// serverstand), 'netwerk', 'samenvoegen' (voegSamen gooide). Bij reden 'conflict' na een tweede 409 bevatten
+// `laatsteServer` (server[veld]) en `laatsteVersie` de stand uit het LAATSTE 409-antwoord (voor K12: waarschuwing +
+// server-stand). Zonder voegSamen zijn ze gelijk aan `waarde`/`versie`.
 
 export class ApiFout extends Error {
   constructor(status, data) {
@@ -26,13 +33,13 @@ function maakInit({ methode = 'GET', body, headers } = {}) {
 }
 
 // Geeft { ok, status, data }. Gooit enkel bij een netwerkfout (of een onleesbaar antwoord bij status ok).
-// Bij !ok is data het JSON-antwoord als dat leesbaar is, anders null.
+// Bij !ok is data het JSON-antwoord als dat leesbaar is, anders { error: 'HTTP <status>' }.
 export async function apiVerzoek(pad, opties = {}) {
   const init = maakInit(opties);
   const res = Object.keys(init).length ? await haal(pad, init) : await haal(pad);
   let data = null;
   if (res.ok) data = await res.json();
-  else { try { data = await res.json(); } catch { data = null; } }
+  else { try { data = await res.json(); } catch { data = { error: 'HTTP ' + res.status }; } }
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -52,15 +59,22 @@ export async function bewaarMetVersie({ pad, veld, versie, waarde, voegSamen }) 
     if (r.ok) return stand(true, { versie: r.data.versie, waarde });
     if (r.status !== 409) return stand(false, { reden: 'http', status: r.status, versie, waarde });
 
-    const server = r.data?.data || {};
+    const server = r.data?.data;
+    // 409 zonder leesbare serverstand: niet als lege serverstand behandelen.
+    if (!server) return stand(false, { reden: 'http', status: 409, versie, waarde });
     const serverVersie = server.versie || 0;
-    if (!voegSamen) return stand(false, { reden: 'conflict', status: 409, versie: serverVersie, waarde: server[veld] });
+    if (!voegSamen) return stand(false, { reden: 'conflict', status: 409, versie: serverVersie, waarde: server[veld], laatsteServer: server[veld], laatsteVersie: serverVersie });
 
-    const samen = voegSamen(server[veld], waarde);
+    let samen;
+    try { samen = voegSamen(server[veld], waarde); } catch { return stand(false, { reden: 'samenvoegen', versie, waarde }); }
     try {
       const r2 = await apiVerzoek(pad, { methode: 'PUT', body: { versie: serverVersie, [veld]: samen } });
       if (r2.ok) return stand(true, { versie: r2.data.versie, waarde: samen });
-      return stand(false, { reden: r2.status === 409 ? 'conflict' : 'http', status: r2.status, versie: serverVersie, waarde: samen });
+      if (r2.status === 409) {
+        const s2 = r2.data?.data;
+        return stand(false, { reden: 'conflict', status: 409, versie: serverVersie, waarde: samen, laatsteServer: s2?.[veld], laatsteVersie: s2 ? (s2.versie || 0) : undefined });
+      }
+      return stand(false, { reden: 'http', status: r2.status, versie: serverVersie, waarde: samen });
     } catch {
       return stand(false, { reden: 'netwerk', versie: serverVersie, waarde: samen });
     }

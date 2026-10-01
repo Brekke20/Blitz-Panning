@@ -3316,7 +3316,7 @@ async function loadAvailability() {
 async function saveAvailability() {
   try {
     const res = await kern.api.apiVerzoek(AV_API, { methode: 'PUT', body: { versie: avVersie, exceptions: avExceptions } });
-    if (res.status === 409) {
+    if (res.status === 409 && res.data?.data) {
       // Conflict: herladen en opnieuw toepassen
       avExceptions = res.data?.data?.exceptions || [];
       avVersie     = res.data?.data?.versie     || 0;

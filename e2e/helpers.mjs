@@ -248,6 +248,7 @@ export async function stubExtern(page, { overschrijf = {} } = {}) {
       let body = null;
       try { body = req.postDataJSON(); } catch { body = null; }
       const antwoord = await handler({ methode: req.method(), body, query: u.searchParams, pad: u.pathname });
+      if (antwoord.raw !== undefined) return route.fulfill({ status: antwoord.status, contentType: 'text/html', body: antwoord.raw });
       return route.fulfill({
         status: antwoord.status,
         contentType: 'application/json',
