@@ -240,7 +240,7 @@ export async function stubExtern(page, { overschrijf = {} } = {}) {
 // Verwachte wachtrijtelling voor een technieker-filter (DUMMY_DATA: Tim 2, Roel 1 te plannen).
 const TE_PLANNEN = { all: 3, Tim: 2, Roel: 1 };
 
-export async function startApp(page, { rol = 'coordinator', technieker = 'all', viewport } = {}) {
+export async function startApp(page, { rol = 'coordinator', technieker = 'all', viewport, overschrijf } = {}) {
   if (viewport) await page.setViewportSize(viewport);
   // Alleen zetten als er nog niets staat: een test die in de app van persoon wisselt en herlaadt,
   // behoudt zo zijn keuze.
@@ -255,7 +255,7 @@ export async function startApp(page, { rol = 'coordinator', technieker = 'all', 
   // De tijd loopt door vanaf VASTE_NU (geen bevroren klok); gebruik page.clock.setFixedTime als een
   // test ooit op de minuut nauwkeurig moet zijn.
   await page.clock.install({ time: new Date(VASTE_NU) });
-  await stubExtern(page);
+  await stubExtern(page, { overschrijf });
   await page.goto('/?test');
   await expect(page.locator('#cnt-tickets')).toHaveText(String(TE_PLANNEN[technieker] ?? 0));
 }
