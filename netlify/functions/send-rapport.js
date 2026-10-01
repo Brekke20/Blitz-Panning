@@ -10,47 +10,13 @@
 import chromium from '@sparticuz/chromium-min';
 import puppeteer from 'puppeteer-core';
 import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
-import { globaleFetch } from '../lib/zoho.js';
+import { maakZoho, leesJsonVeilig, globaleFetch } from '../lib/zoho.js';
+import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
 
-const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
-const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
 const CHROMIUM_URL  = 'https://github.com/Sparticuz/chromium/releases/download/v131.0.0/chromium-v131.0.0-pack.tar';
-
-let cachedToken = null;
-let tokenExpiry  = 0;
-
-async function getAccessToken(fetch) {
-  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-  const params = new URLSearchParams({
-    refresh_token: process.env.ZOHO_REFRESH_TOKEN,
-    client_id:     process.env.ZOHO_CLIENT_ID,
-    client_secret: process.env.ZOHO_CLIENT_SECRET,
-    grant_type:    'refresh_token',
-  });
-  const res  = await fetch(ZOHO_ACCOUNTS, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body:    params,
-  });
-  const data = await res.json();
-  if (!data.access_token) throw new Error('Token refresh mislukt: ' + JSON.stringify(data));
-  cachedToken = data.access_token;
-  tokenExpiry  = Date.now() + 55 * 60 * 1000;
-  return cachedToken;
-}
 
 function escHtml(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-async function getOrgId(fetch, token) {
-  const res  = await fetch(`${ZOHO_DESK}/organizations`, {
-    headers: { Authorization: `Zoho-oauthtoken ${token}` },
-  });
-  const data = await res.json();
-  const orgId = data.data?.[0]?.id;
-  if (!orgId) throw new Error('Zoho org ID niet gevonden');
-  return orgId;
 }
 
 function buildRapportEmailHtml({ ticketNumber, naam }) {
@@ -89,15 +55,17 @@ async function standaardPdf(html) {
 }
 
 export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf } = {}) {
+  // Instantie per handler: de tokencache (55 min) leeft zolang de functie warm is.
+  const zoho = maakZoho({ fetch });
+
   return async function handler(event) {
-    const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
-    if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers };
-    if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
+    const methodeAntwoord = v1Methode(event, ['POST'], CORS_V1);
+    if (methodeAntwoord) return methodeAntwoord;
 
     try {
       const { ticketId, html, ticketNumber, preview } = JSON.parse(event.body || '{}');
-      if (!ticketId || !html) return { statusCode: 400, headers, body: JSON.stringify({ error: 'ticketId en html zijn verplicht' }) };
-      if (!/^\d+$/.test(String(ticketId))) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Ongeldig ticketId' }) };
+      if (!ticketId || !html) return v1Json(400, { error: 'ticketId en html zijn verplicht' }, CORS_V1);
+      if (!/^\d+$/.test(String(ticketId))) return v1Json(400, { error: 'Ongeldig ticketId' }, CORS_V1);
 
       // Testmodus: geen token, geen Zoho, geen PDF, geen mail -- meteen nep-succes. Het voorbeeld
       // toont één testontvanger; de echte verzending meldt emailSent.contact = true.
@@ -105,15 +73,14 @@ export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf } = {
         const extra = preview
           ? { preview: true, ontvangers: [{ doelgroep: 'contact', naam: 'Testcontact', email: 'test@example.invalid', html: buildRapportEmailHtml({ ticketNumber, naam: 'Testcontact' }) }] }
           : { success: true, emailSent: { contact: true, klant: false, installateur: false }, fouten: [], statusUpdated: true, statusFout: null };
-        return { statusCode: 200, headers, body: JSON.stringify(nepZohoAntwoord(extra)) };
+        return v1Json(200, nepZohoAntwoord(extra), CORS_V1);
       }
 
-      const token = await getAccessToken(fetch);
-      const orgId = await getOrgId(fetch, token);
+      const { token, orgId } = await zoho.haalToegang();
 
-      const ticketRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, { headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId } });
+      const ticketRes = await zoho.verzoek(`/tickets/${ticketId}`, { token, orgId });
       const ticketData = await ticketRes.json().catch(() => ({}));
-      if (!ticketRes.ok) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Ticket niet gevonden' }) };
+      if (!ticketRes.ok) return v1Json(404, { error: 'Ticket niet gevonden' }, CORS_V1);
       const cf = ticketData.cf || {};
       const contactEmail      = ticketData.contact?.email || ticketData.contact?.emailId || ticketData.email || '';
       const contactNaam       = ticketData.contact?.name || ticketData.contact?.fullName
@@ -134,7 +101,7 @@ export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf } = {
         seenEmails.add(key);
         return true;
       });
-      if (!ontvangers.length) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Geen gekend e-mailadres (klant of installateur) op dit ticket' }) };
+      if (!ontvangers.length) return v1Json(400, { error: 'Geen gekend e-mailadres (klant of installateur) op dit ticket' }, CORS_V1);
 
       // Voorbeeldmodus: dezelfde ticket-opzoeking en e-mail-opbouw als een echte verzending,
       // maar zonder PDF te genereren of Zoho's upload/sendReply-endpoints aan te roepen -- dit
@@ -142,25 +109,22 @@ export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf } = {
       // verzending verstuurd wordt (zelfde functie, zelfde data), niet een aparte kopie die
       // uit sync kan lopen.
       if (preview) {
-        return {
-          statusCode: 200, headers,
-          body: JSON.stringify({
-            preview: true,
-            ontvangers: ontvangers.map(o => ({
-              doelgroep: o.doelgroep,
-              naam:      o.naam,
-              email:     o.email,
-              html:      buildRapportEmailHtml({ ticketNumber, naam: o.naam }),
-            })),
-          }),
-        };
+        return v1Json(200, {
+          preview: true,
+          ontvangers: ontvangers.map(o => ({
+            doelgroep: o.doelgroep,
+            naam:      o.naam,
+            email:     o.email,
+            html:      buildRapportEmailHtml({ ticketNumber, naam: o.naam }),
+          })),
+        }, CORS_V1);
       }
 
       const pdfBuffer = await maakPdf(html);
 
       let fromEmailAddress = process.env.ZOHO_FROM_EMAIL || null;
       if (!fromEmailAddress) {
-        const emailRes = await fetch(`${ZOHO_DESK}/emailAddresses?limit=50`, { headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId } });
+        const emailRes = await zoho.verzoek('/emailAddresses?limit=50', { token, orgId });
         const emailData = await emailRes.json();
         fromEmailAddress = (emailData?.data || []).find(a => a.emailAddress?.includes('@'))?.emailAddress || null;
         if (!fromEmailAddress) throw new Error('Geen from-emailadres gevonden in Zoho. Stel ZOHO_FROM_EMAIL in als Netlify env-var.');
@@ -176,21 +140,18 @@ export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf } = {
         try {
           const formData = new FormData();
           formData.append('file', new Blob([pdfBuffer], { type: 'application/pdf' }), `service-rapport-${ticketNumber || ticketId}.pdf`);
-          const uploadRes = await fetch(`${ZOHO_DESK}/uploads`, { method: 'POST', headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId }, body: formData });
+          const uploadRes = await zoho.verzoek('/uploads', { token, orgId, methode: 'POST', body: formData });
           const uploadData = await uploadRes.json().catch(() => ({}));
           if (!uploadRes.ok) throw new Error(`Zoho attachment-upload fout (${uploadRes.status}) voor ${doelgroep}: ${JSON.stringify(uploadData)}`);
 
-          const replyRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/sendReply`, {
-            method: 'POST',
-            headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          const replyRes = await zoho.verzoek(`/tickets/${ticketId}/sendReply`, {
+            token, orgId, methode: 'POST',
+            json: {
               channel: 'EMAIL', contentType: 'html', content: buildRapportEmailHtml({ ticketNumber, naam }),
               fromEmailAddress, to: email, attachmentIds: [uploadData.id],
-            }),
+            },
           });
-          const replyText = await replyRes.text();
-          let replyData = {};
-          if (replyText) try { replyData = JSON.parse(replyText); } catch (_) {}
+          const replyData = await leesJsonVeilig(replyRes);
           if (!replyRes.ok) {
             if (!JSON.stringify(replyData).includes('Empty Recipients')) {
               throw new Error(`Zoho sendReply fout (${replyRes.status}) naar ${doelgroep}: ${JSON.stringify(replyData)}`);
@@ -215,14 +176,11 @@ export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf } = {
       let statusFout = null;
       if (Object.values(emailSent).some(Boolean)) {
         try {
-          const patchRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
-            method:  'PATCH',
-            headers: { Authorization: `Zoho-oauthtoken ${token}`, orgId, 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ status: 'Gesloten - ov' }),
+          const patchRes = await zoho.verzoek(`/tickets/${ticketId}`, {
+            token, orgId, methode: 'PATCH',
+            json: { status: 'Gesloten - ov' },
           });
-          const patchText = await patchRes.text();
-          let patchData = {};
-          if (patchText) try { patchData = JSON.parse(patchText); } catch (_) {}
+          const patchData = await leesJsonVeilig(patchRes);
           if (!patchRes.ok) throw new Error(`Zoho PATCH fout (${patchRes.status}): ${JSON.stringify(patchData)}`);
           statusUpdated = true;
         } catch (patchErr) {
@@ -231,9 +189,9 @@ export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf } = {
         }
       }
 
-      return { statusCode: 200, headers, body: JSON.stringify({ success: true, emailSent, fouten, statusUpdated, statusFout }) };
+      return v1Json(200, { success: true, emailSent, fouten, statusUpdated, statusFout }, CORS_V1);
     } catch (err) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+      return v1Json(500, { error: err.message }, CORS_V1);
     }
   };
 }
