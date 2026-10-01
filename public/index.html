@@ -149,10 +149,10 @@
 <!-- ══ ROUTE TAB ══ -->
 <div class="view" id="view-planning" role="tabpanel" aria-labelledby="tab-planning">
   <div class="plan-header">
-    <input type="date" id="plan-date" data-testid="route-datum" class="plan-date-compact" onchange="onDateChange(this.value)" aria-label="Datum voor de route (verre datum kiezen)" title="Andere datum kiezen" />
-    <button class="btn-primary" id="btn-optimize" onclick="optimizeRoute()" disabled title="Herorden stops voor kortste reistijd, daarna rijtijden berekenen">⚡ Optimaliseer</button>
-    <button class="btn-sec"     id="btn-route"    onclick="calculateRoute()" disabled title="Bereken rijtijden in huidige volgorde">Bereken tijden</button>
-    <button class="btn-sec"     onclick="clearDay()">✕ Leeg</button>
+    <input type="date" id="plan-date" data-testid="route-datum" class="plan-date-compact" aria-label="Datum voor de route (verre datum kiezen)" title="Andere datum kiezen" />
+    <button class="btn-primary" id="btn-optimize" data-actie="route-optimaliseer" disabled title="Herorden stops voor kortste reistijd, daarna rijtijden berekenen">⚡ Optimaliseer</button>
+    <button class="btn-sec"     id="btn-route"    data-actie="route-bereken" disabled title="Bereken rijtijden in huidige volgorde">Bereken tijden</button>
+    <button class="btn-sec"     data-actie="route-leeg">✕ Leeg</button>
   </div>
   <div class="week-strip" id="week-strip" role="group" aria-label="Week van de gekozen datum"></div>
   <div class="plan-body">

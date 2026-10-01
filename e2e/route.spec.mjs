@@ -402,4 +402,34 @@ test.describe('route', () => {
     await wizard.getByRole('button', { name: 'Sluiten' }).click();
     await expect(wizard).toBeHidden();
   });
+  // Etappe 3 Taak 7 (R9): de knoppen "✕ Leeg" en de datumkiezer hangen aan data-actie/change-luisteraar i.p.v. inline handlers.
+  test('✕ Leeg: na bevestigen verdwijnen beide stops', async ({ page }) => {
+    await zetStartTijd(page, '10:00');
+    await startApp(page, { technieker: 'Tim' });
+    await maakRouteMetStops(page);
+    page.once('dialog', d => d.accept());
+    await page.getByRole('button', { name: '✕ Leeg' }).click();
+    await expect(page.getByTestId('route-stop')).toHaveCount(0);
+    await expect(page.getByText('Voeg tickets of installaties toe via de Kalender')).toBeVisible();
+  });
+
+  test('datumkiezer: andere dag toont zijn lijst, de gekozen dag met stops rekent na 300 ms een route', async ({ page, verzoeken }) => {
+    await zetStartTijd(page, '10:00');
+    await startApp(page, { technieker: 'Tim' });
+    await maakRouteMetStops(page);
+    expect(verzoeken.van('/api/route', 'POST')).toHaveLength(1);
+
+    // Lege dag: lijst van die dag, geen routeaanvraag.
+    await page.getByTestId('route-datum').fill('2026-10-06');
+    await expect(page.getByTestId('route-stop')).toHaveCount(0);
+    await expect(page.getByText('Voeg tickets of installaties toe via de Kalender')).toBeVisible();
+    await page.clock.runFor(300);
+    expect(verzoeken.van('/api/route', 'POST')).toHaveLength(1);
+
+    // Terug naar de dag met stops: lijst komt terug en na 300 ms volgt een extra routeaanvraag.
+    await page.getByTestId('route-datum').fill('2026-10-05');
+    await expect(page.getByTestId('route-stop')).toHaveCount(2);
+    await page.clock.runFor(300);
+    await expect.poll(() => verzoeken.van('/api/route', 'POST').length).toBe(2);
+  });
 });

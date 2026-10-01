@@ -30,9 +30,10 @@ function leeg() {
   });
 }
 const elementen = new Map();
-const datumVeld = { value: DATUM };
+const datumVeld = { value: DATUM, addEventListener() {} };
 globalThis.document = {
   activeElement: null,
+  body: { addEventListener() {} }, // initRoute registreert de data-actie-delegatie (R9)
   getElementById(id) {
     if (id === 'plan-date') return datumVeld;
     if (!elementen.has(id)) elementen.set(id, leeg());

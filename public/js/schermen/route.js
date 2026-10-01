@@ -4,7 +4,7 @@
 // van andere schermen via `initRoute(afh)` (aan het begin van DOMContentLoaded). Raakt `document` enkel binnen
 // functies, nooit op moduleniveau. Alleen `kern/brug.js` wijst `window`-namen toe.
 import { toestand } from '../kern/toestand.js';
-import { toast, escHtml } from '../kern/ui.js';
+import { toast, escHtml, registreerActies } from '../kern/ui.js';
 import { localISO, fmtSec, timeStrToMin, minToTimeStr, extractLocalHour } from '../kern/tijd.js';
 import { apiVerzoek } from '../kern/api.js';
 import { planItemsVanTechnieker, stopsVoorDag as selStopsVoorDag } from '../kern/selecties.js';
@@ -17,7 +17,22 @@ import { updateKaart, wisKaart, herstelWegafsluitingToast, zoomOpGekendeStops } 
 
 // Afhankelijkheden uit het klassieke script (ingevuld door initRoute); een vergeten initRoute faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('route: initRoute() is niet aangeroepen'); } });
-export function initRoute(afhankelijkheden) { afh = afhankelijkheden; }
+export function initRoute(afhankelijkheden) {
+  afh = afhankelijkheden;
+  // R9: de knoppen van dit scherm via data-actie-delegatie (de afhankelijkheden van andere schermen via afh).
+  const kaart = el => el.closest('.stop').dataset;
+  registreerActies(document.body, {
+    'route-optimaliseer': () => optimizeRoute(),
+    'route-bereken': () => calculateRoute(),
+    'route-leeg': () => clearDay(),
+    // W11: opent enkel het voorstelvenster; verstuurt niets.
+    'route-voorstel': el => { const s = kaart(el); afh.openProposal(s.ticketId, s.datum, s.aankomst === '' ? null : Number(s.aankomst)); },
+    'route-aankomst': el => { const s = kaart(el); afh.registerArrival(s.ticketId, s.datum); },
+    'route-rapport': el => { const s = kaart(el); afh.openRapport(s.ticketId, s.datum); },
+    'route-uitplannen': el => { const s = kaart(el); afh.bevestigUitplannen(s.ticketId, s.datum); },
+  });
+  document.getElementById('plan-date').addEventListener('change', e => onDateChange(e.target.value));
+}
 
 const get = k => toestand.get(k);
 
@@ -372,11 +387,15 @@ export function renderRouteList(date) {
         </div>
         <div class="stop-actions">
           <button class="sico btn-navigeer" title="Navigeren" data-adres="${escHtml(item.address||'')}">🧭 Navigeer</button>
-          <button class="sico" title="Afspraakvoorstel sturen" onclick="openProposal('${item.ticket.id}','${date}',${hasRoute && arrivalTimes[i] !== undefined ? arrivalTimes[i] : 'null'})">📨 Voorstel</button>
-          <button class="sico" title="Aankomst registreren" onclick="registerArrival('${item.ticket.id}','${date}')">⏱️ Aankomst</button>
-          <button class="sico" title="Service rapport" onclick="openRapport('${item.ticket.id}','${date}')">📋 Rapport</button>
-          <button class="sico" title="Uit planning halen" onclick="bevestigUitplannen('${item.ticket.id}','${date}')">✕ Uit planning halen</button>
+          <button class="sico" title="Afspraakvoorstel sturen" data-actie="route-voorstel">📨 Voorstel</button>
+          <button class="sico" title="Aankomst registreren" data-actie="route-aankomst">⏱️ Aankomst</button>
+          <button class="sico" title="Service rapport" data-actie="route-rapport">📋 Rapport</button>
+          <button class="sico" title="Uit planning halen" data-actie="route-uitplannen">✕ Uit planning halen</button>
         </div>`;
+      // R9: de knoppen lezen ticket, datum en aankomstminuten van de kaart (dataset i.p.v. inline-strings; waarden blijven exact zoals voorheen).
+      stop.dataset.ticketId = item.ticket.id;
+      stop.dataset.datum = date;
+      stop.dataset.aankomst = hasRoute && arrivalTimes[i] !== undefined ? String(arrivalTimes[i]) : '';
     } else {
       // Lokaal event (installatie / afspraak) — nooit versleepbaar, wel een geldig drop-doel.
       const ev = entry.item;
@@ -400,9 +419,11 @@ export function renderRouteList(date) {
         <div class="stop-actions">
           ${/\d/.test(afh.telNummer(ev.telefoon)) ? `<a class="sico" href="tel:${escHtml(afh.telNummer(ev.telefoon))}" title="Bellen">📞 Bellen</a>` : ''}
           ${adres ? `<button class="sico btn-navigeer" title="Navigeren" data-adres="${escHtml(adres)}">🧭 Navigeer</button>` : ''}
-          <button class="sico" title="Aankomst registreren" onclick="registerArrival('${ev.id}','${date}')">⏱️ Aankomst</button>
+          <button class="sico" title="Aankomst registreren" data-actie="route-aankomst">⏱️ Aankomst</button>
           <button class="sico btn-ev-details" title="Details">📋 Details</button>
         </div>`;
+      stop.dataset.ticketId = ev.id;
+      stop.dataset.datum = date;
     }
 
     // Slepen (Taak 4 + tablet-fase Taak 5): vasthouden en verschuiven via maakSorteerbaar()

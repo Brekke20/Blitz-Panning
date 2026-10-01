@@ -30,12 +30,9 @@ Object.assign(window, {
   applyKaartStijl: routeKaart.applyKaartStijl,
   renderRouteList: route.renderRouteList,
   updateRouteBtns: route.updateRouteBtns,
-  onDateChange: route.onDateChange,
   calculateRoute: route.calculateRoute,
-  clearDay: route.clearDay,
   updateMap: route.updateMap,
   computeArrivalTimes: route.aankomstTijdenVoorDag,
-  optimizeRoute: route.optimizeRoute,
 });
 
 // Toestandssleutels als globale namen: lezen/schrijven gaat via de toestand (toewijzing verwittigt, in-place niet: raak()).
