@@ -879,6 +879,11 @@ if (!localStorage.getItem('blitz_mig_startloc_v1')) {
 document.addEventListener('DOMContentLoaded', () => {
   // Capaciteit (schermen/capaciteit.js): leest `settings` pas bij gebruik; vóór koppelRenders().
   kern.capaciteit.initCapaciteit({ duurVoor, getHolidayName });
+  // Wachtrij-scherm (schermen/wachtrij.js): zoek/sorteer-luisteraars en de afhankelijkheden van andere schermen; vóór koppelRenders().
+  kern.wachtrij.initWachtrij({
+    addTicketToDate, openDetail, prioLabel, kbFor, kbPreferred, kbPreferredTime, meervoud,
+    inFlight: id => inFlightTickets.has(id), sjLog,
+  });
   // Route-scherm (schermen/route.js): de afhankelijkheden van andere schermen (R11); vóór koppelRenders().
   kern.route.initRoute({
     duurVoor, werktijdMin: (a, b) => calcWerktijdMin(a, b), kbPreferredTime, geocacheLookup, geocacheStore,
@@ -1455,7 +1460,7 @@ function koppelRenders() {
   const planDatum = () => document.getElementById('plan-date')?.value || localISO(new Date());
   st.abonneer(['activeAssigneeFilter'], () => updatePersonHeader());
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => buildPersonSelector());
-  st.abonneer(['allTickets', 'activeAssigneeFilter'], () => renderTickets());
+  st.abonneer(['allTickets', 'activeAssigneeFilter'], () => kern.wachtrij.renderTickets());
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'localEvents', 'avExceptions', 'activeAssigneeFilter'], () => renderKalender());
   st.abonneer(['allGepland', 'activeAssigneeFilter'], () => renderGepland());
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => {
@@ -1471,106 +1476,7 @@ function koppelRenders() {
 // ══════════════════════════════════════════════
 // TICKETS TAB
 // ══════════════════════════════════════════════
-// Wachtrij zoeken en sorteren. De zoektekst wordt niet bewaard; de sorteerkeuze wel.
-let wqZoek = '';
-let wqSorteer = 'standaard'; // 'standaard' | 'oudst' | 'nieuwst' | 'interventie'
-const WQ_SORTEER_OPTIES = ['standaard', 'oudst', 'nieuwst', 'interventie'];
-try {
-  const w = localStorage.getItem('blitz_wachtrij_sorteer');
-  if (WQ_SORTEER_OPTIES.includes(w)) wqSorteer = w;
-} catch {}
-
-function renderTickets() {
-  sjLog('renderTickets'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
-  const list  = document.getElementById('ticket-list');
-  const empty = document.getElementById('empty-tickets');
-  [...list.querySelectorAll('.ticket')].forEach(el => el.remove());
-
-  const filtered = kern.selecties.ticketsVanTechnieker(allTickets, activeAssigneeFilter);
-  const totaal = filtered.length;
-
-  // Zoeken: alle woorden moeten voorkomen
-  const woorden = kern.wachtrijLogica.zoekWoorden(wqZoek);
-  const gevonden = kern.wachtrijLogica.filterOpZoek(filtered, wqZoek);
-
-  // Teller en lege-tekst
-  const teller = document.getElementById('wq-teller');
-  if (teller) teller.textContent = woorden.length ? `${gevonden.length} van ${meervoud(totaal, 'ticket', 'tickets')}` : meervoud(totaal, 'ticket', 'tickets');
-  if (woorden.length && !gevonden.length && totaal) {
-    if (empty.dataset.orig === undefined) empty.dataset.orig = empty.textContent;
-    empty.textContent = `Geen tickets gevonden voor '${wqZoek.trim()}'`;
-  } else if (empty.dataset.orig !== undefined) {
-    empty.textContent = empty.dataset.orig;
-    delete empty.dataset.orig;
-  }
-  // Badge toont het totaal (na assignee-filter, vóór zoeken)
-  document.getElementById('cnt-tickets').textContent = totaal;
-
-  if (!gevonden.length) { empty.style.display = ''; return; }
-  empty.style.display = 'none';
-
-  const gesorteerd = kern.wachtrijLogica.sorteerWachtrij(gevonden, wqSorteer, { vandaag: todayStr(), nu: new Date() });
-
-  gesorteerd.forEach(t => {
-    const overdue = kern.wachtrijLogica.isOverdue(t, todayStr());
-    const card = document.createElement('div');
-    card.className = 'ticket' + (overdue ? ' overdue' : '');
-    const meta = [escHtml(t.account || t.naamEindklant), escHtml(t.regio)].filter(Boolean).join(' · ');
-    const prClass = { high:'ph', medium:'pm', low:'pl' }[(t.priority||'').toLowerCase()] || '';
-    const kbPrefDatum = kbPreferred(t.id);
-    const kbPrefUur   = kbPreferredTime(t.id);
-    const kbPrefLabel = kbPrefDatum
-      ? `📌 ${fmtDateShort(kbPrefDatum)}${kbPrefUur ? ' ' + kbPrefUur : ''}`
-      : (kbPrefUur ? `🕐 ${kbPrefUur}` : '');
-    const kbPrefTitle = [kbPrefDatum ? `Voorkeursdatum klant: ${kbPrefDatum}` : '', kbPrefUur ? `Voorkeursuur klant: ${kbPrefUur}` : '']
-      .filter(Boolean).join(' — ');
-    card.innerHTML = `
-      <div class="t-body">
-        <div class="t-top">
-          <span class="tnum">#${escHtml(t.number)}</span>
-          ${overdue ? `<span class="stag">Verlopen</span>` : ''}
-          ${t.priority ? `<span class="prtag ${escHtml((t.priority||'').toLowerCase())}">${escHtml(prioLabel(t.priority))}</span>` : ''}
-          ${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}
-          ${kbPrefLabel ? `<span class="atag" title="${escHtml(kbPrefTitle)}" style="background:rgba(0,223,163,.15);color:var(--accent-ink);border:1px solid var(--accent)">${escHtml(kbPrefLabel)}</span>` : ''}
-          ${(kbFor(t.id)?.geblokkeerd?.length) ? `<span class="atag" title="Klant kan niet: ${kbFor(t.id).geblokkeerd.join(', ')}" style="background:rgba(255,80,80,.1);color:#f55;border:1px solid #f55">🚫 ${kbFor(t.id).geblokkeerd.length}</span>` : ''}
-        </div>
-        <div class="tsub">${escHtml(t.subject) || '—'}</div>
-        ${meta ? `<div class="tmeta">${meta}</div>` : ''}
-        <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
-      </div>
-      <div class="t-action">
-        <button class="btn-add" title="Inplannen op eerstvolgende vrije dag" aria-label="Inplannen op eerstvolgende vrije dag" ${inFlightTickets.has(t.id) ? 'disabled' : ''} onclick="event.stopPropagation();quickAdd('${t.id}')">+</button>
-      </div>`;
-    card.addEventListener('click', () => openDetail(t));
-    kern.ui.maakActiveerbaar(card, () => openDetail(t), 'Open ticket #' + t.number);
-    list.appendChild(card);
-  });
-}
-
-// Zoekveld en sorteerkeuze: eenmalig gekoppeld; de balk zit buiten wat renderTickets herbouwt.
-(function wqKoppel() {
-  const zoek = document.getElementById('wq-zoek'), sel = document.getElementById('wq-sorteer');
-  if (!zoek || !sel) return;
-  sel.value = wqSorteer;
-  let timer = null;
-  zoek.addEventListener('input', () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => { wqZoek = zoek.value; renderTickets(); }, 150);
-  });
-  sel.addEventListener('change', () => {
-    wqSorteer = WQ_SORTEER_OPTIES.includes(sel.value) ? sel.value : 'standaard';
-    try { localStorage.setItem('blitz_wachtrij_sorteer', wqSorteer); } catch {}
-    renderTickets();
-  });
-})();
-
-async function quickAdd(ticketId) {
-  const today = localISO(new Date());
-  const date  = nextAvailableDay(today);
-  if (!date) return toast('Geen beschikbare werkdag gevonden');
-  if (!(await addTicketToDate(ticketId, date))) return;
-  toast('✓ Toegevoegd aan ' + fmtDateShort(date));
-}
+// Wachtrij (lijst, zoeken, sorteren, snelinplannen): schermen/wachtrij.js (etappe 4).
 
 async function addTicketToDate(ticketId, date) {
   if (inFlightTickets.has(ticketId)) return false;
@@ -3529,7 +3435,6 @@ async function avRemoveException(id) {
 // ══════════════════════════════════════════════
 // Het aantalmodel zelf staat in schermen/capaciteit.js; dit zijn de dunne oproepen voor de klassieke code.
 function capacityForDay(dateStr, travelMin) { return kern.capaciteit.capacityForDay(dateStr, travelMin); }
-function nextAvailableDay(fromDate) { return kern.capaciteit.nextAvailableDay(fromDate); }
 
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -4150,7 +4055,7 @@ async function saveReschedule() {
 async function togglePlanFromDetail() {
   if (!activeTicket) return;
   if (['Service in te plannen','Wachten op planning'].includes(activeTicket.status)) {
-    const date = nextAvailableDay(localISO(new Date()));
+    const date = kern.capaciteit.nextAvailableDay(localISO(new Date()));
     if (!date) return toast('Geen beschikbare dag gevonden');
     sluitDetailStil();
     if (!(await addTicketToDate(activeTicket.id, date))) return;

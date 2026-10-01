@@ -83,12 +83,13 @@ export function initCapaciteit(afhankelijkheden) {
 }
 
 export function capacityForDay(datum, travelMin = 30) {
+  if (afh.getHolidayName(datum)) return 0; // feestdag: nul, zonder de instellingen te lezen (zoals vroeger)
   const settings = toestand.get('settings');
   const filter = toestand.get('activeAssigneeFilter');
   const avExceptions = toestand.get('avExceptions');
   return capaciteitVoorDag({
     datum,
-    isFeestdag: !!afh.getHolidayName(datum),
+    isFeestdag: false,
     vanTijd: settings.vanTijd,
     totTijd: settings.totTijd,
     duurMinuten: settings.duurMinuten,

@@ -5,7 +5,7 @@ export const PRIO_WEIGHT = { high: 1, medium: 3, low: 6 };
 
 // Hoofdletter- en accentongevoelig
 export function wqNorm(x) {
-  return String(x == null ? '' : x).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  return String(x == null ? '' : x).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 export function wqZoekTekst(t) {
   return wqNorm([t.number, t.subject, t.account, t.naamEindklant, t.contact, t.regio, t.address, t.assignee].join(' '));

@@ -10,13 +10,12 @@ import * as routeTijden from '../schermen/route-tijden.js';
 import * as routeKaart from '../schermen/route-kaart.js';
 import * as route from '../schermen/route.js';
 import * as capaciteit from '../schermen/capaciteit.js';
-import * as wachtrijLogica from '../schermen/wachtrij-logica.js';
+import * as wachtrij from '../schermen/wachtrij.js';
 
 window.kern = { tijd, ui, selecties, toestand, api };
 window.kern.route = { ...routeTijden, ...routeKaart, ...route };
 window.kern.capaciteit = { ...capaciteit };
-// Tijdelijk (Taak 3 vervangt dit door een directe import in schermen/wachtrij.js): renderTickets staat nog in index.html.
-window.kern.wachtrijLogica = { ...wachtrijLogica };
+window.kern.wachtrij = { ...wachtrij };
 
 // LEGACY-BRUG (verdwijnt in etappe 5): oude globale namen voor klassieke code en oudere modules
 Object.assign(window, {
@@ -33,6 +32,7 @@ Object.assign(window, {
   toast: ui.toast,
   initMap: routeKaart.initMap,
   applyKaartStijl: routeKaart.applyKaartStijl,
+  renderTickets: wachtrij.renderTickets,
   renderRouteList: route.renderRouteList,
   updateRouteBtns: route.updateRouteBtns,
   calculateRoute: route.calculateRoute,

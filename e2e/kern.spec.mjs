@@ -125,8 +125,8 @@ test.describe('kern: ui-delegatie', () => {
 // 'toestand: renderlus afgebroken' op de console zetten, wat de vangnetcontrole laat falen.
 // De drie eerste worden omwikkeld op `window`; de route-lijst staat in een module (R10), waarvan interne oproepen een
 // omwikkeling omzeilen: die teller komt uit kern.route.renderTelling().
-const WINDOW_RENDERS = ['renderKalender', 'renderTickets', 'renderGepland'];
-const RENDERS = [...WINDOW_RENDERS, 'renderRouteList'];
+const WINDOW_RENDERS = ['renderKalender', 'renderGepland'];
+const RENDERS = [...WINDOW_RENDERS, 'renderTickets', 'renderRouteList'];
 
 async function installeerTellers(page) {
   await page.evaluate((namen) => {
@@ -138,7 +138,7 @@ async function installeerTellers(page) {
     }
   }, WINDOW_RENDERS);
 }
-const tellers = (page) => page.evaluate(() => ({ ...window.__n, renderRouteList: kern.route.renderTelling() }));
+const tellers = (page) => page.evaluate(() => ({ ...window.__n, renderTickets: kern.wachtrij.renderTelling(), renderRouteList: kern.route.renderTelling() }));
 // Wacht tot de pagina rustig is: twee animatieframes en daarna een macrotaak (MessageChannel). Alle verwittigingen
 // van de toestand lopen via microtasks, dus alles wat na de actie nog in de pijplijn zat, is dan afgehandeld.
 const rust = (page) => page.evaluate(() => new Promise((klaar) => {
@@ -178,9 +178,9 @@ test.describe('kern: renders', () => {
     const delta = await meetDelta(page, async () => {
       // De testmodus-toast staat al van het opstarten; wacht daarom op de eerste render van de herlaad
       // (conditie, geen vaste tijd). Late extra renders vangt de rust in meetDelta.
-      const voor = await page.evaluate(() => window.__n.renderTickets);
+      const voor = await page.evaluate(() => kern.wachtrij.renderTelling());
       await page.locator('button[data-actie="vernieuw"]').click();
-      await page.waitForFunction((v) => window.__n.renderTickets > v, voor);
+      await page.waitForFunction((v) => kern.wachtrij.renderTelling() > v, voor);
       await expect(page.locator('#toast')).toContainText('Testmodus actief');
     });
     expect(delta).toEqual({ renderKalender: 1, renderTickets: 1, renderGepland: 1, renderRouteList: 1 });

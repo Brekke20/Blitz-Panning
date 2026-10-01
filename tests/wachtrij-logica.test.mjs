@@ -2,7 +2,7 @@ process.env.TZ = 'Europe/Brussels';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  wqNorm, wqZoekTekst, filterOpZoek, isOverdue, urgencyFactor, queueScore, sorteerWachtrij,
+  wqNorm, wqZoekTekst, zoekWoorden, filterOpZoek, isOverdue, urgencyFactor, queueScore, sorteerWachtrij,
 } from '../public/js/schermen/wachtrij-logica.js';
 
 const nu = new Date(2026, 9, 5, 10, 0); // maandag 5 oktober 2026
@@ -14,6 +14,13 @@ test('wqNorm: accenten weg, kleine letters, null wordt leeg', () => {
   assert.equal(wqNorm(null), '');
   assert.equal(wqNorm(undefined), '');
   assert.equal(wqNorm(42), '42');
+});
+
+test('zoekWoorden: genormaliseerd, gesplitst op witruimte, leidende # weg, lege woorden weg', () => {
+  assert.deepEqual(zoekWoorden('  #1234   Élan  '), ['1234', 'elan']);
+  assert.deepEqual(zoekWoorden('##12 #'), ['12']);
+  assert.deepEqual(zoekWoorden(''), []);
+  assert.deepEqual(zoekWoorden(null), []);
 });
 
 test('wqZoekTekst: voegt de velden samen en normaliseert', () => {
