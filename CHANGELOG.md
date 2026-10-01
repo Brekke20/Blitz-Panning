@@ -15,7 +15,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
-## [1.11.0] — 2026-10-01
+## [Refactor-tak — nog niet uitgebracht] (planner-brein, gebouwd 2026-10-01)
 
 ### Added
 - "In planning sinds" in het ticketdetail: sinds wanneer een ticket in het planningstraject zit
