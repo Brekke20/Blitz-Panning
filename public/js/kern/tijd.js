@@ -1,0 +1,40 @@
+// kern/tijd.js — datum- en tijdhulpen (puur, geen DOM). Alle datums in LOKALE tijd, nooit stil UTC.
+// Letterlijk overgenomen uit index.html (etappe 2, Taak 1); `todayISO` is nieuw.
+
+export function localISO(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+
+// Dynamisch berekend zodat overnight-gebruik correct blijft
+export function todayISO(nu = new Date()) { return localISO(nu); }
+
+export function getWeekStart(baseDate, offset) {
+  const d = new Date(baseDate); d.setHours(0,0,0,0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + offset * 7);
+  return d;
+}
+
+export function minToTimeStr(totalMin) {
+  const hh = String(Math.floor((totalMin || 0) / 60) % 24).padStart(2, '0');
+  const mm  = String((totalMin || 0) % 60).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+export function timeStrToMin(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+export function fmtDate(s)     { return new Date(s).toLocaleDateString('nl-BE', { weekday:'short', day:'numeric', month:'short', year:'numeric' }); }
+export function fmtDateShort(d){ const date = d instanceof Date ? d : new Date(String(d).includes('T') ? d : d + 'T12:00:00'); return date.toLocaleDateString('nl-BE', { day:'numeric', month:'short' }); }
+export function fmtSec(s)      { const h = Math.floor(s/3600), m = Math.round((s%3600)/60); return h > 0 ? `${h}u ${m}min` : `${m}min`; }
+
+// Haal lokaal uur:minuten op uit een ISO interventieDatum-string (null als 00:00 = geen uur)
+export function extractLocalHour(interventieDatum) {
+  if (!interventieDatum) return null;
+  const d = new Date(interventieDatum);
+  const h = d.getHours(), m = d.getMinutes();
+  // Sentinel: lokale middernacht (00:00) = geen tijdstip.
+  // Ook UTC-middernacht detecteren voor backward compat met oude plan.js records (T00:00:00.000Z).
+  if (h === 0 && m === 0) return null;
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && interventieDatum.endsWith('Z')) return null;
+  return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+}

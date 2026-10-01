@@ -634,6 +634,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.1.7/signature_pad.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script type="module" src="/js/kern/brug.js"></script>
 <script type="module" src="/js/app-dialog.js"></script>
 <script type="module" src="/js/venster.js"></script>
 <script type="module" src="/js/outbox.js"></script>
@@ -908,6 +909,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!document.documentElement.getAttribute('data-theme')) {
     document.documentElement.setAttribute('data-theme', localStorage.getItem('blitz_theme') || 'dark');
   }
+  _bavFormDate = localISO(new Date());
   document.getElementById('plan-date').value = localISO(new Date());
   activeAssigneeFilter = localStorage.getItem('blitz_active_person') || 'all';
   updatePersonHeader();
@@ -1439,9 +1441,6 @@ function selectPerson(name) {
 // ══════════════════════════════════════════════
 // TICKETS TAB
 // ══════════════════════════════════════════════
-// Dynamisch berekend zodat overnight-gebruik correct blijft
-function todayStr() { return localISO(new Date()); }
-
 function isOverdue(t) {
   return t.interventieDatum && localISO(new Date(t.interventieDatum)) < todayStr();
 }
@@ -5609,7 +5608,7 @@ function setSettingsTab(tab) {
 // UTC terug, en tussen lokale middernacht en 01:00/02:00 (België is UTC+1/+2) resolveerde dat naar
 // GISTEREN, wat zowel het default-datumveld hieronder als de "upcoming"-filter in
 // renderBeschikbaarhedenTab() liet knallen.
-let _bavFormDate  = localISO(new Date());
+let _bavFormDate  = null; // gezet in DOMContentLoaded (kern-brug laadt pas na het klassieke script)
 let _bavFormDateTot = null;
 let _bavFormMultiDay = false;
 let _bavFormKind  = 'fullday';
@@ -6032,17 +6031,6 @@ window.syncOplossingNaarZoho = syncOplossingNaarZoho;
 // ══════════════════════════════════════════════
 // AFSPRAAKVOORSTEL
 // ══════════════════════════════════════════════
-function minToTimeStr(totalMin) {
-  const hh = String(Math.floor((totalMin || 0) / 60) % 24).padStart(2, '0');
-  const mm  = String((totalMin || 0) % 60).padStart(2, '0');
-  return `${hh}:${mm}`;
-}
-
-function timeStrToMin(hhmm) {
-  const [h, m] = hhmm.split(':').map(Number);
-  return h * 60 + m;
-}
-
 // Vertaalt een exact (geschat) tijdstip naar het klant-zichtbare tijdslot. Regel (Brent,
 // 2026-09-21): het blok start 30 min vóór de schatting, afgerond naar beneden op het halve
 // uur, en is settings.tijdslotMinuten breed (default 3u); begrensd door de werkdag. Een
@@ -6678,21 +6666,6 @@ function navigate(enc) {
 }
 // Enkelvoud/meervoud bij een telzin: meervoud(2, 'ticket', 'tickets') → '2 tickets'
 function meervoud(n, e, m) { return `${n} ${n === 1 ? e : m}`; }
-function fmtDate(s)     { return new Date(s).toLocaleDateString('nl-BE', { weekday:'short', day:'numeric', month:'short', year:'numeric' }); }
-function fmtDateShort(d){ const date = d instanceof Date ? d : new Date(String(d).includes('T') ? d : d + 'T12:00:00'); return date.toLocaleDateString('nl-BE', { day:'numeric', month:'short' }); }
-function fmtSec(s)      { const h = Math.floor(s/3600), m = Math.round((s%3600)/60); return h > 0 ? `${h}u ${m}min` : `${m}min`; }
-// Haal lokaal uur:minuten op uit een ISO interventieDatum-string (null als 00:00 = geen uur)
-function extractLocalHour(interventieDatum) {
-  if (!interventieDatum) return null;
-  const d = new Date(interventieDatum);
-  const h = d.getHours(), m = d.getMinutes();
-  // Sentinel: lokale middernacht (00:00) = geen tijdstip.
-  // Ook UTC-middernacht detecteren voor backward compat met oude plan.js records (T00:00:00.000Z).
-  if (h === 0 && m === 0) return null;
-  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && interventieDatum.endsWith('Z')) return null;
-  return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
-}
-
 // ══════════════════════════════════════════════
 // KLANTBESCHIKBAARHEID — UI
 // ══════════════════════════════════════════════
@@ -6935,12 +6908,6 @@ async function saveToewijzen(ticketId) {
   } catch (err) {
     toast('✕ ' + err.message, 5000);
   }
-}
-function localISO(d)    { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
-function getWeekStart(baseDate, offset) {
-  const d = new Date(baseDate); d.setHours(0,0,0,0);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + offset * 7);
-  return d;
 }
 
 let toastTimer;

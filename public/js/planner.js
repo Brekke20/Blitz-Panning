@@ -5,10 +5,7 @@
 // die volgende stop op tijd (spec 2026-09-30-planner-brein, §1/§3.3–3.5).
 // Tijden binnen het brein zijn minuten na middernacht (lokaal); datums 'YYYY-MM-DD'.
 
-function timeStrToMin(hhmm) {
-  const [h, m] = hhmm.split(':').map(Number);
-  return h * 60 + m;
-}
+import { timeStrToMin } from './kern/tijd.js';
 
 function minNaarUur(min) {
   const m = Math.round(min);
