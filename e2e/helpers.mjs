@@ -38,6 +38,13 @@ export const TOEGESTANE_CONSOLERUIS = [
     patroon: /^console\.error: Blocked script execution in 'about:blank' because the document's frame is sandboxed/,
     reden: "page.clock.install injecteert zijn script ook in het sandbox-iframe #annuleer-frame (sandbox=\"\", geen allow-scripts).",
   },
+  {
+    // Leaflet annuleert tegels die nog laden zodra de kaart na een routeberekening inzoomt of tegels
+    // verwijdert (img.src wordt leeggemaakt). De browser meldt dat als requestfailed ERR_ABORTED, ook al
+    // is het een gestubde, niet-bestaande tegel; of het gebeurt hangt van de timing af (flaky zonder dit).
+    patroon: /^requestfailed: https:\/\/(server\.arcgisonline\.com|[a-c]\.tile\.openstreetmap\.org)\/\S+ \(net::ERR_ABORTED\)$/,
+    reden: "Leaflet breekt nog ladende kaarttegels zelf af bij in- en uitzoomen; alleen tegelhosts, alleen ERR_ABORTED.",
+  },
 ];
 
 // Hosts waarvan de app echt scripts/stijlen laadt (index.html:634-636). Al het andere naar buiten wordt
