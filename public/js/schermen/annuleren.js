@@ -7,13 +7,14 @@
 // delegatie, de mailkeuze via data-wijzig en de toelichting via data-invoer; de overlay sluit via registreerBackdrop.
 // De `toggle` van <details> bubbelt niet: die luisteraar hangt rechtstreeks aan #annuleer-details.
 import { toestand } from '../kern/toestand.js';
+import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, registreerActies, registreerWijzigActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { localISO } from '../kern/tijd.js';
 import { registreerVenster } from '../venster.js';
 import { renderTickets } from './wachtrij.js';
 import { renderKalender } from './kalender.js';
 import { renderGepland } from './ingepland.js';
-import { joinNL } from './ticketdetail-logica.js';
+import { joinNL, DOELGROEP_LABEL } from './ticketdetail-logica.js';
 
 // Afhankelijkheden uit het klassieke script en andere schermen (ingevuld door initAnnuleren); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('annuleren: initAnnuleren() is niet aangeroepen'); } });
@@ -32,12 +33,15 @@ export function initAnnuleren(afhankelijkheden) {
   registreerVenster({ el: overlay, sluit: () => sluitAnnuleerVenster() });
 }
 
-// Enkel voor e2e in testmodus (E12: /api/annuleer is daar verboden): zet de redenenlijst vooraf, zodat er geen GET nodig is.
-export function zetRedenenVoorTest(lijst) { _annuleerRedenen = lijst; }
-
 let _annuleerRedenen = null; // [{code,label}] -- één keer opgehaald
 let _ann = null;             // toestand van het openstaande venster
-const ANN_DOELGROEP = { contact: 'contactpersoon', klant: 'klant', installateur: 'installateur' };
+
+// Enkel voor e2e in testmodus (E12: /api/annuleer is daar verboden): zet de redenenlijst vooraf, zodat er geen GET nodig is.
+// Buiten ?test gooit ze, zodat een console-aanroeper via window.kern de redenen van een klantmail niet kan vervangen.
+export function zetRedenenVoorTest(lijst) {
+  if (!TEST_MODE) throw new Error('zetRedenenVoorTest is enkel beschikbaar in testmodus');
+  _annuleerRedenen = lijst;
+}
 
 // Gekozen persoon op dit toestel (persoonskiezer bewaart 'all' voor "Alle technici"); niemand = leeg.
 function annuleerDoor() {
@@ -293,7 +297,7 @@ export async function verstuurAnnulatie() {
   if (data.opgeruimd) {
     delen.push('Vergrendeling opgeruimd — ticket stond al niet meer gepland in Zoho');
   } else if (fouten.length) {
-    const wie = joinNL([...new Set(fouten.map(f => ANN_DOELGROEP[f.doelgroep] || f.doelgroep))]);
+    const wie = joinNL([...new Set(fouten.map(f => DOELGROEP_LABEL[f.doelgroep] || f.doelgroep))]);
     delen.push(`Afspraak geannuleerd, maar de mail naar ${wie} kon niet verstuurd worden. Verwittig de klant zelf.`);
   } else {
     delen.push('Afspraak geannuleerd — ' + (v.mailKlant ? 'klant verwittigd per mail' : 'klant niet gemaild'));

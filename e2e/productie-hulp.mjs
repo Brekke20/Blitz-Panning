@@ -210,6 +210,8 @@ export function zohoStubs({ register } = {}) {
 
 // ── test met automatische controles (minstens zo streng als helpers.mjs) ──────
 export const test = basis.extend({
+  // Onafhankelijk van playwright.config.mjs: een service worker mag het vangnet niet omzeilen.
+  serviceWorkers: ['block', { option: true }],
   verzoeken: async ({ page }, use) => {
     const verzoeken = verzamelVerzoeken(page);
     waarnemer(page.context());

@@ -2,7 +2,7 @@
 // De code is letterlijk uit index.html verhuisd (W11/D12: ook sendProposal en elke schrijfactie op de voorstelstatus). Enkel de
 // voorvoegsels zijn nieuw: `afh.` voor het actieve ticket en de andere schermen, `toestand.get/set/raak` voor de gedeelde
 // gegevens, en imports. Het gepinde HUIDIG GEDRAG (o.a. de parser-foutmelding bij een 502 en de ontbrekende waarschuwingen)
-// blijft bewust ongewijzigd. De ontvangerslijst, de serverversie van de voorstelstatus en DOELGROEP_LABEL zijn module-privé.
+// blijft bewust ongewijzigd. De ontvangerslijst, de serverversie van de voorstelstatus zijn module-privé.
 // Raakt `document` enkel binnen functies. Alleen `kern/brug.js` wijst `window`-namen toe. De knoppen lopen via data-actie-
 // delegatie, de twee invoervelden via data-invoer, de overlay sluit via registreerBackdrop (inhoudsklik sluit niet).
 import { toestand } from '../kern/toestand.js';
@@ -13,13 +13,12 @@ import { timeStrToMin, minToTimeStr, extractLocalHour } from '../kern/tijd.js';
 import { registreerVenster } from '../venster.js';
 import { renderTickets } from './wachtrij.js';
 import { renderKalender } from './kalender.js';
-import { tijdslotVoor, roundToNextQuarterStr, cleanTicketSubject, joinNL } from './ticketdetail-logica.js';
+import { tijdslotVoor, roundToNextQuarterStr, cleanTicketSubject, joinNL, DOELGROEP_LABEL } from './ticketdetail-logica.js';
 
 // Afhankelijkheden uit het klassieke script en andere schermen (ingevuld door initVoorstel); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('voorstel: initVoorstel() is niet aangeroepen'); } });
 
 let _proposalOntvangers = []; // ontvangerslijst berekend door openProposal(), gebruikt door updateProposalPreview()/sendProposal()
-const DOELGROEP_LABEL = { contact: 'contactpersoon', klant: 'klant', installateur: 'installateur' };
 
 export function initVoorstel(afhankelijkheden) {
   afh = strengeAfh('voorstel', afhankelijkheden);

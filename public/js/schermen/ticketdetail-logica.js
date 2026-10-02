@@ -50,24 +50,14 @@ export function meervoud(n, e, m) { return `${n} ${n === 1 ? e : m}`; }
 // Nummer voor een tel:-link: "(0)" in Belgische notatie ("+32 (0)9 …") wordt weggelaten, daarna enkel cijfers en "+".
 export function telNummer(tel) { return tel ? String(tel).replace(/\(0\)/g, '').replace(/[^\d+]/g, '') : ''; }
 
-// Ontdubbelde (hoofdletterongevoelige) lijst e-mailadressen: contact, eindklant, installateur.
-export function voorstelOntvangers(ticket) {
-  const seenEmails = new Set();
-  return [ticket.email || null, ticket.emailEindklant || null, ticket.emailInstallateur || null]
-    .filter(email => {
-      if (!email) return false;
-      const key = email.toLowerCase();
-      if (seenEmails.has(key)) return false;
-      seenEmails.add(key);
-      return true;
-    });
-}
+// Namen van de ontvangersgroepen (sleutel in voorstelstatus/ontvangers, waarde in toasts en labels).
+export const DOELGROEP_LABEL = { contact: 'contactpersoon', klant: 'klant', installateur: 'installateur' };
 
 // Label voor bevestiging — toont via welke ontvanger een afspraak bevestigd werd.
 export function bevestigdLabel(vs) {
   if (!vs?.bevestigd) return null;
   const { door } = vs.bevestigd;
-  const doorNaam = door ? { contact: 'contactpersoon', klant: 'klant', installateur: 'installateur' }[door] : null;
+  const doorNaam = door ? DOELGROEP_LABEL[door] : null;
   return doorNaam ? `✓ Bevestigd door ${doorNaam}` : '✓ Bevestigd';
 }
 

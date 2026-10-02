@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import {
   tijdslotVoor, roundToNextQuarterStr, cleanTicketSubject, joinNL, meervoud,
-  telNummer, voorstelOntvangers, bevestigdLabel, heeftLopendVoorstel,
+  telNummer, bevestigdLabel, DOELGROEP_LABEL, heeftLopendVoorstel,
 } from '../public/js/schermen/ticketdetail-logica.js';
 
 const inst = { vanTijd: '08:00', totTijd: '17:00', tijdslotMinuten: 180 };
@@ -74,13 +74,6 @@ test('telNummer: Belgische notatie, leeg', () => {
   assert.equal(telNummer(null), '');
 });
 
-test('voorstelOntvangers: ontdubbelt hoofdletterongevoelig, behoudt volgorde en eerste schrijfwijze', () => {
-  assert.deepEqual(voorstelOntvangers({ email: 'Jan@x.be', emailEindklant: 'jan@X.be', emailInstallateur: 'JAN@x.BE' }), ['Jan@x.be']);
-  assert.deepEqual(voorstelOntvangers({ email: 'a@x.be', emailEindklant: 'b@x.be', emailInstallateur: 'c@x.be' }), ['a@x.be', 'b@x.be', 'c@x.be']);
-  assert.deepEqual(voorstelOntvangers({}), []);
-  assert.deepEqual(voorstelOntvangers({ email: '', emailInstallateur: 'c@x.be' }), ['c@x.be']);
-});
-
 test('bevestigdLabel: alle bronnen', () => {
   assert.equal(bevestigdLabel(undefined), null);
   assert.equal(bevestigdLabel({}), null);
@@ -100,4 +93,8 @@ test('heeftLopendVoorstel', () => {
   assert.equal(heeftLopendVoorstel({ id: 1, status: 'Geplande service' }, {}), true);
   assert.equal(heeftLopendVoorstel({ id: 1, status: 'Geplande support' }, {}), true);
   assert.equal(heeftLopendVoorstel({ id: 1, status: 'Open' }, { 1: { bevestigd: { door: 'klant' } } }), false);
+});
+
+test('DOELGROEP_LABEL: de drie ontvangersgroepen', () => {
+  assert.deepEqual(DOELGROEP_LABEL, { contact: 'contactpersoon', klant: 'klant', installateur: 'installateur' });
 });

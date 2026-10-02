@@ -49,9 +49,15 @@ De e2e-suite heeft internet nodig: de app laadt zijn scripts van externe CDN's (
 
 Productietests staan in `e2e/productie/` en draaien de app zonder `?test` querystring tegen een volledig gestubde backend. Het doel: de Zoho-berichten van planning, voorstel en annuleren precies controleren.
 
-- Fixture `e2e/productie-hulp.mjs`: `startAppProductie()` met rol/technieker/opties, `verwachtSchrijven()` om per test een whitelist van HTTP-paden in te stellen, `zohoStubs()` met nep-endpoints voor `plan`, `plan-datum`, `propose`, `voorstel-status`, `annuleer` en `optimize`.
-- Fixture `e2e/fixtures/tickets.json`: `DUMMY_DATA` voor de tickets-stub.
-- Self-test in `tests/e2e-import-guard.test.mjs`: zorgt dat productie-specs enkel van `e2e/productie-hulp.mjs` importeren (geen `?test` helpers), en controleert dat geen enkele test buiten `127.0.0.1:3338` of de CDN-whitelist communiceert.
+- Fixture `e2e/productie-hulp.mjs` (enkel hieruit importeren, nooit `helpers.mjs` of `@playwright/test`; `serviceWorkers: 'block'` staat ook in de fixture): `startAppProductie()` met rol/technieker/opties, `zohoStubs()` met nep-endpoints voor `plan`, `plan-datum`, `propose`, `voorstel-status`, `annuleer` en `optimize`, `settle`/`openKalender` als wachthulpen (geen `waitForTimeout`).
+- `verwachtSchrijven(verzoeken, paden)`: whitelist per test; elk niet-GET verzoek naar de eigen server buiten de lijst faalt.
+- `verwachtHttpFout(verzoeken, fouten)`: per test gescoped; faalt ook als de verwachte HTTP-fout niet voorkwam.
+- `e2e/productie-waarnemer.mjs`: de waarnemer die lekmeldingen, onverwachte verzoeken en consolefouten bijhoudt, plus de alleen-lezen weergaven (`alleenLezen`, `origineelVan`) zodat een spec ze niet kan wissen of wijzigen; enkel de fixture en de zelftest importeren hem.
+- `e2e/vangnet-regels.mjs`: `isToegestaan`, de regels van de extra route met voorrang (geen Zoho/TomTom/mail, CDN enkel GET/HEAD); unit-getest in `tests/e2e-vangnet.test.mjs`.
+- WebSocket-slot (`zetWebSocketSlot`): elke WebSocket-verbinding faalt de test.
+- Parity-tests: `e2e/tickets-pariteit.spec.mjs` (aparte `?test`-spec: `e2e/fixtures/tickets.json` is gelijk aan `DUMMY_DATA` in `index.html`) en `tests/e2e-annuleer-redenen.test.mjs` (`ANNULEER_REDENEN` in de fixture is gelijk aan `REDENEN` in `netlify/lib/annulatie.js`).
+- Importguard `tests/e2e-import-guard.test.mjs` (draait bij elke `node --test`, scant `e2e/` recursief): een spec importeert `test` enkel uit de juiste fixture (`./helpers.mjs` of, onder `e2e/productie/`, `../productie-hulp.mjs`); geen `@playwright/test` rechtstreeks; productiebestanden hebben geen eigen routes, geen `waitForTimeout`, geen `?test`/`X-Blitz-Test`, geen eval/`child_process`/`vm`/`createRequire`, geen `page.request`/`context.request`/`request`-fixture, geen `browser.newContext`/`newPage`, geen `node:http`/`https`/`net`/`tls`/`dns`/`http2` en geen `fetch(`; de ontsnappingskleppen van de waarnemer enkel in de zelftest.
+- Zelftest `e2e/productie/vangnet-zelftest.spec.mjs` (met `zelftest-hulp.mjs`): bewijst op de echte host dat Zoho, TomTom, smtp, POST naar de CDN, WebSockets en onbekende `/api`-paden geblokkeerd of gemeld worden, dat de whitelist en de alleen-lezen weergaven werken en dat `verwachtHttpFout` faalt als de fout uitblijft.
 
 ## Serverkant (`netlify/lib/`)
 
@@ -68,8 +74,8 @@ Etappe 6 van de refactor: gedeelde serverbouwstenen. Gebruik ze voor elke nieuwe
 Gedeelde fundamenten (etappe 2 van de refactor): `tijd`, `ui`, `selecties`, `toestand`, `api`.
 
 - Het zijn pure ES-modules, importeerbaar in `node --test`. Enkel `kern/brug.js` raakt `window` aan
-  (`window.kern` + de oude globale namen en state-accessors in het `LEGACY-BRUG`-blok; dat blok verdwijnt in etappe 5).
-- `kern/omgeving.js`: export `TEST_MODE` (true in `?test`-modus, valideert welke netwerkaanroepen zijn toegestaan).
+  (`window.kern` + de oude globale namen en state-accessors in het `LEGACY-BRUG`-blok; dat blok verdwijnt in etappe 5b-9).
+- `kern/omgeving.js`: exporteert enkel `TEST_MODE` (true bij `?test` in de URL; de enige bron, zonder setter en niet op `window`).
 - `kern/ui.js`: `registreerWijzigActies(wortel, handlers)` voor `data-wijzig`- en `data-invoer`-delegatie; `registreerBackdrop(overlayEl, sluit)` voor de donkere achtergrond van vensters.
 - Regel K3: klassieke code op het hoogste niveau van `index.html` gebruikt `window.kern`, accessors of
   verhuisde functies nooit (de brug laadt pas als module); alleen binnen function-bodies. Controle bij een
@@ -98,7 +104,7 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 - `kern.route.renderTelling()` is de teller die de e2e-tests gebruiken (interne aanroepen omzeilen een wrapper op `window`). Een wijziging in de planning geeft via het abonnement precies één route-render.
 - `kern.route` is de namespace van het routescherm op `window.kern` (o.a. `renderTelling`); e2e-tests lezen daar de render-teller en de kaartaantallen uit.
 - Knoppen van het scherm gebruiken `data-actie="route-..."` (delegatie in `route.js`) in plaats van inline handlers; gegevens staan op `data-*` attributen van de stop.
-- Resterende LEGACY-BRUG-namen voor het routescherm: `renderRouteList`, `updateRouteBtns`, `calculateRoute`, `computeArrivalTimes`, `initMap`, `applyKaartStijl`. Ze verdwijnen in etappe 5; gebruik ze niet in nieuwe code.
+- Resterende LEGACY-BRUG-namen voor het routescherm: `renderRouteList`, `updateRouteBtns`, `calculateRoute`, `computeArrivalTimes`, `initMap`, `applyKaartStijl`. Ze verdwijnen in etappe 5b-9; gebruik ze niet in nieuwe code.
 - Nieuwe schermen volgen dit patroon: module-privé toestand, expliciet aangereikte functies, exports voor lezers.
 
 **Etappe 4 (Kalender en wachtrij):**
@@ -110,11 +116,11 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 - `ingepland.js`: Ingepland-scherm (kaarten, teller). Private toestand: `gepOffset`. Init via `initIngepland(afh)` vóór `koppelRenders()`.
 
 **Etappe 5a (Ticketdetail, voorstel, annuleren):**
-- `ticketdetail-logica.js`: pure berekeningen (aankonst, afrondingstijden, onderwerpschoning, termen: `tijdslotVoor()`, `roundToNextQuarterStr()`, `cleanTicketSubject()`, `joinNL()`, `meervoud()`, `telNummer()`, `voorstelOntvangers()`, `bevestigdLabel()`, `heeftLopendVoorstel()`). Unit-getest met `node --test`.
-- `ticketdetail.js`: Ticketdetail-venster (taken, voorstel, annuleren, toewijzen, aankomst). Init via `initTicketdetail(afh)` vóór `koppelRenders()`. Private toestand: `actiefTicket`, `detailDatum`, `arrivalData`. Knoppen gebruiken `data-actie`-delegatie; Zoho-functies verhuizen via productietest als vangnet.
-- `voorstel.js`: Voorstelvenster (datum, tijd, ontvangers, voorbeeld, verzenden). Init via `initVoorstel(afh)`. Private toestand beheerd via accessors. Afh: `getPlanningTicket`, `sluitDetailStil`, `actiefTicket`, `zetActiefTicket`, `renderRouteList`, `inFlight`, `sjLog`.
-- `annuleren.js`: Annuleervenster (reden, toelichting, mailkeuze). Init via `initAnnuleren(afh)`. Private toestand. Afh: `sluitDetailStil`, `actiefTicket`, `loadVoorstelStatus`, `renderRouteList`, `updateRouteBtns`, `inFlight`, `sjLog`.
-- `venster.js` export `registreerVenster({ el, isOpen, sluit })`: registreert per venster Escape-gedrag, focusbeheer en achtergrondklik, in plaats van de tabel in `venster.js`. Geen nieuwe LEGACY-BRUG-namen (D13).
+- `ticketdetail-logica.js`: pure berekeningen (aankomsttijden, afrondingstijden, onderwerpschoning, termen: `tijdslotVoor()`, `roundToNextQuarterStr()`, `cleanTicketSubject()`, `joinNL()`, `meervoud()`, `telNummer()`, `bevestigdLabel()`, `heeftLopendVoorstel()`, plus de gedeelde constante `DOELGROEP_LABEL`). Unit-getest met `node --test`.
+- `ticketdetail.js`: Ticketdetail-venster (taken, voorstel, annuleren, toewijzen, aankomst). Init via `initTicketdetail(afh)` vóór `koppelRenders()`. Private toestand: `activeTicket` en `_detailDate` (lezers `actiefTicket()`, `detailDatum()`) en `_kbIsDirty` (via `zetKbIsDirty`); `arrivalData` is een export (route en wizard lezen het). Knoppen gebruiken `data-actie`-delegatie; Zoho-functies verhuizen via productietest als vangnet.
+- `voorstel.js`: Voorstelvenster (datum, tijd, ontvangers, voorbeeld, verzenden). Init via `initVoorstel(afh)`. Private toestand beheerd via accessors. Afh: `getPlanningTicket`, `sluitDetailStil`, `actiefTicket`, `zetActiefTicket`, `renderRouteList`.
+- `annuleren.js`: Annuleervenster (reden, toelichting, mailkeuze). Init via `initAnnuleren(afh)`. Private toestand. Afh: `sluitDetailStil`, `actiefTicket`, `loadVoorstelStatus`, `renderRouteList`, `updateRouteBtns`, `inFlight`. `zetRedenenVoorTest` gooit buiten `?test`.
+- `venster.js` export `registreerVenster({ el, isOpen, sluit })`: registreert per venster Escape-gedrag en focusbeheer (de achtergrondklik loopt via `kern.ui.registreerBackdrop`); de tabel in `venster.js` blijft bestaan voor de dialogen die nog niet verhuisd zijn. Geen nieuwe LEGACY-BRUG-namen (D13).
 
 **Conventies:**
 - Afhankelijkheden (functies uit klassieke code) worden via `afh` aangereikt; instellingen en toestandsgegevens uit `kern.toestand`.
@@ -123,7 +129,7 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 - `quickAdd` (`wachtrij.js`) en de capaciteitskop (`n/cap · ±u`, getekend in `kalender.js`) gebruiken het aantalmodel van `capaciteit.js`, niet het brein (spec C3).
 - `kern.ui.strengeAfh(scherm, afh)` bewaakt de `afh`-objecten: een ontbrekende `afh`-sleutel gooit, zowel vóór als na de init.
 - Blokkeringen en selecties gebruiken `kern.selecties.blokkeringenVoor` en `kern.ui.maakActiveerbaar`.
-- Resterende LEGACY-BRUG-namen voor deze schermen: `renderTickets`, `renderKalender` (`renderGepland` is weg; gebruik `kern.ingepland.renderGepland()`). Ze verdwijnen in etappe 5; gebruik ze niet in nieuwe code.
+- Resterende LEGACY-BRUG-namen voor deze schermen: `renderTickets`, `renderKalender` (`renderGepland` is weg; gebruik `kern.ingepland.renderGepland()`). Het LEGACY-BRUG-blok verdwijnt in etappe 5b-9; gebruik ze niet in nieuwe code.
 
 ## Versioning & changelog
 

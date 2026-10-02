@@ -7,6 +7,9 @@
 //  - Productiebestanden (behalve productie-hulp/-waarnemer): geen eigen routes (page.route, context.route,
 //    unroute, routeFromHAR, routeWebSocket, route.continue/fallback); stubs komen enkel uit de fixture-API.
 //  - Productiebestanden: geen node:module/createRequire, child_process, vm, eval, new Function.
+//  - Productiebestanden (behalve de fixtures en de zelftest): geen APIRequestContext (page.request, context.request, .request.,
+//    de `request`-fixture), geen browser.newContext/newPage/browser., geen node:http/https/net/tls/dns/http2, geen fetch( ;
+//    dat alles loopt langs de routes van het vangnet heen.
 //  - Ontsnappingskleppen (waarnemer, buitenHost, lekmeldingen wissen) enkel in de zelftest-bestanden.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -58,6 +61,17 @@ const ROUTE_PATRONEN = [
 // (b) Manieren om buiten de scan om code te laden of uit te voeren.
 const UITVOER_MODULES = /^(?:node:)?(?:module|child_process|vm|worker_threads|cluster)$/;
 const UITVOER_PATRONEN = [/\bcreateRequire\b/, /\beval\s*\(/, /\bnew\s+Function\b/, /\bFunction\s*\(/];
+// (c) Netwerk buiten de routes van het vangnet om: APIRequestContext, een eigen browsercontext en node-netwerkmodules.
+const NETWERK_MODULES = /^(?:node:)?(?:http|https|net|tls|dns|http2)(?:\/.*)?$/;
+const NETWERK_PATRONEN = [
+  [/\b(?:page|context)\s*\.\s*request\b/, 'page.request/context.request'],
+  [/\.\s*request\s*\./, '.request.'],
+  [/\(\s*\{[^}]*\brequest\b[^}]*\}\s*[,)]/, 'request-fixture'],
+  [/\.\s*(?:newContext|newPage)\s*\(/, 'newContext/newPage'],
+  [/\bbrowser\s*\./, 'browser.'],
+  [/\(\s*\{[^}]*\bbrowser\b[^}]*\}\s*[,)]/, 'browser-fixture'],
+  [/(?<![\w$.])fetch\s*\(|\b(?:globalThis|global|window)\s*\.\s*fetch\b/, 'fetch('],
+];
 const KLEP_NAMEN = /\b(buitenHost|ongeoorloofd|testSignalen|neemGeblokkeerdeProbesOver|productie-waarnemer|zelftest-hulp)\b/;
 const KLEP_MUTATIE = new RegExp(`\\.(?:onverwacht|alle|schrijven|websockets)\\s*${MUTATIE}|\\bconsoleFouten\\s*${MUTATIE}`);
 
@@ -99,6 +113,10 @@ export function controleer(bestanden) {
       }
       if (/waitForTimeout/.test(tekst)) fout('waitForTimeout');
       for (const i of imports) if (UITVOER_MODULES.test(i)) fout(`importeert ${i}`);
+      if (!PRODUCTIE_FIXTURES.has(pad) && !ZELFTEST.has(pad)) {
+        for (const i of imports) if (NETWERK_MODULES.test(i)) fout(`importeert netwerkmodule ${i}`);
+        for (const [re, naam] of NETWERK_PATRONEN) if (re.test(kaal)) fout(`omzeilt het vangnet (${naam})`);
+      }
       for (const re of UITVOER_PATRONEN) if (re.test(kaal)) fout(`gebruikt ${re.source}`);
       if (!PRODUCTIE_FIXTURES.has(pad)) {
         for (const re of ROUTE_PATRONEN) if (re.test(kaal)) fout(`registreert of omzeilt routes (${re.source})`);
@@ -231,4 +249,47 @@ test('guard: geen module-/proces-/eval-ontsnapping in productiebestanden', () =>
     assert.notDeepEqual(slecht('e2e/productie-hulp.mjs', regel), [], regel);
   }
   assert.deepEqual(slecht('e2e/productie/x.spec.mjs', PROD + "import fs from 'node:fs'; import path from 'node:path';"), []);
+});
+
+test('guard: netwerkmodules in productiespecs falen (met en zonder node:-voorvoegsel)', () => {
+  for (const m of ['http', 'https', 'net', 'tls', 'dns', 'http2', 'dns/promises']) {
+    for (const naam of [m, 'node:' + m]) {
+      assert.notDeepEqual(slecht('e2e/productie/x.spec.mjs', PROD + `import x from '${naam}';`), [], naam);
+      assert.notDeepEqual(slecht('e2e/productie/x.spec.mjs', PROD + `const x = await import('${naam}');`), [], naam);
+    }
+  }
+  assert.deepEqual(slecht('e2e/productie/x.spec.mjs', PROD + "import fs from 'node:fs';"), []);
+  assert.deepEqual(slecht('e2e/productie/vangnet-zelftest.spec.mjs', ZELF + "import h from 'node:http';"), []);
+});
+
+test('guard: APIRequestContext in productiespecs faalt', () => {
+  for (const regel of [
+    "await page.request.get('/x');", "await context.request.post('/x');", "const r = page.request;", "await page .\n request.get('/x');",
+    "test('a', async ({ request }) => {});", "test('a', async ({ page, request }) => {});", "await ctx.request.fetch('/x');",
+  ]) {
+    assert.notDeepEqual(slecht('e2e/productie/x.spec.mjs', PROD + regel), [], regel);
+    assert.deepEqual(slecht('e2e/productie/vangnet-zelftest.spec.mjs', ZELF + regel), [], regel);
+  }
+  // route.request() en een lokale variabele `request` zijn geen APIRequestContext.
+  assert.deepEqual(slecht('e2e/productie/x.spec.mjs', PROD + "const url = route.request().url(); const request = 1;"), []);
+});
+
+test('guard: eigen browsercontext of -pagina in productiespecs faalt', () => {
+  for (const regel of [
+    "const c = await browser.newContext();", "const p = await context.newPage();", "const p = await b.newPage();",
+    "test('a', async ({ browser }) => {});", "await browser.close();",
+  ]) {
+    assert.notDeepEqual(slecht('e2e/productie/x.spec.mjs', PROD + regel), [], regel);
+    assert.deepEqual(slecht('e2e/productie/vangnet-zelftest.spec.mjs', ZELF + regel), [], regel);
+  }
+});
+
+test('guard: fetch( in productiespecs faalt (de zelftest en fixtures niet)', () => {
+  for (const regel of [
+    "const r = await fetch('http://x');", "await globalThis.fetch('http://x');", "await page.evaluate(() => fetch('/x'));",
+  ]) {
+    assert.notDeepEqual(slecht('e2e/productie/x.spec.mjs', PROD + regel), [], regel);
+    assert.deepEqual(slecht('e2e/productie/vangnet-zelftest.spec.mjs', ZELF + regel), [], regel);
+  }
+  assert.deepEqual(slecht('e2e/productie/x.spec.mjs', PROD + "const prefetch = 1; await page.goto('/fetch');"), []);
 });
