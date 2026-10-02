@@ -114,7 +114,7 @@ export async function startAppProductie(page, { rol = 'coordinator', technieker 
 //   const z = zohoStubs();  startAppProductie(page, { overschrijf: z.overschrijf });
 //   z.opnames.plan -> [{ methode, body, query }];  z.zetAntwoord('plan', { status: 500, json: {...} })
 // `antwoord` is een { status, json } of een functie ({ methode, body, query, pad }) => { status, json }.
-export const ZOHO_EINDPUNTEN = ['plan', 'plan-datum', 'propose', 'voorstel-status', 'annuleer', 'optimize'];
+export const ZOHO_EINDPUNTEN = ['plan', 'plan-datum', 'propose', 'voorstel-status', 'annuleer', 'optimize', 'send-rapport', 'rapport-verzonden', 'rapport-archief'];
 // Redenen van netlify/lib/annulatie.js (REDENEN, zonder klantzin); dit bestand mag geen netlify/-code importeren.
 const ANNULEER_REDENEN = [
   { code: 'ziek', label: 'Technieker ziek of onbeschikbaar' },
@@ -133,12 +133,14 @@ const DATUM_RE = /^\d{4}-\d{2}-\d{2}$/;
 // Bewust NIET nagebootst: de numerieke ticketId-validatie van de echte functies (de fixtures gebruiken 'p1').
 //   z.register()            -> huidige stand van het register (kopie)
 //   z.forceerConflicten(n)  -> de volgende n POST /api/voorstel-status geven 409 (en het register schuift één versie op)
-export function zohoStubs({ register } = {}) {
+export function zohoStubs({ register, rapporten } = {}) {
   const opnames = {};
   const antwoorden = {};
   const overschrijf = {};
   let reg = structuredClone(register ?? { versie: 0, status: {} });
   let conflicten = 0;
+  // Rapportarchief (etappe 5b): stateful zoals rapport-archief.js (GET) en rapport-verzonden.js (POST met versiecontrole).
+  let archief = structuredClone(rapporten ?? { versie: 0, rapports: [] });
   const conflict409 = () => ({ status: 409, json: { error: 'Register ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: reg.versie } });
   for (const naam of ZOHO_EINDPUNTEN) {
     opnames[naam] = [];
@@ -190,6 +192,37 @@ export function zohoStubs({ register } = {}) {
         return { status: 200, json: { ok: true, emailSent: { contact: body?.mailKlant === true, klant: false, installateur: false }, fouten: [] } };
       };
     }
+    // send-rapport.js: preview -> { preview: true, ontvangers: [{ doelgroep, naam, email, html }] }; echt ->
+    // { success, emailSent, fouten, statusUpdated, statusFout }. Standaard: enkel de contactpersoon.
+    if (naam === 'send-rapport') {
+      antwoorden[naam] = ({ body }) => body?.preview === true
+        ? { status: 200, json: { preview: true, ontvangers: [{ doelgroep: 'contact', naam: 'Luc Wouters', email: 'luc@test.be', html: '<p>Nep-voorbeeld van de rapportmail</p>' }] } }
+        : { status: 200, json: { success: true, emailSent: { contact: true, klant: false, installateur: false }, fouten: [], statusUpdated: true, statusFout: null } };
+    }
+    // rapport-archief: GET geeft de stand; andere methodes vallen terug op de standaardstub (versie + 1, geen opslag).
+    if (naam === 'rapport-archief') {
+      const standaard = antwoorden[naam];
+      antwoorden[naam] = (arg) => {
+        if (arg.methode !== 'GET') return standaard(arg);
+        const id = arg.query.get('id');
+        return { status: 200, json: id ? { versie: archief.versie, rapport: archief.rapports.find(r => r.id === id) || null } : structuredClone(archief) };
+      };
+    }
+    // rapport-verzonden.js: 409 bij een verkeerde versie, 404 bij een onbekend rapport, anders versie + 1 en het veld gezet.
+    if (naam === 'rapport-verzonden') {
+      antwoorden[naam] = ({ body }) => {
+        if (typeof body?.versie === 'number' && body.versie !== archief.versie) {
+          return { status: 409, json: { error: 'Rapportarchief ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: archief.versie } };
+        }
+        const i = archief.rapports.findIndex(r => r.id === body?.id);
+        if (i < 0) return { status: 404, json: { error: 'Rapport niet gevonden' } };
+        const veld = body.doelgroep === 'contact' ? 'verzondenContact' : body.doelgroep === 'klant' ? 'verzondenKlant' : 'verzondenInstallateur';
+        const rapports = [...archief.rapports];
+        rapports[i] = { ...rapports[i], [veld]: body.tijdstip };
+        archief = { versie: archief.versie + 1, rapports };
+        return { status: 200, json: { ok: true, versie: archief.versie } };
+      };
+    }
     overschrijf[naam] = async (arg) => {
       opnames[naam].push({ methode: arg.methode, body: arg.body, query: Object.fromEntries(arg.query) });
       const a = antwoorden[naam];
@@ -200,6 +233,7 @@ export function zohoStubs({ register } = {}) {
     overschrijf,
     opnames,
     register: () => structuredClone(reg),
+    archief: () => structuredClone(archief),
     forceerConflicten(n) { conflicten = n; },
     zetAntwoord(naam, antwoord) {
       if (!(naam in antwoorden)) throw new Error(`geen Zoho-stub met naam ${naam}`);

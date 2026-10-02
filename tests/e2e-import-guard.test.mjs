@@ -10,6 +10,8 @@
 //  - Productiebestanden (behalve de fixtures en de zelftest): geen APIRequestContext (page.request, context.request, .request.,
 //    de `request`-fixture), geen browser.newContext/newPage/browser., geen node:http/https/net/tls/dns/http2, geen fetch( ;
 //    dat alles loopt langs de routes van het vangnet heen.
+//  - Productiebestanden (behalve de fixtures): geen test.use(, test.extend( en geen woord `serviceWorkers`; de fixture zet
+//    `serviceWorkers: 'block'` en een spec zou dat anders met test.use({ serviceWorkers: 'allow' }) kunnen omzeilen.
 //  - Ontsnappingskleppen (waarnemer, buitenHost, lekmeldingen wissen) enkel in de zelftest-bestanden.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -118,6 +120,12 @@ export function controleer(bestanden) {
         for (const [re, naam] of NETWERK_PATRONEN) if (re.test(kaal)) fout(`omzeilt het vangnet (${naam})`);
       }
       for (const re of UITVOER_PATRONEN) if (re.test(kaal)) fout(`gebruikt ${re.source}`);
+      if (!PRODUCTIE_FIXTURES.has(pad)) {
+        // Fixture-opties overschrijven (o.a. serviceWorkers: 'block' van het vangnet) kan alleen via test.use / test.extend.
+        if (/\.\s*use\s*\(/.test(kaal)) fout('test.use( in een productiespec (overschrijft fixture-opties zoals serviceWorkers)');
+        if (/\.\s*extend\s*\(/.test(kaal)) fout('test.extend( in een productiespec (overschrijft fixtures)');
+        if (/\bserviceWorkers\b/.test(tekst)) fout('serviceWorkers in een productiespec (het slot staat in de fixture)');
+      }
       if (!PRODUCTIE_FIXTURES.has(pad)) {
         for (const re of ROUTE_PATRONEN) if (re.test(kaal)) fout(`registreert of omzeilt routes (${re.source})`);
       }
@@ -292,4 +300,19 @@ test('guard: fetch( in productiespecs faalt (de zelftest en fixtures niet)', () 
     assert.deepEqual(slecht('e2e/productie/vangnet-zelftest.spec.mjs', ZELF + regel), [], regel);
   }
   assert.deepEqual(slecht('e2e/productie/x.spec.mjs', PROD + "const prefetch = 1; await page.goto('/fetch');"), []);
+});
+
+test('guard: test.use, test.extend en serviceWorkers in productiespecs falen (het slot serviceWorkers: block is niet te overschrijven)', () => {
+  for (const regel of [
+    "test.use({ serviceWorkers: 'allow' });", "test.use({ locale: 'en' });", "test .use( { x: 1 } );", "test.describe('x', () => { test.use({ serviceWorkers: 'allow' }); });",
+    "const t = test.extend({ serviceWorkers: 'allow' });", "test.extend({});", "const o = { serviceWorkers: 'allow' };", "// serviceWorkers\nconst x = 1;",
+  ]) {
+    assert.notDeepEqual(slecht('e2e/productie/x.spec.mjs', PROD + regel), [], regel);
+    assert.notDeepEqual(slecht('e2e/productie/vangnet-zelftest.spec.mjs', ZELF + regel), [], regel);
+  }
+  // De fixture zelf zet het slot (basis.extend met serviceWorkers: 'block').
+  assert.deepEqual(slecht('e2e/productie-hulp.mjs', "const test = basis.extend({ serviceWorkers: ['block', { option: true }] });"), []);
+  // Gewone specs buiten e2e/productie/ mogen test.use gebruiken (bv. hasTouch), en 'use' als woord of fixture blijft toegestaan.
+  assert.deepEqual(slecht('e2e/x.spec.mjs', HELP + "test.use({ hasTouch: true });"), []);
+  assert.deepEqual(slecht('e2e/productie/x.spec.mjs', PROD + "test.describe.configure({ mode: 'serial' }); const gebruik = 'use'; await page.goto('/uses');"), []);
 });
