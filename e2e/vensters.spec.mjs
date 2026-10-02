@@ -33,18 +33,18 @@ const VENSTERS = [
   { id: 'block-overlay', opener: async (page) => { await kalenderTab(page); const o = page.locator('.day-col[data-date="2026-10-07"] .day-block-btn'); await o.click(); return o; }, focusNa: 'opener' },
   // HUIDIG GEDRAG (bug?): de opener (📨 Voorstel in het detail) staat in het detail dat openProposal stil sluit;
   // een onzichtbare opener krijgt geen focus terug, dus de focus valt naar <body>.
-  { id: 'proposal-overlay', opener: async (page) => { await open1004(page); const o = page.locator('#d-btn-proposal'); await o.click(); return o; }, focusNa: 'body' },
+  { id: 'proposal-overlay', huidig: true, opener: async (page) => { await open1004(page); const o = page.locator('#d-btn-proposal'); await o.click(); return o; }, focusNa: 'body' },
   { id: 'manueel-overlay', opener: async (page) => { await kalenderTab(page); const o = page.getByRole('button', { name: '➕ Afspraak' }); await o.click(); return o; }, focusNa: 'opener' },
   // HUIDIG GEDRAG (bug?): de opener is een niet-focusbare div (.cal-local-event); er was geen focus om terug te zetten,
   // de focus belandt op <main id="hoofdinhoud"> (die kreeg hem bij de klik).
-  { id: 'local-det-overlay', opener: async (page) => { await kalenderTab(page); const o = page.locator('.day-col[data-date="2026-10-07"] .cal-local-event'); await o.click(); return o; }, focusNa: (page) => page.locator('#hoofdinhoud') },
+  { id: 'local-det-overlay', huidig: true, opener: async (page) => { await kalenderTab(page); const o = page.locator('.day-col[data-date="2026-10-07"] .cal-local-event'); await o.click(); return o; }, focusNa: (page) => page.locator('#hoofdinhoud') },
   { id: 'foto-overlay', opener: async (page) => { await open1004(page); const o = page.locator('#d-btn-fotos'); await o.click(); return o; }, focusNa: 'opener' },
   // HUIDIG GEDRAG (bug?): openPrijsBeheer() sluit eerst de instellingen, waar de opener (💰 Prijzen) in staat; focus naar <body>.
-  { id: 'prijs-overlay', opener: async (page) => { await instellingen(page).click(); const o = page.locator('#set-overlay .mftr button', { hasText: 'Prijzen' }); await o.click(); return o; }, focusNa: 'body' },
+  { id: 'prijs-overlay', nativeConfirm: true, huidig: true, opener: async (page) => { await instellingen(page).click(); const o = page.locator('#set-overlay .mftr button', { hasText: 'Prijzen' }); await o.click(); return o; }, focusNa: 'body' },
   // Het detail (met 📋 Rapport) is gesloten bij het openen; de focus valt terug op de kaart in de kalender waar het detail mee opende.
-  { id: 'rapport-wizard', opener: async (page) => { await open1004(page); const o = page.locator('#d-btn-rapport'); await o.click(); return o; }, focusNa: (page) => page.locator('.day-col[data-date="2026-10-07"]').getByRole('button', { name: 'Open ticket #1004' }), geenOverlay: true },
+  { id: 'rapport-wizard', nativeConfirm: true, opener: async (page) => { await open1004(page); const o = page.locator('#d-btn-rapport'); await o.click(); return o; }, focusNa: (page) => page.locator('.day-col[data-date="2026-10-07"]').getByRole('button', { name: 'Open ticket #1004' }), geenOverlay: true },
   // HUIDIG GEDRAG (bug?): autoPlan zet de knop tijdens het plannen uit (focus weg) voor het resultaat opent: focus naar <body>.
-  { id: 'result-overlay', technieker: 'Tim', opener: async (page) => { await kalenderTab(page); const o = page.getByRole('button', { name: '⚡ Plan deze week' }); await o.click(); return o; }, focusNa: 'body' },
+  { id: 'result-overlay', huidig: true, technieker: 'Tim', opener: async (page) => { await kalenderTab(page); const o = page.getByRole('button', { name: '⚡ Plan deze week' }); await o.click(); return o; }, focusNa: 'body' },
   {
     id: 'import-overlay',
     opener: async (page) => {
@@ -79,15 +79,19 @@ const focusOpEerste = (page, id) => page.evaluate(({ i, sel }) => {
 }, { i: id, sel: FOCUSBAAR });
 
 async function startVoorVenster(page, v) {
-  // De wizard en prijsbeheer vragen bevestiging via de native confirm; in deze tests accepteren we die.
-  page.on('dialog', d => d.accept());
+  // Enkel de wizard en prijsbeheer vragen een bevestiging via de native confirm (hier geaccepteerd).
+  // Voor elk ander venster is een native dialoog onverwacht: genoteerd, en de test faalt erop.
+  const onverwacht = [];
+  if (v.nativeConfirm) page.on('dialog', d => d.accept());
+  else page.on('dialog', d => { onverwacht.push(d.message()); d.dismiss(); });
   await startApp(page, { overschrijf: seed(), technieker: v.technieker ?? 'all' });
+  return onverwacht;
 }
 
 test.describe('vensters: focus en Escape per dialoog', () => {
   for (const v of VENSTERS) {
-    test(`${v.id}: focus bij openen, Tab-val, Escape sluit en zet de focus terug`, async ({ page }) => {
-      await startVoorVenster(page, v);
+    test(`${v.id}: focus bij openen, Tab-val, Escape sluit en zet de focus terug${v.huidig ? ' [HUIDIG GEDRAG (bug?): focus na Escape niet bij de opener]' : ''}`, async ({ page }) => {
+      const onverwacht = await startVoorVenster(page, v);
       const opener = await v.opener(page);
       await expect.poll(() => isOpen(page, v.id)).toBe(true);
 
@@ -120,10 +124,11 @@ test.describe('vensters: focus en Escape per dialoog', () => {
       if (v.focusNa === 'opener') await expect(opener).toBeFocused();
       else if (v.focusNa === 'body') await expect.poll(() => page.evaluate(() => document.activeElement === document.body)).toBe(true);
       else await expect(v.focusNa(page)).toBeFocused();
+      expect(onverwacht).toEqual([]);
     });
 
     test(`${v.id}: achtergrondklik en klik in de inhoud`, async ({ page }) => {
-      await startVoorVenster(page, v);
+      const onverwacht = await startVoorVenster(page, v);
       await v.opener(page);
       await expect.poll(() => isOpen(page, v.id)).toBe(true);
 
@@ -141,6 +146,7 @@ test.describe('vensters: focus en Escape per dialoog', () => {
       // Klik op de achtergrond (de overlay zelf): sluit.
       await overlay.click({ position: { x: 4, y: 4 } });
       await expect.poll(() => isOpen(page, v.id)).toBe(false);
+      expect(onverwacht).toEqual([]);
     });
   }
 });
