@@ -31,20 +31,20 @@ const VENSTERS = [
   { id: 'reschedule-overlay', opener: async (page) => { await open1004(page); const o = page.locator('#d-btn-reschedule'); await o.click(); return o; }, focusNa: 'opener' },
   { id: 'set-overlay', opener: async (page) => { const o = instellingen(page); await o.click(); return o; }, focusNa: 'opener' },
   { id: 'block-overlay', opener: async (page) => { await kalenderTab(page); const o = page.locator('.day-col[data-date="2026-10-07"] .day-block-btn'); await o.click(); return o; }, focusNa: 'opener' },
-  // HUIDIG GEDRAG (bug?): de opener (📨 Voorstel in het detail) staat in het detail dat openProposal stil sluit;
-  // een onzichtbare opener krijgt geen focus terug, dus de focus valt naar <body>.
-  { id: 'proposal-overlay', huidig: true, opener: async (page) => { await open1004(page); const o = page.locator('#d-btn-proposal'); await o.click(); return o; }, focusNa: 'body' },
+  // W5-fix (N11): de opener (📨 Voorstel in het detail) staat in het detail dat openProposal stil sluit; het voorstel erft
+  // de opener van het detail: de kaart in de kalender waarmee het detail opende.
+  { id: 'proposal-overlay', opener: async (page) => { await open1004(page); const o = page.locator('#d-btn-proposal'); await o.click(); return o; }, focusNa: (page) => page.locator('.day-col[data-date="2026-10-07"]').getByRole('button', { name: 'Open ticket #1004' }) },
   { id: 'manueel-overlay', opener: async (page) => { await kalenderTab(page); const o = page.getByRole('button', { name: '➕ Afspraak' }); await o.click(); return o; }, focusNa: 'opener' },
-  // HUIDIG GEDRAG (bug?): de opener is een niet-focusbare div (.cal-local-event); er was geen focus om terug te zetten,
-  // de focus belandt op <main id="hoofdinhoud"> (die kreeg hem bij de klik).
-  { id: 'local-det-overlay', huidig: true, opener: async (page) => { await kalenderTab(page); const o = page.locator('.day-col[data-date="2026-10-07"] .cal-local-event'); await o.click(); return o; }, focusNa: (page) => page.locator('#hoofdinhoud') },
+  // W5-fix (N11): de lokale afspraakkaart is focusbaar (tabindex, Enter/Space) en krijgt de focus terug.
+  { id: 'local-det-overlay', opener: async (page) => { await kalenderTab(page); const o = page.locator('.day-col[data-date="2026-10-07"] .cal-local-event'); await o.click(); return o; }, focusNa: 'opener' },
   { id: 'foto-overlay', opener: async (page) => { await open1004(page); const o = page.locator('#d-btn-fotos'); await o.click(); return o; }, focusNa: 'opener' },
-  // HUIDIG GEDRAG (bug?): openPrijsBeheer() sluit eerst de instellingen, waar de opener (💰 Prijzen) in staat; focus naar <body>.
-  { id: 'prijs-overlay', nativeConfirm: true, huidig: true, opener: async (page) => { await instellingen(page).click(); const o = page.locator('#set-overlay .mftr button', { hasText: 'Prijzen' }); await o.click(); return o; }, focusNa: 'body' },
+  // W5-fix (N11): openPrijsBeheer() sluit eerst de instellingen, waar de opener (💰 Prijzen) in staat; het prijsbeheer erft
+  // de opener van de instellingen: de ⚙️-knop.
+  { id: 'prijs-overlay', nativeConfirm: true, opener: async (page) => { await instellingen(page).click(); const o = page.locator('#set-overlay .mftr button', { hasText: 'Prijzen' }); await o.click(); return o; }, focusNa: (page) => instellingen(page) },
   // Het detail (met 📋 Rapport) is gesloten bij het openen; de focus valt terug op de kaart in de kalender waar het detail mee opende.
   { id: 'rapport-wizard', nativeConfirm: true, opener: async (page) => { await open1004(page); const o = page.locator('#d-btn-rapport'); await o.click(); return o; }, focusNa: (page) => page.locator('.day-col[data-date="2026-10-07"]').getByRole('button', { name: 'Open ticket #1004' }), geenOverlay: true },
-  // HUIDIG GEDRAG (bug?): autoPlan zet de knop tijdens het plannen uit (focus weg) voor het resultaat opent: focus naar <body>.
-  { id: 'result-overlay', huidig: true, technieker: 'Tim', opener: async (page) => { await kalenderTab(page); const o = page.getByRole('button', { name: '⚡ Plan deze week' }); await o.click(); return o; }, focusNa: 'body' },
+  // W5-fix (N11): autoPlan zet de knop tijdens het plannen uit (focus weg) voor het resultaat opent; terugFocus levert #btn-autoplan.
+  { id: 'result-overlay', technieker: 'Tim', opener: async (page) => { await kalenderTab(page); const o = page.getByRole('button', { name: '⚡ Plan deze week' }); await o.click(); return o; }, focusNa: 'opener' },
   {
     id: 'import-overlay',
     opener: async (page) => {
@@ -90,7 +90,7 @@ async function startVoorVenster(page, v) {
 
 test.describe('vensters: focus en Escape per dialoog', () => {
   for (const v of VENSTERS) {
-    test(`${v.id}: focus bij openen, Tab-val, Escape sluit en zet de focus terug${v.huidig ? ' [HUIDIG GEDRAG (bug?): focus na Escape niet bij de opener]' : ''}`, async ({ page }) => {
+    test(`${v.id}: focus bij openen, Tab-val, Escape sluit en zet de focus terug`, async ({ page }) => {
       const onverwacht = await startVoorVenster(page, v);
       const opener = await v.opener(page);
       await expect.poll(() => isOpen(page, v.id)).toBe(true);
@@ -261,5 +261,31 @@ test.describe('vensters: gestapeld', () => {
     await page.locator('#reschedule-overlay').click({ position: { x: 4, y: 4 } });
     await expect.poll(() => isOpen(page, 'reschedule-overlay')).toBe(false);
     expect(await isOpen(page, 'det-overlay')).toBe(true);
+  });
+});
+
+test.describe('vensters: lokale afspraakkaart met het toetsenbord (N11)', () => {
+  const kaart = (page) => page.locator('.day-col[data-date="2026-10-07"] .cal-local-event');
+
+  test('Tab focust de kaart zonder het detail te openen; Enter en Space openen het', async ({ page }) => {
+    await startApp(page, { overschrijf: seed() });
+    await kalenderTab(page);
+    await expect(kaart(page)).toHaveAttribute('tabindex', '0');
+    await expect(kaart(page)).toHaveAttribute('role', 'button');
+    await kaart(page).focus();
+    await page.keyboard.press('Tab'); // naar de eerstvolgende knop (✕ of Bellen/Navigeer): opent niets
+    expect(await isOpen(page, 'local-det-overlay')).toBe(false);
+    await page.keyboard.press('Shift+Tab');
+    await expect(kaart(page)).toBeFocused();
+    expect(await isOpen(page, 'local-det-overlay')).toBe(false);
+
+    await page.keyboard.press('Enter');
+    await expect.poll(() => isOpen(page, 'local-det-overlay')).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect.poll(() => isOpen(page, 'local-det-overlay')).toBe(false);
+    await expect(kaart(page)).toBeFocused();
+
+    await page.keyboard.press('Space');
+    await expect.poll(() => isOpen(page, 'local-det-overlay')).toBe(true);
   });
 });

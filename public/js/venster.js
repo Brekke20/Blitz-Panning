@@ -22,10 +22,19 @@ function bovenste() {
   return beste;
 }
 
-function registreer({ el, isOpen, sluit }) {
+// Erfenis (N11): sluit venster A stil en opent binnen ERFENIS_MS venster B (bv. detail -> voorstel, instellingen -> prijsbeheer),
+// dan staat de opener van A in een onzichtbaar venster; B neemt de opener van A over zodat de focus na sluiten logisch terugkeert.
+const ERFENIS_MS = 500;
+let laatsteSluiting = null; // { opener, t } — de vorigeFocus van het laatst gesloten venster
+
+const bruikbaar = f => !!f && f !== document.body && document.contains(f) && zichtbaar(f);
+
+// Optioneel `terugFocus: () => HTMLElement | null`: plek waar de focus naartoe gaat als de opener onbruikbaar is
+// (bv. een knop die tijdens het werk uitgeschakeld was).
+function registreer({ el, isOpen, sluit, terugFocus }) {
   if (!el) return;
   if (!el.hasAttribute('tabindex')) el.tabIndex = -1;
-  const v = { el, isOpen: isOpen || (() => el.classList.contains('open')), sluit, vorigeFocus: null, wasOpen: false };
+  const v = { el, isOpen: isOpen || (() => el.classList.contains('open')), sluit, vorigeFocus: null, wasOpen: false, geopendOp: -Infinity };
   v.wasOpen = v.isOpen();
   vensters.push(v);
   new MutationObserver(() => {
@@ -34,15 +43,29 @@ function registreer({ el, isOpen, sluit }) {
     v.wasOpen = open;
     if (open) {
       v.vorigeFocus = document.activeElement !== document.body ? document.activeElement : null;
+      // De focus is weg (<body>), zit in een venster dat net sloot of al in dit venster zelf: erf de opener van dat venster.
+      if (!(bruikbaar(v.vorigeFocus) && !el.contains(v.vorigeFocus)) && laatsteSluiting && performance.now() - laatsteSluiting.t < ERFENIS_MS && bruikbaar(laatsteSluiting.opener)) {
+        v.vorigeFocus = laatsteSluiting.opener;
+      }
+      v.geopendOp = performance.now();
+      laatsteSluiting = null;
       // Eerste knop/link krijgt de focus; tekstvelden niet (zou op tablets meteen het toetsenbord openen).
       const eerste = focusbaar(el).find(x => !x.matches(TEKSTVELD));
       (eerste || el).focus({ preventScroll: true });
     } else {
-      const f = v.vorigeFocus;
+      let f = v.vorigeFocus;
       v.vorigeFocus = null;
+      laatsteSluiting = { opener: f, t: performance.now() };
       if (appDialogOpen()) return;
       const boven = bovenste();
-      if (f && document.contains(f) && zichtbaar(f) && (!boven || boven.el.contains(f))) {
+      // Volgorde van de waarnemers is niet gegarandeerd: opende B al vóór deze sluiting verwerkt werd, geef B de opener alsnog.
+      if (boven && boven !== v && bruikbaar(f) && !(bruikbaar(boven.vorigeFocus) && !boven.el.contains(boven.vorigeFocus)) && performance.now() - boven.geopendOp < ERFENIS_MS) boven.vorigeFocus = f;
+      if (!bruikbaar(f) && terugFocus) {
+        let alt = null;
+        try { alt = terugFocus(); } catch (e) {}
+        if (bruikbaar(alt)) f = alt;
+      }
+      if (f && bruikbaar(f) && (!boven || boven.el.contains(f))) {
         try { f.focus({ preventScroll: true }); } catch (e) {}
       } else if (boven && !boven.el.contains(document.activeElement)) {
         // Gestapeld venster gesloten en de opener is weg: focus naar het venster eronder, niet naar <body>

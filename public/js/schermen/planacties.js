@@ -33,7 +33,7 @@ export function initPlanacties(afhankelijkheden) {
   });
   const overlay = document.getElementById('result-overlay');
   registreerBackdrop(overlay, closeResult);
-  registreerVenster({ el: overlay, sluit: () => closeResult() });
+  registreerVenster({ el: overlay, sluit: () => closeResult(), terugFocus: () => document.getElementById('btn-autoplan') });
 }
 
 let inFlightTickets = new Set(); // voorkomt dubbele API calls
