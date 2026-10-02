@@ -1,7 +1,7 @@
 // Productiemodus-e2e (etappe 5a, D4-D6): de app zonder `?test`, met een volledig gestubde backend.
 // Specs in e2e/productie/ importeren `test` en `expect` uit dit bestand (NIET uit helpers.mjs en
 // niet uit @playwright/test). Dit is het strengste vangnet van de suite, want hier loopt de
-// echte Zoho-code van de app; elke fout in dit bestand kan een echte Zoho-, TomTom- of mailaanroep
+// echte Zoho-code van de app (planning, voorstel, annuleren, rapport verzenden); elke fout in dit bestand kan een echte Zoho-, TomTom- of mailaanroep
 // betekenen. De zes sloten:
 //   1. de statische server (e2e/statische-server.mjs) heeft geen backend: elk /api-pad geeft 599;
 //   2. het host-vangnet van stubExtern (alles buiten 127.0.0.1/localhost:3338 en de CDN-lijst: afgebroken);
@@ -110,7 +110,8 @@ export async function startAppProductie(page, { rol = 'coordinator', technieker 
   return alleenLezen(verzoeken);
 }
 
-// Nep-Zoho: de zes Zoho-gebonden eindpunten met opname van elk verzoek en een instelbaar antwoord.
+// Nep-backend voor de schrijvende eindpunten, met opname van elk verzoek en een instelbaar antwoord. Zoho/mail: plan, plan-datum,
+// propose, annuleer, send-rapport. TomTom: optimize. Netlify Blobs (geen Zoho): voorstel-status, rapport-verzonden en rapport-archief.
 //   const z = zohoStubs();  startAppProductie(page, { overschrijf: z.overschrijf });
 //   z.opnames.plan -> [{ methode, body, query }];  z.zetAntwoord('plan', { status: 500, json: {...} })
 // `antwoord` is een { status, json } of een functie ({ methode, body, query, pad }) => { status, json }.

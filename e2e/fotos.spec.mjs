@@ -13,6 +13,11 @@ const foto = (id, caption = '') => ({ id, dataUrl: PNG_URL, caption, tijdstip: '
 const puts = (verzoeken) => verzoeken.van('/api/fotos', 'PUT');
 const toastTekst = (page) => page.locator('#toast');
 const overlay = (page) => page.locator('#foto-overlay');
+// Echte settle voor "er komt geen verzoek": netwerk stil, en daarna nog twee animatieframes (async bestandsverwerking klaar).
+const settle = async (page) => {
+  await page.waitForLoadState('networkidle');
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+};
 
 // Stateful stub met een startlijst (GET geeft die; PUT bewaart ze en geeft versie + 1).
 function stubFotos(begin = [], versie = 1) {
@@ -115,6 +120,7 @@ test.describe("foto's: ticketdetail", () => {
     await openFotos(page);
     await expect(overlay(page).locator('.foto-thumb')).toHaveCount(2);
     await overlay(page).locator('.foto-caption').first().fill('Voor de reparatie');
+    await settle(page);
     expect(puts(verzoeken)).toEqual([]); // nog niets: pas bij change (blur of Enter)
     await overlay(page).locator('.foto-caption').first().press('Tab');
     await expect.poll(() => puts(verzoeken).length).toBe(1);
@@ -170,6 +176,7 @@ test.describe("foto's: ticketdetail", () => {
     await expect(overlay(page).locator('.foto-thumb')).toHaveCount(29);
     await page.locator('#foto-file-input').setInputFiles([bestand('a.png'), bestand('b.png')]); // 29 + 2 = 31
     await expect(toastTekst(page)).toHaveText("⚠ Maximaal 30 foto's per ticket");
+    await settle(page);
     expect(puts(verzoeken)).toEqual([]);
     await expect(overlay(page).locator('.foto-thumb')).toHaveCount(29);
     await page.locator('#foto-file-input').setInputFiles(bestand('c.png')); // 29 + 1 = 30
@@ -186,6 +193,7 @@ test.describe("foto's: ticketdetail", () => {
     await startApp(page);
     await openFotos(page);
     await page.locator('#foto-file-input').setInputFiles([]);
+    await settle(page);
     expect(puts(verzoeken)).toEqual([]);
     await expect(overlay(page).locator('#foto-grid')).toHaveText("Nog geen foto's toegevoegd.");
   });
@@ -195,6 +203,7 @@ test.describe("foto's: ticketdetail", () => {
     await openFotos(page);
     await page.locator('#foto-file-input').setInputFiles({ name: 'kapot.png', mimeType: 'image/png', buffer: Buffer.from('dit is geen afbeelding') });
     await expect(toastTekst(page)).toHaveText('✕ Foto verwerken mislukt: Afbeelding laden mislukt');
+    await settle(page);
     expect(puts(verzoeken)).toEqual([]);
   });
 

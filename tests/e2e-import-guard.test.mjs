@@ -124,6 +124,10 @@ export function controleer(bestanden) {
         // Fixture-opties overschrijven (o.a. serviceWorkers: 'block' van het vangnet) kan alleen via test.use / test.extend.
         if (/\.\s*use\s*\(/.test(kaal)) fout('test.use( in een productiespec (overschrijft fixture-opties zoals serviceWorkers)');
         if (/\.\s*extend\s*\(/.test(kaal)) fout('test.extend( in een productiespec (overschrijft fixtures)');
+        // Haakjesvorm, alias zonder aanroep en destructuring van test.
+        if (/[\w$)\]]\s*\[\s*['"`](?:use|extend)['"`]\s*\]/.test(kaal)) fout("test['use'](/test['extend']( in een productiespec");
+        if (/\.\s*(?:use|extend)\s*(?:[;,)\]}=]|$)/m.test(kaal)) fout('test.use/test.extend als alias (zonder aanroep) in een productiespec');
+        if (/\{[^}]*\b(?:use|extend)\b[^}]*\}\s*=\s*[\w$.]*test\b/.test(kaal)) fout('destructuring van use/extend uit test in een productiespec');
         if (/\bserviceWorkers\b/.test(tekst)) fout('serviceWorkers in een productiespec (het slot staat in de fixture)');
       }
       if (!PRODUCTIE_FIXTURES.has(pad)) {
@@ -315,4 +319,19 @@ test('guard: test.use, test.extend en serviceWorkers in productiespecs falen (he
   // Gewone specs buiten e2e/productie/ mogen test.use gebruiken (bv. hasTouch), en 'use' als woord of fixture blijft toegestaan.
   assert.deepEqual(slecht('e2e/x.spec.mjs', HELP + "test.use({ hasTouch: true });"), []);
   assert.deepEqual(slecht('e2e/productie/x.spec.mjs', PROD + "test.describe.configure({ mode: 'serial' }); const gebruik = 'use'; await page.goto('/uses');"), []);
+});
+
+test('guard: test.use/test.extend via haakjes, alias of destructuring in productiespecs falen', () => {
+  for (const regel of [
+    "test['use']({ serviceWorkers: 'allow' });", 'test["use"]({ locale: "en" });', "test[`use`]({});", "test['extend']({});",
+    "const { use } = test;", "const { use: gebruik } = test;", "const { extend } = test;", "const { describe, use } = test;",
+    "const u = test.use; u({});", "const e = test.extend;", "const o = { ['serviceWorkers']: 'allow' };", 'const o = { "serviceWorkers": "allow" };',
+    "test.use ;",
+  ]) {
+    assert.notDeepEqual(slecht('e2e/productie/x.spec.mjs', PROD + regel), [], regel);
+    assert.notDeepEqual(slecht('e2e/productie/vangnet-zelftest.spec.mjs', ZELF + regel), [], regel);
+  }
+  // Geen vals alarm voor gewone code, en de fixture zelf mag extend gebruiken.
+  assert.deepEqual(slecht('e2e/productie/x.spec.mjs', PROD + "const gebruikt = 1; const lijst = ['use']; await page.goto('/use');"), []);
+  assert.deepEqual(slecht('e2e/productie-hulp.mjs', "export const test = basis.extend({}); const { use } = test;"), []);
 });

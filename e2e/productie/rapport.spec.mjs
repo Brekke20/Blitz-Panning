@@ -91,7 +91,7 @@ test.describe('rapport verzenden: voorbeeld (voorbeeldRapport)', () => {
     expect(z.opnames['rapport-verzonden']).toEqual([]);
   });
 
-  test('zonder ontvangers: toast en geen venster', async ({ page, verzoeken }) => {
+  test('enkel client-karakterisering: een 200 met lege ontvangerslijst geeft toast en geen venster (de echte backend antwoordt dan 400, zie de volgende test)', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { paden: ['/api/send-rapport'] });
     z.zetAntwoord('send-rapport', VOORBEELD());
     await verstuurKnop(page).click();
@@ -335,3 +335,55 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     expect(z.opnames['rapport-verzonden']).toEqual([]);
   });
 });
+
+test.describe('rapport verzenden: vroege controles en ontbrekend ticketnummer', () => {
+  // De knop bestaat enkel voor een rapport met id, _html en ticketId; de vroege terugkeer in voorbeeldRapport/verstuurRapport
+  // is dus alleen via een directe aanroep van de (globale) functies te bereiken. Er mag dan geen enkel verzoek volgen.
+  const R2 = { id: 'r2', ticketNumber: '1002', datum: '2026-10-05', technieker: 'Tim', rapportData: { _html: HTML } }; // geen ticketId
+  const R3 = { id: 'r3', ticketId: 't3', ticketNumber: '1003', datum: '2026-10-05', technieker: 'Tim', rapportData: {} }; // geen _html
+  const R4 = { id: 'r4', ticketId: 't4', datum: '2026-10-05', technieker: 'Tim', rapportData: { _html: HTML } }; // geen ticketNumber
+
+  async function startMet(page, verzoeken, rapports, paden = []) {
+    verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, ...paden]);
+    const z = zohoStubs({ rapporten: { versie: 4, rapports } });
+    await startAppProductie(page, { vasteKlok: true, overschrijf: z.overschrijf });
+    await page.getByRole('tab', { name: 'Rapporten' }).click();
+    await page.clock.runFor(1);
+    return z;
+  }
+
+  for (const functie of ['voorbeeldRapport', 'verstuurRapport']) {
+    test(`${functie}: onbekend rapport, zonder ticketId en zonder _html geven elk hun toast en doen geen verzoek`, async ({ page, verzoeken }) => {
+      const z = await startMet(page, verzoeken, [RAPPORT, R2, R3]);
+      await expect(page.locator('.btn-verstuur-rapport')).toHaveCount(1); // enkel r1 krijgt een knop
+      const roep = (id) => page.evaluate(([f, i]) => window[f](i), [functie, id]);
+      await roep('bestaat-niet');
+      await expect(toastTekst(page)).toHaveText('⚠ Rapport niet gevonden');
+      await roep('r2');
+      await expect(toastTekst(page)).toHaveText('⚠ Geen ticket gekoppeld aan dit rapport');
+      await roep('r3');
+      await expect(toastTekst(page)).toHaveText('⚠ Geen opgeslagen rapport-inhoud om te versturen');
+      expect(await schrijfLijst(page, verzoeken)).toEqual([START]);
+      expect(z.opnames['send-rapport']).toEqual([]);
+      expect(z.opnames['rapport-verzonden']).toEqual([]);
+      await expect(overlay(page)).not.toHaveClass(/open/);
+    });
+  }
+
+  test('zonder ticketNumber: het veld ontbreekt in beide bodies, het label valt terug op het ticket-id', async ({ page, verzoeken }) => {
+    const z = await startMet(page, verzoeken, [R4], ['/api/send-rapport', '/api/rapport-verzonden']);
+    z.zetAntwoord('send-rapport', ({ body }) => body.preview === true
+      ? VOORBEELD(ontvanger('contact', 'c@y.be'))
+      : VERZONDEN_OK({ contact: true }));
+    await openVoorbeeld(page);
+    await expect(page.locator('#rapport-preview-ticket-label')).toHaveText('Ticket #t4');
+    await bevestig(page);
+    await expect(toastTekst(page)).toHaveText('✓ Rapport verstuurd naar contactpersoon');
+    expect(z.opnames['send-rapport'].map(o => o.body)).toEqual([
+      { ticketId: 't4', html: HTML, preview: true },
+      { ticketId: 't4', html: HTML },
+    ]);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN]);
+  });
+});
+

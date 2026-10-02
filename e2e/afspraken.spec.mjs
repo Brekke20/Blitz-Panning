@@ -200,14 +200,15 @@ test.describe('afspraken: detailvenster, bewerken en verwijderen', () => {
     expect(opgevraagd).toEqual(['ev-full']);
   });
 
-  test('knop Aankomst: registreert de aankomst voor dit afspraak-id en de datum', async ({ page }) => {
+  test('knop Aankomst: bewaart het uur onder de sleutel "<datum>__<afspraak-id>" in blitz_arrivals en toont het uur', async ({ page }) => {
     await startApp(page, { overschrijf: metSeed([FULL]) });
+    await page.clock.setFixedTime(new Date('2026-10-05T09:07:00+02:00'));
     await naarKalender(page);
     await openDetail(page, '2026-10-06', 'Installatie Pietersen');
+    expect(await page.evaluate(() => localStorage.getItem('blitz_arrivals'))).toBeNull();
     await detail(page).getByRole('button', { name: '⏱️ Aankomst' }).click();
-    await expect(toastTekst(page)).toContainText('Aankomst');
-    const opgeslagen = await page.evaluate(() => Object.entries(localStorage).filter(([k]) => /arriv|aankomst/i.test(k)).map(([k, v]) => [k, v]));
-    expect(JSON.stringify(opgeslagen)).toContain('2026-10-06__ev-full');
+    await expect(toastTekst(page)).toHaveText('⏱ Aankomst geregistreerd: 09:07');
+    expect(await page.evaluate(() => localStorage.getItem('blitz_arrivals'))).toBe('{"2026-10-06__ev-full":"09:07"}');
   });
 
   test('knop Rapport: sluit het detail en opent de wizard (enkel openen)', async ({ page, verzoeken }) => {
