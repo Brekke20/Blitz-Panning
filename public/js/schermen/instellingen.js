@@ -9,7 +9,7 @@
 // van het prijsbeheer vraagt zelf een bevestiging bij onopgeslagen wijzigingen (prijzen.js); dat blijft zo.
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
-import { toast, registreerActies, registreerWijzigActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
+import { toast, zetPressed, registreerActies, registreerWijzigActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { registreerVenster } from '../venster.js';
 import { renderBeschikbaarhedenTab } from './beschikbaarheid.js';
 import { valideerInstellingen, settingsKey } from './instellingen-logica.js';
@@ -94,10 +94,6 @@ export const DAGEN = ['Zo','Ma','Di','Wo','Do','Vr','Za'];
 
 let _settingsActiveTab = 'algemeen';
 
-// aria-pressed bijwerken waar de 'active'-klasse gezet wordt
-function zetPressed(el, aan) {
-  if (el) el.setAttribute('aria-pressed', aan ? 'true' : 'false');
-}
 
 const SOORT_LABEL = { gsm: 'Gsm', tablet: 'Tablet', computer: 'Computer' };
 // Testmodus: kopie van de echte gegevens opnieuw maken (testwijzigingen gaan verloren)

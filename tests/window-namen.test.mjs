@@ -179,3 +179,41 @@ test('de kale-lezerscan vindt een kale oproep en accepteert import, eigen defini
   assert.deepEqual(kaleLezers([{ naam: 'js/x.js', tekst: "afh.navigate(1); const o = { navigate: 1 }; kern.x.setTab('a'); 'setTab';" }]), []);
   assert.deepEqual(kaleLezers([{ naam: 'js/app.js', tekst: 'setTab("kalender");' }]), []);
 });
+
+// ── Kale namen van de verwijderde LEGACY-BRUG en van opgeruimde window-bruggen (etappe 5b, taak 9) ──
+// brug.js zet enkel nog `window.kern`; wat vroeger kaal bereikbaar was (tijd/ui/route/kalender-hulpjes) wordt geïmporteerd.
+// Dode window-toewijzingen van oudere modules (inventaris, outbox, rapport-archief, prijzen, sorteer, venster) zijn weg.
+// Alleen public/js en index.html worden gescand: in e2e staan dezelfde woorden (bv. "toast") ook als gewone tekst in testtitels.
+const LEGACY_BRUG_NAMEN = [
+  'localISO', 'todayStr', 'getWeekStart', 'timeStrToMin', 'minToTimeStr', 'extractLocalHour', 'fmtDate', 'fmtDateShort', 'fmtSec',
+  'escHtml', 'toast', 'initMap', 'applyKaartStijl', 'renderTickets', 'renderKalender', 'renderRouteList', 'updateRouteBtns',
+  'calculateRoute', 'computeArrivalTimes',
+];
+const OPGERUIMDE_WINDOWNAMEN = [
+  'loadInventaris', 'renderInventaris', 'updateInventarisBadge', 'resetInvSeenLog', 'flushOutbox', 'renderOutboxBanner',
+  'outboxCancelItem', 'outboxRetryNow', 'exportTicketLog', 'setRapportFilter', 'verwijderRapport', 'laadRapportArchief',
+  'herOpenRapport', 'loadPrijzen', 'getPrijsVoorId', 'maakSorteerbaar', 'vensterBeheer', 'herevalueerApparaat',
+];
+
+test('geen kale lezer van een verwijderde LEGACY-BRUG-naam of opgeruimde window-brug in public/js of index.html', () => {
+  assert.deepEqual(kaleLezers(bronnen(), [...LEGACY_BRUG_NAMEN, ...OPGERUIMDE_WINDOWNAMEN]), []);
+});
+
+test('de lezerscan vindt een kale escHtml-aanroep zonder import (zelftest)', () => {
+  assert.deepEqual(kaleLezers([{ naam: 'js/x.js', tekst: 'el.innerHTML = escHtml(t);' }], LEGACY_BRUG_NAMEN), ['escHtml (kaal gelezen in js/x.js)']);
+  assert.deepEqual(kaleLezers([{ naam: 'js/x.js', tekst: "import { escHtml } from './kern/ui.js';\nel.innerHTML = escHtml(t);" }], LEGACY_BRUG_NAMEN), []);
+});
+
+test('alleen kern/brug.js wijst window.kern toe; geen enkel ander window-toewijzing in kern/ of schermen/', () => {
+  const toewijzingen = [];
+  for (const { naam, tekst: ruw } of bronnen()) {
+    if (!/^js\/(kern|schermen)\//.test(naam)) continue;
+    const tekst = zonderCommentaar(ruw);
+    for (const m of tekst.matchAll(/\bwindow\.([A-Za-z_$][\w$]*)\s*(?:\.[\w$]+\s*)?=(?!=)/g)) toewijzingen.push(`${naam}: window.${m[1]}`);
+    if (/Object\.(?:assign|defineProperty)\(\s*window\b/.test(tekst)) toewijzingen.push(`${naam}: Object.assign/defineProperty(window)`);
+  }
+  assert.deepEqual(toewijzingen.filter(t => !t.startsWith('js/kern/brug.js: window.kern')), []);
+  const brug = zonderCommentaar(fs.readFileSync(path.join(PUBLIC, 'js', 'kern', 'brug.js'), 'utf8'));
+  assert.ok(/window\.kern\s*=/.test(brug));
+  assert.ok(!/LEGACY|Object\.assign\(\s*window|Object\.defineProperty\(\s*window/.test(brug));
+});

@@ -1,12 +1,13 @@
 // public/js/inventaris.js
 // Wagenvoorraad per technieker (Fase 2) + supervisor-neemlog. Weergave hangt af van de
-// bestaande persoon-kiezer (activeAssigneeFilter in index.html), die als parameter
-// doorgegeven wordt door renderInventaris()/updateInventarisBadge() -- deze module leest
-// activeAssigneeFilter niet rechtstreeks (het is een `let` in een classic script, dus geen
-// impliciete window-global, in tegenstelling tot function-declarations zoals toast/escHtml).
+// bestaande persoon-kiezer (activeAssigneeFilter in kern.toestand), die als parameter
+// doorgegeven wordt door renderInventaris()/updateInventarisBadge() (app.js) -- deze module leest
+// activeAssigneeFilter niet rechtstreeks.
 // Zie docs/superpowers/plans/2026-08-21-inventaris-edit-en-supervisorlog.md.
 import { TEST_MODE } from './kern/omgeving.js';
 import { loadFromCache, saveToCache } from './kern/opslag.js';
+import { escHtml, toast } from './kern/ui.js';
+import { PRIJZEN, PRIJZEN_DEFAULTS } from './prijzen.js';
 
 export let _invData = { versie: 0, wagenvoorraad: {}, log: [] };
 
@@ -508,22 +509,7 @@ export async function registreerVerbruik(technieker, onderdelen) {
 }
 
 // ── Window-bridge ──
-// Zelfde patroon als prijzen.js/rapport-wizard.js: functies die vanuit index.html (setTab/
-// selectPerson/DOMContentLoaded/rapport-wizard.js) aangeroepen worden, moeten expliciet op
-// window staan (modules maken geen impliciete globals). Functies die enkel via addEventListener
-// vanuit dit bestand zelf aangeroepen worden (invStartEdit, invSaveEdit, invCancelEdit,
-// markVerwerkt, exportInventarisLog, ...) hebben GEEN bridge nodig.
-// Live getter (net als PRIJZEN in prijzen.js): _invData wordt bij elke lading/mutatie volledig
-// vervangen, dus een statische window-toewijzing zou een verouderd versienummer vastzetten.
-// Gebruikt door index.html's poll om een overbodige re-render over te slaan als er niets
-// gewijzigd is (zie eindreview 2026-08-21).
-Object.defineProperty(window, '_invVersie', {
-  get: () => _invData.versie,
-  configurable: true,
-});
-window.loadInventaris        = loadInventaris;
-window.renderInventaris      = renderInventaris;
-window.updateInventarisBadge = updateInventarisBadge;
+// Enkel wat de rapport-wizard nog als kale naam leest: registreerVerbruik (na het versturen van een rapport).
+// De rest (loadInventaris, renderInventaris, updateInventarisBadge, resetInvSeenLog) importeert app.js rechtstreeks.
 window.registreerVerbruik    = registreerVerbruik;
-window.resetInvSeenLog       = resetInvSeenLog;
 

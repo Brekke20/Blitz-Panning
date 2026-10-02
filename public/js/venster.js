@@ -83,10 +83,8 @@ document.addEventListener('keydown', e => {
 });
 
 export { registreer as registreerVenster };
-window.vensterBeheer = { registreer, sluitBovenste };
 
-// Bestaande vensters. Sluitfuncties zijn globals (classic script of window.*); lazy opgezocht.
-const sluitVia = naam => () => window[naam]?.();
-[
-  ['rapport-wizard', 'closeWizard'],
-].forEach(([id, fn]) => registreer({ el: document.getElementById(id), sluit: sluitVia(fn) }));
+// De rapport-wizard is het enige venster dat hier nog geregistreerd wordt (de schermmodules doen het zelf in hun init).
+// Bewust geen import van rapport-wizard.js: dat trekt het hele schermen-netwerk mee (en hier zou een cyclus ontstaan);
+// closeWizard is een van de wiz*-window-namen die de wizard (inline handlers, D2) zelf blijft aanbieden.
+registreer({ el: document.getElementById('rapport-wizard'), sluit: () => window.closeWizard?.() });

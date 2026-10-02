@@ -40,7 +40,6 @@ globalThis.document = {
   },
   createElement() { return leeg(); },
 };
-globalThis.window ??= {}; // sorteer.js zet window.maakSorteerbaar bij het laden
 
 const route = await import('../public/js/schermen/route.js');
 const echteGlobaleFetch = globalThis.fetch;

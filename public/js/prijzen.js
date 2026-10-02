@@ -1,9 +1,9 @@
 // public/js/prijzen.js
 // Prijzencatalogus (onderdelen + tarieven) en het admin-beheerscherm. `PRIJZEN` is de geladen
 // server-state (via /api/prijzen, met localStorage-fallback); `zoekOnderdelen`/`getAlleTags`/
-// `getPrijsVoorId` worden door de rapport-wizard gebruikt (via window, zie onderaan).
+// `getPrijsVoorId` worden door de rapport-wizard als window-naam gelezen (zie onderaan).
 import { TEST_MODE } from './kern/omgeving.js';
-import { registreerActies, registreerWijzigActies } from './kern/ui.js';
+import { escHtml, toast, registreerActies, registreerWijzigActies } from './kern/ui.js';
 import { closeSettings } from './schermen/instellingen.js';
 
 // ══════════════════════════════════════════════
@@ -345,13 +345,11 @@ registreerWijzigActies(document.body, {
 });
 
 // ── Window-bridges ────────────────────────────────────────────────────────────
-// Wat nog van BUITEN dit bestand als bare functie wordt aangeroepen: loadPrijzen() (opstart in index.html) en
-// zoekOnderdelen/getAlleTags/getPrijsVoorId (rapport-wizard, stap "Status & onderdelen"). De knoppen van het venster
+// Wat nog van BUITEN dit bestand als kale naam wordt gelezen:
+// zoekOnderdelen/getAlleTags (rapport-wizard, stap "Status & onderdelen"). De knoppen van het venster
 // lopen via kern.prijzen (brug.js) en de delegatie hierboven; er zijn geen inline handlers meer.
-window.loadPrijzen             = loadPrijzen;
 window.zoekOnderdelen          = zoekOnderdelen;
 window.getAlleTags             = getAlleTags;
-window.getPrijsVoorId          = getPrijsVoorId;
 
 // PRIJZEN_DEFAULTS is een `const` (object wordt nooit herwezen, enkel als fallback
 // gelezen) — een statische window-toewijzing is hier veilig, in tegenstelling tot PRIJZEN.

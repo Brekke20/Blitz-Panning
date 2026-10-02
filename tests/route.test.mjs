@@ -41,13 +41,12 @@ globalThis.document = {
   },
   createElement() { return leeg(); },
 };
-globalThis.window ??= {}; // sorteer.js zet window.maakSorteerbaar bij het laden
 
 const route = await import('../public/js/schermen/route.js');
 after(() => zetFetch(null));
 
 const ticket = (id, extra = {}) => ({ ticket: { id, number: id, subject: 'S' + id, status: 'Open', hasAddress: true }, address: 'Straat ' + id, _lat: 51, _lon: 4, ...extra });
-route.initRoute({
+const ROUTE_AFH = {
   duurVoor: () => 60,
   werktijdMin: () => 60,
   kbPreferredTime: () => null,
@@ -58,7 +57,8 @@ route.initRoute({
   telNummer: () => '',
   meervoud: (n, e, m) => `${n} ${n === 1 ? e : m}`,
   aankomstVoor: () => undefined,
-});
+};
+route.initRoute(ROUTE_AFH);
 toestand.set('settings', { vanTijd: '08:00', startlocatie: 'Start', drukteKleuring: false, werkdagen: [1, 2, 3, 4, 5] });
 toestand.set('planning', { [DATUM]: [ticket('a'), ticket('b')] });
 
@@ -67,9 +67,12 @@ const LEGS = [
   { travelTimeSeconds: 20 * 60, distanceMeters: 8000 },
 ];
 
-test('zonder berekende route: geen legs en 30 min terugval', () => {
-  assert.equal(route.legsVoorDag(DATUM), null);
-  const { arrivalTimes } = route.aankomstenVoorDag(DATUM);
+test('zonder berekende route: geen legs en 30 min terugval', async () => {
+  // Verse module-instantie (?v=): eigen routeData, dus onafhankelijk van de volgorde met de calculateRoute-test hieronder.
+  const vers = await import('../public/js/schermen/route.js?v=zonder-route');
+  vers.initRoute(ROUTE_AFH);
+  assert.equal(vers.legsVoorDag(DATUM), null);
+  const { arrivalTimes } = vers.aankomstenVoorDag(DATUM);
   assert.deepEqual(arrivalTimes, [8 * 60 + 30, 8 * 60 + 30 + 60 + 30]);
 });
 

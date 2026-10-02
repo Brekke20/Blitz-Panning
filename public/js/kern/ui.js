@@ -82,6 +82,11 @@ export function registreerBackdrop(overlay, sluit) {
   return () => overlay.removeEventListener('click', listener);
 }
 
+// aria-pressed bijwerken waar de 'active'-klasse gezet wordt (één helper, geen aparte state)
+export function zetPressed(el, aan) {
+  if (el) el.setAttribute('aria-pressed', aan ? 'true' : 'false');
+}
+
 // Maakt een niet-<button> element toetsenbord-bedienbaar (Enter/Space); toetsen uit binnenste
 // knoppen/links/velden worden genegeerd zodat die hun eigen gedrag houden.
 export function maakActiveerbaar(el, handler, label) {

@@ -41,7 +41,7 @@ test.describe('rapport verzenden in testmodus', () => {
     await expect(page.locator('#toast')).toHaveText('🧪 Testmodus — rapport verstuurd (demo)');
     await expect(knop).toHaveText('✓ Verzonden');
     await expect(knop).toBeEnabled(); // de kaart is hertekend
-    const lokaal = await page.evaluate(() => JSON.parse(JSON.stringify(window._rapportArchief)));
+    const lokaal = await page.evaluate(() => JSON.parse(JSON.stringify(kern.rapportArchief.lijst())));
     expect(lokaal).toHaveLength(1);
     expect(lokaal[0].verzondenKlant).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     expect(lokaal[0].verzondenContact).toBeUndefined();

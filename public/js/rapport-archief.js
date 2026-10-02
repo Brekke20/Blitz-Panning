@@ -6,6 +6,8 @@ import { registreerActies, metBehoudScroll } from './kern/ui.js';
 import { sjLog } from './kern/verklikker.js';
 import { renderKalender } from './schermen/kalender.js';
 import { voorbeeldRapport } from './schermen/rapport-verzenden.js';
+import { fmtDate } from './kern/tijd.js';
+import { escHtml, toast } from './kern/ui.js';
 
 export let _rapportArchief = [];
 // null = archief nog niet geladen deze sessie (bv. rapport gesloten zonder ooit het
@@ -224,10 +226,6 @@ registreerActies(document.body, {
 });
 
 window.renderRapportArchief = renderRapportArchief;
-window.laadRapportArchief   = laadRapportArchief;
-window.setRapportFilter     = setRapportFilter;
-window.verwijderRapport     = verwijderRapport;
-window.herOpenRapport       = herOpenRapport;
 
 // _rapportArchief wordt van BUITEN dit bestand rechtstreeks gelezen (niet enkel via de functies
 // hierboven): de kalenderweergave in index.html (herOpenRapport(_rapportArchief.indexOf(entry)),

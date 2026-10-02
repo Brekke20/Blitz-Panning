@@ -215,7 +215,10 @@ test.describe('afspraken: detailvenster, bewerken en verwijderen', () => {
     await startApp(page, { overschrijf: metSeed([FULL]) });
     await naarKalender(page);
     await openDetail(page, '2026-10-06', 'Installatie Pietersen');
+    // De wizard laadt de foto's van de afspraak: de ticketId in dat verzoek is het id van de afspraak.
+    const fotoVerzoek = page.waitForRequest(r => r.url().includes('/api/fotos?ticketId=ev-full'));
     await detail(page).getByRole('button', { name: '📋 Rapport' }).click();
+    await fotoVerzoek;
     await expect(page.getByRole('dialog', { name: '📋 Service Rapport' })).toHaveClass(/open/);
     await expect(detail(page)).not.toHaveClass(/open/);
     expect(verzoeken.verboden).toEqual([]);

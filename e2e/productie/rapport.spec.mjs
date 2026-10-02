@@ -25,7 +25,7 @@ const schrijfLijst = async (page, verzoeken) => {
 const toastTekst = (page) => page.locator('#toast');
 const verstuurKnop = (page) => page.locator('.btn-verstuur-rapport');
 const overlay = (page) => page.locator('#rapport-preview-overlay');
-const lokaleRapporten = (page) => page.evaluate(() => JSON.parse(JSON.stringify(window._rapportArchief)));
+const lokaleRapporten = (page) => page.evaluate(() => JSON.parse(JSON.stringify(kern.rapportArchief.lijst())));
 const SEND_BODY_PREVIEW = { ticketId: 't1', html: HTML, ticketNumber: '1001', preview: true };
 const SEND_BODY = { ticketId: 't1', html: HTML, ticketNumber: '1001' };
 const ontvanger = (doelgroep, email, naam = 'Naam') => ({ doelgroep, naam, email, html: `<p>mail voor ${doelgroep}</p>` });
@@ -181,7 +181,7 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     expect(z.archief()).toEqual({ versie: 6, rapports: [{ ...RAPPORT, verzondenContact: TIJDSTIP, verzondenKlant: TIJDSTIP }] });
     // Lokaal: velden gevuld, badge op de kaart, venster dicht, de versie in de app is de laatst ontvangen.
     expect(await lokaleRapporten(page)).toEqual([{ ...RAPPORT, verzondenContact: TIJDSTIP, verzondenKlant: TIJDSTIP }]);
-    expect(await page.evaluate(() => window._archiefVersie)).toBe(6);
+    expect(await page.evaluate(() => kern.rapportArchief.versie())).toBe(6);
     await expect(verstuurKnop(page)).toHaveText('✓ Verzonden');
     await expect(verstuurKnop(page)).toBeEnabled();
     await expect(overlay(page)).not.toHaveClass(/open/);
@@ -244,7 +244,7 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN]);
     // Geen badge: lokaal niets gezet en de versie in de app ongewijzigd (HUIDIG GEDRAG: ook geen serverVersie overgenomen).
     expect(await lokaleRapporten(page)).toEqual([RAPPORT]);
-    expect(await page.evaluate(() => window._archiefVersie)).toBe(4);
+    expect(await page.evaluate(() => kern.rapportArchief.versie())).toBe(4);
     await expect(verstuurKnop(page)).toHaveText('✉️ Verstuur rapport');
   });
 
@@ -263,7 +263,7 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     expect(z.opnames['rapport-verzonden'].map(o => [o.body.doelgroep, o.body.versie])).toEqual([['contact', 4], ['klant', 4]]);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN, VERZONDEN]);
     expect(await lokaleRapporten(page)).toEqual([{ ...RAPPORT, verzondenKlant: TIJDSTIP }]);
-    expect(await page.evaluate(() => window._archiefVersie)).toBe(5);
+    expect(await page.evaluate(() => kern.rapportArchief.versie())).toBe(5);
     // HUIDIG GEDRAG (bug?): bij een deels geslaagde status verschijnt enkel de laatste toast; de mislukte doelgroep (contact)
     // staat daarin, de geslaagde (klant) niet meer, en de kaart toont wel het badge door verzondenKlant.
     await expect(verstuurKnop(page)).toHaveText('✓ Verzonden');

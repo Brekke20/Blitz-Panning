@@ -4,6 +4,7 @@
 // voor de achtergrond van dit ontwerp.
 import { TEST_MODE } from './kern/omgeving.js';
 import { meervoud } from './schermen/ticketdetail-logica.js';
+import { escHtml } from './kern/ui.js';
 
 export const OUTBOX_DB_NAME    = 'blitz-rapport-outbox';
 export const OUTBOX_DB_VERSION = 1;
@@ -455,12 +456,8 @@ export async function flushOutbox() {
   renderRapportArchief();
 }
 
-// ── Window-bridge (zie Global Constraints) ──
-window.flushOutbox         = flushOutbox;
-window.renderOutboxBanner  = renderOutboxBanner;
+// ── Window-bridge: enkel wat de rapport-wizard nog als kale naam leest ──
 window.outboxAdd           = outboxAdd;
 window.runOutboxItem       = runOutboxItem;
 window.nextOutboxAction    = nextOutboxAction;
 window.refreshOutboxCache  = refreshOutboxCache;
-window.outboxCancelItem    = outboxCancelItem; // (T20) knop "Annuleren" in de per-item banner
-window.outboxRetryNow      = outboxRetryNow;   // (T20) knop "Opnieuw proberen" in de per-item banner

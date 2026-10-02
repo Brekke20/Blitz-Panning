@@ -6,7 +6,7 @@
 // in `initKalender`. Alleen `kern/brug.js` wijst `window`-namen toe. De schermtoestand (`kalOffset`,
 // `kalDagOffset`, `kalView`, auto-scrollsleutel) is module-privé; de knoppen lopen via data-actie-delegatie (C8).
 import { toestand } from '../kern/toestand.js';
-import { escHtml, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
+import { escHtml, zetPressed, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
 import { localISO, getWeekStart, fmtDateShort } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
 import {
@@ -38,10 +38,6 @@ export function weekOffset() { return kalOffset; }
 // Tabwissel naar Kalender: tekenen en naar de werkdag scrollen.
 export function activeerKalender() { renderKalender(); kalAutoScroll(true); }
 
-// aria-pressed bijwerken waar de 'active'-klasse gezet wordt
-function zetPressed(el, aan) {
-  if (el) el.setAttribute('aria-pressed', aan ? 'true' : 'false');
-}
 
 export function initKalender(afhankelijkheden) {
   afh = strengeAfh('kalender', afhankelijkheden);

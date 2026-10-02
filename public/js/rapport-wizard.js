@@ -7,6 +7,7 @@ import { arrivalData, getPlanningTicket, sluitDetailStil } from './schermen/tick
 import { closeLocalDet } from './schermen/afspraken.js';
 import { loadFotos, renderFotoGridInto, handleFotoFiles } from './schermen/fotos.js';
 import { syncOplossingNaarZoho } from './schermen/rapport-verzenden.js';
+import { escHtml, toast } from './kern/ui.js';
 
 export let _wizTicket = null;
 export let _wizDate   = null;

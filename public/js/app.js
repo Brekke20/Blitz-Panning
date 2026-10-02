@@ -38,7 +38,7 @@ import { openPrijsBeheer, closePrijsBeheer, prijsReset, prijsOpslaan, loadPrijze
 import { openRapport, calcWerktijdMin, closeWizard, wizBack, wizNext } from './rapport-wizard.js';
 import { _rapportArchief, _archiefVersie, zetArchiefVersie, laadRapportArchief, setRapportFilter, renderRapportArchief, herOpenRapport } from './rapport-archief.js';
 import { refreshOutboxCache, flushOutbox } from './outbox.js';
-import { loadInventaris, renderInventaris, updateInventarisBadge, resetInvSeenLog } from './inventaris.js';
+import { _invData, loadInventaris, renderInventaris, updateInventarisBadge, resetInvSeenLog } from './inventaris.js';
 import { exportTicketLog } from './excel-export.js';
 
 
@@ -80,9 +80,9 @@ function startInvPoll() {
   stopInvPoll(); // idempotent: nooit twee actieve timers naast elkaar
   _invPollTimer = setInterval(() => {
     if (get('activeAssigneeFilter') !== 'all') return;
-    const versieVoor = window._invVersie;
+    const versieVoor = _invData.versie;
     loadInventaris().then(() => {
-      if (window._invVersie === versieVoor) return; // niets gewijzigd -- geen onnodige re-render
+      if (_invData.versie === versieVoor) return; // niets gewijzigd -- geen onnodige re-render
       metBehoudScroll(() => {
         renderInventaris(get('activeAssigneeFilter'));
         updateInventarisBadge(get('activeAssigneeFilter'));
@@ -636,10 +636,6 @@ function updatePersonHeader() {
   if (nm) nm.textContent = get('activeAssigneeFilter') === 'all' ? 'Alle' : get('activeAssigneeFilter').split(' ')[0];
 }
 
-// aria-pressed bijwerken waar de 'active'-klasse gezet wordt (één helper, geen aparte state)
-function zetPressed(el, aan) {
-  if (el) el.setAttribute('aria-pressed', aan ? 'true' : 'false');
-}
 
 function zetPersonMenuOpen(open) {
   document.getElementById('person-menu')?.classList.toggle('open', open);

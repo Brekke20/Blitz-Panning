@@ -166,8 +166,6 @@ function renderImportModal(agents) {
   const unmatched = _pendingImport.filter(a => !a.persoon).length;
   sub.textContent = `${afh.meervoud(_pendingImport.length, 'afspraak', 'afspraken')} · ${unmatched} onbekende technicus`;
 
-  const agentOpts = (agents || []).map(a => `<option value="${escHtml(a)}">${escHtml(a)}</option>`).join('');
-
   list.innerHTML = _pendingImport.map((a, i) => {
     const matched = !!a.persoon;
     const dateLabel = a.datum
@@ -179,8 +177,7 @@ function renderImportModal(agents) {
       <div class="imp-item-meta">${dateLabel}${tijdLabel ? ' · ' + tijdLabel : ''}${a.notitie ? ' · ' + escHtml(a.notitie) : ''}</div>
       <div class="imp-person-row">
         <span class="imp-person-label">Technieker:</span>
-        <select class="imp-person-sel" aria-label="Toewijzen aan technieker" data-wijzig="import-persoon" data-arg="${i}"
-          data-idx="${i}">
+        <select class="imp-person-sel" aria-label="Toewijzen aan technieker" data-wijzig="import-persoon" data-arg="${i}">
           <option value="">— Niet toewijzen —</option>
           ${agents.map(ag => `<option value="${escHtml(ag)}"${a.persoon === ag ? ' selected' : ''}>${escHtml(ag)}</option>`).join('')}
         </select>

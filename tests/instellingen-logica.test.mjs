@@ -110,3 +110,21 @@ test('settingsKey: all/leeg geeft de gemeenschappelijke sleutel, een persoon een
   assert.equal(settingsKey(null), 'blitz_settings');
   assert.equal(settingsKey('Tim Peeters'), 'blitz_settings_Tim Peeters');
 });
+
+test('begintijd zonder eindtijd: de eindgrens van de laatste start is de standaard-eindtijd', () => {
+  // van ingevuld, tot leeg: geen "begintijd voor eindtijd"-controle (er is geen eindtijd om mee te vergelijken)
+  assert.equal(valideerInstellingen(met({ van: '18:00', tot: '', laatsteStart: '' }), STD).fout, undefined);
+  // laatste start vóór de ingevulde begintijd wordt wel geweigerd
+  assert.equal(valideerInstellingen(met({ van: '16:00', tot: '', laatsteStart: '15:00' }), STD).fout, '⚠ Laatste start moet tussen begin- en eindtijd liggen');
+  // laatste start na de standaard-eindtijd (17:00) wordt geweigerd
+  assert.equal(valideerInstellingen(met({ van: '09:00', tot: '', laatsteStart: '17:30' }), STD).fout, '⚠ Laatste start moet tussen begin- en eindtijd liggen');
+  assert.equal(valideerInstellingen(met({ van: '09:00', tot: '', laatsteStart: '16:30' }), STD).fout, undefined);
+});
+
+test('NaN in de numerieke velden: geen weigering en terugval op de standaard (NaN < x is onwaar)', () => {
+  const r = valideerInstellingen(met({ duur: NaN, max: NaN, tijdslotMinuten: NaN, tijdslotTekst: '' }), STD);
+  assert.equal(r.fout, undefined);
+  assert.equal(r.waarden.duurMinuten, STD.duurMinuten);
+  assert.equal(r.waarden.maxPerDag, STD.maxPerDag);
+  assert.equal(r.waarden.tijdslotMinuten, STD.tijdslotMinuten);
+});

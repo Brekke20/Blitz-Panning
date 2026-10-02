@@ -10,6 +10,7 @@ import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { localISO, fmtDate, fmtDateShort, extractLocalHour, timeStrToMin, minToTimeStr } from '../kern/tijd.js';
 import { registreerVenster } from '../venster.js';
+import { appConfirm } from '../app-dialog.js';
 import { nextAvailableDay } from './capaciteit.js';
 import { renderKalender } from './kalender.js';
 import { tijdslotVoor, telNummer, roundToNextQuarterStr } from './ticketdetail-logica.js';
@@ -201,8 +202,8 @@ export function sluitDetailStil() {
 // Gebruikerssluiting (✕, Escape via venster.js, achtergrondklik): met bewaarwaarschuwing.
 export function closeDet(e) {
   if (e && e.target !== document.getElementById('det-overlay')) return;
-  if (_kbIsDirty && _kbIsDirty() && window.appConfirm) {
-    window.appConfirm({
+  if (_kbIsDirty && _kbIsDirty()) {
+    appConfirm({
       titel: 'Niet-opgeslagen wijzigingen',
       tekst: 'Je hebt wijzigingen in de klantbeschikbaarheid die nog niet zijn opgeslagen. Wil je ze weggooien?',
       bevestigLabel: 'Weggooien', annuleerLabel: 'Terug', gevaar: true,

@@ -1,6 +1,8 @@
 // public/js/excel-export.js
 // Genereert het TicketLog Excel-exportbestand (ExcelJS, zie CLAUDE.md — nooit SheetJS
 // gebruiken, silent style-bug). Leest gearchiveerde rapport-data, schrijft niets terug.
+import { toast } from './kern/ui.js';
+import { _rapportArchief } from './rapport-archief.js';
 
 export async function exportTicketLog() {
   if (!_rapportArchief.length) return toast('Geen rapporten beschikbaar om te exporteren', 2500);
@@ -194,6 +196,5 @@ export async function exportTicketLog() {
     console.error('exportTicketLog:', err);
   }
 }
-
-window.exportTicketLog = exportTicketLog;
+
 
