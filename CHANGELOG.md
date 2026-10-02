@@ -32,6 +32,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ### Changed
 - De app laadt zijn onderdelen vooraf parallel en haalt de Excel-bibliotheek pas op bij de eerste export (TicketLog of Inventaris).
+- De service worker bewaart ook Leaflet, de handtekeningbibliotheek en de Excel-bibliotheek, zodat de app ook zonder verbinding de kaartbibliotheek heeft.
 - Ticketdetail, afspraakvoorstel en annuleervenster zijn intern herbouwd en staan nu in eigen
   onderdelen; voor jou ziet alles er hetzelfde uit en werkt het hetzelfde.
 - Kalender, wachtrij en de lijst Ingepland zijn intern herbouwd en staan nu in eigen onderdelen; voor jou ziet alles er hetzelfde uit en werkt het hetzelfde.

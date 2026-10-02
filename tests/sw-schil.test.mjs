@@ -66,3 +66,68 @@ test('elke module van de graaf staat in SHELL van sw.js (N19)', () => {
   const shell = sw.match(/const SHELL = \[([^\]]*)\]/)[1];
   for (const m of modulegraaf()) assert.ok(shell.includes(`'${m}'`), `${m} ontbreekt in SHELL`);
 });
+
+// ---- N16 a/b/c en N19: SHELL en CDN_VAST van sw.js tegenover de bestanden op schijf en index.html ----
+import { EXCELJS_URL } from '../public/js/kern/exceljs.js';
+
+const swBron = fs.readFileSync(path.join(PUBLIC, 'sw.js'), 'utf8');
+const lijst = (naam) => {
+  const m = swBron.match(new RegExp('const ' + naam + ' = \\[([^\\]]*)\\]'));
+  assert.ok(m, `${naam} niet gevonden in sw.js`);
+  return [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+};
+function bestanden(map, ext) {
+  const uit = [];
+  for (const e of fs.readdirSync(path.join(PUBLIC, map), { withFileTypes: true })) {
+    const rel = `${map}/${e.name}`;
+    if (e.isDirectory()) uit.push(...bestanden(rel, ext));
+    else if (e.name.endsWith(ext)) uit.push('/' + rel);
+  }
+  return uit;
+}
+
+test('N16a: elke SHELL-regel bestaat in public/ (en geen dubbelen)', () => {
+  const shell = lijst('SHELL');
+  assert.deepEqual(shell.filter((p, i) => shell.indexOf(p) !== i), [], 'dubbele SHELL-regels');
+  for (const p of shell) {
+    const rel = p === '/' ? 'index.html' : p.slice(1);
+    assert.ok(fs.existsSync(path.join(PUBLIC, rel)), `${p} staat in SHELL maar niet in public/`);
+  }
+});
+
+test('N16b: elk .js onder public/js en .css onder public/css staat in SHELL', () => {
+  const shell = lijst('SHELL');
+  for (const p of [...bestanden('js', '.js'), ...bestanden('css', '.css')]) assert.ok(shell.includes(p), `${p} ontbreekt in SHELL`);
+});
+
+test('N16c: CDN_VAST is gelijk aan de externe script/link van index.html plus de ExcelJS-URL (fonts apart)', () => {
+  const extern = [...html.matchAll(/<(?:script|link)\b[^>]*?\b(?:src|href)="(https:\/\/[^"]+)"[^>]*>/g)]
+    .filter((m) => !/rel="(?:preconnect|dns-prefetch)"/.test(m[0]))
+    .map((m) => m[1])
+    .filter((u) => !/^https:\/\/fonts\.(googleapis|gstatic)\.com\//.test(u));
+  assert.deepEqual([...lijst('CDN_VAST')].sort(), [...new Set([...extern, EXCELJS_URL])].sort());
+  for (const u of lijst('CDN_VAST')) assert.match(u, /^https:\/\/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\//);
+});
+
+test('N16c: FONT_HOSTS dekt de Google Fonts-verwijzing van index.html', () => {
+  const hosts = lijst('FONT_HOSTS');
+  assert.deepEqual(hosts.sort(), ['fonts.googleapis.com', 'fonts.gstatic.com']);
+  assert.ok(html.includes('https://fonts.googleapis.com/css2'));
+});
+
+test('N19: CACHE_NAME blijft blitz-planning-v25 tot de release (bij de bump van etappe 9 bewust aanpassen)', () => {
+  assert.match(swBron, /const CACHE_NAME = 'blitz-planning-v25';/);
+  assert.match(swBron, /const EXTERN_CACHE = 'blitz-extern-v1';/);
+});
+
+test('sw.js: importScripts van sw-strategie.js, /api wordt niet afgehandeld, respondWith enkel bij een antwoord', () => {
+  assert.match(swBron, /importScripts\('\/sw-strategie\.js'\)/);
+  assert.match(swBron, /strategie\.behandel\(/);
+  assert.match(swBron, /if \(r\) e\.respondWith\(r\)/);
+  assert.ok(fs.existsSync(path.join(PUBLIC, 'sw-strategie.js')));
+});
+
+test('app.js registreert de service worker met updateViaCache: none', () => {
+  const app = fs.readFileSync(path.join(PUBLIC, 'js/app.js'), 'utf8');
+  assert.match(app, /register\('\/sw\.js', \{ updateViaCache: 'none' \}\)/);
+});
