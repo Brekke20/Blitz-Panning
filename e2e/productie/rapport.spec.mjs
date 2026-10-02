@@ -7,7 +7,7 @@
 // rapport-verzonden.js): send-rapport geeft 400/500 met `{ error }`, een trage Zoho kan een Netlify-gateway 502 met
 // HTML-body geven; rapport-verzonden geeft 409 `{ error, serverVersie }` of 404 `{ error }`.
 // Niet bereikbaar in een e2e-test (W11): wizard-afronding en /api/comment (node-test in taak 6).
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, OPSTART_SCHRIJVEN, settle, metParserfout } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, OPSTART_SCHRIJVEN, settle } from '../productie-hulp.mjs';
 
 const START = 'POST /api/planning-sinds';
 const SEND = 'POST /api/send-rapport';
@@ -118,11 +118,12 @@ test.describe('rapport verzenden: voorbeeld (voorbeeldRapport)', () => {
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND]);
   });
 
-  test('502 met HTML-body (gateway): toast "✕ Voorbeeld ophalen mislukt" met de parserfout', async ({ page, verzoeken }) => {
+  test('502 met HTML-body (gateway): toast "✕ Voorbeeld ophalen mislukt" met HTTP 502', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { paden: ['/api/send-rapport'], httpFouten: [{ pad: '/api/send-rapport', status: 502 }] });
     z.zetAntwoord('send-rapport', { status: 502, raw: '<html><body>Bad Gateway</body></html>' });
     await verstuurKnop(page).click();
-    await expect(toastTekst(page)).toHaveText(metParserfout('✕ Voorbeeld ophalen mislukt: '));
+    // W5-fix: was HUIDIG GEDRAG (parserfout)
+    await expect(toastTekst(page)).toHaveText('✕ Voorbeeld ophalen mislukt: HTTP 502');
     await expect(overlay(page)).not.toHaveClass(/open/);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND]);
   });
@@ -323,14 +324,15 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     await expect(verstuurKnop(page)).toBeDisabled();
   });
 
-  test('echt verzoek: 502 met HTML-body: toast met de parserfout', async ({ page, verzoeken }) => {
+  test('echt verzoek: 502 met HTML-body: toast met HTTP 502', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { paden: ['/api/send-rapport'], httpFouten: [{ pad: '/api/send-rapport', status: 502 }] });
     z.zetAntwoord('send-rapport', ({ body }) => body.preview === true
       ? VOORBEELD(ontvanger('contact', 'c@y.be'))
       : { status: 502, raw: '<html><body>Bad Gateway</body></html>' });
     await openVoorbeeld(page);
     await bevestig(page);
-    await expect(toastTekst(page)).toHaveText(metParserfout('✕ '));
+    // W5-fix: was HUIDIG GEDRAG (parserfout)
+    await expect(toastTekst(page)).toHaveText('✕ HTTP 502');
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
     expect(z.opnames['rapport-verzonden']).toEqual([]);
   });

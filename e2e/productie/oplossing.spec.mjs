@@ -3,7 +3,7 @@
 // (rapport-wizard.js, `syncOplossingNaarZoho(item.ticket.id, R.acties)`, een import).
 // Twee wegen: (1) de echte wizard tot en met "✓ Rapport versturen" (de outbox doet daarna zijn eigen verzoeken);
 // (2) directe aanroep van de blootgestelde functie in de pagina voor de randgevallen en foutpaden.
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, OPSTART_SCHRIJVEN, settle, metParserfout } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, OPSTART_SCHRIJVEN, settle } from '../productie-hulp.mjs';
 
 const COMMENT = 'POST /api/comment';
 const START = 'POST /api/planning-sinds';
@@ -61,13 +61,14 @@ test.describe('syncOplossingNaarZoho: directe aanroep in productiemodus', () => 
     expect(c.opnames).toHaveLength(1);
   });
 
-  test('502 met HTML-body (gateway): toast met de parserfout', async ({ page, verzoeken }) => {
+  test('502 met HTML-body (gateway): toast met HTTP 502', async ({ page, verzoeken }) => {
     verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/comment']);
     verwachtHttpFout(verzoeken, [{ pad: '/api/comment', status: 502 }]);
     const c = commentStub({ status: 502, raw: '<html><body>Bad Gateway</body></html>' });
     await startAppProductie(page, { technieker: 'Tim', vasteKlok: true, overschrijf: { comment: c.comment } });
     await sync(page, 'p1', 'Acties');
-    await expect(toastTekst(page)).toHaveText(metParserfout('⚠ Oplossing kon niet automatisch bijgewerkt worden in Zoho: '));
+    // W5-fix: was HUIDIG GEDRAG (parserfout)
+    await expect(toastTekst(page)).toHaveText('⚠ Oplossing kon niet automatisch bijgewerkt worden in Zoho: HTTP 502');
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, COMMENT]);
   });
 

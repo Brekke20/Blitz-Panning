@@ -43,7 +43,7 @@ export async function syncOplossingNaarZoho(ticketId, content) {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ ticketId, content: content.trim() }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({ error: 'HTTP ' + res.status })); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>'
     if (data.error) throw new Error(data.error);
   } catch (err) {
     toast('⚠ Oplossing kon niet automatisch bijgewerkt worden in Zoho: ' + err.message, 4500);
@@ -74,7 +74,7 @@ export async function voorbeeldRapport(rapportId, btn) {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ ticketId: r.ticketId, html, ticketNumber: r.ticketNumber, preview: true }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => { throw new Error('HTTP ' + res.status); }); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>' (toast '✕ Voorbeeld ophalen mislukt: …')
     if (data.error) return toast('⚠ ' + data.error, 4500);
     if (!data.ontvangers?.length) return toast('⚠ Geen gekend e-mailadres (klant of installateur) op dit ticket', 4500);
 
@@ -135,7 +135,7 @@ export async function verstuurRapport(rapportId, btn) {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ ticketId: r.ticketId, html, ticketNumber: r.ticketNumber }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({ error: 'HTTP ' + res.status })); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>'
     if (data.error) throw new Error(data.error);
 
     // verzondenOntvangers = mail verstuurd EN status-write geslaagd (alleen dit mag het

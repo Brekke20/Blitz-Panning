@@ -49,13 +49,6 @@ export async function openKalender(page) {
   await page.getByRole('tab', { name: 'Kalender' }).click();
   await page.clock.runFor(1);
 }
-// Toastregex voor de technische JSON-parserfout van Chromium (res.json() op een HTML-body): één plek om aan te passen
-// als een Chromium-update de tekst wijzigt. `voor`/`na` zijn de vaste delen van de toast rond de parserfout.
-export function metParserfout(voor = '', na = '') {
-  const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`^${esc(voor)}.*Unexpected token '<'.*is not valid JSON.*${esc(na)}$`);
-}
-
 const PER_VERZOEKEN = new WeakMap(); // verzoeken -> schrijfpaden (array)
 
 // `verzoeken` is de alleen-lezen weergave (of het origineel); de whitelist hangt aan het origineel.

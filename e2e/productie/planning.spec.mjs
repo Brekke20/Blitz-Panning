@@ -325,6 +325,20 @@ test.describe('verzetten in het ticketdetail (saveReschedule)', () => {
     expect(await planningVan(page)).toEqual({ '2026-10-09': ['g1'], '2026-11-11': ['p1'] });
   });
 
+  // W5-fix: nieuw. Gateway-502 met HTML-body bij het verzetten: de toast toont 'HTTP 502', de planning blijft ongewijzigd.
+  test('502 met HTML-body: toast met HTTP 502, planning ongewijzigd', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { httpFouten: [{ pad: '/api/plan', status: 502 }] });
+    z.zetAntwoord('plan', { status: 502, raw: '<html><body>Bad Gateway</body></html>' });
+    beantwoordDialogen(page, true);
+    await openVerzet(page);
+    await vulIn(page, '2026-10-08', '14:30');
+
+    await expect(toastTekst(page)).toHaveText('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: HTTP 502)');
+    expect(z.opnames.plan).toHaveLength(1);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
+    expect(await planningVan(page)).toEqual(BASIS_PLANNING);
+  });
+
   test('klant niet beschikbaar op de nieuwe dag: confirm; weigeren = geen verzoek', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { paden: [], stubs: klantStub({ p1: kbItem({ geblokkeerd: ['2026-10-08'] }) }) });
     const dialogen = beantwoordDialogen(page, false);

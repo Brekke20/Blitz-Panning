@@ -256,7 +256,7 @@ export async function saveReschedule() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ ticketId, date, utcInterventieDatum }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ error: 'HTTP ' + res.status })); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>'
       if (data.error) throw new Error(data.error);
     }
 
