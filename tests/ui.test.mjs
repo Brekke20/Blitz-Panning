@@ -336,3 +336,53 @@ test('registreerBackdrop — afmelden', () => {
   registreerBackdrop(w, () => {})();
   assert.deepEqual(w.verwijderd, ['click']);
 });
+
+// ── metBehoudScroll (etappe 5b, taak 8) ──
+import { metBehoudScroll } from '../public/js/kern/ui.js';
+
+function nepVenster({ view, winY = 0, winX = 0 }) {
+  const oudDoc = globalThis.document, oudWin = globalThis.window;
+  const scrollTo = [];
+  globalThis.document = { querySelector: sel => (sel === '.view.active' ? view.huidig : null) };
+  globalThis.window = { scrollY: winY, scrollX: winX, scrollTo: (x, y) => { scrollTo.push([x, y]); globalThis.window.scrollX = x; globalThis.window.scrollY = y; } };
+  return { scrollTo, herstel: () => { globalThis.document = oudDoc; globalThis.window = oudWin; } };
+}
+
+test('metBehoudScroll: geeft het resultaat van fn terug en laat de scroll ongemoeid als niets verspringt', () => {
+  const view = { huidig: { scrollTop: 40 } };
+  const nep = nepVenster({ view, winY: 120 });
+  try {
+    assert.equal(metBehoudScroll(() => 'klaar'), 'klaar');
+    assert.deepEqual(nep.scrollTo, []);
+    assert.equal(view.huidig.scrollTop, 40);
+  } finally { nep.herstel(); }
+});
+
+test('metBehoudScroll: zet view- en venster-scroll terug als fn ze doet verspringen', () => {
+  const view = { huidig: { scrollTop: 300 } };
+  const nep = nepVenster({ view, winY: 500, winX: 10 });
+  try {
+    metBehoudScroll(() => { view.huidig.scrollTop = 0; globalThis.window.scrollY = 0; });
+    assert.equal(view.huidig.scrollTop, 300);
+    assert.deepEqual(nep.scrollTo, [[10, 500]]);
+  } finally { nep.herstel(); }
+});
+
+test('metBehoudScroll: wisselt de actieve view tijdens fn, dan blijft de scroll ongemoeid', () => {
+  const view = { huidig: { scrollTop: 300 } };
+  const nep = nepVenster({ view, winY: 500 });
+  try {
+    metBehoudScroll(() => { view.huidig = { scrollTop: 0 }; globalThis.window.scrollY = 0; });
+    assert.deepEqual(nep.scrollTo, []);
+    assert.equal(globalThis.window.scrollY, 0);
+  } finally { nep.herstel(); }
+});
+
+test('metBehoudScroll: herstelt ook als fn gooit en gooit de fout opnieuw', () => {
+  const view = { huidig: { scrollTop: 300 } };
+  const nep = nepVenster({ view });
+  try {
+    assert.throws(() => metBehoudScroll(() => { view.huidig.scrollTop = 0; throw new Error('boem'); }), /boem/);
+    assert.equal(view.huidig.scrollTop, 300);
+  } finally { nep.herstel(); }
+});

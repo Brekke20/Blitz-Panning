@@ -19,6 +19,7 @@ import { renderKalender, weekOffset } from './kalender.js';
 import { renderGepland } from './ingepland.js';
 import { leesLaatsteStart } from './instellingen.js';
 import { heeftLopendVoorstel } from './ticketdetail-logica.js';
+import { getHolidayName } from '../kern/feestdagen.js';
 
 // Afhankelijkheden uit het klassieke script en andere schermen (ingevuld door initPlanacties); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('planacties: initPlanacties() is niet aangeroepen'); } });
@@ -45,7 +46,7 @@ export async function addTicketToDate(ticketId, date) {
   if (toestand.get('planning')[date].find(p => p.ticket.id === ticketId)) return true; // al ingepland
 
   // Waarschuwing bij wettelijke feestdag
-  const feestdag = afh.getHolidayName(date);
+  const feestdag = getHolidayName(date);
   if (feestdag) {
     const ok = confirm(`🎌 ${feestdag} is een wettelijke feestdag (${fmtDateShort(date)}).\nToch inplannen?`);
     if (!ok) return false;
@@ -231,7 +232,7 @@ export async function autoPlan() {
 
     // R2: enkel de bekeken week (vanaf vandaag) plus voorkeursdatums na die week als extra dag
     // voor enkel het ticket dat die voorkeur heeft (zie bouwDagen in public/js/planner.js).
-    const uitgesloten = d => !!afh.getHolidayName(d) ||
+    const uitgesloten = d => !!getHolidayName(d) ||
       selecties.blokkeringenVoor(toestand.get('avExceptions'), d, toestand.get('activeAssigneeFilter'), 'fullday').length > 0;
     const { dagen: weekDates, extraVoor } = window.bouwDagen({
       weekStart: localISO(weekStart),

@@ -1,5 +1,7 @@
 // kern/ui.js — UI-hulpen (puur, geen globale toestand)
-// Bevat: escHtml, toast, toastDuur, registreerActies, registreerWijzigActies, registreerBackdrop, maakActiveerbaar
+// Bevat: escHtml, toast, toastDuur, registreerActies, registreerWijzigActies, registreerBackdrop, maakActiveerbaar, metBehoudScroll
+
+import { sjLog } from './verklikker.js';
 
 let toastTimer;
 
@@ -92,4 +94,27 @@ export function maakActiveerbaar(el, handler, label) {
     e.preventDefault();
     handler(e);
   });
+}
+
+// Scrollpositie behouden bij verversen door synchronisatie (cache-eerst, ticket-poll, inventaris-poll,
+// afspraken/beschikbaarheid): een her-render maakt containers leeg en bouwt ze opnieuw op; als daartussen
+// een layout gebeurt klapt de pagina in en zet de browser de scroll op 0 (of lager). Bewaar daarom het
+// venster + de actieve .view vóór het renderen en zet ze erna terug. NIET gebruiken bij een tabwissel of
+// navigatie door de gebruiker -- die start bewust bovenaan. Wisselde de actieve view tijdens fn, dan blijft
+// de scroll ongemoeid.
+export function metBehoudScroll(fn) {
+  const view = document.querySelector('.view.active');
+  const winY = window.scrollY, winX = window.scrollX;
+  const viewTop = view ? view.scrollTop : 0;
+  try {
+    return fn();
+  } finally {
+    if (document.querySelector('.view.active') === view) {
+      if ((view && view.scrollTop !== viewTop) || window.scrollY !== winY || window.scrollX !== winX) { // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
+        sjLog('metBehoudScroll:herstel'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
+      } // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
+      if (view && view.scrollTop !== viewTop) view.scrollTop = viewTop;
+      if (window.scrollY !== winY || window.scrollX !== winX) window.scrollTo(winX, winY);
+    }
+  }
 }

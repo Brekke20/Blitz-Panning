@@ -6,6 +6,7 @@ import { toestand } from '../kern/toestand.js';
 import { strengeAfh } from '../kern/ui.js';
 import { localISO } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker } from '../kern/selecties.js';
+import { getHolidayName } from '../kern/feestdagen.js';
 
 // Aantal geblokkeerde minuten binnen de werkdag [dagStartMin, dagEindMin]: elke uitzondering ({ from, to } als
 // 'HH:MM') wordt op de werkdag geknipt, daarna gesorteerd en samengevoegd zodat overlappende blokken niet dubbel tellen.
@@ -80,11 +81,11 @@ export function capaciteitsKop({ aantal, cap, duurMinuten, travelMin }) {
 // Afhankelijkheden uit het klassieke script (ingevuld door initCapaciteit); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('capaciteit: initCapaciteit() is niet aangeroepen'); } });
 export function initCapaciteit(afhankelijkheden) {
-  afh = strengeAfh('capaciteit', afhankelijkheden); // { duurVoor, getHolidayName }
+  afh = strengeAfh('capaciteit', afhankelijkheden); // { duurVoor }
 }
 
 export function capacityForDay(datum, travelMin = 30) {
-  if (afh.getHolidayName(datum)) return 0; // feestdag: nul, zonder de instellingen te lezen (zoals vroeger)
+  if (getHolidayName(datum)) return 0; // feestdag: nul, zonder de instellingen te lezen (zoals vroeger)
   const settings = toestand.get('settings');
   const filter = toestand.get('activeAssigneeFilter');
   const avExceptions = toestand.get('avExceptions');

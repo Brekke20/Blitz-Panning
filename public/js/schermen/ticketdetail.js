@@ -13,6 +13,7 @@ import { registreerVenster } from '../venster.js';
 import { nextAvailableDay } from './capaciteit.js';
 import { renderKalender } from './kalender.js';
 import { tijdslotVoor, telNummer, roundToNextQuarterStr } from './ticketdetail-logica.js';
+import { getHolidayName } from '../kern/feestdagen.js';
 
 // Afhankelijkheden uit het klassieke script (ingevuld door initTicketdetail); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('ticketdetail: initTicketdetail() is niet aangeroepen'); } });
@@ -240,7 +241,7 @@ export async function saveReschedule() {
   // Zelfde waarschuwingen als bij een eerste toewijzing (addTicketToDate) — enkel
   // relevant als de dag effectief verandert.
   if (date !== oldDate) {
-    const feestdag = afh.getHolidayName(date);
+    const feestdag = getHolidayName(date);
     if (feestdag && !confirm(`🎌 ${feestdag} is een wettelijke feestdag (${fmtDateShort(date)}).\nToch inplannen?`)) return;
     if (afh.kbBlocked(ticketId, date) && !confirm(`⚠ Klant gaf aan NIET beschikbaar te zijn op ${fmtDateShort(date)}.\nToch inplannen?`)) return;
   }

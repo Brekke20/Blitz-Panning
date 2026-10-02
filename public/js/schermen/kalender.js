@@ -15,6 +15,7 @@ import {
 } from './kalender-logica.js';
 import { capaciteitsKop, capacityForDay } from './capaciteit.js';
 import { renderRouteList } from './route.js';
+import { getHolidayName } from '../kern/feestdagen.js';
 
 // Afhankelijkheden uit het klassieke script (ingevuld door initKalender); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('kalender: initKalender() is niet aangeroepen'); } });
@@ -528,7 +529,7 @@ export function renderKalender() {
     const dateStr       = localISO(day);
     const isToday       = day.getTime() === today.getTime();
     const isPast        = day.getTime() < today.getTime();
-    const holidayName    = afh.getHolidayName(dateStr);
+    const holidayName    = getHolidayName(dateStr);
     const isDayBlocked   = !!holidayName || blokkeringenVoor(toestand.get('avExceptions'), dateStr, toestand.get('activeAssigneeFilter'), 'fullday').length > 0;
     const dayStops      = planItemsVanTechnieker(toestand.get('planning')[dateStr], toestand.get('activeAssigneeFilter'));
     const dayBlockCount = blokkeringenVoor(toestand.get('avExceptions'), dateStr, toestand.get('activeAssigneeFilter')).length;
@@ -754,7 +755,7 @@ function renderMonthView(today) {
       let chips = [];
 
       // Feestdag?
-      const holidayName = afh.getHolidayName(dateStr);
+      const holidayName = getHolidayName(dateStr);
       if (holidayName) chips.push({ label: `🎌 ${holidayName}`, cls: 'holiday' });
 
       // Blokkering?
