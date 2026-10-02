@@ -9,7 +9,7 @@
 // Raakt `document` enkel binnen functies. Alleen `kern/brug.js` wijst `window`-namen toe. De sluitknoppen lopen via
 // data-actie-delegatie; het venster sluit via registreerBackdrop (inhoudsklik sluit niet).
 import { foutTekst, leesFout } from '../kern/api.js';
-import { controleerMail, mailControleTekst, uurBrussel } from '../kern/mailcontrole.js';
+import { controleerMail, mailControleTekst, uurBrussel, TEKST_CONTROLEREN } from '../kern/mailcontrole.js';
 import { appConfirm } from '../app-dialog.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
@@ -146,7 +146,7 @@ export async function verstuurRapport(rapportId, btn) {
   }
 
   toast('📤 Rapport versturen...', 6000);
-  const verzendStart = new Date().toISOString(); // Q1 (etappe 7): begin van de verzending, enkel gebruikt na een onzeker resultaat
+  const verzendStart = performance.now(); // Q1 (etappe 7): begin van de verzending, enkel gebruikt na een onzeker resultaat
   try {
     const res  = await fetch('/api/send-rapport', {
       method:  'POST',
@@ -228,8 +228,9 @@ function zetMailGedetecteerd(rapportId, tijdstip) {
 
 // Q1 (etappe 7): na een onzeker resultaat nagaan of de mail al verzonden is (enkel lezen) en dat melden.
 // De knop blijft uitgeschakeld (zoals na elke fout) en gaat enkel open als zeker is dat er niets verstuurd werd.
-async function naOnzekerRapport(rapportId, ticketId, sinds, btn) {
-  const r = await controleerMail({ ticketId, sinds });
+async function naOnzekerRapport(rapportId, ticketId, start, btn) {
+  toast(TEKST_CONTROLEREN, 30000);
+  const r = await controleerMail({ ticketId, start });
   if (r.uitkomst === 'verzonden') {
     // Een latere hertekening zet de knop weer open (de status "Verzonden" schrijven we niet): onthoud de detectie op dit toestel,
     // zodat een volgende verzending van dit rapport eerst een bevestiging vraagt.

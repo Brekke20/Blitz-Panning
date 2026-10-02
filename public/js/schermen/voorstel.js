@@ -8,7 +8,7 @@
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { apiJson, foutTekst, leesFout } from '../kern/api.js';
-import { controleerMail, mailControleTekst } from '../kern/mailcontrole.js';
+import { controleerMail, mailControleTekst, TEKST_CONTROLEREN } from '../kern/mailcontrole.js';
 import { toast, escHtml, registreerActies, registreerWijzigActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { timeStrToMin, minToTimeStr, extractLocalHour } from '../kern/tijd.js';
 import { registreerVenster } from '../venster.js';
@@ -213,7 +213,7 @@ export async function sendProposal() {
   }
 
   // Q1 (etappe 7): begin van de verzending en de ontvangers, voor de controle na een onzeker resultaat (enkel in de catch gebruikt).
-  const verzendStart = new Date().toISOString();
+  const verzendStart = performance.now();
   const verwachtAdressen = [..._proposalOntvangers];
   try {
     // Bereken UTC-tijdstip in de browser (die kent de lokale tijdzone)
@@ -327,8 +327,9 @@ export async function sendProposal() {
 
 // Q1 (etappe 7): na een onzeker resultaat nagaan of de mail al verzonden is (enkel lezen) en dat melden.
 // verzonden: niets opnieuw te versturen; het venster sluit en de tickets worden opnieuw gelezen. Anders gaat de knop weer open.
-async function naOnzekerVoorstel(ticketId, sinds, verwacht, btn) {
-  const r = await controleerMail({ ticketId, sinds, verwacht });
+async function naOnzekerVoorstel(ticketId, start, verwacht, btn) {
+  toast(TEKST_CONTROLEREN, 30000);
+  const r = await controleerMail({ ticketId, start, verwacht });
   btn.disabled = false;
   btn.textContent = '✉️ Verstuur voorstel';
   if (r.uitkomst === 'verzonden') {

@@ -1,10 +1,14 @@
 // Zuivere hulp voor /api/mail-check (etappe 7, Q1): welke uitgaande e-mails staan er op een ticket sinds een tijdstip?
 // Enkel lezen en rekenen; geen Zoho, geen netwerk. De threads komen van GET /tickets/{id}/threads.
 
-// Tolerantie voor het klokverschil tussen toestel (de `sinds` van de client) en Zoho (createdTime).
-// Enkel voor de controle per adres (de oproeper kent dan de ontvangers). De brede controle (elke uitgaande mail) gebruikt GEEN marge:
-// een collega- of workflowmail van vlak ervoor mag niet als onze mail tellen.
-export const KLOKMARGE_MS = 2 * 60 * 1000;
+// `sinds` komt van de SERVERklok (nu - verlopenMs, zie functions/mail-check.js), nooit van het toestel. De marge vangt enkel de
+// kleine afwijking tussen de serverklok en de Zoho-klok (beide NTP) en de transporttijd van het verzoek op.
+// Per adres (KLOKMARGE_MS) en in de brede controle (BREDE_KLOKMARGE_MS) is ze even klein: een collega- of workflowmail van meer dan
+// enkele seconden ervoor mag niet als onze mail tellen.
+export const KLOKMARGE_MS = 10 * 1000;
+export const BREDE_KLOKMARGE_MS = 10 * 1000;
+// Bereik van `verlopenMs`: 0 tot 15 minuten.
+export const MAX_VERLOPEN_MS = 15 * 60 * 1000;
 
 const ADRES_RE = /[^\s<>,;"'()]+@[^\s<>,;"'()]+/g;
 export const GELDIG_ADRES_RE = /^[^\s<>,;"'()@]+@[^\s<>,;"'()@]+$/;

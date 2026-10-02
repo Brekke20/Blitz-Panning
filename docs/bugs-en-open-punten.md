@@ -23,6 +23,8 @@ Kandidaten voor een losse bugfix op `main`.
 | A11 | Een hangende verbinding laat een knop of het annuleervenster eindeloos vast staan (geen tijdslimiet). | Middel | etappe 7 |
 | A12 | Na een mislukte "Vernieuwen" kan de app oude (bewaarde) gegevens terugzetten. | Middel | etappe 7 |
 | A13 | De TEST-badge in de kop was onzichtbaar in testmodus. | Laag | etappe 0/2 |
+| A14 | (Enkel op refactor, nooit live: nieuw in etappe 7, I1.) De mailcontrole na een onzeker resultaat kon na een snelle fout (bv. verbinding valt na 1 s weg) vals "niet verzonden — veilig opnieuw" melden terwijl de serverfunctie nog tot 26 s doorwerkte en de mail alsnog vertrok: dubbele klantmail. Nu pas "niet verzonden" na een tweede controle 30 s na de start. | Hoog (op refactor) | etappe 7, finale fix A |
+| A15 | (Enkel op refactor, nooit live: nieuw in etappe 7, I2.) De brede mailcontrole (rapport, annuleren) gebruikte de klok van het toestel als begintijd: liep die ook maar een seconde voor, dan werd een wél verzonden mail gemist (vals "niet verzonden"). Nu stuurt het toestel enkel de verstreken tijd en rekent de server met zijn eigen klok; de marge per adres is van 2 min naar 10 s (M11). | Hoog (op refactor) | etappe 7, finale fix A |
 
 ## B. Bekende fouten en ongemakken — nog NIET opgelost (beslissing nodig)
 
@@ -41,7 +43,7 @@ Deze zijn met tests vastgelegd zoals ze nu werken, zodat een oplossing later bew
 |---|---|
 | B5 | Na een serverfout bij rapport versturen blijft de verzendknop uitgeschakeld tot je de pagina herlaadt. |
 | B6 | Mislukt een deel van de statusupdates, dan zie je enkel de laatste melding. |
-| B7 | Rapportformulier zonder verbinding: foto's die al bij het ticket staan laden stil niet, en de aanrijtijd wordt stil 0. (Brent: formulier nu ongemoeid laten, na de release bekijken.) |
+| B7 | Rapportformulier zonder verbinding: foto's die al bij het ticket staan laden stil niet, en de aanrijtijd wordt stil 0. (Brent: formulier nu ongemoeid laten, na de release bekijken.) **Sinds etappe 7 (M3, release-vraag):** de centrale time-out van 20 s op `/api/optimize` en `/api/route` zet de aanrijtijd in de wizard na 20 s trage verbinding ook stil op 0 (de wizard bleef vroeger wachten), waardoor aanrijtijd en loonkost te laag kunnen zijn. De wizard is bewust niet aangepast (Q3); Brent beslist bij de release. |
 
 ### Beschikbaarheid, afspraken, instellingen
 | # | Wat gaat er mis |
@@ -68,6 +70,7 @@ Deze zijn met tests vastgelegd zoals ze nu werken, zodat een oplossing later bew
 | C1 | Is "Geen tickets om in te plannen" een goede tekst voor de lege wachtrij? |
 | C2 | B4: moet een rapport/voorstel automatisch op "verzonden" komen als de app de mail in Zoho terugvindt? |
 | C3 | B15: moet "Plan deze week" altijd de week plannen die je ziet? |
+| C4 | B7 (M3): is een stille aanrijtijd 0 na 20 s trage verbinding in de rapportwizard aanvaardbaar, of moet de wizard dan een melding tonen / langer wachten? |
 
 ## D. Te doen vóór de release (proefperiode)
 

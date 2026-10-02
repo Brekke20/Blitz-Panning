@@ -4,10 +4,12 @@ import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { maakNepFetch, metGlobaleFetch, zetEnv } from './nep-fetch.mjs';
 import { maakHandler } from '../netlify/functions/mail-check.js';
-import { adressenUit, isUitgaandeMail, heeftVerzondenStatus, uitgaandeMails, beoordeel, KLOKMARGE_MS } from '../netlify/lib/mailcontrole.js';
+import { adressenUit, isUitgaandeMail, heeftVerzondenStatus, uitgaandeMails, beoordeel, KLOKMARGE_MS, BREDE_KLOKMARGE_MS } from '../netlify/lib/mailcontrole.js';
 
 const DESK = 'https://desk.zoho.eu/api/v1';
 const SINDS = '2026-10-02T10:00:00.000Z';
+// De serverklok staat 5 s na SINDS en de client meldt 5 s verlopen: de server rekent dus sinds = SINDS (I2: nooit de klok van het toestel).
+const NU = Date.parse(SINDS) + 5000;
 const TOKEN_CALL = {
   method: 'POST', url: 'https://accounts.zoho.eu/oauth/v2/token',
   headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -28,7 +30,7 @@ const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, 
 const uit = calls => calls.map(c => ({ method: c.method, url: c.url, headers: c.headers, body: c.body }));
 const thread = (over = {}) => ({ id: 't', channel: 'EMAIL', direction: 'out', visibility: 'public', createdTime: '2026-10-02T10:00:30.000Z', to: 'luc@test.be', ...over });
 const req = (zoek = {}, opties = {}) => {
-  const q = new URLSearchParams({ ticketId: '555', sinds: SINDS });
+  const q = new URLSearchParams({ ticketId: '555', verlopenMs: '5000' });
   for (const [k, v] of Object.entries(zoek)) { if (v === undefined) q.delete(k); else q.set(k, v); }
   return new Request('http://x/api/mail-check?' + q, opties);
 };
@@ -36,7 +38,7 @@ const antwoordJson = async res => ({ status: res.status, headers: Object.fromEnt
 
 async function draai(request, router) {
   const { fn, calls } = maakNepFetch(router);
-  const h = maakHandler({ fetch: fn });
+  const h = maakHandler({ fetch: fn, nu: () => NU });
   const res = await metGlobaleFetch(async () => { throw new Error('globale fetch verboden'); }, () => h(request));
   return { res, calls: uit(calls) };
 }
@@ -120,11 +122,15 @@ test('twijfel: onleesbaar adres bij verwachte ontvangers en een draft- of misluk
   assert.deepEqual(uitgaandeMails([thread({ status: 'FAILED', direction: 'in' }), thread({ status: 'FAILED', createdTime: '2026-10-02T09:00:00.000Z' })], s), { uitgaand: [], twijfel: false });
 });
 
-test('marge: de brede controle telt enkel threads vanaf sinds, de controle per adres telt ook de klokmarge mee', () => {
+test('marge: 10 s in beide controles (per adres en breed); een mail van een minuut ervoor telt nergens mee', () => {
   const s = Date.parse(SINDS);
-  const net = thread({ createdTime: new Date(s - 60 * 1000).toISOString() }); // een minuut vóór sinds
-  assert.equal(uitgaandeMails([net], s, { marge: 0 }).uitgaand.length, 0);
-  assert.equal(uitgaandeMails([net], s, { marge: KLOKMARGE_MS, verwachtAdressen: true }).uitgaand.length, 1);
+  assert.equal(KLOKMARGE_MS, 10000);
+  assert.equal(BREDE_KLOKMARGE_MS, 10000);
+  const vroeg = d => thread({ createdTime: new Date(s - d).toISOString() });
+  for (const opties of [{ marge: BREDE_KLOKMARGE_MS }, { marge: KLOKMARGE_MS, verwachtAdressen: true }]) {
+    assert.equal(uitgaandeMails([vroeg(5000)], s, opties).uitgaand.length, 1);
+    assert.equal(uitgaandeMails([vroeg(60 * 1000)], s, opties).uitgaand.length, 0);
+  }
   assert.equal(uitgaandeMails([thread({ createdTime: SINDS })], s, { marge: 0 }).uitgaand.length, 1); // precies sinds telt wel
 });
 
@@ -142,13 +148,20 @@ test('mail-check: OPTIONS en niet-GET hebben de CORS-set en doen geen aanroepen'
   }
 });
 
+const VERLOPEN_FOUT = 'verlopenMs (geheel getal van 0 tot 900000) is verplicht';
 test('mail-check: ongeldige invoer geeft 400 zonder aanroepen', async () => {
   const gevallen = [
     [{ ticketId: undefined }, 'ticketId (numeriek) is verplicht'],
     [{ ticketId: '55a' }, 'ticketId (numeriek) is verplicht'],
     [{ ticketId: '../comments' }, 'ticketId (numeriek) is verplicht'],
-    [{ sinds: undefined }, 'sinds (ISO-tijdstip) is verplicht'],
-    [{ sinds: 'gisteren' }, 'sinds (ISO-tijdstip) is verplicht'],
+    [{ verlopenMs: undefined }, VERLOPEN_FOUT],
+    [{ verlopenMs: 'gisteren' }, VERLOPEN_FOUT],
+    [{ verlopenMs: '-1' }, VERLOPEN_FOUT],
+    [{ verlopenMs: '900001' }, VERLOPEN_FOUT],
+    [{ verlopenMs: '1.5' }, VERLOPEN_FOUT],
+    [{ verlopenMs: '1e3' }, VERLOPEN_FOUT],
+    [{ verlopenMs: '' }, VERLOPEN_FOUT],
+    [{ verlopenMs: '99999999' }, VERLOPEN_FOUT],
     [{ ontvangers: 'geen-adres' }, 'ontvangers moet een lijst van maximaal 10 e-mailadressen zijn'],
     [{ ontvangers: Array.from({ length: 11 }, (_, i) => `a${i}@x.be`).join(',') }, 'ontvangers moet een lijst van maximaal 10 e-mailadressen zijn'],
   ];
@@ -253,7 +266,7 @@ test('mail-check: foutpaden (404, 5xx van Zoho, token, organizations, netwerk) g
   assert.equal(stil.mock.callCount(), 3);
 });
 
-test('mail-check: onleesbaar `to` met ontvangers geeft twijfel (nooit "niet verzonden"); draft-status ook; de brede controle gebruikt geen marge', async () => {
+test('mail-check: onleesbaar `to` met ontvangers geeft twijfel (nooit "niet verzonden"); draft-status ook; de marge is 10 s', async () => {
   let r = await draai(req({ ontvangers: 'luc@test.be' }), metThreads([thread({ to: undefined })]));
   assert.deepEqual(r.calls, verwacht(1));
   assert.deepEqual((await antwoordJson(r.res)).body, {
@@ -261,23 +274,38 @@ test('mail-check: onleesbaar `to` met ontvangers geeft twijfel (nooit "niet verz
   });
   r = await draai(req(), metThreads([thread({ status: 'FAILED' })]));
   assert.deepEqual((await antwoordJson(r.res)).body, { ok: true, verzonden: false, twijfel: true, tijdstip: null, uitgaand: [] });
-  // één minuut vóór sinds: telt in de brede controle niet, in de controle per adres wel (klokmarge)
+  // één minuut vóór sinds: telt nergens meer mee (marge 10 s); 5 s ervoor telt in beide controles
   const net = thread({ createdTime: '2026-10-02T09:59:00.000Z' });
   r = await draai(req(), metThreads([net]));
   assert.deepEqual((await antwoordJson(r.res)).body, { ok: true, verzonden: false, twijfel: false, tijdstip: null, uitgaand: [] });
   r = await draai(req({ ontvangers: 'luc@test.be' }), metThreads([net]));
+  assert.equal((await antwoordJson(r.res)).body.verzonden, false);
+  const bijna = thread({ createdTime: '2026-10-02T09:59:55.000Z' });
+  r = await draai(req(), metThreads([bijna]));
+  assert.equal((await antwoordJson(r.res)).body.verzonden, true);
+  r = await draai(req({ ontvangers: 'luc@test.be' }), metThreads([bijna]));
   assert.equal((await antwoordJson(r.res)).body.verzonden, true);
 });
 
-test('mail-check: sinds moet een volledig ISO-tijdstip met zone zijn ("2020", een kale datum of een rommeltekst geven 400)', async () => {
-  for (const sinds of ['2020', '2026-10-02', '2026-10-02T10:00', '1', '2026-10-02 10:00:00', 'nu', '2026-10-02T10:00:00']) {
-    const r = await draai(req({ sinds }));
-    assert.deepEqual(r.calls, [], sinds);
-    assert.equal(r.res.status, 400, sinds);
+test('mail-check (I2): sinds komt van de serverklok; een meegestuurde `sinds` van het toestel wordt genegeerd', async () => {
+  // Mail bestond 0,3 s na het begin van de verzending (server). Een toestel dat uren voor- of achterloopt, verandert niets.
+  const mail = thread({ createdTime: '2026-10-02T10:00:00.300Z' });
+  for (const sinds of ['2026-10-02T10:00:03.000Z', '2030-01-01T00:00:00.000Z', '2020-01-01T00:00:00.000Z']) {
+    const r = await draai(req({ sinds }), metThreads([mail]));
+    assert.equal((await antwoordJson(r.res)).body.verzonden, true, sinds);
   }
-  for (const sinds of ['2026-10-02T10:00:00Z', '2026-10-02T10:00:00.123Z', '2026-10-02T12:00:00+02:00', '2026-10-02T10:00Z']) {
-    const r = await draai(req({ sinds }), metThreads([]));
-    assert.equal(r.res.status, 200, sinds);
+  // Meer verstreken tijd = een vroeger `sinds`: een mail van 20 s ervoor telt dan wel, bij 5 s verlopen niet.
+  const oud = thread({ createdTime: '2026-10-02T09:59:40.000Z' });
+  let r = await draai(req({ verlopenMs: '5000' }), metThreads([oud]));
+  assert.equal((await antwoordJson(r.res)).body.verzonden, false);
+  r = await draai(req({ verlopenMs: '25000' }), metThreads([oud]));
+  assert.equal((await antwoordJson(r.res)).body.verzonden, true);
+});
+
+test('mail-check: verlopenMs is een geheel getal van 0 tot 900000 (de grenzen zelf zijn geldig)', async () => {
+  for (const v of ['0', '1', '5000', '900000', '0005']) {
+    const r = await draai(req({ verlopenMs: v }), metThreads([]));
+    assert.equal(r.res.status, 200, v);
   }
 });
 
@@ -291,7 +319,7 @@ test('mail-check: paginacap met ontvangers die maar deels gevonden zijn geeft 50
 
 test('mail-check: de tokencache leeft in de handler-instantie en elke aanroep is een GET (of het token)', async () => {
   const { fn, calls } = maakNepFetch(metThreads([], []));
-  const h = maakHandler({ fetch: fn });
+  const h = maakHandler({ fetch: fn, nu: () => NU });
   await metGlobaleFetch(async () => { throw new Error('globale fetch verboden'); }, async () => { await h(req()); await h(req()); });
   assert.deepEqual(uit(calls).map(c => c.url.replace(DESK, '')), [
     'https://accounts.zoho.eu/oauth/v2/token', '/organizations', '/tickets/555/threads?from=1&limit=100',

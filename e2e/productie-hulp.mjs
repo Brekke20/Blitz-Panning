@@ -44,6 +44,14 @@ export async function settle(page) {
     await expect.poll(() => OPENSTAAND.get(page)?.size ?? 0, { timeout: 10000 }).toBe(0);
   }
 }
+// I1 (mailcontrole): na een "niet verzonden" wacht de app tot 30 s na de start en controleert dan nog één keer. De nepklok loopt ook in
+// echte tijd door, dus een vaste sprong kan de timer missen; hier springt hij in stappen tot de tweede controle er is.
+export async function laatMailControleHerhalen(page, z, aantal = 2) {
+  await expect.poll(async () => { await page.clock.runFor(2000); return z.opnames['mail-check'].length; }, { timeout: 20000, intervals: [50] }).toBe(aantal);
+  await page.evaluate(() => Promise.resolve());
+}
+// De query van een mail-check-verzoek met het (variabele) aantal verstreken ms als 'N': de client stuurt enkel de verstreken tijd, geen klok.
+export const mailCheckQuery = (o) => ({ ...o.query, verlopenMs: /^\d+$/.test(o.query.verlopenMs) ? 'N' : o.query.verlopenMs });
 // Opent de Kalender-tab en laat de eenmalige hertekening (index.html: setTimeout(activeerKalender, 0) onder de nepklok)
 // meteen lopen, zodat één gewone klik daarna niet door een hertekening wordt weggegooid.
 export async function openKalender(page) {

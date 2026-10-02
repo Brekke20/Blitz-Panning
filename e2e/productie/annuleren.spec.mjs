@@ -5,7 +5,7 @@
 // opgesomd (`schrijfLijst`). Echte foutvormen (netlify/functions/annuleer.js): 400/404/500 met `{ error }`, 409
 // `{ error, emailSent, nietGepland: true }` (mail gevraagd maar ticket niet meer gepland in Zoho), 502
 // `{ error, emailSent, fouten }` (Zoho-PATCH mislukt, mails kunnen al weg zijn), een Netlify-gateway-502 met HTML-body.
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, verwachtNetwerkFout, zohoStubs, OPSTART_SCHRIJVEN, settle, openKalender } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, verwachtNetwerkFout, zohoStubs, OPSTART_SCHRIJVEN, settle, laatMailControleHerhalen, mailCheckQuery, openKalender } from '../productie-hulp.mjs';
 
 const START = 'POST /api/planning-sinds';
 const ANNULEER = 'POST /api/annuleer';
@@ -425,8 +425,10 @@ test.describe('annuleren: foutpaden en bijzondere antwoorden', () => {
     // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
     // T8b (Q1, omgedraaid): een 502 zonder emailSent is een onzeker resultaat; de app controleert (enkel lezen) of de mail al weg is. De
     // standaardstub van mail-check zegt "niet verzonden". De volledige reeks staat in de describe "onzeker resultaat" hieronder.
+    // I1: "niet verzonden" pas na de tweede controle, 30 s na de start.
+    await laatMailControleHerhalen(page, z);
     await expect(toastTekst(page)).toHaveText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
-    expect(z.opnames['mail-check']).toHaveLength(1);
+    expect(z.opnames['mail-check']).toHaveLength(2);
     await geenLokaleWijziging(page);
     expect(annuleerPosts(z, 'echt')).toHaveLength(1);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER]);
@@ -533,13 +535,12 @@ async function annuleerAfgebroken(page, verzoeken, mailCheck, { httpFouten = [],
 }
 // Eén annuleer-POST, geen tweede verzending en precies één GET naar mail-check met ticket en begin van de verzending.
 // `herlading`: na "verzonden" leest de app de planning opnieuw; bij elke lading hoort het (alleen-lezen) wachttijdenverzoek POST /api/planning-sinds.
-async function eenVerzendingEnEenControle(page, verzoeken, z, { herlading = false } = {}) {
+async function eenVerzendingEnEenControle(page, verzoeken, z, { herlading = false, controles = 1 } = {}) {
   expect(annuleerPosts(z, 'echt')).toHaveLength(1);
   expect(await schrijfLijst(page, verzoeken)).toEqual(herlading ? [START, ANNULEER, START] : [START, ANNULEER]);
-  expect(mailCheckLijst(verzoeken)).toEqual(['GET']);
-  expect(z.opnames['mail-check'].map(o => ({ methode: o.methode, query: o.query }))).toEqual([{ methode: 'GET', query: { ticketId: 'p1', sinds: TIJDSTIP } }]);
+  expect(mailCheckLijst(verzoeken)).toEqual(Array(controles).fill('GET'));
+  expect(z.opnames['mail-check'].map(o => ({ methode: o.methode, query: mailCheckQuery(o) }))).toEqual(Array(controles).fill({ methode: 'GET', query: { ticketId: 'p1', verlopenMs: 'N' } }));
 }
-const TIJDSTIP = '2026-10-05T07:00:00.000Z'; // VASTE_NU
 
 test.describe('annuleren: onzeker resultaat, controle of de mail al weg is (Q1)', () => {
   test('afgebroken en de mail is al verzonden: melding met uur, venster en detail dicht, planning opnieuw gelezen', async ({ page, verzoeken }) => {
@@ -555,11 +556,12 @@ test.describe('annuleren: onzeker resultaat, controle of de mail al weg is (Q1)'
 
   test('afgebroken en de mail is niet verzonden: melding, venster ontgrendeld en niets lokaal gewijzigd', async ({ page, verzoeken }) => {
     const z = await annuleerAfgebroken(page, verzoeken, MAIL_NIET);
+    await laatMailControleHerhalen(page, z);
     await expect(toastTekst(page)).toHaveText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
     await expect(verstuurKnop(page)).toHaveText('Afspraak annuleren');
     await expect(page.locator('#annuleer-terug')).toBeEnabled();
     await geenLokaleWijziging(page);
-    await eenVerzendingEnEenControle(page, verzoeken, z);
+    await eenVerzendingEnEenControle(page, verzoeken, z, { controles: 2 });
     expect(verzoeken.van('/api/tickets', 'GET')).toHaveLength(1);
   });
 
@@ -575,7 +577,7 @@ test.describe('annuleren: onzeker resultaat, controle of de mail al weg is (Q1)'
     const z = await annuleerAfgebroken(page, verzoeken, { hangen: true }, { netFouten: [{ pad: MAILCHECK, methode: 'GET' }] });
     await expect.poll(() => z.opnames['mail-check'].length).toBe(1);
     await page.evaluate(() => Promise.resolve());
-    await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER_BESTAAND); // dezelfde waarschuwing als voorheen, tot het antwoord er is
+    await expect(toastTekst(page)).toHaveText('Controleren of de mail al vertrokken is…'); // M10: voortgang tot het antwoord er is
     await expect(verstuurKnop(page)).toHaveText('Bezig…');
     await expect(page.locator('#annuleer-terug')).toBeDisabled();
     await page.keyboard.press('Escape');

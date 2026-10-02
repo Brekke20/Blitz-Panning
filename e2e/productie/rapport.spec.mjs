@@ -7,7 +7,7 @@
 // rapport-verzonden.js): send-rapport geeft 400/500 met `{ error }`, een trage Zoho kan een Netlify-gateway 502 met
 // HTML-body geven; rapport-verzonden geeft 409 `{ error, serverVersie }` of 404 `{ error }`.
 // Niet bereikbaar in een e2e-test (W11): wizard-afronding en /api/comment (node-test in taak 6).
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, verwachtNetwerkFout, zohoStubs, OPSTART_SCHRIJVEN, settle } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, verwachtNetwerkFout, zohoStubs, OPSTART_SCHRIJVEN, settle, laatMailControleHerhalen, mailCheckQuery } from '../productie-hulp.mjs';
 
 const START = 'POST /api/planning-sinds';
 const SEND = 'POST /api/send-rapport';
@@ -335,10 +335,11 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     // W5-fix: was HUIDIG GEDRAG (parserfout)
     // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
     // T8b (Q1, omgedraaid): een 502 is een onzeker resultaat; de app controleert (enkel lezen) of de mail al weg is. De standaardstub van
-    // mail-check zegt "niet verzonden": de melding en de knop gaan weer open. De volledige reeks staat in de describe "onzeker resultaat".
+    // mail-check zegt "niet verzonden": de melding en de knop gaan weer open (I1: na de tweede controle). De volledige reeks staat in de describe "onzeker resultaat".
+    await laatMailControleHerhalen(page, z);
     await expect(toastTekst(page)).toHaveText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
     await expect(verstuurKnop(page)).toBeEnabled();
-    expect(z.opnames['mail-check']).toHaveLength(1);
+    expect(z.opnames['mail-check']).toHaveLength(2);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
     expect(z.opnames['rapport-verzonden']).toEqual([]);
   });
@@ -415,12 +416,12 @@ async function verstuurAfgebroken(page, verzoeken, mailCheck, { httpFouten = [],
   return z;
 }
 // Eén voorbeeld en één echte verzending, geen status-schrijfacties, precies één GET naar mail-check met ticket en begin van de verzending.
-async function eenVerzendingEnEenControle(page, verzoeken, z) {
+async function eenVerzendingEnEenControle(page, verzoeken, z, { controles = 1 } = {}) {
   expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
   expect(z.opnames['send-rapport'].map(o => 'preview' in o.body)).toEqual([true, false]);
   expect(z.opnames['rapport-verzonden']).toEqual([]);
-  expect(mailCheckLijst(verzoeken)).toEqual(['GET']);
-  expect(z.opnames['mail-check'].map(o => ({ methode: o.methode, query: o.query }))).toEqual([{ methode: 'GET', query: { ticketId: 't1', sinds: TIJDSTIP } }]);
+  expect(mailCheckLijst(verzoeken)).toEqual(Array(controles).fill('GET'));
+  expect(z.opnames['mail-check'].map(o => ({ methode: o.methode, query: mailCheckQuery(o) }))).toEqual(Array(controles).fill({ methode: 'GET', query: { ticketId: 't1', verlopenMs: 'N' } }));
 }
 
 test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg is (Q1)', () => {
@@ -434,9 +435,10 @@ test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg 
 
   test('afgebroken en de mail is niet verzonden: melding en de knop kan opnieuw', async ({ page, verzoeken }) => {
     const z = await verstuurAfgebroken(page, verzoeken, MAIL_NIET);
+    await laatMailControleHerhalen(page, z);
     await expect(toastTekst(page)).toHaveText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
     await expect(verstuurKnop(page)).toBeEnabled();
-    await eenVerzendingEnEenControle(page, verzoeken, z);
+    await eenVerzendingEnEenControle(page, verzoeken, z, { controles: 2 });
     expect(await lokaleRapporten(page)).toEqual([RAPPORT]);
   });
 
@@ -492,9 +494,10 @@ test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg 
 
   test('"niet verzonden" of een onzekere controle onthoudt niets: geen vraag bij de volgende verzending', async ({ page, verzoeken }) => {
     const z = await verstuurAfgebroken(page, verzoeken, MAIL_NIET);
+    await laatMailControleHerhalen(page, z);
     await expect(toastTekst(page)).toHaveText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
     expect(await page.evaluate(() => localStorage.getItem('blitz_mail_gedetecteerd'))).toBeNull();
-    await eenVerzendingEnEenControle(page, verzoeken, z);
+    await eenVerzendingEnEenControle(page, verzoeken, z, { controles: 2 });
   });
 
   test('onleesbaar adres of een draft-status (twijfel) geeft de waarschuwing, nooit "niet verzonden"', async ({ page, verzoeken }) => {

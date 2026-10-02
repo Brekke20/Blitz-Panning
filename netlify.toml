@@ -32,3 +32,6 @@
 
 [functions.planning-sinds]
   timeout = 26
+
+[functions.mail-check]
+  timeout = 26

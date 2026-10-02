@@ -7,7 +7,7 @@
 // delegatie, de mailkeuze via data-wijzig en de toelichting via data-invoer; de overlay sluit via registreerBackdrop.
 // De `toggle` van <details> bubbelt niet: die luisteraar hangt rechtstreeks aan #annuleer-details.
 import { foutTekst, leesFout } from '../kern/api.js';
-import { controleerMail, mailControleTekst } from '../kern/mailcontrole.js';
+import { controleerMail, mailControleTekst, TEKST_CONTROLEREN } from '../kern/mailcontrole.js';
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, registreerActies, registreerWijzigActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
@@ -230,7 +230,8 @@ export async function verstuurAnnulatie() {
   // tot de controle (enkel lezen) klaar is, zodat er nooit vanzelf een tweede verzending start.
   const naOnzeker = async (bericht) => {
     toast('✕ Annuleren mislukt: ' + bericht + ' De klant kan al gemaild zijn — controleer in Zoho vóór je opnieuw probeert.', 7000);
-    const r = await controleerMail({ ticketId: s.ticketId, sinds });
+    toast(TEKST_CONTROLEREN, 30000);
+    const r = await controleerMail({ ticketId: s.ticketId, start });
     if (r.uitkomst === 'verzonden') {
       // Niets opnieuw te versturen: het venster sluit en de planning wordt opnieuw gelezen.
       s.busy = false;
@@ -245,7 +246,7 @@ export async function verstuurAnnulatie() {
     }
   };
 
-  const sinds = new Date().toISOString(); // begin van de verzending, enkel gebruikt na een onzeker resultaat
+  const start = performance.now(); // begin van de verzending, enkel gebruikt na een onzeker resultaat
   let res, data;
   try {
     res = await fetch('/api/annuleer', {

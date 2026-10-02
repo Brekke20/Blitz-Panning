@@ -47,16 +47,37 @@ export function beoordeelAntwoord(data, verwacht = []) {
   return GELDIG_UUR(data.tijdstip) ? { uitkomst: 'verzonden', verzonden: [{ aan: '', tijdstip: data.tijdstip }] } : onbekend;
 }
 
-// Gooit nooit: elke fout (netwerk, time-out, 4xx/5xx, onleesbaar antwoord) is 'onbekend'.
-export async function controleerMail({ ticketId, sinds, verwacht = [] }) {
-  try {
-    const params = new URLSearchParams({ ticketId: String(ticketId), sinds });
-    if (verwacht.length) params.set('ontvangers', verwacht.join(','));
-    const r = await apiVerzoek('/api/mail-check?' + params);
-    return r.ok ? beoordeelAntwoord(r.data, verwacht) : { uitkomst: 'onbekend', verzonden: [] };
-  } catch {
-    return { uitkomst: 'onbekend', verzonden: [] };
-  }
+// Hoe lang de serverfunctie na het versturen nog kan doorwerken: propose, send-rapport en annuleer hebben `timeout = 26` (netlify.toml),
+// plus 4 s marge. Een snelle fout (TypeError na 1 s) bewijst dus niets: de mail kan nog tot ~26 s na de start vertrekken.
+export const SERVER_MAX_MS = 30000;
+export const TEKST_CONTROLEREN = 'Controleren of de mail al vertrokken is…';
+const ONBEKEND = () => ({ uitkomst: 'onbekend', verzonden: [] });
+const NU = () => performance.now();
+const WACHT = (ms) => new Promise(r => setTimeout(r, ms));
+
+// `start`: tijdstip (performance.now) vlak vóór de verzending; de client stuurt enkel de verstreken tijd (`verlopenMs`), nooit zijn eigen klok.
+// De server rekent met zijn eigen klok (I2). Gooit nooit: elke fout (netwerk, time-out, 4xx/5xx, onleesbaar antwoord) is 'onbekend'.
+// I1: "niet verzonden" geldt pas als de serverfunctie zeker klaar is (SERVER_MAX_MS na de start). Eerder: een tweede, enige controle na
+// die tijd. Ruling: eerst meteen controleren (een gevonden mail meldt je direct), pas bij "niet verzonden" wachten en één keer herhalen.
+// Een controle die zelf faalt blijft 'onbekend' (geen nieuwe poging). `nu`/`wacht` zijn injecteerbaar voor tests.
+export async function controleerMail({ ticketId, start, verwacht = [], nu = NU, wacht = WACHT }) {
+  const eenmaal = async () => {
+    try {
+      const verlopenMs = Math.max(0, Math.round(nu() - start));
+      const params = new URLSearchParams({ ticketId: String(ticketId), verlopenMs: String(verlopenMs) });
+      if (verwacht.length) params.set('ontvangers', verwacht.join(','));
+      const r = await apiVerzoek('/api/mail-check?' + params);
+      return r.ok ? beoordeelAntwoord(r.data, verwacht) : ONBEKEND();
+    } catch {
+      return ONBEKEND();
+    }
+  };
+  let r = await eenmaal();
+  if (r.uitkomst !== 'niet-verzonden') return r;
+  const rest = SERVER_MAX_MS - (nu() - start);
+  if (rest <= 0) return r;
+  try { await wacht(rest); } catch { return ONBEKEND(); }
+  return eenmaal();
 }
 
 // De tekst die de gebruiker ziet bij een uitkomst (de drie teksten die Brent goedkeurde).

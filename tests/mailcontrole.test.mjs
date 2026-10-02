@@ -4,15 +4,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { zetFetch } from '../public/js/kern/api.js';
 import {
-  beoordeelAntwoord, controleerMail, mailControleTekst, uurBrussel, TEKST_NIET_VERZONDEN, TEKST_ONZEKER,
+  beoordeelAntwoord, controleerMail, mailControleTekst, uurBrussel, TEKST_NIET_VERZONDEN, TEKST_ONZEKER, SERVER_MAX_MS,
 } from '../public/js/kern/mailcontrole.js';
 
-const SINDS = '2026-10-02T10:00:00.000Z';
 const T1 = '2026-10-02T10:01:00.000Z'; // 12:01 in Brussel (zomertijd)
 const T2 = '2026-10-02T22:30:00.000Z'; // 00:30 de volgende dag
 const antwoord = (obj, status = 200) => new Response(JSON.stringify(obj), { status });
 
 test.afterEach(() => zetFetch(null));
+
+// Nepklok: `nu()` geeft de verstreken tijd sinds start (0); `wacht(ms)` laat hem ms verder lopen en onthoudt de wachttijden.
+function maakKlok(begin) {
+  const k = { t: begin, wachttijden: [] };
+  k.nu = () => k.t;
+  k.wacht = async (ms) => { k.wachttijden.push(ms); k.t += ms; };
+  return k;
+}
 
 test('uurBrussel: hh:mm in Brusselse tijd, ook rond middernacht', () => {
   assert.equal(uurBrussel(T1), '12:01');
@@ -58,12 +65,13 @@ test('mailControleTekst: de drie goedgekeurde teksten, per ontvanger een uur', (
   assert.equal(TEKST_ONZEKER, mailControleTekst({ uitkomst: 'onbekend', verzonden: [] }));
 });
 
-test('controleerMail: één GET naar /api/mail-check met ticketId, sinds en ontvangers; nooit een body of schrijfmethode', async () => {
+test('controleerMail: één GET naar /api/mail-check met ticketId en verlopenMs (nooit een absolute tijd); nooit een body of schrijfmethode', async () => {
   const oproepen = [];
   zetFetch(async (...a) => { oproepen.push(a); return antwoord({ ok: true, twijfel: false, verzonden: true, tijdstip: T1, uitgaand: [{ aan: 'luc@test.be', tijdstip: T1 }] }); });
-  const r = await controleerMail({ ticketId: '555', sinds: SINDS });
+  const klok = maakKlok(3000);
+  const r = await controleerMail({ ticketId: '555', start: 0, nu: klok.nu, wacht: klok.wacht });
   assert.deepEqual(r, { uitkomst: 'verzonden', verzonden: [{ aan: 'luc@test.be', tijdstip: T1 }] });
-  assert.deepEqual(oproepen, [['/api/mail-check?ticketId=555&sinds=2026-10-02T10%3A00%3A00.000Z']]); // geen init-object: een gewone GET
+  assert.deepEqual(oproepen, [['/api/mail-check?ticketId=555&verlopenMs=3000']]); // geen init-object: een gewone GET
 });
 
 test('controleerMail: ontvangers gaan als kommalijst mee en bepalen de uitkomst', async () => {
@@ -72,7 +80,8 @@ test('controleerMail: ontvangers gaan als kommalijst mee en bepalen de uitkomst'
     oproepen.push(a);
     return antwoord({ ok: true, twijfel: false, verzonden: false, tijdstip: null, uitgaand: [], ontvangers: { 'luc@test.be': { verzonden: false, tijdstip: null }, 'an@y.be': { verzonden: false, tijdstip: null } } });
   });
-  const r = await controleerMail({ ticketId: '555', sinds: SINDS, verwacht: ['luc@test.be', 'an@y.be'] });
+  const klok = maakKlok(SERVER_MAX_MS + 1);
+  const r = await controleerMail({ ticketId: '555', start: 0, verwacht: ['luc@test.be', 'an@y.be'], nu: klok.nu, wacht: klok.wacht });
   assert.deepEqual(r, { uitkomst: 'niet-verzonden', verzonden: [] });
   assert.equal(new URL(oproepen[0][0], 'http://x').searchParams.get('ontvangers'), 'luc@test.be,an@y.be');
 });
@@ -90,7 +99,8 @@ test('controleerMail gooit nooit: netwerkfout, time-out, 4xx/5xx en onleesbaar a
   ];
   for (const g of gevallen) {
     zetFetch(g);
-    assert.deepEqual(await controleerMail({ ticketId: '555', sinds: SINDS }), onbekend);
+    const klok = maakKlok(SERVER_MAX_MS + 1);
+    assert.deepEqual(await controleerMail({ ticketId: '555', start: 0, nu: klok.nu, wacht: klok.wacht }), onbekend);
   }
 });
 
@@ -109,4 +119,62 @@ test('twijfel (onleesbaar adres, draft- of mislukte status): nooit "niet verzond
   assert.deepEqual(beoordeelAntwoord({ ok: true, verzonden: false, twijfel: 'nee', tijdstip: null, uitgaand: [] }), onbekend);
   // een zekere mail wint van twijfel
   assert.equal(beoordeelAntwoord({ ok: true, verzonden: true, twijfel: false, tijdstip: T1, uitgaand: [{ aan: 'a@b.be', tijdstip: T1 }] }).uitkomst, 'verzonden');
+});
+
+// ── I1: een snelle fout bewijst niet dat de serverfunctie klaar is (ze werkt tot ~26 s door) ──
+test('I1: "niet verzonden" na een snelle fout (2 s) wacht tot SERVER_MAX_MS en controleert dan één keer opnieuw; de mail die intussen vertrok geeft "verzonden"', async () => {
+  assert.equal(SERVER_MAX_MS, 30000);
+  const klok = maakKlok(2000);
+  const oproepen = [];
+  zetFetch(async (url) => {
+    oproepen.push(new URL(url, 'http://x').searchParams.get('verlopenMs'));
+    // de mail komt op de server pas na 10 s: de eerste controle (2 s) ziet niets, de tweede (30 s) wel
+    return klok.t >= 10000
+      ? antwoord({ ok: true, twijfel: false, verzonden: true, tijdstip: T1, uitgaand: [{ aan: 'luc@test.be', tijdstip: T1 }] })
+      : antwoord({ ok: true, twijfel: false, verzonden: false, tijdstip: null, uitgaand: [] });
+  });
+  const r = await controleerMail({ ticketId: '555', start: 0, nu: klok.nu, wacht: klok.wacht });
+  assert.deepEqual(r, { uitkomst: 'verzonden', verzonden: [{ aan: 'luc@test.be', tijdstip: T1 }] });
+  assert.deepEqual(klok.wachttijden, [28000]);
+  assert.deepEqual(oproepen, ['2000', '30000']); // twee controles, precies één wachttijd
+});
+
+test('I1: blijft de mail ook na SERVER_MAX_MS weg, dan pas "niet verzonden"; na 30 s verstreken geen wachttijd meer', async () => {
+  let klok = maakKlok(2000);
+  let n = 0;
+  zetFetch(async () => { n++; return antwoord({ ok: true, twijfel: false, verzonden: false, tijdstip: null, uitgaand: [] }); });
+  assert.deepEqual(await controleerMail({ ticketId: '555', start: 0, nu: klok.nu, wacht: klok.wacht }), { uitkomst: 'niet-verzonden', verzonden: [] });
+  assert.equal(n, 2);
+  klok = maakKlok(SERVER_MAX_MS); n = 0; // time-out (35 s) of 502 na 26+ s: de functie is zeker klaar
+  assert.deepEqual(await controleerMail({ ticketId: '555', start: 0, nu: klok.nu, wacht: klok.wacht }), { uitkomst: 'niet-verzonden', verzonden: [] });
+  assert.deepEqual([n, klok.wachttijden], [1, []]);
+});
+
+test('I1: een zekere "verzonden" komt meteen (geen wachttijd); een tweede controle die faalt of twijfelt is "onbekend", nooit "niet verzonden"', async () => {
+  let klok = maakKlok(1000);
+  zetFetch(async () => antwoord({ ok: true, twijfel: false, verzonden: true, tijdstip: T1, uitgaand: [{ aan: 'a@b.be', tijdstip: T1 }] }));
+  assert.equal((await controleerMail({ ticketId: '5', start: 0, nu: klok.nu, wacht: klok.wacht })).uitkomst, 'verzonden');
+  assert.deepEqual(klok.wachttijden, []);
+  for (const tweede of [async () => { throw new TypeError('Failed to fetch'); }, async () => antwoord({ error: 'x' }, 502),
+    async () => antwoord({ ok: true, twijfel: true, verzonden: false, tijdstip: null, uitgaand: [] })]) {
+    klok = maakKlok(1000);
+    let n = 0;
+    zetFetch(async () => (++n === 1 ? antwoord({ ok: true, twijfel: false, verzonden: false, tijdstip: null, uitgaand: [] }) : tweede()));
+    assert.equal((await controleerMail({ ticketId: '5', start: 0, nu: klok.nu, wacht: klok.wacht })).uitkomst, 'onbekend');
+  }
+  // een eerste controle die zelf faalt blijft onbekend (geen herpoging)
+  klok = maakKlok(1000);
+  let m = 0;
+  zetFetch(async () => { m++; throw new TypeError('Failed to fetch'); });
+  assert.equal((await controleerMail({ ticketId: '5', start: 0, nu: klok.nu, wacht: klok.wacht })).uitkomst, 'onbekend');
+  assert.deepEqual([m, klok.wachttijden], [1, []]);
+});
+
+test('I2: het verzoek bevat enkel verlopenMs (geheel, niet negatief); een toestelklok speelt geen rol', async () => {
+  const urls = [];
+  zetFetch(async (u) => { urls.push(u); return antwoord({ ok: true, twijfel: false, verzonden: true, tijdstip: T1, uitgaand: [{ aan: 'a@b.be', tijdstip: T1 }] }); });
+  await controleerMail({ ticketId: '5', start: 100.4, nu: () => 2600.9, wacht: async () => {} });
+  await controleerMail({ ticketId: '5', start: 500, nu: () => 100, wacht: async () => {} }); // klok liep terug: nooit negatief
+  assert.deepEqual(urls, ['/api/mail-check?ticketId=5&verlopenMs=2501', '/api/mail-check?ticketId=5&verlopenMs=0']);
+  assert.ok(urls.every(u => !/sinds/.test(u)));
 });
