@@ -89,6 +89,5 @@ window.vensterBeheer = { registreer, sluitBovenste };
 const sluitVia = naam => () => window[naam]?.();
 [
   ['result-overlay', 'closeResult'],
-  ['rapport-preview-overlay', 'closeRapportPreview'], ['foto-overlay', 'closeFotoModal'],
   ['rapport-wizard', 'closeWizard'],
 ].forEach(([id, fn]) => registreer({ el: document.getElementById(id), sluit: sluitVia(fn) }));

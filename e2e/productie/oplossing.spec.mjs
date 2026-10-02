@@ -1,6 +1,6 @@
-// Productietests (etappe 5b, taak 1, fix-ronde 1): syncOplossingNaarZoho (index.html) zet de uitgevoerde acties van een
+// Productietests (etappe 5b, taak 1, fix-ronde 1): syncOplossingNaarZoho (schermen/rapport-verzenden.js) zet de uitgevoerde acties van een
 // rapport als oplossing op het Zoho-ticket (POST /api/comment, W11). Enige aanroeper: de wizard na "Rapport versturen"
-// (rapport-wizard.js, `window.syncOplossingNaarZoho?.(item.ticket.id, R.acties)`).
+// (rapport-wizard.js, `syncOplossingNaarZoho(item.ticket.id, R.acties)`, een import).
 // Twee wegen: (1) de echte wizard tot en met "✓ Rapport versturen" (de outbox doet daarna zijn eigen verzoeken);
 // (2) directe aanroep van de blootgestelde functie in de pagina voor de randgevallen en foutpaden.
 import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, OPSTART_SCHRIJVEN, settle, metParserfout } from '../productie-hulp.mjs';
@@ -19,7 +19,7 @@ function commentStub(antwoord = { status: 200, json: { ok: true } }) {
   const opnames = [];
   return { opnames, comment: ({ methode, body, query }) => { opnames.push({ methode, body, query: Object.fromEntries(query) }); return typeof antwoord === 'function' ? antwoord({ body }) : antwoord; } };
 }
-const sync = (page, ...args) => page.evaluate((a) => window.syncOplossingNaarZoho(...a), args);
+const sync = (page, ...args) => page.evaluate((a) => kern.rapportVerzenden.syncOplossingNaarZoho(...a), args);
 
 test.describe('syncOplossingNaarZoho: directe aanroep in productiemodus', () => {
   test('POST /api/comment met exact { ticketId, content } en getrimde inhoud; geen toast bij succes', async ({ page, verzoeken }) => {

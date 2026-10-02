@@ -2,6 +2,8 @@
 // Overzicht van gearchiveerde rapporten (interventie + installatie), met filter op type en
 // Excel-export-aanroep (zie excel-export.js). Leest `R`/rapport-records uit de outbox-archivering.
 import { TEST_MODE } from './kern/omgeving.js';
+import { registreerActies } from './kern/ui.js';
+import { voorbeeldRapport } from './schermen/rapport-verzenden.js';
 
 export let _rapportArchief = [];
 // null = archief nog niet geladen deze sessie (bv. rapport gesloten zonder ooit het
@@ -130,7 +132,7 @@ export function renderRapportArchief() {
         ${r.klant ? `<div class="tsub">${escHtml(r.klant)}</div>` : ''}
         ${r.adres ? `<div class="taddr ok">${escHtml(r.adres)}</div>` : ''}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center">
-          ${rd._html ? `<button class="cal-btn" onclick="herOpenRapport(${origIdx})">📄 Openen</button>` : ''}
+          ${rd._html ? `<button class="cal-btn" data-actie="rapport-open" data-arg="${origIdx}">📄 Openen</button>` : ''}
           ${(rapportId && rd._html && r.ticketId) ? `<button class="cal-btn btn-verstuur-rapport" data-rapport-id="${escHtml(rapportId)}" title="${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? 'Al verzonden op ' + escHtml(fmtDate(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur)) + ' — opnieuw versturen?' : ''}">${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? '✓ Verzonden' : '✉️ Verstuur rapport'}</button>` : ''}
           ${rapportId ? `<button class="cal-btn btn-verwijder-rapport" style="color:var(--red);border-color:var(--red)" data-rapport-id="${escHtml(rapportId)}" data-ticket-ref="${escHtml(r.ticketNumber||r.ticketId||'?')}" data-datum="${escHtml(datumStr)}">🗑 Verwijderen</button>` : ''}
         </div>
@@ -211,6 +213,11 @@ export function herOpenRapport(idx) {
   win.document.body.appendChild(frame);
   frame.srcdoc = r.rapportData._html;
 }
+
+// "Openen"-knop op de archiefkaarten: één delegatie op de pagina (data-actie); de knoppen worden bij elke render opnieuw opgebouwd.
+registreerActies(document.body, {
+  'rapport-open': (el) => herOpenRapport(Number(el.dataset.arg)),
+});
 
 window.renderRapportArchief = renderRapportArchief;
 window.laadRapportArchief   = laadRapportArchief;

@@ -338,7 +338,7 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
 
 test.describe('rapport verzenden: vroege controles en ontbrekend ticketnummer', () => {
   // De knop bestaat enkel voor een rapport met id, _html en ticketId; de vroege terugkeer in voorbeeldRapport/verstuurRapport
-  // is dus alleen via een directe aanroep van de (globale) functies te bereiken. Er mag dan geen enkel verzoek volgen.
+  // is dus alleen via een directe aanroep van de functies (kern.rapportVerzenden) te bereiken. Er mag dan geen enkel verzoek volgen.
   const R2 = { id: 'r2', ticketNumber: '1002', datum: '2026-10-05', technieker: 'Tim', rapportData: { _html: HTML } }; // geen ticketId
   const R3 = { id: 'r3', ticketId: 't3', ticketNumber: '1003', datum: '2026-10-05', technieker: 'Tim', rapportData: {} }; // geen _html
   const R4 = { id: 'r4', ticketId: 't4', datum: '2026-10-05', technieker: 'Tim', rapportData: { _html: HTML } }; // geen ticketNumber
@@ -356,7 +356,7 @@ test.describe('rapport verzenden: vroege controles en ontbrekend ticketnummer', 
     test(`${functie}: onbekend rapport, zonder ticketId en zonder _html geven elk hun toast en doen geen verzoek`, async ({ page, verzoeken }) => {
       const z = await startMet(page, verzoeken, [RAPPORT, R2, R3]);
       await expect(page.locator('.btn-verstuur-rapport')).toHaveCount(1); // enkel r1 krijgt een knop
-      const roep = (id) => page.evaluate(([f, i]) => window[f](i), [functie, id]);
+      const roep = (id) => page.evaluate(([f, i]) => kern.rapportVerzenden[f](i), [functie, id]);
       await roep('bestaat-niet');
       await expect(toastTekst(page)).toHaveText('⚠ Rapport niet gevonden');
       await roep('r2');

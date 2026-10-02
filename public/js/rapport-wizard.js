@@ -5,6 +5,8 @@
 import { TEST_MODE } from './kern/omgeving.js';
 import { arrivalData, getPlanningTicket, sluitDetailStil } from './schermen/ticketdetail.js';
 import { closeLocalDet } from './schermen/afspraken.js';
+import { loadFotos, renderFotoGridInto, handleFotoFiles } from './schermen/fotos.js';
+import { syncOplossingNaarZoho } from './schermen/rapport-verzenden.js';
 
 export let _wizTicket = null;
 export let _wizDate   = null;
@@ -1424,7 +1426,7 @@ export async function printRapport() {
       // manueel toegevoegde afspraak) en enkel als er effectief iets ingevuld is. Best-effort,
       // niet afgewacht: mag de rapport-verzending zelf niet vertragen of laten falen.
       if (!item.isLocal && R.acties?.trim()) {
-        window.syncOplossingNaarZoho?.(item.ticket.id, R.acties);
+        syncOplossingNaarZoho(item.ticket.id, R.acties);
       }
 
       // Zelfde best-effort-aanpak als hierboven: wagenvoorraad-aftrek voor gebruikt materiaal
