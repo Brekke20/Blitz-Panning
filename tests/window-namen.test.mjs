@@ -192,7 +192,7 @@ const LEGACY_BRUG_NAMEN = [
 const OPGERUIMDE_WINDOWNAMEN = [
   'loadInventaris', 'renderInventaris', 'updateInventarisBadge', 'resetInvSeenLog', 'flushOutbox', 'renderOutboxBanner',
   'outboxCancelItem', 'outboxRetryNow', 'exportTicketLog', 'setRapportFilter', 'verwijderRapport', 'laadRapportArchief',
-  'herOpenRapport', 'loadPrijzen', 'getPrijsVoorId', 'maakSorteerbaar', 'vensterBeheer', 'herevalueerApparaat',
+  'herOpenRapport', 'loadPrijzen', 'getPrijsVoorId', 'maakSorteerbaar', 'vensterBeheer', 'herevalueerApparaat', '_rapportArchief', '_archiefVersie',
 ];
 
 test('geen kale lezer van een verwijderde LEGACY-BRUG-naam of opgeruimde window-brug in public/js of index.html', () => {

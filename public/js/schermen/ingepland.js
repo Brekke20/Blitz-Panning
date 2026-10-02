@@ -8,7 +8,7 @@ import { escHtml, registreerActies, maakActiveerbaar, strengeAfh } from '../kern
 import { localISO, getWeekStart, fmtDateShort } from '../kern/tijd.js';
 import { ticketsVanTechnieker } from '../kern/selecties.js';
 
-// Afhankelijkheden uit het klassieke script (ingevuld door initIngepland); een vergeten init faalt luid.
+// Afhankelijkheden uit app.js (ingevuld door initIngepland); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('ingepland: initIngepland() is niet aangeroepen'); } });
 
 let gepOffset = 0;

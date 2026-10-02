@@ -6,7 +6,7 @@
 import { toast, escHtml } from '../kern/ui.js';
 import { drukteMagnitude } from './route-tijden.js';
 
-// Afhankelijkheden uit het klassieke script (ingevuld door initKaart).
+// Afhankelijkheden uit app.js (ingevuld door initKaart).
 const nietGeinitialiseerd = () => { throw new Error('route-kaart: initKaart() is niet aangeroepen'); };
 let instellingen = nietGeinitialiseerd;
 let bewaarKaartStijl = nietGeinitialiseerd;

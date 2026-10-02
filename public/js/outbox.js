@@ -5,6 +5,7 @@
 import { TEST_MODE } from './kern/omgeving.js';
 import { meervoud } from './schermen/ticketdetail-logica.js';
 import { escHtml } from './kern/ui.js';
+import { zetArchiefVersie } from './rapport-archief.js';
 
 export const OUTBOX_DB_NAME    = 'blitz-rapport-outbox';
 export const OUTBOX_DB_VERSION = 1;
@@ -315,7 +316,7 @@ export async function attemptOutboxItem(item) {
       // Houd de globale archief-versie synchroon — verwijderRapport()/verstuurRapport()
       // gebruiken _archiefVersie voor hun eigen optimistic-lock en zouden anders een
       // vals-positief conflict kunnen krijgen na een outbox-archivering.
-      if (typeof data.versie === 'number') _archiefVersie = data.versie;
+      if (typeof data.versie === 'number') zetArchiefVersie(data.versie);
     } catch (err) {
       const msg = err.name === 'AbortError' ? 'Geen antwoord van de server (time-out)' : err.message;
       await logOutboxFailure(item, 'archiveren', msg);
@@ -386,7 +387,7 @@ export async function attemptOutboxItem(item) {
       }, 60000, item.id);
       const confirmData = await confirmRes.json().catch(() => ({}));
       if (!confirmRes.ok) throw new Error('Bevestigen van Zoho-upload in archief mislukt');
-      if (typeof confirmData.versie === 'number') _archiefVersie = confirmData.versie;
+      if (typeof confirmData.versie === 'number') zetArchiefVersie(confirmData.versie);
     } catch (err) {
       const msg = err.name === 'AbortError' ? 'Geen antwoord van de server (time-out)' : err.message;
       await logOutboxFailure(item, 'zoho-confirm', msg);

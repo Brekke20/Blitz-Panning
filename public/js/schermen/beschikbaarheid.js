@@ -17,7 +17,7 @@ import { persoonOfNull } from '../kern/selecties.js';
 import { registreerVenster } from '../venster.js';
 import { groupExceptionsForDisplay } from './beschikbaarheid-logica.js';
 
-// Afhankelijkheden uit het klassieke script (ingevuld door initBeschikbaarheid); een vergeten init faalt luid.
+// Afhankelijkheden uit app.js (ingevuld door initBeschikbaarheid); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('beschikbaarheid: initBeschikbaarheid() is niet aangeroepen'); } });
 
 export function initBeschikbaarheid(afhankelijkheden) {

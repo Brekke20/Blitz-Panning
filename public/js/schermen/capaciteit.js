@@ -78,7 +78,7 @@ export function capaciteitsKop({ aantal, cap, duurMinuten, travelMin }) {
 }
 
 // ── Toestandslezers ──────────────────────────────────────────────────────────
-// Afhankelijkheden uit het klassieke script (ingevuld door initCapaciteit); een vergeten init faalt luid.
+// Afhankelijkheden uit app.js (ingevuld door initCapaciteit); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('capaciteit: initCapaciteit() is niet aangeroepen'); } });
 export function initCapaciteit(afhankelijkheden) {
   afh = strengeAfh('capaciteit', afhankelijkheden); // { duurVoor }

@@ -16,7 +16,7 @@ import { renderKalender } from './kalender.js';
 import { renderGepland } from './ingepland.js';
 import { joinNL, DOELGROEP_LABEL } from './ticketdetail-logica.js';
 
-// Afhankelijkheden uit het klassieke script en andere schermen (ingevuld door initAnnuleren); een vergeten init faalt luid.
+// Afhankelijkheden uit app.js en andere schermen (ingevuld door initAnnuleren); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('annuleren: initAnnuleren() is niet aangeroepen'); } });
 
 export function initAnnuleren(afhankelijkheden) {

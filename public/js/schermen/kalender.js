@@ -17,7 +17,7 @@ import { capaciteitsKop, capacityForDay } from './capaciteit.js';
 import { renderRouteList } from './route.js';
 import { getHolidayName } from '../kern/feestdagen.js';
 
-// Afhankelijkheden uit het klassieke script (ingevuld door initKalender); een vergeten init faalt luid.
+// Afhankelijkheden uit app.js (ingevuld door initKalender); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('kalender: initKalender() is niet aangeroepen'); } });
 
 let _kalRO = null, _kalROFrame = 0;

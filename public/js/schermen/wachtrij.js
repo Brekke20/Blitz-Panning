@@ -10,7 +10,7 @@ import { ticketsVanTechnieker } from '../kern/selecties.js';
 import { nextAvailableDay } from './capaciteit.js';
 import { zoekWoorden, filterOpZoek, isOverdue, sorteerWachtrij } from './wachtrij-logica.js';
 
-// Afhankelijkheden uit het klassieke script (ingevuld door initWachtrij); een vergeten init faalt luid.
+// Afhankelijkheden uit app.js (ingevuld door initWachtrij); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('wachtrij: initWachtrij() is niet aangeroepen'); } });
 
 // Wachtrij zoeken en sorteren. De zoektekst wordt niet bewaard; de sorteerkeuze wel.

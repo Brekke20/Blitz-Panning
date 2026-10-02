@@ -178,4 +178,4 @@ export function maakSorteerbaar(lijstEl, opts) {
     },
   };
 }
-
+

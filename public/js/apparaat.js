@@ -59,7 +59,6 @@
     }
   }
 
-  window.herevalueerApparaat = evalueer;
   window.zetWeergave = function (w) {
     // Nog nooit een rol gekozen? Leg eerst de HUIDIGE rol vast: de standaardrol volgt de effectieve
     // soort en zou anders meeflippen bij het wisselen van weergave.

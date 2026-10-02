@@ -40,6 +40,8 @@ import { _rapportArchief, _archiefVersie, zetArchiefVersie, laadRapportArchief, 
 import { refreshOutboxCache, flushOutbox } from './outbox.js';
 import { _invData, loadInventaris, renderInventaris, updateInventarisBadge, resetInvSeenLog } from './inventaris.js';
 import { exportTicketLog } from './excel-export.js';
+import { appConfirm } from './app-dialog.js';
+import { registreerVenster } from './venster.js';
 
 
 // Leesbare toegang tot de toestand: de plaats van de vroegere window-accessors (kern/brug.js) voor allTickets, planning, settings, ...
@@ -72,8 +74,8 @@ function prioLabel(priority) {
 // activeBlockDate → vervangen door _avFormDate (zie beschikbaarheidssysteem)
 // (drag-blokkering verwijderd — vervangen door beschikbaarheidssysteem)
 // Live-detectie van nieuwe Inventaris-log-regels (enkel relevant op de supervisor-weergave,
-// "Alle technici") -- bewust HIER, niet in inventaris.js: enkel de classic-script van deze
-// pagina (nu app.js) leest activeAssigneeFilter (zie CLAUDE.md/module-conventie).
+// "Alle technici") -- bewust HIER, niet in inventaris.js: enkel de app-schil van deze
+// pagina (app.js) leest activeAssigneeFilter (zie CLAUDE.md/module-conventie).
 let _invPollTimer = null;
 
 function startInvPoll() {
@@ -132,6 +134,8 @@ if (!localStorage.getItem('blitz_mig_startloc_v1')) {
 // (readyState is dan 'interactive'), dus de handler wordt, net als vroeger, pas na het parsen en na alle modules uitgevoerd.
 // Het registreren gebeurt onderaan dit bestand, nadat alle `const`/`let` van deze module bestaan.
 function opstart() {
+  // De rapport-wizard sluit via Escape/achtergrond met closeWizard (vraagt zelf een bevestiging); de andere vensters registreren zichzelf in hun init.
+  registreerVenster({ el: document.getElementById('rapport-wizard'), sluit: closeWizard });
   // Klantbeschikbaarheid (schermen/klantbeschikbaarheid.js): laden, bewaren en de sectie in het detail; vóór de schermen die ze lezen.
   // Beschikbaarheid (schermen/beschikbaarheid.js): blokkeringsvenster en instellingen-tab; vóór de schermen die ze openen.
   beschikbaarheid.initBeschikbaarheid({ loadFromCache, saveToCache, sjLog });
@@ -307,8 +311,8 @@ function opstart() {
   pasRolBeperkingToe();
   // De rol/indeling op het toestel bepaalt de coördinatorfuncties en de kalenderweergave:
   // bij een wijziging (rol, roteren, weergave) de tab-restrictie en de schermen herberekenen.
-  if (!window._apparaatListener) {
-    window._apparaatListener = true;
+  if (!_apparaatListener) {
+    _apparaatListener = true;
     window.addEventListener('apparaatwijziging', () => {
       sjLog('apparaatwijziging'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
       metBehoudScroll(() => {
@@ -349,6 +353,7 @@ function zetTopbarHoogte() {
 // herstellen we als het jonger is dan 10 minuten. Nooit een coord-only tab voor een technieker, en niet
 // zolang de rolvraag op een tablet openstaat (dan pas na het antwoord).
 const SCHERMSTAAT_KEY = 'blitz_schermstaat';
+let _rolVraagOpen = false; // wacht de rolvraag nog op een antwoord? (dan stelt planHerstelSchermStaat uit)
 let _schermStaatBewaarOk = false, _herstelUitgesteld = false, _herstelGebruikerActie = false;
 function bewaarSchermStaat() {
   if (!_schermStaatBewaarOk) return; // nog niet hersteld: bewaar de oude staat niet met een lege
@@ -371,7 +376,7 @@ document.addEventListener('visibilitychange', () => {
   document.addEventListener(ev, () => { _herstelGebruikerActie = true; _schermStaatBewaarOk = true; }, { capture: true, passive: true }));
 
 function planHerstelSchermStaat() {
-  if (window._rolVraagOpen) { _herstelUitgesteld = true; return; } // na het antwoord (zie vraagRolOpTablet)
+  if (_rolVraagOpen) { _herstelUitgesteld = true; return; } // na het antwoord (zie vraagRolOpTablet)
   let st = null;
   try { st = JSON.parse(sessionStorage.getItem(SCHERMSTAAT_KEY) || 'null'); } catch { /* negeer */ }
   const klaar = () => { _schermStaatBewaarOk = true; };
@@ -403,16 +408,16 @@ function planHerstelSchermStaat() {
 let _rolVraagGesteld = false;
 function vraagRolOpTablet() {
   const a = window.apparaat;
-  if (_rolVraagGesteld || !a || a.soort !== 'tablet' || a.rolGekozen || !window.appConfirm) return;
+  if (_rolVraagGesteld || !a || a.soort !== 'tablet' || a.rolGekozen) return;
   _rolVraagGesteld = true;
-  window._rolVraagOpen = true;
-  window.appConfirm({
+  _rolVraagOpen = true;
+  appConfirm({
     titel: 'Wie gebruikt deze tablet?',
     tekst: 'Dit kan je later wijzigen in Instellingen → Dit toestel.',
     bevestigLabel: 'Coördinator',
     annuleerLabel: 'Technieker'
   }).then(ok => {
-    window._rolVraagOpen = false;
+    _rolVraagOpen = false;
     _herstelGebruikerActie = false; // de tik op de dialoogknop telt niet als eigen scrollen
     window.zetRol(ok ? 'coordinator' : 'technieker');
     if (_herstelUitgesteld) { _herstelUitgesteld = false; planHerstelSchermStaat(); }
@@ -807,6 +812,7 @@ function setTab(tab) {
   }
 }
 
+let _apparaatListener = false; // de 'apparaatwijziging'-luisteraar is maar één keer gekoppeld
 // NOTE: 'kalender' is de vaste terugvaltab voor de technieker en mag nooit de klasse coord-only dragen.
 function pasRolBeperkingToe() {
   if (window.apparaat?.rol !== 'technieker') return;

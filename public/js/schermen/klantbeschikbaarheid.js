@@ -1,6 +1,6 @@
 // schermen/klantbeschikbaarheid.js — klantbeschikbaarheid per ticket (etappe 5b): laden, bewaren, opruimen en de sectie in het detail.
 // De code is letterlijk uit index.html verhuisd (D12: ook saveKlantBeschikbaarheid en saveKbAll, die naar de backend schrijven met
-// 409-merge en één retry via kern.api.bewaarMetVersie). Enkel de voorvoegsels zijn nieuw: `afh.` voor het klassieke script,
+// 409-merge en één retry via kern.api.bewaarMetVersie). Enkel de voorvoegsels zijn nieuw: `afh.` voor app.js,
 // `toestand.get/set` voor `klantBeschikbaarheid` en `settings`, en imports. `kbVersie` en `kbLocallyDeleted` zijn module-privé.
 // De pure delen (409-samenvoeging, dirty-handtekening, GC-selectie) staan in klantbeschikbaarheid-logica.js.
 // Raakt `document` enkel binnen functies. Alleen `kern/brug.js` wijst `window`-namen toe. De sectie is geen venster en heeft
@@ -12,7 +12,7 @@ import { apiJson, bewaarMetVersie } from '../kern/api.js';
 import { renderTickets } from './wachtrij.js';
 import { voegSamenKb, kbStand, verouderdeKbIds } from './klantbeschikbaarheid-logica.js';
 
-// Afhankelijkheden uit het klassieke script en andere schermen (ingevuld door initKlantbeschikbaarheid); een vergeten init faalt luid.
+// Afhankelijkheden uit app.js en andere schermen (ingevuld door initKlantbeschikbaarheid); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('klantbeschikbaarheid: initKlantbeschikbaarheid() is niet aangeroepen'); } });
 
 export function initKlantbeschikbaarheid(afhankelijkheden) {

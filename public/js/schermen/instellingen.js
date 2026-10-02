@@ -1,6 +1,6 @@
 // schermen/instellingen.js — instellingen, tab "Dit toestel" en de knoppen van het prijsbeheer (etappe 5b).
 // De code is letterlijk uit index.html verhuisd (D12: ook de opslag in localStorage). Enkel de voorvoegsels zijn nieuw:
-// `afh.` voor het klassieke script, `toestand.get` voor `settings` en de actieve technieker (telkens op het moment van
+// `afh.` voor app.js, `toestand.get` voor `settings` en de actieve technieker (telkens op het moment van
 // gebruik gelezen) en imports. `saveSettings` muteert `settings` in-place en roept renderTickets()/renderKalender() zelf aan
 // (geen abonnement op `settings`): dat blijft zo. De weekdagknop muteert `settings.werkdagen` meteen, ook als je daarna op
 // Annuleren drukt (HUIDIG GEDRAG, vastgelegd in e2e). De pure validatie staat in instellingen-logica.js.
@@ -11,10 +11,11 @@ import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, zetPressed, registreerActies, registreerWijzigActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { registreerVenster } from '../venster.js';
+import { appConfirm } from '../app-dialog.js';
 import { renderBeschikbaarhedenTab } from './beschikbaarheid.js';
 import { valideerInstellingen, settingsKey } from './instellingen-logica.js';
 
-// Afhankelijkheden uit het klassieke script en prijzen.js (ingevuld door initInstellingen); een vergeten init faalt luid.
+// Afhankelijkheden uit app.js en prijzen.js (ingevuld door initInstellingen); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('instellingen: initInstellingen() is niet aangeroepen'); } });
 
 export function initInstellingen(afhankelijkheden) {
@@ -99,7 +100,7 @@ const SOORT_LABEL = { gsm: 'Gsm', tablet: 'Tablet', computer: 'Computer' };
 // Testmodus: kopie van de echte gegevens opnieuw maken (testwijzigingen gaan verloren)
 async function resetTestdata() {
   if (!TEST_MODE) return;
-  const ok = await window.appConfirm({
+  const ok = await appConfirm({
     titel: 'Testgegevens opnieuw kopiëren?',
     tekst: 'Alle testwijzigingen gaan verloren. De echte gegevens worden niet aangeraakt.',
     bevestigLabel: 'Opnieuw kopiëren'

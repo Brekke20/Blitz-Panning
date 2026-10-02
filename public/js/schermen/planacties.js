@@ -1,12 +1,12 @@
 // schermen/planacties.js — inplannen, uitplannen en "Plan deze week" (etappe 5b).
 // De code is letterlijk uit index.html verhuisd (W11/D12: addTicketToDate, removeTicketFromDate, bevestigUitplannen en autoPlan
 // schrijven de planning naar Zoho via /api/plan; payloads, TEST_MODE-poorten, rollbacks, toasts en de volgorde van de verzoeken
-// zijn ongewijzigd). Enkel de voorvoegsels zijn nieuw: `afh.` voor de andere schermen en het klassieke script, `toestand.get/set/raak`
+// zijn ongewijzigd). Enkel de voorvoegsels zijn nieuw: `afh.` voor de andere schermen en app.js, `toestand.get/set/raak`
 // voor de gedeelde gegevens (altijd live gelezen, zoals de globale getters vroeger), `selecties.` en imports.
 // inFlightTickets is module-privé (inFlight(id) is de leesingang). Het gepinde HUIDIG GEDRAG (technische parser-foutmelding bij een
 // 502 met HTML) blijft bewust ongewijzigd. Raakt `document` enkel binnen functies. Alleen `kern/brug.js` wijst `window`-namen toe.
 // De knoppen lopen via data-actie-delegatie; de resultaat-overlay sluit via registreerBackdrop. `window.bouwDagen`,
-// `window.planWeek` (planner.js) en `window.appConfirm` blijven zoals ze waren.
+// en `window.planWeek` (planner.js) blijft zoals het was.
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
@@ -14,6 +14,7 @@ import { localISO, getWeekStart, fmtDateShort } from '../kern/tijd.js';
 import { apiVerzoek } from '../kern/api.js';
 import * as selecties from '../kern/selecties.js';
 import { registreerVenster } from '../venster.js';
+import { appConfirm } from '../app-dialog.js';
 import { renderTickets } from './wachtrij.js';
 import { renderKalender, weekOffset } from './kalender.js';
 import { renderGepland } from './ingepland.js';
@@ -21,7 +22,7 @@ import { leesLaatsteStart } from './instellingen.js';
 import { heeftLopendVoorstel } from './ticketdetail-logica.js';
 import { getHolidayName } from '../kern/feestdagen.js';
 
-// Afhankelijkheden uit het klassieke script en andere schermen (ingevuld door initPlanacties); een vergeten init faalt luid.
+// Afhankelijkheden uit app.js en andere schermen (ingevuld door initPlanacties); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('planacties: initPlanacties() is niet aangeroepen'); } });
 
 export function initPlanacties(afhankelijkheden) {
@@ -191,18 +192,13 @@ export async function bevestigUitplannen(ticketId, date) {
   if (t && heeftLopendVoorstel(t, toestand.get('voorstelStatus'))) {
     const titelA = 'Ticket #' + nr + ': afspraak annuleren?';
     const tekstA = 'Voor dit ticket is al een voorstel naar de klant verstuurd. Wil je de afspraak annuleren? Je kiest daarna een reden en of de klant een mail krijgt.';
-    const okA = typeof window.appConfirm === 'function'
-      ? await window.appConfirm({ titel: titelA, tekst: tekstA, bevestigLabel: 'Afspraak annuleren', annuleerLabel: 'Terug', gevaar: true })
-      : confirm(titelA + '\n\n' + tekstA);
+    const okA = await appConfirm({ titel: titelA, tekst: tekstA, bevestigLabel: 'Afspraak annuleren', annuleerLabel: 'Terug', gevaar: true });
     if (okA) await afh.openAnnuleerVenster(ticketId, date);
     return false; // er is nog niets uitgepland
   }
   const titel = 'Ticket #' + nr + ' uit de planning halen?';
   const tekst = 'Het ticket gaat terug naar de wachtrij.';
-  // Terugval op native confirm als app-dialog.js niet geladen is
-  const ok = typeof window.appConfirm === 'function'
-    ? await window.appConfirm({ titel, tekst, bevestigLabel: 'Uit planning halen', gevaar: true })
-    : confirm(titel + '\n\n' + tekst);
+  const ok = await appConfirm({ titel, tekst, bevestigLabel: 'Uit planning halen', gevaar: true });
   if (ok) await removeTicketFromDate(ticketId, date);
   return ok;
 }

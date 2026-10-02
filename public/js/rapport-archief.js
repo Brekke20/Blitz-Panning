@@ -35,7 +35,7 @@ export async function laadRapportArchief() {
     sjLog('laadRapportArchief:render'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
     const render = () => { renderRapportArchief(); renderKalender(); };
     // Scrollpositie behouden (her-render tijdens sync); metBehoudScroll komt uit kern/ui.js.
-    if (typeof metBehoudScroll === 'function') metBehoudScroll(render); else render();
+    metBehoudScroll(render);
   } catch (err) {
     body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">✕ Laden mislukt: ${err.message}</div>`;
   }
@@ -226,27 +226,4 @@ registreerActies(document.body, {
 });
 
 window.renderRapportArchief = renderRapportArchief;
-
-// _rapportArchief wordt van BUITEN dit bestand rechtstreeks gelezen (niet enkel via de functies
-// hierboven): de kalenderweergave in index.html (herOpenRapport(_rapportArchief.indexOf(entry)),
-// _rapportArchief.filter(...) voor dagoverzichten) en exportTicketLog (Excel-export, zit in
-// public/js/excel-export.js) lezen dit array rechtstreeks. laadRapportArchief() vervangt het array bovendien
-// telkens door een NIEUW array (geen in-place mutatie), dus een statische
-// `window._rapportArchief = _rapportArchief`-toewijzing zou na de eerste herlaad alweer verouderd
-// zijn — vandaar een live getter, net als bij _outboxItems in outbox.js (Task 1). Niets buiten dit
-// bestand herschrijft het array zelf (enkel lezen), dus enkel een getter is nodig.
-Object.defineProperty(window, '_rapportArchief', {
-  get: () => _rapportArchief,
-  configurable: true,
-});
-
-// _archiefVersie wordt van BUITEN dit bestand gebruikt (o.a. door de rapport-wizard-module bij het
-// versturen/archiveren, en door outbox.js's attemptOutboxItem) — net als bij PRIJZEN in Task 4 is
-// dit een `let`, dus een statische `window._archiefVersie = _archiefVersie` zou een momentopname
-// vastzetten. Gebruik in plaats daarvan dezelfde live-accessor die Task 1 al gebruikte:
-Object.defineProperty(window, '_archiefVersie', {
-  get: () => _archiefVersie,
-  set: (v) => { _archiefVersie = v; },
-  configurable: true,
-});
 

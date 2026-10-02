@@ -15,7 +15,7 @@ import { renderTickets } from './wachtrij.js';
 import { renderKalender } from './kalender.js';
 import { tijdslotVoor, roundToNextQuarterStr, cleanTicketSubject, joinNL, DOELGROEP_LABEL } from './ticketdetail-logica.js';
 
-// Afhankelijkheden uit het klassieke script en andere schermen (ingevuld door initVoorstel); een vergeten init faalt luid.
+// Afhankelijkheden uit app.js en andere schermen (ingevuld door initVoorstel); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('voorstel: initVoorstel() is niet aangeroepen'); } });
 
 let _proposalOntvangers = []; // ontvangerslijst berekend door openProposal(), gebruikt door updateProposalPreview()/sendProposal()

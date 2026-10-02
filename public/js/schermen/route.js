@@ -15,7 +15,7 @@ import {
 } from './route-tijden.js';
 import { updateKaart, wisKaart, herstelWegafsluitingToast, zoomOpGekendeStops } from './route-kaart.js';
 
-// Afhankelijkheden uit het klassieke script (ingevuld door initRoute); een vergeten initRoute faalt luid.
+// Afhankelijkheden uit app.js (ingevuld door initRoute); een vergeten initRoute faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('route: initRoute() is niet aangeroepen'); } });
 export function initRoute(afhankelijkheden) {
   afh = strengeAfh('route', afhankelijkheden);

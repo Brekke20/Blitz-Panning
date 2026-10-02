@@ -1,6 +1,6 @@
 // schermen/afspraken.js — eigen afspraken (etappe 5b): laden, bewaren, het manuele formulier, het lokale detail en de import.
 // De code is letterlijk uit index.html verhuisd (D12: ook saveAfspraken, die naar de backend schrijft met 409-merge en één retry
-// via kern.api.bewaarMetVersie). Enkel de voorvoegsels zijn nieuw: `afh.` voor het klassieke script en andere schermen,
+// via kern.api.bewaarMetVersie). Enkel de voorvoegsels zijn nieuw: `afh.` voor app.js en andere schermen,
 // `toestand.get/set/raak` voor localEvents, tickets en de actieve technieker (telkens op het moment van gebruik gelezen, nooit
 // over een await heen bewaard), en imports. `localEventsVersie`, `_pendingImport` en `_localDetEvent` zijn module-privé.
 // De pure delen (matchRespToPerson, technieklijst, de reviewrijen en de duplicaatfilter) staan in afspraken-logica.js.
@@ -18,7 +18,7 @@ import { matchRespToPerson, technieklijst, bouwImportRijen, nieuweImportItems } 
 
 export { matchRespToPerson };
 
-// Afhankelijkheden uit het klassieke script en andere schermen (ingevuld door initAfspraken); een vergeten init faalt luid.
+// Afhankelijkheden uit app.js en andere schermen (ingevuld door initAfspraken); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('afspraken: initAfspraken() is niet aangeroepen'); } });
 
 export function initAfspraken(afhankelijkheden) {

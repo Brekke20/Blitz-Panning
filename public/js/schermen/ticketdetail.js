@@ -16,7 +16,7 @@ import { renderKalender } from './kalender.js';
 import { tijdslotVoor, telNummer, roundToNextQuarterStr } from './ticketdetail-logica.js';
 import { getHolidayName } from '../kern/feestdagen.js';
 
-// Afhankelijkheden uit het klassieke script (ingevuld door initTicketdetail); een vergeten init faalt luid.
+// Afhankelijkheden uit app.js (ingevuld door initTicketdetail); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('ticketdetail: initTicketdetail() is niet aangeroepen'); } });
 
 // Schermtoestand (voorheen globals in index.html).
@@ -27,7 +27,7 @@ let _kbIsDirty = null;
 // Aankomsttijden (localStorage 'blitz_arrivals'): in-place bijgewerkt, nooit herbind.
 export const arrivalData = JSON.parse(localStorage.getItem('blitz_arrivals') || '{}');
 
-// Accessors voor klassieke code (voorstel, annuleren, KB-sectie) tot hun eigen taak.
+// Accessors voor andere modules (voorstel, annuleren, KB-sectie) tot hun eigen taak.
 export function actiefTicket() { return activeTicket; }
 export function zetActiefTicket(t) { activeTicket = t; }
 export function detailDatum() { return _detailDate; }
