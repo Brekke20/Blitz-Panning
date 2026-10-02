@@ -230,7 +230,7 @@ export async function sendProposal() {
         appointmentWindow: apptWindowSend,
       }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({ error: 'HTTP ' + res.status })); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>'
     if (data.error) throw new Error(data.error);
 
     // Eén atomische POST met alle doelgroepen die een mail kregen; reset vervangt de oude entry.

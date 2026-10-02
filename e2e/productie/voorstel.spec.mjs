@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, OPSTART_SCHRIJVEN, settle, openKalender, metParserfout } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, OPSTART_SCHRIJVEN, settle, openKalender } from '../productie-hulp.mjs';
 
 const MAP = path.dirname(url.fileURLToPath(import.meta.url));
 const TICKETS = JSON.parse(fs.readFileSync(path.join(MAP, '..', 'fixtures', 'tickets.json'), 'utf8'));
@@ -293,16 +293,17 @@ test.describe('voorstel: randgevallen', () => {
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
   });
 
-  test('502 met HTML-body (gateway-timeout): toast met de technische parserfout, niets gewijzigd', async ({ page, verzoeken }) => {
+  test('502 met HTML-body (gateway-timeout): toast HTTP 502, niets gewijzigd', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { paden: ['/api/propose'], httpFouten: [{ pad: '/api/propose', status: 502 }] });
     z.zetAntwoord('propose', { status: 502, raw: '<html><body>Bad Gateway</body></html>' });
     await openVoorstel(page);
     await vulIn(page, '2026-10-08', '10:00');
     await verstuurKnop(page).click();
 
-    // HUIDIG GEDRAG (bug?): technische JSON-parserfout in de toast; bovendien kan de mail al verstuurd zijn
+    // HUIDIG GEDRAG (bug?): bovendien kan de mail al verstuurd zijn
     // (gateway-timeout tijdens de Zoho-aanroepen) zonder dat de gebruiker dat te horen krijgt.
-    await expect(toastTekst(page)).toHaveText(metParserfout('✕ '));
+    // W5-fix: was HUIDIG GEDRAG (parserfout)
+    await expect(toastTekst(page)).toHaveText('✕ HTTP 502');
     await expect(verstuurKnop(page)).toHaveText('✉️ Verstuur voorstel');
     expect(z.opnames.propose).toEqual([{ methode: 'POST', body: PROPOSE_BODY, query: {} }]);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, PROPOSE]);

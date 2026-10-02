@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, opslagStub, OPSTART_SCHRIJVEN, settle, openKalender, metParserfout } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, opslagStub, OPSTART_SCHRIJVEN, settle, openKalender } from '../productie-hulp.mjs';
 
 const MAP = path.dirname(url.fileURLToPath(import.meta.url));
 const START = 'POST /api/planning-sinds';
@@ -136,15 +136,15 @@ test.describe('+ in de wachtrij (addTicketToDate via quickAdd)', () => {
     await expect(page.locator('#cnt-tickets')).toHaveText('1');
   });
 
-  // Bij een trage Zoho geeft de Netlify-gateway 502 met een HTML-body: res.json() gooit en de toast toont de
-  // technische SyntaxError-tekst. Gemeten en vastgelegd; de rollback gebeurt wel.
-  test('502 met HTML-body: rollback, toast met de technische parserfout', async ({ page, verzoeken }) => {
+  // Bij een trage Zoho geeft de Netlify-gateway 502 met een HTML-body: res.json() gooit en de toast toont
+  // 'HTTP 502'. De rollback gebeurt.
+  test('502 met HTML-body: rollback, toast met HTTP 502', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { httpFouten: [{ pad: '/api/plan', status: 502 }] });
     z.zetAntwoord('plan', { status: 502, raw: '<html><body>Bad Gateway</body></html>' });
     await wachtrijKaart(page, 1001).locator('.btn-add').click();
 
-    // HUIDIG GEDRAG (bug?): de gebruiker ziet een technische JSON-parserfout in plaats van "Zoho antwoordt niet".
-    await expect(toastTekst(page)).toHaveText(metParserfout('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ', ')'));
+    // W5-fix: was HUIDIG GEDRAG (parserfout)
+    await expect(toastTekst(page)).toHaveText('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: HTTP 502)');
     expect(z.opnames.plan).toHaveLength(1);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
     await expect(wachtrijKaart(page, 1001)).toHaveCount(1);
@@ -450,8 +450,8 @@ test.describe('📅 toewijzen (saveToewijzen)', () => {
     expect(await page.evaluate(() => kern.toestand.get('allPending').find(t => t.id === 'p2').interventieDatum)).toBeNull();
   });
 
-  // Zelfde gateway-fout voor plan-datum: HTML-body, res.json() gooit, de toast toont de technische tekst.
-  test('502 met HTML-body: toast met de technische parserfout, geen lokale wijziging', async ({ page, verzoeken }) => {
+  // Zelfde gateway-fout voor plan-datum: HTML-body, res.json() gooit, de toast toont 'HTTP 502'.
+  test('502 met HTML-body: toast met HTTP 502, geen lokale wijziging', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { paden: ['/api/plan-datum'], httpFouten: [{ pad: '/api/plan-datum', status: 502 }] });
     z.zetAntwoord('plan-datum', { status: 502, raw: '<html><body>Bad Gateway</body></html>' });
     const kaart = await openRij(page);
@@ -459,8 +459,8 @@ test.describe('📅 toewijzen (saveToewijzen)', () => {
     await kaart.getByLabel('Tijd toewijzen').fill('13:15');
     await kaart.getByRole('button', { name: '✓ Opslaan' }).click();
 
-    // HUIDIG GEDRAG (bug?): technische JSON-parserfout in de toast (zonder "Zoho"-uitleg).
-    await expect(toastTekst(page)).toHaveText(metParserfout('✕ '));
+    // W5-fix: was HUIDIG GEDRAG (parserfout)
+    await expect(toastTekst(page)).toHaveText('✕ HTTP 502');
     expect(z.opnames['plan-datum']).toHaveLength(1);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan-datum']);
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
