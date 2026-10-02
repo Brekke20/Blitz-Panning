@@ -765,7 +765,7 @@ export async function applyRouteOrder(date, orderedEntries) {
         item.ticket.interventieDatum = utcInterventieDatum;
       } catch (err) {
         toast('✕ Volgorde bewaren mislukt voor #' + item.ticket.number, 5000);
-        await afh.loadTickets({ stilleToast: true, zonderCache: true }); // W5-fix (N8): nooit de bewaarde kopie terugzetten; anders overschrijft de telmelding de foutmelding meteen
+        await afh.loadTickets({ stilleToast: true, zonderCache: true, negeerSchrijfstand: true }); // W5-fix (N8) (negeerSchrijfstand: deze herlading is de enige schrijver terwijl de route bezig is): nooit de bewaarde kopie terugzetten; anders overschrijft de telmelding de foutmelding meteen
         return;
       }
     }

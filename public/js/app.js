@@ -210,7 +210,7 @@ function opstart() {
   });
   // Planacties (schermen/planacties.js): inplannen, uitplannen en "Plan deze week"; de Zoho-schrijfpaden. Vóór koppelRenders().
   planacties.initPlanacties({
-    openAnnuleerVenster: annuleren.openAnnuleerVenster, loadTickets: (...a) => loadTickets(...a),
+    openAnnuleerVenster: annuleren.openAnnuleerVenster, loadTickets: (...a) => loadTickets(...a), routeOrderBezig: () => route.routeOrderBezig(),
     kbBlocked: klantbeschikbaarheid.kbBlocked, kbFor: klantbeschikbaarheid.kbFor, kbPreferred: klantbeschikbaarheid.kbPreferred, kbPreferredTime: klantbeschikbaarheid.kbPreferredTime,
     geocacheLookup, geocacheStore, duurVoor, calcWerktijdMin: (...a) => calcWerktijdMin(...a),
     renderRouteList: (...a) => renderRouteList(...a), updateRouteBtns: (...a) => updateRouteBtns(...a),
@@ -468,7 +468,12 @@ function laadPlanningSinds() {
 
 function applyTicketsData(data, opties = {}) {
   sjLog('applyTicketsData'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
-  return metBehoudScroll(() => _applyTicketsData(data, opties));
+  _eigenToepassing = true; // eigen toepassing telt niet als lokale wijziging (zie _lokaleWijziging)
+  try {
+    return metBehoudScroll(() => _applyTicketsData(data, opties));
+  } finally {
+    queueMicrotask(() => { _eigenToepassing = false; }); // ná de gebundelde verwittiging van de abonnees
+  }
 }
 function _applyTicketsData(data, { reconcile = false } = {}) {
   // Alle schrijfacties in één transactie: de abonnementen (koppelRenders) spoelen synchroon aan het
@@ -544,9 +549,20 @@ function _applyTicketsData(data, { reconcile = false } = {}) {
 // zonderCache: de bewaarde kopie wordt niet toegepast (een resync na een onzeker resultaat mag niets verouderds terugzetten).
 // De kopie geldt enkel voor de allereerste lading (offline start): een poll of "Vernieuwen" zet nooit verouderde data terug (N8).
 let _eersteLading = true;
-async function loadTickets({ stilleToast = false, stil = false, zonderCache = false } = {}) {
+// Bescherming tegen een verouderd antwoord (N7): een herlading mag geen lokale wijziging overschrijven die ná haar start begon
+// (plan-aanroep, route-volgorde, wijziging aan planning/tickets), en een oudere GET nooit het resultaat van een latere.
+let _laadVolgnr = 0;
+let _laatsteToegepast = 0;
+let _lokaleWijziging = 0;
+let _eigenToepassing = false;
+async function loadTickets({ stilleToast = false, stil = false, zonderCache = false, negeerSchrijfstand = false } = {}) {
+  const eersteLading = _eersteLading;
   const gebruikCache = _eersteLading && !zonderCache;
   _eersteLading = false;
+  const mijnNr = ++_laadVolgnr;
+  const startStand = { wijziging: _lokaleWijziging, ...planacties.schrijfStand() };
+  const legeTekstEl = document.getElementById('empty-tickets');
+  const vorigeLegeTekst = legeTekstEl.textContent;
   if (!stil) document.getElementById('empty-tickets').textContent = 'Laden...';
   if (!TEST_MODE && gebruikCache) {
     const cached = loadFromCache('blitz_tickets_cache');
@@ -564,6 +580,17 @@ async function loadTickets({ stilleToast = false, stil = false, zonderCache = fa
       if (data.error) throw new Error(data.error);
     }
 
+    if (!TEST_MODE && !eersteLading) {
+      // Live lezen na de await.
+      const nu = planacties.schrijfStand();
+      const achterhaald = !negeerSchrijfstand && (startStand.bezig || nu.bezig || nu.teller !== startStand.teller || _lokaleWijziging !== startStand.wijziging);
+      if (achterhaald || mijnNr < _laatsteToegepast) {
+        if (!stil || legeTekstEl.textContent === 'Laden...') legeTekstEl.textContent = vorigeLegeTekst;
+        if (achterhaald && mijnNr >= _laatsteToegepast) planacties.planResync(); // opnieuw proberen zodra het rustig is
+        return;
+      }
+    }
+    _laatsteToegepast = mijnNr;
     if (!TEST_MODE) saveToCache('blitz_tickets_cache', data);
     applyTicketsData(data, { reconcile: true });
     laadPlanningSinds();
@@ -680,6 +707,7 @@ function koppelRenders() {
   st.zetOmhulling(draai => metBehoudScroll(draai));
   const planDatum = () => document.getElementById('plan-date')?.value || localISO(new Date());
   st.abonneer(['activeAssigneeFilter'], () => updatePersonHeader());
+  st.abonneer(['planning', 'allTickets', 'allPending', 'allGepland'], () => { if (!_eigenToepassing) _lokaleWijziging++; });
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => buildPersonSelector());
   st.abonneer(['allTickets', 'activeAssigneeFilter'], () => wachtrij.renderTickets());
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'localEvents', 'avExceptions', 'activeAssigneeFilter'], () => kalender.renderKalender());

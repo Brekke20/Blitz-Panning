@@ -63,8 +63,12 @@ export async function loadAvailability({ zonderCache = false } = {}) {
       // renderKalender volgt via koppelRenders (omhuld door metBehoudScroll)
     }
   }
+  const startSchrijfNr = avSchrijfNr, startBezig = avSchrijvenBezig;
   try {
     const data = await apiJson(AV_API);
+    // Een resync (zonderCache) gooit een antwoord weg dat door een schrijfactie is achterhaald: een late GET na een geslaagde PUT
+    // zou anders een item uit de lokale stand halen, en de volgende volledige PUT zou die verwijdering naar de server schrijven.
+    if (zonderCache && (startBezig > 0 || avSchrijvenBezig > 0 || avSchrijfNr !== startSchrijfNr)) return false;
     toestand.set('avExceptions', data.exceptions || []);
     avVersie     = data.versie     || 0;
     // Live lezen na de await: de toestand kan sinds de fetch gewijzigd zijn.
@@ -81,7 +85,20 @@ export async function loadAvailability({ zonderCache = false } = {}) {
   }
 }
 
+// De teller en de teller van lopende schrijfacties dienen enkel de bescherming van de resync in loadAvailability.
+let avSchrijfNr = 0;
+let avSchrijvenBezig = 0;
 export async function saveAvailability() {
+  avSchrijfNr++;
+  avSchrijvenBezig++;
+  try {
+    return await bewaarAvailability();
+  } finally {
+    avSchrijvenBezig--;
+  }
+}
+
+async function bewaarAvailability() {
   try {
     const res = await apiVerzoek(AV_API, { methode: 'PUT', body: { versie: avVersie, exceptions: toestand.get('avExceptions') } });
     if (res.status === 409 && res.data?.data) {
@@ -104,11 +121,25 @@ export async function saveAvailability() {
   }
 }
 
+// Hertekent een container en behoudt wat de gebruiker intussen al invulde (op id), zodat een half getypte reden blijft staan.
+function hertekenMetBehoudVanInvoer(el, render) {
+  const bewaard = new Map();
+  el?.querySelectorAll('input[id], textarea[id], select[id]').forEach(v => bewaard.set(v.id, v.type === 'checkbox' || v.type === 'radio' ? v.checked : v.value));
+  render();
+  bewaard.forEach((waarde, id) => {
+    const v = el.querySelector('#' + CSS.escape(id));
+    if (!v) return;
+    if (typeof waarde === 'boolean') v.checked = waarde; else if (v.value !== waarde) v.value = waarde;
+  });
+}
+
 async function resyncNaOnzeker() {
-  await loadAvailability({ zonderCache: true });
+  const toegepast = await loadAvailability({ zonderCache: true });
+  if (toegepast === false) return; // achterhaald antwoord weggegooid: de lokale stand blijft
   // Live lezen na de await: de open formulieren tonen de nieuwe stand.
-  if (document.getElementById('block-overlay')?.classList.contains('open')) renderBlockModal();
-  renderBeschikbaarhedenTab();
+  if (document.getElementById('block-overlay')?.classList.contains('open')) hertekenMetBehoudVanInvoer(document.getElementById('block-modal-body'), renderBlockModal);
+  const tab = document.getElementById('set-tab-beschikbaarheden');
+  if (tab) hertekenMetBehoudVanInvoer(tab, renderBeschikbaarhedenTab);
 }
 
 // Status: welke knop actief is in het formulier

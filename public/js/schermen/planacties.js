@@ -16,7 +16,6 @@ import * as selecties from '../kern/selecties.js';
 import { registreerVenster } from '../venster.js';
 import { appConfirm } from '../app-dialog.js';
 import { renderTickets } from './wachtrij.js';
-import { routeOrderBezig } from './route.js';
 import { renderKalender, weekOffset } from './kalender.js';
 import { renderGepland } from './ingepland.js';
 import { leesLaatsteStart } from './instellingen.js';
@@ -42,25 +41,37 @@ export function inFlight(id) { return inFlightTickets.has(id); }
 
 // Na een onzeker resultaat (time-out, netwerkfout, 502/503/504) weet de app niet of Zoho de wijziging toch doorvoerde:
 // de rollback blijft, daarna volgt ÉÉN gecoalesceerde herlading van de tickets (zonder bewaarde kopie, zonder tweede
-// foutmelding). Ze wacht tot er geen plan-aanroep meer openstaat en de routevolgorde niet bezig is (anders zou ze een
-// nieuwere lokale wijziging overschrijven), hoogstens 3 keer opnieuw proberen. Meerdere fouten kort na elkaar (bv. "Plan deze week")
-// geven samen één herlading.
+// foutmelding). De vraag blijft openstaan (`_resyncOpen`) zolang er een plan-aanroep openstaat of de routevolgorde bezig is
+// en wordt afgehandeld zodra de laatste plan-aanroep klaar is (inFlightKlaar); een lange reeks laat ze dus niet vallen.
+// Veiligheidsgrens: na RESYNC_MAX_MS wordt een vraag die nooit aan bod kwam losgelaten. Meerdere fouten geven samen één herlading.
+// loadTickets zelf gooit een antwoord weg dat door een latere lokale schrijfactie achterhaald is en vraagt dan opnieuw (zie schrijfStand).
 const RESYNC_WACHT_MS = 300;
-const RESYNC_MAX_HERHALINGEN = 3;
+const RESYNC_MAX_MS = 60000;
 let _resyncTimer = null;
-function plantResync(herhaling) {
-  _resyncTimer = setTimeout(() => {
-    _resyncTimer = null;
-    if (inFlightTickets.size > 0 || routeOrderBezig()) {
-      if (herhaling < RESYNC_MAX_HERHALINGEN) plantResync(herhaling + 1);
-      return;
-    }
-    afh.loadTickets({ stil: true, stilleToast: true, zonderCache: true }); // stilleToast: de telmelding mag de foutmelding van de oproeper niet overschrijven
-  }, RESYNC_WACHT_MS);
+let _resyncOpen = false;
+let _resyncSinds = 0;
+let _schrijfTeller = 0; // telt elke gestarte plan-aanroep: een herlading die daarvoor begon is achterhaald
+export function schrijfStand() { return { teller: _schrijfTeller, bezig: inFlightTickets.size > 0 || afh.routeOrderBezig() }; }
+function plantResyncTimer() {
+  if (_resyncTimer) return; // al ingepland: coalesceren
+  _resyncTimer = setTimeout(vuurResync, RESYNC_WACHT_MS);
+}
+function vuurResync() {
+  _resyncTimer = null;
+  if (!_resyncOpen) return;
+  if (Date.now() - _resyncSinds > RESYNC_MAX_MS) { _resyncOpen = false; return; } // veiligheidsgrens
+  if (inFlightTickets.size > 0) return; // inFlightKlaar plant opnieuw zodra de laatste klaar is
+  if (afh.routeOrderBezig()) { plantResyncTimer(); return; } // de route meldt niets: blijf kort peilen
+  _resyncOpen = false;
+  afh.loadTickets({ stil: true, stilleToast: true, zonderCache: true }); // stilleToast: de telmelding mag de foutmelding van de oproeper niet overschrijven
+}
+function inFlightKlaar(ticketId) {
+  inFlightTickets.delete(ticketId);
+  if (_resyncOpen && inFlightTickets.size === 0) plantResyncTimer();
 }
 export function planResync() {
-  if (_resyncTimer) return; // al ingepland: coalesceren
-  plantResync(0);
+  if (!_resyncOpen) { _resyncOpen = true; _resyncSinds = Date.now(); }
+  plantResyncTimer();
 }
 export function vraagResyncNaOnzeker(err) {
   if (leesFout(err).onzeker) planResync();
@@ -94,6 +105,7 @@ export async function addTicketToDate(ticketId, date) {
   // Bewust geen raak('planning') hier: de route zou tijdens de Zoho-aanroep gewist worden en bij een mislukking
   // niet terugkomen. Het succespad (raak hieronder + allTickets) en de rollback raken planning zelf.
   inFlightTickets.add(ticketId);
+  _schrijfTeller++;
   renderTickets();
   renderKalender();
 
@@ -135,7 +147,7 @@ export async function addTicketToDate(ticketId, date) {
     document.getElementById('cnt-tickets').textContent = toestand.get('allTickets').length;
   }
 
-  inFlightTickets.delete(ticketId);
+  inFlightKlaar(ticketId);
   // Gelukt: allTickets is hierboven toegewezen, dus koppelRenders hertekent wachtrij, kalender en route.
   // Mislukt: planning is teruggedraaid (raak in de rollback); wachtrij en kalender hertekenen hier zelf (etappe 4),
   // de route-render staat er naast het abonnement (R7).
@@ -160,6 +172,7 @@ export async function removeTicketFromDate(ticketId, date) {
   if (!toestand.get('planning')[date].length) delete toestand.get('planning')[date];
   toestand.raak('planning'); // koppelRenders hertekent de route (lijst, kaart, knoppen)
   inFlightTickets.add(ticketId);
+  _schrijfTeller++;
   renderTickets();
   renderKalender();
 
@@ -201,7 +214,7 @@ export async function removeTicketFromDate(ticketId, date) {
     document.getElementById('cnt-tickets').textContent = toestand.get('allTickets').length;
   }
 
-  inFlightTickets.delete(ticketId);
+  inFlightKlaar(ticketId);
   // Gelukt: allTickets/allPending/allGepland zijn hierboven bijgewerkt (I3: ook de "Ingepland"-lijst
   // en cnt-gepland), dus koppelRenders hertekent wachtrij, kalender en ingepland (plus route/inventaris).
   // Mislukt: planning is teruggedraaid (raak in de rollback, dus de route volgt); wachtrij, kalender en ingepland

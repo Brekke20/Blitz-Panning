@@ -16,7 +16,10 @@ const dag = (page, datum) => page.locator(`.day-col[data-date="${datum}"]`);
 
 // De nepklok loopt standaard door in echte tijd; voor tests die tussen de fout en de herlading (300 ms) iets controleren staat hij stil:
 // vanaf nu loopt hij enkel nog via page.clock.runFor (settle, settleZonderOpenstaand).
-const pauzeerKlok = (page) => page.clock.pauseAt(new Date(Date.parse(VASTE_NU) + 5000));
+const pauzeerKlok = async (page) => { // relatief aan de huidige nepklok, dus ook robuust bij een trage opstart
+  const nu = await page.evaluate(() => Date.now());
+  await page.clock.pauseAt(new Date(nu + 2000));
+};
 
 // tickets-stub met een omschakelbaar gedrag; `aantal` telt de GET-aanroepen (de opstart is de eerste).
 function ticketsStub({ gepland = false, na } = {}) {
@@ -506,5 +509,176 @@ test.describe('verbinding: spookschrijf bij afspraken en klantbeschikbaarheid', 
     await expect(toastTekst(page)).toContainText('Opslaan is niet gelukt');
     await settle(page);
     expect(verzoeken.van('/api/availability', 'GET')).toHaveLength(1); // alleen de opstart
+  });
+});
+
+// ── Fix-ronde 1: de resync gaat niet verloren en overschrijft geen nieuwere lokale stand ───────────────────────
+test.describe('verbinding: resync is betrouwbaar (fix-ronde 1)', () => {
+  const poort = () => { let open; const p = new Promise(r => { open = r; }); return { p, open }; };
+  const naarPending = (data, id, datum) => {
+    const t = data.tickets.find(x => x.id === id);
+    data.tickets = data.tickets.filter(x => x.id !== id);
+    data.pendingTickets.push({ ...t, status: 'Wachten op bevestiging planning', interventieDatum: datum });
+  };
+
+  test('een vroege afgebroken plan en daarna een lange reeks trage plan-aanroepen: precies één herlading na de reeks', async ({ page, verzoeken }) => {
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/plan', methode: 'POST' }]);
+    let n = 0;
+    const tickets = () => { n++; const data = structuredClone(TICKETS_STUB); if (n > 1) naarPending(data, 't1', '2026-10-05T08:00:00.000Z'); return { status: 200, json: data }; };
+    verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/plan']);
+    const z = zohoStubs();
+    await startAppProductie(page, { technieker: 'all', overschrijf: { ...z.overschrijf, tickets } });
+    await pauzeerKlok(page);
+    const traag = poort();
+    z.zetAntwoord('plan', async ({ body }) => {
+      if (body.ticketId === 't1') return { afbreken: 'failed' };
+      await traag.p;
+      return { status: 200, json: { success: true, ticketId: body.ticketId, date: body.date } };
+    });
+    await wachtrijKaart(page, 1001).locator('.btn-add').click();
+    await expect.poll(() => z.opnames.plan.length).toBe(1);
+    await wachtrijKaart(page, 1002).locator('.btn-add').click();
+    await wachtrijKaart(page, 1003).locator('.btn-add').click();
+    await expect.poll(() => z.opnames.plan.length).toBe(3);
+    for (let i = 0; i < 5; i++) { await page.clock.runFor(2000); await page.evaluate(() => Promise.resolve()); } // 10 s: de reeks loopt nog
+    expect(n).toBe(1); // geen herlading zolang er plan-aanroepen openstaan
+    traag.open();
+    await expect.poll(() => z.opnames.plan.length).toBe(3);
+    await settle(page);
+    expect(n).toBe(2); // precies één herlading, ná de reeks
+    await expect(wachtrijKaart(page, 1001)).toHaveCount(0);
+  });
+
+  test('een herlading die onderweg is mag een nieuwere lokale plan-aanroep niet overschrijven', async ({ page, verzoeken }) => {
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/plan', methode: 'POST' }]);
+    const poortGet = poort();
+    let n = 0;
+    const tickets = async () => {
+      const mijn = ++n;
+      const data = structuredClone(TICKETS_STUB);
+      if (mijn === 2) await poortGet.p; // verouderde momentopname (t2 nog in de wachtrij)
+      if (mijn >= 3) naarPending(data, 't2', '2026-10-05T08:00:00.000Z');
+      return { status: 200, json: data };
+    };
+    verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/plan']);
+    const z = zohoStubs();
+    await startAppProductie(page, { technieker: 'Tim', overschrijf: { ...z.overschrijf, tickets } });
+    await pauzeerKlok(page);
+    z.zetAntwoord('plan', ({ body }) => body.ticketId === 't1'
+      ? { afbreken: 'failed' }
+      : { status: 200, json: { success: true, ticketId: body.ticketId, date: body.date } });
+    await wachtrijKaart(page, 1001).locator('.btn-add').click();
+    await expect(toastTekst(page)).toContainText('Bijwerken in Zoho mislukt');
+    await page.clock.runFor(400); // de herlading start en wacht op de poort
+    await expect.poll(() => n).toBe(2);
+    await wachtrijKaart(page, 1002).locator('.btn-add').click(); // de gebruiker probeert verder
+    await expect(toastTekst(page)).toHaveText('✓ Toegevoegd aan 5 okt');
+    poortGet.open(); // de verouderde momentopname komt nu binnen
+    await page.evaluate(() => Promise.resolve());
+    await settle(page);
+    // Het verouderde antwoord is weggegooid; een nieuwe herlading gaf de serverstand (t2 gepland).
+    expect(n).toBe(3);
+    await expect(wachtrijKaart(page, 1002)).toHaveCount(0);
+    expect(await planningVan(page)).toMatchObject({ '2026-10-05': ['t2'] });
+  });
+
+  test('een oudere herlading overschrijft nooit het resultaat van een latere (volgordebewaking)', async ({ page, verzoeken }) => {
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/plan', methode: 'POST' }]);
+    const poortGet = poort();
+    let n = 0;
+    const tickets = async () => {
+      const mijn = ++n;
+      const data = structuredClone(TICKETS_STUB);
+      if (mijn === 2) await poortGet.p; // oude momentopname: t1 nog in de wachtrij
+      if (mijn === 3) naarPending(data, 't1', '2026-10-05T08:00:00.000Z'); // nieuwere stand: t1 gepland
+      return { status: 200, json: data };
+    };
+    const z = await startPlan(page, verzoeken, { stubs: { tickets } });
+    await pauzeerKlok(page);
+    z.zetAntwoord('plan', { afbreken: 'failed' });
+    await wachtrijKaart(page, 1001).locator('.btn-add').click();
+    await expect(toastTekst(page)).toContainText('Bijwerken in Zoho mislukt');
+    await page.clock.runFor(400);
+    await expect.poll(() => n).toBe(2); // resync-GET hangt vast
+    await page.getByRole('button', { name: 'Vernieuwen' }).click(); // latere GET haalt de nieuwere stand op
+    await expect.poll(() => n).toBe(3);
+    await expect(wachtrijKaart(page, 1001)).toHaveCount(0);
+    poortGet.open(); // de oudere momentopname komt als laatste binnen
+    await page.evaluate(() => Promise.resolve());
+    await settle(page);
+    await expect(wachtrijKaart(page, 1001)).toHaveCount(0);
+    expect(await planningVan(page)).toMatchObject({ '2026-10-05': ['t1'] });
+  });
+
+  test('beschikbaarheid: een late herlading na een geslaagde schrijf haalt geen item uit de lokale stand', async ({ page, verzoeken }) => {
+    verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/availability']);
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/availability', methode: 'PUT' }]);
+    verwachtHttpFout(verzoeken, [{ pad: '/api/availability', status: 409 }]);
+    verwachtConsoleFout(verzoeken, [{ tekst: /^Beschikbaarheid opslaan mislukt: TypeError\b/ }]);
+    const poortGet = poort();
+    let stand = { versie: 0, exceptions: [] };
+    let puts = 0; let gets = 0;
+    const availability = async ({ methode, body }) => {
+      if (methode === 'PUT') {
+        puts++;
+        if (body.versie !== stand.versie) return { status: 409, json: { error: 'Versiematch mislukt', serverVersie: stand.versie, data: stand } };
+        stand = { versie: stand.versie + 1, exceptions: body.exceptions };
+        return puts === 1 ? { afbreken: 'failed' } : { status: 200, json: stand };
+      }
+      const mijn = ++gets;
+      const momentopname = structuredClone(stand);
+      if (mijn === 2) await poortGet.p; // de resync-GET: vastgehouden, antwoord van vóór de volgende schrijfacties
+      return { status: 200, json: momentopname };
+    };
+    const z = zohoStubs();
+    await startAppProductie(page, { technieker: 'Tim', overschrijf: { ...z.overschrijf, availability } });
+    await openKalender(page);
+    await pauzeerKlok(page);
+    await dag(page, '2026-10-06').getByRole('button', { name: '⏱ Beschikbaar' }).click();
+    const modal = page.getByRole('dialog', { name: '⛔ Beschikbaarheid' });
+    await modal.getByLabel('Reden').fill('Verlof');
+    await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect(toastTekst(page)).toContainText('Opslaan is niet gelukt');
+    await page.clock.runFor(1); // de resync-GET start (en wacht)
+    await expect.poll(() => gets).toBe(2);
+    // Tweede schrijf op de oude versie: 409, de serverstand (met Verlof) komt binnen; daarna lukt een derde schrijf.
+    await modal.getByLabel('Reden').fill('Cursus');
+    await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect(toastTekst(page)).toContainText('Iemand anders wijzigde dit net');
+    await modal.getByLabel('Reden').fill('Cursus');
+    await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect.poll(() => puts).toBe(3);
+    await settle(page);
+    expect(stand.exceptions.map(e => e.reason).sort()).toEqual(['Cursus', 'Verlof']);
+    poortGet.open(); // de late, verouderde herlading (alleen Verlof)
+    await page.evaluate(() => Promise.resolve());
+    await settle(page);
+    const redenen = await page.evaluate(() => kern.toestand.get('avExceptions').map(e => e.reason).sort());
+    expect(redenen).toEqual(['Cursus', 'Verlof']); // het late antwoord is weggegooid
+  });
+
+  test('beschikbaarheid: de herlading wist een half getypte reden in het blokkeringsvenster niet', async ({ page, verzoeken }) => {
+    verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/availability']);
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/availability', methode: 'PUT' }]);
+    verwachtConsoleFout(verzoeken, [{ tekst: /^Beschikbaarheid opslaan mislukt: TypeError\b/ }]);
+    let stand = { versie: 0, exceptions: [] };
+    const availability = ({ methode, body }) => {
+      if (methode !== 'PUT') return { status: 200, json: stand };
+      stand = { versie: stand.versie + 1, exceptions: body.exceptions };
+      return { afbreken: 'failed' };
+    };
+    const z = zohoStubs();
+    await startAppProductie(page, { technieker: 'Tim', overschrijf: { ...z.overschrijf, availability } });
+    await openKalender(page);
+    await pauzeerKlok(page);
+    await dag(page, '2026-10-06').getByRole('button', { name: '⏱ Beschikbaar' }).click();
+    const modal = page.getByRole('dialog', { name: '⛔ Beschikbaarheid' });
+    await modal.getByLabel('Reden').fill('Verlof');
+    await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect(toastTekst(page)).toContainText('Opslaan is niet gelukt');
+    await modal.getByLabel('Reden').fill('Half getypt'); // de gebruiker typt al verder
+    await page.clock.runFor(1);
+    await expect(modal.getByText('🔒 Hele dag — Verlof')).toBeVisible(); // de herlading is gebeurd
+    await expect(modal.getByLabel('Reden')).toHaveValue('Half getypt');
   });
 });
