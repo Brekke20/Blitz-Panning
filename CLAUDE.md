@@ -39,8 +39,8 @@ All Excel exports must auto-size columns and rows so all text is always visible:
 
 ## Tests
 
-- `node --test` (zonder pad) — logica-tests (649). Nooit `node --test tests/`.
-- `npx playwright test` — Playwright-flows (kernhandelingen van de app, alle `/api/*` gestubd); 276 tests. Draai dit na elke taak die een scherm raakt.
+- `node --test` (zonder pad) — logica-tests (745). Nooit `node --test tests/`.
+- `npx playwright test` — Playwright-flows (kernhandelingen van de app, alle `/api/*` gestubd); 412 tests (een lopende run van de volledige suite duurt ongeveer 11 minuten). Draai dit na elke taak die een scherm raakt.
 - Eerste keer: `npm install` en daarna `npx playwright install chromium`.
 
 De e2e-suite heeft internet nodig: de app laadt zijn scripts van externe CDN's (cdnjs.cloudflare.com, cdn.jsdelivr.net) en die worden bewust niet gestubd. Faalt een run op netwerkfouten voor die hosts (bv. een script dat niet laadt), dan is dat geen regressie in de app: controleer de verbinding en draai opnieuw.
@@ -71,27 +71,26 @@ Etappe 6 van de refactor: gedeelde serverbouwstenen. Gebruik ze voor elke nieuwe
 
 ## Kern (`public/js/kern/`)
 
-Gedeelde fundamenten (etappe 2 van de refactor): `tijd`, `ui`, `selecties`, `toestand`, `api`.
+Gedeelde fundamenten (etappe 2 en 5b van de refactor): `tijd`, `ui`, `selecties`, `toestand`, `api`, `omgeving`, `opslag`, `feestdagen`, `testdata`, `verklikker`.
 
 - Het zijn pure ES-modules, importeerbaar in `node --test`. Enkel `kern/brug.js` raakt `window` aan
-  (`window.kern` + de oude globale namen en state-accessors in het `LEGACY-BRUG`-blok; dat blok verdwijnt in etappe 5b-9).
+  (`window.kern` en de `window.kern.<scherm>`-namespaces; er zijn geen oude globale namen of state-accessors meer).
 - `kern/omgeving.js`: exporteert enkel `TEST_MODE` (true bij `?test` in de URL; de enige bron, zonder setter en niet op `window`).
 - `kern/ui.js`: `registreerWijzigActies(wortel, handlers)` voor `data-wijzig`- en `data-invoer`-delegatie; `registreerBackdrop(overlayEl, sluit)` voor de donkere achtergrond van vensters.
-- Regel K3: klassieke code op het hoogste niveau van `index.html` gebruikt `window.kern`, accessors of
-  verhuisde functies nooit (de brug laadt pas als module); alleen binnen function-bodies. Controle bij een
-  verhuizing: `grep -nE "^(let|const|var) .*<naam>"`.
+- Er is geen klassiek script meer: `index.html` laadt enkel modules (`kern/brug.js` eerst, `app.js` laatst) en elke module importeert wat ze nodig heeft. Een kale naam die niet geïmporteerd of lokaal gedefinieerd is, bestaat dus niet; `tests/window-namen.test.mjs` bewaakt dat (geen `window.<naam>`-lezing zonder definitie, geen kale lezer van opgeruimde namen, `window`-toewijzingen onder `kern/` en `schermen/` alleen in `brug.js`).
+- `kern/ui.js` bevat ook `metBehoudScroll(fn)` en `zetPressed(el, aan)`; `kern/opslag.js` de cache- en geocachehulp (`loadFromCache`, `saveToCache`, `geocache*`); `kern/feestdagen.js` de Belgische feestdagen (puur); `kern/testdata.js` de dummydata van de testmodus (puur, `maakDummyData()`); `kern/verklikker.js` de tijdelijke scrollsprong-verklikker (`sjLog`, `startVerklikker`).
 - Muteer je een geabonneerde toestandssleutel in-place (`localEvents.push`, `avExceptions.splice`, `allTickets.sort`, ...),
   roep dan `kern.toestand.raak('<sleutel>')` aan; een toewijzing verwittigt vanzelf.
 - Een abonnee die gooit wordt gelogd (`toestand: abonnee faalde`) en bereikt de oproeper niet; een abonnee die tijdens een flush
   wordt toegevoegd mist die ronde; `settings` is `null` tot DOMContentLoaded.
-- Abonnementen op de toestand staan op één plek: `koppelRenders()` in `index.html`. Geen losse `renderX()` naast een abonnement.
+- Abonnementen op de toestand staan op één plek: `koppelRenders()` in `public/js/app.js`. Geen losse `renderX()` naast een abonnement.
 - Opslaan met optimistic locking via `kern.api.bewaarMetVersie` (merge + één retry bij 409), zoals `saveAfspraken` en `saveKlantBeschikbaarheid`.
 - Tijd-tests zetten `process.env.TZ = 'Europe/Brussels'` bovenaan; draai `node --test` zonder pad, nooit `node --test tests/`.
 - Een nieuw kern-bestand komt in dezelfde commit in `SHELL` van `public/sw.js`.
 
 ## Schermen (`public/js/schermen/`)
 
-Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar via `initRoute(afh)`, `initKaart(afh)`, `initWachtrij(afh)`, `initKalender(afh)`, `initIngepland(afh)` en `initCapaciteit(afh)` in `DOMContentLoaded` initialiseren (vóór `koppelRenders`).
+Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar via `initRoute(afh)`, `initKaart(afh)`, `initWachtrij(afh)`, `initKalender(afh)`, `initIngepland(afh)`, `initCapaciteit(afh)` en de init-functies van etappe 5 in `DOMContentLoaded` initialiseren (vóór `koppelRenders`).
 
 **Etappe 3 (Route en kaart):**
 - `route-tijden.js`: pure berekeningen (aankomsttijden, samenvoegen met ankers, handtekening, dagklok). Unit-getest met `node --test`.
@@ -104,7 +103,6 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 - `kern.route.renderTelling()` is de teller die de e2e-tests gebruiken (interne aanroepen omzeilen een wrapper op `window`). Een wijziging in de planning geeft via het abonnement precies één route-render.
 - `kern.route` is de namespace van het routescherm op `window.kern` (o.a. `renderTelling`); e2e-tests lezen daar de render-teller en de kaartaantallen uit.
 - Knoppen van het scherm gebruiken `data-actie="route-..."` (delegatie in `route.js`) in plaats van inline handlers; gegevens staan op `data-*` attributen van de stop.
-- Resterende LEGACY-BRUG-namen voor het routescherm: `renderRouteList`, `updateRouteBtns`, `calculateRoute`, `computeArrivalTimes`, `initMap`, `applyKaartStijl`. Ze verdwijnen in etappe 5b-9; gebruik ze niet in nieuwe code.
 - Nieuwe schermen volgen dit patroon: module-privé toestand, expliciet aangereikte functies, exports voor lezers.
 
 **Etappe 4 (Kalender en wachtrij):**
@@ -120,7 +118,7 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 - `ticketdetail.js`: Ticketdetail-venster (taken, voorstel, annuleren, toewijzen, aankomst). Init via `initTicketdetail(afh)` vóór `koppelRenders()`. Private toestand: `activeTicket` en `_detailDate` (lezers `actiefTicket()`, `detailDatum()`) en `_kbIsDirty` (via `zetKbIsDirty`); `arrivalData` is een export (route en wizard lezen het). Knoppen gebruiken `data-actie`-delegatie; Zoho-functies verhuizen via productietest als vangnet.
 - `voorstel.js`: Voorstelvenster (datum, tijd, ontvangers, voorbeeld, verzenden). Init via `initVoorstel(afh)`. Private toestand beheerd via accessors. Afh: `getPlanningTicket`, `sluitDetailStil`, `actiefTicket`, `zetActiefTicket`, `renderRouteList`.
 - `annuleren.js`: Annuleervenster (reden, toelichting, mailkeuze). Init via `initAnnuleren(afh)`. Private toestand. Afh: `sluitDetailStil`, `actiefTicket`, `loadVoorstelStatus`, `renderRouteList`, `updateRouteBtns`, `inFlight`. `zetRedenenVoorTest` gooit buiten `?test`.
-- `venster.js` export `registreerVenster({ el, isOpen, sluit })`: registreert per venster Escape-gedrag en focusbeheer (de achtergrondklik loopt via `kern.ui.registreerBackdrop`); de tabel in `venster.js` blijft bestaan voor de dialogen die nog niet verhuisd zijn. Geen nieuwe LEGACY-BRUG-namen (D13).
+- `venster.js` export `registreerVenster({ el, isOpen, sluit })`: registreert per venster Escape-gedrag en focusbeheer (de achtergrondklik loopt via `kern.ui.registreerBackdrop`); `venster.js` registreert zelf enkel nog de rapport-wizard (die sluit via `window.closeWizard`, zie hieronder).
 
 **Conventies:**
 - Afhankelijkheden (functies uit klassieke code) worden via `afh` aangereikt; instellingen en toestandsgegevens uit `kern.toestand`.
@@ -129,7 +127,19 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 - `quickAdd` (`wachtrij.js`) en de capaciteitskop (`n/cap · ±u`, getekend in `kalender.js`) gebruiken het aantalmodel van `capaciteit.js`, niet het brein (spec C3).
 - `kern.ui.strengeAfh(scherm, afh)` bewaakt de `afh`-objecten: een ontbrekende `afh`-sleutel gooit, zowel vóór als na de init.
 - Blokkeringen en selecties gebruiken `kern.selecties.blokkeringenVoor` en `kern.ui.maakActiveerbaar`.
-- Resterende LEGACY-BRUG-namen voor deze schermen: `renderTickets`, `renderKalender` (`renderGepland` is weg; gebruik `kern.ingepland.renderGepland()`). Het LEGACY-BRUG-blok verdwijnt in etappe 5b-9; gebruik ze niet in nieuwe code.
+
+**Etappe 5b (Beschikbaarheid, afspraken, instellingen, planacties en de app-schil):**
+- `klantbeschikbaarheid.js` (+ `-logica.js`): klantbeschikbaarheid per ticket (laden/bewaren met optimistic locking, `kbFor`, `kbBlocked`, `kbPreferred*`, het blok in het detail). De samenvoeg-logica staat puur in `klantbeschikbaarheid-logica.js` (`voegSamenKb`).
+- `beschikbaarheid.js` (+ `-logica.js`): blokkeringen (venster en tab Beschikbaarheden). `nextWorkday` en `groupExceptionsForDisplay` krijgen de werkdagen als parameter en lopen niet meer vast zonder werkdag.
+- `afspraken.js` (+ `-logica.js`): eigen afspraken (manueel venster, detail, importeren). Schrijven via `saveAfspraken(wijzigingen)`.
+- `instellingen.js` (+ `-logica.js`): instellingen per persoon en tabblad Dit toestel; `valideerInstellingen` is puur en unit-getest. De prijsbeheer-knoppen lopen via `kern.prijzen`.
+- `fotos.js`: foto's bij een ticket. Deelt `_fotoState` met de rapport-wizard (import-cyclus `fotos.js` <-> `rapport-wizard.js`, bewust gelaten: loskoppelen vraagt wizard-wijzigingen buiten D19).
+- `rapport-verzenden.js`: rapportvoorbeeld, rapport versturen en `syncOplossingNaarZoho`. `sendBtn.onclick =` blijft een toewijzing (anders verstuurt elke preview meerdere keren).
+- `planacties.js`: inplannen, uitplannen en "Plan deze week" (`addTicketToDate`, `removeTicketFromDate`, `bevestigUitplannen`, `autoPlan`).
+- `public/js/app.js`: de app-schil (opstart, persoonkiezer, tabs, polling, `koppelRenders`, `reconcilePlanning`); het vroegere klassieke script. Het exporteert niets en start zichzelf op `DOMContentLoaded`. Schermmodules importeren `app.js` nooit: wat ze van de schil nodig hebben, krijgen ze via `afh`. Oudere modules mogen uit schermmodules importeren (eenrichting).
+- Conventies: `init…(afh)` met `kern.ui.strengeAfh`; knoppen via `data-actie`, wijzigingen via `data-wijzig` en live invoer via `data-invoer` (`kern.ui.registreerWijzigActies`); vensters via `registreerVenster` en `registreerBackdrop`. Geen `onclick=`/`onchange=`/`oninput=` in `index.html` of in de HTML-strings van modules.
+- Gedocumenteerd restant: de rapport-wizard blijft inline handlers gebruiken (30 in `rapport-wizard.js`, D2) en biedt daarvoor het `wiz*`-blok op `window` aan, plus `openRapport`, `closeWizard`, `printRapport`, `calcWerktijdMin`, `berekenLoonkost` en de `_fotoState`-accessor. Andere `window`-namen die blijven omdat de wizard of `outbox.js` ze als kale naam leest: `PRIJZEN`, `PRIJZEN_DEFAULTS`, `zoekOnderdelen`, `getAlleTags`, `_rapportArchief`, `_archiefVersie`, `renderRapportArchief`, `registreerVerbruik`, `outboxAdd`, `runOutboxItem`, `nextOutboxAction`, `refreshOutboxCache`, `_outboxItems`, `appConfirm` en de `apparaat`-familie (`apparaat.js`, klassiek script). Specs lezen het rapportarchief via `kern.rapportArchief.lijst()` en `.versie()`.
+- Nieuw bestand in `public/js/`: dezelfde commit zet het in `SHELL` van `public/sw.js`.
 
 ## Versioning & changelog
 
