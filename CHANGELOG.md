@@ -26,8 +26,13 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Resultaatvenster van "Plan deze week" toont per niet-gepland ticket de reden (geen plaats, te
   ver, klant niet beschikbaar, voorkeursdag vol of te ver, voorkeursuur botst, adres niet
   gevonden, Zoho-fout) en waarschuwt als reistijden geschat moesten worden.
+- Extra testrobot die de app draait zoals in productie (zonder testmodus) tegen een volledig
+  nagebootste backend, zodat de berichten naar Zoho (plannen, datum, voorstel, annuleren)
+  exact gecontroleerd worden.
 
 ### Changed
+- Ticketdetail, afspraakvoorstel en annuleervenster zijn intern herbouwd en staan nu in eigen
+  onderdelen; voor jou ziet alles er hetzelfde uit en werkt het hetzelfde.
 - Kalender, wachtrij en de lijst Ingepland zijn intern herbouwd en staan nu in eigen onderdelen; voor jou ziet alles er hetzelfde uit en werkt het hetzelfde.
 - Route-tab en kaart zijn intern herbouwd; aankomsttijden worden overal op één plaats berekend; de route-lijst ververst nu zelf bij elke wijziging in de planning.
 - Voorstel versturen: de route-lijst volgt daarna de gekozen datum in de Route-tab (plan-date) in plaats van de datum van het voorstel.

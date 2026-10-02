@@ -39,11 +39,19 @@ All Excel exports must auto-size columns and rows so all text is always visible:
 
 ## Tests
 
-- `node --test` (zonder pad) — logica-tests (586). Nooit `node --test tests/`.
-- `npx playwright test` — Playwright-flows (kernhandelingen van de app, alle `/api/*` gestubd); 137 scenario's. Draai dit na elke taak die een scherm raakt.
+- `node --test` (zonder pad) — logica-tests (649). Nooit `node --test tests/`.
+- `npx playwright test` — Playwright-flows (kernhandelingen van de app, alle `/api/*` gestubd); 276 tests. Draai dit na elke taak die een scherm raakt.
 - Eerste keer: `npm install` en daarna `npx playwright install chromium`.
 
 De e2e-suite heeft internet nodig: de app laadt zijn scripts van externe CDN's (cdnjs.cloudflare.com, cdn.jsdelivr.net) en die worden bewust niet gestubd. Faalt een run op netwerkfouten voor die hosts (bv. een script dat niet laadt), dan is dat geen regressie in de app: controleer de verbinding en draai opnieuw.
+
+### Productiemodus-tests
+
+Productietests staan in `e2e/productie/` en draaien de app zonder `?test` querystring tegen een volledig gestubde backend. Het doel: de Zoho-berichten van planning, voorstel en annuleren precies controleren.
+
+- Fixture `e2e/productie-hulp.mjs`: `startAppProductie()` met rol/technieker/opties, `verwachtSchrijven()` om per test een whitelist van HTTP-paden in te stellen, `zohoStubs()` met nep-endpoints voor `plan`, `plan-datum`, `propose`, `voorstel-status`, `annuleer` en `optimize`.
+- Fixture `e2e/fixtures/tickets.json`: `DUMMY_DATA` voor de tickets-stub.
+- Self-test in `tests/e2e-import-guard.test.mjs`: zorgt dat productie-specs enkel van `e2e/productie-hulp.mjs` importeren (geen `?test` helpers), en controleert dat geen enkele test buiten `127.0.0.1:3338` of de CDN-whitelist communiceert.
 
 ## Serverkant (`netlify/lib/`)
 
@@ -61,6 +69,8 @@ Gedeelde fundamenten (etappe 2 van de refactor): `tijd`, `ui`, `selecties`, `toe
 
 - Het zijn pure ES-modules, importeerbaar in `node --test`. Enkel `kern/brug.js` raakt `window` aan
   (`window.kern` + de oude globale namen en state-accessors in het `LEGACY-BRUG`-blok; dat blok verdwijnt in etappe 5).
+- `kern/omgeving.js`: export `TEST_MODE` (true in `?test`-modus, valideert welke netwerkaanroepen zijn toegestaan).
+- `kern/ui.js`: `registreerWijzigActies(wortel, handlers)` voor `data-wijzig`- en `data-invoer`-delegatie; `registreerBackdrop(overlayEl, sluit)` voor de donkere achtergrond van vensters.
 - Regel K3: klassieke code op het hoogste niveau van `index.html` gebruikt `window.kern`, accessors of
   verhuisde functies nooit (de brug laadt pas als module); alleen binnen function-bodies. Controle bij een
   verhuizing: `grep -nE "^(let|const|var) .*<naam>"`.
@@ -98,6 +108,13 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 - `wachtrij.js`: Wachtrij-scherm (kaarten, zoeken, sorteren, teller). Private toestand: `wqZoek` en de sorteerinstelling `wqSorteer`. Bevat ook `quickAdd`. Init via `initWachtrij(afh)` vóór `koppelRenders()`.
 - `kalender.js`: Kalender-scherm (week/maand, kaarten, navigatie, teller). Private toestand: `kalOffset` (een getal: weken, in maandweergave maanden), `kalDagOffset`, `kalView`, `_kalAutoScrollKey`. Lezers: `kern.kalender.weekOffset()` en `kern.kalender.activeerKalender()`. De capaciteitskop wordt hier getekend. Init via `initKalender(afh)` vóór `koppelRenders()`.
 - `ingepland.js`: Ingepland-scherm (kaarten, teller). Private toestand: `gepOffset`. Init via `initIngepland(afh)` vóór `koppelRenders()`.
+
+**Etappe 5a (Ticketdetail, voorstel, annuleren):**
+- `ticketdetail-logica.js`: pure berekeningen (aankonst, afrondingstijden, onderwerpschoning, termen: `tijdslotVoor()`, `roundToNextQuarterStr()`, `cleanTicketSubject()`, `joinNL()`, `meervoud()`, `telNummer()`, `voorstelOntvangers()`, `bevestigdLabel()`, `heeftLopendVoorstel()`). Unit-getest met `node --test`.
+- `ticketdetail.js`: Ticketdetail-venster (taken, voorstel, annuleren, toewijzen, aankomst). Init via `initTicketdetail(afh)` vóór `koppelRenders()`. Private toestand: `actiefTicket`, `detailDatum`, `arrivalData`. Knoppen gebruiken `data-actie`-delegatie; Zoho-functies verhuizen via productietest als vangnet.
+- `voorstel.js`: Voorstelvenster (datum, tijd, ontvangers, voorbeeld, verzenden). Init via `initVoorstel(afh)`. Private toestand beheerd via accessors. Afh: `getPlanningTicket`, `sluitDetailStil`, `actiefTicket`, `zetActiefTicket`, `renderRouteList`, `inFlight`, `sjLog`.
+- `annuleren.js`: Annuleervenster (reden, toelichting, mailkeuze). Init via `initAnnuleren(afh)`. Private toestand. Afh: `sluitDetailStil`, `actiefTicket`, `loadVoorstelStatus`, `renderRouteList`, `updateRouteBtns`, `inFlight`, `sjLog`.
+- `venster.js` export `registreerVenster({ el, isOpen, sluit })`: registreert per venster Escape-gedrag, focusbeheer en achtergrondklik, in plaats van de tabel in `venster.js`. Geen nieuwe LEGACY-BRUG-namen (D13).
 
 **Conventies:**
 - Afhankelijkheden (functies uit klassieke code) worden via `afh` aangereikt; instellingen en toestandsgegevens uit `kern.toestand`.
