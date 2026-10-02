@@ -329,6 +329,32 @@ test.describe('ticketdetail: voorstel (?test)', () => {
     expect(verzoeken.van('/api/propose')).toEqual([]);
     expect(verzoeken.van('/api/voorstel-status', 'POST')).toEqual([]);
   });
+
+  test('invoervelden (data-invoer): een bubbelend input-event ververst het voorbeeld; het voorbeeld-anker is inert', async ({ page }) => {
+    await startApp(page);
+    const detail = await open1004(page);
+    await detail.locator('#d-btn-proposal').click();
+    const modal = detailVan(page, '📨 Afspraakvoorstel');
+    await expect(modal).toBeVisible();
+    // Een echt, bubbelend input-event op het tijdveld (niet via een inline handler): delegatie op document.body.
+    await page.evaluate(() => {
+      const el = document.getElementById('proposal-time');
+      el.value = '15:30';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    // Gemeten: 15:30 met de standaard tijdslotgrootte (3 u) en werkdag 08-17 geeft 14:00-17:00.
+    await expect(modal.locator('#proposal-preview')).toContainText('14:00–17:00');
+    await page.evaluate(() => {
+      const el = document.getElementById('proposal-time');
+      el.value = '09:00';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await expect(modal.locator('#proposal-preview')).toContainText('08:30–11:30');
+    // Het anker "Bevestig deze afspraak" is inert: geen navigatie (geen #-hash) en het venster blijft open.
+    await modal.locator('#proposal-preview a[data-actie="voorstel-inert"]').click();
+    expect(await page.evaluate(() => location.hash)).toBe('');
+    await expect(page.locator('#proposal-overlay')).toHaveClass(/open/);
+  });
 });
 
 test.describe("ticketdetail: foto's", () => {

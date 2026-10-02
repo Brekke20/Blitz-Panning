@@ -89,7 +89,7 @@ window.vensterBeheer = { registreer, sluitBovenste };
 const sluitVia = naam => () => window[naam]?.();
 [
   ['set-overlay', 'closeSettings'],
-  ['block-overlay', 'closeBlock'], ['result-overlay', 'closeResult'], ['proposal-overlay', 'closeProposal'],
+  ['block-overlay', 'closeBlock'], ['result-overlay', 'closeResult'],
   ['rapport-preview-overlay', 'closeRapportPreview'], ['manueel-overlay', 'closeManueelModal'],
   ['import-overlay', 'closeImportModal'], ['local-det-overlay', 'closeLocalDet'], ['foto-overlay', 'closeFotoModal'],
   ['annuleer-overlay', 'sluitAnnuleerVenster'], ['prijs-overlay', 'closePrijsBeheer'], ['rapport-wizard', 'closeWizard'],

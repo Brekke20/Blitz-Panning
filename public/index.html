@@ -518,21 +518,21 @@
 </div>
 
 <!-- Afspraakvoorstel modal -->
-<div class="overlay" id="proposal-overlay" onclick="closeProposal(event)">
+<div class="overlay" id="proposal-overlay">
   <div class="modal" id="proposal-modal" style="max-width:480px" role="dialog" aria-modal="true" aria-labelledby="proposal-titel">
     <div class="mhdr">
-      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeProposal()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" data-actie="voorstel-sluit" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title" id="proposal-titel" role="heading" aria-level="2">📨 Afspraakvoorstel</div>
       <div id="proposal-ticket-label" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
     <div class="mbody">
       <div class="set-field">
         <label class="set-label" for="proposal-date">Datum</label>
-        <input class="set-input" id="proposal-date" type="date" oninput="updateProposalPreview()" />
+        <input class="set-input" id="proposal-date" type="date" data-invoer="voorstel-voorbeeld" />
       </div>
       <div class="set-field">
         <label class="set-label" for="proposal-time">Tijdstip (wordt afgerond naar volgend kwartier)</label>
-        <input class="set-input" id="proposal-time" type="time" step="900" oninput="updateProposalPreview()" />
+        <input class="set-input" id="proposal-time" type="time" step="900" data-invoer="voorstel-voorbeeld" />
       </div>
       <div class="set-field">
         <label class="set-label" id="proposal-email-label">Ontvangers</label>
@@ -549,8 +549,8 @@
       <div id="proposal-preview" style="border:1px solid var(--border);border-radius:6px;overflow:hidden;max-height:300px;overflow-y:auto;font-size:12px"></div>
     </div>
     <div class="mftr">
-      <button class="btn-cancel" onclick="closeProposal()">Annuleren</button>
-      <button class="btn-save" id="proposal-send-btn" onclick="sendProposal()">✉️ Verstuur voorstel</button>
+      <button class="btn-cancel" data-actie="voorstel-sluit">Annuleren</button>
+      <button class="btn-save" id="proposal-send-btn" data-actie="voorstel-verstuur">✉️ Verstuur voorstel</button>
     </div>
   </div>
 </div>
@@ -687,7 +687,6 @@ DUMMY_DATA.tickets.forEach((t, i) => {
 // planning: { "2026-06-23": [{ ticket, address, _lat, _lon }] }; Zoho is bron van waarheid (allPending seedt planning bij laden).
 // allTickets, allPending, allGepland, planning, localEvents, avExceptions, klantBeschikbaarheid, voorstelStatus,
 // settings en activeAssigneeFilter leven in kern.toestand en zijn als window-accessors bereikbaar (kern/brug.js).
-let _proposalOntvangers = []; // ontvangerslijst berekend door openProposal(), gebruikt door updateProposalPreview()/sendProposal()
 // activeBlockDate → vervangen door _avFormDate (zie beschikbaarheidssysteem)
 // (drag-blokkering verwijderd — vervangen door beschikbaarheidssysteem)
 // Live-detectie van nieuwe Inventaris-log-regels (enkel relevant op de supervisor-weergave,
@@ -714,27 +713,6 @@ function stopInvPoll() {
   if (_invPollTimer) { clearInterval(_invPollTimer); _invPollTimer = null; }
 }
 let inFlightTickets = new Set(); // voorkomt dubbele API calls
-// Centraal (niet-lokaal) bijgehouden "voorstel verzonden"-status, eager geladen bij
-// app-start (zie loadVoorstelStatus()) -- vervangt de vorige localStorage-aanpak volledig.
-// null (niet 0) zolang de echte serverversie onbekend is: `typeof null !== 'number'` laat
-// de server zijn optimistic-locking check overslaan i.p.v. eeuwig te 409'en op versie 0
-// als loadVoorstelStatus() faalde (zelfde patroon als _archiefVersie).
-let _voorstelStatusVersie = null;
-// I3 (eindreview v1.4.0): geeft true/false terug zodat applyRouteOrder() kan beslissen of de
-// vergrendelstatus vers genoeg is om op te beslissen wat anker is en wat niet -- bij een
-// mislukte refresh mag er nooit op een mogelijk stale voorstelStatus verder gewerkt worden.
-async function loadVoorstelStatus() {
-  try {
-    const data = await kern.api.apiJson('/api/voorstel-status');
-    voorstelStatus       = data.status  || {};
-    _voorstelStatusVersie = data.versie || 0;
-    return true;
-  } catch (err) {
-    console.warn('Voorstel-status laden mislukt:', err);
-    return false;
-  }
-}
-
 // Lokale afspraken (import + manueel) — cloud synced
 let localEventsVersie  = 0;
 let _pendingImport     = []; // staging area voor import review
@@ -893,17 +871,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // Route-scherm (schermen/route.js): de afhankelijkheden van andere schermen (R11); vóór koppelRenders().
   kern.route.initRoute({
     duurVoor, werktijdMin: (a, b) => calcWerktijdMin(a, b), kbPreferredTime, geocacheLookup, geocacheStore,
-    loadVoorstelStatus, loadTickets, heeftLopendVoorstel, removeTicketFromDate, tijdslotLabelVoor: kern.ticketdetail.tijdslotLabelVoor, bevestigdLabel,
-    telNummer: kern.ticketdetailLogica.telNummer, meervoud, aankomstVoor: key => kern.ticketdetail.arrivalData[key], openProposal,
+    loadVoorstelStatus: kern.voorstel.loadVoorstelStatus, loadTickets, heeftLopendVoorstel: t => kern.ticketdetailLogica.heeftLopendVoorstel(t, kern.toestand.get('voorstelStatus')), removeTicketFromDate,
+    tijdslotLabelVoor: kern.ticketdetail.tijdslotLabelVoor, bevestigdLabel: kern.ticketdetailLogica.bevestigdLabel,
+    telNummer: kern.ticketdetailLogica.telNummer, meervoud, aankomstVoor: key => kern.ticketdetail.arrivalData[key], openProposal: kern.voorstel.openProposal,
     registerArrival: kern.ticketdetail.registerArrival,
     openRapport: (...a) => openRapport(...a), bevestigUitplannen, openLocalEventDetail, navigate,
-    roundToNextQuarterStr, renderKalender: () => kern.kalender.renderKalender(), testModus: () => TEST_MODE,
+    roundToNextQuarterStr: kern.ticketdetailLogica.roundToNextQuarterStr, renderKalender: () => kern.kalender.renderKalender(), testModus: () => TEST_MODE,
   });
   // Ticketdetail-scherm (schermen/ticketdetail.js): detail- en verzetvenster, toewijzen en aankomst; vóór koppelRenders().
   kern.ticketdetail.initTicketdetail({
-    renderKbSection, openProposal, openAnnuleerVenster, openFotoModal, openRapport: (...a) => openRapport(...a),
+    renderKbSection, openProposal: kern.voorstel.openProposal, openAnnuleerVenster, openFotoModal, openRapport: (...a) => openRapport(...a),
     addTicketToDate, bevestigUitplannen, navigate, kbBlocked, kbPreferredTime, getHolidayName, prioLabel,
-    bevestigdLabel, heeftLopendVoorstel, computeArrivalTimes: (...a) => computeArrivalTimes(...a),
+    bevestigdLabel: kern.ticketdetailLogica.bevestigdLabel,
+    heeftLopendVoorstel: t => kern.ticketdetailLogica.heeftLopendVoorstel(t, kern.toestand.get('voorstelStatus')),
+    computeArrivalTimes: (...a) => computeArrivalTimes(...a),
+    renderRouteList: (...a) => renderRouteList(...a),
+  });
+  // Voorstel-scherm (schermen/voorstel.js): voorstelvenster, verzenden en voorstelstatus; vóór koppelRenders().
+  kern.voorstel.initVoorstel({
+    getPlanningTicket: kern.ticketdetail.getPlanningTicket, sluitDetailStil: kern.ticketdetail.sluitDetailStil,
+    actiefTicket: kern.ticketdetail.actiefTicket, zetActiefTicket: kern.ticketdetail.zetActiefTicket,
     renderRouteList: (...a) => renderRouteList(...a),
   });
   kern.toestand.set('settings', loadPersonSettings(localStorage.getItem('blitz_active_person') || 'all'));
@@ -969,7 +956,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }));
   loadAfspraken();
   loadKlantBeschikbaarheid();
-  loadVoorstelStatus();
+  kern.voorstel.loadVoorstelStatus();
   loadTickets();
   laadRapportArchief();
   startTicketPolling();
@@ -1644,7 +1631,7 @@ async function bevestigUitplannen(ticketId, date) {
   const t = (planning[date] || []).find(p => p.ticket.id === ticketId)?.ticket;
   const nr = t?.number ?? '';
   // Staat er een voorstel uit, dan is uitplannen een annulering (reden vastleggen, klant verwittigen).
-  if (t && heeftLopendVoorstel(t)) {
+  if (t && kern.ticketdetailLogica.heeftLopendVoorstel(t, kern.toestand.get('voorstelStatus'))) {
     const titelA = 'Ticket #' + nr + ': afspraak annuleren?';
     const tekstA = 'Voor dit ticket is al een voorstel naar de klant verstuurd. Wil je de afspraak annuleren? Je kiest daarna een reden en of de klant een mail krijgt.';
     const okA = typeof window.appConfirm === 'function'
@@ -1937,7 +1924,7 @@ function startTicketPolling() {
     loadTickets();
     // I3: ✉️/🔒-badges (isStopLocked/isStopAnchored) vers houden -- fire-and-forget, eigen
     // error-handling in loadVoorstelStatus() zelf.
-    loadVoorstelStatus();
+    kern.voorstel.loadVoorstelStatus();
   }, 30 * 1000); // check elke 30s, laad pas als 5min verstreken
 }
 
@@ -2818,15 +2805,6 @@ function closeResult(e) {
 // ══════════════════════════════════════════════
 // ROUTE TAB
 // ══════════════════════════════════════════════
-// Task 6: Label voor bevestiging — toont via welke ontvanger een afspraak bevestigd werd.
-// Taak 3 zet voorstelStatus[id].bevestigd = { door: 'contact'|'klant'|'installateur'|null, tijdstip }.
-function bevestigdLabel(vs) {
-  if (!vs?.bevestigd) return null;
-  const { door } = vs.bevestigd;
-  const doorNaam = door ? { contact: 'contactpersoon', klant: 'klant', installateur: 'installateur' }[door] : null;
-  return doorNaam ? `✓ Bevestigd door ${doorNaam}` : '✓ Bevestigd';
-}
-
 // ══════════════════════════════════════════════
 // TABS
 // ══════════════════════════════════════════════
@@ -3391,192 +3369,8 @@ async function syncOplossingNaarZoho(ticketId, content) {
 window.syncOplossingNaarZoho = syncOplossingNaarZoho;
 
 // ══════════════════════════════════════════════
-// AFSPRAAKVOORSTEL
-// ══════════════════════════════════════════════
-// Vertaalt een exact (geschat) tijdstip naar het klant-zichtbare tijdslot. Regel (Brent,
-// 2026-09-21): het blok start 30 min vóór de schatting, afgerond naar beneden op het halve
-// uur, en is settings.tijdslotMinuten breed (default 3u); begrensd door de werkdag. Een
-// technieker komt zelden vroeger dan gepland, wel later — vandaar de kleine marge ervoor.
-// Bv. (3u, 08–17): 09:15 → 08:30–11:30 · 08:10 → 08:00–11:00 · 15:30 → 14:00–17:00.
-// I5 (controller-ruling, eindreview v1.4.0): de werkdag-klem hierboven kan de schatting zelf
-// buiten het resulterende blok duwen (bv. een schatting ver ná totTijd klemt dan alsnog op het
-// laatste blok van de dag, terwijl de technieker daar realistisch niet meer aankomt). Valt de
-// schatting na de klem niet meer binnen [start, eind), dan laten we de klem voor déze aanroep
-// los en volgt het blok gewoon de schatting (kan dus buiten de werkdag liggen) -- de
-// coördinator ziet in dat geval een aparte waarschuwing (zie updateProposalPreview()).
-function tijdslotVoor(minuten, slotMinuten) {
-  const slot     = slotMinuten || settings.tijdslotMinuten || 180;
-  const dagStart = timeStrToMin(settings.vanTijd || '08:00');
-  const dagEind  = timeStrToMin(settings.totTijd || '17:00');
-  let start = Math.floor((minuten - 30) / 30) * 30;
-  start = Math.max(dagStart, start);
-  let eind = start + slot;
-  if (eind > dagEind) { eind = dagEind; start = Math.max(dagStart, eind - slot); }
-  if (minuten < start || minuten >= eind) {
-    start = Math.max(0, Math.floor((minuten - 30) / 30) * 30);
-    eind  = start + slot;
-  }
-  return { startMin: start, endMin: eind, label: `${minToTimeStr(start)}–${minToTimeStr(eind)}` };
-}
-
-function roundToNextQuarterStr(timeStr) {
-  const [hRaw, mRaw] = (timeStr || '09:00').split(':').map(Number);
-  const h = Number.isFinite(hRaw) ? hRaw : 9;
-  const m = Number.isFinite(mRaw) ? mRaw : 0;
-  const raw = Math.ceil(m / 15) * 15;
-  const totalMin = (h * 60 + raw) % (24 * 60); // uur-overloop wrapt naar 00:xx i.p.v. "24:00"
-  const outH = Math.floor(totalMin / 60);
-  const outM = totalMin % 60;
-  return `${String(outH).padStart(2, '0')}:${String(outM).padStart(2, '0')}`;
-}
-
-function openProposal(ticketId, date, arrivalMin) {
-  kern.ticketdetail.zetActiefTicket(kern.ticketdetail.getPlanningTicket(ticketId));
-  if (!kern.ticketdetail.actiefTicket()) return toast('Ticket niet gevonden');
-  kern.ticketdetail.sluitDetailStil();
-
-  document.getElementById('proposal-date').value = date;
-
-  // Tijdstip: van aankomsttijd (minuten) → HH:MM → afgerond naar volgend kwartier
-  let timeVal = '09:00';
-  if (arrivalMin !== null && arrivalMin !== undefined && !isNaN(arrivalMin)) {
-    timeVal = roundToNextQuarterStr(minToTimeStr(arrivalMin));
-  }
-  document.getElementById('proposal-time').value = timeVal;
-
-  const contactEmail = kern.ticketdetail.actiefTicket().email || null;
-  const seenEmails = new Set();
-  const ontvangers = [contactEmail, kern.ticketdetail.actiefTicket().emailEindklant || null, kern.ticketdetail.actiefTicket().emailInstallateur || null]
-    .filter(email => {
-      if (!email) return false;
-      const key = email.toLowerCase();
-      if (seenEmails.has(key)) return false;
-      seenEmails.add(key);
-      return true;
-    });
-  _proposalOntvangers = ontvangers;
-  document.getElementById('proposal-email').textContent = ontvangers.length
-    ? `Wordt verstuurd naar: ${ontvangers.join(', ')}`
-    : 'Geen gekend e-mailadres — ticket wordt bijgewerkt maar er wordt geen mail verstuurd.';
-
-  const name = kern.ticketdetail.actiefTicket().naamEindklant || kern.ticketdetail.actiefTicket().contact || '';
-  document.getElementById('proposal-ticket-label').textContent =
-    `#${kern.ticketdetail.actiefTicket().number} — ${name || 'onbekende klant'}`;
-
-  updateProposalPreview();
-  document.getElementById('proposal-overlay').classList.add('open');
-}
-
-// Kuist een ruwe (vaak doorgestuurde-mail-)ticket-titel op tot een klantvriendelijke
-// omschrijving voor gebruik in het afspraaksvoorstel-mailtje. Strip herhaalde forward-/
-// antwoord-prefixen (FW:/Fwd:/RE:, ongeacht hoofdletters, ook genest zoals "RE: FW: ...") en de
-// automatisch gegenereerde titel van een doorgestuurd contactformulier-bericht ("Nieuw
-// contactbericht van ..."). Blijft er niets bruikbaars over, dan een neutrale fallback-tekst
-// (UX-ronde 2026-09-22, item 2).
-function cleanTicketSubject(raw) {
-  let s = String(raw || '').trim();
-  const prefixRe = /^(fw|fwd|re|aw|wg|tr)\s*:\s*/i;
-  let prev;
-  do { prev = s; s = s.replace(prefixRe, '').trim(); } while (s !== prev);
-  if (/^nieuw contactbericht van\b/i.test(s)) s = '';
-  return s || 'uw laadstation';
-}
-
-function updateProposalPreview() {
-  if (!kern.ticketdetail.actiefTicket()) return;
-  const date     = document.getElementById('proposal-date').value;
-  const rawTime  = document.getElementById('proposal-time').value;
-  // Weergave-tijdslot (Task 9, Blok 1C): de klant ziet nooit de exacte tijd, enkel het
-  // configureerbare tijdslot (bv. "10:00–13:00") waarin apptTime valt. aankomstTijdenVoorDag() (kern.route; legacy-naam computeArrivalTimes)
-  // en de exacte opgeslagen tijd blijven hierdoor volledig ongewijzigd — dit is uitsluitend
-  // een weergave-laag via tijdslotVoor() (Task 6). I5 (eindreview v1.4.0): tijdslotVoor() volgt
-  // de schatting nu ook buiten de werkdag (zie aldaar) -- hieronder tonen we in dat geval een
-  // aparte waarschuwing, puur informatief voor de coördinator, geen blokkering.
-  const apptMin    = rawTime ? timeStrToMin(roundToNextQuarterStr(rawTime)) : null;
-  const apptWindow = apptMin !== null ? tijdslotVoor(apptMin).label : '—';
-  const buitenWerkdag = apptMin !== null && (
-    apptMin < timeStrToMin(settings.vanTijd || '08:00') ||
-    apptMin >= timeStrToMin(settings.totTijd || '17:00')
-  );
-  const outsideEl = document.getElementById('proposal-outside-workday');
-  if (outsideEl) outsideEl.style.display = buitenWerkdag ? '' : 'none';
-  const dateFmt  = date
-    ? new Date(date + 'T12:00:00').toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
-    : '—';
-  const name     = escHtml(kern.ticketdetail.actiefTicket().naamEindklant || kern.ticketdetail.actiefTicket().contact || 'klant');
-  const subj     = escHtml(cleanTicketSubject(kern.ticketdetail.actiefTicket().subject));
-  const sn       = escHtml(kern.ticketdetail.actiefTicket().serienummer || '');
-
-  document.getElementById('proposal-no-email').style.display = _proposalOntvangers.length ? 'none' : '';
-
-  const bolt = `<svg width="14" height="22" viewBox="0 0 14 22" xmlns="http://www.w3.org/2000/svg">`
-    + `<line x1="9" y1="5" x2="6" y2="11" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/>`
-    + `<line x1="8" y1="12" x2="5" y2="18" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/>`
-    + `</svg>`;
-
-  document.getElementById('proposal-preview').innerHTML = `
-    <div style="background:#181e24;padding:14px 18px;display:flex;align-items:center;gap:10px">
-      ${bolt}
-      <div>
-        <span style="font-family:'Arial Black',Arial,sans-serif;font-size:15px;font-weight:900;letter-spacing:3px;color:#00dfa3">BLITZ</span>
-        <span style="display:block;font-size:8px;color:#5a6472;letter-spacing:2px">POWER</span>
-      </div>
-    </div>
-    <div style="height:2px;background:#00dfa3"></div>
-    <div style="padding:16px 18px;font-family:Arial,sans-serif;background:#fff">
-      <p style="margin:0 0 10px;font-size:13px;color:#181e24">Geachte ${name},</p>
-      <p style="margin:0 0 14px;font-size:13px;color:#3a3a3a;line-height:1.5">Wij plannen een servicebezoek voor: <strong>${subj}</strong>.</p>
-      <div style="background:#f7f7f7;border-left:3px solid #00dfa3;padding:12px 14px;margin-bottom:14px;border-radius:0 4px 4px 0">
-        <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#8a9aaa;margin-bottom:4px">Voorgestelde afspraak</div>
-        <div style="font-size:15px;font-weight:700;color:#181e24">${dateFmt}</div>
-        <div style="font-size:12px;color:#3a3a3a">tussen <strong>${apptWindow}</strong> uur</div>
-        ${sn ? `<div style="font-size:10px;color:#8a9aaa;margin-top:6px">Serienummer: ${sn}</div>` : ''}
-      </div>
-      <!-- Fix 3 (finale review): dit spiegelt de bevestigingsknop uit propose.js's buildEmailHtml()
-           (Fix 1/2), zodat de coördinator hier ziet wat de klant écht ontvangt. Bewust GEEN echte
-           confirmUrl/href nodig -- dit is een preview, geen live link, dus een inert element
-           (href="#") kan geen per-ongeluk-klik veroorzaken. Stijl (kleuren/padding/radius) moet
-           gelijk blijven aan de echte knop. -->
-      <div style="text-align:center;margin:14px 0">
-        <a href="#" onclick="return false" style="display:inline-block;background:#00dfa3;color:#181e24;
-          text-decoration:none;font-weight:700;font-size:13px;padding:10px 24px;border-radius:6px">
-          ✅ Bevestig deze afspraak
-        </a>
-      </div>
-      <p style="margin:0 0 10px;font-size:12px;color:#3a3a3a">Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen, of antwoord op deze e-mail. Komt het voorgestelde tijdstip u niet uit? Laat het ons dan weten via een antwoord op deze e-mail, zodat we samen een alternatief zoeken. In bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.</p>
-      <p style="margin:0;font-size:12px;color:#3a3a3a">Met vriendelijke groeten,<br><strong>Team Blitz Power — Service &amp; Support</strong></p>
-    </div>
-    <div style="background:#f7f7f7;border-top:1px solid #e8e8e8;padding:10px 18px;font-size:10px;color:#8a9aaa">
-      📎 Bijlage: Service Voorwaarden Blitz Power.pdf
-    </div>
-    <div style="background:#f7f7f7;border-top:1px solid #e8e8e8;padding:10px 18px;font-size:10px;color:#8a9aaa">
-      Blitz Power BV &nbsp;·&nbsp; Tel: +32 3 36 16 404 &nbsp;·&nbsp;
-      <span style="color:#00dfa3">www.blitzpower.com</span>
-    </div>`;
-}
-
-function closeProposal(e) {
-  if (e && e.target !== document.getElementById('proposal-overlay')) return;
-  document.getElementById('proposal-overlay').classList.remove('open');
-}
-
-// ══════════════════════════════════════════════
 // AFSPRAAK ANNULEREN (v1.10.0)
 // ══════════════════════════════════════════════
-// Lopend voorstel = er is een register-entry (contact/klant/installateur/bevestigd) MET een
-// gepland-status, of de status staat al op 'Geplande service/support'. Een register-entry bij een
-// ticket dat in Zoho al op 'Wachten op planning' e.d. staat is een restant en telt niet (anders
-// zou de annuleerknop een mail sturen voor een afspraak die niet meer bestaat).
-// 'Wachten op bevestiging planning' alleen telt NIET: gewoon inplannen (/api/plan) zet die status
-// ook, zonder dat er een voorstel naar de klant ging.
-function heeftLopendVoorstel(t) {
-  if (!t) return false;
-  const vs = voorstelStatus[t.id];
-  const GEPLAND = ['Wachten op bevestiging planning', 'Geplande service', 'Geplande support'];
-  if (vs && (vs.contact || vs.klant || vs.installateur || vs.bevestigd) && GEPLAND.includes(t.status)) return true;
-  return ['Geplande service', 'Geplande support'].includes(t.status);
-}
-
 let _annuleerRedenen = null; // [{code,label}] -- één keer opgehaald
 let _ann = null;             // toestand van het openstaande venster
 const ANN_DOELGROEP = { contact: 'contactpersoon', klant: 'klant', installateur: 'installateur' };
@@ -3824,7 +3618,7 @@ async function verstuurAnnulatie() {
       renderTickets(); renderKalender(); kern.ingepland.renderGepland(); renderRouteList(datum); updateRouteBtns(datum);
     } catch (e) { console.warn('Hertekenen mislukt:', e); }
   };
-  loadVoorstelStatus().then(hertekenen);
+  kern.voorstel.loadVoorstelStatus().then(hertekenen);
 
   const fouten = Array.isArray(data.fouten) ? data.fouten : [];
   const delen = [];
@@ -3846,151 +3640,6 @@ function joinNL(items) {
   return items.slice(0, -1).join(', ') + ' en ' + items[items.length - 1];
 }
 const DOELGROEP_LABEL = { contact: 'contactpersoon', klant: 'klant', installateur: 'installateur' };
-
-async function sendProposal() {
-  if (!kern.ticketdetail.actiefTicket()) return;
-  const ticketId       = kern.ticketdetail.actiefTicket().id;
-  const date           = document.getElementById('proposal-date').value;
-  const rawTime        = document.getElementById('proposal-time').value;
-
-  if (!date) return toast('⚠ Selecteer een datum');
-
-  const btn = document.getElementById('proposal-send-btn');
-  btn.disabled    = true;
-  btn.textContent = 'Bezig...';
-
-  // Weergave-tijdslot (Task 9, Blok 1C) — zelfde berekening als updateProposalPreview(). Vóór de
-  // TEST_MODE-tak berekend (Taak 3, punt 4), zodat ook in testmodus het lokaal opgeslagen
-  // voorstelStatus het gemailde tijdslot bevat en de UI dat kan tonen.
-  const apptMinSend    = rawTime ? timeStrToMin(roundToNextQuarterStr(rawTime)) : null;
-  const apptWindowSend = apptMinSend !== null ? tijdslotVoor(apptMinSend).label : '';
-
-  if (TEST_MODE) {
-    await new Promise(r => setTimeout(r, 600));
-    kern.ticketdetail.actiefTicket().status = 'Wachten op bevestiging planning';
-    allTickets = allTickets.filter(t => t.id !== ticketId);
-    if (!allPending.find(t => t.id === ticketId)) allPending.push(kern.ticketdetail.actiefTicket());
-    kern.toestand.raak('allPending'); // in-place push
-    // Nieuw voorstel vervangt de oude registerentry (geen oude doelgroepen/bevestiging laten staan).
-    // Realistisch register-effect: doelgroepen met tijdstip, zodat 🔒 en de annuleerknop verschijnen.
-    const nuIso = new Date().toISOString();
-    const lc = e => (e || '').toLowerCase();
-    const inLijst = e => !!e && _proposalOntvangers.some(o => lc(o) === lc(e));
-    const regEntry = apptWindowSend ? { tijdslot: apptWindowSend, tijdslotDatum: date } : {};
-    if (inLijst(kern.ticketdetail.actiefTicket().email)) regEntry.contact = nuIso;
-    if (inLijst(kern.ticketdetail.actiefTicket().emailEindklant)) regEntry.klant = nuIso;
-    if (inLijst(kern.ticketdetail.actiefTicket().emailInstallateur)) regEntry.installateur = nuIso;
-    voorstelStatus[ticketId] = regEntry;
-    document.getElementById('proposal-overlay').classList.remove('open');
-    btn.disabled = false; btn.textContent = '✉️ Verstuur voorstel';
-    // allTickets is toegewezen: koppelRenders hertekent wachtrij, kalender en route (voorstelStatus
-    // en planning zijn dan al bijgewerkt: de flush volgt pas na dit synchrone blok).
-    toast(`🧪 Testmodus — ${_proposalOntvangers.length ? 'voorstel verstuurd (demo)' : 'status bijgewerkt (geen e-mail)'}`, 3500);
-    return;
-  }
-
-  try {
-    // Bereken UTC-tijdstip in de browser (die kent de lokale tijdzone)
-    const timeStr             = rawTime || '09:00';
-    const utcInterventieDatum = new Date(`${date}T${timeStr}:00`).toISOString();
-
-    const res  = await fetch('/api/propose', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        ticketId,
-        date,
-        time: rawTime,
-        utcInterventieDatum,
-        recipientName: kern.ticketdetail.actiefTicket().naamEindklant || kern.ticketdetail.actiefTicket().contact || '',
-        subject:       cleanTicketSubject(kern.ticketdetail.actiefTicket().subject),
-        serienummer:   kern.ticketdetail.actiefTicket().serienummer || '',
-        appointmentWindow: apptWindowSend,
-      }),
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-
-    // Eén atomische POST met alle doelgroepen die een mail kregen; reset vervangt de oude entry.
-    const verzonden = ['contact', 'klant', 'installateur'].filter(d => data.emailSent?.[d] === true);
-    const hertekenStatus = () => {
-      try { renderTickets(); renderKalender(); renderRouteList(date); } catch (e) { console.warn('Hertekenen mislukt:', e); }
-    };
-    if (verzonden.length) {
-      const tijdstip = new Date().toISOString();
-      const schrijfStatus = async (poging) => {
-        const r = await fetch('/api/voorstel-status', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({
-            ticketId, doelgroepen: verzonden, tijdstip, reset: true, versie: _voorstelStatusVersie,
-            ...(apptWindowSend ? { tijdslot: apptWindowSend, tijdslotDatum: date } : {}),
-          }),
-        });
-        if (r.status === 409 && poging === 0) {
-          if (!(await loadVoorstelStatus())) return;
-          return schrijfStatus(1);
-        }
-        const d = await r.json();
-        if (d.error) { console.warn('Voorstel-status opslaan mislukt:', d.error); return; }
-        if (typeof d.versie === 'number') _voorstelStatusVersie = d.versie;
-        const entry = {};
-        verzonden.forEach(x => { entry[x] = tijdstip; });
-        if (apptWindowSend) { entry.tijdslot = apptWindowSend; entry.tijdslotDatum = date; }
-        voorstelStatus[ticketId] = entry;
-        hertekenStatus();
-      };
-      schrijfStatus(0).catch(err => console.warn('Voorstel-status opslaan mislukt:', err));
-    } else {
-      // Geen enkele mail verstuurd: een oude registerentry (verzonden-vinkje, tijdslot, bevestigd) wissen.
-      fetch('/api/voorstel-status?ticketId=' + encodeURIComponent(ticketId), { method: 'DELETE' })
-        .then(r => r.json())
-        .then(d => {
-          if (d.error) { console.warn('Voorstel-status wissen mislukt:', d.error); return; }
-          if (typeof d.versie === 'number') _voorstelStatusVersie = d.versie;
-          delete voorstelStatus[ticketId];
-          hertekenStatus();
-        })
-        .catch(err => console.warn('Voorstel-status wissen mislukt:', err));
-    }
-    kern.ticketdetail.actiefTicket().status           = 'Wachten op bevestiging planning';
-    kern.ticketdetail.actiefTicket().interventieDatum = data.interventieDatum;
-
-    allTickets = allTickets.filter(t => t.id !== ticketId);
-    if (!allPending.find(t => t.id === ticketId)) allPending.push({ ...kern.ticketdetail.actiefTicket() });
-    kern.toestand.raak('allPending'); // in-place push
-
-    // Fix (bugronde 2026-09-22, item E): een datumwijziging via het voorstel-venster mag het
-    // ticket niet op zowel de oude als de nieuwe datum laten staan -- eerst overal weghalen.
-    Object.keys(planning).forEach(d => {
-      if (d === date) return;
-      planning[d] = planning[d].filter(p => p.ticket.id !== ticketId);
-      if (!planning[d].length) delete planning[d];
-    });
-
-    if (!planning[date]) planning[date] = [];
-    if (!planning[date].find(p => p.ticket.id === ticketId)) {
-      planning[date].push({ ticket: kern.ticketdetail.actiefTicket(), address: kern.ticketdetail.actiefTicket().address, uur: extractLocalHour(data.interventieDatum) });
-    }
-    kern.toestand.raak('planning'); // Zoho-gebonden succespad (R7): in-place filter/delete/push
-
-    document.getElementById('proposal-overlay').classList.remove('open');
-    btn.disabled = false; btn.textContent = '✉️ Verstuur voorstel';
-
-    // allTickets is toegewezen: koppelRenders hertekent wachtrij, kalender en route (na dit synchrone blok).
-    const gelukt = (data.ontvangers || []).filter(d => data.emailSent?.[d]);
-    const msg = gelukt.length
-      ? `✓ Voorstel verstuurd naar ${joinNL(gelukt.map(d => DOELGROEP_LABEL[d] || d))}`
-      : (data.ontvangers || []).length
-        ? '✓ Ticket bijgewerkt — e-mail kon niet verstuurd worden via Zoho'
-        : '✓ Status bijgewerkt (geen e-mailadres)';
-    toast(msg, 3500);
-  } catch (err) {
-    btn.disabled    = false;
-    btn.textContent = '✉️ Verstuur voorstel';
-    toast('✕ ' + err.message, 5000);
-  }
-}
 
 // ══════════════════════════════════════════════
 // HELPERS

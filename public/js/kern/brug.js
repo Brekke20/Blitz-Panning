@@ -15,6 +15,7 @@ import * as kalender from '../schermen/kalender.js';
 import * as ingepland from '../schermen/ingepland.js';
 import * as ticketdetailLogica from '../schermen/ticketdetail-logica.js';
 import * as ticketdetail from '../schermen/ticketdetail.js';
+import * as voorstel from '../schermen/voorstel.js';
 
 window.kern = { tijd, ui, selecties, toestand, api };
 window.kern.route = { ...routeTijden, ...routeKaart, ...route };
@@ -24,6 +25,7 @@ window.kern.kalender = { ...kalender };
 window.kern.ingepland = { ...ingepland };
 window.kern.ticketdetailLogica = { ...ticketdetailLogica };
 window.kern.ticketdetail = { ...ticketdetail };
+window.kern.voorstel = { ...voorstel };
 
 // LEGACY-BRUG (verdwijnt in etappe 5): oude globale namen voor klassieke code en oudere modules
 Object.assign(window, {
