@@ -131,17 +131,19 @@ export async function verstuurRapport(rapportId, btn) {
 
   // Q1 (etappe 7): is er na een onzeker resultaat al een mail van dit rapport gedetecteerd, dan eerst vragen (annuleren verstuurt niets).
   const gedetecteerd = leesMailGedetecteerd()[rapportId];
+  if (btn) btn.disabled = true; // vóór de vraag: tijdens het wachten op het antwoord kan de rijknop niet nogmaals aangeklikt worden
   if (gedetecteerd) {
     const ok = await appConfirm({
       titel: 'Mail al gedetecteerd',
       tekst: `Er is om ${uurBrussel(gedetecteerd)} al een mail naar de klant gedetecteerd. Toch opnieuw versturen?`,
       bevestigLabel: 'Toch opnieuw versturen', annuleerLabel: 'Terug', gevaar: true,
     });
-    if (!ok) return;
+    if (!ok) {
+      if (btn) btn.disabled = false; // Terug: de knop is weer bruikbaar
+      return;
+    }
     zetMailGedetecteerd(rapportId, null);
   }
-
-  if (btn) btn.disabled = true;
 
   toast('📤 Rapport versturen...', 6000);
   const verzendStart = new Date().toISOString(); // Q1 (etappe 7): begin van de verzending, enkel gebruikt na een onzeker resultaat

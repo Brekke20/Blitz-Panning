@@ -469,8 +469,10 @@ test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg 
     await bevestig(page);
     await expect(dialoog).toBeVisible();
     await expect(dialoog).toContainText('Er is om 09:01 al een mail naar de klant gedetecteerd. Toch opnieuw versturen?');
+    await expect(verstuurKnop(page)).toBeDisabled(); // de rijknop is tijdens de vraag al op slot
     await dialoog.getByRole('button', { name: 'Terug' }).click();
     await expect(dialoog).toHaveCount(0);
+    await expect(verstuurKnop(page)).toBeEnabled(); // Terug: weer bruikbaar
     expect(soorten()).toEqual(['voorbeeld', 'echt', 'voorbeeld']);
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_mail_gedetecteerd')))).toEqual({ r1: '2026-10-05T07:01:00.000Z' }); // blijft onthouden
     expect(z.opnames['rapport-verzonden']).toEqual([]);

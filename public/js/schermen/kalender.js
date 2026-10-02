@@ -148,7 +148,7 @@ function buildLocalEventCard(ev, { showActions = true } = {}) {
   // Bubbel-guard (C8): een klik op een data-actie-knop (✕) opent het detail niet.
   card.addEventListener('click', e => { if (e.target.closest('[data-actie]')) return; afh.openLocalEventDetail(ev); });
   // Toetsenbord (N11): Enter/Space opent het detail; Tab alleen focust. Toetsen uit de ✕/Bellen/Navigeer-knoppen blijven bij die knoppen.
-  maakActiveerbaar(card, () => afh.openLocalEventDetail(ev), 'Open afspraak ' + (ev.titel || ev.type || ''));
+  maakActiveerbaar(card, () => afh.openLocalEventDetail(ev), ('Open afspraak ' + (ev.titel || ev.type || '')).trim());
   return card;
 }
 
