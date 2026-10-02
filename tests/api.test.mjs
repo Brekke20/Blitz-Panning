@@ -1,6 +1,6 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { ApiFout, zetFetch, apiVerzoek, apiJson, bewaarMetVersie } from '../public/js/kern/api.js';
+import { ApiFout, zetFetch, apiVerzoek, apiJson, bewaarMetVersie, leesFout } from '../public/js/kern/api.js';
 
 afterEach(() => zetFetch(null));
 
@@ -131,4 +131,33 @@ test('bewaarMetVersie: samengevoegd is true na een 409-merge, ook bij een misluk
   assert.equal((await bewaarMetVersie({ pad: '/api/kb', veld: 'items', versie: 0, waarde: {}, voegSamen })).samengevoegd, true);
   zetFetch(nepFetch(new TypeError('offline')));
   assert.equal((await bewaarMetVersie({ pad: '/api/kb', veld: 'items', versie: 0, waarde: {} })).samengevoegd, false);
+});
+
+test('leesFout: TimeoutError en AbortError zijn onzeker', () => {
+  assert.deepEqual(leesFout(new DOMException('x', 'TimeoutError')), { soort: 'timeout', onzeker: true });
+  assert.deepEqual(leesFout(new DOMException('x', 'AbortError')), { soort: 'netwerk', onzeker: true });
+});
+
+test('leesFout: TypeError van fetch is netwerk, offline als de browser offline is', () => {
+  assert.deepEqual(leesFout(new TypeError('Failed to fetch'), { online: true }), { soort: 'netwerk', onzeker: true });
+  assert.deepEqual(leesFout(new TypeError('Load failed'), { online: true }), { soort: 'netwerk', onzeker: true });
+  assert.deepEqual(leesFout(new TypeError('Failed to fetch'), { online: false }), { soort: 'offline', onzeker: true });
+  assert.deepEqual(leesFout(new TypeError('Cannot read properties of undefined'), { online: true }), { soort: 'onbekend', onzeker: false });
+});
+
+test('leesFout: 502/503/504 onzeker; 400/404/409/500 definitief (ApiFout en Error met HTTP-tekst)', () => {
+  for (const s of [502, 503, 504]) {
+    assert.deepEqual(leesFout(new ApiFout(s, null)), { soort: 'http', status: s, onzeker: true });
+    assert.deepEqual(leesFout(new Error('HTTP ' + s)), { soort: 'http', status: s, onzeker: true });
+  }
+  for (const s of [400, 404, 409, 500]) {
+    assert.deepEqual(leesFout(new ApiFout(s, null)), { soort: 'http', status: s, onzeker: false });
+    assert.deepEqual(leesFout(new Error('HTTP ' + s)), { soort: 'http', status: s, onzeker: false });
+  }
+});
+
+test('leesFout: onbekend object', () => {
+  assert.deepEqual(leesFout({ iets: 1 }), { soort: 'onbekend', onzeker: false });
+  assert.deepEqual(leesFout(null), { soort: 'onbekend', onzeker: false });
+  assert.deepEqual(leesFout(new Error('boem')), { soort: 'onbekend', onzeker: false });
 });

@@ -83,3 +83,18 @@ export async function bewaarMetVersie({ pad, veld, versie, waarde, voegSamen }) 
     return stand(false, { reden: 'netwerk', versie, waarde });
   }
 }
+
+// Classificeert een fout van een /api-aanroep voor de aanroeper (en later voor "onzeker"-afhandeling, etappe 7 T8).
+// soort: 'offline' | 'timeout' | 'netwerk' | 'http' | 'onbekend'. onzeker: kan de server de schrijfactie toch uitgevoerd hebben?
+// Een 500 van onze eigen functie is een definitief antwoord; 502/503/504 (proxy/gateway) zeggen niets over de uitkomst.
+const ONZEKERE_STATUS = new Set([502, 503, 504]);
+export function leesFout(err, { online = globalThis.navigator?.onLine } = {}) {
+  if (err?.name === 'TimeoutError') return { soort: 'timeout', onzeker: true };
+  if (err?.name === 'AbortError') return { soort: 'netwerk', onzeker: true };
+  if (err instanceof TypeError && /fetch|load failed|network/i.test(err.message || '')) {
+    return { soort: online === false ? 'offline' : 'netwerk', onzeker: true };
+  }
+  const status = typeof err?.status === 'number' ? err.status : Number(/^HTTP (\d{3})$/.exec(err?.message || '')?.[1]);
+  if (status) return { soort: 'http', status, onzeker: ONZEKERE_STATUS.has(status) };
+  return { soort: 'onbekend', onzeker: false };
+}
