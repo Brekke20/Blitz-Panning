@@ -47,6 +47,9 @@ export async function loadKlantBeschikbaarheid() {
     const data = await apiJson(KB_API);
     toestand.set('klantBeschikbaarheid', data.items  || {});
     kbVersie             = data.versie || 0;
+    // De wachtrij toont de klantvoorkeur-labels; komt dit antwoord na de eerste ticketrender, dan zou ze die voor altijd missen
+    // (geen abonnement op klantBeschikbaarheid, zie koppelRenders): één expliciete hertekening, enkel op dit laadpad.
+    afh.renderTickets();
     // Live lezen na de await: de toestand kan sinds de fetch gewijzigd zijn.
     if (!TEST_MODE) afh.saveToCache('blitz_klantbeschikbaarheid_cache', { items: toestand.get('klantBeschikbaarheid'), versie: kbVersie });
   } catch (err) {

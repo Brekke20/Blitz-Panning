@@ -139,7 +139,7 @@ function opstart() {
   // Klantbeschikbaarheid (schermen/klantbeschikbaarheid.js): laden, bewaren en de sectie in het detail; vóór de schermen die ze lezen.
   // Beschikbaarheid (schermen/beschikbaarheid.js): blokkeringsvenster en instellingen-tab; vóór de schermen die ze openen.
   beschikbaarheid.initBeschikbaarheid({ loadFromCache, saveToCache, sjLog });
-  klantbeschikbaarheid.initKlantbeschikbaarheid({ loadFromCache, saveToCache, zetKbDirty: ticketdetail.zetKbIsDirty });
+  klantbeschikbaarheid.initKlantbeschikbaarheid({ loadFromCache, saveToCache, zetKbDirty: ticketdetail.zetKbIsDirty, renderTickets: wachtrij.renderTickets });
   // Instellingen (schermen/instellingen.js): instellingenvenster, toesteltab en de knoppen van het prijsbeheer; vóór `settings` gezaaid wordt.
   instellingen.initInstellingen({
     openPrijsBeheer: openPrijsBeheer, closePrijsBeheer: closePrijsBeheer,

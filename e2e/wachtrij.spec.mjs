@@ -136,8 +136,18 @@ test.describe('wachtrij: tags', () => {
       t1: { voorkeur: '2026-10-09', voorkeurTijd: '10:00', geblokkeerd: ['2026-10-06', '2026-10-07'] },
       t2: { voorkeurTijd: '14:00' },
     };
-    await startApp(page, { overschrijf: seed({ klant }) });
+    // Deterministisch: het klantbeschikbaarheid-antwoord wordt vastgehouden tot de wachtrij zonder tags getekend is (de
+    // klantbeschikbaarheid komt dus later binnen dan de tickets); de tags moeten dan alsnog verschijnen.
+    const overschrijf = seed({ klant });
+    const echt = overschrijf.klantbeschikbaarheid;
+    let laatDoorgaan;
+    const poort = new Promise(r => { laatDoorgaan = r; });
+    overschrijf.klantbeschikbaarheid = async (arg) => { await poort; return echt(arg); };
+    await startApp(page, { overschrijf });
     const k1 = page.locator('#ticket-list .ticket').filter({ hasText: '#1001' });
+    await expect(k1).toBeVisible();
+    await expect(k1.locator('.atag[title^="Voorkeursdatum"]')).toHaveCount(0);
+    laatDoorgaan();
     const voorkeur1 = k1.locator('.atag[title^="Voorkeursdatum"]');
     await expect(voorkeur1).toContainText('📌');
     await expect(voorkeur1).toContainText('10:00');
