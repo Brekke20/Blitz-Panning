@@ -149,4 +149,33 @@ test.describe('Excel-export (TicketLog)', () => {
     await tweede;
     expect(cdn.filter(u => /exceljs/.test(u)).length).toBe(1);
   });
+
+  // Inventaris-export (tweede ExcelJS-gebruiker, etappe 7): zelfde lazy lader, eigen werkblad "Inventaris".
+  test('Inventaris-export: één logregel geeft kop en rij, en precies één ExcelJS-verzoek', async ({ page, verzoeken }) => {
+    const cdn = [];
+    page.on('request', r => { if (new URL(r.url()).hostname === 'cdn.jsdelivr.net') cdn.push(r.url()); });
+    verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
+    const inventaris = { versie: 1, wagenvoorraad: {}, log: [
+      { id: 'l1', datum: '2026-10-05T07:30:00.000Z', technieker: 'Tim', type: 'aanvulling', materiaalNaam: 'Contactor 25A', aantal: 3, status: 'nieuw' },
+    ] };
+    const z = zohoStubs({ rapporten: { versie: 0, rapports: [] } });
+    await startAppProductie(page, { overschrijf: { ...z.overschrijf, inventaris: () => ({ status: 200, json: inventaris }) } });
+    await page.getByRole('tab', { name: /Inventaris/ }).click();
+    await page.clock.runFor(1);
+    expect(cdn, 'vóór de eerste klik').toEqual([]);
+    const download = page.waitForEvent('download');
+    await page.locator('#inv-export-btn').click();
+    const d = await download;
+    await expect(page.locator('#toast')).toHaveText('✓ 1 rijen geëxporteerd');
+    expect(d.suggestedFilename()).toBe('Inventaris_begin_huidig.xlsx');
+    expect(cdn.filter(u => /exceljs/.test(u)).length).toBe(1);
+    const { cellen } = leesWerkblad(leesZip(fs.readFileSync(await d.path())));
+    expect(cellen.A1).toBe('INVENTARIS — BLITZ POWER');
+    expect(['A3', 'B3', 'C3', 'D3', 'E3', 'F3', 'G3'].map(c => cellen[c])).toEqual(['Datum', 'Tijd', 'Technieker', 'Type', 'Materiaal', 'Aantal', 'Status']);
+    // Datum en tijd hangen van de tijdzone van de machine af; de overige cellen niet.
+    expect(cellen.A4).toMatch(/\d/);
+    expect({ C: cellen.C4, D: cellen.D4, E: cellen.E4, F: cellen.F4, G: cellen.G4 })
+      .toEqual({ C: 'Tim', D: 'Aanvulling', E: 'Contactor 25A', F: '3', G: 'Nieuw' });
+    expect(cellen.A5).toBeUndefined();
+  });
 });

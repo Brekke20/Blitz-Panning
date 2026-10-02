@@ -8,6 +8,7 @@
 import { toestand } from './kern/toestand.js';
 import { TEST_MODE } from './kern/omgeving.js';
 import { localISO, extractLocalHour } from './kern/tijd.js';
+import { startTicketLogExport } from './kern/exceljs.js';
 import { toast, registreerActies, metBehoudScroll } from './kern/ui.js';
 import { ticketsVanTechnieker } from './kern/selecties.js';
 import { maakDummyData } from './kern/testdata.js';
@@ -221,7 +222,7 @@ function opstart() {
     'vernieuw': () => loadTickets(),
     'thema': () => toggleTheme(),
     'instellingen': () => instellingen.openSettings(),
-    'rapport-export': async () => (await import('./excel-export.js')).exportTicketLog(),
+    'rapport-export': () => startTicketLogExport(() => import('./excel-export.js'), toast),
     'rapport-herlaad': () => laadRapportArchief(),
     'wizard-sluit': () => closeWizard(),
     'wizard-terug': () => wizBack(),
