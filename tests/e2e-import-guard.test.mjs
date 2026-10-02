@@ -72,7 +72,9 @@ const NETWERK_PATRONEN = [
   [/\.\s*(?:newContext|newPage)\s*\(/, 'newContext/newPage'],
   [/\bbrowser\s*\./, 'browser.'],
   [/\(\s*\{[^}]*\bbrowser\b[^}]*\}\s*[,)]/, 'browser-fixture'],
-  [/(?<![\w$.])fetch\s*\(|\b(?:globalThis|global|window)\s*\.\s*fetch\b/, 'fetch('],
+  // Toegestaan: enkel een browser-fetch met een letterlijke relatieve string als eerste argument (fetch('/api/…' of fetch("/api/…")):
+  // die blijft same-origin en wordt door de fixture gestubd. Al het andere (variabele, template, absolute url, window/globalThis.fetch) faalt.
+  [/(?<![\w$.])fetch\s*\((?!\s*['"]\/api\/)|\b(?:globalThis|global|window)\s*\.\s*fetch\b/, 'fetch('],
 ];
 const KLEP_NAMEN = /\b(buitenHost|ongeoorloofd|testSignalen|neemGeblokkeerdeProbesOver|productie-waarnemer|zelftest-hulp)\b/;
 const KLEP_MUTATIE = new RegExp(`\\.(?:onverwacht|alle|schrijven|websockets)\\s*${MUTATIE}|\\bconsoleFouten\\s*${MUTATIE}`);
@@ -304,6 +306,24 @@ test('guard: fetch( in productiespecs faalt (de zelftest en fixtures niet)', () 
     assert.deepEqual(slecht('e2e/productie/vangnet-zelftest.spec.mjs', ZELF + regel), [], regel);
   }
   assert.deepEqual(slecht('e2e/productie/x.spec.mjs', PROD + "const prefetch = 1; await page.goto('/fetch');"), []);
+});
+
+test('guard: een letterlijke relatieve fetch met een /api/-pad in een productiespec is toegestaan', () => {
+  for (const regel of [
+    "await page.evaluate(() => fetch('/api/fotos', { method: 'PUT', body: '{}' }));",
+    'await page.evaluate(() => fetch("/api/plan").catch(() => {}));',
+    "await page.evaluate(() => fetch( '/api/x'));",
+  ]) assert.deepEqual(slecht('e2e/productie/x.spec.mjs', PROD + regel), [], regel);
+});
+
+test('guard: elke andere fetch-vorm in een productiespec faalt nog steeds', () => {
+  for (const regel of [
+    "await page.evaluate((u) => fetch(u), '/api/x');", "await page.evaluate(() => fetch(`/api/${x}`));",
+    "await page.evaluate(() => fetch('https://x.test/api/x'));", "await page.evaluate(() => fetch('//x.test/api/x'));",
+    "await page.evaluate(() => fetch('/apix'));", "await page.evaluate(() => fetch('/x'));", "await page.evaluate(() => fetch());",
+    "await page.evaluate(() => window.fetch('/api/x'));", "await page.evaluate(() => globalThis.fetch('/api/x'));",
+    "await page.evaluate(() => window.fetch('http://x'));", "await page.evaluate(() => fetch(url + '/api/'));",
+  ]) assert.notDeepEqual(slecht('e2e/productie/x.spec.mjs', PROD + regel), [], regel);
 });
 
 test('guard: test.use, test.extend en serviceWorkers in productiespecs falen (het slot serviceWorkers: block is niet te overschrijven)', () => {
