@@ -44,9 +44,20 @@ export function scan(bronnen) {
   const kaleLezingen = new Map();
   for (const { naam, tekst: ruw } of bronnen) {
     const tekst = zonderCommentaar(ruw);
-    for (const m of tekst.matchAll(/\bwindow\.([A-Za-z_$][\w$]*)(\s*=(?!=))?/g)) {
+    // window.x, window?.x, globalThis.x, window['x'], window?.['x'] (toewijzing = definitie, anders lezing)
+    for (const m of tekst.matchAll(/\b(?:window|globalThis)\??\.([A-Za-z_$][\w$]*)(\s*=(?!=))?/g)) {
       if (m[2]) gedefinieerd.add(m[1]);
       else if (!gelezen.has(m[1])) gelezen.set(m[1], naam);
+    }
+    for (const m of tekst.matchAll(/\b(?:window|globalThis)\s*(?:\?\.)?\[\s*['"]([\w$]+)['"]\s*\]\s*(=(?!=))?/g)) {
+      if (m[2]) gedefinieerd.add(m[1]);
+      else if (!gelezen.has(m[1])) gelezen.set(m[1], naam);
+    }
+    // venster.js zoekt de sluitfunctie van elk tabelvenster dynamisch op (window[naam]): elke naam in de tabel is een lezing.
+    if (naam.endsWith('venster.js')) {
+      for (const m of tekst.matchAll(/\[\s*'[\w-]+'\s*,\s*'([\w$]+)'\s*\]/g)) {
+        if (!gelezen.has(m[1])) gelezen.set(m[1], naam + ' (sluitVia-tabel)');
+      }
     }
     for (const m of tekst.matchAll(/Object\.defineProperty\(\s*window\s*,\s*['"]([\w$]+)['"]/g)) gedefinieerd.add(m[1]);
     for (const m of tekst.matchAll(/Object\.assign\(\s*window\s*,\s*\{([\s\S]*?)\}\s*\)/g)) {
@@ -91,6 +102,16 @@ test('de scan accepteert toewijzing, defineProperty, Object.assign, top-level fu
 
 test('een typeof-controle op een kale naam zonder definitie wordt gevonden (zelftest)', () => {
   assert.deepEqual(scan([{ naam: 'x.js', tekst: "if (typeof metBehoudScroll === 'function') metBehoudScroll(render);" }]), ['typeof metBehoudScroll (gelezen in x.js)']);
+});
+
+test("window['x'], window?.x en globalThis.x tellen als lezing (zelftest)", () => {
+  const r = scan([{ naam: 'x.js', tekst: "window['a'](); window?.b; window?.['c']; globalThis.d; globalThis.ok = 1; globalThis.ok;" }]);
+  assert.deepEqual(r.sort(), ['window.a (gelezen in x.js)', 'window.b (gelezen in x.js)', 'window.c (gelezen in x.js)', 'window.d (gelezen in x.js)']);
+});
+
+test('een sluitVia-tabelnaam in venster.js zonder definitie wordt gevonden (zelftest)', () => {
+  const r = scan([{ naam: 'js/venster.js', tekst: "[\n  ['result-overlay', 'closeWeg'],\n].forEach(x => x);" }]);
+  assert.deepEqual(r, ['window.closeWeg (gelezen in js/venster.js (sluitVia-tabel))']);
 });
 
 test('commentaar telt niet mee (zelftest)', () => {
