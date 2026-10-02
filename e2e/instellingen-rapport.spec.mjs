@@ -170,4 +170,20 @@ test.describe('instellingen en rapport', () => {
     expect(wachtrij.bestaat, 'outbox-store "items" bestaat').toBe(true);
     expect(wachtrij.aantal).toBe(0);
   });
+
+  // Etappe 5b, taak 6: de wizard leest de actieve technieker uit de toestand (geen stille terugval op 'all' meer).
+  // Ticket p1 (#1004) is aan Tim toegewezen: met Roel als actieve persoon moet stap 1 Roel voorselecteren, niet Tim.
+  // (Het persoonsfilter verbergt Tim's ticket in de kalender; daarom pas na het openen van het detail op Roel gezet.)
+  test('rapportwizard selecteert de actieve technieker voor, niet de toegewezen technieker', async ({ page }) => {
+    await startApp(page);
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await page.locator('.day-col[data-date="2026-10-07"]').getByRole('button', { name: 'Open ticket #1004' }).click();
+    const detail = page.getByRole('dialog', { name: /Energiemeting klopt niet/ });
+    await expect(detail).toBeVisible();
+    await page.evaluate(() => kern.toestand.set('activeAssigneeFilter', 'Roel'));
+    await detail.getByRole('button', { name: '📋 Rapport' }).click();
+    const wizard = page.getByRole('dialog', { name: '📋 Service Rapport' });
+    await expect(wizard).toHaveClass(/open/);
+    await expect(wizard.getByLabel('Technieker Blitz')).toHaveValue('Roel');
+  });
 });

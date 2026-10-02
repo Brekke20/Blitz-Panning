@@ -12,6 +12,7 @@ export let _wizStep   = 0;
 export let _sigTech   = null;
 export let _sigKlant  = null;
 export let _fotoState = { ticketId: null, versie: 0, fotos: [] };
+export function zetFotoState(v) { _fotoState = v; }
 
 // Rapport data object — gevuld doorheen wizard
 export const R = {
@@ -148,7 +149,7 @@ async function openRapportIntern(ticketId, date) {
   // Technieker: de persoon op dit toestel, anders de toegewezen technieker van het ticket.
   // Een teruggezet concept (Taak 5) zet R.technieker daarna opnieuw en wint dus.
   // Altijd vers berekend: R blijft tussen tickets bestaan, een oude waarde mag niet blijven hangen.
-  const actief = window.getActiveAssignee ? window.getActiveAssignee() : 'all';
+  const actief = kern.toestand.get('activeAssigneeFilter');
   R.technieker = (actief && actief !== 'all') ? actief : (ticket.assignee || '');
   R.facturatie     = 'klant';
   R.facturatieVrij = '';
@@ -160,13 +161,13 @@ async function openRapportIntern(ticketId, date) {
   // De routeplanning zelf (calculateRoute/autoPlan/optimizeRoute) gebruikt deze
   // berekening niet en blijft ongewijzigd.
   R.aanrijtijdMin = 0;
-  if (ticket.hasAddress && settings.startlocatie) {
+  if (ticket.hasAddress && kern.toestand.get('settings').startlocatie) {
     try {
       toast('📡 Aanrijtijd wordt berekend…', 5000);
       const gRes  = await fetch('/api/optimize', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ origin: settings.startlocatie, stops: [ticket.address] }),
+        body:    JSON.stringify({ origin: kern.toestand.get('settings').startlocatie, stops: [ticket.address] }),
       });
       const gData = await gRes.json();
       const origin = gData.locations?.[0];
