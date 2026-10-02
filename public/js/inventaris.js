@@ -10,6 +10,7 @@ import { loadFromCache, saveToCache } from './kern/opslag.js';
 import { escHtml, toast } from './kern/ui.js';
 import { laadExcelJs } from './kern/exceljs.js';
 import { PRIJZEN, PRIJZEN_DEFAULTS } from './prijzen.js';
+import { maakVerbruikWachtrij, WACHTRIJ_SLEUTEL } from './kern/verbruik-wachtrij.js';
 
 export let _invData = { versie: 0, wagenvoorraad: {}, log: [] };
 
@@ -39,6 +40,7 @@ export async function loadInventaris() {
     const data = await res.json();
     _invData = data;
     saveToCache(INV_CACHE_KEY, data);
+    verwerkVerbruikWachtrij();
   } catch (err) {
     console.warn('Inventaris laden mislukt, laatst gekende stand blijft staan:', err);
   }
@@ -497,19 +499,41 @@ export async function registreerVerbruik(technieker, onderdelen) {
     .map(p => ({ materiaalId: p.id, materiaalNaam: p.naam, aantal: parseInt(p.aantal) || 1 }));
   if (!items.length) return;
 
-  try {
-    const res = await fetch(INV_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ versie: _invData.versie, technieker, actie: 'verbruik', items }),
-    });
-    if (!res.ok) { console.warn('Inventaris-aftrek (verbruik) niet gelukt, HTTP', res.status); return; }
-    _invData = await res.json();
-    saveToCache(INV_CACHE_KEY, _invData);
-  } catch (err) {
-    console.warn('Inventaris-aftrek (verbruik) niet gelukt:', err);
-  }
+  // Mislukt de aftrek, dan meldt de wachtrij het en probeert ze zekere mislukkingen later opnieuw (Q4, kern/verbruik-wachtrij.js).
+  await verbruikWachtrij().meld(technieker, items);
 }
+
+// Wachtrij met aftrekken die zeker niet gelukt zijn: opnieuw proberen bij opstart, bij weer online en bij elke lading (poll).
+let _wachtrij = null;
+function verbruikWachtrij() {
+  if (_wachtrij) return _wachtrij;
+  _wachtrij = maakVerbruikWachtrij({
+    opslag: {
+      lees: () => loadFromCache(WACHTRIJ_SLEUTEL) || [],
+      schrijf: lijst => {
+        if (lijst.length) saveToCache(WACHTRIJ_SLEUTEL, lijst);
+        else { try { localStorage.removeItem(WACHTRIJ_SLEUTEL); } catch { /* best-effort */ } }
+      },
+    },
+    post: async body => {
+      const res = await fetch(INV_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      let data = null;
+      try { data = await res.json(); } catch { /* geen JSON (bv. HTML van een gateway) */ }
+      return { status: res.status, data };
+    },
+    versie: () => _invData.versie,
+    naSucces: data => { _invData = data; saveToCache(INV_CACHE_KEY, _invData); },
+    naConflict: data => { if (data && typeof data.versie === 'number') { _invData = data; saveToCache(INV_CACHE_KEY, _invData); } },
+    toon: (tekst, ms) => toast(tekst, ms),
+    online: () => globalThis.navigator?.onLine !== false,
+  });
+  return _wachtrij;
+}
+export function verwerkVerbruikWachtrij() {
+  if (TEST_MODE) return Promise.resolve();
+  return verbruikWachtrij().verwerk();
+}
+if (typeof window !== 'undefined') window.addEventListener('online', () => { verwerkVerbruikWachtrij(); });
 
 // ── Window-bridge ──
 // Enkel wat de rapport-wizard nog als kale naam leest: registreerVerbruik (na het versturen van een rapport).
