@@ -210,3 +210,57 @@ test('activeer: verwijdert caches die niet cacheNaam of externNaam heten', async
   await s.activeer();
   assert.deepEqual([...caches.winkels.keys()].sort(), ['extern', 'hoofd']);
 });
+
+// ---- Task 5 (carry-overs uit de review van Task 4) ----
+test('een gedeeltelijk antwoord (206) wordt nooit in de cache gezet (enkel status 200)', async () => {
+  const { s, caches } = bouw({ fetchFn: async () => new Response('stuk', { status: 206 }) });
+  const r = await s.behandel(req(LEAFLET));
+  assert.equal(r.status, 206);
+  assert.equal(caches.winkels.get('extern')?.has(LEAFLET) ?? false, false, 'CDN: 206 niet bewaard');
+  const url = 'https://fonts.googleapis.com/css2?family=Inter';
+  const f = bouw({ fetchFn: async () => new Response('stuk', { status: 206 }) });
+  await f.s.behandel(req(url));
+  assert.equal(f.caches.winkels.get('extern')?.has(url) ?? false, false, 'font: 206 niet bewaard');
+  const i = bouw({ fetchFn: async (u) => (String(u) === LEAFLET ? new Response('stuk', { status: 206 }) : new Response('ok')) });
+  await i.s.installeer();
+  assert.equal(i.caches.winkels.get('extern').has(LEAFLET), false, 'install-prefetch: 206 niet bewaard');
+});
+
+test('installeer: een hangende CDN houdt de installatie niet op (time-out op de prefetch)', async () => {
+  const wachters = [];
+  const { s, caches } = bouw({
+    wachters, fetchFn: async (u) => (String(u) === LEAFLET ? new Promise(() => {}) : new Response('ok')),
+  });
+  let klaar = false;
+  const p = s.installeer().then(() => { klaar = true; });
+  await tick(); await tick();
+  assert.equal(klaar, false, 'nog niet klaar zolang de time-out niet verstreken is');
+  const w = wachters.find((x) => x.ms > 0);
+  assert.ok(w, 'er is een time-out gezet');
+  assert.ok(w.ms >= 3000 && w.ms <= 30000, `time-out ${w.ms} ms is redelijk`);
+  w.res();
+  await p;
+  assert.equal(klaar, true);
+  assert.ok(caches.winkels.get('hoofd').has(ORIGIN + '/js/app.js'), 'de schil staat er');
+});
+
+test('/.netlify/-paden: null (niet afgehandeld, ook geen navigatie-fallback naar index.html)', () => {
+  const { s, caches } = bouw({ begin: { hoofd: { [ORIGIN + '/index.html']: 'cache-index' } } });
+  for (const r of [nav('/.netlify/functions/plan'), req('/.netlify/functions/plan'), nav('/.netlify/identity/x'), nav('/.netlify/')]) {
+    assert.equal(s.behandel(r), null, r.url);
+  }
+  assert.equal(caches.winkels.get('extern'), undefined);
+});
+
+test('leesNavTimeout: enkel gehele getallen 0-30000, anders de standaard', () => {
+  const l = strategie.leesNavTimeout;
+  assert.equal(l('?navTimeout=500', 0), 500);
+  assert.equal(l('?navTimeout=0', 700), 0);
+  assert.equal(l('?navTimeout=30000', 0), 30000);
+  assert.equal(l('?a=1&navTimeout=1200', 0), 1200);
+  assert.equal(l('', 0), 0);
+  assert.equal(l('', 900), 900);
+  for (const slecht of ['?navTimeout=30001', '?navTimeout=-5', '?navTimeout=1.5', '?navTimeout=abc', '?navTimeout=', '?navTimeout=123456', '?navTimeout=1e3', '?navTimeout=%20500']) {
+    assert.equal(l(slecht, 42), 42, slecht);
+  }
+});

@@ -105,7 +105,13 @@ test('N16c: CDN_VAST is gelijk aan de externe script/link van index.html plus de
     .filter((m) => !/rel="(?:preconnect|dns-prefetch)"/.test(m[0]))
     .map((m) => m[1])
     .filter((u) => !/^https:\/\/fonts\.(googleapis|gstatic)\.com\//.test(u));
-  assert.deepEqual([...lijst('CDN_VAST')].sort(), [...new Set([...extern, EXCELJS_URL])].sort());
+  // Leaflet laadt zijn pictogrammen (markers, lagenknop) relatief aan leaflet.css; ze staan op dezelfde vaste versie in CDN_VAST,
+  // zodat de kaart ook offline volledige pictogrammen heeft (Task 5).
+  const leafletCss = extern.find((u) => /\/leaflet\/[\d.]+\/leaflet\.min\.css$/.test(u));
+  assert.ok(leafletCss, 'leaflet.min.css staat in index.html');
+  const leafletMap = leafletCss.replace(/leaflet\.min\.css$/, 'images/');
+  const leafletAfbeeldingen = ['marker-icon.png', 'marker-icon-2x.png', 'marker-shadow.png', 'layers.png', 'layers-2x.png'].map((n) => leafletMap + n);
+  assert.deepEqual([...lijst('CDN_VAST')].sort(), [...new Set([...extern, EXCELJS_URL, ...leafletAfbeeldingen])].sort());
   for (const u of lijst('CDN_VAST')) assert.match(u, /^https:\/\/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\//);
 });
 
@@ -130,4 +136,9 @@ test('sw.js: importScripts van sw-strategie.js, /api wordt niet afgehandeld, res
 test('app.js registreert de service worker met updateViaCache: none', () => {
   const app = fs.readFileSync(path.join(PUBLIC, 'js/app.js'), 'utf8');
   assert.match(app, /register\('\/sw\.js', \{ updateViaCache: 'none' \}\)/);
+});
+
+test('sw.js leest ?navTimeout= via SwStrategie.leesNavTimeout met de constante NAV_TIMEOUT_MS (standaard 0) als terugval', () => {
+  assert.match(swBron, /const NAV_TIMEOUT_MS = 0;/);
+  assert.match(swBron, /self\.SwStrategie\.leesNavTimeout\(new URL\(self\.location\)\.search, NAV_TIMEOUT_MS\)/);
 });

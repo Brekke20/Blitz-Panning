@@ -33,6 +33,8 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Changed
 - De app laadt zijn onderdelen vooraf parallel en haalt de Excel-bibliotheek pas op bij de eerste export (TicketLog of Inventaris).
 - De service worker bewaart ook Leaflet, de handtekeningbibliotheek en de Excel-bibliotheek, zodat de app ook zonder verbinding de kaartbibliotheek heeft.
+- De service worker bewaart ook de pictogrammen van de kaart (markers, lagenknop), bewaart enkel volledige antwoorden, geeft zijn voorbereiding op de externe bibliotheken een tijdlimiet en laat `/.netlify/`-paden met rust.
+- Extra testrobot met een echte service worker (offline starten, traag netwerk, updatepad vanaf de huidige live-versie), met een eigen vangnet dat ook verkeer van de service worker zelf bewaakt.
 - Ticketdetail, afspraakvoorstel en annuleervenster zijn intern herbouwd en staan nu in eigen
   onderdelen; voor jou ziet alles er hetzelfde uit en werkt het hetzelfde.
 - Kalender, wachtrij en de lijst Ingepland zijn intern herbouwd en staan nu in eigen onderdelen; voor jou ziet alles er hetzelfde uit en werkt het hetzelfde.

@@ -10,14 +10,14 @@
 //                                  die van de installatie, zodat de modules onderling consistent blijven)
 //   exacte CDN-URL (cdnVast)       cache-eerst in externNaam; bij een miss netwerk en bewaren (enkel bij ok)
 //   Google Fonts-hosts             stale-while-revalidate in externNaam
-//   al het andere                  null
+//   al het andere                  null (ook /api en /.netlify/: geen navigatie-fallback naar index.html)
 (function (wortel, fabriek) {
   if (typeof module === 'object' && module.exports) module.exports = fabriek();
   else wortel.SwStrategie = fabriek();
 })(typeof self !== 'undefined' ? self : this, function () {
   function maakStrategie({
     cacheNaam, externNaam, shell, cdnVast, fontHosts, eigenOrigin,
-    navTimeoutMs = 0, subTimeoutMs = 0, cacheModusMs = 60000,
+    navTimeoutMs = 0, subTimeoutMs = 0, cacheModusMs = 60000, installTimeoutMs = 10000,
     caches, fetchFn, nu, wacht,
   }) {
     const shellPaden = new Set(shell);
@@ -26,7 +26,9 @@
     let cacheModusTot = 0;
 
     const isApi = (u) => u.pathname === '/api' || u.pathname.startsWith('/api/');
-    const bewaarbaar = (r) => r && r.ok;
+    // Enkel een volledig antwoord (200) gaat de cache in: een 206 (gedeeltelijk) in cache.put geeft een fout of een stuk bestand.
+    const bewaarbaar = (r) => !!r && r.status === 200;
+    const isNetlify = (u) => u.pathname === '/.netlify' || u.pathname.startsWith('/.netlify/');
 
     async function uitCache(naam, sleutel) {
       const c = await caches.open(naam);
@@ -109,7 +111,7 @@
       let url;
       try { url = new URL(request.url); } catch { return null; }
       if (url.origin === eigenOrigin) {
-        if (isApi(url)) return null;
+        if (isApi(url) || isNetlify(url)) return null;
         if (request.mode === 'navigate' || shellPaden.has(url.pathname)) return shellAntwoord(request, url);
         return null;
       }
@@ -122,8 +124,19 @@
       const hoofd = await caches.open(cacheNaam);
       await hoofd.addAll(shell); // één 404 laat de installatie falen (bewust: een halve schil is erger dan de oude)
       const extern = await caches.open(externNaam);
+      // Elke CDN-prefetch heeft een time-out: een hangende CDN mag de installatie (en dus de update) niet ophouden.
       await Promise.allSettled(cdnVast.map(async (u) => {
-        const antw = await fetchFn(u, { mode: 'cors' });
+        const stop = typeof AbortController === 'function' ? new AbortController() : null;
+        let antw;
+        try {
+          antw = await Promise.race([
+            fetchFn(u, stop ? { mode: 'cors', signal: stop.signal } : { mode: 'cors' }),
+            wacht(installTimeoutMs).then(() => { throw new Error('time-out CDN-prefetch ' + u); }),
+          ]);
+        } catch (err) {
+          if (stop) stop.abort();
+          throw err;
+        }
         if (bewaarbaar(antw)) await extern.put(u, antw);
       }));
     }
@@ -136,5 +149,11 @@
     return { installeer, activeer, behandel };
   }
 
-  return { maakStrategie };
+  // '?navTimeout=<ms>' van het sw.js-adres: enkel gehele getallen 0-30000 (de tests zetten hem); al het andere geeft de standaard.
+  function leesNavTimeout(zoek, standaard = 0) {
+    const w = new URLSearchParams(zoek).get('navTimeout');
+    return w !== null && /^\d{1,5}$/.test(w) && Number(w) <= 30000 ? Number(w) : standaard;
+  }
+
+  return { maakStrategie, leesNavTimeout };
 });

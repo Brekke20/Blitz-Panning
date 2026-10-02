@@ -241,7 +241,7 @@ export async function stubExtern(page, { overschrijf = {} } = {}) {
   await context.route(u => u.hostname === 'server.arcgisonline.com' || /^[a-c]\.tile\.openstreetmap\.org$/.test(u.hostname), route =>
     route.fulfill({ status: 200, contentType: 'image/png', body: LEGE_TEGEL }));
   await context.route(u => u.hostname === 'fonts.googleapis.com', route =>
-    route.fulfill({ status: 200, contentType: 'text/css', body: '' }));
+    route.fulfill({ status: 200, contentType: 'text/css', body: '/* stub */' })); // niet-leeg: een leeg antwoord geeft bij een service worker een requestfailed ERR_ABORTED
 
   // 1. Catch-all EERST: Playwright kiest de laatst geregistreerde passende route, dus alles wat
   //    hieronder niet specifiek gestubd wordt, komt hier terecht.

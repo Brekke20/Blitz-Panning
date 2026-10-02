@@ -13,6 +13,10 @@
 //  - Productiebestanden (behalve de fixtures): geen test.use(, test.extend( en geen woord `serviceWorkers`; de fixture zet
 //    `serviceWorkers: 'block'` en een spec zou dat anders met test.use({ serviceWorkers: 'allow' }) kunnen omzeilen.
 //  - Ontsnappingskleppen (waarnemer, buitenHost, lekmeldingen wissen) enkel in de zelftest-bestanden.
+//  - Derde klasse (etappe 7, Task 5): service worker-bestanden = e2e/sw/** en e2e/sw-*.mjs. Voor hen gelden alle productieregels,
+//    maar specs importeren enkel ../sw-hulp.mjs (nooit helpers.mjs, productie-hulp.mjs of @playwright/test); de fixture
+//    e2e/sw-hulp.mjs importeert enkel ./productie-hulp.mjs en ./sw-waarnemer.mjs. De woorden `serviceWorkers` en `setOffline`
+//    staan enkel in de fixtures (e2e/sw-hulp.mjs): een spec bedient het offline-slot en de SW-modus enkel via de fixture-API.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -25,7 +29,10 @@ const E2E = path.join(WORTEL, 'e2e');
 // Mogen @playwright/test zelf importeren (de twee fixtures).
 const PLAYWRIGHT_TOEGESTAAN = new Set(['e2e/helpers.mjs', 'e2e/productie-hulp.mjs']);
 // Mogen de interne waarnemer en de lekmeldingen aanraken.
-const ZELFTEST = new Set(['e2e/productie/vangnet-zelftest.spec.mjs', 'e2e/productie/zelftest-hulp.mjs']);
+const ZELFTEST = new Set([
+  'e2e/productie/vangnet-zelftest.spec.mjs', 'e2e/productie/zelftest-hulp.mjs',
+  'e2e/sw/vangnet-zelftest.spec.mjs', 'e2e/sw/zelftest-hulp.mjs',
+]);
 // Expliciete uitzonderingen op het ?test / X-Blitz-Test-verbod (per bestand). Nooit voor waitForTimeout.
 const TESTWOORD_TOEGESTAAN = new Set([
   'e2e/productie-hulp.mjs',
@@ -33,13 +40,17 @@ const TESTWOORD_TOEGESTAAN = new Set([
   'e2e/productie/opstart.spec.mjs',
 ]);
 // De twee fixture-bestanden: enkel zij mogen routes registreren.
-const PRODUCTIE_FIXTURES = new Set(['e2e/productie-hulp.mjs', 'e2e/productie-waarnemer.mjs']);
+const PRODUCTIE_FIXTURES = new Set(['e2e/productie-hulp.mjs', 'e2e/productie-waarnemer.mjs', 'e2e/sw-hulp.mjs', 'e2e/sw-waarnemer.mjs']);
 // Toegestane imports per productiebestand (naast node:*); een ander bestand mag enkel ../productie-hulp.mjs.
 const PRODUCTIE_IMPORTS = {
   'e2e/productie-hulp.mjs': ['@playwright/test', './helpers.mjs', './productie-waarnemer.mjs'],
   'e2e/productie-waarnemer.mjs': ['./vangnet-regels.mjs'],
   'e2e/productie/zelftest-hulp.mjs': ['../productie-waarnemer.mjs'],
   'e2e/productie/vangnet-zelftest.spec.mjs': ['../productie-hulp.mjs', './zelftest-hulp.mjs'],
+  'e2e/sw-hulp.mjs': ['./productie-hulp.mjs', './sw-waarnemer.mjs'],
+  'e2e/sw-waarnemer.mjs': [],
+  'e2e/sw/zelftest-hulp.mjs': ['../sw-waarnemer.mjs', '../productie/zelftest-hulp.mjs'],
+  'e2e/sw/vangnet-zelftest.spec.mjs': ['../sw-hulp.mjs', './zelftest-hulp.mjs'],
 };
 
 const PLAYWRIGHT_MODULE = /^(@playwright\/test|playwright(-core)?(\/test)?)$/;
@@ -76,7 +87,7 @@ const NETWERK_PATRONEN = [
   // die blijft same-origin en wordt door de fixture gestubd. Al het andere (variabele, template, absolute url, window/globalThis.fetch) faalt.
   [/(?<![\w$.])fetch\s*\((?!\s*['"]\/api\/)|\b(?:globalThis|global|window)\s*\.\s*fetch\b/, 'fetch('],
 ];
-const KLEP_NAMEN = /\b(buitenHost|ongeoorloofd|testSignalen|neemGeblokkeerdeProbesOver|productie-waarnemer|zelftest-hulp)\b/;
+const KLEP_NAMEN = /\b(buitenHost|ongeoorloofd|testSignalen|neemGeblokkeerdeProbesOver|neemSwProbesOver|swOvertredingen|productie-waarnemer|sw-waarnemer|zelftest-hulp)\b/;
 const KLEP_MUTATIE = new RegExp(`\\.(?:onverwacht|alle|schrijven|websockets)\\s*${MUTATIE}|\\bconsoleFouten\\s*${MUTATIE}`);
 
 function importsVan(tekst) {
@@ -93,7 +104,8 @@ export function controleer(bestanden) {
     const kaal = tekst.replace(/\/\*[\s\S]*?\*\//g, ' ');
     const imports = importsVan(kaal);
     const isSpec = pad.endsWith('.spec.mjs');
-    const productie = pad.startsWith('e2e/productie/') || pad.startsWith('e2e/productie-');
+    const sw = pad.startsWith('e2e/sw/') || pad.startsWith('e2e/sw-');
+    const productie = pad.startsWith('e2e/productie/') || pad.startsWith('e2e/productie-') || sw;
     const fout = (m) => fouten.push(`${pad}: ${m}`);
 
     if (DYNAMISCH_NIET_LETTERLIJK.test(kaal)) fout('import/require met een niet-letterlijke naam');
@@ -102,19 +114,22 @@ export function controleer(bestanden) {
     }
     for (const i of imports) {
       if (/productie/.test(i) && !productie) fout(`importeert ${i} buiten de productiebestanden`);
+      if (/(^|\/)sw-(hulp|waarnemer)\.mjs$/.test(i) && !sw) fout(`importeert ${i} buiten de sw-bestanden`);
     }
 
-    if (isSpec && !pad.startsWith('e2e/productie/')) {
+    if (isSpec && !pad.startsWith('e2e/productie/') && !sw) {
       if (!imports.includes('./helpers.mjs')) fout('importeert test niet uit ./helpers.mjs');
     }
     if (productie) {
-      const toegestaan = new Set(PRODUCTIE_IMPORTS[pad] ?? ['../productie-hulp.mjs']);
+      const toegestaan = new Set(PRODUCTIE_IMPORTS[pad] ?? [sw ? '../sw-hulp.mjs' : '../productie-hulp.mjs']);
       for (const i of imports) {
         if (!i.startsWith('node:') && !toegestaan.has(i)) fout(`importeert ${i} (toegestaan: ${[...toegestaan].join(', ')})`);
       }
       if (isSpec && pad.startsWith('e2e/productie/') && !imports.includes('../productie-hulp.mjs')) {
         fout('importeert test niet uit ../productie-hulp.mjs');
       }
+      if (isSpec && sw && !imports.includes('../sw-hulp.mjs')) fout('importeert test niet uit ../sw-hulp.mjs');
+      if (sw && !isSpec && !PRODUCTIE_FIXTURES.has(pad) && !ZELFTEST.has(pad)) fout('onbekend bestand in de sw-klasse (geen fixture, geen zelftest, geen spec)');
       if (/waitForTimeout/.test(tekst)) fout('waitForTimeout');
       for (const i of imports) if (UITVOER_MODULES.test(i)) fout(`importeert ${i}`);
       if (!PRODUCTIE_FIXTURES.has(pad) && !ZELFTEST.has(pad)) {
@@ -131,6 +146,7 @@ export function controleer(bestanden) {
         if (/\.\s*(?:use|extend)\s*(?:[;,)\]}=]|$)/m.test(kaal)) fout('test.use/test.extend als alias (zonder aanroep) in een productiespec');
         if (/\{[^}]*\b(?:use|extend)\b[^}]*\}\s*=\s*[\w$.]*test\b/.test(kaal)) fout('destructuring van use/extend uit test in een productiespec');
         if (/\bserviceWorkers\b/.test(tekst)) fout('serviceWorkers in een productiespec (het slot staat in de fixture)');
+        if (/\bsetOffline\b/.test(tekst)) fout('setOffline in een productie- of sw-spec (het offline-slot loopt enkel via de fixture-API)');
       }
       if (!PRODUCTIE_FIXTURES.has(pad)) {
         for (const re of ROUTE_PATRONEN) if (re.test(kaal)) fout(`registreert of omzeilt routes (${re.source})`);
@@ -139,7 +155,7 @@ export function controleer(bestanden) {
         if (/\?test\b/.test(tekst)) fout('?test');
         if (/x-blitz-test/i.test(tekst)) fout('X-Blitz-Test');
       }
-      if (!ZELFTEST.has(pad) && !pad.startsWith('e2e/productie-')) {
+      if (!ZELFTEST.has(pad) && !PRODUCTIE_FIXTURES.has(pad)) {
         if (KLEP_NAMEN.test(tekst)) fout(`raakt een ontsnappingsklep aan (${tekst.match(KLEP_NAMEN)[1]})`);
         if (KLEP_MUTATIE.test(tekst)) fout('wist of wijzigt een lekmelding of consolefout');
       }
@@ -354,4 +370,69 @@ test('guard: test.use/test.extend via haakjes, alias of destructuring in product
   // Geen vals alarm voor gewone code, en de fixture zelf mag extend gebruiken.
   assert.deepEqual(slecht('e2e/productie/x.spec.mjs', PROD + "const gebruikt = 1; const lijst = ['use']; await page.goto('/use');"), []);
   assert.deepEqual(slecht('e2e/productie-hulp.mjs', "export const test = basis.extend({}); const { use } = test;"), []);
+});
+
+// ── Derde klasse: service worker-bestanden (etappe 7, Task 5) ──
+const SWHULP = "import { test } from '../sw-hulp.mjs';\n";
+const SWZELF = SWHULP + "import { n } from './zelftest-hulp.mjs';\n";
+
+test('guard (sw): een sw-spec importeert test enkel uit ../sw-hulp.mjs', () => {
+  assert.deepEqual(slecht('e2e/sw/x.spec.mjs', SWHULP), []);
+  assert.notDeepEqual(slecht('e2e/sw/x.spec.mjs', 'const a = 1;'), []);
+  assert.notDeepEqual(slecht('e2e/sw/x.spec.mjs', PROD), []);
+  assert.notDeepEqual(slecht('e2e/sw/x.spec.mjs', HELP), []);
+  assert.notDeepEqual(slecht('e2e/sw/x.spec.mjs', SWHULP + "import { stubExtern } from '../helpers.mjs';"), []);
+  assert.notDeepEqual(slecht('e2e/sw/x.spec.mjs', SWHULP + "import { test } from '../productie-hulp.mjs';"), []);
+  assert.notDeepEqual(slecht('e2e/sw/x.spec.mjs', SWHULP + "import { waarnemer } from '../sw-waarnemer.mjs';"), []);
+  assert.notDeepEqual(slecht('e2e/sw/x.spec.mjs', SWHULP + "import { n } from './zelftest-hulp.mjs';"), []);
+  assert.notDeepEqual(slecht('e2e/sw/x.spec.mjs', SWHULP + `import { test } from '${PW}';`), []);
+  // Een productiespec of gewone spec mag sw-hulp niet importeren.
+  assert.notDeepEqual(slecht('e2e/productie/x.spec.mjs', PROD + "import { test } from '../sw-hulp.mjs';"), []);
+  assert.notDeepEqual(slecht('e2e/x.spec.mjs', HELP + "import { test } from './sw-hulp.mjs';"), []);
+  assert.deepEqual(slecht('e2e/sw/vangnet-zelftest.spec.mjs', SWZELF), []);
+});
+
+test('guard (sw): serviceWorkers, setOffline, routes, fetch(, waitForTimeout, ?test en test.use in een sw-spec falen', () => {
+  for (const regel of [
+    "test.use({ serviceWorkers: 'allow' });", "const o = { serviceWorkers: 'block' };", "await page.context().setOffline(true);",
+    "await context.setOffline(false);", "const z = page.context().setOffline; z(true);", "// setOffline\nconst x = 1;",
+    "await page.route('**/*', r => r.continue());", "await context.route(u => true, r => r.fulfill({}));", "route.fallback();",
+    "await page.evaluate(() => fetch('https://desk.zoho.eu/x'));", "await page.evaluate(() => fetch('/x'));",
+    "await page.waitForTimeout(5);", "await page.goto('/?te" + "st');", "headers['X-Blitz-" + "Test'] = '1';",
+    "const t = test.extend({});", "const b = await browser.newContext();", "await page.request.get('/x');",
+    "verzoeken.buitenHost.length = 0;", "neemSwProbesOver(page, verzoeken);", "swOvertredingen.length = 0;",
+    "const r = createRequire(import.meta.url);", "import cp from 'node:child_process';", "import h from 'node:https';",
+  ]) assert.notDeepEqual(slecht('e2e/sw/x.spec.mjs', SWHULP + regel), [], regel);
+  // De zelftest mag de klep-namen wel gebruiken, maar nooit serviceWorkers/setOffline/routes/waitForTimeout.
+  assert.deepEqual(slecht('e2e/sw/vangnet-zelftest.spec.mjs', SWZELF + 'verzoeken.buitenHost.length = 0; neemSwProbesOver(page, verzoeken);'), []);
+  for (const regel of ["test.use({ serviceWorkers: 'allow' });", "await page.context().setOffline(true);", "await page.route('**/*', h);", 'await page.waitForTimeout(5);']) {
+    assert.notDeepEqual(slecht('e2e/sw/vangnet-zelftest.spec.mjs', SWZELF + regel), [], regel);
+  }
+  // Een letterlijke relatieve /api-fetch en gewone woorden blijven toegestaan.
+  assert.deepEqual(slecht('e2e/sw/x.spec.mjs', SWHULP + "await page.evaluate(() => fetch('/api/tickets'));"), []);
+  assert.deepEqual(slecht('e2e/sw/x.spec.mjs', SWHULP + "const offlineBalk = page.locator('#offline-banner'); const sw = 1;"), []);
+});
+
+test('guard (sw): setOffline staat in productiespecs niet, maar wel in niet-productiespecs', () => {
+  assert.notDeepEqual(slecht('e2e/productie/x.spec.mjs', PROD + 'await page.context().setOffline(true);'), []);
+  assert.deepEqual(slecht('e2e/x.spec.mjs', HELP + 'await page.context().setOffline(true);'), []);
+});
+
+test('guard (sw): de fixtures mogen serviceWorkers, setOffline, routes en fetch( gebruiken, maar enkel hun eigen imports', () => {
+  const fixture = "import { test as basis } from './productie-hulp.mjs';\nimport { maakSwWaarnemer } from './sw-waarnemer.mjs';\n"
+    + "export const test = basis.extend({ serviceWorkers: ['allow', { option: true }] });\n"
+    + "await context.setOffline(true); await context.route(u => true, r => r.fallback()); await page.evaluate(() => fetch('https://x.test/y'));\n";
+  assert.deepEqual(slecht('e2e/sw-hulp.mjs', fixture), []);
+  assert.notDeepEqual(slecht('e2e/sw-hulp.mjs', fixture + `import { test } from '${PW}';`), []);
+  assert.notDeepEqual(slecht('e2e/sw-hulp.mjs', fixture + "import { stubExtern } from './helpers.mjs';"), []);
+  assert.notDeepEqual(slecht('e2e/sw-hulp.mjs', fixture + "import { waarnemer } from './productie-waarnemer.mjs';"), []);
+  assert.notDeepEqual(slecht('e2e/sw-hulp.mjs', fixture + "import { x } from './vangnet-regels.mjs';"), []);
+  assert.notDeepEqual(slecht('e2e/sw-hulp.mjs', fixture + "await page.waitForTimeout(5);"), []);
+  assert.notDeepEqual(slecht('e2e/sw-hulp.mjs', fixture + "await page.goto('/?te" + "st');"), []);
+  assert.notDeepEqual(slecht('e2e/sw-hulp.mjs', fixture + "eval('1');"), []);
+  assert.deepEqual(slecht('e2e/sw-waarnemer.mjs', 'export function maakSwWaarnemer() { return {}; }\n'), []);
+  assert.notDeepEqual(slecht('e2e/sw-waarnemer.mjs', "import { x } from './productie-hulp.mjs';"), []);
+  // Een onbekend bestand in de sw-klasse is verboden (geen stille nieuwe uitzonderingen).
+  assert.notDeepEqual(slecht('e2e/sw/hulp-extra.mjs', 'export const a = 1;'), []);
+  assert.notDeepEqual(slecht('e2e/sw-extra.mjs', 'export const a = 1;'), []);
 });

@@ -94,6 +94,17 @@ export function verwachtNetwerkFout(verzoeken, fouten) {
   }
 }
 
+// Service worker-tests (e2e/sw-hulp.mjs): zolang de browser offline staat, probeert een netwerk-eerst service worker eerst het netwerk en
+// valt daarna terug op de cache; die SW-pogingen naar de eigen server falen met ERR_INTERNET_DISCONNECTED. Na `staaOfflineSwFoutenToe`
+// (aangeroepen door de offline-schakelaar van de fixture) zijn precies die mislukte SW-verzoeken geen lek: GET, van de service worker,
+// naar de eigen server, met die ene foutcode. Mislukte verzoeken van de pagina zelf of naar een andere host blijven fouten.
+const OFFLINE_SW = new WeakSet(); // verzoeken (origineel)
+export function staaOfflineSwFoutenToe(verzoeken) {
+  let o;
+  try { o = origineelVan(verzoeken); } catch { o = verzoeken; }
+  OFFLINE_SW.add(o);
+}
+
 const PER_CONSOOL = new WeakMap(); // verzoeken -> [{ tekst, gezien }]
 
 // Per test een toegelaten console.error van de app zelf (bv. 'Beschikbaarheid opslaan mislukt: TypeError: ...'): `tekst` is
@@ -123,7 +134,7 @@ export function ongemeldeSchrijfverzoeken(alle, paden) {
 
 // Opent de app zonder ?test. `technieker`: 'all' | 'Tim' | 'Roel' (bepaalt de verwachte wachtrijtelling).
 // `klok: false` laat de echte klok lopen (enkel voor tests die geen page.clock nodig hebben); standaard staat de nepklok aan.
-export async function startAppProductie(page, { rol = 'coordinator', technieker = 'all', overschrijf, vasteKlok = false, klok = true } = {}) {
+export async function startAppProductie(page, { rol = 'coordinator', technieker = 'all', overschrijf, vasteKlok = false, klok = true, voorNavigatie } = {}) {
   await page.addInitScript(({ rol, technieker }) => {
     if (window !== window.top) return; // sandbox-iframes hebben geen localStorage
     const zet = (k, v) => { if (localStorage.getItem(k) === null) localStorage.setItem(k, v); };
@@ -135,6 +146,9 @@ export async function startAppProductie(page, { rol = 'coordinator', technieker 
   const verzoeken = await stubExtern(page, { overschrijf });
   // Strenge route NA stubExtern: voorrang boven diens host-vangnet (dat o.a. POST naar een CDN doorlaat).
   await strengVangnet(page.context(), verzoeken, { metStubs: true });
+  // Haak voor e2e/sw-hulp.mjs: registreert (na de sloten, dus met voorrang erboven) enkel regels die een verzoek vertragen of
+  // laten hangen (en daarna `route.fallback()` doen) of de eigen sw.js vervangen; nooit iets wat naar buiten gaat.
+  if (voorNavigatie) await voorNavigatie(page.context());
   await page.goto('/'); // bewust zonder ?test
   if (vasteKlok && klok) await page.clock.setFixedTime(new Date(VASTE_NU));
   await expect(page.locator('#cnt-tickets')).toHaveText(String(TE_PLANNEN[technieker] ?? 0));
@@ -314,8 +328,10 @@ export const test = basis.extend({
       return !!f;
     };
     const context = page.context();
+    const offlineSwToegelaten = () => OFFLINE_SW.has(origineelVan(verzoekenWeergave));
     context.on('console', m => {
       if (m.type() !== 'error') return;
+      if (offlineSwToegelaten() && /^Failed to load resource: net::ERR_INTERNET_DISCONNECTED/.test(m.text()) && eigenUrl(m.location().url) !== null) return;
       if (/^Failed to load resource: net::ERR_\w+/.test(m.text()) && neemNetFout(m.location().url, 'console')) return;
       const eigen = (PER_CONSOOL.get(origineelVan(verzoekenWeergave)) ?? []).find(x => !x.gezien && (typeof x.tekst === 'string' ? m.text() === x.tekst : x.tekst.test(m.text())));
       if (eigen) { eigen.gezien = true; return; }
@@ -324,7 +340,10 @@ export const test = basis.extend({
       voegToe(`console.error: ${m.text()} (${m.location().url})`);
     });
     context.on('weberror', w => voegToe(`pageerror: ${w.error().message}`));
-    context.on('requestfailed', r => { if (!neemNetFout(r.url(), 'requestfailed', r.method())) voegToe(`requestfailed: ${r.url()} (${r.failure()?.errorText})`); });
+    context.on('requestfailed', r => {
+      if (offlineSwToegelaten() && r.serviceWorker() && r.method() === 'GET' && eigenUrl(r.url()) !== null && /ERR_INTERNET_DISCONNECTED/.test(r.failure()?.errorText ?? '')) return;
+      if (!neemNetFout(r.url(), 'requestfailed', r.method())) voegToe(`requestfailed: ${r.url()} (${r.failure()?.errorText})`);
+    });
     context.on('response', r => {
       if (r.status() >= 400 && r.status() !== 599) {
         if (neemToegelaten(r.url(), r.status())) return;
