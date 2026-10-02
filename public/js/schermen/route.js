@@ -765,7 +765,7 @@ export async function applyRouteOrder(date, orderedEntries) {
         item.ticket.interventieDatum = utcInterventieDatum;
       } catch (err) {
         toast('✕ Volgorde bewaren mislukt voor #' + item.ticket.number, 5000);
-        await afh.loadTickets();
+        await afh.loadTickets({ stilleToast: true }); // anders overschrijft de telmelding de foutmelding meteen
         return;
       }
     }

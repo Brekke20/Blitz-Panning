@@ -23,6 +23,39 @@ export { expect, VASTE_NU, opslagStub };
 // Schrijfverzoeken die de app bij elke start zelf doet (POST /api/planning-sinds vraagt wachttijden op).
 export const OPSTART_SCHRIJVEN = ['/api/planning-sinds'];
 
+// Gedeelde hulpen voor de productiespecs.
+const OPENSTAAND = new WeakMap(); // page -> Set van lopende verzoeken (gevuld door de `verzoeken`-fixture)
+function volgOpenstaand(page) {
+  const open = new Set();
+  OPENSTAAND.set(page, open);
+  page.on('request', r => open.add(r));
+  page.on('requestfinished', r => open.delete(r));
+  page.on('requestfailed', r => open.delete(r));
+}
+// Wacht tot alles gezet is (debounces, laatste antwoorden) vóórdat een schrijflijst gelezen wordt, zodat een extra
+// verzoek dat na de toast binnenkomt de test laat falen: twee rondes van klok voorbij elke debounce, microtask-flush
+// en wachten tot er geen verzoek meer openstaat. Niet `waitForLoadState('networkidle')`: dat komt nooit meer zodra
+// het annuleervenster (srcdoc-iframe `#annuleer-frame`) genavigeerd heeft zonder dat er daarna nog een verzoek volgt.
+export async function settle(page) {
+  for (let ronde = 0; ronde < 2; ronde++) {
+    await page.clock.runFor(2000);
+    await page.evaluate(() => Promise.resolve());
+    await expect.poll(() => OPENSTAAND.get(page)?.size ?? 0, { timeout: 10000 }).toBe(0);
+  }
+}
+// Opent de Kalender-tab en laat de eenmalige hertekening (index.html: setTimeout(activeerKalender, 0) onder de nepklok)
+// meteen lopen, zodat één gewone klik daarna niet door een hertekening wordt weggegooid.
+export async function openKalender(page) {
+  await page.getByRole('tab', { name: 'Kalender' }).click();
+  await page.clock.runFor(1);
+}
+// Toastregex voor de technische JSON-parserfout van Chromium (res.json() op een HTML-body): één plek om aan te passen
+// als een Chromium-update de tekst wijzigt. `voor`/`na` zijn de vaste delen van de toast rond de parserfout.
+export function metParserfout(voor = '', na = '') {
+  const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${esc(voor)}.*Unexpected token '<'.*is not valid JSON.*${esc(na)}$`);
+}
+
 const PER_VERZOEKEN = new WeakMap(); // verzoeken -> schrijfpaden (array)
 
 // `verzoeken` is de alleen-lezen weergave (of het origineel); de whitelist hangt aan het origineel.

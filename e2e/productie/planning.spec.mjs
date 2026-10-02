@@ -9,17 +9,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, opslagStub, OPSTART_SCHRIJVEN } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, opslagStub, OPSTART_SCHRIJVEN, settle, openKalender, metParserfout } from '../productie-hulp.mjs';
 
 const MAP = path.dirname(url.fileURLToPath(import.meta.url));
 const START = 'POST /api/planning-sinds';
-// Wacht tot alles gezet is (debounces, laatste antwoorden) vóórdat de schrijflijst gelezen wordt, zodat een extra
-// POST die na de toast binnenkomt de test laat falen: klok voorbij elke debounce, microtask-flush, netwerk rustig.
-async function settle(page) {
-  await page.clock.runFor(2000);
-  await page.evaluate(() => Promise.resolve());
-  await page.waitForLoadState('networkidle');
-}
 const schrijfLijst = async (page, verzoeken) => {
   await settle(page);
   return verzoeken.alle.filter(r => r.methode !== 'GET').map(r => `${r.methode} ${r.pad}`);
@@ -69,7 +62,7 @@ test.describe('+ in de wachtrij (addTicketToDate via quickAdd)', () => {
     expect(await planningVan(page)).toEqual({ ...BASIS_PLANNING, '2026-10-05': ['t1'] });
     // Lokale status: Wachten op bevestiging planning; in de kalender zichtbaar.
     expect(await page.evaluate(() => kern.toestand.get('planning')['2026-10-05'][0].ticket.status)).toBe('Wachten op bevestiging planning');
-    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await openKalender(page);
     // Zonder uur: een chip in de dagkop ("Zonder uur:"), geen tijdlijnblok.
     await expect(dag(page, '2026-10-05').locator('.zu-chip').filter({ hasText: '#1001' })).toHaveCount(1);
   });
@@ -151,7 +144,7 @@ test.describe('+ in de wachtrij (addTicketToDate via quickAdd)', () => {
     await wachtrijKaart(page, 1001).locator('.btn-add').click();
 
     // HUIDIG GEDRAG (bug?): de gebruiker ziet een technische JSON-parserfout in plaats van "Zoho antwoordt niet".
-    await expect(toastTekst(page)).toHaveText(`✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: Unexpected token '<', "<html><bod"... is not valid JSON)`);
+    await expect(toastTekst(page)).toHaveText(metParserfout('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ', ')'));
     expect(z.opnames.plan).toHaveLength(1);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
     await expect(wachtrijKaart(page, 1001)).toHaveCount(1);
@@ -165,7 +158,7 @@ test.describe('✕ uit planning halen in de kalender', () => {
   const kruis = (page) => dag(page, '2026-10-07').locator('.tl-ticket[data-ticket-id="p1"] .cal-unplan-x');
   const bevestigDialoog = (page) => page.getByRole('alertdialog', { name: 'Ticket #1004 uit de planning halen?' });
   async function naarKalender(page) {
-    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await openKalender(page);
     await expect(dag(page, '2026-10-07').locator('.tl-ticket[data-ticket-id="p1"]')).toHaveCount(1);
   }
 
@@ -231,7 +224,7 @@ test.describe('✕ uit planning halen in de kalender', () => {
 // ── Verzetten in het detail (saveReschedule) ────────────────────────────────────────────────────────────
 test.describe('verzetten in het ticketdetail (saveReschedule)', () => {
   async function openVerzet(page, id = 'p1', datum = '2026-10-07') {
-    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await openKalender(page);
     await dag(page, datum).locator(`.tl-ticket[data-ticket-id="${id}"] .cal-sub`).click();
     await page.getByRole('button', { name: '📅 Datum/tijd' }).click();
     await expect(page.getByRole('dialog', { name: '📅 Nieuwe datum/tijd' })).toBeVisible();
@@ -405,14 +398,11 @@ test.describe('verzetten in het ticketdetail (saveReschedule)', () => {
 // ── 📅 Toewijzen in het "zonder datum"-paneel (saveToewijzen) ───────────────────────────────────────────
 test.describe('📅 toewijzen (saveToewijzen)', () => {
   async function openRij(page) {
-    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await openKalender(page);
     await page.locator('#kal-pending-pill').click();
     const kaart = page.locator('#kal-no-date-section .ticket').filter({ hasText: '#1005' });
-    // De kalender hertekent één tick na het activeren van de tab (setTimeout 0): klik opnieuw als de rij daardoor weer dichtviel.
-    await expect(async () => {
-      await kaart.getByRole('button', { name: '📅 Toewijzen' }).click();
-      await expect(kaart.locator('.t-assign-row')).toBeVisible({ timeout: 1000 });
-    }).toPass({ timeout: 5000 });
+    await kaart.getByRole('button', { name: '📅 Toewijzen' }).click();
+    await expect(kaart.locator('.t-assign-row')).toBeVisible();
     return kaart;
   }
 
@@ -470,7 +460,7 @@ test.describe('📅 toewijzen (saveToewijzen)', () => {
     await kaart.getByRole('button', { name: '✓ Opslaan' }).click();
 
     // HUIDIG GEDRAG (bug?): technische JSON-parserfout in de toast (zonder "Zoho"-uitleg).
-    await expect(toastTekst(page)).toHaveText(`✕ Unexpected token '<', "<html><bod"... is not valid JSON`);
+    await expect(toastTekst(page)).toHaveText(metParserfout('✕ '));
     expect(z.opnames['plan-datum']).toHaveLength(1);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan-datum']);
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
@@ -505,7 +495,7 @@ const schrijfLijstZonderMatrix = async (page, verzoeken) => (await schrijfLijst(
 test.describe('⚡ plan deze week (autoPlan)', () => {
   const resultaat = (page) => page.getByRole('dialog', { name: '⚡ Planningsresultaat' });
   async function klikPlan(page) {
-    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await openKalender(page);
     await page.getByRole('button', { name: '⚡ Plan deze week' }).click();
   }
 
@@ -588,7 +578,7 @@ test.describe('route: tijden vastleggen', () => {
   }
   // "Plan deze week" zet #1001 en #1002 op maandag 5 okt; vandaaruit de Route-tab.
   async function naarRoute(page) {
-    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await openKalender(page);
     await page.getByRole('button', { name: '⚡ Plan deze week' }).click();
     const venster = page.getByRole('dialog', { name: '⚡ Planningsresultaat' });
     await expect(venster.getByText('Ingepland (2)', { exact: true })).toBeVisible();
@@ -673,10 +663,14 @@ test.describe('route: tijden vastleggen', () => {
     const ticketsVoor = verzoeken.van('/api/tickets', 'GET').length;
     await page.getByRole('button', { name: 'Tijden vastleggen' }).click();
 
-    await expect(toastTekst(page)).toHaveText('✕ Volgorde bewaren mislukt voor #1002');
-    // Herladen via afh.loadTickets: één extra GET /api/tickets.
+    // Herladen via afh.loadTickets: één extra GET /api/tickets, daarna de wachttijden (planning-sinds).
     await expect.poll(() => verzoeken.van('/api/tickets', 'GET').length).toBe(ticketsVoor + 1);
     await expect.poll(() => verzoeken.van('/api/planning-sinds', 'POST').length).toBe(2);
+    // Deterministisch: pas NA de volledige herlading en een rustige klok (binnen de 5 s van de toast) is de
+    // foutmelding nog zichtbaar. Voor de bugfix (W5) overschreef de telmelding van loadTickets ze meteen.
+    await settle(page);
+    await expect(toastTekst(page)).toHaveText('✕ Volgorde bewaren mislukt voor #1002');
+    await expect(toastTekst(page)).toHaveClass(/show/);
     expect(z.opnames['plan-datum']).toEqual([
       { methode: 'POST', body: { ticketId: 't1', utcInterventieDatum: '2026-10-05T08:30:00.000Z' }, query: {} },
       { methode: 'POST', body: { ticketId: 't2', utcInterventieDatum: '2026-10-05T10:45:00.000Z' }, query: {} },

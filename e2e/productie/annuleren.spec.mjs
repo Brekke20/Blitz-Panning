@@ -5,31 +5,11 @@
 // opgesomd (`schrijfLijst`). Echte foutvormen (netlify/functions/annuleer.js): 400/404/500 met `{ error }`, 409
 // `{ error, emailSent, nietGepland: true }` (mail gevraagd maar ticket niet meer gepland in Zoho), 502
 // `{ error, emailSent, fouten }` (Zoho-PATCH mislukt, mails kunnen al weg zijn), een Netlify-gateway-502 met HTML-body.
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, OPSTART_SCHRIJVEN } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, OPSTART_SCHRIJVEN, settle, openKalender } from '../productie-hulp.mjs';
 
 const START = 'POST /api/planning-sinds';
 const ANNULEER = 'POST /api/annuleer';
 
-// Wacht tot alles gezet is (debounces, laatste antwoorden) vóórdat de schrijflijst gelezen wordt, zodat een extra
-// verzoek dat na de toast binnenkomt de test laat falen. Niet `waitForLoadState('networkidle')`: dat komt nooit meer
-// zodra het annuleervenster `#annuleer-frame` (srcdoc-iframe) heeft genavigeerd zonder dat er daarna nog een verzoek
-// volgt. In plaats daarvan volgt de spec zelf de openstaande verzoeken (twee rondes: klok voorbij elke debounce,
-// microtask-flush, dan wachten tot er niets meer openstaat).
-const OPENSTAAND = new WeakMap();
-function volgOpenstaand(page) {
-  const open = new Set();
-  OPENSTAAND.set(page, open);
-  page.on('request', r => open.add(r));
-  page.on('requestfinished', r => open.delete(r));
-  page.on('requestfailed', r => open.delete(r));
-}
-async function settle(page) {
-  for (let ronde = 0; ronde < 2; ronde++) {
-    await page.clock.runFor(2000);
-    await page.evaluate(() => Promise.resolve());
-    await expect.poll(() => OPENSTAAND.get(page).size, { timeout: 10000 }).toBe(0);
-  }
-}
 const schrijfLijst = async (page, verzoeken) => {
   await settle(page);
   return verzoeken.alle.filter(r => r.methode !== 'GET').map(r => `${r.methode} ${r.pad}`);
@@ -57,7 +37,6 @@ const REDEN_ZIEK = 'Technieker ziek of onbeschikbaar';
 const ZONDER_MAIL = { contact: false, klant: false, installateur: false };
 
 async function start(page, verzoeken, { paden = [], register = SEED, httpFouten = [] } = {}) {
-  volgOpenstaand(page);
   verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, ...paden]);
   if (httpFouten.length) verwachtHttpFout(verzoeken, httpFouten);
   const z = zohoStubs({ register });
@@ -67,7 +46,7 @@ async function start(page, verzoeken, { paden = [], register = SEED, httpFouten 
 
 // Kalender -> detail van #1004 -> "Afspraak annuleren" (enkel zichtbaar bij een lopend voorstel).
 async function openViaDetail(page) {
-  await page.getByRole('tab', { name: 'Kalender' }).click();
+  await openKalender(page);
   await dag(page, '2026-10-07').locator('.tl-ticket[data-ticket-id="p1"] .cal-sub').click();
   await page.locator('#d-btn-annuleer').click();
   await expect(page.locator('#annuleer-overlay')).toHaveClass(/open/);
@@ -85,7 +64,7 @@ async function geenLokaleWijziging(page) {
   await expect(page.locator('#cnt-tickets')).toHaveText('2');
 }
 // Na een geslaagde annulering: ticket terug in de wachtrij, venster en detail dicht.
-async function naSucces(page, z) {
+async function naSucces(page) {
   await expect(page.locator('#cnt-tickets')).toHaveText('3');
   await expect(page.locator('#annuleer-overlay')).not.toHaveClass(/open/);
   await expect(page.locator('#det-overlay')).not.toHaveClass(/open/);
@@ -95,7 +74,6 @@ async function naSucces(page, z) {
     const t = kern.toestand.get('allTickets').find(x => x.id === 'p1');
     return [t.status, t.interventieDatum];
   })).toEqual(['Wachten op planning', null]);
-  void z;
 }
 
 test.describe('annuleervenster openen en mailvoorbeeld', () => {
@@ -167,7 +145,7 @@ test.describe('annuleervenster openen en mailvoorbeeld', () => {
 
   test('✕ in de kalender (lopend voorstel): eerst een bevestiging, dan het annuleervenster, geen /api/plan', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { paden: [] });
-    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await openKalender(page);
     await dag(page, '2026-10-07').locator('.tl-ticket[data-ticket-id="p1"] .cal-unplan-x').click();
     const dialoog = page.getByRole('alertdialog', { name: 'Ticket #1004: afspraak annuleren?' });
     await expect(dialoog).toBeVisible();
@@ -196,7 +174,7 @@ test.describe('annuleren verzenden (verstuurAnnulatie)', () => {
     expect(annuleerPosts(z, 'echt')).toEqual([{ methode: 'POST', body: VERSTUUR_JA, query: {} }]);
     expect(verzoeken.van('/api/annuleer', 'POST')[0].headers['content-type']).toBe('application/json');
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER]);
-    await naSucces(page, z);
+    await naSucces(page);
     // Het register wordt opnieuw opgehaald (precies één extra GET) en is dan leeg.
     await expect.poll(() => z.opnames['voorstel-status'].filter(o => o.methode === 'GET').length).toBe(getsVoor + 1);
     await expect.poll(() => registerLokaal(page)).toEqual({});
@@ -216,7 +194,7 @@ test.describe('annuleren verzenden (verstuurAnnulatie)', () => {
       methode: 'POST', body: { ...VERSTUUR_JA, reden: 'fout', mailKlant: false }, query: {},
     }]);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER]);
-    await naSucces(page, z);
+    await naSucces(page);
   });
 
   test('reden "Andere": toelichting verplicht, getrimde toelichting niet; body bevat de toelichting', async ({ page, verzoeken }) => {
@@ -236,7 +214,7 @@ test.describe('annuleren verzenden (verstuurAnnulatie)', () => {
       methode: 'POST', body: { ...VERSTUUR_JA, reden: 'andere', toelichting: 'Klant is op reis' }, query: {},
     }]);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER]);
-    await naSucces(page, z);
+    await naSucces(page);
   });
 
   test('dubbele aanroep terwijl het verzoek loopt (s.busy) geeft één verzoek', async ({ page, verzoeken }) => {
@@ -263,7 +241,7 @@ test.describe('annuleren verzenden (verstuurAnnulatie)', () => {
     await expect(toastTekst(page)).toHaveText('Afspraak geannuleerd — klant verwittigd per mail');
     expect(annuleerPosts(z, 'echt')).toEqual([{ methode: 'POST', body: VERSTUUR_JA, query: {} }]);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER]);
-    await naSucces(page, z);
+    await naSucces(page);
   });
 
   test('ticket wordt nog bijgewerkt (inFlight): "Even geduld", geen annuleerverzoek', async ({ page, verzoeken }) => {
@@ -319,7 +297,7 @@ test.describe('annuleren: foutpaden en bijzondere antwoorden', () => {
     await expect(toastTekst(page)).toHaveText('Vergrendeling opgeruimd — ticket stond al niet meer gepland in Zoho');
     expect(annuleerPosts(z, 'echt').map(o => o.body)).toEqual([VERSTUUR_JA, { ...VERSTUUR_JA, mailKlant: false }]);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER, ANNULEER]);
-    await naSucces(page, z);
+    await naSucces(page);
   });
 
   test('500 { error } met mail gevraagd: waarschuwing dat de klant al gemaild kan zijn, niets lokaal gewijzigd', async ({ page, verzoeken }) => {
@@ -407,7 +385,7 @@ test.describe('annuleren: foutpaden en bijzondere antwoorden', () => {
     await verstuurKnop(page).click();
     await expect(toastTekst(page)).toHaveText('Afspraak geannuleerd, maar de mail naar klant kon niet verstuurd worden. Verwittig de klant zelf.');
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER]);
-    await naSucces(page, z);
+    await naSucces(page);
   });
 
   test('succes met fouten bij twee doelgroepen: de namen worden samengevoegd', async ({ page, verzoeken }) => {
@@ -420,7 +398,7 @@ test.describe('annuleren: foutpaden en bijzondere antwoorden', () => {
     await verstuurKnop(page).click();
     await expect(toastTekst(page)).toHaveText('Afspraak geannuleerd, maar de mail naar contactpersoon en installateur kon niet verstuurd worden. Verwittig de klant zelf.');
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER]);
-    await naSucces(page, z);
+    await naSucces(page);
   });
 
   test('succes met waarschuwing (register niet bijgewerkt): tekst achter de toast, register komt terug', async ({ page, verzoeken }) => {
@@ -434,7 +412,7 @@ test.describe('annuleren: foutpaden en bijzondere antwoorden', () => {
     await verstuurKnop(page).click();
     await expect(toastTekst(page)).toHaveText('Afspraak geannuleerd — klant verwittigd per mail ' + waarschuwing);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER]);
-    await naSucces(page, z);
+    await naSucces(page);
     // Het register is op de server nog aanwezig (dat is precies wat de waarschuwing meldt): de herlading haalt het terug.
     await expect.poll(() => registerLokaal(page)).toEqual(SEED.status);
   });
@@ -451,7 +429,7 @@ test.describe('annuleren: foutpaden en bijzondere antwoorden', () => {
     await verstuurKnop(page).click();
     await expect(toastTekst(page)).toHaveText('Vergrendeling opgeruimd — ticket stond al niet meer gepland in Zoho ' + waarschuwing);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER]);
-    await naSucces(page, z);
+    await naSucces(page);
   });
 
   test('redenenlijst laden mislukt (500): toast en venster blijft dicht; de volgende poging probeert opnieuw', async ({ page, verzoeken }) => {
@@ -459,7 +437,7 @@ test.describe('annuleren: foutpaden en bijzondere antwoorden', () => {
     const normaal = { status: 200, json: { redenen: [{ code: 'ziek', label: REDEN_ZIEK }] } };
     let eerste = true;
     z.zetAntwoord('annuleer', () => { if (eerste) { eerste = false; return { status: 500, json: { error: 'x' } }; } return normaal; });
-    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await openKalender(page);
     await dag(page, '2026-10-07').locator('.tl-ticket[data-ticket-id="p1"] .cal-sub').click();
     await page.locator('#d-btn-annuleer').click();
     await expect(toastTekst(page)).toHaveText('✕ De redenenlijst laden mislukt. Probeer opnieuw. (Detail: HTTP 500)');

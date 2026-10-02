@@ -1325,7 +1325,8 @@ function _applyTicketsData(data, { reconcile = false } = {}) {
   }
 }
 
-async function loadTickets() {
+// stilleToast: sla enkel de succes-/telmelding over (een foutmelding van de oproeper blijft dan zichtbaar).
+async function loadTickets({ stilleToast = false } = {}) {
   document.getElementById('empty-tickets').textContent = 'Laden...';
   if (!TEST_MODE) {
     const cached = loadFromCache('blitz_tickets_cache');
@@ -1350,7 +1351,7 @@ async function loadTickets() {
     if (!kern.selecties.ticketsVanTechnieker(allTickets, activeAssigneeFilter).length) document.getElementById('empty-tickets').textContent = 'Geen tickets om in te plannen';
 
     if (TEST_MODE) toast('🧪 Testmodus actief — dummy data geladen');
-    else toast(`${allTickets.length} te plannen · ${allPending.length} wacht bevestiging · ${allGepland.length} gepland`);
+    else if (!stilleToast) toast(`${allTickets.length} te plannen · ${allPending.length} wacht bevestiging · ${allGepland.length} gepland`);
   } catch (err) {
     const msg = err.message || '';
     const isAuth = /401|403|invalid.token|expired|unauthorized/i.test(msg);

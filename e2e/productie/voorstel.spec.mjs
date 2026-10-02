@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, OPSTART_SCHRIJVEN } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, OPSTART_SCHRIJVEN, settle, openKalender, metParserfout } from '../productie-hulp.mjs';
 
 const MAP = path.dirname(url.fileURLToPath(import.meta.url));
 const TICKETS = JSON.parse(fs.readFileSync(path.join(MAP, '..', 'fixtures', 'tickets.json'), 'utf8'));
@@ -16,13 +16,6 @@ const START = 'POST /api/planning-sinds';
 const PROPOSE = 'POST /api/propose';
 const STATUS_POST = 'POST /api/voorstel-status';
 
-// Wacht tot alles gezet is (debounces, laatste antwoorden) vóórdat de schrijflijst gelezen wordt, zodat een extra
-// verzoek dat na de toast binnenkomt de test laat falen: klok voorbij elke debounce, microtask-flush, netwerk rustig.
-async function settle(page) {
-  await page.clock.runFor(2000);
-  await page.evaluate(() => Promise.resolve());
-  await page.waitForLoadState('networkidle');
-}
 const schrijfLijst = async (page, verzoeken) => {
   await settle(page);
   return verzoeken.alle.filter(r => r.methode !== 'GET').map(r => `${r.methode} ${r.pad}`);
@@ -62,7 +55,7 @@ async function start(page, verzoeken, { paden = [], stubs = {}, register, httpFo
 
 // Kalender -> detail van #1004 -> "📨 Voorstel": het voorstelvenster staat open (de knop wordt nog niet gebruikt).
 async function openVoorstel(page) {
-  await page.getByRole('tab', { name: 'Kalender' }).click();
+  await openKalender(page);
   await dag(page, '2026-10-07').locator('.tl-ticket[data-ticket-id="p1"] .cal-sub').click();
   await page.getByRole('button', { name: '📨 Voorstel' }).click();
   await expect(venster(page)).toBeVisible();
@@ -259,7 +252,7 @@ test.describe('voorstel: randgevallen', () => {
     await expect.poll(() => z.opnames['voorstel-status'].filter(o => o.methode === 'POST').length).toBe(2);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, PROPOSE, STATUS_POST, STATUS_POST]);
     // HUIDIG GEDRAG (bug?): de mail is verstuurd en het ticket staat bijgewerkt, maar het register is niet geschreven
-    // en de gebruiker krijgt geen waarschuwing (enkel console.warn): geen verzonden-vinkje, geen annuleerknop.
+    // en de gebruiker krijgt geen waarschuwing (enkel console.warn).
     expect(await registerLokaal(page)).toEqual({});
     expect(z.register().status).toEqual({});
     expect(await planningVan(page)).toEqual({ '2026-10-08': ['p1'], '2026-10-09': ['g1'] });
@@ -309,7 +302,7 @@ test.describe('voorstel: randgevallen', () => {
 
     // HUIDIG GEDRAG (bug?): technische JSON-parserfout in de toast; bovendien kan de mail al verstuurd zijn
     // (gateway-timeout tijdens de Zoho-aanroepen) zonder dat de gebruiker dat te horen krijgt.
-    await expect(toastTekst(page)).toHaveText(`✕ Unexpected token '<', "<html><bod"... is not valid JSON`);
+    await expect(toastTekst(page)).toHaveText(metParserfout('✕ '));
     await expect(verstuurKnop(page)).toHaveText('✉️ Verstuur voorstel');
     expect(z.opnames.propose).toEqual([{ methode: 'POST', body: PROPOSE_BODY, query: {} }]);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, PROPOSE]);
