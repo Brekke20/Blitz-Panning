@@ -332,7 +332,7 @@ async function naOnzekerVoorstel(ticketId, sinds, verwacht, btn) {
   btn.disabled = false;
   btn.textContent = '✉️ Verstuur voorstel';
   if (r.uitkomst === 'verzonden') {
-    if (afh.actiefTicket()?.id === ticketId) document.getElementById('proposal-overlay').classList.remove('open');
+    if (String(afh.actiefTicket()?.id) === String(ticketId)) document.getElementById('proposal-overlay').classList.remove('open');
     afh.planResync();
     toast('✓ ' + mailControleTekst(r), 8000);
     return;

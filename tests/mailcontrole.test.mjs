@@ -20,15 +20,15 @@ test('uurBrussel: hh:mm in Brusselse tijd, ook rond middernacht', () => {
 });
 
 test('beoordeelAntwoord zonder verwachte adressen: verzonden met de adressen van de threads, of niet verzonden', () => {
-  assert.deepEqual(beoordeelAntwoord({ ok: true, verzonden: true, tijdstip: T1, uitgaand: [{ aan: 'luc@test.be', tijdstip: T1 }] }),
+  assert.deepEqual(beoordeelAntwoord({ ok: true, twijfel: false, verzonden: true, tijdstip: T1, uitgaand: [{ aan: 'luc@test.be', tijdstip: T1 }] }),
     { uitkomst: 'verzonden', verzonden: [{ aan: 'luc@test.be', tijdstip: T1 }] });
-  assert.deepEqual(beoordeelAntwoord({ ok: true, verzonden: true, tijdstip: T1, uitgaand: [] }),
+  assert.deepEqual(beoordeelAntwoord({ ok: true, twijfel: false, verzonden: true, tijdstip: T1, uitgaand: [] }),
     { uitkomst: 'verzonden', verzonden: [{ aan: '', tijdstip: T1 }] });
-  assert.deepEqual(beoordeelAntwoord({ ok: true, verzonden: false, tijdstip: null, uitgaand: [] }), { uitkomst: 'niet-verzonden', verzonden: [] });
+  assert.deepEqual(beoordeelAntwoord({ ok: true, twijfel: false, verzonden: false, tijdstip: null, uitgaand: [] }), { uitkomst: 'niet-verzonden', verzonden: [] });
 });
 
 test('beoordeelAntwoord met verwachte adressen: alles, niets of een deel', () => {
-  const o = (a, b) => ({ ok: true, verzonden: !!(a && b), tijdstip: T1, uitgaand: [], ontvangers: { 'luc@test.be': { verzonden: a, tijdstip: a ? T1 : null }, 'an@y.be': { verzonden: b, tijdstip: b ? T2 : null } } });
+  const o = (a, b) => ({ ok: true, twijfel: false, verzonden: !!(a && b), tijdstip: T1, uitgaand: [], ontvangers: { 'luc@test.be': { verzonden: a, tijdstip: a ? T1 : null }, 'an@y.be': { verzonden: b, tijdstip: b ? T2 : null } } });
   assert.deepEqual(beoordeelAntwoord(o(true, true), ['Luc@test.be', 'an@y.be']), {
     uitkomst: 'verzonden', verzonden: [{ aan: 'luc@test.be', tijdstip: T1 }, { aan: 'an@y.be', tijdstip: T2 }],
   });
@@ -38,14 +38,14 @@ test('beoordeelAntwoord met verwachte adressen: alles, niets of een deel', () =>
 
 test('beoordeelAntwoord: elk onvolledig of vreemd antwoord is onbekend, nooit "niet verzonden"', () => {
   const onbekend = { uitkomst: 'onbekend', verzonden: [] };
-  for (const d of [null, undefined, 'tekst', {}, { ok: false, verzonden: false }, { ok: true }, { ok: true, verzonden: 'nee' },
-    { ok: true, verzonden: true, tijdstip: 'nonsens', uitgaand: [{ aan: 'a@b.be', tijdstip: 'nonsens' }] }]) {
+  for (const d of [null, undefined, 'tekst', {}, { ok: false, verzonden: false }, { ok: true }, { ok: true, twijfel: false, verzonden: 'nee' },
+    { ok: true, twijfel: false, verzonden: true, tijdstip: 'nonsens', uitgaand: [{ aan: 'a@b.be', tijdstip: 'nonsens' }] }]) {
     assert.deepEqual(beoordeelAntwoord(d), onbekend, JSON.stringify(d));
   }
   // verwachte adressen, maar geen of een onvolledig ontvangers-veld
-  assert.deepEqual(beoordeelAntwoord({ ok: true, verzonden: true, tijdstip: T1, uitgaand: [] }, ['luc@test.be']), onbekend);
-  assert.deepEqual(beoordeelAntwoord({ ok: true, verzonden: false, ontvangers: {} }, ['luc@test.be']), onbekend);
-  assert.deepEqual(beoordeelAntwoord({ ok: true, verzonden: true, ontvangers: { 'luc@test.be': { verzonden: true, tijdstip: 'nonsens' } } }, ['luc@test.be']), onbekend);
+  assert.deepEqual(beoordeelAntwoord({ ok: true, twijfel: false, verzonden: true, tijdstip: T1, uitgaand: [] }, ['luc@test.be']), onbekend);
+  assert.deepEqual(beoordeelAntwoord({ ok: true, twijfel: false, verzonden: false, ontvangers: {} }, ['luc@test.be']), onbekend);
+  assert.deepEqual(beoordeelAntwoord({ ok: true, twijfel: false, verzonden: true, ontvangers: { 'luc@test.be': { verzonden: true, tijdstip: 'nonsens' } } }, ['luc@test.be']), onbekend);
 });
 
 test('mailControleTekst: de drie goedgekeurde teksten, per ontvanger een uur', () => {
@@ -60,7 +60,7 @@ test('mailControleTekst: de drie goedgekeurde teksten, per ontvanger een uur', (
 
 test('controleerMail: één GET naar /api/mail-check met ticketId, sinds en ontvangers; nooit een body of schrijfmethode', async () => {
   const oproepen = [];
-  zetFetch(async (...a) => { oproepen.push(a); return antwoord({ ok: true, verzonden: true, tijdstip: T1, uitgaand: [{ aan: 'luc@test.be', tijdstip: T1 }] }); });
+  zetFetch(async (...a) => { oproepen.push(a); return antwoord({ ok: true, twijfel: false, verzonden: true, tijdstip: T1, uitgaand: [{ aan: 'luc@test.be', tijdstip: T1 }] }); });
   const r = await controleerMail({ ticketId: '555', sinds: SINDS });
   assert.deepEqual(r, { uitkomst: 'verzonden', verzonden: [{ aan: 'luc@test.be', tijdstip: T1 }] });
   assert.deepEqual(oproepen, [['/api/mail-check?ticketId=555&sinds=2026-10-02T10%3A00%3A00.000Z']]); // geen init-object: een gewone GET
@@ -70,7 +70,7 @@ test('controleerMail: ontvangers gaan als kommalijst mee en bepalen de uitkomst'
   const oproepen = [];
   zetFetch(async (...a) => {
     oproepen.push(a);
-    return antwoord({ ok: true, verzonden: false, tijdstip: null, uitgaand: [], ontvangers: { 'luc@test.be': { verzonden: false, tijdstip: null }, 'an@y.be': { verzonden: false, tijdstip: null } } });
+    return antwoord({ ok: true, twijfel: false, verzonden: false, tijdstip: null, uitgaand: [], ontvangers: { 'luc@test.be': { verzonden: false, tijdstip: null }, 'an@y.be': { verzonden: false, tijdstip: null } } });
   });
   const r = await controleerMail({ ticketId: '555', sinds: SINDS, verwacht: ['luc@test.be', 'an@y.be'] });
   assert.deepEqual(r, { uitkomst: 'niet-verzonden', verzonden: [] });
@@ -92,4 +92,21 @@ test('controleerMail gooit nooit: netwerkfout, time-out, 4xx/5xx en onleesbaar a
     zetFetch(g);
     assert.deepEqual(await controleerMail({ ticketId: '555', sinds: SINDS }), onbekend);
   }
+});
+
+test('twijfel (onleesbaar adres, draft- of mislukte status): nooit "niet verzonden", met of zonder verwachte adressen', () => {
+  const onbekend = { uitkomst: 'onbekend', verzonden: [] };
+  // per adres: de server kon een uitgaande mail niet aan een ontvanger toewijzen
+  assert.deepEqual(beoordeelAntwoord({
+    ok: true, verzonden: false, twijfel: true, tijdstip: null, uitgaand: [], ontvangers: { 'luc@test.be': { verzonden: false, tijdstip: null } },
+  }, ['luc@test.be']), onbekend);
+  // brede controle
+  assert.deepEqual(beoordeelAntwoord({ ok: true, verzonden: false, twijfel: true, tijdstip: null, uitgaand: [] }), onbekend);
+  // zonder twijfel blijft het "niet verzonden"
+  assert.deepEqual(beoordeelAntwoord({ ok: true, verzonden: false, twijfel: false, tijdstip: null, uitgaand: [] }), { uitkomst: 'niet-verzonden', verzonden: [] });
+  // een antwoord zonder (booleaanse) twijfel is onvolledig
+  assert.deepEqual(beoordeelAntwoord({ ok: true, verzonden: false, tijdstip: null, uitgaand: [] }), onbekend);
+  assert.deepEqual(beoordeelAntwoord({ ok: true, verzonden: false, twijfel: 'nee', tijdstip: null, uitgaand: [] }), onbekend);
+  // een zekere mail wint van twijfel
+  assert.equal(beoordeelAntwoord({ ok: true, verzonden: true, twijfel: false, tijdstip: T1, uitgaand: [{ aan: 'a@b.be', tijdstip: T1 }] }).uitkomst, 'verzonden');
 });

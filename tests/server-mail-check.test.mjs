@@ -4,7 +4,7 @@ import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { maakNepFetch, metGlobaleFetch, zetEnv } from './nep-fetch.mjs';
 import { maakHandler } from '../netlify/functions/mail-check.js';
-import { adressenUit, isUitgaandeMail, uitgaandeMails, beoordeel, KLOKMARGE_MS } from '../netlify/lib/mailcontrole.js';
+import { adressenUit, isUitgaandeMail, heeftVerzondenStatus, uitgaandeMails, beoordeel, KLOKMARGE_MS } from '../netlify/lib/mailcontrole.js';
 
 const DESK = 'https://desk.zoho.eu/api/v1';
 const SINDS = '2026-10-02T10:00:00.000Z';
@@ -70,28 +70,62 @@ test('isUitgaandeMail: enkel uitgaand + EMAIL + niet privé + vanaf sinds min de
 
 test('uitgaandeMails en beoordeel: vroegste tijdstip per adres; alle verwachte adressen nodig', () => {
   const s = Date.parse(SINDS);
-  const u = uitgaandeMails([
+  const { uitgaand: u, twijfel } = uitgaandeMails([
     thread({ to: 'luc@test.be', createdTime: '2026-10-02T10:02:00.000Z' }),
     thread({ to: 'Luc@test.be', createdTime: '2026-10-02T10:01:00.000Z' }),
     thread({ to: 'an@y.be, bob@z.be', createdTime: '2026-10-02T10:03:00.000Z' }),
   ], s);
+  assert.equal(twijfel, false);
   assert.deepEqual(u, [
     { aan: 'luc@test.be', tijdstip: '2026-10-02T10:01:00.000Z' },
     { aan: 'an@y.be', tijdstip: '2026-10-02T10:03:00.000Z' },
     { aan: 'bob@z.be', tijdstip: '2026-10-02T10:03:00.000Z' },
   ]);
-  assert.deepEqual(beoordeel([]), { verzonden: false, tijdstip: null });
-  assert.deepEqual(beoordeel(u), { verzonden: true, tijdstip: '2026-10-02T10:01:00.000Z' });
+  assert.deepEqual(beoordeel([]), { verzonden: false, twijfel: false, tijdstip: null });
+  assert.deepEqual(beoordeel(u), { verzonden: true, twijfel: false, tijdstip: '2026-10-02T10:01:00.000Z' });
   assert.deepEqual(beoordeel(u, ['luc@test.be', 'an@y.be']), {
-    verzonden: true, tijdstip: '2026-10-02T10:01:00.000Z',
+    verzonden: true, twijfel: false, tijdstip: '2026-10-02T10:01:00.000Z',
     ontvangers: { 'luc@test.be': { verzonden: true, tijdstip: '2026-10-02T10:01:00.000Z' }, 'an@y.be': { verzonden: true, tijdstip: '2026-10-02T10:03:00.000Z' } },
   });
   assert.deepEqual(beoordeel(u, ['luc@test.be', 'niet@daar.be']), {
-    verzonden: false, tijdstip: '2026-10-02T10:01:00.000Z',
+    verzonden: false, twijfel: false, tijdstip: '2026-10-02T10:01:00.000Z',
     ontvangers: { 'luc@test.be': { verzonden: true, tijdstip: '2026-10-02T10:01:00.000Z' }, 'niet@daar.be': { verzonden: false, tijdstip: null } },
   });
-  // een thread zonder leesbaar adres telt mee als "er is een mail" wanneer geen ontvangers verwacht worden
-  assert.equal(beoordeel(uitgaandeMails([thread({ to: undefined })], s)).verzonden, true);
+  // brede controle: een thread zonder leesbaar adres telt mee als "er is een mail"
+  const breed = uitgaandeMails([thread({ to: undefined })], s, { marge: 0 });
+  assert.equal(beoordeel(breed.uitgaand, [], breed.twijfel).verzonden, true);
+});
+
+test('twijfel: onleesbaar adres bij verwachte ontvangers en een draft- of mislukte status tellen niet mee en maken "niet verzonden" onzeker', () => {
+  const s = Date.parse(SINDS);
+  // Met verwachte adressen kan een mail zonder leesbaar `to` (ontbrekend, array, object) niet aan een ontvanger toegewezen worden.
+  for (const to of [undefined, ['luc@test.be'], { email: 'luc@test.be' }, 'geen adres']) {
+    const g = uitgaandeMails([thread({ to })], s, { verwachtAdressen: true });
+    assert.deepEqual(g, { uitgaand: [], twijfel: true }, JSON.stringify(to));
+    assert.deepEqual(beoordeel(g.uitgaand, ['luc@test.be'], g.twijfel), {
+      verzonden: false, twijfel: true, tijdstip: null, ontvangers: { 'luc@test.be': { verzonden: false, tijdstip: null } },
+    });
+  }
+  // Is er daarnaast al een zekere mail naar alle adressen, dan blijft het "verzonden" (geen twijfel meer van belang).
+  const g = uitgaandeMails([thread({ to: undefined }), thread({ to: 'luc@test.be' })], s, { verwachtAdressen: true });
+  assert.deepEqual(beoordeel(g.uitgaand, ['luc@test.be'], g.twijfel).verzonden, true);
+  assert.equal(beoordeel(g.uitgaand, ['luc@test.be'], g.twijfel).twijfel, false);
+  // Status: ontbrekend of herkenbaar verzonden telt; DRAFT, FAILED, PENDING en onbekend niet.
+  for (const status of [undefined, null, '', 'SUCCESS', 'sent', 'Delivered']) assert.equal(heeftVerzondenStatus({ status }), true, String(status));
+  for (const status of ['DRAFT', 'FAILED', 'PENDING', 'iets-anders']) {
+    assert.equal(heeftVerzondenStatus({ status }), false, status);
+    assert.deepEqual(uitgaandeMails([thread({ status })], s), { uitgaand: [], twijfel: true }, status);
+  }
+  // Een niet-uitgaande of te oude thread geeft nooit twijfel.
+  assert.deepEqual(uitgaandeMails([thread({ status: 'FAILED', direction: 'in' }), thread({ status: 'FAILED', createdTime: '2026-10-02T09:00:00.000Z' })], s), { uitgaand: [], twijfel: false });
+});
+
+test('marge: de brede controle telt enkel threads vanaf sinds, de controle per adres telt ook de klokmarge mee', () => {
+  const s = Date.parse(SINDS);
+  const net = thread({ createdTime: new Date(s - 60 * 1000).toISOString() }); // een minuut vóór sinds
+  assert.equal(uitgaandeMails([net], s, { marge: 0 }).uitgaand.length, 0);
+  assert.equal(uitgaandeMails([net], s, { marge: KLOKMARGE_MS, verwachtAdressen: true }).uitgaand.length, 1);
+  assert.equal(uitgaandeMails([thread({ createdTime: SINDS })], s, { marge: 0 }).uitgaand.length, 1); // precies sinds telt wel
 });
 
 // ------------------------------------------------------------------ handler ----
@@ -128,7 +162,7 @@ test('mail-check: ongeldige invoer geeft 400 zonder aanroepen', async () => {
 test('mail-check: testmodus raakt Zoho nooit', async () => {
   const r = await draai(req({}, { headers: { 'X-Blitz-Test': '1' } }));
   assert.deepEqual(r.calls, []);
-  assert.deepEqual(await antwoordJson(r.res), { status: 200, headers: CORS, body: { ok: true, test: true, verzonden: false, tijdstip: null, uitgaand: [] } });
+  assert.deepEqual(await antwoordJson(r.res), { status: 200, headers: CORS, body: { ok: true, test: true, verzonden: false, twijfel: false, tijdstip: null, uitgaand: [] } });
 });
 
 test('mail-check: verzonden: enkel token, organizations en één GET op threads (nooit een schrijfactie)', async () => {
@@ -139,7 +173,7 @@ test('mail-check: verzonden: enkel token, organizations en één GET op threads 
   assert.deepEqual(r.calls, verwacht(1));
   assert.deepEqual(await antwoordJson(r.res), {
     status: 200, headers: CORS,
-    body: { ok: true, verzonden: true, tijdstip: '2026-10-02T10:01:00.000Z', uitgaand: [{ aan: 'luc@test.be', tijdstip: '2026-10-02T10:01:00.000Z' }] },
+    body: { ok: true, verzonden: true, twijfel: false, tijdstip: '2026-10-02T10:01:00.000Z', uitgaand: [{ aan: 'luc@test.be', tijdstip: '2026-10-02T10:01:00.000Z' }] },
   });
 });
 
@@ -151,13 +185,13 @@ test('mail-check: niet verzonden bij oudere mails, inkomende threads, ander kana
     thread({ visibility: 'private' }),
   ]));
   assert.deepEqual(r.calls, verwacht(1));
-  assert.deepEqual(await antwoordJson(r.res), { status: 200, headers: CORS, body: { ok: true, verzonden: false, tijdstip: null, uitgaand: [] } });
+  assert.deepEqual(await antwoordJson(r.res), { status: 200, headers: CORS, body: { ok: true, verzonden: false, twijfel: false, tijdstip: null, uitgaand: [] } });
 });
 
 test('mail-check: 204 zonder body (nog geen threads) is niet verzonden', async () => {
   const r = await draai(req(), url => (url.includes('/threads') ? new Response(null, { status: 204 }) : undefined));
   assert.deepEqual(r.calls, verwacht(1));
-  assert.deepEqual((await antwoordJson(r.res)).body, { ok: true, verzonden: false, tijdstip: null, uitgaand: [] });
+  assert.deepEqual((await antwoordJson(r.res)).body, { ok: true, verzonden: false, twijfel: false, tijdstip: null, uitgaand: [] });
 });
 
 test('mail-check: ontvangers: per adres, en enkel verzonden als álle adressen een mail kregen', async () => {
@@ -165,7 +199,7 @@ test('mail-check: ontvangers: per adres, en enkel verzonden als álle adressen e
   let r = await draai(req({ ontvangers: 'LUC@test.be, an@y.be' }), metThreads(threads));
   assert.deepEqual(r.calls, verwacht(1));
   assert.deepEqual((await antwoordJson(r.res)).body, {
-    ok: true, verzonden: true, tijdstip: '2026-10-02T10:01:00.000Z',
+    ok: true, verzonden: true, twijfel: false, tijdstip: '2026-10-02T10:01:00.000Z',
     ontvangers: { 'luc@test.be': { verzonden: true, tijdstip: '2026-10-02T10:01:00.000Z' }, 'an@y.be': { verzonden: true, tijdstip: '2026-10-02T10:02:00.000Z' } },
     uitgaand: [{ aan: 'luc@test.be', tijdstip: '2026-10-02T10:01:00.000Z' }, { aan: 'an@y.be', tijdstip: '2026-10-02T10:02:00.000Z' }],
   });
@@ -181,7 +215,7 @@ test('mail-check: pagineert (from=1, 101, ...) tot een kortere pagina en leest e
   const r = await draai(req(), metThreads(vol, [thread({ createdTime: '2026-10-02T10:05:00.000Z' })]));
   assert.deepEqual(r.calls, verwacht(2));
   assert.deepEqual(r.calls.slice(2).map(c => c.url), [`${DESK}/tickets/555/threads?from=1&limit=100`, `${DESK}/tickets/555/threads?from=101&limit=100`]);
-  assert.deepEqual((await antwoordJson(r.res)).body, { ok: true, verzonden: true, tijdstip: '2026-10-02T10:05:00.000Z', uitgaand: [{ aan: 'luc@test.be', tijdstip: '2026-10-02T10:05:00.000Z' }] });
+  assert.deepEqual((await antwoordJson(r.res)).body, { ok: true, verzonden: true, twijfel: false, tijdstip: '2026-10-02T10:05:00.000Z', uitgaand: [{ aan: 'luc@test.be', tijdstip: '2026-10-02T10:05:00.000Z' }] });
 });
 
 test('mail-check: een gevonden mail stopt het pagineren; te veel threads zonder resultaat geeft 502', async () => {
@@ -217,6 +251,42 @@ test('mail-check: foutpaden (404, 5xx van Zoho, token, organizations, netwerk) g
   assert.deepEqual(r.calls, verwacht(1));
   assert.deepEqual(await antwoordJson(r.res), { status: 500, headers: CORS, body: { error: 'fetch failed' } });
   assert.equal(stil.mock.callCount(), 3);
+});
+
+test('mail-check: onleesbaar `to` met ontvangers geeft twijfel (nooit "niet verzonden"); draft-status ook; de brede controle gebruikt geen marge', async () => {
+  let r = await draai(req({ ontvangers: 'luc@test.be' }), metThreads([thread({ to: undefined })]));
+  assert.deepEqual(r.calls, verwacht(1));
+  assert.deepEqual((await antwoordJson(r.res)).body, {
+    ok: true, verzonden: false, twijfel: true, tijdstip: null, uitgaand: [], ontvangers: { 'luc@test.be': { verzonden: false, tijdstip: null } },
+  });
+  r = await draai(req(), metThreads([thread({ status: 'FAILED' })]));
+  assert.deepEqual((await antwoordJson(r.res)).body, { ok: true, verzonden: false, twijfel: true, tijdstip: null, uitgaand: [] });
+  // één minuut vóór sinds: telt in de brede controle niet, in de controle per adres wel (klokmarge)
+  const net = thread({ createdTime: '2026-10-02T09:59:00.000Z' });
+  r = await draai(req(), metThreads([net]));
+  assert.deepEqual((await antwoordJson(r.res)).body, { ok: true, verzonden: false, twijfel: false, tijdstip: null, uitgaand: [] });
+  r = await draai(req({ ontvangers: 'luc@test.be' }), metThreads([net]));
+  assert.equal((await antwoordJson(r.res)).body.verzonden, true);
+});
+
+test('mail-check: sinds moet een volledig ISO-tijdstip met zone zijn ("2020", een kale datum of een rommeltekst geven 400)', async () => {
+  for (const sinds of ['2020', '2026-10-02', '2026-10-02T10:00', '1', '2026-10-02 10:00:00', 'nu', '2026-10-02T10:00:00']) {
+    const r = await draai(req({ sinds }));
+    assert.deepEqual(r.calls, [], sinds);
+    assert.equal(r.res.status, 400, sinds);
+  }
+  for (const sinds of ['2026-10-02T10:00:00Z', '2026-10-02T10:00:00.123Z', '2026-10-02T12:00:00+02:00', '2026-10-02T10:00Z']) {
+    const r = await draai(req({ sinds }), metThreads([]));
+    assert.equal(r.res.status, 200, sinds);
+  }
+});
+
+test('mail-check: paginacap met ontvangers die maar deels gevonden zijn geeft 502 (geen uitspraak over de rest)', async () => {
+  const vol = n => Array.from({ length: 100 }, (_, i) => thread({ id: `${n}-${i}`, direction: 'in' }));
+  const eerste = [...vol('a').slice(1), thread({ to: 'luc@test.be' })];
+  const r = await draai(req({ ontvangers: 'luc@test.be,an@y.be' }), metThreads(eerste, vol('b'), vol('c'), vol('d'), vol('e'), vol('f')));
+  assert.deepEqual(r.calls, verwacht(5));
+  assert.deepEqual(await antwoordJson(r.res), { status: 502, headers: CORS, body: { error: 'Te veel threads om te controleren' } });
 });
 
 test('mail-check: de tokencache leeft in de handler-instantie en elke aanroep is een GET (of het token)', async () => {

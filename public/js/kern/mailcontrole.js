@@ -20,7 +20,8 @@ export function uurBrussel(iso) {
 // `verwacht` = de adressen waarvan de oproeper weet dat ze de mail moesten krijgen (kan leeg zijn).
 export function beoordeelAntwoord(data, verwacht = []) {
   const onbekend = { uitkomst: 'onbekend', verzonden: [] };
-  if (!data || typeof data !== 'object' || data.ok !== true || typeof data.verzonden !== 'boolean') return onbekend;
+  if (!data || typeof data !== 'object' || data.ok !== true || typeof data.verzonden !== 'boolean' || typeof data.twijfel !== 'boolean') return onbekend;
+  // twijfel: er is een uitgaande mail die niet te plaatsen was (onleesbaar adres, draft- of mislukte status): nooit "niet verzonden" melden.
   const adressen = verwacht.map(a => String(a).toLowerCase());
   if (adressen.length) {
     const o = data.ontvangers;
@@ -35,10 +36,10 @@ export function beoordeelAntwoord(data, verwacht = []) {
       }
     }
     if (vonden.length === adressen.length) return { uitkomst: 'verzonden', verzonden: vonden };
-    if (vonden.length === 0) return { uitkomst: 'niet-verzonden', verzonden: [] };
+    if (vonden.length === 0) return data.twijfel ? onbekend : { uitkomst: 'niet-verzonden', verzonden: [] };
     return onbekend; // maar een deel van de ontvangers kreeg de mail: geen zekere uitspraak
   }
-  if (!data.verzonden) return { uitkomst: 'niet-verzonden', verzonden: [] };
+  if (!data.verzonden) return data.twijfel ? onbekend : { uitkomst: 'niet-verzonden', verzonden: [] };
   const lijst = (Array.isArray(data.uitgaand) ? data.uitgaand : [])
     .filter(u => u && GELDIG_UUR(u.tijdstip))
     .map(u => ({ aan: typeof u.aan === 'string' ? u.aan : '', tijdstip: u.tijdstip }));

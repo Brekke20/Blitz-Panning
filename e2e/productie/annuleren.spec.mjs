@@ -514,8 +514,8 @@ const MAILCHECK = '/api/mail-check';
 const T_MAIL = '2026-10-05T07:01:00.000Z'; // 09:01 in Brussel
 const mailCheckLijst = (verzoeken) => verzoeken.alle.filter(r => r.pad === MAILCHECK).map(r => r.methode);
 const MAIL_ONZEKER_BESTAAND = '✕ Annuleren mislukt: Geen verbinding met de server De klant kan al gemaild zijn — controleer in Zoho vóór je opnieuw probeert.';
-const MAIL_VERZONDEN = { status: 200, json: { ok: true, verzonden: true, tijdstip: T_MAIL, uitgaand: [{ aan: 'luc@test.be', tijdstip: T_MAIL }] } };
-const MAIL_NIET = { status: 200, json: { ok: true, verzonden: false, tijdstip: null, uitgaand: [] } };
+const MAIL_VERZONDEN = { status: 200, json: { ok: true, twijfel: false, verzonden: true, tijdstip: T_MAIL, uitgaand: [{ aan: 'luc@test.be', tijdstip: T_MAIL }] } };
+const MAIL_NIET = { status: 200, json: { ok: true, twijfel: false, verzonden: false, tijdstip: null, uitgaand: [] } };
 const REDENEN_STUB = { redenen: [{ code: 'ziek', label: REDEN_ZIEK }] };
 
 async function annuleerAfgebroken(page, verzoeken, mailCheck, { httpFouten = [], netFouten = [], mailKlant = true } = {}) {

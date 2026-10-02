@@ -2,10 +2,22 @@
 // Enkel lezen en rekenen; geen Zoho, geen netwerk. De threads komen van GET /tickets/{id}/threads.
 
 // Tolerantie voor het klokverschil tussen toestel (de `sinds` van de client) en Zoho (createdTime).
+// Enkel voor de controle per adres (de oproeper kent dan de ontvangers). De brede controle (elke uitgaande mail) gebruikt GEEN marge:
+// een collega- of workflowmail van vlak ervoor mag niet als onze mail tellen.
 export const KLOKMARGE_MS = 2 * 60 * 1000;
 
 const ADRES_RE = /[^\s<>,;"'()]+@[^\s<>,;"'()]+/g;
 export const GELDIG_ADRES_RE = /^[^\s<>,;"'()@]+@[^\s<>,;"'()@]+$/;
+// Volledig ISO 8601 met tijd en zone ("2020" of een kale datum is geen geldig begin van een verzending).
+export const ISO_TIJDSTIP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
+
+// De referentie (docs/integrations, §9.4) noemt het threadveld `status` maar geen waarden. Enkel een ontbrekende of herkenbaar verzonden
+// status telt als verzonden; elke andere (DRAFT, FAILED, PENDING, onbekend) telt niet mee en maakt een "niet verzonden" onzeker.
+const VERZONDEN_STATUS_RE = /^(success|sent|delivered)$/i;
+export function heeftVerzondenStatus(thread) {
+  const s = thread?.status;
+  return s === undefined || s === null || s === '' || VERZONDEN_STATUS_RE.test(String(s));
+}
 
 // "Luc <luc@x.be>, an@y.be" -> ['luc@x.be', 'an@y.be'] (kleine letters, zonder dubbels).
 export function adressenUit(tekst) {
@@ -13,37 +25,46 @@ export function adressenUit(tekst) {
   return [...new Set((tekst.match(ADRES_RE) || []).map(a => a.toLowerCase()))];
 }
 
-// Een thread telt als verzonden mail als ze uitgaand is, via het kanaal e-mail loopt, niet privé is en na `sinds` (min de marge) werd aangemaakt.
-export function isUitgaandeMail(thread, sindsMs) {
+// Uitgaand + via het kanaal e-mail + niet privé + vanaf sinds min de marge aangemaakt (de status wordt apart beoordeeld).
+export function isUitgaandeMail(thread, sindsMs, marge = KLOKMARGE_MS) {
   if (!thread || typeof thread !== 'object') return false;
   if (String(thread.direction || '').toLowerCase() !== 'out') return false;
   if (String(thread.channel || '').toUpperCase() !== 'EMAIL') return false;
   if (String(thread.visibility || '').toLowerCase() === 'private') return false;
   const t = Date.parse(thread.createdTime);
-  return !Number.isNaN(t) && t >= sindsMs - KLOKMARGE_MS;
+  return !Number.isNaN(t) && t >= sindsMs - marge;
 }
 
-// -> [{ aan, tijdstip }] per verschillend adres (vroegste tijdstip), oplopend op tijd. Een thread zonder leesbaar adres geeft aan: ''.
-export function uitgaandeMails(threads, sindsMs) {
+// -> { uitgaand: [{ aan, tijdstip }], twijfel }. `uitgaand` heeft één regel per adres (vroegste tijdstip), oplopend op tijd.
+// Zonder `verwacht` (brede controle) telt elke uitgaande mail, ook zonder leesbaar adres (aan: '').
+// Met `verwacht` (controle per adres) kan een mail zonder leesbaar adres niet aan een ontvanger toegewezen worden.
+// `twijfel` is waar als er een mogelijk verstuurde mail is die niet meetelt (onleesbaar adres of een status die niet "verzonden" is).
+export function uitgaandeMails(threads, sindsMs, { marge = KLOKMARGE_MS, verwachtAdressen = false } = {}) {
   const perAdres = new Map();
+  let twijfel = false;
   for (const th of Array.isArray(threads) ? threads : []) {
-    if (!isUitgaandeMail(th, sindsMs)) continue;
+    if (!isUitgaandeMail(th, sindsMs, marge)) continue;
+    if (!heeftVerzondenStatus(th)) { twijfel = true; continue; }
     const adressen = adressenUit(th.to);
+    if (!adressen.length && verwachtAdressen) { twijfel = true; continue; }
     for (const aan of adressen.length ? adressen : ['']) {
       const huidig = perAdres.get(aan);
       if (!huidig || Date.parse(th.createdTime) < Date.parse(huidig)) perAdres.set(aan, th.createdTime);
     }
   }
-  return [...perAdres.entries()]
+  const uitgaand = [...perAdres.entries()]
     .map(([aan, tijdstip]) => ({ aan, tijdstip }))
     .sort((a, b) => Date.parse(a.tijdstip) - Date.parse(b.tijdstip));
+  return { uitgaand, twijfel };
 }
 
-// verwacht = lijst adressen (kleine letters) of leeg. Geeft { verzonden, tijdstip, ontvangers? }.
+// verwacht = lijst adressen (kleine letters) of leeg. Geeft { verzonden, twijfel, tijdstip, ontvangers? }.
 // Zonder verwachte ontvangers: verzonden zodra er één uitgaande mail is. Met: enkel als álle adressen een mail kregen.
-export function beoordeel(uitgaand, verwacht = []) {
+// `twijfel` blijft alleen waar als er niet (volledig) verzonden is: dan mag de oproeper nooit "niet verzonden" melden.
+export function beoordeel(uitgaand, verwacht = [], twijfel = false) {
   if (!verwacht.length) {
-    return { verzonden: uitgaand.length > 0, tijdstip: uitgaand[0]?.tijdstip ?? null };
+    const verzonden = uitgaand.length > 0;
+    return { verzonden, twijfel: twijfel && !verzonden, tijdstip: uitgaand[0]?.tijdstip ?? null };
   }
   const ontvangers = {};
   for (const adres of verwacht) {
@@ -51,5 +72,6 @@ export function beoordeel(uitgaand, verwacht = []) {
     ontvangers[adres] = { verzonden: !!gevonden, tijdstip: gevonden?.tijdstip ?? null };
   }
   const tijden = Object.values(ontvangers).filter(o => o.verzonden).map(o => o.tijdstip).sort((a, b) => Date.parse(a) - Date.parse(b));
-  return { verzonden: verwacht.every(a => ontvangers[a].verzonden), tijdstip: tijden[0] ?? null, ontvangers };
+  const verzonden = verwacht.every(a => ontvangers[a].verzonden);
+  return { verzonden, twijfel: twijfel && !verzonden, tijdstip: tijden[0] ?? null, ontvangers };
 }

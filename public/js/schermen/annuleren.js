@@ -236,7 +236,7 @@ export async function verstuurAnnulatie() {
       s.busy = false;
       sluitAnnuleerVenster();
       afh.sluitDetailStil();
-      afh.loadVoorstelStatus().then(() => afh.planResync());
+      afh.loadVoorstelStatus().catch(() => {}).then(() => afh.planResync());
       toast('✓ ' + mailControleTekst(r), 8000);
     } else if (r.uitkomst === 'niet-verzonden') {
       mislukt(bericht, false, '⚠ ' + mailControleTekst(r));

@@ -260,7 +260,7 @@ export function zohoStubs({ register, rapporten } = {}) {
         return {
           status: 200,
           json: {
-            ok: true, verzonden: false, tijdstip: null, uitgaand: [],
+            ok: true, twijfel: false, verzonden: false, tijdstip: null, uitgaand: [],
             ...(adressen.length ? { ontvangers: Object.fromEntries(adressen.map(a => [a.toLowerCase(), { verzonden: false, tijdstip: null }])) } : {}),
           },
         };

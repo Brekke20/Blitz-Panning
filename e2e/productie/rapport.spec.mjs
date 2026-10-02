@@ -402,8 +402,8 @@ const MAILCHECK = '/api/mail-check';
 const T_MAIL = '2026-10-05T07:01:00.000Z'; // 09:01 in Brussel
 const mailCheckLijst = (verzoeken) => verzoeken.alle.filter(r => r.pad === MAILCHECK).map(r => r.methode);
 const MAIL_ONZEKER = '⚠ De klant kan al gemaild zijn — kijk dit na in Zoho voor je opnieuw verstuurt';
-const MAIL_VERZONDEN = { status: 200, json: { ok: true, verzonden: true, tijdstip: T_MAIL, uitgaand: [{ aan: 'c@y.be', tijdstip: T_MAIL }] } };
-const MAIL_NIET = { status: 200, json: { ok: true, verzonden: false, tijdstip: null, uitgaand: [] } };
+const MAIL_VERZONDEN = { status: 200, json: { ok: true, twijfel: false, verzonden: true, tijdstip: T_MAIL, uitgaand: [{ aan: 'c@y.be', tijdstip: T_MAIL }] } };
+const MAIL_NIET = { status: 200, json: { ok: true, twijfel: false, verzonden: false, tijdstip: null, uitgaand: [] } };
 
 async function verstuurAfgebroken(page, verzoeken, mailCheck, { httpFouten = [], netFouten = [] } = {}) {
   verwachtNetwerkFout(verzoeken, [{ pad: '/api/send-rapport', methode: 'POST' }, ...netFouten]);
@@ -438,6 +438,69 @@ test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg 
     await expect(verstuurKnop(page)).toBeEnabled();
     await eenVerzendingEnEenControle(page, verzoeken, z);
     expect(await lokaleRapporten(page)).toEqual([RAPPORT]);
+  });
+
+  test('na "verzonden" vraagt een volgende verzending van hetzelfde rapport eerst een bevestiging: Terug verstuurt niets, bevestigen precies één verzoek', async ({ page, verzoeken }) => {
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/send-rapport', methode: 'POST' }]);
+    const z = await start(page, verzoeken, { paden: ['/api/send-rapport', '/api/rapport-verzonden'] });
+    let echt = 0;
+    z.zetAntwoord('send-rapport', ({ body }) => body.preview === true
+      ? VOORBEELD(ontvanger('contact', 'c@y.be'))
+      : (++echt === 1 ? { afbreken: 'failed' } : VERZONDEN_OK({ contact: true })));
+    z.zetAntwoord('mail-check', MAIL_VERZONDEN);
+    const dialoog = page.getByRole('alertdialog', { name: 'Mail al gedetecteerd' });
+    const soorten = () => z.opnames['send-rapport'].map(o => (o.body.preview === true ? 'voorbeeld' : 'echt'));
+
+    await openVoorbeeld(page);
+    await bevestig(page); // geen detectie bekend: geen vraag, de verzending zelf valt onzeker uit
+    await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (c@y.be)');
+    await expect(verstuurKnop(page)).toBeDisabled();
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_mail_gedetecteerd')))).toEqual({ r1: '2026-10-05T07:01:00.000Z' });
+    expect(soorten()).toEqual(['voorbeeld', 'echt']);
+
+    // Een latere hertekening (tabwissel) zet de knop weer open, want de status "Verzonden" is niet geschreven.
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await page.getByRole('tab', { name: 'Rapporten' }).click();
+    await page.clock.runFor(1);
+    await expect(verstuurKnop(page)).toBeEnabled();
+
+    // Eerste poging: de vraag verschijnt; Terug verstuurt niets (enkel het voorbeeld ging langs de server).
+    await openVoorbeeld(page);
+    await bevestig(page);
+    await expect(dialoog).toBeVisible();
+    await expect(dialoog).toContainText('Er is om 09:01 al een mail naar de klant gedetecteerd. Toch opnieuw versturen?');
+    await dialoog.getByRole('button', { name: 'Terug' }).click();
+    await expect(dialoog).toHaveCount(0);
+    expect(soorten()).toEqual(['voorbeeld', 'echt', 'voorbeeld']);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_mail_gedetecteerd')))).toEqual({ r1: '2026-10-05T07:01:00.000Z' }); // blijft onthouden
+    expect(z.opnames['rapport-verzonden']).toEqual([]);
+
+    // Tweede poging: bevestigen verstuurt precies één echt verzoek, en de onthouden detectie is dan gewist.
+    await verstuurKnop(page).click();
+    await expect(overlay(page)).toHaveClass(/open/);
+    await bevestig(page);
+    await expect(dialoog).toBeVisible();
+    await dialoog.getByRole('button', { name: 'Toch opnieuw versturen' }).click();
+    await expect(toastTekst(page)).toHaveText('✓ Rapport verstuurd naar contactpersoon');
+    expect(soorten()).toEqual(['voorbeeld', 'echt', 'voorbeeld', 'voorbeeld', 'echt']);
+    expect(z.opnames['rapport-verzonden']).toHaveLength(1);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_mail_gedetecteerd')))).toEqual({});
+    expect(mailCheckLijst(verzoeken)).toEqual(['GET']);
+  });
+
+  test('"niet verzonden" of een onzekere controle onthoudt niets: geen vraag bij de volgende verzending', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, MAIL_NIET);
+    await expect(toastTekst(page)).toHaveText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
+    expect(await page.evaluate(() => localStorage.getItem('blitz_mail_gedetecteerd'))).toBeNull();
+    await eenVerzendingEnEenControle(page, verzoeken, z);
+  });
+
+  test('onleesbaar adres of een draft-status (twijfel) geeft de waarschuwing, nooit "niet verzonden"', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, { status: 200, json: { ok: true, verzonden: false, twijfel: true, tijdstip: null, uitgaand: [] } });
+    await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER);
+    await expect(verstuurKnop(page)).toBeDisabled();
+    expect(await page.evaluate(() => localStorage.getItem('blitz_mail_gedetecteerd'))).toBeNull();
+    await eenVerzendingEnEenControle(page, verzoeken, z);
   });
 
   test('de controle zelf faalt (502): de waarschuwing "kijk dit na in Zoho" en de knop blijft uit', async ({ page, verzoeken }) => {

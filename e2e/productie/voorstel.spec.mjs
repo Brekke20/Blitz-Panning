@@ -352,7 +352,7 @@ const mailVerzonden = (verzonden = null) => ({ query }) => {
   return {
     status: 200,
     json: {
-      ok: true, verzonden: adressen.length ? adressen.every(a => !verzonden || verzonden.includes(a)) : true, tijdstip: T_MAIL,
+      ok: true, twijfel: false, verzonden: adressen.length ? adressen.every(a => !verzonden || verzonden.includes(a)) : true, tijdstip: T_MAIL,
       uitgaand: adressen.filter(a => !verzonden || verzonden.includes(a)).map(a => ({ aan: a, tijdstip: T_MAIL })),
       ontvangers: Object.fromEntries(adressen.map(a => [a, (!verzonden || verzonden.includes(a)) ? { verzonden: true, tijdstip: T_MAIL } : { verzonden: false, tijdstip: null }])),
     },
@@ -395,7 +395,7 @@ test.describe('voorstel: onzeker resultaat, controle of de mail al weg is (Q1)',
   });
 
   test('afgebroken en de mail is niet verzonden: melding, venster blijft open en de knop kan opnieuw', async ({ page, verzoeken }) => {
-    const z = await verstuurAfgebroken(page, verzoeken, { status: 200, json: { ok: true, verzonden: false, tijdstip: null, uitgaand: [], ontvangers: { 'luc@test.be': { verzonden: false, tijdstip: null } } } });
+    const z = await verstuurAfgebroken(page, verzoeken, { status: 200, json: { ok: true, twijfel: false, verzonden: false, tijdstip: null, uitgaand: [], ontvangers: { 'luc@test.be': { verzonden: false, tijdstip: null } } } });
     await expect(toastTekst(page)).toHaveText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
     await expect(page.locator('#proposal-overlay')).toHaveClass(/open/);
     await expect(verstuurKnop(page)).toHaveText('✉️ Verstuur voorstel');
@@ -450,6 +450,13 @@ test.describe('voorstel: onzeker resultaat, controle of de mail al weg is (Q1)',
     expect(z.opnames.propose).toHaveLength(1);
     expect(z.opnames['mail-check'].map(o => o.query.ontvangers)).toEqual(['luc@test.be,klant@test.be']);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, PROPOSE]);
+  });
+
+  test('een uitgaande mail met onleesbaar adres (twijfel) geeft de waarschuwing, nooit "niet verzonden"', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, { status: 200, json: { ok: true, verzonden: false, twijfel: true, tijdstip: null, uitgaand: [], ontvangers: { 'luc@test.be': { verzonden: false, tijdstip: null } } } });
+    await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER);
+    await expect(verstuurKnop(page)).toBeEnabled();
+    await eenVerzendingEnEenControle(page, verzoeken, z);
   });
 
   test('twee ontvangers en beide kregen de mail: één melding per ontvanger', async ({ page, verzoeken }) => {

@@ -1,6 +1,6 @@
 // /api/mail-check
 //   GET ?ticketId=<numeriek>&sinds=<ISO-tijdstip>[&ontvangers=a@x.be,b@y.be]
-//     -> { ok, verzonden, tijdstip, uitgaand: [{ aan, tijdstip }], ontvangers? }
+//     -> { ok, verzonden, twijfel, tijdstip, uitgaand: [{ aan, tijdstip }], ontvangers? }
 // Is er op dit ticket sinds `sinds` al een uitgaande e-mail verstuurd? Voor de controle na een onzeker resultaat
 // (time-out, netwerkfout of 502/503/504) van /api/propose, /api/send-rapport en /api/annuleer (etappe 7, Q1).
 // ENKEL LEZEN: één GET op Zoho Desk /tickets/{id}/threads (met paginering), nooit sendReply, PATCH of een andere schrijfactie.
@@ -8,7 +8,7 @@
 import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
 import { maakZoho, leesJsonVeilig } from '../lib/zoho.js';
 import { maakCors, v2Json, v2Methode } from '../lib/http.js';
-import { GELDIG_ADRES_RE, uitgaandeMails, beoordeel } from '../lib/mailcontrole.js';
+import { GELDIG_ADRES_RE, ISO_TIJDSTIP_RE, KLOKMARGE_MS, uitgaandeMails, beoordeel } from '../lib/mailcontrole.js';
 
 const PAGINA_GROOTTE = 100;
 const MAX_PAGINAS    = 5;
@@ -28,7 +28,8 @@ export function maakHandler({ fetch: doFetch }) {
     const params = new URL(req.url).searchParams;
     const ticketId = params.get('ticketId') || '';
     if (!/^\d+$/.test(ticketId)) return json(400, { error: 'ticketId (numeriek) is verplicht' });
-    const sindsMs = Date.parse(params.get('sinds') || '');
+    const sindsTekst = params.get('sinds') || '';
+    const sindsMs = ISO_TIJDSTIP_RE.test(sindsTekst) ? Date.parse(sindsTekst) : NaN;
     if (Number.isNaN(sindsMs)) return json(400, { error: 'sinds (ISO-tijdstip) is verplicht' });
     const lijst = (params.get('ontvangers') || '').split(',').map(a => a.trim().toLowerCase()).filter(Boolean);
     if (lijst.length > MAX_ONTVANGERS || !lijst.every(a => GELDIG_ADRES_RE.test(a))) {
@@ -37,7 +38,7 @@ export function maakHandler({ fetch: doFetch }) {
     const verwacht = [...new Set(lijst)];
 
     if (isTestVerzoek(req)) {
-      return json(200, nepZohoAntwoord({ verzonden: false, tijdstip: null, uitgaand: [] }));
+      return json(200, nepZohoAntwoord({ verzonden: false, twijfel: false, tijdstip: null, uitgaand: [] }));
     }
 
     try {
@@ -46,6 +47,7 @@ export function maakHandler({ fetch: doFetch }) {
       let volledig = false;
       let beoordeeld = null;
       let uitgaand = [];
+      const opties = verwacht.length ? { marge: KLOKMARGE_MS, verwachtAdressen: true } : { marge: 0 };
       for (let pagina = 0; pagina < MAX_PAGINAS; pagina++) {
         const from = 1 + pagina * PAGINA_GROOTTE;
         const res = await zoho.verzoek(`/tickets/${ticketId}/threads?from=${from}&limit=${PAGINA_GROOTTE}`, { token, orgId });
@@ -55,8 +57,9 @@ export function maakHandler({ fetch: doFetch }) {
         const data = await leesJsonVeilig(res);
         const blok = Array.isArray(data.data) ? data.data : [];
         threads.push(...blok);
-        uitgaand = uitgaandeMails(threads, sindsMs);
-        beoordeeld = beoordeel(uitgaand, verwacht);
+        const gelezen = uitgaandeMails(threads, sindsMs, opties);
+        uitgaand = gelezen.uitgaand;
+        beoordeeld = beoordeel(uitgaand, verwacht, gelezen.twijfel);
         if (blok.length < PAGINA_GROOTTE) { volledig = true; break; }
         if (beoordeeld.verzonden) break; // een gevonden mail blijft gevonden, ook zonder de rest te lezen
       }
