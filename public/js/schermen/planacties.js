@@ -11,11 +11,12 @@ import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { localISO, getWeekStart, fmtDateShort } from '../kern/tijd.js';
-import { apiVerzoek } from '../kern/api.js';
+import { apiVerzoek, leesFout } from '../kern/api.js';
 import * as selecties from '../kern/selecties.js';
 import { registreerVenster } from '../venster.js';
 import { appConfirm } from '../app-dialog.js';
 import { renderTickets } from './wachtrij.js';
+import { routeOrderBezig } from './route.js';
 import { renderKalender, weekOffset } from './kalender.js';
 import { renderGepland } from './ingepland.js';
 import { leesLaatsteStart } from './instellingen.js';
@@ -38,6 +39,32 @@ export function initPlanacties(afhankelijkheden) {
 
 let inFlightTickets = new Set(); // voorkomt dubbele API calls
 export function inFlight(id) { return inFlightTickets.has(id); }
+
+// Na een onzeker resultaat (time-out, netwerkfout, 502/503/504) weet de app niet of Zoho de wijziging toch doorvoerde:
+// de rollback blijft, daarna volgt ÉÉN gecoalesceerde herlading van de tickets (zonder bewaarde kopie, zonder tweede
+// foutmelding). Ze wacht tot er geen plan-aanroep meer openstaat en de routevolgorde niet bezig is (anders zou ze een
+// nieuwere lokale wijziging overschrijven), hoogstens 3 keer opnieuw proberen. Meerdere fouten kort na elkaar (bv. "Plan deze week")
+// geven samen één herlading.
+const RESYNC_WACHT_MS = 300;
+const RESYNC_MAX_HERHALINGEN = 3;
+let _resyncTimer = null;
+function plantResync(herhaling) {
+  _resyncTimer = setTimeout(() => {
+    _resyncTimer = null;
+    if (inFlightTickets.size > 0 || routeOrderBezig()) {
+      if (herhaling < RESYNC_MAX_HERHALINGEN) plantResync(herhaling + 1);
+      return;
+    }
+    afh.loadTickets({ stil: true, stilleToast: true, zonderCache: true }); // stilleToast: de telmelding mag de foutmelding van de oproeper niet overschrijven
+  }, RESYNC_WACHT_MS);
+}
+export function planResync() {
+  if (_resyncTimer) return; // al ingepland: coalesceren
+  plantResync(0);
+}
+export function vraagResyncNaOnzeker(err) {
+  if (leesFout(err).onzeker) planResync();
+}
 
 export async function addTicketToDate(ticketId, date) {
   if (inFlightTickets.has(ticketId)) return false;
@@ -95,6 +122,7 @@ export async function addTicketToDate(ticketId, date) {
       if (!toestand.get('planning')[date].length) delete toestand.get('planning')[date];
       toestand.raak('planning'); // Zoho-gebonden rollback: de handmatige renders hieronder blijven staan (R7)
       toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
+      vraagResyncNaOnzeker(err); // W5-fix (N7): onzeker resultaat -> één gecoalesceerde herlading
       success = false;
     }
   } else {
@@ -161,6 +189,7 @@ export async function removeTicketFromDate(ticketId, date) {
       toestand.raak('planning'); // Zoho-gebonden rollback (R7)
       verwijderMislukt = true;
       toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
+      vraagResyncNaOnzeker(err); // W5-fix (N7): onzeker resultaat -> één gecoalesceerde herlading
     }
   } else {
     stop.ticket.interventieDatum = null;

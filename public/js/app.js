@@ -189,7 +189,7 @@ function opstart() {
   // Ticketdetail-scherm (schermen/ticketdetail.js): detail- en verzetvenster, toewijzen en aankomst; vóór koppelRenders().
   ticketdetail.initTicketdetail({
     renderKbSection: klantbeschikbaarheid.renderKbSection, openProposal: voorstel.openProposal, openAnnuleerVenster: annuleren.openAnnuleerVenster, openFotoModal: fotos.openFotoModal, openRapport: (...a) => openRapport(...a),
-    addTicketToDate: planacties.addTicketToDate, bevestigUitplannen: planacties.bevestigUitplannen, navigate, kbBlocked: klantbeschikbaarheid.kbBlocked, kbPreferredTime: klantbeschikbaarheid.kbPreferredTime, prioLabel,
+    addTicketToDate: planacties.addTicketToDate, bevestigUitplannen: planacties.bevestigUitplannen, vraagResyncNaOnzeker: planacties.vraagResyncNaOnzeker, navigate, kbBlocked: klantbeschikbaarheid.kbBlocked, kbPreferredTime: klantbeschikbaarheid.kbPreferredTime, prioLabel,
     bevestigdLabel: ticketdetailLogica.bevestigdLabel,
     heeftLopendVoorstel: t => ticketdetailLogica.heeftLopendVoorstel(t, toestand.get('voorstelStatus')),
     computeArrivalTimes: (...a) => computeArrivalTimes(...a),
@@ -210,7 +210,7 @@ function opstart() {
   });
   // Planacties (schermen/planacties.js): inplannen, uitplannen en "Plan deze week"; de Zoho-schrijfpaden. Vóór koppelRenders().
   planacties.initPlanacties({
-    openAnnuleerVenster: annuleren.openAnnuleerVenster,
+    openAnnuleerVenster: annuleren.openAnnuleerVenster, loadTickets: (...a) => loadTickets(...a),
     kbBlocked: klantbeschikbaarheid.kbBlocked, kbFor: klantbeschikbaarheid.kbFor, kbPreferred: klantbeschikbaarheid.kbPreferred, kbPreferredTime: klantbeschikbaarheid.kbPreferredTime,
     geocacheLookup, geocacheStore, duurVoor, calcWerktijdMin: (...a) => calcWerktijdMin(...a),
     renderRouteList: (...a) => renderRouteList(...a), updateRouteBtns: (...a) => updateRouteBtns(...a),

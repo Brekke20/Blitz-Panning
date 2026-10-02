@@ -79,6 +79,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Een serverfout met een onleesbaar antwoord (bv. een HTML-foutpagina) toont bij inplannen, toewijzen, verzetten, een voorstel of rapport versturen, of het bijwerken van de oplossing in Zoho, toont nu een duidelijke foutmelding (bv. 'HTTP 502') in plaats van een onleesbare technische tekst.
 - Een hangende verbinding vergrendelt een ticket, het annuleervenster of de verzendknop niet meer: na 20 tot 60 seconden verschijnt de bestaande foutmelding (met als detail 'Time-out na … s') en kun je opnieuw proberen.
 - Een verversing (knop Vernieuwen of de automatische controle) zet geen verouderde gegevens meer terug: een ticket dat je net gepland hebt, springt niet meer terug naar de wachtrij als de verbinding net wegvalt.
+- Na een weggevallen verbinding tijdens plannen, uitplannen, verzetten, toewijzen of opslaan (beschikbaarheid, afspraken, klantbeschikbaarheid) klopt het scherm weer met Zoho en de opslag: de app haalt de gegevens één keer opnieuw op, zodat een wijziging die toch doorging weer verschijnt en een volgende wijziging niet vastloopt op een conflict.
 
 ### Bekend, ongewijzigd
 - Serverkant, bewust niet aangepast: token-foutdata komt in 8 van 10 functies mee, in 2 niet; `tickets` heeft geen OPTIONS; `route`, `optimize` en `drukte` hebben geen methodecontrole; `plan-datum` antwoordt 405 als tekst, de v1-functies als JSON; `comment` heeft Engelse validatie- en orgfouten, `plan` Nederlandse.

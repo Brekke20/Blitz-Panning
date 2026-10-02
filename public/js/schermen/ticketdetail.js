@@ -289,6 +289,7 @@ export async function saveReschedule() {
     toast(TEST_MODE ? '🧪 Testmodus — niet opgeslagen' : `✓ Verzet naar ${fmtDateShort(date)} om ${time}`);
   } catch (err) {
     toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
+    afh.vraagResyncNaOnzeker(err); // W5-fix (N7): onzeker resultaat -> één gecoalesceerde herlading
   }
 }
 
@@ -382,6 +383,7 @@ export async function saveToewijzen(ticketId) {
     toast(TEST_MODE ? '🧪 Testmodus — niet opgeslagen' : `✓ Datum ingesteld op ${date} om ${time}`);
   } catch (err) {
     toast('✕ ' + err.message, 5000);
+    afh.vraagResyncNaOnzeker(err); // W5-fix (N7): onzeker resultaat -> één gecoalesceerde herlading
   }
 }
 

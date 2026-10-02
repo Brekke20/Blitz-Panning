@@ -6,7 +6,7 @@
 // zijn daarom per test expliciet toegelaten met `verwachtHttpFout` (exact pad + status; faalt als de fout uitblijft).
 // De echte backend geeft bij een Zoho-fout 500 + `{ error }` (plan.js, plan-datum.js), bij een trage Zoho kan de
 // Netlify-gateway 502/504 met een HTML-body geven (dan faalt res.json() in de client).
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, opslagStub, OPSTART_SCHRIJVEN, settle, openKalender, TICKETS_STUB } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, verwachtNetwerkFout, zohoStubs, opslagStub, OPSTART_SCHRIJVEN, settle, openKalender, TICKETS_STUB } from '../productie-hulp.mjs';
 
 const START = 'POST /api/planning-sinds';
 const schrijfLijst = async (page, verzoeken) => {
@@ -142,7 +142,9 @@ test.describe('+ in de wachtrij (addTicketToDate via quickAdd)', () => {
     // W5-fix: was HUIDIG GEDRAG (parserfout)
     await expect(toastTekst(page)).toHaveText('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: HTTP 502)');
     expect(z.opnames.plan).toHaveLength(1);
-    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
+    // W5-fix (N7): een 502 is een onzeker resultaat: na de rollback volgt één herlading (GET /api/tickets, daarna de wachttijden).
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan', START]);
+    expect(verzoeken.van('/api/tickets', 'GET')).toHaveLength(2);
     await expect(wachtrijKaart(page, 1001)).toHaveCount(1);
     await expect(page.locator('#cnt-tickets')).toHaveText('2');
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
@@ -331,7 +333,9 @@ test.describe('verzetten in het ticketdetail (saveReschedule)', () => {
 
     await expect(toastTekst(page)).toHaveText('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: HTTP 502)');
     expect(z.opnames.plan).toHaveLength(1);
-    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan']);
+    // W5-fix (N7): een 502 is een onzeker resultaat: na de rollback volgt één herlading (GET /api/tickets, daarna de wachttijden).
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan', START]);
+    expect(verzoeken.van('/api/tickets', 'GET')).toHaveLength(2);
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
   });
 
@@ -472,7 +476,9 @@ test.describe('📅 toewijzen (saveToewijzen)', () => {
     // W5-fix: was HUIDIG GEDRAG (parserfout)
     await expect(toastTekst(page)).toHaveText('✕ HTTP 502');
     expect(z.opnames['plan-datum']).toHaveLength(1);
-    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan-datum']);
+    // W5-fix (N7): een 502 is een onzeker resultaat: na de mislukking volgt één herlading (GET /api/tickets, daarna de wachttijden).
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan-datum', START]);
+    expect(verzoeken.van('/api/tickets', 'GET')).toHaveLength(2);
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
     expect(await page.evaluate(() => kern.toestand.get('allPending').find(t => t.id === 'p2').interventieDatum)).toBeNull();
   });
@@ -688,5 +694,24 @@ test.describe('route: tijden vastleggen', () => {
     // Na de fout herlaadt afh.loadTickets en vraagt de app de wachttijden opnieuw op (planning-sinds).
     berekeningenGelopen(verzoeken);
     expect(await zohoLijst(page, verzoeken)).toEqual([...NAAR_ROUTE, 'POST /api/plan-datum', 'POST /api/plan-datum', START]);
+  });
+
+  // W5-fix (N7/N8, H4): ook bij een afgebroken verbinding midden in de reeks: toast met het ticketnummer, één herlading zonder
+  // bewaarde kopie, geen derde verzoek.
+  test('afgebroken verbinding bij het tweede verzoek: toast, één herlading, geen derde verzoek', async ({ page, verzoeken }) => {
+    await zetStartTijd(page, '10:00');
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/plan-datum', methode: 'POST' }]);
+    const z = await start(page, verzoeken, { paden: PADEN });
+    z.zetAntwoord('plan-datum', ({ body }) => z.opnames['plan-datum'].length === 2
+      ? { afbreken: 'failed' }
+      : { status: 200, json: { ok: true, interventieDatum: body.utcInterventieDatum } });
+    await naarRoute(page);
+    const ticketsVoor = verzoeken.van('/api/tickets', 'GET').length;
+    await page.getByRole('button', { name: 'Tijden vastleggen' }).click();
+    await expect.poll(() => verzoeken.van('/api/tickets', 'GET').length).toBe(ticketsVoor + 1);
+    await settle(page);
+    await expect(toastTekst(page)).toHaveText('✕ Volgorde bewaren mislukt voor #1002');
+    expect(z.opnames['plan-datum']).toHaveLength(2);
+    expect(verzoeken.van('/api/tickets', 'GET')).toHaveLength(ticketsVoor + 1);
   });
 });

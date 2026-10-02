@@ -8,7 +8,7 @@
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, escHtml, strengeAfh } from '../kern/ui.js';
-import { apiJson, bewaarMetVersie } from '../kern/api.js';
+import { apiJson, bewaarMetVersie, leesFout } from '../kern/api.js';
 import { renderTickets } from './wachtrij.js';
 import { voegSamenKb, kbStand, verouderdeKbIds } from './klantbeschikbaarheid-logica.js';
 
@@ -35,8 +35,9 @@ export function kbPreferredTime(id) { return kbFor(id)?.voorkeurTijd || null; }
 // ══════════════════════════════════════════════
 const KB_API = '/api/klantbeschikbaarheid';
 
-export async function loadKlantBeschikbaarheid() {
-  if (!TEST_MODE) {
+// zonderCache: de bewaarde kopie niet toepassen (resync na een onzeker resultaat, N7).
+export async function loadKlantBeschikbaarheid({ zonderCache = false } = {}) {
+  if (!TEST_MODE && !zonderCache) {
     const cached = afh.loadFromCache('blitz_klantbeschikbaarheid_cache');
     if (cached) {
       toestand.set('klantBeschikbaarheid', cached.items || {});
@@ -57,7 +58,7 @@ export async function loadKlantBeschikbaarheid() {
     // Bewuste gedragswijziging (Blok 1D): bij een fout NIET meer terugvallen naar een lege staat
     // als er al cache-data toegepast werd hierboven; enkel als er ook geen cache was, resetten we
     // (zelfde gedrag als pre-Blok-1D in dat specifieke geval).
-    if (TEST_MODE || !afh.loadFromCache('blitz_klantbeschikbaarheid_cache')) {
+    if (!zonderCache && (TEST_MODE || !afh.loadFromCache('blitz_klantbeschikbaarheid_cache'))) { // een mislukte resync wist de huidige stand niet
       toestand.set('klantBeschikbaarheid', {});
       kbVersie = 0;
     }
@@ -90,6 +91,8 @@ export async function saveKlantBeschikbaarheid() {
   } catch (err) {
     console.error('Klantbeschikbaarheid opslaan mislukt:', err);
     toast('✕ Klantbeschikbaarheid opslaan mislukt', 3000);
+    // W5-fix (N7): onzeker resultaat (bewaarMetVersie meldt een netwerkfout/time-out als 'netwerk'): ná de rollback van de oproeper de serverstand ophalen.
+    if (err?.message === 'netwerk' || leesFout(err).onzeker) setTimeout(() => loadKlantBeschikbaarheid({ zonderCache: true }), 0);
     return false;
   }
 }

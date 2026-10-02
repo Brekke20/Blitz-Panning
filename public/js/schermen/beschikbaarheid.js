@@ -11,7 +11,7 @@
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, escHtml, registreerActies, registreerWijzigActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
-import { apiJson, apiVerzoek } from '../kern/api.js';
+import { apiJson, apiVerzoek, leesFout } from '../kern/api.js';
 import { localISO } from '../kern/tijd.js';
 import { persoonOfNull } from '../kern/selecties.js';
 import { registreerVenster } from '../venster.js';
@@ -52,9 +52,10 @@ export function versie() { return avVersie; }
 
 const AV_API = '/api/availability';
 
-export async function loadAvailability() {
+// zonderCache: de bewaarde kopie niet toepassen (resync na een onzeker resultaat, N7).
+export async function loadAvailability({ zonderCache = false } = {}) {
   afh.sjLog('loadAvailability'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
-  if (!TEST_MODE) {
+  if (!TEST_MODE && !zonderCache) {
     const cached = afh.loadFromCache('blitz_availability_cache');
     if (cached) {
       toestand.set('avExceptions', cached.exceptions || []);
@@ -73,7 +74,7 @@ export async function loadAvailability() {
     // Bewuste gedragswijziging (Blok 1D): bij een fout NIET meer terugvallen naar een lege staat
     // als er al cache-data toegepast werd hierboven; enkel als er ook geen cache was, resetten we
     // (zelfde gedrag als pre-Blok-1D in dat specifieke geval).
-    if (TEST_MODE || !afh.loadFromCache('blitz_availability_cache')) {
+    if (!zonderCache && (TEST_MODE || !afh.loadFromCache('blitz_availability_cache'))) { // een mislukte resync wist de huidige stand niet
       toestand.set('avExceptions', []);
       avVersie     = 0;
     }
@@ -97,8 +98,17 @@ export async function saveAvailability() {
   } catch (err) {
     console.error('Beschikbaarheid opslaan mislukt:', err);
     toast('✕ Opslaan is niet gelukt. Controleer je verbinding en probeer opnieuw.', 3000);
+    // W5-fix (N7): onzeker resultaat (de server kan het toch bewaard hebben): ná de rollback van de oproeper de serverstand ophalen.
+    if (leesFout(err).onzeker) setTimeout(resyncNaOnzeker, 0);
     return false;
   }
+}
+
+async function resyncNaOnzeker() {
+  await loadAvailability({ zonderCache: true });
+  // Live lezen na de await: de open formulieren tonen de nieuwe stand.
+  if (document.getElementById('block-overlay')?.classList.contains('open')) renderBlockModal();
+  renderBeschikbaarhedenTab();
 }
 
 // Status: welke knop actief is in het formulier
