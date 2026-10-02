@@ -32,6 +32,14 @@ function ticketsStub({ gepland = false } = {}) {
   return { toestand, stub };
 }
 
+// settle() wacht tot er geen verzoek meer openstaat; met een hangend verzoek kan dat niet: enkel klok en microtasks laten lopen.
+async function settleZonderOpenstaand(page) {
+  for (let ronde = 0; ronde < 2; ronde++) {
+    await page.clock.runFor(2000);
+    await page.evaluate(() => Promise.resolve());
+  }
+}
+
 async function startPlan(page, verzoeken, { stubs = {}, paden = ['/api/plan'] } = {}) {
   verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, ...paden]);
   const z = zohoStubs();
@@ -42,7 +50,7 @@ async function startPlan(page, verzoeken, { stubs = {}, paden = ['/api/plan'] } 
 test.describe('verbinding: planning (plan) en vernieuwen', () => {
   test('P1 (→ T6, H1): na een geslaagde plan-aanroep en een mislukte vernieuwing komt het ticket terug in de wachtrij', async ({ page, verzoeken }) => {
     const t = ticketsStub();
-    verwachtNetwerkFout(verzoeken, [{ pad: '/api/tickets' }]);
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/tickets', methode: 'GET' }]);
     await startPlan(page, verzoeken, { stubs: { tickets: t.stub } });
     await wachtrijKaart(page, 1001).locator('.btn-add').click();
     await expect(toastTekst(page)).toHaveText('✓ Toegevoegd aan 5 okt');
@@ -71,10 +79,10 @@ test.describe('verbinding: planning (plan) en vernieuwen', () => {
     await page.evaluate(() => Promise.resolve());
 
     // HUIDIG GEDRAG (bug?): na twee minuten wacht de app nog steeds; de knop blijft uitgeschakeld en er komt geen foutmelding.
-    const knop = wachtrijKaart(page, 1001).locator('.btn-add');
-    await expect(knop).toBeDisabled();
-    await knop.click({ force: true });
-    await page.clock.runFor(1000);
+    await expect(wachtrijKaart(page, 1001).locator('.btn-add')).toBeDisabled();
+    // De inFlight-guard zelf: een tweede aanroep terwijl de eerste hangt, doet niets (geeft false, geen tweede verzoek).
+    expect(await page.evaluate(() => kern.planacties.addTicketToDate('t1', '2026-10-05'))).toBe(false);
+    await settleZonderOpenstaand(page);
     expect(z.opnames.plan).toHaveLength(1);
     await expect(toastTekst(page)).not.toContainText('mislukt');
     expect(await planningVan(page)).toMatchObject({ '2026-10-05': ['t1'] }); // nog de optimistische stand
@@ -82,7 +90,7 @@ test.describe('verbinding: planning (plan) en vernieuwen', () => {
 
   test('P4 (→ T6, H3): een afgebroken plan-aanroep wordt teruggedraaid, maar de app herlaadt de tickets niet', async ({ page, verzoeken }) => {
     const t = ticketsStub({ gepland: true });
-    verwachtNetwerkFout(verzoeken, [{ pad: '/api/plan' }]);
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/plan', methode: 'POST' }]);
     const z = await startPlan(page, verzoeken, { stubs: { tickets: t.stub } });
     const basis = await planningVan(page);
     expect(t.toestand.aantal).toBe(1); // de opstartlading
@@ -107,7 +115,6 @@ test.describe('verbinding: annuleren', () => {
     verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/annuleer']);
     const register = { versie: 4, status: { p1: { contact: '2026-10-04T08:00:00.000Z', tijdslot: '09:30–12:30', tijdslotDatum: '2026-10-07' } } };
     const z = zohoStubs({ register });
-    // Bewust zonder vasteKlok: met een bevroren Date blijft page.clock.runFor(120000) hangen (de pagina draait vast).
     await startAppProductie(page, { technieker: 'Tim', overschrijf: z.overschrijf });
     await openKalender(page);
     await dag(page, '2026-10-07').locator('.tl-ticket[data-ticket-id="p1"] .cal-sub').click();
@@ -136,9 +143,9 @@ test.describe('verbinding: annuleren', () => {
 test.describe('verbinding: beschikbaarheid bewaren', () => {
   test('P5 (→ T6, H5): een afgebroken PUT na opslag op de server: lokaal teruggedraaid, de volgende schrijf geeft 409 en het item komt terug', async ({ page, verzoeken }) => {
     verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/availability']);
-    verwachtNetwerkFout(verzoeken, [{ pad: '/api/availability' }]);
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/availability', methode: 'PUT' }]);
     verwachtHttpFout(verzoeken, [{ pad: '/api/availability', status: 409 }]);
-    verwachtConsoleFout(verzoeken, [{ bevat: 'Beschikbaarheid opslaan mislukt' }]);
+    verwachtConsoleFout(verzoeken, [{ tekst: /^Beschikbaarheid opslaan mislukt: TypeError\b/ }]);
 
     // Server: bewaart elke geldige schrijf (versie + 1). De eerste PUT wordt na het opslaan afgebroken: het antwoord gaat verloren.
     let stand = { versie: 0, exceptions: [] };

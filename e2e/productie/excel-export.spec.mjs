@@ -5,10 +5,11 @@ import fs from 'node:fs';
 import zlib from 'node:zlib';
 import { test, expect, startAppProductie, verwachtSchrijven, zohoStubs, OPSTART_SCHRIJVEN } from '../productie-hulp.mjs';
 
+const LANG_PROBLEEM = 'Laadpaal start niet. '.repeat(5).trim(); // 104 tekens: wrapkolom, twee regels
 const RAPPORTEN = {
   versie: 3,
   rapports: [
-    { id: 'r1', ticketId: 't1', ticketNumber: '1001', datum: '2026-10-05', technieker: 'Tim', interventieType: 'Interventie', prioriteit: 'high', rapportData: { probleem: 'Laadpaal start niet', acties: 'Contactor vervangen' } },
+    { id: 'r1', ticketId: 't1', ticketNumber: '1001', datum: '2026-10-05', technieker: 'Tim', interventieType: 'Interventie', prioriteit: 'high', rapportData: { probleem: LANG_PROBLEEM, acties: 'Contactor vervangen' } },
     { id: 'r2', ticketId: 't2', ticketNumber: '1002', datum: '2026-10-06', technieker: 'Roel', interventieType: 'Installatie', prioriteit: 'low', rapportData: { probleem: 'Nieuwe installatie', acties: 'Paal geplaatst' } },
   ],
 };
@@ -38,6 +39,28 @@ function leesZip(buf) {
   return uit;
 }
 
+// Leest het werkblad als cellen: { A4: '1001', ... }, kolombreedtes en rijhoogtes (uit sheet1.xml + sharedStrings.xml).
+const ontXml = (t) => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+function leesWerkblad(zip) {
+  const xml = zip['xl/worksheets/sheet1.xml'].toString('utf8');
+  const gedeeld = [...(zip['xl/sharedStrings.xml']?.toString('utf8') ?? '').matchAll(/<si>([\s\S]*?)<\/si>/g)]
+    .map(m => ontXml([...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(t => t[1]).join('')));
+  const cellen = {};
+  for (const m of xml.matchAll(/<c r="([A-Z]+\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+    const v = /<v>([\s\S]*?)<\/v>/.exec(m[3] ?? '');
+    if (!v) continue;
+    cellen[m[1]] = /t="s"/.test(m[2]) ? gedeeld[Number(v[1])] : ontXml(v[1]);
+  }
+  const breedtes = [];
+  for (const m of xml.matchAll(/<col [^>]*>/g)) {
+    const [min, max, w] = ['min', 'max', 'width'].map(k => Number(new RegExp(k + '="([0-9.]+)"').exec(m[0])?.[1]));
+    for (let c = min; c <= max; c++) breedtes[c - 1] = w;
+  }
+  const hoogtes = {};
+  for (const m of xml.matchAll(/<row r="(\d+)"([^>]*)>/g)) { const h = /ht="([\d.]+)"/.exec(m[2]); if (h) hoogtes[m[1]] = Number(h[1]); }
+  return { cellen, breedtes, hoogtes };
+}
+
 async function start(page, verzoeken, rapporten) {
   verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
   const z = zohoStubs({ rapporten });
@@ -62,11 +85,20 @@ test.describe('Excel-export (TicketLog)', () => {
     const zip = leesZip(bytes);
     expect(Object.keys(zip)).toContain('xl/worksheets/sheet1.xml');
     // ExcelJS bewaart tekst als gedeelde strings; samen met het werkblad staan beide ticketnummers erin.
-    const inhoud = zip['xl/worksheets/sheet1.xml'].toString('utf8') + (zip['xl/sharedStrings.xml']?.toString('utf8') ?? '');
-    expect(inhoud).toContain('1001');
-    expect(inhoud).toContain('1002');
-    expect(inhoud).toContain('TICKETLOG');
-    expect(inhoud).toContain('Contactor vervangen');
+    const { cellen, breedtes, hoogtes } = leesWerkblad(zip);
+    // Het werkblad: titel, kop, en per rapport exact de kolommen Type, Prio, Notities en Actie (mapping uit CLAUDE.md).
+    expect(cellen.A1).toBe('TICKETLOG — BLITZ POWER');
+    expect(['F3', 'G3', 'U3', 'V3'].map(c => cellen[c])).toEqual(['Type', 'Prio', 'Notities', 'Actie']);
+    expect({ A: cellen.A4, D: cellen.D4, F: cellen.F4, G: cellen.G4, U: cellen.U4, V: cellen.V4 })
+      .toEqual({ A: '1001', D: 'Tim', F: 'Interventie', G: 'Hoog', U: LANG_PROBLEEM, V: 'Contactor vervangen' });
+    expect({ A: cellen.A5, D: cellen.D5, F: cellen.F5, G: cellen.G5, U: cellen.U5, V: cellen.V5 })
+      .toEqual({ A: '1002', D: 'Roel', F: 'Installatie', G: 'Laag', U: 'Nieuwe installatie', V: 'Paal geplaatst' });
+    expect(cellen.A6).toBeUndefined();
+    // Auto-size (CLAUDE.md): kolombreedte max(kop + 2, data + 1, 8), begrensd op 36 (wrapkolom U: 58); kolom J (Status) is 9,
+    // de standaardbreedte van ExcelJS, en komt daarom niet als <col> in het bestand.
+    expect(Array.from(breedtes, w => w ?? 9)).toEqual([11, 12, 19, 12, 22, 12, 8, 24, 14, 9, 17, 15, 21, 23, 15, 12, 19, 12, 10, 8, 58, 20, 17]);
+    // Rijhoogte: 104 tekens in kolom U (58 breed, ~66 tekens per regel) = 2 regels = 30; de korte rij = 16.
+    expect([hoogtes[4], hoogtes[5]]).toEqual([30, 16]);
   });
 
   test('met datumbereik: enkel het rapport binnen het bereik en de bereiklabels in de bestandsnaam', async ({ page, verzoeken }) => {
@@ -79,9 +111,9 @@ test.describe('Excel-export (TicketLog)', () => {
     expect(d.suggestedFilename()).toBe('TicketLog_2026-10-06_2026-10-31.xlsx');
     await expect(page.locator('#toast')).toHaveText('✓ 1 rijen geëxporteerd');
     const zip = leesZip(fs.readFileSync(await d.path()));
-    const inhoud = zip['xl/worksheets/sheet1.xml'].toString('utf8') + (zip['xl/sharedStrings.xml']?.toString('utf8') ?? '');
-    expect(inhoud).toContain('1002');
-    expect(inhoud).not.toContain('1001');
+    const { cellen } = leesWerkblad(zip);
+    expect([cellen.A4, cellen.F4, cellen.G4, cellen.U4, cellen.V4]).toEqual(['1002', 'Installatie', 'Laag', 'Nieuwe installatie', 'Paal geplaatst']);
+    expect(cellen.A5).toBeUndefined();
   });
 
   test('leeg archief: toast "Geen rapporten beschikbaar om te exporteren" en geen download', async ({ page, verzoeken }) => {

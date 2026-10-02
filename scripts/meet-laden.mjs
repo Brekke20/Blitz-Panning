@@ -28,6 +28,8 @@ const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'application/javascript', '.mjs': 'application/javascript', '.css': 'text/css',
   '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.ico': 'image/x-icon', '.svg': 'image/svg+xml',
 };
+const TOEGESTAAN = ['localhost', '127.0.0.1', 'cdnjs.cloudflare.com', 'cdn.jsdelivr.net'];
+const vreemdeHosts = [];
 const TICKETS = maakDummyData(Date.now());
 
 let vertraging = 0;
@@ -56,13 +58,20 @@ const POORT = server.address().port;
 const BASIS = `http://localhost:${POORT}`;
 
 const browser = await chromium.launch({
-  args: [`--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1, EXCLUDE cdnjs.cloudflare.com, EXCLUDE cdn.jsdelivr.net`],
+  // --no-proxy-server: een systeemproxy mag de host-regels niet omzeilen.
+  args: ['--no-proxy-server', `--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1, EXCLUDE cdnjs.cloudflare.com, EXCLUDE cdn.jsdelivr.net`],
 });
 
 async function nieuwContext({ sw }) {
   const context = await browser.newContext({
     baseURL: BASIS, serviceWorkers: sw ? 'allow' : 'block', locale: 'nl-BE', timezoneId: 'Europe/Brussels',
     viewport: { width: 1280, height: 800 },
+  });
+  // Tweede laag naast --host-resolver-rules: elk verzoek buiten localhost en de twee CDN-hosts dat slaagt, wordt vastgelegd en laat de meting
+  // falen. Bewust geen context.route: een route zet de HTTP-cache uit en vervalst het warme profiel.
+  context.on('requestfinished', (req) => { // enkel geslaagde verzoeken: mislukte (NOTFOUND) verlieten de machine niet
+    const host = new URL(req.url()).hostname;
+    if (/^https?:$/.test(new URL(req.url()).protocol) && !TOEGESTAAN.includes(host)) vreemdeHosts.push(req.url());
   });
   await context.addInitScript(() => {
     if (window !== window.top) return;
@@ -153,6 +162,7 @@ try {
   }
   vertraging = 0;
   const wizard = await meetWizardParse();
+  if (vreemdeHosts.length) throw new Error('verzoeken naar niet-toegestane hosts: ' + [...new Set(vreemdeHosts)].join(', '));
   console.table(rijen);
   console.log(`rapport-wizard.js: ${wizard.grootteKB} kB, parse + evaluatie onder 4x CPU-vertraging: mediaan ${wizard.mediaanMs} ms (metingen ${wizard.metingen.join(', ')} ms)`);
   console.log(wizard.mediaanMs > 150 ? 'LET OP: boven 150 ms (vraag voor Brent, N2).' : 'Onder de 150 ms-grens (N2).');

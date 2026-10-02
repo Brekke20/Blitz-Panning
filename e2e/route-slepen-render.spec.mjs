@@ -6,7 +6,7 @@ import { zetStartTijd, maakRouteMetStops, stopNummers } from './route-hulp.mjs';
 // planningswijziging tijdens het slepen (poll, andere tab) laat de stop terugspringen. Gedocumenteerd, niet gefixt
 // (spec N12: applyRouteOrder werkt op verouderde objecten, W11); deze test blijft dus staan.
 test.describe('route slepen en render', () => {
-  test('een render midden in een drag annuleert de beweging: geen plan-datum, geen sleepresten, zelfde volgorde', async ({ page, verzoeken }) => {
+  test('een render midden in een drag annuleert de beweging: geen sleepresten, zelfde volgorde', async ({ page }) => {
     await zetStartTijd(page, '10:00');
     await startApp(page, { technieker: 'Tim' });
     await maakRouteMetStops(page);
@@ -40,6 +40,6 @@ test.describe('route slepen en render', () => {
     await expect(page.locator('.sorteer-actief')).toHaveCount(0);
     await expect(page.locator('.sorteer-placeholder')).toHaveCount(0);
     expect(await stopNummers(page)).toEqual(voor);
-    expect(verzoeken.van('/api/plan-datum')).toEqual([]);
+    // (Geen controle op /api/plan-datum: in ?test slaat route.js die POST sowieso over; de echte bewering is de ongewijzigde volgorde.)
   });
 });

@@ -77,27 +77,40 @@ export function verwachtHttpFout(verzoeken, fouten) {
   for (const f of fouten) PER_HTTPFOUT.get(o).push({ pad: f.pad, status: f.status, gezien: false });
 }
 
-const PER_NETFOUT = new WeakMap(); // verzoeken -> [{ pad, gezien }]
+const PER_NETFOUT = new WeakMap(); // verzoeken -> [{ pad, methode, requestfailed, console }]
+const EIGEN_ORIGIN = 'http://localhost:3338';
 
 // Per test een toegelaten netwerkfout (afgebroken of mislukt verzoek, bv. via zetAntwoord(naam, { afbreken: 'failed' })):
-// enkel dit pad is toegelaten als `requestfailed` en als de bijbehorende "Failed to load resource: net::ERR_*"-regel van de
-// browser. De test faalt in afterEach als de fout uitblijft. Elke andere requestfailed blijft een consolefout.
+// precies een `requestfailed` naar de eigen server (origin + pad, optioneel `methode`) en de bijbehorende
+// "Failed to load resource: net::ERR_*"-regel van de browser. Elke tweede keer, een andere origin of een ander pad blijft
+// een consolefout. De test faalt in afterEach als de verwachte fout uitblijft.
 export function verwachtNetwerkFout(verzoeken, fouten) {
   let o;
   try { o = origineelVan(verzoeken); } catch { o = verzoeken; }
   if (!PER_NETFOUT.has(o)) PER_NETFOUT.set(o, []);
-  for (const f of fouten) PER_NETFOUT.get(o).push({ pad: f.pad, gezien: false });
+  for (const f of fouten) {
+    if (typeof f?.pad !== 'string' || !f.pad.startsWith('/')) throw new Error('verwachtNetwerkFout: pad moet een pad zijn dat met / begint');
+    PER_NETFOUT.get(o).push({ pad: f.pad, methode: f.methode ?? null, requestfailed: false, console: false });
+  }
 }
 
-const PER_CONSOOL = new WeakMap(); // verzoeken -> [{ bevat, gezien }]
+const PER_CONSOOL = new WeakMap(); // verzoeken -> [{ tekst, gezien }]
 
-// Per test een toegelaten console.error van de app zelf (bv. 'Beschikbaarheid opslaan mislukt:'): een console.error
-// waarvan de tekst `bevat` bevat. Faalt in afterEach als de melding uitblijft. Elke andere console.error blijft een fout.
+// Per test een toegelaten console.error van de app zelf (bv. 'Beschikbaarheid opslaan mislukt: TypeError: ...'): `tekst` is
+// een niet-lege string (exacte gelijkheid met de volledige consoletekst) of een RegExp die niet leeg en niet alles matcht
+// (voor een variabel deel). Elke verwachting dekt precies een melding (de eerste die past); een tweede, andere of
+// ontbrekende melding faalt de test. Elke andere console.error blijft een fout.
 export function verwachtConsoleFout(verzoeken, fouten) {
   let o;
   try { o = origineelVan(verzoeken); } catch { o = verzoeken; }
+  for (const f of fouten) {
+    const t = f?.tekst;
+    const geldig = (typeof t === 'string' && t.length > 0)
+      || (t instanceof RegExp && !t.test('') && !t.test('\u0000 qjzx onzin 0123') && !t.test('console.error'));
+    if (!geldig) throw new Error('verwachtConsoleFout: `tekst` moet een niet-lege string of een niet-alles-matchende RegExp zijn');
+  }
   if (!PER_CONSOOL.has(o)) PER_CONSOOL.set(o, []);
-  for (const f of fouten) PER_CONSOOL.get(o).push({ bevat: f.bevat, gezien: false });
+  for (const f of fouten) PER_CONSOOL.get(o).push({ tekst: f.tekst, gezien: false });
 }
 
 // Niet-GET verzoeken naar de eigen server die niet op de whitelist staan (als 'METHODE /pad').
@@ -291,23 +304,27 @@ export const test = basis.extend({
       return !!f;
     };
     const toegelatenNet = () => PER_NETFOUT.get(origineelVan(verzoekenWeergave)) ?? [];
-    const neemNetFout = (url) => {
-      const f = toegelatenNet().find(x => x.pad === padVan(url));
-      if (f) f.gezien = true;
+    const eigenUrl = (u) => { try { const x = new URL(u); return x.origin === EIGEN_ORIGIN ? x.pathname : null; } catch { return null; } };
+    // soort: 'requestfailed' (met methode) of 'console'; elke verwachting dekt van elk soort een melding.
+    const neemNetFout = (url, soort, methode) => {
+      const pad = eigenUrl(url);
+      if (pad === null) return false;
+      const f = toegelatenNet().find(x => x.pad === pad && !x[soort] && (soort !== 'requestfailed' || !x.methode || x.methode === methode));
+      if (f) f[soort] = true;
       return !!f;
     };
     const context = page.context();
     context.on('console', m => {
       if (m.type() !== 'error') return;
-      if (/^Failed to load resource: net::ERR_\w+/.test(m.text()) && neemNetFout(m.location().url)) return;
-      const eigen = (PER_CONSOOL.get(origineelVan(verzoekenWeergave)) ?? []).find(x => m.text().includes(x.bevat));
+      if (/^Failed to load resource: net::ERR_\w+/.test(m.text()) && neemNetFout(m.location().url, 'console')) return;
+      const eigen = (PER_CONSOOL.get(origineelVan(verzoekenWeergave)) ?? []).find(x => !x.gezien && (typeof x.tekst === 'string' ? m.text() === x.tekst : x.tekst.test(m.text())));
       if (eigen) { eigen.gezien = true; return; }
       const hit = /^Failed to load resource: the server responded with a status of (\d+)/.exec(m.text());
       if (hit && neemToegelaten(m.location().url, Number(hit[1]))) return;
       voegToe(`console.error: ${m.text()} (${m.location().url})`);
     });
     context.on('weberror', w => voegToe(`pageerror: ${w.error().message}`));
-    context.on('requestfailed', r => { if (!neemNetFout(r.url())) voegToe(`requestfailed: ${r.url()} (${r.failure()?.errorText})`); });
+    context.on('requestfailed', r => { if (!neemNetFout(r.url(), 'requestfailed', r.method())) voegToe(`requestfailed: ${r.url()} (${r.failure()?.errorText})`); });
     context.on('response', r => {
       if (r.status() >= 400 && r.status() !== 599) {
         if (neemToegelaten(r.url(), r.status())) return;
@@ -339,9 +356,9 @@ export const test = basis.extend({
     // Een toegelaten HTTP-fout moet echt voorgekomen zijn (anders test de test niets).
     const ontbrekend = (PER_HTTPFOUT.get(verzoeken) ?? []).filter(f => !f.gezien).map(f => `${f.status} ${f.pad}`);
     expect(ontbrekend, 'verwachte HTTP-fouten (verwachtHttpFout) die niet voorkwamen').toEqual([]);
-    const netOntbrekend = (PER_NETFOUT.get(verzoeken) ?? []).filter(f => !f.gezien).map(f => f.pad);
+    const netOntbrekend = (PER_NETFOUT.get(verzoeken) ?? []).filter(f => !f.requestfailed).map(f => f.pad);
     expect(netOntbrekend, 'verwachte netwerkfouten (verwachtNetwerkFout) die niet voorkwamen').toEqual([]);
-    const consoolOntbrekend = (PER_CONSOOL.get(verzoeken) ?? []).filter(f => !f.gezien).map(f => f.bevat);
+    const consoolOntbrekend = (PER_CONSOOL.get(verzoeken) ?? []).filter(f => !f.gezien).map(f => String(f.tekst));
     expect(consoolOntbrekend, 'verwachte consolefouten (verwachtConsoleFout) die niet voorkwamen').toEqual([]);
   }, { auto: true }],
 });

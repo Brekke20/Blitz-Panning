@@ -166,21 +166,88 @@ test('Zelftest: een verwachte netwerkfout die uitblijft faalt de test', async ({
   await startAppProductie(page, { technieker: 'Tim' });
 });
 
-// verwachtConsoleFout (etappe 7): enkel een console.error met de aangegeven tekst is toegelaten.
-test('Zelftest: verwachtConsoleFout laat enkel de aangegeven tekst door', async ({ page, verzoeken, consoleFouten }) => {
+// verwachtConsoleFout (etappe 7): exacte tekst, een melding per verwachting.
+test('Zelftest: verwachtConsoleFout laat enkel de exacte tekst door (en een keer)', async ({ page, verzoeken, consoleFouten }) => {
   verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
-  verwachtConsoleFout(verzoeken, [{ bevat: 'bewuste testmelding' }]);
+  verwachtConsoleFout(verzoeken, [{ tekst: 'bewuste testmelding' }]);
   await startAppProductie(page, { technieker: 'Tim' });
-  await page.evaluate(() => console.error('dit is een bewuste testmelding van de zelftest'));
-  await page.evaluate(() => console.error('een andere fout'));
-  await expect.poll(() => consoleFouten.length).toBe(1);
-  expect(consoleFouten[0]).toContain('een andere fout');
+  await page.evaluate(() => {
+    console.error('bewuste testmelding');
+    console.error('bewuste testmelding'); // tweede keer: niet gedekt
+    console.error('dit is een bewuste testmelding van de zelftest'); // enkel substring: niet gedekt
+    console.error('een andere fout');
+  });
+  await expect.poll(() => consoleFouten.length).toBe(3);
+  expect(consoleFouten.map(f => f.replace(/ \(.*\)$/, ''))).toEqual([
+    'console.error: bewuste testmelding', 'console.error: dit is een bewuste testmelding van de zelftest', 'console.error: een andere fout']);
   neemGeblokkeerdeProbesOver(page, verzoeken, consoleFouten);
+});
+
+test('Zelftest: verwachtConsoleFout met een RegExp dekt het variabele deel', async ({ page, verzoeken }) => {
+  verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
+  verwachtConsoleFout(verzoeken, [{ tekst: /^bewuste fout: \w+$/ }]);
+  await startAppProductie(page, { technieker: 'Tim' });
+  await page.evaluate(() => console.error('bewuste fout: abc'));
+  await expect.poll(() => verzoeken.alle.length).toBeGreaterThan(0);
+});
+
+test('Zelftest: verwachtConsoleFout weigert lege of alles-matchende verwachtingen', async ({ verzoeken }) => {
+  for (const tekst of ['', undefined, null, /(?:)/, /.*/, /^/, 42]) {
+    expect(() => verwachtConsoleFout(verzoeken, [{ tekst }]), String(tekst)).toThrow(/verwachtConsoleFout/);
+  }
+  expect(() => verwachtConsoleFout(verzoeken, [{ bevat: 'x' }])).toThrow(/verwachtConsoleFout/); // oude vorm
 });
 
 test('Zelftest: een verwachte consolefout die uitblijft faalt de test', async ({ page, verzoeken }) => {
   test.fail();
   verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
-  verwachtConsoleFout(verzoeken, [{ bevat: 'komt nooit' }]);
+  verwachtConsoleFout(verzoeken, [{ tekst: 'komt nooit' }]);
   await startAppProductie(page, { technieker: 'Tim' });
+});
+
+test('Zelftest: een andere consolefout dan de verwachte faalt de test', async ({ page, verzoeken }) => {
+  test.fail();
+  verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
+  verwachtConsoleFout(verzoeken, [{ tekst: 'verwacht' }]);
+  await startAppProductie(page, { technieker: 'Tim' });
+  await page.evaluate(() => { console.error('verwacht'); console.error('onverwacht'); });
+});
+
+// verwachtNetwerkFout dekt precies een verzoek; een andere methode dekt de fout niet.
+test('Zelftest: verwachtNetwerkFout dekt precies een verzoek', async ({ page, verzoeken }) => {
+  test.fail();
+  const z = zohoStubs();
+  z.zetAntwoord('plan', { afbreken: 'failed' });
+  verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/plan']);
+  verwachtNetwerkFout(verzoeken, [{ pad: '/api/plan', methode: 'POST' }]);
+  await startAppProductie(page, { technieker: 'Tim', overschrijf: z.overschrijf });
+  await page.evaluate(async () => {
+    for (let i = 0; i < 2; i++) await fetch('/api/plan', { method: 'POST', body: '{}' }).catch(() => {});
+  });
+});
+
+test('Zelftest: verwachtNetwerkFout met een andere methode dekt de fout niet', async ({ page, verzoeken }) => {
+  test.fail();
+  const z = zohoStubs();
+  z.zetAntwoord('plan', { afbreken: 'failed' });
+  verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/plan']);
+  verwachtNetwerkFout(verzoeken, [{ pad: '/api/plan', methode: 'GET' }]);
+  await startAppProductie(page, { technieker: 'Tim', overschrijf: z.overschrijf });
+  await page.evaluate(() => fetch('/api/plan', { method: 'POST', body: '{}' }).catch(() => {}));
+});
+
+// hangen: het verzoek komt aan (de stub nam het op) maar wordt nooit beantwoord, hoe ver de klok ook loopt.
+test('Zelftest: hangen beantwoordt het verzoek nooit', async ({ page, verzoeken }) => {
+  const z = zohoStubs();
+  z.zetAntwoord('plan', { hangen: true });
+  verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/plan']);
+  await startAppProductie(page, { technieker: 'Tim', overschrijf: z.overschrijf });
+  await page.evaluate(() => {
+    window.__hang = 'wacht';
+    fetch('/api/plan', { method: 'POST', body: '{}' }).then(() => { window.__hang = 'antwoord'; }, () => { window.__hang = 'fout'; });
+  });
+  await expect.poll(() => z.opnames.plan.length).toBe(1);
+  await page.clock.runFor(300000);
+  await page.evaluate(() => Promise.resolve());
+  expect(await page.evaluate(() => window.__hang)).toBe('wacht');
 });
