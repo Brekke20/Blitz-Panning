@@ -3,7 +3,9 @@
 // Geen DOM, geen toestand.
 
 // Volgende werkdag na `dateStr` ('YYYY-MM-DD'); `werkdagen` = lijst getDay()-nummers (zo = 0).
+// Is er geen enkele werkdag aangevinkt, dan bestaat er geen volgende werkdag: null (anders oneindige lus).
 export function nextWorkday(dateStr, werkdagen) {
+  if (![0, 1, 2, 3, 4, 5, 6].some(dag => werkdagen.includes(dag))) return null;
   const d = new Date(dateStr + 'T12:00:00');
   do { d.setDate(d.getDate() + 1); } while (!werkdagen.includes(d.getDay()));
   return d.toISOString().split('T')[0];
@@ -21,7 +23,9 @@ export function groupExceptionsForDisplay(sortedList, werkdagen) {
   const groups = [];
   sortedList.forEach(e => {
     const last = groups[groups.length - 1];
-    const aaneensluitend = last && nextWorkday(last.endDate, werkdagen) === e.date;
+    // Geen werkdagen -> nextWorkday geeft null -> niets sluit aan, elke rij blijft apart.
+    const volgende = last ? nextWorkday(last.endDate, werkdagen) : null;
+    const aaneensluitend = last && volgende !== null && volgende === e.date;
     if (last && aaneensluitend && e.kind === 'fullday' && last.kind === 'fullday' &&
         last.scope === e.scope && last.person === e.person && last.reason === e.reason) {
       last.items.push(e);

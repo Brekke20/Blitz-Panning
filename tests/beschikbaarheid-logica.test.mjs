@@ -78,3 +78,37 @@ test('groupExceptionsForDisplay: de groep draagt soort, scope, persoon en reden 
   assert.deepEqual(g[0], { kind: 'fullday', scope: 'person', person: 'Tim', reason: 'R', startDate: '2026-10-06', endDate: '2026-10-06', items: [e] });
   assert.deepEqual(lijst, [e]);
 });
+
+// W5-bugfix: lege werkdagen mogen nooit een oneindige lus geven. Een synchrone lus laat zich niet
+// door een test-timeout onderbreken, dus draaien deze proeven in een apart proces met harde timeout.
+import { spawnSync } from 'node:child_process';
+const LOGICA_URL = new URL('../public/js/schermen/beschikbaarheid-logica.js', import.meta.url).href;
+function inProces(code) {
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e',
+    `process.env.TZ='Europe/Brussels'; import(${JSON.stringify(LOGICA_URL)}).then(m => { ${code} });`],
+    { timeout: 3000, encoding: 'utf8' });
+  assert.equal(r.error, undefined, 'proces liep vast of faalde: ' + (r.error && r.error.message));
+  assert.equal(r.status, 0, r.stderr);
+  return JSON.parse(r.stdout);
+}
+
+test('nextWorkday: geen enkele werkdag -> null (geen oneindige lus)', () => {
+  assert.deepEqual(inProces(`console.log(JSON.stringify(m.nextWorkday('2026-10-06', [])))`), null);
+});
+
+test('groupExceptionsForDisplay: lege werkdagen voegt niets samen, rijen blijven apart', () => {
+  const lijst = [
+    { kind: 'fullday', scope: 'all', person: 'A', reason: 'verlof', date: '2026-10-06' },
+    { kind: 'fullday', scope: 'all', person: 'A', reason: 'verlof', date: '2026-10-07' },
+    { kind: 'fullday', scope: 'all', person: 'A', reason: 'verlof', date: '2026-10-08' }
+  ];
+  const g = inProces(`console.log(JSON.stringify(m.groupExceptionsForDisplay(${JSON.stringify(lijst)}, [])))`);
+  assert.equal(g.length, 3);
+  assert.deepEqual(g.map(x => x.startDate), ['2026-10-06', '2026-10-07', '2026-10-08']);
+});
+
+test('nextWorkday: jaargrens, 31 dec -> eerstvolgende werkdag in januari', () => {
+  assert.equal(nextWorkday('2026-12-31', MA_VR), '2027-01-01'); // do -> vr
+  assert.equal(nextWorkday('2027-12-31', MA_VR), '2028-01-03'); // vr -> ma
+  assert.equal(nextWorkday('2025-12-31', [1, 2, 3, 4, 5]), '2026-01-01');
+});

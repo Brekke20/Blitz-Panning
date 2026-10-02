@@ -55,6 +55,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Interne herstructurering: gedeelde fundamenten in `public/js/kern/` (tijd, selecties, toestand met automatisch hertekenen, api, ui).
 
 ### Fixed
+- De tab Beschikbaarheden loopt niet meer vast als in de instellingen geen enkele werkdag is aangevinkt.
 - Na een mislukte opslag van de routevolgorde blijft de foutmelding zichtbaar; ze werd meteen overschreven door de melding met het aantal tickets.
 - De wachtrij toont "Geen tickets om in te plannen" in plaats van eindeloos "Laden..." wanneer er geen tickets (meer) zijn.
 - Afspraken opslaan bij een gelijktijdige wijziging door een collega: de eigen wijziging gaat niet meer verloren maar wordt samengevoegd met de nieuwe stand en opnieuw bewaard.
