@@ -2,6 +2,7 @@
 // De rapport-wizard (service rapport voor interventies + installaties): stappen-state (`R`),
 // alle wizRender*/wizSave*-stapfuncties, PDF-opbouw (buildRapportHtml) en verzending
 // (printRapport, via de outbox-module). Zie CLAUDE.md "Rapport wizard — R object key fields".
+import { TEST_MODE } from './kern/omgeving.js';
 
 export let _wizTicket = null;
 export let _wizDate   = null;

@@ -82,6 +82,7 @@ document.addEventListener('keydown', e => {
   }
 });
 
+export { registreer as registreerVenster };
 window.vensterBeheer = { registreer, sluitBovenste };
 
 // Bestaande vensters. Sluitfuncties zijn globals (classic script of window.*); lazy opgezocht.

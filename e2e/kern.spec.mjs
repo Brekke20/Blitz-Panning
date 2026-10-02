@@ -202,7 +202,7 @@ test.describe('kern: renders', () => {
     await expect(page.locator('#cnt-tickets')).toHaveText('3');
     await expect(page.locator('#person-name-hdr')).toHaveText('Alle');
     expect(await page.evaluate(() => localStorage.getItem('blitz_active_person'))).toBe('all');
-    expect(await page.evaluate(() => window.activeAssigneeFilter)).toBe('all');
+    expect(await page.evaluate(() => kern.toestand.get('activeAssigneeFilter'))).toBe('all');
     await rust(page);
     const metReset = await tellers(page);
 
@@ -225,12 +225,12 @@ test.describe('kern: renders', () => {
     await rust(page);
     await expect(page.locator('#person-name-hdr')).toHaveText('Roel');
     expect(await page.evaluate(() => localStorage.getItem('blitz_active_person'))).toBe('Roel');
-    expect(await page.evaluate(() => window.activeAssigneeFilter)).toBe('Roel');
+    expect(await page.evaluate(() => kern.toestand.get('activeAssigneeFilter'))).toBe('Roel');
   });
 
   test('inplannen en terugzetten: geen verouderd scherm, renders blijven eindig', async ({ page }) => {
     await startApp(page, { rol: 'coordinator' });
-    const id = await page.evaluate(() => allTickets[0].id);
+    const id = await page.evaluate(() => kern.toestand.get('allTickets')[0].id);
 
     const na1 = await meetDelta(page, async () => {
       await page.evaluate(([id]) => addTicketToDate(id, '2026-10-06'), [id]);
@@ -258,7 +258,7 @@ test.describe('kern: renders', () => {
     const delta = await meetDelta(page, async () => {
       // Enkel planning: een stop in-place weghalen en raak('planning'); geen andere sleutel, geen handmatige render.
       await page.evaluate(() => {
-        planning['2026-10-05'].pop();
+        kern.toestand.get('planning')['2026-10-05'].pop();
         kern.toestand.raak('planning');
       });
       await expect(page.getByTestId('route-stop')).toHaveCount(1);
@@ -303,7 +303,7 @@ test.describe('kern: api-payloads', () => {
   test('beschikbaarheid bewaren: PUT met versie en exceptions', async ({ page, verzoeken }) => {
     await startApp(page, { rol: 'coordinator' });
     const ex = { id: 'ex-1', scope: 'all', person: null, date: '2026-10-09', kind: 'full', from: null, to: null, reason: 'Test' };
-    const ok = await page.evaluate(async (e) => { avExceptions = [e]; return saveAvailability(); }, ex);
+    const ok = await page.evaluate(async (e) => { kern.toestand.set('avExceptions', [e]); return saveAvailability(); }, ex);
     expect(ok).toBe(true);
     const puts = verzoeken.van('/api/availability', 'PUT');
     expect(puts).toHaveLength(1);

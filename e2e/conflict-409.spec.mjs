@@ -48,7 +48,7 @@ async function verwachtAppFout(consoleFouten, tekst) {
   await expect.poll(() => consoleFouten.filter(isDeze).length).toBe(1);
   for (const f of consoleFouten.filter(isDeze)) consoleFouten.splice(consoleFouten.indexOf(f), 1);
 }
-const ids = (page) => page.evaluate(() => localEvents.map(e => e.id));
+const ids = (page) => page.evaluate(() => kern.toestand.get('localEvents').map(e => e.id));
 
 // Eerste PUT -> 409 met `serverStand`; tweede PUT (de merge-retry) -> 500.
 function stubRetry500(serverStand) {
@@ -163,7 +163,7 @@ test.describe('409-conflicten bij opslaan', () => {
       },
     });
     await page.getByRole('tab', { name: 'Kalender' }).click();
-    await page.evaluate(() => openManueelModalEdit(localEvents.find(e => e.id === 'eigen-1')));
+    await page.evaluate(() => openManueelModalEdit(kern.toestand.get('localEvents').find(e => e.id === 'eigen-1')));
     const modal = page.locator('#manueel-overlay');
     await expect(modal).toHaveClass(/open/);
     await modal.getByLabel('Titel *').fill('Eigen aangepast');
@@ -226,7 +226,7 @@ test.describe('409-conflicten bij opslaan', () => {
   test('afspraken: wijzigen, 409 en dan een fout bij de retry zet de oude waarde terug', async ({ page, verzoeken, consoleFouten }) => {
     await startApp(page, { overschrijf: stubRetry500([TOEGEVOEGD_DOOR_COLLEGA, EIGEN_AFSPRAAK]) });
     await page.getByRole('tab', { name: 'Kalender' }).click();
-    await page.evaluate(() => openManueelModalEdit(localEvents.find(e => e.id === 'eigen-1')));
+    await page.evaluate(() => openManueelModalEdit(kern.toestand.get('localEvents').find(e => e.id === 'eigen-1')));
     const modal = page.locator('#manueel-overlay');
     await expect(modal).toHaveClass(/open/);
     await modal.getByLabel('Titel *').fill('Eigen aangepast');
@@ -237,7 +237,7 @@ test.describe('409-conflicten bij opslaan', () => {
     await expect(page.getByText('Eigen aangepast')).toHaveCount(0);
     await expect(page.getByText('Eigen afspraak')).toBeVisible();
     await expect(page.locator('.day-col[data-date="2026-10-06"]').getByText('Collega-afspraak')).toBeVisible();
-    expect(await page.evaluate(() => localEvents.map(e => e.titel))).toEqual(['Collega-afspraak', 'Eigen afspraak']);
+    expect(await page.evaluate(() => kern.toestand.get('localEvents').map(e => e.titel))).toEqual(['Collega-afspraak', 'Eigen afspraak']);
     expect(verzoeken.van('/api/afspraken', 'PUT')).toHaveLength(2);
     await verwachtStatus(consoleFouten, '/api/afspraken', 409, 1);
     await verwachtStatus(consoleFouten, '/api/afspraken', 500, 1);
@@ -344,7 +344,7 @@ test.describe('409-conflicten bij opslaan', () => {
     vrijgeven();
     await expect(page.getByText('✓ Afspraak opgeslagen')).toBeVisible();
 
-    expect(await page.evaluate(() => localEvents.map(e => e.titel))).toEqual(['Nieuwe']);
+    expect(await page.evaluate(() => kern.toestand.get('localEvents').map(e => e.titel))).toEqual(['Nieuwe']);
     await expect(page.getByText('Eigen afspraak')).toHaveCount(0);
     await expect(page.locator('.day-col[data-date="2026-10-06"]').getByText('Nieuwe')).toBeVisible();
   });

@@ -13,6 +13,7 @@ import * as capaciteit from '../schermen/capaciteit.js';
 import * as wachtrij from '../schermen/wachtrij.js';
 import * as kalender from '../schermen/kalender.js';
 import * as ingepland from '../schermen/ingepland.js';
+import * as ticketdetailLogica from '../schermen/ticketdetail-logica.js';
 
 window.kern = { tijd, ui, selecties, toestand, api };
 window.kern.route = { ...routeTijden, ...routeKaart, ...route };
@@ -20,6 +21,7 @@ window.kern.capaciteit = { ...capaciteit };
 window.kern.wachtrij = { ...wachtrij };
 window.kern.kalender = { ...kalender };
 window.kern.ingepland = { ...ingepland };
+window.kern.ticketdetailLogica = { ...ticketdetailLogica };
 
 // LEGACY-BRUG (verdwijnt in etappe 5): oude globale namen voor klassieke code en oudere modules
 Object.assign(window, {

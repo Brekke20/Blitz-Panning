@@ -1,6 +1,7 @@
 // public/js/rapport-archief.js
 // Overzicht van gearchiveerde rapporten (interventie + installatie), met filter op type en
 // Excel-export-aanroep (zie excel-export.js). Leest `R`/rapport-records uit de outbox-archivering.
+import { TEST_MODE } from './kern/omgeving.js';
 
 export let _rapportArchief = [];
 // null = archief nog niet geladen deze sessie (bv. rapport gesloten zonder ooit het

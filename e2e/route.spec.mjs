@@ -234,7 +234,7 @@ test.describe('route', () => {
 
     await page.getByRole('tab', { name: 'Kalender' }).click();
     // In-page toewijzing aan de globale accessor (zoals loadAfspraken/saveAfspraken doen): geen kalender-klikpad nodig.
-    await page.evaluate((e) => { localEvents = [...localEvents, e]; }, nieuweAfspraak());
+    await page.evaluate((e) => { kern.toestand.set('localEvents', [...kern.toestand.get('localEvents'), e]); }, nieuweAfspraak());
     await page.getByRole('tab', { name: 'Route' }).click();
 
     await expect(page.getByTestId('route-stop')).toHaveCount(3);
@@ -253,7 +253,7 @@ test.describe('route', () => {
     await maakRouteMetStops(page);
     expect(verzoeken.van('/api/route', 'POST')).toHaveLength(1);
 
-    await page.evaluate((e) => { localEvents = [...localEvents, e]; }, nieuweAfspraak());
+    await page.evaluate((e) => { kern.toestand.set('localEvents', [...kern.toestand.get('localEvents'), e]); }, nieuweAfspraak());
 
     // De afspraak staat er meteen; de oude route is van de kaart gehaald (hint, tijden en afstand weg);
     // er volgt geen automatische TomTom-aanroep.
@@ -279,7 +279,7 @@ test.describe('route', () => {
 
     // #1002 aan een andere technieker geven (in-place, zoals een Zoho-herlading) en naar "Alle technici"
     // wisselen: de filterwissel hertekent de route-lijst.
-    await page.evaluate(() => { planning['2026-10-05'][1].ticket.assignee = 'Sam'; });
+    await page.evaluate(() => { kern.toestand.get('planning')['2026-10-05'][1].ticket.assignee = 'Sam'; });
     await page.locator('#person-btn').click();
     await page.getByRole('button', { name: /Alle technici/ }).click();
     await expect(page.getByTestId('route-aantal-stops')).toHaveText('2');

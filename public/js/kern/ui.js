@@ -1,5 +1,5 @@
 // kern/ui.js — UI-hulpen (puur, geen globale toestand)
-// Bevat: escHtml, toast, toastDuur, registreerActies, maakActiveerbaar
+// Bevat: escHtml, toast, toastDuur, registreerActies, registreerWijzigActies, registreerBackdrop, maakActiveerbaar
 
 let toastTimer;
 
@@ -52,6 +52,32 @@ export function registreerActies(wortel, handlers) {
   return () => {
     wortel.removeEventListener('click', listener);
   };
+}
+
+// Delegatie voor invoervelden: `change` met [data-wijzig] en `input` met [data-invoer] op de wortel.
+// Handler krijgt (el, e, el.dataset.arg). Geeft een afmeld-functie terug.
+export function registreerWijzigActies(wortel, handlers) {
+  const maak = (attribuut, sleutel) => (e) => {
+    const el = e.target?.closest?.(`[${attribuut}]`);
+    if (!el) return;
+    const handler = handlers[el.dataset[sleutel]];
+    if (handler) handler(el, e, el.dataset.arg);
+  };
+  const opWijzig = maak('data-wijzig', 'wijzig');
+  const opInvoer = maak('data-invoer', 'invoer');
+  wortel.addEventListener('change', opWijzig);
+  wortel.addEventListener('input', opInvoer);
+  return () => {
+    wortel.removeEventListener('change', opWijzig);
+    wortel.removeEventListener('input', opInvoer);
+  };
+}
+
+// Sluit een overlay enkel bij een klik op de overlay zelf (niet op de inhoud).
+export function registreerBackdrop(overlay, sluit) {
+  const listener = (e) => { if (e.target === overlay) sluit(e); };
+  overlay.addEventListener('click', listener);
+  return () => overlay.removeEventListener('click', listener);
 }
 
 // Maakt een niet-<button> element toetsenbord-bedienbaar (Enter/Space); toetsen uit binnenste

@@ -2,6 +2,7 @@
 // Lokale IndexedDB-wachtrij voor rapport-verzending (archiveren + Zoho-upload), met retry-logica
 // bij offline/mislukte pogingen. Zie docs/superpowers/specs/2026-08-11-rapport-verzend-betrouwbaarheid-design.md
 // voor de achtergrond van dit ontwerp.
+import { TEST_MODE } from './kern/omgeving.js';
 
 export const OUTBOX_DB_NAME    = 'blitz-rapport-outbox';
 export const OUTBOX_DB_VERSION = 1;

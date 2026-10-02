@@ -2,6 +2,7 @@
 // Prijzencatalogus (onderdelen + tarieven) en het admin-beheerscherm. `PRIJZEN` is de geladen
 // server-state (via /api/prijzen, met localStorage-fallback); `zoekOnderdelen`/`getAlleTags`/
 // `getPrijsVoorId` worden door de rapport-wizard gebruikt (via window, zie onderaan).
+import { TEST_MODE } from './kern/omgeving.js';
 
 // ══════════════════════════════════════════════
 // PRIJSBEHEER

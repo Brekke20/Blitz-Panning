@@ -21,7 +21,7 @@ const lijstenVan = (page) => page.evaluate(() => ({
   pending: kern.toestand.get('allPending').map(t => t.id),
 }));
 // `voorstelStatus` is een `let` in het klassieke script (globaal lexicaal bereik): bereikbaar als kale naam.
-const registerLokaal = (page) => page.evaluate(() => JSON.parse(JSON.stringify(voorstelStatus)));
+const registerLokaal = (page) => page.evaluate(() => JSON.parse(JSON.stringify(kern.toestand.get('voorstelStatus'))));
 const dag = (page, datum) => page.locator(`.day-col[data-date="${datum}"]`);
 const toastTekst = (page) => page.locator('#toast');
 const venster = (page) => page.locator('#annuleer-modal');

@@ -1,7 +1,7 @@
 // tests/ui.test.mjs — unit-tests voor kern/ui.js
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { escHtml, toastDuur, registreerActies, maakActiveerbaar, strengeAfh } from '../public/js/kern/ui.js';
+import { escHtml, toastDuur, registreerActies, registreerWijzigActies, registreerBackdrop, maakActiveerbaar, strengeAfh } from '../public/js/kern/ui.js';
 
 test('escHtml(null) → ""', () => {
   assert.equal(escHtml(null), '');
@@ -253,4 +253,86 @@ test('strengeAfh: bestaande sleutel werkt, ontbrekende sleutel gooit een fout me
   assert.equal(afh.a(), 1);
   assert.equal(afh.nul, null); // aanwezig met waarde null/undefined is geen ontbrekende sleutel
   assert.throws(() => afh.ontbreekt, /proef: afhankelijkheid 'ontbreekt' ontbreekt in init/);
+});
+
+// ── registreerWijzigActies / registreerBackdrop ──
+function nepWortel() {
+  const w = { luisteraars: {}, verwijderd: [] };
+  w.addEventListener = (type, fn) => { w.luisteraars[type] = fn; };
+  w.removeEventListener = (type, fn) => { if (w.luisteraars[type] === fn) { delete w.luisteraars[type]; w.verwijderd.push(type); } };
+  return w;
+}
+// Nep-event: `closest` vindt het element enkel voor de gevraagde selector (zoals de DOM, ook vanuit een kind).
+function nepEvent(selector, el) {
+  return { target: { closest: (sel) => (sel === selector ? el : null) } };
+}
+
+test('registreerWijzigActies — change roept juiste data-wijzig-handler met (el, e, arg)', () => {
+  const w = nepWortel(); const calls = [];
+  registreerWijzigActies(w, { a: (...x) => calls.push(['a', ...x]), b: () => calls.push(['b']) });
+  const el = { dataset: { wijzig: 'a', arg: '7' } };
+  const e = nepEvent('[data-wijzig]', el);
+  w.luisteraars.change(e);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], 'a');
+  assert.ok(calls[0][1] === el && calls[0][2] === e);
+  assert.equal(calls[0][3], '7');
+});
+
+test('registreerWijzigActies — input gebruikt data-invoer, change negeert data-invoer', () => {
+  const w = nepWortel(); const calls = [];
+  registreerWijzigActies(w, { zoek: (el, e, arg) => calls.push(['zoek', arg]) });
+  const el = { dataset: { invoer: 'zoek', arg: 'x' } };
+  w.luisteraars.input(nepEvent('[data-invoer]', el));
+  assert.deepEqual(calls, [['zoek', 'x']]);
+  w.luisteraars.change(nepEvent('[data-invoer]', el)); // change zoekt [data-wijzig] → niets
+  assert.equal(calls.length, 1);
+});
+
+test('registreerWijzigActies — onbekende naam of geen element wordt genegeerd', () => {
+  const w = nepWortel(); let n = 0;
+  registreerWijzigActies(w, { a: () => n++ });
+  w.luisteraars.change(nepEvent('[data-wijzig]', { dataset: { wijzig: 'onbekend' } }));
+  w.luisteraars.change(nepEvent('[data-wijzig]', null));
+  w.luisteraars.change({ target: {} });
+  assert.equal(n, 0);
+});
+
+test('registreerWijzigActies — closest vanuit kindelement bereikt de data-wijzig-ouder', () => {
+  const w = nepWortel(); const calls = [];
+  registreerWijzigActies(w, { a: (el) => calls.push(el) });
+  const ouder = { dataset: { wijzig: 'a' } };
+  const kind = { closest: (sel) => (sel === '[data-wijzig]' ? ouder : null) };
+  w.luisteraars.change({ target: kind });
+  assert.ok(calls[0] === ouder);
+});
+
+test('registreerWijzigActies — afmelden verwijdert beide luisteraars', () => {
+  const w = nepWortel();
+  const afmelden = registreerWijzigActies(w, { a: () => {} });
+  afmelden();
+  assert.deepEqual(w.verwijderd.sort(), ['change', 'input']);
+  assert.equal(w.luisteraars.change, undefined);
+});
+
+test('registreerBackdrop — klik op de overlay zelf sluit', () => {
+  const w = nepWortel(); const calls = [];
+  registreerBackdrop(w, (e) => calls.push(e));
+  const e = { target: w };
+  w.luisteraars.click(e);
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0] === e);
+});
+
+test('registreerBackdrop — klik op kind (inhoud) sluit niet', () => {
+  const w = nepWortel(); let n = 0;
+  registreerBackdrop(w, () => n++);
+  w.luisteraars.click({ target: { naam: 'kind' } });
+  assert.equal(n, 0);
+});
+
+test('registreerBackdrop — afmelden', () => {
+  const w = nepWortel();
+  registreerBackdrop(w, () => {})();
+  assert.deepEqual(w.verwijderd, ['click']);
 });
