@@ -540,9 +540,15 @@ function _applyTicketsData(data, { reconcile = false } = {}) {
 }
 
 // stilleToast: sla enkel de succes-/telmelding over (een foutmelding van de oproeper blijft dan zichtbaar).
-async function loadTickets({ stilleToast = false } = {}) {
-  document.getElementById('empty-tickets').textContent = 'Laden...';
-  if (!TEST_MODE) {
+// stil: ook de foutmelding van deze lading zelf blijft weg (de oproeper toonde al een eigen melding; N7).
+// zonderCache: de bewaarde kopie wordt niet toegepast (een resync na een onzeker resultaat mag niets verouderds terugzetten).
+// De kopie geldt enkel voor de allereerste lading (offline start): een poll of "Vernieuwen" zet nooit verouderde data terug (N8).
+let _eersteLading = true;
+async function loadTickets({ stilleToast = false, stil = false, zonderCache = false } = {}) {
+  const gebruikCache = _eersteLading && !zonderCache;
+  _eersteLading = false;
+  if (!stil) document.getElementById('empty-tickets').textContent = 'Laden...';
+  if (!TEST_MODE && gebruikCache) {
     const cached = loadFromCache('blitz_tickets_cache');
     if (cached) applyTicketsData(cached);
   }
@@ -573,7 +579,7 @@ async function loadTickets({ stilleToast = false } = {}) {
       toast('🔑 Sessie met Zoho verlopen. Meld dit aan Brent; de koppeling moet opnieuw ingesteld worden.', 6000);
       document.getElementById('empty-tickets').textContent =
         'Sessie met Zoho verlopen. Meld dit aan Brent; de koppeling moet opnieuw ingesteld worden.';
-    } else {
+    } else if (!stil) {
       toast('✕ ' + msg, 4000);
       document.getElementById('empty-tickets').textContent = 'Kon tickets niet laden: ' + msg;
     }

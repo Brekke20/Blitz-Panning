@@ -48,7 +48,7 @@ async function startPlan(page, verzoeken, { stubs = {}, paden = ['/api/plan'] } 
 }
 
 test.describe('verbinding: planning (plan) en vernieuwen', () => {
-  test('P1 (→ T6, H1): na een geslaagde plan-aanroep en een mislukte vernieuwing komt het ticket terug in de wachtrij', async ({ page, verzoeken }) => {
+  test('P1 (omgedraaid in T6, H1): na een geslaagde plan-aanroep en een mislukte vernieuwing blijft het ticket gepland (geen verouderde cache)', async ({ page, verzoeken }) => {
     const t = ticketsStub();
     verwachtNetwerkFout(verzoeken, [{ pad: '/api/tickets', methode: 'GET' }]);
     await startPlan(page, verzoeken, { stubs: { tickets: t.stub } });
@@ -57,17 +57,31 @@ test.describe('verbinding: planning (plan) en vernieuwen', () => {
     await expect(page.locator('#cnt-tickets')).toHaveText('1');
     expect(await planningVan(page)).toMatchObject({ '2026-10-05': ['t1'] });
 
-    // De verbinding valt weg; de gebruiker klikt op Vernieuwen. loadTickets past eerst de bewaarde kopie van de
-    // opstart toe (die het ticket nog als "in te plannen" kent) en faalt daarna op de fetch.
+    // De verbinding valt weg; de gebruiker klikt op Vernieuwen. De bewaarde kopie van de opstart (die het ticket nog als
+    // "in te plannen" kent) wordt enkel bij de eerste lading toegepast, niet bij een verversing.
     t.toestand.afbreken = true;
     await page.getByRole('button', { name: 'Vernieuwen' }).click();
     await expect(toastTekst(page)).toContainText('✕');
     await settle(page);
 
-    // HUIDIG GEDRAG (bug?): het ticket dat zojuist (geslaagd) gepland werd, staat weer in de wachtrij en niet meer in de route.
+    // W5-fix: het ticket dat zojuist (geslaagd) gepland werd, blijft gepland: in de route en niet in de wachtrij.
+    await expect(page.locator('#cnt-tickets')).toHaveText('1');
+    await expect(wachtrijKaart(page, 1001)).toHaveCount(0);
+    expect(await planningVan(page)).toMatchObject({ '2026-10-05': ['t1'] });
+  });
+
+  test('N8: een offline start past de bewaarde kopie nog wel toe (enkel bij de eerste lading)', async ({ page, verzoeken }) => {
+    const t = ticketsStub();
+    t.toestand.afbreken = true; // de opstartlading valt weg
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/tickets', methode: 'GET' }]);
+    await page.addInitScript((kopie) => {
+      if (window === window.top) localStorage.setItem('blitz_tickets_cache', JSON.stringify(kopie));
+    }, TICKETS_STUB);
+    await startPlan(page, verzoeken, { stubs: { tickets: t.stub } });
+    // startAppProductie wachtte al op de telling uit de kopie (2 tickets te plannen); de lading zelf faalde.
     await expect(page.locator('#cnt-tickets')).toHaveText('2');
     await expect(wachtrijKaart(page, 1001)).toHaveCount(1);
-    expect(await planningVan(page)).not.toHaveProperty('2026-10-05');
+    expect(t.toestand.aantal).toBe(1);
   });
 
   test('P2 (omgedraaid in T2, H2): een hangende plan-aanroep eindigt na 20 s: foutmelding, ticket terug bedienbaar en geen half ticket', async ({ page, verzoeken }) => {
