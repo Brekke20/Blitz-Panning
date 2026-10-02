@@ -11,6 +11,12 @@
 // NIET opnieuw geprobeerd: enkel een melding, zodat de technieker de voorraad controleert. 4xx (behalve 409) is definitief.
 // Een wachtrij-item dat nog 'onderweg' staat maar waarvan de lease verlopen is (pagina gesloten tijdens het verzenden) is onzeker:
 // melding, geen herpoging.
+//
+// Gelijktijdigheid (twee tabs): `verwerk` draait binnen een `slot` (navigator.locks in de browser; bezet slot = ronde overslaan).
+// Zonder slot valt de code terug op een lease met eigenaar-token: voor elke POST wordt het item vers gelezen, de lease gezet en teruggelezen;
+// een item met een lopende lease van een ander wordt overgeslagen. De lease wordt nooit apart gewist: ze verdwijnt samen met het item
+// (gelukt/onzeker/definitief) of samen met de nieuwe stand (pogingen) bij een zekere mislukking.
+// Elke aftrek staat vóór de eerste POST met lease in de opslag, zodat een pagina die tijdens de POST sluit een spoor nalaat (later: 'onzeker').
 
 import { foutTekst } from './api.js';
 
@@ -29,7 +35,10 @@ export const TEKSTEN = {
 // Classificeert de uitkomst van één POST. `res` is { status, data }; bij een gegooide fout geef je `err` mee.
 export function classificeer({ res, err }) {
   if (err) return { uitkomst: 'onzeker', detail: foutTekst(err) };
-  if (res.status >= 200 && res.status < 300) return { uitkomst: 'gelukt' };
+  if (res.status >= 200 && res.status < 300) {
+    // Geslaagd, maar zonder leesbare stand: de aftrek kan gebeurd zijn; nooit opnieuw proberen.
+    return res.data == null ? { uitkomst: 'onzeker', detail: 'onleesbaar antwoord van de server' } : { uitkomst: 'gelukt' };
+  }
   if (res.status === 409) return { uitkomst: 'conflict', versie: res.data?.data?.versie ?? res.data?.serverVersie };
   if (res.status === 503 && /Inventaris-opslag/.test(res.data?.error || '')) return { uitkomst: 'tijdelijk' };
   if (res.status >= 400 && res.status < 500) return { uitkomst: 'definitief' };
@@ -38,27 +47,36 @@ export function classificeer({ res, err }) {
 
 // deps: opslag { lees(), schrijf(lijst) } · post(body) -> { status, data } (gooit bij netwerkfout/time-out) · versie() -> huidige versie
 // · naSucces(data) · naConflict(data) · toon(tekst, ms) · online() -> boolean · nu() -> ms · maakId() -> string
+// · slot(fn) -> Promise: voert fn uit als het slot vrij is (anders niet); standaard zonder slot.
 export function maakVerbruikWachtrij(deps) {
   const { opslag, post, versie, naSucces, naConflict = () => {}, toon, online = () => true, nu = Date.now,
-    maakId = () => String(nu()) + Math.random().toString(36).slice(2) } = deps;
+    maakId = () => String(nu()) + Math.random().toString(36).slice(2), slot = null } = deps;
+  const ik = 'eig-' + maakId();
   let bezig = false;
 
   const lees = () => { try { const l = opslag.lees(); return Array.isArray(l) ? l : []; } catch { return []; } };
   const schrijf = lijst => { try { opslag.schrijf(lijst); } catch { /* best-effort */ } };
+  const vind = id => lees().find(e => e.id === id) || null;
   const bewaar = (id, wijziging) => schrijf(lees().map(e => e.id === id ? { ...e, ...wijziging } : e));
   const verwijder = id => schrijf(lees().filter(e => e.id !== id));
-  const bestaat = id => lees().some(e => e.id === id);
+  const levend = e => !!(e && e.bezigTot && e.bezigTot > nu());
 
-  // Eén verzending, na een 409 opnieuw met de versie uit het antwoord (max MAX_CONFLICTEN keer). `opId` is het id van een
-  // wachtrij-item (null bij de eerste poging): dan gaat elke verzending enkel door als het item nog bestaat (een andere tab kan het
-  // al gelukt zijn) en staat het tijdens het verzenden op 'onderweg' (lease).
+  // Neemt de lease van een bestaand item: vers lezen, afbreken als een ander ze heeft, zetten en teruglezen.
+  function neemLease(id) {
+    const e = vind(id);
+    if (!e) return false;
+    if (levend(e) && e.eigenaar !== ik) return false;
+    bewaar(id, { bezigTot: nu() + LEASE_MS, eigenaar: ik });
+    const na = vind(id);
+    return !!na && na.eigenaar === ik;
+  }
+
+  // Eén verzending voor een wachtrij-item dat al bestaat (met onze lease), na een 409 opnieuw met de versie uit het antwoord
+  // (max MAX_CONFLICTEN keer). De lease blijft tussen de pogingen gehouden; de oproeper wist ze samen met de nieuwe toestand.
   async function verzend(entry, opId) {
     let v = versie();
     for (let i = 0; i < MAX_CONFLICTEN; i++) {
-      if (opId) {
-        if (!bestaat(opId)) return { uitkomst: 'weg' };
-        bewaar(opId, { bezigTot: nu() + LEASE_MS });
-      }
+      if (!neemLease(opId)) return { uitkomst: 'weg' };
       let r;
       try {
         const res = await post({ versie: v, technieker: entry.technieker, actie: 'verbruik', items: entry.items });
@@ -68,55 +86,60 @@ export function maakVerbruikWachtrij(deps) {
       } catch (err) {
         r = classificeer({ err });
       }
-      if (opId && bestaat(opId)) bewaar(opId, { bezigTot: null });
       if (r.uitkomst !== 'conflict') return r;
-      if (typeof r.versie !== 'number' || r.versie === v) return { uitkomst: 'onzeker', detail: 'Serverfout (HTTP 409)' };
+      if (typeof r.versie !== 'number' || r.versie === v) return { uitkomst: 'onzeker', detail: 'HTTP 409 zonder bruikbare stand' };
       v = r.versie;
     }
     return { uitkomst: 'conflict' };
   }
 
-  function zetInWachtrij(entry) {
-    const item = { id: maakId(), technieker: entry.technieker, items: entry.items, aangemaakt: nu(), pogingen: 0, bezigTot: null };
-    schrijf([...lees(), item]);
-    return item;
+  // Verwerkt de uitkomst van een verzending voor item `e` (lease gaat samen met het item of met de nieuwe stand).
+  // `uitWachtrij`: toon de "alsnog"-melding bij succes.
+  function afronden(e, r, { uitWachtrij }) {
+    if (r.uitkomst === 'weg') return 'weg';
+    if (r.uitkomst === 'gelukt') { verwijder(e.id); if (uitWachtrij) toon(TEKSTEN.alsnog, 4000); return 'klaar'; }
+    if (r.uitkomst === 'definitief') { verwijder(e.id); toon(TEKSTEN.definitief, 6000); return 'klaar'; }
+    if (r.uitkomst === 'onzeker') { verwijder(e.id); toon(TEKSTEN.onzeker(r.detail || 'onbekende fout'), 6000); return 'klaar'; }
+    // conflict (opgebruikt) of tijdelijk: zeker niets geschreven; later opnieuw, tot MAX_POGINGEN
+    const pogingen = (e.pogingen || 0) + (uitWachtrij ? 1 : 0);
+    if (uitWachtrij && pogingen >= MAX_POGINGEN) { verwijder(e.id); toon(TEKSTEN.definitief, 6000); return 'klaar'; }
+    bewaar(e.id, { pogingen, bezigTot: null, eigenaar: null });
+    return r.uitkomst;
   }
 
-  // Eerste poging, direct na het verzenden van het rapport.
+  // Eerste poging, direct na het verzenden van het rapport. Het item staat met lease in de opslag vóór de POST.
   async function meld(technieker, items) {
-    const entry = { technieker, items };
-    if (!online()) { zetInWachtrij(entry); toon(TEKSTEN.wachtrij, 5000); return; }
-    const r = await verzend(entry, null);
-    if (r.uitkomst === 'gelukt') return;
-    if (r.uitkomst === 'conflict' || r.uitkomst === 'tijdelijk') { zetInWachtrij(entry); toon(TEKSTEN.wachtrij, 5000); return; }
-    if (r.uitkomst === 'definitief') { toon(TEKSTEN.definitief, 6000); return; }
-    toon(TEKSTEN.onzeker(r.detail || 'onbekende fout'), 6000);
+    const e = { id: maakId(), technieker, items, aangemaakt: nu(), pogingen: 0, bezigTot: null, eigenaar: null };
+    if (!online()) { schrijf([...lees(), e]); toon(TEKSTEN.wachtrij, 5000); return; }
+    schrijf([...lees(), { ...e, bezigTot: nu() + LEASE_MS, eigenaar: ik }]);
+    const r = await verzend(e, e.id);
+    const uit = afronden(e, r, { uitWachtrij: false });
+    if (uit === 'conflict' || uit === 'tijdelijk') toon(TEKSTEN.wachtrij, 5000);
   }
 
-  // Wachtrij verwerken (bij opstart, online-gebeurtenis en poll). Eén verwerker tegelijk per pagina; de lease dekt andere tabs.
-  async function verwerk() {
+  async function verwerkRonde() {
     if (bezig || !online()) return;
     bezig = true;
     try {
-      for (const e of lees()) {
+      for (const id of lees().map(e => e.id)) {
+        const e = vind(id);                                 // vers lezen: een andere tab kan het al afgehandeld hebben
+        if (!e) continue;
         if (e.bezigTot) {
-          if (e.bezigTot > nu()) continue;            // een andere tab is bezig
-          verwijder(e.id);                              // verzonden, uitkomst onbekend: nooit opnieuw proberen
+          if (levend(e)) continue;                          // iemand (ook wij) is ermee bezig
+          verwijder(e.id);                                  // verzonden, uitkomst onbekend: nooit opnieuw proberen
           toon(TEKSTEN.onzeker('de pagina werd gesloten tijdens het bijwerken'), 6000);
           continue;
         }
         const r = await verzend(e, e.id);
-        if (r.uitkomst === 'weg') continue;
-        if (r.uitkomst === 'gelukt') { verwijder(e.id); toon(TEKSTEN.alsnog, 4000); continue; }
-        if (r.uitkomst === 'definitief') { verwijder(e.id); toon(TEKSTEN.definitief, 6000); continue; }
-        if (r.uitkomst === 'onzeker') { verwijder(e.id); toon(TEKSTEN.onzeker(r.detail || 'onbekende fout'), 6000); continue; }
-        // conflict (opgebruikt) of tijdelijk: later opnieuw, tot MAX_POGINGEN
-        const pogingen = (e.pogingen || 0) + 1;
-        if (pogingen >= MAX_POGINGEN) { verwijder(e.id); toon(TEKSTEN.definitief, 6000); continue; }
-        bewaar(e.id, { pogingen });
-        if (r.uitkomst === 'tijdelijk') break;           // de opslag ligt eruit: de rest heeft geen zin
+        const uit = afronden(e, r, { uitWachtrij: true });
+        if (uit === 'tijdelijk') break;                     // de opslag ligt eruit: de rest heeft geen zin
       }
     } finally { bezig = false; }
+  }
+
+  // Wachtrij verwerken (bij opstart, online-gebeurtenis en poll), binnen het slot als er een is.
+  async function verwerk() {
+    if (slot) await slot(verwerkRonde); else await verwerkRonde();
   }
 
   return { meld, verwerk, lees };

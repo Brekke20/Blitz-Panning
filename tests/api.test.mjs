@@ -138,11 +138,15 @@ test('leesFout: TimeoutError en AbortError zijn onzeker', () => {
   assert.deepEqual(leesFout(new DOMException('x', 'AbortError')), { soort: 'netwerk', onzeker: true });
 });
 
+// Fix-ronde 1: enkel een TypeError uit fetch zelf (getagd door kern/netwerk.js) is een netwerkfout; een programmeerfout met 'fetch' in de tekst niet.
+const vanFetch = (m) => Object.assign(new TypeError(m), { vanFetch: true });
 test('leesFout: TypeError van fetch is netwerk, offline als de browser offline is', () => {
-  assert.deepEqual(leesFout(new TypeError('Failed to fetch'), { online: true }), { soort: 'netwerk', onzeker: true });
-  assert.deepEqual(leesFout(new TypeError('Load failed'), { online: true }), { soort: 'netwerk', onzeker: true });
-  assert.deepEqual(leesFout(new TypeError('Failed to fetch'), { online: false }), { soort: 'offline', onzeker: true });
+  assert.deepEqual(leesFout(vanFetch('Failed to fetch'), { online: true }), { soort: 'netwerk', onzeker: true });
+  assert.deepEqual(leesFout(vanFetch('Load failed'), { online: true }), { soort: 'netwerk', onzeker: true });
+  assert.deepEqual(leesFout(vanFetch('Failed to fetch'), { online: false }), { soort: 'offline', onzeker: true });
   assert.deepEqual(leesFout(new TypeError('Cannot read properties of undefined'), { online: true }), { soort: 'onbekend', onzeker: false });
+  assert.deepEqual(leesFout(new TypeError('x.fetch is not a function'), { online: true }), { soort: 'onbekend', onzeker: false });
+  assert.equal(foutTekst(new TypeError('x.fetch is not a function')), 'x.fetch is not a function');
 });
 
 test('leesFout: 502/503/504 onzeker; 400/404/409/500 definitief (ApiFout en Error met HTTP-tekst)', () => {
@@ -164,9 +168,9 @@ test('leesFout: onbekend object', () => {
 
 // W5-fix (Q2): één plek die technische fouten in gewoon Nederlands zet.
 test('foutTekst: netwerkfout, offline, time-out en HTTP-status in gewoon Nederlands', () => {
-  assert.equal(foutTekst(new TypeError('Failed to fetch'), { online: true }), 'Geen verbinding met de server');
-  assert.equal(foutTekst(new TypeError('Load failed'), { online: true }), 'Geen verbinding met de server');
-  assert.equal(foutTekst(new TypeError('Failed to fetch'), { online: false }), 'Geen verbinding met de server');
+  assert.equal(foutTekst(vanFetch('Failed to fetch'), { online: true }), 'Geen verbinding met de server');
+  assert.equal(foutTekst(vanFetch('Load failed'), { online: true }), 'Geen verbinding met de server');
+  assert.equal(foutTekst(vanFetch('Failed to fetch'), { online: false }), 'Geen verbinding met de server');
   assert.equal(foutTekst(new DOMException('signal is aborted without reason', 'AbortError')), 'Geen verbinding met de server');
   assert.equal(foutTekst(new DOMException('Time-out na 20 s', 'TimeoutError')), 'De server antwoordt niet (time-out na 20 s)');
   assert.equal(foutTekst(new DOMException('Time-out na 35 s', 'TimeoutError')), 'De server antwoordt niet (time-out na 35 s)');
@@ -179,5 +183,7 @@ test('foutTekst: een eigen serverboodschap en onbekende fouten blijven ongewijzi
   assert.equal(foutTekst(new TypeError('Cannot read properties of undefined')), 'Cannot read properties of undefined');
   assert.equal(foutTekst(null), '');
   assert.equal(foutTekst('HTTP 502'), 'Serverfout (HTTP 502)');
+  assert.equal(foutTekst('HTTP 404'), 'Verzoek geweigerd (HTTP 404)');
+  assert.equal(foutTekst(new ApiFout(409, null)), 'Verzoek geweigerd (HTTP 409)');
   assert.equal(foutTekst('Ticket niet gevonden'), 'Ticket niet gevonden');
 });

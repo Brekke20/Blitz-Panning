@@ -526,6 +526,10 @@ function verbruikWachtrij() {
     naConflict: data => { if (data && typeof data.versie === 'number') { _invData = data; saveToCache(INV_CACHE_KEY, _invData); } },
     toon: (tekst, ms) => toast(tekst, ms),
     online: () => globalThis.navigator?.onLine !== false,
+    // Eén verwerker over alle tabs (Web Locks); een bezet slot = deze ronde overslaan. Zonder Web Locks geldt de lease in de wachtrij.
+    slot: globalThis.navigator?.locks?.request
+      ? fn => navigator.locks.request('blitz-verbruik', { ifAvailable: true }, lock => (lock ? fn() : undefined))
+      : null,
   });
   return _wachtrij;
 }

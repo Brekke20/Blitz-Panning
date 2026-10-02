@@ -37,7 +37,7 @@ test('classificeer: zeker (409, eigen 503) tegenover onzeker (netwerk, 500, 502,
   assert.equal(classificeer({ res: { status: 503, data: null } }).uitkomst, 'onzeker');
   for (const s of [500, 502, 504]) assert.equal(classificeer({ res: { status: s, data: null } }).uitkomst, 'onzeker');
   for (const s of [400, 404, 405]) assert.equal(classificeer({ res: { status: s, data: { error: 'x' } } }).uitkomst, 'definitief');
-  assert.equal(classificeer({ err: new TypeError('Failed to fetch') }).uitkomst, 'onzeker');
+  assert.equal(classificeer({ err: Object.assign(new TypeError('Failed to fetch'), { vanFetch: true }) }).uitkomst, 'onzeker');
   assert.equal(classificeer({ err: new DOMException('Time-out na 20 s', 'TimeoutError') }).detail, 'De server antwoordt niet (time-out na 20 s)');
 });
 
@@ -58,7 +58,7 @@ test('409 bij de eerste poging: meteen opnieuw met de nieuwe versie, geen meldin
 });
 
 test('onzekere uitkomst (netwerkfout, time-out, 502): melding, NIET in de wachtrij, nooit een herpoging', async () => {
-  for (const a of [new TypeError('Failed to fetch'), new DOMException('Time-out na 20 s', 'TimeoutError'), { status: 502, data: null }, { status: 500, data: { error: 'Opslaan mislukt: x' } }]) {
+  for (const a of [Object.assign(new TypeError('Failed to fetch'), { vanFetch: true }), new DOMException('Time-out na 20 s', 'TimeoutError'), { status: 502, data: null }, { status: 500, data: { error: 'Opslaan mislukt: x' } }]) {
     const t = bouw({ antwoorden: [a, ok(6)] });
     await t.w.meld('Jan', ITEMS);
     assert.equal(t.posts.length, 1, 'één POST');
@@ -111,7 +111,7 @@ test('herpoging zonder succes blijft in de wachtrij; na 8 pogingen een definitie
 });
 
 test('onzeker tijdens een herpoging: item weg en melding, geen derde poging', async () => {
-  const t = bouw({ antwoorden: [{ status: 503, data: { error: 'Inventaris-opslag tijdelijk niet bereikbaar, probeer opnieuw.' } }, new TypeError('Failed to fetch'), ok(6)] });
+  const t = bouw({ antwoorden: [{ status: 503, data: { error: 'Inventaris-opslag tijdelijk niet bereikbaar, probeer opnieuw.' } }, Object.assign(new TypeError('Failed to fetch'), { vanFetch: true }), ok(6)] });
   await t.w.meld('Jan', ITEMS);
   await t.w.verwerk();
   assert.equal(t.lijst().length, 0);
@@ -155,4 +155,70 @@ test('tijdens het verzenden staat het item op onderweg; een andere tab die het i
   });
   await w.verwerk();
   assert.equal(posts.length, 1, 'geen tweede POST: het item bestaat niet meer');
+});
+
+// Fix-ronde 1 (review 8a): twee tabs op één opslag mogen nooit hetzelfde item twee keer verzenden.
+test('twee instanties, één opslag, 2 items: elk item precies één POST (geen dubbele aftrek)', async () => {
+  const it = [{ materiaalId: 'm', materiaalNaam: 'k', aantal: 1 }];
+  let lijst = [{ id: 'a', technieker: 'J', items: it, pogingen: 0, bezigTot: null }, { id: 'b', technieker: 'J', items: it, pogingen: 0, bezigTot: null }];
+  const posts = [], open = [];
+  const tab = (naam) => maakVerbruikWachtrij({
+    opslag: { lees: () => JSON.parse(JSON.stringify(lijst)), schrijf: l => { lijst = JSON.parse(JSON.stringify(l)); } },
+    post: (body) => new Promise(r => { posts.push(naam + ':' + body.technieker + ':' + (lijst.find(e => e.bezigTot) || {}).id); open.push(() => r({ status: 200, data: { versie: 1 } })); }),
+    versie: () => 1, naSucces: () => {}, toon: () => {}, nu: () => 1000, maakId: () => naam + Math.random(),
+  });
+  const A = tab('A'), B = tab('B');
+  const tick = () => new Promise(r => setTimeout(r, 5));
+  const pb = B.verwerk(); await tick();
+  const pa = A.verwerk(); await tick();
+  open.shift()(); await tick();      // B klaart zijn eerste item en gaat verder
+  while (open.length) { open.shift()(); await tick(); }
+  await Promise.all([pa, pb]);
+  assert.equal(posts.length, 2, 'precies twee POSTs voor twee items: ' + posts.join(' | '));
+  assert.equal(lijst.length, 0);
+});
+
+test('slot: verwerk draait binnen het meegegeven slot; een bezet slot slaat de ronde over', async () => {
+  let bezet = false; const posts = [];
+  let lijst = [{ id: 'x', technieker: 'J', items: ITEMS, pogingen: 0, bezigTot: null }];
+  const w = maakVerbruikWachtrij({
+    opslag: { lees: () => JSON.parse(JSON.stringify(lijst)), schrijf: l => { lijst = JSON.parse(JSON.stringify(l)); } },
+    post: async b => { posts.push(b); return ok(6); }, versie: () => 1, naSucces: () => {}, toon: () => {},
+    slot: async (fn) => { if (bezet) return; bezet = true; try { await fn(); } finally { bezet = false; } },
+  });
+  bezet = true; await w.verwerk(); assert.equal(posts.length, 0);
+  bezet = false; await w.verwerk(); assert.equal(posts.length, 1);
+});
+
+test('meld zet het item met lease in de opslag vóór de eerste POST; een pagina die sluit tijdens de POST wordt bij de volgende start "onzeker"', async () => {
+  let lijst = [];
+  const klok = { t: 1000 };
+  const gezien = [];
+  const w1 = maakVerbruikWachtrij({
+    opslag: { lees: () => JSON.parse(JSON.stringify(lijst)), schrijf: l => { lijst = JSON.parse(JSON.stringify(l)); } },
+    post: () => { gezien.push(JSON.parse(JSON.stringify(lijst))); return new Promise(() => {}); }, // nooit antwoord: pagina sluit
+    versie: () => 1, naSucces: () => {}, toon: () => {}, nu: () => klok.t,
+  });
+  w1.meld('J', ITEMS);
+  await new Promise(r => setTimeout(r, 5));
+  assert.equal(gezien[0].length, 1);
+  assert.ok(gezien[0][0].bezigTot > klok.t, 'lease vóór de POST');
+  klok.t += 120000; // volgende start, lease verlopen
+  const toasts = [], posts = [];
+  const w2 = maakVerbruikWachtrij({
+    opslag: { lees: () => JSON.parse(JSON.stringify(lijst)), schrijf: l => { lijst = JSON.parse(JSON.stringify(l)); } },
+    post: async b => { posts.push(b); return ok(2); }, versie: () => 1, naSucces: () => {}, toon: t => toasts.push(t), nu: () => klok.t,
+  });
+  await w2.verwerk();
+  assert.equal(posts.length, 0, 'nooit een herpoging');
+  assert.equal(lijst.length, 0);
+  assert.match(toasts[0], /^⚠ Onzeker/);
+});
+
+test('een 2xx zonder leesbare JSON is onzeker en zet geen stand op null', async () => {
+  const t = bouw({ antwoorden: [{ status: 200, data: null }] });
+  await t.w.meld('Jan', ITEMS);
+  assert.deepEqual(t.succes, []);
+  assert.equal(t.lijst().length, 0);
+  assert.match(t.toasts[0], /^⚠ Onzeker/);
 });

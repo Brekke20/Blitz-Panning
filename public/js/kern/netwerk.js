@@ -12,6 +12,13 @@ function klasseVoor(pad, methode) {
 export const limietVoor = (pad, methode = 'GET') => TIJDLIMIETEN[klasseVoor(pad, methode)];
 
 // Geeft de herstelfunctie terug (zet de oorspronkelijke fetch terug).
+// Een TypeError van fetch zelf (netwerk, CORS, afgebroken verbinding) krijgt `vanFetch = true`, zodat `leesFout` hem kan onderscheiden
+// van een programmeerfout (ook een TypeError) die toevallig 'fetch' in de tekst heeft.
+function merk(belofte) {
+  if (!belofte || typeof belofte.then !== 'function') return belofte;
+  return belofte.then(undefined, (e) => { if (e instanceof TypeError) { try { e.vanFetch = true; } catch { /* bevroren */ } } throw e; });
+}
+
 export function installeerFetchTimeout(doel, { limieten = TIJDLIMIETEN, setTimeoutFn = (f, ms) => setTimeout(f, ms), clearTimeoutFn = (t) => clearTimeout(t) } = {}) {
   const oorspronkelijk = doel.fetch;
   const basis = doel.location?.href || 'http://localhost/';
@@ -19,7 +26,7 @@ export function installeerFetchTimeout(doel, { limieten = TIJDLIMIETEN, setTimeo
   doel.fetch = function (invoer, init) {
     const url = urlVan(invoer);
     if (!url || url.origin !== new URL(basis).origin || !url.pathname.startsWith('/api/') || init?.signal) {
-      return oorspronkelijk.call(doel, invoer, init);
+      return merk(oorspronkelijk.call(doel, invoer, init));
     }
     const methode = init?.method || invoer?.method || 'GET';
     const ms = limieten[klasseVoor(url.pathname, methode)];
@@ -28,7 +35,7 @@ export function installeerFetchTimeout(doel, { limieten = TIJDLIMIETEN, setTimeo
     const klaar = () => clearTimeoutFn(timer);
     let belofte;
     try { belofte = oorspronkelijk.call(doel, invoer, { ...init, signal: controller.signal }); } catch (e) { klaar(); throw e; }
-    return belofte.then((r) => { klaar(); return r; }, (e) => { klaar(); throw e; });
+    return merk(belofte).then((r) => { klaar(); return r; }, (e) => { klaar(); throw e; });
   };
   return () => { doel.fetch = oorspronkelijk; };
 }

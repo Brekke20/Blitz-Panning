@@ -33,7 +33,8 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ### Changed
 - Bij een trage verbinding wacht de app nog maximaal 4 seconden op de nieuwste versie van de pagina; daarna start ze uit de bewaarde kopie op het toestel (die maximaal één versie oud kan zijn). Eerder bleef ze onbeperkt wachten.
-- Lukt het aftrekken van het gebruikte materiaal van de wagenvoorraad niet na een verzonden rapport, dan krijgt de technieker nu een melding. Is het zeker dat er niets is afgetrokken (de voorraad was net door iemand anders gewijzigd, de opslag was even onbereikbaar of er was geen verbinding), dan probeert de app het later vanzelf opnieuw: bij het starten, zodra de verbinding terug is en bij elke verversing. Is het onzeker of de aftrek al gebeurd is (bijvoorbeeld een time-out), dan probeert de app het bewust niet opnieuw, zodat er nooit dubbel wordt afgetrokken; de melding vraagt dan de voorraad te controleren.
+- Lukt het aftrekken van het gebruikte materiaal van de wagenvoorraad niet na een verzonden rapport, dan krijgt de technieker nu een melding. Is het zeker dat er niets is afgetrokken (de voorraad was net door iemand anders gewijzigd, de opslag was even onbereikbaar of er was geen verbinding), dan probeert de app het later vanzelf opnieuw: bij het starten, zodra de verbinding terug is en bij elke verversing.
+- Is het onzeker of de aftrek al gebeurd is (bijvoorbeeld een time-out), dan probeert de app het bewust niet opnieuw, zodat er nooit dubbel wordt afgetrokken; de melding vraagt dan de voorraad te controleren. Ook met twee geopende vensters verwerkt maar één ervan de wachtrij.
 - Foutmeldingen bij een probleem met de verbinding zijn nu gewoon Nederlands: 'Geen verbinding met de server', 'De server antwoordt niet (time-out na 20 s)' en 'Serverfout (HTTP 502)' in plaats van 'Failed to fetch', 'Time-out na 20 s' of 'HTTP 502'. Het begin van elke melding blijft hetzelfde; enkel het detail is vertaald. De rapportwizard en de wachtrij voor verzonden rapporten blijven ongewijzigd.
 - De app laadt zijn onderdelen vooraf parallel en haalt de Excel-bibliotheek pas op bij de eerste export (TicketLog of Inventaris).
 - De service worker bewaart ook Leaflet, de handtekeningbibliotheek en de Excel-bibliotheek, zodat de app ook zonder verbinding de kaartbibliotheek heeft.
@@ -64,6 +65,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Interne herstructurering: gedeelde fundamenten in `public/js/kern/` (tijd, selecties, toestand met automatisch hertekenen, api, ui).
 
 ### Fixed
+- Een aftrek van de wagenvoorraad die faalde omdat de voorraad net door iemand anders gewijzigd was, ging stilletjes verloren; ze wordt nu opnieuw geprobeerd.
 - Na het sluiten van een venster met Escape komt de cursor terug op een logische plek in plaats van bovenaan de pagina (afspraakvoorstel, prijsbeheer, planningsresultaat, lokaal afspraakdetail); lokale afspraken in de kalender zijn nu ook met het toetsenbord te openen (Enter of spatie).
 - De klantvoorkeur-labels in de wachtrij verschijnen nu ook als de klantbeschikbaarheid later binnenkomt dan de wachtrij.
 - De tab Beschikbaarheden loopt niet meer vast als in de instellingen geen enkele werkdag is aangevinkt.

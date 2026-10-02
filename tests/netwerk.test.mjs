@@ -125,3 +125,16 @@ test('de herstelfunctie zet de oorspronkelijke fetch terug', () => {
   herstel();
   assert.equal(doel.fetch, oorspronkelijk);
 });
+
+// Fix-ronde 1: een TypeError uit fetch krijgt vanFetch (voor leesFout), ook zonder /api en met eigen signal; andere fouten niet.
+test('een TypeError uit fetch wordt getagd met vanFetch; andere fouten blijven ongemerkt', async () => {
+  const doel = { location: { href: 'https://app.test/', origin: 'https://app.test' } };
+  doel.fetch = (u) => Promise.reject(u.includes('boem') ? new RangeError('boem') : new TypeError('Failed to fetch'));
+  installeerFetchTimeout(doel, { setTimeoutFn: () => 1, clearTimeoutFn: () => {} });
+  for (const [u, init] of [['/api/tickets'], ['https://cdn.test/x.js'], ['/api/outbox', { signal: new AbortController().signal }]]) {
+    const e = await doel.fetch(u, init).catch((x) => x);
+    assert.ok(e instanceof TypeError && e.vanFetch === true, u);
+  }
+  const r = await doel.fetch('/api/boem').catch((x) => x);
+  assert.equal(r.vanFetch, undefined);
+});

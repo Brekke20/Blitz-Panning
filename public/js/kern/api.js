@@ -91,7 +91,7 @@ const ONZEKERE_STATUS = new Set([502, 503, 504]);
 export function leesFout(err, { online = globalThis.navigator?.onLine } = {}) {
   if (err?.name === 'TimeoutError') return { soort: 'timeout', onzeker: true };
   if (err?.name === 'AbortError') return { soort: 'netwerk', onzeker: true };
-  if (err instanceof TypeError && /fetch|load failed|network/i.test(err.message || '')) {
+  if (err instanceof TypeError && err.vanFetch === true) {
     return { soort: online === false ? 'offline' : 'netwerk', onzeker: true };
   }
   const status = typeof err?.status === 'number' ? err.status : Number(/^HTTP (\d{3})$/.exec(err?.message || '')?.[1]);
@@ -101,14 +101,19 @@ export function leesFout(err, { online = globalThis.navigator?.onLine } = {}) {
 
 // De Nederlandse tekst voor het detail van een foutmelding (W5-fix, Q2): de ENIGE plek die technische foutklassen vertaalt.
 // Alleen herkende klassen worden vertaald; een eigen foutmelding van de server (data.error) of een onbekende fout blijft zoals ze is.
+// 4xx is een geweigerd verzoek, geen fout van de server.
+const statusTekst = (status) => (status >= 400 && status < 500 ? `Verzoek geweigerd (HTTP ${status})` : `Serverfout (HTTP ${status})`);
 export function foutTekst(err, opties) {
-  if (typeof err === 'string') return /^HTTP \d{3}$/.test(err) ? `Serverfout (${err})` : err; // 'HTTP 502' als losse tekst (data.error)
+  if (typeof err === 'string') { // 'HTTP 502' als losse tekst (data.error)
+    const m = /^HTTP (\d{3})$/.exec(err);
+    return m ? statusTekst(Number(m[1])) : err;
+  }
   const f = leesFout(err, opties);
   if (f.soort === 'timeout') {
     const sec = /(\d+) s/.exec(err?.message || '')?.[1];
     return sec ? `De server antwoordt niet (time-out na ${sec} s)` : 'De server antwoordt niet (time-out)';
   }
   if (f.soort === 'offline' || f.soort === 'netwerk') return 'Geen verbinding met de server';
-  if (f.soort === 'http' && /^HTTP \d{3}$/.test(err?.message || '')) return `Serverfout (HTTP ${f.status})`;
+  if (f.soort === 'http' && /^HTTP \d{3}$/.test(err?.message || '')) return statusTekst(f.status);
   return err?.message || '';
 }
