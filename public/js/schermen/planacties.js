@@ -231,9 +231,8 @@ export async function autoPlan() {
 
     // R2: enkel de bekeken week (vanaf vandaag) plus voorkeursdatums na die week als extra dag
     // voor enkel het ticket dat die voorkeur heeft (zie bouwDagen in public/js/planner.js).
-    const uitgesloten = d => !!afh.getHolidayName(d) || toestand.get('avExceptions').some(e =>
-      e.date === d && e.kind === 'fullday' &&
-      (e.scope === 'global' || (toestand.get('activeAssigneeFilter') !== 'all' && e.person === toestand.get('activeAssigneeFilter'))));
+    const uitgesloten = d => !!afh.getHolidayName(d) ||
+      selecties.blokkeringenVoor(toestand.get('avExceptions'), d, toestand.get('activeAssigneeFilter'), 'fullday').length > 0;
     const { dagen: weekDates, extraVoor } = window.bouwDagen({
       weekStart: localISO(weekStart),
       vandaag: localISO(today),
