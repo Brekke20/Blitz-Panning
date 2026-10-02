@@ -272,6 +272,59 @@ test.describe('annuleren verzenden (verstuurAnnulatie)', () => {
   });
 });
 
+test.describe('annuleervenster: Escape, focus en achtergrondklik', () => {
+  const focusBinnen = (page) => page.evaluate(() => document.getElementById('annuleer-overlay').contains(document.activeElement)
+    && document.activeElement !== document.getElementById('annuleer-overlay') ? document.activeElement.id : null);
+
+  test('focus binnen bij openen, Tab-val rond, Escape sluit en geeft de focus terug aan de opener', async ({ page, verzoeken }) => {
+    await start(page, verzoeken, { paden: ['/api/annuleer'] });
+    await openViaDetail(page);
+    // Eerste knop (niet het tekstveld) krijgt de focus.
+    await expect.poll(() => focusBinnen(page)).toBe('annuleer-sluit');
+    // Zonder reden is "Afspraak annuleren" disabled: de laatste focusbare knop is "Terug".
+    await page.locator('#annuleer-terug').focus();
+    await page.keyboard.press('Tab');
+    expect(await focusBinnen(page)).toBe('annuleer-sluit');
+    await page.keyboard.press('Shift+Tab');
+    expect(await focusBinnen(page)).toBe('annuleer-terug');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#annuleer-overlay')).not.toHaveClass(/open/);
+    await expect(page.locator('#det-overlay')).toHaveClass(/open/); // enkel het bovenste venster sluit
+    await expect(page.locator('#d-btn-annuleer')).toBeFocused();
+  });
+
+  test('klik op de achtergrond sluit, klik in de inhoud niet', async ({ page, verzoeken }) => {
+    await start(page, verzoeken, { paden: ['/api/annuleer'] });
+    await openViaDetail(page);
+    await venster(page).locator('#annuleer-label').click();
+    await expect(page.locator('#annuleer-overlay')).toHaveClass(/open/);
+    await page.locator('#annuleer-overlay').click({ position: { x: 2, y: 2 } });
+    await expect(page.locator('#annuleer-overlay')).not.toHaveClass(/open/);
+  });
+
+  test('tijdens het versturen (busy) sluiten Escape en achtergrondklik niet', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/annuleer'] });
+    let geef;
+    const vast = new Promise(r => { geef = r; });
+    z.zetAntwoord('annuleer', async ({ methode, body }) => {
+      if (methode === 'GET') return { status: 200, json: { redenen: [{ code: 'ziek', label: REDEN_ZIEK }] } };
+      await vast;
+      return { status: 200, json: { ok: true, emailSent: { ...ZONDER_MAIL, contact: body.mailKlant }, fouten: [] } };
+    });
+    await openViaDetail(page);
+    await kiesReden(page);
+    await verstuurKnop(page).click();
+    await expect.poll(() => annuleerPosts(z, 'echt').length).toBe(1);
+    await expect(verstuurKnop(page)).toHaveText('Bezig…');
+    await page.keyboard.press('Escape');
+    await page.locator('#annuleer-overlay').click({ position: { x: 2, y: 2 } });
+    await expect(page.locator('#annuleer-overlay')).toHaveClass(/open/);
+    geef();
+    await expect(toastTekst(page)).toHaveText('Afspraak geannuleerd — klant verwittigd per mail');
+    await naSucces(page);
+  });
+});
+
 test.describe('annuleren: foutpaden en bijzondere antwoorden', () => {
   test('409 nietGepland: venster blijft open, keuze Nee voorgeselecteerd, daarna opruimen lukt', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { paden: ['/api/annuleer'], httpFouten: [{ pad: '/api/annuleer', status: 409 }] });
