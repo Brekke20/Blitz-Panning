@@ -253,6 +253,19 @@ test.describe('instellingen: tab Beschikbaarheden', () => {
     await expect(modal.getByRole('button', { name: '👥 Iedereen' })).toBeDisabled();
   });
 
+  test('datumvelden van de tab (data-wijzig): een echte change-gebeurtenis bubbelt tot het private veld en overleeft het hertekenen', async ({ page }) => {
+    await startApp(page);
+    const modal = await openTab(page);
+    await modal.locator('#bav-date').fill('2026-10-14');
+    await modal.locator('#bav-multiday').check(); // hertekent het formulier
+    await modal.locator('#bav-date-tot').fill('2026-10-16');
+    await modal.getByRole('button', { name: '⏱ Tijdvak' }).click(); // hertekent opnieuw
+    await expect(modal.locator('#bav-date')).toHaveValue('2026-10-14');
+    await modal.getByRole('button', { name: '🔒 Hele dag' }).click();
+    await modal.locator('#bav-multiday').check();
+    await expect(modal.locator('#bav-date-tot')).toHaveValue('2026-10-16'); // het private veld (bavSetKind wist enkel het vinkje) bleef bewaard
+  });
+
   test('persoon zonder blokkades: de lege melding noemt de persoon', async ({ page }) => {
     await startApp(page);
     const modal = await openTab(page);

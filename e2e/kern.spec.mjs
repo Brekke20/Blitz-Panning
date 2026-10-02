@@ -303,13 +303,13 @@ test.describe('kern: api-payloads', () => {
   test('beschikbaarheid bewaren: PUT met versie en exceptions', async ({ page, verzoeken }) => {
     await startApp(page, { rol: 'coordinator' });
     const ex = { id: 'ex-1', scope: 'all', person: null, date: '2026-10-09', kind: 'full', from: null, to: null, reason: 'Test' };
-    const ok = await page.evaluate(async (e) => { kern.toestand.set('avExceptions', [e]); return saveAvailability(); }, ex);
+    const ok = await page.evaluate(async (e) => { kern.toestand.set('avExceptions', [e]); return kern.beschikbaarheid.saveAvailability(); }, ex);
     expect(ok).toBe(true);
     const puts = verzoeken.van('/api/availability', 'PUT');
     expect(puts).toHaveLength(1);
     expect(puts[0].body).toEqual({ versie: 0, exceptions: [ex] });
     expect(puts[0].headers).toEqual({ 'content-type': JSON_CT, 'x-blitz-test': '1' });
-    expect(await page.evaluate(() => avVersie)).toBe(1);
+    expect(await page.evaluate(() => kern.beschikbaarheid.versie())).toBe(1);
   });
 
   test('plan deze week: matrix-verzoek volledig', async ({ page, verzoeken }) => {

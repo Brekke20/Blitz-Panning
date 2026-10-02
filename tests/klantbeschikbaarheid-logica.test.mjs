@@ -51,3 +51,7 @@ test('verouderdeKbIds: enkel niet-levende entries ouder dan 90 dagen; zonder dat
   };
   assert.deepEqual(verouderdeKbIds(items, new Set(['oudLevend']), nu), ['oudDood', 'zonderDatum']);
 });
+
+test('voegSamenKb: lokaal verwijderd id dat nergens staat, met lege server-stand, geeft een lege stand', () => {
+  assert.deepEqual(voegSamenKb({}, { A: 1 }, new Set(['A'])), {});
+});

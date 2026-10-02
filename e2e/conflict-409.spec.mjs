@@ -390,6 +390,81 @@ test.describe('409-conflicten bij opslaan', () => {
     await verwacht409(consoleFouten, '/api/klantbeschikbaarheid');
   });
 
+  // Een bestaande klantbeschikbaarheid-entry voor ticket 1001 (t1), die de server na een 409 nog heeft.
+  const KB_T1 = { voorkeur: null, voorkeurTijd: null, geblokkeerd: ['2026-10-09'], notitie: '', bijgewerkt: '2026-10-05T08:00:00.000Z' };
+
+  async function wisKbDatum(page) {
+    await page.getByRole('button', { name: 'Open ticket #1001' }).click();
+    const detail = page.getByRole('dialog', { name: /Laadpaal offline na stroomuitval/ });
+    await expect(detail).toBeVisible();
+    await expect(detail.locator('.kb-chip')).toContainText('2026-10-09');
+    await detail.getByRole('button', { name: 'Verwijder 2026-10-09' }).click();
+    await detail.getByRole('button', { name: '✓ Opslaan' }).click();
+    return detail;
+  }
+
+  test('klantbeschikbaarheid: een lokaal gewiste entry komt na de 409-merge en retry niet terug (kbLocallyDeleted)', async ({ page, verzoeken, consoleFouten }) => {
+    const COLLEGA_ITEM = { geblokkeerd: ['2026-10-12'] };
+    let puts = 0;
+    let stand = { versie: 1, items: { t1: KB_T1 } };
+    await startApp(page, {
+      overschrijf: {
+        klantbeschikbaarheid: ({ methode, body }) => {
+          if (methode !== 'PUT') return { status: 200, json: stand };
+          puts++;
+          if (puts === 1) {
+            // De server heeft t1 nog en kent een extra item van een collega.
+            stand = { versie: 5, items: { t1: KB_T1, t2: COLLEGA_ITEM } };
+            return { status: 409, json: { error: 'Versiematch mislukt', serverVersie: 5, data: stand } };
+          }
+          stand = { versie: stand.versie + 1, items: body.items };
+          return { status: 200, json: stand };
+        },
+      },
+    });
+    const detail = await wisKbDatum(page);
+
+    await expect(page.getByText('✓ Klantbeschikbaarheid opgeslagen')).toBeVisible();
+    const verstuurd = verzoeken.van('/api/klantbeschikbaarheid', 'PUT');
+    expect(verstuurd).toHaveLength(2);
+    expect(verstuurd[0].body.items).toEqual({}); // eerste poging: t1 is leeg en dus weg
+    // Retry op de server-versie: het item van de collega blijft, t1 komt NIET terug uit de server-stand.
+    expect(verstuurd[1].body.versie).toBe(5);
+    expect(verstuurd[1].body.items).toEqual({ t2: COLLEGA_ITEM });
+    expect(await page.evaluate(() => Object.keys(kern.toestand.get('klantBeschikbaarheid')))).toEqual(['t2']);
+    await expect(detail.locator('.kb-chip')).toHaveCount(0);
+    await verwacht409(consoleFouten, '/api/klantbeschikbaarheid');
+  });
+
+  test('klantbeschikbaarheid: mislukt de retry na de 409 (500), dan draait saveKbAll de lokale wijziging terug', async ({ page, verzoeken, consoleFouten }) => {
+    let puts = 0;
+    let stand = { versie: 1, items: { t1: KB_T1 } };
+    await startApp(page, {
+      overschrijf: {
+        klantbeschikbaarheid: ({ methode }) => {
+          if (methode !== 'PUT') return { status: 200, json: stand };
+          puts++;
+          if (puts === 1) {
+            stand = { versie: 5, items: { t1: KB_T1, t2: { geblokkeerd: ['2026-10-12'] } } };
+            return { status: 409, json: { error: 'Versiematch mislukt', serverVersie: 5, data: stand } };
+          }
+          return { status: 500, json: { error: 'kapot' } };
+        },
+      },
+    });
+    const detail = await wisKbDatum(page);
+
+    await expect(page.getByText('✕ Klantbeschikbaarheid opslaan mislukt')).toBeVisible();
+    expect(verzoeken.van('/api/klantbeschikbaarheid', 'PUT')).toHaveLength(2);
+    // Terugdraaien: t1 staat weer zoals voor de poging (ook al had de 409-merge de stand vervangen); het concept blijft staan.
+    expect(await page.evaluate(() => kern.toestand.get('klantBeschikbaarheid').t1)).toEqual(KB_T1);
+    await expect(detail.getByRole('button', { name: '✓ Opslaan' })).toBeEnabled();
+    await expect(detail.locator('.kb-chip')).toHaveCount(0);
+    await verwacht409(consoleFouten, '/api/klantbeschikbaarheid');
+    await verwachtStatus(consoleFouten, '/api/klantbeschikbaarheid', 500, 1);
+    await verwachtAppFout(consoleFouten, 'Klantbeschikbaarheid opslaan mislukt');
+  });
+
   test('een normale opslag stuurt de versie mee en loopt op bij elke geslaagde PUT', async ({ page, verzoeken }) => {
     await startApp(page);
     await page.getByRole('tab', { name: 'Kalender' }).click();
