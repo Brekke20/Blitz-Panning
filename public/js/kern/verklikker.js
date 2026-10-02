@@ -9,6 +9,8 @@ import { TEST_MODE } from './omgeving.js';
 // scroll-event zonder recente gebruikersinvoer/tabwissel) gaat één diagnostische regel naar
 // /api/client-log (max 5 per paginalading, geen persoonsgegevens: enkel functienamen en tijden).
 var _sjRing = [], _sjInvoer = 0, _sjSetTab = 0, _sjVerstuurd = 0, _sjPos = {};
+// Alleen-lezen kopie van de ringbuffer (voor de unit-test).
+export function sjRecent() { return _sjRing.slice(); }
 export function sjLog(wat) { // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
   _sjRing.push({ t: Date.now(), wat });
   if (_sjRing.length > 15) _sjRing.shift();

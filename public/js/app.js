@@ -4,7 +4,7 @@
 // van dit bestand nodig hadden, staat in kern/opslag.js, kern/verklikker.js, kern/ui.js (metBehoudScroll) of komt via
 // `afh`. Cyclusregel: schermmodules importeren dit bestand nooit; dit bestand importeert uit hen.
 // Een module draait na het parsen en vóór DOMContentLoaded, in documentvolgorde (zoals het `defer`-script); de
-// voormalige DOMContentLoaded-handler heet nu `opstart()` en start onderaan dit bestand (zie daar).
+// voormalige DOMContentLoaded-handler heet nu `opstart()` en wordt onderaan dit bestand geregistreerd (zie daar).
 import { toestand } from './kern/toestand.js';
 import { TEST_MODE } from './kern/omgeving.js';
 import { localISO, extractLocalHour } from './kern/tijd.js';
@@ -128,8 +128,9 @@ if (!localStorage.getItem('blitz_mig_startloc_v1')) {
   localStorage.setItem('blitz_mig_startloc_v1', '1');
 }
 
-// De opstartreeks draait bij DOMContentLoaded; staat het document al klaar (een module die laat laadt), dan meteen. Het starten
-// gebeurt onderaan dit bestand, nadat alle `const`/`let` van deze module bestaan.
+// De opstartreeks (voorheen de DOMContentLoaded-handler van het klassieke script). Een module-script draait vóór DOMContentLoaded
+// (readyState is dan 'interactive'), dus de handler wordt, net als vroeger, pas na het parsen en na alle modules uitgevoerd.
+// Het registreren gebeurt onderaan dit bestand, nadat alle `const`/`let` van deze module bestaan.
 function opstart() {
   // Klantbeschikbaarheid (schermen/klantbeschikbaarheid.js): laden, bewaren en de sectie in het detail; vóór de schermen die ze lezen.
   // Beschikbaarheid (schermen/beschikbaarheid.js): blokkeringsvenster en instellingen-tab; vóór de schermen die ze openen.
@@ -622,8 +623,7 @@ function buildPersonSelector() {
   agents.forEach(agent => {
     const item = document.createElement('button');
     item.className = `pm-item${get('activeAssigneeFilter') === agent ? ' active' : ''}`;
-    const firstName = agent.split(' ')[0];
-    item.innerHTML = `<div class="pm-avatar">${initials(agent)}</div><div class="pm-item-info"><div class="pm-item-name">${agent}</div><div class="pm-item-sub">Persoonlijke get('planning')</div></div>`;
+    item.innerHTML = `<div class="pm-avatar">${initials(agent)}</div><div class="pm-item-info"><div class="pm-item-name">${agent}</div><div class="pm-item-sub">Persoonlijke planning</div></div>`;
     item.onclick = () => selectPerson(agent);
     menu.appendChild(item);
   });
@@ -666,7 +666,7 @@ function selectPerson(name) {
 // Bewust GEEN abonnement op voorstelStatus, klantBeschikbaarheid en settings: er hangt geen
 // uniforme render-keten aan (de plaatsen die ze schrijven, hertekenen zelf wat ze nodig hebben).
 // Het route-abonnement dekt wel planning en localEvents (etappe 3): elke in-place schrijf op planning roept raak('planning') aan.
-// Moet via arrow-functies naar de globale renders verwijzen (late binding; de e2e-teller wikkelt ze om).
+// De abonnees verwijzen via arrow-functies naar de renders van de schermmodules (kern.<scherm>.renderTelling() telt in de modules zelf).
 function koppelRenders() {
   const st = toestand;
   st.spoel(); // beginwaarden van vóór de koppeling mogen niets hertekenen
@@ -851,5 +851,4 @@ function toggleTheme() {
 
 // Escape/focusval per venster: zie public/js/venster.js
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', opstart);
-else opstart();
+document.addEventListener('DOMContentLoaded', opstart);

@@ -63,6 +63,27 @@ test.describe('hoofdtabs', () => {
   });
 });
 
+test.describe('persoonkiezer', () => {
+  test('het menu toont de exacte teksten en selectPerson zet de filter en de kop', async ({ page }) => {
+    await startApp(page, { rol: 'coordinator' });
+    await page.locator('#person-btn').click();
+    const items = page.locator('#person-menu .pm-item');
+    await expect(items).toHaveCount(3); // Alle technici, Roel, Tim (alfabetisch)
+    await expect(items.locator('.pm-item-name')).toHaveText(['Alle technici', 'Roel', 'Tim']);
+    await expect(items.locator('.pm-item-sub')).toHaveText(['Gecombineerde weergave', 'Persoonlijke planning', 'Persoonlijke planning']);
+    await expect(items.locator('.pm-avatar')).toHaveText(['A', 'R', 'T']);
+    await expect(items.nth(0)).toHaveClass(/active/);
+    await items.nth(2).click(); // Tim
+    await expect(page.locator('#person-name-hdr')).toHaveText('Tim');
+    await expect(page.locator('#person-avatar-hdr')).toHaveText('T');
+    expect(await page.evaluate(() => localStorage.getItem('blitz_active_person'))).toBe('Tim');
+    await expect(page.locator('#person-menu')).not.toHaveClass(/open/);
+    await page.locator('#person-btn').click();
+    await expect(page.locator('#person-menu .pm-item.active .pm-item-name')).toHaveText('Tim');
+    await expect(page.locator('#person-menu .pm-item.active .pm-item-sub')).toHaveText('Persoonlijke planning');
+  });
+});
+
 test.describe('Rapporten-kop en wizardknoppen', () => {
   test('Herladen vraagt het rapportarchief opnieuw op', async ({ page, verzoeken }) => {
     await startApp(page, { rol: 'coordinator' });
