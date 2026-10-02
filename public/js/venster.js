@@ -88,8 +88,7 @@ window.vensterBeheer = { registreer, sluitBovenste };
 // Bestaande vensters. Sluitfuncties zijn globals (classic script of window.*); lazy opgezocht.
 const sluitVia = naam => () => window[naam]?.();
 [
-  ['set-overlay', 'closeSettings'],
   ['result-overlay', 'closeResult'],
   ['rapport-preview-overlay', 'closeRapportPreview'], ['foto-overlay', 'closeFotoModal'],
-  ['prijs-overlay', 'closePrijsBeheer'], ['rapport-wizard', 'closeWizard'],
+  ['rapport-wizard', 'closeWizard'],
 ].forEach(([id, fn]) => registreer({ el: document.getElementById(id), sluit: sluitVia(fn) }));

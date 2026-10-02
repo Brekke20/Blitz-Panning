@@ -252,17 +252,17 @@
 </div>
 
 <!-- Instellingen modal -->
-<div class="overlay" id="set-overlay" onclick="closeSettings(event)">
+<div class="overlay" id="set-overlay">
   <div class="modal" id="set-modal" role="dialog" aria-modal="true" aria-labelledby="set-titel">
     <div class="mhdr">
-      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeSettings()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" data-actie="set-sluit" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title" id="set-titel" role="heading" aria-level="2">⚙️ Instellingen</div>
       <div class="mhdr-num coord-only" id="set-person-label" style="font-size:0.78rem;color:var(--accent-ink);margin-top:2px"></div>
     </div>
     <div class="set-subtabs">
-      <button class="set-subtab active coord-only" id="set-subtab-algemeen" onclick="setSettingsTab('algemeen')">Algemeen</button>
-      <button class="set-subtab coord-only" id="set-subtab-beschikbaarheden" onclick="setSettingsTab('beschikbaarheden')">Beschikbaarheden</button>
-      <button class="set-subtab" id="set-subtab-toestel" onclick="setSettingsTab('toestel')">Dit toestel</button>
+      <button class="set-subtab active coord-only" id="set-subtab-algemeen" data-actie="set-tab" data-arg="algemeen">Algemeen</button>
+      <button class="set-subtab coord-only" id="set-subtab-beschikbaarheden" data-actie="set-tab" data-arg="beschikbaarheden">Beschikbaarheden</button>
+      <button class="set-subtab" id="set-subtab-toestel" data-actie="set-tab" data-arg="toestel">Dit toestel</button>
     </div>
     <div class="mbody" id="set-tab-algemeen">
       <div class="set-field">
@@ -322,27 +322,27 @@
       </div>
       <div class="set-field" role="radiogroup" aria-labelledby="set-rol-label">
         <label class="set-label" id="set-rol-label">Rol op dit toestel</label>
-        <label class="set-row"><input type="radio" name="set-rol" value="coordinator" onchange="kiesToestelRol(this.value)"> <span>Coördinator</span></label>
-        <label class="set-row"><input type="radio" name="set-rol" value="technieker" onchange="kiesToestelRol(this.value)"> <span>Technieker</span></label>
+        <label class="set-row"><input type="radio" name="set-rol" value="coordinator" data-wijzig="set-toestel-rol" data-arg="coordinator"> <span>Coördinator</span></label>
+        <label class="set-row"><input type="radio" name="set-rol" value="technieker" data-wijzig="set-toestel-rol" data-arg="technieker"> <span>Technieker</span></label>
       </div>
       <div class="set-field" role="radiogroup" aria-labelledby="set-weergave-label">
         <label class="set-label" id="set-weergave-label">Weergave</label>
-        <label class="set-row"><input type="radio" name="set-weergave" value="auto" onchange="kiesToestelWeergave(this.value)"> <span>Automatisch</span></label>
-        <label class="set-row"><input type="radio" name="set-weergave" value="gsm" onchange="kiesToestelWeergave(this.value)"> <span>Gsm</span></label>
-        <label class="set-row"><input type="radio" name="set-weergave" value="tablet" onchange="kiesToestelWeergave(this.value)"> <span>Tablet</span></label>
-        <label class="set-row"><input type="radio" name="set-weergave" value="computer" onchange="kiesToestelWeergave(this.value)"> <span>Computer</span></label>
+        <label class="set-row"><input type="radio" name="set-weergave" value="auto" data-wijzig="set-toestel-weergave" data-arg="auto"> <span>Automatisch</span></label>
+        <label class="set-row"><input type="radio" name="set-weergave" value="gsm" data-wijzig="set-toestel-weergave" data-arg="gsm"> <span>Gsm</span></label>
+        <label class="set-row"><input type="radio" name="set-weergave" value="tablet" data-wijzig="set-toestel-weergave" data-arg="tablet"> <span>Tablet</span></label>
+        <label class="set-row"><input type="radio" name="set-weergave" value="computer" data-wijzig="set-toestel-weergave" data-arg="computer"> <span>Computer</span></label>
       </div>
       <div style="font-size:0.78rem;color:var(--muted)">Deze keuzes gelden enkel voor dit toestel. De rol verbergt knoppen maar is geen beveiliging.</div>
       <div class="set-field" id="set-testdata-blok" style="display:none;margin-top:16px">
         <label class="set-label">Testgegevens</label>
         <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">Je werkt in testmodus met een kopie van de echte gegevens.</div>
-        <button type="button" class="btn btn--secondary" id="set-testdata-btn" onclick="resetTestdata()">Testgegevens opnieuw kopiëren</button>
+        <button type="button" class="btn btn--secondary" id="set-testdata-btn" data-actie="set-reset-testdata">Testgegevens opnieuw kopiëren</button>
       </div>
     </div>
     <div class="mftr">
-      <button class="btn btn--secondary coord-only" onclick="openPrijsBeheer()" title="Beheer productprijzen">💰 Prijzen</button>
-      <button class="btn btn--secondary" onclick="closeSettings()">Annuleren</button>
-      <button class="btn btn--primary" id="set-save-btn" onclick="saveSettings()">Opslaan</button>
+      <button class="btn btn--secondary coord-only" data-actie="set-prijsbeheer" title="Beheer productprijzen">💰 Prijzen</button>
+      <button class="btn btn--secondary" data-actie="set-sluit">Annuleren</button>
+      <button class="btn btn--primary" id="set-save-btn" data-actie="set-opslaan">Opslaan</button>
     </div>
   </div>
 </div>
@@ -362,20 +362,20 @@
 </div>
 
 <!-- Prijsbeheer admin modal -->
-<div class="overlay" id="prijs-overlay" onclick="closePrijsBeheer(event)">
+<div class="overlay" id="prijs-overlay">
   <div class="modal" id="prijs-modal" role="dialog" aria-modal="true" aria-labelledby="prijs-titel">
     <div id="prijs-editor" style="display:none;flex-direction:column;flex:1;min-height:0">
       <div class="prijs-hdr">
         <div class="prijs-hdr-title" id="prijs-titel" role="heading" aria-level="2">💰 Prijsbeheer</div>
         <div class="prijs-hdr-meta" id="prijs-meta">—</div>
-        <button class="prijs-hdr-close" onclick="closePrijsBeheer()" title="Sluiten" aria-label="Sluiten">✕</button>
+        <button class="prijs-hdr-close" data-actie="prijs-sluit" title="Sluiten" aria-label="Sluiten">✕</button>
       </div>
       <div class="prijs-body" id="prijs-body">
         <!-- Ingevuld door renderPrijsEditor() -->
       </div>
       <div class="prijs-ftr">
-        <button class="btn-cancel" onclick="prijsReset()">Ongedaan maken</button>
-        <button class="btn-save"   id="prijs-save-btn" onclick="prijsOpslaan()">Opslaan</button>
+        <button class="btn-cancel" data-actie="prijs-reset">Ongedaan maken</button>
+        <button class="btn-save"   id="prijs-save-btn" data-actie="prijs-opslaan">Opslaan</button>
       </div>
     </div>
   </div>
@@ -762,52 +762,7 @@ function duurVoor(id) {
 localStorage.removeItem('blitz_blocked');
 localStorage.removeItem('blitz_blocked_days');
 
-const DEFAULT_SETTINGS = {
-  startlocatie:   'Heirbaan 9, 9150 Kruibeke',
-  duurMinuten:    120,
-  maxPerDag:      4,
-  vanTijd:        '08:00',
-  totTijd:        '17:00',
-  laatsteStart:   '16:00', // laatste aankomsttijd die de planner mag kiezen
-  werkdagen:      [1,2,3,4,5],
-  maxReistijdMin: 45,
-  tijdslotMinuten: 180, // 3 uur — configureerbaar tijdvak i.p.v. exact tijdstip (Blok 1C)
-  kaartStijl:     'standaard',
-  routeKleur:     '#f59e0b',
-  drukteKleuring: true,
-};
-
-function settingsKey(person) {
-  return person && person !== 'all' ? `blitz_settings_${person}` : 'blitz_settings';
-}
-// R8: "Laatste start" is één instelling voor iedereen — eigen sleutel, los van de gekozen technieker.
-// Eerder per persoon opgeslagen waarden worden genegeerd.
-const LAATSTE_START_KEY = 'blitz_laatste_start';
-function leesLaatsteStart() {
-  let v = null;
-  try { v = localStorage.getItem(LAATSTE_START_KEY); } catch { /* opslag niet beschikbaar */ }
-  return /^\d{2}:\d{2}$/.test(v || '') ? v : DEFAULT_SETTINGS.laatsteStart;
-}
-function bewaarLaatsteStart(v) {
-  try { localStorage.setItem(LAATSTE_START_KEY, v); } catch { /* quota vol — best-effort */ }
-}
-function loadPersonSettings(person) {
-  const saved = JSON.parse(localStorage.getItem(settingsKey(person)) || '{}');
-  return {
-    ...DEFAULT_SETTINGS,
-    ...saved,
-    laatsteStart: leesLaatsteStart(),
-    // Lege strings mogen de default niet overschrijven
-    startlocatie: saved.startlocatie || DEFAULT_SETTINGS.startlocatie,
-    // Eigen array-kopie — anders deelt elke technieker zonder opgeslagen werkdagen
-    // hetzelfde array-object, en muteert openSettings() dat in-place (zie regel ~4148).
-    werkdagen: [...(saved.werkdagen || DEFAULT_SETTINGS.werkdagen)],
-  };
-}
-function savePersonSettings(person) {
-  localStorage.setItem(settingsKey(person), JSON.stringify(settings));
-}
-
+// De instellingen (DEFAULT_SETTINGS, laden en bewaren per technieker) staan in schermen/instellingen.js.
 // settings: gezaaid in DOMContentLoaded (kern-brug laadt pas na het klassieke script)
 
 // ══════════════════════════════════════════════
@@ -822,7 +777,7 @@ if (!localStorage.getItem('blitz_mig_startloc_v1')) {
       try {
         const s = JSON.parse(localStorage.getItem(key) || '{}');
         if (s.startlocatie === OLD) {
-          s.startlocatie = DEFAULT_SETTINGS.startlocatie;
+          s.startlocatie = kern.instellingen.DEFAULT_SETTINGS.startlocatie;
           localStorage.setItem(key, JSON.stringify(s));
         }
       } catch {}
@@ -835,6 +790,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Beschikbaarheid (schermen/beschikbaarheid.js): blokkeringsvenster en instellingen-tab; vóór de schermen die ze openen.
   kern.beschikbaarheid.initBeschikbaarheid({ loadFromCache, saveToCache, sjLog });
   kern.klantbeschikbaarheid.initKlantbeschikbaarheid({ loadFromCache, saveToCache, zetKbDirty: kern.ticketdetail.zetKbIsDirty });
+  // Instellingen (schermen/instellingen.js): instellingenvenster, toesteltab en de knoppen van het prijsbeheer; vóór `settings` gezaaid wordt.
+  kern.instellingen.initInstellingen({
+    openPrijsBeheer: kern.prijzen.openPrijsBeheer, closePrijsBeheer: kern.prijzen.closePrijsBeheer,
+    prijsReset: kern.prijzen.prijsReset, prijsOpslaan: kern.prijzen.prijsOpslaan,
+    renderTickets: kern.wachtrij.renderTickets, renderKalender: kern.kalender.renderKalender, vernieuwKaart: kern.route.vernieuwKaart,
+  });
   // Afspraken (schermen/afspraken.js): eigen afspraken, lokaal detail en import; vóór de schermen die ze openen.
   kern.afspraken.initAfspraken({
     loadFromCache, saveToCache, sjLog, meervoud, navigate, openFotoModal,
@@ -891,13 +852,13 @@ document.addEventListener('DOMContentLoaded', () => {
     renderRouteList: (...a) => renderRouteList(...a), updateRouteBtns: (...a) => updateRouteBtns(...a),
     inFlight: id => inFlightTickets.has(id),
   });
-  kern.toestand.set('settings', loadPersonSettings(localStorage.getItem('blitz_active_person') || 'all'));
+  kern.toestand.set('settings', kern.instellingen.loadPersonSettings(localStorage.getItem('blitz_active_person') || 'all'));
   // Delegatie voor pilot-knoppen (kern-ui)
   kern.ui.registreerActies(document.body, {
     'persoon-menu': () => togglePersonMenu(),
     'vernieuw': () => loadTickets(),
     'thema': () => toggleTheme(),
-    'instellingen': () => openSettings()
+    'instellingen': () => kern.instellingen.openSettings()
   });
 
   // Thema initialiseren (fallback als inline-script niet gelopen heeft)
@@ -931,8 +892,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   kern.route.initKaart({
     instellingen: () => settings,
-    bewaarKaartStijl: () => savePersonSettings(activeAssigneeFilter),
-    standaardRouteKleur: DEFAULT_SETTINGS.routeKleur,
+    bewaarKaartStijl: () => kern.instellingen.savePersonSettings(activeAssigneeFilter),
+    standaardRouteKleur: kern.instellingen.DEFAULT_SETTINGS.routeKleur,
   });
   try {
     initMap();
@@ -1385,7 +1346,7 @@ function valideerActievePersoon(agents = personenUitTickets()) {
   if (activeAssigneeFilter !== 'all' && !agents.includes(activeAssigneeFilter)) {
     activeAssigneeFilter = 'all';
     localStorage.setItem('blitz_active_person', 'all');
-    settings = loadPersonSettings('all');
+    settings = kern.instellingen.loadPersonSettings('all');
     applyKaartStijl();
   }
 }
@@ -1440,7 +1401,7 @@ function selectPerson(name) {
   // De schermen volgen via koppelRenders: kop, selector, wachtrij, kalender, ingepland, route, inventaris.
   kern.toestand.transactie(() => {
     activeAssigneeFilter = name;
-    settings = loadPersonSettings(name);
+    settings = kern.instellingen.loadPersonSettings(name);
     applyKaartStijl();
     localStorage.setItem('blitz_active_person', name);
     zetPersonMenuOpen(false);
@@ -1900,7 +1861,7 @@ async function autoPlan() {
       blokkeringen,
       klant: Object.fromEntries(toplan.map(t => [t.id, kern.klantbeschikbaarheid.kbFor(t.id)]).filter(([, v]) => v)),
       instellingen: {
-        vanTijd: settings.vanTijd, laatsteStart: leesLaatsteStart(), maxPerDag: settings.maxPerDag,
+        vanTijd: settings.vanTijd, laatsteStart: kern.instellingen.leesLaatsteStart(), maxPerDag: settings.maxPerDag,
         maxReistijdMin: settings.maxReistijdMin,
       },
       depot: originCoords || null,
@@ -2112,151 +2073,8 @@ function pasRolBeperkingToe() {
 window.getActiveAssignee = () => activeAssigneeFilter;
 
 // ══════════════════════════════════════════════
-// INSTELLINGEN
+// INSTELLINGEN: schermen/instellingen.js
 // ══════════════════════════════════════════════
-const DAGEN = ['Zo','Ma','Di','Wo','Do','Vr','Za'];
-
-let _settingsActiveTab = 'algemeen';
-
-const SOORT_LABEL = { gsm: 'Gsm', tablet: 'Tablet', computer: 'Computer' };
-// Testmodus: kopie van de echte gegevens opnieuw maken (testwijzigingen gaan verloren)
-async function resetTestdata() {
-  if (!TEST_MODE) return;
-  const ok = await window.appConfirm({
-    titel: 'Testgegevens opnieuw kopiëren?',
-    tekst: 'Alle testwijzigingen gaan verloren. De echte gegevens worden niet aangeraakt.',
-    bevestigLabel: 'Opnieuw kopiëren'
-  });
-  if (!ok) return;
-  const btn = document.getElementById('set-testdata-btn');
-  if (btn) btn.disabled = true;
-  try {
-    const r = await fetch('/api/testdata', { method: 'POST' });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    toast('🧪 Testgegevens opnieuw gekopieerd', 2500);
-    setTimeout(() => location.reload(), 800);
-  } catch (e) {
-    if (btn) btn.disabled = false;
-    toast('Testgegevens kopiëren mislukt — probeer opnieuw', 4000);
-  }
-}
-function vulToestelTab() {
-  const blok = document.getElementById('set-testdata-blok');
-  if (blok) blok.style.display = TEST_MODE ? '' : 'none';
-  const a = window.apparaat;
-  if (!a) return;
-  let tekst = `Herkend als: ${SOORT_LABEL[a.automatischeSoort] || a.automatischeSoort} · ${a.staand ? 'rechtop' : 'liggend'} · ${a.aanraak ? 'aanraakscherm' : 'muis/trackpad'}`;
-  if (a.soort !== a.automatischeSoort) tekst += ` (handmatig: ${SOORT_LABEL[a.soort] || a.soort})`;
-  const el = document.getElementById('set-toestel-status');
-  if (el) el.textContent = tekst;
-  document.querySelectorAll('input[name="set-rol"]').forEach(r => { r.checked = r.value === a.rol; });
-  let w = 'auto';
-  try { const o = localStorage.getItem('blitz_weergave'); if (o === 'gsm' || o === 'tablet' || o === 'computer') w = o; } catch {}
-  document.querySelectorAll('input[name="set-weergave"]').forEach(r => { r.checked = r.value === w; });
-}
-// Direct bijwerken (naast de apparaatwijziging-listener): als de keuze de effectieve staat niet wijzigt
-// komt er geen event en zou "(handmatig: X)" achterblijven. vulToestelTab is goedkoop en idempotent.
-function kiesToestelRol(r) { window.zetRol(r); vulToestelTab(); }
-function kiesToestelWeergave(w) { window.zetWeergave(w); vulToestelTab(); }
-window.addEventListener('apparaatwijziging', () => {
-  if (!document.getElementById('set-overlay').classList.contains('open')) return;
-  if (window.apparaat?.rol === 'technieker' && _settingsActiveTab !== 'toestel') setSettingsTab('toestel');
-  else vulToestelTab();
-});
-
-function setSettingsTab(tab) {
-  if (window.apparaat?.rol === 'technieker') tab = 'toestel';
-  _settingsActiveTab = tab;
-  document.getElementById('set-subtab-toestel').classList.toggle('active', tab === 'toestel');
-  document.getElementById('set-tab-toestel').style.display = tab === 'toestel' ? '' : 'none';
-  if (tab === 'toestel') vulToestelTab();
-  document.getElementById('set-subtab-algemeen').classList.toggle('active', tab === 'algemeen');
-  document.getElementById('set-subtab-beschikbaarheden').classList.toggle('active', tab === 'beschikbaarheden');
-  document.getElementById('set-tab-algemeen').style.display = tab === 'algemeen' ? '' : 'none';
-  document.getElementById('set-tab-beschikbaarheden').style.display = tab === 'beschikbaarheden' ? '' : 'none';
-  document.getElementById('set-save-btn').style.display = tab === 'algemeen' ? '' : 'none';
-  if (tab === 'beschikbaarheden') kern.beschikbaarheid.renderBeschikbaarhedenTab();
-}
-
-function openSettings() {
-  setSettingsTab(window.apparaat?.rol === 'technieker' ? 'toestel' : 'algemeen');
-  const who = activeAssigneeFilter === 'all' ? 'Standaard (alle technici)' : activeAssigneeFilter;
-  document.getElementById('set-person-label').textContent = `Instellingen voor: ${who}`;
-  document.getElementById('set-start').value    = settings.startlocatie;
-  document.getElementById('set-duration').value = settings.duurMinuten;
-  document.getElementById('set-max').value      = settings.maxPerDag;
-  document.getElementById('set-maxreistijd').value = settings.maxReistijdMin;
-  document.getElementById('set-van').value      = settings.vanTijd;
-  document.getElementById('set-tot').value      = settings.totTijd;
-  document.getElementById('set-laatste-start').value = leesLaatsteStart(); // R8: zelfde waarde voor elke technieker
-  document.getElementById('set-tijdslot').value = settings.tijdslotMinuten;
-  document.getElementById('set-routekleur').value = settings.routeKleur || DEFAULT_SETTINGS.routeKleur;
-  document.getElementById('set-routekleur-hex').textContent = (settings.routeKleur || DEFAULT_SETTINGS.routeKleur).toUpperCase();
-  document.getElementById('set-drukte').checked   = settings.drukteKleuring !== false;
-  const grid = document.getElementById('days-grid');
-  grid.innerHTML = '';
-  DAGEN.forEach((dag, i) => {
-    const btn = document.createElement('button');
-    btn.className   = 'day-btn' + (settings.werkdagen.includes(i) ? ' on' : '');
-    btn.textContent = dag;
-    btn.setAttribute('aria-pressed', settings.werkdagen.includes(i) ? 'true' : 'false');
-    btn.onclick     = () => {
-      const idx = settings.werkdagen.indexOf(i);
-      if (idx >= 0) settings.werkdagen.splice(idx, 1); else settings.werkdagen.push(i);
-      btn.classList.toggle('on');
-      zetPressed(btn, btn.classList.contains('on'));
-    };
-    grid.appendChild(btn);
-  });
-  document.getElementById('set-overlay').classList.add('open');
-}
-
-function closeSettings(e) {
-  if (e && e.target !== document.getElementById('set-overlay')) return;
-  document.getElementById('set-overlay').classList.remove('open');
-}
-
-function saveSettings() {
-  const duur            = +document.getElementById('set-duration').value;
-  const max             = +document.getElementById('set-max').value;
-  const van             = document.getElementById('set-van').value;
-  const tot             = document.getElementById('set-tot').value;
-  const laatsteStart    = document.getElementById('set-laatste-start').value;
-  const maxReistijd     = +document.getElementById('set-maxreistijd').value;
-  const tijdslotMinuten = +document.getElementById('set-tijdslot').value;
-
-  if (van && tot && van >= tot) return toast('⚠ Begintijd moet voor eindtijd liggen', 3500);
-  if (laatsteStart && (laatsteStart < (van || DEFAULT_SETTINGS.vanTijd) || laatsteStart > (tot || DEFAULT_SETTINGS.totTijd))) return toast('⚠ Laatste start moet tussen begin- en eindtijd liggen', 3500);
-  if (duur < 15)                return toast('⚠ Minimale interventieduur is 15 minuten', 3500);
-  if (max < 1)                  return toast('⚠ Maximaal per dag moet minstens 1 zijn', 3500);
-  if (maxReistijd < 0)          return toast('⚠ Max. reistijd kan niet negatief zijn', 3500);
-  // Fix 7 (finale review): ontbrekende guard voor tijdslotMinuten -- elk ander numeriek veld hier
-  // heeft er één, en een negatieve/te kleine waarde laat tijdslotVoor() omgekeerde tijdvak-labels
-  // produceren (bv. "08:00–07:30") in klant-gerichte mails. Grens komt overeen met het HTML-veld
-  // zijn eigen min="60"-attribuut.
-  if (tijdslotMinuten < 60)     return toast('⚠ Tijdslot moet minstens 60 minuten zijn', 3500);
-  if (!settings.werkdagen.length) return toast('⚠ Selecteer minstens één werkdag', 3500);
-
-  settings.startlocatie   = document.getElementById('set-start').value.trim() || DEFAULT_SETTINGS.startlocatie;
-  settings.duurMinuten    = duur || DEFAULT_SETTINGS.duurMinuten;
-  settings.maxPerDag      = max  || DEFAULT_SETTINGS.maxPerDag;
-  settings.vanTijd        = van  || DEFAULT_SETTINGS.vanTijd;
-  settings.totTijd        = tot  || DEFAULT_SETTINGS.totTijd;
-  settings.laatsteStart   = laatsteStart || DEFAULT_SETTINGS.laatsteStart;
-  bewaarLaatsteStart(settings.laatsteStart); // R8: één waarde voor iedereen
-  settings.maxReistijdMin = maxReistijd || maxReistijd === 0 ? maxReistijd : DEFAULT_SETTINGS.maxReistijdMin;
-  settings.tijdslotMinuten = parseInt(document.getElementById('set-tijdslot').value, 10) || DEFAULT_SETTINGS.tijdslotMinuten;
-  const routeKleurInput = document.getElementById('set-routekleur').value;
-  settings.routeKleur    = /^#[0-9a-f]{6}$/i.test(routeKleurInput) ? routeKleurInput : DEFAULT_SETTINGS.routeKleur;
-  settings.drukteKleuring = document.getElementById('set-drukte').checked;
-  savePersonSettings(activeAssigneeFilter);
-  document.getElementById('set-overlay').classList.remove('open');
-  renderTickets();
-  renderKalender();
-  // Kleur/drukte meteen zichtbaar wisselen als er al een berekende route staat
-  kern.route.vernieuwKaart();
-  toast('✓ Instellingen opgeslagen voor ' + (activeAssigneeFilter === 'all' ? 'alle technici' : activeAssigneeFilter.split(' ')[0]));
-}
 
 async function openFotoModal(ticketId) {
   if (!ticketId) return;

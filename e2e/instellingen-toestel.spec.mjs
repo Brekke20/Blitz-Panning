@@ -63,7 +63,7 @@ test.describe('instellingen: tab Dit toestel', () => {
     await expect(modal.locator('#set-subtab-beschikbaarheden')).toBeHidden();
     await expect(modal.getByRole('radio', { name: 'Technieker' })).toBeChecked();
     // Ook een expliciete klik op een andere tab laat de technieker op "Dit toestel" (setSettingsTab forceert het).
-    await page.evaluate(() => window.setSettingsTab('algemeen'));
+    await page.evaluate(() => kern.instellingen.setSettingsTab('algemeen'));
     await expect(modal.locator('#set-tab-toestel')).toBeVisible();
     await expect(modal.locator('#set-tab-algemeen')).toBeHidden();
   });
@@ -115,6 +115,24 @@ test.describe('instellingen: tab Dit toestel', () => {
     await modal.getByRole('radio', { name: 'Automatisch' }).check();
     expect(await leesOpslag(page, 'blitz_weergave')).toBe('auto');
     await expect(modal.getByRole('radio', { name: 'Automatisch' })).toBeChecked();
+  });
+
+  test('een echt bubbelend change-event op een toesteluitkeuze (delegatie op document.body) zet rol en weergave', async ({ page }) => {
+    await startApp(page);
+    await openToestel(page);
+    await page.evaluate(() => {
+      const kies = (naam, waarde) => {
+        const r = document.querySelector(`input[name="${naam}"][value="${waarde}"]`);
+        r.checked = true;
+        r.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      kies('set-weergave', 'tablet');
+      kies('set-rol', 'technieker');
+    });
+    expect(await leesOpslag(page, 'blitz_weergave')).toBe('tablet');
+    expect(await leesOpslag(page, 'blitz_rol')).toBe('technieker');
+    await expect(page.locator('html')).toHaveAttribute('data-rol', 'technieker');
+    await expect(page.locator('#set-toestel-status')).toHaveText(/\(handmatig: Tablet\)$/);
   });
 
   test('de weergavekeuze blijft na herladen en wordt in het venster teruggezet', async ({ page }) => {

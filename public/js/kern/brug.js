@@ -20,6 +20,8 @@ import * as annuleren from '../schermen/annuleren.js';
 import * as klantbeschikbaarheid from '../schermen/klantbeschikbaarheid.js';
 import * as beschikbaarheid from '../schermen/beschikbaarheid.js';
 import * as afspraken from '../schermen/afspraken.js';
+import * as instellingen from '../schermen/instellingen.js';
+import { openPrijsBeheer, closePrijsBeheer, prijsReset, prijsOpslaan } from '../prijzen.js';
 
 window.kern = { tijd, ui, selecties, toestand, api };
 window.kern.route = { ...routeTijden, ...routeKaart, ...route };
@@ -34,6 +36,8 @@ window.kern.annuleren = { ...annuleren };
 window.kern.klantbeschikbaarheid = { ...klantbeschikbaarheid };
 window.kern.beschikbaarheid = { ...beschikbaarheid };
 window.kern.afspraken = { ...afspraken };
+window.kern.instellingen = { ...instellingen };
+window.kern.prijzen = { openPrijsBeheer, closePrijsBeheer, prijsReset, prijsOpslaan }; // enkel de venster-knoppen; PRIJZEN is een live `let` in prijzen.js
 
 // LEGACY-BRUG (verdwijnt in etappe 5): oude globale namen voor klassieke code en oudere modules
 Object.assign(window, {
