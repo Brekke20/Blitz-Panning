@@ -77,6 +77,29 @@ export function verwachtHttpFout(verzoeken, fouten) {
   for (const f of fouten) PER_HTTPFOUT.get(o).push({ pad: f.pad, status: f.status, gezien: false });
 }
 
+const PER_NETFOUT = new WeakMap(); // verzoeken -> [{ pad, gezien }]
+
+// Per test een toegelaten netwerkfout (afgebroken of mislukt verzoek, bv. via zetAntwoord(naam, { afbreken: 'failed' })):
+// enkel dit pad is toegelaten als `requestfailed` en als de bijbehorende "Failed to load resource: net::ERR_*"-regel van de
+// browser. De test faalt in afterEach als de fout uitblijft. Elke andere requestfailed blijft een consolefout.
+export function verwachtNetwerkFout(verzoeken, fouten) {
+  let o;
+  try { o = origineelVan(verzoeken); } catch { o = verzoeken; }
+  if (!PER_NETFOUT.has(o)) PER_NETFOUT.set(o, []);
+  for (const f of fouten) PER_NETFOUT.get(o).push({ pad: f.pad, gezien: false });
+}
+
+const PER_CONSOOL = new WeakMap(); // verzoeken -> [{ bevat, gezien }]
+
+// Per test een toegelaten console.error van de app zelf (bv. 'Beschikbaarheid opslaan mislukt:'): een console.error
+// waarvan de tekst `bevat` bevat. Faalt in afterEach als de melding uitblijft. Elke andere console.error blijft een fout.
+export function verwachtConsoleFout(verzoeken, fouten) {
+  let o;
+  try { o = origineelVan(verzoeken); } catch { o = verzoeken; }
+  if (!PER_CONSOOL.has(o)) PER_CONSOOL.set(o, []);
+  for (const f of fouten) PER_CONSOOL.get(o).push({ bevat: f.bevat, gezien: false });
+}
+
 // Niet-GET verzoeken naar de eigen server die niet op de whitelist staan (als 'METHODE /pad').
 export function ongemeldeSchrijfverzoeken(alle, paden) {
   const toegestaan = new Set(paden);
@@ -86,7 +109,8 @@ export function ongemeldeSchrijfverzoeken(alle, paden) {
 }
 
 // Opent de app zonder ?test. `technieker`: 'all' | 'Tim' | 'Roel' (bepaalt de verwachte wachtrijtelling).
-export async function startAppProductie(page, { rol = 'coordinator', technieker = 'all', overschrijf, vasteKlok = false } = {}) {
+// `klok: false` laat de echte klok lopen (enkel voor tests die geen page.clock nodig hebben); standaard staat de nepklok aan.
+export async function startAppProductie(page, { rol = 'coordinator', technieker = 'all', overschrijf, vasteKlok = false, klok = true } = {}) {
   await page.addInitScript(({ rol, technieker }) => {
     if (window !== window.top) return; // sandbox-iframes hebben geen localStorage
     const zet = (k, v) => { if (localStorage.getItem(k) === null) localStorage.setItem(k, v); };
@@ -94,12 +118,12 @@ export async function startAppProductie(page, { rol = 'coordinator', technieker 
     zet('blitz_active_person', technieker);
     zet('blitz_theme', 'dark');
   }, { rol, technieker });
-  await page.clock.install({ time: new Date(VASTE_NU) });
+  if (klok) await page.clock.install({ time: new Date(VASTE_NU) });
   const verzoeken = await stubExtern(page, { overschrijf });
   // Strenge route NA stubExtern: voorrang boven diens host-vangnet (dat o.a. POST naar een CDN doorlaat).
   await strengVangnet(page.context(), verzoeken, { metStubs: true });
   await page.goto('/'); // bewust zonder ?test
-  if (vasteKlok) await page.clock.setFixedTime(new Date(VASTE_NU));
+  if (vasteKlok && klok) await page.clock.setFixedTime(new Date(VASTE_NU));
   await expect(page.locator('#cnt-tickets')).toHaveText(String(TE_PLANNEN[technieker] ?? 0));
   return alleenLezen(verzoeken);
 }
@@ -266,15 +290,24 @@ export const test = basis.extend({
       if (f) f.gezien = true;
       return !!f;
     };
+    const toegelatenNet = () => PER_NETFOUT.get(origineelVan(verzoekenWeergave)) ?? [];
+    const neemNetFout = (url) => {
+      const f = toegelatenNet().find(x => x.pad === padVan(url));
+      if (f) f.gezien = true;
+      return !!f;
+    };
     const context = page.context();
     context.on('console', m => {
       if (m.type() !== 'error') return;
+      if (/^Failed to load resource: net::ERR_\w+/.test(m.text()) && neemNetFout(m.location().url)) return;
+      const eigen = (PER_CONSOOL.get(origineelVan(verzoekenWeergave)) ?? []).find(x => m.text().includes(x.bevat));
+      if (eigen) { eigen.gezien = true; return; }
       const hit = /^Failed to load resource: the server responded with a status of (\d+)/.exec(m.text());
       if (hit && neemToegelaten(m.location().url, Number(hit[1]))) return;
       voegToe(`console.error: ${m.text()} (${m.location().url})`);
     });
     context.on('weberror', w => voegToe(`pageerror: ${w.error().message}`));
-    context.on('requestfailed', r => voegToe(`requestfailed: ${r.url()} (${r.failure()?.errorText})`));
+    context.on('requestfailed', r => { if (!neemNetFout(r.url())) voegToe(`requestfailed: ${r.url()} (${r.failure()?.errorText})`); });
     context.on('response', r => {
       if (r.status() >= 400 && r.status() !== 599) {
         if (neemToegelaten(r.url(), r.status())) return;
@@ -306,5 +339,9 @@ export const test = basis.extend({
     // Een toegelaten HTTP-fout moet echt voorgekomen zijn (anders test de test niets).
     const ontbrekend = (PER_HTTPFOUT.get(verzoeken) ?? []).filter(f => !f.gezien).map(f => `${f.status} ${f.pad}`);
     expect(ontbrekend, 'verwachte HTTP-fouten (verwachtHttpFout) die niet voorkwamen').toEqual([]);
+    const netOntbrekend = (PER_NETFOUT.get(verzoeken) ?? []).filter(f => !f.gezien).map(f => f.pad);
+    expect(netOntbrekend, 'verwachte netwerkfouten (verwachtNetwerkFout) die niet voorkwamen').toEqual([]);
+    const consoolOntbrekend = (PER_CONSOOL.get(verzoeken) ?? []).filter(f => !f.gezien).map(f => f.bevat);
+    expect(consoolOntbrekend, 'verwachte consolefouten (verwachtConsoleFout) die niet voorkwamen').toEqual([]);
   }, { auto: true }],
 });

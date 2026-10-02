@@ -1,6 +1,6 @@
 // Zelftest van het productie-vangnet: bewijst dat de sloten echt dicht zijn. Draai deze eerst:
 //   npx playwright test e2e/productie/vangnet-zelftest.spec.mjs
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, OPSTART_SCHRIJVEN, ongemeldeSchrijfverzoeken } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, verwachtNetwerkFout, verwachtConsoleFout, zohoStubs, OPSTART_SCHRIJVEN, ongemeldeSchrijfverzoeken } from '../productie-hulp.mjs';
 import { neemGeblokkeerdeProbesOver } from './zelftest-hulp.mjs';
 
 test.describe.configure({ mode: 'serial' });
@@ -122,5 +122,65 @@ test('Zelftest: een verwachte HTTP-fout die uitblijft faalt de test', async ({ p
   test.fail();
   verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
   verwachtHttpFout(verzoeken, [{ pad: '/api/plan', status: 500 }]);
+  await startAppProductie(page, { technieker: 'Tim' });
+});
+
+// verwachtNetwerkFout (etappe 7): een afgebroken verzoek is enkel toegelaten voor het aangegeven pad.
+test('Zelftest: verwachtNetwerkFout laat enkel het aangegeven pad door', async ({ page, verzoeken }) => {
+  const z = zohoStubs();
+  z.zetAntwoord('plan', { afbreken: 'failed' });
+  verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/plan']);
+  verwachtNetwerkFout(verzoeken, [{ pad: '/api/plan' }]);
+  await startAppProductie(page, { technieker: 'Tim', overschrijf: z.overschrijf });
+  const uitkomst = await page.evaluate(() => fetch('/api/plan', { method: 'POST', body: '{}' }).then(() => 'bereikt', (e) => e.name));
+  expect(uitkomst).toBe('TypeError');
+  expect(z.opnames.plan).toHaveLength(1); // het verzoek bereikte de stub, daarna brak de route het af
+});
+
+// Een niet-verwachte requestfailed blijft een consolefout (test.fail: het afterEach-vangnet moet breken).
+test('Zelftest: een niet-verwachte netwerkfout faalt de test', async ({ page, verzoeken }) => {
+  test.fail();
+  const z = zohoStubs();
+  z.zetAntwoord('plan', { afbreken: 'failed' });
+  verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/plan']);
+  await startAppProductie(page, { technieker: 'Tim', overschrijf: z.overschrijf });
+  await page.evaluate(() => fetch('/api/plan', { method: 'POST', body: '{}' }).then(() => 'bereikt', (e) => e.name));
+});
+
+// Een verwachte netwerkfout op een ander pad dekt de fout niet: die blijft een consolefout.
+test('Zelftest: verwachtNetwerkFout voor een ander pad dekt de fout niet', async ({ page, verzoeken }) => {
+  test.fail();
+  const z = zohoStubs();
+  z.zetAntwoord('plan', { afbreken: 'failed' });
+  verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/plan']);
+  verwachtNetwerkFout(verzoeken, [{ pad: '/api/plan-datum' }]);
+  await startAppProductie(page, { technieker: 'Tim', overschrijf: z.overschrijf });
+  await page.evaluate(() => fetch('/api/plan', { method: 'POST', body: '{}' }).then(() => 'bereikt', (e) => e.name));
+});
+
+// Een verwachte netwerkfout die uitblijft laat de test falen.
+test('Zelftest: een verwachte netwerkfout die uitblijft faalt de test', async ({ page, verzoeken }) => {
+  test.fail();
+  verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
+  verwachtNetwerkFout(verzoeken, [{ pad: '/api/plan' }]);
+  await startAppProductie(page, { technieker: 'Tim' });
+});
+
+// verwachtConsoleFout (etappe 7): enkel een console.error met de aangegeven tekst is toegelaten.
+test('Zelftest: verwachtConsoleFout laat enkel de aangegeven tekst door', async ({ page, verzoeken, consoleFouten }) => {
+  verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
+  verwachtConsoleFout(verzoeken, [{ bevat: 'bewuste testmelding' }]);
+  await startAppProductie(page, { technieker: 'Tim' });
+  await page.evaluate(() => console.error('dit is een bewuste testmelding van de zelftest'));
+  await page.evaluate(() => console.error('een andere fout'));
+  await expect.poll(() => consoleFouten.length).toBe(1);
+  expect(consoleFouten[0]).toContain('een andere fout');
+  neemGeblokkeerdeProbesOver(page, verzoeken, consoleFouten);
+});
+
+test('Zelftest: een verwachte consolefout die uitblijft faalt de test', async ({ page, verzoeken }) => {
+  test.fail();
+  verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
+  verwachtConsoleFout(verzoeken, [{ bevat: 'komt nooit' }]);
   await startAppProductie(page, { technieker: 'Tim' });
 });

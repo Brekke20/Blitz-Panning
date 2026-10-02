@@ -260,6 +260,10 @@ export async function stubExtern(page, { overschrijf = {} } = {}) {
       let body = null;
       try { body = req.postDataJSON(); } catch { body = null; }
       const antwoord = await handler({ methode: req.method(), body, query: u.searchParams, pad: u.pathname });
+      // Netwerkfouten nabootsen (etappe 7): `{ afbreken: 'failed' }` breekt het verzoek af (de fetch gooit een TypeError),
+      // `{ hangen: true }` beantwoordt het nooit (de browser blijft wachten; de context ruimt het bij het sluiten op).
+      if (antwoord.afbreken !== undefined) return route.abort(antwoord.afbreken);
+      if (antwoord.hangen === true) return;
       if (antwoord.raw !== undefined) return route.fulfill({ status: antwoord.status, contentType: 'text/html', body: antwoord.raw });
       return route.fulfill({
         status: antwoord.status,
