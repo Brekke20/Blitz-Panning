@@ -283,6 +283,7 @@ export async function sendProposal() {
     if (!toestand.get('allPending').find(t => t.id === ticketId)) toestand.get('allPending').push({ ...afh.actiefTicket() });
     toestand.raak('allPending'); // in-place push
 
+    // Gelezen na het laatste await (r.json()) en vóór elk gebruik: er staat geen await tussen lezen en gebruik van `planning`.
     const planning = toestand.get('planning');
     // Fix (bugronde 2026-09-22, item E): een datumwijziging via het voorstel-venster mag het
     // ticket niet op zowel de oude als de nieuwe datum laten staan -- eerst overal weghalen.

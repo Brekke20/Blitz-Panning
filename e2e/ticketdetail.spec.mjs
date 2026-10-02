@@ -577,7 +577,7 @@ test.describe('ticketdetail: uitplannen bevestigen en annuleerknop', () => {
       kern.toestand.get('voorstelStatus').p1 = { contact: '2026-10-05T07:00:00.000Z' };
       kern.toestand.raak('voorstelStatus');
       // De redenenlijst staat gecached: zo is er geen (verboden) GET /api/annuleer nodig.
-      _annuleerRedenen = [{ code: 'andere', label: 'Andere' }];
+      kern.annuleren.zetRedenenVoorTest([{ code: 'andere', label: 'Andere' }]);
     });
     const detail = await open1004(page);
     await detail.locator('#d-btn-annuleer').click();

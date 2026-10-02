@@ -232,8 +232,8 @@ test.describe('annuleren verzenden (verstuurAnnulatie)', () => {
     await expect.poll(() => annuleerPosts(z, 'echt').length).toBe(1);
     await expect(verstuurKnop(page)).toHaveText('Bezig…');
     // De knop is disabled: een klik is een no-op, dus de functie zelf aanroepen (verstuurAnnulatie staat als
-    // functiedeclaratie in het klassieke script).
-    await page.evaluate(async () => { await verstuurAnnulatie(); await verstuurAnnulatie(); });
+    // geëxporteerde functie in kern.annuleren).
+    await page.evaluate(async () => { await kern.annuleren.verstuurAnnulatie(); await kern.annuleren.verstuurAnnulatie(); });
     // Tijdens het versturen sluit niets (Terug is disabled, Escape/overlay-klik is een no-op).
     await expect(page.locator('#annuleer-terug')).toBeDisabled();
     expect(annuleerPosts(z, 'echt')).toHaveLength(1);
@@ -256,7 +256,7 @@ test.describe('annuleren verzenden (verstuurAnnulatie)', () => {
     await page.locator('#ticket-list .ticket').filter({ hasText: '#1001' }).locator('.btn-add').click();
     await expect.poll(() => z.opnames.plan.length).toBe(1);
     // Het annuleervenster openen voor t1 (de knop zelf verschijnt enkel bij een lopend voorstel).
-    await page.evaluate(() => openAnnuleerVenster('t1', '2026-10-05'));
+    await page.evaluate(() => kern.annuleren.openAnnuleerVenster('t1', '2026-10-05'));
     await expect(page.locator('#annuleer-overlay')).toHaveClass(/open/);
     await kiesReden(page);
     await verstuurKnop(page).click();
