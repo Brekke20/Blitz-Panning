@@ -39,8 +39,8 @@ All Excel exports must auto-size columns and rows so all text is always visible:
 
 ## Tests
 
-- `node --test` (zonder pad) — logica-tests (745). Nooit `node --test tests/`.
-- `npx playwright test` — Playwright-flows (kernhandelingen van de app, alle `/api/*` gestubd); 412 tests (een lopende run van de volledige suite duurt ongeveer 11 minuten). Draai dit na elke taak die een scherm raakt.
+- `node --test` (zonder pad) — logica-tests (855). Nooit `node --test tests/`.
+- `npx playwright test` — alle Playwright-projecten samen (`chromium` en `sw`), alle `/api/*` gestubd; 488 + 15 = 503 tests (een volledige run duurt ongeveer 12 minuten). Draai dit na elke taak die een scherm raakt. Gericht: `npx playwright test --project=chromium` of `--project=sw`.
 - Eerste keer: `npm install` en daarna `npx playwright install chromium`.
 
 De e2e-suite heeft internet nodig: de app laadt zijn scripts van externe CDN's (cdnjs.cloudflare.com, cdn.jsdelivr.net) en die worden bewust niet gestubd. Faalt een run op netwerkfouten voor die hosts (bv. een script dat niet laadt), dan is dat geen regressie in de app: controleer de verbinding en draai opnieuw.
@@ -59,19 +59,35 @@ Productietests staan in `e2e/productie/` en draaien de app zonder `?test` querys
 - Importguard `tests/e2e-import-guard.test.mjs` (draait bij elke `node --test`, scant `e2e/` recursief): een spec importeert `test` enkel uit de juiste fixture (`./helpers.mjs` of, onder `e2e/productie/`, `../productie-hulp.mjs`); geen `@playwright/test` rechtstreeks; productiebestanden hebben geen eigen routes, geen `waitForTimeout`, geen `?test`/`X-Blitz-Test`, geen eval/`child_process`/`vm`/`createRequire`, geen `page.request`/`context.request`/`request`-fixture, geen `browser.newContext`/`newPage`, geen `node:http`/`https`/`net`/`tls`/`dns`/`http2` en geen `fetch(`; de ontsnappingskleppen van de waarnemer enkel in de zelftest.
 - Zelftest `e2e/productie/vangnet-zelftest.spec.mjs` (met `zelftest-hulp.mjs`): bewijst op de echte host dat Zoho, TomTom, smtp, POST naar de CDN, WebSockets en onbekende `/api`-paden geblokkeerd of gemeld worden, dat de whitelist en de alleen-lezen weergaven werken en dat `verwachtHttpFout` faalt als de fout uitblijft.
 
+### Service worker-tests (project `sw`)
+
+Specs in `e2e/sw/` draaien met een ECHTE service worker (`serviceWorkers: 'allow'`) in het aparte Playwright-project `sw`; het project `chromium` blijft `serviceWorkers: 'block'` en negeert `e2e/sw/**`. Draaien: `npx playwright test --project=sw`. Ze zijn apart omdat een echte SW het verkeer van alle andere specs zou veranderen (cache, offline start) en omdat ze extra sloten nodig hebben.
+
+- Fixture `e2e/sw-hulp.mjs` (enkel hieruit importeren, nooit `helpers.mjs`, `productie-hulp.mjs` of `@playwright/test`): bovenop de zes sloten van de productiemodus (host-toelatingslijst, `/api` gestubd, schrijfpaden-whitelist, `isToegestaan`, WebSocket-slot, geen testmodus-signalen; ze zien ook het verkeer van de SW zelf) komen een SW-waarnemer (`e2e/sw-waarnemer.mjs`: een verzoek van de SW naar `/api`, een niet-GET of een vreemde host faalt de test) en het browserslot `--host-resolver-rules` in `playwright.config.mjs` (buiten localhost en de twee CDN-hosts lost niets op, ook niet voor de SW). Geen `?test`.
+- De `sw`-fixture bedient offline-modus (`zetOffline`), traag verkeer (`hangVoor`, `vertraag`, `breekAf`), een eigen `navTimeout` (`registreerSwMetNavTimeout`) en het vervangen van `sw.js`. `serviceWorkers` en `setOffline` mogen enkel in `e2e/sw-hulp.mjs` voorkomen; de importguard (`tests/e2e-import-guard.test.mjs`, derde klasse "sw-bestanden") dwingt dat af, naast alle productieregels (geen eigen routes, geen `waitForTimeout`, geen `test.use`/`test.extend`).
+- Het updatepad (oude SW naar nieuwe SW) wordt getest met een bevroren kopie van de live-SW: `e2e/fixtures/sw-v25-main.js` (`e2e/sw/update.spec.mjs`). Elke test draait in een verse browsercontext, dus `CACHE_NAME` hoeft voor de tests niet te veranderen.
+- Zelftest `e2e/sw/vangnet-zelftest.spec.mjs` bewijst dat de sloten ook voor SW-verkeer werken.
+
+Nieuwe fixture-helpers van etappe 7 (productie-fixture `e2e/productie-hulp.mjs`, ook via `sw-hulp.mjs`):
+- `zetAntwoord(naam, { afbreken: 'failed' })` en een hangend antwoord om een time-out of netwerkfout na te bootsen; `verwachtNetwerkFout(verzoeken, [{ pad, methode }])` laat precies die netwerkfout (eenmalig, op pad, methode en eigen origin) toe en faalt als ze uitblijft.
+- `verwachtConsoleFout(verzoeken, fouten)`: een toegelaten consolefout, exact of als `RegExp`; een lege of te losse waarde wordt geweigerd.
+- `startAppProductie(page, { klok: false })` laat de echte klok lopen; standaard staat de nepklok (`page.clock`) aan en laten tests timers lopen met `page.clock.runFor`.
+- `staaOfflineSwFoutenToe` / `herroepOfflineSwFoutenToe` (enkel voor de `sw`-fixture, smal en herroepbaar) en `OPSTART_SCHRIJVEN`.
+
 ## Serverkant (`netlify/lib/`)
 
 Etappe 6 van de refactor: gedeelde serverbouwstenen. Gebruik ze voor elke nieuwe Zoho- of TomTom-functie.
 
 - `netlify/lib/zoho.js`: `maakZoho({ fetch, env, nu, tokenFoutMetData, orgFoutTekst })` voor token (55 min cache in de instantie), org-id, headers en `verzoek`; `leesJsonVeilig` voor antwoorden die leeg of geen JSON kunnen zijn. Maak de instantie op moduleniveau, of in `maakHandler` voor functies met injecteerbare fetch.
 - `netlify/lib/http.js`: CORS-sets en v1/v2-antwoord-, OPTIONS- en methodehulpen. Geen eigen CORS-literals in functies.
+- `/api/mail-check` (`netlify/functions/mail-check.js` + `netlify/lib/mailcontrole.js`, etappe 7): GET `?ticketId=&sinds=[&ontvangers=]`; leest de uitgaande threads van het ticket in Zoho Desk (met paginering) en antwoordt `{ ok, verzonden, twijfel, tijdstip, uitgaand, ontvangers? }`. ENKEL LEZEN: nooit `sendReply`, PATCH of een andere schrijfactie. Bij elke twijfel (onleesbaar adres, concept- of mislukte status) is `twijfel` waar. Nog niet getest op een echt Zoho-ticket (zie de release-checklist).
 - Uitzonderingen met een eigen kopie: `rapport.js` (Chromium en Blobs-register zijn onbereikbaar voor tests) en `setup.js` (grant-code-uitwisseling).
 - Tests: `tests/nep-fetch.mjs` (`maakNepFetch`, `laadVers`, `metGlobaleFetch`, `v1Event`, `zetEnv`). Nooit echte Zoho-, TomTom- of mailaanroepen; `globalThis.fetch` staat standaard op een functie die gooit.
 - Karakterisering eerst: leg bij het migreren of wijzigen van een functie eerst het huidige gedrag vast (uitgaande verzoeken, statussen, headers, foutteksten) in `tests/server-*.test.mjs`. Een karakteriseringstest wijzig je alleen bewust (bv. bij een bugfix, met commentaar), nooit stilzwijgend.
 
 ## Kern (`public/js/kern/`)
 
-Gedeelde fundamenten (etappe 2 en 5b van de refactor): `tijd`, `ui`, `selecties`, `toestand`, `api`, `omgeving`, `opslag`, `feestdagen`, `testdata`, `verklikker`.
+Gedeelde fundamenten (etappe 2, 5b en 7 van de refactor): `tijd`, `ui`, `selecties`, `toestand`, `api`, `omgeving`, `opslag`, `feestdagen`, `testdata`, `verklikker`, `netwerk`, `exceljs`, `verbruik-wachtrij`, `mailcontrole`.
 
 - Het zijn pure ES-modules, importeerbaar in `node --test`. Enkel `kern/brug.js` raakt `window` aan
   (`window.kern` en de `window.kern.<scherm>`-namespaces; er zijn geen oude globale namen of state-accessors meer).
@@ -86,6 +102,11 @@ Gedeelde fundamenten (etappe 2 en 5b van de refactor): `tijd`, `ui`, `selecties`
 - Abonnementen op de toestand staan op één plek: `koppelRenders()` in `public/js/app.js`. Geen losse `renderX()` naast een abonnement.
 - Opslaan met optimistic locking via `kern.api.bewaarMetVersie` (merge + één retry bij 409), zoals `saveAfspraken` en `saveKlantBeschikbaarheid`.
 - Tijd-tests zetten `process.env.TZ = 'Europe/Brussels'` bovenaan; draai `node --test` zonder pad, nooit `node --test tests/`.
+- `kern/netwerk.js` (etappe 7): `installeerFetchTimeout(window)` omhult `window.fetch` voor same-origin `/api`-verzoeken met een time-out: `TIJDLIMIETEN` = standaard 20 s, lang 35 s (`propose`, `send-rapport`, `annuleer`, `rapport`, `planning-sinds`, `planning-export`), foto-upload (`PUT /api/fotos`) 60 s; `limietVoor(pad, methode)`. Een aanroeper die zelf een `signal` meegeeft (de outbox) blijft onaangeroerd: hij beheert zijn eigen annulering. De timer loopt tot de antwoordkop. Een `TypeError` van fetch zelf krijgt `vanFetch = true`.
+- `kern/api.js`: `leesFout(err)` geeft `{ soort: 'offline'|'timeout'|'netwerk'|'http'|'onbekend', onzeker, status? }` (`onzeker` = het is niet zeker dat de server niets deed); `foutTekst(err)` geeft de Nederlandse tekst ('Geen verbinding met de server', 'De server antwoordt niet (time-out na 20 s)', 'Serverfout (HTTP 502)'; een 4xx is 'Verzoek geweigerd (HTTP n)'). Gebruik `foutTekst` in nieuwe `catch`-blokken in plaats van `err.message`. Na een onzeker resultaat van een schrijfactie haalt de aanroeper de gegevens één keer opnieuw op (resync, met volgordeguard en weggooien van verouderde antwoorden).
+- `kern/exceljs.js`: `laadExcelJs()` laadt ExcelJS pas bij de eerste export (TicketLog of Inventaris; een gedeelde belofte, tijdlimiet 20 s, een mislukte lading wordt niet onthouden). Gebruik dit in plaats van een `<script>`-tag; `excel-export.js` zelf wordt ook lazy geïmporteerd.
+- `kern/verbruik-wachtrij.js`: melding en herpoging voor de wagenvoorraad-aftrek na een verzonden rapport. Een herpoging gebeurt enkel als zeker is dat er niets geschreven werd (409, 503 met eigen boodschap, offline); alles wat onzeker is geeft enkel een melding (nooit dubbel aftrekken). Twee tabs: `navigator.locks` (Web Locks) met terugval op een lease met eigenaar-token. Puur, alle afhankelijkheden worden meegegeven.
+- `kern/mailcontrole.js`: na een onzeker resultaat van een verzending naar de klant (propose, send-rapport, annuleer) controleert de app via `/api/mail-check` (één GET, enkel lezen) of de mail al weg is en geeft `verzonden`, `niet-verzonden` of `onbekend`; elke twijfel is `onbekend` (nooit 'niet verzonden'). Een gedetecteerde rapportmail wordt per rapport onthouden in `localStorage` (`blitz_mail_gedetecteerd`) en een volgende verzending vraagt eerst bevestiging via `appConfirm`.
 - Een nieuw kern-bestand komt in dezelfde commit in `SHELL` van `public/sw.js`.
 
 ## Schermen (`public/js/schermen/`)
@@ -118,7 +139,7 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 - `ticketdetail.js`: Ticketdetail-venster (taken, voorstel, annuleren, toewijzen, aankomst). Init via `initTicketdetail(afh)` vóór `koppelRenders()`. Private toestand: `activeTicket` en `_detailDate` (lezers `actiefTicket()`, `detailDatum()`) en `_kbIsDirty` (via `zetKbIsDirty`); `arrivalData` is een export (route en wizard lezen het). Knoppen gebruiken `data-actie`-delegatie; Zoho-functies verhuizen via productietest als vangnet.
 - `voorstel.js`: Voorstelvenster (datum, tijd, ontvangers, voorbeeld, verzenden). Init via `initVoorstel(afh)`. Private toestand beheerd via accessors. Afh: `getPlanningTicket`, `sluitDetailStil`, `actiefTicket`, `zetActiefTicket`, `renderRouteList`.
 - `annuleren.js`: Annuleervenster (reden, toelichting, mailkeuze). Init via `initAnnuleren(afh)`. Private toestand. Afh: `sluitDetailStil`, `actiefTicket`, `loadVoorstelStatus`, `renderRouteList`, `updateRouteBtns`, `inFlight`. `zetRedenenVoorTest` gooit buiten `?test`.
-- `venster.js` export `registreerVenster({ el, isOpen, sluit })`: registreert per venster Escape-gedrag en focusbeheer (de achtergrondklik loopt via `kern.ui.registreerBackdrop`); `venster.js` registreert zelf enkel nog de rapport-wizard (die sluit via `window.closeWizard`, zie hieronder).
+- `venster.js` export `registreerVenster({ el, isOpen, sluit, terugFocus })`: registreert per venster Escape-gedrag en focusbeheer; `terugFocus: () => HTMLElement | null` (optioneel) bepaalt waar de focus na sluiten terugkomt, en een venster dat vanuit een ander venster opent erft het terugkeerpunt (korte erfenisperiode) (de achtergrondklik loopt via `kern.ui.registreerBackdrop`); `venster.js` registreert zelf enkel nog de rapport-wizard (die sluit via `window.closeWizard`, zie hieronder).
 
 **Conventies:**
 - Afhankelijkheden (functies uit de app-schil `app.js`) worden via `afh` aangereikt; instellingen en toestandsgegevens uit `kern.toestand`.
@@ -140,6 +161,19 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 - Conventies: `init…(afh)` met `kern.ui.strengeAfh`; knoppen via `data-actie`, wijzigingen via `data-wijzig` en live invoer via `data-invoer` (`kern.ui.registreerWijzigActies`); vensters via `registreerVenster` en `registreerBackdrop`. Geen `onclick=`/`onchange=`/`oninput=` in `index.html` of in de HTML-strings van modules.
 - Gedocumenteerd restant: de rapport-wizard blijft inline handlers gebruiken (30 in `rapport-wizard.js`, D2) en biedt daarvoor het `wiz*`-blok op `window` aan, plus `openRapport`, `closeWizard`, `printRapport`, `calcWerktijdMin`, `berekenLoonkost` en de `_fotoState`-accessor. Andere `window`-namen die blijven omdat de wizard of `outbox.js` ze als kale naam leest: `PRIJZEN`, `PRIJZEN_DEFAULTS`, `zoekOnderdelen`, `getAlleTags`, `renderRapportArchief`, `registreerVerbruik`, `outboxAdd`, `runOutboxItem`, `nextOutboxAction`, `refreshOutboxCache`, `_outboxItems`, `appConfirm` en de `apparaat`-familie (`apparaat.js`, klassiek script). Specs lezen het rapportarchief via `kern.rapportArchief.lijst()` en `.versie()`.
 - Nieuw bestand in `public/js/`: dezelfde commit zet het in `SHELL` van `public/sw.js`.
+
+**Etappe 7 (Technieker):**
+- `rapport-verzenden.js`: de rijknop gaat vóór de bevestiging van een eerder gedetecteerde mail op slot en komt bij 'Terug' weer open. Na een onzeker resultaat controleert `kern/mailcontrole.js` of de mail al weg is; tijdens de controle blijft de knop op slot.
+- `excel-export.js` wordt pas bij de eerste export geladen (dynamische import) en haalt ExcelJS via `kern/exceljs.js`.
+- Lokale afspraakkaarten in de kalender zijn met het toetsenbord te openen (`maakActiveerbaar`).
+- Gedocumenteerd restant (N12): een route-volgorde slepen tijdens een render kan af en toe geannuleerd worden (`applyRouteOrder` werkt op verouderde objecten; vastgelegd in `e2e/route-slepen-render.spec.mjs`, bewust niet gewijzigd: W11). Ook `negeerSchrijfstand` in `loadTickets` (aangeroepen door `route.js`) slaat de hele schrijfstand-controle over in plaats van enkel het routedeel; zeldzaam, bewust gelaten.
+
+## Service worker (`public/sw.js`, `public/sw-strategie.js`)
+
+- `sw-strategie.js` bevat alle beslislogica (UMD: `self.SwStrategie` in de SW, `module.exports` in `node --test`; `tests/sw-strategie.test.mjs`). `sw.js` is een dun omhulsel met `CACHE_NAME`, `EXTERN_CACHE`, `SHELL`, `CDN_VAST` en `FONT_HOSTS`.
+- Strategie: eigen schil netwerk-eerst met de cache als terugval (de cache wordt bij een netwerksucces niet ververst, zodat de modules onderling consistent blijven); de CDN-bibliotheken (exacte URL, `CDN_VAST`) cache-eerst in `blitz-extern-v1`; Google Fonts stale-while-revalidate; enkel een antwoord met status 200 gaat de cache in; `/api`, `/.netlify/` en alles wat geen GET is wordt nooit afgehandeld of bewaard. De installatie heeft een tijdlimiet en breekt niet op een storing van een CDN.
+- `NAV_TIMEOUT_MS = 4000` (Brent, 2026-10-02): wacht een navigatie langer dan 4 s op het netwerk, dan start de app uit de bewaarde kopie (maximaal één release oud). Tests overschrijven dit via `/sw.js?navTimeout=<ms>` (0 tot 30000; 0 = uit).
+- `CACHE_NAME` (nu `blitz-planning-v25`) wordt NIET aangepast op `refactor`; dat gebeurt bij de release (zie `docs/release-checklist-2.0.md`). Elk nieuw laadbaar bestand onder `public/js/` komt in dezelfde commit in `SHELL`; `tests/sw-schil.test.mjs` bewaakt dat de modulepreload-lijst in `index.html` precies de modulegraaf is (plus preconnect voor de externe hosten) en `tests/sw-strategie.test.mjs` de beslislogica.
 
 ## Versioning & changelog
 
