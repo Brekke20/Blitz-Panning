@@ -7,7 +7,7 @@
 // rapport-verzonden.js): send-rapport geeft 400/500 met `{ error }`, een trage Zoho kan een Netlify-gateway 502 met
 // HTML-body geven; rapport-verzonden geeft 409 `{ error, serverVersie }` of 404 `{ error }`.
 // Niet bereikbaar in een e2e-test (W11): wizard-afronding en /api/comment (node-test in taak 6).
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, OPSTART_SCHRIJVEN, settle } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, verwachtNetwerkFout, zohoStubs, OPSTART_SCHRIJVEN, settle } from '../productie-hulp.mjs';
 
 const START = 'POST /api/planning-sinds';
 const SEND = 'POST /api/send-rapport';
@@ -334,7 +334,11 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     await bevestig(page);
     // W5-fix: was HUIDIG GEDRAG (parserfout)
     // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
-    await expect(toastTekst(page)).toHaveText('✕ Serverfout (HTTP 502)');
+    // T8b (Q1, omgedraaid): een 502 is een onzeker resultaat; de app controleert (enkel lezen) of de mail al weg is. De standaardstub van
+    // mail-check zegt "niet verzonden": de melding en de knop gaan weer open. De volledige reeks staat in de describe "onzeker resultaat".
+    await expect(toastTekst(page)).toHaveText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
+    await expect(verstuurKnop(page)).toBeEnabled();
+    expect(z.opnames['mail-check']).toHaveLength(1);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
     expect(z.opnames['rapport-verzonden']).toEqual([]);
   });
@@ -391,3 +395,73 @@ test.describe('rapport verzenden: vroege controles en ontbrekend ticketnummer', 
   });
 });
 
+
+// ── T8b (Q1): onzeker resultaat van send-rapport (afgebroken of 502): de app controleert (enkel lezen: GET /api/mail-check) of de mail al weg is ──
+// De rapportwizard en de outbox blijven buiten beeld (D19). Nooit een tweede send-rapport; de status "✓ Verzonden" wordt niet vanzelf gezet.
+const MAILCHECK = '/api/mail-check';
+const T_MAIL = '2026-10-05T07:01:00.000Z'; // 09:01 in Brussel
+const mailCheckLijst = (verzoeken) => verzoeken.alle.filter(r => r.pad === MAILCHECK).map(r => r.methode);
+const MAIL_ONZEKER = '⚠ De klant kan al gemaild zijn — kijk dit na in Zoho voor je opnieuw verstuurt';
+const MAIL_VERZONDEN = { status: 200, json: { ok: true, verzonden: true, tijdstip: T_MAIL, uitgaand: [{ aan: 'c@y.be', tijdstip: T_MAIL }] } };
+const MAIL_NIET = { status: 200, json: { ok: true, verzonden: false, tijdstip: null, uitgaand: [] } };
+
+async function verstuurAfgebroken(page, verzoeken, mailCheck, { httpFouten = [], netFouten = [] } = {}) {
+  verwachtNetwerkFout(verzoeken, [{ pad: '/api/send-rapport', methode: 'POST' }, ...netFouten]);
+  const z = await start(page, verzoeken, { paden: ['/api/send-rapport'], httpFouten });
+  z.zetAntwoord('send-rapport', ({ body }) => body.preview === true ? VOORBEELD(ontvanger('contact', 'c@y.be')) : { afbreken: 'failed' });
+  z.zetAntwoord('mail-check', mailCheck);
+  await openVoorbeeld(page);
+  await bevestig(page);
+  return z;
+}
+// Eén voorbeeld en één echte verzending, geen status-schrijfacties, precies één GET naar mail-check met ticket en begin van de verzending.
+async function eenVerzendingEnEenControle(page, verzoeken, z) {
+  expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
+  expect(z.opnames['send-rapport'].map(o => 'preview' in o.body)).toEqual([true, false]);
+  expect(z.opnames['rapport-verzonden']).toEqual([]);
+  expect(mailCheckLijst(verzoeken)).toEqual(['GET']);
+  expect(z.opnames['mail-check'].map(o => ({ methode: o.methode, query: o.query }))).toEqual([{ methode: 'GET', query: { ticketId: 't1', sinds: TIJDSTIP } }]);
+}
+
+test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg is (Q1)', () => {
+  test('afgebroken en de mail is al verzonden: melding met uur, de knop blijft uit en er komt geen tweede verzending', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, MAIL_VERZONDEN);
+    await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (c@y.be)');
+    await expect(verstuurKnop(page)).toBeDisabled();
+    await eenVerzendingEnEenControle(page, verzoeken, z);
+    expect(await lokaleRapporten(page)).toEqual([RAPPORT]); // de controle schrijft zelf niets
+  });
+
+  test('afgebroken en de mail is niet verzonden: melding en de knop kan opnieuw', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, MAIL_NIET);
+    await expect(toastTekst(page)).toHaveText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
+    await expect(verstuurKnop(page)).toBeEnabled();
+    await eenVerzendingEnEenControle(page, verzoeken, z);
+    expect(await lokaleRapporten(page)).toEqual([RAPPORT]);
+  });
+
+  test('de controle zelf faalt (502): de waarschuwing "kijk dit na in Zoho" en de knop blijft uit', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, { status: 502, json: { error: 'Zoho threads ophalen mislukt (503)' } }, { httpFouten: [{ pad: MAILCHECK, status: 502 }] });
+    await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER);
+    await expect(verstuurKnop(page)).toBeDisabled();
+    await eenVerzendingEnEenControle(page, verzoeken, z);
+  });
+
+  test('een antwoord van de controle dat niet te lezen is geeft de waarschuwing, nooit "niet verzonden"', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, { status: 200, raw: '<html>Bad Gateway</html>' });
+    await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER);
+    await expect(verstuurKnop(page)).toBeDisabled();
+    await eenVerzendingEnEenControle(page, verzoeken, z);
+  });
+
+  test('een 500 { error } (definitief antwoord) start geen controle', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/send-rapport'], httpFouten: [{ pad: '/api/send-rapport', status: 500 }] });
+    z.zetAntwoord('send-rapport', ({ body }) => body.preview === true ? VOORBEELD(ontvanger('contact', 'c@y.be')) : { status: 500, json: { error: 'Zoho tijdelijk niet bereikbaar' } });
+    await openVoorbeeld(page);
+    await bevestig(page);
+    await expect(toastTekst(page)).toHaveText('✕ Zoho tijdelijk niet bereikbaar');
+    await expect(verstuurKnop(page)).toBeDisabled();
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
+    expect(mailCheckLijst(verzoeken)).toEqual([]);
+  });
+});

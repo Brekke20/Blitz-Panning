@@ -6,7 +6,8 @@
 // Raakt `document` enkel binnen functies. Alleen `kern/brug.js` wijst `window`-namen toe. De knoppen lopen via data-actie-
 // delegatie, de mailkeuze via data-wijzig en de toelichting via data-invoer; de overlay sluit via registreerBackdrop.
 // De `toggle` van <details> bubbelt niet: die luisteraar hangt rechtstreeks aan #annuleer-details.
-import { foutTekst } from '../kern/api.js';
+import { foutTekst, leesFout } from '../kern/api.js';
+import { controleerMail, mailControleTekst } from '../kern/mailcontrole.js';
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, registreerActies, registreerWijzigActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
@@ -217,14 +218,34 @@ export async function verstuurAnnulatie() {
   document.getElementById('annuleer-terug').disabled = true;
   document.getElementById('annuleer-overlay').focus({ preventScroll: true });
 
-  const mislukt = (bericht, mogelijkGemaild) => {
+  const mislukt = (bericht, mogelijkGemaild, eigenToast) => {
     s.busy = false;
     document.getElementById('annuleer-terug').disabled = false;
     btn.textContent = 'Afspraak annuleren';
     annuleerWijzig();
-    toast('✕ Annuleren mislukt: ' + bericht + (mogelijkGemaild ? ' De klant kan al gemaild zijn — controleer in Zoho vóór je opnieuw probeert.' : ''), 7000);
+    toast(eigenToast ?? ('✕ Annuleren mislukt: ' + bericht + (mogelijkGemaild ? ' De klant kan al gemaild zijn — controleer in Zoho vóór je opnieuw probeert.' : '')), 7000);
   };
 
+  // Q1 (etappe 7): onzeker resultaat met een gevraagde klantmail. Eerst dezelfde waarschuwing als voorheen; het venster blijft op slot
+  // tot de controle (enkel lezen) klaar is, zodat er nooit vanzelf een tweede verzending start.
+  const naOnzeker = async (bericht) => {
+    toast('✕ Annuleren mislukt: ' + bericht + ' De klant kan al gemaild zijn — controleer in Zoho vóór je opnieuw probeert.', 7000);
+    const r = await controleerMail({ ticketId: s.ticketId, sinds });
+    if (r.uitkomst === 'verzonden') {
+      // Niets opnieuw te versturen: het venster sluit en de planning wordt opnieuw gelezen.
+      s.busy = false;
+      sluitAnnuleerVenster();
+      afh.sluitDetailStil();
+      afh.loadVoorstelStatus().then(() => afh.planResync());
+      toast('✓ ' + mailControleTekst(r), 8000);
+    } else if (r.uitkomst === 'niet-verzonden') {
+      mislukt(bericht, false, '⚠ ' + mailControleTekst(r));
+    } else {
+      mislukt(bericht, true); // de bestaande waarschuwing blijft de terugval
+    }
+  };
+
+  const sinds = new Date().toISOString(); // begin van de verzending, enkel gebruikt na een onzeker resultaat
   let res, data;
   try {
     res = await fetch('/api/annuleer', {
@@ -236,6 +257,7 @@ export async function verstuurAnnulatie() {
     });
     data = await res.json().catch(() => ({}));
   } catch (err) {
+    if (v.mailKlant && leesFout(err).onzeker) return naOnzeker(foutTekst(err) || 'netwerkfout');
     return mislukt(foutTekst(err) || 'netwerkfout', v.mailKlant);
   }
   if (res.status === 409 && data.nietGepland) {
@@ -249,6 +271,7 @@ export async function verstuurAnnulatie() {
     return;
   }
   if (!res.ok || data.error) {
+    if (v.mailKlant && !data.emailSent && leesFout({ status: res.status }).onzeker) return naOnzeker(foutTekst(data.error || ('HTTP ' + res.status)));
     const mailVerstuurd = Object.values(data.emailSent || {}).some(Boolean);
     const onzeker = v.mailKlant && res.status >= 500 && (mailVerstuurd || !data.emailSent);
     return mislukt(foutTekst(data.error || ('HTTP ' + res.status)), onzeker);

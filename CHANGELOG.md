@@ -18,6 +18,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ## [Refactor-tak — nog niet uitgebracht] (planner-brein, gebouwd 2026-10-01)
 
 ### Added
+- Na een onzeker resultaat bij het versturen van een voorstel, een rapport of een annulatie (time-out, geen verbinding of een 502/503/504) controleert de app vanzelf in Zoho of de mail al verzonden is, via het nieuwe endpoint `/api/mail-check` (enkel lezen). Ze meldt dan 'Mail is verzonden om hh:mm' (er hoeft niets opnieuw), 'Mail is niet verzonden — je kan veilig opnieuw versturen', of, als de controle zelf mislukt, 'De klant kan al gemaild zijn — kijk dit na in Zoho voor je opnieuw verstuurt'. Tijdens de controle blijft de verzendknop (of het annuleervenster) op slot, zodat er nooit vanzelf een tweede mail vertrekt.
 - "In planning sinds" in het ticketdetail: sinds wanneer een ticket in het planningstraject zit
   (opgezocht in de Zoho-statusgeschiedenis via het nieuwe endpoint `/api/planning-sinds`,
   onthouden in de opslag, zodat Zoho maar één keer per ticket gevraagd wordt).

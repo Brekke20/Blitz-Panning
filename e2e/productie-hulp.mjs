@@ -167,7 +167,7 @@ export async function startAppProductie(page, { rol = 'coordinator', technieker 
 //   const z = zohoStubs();  startAppProductie(page, { overschrijf: z.overschrijf });
 //   z.opnames.plan -> [{ methode, body, query }];  z.zetAntwoord('plan', { status: 500, json: {...} })
 // `antwoord` is een { status, json } of een functie ({ methode, body, query, pad }) => { status, json }.
-export const ZOHO_EINDPUNTEN = ['plan', 'plan-datum', 'propose', 'voorstel-status', 'annuleer', 'optimize', 'send-rapport', 'rapport-verzonden', 'rapport-archief'];
+export const ZOHO_EINDPUNTEN = ['plan', 'plan-datum', 'propose', 'voorstel-status', 'annuleer', 'optimize', 'send-rapport', 'rapport-verzonden', 'rapport-archief', 'mail-check'];
 // Redenen van netlify/lib/annulatie.js (REDENEN, zonder klantzin); dit bestand mag geen netlify/-code importeren.
 const ANNULEER_REDENEN = [
   { code: 'ziek', label: 'Technieker ziek of onbeschikbaar' },
@@ -251,6 +251,20 @@ export function zohoStubs({ register, rapporten } = {}) {
       antwoorden[naam] = ({ body }) => body?.preview === true
         ? { status: 200, json: { preview: true, ontvangers: [{ doelgroep: 'contact', naam: 'Luc Wouters', email: 'luc@test.be', html: '<p>Nep-voorbeeld van de rapportmail</p>' }] } }
         : { status: 200, json: { success: true, emailSent: { contact: true, klant: false, installateur: false }, fouten: [], statusUpdated: true, statusFout: null } };
+    }
+    // mail-check.js (etappe 7, Q1; ENKEL GET, leest de uitgaande threads van een ticket): standaard "niet verzonden"; met `ontvangers` in de
+    // query geeft hij per adres { verzonden: false, tijdstip: null }. Een spec zet een eigen antwoord met zetAntwoord('mail-check', ...).
+    if (naam === 'mail-check') {
+      antwoorden[naam] = ({ query }) => {
+        const adressen = (query.get('ontvangers') || '').split(',').filter(Boolean);
+        return {
+          status: 200,
+          json: {
+            ok: true, verzonden: false, tijdstip: null, uitgaand: [],
+            ...(adressen.length ? { ontvangers: Object.fromEntries(adressen.map(a => [a.toLowerCase(), { verzonden: false, tijdstip: null }])) } : {}),
+          },
+        };
+      };
     }
     // rapport-archief: GET geeft de stand; andere methodes vallen terug op de standaardstub (versie + 1, geen opslag).
     if (naam === 'rapport-archief') {

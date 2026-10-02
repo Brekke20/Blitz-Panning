@@ -5,7 +5,7 @@
 // verzoek laat de test falen. Foutantwoorden zijn per test expliciet toegelaten met `verwachtHttpFout`.
 // Echte foutvormen (netlify/functions/propose.js, voorstel-status.js): propose geeft 400/404/500 met `{ error }`,
 // een trage Zoho kan een Netlify-gateway 502 met HTML-body geven; voorstel-status geeft 409 `{ error, serverVersie }`.
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, OPSTART_SCHRIJVEN, settle, openKalender, TICKETS_STUB } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, verwachtNetwerkFout, zohoStubs, OPSTART_SCHRIJVEN, settle, openKalender, TICKETS_STUB } from '../productie-hulp.mjs';
 
 const TICKETS = TICKETS_STUB;
 const START = 'POST /api/planning-sinds';
@@ -300,8 +300,11 @@ test.describe('voorstel: randgevallen', () => {
     // (gateway-timeout tijdens de Zoho-aanroepen) zonder dat de gebruiker dat te horen krijgt.
     // W5-fix: was HUIDIG GEDRAG (parserfout)
     // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
-    await expect(toastTekst(page)).toHaveText('✕ Serverfout (HTTP 502)');
+    // T8b (Q1, omgedraaid): een 502 is een onzeker resultaat; de app controleert (enkel lezen) of de mail al weg is. De standaardstub van
+    // mail-check zegt "niet verzonden"; de volledige reeks uitkomsten staat in de describe "onzeker resultaat" hieronder.
+    await expect(toastTekst(page)).toHaveText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
     await expect(verstuurKnop(page)).toHaveText('✉️ Verstuur voorstel');
+    expect(z.opnames['mail-check']).toHaveLength(1);
     expect(z.opnames.propose).toEqual([{ methode: 'POST', body: PROPOSE_BODY, query: {} }]);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, PROPOSE]);
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
@@ -334,5 +337,148 @@ test.describe('voorstel: randgevallen', () => {
     expect(z.opnames.propose[0].body.time).toBe(tijd);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, PROPOSE, STATUS_POST]);
     expect(await planningVan(page)).toEqual(BASIS_PLANNING);
+  });
+});
+
+
+// ── T8b (Q1): onzeker resultaat van propose (afgebroken of 502): de app controleert (enkel lezen: GET /api/mail-check) of de mail al weg is ──
+// Drie goedgekeurde uitkomsten: verzonden (niets opnieuw), niet verzonden (veilig opnieuw) of onzeker (kijk na in Zoho). Nooit een tweede propose.
+const MAILCHECK = '/api/mail-check';
+const T_MAIL = '2026-10-05T07:01:00.000Z'; // 09:01 in Brussel
+const mailCheckLijst = (verzoeken) => verzoeken.alle.filter(r => r.pad === MAILCHECK).map(r => r.methode);
+// Antwoord van mail-check: alle gevraagde adressen kregen een mail op T_MAIL (of enkel `verzonden` van hen).
+const mailVerzonden = (verzonden = null) => ({ query }) => {
+  const adressen = (query.get('ontvangers') || '').split(',').filter(Boolean);
+  return {
+    status: 200,
+    json: {
+      ok: true, verzonden: adressen.length ? adressen.every(a => !verzonden || verzonden.includes(a)) : true, tijdstip: T_MAIL,
+      uitgaand: adressen.filter(a => !verzonden || verzonden.includes(a)).map(a => ({ aan: a, tijdstip: T_MAIL })),
+      ontvangers: Object.fromEntries(adressen.map(a => [a, (!verzonden || verzonden.includes(a)) ? { verzonden: true, tijdstip: T_MAIL } : { verzonden: false, tijdstip: null }])),
+    },
+  };
+};
+const MAIL_ONZEKER = '⚠ De klant kan al gemaild zijn — kijk dit na in Zoho voor je opnieuw verstuurt';
+
+async function verstuurAfgebroken(page, verzoeken, mailCheck, { httpFouten = [], netFouten = [], stubs = {} } = {}) {
+  verwachtNetwerkFout(verzoeken, [{ pad: '/api/propose', methode: 'POST' }, ...netFouten]);
+  const z = await start(page, verzoeken, { paden: ['/api/propose'], httpFouten, stubs });
+  z.zetAntwoord('propose', { afbreken: 'failed' });
+  z.zetAntwoord('mail-check', mailCheck);
+  await openVoorstel(page);
+  await vulIn(page, '2026-10-08', '10:00');
+  await verstuurKnop(page).click();
+  return z;
+}
+// Eén POST /api/propose, geen tweede verzending en precies één GET naar mail-check met ticket, begin van de verzending en ontvangers.
+// `herlading`: na "verzonden" leest de app de tickets opnieuw; bij elke lading hoort het (alleen-lezen) wachttijdenverzoek POST /api/planning-sinds.
+async function eenVerzendingEnEenControle(page, verzoeken, z, { ontvangers = 'luc@test.be', herlading = false } = {}) {
+  expect(z.opnames.propose).toEqual([{ methode: 'POST', body: PROPOSE_BODY, query: {} }]);
+  expect(await schrijfLijst(page, verzoeken)).toEqual(herlading ? [START, PROPOSE, START] : [START, PROPOSE]);
+  expect(mailCheckLijst(verzoeken)).toEqual(['GET']);
+  expect(z.opnames['mail-check'].map(o => ({ methode: o.methode, query: o.query }))).toEqual([
+    { methode: 'GET', query: { ticketId: 'p1', sinds: TIJDSTIP, ontvangers } },
+  ]);
+}
+
+test.describe('voorstel: onzeker resultaat, controle of de mail al weg is (Q1)', () => {
+  test('afgebroken en de mail is al verzonden: melding met uur, venster dicht, tickets opnieuw gelezen, geen tweede verzending', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, mailVerzonden());
+    await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (luc@test.be)');
+    await expect(page.locator('#proposal-overlay')).not.toHaveClass(/open/);
+    await expect(verstuurKnop(page)).toHaveText('✉️ Verstuur voorstel');
+    await expect(verstuurKnop(page)).toBeEnabled();
+    await eenVerzendingEnEenControle(page, verzoeken, z, { herlading: true });
+    expect(verzoeken.van('/api/tickets', 'GET')).toHaveLength(2); // de opstart en één herlading (planResync)
+    expect(await planningVan(page)).toEqual(BASIS_PLANNING);
+    expect(await registerLokaal(page)).toEqual({});
+  });
+
+  test('afgebroken en de mail is niet verzonden: melding, venster blijft open en de knop kan opnieuw', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, { status: 200, json: { ok: true, verzonden: false, tijdstip: null, uitgaand: [], ontvangers: { 'luc@test.be': { verzonden: false, tijdstip: null } } } });
+    await expect(toastTekst(page)).toHaveText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
+    await expect(page.locator('#proposal-overlay')).toHaveClass(/open/);
+    await expect(verstuurKnop(page)).toHaveText('✉️ Verstuur voorstel');
+    await expect(verstuurKnop(page)).toBeEnabled();
+    await eenVerzendingEnEenControle(page, verzoeken, z);
+    expect(verzoeken.van('/api/tickets', 'GET')).toHaveLength(1); // geen herlading
+    expect(await planningVan(page)).toEqual(BASIS_PLANNING);
+  });
+
+  test('de controle zelf faalt (502): de waarschuwing "kijk dit na in Zoho", venster blijft open', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, { status: 502, json: { error: 'Zoho threads ophalen mislukt (503)' } }, { httpFouten: [{ pad: MAILCHECK, status: 502 }] });
+    await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER);
+    await expect(page.locator('#proposal-overlay')).toHaveClass(/open/);
+    await expect(verstuurKnop(page)).toBeEnabled();
+    await eenVerzendingEnEenControle(page, verzoeken, z);
+    expect(verzoeken.van('/api/tickets', 'GET')).toHaveLength(1);
+  });
+
+  test('een 502 met HTML-body en de mail is al verzonden: dezelfde melding als bij een afgebroken verzoek', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/propose'], httpFouten: [{ pad: '/api/propose', status: 502 }] });
+    z.zetAntwoord('propose', { status: 502, raw: '<html><body>Bad Gateway</body></html>' });
+    z.zetAntwoord('mail-check', mailVerzonden());
+    await openVoorstel(page);
+    await vulIn(page, '2026-10-08', '10:00');
+    await verstuurKnop(page).click();
+    await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (luc@test.be)');
+    await eenVerzendingEnEenControle(page, verzoeken, z, { herlading: true });
+  });
+
+  test('tijdens de controle blijft de knop op slot; hangt de controle, dan eindigt ze na 20 s met de waarschuwing', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, { hangen: true }, { netFouten: [{ pad: MAILCHECK, methode: 'GET' }] });
+    await expect.poll(() => z.opnames['mail-check'].length).toBe(1);
+    await page.evaluate(() => Promise.resolve());
+    await expect(toastTekst(page)).toHaveText('✕ Geen verbinding met de server'); // dezelfde melding als voorheen, tot het antwoord er is
+    await expect(verstuurKnop(page)).toBeDisabled();
+    await expect(verstuurKnop(page)).toHaveText('Bezig...');
+    // De nepklok loopt ook in echte tijd door; een "net vóór de limiet"-controle zou dus flaky zijn. Eén sprong voorbij de limiet volstaat.
+    await page.clock.runFor(25000);
+    await page.evaluate(() => Promise.resolve());
+    await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER);
+    await expect(verstuurKnop(page)).toBeEnabled();
+    expect(z.opnames.propose).toHaveLength(1);
+    expect(z.opnames['mail-check']).toHaveLength(1);
+  });
+
+  test('twee ontvangers en enkel de eerste kreeg de mail: geen zekere uitspraak, de waarschuwing', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, mailVerzonden(['luc@test.be']), {
+      stubs: { tickets: metP1({ emailEindklant: 'klant@test.be' }) },
+    });
+    await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER);
+    await expect(verstuurKnop(page)).toBeEnabled();
+    expect(z.opnames.propose).toHaveLength(1);
+    expect(z.opnames['mail-check'].map(o => o.query.ontvangers)).toEqual(['luc@test.be,klant@test.be']);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, PROPOSE]);
+  });
+
+  test('twee ontvangers en beide kregen de mail: één melding per ontvanger', async ({ page, verzoeken }) => {
+    await verstuurAfgebroken(page, verzoeken, mailVerzonden(), { stubs: { tickets: metP1({ emailEindklant: 'klant@test.be' }) } });
+    await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (luc@test.be); Mail is verzonden om 09:01 (klant@test.be)');
+  });
+
+  test('een definitieve fout (500 { error }) of een ticket zonder e-mailadres start geen controle', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/propose'], httpFouten: [{ pad: '/api/propose', status: 500 }] });
+    z.zetAntwoord('propose', { status: 500, json: { error: 'Zoho PATCH fout (500)' } });
+    await openVoorstel(page);
+    await vulIn(page, '2026-10-08', '10:00');
+    await verstuurKnop(page).click();
+    await expect(toastTekst(page)).toHaveText('✕ Zoho PATCH fout (500)');
+    await expect(verstuurKnop(page)).toBeEnabled();
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, PROPOSE]);
+    expect(mailCheckLijst(verzoeken)).toEqual([]);
+  });
+
+  test('zonder e-mailadres is er geen mail om te controleren: een afgebroken verzoek geeft enkel de gewone foutmelding', async ({ page, verzoeken }) => {
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/propose', methode: 'POST' }]);
+    const z = await start(page, verzoeken, { paden: ['/api/propose'], stubs: { tickets: metP1({ email: '', emailEindklant: '', emailInstallateur: '' }) } });
+    z.zetAntwoord('propose', { afbreken: 'failed' });
+    await openVoorstel(page);
+    await vulIn(page, '2026-10-08', '10:00');
+    await verstuurKnop(page).click();
+    await expect(toastTekst(page)).toHaveText('✕ Geen verbinding met de server');
+    await expect(verstuurKnop(page)).toBeEnabled();
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, PROPOSE]);
+    expect(mailCheckLijst(verzoeken)).toEqual([]);
   });
 });

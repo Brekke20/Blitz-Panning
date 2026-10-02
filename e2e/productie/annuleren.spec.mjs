@@ -5,7 +5,7 @@
 // opgesomd (`schrijfLijst`). Echte foutvormen (netlify/functions/annuleer.js): 400/404/500 met `{ error }`, 409
 // `{ error, emailSent, nietGepland: true }` (mail gevraagd maar ticket niet meer gepland in Zoho), 502
 // `{ error, emailSent, fouten }` (Zoho-PATCH mislukt, mails kunnen al weg zijn), een Netlify-gateway-502 met HTML-body.
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, OPSTART_SCHRIJVEN, settle, openKalender } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, verwachtNetwerkFout, zohoStubs, OPSTART_SCHRIJVEN, settle, openKalender } from '../productie-hulp.mjs';
 
 const START = 'POST /api/planning-sinds';
 const ANNULEER = 'POST /api/annuleer';
@@ -423,7 +423,10 @@ test.describe('annuleren: foutpaden en bijzondere antwoorden', () => {
     await verstuurKnop(page).click();
     // Gemeten: hier vangt de code de parserfout op (`res.json().catch`), dus geen technische tekst maar "HTTP 502".
     // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
-    await expect(toastTekst(page)).toHaveText('✕ Annuleren mislukt: Serverfout (HTTP 502) De klant kan al gemaild zijn — controleer in Zoho vóór je opnieuw probeert.');
+    // T8b (Q1, omgedraaid): een 502 zonder emailSent is een onzeker resultaat; de app controleert (enkel lezen) of de mail al weg is. De
+    // standaardstub van mail-check zegt "niet verzonden". De volledige reeks staat in de describe "onzeker resultaat" hieronder.
+    await expect(toastTekst(page)).toHaveText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
+    expect(z.opnames['mail-check']).toHaveLength(1);
     await geenLokaleWijziging(page);
     expect(annuleerPosts(z, 'echt')).toHaveLength(1);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER]);
@@ -501,5 +504,127 @@ test.describe('annuleren: foutpaden en bijzondere antwoorden', () => {
     await expect(page.locator('#annuleer-overlay')).toHaveClass(/open/);
     expect(z.opnames.annuleer.map(o => o.methode)).toEqual(['GET', 'GET']);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START]);
+  });
+});
+
+
+// ── T8b (Q1): onzeker resultaat van annuleer met een klantmail (afgebroken of 502 zonder emailSent): de app controleert (enkel lezen:
+// GET /api/mail-check) of de mail al weg is. Het venster blijft op slot tot de controle klaar is; nooit een tweede annuleer. ──
+const MAILCHECK = '/api/mail-check';
+const T_MAIL = '2026-10-05T07:01:00.000Z'; // 09:01 in Brussel
+const mailCheckLijst = (verzoeken) => verzoeken.alle.filter(r => r.pad === MAILCHECK).map(r => r.methode);
+const MAIL_ONZEKER_BESTAAND = '✕ Annuleren mislukt: Geen verbinding met de server De klant kan al gemaild zijn — controleer in Zoho vóór je opnieuw probeert.';
+const MAIL_VERZONDEN = { status: 200, json: { ok: true, verzonden: true, tijdstip: T_MAIL, uitgaand: [{ aan: 'luc@test.be', tijdstip: T_MAIL }] } };
+const MAIL_NIET = { status: 200, json: { ok: true, verzonden: false, tijdstip: null, uitgaand: [] } };
+const REDENEN_STUB = { redenen: [{ code: 'ziek', label: REDEN_ZIEK }] };
+
+async function annuleerAfgebroken(page, verzoeken, mailCheck, { httpFouten = [], netFouten = [], mailKlant = true } = {}) {
+  verwachtNetwerkFout(verzoeken, [{ pad: '/api/annuleer', methode: 'POST' }, ...netFouten]);
+  const z = await start(page, verzoeken, { paden: ['/api/annuleer'], httpFouten });
+  z.zetAntwoord('annuleer', ({ methode, body }) => methode === 'GET'
+    ? { status: 200, json: REDENEN_STUB }
+    : body.voorbeeld === true ? { status: 200, json: { html: '<p>voorbeeld</p>' } } : { afbreken: 'failed' });
+  z.zetAntwoord('mail-check', mailCheck);
+  await openViaDetail(page);
+  await kiesReden(page);
+  if (!mailKlant) await venster(page).getByLabel('Nee, ik verwittig zelf').check();
+  await verstuurKnop(page).click();
+  return z;
+}
+// Eén annuleer-POST, geen tweede verzending en precies één GET naar mail-check met ticket en begin van de verzending.
+// `herlading`: na "verzonden" leest de app de planning opnieuw; bij elke lading hoort het (alleen-lezen) wachttijdenverzoek POST /api/planning-sinds.
+async function eenVerzendingEnEenControle(page, verzoeken, z, { herlading = false } = {}) {
+  expect(annuleerPosts(z, 'echt')).toHaveLength(1);
+  expect(await schrijfLijst(page, verzoeken)).toEqual(herlading ? [START, ANNULEER, START] : [START, ANNULEER]);
+  expect(mailCheckLijst(verzoeken)).toEqual(['GET']);
+  expect(z.opnames['mail-check'].map(o => ({ methode: o.methode, query: o.query }))).toEqual([{ methode: 'GET', query: { ticketId: 'p1', sinds: TIJDSTIP } }]);
+}
+const TIJDSTIP = '2026-10-05T07:00:00.000Z'; // VASTE_NU
+
+test.describe('annuleren: onzeker resultaat, controle of de mail al weg is (Q1)', () => {
+  test('afgebroken en de mail is al verzonden: melding met uur, venster en detail dicht, planning opnieuw gelezen', async ({ page, verzoeken }) => {
+    const z = await annuleerAfgebroken(page, verzoeken, MAIL_VERZONDEN);
+    await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (luc@test.be)');
+    await expect(page.locator('#annuleer-overlay')).not.toHaveClass(/open/);
+    await expect(page.locator('#det-overlay')).not.toHaveClass(/open/);
+    await eenVerzendingEnEenControle(page, verzoeken, z, { herlading: true });
+    expect(verzoeken.van('/api/tickets', 'GET')).toHaveLength(2); // de opstart en één herlading (planResync)
+    expect(z.opnames['voorstel-status'].filter(o => o.methode === 'GET')).toHaveLength(2); // opstart + herlading na de melding
+    expect(await planningVan(page)).toEqual(BASIS_PLANNING); // de app volgt de serverstand: de controle wijzigt lokaal niets
+  });
+
+  test('afgebroken en de mail is niet verzonden: melding, venster ontgrendeld en niets lokaal gewijzigd', async ({ page, verzoeken }) => {
+    const z = await annuleerAfgebroken(page, verzoeken, MAIL_NIET);
+    await expect(toastTekst(page)).toHaveText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
+    await expect(verstuurKnop(page)).toHaveText('Afspraak annuleren');
+    await expect(page.locator('#annuleer-terug')).toBeEnabled();
+    await geenLokaleWijziging(page);
+    await eenVerzendingEnEenControle(page, verzoeken, z);
+    expect(verzoeken.van('/api/tickets', 'GET')).toHaveLength(1);
+  });
+
+  test('de controle zelf faalt (502): de bestaande waarschuwing blijft de terugval', async ({ page, verzoeken }) => {
+    const z = await annuleerAfgebroken(page, verzoeken, { status: 502, json: { error: 'Zoho threads ophalen mislukt (503)' } }, { httpFouten: [{ pad: MAILCHECK, status: 502 }] });
+    await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER_BESTAAND);
+    await expect(verstuurKnop(page)).toHaveText('Afspraak annuleren');
+    await geenLokaleWijziging(page);
+    await eenVerzendingEnEenControle(page, verzoeken, z);
+  });
+
+  test('tijdens de controle blijft het venster op slot; hangt de controle, dan eindigt ze na 20 s met de bestaande waarschuwing', async ({ page, verzoeken }) => {
+    const z = await annuleerAfgebroken(page, verzoeken, { hangen: true }, { netFouten: [{ pad: MAILCHECK, methode: 'GET' }] });
+    await expect.poll(() => z.opnames['mail-check'].length).toBe(1);
+    await page.evaluate(() => Promise.resolve());
+    await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER_BESTAAND); // dezelfde waarschuwing als voorheen, tot het antwoord er is
+    await expect(verstuurKnop(page)).toHaveText('Bezig…');
+    await expect(page.locator('#annuleer-terug')).toBeDisabled();
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => Promise.resolve());
+    await expect(page.locator('#annuleer-overlay')).toHaveClass(/open/); // een busy venster sluit niet
+    // De nepklok loopt ook in echte tijd door; een "net vóór de limiet"-controle zou dus flaky zijn. Eén sprong voorbij de limiet volstaat.
+    await page.clock.runFor(25000);
+    await page.evaluate(() => Promise.resolve());
+    await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER_BESTAAND);
+    await expect(verstuurKnop(page)).toHaveText('Afspraak annuleren');
+    await expect(page.locator('#annuleer-terug')).toBeEnabled();
+    expect(annuleerPosts(z, 'echt')).toHaveLength(1);
+    expect(z.opnames['mail-check']).toHaveLength(1);
+  });
+
+  test('een 502 met HTML-body en de mail is al verzonden: dezelfde melding als bij een afgebroken verzoek', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/annuleer'], httpFouten: [{ pad: '/api/annuleer', status: 502 }] });
+    z.zetAntwoord('annuleer', ({ methode, body }) => methode === 'GET'
+      ? { status: 200, json: REDENEN_STUB }
+      : body.voorbeeld === true ? { status: 200, json: { html: '<p>voorbeeld</p>' } } : { status: 502, raw: '<html><body>Bad Gateway</body></html>' });
+    z.zetAntwoord('mail-check', MAIL_VERZONDEN);
+    await openViaDetail(page);
+    await kiesReden(page);
+    await verstuurKnop(page).click();
+    await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (luc@test.be)');
+    await eenVerzendingEnEenControle(page, verzoeken, z, { herlading: true });
+  });
+
+  test('een 502 { error, emailSent } is al een definitief antwoord van de server: geen controle', async ({ page, verzoeken }) => {
+    // Bestaande pin (zie hierboven) blijft: de server meldt zelf welke mails weg zijn; er is niets te controleren.
+    const z = await start(page, verzoeken, { paden: ['/api/annuleer'], httpFouten: [{ pad: '/api/annuleer', status: 502 }] });
+    z.zetAntwoord('annuleer', ({ methode, body }) => methode === 'GET'
+      ? { status: 200, json: REDENEN_STUB }
+      : body.voorbeeld === true ? { status: 200, json: { html: '<p>voorbeeld</p>' } }
+        : { status: 502, json: { error: 'Zoho PATCH fout (500)', emailSent: { ...ZONDER_MAIL, contact: true }, fouten: [] } });
+    await openViaDetail(page);
+    await kiesReden(page);
+    await verstuurKnop(page).click();
+    await expect(toastTekst(page)).toHaveText('✕ Annuleren mislukt: Zoho PATCH fout (500) De klant kan al gemaild zijn — controleer in Zoho vóór je opnieuw probeert.');
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER]);
+    expect(mailCheckLijst(verzoeken)).toEqual([]);
+  });
+
+  test('zonder klantmail ("Nee, ik verwittig zelf") is er niets te controleren: een afgebroken verzoek geeft de gewone foutmelding', async ({ page, verzoeken }) => {
+    const z = await annuleerAfgebroken(page, verzoeken, MAIL_VERZONDEN, { mailKlant: false });
+    await expect(toastTekst(page)).toHaveText('✕ Annuleren mislukt: Geen verbinding met de server');
+    await expect(verstuurKnop(page)).toHaveText('Afspraak annuleren');
+    expect(annuleerPosts(z, 'echt')).toHaveLength(1);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER]);
+    expect(mailCheckLijst(verzoeken)).toEqual([]);
   });
 });

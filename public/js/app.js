@@ -200,14 +200,14 @@ function opstart() {
   voorstel.initVoorstel({
     getPlanningTicket: ticketdetail.getPlanningTicket, sluitDetailStil: ticketdetail.sluitDetailStil,
     actiefTicket: ticketdetail.actiefTicket, zetActiefTicket: ticketdetail.zetActiefTicket,
-    renderRouteList: (...a) => renderRouteList(...a),
+    renderRouteList: (...a) => renderRouteList(...a), planResync: planacties.planResync,
   });
   // Annuleer-scherm (schermen/annuleren.js): annuleervenster, mailvoorbeeld en verzenden; vóór koppelRenders().
   annuleren.initAnnuleren({
     sluitDetailStil: ticketdetail.sluitDetailStil, actiefTicket: ticketdetail.actiefTicket,
     loadVoorstelStatus: voorstel.loadVoorstelStatus,
     renderRouteList: (...a) => renderRouteList(...a), updateRouteBtns: (...a) => updateRouteBtns(...a),
-    inFlight: planacties.inFlight,
+    inFlight: planacties.inFlight, planResync: planacties.planResync,
   });
   // Planacties (schermen/planacties.js): inplannen, uitplannen en "Plan deze week"; de Zoho-schrijfpaden. Vóór koppelRenders().
   planacties.initPlanacties({

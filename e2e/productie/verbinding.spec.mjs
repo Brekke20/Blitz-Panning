@@ -170,9 +170,11 @@ test.describe('verbinding: annuleren', () => {
 
     await page.clock.runFor(2000);
     await page.evaluate(() => Promise.resolve());
-    // W5-fix: venster ontgrendeld, de bestaande waarschuwing blijft (de klant kan al gemaild zijn).
-    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
-    await expect(toastTekst(page)).toContainText('✕ Annuleren mislukt: De server antwoordt niet (time-out na 35 s) De klant kan al gemaild zijn — controleer in Zoho vóór je opnieuw probeert.');
+    // W5-fix: venster ontgrendeld (de klant kan al gemaild zijn).
+    // T8b (Q1, omgedraaid): na de time-out controleert de app (enkel lezen) of de mail al weg is; de standaardstub van mail-check zegt
+    // "niet verzonden". De waarschuwing "De klant kan al gemaild zijn" blijft de terugval als de controle zelf faalt (zie annuleren.spec).
+    await expect(toastTekst(page)).toContainText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
+    expect(z.opnames['mail-check']).toHaveLength(1);
     await expect(page.locator('#annuleer-verstuur')).toHaveText('Afspraak annuleren');
     await expect(page.locator('#annuleer-terug')).toBeEnabled();
     await page.keyboard.press('Escape');
