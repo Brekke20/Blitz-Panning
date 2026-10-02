@@ -129,4 +129,24 @@ test.describe('Excel-export (TicketLog)', () => {
     await page.clock.runFor(3000);
     expect(gedownload).toBe(false);
   });
+
+  // Lazy ExcelJS (etappe 7, N2): de bibliotheek wordt pas bij de eerste export opgehaald, en maar één keer.
+  test('ExcelJS komt van de CDN pas bij de eerste klik, en een tweede export haalt hem niet opnieuw op', async ({ page, verzoeken }) => {
+    const cdn = [];
+    page.on('request', r => { if (new URL(r.url()).hostname === 'cdn.jsdelivr.net') cdn.push(r.url()); });
+    await start(page, verzoeken, RAPPORTEN);
+    expect(cdn, 'bij het opstarten en na het openen van de rapport-tab').toEqual([]);
+    expect(await page.evaluate(() => typeof window.ExcelJS)).toBe('undefined');
+
+    const eerste = page.waitForEvent('download');
+    await exportKnop(page).click();
+    await eerste;
+    await expect(page.locator('#toast')).toHaveText('✓ 2 rijen geëxporteerd');
+    expect(cdn.filter(u => /exceljs/.test(u)).length).toBe(1);
+
+    const tweede = page.waitForEvent('download');
+    await exportKnop(page).click();
+    await tweede;
+    expect(cdn.filter(u => /exceljs/.test(u)).length).toBe(1);
+  });
 });

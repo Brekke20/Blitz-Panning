@@ -31,6 +31,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
   exact gecontroleerd worden.
 
 ### Changed
+- De app laadt zijn onderdelen vooraf parallel en haalt de Excel-bibliotheek pas op bij de eerste export (TicketLog of Inventaris).
 - Ticketdetail, afspraakvoorstel en annuleervenster zijn intern herbouwd en staan nu in eigen
   onderdelen; voor jou ziet alles er hetzelfde uit en werkt het hetzelfde.
 - Kalender, wachtrij en de lijst Ingepland zijn intern herbouwd en staan nu in eigen onderdelen; voor jou ziet alles er hetzelfde uit en werkt het hetzelfde.

@@ -39,7 +39,6 @@ import { openRapport, calcWerktijdMin, closeWizard, wizBack, wizNext } from './r
 import { _rapportArchief, _archiefVersie, zetArchiefVersie, laadRapportArchief, setRapportFilter, renderRapportArchief, herOpenRapport } from './rapport-archief.js';
 import { refreshOutboxCache, flushOutbox } from './outbox.js';
 import { _invData, loadInventaris, renderInventaris, updateInventarisBadge, resetInvSeenLog } from './inventaris.js';
-import { exportTicketLog } from './excel-export.js';
 import { appConfirm } from './app-dialog.js';
 import { registreerVenster } from './venster.js';
 
@@ -222,7 +221,7 @@ function opstart() {
     'vernieuw': () => loadTickets(),
     'thema': () => toggleTheme(),
     'instellingen': () => instellingen.openSettings(),
-    'rapport-export': () => exportTicketLog(),
+    'rapport-export': async () => (await import('./excel-export.js')).exportTicketLog(),
     'rapport-herlaad': () => laadRapportArchief(),
     'wizard-sluit': () => closeWizard(),
     'wizard-terug': () => wizBack(),

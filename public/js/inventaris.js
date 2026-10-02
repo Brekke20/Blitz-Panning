@@ -7,6 +7,7 @@
 import { TEST_MODE } from './kern/omgeving.js';
 import { loadFromCache, saveToCache } from './kern/opslag.js';
 import { escHtml, toast } from './kern/ui.js';
+import { laadExcelJs } from './kern/exceljs.js';
 import { PRIJZEN, PRIJZEN_DEFAULTS } from './prijzen.js';
 
 export let _invData = { versie: 0, wagenvoorraad: {}, log: [] };
@@ -411,6 +412,7 @@ export async function exportInventarisLog() {
   });
 
   try {
+    const ExcelJS = await laadExcelJs();
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Blitz Planning';
     const ws = wb.addWorksheet('Inventaris');
