@@ -5,6 +5,7 @@
 // afhankelijkheden van andere schermen via `initTicketdetail(afh)` (aan het begin van DOMContentLoaded). Raakt `document`
 // enkel binnen functies, nooit op moduleniveau. Alleen `kern/brug.js` wijst `window`-namen toe. De knoppen van het
 // detail- en verzetvenster lopen via data-actie-delegatie; de overlays sluiten via registreerBackdrop (inhoudsklik sluit niet).
+import { foutTekst } from '../kern/api.js';
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
@@ -288,7 +289,7 @@ export async function saveReschedule() {
     toestand.raak('allPending');
     toast(TEST_MODE ? '🧪 Testmodus — niet opgeslagen' : `✓ Verzet naar ${fmtDateShort(date)} om ${time}`);
   } catch (err) {
-    toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
+    toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + foutTekst(err) + ')', 4000);
     afh.vraagResyncNaOnzeker(err); // W5-fix (N7): onzeker resultaat -> één gecoalesceerde herlading
   }
 }
@@ -382,7 +383,7 @@ export async function saveToewijzen(ticketId) {
     renderKalender();
     toast(TEST_MODE ? '🧪 Testmodus — niet opgeslagen' : `✓ Datum ingesteld op ${date} om ${time}`);
   } catch (err) {
-    toast('✕ ' + err.message, 5000);
+    toast('✕ ' + foutTekst(err), 5000);
     afh.vraagResyncNaOnzeker(err); // W5-fix (N7): onzeker resultaat -> één gecoalesceerde herlading
   }
 }

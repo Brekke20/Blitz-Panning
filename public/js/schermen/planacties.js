@@ -11,7 +11,7 @@ import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { localISO, getWeekStart, fmtDateShort } from '../kern/tijd.js';
-import { apiVerzoek, leesFout } from '../kern/api.js';
+import { apiVerzoek, leesFout, foutTekst } from '../kern/api.js';
 import * as selecties from '../kern/selecties.js';
 import { registreerVenster } from '../venster.js';
 import { appConfirm } from '../app-dialog.js';
@@ -133,7 +133,7 @@ export async function addTicketToDate(ticketId, date) {
       toestand.get('planning')[date] = toestand.get('planning')[date].filter(p => p.ticket.id !== ticketId);
       if (!toestand.get('planning')[date].length) delete toestand.get('planning')[date];
       toestand.raak('planning'); // Zoho-gebonden rollback: de handmatige renders hieronder blijven staan (R7)
-      toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
+      toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + foutTekst(err) + ')', 4000);
       vraagResyncNaOnzeker(err); // W5-fix (N7): onzeker resultaat -> één gecoalesceerde herlading
       success = false;
     }
@@ -201,7 +201,7 @@ export async function removeTicketFromDate(ticketId, date) {
       toestand.get('planning')[date].push(stop);
       toestand.raak('planning'); // Zoho-gebonden rollback (R7)
       verwijderMislukt = true;
-      toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
+      toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + foutTekst(err) + ')', 4000);
       vraagResyncNaOnzeker(err); // W5-fix (N7): onzeker resultaat -> één gecoalesceerde herlading
     }
   } else {
@@ -407,7 +407,7 @@ export async function autoPlan() {
 
     showResult(geplande, nietGepland, skipped, null, uitkomst.waarschuwingen || []);
   } catch (err) {
-    toast('✕ ' + err.message, 4000);
+    toast('✕ ' + foutTekst(err), 4000);
   } finally {
     btn.disabled    = false;
     btn.textContent = '⚡ Plan deze week';

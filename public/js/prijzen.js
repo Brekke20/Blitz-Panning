@@ -2,6 +2,7 @@
 // Prijzencatalogus (onderdelen + tarieven) en het admin-beheerscherm. `PRIJZEN` is de geladen
 // server-state (via /api/prijzen, met localStorage-fallback); `zoekOnderdelen`/`getAlleTags`/
 // `getPrijsVoorId` worden door de rapport-wizard als window-naam gelezen (zie onderaan).
+import { foutTekst } from './kern/api.js';
 import { TEST_MODE } from './kern/omgeving.js';
 import { escHtml, toast, registreerActies, registreerWijzigActies } from './kern/ui.js';
 import { closeSettings } from './schermen/instellingen.js';
@@ -296,7 +297,7 @@ export async function prijsOpslaan() {
     toast('✓ Prijzen opgeslagen');
     renderPrijsEditor();
   } catch (err) {
-    toast('Verbindingsfout: ' + err.message);
+    toast('Verbindingsfout: ' + foutTekst(err));
     btn.disabled = false;
     btn.textContent = 'Opslaan';
   }

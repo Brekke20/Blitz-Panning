@@ -6,7 +6,7 @@
 import { toestand } from '../kern/toestand.js';
 import { toast, escHtml, registreerActies, strengeAfh } from '../kern/ui.js';
 import { localISO, fmtSec, timeStrToMin, minToTimeStr, extractLocalHour } from '../kern/tijd.js';
-import { apiVerzoek } from '../kern/api.js';
+import { apiVerzoek, foutTekst } from '../kern/api.js';
 import { planItemsVanTechnieker, stopsVoorDag as selStopsVoorDag } from '../kern/selecties.js';
 import { maakSorteerbaar } from '../sorteer.js';
 import {
@@ -568,7 +568,7 @@ export async function calculateRoute() {
     }
     // Zonder await: de kaart met het rit-vangnet staat al, het per-wegvak-detail kleurt na.
     laadDrukteDetail(date, rData);
-  } catch (err) { toast('✕ Route: ' + err.message, 4000); updateMap(date); }
+  } catch (err) { toast('✕ Route: ' + foutTekst(err), 4000); updateMap(date); }
 }
 
 // Verwachte drukte per wegvak (i.p.v. per rit) voor een toekomstige dag: haalt TomTom's
@@ -862,5 +862,5 @@ export async function optimizeRoute() {
     // Adresloze niet-vergrendelde tickets konden sowieso niet meegerekend worden — achteraan.
     noAddr.forEach(p => samengevoegd.push({ kind: 'ticket', item: p, uur: p.uur }));
     await applyRouteOrder(date, samengevoegd);
-  } catch (err) { toast('✕ ' + err.message, 4000); await calculateRoute(); }
+  } catch (err) { toast('✕ ' + foutTekst(err), 4000); await calculateRoute(); }
 }

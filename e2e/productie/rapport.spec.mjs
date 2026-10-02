@@ -123,7 +123,8 @@ test.describe('rapport verzenden: voorbeeld (voorbeeldRapport)', () => {
     z.zetAntwoord('send-rapport', { status: 502, raw: '<html><body>Bad Gateway</body></html>' });
     await verstuurKnop(page).click();
     // W5-fix: was HUIDIG GEDRAG (parserfout)
-    await expect(toastTekst(page)).toHaveText('✕ Voorbeeld ophalen mislukt: HTTP 502');
+    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
+    await expect(toastTekst(page)).toHaveText('✕ Voorbeeld ophalen mislukt: Serverfout (HTTP 502)');
     await expect(overlay(page)).not.toHaveClass(/open/);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND]);
   });
@@ -332,7 +333,8 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     await openVoorbeeld(page);
     await bevestig(page);
     // W5-fix: was HUIDIG GEDRAG (parserfout)
-    await expect(toastTekst(page)).toHaveText('✕ HTTP 502');
+    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
+    await expect(toastTekst(page)).toHaveText('✕ Serverfout (HTTP 502)');
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
     expect(z.opnames['rapport-verzonden']).toEqual([]);
   });

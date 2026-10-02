@@ -68,7 +68,8 @@ test.describe('syncOplossingNaarZoho: directe aanroep in productiemodus', () => 
     await startAppProductie(page, { technieker: 'Tim', vasteKlok: true, overschrijf: { comment: c.comment } });
     await sync(page, 'p1', 'Acties');
     // W5-fix: was HUIDIG GEDRAG (parserfout)
-    await expect(toastTekst(page)).toHaveText('⚠ Oplossing kon niet automatisch bijgewerkt worden in Zoho: HTTP 502');
+    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
+    await expect(toastTekst(page)).toHaveText('⚠ Oplossing kon niet automatisch bijgewerkt worden in Zoho: Serverfout (HTTP 502)');
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, COMMENT]);
   });
 

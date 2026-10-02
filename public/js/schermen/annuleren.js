@@ -6,6 +6,7 @@
 // Raakt `document` enkel binnen functies. Alleen `kern/brug.js` wijst `window`-namen toe. De knoppen lopen via data-actie-
 // delegatie, de mailkeuze via data-wijzig en de toelichting via data-invoer; de overlay sluit via registreerBackdrop.
 // De `toggle` van <details> bubbelt niet: die luisteraar hangt rechtstreeks aan #annuleer-details.
+import { foutTekst } from '../kern/api.js';
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, registreerActies, registreerWijzigActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
@@ -81,7 +82,7 @@ export async function openAnnuleerVenster(ticketId, date, { mailStandaard = true
   if (!ticket) return toast('✕ Ticket niet gevonden.');
   let redenen;
   try { redenen = await laadAnnuleerRedenen(); }
-  catch (e) { return toast('✕ De redenenlijst laden mislukt. Probeer opnieuw. (Detail: ' + e.message + ')'); }
+  catch (e) { return toast('✕ De redenenlijst laden mislukt. Probeer opnieuw. (Detail: ' + foutTekst(e) + ')'); }
   if (_ann) return;
 
   // Datum en tijd(slot) voor kop en voorbeeld
@@ -235,7 +236,7 @@ export async function verstuurAnnulatie() {
     });
     data = await res.json().catch(() => ({}));
   } catch (err) {
-    return mislukt(err.message || 'netwerkfout', v.mailKlant);
+    return mislukt(foutTekst(err) || 'netwerkfout', v.mailKlant);
   }
   if (res.status === 409 && data.nietGepland) {
     // Niets verstuurd: venster blijft open, keuze 'Nee' voorgeselecteerd.
@@ -250,7 +251,7 @@ export async function verstuurAnnulatie() {
   if (!res.ok || data.error) {
     const mailVerstuurd = Object.values(data.emailSent || {}).some(Boolean);
     const onzeker = v.mailKlant && res.status >= 500 && (mailVerstuurd || !data.emailSent);
-    return mislukt(data.error || ('HTTP ' + res.status), onzeker);
+    return mislukt(foutTekst(data.error || ('HTTP ' + res.status)), onzeker);
   }
 
   // Succes: lokaal opruimen zoals removeTicketFromDate, maar zonder /api/plan-call.

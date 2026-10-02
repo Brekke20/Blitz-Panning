@@ -98,3 +98,17 @@ export function leesFout(err, { online = globalThis.navigator?.onLine } = {}) {
   if (status) return { soort: 'http', status, onzeker: ONZEKERE_STATUS.has(status) };
   return { soort: 'onbekend', onzeker: false };
 }
+
+// De Nederlandse tekst voor het detail van een foutmelding (W5-fix, Q2): de ENIGE plek die technische foutklassen vertaalt.
+// Alleen herkende klassen worden vertaald; een eigen foutmelding van de server (data.error) of een onbekende fout blijft zoals ze is.
+export function foutTekst(err, opties) {
+  if (typeof err === 'string') return /^HTTP \d{3}$/.test(err) ? `Serverfout (${err})` : err; // 'HTTP 502' als losse tekst (data.error)
+  const f = leesFout(err, opties);
+  if (f.soort === 'timeout') {
+    const sec = /(\d+) s/.exec(err?.message || '')?.[1];
+    return sec ? `De server antwoordt niet (time-out na ${sec} s)` : 'De server antwoordt niet (time-out)';
+  }
+  if (f.soort === 'offline' || f.soort === 'netwerk') return 'Geen verbinding met de server';
+  if (f.soort === 'http' && /^HTTP \d{3}$/.test(err?.message || '')) return `Serverfout (HTTP ${f.status})`;
+  return err?.message || '';
+}

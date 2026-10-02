@@ -1,6 +1,6 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { ApiFout, zetFetch, apiVerzoek, apiJson, bewaarMetVersie, leesFout } from '../public/js/kern/api.js';
+import { ApiFout, zetFetch, apiVerzoek, apiJson, bewaarMetVersie, leesFout, foutTekst } from '../public/js/kern/api.js';
 
 afterEach(() => zetFetch(null));
 
@@ -160,4 +160,24 @@ test('leesFout: onbekend object', () => {
   assert.deepEqual(leesFout({ iets: 1 }), { soort: 'onbekend', onzeker: false });
   assert.deepEqual(leesFout(null), { soort: 'onbekend', onzeker: false });
   assert.deepEqual(leesFout(new Error('boem')), { soort: 'onbekend', onzeker: false });
+});
+
+// W5-fix (Q2): één plek die technische fouten in gewoon Nederlands zet.
+test('foutTekst: netwerkfout, offline, time-out en HTTP-status in gewoon Nederlands', () => {
+  assert.equal(foutTekst(new TypeError('Failed to fetch'), { online: true }), 'Geen verbinding met de server');
+  assert.equal(foutTekst(new TypeError('Load failed'), { online: true }), 'Geen verbinding met de server');
+  assert.equal(foutTekst(new TypeError('Failed to fetch'), { online: false }), 'Geen verbinding met de server');
+  assert.equal(foutTekst(new DOMException('signal is aborted without reason', 'AbortError')), 'Geen verbinding met de server');
+  assert.equal(foutTekst(new DOMException('Time-out na 20 s', 'TimeoutError')), 'De server antwoordt niet (time-out na 20 s)');
+  assert.equal(foutTekst(new DOMException('Time-out na 35 s', 'TimeoutError')), 'De server antwoordt niet (time-out na 35 s)');
+  assert.equal(foutTekst(new ApiFout(502, null)), 'Serverfout (HTTP 502)');
+  assert.equal(foutTekst(new Error('HTTP 500')), 'Serverfout (HTTP 500)');
+});
+
+test('foutTekst: een eigen serverboodschap en onbekende fouten blijven ongewijzigd', () => {
+  assert.equal(foutTekst(new Error('Ticket niet gevonden')), 'Ticket niet gevonden');
+  assert.equal(foutTekst(new TypeError('Cannot read properties of undefined')), 'Cannot read properties of undefined');
+  assert.equal(foutTekst(null), '');
+  assert.equal(foutTekst('HTTP 502'), 'Serverfout (HTTP 502)');
+  assert.equal(foutTekst('Ticket niet gevonden'), 'Ticket niet gevonden');
 });

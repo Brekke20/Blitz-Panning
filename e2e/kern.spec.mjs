@@ -368,7 +368,8 @@ test.describe('kern: api-payloads', () => {
     });
     await planWeek(page);
     await page.locator('.day-col').filter({ hasText: '#1001' }).getByRole('button', { name: 'Route berekenen' }).click();
-    await expect(page.getByText('✕ Route: HTTP 502')).toBeVisible();
+    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
+    await expect(page.getByText('✕ Route: Serverfout (HTTP 502)')).toBeVisible();
     // De 502 is hier bedoeld: de browser meldt hem als HTTP 502 en als consolefout; precies die twee halen we weg.
     const isDeze = (f) => f.includes('/api/route') && /502/.test(f);
     await expect.poll(() => consoleFouten.filter(isDeze).length).toBe(2);

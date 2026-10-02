@@ -422,7 +422,8 @@ test.describe('annuleren: foutpaden en bijzondere antwoorden', () => {
     await kiesReden(page);
     await verstuurKnop(page).click();
     // Gemeten: hier vangt de code de parserfout op (`res.json().catch`), dus geen technische tekst maar "HTTP 502".
-    await expect(toastTekst(page)).toHaveText('✕ Annuleren mislukt: HTTP 502 De klant kan al gemaild zijn — controleer in Zoho vóór je opnieuw probeert.');
+    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
+    await expect(toastTekst(page)).toHaveText('✕ Annuleren mislukt: Serverfout (HTTP 502) De klant kan al gemaild zijn — controleer in Zoho vóór je opnieuw probeert.');
     await geenLokaleWijziging(page);
     expect(annuleerPosts(z, 'echt')).toHaveLength(1);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER]);
@@ -493,7 +494,8 @@ test.describe('annuleren: foutpaden en bijzondere antwoorden', () => {
     await openKalender(page);
     await dag(page, '2026-10-07').locator('.tl-ticket[data-ticket-id="p1"] .cal-sub').click();
     await page.locator('#d-btn-annuleer').click();
-    await expect(toastTekst(page)).toHaveText('✕ De redenenlijst laden mislukt. Probeer opnieuw. (Detail: HTTP 500)');
+    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
+    await expect(toastTekst(page)).toHaveText('✕ De redenenlijst laden mislukt. Probeer opnieuw. (Detail: Serverfout (HTTP 500))');
     await expect(page.locator('#annuleer-overlay')).not.toHaveClass(/open/);
     await page.locator('#d-btn-annuleer').click();
     await expect(page.locator('#annuleer-overlay')).toHaveClass(/open/);

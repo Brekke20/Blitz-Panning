@@ -6,6 +6,7 @@
 // importeren elkaar (ES-modulecyclus): veilig, want geen van beide roept op moduleniveau iets van de ander aan.
 // Raakt `document` enkel binnen functies. Alleen `kern/brug.js` wijst `window`-namen toe. De knoppen en het bestandsveld
 // lopen via data-actie/data-wijzig-delegatie; het venster sluit via registreerBackdrop (inhoudsklik sluit niet).
+import { foutTekst } from '../kern/api.js';
 import { toast, escHtml, registreerActies, registreerWijzigActies, registreerBackdrop } from '../kern/ui.js';
 import { registreerVenster } from '../venster.js';
 import { _fotoState, zetFotoState } from '../rapport-wizard.js';
@@ -128,7 +129,7 @@ async function persistFotoChange(newFotos, containerId) {
       _fotoState.versie = fresh.versie;
       _fotoState.fotos  = fresh.fotos;
     } else {
-      toast('✕ Foto opslaan mislukt: ' + err.message, 4000);
+      toast('✕ Foto opslaan mislukt: ' + foutTekst(err), 4000);
     }
   }
   renderFotoGridInto(containerId);

@@ -7,7 +7,7 @@
 // delegatie, de twee invoervelden via data-invoer, de overlay sluit via registreerBackdrop (inhoudsklik sluit niet).
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
-import { apiJson } from '../kern/api.js';
+import { apiJson, foutTekst } from '../kern/api.js';
 import { toast, escHtml, registreerActies, registreerWijzigActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { timeStrToMin, minToTimeStr, extractLocalHour } from '../kern/tijd.js';
 import { registreerVenster } from '../venster.js';
@@ -312,6 +312,6 @@ export async function sendProposal() {
   } catch (err) {
     btn.disabled    = false;
     btn.textContent = '✉️ Verstuur voorstel';
-    toast('✕ ' + err.message, 5000);
+    toast('✕ ' + foutTekst(err), 5000);
   }
 }

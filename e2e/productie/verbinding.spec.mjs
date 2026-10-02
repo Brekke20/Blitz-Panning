@@ -108,7 +108,8 @@ test.describe('verbinding: planning (plan) en vernieuwen', () => {
     await page.clock.runFor(2000);
     await page.evaluate(() => Promise.resolve());
     // W5-fix: de aanroep eindigt met een TimeoutError; de bestaande foutmelding toont het detail.
-    await expect(toastTekst(page)).toContainText('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: Time-out na 20 s)');
+    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
+    await expect(toastTekst(page)).toContainText('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: De server antwoordt niet (time-out na 20 s))');
     await expect(wachtrijKaart(page, 1001)).toHaveCount(1);
     await expect(wachtrijKaart(page, 1001).locator('.btn-add')).toBeEnabled();
     await expect(page.locator('#cnt-tickets')).toHaveText('2');
@@ -170,7 +171,8 @@ test.describe('verbinding: annuleren', () => {
     await page.clock.runFor(2000);
     await page.evaluate(() => Promise.resolve());
     // W5-fix: venster ontgrendeld, de bestaande waarschuwing blijft (de klant kan al gemaild zijn).
-    await expect(toastTekst(page)).toContainText('✕ Annuleren mislukt: Time-out na 35 s De klant kan al gemaild zijn — controleer in Zoho vóór je opnieuw probeert.');
+    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
+    await expect(toastTekst(page)).toContainText('✕ Annuleren mislukt: De server antwoordt niet (time-out na 35 s) De klant kan al gemaild zijn — controleer in Zoho vóór je opnieuw probeert.');
     await expect(page.locator('#annuleer-verstuur')).toHaveText('Afspraak annuleren');
     await expect(page.locator('#annuleer-terug')).toBeEnabled();
     await page.keyboard.press('Escape');
@@ -261,13 +263,15 @@ test.describe('verbinding: synchroniseren na een onzeker resultaat', () => {
     const z = await startPlan(page, verzoeken, { stubs: { tickets: t.stub } });
     z.zetAntwoord('plan', { status: 504, raw: HTML_504 });
     await wachtrijKaart(page, 1001).locator('.btn-add').click();
-    await expect(toastTekst(page)).toContainText('(Detail: HTTP 504)'); // de foutmelding blijft ongewijzigd (T8)
+    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
+    await expect(toastTekst(page)).toContainText('(Detail: Serverfout (HTTP 504))'); // de foutmelding blijft ongewijzigd (T8)
     await settle(page);
     expect(t.toestand.aantal).toBe(2);
     await expect(wachtrijKaart(page, 1001)).toHaveCount(0);
     expect(await planningVan(page)).toMatchObject({ '2026-10-05': ['t1'] });
     expect(z.opnames.plan).toHaveLength(1);
-    await expect(toastTekst(page)).toContainText('(Detail: HTTP 504)'); // de herlading zelf is stil
+    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
+    await expect(toastTekst(page)).toContainText('(Detail: Serverfout (HTTP 504))'); // de herlading zelf is stil
   });
 
   test('plan met een time-out (hangend verzoek): na de 20 s rollback en één herlading', async ({ page, verzoeken }) => {
@@ -282,7 +286,8 @@ test.describe('verbinding: synchroniseren na een onzeker resultaat', () => {
     expect(t.toestand.aantal).toBe(1); // nog geen uitkomst: geen herlading
     await page.clock.runFor(2000);
     await settleZonderOpenstaand(page);
-    await expect(toastTekst(page)).toContainText('(Detail: Time-out na 20 s)');
+    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
+    await expect(toastTekst(page)).toContainText('(Detail: De server antwoordt niet (time-out na 20 s))');
     expect(t.toestand.aantal).toBe(2);
     await expect(wachtrijKaart(page, 1001)).toHaveCount(0);
     expect(await planningVan(page)).toMatchObject({ '2026-10-05': ['t1'] });

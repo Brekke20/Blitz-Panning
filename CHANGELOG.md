@@ -31,6 +31,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
   exact gecontroleerd worden.
 
 ### Changed
+- Foutmeldingen bij een probleem met de verbinding zijn nu gewoon Nederlands: 'Geen verbinding met de server', 'De server antwoordt niet (time-out na 20 s)' en 'Serverfout (HTTP 502)' in plaats van 'Failed to fetch', 'Time-out na 20 s' of 'HTTP 502'. Het begin van elke melding blijft hetzelfde; enkel het detail is vertaald. De rapportwizard en de wachtrij voor verzonden rapporten blijven ongewijzigd.
 - De app laadt zijn onderdelen vooraf parallel en haalt de Excel-bibliotheek pas op bij de eerste export (TicketLog of Inventaris).
 - De service worker bewaart ook Leaflet, de handtekeningbibliotheek en de Excel-bibliotheek, zodat de app ook zonder verbinding de kaartbibliotheek heeft.
 - De service worker bewaart ook de pictogrammen van de kaart (markers, lagenknop), bewaart enkel volledige antwoorden, geeft zijn voorbereiding op de externe bibliotheken een tijdlimiet en laat `/.netlify/`-paden met rust.

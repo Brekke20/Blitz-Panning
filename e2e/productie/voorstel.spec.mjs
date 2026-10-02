@@ -299,7 +299,8 @@ test.describe('voorstel: randgevallen', () => {
     // HUIDIG GEDRAG (bug?): bovendien kan de mail al verstuurd zijn
     // (gateway-timeout tijdens de Zoho-aanroepen) zonder dat de gebruiker dat te horen krijgt.
     // W5-fix: was HUIDIG GEDRAG (parserfout)
-    await expect(toastTekst(page)).toHaveText('✕ HTTP 502');
+    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
+    await expect(toastTekst(page)).toHaveText('✕ Serverfout (HTTP 502)');
     await expect(verstuurKnop(page)).toHaveText('✉️ Verstuur voorstel');
     expect(z.opnames.propose).toEqual([{ methode: 'POST', body: PROPOSE_BODY, query: {} }]);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, PROPOSE]);

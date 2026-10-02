@@ -5,6 +5,7 @@
 // `afh`. Cyclusregel: schermmodules importeren dit bestand nooit; dit bestand importeert uit hen.
 // Een module draait na het parsen en vóór DOMContentLoaded, in documentvolgorde (zoals het `defer`-script); de
 // voormalige DOMContentLoaded-handler heet nu `opstart()` en wordt onderaan dit bestand geregistreerd (zie daar).
+import { foutTekst } from './kern/api.js';
 import { toestand } from './kern/toestand.js';
 import { TEST_MODE } from './kern/omgeving.js';
 import { localISO, extractLocalHour } from './kern/tijd.js';
@@ -600,8 +601,9 @@ async function loadTickets({ stilleToast = false, stil = false, zonderCache = fa
     if (TEST_MODE) toast('🧪 Testmodus actief — dummy data geladen');
     else if (!stilleToast) toast(`${get('allTickets').length} te plannen · ${get('allPending').length} wacht bevestiging · ${get('allGepland').length} gepland`);
   } catch (err) {
-    const msg = err.message || '';
-    const isAuth = /401|403|invalid.token|expired|unauthorized/i.test(msg);
+    const rauw = err.message || '';
+    const msg = foutTekst(err) || '';
+    const isAuth = /401|403|invalid.token|expired|unauthorized/i.test(rauw);
     if (isAuth) {
       toast('🔑 Sessie met Zoho verlopen. Meld dit aan Brent; de koppeling moet opnieuw ingesteld worden.', 6000);
       document.getElementById('empty-tickets').textContent =

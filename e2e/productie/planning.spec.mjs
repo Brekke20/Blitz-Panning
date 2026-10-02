@@ -140,7 +140,8 @@ test.describe('+ in de wachtrij (addTicketToDate via quickAdd)', () => {
     await wachtrijKaart(page, 1001).locator('.btn-add').click();
 
     // W5-fix: was HUIDIG GEDRAG (parserfout)
-    await expect(toastTekst(page)).toHaveText('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: HTTP 502)');
+    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
+    await expect(toastTekst(page)).toHaveText('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: Serverfout (HTTP 502))');
     expect(z.opnames.plan).toHaveLength(1);
     // W5-fix (N7): een 502 is een onzeker resultaat: na de rollback volgt één herlading (GET /api/tickets, daarna de wachttijden).
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan', START]);
@@ -331,7 +332,8 @@ test.describe('verzetten in het ticketdetail (saveReschedule)', () => {
     await openVerzet(page);
     await vulIn(page, '2026-10-08', '14:30');
 
-    await expect(toastTekst(page)).toHaveText('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: HTTP 502)');
+    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
+    await expect(toastTekst(page)).toHaveText('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: Serverfout (HTTP 502))');
     expect(z.opnames.plan).toHaveLength(1);
     // W5-fix (N7): een 502 is een onzeker resultaat: na de rollback volgt één herlading (GET /api/tickets, daarna de wachttijden).
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan', START]);
@@ -474,7 +476,8 @@ test.describe('📅 toewijzen (saveToewijzen)', () => {
     await kaart.getByRole('button', { name: '✓ Opslaan' }).click();
 
     // W5-fix: was HUIDIG GEDRAG (parserfout)
-    await expect(toastTekst(page)).toHaveText('✕ HTTP 502');
+    // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
+    await expect(toastTekst(page)).toHaveText('✕ Serverfout (HTTP 502)');
     expect(z.opnames['plan-datum']).toHaveLength(1);
     // W5-fix (N7): een 502 is een onzeker resultaat: na de mislukking volgt één herlading (GET /api/tickets, daarna de wachttijden).
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, 'POST /api/plan-datum', START]);

@@ -8,6 +8,7 @@
 // luisteraar zou zich bij elke preview opstapelen en het rapport meermaals versturen.
 // Raakt `document` enkel binnen functies. Alleen `kern/brug.js` wijst `window`-namen toe. De sluitknoppen lopen via
 // data-actie-delegatie; het venster sluit via registreerBackdrop (inhoudsklik sluit niet).
+import { foutTekst } from '../kern/api.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { registreerVenster } from '../venster.js';
@@ -46,7 +47,7 @@ export async function syncOplossingNaarZoho(ticketId, content) {
     const data = await res.json().catch(() => ({ error: 'HTTP ' + res.status })); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>'
     if (data.error) throw new Error(data.error);
   } catch (err) {
-    toast('⚠ Oplossing kon niet automatisch bijgewerkt worden in Zoho: ' + err.message, 4500);
+    toast('⚠ Oplossing kon niet automatisch bijgewerkt worden in Zoho: ' + foutTekst(err), 4500);
   }
 }
 
@@ -99,7 +100,7 @@ export async function voorbeeldRapport(rapportId, btn) {
     };
     document.getElementById('rapport-preview-overlay').classList.add('open');
   } catch (err) {
-    toast('✕ Voorbeeld ophalen mislukt: ' + err.message, 5000);
+    toast('✕ Voorbeeld ophalen mislukt: ' + foutTekst(err), 5000);
   }
 }
 
@@ -187,6 +188,6 @@ export async function verstuurRapport(rapportId, btn) {
       toast(`⚠ Mail verstuurd, maar ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: ${data.statusFout}`, 8000);
     }
   } catch (err) {
-    toast('✕ ' + err.message, 5000);
+    toast('✕ ' + foutTekst(err), 5000);
   }
 }

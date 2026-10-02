@@ -4,6 +4,7 @@
 // doorgegeven wordt door renderInventaris()/updateInventarisBadge() (app.js) -- deze module leest
 // activeAssigneeFilter niet rechtstreeks.
 // Zie docs/superpowers/plans/2026-08-21-inventaris-edit-en-supervisorlog.md.
+import { foutTekst } from './kern/api.js';
 import { TEST_MODE } from './kern/omgeving.js';
 import { loadFromCache, saveToCache } from './kern/opslag.js';
 import { escHtml, toast } from './kern/ui.js';
@@ -254,7 +255,7 @@ async function invSaveEdit() {
     updateInventarisBadge(persoon);
     toast('✓ Wagenvoorraad opgeslagen', 2500);
   } catch (err) {
-    toast('✕ Opslaan is niet gelukt. Controleer je verbinding en probeer opnieuw. (Detail: ' + err.message + ')', 4000);
+    toast('✕ Opslaan is niet gelukt. Controleer je verbinding en probeer opnieuw. (Detail: ' + foutTekst(err) + ')', 4000);
   }
 }
 
@@ -368,7 +369,7 @@ async function markVerwerkt(logId) {
     updateInventarisBadge('all');
     toast('✓ Gemarkeerd als verwerkt', 2500);
   } catch (err) {
-    toast('✕ Verwerkt-markering mislukt: ' + err.message, 4000);
+    toast('✕ Verwerkt-markering mislukt: ' + foutTekst(err), 4000);
   }
 }
 

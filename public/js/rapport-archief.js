@@ -1,6 +1,7 @@
 // public/js/rapport-archief.js
 // Overzicht van gearchiveerde rapporten (interventie + installatie), met filter op type en
 // Excel-export-aanroep (zie excel-export.js). Leest `R`/rapport-records uit de outbox-archivering.
+import { foutTekst } from './kern/api.js';
 import { TEST_MODE } from './kern/omgeving.js';
 import { registreerActies, metBehoudScroll } from './kern/ui.js';
 import { sjLog } from './kern/verklikker.js';
@@ -37,7 +38,7 @@ export async function laadRapportArchief() {
     // Scrollpositie behouden (her-render tijdens sync); metBehoudScroll komt uit kern/ui.js.
     metBehoudScroll(render);
   } catch (err) {
-    body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">✕ Laden mislukt: ${err.message}</div>`;
+    body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">✕ Laden mislukt: ${foutTekst(err)}</div>`;
   }
 }
 
@@ -183,7 +184,7 @@ export async function verwijderRapport(id, ticketRef, datumStr) {
     toast('✓ Rapport verwijderd');
     await laadRapportArchief();
   } catch (err) {
-    toast('✕ Verwijderen mislukt: ' + err.message);
+    toast('✕ Verwijderen mislukt: ' + foutTekst(err));
   }
 }
 
