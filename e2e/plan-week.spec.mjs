@@ -1,4 +1,4 @@
-import { test, expect, startApp } from './helpers.mjs';
+import { test, expect, startApp, opslagStub } from './helpers.mjs';
 
 // Instellingen van Tim vooraf zetten (zoals de gebruiker ze via Instellingen zou bewaren).
 // Alleen in het hoofdvenster en alleen als er nog niets staat, zodat een herlaad ze behoudt.
@@ -85,5 +85,53 @@ test.describe('plan deze week', () => {
     const verwacht = consoleFouten.filter(f => /\/api\/matrix/.test(f) && /500/.test(f));
     expect(verwacht.length).toBeGreaterThanOrEqual(1);
     for (const f of verwacht) consoleFouten.splice(consoleFouten.indexOf(f), 1);
+  });
+});
+
+// Hele-dag-blokkeringen in "Plan deze week" (karakterisering van het filter `uitgesloten` in autoPlan, D21):
+// een blokkering telt mee voor de gekozen technieker als ze globaal is of op zijn naam staat; die van een
+// andere technieker en een feestdag doen het ook niet/wel. Gemeten bij VASTE_NU (maandag 5 okt), matrix 20 min:
+// zonder blokkering staan beide Tim-tickets op maandag 5 okt.
+const BLOK = (o) => ({ id: 'x', scope: 'global', person: null, date: '2026-10-05', kind: 'fullday', from: null, to: null, reason: '', ...o });
+const metBlokkering = (...exceptions) => ({ availability: opslagStub({ versie: 1, exceptions }, 'exceptions') });
+
+test.describe('plan deze week: hele-dag-blokkeringen', () => {
+  test('blokkering op naam van Tim: maandag valt weg, beide tickets op dinsdag', async ({ page }) => {
+    await startApp(page, { technieker: 'Tim', overschrijf: metBlokkering(BLOK({ scope: 'person', person: 'Tim' })) });
+    await klikPlanDezeWeek(page);
+    const venster = resultaat(page);
+    await expect(venster.getByText('Ingepland (2)', { exact: true })).toBeVisible();
+    await expect(venster.getByText(/#1001 Laadpaal offline na stroomuitval → .*6 okt/)).toBeVisible();
+    await expect(venster.getByText(/#1002 Controller reageert niet op OCPP commando → .*6 okt/)).toBeVisible();
+  });
+
+  test('globale blokkering: maandag valt weg, beide tickets op dinsdag', async ({ page }) => {
+    await startApp(page, { technieker: 'Tim', overschrijf: metBlokkering(BLOK({ scope: 'global' })) });
+    await klikPlanDezeWeek(page);
+    const venster = resultaat(page);
+    await expect(venster.getByText('Ingepland (2)', { exact: true })).toBeVisible();
+    await expect(venster.getByText(/#1001 Laadpaal offline na stroomuitval → .*6 okt/)).toBeVisible();
+    await expect(venster.getByText(/#1002 Controller reageert niet op OCPP commando → .*6 okt/)).toBeVisible();
+  });
+
+  test('blokkering op naam van Roel: geen invloed op Tim, maandag blijft', async ({ page }) => {
+    await startApp(page, { technieker: 'Tim', overschrijf: metBlokkering(BLOK({ scope: 'person', person: 'Roel' })) });
+    await klikPlanDezeWeek(page);
+    const venster = resultaat(page);
+    await expect(venster.getByText('Ingepland (2)', { exact: true })).toBeVisible();
+    await expect(venster.getByText(/#1001 Laadpaal offline na stroomuitval → .*5 okt/)).toBeVisible();
+    await expect(venster.getByText(/#1002 Controller reageert niet op OCPP commando → .*5 okt/)).toBeVisible();
+  });
+
+  test('feestdag (woensdag 11 nov, enige werkdag): geen beschikbare dagen', async ({ page }) => {
+    await zetInstellingenTim(page, { werkdagen: [3] });
+    await startApp(page, { technieker: 'Tim' });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    for (let i = 0; i < 5; i++) await page.getByRole('button', { name: 'Volgende periode' }).first().click();
+    await page.getByRole('button', { name: '⚡ Plan deze week' }).click();
+    const venster = resultaat(page);
+    await expect(venster.getByText('Geen beschikbare dagen meer deze week')).toBeVisible();
+    await expect(venster.getByText(/Niet ingepland \(2\)/)).toBeVisible();
+    await expect(venster.getByText(/Ingepland \(/)).toHaveCount(0);
   });
 });
