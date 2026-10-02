@@ -17,6 +17,7 @@ import * as ticketdetailLogica from '../schermen/ticketdetail-logica.js';
 import * as ticketdetail from '../schermen/ticketdetail.js';
 import * as voorstel from '../schermen/voorstel.js';
 import * as annuleren from '../schermen/annuleren.js';
+import * as klantbeschikbaarheid from '../schermen/klantbeschikbaarheid.js';
 
 window.kern = { tijd, ui, selecties, toestand, api };
 window.kern.route = { ...routeTijden, ...routeKaart, ...route };
@@ -28,6 +29,7 @@ window.kern.ticketdetailLogica = { ...ticketdetailLogica };
 window.kern.ticketdetail = { ...ticketdetail };
 window.kern.voorstel = { ...voorstel };
 window.kern.annuleren = { ...annuleren };
+window.kern.klantbeschikbaarheid = { ...klantbeschikbaarheid };
 
 // LEGACY-BRUG (verdwijnt in etappe 5): oude globale namen voor klassieke code en oudere modules
 Object.assign(window, {
