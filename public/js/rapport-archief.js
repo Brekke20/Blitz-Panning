@@ -2,7 +2,9 @@
 // Overzicht van gearchiveerde rapporten (interventie + installatie), met filter op type en
 // Excel-export-aanroep (zie excel-export.js). Leest `R`/rapport-records uit de outbox-archivering.
 import { TEST_MODE } from './kern/omgeving.js';
-import { registreerActies } from './kern/ui.js';
+import { registreerActies, metBehoudScroll } from './kern/ui.js';
+import { sjLog } from './kern/verklikker.js';
+import { renderKalender } from './schermen/kalender.js';
 import { voorbeeldRapport } from './schermen/rapport-verzenden.js';
 
 export let _rapportArchief = [];
@@ -10,6 +12,8 @@ export let _rapportArchief = [];
 // Rapporten-tabblad te openen) → server-check slaat de versie-vergelijking dan over
 // (typeof null !== 'number'), net als bij een niet-herladen oud tabblad.
 export let _archiefVersie = null;
+// Een geïmporteerde let kan niet buiten zijn module worden toegewezen (voorheen deed het klassieke script dat via de window-accessor).
+export function zetArchiefVersie(v) { _archiefVersie = v; }
 
 // _rapportFilter is enkel intern gebruikt door setRapportFilter/renderRapportArchief hieronder —
 // geen andere plek in de app leest of schrijft dit, dus geen window-bridge nodig.
@@ -26,9 +30,9 @@ export async function laadRapportArchief() {
     const data = await res.json();
     _rapportArchief = data.rapports || [];
     _archiefVersie = data.versie || 0;
-    window.sjLog?.('laadRapportArchief:render'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
+    sjLog('laadRapportArchief:render'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
     const render = () => { renderRapportArchief(); renderKalender(); };
-    // Scrollpositie behouden (her-render tijdens sync); metBehoudScroll is een klassiek-script-global.
+    // Scrollpositie behouden (her-render tijdens sync); metBehoudScroll komt uit kern/ui.js.
     if (typeof metBehoudScroll === 'function') metBehoudScroll(render); else render();
   } catch (err) {
     body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">✕ Laden mislukt: ${err.message}</div>`;

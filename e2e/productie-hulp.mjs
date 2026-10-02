@@ -13,12 +13,13 @@
 // de zelftest (e2e/productie/zelftest-hulp.mjs) mag hem importeren (afgedwongen door tests/e2e-import-guard.test.mjs).
 import { test as basis, expect } from '@playwright/test';
 import {
-  stubExtern, standaardStub, verzamelVerzoeken, TE_PLANNEN, VASTE_NU, TOEGESTANE_CONSOLERUIS, opslagStub,
+  stubExtern, standaardStub, verzamelVerzoeken, TE_PLANNEN, VASTE_NU, TOEGESTANE_CONSOLERUIS, opslagStub, TICKETS_STUB,
 } from './helpers.mjs';
 import { waarnemer, strengVangnet, zetWebSocketSlot, alleenLezen, origineelVan } from './productie-waarnemer.mjs';
 
 // opslagStub: een stateful stub (GET + PUT met versie) voor specs die de opslag vooraf vullen (productiespecs importeren enkel hieruit).
-export { expect, VASTE_NU, opslagStub };
+// TICKETS_STUB: de tickets die de stub levert (kern/testdata.js vanaf VASTE_NU); specs leiden er hun verwachtingen uit af.
+export { expect, VASTE_NU, opslagStub, TICKETS_STUB };
 
 // Schrijfverzoeken die de app bij elke start zelf doet (POST /api/planning-sinds vraagt wachttijden op).
 export const OPSTART_SCHRIJVEN = ['/api/planning-sinds'];

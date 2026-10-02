@@ -10,7 +10,7 @@ test.describe('ticketdetail', () => {
     await expect(venster.getByTestId('detail-nummer')).toHaveText('#1001');
     await expect(venster).toContainText('Antwerpseweg 50, 2440 Geel');
     // In testmodus komt de waarde uit DUMMY_DATA (nu - 1 dag, met de vaste klok 5 okt -> 4 okt), niet uit
-    // de stub: laadPlanningSinds() keert in TEST_MODE meteen terug (public/index.html, functie laadPlanningSinds).
+    // de stub: laadPlanningSinds() keert in TEST_MODE meteen terug (public/js/app.js, functie laadPlanningSinds).
     await expect(venster.getByTestId('detail-rij').filter({ hasText: 'In planning sinds' }).getByTestId('detail-waarde'))
       .toHaveText('4 okt');
     expect(verzoeken.van('/api/planning-sinds')).toEqual([]);

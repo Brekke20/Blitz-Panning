@@ -5,13 +5,9 @@
 // verzoek laat de test falen. Foutantwoorden zijn per test expliciet toegelaten met `verwachtHttpFout`.
 // Echte foutvormen (netlify/functions/propose.js, voorstel-status.js): propose geeft 400/404/500 met `{ error }`,
 // een trage Zoho kan een Netlify-gateway 502 met HTML-body geven; voorstel-status geeft 409 `{ error, serverVersie }`.
-import fs from 'node:fs';
-import path from 'node:path';
-import url from 'node:url';
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, OPSTART_SCHRIJVEN, settle, openKalender } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, OPSTART_SCHRIJVEN, settle, openKalender, TICKETS_STUB } from '../productie-hulp.mjs';
 
-const MAP = path.dirname(url.fileURLToPath(import.meta.url));
-const TICKETS = JSON.parse(fs.readFileSync(path.join(MAP, '..', 'fixtures', 'tickets.json'), 'utf8'));
+const TICKETS = TICKETS_STUB;
 const START = 'POST /api/planning-sinds';
 const PROPOSE = 'POST /api/propose';
 const STATUS_POST = 'POST /api/voorstel-status';

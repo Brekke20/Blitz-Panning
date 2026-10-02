@@ -1,6 +1,6 @@
 // kern/brug.js — de ENIGE module die `window` aanraakt. Moet de eerste kern-module zijn die laadt
-// (staat in index.html vóór app-dialog.js); modules draaien na het parsen, vóór DOMContentLoaded,
-// dus enkel code binnen functies/handlers van het klassieke script mag deze namen gebruiken.
+// (staat in index.html vóór app-dialog.js en vóór app.js); modules draaien na het parsen, vóór DOMContentLoaded, in documentvolgorde.
+// Het klassieke script bestaat niet meer: app.js is een module en importeert wat het nodig heeft.
 import * as tijd from './tijd.js';
 import * as ui from './ui.js';
 import * as selecties from './selecties.js';

@@ -6,12 +6,8 @@
 // zijn daarom per test expliciet toegelaten met `verwachtHttpFout` (exact pad + status; faalt als de fout uitblijft).
 // De echte backend geeft bij een Zoho-fout 500 + `{ error }` (plan.js, plan-datum.js), bij een trage Zoho kan de
 // Netlify-gateway 502/504 met een HTML-body geven (dan faalt res.json() in de client).
-import fs from 'node:fs';
-import path from 'node:path';
-import url from 'node:url';
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, opslagStub, OPSTART_SCHRIJVEN, settle, openKalender } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, zohoStubs, opslagStub, OPSTART_SCHRIJVEN, settle, openKalender, TICKETS_STUB } from '../productie-hulp.mjs';
 
-const MAP = path.dirname(url.fileURLToPath(import.meta.url));
 const START = 'POST /api/planning-sinds';
 const schrijfLijst = async (page, verzoeken) => {
   await settle(page);
@@ -496,7 +492,7 @@ test.describe('📅 toewijzen (saveToewijzen)', () => {
 
 // ── ⚡ Plan deze week (autoPlan) ─────────────────────────────────────────────────────────────────────────
 // Tickets zonder coördinaten (geen _lat/_lon): autoPlan moet ze eerst geocoderen via POST /api/optimize.
-const TICKETS = JSON.parse(fs.readFileSync(path.join(MAP, '..', 'fixtures', 'tickets.json'), 'utf8'));
+const TICKETS = TICKETS_STUB;
 const zonderCoords = () => {
   const kopie = structuredClone(TICKETS);
   for (const t of kopie.tickets) { delete t._lat; delete t._lon; }

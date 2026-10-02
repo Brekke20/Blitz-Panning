@@ -5,6 +5,7 @@ import { test as basis, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
+import { maakDummyData } from '../public/js/kern/testdata.js';
 
 const MAP = path.dirname(url.fileURLToPath(import.meta.url));
 const fixture = (naam) => JSON.parse(fs.readFileSync(path.join(MAP, 'fixtures', naam), 'utf8'));
@@ -14,10 +15,12 @@ const FIX = {
   optimize: fixture('optimize.json'),
   drukte: fixture('drukte.json'),
   planningSinds: fixture('planning-sinds.json'),
-  tickets: fixture('tickets.json'),
 };
 
 export const VASTE_NU = '2026-10-05T09:00:00+02:00'; // maandag, Europe/Brussels
+
+// De tickets-stub van de productiemodus: de dummy-data van de testmodus, berekend vanaf de vaste klok (D6).
+export const TICKETS_STUB = maakDummyData(Date.parse(VASTE_NU));
 
 // Paden die een test nooit mag aanroepen: schrijven naar Zoho of mailen (E12, W11).
 export const VERBODEN_PADEN = [
@@ -165,8 +168,8 @@ function maakStandaardStubs() {
     },
     drukte: () => json(200, structuredClone(FIX.drukte)),
     'planning-sinds': () => json(200, structuredClone(FIX.planningSinds)),
-    // Enkel in de productiemodus (zonder ?test) aangeroepen; in ?test komen de tickets uit DUMMY_DATA.
-    tickets: () => json(200, structuredClone(FIX.tickets)),
+    // Enkel in de productiemodus (zonder ?test) aangeroepen; in ?test komen de tickets uit kern/testdata.js (zelfde bron).
+    tickets: () => json(200, structuredClone(TICKETS_STUB)),
 
     afspraken: ({ methode, body }) => methode === 'PUT' ? afspraken.schrijf(body) : afspraken.get(),
     availability: ({ methode, body }) => methode === 'PUT' ? availability.schrijf(body) : availability.get(),

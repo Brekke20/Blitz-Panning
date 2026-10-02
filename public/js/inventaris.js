@@ -6,6 +6,7 @@
 // impliciete window-global, in tegenstelling tot function-declarations zoals toast/escHtml).
 // Zie docs/superpowers/plans/2026-08-21-inventaris-edit-en-supervisorlog.md.
 import { TEST_MODE } from './kern/omgeving.js';
+import { loadFromCache, saveToCache } from './kern/opslag.js';
 
 export let _invData = { versie: 0, wagenvoorraad: {}, log: [] };
 

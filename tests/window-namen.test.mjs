@@ -17,7 +17,7 @@ const BROWSER = new Set([
   'location', 'localStorage', 'sessionStorage', 'matchMedia', 'open', 'close', 'innerWidth', 'innerHeight', 'scrollTo', 'scrollBy',
   'scrollX', 'scrollY', 'addEventListener', 'removeEventListener', 'dispatchEvent', 'fetch', 'confirm', 'alert', 'screen',
   'navigator', 'document', 'history', 'requestAnimationFrame', 'getComputedStyle', 'setTimeout', 'clearTimeout',
-  'SignaturePad', 'L', 'ExcelJS', 'indexedDB', 'Notification',
+  'SignaturePad', 'L', 'ExcelJS', 'indexedDB', 'Notification', 'ResizeObserver',
 ]);
 
 // Lokale namen (parameter of variabele binnen één bestand) waarop een typeof-controle terecht is: geen window-naam.
@@ -63,7 +63,13 @@ export function scan(bronnen) {
     for (const m of tekst.matchAll(/Object\.assign\(\s*window\s*,\s*\{([\s\S]*?)\}\s*\)/g)) {
       for (const k of m[1].matchAll(/^\s*([A-Za-z_$][\w$]*)\s*[:,]/gm)) gedefinieerd.add(k[1]);
     }
+    // Een naam die in dit bestand geïmporteerd wordt (`import { x }`, `import { y as x }`) is een gewone binding, geen window-naam.
+    const geimporteerd = new Set();
+    for (const m of tekst.matchAll(/import\s*\{([^}]*)\}\s*from/g)) {
+      for (const k of m[1].split(',')) { const l = k.trim().split(/\s+as\s+/).pop(); if (l) geimporteerd.add(l); }
+    }
     for (const m of tekst.matchAll(/typeof\s+([A-Za-z_$][\w$]*)\s*===?\s*['"]function['"]/g)) {
+      if (geimporteerd.has(m[1])) continue;
       if (!kaleLezingen.has(m[1])) kaleLezingen.set(m[1], naam);
     }
     // Functies en var op het hoogste niveau (kolom 0) van een klassiek script worden vanzelf window-eigenschappen.
@@ -104,6 +110,11 @@ test('een typeof-controle op een kale naam zonder definitie wordt gevonden (zelf
   assert.deepEqual(scan([{ naam: 'x.js', tekst: "if (typeof metBehoudScroll === 'function') metBehoudScroll(render);" }]), ['typeof metBehoudScroll (gelezen in x.js)']);
 });
 
+test('een typeof-controle op een geïmporteerde naam is geen window-lezing (zelftest)', () => {
+  assert.deepEqual(scan([{ naam: 'x.js', tekst: "import { metBehoudScroll } from './kern/ui.js';\nif (typeof metBehoudScroll === 'function') metBehoudScroll(render);" }]), []);
+  assert.deepEqual(scan([{ naam: 'y.js', tekst: "import { a as metBehoudScroll, b } from './x.js';\nif (typeof metBehoudScroll === 'function') b();" }]), []);
+});
+
 test("window['x'], window?.x en globalThis.x tellen als lezing (zelftest)", () => {
   const r = scan([{ naam: 'x.js', tekst: "window['a'](); window?.b; window?.['c']; globalThis.d; globalThis.ok = 1; globalThis.ok;" }]);
   assert.deepEqual(r.sort(), ['window.a (gelezen in x.js)', 'window.b (gelezen in x.js)', 'window.c (gelezen in x.js)', 'window.d (gelezen in x.js)']);
@@ -116,4 +127,55 @@ test('een sluitVia-tabelnaam in venster.js zonder definitie wordt gevonden (zelf
 
 test('commentaar telt niet mee (zelftest)', () => {
   assert.deepEqual(scan([{ naam: 'x.js', tekst: '// window.weg()\n/* window.ook() */\nconst u = "https://x.be/a";' }]), []);
+});
+
+// ── Kale namen van het voormalige klassieke script (etappe 5b, taak 8) ──
+// Het klassieke <script> van index.html is een module geworden (public/js/app.js): zijn top-level namen zijn geen
+// window-globals meer. Een kale lezer elders (oudere module, inline handler, e2e-evaluate) zou dus een ReferenceError geven
+// (of, achter `typeof`/`?.`, stil niets doen). Elk bestand behalve app.js mag zo'n naam enkel kaal gebruiken als het hem zelf
+// definieert of importeert.
+const VOORMALIG_KLASSIEK = [
+  'PRIO_LABEL', 'prioLabel', 'DUMMY_DATA', 'startInvPoll', 'stopInvPoll', 'easterDate', 'getBelgianHolidays', 'getHolidayName',
+  'duurVoor', 'zetTopbarHoogte', 'bewaarSchermStaat', 'planHerstelSchermStaat', 'vraagRolOpTablet', 'loadFromCache', 'saveToCache',
+  'normAdres', 'loadGeocache', 'geocacheLookup', 'geocacheStore', 'metBehoudScroll', 'sjLog', 'pasPlanningSindsToe',
+  'laadPlanningSinds', 'applyTicketsData', 'loadTickets', 'initials', 'personenUitTickets', 'valideerActievePersoon',
+  'buildPersonSelector', 'updatePersonHeader', 'zetPersonMenuOpen', 'togglePersonMenu', 'selectPerson', 'koppelRenders',
+  'reconcilePlanning', 'startTicketPolling', 'updateTabIndicator', 'setTab', 'pasRolBeperkingToe', 'navigate', 'meervoud', 'toggleTheme',
+];
+
+export function kaleLezers(bronnen, namen = VOORMALIG_KLASSIEK) {
+  const uit = [];
+  for (const { naam, tekst: ruw } of bronnen) {
+    if (naam === 'js/app.js') continue;
+    const tekst = zonderCommentaar(ruw);
+    for (const n of namen) {
+      const gebruik = new RegExp(String.raw`(?<![\w$.'"\`-])${n}(?![\w$'"\`:-])`);
+      if (!gebruik.test(tekst)) continue;
+      const geimporteerd = [...tekst.matchAll(/import\s*\{([^}]*)\}\s*from/g)].some(m => m[1].split(',').some(k => k.trim().split(/\s+as\s+/).pop() === n));
+      const eigen = new RegExp(String.raw`(?:function\s+${n}\b|\b(?:const|let|var)\s+${n}\b|\{[^}]*\b${n}\b[^}]*\}\s*=|\{[^}]*\b${n}\b[^}]*\}\s*\)\s*(?:\{|=>))`).test(tekst) || geimporteerd;
+      if (!eigen) uit.push(`${n} (kaal gelezen in ${naam})`);
+    }
+  }
+  return uit;
+}
+
+const e2eBronnen = () => {
+  const map = path.join(PUBLIC, '..', 'e2e');
+  const lijst = [];
+  const loop = (m) => { for (const d of fs.readdirSync(m, { withFileTypes: true })) { const p = path.join(m, d.name); if (d.isDirectory()) { if (d.name !== 'fixtures') loop(p); } else if (d.name.endsWith('.mjs')) lijst.push({ naam: 'e2e/' + path.relative(map, p).split(path.sep).join('/'), tekst: fs.readFileSync(p, 'utf8') }); } };
+  loop(map);
+  return lijst;
+};
+
+test('geen kale lezer van een voormalige klassieke-script-naam in public/js, index.html of e2e', () => {
+  assert.deepEqual(kaleLezers([...bronnen(), ...e2eBronnen()]), []);
+});
+
+test('de kale-lezerscan vindt een kale oproep en accepteert import, eigen definitie, eigenschap en object-sleutel (zelftest)', () => {
+  assert.deepEqual(kaleLezers([{ naam: 'js/x.js', tekst: 'setTab("kalender");' }]), ['setTab (kaal gelezen in js/x.js)']);
+  assert.deepEqual(kaleLezers([{ naam: 'e2e/x.mjs', tekst: 'await page.evaluate(() => loadTickets());' }]), ['loadTickets (kaal gelezen in e2e/x.mjs)']);
+  assert.deepEqual(kaleLezers([{ naam: 'js/x.js', tekst: "import { meervoud } from './a.js';\nmeervoud(1, 'a', 'b');" }]), []);
+  assert.deepEqual(kaleLezers([{ naam: 'js/x.js', tekst: 'function navigate(x) {}\nnavigate(1);' }]), []);
+  assert.deepEqual(kaleLezers([{ naam: 'js/x.js', tekst: "afh.navigate(1); const o = { navigate: 1 }; kern.x.setTab('a'); 'setTab';" }]), []);
+  assert.deepEqual(kaleLezers([{ naam: 'js/app.js', tekst: 'setTab("kalender");' }]), []);
 });

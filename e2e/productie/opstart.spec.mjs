@@ -1,10 +1,6 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import url from 'node:url';
-import { test, expect, startAppProductie, verwachtSchrijven, OPSTART_SCHRIJVEN } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, OPSTART_SCHRIJVEN, TICKETS_STUB } from '../productie-hulp.mjs';
 
-const MAP = path.dirname(url.fileURLToPath(import.meta.url));
-const TICKETS = JSON.parse(fs.readFileSync(path.join(MAP, '..', 'fixtures', 'tickets.json'), 'utf8'));
+const TICKETS = TICKETS_STUB;
 
 // ── Opstart zonder ?test ──────────────────────────────────────────────────────
 test('Laden: exact de verwachte opstartverzoeken, geen testmodus', async ({ page, verzoeken }) => {
