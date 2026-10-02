@@ -23,6 +23,7 @@ import * as afspraken from '../schermen/afspraken.js';
 import * as instellingen from '../schermen/instellingen.js';
 import * as fotos from '../schermen/fotos.js';
 import * as rapportVerzenden from '../schermen/rapport-verzenden.js';
+import * as planacties from '../schermen/planacties.js';
 import { openPrijsBeheer, closePrijsBeheer, prijsReset, prijsOpslaan } from '../prijzen.js';
 
 window.kern = { tijd, ui, selecties, toestand, api };
@@ -41,6 +42,7 @@ window.kern.afspraken = { ...afspraken };
 window.kern.instellingen = { ...instellingen };
 window.kern.fotos = { ...fotos };
 window.kern.rapportVerzenden = { ...rapportVerzenden };
+window.kern.planacties = { ...planacties };
 window.kern.prijzen = { openPrijsBeheer, closePrijsBeheer, prijsReset, prijsOpslaan }; // enkel de venster-knoppen; PRIJZEN is een live `let` in prijzen.js
 
 // LEGACY-BRUG (verdwijnt in etappe 5): oude globale namen voor klassieke code en oudere modules

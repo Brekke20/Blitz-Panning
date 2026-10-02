@@ -114,10 +114,10 @@ test.describe('+ in de wachtrij (addTicketToDate via quickAdd)', () => {
     await wachtrijKaart(page, 1001).locator('.btn-add').click();
     await expect.poll(() => z.opnames.plan.length).toBe(1);
     // Terwijl het verzoek loopt (de knop is disabled, een klik is dus een no-op): de functies zelf aanroepen,
-    // want enkel zo bewijst dit de inFlightTickets-guard van addTicketToDate. addTicketToDate staat als
-    // functiedeclaratie in het klassieke script (globaal bereikbaar).
+    // want enkel zo bewijst dit de inFlightTickets-guard van addTicketToDate. addTicketToDate staat in
+    // schermen/planacties.js (kern.planacties).
     const uitkomst = await page.evaluate(async () => {
-      const direct = await addTicketToDate('t1', '2026-10-05'); // guard: false, geen fetch
+      const direct = await kern.planacties.addTicketToDate('t1', '2026-10-05'); // guard: false, geen fetch
       await kern.wachtrij.quickAdd('t1'); // zelfde guard via quickAdd; geen toast
       await kern.wachtrij.quickAdd('t1');
       return direct;

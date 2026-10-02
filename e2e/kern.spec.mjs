@@ -220,7 +220,7 @@ test.describe('kern: renders', () => {
   test('laatste wachtrij-ticket van een technieker inplannen laat diens filter staan', async ({ page }) => {
     await startApp(page, { rol: 'coordinator', technieker: 'Roel' }); // Roel heeft precies 1 wachtrij-ticket (t3)
     await expect(page.locator('#person-name-hdr')).toHaveText('Roel');
-    await page.evaluate(() => addTicketToDate('t3', '2026-10-06'));
+    await page.evaluate(() => kern.planacties.addTicketToDate('t3', '2026-10-06'));
     await expect(page.locator('#cnt-tickets')).toHaveText('0');
     await rust(page);
     await expect(page.locator('#person-name-hdr')).toHaveText('Roel');
@@ -233,7 +233,7 @@ test.describe('kern: renders', () => {
     const id = await page.evaluate(() => kern.toestand.get('allTickets')[0].id);
 
     const na1 = await meetDelta(page, async () => {
-      await page.evaluate(([id]) => addTicketToDate(id, '2026-10-06'), [id]);
+      await page.evaluate(([id]) => kern.planacties.addTicketToDate(id, '2026-10-06'), [id]);
       await expect(page.locator('#cnt-tickets')).toHaveText('2');
       await expect(page.locator('#ticket-list .ticket')).toHaveCount(2);
     });
@@ -241,7 +241,7 @@ test.describe('kern: renders', () => {
     expect(na1).toEqual({ renderKalender: 2, renderTickets: 2, renderGepland: 0, renderRouteList: 1 });
 
     const na2 = await meetDelta(page, async () => {
-      await page.evaluate(([id]) => removeTicketFromDate(id, '2026-10-06'), [id]);
+      await page.evaluate(([id]) => kern.planacties.removeTicketFromDate(id, '2026-10-06'), [id]);
       await expect(page.locator('#cnt-tickets')).toHaveText('3');
       await expect(page.locator('#ticket-list .ticket')).toHaveCount(3);
     });
