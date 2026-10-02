@@ -10,8 +10,9 @@ const SHELL = ['/', '/index.html', '/manifest.json', '/js/apparaat.js', '/js/ker
 const CDN_VAST = ['https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.1.7/signature_pad.umd.min.js', 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/layers.png', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/layers-2x.png'];
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
-// Navigatie-time-out (Q5): standaard UIT (0). Enkel de tests zetten ze via '/sw.js?navTimeout=<ms>' (gehele getallen 0-30000).
-const NAV_TIMEOUT_MS = 0;
+// Navigatie-time-out (Q5, Brent 2026-10-02): standaard 4000 ms; daarna start de app uit de bewaarde kopie (die één release oud mag zijn).
+// De tests kunnen dit overschrijven via '/sw.js?navTimeout=<ms>' (gehele getallen 0-30000; 0 = uit).
+const NAV_TIMEOUT_MS = 4000;
 const navTimeoutMs = self.SwStrategie.leesNavTimeout(new URL(self.location).search, NAV_TIMEOUT_MS);
 
 const strategie = self.SwStrategie.maakStrategie({

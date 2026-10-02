@@ -138,7 +138,7 @@ test('app.js registreert de service worker met updateViaCache: none', () => {
   assert.match(app, /register\('\/sw\.js', \{ updateViaCache: 'none' \}\)/);
 });
 
-test('sw.js leest ?navTimeout= via SwStrategie.leesNavTimeout met de constante NAV_TIMEOUT_MS (standaard 0) als terugval', () => {
-  assert.match(swBron, /const NAV_TIMEOUT_MS = 0;/);
+test('sw.js leest ?navTimeout= via SwStrategie.leesNavTimeout met de constante NAV_TIMEOUT_MS (standaard 4000, Q5) als terugval', () => {
+  assert.match(swBron, /const NAV_TIMEOUT_MS = 4000;/); // W5-fix (Q5): was 0 (uit)
   assert.match(swBron, /self\.SwStrategie\.leesNavTimeout\(new URL\(self\.location\)\.search, NAV_TIMEOUT_MS\)/);
 });
