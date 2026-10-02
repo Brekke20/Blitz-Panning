@@ -236,7 +236,8 @@ test('Zelftest: verwachtNetwerkFout met een andere methode dekt de fout niet', a
   await page.evaluate(() => fetch('/api/plan', { method: 'POST', body: '{}' }).catch(() => {}));
 });
 
-// hangen: het verzoek komt aan (de stub nam het op) maar wordt nooit beantwoord, hoe ver de klok ook loopt.
+// hangen: het verzoek komt aan (de stub nam het op) maar wordt door de stub nooit beantwoord. De app breekt zelf af na de
+// tijdlimiet (20 s voor /api/plan, etappe 7 N6): de klok blijft daarom onder die limiet.
 test('Zelftest: hangen beantwoordt het verzoek nooit', async ({ page, verzoeken }) => {
   const z = zohoStubs();
   z.zetAntwoord('plan', { hangen: true });
@@ -247,7 +248,7 @@ test('Zelftest: hangen beantwoordt het verzoek nooit', async ({ page, verzoeken 
     fetch('/api/plan', { method: 'POST', body: '{}' }).then(() => { window.__hang = 'antwoord'; }, () => { window.__hang = 'fout'; });
   });
   await expect.poll(() => z.opnames.plan.length).toBe(1);
-  await page.clock.runFor(300000);
+  await page.clock.runFor(15000);
   await page.evaluate(() => Promise.resolve());
   expect(await page.evaluate(() => window.__hang)).toBe('wacht');
 });

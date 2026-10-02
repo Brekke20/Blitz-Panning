@@ -5,6 +5,7 @@ import * as tijd from './tijd.js';
 import * as ui from './ui.js';
 import * as selecties from './selecties.js';
 import * as api from './api.js';
+import { installeerFetchTimeout } from './netwerk.js';
 import { toestand } from './toestand.js';
 import * as routeTijden from '../schermen/route-tijden.js';
 import * as routeKaart from '../schermen/route-kaart.js';
@@ -27,6 +28,7 @@ import * as planacties from '../schermen/planacties.js';
 import { _rapportArchief, _archiefVersie } from '../rapport-archief.js';
 import { openPrijsBeheer, closePrijsBeheer, prijsReset, prijsOpslaan } from '../prijzen.js';
 
+installeerFetchTimeout(window); // N6: time-outs op /api, buitenste laag boven de ?test-header-patch
 window.kern = { tijd, ui, selecties, toestand, api };
 window.kern.route = { ...routeTijden, ...routeKaart, ...route };
 window.kern.capaciteit = { ...capaciteit };

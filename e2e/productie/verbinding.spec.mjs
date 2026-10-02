@@ -70,22 +70,28 @@ test.describe('verbinding: planning (plan) en vernieuwen', () => {
     expect(await planningVan(page)).not.toHaveProperty('2026-10-05');
   });
 
-  test('P2 (→ T2, H2): een hangende plan-aanroep blijft "in flight" (geen time-out), een tweede klik doet niets', async ({ page, verzoeken }) => {
+  test('P2 (omgedraaid in T2, H2): een hangende plan-aanroep eindigt na 20 s: foutmelding, ticket terug bedienbaar en geen half ticket', async ({ page, verzoeken }) => {
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/plan', methode: 'POST' }]);
     const z = await startPlan(page, verzoeken);
+    const basis = await planningVan(page);
     z.zetAntwoord('plan', { hangen: true });
     await wachtrijKaart(page, 1001).locator('.btn-add').click();
     await expect.poll(() => z.opnames.plan.length).toBe(1);
-    await page.clock.runFor(120000);
+    await page.clock.runFor(19000);
     await page.evaluate(() => Promise.resolve());
-
-    // HUIDIG GEDRAG (bug?): na twee minuten wacht de app nog steeds; de knop blijft uitgeschakeld en er komt geen foutmelding.
+    // Net vóór de limiet: nog steeds in flight (de inFlight-guard houdt een tweede klik tegen).
     await expect(wachtrijKaart(page, 1001).locator('.btn-add')).toBeDisabled();
-    // De inFlight-guard zelf: een tweede aanroep terwijl de eerste hangt, doet niets (geeft false, geen tweede verzoek).
-    expect(await page.evaluate(() => kern.planacties.addTicketToDate('t1', '2026-10-05'))).toBe(false);
-    await settleZonderOpenstaand(page);
-    expect(z.opnames.plan).toHaveLength(1);
     await expect(toastTekst(page)).not.toContainText('mislukt');
-    expect(await planningVan(page)).toMatchObject({ '2026-10-05': ['t1'] }); // nog de optimistische stand
+
+    await page.clock.runFor(2000);
+    await page.evaluate(() => Promise.resolve());
+    // W5-fix: de aanroep eindigt met een TimeoutError; de bestaande foutmelding toont het detail.
+    await expect(toastTekst(page)).toContainText('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: Time-out na 20 s)');
+    await expect(wachtrijKaart(page, 1001)).toHaveCount(1);
+    await expect(wachtrijKaart(page, 1001).locator('.btn-add')).toBeEnabled();
+    await expect(page.locator('#cnt-tickets')).toHaveText('2');
+    expect(await planningVan(page)).toEqual(basis); // teruggedraaid: geen half ticket
+    expect(z.opnames.plan).toHaveLength(1);
   });
 
   test('P4 (→ T6, H3): een afgebroken plan-aanroep wordt teruggedraaid, maar de app herlaadt de tickets niet', async ({ page, verzoeken }) => {
@@ -111,8 +117,9 @@ test.describe('verbinding: planning (plan) en vernieuwen', () => {
 });
 
 test.describe('verbinding: annuleren', () => {
-  test('P3 (→ T2, H6): een hangende annuleer-aanroep houdt het venster vast, ook na twee minuten en Escape', async ({ page, verzoeken }) => {
+  test('P3 (omgedraaid in T2, H6): een hangende annuleer-aanroep eindigt na 35 s: venster ontgrendeld, waarschuwing "klant kan al gemaild zijn"', async ({ page, verzoeken }) => {
     verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/annuleer']);
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/annuleer', methode: 'POST' }]);
     const register = { versie: 4, status: { p1: { contact: '2026-10-04T08:00:00.000Z', tijdslot: '09:30–12:30', tijdslotDatum: '2026-10-07' } } };
     const z = zohoStubs({ register });
     await startAppProductie(page, { technieker: 'Tim', overschrijf: z.overschrijf });
@@ -127,16 +134,42 @@ test.describe('verbinding: annuleren', () => {
     z.zetAntwoord('annuleer', { hangen: true });
     await page.locator('#annuleer-verstuur').click();
     await expect.poll(() => z.opnames.annuleer.filter(o => o.methode === 'POST' && o.body.voorbeeld !== true).length).toBe(1);
-    await page.clock.runFor(120000);
+    expect(z.opnames.annuleer.find(o => o.methode === 'POST' && o.body.voorbeeld !== true).body.mailKlant).toBe(true);
+    await page.clock.runFor(34000);
     await page.evaluate(() => Promise.resolve());
-
-    // HUIDIG GEDRAG (bug?): het venster zit vast: "Bezig…", Terug uit, Escape sluit niet.
+    // Net vóór de limiet: het venster zit nog vast.
     await expect(page.locator('#annuleer-verstuur')).toHaveText('Bezig…');
     await expect(page.locator('#annuleer-terug')).toBeDisabled();
+
+    await page.clock.runFor(2000);
+    await page.evaluate(() => Promise.resolve());
+    // W5-fix: venster ontgrendeld, de bestaande waarschuwing blijft (de klant kan al gemaild zijn).
+    await expect(toastTekst(page)).toContainText('✕ Annuleren mislukt: Time-out na 35 s De klant kan al gemaild zijn — controleer in Zoho vóór je opnieuw probeert.');
+    await expect(page.locator('#annuleer-verstuur')).toHaveText('Afspraak annuleren');
+    await expect(page.locator('#annuleer-terug')).toBeEnabled();
     await page.keyboard.press('Escape');
     await page.clock.runFor(1000);
-    await expect(page.locator('#annuleer-overlay')).toHaveClass(/open/);
-    await expect(toastTekst(page)).not.toContainText('mislukt');
+    await expect(page.locator('#annuleer-overlay')).not.toHaveClass(/open/);
+    expect(z.opnames.annuleer.filter(o => o.methode === 'POST' && o.body.voorbeeld !== true)).toHaveLength(1);
+  });
+});
+
+test.describe('verbinding: foto-upload', () => {
+  test('PUT /api/fotos eindigt pas na 60 s (grote upload), een gewone aanroep na 20 s', async ({ page, verzoeken }) => {
+    verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/fotos']);
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/fotos', methode: 'PUT' }]);
+    const z = zohoStubs();
+    await startAppProductie(page, { technieker: 'Tim', overschrijf: { ...z.overschrijf, fotos: () => ({ hangen: true }) } });
+    await page.evaluate(() => {
+      window.__foto = 'bezig';
+      fetch('/api/fotos', { method: 'PUT', body: '{}' }).then(() => { window.__foto = 'ok'; }, (e) => { window.__foto = e.name; });
+    });
+    await page.clock.runFor(59000);
+    await page.evaluate(() => Promise.resolve());
+    expect(await page.evaluate(() => window.__foto)).toBe('bezig');
+    await page.clock.runFor(2000);
+    await page.evaluate(() => Promise.resolve());
+    await expect.poll(() => page.evaluate(() => window.__foto)).toBe('TimeoutError');
   });
 });
 
