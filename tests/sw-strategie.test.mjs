@@ -264,3 +264,33 @@ test('leesNavTimeout: enkel gehele getallen 0-30000, anders de standaard', () =>
     assert.equal(l(slecht, 42), 42, slecht);
   }
 });
+
+test('installeer: een CDN die de headers stuurt maar de body laat stokken houdt de installatie niet op (fetch + put samen onder de time-out)', async () => {
+  const wachters = [];
+  let afgebroken = false;
+  const { s, caches } = bouw({
+    wachters,
+    fetchFn: async (u, opties) => {
+      if (String(u) !== LEAFLET) return new Response('ok');
+      opties?.signal?.addEventListener('abort', () => { afgebroken = true; });
+      return new Response(new ReadableStream({ start() { /* sluit nooit */ } }), { status: 200 });
+    },
+  });
+  // Een echte cache.put leest de body: nabootsen, zodat een stokkende body ook de put laat hangen.
+  const open = caches.open.bind(caches);
+  caches.open = async (n) => {
+    const c = await open(n);
+    const put = c.put.bind(c);
+    return Object.assign(c, { put: async (k, antw) => { await antw.clone().text(); return put(k, antw); } });
+  };
+  let klaar = false;
+  const p = s.installeer().then(() => { klaar = true; });
+  await tick(); await tick(); await tick();
+  assert.equal(klaar, false);
+  wachters.find((x) => x.ms > 0).res();
+  await p;
+  assert.equal(klaar, true);
+  assert.equal(afgebroken, true, 'de fetch wordt afgebroken bij de time-out');
+  assert.equal(caches.winkels.get('extern').has(LEAFLET), false, 'een afgebroken download staat niet in de cache');
+  assert.ok(caches.winkels.get('hoofd').has(ORIGIN + '/js/app.js'));
+});

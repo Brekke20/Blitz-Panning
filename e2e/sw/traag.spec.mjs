@@ -22,11 +22,12 @@ test('Traag netwerk met navTimeout=500: de navigatie krijgt de app uit de cache 
 test('Traag netwerk zonder navTimeout (standaard 0): de navigatie volgt het netwerk en wacht tot het antwoordt', async ({ sw }) => {
   await sw.start();
   await sw.registreerSwMetNavTimeout(); // geen ?navTimeout=: de standaard van sw.js
-  sw.vertraag('/', 3000);
+  // Vertraging boven 4000 ms: ook als de standaard-navTimeout later 4000 wordt (T8), moet dit nog het netwerk volgen.
+  sw.vertraag('/', 6000);
   const pagina = await sw.startNavigatie();
-  expect(await sw.navigatieAntwoord(2000), 'binnen 2 s is er nog geen antwoord (geen time-out)').toBeNull();
+  expect(await sw.navigatieAntwoord(4500), 'binnen 4,5 s is er nog geen antwoord (geen time-out)').toBeNull();
   const antwoord = await sw.navigatieAntwoord(10000);
   expect(antwoord, 'het antwoord komt met het netwerk').not.toBeNull();
-  expect(antwoord.ms).toBeGreaterThanOrEqual(2800);
+  expect(antwoord.ms).toBeGreaterThanOrEqual(5800);
   await expect(pagina.locator('#cnt-tickets')).toBeAttached({ timeout: 15000 });
 });

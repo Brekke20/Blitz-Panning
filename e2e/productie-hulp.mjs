@@ -105,6 +105,13 @@ export function staaOfflineSwFoutenToe(verzoeken) {
   OFFLINE_SW.add(o);
 }
 
+// Intrekken zodra de browser weer online is: daarna is een mislukt SW-verzoek weer gewoon een fout.
+export function herroepOfflineSwFoutenToe(verzoeken) {
+  let o;
+  try { o = origineelVan(verzoeken); } catch { o = verzoeken; }
+  OFFLINE_SW.delete(o);
+}
+
 const PER_CONSOOL = new WeakMap(); // verzoeken -> [{ tekst, gezien }]
 
 // Per test een toegelaten console.error van de app zelf (bv. 'Beschikbaarheid opslaan mislukt: TypeError: ...'): `tekst` is

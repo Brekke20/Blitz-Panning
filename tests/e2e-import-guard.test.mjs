@@ -87,7 +87,7 @@ const NETWERK_PATRONEN = [
   // die blijft same-origin en wordt door de fixture gestubd. Al het andere (variabele, template, absolute url, window/globalThis.fetch) faalt.
   [/(?<![\w$.])fetch\s*\((?!\s*['"]\/api\/)|\b(?:globalThis|global|window)\s*\.\s*fetch\b/, 'fetch('],
 ];
-const KLEP_NAMEN = /\b(buitenHost|ongeoorloofd|testSignalen|neemGeblokkeerdeProbesOver|neemSwProbesOver|swOvertredingen|productie-waarnemer|sw-waarnemer|zelftest-hulp)\b/;
+const KLEP_NAMEN = /\b(buitenHost|ongeoorloofd|testSignalen|neemGeblokkeerdeProbesOver|neemSwProbesOver|swOvertredingen|voorNavigatie|productie-waarnemer|sw-waarnemer|zelftest-hulp)\b/;
 const KLEP_MUTATIE = new RegExp(`\\.(?:onverwacht|alle|schrijven|websockets)\\s*${MUTATIE}|\\bconsoleFouten\\s*${MUTATIE}`);
 
 function importsVan(tekst) {
@@ -411,6 +411,14 @@ test('guard (sw): serviceWorkers, setOffline, routes, fetch(, waitForTimeout, ?t
   // Een letterlijke relatieve /api-fetch en gewone woorden blijven toegestaan.
   assert.deepEqual(slecht('e2e/sw/x.spec.mjs', SWHULP + "await page.evaluate(() => fetch('/api/tickets'));"), []);
   assert.deepEqual(slecht('e2e/sw/x.spec.mjs', SWHULP + "const offlineBalk = page.locator('#offline-banner'); const sw = 1;"), []);
+});
+
+test('guard: voorNavigatie (volledige context in de startAppProductie-haak) enkel in de fixtures', () => {
+  const regel = "await startAppProductie(page, { voorNavigatie: async (ctx) => {} });";
+  assert.notDeepEqual(slecht('e2e/productie/x.spec.mjs', PROD + regel), []);
+  assert.notDeepEqual(slecht('e2e/sw/x.spec.mjs', SWHULP + regel), []);
+  assert.deepEqual(slecht('e2e/sw-hulp.mjs', "import { test as basis } from './productie-hulp.mjs';\n" + regel), []);
+  assert.deepEqual(slecht('e2e/productie-hulp.mjs', regel), []);
 });
 
 test('guard (sw): setOffline staat in productiespecs niet, maar wel in niet-productiespecs', () => {

@@ -15,7 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { test as basis, expect, startAppProductie, verwachtSchrijven, verwachtNetwerkFout, staaOfflineSwFoutenToe, OPSTART_SCHRIJVEN } from './productie-hulp.mjs';
+import { test as basis, expect, startAppProductie, verwachtSchrijven, verwachtNetwerkFout, staaOfflineSwFoutenToe, herroepOfflineSwFoutenToe, OPSTART_SCHRIJVEN } from './productie-hulp.mjs';
 import { swWaarnemer, toestaOudeSw } from './sw-waarnemer.mjs';
 
 export { expect, verwachtSchrijven, verwachtNetwerkFout, OPSTART_SCHRIJVEN };
@@ -150,6 +150,7 @@ export const test = basis.extend({
       // op de cache: die SW-pogingen zijn toegelaten (zie staaOfflineSwFoutenToe); al het andere dat faalt blijft een fout.
       async zetOffline(aan) {
         if (aan) staaOfflineSwFoutenToe(verzoeken);
+        else herroepOfflineSwFoutenToe(verzoeken);
         await context.setOffline(aan);
       },
       // Registreert de echte SW via het meet-omhulsel (zie MEET_SCRIPT), met ?navTimeout=<ms> als `ms` gegeven is (enkel de tests zetten dat;

@@ -124,20 +124,25 @@
       const hoofd = await caches.open(cacheNaam);
       await hoofd.addAll(shell); // één 404 laat de installatie falen (bewust: een halve schil is erger dan de oude)
       const extern = await caches.open(externNaam);
-      // Elke CDN-prefetch heeft een time-out: een hangende CDN mag de installatie (en dus de update) niet ophouden.
+      // Elke CDN-prefetch heeft een time-out die de hele download dekt (fetch EN lezen/bewaren van de body, want een CDN die de headers stuurt
+      // en dan stokt, mag de installatie/update evenmin ophouden); bij de time-out wordt de fetch afgebroken. De externe cache kan daardoor
+      // gedeeltelijk gevuld blijven: een ontbrekende URL haalt de runtime cache-miss alsnog op en een volgende installatie vult aan.
       await Promise.allSettled(cdnVast.map(async (u) => {
         const stop = typeof AbortController === 'function' ? new AbortController() : null;
-        let antw;
+        const download = (async () => {
+          const antw = await fetchFn(u, stop ? { mode: 'cors', signal: stop.signal } : { mode: 'cors' });
+          if (bewaarbaar(antw)) await extern.put(u, antw);
+        })();
+        download.catch(() => {}); // na een time-out mag de afgebroken download stil mislukken
         try {
-          antw = await Promise.race([
-            fetchFn(u, stop ? { mode: 'cors', signal: stop.signal } : { mode: 'cors' }),
+          await Promise.race([
+            download,
             wacht(installTimeoutMs).then(() => { throw new Error('time-out CDN-prefetch ' + u); }),
           ]);
         } catch (err) {
           if (stop) stop.abort();
           throw err;
         }
-        if (bewaarbaar(antw)) await extern.put(u, antw);
       }));
     }
 

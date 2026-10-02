@@ -122,8 +122,10 @@ test.describe('syncOplossingNaarZoho: via de echte wizard', () => {
     await dialoog.getByRole('button', { name: 'Versturen' }).click();
     await expect.poll(() => c.opnames.length).toBe(1);
     expect(c.opnames).toEqual([{ methode: 'POST', body: { ticketId: 'p1', content: 'Voeding gecontroleerd' }, query: {} }]);
-    const lijst = await schrijfLijst(page, verzoeken);
     // Gemeten volgorde: aanrijtijd (optimize, route), dan de oplossing-sync (niet afgewacht), dan de outbox: archief, PDF-upload (rapport), archief.
-    expect(lijst).toEqual([START, 'POST /api/optimize', 'POST /api/route', COMMENT, 'POST /api/rapport-archief', 'POST /api/rapport', 'POST /api/rapport-archief']);
+    // De outbox werkt in meerdere asynchrone stappen (tussen twee verzoeken staat er kortstondig niets open): wacht daarom op de volledige lijst
+    // in plaats van één keer te lezen na `settle`; een extra of ontbrekend verzoek laat de poll op zijn time-out falen met de laatste lijst.
+    await expect.poll(() => schrijfLijst(page, verzoeken), { timeout: 15000 })
+      .toEqual([START, 'POST /api/optimize', 'POST /api/route', COMMENT, 'POST /api/rapport-archief', 'POST /api/rapport', 'POST /api/rapport-archief']);
   });
 });
