@@ -19,6 +19,7 @@ import * as voorstel from '../schermen/voorstel.js';
 import * as annuleren from '../schermen/annuleren.js';
 import * as klantbeschikbaarheid from '../schermen/klantbeschikbaarheid.js';
 import * as beschikbaarheid from '../schermen/beschikbaarheid.js';
+import * as afspraken from '../schermen/afspraken.js';
 
 window.kern = { tijd, ui, selecties, toestand, api };
 window.kern.route = { ...routeTijden, ...routeKaart, ...route };
@@ -32,6 +33,7 @@ window.kern.voorstel = { ...voorstel };
 window.kern.annuleren = { ...annuleren };
 window.kern.klantbeschikbaarheid = { ...klantbeschikbaarheid };
 window.kern.beschikbaarheid = { ...beschikbaarheid };
+window.kern.afspraken = { ...afspraken };
 
 // LEGACY-BRUG (verdwijnt in etappe 5): oude globale namen voor klassieke code en oudere modules
 Object.assign(window, {

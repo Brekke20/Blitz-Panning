@@ -134,7 +134,7 @@ test.describe('409-conflicten bij opslaan', () => {
     });
     await page.getByRole('tab', { name: 'Kalender' }).click();
     await expect(page.getByText('Eigen afspraak')).toBeVisible();
-    await page.evaluate(() => removeLocalEvent('eigen-1'));
+    await page.evaluate(() => kern.afspraken.removeLocalEvent('eigen-1'));
 
     await expect.poll(() => verzoeken.van('/api/afspraken', 'PUT').length).toBe(2);
     const verstuurd = verzoeken.van('/api/afspraken', 'PUT');
@@ -163,7 +163,7 @@ test.describe('409-conflicten bij opslaan', () => {
       },
     });
     await page.getByRole('tab', { name: 'Kalender' }).click();
-    await page.evaluate(() => openManueelModalEdit(kern.toestand.get('localEvents').find(e => e.id === 'eigen-1')));
+    await page.evaluate(() => kern.afspraken.openManueelModalEdit(kern.toestand.get('localEvents').find(e => e.id === 'eigen-1')));
     const modal = page.locator('#manueel-overlay');
     await expect(modal).toHaveClass(/open/);
     await modal.getByLabel('Titel *').fill('Eigen aangepast');
@@ -226,7 +226,7 @@ test.describe('409-conflicten bij opslaan', () => {
   test('afspraken: wijzigen, 409 en dan een fout bij de retry zet de oude waarde terug', async ({ page, verzoeken, consoleFouten }) => {
     await startApp(page, { overschrijf: stubRetry500([TOEGEVOEGD_DOOR_COLLEGA, EIGEN_AFSPRAAK]) });
     await page.getByRole('tab', { name: 'Kalender' }).click();
-    await page.evaluate(() => openManueelModalEdit(kern.toestand.get('localEvents').find(e => e.id === 'eigen-1')));
+    await page.evaluate(() => kern.afspraken.openManueelModalEdit(kern.toestand.get('localEvents').find(e => e.id === 'eigen-1')));
     const modal = page.locator('#manueel-overlay');
     await expect(modal).toHaveClass(/open/);
     await modal.getByLabel('Titel *').fill('Eigen aangepast');
@@ -248,7 +248,7 @@ test.describe('409-conflicten bij opslaan', () => {
     await startApp(page, { overschrijf: stubRetry500([EIGEN_AFSPRAAK, TOEGEVOEGD_DOOR_COLLEGA]) });
     await page.getByRole('tab', { name: 'Kalender' }).click();
     await expect(page.getByText('Eigen afspraak')).toBeVisible();
-    await page.evaluate(() => removeLocalEvent('eigen-1'));
+    await page.evaluate(() => kern.afspraken.removeLocalEvent('eigen-1'));
 
     await expect(page.getByText('✕ Afspraken opslaan mislukt')).toBeVisible();
     await expect(page.getByText('Eigen afspraak')).toBeVisible();
@@ -276,7 +276,7 @@ test.describe('409-conflicten bij opslaan', () => {
     });
     await page.getByRole('tab', { name: 'Kalender' }).click();
     await expect(page.getByText('Eigen afspraak')).toBeVisible();
-    await page.evaluate(() => removeLocalEvent('eigen-1'));
+    await page.evaluate(() => kern.afspraken.removeLocalEvent('eigen-1'));
 
     await expect(page.getByText('⚠ Iemand anders wijzigde dit net. De afspraken zijn opnieuw geladen.')).toBeVisible();
     await expect(page.getByText('Eigen afspraak')).toHaveCount(0);
@@ -339,7 +339,7 @@ test.describe('409-conflicten bij opslaan', () => {
     await voegAfspraakToe(page, { titel: 'Nieuwe', datum: '2026-10-06', van: '14:00', tot: '15:00' });
     await expect.poll(() => verzoeken.van('/api/afspraken', 'PUT').length).toBe(1);
 
-    await page.evaluate(() => removeLocalEvent('eigen-1')); // wacht op de tweede PUT
+    await page.evaluate(() => kern.afspraken.removeLocalEvent('eigen-1')); // wacht op de tweede PUT
     expect(verzoeken.van('/api/afspraken', 'PUT')).toHaveLength(2);
     vrijgeven();
     await expect(page.getByText('✓ Afspraak opgeslagen')).toBeVisible();

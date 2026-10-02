@@ -90,7 +90,6 @@ const sluitVia = naam => () => window[naam]?.();
 [
   ['set-overlay', 'closeSettings'],
   ['result-overlay', 'closeResult'],
-  ['rapport-preview-overlay', 'closeRapportPreview'], ['manueel-overlay', 'closeManueelModal'],
-  ['import-overlay', 'closeImportModal'], ['local-det-overlay', 'closeLocalDet'], ['foto-overlay', 'closeFotoModal'],
+  ['rapport-preview-overlay', 'closeRapportPreview'], ['foto-overlay', 'closeFotoModal'],
   ['prijs-overlay', 'closePrijsBeheer'], ['rapport-wizard', 'closeWizard'],
 ].forEach(([id, fn]) => registreer({ el: document.getElementById(id), sluit: sluitVia(fn) }));

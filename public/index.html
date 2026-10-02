@@ -137,9 +137,9 @@
         ⚠ <span class="pill-count" id="kal-pending-count">0</span> zonder datum
       </button>
       <button class="btn-autoplan coord-only" id="btn-autoplan" onclick="autoPlan()">⚡ Plan deze week</button>
-      <button class="btn-sec coord-only" onclick="document.getElementById('import-file-input').click()" title="Importeer installaties JSON" style="padding:5px 10px;font-size:0.75rem">📥 Import</button>
-      <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="handleImportFile(this)" />
-      <button class="btn-sec coord-only" onclick="openManueelModal()" title="Manuele afspraak toevoegen" style="padding:5px 10px;font-size:0.75rem">➕ Afspraak</button>
+      <button class="btn-sec coord-only" data-actie="import-kies" title="Importeer installaties JSON" style="padding:5px 10px;font-size:0.75rem">📥 Import</button>
+      <input type="file" id="import-file-input" accept=".json" style="display:none" data-wijzig="import-bestand" />
+      <button class="btn-sec coord-only" data-actie="afspraak-nieuw" title="Manuele afspraak toevoegen" style="padding:5px 10px;font-size:0.75rem">➕ Afspraak</button>
     </div>
   </div>
   <div class="coord-only" id="kal-no-date-section"></div>
@@ -382,10 +382,10 @@
 </div>
 
 <!-- Import review modal -->
-<div class="overlay" id="import-overlay" onclick="closeImportModal(event)">
+<div class="overlay" id="import-overlay">
   <div class="modal" id="import-modal" role="dialog" aria-modal="true" aria-labelledby="import-titel">
     <div class="mhdr">
-      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeImportModal()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" data-actie="import-sluit" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title" id="import-titel" role="heading" aria-level="2">📥 Importeer installaties</div>
       <div id="import-subtitle" style="font-size:0.78rem;color:var(--muted);margin-top:3px"></div>
     </div>
@@ -393,17 +393,17 @@
       <!-- Ingevuld door renderImportModal() -->
     </div>
     <div class="mftr">
-      <button class="btn-cancel" onclick="closeImportModal()">Annuleren</button>
-      <button class="btn-save"   onclick="confirmImport()">✓ Importeren</button>
+      <button class="btn-cancel" data-actie="import-sluit">Annuleren</button>
+      <button class="btn-save"   data-actie="import-bevestig">✓ Importeren</button>
     </div>
   </div>
 </div>
 
 <!-- Lokale afspraak detail modal -->
-<div class="overlay" id="local-det-overlay" onclick="closeLocalDet(event)">
+<div class="overlay" id="local-det-overlay">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ld-titel">
     <div class="mhdr">
-      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeLocalDet()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" data-actie="local-sluit" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-tags" id="ld-type"></div>
       <div class="mhdr-title" id="ld-titel" role="heading" aria-level="2"></div>
       <div class="mhdr-num" id="ld-datum" style="font-size:0.78rem;color:var(--muted);margin-top:2px"></div>
@@ -412,20 +412,20 @@
       <div class="msec" id="ld-body"></div>
     </div>
     <div class="mftr">
-      <button class="btn-cancel" onclick="openFotoModal(_localDetEvent?.id)">📷 Foto's</button>
-      <button class="btn-cancel" id="ld-btn-arrival" title="Aankomst registreren" onclick="kern.ticketdetail.registerArrival(_localDetEvent?.id, _localDetEvent?.datum)">⏱️ Aankomst</button>
-      <button class="btn-cancel" id="ld-btn-rapport" onclick="openRapport(_localDetEvent?.id, _localDetEvent?.datum)">📋 Rapport</button>
-      <button class="btn-cancel" id="ld-edit-btn" onclick="editFromLocalDet()">✏️ Bewerken</button>
-      <button class="btn-cancel" id="ld-del-btn" style="color:var(--red);border-color:var(--red)" onclick="deleteFromLocalDet()">🗑 Verwijderen</button>
+      <button class="btn-cancel" data-actie="local-foto">📷 Foto's</button>
+      <button class="btn-cancel" id="ld-btn-arrival" title="Aankomst registreren" data-actie="local-aankomst">⏱️ Aankomst</button>
+      <button class="btn-cancel" id="ld-btn-rapport" data-actie="local-rapport">📋 Rapport</button>
+      <button class="btn-cancel" id="ld-edit-btn" data-actie="local-bewerk">✏️ Bewerken</button>
+      <button class="btn-cancel" id="ld-del-btn" style="color:var(--red);border-color:var(--red)" data-actie="local-verwijder">🗑 Verwijderen</button>
     </div>
   </div>
 </div>
 
 <!-- Manuele afspraak modal -->
-<div class="overlay" id="manueel-overlay" onclick="closeManueelModal(event)">
+<div class="overlay" id="manueel-overlay">
   <div class="modal" id="manueel-modal" role="dialog" aria-modal="true" aria-labelledby="manueel-modal-title">
     <div class="mhdr">
-      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeManueelModal()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" data-actie="manueel-sluit" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title" id="manueel-modal-title" role="heading" aria-level="2">➕ Afspraak toevoegen</div>
     </div>
     <div class="mbody">
@@ -487,8 +487,8 @@
     </div>
     <div class="mftr">
       <input type="hidden" id="man-edit-id" value="" />
-      <button class="btn-cancel" onclick="closeManueelModal()">Annuleren</button>
-      <button class="btn-save"   onclick="saveManueelAfspraak()">Opslaan</button>
+      <button class="btn-cancel" data-actie="manueel-sluit">Annuleren</button>
+      <button class="btn-save"   data-actie="manueel-opslaan">Opslaan</button>
     </div>
   </div>
 </div>
@@ -713,10 +713,6 @@ function stopInvPoll() {
   if (_invPollTimer) { clearInterval(_invPollTimer); _invPollTimer = null; }
 }
 let inFlightTickets = new Set(); // voorkomt dubbele API calls
-// Lokale afspraken (import + manueel) — cloud synced
-let localEventsVersie  = 0;
-let _pendingImport     = []; // staging area voor import review
-
 // Beschikbaarheids-uitzonderingen (geladen vanuit Netlify Blobs)
 // ── Belgische wettelijke feestdagen ──────────────────────────────────────────
 function easterDate(year) {
@@ -839,6 +835,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Beschikbaarheid (schermen/beschikbaarheid.js): blokkeringsvenster en instellingen-tab; vóór de schermen die ze openen.
   kern.beschikbaarheid.initBeschikbaarheid({ loadFromCache, saveToCache, sjLog });
   kern.klantbeschikbaarheid.initKlantbeschikbaarheid({ loadFromCache, saveToCache, zetKbDirty: kern.ticketdetail.zetKbIsDirty });
+  // Afspraken (schermen/afspraken.js): eigen afspraken, lokaal detail en import; vóór de schermen die ze openen.
+  kern.afspraken.initAfspraken({
+    loadFromCache, saveToCache, sjLog, meervoud, navigate, openFotoModal,
+    registerArrival: kern.ticketdetail.registerArrival, openRapport: (...a) => openRapport(...a),
+  });
   // Capaciteit (schermen/capaciteit.js): leest `settings` pas bij gebruik; vóór koppelRenders().
   kern.capaciteit.initCapaciteit({ duurVoor, getHolidayName });
   // Wachtrij-scherm (schermen/wachtrij.js): zoek/sorteer-luisteraars en de afhankelijkheden van andere schermen; vóór koppelRenders().
@@ -849,8 +850,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Kalender-scherm (schermen/kalender.js): kaartjes, tijdlijn, weergaven, navigatie en hoogte-effecten; vóór koppelRenders().
   kern.kalender.initKalender({
     tijdslotLabelVoor: kern.ticketdetail.tijdslotLabelVoor, telNummer: kern.ticketdetailLogica.telNummer, navigate,
-    openDetail: kern.ticketdetail.openDetail, openLocalEventDetail, removeLocalEvent, bevestigUitplannen,
-    herOpenRapport: (...a) => herOpenRapport(...a), rapportArchief: () => _rapportArchief, matchRespToPerson, duurVoor,
+    openDetail: kern.ticketdetail.openDetail, openLocalEventDetail: kern.afspraken.openLocalEventDetail, removeLocalEvent: kern.afspraken.removeLocalEvent, bevestigUitplannen,
+    herOpenRapport: (...a) => herOpenRapport(...a), rapportArchief: () => _rapportArchief, matchRespToPerson: kern.afspraken.matchRespToPerson, duurVoor,
     getHolidayName, setTab, sjLog, toggleAssignRow: kern.ticketdetail.toggleAssignRow, saveToewijzen: kern.ticketdetail.saveToewijzen, openBlockModal: kern.beschikbaarheid.openBlockModal,
   });
   // Ingepland-scherm (schermen/ingepland.js): week-knoppen en de afhankelijkheden van andere schermen; vóór koppelRenders().
@@ -865,7 +866,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tijdslotLabelVoor: kern.ticketdetail.tijdslotLabelVoor, bevestigdLabel: kern.ticketdetailLogica.bevestigdLabel,
     telNummer: kern.ticketdetailLogica.telNummer, meervoud, aankomstVoor: key => kern.ticketdetail.arrivalData[key], openProposal: kern.voorstel.openProposal,
     registerArrival: kern.ticketdetail.registerArrival,
-    openRapport: (...a) => openRapport(...a), bevestigUitplannen, openLocalEventDetail, navigate,
+    openRapport: (...a) => openRapport(...a), bevestigUitplannen, openLocalEventDetail: kern.afspraken.openLocalEventDetail, navigate,
     roundToNextQuarterStr: kern.ticketdetailLogica.roundToNextQuarterStr, renderKalender: () => kern.kalender.renderKalender(), testModus: () => TEST_MODE,
   });
   // Ticketdetail-scherm (schermen/ticketdetail.js): detail- en verzetvenster, toewijzen en aankomst; vóór koppelRenders().
@@ -950,7 +951,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderInventaris(activeAssigneeFilter);
     updateInventarisBadge(activeAssigneeFilter);
   }));
-  loadAfspraken();
+  kern.afspraken.loadAfspraken();
   kern.klantbeschikbaarheid.loadKlantBeschikbaarheid();
   kern.voorstel.loadVoorstelStatus();
   loadTickets();
@@ -1651,84 +1652,6 @@ async function bevestigUitplannen(ticketId, date) {
 // ══════════════════════════════════════════════
 
 // ══════════════════════════════════════════════
-// LOKALE AFSPRAKEN (import + manueel)
-// ══════════════════════════════════════════════
-
-const AFG_API = '/api/afspraken';
-
-async function loadAfspraken() {
-  sjLog('loadAfspraken'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
-  if (!TEST_MODE) {
-    const cached = loadFromCache('blitz_afspraken_cache');
-    if (cached) {
-      localEvents       = cached.afspraken || [];
-      localEventsVersie = cached.versie || 0;
-      // renderKalender volgt via koppelRenders (omhuld door metBehoudScroll)
-    }
-  }
-  try {
-    const data = await kern.api.apiJson(AFG_API);
-    localEvents       = data.afspraken || [];
-    localEventsVersie = data.versie    || 0;
-    if (!TEST_MODE) saveToCache('blitz_afspraken_cache', { afspraken: localEvents, versie: localEventsVersie });
-  } catch (err) {
-    console.warn('Afspraken laden mislukt:', err);
-    // Bewuste gedragswijziging (Blok 1D): bij een fout NIET meer terugvallen naar een lege staat
-    // als er al cache-data toegepast werd hierboven; enkel als er ook geen cache was, resetten we
-    // (zelfde gedrag als pre-Blok-1D in dat specifieke geval).
-    if (TEST_MODE || !loadFromCache('blitz_afspraken_cache')) {
-      localEvents       = [];
-      localEventsVersie = 0;
-    }
-  }
-}
-
-// Bij een 409 (collega schreef net) wordt de eigen wijziging over de server-stand gelegd en één keer
-// opnieuw bewaard (kern.api.bewaarMetVersie). Lukt ook dat niet (tweede 409): waarschuwing + server-stand.
-// Geeft 'ok', 'conflict' (localEvents is door de server-stand vervangen) of 'fout' (andere mislukking).
-async function saveAfspraken({ toegevoegd = [], gewijzigd = [], verwijderd = [] } = {}) {
-  try {
-    const result = await kern.api.bewaarMetVersie({
-      pad: AFG_API, veld: 'afspraken', versie: localEventsVersie, waarde: localEvents,
-      voegSamen: (server) => {
-        let lijst = [...(server || [])];
-        if (verwijderd.length) lijst = lijst.filter(e => !verwijderd.includes(e.id));
-        for (const w of gewijzigd) {
-          const i = lijst.findIndex(e => e.id === w.id);
-          if (i === -1) lijst.push(w); else lijst[i] = w;
-        }
-        for (const t of toegevoegd) {
-          if (!lijst.some(e => e.id === t.id)) lijst.push(t);
-        }
-        return lijst;
-      },
-    });
-    if (!result.ok && result.reden === 'conflict') {
-      // Tweede 409: toon de server-stand, niet onze mislukte poging.
-      if (result.laatsteServer !== undefined) {
-        localEvents       = result.laatsteServer || [];
-        localEventsVersie = result.laatsteVersie || 0;
-      } else {
-        localEvents       = result.waarde || [];
-        localEventsVersie = result.versie || 0;
-      }
-      toast('⚠ Iemand anders wijzigde dit net. De afspraken zijn opnieuw geladen.', 3000);
-      return 'conflict';
-    }
-    // Enkel na een 409-merge is `waarde` een nieuwe (samengevoegde) stand; anders is het de array die we verstuurden
-    // en kan localEvents tijdens het await al opnieuw toegewezen zijn (dan niet overschrijven).
-    if (result.samengevoegd) localEvents = result.waarde;
-    localEventsVersie = result.versie;
-    if (!result.ok) throw new Error(result.reden === 'netwerk' ? 'netwerk' : 'HTTP ' + result.status);
-    return 'ok';
-  } catch (err) {
-    console.error('Afspraken opslaan mislukt:', err);
-    toast('✕ Afspraken opslaan mislukt', 3000);
-    return 'fout';
-  }
-}
-
-// ══════════════════════════════════════════════
 // FOTO'S (service rapport bijlagen)
 // ══════════════════════════════════════════════
 const FOTO_API           = '/api/fotos';
@@ -1846,347 +1769,6 @@ function startTicketPolling() {
     // error-handling in loadVoorstelStatus() zelf.
     kern.voorstel.loadVoorstelStatus();
   }, 30 * 1000); // check elke 30s, laad pas als 5min verstreken
-}
-
-// Fuzzy resp-matching: deelnaam in beide richtingen, case-insensitive
-function matchRespToPerson(resp, agents) {
-  if (!resp || !agents?.length) return null;
-  const r    = resp.toLowerCase().trim();
-  const rParts = r.split(/\s+/);
-  // Exacte match
-  let hit = agents.find(a => a.toLowerCase() === r);
-  if (hit) return hit;
-  // Partial: resp bevat agentsnaam of omgekeerd
-  hit = agents.find(a => {
-    const aL = a.toLowerCase();
-    return aL.includes(r) || r.includes(aL);
-  });
-  if (hit) return hit;
-  // Woorddelen matchen (voornaam)
-  hit = agents.find(a => {
-    const aParts = a.toLowerCase().split(/\s+/);
-    return aParts.some(ap => rParts.some(rp => ap === rp && rp.length > 2));
-  });
-  return hit || null;
-}
-
-// File-input handler
-function handleImportFile(input) {
-  const file = input.files[0];
-  input.value = ''; // reset zodat hetzelfde bestand opnieuw kan
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      const data = JSON.parse(e.target.result);
-      startImport(data);
-    } catch {
-      toast('✕ Ongeldig JSON-bestand', 3000);
-    }
-  };
-  reader.readAsText(file);
-}
-
-function startImport(data) {
-  const afspraken = data.afspraken || data; // tolereer ook bare array
-  if (!Array.isArray(afspraken) || !afspraken.length) {
-    toast('⚠ Geen afspraken gevonden in bestand', 3000);
-    return;
-  }
-
-  // Huidige agents uit tickets
-  const agents = [...new Set([
-    ...allTickets.map(t => t.assignee),
-    ...allGepland.map(t => t.assignee),
-    ...allPending.map(t => t.assignee),
-    ...localEvents.map(e => e.persoon).filter(Boolean),
-  ])].filter(Boolean).sort();
-
-  _pendingImport = afspraken.map(a => {
-    const matched = matchRespToPerson(a.resp, agents);
-    return {
-      id:       crypto.randomUUID(),
-      titel:    a.titel || `${a.type || 'Afspraak'}: ${a.linkLabel || a.notitie || ''}`,
-      datum:    a.datum || '',
-      uur:      a.uur   || '',
-      einduur:  a.einduur || '',
-      type:     a.type  || 'Overige',
-      persoon:  matched,
-      notitie:  a.notitie || '',
-      telefoon: a.telefoon || '',
-      email:    a.email   || '',
-      bron:     'import',
-      origResp: a.resp   || '',
-      _agents:  agents,  // tijdelijk voor de modal
-    };
-  });
-
-  renderImportModal(agents);
-  document.getElementById('import-overlay').classList.add('open');
-}
-
-function renderImportModal(agents) {
-  const sub  = document.getElementById('import-subtitle');
-  const list = document.getElementById('import-list');
-  if (!sub || !list) return;
-
-  const unmatched = _pendingImport.filter(a => !a.persoon).length;
-  sub.textContent = `${meervoud(_pendingImport.length, 'afspraak', 'afspraken')} · ${unmatched} onbekende technicus`;
-
-  const agentOpts = (agents || []).map(a => `<option value="${escHtml(a)}">${escHtml(a)}</option>`).join('');
-
-  list.innerHTML = _pendingImport.map((a, i) => {
-    const matched = !!a.persoon;
-    const dateLabel = a.datum
-      ? new Date(a.datum + 'T12:00:00').toLocaleDateString('nl-BE', { weekday:'short', day:'numeric', month:'short' })
-      : '?';
-    const tijdLabel = a.uur ? `${a.uur}${a.einduur ? '–' + a.einduur : ''}` : '';
-    return `<div class="imp-item">
-      <div class="imp-item-title">${escHtml(a.titel)}</div>
-      <div class="imp-item-meta">${dateLabel}${tijdLabel ? ' · ' + tijdLabel : ''}${a.notitie ? ' · ' + escHtml(a.notitie) : ''}</div>
-      <div class="imp-person-row">
-        <span class="imp-person-label">Technieker:</span>
-        <select class="imp-person-sel" aria-label="Toewijzen aan technieker" onchange="_pendingImport[${i}].persoon = this.value || null"
-          data-idx="${i}">
-          <option value="">— Niet toewijzen —</option>
-          ${agents.map(ag => `<option value="${escHtml(ag)}"${a.persoon === ag ? ' selected' : ''}>${escHtml(ag)}</option>`).join('')}
-        </select>
-        <span class="imp-match-tag ${matched ? 'ok' : 'mis'}">${matched ? '✓ Match' : '⚠ Handmatig'}</span>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function closeImportModal(e) {
-  if (e && e.target !== document.getElementById('import-overlay')) return;
-  document.getElementById('import-overlay').classList.remove('open');
-  _pendingImport = [];
-}
-
-async function confirmImport() {
-  // Duplicaten overslaan op basis van datum+titel+uur
-  const nieuweItems = _pendingImport.filter(a => {
-    if (!a.datum) return false;
-    return !localEvents.some(e =>
-      e.datum === a.datum && e.titel === a.titel && e.uur === a.uur
-    );
-  }).map(({ _agents, ...rest }) => rest); // _agents niet opslaan
-
-  if (!nieuweItems.length) {
-    toast('Alle afspraken zijn al aanwezig', 2000);
-    document.getElementById('import-overlay').classList.remove('open');
-    return;
-  }
-
-  localEvents.push(...nieuweItems);
-  kern.toestand.raak('localEvents'); // in-place push
-  document.getElementById('import-overlay').classList.remove('open');
-  _pendingImport = [];
-
-  const res = await saveAfspraken({ toegevoegd: nieuweItems });
-  if (res !== 'ok') {
-    localEvents = localEvents.filter(e => !nieuweItems.some(n => n.id === e.id));
-  } else {
-    toast(`✓ ${meervoud(nieuweItems.length, 'afspraak', 'afspraken')} geïmporteerd`, 2500);
-  }
-}
-
-// ── Manuele afspraak ──────────────────────────────────────────────────────
-
-function openManueelModal(prefillDate) {
-  const agents = [...new Set([
-    ...allTickets.map(t => t.assignee),
-    ...allGepland.map(t => t.assignee),
-    ...allPending.map(t => t.assignee),
-    ...localEvents.map(e => e.persoon).filter(Boolean),
-  ])].filter(Boolean).sort();
-
-  const sel = document.getElementById('man-persoon');
-  if (sel) {
-    const myPerson = kern.selecties.persoonOfNull(activeAssigneeFilter);
-    sel.innerHTML = `<option value="">— Geen —</option>` +
-      agents.map(a => `<option value="${escHtml(a)}"${a === myPerson ? ' selected' : ''}>${escHtml(a)}</option>`).join('');
-  }
-  if (prefillDate) {
-    const datEl = document.getElementById('man-datum');
-    if (datEl) datEl.value = prefillDate;
-  }
-  // Reset edit mode
-  const editId = document.getElementById('man-edit-id');
-  if (editId) editId.value = '';
-  const typeElReset = document.getElementById('man-type');
-  if (typeElReset) typeElReset.value = 'Service';
-  const titleEl = document.getElementById('manueel-modal-title');
-  if (titleEl) titleEl.textContent = '➕ Afspraak toevoegen';
-  document.getElementById('manueel-overlay').classList.add('open');
-}
-
-function openManueelModalEdit(ev) {
-  if (!ev) return;
-  // Populate agents list
-  openManueelModal(null);
-  // Override with event values
-  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
-  set('man-edit-id', ev.id);
-  set('man-titel',   ev.titel   || '');
-  set('man-datum',   ev.datum   || '');
-  set('man-van',     ev.uur     || '');
-  set('man-tot',     ev.einduur || '');
-  set('man-adres',   ev.adres   || '');
-  set('man-telefoon',ev.telefoon|| '');
-  set('man-email',   ev.email   || '');
-  set('man-notitie', ev.notitie || '');
-  // Type
-  const typeEl = document.getElementById('man-type');
-  if (typeEl && ev.type) typeEl.value = ev.type;
-  // Persoon
-  const selEl = document.getElementById('man-persoon');
-  if (selEl && ev.persoon) selEl.value = ev.persoon;
-  // Update modal title
-  const titleEl = document.getElementById('manueel-modal-title');
-  if (titleEl) titleEl.textContent = '✏️ Afspraak bewerken';
-  // Close detail modal, keep edit form open
-  document.getElementById('local-det-overlay').classList.remove('open');
-}
-
-function closeManueelModal(e) {
-  if (e && e.target !== document.getElementById('manueel-overlay')) return;
-  document.getElementById('manueel-overlay').classList.remove('open');
-}
-
-async function saveManueelAfspraak() {
-  const titel    = document.getElementById('man-titel')?.value?.trim();
-  const datum    = document.getElementById('man-datum')?.value;
-  const type     = document.getElementById('man-type')?.value || 'Overige';
-  const van      = document.getElementById('man-van')?.value || '';
-  const tot      = document.getElementById('man-tot')?.value || '';
-  const persoon  = document.getElementById('man-persoon')?.value || null;
-  const adres    = document.getElementById('man-adres')?.value?.trim()    || '';
-  const telefoon = document.getElementById('man-telefoon')?.value?.trim() || '';
-  const email    = document.getElementById('man-email')?.value?.trim()    || '';
-  const notitie  = document.getElementById('man-notitie')?.value?.trim()  || '';
-  const editId   = document.getElementById('man-edit-id')?.value || '';
-
-  if (!titel) { toast('⚠ Voer een titel in', 2000); return; }
-  if (!datum) { toast('⚠ Kies een datum', 2000); return; }
-
-  document.getElementById('manueel-overlay').classList.remove('open');
-  // Reset formulier
-  ['man-titel','man-adres','man-telefoon','man-email','man-notitie','man-edit-id'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-
-  if (editId) {
-    // Edit mode: update bestaand event
-    const idx = localEvents.findIndex(e => e.id === editId);
-    if (idx === -1) { toast('⚠ Afspraak niet gevonden', 2000); return; }
-    const oldEvent = { ...localEvents[idx] };
-    const nieuwEvent = { ...oldEvent, titel, datum, uur: van, einduur: tot, type, persoon: persoon || null, adres, notitie, telefoon, email };
-    localEvents[idx] = nieuwEvent;
-    kern.toestand.raak('localEvents'); // in-place
-    const res = await saveAfspraken({ gewijzigd: [nieuwEvent] });
-    if (res !== 'ok') {
-      // Rollback op id, en enkel als onze wijziging er nog staat (bij een conflict is de server-stand geladen).
-      const nu = localEvents.findIndex(e => e.id === oldEvent.id);
-      if (nu !== -1 && localEvents[nu] === nieuwEvent) {
-        localEvents[nu] = oldEvent;
-        kern.toestand.raak('localEvents'); // in-place
-      }
-    } else {
-      toast('✓ Afspraak bijgewerkt', 2000);
-    }
-  } else {
-    // Nieuw event
-    const event = {
-      id: crypto.randomUUID(),
-      titel, datum, uur: van, einduur: tot, type,
-      persoon: persoon || null, adres, notitie, telefoon, email,
-      bron: 'manueel', origResp: null,
-    };
-    localEvents.push(event);
-    kern.toestand.raak('localEvents'); // in-place push
-    const res = await saveAfspraken({ toegevoegd: [event] });
-    if (res !== 'ok') {
-      localEvents = localEvents.filter(e => e.id !== event.id);
-    } else {
-      toast('✓ Afspraak opgeslagen', 2000);
-    }
-  }
-}
-
-async function removeLocalEvent(id) {
-  const removed = localEvents.find(e => e.id === id);
-  localEvents   = localEvents.filter(e => e.id !== id);
-  const res = await saveAfspraken({ verwijderd: [id] });
-  // Na een conflict is de server-stand geladen: niets terugzetten. Anders enkel als het id niet al aanwezig is.
-  if (res === 'fout' && removed && !localEvents.some(e => e.id === id)) {
-    localEvents.push(removed);
-    kern.toestand.raak('localEvents'); // in-place push
-  }
-}
-
-// ── Lokale afspraak detail ─────────────────────────────────
-let _localDetEvent = null;
-
-function openLocalEventDetail(ev) {
-  _localDetEvent = ev;
-  document.getElementById('ld-btn-rapport').style.display = '';
-  document.getElementById('ld-type').innerHTML  = `<span class="cal-local-type">${escHtml(ev.type)}</span>`;
-  document.getElementById('ld-titel').textContent = ev.titel || '—';
-
-  const datumTijd = [
-    ev.datum ? fmtDate(ev.datum) : '',
-    ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '',
-  ].filter(Boolean).join(' · ');
-  document.getElementById('ld-datum').textContent = datumTijd;
-
-  const adres = ev.adres || ev.notitie;
-  const row = (label, val) => val
-    ? `<div class="mrow"><span class="mlabel">${label}</span><span class="mval">${escHtml(val)}</span></div>`
-    : '';
-  // href moet óók door escHtml: ev.telefoon/ev.email komen uit de (niet-geauthenticeerde)
-  // afspraken-blob, en een dubbele quote daarin brak anders uit het href-attribuut. Het
-  // schema staat vast in de call-site (tel:/mailto:), dus escapen is hier voldoende —
-  // vergelijk de Google-Maps-link hieronder, die de waarde via encodeURIComponent dicht zet.
-  const linkRow = (label, val, href) => val
-    ? `<div class="mrow"><span class="mlabel">${label}</span><span class="mval"><a href="${escHtml(href)}">${escHtml(val)}</a></span></div>`
-    : '';
-
-  const rows = [
-    adres
-      ? `<div class="mrow"><span class="mlabel">Adres</span><span class="mval"><a href="#" class="mval-nav-link" data-adres="${escHtml(adres)}">${escHtml(adres)} ↗</a></span></div>`
-      : '',
-    /\d/.test(kern.ticketdetailLogica.telNummer(ev.telefoon)) ? linkRow('Telefoon', ev.telefoon, `tel:${kern.ticketdetailLogica.telNummer(ev.telefoon)}`) : row('Telefoon', ev.telefoon),
-    linkRow('E-mail',   ev.email,    `mailto:${ev.email}`),
-    ev.adres && ev.notitie ? row('Notitie', ev.notitie) : '',
-    row('Technieker', ev.persoon),
-  ].filter(Boolean).join('');
-
-  document.getElementById('ld-body').innerHTML = rows
-    || '<div class="mrow"><span class="mval" style="color:var(--muted)">Geen contactgegevens beschikbaar</span></div>';
-  document.getElementById('ld-body').querySelector('.mval-nav-link')?.addEventListener('click', e => {
-    e.preventDefault();
-    navigate(encodeURIComponent(e.currentTarget.dataset.adres));
-  });
-
-  document.getElementById('local-det-overlay').classList.add('open');
-}
-
-function closeLocalDet(e) {
-  if (e && e.target !== document.getElementById('local-det-overlay')) return;
-  document.getElementById('local-det-overlay').classList.remove('open');
-}
-
-function editFromLocalDet() {
-  if (!_localDetEvent) return;
-  openManueelModalEdit(_localDetEvent);
-}
-
-async function deleteFromLocalDet() {
-  if (!_localDetEvent) return;
-  const ev = _localDetEvent;
-  if (!confirm(`🗑 "${ev.titel}" verwijderen (${ev.datum ? fmtDate(ev.datum) : ev.datum})?`)) return;
-  document.getElementById('local-det-overlay').classList.remove('open');
-  _localDetEvent = null;
-  await removeLocalEvent(ev.id);
 }
 
 // ══════════════════════════════════════════════

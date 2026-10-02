@@ -4,6 +4,7 @@
 // (printRapport, via de outbox-module). Zie CLAUDE.md "Rapport wizard — R object key fields".
 import { TEST_MODE } from './kern/omgeving.js';
 import { arrivalData, getPlanningTicket, sluitDetailStil } from './schermen/ticketdetail.js';
+import { closeLocalDet } from './schermen/afspraken.js';
 
 export let _wizTicket = null;
 export let _wizDate   = null;
