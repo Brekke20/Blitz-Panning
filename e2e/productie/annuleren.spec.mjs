@@ -20,7 +20,7 @@ const lijstenVan = (page) => page.evaluate(() => ({
   tickets: kern.toestand.get('allTickets').map(t => t.id),
   pending: kern.toestand.get('allPending').map(t => t.id),
 }));
-// `voorstelStatus` is een `let` in het klassieke script (globaal lexicaal bereik): bereikbaar als kale naam.
+// `voorstelStatus` leeft in kern.toestand (niet meer als kale naam bereikbaar): lees een kopie via de toestand.
 const registerLokaal = (page) => page.evaluate(() => JSON.parse(JSON.stringify(kern.toestand.get('voorstelStatus'))));
 const dag = (page, datum) => page.locator(`.day-col[data-date="${datum}"]`);
 const toastTekst = (page) => page.locator('#toast');

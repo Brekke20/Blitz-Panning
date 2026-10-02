@@ -278,7 +278,8 @@ test.describe('route', () => {
     await maakRouteMetStops(page);
 
     // #1002 aan een andere technieker geven (in-place, zoals een Zoho-herlading) en naar "Alle technici"
-    // wisselen: de filterwissel hertekent de route-lijst.
+    // wisselen: de filterwissel hertekent de route-lijst. Er staat bewust geen raak('planning') na de in-place wijziging:
+    // dat zou zelf al een hertekening uitlokken en de test zou dan niet meer bewijzen dat de filterwissel hertekent.
     await page.evaluate(() => { kern.toestand.get('planning')['2026-10-05'][1].ticket.assignee = 'Sam'; });
     await page.locator('#person-btn').click();
     await page.getByRole('button', { name: /Alle technici/ }).click();

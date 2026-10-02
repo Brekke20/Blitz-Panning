@@ -15,7 +15,7 @@ test('tijdslotVoor(540=09:00, 180): start = floor((540-30)/30)*30 = 510, eind 69
 test('tijdslotVoor: slotMinuten valt terug op instelling, dan op 180', () => {
   assert.equal(tijdslotVoor(540, undefined, { ...inst, tijdslotMinuten: 120 }).label, '08:30–10:30');
   assert.equal(tijdslotVoor(540, undefined, {}).label, '08:30–11:30');
-  assert.equal(tijdslotVoor(540, 180).label, '08:30–11:30'); // zonder settings-argument
+  assert.throws(() => tijdslotVoor(540, 180), TypeError); // geen standaard: een vergeten settings-argument faalt luid
 });
 test('tijdslotVoor: vóór dagstart klemt start op dagStart (480)', () => {
   // 08:00 = 480; (480-30)=450 -> 420 -> max(480,420) = 480; eind 660
@@ -96,8 +96,8 @@ test('heeftLopendVoorstel', () => {
   assert.equal(heeftLopendVoorstel({ id: 1, status: 'Wachten op bevestiging planning' }, { 1: { contact: true } }), true);
   assert.equal(heeftLopendVoorstel({ id: 1, status: 'Wachten op planning' }, { 1: { klant: true } }), false);
   assert.equal(heeftLopendVoorstel({ id: 1, status: 'Wachten op bevestiging planning' }, {}), false);
-  assert.equal(heeftLopendVoorstel({ id: 1, status: 'Wachten op bevestiging planning' }), false);
+  assert.throws(() => heeftLopendVoorstel({ id: 1, status: 'Wachten op bevestiging planning' }), TypeError); // vergeten voorstelStatus faalt luid
   assert.equal(heeftLopendVoorstel({ id: 1, status: 'Geplande service' }, {}), true);
-  assert.equal(heeftLopendVoorstel({ id: 1, status: 'Geplande support' }), true);
+  assert.equal(heeftLopendVoorstel({ id: 1, status: 'Geplande support' }, {}), true);
   assert.equal(heeftLopendVoorstel({ id: 1, status: 'Open' }, { 1: { bevestigd: { door: 'klant' } } }), false);
 });

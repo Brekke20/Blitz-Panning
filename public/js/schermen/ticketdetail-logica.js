@@ -2,8 +2,8 @@
 // Letterlijk overgenomen uit index.html; globals zijn parameters geworden.
 import { timeStrToMin, minToTimeStr } from '../kern/tijd.js';
 
-// Tijdslot rond een schatting. `settings` is een parameter (vroeger de global `settings`).
-export function tijdslotVoor(minuten, slotMinuten, settings = {}) {
+// Tijdslot rond een schatting. `settings` is een parameter (vroeger de global `settings`), zonder standaardwaarde: een vergeten argument faalt luid.
+export function tijdslotVoor(minuten, slotMinuten, settings) {
   const slot     = slotMinuten || settings.tijdslotMinuten || 180;
   const dagStart = timeStrToMin(settings.vanTijd || '08:00');
   const dagEind  = timeStrToMin(settings.totTijd || '17:00');
@@ -71,8 +71,8 @@ export function bevestigdLabel(vs) {
   return doorNaam ? `✓ Bevestigd door ${doorNaam}` : '✓ Bevestigd';
 }
 
-// Staat er een lopend voorstel? `voorstelStatus` is een parameter (vroeger de global).
-export function heeftLopendVoorstel(t, voorstelStatus = {}) {
+// Staat er een lopend voorstel? `voorstelStatus` is een parameter (vroeger de global), zonder standaardwaarde: een vergeten argument faalt luid.
+export function heeftLopendVoorstel(t, voorstelStatus) {
   if (!t) return false;
   const vs = voorstelStatus[t.id];
   const GEPLAND = ['Wachten op bevestiging planning', 'Geplande service', 'Geplande support'];

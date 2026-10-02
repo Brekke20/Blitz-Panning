@@ -205,10 +205,10 @@
 </main>
 
 <!-- Detail modal -->
-<div class="overlay" id="det-overlay" onclick="closeDet(event)">
+<div class="overlay" id="det-overlay">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="d-title">
     <div class="mhdr">
-      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeDet()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" data-actie="det-sluit" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-num" id="d-num" data-testid="detail-nummer"></div>
       <div class="mhdr-title" id="d-title" role="heading" aria-level="2"></div>
       <div class="mhdr-tags" id="d-tags"></div>
@@ -219,23 +219,23 @@
       <div class="msec"><div class="msec-title" role="heading" aria-level="3">Ticketdetails</div><div id="d-ticket"></div><div class="coord-only" id="kb-section"></div></div>
     </div>
     <div class="mftr">
-      <button class="btn btn--primary coord-only" id="d-plan-btn" onclick="togglePlanFromDetail()"></button>
-      <button class="btn btn--secondary" id="d-btn-arrival" style="display:none" title="Aankomst registreren" onclick="registerArrival(activeTicket?.id,_detailDate)">⏱️ Aankomst</button>
-      <button class="btn btn--secondary coord-only" id="d-btn-proposal" style="display:none" title="Afspraakvoorstel sturen" onclick="openProposal(activeTicket?.id,_detailDate,(()=>{const t=computeArrivalTimes(_detailDate);return activeTicket?t[activeTicket.id]??null:null})())">📨 Voorstel</button>
-      <button class="btn btn--secondary" id="d-btn-fotos" style="display:none" title="Foto's" onclick="openFotoModal(activeTicket?.id)">📷 Foto's</button>
-      <button class="btn btn--primary" id="d-btn-rapport"  style="display:none" title="Service rapport" onclick="openRapport(activeTicket?.id,_detailDate)">📋 Rapport</button>
-      <button class="btn btn--danger coord-only" id="d-btn-annuleer" style="display:none" onclick="openAnnuleerVenster(activeTicket?.id,_detailDate)">Afspraak annuleren</button>
-      <button class="btn btn--secondary coord-only" id="d-btn-reschedule" style="display:none" title="Datum/tijd wijzigen" onclick="openRescheduleModal()">📅 Datum/tijd</button>
+      <button class="btn btn--primary coord-only" id="d-plan-btn" data-actie="det-plan"></button>
+      <button class="btn btn--secondary" id="d-btn-arrival" style="display:none" title="Aankomst registreren" data-actie="det-aankomst">⏱️ Aankomst</button>
+      <button class="btn btn--secondary coord-only" id="d-btn-proposal" style="display:none" title="Afspraakvoorstel sturen" data-actie="det-voorstel">📨 Voorstel</button>
+      <button class="btn btn--secondary" id="d-btn-fotos" style="display:none" title="Foto's" data-actie="det-fotos">📷 Foto's</button>
+      <button class="btn btn--primary" id="d-btn-rapport"  style="display:none" title="Service rapport" data-actie="det-rapport">📋 Rapport</button>
+      <button class="btn btn--danger coord-only" id="d-btn-annuleer" style="display:none" data-actie="det-annuleer">Afspraak annuleren</button>
+      <button class="btn btn--secondary coord-only" id="d-btn-reschedule" style="display:none" title="Datum/tijd wijzigen" data-actie="det-verzet">📅 Datum/tijd</button>
     </div>
   </div>
 </div>
 
 <!-- Datum/tijd wijzigen modal (eigen pop-up i.p.v. inklapbare rij — 2026-08-17 feedback:
      "onduidelijk", stapelt op det-overlay net als Foto's/Rapport/Voorstel hierboven) -->
-<div class="overlay" id="reschedule-overlay" onclick="closeRescheduleModal(event)">
+<div class="overlay" id="reschedule-overlay">
   <div class="modal" style="max-width:380px" role="dialog" aria-modal="true" aria-labelledby="reschedule-titel">
     <div class="mhdr">
-      <button class="btn btn-icon btn--ghost mhdr-close" onclick="closeRescheduleModal()" title="Sluiten" aria-label="Sluiten">✕</button>
+      <button class="btn btn-icon btn--ghost mhdr-close" data-actie="verzet-sluit" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title" id="reschedule-titel" role="heading" aria-level="2">📅 Nieuwe datum/tijd</div>
     </div>
     <div class="mbody">
@@ -245,8 +245,8 @@
       </div>
     </div>
     <div class="mftr">
-      <button class="btn btn--secondary" onclick="closeRescheduleModal()">Annuleren</button>
-      <button class="btn btn--primary" onclick="saveReschedule()">✓ Opslaan</button>
+      <button class="btn btn--secondary" data-actie="verzet-sluit">Annuleren</button>
+      <button class="btn btn--primary" data-actie="verzet-opslaan">✓ Opslaan</button>
     </div>
   </div>
 </div>
@@ -413,7 +413,7 @@
     </div>
     <div class="mftr">
       <button class="btn-cancel" onclick="openFotoModal(_localDetEvent?.id)">📷 Foto's</button>
-      <button class="btn-cancel" id="ld-btn-arrival" title="Aankomst registreren" onclick="registerArrival(_localDetEvent?.id, _localDetEvent?.datum)">⏱️ Aankomst</button>
+      <button class="btn-cancel" id="ld-btn-arrival" title="Aankomst registreren" onclick="kern.ticketdetail.registerArrival(_localDetEvent?.id, _localDetEvent?.datum)">⏱️ Aankomst</button>
       <button class="btn-cancel" id="ld-btn-rapport" onclick="openRapport(_localDetEvent?.id, _localDetEvent?.datum)">📋 Rapport</button>
       <button class="btn-cancel" id="ld-edit-btn" onclick="editFromLocalDet()">✏️ Bewerken</button>
       <button class="btn-cancel" id="ld-del-btn" style="color:var(--red);border-color:var(--red)" onclick="deleteFromLocalDet()">🗑 Verwijderen</button>
@@ -687,9 +687,7 @@ DUMMY_DATA.tickets.forEach((t, i) => {
 // planning: { "2026-06-23": [{ ticket, address, _lat, _lon }] }; Zoho is bron van waarheid (allPending seedt planning bij laden).
 // allTickets, allPending, allGepland, planning, localEvents, avExceptions, klantBeschikbaarheid, voorstelStatus,
 // settings en activeAssigneeFilter leven in kern.toestand en zijn als window-accessors bereikbaar (kern/brug.js).
-let activeTicket = null;
 let _proposalOntvangers = []; // ontvangerslijst berekend door openProposal(), gebruikt door updateProposalPreview()/sendProposal()
-let _detailDate  = null; // datum waarop het actieve ticket ingepland staat
 // activeBlockDate → vervangen door _avFormDate (zie beschikbaarheidssysteem)
 // (drag-blokkering verwijderd — vervangen door beschikbaarheidssysteem)
 // Live-detectie van nieuwe Inventaris-log-regels (enkel relevant op de supervisor-weergave,
@@ -736,7 +734,6 @@ async function loadVoorstelStatus() {
     return false;
   }
 }
-let arrivalData = JSON.parse(localStorage.getItem('blitz_arrivals') || '{}');
 
 // Lokale afspraken (import + manueel) — cloud synced
 let localEventsVersie  = 0;
@@ -878,24 +875,36 @@ document.addEventListener('DOMContentLoaded', () => {
   kern.capaciteit.initCapaciteit({ duurVoor, getHolidayName });
   // Wachtrij-scherm (schermen/wachtrij.js): zoek/sorteer-luisteraars en de afhankelijkheden van andere schermen; vóór koppelRenders().
   kern.wachtrij.initWachtrij({
-    addTicketToDate, openDetail, prioLabel, kbFor, kbPreferred, kbPreferredTime, meervoud,
+    addTicketToDate, openDetail: kern.ticketdetail.openDetail, prioLabel, kbFor, kbPreferred, kbPreferredTime, meervoud,
     inFlight: id => inFlightTickets.has(id), sjLog,
   });
   // Kalender-scherm (schermen/kalender.js): kaartjes, tijdlijn, weergaven, navigatie en hoogte-effecten; vóór koppelRenders().
   kern.kalender.initKalender({
-    tijdslotLabelVoor, telNummer, navigate, openDetail, openLocalEventDetail, removeLocalEvent, bevestigUitplannen,
+    tijdslotLabelVoor: kern.ticketdetail.tijdslotLabelVoor, telNummer: kern.ticketdetailLogica.telNummer, navigate,
+    openDetail: kern.ticketdetail.openDetail, openLocalEventDetail, removeLocalEvent, bevestigUitplannen,
     herOpenRapport: (...a) => herOpenRapport(...a), rapportArchief: () => _rapportArchief, matchRespToPerson, duurVoor,
-    getHolidayName, setTab, sjLog, toggleAssignRow, saveToewijzen, openBlockModal,
+    getHolidayName, setTab, sjLog, toggleAssignRow: kern.ticketdetail.toggleAssignRow, saveToewijzen: kern.ticketdetail.saveToewijzen, openBlockModal,
   });
   // Ingepland-scherm (schermen/ingepland.js): week-knoppen en de afhankelijkheden van andere schermen; vóór koppelRenders().
-  kern.ingepland.initIngepland({ openDetail, tijdslotLabelVoor, contactActiesHtml, koppelAdresNavigatie, sjLog });
+  kern.ingepland.initIngepland({
+    openDetail: kern.ticketdetail.openDetail, tijdslotLabelVoor: kern.ticketdetail.tijdslotLabelVoor,
+    contactActiesHtml: kern.ticketdetail.contactActiesHtml, koppelAdresNavigatie: kern.ticketdetail.koppelAdresNavigatie, sjLog,
+  });
   // Route-scherm (schermen/route.js): de afhankelijkheden van andere schermen (R11); vóór koppelRenders().
   kern.route.initRoute({
     duurVoor, werktijdMin: (a, b) => calcWerktijdMin(a, b), kbPreferredTime, geocacheLookup, geocacheStore,
-    loadVoorstelStatus, loadTickets, heeftLopendVoorstel, removeTicketFromDate, tijdslotLabelVoor, bevestigdLabel,
-    telNummer, meervoud, aankomstVoor: key => arrivalData[key], openProposal, registerArrival,
+    loadVoorstelStatus, loadTickets, heeftLopendVoorstel, removeTicketFromDate, tijdslotLabelVoor: kern.ticketdetail.tijdslotLabelVoor, bevestigdLabel,
+    telNummer: kern.ticketdetailLogica.telNummer, meervoud, aankomstVoor: key => kern.ticketdetail.arrivalData[key], openProposal,
+    registerArrival: kern.ticketdetail.registerArrival,
     openRapport: (...a) => openRapport(...a), bevestigUitplannen, openLocalEventDetail, navigate,
     roundToNextQuarterStr, renderKalender: () => kern.kalender.renderKalender(), testModus: () => TEST_MODE,
+  });
+  // Ticketdetail-scherm (schermen/ticketdetail.js): detail- en verzetvenster, toewijzen en aankomst; vóór koppelRenders().
+  kern.ticketdetail.initTicketdetail({
+    renderKbSection, openProposal, openAnnuleerVenster, openFotoModal, openRapport: (...a) => openRapport(...a),
+    addTicketToDate, bevestigUitplannen, navigate, kbBlocked, kbPreferredTime, getHolidayName, prioLabel,
+    bevestigdLabel, heeftLopendVoorstel, computeArrivalTimes: (...a) => computeArrivalTimes(...a),
+    renderRouteList: (...a) => renderRouteList(...a),
   });
   kern.toestand.set('settings', loadPersonSettings(localStorage.getItem('blitz_active_person') || 'all'));
   // Delegatie voor pilot-knoppen (kern-ui)
@@ -1247,7 +1256,8 @@ function laadPlanningSinds() {
     .then(d => {
       Object.entries(d?.sinds || {}).forEach(([id, iso]) => { if (iso) _planningSinds.set(id, iso); });
       pasPlanningSindsToe();
-      if (activeTicket) { const t = [...allTickets, ...allPending, ...allGepland].find(x => x.id === activeTicket.id); if (t) activeTicket.inPlanningSinds = t.inPlanningSinds; }
+      const actief = kern.ticketdetail.actiefTicket();
+      if (actief) { const t = [...allTickets, ...allPending, ...allGepland].find(x => x.id === actief.id); if (t) actief.inPlanningSinds = t.inPlanningSinds; }
     })
     .catch(e => console.warn('planning-sinds mislukt:', e.message || e));
 }
@@ -1651,31 +1661,6 @@ async function bevestigUitplannen(ticketId, date) {
     : confirm(titel + '\n\n' + tekst);
   if (ok) await removeTicketFromDate(ticketId, date);
   return ok;
-}
-
-function getPlanningTicket(id) {
-  const real = allTickets.find(t => t.id === id)
-      || allPending.find(t => t.id === id)
-      || allGepland.find(t => t.id === id)
-      || Object.values(planning).flat().find(p => p.ticket.id === id)?.ticket;
-  if (real) return real;
-
-  const ev = localEvents.find(e => e.id === id);
-  if (!ev) return undefined;
-  // Pseudo-ticket voor manuele/geïmporteerde afspraken zonder Zoho-ticket, zodat
-  // openRapport() ze kan behandelen als een gewoon ticket. account/partner blijven
-  // bewust leeg (niet ev.titel) — R.installateur leest ticket.partner||ticket.account,
-  // en zou anders bij élke afspraak foutief op "Ja" komen te staan.
-  return {
-    id: ev.id, number: '', subject: ev.titel,
-    address: ev.adres || ev.notitie || '', hasAddress: !!(ev.adres || ev.notitie),
-    assignee: ev.persoon || '',
-    phone: ev.telefoon || '', telefoonEindklant: ev.telefoon || '',
-    contact: ev.titel, account: '', partner: '',
-    serienummer: '', priority: '',
-    isLocal: true,
-    type: ev.type || '',
-  };
 }
 
 // ══════════════════════════════════════════════
@@ -2262,7 +2247,7 @@ function openLocalEventDetail(ev) {
     adres
       ? `<div class="mrow"><span class="mlabel">Adres</span><span class="mval"><a href="#" class="mval-nav-link" data-adres="${escHtml(adres)}">${escHtml(adres)} ↗</a></span></div>`
       : '',
-    /\d/.test(telNummer(ev.telefoon)) ? linkRow('Telefoon', ev.telefoon, `tel:${telNummer(ev.telefoon)}`) : row('Telefoon', ev.telefoon),
+    /\d/.test(kern.ticketdetailLogica.telNummer(ev.telefoon)) ? linkRow('Telefoon', ev.telefoon, `tel:${kern.ticketdetailLogica.telNummer(ev.telefoon)}`) : row('Telefoon', ev.telefoon),
     linkRow('E-mail',   ev.email,    `mailto:${ev.email}`),
     ev.adres && ev.notitie ? row('Notitie', ev.notitie) : '',
     row('Technieker', ev.persoon),
@@ -2914,231 +2899,8 @@ function pasRolBeperkingToe() {
 // ══════════════════════════════════════════════
 // DETAIL MODAL
 // ══════════════════════════════════════════════
-// Grote contactknoppen (Bellen, Mailen, Navigeer) — gedeeld door ticketdetail en Ingepland.
-// Navigeer krijgt geen inline onclick: koppelAdresNavigatie() hangt de luisteraar eraan.
-// Nummer voor een tel:-link: "(0)" in Belgische notatie ("+32 (0)9 …") wordt weggelaten, daarna enkel cijfers en "+".
-function telNummer(tel) { return tel ? String(tel).replace(/\(0\)/g, '').replace(/[^\d+]/g, '') : ''; }
-function contactActiesHtml(t) {
-  const tel  = t.telefoonEindklant || t.phone;
-  const mail = t.emailEindklant || t.email;
-  const knoppen = [];
-  const telNr = telNummer(tel);
-  if (/\d/.test(telNr)) knoppen.push(`<a class="btn btn--secondary btn--lg" href="tel:${escHtml(telNr)}"><span>📞 Bellen</span></a>`);
-  const mailAdres = mail ? String(mail).trim() : '';
-  if (/^[^\s@,;<>?&]+@[^\s@,;<>?&]+\.[^\s@,;<>?&]+$/.test(mailAdres)) knoppen.push(`<a class="btn btn--secondary btn--lg" href="mailto:${escHtml(encodeURIComponent(mailAdres).replace(/%40/g, '@'))}"><span>✉ Mailen</span></a>`);
-  if (t.hasAddress) knoppen.push(`<button type="button" class="btn btn--secondary btn--lg btn-navigeer-groot" data-adres="${escHtml(t.address || '')}"><span>🧭 Navigeer</span></button>`);
-  return knoppen.length ? `<div class="contact-acties">${knoppen.join('')}</div>` : '';
-}
-function koppelAdresNavigatie(root) {
-  root.querySelector('.btn-navigeer-groot')?.addEventListener('click', e => {
-    e.stopPropagation();
-    navigate(encodeURIComponent(e.currentTarget.dataset.adres));
-  });
-}
 // Voor modules (rapport-wizard.js): `activeAssigneeFilter` is een `let` in dit classic script.
 window.getActiveAssignee = () => activeAssigneeFilter;
-
-function openDetail(t) {
-  _kbIsDirty = null; // nieuw ticket: oud concept niet meenemen (renderKbSection zet het opnieuw)
-  if (!t) return;
-  activeTicket = t;
-
-  // Zoek de datum waarop dit ticket ingepland staat
-  _detailDate = null;
-  for (const [date, stops] of Object.entries(planning)) {
-    if (stops.some(s => s.ticket.id === t.id)) { _detailDate = date; break; }
-  }
-  const showPlanBtns = !!_detailDate;
-  document.getElementById('d-btn-arrival').style.display  = showPlanBtns ? '' : 'none';
-  document.getElementById('d-btn-proposal').style.display = showPlanBtns ? '' : 'none';
-  document.getElementById('d-btn-fotos').style.display    = showPlanBtns ? '' : 'none';
-  document.getElementById('d-btn-rapport').style.display  = showPlanBtns ? '' : 'none';
-  document.getElementById('d-btn-reschedule').style.display = showPlanBtns ? '' : 'none';
-  document.getElementById('d-num').textContent   = '#' + t.number;
-  document.getElementById('d-title').textContent = t.subject || '—';
-
-  const tags = document.getElementById('d-tags');
-  tags.innerHTML = `<span class="mtag status">${escHtml(t.status)}</span>`;
-  if (t.priority) { const pc = {high:'prtag high',medium:'prtag medium',low:'prtag low'}[(t.priority||'').toLowerCase()]||'mtag'; tags.innerHTML += `<span class="${pc}">${escHtml(prioLabel(t.priority))}</span>`; }
-  if (t.assignee) tags.innerHTML += `<span class="mtag assignee">${escHtml(t.assignee)}</span>`;
-
-  // Task 6: Bevestigingslabel als beschikbaar
-  const vs = voorstelStatus[t.id];
-  const blabel = bevestigdLabel(vs);
-  if (blabel && vs?.bevestigd?.tijdstip) {
-    const ts = new Date(vs.bevestigd.tijdstip).toLocaleString('nl-BE', {dateStyle:'short', timeStyle:'short'});
-    tags.innerHTML += `<span class="mtag confirmed-by" title="${escHtml(ts)} — Via welke mail bevestigd werd, niet wie er fysiek op drukte">${escHtml(blabel)}</span>`;
-  }
-
-  const contactEl = document.getElementById('d-contact');
-  contactEl.innerHTML = contactActiesHtml(t);
-  koppelAdresNavigatie(contactEl);
-
-  const row = (l, v, href, tel) => v ? `<div class="mrow" data-testid="detail-rij"><span class="mlabel">${l}</span><span class="mval" data-testid="detail-waarde">${tel && /\d/.test(tel) ? `<a href="tel:${escHtml(tel)}">${escHtml(v)}</a>` : href ? `<a href="${href}${escHtml(v)}">${escHtml(v)}</a>` : escHtml(v)}</span></div>` : '';
-  document.getElementById('d-klant').innerHTML = [
-    row('Contact',  t.naamEindklant || t.contact),
-    row('Bedrijf',  t.account),
-    row('E-mail',   t.emailEindklant  || t.email, 'mailto:'),
-    row('Telefoon', t.telefoonEindklant || t.phone, null, telNummer(t.telefoonEindklant || t.phone)),
-    t.hasAddress
-      ? `<div class="mrow"><span class="mlabel">Adres</span><span class="mval"><a href="#" class="mval-nav-link" data-adres="${escHtml(t.address)}">${escHtml(t.address)} ↗</a></span></div>`
-      : `<div class="mrow"><span class="mlabel">Adres</span><span class="mval miss">Geen adres bekend</span></div>`,
-  ].join('');
-  document.getElementById('d-klant').querySelector('.mval-nav-link')?.addEventListener('click', e => {
-    e.preventDefault();
-    navigate(encodeURIComponent(e.currentTarget.dataset.adres));
-  });
-
-  document.getElementById('d-ticket').innerHTML = [
-    row('Probleemtype', t.probleemtype),
-    row('Serienummer',  t.serienummer),
-    row('Partner',      t.partner),
-    row('Regio',        t.regio),
-    row('Interventiedatum',  t.interventieDatum && fmtDate(t.interventieDatum)),
-    row('In planning sinds', t.inPlanningSinds && fmtDateShort(t.inPlanningSinds)),
-    row('Aangemaakt',   t.createdTime && fmtDate(t.createdTime)),
-  ].join('') || '<div class="mrow"><span class="mval" style="color:var(--muted)">—</span></div>';
-
-  // Klantbeschikbaarheid sectie
-  renderKbSection(t.id);
-
-  // Plan-knop: zichtbaar voor te-plannen en pending tickets
-  const STATUS_TE_PLANNEN = ['Service in te plannen', 'Wachten op planning'];
-  const STATUS_PENDING    = ['Wachten op bevestiging planning'];
-  const planBtn = document.getElementById('d-plan-btn');
-  if (STATUS_TE_PLANNEN.includes(t.status)) {
-    planBtn.style.display    = '';
-    planBtn.textContent      = '+ Voeg toe aan planning';
-    planBtn.classList.add('btn--primary'); planBtn.classList.remove('btn--danger');
-  } else if (STATUS_PENDING.includes(t.status) && !heeftLopendVoorstel(t)) {
-    planBtn.style.display    = '';
-    planBtn.textContent      = '✕ Uit planning halen';
-    planBtn.classList.add('btn--danger'); planBtn.classList.remove('btn--primary');
-  } else {
-    planBtn.style.display = 'none';
-  }
-
-  // Afspraak annuleren vervangt "Uit planning halen" zodra er een voorstel uitstaat.
-  document.getElementById('d-btn-annuleer').style.display = heeftLopendVoorstel(t) ? '' : 'none';
-
-  document.getElementById('det-overlay').classList.add('open');
-}
-
-// Dirty-controle van het KB-concept (gezet door renderKbSection; zelfde bron als de opslaan-knop)
-let _kbIsDirty = null;
-// Stil sluiten voor programmatische paden (plannen, verzetten, voorstel, rapport openen):
-// geen KB-bewaarwaarschuwing, want die acties raken de klantbeschikbaarheid niet.
-function sluitDetailStil() {
-  _kbIsDirty = null;
-  document.getElementById('det-overlay').classList.remove('open');
-}
-// Gebruikerssluiting (✕, Escape via venster.js, achtergrondklik): met bewaarwaarschuwing.
-function closeDet(e) {
-  if (e && e.target !== document.getElementById('det-overlay')) return;
-  if (_kbIsDirty && _kbIsDirty() && window.appConfirm) {
-    window.appConfirm({
-      titel: 'Niet-opgeslagen wijzigingen',
-      tekst: 'Je hebt wijzigingen in de klantbeschikbaarheid die nog niet zijn opgeslagen. Wil je ze weggooien?',
-      bevestigLabel: 'Weggooien', annuleerLabel: 'Terug', gevaar: true,
-      onBevestig: () => { _kbIsDirty = null; document.getElementById('det-overlay').classList.remove('open'); },
-    });
-    return;
-  }
-  _kbIsDirty = null;
-  document.getElementById('det-overlay').classList.remove('open');
-}
-
-function openRescheduleModal() {
-  if (!activeTicket) return;
-  const d = activeTicket.interventieDatum ? new Date(activeTicket.interventieDatum) : new Date();
-  document.getElementById('d-reschedule-date').value = localISO(d);
-  document.getElementById('d-reschedule-time').value =
-    `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-  document.getElementById('reschedule-overlay').classList.add('open');
-}
-
-function closeRescheduleModal(e) {
-  if (e && e.target !== document.getElementById('reschedule-overlay')) return;
-  document.getElementById('reschedule-overlay').classList.remove('open');
-}
-
-async function saveReschedule() {
-  if (!activeTicket || !_detailDate) return;
-  const date = document.getElementById('d-reschedule-date').value;
-  const time = document.getElementById('d-reschedule-time').value || '09:00';
-  if (!date) return toast('⚠ Selecteer een datum');
-
-  const oldDate  = _detailDate;
-  const t        = activeTicket; // vastleggen: activeTicket kan tijdens de await al naar een ander ticket wijzen
-  const ticketId = t.id;
-
-  // Zelfde waarschuwingen als bij een eerste toewijzing (addTicketToDate) — enkel
-  // relevant als de dag effectief verandert.
-  if (date !== oldDate) {
-    const feestdag = getHolidayName(date);
-    if (feestdag && !confirm(`🎌 ${feestdag} is een wettelijke feestdag (${fmtDateShort(date)}).\nToch inplannen?`)) return;
-    if (kbBlocked(ticketId, date) && !confirm(`⚠ Klant gaf aan NIET beschikbaar te zijn op ${fmtDateShort(date)}.\nToch inplannen?`)) return;
-  }
-
-  const utcInterventieDatum = new Date(`${date}T${time}:00`).toISOString();
-  closeRescheduleModal();
-  sluitDetailStil();
-  try {
-    // Testmodus (?test, ook op de live site): niets naar Zoho schrijven, lokale wijziging blijft
-    if (!TEST_MODE) {
-      const res  = await fetch('/api/plan', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ ticketId, date, utcInterventieDatum }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-    }
-
-    // Lokale state: uit de oude dag halen, aan de nieuwe dag toevoegen.
-    if (planning[oldDate]) {
-      planning[oldDate] = planning[oldDate].filter(p => p.ticket.id !== ticketId);
-      if (!planning[oldDate].length) delete planning[oldDate];
-    }
-    t.interventieDatum = utcInterventieDatum;
-    t.status = 'Wachten op bevestiging planning';
-    if (!planning[date]) planning[date] = [];
-    if (!planning[date].find(p => p.ticket.id === ticketId)) {
-      planning[date].push({ ticket: t, address: t.address, uur: extractLocalHour(utcInterventieDatum) });
-    }
-    kern.toestand.raak('planning'); // in-place filter/delete/push (oude en nieuwe dag)
-    // Array-membership bijwerken: een verzet ticket kan tot nu toe "Bevestigd" (allGepland)
-    // geweest zijn; de status hierboven gaat terug naar "Wachten op bevestiging planning".
-    allGepland = allGepland.filter(x => x.id !== ticketId);
-    if (!allPending.find(x => x.id === ticketId)) allPending.push(t);
-
-    // allGepland is toegewezen en allPending in-place gewijzigd: koppelRenders hertekent kalender,
-    // ingepland en route. De wachtrij hertekende hier vroeger ook (t.status wijzigde): raak('allTickets')
-    // behoudt dat.
-    kern.toestand.raak('allTickets');
-    kern.toestand.raak('allPending');
-    toast(TEST_MODE ? '🧪 Testmodus — niet opgeslagen' : `✓ Verzet naar ${fmtDateShort(date)} om ${time}`);
-  } catch (err) {
-    toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + err.message + ')', 4000);
-  }
-}
-
-async function togglePlanFromDetail() {
-  if (!activeTicket) return;
-  if (['Service in te plannen','Wachten op planning'].includes(activeTicket.status)) {
-    const date = kern.capaciteit.nextAvailableDay(localISO(new Date()));
-    if (!date) return toast('Geen beschikbare dag gevonden');
-    sluitDetailStil();
-    if (!(await addTicketToDate(activeTicket.id, date))) return;
-    toast('✓ Toegevoegd aan ' + fmtDateShort(date));
-  } else if (activeTicket.status === 'Wachten op bevestiging planning') {
-    const date = Object.keys(planning).find(d => planning[d].find(p => p.ticket.id === activeTicket.id));
-    if (!date) return toast('Dit ticket staat niet (meer) in de planning.');
-    const ticketId = activeTicket.id;
-    if (!(await bevestigUitplannen(ticketId, date))) return;
-    sluitDetailStil();
-  }
-}
 
 // ══════════════════════════════════════════════
 // INSTELLINGEN
@@ -3657,15 +3419,6 @@ function tijdslotVoor(minuten, slotMinuten) {
   return { startMin: start, endMin: eind, label: `${minToTimeStr(start)}–${minToTimeStr(eind)}` };
 }
 
-// Het tijdslot dat aan de klant gecommuniceerd is heeft voorrang op een herberekening:
-// als er voor dit ticket een voorstel verstuurd is voor exact deze datum, toon dat blok.
-// Anders (nog niets gemaild, of ondertussen verzet naar een andere datum) herberekenen.
-function tijdslotLabelVoor(stop, date) {
-  const vs = voorstelStatus[stop.ticket?.id];
-  if (vs?.tijdslot && vs.tijdslotDatum === date) return vs.tijdslot;
-  return stop.uur ? tijdslotVoor(timeStrToMin(stop.uur)).label : '';
-}
-
 function roundToNextQuarterStr(timeStr) {
   const [hRaw, mRaw] = (timeStr || '09:00').split(':').map(Number);
   const h = Number.isFinite(hRaw) ? hRaw : 9;
@@ -3678,9 +3431,9 @@ function roundToNextQuarterStr(timeStr) {
 }
 
 function openProposal(ticketId, date, arrivalMin) {
-  activeTicket = getPlanningTicket(ticketId);
-  if (!activeTicket) return toast('Ticket niet gevonden');
-  sluitDetailStil();
+  kern.ticketdetail.zetActiefTicket(kern.ticketdetail.getPlanningTicket(ticketId));
+  if (!kern.ticketdetail.actiefTicket()) return toast('Ticket niet gevonden');
+  kern.ticketdetail.sluitDetailStil();
 
   document.getElementById('proposal-date').value = date;
 
@@ -3691,9 +3444,9 @@ function openProposal(ticketId, date, arrivalMin) {
   }
   document.getElementById('proposal-time').value = timeVal;
 
-  const contactEmail = activeTicket.email || null;
+  const contactEmail = kern.ticketdetail.actiefTicket().email || null;
   const seenEmails = new Set();
-  const ontvangers = [contactEmail, activeTicket.emailEindklant || null, activeTicket.emailInstallateur || null]
+  const ontvangers = [contactEmail, kern.ticketdetail.actiefTicket().emailEindklant || null, kern.ticketdetail.actiefTicket().emailInstallateur || null]
     .filter(email => {
       if (!email) return false;
       const key = email.toLowerCase();
@@ -3706,9 +3459,9 @@ function openProposal(ticketId, date, arrivalMin) {
     ? `Wordt verstuurd naar: ${ontvangers.join(', ')}`
     : 'Geen gekend e-mailadres — ticket wordt bijgewerkt maar er wordt geen mail verstuurd.';
 
-  const name = activeTicket.naamEindklant || activeTicket.contact || '';
+  const name = kern.ticketdetail.actiefTicket().naamEindklant || kern.ticketdetail.actiefTicket().contact || '';
   document.getElementById('proposal-ticket-label').textContent =
-    `#${activeTicket.number} — ${name || 'onbekende klant'}`;
+    `#${kern.ticketdetail.actiefTicket().number} — ${name || 'onbekende klant'}`;
 
   updateProposalPreview();
   document.getElementById('proposal-overlay').classList.add('open');
@@ -3730,7 +3483,7 @@ function cleanTicketSubject(raw) {
 }
 
 function updateProposalPreview() {
-  if (!activeTicket) return;
+  if (!kern.ticketdetail.actiefTicket()) return;
   const date     = document.getElementById('proposal-date').value;
   const rawTime  = document.getElementById('proposal-time').value;
   // Weergave-tijdslot (Task 9, Blok 1C): de klant ziet nooit de exacte tijd, enkel het
@@ -3750,9 +3503,9 @@ function updateProposalPreview() {
   const dateFmt  = date
     ? new Date(date + 'T12:00:00').toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
     : '—';
-  const name     = escHtml(activeTicket.naamEindklant || activeTicket.contact || 'klant');
-  const subj     = escHtml(cleanTicketSubject(activeTicket.subject));
-  const sn       = escHtml(activeTicket.serienummer || '');
+  const name     = escHtml(kern.ticketdetail.actiefTicket().naamEindklant || kern.ticketdetail.actiefTicket().contact || 'klant');
+  const subj     = escHtml(cleanTicketSubject(kern.ticketdetail.actiefTicket().subject));
+  const sn       = escHtml(kern.ticketdetail.actiefTicket().serienummer || '');
 
   document.getElementById('proposal-no-email').style.display = _proposalOntvangers.length ? 'none' : '';
 
@@ -3849,7 +3602,7 @@ function annuleerZoekTicket(ticketId, date) {
   const stop = (planning[date] || []).find(p => p.ticket.id === ticketId)
     || Object.values(planning).flat().find(p => p.ticket.id === ticketId);
   if (stop) return { ticket: stop.ticket, stop };
-  if (activeTicket?.id === ticketId) return { ticket: activeTicket, stop: null };
+  if (kern.ticketdetail.actiefTicket()?.id === ticketId) return { ticket: kern.ticketdetail.actiefTicket(), stop: null };
   const t = [...allTickets, ...allPending, ...allGepland].find(x => x.id === ticketId);
   return { ticket: t || null, stop: null };
 }
@@ -4061,7 +3814,7 @@ async function verstuurAnnulatie() {
 
   s.busy = false;
   sluitAnnuleerVenster();
-  sluitDetailStil();
+  kern.ticketdetail.sluitDetailStil();
   // Meteen: allPending/allGepland zijn toegewezen en allTickets geraakt, dus koppelRenders hertekent
   // wachtrij, kalender, ingepland en route. Na het laden van voorstelStatus (geen geabonneerde sleutel)
   // hertekenen we nog eens zelf.
@@ -4095,8 +3848,8 @@ function joinNL(items) {
 const DOELGROEP_LABEL = { contact: 'contactpersoon', klant: 'klant', installateur: 'installateur' };
 
 async function sendProposal() {
-  if (!activeTicket) return;
-  const ticketId       = activeTicket.id;
+  if (!kern.ticketdetail.actiefTicket()) return;
+  const ticketId       = kern.ticketdetail.actiefTicket().id;
   const date           = document.getElementById('proposal-date').value;
   const rawTime        = document.getElementById('proposal-time').value;
 
@@ -4114,9 +3867,9 @@ async function sendProposal() {
 
   if (TEST_MODE) {
     await new Promise(r => setTimeout(r, 600));
-    activeTicket.status = 'Wachten op bevestiging planning';
+    kern.ticketdetail.actiefTicket().status = 'Wachten op bevestiging planning';
     allTickets = allTickets.filter(t => t.id !== ticketId);
-    if (!allPending.find(t => t.id === ticketId)) allPending.push(activeTicket);
+    if (!allPending.find(t => t.id === ticketId)) allPending.push(kern.ticketdetail.actiefTicket());
     kern.toestand.raak('allPending'); // in-place push
     // Nieuw voorstel vervangt de oude registerentry (geen oude doelgroepen/bevestiging laten staan).
     // Realistisch register-effect: doelgroepen met tijdstip, zodat 🔒 en de annuleerknop verschijnen.
@@ -4124,9 +3877,9 @@ async function sendProposal() {
     const lc = e => (e || '').toLowerCase();
     const inLijst = e => !!e && _proposalOntvangers.some(o => lc(o) === lc(e));
     const regEntry = apptWindowSend ? { tijdslot: apptWindowSend, tijdslotDatum: date } : {};
-    if (inLijst(activeTicket.email)) regEntry.contact = nuIso;
-    if (inLijst(activeTicket.emailEindklant)) regEntry.klant = nuIso;
-    if (inLijst(activeTicket.emailInstallateur)) regEntry.installateur = nuIso;
+    if (inLijst(kern.ticketdetail.actiefTicket().email)) regEntry.contact = nuIso;
+    if (inLijst(kern.ticketdetail.actiefTicket().emailEindklant)) regEntry.klant = nuIso;
+    if (inLijst(kern.ticketdetail.actiefTicket().emailInstallateur)) regEntry.installateur = nuIso;
     voorstelStatus[ticketId] = regEntry;
     document.getElementById('proposal-overlay').classList.remove('open');
     btn.disabled = false; btn.textContent = '✉️ Verstuur voorstel';
@@ -4149,9 +3902,9 @@ async function sendProposal() {
         date,
         time: rawTime,
         utcInterventieDatum,
-        recipientName: activeTicket.naamEindklant || activeTicket.contact || '',
-        subject:       cleanTicketSubject(activeTicket.subject),
-        serienummer:   activeTicket.serienummer || '',
+        recipientName: kern.ticketdetail.actiefTicket().naamEindklant || kern.ticketdetail.actiefTicket().contact || '',
+        subject:       cleanTicketSubject(kern.ticketdetail.actiefTicket().subject),
+        serienummer:   kern.ticketdetail.actiefTicket().serienummer || '',
         appointmentWindow: apptWindowSend,
       }),
     });
@@ -4200,11 +3953,11 @@ async function sendProposal() {
         })
         .catch(err => console.warn('Voorstel-status wissen mislukt:', err));
     }
-    activeTicket.status           = 'Wachten op bevestiging planning';
-    activeTicket.interventieDatum = data.interventieDatum;
+    kern.ticketdetail.actiefTicket().status           = 'Wachten op bevestiging planning';
+    kern.ticketdetail.actiefTicket().interventieDatum = data.interventieDatum;
 
     allTickets = allTickets.filter(t => t.id !== ticketId);
-    if (!allPending.find(t => t.id === ticketId)) allPending.push({ ...activeTicket });
+    if (!allPending.find(t => t.id === ticketId)) allPending.push({ ...kern.ticketdetail.actiefTicket() });
     kern.toestand.raak('allPending'); // in-place push
 
     // Fix (bugronde 2026-09-22, item E): een datumwijziging via het voorstel-venster mag het
@@ -4217,7 +3970,7 @@ async function sendProposal() {
 
     if (!planning[date]) planning[date] = [];
     if (!planning[date].find(p => p.ticket.id === ticketId)) {
-      planning[date].push({ ticket: activeTicket, address: activeTicket.address, uur: extractLocalHour(data.interventieDatum) });
+      planning[date].push({ ticket: kern.ticketdetail.actiefTicket(), address: kern.ticketdetail.actiefTicket().address, uur: extractLocalHour(data.interventieDatum) });
     }
     kern.toestand.raak('planning'); // Zoho-gebonden succespad (R7): in-place filter/delete/push
 
@@ -4274,7 +4027,7 @@ function renderKbSection(ticketId) {
     draft.duur == null ? settings.duurMinuten : draft.duur, draft.notitie]);
   const saved = stand();
   const isDirty = () => stand() !== saved;
-  _kbIsDirty = () => isDirty() || (/^\d{4}-\d{2}-\d{2}$/.test(el.querySelector(`#kb-blok-${ticketId}`)?.value || ''));
+  kern.ticketdetail.zetKbIsDirty(() => isDirty() || (/^\d{4}-\d{2}-\d{2}$/.test(el.querySelector(`#kb-blok-${ticketId}`)?.value || '')));
 
   el.innerHTML = `
     <div class="kb-section">
@@ -4435,88 +4188,7 @@ async function saveKbAll(ticketId, draft) {
   return true;
 }
 
-function toggleAssignRow(ticketId) {
-  const row = document.getElementById('assign-row-' + ticketId);
-  if (!row) return;
-  const wasHidden = row.style.display === 'none';
-  row.style.display = wasHidden ? 'flex' : 'none';
-  if (wasHidden) {
-    const dateInp = document.getElementById('assign-date-' + ticketId);
-    if (dateInp && !dateInp.value) dateInp.value = localISO(new Date());
-    // Prefill tijdstip: voorkeursuur klant (vast tijdstip) heeft voorrang,
-    // anders berekende aankomsttijd als beschikbaar
-    const timeInp = document.getElementById('assign-time-' + ticketId);
-    if (timeInp) {
-      const voorkeurTijd = kbPreferredTime(ticketId);
-      if (voorkeurTijd) {
-        timeInp.value = voorkeurTijd;
-      } else {
-        const date    = dateInp?.value || localISO(new Date());
-        const times   = computeArrivalTimes(date);
-        const arrival = times[ticketId];
-        timeInp.value = arrival != null
-          ? roundToNextQuarterStr(minToTimeStr(arrival))
-          : '09:00';
-      }
-    }
-  }
-}
-
-async function saveToewijzen(ticketId) {
-  const dateInp = document.getElementById('assign-date-' + ticketId);
-  const timeInp = document.getElementById('assign-time-' + ticketId);
-  const date    = dateInp?.value;
-  const time    = timeInp?.value || '09:00';
-  if (!date) return toast('⚠ Selecteer een datum');
-
-  const utcInterventieDatum = new Date(`${date}T${time}:00`).toISOString();
-
-  try {
-    // Testmodus (?test, ook op de live site): niets naar Zoho schrijven, lokale wijziging blijft
-    if (!TEST_MODE) {
-      const res  = await fetch('/api/plan-datum', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ ticketId, utcInterventieDatum }),
-      });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || 'Onbekende fout');
-    }
-
-    // Update lokale state
-    const t = allPending.find(p => p.id === ticketId);
-    if (t) {
-      t.interventieDatum = utcInterventieDatum;
-      if (!planning[date]) planning[date] = [];
-      if (!planning[date].find(p => p.ticket.id === ticketId)) {
-        planning[date].push({ ticket: t, address: t.address, uur: extractLocalHour(utcInterventieDatum) });
-      }
-      kern.toestand.raak('planning'); // koppelRenders hertekent de route (de lijst bleef hier voorheen verouderd)
-    }
-    renderKalender();
-    toast(TEST_MODE ? '🧪 Testmodus — niet opgeslagen' : `✓ Datum ingesteld op ${date} om ${time}`);
-  } catch (err) {
-    toast('✕ ' + err.message, 5000);
-  }
-}
-
 // toast en toastTimer verhuizen naar kern/ui.js
-
-// ══════════════════════════════════════════════
-// AANKOMST REGISTRATIE
-// ══════════════════════════════════════════════
-function registerArrival(ticketId, date) {
-  const key = `${date}__${ticketId}`;
-  const now  = new Date();
-  const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  if (arrivalData[key]) {
-    if (!confirm(`Aankomst al geregistreerd om ${arrivalData[key]}. Overschrijven?`)) return;
-  }
-  arrivalData[key] = hhmm;
-  localStorage.setItem('blitz_arrivals', JSON.stringify(arrivalData));
-  toast(`⏱ Aankomst geregistreerd: ${hhmm}`);
-  renderRouteList(date);
-}
 
 // ══════════════════════════════════════════════
 // RAPPORT ARCHIEF
