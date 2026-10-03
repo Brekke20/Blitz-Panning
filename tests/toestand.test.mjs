@@ -6,7 +6,7 @@ import { SLEUTELS, maakToestand, toestand } from '../public/js/kern/toestand.js'
 const tick = () => Promise.resolve();
 
 test('SLEUTELS en beginwaarden', () => {
-  assert.equal(SLEUTELS.length, 10);
+  assert.equal(SLEUTELS.length, 11);
   const t = maakToestand();
   assert.deepEqual(t.get('allTickets'), []);
   assert.deepEqual(t.get('allPending'), []);
@@ -18,6 +18,7 @@ test('SLEUTELS en beginwaarden', () => {
   assert.deepEqual(t.get('voorstelStatus'), {});
   assert.equal(t.get('settings'), null);
   assert.equal(t.get('activeAssigneeFilter'), 'all');
+  assert.match(t.get('gekozenDatum'), /^\d{4}-\d{2}-\d{2}$/); // gedeelde datum van Kalender, Route en Ingepland (Brent-verzoek)
   assert.ok(toestand.get);
 });
 

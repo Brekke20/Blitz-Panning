@@ -32,6 +32,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
   exact gecontroleerd worden.
 
 ### Changed
+- De Kalender, de Route-tab en Ingepland tonen nu dezelfde week: kies je in één tab een andere week of dag (met ‹ ›, de datumkiezer of de weekstrook), dan staan de andere tabs er ook op, en "Vandaag" zet ze allemaal terug. De maandweergave toont de maand van de gekozen dag. "⚡ Plan deze week" plant altijd de week van de gekozen dag; in de maandweergave is dat de week van de gekozen dag, met een melding (voorheen telde een maand als één week). Na het herladen van de app staat alles weer op vandaag.
 - Bij een trage verbinding wacht de app nog maximaal 4 seconden op de nieuwste versie van de pagina; daarna start ze uit de bewaarde kopie op het toestel (die maximaal één versie oud kan zijn). Eerder bleef ze onbeperkt wachten.
 - Foutmeldingen bij een probleem met de verbinding zijn nu gewoon Nederlands: 'Geen verbinding met de server', 'De server antwoordt niet (time-out na 20 s)' en 'Serverfout (HTTP 502)' in plaats van 'Failed to fetch', 'Time-out na 20 s' of 'HTTP 502'. Het begin van elke melding blijft hetzelfde; enkel het detail is vertaald. De rapportwizard en de wachtrij voor verzonden rapporten blijven ongewijzigd.
 - De app laadt zijn onderdelen vooraf parallel en haalt de Excel-bibliotheek pas op bij de eerste export (TicketLog of Inventaris).

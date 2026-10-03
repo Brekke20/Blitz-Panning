@@ -1,17 +1,16 @@
 // schermen/ingepland.js — de Ingepland-tab (etappe 4): geplande tickets per week, met week-navigatie.
-// De code is letterlijk uit index.html verhuisd. De weekverschuiving (`gepOffset`) is module-privé; gegevens komen uit
+// De code is letterlijk uit index.html verhuisd. De getoonde week volgt de gedeelde `gekozenDatum`; gegevens komen uit
 // `kern/toestand`, de afhankelijkheden van andere schermen via `initIngepland(afh)` (aan het begin van
 // DOMContentLoaded). Raakt `document` enkel binnen functies, nooit op moduleniveau. Alleen `kern/brug.js` wijst
 // `window`-namen toe.
 import { toestand } from '../kern/toestand.js';
 import { escHtml, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
-import { localISO, getWeekStart, fmtDateShort } from '../kern/tijd.js';
+import { localISO, getWeekStart, fmtDateShort, verschuifDatum } from '../kern/tijd.js';
 import { ticketsVanTechnieker } from '../kern/selecties.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initIngepland); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('ingepland: initIngepland() is niet aangeroepen'); } });
 
-let gepOffset = 0;
 let renderTeller = 0; // e2e telt hertekeningen hiermee, ook interne oproepen
 
 // Aantal keren dat renderGepland() draaide (voor e2e/kern.spec.mjs).
@@ -23,13 +22,15 @@ export function initIngepland(afhankelijkheden) {
   registreerActies(document.body, { 'gep-nav': (el, e, arg) => gepNav(Number(arg)) });
 }
 
-function gepNav(dir) { gepOffset += dir; renderGepland(); }
+// Brent-verzoek (proefperiode): Ingepland toont dezelfde week als de Kalender en de Route-tab (gedeelde `gekozenDatum`); ‹ › = één week.
+function gepNav(dir) { toestand.set('gekozenDatum', verschuifDatum(toestand.get('gekozenDatum'), { dagen: 7 * dir })); }
 
 export function renderGepland() {
   renderTeller++;
   afh.sjLog('renderGepland'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
   const today     = new Date(); today.setHours(0,0,0,0);
-  const weekStart = getWeekStart(today, gepOffset);
+  const [gy, gm, gd] = toestand.get('gekozenDatum').split('-').map(Number);
+  const weekStart = getWeekStart(new Date(gy, gm - 1, gd), 0);
   const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
   document.getElementById('gep-label').textContent = fmtDateShort(weekStart) + ' – ' + fmtDateShort(weekEnd);
 

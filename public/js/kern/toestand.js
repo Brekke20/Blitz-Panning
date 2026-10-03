@@ -8,7 +8,9 @@
 // Een abonnee die tijdens een flush wordt toegevoegd, mist de lopende ronde (hij hoort pas bij latere wijzigingen).
 // `settings` is null tot DOMContentLoaded (app.js zaait het daar); lees het nooit op het hoogste niveau van een module.
 
-export const SLEUTELS = ['allTickets', 'allPending', 'allGepland', 'planning', 'localEvents', 'avExceptions', 'klantBeschikbaarheid', 'voorstelStatus', 'settings', 'activeAssigneeFilter'];
+import { localISO } from './tijd.js';
+
+export const SLEUTELS = ['allTickets', 'allPending', 'allGepland', 'planning', 'localEvents', 'avExceptions', 'klantBeschikbaarheid', 'voorstelStatus', 'settings', 'activeAssigneeFilter', 'gekozenDatum'];
 
 const MAX_RONDES = 10;
 
@@ -24,6 +26,7 @@ function beginwaarden() {
     voorstelStatus: {},
     settings: null,
     activeAssigneeFilter: 'all',
+    gekozenDatum: localISO(new Date()), // gedeelde datum van Kalender, Route en Ingepland; app.js zaait ze opnieuw bij de start
   };
 }
 

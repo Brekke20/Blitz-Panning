@@ -244,6 +244,7 @@ function opstart() {
     document.documentElement.setAttribute('data-theme', localStorage.getItem('blitz_theme') || 'dark');
   }
   document.getElementById('plan-date').value = localISO(new Date());
+  set('gekozenDatum', localISO(new Date())); // gedeelde datum van Kalender, Route en Ingepland (niet bewaard over herladen)
   set('activeAssigneeFilter', localStorage.getItem('blitz_active_person') || 'all');
   koppelRenders(); // vanaf hier volgen de schermen de toestand (K6/K7)
   updatePersonHeader();
@@ -721,8 +722,9 @@ function koppelRenders() {
   st.abonneer(['planning', 'allTickets', 'allPending', 'allGepland'], () => { if (!_eigenToepassing) _lokaleWijziging++; });
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => buildPersonSelector());
   st.abonneer(['allTickets', 'activeAssigneeFilter'], () => wachtrij.renderTickets());
-  st.abonneer(['allTickets', 'allPending', 'allGepland', 'localEvents', 'avExceptions', 'activeAssigneeFilter'], () => kalender.renderKalender());
-  st.abonneer(['allGepland', 'activeAssigneeFilter'], () => ingepland.renderGepland());
+  st.abonneer(['allTickets', 'allPending', 'allGepland', 'localEvents', 'avExceptions', 'activeAssigneeFilter', 'gekozenDatum'], () => kalender.renderKalender());
+  st.abonneer(['allGepland', 'activeAssigneeFilter', 'gekozenDatum'], () => ingepland.renderGepland());
+  st.abonneer(['gekozenDatum'], () => route.volgGekozenDatum()); // de datumkiezer en de weekstrook van de Route-tab volgen de gedeelde datum
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => {
     renderInventaris(get('activeAssigneeFilter'));
     updateInventarisBadge(get('activeAssigneeFilter'));

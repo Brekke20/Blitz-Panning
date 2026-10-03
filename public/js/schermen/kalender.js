@@ -3,11 +3,10 @@
 // `kalender-logica.js`; gegevens komen uit `kern/toestand`, de afhankelijkheden van andere schermen via
 // `initKalender(afh)` (aan het begin van DOMContentLoaded, vóór koppelRenders). Raakt `document`/`window` enkel
 // binnen functies, nooit op moduleniveau; de hoogste-niveau-effecten (observer, resize, visibilitychange) draaien
-// in `initKalender`. Alleen `kern/brug.js` wijst `window`-namen toe. De schermtoestand (`kalOffset`,
-// `kalDagOffset`, `kalView`, auto-scrollsleutel) is module-privé; de knoppen lopen via data-actie-delegatie (C8).
+// in `initKalender`. Alleen `kern/brug.js` wijst `window`-namen toe. De schermtoestand (`kalView`, auto-scrollsleutel; de datum is de gedeelde `gekozenDatum`) is module-privé; de knoppen lopen via data-actie-delegatie (C8).
 import { toestand } from '../kern/toestand.js';
 import { escHtml, zetPressed, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
-import { localISO, getWeekStart, fmtDateShort } from '../kern/tijd.js';
+import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, volgendeWerkdagVan } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
 import {
   TIMELINE_PX_PER_MIN, WERKUUR_START, WERKUUR_EIND, isBuitenWerkuren, timelineTopHeight,
@@ -25,16 +24,19 @@ let _kalResizeTimer = null;
 let _nuLijnTimer = null;
 
 // Schermtoestand (voorheen globals in index.html).
-let kalOffset = 0;
-let kalDagOffset = 0; // tablet rechtop: verschuiving in WERKDAGEN t.o.v. vandaag (los van kalOffset, mag negatief)
+// Brent-verzoek (proefperiode): geen eigen weekverschuiving meer; de getoonde week/maand/dag volgt `toestand` 'gekozenDatum'
+// (gedeeld met de Route-tab en Ingepland). Wat vroeger kalOffset en kalDagOffset was, wordt daaruit afgeleid.
+const gekozenIso = () => toestand.get('gekozenDatum') || localISO(new Date());
+const gekozenDatum = () => { const [y, m, d] = gekozenIso().split('-').map(Number); return new Date(y, m - 1, d); };
 let kalView = 'week'; // 'week' | 'month'
 let _kalAutoScrollKey = null;
 let renderTeller = 0; // e2e telt hertekeningen hiermee, ook interne oproepen
 
 // Aantal keren dat renderKalender() draaide (voor e2e/kern.spec.mjs).
 export function renderTelling() { return renderTeller; }
-// Weekverschuiving voor autoPlan (index.html): geeft kalOffset ongewijzigd terug (C13).
-export function weekOffset() { return kalOffset; }
+// Weekverschuiving t.o.v. de huidige week van de gedeelde gekozen datum (was kalOffset; autoPlan gebruikt nu de datum zelf).
+export function weekOffset() { return weekVerschil(gekozenIso(), localISO(new Date())); }
+export function isMaandweergave() { return kalView === 'month'; }
 // Tabwissel naar Kalender: tekenen en naar de werkdag scrollen.
 export function activeerKalender() { renderKalender(); kalAutoScroll(true); }
 
@@ -415,24 +417,25 @@ function setKalView(v) {
   document.getElementById('kal-view-month').classList.toggle('active', v === 'month');
   zetPressed(document.getElementById('kal-view-week'),  v === 'week');
   zetPressed(document.getElementById('kal-view-month'), v === 'month');
-  kalOffset = 0; kalDagOffset = 0; // reset offsets bij wisselen
   renderKalender();
   kalAutoScroll(true);
 }
 
-// Zichtbare dagen van de weekweergave: gewoon de werkdagen van de week (kalOffset), behalve op een
-// tablet rechtop: dan 3 opeenvolgende werkdagen vanaf vandaag, verschoven met kalDagOffset werkdagen.
-function kalZichtbareDagen(today) {
-  return zichtbareDagen(today, {
+// Zichtbare dagen van de weekweergave: gewoon de werkdagen van de week van de gekozen datum, behalve op een
+// tablet rechtop: dan 3 opeenvolgende werkdagen vanaf de gekozen datum.
+function kalZichtbareDagen() {
+  return zichtbareDagen(gekozenDatum(), {
     werkdagen: toestand.get('settings').werkdagen, tabletStaand: window.apparaat.indeling === 'tablet-staand',
-    weekOffset: kalOffset, dagOffset: kalDagOffset,
+    weekOffset: 0, dagOffset: 0,
   });
 }
 
 function kalZetVandaagKnop() {
   // "↺ Vandaag" enkel tonen als de getoonde periode niet de huidige is
   const dagModus = window.apparaat.indeling === 'tablet-staand' && kalView !== 'month';
-  const nietVandaag = dagModus ? kalDagOffset !== 0 : kalOffset !== 0;
+  const nu = new Date();
+  const nietVandaag = kalView === 'month' ? (gekozenDatum().getFullYear() !== nu.getFullYear() || gekozenDatum().getMonth() !== nu.getMonth())
+    : dagModus ? gekozenIso() !== localISO(nu) : weekVerschil(gekozenIso(), localISO(nu)) !== 0;
   const knop = document.getElementById('kal-label');
   if (knop) knop.classList.toggle('niet-vandaag', nietVandaag);
 }
@@ -501,9 +504,9 @@ export function renderKalender() {
   }
 
   // Week-view
-  const weekStart = getWeekStart(today, kalOffset);
+  const weekStart = getWeekStart(gekozenDatum(), 0);
   const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
-  const dagen = kalZichtbareDagen(today);
+  const dagen = kalZichtbareDagen();
   if (window.apparaat.indeling === 'tablet-staand' && dagen.length) {
     kalZetLabel(fmtDateShort(dagen[0]) + ' – ' + fmtDateShort(dagen[dagen.length - 1]));
   } else {
@@ -610,6 +613,7 @@ export function renderKalender() {
       rb.style.cssText = 'flex:none;width:100%;margin-bottom:4px;background:var(--accent-dim);border:1px solid rgba(245,158,11,0.2);color:var(--accent-ink);padding:4px;border-radius:4px;cursor:pointer;font-size:0.7rem;font-weight:600;font-family:inherit;';
       rb.textContent = 'Route berekenen';
       rb.onclick = () => {
+        toestand.set('gekozenDatum', dateStr);
         document.getElementById('plan-date').value = dateStr;
         afh.setTab('planning');
         renderRouteList(dateStr);
@@ -672,10 +676,10 @@ function kalAutoScroll(force) {
   const grid = document.getElementById('week-grid');
   if (!grid || !grid.classList.contains('tl-mode')) return;
   const today = new Date(); today.setHours(0,0,0,0);
-  let weekStart = getWeekStart(today, kalOffset);
+  let weekStart = getWeekStart(gekozenDatum(), 0);
   let weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 7);
   if (window.apparaat.indeling === 'tablet-staand') {
-    const dagen = kalZichtbareDagen(today);
+    const dagen = kalZichtbareDagen();
     if (dagen.length) {
       weekStart = dagen[0];
       weekEnd = new Date(dagen[dagen.length - 1]); weekEnd.setDate(weekEnd.getDate() + 1);
@@ -697,21 +701,25 @@ function kalAutoScroll(force) {
 }
 
 function kalNav(dir) {
-  // Tablet rechtop + weekweergave: ‹ › schuiven 1 werkdag; maandweergave blijft per maand (kalOffset)
-  if (window.apparaat.indeling === 'tablet-staand' && kalView !== 'month') kalDagOffset += dir; else kalOffset += dir;
-  renderKalender(); kalAutoScroll(true);
+  // Week: ‹ › = één week; maand: één maand; tablet rechtop + weekweergave: één werkdag. Alles op de gedeelde gekozen datum.
+  const iso = gekozenIso();
+  let nieuw;
+  if (kalView === 'month') nieuw = verschuifDatum(iso, { maanden: dir });
+  else if (window.apparaat.indeling === 'tablet-staand') nieuw = volgendeWerkdagVan(iso, toestand.get('settings').werkdagen, dir);
+  else nieuw = verschuifDatum(iso, { dagen: 7 * dir });
+  toestand.set('gekozenDatum', nieuw); // het abonnement tekent de kalender (en volgt Route/Ingepland); één render
+  kalAutoScroll(true);
 }
 function kalToday() {
-  const dagModus = window.apparaat.indeling === 'tablet-staand' && kalView !== 'month';
-  if (dagModus ? kalDagOffset === 0 : kalOffset === 0) { kalAutoScroll(true); return; }
-  if (dagModus) kalDagOffset = 0; else kalOffset = 0;
-  renderKalender();
+  const vandaag = localISO(new Date());
+  if (gekozenIso() === vandaag) { kalAutoScroll(true); return; }
+  toestand.set('gekozenDatum', vandaag);
   kalAutoScroll(true);
 }
 
 function renderMonthView(today) {
-  // Maand bepalen via kalOffset (aantal maanden tov vandaag)
-  const ref = new Date(today.getFullYear(), today.getMonth() + kalOffset, 1);
+  // Maand = de maand van de gedeelde gekozen datum
+  const ref = new Date(gekozenDatum().getFullYear(), gekozenDatum().getMonth(), 1);
   const maandLabel = ref.toLocaleDateString('nl-BE', { month: 'long', year: 'numeric' });
   kalZetLabel(maandLabel.charAt(0).toUpperCase() + maandLabel.slice(1));
 

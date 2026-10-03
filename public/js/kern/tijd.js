@@ -6,6 +6,36 @@ export function localISO(d) { return `${d.getFullYear()}-${String(d.getMonth()+1
 // Dynamisch berekend zodat overnight-gebruik correct blijft
 export function todayISO(nu = new Date()) { return localISO(nu); }
 
+// ── Gedeelde gekozen datum (Brent-verzoek, proefperiode): Kalender, Route en Ingepland tonen dezelfde week ──
+// Alle functies werken op 'YYYY-MM-DD' en op lokale middag (geen DST-sprong).
+const isoNaarDatum = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d, 12); };
+
+// Verschuift een datum met `dagen` dagen en/of `maanden` maanden; bij een maandstap wordt de dag begrensd tot de lengte van de doelmaand.
+export function verschuifDatum(iso, { dagen = 0, maanden = 0 } = {}) {
+  const d = isoNaarDatum(iso);
+  if (maanden) {
+    const dag = d.getDate();
+    d.setDate(1); d.setMonth(d.getMonth() + maanden);
+    d.setDate(Math.min(dag, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+  }
+  if (dagen) d.setDate(d.getDate() + dagen);
+  return localISO(d);
+}
+
+// Aantal weken tussen de week van `vandaagIso` en de week van `iso` (negatief = verleden); de oude `kalOffset`.
+export function weekVerschil(iso, vandaagIso) {
+  const a = getWeekStart(isoNaarDatum(iso), 0), b = getWeekStart(isoNaarDatum(vandaagIso), 0);
+  return Math.round((a - b) / (7 * 86400000));
+}
+
+// Eerstvolgende werkdag (`stap` = 1) of vorige werkdag (-1) vóór/na `iso`; `werkdagen` = getDay()-nummers. Zonder werkdagen: één dag verder.
+export function volgendeWerkdagVan(iso, werkdagen, stap) {
+  if (!werkdagen || !werkdagen.length) return verschuifDatum(iso, { dagen: stap });
+  let d = iso;
+  for (let i = 0; i < 7; i++) { d = verschuifDatum(d, { dagen: stap }); if (werkdagen.includes(isoNaarDatum(d).getDay())) return d; }
+  return d;
+}
+
 export function getWeekStart(baseDate, offset) {
   const d = new Date(baseDate); d.setHours(0,0,0,0);
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + offset * 7);

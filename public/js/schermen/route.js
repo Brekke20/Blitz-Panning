@@ -107,7 +107,18 @@ export function updateMap(date) {
 // ROUTE TAB
 // ══════════════════════════════════════════════
 
+// De gedeelde gekozen datum is gewijzigd (door de Kalender of Ingepland): datumkiezer en lijst volgen. Staat de Route-tab niet open,
+// dan wordt er niets berekend (setTab rekent bij het openen); een eigen keuze in deze tab zette de datum zelf al (geen tweede render).
+export function volgGekozenDatum() {
+  const gekozen = toestand.get('gekozenDatum');
+  const inp = document.getElementById('plan-date');
+  if (!inp || !gekozen || inp.value === gekozen) return;
+  inp.value = gekozen;
+  onDateChange(gekozen);
+}
+
 export function onDateChange(val) {
+  if (val && val !== toestand.get('gekozenDatum')) toestand.set('gekozenDatum', val); // eigen keuze: Kalender en Ingepland volgen
   wisRouteWeergave();   // route/markers/samenvatting van de vorige dag mogen niet blijven staan
   routeVerouderdDatum = null;
   renderRouteList(val);
@@ -116,7 +127,8 @@ export function onDateChange(val) {
   // Kort uitstellen: snel door de dagen tikken (strook, pijltjestoetsen) mag geen reeks
   // TomTom-aanroepen geven; enkel de laatst gekozen dag wordt berekend.
   clearTimeout(dagBerekenTimer);
-  dagBerekenTimer = setTimeout(() => calculateRoute(), 300);
+  // Enkel berekenen als de Route-tab open staat; anders doet setTab het bij het openen (geen TomTom-aanvraag op de achtergrond).
+  if (document.getElementById('view-planning')?.classList.contains('active')) dagBerekenTimer = setTimeout(() => calculateRoute(), 300);
 }
 
 export function clearDay() {

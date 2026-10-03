@@ -16,7 +16,7 @@ import * as selecties from '../kern/selecties.js';
 import { registreerVenster } from '../venster.js';
 import { appConfirm } from '../app-dialog.js';
 import { renderTickets } from './wachtrij.js';
-import { renderKalender, weekOffset } from './kalender.js';
+import { renderKalender, isMaandweergave } from './kalender.js';
 import { renderGepland } from './ingepland.js';
 import { leesLaatsteStart } from './instellingen.js';
 import { heeftLopendVoorstel } from './ticketdetail-logica.js';
@@ -266,7 +266,14 @@ export async function autoPlan() {
     // stops van die dagen ook kunnen meenemen in de geocode-batch hieronder (nodig voor de
     // max-reistijd-check t.o.v. een bestaand/manueel verzet ticket).
     const today     = new Date(); today.setHours(0,0,0,0);
-    const weekStart = getWeekStart(today, weekOffset());
+    // Brent-verzoek (proefperiode): de week van de gedeelde gekozen datum (= wat je ziet in de week-/dagweergave en in de Route-tab).
+    // Maandweergave (was: een maand telde als een week, C3/B15): de week waarin de gekozen datum valt, met een melding.
+    const [gy, gm, gd] = toestand.get('gekozenDatum').split('-').map(Number);
+    const weekStart = getWeekStart(new Date(gy, gm - 1, gd), 0);
+    if (isMaandweergave()) {
+      const weekEind = new Date(weekStart); weekEind.setDate(weekStart.getDate() + 6);
+      toast(`ℹ Maandweergave: je plant de week van ${fmtDateShort(weekStart)} t/m ${fmtDateShort(weekEind)} (de week van de gekozen dag)`, 5000);
+    }
 
     // R2: enkel de bekeken week (vanaf vandaag) plus voorkeursdatums na die week als extra dag
     // voor enkel het ticket dat die voorkeur heeft (zie bouwDagen in public/js/planner.js).

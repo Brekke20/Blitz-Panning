@@ -60,3 +60,39 @@ test('fmtDate / fmtDateShort / fmtSec', () => {
   assert.equal(fmtSec(3660), '1u 1min');
   assert.equal(fmtSec(300), '5min');
 });
+
+// ── Gedeelde gekozen datum (Brent-verzoek, proefperiode) ──
+import { verschuifDatum, weekVerschil, volgendeWerkdagVan } from '../public/js/kern/tijd.js';
+
+test('verschuifDatum: dagen, weken en jaargrens', () => {
+  assert.equal(verschuifDatum('2026-10-05', { dagen: 7 }), '2026-10-12');
+  assert.equal(verschuifDatum('2026-10-05', { dagen: -7 }), '2026-09-28');
+  assert.equal(verschuifDatum('2026-12-30', { dagen: 3 }), '2027-01-02');
+});
+
+test('verschuifDatum: maanden begrenzen de dag tot de doelmaand', () => {
+  assert.equal(verschuifDatum('2026-01-31', { maanden: 1 }), '2026-02-28');
+  assert.equal(verschuifDatum('2026-03-31', { maanden: -1 }), '2026-02-28');
+  assert.equal(verschuifDatum('2026-12-15', { maanden: 1 }), '2027-01-15');
+});
+
+test('verschuifDatum: over de zomertijdwissel blijft de dag juist', () => {
+  assert.equal(verschuifDatum('2026-10-24', { dagen: 2 }), '2026-10-26');
+  assert.equal(verschuifDatum('2026-03-28', { dagen: 2 }), '2026-03-30');
+});
+
+test('weekVerschil: aantal weken t.o.v. de week van vandaag (maandag-zondag)', () => {
+  assert.equal(weekVerschil('2026-10-05', '2026-10-05'), 0);
+  assert.equal(weekVerschil('2026-10-11', '2026-10-05'), 0); // zondag hoort bij dezelfde week
+  assert.equal(weekVerschil('2026-10-12', '2026-10-05'), 1);
+  assert.equal(weekVerschil('2026-09-28', '2026-10-05'), -1);
+  assert.equal(weekVerschil('2026-10-26', '2026-10-24'), 1); // over de zomertijdwissel (25 okt)
+});
+
+test('volgendeWerkdagVan: slaat het weekend over, beide richtingen', () => {
+  const wd = [1, 2, 3, 4, 5];
+  assert.equal(volgendeWerkdagVan('2026-10-09', wd, 1), '2026-10-12');  // vrijdag -> maandag
+  assert.equal(volgendeWerkdagVan('2026-10-12', wd, -1), '2026-10-09'); // maandag -> vrijdag
+  assert.equal(volgendeWerkdagVan('2026-10-05', wd, 1), '2026-10-06');
+  assert.equal(volgendeWerkdagVan('2026-10-05', [], 1), '2026-10-06');
+});

@@ -61,7 +61,7 @@ Deze zijn met tests vastgelegd zoals ze nu werken, zodat een oplossing later bew
 ### Planning
 | # | Wat gaat er mis |
 |---|---|
-| B15 | "⚡ Plan deze week" plant in de maandweergave en in de dagweergave van een rechtop gehouden tablet een andere week dan je ziet. |
+| B15 | ~~"⚡ Plan deze week" plant in de maandweergave en in de dagweergave van een rechtop gehouden tablet een andere week dan je ziet.~~ **Opgelost op refactor** (proefverzoek 2: gedeelde week): het plant de week van de gekozen dag; in de maandweergave de week van de gekozen dag, met een melding. |
 | B16 | Toewijzen stelt altijd 09:00 voor als uur. |
 | B17 | Route slepen: komt er net een verversing binnen terwijl je sleept, dan wordt het slepen afgebroken (zeldzaam, bewust zo gelaten). |
 
@@ -71,8 +71,12 @@ Deze zijn met tests vastgelegd zoals ze nu werken, zodat een oplossing later bew
 |---|---|
 | C1 | Is "Geen tickets om in te plannen" een goede tekst voor de lege wachtrij? |
 | C2 | B4: moet een rapport/voorstel automatisch op "verzonden" komen als de app de mail in Zoho terugvindt? |
-| C3 | B15: moet "Plan deze week" altijd de week plannen die je ziet? |
+| C3 | ~~B15: moet "Plan deze week" altijd de week plannen die je ziet?~~ **Beantwoord/opgelost op refactor**: ja, de week van de gekozen dag (in de maandweergave de week van de gekozen dag, met een melding). |
 | C4 | B7 (M3): is een stille aanrijtijd 0 na 20 s trage verbinding in de rapportwizard aanvaardbaar, of moet de wizard dan een melding tonen / langer wachten? |
+
+## Proefverzoeken (afgehandeld op refactor)
+
+- Proefverzoek 2: Kalender, Route-tab en Ingepland tonen dezelfde week (gedeelde gekozen datum); "Plan deze week" plant die week. Klaar.
 
 ## D. Te doen vóór de release (proefperiode)
 

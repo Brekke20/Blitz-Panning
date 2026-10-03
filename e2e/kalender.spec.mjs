@@ -249,11 +249,12 @@ test.describe('kalender: weergavewissel week en maand', () => {
     await page.locator('#kal-label').click();
     await expect(page.locator('#kal-label-tekst')).toHaveText('Oktober 2026');
 
-    // Wissel naar Week: de offset is gereset (ook na een verschuiving in de maandweergave).
+    // Brent-verzoek (proefperiode): wisselen van weergave behoudt de gedeelde gekozen datum (5 nov na een maand verder), dus de
+    // weekweergave toont de week van die datum (2 nov – 8 nov) in plaats van terug te springen naar de huidige week.
     await volgende(page).click();
     await expect(page.locator('#kal-label-tekst')).toHaveText('November 2026');
     await weekKnop.click();
-    await expect(page.locator('#kal-label-tekst')).toHaveText('5 okt – 11 okt');
+    await expect(page.locator('#kal-label-tekst')).toHaveText('2 nov – 8 nov');
     await expect(weekKnop).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.month-cell')).toHaveCount(0);
     await expect(page.locator('#week-grid')).toHaveClass(/tl-mode/);
@@ -452,9 +453,9 @@ test.describe('kalender: Plan deze week volgt de getoonde week (spec C13)', () =
     expect(matrix[0].body.destinations).toEqual([{ lat: 50.9307, lon: 5.3325 }]);
   });
 
-  test('maandweergave: één maand verder wordt de week van 12-18 okt gepland (bekende eigenaardigheid)', async ({ page }) => {
-    // Bekende eigenaardigheid, zie spec C13: in de maandweergave is kalOffset een aantal MAANDEN, maar
-    // autoPlan leest het als aantal WEKEN. Eén maand verder plant dus de week van 12-18 okt.
+  // Brent-verzoek (proefperiode): "Plan deze week" plant de week van de gedeelde gekozen datum. In de maandweergave is dat de week
+  // waarin de gekozen dag valt (niet langer "een maand = een week", C3/B15), met een melding. Eén maand verder = 5 nov -> week van 2-8 nov.
+  test('maandweergave: één maand verder wordt de week van de gekozen dag (2-8 nov) gepland, met melding', async ({ page }) => {
     await startApp(page, { technieker: 'Tim', overschrijf: seed() });
     await page.getByRole('tab', { name: 'Kalender' }).click();
     await page.locator('#kal-view-month').click();
@@ -462,24 +463,20 @@ test.describe('kalender: Plan deze week volgt de getoonde week (spec C13)', () =
     await expect(page.locator('#kal-label-tekst')).toHaveText('November 2026');
 
     const resultaat = await klikPlanDezeWeek(page);
+    await expect(page.locator('#toast')).toContainText('Maandweergave: je plant de week van');
     await expect(resultaat.getByText('Ingepland (2)', { exact: true })).toBeVisible();
-    await expect(resultaat.getByText(/#1001 Laadpaal offline na stroomuitval → .*12 okt/)).toBeVisible();
-    await expect(resultaat.getByText(/#1002 Controller reageert niet op OCPP commando → .*12 okt/)).toBeVisible();
+    await expect(resultaat.getByText(/#1001 Laadpaal offline na stroomuitval → .*2 nov/)).toBeVisible();
+    await expect(resultaat.getByText(/#1002 Controller reageert niet op OCPP commando → .*2 nov/)).toBeVisible();
   });
 
-  test('maandweergave: twee maanden verder wordt de week van 19-25 okt gepland (bekende eigenaardigheid)', async ({ page }) => {
-    // Bekende eigenaardigheid, zie spec C13: kalOffset = 2 (maanden) wordt als 2 weken gelezen.
+  test('Route-tab: een andere dag kiezen en "Plan deze week" plant de week van die dag', async ({ page }) => {
     await startApp(page, { technieker: 'Tim', overschrijf: seed() });
+    await page.getByRole('tab', { name: 'Route' }).click();
+    await page.getByTestId('route-datum').fill('2026-10-14');
     await page.getByRole('tab', { name: 'Kalender' }).click();
-    await page.locator('#kal-view-month').click();
-    await volgende(page).click();
-    await volgende(page).click();
-    await expect(page.locator('#kal-label-tekst')).toHaveText('December 2026');
-
+    await expect(page.locator('#kal-label')).toContainText('12 okt – 18 okt');
     const resultaat = await klikPlanDezeWeek(page);
-    await expect(resultaat.getByText('Ingepland (2)', { exact: true })).toBeVisible();
-    await expect(resultaat.getByText(/#1001 Laadpaal offline na stroomuitval → .*19 okt/)).toBeVisible();
-    await expect(resultaat.getByText(/#1002 Controller reageert niet op OCPP commando → .*19 okt/)).toBeVisible();
+    await expect(resultaat.getByText(/#1001 Laadpaal offline na stroomuitval → .*12 okt/)).toBeVisible();
   });
 });
 
