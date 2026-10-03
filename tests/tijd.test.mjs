@@ -96,3 +96,10 @@ test('volgendeWerkdagVan: slaat het weekend over, beide richtingen', () => {
   assert.equal(volgendeWerkdagVan('2026-10-05', wd, 1), '2026-10-06');
   assert.equal(volgendeWerkdagVan('2026-10-05', [], 1), '2026-10-06');
 });
+
+test('verschuifDatum: met ankerDag drijft de dag niet weg (31 jan, 28 feb, 31 mrt)', () => {
+  const feb = verschuifDatum('2026-01-31', { maanden: 1, ankerDag: 31 });
+  assert.equal(feb, '2026-02-28');
+  assert.equal(verschuifDatum(feb, { maanden: 1, ankerDag: 31 }), '2026-03-31');
+  assert.equal(verschuifDatum('2026-03-31', { maanden: -1, ankerDag: 31 }), '2026-02-28');
+});

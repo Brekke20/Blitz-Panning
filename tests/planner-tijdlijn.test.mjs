@@ -109,6 +109,7 @@ test('isTeLaat: een ticket (met of zonder vast uur) met aankomst na laatsteStart
   assert.equal(isTeLaat({ kind: 'ticket', uur: undefined }, u(16), u(16)), false);
   assert.equal(isTeLaat({ kind: 'ticket', uur: '17:00' }, u(17), u(16)), true);
   assert.equal(isTeLaat({ kind: 'local', uur: '17:00' }, u(17), u(16)), false);
+  assert.equal(isTeLaat({ kind: 'ticket', uur: '17:00' }, u(17), u(16), true), false); // anker (voorkeursuur, bevestigd): vrijgesteld
 });
 
 // ── Fix-ronde 1 ──

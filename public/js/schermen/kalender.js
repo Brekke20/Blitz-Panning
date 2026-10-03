@@ -30,16 +30,22 @@ const gekozenIso = () => toestand.get('gekozenDatum') || localISO(new Date());
 const gekozenDatum = () => { const [y, m, d] = gekozenIso().split('-').map(Number); return new Date(y, m - 1, d); };
 let kalView = 'week'; // 'week' | 'month'
 let _kalAutoScrollKey = null;
+let _maandAnkerDag = null, _maandStapDatum = null; // oorspronkelijke dag bij opeenvolgende maandstappen
 let renderTeller = 0; // e2e telt hertekeningen hiermee, ook interne oproepen
 
 // Aantal keren dat renderKalender() draaide (voor e2e/kern.spec.mjs).
 export function renderTelling() { return renderTeller; }
-// Weekverschuiving t.o.v. de huidige week van de gedeelde gekozen datum (was kalOffset; autoPlan gebruikt nu de datum zelf).
-export function weekOffset() { return weekVerschil(gekozenIso(), localISO(new Date())); }
 export function isMaandweergave() { return kalView === 'month'; }
 // Tabwissel naar Kalender: tekenen en naar de werkdag scrollen.
 export function activeerKalender() { renderKalender(); kalAutoScroll(true); }
 
+
+// Een app die open blijft (tablet 's nachts of in het weekend) schuift mee: ligt de gekozen datum vóór vandaag, dan wordt het vandaag.
+// Een bewust gekozen toekomstige datum blijft staan. Aangeroepen bij terugkeer naar de pagina en in de minuutklok (middernacht).
+export function rolloverGekozenDatum() {
+  const vandaag = localISO(new Date());
+  if (gekozenIso() < vandaag) toestand.set('gekozenDatum', vandaag);
+}
 
 export function initKalender(afhankelijkheden) {
   afh = strengeAfh('kalender', afhankelijkheden);
@@ -61,7 +67,7 @@ export function initKalender(afhankelijkheden) {
     clearTimeout(_kalResizeTimer);
     _kalResizeTimer = setTimeout(kalPasGridHoogteAan, 100);
   });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) updateNuLijn(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { rolloverGekozenDatum(); updateNuLijn(); } });
 }
 
 function buildTicketCard(stop, dateStr, { showActions = true } = {}) {
@@ -407,7 +413,7 @@ function updateNuLijn() {
   lijn.firstChild.textContent = `${String(nu.getHours()).padStart(2,'0')}:${String(nu.getMinutes()).padStart(2,'0')}`;
 }
 function startNuLijnTimer() {
-  if (!_nuLijnTimer) _nuLijnTimer = setInterval(updateNuLijn, 60000);
+  if (!_nuLijnTimer) _nuLijnTimer = setInterval(() => { rolloverGekozenDatum(); updateNuLijn(); }, 60000);
 }
 
 // ── Kalender: weergave, navigatie, renderen ─────────────────────────────────
@@ -704,16 +710,25 @@ function kalNav(dir) {
   // Week: ‹ › = één week; maand: één maand; tablet rechtop + weekweergave: één werkdag. Alles op de gedeelde gekozen datum.
   const iso = gekozenIso();
   let nieuw;
-  if (kalView === 'month') nieuw = verschuifDatum(iso, { maanden: dir });
-  else if (window.apparaat.indeling === 'tablet-staand') nieuw = volgendeWerkdagVan(iso, toestand.get('settings').werkdagen, dir);
-  else nieuw = verschuifDatum(iso, { dagen: 7 * dir });
+  if (kalView === 'month') {
+    // Opeenvolgende maandstappen houden de oorspronkelijke dag van de maand vast (31 jan, 28 feb, 31 mrt).
+    const anker = iso === _maandStapDatum ? _maandAnkerDag : Number(iso.slice(8));
+    nieuw = verschuifDatum(iso, { maanden: dir, ankerDag: anker });
+    _maandAnkerDag = anker; _maandStapDatum = nieuw;
+  } else if (window.apparaat.indeling === 'tablet-staand') {
+    // Vanaf de eerste zichtbare dag (een weekenddatum toont de maandag: de eerste stap moet echt verder gaan).
+    const eerste = kalZichtbareDagen()[0];
+    nieuw = volgendeWerkdagVan(eerste ? localISO(eerste) : iso, toestand.get('settings').werkdagen, dir);
+  } else nieuw = verschuifDatum(iso, { dagen: 7 * dir });
   toestand.set('gekozenDatum', nieuw); // het abonnement tekent de kalender (en volgt Route/Ingepland); één render
+  toestand.spoel();                    // eerst tekenen, daarna scrollen
   kalAutoScroll(true);
 }
 function kalToday() {
   const vandaag = localISO(new Date());
   if (gekozenIso() === vandaag) { kalAutoScroll(true); return; }
   toestand.set('gekozenDatum', vandaag);
+  toestand.spoel(); // eerst tekenen, daarna scrollen
   kalAutoScroll(true);
 }
 

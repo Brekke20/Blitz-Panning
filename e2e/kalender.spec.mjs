@@ -463,7 +463,7 @@ test.describe('kalender: Plan deze week volgt de getoonde week (spec C13)', () =
     await expect(page.locator('#kal-label-tekst')).toHaveText('November 2026');
 
     const resultaat = await klikPlanDezeWeek(page);
-    await expect(page.locator('#toast')).toContainText('Maandweergave: je plant de week van');
+    await expect(resultaat).toContainText('Maandweergave: je plant de week van'); // in het resultaatvenster (een toast kon overschreven worden)
     await expect(resultaat.getByText('Ingepland (2)', { exact: true })).toBeVisible();
     await expect(resultaat.getByText(/#1001 Laadpaal offline na stroomuitval → .*2 nov/)).toBeVisible();
     await expect(resultaat.getByText(/#1002 Controller reageert niet op OCPP commando → .*2 nov/)).toBeVisible();

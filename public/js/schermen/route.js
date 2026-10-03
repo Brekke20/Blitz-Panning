@@ -357,7 +357,7 @@ export function renderRouteList(date) {
       : '';
     // Brent-besluit (proefperiode): een stop zonder vast uur die de klant niet meer vóór het laatste startuur bereikt,
     // krijgt een duidelijke waarschuwing i.p.v. een stille late tijd; ook voor een vast uur na dat tijdstip (fix-ronde 1).
-    const teLaat = isTeLaat(entry, arrivalTimes[i], laatsteStartMin);
+    const teLaat = isTeLaat(entry, arrivalTimes[i], laatsteStartMin, entry.kind === 'ticket' && isStopAnchored(entry.item));
     const laatHtml = teLaat
       ? `<div class="stop-laat" data-testid="route-stop-laat" role="alert">⚠ Start na het laatste startuur (${escHtml(laatsteStartTekst)}): aankomst ${hasRoute || entry.uur ? '' : '± '}${fmtTijd(arrivalTimes[i])}</div>`
       : '';

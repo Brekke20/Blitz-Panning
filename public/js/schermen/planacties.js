@@ -270,10 +270,12 @@ export async function autoPlan() {
     // Maandweergave (was: een maand telde als een week, C3/B15): de week waarin de gekozen datum valt, met een melding.
     const [gy, gm, gd] = toestand.get('gekozenDatum').split('-').map(Number);
     const weekStart = getWeekStart(new Date(gy, gm - 1, gd), 0);
-    if (isMaandweergave()) {
-      const weekEind = new Date(weekStart); weekEind.setDate(weekStart.getDate() + 6);
-      toast(`ℹ Maandweergave: je plant de week van ${fmtDateShort(weekStart)} t/m ${fmtDateShort(weekEind)} (de week van de gekozen dag)`, 5000);
-    }
+    const weekEind = new Date(weekStart); weekEind.setDate(weekStart.getDate() + 6);
+    // Een week die helemaal voorbij is, kan niets meer krijgen (verleden dagen worden overgeslagen): melden en niets plannen.
+    if (weekEind < today) return toast(`ℹ De week van ${fmtDateShort(weekStart)} t/m ${fmtDateShort(weekEind)} is voorbij: kies een huidige of latere week`, 5000);
+    // De melding van de maandweergave staat in het resultaatvenster (een toast zou door latere toasts overschreven worden).
+    const maandBericht = isMaandweergave()
+      ? `ℹ Maandweergave: je plant de week van ${fmtDateShort(weekStart)} t/m ${fmtDateShort(weekEind)} (de week van de gekozen dag).` : null;
 
     // R2: enkel de bekeken week (vanaf vandaag) plus voorkeursdatums na die week als extra dag
     // voor enkel het ticket dat die voorkeur heeft (zie bouwDagen in public/js/planner.js).
@@ -412,7 +414,7 @@ export async function autoPlan() {
     // Past niet meer deze week, elk met de reden uit het brein
     uitkomst.nietGepland.forEach(n => nietGepland.push({ ticket: perId.get(n.ticketId), reden: n.reden }));
 
-    showResult(geplande, nietGepland, skipped, null, uitkomst.waarschuwingen || []);
+    showResult(geplande, nietGepland, skipped, maandBericht, uitkomst.waarschuwingen || []);
   } catch (err) {
     toast('✕ ' + foutTekst(err), 4000);
   } finally {

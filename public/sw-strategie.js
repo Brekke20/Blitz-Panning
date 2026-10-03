@@ -23,7 +23,7 @@
     const shellPaden = new Set(shell);
     const cdnSet = new Set(cdnVast);
     const fontSet = new Set(fontHosts);
-    const luiSet = new Set(cdnLui); // wel cache-eerst/bewaren (cdnVast), maar niet vooraf opgehaald bij de installatie
+    const luiSet = new Set(cdnLui); // URL's in cdnVast die wel cache-eerst/bewaard worden maar niet vooraf opgehaald (nu leeg: ExcelJS wordt wél vooraf opgehaald)
     let cacheModusTot = 0;
     // Cache-modus per client (I3): wie zijn pagina uit de cache kreeg, krijgt ook al zijn modules en late imports daaruit, zolang de
     // client leeft (de SW-herstart wist dit; dan geldt enkel nog de globale time-out). Begrensd, oudste eerst weg.
@@ -145,7 +145,7 @@
       // en dan stokt, mag de installatie/update evenmin ophouden); bij de time-out wordt de fetch afgebroken. De externe cache kan daardoor
       // gedeeltelijk gevuld blijven: een ontbrekende URL haalt de runtime cache-miss alsnog op en een volgende installatie vult aan.
       // CDN-URL's zijn op versie vastgepind: wat al in de externe cache staat, wordt niet opnieuw opgehaald (I5). De `cdnLui`-lijst
-      // (ExcelJS) wordt pas bij het eerste gebruik opgehaald en bewaard.
+      // (momenteel leeg; ExcelJS wordt wél vooraf opgehaald) bevat URL's die pas bij het eerste gebruik worden opgehaald en bewaard.
       await Promise.allSettled(cdnVast.filter((u) => !luiSet.has(u)).map(async (u) => {
         if (await extern.match(u)) return;
         const stop = typeof AbortController === 'function' ? new AbortController() : null;

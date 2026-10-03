@@ -11,10 +11,11 @@ export function todayISO(nu = new Date()) { return localISO(nu); }
 const isoNaarDatum = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d, 12); };
 
 // Verschuift een datum met `dagen` dagen en/of `maanden` maanden; bij een maandstap wordt de dag begrensd tot de lengte van de doelmaand.
-export function verschuifDatum(iso, { dagen = 0, maanden = 0 } = {}) {
+// `ankerDag` (optioneel): de oorspronkelijke dag van de maand bij opeenvolgende maandstappen, zodat 31 jan, 28 feb, 31 mrt niet wegdrijft.
+export function verschuifDatum(iso, { dagen = 0, maanden = 0, ankerDag = null } = {}) {
   const d = isoNaarDatum(iso);
   if (maanden) {
-    const dag = d.getDate();
+    const dag = ankerDag ?? d.getDate();
     d.setDate(1); d.setMonth(d.getMonth() + maanden);
     d.setDate(Math.min(dag, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
   }

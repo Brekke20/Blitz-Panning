@@ -53,8 +53,9 @@ export function aankomstPerTicket(allStops, arrivalTimes) {
 
 // Brent-besluit (proefperiode): een ticket (met of zonder vast uur) dat pas na `laatsteStartMin` bij de klant zou zijn, haalt de
 // grens "start uiterlijk op laatsteStart" niet. Pure regel voor de waarschuwing in de Route-tab en de bevestiging bij vastleggen.
-export function isTeLaat(entry, aankomstMin, laatsteStartMin) {
-  return entry.kind === 'ticket' && aankomstMin !== undefined && aankomstMin > laatsteStartMin;
+// Een anker (voorkeursuur van de klant, vergrendeld/bevestigd) is vrijgesteld, zoals in het brein: `isAnker` = true geeft nooit een waarschuwing.
+export function isTeLaat(entry, aankomstMin, laatsteStartMin, isAnker = false) {
+  return !isAnker && entry.kind === 'ticket' && aankomstMin !== undefined && aankomstMin > laatsteStartMin;
 }
 
 // Minuten (mogelijk > 1440) als 'HH:MM' (uur modulo 24). Was `fmtTime` binnen renderRouteList().
