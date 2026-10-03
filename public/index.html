@@ -11,14 +11,49 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script>
+    // Thema toepassen voor eerste render (voorkomt flash)
+    (function(){
+      const t = localStorage.getItem('blitz_theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+      document.getElementById('meta-theme-color')?.setAttribute('content', t === 'light' ? '#f5f6f7' : '#181e24');
+    })();
+  </script>
+  <script>
+    // Testmodus (?test): elk /api/-verzoek krijgt X-Blitz-Test: 1 zodat de server
+    // de testopslag gebruikt en niet naar Zoho schrijft. Moet vóór alle andere scripts staan.
+    (function(){
+      if (!new URLSearchParams(location.search).has('test')) return;
+      const orig = window.fetch.bind(window);
+      window.fetch = function(input, init){
+        try {
+          const raw = typeof input === 'string' ? input : (input instanceof URL ? input.href : input.url);
+          const u = new URL(raw, location.href);
+          if (u.origin === location.origin && u.pathname.startsWith('/api/')) {
+            const headers = new Headers(input instanceof Request ? input.headers : undefined);
+            if (init && init.headers) new Headers(init.headers).forEach((v, k) => headers.set(k, v));
+            headers.set('X-Blitz-Test', '1');
+            return orig(input, Object.assign({}, init, { headers }));
+          }
+        } catch (e) {}
+        return orig(input, init);
+      };
+    })();
+  </script>
+  <script src="/js/apparaat.js"></script>
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/wizard.css">
+  <link rel="stylesheet" href="/css/prijzen.css">
+  <link rel="stylesheet" href="/css/inventaris.css">
   <link rel="modulepreload" href="/js/kern/brug.js">
   <link rel="modulepreload" href="/js/app.js">
   <link rel="modulepreload" href="/js/app-dialog.js">
   <link rel="modulepreload" href="/js/venster.js">
   <link rel="modulepreload" href="/js/outbox.js">
   <link rel="modulepreload" href="/js/rapport-archief.js">
-  <link rel="modulepreload" href="/js/excel-export.js">
   <link rel="modulepreload" href="/js/prijzen.js">
   <link rel="modulepreload" href="/js/rapport-wizard.js">
   <link rel="modulepreload" href="/js/inventaris.js">
@@ -62,43 +97,6 @@
   <link rel="modulepreload" href="/js/schermen/beschikbaarheid-logica.js">
   <link rel="modulepreload" href="/js/schermen/afspraken-logica.js">
   <link rel="modulepreload" href="/js/schermen/instellingen-logica.js">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-  <script>
-    // Thema toepassen voor eerste render (voorkomt flash)
-    (function(){
-      const t = localStorage.getItem('blitz_theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', t);
-      document.getElementById('meta-theme-color')?.setAttribute('content', t === 'light' ? '#f5f6f7' : '#181e24');
-    })();
-  </script>
-  <script>
-    // Testmodus (?test): elk /api/-verzoek krijgt X-Blitz-Test: 1 zodat de server
-    // de testopslag gebruikt en niet naar Zoho schrijft. Moet vóór alle andere scripts staan.
-    (function(){
-      if (!new URLSearchParams(location.search).has('test')) return;
-      const orig = window.fetch.bind(window);
-      window.fetch = function(input, init){
-        try {
-          const raw = typeof input === 'string' ? input : (input instanceof URL ? input.href : input.url);
-          const u = new URL(raw, location.href);
-          if (u.origin === location.origin && u.pathname.startsWith('/api/')) {
-            const headers = new Headers(input instanceof Request ? input.headers : undefined);
-            if (init && init.headers) new Headers(init.headers).forEach((v, k) => headers.set(k, v));
-            headers.set('X-Blitz-Test', '1');
-            return orig(input, Object.assign({}, init, { headers }));
-          }
-        } catch (e) {}
-        return orig(input, init);
-      };
-    })();
-  </script>
-  <script src="/js/apparaat.js"></script>
-  <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/app.css">
-  <link rel="stylesheet" href="/css/wizard.css">
-  <link rel="stylesheet" href="/css/prijzen.css">
-  <link rel="stylesheet" href="/css/inventaris.css">
 </head>
 <body>
 
@@ -690,7 +688,6 @@
 <script type="module" src="/js/venster.js"></script>
 <script type="module" src="/js/outbox.js"></script>
 <script type="module" src="/js/rapport-archief.js"></script>
-<script type="module" src="/js/excel-export.js"></script>
 <script type="module" src="/js/prijzen.js"></script>
 <script type="module" src="/js/rapport-wizard.js"></script>
 <script type="module" src="/js/inventaris.js"></script>

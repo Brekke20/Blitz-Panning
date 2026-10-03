@@ -335,7 +335,11 @@ function opstart() {
     const active = document.querySelector('.tab.active');
     if (active) updateTabIndicator(active.id);
   });
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
+  // Registratie pas na de load-gebeurtenis (I5): de installatie (prefetch van de CDN-bestanden) mag niet met de eerste laad concurreren.
+  if ('serviceWorker' in navigator) {
+    const registreer = () => navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
+    if (document.readyState === 'complete') registreer(); else window.addEventListener('load', registreer, { once: true });
+  }
   vraagRolOpTablet();
   planHerstelSchermStaat();
 }

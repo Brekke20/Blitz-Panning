@@ -1,7 +1,8 @@
 // Consistentietests van de app-schil (etappe 7, N16d): de modulepreload-lijst in index.html moet precies de modulegraaf
 // zijn (geen ontbrekende, geen overbodige, geen dubbele), en de externe hosts staan in een preconnect.
-// De graaf wordt afgeleid uit de <script type="module">-tags van index.html en de import-regels van elk bestand
-// (statisch én dynamisch: een lazy geladen module wordt wel vooraf opgehaald, niet uitgevoerd).
+// De graaf wordt afgeleid uit de <script type="module">-tags van index.html en de STATISCHE import-regels van elk bestand.
+// Dynamische import()-randen (lazy: excel-export.js) horen er niet bij: die module wordt niet vooraf opgehaald of geladen, maar staat
+// wel in SHELL van sw.js (offline beschikbaar).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -23,7 +24,8 @@ function modulegraaf() {
     gezien.add(pad);
     const bron = fs.readFileSync(path.join(PUBLIC, pad), 'utf8');
     for (const m of bron.matchAll(IMPORT_RE)) {
-      const rel = m[1] || m[2];
+      const rel = m[1]; // m[2] = dynamische import(): buiten de eager graaf (I4)
+      if (!rel) continue;
       wachtrij.push(path.posix.normalize(path.posix.join(path.posix.dirname(pad), rel)));
     }
   }
@@ -34,7 +36,7 @@ const preloads = [...html.matchAll(/<link\s+rel="modulepreload"\s+href="([^"]+)"
 
 test('de modulegraaf is niet leeg en bevat de bekende hoofdmodules', () => {
   const graaf = modulegraaf();
-  for (const m of ['/js/kern/brug.js', '/js/app.js', '/js/excel-export.js', '/js/rapport-wizard.js']) assert.ok(graaf.has(m), m);
+  for (const m of ['/js/kern/brug.js', '/js/app.js', '/js/rapport-wizard.js']) assert.ok(graaf.has(m), m);
   assert.ok(graaf.size > 40, `graaf telt ${graaf.size}`);
 });
 
@@ -51,10 +53,31 @@ test('modulepreload: de kritieke keten (brug.js, app.js) staat vooraan', () => {
   assert.ok(preloads.indexOf('/js/app.js') < 3);
 });
 
-test('preconnect naar de twee CDN-hosts', () => {
-  for (const host of ['https://cdnjs.cloudflare.com', 'https://cdn.jsdelivr.net']) {
-    assert.ok(html.includes(`<link rel="preconnect" href="${host}"`), host);
-  }
+test('preconnect enkel naar de hosts die de opstart gebruikt (cdnjs, Google Fonts); niet naar jsdelivr (ExcelJS is lazy, M1)', () => {
+  assert.ok(html.includes('<link rel="preconnect" href="https://cdnjs.cloudflare.com"'));
+  assert.ok(html.includes('<link rel="preconnect" href="https://fonts.googleapis.com"'));
+  assert.ok(!html.includes('cdn.jsdelivr.net'), 'index.html verwijst niet naar jsdelivr');
+});
+
+test('excel-export.js is lazy (I4): geen script en geen modulepreload in index.html, niet in de eager graaf, wel in SHELL en via import() in app.js', () => {
+  assert.ok(!html.includes('excel-export.js'));
+  assert.ok(!modulegraaf().has('/js/excel-export.js'));
+  assert.match(fs.readFileSync(path.join(PUBLIC, 'js/app.js'), 'utf8'), /import\('\.\/excel-export\.js'\)/);
+  assert.ok(fs.readFileSync(path.join(PUBLIC, 'sw.js'), 'utf8').includes("'/js/excel-export.js'"));
+});
+
+test('modulepreloads staan na de stijlbladen (M2)', () => {
+  const laatsteCss = html.lastIndexOf('rel="stylesheet"');
+  assert.ok(laatsteCss > 0);
+  assert.ok(html.indexOf('rel="modulepreload"') > laatsteCss, 'eerste modulepreload staat vóór een stylesheet');
+});
+
+test('CDN_LUI (niet vooraf opgehaald) bevat enkel ExcelJS en is een deel van CDN_VAST (I5)', () => {
+  const sw = fs.readFileSync(path.join(PUBLIC, 'sw.js'), 'utf8');
+  const lui = [...sw.match(/const CDN_LUI = \[([^\]]*)\]/)[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+  assert.deepEqual(lui, [EXCELJS_URL]);
+  assert.ok(sw.match(/const CDN_VAST = \[([^\]]*)\]/)[1].includes(EXCELJS_URL));
+  assert.match(sw, /cdnLui: CDN_LUI/);
 });
 
 test('ExcelJS staat niet meer als synchroon script in index.html (N2)', () => {
@@ -133,9 +156,10 @@ test('sw.js: importScripts van sw-strategie.js, /api wordt niet afgehandeld, res
   assert.ok(fs.existsSync(path.join(PUBLIC, 'sw-strategie.js')));
 });
 
-test('app.js registreert de service worker met updateViaCache: none', () => {
+test('app.js registreert de service worker met updateViaCache: none, pas na de load-gebeurtenis (I5)', () => {
   const app = fs.readFileSync(path.join(PUBLIC, 'js/app.js'), 'utf8');
   assert.match(app, /register\('\/sw\.js', \{ updateViaCache: 'none' \}\)/);
+  assert.match(app, /readyState === 'complete'\) registreer\(\); else window\.addEventListener\('load', registreer/);
 });
 
 test('sw.js leest ?navTimeout= via SwStrategie.leesNavTimeout met de constante NAV_TIMEOUT_MS (standaard 4000, Q5) als terugval', () => {

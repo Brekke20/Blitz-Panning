@@ -16,19 +16,36 @@
   else wortel.SwStrategie = fabriek();
 })(typeof self !== 'undefined' ? self : this, function () {
   function maakStrategie({
-    cacheNaam, externNaam, shell, cdnVast, fontHosts, eigenOrigin,
+    cacheNaam, externNaam, shell, cdnVast, cdnLui = [], fontHosts, eigenOrigin,
     navTimeoutMs = 0, subTimeoutMs = 0, cacheModusMs = 60000, installTimeoutMs = 10000,
     caches, fetchFn, nu, wacht,
   }) {
     const shellPaden = new Set(shell);
     const cdnSet = new Set(cdnVast);
     const fontSet = new Set(fontHosts);
+    const luiSet = new Set(cdnLui); // wel cache-eerst/bewaren (cdnVast), maar niet vooraf opgehaald bij de installatie
     let cacheModusTot = 0;
+    // Cache-modus per client (I3): wie zijn pagina uit de cache kreeg, krijgt ook al zijn modules en late imports daaruit, zolang de
+    // client leeft (de SW-herstart wist dit; dan geldt enkel nog de globale time-out). Begrensd, oudste eerst weg.
+    const cacheClients = new Set();
+    const MAX_CLIENTS = 50;
 
     const isApi = (u) => u.pathname === '/api' || u.pathname.startsWith('/api/');
     // Enkel een volledig antwoord (200) gaat de cache in: een 206 (gedeeltelijk) in cache.put geeft een fout of een stuk bestand.
     const bewaarbaar = (r) => !!r && r.status === 200;
     const isNetlify = (u) => u.pathname === '/.netlify' || u.pathname.startsWith('/.netlify/');
+
+    const inCacheModus = (request) => (request.clientId && cacheClients.has(request.clientId)) || nu() < cacheModusTot;
+    // Zet de cache-modus aan voor deze load: voor de client van de navigatie (resultingClientId) of van de submodule (clientId), en globaal
+    // voor `cacheModusMs` (terugval voor verzoeken zonder clientId).
+    function zetCacheModus(request) {
+      cacheModusTot = nu() + cacheModusMs;
+      const id = request.mode === 'navigate' ? request.resultingClientId : request.clientId;
+      if (!id) return;
+      cacheClients.delete(id);
+      cacheClients.add(id);
+      if (cacheClients.size > MAX_CLIENTS) cacheClients.delete(cacheClients.values().next().value);
+    }
 
     async function uitCache(naam, sleutel) {
       const c = await caches.open(naam);
@@ -41,7 +58,7 @@
       const pad = eigenOrigin + url.pathname;
       const zoekCache = async () => (await uitCache(cacheNaam, pad)) || (isNav ? uitCache(cacheNaam, eigenOrigin + '/index.html') : undefined);
 
-      if (nu() < cacheModusTot) {
+      if (inCacheModus(request)) {
         const kopie = await zoekCache();
         if (kopie) return kopie;
       }
@@ -55,7 +72,7 @@
           : { r: await netwerk };
       } catch (err) {
         const kopie = await zoekCache();
-        if (kopie) return kopie;
+        if (kopie) { zetCacheModus(request); return kopie; }
         throw err;
       }
       if (eerste) return eerste.r;
@@ -63,7 +80,7 @@
       // Time-out: heeft de cache een kopie, geef die en zet de cache-modus aan; anders blijven we op het netwerk wachten.
       const kopie = await zoekCache();
       if (kopie) {
-        cacheModusTot = nu() + cacheModusMs;
+        zetCacheModus(request);
         netwerk.catch(() => {}); // het lopende verzoek mag stil mislukken
         return kopie;
       }
@@ -71,7 +88,7 @@
         return await netwerk;
       } catch (err) {
         const laat = await zoekCache();
-        if (laat) return laat;
+        if (laat) { zetCacheModus(request); return laat; }
         throw err;
       }
     }
@@ -127,7 +144,10 @@
       // Elke CDN-prefetch heeft een time-out die de hele download dekt (fetch EN lezen/bewaren van de body, want een CDN die de headers stuurt
       // en dan stokt, mag de installatie/update evenmin ophouden); bij de time-out wordt de fetch afgebroken. De externe cache kan daardoor
       // gedeeltelijk gevuld blijven: een ontbrekende URL haalt de runtime cache-miss alsnog op en een volgende installatie vult aan.
-      await Promise.allSettled(cdnVast.map(async (u) => {
+      // CDN-URL's zijn op versie vastgepind: wat al in de externe cache staat, wordt niet opnieuw opgehaald (I5). De `cdnLui`-lijst
+      // (ExcelJS) wordt pas bij het eerste gebruik opgehaald en bewaard.
+      await Promise.allSettled(cdnVast.filter((u) => !luiSet.has(u)).map(async (u) => {
+        if (await extern.match(u)) return;
         const stop = typeof AbortController === 'function' ? new AbortController() : null;
         const download = (async () => {
           const antw = await fetchFn(u, stop ? { mode: 'cors', signal: stop.signal } : { mode: 'cors' });

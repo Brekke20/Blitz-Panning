@@ -72,6 +72,7 @@ function tekstUitSw(naam) {
 }
 export const SHELL = lijstUitSw('SHELL');
 export const CDN_VAST = lijstUitSw('CDN_VAST');
+export const CDN_LUI = lijstUitSw('CDN_LUI'); // in CDN_VAST, maar niet bij de installatie opgehaald (ExcelJS)
 export const CACHE_NAME = tekstUitSw('CACHE_NAME');
 export const EXTERN_CACHE = tekstUitSw('EXTERN_CACHE');
 // De bevroren kopie van de service worker van main (v25), voor het updatepad (N4).

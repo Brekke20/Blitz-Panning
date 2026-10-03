@@ -44,12 +44,12 @@ function nepCaches(begin = {}) {
   return caches;
 }
 
-function bouw({ begin = {}, fetchFn, navTimeoutMs = 0, subTimeoutMs = 0, cacheModusMs = 60000, klok = { t: 0 }, wachters = [] } = {}) {
+function bouw({ begin = {}, fetchFn, cdnLui = [], cdnVast = [LEAFLET], navTimeoutMs = 0, subTimeoutMs = 0, cacheModusMs = 60000, klok = { t: 0 }, wachters = [] } = {}) {
   const caches = nepCaches(begin);
   const ff = fetchFn || (async () => new Response('net'));
   caches.fetchFn = (...a) => ff(...a);
   const s = strategie.maakStrategie({
-    cacheNaam: 'hoofd', externNaam: 'extern', shell: SHELL, cdnVast: [LEAFLET], fontHosts: ['fonts.googleapis.com', 'fonts.gstatic.com'],
+    cacheNaam: 'hoofd', externNaam: 'extern', shell: SHELL, cdnVast, cdnLui, fontHosts: ['fonts.googleapis.com', 'fonts.gstatic.com'],
     eigenOrigin: ORIGIN, navTimeoutMs, subTimeoutMs, cacheModusMs, caches, fetchFn: (...a) => ff(...a),
     nu: () => klok.t,
     wacht: (ms) => new Promise((res) => wachters.push({ ms, res })),
@@ -57,7 +57,7 @@ function bouw({ begin = {}, fetchFn, navTimeoutMs = 0, subTimeoutMs = 0, cacheMo
   return { s, caches, klok, wachters };
 }
 const req = (pad, extra = {}) => ({ url: volUrl(pad), method: 'GET', mode: 'no-cors', ...extra });
-const nav = (pad) => req(pad, { mode: 'navigate' });
+const nav = (pad, extra = {}) => req(pad, { mode: 'navigate', ...extra });
 const tekst = async (p) => (await p).text();
 const tick = () => new Promise((r) => setImmediate(r));
 
@@ -293,4 +293,70 @@ test('installeer: een CDN die de headers stuurt maar de body laat stokken houdt 
   assert.equal(afgebroken, true, 'de fetch wordt afgebroken bij de time-out');
   assert.equal(caches.winkels.get('extern').has(LEAFLET), false, 'een afgebroken download staat niet in de cache');
   assert.ok(caches.winkels.get('hoofd').has(ORIGIN + '/js/app.js'));
+});
+
+// ---- Etappe 7, finale fix B ----
+test('I3: een navigatie die op een netwerkfout terugvalt op de cache, zet de cache-modus: de modules daarna komen uit dezelfde momentopname', async () => {
+  let offline = true;
+  const { s } = bouw({
+    begin: { hoofd: { [ORIGIN + '/index.html']: 'cache-index', [ORIGIN + '/js/app.js']: 'cache-app' } },
+    fetchFn: async () => { if (offline) throw new TypeError('offline'); return new Response('net-app'); },
+  });
+  assert.equal(await tekst(s.behandel(nav('/'))), 'cache-index');
+  offline = false; // het netwerk is terug, maar de load blijft op de cache
+  assert.equal(await tekst(s.behandel(req('/js/app.js'))), 'cache-app');
+});
+
+test('I3: de cache-modus geldt per client en blijft gelden na de globale 60 s (late import())', async () => {
+  const klok = { t: 0 };
+  let offline = true;
+  const { s } = bouw({
+    klok,
+    begin: { hoofd: { [ORIGIN + '/index.html']: 'cache-index', [ORIGIN + '/js/app.js']: 'cache-app' } },
+    fetchFn: async () => { if (offline) throw new TypeError('offline'); return new Response('net-app'); },
+  });
+  await s.behandel(nav('/', { resultingClientId: 'A' }));
+  offline = false;
+  klok.t = 10 * 60000;
+  assert.equal(await tekst(s.behandel(req('/js/app.js', { clientId: 'A' }))), 'cache-app', 'client A blijft op de cache');
+  assert.equal(await tekst(s.behandel(req('/js/app.js', { clientId: 'B' }))), 'net-app', 'een andere client niet');
+});
+
+test('I3: een submodule die op een netwerkfout terugvalt, zet de cache-modus voor zijn client', async () => {
+  let offline = true;
+  const { s } = bouw({
+    begin: { hoofd: { [ORIGIN + '/js/app.js']: 'cache-app', [ORIGIN + '/css/app.css']: 'cache-css' } },
+    fetchFn: async () => { if (offline) throw new TypeError('offline'); return new Response('net'); },
+  });
+  assert.equal(await tekst(s.behandel(req('/js/app.js', { clientId: 'C' }))), 'cache-app');
+  offline = false;
+  assert.equal(await tekst(s.behandel(req('/css/app.css', { clientId: 'C' }))), 'cache-css');
+});
+
+test('I5: installeer slaat CDN-URLs over die al in de externe cache staan', async () => {
+  let cdnCalls = 0;
+  const { s, caches } = bouw({
+    begin: { extern: { [LEAFLET]: 'bewaard' } },
+    fetchFn: async (u) => { if (String(u) === LEAFLET) cdnCalls++; return new Response('ok'); },
+  });
+  await s.installeer();
+  assert.equal(cdnCalls, 0);
+  assert.equal(await tekst(caches.winkels.get('extern').get(LEAFLET)), 'bewaard');
+});
+
+test('I5: cdnLui (ExcelJS) wordt niet bij de installatie opgehaald, wel bij het eerste gebruik bewaard en daarna cache-eerst', async () => {
+  const EXCEL = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
+  const opgehaald = [];
+  const { s, caches } = bouw({
+    cdnVast: [LEAFLET, EXCEL], cdnLui: [EXCEL],
+    fetchFn: async (u) => { opgehaald.push(String(u.url || u)); return new Response('ok'); },
+  });
+  await s.installeer();
+  assert.ok(!opgehaald.includes(EXCEL), 'niet vooraf opgehaald');
+  assert.ok(opgehaald.includes(LEAFLET));
+  assert.equal(await tekst(s.behandel(req(EXCEL))), 'ok');
+  assert.ok(caches.winkels.get('extern').has(EXCEL), 'bij het eerste gebruik bewaard');
+  const n = opgehaald.length;
+  await tekst(s.behandel(req(EXCEL)));
+  assert.equal(opgehaald.length, n, 'tweede keer uit de cache');
 });
