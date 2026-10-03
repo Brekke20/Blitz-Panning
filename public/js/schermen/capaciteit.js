@@ -1,67 +1,49 @@
-// schermen/capaciteit.js — het aantalmodel van de planning (spec C3): hoeveel stops past er op een dag,
-// wat is de eerstvolgende vrije werkdag, en de capaciteitskop van een dagkolom.
+// schermen/capaciteit.js — de vrije tijd van een dag (spec C3, aangepast door de proefperiode-bugfix "ticket na werkuren"):
+// past er nog een ticket op een dag, wat is de eerstvolgende werkdag met echte vrije tijd, en de capaciteitskop van een dagkolom.
+// Het aantalmodel (slots tellen) is vervangen door de plaatsingsregel uit planner-tijdlijn.js: bestaande stops met en zonder uur,
+// eigen afspraken, tijdvak-blokkeringen en reistijd (30 min per rit, zoals de Route-tab zonder berekende route) tellen echt mee.
 // De pure functies krijgen alles als parameter; de twee toestandslezers onderaan (capacityForDay, nextAvailableDay)
 // lezen de toestand. Importeert enkel pure kern-modules, dus ook importeerbaar in node.
 import { toestand } from '../kern/toestand.js';
 import { strengeAfh } from '../kern/ui.js';
-import { localISO } from '../kern/tijd.js';
-import { blokkeringenVoor, planItemsVanTechnieker } from '../kern/selecties.js';
+import { localISO, timeStrToMin } from '../kern/tijd.js';
+import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
+import { plaatsNieuw, extraPlaatsen } from '../planner-tijdlijn.js';
 import { getHolidayName } from '../kern/feestdagen.js';
 
-// Aantal geblokkeerde minuten binnen de werkdag [dagStartMin, dagEindMin]: elke uitzondering ({ from, to } als
-// 'HH:MM') wordt op de werkdag geknipt, daarna gesorteerd en samengevoegd zodat overlappende blokken niet dubbel tellen.
-export function blokkeerMinuten(rangeUitzonderingen, dagStartMin, dagEindMin) {
-  const intervals = (rangeUitzonderingen || [])
-    .map(e => {
-      const [fh, fm] = e.from.split(':').map(Number);
-      const [th, tm] = e.to.split(':').map(Number);
-      const start = Math.max(dagStartMin, fh * 60 + fm);
-      const eind  = Math.min(dagEindMin, th * 60 + tm);
-      return eind > start ? [start, eind] : null;
-    })
-    .filter(Boolean)
-    .sort((a, b) => a[0] - b[0]);
-
-  let blockedMin = 0;
-  let curEnd = -Infinity;
-  for (const [start, eind] of intervals) {
-    if (start >= curEnd) {
-      blockedMin += eind - start;
-      curEnd = eind;
-    } else if (eind > curEnd) {
-      blockedMin += eind - curEnd;
-      curEnd = eind;
-    }
-    // else: volledig binnen het al geteld interval -- niets toevoegen
-  }
-  return blockedMin;
+// De items van één dag voor de plaatsingsregel (planner-tijdlijn.js). Alles komt als parameter binnen.
+//  tickets: [{ id, uur, duurMin }]; eigen: [{ id, uur, einduur, adres, notitie }] (eigen afspraken van de dag voor de technieker);
+//  blokkeringen: [{ from, to }] (tijdvak-blokkeringen); werktijdMin(uur, einduur) = duur van een eigen afspraak.
+// Tickets en eigen afspraken met locatie (adres/notitie, zoals in de Route-tab) zijn stops; een eigen afspraak zonder locatie en
+// een tijdvak-blokkering zijn enkel een bezet tijdvak ('blok'). Een eigen afspraak zonder uur en zonder locatie telt niet (geen tijd bekend).
+export function bouwDagItems({ tickets, eigen, blokkeringen, werktijdMin }) {
+  const items = [];
+  for (const t of tickets) items.push({ id: 't' + t.id, uur: t.uur || null, duurMin: t.duurMin, soort: 'stop', ticket: true });
+  eigen.forEach((e, i) => {
+    const metLocatie = !!(e.adres || e.notitie);
+    if (!e.uur && !metLocatie) return;
+    const duurMin = (e.uur && e.einduur ? werktijdMin(e.uur, e.einduur) : 0) || 60;
+    items.push({ id: 'l' + (e.id ?? i), uur: e.uur || null, duurMin, soort: metLocatie ? 'stop' : 'blok' });
+  });
+  (blokkeringen || []).forEach((b, i) => {
+    if (!b.from || !b.to) return;
+    const van = timeStrToMin(b.from), tot = timeStrToMin(b.to);
+    if (tot > van) items.push({ id: 'b' + i, uur: b.from, duurMin: tot - van, soort: 'blok' });
+  });
+  return items;
 }
 
-// Aantal stops dat op een dag past. `dagBlokkering`: er is een hele-dag-blokkering; `isFeestdag`: feestdag.
-export function capaciteitVoorDag({ datum, isFeestdag, vanTijd, totTijd, duurMinuten, maxPerDag, dagBlokkering, rangeUitzonderingen, travelMin = 30 }) {
-  if (isFeestdag) return 0;
-  const [vanH, vanM] = vanTijd.split(':').map(Number);
-  const [totH, totM] = totTijd.split(':').map(Number);
-  const dagStart = vanH * 60 + vanM;
-  const dagEind  = totH * 60 + totM;
-  const totalMin = dagEind - dagStart;
-  if (dagBlokkering) return 0;
-  const blockedMin = blokkeerMinuten(rangeUitzonderingen, dagStart, dagEind);
-  const available = Math.max(0, totalMin - blockedMin);
-  const perSlot   = duurMinuten + travelMin;
-  return Math.min(Math.floor(available / perSlot), maxPerDag);
-}
-
-// Eerstvolgende werkdag vanaf `van` ('YYYY-MM-DD') met vrije capaciteit; null als er binnen 60 dagen geen is.
-// `nu`: Date (enkel de dag telt); `capaciteitVan(dag)` en `reedsGepland(dag)` leveren de aantallen voor 'YYYY-MM-DD'.
-export function volgendeBeschikbareDag(van, { nu, werkdagen, capaciteitVan, reedsGepland }) {
+// Eerstvolgende werkdag vanaf `van` ('YYYY-MM-DD') waar `heeftPlaats(dag)` waar is; null als er binnen 60 dagen geen is.
+// `nu`: Date (enkel de dag telt). De zoektocht loopt gewoon door naar volgende weken: zit de week vol, dan wordt het de eerste dag
+// van een volgende week met echte vrije tijd (Brent-besluit, proefperiode).
+export function volgendeBeschikbareDag(van, { nu, werkdagen, heeftPlaats }) {
   const today = new Date(nu); today.setHours(0,0,0,0);
   const d = new Date(van + 'T12:00:00');
   for (let i = 0; i < 60; i++) {
     if (d >= today) {
       const dStr = localISO(d);
       if (werkdagen.includes(d.getDay())) {
-        if (capaciteitVan(dStr) - reedsGepland(dStr) > 0) return dStr;
+        if (heeftPlaats(dStr)) return dStr;
       }
     }
     d.setDate(d.getDate() + 1);
@@ -81,35 +63,58 @@ export function capaciteitsKop({ aantal, cap, duurMinuten, travelMin }) {
 // Afhankelijkheden uit app.js (ingevuld door initCapaciteit); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('capaciteit: initCapaciteit() is niet aangeroepen'); } });
 export function initCapaciteit(afhankelijkheden) {
-  afh = strengeAfh('capaciteit', afhankelijkheden); // { duurVoor }
+  afh = strengeAfh('capaciteit', afhankelijkheden); // { duurVoor, werktijdMin, kbPreferredTime }
 }
 
-export function capacityForDay(datum, travelMin = 30) {
-  if (getHolidayName(datum)) return 0; // feestdag: nul, zonder de instellingen te lezen (zoals vroeger)
-  const settings = toestand.get('settings');
+// De items van een dag uit de toestand (gefilterd op de gekozen technieker): bestaande stops, eigen afspraken en tijdvak-blokkeringen.
+function dagItemsVan(datum) {
   const filter = toestand.get('activeAssigneeFilter');
-  const avExceptions = toestand.get('avExceptions');
-  return capaciteitVoorDag({
-    datum,
-    vanTijd: settings.vanTijd,
-    totTijd: settings.totTijd,
-    duurMinuten: settings.duurMinuten,
-    maxPerDag: settings.maxPerDag,
-    dagBlokkering: blokkeringenVoor(avExceptions, datum, filter, 'fullday').length > 0,
-    rangeUitzonderingen: blokkeringenVoor(avExceptions, datum, filter, 'range'),
-    travelMin,
+  return bouwDagItems({
+    tickets: planItemsVanTechnieker(toestand.get('planning')[datum], filter)
+      .map(p => ({ id: p.ticket.id, uur: p.uur || null, duurMin: afh.duurVoor(p.ticket.id) })),
+    eigen: eigenAfsprakenVoor(toestand.get('localEvents'), datum, filter),
+    blokkeringen: blokkeringenVoor(toestand.get('avExceptions'), datum, filter, 'range'),
+    werktijdMin: afh.werktijdMin,
   });
 }
 
-export function nextAvailableDay(van) {
+// Kan er nog een ticket (met duur `duurMin`, eventueel een voorkeursuur) bij op deze dag? Geen feestdag, geen hele-dag-blokkering.
+function plekOpDag(datum, nieuw) {
+  if (getHolidayName(datum)) return null;
   const settings = toestand.get('settings');
   const filter = toestand.get('activeAssigneeFilter');
-  const planning = toestand.get('planning');
+  if (blokkeringenVoor(toestand.get('avExceptions'), datum, filter, 'fullday').length > 0) return null;
+  return plaatsNieuw({
+    items: dagItemsVan(datum), nieuw,
+    vanTijd: settings.vanTijd, laatsteStart: settings.laatsteStart, maxPerDag: settings.maxPerDag,
+  });
+}
+
+// Capaciteit van een dag voor de kop "n/cap": het aantal tickets dat er al staat plus het aantal standaardtickets dat er volgens de
+// plaatsingsregel nog bij kan. Feestdag of hele-dag-blokkering: 0.
+export function capacityForDay(datum) {
+  if (getHolidayName(datum)) return 0;
+  const settings = toestand.get('settings');
+  const filter = toestand.get('activeAssigneeFilter');
+  if (blokkeringenVoor(toestand.get('avExceptions'), datum, filter, 'fullday').length > 0) return 0;
+  const items = dagItemsVan(datum);
+  return items.filter(i => i.ticket).length + extraPlaatsen({
+    items, duurMin: settings.duurMinuten,
+    vanTijd: settings.vanTijd, laatsteStart: settings.laatsteStart, maxPerDag: settings.maxPerDag,
+  });
+}
+
+// Eerstvolgende dag vanaf `van` waar een ticket echt past. `ticketId` (optioneel): duur van dat ticket en zijn voorkeursuur van de klant.
+export function nextAvailableDay(van, ticketId = null) {
+  const settings = toestand.get('settings');
+  const nieuw = {
+    id: '__nieuw',
+    duurMin: ticketId != null ? afh.duurVoor(ticketId) : settings.duurMinuten,
+    uur: ticketId != null ? (afh.kbPreferredTime(ticketId) || null) : null,
+  };
   return volgendeBeschikbareDag(van, {
     nu: new Date(),
     werkdagen: settings.werkdagen,
-    capaciteitVan: dag => capacityForDay(dag),
-    reedsGepland: dag => planItemsVanTechnieker(planning[dag], filter)
-      .reduce((sum, p) => sum + Math.ceil(afh.duurVoor(p.ticket.id) / settings.duurMinuten), 0),
+    heeftPlaats: dag => !!plekOpDag(dag, nieuw),
   });
 }

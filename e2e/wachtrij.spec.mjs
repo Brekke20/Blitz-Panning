@@ -191,22 +191,24 @@ test.describe('wachtrij: snelinplannen met +', () => {
     const maandag = dag(page, '2026-10-05');
     // Zonder tijdstip: het ticket staat als chip in de dagkop (zie 'Zonder uur'), niet als tijdlijnblok.
     await expect(maandag.locator('.zu-chip')).toHaveText('#1001');
-    // Gemeten: 1 stop van 3, ±(120 + 30) / 60 = 2,5 uur.
-    await expect(maandag.locator('.day-cap')).toHaveText('1/3 stops · ±2.5u');
+    // Brent-besluit (proefperiode): 1 stop van 4 (de echte vrije tijd laat nog 3 tickets toe), ±(120 + 30) / 60 = 2,5 uur.
+    await expect(maandag.locator('.day-cap')).toHaveText('1/4 stops · ±2.5u');
   });
 
   test('volle dag: het volgende ticket gaat naar de volgende werkdag', async ({ page, verzoeken }) => {
     await startApp(page, { technieker: 'Tim', overschrijf: seed() });
+    // Brent-besluit (proefperiode): "vol" is nu echte vrije tijd + maxPerDag (4), niet meer 3 slots. Vier stops zonder uur
+    // (aankomst 08:30, 11:00, 13:30, 16:00) vullen de maandag; het volgende ticket gaat naar dinsdag.
     await voegStopsToe(page, [
       { id: 'x1', nummer: '9001', datum: '2026-10-05' },
       { id: 'x2', nummer: '9002', datum: '2026-10-05' },
       { id: 'x3', nummer: '9003', datum: '2026-10-05' },
+      { id: 'x4', nummer: '9004', datum: '2026-10-05' },
     ]);
     await page.locator('#ticket-list .ticket').first().getByRole('button', { name: PLUS }).click();
-    // Gemeten: maandag zit vol (3/3), dus dinsdag 6 okt.
     await expect(page.locator('#toast')).toHaveText('✓ Toegevoegd aan 6 okt');
     await page.getByRole('tab', { name: 'Kalender' }).click();
-    await expect(dag(page, '2026-10-05').locator('.day-cap')).toHaveText('3/3 stops · ±7.5u');
+    await expect(dag(page, '2026-10-05').locator('.day-cap')).toHaveText('4/4 stops · ±10u');
     await expect(dag(page, '2026-10-06').locator('.zu-chip')).toHaveText('#1001');
     expect(verzoeken.van('/api/plan')).toEqual([]);
   });

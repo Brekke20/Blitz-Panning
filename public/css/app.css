@@ -1032,6 +1032,11 @@
       color: var(--accent-ink); margin-top: 2px;
       font-variant-numeric: tabular-nums;
     }
+    /* Waarschuwing: aankomst na het laatste startuur (planner-tijdlijn.js, proefperiode-bugfix) */
+    .stop-laat {
+      font-size: var(--fs-2xs); font-weight: 600; color: var(--red); background: var(--red-dim);
+      padding: 2px 6px; border-radius: 6px; margin-top: 3px;
+    }
     .stop-proposal-sent {
       font-size: var(--fs-2xs); color: var(--accent-ink); margin-top: 3px; font-weight: 600;
     }

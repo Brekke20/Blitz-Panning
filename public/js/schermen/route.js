@@ -11,7 +11,7 @@ import { planItemsVanTechnieker, stopsVoorDag as selStopsVoorDag } from '../kern
 import { maakSorteerbaar } from '../sorteer.js';
 import {
   berekenAankomsten, aankomstPerTicket, fmtTijd, dagHeeftEenTechnieker, stopZonderTijdstip, routeHandtekening,
-  mergeMetAnkers, buitenDagklok as buitenDagklokTijd,
+  mergeMetAnkers, buitenDagklok as buitenDagklokTijd, isTeLaat,
 } from './route-tijden.js';
 import { updateKaart, wisKaart, herstelWegafsluitingToast, zoomOpGekendeStops } from './route-kaart.js';
 
@@ -70,7 +70,10 @@ export function routeOrderBezig() { return _routeOrderBezig; }
 // De wrapper-objecten zijn telkens vers (`uur` is een snapshot), maar `item` blijft hetzelfde
 // object als in planning[date]/localEvents: applyRouteOrder() muteert dat rechtstreeks.
 export function stopsVoorDag(date) {
-  return selStopsVoorDag({ planning: get('planning'), localEvents: get('localEvents') }, get('activeAssigneeFilter'), date);
+  // Volgorde = de tijd die de gedeelde plaatsingsregel geeft (planner-tijdlijn.js): stops zonder uur komen in de gaten tussen
+  // de vaste uren, zoals "+" en het planner-brein ze plaatsen (Brent-besluit, proefperiode).
+  return selStopsVoorDag({ planning: get('planning'), localEvents: get('localEvents') }, get('activeAssigneeFilter'), date,
+    { vanTijd: get('settings').vanTijd, laatsteStart: get('settings').laatsteStart, duurVoor: afh.duurVoor, werktijdMin: afh.werktijdMin });
 }
 
 // De enige aankomsttijd-berekening (route-tijden.js `berekenAankomsten`, puur) met de opties uit de
@@ -323,6 +326,8 @@ export function renderRouteList(date) {
   // resultaat wordt dan gewoon niet getoond (zie timeHtml hieronder) -- gedrag identiek aan
   // vroeger, enkel de berekening zelf is nu een herbruikbare helper (Taak 4).
   const { arrivalTimes, legIdx } = aankomstenVoorDag(date, allStops);
+  const laatsteStartTekst = get('settings').laatsteStart || '16:00';
+  const laatsteStartMin = timeStrToMin(laatsteStartTekst);
 
   allStops.forEach((entry, i) => {
     // Idem: via legIdx i.p.v. i, anders hoort de getoonde rit bij de verkeerde stop.
@@ -337,6 +342,12 @@ export function renderRouteList(date) {
     }
     const timeHtml = hasRoute && arrivalTimes[i] !== undefined
       ? `<div class="stop-time" data-testid="route-stop-tijd">⏱ ${fmtTijd(arrivalTimes[i])}</div>`
+      : '';
+    // Brent-besluit (proefperiode): een stop zonder vast uur die de klant niet meer vóór het laatste startuur bereikt,
+    // krijgt een duidelijke waarschuwing i.p.v. een stille late tijd. Vaste uren (door de coördinator gekozen) blijven onaangeroerd.
+    const teLaat = isTeLaat(entry, arrivalTimes[i], laatsteStartMin) && !(entry.kind === 'ticket' && isStopAnchored(entry.item));
+    const laatHtml = teLaat
+      ? `<div class="stop-laat" data-testid="route-stop-laat" role="alert">⚠ Past niet meer vóór het laatste startuur (${escHtml(laatsteStartTekst)}): aankomst ${hasRoute ? '' : '± '}${fmtTijd(arrivalTimes[i])}</div>`
       : '';
     const stop = document.createElement('div');
     stop.className = 'stop';
@@ -370,7 +381,7 @@ export function renderRouteList(date) {
           <div class="stop-info">
             <div class="stop-sub"><span class="stop-numtag" data-testid="route-stop-nummer">#${escHtml(item.ticket.number)}</span>${escHtml(item.ticket.subject) || '—'}</div>
             <div class="stop-addr">${escHtml(item.address) || 'Geen adres'}</div>
-            ${timeHtml}${blok ? `<div class="stop-time" data-testid="route-stop-tijd">${blokIsGemaild ? '📨' : '🕐'} ${escHtml(blok)}</div>` : ''}${arrivalHtml}
+            ${timeHtml}${blok ? `<div class="stop-time" data-testid="route-stop-tijd">${blokIsGemaild ? '📨' : '🕐'} ${escHtml(blok)}</div>` : ''}${laatHtml}${arrivalHtml}
             ${(() => {
               const vs = get('voorstelStatus')[item.ticket.id];
               const blabel = afh.bevestigdLabel(vs);
@@ -517,10 +528,8 @@ export async function calculateRoute() {
     // Combineer geocoded Zoho stops + lokale events als waypoints, gesorteerd op ingesteld
     // uur (geen uur = achteraan) zodat de route de echte geplande volgorde volgt i.p.v.
     // altijd Zoho-tickets vóór handmatige afspraken te zetten.
-    const allWpStops = [
-      ...stops.filter(p => p._lat),
-      ...localForDate.filter(e => e._lat),
-    ].sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
+    // Zelfde volgorde als de lijst (stopsVoorDag, gedeelde plaatsingsregel), anders klopt legIdx niet.
+    const allWpStops = stopsVoorDag(date).allStops.map(e => e.item).filter(p => p._lat);
     const wps = [{ lat: origin.lat, lon: origin.lon }, ...allWpStops.map(p => ({ lat: p._lat, lon: p._lon }))];
     if (wps.length < 2) return;
     // Vertrektijd = vroegste geplande uur van de dag (of settings.vanTijd zonder vaste uren).

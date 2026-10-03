@@ -52,7 +52,8 @@ test.describe('kalender: inhoud van een week', () => {
     // Positief tegenstuk: een niet-geblokkeerde dag toont de capaciteit en de gewone knop.
     const dinsdag = dag(page, '2026-10-06');
     await expect(dinsdag.getByText('🔒 Geblokkeerd')).toHaveCount(0);
-    await expect(dinsdag.getByText('0/3 stops')).toBeVisible();
+    // Brent-besluit (proefperiode): 0/4 i.p.v. 0/3 (capaciteit = echte vrije tijd, begrensd door maxPerDag).
+    await expect(dinsdag.getByText('0/4 stops')).toBeVisible();
     await expect(dinsdag.getByRole('button', { name: '⏱ Beschikbaar' })).toBeVisible();
     await expect(dinsdag.locator('.day-body')).not.toHaveClass(/blocked-day/);
   });
@@ -143,11 +144,12 @@ test.describe('kalender: capaciteitskop per dag', () => {
     await startApp(page, { overschrijf: seed() });
     await page.getByRole('tab', { name: 'Kalender' }).click();
     const cap = dag(page, '2026-10-06').locator('.day-cap');
-    await expect(cap).toHaveText('0/3 stops · ±0u');
+    // Brent-besluit (proefperiode): de capaciteit volgt de echte vrije tijd (aankomst 08:30, 11:00, 13:30, 16:00, begrensd door maxPerDag 4): 0/4 i.p.v. 0/3.
+    await expect(cap).toHaveText('0/4 stops · ±0u');
     await expect(cap).not.toHaveClass(/full/);
 
     await voegStopsToe(page, [{ id: 'x1', nummer: '9001', datum: '2026-10-06', uur: '09:00' }]);
-    // Gemeten: 1 stop van 3; ±(120 + 30) / 60 = 2,5 uur (het aantalmodel, spec C3).
+    // Gemeten: 1 stop van 3; ±(120 + 30) / 60 = 2,5 uur (echte vrije tijd: 2 extra tickets passen nog, dus cap 3).
     await expect(cap).toHaveText('1/3 stops · ±2.5u');
     await expect(cap).not.toHaveClass(/full/);
 
@@ -182,7 +184,8 @@ test.describe('kalender: capaciteitskop per dag', () => {
     await startApp(page, { technieker: 'Tim', overschrijf: seed({ blokkades: [roel] }) });
     await page.getByRole('tab', { name: 'Kalender' }).click();
     const dinsdag = dag(page, '2026-10-06');
-    await expect(dinsdag.locator('.day-cap')).toHaveText('0/3 stops · ±0u');
+    // Brent-besluit (proefperiode): 0/4 i.p.v. 0/3 (echte vrije tijd, zie hierboven).
+    await expect(dinsdag.locator('.day-cap')).toHaveText('0/4 stops · ±0u');
     await expect(dinsdag.locator('.day-block-btn')).toHaveText('⏱ Beschikbaar');
   });
 

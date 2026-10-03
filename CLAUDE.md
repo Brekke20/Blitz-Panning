@@ -127,7 +127,7 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 - Nieuwe schermen volgen dit patroon: module-privé toestand, expliciet aangereikte functies, exports voor lezers.
 
 **Etappe 4 (Kalender en wachtrij):**
-- `capaciteit.js`: pure berekeningen (aantalmodel: `blokkeerMinuten`, `capaciteitVoorDag`, `volgendeBeschikbareDag`, `capaciteitsKop`, lezers `capacityForDay` en `kern.capaciteit.nextAvailableDay()`). Unit-getest met `node --test`.
+- `capaciteit.js`: vrije tijd per dag volgens de gedeelde plaatsingsregel `public/js/planner-tijdlijn.js` (`bouwDagItems`, `volgendeBeschikbareDag`, `capaciteitsKop`, lezers `capacityForDay` en `nextAvailableDay(van, ticketId)`); het vroegere aantalmodel (slots tellen) is vervangen (proefperiode-bugfix A17). Unit-getest met `node --test`.
 - `wachtrij-logica.js`: pure berekeningen (zoeken, sorteren, scoren: `filterOpZoek`, `sorteerWachtrij`, `queueScore`). Unit-getest.
 - `kalender-logica.js`: pure berekeningen (tijdlijnindeling, zichtbare dagen, maandraster: `bepaalLanes`, `zichtbareDagen`, `maandRaster`). Unit-getest met DST-weken.
 - `wachtrij.js`: Wachtrij-scherm (kaarten, zoeken, sorteren, teller). Private toestand: `wqZoek` en de sorteerinstelling `wqSorteer`. Bevat ook `quickAdd`. Init via `initWachtrij(afh)` vóór `koppelRenders()`.
@@ -145,7 +145,7 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 - Afhankelijkheden (functies uit de app-schil `app.js`) worden via `afh` aangereikt; instellingen en toestandsgegevens uit `kern.toestand`.
 - `kern.wachtrij.renderTelling()`, `kern.kalender.renderTelling()`, `kern.ingepland.renderTelling()` zijn de tellers die de e2e-tests gebruiken.
 - Knoppen gebruiken `data-actie`-delegatie in plaats van inline handlers. Elke kaartluisteraar heeft een **bubbel-guard**: `if (e.target.closest('[data-actie]')) return;` om te voorkomen dat kaarten openen.
-- `quickAdd` (`wachtrij.js`) en de capaciteitskop (`n/cap · ±u`, getekend in `kalender.js`) gebruiken het aantalmodel van `capaciteit.js`, niet het brein (spec C3).
+- `quickAdd` (`wachtrij.js`), de capaciteitskop (`n/cap · ±u`, getekend in `kalender.js`) en de volgorde van de Route-tab (`kern/selecties.js` `stopsVoorDag` met opties) gebruiken dezelfde plaatsingsregel (`planner-tijdlijn.js`: aankomst uiterlijk `laatsteStart`, 30 min reistijd per rit, items zonder uur in lijstvolgorde vanaf `vanTijd`). Het brein volgt dezelfde regel met echte reistijden.
 - `kern.ui.strengeAfh(scherm, afh)` bewaakt de `afh`-objecten: een ontbrekende `afh`-sleutel gooit, zowel vóór als na de init.
 - Blokkeringen en selecties gebruiken `kern.selecties.blokkeringenVoor` en `kern.ui.maakActiveerbaar`.
 

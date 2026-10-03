@@ -297,7 +297,7 @@ export async function saveReschedule() {
 export async function togglePlanFromDetail() {
   if (!activeTicket) return;
   if (['Service in te plannen','Wachten op planning'].includes(activeTicket.status)) {
-    const date = nextAvailableDay(localISO(new Date()));
+    const date = nextAvailableDay(localISO(new Date()), activeTicket.id);
     if (!date) return toast('Geen beschikbare dag gevonden');
     sluitDetailStil();
     if (!(await afh.addTicketToDate(activeTicket.id, date))) return;

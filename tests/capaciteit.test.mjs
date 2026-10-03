@@ -1,116 +1,90 @@
 process.env.TZ = 'Europe/Brussels';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  blokkeerMinuten, capaciteitVoorDag, volgendeBeschikbareDag, capaciteitsKop,
-} from '../public/js/schermen/capaciteit.js';
+import { bouwDagItems, volgendeBeschikbareDag, capaciteitsKop } from '../public/js/schermen/capaciteit.js';
+import { plaatsNieuw, extraPlaatsen } from '../public/js/planner-tijdlijn.js';
 
-// ── blokkeerMinuten (werkdag 08:00–17:00 = 480–1020) ──
-const blok = (from, to) => ({ from, to });
+// Brent-besluit (proefperiode): het aantalmodel (capaciteitVoorDag/blokkeerMinuten, slots tellen) is vervangen door de
+// plaatsingsregel uit planner-tijdlijn.js. De oude tests van die functies zijn bewust vervangen; de regel zelf staat in
+// tests/planner-tijdlijn.test.mjs. Hier: de adapter naar dag-items, de dagzoeker en de kop.
 
-test('blokkeerMinuten: één interval', () => {
-  assert.equal(blokkeerMinuten([blok('10:00', '11:30')], 480, 1020), 90);
+const werk = (a, b) => { const [h1, m1] = a.split(':').map(Number), [h2, m2] = b.split(':').map(Number); return (h2 * 60 + m2) - (h1 * 60 + m1); };
+const inst = { vanTijd: '08:00', laatsteStart: '16:00', maxPerDag: 4 };
+
+// ── bouwDagItems ──
+test('bouwDagItems: tickets, eigen afspraak met locatie (stop) en zonder locatie (blok), tijdvak-blokkering (blok)', () => {
+  const items = bouwDagItems({
+    tickets: [{ id: 'a', uur: '09:00', duurMin: 90 }, { id: 'b', uur: null, duurMin: 120 }],
+    eigen: [
+      { id: 'e1', uur: '13:00', einduur: '14:00', adres: 'Straat 1' },
+      { id: 'e2', uur: '15:00', einduur: '15:30' },            // geen locatie: enkel een bezet tijdvak
+      { id: 'e3', uur: null },                                  // geen uur en geen locatie: geen tijd bekend
+    ],
+    blokkeringen: [{ from: '10:00', to: '11:30' }],
+    werktijdMin: werk,
+  });
+  assert.deepEqual(items, [
+    { id: 'ta', uur: '09:00', duurMin: 90, soort: 'stop', ticket: true },
+    { id: 'tb', uur: null, duurMin: 120, soort: 'stop', ticket: true },
+    { id: 'le1', uur: '13:00', duurMin: 60, soort: 'stop' },
+    { id: 'le2', uur: '15:00', duurMin: 30, soort: 'blok' },
+    { id: 'b0', uur: '10:00', duurMin: 90, soort: 'blok' },
+  ]);
 });
 
-test('blokkeerMinuten: overlappende intervallen tellen niet dubbel', () => {
-  assert.equal(blokkeerMinuten([blok('10:00', '12:00'), blok('11:00', '13:00')], 480, 1020), 180);
+test('bouwDagItems: een eigen afspraak met locatie maar zonder uur is een stop zonder uur (60 min), zoals in de Route-tab', () => {
+  const items = bouwDagItems({ tickets: [], eigen: [{ id: 'x', uur: null, notitie: 'Magazijn' }], blokkeringen: [], werktijdMin: werk });
+  assert.deepEqual(items, [{ id: 'lx', uur: null, duurMin: 60, soort: 'stop' }]);
 });
 
-test('blokkeerMinuten: interval binnen een ander voegt niets toe', () => {
-  assert.equal(blokkeerMinuten([blok('09:00', '15:00'), blok('10:00', '11:00')], 480, 1020), 360);
-});
-
-test('blokkeerMinuten: ongesorteerde invoer geeft hetzelfde resultaat', () => {
-  assert.equal(blokkeerMinuten([blok('13:00', '14:00'), blok('09:00', '10:00')], 480, 1020), 120);
-});
-
-test('blokkeerMinuten: buiten de werkdag wordt geknipt', () => {
-  // 06:00–09:00 knipt tot 08:00–09:00 (60); 16:00–20:00 knipt tot 16:00–17:00 (60)
-  assert.equal(blokkeerMinuten([blok('06:00', '09:00'), blok('16:00', '20:00')], 480, 1020), 120);
-});
-
-test('blokkeerMinuten: volledig buiten de werkdag telt niet', () => {
-  assert.equal(blokkeerMinuten([blok('05:00', '07:00'), blok('18:00', '20:00')], 480, 1020), 0);
-});
-
-test('blokkeerMinuten: leeg of ontbrekend = 0', () => {
-  assert.equal(blokkeerMinuten([], 480, 1020), 0);
-  assert.equal(blokkeerMinuten(undefined, 480, 1020), 0);
-});
-
-// ── capaciteitVoorDag ──
-const basis = {
-  datum: '2026-10-06', isFeestdag: false, vanTijd: '08:00', totTijd: '17:00',
-  duurMinuten: 120, maxPerDag: 4, dagBlokkering: false, rangeUitzonderingen: [],
-};
-
-test('capaciteitVoorDag: 08:00–17:00, duur 120 + 30 reistijd, maxPerDag 4 = 3', () => {
-  assert.equal(capaciteitVoorDag(basis), 3); // 540 / 150 = 3,6 -> 3
-});
-
-test('capaciteitVoorDag: maxPerDag 2 begrenst', () => {
-  assert.equal(capaciteitVoorDag({ ...basis, maxPerDag: 2 }), 2);
-});
-
-test('capaciteitVoorDag: reistijd is een parameter (standaard 30)', () => {
-  assert.equal(capaciteitVoorDag({ ...basis, travelMin: 60 }), 3); // 540 / 180
-  assert.equal(capaciteitVoorDag({ ...basis, travelMin: 120 }), 2); // 540 / 240 = 2,25
-});
-
-test('capaciteitVoorDag: feestdag en hele-dag-blokkering = 0', () => {
-  assert.equal(capaciteitVoorDag({ ...basis, isFeestdag: true }), 0);
-  assert.equal(capaciteitVoorDag({ ...basis, dagBlokkering: true }), 0);
-});
-
-test('capaciteitVoorDag: kortere werkdag 10:00–17:00 = 420 / 150 = 2', () => {
-  assert.equal(capaciteitVoorDag({ ...basis, vanTijd: '10:00' }), 2);
-});
-
-test('capaciteitVoorDag: tijdvak-blokkering laat 120 min over (120 / 150) = 0', () => {
-  assert.equal(capaciteitVoorDag({ ...basis, rangeUitzonderingen: [blok('08:00', '15:00')] }), 0);
-});
-
-test('capaciteitVoorDag: tijdvak-blokkering van 90 min: 450 / 150 = 3', () => {
-  assert.equal(capaciteitVoorDag({ ...basis, rangeUitzonderingen: [blok('12:00', '13:30')] }), 3);
-});
-
-test('capaciteitVoorDag: blokkering groter dan de werkdag geeft 0, nooit negatief', () => {
-  assert.equal(capaciteitVoorDag({ ...basis, rangeUitzonderingen: [blok('00:00', '23:59')] }), 0);
-});
-
-// ── volgendeBeschikbareDag ──
-// 2026-10-05 is een maandag.
+// ── volgendeBeschikbareDag (2026-10-05 is een maandag) ──
 const nu = new Date(2026, 9, 5, 10, 0);
 const werkdagen = [1, 2, 3, 4, 5];
-const vrij = () => 3;
-const niets = () => 0;
 
-test('volgendeBeschikbareDag: vandaag vrij = vandaag', () => {
-  assert.equal(volgendeBeschikbareDag('2026-10-05', { nu, werkdagen, capaciteitVan: vrij, reedsGepland: niets }), '2026-10-05');
+test('volgendeBeschikbareDag: vandaag heeft plaats = vandaag', () => {
+  assert.equal(volgendeBeschikbareDag('2026-10-05', { nu, werkdagen, heeftPlaats: () => true }), '2026-10-05');
 });
 
 test('volgendeBeschikbareDag: vandaag vol = morgen', () => {
-  const reedsGepland = d => (d === '2026-10-05' ? 3 : 0);
-  assert.equal(volgendeBeschikbareDag('2026-10-05', { nu, werkdagen, capaciteitVan: vrij, reedsGepland }), '2026-10-06');
+  assert.equal(volgendeBeschikbareDag('2026-10-05', { nu, werkdagen, heeftPlaats: d => d !== '2026-10-05' }), '2026-10-06');
 });
 
 test('volgendeBeschikbareDag: weekend wordt overgeslagen', () => {
-  // vrijdag 9 oktober vol: zaterdag en zondag zijn geen werkdag, dus maandag 12
-  const reedsGepland = d => (d === '2026-10-09' ? 3 : 0);
-  assert.equal(volgendeBeschikbareDag('2026-10-09', { nu, werkdagen, capaciteitVan: vrij, reedsGepland }), '2026-10-12');
+  assert.equal(volgendeBeschikbareDag('2026-10-09', { nu, werkdagen, heeftPlaats: d => d !== '2026-10-09' }), '2026-10-12');
+});
+
+test('volgendeBeschikbareDag: een volle week schuift door naar de eerste dag met plaats in de volgende week', () => {
+  // Brent-besluit (proefperiode): geen plek meer deze week (5 t/m 9 okt) = eerste dag met echte vrije tijd volgende week.
+  const heeftPlaats = d => d >= '2026-10-13';
+  assert.equal(volgendeBeschikbareDag('2026-10-05', { nu, werkdagen, heeftPlaats }), '2026-10-13');
 });
 
 test('volgendeBeschikbareDag: geen vrije dag in 60 dagen = null', () => {
-  assert.equal(volgendeBeschikbareDag('2026-10-05', { nu, werkdagen, capaciteitVan: niets, reedsGepland: niets }), null);
+  assert.equal(volgendeBeschikbareDag('2026-10-05', { nu, werkdagen, heeftPlaats: () => false }), null);
 });
 
 test('volgendeBeschikbareDag: een datum in het verleden wordt overgeslagen', () => {
-  assert.equal(volgendeBeschikbareDag('2026-10-01', { nu, werkdagen, capaciteitVan: vrij, reedsGepland: niets }), '2026-10-05');
+  assert.equal(volgendeBeschikbareDag('2026-10-01', { nu, werkdagen, heeftPlaats: () => true }), '2026-10-05');
 });
 
-test('volgendeBeschikbareDag: reedsGepland groter dan capaciteit telt als vol', () => {
-  const reedsGepland = d => (d === '2026-10-05' ? 5 : 0);
-  assert.equal(volgendeBeschikbareDag('2026-10-05', { nu, werkdagen, capaciteitVan: vrij, reedsGepland }), '2026-10-06');
+// ── Vrije tijd per dag via de items (de combinatie die "+" en de kop gebruiken) ──
+test('dag met twee tickets (08:30-12:00 en 12:30-16:00) is vol', () => {
+  const items = bouwDagItems({
+    tickets: [{ id: 'a', uur: '08:30', duurMin: 210 }, { id: 'b', uur: '12:30', duurMin: 210 }],
+    eigen: [], blokkeringen: [], werktijdMin: werk,
+  });
+  assert.equal(plaatsNieuw({ items, nieuw: { id: 'n', duurMin: 120 }, ...inst }), null);
+  assert.equal(extraPlaatsen({ items, duurMin: 120, ...inst }), 0);
+});
+
+test('tijdvak-blokkering 10:00-17:00: geen plek (kop 0/0)', () => {
+  const items = bouwDagItems({ tickets: [], eigen: [], blokkeringen: [{ from: '10:00', to: '17:00' }], werktijdMin: werk });
+  assert.equal(extraPlaatsen({ items, duurMin: 120, ...inst }), 0);
+});
+
+test('lege dag: vier tickets van 120 min (aankomst 08:30, 11:00, 13:30, 16:00), begrensd door maxPerDag 4', () => {
+  assert.equal(extraPlaatsen({ items: [], duurMin: 120, ...inst }), 4);
+  assert.equal(extraPlaatsen({ items: [], duurMin: 120, ...inst, maxPerDag: 2 }), 2);
 });
 
 // ── capaciteitsKop ──

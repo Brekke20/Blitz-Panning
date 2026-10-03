@@ -2,7 +2,7 @@
 // De code is letterlijk uit index.html verhuisd. De zoektekst en de sorteerkeuze zijn module-privé; gegevens komen
 // uit `kern/toestand`, de afhankelijkheden van andere schermen via `initWachtrij(afh)` (aan het begin van
 // DOMContentLoaded). Raakt `document` enkel binnen functies, nooit op moduleniveau. Alleen `kern/brug.js` wijst
-// `window`-namen toe. `quickAdd` houdt het aantalmodel aan (spec C3).
+// `window`-namen toe. `quickAdd` zoekt de eerste dag met echte vrije tijd (planner-tijdlijn.js, proefperiode-bugfix).
 import { toestand } from '../kern/toestand.js';
 import { toast, escHtml, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
 import { localISO, todayISO, fmtDateShort } from '../kern/tijd.js';
@@ -121,7 +121,7 @@ export function renderTickets() {
 
 export async function quickAdd(ticketId) {
   const today = localISO(new Date());
-  const date  = nextAvailableDay(today);
+  const date  = nextAvailableDay(today, ticketId);
   if (!date) return toast('Geen beschikbare werkdag gevonden');
   if (!(await afh.addTicketToDate(ticketId, date))) return;
   toast('✓ Toegevoegd aan ' + fmtDateShort(date));

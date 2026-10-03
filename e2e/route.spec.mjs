@@ -238,10 +238,14 @@ test.describe('route', () => {
     await page.getByRole('tab', { name: 'Route' }).click();
 
     await expect(page.getByTestId('route-stop')).toHaveCount(3);
-    await expect(page.getByTestId('route-stop').first()).toContainText('Installatie — Installatie Test');
-    await expect(page.getByTestId('route-stop').first()).toContainText('Grote Markt 1, 2000 Antwerpen');
-    // Gemeten: de afspraak toont zijn eigen tijdslot (🗓); de tickets rekenen daarna: 14:00 + 60 min + 20 min rit = 15:20.
-    await expect.poll(() => stopTijden(page)).toEqual(['🗓 14:00–15:00', '15:20', '17:40']);
+    // Brent-besluit (proefperiode): een stop zonder uur komt in de gaten tussen de vaste uren (gedeelde plaatsingsregel,
+    // planner-tijdlijn.js) i.p.v. altijd achteraan. #1001 (10:20) past voor de afspraak van 14:00; #1002 komt erna (15:20)
+    // i.p.v. na 17:00 (voorheen 15:20 en 17:40, beide achter de afspraak). De afspraak staat dus op plaats 2.
+    const afspraakKaart = page.getByTestId('route-stop').nth(1);
+    await expect(afspraakKaart).toContainText('Installatie — Installatie Test');
+    await expect(afspraakKaart).toContainText('Grote Markt 1, 2000 Antwerpen');
+    // Gemeten: #1001 10:00 + 20 min rit = 10:20 (+ 120 min = 12:20); de afspraak toont zijn eigen tijdslot (🗓); #1002: 15:00 + 20 min rit = 15:20.
+    await expect.poll(() => stopTijden(page)).toEqual(['10:20', '🗓 14:00–15:00', '15:20']);
     // Vers berekend: geen "verouderd"-hint, precies één extra routeaanvraag (de automatische bij het openen van de tab).
     await expect(page.getByText('De route is verouderd en van de kaart gehaald')).toHaveCount(0);
     expect(verzoeken.van('/api/route', 'POST')).toHaveLength(2);
@@ -262,12 +266,13 @@ test.describe('route', () => {
     await expect(page.getByText('De route is verouderd en van de kaart gehaald')).toBeVisible();
     await expect(page.getByTestId('route-afstand')).toHaveText('—');
     // Gemeten: enkel de afspraak toont nog zijn eigen tijdslot; de twee tickets hebben geen berekende tijd meer.
-    expect(await stopTijden(page)).toEqual(['🗓 14:00–15:00', null, null]);
+    // Brent-besluit (proefperiode): de volgorde is #1001, afspraak, #1002 (stop zonder uur komt in de gaten tussen de vaste uren).
+    expect(await stopTijden(page)).toEqual([null, '🗓 14:00–15:00', null]);
     expect(verzoeken.van('/api/route', 'POST')).toHaveLength(1);
 
     // "Bereken tijden" tekent opnieuw: hint weg, precies één extra aanvraag.
     await page.getByRole('button', { name: 'Bereken tijden' }).click();
-    await expect.poll(() => stopTijden(page)).toEqual(['🗓 14:00–15:00', '15:20', '17:40']);
+    await expect.poll(() => stopTijden(page)).toEqual(['10:20', '🗓 14:00–15:00', '15:20']); // Brent-besluit (proefperiode): was ['🗓 14:00–15:00', '15:20', '17:40']
     await expect(page.getByText('De route is verouderd en van de kaart gehaald')).toHaveCount(0);
     expect(verzoeken.van('/api/route', 'POST')).toHaveLength(2);
   });

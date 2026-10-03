@@ -159,7 +159,7 @@ function opstart() {
     registerArrival: ticketdetail.registerArrival, openRapport: (...a) => openRapport(...a),
   });
   // Capaciteit (schermen/capaciteit.js): leest `settings` pas bij gebruik; vóór koppelRenders().
-  capaciteit.initCapaciteit({ duurVoor });
+  capaciteit.initCapaciteit({ duurVoor, werktijdMin: (a, b) => calcWerktijdMin(a, b), kbPreferredTime: klantbeschikbaarheid.kbPreferredTime });
   // Wachtrij-scherm (schermen/wachtrij.js): zoek/sorteer-luisteraars en de afhankelijkheden van andere schermen; vóór koppelRenders().
   wachtrij.initWachtrij({
     addTicketToDate: planacties.addTicketToDate, openDetail: ticketdetail.openDetail, prioLabel, kbFor: klantbeschikbaarheid.kbFor, kbPreferred: klantbeschikbaarheid.kbPreferred, kbPreferredTime: klantbeschikbaarheid.kbPreferredTime, meervoud,

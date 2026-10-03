@@ -531,8 +531,8 @@ export function renderKalender() {
     const isDayBlocked   = !!holidayName || blokkeringenVoor(toestand.get('avExceptions'), dateStr, toestand.get('activeAssigneeFilter'), 'fullday').length > 0;
     const dayStops      = planItemsVanTechnieker(toestand.get('planning')[dateStr], toestand.get('activeAssigneeFilter'));
     const dayBlockCount = blokkeringenVoor(toestand.get('avExceptions'), dateStr, toestand.get('activeAssigneeFilter')).length;
-    const travelEst     = 30; // conservatief voor capaciteitsweergave
-    const cap           = capacityForDay(dateStr, travelEst);
+    const travelEst     = 30; // reistijd per rit: de terugval van de Route-tab (planner-tijdlijn.js)
+    const cap           = capacityForDay(dateStr);
     const { label: capLabel, vol: capFull } = capaciteitsKop({ aantal: dayStops.length, cap, duurMinuten: toestand.get('settings').duurMinuten, travelMin: travelEst });
 
     const col = document.createElement('div');

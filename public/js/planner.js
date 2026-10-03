@@ -1,6 +1,7 @@
 // Planner-brein: puur (geen DOM, geen globals). Bepaalt welk ticket op welke dag en om welk uur komt.
 // Per dag een tijdlijn (vaste blokken, bestaande stops, eigen afspraken, blokkeringen); eerst de
 // voorkeursdag-tickets, dan een starter op een lege dag (hoogste voorrang), dan aanvullen op reistijd/voorrang.
+// De plaatsingsregel voor stops zonder uur staat ook in planner-tijdlijn.js (zelfde regel, daar met vaste reistijd voor "+" en de Route-tab).
 // Elk geplaatst ticket blijft binnen maxReistijdMin van de vorige EN de volgende stop met locatie en haalt
 // die volgende stop op tijd (spec 2026-09-30-planner-brein, §1/§3.3–3.5).
 // Tijden binnen het brein zijn minuten na middernacht (lokaal); datums 'YYYY-MM-DD'.
@@ -295,9 +296,22 @@ export async function planWeek(invoer) {
     for (const p of keten) {
       normaliseer();
       let aank = klok + await legNaar(p);
-      let b;
-      // Sprong over een blok: de rit wordt opnieuw berekend vanaf de positie na dat blok.
-      while ((b = overlapt(blokken, aank, aank + p.duurMin)[0])) { klok = b.e; normaliseer(); aank = klok + await legNaar(p); }
+      // Dezelfde regel als planner-tijdlijn.js (de gedeelde plaatsingsregel van "+" en de Route-tab), maar met de echte reistijden:
+      // een bestaande stop zonder uur komt vooraan vanaf vanTijd; botst hij met een blok, of haalt hij de eerstvolgende stop met
+      // locatie niet meer op tijd, dan springt de klok naar het einde van dat blok en wordt de rit opnieuw berekend.
+      for (;;) {
+        let sprong = overlapt(blokken, aank, aank + p.duurMin)[0];
+        if (!sprong && heeftLoc(p)) {
+          const eind = aank + p.duurMin;
+          const volgende = blokken.filter(x => x.stop && heeftLoc(x) && x.s >= eind).sort((x, y) => x.s - y.s)[0];
+          if (volgende) {
+            const r = (await reistijdenVan(volgende, [p], dag, volgende.s)).get(p.id);
+            if (r && eind + r.min > volgende.s) sprong = volgende;
+          }
+        }
+        if (!sprong) break;
+        klok = sprong.e; normaliseer(); aank = klok + await legNaar(p);
+      }
       passeer(aank);
       klok = aank + p.duurMin;
       vorige = p;
