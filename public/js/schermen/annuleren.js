@@ -231,7 +231,7 @@ export async function verstuurAnnulatie() {
   const naOnzeker = async (bericht) => {
     toast('✕ Annuleren mislukt: ' + bericht + ' De klant kan al gemaild zijn — controleer in Zoho vóór je opnieuw probeert.', 7000);
     toast(TEKST_CONTROLEREN, 30000);
-    const r = await controleerMail({ ticketId: s.ticketId, start });
+    const r = await controleerMail({ ticketId: s.ticketId, start, startWand });
     if (r.uitkomst === 'verzonden') {
       // Niets opnieuw te versturen: het venster sluit en de planning wordt opnieuw gelezen.
       s.busy = false;
@@ -246,6 +246,7 @@ export async function verstuurAnnulatie() {
     }
   };
 
+  const startWand = Date.now(); // I1: loopt door tijdens slaapstand, performance.now() niet
   const start = performance.now(); // begin van de verzending, enkel gebruikt na een onzeker resultaat
   let res, data;
   try {

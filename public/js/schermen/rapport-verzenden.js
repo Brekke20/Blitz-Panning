@@ -146,6 +146,7 @@ export async function verstuurRapport(rapportId, btn) {
   }
 
   toast('📤 Rapport versturen...', 6000);
+  const verzendStartWand = Date.now(); // I1: loopt door tijdens slaapstand, performance.now() niet
   const verzendStart = performance.now(); // Q1 (etappe 7): begin van de verzending, enkel gebruikt na een onzeker resultaat
   try {
     const res  = await fetch('/api/send-rapport', {
@@ -206,7 +207,7 @@ export async function verstuurRapport(rapportId, btn) {
     }
   } catch (err) {
     toast('✕ ' + foutTekst(err), 5000);
-    if (leesFout(err).onzeker) await naOnzekerRapport(rapportId, r.ticketId, verzendStart, btn);
+    if (leesFout(err).onzeker) await naOnzekerRapport(rapportId, r.ticketId, verzendStart, verzendStartWand, btn);
   }
 }
 
@@ -228,9 +229,9 @@ function zetMailGedetecteerd(rapportId, tijdstip) {
 
 // Q1 (etappe 7): na een onzeker resultaat nagaan of de mail al verzonden is (enkel lezen) en dat melden.
 // De knop blijft uitgeschakeld (zoals na elke fout) en gaat enkel open als zeker is dat er niets verstuurd werd.
-async function naOnzekerRapport(rapportId, ticketId, start, btn) {
+async function naOnzekerRapport(rapportId, ticketId, start, startWand, btn) {
   toast(TEKST_CONTROLEREN, 30000);
-  const r = await controleerMail({ ticketId, start });
+  const r = await controleerMail({ ticketId, start, startWand });
   if (r.uitkomst === 'verzonden') {
     // Een latere hertekening zet de knop weer open (de status "Verzonden" schrijven we niet): onthoud de detectie op dit toestel,
     // zodat een volgende verzending van dit rapport eerst een bevestiging vraagt.

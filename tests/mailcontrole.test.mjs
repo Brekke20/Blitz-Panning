@@ -178,3 +178,35 @@ test('I2: het verzoek bevat enkel verlopenMs (geheel, niet negatief); een toeste
   assert.deepEqual(urls, ['/api/mail-check?ticketId=5&verlopenMs=2501', '/api/mail-check?ticketId=5&verlopenMs=0']);
   assert.ok(urls.every(u => !/sinds/.test(u)));
 });
+
+// I1 (eindreview): performance.now() staat stil tijdens slaapstand; Date.now() niet. verlopen = max(beide), nooit negatief.
+test('I1: slaapstand (perf-verschil < Date-verschil): verlopenMs volgt het grootste verschil', async () => {
+  const urls = [];
+  zetFetch(async (u) => { urls.push(u); return antwoord({ ok: true, twijfel: false, verzonden: true, tijdstip: T1, uitgaand: [{ aan: 'a@b.be', tijdstip: T1 }] }); });
+  // perf: 3 s verstreken; de muurklok: 5 minuten (het toestel sliep)
+  await controleerMail({ ticketId: '5', start: 1000, startWand: 1_000_000, nu: () => 4000, wand: () => 1_300_000, wacht: async () => {} });
+  assert.deepEqual(urls, ['/api/mail-check?ticketId=5&verlopenMs=300000']);
+});
+
+test('I1: slaapstand: de tweede controle wacht niet opnieuw als de muurklok al voorbij SERVER_MAX_MS is', async () => {
+  let m = 0;
+  const wachttijden = [];
+  zetFetch(async () => { m++; return antwoord({ ok: true, twijfel: false, verzonden: false, tijdstip: null, uitgaand: [] }); });
+  const r = await controleerMail({ ticketId: '5', start: 0, startWand: 0, nu: () => 2000, wand: () => 300_000, wacht: async (ms) => { wachttijden.push(ms); } });
+  assert.deepEqual([r.uitkomst, m, wachttijden], ['niet-verzonden', 1, []]);
+});
+
+test('I1: zonder slaapstand telt de wachttijd nog steeds het grootste verschil (perf 2 s, muur 2 s: wacht 28 s)', async () => {
+  const wachttijden = [];
+  zetFetch(async () => antwoord({ ok: true, twijfel: false, verzonden: false, tijdstip: null, uitgaand: [] }));
+  await controleerMail({ ticketId: '5', start: 0, startWand: 0, nu: () => 2000, wand: () => 2000, wacht: async (ms) => { wachttijden.push(ms); } });
+  assert.deepEqual(wachttijden, [SERVER_MAX_MS - 2000]);
+});
+
+test('I1: de muurklok springt achteruit: perf bepaalt, nooit een negatief of kleiner venster', async () => {
+  const urls = [];
+  zetFetch(async (u) => { urls.push(u); return antwoord({ ok: true, twijfel: false, verzonden: true, tijdstip: T1, uitgaand: [{ aan: 'a@b.be', tijdstip: T1 }] }); });
+  await controleerMail({ ticketId: '5', start: 0, startWand: 5_000_000, nu: () => 7000, wand: () => 1_000_000, wacht: async () => {} });
+  await controleerMail({ ticketId: '5', start: 9000, startWand: 5_000_000, nu: () => 8000, wand: () => 1_000_000, wacht: async () => {} }); // beide klokken terug
+  assert.deepEqual(urls, ['/api/mail-check?ticketId=5&verlopenMs=7000', '/api/mail-check?ticketId=5&verlopenMs=0']);
+});

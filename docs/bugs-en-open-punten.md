@@ -25,6 +25,7 @@ Kandidaten voor een losse bugfix op `main`.
 | A13 | De TEST-badge in de kop was onzichtbaar in testmodus. | Laag | etappe 0/2 |
 | A14 | (Enkel op refactor, nooit live: nieuw in etappe 7, I1.) De mailcontrole na een onzeker resultaat kon na een snelle fout (bv. verbinding valt na 1 s weg) vals "niet verzonden — veilig opnieuw" melden terwijl de serverfunctie nog tot 26 s doorwerkte en de mail alsnog vertrok: dubbele klantmail. Nu pas "niet verzonden" na een tweede controle 30 s na de start. | Hoog (op refactor) | etappe 7, finale fix A |
 | A15 | (Enkel op refactor, nooit live: nieuw in etappe 7, I2.) De brede mailcontrole (rapport, annuleren) gebruikte de klok van het toestel als begintijd: liep die ook maar een seconde voor, dan werd een wél verzonden mail gemist (vals "niet verzonden"). Nu stuurt het toestel enkel de verstreken tijd en rekent de server met zijn eigen klok; de marge per adres is van 2 min naar 10 s (M11). | Hoog (op refactor) | etappe 7, finale fix A |
+| A16 | (Enkel op refactor, nooit live: gevonden in de eindreview, I1.) De mailcontrole mat de verstreken tijd met `performance.now()`, die stilstaat terwijl het toestel slaapt. Na verzenden en slaapstand viel de mail buiten het zoekvenster van de server: vals "niet verzonden" en een dubbele klantmail. Nu `verlopenMs = max(performance.now-verschil, Date.now-verschil)`, nooit negatief; zelfde maximum voor de wachttijd van de tweede controle. | Hoog (op refactor) | etappe 9, release-fixes |
 
 ## B. Bekende fouten en ongemakken — nog NIET opgelost (beslissing nodig)
 

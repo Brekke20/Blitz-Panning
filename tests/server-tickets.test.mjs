@@ -459,7 +459,20 @@ test('planning-sinds: history wordt tot maximaal 4 pagina\'s gelezen', async () 
   assert.deepEqual(calls.slice(2), [hist('7', 1), hist('7', 51), hist('7', 101), hist('7', 151), get('/tickets/7')]);
 });
 
-test('planning-sinds: history-fout (HTTP) geeft null voor dat ticket en niets te schrijven', async () => {
+// I2 (eindreview): een mislukte opzoeking wordt als { mislukt: ISO } bewaard (6 u TTL); de reeks hieronder controleert die vorm.
+const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const metMislukt = (sets, verwacht) => {
+  assert.equal(sets.length, 1);
+  const [sleutel, reg] = sets[0];
+  assert.equal(sleutel, 'planning-sinds');
+  assert.deepEqual(Object.keys(reg).sort(), Object.keys(verwacht).sort());
+  for (const [id, v] of Object.entries(verwacht)) {
+    if (v === 'mislukt') { assert.deepEqual(Object.keys(reg[id]), ['mislukt']); assert.match(reg[id].mislukt, ISO_RE); }
+    else assert.deepEqual(reg[id], v);
+  }
+};
+
+test('planning-sinds: history-fout (HTTP) geeft null voor dat ticket; de mislukking wordt met tijdstip bewaard (I2)', async () => {
   const log = mock.method(console, 'error', () => {});
   const { res, calls, log: store } = await draaiSinds(ZSINDS_REQ({ opzoeken: ['1', '2'] }), {
     router: (url) => (url.includes('/tickets/1/History') ? json({}, 500) : sindsRouter({ 2: [verlaat('2026-09-02T08:00:00.000Z')] })(url)),
@@ -467,7 +480,7 @@ test('planning-sinds: history-fout (HTTP) geeft null voor dat ticket en niets te
   assert.deepEqual(calls, [TOKEN_CALL, ORG_CALL, hist('1'), hist('2')]);
   assert.equal((await tekst(res)).tekst, '{"sinds":{"1":null,"2":"2026-09-02T08:00:00.000Z"}}');
   assert.deepEqual(log.mock.calls.map(c => c.arguments), [['planning-sinds: ticket 1 mislukt:', 'Zoho history 500']]);
-  assert.deepEqual(store.sets, [['planning-sinds', { 2: { sinds: '2026-09-02T08:00:00.000Z' } }]]);
+  metMislukt(store.sets, { 1: 'mislukt', 2: { sinds: '2026-09-02T08:00:00.000Z' } });
 });
 
 test('planning-sinds: ongeldige JSON in history gooit (geen {}-fallback) en geeft null voor dat ticket', async () => {
@@ -492,15 +505,15 @@ test('planning-sinds: ticketdetail-fout (HTTP) geeft null', async () => {
   assert.deepEqual(log.mock.calls.map(c => c.arguments), [['planning-sinds: ticket 1 mislukt:', 'Zoho ticket 404']]);
 });
 
-test('planning-sinds: ticketdetail zonder createdTime geeft null en wordt niet in het register gezet', async () => {
+test('planning-sinds: ticketdetail zonder createdTime geeft null en wordt als mislukt bewaard (I2)', async () => {
   const { res, log } = await draaiSinds(ZSINDS_REQ({ opzoeken: ['1'] }), {
     router: (url) => (url.endsWith('/tickets/1') ? json({}) : sindsRouter({})(url)),
   });
   assert.equal((await tekst(res)).tekst, '{"sinds":{"1":null}}');
-  assert.deepEqual(log.sets, []);
+  metMislukt(log.sets, { 1: 'mislukt' });
 });
 
-test('planning-sinds: tokenfout geeft overal null; log bevat "Token refresh mislukt" zonder data', async () => {
+test('planning-sinds: tokenfout geeft overal null en wordt per ticket als mislukt bewaard; log bevat "Token refresh mislukt" zonder data (I2)', async () => {
   const log = mock.method(console, 'error', () => {});
   const { res, calls, log: store } = await draaiSinds(ZSINDS_REQ({ opzoeken: ['1', '2'] }), {
     router: (url) => (url.includes('oauth') ? json({ error: 'invalid_code' }) : undefined),
@@ -508,7 +521,7 @@ test('planning-sinds: tokenfout geeft overal null; log bevat "Token refresh misl
   assert.deepEqual(calls, [TOKEN_CALL]);
   assert.deepEqual(await tekst(res), { status: 200, headers: CORS_V2, tekst: '{"sinds":{"1":null,"2":null}}' });
   assert.deepEqual(log.mock.calls.map(c => c.arguments), [['planning-sinds: Zoho niet bereikbaar:', 'Token refresh mislukt']]);
-  assert.deepEqual(store.sets, []);
+  metMislukt(store.sets, { 1: 'mislukt', 2: 'mislukt' });
 });
 
 test('planning-sinds: orgfout gebruikt de standaardtekst en geeft overal null', async () => {

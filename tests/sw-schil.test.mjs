@@ -144,7 +144,9 @@ test('N16c: FONT_HOSTS dekt de Google Fonts-verwijzing van index.html', () => {
   assert.ok(html.includes('https://fonts.googleapis.com/css2'));
 });
 
-test('N19: CACHE_NAME blijft blitz-planning-v25 tot de release (bij de bump van etappe 9 bewust aanpassen)', () => {
+// Refactor-tak vóór release: CACHE_NAME staat bewust vast op v25 (de live waarde). De releasestap (docs/release-checklist-2.0.md §1)
+// verhoogt hem en past deze test BEWUST aan. Elke latere release die iets onder public/ wijzigt moet hem opnieuw ophogen (CLAUDE.md).
+test('N19 (refactor-tak vóór release): CACHE_NAME staat nog op blitz-planning-v25; de releasestap past dit bewust aan', () => {
   assert.match(swBron, /const CACHE_NAME = 'blitz-planning-v25';/);
   assert.match(swBron, /const EXTERN_CACHE = 'blitz-extern-v1';/);
 });

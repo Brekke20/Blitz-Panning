@@ -178,7 +178,9 @@ test('handler: Zoho-fout bij één ticket -> dat ticket null, rest ok, status 20
   assert.equal(sinds[2], null);
   assert.equal(sinds[1], '2026-09-29T08:13:43.000Z');
   assert.equal(sinds[3], '2026-09-29T08:13:43.000Z');
-  assert.deepEqual(Object.keys(JSON.parse(s.m.get('planning-sinds'))).sort(), ['1', '3']);
+  const reg = JSON.parse(s.m.get('planning-sinds'));
+  assert.deepEqual(Object.keys(reg).sort(), ['1', '2', '3']);
+  assert.ok(reg[2].mislukt && !reg[2].sinds, 'mislukte opzoeking wordt met tijdstip bewaard');
 });
 
 test('handler: Blobs-fout -> toch 200 met gekende waarden', async () => {
@@ -221,4 +223,79 @@ test('handler: testverzoek -> {sinds:{}} zonder fetch', async () => {
 test('handler: GET -> 405', async () => {
   const r = await maakHandler({ getStore: nepWinkel().getStore, fetch: nepFetch() })(new Request('http://localhost/api/planning-sinds'));
   assert.equal(r.status, 405);
+});
+
+// ---- I2 (eindreview): mislukte opzoekingen worden bewaard met een TTL; geen Zoho-storm ----
+const TOKEN_URL = (u) => u.includes('accounts.zoho');
+const historyCalls = (f) => f.calls.filter(u => u.includes('/History'));
+
+test('I2: mislukking gevolgd door een tweede verzoek binnen de TTL -> geen tweede History-aanroep, geen token- of org-aanroep', async () => {
+  const s = nepWinkel();
+  let t = Date.parse('2026-10-03T10:00:00Z');
+  const f1 = nepFetch({ faalVoor: ['2'] });
+  const h1 = maakHandler({ getStore: s.getStore, fetch: f1, nu: () => t });
+  await h1(post({ opzoeken: ['2'], actief: ['2'] }));
+  assert.equal(f1.calls.filter(TOKEN_URL).length, 1);
+  assert.equal(f1.calls.filter(u => u.endsWith('/organizations')).length, 1);
+  assert.equal(historyCalls(f1).length, 1);
+  assert.equal(f1.calls.filter(u => /\/tickets\/2$/.test(u)).length, 0);
+
+  t += 5 * 60 * 1000; // volgende poll, 5 minuten later, ander toestel/andere instantie
+  const f2 = nepFetch({ faalVoor: ['2'] });
+  const r = await maakHandler({ getStore: s.getStore, fetch: f2, nu: () => t })(post({ opzoeken: ['2'], actief: ['2'] }));
+  assert.equal(r.status, 200);
+  assert.deepEqual((await r.json()).sinds, { 2: null });
+  assert.deepEqual(f2.calls, []); // volledige uitgaande lijst: niets naar Zoho
+});
+
+test('I2: na de TTL wordt de opzoeking opnieuw geprobeerd; een geslaagde opzoeking overschrijft de mislukking', async () => {
+  const t0 = Date.parse('2026-10-03T10:00:00Z');
+  const s = nepWinkel({ 'planning-sinds': { 2: { mislukt: new Date(t0).toISOString() } } });
+  const f = nepFetch();
+  const r = await maakHandler({ getStore: s.getStore, fetch: f, nu: () => t0 + 6 * 3600 * 1000 + 1 })(post({ opzoeken: ['2'], actief: ['2'] }));
+  assert.equal((await r.json()).sinds[2], '2026-09-29T08:13:43.000Z');
+  assert.equal(historyCalls(f).length, 1);
+  assert.deepEqual(JSON.parse(s.m.get('planning-sinds')), { 2: { sinds: '2026-09-29T08:13:43.000Z' } });
+});
+
+test('I2: onverwachte vorm van het History-antwoord telt als mislukt en wordt bewaard', async () => {
+  const s = nepWinkel();
+  const t = Date.parse('2026-10-03T10:00:00Z');
+  const calls = [];
+  const f = async (url) => {
+    url = String(url); calls.push(url);
+    if (url.includes('accounts.zoho')) return new Response(JSON.stringify({ access_token: 'tok' }));
+    if (url.endsWith('/organizations')) return new Response(JSON.stringify({ data: [{ id: 'o' }] }));
+    if (url.includes('/History')) return new Response(JSON.stringify({ data: 'geen lijst' }));
+    return new Response('{}', { status: 404 });
+  };
+  const r = await maakHandler({ getStore: s.getStore, fetch: f, nu: () => t })(post({ opzoeken: ['7'], actief: ['7'] }));
+  assert.deepEqual((await r.json()).sinds, { 7: null });
+  assert.ok(JSON.parse(s.m.get('planning-sinds'))[7].mislukt);
+  const voor = calls.length;
+  await maakHandler({ getStore: s.getStore, fetch: f, nu: () => t + 1000 })(post({ opzoeken: ['7'], actief: ['7'] }));
+  assert.equal(calls.length, voor);
+});
+
+test('I2: token-fout wordt per ticket bewaard; het volgende verzoek binnen de TTL raakt Zoho niet', async () => {
+  const s = nepWinkel();
+  const t = Date.parse('2026-10-03T10:00:00Z');
+  const stuk = async (url) => { url = String(url); stuk.calls.push(url); return new Response('{}', { status: 500 }); };
+  stuk.calls = [];
+  await maakHandler({ getStore: s.getStore, fetch: stuk, nu: () => t })(post({ opzoeken: ['5', '6'], actief: ['5', '6'] }));
+  assert.ok(stuk.calls.length >= 1);
+  const voor = stuk.calls.length;
+  const r = await maakHandler({ getStore: s.getStore, fetch: stuk, nu: () => t + 60000 })(post({ opzoeken: ['5', '6'], actief: ['5', '6'] }));
+  assert.deepEqual((await r.json()).sinds, { 5: null, 6: null });
+  assert.equal(stuk.calls.length, voor);
+});
+
+test('I2: veiligheidsplafond: nooit meer dan 200 tickets per verzoek bekeken, en maximaal 20 History-opzoekingen', async () => {
+  const s = nepWinkel();
+  const f = nepFetch();
+  const ids = Array.from({ length: 500 }, (_, i) => String(1000 + i));
+  const r = await maakHandler({ getStore: s.getStore, fetch: f })(post({ opzoeken: ids, actief: ids }));
+  const { sinds } = await r.json();
+  assert.equal(Object.keys(sinds).length, 200);
+  assert.equal(historyCalls(f).length, 20);
 });

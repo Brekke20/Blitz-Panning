@@ -12,6 +12,8 @@ const PAGINA_GROOTTE = 50;
 const MAX_PAGINAS    = 4;
 const MAX_NIEUW      = 20;
 const BATCH          = 5;
+const MAX_OPZOEKEN   = 200;                 // veiligheidsplafond per verzoek (na ontdubbelen); de rest wordt genegeerd
+const MISLUKT_TTL_MS = 6 * 60 * 60 * 1000;  // I2: een mislukte opzoeking wordt 6 uur niet herhaald (geen Zoho-storm bij een foute aanname)
 
 const CORS = maakCors({
   methoden: 'POST, OPTIONS',
@@ -19,9 +21,14 @@ const CORS = maakCors({
   inhoudType: 'application/json',
 });
 
+const mislukteRecent = (entry, nuMs) => {
+  const t = Date.parse(entry?.mislukt);
+  return Number.isFinite(t) && nuMs - t >= 0 && nuMs - t < MISLUKT_TTL_MS;
+};
+
 const ticketIds = v => (Array.isArray(v) ? v : []).map(String).filter(id => /^\d+$/.test(id));
 
-export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
+export function maakHandler({ getStore: haalStore, fetch: doFetch, nu = () => Date.now() }) {
   // Tokencache per handler-instantie (niet op moduleniveau: geen lekken tussen tests).
   const zoho = maakZoho({ fetch: doFetch, tokenFoutMetData: false });
 
@@ -36,6 +43,10 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
       // 204 / lege body = geen (verdere) history.
       const tekst = await res.text();
       const data = tekst ? JSON.parse(tekst) : {};
+      // Onverwachte vorm (geen object, of `data` is geen lijst) = mislukt, niet "geen history".
+      if (!data || typeof data !== 'object' || Array.isArray(data) || (data.data !== undefined && !Array.isArray(data.data))) {
+        throw new Error('Zoho history: onverwachte vorm');
+      }
       const blok = Array.isArray(data.data) ? data.data : [];
       events = events.concat(blok);
       if (!volgendePaginaNodig(blok, PAGINA_GROOTTE)) break;
@@ -61,7 +72,7 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
 
     if (isTestVerzoek(req)) return v2Json(200, { sinds: {} }, CORS);
 
-    const opzoeken = [...new Set(ticketIds(body.opzoeken))];
+    const opzoeken = [...new Set(ticketIds(body.opzoeken))].slice(0, MAX_OPZOEKEN);
     const actiefGegeven = Array.isArray(body.actief);
     const actief = new Set(ticketIds(body.actief));
 
@@ -78,6 +89,7 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
     const nieuw = [];
     for (const id of opzoeken) {
       if (register[id]?.sinds) sinds[id] = register[id].sinds;
+      else if (mislukteRecent(register[id], nu())) sinds[id] = null; // I2: recent mislukt, geen nieuwe Zoho-aanroep
       else nieuw.push(id);
     }
     const teDoen = nieuw.slice(0, MAX_NIEUW);
@@ -97,13 +109,20 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
           }));
           batch.forEach((id, k) => {
             sinds[id] = uitkomsten[k];
-            if (uitkomsten[k]) { register[id] = { sinds: uitkomsten[k] }; gewijzigd = true; }
+            if (uitkomsten[k]) register[id] = { sinds: uitkomsten[k] };
+            else register[id] = { mislukt: new Date(nu()).toISOString() };
+            gewijzigd = true;
           });
         }
       } catch (e) {
         // Token/org-fout: alle nog niet bepaalde opzoekingen worden null.
         console.error('planning-sinds: Zoho niet bereikbaar:', e?.message || e);
-        for (const id of teDoen) if (!(id in sinds)) sinds[id] = null;
+        for (const id of teDoen) {
+          if (id in sinds) continue;
+          sinds[id] = null;
+          register[id] = { mislukt: new Date(nu()).toISOString() }; // ook een token/org-fout niet bij elke poll herhalen
+          gewijzigd = true;
+        }
       }
     }
 

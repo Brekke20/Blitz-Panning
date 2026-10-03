@@ -53,17 +53,21 @@ export const SERVER_MAX_MS = 30000;
 export const TEKST_CONTROLEREN = 'Controleren of de mail al vertrokken is…';
 const ONBEKEND = () => ({ uitkomst: 'onbekend', verzonden: [] });
 const NU = () => performance.now();
+const WAND = () => Date.now();
 const WACHT = (ms) => new Promise(r => setTimeout(r, ms));
 
-// `start`: tijdstip (performance.now) vlak vóór de verzending; de client stuurt enkel de verstreken tijd (`verlopenMs`), nooit zijn eigen klok.
+// `start`: tijdstip (performance.now) vlak vóór de verzending (`startWand`: idem met Date.now); de client stuurt enkel de verstreken tijd (`verlopenMs`), nooit zijn eigen klok.
 // De server rekent met zijn eigen klok (I2). Gooit nooit: elke fout (netwerk, time-out, 4xx/5xx, onleesbaar antwoord) is 'onbekend'.
 // I1: "niet verzonden" geldt pas als de serverfunctie zeker klaar is (SERVER_MAX_MS na de start). Eerder: een tweede, enige controle na
 // die tijd. Ruling: eerst meteen controleren (een gevonden mail meldt je direct), pas bij "niet verzonden" wachten en één keer herhalen.
 // Een controle die zelf faalt blijft 'onbekend' (geen nieuwe poging). `nu`/`wacht` zijn injecteerbaar voor tests.
-export async function controleerMail({ ticketId, start, verwacht = [], nu = NU, wacht = WACHT }) {
+// I1 (eindreview): performance.now() staat stil terwijl het toestel slaapt; Date.now() loopt door. `startWand` (Date.now vlak vóór de
+// verzending) vult hem aan: verlopen = max(beide verschillen), nooit negatief. Een kloksprong kan het venster enkel groter maken.
+export async function controleerMail({ ticketId, start, startWand, verwacht = [], nu = NU, wand = WAND, wacht = WACHT }) {
+  const verlopen = () => Math.max(0, nu() - start, typeof startWand === 'number' ? wand() - startWand : 0);
   const eenmaal = async () => {
     try {
-      const verlopenMs = Math.max(0, Math.round(nu() - start));
+      const verlopenMs = Math.round(verlopen());
       const params = new URLSearchParams({ ticketId: String(ticketId), verlopenMs: String(verlopenMs) });
       if (verwacht.length) params.set('ontvangers', verwacht.join(','));
       const r = await apiVerzoek('/api/mail-check?' + params);
@@ -74,7 +78,7 @@ export async function controleerMail({ ticketId, start, verwacht = [], nu = NU, 
   };
   let r = await eenmaal();
   if (r.uitkomst !== 'niet-verzonden') return r;
-  const rest = SERVER_MAX_MS - (nu() - start);
+  const rest = SERVER_MAX_MS - verlopen();
   if (rest <= 0) return r;
   try { await wacht(rest); } catch { return ONBEKEND(); }
   return eenmaal();

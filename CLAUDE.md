@@ -197,6 +197,12 @@ Elke release die naar productie gaat: versie ophogen in `package.json`, een entr
 op de merge/deploy-commit. Dit gebeurt als aparte, expliciete stap bij het afronden van een
 branch (`finishing-a-development-branch`) — niet per taak/subagent-commit.
 
+**CACHE_NAME-regel (verplicht):** elke release die iets onder `public/` wijzigt, MOET `CACHE_NAME` in
+`public/sw.js` ophogen. De service worker ververst zijn schil-kopie nooit bij een netwerksucces en de navigatie-time-out
+van 4 s serveert die kopie bij trage starts; zonder bump blijft die kopie op de laatste SW-installatie staan (mogelijk
+meerdere releases oud, met opgeloste bugs er nog in, en met kans op een mengeling van versies). Dit geldt ook voor
+bugfixes op `main` en voor een rollback. Op `refactor` blijft `CACHE_NAME` voorlopig op v25; de bump gebeurt bij de releasestap.
+
 ## Branchbeleid (sinds 2026-10-01, besluit van Brent) — LEES DIT VOOR JE IETS BOUWT
 
 Er lopen twee sporen naast elkaar. Houd ze strikt gescheiden.

@@ -214,6 +214,7 @@ export async function sendProposal() {
 
   // Q1 (etappe 7): begin van de verzending en de ontvangers, voor de controle na een onzeker resultaat (enkel in de catch gebruikt).
   const verzendStart = performance.now();
+  const verzendStartWand = Date.now(); // I1: loopt door tijdens slaapstand, performance.now() niet
   const verwachtAdressen = [..._proposalOntvangers];
   try {
     // Bereken UTC-tijdstip in de browser (die kent de lokale tijdzone)
@@ -317,7 +318,7 @@ export async function sendProposal() {
     if (verwachtAdressen.length && leesFout(err).onzeker) {
       // Q1: de mail kan al weg zijn. De knop blijft op slot tot de controle klaar is: er start nooit vanzelf een tweede verzending.
       toast('✕ ' + foutTekst(err), 5000);
-      return naOnzekerVoorstel(ticketId, verzendStart, verwachtAdressen, btn);
+      return naOnzekerVoorstel(ticketId, verzendStart, verzendStartWand, verwachtAdressen, btn);
     }
     btn.disabled    = false;
     btn.textContent = '✉️ Verstuur voorstel';
@@ -327,9 +328,9 @@ export async function sendProposal() {
 
 // Q1 (etappe 7): na een onzeker resultaat nagaan of de mail al verzonden is (enkel lezen) en dat melden.
 // verzonden: niets opnieuw te versturen; het venster sluit en de tickets worden opnieuw gelezen. Anders gaat de knop weer open.
-async function naOnzekerVoorstel(ticketId, start, verwacht, btn) {
+async function naOnzekerVoorstel(ticketId, start, startWand, verwacht, btn) {
   toast(TEKST_CONTROLEREN, 30000);
-  const r = await controleerMail({ ticketId, start, verwacht });
+  const r = await controleerMail({ ticketId, start, startWand, verwacht });
   btn.disabled = false;
   btn.textContent = '✉️ Verstuur voorstel';
   if (r.uitkomst === 'verzonden') {
