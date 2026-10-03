@@ -344,10 +344,10 @@ export function renderRouteList(date) {
       ? `<div class="stop-time" data-testid="route-stop-tijd">⏱ ${fmtTijd(arrivalTimes[i])}</div>`
       : '';
     // Brent-besluit (proefperiode): een stop zonder vast uur die de klant niet meer vóór het laatste startuur bereikt,
-    // krijgt een duidelijke waarschuwing i.p.v. een stille late tijd. Vaste uren (door de coördinator gekozen) blijven onaangeroerd.
-    const teLaat = isTeLaat(entry, arrivalTimes[i], laatsteStartMin) && !(entry.kind === 'ticket' && isStopAnchored(entry.item));
+    // krijgt een duidelijke waarschuwing i.p.v. een stille late tijd; ook voor een vast uur na dat tijdstip (fix-ronde 1).
+    const teLaat = isTeLaat(entry, arrivalTimes[i], laatsteStartMin);
     const laatHtml = teLaat
-      ? `<div class="stop-laat" data-testid="route-stop-laat" role="alert">⚠ Past niet meer vóór het laatste startuur (${escHtml(laatsteStartTekst)}): aankomst ${hasRoute ? '' : '± '}${fmtTijd(arrivalTimes[i])}</div>`
+      ? `<div class="stop-laat" data-testid="route-stop-laat" role="alert">⚠ Start na het laatste startuur (${escHtml(laatsteStartTekst)}): aankomst ${hasRoute || entry.uur ? '' : '± '}${fmtTijd(arrivalTimes[i])}</div>`
       : '';
     const stop = document.createElement('div');
     stop.className = 'stop';
@@ -535,7 +535,8 @@ export async function calculateRoute() {
     // Vertrektijd = vroegste geplande uur van de dag (of settings.vanTijd zonder vaste uren).
     // TomTom rekent dan met historische verkeerspatronen voor die dag/dat uur i.p.v. het
     // verkeer van nu; verleden/vandaag zonder toekomstig tijdstip → live verkeer (geen departAt).
-    const tijd    = allWpStops.find(p => p.uur)?.uur || get('settings').vanTijd;
+    // Fix-ronde 1: de eerste stop in de werkelijke volgorde (een stop zonder uur vóór een vast uur start om vanTijd).
+    const tijd    = allWpStops[0]?.uur || get('settings').vanTijd;
     const vertrek = new Date(`${date}T${tijd}:00`);
     const departAt = vertrek > new Date() ? vertrek.toISOString() : undefined;
     const rData = (await apiVerzoek('/api/route', {
@@ -752,6 +753,32 @@ export async function applyRouteOrder(date, orderedEntries) {
     }
   }
 
+  // Fix-ronde 1 (Brent-besluit): een nieuw vastgelegd tijdstip na `laatsteStart` is een late start. Eerst een waarschuwing met
+  // bevestiging, vóór er iets geschreven wordt. Annuleren zet de oorspronkelijke uren terug en bewaart niets.
+  {
+    const laatsteStartTekst = get('settings').laatsteStart || '16:00';
+    const laatsteStartMin = timeStrToMin(laatsteStartTekst);
+    const laat = [];
+    allStops.forEach((entry, i) => {
+      if (entry.kind === 'ticket' && !isStopAnchored(entry.item) && isTeLaat(entry, arrivalTimes[i], laatsteStartMin)) {
+        laat.push(`#${entry.item.ticket.number}: aankomst ${entry.item.uur}`);
+      }
+    });
+    if (laat.length) {
+      const doorgaan = await afh.bevestigLateStops({ regels: laat, laatsteStart: laatsteStartTekst });
+      if (!doorgaan) {
+        restoreOrigineleUren();
+        wisRouteWeergave();
+        routeVerouderdDatum = date;
+        toast('Niet bewaard — de oorspronkelijke volgorde en tijden zijn teruggezet', 5000);
+        renderRouteList(date);
+        updateMap(date);
+        updateRouteBtns(date);
+        return;
+      }
+    }
+  }
+
   // Stap 4: persisteren naar Zoho — overgeslagen in testmodus (dummy ticket-id's zijn niet
   // numeriek; /api/plan-datum accepteert enkel numerieke Zoho-ticket-id's). `stops` is
   // hetzelfde gefilterde array als hierboven in stap 3 (membership verandert niet door de
@@ -782,9 +809,8 @@ export async function applyRouteOrder(date, orderedEntries) {
 
   // M8 (eindreview v1.4.0): de opgeslagen volgorde kan afwijken van de gevraagde sleep-/
   // optimaliseer-volgorde, omdat ankers (vergrendeld of voorkeursuur) altijd op hun eigen uur
-  // blijven staan en de rest daar omheen herschikt wordt. Zelfde sortering als renderRouteList
-  // (op `uur`, geen uur = achteraan) zodat de vergelijking exact overeenkomt met wat de
-  // coördinator nadien te zien krijgt.
+  // blijven staan en de rest daar omheen herschikt wordt. Na stap 3 hebben alle verplaatsbare stops een uur, dus sorteren op
+  // `uur` (geen uur = achteraan) komt overeen met de volgorde die renderRouteList (plaatsingsregel) nadien toont.
   const idVoor = e => e.kind === 'ticket' ? `t:${e.item.ticket.id}` : `l:${e.item.id}`;
   const uiteindelijkeVolgorde = allStops
     .slice()

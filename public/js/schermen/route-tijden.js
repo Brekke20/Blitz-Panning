@@ -51,10 +51,10 @@ export function aankomstPerTicket(allStops, arrivalTimes) {
   return result;
 }
 
-// Brent-besluit (proefperiode): een stop ZONDER vast uur (de aankomst is dus berekend) die pas na `laatsteStartMin` bij de klant
-// zou zijn, haalt de grens "start uiterlijk op laatsteStart" niet. Pure regel voor de waarschuwing in de Route-tab.
+// Brent-besluit (proefperiode): een ticket (met of zonder vast uur) dat pas na `laatsteStartMin` bij de klant zou zijn, haalt de
+// grens "start uiterlijk op laatsteStart" niet. Pure regel voor de waarschuwing in de Route-tab en de bevestiging bij vastleggen.
 export function isTeLaat(entry, aankomstMin, laatsteStartMin) {
-  return !entry.uur && aankomstMin !== undefined && aankomstMin > laatsteStartMin;
+  return entry.kind === 'ticket' && aankomstMin !== undefined && aankomstMin > laatsteStartMin;
 }
 
 // Minuten (mogelijk > 1440) als 'HH:MM' (uur modulo 24). Was `fmtTime` binnen renderRouteList().

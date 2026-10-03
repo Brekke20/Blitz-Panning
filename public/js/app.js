@@ -179,6 +179,11 @@ function opstart() {
   });
   // Route-scherm (schermen/route.js): de afhankelijkheden van andere schermen (R11); vóór koppelRenders().
   route.initRoute({
+    bevestigLateStops: ({ regels, laatsteStart }) => appConfirm({
+      titel: `Start na ${laatsteStart}`,
+      tekst: [...regels, `Deze tickets starten na het laatste startuur (${laatsteStart}). Toch vastleggen?`],
+      bevestigLabel: 'Toch vastleggen', annuleerLabel: 'Terug',
+    }),
     duurVoor, werktijdMin: (a, b) => calcWerktijdMin(a, b), kbPreferredTime: klantbeschikbaarheid.kbPreferredTime, geocacheLookup, geocacheStore,
     loadVoorstelStatus: voorstel.loadVoorstelStatus, loadTickets, heeftLopendVoorstel: t => ticketdetailLogica.heeftLopendVoorstel(t, toestand.get('voorstelStatus')), removeTicketFromDate: planacties.removeTicketFromDate,
     tijdslotLabelVoor: ticketdetail.tijdslotLabelVoor, bevestigdLabel: ticketdetailLogica.bevestigdLabel,

@@ -60,7 +60,9 @@ export function stopsVoorDag({ planning, localEvents }, filter, date, opties = n
   if (!opties) {
     allStops.sort((a, b) => (a.uur || '99:99').localeCompare(b.uur || '99:99'));
   } else {
-    const sleutel = e => (e.kind === 'ticket' ? 't' : 'l') + (e.kind === 'ticket' ? e.item.ticket.id : e.item.id);
+    // Sleutel per stop; een eigen afspraak zonder id valt terug op haar positie (geen botsing tussen afspraken zonder id).
+    const sleutels = new Map(allStops.map((e, i) => [e, e.kind === 'ticket' ? 't' + e.item.ticket.id : 'l' + (e.item.id ?? '#' + i)]));
+    const sleutel = e => sleutels.get(e);
     const items = allStops.map(e => ({
       id: sleutel(e), uur: e.uur || null, soort: 'stop', ticket: e.kind === 'ticket',
       duurMin: e.kind === 'ticket'

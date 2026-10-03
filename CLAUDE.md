@@ -177,7 +177,7 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 
 Aanvullingen (finale fix B):
 - Cache-modus per client: valt een navigatie (of een submodule) op de cache terug, na een time-out of een netwerkfout, dan komen alle verdere shell-verzoeken van die client uit de cache zolang de client leeft (`resultingClientId`/`clientId`; begrensd tot 50 clients; een SW-herstart wist dit, dan geldt nog de globale 60 s). Zo mengt een module nooit met een `index.html` van een andere versie.
-- Installatie: CDN-URL's die al in `blitz-extern-v1` staan worden niet opnieuw opgehaald (ze zijn op versie vastgepind); `CDN_LUI` (ExcelJS, 258 kB gzip) staat wel in `CDN_VAST` maar wordt niet vooraf opgehaald, enkel bij het eerste gebruik bewaard. Wijzigt `CDN_VAST` van versie, verhoog dan `EXTERN_CACHE` of ruim de oude sleutels op (zie de release-checklist).
+- Installatie: CDN-URL's die al in `blitz-extern-v1` staan worden niet opnieuw opgehaald (ze zijn op versie vastgepind); `CDN_LUI` (URL's die niet vooraf worden opgehaald) is leeg: ExcelJS (258 kB gzip) wordt weer vooraf opgehaald, één keer per toestel, zodat de eerste Excel-export offline werkt. Wijzigt `CDN_VAST` van versie, verhoog dan `EXTERN_CACHE` of ruim de oude sleutels op (zie de release-checklist).
 - De SW wordt geregistreerd na de `load`-gebeurtenis (`app.js`), zodat de installatie niet met de eerste laad concurreert.
 - Subresources hebben bewust geen time-out (`subTimeoutMs = 0`): komt `index.html` binnen 4 s en stokt daarna een module, dan blijft de app wachten in plaats van te mengen met een andere versie.
 

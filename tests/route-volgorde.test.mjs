@@ -48,6 +48,8 @@ after(() => { zetFetch(null); globalThis.fetch = echteGlobaleFetch; });
 let testModus = false;
 let loadTicketsAantal = 0;
 let voorstelStatusOk = true;
+let bevestigAntwoord = true;
+const bevestigAanroepen = [];
 const roundToNextQuarterStr = (timeStr) => {
   const [h, m] = (timeStr || '09:00').split(':').map(Number);
   const totalMin = (h * 60 + Math.ceil(m / 15) * 15) % (24 * 60);
@@ -69,6 +71,7 @@ route.initRoute({
   roundToNextQuarterStr,
   renderKalender: () => {},
   testModus: () => testModus,
+  bevestigLateStops: async (arg) => { bevestigAanroepen.push(arg); return bevestigAntwoord; },
 });
 
 const ticket = (id, interventieDatum = null) => ({
@@ -290,3 +293,60 @@ for (const [naam, faal] of [['antwoord ok:false', 'antwoord'], ['fetch gooit', '
     assert.equal(oudStops[1].ticket.interventieDatum, null);
   });
 }
+
+// ── Fix-ronde 1 (Brent-besluit): een tijdstip na laatsteStart vastleggen vraagt eerst bevestiging ─────────────────
+function zetLaatScenario() {
+  const a = ticket('1001');
+  const b = ticket('1002');
+  toestand.set('settings', { vanTijd: '15:00', totTijd: '17:00', startlocatie: 'Start', drukteKleuring: false, werkdagen: [1, 2, 3, 4, 5] }); // laatsteStart: standaard 16:00
+  toestand.set('voorstelStatus', {});
+  toestand.set('localEvents', []);
+  toestand.set('activeAssigneeFilter', 'all');
+  toestand.set('planning', { [DATUM]: [a, b] });
+  zetFetch(async () => ({ ok: true, status: 200, json: async () => ({
+    legs: LEGS, polyline: [[51, 4], [51.1, 4.1]], totalDistanceMeters: 13000,
+    totalTravelTimeSeconds: 1800, totalTrafficDelaySeconds: 0, arrivalTime: null,
+  }) }));
+  bevestigAanroepen.length = 0;
+  return { a, b };
+}
+
+test('late start vastleggen + bevestigen: één bevestiging en dezelfde /api/plan-datum-verzoeken als zonder bevestiging', async () => {
+  testModus = false; bevestigAntwoord = true;
+  const { a, b } = zetLaatScenario();
+  const echt = opnemendeFetch();
+  globalThis.fetch = echt.fn;
+  await route.applyRouteOrder(DATUM, gevraagd());
+  assert.equal(bevestigAanroepen.length, 1);
+  assert.deepEqual(bevestigAanroepen[0].regels, ['#1001: aankomst ' + a.uur]);
+  assert.equal(bevestigAanroepen[0].laatsteStart, '16:00');
+  assert.equal(b.uur, '15:15'); assert.equal(a.uur, '16:30');
+  const a2 = ticket('1001'); a2.uur = a.uur;
+  const b2 = ticket('1002'); b2.uur = b.uur;
+  const oud = opnemendeFetch();
+  await oudPersistBlok({ TEST_MODE: false, stops: [a2, b2], date: DATUM, isStopAnchored: () => false, loadTickets: async () => {}, toast: () => {}, fetch: oud.fn });
+  assert.equal(echt.log.length, 2);
+  assert.deepEqual(echt.log, oud.log);
+});
+
+test('late start vastleggen + annuleren: niets geschreven en de oorspronkelijke uren teruggezet', async () => {
+  testModus = false; bevestigAntwoord = false;
+  const { a, b } = zetLaatScenario();
+  const echt = opnemendeFetch();
+  globalThis.fetch = echt.fn;
+  await route.applyRouteOrder(DATUM, gevraagd());
+  bevestigAntwoord = true;
+  assert.equal(bevestigAanroepen.length, 1);
+  assert.deepEqual(echt.log, []);
+  assert.equal(a.uur, undefined); assert.equal(b.uur, undefined);
+  assert.equal(route.routeOrderBezig(), false);
+});
+
+test('geen late start: geen bevestiging gevraagd', async () => {
+  testModus = true; bevestigAntwoord = true;
+  zetScenario();
+  bevestigAanroepen.length = 0;
+  await route.applyRouteOrder(DATUM, gevraagd());
+  assert.equal(bevestigAanroepen.length, 0);
+  testModus = false;
+});

@@ -39,7 +39,7 @@ export function leggDagUit({ items, vanTijd = '08:00', laatsteStart = '16:00', r
     const duur = duurVan(it);
     let start;
     for (;;) {
-      start = klok + reisMin;
+      start = Math.max(klok + reisMin, it.vroegst ?? 0); // vroegst: niet vóór dit tijdstip (bv. nu, voor vandaag)
       const eind = start + duur;
       const botst = vast.find(b => b.s < eind && start < b.e);
       if (botst) { klok = Math.max(klok, botst.e); continue; }
@@ -57,17 +57,25 @@ export function leggDagUit({ items, vanTijd = '08:00', laatsteStart = '16:00', r
 // Plaatst één nieuw ticket op een dag met de bestaande items. Geeft { start, eind } (minuten) of null als er geen plek is:
 //  - het aantal tickets haalt `maxPerDag` (0 of minder: nooit plek; ontbrekend: geen grens);
 //  - de aankomst valt na `laatsteStart` (zonder uur), of het vaste uur van het nieuwe ticket (voorkeursuur) botst met iets.
-// nieuw: { id, duurMin, uur? } (uur = voorkeursuur van de klant: vast, vrijgesteld van laatsteStart zoals in het brein).
+// nieuw: { id, duurMin, uur?, vroegst? } (uur = voorkeursuur van de klant: vast, vrijgesteld van laatsteStart zoals in het brein;
+//   vroegst = minuten: de aankomst valt nooit vóór dit tijdstip, bv. de klok van nu voor vandaag).
 export function plaatsNieuw({ items, nieuw, vanTijd, laatsteStart, maxPerDag, reisMin }) {
   const aantal = items.filter(i => i.ticket).length;
   if (maxPerDag != null && aantal + 1 > maxPerDag) return null;
-  const item = { id: nieuw.id, uur: nieuw.uur || null, duurMin: nieuw.duurMin, soort: 'stop', ticket: true };
+  const item = { id: nieuw.id, uur: nieuw.uur || null, duurMin: nieuw.duurMin, soort: 'stop', ticket: true, vroegst: nieuw.vroegst };
   const { plaatsingen } = leggDagUit({ items: [...items, item], vanTijd, laatsteStart, reisMin });
   const p = plaatsingen.find(x => x.id === nieuw.id);
   if (!p) return null;
   if (item.uur) {
     const botst = plaatsingen.some(x => x !== p && x.start < p.eind && p.start < x.eind);
-    return botst ? null : { start: p.start, eind: p.eind };
+    if (botst) return null;
+    // Zoals het brein (probeerUur): de rit van de stop ervoor en naar de stop erna moet nog op tijd haalbaar zijn.
+    const reis = reisMin ?? REISTIJD_TERUGVAL_MIN;
+    const ervoor = plaatsingen.filter(x => x !== p && x.soort === 'stop' && x.eind <= p.start).sort((a, b) => b.eind - a.eind)[0];
+    const erna = plaatsingen.filter(x => x !== p && x.soort === 'stop' && x.start >= p.eind).sort((a, b) => a.start - b.start)[0];
+    if (ervoor && ervoor.eind + reis > p.start) return null;
+    if (erna && p.eind + reis > erna.start) return null;
+    return { start: p.start, eind: p.eind };
   }
   return p.laat ? null : { start: p.start, eind: p.eind };
 }

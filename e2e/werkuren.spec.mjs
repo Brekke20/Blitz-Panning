@@ -28,6 +28,19 @@ test.describe('"+" op een volle dag', () => {
     await expect(dag(page, '2026-10-06').locator('.zu-chip')).toHaveText('#1001');
   });
 
+  test('Brents geval: vaste uren 10:00 en 14:00 met tickets van 2 uur en geen blokkering: geen derde ticket op die dag', async ({ page }) => {
+    // 10:00-12:00 en 14:00-16:00: ervoor, ertussen en erna is er geen plek vóór het laatste startuur (16:00) meer.
+    await startApp(page, { technieker: 'Tim', overschrijf: seed() });
+    await voegStopsToe(page, [
+      { id: 'x1', nummer: '9001', datum: '2026-10-05', uur: '10:00' },
+      { id: 'x2', nummer: '9002', datum: '2026-10-05', uur: '14:00' },
+    ]);
+    await page.locator('#ticket-list .ticket').first().getByRole('button', { name: PLUS }).click();
+    await expect(page.locator('#toast')).toHaveText('✓ Toegevoegd aan 6 okt');
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await expect(dag(page, '2026-10-05').locator('.day-cap')).toHaveText('2/2 stops · ±5u');
+  });
+
   test('een eigen afspraak telt mee: met een afspraak van 08:00 tot 17:00 gaat het ticket naar de volgende dag', async ({ page }) => {
     const afspraak = { id: 'ea1', titel: 'Opleiding', datum: '2026-10-05', uur: '08:00', einduur: '17:00', type: 'Afspraak', persoon: null, adres: 'Kantoor', notitie: '', telefoon: '', email: '', bron: 'manueel', origResp: null };
     await startApp(page, { technieker: 'Tim', overschrijf: seed({ afspraken: [afspraak], basis: false }) });
@@ -75,6 +88,23 @@ test.describe('"Plan deze week" op een volle dag', () => {
   });
 });
 
+test.describe('"Plan deze week": Brents geval', () => {
+  test('vaste uren 10:00 en 14:00 met tickets van 2 uur: geen derde ticket op die dag', async ({ page, verzoeken }) => {
+    await zetInstellingenTim(page, { werkdagen: [2] });
+    await startApp(page, { technieker: 'Tim', overschrijf: seed() });
+    await voegStopsToe(page, [
+      { id: 'x1', nummer: '9001', datum: '2026-10-06', uur: '10:00' },
+      { id: 'x2', nummer: '9002', datum: '2026-10-06', uur: '14:00' },
+    ]);
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await page.getByRole('button', { name: '⚡ Plan deze week' }).click();
+    const venster = page.getByRole('dialog', { name: '⚡ Planningsresultaat' });
+    await expect(venster.getByText('Niet ingepland (2)', { exact: true })).toBeVisible();
+    await expect(venster.getByText(/Ingepland \(/)).toHaveCount(0);
+    expect(verzoeken.van('/api/plan')).toEqual([]);
+  });
+});
+
 test.describe('Route-tab: waarschuwing bij een late aankomst', () => {
   test('een stop zonder uur die niet meer vóór het laatste startuur aankomt, krijgt een duidelijke waarschuwing', async ({ page }) => {
     await startApp(page, { technieker: 'Tim', overschrijf: seed() });
@@ -85,7 +115,42 @@ test.describe('Route-tab: waarschuwing bij een late aankomst', () => {
     await expect(page.getByTestId('route-stop')).toHaveCount(5);
     const waarschuwing = page.getByTestId('route-stop-laat');
     await expect(waarschuwing).toHaveCount(1);
-    await expect(waarschuwing).toContainText('Past niet meer vóór het laatste startuur (16:00)');
+    await expect(waarschuwing).toContainText('Start na het laatste startuur (16:00)');
     await expect(page.getByTestId('route-stop').nth(4).getByTestId('route-stop-laat')).toHaveCount(1);
+  });
+});
+
+test.describe('Route-tab: waarschuwing bij een vast uur na het laatste startuur', () => {
+  test('een vast uur van 17:00 krijgt dezelfde rode waarschuwing', async ({ page }) => {
+    await startApp(page, { technieker: 'Tim', overschrijf: seed() });
+    await voegStopsToe(page, [{ id: 'f1', nummer: '9301', datum: '2026-10-07', uur: '17:00' }]);
+    await page.getByRole('tab', { name: 'Route' }).click();
+    await page.getByTestId('route-datum').fill('2026-10-07');
+    await expect(page.getByTestId('route-stop-laat')).toContainText('aankomst 17:00');
+  });
+});
+
+test.describe('Route-tab: late start vastleggen vraagt bevestiging', () => {
+  test('Tijden vastleggen met een aankomst na het laatste startuur: Terug bewaart niets, Toch vastleggen wel', async ({ page }) => {
+    await zetInstellingenTim(page, { vanTijd: '15:00' });
+    await startApp(page, { technieker: 'Tim', overschrijf: seed() });
+    await voegStopsToe(page, [1, 2].map(i => ({ id: 'y' + i, nummer: '920' + i, datum: '2026-10-06' })));
+    await page.getByRole('tab', { name: 'Route' }).click();
+    await page.getByTestId('route-datum').fill('2026-10-06');
+    await expect(page.getByTestId('route-stop')).toHaveCount(2);
+    const knop = page.getByRole('button', { name: 'Tijden vastleggen' });
+
+    await knop.click();
+    const dialoog = page.getByRole('alertdialog');
+    await expect(dialoog).toContainText('Start na 16:00');
+    await expect(dialoog).toContainText('#9202');
+    await dialoog.getByRole('button', { name: 'Terug' }).click();
+    await expect(dialoog).toBeHidden();
+    await expect(page.getByText('Niet bewaard')).toBeVisible();
+    await expect(knop).toBeVisible(); // nog steeds stops zonder tijdstip
+
+    await knop.click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Toch vastleggen' }).click();
+    await expect(knop).toHaveCount(0); // tijden vastgelegd
   });
 });

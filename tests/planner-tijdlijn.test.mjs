@@ -104,8 +104,31 @@ test('Route-tab zonder opties: oud gedrag (geen uur = achteraan)', () => {
   assert.deepEqual(allStops.map(e => e.item.ticket.id), ['a', 'nieuw']);
 });
 
-test('isTeLaat: enkel een berekende aankomst (geen vast uur) na laatsteStart', () => {
-  assert.equal(isTeLaat({ uur: undefined }, u(16, 1), u(16)), true);
-  assert.equal(isTeLaat({ uur: undefined }, u(16), u(16)), false);
-  assert.equal(isTeLaat({ uur: '17:00' }, u(17), u(16)), false);
+test('isTeLaat: een ticket (met of zonder vast uur) met aankomst na laatsteStart; een eigen afspraak niet', () => {
+  assert.equal(isTeLaat({ kind: 'ticket', uur: undefined }, u(16, 1), u(16)), true);
+  assert.equal(isTeLaat({ kind: 'ticket', uur: undefined }, u(16), u(16)), false);
+  assert.equal(isTeLaat({ kind: 'ticket', uur: '17:00' }, u(17), u(16)), true);
+  assert.equal(isTeLaat({ kind: 'local', uur: '17:00' }, u(17), u(16)), false);
+});
+
+// ── Fix-ronde 1 ──
+test('voorkeursuur: de rit naar de stop ervoor en erna moet haalbaar zijn (zoals in het brein)', () => {
+  // vaste stop 09:00-10:00; voorkeursuur 10:20 (20 min na einde, rit 30 min): niet haalbaar
+  assert.equal(plaatsNieuw({ items: [tk('a', '09:00', 60)], nieuw: { id: 'n', duurMin: 60, uur: '10:20' }, ...inst }), null);
+  assert.ok(plaatsNieuw({ items: [tk('a', '09:00', 60)], nieuw: { id: 'n', duurMin: 60, uur: '10:30' }, ...inst }));
+  // naar de stop erna: einde 11:00 + 30 > 11:20
+  assert.equal(plaatsNieuw({ items: [tk('a', '11:20', 60)], nieuw: { id: 'n', duurMin: 60, uur: '10:00' }, ...inst }), null);
+});
+
+test('vroegst: de aankomst valt niet vóór de klok van nu (vandaag)', () => {
+  const r = plaatsNieuw({ items: [], nieuw: { id: 'n', duurMin: 120, vroegst: u(9, 0) }, ...inst });
+  assert.deepEqual(r, { start: u(9, 0), eind: u(11, 0) });
+  // na 16:00 is er vandaag geen plek meer
+  assert.equal(plaatsNieuw({ items: [], nieuw: { id: 'n', duurMin: 120, vroegst: u(16, 5) }, ...inst }), null);
+});
+
+test('stopsVoorDag: twee eigen afspraken zonder id botsen niet', () => {
+  const ev = (uur) => ({ datum: '2026-10-06', uur, adres: 'X' });
+  const { allStops } = stopsVoorDag({ planning: {}, localEvents: [ev('14:00'), ev('09:00')] }, 'all', '2026-10-06', optiesRoute);
+  assert.deepEqual(allStops.map(e => e.item.uur), ['09:00', '14:00']);
 });

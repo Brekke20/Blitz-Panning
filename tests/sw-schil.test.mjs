@@ -72,10 +72,10 @@ test('modulepreloads staan na de stijlbladen (M2)', () => {
   assert.ok(html.indexOf('rel="modulepreload"') > laatsteCss, 'eerste modulepreload staat vóór een stylesheet');
 });
 
-test('CDN_LUI (niet vooraf opgehaald) bevat enkel ExcelJS en is een deel van CDN_VAST (I5)', () => {
+test('ExcelJS staat in CDN_VAST en wordt vooraf opgehaald: CDN_LUI is leeg (fix-ronde 1, Excel-export offline zoals live)', () => {
   const sw = fs.readFileSync(path.join(PUBLIC, 'sw.js'), 'utf8');
   const lui = [...sw.match(/const CDN_LUI = \[([^\]]*)\]/)[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
-  assert.deepEqual(lui, [EXCELJS_URL]);
+  assert.deepEqual(lui, []);
   assert.ok(sw.match(/const CDN_VAST = \[([^\]]*)\]/)[1].includes(EXCELJS_URL));
   assert.match(sw, /cdnLui: CDN_LUI/);
 });

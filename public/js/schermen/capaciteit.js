@@ -81,6 +81,9 @@ function dagItemsVan(datum) {
 // Kan er nog een ticket (met duur `duurMin`, eventueel een voorkeursuur) bij op deze dag? Geen feestdag, geen hele-dag-blokkering.
 function plekOpDag(datum, nieuw) {
   if (getHolidayName(datum)) return null;
+  // Vandaag: nooit een aankomst vóór de klok van nu (fix-ronde 1). Een voorkeursuur is een afspraak met de klant en blijft staan.
+  const nu = new Date();
+  if (datum === localISO(nu) && !nieuw.uur) nieuw = { ...nieuw, vroegst: nu.getHours() * 60 + nu.getMinutes() };
   const settings = toestand.get('settings');
   const filter = toestand.get('activeAssigneeFilter');
   if (blokkeringenVoor(toestand.get('avExceptions'), datum, filter, 'fullday').length > 0) return null;
