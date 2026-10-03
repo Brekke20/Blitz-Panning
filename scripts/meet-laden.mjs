@@ -12,6 +12,11 @@
 //    de HTTP-cache) en warm met service worker (de SW mag registreren en activeren; tweede bezoek).
 //  - Per profiel: aantal verzoeken, overgedragen bytes (CDP encodedDataLength) en de tijd tot `window.kern` bestaat
 //    en `#cnt-tickets` gevuld is (3 voor de dummydata).
+//  - Vergelijking voor/na (finale fix B): met `--voor=<map met public/>` (bv. `git archive f707b07 public` uitgepakt in een tijdelijke map)
+//    draaien de runs AFWISSELEND (voor, na, na, voor, ...) tegen die map en tegen public/ van deze checkout, in dezelfde sessie; de tabel
+//    toont per variant de MEDIAAN van `--runs=<n>` (standaard 5) runs. Zonder `--voor` wordt enkel de huidige public/ gemeten.
+//    `--vertraging=0,150,400` kiest de serververtragingen. Voorbeeld:
+//      node scripts/meet-laden.mjs --voor=C:\tmp\blitz-voor\public --runs=5 --vertraging=150
 //  - Daarnaast: parse- en evaluatietijd van rapport-wizard.js onder 4x CPU-vertraging (dynamische import van een nieuwe
 //    URL, nadat het bestand zelf al opgehaald is; de imports van de wizard staan dan al in het modulegeheugen).
 import http from 'node:http';
@@ -23,7 +28,11 @@ import { chromium } from 'playwright-core';
 import { maakDummyData } from '../public/js/kern/testdata.js';
 
 const PUBLIC = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..', 'public');
-const VERTRAGINGEN = [0, 150, 400];
+const arg = (naam) => process.argv.find(a => a.startsWith(`--${naam}=`))?.slice(naam.length + 3);
+const VERTRAGINGEN = (arg('vertraging') || '0,150,400').split(',').map(Number);
+const RUNS = Math.max(1, Number(arg('runs') || 5));
+const VOOR = arg('voor') ? path.resolve(arg('voor')) : null;
+const mediaan = (l) => { const t = [...l].sort((a, b) => a - b); const m = t.length >> 1; return t.length % 2 ? t[m] : Math.round((t[m - 1] + t[m]) / 2); };
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'application/javascript', '.mjs': 'application/javascript', '.css': 'text/css',
   '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.ico': 'image/x-icon', '.svg': 'image/svg+xml',
@@ -33,6 +42,7 @@ const vreemdeHosts = [];
 const TICKETS = maakDummyData(Date.now());
 
 let vertraging = 0;
+function maakServer(PUBLIC) {
 const server = http.createServer((req, res) => {
   const pad = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
   const antwoord = () => {
@@ -53,18 +63,24 @@ const server = http.createServer((req, res) => {
   };
   if (vertraging > 0) setTimeout(antwoord, vertraging); else antwoord();
 });
-await new Promise(r => server.listen(0, '127.0.0.1', r));
-const POORT = server.address().port;
-const BASIS = `http://localhost:${POORT}`;
+return server;
+}
+const servers = { na: maakServer(PUBLIC) };
+if (VOOR) servers.voor = maakServer(VOOR);
+const basis = {};
+for (const [naam, srv] of Object.entries(servers)) {
+  await new Promise(r => srv.listen(0, '127.0.0.1', r));
+  basis[naam] = `http://localhost:${srv.address().port}`;
+}
 
 const browser = await chromium.launch({
   // --no-proxy-server: een systeemproxy mag de host-regels niet omzeilen.
   args: ['--no-proxy-server', `--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1, EXCLUDE cdnjs.cloudflare.com, EXCLUDE cdn.jsdelivr.net`],
 });
 
-async function nieuwContext({ sw }) {
+async function nieuwContext({ sw, variant = 'na' }) {
   const context = await browser.newContext({
-    baseURL: BASIS, serviceWorkers: sw ? 'allow' : 'block', locale: 'nl-BE', timezoneId: 'Europe/Brussels',
+    baseURL: basis[variant], serviceWorkers: sw ? 'allow' : 'block', locale: 'nl-BE', timezoneId: 'Europe/Brussels',
     viewport: { width: 1280, height: 800 },
   });
   // Tweede laag naast --host-resolver-rules: elk verzoek buiten localhost en de twee CDN-hosts dat slaagt, wordt vastgelegd en laat de meting
@@ -101,9 +117,9 @@ async function bezoek(page) {
   return { verzoeken, kB: Math.round(bytes / 1024), klaarMs, wandMs };
 }
 
-async function meetProfiel(profiel) {
+async function meetProfiel(profiel, variant = 'na') {
   const sw = profiel === 'warm + SW';
-  const context = await nieuwContext({ sw });
+  const context = await nieuwContext({ sw, variant });
   const page = await context.newPage();
   try {
     if (profiel === 'koud') return await bezoek(page);
@@ -156,8 +172,21 @@ try {
   for (const v of VERTRAGINGEN) {
     vertraging = v;
     for (const profiel of ['koud', 'warm', 'warm + SW']) {
-      const r = await meetProfiel(profiel);
-      rijen.push({ 'server (ms)': v, profiel, verzoeken: r.verzoeken, 'kB': r.kB, 'klaar (ms, performance.now)': r.klaarMs, 'klaar (ms, muurtijd)': r.wandMs });
+      // Afwisselend: even runs voor-dan-na, oneven runs na-dan-voor, zodat een trend in de belasting van de machine beide varianten raakt.
+      const varianten = VOOR ? ['voor', 'na'] : ['na'];
+      const metingen = { voor: [], na: [] };
+      for (let i = 0; i < RUNS; i++) {
+        for (const variant of (i % 2 ? [...varianten].reverse() : varianten)) metingen[variant].push(await meetProfiel(profiel, variant));
+      }
+      for (const variant of varianten) {
+        const m = metingen[variant];
+        rijen.push({
+          'server (ms)': v, profiel, variant: VOOR ? variant : '-', runs: m.length,
+          'verzoeken': mediaan(m.map(x => x.verzoeken)), 'kB': mediaan(m.map(x => x.kB)),
+          'mediaan klaar (ms, performance.now)': mediaan(m.map(x => x.klaarMs)), 'mediaan klaar (ms, muurtijd)': mediaan(m.map(x => x.wandMs)),
+          'alle muurtijden': m.map(x => x.wandMs).join(' '),
+        });
+      }
     }
   }
   vertraging = 0;
@@ -168,5 +197,5 @@ try {
   console.log(wizard.mediaanMs > 150 ? 'LET OP: boven 150 ms (vraag voor Brent, N2).' : 'Onder de 150 ms-grens (N2).');
 } finally {
   await browser.close();
-  server.close();
+  for (const srv of Object.values(servers)) srv.close();
 }

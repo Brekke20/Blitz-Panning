@@ -1,3 +1,5 @@
+import os from 'node:os';
+import path from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
@@ -6,12 +8,14 @@ export default defineConfig({
   timeout: 30000,
   retries: process.env.CI ? 1 : 0,
   reporter: 'list',
+  // Buiten de repo (die in OneDrive staat): OneDrive vergrendelt nieuwe bestanden en geeft anders ENOENT op traces/tijdelijke bestanden.
+  outputDir: path.join(os.tmpdir(), 'blitz-planning-pw'),
   use: {
     baseURL: 'http://localhost:3338',
     timezoneId: 'Europe/Brussels',
     locale: 'nl-BE',
     serviceWorkers: 'block',
-    trace: 'retain-on-failure',
+    trace: process.env.CI ? 'retain-on-failure' : 'off',
   },
   projects: [
     // Alle gewone specs: serviceWorkers blijft 'block' (hierboven). De SW-specs (e2e/sw/) draaien enkel in het project 'sw'.
