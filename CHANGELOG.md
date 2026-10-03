@@ -33,12 +33,12 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ### Changed
 - Bij een trage verbinding wacht de app nog maximaal 4 seconden op de nieuwste versie van de pagina; daarna start ze uit de bewaarde kopie op het toestel (die maximaal één versie oud kan zijn). Eerder bleef ze onbeperkt wachten.
-- Lukt het aftrekken van het gebruikte materiaal van de wagenvoorraad niet na een verzonden rapport, dan krijgt de technieker nu een melding. Is het zeker dat er niets is afgetrokken (de voorraad was net door iemand anders gewijzigd, de opslag was even onbereikbaar of er was geen verbinding), dan probeert de app het later vanzelf opnieuw: bij het starten, zodra de verbinding terug is en bij elke verversing. Eerder ging zo'n aftrek stilletjes verloren.
-- Is het onzeker of de aftrek al gebeurd is (bijvoorbeeld een time-out), dan probeert de app het bewust niet opnieuw, zodat er nooit dubbel wordt afgetrokken; de melding vraagt dan de voorraad te controleren. Ook met twee geopende vensters verwerkt maar één ervan de wachtrij.
 - Foutmeldingen bij een probleem met de verbinding zijn nu gewoon Nederlands: 'Geen verbinding met de server', 'De server antwoordt niet (time-out na 20 s)' en 'Serverfout (HTTP 502)' in plaats van 'Failed to fetch', 'Time-out na 20 s' of 'HTTP 502'. Het begin van elke melding blijft hetzelfde; enkel het detail is vertaald. De rapportwizard en de wachtrij voor verzonden rapporten blijven ongewijzigd.
 - De app laadt zijn onderdelen vooraf parallel en haalt de Excel-bibliotheek pas op bij de eerste export (TicketLog of Inventaris).
-- De service worker bewaart ook Leaflet, de handtekeningbibliotheek en de Excel-bibliotheek, zodat de app ook zonder verbinding de kaartbibliotheek heeft.
-- De service worker bewaart ook de pictogrammen van de kaart (markers, lagenknop), bewaart enkel volledige antwoorden, geeft zijn voorbereiding op de externe bibliotheken een tijdlimiet en laat `/.netlify/`-paden met rust.
+- De app start sneller en zuiniger op: het Excel-onderdeel (`excel-export.js`) wordt nu echt pas bij de eerste export opgehaald, de verbinding naar de Excel-server wordt niet meer vooraf opgebouwd, en de service worker wordt pas geregistreerd nadat de pagina volledig geladen is.
+- Bij het installeren van een update haalt de service worker bibliotheken die al op het toestel staan niet opnieuw op, en de Excel-bibliotheek (258 kB) wordt niet meer vooraf gedownload. Dat scheelt data bij elke update.
+- Haalt de app zijn pagina uit de bewaarde kopie omdat de verbinding wegvalt, dan komen alle onderdelen van die start ook uit die kopie (per geopend venster). Zo kan er geen mengeling van oude en nieuwe versie meer ontstaan.
+- De service worker bewaart ook Leaflet, de handtekeningbibliotheek, de Excel-bibliotheek (die laatste pas bij de eerste export) en de pictogrammen van de kaart (markers, lagenknop), zodat de app ook zonder verbinding de kaart heeft. Hij bewaart enkel volledige antwoorden, geeft zijn voorbereiding op de externe bibliotheken een tijdlimiet en laat `/.netlify/`-paden met rust.
 - Extra testrobot met een echte service worker (offline starten, traag netwerk, updatepad vanaf de huidige live-versie), met een eigen vangnet dat ook verkeer van de service worker zelf bewaakt.
 - Ticketdetail, afspraakvoorstel en annuleervenster zijn intern herbouwd en staan nu in eigen
   onderdelen; voor jou ziet alles er hetzelfde uit en werkt het hetzelfde.
@@ -65,6 +65,8 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Interne herstructurering: gedeelde fundamenten in `public/js/kern/` (tijd, selecties, toestand met automatisch hertekenen, api, ui).
 
 ### Fixed
+- Lukt het aftrekken van het gebruikte materiaal van de wagenvoorraad niet na een verzonden rapport, dan krijgt de technieker nu een melding. Is het zeker dat er niets is afgetrokken (de voorraad was net door iemand anders gewijzigd, de opslag was even onbereikbaar of er was geen verbinding), dan probeert de app het later vanzelf opnieuw: bij het starten, zodra de verbinding terug is en bij elke verversing. Eerder ging zo'n aftrek stilletjes verloren.
+- Is het onzeker of de aftrek al gebeurd is (bijvoorbeeld een time-out), dan probeert de app het bewust niet opnieuw, zodat er nooit dubbel wordt afgetrokken; de melding vraagt dan de voorraad te controleren. Ook met twee geopende vensters verwerkt maar één ervan de wachtrij.
 - Na het sluiten van een venster met Escape komt de cursor terug op een logische plek in plaats van bovenaan de pagina (afspraakvoorstel, prijsbeheer, planningsresultaat, lokaal afspraakdetail); lokale afspraken in de kalender zijn nu ook met het toetsenbord te openen (Enter of spatie).
 - De klantvoorkeur-labels in de wachtrij verschijnen nu ook als de klantbeschikbaarheid later binnenkomt dan de wachtrij.
 - De tab Beschikbaarheden loopt niet meer vast als in de instellingen geen enkele werkdag is aangevinkt.
@@ -82,7 +84,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
   ongewijzigd tot je op "Bereken tijden" klikte.
 - Na een mislukte 'uit planning halen' verschijnt de teruggezette stop weer in de route.
 - Kalender op de gsm: op "Bellen" tikken start het gesprek, maar opent niet langer ook het ticketdetail (net als bij "Navigeer").
-- Een serverfout met een onleesbaar antwoord (bv. een HTML-foutpagina) toont bij inplannen, toewijzen, verzetten, een voorstel of rapport versturen, of het bijwerken van de oplossing in Zoho, toont nu een duidelijke foutmelding (bv. 'HTTP 502') in plaats van een onleesbare technische tekst.
+- Een serverfout met een onleesbaar antwoord (bv. een HTML-foutpagina) toont bij inplannen, toewijzen, verzetten, een voorstel of rapport versturen, of het bijwerken van de oplossing in Zoho nu een duidelijke foutmelding (bv. 'HTTP 502') in plaats van een onleesbare technische tekst.
 - Een hangende verbinding vergrendelt een ticket, het annuleervenster of de verzendknop niet meer: na 20 tot 60 seconden verschijnt de bestaande foutmelding (met als detail 'Time-out na … s') en kun je opnieuw proberen.
 - Een verversing (knop Vernieuwen of de automatische controle) zet geen verouderde gegevens meer terug: een ticket dat je net gepland hebt, springt niet meer terug naar de wachtrij als de verbinding net wegvalt.
 - Na een weggevallen verbinding tijdens plannen, uitplannen, verzetten, toewijzen of opslaan (beschikbaarheid, afspraken, klantbeschikbaarheid) klopt het scherm weer met Zoho en de opslag: de app haalt de gegevens één keer opnieuw op, zodat een wijziging die toch doorging weer verschijnt en een volgende wijziging niet vastloopt op een conflict.

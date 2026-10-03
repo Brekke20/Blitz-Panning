@@ -10,9 +10,7 @@ Serverless backend: `netlify/functions/` (ES modules, Netlify Blobs `blitz-data`
 **Use ExcelJS, not SheetJS.**  
 SheetJS community edition (v0.18.5, the free build) silently ignores the `.s` cell style property — styled output looks completely unstyled with no error. ExcelJS supports full cell styling.
 
-```html
-<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-```
+ExcelJS wordt NIET met een `<script>`-tag in `index.html` geladen (dat blokkeert de opstart). Gebruik `laadExcelJs()` uit `public/js/kern/exceljs.js`: die haalt de bibliotheek (`EXCELJS_URL`, `https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js`) pas bij de eerste export op. Zet het blokkerende script nooit terug.
 
 All Excel exports must auto-size columns and rows so all text is always visible:
 - Dynamic column width: `max(header_length + 2, max_data_length + 1, 8)`, capped at 36 (non-wrap) or `WRAP_MAX` for wrap columns
@@ -39,11 +37,13 @@ All Excel exports must auto-size columns and rows so all text is always visible:
 
 ## Tests
 
-- `node --test` (zonder pad) — logica-tests (855). Nooit `node --test tests/`.
+- `node --test` (zonder pad) — logica-tests (871). Nooit `node --test tests/`.
 - `npx playwright test` — alle Playwright-projecten samen (`chromium` en `sw`), alle `/api/*` gestubd; 488 + 15 = 503 tests (een volledige run duurt ongeveer 12 minuten). Draai dit na elke taak die een scherm raakt. Gericht: `npx playwright test --project=chromium` of `--project=sw`.
 - Eerste keer: `npm install` en daarna `npx playwright install chromium`.
 
-De e2e-suite heeft internet nodig: de app laadt zijn scripts van externe CDN's (cdnjs.cloudflare.com, cdn.jsdelivr.net) en die worden bewust niet gestubd. Faalt een run op netwerkfouten voor die hosts (bv. een script dat niet laadt), dan is dat geen regressie in de app: controleer de verbinding en draai opnieuw.
+De e2e-suite heeft internet nodig: de app laadt Leaflet en signature_pad van cdnjs.cloudflare.com (bewust niet gestubd) en de Excel-export-tests halen ExcelJS van cdn.jsdelivr.net. Faalt een run op netwerkfouten voor die hosts (bv. een script dat niet laadt), dan is dat geen regressie in de app: controleer de verbinding en draai opnieuw.
+
+**OneDrive en `ENOENT`-fouten.** De repo staat in OneDrive, dat nieuwe bestanden vergrendelt en synchroniseert; dat gaf `ENOENT` op trace- en tijdelijke bestanden. Daarom schrijft Playwright zijn uitvoer naar `path.join(os.tmpdir(), 'blitz-planning-pw')` (`outputDir` in `playwright.config.mjs`, buiten OneDrive) en staat `trace` lokaal uit (`process.env.CI ? 'retain-on-failure' : 'off'`). Zet een trace dus enkel gericht aan (`--trace=on`). Sluit bovendien `node_modules/`, `test-results/` en `.blobs-local-test/` uit van OneDrive-synchronisatie (rechtsklik > "Altijd op dit apparaat bewaren" uitzetten, of de repo buiten OneDrive plaatsen). `tests/playwright-config.test.mjs` pint `outputDir`, de trace-instelling en het DNS-slot (`--host-resolver-rules`) van het project `sw` vast.
 
 ### Productiemodus-tests
 
@@ -104,9 +104,9 @@ Gedeelde fundamenten (etappe 2, 5b en 7 van de refactor): `tijd`, `ui`, `selecti
 - Tijd-tests zetten `process.env.TZ = 'Europe/Brussels'` bovenaan; draai `node --test` zonder pad, nooit `node --test tests/`.
 - `kern/netwerk.js` (etappe 7): `installeerFetchTimeout(window)` omhult `window.fetch` voor same-origin `/api`-verzoeken met een time-out: `TIJDLIMIETEN` = standaard 20 s, lang 35 s (`propose`, `send-rapport`, `annuleer`, `rapport`, `planning-sinds`, `planning-export`), foto-upload (`PUT /api/fotos`) 60 s; `limietVoor(pad, methode)`. Een aanroeper die zelf een `signal` meegeeft (de outbox) blijft onaangeroerd: hij beheert zijn eigen annulering. De timer loopt tot de antwoordkop. Een `TypeError` van fetch zelf krijgt `vanFetch = true`.
 - `kern/api.js`: `leesFout(err)` geeft `{ soort: 'offline'|'timeout'|'netwerk'|'http'|'onbekend', onzeker, status? }` (`onzeker` = het is niet zeker dat de server niets deed); `foutTekst(err)` geeft de Nederlandse tekst ('Geen verbinding met de server', 'De server antwoordt niet (time-out na 20 s)', 'Serverfout (HTTP 502)'; een 4xx is 'Verzoek geweigerd (HTTP n)'). Gebruik `foutTekst` in nieuwe `catch`-blokken in plaats van `err.message`. Na een onzeker resultaat van een schrijfactie haalt de aanroeper de gegevens één keer opnieuw op (resync, met volgordeguard en weggooien van verouderde antwoorden).
-- `kern/exceljs.js`: `laadExcelJs()` laadt ExcelJS pas bij de eerste export (TicketLog of Inventaris; een gedeelde belofte, tijdlimiet 20 s, een mislukte lading wordt niet onthouden). Gebruik dit in plaats van een `<script>`-tag; `excel-export.js` zelf wordt ook lazy geïmporteerd.
+- `kern/exceljs.js`: `laadExcelJs()` laadt ExcelJS pas bij de eerste export (TicketLog of Inventaris; een gedeelde belofte, tijdlimiet 20 s, een mislukte lading wordt niet onthouden). Gebruik dit in plaats van een `<script>`-tag; `excel-export.js` zelf wordt ook lazy geïmporteerd (geen `<script type="module">` en geen modulepreload in `index.html`; wel in `SHELL`).
 - `kern/verbruik-wachtrij.js`: melding en herpoging voor de wagenvoorraad-aftrek na een verzonden rapport. Een herpoging gebeurt enkel als zeker is dat er niets geschreven werd (409, 503 met eigen boodschap, offline); alles wat onzeker is geeft enkel een melding (nooit dubbel aftrekken). Twee tabs: `navigator.locks` (Web Locks) met terugval op een lease met eigenaar-token. Puur, alle afhankelijkheden worden meegegeven.
-- `kern/mailcontrole.js`: na een onzeker resultaat van een verzending naar de klant (propose, send-rapport, annuleer) controleert de app via `/api/mail-check` (één GET, enkel lezen) of de mail al weg is en geeft `verzonden`, `niet-verzonden` of `onbekend`; elke twijfel is `onbekend` (nooit 'niet verzonden'). De client stuurt nooit een absolute tijd, enkel `verlopenMs`. Is er minder dan `SERVER_MAX_MS` (30 s = functielimiet 26 s + 4 s) verstreken en zegt de eerste controle 'niet verzonden', dan wacht ze de rest af en controleert nog één keer; pas dan geldt 'niet verzonden'. Een gedetecteerde rapportmail wordt per rapport onthouden in `localStorage` (`blitz_mail_gedetecteerd`) en een volgende verzending vraagt eerst bevestiging via `appConfirm`.
+- `kern/mailcontrole.js`: na een onzeker resultaat van een verzending naar de klant (propose, send-rapport, annuleer) controleert de app via `/api/mail-check` (één GET, enkel lezen) of de mail al weg is en geeft `verzonden`, `niet-verzonden` of `onbekend`; elke twijfel is `onbekend` (nooit 'niet verzonden'). De client stuurt nooit een absolute tijd, enkel `verlopenMs`. Is er minder dan `SERVER_MAX_MS` (30 s = functielimiet 26 s + 4 s) verstreken en zegt de eerste controle 'niet verzonden', dan wacht ze de rest af en controleert nog één keer; pas dan geldt 'niet verzonden'. Het onthouden van een gedetecteerde rapportmail (`localStorage`, `blitz_mail_gedetecteerd`) en de bevestiging via `appConfirm` bij een volgende verzending staan in `schermen/rapport-verzenden.js`, niet hier.
 - Een nieuw kern-bestand komt in dezelfde commit in `SHELL` van `public/sw.js`.
 
 ## Schermen (`public/js/schermen/`)
@@ -164,7 +164,7 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 
 **Etappe 7 (Technieker):**
 - `rapport-verzenden.js`: de rijknop gaat vóór de bevestiging van een eerder gedetecteerde mail op slot en komt bij 'Terug' weer open. Na een onzeker resultaat controleert `kern/mailcontrole.js` of de mail al weg is; tijdens de controle blijft de knop op slot.
-- `excel-export.js` wordt pas bij de eerste export geladen (dynamische import) en haalt ExcelJS via `kern/exceljs.js`.
+- `excel-export.js` wordt pas bij de eerste export geladen (dynamische import in `app.js`; niet in `index.html`) en haalt ExcelJS via `kern/exceljs.js`.
 - Lokale afspraakkaarten in de kalender zijn met het toetsenbord te openen (`maakActiveerbaar`).
 - Gedocumenteerd restant (N12): een route-volgorde slepen tijdens een render kan af en toe geannuleerd worden (`applyRouteOrder` werkt op verouderde objecten; vastgelegd in `e2e/route-slepen-render.spec.mjs`, bewust niet gewijzigd: W11). Ook `negeerSchrijfstand` in `loadTickets` (aangeroepen door `route.js`) slaat de hele schrijfstand-controle over in plaats van enkel het routedeel; zeldzaam, bewust gelaten.
 
@@ -173,7 +173,13 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 - `sw-strategie.js` bevat alle beslislogica (UMD: `self.SwStrategie` in de SW, `module.exports` in `node --test`; `tests/sw-strategie.test.mjs`). `sw.js` is een dun omhulsel met `CACHE_NAME`, `EXTERN_CACHE`, `SHELL`, `CDN_VAST` en `FONT_HOSTS`.
 - Strategie: eigen schil netwerk-eerst met de cache als terugval (de cache wordt bij een netwerksucces niet ververst, zodat de modules onderling consistent blijven); de CDN-bibliotheken (exacte URL, `CDN_VAST`) cache-eerst in `blitz-extern-v1`; Google Fonts stale-while-revalidate; enkel een antwoord met status 200 gaat de cache in; `/api`, `/.netlify/` en alles wat geen GET is wordt nooit afgehandeld of bewaard. De installatie heeft een tijdlimiet en breekt niet op een storing van een CDN.
 - `NAV_TIMEOUT_MS = 4000` (Brent, 2026-10-02): wacht een navigatie langer dan 4 s op het netwerk, dan start de app uit de bewaarde kopie (maximaal één release oud). Tests overschrijven dit via `/sw.js?navTimeout=<ms>` (0 tot 30000; 0 = uit).
-- `CACHE_NAME` (nu `blitz-planning-v25`) wordt NIET aangepast op `refactor`; dat gebeurt bij de release (zie `docs/release-checklist-2.0.md`). Elk nieuw laadbaar bestand onder `public/js/` komt in dezelfde commit in `SHELL`; `tests/sw-schil.test.mjs` bewaakt dat de modulepreload-lijst in `index.html` precies de modulegraaf is (plus preconnect voor de externe hosten) en `tests/sw-strategie.test.mjs` de beslislogica.
+- `CACHE_NAME` (nu `blitz-planning-v25`) wordt NIET aangepast op `refactor`; dat gebeurt bij de release (zie `docs/release-checklist-2.0.md`). Elk nieuw laadbaar bestand onder `public/js/` komt in dezelfde commit in `SHELL`; `tests/sw-schil.test.mjs` bewaakt dat de modulepreload-lijst in `index.html` precies de eager modulegraaf is (statische imports; dynamische `import()`-randen zoals `excel-export.js` horen er niet bij, maar staan wel in `SHELL`), dat de preloads na de stijlbladen staan en dat er enkel een preconnect is voor de hosten die de opstart gebruikt; `tests/sw-strategie.test.mjs` bewaakt de beslislogica.
+
+Aanvullingen (finale fix B):
+- Cache-modus per client: valt een navigatie (of een submodule) op de cache terug, na een time-out of een netwerkfout, dan komen alle verdere shell-verzoeken van die client uit de cache zolang de client leeft (`resultingClientId`/`clientId`; begrensd tot 50 clients; een SW-herstart wist dit, dan geldt nog de globale 60 s). Zo mengt een module nooit met een `index.html` van een andere versie.
+- Installatie: CDN-URL's die al in `blitz-extern-v1` staan worden niet opnieuw opgehaald (ze zijn op versie vastgepind); `CDN_LUI` (ExcelJS, 258 kB gzip) staat wel in `CDN_VAST` maar wordt niet vooraf opgehaald, enkel bij het eerste gebruik bewaard. Wijzigt `CDN_VAST` van versie, verhoog dan `EXTERN_CACHE` of ruim de oude sleutels op (zie de release-checklist).
+- De SW wordt geregistreerd na de `load`-gebeurtenis (`app.js`), zodat de installatie niet met de eerste laad concurreert.
+- Subresources hebben bewust geen time-out (`subTimeoutMs = 0`): komt `index.html` binnen 4 s en stokt daarna een module, dan blijft de app wachten in plaats van te mengen met een andere versie.
 
 ## Versioning & changelog
 

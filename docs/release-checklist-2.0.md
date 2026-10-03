@@ -11,6 +11,7 @@ Voor het moment dat Brent de refactor vrijgeeft (zie "Branchbeleid" in `CLAUDE.m
 - [ ] Handmatig in een echte browser met een v25-installatie: één herlading toont de nieuwe versie; `skipWaiting` en `clients.claim` werken.
 - [ ] Netlify cachet `sw.js` en `sw-strategie.js` niet lang: de standaard `max-age=0, must-revalidate` volstaat; controleren op de live site.
 - [ ] Geen hotfix op `main` die JS wijzigt zonder ook de SHELL-test (`tests/sw-schil.test.mjs`) te draaien.
+- [ ] `EXTERN_CACHE` (`blitz-extern-v1`): heeft `CDN_VAST` in `public/sw.js` sinds deze release een andere bibliotheekversie of -URL gekregen, dan blijven de oude sleutels eeuwig in de externe cache staan (`activeer` bewaart de naam). Verhoog dan `EXTERN_CACHE` (en pas de N19-test aan), of ruim de oude sleutels op in `activeer`. Is `CDN_VAST` ongewijzigd, dan niets doen.
 - [ ] Versienummer in `package.json`, `CHANGELOG.md` (sectie "Refactor-tak — nog niet uitgebracht" hernoemen naar de versie), git-tag.
 
 ## 2. Handmatige controles die geen test kan doen
@@ -23,6 +24,9 @@ Voor het moment dat Brent de refactor vrijgeeft (zie "Branchbeleid" in `CLAUDE.m
 - [ ] **Non-JSON token- of org-antwoord** (etappe 6, T3): wat doet de app als Zoho bij het token of de organisatie een antwoord zonder JSON geeft? Nagaan dat de fout begrijpelijk is.
 - [ ] **Offline start** op een gsm met de oude v25 geïnstalleerd en daarna de nieuwe versie: de app start zonder verbinding met de kaartbibliotheek aanwezig.
 - [ ] **Wagenvoorraad-aftrek** (Q4): een rapport versturen met een kortstondig weggevallen verbinding; de melding verschijnt, de aftrek komt later vanzelf, en er wordt nooit dubbel afgetrokken (ook niet met twee tabs open).
+
+- [ ] **Laadmeting op een echte tablet** (`docs/bugs-en-open-punten.md`, laadmeting): Chrome DevTools met "Slow 4G"-throttling of een echt toestel; koude start, warme start en start met service worker, en `node scripts/meet-laden.mjs` (mediaan van alternerende voor/na-runs) als vergelijking. Het harnas draait HTTP/1.1 op localhost en kan de winst van modulepreload niet tonen; beslis pas na een meting op een echt netwerk.
+- [ ] Overzicht van alle bekende bugs en open punten van de refactor: `docs/bugs-en-open-punten.md` doorlopen vóór de release.
 
 ## 3. Vragen voor Brent bij de release (etappe 7)
 
