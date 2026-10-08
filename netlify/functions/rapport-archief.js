@@ -4,13 +4,15 @@
 
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
+import {
+  LIJST_KEY as BLOB_KEY, LEGE_LIJST as EMPTY,
+  bepaalDedupVelden, bouwEntry, voegToeOfWerkBij,
+} from '../lib/rapportlijst.js';
 
-const BLOB_KEY = 'rapportlijst';
 const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
   'http://localhost:8888',
 ];
-const EMPTY = { versie: 0, rapports: [] };
 
 function corsHeaders(req) {
   const origin  = req.headers.get('origin') || '';
@@ -23,24 +25,8 @@ function corsHeaders(req) {
   };
 }
 
-// ── Pure logica (geen I/O) -- apart van de Blobs-aanroepen zodat dit zonder Netlify Blobs-
-// emulatie met een klein Node-scriptje te verifiëren is (zelfde patroon als rapport.js). ──
-//
-// (Fix-ronde 1, punt 1) Bepaalt de definitieve zohoUploaded/geannuleerd-velden voor een
-// binnenkomende POST t.o.v. een eventuele bestaande dedup-match (zelfde ticketId+datum).
-// `bestaandeEntry` is de huidige entry op dupIdx (of null bij een nieuw rapport), `zelfdeItem`
-// geeft aan of het binnenkomende `id` gelijk is aan dat van de bestaande entry (zelfde
-// wachtrij-item dat zichzelf opnieuw bevestigt, i.p.v. een ander item dat via ticket+datum botst).
-export function bepaalDedupVelden(bestaandeEntry, zelfdeItem, body) {
-  const alGeupload = !!(zelfdeItem && bestaandeEntry?.zohoUploaded === true);
-  return {
-    zohoUploaded: body.zohoUploaded === true || alGeupload,
-    // Een reeds bevestigde Zoho-upload kan nooit met terugwerkende kracht "geannuleerd" worden
-    // door een racende/verlate cancel-POST -- zie rapport.js's pasMarkeringToe() voor de
-    // omgekeerde volgorde (upload-bevestiging ná een eerder geschreven cancel).
-    geannuleerd: alGeupload ? false : body.geannuleerd === true,
-  };
-}
+// bepaalDedupVelden woont in ../lib/rapportlijst.js; hier her-geëxporteerd voor bestaande tests/imports.
+export { bepaalDedupVelden };
 
 export default async (req, context) => {
   const hdrs  = corsHeaders(req);
@@ -96,63 +82,12 @@ export default async (req, context) => {
       }), { status: 409, headers: { ...hdrs, 'Content-Type': 'application/json' } });
     }
 
-    const entry = {
-      id:              String(body.id || crypto.randomUUID()),
-      datum:           String(body.datum           || ''),
-      aangemaakt:      new Date().toISOString(),
-      technieker:      String(body.technieker       || ''),
-      ticketId:        String(body.ticketId         || ''),
-      ticketNumber:    String(body.ticketNumber     || ''),
-      klant:           String(body.klant            || ''),
-      adres:           String(body.adres            || ''),
-      nieuwInter:      body.nieuwInter === 'ja' ? 'ja' : 'nee',
-      hersteld:        body.hersteld   === 'ja' ? 'ja' : 'nee',
-      servicetype:     String(body.servicetype      || ''),
-      facturatie:      String(body.facturatie       || ''),
-      prioriteit:      String(body.prioriteit       || ''),
-      interventieType: String(body.interventieType  || 'Interventie'),
-      totaalOnderdelen: parseFloat(body.totaalOnderdelen) || 0,
-      // Bewaar het volledige R-object om rapport te kunnen hergeneren
-      rapportData:     body.rapportData || null,
-      // (T20) Gezet door outboxCancelItem() (public/js/outbox.js) wanneer een technieker een
-      // reeds-gearchiveerd, nog-niet-naar-Zoho-verstuurd rapport annuleert. Ontbreekt dit veld
-      // (oudere/andere POSTs), dan blijft het gewoon false -- geen breaking change. Definitieve
-      // waarde wordt hieronder gezet (samen met zohoUploaded, zie de dedup-bescherming erna).
-      geannuleerd:     false,
-    };
-
-    // Dedup: als er al een rapport bestaat voor hetzelfde ticket op dezelfde datum,
-    // update die entry i.p.v. een duplicaat te prependen (1 ticket = 1 interventie).
-    const dupIdx = current.rapports.findIndex(
-      r => r.ticketId === entry.ticketId && r.datum === entry.datum && entry.ticketId
-    );
-
-    // zohoUploaded/geannuleerd: enkel overerven van de bestaande entry als dit hetzelfde
-    // wachtrij-item is dat zichzelf opnieuw bevestigt (zelfde id) — bv. na een mislukte
-    // confirm-call. Botst een ANDER item via dedup (zelfde ticket+datum, maar een nieuw, later
-    // aangemaakt rapport dezelfde dag), dan begint dat item altijd fris, zodat het zelf een
-    // verse PDF naar Zoho stuurt i.p.v. stil te veronderstellen dat het al gebeurd is. Zie
-    // bepaalDedupVelden() hierboven voor de geannuleerd-bescherming bij een al-geüploade entry.
-    const zelfdeItem = dupIdx >= 0 && entry.id === current.rapports[dupIdx].id;
-    Object.assign(entry, bepaalDedupVelden(dupIdx >= 0 ? current.rapports[dupIdx] : null, zelfdeItem, body));
-
-    let updatedList;
-    if (dupIdx >= 0) {
-      updatedList = [...current.rapports];
-      // Bewust het id van de HUIDIGE POST behouden (entry.id, want entry wordt als
-      // laatste gespreid) en NIET dat van de oude entry: het antwoord hieronder
-      // rapporteert entry.id, en de client zoekt dit rapport later terug via
-      // GET ?id=<dat id> (check-zoho-voorcontrole in de outbox). Zou het opgeslagen
-      // id afwijken van het gerapporteerde, dan vindt die lookup niets en valt de
-      // dubbele-Zoho-upload-bescherming stil weg voor dat wachtrij-item.
-      updatedList[dupIdx] = { ...updatedList[dupIdx], ...entry };
-    } else {
-      updatedList = [entry, ...current.rapports];
-    }
+    const entry = bouwEntry(body);
+    const { rapports: updatedList } = voegToeOfWerkBij(current.rapports, entry, body);
 
     const nieuw = {
       versie:   current.versie + 1,
-      rapports: updatedList.slice(0, 500), // max 500 bewaren
+      rapports: updatedList, // voegToeOfWerkBij kapt af op MAX_RAPPORTEN
     };
     await store.setJSON(BLOB_KEY, nieuw);
 
