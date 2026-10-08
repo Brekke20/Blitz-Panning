@@ -72,3 +72,11 @@
 .balk-label { font-size: var(--fs-sm); color: var(--viz-ink); overflow-wrap: anywhere; }
 .balk-svg { display: block; min-width: 0; }
 .balk-waarde { font-size: var(--fs-sm); color: var(--viz-ink); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+/* ── Donut (ringdiagram) ── */
+.donut { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); margin: 0; }
+.donut-svg { display: block; flex: none; }
+.donut-spoor { stroke: color-mix(in srgb, var(--viz-overige) 25%, var(--surface)); }
+.donut-groot { font-size: 24px; font-weight: 600; font-variant-numeric: proportional-nums; fill: var(--viz-ink); }
+.donut-klein { font-size: 10px; fill: var(--viz-ink2); }
+.donut .legende { margin-top: 0; flex-direction: column; flex-wrap: nowrap; }
