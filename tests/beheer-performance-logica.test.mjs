@@ -201,6 +201,8 @@ test('[RF4] filterRijHtml: opties en waarden worden ge-escaped, geselecteerde ke
   assert.match(h, /<option value="90" selected>/);
   for (const p of PRESETS) assert.ok(h.includes(p.label), p.label);
   assert.match(h, /data-arg="vorige-maand"[^>]*aria-pressed="true"/);
+  assert.ok(!h.includes('data-filter'));
+  for (const veld of ['van', 'tot', 'technieker', 'type', 'herhaalDagen']) assert.ok(h.includes(`data-wijzig="dashboard-filter" data-arg="${veld}"`), veld);
   assert.ok(h.includes('value="2026-09-01"') && h.includes('value="2026-09-30"'));
   assert.equal((h.match(/<div class="filterrij"/g) || []).length, 1);
 });
@@ -209,4 +211,51 @@ test('filterRijHtml: zonder opties of filters nog steeds een geldige rij', () =>
   const h = filterRijHtml({ filters: {}, opties: {} });
   assert.ok(h.includes('Alle techniekers') && h.includes('Alle types'));
   assert.ok(!/undefined|NaN/.test(h));
+});
+
+test('filterRijHtml: een gekozen technieker die niet (meer) in de opties staat blijft zichtbaar en geselecteerd', () => {
+  const h = filterRijHtml({ filters: { technieker: 'Ghost' }, opties: { techniekers: ['Tim'], types: [] } });
+  assert.match(h, /<option value="Ghost" selected>Ghost<\/option>/);
+  assert.ok(!/<option value="" selected>Alle techniekers/.test(h));
+  assert.match(h, /<option value="" selected>Alle types/);
+});
+
+test('maakQuery: herhaal 0, NaN of niet-getal valt weg', () => {
+  assert.equal(maakQuery({ herhaalDagen: 0 }), '');
+  assert.equal(maakQuery({ herhaalDagen: NaN }), '');
+  assert.equal(maakQuery({ herhaalDagen: 'x' }), '');
+  assert.equal(maakQuery({ herhaalDagen: 30 }), '?herhaal=30');
+});
+
+test('periodeVoorPreset: zelf met onmogelijke datums of van na tot valt terug op deze maand; ongeldige nu gooit niet', () => {
+  const nu = new Date('2026-10-08T10:00:00+02:00');
+  const maand = { van: '2026-10-01', tot: '2026-10-08' };
+  assert.deepEqual(periodeVoorPreset('zelf', nu, { van: '2026-13-45', tot: '2026-14-01' }), maand);
+  assert.deepEqual(periodeVoorPreset('zelf', nu, { van: '2026-02-30', tot: '2026-03-05' }), maand);
+  assert.deepEqual(periodeVoorPreset('zelf', nu, { van: '2026-09-20', tot: '2026-09-01' }), maand);
+  assert.deepEqual(periodeVoorPreset('zelf', nu, { van: '2026-09-05', tot: '2026-09-05' }), { van: '2026-09-05', tot: '2026-09-05' });
+  assert.doesNotThrow(() => periodeVoorPreset('deze-maand', new Date('geen datum')));
+  assert.match(periodeVoorPreset('deze-maand', new Date('geen datum')).van, /^\d{4}-\d{2}-01$/);
+  assert.doesNotThrow(() => periodeVoorPreset('jaar', undefined));
+});
+
+test('formatEuro: afrondingsgrens bij 1000 en negatieve bedragen', () => {
+  assert.equal(formatEuro(999.995), '€ 1.000');
+  assert.equal(formatEuro(999.99), '€ 999,99');
+  assert.equal(formatEuro(-5), '-€ 5,00');
+  assert.equal(formatEuro(-1840.4), '-€ 1.840');
+  assert.equal(formatEuro(-0.001), '€ 0,00');
+});
+
+test('tegelHtml: first-time-fix toont de echte teller uit de kern (751 van 1.500), afgeleide waarde enkel als terugval', () => {
+  const h = tegelHtml(tegel('firstTimeFix'), { firstTimeFix: { pct: 50.1, n: 1500, ftf: 751 } }, {}, STANDAARD_GRENZEN);
+  assert.ok(h.includes('751 van 1.500'), h);
+  const oud = tegelHtml(tegel('firstTimeFix'), { firstTimeFix: { pct: 60, n: 10 } }, {}, STANDAARD_GRENZEN);
+  assert.ok(oud.includes('6 van 10'));
+});
+
+test('tegelHtml: op tijd zonder gegevens toont geen verdeling "0 te vroeg · …"', () => {
+  const leeg = tegelHtml(tegel('opTijd'), { opTijd: { pct: null, n: 0, teVroeg: 0, opTijd: 0, teLaat: 0 } }, {}, STANDAARD_GRENZEN);
+  assert.ok(leeg.includes('geen gegevens'));
+  assert.ok(!leeg.includes('te vroeg'));
 });

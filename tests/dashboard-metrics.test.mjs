@@ -31,7 +31,7 @@ test('kern huidig: aantal, gem. duur, op tijd (verdeling), ftf, herhaal en waard
     interventies: { n: 10 },                   // h1-h5, h7-h11 (h6 en h12 zijn installaties, h13 geannuleerd)
     gemDuurMin: { waarde: 93.3, n: 9 },        // 840 min over 9 betrouwbare duren (h8 = 23u59 valt weg; h7 telt 240)
     opTijd: { pct: 70, n: 10, teVroeg: 2, opTijd: 7, teLaat: 1 }, // h5 en h10 zonder slot/aankomst tellen niet mee
-    firstTimeFix: { pct: 60, n: 10 },          // h1 h3 h5 h7 h10 h11
+    firstTimeFix: { pct: 60, n: 10, ftf: 6 },          // h1 h3 h5 h7 h10 h11
     herhaalbezoeken: { aantal: 4 },            // h3 (p4), h7 (h1), h8 (h2), h10 (h5 via adres)
     onderdelenWaarde: { waarde: 545.63 },      // 16+10+442.13 (prijslijst)+12.5+8+25+8+0+24
   });
@@ -45,7 +45,7 @@ test('kern vorige: de even lange periode ervoor (23 t/m 30 september)', () => {
     interventies: { n: 7 },
     gemDuurMin: { waarde: 62.5, n: 6 },        // p8 (0 min) valt weg; 375 / 6
     opTijd: { pct: 71.4, n: 7, teVroeg: 1, opTijd: 5, teLaat: 1 }, // p7 zonder slot
-    firstTimeFix: { pct: 85.7, n: 7 },
+    firstTimeFix: { pct: 85.7, n: 7, ftf: 6 },
     herhaalbezoeken: { aantal: 2 },            // p3 (o2 buiten de periode), p7 (p1)
     onderdelenWaarde: { waarde: 52 },
   });
@@ -70,7 +70,7 @@ test('berekenKern: lege invoer geeft nullen en bewuste null-percentages, nooit N
   assert.deepEqual(k, {
     interventies: { n: 0 }, gemDuurMin: { waarde: null, n: 0 },
     opTijd: { pct: null, n: 0, teVroeg: 0, opTijd: 0, teLaat: 0 },
-    firstTimeFix: { pct: null, n: 0 }, herhaalbezoeken: { aantal: 0 }, onderdelenWaarde: { waarde: 0 },
+    firstTimeFix: { pct: null, n: 0, ftf: 0 }, herhaalbezoeken: { aantal: 0 }, onderdelenWaarde: { waarde: 0 },
   });
 });
 
@@ -90,7 +90,7 @@ test('filter technieker Tim: rapportgebonden delen veranderen, register, annulat
     interventies: { n: 4 },                    // h1 h2 h7 h10
     gemDuurMin: { waarde: 120, n: 4 },         // (60+90+240+90) / 4
     opTijd: { pct: 80, n: 5, teVroeg: 1, opTijd: 4, teLaat: 0 }, // h1 h2 h6 h7 h12
-    firstTimeFix: { pct: 75, n: 4 },
+    firstTimeFix: { pct: 75, n: 4, ftf: 3 },
     herhaalbezoeken: { aantal: 2 },            // h7 en h10; h10 vindt h5 (andere technieker) op de volledige lijst
     onderdelenWaarde: { waarde: 59 },          // 16+10+8+25
   });
