@@ -73,7 +73,7 @@ export function maakHandler({ getStore: haalStore, nu = () => Date.now(), auth }
     if (schoon.fout) return json(400, { error: schoon.fout });
 
     const r = await bewaarInstellingen(store, doelId, schoon.waarden);
-    if (voorAnder) {
+    if (voorAnder && r.gewijzigd.length > 0) {
       await logVoorVerzoek(req, gebruiker, {
         actie: 'instellingen-gewijzigd', onderwerp: doelId, details: r.gewijzigd.join(', '),
       }, { getStore: haalStore, nu });

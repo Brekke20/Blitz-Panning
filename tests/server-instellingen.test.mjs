@@ -169,6 +169,14 @@ test('planner PUT voor een technieker: 200, blob-sleutel van die technieker, pre
   assert.equal(log2[1].details, 'maxPerDag');
 });
 
+test('een PUT voor een ander zonder inhoudelijke wijziging schrijft wel maar logt niets', async () => {
+  const { h, echt } = opzet();
+  await metRol('planner', () => h(put({ gebruiker: 'u-tim', instellingen: geldig() })));
+  assert.equal((await activiteit(echt)).length, 1);
+  assert.equal((await metRol('planner', () => h(put({ gebruiker: 'u-tim', instellingen: geldig() })))).status, 200);
+  assert.equal((await activiteit(echt)).length, 1);
+});
+
 test('planner PUT voor een andere planner, een beheerder of een sales: 403; onbekend id: 404', async () => {
   const { h, echt } = opzet();
   for (const doel of ['u-pia', 'u-bea', 'u-sal']) {
