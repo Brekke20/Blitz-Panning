@@ -63,6 +63,11 @@ export function scan(bronnen) {
     for (const m of tekst.matchAll(/Object\.assign\(\s*window\s*,\s*\{([\s\S]*?)\}\s*\)/g)) {
       for (const k of m[1].matchAll(/^\s*([A-Za-z_$][\w$]*)\s*[:,]/gm)) gedefinieerd.add(k[1]);
     }
+    // Gedeeld klassiek script (pagina + service worker, bv. outbox-verzend.js uit v1.10.2): een IIFE die met `root` = globalThis
+    // wordt aangeroepen; `root.x =` is daar een globale definitie.
+    if (/\}\)\(typeof globalThis !== 'undefined' \? globalThis : self\);/.test(tekst)) {
+      for (const m of tekst.matchAll(/\broot\.([A-Za-z_$][\w$]*)\s*=(?!=)/g)) gedefinieerd.add(m[1]);
+    }
     // Een naam die in dit bestand geïmporteerd wordt (`import { x }`, `import { y as x }`) is een gewone binding, geen window-naam.
     const geimporteerd = new Set();
     for (const m of tekst.matchAll(/import\s*\{([^}]*)\}\s*from/g)) {

@@ -15,6 +15,7 @@ import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { registreerVenster } from '../venster.js';
 import { joinNL, DOELGROEP_LABEL } from './ticketdetail-logica.js';
+import { haalRapportHtml } from '../rapport-inhoud.js';
 
 // Afhankelijkheden uit rapport-archief.js (ingevuld door initRapportVerzenden): het archief (live gelezen), de archiefversie
 // en het hertekenen. Een vergeten init faalt luid.
@@ -63,7 +64,7 @@ export async function voorbeeldRapport(rapportId, btn) {
   const r = afh.rapportArchief().find(x => x.id === rapportId);
   if (!r) return toast('⚠ Rapport niet gevonden');
   if (!r.ticketId) return toast('⚠ Geen ticket gekoppeld aan dit rapport');
-  const html = r.rapportData?._html;
+  const html = await haalRapportHtml(r); // inline _html (oude entries) of apart opgehaald (v1.10.2)
   if (!html) return toast('⚠ Geen opgeslagen rapport-inhoud om te versturen');
 
   const mySeq = ++_previewSeq;
@@ -118,7 +119,7 @@ export async function verstuurRapport(rapportId, btn) {
   const r = afh.rapportArchief().find(x => x.id === rapportId);
   if (!r) return toast('⚠ Rapport niet gevonden');
   if (!r.ticketId) return toast('⚠ Geen ticket gekoppeld aan dit rapport');
-  const html = r.rapportData?._html;
+  const html = await haalRapportHtml(r); // inline _html (oude entries) of apart opgehaald (v1.10.2)
   if (!html) return toast('⚠ Geen opgeslagen rapport-inhoud om te versturen');
 
   if (TEST_MODE) {

@@ -1,15 +1,23 @@
 // public/js/outbox.js
-// Lokale IndexedDB-wachtrij voor rapport-verzending (archiveren + Zoho-upload), met retry-logica
+// Lokale IndexedDB-wachtrij voor rapport-verzending (één stap: POST /api/rapport-ontvangen; de
+// server archiveert en stuurt daarna zelf op de achtergrond naar Zoho), met retry-logica
 // bij offline/mislukte pogingen. Zie docs/superpowers/specs/2026-08-11-rapport-verzend-betrouwbaarheid-design.md
 // voor de achtergrond van dit ontwerp.
 import { TEST_MODE } from './kern/omgeving.js';
 import { meervoud } from './schermen/ticketdetail-logica.js';
 import { escHtml } from './kern/ui.js';
-import { zetArchiefVersie } from './rapport-archief.js';
+import { TEST_UPLOAD } from './test-upload.js';
+import { registreerAchtergrondVerzending } from './outbox-sync.js';
+// Opslag en verzending zitten in het gedeelde klassieke script public/js/outbox-verzend.js (ook gebruikt door de
+// service worker via importScripts). Het heeft geen import/export en zet bij het laden globalThis.outboxVerzend; als
+// side-effect-import hier staat het vast in de modulegraaf (geen afhankelijkheid van de volgorde van script-tags).
+import './outbox-verzend.js';
 
-export const OUTBOX_DB_NAME    = 'blitz-rapport-outbox';
-export const OUTBOX_DB_VERSION = 1;
-export const OUTBOX_STORE      = 'items';
+const V = globalThis.outboxVerzend;
+
+export const OUTBOX_DB_NAME    = V.OUTBOX_DB_NAME;
+export const OUTBOX_DB_VERSION = V.OUTBOX_DB_VERSION;
+export const OUTBOX_STORE      = V.OUTBOX_STORE;
 export let _outboxItems = [];
 
 // Permanente window-bridge: rapport-archief.js's renderRapportArchief() leest dit array
@@ -22,81 +30,19 @@ Object.defineProperty(window, '_outboxItems', {
   configurable: true,
 });
 
-export function outboxOpenDb() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(OUTBOX_DB_NAME, OUTBOX_DB_VERSION);
-    req.onupgradeneeded = () => {
-      req.result.createObjectStore(OUTBOX_STORE, { keyPath: 'id' });
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror   = () => reject(req.error);
-  });
-}
+export const outboxOpenDb = () => V.openDb();
+export const outboxAdd    = (item) => V.put(item);
+export const outboxPut    = outboxAdd; // put() op een keyPath-store is ook een upsert
+export const outboxGetAll = () => V.getAll();
+export const outboxRemove = (id) => V.remove(id);
 
-export async function outboxAdd(item) {
-  const db = await outboxOpenDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(OUTBOX_STORE, 'readwrite');
-    tx.objectStore(OUTBOX_STORE).put(item);
-    tx.oncomplete = () => { db.close(); resolve(); };
-    tx.onerror    = () => { db.close(); reject(tx.error); };
-  });
-}
+// Pure functie — geen I/O — bepaalt of een wachtrij-item nog naar de server moet ('ontvangen')
+// of al ontvangen is ('done').
+export const nextOutboxAction = V.nextAction;
 
-export const outboxPut = outboxAdd; // put() op een keyPath-store is ook een upsert
-
-export async function outboxGetAll() {
-  const db = await outboxOpenDb();
-  return new Promise((resolve, reject) => {
-    const tx  = db.transaction(OUTBOX_STORE, 'readonly');
-    const req = tx.objectStore(OUTBOX_STORE).getAll();
-    req.onsuccess = () => { db.close(); resolve(req.result || []); };
-    req.onerror   = () => { db.close(); reject(req.error); };
-  });
-}
-
-export async function outboxRemove(id) {
-  const db = await outboxOpenDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(OUTBOX_STORE, 'readwrite');
-    tx.objectStore(OUTBOX_STORE).delete(id);
-    tx.oncomplete = () => { db.close(); resolve(); };
-    tx.onerror    = () => { db.close(); reject(tx.error); };
-  });
-}
-
-// Pure functie — geen I/O — bepaalt welke stap van een wachtrij-item nog moet gebeuren.
-export function nextOutboxAction(item) {
-  if (!item.archived) return 'archive';
-  if (item.isLocal)   return 'done';
-  if (!item.zohoUploaded) return 'check-zoho';
-  return 'done';
-}
-
-// (T20) Per-stap client-timeout: zonder AbortController wachtte de client onbeperkt op een
-// hangende fetch (zie docs/reviews/2026-09-22-outbox-onderzoek.md, punt 4). De timeouts hieronder
-// liggen royaal boven het server-side 26s-maximum (netlify.toml, [functions.rapport] timeout = 26)
-// zodat dit enkel een volledig hangende verbinding opvangt, niet legitiem trage serververwerking.
-//
-// (Fix-ronde 1, punt 1b) itemId (optioneel) registreert de AbortController van de op dit moment
-// ECHT lopende fetch voor dat wachtrij-item in _outboxAbortControllers, zodat outboxCancelItem()
-// die controller kan opzoeken en meteen kan aborten i.p.v. te wachten tot de volledige (tot 120s
-// lange) timeout verstreken is. Enkel de laatst geregistreerde controller voor een id wordt bij
-// afronding verwijderd (de `=== ctrl`-check) -- puur defensief, want de 4 fetches per item lopen
-// in de praktijk altijd sequentieel/awaited, nooit gelijktijdig.
-const _outboxAbortControllers = new Map(); // id -> AbortController van de lopende fetch voor dat item
-
-async function fetchWithTimeout(url, opts, timeoutMs, itemId) {
-  const ctrl  = new AbortController();
-  if (itemId) _outboxAbortControllers.set(itemId, ctrl);
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...opts, signal: ctrl.signal });
-  } finally {
-    clearTimeout(timer);
-    if (itemId && _outboxAbortControllers.get(itemId) === ctrl) _outboxAbortControllers.delete(itemId);
-  }
-}
+// Registreert de AbortController van de op dit moment lopende verzending per wachtrij-item, zodat
+// outboxCancelItem() die meteen kan aborten i.p.v. de volledige time-out af te wachten.
+const _outboxAbortControllers = new Map(); // id -> AbortController van de lopende verzending
 
 // (T20) Exponentiële backoff tussen AUTOMATISCHE pogingen binnen één sessie. In-memory (geen
 // IndexedDB), dus reset bij een paginaherlaad -- dat is bewust: een verse pagina-load mag altijd
@@ -109,14 +55,9 @@ export async function refreshOutboxCache() {
   renderOutboxBanner();
 }
 
-// (T20) 2 zichtbare stappen, niet 3: zodra de Zoho-upload lukt zet attemptOutboxItem()
-// meteen item.zohoUploaded = true en de daaropvolgende recursieve aanroep ziet via
-// nextOutboxAction() onmiddellijk 'done' -- de archief-bevestigingscall gebeurt daartussen
-// wel, maar zonder eigen persistente/zichtbare toestand (zie task-20-brief.md, "Huidig gedrag").
+// Eén stap: het rapport naar de server sturen. Alles daarna (archief, Zoho) doet de server zelf.
 export function outboxStepLabel(item) {
-  if (!item.archived) return 'Archiveren (1/2)';
-  if (!item.isLocal && !item.zohoUploaded) return 'PDF naar Zoho versturen (2/2)';
-  return 'Bijna klaar...';
+  return 'Wordt verstuurd…';
 }
 
 // Samenvatting voor schermlezers (#outbox-live): alleen bij een wijziging van de samenvatting
@@ -142,9 +83,7 @@ export function renderOutboxBanner() {
   const banner = document.getElementById('outbox-banner');
   werkOutboxLiveBij();
   if (!_outboxItems.length) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
-  const offlineBanner  = document.getElementById('offline-banner');
-  const offlineVisible = offlineBanner && getComputedStyle(offlineBanner).display !== 'none';
-  banner.style.top = offlineVisible ? `${92 + offlineBanner.offsetHeight}px` : '92px';
+  // top komt uit app.css (kop-hoogte + offline-balk via --offline-h); geen vaste 92px meer
   // escHtml op alle vrije tekst (ticketnummer, foutmelding) -- die komen respectievelijk uit
   // Zoho-ticketdata en uit fetch-foutmeldingen, geen van beide vertrouwd/gegarandeerd veilig.
   // (M6) data-id-attributen + addEventListener na render, i.p.v. een in de HTML-string
@@ -172,59 +111,21 @@ export function renderOutboxBanner() {
   }));
 }
 
-// (T20) "Annuleren" -- de waarschuwing verschilt naargelang het item al gearchiveerd is: vóór
-// die stap gaat het rapport volledig verloren (nergens bewaard), erna blijft het bewaard in het
-// archief maar gemarkeerd als niet verzonden (zie ook renderRapportArchief in rapport-archief.js).
+// (T20) "Annuleren" -- een item in de wachtrij is nog nergens op de server bewaard, dus het
+// rapport gaat volledig verloren (er is geen archief-kopie meer om te bewaren).
 export async function outboxCancelItem(id) {
   const item = _outboxItems.find(i => i.id === id);
   if (!item) return;
-  // De confirm-tekst is een momentopname van vóór het aborten hieronder -- gebaseerd op de
-  // stap waarin de technieker het item ZAG staan toen die op "Annuleren" klikte.
-  const msg = item.archived
-    ? 'Dit rapport wordt NIET naar Zoho verstuurd. Het blijft wel bewaard in het archief, gemarkeerd als "niet verzonden". Doorgaan?'
-    : 'Dit rapport gaat volledig verloren — het is nog nergens bewaard. Doorgaan?';
-  if (!confirm(msg)) return;
+  if (!confirm('Dit rapport gaat volledig verloren — het is nog niet naar de server verstuurd. Doorgaan?')) return;
 
-  // (Fix-ronde 1, punt 1b) Breek een eventueel op dit moment lopende poging voor dit item af
-  // (bv. de Zoho-upload-fetch) en wacht die af vóórdat we zelf iets schrijven/verwijderen.
-  // Zonder dit kon annuleren tijdens een net-op-tijd geslaagde upload een archief-POST met
-  // geannuleerd:true + zohoUploaded:false versturen terwijl rapport.js vlak erna (via
-  // markeerUpgeload) zohoUploaded:true zou zetten -- de labels raakten dan uit sync (zie
-  // rapport.js/pasMarkeringToe() en rapport-archief.js voor de server-side helft van deze fix).
-  // Een fetch-abort garandeert niet dat de SERVER zelf stopt met verwerken (die kan de upload al
-  // ontvangen/gestart hebben) -- dat resterende gaatje is bewust aanvaard en wordt afgedekt door
-  // de server-side geannuleerd:false-regels, niet hier.
+  // Breek een eventueel op dit moment lopende poging voor dit item af en wacht die af vóórdat
+  // we zelf iets verwijderen. Een fetch-abort garandeert niet dat de SERVER stopt met verwerken
+  // (die kan het rapport al ontvangen hebben) -- de server is idempotent op het item-id, dus een
+  // dergelijk rapport verschijnt dan gewoon in het archief; dat gaatje is bewust aanvaard.
   _outboxAbortControllers.get(id)?.abort();
   const lopendePoging = _outboxInFlightPromises.get(id);
   if (lopendePoging) { try { await lopendePoging; } catch { /* de afgebroken poging faalt gewoon af, negeren */ } }
 
-  // Na het afwachten opnieuw uit IndexedDB lezen: de zonet afgeronde (of net vóór de abort al
-  // voltooide) poging kan het record gewijzigd of zelfs al verwijderd hebben (bv. een upload die
-  // ondanks de abort toch op tijd doorkwam en de volledige 'done'-flow al doorliep, inclusief een
-  // eigen outboxRemove()). De `item`-variabele hierboven is een momentopname van vóór het
-  // afwachten en kan dus verouderd zijn.
-  const fresh = (await outboxGetAll()).find(i => i.id === id);
-  if (!fresh) {
-    // Item bestaat niet meer -- de lopende poging is zelf al succesvol afgerond en verwijderd.
-    // Niets meer te annuleren.
-    await refreshOutboxCache();
-    renderRapportArchief();
-    return;
-  }
-
-  if (fresh.archived) {
-    // Best-effort: de archief-kopie markeren als geannuleerd/niet verzonden. Lukt dit niet
-    // (offline, server-fout), dan verwijderen we het item hieronder alsnog uit de lokale
-    // wachtrij — annuleren moet altijd werken, ook offline; de archief-markering is een
-    // bijkomend gemak, geen harde voorwaarde.
-    try {
-      await fetchWithTimeout('/api/rapport-archief', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ ...fresh.archiveBody, id: fresh.id, zohoUploaded: fresh.zohoUploaded || false, geannuleerd: true }),
-      }, 60000);
-    } catch { /* best-effort, zie hierboven */ }
-  }
   _outboxNextAttempt.delete(id);
   await outboxRemove(id);
   await refreshOutboxCache();
@@ -237,27 +138,11 @@ export async function outboxRetryNow(id) {
   const item = _outboxItems.find(i => i.id === id);
   if (!item) return;
   _outboxNextAttempt.delete(id);
+  // Ook als de app sluit tijdens deze poging (niet afgewacht); niet in pure testmodus (die verstuurt niets).
+  if (!TEST_MODE || TEST_UPLOAD) registreerAchtergrondVerzending();
   await runOutboxItem(item);
   await refreshOutboxCache();
   renderRapportArchief();
-}
-
-// (Fix-ronde 2, punt 2) Een 409 "al bezig in een ander venster" (server-side in-flight-
-// reservering, zie rapport.js) is een BENIGNE, verwachte wachttoestand -- geen echte fout: een
-// andere sessie/tab is gewoon nog bezig met exact hetzelfde rapport. We tonen dit wel via
-// item.lastError (dezelfde banner-weergave als een echte fout) en passen dezelfde backoff toe,
-// maar tellen het niet bij élke herhaalde 409 opnieuw mee in item.attempts -- anders zou het
-// balkje bij een lang wachtende andere sessie een steeds oplopend "poging N" tonen alsof er
-// iets misloopt, terwijl het gewoon normaal aan het wachten is. Wél één keer meegeteld (bij de
-// eerste 409 voor dit item) zodat er zichtbaar íets gebeurd is. Geen /api/client-log-melding --
-// dit is geen fout om te diagnosticeren.
-async function logOutboxWait(item, fout) {
-  if (item.lastError !== fout) {
-    item.attempts = (item.attempts || 0) + 1;
-  }
-  item.lastError = fout;
-  _outboxNextAttempt.set(item.id, Date.now() + OUTBOX_BACKOFF_MS[Math.min(Math.max(item.attempts, 1) - 1, OUTBOX_BACKOFF_MS.length - 1)]);
-  try { await outboxPut(item); } catch { /* best-effort */ }
 }
 
 // Toont bekende technische serverfouten als mensentaal. Enkel weergave: item.lastError blijft ongewijzigd.
@@ -291,125 +176,57 @@ export async function logOutboxFailure(item, stap, fout) {
 }
 
 export async function attemptOutboxItem(item) {
-  // Testmodus (?test, ook op de live site): nooit iets naar de server sturen. Het item blijft
-  // met een duidelijke melding in de wachtrij; de bestaande backoff voorkomt dat flushOutbox
-  // het bij elke trigger opnieuw probeert.
-  if (TEST_MODE) {
+  // Testmodus (?test, ook op de live site): nooit iets naar de server sturen, tenzij de opt-in
+  // ?test&upload actief is en het item zelf in testmodus is aangemaakt (item.testModus === true;
+  // dan gaat het naar de testopslag, nooit naar Zoho). Echte wachtende items blijven staan. Het
+  // item blijft met een duidelijke melding in de wachtrij; de bestaande backoff voorkomt dat
+  // flushOutbox het bij elke trigger opnieuw probeert.
+  if (!V.magVerzenden(item, TEST_MODE, TEST_UPLOAD)) {
     item.lastError = 'Testmodus — niet verzonden';
     _outboxNextAttempt.set(item.id, Date.now() + OUTBOX_BACKOFF_MS[OUTBOX_BACKOFF_MS.length - 1]);
     try { await outboxPut(item); } catch { /* best-effort */ }
     return item;
   }
-  const action = nextOutboxAction(item);
 
-  if (action === 'archive') {
-    try {
-      const res  = await fetchWithTimeout('/api/rapport-archief', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ ...item.archiveBody, id: item.id }),
-      }, 60000, item.id);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || String(res.status));
-      item.archived = true;
-      await outboxPut(item);
-      // Houd de globale archief-versie synchroon — verwijderRapport()/verstuurRapport()
-      // gebruiken _archiefVersie voor hun eigen optimistic-lock en zouden anders een
-      // vals-positief conflict kunnen krijgen na een outbox-archivering.
-      if (typeof data.versie === 'number') zetArchiefVersie(data.versie);
-    } catch (err) {
-      const msg = err.name === 'AbortError' ? 'Geen antwoord van de server (time-out)' : err.message;
-      await logOutboxFailure(item, 'archiveren', msg);
-      return item;
-    }
-    return attemptOutboxItem(item);
+  // Al door de server ontvangen (verwijderen na een eerdere geslaagde verzending mislukte):
+  // enkel nog opruimen.
+  if (nextOutboxAction(item) === 'done') {
+    await outboxRemove(item.id);
+    return item;
   }
 
-  if (action === 'check-zoho') {
-    let alreadyDone = false;
-    try {
-      const res  = await fetchWithTimeout(`/api/rapport-archief?id=${encodeURIComponent(item.id)}`, {}, 30000, item.id);
-      const data = await res.json();
-      alreadyDone = data?.rapport?.zohoUploaded === true;
-    } catch { /* check mislukt (ook bij een time-out) — probeer de upload gewoon, geen erg bij een extra check-poging later */ }
-
-    if (alreadyDone) {
-      item.zohoUploaded = true;
-      await outboxPut(item);
-      return attemptOutboxItem(item);
-    }
-
-    try {
-      // (T20) verzendId = item.id -- al een stabiele UUID sinds Task 1 (keyPath van de
-      // IndexedDB-store, dus gegarandeerd aanwezig op elk item, ook op een outbox-item dat al
-      // van vóór deze release in de wachtrij van een technieker staat). Dient server-side
-      // (rapport.js) als idempotentiesleutel tegen een dubbele Zoho-bijlage.
-      const res  = await fetchWithTimeout('/api/rapport', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ html: item.html, ticketId: item.ticket.id, filename: item.ticket.filename, verzendId: item.id }),
-      }, 120000, item.id);
-      const data = await res.json().catch(() => ({}));
-      // (Fix-ronde 2, punt 2) Server-side in-flight-reservering: een andere sessie/tab is al
-      // bezig met exact hetzelfde rapport (zelfde verzendId). Geen echte fout -- gewoon wachten
-      // en later opnieuw proberen (normale backoff, zie logOutboxWait hierboven).
-      if (res.status === 409 && data?.inProgress) {
-        await logOutboxWait(item, 'Verzending is al bezig in een ander venster — even wachten');
-        return item;
-      }
-      if (!res.ok) throw new Error(data.error || 'Upload mislukt');
-
-      // De Zoho-upload zelf is gelukt — dit ONMIDDELLIJK lokaal vastleggen, nog
-      // vóór de bevestigings-call hieronder. Zo herhaalt een latere mislukte
-      // confirm-call nooit de upload zelf (dat zou de PDF een tweede keer aan
-      // hetzelfde ticket hangen — precies wat deze functie moet voorkomen).
-      item.zohoUploaded = true;
-      await outboxPut(item);
-    } catch (err) {
-      // Let op: een AbortError hier betekent NIET noodzakelijk dat de upload zelf mislukte —
-      // de server kan de Zoho-upload alsnog voltooien terwijl de client al opgaf op de
-      // time-out. Precies dat scenario dekt de server-side verzendId-idempotentie (rapport.js)
-      // af: een volgende poging met hetzelfde item.id/verzendId hangt dan geen tweede PDF aan.
-      const msg = err.name === 'AbortError' ? 'Geen antwoord van de server (time-out)' : err.message;
-      await logOutboxFailure(item, 'zoho-upload', msg);
-      return item;
-    }
-
-    // Archief-bevestiging is best-effort: mislukt ze, dan blijft de server-side
-    // zohoUploaded-vlag mogelijk (stil) false — aanvaardbaar, want dit item wordt
-    // sowieso niet opnieuw geprobeerd (lokaal al als geüpload gemarkeerd), dus er
-    // is geen risico meer op een dubbele upload. Enkel diagnostisch loggen.
-    try {
-      const confirmRes  = await fetchWithTimeout('/api/rapport-archief', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ ...item.archiveBody, id: item.id, zohoUploaded: true }),
-      }, 60000, item.id);
-      const confirmData = await confirmRes.json().catch(() => ({}));
-      if (!confirmRes.ok) throw new Error('Bevestigen van Zoho-upload in archief mislukt');
-      if (typeof confirmData.versie === 'number') zetArchiefVersie(confirmData.versie);
-    } catch (err) {
-      const msg = err.name === 'AbortError' ? 'Geen antwoord van de server (time-out)' : err.message;
-      await logOutboxFailure(item, 'zoho-confirm', msg);
-    }
-    return attemptOutboxItem(item);
+  const ctrl = new AbortController();
+  _outboxAbortControllers.set(item.id, ctrl);
+  let uitkomst;
+  try {
+    uitkomst = await V.metSlot(item.id, () => V.verzendItem(item, { fetch: window.fetch.bind(window), signal: ctrl.signal }));
+  } finally {
+    if (_outboxAbortControllers.get(item.id) === ctrl) _outboxAbortControllers.delete(item.id);
   }
+  // Een andere context (bv. de service worker) is dit item al aan het versturen.
+  if (!uitkomst.uitgevoerd) return item;
 
-  // action === 'done'
-  await outboxRemove(item.id);
+  const res = uitkomst.waarde;
+  if (res.ok) {
+    item.ontvangen = true;
+    await outboxRemove(item.id);
+    return item;
+  }
+  // Door de gebruiker geannuleerd: outboxCancelItem ruimt het item zelf op.
+  if (res.afgebroken) return item;
+  await logOutboxFailure(item, 'ontvangen', res.fout);
   return item;
 }
 
 // Beschermt tegen twee gelijktijdige attemptOutboxItem-pogingen voor hetzelfde item —
 // bv. de achtergrond-poging na printRapport()'s 5s-timeout en een onafhankelijke
 // flushOutbox() (page load / online / visibilitychange / banner-klik) die op hetzelfde
-// item botsen. Zonder deze guard konden beide onafhankelijk de check-zoho-stap bereiken
-// en dus tweemaal naar Zoho uploaden.
+// item botsen. (De server is idempotent op het item-id; deze guard voorkomt enkel dubbel werk.)
 export const _outboxInFlight = new Set();
 
 // (Fix-ronde 1, punt 1b) id -> Promise van de op dit moment lopende runOutboxItem()-aanroep.
 // outboxCancelItem() wacht dit af NA het aborten (zie _outboxAbortControllers hierboven), zodat
-// de afgebroken/afgeronde poging haar catch-afhandeling (logOutboxFailure/outboxPut) volledig
+// de afgebroken/afgeronde poging haar afhandeling (logOutboxFailure/outboxPut) volledig
 // heeft doorlopen vóór annuleren zelf het IndexedDB-record leest/verwijdert -- anders zouden
 // beide gelijktijdig op hetzelfde record kunnen schrijven.
 const _outboxInFlightPromises = new Map();
@@ -421,9 +238,8 @@ export function runOutboxItem(item) {
     // Vers herlezen uit IndexedDB: de in-flight-Set beschermt enkel tegen twee
     // gelijktijdige doorlopen, niet tegen een doorloop die met een verouderde
     // momentopname (uit een eerdere outboxGetAll) blijft wachten tot het slot
-    // vrijkomt. Zonder deze hercontrole zou zo'n stale kopie (met bv. nog
-    // zohoUploaded:false) na afloop van een geslaagde doorloop alsnog opnieuw
-    // naar Zoho uploaden — precies de dubbele bijlage die we willen vermijden.
+    // vrijkomt. Zonder deze hercontrole zou zo'n stale kopie na afloop van een geslaagde
+    // doorloop het rapport alsnog opnieuw versturen.
     const fresh = (await outboxGetAll()).find(i => i.id === item.id);
     if (!fresh) return item; // al verwijderd door een andere doorloop — klaar, niets meer te doen
     return await attemptOutboxItem(fresh);

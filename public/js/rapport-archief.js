@@ -9,6 +9,8 @@ import { renderKalender } from './schermen/kalender.js';
 import { voorbeeldRapport } from './schermen/rapport-verzenden.js';
 import { fmtDate } from './kern/tijd.js';
 import { escHtml, toast } from './kern/ui.js';
+import { heeftRapportInhoud, haalRapportHtml } from './rapport-inhoud.js';
+import { statusBadgeHtml, opnieuwKnopHtml, opnieuwVersturen, toonMisluktMeldingen } from './rapport-status.js';
 
 export let _rapportArchief = [];
 // null = archief nog niet geladen deze sessie (bv. rapport gesloten zonder ooit het
@@ -37,6 +39,7 @@ export async function laadRapportArchief() {
     const render = () => { renderRapportArchief(); renderKalender(); };
     // Scrollpositie behouden (her-render tijdens sync); metBehoudScroll komt uit kern/ui.js.
     metBehoudScroll(render);
+    toonMisluktMeldingen(_rapportArchief); // eenmalig per paginasessie, enkel technieker met persoon gekozen
   } catch (err) {
     body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">✕ Laden mislukt: ${foutTekst(err)}</div>`;
   }
@@ -133,14 +136,15 @@ export function renderRapportArchief() {
           <span style="font-size:0.72rem;color:var(--muted)">${datumStr}</span>
           ${r.technieker ? `<span class="atag">${escHtml(r.technieker)}</span>` : ''}
           ${stBadge}
-          ${hersteld} ${nieuw} ${inWachtrij}
+          ${hersteld} ${nieuw} ${inWachtrij} ${statusBadgeHtml(r)}
           ${prijsHtml}
         </div>
         ${r.klant ? `<div class="tsub">${escHtml(r.klant)}</div>` : ''}
         ${r.adres ? `<div class="taddr ok">${escHtml(r.adres)}</div>` : ''}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center">
-          ${rd._html ? `<button class="cal-btn" data-actie="rapport-open" data-arg="${origIdx}">📄 Openen</button>` : ''}
-          ${(rapportId && rd._html && r.ticketId) ? `<button class="cal-btn btn-verstuur-rapport" data-rapport-id="${escHtml(rapportId)}" title="${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? 'Al verzonden op ' + escHtml(fmtDate(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur)) + ' — opnieuw versturen?' : ''}">${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? '✓ Verzonden' : '✉️ Verstuur rapport'}</button>` : ''}
+          ${heeftRapportInhoud(r) ? `<button class="cal-btn" data-actie="rapport-open" data-arg="${origIdx}">📄 Openen</button>` : ''}
+          ${opnieuwKnopHtml(r)}
+          ${(rapportId && heeftRapportInhoud(r) && r.ticketId) ? `<button class="cal-btn btn-verstuur-rapport" data-rapport-id="${escHtml(rapportId)}" title="${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? 'Al verzonden op ' + escHtml(fmtDate(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur)) + ' — opnieuw versturen?' : ''}">${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? '✓ Verzonden' : '✉️ Verstuur rapport'}</button>` : ''}
           ${rapportId ? `<button class="cal-btn btn-verwijder-rapport" style="color:var(--red);border-color:var(--red)" data-rapport-id="${escHtml(rapportId)}" data-ticket-ref="${escHtml(r.ticketNumber||r.ticketId||'?')}" data-datum="${escHtml(datumStr)}">🗑 Verwijderen</button>` : ''}
         </div>
       </div>
@@ -154,6 +158,16 @@ export function renderRapportArchief() {
   // de .btn-navigeer-knoppen).
   body.querySelectorAll('.btn-verstuur-rapport').forEach(btn => {
     btn.addEventListener('click', () => voorbeeldRapport(btn.dataset.rapportId || '', btn));
+  });
+
+  body.querySelectorAll('.btn-opnieuw-rapport').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      const uit = await opnieuwVersturen(btn.dataset.rapportId || '');
+      if (uit.ok) toast('↻ Rapport wordt opnieuw verstuurd');
+      else toast('✕ Opnieuw versturen mislukt: ' + uit.fout);
+      await laadRapportArchief();
+    });
   });
 
   body.querySelectorAll('.btn-verwijder-rapport').forEach(btn => {
@@ -188,9 +202,9 @@ export async function verwijderRapport(id, ticketRef, datumStr) {
   }
 }
 
-export function herOpenRapport(idx) {
+export async function herOpenRapport(idx) {
   const r = _rapportArchief[idx];
-  if (!r?.rapportData?._html) return toast('Geen opgeslagen HTML beschikbaar');
+  if (!heeftRapportInhoud(r)) return toast('Geen opgeslagen HTML beschikbaar');
   // rapportData._html komt uit de niet-geauthenticeerde rapport-archief blob. Een blob:-URL
   // erft de origin van deze app, dus script in die opgeslagen HTML zou met volledige
   // app-rechten lopen (localStorage, /api/*, ...). Daarom niet meer als top-level document
@@ -198,8 +212,15 @@ export function herOpenRapport(idx) {
   // staat er alleen bij om de inhoudshoogte te kunnen meten (zie hieronder); zonder
   // allow-scripts kan die origin niet misbruikt worden en draait er geen enkel script —
   // ook niet in geneste iframes, want sandbox-flags worden geërfd.
+  // window.open moet synchroon als eerste gebeuren (pop-upblokkering); de HTML kan daarna pas
+  // opgehaald worden (nieuwe rapporten bewaren die apart op de server).
   const win = window.open('', '_blank');
   if (!win) return toast('Het PDF-venster werd geblokkeerd. Sta pop-ups toe om de PDF te zien.');
+  const html = await haalRapportHtml(r);
+  if (html === null) {
+    win.close();
+    return toast('Geen opgeslagen HTML beschikbaar');
+  }
   win.document.write(
     '<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8">' +
     '<title>Service rapport</title>' +
@@ -218,7 +239,7 @@ export function herOpenRapport(idx) {
     } catch { /* hoogte niet meetbaar → viewporthoogte met eigen scrollbar blijft staan */ }
   });
   win.document.body.appendChild(frame);
-  frame.srcdoc = r.rapportData._html;
+  frame.srcdoc = html;
 }
 
 // "Openen"-knop op de archiefkaarten: één delegatie op de pagina (data-actie); de knoppen worden bij elke render opnieuw opgebouwd.
