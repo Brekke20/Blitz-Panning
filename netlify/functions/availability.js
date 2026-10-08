@@ -4,6 +4,7 @@
 
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
+import { beveiligV2 } from '../lib/beveiligd.js';
 
 const BLOB_KEY    = 'availability';
 const ALLOWED_ORIGINS = [
@@ -24,7 +25,7 @@ function corsHeaders(req) {
   };
 }
 
-export default async (req, context) => {
+const kern = async (req, context, gebruiker) => {
   const hdrs = corsHeaders(req);
 
   // Preflight
@@ -114,5 +115,7 @@ export default async (req, context) => {
 
   return new Response('Method Not Allowed', { status: 405, headers: hdrs });
 };
+
+export default beveiligV2('availability', kern);
 
 export const config = { path: '/api/availability' };

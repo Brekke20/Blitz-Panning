@@ -7,6 +7,7 @@
 
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
+import { beveiligV2 } from '../lib/beveiligd.js';
 
 const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
@@ -29,7 +30,7 @@ function corsHeaders(req) {
 
 function blobKey(ticketId) { return `foto-${ticketId}`; }
 
-export default async (req) => {
+const kern = async (req, context, gebruiker) => {
   const hdrs  = corsHeaders(req);
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: hdrs });
 
@@ -114,5 +115,7 @@ export default async (req) => {
 
   return new Response('Method Not Allowed', { status: 405, headers: hdrs });
 };
+
+export default beveiligV2('fotos', kern);
 
 export const config = { path: '/api/fotos' };

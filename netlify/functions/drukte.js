@@ -36,6 +36,7 @@
 // ongeacht welke aanvraag gebruikt werd.
 
 import { CORS_V1, v1Json, v1Opties } from '../lib/http.js';
+import { beveiligV1 } from '../lib/beveiligd.js';
 
 const TOMTOM_BASE = 'https://api.tomtom.com';
 const API_KEY = () => process.env.TOMTOM_API_KEY;
@@ -172,7 +173,7 @@ function bouwSupportingPoints(polyline, chunk) {
   return indices.map(i => ({ latitude: polyline[i][0], longitude: polyline[i][1] }));
 }
 
-export async function handler(event) {
+async function kern(event, context, gebruiker) {
   const headers = CORS_V1;
 
   if (event.httpMethod === 'OPTIONS') return v1Opties(headers);
@@ -305,3 +306,5 @@ export async function handler(event) {
     return v1Json(500, { error: err.message }, headers);
   }
 }
+
+export const handler = beveiligV1('drukte', kern);

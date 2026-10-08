@@ -6,13 +6,14 @@
 import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
 import { maakZoho } from '../lib/zoho.js';
 import { maakCors, v2Json, v2Methode } from '../lib/http.js';
+import { beveiligV2 } from '../lib/beveiligd.js';
 
 // Instantie op moduleniveau: de tokencache (55 min) leeft zolang de functie warm is.
 const zoho = maakZoho();
 
 const CORS = maakCors({ methoden: 'POST, OPTIONS', headers: 'Content-Type' });
 
-export default async (req, context) => {
+const kern = async (req, context, gebruiker) => {
   const methode = v2Methode(req, ['POST'], CORS);
   if (methode) return methode;
 
@@ -49,5 +50,7 @@ export default async (req, context) => {
     return v2Json(500, { error: err.message }, CORS);
   }
 };
+
+export default beveiligV2('plan-datum', kern);
 
 export const config = { path: '/api/plan-datum' };

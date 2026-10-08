@@ -3,8 +3,9 @@
 // de rest van dat item (o.a. de mogelijk grote rapportData._html) opnieuw te versturen.
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
+import { beveiligV2 } from '../lib/beveiligd.js';
 
-export default async (req, context) => {
+const kern = async (req, context, gebruiker) => {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers });
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405, headers });
@@ -34,5 +35,7 @@ export default async (req, context) => {
   await store.setJSON('rapportlijst', nieuw);
   return new Response(JSON.stringify({ ok: true, versie: nieuw.versie }), { status: 200, headers });
 };
+
+export default beveiligV2('rapport-verzonden', kern);
 
 export const config = { path: '/api/rapport-verzonden' };

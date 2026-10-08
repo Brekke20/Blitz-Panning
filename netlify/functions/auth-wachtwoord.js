@@ -10,7 +10,7 @@ import { leesGebruikers, wijzigGebruikers } from '../lib/gebruikers.js';
 import { reserveerPoging, wisPoging } from '../lib/login-poging.js';
 import { serieelGebruikers } from '../lib/herstel.js';
 import { logActiviteit } from '../lib/activiteit.js';
-import { authJson, authStore, nieuweSessieCookie, OPSLAG_STORING } from '../lib/auth-antwoord.js';
+import { authJson, authOpties, authStore, nieuweSessieCookie, OPSLAG_STORING } from '../lib/auth-antwoord.js';
 
 const VERGRENDELD_TEKST = 'Te veel mislukte pogingen. Probeer het later opnieuw.';
 
@@ -19,6 +19,7 @@ const vergrendeld = tot => authJson(429, { error: VERGRENDELD_TEKST, opnieuwOp: 
 // `verifieer` is een testseam (telt de scrypt-uitvoeringen).
 export function maakHandler({ getStore: haalStore, env = process.env, nu = () => Date.now(), auth, verifieer = verifieerWachtwoord } = {}) {
   const kern = async (req, _context, gebruiker) => {
+    if (req.method === 'OPTIONS') return authOpties(); // de wrapper laat OPTIONS door (rij zonder jokerregel)
     let body;
     try { body = await req.json(); } catch { return authJson(400, { error: 'Ongeldige JSON' }); }
     if (!body || typeof body !== 'object' || Array.isArray(body)

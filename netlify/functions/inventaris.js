@@ -8,6 +8,7 @@
 // PATCH → een 'aanvulling'-logregel op status 'verwerkt' zetten (supervisor heeft ze in AFAS geboekt)
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
+import { beveiligV2 } from '../lib/beveiligd.js';
 
 const BLOB_KEY = 'inventaris';
 const ALLOWED_ORIGINS = [
@@ -83,7 +84,7 @@ async function pruneAndGet(store) {
   return { current, error: false };
 }
 
-export default async (req) => {
+const kern = async (req, context, gebruiker) => {
   const hdrs = corsHeaders(req);
 
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: hdrs });
@@ -223,5 +224,7 @@ export default async (req) => {
 
   return json({ error: 'Method not allowed' }, 405, hdrs);
 };
+
+export default beveiligV2('inventaris', kern);
 
 export const config = { path: '/api/inventaris' };

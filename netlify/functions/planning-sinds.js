@@ -8,6 +8,7 @@ import { isTestVerzoek, winkelNaam } from '../lib/testmodus.js';
 import { berekenSinds, volgendePaginaNodig, leesRegister, schrijfRegister } from '../lib/planningsinds.js';
 import { maakZoho } from '../lib/zoho.js';
 import { maakCors, v2Json, v2Methode } from '../lib/http.js';
+import { beveiligV2 } from '../lib/beveiligd.js';
 const PAGINA_GROOTTE = 50;
 const MAX_PAGINAS    = 4;
 const MAX_NIEUW      = 20;
@@ -142,6 +143,6 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch, nu = () => Da
   };
 }
 
-export default maakHandler({ getStore, fetch: globalThis.fetch });
+export default beveiligV2('planning-sinds', maakHandler({ getStore, fetch: globalThis.fetch }));
 
 export const config = { path: '/api/planning-sinds' };

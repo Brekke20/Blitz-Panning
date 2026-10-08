@@ -11,6 +11,7 @@ import chromium from '@sparticuz/chromium-min';
 import puppeteer from 'puppeteer-core';
 import { getStore } from '@netlify/blobs';
 import { isTestVerzoek, winkelNaam, nepZohoAntwoord } from '../lib/testmodus.js';
+import { beveiligV1 } from '../lib/beveiligd.js';
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
@@ -292,7 +293,7 @@ async function getOrgId(token) {
   return orgId;
 }
 
-export async function handler(event) {
+async function kern(event, context, gebruiker) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',
@@ -446,3 +447,5 @@ export async function handler(event) {
     };
   }
 }
+
+export const handler = beveiligV1('rapport', kern);

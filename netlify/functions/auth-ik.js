@@ -9,11 +9,12 @@ import { isLokaleDev } from '../lib/lokale-dev.js';
 import { controleerToken, COOKIE_NAAM, VERLENG_ONDER_S } from '../lib/sessie-token.js';
 import { leesCookie } from '../lib/verzoek.js';
 import { leesGebruikers } from '../lib/gebruikers.js';
-import { authJson, authStore, nieuweSessieCookie } from '../lib/auth-antwoord.js';
+import { authJson, authOpties, authStore, nieuweSessieCookie } from '../lib/auth-antwoord.js';
 
 // `auth` (optioneel) vervangt de standaardcontrole van de wrapper; tests geven een eigen instantie mee.
 export function maakHandler({ getStore: haalStore, env = process.env, nu = () => Date.now(), auth } = {}) {
   const kern = async (req, _context, gebruiker) => {
+    if (req.method === 'OPTIONS') return authOpties(); // de wrapper laat OPTIONS door (rij zonder jokerregel)
     const nuMs = nu();
     const nuS = Math.floor(nuMs / 1000);
     const record = (await leesGebruikers(await authStore(haalStore))).find(g => g && g.id === gebruiker.id);

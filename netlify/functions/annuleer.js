@@ -14,6 +14,7 @@ import { maakCors, v2Json, v2Opties } from '../lib/http.js';
 import {
   REDENEN, valideerAnnulatie, valideerRedenToelichting, bouwAnnulatieMail, bouwAnnulatieNotitie, escHtml,
 } from '../lib/annulatie.js';
+import { beveiligV2 } from '../lib/beveiligd.js';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // Statussen waarin een afspraak effectief 'gepland' is (annuleren heeft dan zin).
@@ -244,6 +245,6 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
   };
 }
 
-export default maakHandler({ getStore, fetch: globalThis.fetch });
+export default beveiligV2('annuleer', maakHandler({ getStore, fetch: globalThis.fetch }));
 
 export const config = { path: '/api/annuleer' };

@@ -16,6 +16,7 @@ import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
 import { maakBevestigingsUrl } from '../lib/bevestigingslink.js';
 import { maakZoho, leesJsonVeilig } from '../lib/zoho.js';
 import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
+import { beveiligV1 } from '../lib/beveiligd.js';
 
 // De bevestigingslink wordt ondertekend via de gedeelde module bevestigingslink.js (dezelfde
 // als waarmee confirm-afspraak.js controleert), met de ontvanger (doelgroep) in de handtekening.
@@ -183,7 +184,7 @@ function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime
 </body></html>`;
 }
 
-export async function handler(event) {
+async function kern(event, context, gebruiker) {
   const methode = v1Methode(event, ['POST'], CORS_V1);
   if (methode) return methode;
 
@@ -369,3 +370,5 @@ export async function handler(event) {
     return v1Json(500, { error: err.message }, CORS_V1);
   }
 }
+
+export const handler = beveiligV1('propose', kern);

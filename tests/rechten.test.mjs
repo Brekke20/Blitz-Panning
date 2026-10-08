@@ -22,6 +22,13 @@ test('dekking: elke functie onder netlify/functions/ heeft een rij in RECHTEN', 
   assert.deepEqual(ontbreekt, []);
 });
 
+test('dekking (omgekeerd): elke sleutel van RECHTEN is een bestand in netlify/functions/', () => {
+  const functies = readdirSync(join(wortel, 'netlify', 'functions'), { withFileTypes: true })
+    .filter(d => d.isFile() && d.name.endsWith('.js'))
+    .map(d => d.name.replace(/.js$/, ''));
+  assert.deepEqual(Object.keys(RECHTEN).filter(n => !functies.includes(n)), []);
+});
+
 // ---- matrix ----
 const rollen = (naam, methode) => [B, P, T, S].filter(r => rolIsToegelaten(naam, methode, r) === true);
 const alleVier = [B, P, T, S];

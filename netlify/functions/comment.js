@@ -5,11 +5,12 @@
 import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
 import { maakZoho, leesJsonVeilig } from '../lib/zoho.js';
 import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
+import { beveiligV1 } from '../lib/beveiligd.js';
 
 // Instantie op moduleniveau: de tokencache (55 min) leeft zolang de functie warm is.
 const zoho = maakZoho({ orgFoutTekst: 'Could not find Zoho Desk org ID' });
 
-export async function handler(event) {
+async function kern(event, context, gebruiker) {
   const methode = v1Methode(event, ['POST'], CORS_V1);
   if (methode) return methode;
 
@@ -43,3 +44,5 @@ export async function handler(event) {
     return v1Json(500, { error: err.message }, CORS_V1);
   }
 }
+
+export const handler = beveiligV1('comment', kern);

@@ -143,10 +143,11 @@ test('tickets: succes, volledige aanroepenreeks en mapTicket-vorm', async () => 
   });
 });
 
-test('tickets: OPTIONS wordt niet speciaal behandeld en loopt gewoon door naar Zoho', async () => {
+// Sinds logins T10 beantwoordt de wrapper (beveiligd.js) OPTIONS op de jokerrij van tickets zelf: 204, geen Zoho-aanroepen.
+test('tickets: OPTIONS wordt door de wrapper beantwoord (204) en bereikt Zoho niet', async () => {
   const { res, calls } = await draaiTickets(v1Event('OPTIONS'), ticketsRouter({ paginas: [[]], details: {} }));
-  assert.deepEqual(calls, [TOKEN_CALL, ORG_CALL, get('/agents?limit=50'), get('/tickets?limit=100&from=0')]);
-  assert.deepEqual(ontleed(res), { status: 200, headers: CORS_V1, body: { tickets: [], pendingTickets: [], plannedTickets: [] } });
+  assert.deepEqual(calls, []);
+  assert.deepEqual({ status: res.statusCode, headers: { ...res.headers }, body: res.body }, { status: 204, headers: CORS_V1, body: undefined });
 });
 
 test('tickets: ook een POST (geen methodecontrole) loopt door naar Zoho', async () => {

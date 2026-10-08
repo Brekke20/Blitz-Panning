@@ -10,6 +10,7 @@ import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
 import { maakZoho, leesJsonVeilig } from '../lib/zoho.js';
 import { maakCors, v2Json, v2Methode } from '../lib/http.js';
 import { GELDIG_ADRES_RE, MAX_VERLOPEN_MS, KLOKMARGE_MS, BREDE_KLOKMARGE_MS, uitgaandeMails, beoordeel } from '../lib/mailcontrole.js';
+import { beveiligV2 } from '../lib/beveiligd.js';
 
 const PAGINA_GROOTTE = 100;
 const MAX_PAGINAS    = 5;
@@ -79,6 +80,6 @@ export function maakHandler({ fetch: doFetch, nu = () => Date.now() }) {
   };
 }
 
-export default maakHandler({ fetch: globalThis.fetch });
+export default beveiligV2('mail-check', maakHandler({ fetch: globalThis.fetch }));
 
 export const config = { path: '/api/mail-check' };
