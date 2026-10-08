@@ -67,6 +67,45 @@ export function valideerNieuweGebruiker(invoer) {
   return { waarden };
 }
 
+// Pure wijziging van één gebruiker (PATCH). `invoer` bevat enkel de velden die mogen veranderen
+// (naam, rol, actief, zohoNaam, salesNaam, magAlleSales); alles anders in de body wordt genegeerd.
+// Validatie hergebruikt valideerNieuweGebruiker op de samengevoegde waarden, zodat de rolvelden altijd
+// kloppen (technieker heeft een zohoNaam, sales een salesNaam) en velden van een vorige rol verdwijnen.
+// -> { fout } | { nieuw, gewijzigd: [veldnaam], blokkeert, rolWijzigt, promotie }
+// `sessieVersie` stijgt bij blokkeren en bij een rolwijziging (onmiddellijk uitloggen). `herstelcodes` blijven
+// enkel bij een beheerder bestaan; nieuwe codes bij een promotie zet de aanroeper (async hashing).
+export function pasWijzigingToe(huidig, invoer) {
+  if (!invoer || typeof invoer !== 'object') return { fout: 'Ongeldige invoer.' };
+  for (const veld of ['naam', 'rol', 'zohoNaam', 'salesNaam']) {
+    if (invoer[veld] !== undefined && typeof invoer[veld] !== 'string') return { fout: `Ongeldige waarde voor ${veld}.` };
+  }
+  for (const veld of ['actief', 'magAlleSales']) {
+    if (invoer[veld] !== undefined && typeof invoer[veld] !== 'boolean') return { fout: `Ongeldige waarde voor ${veld}.` };
+  }
+  const gekozen = (veld) => (invoer[veld] !== undefined ? invoer[veld] : huidig[veld]);
+  const v = valideerNieuweGebruiker({
+    email: 'intern@intern.test', // het e-mailadres is niet wijzigbaar: enkel een geldige plaatshouder voor de validatie
+    naam: gekozen('naam'), rol: gekozen('rol'),
+    zohoNaam: gekozen('zohoNaam'), salesNaam: gekozen('salesNaam'), magAlleSales: gekozen('magAlleSales'),
+  });
+  if (v.fout) return { fout: v.fout };
+  const { naam, rol, zohoNaam, salesNaam, magAlleSales } = v.waarden;
+  const nieuw = { ...huidig };
+  delete nieuw.zohoNaam; delete nieuw.salesNaam; delete nieuw.magAlleSales;
+  Object.assign(nieuw, { naam, rol });
+  if (zohoNaam !== undefined) nieuw.zohoNaam = zohoNaam;
+  if (salesNaam !== undefined) nieuw.salesNaam = salesNaam;
+  if (magAlleSales !== undefined) nieuw.magAlleSales = magAlleSales;
+  if (invoer.actief !== undefined) nieuw.actief = invoer.actief;
+  if (rol !== 'beheerder') delete nieuw.herstelcodes;
+  const gewijzigd = ['naam', 'rol', 'actief', 'zohoNaam', 'salesNaam', 'magAlleSales'].filter(veld => huidig[veld] !== nieuw[veld]);
+  const blokkeert = huidig.actief === true && nieuw.actief === false;
+  const rolWijzigt = huidig.rol !== rol;
+  const promotie = rolWijzigt && rol === 'beheerder';
+  if (blokkeert || rolWijzigt) nieuw.sessieVersie = (huidig.sessieVersie ?? 0) + 1;
+  return { nieuw, gewijzigd, blokkeert, rolWijzigt, promotie };
+}
+
 const isActieveBeheerder = g => g.rol === 'beheerder' && g.actief === true;
 
 // Aanroepen binnen de wijzigGebruikers-callback, op de lijst die die callback ontvangt (niet op een eerder gelezen kopie).

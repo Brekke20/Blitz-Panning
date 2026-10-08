@@ -44,6 +44,9 @@ export function maakHandler({ getStore: haalStore, env = process.env, nu = () =>
     }
 
     const email = normaliseerEmail(body.email);
+    // Een adres zonder '@' bestaat niet: generieke 401 VOOR er een poging gereserveerd wordt. Zo botst een
+    // vrije sleutel (bv. 'setup:globaal', de teller van auth-setup) nooit met een e-mailadres.
+    if (!email.includes('@')) return authJson(401, ONJUIST);
     const { bewijs, nieuwWachtwoord } = body;
     let store, record;
     try {

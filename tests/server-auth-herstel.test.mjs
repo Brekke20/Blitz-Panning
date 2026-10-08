@@ -486,3 +486,26 @@ test('noodsleutel: foute sleutel telt mee voor de vergrendeling (5 -> 429)', asy
   for (let i = 0; i < 5; i++) assert.equal((await o.herstel(herstelReq('bea@blitz.test', fout))).status, 401);
   assert.equal((await o.herstel(herstelReq('bea@blitz.test', NOOD))).status, 429);
 });
+
+// ---------------- hardening uit de Taak 6-review ----------------
+test('setup: een correcte setupcode wist de teller meteen; validatiefouten erna branden het slot niet', async () => {
+  const o = opzet({ gebruikers: null });
+  for (let i = 0; i < 4; i++) assert.equal((await o.setup(setupReq({ setupCode: 'fout' + i }))).status, 403);
+  // juiste code, ongeldige naam: 400, maar de code is bewezen -> teller gewist
+  assert.equal((await o.setup(setupReq({ naam: '' }))).status, 400);
+  const staat = await o.echt.get('login-pogingen', { type: 'json' });
+  assert.deepEqual(staat.herstel, {});
+  // zonder de fix stond de teller nu op 5 (vergrendeld); nu mag de volgende gewoon slagen
+  assert.equal((await o.setup(setupReq())).status, 200);
+});
+
+test('herstel: een e-mail zonder @ krijgt de generieke 401 vóór er een poging gereserveerd wordt (botst niet met setup:globaal)', async () => {
+  const o = opzet({ gebruikers: null });
+  for (let i = 0; i < 6; i++) {
+    const r = await o.herstel(herstelReq('setup:globaal', 'FOUT-000' + i));
+    assert.equal(r.status, 401);
+    assert.deepEqual(await r.json(), { error: 'Onjuiste herstelgegevens' });
+  }
+  assert.equal(await o.echt.get('login-pogingen', { type: 'json' }), null); // geen enkele poging bewaard
+  assert.equal((await o.setup(setupReq())).status, 200); // het setupscherm is niet vergrendeld
+});

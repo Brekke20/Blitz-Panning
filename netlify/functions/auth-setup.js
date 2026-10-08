@@ -54,6 +54,8 @@ export function maakHandler({ getStore: haalStore, env = process.env, nu = () =>
     if (!reservering.toegelaten) return vergrendeld(reservering.tot);
     const gegeven = typeof body.setupCode === 'string' ? body.setupCode : '';
     if (!timingSafeEqual(sha256(gegeven), sha256(verwacht))) return authJson(403, GEWEIGERD);
+    // De code is bewezen: teller meteen wissen, zodat validatiefouten hierna het slot niet laten dichtvallen.
+    await wisPoging(store, SLEUTEL, 'herstel');
 
     try {
       if ((await leesGebruikers(store)).length > 0) return authJson(409, AL_AANGEMAAKT);
@@ -90,7 +92,6 @@ export function maakHandler({ getStore: haalStore, env = process.env, nu = () =>
     if (!r.ok) return authJson(503, OPSLAG_STORING);
     if (r.gebruikers.length !== 1 || r.gebruikers[0]?.id !== nieuw.id) return authJson(409, AL_AANGEMAAKT);
 
-    await wisPoging(store, SLEUTEL, 'herstel');
     const gebruiker = publiek(nieuw);
     await logActiviteit(store, { gebruiker, actie: 'gebruiker-aangemaakt', onderwerp: nieuw.email, details: 'eerste beheerder' }, { nu });
     return authJson(200, { gebruiker, herstelcodes: codes }, {

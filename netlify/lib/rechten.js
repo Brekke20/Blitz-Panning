@@ -18,6 +18,7 @@ const BEHEER = vries(['beheerder']);
 const COORD = vries(['beheerder', 'planner']);
 const INTERN = vries(['beheerder', 'planner', 'technieker']);
 const ALLE = vries(['beheerder', 'planner', 'technieker', 'sales']);
+const BEHEER_SALES = vries(['beheerder', 'sales']);
 
 export const RECHTEN = {
   // tickets en setup controleren zelf geen methode: '*' houdt elke methode achter de login.
@@ -55,6 +56,9 @@ export const RECHTEN = {
   'auth-herstel':         { '*': 'open' }, // herstelcode of noodsleutel + e-mail van een actieve beheerder
   'auth-ik':              { GET: ALLE, ookBijWijzigen: true },
   'auth-wachtwoord':      { POST: ALLE, ookBijWijzigen: true },
+  // Gebruikersbeheer: lezen/schrijven enkel beheerder; sales mag enkel GET ?rol=sales (en enkel met magAlleSales,
+  // afgedwongen in de functie zelf: hier staat enkel de rol).
+  'gebruikers':           { GET: BEHEER_SALES, POST: BEHEER, PATCH: BEHEER },
   // Klantlink (ondertekend) en machine-sleutel (PLANNING_EXPORT_API_KEY): eigen controles in de functie.
   'confirm-afspraak':     { '*': 'open' },
   'planning-export':      { '*': 'open' },
