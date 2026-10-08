@@ -12,7 +12,8 @@ const BUCKETS = [
   { label: '1–3d', tot: 4320 }, { label: '>3d', tot: Infinity },
 ];
 
-const ms = iso => { const t = new Date(iso).getTime(); return Number.isNaN(t) ? null : t; };
+// Leeg of ongeldig tijdstip -> null (new Date(null) zou 1970 zijn).
+const ms = iso => { if (iso == null || iso === '') return null; const t = new Date(iso).getTime(); return Number.isNaN(t) ? null : t; };
 const afgerond = n => Math.round(n * 10) / 10;
 
 // Voorstellen waarvan het vroegste verzendtijdstip (Brusselse datum) in de periode valt.
@@ -55,8 +56,9 @@ function bevestiging(lijst) {
   };
 }
 
-// Annulaties uit het activiteitenlog (UTC-tijdstip, dus per Brusselse datum geteld). `beschikbaar`:
-// het log loopt al sinds voor het begin van de vorige periode, zodat de vergelijking klopt.
+// Annulaties uit het activiteitenlog (UTC-tijdstip, dus per Brusselse datum geteld). `beschikbaar` gaat
+// enkel over de vergelijking met de vorige periode: het log loopt al sinds voor het begin van de vorige
+// periode. `aantal` van de gekozen periode blijft geldig (het log kent niets van vóór `vanaf`, dat toont de UI).
 function annulaties({ activiteit, activiteitVanaf, van, tot, vorigeVan, vorigeTot }) {
   const datums = (activiteit || []).filter(a => a?.actie === 'annulatie').map(a => datumInBrussel(a.op)).filter(Boolean);
   const vanaf = datumInBrussel(activiteitVanaf);
@@ -98,7 +100,10 @@ function perGroep(bekend, veld) {
   return [...groepen.values()].sort((a, b) => b.n - a.n);
 }
 
-// Zoho-veld "Installateur al langs geweest" (Rapport.alLangs): onbekend telt nergens mee.
+// Zoho-veld "Installateur al langs geweest" (Rapport.alLangs): onbekend telt nergens mee. Geldt voor alle
+// bezoeken, niet enkel interventies. In `berekenKlant`: dekking.partnerRegioTotaal = rapporten met een
+// bekend antwoord (de noemer van de uitsplitsing); partnerRegioMetVeld = daarvan de rapporten waar partner
+// of regio is bewaard (oudere rapporten hebben die niet en vallen weg in perPartner/perRegio).
 function installateurAlLangs(rapporten) {
   const bekend = rapporten.filter(r => r.alLangs === true || r.alLangs === false);
   const ja = bekend.filter(r => r.alLangs === true).length;

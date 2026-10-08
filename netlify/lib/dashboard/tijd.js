@@ -1,5 +1,7 @@
 // Tijd en stiptheid van het performance-dashboard: duur per groep, op tijd (te vroeg / op tijd / te laat),
 // rijtijd tegenover werktijd en interventies per dag. Pure functies op genormaliseerde Rapport[] (geen I/O).
+// Enkel interventies: `gemiddeldeDuur`. Alle bezoeken (Interventie en Installatie): `duurPer.*` (bezoektype is
+// daar zelf een groep), `opTijd*`, `rijtijdPerDag`, `perDagPerTechnieker` en de dekking.
 import { gemiddelde, pct } from './gemeenschappelijk.js';
 
 const TIJD_RE = /^(\d{1,2}):(\d{2})$/;
@@ -74,15 +76,15 @@ function rijtijdPerDag(rapporten) {
 
 // Aantal bezoeken per dag per technieker; techniekers in volgorde van eerste voorkomen (vaste kleur).
 function perDagPerTechnieker(rapporten) {
-  const techniekers = [], datums = new Set(), waarden = {};
+  const techniekers = [], datums = new Set(), waarden = Object.create(null);
   for (const r of rapporten) {
     const t = naam(r.technieker);
     if (!techniekers.includes(t)) techniekers.push(t);
     datums.add(r.datum);
-    waarden[t] = waarden[t] || {};
+    waarden[t] = waarden[t] || Object.create(null);
     waarden[t][r.datum] = (waarden[t][r.datum] || 0) + 1;
   }
-  return { datums: [...datums].sort(), techniekers, waarden };
+  return { datums: [...datums].sort(), techniekers, waarden: Object.fromEntries(Object.entries(waarden).map(([t, w]) => [t, { ...w }])) };
 }
 
 export function berekenTijd(rapporten) {

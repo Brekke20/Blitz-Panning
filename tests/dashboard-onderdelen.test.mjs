@@ -98,3 +98,11 @@ test('rapport zonder onderdelen telt in de maanden en de dekking, niet in de top
   assert.equal(t.dekking.metOnderdelen, 1);
   assert.equal(t.top10.length, 1);
 });
+
+test('[fix] technieker en type __proto__ vervuilen niets', () => {
+  const t = berekenOnderdelen([rap([onderdeel()], { technieker: '__proto__', type: '__proto__' })]);
+  assert.deepEqual(Object.keys(t.perMaand.perTechnieker), ['__proto__']);
+  assert.deepEqual(Object.keys(t.perMaand.perType), ['__proto__']);
+  assert.equal(Object.getPrototypeOf(t.perMaand.perType), Object.prototype);
+  assert.equal({}['2026-10'], undefined);
+});

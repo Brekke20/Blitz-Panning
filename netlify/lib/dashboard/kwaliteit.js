@@ -72,13 +72,14 @@ function topOorzaken(rapporten) {
   const groepen = new Map();
   for (const r of rapporten) {
     for (const oorzaak of new Set(r.oorzaken)) {
-      const g = groepen.get(oorzaak) || { oorzaak, n: 0, perType: {} };
+      const g = groepen.get(oorzaak) || { oorzaak, n: 0, perType: Object.create(null) };
       g.n++;
       g.perType[r.type] = (g.perType[r.type] || 0) + 1;
       groepen.set(oorzaak, g);
     }
   }
-  return [...groepen.values()].sort((a, b) => b.n - a.n).slice(0, MAX_OORZAKEN);
+  return [...groepen.values()].sort((a, b) => b.n - a.n).slice(0, MAX_OORZAKEN)
+    .map(g => ({ ...g, perType: Object.fromEntries(Object.entries(g.perType)) })); // gewoon object, `__proto__` blijft een eigen sleutel
 }
 
 export function berekenKwaliteit({ rapporten, alle = rapporten, herhaalDagen = 30 }) {

@@ -126,3 +126,10 @@ test('topOorzaken: sorteert op n, perType klopt, maximum 8', () => {
   assert.equal(topOorzaken[1].oorzaak, 'Software');
   assert.ok(topOorzaken.every((o, i) => i === 0 || topOorzaken[i - 1].n >= o.n));
 });
+
+test('[fix] type __proto__ in topOorzaken vervuilt niets', () => {
+  const lijst = [rap({ type: '__proto__', oorzaken: ['Kabel'] })];
+  const { topOorzaken } = berekenKwaliteit({ rapporten: lijst, alle: lijst });
+  assert.deepEqual(Object.keys(topOorzaken[0].perType), ['__proto__']);
+  assert.equal(Object.getPrototypeOf(topOorzaken[0].perType), Object.prototype);
+});

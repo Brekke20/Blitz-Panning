@@ -172,3 +172,18 @@ test('installateur al langs [RF1]: geen enkel bekend antwoord geeft pct null', (
   assert.equal(k.installateurAlLangs.n, 0);
   assert.equal(k.installateurAlLangs.onbekend, 2);
 });
+
+test('[fix] leeg of null tijdstip wordt nooit 1970', () => {
+  const register = reg({
+    a: { klant: null, contact: '2026-10-05T08:00:00.000Z' },
+    b: { klant: null, contact: '' },
+    c: { klant: '2026-10-05T09:00:00.000Z', installateur: null, bevestigd: { door: 'installateur', tijdstip: '2026-10-05T10:00:00.000Z' } },
+    d: { klant: '2026-10-05T09:00:00.000Z', bevestigd: { door: 'klant', tijdstip: null } },
+  });
+  const lijst = voorstellen(register, { van: '1969-01-01', tot: '2026-10-09', nu: NU });
+  assert.deepEqual(lijst.map(v => v.ticketId), ['a', 'c', 'd']);
+  assert.equal(lijst[0].verstuurd, '2026-10-05T08:00:00.000Z');
+  assert.equal(lijst[1].snelheidMin, null);
+  assert.equal(lijst[2].bevestigdOp, null);
+  assert.equal(lijst[2].lopend, true); // bevestiging zonder geldig tijdstip telt niet als bevestigd
+});

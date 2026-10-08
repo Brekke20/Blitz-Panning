@@ -123,3 +123,10 @@ test('perDagPerTechnieker: techniekers in volgorde van eerste voorkomen, dagen o
   assert.deepEqual(t.perDagPerTechnieker.datums, ['2026-10-05', '2026-10-07']);
   assert.deepEqual(t.perDagPerTechnieker.waarden, { Roel: { '2026-10-07': 1 }, Tim: { '2026-10-05': 2, '2026-10-07': 1 } });
 });
+
+test('[fix] technieker __proto__ vervuilt niets', () => {
+  const t = berekenTijd([rap({ technieker: '__proto__' })]);
+  assert.deepEqual(Object.keys(t.perDagPerTechnieker.waarden), ['__proto__']);
+  assert.equal(Object.getPrototypeOf(t.perDagPerTechnieker.waarden), Object.prototype);
+  assert.equal({}['2026-10-05'], undefined);
+});

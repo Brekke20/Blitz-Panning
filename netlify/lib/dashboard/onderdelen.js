@@ -60,7 +60,7 @@ function perMaand(rapporten) {
   if (!datums.length) return { maanden: [], perTechnieker: {}, perType: {}, totaal: {} };
   const maanden = maandenTussen(datums[0], datums[datums.length - 1]);
   const leeg = () => Object.fromEntries(maanden.map(m => [m, { aantal: 0, waarde: 0 }]));
-  const uit = { maanden, perTechnieker: {}, perType: {}, totaal: leeg() };
+  const uit = { maanden, perTechnieker: Object.create(null), perType: Object.create(null), totaal: leeg() };
   const tel = (cel, o) => { cel.aantal += o.aantal || 0; cel.waarde = cent(cel.waarde + regelWaarde(o)); };
   for (const r of rapporten) {
     const maand = r.datum.slice(0, 7);
@@ -73,7 +73,8 @@ function perMaand(rapporten) {
       tel(uit.totaal[maand], o);
     }
   }
-  return uit;
+  // Terug naar gewone objecten (eigen sleutel `__proto__` blijft veilig).
+  return { ...uit, perTechnieker: Object.fromEntries(Object.entries(uit.perTechnieker)), perType: Object.fromEntries(Object.entries(uit.perType)) };
 }
 
 export function berekenOnderdelen(rapporten) {
