@@ -128,3 +128,60 @@ test('vulLocatiesAan: lege lijst en testmodus', async () => {
   assert.ok(leads.every(l => l.locatie));
   assert.equal(calls.length, 0);
 });
+
+test('vulLocatiesAan: adresgeocoding door het budget overgeslagen -> postcode-locatie + vlag; een latere run upgradet naar adres en wist de vlag', async () => {
+  let klok = 0;
+  const { fn, calls } = maakNepFetch(url => { klok += 1000; return router()(url); });
+  const store = maakNepStore();
+  const invoer = [
+    volledig({ id: 'a1', straat: 'Dorpsstraat' }), volledig({ id: 'a2', straat: 'Kerkstraat' }),
+    volledig({ id: 'a3', straat: 'Molenstraat' }), volledig({ id: 'a4', straat: 'Schoolstraat' }),
+  ];
+  const kopie = structuredClone(invoer);
+  // run 1: budget voor de postcode-opzoeking en ongeveer 1 adres-opzoeking
+  const r1 = await vulLocatiesAan(invoer, { store, ...deps(fn), parallel: 1, maxTijdMs: 2000, nu: () => klok });
+  assert.deepEqual(invoer, kopie, 'invoer niet gemuteerd');
+  const adres = r1.leads.filter(l => l.locatie?.bron === 'adres');
+  const vlag = r1.leads.filter(l => l.adresTeGeocoderen === true);
+  assert.equal(adres.length, 1);
+  assert.equal(vlag.length, 3);
+  for (const l of vlag) assert.equal(l.locatie.bron, 'postcode', 'plannbaar met postcode-middelpunt');
+  assert.ok(adres.every(l => l.adresTeGeocoderen === undefined));
+  assert.equal(r1.open, 3, 'open = enkel de nog openstaande adres-upgrades');
+  // run 2: ruim budget -> de gevlagde leads worden echt opgepakt en geupgrade
+  const vooraf = calls.length;
+  const r2 = await vulLocatiesAan(r1.leads, { store, ...deps(fn) });
+  assert.ok(calls.length > vooraf, 'er werd opnieuw geocodeerd');
+  assert.equal(r2.open, 0);
+  for (const l of r2.leads) {
+    assert.deepEqual(l.locatie, { lat: 51.5, lon: 5.5, bron: 'adres' });
+    assert.equal('adresTeGeocoderen' in l, false, 'vlag gewist');
+  }
+});
+
+test('vulLocatiesAan: gevlagde lead waarvan het adres onvindbaar blijkt -> postcode-locatie blijft, vlag weg (geen eindeloze pogingen)', async () => {
+  const { fn } = maakNepFetch(router({ adresFaalt: true }));
+  const lead = volledig({ locatie: { lat: 50.5, lon: 4.5, bron: 'postcode' }, adresTeGeocoderen: true });
+  const { leads, open } = await vulLocatiesAan([lead], { store: maakNepStore(), ...deps(fn) });
+  assert.deepEqual(leads[0].locatie, { lat: 50.5, lon: 4.5, bron: 'postcode' });
+  assert.equal('adresTeGeocoderen' in leads[0], false);
+  assert.equal(open, 0);
+});
+
+test('vulLocatiesAan: gevlagde lead zonder bruikbaar adres (adres gewijzigd naar enkel postcode) -> vlag weg zonder fetch', async () => {
+  const { fn, calls } = maakNepFetch(router());
+  const lead = alleenPostcode({ locatie: { lat: 50.5, lon: 4.5, bron: 'postcode' }, adresTeGeocoderen: true });
+  const { leads, open } = await vulLocatiesAan([lead], { store: maakNepStore(), ...deps(fn) });
+  assert.equal('adresTeGeocoderen' in leads[0], false);
+  assert.equal(open, 0);
+  assert.equal(calls.length, 0);
+});
+
+test('vulLocatiesAan: gevlagde lead blijft gevlagd (en telt als open) zolang het budget het adres niet haalt', async () => {
+  const { fn, calls } = maakNepFetch(router());
+  const lead = volledig({ locatie: { lat: 50.5, lon: 4.5, bron: 'postcode' }, adresTeGeocoderen: true });
+  const { leads, open } = await vulLocatiesAan([lead], { store: maakNepStore(), ...deps(fn), maxTijdMs: 0 });
+  assert.equal(leads[0].adresTeGeocoderen, true);
+  assert.equal(open, 1);
+  assert.equal(calls.length, 0);
+});

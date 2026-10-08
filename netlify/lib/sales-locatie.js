@@ -18,40 +18,32 @@ export async function bepaalLocatie(lead, { store, ...deps } = {}) {
   return null;
 }
 
+const zonderVlag = l => { const { adresTeGeocoderen: _weg, ...rest } = l; return rest; };
+
 /**
- * Vult de locatie (en een lege gemeente) aan voor leads met een postcode maar zonder locatie.
- * Adresgeocoding en postcode-opzoeking delen één tijdsbudget (`maxTijdMs`, standaard 15 s); wat het budget niet haalde of
- * niet gevonden werd, blijft zonder locatie en telt mee in `open` (een latere run probeert opnieuw).
- * -> { leads, open: number }. De invoer wordt niet gemuteerd.
+ * Vult de locatie (en een lege gemeente) aan voor leads met een postcode maar zonder locatie, en werkt leads bij die
+ * eerder enkel een postcode-locatie kregen omdat het tijdsbudget hun adresgeocoding oversloeg (`adresTeGeocoderen: true`).
+ * Volgorde (één tijdsbudget `maxTijdMs`, standaard 15 s): eerst de postcode-middelpunten (weinig unieke postcodes, cache,
+ * één schrijfactie) zodat elke lead meteen plannbaar is, daarna de adresgeocoding binnen het resterende budget.
+ * - Volledig adres, geocoding lukt: locatie bron 'adres', vlag weg.
+ * - Volledig adres, geocoding mislukt (geen resultaat): postcode-middelpunt blijft, vlag weg (definitief, geen eindeloze pogingen).
+ * - Volledig adres, geocoding door het budget overgeslagen: postcode-middelpunt PLUS vlag `adresTeGeocoderen: true`;
+ *   een latere run probeert het adres opnieuw.
+ * `open` telt leads zonder locatie en leads met een nog openstaande adres-upgrade (vlag). De invoer wordt niet gemuteerd.
+ * -> { leads, open: number }
  */
 export async function vulLocatiesAan(leads, { store, nu, maxTijdMs = 15000, parallel = 5, ...deps } = {}) {
   const lijst = Array.isArray(leads) ? leads : [];
   const klok = typeof nu === 'function' ? () => Number(new Date(nu())) : (nu != null ? () => Number(new Date(nu)) : () => Date.now());
   const start = klok();
   const resultaat = lijst.slice();
-  const doel = lijst.map((l, i) => i).filter(i => isPostcode(lijst[i]?.postcode) && !lijst[i].locatie);
-  const naarPostcode = []; // indexen die op het postcode-middelpunt moeten terugvallen
+  const metVlag = l => l?.adresTeGeocoderen === true && !!l.locatie;
+  const doel = lijst.map((l, i) => i).filter(i => isPostcode(lijst[i]?.postcode) && (!lijst[i].locatie || metVlag(lijst[i])));
 
-  // Fase A: volledige adressen (parallel, binnen het budget).
-  const metAdres = doel.filter(i => adresTekstVoorGeocoding(lijst[i]));
-  const zonderAdres = doel.filter(i => !adresTekstVoorGeocoding(lijst[i]));
-  naarPostcode.push(...zonderAdres);
-  let volgende = 0;
-  const werker = async () => {
-    while (volgende < metAdres.length) {
-      if (klok() - start >= maxTijdMs) return; // niet aan toe gekomen: blijft open
-      const i = metAdres[volgende++];
-      const p = await geocodeAdres(adresTekstVoorGeocoding(lijst[i]), deps);
-      if (p) resultaat[i] = { ...lijst[i], locatie: { lat: p.lat, lon: p.lon, bron: 'adres' } };
-      else naarPostcode.push(i);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.max(1, Math.min(parallel, metAdres.length)) }, werker));
-
-  // Fase B: postcode-middelpunten voor de rest (één schrijfactie naar de cache).
+  // Fase 1: postcode-middelpunten voor leads zonder locatie.
+  const naarPostcode = doel.filter(i => !lijst[i].locatie);
   if (naarPostcode.length) {
-    const rest = Math.max(0, maxTijdMs - (klok() - start));
-    const { gevonden } = await zoekPostcodes(store, naarPostcode.map(i => lijst[i].postcode), { nu, maxTijdMs: rest, parallel, ...deps });
+    const { gevonden } = await zoekPostcodes(store, naarPostcode.map(i => lijst[i].postcode), { nu, maxTijdMs, parallel, ...deps });
     for (const i of naarPostcode) {
       const p = gevonden[lijst[i].postcode];
       if (!p) continue;
@@ -63,5 +55,27 @@ export async function vulLocatiesAan(leads, { store, nu, maxTijdMs = 15000, para
     }
   }
 
-  return { leads: resultaat, open: doel.filter(i => !resultaat[i].locatie).length };
+  // Fase 2: adresgeocoding (parallel, binnen het resterende budget) voor volledige adressen.
+  const metAdres = [];
+  for (const i of doel) {
+    if (adresTekstVoorGeocoding(lijst[i])) metAdres.push(i);
+    else if (resultaat[i].adresTeGeocoderen !== undefined) resultaat[i] = zonderVlag(resultaat[i]); // adres gewijzigd: niets meer te upgraden
+  }
+  let volgende = 0;
+  const werker = async () => {
+    while (volgende < metAdres.length) {
+      if (klok() - start >= maxTijdMs) return; // niet aan toe gekomen
+      const i = metAdres[volgende++];
+      const p = await geocodeAdres(adresTekstVoorGeocoding(lijst[i]), deps);
+      if (p) resultaat[i] = { ...zonderVlag(resultaat[i]), locatie: { lat: p.lat, lon: p.lon, bron: 'adres' } };
+      else resultaat[i] = zonderVlag(resultaat[i]); // adres onvindbaar: de postcode-locatie (indien er een is) blijft
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(parallel, metAdres.length)) }, werker));
+  // Overgeslagen door het budget: wie een (postcode-)locatie heeft, krijgt de vlag voor een latere upgrade.
+  for (const i of metAdres.slice(volgende)) {
+    if (resultaat[i].locatie) resultaat[i] = { ...resultaat[i], adresTeGeocoderen: true };
+  }
+
+  return { leads: resultaat, open: doel.filter(i => !resultaat[i].locatie || resultaat[i].adresTeGeocoderen === true).length };
 }
