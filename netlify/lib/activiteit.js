@@ -13,7 +13,7 @@ const maandIndex = (jaar, maand) => jaar * 12 + (maand - 1);
 
 function maakDetails(details) {
   if (details == null) return null;
-  const tekst = typeof details === 'string' ? details : JSON.stringify(details);
+  const tekst = typeof details === 'string' ? details : (JSON.stringify(details) ?? String(details));
   return tekst.slice(0, MAX_DETAILS);
 }
 
@@ -29,10 +29,11 @@ export async function logActiviteit(store, { gebruiker, actie, onderwerp = null,
       onderwerp: onderwerp ?? null,
       details: maakDetails(details),
     };
-    await wijzigBlob(store, maandSleutel(ms), {
+    const r = await wijzigBlob(store, maandSleutel(ms), {
       leeg: { versie: 0, items: [] },
       wijzig: blob => ({ ...blob, items: [...(blob.items ?? []), item] }),
     });
+    if (!r.ok) console.error(`[activiteit] loggen mislukt na herhaling (actie ${String(actie).slice(0, 60)})`);
   } catch (err) {
     console.error('[activiteit] loggen mislukt:', err?.message || err);
   }

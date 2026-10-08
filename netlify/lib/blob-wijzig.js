@@ -1,6 +1,11 @@
-// Lees-wijzig-schrijf-controleer op één blob. Netlify Blobs kent geen transacties: twee gelijktijdige
-// schrijvers kunnen elkaar overschrijven. Na het schrijven lezen we terug; staat er iets anders dan wat
-// wij schreven, dan schreef een ander erover en herhalen we vanuit de verse lezing (max `pogingen`).
+// Lees-wijzig-schrijf-controleer op één blob, ZONDER echte bescherming tegen verloren updates.
+// Netlify Blobs (@netlify/blobs 8.2) kent geen voorwaardelijke schrijfacties. Na het schrijven lezen we
+// terug; staat er iets anders dan wat wij schreven, dan herhalen we vanuit de verse lezing (max `pogingen`).
+// Dat detecteert een overschrijving enkel als de overschreven schrijver pas NA de andere schrijf terugleest:
+// een verloren update blijft dus mogelijk, zelfs met twee gelijktijdige schrijvers (het venster is smal).
+// Voldoende voor `gebruikers` (zeldzame beheerschrijfacties), `login-laatst` en `activiteit` (best-effort);
+// het zwakst voor `login-pogingen`: aanroepers moeten bij `ok:false` fail-closed handelen.
+// Heroverwegen bij een upgrade naar @netlify/blobs >= 11 (onlyIfMatch/onlyIfNew).
 
 const gelijk = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 

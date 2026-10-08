@@ -69,6 +69,7 @@ export function valideerNieuweGebruiker(invoer) {
 
 const isActieveBeheerder = g => g.rol === 'beheerder' && g.actief === true;
 
+// Aanroepen binnen de wijzigGebruikers-callback, op de lijst die die callback ontvangt (niet op een eerder gelezen kopie).
 // De laatste actieve beheerder mag niet geblokkeerd of gedegradeerd worden (anders sluit het systeem zichzelf buiten).
 export function kanWijzigen(gebruikers, id, wijziging = {}) {
   const doel = gebruikers.find(g => g.id === id);

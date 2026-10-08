@@ -97,7 +97,7 @@ export async function wijzigPogingen(store, fn) {
   return { ok: r.ok, staat: { ...leegStaat(), ...(r.waarde ?? {}) } };
 }
 
-// Overschrijft de volledige staat (voor één-op-één gebruik); verkies `wijzigPogingen` bij gelijktijdig gebruik.
+// Enkel voor tests. Niet gebruiken in functies: overschrijft de hele staat; gebruik wijzigPogingen.
 export async function schrijfPogingen(store, staat) {
   await wijzigBlob(store, BLOB, { leeg: { versie: 0, ...leegStaat() }, wijzig: () => ({ ...staat }) });
 }

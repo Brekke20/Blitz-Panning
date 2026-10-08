@@ -91,3 +91,13 @@ test('ruimActiviteitOp verwijdert alles ouder dan 12 maanden', async () => {
   assert.ok(s._data.has('activiteit/2025-10') && s._data.has('gebruikers'));
   assert.deepEqual(await ruimActiviteitOp(s, { nu: Date.parse('2026-10-08T00:00:00Z'), maanden: 1 }), ['activiteit/2025-10']);
 });
+
+test('logActiviteit: details die JSON.stringify niet kan weergeven worden toch bewaard (String-terugval)', async () => {
+  const s = maakNepStore();
+  await logActiviteit(s, { gebruiker: g, actie: 'x', details: Symbol('s') }, { nu: () => NU });
+  await logActiviteit(s, { gebruiker: g, actie: 'y', details: () => 1 }, { nu: () => NU + 1 });
+  const items = (await s.get('activiteit/2026-10', { type: 'json' })).items;
+  assert.equal(items.length, 2);
+  assert.equal(items[0].details, 'Symbol(s)');
+  assert.equal(typeof items[1].details, 'string');
+});
