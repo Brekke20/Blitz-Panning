@@ -155,9 +155,14 @@
     var items = await opslag.getAll();
     for (var i = 0; i < items.length; i++) {
       var item = items[i];
-      if (nextAction(item) === 'done') continue;
       try {
         var uitkomst = await slot(item.id, async function () {
+          // Al ontvangen door de server (verwijderen na een geslaagde verzending mislukte eerder):
+          // enkel nog opruimen, niet opnieuw versturen.
+          if (nextAction(item) === 'done') {
+            await opslag.remove(item.id);
+            return { ok: true };
+          }
           var res = await verzendItem(item, { fetch: doFetch });
           if (res.ok) {
             await opslag.remove(item.id);

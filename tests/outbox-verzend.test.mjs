@@ -178,7 +178,7 @@ test('verzendAlles: slot bezet → item overgeslagen en niet geteld als mislukt'
   assert.equal(opslag.items.has('c'), true);
 });
 
-test('verzendAlles: item met ontvangen:true wordt niet opnieuw verstuurd', async () => {
+test('verzendAlles: item met ontvangen:true wordt uit de opslag verwijderd, niet verstuurd, geteld als verstuurd', async () => {
   const opslag = maakOpslag([maakItem({ id: 'd', ontvangen: true })]);
   let gefetcht = false;
   const res = await verzendAlles({
@@ -187,5 +187,6 @@ test('verzendAlles: item met ontvangen:true wordt niet opnieuw verstuurd', async
     slot: async (id, fn) => ({ uitgevoerd: true, waarde: await fn() }),
   });
   assert.equal(gefetcht, false);
-  assert.deepEqual(res, { verstuurd: 0, mislukt: 0 });
+  assert.equal(opslag.items.has('d'), false);
+  assert.deepEqual(res, { verstuurd: 1, mislukt: 0 });
 });
