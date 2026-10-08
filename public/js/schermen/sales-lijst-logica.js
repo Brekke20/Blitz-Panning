@@ -70,12 +70,15 @@ function laatsteBezoek(lead) {
   return { datum: isNaN(moment) ? null : localISO(moment), soort: r.soort, notitie: r.notitie };
 }
 
+// Aantal dagen van de maand die `maanden` maanden voor `d` ligt (om 31 mei - 3 maanden niet naar 3 maart te laten overlopen).
+const dagenInMaand = (d, maanden) => new Date(d.getFullYear(), d.getMonth() + maanden + 1, 0).getDate();
+
 // Eerste dag (ISO, lokaal) die nog binnen de periode valt; null = geen grens.
 function periodeStart(periode, nu) {
   const d = new Date(nu);
   if (periode === '30d') d.setDate(d.getDate() - 30);
-  else if (periode === '3m') d.setMonth(d.getMonth() - 3);
-  else if (periode === '12m') d.setMonth(d.getMonth() - 12);
+  else if (periode === '3m') d.setMonth(d.getMonth() - 3, Math.min(d.getDate(), dagenInMaand(d, -3)));
+  else if (periode === '12m') d.setMonth(d.getMonth() - 12, Math.min(d.getDate(), dagenInMaand(d, -12)));
   else return null;
   return localISO(d);
 }
@@ -90,7 +93,7 @@ export function afgewerktRijen(leads, { resultaat = '', periode = 'alles', nu = 
     if (!b?.datum || (resultaat && b.soort !== resultaat)) continue;
     if (start && b.datum < start) continue;
     rijen.push({
-      leadId: lead.id, naam: naamVan(lead), datum: b.datum, datumLabel: fmtDateShort(b.datum),
+      leadId: lead.id, naam: naamVan(lead), datum: b.datum, datumLabel: fmtDateShort(b.datum).replace(/\.$/, ''),
       soort: b.soort, label: RESULTAAT_LABEL[b.soort] ?? b.soort, notitie: b.notitie ?? '',
     });
   }

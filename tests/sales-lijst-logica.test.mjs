@@ -158,3 +158,19 @@ test('afgewerktRijen: zonder bezoeken valt terug op het resultaat', () => {
   assert.equal(r[0].soort, 'geen-interesse');
   assert.equal(r[0].notitie, 'Te duur');
 });
+
+test('afgewerktRijen: datumLabel eindigt nooit op een punt (alle maanden)', () => {
+  const leads = Array.from({ length: 12 }, (_, i) => klaar('m' + i, `2026-${String(i + 1).padStart(2, '0')}-05`, 'offerte'));
+  for (const r of afgewerktRijen(leads, { nu: NU })) assert.doesNotMatch(r.datumLabel, /\.$/, r.datumLabel);
+});
+
+test('afgewerktRijen: periodegrens loopt niet over aan het einde van een maand', () => {
+  // 31 mei - 3 maanden = 28 feb (2026), niet begin maart
+  const nu = new Date(2026, 4, 31, 12, 0);
+  const leads = [klaar('feb', '2026-02-28', 'offerte'), klaar('net-te-oud', '2026-02-27', 'offerte')];
+  assert.deepEqual(afgewerktRijen(leads, { nu, periode: '3m' }).map((x) => x.leadId), ['feb']);
+  // 29 feb 2028 - 12 maanden = 28 feb 2027
+  const schrikkel = new Date(2028, 1, 29, 12, 0);
+  const l2 = [klaar('a', '2027-02-28', 'offerte'), klaar('b', '2027-02-27', 'offerte')];
+  assert.deepEqual(afgewerktRijen(l2, { nu: schrikkel, periode: '12m' }).map((x) => x.leadId), ['a']);
+});
