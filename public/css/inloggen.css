@@ -18,6 +18,8 @@
 .login-formulier .set-field { margin-bottom: 0; }
 /* 16 px: iOS zoomt anders in op het veld. */
 #login-overlay .set-input { font-size: 16px; min-height: 44px; }
+/* Code of sleutel (geen wachtwoord): type tekst zodat de browser het niet als wachtwoord bewaart; de tekens blijven verborgen. */
+#login-overlay .login-geheim { -webkit-text-security: disc; text-security: disc; }
 .login-fout { min-height: 1.25em; font-size: var(--fs-sm); font-weight: 600; color: var(--red); line-height: 1.4; }
 .login-fout:empty { min-height: 0; }
 .login-acties { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }

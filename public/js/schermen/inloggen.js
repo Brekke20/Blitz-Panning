@@ -11,6 +11,7 @@ import {
 } from './inloggen-logica.js';
 
 const OVERLAY_ID = 'login-overlay';
+const TITEL_ID = 'login-titel'; // de kop van het huidige scherm: de overlay verwijst ernaar (aria-labelledby)
 const KOP = { 'X-Blitz': '1' };
 const GEEN_VERBINDING = 'Geen verbinding met de server. Probeer het opnieuw.';
 const STORING = 'De opslag is tijdelijk niet bereikbaar. Probeer het zo meteen opnieuw.';
@@ -44,7 +45,7 @@ function openOverlay() {
   overlay.id = OVERLAY_ID;
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
-  overlay.setAttribute('aria-label', 'Inloggen bij Blitz Planning');
+  overlay.setAttribute('aria-labelledby', TITEL_ID);
   // De rest van de pagina onbereikbaar (toetsenbord en schermlezer) zolang de overlay open is.
   geInerteerd = [...document.body.children].filter(el => el.id !== 'toast' && !el.inert);
   for (const el of geInerteerd) el.inert = true;
@@ -63,13 +64,24 @@ function sluitOverlay() {
   vorigFocus = null;
 }
 
+// Zet de kaart van het huidige scherm; de kop (h2) is het toegankelijke label van de overlay (aria-labelledby).
+function vulKaart(wortel, html) {
+  wortel.innerHTML = html;
+  wortel.querySelector('h2')?.setAttribute('id', TITEL_ID);
+}
+
 // ── Bouwstenen ─────────────────────────────────────────────────────────────────────────────────────────────────
 // Alle teksten hier zijn vaste tekst van deze module; ze gaan toch door escHtml.
-function veldHtml({ naam, label, type = 'text', autocomplete = 'off' }) {
+// `geheim`: een code of sleutel (geen wachtwoord): type tekst, met CSS gemaskeerd, en autocomplete "one-time-code", zodat de
+// browser of een wachtwoordbeheerder het veld niet als wachtwoord bewaart of aanbiedt.
+function veldHtml({ naam, label, type = 'text', autocomplete = 'off', geheim = false }) {
   const id = `login-${naam}`;
+  const soort = geheim ? 'text' : type;
+  const ac = geheim ? 'one-time-code' : autocomplete;
+  const extra = geheim ? ' data-1p-ignore data-lpignore="true" data-form-type="other"' : '';
   return `<div class="set-field"><label class="set-label" for="${escHtml(id)}">${escHtml(label)}</label>`
-    + `<input class="set-input" id="${escHtml(id)}" name="${escHtml(naam)}" type="${escHtml(type)}" `
-    + `autocomplete="${escHtml(autocomplete)}" autocapitalize="none" spellcheck="false"></div>`;
+    + `<input class="set-input${geheim ? ' login-geheim' : ''}" id="${escHtml(id)}" name="${escHtml(naam)}" type="${escHtml(soort)}" `
+    + `autocomplete="${escHtml(ac)}" autocapitalize="none" spellcheck="false"${extra}></div>`;
 }
 
 function kaartHtml({ titel, intro, velden = [], verstuurTekst, extraKnoppen = [] }) {
@@ -92,20 +104,23 @@ function leesWaarden(form) {
 function formScherm(kaart, verwerk, acties = {}) {
   return new Promise((resolve) => {
     const wortel = openOverlay();
-    wortel.innerHTML = kaartHtml(kaart);
+    vulKaart(wortel, kaartHtml(kaart));
     const form = wortel.querySelector('form');
     const foutEl = wortel.querySelector('[data-fout]');
-    const verstuurKnop = form.querySelector('button[type="submit"]');
+    // Tijdens een lopend verzoek staan alle knoppen uit (ook de knoppen naar andere schermen): geen dubbel verzenden en
+    // geen schermwissel midden in een POST.
+    const knoppen = [...wortel.querySelectorAll('button[type="submit"], button[data-actie]')];
+    const zetKnoppen = (uit) => { for (const k of knoppen) k.disabled = uit; };
     let bezig = false;
     const handlers = {};
-    for (const [naam, volgende] of Object.entries(acties)) handlers[naam] = () => { afmelden(); resolve(volgende); };
+    for (const [naam, volgende] of Object.entries(acties)) handlers[naam] = () => { if (bezig) return; afmelden(); resolve(volgende); };
     const afmelden = registreerActies(wortel, handlers);
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (bezig) return;
       bezig = true;
-      if (verstuurKnop) verstuurKnop.disabled = true;
+      zetKnoppen(true);
       foutEl.textContent = '';
       try {
         const r = await verwerk(leesWaarden(form));
@@ -117,7 +132,7 @@ function formScherm(kaart, verwerk, acties = {}) {
         foutEl.textContent = GEEN_VERBINDING;
       } finally {
         bezig = false;
-        if (verstuurKnop) verstuurKnop.disabled = false;
+        zetKnoppen(false);
       }
     });
     (form.querySelector('input') || wortel.querySelector(FOCUSBAAR))?.focus();
@@ -156,7 +171,7 @@ function schermSetup() {
     titel: 'Beheerder instellen',
     intro: 'Er is nog geen account. Maak het eerste beheerdersaccount aan met de setupcode.',
     velden: [
-      { naam: 'setupCode', label: 'Setupcode', type: 'password', autocomplete: 'off' },
+      { naam: 'setupCode', label: 'Setupcode', geheim: true },
       { naam: 'email', label: 'E-mailadres', type: 'email', autocomplete: 'username' },
       { naam: 'naam', label: 'Naam', type: 'text', autocomplete: 'name' },
       { naam: 'wachtwoord', label: 'Wachtwoord (minstens 10 tekens)', type: 'password', autocomplete: 'new-password' },
@@ -178,7 +193,7 @@ function schermCodes(codes) {
   return new Promise((resolve) => {
     const wortel = openOverlay();
     const tekst = formatHerstelcodes(codes);
-    wortel.innerHTML = `<div class="login-kaart"><div class="login-merk">Blitz Planning</div><h2>Bewaar je herstelcodes</h2>`
+    vulKaart(wortel, `<div class="login-kaart"><div class="login-merk">Blitz Planning</div><h2>Bewaar je herstelcodes</h2>`
       + `<p class="login-intro login-niet-afdrukken">Met deze codes kun je je wachtwoord herstellen als je het vergeet. Elke code werkt één keer. `
       + `Je ziet ze hier maar één keer: bewaar ze nu op een veilige plek (bv. in een wachtwoordkluis of afgedrukt).</p>`
       + `<div class="login-print-kop">Blitz Planning, herstelcodes beheerder. Bewaar op een veilige plek.</div>`
@@ -186,7 +201,7 @@ function schermCodes(codes) {
       + `<div class="login-acties login-niet-afdrukken">`
       + `<button type="button" class="btn btn--secondary" data-actie="kopieer">Kopiëren</button>`
       + `<button type="button" class="btn btn--secondary" data-actie="print">Afdrukken</button>`
-      + `<button type="button" class="btn btn--primary" data-actie="bewaard">Ik heb ze bewaard</button></div></div>`;
+      + `<button type="button" class="btn btn--primary" data-actie="bewaard">Ik heb ze bewaard</button></div></div>`);
     const pre = wortel.querySelector('[data-codes]');
     const status = wortel.querySelector('[data-status]');
     pre.textContent = tekst;
@@ -233,7 +248,7 @@ function schermHerstel() {
     intro: 'Enkel voor beheerders. Vul je e-mailadres in, een herstelcode of de noodsleutel, en kies een nieuw wachtwoord.',
     velden: [
       { naam: 'email', label: 'E-mailadres', type: 'email', autocomplete: 'username' },
-      { naam: 'bewijs', label: 'Herstelcode of noodsleutel', type: 'password', autocomplete: 'off' },
+      { naam: 'bewijs', label: 'Herstelcode of noodsleutel', geheim: true },
       { naam: 'nieuw', label: 'Nieuw wachtwoord (minstens 10 tekens)', type: 'password', autocomplete: 'new-password' },
       { naam: 'herhaal', label: 'Herhaal nieuw wachtwoord', type: 'password', autocomplete: 'new-password' },
     ],
@@ -251,9 +266,9 @@ function schermHerstel() {
 function schermGeenVerbinding() {
   return new Promise((resolve) => {
     const wortel = openOverlay();
-    wortel.innerHTML = `<div class="login-kaart"><div class="login-merk">Blitz Planning</div><h2>Geen verbinding</h2>`
+    vulKaart(wortel, `<div class="login-kaart"><div class="login-merk">Blitz Planning</div><h2>Geen verbinding</h2>`
       + `<p class="login-intro">De server is niet bereikbaar. Controleer je internetverbinding en probeer het opnieuw.</p>`
-      + `<div class="login-acties"><button type="button" class="btn btn--primary" data-actie="opnieuw">Opnieuw proberen</button></div></div>`;
+      + `<div class="login-acties"><button type="button" class="btn btn--primary" data-actie="opnieuw">Opnieuw proberen</button></div></div>`);
     const afmelden = registreerActies(wortel, { opnieuw: () => { afmelden(); resolve(klaar); } });
     wortel.querySelector('[data-actie="opnieuw"]').focus();
   });

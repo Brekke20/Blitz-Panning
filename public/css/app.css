@@ -1218,3 +1218,23 @@
     html[data-aanraak="ja"] .ann-optie { min-height: 44px; }
     html[data-aanraak="ja"] .ann-optie input[type="radio"] { width: 22px; height: 22px; }
     html[data-aanraak="ja"] .ann-details summary { min-height: 44px; display: flex; align-items: center; }
+
+    /* ── Gebruikersmenu (logins T15): knop in de kop na ⚙, menu zoals het persoonsmenu ── */
+    .gebruiker-sel { position: relative; }
+    .gebruiker-btn { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: -0.5px; color: var(--accent-ink); background: var(--accent-dim); }
+    .gebruiker-menu {
+      position: absolute; top: calc(100% + 8px); right: 0;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--r-lg); box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+      min-width: 220px; z-index: 200; display: none; overflow: hidden;
+    }
+    .gebruiker-menu.open { display: block; animation: slideUp 0.18s var(--ease-spring); }
+    .gm-kop { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+    .gm-naam { font-size: 0.85rem; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+    .gm-rol { font-size: var(--fs-2xs); color: var(--muted); }
+    /* Een tab die de rol niet toestaat (hidden): .tab zet display:flex en zou het attribuut anders overrulen. */
+    .tabs-inner .tab[hidden] { display: none !important; }
+    /* Plaatshouder voor een rol zonder eigen scherm (sales, tot de sales-planning er is). */
+    .rol-placeholder { padding: var(--sp-6, 32px) var(--sp-4, 16px); max-width: 560px; margin: 0 auto; }
+    .rol-placeholder h2 { font-size: var(--fs-xl); font-weight: 700; margin-bottom: 8px; }
+    .rol-placeholder p { color: var(--text2); line-height: 1.5; }

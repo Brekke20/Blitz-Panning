@@ -49,6 +49,12 @@ export const TOEGESTANE_CONSOLERUIS = [
     reden: "page.clock.install injecteert zijn script ook in het sandbox-iframe #rapport-preview-frame (sandbox zonder allow-scripts).",
   },
   {
+    // De loginlaag (logins T15): een 400/401/403/409/429 op een /api/auth-*-eindpunt is hier het verwachte antwoord (foute login,
+    // niet ingelogd, setup al gedaan, vergrendeld); de browser meldt het als HTTP-fout en als "Failed to load resource".
+    patroon: /^(HTTP (400|401|403|409|429): http:\/\/localhost:3338\/api\/auth-[\w-]+|console\.error: Failed to load resource: the server responded with a status of (400|401|403|409|429) \([^)]*\) \(http:\/\/localhost:3338\/api\/auth-[\w-]+\))$/,
+    reden: "De loginschermen krijgen op auth-login, auth-ik, auth-setup, auth-herstel en auth-wachtwoord bewust een 4xx; dat is de foutpaden-test, geen fout van de app.",
+  },
+  {
     // Leaflet annuleert tegels die nog laden zodra de kaart na een routeberekening inzoomt of tegels
     // verwijdert (img.src wordt leeggemaakt). De browser meldt dat als requestfailed ERR_ABORTED, ook al
     // is het een gestubde, niet-bestaande tegel; of het gebeurt hangt van de timing af (flaky zonder dit).
@@ -124,10 +130,12 @@ export function opslagStub(begin, veld) {
 
 // Het antwoord van GET /api/auth-ik voor een ingelogde gebruiker met de gegeven rol (logins T14): de loginlaag is in elke
 // e2e-run al "voorbij", tenzij een test auth-ik zelf overschrijft (bv. 401 voor het inlogscherm).
-export function authIkStub(rol = 'beheerder') {
+// `gebruiker` overschrijft velden van de teruggegeven gebruiker (bv. { naam, zohoNaam }); een technieker is standaard Tim (de dummydata).
+export function authIkStub(rol = 'beheerder', gebruiker = {}) {
   const beheer = rol === 'beheerder';
+  const standaard = rol === 'technieker' ? { naam: 'Test Technieker', zohoNaam: 'Tim' } : { naam: 'Test Beheerder' };
   return () => json(200, {
-    gebruiker: { id: 'u-test', email: 'b@test.be', naam: 'Test Beheerder', rol },
+    gebruiker: { id: 'u-test', email: 'b@test.be', ...standaard, rol, ...gebruiker },
     rechten: { beheer, plannen: beheer || rol === 'planner', alleSales: beheer },
     moetWachtwoordWijzigen: false,
     lokaleDev: false,
@@ -294,7 +302,10 @@ export async function stubExtern(page, { overschrijf = {} } = {}) {
 export const TE_PLANNEN = { all: 3, Tim: 2, Roel: 1 };
 
 // `loginRol`: de rol die de auth-ik-stub teruggeeft (standaard 'beheerder'; los van `rol`, de oude rolkeuze in de app).
-export async function startApp(page, { rol = 'coordinator', technieker = 'all', viewport, overschrijf, loginRol = 'beheerder' } = {}) {
+// `loginGebruiker`: velden van de ingelogde gebruiker in de auth-ik-stub (zie authIkStub). Een ingelogde technieker start op zijn eigen
+// planning (zohoNaam, bij blitz_active_person 'all'); voor sales (geen wachtrij) of met wachtOpApp: false (een test die zelf
+// de login afwerkt) wacht startApp niet op de tickets.
+export async function startApp(page, { rol = 'coordinator', technieker = 'all', viewport, overschrijf, loginRol = 'beheerder', loginGebruiker = {}, wachtOpApp = true } = {}) {
   if (viewport) await page.setViewportSize(viewport);
   // Alleen zetten als er nog niets staat: een test die in de app van persoon wisselt en herlaadt,
   // behoudt zo zijn keuze.
@@ -309,9 +320,11 @@ export async function startApp(page, { rol = 'coordinator', technieker = 'all', 
   // De tijd loopt door vanaf VASTE_NU (geen bevroren klok); gebruik page.clock.setFixedTime als een
   // test ooit op de minuut nauwkeurig moet zijn.
   await page.clock.install({ time: new Date(VASTE_NU) });
-  await stubExtern(page, { overschrijf: { 'auth-ik': authIkStub(loginRol), ...overschrijf } });
+  await stubExtern(page, { overschrijf: { 'auth-ik': authIkStub(loginRol, loginGebruiker), ...overschrijf } });
   await page.goto('/?test');
-  await expect(page.locator('#cnt-tickets')).toHaveText(String(TE_PLANNEN[technieker] ?? 0));
+  if (loginRol === 'sales' || wachtOpApp === false) return;
+  const eigen = loginRol === 'technieker' && technieker === 'all' ? (loginGebruiker.zohoNaam ?? 'Tim') : technieker;
+  await expect(page.locator('#cnt-tickets')).toHaveText(String(TE_PLANNEN[eigen] ?? 0));
 }
 
 // ── test met automatische controles ───────────────────────────────────────────
