@@ -41,7 +41,7 @@
 
 /* ── Gedeeld: assen, rasters, legende, tabel-twin ── */
 .grafiek-leeg { color: var(--viz-muted); font-size: var(--fs-sm); padding: var(--sp-3) 0; }
-.grafiek-scroll { overflow-x: auto; }
+.grafiek-scroll { overflow-x: auto; contain: inline-size; } /* contain: de min-width van de svg telt niet mee voor de breedte van de ouder */
 .grafiek-svg { display: block; width: 100%; height: auto; min-width: 460px; }
 .grafiek-svg .grid { stroke: var(--viz-grid); stroke-width: 1; fill: none; }
 .grafiek-svg .as { stroke: var(--viz-as); stroke-width: 1; fill: none; }
@@ -57,7 +57,7 @@
 .swatch--1 { background: var(--viz-1); } .swatch--2 { background: var(--viz-2); } .swatch--3 { background: var(--viz-3); }
 .swatch--4 { background: var(--viz-4); } .swatch--5 { background: var(--viz-5); } .swatch--6 { background: var(--viz-6); }
 .swatch--7 { background: var(--viz-7); } .swatch--8 { background: var(--viz-8); } .swatch--overige { background: var(--viz-overige); }
-.tabel-twin { margin-top: var(--sp-3); font-size: var(--fs-xs); color: var(--viz-ink2); }
+.tabel-twin { margin-top: var(--sp-3); font-size: var(--fs-xs); color: var(--viz-ink2); max-width: 100%; overflow-x: auto; contain: inline-size; }
 .tabel-twin summary { cursor: pointer; width: max-content; padding: var(--sp-1) 0; }
 .tabel-twin summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .tabel-twin table { border-collapse: collapse; margin-top: var(--sp-2); }
@@ -74,7 +74,7 @@
 .balk-waarde { font-size: var(--fs-sm); color: var(--viz-ink); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 
 /* ── Donut (ringdiagram) ── */
-.donut { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); margin: 0; }
+.donut { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-2); margin: 0; }
 .donut-svg { display: block; flex: none; }
 .donut-spoor { stroke: color-mix(in srgb, var(--viz-overige) 25%, var(--surface)); }
 .donut-groot { font-size: 24px; font-weight: 600; font-variant-numeric: proportional-nums; fill: var(--viz-ink); }
@@ -87,3 +87,6 @@
 .lijn-hit:focus-visible { stroke: var(--focus-ring); stroke-width: 2; }
 .lijn-marker { pointer-events: none; }
 .grafiek--lijn .lijn { pointer-events: none; }
+
+/* Nooit paginabrede overflow: grid-/flex-kinderen mogen krimpen (tegelcontainers: minmax(0, 1fr)). */
+.grafiek, .balken-blok, .donut, .ring { min-width: 0; }

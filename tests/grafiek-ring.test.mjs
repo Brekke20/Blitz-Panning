@@ -108,3 +108,10 @@ test('ringFiguur: sub staat in de figcaption en wordt ge-escaped [RF4]', () => {
   assert.ok(!g.includes('<b>x</b>'));
   assert.ok(g.includes('&lt;b&gt;x&lt;/b&gt;'));
 });
+
+test('M6: niet-eindige n of noemer geeft geen NaN in de figuur', () => {
+  const f = ringFiguur({ pct: 50, status: 'neutraal', titel: 't', n: NaN, noemer: NaN });
+  assert.ok(!f.includes('NaN'));
+  const g = ringFiguur({ pct: 50, status: 'neutraal', titel: 't', n: 4, noemer: NaN });
+  assert.ok(!g.includes('NaN') && g.includes('>4<'));
+});

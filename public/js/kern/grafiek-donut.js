@@ -15,7 +15,7 @@ function bereken(segmenten) {
   if (!Array.isArray(segmenten) || segmenten.length > MAX_SEGMENTEN) {
     throw new RangeError(`Een donut toont hoogstens ${MAX_SEGMENTEN} segmenten (kreeg ${segmenten?.length ?? 0}); groepeer de rest.`);
   }
-  const lijst = segmenten.map(s => ({ ...s, w: positief(s.waarde) }));
+  const lijst = segmenten.map(s => ({ ...s, label: s.label ?? '', w: positief(s.waarde) }));
   const totaal = lijst.reduce((som, s) => som + s.w, 0);
   return { lijst, totaal, pct: s => (totaal > 0 ? Math.round((s.w / totaal) * 100) : 0) };
 }
@@ -46,7 +46,7 @@ export function donutSvg({ segmenten, titel, midden }) {
     tekst = '<text class="donut-klein" x="50" y="50" text-anchor="middle" dominant-baseline="central">geen gegevens</text>';
   }
   return `<svg class="donut-svg" viewBox="0 0 100 100" width="96" height="96" role="img" aria-label="${escHtml(`${titel}: ${beschrijving}`)}">`
-    + `${spoor}${bogen}${tekst}</svg>`;
+    + `${totaal > 0 ? '' : spoor}${bogen}${tekst}</svg>`;
 }
 
 // Kleurblokje + naam + aantal + % per segment (het verplichte identiteitskanaal); ook bij totaal 0.

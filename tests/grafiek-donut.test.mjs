@@ -101,3 +101,13 @@ test('[RF4] label met HTML wordt ge-escaped in svg-aria-label, legende en tabel'
   assert.ok(delen[1].includes('&lt;b&gt;x&lt;/b&gt;'));
   assert.ok(f.split('<details')[1].includes('&lt;b&gt;x&lt;/b&gt;'));
 });
+
+test('M1: spoor enkel bij totaal 0; de gaps tonen anders de oppervlaktekleur', () => {
+  assert.ok(!donutSvg({ segmenten: VIER, titel: 't', midden: { groot: '1', klein: 'x' } }).includes('donut-spoor'));
+  assert.ok(donutSvg({ segmenten: [seg(1, 'A', 0)], titel: 't', midden: { groot: '0', klein: 'x' } }).includes('donut-spoor'));
+});
+
+test('M6: segment zonder label geeft geen "undefined"', () => {
+  const f = donutFiguur({ segmenten: [{ sleutel: 'a', waarde: 3, slot: 1 }, seg(2, 'B', 1)], titel: 't', midden: { groot: '4', klein: 'x' } });
+  assert.ok(!f.includes('undefined'));
+});

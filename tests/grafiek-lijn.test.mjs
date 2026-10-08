@@ -42,7 +42,7 @@ test('eind-marker: r=4 met 2px oppervlakte-ring, kleur van het slot, op het laat
   const h = lijnGrafiek({ titel: 't', punten: DAGEN, reeksen: [reeks(1, [10, 20, 30]), reeks(2, [5, 6, 7])] });
   const m = [...h.matchAll(/<circle class="lijn-marker"[^>]*>/g)].map(x => x[0]);
   assert.equal(m.length, 2);
-  for (const c of m) assert.ok(c.includes('r="4"') && c.includes('stroke="var(--surface)"') && c.includes('stroke-width="2"'));
+  for (const c of m) assert.ok(c.includes('r="4"') && c.includes('stroke="var(--surface)"') && c.includes('stroke-width="4"') && c.includes('paint-order="stroke"'));
   assert.ok(m[0].includes('fill="var(--viz-1)"') && m[1].includes('fill="var(--viz-2)"'));
 });
 

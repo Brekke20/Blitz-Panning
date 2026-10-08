@@ -150,3 +150,19 @@ test('gestapeldeBalken: segmenten per categorie, afgeronde rechterkant, titles, 
   assert.ok(!h.includes('NaN'));
   assert.ok(gestapeldeBalken({ titel: 't', categorieen: [], reeksen: [] }).includes('grafiek-leeg'));
 });
+
+test('M2: het vierkante 4px-stompje enkel bij een balk van ≥ 3 %', () => {
+  const klein = balkenRijen({ titel: 't', rijen: [{ label: 'A', waarde: 400 }, { label: 'B', waarde: 1 }] });
+  const rijB = klein.split('class="balk-rij"')[2];
+  assert.equal(tel(rijB, /<rect /g), 1, 'balk van 0,25 % blijft één rect (geen overdrijving)');
+  const groot = balkenRijen({ titel: 't', rijen: [{ label: 'A', waarde: 400 }, { label: 'B', waarde: 40 }] });
+  assert.equal(tel(groot.split('class="balk-rij"')[2], /<rect /g), 2);
+});
+
+test('M3: bij veel categorieën worden kolomlabels uitgedund i.p.v. tot 2-3 tekens ingekort', () => {
+  const cats = Array.from({ length: 30 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`);
+  const h = gestapeldeKolommen({ titel: 't', categorieen: cats, reeksen: [reeks(1, cats.map(() => 3))] });
+  const labels = [...h.matchAll(/<text class="as-tekst" x="[\d.]+" y="\d+" text-anchor="middle">(?:<title>[^<]*<\/title>)?([^<]*)<\/text>/g)].map(m => m[1]);
+  assert.ok(labels.length < 30 && labels.length >= 5, `labels ${labels.length}`);
+  assert.ok(labels.every(l => l.length >= 8), 'geen verminkte labels');
+});

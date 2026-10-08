@@ -50,8 +50,8 @@ export function ringFiguur({ pct, status, titel, n = null, noemer = null, sub = 
     regels.push(`<span class="ring-status"><span class="ring-icoon" aria-hidden="true">${t.icoon}</span> ${t.woord}</span>`);
   }
   if (!heeftWaarde(pct)) regels.push('<span class="ring-n">geen gegevens</span>');
-  else if (n !== null && noemer !== null) regels.push(`<span class="ring-n">${getal.format(n)} van ${getal.format(noemer)}</span>`);
-  else if (n !== null) regels.push(`<span class="ring-n">${getal.format(n)}</span>`);
+  else if (Number.isFinite(n) && Number.isFinite(noemer)) regels.push(`<span class="ring-n">${getal.format(n)} van ${getal.format(noemer)}</span>`);
+  else if (Number.isFinite(n)) regels.push(`<span class="ring-n">${getal.format(n)}</span>`);
   if (sub) regels.push(`<span class="ring-sub">${escHtml(sub)}</span>`);
   return `<figure class="ring ring--${v}">${ringSvg({ pct, status, titel })}<figcaption>${regels.join('')}</figcaption></figure>`;
 }

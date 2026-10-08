@@ -89,7 +89,7 @@ export function lijnGrafiek({ punten, reeksen, titel, eenheid = 'min' }) {
     const markers = new Set(stukken.filter(s => s.length === 1).map(s => s[0]));
     if (laatste !== null) markers.add(laatste);
     for (const i of markers) {
-      delen.push(`<circle class="lijn-marker" cx="${n2(x(i))}" cy="${n2(y(r.w[i]))}" r="4" fill="${slotKleur(r.slot)}" stroke="var(--surface)" stroke-width="2"/>`);
+      delen.push(`<circle class="lijn-marker" cx="${n2(x(i))}" cy="${n2(y(r.w[i]))}" r="4" fill="${slotKleur(r.slot)}" stroke="var(--surface)" stroke-width="4" paint-order="stroke"/>`);
     }
     if (laatste !== null) eindlabels.push({ r, x: x(laatste) + 10, y: y(r.w[laatste]) });
   }

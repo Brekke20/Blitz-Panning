@@ -23,7 +23,7 @@ export function balkenRijen({ rijen, slot = 1, eenheid = '', titel }) {
     const label = escHtml(`${r.label}: ${tekst}`);
     // 4px afgerond aan de data-kant (rx op het vlak), vierkant aan de basis (extra vierkant stukje links).
     const balk = w > 0
-      ? `<rect x="0" y="0" width="${pct}%" height="16" rx="4" fill="${kleur}"/><rect x="0" y="0" width="4" height="16" fill="${kleur}"/>`
+      ? `<rect x="0" y="0" width="${pct}%" height="16" rx="4" fill="${kleur}"/>${Number(pct) >= 3 ? `<rect x="0" y="0" width="4" height="16" fill="${kleur}"/>` : ''}`
       : `<rect x="0" y="0" width="0%" height="16" fill="${kleur}"/>`;
     return `<div class="balk-rij"><span class="balk-label">${escHtml(r.label)}</span>`
       + `<svg class="balk-svg" width="100%" height="16" role="img" aria-label="${label}"><title>${label}</title>${balk}</svg>`
@@ -93,6 +93,9 @@ export function gestapeldeKolommen({ categorieen, reeksen, titel, eenheid = '', 
   const schaal = v => (v / ticks.top) * plotH;
   const slotB = plotB / categorieen.length;
   const kolomB = Math.min(24, slotB * 0.7);
+  // Labels uitdunnen (zoals de lijngrafiek): elk label krijgt minstens zijn eigen breedte (max 12 tekens ≈ 6,5 per teken).
+  const langste = Math.min(12, Math.max(...categorieen.map(c => String(c).length)));
+  const elke = Math.max(1, Math.ceil((langste * 6.5 + 4) / slotB));
   const delen = [];
   for (const t of ticks.ticks) {
     const y = basisY - schaal(t);
@@ -111,7 +114,7 @@ export function gestapeldeKolommen({ categorieen, reeksen, titel, eenheid = '', 
       const bovenY = basisY - s.tot + (laatste ? 0 : GAP / 2);
       delen.push(segmentPad(s, laatste ? padBoven(x, bovenY, kolomB, hoogte) : padRechthoek(x, bovenY, kolomB, hoogte), cat, eenheid));
     });
-    delen.push(`<text class="as-tekst" x="${n2(x0 + slotB / 2)}" y="${H - 12}" text-anchor="middle"><title>${escHtml(cat)}</title>${escHtml(kort(cat, Math.max(3, Math.floor(slotB / 6.5))))}</text>`);
+    if (i % elke === 0) delen.push(`<text class="as-tekst" x="${n2(x0 + slotB / 2)}" y="${H - 12}" text-anchor="middle"><title>${escHtml(cat)}</title>${escHtml(kort(cat, Math.max(3, Math.floor((slotB * elke) / 6.5))))}</text>`);
   });
   return omhulsel('grafiek--kolommen', B, H, titel, delen, lijst, tabelVan(titel, categorieen, lijst, totalen, categorieLabel));
 }
