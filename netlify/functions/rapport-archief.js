@@ -135,9 +135,21 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
 
       // Dedup: als er al een rapport bestaat voor hetzelfde ticket op dezelfde datum,
       // update die entry i.p.v. een duplicaat te prependen (1 ticket = 1 interventie).
+      // Een technieker dedupt enkel op zijn EIGEN entry: staat het rapport voor dit ticket+datum op naam van een collega,
+      // dan blijft dat onaangeroerd en komt het zijne als nieuwe entry erbij (beide rapporten blijven bewaard).
+      const eigenDedup = r => gebruiker?.rol !== 'technieker' || isEigenNaam(gebruiker, r.technieker);
       const dupIdx = current.rapports.findIndex(
-        r => r.ticketId === entry.ticketId && r.datum === entry.datum && entry.ticketId
+        r => r.ticketId === entry.ticketId && r.datum === entry.datum && entry.ticketId && eigenDedup(r)
       );
+
+      // Een technieker mag nooit een rapport van een collega verbergen of overschrijven via een gelijk id: elk ANDER
+      // rapport dan het dedup-doel met dit id moet van hem zijn.
+      if (gebruiker?.rol === 'technieker') {
+        const botsing = current.rapports.some((r, i) => i !== dupIdx && r.id === entry.id && !isEigenNaam(gebruiker, r.technieker));
+        if (botsing) {
+          return new Response(JSON.stringify(GEEN_RECHT), { status: 403, headers: { ...hdrs, 'Content-Type': 'application/json' } });
+        }
+      }
 
       // zohoUploaded/geannuleerd: enkel overerven van de bestaande entry als dit hetzelfde
       // wachtrij-item is dat zichzelf opnieuw bevestigt (zelfde id) — bv. na een mislukte
@@ -145,15 +157,6 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
       // aangemaakt rapport dezelfde dag), dan begint dat item altijd fris, zodat het zelf een
       // verse PDF naar Zoho stuurt i.p.v. stil te veronderstellen dat het al gebeurd is. Zie
       // bepaalDedupVelden() hierboven voor de geannuleerd-bescherming bij een al-geüploade entry.
-      // Een technieker mag nooit het rapport van een collega overschrijven: niet via ticket+datum (dedup) en niet via een
-      // gelijk id (anders verbergt de nieuwe entry het rapport van de collega).
-      if (gebruiker?.rol === 'technieker') {
-        const botsing = dupIdx >= 0 ? current.rapports[dupIdx] : current.rapports.find(r => r.id === entry.id);
-        if (botsing && !isEigenNaam(gebruiker, botsing.technieker)) {
-          return new Response(JSON.stringify(GEEN_RECHT), { status: 403, headers: { ...hdrs, 'Content-Type': 'application/json' } });
-        }
-      }
-
       const zelfdeItem = dupIdx >= 0 && entry.id === current.rapports[dupIdx].id;
       Object.assign(entry, bepaalDedupVelden(dupIdx >= 0 ? current.rapports[dupIdx] : null, zelfdeItem, body));
 
@@ -207,10 +210,9 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
         }), { status: 409, headers: { ...hdrs, 'Content-Type': 'application/json' } });
       }
 
-      // Een technieker verwijdert enkel zijn eigen rapporten.
+      // Een technieker verwijdert enkel zijn eigen rapporten: ALLE rapporten met dit id moeten van hem zijn.
       if (gebruiker?.rol === 'technieker') {
-        const doel = current.rapports.find(r => r.id === id);
-        if (doel && !isEigenNaam(gebruiker, doel.technieker)) {
+        if (current.rapports.some(r => r.id === id && !isEigenNaam(gebruiker, r.technieker))) {
           return new Response(JSON.stringify(GEEN_RECHT), { status: 403, headers: { ...hdrs, 'Content-Type': 'application/json' } });
         }
       }

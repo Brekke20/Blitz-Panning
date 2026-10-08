@@ -187,14 +187,47 @@ test('rapport-archief POST: technieker archiveert enkel voor zichzelf (ook met a
   assert.equal((await lijstRapporten(store)).length, 4);
 });
 
-test('rapport-archief POST: overschrijven van het rapport van een collega via ticket+datum geeft 403', async () => {
+test('rapport-archief POST: zelfde ticket+datum als een collega overschrijft het rapport van de collega niet maar komt erbij', async () => {
+  const { store, h } = opzetArchief();
+  // zelfde ticket+datum als Roels rapport (r-roel: ticketId 'Tr-roel')
+  const r = await tim(() => h(post({ id: 'n5', technieker: 'Tim', ticketId: 'Tr-roel', datum: '2026-10-08', klant: 'Tims versie' })));
+  assert.equal(r.status, 200);
+  const lijst = await lijstRapporten(store);
+  assert.equal(lijst.length, 4);
+  const roel = lijst.find(x => x.id === 'r-roel');
+  assert.equal(roel.technieker, 'Roel');
+  assert.equal(roel.klant, 'K');
+  const nieuw = lijst.find(x => x.id === 'n5');
+  assert.equal(nieuw.technieker, 'Tim');
+  assert.equal(nieuw.klant, 'Tims versie');
+});
+
+test('rapport-archief POST: planner dedupt wel op het rapport van een collega (ongewijzigd gedrag)', async () => {
+  const { store, h } = opzetArchief();
+  const r = await planner(() => h(post({ id: 'n7', technieker: 'Roel', ticketId: 'Tr-roel', datum: '2026-10-08', klant: 'Planner' })));
+  assert.equal(r.status, 200);
+  const lijst = await lijstRapporten(store);
+  assert.equal(lijst.length, 3);
+  assert.equal(lijst.find(x => x.id === 'n7').klant, 'Planner');
+});
+
+test('rapport-archief POST: gelijk id als een collega geeft 403 en laat de blob staan', async () => {
   const { store, h } = opzetArchief();
   const voor = JSON.stringify(await blob(store, 'rapportlijst'));
-  // zelfde ticket+datum als Roels rapport (r-roel: ticketId 'Tr-roel')
-  await weigert(await tim(() => h(post({ id: 'n5', technieker: 'Tim', ticketId: 'Tr-roel', datum: '2026-10-08' }))));
-  // zelfde id als het rapport van een collega
   await weigert(await tim(() => h(post({ id: 'r-roel', technieker: 'Tim', ticketId: 'ander', datum: '2026-10-08' }))));
+  // gecombineerd: eigen entry via ticket+datum als dedup-doel, maar het id van een collega
+  await weigert(await tim(() => h(post({ id: 'r-roel', technieker: 'Tim', ticketId: 'Tr-tim', datum: '2026-10-08' }))));
+  // collega-ticket+datum (geen dedup voor Tim) met het id van die collega
+  await weigert(await tim(() => h(post({ id: 'r-roel', technieker: 'Tim', ticketId: 'Tr-roel', datum: '2026-10-08' }))));
   assert.equal(JSON.stringify(await blob(store, 'rapportlijst')), voor);
+});
+
+test('rapport-archief DELETE: bij een dubbel id moeten alle rapporten met dat id eigen zijn', async () => {
+  const store = maakNepStore({ rapportlijst: { versie: 5, rapports: [rapport('dubbel', 'Tim'), rapport('dubbel', 'Roel', { ticketId: 'ander' })] } });
+  const h = maakArchief({ getStore: () => store });
+  await weigert(await tim(() => h(req('rapport-archief', 'DELETE', { id: 'dubbel', versie: 5 }))));
+  assert.equal((await lijstRapporten(store)).length, 2);
+  assert.equal((await planner(() => h(req('rapport-archief', 'DELETE', { id: 'dubbel', versie: 5 })))).status, 200);
 });
 
 test('rapport-archief POST: eigen rapport via ticket+datum bijwerken mag', async () => {
