@@ -62,10 +62,10 @@ weg in plaats van geschat te worden.
   tijdslot dat aan de klant voorgesteld werd (of, zonder voorstel, het geplande uur ± de
   standaard tijdslotbreedte). Nodig voor "% op tijd"; oudere rapporten hebben het niet.
 - **`installateurAlLangsGeweest`**, **`partner`** en **`regio`** in `rapportData`: de waarden van het Zoho-ticket op het moment van het rapport (voor `installateurAlLangsGeweest`: `'Ja'`/`'Nee'`/`''`); oudere rapporten hebben ze niet en tellen in die metrics niet mee.
-- **Rapportenlimiet:** de lijst bewaart nu max. 500 rapporten. Na de upload-fix zijn entries licht
-  (geen HTML, foto's, handtekeningen); de limiet gaat naar **5000** zodat het dashboard meer
-  historiek heeft. Bij het bouwplan wordt de grootte van de lijst gemeten; wordt hij te groot, dan
-  wordt hij per jaar opgesplitst (`rapportlijst-<jaar>`).
+- **Rapportenlimiet (ruling controller, 2026-10-08):** de actieve lijst blijft op 500 lichte entries
+  (snel te herschrijven, klein lost-update-venster). Entries die eruit vallen gaan naar een append-only
+  jaar-archief `rapportlijst-archief-<jaar>`; het dashboard leest de actieve lijst plus de archieven die
+  de gekozen periode bestrijken. Historiek begint dus bij de livegang van het archief.
 
 ## Kleurgrenzen (instelbaar op de beheerpagina, tab Performance)
 
