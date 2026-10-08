@@ -84,3 +84,10 @@ Deze zijn met tests vastgelegd zoals ze nu werken, zodat een oplossing later bew
 - Rapport-PDF (standaardPdf) handmatig testen.
 - Excel-export van het inventarislogboek handmatig testen.
 - Volledige releasechecklist: zie de release-checklist in `docs/`.
+
+## E. Beslissingen Brent (2026-10-08) over deel B en C
+
+- **Oplossen vóór v2.0.0** (apart deelproject "kleine fouten" op de refactor-tak): B1, B2, B4 (= C2: ja, automatisch op "verzonden" als de mail in Zoho teruggevonden wordt), B5, B6 (alle mislukte statusupdates tonen), B8, B9, B10, B11, B12, B13, B14, B16 (eerste vrije uur voorstellen i.p.v. 09:00).
+- **B7 / C4:** het rapportformulier toont een duidelijke melding "aanrijtijd kon niet berekend worden" met een veld om ze zelf in te vullen; nooit meer stil 0. (Kleine, gerichte aanpassing aan de wizard; de wizard wordt verder niet herwerkt.)
+- **Laten zoals het is:** B3 (melding volstaat), B17 (zeldzaam).
+- **C1:** "Geen tickets om in te plannen" is goed.
