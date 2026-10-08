@@ -51,6 +51,8 @@ export const RECHTEN = {
   // terwijl een wachtwoordwijziging nog openstaat.
   'auth-login':           { '*': 'open' },
   'auth-uitloggen':       { '*': 'open' },
+  'auth-setup':           { '*': 'open' }, // eerste beheerder: eigen controle (BEHEER_SETUP_CODE, enkel bij 0 gebruikers)
+  'auth-herstel':         { '*': 'open' }, // herstelcode of noodsleutel + e-mail van een actieve beheerder
   'auth-ik':              { GET: ALLE, ookBijWijzigen: true },
   'auth-wachtwoord':      { POST: ALLE, ookBijWijzigen: true },
   // Klantlink (ondertekend) en machine-sleutel (PLANNING_EXPORT_API_KEY): eigen controles in de functie.
