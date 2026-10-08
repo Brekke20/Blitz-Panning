@@ -41,15 +41,14 @@ export function maakHandler({ getStore: haalStore, env = process.env, nu = () =>
       return authJson(400, { error: 'Het wachtwoord van dit account kan niet gewijzigd worden.' });
     }
 
-    // Reserveer de poging vóór scrypt; vergrendeld (of opslag onbereikbaar) = 429 zonder scrypt.
+    // Reserveer de poging vóór scrypt; enkel een al actieve vergrendeling (of onbereikbare teller) = 429 zonder scrypt.
+    // Haalt DEZE poging de limiet, dan wordt "huidig" nog gecontroleerd (juist = slagen en teller wissen).
     const reservering = await reserveerPoging(store, record.email, nu());
-    if (!reservering.toegelaten) {
+    if (!reservering.toegelaten) return vergrendeld(reservering.tot);
+    if (!(await verifieer(huidig, record.wachtwoordHash))) {
       if (reservering.nieuweVergrendeling) {
         await logActiviteit(store, { gebruiker, actie: 'login-mislukt-reeks' }, { nu });
       }
-      return vergrendeld(reservering.tot);
-    }
-    if (!(await verifieer(huidig, record.wachtwoordHash))) {
       return authJson(400, { error: 'Het huidige wachtwoord is onjuist.' }); // de poging is al geteld
     }
 

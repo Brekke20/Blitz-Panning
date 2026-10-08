@@ -126,25 +126,39 @@ test('login: onbekend adres draait toch een scrypt-verificatie (uniforme tijd)',
   assert.ok(duur > 5, `schijn-verificatie lijkt overgeslagen (${duur.toFixed(1)} ms)`);
 });
 
-test('login: 4 fouten toegelaten, de 5e poging vergrendelt (zelfs juist) met opnieuwOp = nu + 15 min; erna weer mogelijk', async () => {
+test('login: 5 pogingen echt gecontroleerd; na 5 fouten is de 6e (zelfs juist) 429 zonder scrypt, opnieuwOp = nu + 15 min; erna weer mogelijk', async () => {
   const o = opzet();
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 5; i++) {
     const r = await o.login(loginReq('jan@blitz.test', 'fout-' + i));
     assert.equal(r.status, 401, `poging ${i + 1}`);
   }
-  assert.equal(o.scrypt.aantal, 4);
+  assert.equal(o.scrypt.aantal, 5);
   const vast = await o.login(loginReq('jan@blitz.test', WW));
   assert.equal(vast.status, 429);
-  assert.equal(o.scrypt.aantal, 4, 'vergrendelde poging mag geen scrypt draaien');
+  assert.equal(o.scrypt.aantal, 5, 'vergrendelde poging mag geen scrypt draaien');
   const body = await vast.json();
   assert.equal(body.opnieuwOp, new Date(NU0 + 15 * MIN).toISOString());
   assert.ok(body.error);
   assert.equal(vast.headers.get('set-cookie'), null);
   assert.equal((await o.login(loginReq('jan@blitz.test', WW))).status, 429);
+  assert.equal(o.scrypt.aantal, 5);
 
   o.klok.ms = NU0 + 15 * MIN + 1000;
   const weer = await o.login(loginReq('jan@blitz.test', WW));
   assert.equal(weer.status, 200);
+});
+
+test('login: 4 fouten + een juiste 5e poging -> 200 en de teller is gewist', async () => {
+  const o = opzet();
+  for (let i = 0; i < 4; i++) assert.equal((await o.login(loginReq('jan@blitz.test', 'fout-' + i))).status, 401);
+  const res = await o.login(loginReq('jan@blitz.test', WW));
+  assert.equal(res.status, 200);
+  assert.ok(cookieWaarde(res));
+  assert.deepEqual((await o.echt.get('login-pogingen', { type: 'json' })).login, {});
+  // geen vergrendeling meer: weer 4 fouten + 1 juiste lukt
+  for (let i = 0; i < 4; i++) assert.equal((await o.login(loginReq('jan@blitz.test', 'fout-' + i))).status, 401);
+  assert.equal((await o.login(loginReq('jan@blitz.test', WW))).status, 200);
+  assert.equal((await activiteit(o.echt)).filter(i => i.actie === 'login-mislukt-reeks').length, 0);
 });
 
 test('login: vergrendeling verraadt niet of het adres bestaat (zelfde 429-vorm)', async () => {
@@ -182,7 +196,7 @@ test('login: parallelle stoot foute pogingen laat nooit meer dan de limiet door 
   const o = opzet();
   const resultaten = await Promise.all(Array.from({ length: 25 }, (_, i) => o.login(loginReq('jan@blitz.test', 'fout-' + i))));
   assert.ok(resultaten.every(r => r.status === 401 || r.status === 429));
-  assert.ok(o.scrypt.aantal <= 4, `scrypt liep ${o.scrypt.aantal}x`);
+  assert.ok(o.scrypt.aantal <= 5, `scrypt liep ${o.scrypt.aantal}x`);
   assert.equal((await o.login(loginReq('jan@blitz.test', WW))).status, 429);
 });
 
@@ -475,7 +489,7 @@ test('wachtwoord: andere velden van de gebruiker blijven behouden', async () => 
   assert.equal(lijst.length, 4);
 });
 
-test('wachtwoord: fout huidig -> 400 (niet 401) en telt als mislukte poging; vergrendeling zonder scrypt en gelogd', async () => {
+test('wachtwoord: fout huidig -> 400 (niet 401) en telt als mislukte poging; na 5 fouten 429 zonder scrypt en gelogd', async () => {
   const o = opzet();
   const t = tokenVoor('u-jan', 1, nuS() + 1000);
   const res = await o.wachtwoord(wwReq(t, { huidig: 'fout-fout-fout', nieuw: NIEUW }));
@@ -485,12 +499,12 @@ test('wachtwoord: fout huidig -> 400 (niet 401) en telt als mislukte poging; ver
   const vermeldingen = Object.values(staat.login);
   assert.equal(vermeldingen.length, 1);
   assert.equal(vermeldingen[0].p.length, 1); // niet dubbel geteld
-  // 3 extra fouten -> 4 pogingen toegelaten; de 5e (zelfs juiste) vergrendelt zonder scrypt
-  for (let i = 0; i < 3; i++) assert.equal((await o.wachtwoord(wwReq(t, { huidig: 'fout-' + i + '-fout', nieuw: NIEUW }))).status, 400);
-  assert.equal(o.scrypt.aantal, 4);
+  // 4 extra fouten -> 5 echte pogingen (de 5e vergrendelt); de 6e (zelfs juiste) is 429 zonder scrypt
+  for (let i = 0; i < 4; i++) assert.equal((await o.wachtwoord(wwReq(t, { huidig: 'fout-' + i + '-fout', nieuw: NIEUW }))).status, 400);
+  assert.equal(o.scrypt.aantal, 5);
   const vast = await o.wachtwoord(wwReq(t, { huidig: WW, nieuw: NIEUW }));
   assert.equal(vast.status, 429);
-  assert.equal(o.scrypt.aantal, 4);
+  assert.equal(o.scrypt.aantal, 5);
   assert.equal((await o.login(loginReq('jan@blitz.test', WW))).status, 429);
   const reeks = (await activiteit(o.echt)).filter(i => i.actie === 'login-mislukt-reeks');
   assert.equal(reeks.length, 1);
@@ -498,12 +512,20 @@ test('wachtwoord: fout huidig -> 400 (niet 401) en telt als mislukte poging; ver
   assert.equal(reeks[0].onderwerp, null);
 });
 
+test('wachtwoord: 4 fouten + een juiste 5e poging -> 200 en de teller is gewist', async () => {
+  const o = opzet();
+  const t = tokenVoor('u-jan', 1, nuS() + 1000);
+  for (let i = 0; i < 4; i++) assert.equal((await o.wachtwoord(wwReq(t, { huidig: 'fout-' + i + '-fout', nieuw: NIEUW }))).status, 400);
+  assert.equal((await o.wachtwoord(wwReq(t, { huidig: WW, nieuw: NIEUW }))).status, 200);
+  assert.deepEqual((await o.echt.get('login-pogingen', { type: 'json' })).login, {});
+});
+
 test('wachtwoord: parallelle stoot foute pogingen laat nooit meer dan de limiet door naar scrypt', async () => {
   const o = opzet();
   const t = tokenVoor('u-jan', 1, nuS() + 1000);
   const res = await Promise.all(Array.from({ length: 25 }, (_, i) => o.wachtwoord(wwReq(t, { huidig: 'fout-' + i + '-fout', nieuw: NIEUW }))));
   assert.ok(res.every(r => r.status === 400 || r.status === 429));
-  assert.ok(o.scrypt.aantal <= 4, `scrypt liep ${o.scrypt.aantal}x`);
+  assert.ok(o.scrypt.aantal <= 5, `scrypt liep ${o.scrypt.aantal}x`);
 });
 
 test('wachtwoord: schrijffout op de pogingenteller -> 429 zonder scrypt', async () => {

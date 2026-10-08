@@ -47,23 +47,25 @@ export function maakHandler({ getStore: haalStore, env = process.env, nu = () =>
     }
 
     // De poging wordt GERESERVEERD vóór scrypt: een parallelle stoot kan de vergrendeling zo niet omzeilen.
-    // Leidt de reservering zelf tot (of bestaat al) een vergrendeling, of is de opslag onbereikbaar: 429 zonder scrypt.
+    // Enkel een al actieve vergrendeling (of een onbereikbare teller) geeft 429 zonder scrypt; haalt DEZE poging
+    // de limiet, dan wordt het wachtwoord nog gecontroleerd (een juiste 5e poging slaagt en wist de teller).
     const reservering = await reserveerPoging(store, email, nu());
-    if (!reservering.toegelaten) {
-      if (reservering.nieuweVergrendeling) {
-        await logActiviteit(store, record
-          ? { gebruiker: publiek(record), actie: 'login-mislukt-reeks' }
-          : { gebruiker: SYSTEEM, actie: 'login-mislukt-reeks', onderwerp: maskeerEmail(email) }, { nu });
-      }
-      return vergrendeld(reservering.tot);
-    }
+    if (!reservering.toegelaten) return vergrendeld(reservering.tot);
 
     // Precies één scrypt-verificatie: bij een onbekend adres tegen een schijn-hash.
     const hash = typeof record?.wachtwoordHash === 'string' ? record.wachtwoordHash : SCHIJN_HASH;
     const juist = await verifieer(body.wachtwoord, hash);
     const geslaagd = Boolean(record) && juist && record.actief === true
       && Number.isInteger(record.sessieVersie) && ROLLEN_LIJST.includes(record.rol);
-    if (!geslaagd) return authJson(401, ONJUIST); // de poging is al geteld
+    if (!geslaagd) {
+      // de poging is al geteld; de vergrendeling die ze veroorzaakte blijft staan
+      if (reservering.nieuweVergrendeling) {
+        await logActiviteit(store, record
+          ? { gebruiker: publiek(record), actie: 'login-mislukt-reeks' }
+          : { gebruiker: SYSTEEM, actie: 'login-mislukt-reeks', onderwerp: maskeerEmail(email) }, { nu });
+      }
+      return authJson(401, ONJUIST);
+    }
 
     await wisPoging(store, email);
     try {

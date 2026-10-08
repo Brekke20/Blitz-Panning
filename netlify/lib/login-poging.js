@@ -14,8 +14,9 @@ function serieel(werk) {
   return resultaat;
 }
 
-// -> { toegelaten: true }
-//  | { toegelaten: false, tot: ms, nieuweVergrendeling: boolean }   (vergrendeld of opslag onbereikbaar)
+// -> { toegelaten: true, nieuweVergrendeling }   (nieuweVergrendeling: DEZE poging haalt de limiet; wachtwoord
+//                                                   wordt nog gecontroleerd, bij mislukking blijft de vergrendeling)
+//  | { toegelaten: false, tot: ms }                (al vergrendeld vóór deze poging, of opslag onbereikbaar)
 // Fail closed: kan de poging niet bewaard worden (ok:false of fout), dan telt dat als vergrendeld.
 export async function reserveerPoging(store, email, nuMs) {
   let reeds = false;
@@ -29,15 +30,12 @@ export async function reserveerPoging(store, email, nuMs) {
       nieuweVergrendeling = m.vergrendeldNu;
       return m.staat;
     }));
-    if (!r.ok) return { toegelaten: false, tot: nuMs + VERGRENDELING_MS, nieuweVergrendeling: false };
-    const slot = isVergrendeld(r.staat, 'login', email, nuMs);
-    if (reeds || nieuweVergrendeling || slot.vergrendeld) {
-      return { toegelaten: false, tot: slot.tot ?? nuMs + VERGRENDELING_MS, nieuweVergrendeling: !reeds && nieuweVergrendeling };
-    }
-    return { toegelaten: true };
+    if (!r.ok) return { toegelaten: false, tot: nuMs + VERGRENDELING_MS };
+    if (reeds) return { toegelaten: false, tot: isVergrendeld(r.staat, 'login', email, nuMs).tot ?? nuMs + VERGRENDELING_MS };
+    return { toegelaten: true, nieuweVergrendeling };
   } catch (e) {
     console.error('login-poging: teller niet bewaard (' + (e?.name || 'Error') + ')');
-    return { toegelaten: false, tot: nuMs + VERGRENDELING_MS, nieuweVergrendeling: false };
+    return { toegelaten: false, tot: nuMs + VERGRENDELING_MS };
   }
 }
 
