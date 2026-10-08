@@ -122,6 +122,18 @@ export function opslagStub(begin, veld) {
   return ({ methode, body }) => methode === 'PUT' ? opslag.schrijf(body) : opslag.get();
 }
 
+// Het antwoord van GET /api/auth-ik voor een ingelogde gebruiker met de gegeven rol (logins T14): de loginlaag is in elke
+// e2e-run al "voorbij", tenzij een test auth-ik zelf overschrijft (bv. 401 voor het inlogscherm).
+export function authIkStub(rol = 'beheerder') {
+  const beheer = rol === 'beheerder';
+  return () => json(200, {
+    gebruiker: { id: 'u-test', email: 'b@test.be', naam: 'Test Beheerder', rol },
+    rechten: { beheer, plannen: beheer || rol === 'planner', alleSales: beheer },
+    moetWachtwoordWijzigen: false,
+    lokaleDev: false,
+  });
+}
+
 function maakStandaardStubs() {
   const afspraken = maakOpslag({ versie: 0, afspraken: [] }, 'afspraken');
   const availability = maakOpslag({ versie: 0, exceptions: [] }, 'exceptions');
@@ -208,6 +220,9 @@ function maakStandaardStubs() {
     // verboden paden laten de test falen.
     plan: ok, 'plan-datum': ok, propose: ok, annuleer: ok, comment: ok,
     'send-rapport': ok, rapport: ok, 'rapport-verzonden': ok, testdata: ok, 'client-log': ok,
+
+    // Sessie (logins T14): standaard een ingelogde beheerder; auth-uitloggen is neutraal. Beide staan in geen enkele verbodenlijst.
+    'auth-ik': authIkStub('beheerder'), 'auth-uitloggen': ok,
   };
 }
 
@@ -278,7 +293,8 @@ export async function stubExtern(page, { overschrijf = {} } = {}) {
 // Verwachte wachtrijtelling voor een technieker-filter (DUMMY_DATA: Tim 2, Roel 1 te plannen).
 export const TE_PLANNEN = { all: 3, Tim: 2, Roel: 1 };
 
-export async function startApp(page, { rol = 'coordinator', technieker = 'all', viewport, overschrijf } = {}) {
+// `loginRol`: de rol die de auth-ik-stub teruggeeft (standaard 'beheerder'; los van `rol`, de oude rolkeuze in de app).
+export async function startApp(page, { rol = 'coordinator', technieker = 'all', viewport, overschrijf, loginRol = 'beheerder' } = {}) {
   if (viewport) await page.setViewportSize(viewport);
   // Alleen zetten als er nog niets staat: een test die in de app van persoon wisselt en herlaadt,
   // behoudt zo zijn keuze.
@@ -293,7 +309,7 @@ export async function startApp(page, { rol = 'coordinator', technieker = 'all', 
   // De tijd loopt door vanaf VASTE_NU (geen bevroren klok); gebruik page.clock.setFixedTime als een
   // test ooit op de minuut nauwkeurig moet zijn.
   await page.clock.install({ time: new Date(VASTE_NU) });
-  await stubExtern(page, { overschrijf });
+  await stubExtern(page, { overschrijf: { 'auth-ik': authIkStub(loginRol), ...overschrijf } });
   await page.goto('/?test');
   await expect(page.locator('#cnt-tickets')).toHaveText(String(TE_PLANNEN[technieker] ?? 0));
 }
