@@ -7,6 +7,7 @@ import { toonGebruikersmenu } from './gebruikersmenu.js';
 import { registreerTabs, tabsVoorRol, registreerStart, startVoorRol, zetActieveRol } from '../kern/navigatie.js';
 import { laadSessie, huidigeGebruiker, registreerAfmeldHaak } from '../kern/sessie.js';
 import { claimToestel, geefToestelVrij } from '../kern/eigenaar.js';
+import { synchroniseerInstellingen, wisInstellingenCache } from '../kern/instellingen-sync.js';
 import { toast } from '../kern/ui.js';
 
 // De zes bestaande tabs van index.html (de knoppen `tab-<id>`): setTab laadt de inhoud zelf, dus er valt hier niets te laden.
@@ -31,6 +32,8 @@ registreerStart('sales', toonSalesPlaceholder);
 
 // Uitloggen: de gekozen persoon en de eigenaarsmarkering van dit toestel weg (kern/eigenaar.js); de rapportwachtrij blijft bewust staan.
 registreerAfmeldHaak(() => geefToestelVrij(globalThis.localStorage, globalThis.sessionStorage));
+// ... en de lokale instellingen-cache (blitz_settings*, laatste start, marker, vuil-markering): de server heeft ze, de volgende login haalt ze terug.
+registreerAfmeldHaak(() => wisInstellingenCache(globalThis.localStorage));
 
 function verberg(el) {
   if (!el) return;
@@ -130,6 +133,8 @@ export async function startNaInlog(opstart) {
   // Gedeeld toestel: staat van een vorige gebruiker (gekozen persoon, ticket-/planningcaches) eerst weg, vóór pasRolToe en de opstart.
   claimToestel(globalThis.localStorage, globalThis.sessionStorage, gebruiker.id);
   pasRolToe(gebruiker);
+  // Instellingen van de server in de lokale cache zetten (logins T16) vóór de app ze leest; faalt nooit hard: bij een fout start de app met de lokale cache.
+  try { await synchroniseerInstellingen(gebruiker); } catch (fout) { console.warn('Instellingen synchroniseren mislukt; de lokale cache wordt gebruikt:', fout); }
   const start = startVoorRol(gebruiker.rol);
   if (start) start(); else opstart();
 }

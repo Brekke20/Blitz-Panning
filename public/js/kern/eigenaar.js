@@ -3,7 +3,8 @@
 // en de schermstaat), zodat een gedeeld toestel niets van de vorige gebruiker toont of herstelt.
 // BEWUSTE UITZONDERINGEN (nooit gewist, anders gaat werk verloren): de rapportwachtrij (IndexedDB, onverstuurde rapporten), de
 // verbruikswachtrij (blitz_verbruik_wachtrij: niet gelukte voorraadaftrekken), rapportconcepten, instellingen per persoon,
-// de geocodecache en aankomsttijden.
+// de geocodecache en aankomsttijden. De instellingen per persoon hebben een eigen eigenaarsmarkering (kern/instellingen-sync.js,
+// blitz_instellingen_eigenaar): bij een andere gebruiker worden ze daar gewist, bij uitloggen door de afmeldhaak van rol-schil.js.
 
 export const EIGENAAR_SLEUTEL = 'blitz_eigenaar';
 const PERSOON_SLEUTEL = 'blitz_active_person';

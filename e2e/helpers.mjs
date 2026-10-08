@@ -224,6 +224,12 @@ function maakStandaardStubs() {
       return json(200, fotos[id] || huidig);
     },
 
+    // Instellingen per gebruiker (logins T16): de server heeft nog niets van de ingelogde gebruiker; een PUT slaagt neutraal.
+    // Specs die server-instellingen nodig hebben overschrijven dit (zie instellingen-server.spec.mjs).
+    instellingen: ({ methode }) => (methode === 'PUT'
+      ? json(200, { versie: 1 })
+      : json(200, { eigen: { gebruikerId: 'u-test', versie: 0, instellingen: null }, techniekers: {} })),
+
     // Schrijf- en mail-eindpunten: neutraal succes. Aanroepen staan in `verzoeken.alle` en de
     // verboden paden laten de test falen.
     plan: ok, 'plan-datum': ok, propose: ok, annuleer: ok, comment: ok,

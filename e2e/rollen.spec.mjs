@@ -90,7 +90,9 @@ test.describe('sales', () => {
     // Genoeg tijd laten verstrijken zodat een opstart die toch zou lopen zijn verzoeken heeft gedaan.
     await page.clock.runFor(10000);
     await page.evaluate(() => Promise.resolve());
-    expect(verzoeken.alle.filter(r => r.pad !== '/api/auth-ik')).toEqual([]);
+    // Enkel de eigen instellingen (logins T16: GET /api/instellingen, voor sales enkel het eigen blok) horen erbij.
+    expect(verzoeken.alle.filter(r => r.pad !== '/api/auth-ik' && r.pad !== '/api/instellingen')).toEqual([]);
+    expect(verzoeken.alle.filter(r => r.pad === '/api/instellingen').map(r => r.methode)).toEqual(['GET']);
     expect(verzoeken.van('/api/tickets')).toEqual([]);
   });
 });
