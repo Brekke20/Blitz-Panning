@@ -32,3 +32,7 @@
 
 [functions.rapport-ontvangen]
   timeout = 26
+
+[functions.rapport-vangnet]
+  schedule = "*/5 * * * *"
+  timeout = 30
