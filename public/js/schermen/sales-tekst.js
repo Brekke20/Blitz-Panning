@@ -14,3 +14,10 @@ export function dagLabel(iso) {
   if (isNaN(d)) return '';
   return `${WEEKDAG[d.getDay()]} ${fmtDateShort(d).replace(/\.$/, '')}`;
 }
+
+const BLOK_LABEL = { verlof: 'Verlof', kantoor: 'Kantoor', afspraak: 'Afspraak' };
+
+/** Tekst van een blok: de omschrijving, anders de soort ('Verlof'). */
+export function blokTitel(blok) {
+  return blok?.omschrijving || BLOK_LABEL[blok?.soort] || 'Blok';
+}

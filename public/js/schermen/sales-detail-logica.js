@@ -2,10 +2,9 @@
 import { isVast, isGeldigeDatum, isGeldigUur } from '../sales/lead-regels.js';
 import { isHeleDag } from '../sales/blok-regels.js';
 import { timeStrToMin } from '../kern/tijd.js';
-import { naamVan } from './sales-tekst.js';
+import { naamVan, blokTitel } from './sales-tekst.js';
 
 const MIN_DUUR_MIN = 15;
-const BLOK_LABEL = { verlof: 'Verlof', kantoor: 'Kantoor', afspraak: 'Afspraak' };
 
 const tekst = (x) => (x == null ? '' : String(x).trim());
 const leegNaarNull = (s) => (s === '' ? null : s);
@@ -62,7 +61,7 @@ export function vindBotsingen({ leads = [], blokken = [], datum, start, duurMin,
     if (b.datum !== datum) continue;
     const bs = timeStrToMin(b.start);
     const be = isHeleDag(b) ? 1440 : timeStrToMin(b.eind);
-    if (overlapt(s, e, bs, be)) gevonden.push({ soort: 'blok', omschrijving: b.omschrijving || BLOK_LABEL[b.soort] || 'Blok', start: b.start, eind: b.eind, _s: bs });
+    if (overlapt(s, e, bs, be)) gevonden.push({ soort: 'blok', omschrijving: blokTitel(b), start: b.start, eind: b.eind, _s: bs });
   }
   return gevonden.sort((a, b) => a._s - b._s).map(({ _s, ...rest }) => rest);
 }
