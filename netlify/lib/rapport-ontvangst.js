@@ -2,7 +2,7 @@
 // blob, lichte entry in de rapportlijst met verwerking 'wacht' (of 'lokaal'). De zware verwerking
 // (PDF + Zoho) gebeurt later in de Background Function. Zie rapport-verwerking.js.
 
-import { bouwEntry, voegToeOfWerkBij, wijzigLijst, effectieveStatus } from './rapportlijst.js';
+import { bouwEntry, voegToeOfWerkBij, wijzigLijst, effectieveStatus, stripZwareVelden } from './rapportlijst.js';
 import { valideerOntvangst, schrijfInhoud, verwijderInhoud } from './rapport-inhoud.js';
 import { nieuweVerwerking } from './rapport-verwerking.js';
 
@@ -24,6 +24,22 @@ export async function verwerkOntvangst({ store, body, nu = new Date(), testModus
       vervangenId = null;
       const bestaand = rapports.find(r => r.id === id);
       if (bestaand) {
+        // Oude flow: wel gearchiveerd (zelfde id), maar de Zoho-upload is nooit gebeurd (bv.
+        // scherm vergrendeld). Zo'n entry heeft geen `verwerking`: upgraden naar de nieuwe flow
+        // zodat het rapport alsnog naar Zoho gaat. Al geüpload of geannuleerd blijft onaangeroerd.
+        if (!bestaand.verwerking && bestaand.zohoUploaded !== true && bestaand.geannuleerd !== true) {
+          const verwerking = nieuweVerwerking(isLocal ? 'lokaal' : 'wacht', nu);
+          const idx = rapports.findIndex(r => r.id === id);
+          const lijst = [...rapports];
+          lijst[idx] = {
+            ...bestaand,
+            rapportData: stripZwareVelden(bestaand.rapportData),
+            inhoudBeschikbaar: true,
+            verwerking,
+          };
+          startNodig = !isLocal;
+          return { rapports: lijst, controle: terug => terug.some(r => r.id === id && r.verwerking) };
+        }
         // Zelfde id al ontvangen (herhaalde POST): niets wijzigen; enkel een nog wachtende entry
         // opnieuw laten starten.
         startNodig = effectieveStatus(bestaand) === 'wacht';

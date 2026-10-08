@@ -116,6 +116,63 @@ test('entry is bezig of mislukt: tweede POST geeft startNodig false', async () =
   }
 });
 
+// ---- oude flow: entry met zelfde id zonder `verwerking` ---------------------
+function oudeEntry(over = {}) {
+  return {
+    id: ID_A, datum: '2026-10-08', ticketId: '555', ticketNumber: '1006', klant: 'K', technieker: 'Tim',
+    zohoUploaded: false, geannuleerd: false, verzondenKlant: '2026-10-08T09:00:00Z',
+    rapportData: { _html: '<p>oud</p>', handtekeningTech: 'data:t', handtekeningKlant: 'data:k', probleem: 'p' },
+    ...over,
+  };
+}
+function zetOud(m, entry) { m.set('rapportlijst', JSON.stringify({ versie: 4, rapports: [entry] })); }
+
+test('oude entry zelfde id (gearchiveerd, niet in Zoho): upgrade naar wacht, zware velden weg, startNodig true, één entry', async () => {
+  const { store, m } = maakStore();
+  zetOud(m, oudeEntry());
+  const r = await verwerkOntvangst({ store, body: body(), nu: NU });
+  assert.deepEqual([r.status, r.body, r.startNodig], [200, { ok: true, id: ID_A }, true]);
+  const lijst = lijstVan(m);
+  assert.equal(lijst.length, 1);
+  const e = lijst[0];
+  assert.equal(e.verwerking.status, 'wacht');
+  assert.equal(e.inhoudBeschikbaar, true);
+  assert.equal(e.rapportData._html, undefined);
+  assert.equal(e.rapportData.handtekeningTech, undefined);
+  assert.equal(e.rapportData.handtekeningKlant, undefined);
+  assert.equal(e.rapportData.probleem, 'p');
+  assert.equal(e.verzondenKlant, '2026-10-08T09:00:00Z'); // overige velden behouden
+  assert.equal(JSON.parse(m.get('rapport-inhoud/' + ID_A)).html, '<p>x</p>');
+});
+
+test('oude entry zelfde id, isLocal: upgrade naar lokaal, startNodig false', async () => {
+  const { store, m } = maakStore();
+  zetOud(m, oudeEntry({ ticketId: '' }));
+  const r = await verwerkOntvangst({ store, body: body({ isLocal: true, ticketId: '' }), nu: NU });
+  assert.equal(r.startNodig, false);
+  assert.equal(lijstVan(m)[0].verwerking.status, 'lokaal');
+});
+
+test('oude entry zelfde id met zohoUploaded true: ongewijzigd, startNodig false', async () => {
+  const { store, m } = maakStore();
+  zetOud(m, oudeEntry({ zohoUploaded: true }));
+  const voor = JSON.stringify(lijstVan(m)[0]);
+  const r = await verwerkOntvangst({ store, body: body(), nu: NU });
+  assert.equal(r.status, 200);
+  assert.equal(r.startNodig, false);
+  assert.equal(JSON.stringify(lijstVan(m)[0]), voor);
+});
+
+test('oude entry zelfde id met geannuleerd true: ongewijzigd, startNodig false', async () => {
+  const { store, m } = maakStore();
+  zetOud(m, oudeEntry({ geannuleerd: true }));
+  const voor = JSON.stringify(lijstVan(m)[0]);
+  const r = await verwerkOntvangst({ store, body: body(), nu: NU });
+  assert.equal(r.status, 200);
+  assert.equal(r.startNodig, false);
+  assert.equal(JSON.stringify(lijstVan(m)[0]), voor);
+});
+
 test('dedup met ander id (zelfde ticket+datum): entry krijgt nieuw id, oude inhoudsblob verwijderd', async () => {
   const { store, m } = maakStore();
   await verwerkOntvangst({ store, body: body(), nu: NU });
