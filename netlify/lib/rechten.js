@@ -47,6 +47,12 @@ export const RECHTEN = {
   'client-log':           { GET: BEHEER, POST: ALLE },
   'testdata':             { POST: BEHEER },
   'setup':                { '*': BEHEER },
+  // Sessiefuncties: login/uitloggen zijn open (nog geen sessie); auth-ik en auth-wachtwoord werken ook
+  // terwijl een wachtwoordwijziging nog openstaat.
+  'auth-login':           { '*': 'open' },
+  'auth-uitloggen':       { '*': 'open' },
+  'auth-ik':              { GET: ALLE, ookBijWijzigen: true },
+  'auth-wachtwoord':      { POST: ALLE, ookBijWijzigen: true },
   // Klantlink (ondertekend) en machine-sleutel (PLANNING_EXPORT_API_KEY): eigen controles in de functie.
   'confirm-afspraak':     { '*': 'open' },
   'planning-export':      { '*': 'open' },
