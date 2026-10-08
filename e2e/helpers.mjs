@@ -315,6 +315,9 @@ export async function startApp(page, { rol = 'coordinator', technieker = 'all', 
     const zet = (k, v) => { if (localStorage.getItem(k) === null) localStorage.setItem(k, v); };
     if (rol !== null) zet('blitz_rol', rol); // rol: null = nog nooit gekozen (tablet-vraag)
     zet('blitz_active_person', technieker);
+    // Het toestel is al van de teststub-gebruiker (kern/eigenaar.js wist anders de persoon hierboven); eenmalig per tabblad, zodat een
+    // uitlog (die de markering weghaalt) na een herlaad niet meteen weer ongedaan wordt gemaakt.
+    if (!sessionStorage.getItem('__test_eigenaar')) { sessionStorage.setItem('__test_eigenaar', '1'); zet('blitz_eigenaar', 'u-test'); }
     zet('blitz_theme', 'dark');
   }, { rol, technieker });
   // De tijd loopt door vanaf VASTE_NU (geen bevroren klok); gebruik page.clock.setFixedTime als een

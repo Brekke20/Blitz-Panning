@@ -5,7 +5,8 @@
 import './inloggen.js';                       // registreert de loginschermen bij kern/sessie.js (zetInlogUi)
 import { toonGebruikersmenu } from './gebruikersmenu.js';
 import { registreerTabs, tabsVoorRol, registreerStart, startVoorRol, zetActieveRol } from '../kern/navigatie.js';
-import { laadSessie, huidigeGebruiker } from '../kern/sessie.js';
+import { laadSessie, huidigeGebruiker, registreerAfmeldHaak } from '../kern/sessie.js';
+import { claimToestel, geefToestelVrij } from '../kern/eigenaar.js';
 import { toast } from '../kern/ui.js';
 
 // De zes bestaande tabs van index.html (de knoppen `tab-<id>`): setTab laadt de inhoud zelf, dus er valt hier niets te laden.
@@ -27,6 +28,9 @@ registreerTabs('technieker', [bestaand('kalender', 'Kalender'), bestaand('geplan
 // Sales: voorlopig een plaatshouder; de sales-planning registreert later haar eigen tabs en start.
 registreerTabs('sales', []);
 registreerStart('sales', toonSalesPlaceholder);
+
+// Uitloggen: de gekozen persoon en de eigenaarsmarkering van dit toestel weg (kern/eigenaar.js); de rapportwachtrij blijft bewust staan.
+registreerAfmeldHaak(() => geefToestelVrij(globalThis.localStorage, globalThis.sessionStorage));
 
 function verberg(el) {
   if (!el) return;
@@ -122,7 +126,9 @@ export async function startNaInlog(opstart) {
     return;
   }
   const gebruiker = huidigeGebruiker();
-  if (!gebruiker) return;
+  if (!gebruiker) { console.warn('startNaInlog: geen gebruiker na de login; de app start niet'); return; }
+  // Gedeeld toestel: staat van een vorige gebruiker (gekozen persoon, ticket-/planningcaches) eerst weg, vóór pasRolToe en de opstart.
+  claimToestel(globalThis.localStorage, globalThis.sessionStorage, gebruiker.id);
   pasRolToe(gebruiker);
   const start = startVoorRol(gebruiker.rol);
   if (start) start(); else opstart();

@@ -158,3 +158,53 @@ test.describe('gebruikersmenu', () => {
     expect(verzoeken.van('/api/auth-ik', 'GET').length).toBeGreaterThanOrEqual(2);
   });
 });
+
+test.describe('gedeeld toestel', () => {
+  const GEBRUIKERS = {
+    tim: { id: 'u-tim', email: 'tim@test.be', naam: 'Tim T', rol: 'technieker', zohoNaam: 'Tim' },
+    roel: { id: 'u-roel', email: 'roel@test.be', naam: 'Roel R', rol: 'technieker', zohoNaam: 'Roel' },
+  };
+  const opslag = (page, sleutel) => page.evaluate((k) => localStorage.getItem(k), sleutel);
+
+  test('na uitloggen start een andere technieker op zijn eigen persoon, zonder de cache van de vorige', async ({ page, verzoeken }) => {
+    let wie = 'tim';
+    const OK = { status: 200, json: { ok: true } };
+    await startApp(page, {
+      loginRol: 'technieker',
+      overschrijf: {
+        'auth-ik': () => (wie
+          ? { status: 200, json: { gebruiker: GEBRUIKERS[wie], rechten: { beheer: false, plannen: false, alleSales: false }, moetWachtwoordWijzigen: false, lokaleDev: false } }
+          : { status: 401, json: { error: 'Niet ingelogd', code: 'niet-ingelogd', setupNodig: false } }),
+        'auth-uitloggen': () => { wie = null; return OK; },
+        'auth-login': ({ body }) => { wie = body.email === 'roel@test.be' ? 'roel' : 'tim'; return OK; },
+      },
+    });
+    expect(await opslag(page, 'blitz_eigenaar')).toBe('u-tim');
+    expect(await opslag(page, 'blitz_active_person')).toBe('Tim');
+
+    // Zelfde gebruiker na een herlaad: de lokale staat blijft.
+    await page.evaluate(() => localStorage.setItem('blitz_tickets_cache', '{"van":"tim"}'));
+    await page.reload();
+    await expect(page.locator('#cnt-tickets')).toHaveText('2');
+    expect(await opslag(page, 'blitz_tickets_cache')).toBe('{"van":"tim"}');
+
+    // Uitloggen: persoon en eigenaarsmarkering weg.
+    await page.locator('.gebruiker-btn').click();
+    await page.getByRole('menuitem', { name: 'Uitloggen' }).click();
+    await expect(page.locator('#login-overlay').getByRole('heading', { name: 'Inloggen' })).toBeVisible();
+    expect(await opslag(page, 'blitz_eigenaar')).toBeNull();
+    expect(await opslag(page, 'blitz_active_person')).not.toBe('Tim');
+
+    // Roel logt in: eigen persoon, de cache van Tim is weg en de app toont Roels wachtrij.
+    await page.getByLabel('E-mailadres').fill('roel@test.be');
+    await page.getByLabel('Wachtwoord').fill('een-lang-wachtwoord');
+    await page.getByLabel('Wachtwoord').press('Enter');
+    await expect(page.locator('#login-overlay')).toHaveCount(0);
+    await expect(page.locator('#cnt-tickets')).toHaveText('1');
+    expect(await opslag(page, 'blitz_active_person')).toBe('Roel');
+    expect(await opslag(page, 'blitz_tickets_cache')).toBeNull();
+    expect(await opslag(page, 'blitz_eigenaar')).toBe('u-roel');
+    await expect(page.locator('#person-name-hdr')).toHaveText('Roel');
+    expect(verzoeken.van('/api/auth-uitloggen', 'POST')).toHaveLength(1);
+  });
+});

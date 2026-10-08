@@ -7,6 +7,7 @@
 import { foutTekst } from './kern/api.js';
 import { TEST_MODE } from './kern/omgeving.js';
 import { loadFromCache, saveToCache } from './kern/opslag.js';
+import { heeftRol } from './kern/sessie.js';
 import { escHtml, toast } from './kern/ui.js';
 import { laadExcelJs } from './kern/exceljs.js';
 import { PRIJZEN, PRIJZEN_DEFAULTS } from './prijzen.js';
@@ -537,7 +538,8 @@ export function verwerkVerbruikWachtrij() {
   if (TEST_MODE) return Promise.resolve();
   return verbruikWachtrij().verwerk();
 }
-if (typeof window !== 'undefined') window.addEventListener('online', () => { verwerkVerbruikWachtrij(); });
+// Enkel met een sessie van een rol die de voorraad gebruikt: geen verzoeken vóór de login en geen voor sales.
+if (typeof window !== 'undefined') window.addEventListener('online', () => { if (heeftRol('beheerder', 'planner', 'technieker')) verwerkVerbruikWachtrij(); });
 
 // ── Window-bridge ──
 // Enkel wat de rapport-wizard nog als kale naam leest: registreerVerbruik (na het versturen van een rapport).
