@@ -212,3 +212,81 @@ test('pasLeadToe: het resultaat moet de invarianten halen', () => {
   const p = pasLeadToe(basis(), { postcode: '35' });
   assert.ok(p.fouten.length);
 });
+
+// ---- inhoudsvalidatie (fix-ronde 1): pasLeadToe is de bewaker die de server gebruikt ----
+test('valideerLead: resultaat.soort moet een bekende afwerksoort zijn', () => {
+  const metSoort = (soort) => afgewerkt({ resultaat: { soort, op: '2026-10-06T12:00:00.000Z' } });
+  for (const soort of ['offerte', 'verkocht', 'geen-interesse']) assert.deepEqual(valideerLead(metSoort(soort)), []);
+  for (const soort of ['hacken', undefined, 'opnieuw', 42]) assert.ok(valideerLead(metSoort(soort)).length, String(soort));
+  assert.ok(valideerLead(afgewerkt({ resultaat: 'verkocht' })).length);
+  assert.ok(valideerLead(afgewerkt({ resultaat: { soort: 'verkocht' } })).length); // tijdstip ontbreekt
+  assert.ok(valideerLead(afgewerkt({ resultaat: { soort: 'verkocht', op: 'x', extra: 1 } })).length); // onbekende sleutel
+  assert.ok(valideerLead(afgewerkt({ resultaat: { soort: 'verkocht', op: 'x', notitie: 'n'.repeat(1001) } })).length);
+});
+
+test('valideerLead: bezoeken hebben de verwachte vorm', () => {
+  const goed = { datum: '2026-10-06', resultaat: 'opnieuw', notitie: 'Niet thuis', op: '2026-10-06T10:00:00.000Z' };
+  assert.deepEqual(valideerLead(basis({ bezoeken: [goed] })), []);
+  assert.deepEqual(valideerLead(basis({ bezoeken: [] })), []);
+  for (const slecht of [
+    'tekst', null, { ...goed, datum: '2026-02-30' }, { ...goed, resultaat: 'hacken' }, { ...goed, op: undefined },
+    { ...goed, extra: true }, { ...goed, notitie: 5 }, { ...goed, notitie: 'n'.repeat(1001) },
+  ]) assert.ok(valideerLead(basis({ bezoeken: [slecht] })).length, JSON.stringify(slecht));
+  assert.ok(valideerLead(basis({ bezoeken: goed })).length); // geen lijst
+  assert.ok(valideerLead(basis({ bezoeken: Array.from({ length: 201 }, () => goed) })).length);
+});
+
+test('valideerLead: planning kent enkel datum, start en vast', () => {
+  assert.ok(valideerLead(voorgesteld({ planning: { datum: '2026-10-06', start: '09:00', vast: false, __proto: 'x' } })).length);
+  assert.ok(valideerLead(voorgesteld({ planning: { datum: '2026-10-06', start: '09:00', vast: 'nee' } })).length);
+});
+
+test('valideerLead: tekstvelden zijn tekst met een maximale lengte', () => {
+  assert.deepEqual(valideerLead(basis({ notitie: 'n'.repeat(1000), straat: 's'.repeat(200) })), []);
+  assert.ok(valideerLead(basis({ notitie: 'n'.repeat(1001) })).length);
+  for (const veld of ['straat', 'huisnr', 'gemeente', 'adresTekst']) {
+    assert.ok(valideerLead(basis({ [veld]: 'x'.repeat(201) })).length, veld);
+    assert.ok(valideerLead(basis({ [veld]: { a: 1 } })).length, veld);
+  }
+  assert.ok(valideerLead(basis({ notitie: ['a'] })).length);
+  assert.ok(valideerLead(basis({ postcode: 3500 })).length);
+});
+
+test('valideerLead: enkel een afgewerkte lead heeft een resultaat', () => {
+  const r = { soort: 'offerte', op: '2026-10-06T12:00:00.000Z' };
+  assert.ok(valideerLead(basis({ resultaat: r })).length);
+  assert.ok(valideerLead(voorgesteld({ resultaat: r })).length);
+  assert.ok(valideerLead(bevestigd({ resultaat: r })).length);
+});
+
+test('pasLeadToe: naar een andere status dan afgewerkt laat het resultaat vallen', () => {
+  const r = pasLeadToe(afgewerkt(), { status: 'te-plannen' }); // zonder resultaat: null mee te sturen
+  assert.deepEqual(r.fouten, []);
+  assert.equal(r.lead.status, 'te-plannen');
+  assert.ok(!('resultaat' in r.lead));
+  const v = pasLeadToe(basis(), { status: 'voorgesteld', planning: { datum: '2026-10-08', start: '11:00', vast: false }, resultaat: { soort: 'offerte', op: '2026-10-06T12:00:00.000Z' } });
+  assert.deepEqual(v.fouten, []);
+  assert.ok(!('resultaat' in v.lead));
+  // blijft afgewerkt: resultaat mag wijzigen, maar enkel naar een geldige soort
+  assert.deepEqual(pasLeadToe(afgewerkt(), { resultaat: { soort: 'verkocht', op: '2026-10-07T00:00:00.000Z' } }).fouten, []);
+  assert.ok(pasLeadToe(afgewerkt(), { resultaat: { soort: 'hacken', op: '2026-10-07T00:00:00.000Z' } }).fouten.length);
+});
+
+test('pasLeadToe: weigert ongeldige inhoud en laat de lead ongewijzigd', () => {
+  const l = basis();
+  const gevallen = [
+    { notitie: 'n'.repeat(1001) }, { notitie: { x: 1 } }, { straat: 's'.repeat(201) }, { gemeente: 42 },
+    { bezoeken: [{ datum: 'nu', resultaat: 'opnieuw', op: 'x' }] }, { bezoeken: 'veel' },
+    { status: 'voorgesteld', planning: { datum: '2026-10-08', start: '11:00', vast: false, rol: 'admin' } },
+  ];
+  for (const velden of gevallen) {
+    const r = pasLeadToe(l, velden);
+    assert.ok(r.fouten.length, JSON.stringify(velden));
+    assert.deepEqual(r.lead, l);
+  }
+});
+
+test('geefResultaat weigert een reeds afgewerkte lead', () => {
+  assert.throws(() => geefResultaat(afgewerkt(), { soort: 'verkocht', nu: '2026-10-07T10:00:00.000Z' }), /afgewerkt/);
+  assert.throws(() => geefResultaat(afgewerkt(), { soort: 'opnieuw', nu: '2026-10-07T10:00:00.000Z' }));
+});

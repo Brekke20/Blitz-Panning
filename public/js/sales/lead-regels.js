@@ -7,6 +7,11 @@ export const RESULTAAT_LABEL = { offerte: 'Offerte', verkocht: 'Verkocht', 'geen
 export const WIJZIGBARE_VELDEN = ['notitie', 'duurMin', 'straat', 'huisnr', 'postcode', 'gemeente', 'adresTekst', 'status', 'planning', 'resultaat', 'bezoeken', 'eerderVerwijderd'];
 
 const ADRESVELDEN = ['straat', 'huisnr', 'postcode', 'gemeente', 'adresTekst'];
+const MAX_VELD = 200;      // zelfde grens als de import (sales/import.js)
+const MAX_NOTITIE = 1000;
+const MAX_BEZOEKEN = 200;
+const AFWERK_SOORTEN = ['offerte', 'verkocht', 'geen-interesse']; // 'opnieuw' maakt een lead nooit afgewerkt
+const PLANNING_SLEUTELS = ['datum', 'start', 'vast'];
 const TOEGELATEN_OVERGANGEN = {
   'te-plannen': ['voorgesteld', 'bevestigd', 'afgewerkt'],
   voorgesteld: ['te-plannen', 'bevestigd', 'afgewerkt'],
@@ -24,6 +29,16 @@ export function isGeldigeDatum(d) {
 /** 'HH:MM' tussen 00:00 en 23:59. */
 export function isGeldigUur(u) {
   return typeof u === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(u);
+}
+
+const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
+
+/** Fouttekst als `waarde` (indien aanwezig) geen tekst is of langer dan `max`; anders null. */
+function tekstFout(naam, waarde, max) {
+  if (waarde == null) return null;
+  if (typeof waarde !== 'string') return `${naam} moet tekst zijn`;
+  if (waarde.length > max) return `${naam} is te lang (max. ${max} tekens)`;
+  return null;
 }
 
 const zonderSleutels = (obj, ...sleutels) => {
@@ -62,6 +77,7 @@ function dagVanNu(nu) {
 /** Registreert het resultaat van een bezoek. 'opnieuw' zet de lead terug op te-plannen; de andere soorten werken hem af. */
 export function geefResultaat(lead, { soort, notitie, nu = new Date() } = {}) {
   if (!Object.hasOwn(RESULTAAT_LABEL, soort)) throw new Error(`Onbekend resultaat: ${soort}`);
+  if (lead?.status === 'afgewerkt') throw new Error('Deze lead is al afgewerkt (zet hem eerst terug naar te plannen)');
   const moment = nu instanceof Date ? nu : new Date(nu);
   if (isNaN(moment)) throw new Error('Ongeldig tijdstip');
   const op = typeof nu === 'string' ? nu : moment.toISOString();
@@ -71,6 +87,21 @@ export function geefResultaat(lead, { soort, notitie, nu = new Date() } = {}) {
   const bezoeken = [...(Array.isArray(lead?.bezoeken) ? lead.bezoeken : []), bezoek];
   if (soort === 'opnieuw') return { ...basis, status: 'te-plannen', bezoeken };
   return { ...basis, status: 'afgewerkt', resultaat: { soort, ...metNotitie, op }, bezoeken };
+}
+
+// Resultaat ({ soort, notitie?, op }) of bezoek ({ datum, resultaat, notitie?, op }); onbekende sleutels zijn een fout.
+function resultaatFouten(r, naam, soorten, isBezoek = false) {
+  if (!isObject(r)) return [`${naam} is ongeldig`];
+  const fouten = [];
+  const sleutels = isBezoek ? ['datum', 'resultaat', 'notitie', 'op'] : ['soort', 'notitie', 'op'];
+  for (const k of Object.keys(r)) if (!sleutels.includes(k)) fouten.push(`${naam}: onbekend veld ${k}`);
+  const soort = isBezoek ? r.resultaat : r.soort;
+  if (!soorten.includes(soort)) fouten.push(`${naam}: onbekende soort`);
+  if (isBezoek && !isGeldigeDatum(r.datum)) fouten.push(`${naam}: ongeldige datum`);
+  if (typeof r.op !== 'string' || r.op === '') fouten.push(`${naam}: tijdstip ontbreekt`);
+  const f = tekstFout(`${naam}: notitie`, r.notitie, MAX_NOTITIE);
+  if (f) fouten.push(f);
+  return fouten;
 }
 
 /** Invarianten van een lead; lege lijst = geldig. */
@@ -95,6 +126,30 @@ export function valideerLead(lead) {
   if (lead.postcode != null && lead.postcode !== '' && !/^\d{4}$/.test(String(lead.postcode))) fouten.push('Postcode moet 4 cijfers zijn');
   if (lead.duurMin != null && !(typeof lead.duurMin === 'number' && lead.duurMin >= 15)) fouten.push('Duur moet minstens 15 minuten zijn');
   if (lead.eerderVerwijderd != null && typeof lead.eerderVerwijderd?.op !== 'string') fouten.push('eerderVerwijderd moet { op } zijn');
+
+  // Inhoud, niet enkel vorm: dit is ook de bewaker van wat een verkoper via de server kan bewaren.
+  for (const veld of ADRESVELDEN) {
+    const f = tekstFout(veld, lead[veld], MAX_VELD);
+    if (f) fouten.push(f);
+  }
+  const notitieFout = tekstFout('notitie', lead.notitie, MAX_NOTITIE);
+  if (notitieFout) fouten.push(notitieFout);
+  if (planning != null && isObject(planning)) {
+    for (const sleutel of Object.keys(planning)) if (!PLANNING_SLEUTELS.includes(sleutel)) fouten.push(`Planning: onbekend veld ${sleutel}`);
+    if (planning.vast != null && typeof planning.vast !== 'boolean') fouten.push('Planning: vast moet waar of onwaar zijn');
+  }
+  if (lead.resultaat != null) {
+    if (status !== 'afgewerkt') fouten.push('Enkel een afgewerkte lead heeft een resultaat');
+    else fouten.push(...resultaatFouten(lead.resultaat, 'Resultaat', AFWERK_SOORTEN));
+  }
+  if (lead.bezoeken != null) {
+    if (!Array.isArray(lead.bezoeken)) fouten.push('Bezoeken moet een lijst zijn');
+    else if (lead.bezoeken.length > MAX_BEZOEKEN) fouten.push(`Te veel bezoeken (max. ${MAX_BEZOEKEN})`);
+    else lead.bezoeken.forEach((b, i) => {
+      const f = resultaatFouten(b, `Bezoek ${i + 1}`, Object.keys(RESULTAAT_LABEL), true);
+      fouten.push(...f);
+    });
+  }
   return fouten;
 }
 
@@ -121,6 +176,7 @@ export function pasLeadToe(lead, velden) {
 
   const nieuw = { ...lead, ...velden };
   for (const sleutel of ['planning', 'resultaat', 'eerderVerwijderd']) if (nieuw[sleutel] == null) delete nieuw[sleutel];
+  if (nieuw.status !== 'afgewerkt') delete nieuw.resultaat; // enkel een afgewerkte lead heeft een resultaat
   const adresGewijzigd = ADRESVELDEN.some((v) => v in velden && tekst(velden[v]) !== tekst(lead[v]));
   if (adresGewijzigd) nieuw.locatie = null;
   const ongeldig = valideerLead(nieuw);

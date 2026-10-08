@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { planWeek, haversine } from '../public/js/planner.js';
 import { zetVastUur, isVast } from '../public/js/sales/lead-regels.js';
 import {
@@ -94,9 +95,25 @@ test('bouwPlanInvoer: ontbrekende of null-instellingen krijgen standaardwaarden'
     assert.deepEqual(invoer.dagen, ['2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09']); // ma-vr vanaf vandaag
     assert.equal(invoer.instellingen.vanTijd, '08:00');
     assert.equal(invoer.instellingen.laatsteStart, '16:00');
-    const uitkomst = await planWeek(invoer); // crasht niet; zonder limieten past alles
+    assert.equal(invoer.instellingen.maxPerDag, 4); // dezelfde standaard als de technieker
+    assert.equal(invoer.instellingen.maxReistijdMin, 45);
+    const uitkomst = await planWeek(invoer); // crasht niet
     assert.equal(uitkomst.geplaatst.length, 2);
   }
+});
+
+test('bouwPlanInvoer: standaardwaarden zijn die van de technieker (DEFAULT_SETTINGS) en een expliciete 0 gedraagt zich zoals daar', () => {
+  const bron = readFileSync(new URL('../public/js/schermen/instellingen.js', import.meta.url), 'utf8');
+  const technieker = { maxPerDag: +/maxPerDag:\s*(\d+)/.exec(bron)[1], maxReistijdMin: +/maxReistijdMin:\s*(\d+)/.exec(bron)[1] };
+  const { invoer } = invoerVan([lead('A')], { instellingen: null });
+  assert.equal(invoer.instellingen.maxPerDag, technieker.maxPerDag);
+  assert.equal(invoer.instellingen.maxReistijdMin, technieker.maxReistijdMin);
+  // instellingen-logica.js: maxReistijd 0 blijft 0 ("max || max === 0 ? max : standaard"); maxPerDag 0 valt terug op de standaard
+  const nul = invoerVan([lead('A')], { instellingen: { maxPerDag: 0, maxReistijdMin: 0 } }).invoer.instellingen;
+  assert.equal(nul.maxReistijdMin, 0);
+  assert.equal(nul.maxPerDag, technieker.maxPerDag);
+  const eigen = invoerVan([lead('A')], { instellingen: { maxPerDag: 6, maxReistijdMin: 30 } }).invoer.instellingen;
+  assert.deepEqual([eigen.maxPerDag, eigen.maxReistijdMin], [6, 30]);
 });
 
 // ---- blokken ----
@@ -117,6 +134,7 @@ test('bouwPlanInvoer: blokken en feestdagen', () => {
 // ---- integratie met de echte planWeek: vaste bezoeken blijven ----
 const KANDIDATEN = ['k1', 'k2', 'k3', 'k4', 'k5', 'k6'].map((id, i) => lead(id, { locatie: { ...PLAATSEN[i], bron: 'postcode' } }));
 const naarMin = u => Number(u.slice(0, 2)) * 60 + Number(u.slice(3));
+const optelUur = (u, min) => `${String(Math.floor((naarMin(u) + min) / 60)).padStart(2, '0')}:${String((naarMin(u) + min) % 60).padStart(2, '0')}`;
 const overlapt = (g, van, tot, duur = 60) => naarMin(g.verwachteAankomst) < naarMin(tot) && naarMin(van) < naarMin(g.verwachteAankomst) + duur;
 const pas = (leads, wijzigingen) => leads.map(l => {
   const w = wijzigingen.find(x => x.id === l.id);
@@ -127,20 +145,23 @@ const pas = (leads, wijzigingen) => leads.map(l => {
 });
 
 test('integratie: het brein plant rond een vast uur en verplaatst het nooit', async () => {
-  // Controle: zonder vaste lead plant het brein dinsdag wel iets rond 10:00 (anders bewijst de test niets).
-  const controle = await planWeek(invoerVan(KANDIDATEN).invoer);
-  assert.ok(controle.geplaatst.some(g => g.datum === '2026-10-06' && overlapt(g, '10:00', '11:00')), 'controle: 10:00 is normaal bezet');
-
-  for (const uur of ['10:00', '07:00', '18:30']) {
+  // Het vaste uur wordt gekozen waar het brein zonder vaste lead zelf zou plannen: een lege bestaandPerDag zou deze test laten falen.
+  const brede = { ...INSTELLINGEN, maxPerDag: 6 };
+  const controle = await planWeek(invoerVan(KANDIDATEN, { instellingen: brede }).invoer);
+  const dinsdag = controle.geplaatst.filter(g => g.datum === '2026-10-06');
+  assert.ok(dinsdag.length >= 4, 'controle: dinsdag is gevuld');
+  const uren = ['10:00', dinsdag[dinsdag.length - 1].verwachteAankomst, dinsdag[1].verwachteAankomst];
+  for (const uur of uren) {
+    assert.ok(dinsdag.some(g => overlapt(g, uur, optelUur(uur, 60))), `${uur}: zonder vaste lead is dit uur bezet`);
     const vast = zetVastUur(lead('V', { locatie: { lat: 50.95, lon: 5.4, bron: 'postcode' } }), { datum: '2026-10-06', start: uur });
     const leads = [vast, ...KANDIDATEN];
-    const { invoer, vrijgegeven } = invoerVan(leads);
+    const { invoer, vrijgegeven } = invoerVan(leads, { instellingen: brede });
+    assert.deepEqual(invoer.bestaandPerDag['2026-10-06'].map(b => [b.id, b.uur]), [['V', uur]]);
     assert.deepEqual(vrijgegeven, []);
     const uitkomst = await planWeek(invoer);
     assert.ok(!uitkomst.geplaatst.some(g => g.ticketId === 'V'), `${uur}: vaste lead niet geplaatst`);
     assert.ok(!uitkomst.nietGepland.some(n => n.ticketId === 'V'));
-    const tot = `${String(Math.floor((naarMin(uur) + 60) / 60)).padStart(2, '0')}:${String((naarMin(uur) + 60) % 60).padStart(2, '0')}`;
-    assert.ok(!uitkomst.geplaatst.some(g => g.datum === '2026-10-06' && overlapt(g, uur, tot)), `${uur}: geen overlap`);
+    assert.ok(!uitkomst.geplaatst.some(g => g.datum === '2026-10-06' && overlapt(g, uur, optelUur(uur, 60))), `${uur}: geen overlap`);
     assert.ok(uitkomst.geplaatst.length >= 4, `${uur}: de kandidaten plannen eromheen`);
     const { wijzigingen, geplaatst } = verwerkUitkomst({ uitkomst, leads, vrijgegeven });
     assert.ok(!wijzigingen.some(w => w.id === 'V'), `${uur}: geen wijziging voor de vaste lead`);
@@ -151,11 +172,11 @@ test('integratie: het brein plant rond een vast uur en verplaatst het nooit', as
     const na = nieuweLeads.find(l => l.id === 'V');
     assert.deepEqual(na.planning, { datum: '2026-10-06', start: uur, vast: true });
     assert.equal(na.status, 'bevestigd');
-    const tweede = bouwPlanInvoer({ leads: nieuweLeads, blokken: [], instellingen: INSTELLINGEN, weekStart: WEEK, vandaag: VANDAAG, depot: DEPOT, reistijden: nepReistijden, feestdag: () => null });
+    const tweede = invoerVan(nieuweLeads, { instellingen: brede });
     assert.deepEqual(tweede.invoer.bestaandPerDag['2026-10-06'].map(b => [b.id, b.uur]), [['V', uur]]);
     const uitkomst2 = await planWeek(tweede.invoer);
     assert.ok(!uitkomst2.geplaatst.some(g => g.ticketId === 'V'));
-    assert.ok(!uitkomst2.geplaatst.some(g => g.datum === '2026-10-06' && overlapt(g, uur, tot)));
+    assert.ok(!uitkomst2.geplaatst.some(g => g.datum === '2026-10-06' && overlapt(g, uur, optelUur(uur, 60))));
     assert.ok(!verwerkUitkomst({ uitkomst: uitkomst2, leads: nieuweLeads, vrijgegeven: tweede.vrijgegeven }).wijzigingen.some(w => w.id === 'V'));
   }
 });

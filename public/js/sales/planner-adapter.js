@@ -7,7 +7,11 @@ import { isHeleDag } from './blok-regels.js';
 
 export const STANDAARD_BEZOEKDUUR_MIN = 60;
 
+// Dezelfde standaardwaarden als de planning van de technieker (DEFAULT_SETTINGS in schermen/instellingen.js, dat DOM-afhankelijk is
+// en daarom hier niet geimporteerd wordt; een test bewaakt dat de waarden gelijk blijven).
 const STANDAARD_WERKDAGEN = [1, 2, 3, 4, 5];
+const STANDAARD_MAX_PER_DAG = 4;
+const STANDAARD_MAX_REISTIJD_MIN = 45;
 const naarMin = (u) => Number(u.slice(0, 2)) * 60 + Number(u.slice(3));
 
 function isoPlusDagen(datum, n) {
@@ -33,15 +37,16 @@ export function leadNaarKandidaat(lead, { standaardDuurMin = STANDAARD_BEZOEKDUU
 }
 
 // Ontbrekende of null-waarden krijgen een standaard, zodat `bouwDagen` en `planWeek` nooit crashen.
-// Zonder maxPerDag of maxReistijdMin is er geen limiet.
+// Gedrag zoals de technieker-instellingen (instellingen-logica.js): maxPerDag 0 of ontbrekend -> standaard 4; maxReistijdMin
+// ontbrekend -> 45, maar een expliciete 0 blijft 0 (zoals daar; het brein weigert dan elke rit).
 function metStandaarden(instellingen) {
   const i = instellingen ?? {};
   return {
     werkdagen: Array.isArray(i.werkdagen) ? i.werkdagen : STANDAARD_WERKDAGEN,
     vanTijd: i.vanTijd || '08:00',
     laatsteStart: i.laatsteStart || '16:00',
-    maxPerDag: i.maxPerDag > 0 ? i.maxPerDag : Infinity,
-    maxReistijdMin: i.maxReistijdMin > 0 ? i.maxReistijdMin : Infinity,
+    maxPerDag: i.maxPerDag > 0 ? i.maxPerDag : STANDAARD_MAX_PER_DAG,
+    maxReistijdMin: Number.isFinite(i.maxReistijdMin) && i.maxReistijdMin >= 0 ? i.maxReistijdMin : STANDAARD_MAX_REISTIJD_MIN,
     bezoekDuurMin: i.bezoekDuurMin > 0 ? i.bezoekDuurMin : STANDAARD_BEZOEKDUUR_MIN,
   };
 }
