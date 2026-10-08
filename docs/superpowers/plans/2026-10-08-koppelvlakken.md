@@ -46,7 +46,7 @@ export async function logActiviteit(store, { gebruiker, actie, onderwerp = null,
 // Vaste actie-namen (strings): 'login', 'login-mislukt-reeks', 'uitloggen', 'wachtwoord-gewijzigd',
 // 'herstel', 'gebruiker-aangemaakt', 'gebruiker-gewijzigd', 'gebruiker-geblokkeerd', 'plannen',
 // 'voorstel-verstuurd', 'annulatie', 'rapport-verstuurd', 'rapport-opnieuw', 'sales-import',
-// 'sales-lead-verwijderd', 'sales-resultaat'
+// 'sales-lead-verwijderd', 'sales-resultaat', 'instellingen-gewijzigd', 'wachtwoord-gereset'
 ```
 
 ### Instellingen
@@ -54,7 +54,7 @@ export async function logActiviteit(store, { gebruiker, actie, onderwerp = null,
 - Blob `instellingen`: `{ versie, perGebruiker: { [gebruikerId]: Instellingen } }`.
 - `GET /api/instellingen` → eigen instellingen; `GET /api/instellingen?gebruiker=<id>` → enkel
   beheerder, of sales met `magAlleSales` voor een sales-gebruiker.
-- `PUT /api/instellingen` body `{ gebruiker?: id, instellingen, versie }`.
+- `PUT /api/instellingen` body `{ gebruiker?: id, instellingen, versie }`. Schrijven voor een ander: beheerder voor iedereen; planner enkel voor een gebruiker met rol technieker (gelogd als `instellingen-gewijzigd`); technieker en sales enkel eigen.
 - Servermodule `netlify/lib/instellingen.js`:
   `export async function leesInstellingen(store, gebruikerId) -> Instellingen | null`.
 - `Instellingen` = de bestaande velden uit `public/js/schermen/instellingen-logica.js`
