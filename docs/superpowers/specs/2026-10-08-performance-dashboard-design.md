@@ -35,7 +35,7 @@ Elke kerncijfer-tegel toont het verschil met de vorige, even lange periode (↑/
 | Blok | Metric | Bron / definitie |
 |---|---|---|
 | ⏱️ Tijd & stiptheid | Gemiddelde duur per type laadpaal, oorzaak, technieker, interventie vs installatie | `rapportData.werktijd` (anders `stop − start`); `type`, `oorzaakStoring`, `technieker`, `interventieType` |
-| | % op tijd, per technieker (ringen) | `rapportData.start` valt binnen `geplandTijdslot` (nieuw veld, zie hieronder). Rapporten zonder dat veld tellen niet mee voor deze metric |
+| | % op tijd, per technieker (ringen), met de verdeling te vroeg / op tijd / te laat | `rapportData.start` t.o.v. `geplandTijdslot` (nieuw veld, zie hieronder): vóór het slot = te vroeg, erin = op tijd, erna = te laat; de ring toont % op tijd. Rapporten zonder dat veld tellen niet mee voor deze metric (beslissing opdrachtgever, 2026-10-08) |
 | | Rijtijd vs werktijd per dag | `aanrijtijdMin` (geschat via route) vs `werktijd` |
 | | Interventies per dag per technieker | aantal rapporten per `datum` + `technieker` |
 | ✅ Kwaliteit | % first-time-fix, per technieker en type laadpaal (ringen) | `hersteld === 'ja' && nieuwInter === 'nee'` |
@@ -45,9 +45,9 @@ Elke kerncijfer-tegel toont het verschil met de vorige, even lange periode (↑/
 | | Verbruik per maand, per technieker, per type laadpaal | idem, gegroepeerd |
 | 📅 Klant & planning | Bevestigingssnelheid voorstel | voorstelregister: verstuurd → bevestigd |
 | | % bevestigd via de knop (ring) | voorstelregister / bevestigingslink-audit |
-| | Aantal annulaties | annulatieregister |
+| | Aantal annulaties | activiteitenlog van de logins (actie `annulatie`), enkel vanaf de livegang van de logins (er is geen annulatieregister) |
 | | Garantie vs klant (ring), waarde onderdelen + loon | `facturatie`, onderdelen × prijs, `berekenLoonkost` |
-| | % met installateur (ring), per partner/regio | `installateur` gevuld; `partner`, `regio` van het ticket |
+| | % installateur al langs geweest (ring), per partner/regio | Zoho-ticketveld "Installateur al langs geweest" (`cf_installateur_al_langs_geweest`, Ja/Nee), bij het maken van het rapport bewaard als `rapportData.installateurAlLangsGeweest` (geen nieuwe rapportvraag; beslissing opdrachtgever, 2026-10-08); `partner`, `regio` van het ticket |
 | 💼 Sales | Bezoeken per verkoper per week | `sales/<id>.leads[].bezoeken` |
 | | Resultaten (ringdiagram: offerte / verkocht / geen interesse / opnieuw langsgaan) | idem |
 | | Leads die wachten en hoe lang | status `te-plannen` + `geimporteerdOp` |
@@ -61,6 +61,7 @@ weg in plaats van geschat te worden.
 - **`geplandTijdslot: { van, tot }`** in `rapportData` bij het maken van een rapport: het
   tijdslot dat aan de klant voorgesteld werd (of, zonder voorstel, het geplande uur ± de
   standaard tijdslotbreedte). Nodig voor "% op tijd"; oudere rapporten hebben het niet.
+- **`installateurAlLangsGeweest`**, **`partner`** en **`regio`** in `rapportData`: de waarden van het Zoho-ticket op het moment van het rapport (voor `installateurAlLangsGeweest`: `'Ja'`/`'Nee'`/`''`); oudere rapporten hebben ze niet en tellen in die metrics niet mee.
 - **Rapportenlimiet:** de lijst bewaart nu max. 500 rapporten. Na de upload-fix zijn entries licht
   (geen HTML, foto's, handtekeningen); de limiet gaat naar **5000** zodat het dashboard meer
   historiek heeft. Bij het bouwplan wordt de grootte van de lijst gemeten; wordt hij te groot, dan
