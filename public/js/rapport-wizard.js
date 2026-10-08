@@ -4,6 +4,7 @@
 // (printRapport, via de outbox-module). Zie CLAUDE.md "Rapport wizard — R object key fields".
 import { TEST_MODE } from './kern/omgeving.js';
 import { arrivalData, getPlanningTicket, sluitDetailStil } from './schermen/ticketdetail.js';
+import { geplandTijdslotVoor, rapportTicketVelden } from './schermen/ticketdetail-logica.js';
 import { closeLocalDet } from './schermen/afspraken.js';
 import { loadFotos, renderFotoGridInto, handleFotoFiles } from './schermen/fotos.js';
 import { syncOplossingNaarZoho } from './schermen/rapport-verzenden.js';
@@ -52,7 +53,8 @@ export const WIZ_STEPS = [
 // Bewaart de ingevulde velden zodat een rapport niet verloren gaat bij herladen of sluiten.
 // Foto's en handtekeningen (zwaar, en de handtekening is bewijs) worden bewust NIET bewaard.
 const CONCEPT_MAX_DAGEN = 7;
-const CONCEPT_UIT = ['fotos', 'handtekeningTech', 'handtekeningKlant'];
+// Ook uit het concept: velden die bij het openen vers uit het ticket/de planning komen (dashboard, Taak 16); een concept mag ze nooit overschrijven.
+const CONCEPT_UIT = ['fotos', 'handtekeningTech', 'handtekeningKlant', 'geplandTijdslot', 'partner', 'regio', 'installateurAlLangsGeweest'];
 let _wizTicketId = null;
 let _wizVanOverzicht = false;
 let _conceptTimer = null;
@@ -202,6 +204,14 @@ async function openRapportIntern(ticketId, date) {
   _rapportUploaded = false; // reset guard bij nieuwe wizard-sessie
 
   _wizStep = 0;
+
+  // Dashboard-velden (Taak 16): het geplande tijdslot en de ticketvelden partner/regio/installateurAlLangsGeweest.
+  // Altijd vers (R blijft tussen tickets bestaan) en vóór het concept; CONCEPT_UIT houdt ze buiten elk concept.
+  const planUur = (kern.toestand.get('planning')[date] || []).find(s => s.ticket?.id === ticketId)?.uur;
+  R.geplandTijdslot = geplandTijdslotVoor({
+    voorstel: kern.toestand.get('voorstelStatus')[ticketId], datum: date, planUur, isLocal: !!ticket.isLocal, settings: kern.toestand.get('settings'),
+  });
+  Object.assign(R, rapportTicketVelden(ticket));
 
   // Concept hervatten? (na het resetten van R; foto's/handtekeningen blijven vers)
   const concept = leesConcept(ticketId, date);

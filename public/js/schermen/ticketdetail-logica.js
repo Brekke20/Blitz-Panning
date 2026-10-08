@@ -18,6 +18,37 @@ export function tijdslotVoor(minuten, slotMinuten, settings) {
   return { startMin: start, endMin: eind, label: `${minToTimeStr(start)}–${minToTimeStr(eind)}` };
 }
 
+const SLOT_RE = /^(\d{2}:\d{2})–(\d{2}:\d{2})$/;
+const UUR_RE  = /^\d{1,2}:\d{2}$/;
+
+// Het tijdslot waarin het bezoek gepland stond, voor het rapport (dashboard: stiptheid t.o.v. het afgesproken blok).
+// Voorrang: het aan de klant gecommuniceerde tijdslot (voorstel, enkel voor dezelfde datum), daarna een herberekening
+// rond het geplande uur. Lokale afspraken of niets bekend: null.
+export function geplandTijdslotVoor({ voorstel, datum, planUur, isLocal, settings }) {
+  if (isLocal) return null;
+  if (voorstel?.tijdslotDatum === datum) {
+    const m = SLOT_RE.exec(String(voorstel.tijdslot || ''));
+    if (m) return { van: m[1], tot: m[2] };
+  }
+  if (planUur && UUR_RE.test(String(planUur))) {
+    const slot = tijdslotVoor(timeStrToMin(planUur), undefined, settings);
+    return { van: minToTimeStr(slot.startMin), tot: minToTimeStr(slot.endMin) };
+  }
+  return null;
+}
+
+// Ticketvelden die mee in het rapport bewaard worden voor het dashboard. `installateurAlLangsGeweest` komt uit het
+// Zoho-veld (door tickets.js doorgegeven), niet uit R.installateur (het vooraf ingevulde veld).
+export function rapportTicketVelden(ticket) {
+  const t = ticket || {};
+  const langs = String(t.installateurAlLangsGeweest ?? '').trim().toLowerCase();
+  return {
+    partner: t.partner || '',
+    regio: t.regio || '',
+    installateurAlLangsGeweest: langs === 'ja' ? 'Ja' : langs === 'nee' ? 'Nee' : '',
+  };
+}
+
 export function roundToNextQuarterStr(timeStr) {
   const [hRaw, mRaw] = (timeStr || '09:00').split(':').map(Number);
   const h = Number.isFinite(hRaw) ? hRaw : 9;

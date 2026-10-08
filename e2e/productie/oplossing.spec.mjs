@@ -129,5 +129,12 @@ test.describe('syncOplossingNaarZoho: via de echte wizard', () => {
     // in plaats van één keer te lezen na `settle`; een extra of ontbrekend verzoek laat de poll op zijn time-out falen met de laatste lijst.
     await expect.poll(() => schrijfLijst(page, verzoeken), { timeout: 15000 })
       .toEqual([START, 'POST /api/optimize', 'POST /api/route', COMMENT, 'POST /api/rapport-ontvangen']);
+    // Dashboard-velden (Taak 16): het rapport draagt het geplande tijdslot en de ticketvelden mee. #1004 (p1): regio Limburg, geen partner,
+    // geen Zoho-waarde voor "installateur al langs geweest" (dus ''); de afspraak staat op 2026-10-07 in het planningsschema.
+    const rd = verzoeken.van('/api/rapport-ontvangen', 'POST')[0].body.archiveBody.rapportData;
+    expect(rd).toHaveProperty('geplandTijdslot');
+    expect(rd.geplandTijdslot).toMatchObject({ van: expect.stringMatching(/^\d{2}:\d{2}$/), tot: expect.stringMatching(/^\d{2}:\d{2}$/) });
+    expect(rd).toMatchObject({ partner: '', regio: 'Limburg', installateurAlLangsGeweest: '' });
+    expect(rd).not.toHaveProperty('fotos');
   });
 });
