@@ -15,6 +15,21 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [1.10.3] — 2026-10-08
+
+### Fixed
+- De plus-knop ("Inplannen op eerstvolgende vrije dag") zet een ticket niet meer op vandaag als de werkdag
+  al voorbij is (bv. 's avonds om 22 uur). Het ticket komt dan op de eerstvolgende werkdag.
+- Route-tabblad: de oranje balk "ticket zonder tijdstip" met de knop "Tijden vastleggen" schoof over de
+  eerste afspraak heen en verborg de titel. De balk neemt nu zijn eigen plek in boven de lijst.
+- Rapporten-tabblad: de filterbalk (Alle / Interventie / Installatie / datums / Excel / Herladen) bleef met
+  een kier onder de kop hangen, zodat rapporten erboven door schoven. Hij sluit nu aan onder de kop, ook als
+  de melding "geen verbinding" of "rapport wordt verstuurd" zichtbaar is. Die meldingsbalken zijn nu ook
+  niet meer doorzichtig.
+
+### Changed
+- Het versienummer staat nu onderaan bij Instellingen.
+
 ## [1.10.2] — 2026-10-08
 
 ### Fixed

@@ -2,8 +2,8 @@
 // Gedeelde verzendlogica voor de outbox (klassiek script, zet self.outboxVerzend).
 try { importScripts('/js/outbox-verzend.js'); } catch (e) { /* offline install-race: SW blijft werken zonder sync */ }
 
-const CACHE_NAME = 'blitz-planning-v26';
-const SHELL = ['/', '/index.html', '/manifest.json', '/js/apparaat.js', '/js/app-dialog.js', '/js/venster.js', '/js/outbox.js', '/js/outbox-verzend.js', '/js/vrije-dag.js', '/js/sticky-offset.js', '/js/outbox-sync.js', '/js/test-upload.js', '/js/rapport-inhoud.js', '/js/rapport-status.js', '/js/rapport-archief.js', '/js/excel-export.js', '/js/prijzen.js', '/js/rapport-wizard.js', '/js/inventaris.js', '/js/sorteer.js', '/css/base.css', '/css/app.css', '/css/wizard.css', '/css/prijzen.css', '/css/inventaris.css'];
+const CACHE_NAME = 'blitz-planning-v27';
+const SHELL = ['/', '/index.html', '/manifest.json', '/js/apparaat.js', '/js/app-dialog.js', '/js/venster.js', '/js/outbox.js', '/js/outbox-verzend.js', '/js/vrije-dag.js', '/js/sticky-offset.js', '/js/versie.js', '/js/outbox-sync.js', '/js/test-upload.js', '/js/rapport-inhoud.js', '/js/rapport-status.js', '/js/rapport-archief.js', '/js/excel-export.js', '/js/prijzen.js', '/js/rapport-wizard.js', '/js/inventaris.js', '/js/sorteer.js', '/css/base.css', '/css/app.css', '/css/wizard.css', '/css/prijzen.css', '/css/inventaris.css'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(SHELL)));

@@ -1221,3 +1221,5 @@
    ondergrond, de tint er bovenop. */
 #offline-banner { background-image: linear-gradient(var(--orange-dim), var(--orange-dim)); background-color: var(--bg); }
 #outbox-banner  { background-image: linear-gradient(var(--accent-dim), var(--accent-dim)); background-color: var(--bg); }
+/* Versienummer onderaan Instellingen */
+.set-versie { order: 1; flex: 1 1 100%; text-align: center; font-size: var(--fs-2xs); color: var(--muted); }
