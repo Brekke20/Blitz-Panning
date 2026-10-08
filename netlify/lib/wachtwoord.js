@@ -34,6 +34,7 @@ export async function hashWachtwoord(wachtwoord) {
 export async function verifieerWachtwoord(wachtwoord, hash) {
   try {
     if (typeof wachtwoord !== 'string' || typeof hash !== 'string') return false;
+    if (wachtwoord.length > MAX_LENGTE) return false; // geen scrypt op megabyte-invoer
     if (!hash.startsWith(PREFIX)) return false; // enkel de vaste kostparameters (geen DoS via absurde N)
     const delen = hash.split('$');
     if (delen.length !== 6) return false;

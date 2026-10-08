@@ -19,6 +19,7 @@ export function ondertekenToken({ uid, sv, exp }, geheim) {
 export function controleerToken(token, geheim, nuS) {
   try {
     if (typeof token !== 'string' || typeof geheim !== 'string' || geheim === '') return null;
+    if (!Number.isFinite(nuS)) return null; // fail-closed: zonder geldige tijd nooit goedkeuren
     const delen = token.split('.');
     if (delen.length !== 2 || !delen[0] || !delen[1]) return null;
     const [payloadB64, sigB64] = delen;

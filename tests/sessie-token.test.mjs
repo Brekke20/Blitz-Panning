@@ -55,6 +55,15 @@ test('vervallen token (exp <= nu) geeft null', () => {
   assert.notEqual(controleerToken(t, GEHEIM, NU - 1), null);
 });
 
+test('ongeldige nu-waarde (undefined, NaN, string) geeft null: fail-closed', () => {
+  const vervallen = ondertekenToken({ ...PAYLOAD, exp: NU - 100 }, GEHEIM);
+  const geldig = ondertekenToken(PAYLOAD, GEHEIM);
+  for (const nu of [undefined, NaN, null, Infinity, '1800000000']) {
+    assert.equal(controleerToken(vervallen, GEHEIM, nu), null, String(nu));
+    assert.equal(controleerToken(geldig, GEHEIM, nu), null, String(nu));
+  }
+});
+
 test('rommel geeft null', () => {
   assert.equal(controleerToken('geenpunt', GEHEIM, NU), null);
   assert.equal(controleerToken('', GEHEIM, NU), null);

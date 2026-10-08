@@ -33,6 +33,15 @@ test('verifieerWachtwoord gooit nooit bij kapotte invoer', async () => {
   assert.equal(await verifieerWachtwoord(undefined, SCHIJN_HASH), false);
 });
 
+test('verifieerWachtwoord weigert te lange wachtwoorden zonder scrypt te draaien', async () => {
+  const h = await hashWachtwoord('a'.repeat(MAX_LENGTE));
+  assert.equal(await verifieerWachtwoord('a'.repeat(MAX_LENGTE), h), true);
+  const start = Date.now();
+  assert.equal(await verifieerWachtwoord('a'.repeat(5 * 1024 * 1024), h), false);
+  assert.equal(await verifieerWachtwoord('a'.repeat(MAX_LENGTE + 1), h), false);
+  assert.ok(Date.now() - start < 40, 'te lange invoer moet onmiddellijk geweigerd worden');
+});
+
 test('verifieerWachtwoord weigert absurde kostparameters', async () => {
   const h = await hashWachtwoord('parameter-test-1');
   const delen = h.split('$');
