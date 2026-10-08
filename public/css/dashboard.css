@@ -1,0 +1,40 @@
+/* Performance-dashboard: kleurtokens en grafiekstijlen (ring, balken, kolommen, donut, lijn, tabel-twin).
+   Thema volgt de app: standaard donker, :root[data-theme="light"] licht (zie base.css).
+   Kleur is berekend (skill dataviz, validate_palette.js): categorisch licht op #ffffff, donker op #1d252d. */
+
+:root {
+  /* categorisch, vaste volgorde: blauw, oranje, aqua, geel, magenta, groen, violet, rood */
+  --viz-1: #3987e5; --viz-2: #d95926; --viz-3: #199e70; --viz-4: #c98500;
+  --viz-5: #d55181; --viz-6: #008300; --viz-7: #9085e9; --viz-8: #e66767;
+  --viz-overige: #7a8694;
+  /* status: vast, nooit themed; altijd met icoon + woord + getal */
+  --viz-goed: #0ca30c; --viz-aandacht: #fab219; --viz-slecht: #d03b3b;
+  /* tekst en lijnwerk volgen de app-tokens */
+  --viz-ink: var(--text); --viz-ink2: var(--text2); --viz-muted: var(--muted);
+  --viz-grid: var(--border); --viz-as: var(--border-strong);
+}
+:root[data-theme="light"] {
+  --viz-1: #2a78d6; --viz-2: #eb6834; --viz-3: #1baf7a; --viz-4: #eda100;
+  --viz-5: #e87ba4; --viz-6: #008300; --viz-7: #4a3aa7; --viz-8: #e34948;
+  --viz-overige: #6b7684;
+}
+
+/* ── Ring ── */
+.ring { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); margin: 0; --ring-kleur: var(--viz-1); }
+.ring--goed, .ring-svg.ring--goed { --ring-kleur: var(--viz-goed); }
+.ring--aandacht, .ring-svg.ring--aandacht { --ring-kleur: var(--viz-aandacht); }
+.ring--slecht, .ring-svg.ring--slecht { --ring-kleur: var(--viz-slecht); }
+.ring--neutraal, .ring-svg.ring--neutraal { --ring-kleur: var(--viz-1); }
+.ring--geen, .ring-svg.ring--geen { --ring-kleur: var(--viz-overige); }
+.ring-svg { display: block; --ring-kleur: var(--viz-1); }
+.ring-spoor { stroke: color-mix(in srgb, var(--ring-kleur) 20%, var(--surface)); }
+.ring-boog { stroke: var(--ring-kleur); }
+.ring-pct { font-size: 24px; font-weight: 600; font-variant-numeric: proportional-nums; fill: var(--viz-ink); }
+.ring figcaption { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; font-size: var(--fs-xs); color: var(--viz-ink2); }
+.ring-status { font-weight: 600; color: var(--viz-ink); }
+.ring-icoon {
+  display: inline-flex; align-items: center; justify-content: center; width: 1.3em; height: 1.3em; border-radius: 50%;
+  border: 2px solid var(--ring-kleur); font-size: .85em; line-height: 1;
+}
+.ring-n { font-variant-numeric: tabular-nums; }
+.ring-sub { color: var(--viz-muted); }
