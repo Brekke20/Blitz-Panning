@@ -6,6 +6,7 @@ import * as ui from './ui.js';
 import * as selecties from './selecties.js';
 import * as api from './api.js';
 import { installeerFetchTimeout } from './netwerk.js';
+import { laadSessie, testRolVoorHeader, meldOpslagStoring } from './sessie.js';
 import { toestand } from './toestand.js';
 import * as routeTijden from '../schermen/route-tijden.js';
 import * as routeKaart from '../schermen/route-kaart.js';
@@ -29,6 +30,7 @@ import { _rapportArchief, _archiefVersie } from '../rapport-archief.js';
 import { openPrijsBeheer, closePrijsBeheer, prijsReset, prijsOpslaan } from '../prijzen.js';
 
 installeerFetchTimeout(window); // N6: time-outs op /api, buitenste laag boven de ?test-header-patch
+api.installeerApiBeveiliging(window, { herlogin: () => laadSessie(), testRol: testRolVoorHeader, bijStoring: meldOpslagStoring }); // logins T13: X-Blitz, herinloggen bij 401
 window.kern = { tijd, ui, selecties, toestand, api };
 window.kern.route = { ...routeTijden, ...routeKaart, ...route };
 window.kern.capaciteit = { ...capaciteit };
