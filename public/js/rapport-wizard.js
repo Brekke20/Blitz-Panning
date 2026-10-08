@@ -8,6 +8,7 @@ import { closeLocalDet } from './schermen/afspraken.js';
 import { loadFotos, renderFotoGridInto, handleFotoFiles } from './schermen/fotos.js';
 import { syncOplossingNaarZoho } from './schermen/rapport-verzenden.js';
 import { escHtml, toast } from './kern/ui.js';
+import { berekenLoonkost } from './kern/loonkost.js';
 import { TEST_UPLOAD } from './test-upload.js';
 import { registreerAchtergrondVerzending } from './outbox-sync.js';
 
@@ -491,24 +492,6 @@ export function fmtDuur(min) {
 }
 
 // ── Stap 2: Facturatie & Servicetype ──
-export function berekenLoonkost(servicetype, werktijdMin, aanrijtijdMin) {
-  if (servicetype === '2e-lijn') {
-    const totMin    = (werktijdMin || 0) + (aanrijtijdMin || 0);
-    const totUren   = totMin / 60;
-    const extraUren = totUren > 3 ? Math.ceil(totUren - 3) : 0;
-    return { bruto: 175 + extraUren * 75, totMin, extraUren };
-  }
-  if (servicetype === '1e-lijn') {
-    const totMin = (werktijdMin || 0) + (aanrijtijdMin || 0);
-    const gestartUren = Math.ceil(totMin / 60);
-    return { bruto: gestartUren * 115, gestartUren, totMin, extraUren: 0 };
-  }
-  // garantie: zelfde berekening als 1e lijn maar netto = 0
-  const totMin = (werktijdMin || 0) + (aanrijtijdMin || 0);
-  const gestartUren = Math.ceil(totMin / 60);
-  return { bruto: gestartUren * 115, gestartUren, netto: 0, totMin, extraUren: 0 };
-}
-
 export function wizLoonkostPreview() {
   const st       = wizChecked('f-servicetype') || R.servicetype;
   const wMin     = calcWerktijdMin(R.start, R.stop);
@@ -1509,6 +1492,8 @@ window.printRapport          = printRapport;
 // Dat blijft een kale aanroep in een classic <script> — die lost een onbekende identifier op
 // via de globale scope-chain (window), dus enkel deze bridge is nodig, geen wijziging daar.
 window.calcWerktijdMin = calcWerktijdMin;
+
+export { berekenLoonkost };
 
 // berekenLoonkost wordt ook aangeroepen vanuit rapport-archief.js (renderRapportArchief,
 // voor de prijsweergave op archiefkaarten) — zonder deze bridge gooit dat een
