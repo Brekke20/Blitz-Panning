@@ -137,3 +137,4 @@ is de bron voor de definitieve vorm. Aanvaard:
 
 Sales- en dashboard-plan: bij hun Task 0 (preflight) toetsen aan deze sectie en aan de gemergde
 logins-code; afwijkingen corrigeren vóór Task 1 van het niet-losse deel.
+- **`vereisGebruiker` bij opslagstoring:** `{ ok:false, status:503, code:'opslag-storing' }` (fail closed). Client: 503 = "later opnieuw proberen", NIET uitloggen.
