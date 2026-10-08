@@ -187,3 +187,12 @@ test('foutTekst: een eigen serverboodschap en onbekende fouten blijven ongewijzi
   assert.equal(foutTekst(new ApiFout(409, null)), 'Verzoek geweigerd (HTTP 409)');
   assert.equal(foutTekst('Ticket niet gevonden'), 'Ticket niet gevonden');
 });
+
+test('apiVerzoek: keepalive wordt doorgegeven aan fetch (enkel als gevraagd)', async () => {
+  const f = nepFetch({ status: 200, json: {} }, { status: 200, json: {} });
+  zetFetch(f);
+  await apiVerzoek('/api/x', { methode: 'DELETE', keepalive: true });
+  await apiVerzoek('/api/x', { methode: 'DELETE' });
+  assert.equal(f.aanroepen[0].init.keepalive, true);
+  assert.equal(f.aanroepen[1].init.keepalive, undefined);
+});

@@ -24,8 +24,9 @@ export function zetFetch(fn) { _fetch = fn || null; }
 const haal = (...args) => (_fetch || globalThis.fetch)(...args);
 
 // Bouwt het init-object: Content-Type enkel bij een body, zoals alle bestaande call sites.
-function maakInit({ methode = 'GET', body, headers } = {}) {
+function maakInit({ methode = 'GET', body, headers, keepalive } = {}) {
   const init = {};
+  if (keepalive) init.keepalive = true; // een verzoek dat een 'pagehide' overleeft (uitgestelde verwijdering, sales-data.js)
   const heeftBody = body !== undefined;
   if (methode !== 'GET') init.method = methode;
   if (heeftBody || headers) init.headers = { ...(heeftBody ? { 'Content-Type': 'application/json' } : {}), ...headers };
