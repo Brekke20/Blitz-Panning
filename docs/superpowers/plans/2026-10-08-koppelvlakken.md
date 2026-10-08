@@ -106,3 +106,34 @@ Het dashboard-plan registreert `performance`.
 - `?test` blijft. In testmodus toont de app een rolwisselaar (beheerder/planner/technieker/sales)
   en stuurt header `X-Blitz-Test-Rol`. Testgebruikers: `test-beheerder`, `test-planner`,
   `test-technieker` (zohoNaam `Tim`), `test-sales` (salesNaam `Test Verkoper`).
+
+## Aanvullingen na de plannen (opzichter, 2026-10-08) — BINDEND, gaan vóór de tekst hierboven
+
+Het logins-plan (`2026-10-08-logins-beheer.md`, sectie "Koppelvlak: uitbreidingen en bevindingen")
+is de bron voor de definitieve vorm. Aanvaard:
+
+- **Lokale dev-detectie:** niet `NETLIFY_DEV` (onveilig bij `netlify dev --live`) maar
+  `BLITZ_LOKALE_DEV`, gezet door `dev-server.mjs`, enkel geldig zonder Netlify-runtimevariabelen.
+- **`X-Blitz: 1`:** één omhulling op `window.fetch` (`kern/brug.js`) dekt de pagina. **Na de merge
+  van de upload-fix** verstuurt ook de service worker (Background Sync, `public/js/outbox-verzend.js`)
+  naar `/api/rapport-ontvangen`: dat script zet de header zelf (de upload-fix doet dat al op `main`).
+- **Instellingen:** PUT voegt per gebruiker samen (geen 409 op de hele blob). `GET /api/instellingen?overzicht=1`
+  → `{ eigen: { gebruikerId, versie, instellingen|null }, techniekers: { [zohoNaam]: { gebruikerId, instellingen } } }` (E4).
+- **E1** `registreerTabs` VOEGT toe (zelfde id vervangt); `registreerStart(rol, fn)` / `startVoorRol(rol)`;
+  registratiepunt per deelproject = `schermen/rol-schil.js` (één regel per deelproject). Sales registreert
+  een eigen start (de gewone `opstart()` geeft voor sales 403's).
+- **E2** `schermen/beheer-tabs.js` met één `import './beheer-xxx.js'` per tab; dashboard voegt
+  `import './beheer-performance.js'` toe.
+- **E3** wrapper `beveiligV1/beveiligV2('<naam>', handler)`; handler krijgt de gebruiker als 3e parameter;
+  elke functie MOET een rij in `netlify/lib/rechten.js` (test faalt anders) — geldt ook voor
+  `sales`, `sales-import`, `postcode`, `sales-opruimen`, `dashboard`, `dashboard-instellingen` en de
+  upload-functies (`rapport-ontvangen`, `rapport-verwerk-background`, `rapport-vangnet`).
+- **E5** `kern/sessie.js` ook `huidigeRechten()` → `{ beheer, plannen, alleSales }` en `afmelden()`.
+- **E6** TomTom-functies (`route`, `optimize`, `matrix`, `drukte`) voor alle rollen.
+- **E7** testseam `zetAuthVoorTests({ vasteGebruiker })`.
+- **Systeemacties in het activiteitenlog:** `gebruiker = { id: 'systeem', naam: 'Systeem' }`.
+- **Activiteitenlog lezen** (dashboard): via `netlify/lib/activiteit.js` → `leesActiviteit(store, { van, tot, actie? })`
+  (het logins-plan levert die functie mee in Task 9).
+
+Sales- en dashboard-plan: bij hun Task 0 (preflight) toetsen aan deze sectie en aan de gemergde
+logins-code; afwijkingen corrigeren vóór Task 1 van het niet-losse deel.
