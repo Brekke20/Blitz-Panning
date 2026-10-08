@@ -137,6 +137,6 @@ test('open functies: zonder sessie geen 401 niet-ingelogd van de wrapper', async
 });
 
 test('de service-sleutel- en wijzig-vlaggen staan enkel waar bedoeld', () => {
-  assert.deepEqual(Object.keys(RECHTEN).filter(n => RECHTEN[n].service === true), ['tickets']);
+  assert.deepEqual(Object.keys(RECHTEN).filter(n => RECHTEN[n].service === true).sort(), ['afspraken', 'klantbeschikbaarheid', 'tickets']); // T12: de drie interne aanroepen van planning-export
   assert.deepEqual(Object.keys(RECHTEN).filter(n => RECHTEN[n].ookBijWijzigen === true).sort(), ['auth-ik', 'auth-wachtwoord']);
 });

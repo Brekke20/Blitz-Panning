@@ -49,6 +49,8 @@ test.afterEach(() => {
 });
 
 // =================================================================== annuleer ====
+// T12: bij een kapotte opslag faalt ook de activiteitenlog (best-effort, eigen console.error); die regel telt hier niet mee.
+const zonderLog = spy => spy.mock.calls.filter(c => !String(c.arguments[0]).startsWith('[activiteit]'));
 function maakWinkels(initieel = {}) {
   const winkels = {};
   const get = naam => {
@@ -468,7 +470,7 @@ test('annuleer: opruimen zonder status en zonder door gebruikt "onbekend"; regis
       waarschuwing: 'Vergrendeling opruimen: het voorstel-register kon niet bijgewerkt worden. Herlaad de planner.',
     },
   });
-  assert.deepEqual(spy.mock.calls[0].arguments, ['Register wissen mislukt bij opruimen:', 'blob stuk']);
+  assert.deepEqual(zonderLog(spy)[0].arguments, ['Register wissen mislukt bij opruimen:', 'blob stuk']);
 });
 
 test('annuleer: registerfout na geslaagde annulatie geeft 200 met waarschuwing en volledige reeks', async () => {
@@ -485,7 +487,7 @@ test('annuleer: registerfout na geslaagde annulatie geeft 200 met waarschuwing e
       waarschuwing: 'Afspraak geannuleerd in Zoho, maar het voorstel-register kon niet bijgewerkt worden. Herlaad de planner.',
     },
   });
-  assert.deepEqual(spy.mock.calls[0].arguments, ['Register wissen mislukt na geslaagde annulatie:', 'blob stuk']);
+  assert.deepEqual(zonderLog(spy)[0].arguments, ['Register wissen mislukt na geslaagde annulatie:', 'blob stuk']);
 });
 
 test('annuleer: leesfout op het register geeft een leeg register (geen log); uur uit Zoho in plaats van tijdslot', async () => {
@@ -497,7 +499,7 @@ test('annuleer: leesfout op het register geeft een leeg register (geen log); uur
   // leesRegister vangt de fout zelf (leeg register): geen gelogde fout, geen tijdslot -> uur
   assert.equal(r.res.status, 200);
   assert.match(JSON.parse(r.calls[4].body).content, /Afspraak van 14\/10\/2026 08:30 geannuleerd/);
-  assert.equal(spy.mock.calls.length, 0);
+  assert.equal(zonderLog(spy).length, 0);
 });
 
 test('annuleer: comment-fout (niet-ok of netwerk) wordt enkel gelogd; antwoord blijft 200', async () => {

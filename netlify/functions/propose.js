@@ -16,7 +16,9 @@ import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
 import { maakBevestigingsUrl } from '../lib/bevestigingslink.js';
 import { maakZoho, leesJsonVeilig } from '../lib/zoho.js';
 import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
+import { getStore } from '@netlify/blobs';
 import { beveiligV1 } from '../lib/beveiligd.js';
+import { logVoorVerzoek } from '../lib/activiteit.js';
 
 // De bevestigingslink wordt ondertekend via de gedeelde module bevestigingslink.js (dezelfde
 // als waarmee confirm-afspraak.js controleert), met de ontvanger (doelgroep) in de handtekening.
@@ -184,7 +186,7 @@ function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime
 </body></html>`;
 }
 
-async function kern(event, context, gebruiker) {
+async function kern(event, context, gebruiker, haalStore = getStore) {
   const methode = v1Methode(event, ['POST'], CORS_V1);
   if (methode) return methode;
 
@@ -365,10 +367,15 @@ async function kern(event, context, gebruiker) {
       throw new Error(`Zoho PATCH fout (${patchRes.status}): ${JSON.stringify(patchData)}`);
     }
 
+    await logVoorVerzoek(event, gebruiker, { actie: 'voorstel-verstuurd', onderwerp: String(ticketId), details: date }, { getStore: haalStore });
     return v1Json(200, { success: true, ticketId, interventieDatum, appointmentTime, emailSent, fouten, ontvangers: ontvangers.map(o => o.doelgroep) }, CORS_V1);
   } catch (err) {
     return v1Json(500, { error: err.message }, CORS_V1);
   }
 }
 
-export const handler = beveiligV1('propose', kern);
+// getStore is een testnaad (enkel voor de activiteitenlog).
+export const maakHandler = ({ getStore: haalStore } = {}) =>
+  beveiligV1('propose', (event, context, gebruiker) => kern(event, context, gebruiker, haalStore));
+
+export const handler = maakHandler();

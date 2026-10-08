@@ -5,12 +5,14 @@
 import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
 import { maakZoho, leesJsonVeilig } from '../lib/zoho.js';
 import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
+import { getStore } from '@netlify/blobs';
 import { beveiligV1 } from '../lib/beveiligd.js';
+import { logVoorVerzoek } from '../lib/activiteit.js';
 
 // Instantie op moduleniveau: de tokencache (55 min) leeft zolang de functie warm is.
 const zoho = maakZoho({ orgFoutTekst: 'Could not find Zoho Desk org ID' });
 
-async function kern(event, context, gebruiker) {
+async function kern(event, context, gebruiker, haalStore = getStore) {
   const methode = v1Methode(event, ['POST'], CORS_V1);
   if (methode) return methode;
 
@@ -39,10 +41,16 @@ async function kern(event, context, gebruiker) {
     const patchData = await leesJsonVeilig(patchRes);
     if (!patchRes.ok) throw new Error(`Zoho fout (${patchRes.status}): ${JSON.stringify(patchData)}`);
 
+    // Nooit de tekst zelf loggen: enkel dat er een notitie is toegevoegd.
+    await logVoorVerzoek(event, gebruiker, { actie: 'notitie-toegevoegd', onderwerp: String(ticketId) }, { getStore: haalStore });
     return v1Json(200, { success: true }, CORS_V1);
   } catch (err) {
     return v1Json(500, { error: err.message }, CORS_V1);
   }
 }
 
-export const handler = beveiligV1('comment', kern);
+// getStore is een testnaad (enkel voor de activiteitenlog).
+export const maakHandler = ({ getStore: haalStore } = {}) =>
+  beveiligV1('comment', (event, context, gebruiker) => kern(event, context, gebruiker, haalStore));
+
+export const handler = maakHandler();

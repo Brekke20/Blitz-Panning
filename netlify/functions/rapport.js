@@ -12,6 +12,7 @@ import puppeteer from 'puppeteer-core';
 import { getStore } from '@netlify/blobs';
 import { isTestVerzoek, winkelNaam, nepZohoAntwoord } from '../lib/testmodus.js';
 import { beveiligV1 } from '../lib/beveiligd.js';
+import { logVoorVerzoek } from '../lib/activiteit.js';
 
 const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
@@ -155,10 +156,10 @@ async function leesRegister(store) {
 
 // Best-effort: een falende check laat de upload gewoon normaal doorgaan (zoals vóór deze taak) --
 // geen enkele idempotentie-check mag de kernflow (PDF genereren + uploaden) blokkeren.
-async function checkAlUpgeload(verzendId, event) {
+async function checkAlUpgeload(verzendId, event, haalStore = getStore) {
   if (!verzendId) return null;
   try {
-    const store = getStore({ name: winkelNaam(event), consistency: 'strong' });
+    const store = haalStore({ name: winkelNaam(event), consistency: 'strong' });
     const data  = await leesRegister(store);
     return isAlVerzonden(verzendId, data.entries);
   } catch { return null; }
@@ -170,10 +171,10 @@ async function checkAlUpgeload(verzendId, event) {
 // geval (geen verzendId, of de check/schrijf zelf faalde) -- in dat laatste geval gaat de upload
 // gewoon normaal door, precies zoals zonder reservering. Niet atomair, zie IN_FLIGHT_TIMEOUT_MS
 // hierboven.
-async function reserveerOfWeiger(verzendId, event) {
+async function reserveerOfWeiger(verzendId, event, haalStore = getStore) {
   if (!verzendId) return 'doorgaan';
   try {
-    const store = getStore({ name: winkelNaam(event), consistency: 'strong' });
+    const store = haalStore({ name: winkelNaam(event), consistency: 'strong' });
     const data  = await leesRegister(store);
     if (heeftActieveReservering(data.entries?.[verzendId])) return 'in-progress';
     const updated = pasReserveringToe(data.entries, verzendId);
@@ -190,10 +191,10 @@ async function reserveerOfWeiger(verzendId, event) {
 // 3 minuten moet wachten op zijn eigen vorige, mislukte reservering. Faalt dit zelf, dan blijft
 // de reservering gewoon staan tot ze na 3 minuten vanzelf als verlopen behandeld wordt
 // (heeftActieveReservering) -- geen blijvend geblokkeerde staat.
-async function wisReserveringBestEffort(verzendId, event) {
+async function wisReserveringBestEffort(verzendId, event, haalStore = getStore) {
   if (!verzendId) return;
   try {
-    const store = getStore({ name: winkelNaam(event), consistency: 'strong' });
+    const store = haalStore({ name: winkelNaam(event), consistency: 'strong' });
     const data  = await leesRegister(store);
     const updated = wisReservering(data.entries, verzendId);
     if (!updated) return;
@@ -217,14 +218,14 @@ async function wisReserveringBestEffort(verzendId, event) {
 // retries hieronder dekken enkel transiënte fouten (netwerk, tijdelijke Blobs-hik) en een
 // gelijktijdige schrijf van een ANDERE aanvraag (last-write-wins, stil, geen foutcode) -- vandaar
 // de post-write read-back die dat laatste geval alsnog detecteert en opnieuw probeert.
-async function markeerUpgeload(verzendId, attachmentId, event) {
+async function markeerUpgeload(verzendId, attachmentId, event, haalStore = getStore) {
   if (!verzendId) return;
 
   // 1) Register: definitieve idempotentie-markering (done:true). Dit is de bron van waarheid
   //    voor checkAlUpgeload()/reserveerOfWeiger() bij een volgende poging voor ditzelfde
   //    verzendId.
   try {
-    const store    = getStore({ name: winkelNaam(event), consistency: 'strong' });
+    const store    = haalStore({ name: winkelNaam(event), consistency: 'strong' });
     const data     = await leesRegister(store);
     const updated  = pasRegisterMarkeringToe(data.entries, verzendId, attachmentId);
     if (updated) await store.setJSON(REGISTER_KEY, { versie: data.versie + 1, entries: updated });
@@ -236,7 +237,7 @@ async function markeerUpgeload(verzendId, attachmentId, event) {
   //    overheen -- bv. een eigen nieuw archief-item of een cancel-POST), wordt de merge tot 3x
   //    herhaald vóór we opgeven.
   try {
-    const store = getStore({ name: winkelNaam(event), consistency: 'strong' });
+    const store = haalStore({ name: winkelNaam(event), consistency: 'strong' });
     for (let poging = 0; poging < 3; poging++) {
       try {
         const data    = (await store.get(BLOB_KEY, { type: 'json' })) || { versie: 0, rapports: [] };
@@ -293,69 +294,10 @@ async function getOrgId(token) {
   return orgId;
 }
 
-async function kern(event, context, gebruiker) {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-  };
-
-  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers };
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
-  }
-
+// PDF-naad: het blok hieronder is letterlijk verplaatst uit de handler (zelfde opties, zelfde opruiming).
+async function standaardPdf(html) {
   let browser;
-  // (Fix-ronde 2, punt 2) Buiten de try gedeclareerd (net als `browser`), zodat de catch
-  // hieronder er ook bij kan om een eventuele in-flight-reservering na een mislukte poging op
-  // te ruimen.
-  let verzendId;
-  let reserveringGezet = false;
   try {
-    const { html, ticketId, filename = 'service-rapport.pdf', verzendId: rawVerzendId } = JSON.parse(event.body || '{}');
-    if (!html || !ticketId) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'html en ticketId zijn verplicht' }) };
-    }
-    if (!/^\d+$/.test(String(ticketId))) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Ongeldig ticketId' }) };
-    }
-    // (Fix-ronde 1, punt 3) Een ongeldig-gevormd verzendId wordt genegeerd i.p.v. de aanvraag te
-    // weigeren -- de idempotentie is een bonus, geen vereiste voor het kernpad.
-    verzendId = normaliseerVerzendId(rawVerzendId);
-
-    // Testmodus: geen PDF (chromium), geen Zoho-upload, geen idempotentie-register --
-    // meteen het succesantwoord dat outbox.js verwacht (res.ok; attachmentId is optioneel).
-    if (isTestVerzoek(event)) {
-      return { statusCode: 200, headers, body: JSON.stringify(nepZohoAntwoord({ success: true, attachmentId: 'test-bijlage' })) };
-    }
-
-    // (T20) Idempotentie: was dit verzendId al eerder succesvol geüpload (server-side gelukt,
-    // maar het antwoord bereikte de client toen nooit)? Dan niet nogmaals genereren/uploaden --
-    // gewoon hetzelfde resultaat teruggeven. Geen match/falende check → gewoon normaal doorgaan.
-    const alGedaan = await checkAlUpgeload(verzendId, event);
-    if (alGedaan) {
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ success: true, attachmentId: alGedaan.zohoAttachmentId || null, alreadyUploaded: true }),
-      };
-    }
-
-    // (Fix-ronde 2, punt 2) Vroege in-flight-reservering -- VÓÓR Puppeteer/de Zoho-upload (het
-    // dure, meerdere-seconden-durende deel), zodat een gelijktijdige tweede aanvraag voor
-    // hetzelfde verzendId al vroeg met een 409 kan afgewezen worden i.p.v. zelf ook nog eens een
-    // volledige PDF te genereren en te uploaden. Best-effort/niet-atomair, zie het commentaarblok
-    // bij IN_FLIGHT_TIMEOUT_MS hierboven.
-    const reservering = await reserveerOfWeiger(verzendId, event);
-    if (reservering === 'in-progress') {
-      return {
-        statusCode: 409,
-        headers,
-        body: JSON.stringify({ error: 'Upload van dit rapport is al bezig', inProgress: true }),
-      };
-    }
-    reserveringGezet = reservering === 'gereserveerd';
-
-    // ── 1. PDF genereren ──────────────────────────────────────────────────────
     const executablePath = await chromium.executablePath(CHROMIUM_URL);
     browser = await puppeteer.launch({
       args:            chromium.args,
@@ -395,6 +337,76 @@ async function kern(event, context, gebruiker) {
     });
     await browser.close();
     browser = null;
+    return pdfBuffer;
+  } catch (err) {
+    if (browser) await browser.close().catch(() => {});
+    throw err;
+  }
+}
+
+async function kern(event, context, gebruiker, { haalStore = getStore, maakPdf = standaardPdf } = {}) {
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Content-Type': 'application/json',
+  };
+
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers };
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
+  }
+
+  // (Fix-ronde 2, punt 2) Buiten de try gedeclareerd (net als `browser`), zodat de catch
+  // hieronder er ook bij kan om een eventuele in-flight-reservering na een mislukte poging op
+  // te ruimen.
+  let verzendId;
+  let reserveringGezet = false;
+  try {
+    const { html, ticketId, filename = 'service-rapport.pdf', verzendId: rawVerzendId } = JSON.parse(event.body || '{}');
+    if (!html || !ticketId) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'html en ticketId zijn verplicht' }) };
+    }
+    if (!/^\d+$/.test(String(ticketId))) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Ongeldig ticketId' }) };
+    }
+    // (Fix-ronde 1, punt 3) Een ongeldig-gevormd verzendId wordt genegeerd i.p.v. de aanvraag te
+    // weigeren -- de idempotentie is een bonus, geen vereiste voor het kernpad.
+    verzendId = normaliseerVerzendId(rawVerzendId);
+
+    // Testmodus: geen PDF (chromium), geen Zoho-upload, geen idempotentie-register --
+    // meteen het succesantwoord dat outbox.js verwacht (res.ok; attachmentId is optioneel).
+    if (isTestVerzoek(event)) {
+      return { statusCode: 200, headers, body: JSON.stringify(nepZohoAntwoord({ success: true, attachmentId: 'test-bijlage' })) };
+    }
+
+    // (T20) Idempotentie: was dit verzendId al eerder succesvol geüpload (server-side gelukt,
+    // maar het antwoord bereikte de client toen nooit)? Dan niet nogmaals genereren/uploaden --
+    // gewoon hetzelfde resultaat teruggeven. Geen match/falende check → gewoon normaal doorgaan.
+    const alGedaan = await checkAlUpgeload(verzendId, event, haalStore);
+    if (alGedaan) {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ success: true, attachmentId: alGedaan.zohoAttachmentId || null, alreadyUploaded: true }),
+      };
+    }
+
+    // (Fix-ronde 2, punt 2) Vroege in-flight-reservering -- VÓÓR Puppeteer/de Zoho-upload (het
+    // dure, meerdere-seconden-durende deel), zodat een gelijktijdige tweede aanvraag voor
+    // hetzelfde verzendId al vroeg met een 409 kan afgewezen worden i.p.v. zelf ook nog eens een
+    // volledige PDF te genereren en te uploaden. Best-effort/niet-atomair, zie het commentaarblok
+    // bij IN_FLIGHT_TIMEOUT_MS hierboven.
+    const reservering = await reserveerOfWeiger(verzendId, event, haalStore);
+    if (reservering === 'in-progress') {
+      return {
+        statusCode: 409,
+        headers,
+        body: JSON.stringify({ error: 'Upload van dit rapport is al bezig', inProgress: true }),
+      };
+    }
+    reserveringGezet = reservering === 'gereserveerd';
+
+    // ── 1. PDF genereren ──────────────────────────────────────────────────────
+    const pdfBuffer = await maakPdf(html);
 
     // ── 2. Upload naar Zoho Desk ──────────────────────────────────────────────
     const token = await getAccessToken();
@@ -426,8 +438,11 @@ async function kern(event, context, gebruiker) {
     // buitenste try/catch is defense-in-depth: een GESLAAGDE upload mag NOOIT alsnog als 500
     // eindigen door iets dat hierna misloopt.
     try {
-      await markeerUpgeload(verzendId, uploadData.id, event);
+      await markeerUpgeload(verzendId, uploadData.id, event, haalStore);
     } catch { /* zie hierboven -- de respons hieronder blijft altijd 200 na een geslaagde upload */ }
+
+    // Eén regel per geslaagde PDF-bijlage (de idempotente herhaling hierboven logt niets).
+    await logVoorVerzoek(event, gebruiker, { actie: 'rapport-verstuurd', onderwerp: String(ticketId), details: 'pdf-bijlage' }, { getStore: haalStore });
 
     return {
       statusCode: 200,
@@ -435,11 +450,10 @@ async function kern(event, context, gebruiker) {
       body: JSON.stringify({ success: true, attachmentId: uploadData.id }),
     };
   } catch (err) {
-    if (browser) await browser.close().catch(() => {});
     // (Fix-ronde 2, punt 2) Alleen opruimen als DEZE aanroep de reservering zette -- staat er een
     // reservering van een ANDERE, nog lopende poging (bv. 'in-progress' hierboven al afgehandeld,
     // of 'doorgaan' omdat de check zelf faalde), dan raken we die hier niet aan.
-    if (reserveringGezet) await wisReserveringBestEffort(verzendId, event);
+    if (reserveringGezet) await wisReserveringBestEffort(verzendId, event, haalStore);
     return {
       statusCode: 500,
       headers,
@@ -448,4 +462,8 @@ async function kern(event, context, gebruiker) {
   }
 }
 
-export const handler = beveiligV1('rapport', kern);
+// getStore en maakPdf zijn testnaden (opslag/activiteitenlog en de PDF-generatie).
+export const maakHandler = ({ getStore: haalStore, maakPdf } = {}) =>
+  beveiligV1('rapport', (event, context, gebruiker) => kern(event, context, gebruiker, { haalStore, maakPdf }));
+
+export const handler = maakHandler();

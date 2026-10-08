@@ -8,6 +8,7 @@
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
 import { beveiligV2 } from '../lib/beveiligd.js';
+import { logVoorVerzoek } from '../lib/activiteit.js';
 
 const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
@@ -30,13 +31,13 @@ function corsHeaders(req) {
 
 function blobKey(ticketId) { return `foto-${ticketId}`; }
 
-const kern = async (req, context, gebruiker) => {
+const kern = async (req, context, gebruiker, haalStore = getStore) => {
   const hdrs  = corsHeaders(req);
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: hdrs });
 
-  const store = getStore({ name: winkelNaam(req), consistency: 'strong' });
+  const store = haalStore({ name: winkelNaam(req), consistency: 'strong' });
 
-  if (isTestVerzoek(req)) await zorgVoorTestkopie(getStore);
+  if (isTestVerzoek(req)) await zorgVoorTestkopie(haalStore);
   const url   = new URL(req.url);
 
   // ── GET ───────────────────────────────────────────────────────────────────
@@ -107,6 +108,8 @@ const kern = async (req, context, gebruiker) => {
 
     const nieuw = { versie: current.versie + 1, fotos: cleaned };
     await store.setJSON(blobKey(ticketId), nieuw);
+    // Enkel het aantal, nooit de fotogegevens.
+    await logVoorVerzoek(req, gebruiker, { actie: 'foto-toegevoegd', onderwerp: ticketId, details: `${cleaned.length} foto's` }, { getStore: haalStore });
 
     return new Response(JSON.stringify(nieuw), {
       status: 200, headers: { ...hdrs, 'Content-Type': 'application/json' },
@@ -116,6 +119,10 @@ const kern = async (req, context, gebruiker) => {
   return new Response('Method Not Allowed', { status: 405, headers: hdrs });
 };
 
-export default beveiligV2('fotos', kern);
+// getStore is een testnaad (opslag en activiteitenlog).
+export const maakHandler = ({ getStore: haalStore } = {}) =>
+  beveiligV2('fotos', (req, context, gebruiker) => kern(req, context, gebruiker, haalStore));
+
+export default maakHandler();
 
 export const config = { path: '/api/fotos' };

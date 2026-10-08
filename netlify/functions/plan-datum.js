@@ -6,14 +6,17 @@
 import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
 import { maakZoho } from '../lib/zoho.js';
 import { maakCors, v2Json, v2Methode } from '../lib/http.js';
+import { getStore } from '@netlify/blobs';
 import { beveiligV2 } from '../lib/beveiligd.js';
+import { logVoorVerzoek } from '../lib/activiteit.js';
+import { datumInBrussel } from '../lib/bevestigingslink.js';
 
 // Instantie op moduleniveau: de tokencache (55 min) leeft zolang de functie warm is.
 const zoho = maakZoho();
 
 const CORS = maakCors({ methoden: 'POST, OPTIONS', headers: 'Content-Type' });
 
-const kern = async (req, context, gebruiker) => {
+const kern = async (req, context, gebruiker, haalStore = getStore) => {
   const methode = v2Methode(req, ['POST'], CORS);
   if (methode) return methode;
 
@@ -45,12 +48,19 @@ const kern = async (req, context, gebruiker) => {
       throw new Error(`Zoho PATCH fout (${patchRes.status}): ${txt}`);
     }
 
+    await logVoorVerzoek(req, gebruiker, {
+      actie: 'plannen', onderwerp: String(ticketId), details: datumInBrussel(utcInterventieDatum) ?? String(utcInterventieDatum).slice(0, 10),
+    }, { getStore: haalStore });
     return v2Json(200, { ok: true, interventieDatum: utcInterventieDatum }, CORS);
   } catch (err) {
     return v2Json(500, { error: err.message }, CORS);
   }
 };
 
-export default beveiligV2('plan-datum', kern);
+// getStore is een testnaad (enkel voor de activiteitenlog).
+export const maakHandler = ({ getStore: haalStore } = {}) =>
+  beveiligV2('plan-datum', (req, context, gebruiker) => kern(req, context, gebruiker, haalStore));
+
+export default maakHandler();
 
 export const config = { path: '/api/plan-datum' };

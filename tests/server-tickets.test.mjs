@@ -677,7 +677,7 @@ const exportRouter = ({ tickets = EXPORT_TICKETS, kb = EXPORT_KB, afspraken = EX
   return undefined;
 };
 const exportCalls = (basis) => ['tickets', 'klantbeschikbaarheid', 'afspraken']
-  .map(n => ({ method: 'GET', url: `${basis}/api/${n}`, headers: {}, body: undefined }));
+  .map(n => ({ method: 'GET', url: `${basis}/api/${n}`, headers: { Authorization: 'Bearer SLEUTEL' }, body: undefined })); // T12: de service-sleutel gaat mee
 
 test('planning-export: OPTIONS geeft 204 met CORS, vóór de authenticatie, zonder aanroepen', async () => {
   const { res, calls } = await draaiExport({ httpMethod: 'OPTIONS', headers: {} });
