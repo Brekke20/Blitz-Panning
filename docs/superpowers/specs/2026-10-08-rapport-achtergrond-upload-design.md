@@ -43,7 +43,7 @@ Oorzaken (vastgesteld in de code op `main`, v1.10.1):
 
 | Key | Inhoud |
 |---|---|
-| `rapportlijst` | Zoals nu, maar entries bevatten **geen `rapportData._html` meer** (wel de rest van `rapportData`, nodig voor de TicketLog-export). Nieuw veld `verwerking` (zie hieronder). |
+| `rapportlijst` | Zoals nu, maar entries bevatten **geen `rapportData._html`, `handtekeningTech` en `handtekeningKlant` meer** (die zitten al in de HTML en worden nergens uit de lijst gelezen); de rest van `rapportData` blijft, nodig voor de TicketLog-export en het latere dashboard. Nieuw veld `verwerking` (zie hieronder). |
 | `rapport-inhoud/<id>` | **Nieuw.** `{ id, html, aangemaakt }` — de volledige rapport-HTML met foto's, één blob per rapport. |
 | `rapport-verzend-status` | Zoals nu (idempotentie-register van `rapport.js`), ongewijzigd. |
 
@@ -115,7 +115,7 @@ app-versies in de cache van een toestel tijdens de overgang blijven werken.
   "Personal"; niet zwart op wit bevestigd), dan verwerkt het vangnet zelf maximaal 1 rapport per
   run binnen zijn tijdslimiet. Dit wordt bij de eerste live-proef vastgesteld (zie Testen).
 - **Migratie oude rapporten:** per run verhuist het vangnet maximaal 20 oude entries met inline
-  `rapportData._html` naar `rapport-inhoud/<id>` en verwijdert `_html` uit de lijst-entry. Na
+  `rapportData._html` naar `rapport-inhoud/<id>` en verwijdert `_html` en de handtekeningen uit de lijst-entry. Na
   ±25 runs (~2 uur) is de lijst licht.
 
 Herhaalschema (`volgendePoging` na poging n): 5 min, 15 min, 30 min, 1 u, 2 u → daarna `mislukt`.
