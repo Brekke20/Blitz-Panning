@@ -29,3 +29,6 @@
 
 [functions.annuleer]
   timeout = 26
+
+[functions.rapport-ontvangen]
+  timeout = 26

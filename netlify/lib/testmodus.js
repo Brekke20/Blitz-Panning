@@ -6,7 +6,7 @@ const ECHTE_WINKEL = 'blitz-data';
 const TEST_WINKEL  = 'blitz-data-test';
 const MARKER_KEY   = '_testkopie';
 // Sleutels die niet naar de testopslag gekopieerd worden
-const NIET_KOPIEREN = [/^client-log/, /^foutenlog$/, /^rapport-verzend-status/, /^foto-/];
+const NIET_KOPIEREN = [/^client-log/, /^foutenlog$/, /^rapport-verzend-status/, /^foto-/, /^rapport-inhoud\//];
 
 let kopieKlaar = false;   // geheugenvlag per koude start
 let kopieBezig = null;    // lopende kopie (voorkomt gelijktijdige kopieën)
