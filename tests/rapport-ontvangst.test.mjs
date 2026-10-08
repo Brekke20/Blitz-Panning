@@ -363,3 +363,11 @@ test('I1: de inhoudsblob bewaart de lichte lijst-entry (incl. verwerking) voor h
   assert.deepEqual(blob.entry, inLijst);
   assert.equal(blob.entry.verwerking.status, 'wacht');
 });
+
+test('M1: rapport-verwerk-background geeft expliciet 202 terug (ook bij ongeldige body/id)', async () => {
+  const { default: bg } = await import('../netlify/functions/rapport-verwerk-background.js');
+  const r1 = await bg(new Request('http://x/.netlify/functions/rapport-verwerk-background', { method: 'POST', body: 'geen json' }));
+  assert.equal(r1.status, 202);
+  const r2 = await bg(new Request('http://x/.netlify/functions/rapport-verwerk-background', { method: 'POST', body: JSON.stringify({ id: '../x' }) }));
+  assert.equal(r2.status, 202);
+});

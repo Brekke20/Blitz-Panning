@@ -174,10 +174,11 @@ export async function logOutboxFailure(item, stap, fout) {
 
 export async function attemptOutboxItem(item) {
   // Testmodus (?test, ook op de live site): nooit iets naar de server sturen, tenzij de opt-in
-  // ?test&upload actief is (dan gaat het naar de testopslag, nooit naar Zoho). Het item blijft
-  // met een duidelijke melding in de wachtrij; de bestaande backoff voorkomt dat flushOutbox
-  // het bij elke trigger opnieuw probeert.
-  if (TEST_MODE && !TEST_UPLOAD) {
+  // ?test&upload actief is en het item zelf in testmodus is aangemaakt (item.testModus === true;
+  // dan gaat het naar de testopslag, nooit naar Zoho). Echte wachtende items blijven staan. Het
+  // item blijft met een duidelijke melding in de wachtrij; de bestaande backoff voorkomt dat
+  // flushOutbox het bij elke trigger opnieuw probeert.
+  if (!V.magVerzenden(item, TEST_MODE, TEST_UPLOAD)) {
     item.lastError = 'Testmodus — niet verzonden';
     _outboxNextAttempt.set(item.id, Date.now() + OUTBOX_BACKOFF_MS[OUTBOX_BACKOFF_MS.length - 1]);
     try { await outboxPut(item); } catch { /* best-effort */ }

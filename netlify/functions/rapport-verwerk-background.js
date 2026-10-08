@@ -9,10 +9,11 @@ import { maakVerwerker } from '../lib/rapport-verwerker.js';
 
 export default async (req) => {
   let id;
-  try { ({ id } = await req.json()); } catch { return; }
-  if (!isGeldigId(id)) return;
+  try { ({ id } = await req.json()); } catch { return new Response(null, { status: 202 }); }
+  if (!isGeldigId(id)) return new Response(null, { status: 202 });
 
   const store = getStore({ name: winkelNaam(req), consistency: 'strong' });
   const { upload, maxPogingen } = await maakVerwerker({ store, testModus: isTestVerzoek(req) });
   await verwerkRapport(id, { store, upload, maxPogingen });
+  return new Response(null, { status: 202 });
 };

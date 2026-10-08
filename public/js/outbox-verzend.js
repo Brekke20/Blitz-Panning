@@ -61,6 +61,14 @@
     return item && item.ontvangen === true ? 'done' : 'ontvangen';
   }
 
+  // Mag dit item nu verstuurd worden? Gewone testmodus (?test): nooit. ?test&upload: enkel items die
+  // zelf in testmodus zijn aangemaakt (testModus === true); echte wachtende items blijven staan,
+  // zodat ze nooit in de testopslag terechtkomen.
+  function magVerzenden(item, testMode, testUpload) {
+    if (!testMode) return true;
+    return !!testUpload && !!item && item.testModus === true;
+  }
+
   // Zelfde strip als de server (netlify/lib/rapportlijst.js stripZwareVelden): zonder de zware
   // velden _html, de twee handtekeningen en de oude inline fotos.
   function stripZwareVelden(rapportData) {
@@ -158,21 +166,25 @@
       var item = items[i];
       try {
         var uitkomst = await slot(item.id, async function () {
+          // Vers lezen binnen het slot: het item kan sinds de eerste getAll door de pagina zijn
+          // geannuleerd (verwijderd) of bijgewerkt; een put van de oude kopie zou dat ongedaan maken.
+          var vers = (await opslag.getAll()).find(function (i) { return i.id === item.id; });
+          if (!vers) return { ok: true, overgeslagen: true };
           // Al ontvangen door de server (verwijderen na een geslaagde verzending mislukte eerder):
           // enkel nog opruimen, niet opnieuw versturen.
-          if (nextAction(item) === 'done') {
-            await opslag.remove(item.id);
+          if (nextAction(vers) === 'done') {
+            await opslag.remove(vers.id);
             return { ok: true };
           }
-          var res = await verzendItem(item, { fetch: doFetch });
+          var res = await verzendItem(vers, { fetch: doFetch });
           if (res.ok) {
-            await opslag.remove(item.id);
+            await opslag.remove(vers.id);
           } else {
-            await opslag.put(Object.assign({}, item, { lastError: res.fout, attempts: (item.attempts || 0) + 1 }));
+            await opslag.put(Object.assign({}, vers, { lastError: res.fout, attempts: (vers.attempts || 0) + 1 }));
           }
           return res;
         });
-        if (!uitkomst.uitgevoerd) continue;
+        if (!uitkomst.uitgevoerd || uitkomst.waarde.overgeslagen) continue;
         if (uitkomst.waarde.ok) verstuurd++; else mislukt++;
       } catch (err) {
         mislukt++;
@@ -190,6 +202,7 @@
     put: put,
     remove: remove,
     nextAction: nextAction,
+    magVerzenden: magVerzenden,
     bouwOntvangenBody: bouwOntvangenBody,
     vertaalFout: vertaalFout,
     verzendItem: verzendItem,

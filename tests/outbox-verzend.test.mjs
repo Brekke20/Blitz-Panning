@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import verzend from '../public/js/outbox-verzend.js';
 
-const { nextAction, bouwOntvangenBody, vertaalFout, verzendItem, metSlot, verzendAlles } = verzend;
+const { nextAction, bouwOntvangenBody, vertaalFout, verzendItem, metSlot, verzendAlles, magVerzenden } = verzend;
 
 function maakItem(extra = {}) {
   return {
@@ -194,4 +194,42 @@ test('verzendAlles: item met ontvangen:true wordt uit de opslag verwijderd, niet
   assert.equal(gefetcht, false);
   assert.equal(opslag.items.has('d'), false);
   assert.deepEqual(res, { verstuurd: 1, mislukt: 0 });
+});
+
+test('T7: verzendAlles leest het item vers binnen het slot; item intussen verwijderd (geannuleerd) → niets gebeurt', async () => {
+  const opslag = maakOpslag([maakItem({ id: 'e' })]);
+  let gefetcht = false;
+  const res = await verzendAlles({
+    fetch: async () => { gefetcht = true; return nepResponse(200, { ok: true }); },
+    opslag,
+    // Het item verdwijnt (annuleren) tussen de eerste getAll en het verkrijgen van het slot.
+    slot: async (id, fn) => { opslag.items.delete('e'); return { uitgevoerd: true, waarde: await fn() }; },
+  });
+  assert.equal(gefetcht, false);
+  assert.equal(opslag.items.has('e'), false); // niet opnieuw teruggezet door een put
+  assert.deepEqual(res, { verstuurd: 0, mislukt: 0 });
+});
+
+test('T7: verzendAlles gebruikt de verse versie van het item (bv. ontvangen:true gezet door de pagina) en put niet de oude terug', async () => {
+  const opslag = maakOpslag([maakItem({ id: 'f' })]);
+  let gefetcht = false;
+  const res = await verzendAlles({
+    fetch: async () => { gefetcht = true; return nepResponse(200, { ok: true }); },
+    opslag,
+    slot: async (id, fn) => { opslag.items.set('f', maakItem({ id: 'f', ontvangen: true })); return { uitgevoerd: true, waarde: await fn() }; },
+  });
+  assert.equal(gefetcht, false);
+  assert.equal(opslag.items.has('f'), false);
+  assert.deepEqual(res, { verstuurd: 1, mislukt: 0 });
+});
+
+test('I2: magVerzenden — gewone testmodus nooit; ?test&upload enkel items met testModus true; geen testmodus altijd', () => {
+  assert.equal(magVerzenden({ id: 'x' }, false, false), true);
+  assert.equal(magVerzenden({ id: 'x', testModus: true }, false, false), true);
+  assert.equal(magVerzenden({ id: 'x' }, true, false), false);
+  assert.equal(magVerzenden({ id: 'x', testModus: true }, true, false), false);
+  assert.equal(magVerzenden({ id: 'x', testModus: true }, true, true), true);
+  // echte wachtende items mogen in ?test&upload nooit naar de testopslag
+  assert.equal(magVerzenden({ id: 'x' }, true, true), false);
+  assert.equal(magVerzenden({ id: 'x', testModus: false }, true, true), false);
 });
