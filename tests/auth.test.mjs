@@ -133,17 +133,27 @@ test('SESSIE_GEHEIM leeg of ontbrekend -> 401, nooit een uitzondering', async ()
   }
 });
 
-test('storefout -> 401 (fail-closed), zonder uitzondering of lek', async () => {
+test('storefout bij gebruikers lezen -> 503 opslag-storing (nooit ok), zonder lek', async () => {
   const kapot = { async get() { throw new Error('geheim-detail-van-blobs'); } };
   const auth = maakAuth({ getStore: () => kapot, env: { SESSIE_GEHEIM: GEHEIM }, nu });
   const r = await auth.vereisGebruiker(metCookie(token('u-plan', 1)));
-  assert.deepEqual([r.ok, r.status], [false, 401]);
+  assert.deepEqual([r.ok, r.status, r.code], [false, 503, 'opslag-storing']);
+  assert.equal(typeof r.fout, 'string');
   assert.ok(!JSON.stringify(r).includes('geheim-detail'));
 });
 
-test('getStore die gooit -> 401', async () => {
+test('getStore die gooit (sync of async) -> 503 opslag-storing', async () => {
+  for (const getStore of [() => { throw new Error('x'); }, async () => { throw new Error('x'); }]) {
+    const auth = maakAuth({ getStore, env: { SESSIE_GEHEIM: GEHEIM }, nu });
+    const r = await auth.vereisGebruiker(metCookie(token('u-plan', 1)));
+    assert.deepEqual([r.ok, r.status, r.code], [false, 503, 'opslag-storing']);
+  }
+});
+
+test('opslagstoring maskeert geen ongeldige sessie: slecht token blijft 401 zonder de store te raken', async () => {
   const auth = maakAuth({ getStore: () => { throw new Error('x'); }, env: { SESSIE_GEHEIM: GEHEIM }, nu });
-  assert.equal((await auth.vereisGebruiker(metCookie(token('u-plan', 1)))).status, 401);
+  assert.equal((await auth.vereisGebruiker(metCookie('rommel'))).status, 401);
+  assert.equal((await auth.vereisGebruiker(verzoek())).status, 401);
 });
 
 // ---- Testrol (Review Focus 1) ----
@@ -309,6 +319,12 @@ test('weigeringV1 en weigeringV2: status, CORS en body { error, code }', async (
   assert.equal(v2.status, 401);
   assert.equal(v2.headers.get('access-control-allow-origin'), '*');
   assert.deepEqual(await v2.json(), { error: 'Niet ingelogd.', code: 'niet-ingelogd' });
+  const storing = { ok: false, status: 503, fout: 'Opslag weg.', code: 'opslag-storing' };
+  assert.equal(weigeringV1(storing, cors).statusCode, 503);
+  assert.deepEqual(JSON.parse(weigeringV1(storing, cors).body), { error: 'Opslag weg.', code: 'opslag-storing' });
+  const s2 = weigeringV2(storing, cors);
+  assert.equal(s2.status, 503);
+  assert.deepEqual(await s2.json(), { error: 'Opslag weg.', code: 'opslag-storing' });
 });
 
 test('zetAuthVoorTests komt nergens onder netlify/ of public/ voor behalve netlify/lib/auth.js', () => {

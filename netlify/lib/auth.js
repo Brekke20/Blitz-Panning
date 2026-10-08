@@ -22,6 +22,8 @@ const WEIGERINGEN = {
   'geen-recht': { status: 403, fout: 'Je hebt hier geen toegang toe.' },
   'csrf': { status: 403, fout: 'Verzoek geweigerd.' },
   'wachtwoord-wijzigen': { status: 403, fout: 'Je moet eerst je wachtwoord wijzigen.' },
+  // Tijdelijke opslagstoring: geen toegang (fail-closed), maar de client moet NIET uitloggen en later opnieuw proberen.
+  'opslag-storing': { status: 503, fout: 'De opslag is tijdelijk niet bereikbaar. Probeer het zo meteen opnieuw.' },
 };
 const weiger = code => ({ ok: false, ...WEIGERINGEN[code], code });
 
@@ -82,8 +84,16 @@ export function maakAuth({ getStore = standaardGetStore, env = process.env, nu =
       const claims = controleerToken(leesCookie(reqOfEvent, COOKIE_NAAM), geheim, Math.floor(nu() / 1000));
       if (!claims) return weiger('niet-ingelogd');
       // Authenticatiegegevens staan altijd in de ECHTE store, ook bij een testverzoek.
-      const store = await getStore({ name: 'blitz-data', consistency: 'strong' });
-      const record = (await leesGebruikers(store)).find(g => g && g.id === claims.uid);
+      let gebruikers;
+      try {
+        const store = await getStore({ name: 'blitz-data', consistency: 'strong' });
+        gebruikers = await leesGebruikers(store);
+      } catch (e) {
+        // Alleen het fouttype loggen: een Blobs-fout kan details bevatten.
+        console.error('auth: opslag niet bereikbaar (' + (e?.name || 'Error') + ')');
+        return weiger('opslag-storing');
+      }
+      const record = gebruikers.find(g => g && g.id === claims.uid);
       if (!record || record.actief !== true || record.sessieVersie !== claims.sv) return weiger('niet-ingelogd');
       if (!ROLLEN.includes(record.rol)) return weiger('niet-ingelogd');
 
