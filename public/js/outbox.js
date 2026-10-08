@@ -135,6 +135,8 @@ export async function outboxRetryNow(id) {
   const item = _outboxItems.find(i => i.id === id);
   if (!item) return;
   _outboxNextAttempt.delete(id);
+  // Ook als de app sluit tijdens deze poging (niet afgewacht); niet in pure testmodus (die verstuurt niets).
+  if (!TEST_MODE || TEST_UPLOAD) window.registreerAchtergrondVerzending?.();
   await runOutboxItem(item);
   await refreshOutboxCache();
   renderRapportArchief();

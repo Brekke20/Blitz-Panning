@@ -1411,6 +1411,7 @@ export async function printRapport() {
       };
 
       await outboxAdd(item);
+      window.registreerAchtergrondVerzending?.(); // Background Sync (Android), niet afgewacht
       wisConcept(_wizTicketId, _wizDate); // rapport staat veilig in de outbox
       await refreshOutboxCache();
 
