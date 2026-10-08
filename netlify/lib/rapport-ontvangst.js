@@ -63,13 +63,13 @@ export async function verwerkOntvangst({ store, body, nu = new Date(), testModus
     });
     if (!res.ok) return { status: 503, body: NIET_BEREIKBAAR, startNodig: false };
 
-    if (vervangenId) await verwijderInhoud(store, vervangenId);
     // Best-effort, ná het slagen van de lijstschrijfactie: een mislukte archivering mag de upload
     // nooit een fout geven (archiveerAfgevallen gooit niet en logt zelf; de eigen try is extra veilig).
     if (afgevallen.length) {
       try { await archiveerAfgevallen(store, afgevallen); }
       catch (err) { console.error('[rapport-ontvangen] jaar-archief mislukt:', err?.message || err); }
     }
+    if (vervangenId) await verwijderInhoud(store, vervangenId);
     return { status: 200, body: { ok: true, id }, startNodig };
   } catch (err) {
     console.error('[rapport-ontvangen] opslag mislukt:', err?.message || err);

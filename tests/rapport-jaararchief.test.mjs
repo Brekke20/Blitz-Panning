@@ -10,9 +10,10 @@ import { schrijfInhoud } from '../netlify/lib/rapport-inhoud.js';
 
 // Nep-store; `verliesEerste(sleutel)` laat de eerste schrijfactie voor die sleutel stil verloren
 // gaan, `faalOp(sleutel)` laat get/setJSON voor die sleutel gooien.
-function nepStore({ verliesEerste, faalOp } = {}) {
+function nepStore({ verliesEerste, faalOp, naSchrijf, delFaalt } = {}) {
   const m = new Map();
   const verloren = new Set();
+  let writes = 0;
   return {
     m,
     async get(k, opt) {
@@ -26,8 +27,9 @@ function nepStore({ verliesEerste, faalOp } = {}) {
       if (faalOp?.(k)) throw new Error('schrijf-fout ' + k);
       if (verliesEerste?.(k) && !verloren.has(k)) { verloren.add(k); return; }
       m.set(k, JSON.stringify(v));
+      naSchrijf?.(k, m, ++writes);
     },
-    async delete(k) { m.delete(k); },
+    async delete(k) { if (delFaalt) throw new Error('delete-fout'); m.delete(k); },
   };
 }
 const archief = (store, jaar) => JSON.parse(store.m.get(ARCHIEF_PREFIX + jaar) ?? 'null');
@@ -187,4 +189,59 @@ test('herstelEntry (via verwerkRapport) laat de lijst niet kleiner worden', asyn
   assert.equal(lijst.length, 501);
   assert.equal(lijst[0].id, ID_NIEUW);
   assert.equal(lijst[0].zohoUploaded, true);
+});
+
+test('archiveerAfgevallen: een corrupte archiefblob wordt nooit overschreven (ok:false, ids gelogd)', async () => {
+  for (const corrupt of ['{"versie":3}', '{"versie":3,"rapports":"kapot"}', '"tekst"', '42']) {
+    const store = nepStore();
+    store.m.set(ARCHIEF_PREFIX + '2026', corrupt);
+    const fouten = [];
+    const orig = console.error; console.error = (...a) => fouten.push(a.join(' '));
+    let r;
+    try { r = await archiveerAfgevallen(store, [ent('nieuw-id', '2026-02-02')]); }
+    finally { console.error = orig; }
+    assert.equal(r.ok, false, corrupt);
+    assert.equal(store.m.get(ARCHIEF_PREFIX + '2026'), corrupt, 'blob onaangeroerd');
+    assert.ok(fouten.some(f => f.includes('nieuw-id')));
+  }
+});
+
+test('leesArchieven: een corrupte archiefblob komt in fouten', async () => {
+  const store = nepStore();
+  store.m.set(ARCHIEF_PREFIX + '2025', '{"versie":1}');
+  store.m.set(ARCHIEF_PREFIX + '2026', JSON.stringify({ versie: 1, rapports: [ent('b', '2026-01-01')] }));
+  const r = await leesArchieven(store, ['2025', '2026']);
+  assert.deepEqual(r.fouten, ['2025']);
+  assert.deepEqual(r.rapports.map(e => e.id), ['b']);
+});
+
+test('verwerkOntvangst: vervangen inhoud + falende delete verliest de archivering niet en geeft 200', async () => {
+  const store = nepStore({ delFaalt: true });
+  const lijst = volleLijst();
+  lijst.rapports.unshift(ent('al-ouder-id', '2026-10-08', { ticketId: '555' })); // 501, dedup op ticket+datum
+  store.m.set('rapportlijst', JSON.stringify(lijst));
+  const r = await verwerkOntvangst({ store, body: ontvangstBody(), nu: NU });
+  assert.equal(r.status, 200);
+  assert.deepEqual(archief(store, '2025').rapports.map(e => e.id), ['oud-000']);
+});
+
+test('verwerkOntvangst: bij een wijzigLijst-herhaling wordt de afgevallen van de LAATSTE uitvoering gearchiveerd', async () => {
+  // Na de eerste lijstschrijfactie vervangt een "gelijktijdige schrijver" de lijst door een andere volle lijst
+  // (zonder ons id): de read-back mislukt, poging 2 werkt op die lijst met een andere oudste entry.
+  let overschreven = false;
+  const store = nepStore({
+    naSchrijf: (k, m) => {
+      if (k !== 'rapportlijst' || overschreven) return;
+      overschreven = true;
+      m.set('rapportlijst', JSON.stringify({
+        versie: 50,
+        rapports: Array.from({ length: 500 }, (_, i) => ent('conc-' + String(499 - i).padStart(3, '0'), '2025-04-01', { ticketId: 'cc' + i })),
+      }));
+    },
+  });
+  store.m.set('rapportlijst', JSON.stringify(volleLijst()));
+  const r = await verwerkOntvangst({ store, body: ontvangstBody(), nu: NU });
+  assert.equal(r.status, 200);
+  assert.equal(JSON.parse(store.m.get('rapportlijst')).rapports[0].id, ID_NIEUW);
+  assert.deepEqual(archief(store, '2025').rapports.map(e => e.id), ['conc-000']);
 });

@@ -52,8 +52,13 @@ export async function archiveerAfgevallen(store, entries) {
     let toegevoegd = 0;
     for (let poging = 0; poging < POGINGEN && !gelukt; poging++) {
       try {
-        const huidig = (await store.get(sleutel, { type: 'json' })) ?? { versie: 0, rapports: [] };
-        const bestaand = Array.isArray(huidig.rapports) ? huidig.rapports : [];
+        const gelezen = await store.get(sleutel, { type: 'json' });
+        // Een bestaande maar onbruikbare (corrupte) blob wordt NOOIT overschreven: poging laten falen.
+        if (gelezen !== null && gelezen !== undefined && (typeof gelezen !== 'object' || !Array.isArray(gelezen.rapports))) {
+          throw new Error('archiefblob onleesbaar (geen rapports-array), niet overschreven');
+        }
+        const huidig = gelezen ?? { versie: 0, rapports: [] };
+        const bestaand = huidig.rapports;
         const aanwezig = new Set(bestaand.map(r => String(r.id)));
         const nieuw = [];
         for (const e of groep) {
@@ -101,7 +106,9 @@ export async function leesArchieven(store, jaren) {
   for (const jaar of jaren) {
     try {
       const blob = await store.get(ARCHIEF_PREFIX + jaar, { type: 'json' });
-      if (blob && Array.isArray(blob.rapports)) rapports.push(...blob.rapports);
+      if (blob === null || blob === undefined) continue;
+      if (!Array.isArray(blob.rapports)) { fouten.push(jaar); continue; }
+      rapports.push(...blob.rapports);
     } catch {
       fouten.push(jaar);
     }
