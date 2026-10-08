@@ -11,7 +11,14 @@
 import { apiVerzoek } from '../kern/api.js';
 import { localISO } from '../kern/tijd.js';
 
-export const SALES_STANDAARD = { vanTijd: '08:00', totTijd: '17:00', laatsteStart: '16:00', werkdagen: [1, 2, 3, 4, 5], bezoekDuurMin: 60 };
+export const SALES_STANDAARD = Object.freeze({ vanTijd: '08:00', totTijd: '17:00', laatsteStart: '16:00', werkdagen: Object.freeze([1, 2, 3, 4, 5]), bezoekDuurMin: 60 });
+// Standaardwaarden + bewaarde waarden; een bewaarde null/undefined overschrijft de standaard niet; `werkdagen` is altijd een eigen kopie.
+function voegSamen(ruw) {
+  const o = Object.fromEntries(Object.entries(ruw).filter(([, w]) => w != null));
+  const r = { ...SALES_STANDAARD, ...o };
+  r.werkdagen = [...r.werkdagen];
+  return r;
+}
 const WACHT_MS = 5000;
 const ISO_DATUM = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -19,7 +26,7 @@ const ISO_DATUM = /^\d{4}-\d{2}-\d{2}$/;
 
 const nieuweToestand = () => ({
   gebruikerId: null, versie: 0, leads: [], blokken: [],
-  instellingenRuw: {}, instellingen: { ...SALES_STANDAARD },
+  instellingenRuw: {}, instellingen: voegSamen({}),
   gekozenDatum: localISO(new Date()), uitgesteld: new Set(),
 });
 let staat = nieuweToestand();
@@ -40,14 +47,18 @@ function meld(detail = { soort: 'toestand' }) {
   for (const fn of [...abonnees]) { try { fn(detail); } catch { /* een abonnee mag de laag niet breken */ } }
 }
 
-/** Enkel voor tests en voor een gebruikerswissel/uitloggen: alles terug op nul (annuleert openstaande verwijderingen NIET naar de server). */
-export function resetSales() {
+/**
+ * Voor een gebruikerswissel/uitloggen en voor tests: de toestand terug op nul. De abonnees BLIJVEN standaard (views abonneren zich
+ * een keer) en krijgen een melding; `{ abonnees: true }` wist ook de abonneelijst (tests). Openstaande verwijderingen worden
+ * geannuleerd en NIET naar de server gestuurd: roep eerst `await spoelUitgesteld({ keepalive: false })` aan.
+ */
+export function resetSales({ abonnees: wisAbonnees = false } = {}) {
   for (const e of uitstel.values()) e.wis();
   uitstel.clear();
   staat = nieuweToestand();
   doel = null;
-  abonnees.clear();
   wijzigKeten = Promise.resolve();
+  if (wisAbonnees) abonnees.clear(); else meld();
 }
 
 // ---- hulpen ----
@@ -56,18 +67,21 @@ const query = (...delen) => { const d = delen.filter(Boolean); return d.length ?
 const gebruikerQuery = id => (id ? 'gebruiker=' + encodeURIComponent(id) : '');
 const isOpslag = r => r.status === 503 && r.data?.code === 'opslag-storing';
 
-// Een antwoord van de server (GET/PATCH/409-data) -> toestand.
+// Een bruikbare serverstand: object met versie en de lijsten (anders mag de toestand er niet door gewist worden).
+const isBlob = d => d !== null && typeof d === 'object' && typeof d.versie === 'number' && Array.isArray(d.leads) && Array.isArray(d.blokken);
+
+// Een antwoord van de server (GET/PATCH/409-data, al gecontroleerd met isBlob) -> toestand.
 function neemOver(d) {
   staat.gebruikerId = d.gebruikerId ?? staat.gebruikerId;
-  staat.versie = typeof d.versie === 'number' ? d.versie : staat.versie;
-  staat.leads = Array.isArray(d.leads) ? d.leads : [];
-  staat.blokken = Array.isArray(d.blokken) ? d.blokken : [];
+  staat.versie = d.versie;
+  staat.leads = d.leads;
+  staat.blokken = d.blokken;
 }
 
 function zetInstellingen(ruw) {
   const o = ruw && typeof ruw === 'object' && !Array.isArray(ruw) ? ruw : {};
   staat.instellingenRuw = o;
-  staat.instellingen = { ...SALES_STANDAARD, ...o };
+  staat.instellingen = voegSamen(o);
 }
 
 // ---- lezen ----
@@ -77,6 +91,7 @@ export async function laadSales({ gebruikerId } = {}) {
   try { r = await apiVerzoek('/api/sales' + query(gebruikerQuery(gebruikerId))); }
   catch { return { ok: false, status: 0 }; }
   if (!r.ok) return isOpslag(r) ? { ok: false, status: r.status, opslag: true } : { ok: false, status: r.status };
+  if (!isBlob(r.data)) return { ok: false, status: r.status };
   doel = gebruikerId || null;
   neemOver(r.data);
   meld();
@@ -112,12 +127,15 @@ async function wijzigNu(patch) {
   let tweede = false;
   for (;;) {
     let r;
-    try { r = await apiVerzoek('/api/sales' + query(gebruikerQuery(doel)), { methode: 'PATCH', body: { versie: staat.versie, ...patch } }); }
+    try { r = await apiVerzoek('/api/sales' + query(gebruikerQuery(doel)), { methode: 'PATCH', body: { ...patch, versie: staat.versie } }); }
     catch { return { ok: false, reden: 'netwerk' }; }
-    if (r.ok) { neemOver(r.data); meld(); return { ok: true, open: r.data.open }; }
+    if (r.ok) {
+      if (!isBlob(r.data)) return fout(r);
+      neemOver(r.data); meld(); return { ok: true, open: r.data.open };
+    }
     if (r.status !== 409) return fout(r, r.data?.fouten ? { fouten: r.data.fouten } : {});
     const server = r.data?.data;
-    if (!server || typeof server !== 'object') return fout(r);   // 409 zonder leesbare serverstand: niet raden
+    if (!isBlob(server)) return fout(r);                        // 409 zonder bruikbare serverstand: niet raden, niets wissen
     neemOver(server);                                           // de server-stand is de waarheid, ook bij de laatste 409
     meld();
     if (tweede) return { ok: false, reden: 'conflict', status: 409 };
@@ -125,20 +143,23 @@ async function wijzigNu(patch) {
   }
 }
 
-/** patch = { leads?: [{ id, velden }], blokken?: { toevoegen?, wijzig?, verwijder? }, aanvullen? } -> { ok, open? } | { ok:false, reden, status?, fouten?, fout? } */
-export function wijzig(patch) {
-  const p = wijzigKeten.then(() => wijzigNu(patch));
+// PATCH en DELETE (timerpad) delen een wachtrij, zodat een laat PATCH-antwoord een net verwijderde lead niet terugzet.
+function inKeten(werk) {
+  const p = wijzigKeten.then(werk);
   wijzigKeten = p.catch(() => {});
   return p;
 }
+
+/** patch = { leads?: [{ id, velden }], blokken?: { toevoegen?, wijzig?, verwijder? }, aanvullen? } -> { ok, open? } | { ok:false, reden, status?, fouten?, fout? } */
+export function wijzig(patch) { return inKeten(() => wijzigNu(patch)); }
 
 export async function importeer(exportObject) {
   let r;
   try { r = await apiVerzoek('/api/sales-import', { methode: 'POST', body: { export: exportObject } }); }
   catch { return { ok: false, reden: 'netwerk' }; }
   if (!r.ok) return fout(r);
-  await laadSales({ gebruikerId: doel });
-  return { ok: true, samenvatting: r.data.samenvatting, export: r.data.export, open: r.data.open };
+  const herlaad = await laadSales({ gebruikerId: doel });
+  return { ok: true, samenvatting: r.data?.samenvatting, export: r.data?.export, open: r.data?.open, herladen: herlaad.ok };
 }
 
 // ---- uitgestelde verwijdering (5 s ongedaan maken) ----
@@ -149,9 +170,12 @@ async function stuurDelete(leadId, doelId, keepalive) {
   catch { r = null; }
   staat.uitgesteld.delete(leadId);
   if (r && (r.ok || r.status === 404)) { // een 404 betekent: al weg
-    staat.leads = staat.leads.filter(l => l.id !== leadId);
-    // De server verhoogde de versie; enkel overnemen als wij er niets tussen misten (anders geeft de volgende PATCH een 409 en laden we bij).
-    if (r.ok && typeof r.data?.versie === 'number' && r.data.versie === staat.versie + 1) staat.versie = r.data.versie;
+    // Enkel als de toestand nog hetzelfde blob toont (de beheerder kan intussen van verkoper gewisseld zijn).
+    if (doelId === doel) {
+      staat.leads = staat.leads.filter(l => l.id !== leadId);
+      // De server verhoogde de versie; enkel overnemen als wij er niets tussen misten (anders geeft de volgende PATCH een 409 en laden we bij).
+      if (r.ok && typeof r.data?.versie === 'number' && r.data.versie === staat.versie + 1) staat.versie = r.data.versie;
+    }
     meld({ soort: 'verwijderd', ok: true, leadId });
     return { ok: true };
   }
@@ -168,7 +192,7 @@ export function verwijderMetOngedaan(leadId, { wacht = WACHT_MS, setTimeoutFn, c
   const wisTimer = clearTimeoutFn || ((...a) => globalThis.clearTimeout(...a));
   const e = { doel, timer: null, wis: null, handle: null };
   e.wis = () => wisTimer(e.timer);
-  e.timer = zet(() => { if (uitstel.get(leadId) === e) { uitstel.delete(leadId); stuurDelete(leadId, e.doel, false); } }, wacht);
+  e.timer = zet(() => { if (uitstel.get(leadId) === e) { uitstel.delete(leadId); inKeten(() => stuurDelete(leadId, e.doel, false)); } }, wacht);
   e.handle = {
     ongedaan() {
       if (uitstel.get(leadId) !== e) return false; // al verstuurd (of al ongedaan gemaakt)

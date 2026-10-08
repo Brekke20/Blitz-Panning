@@ -25,8 +25,8 @@ const lead = (id, extra = {}) => ({ id, naam: 'Test ' + id, status: 'te-plannen'
 const blob = (versie, leads = [], blokken = [], extra = {}) => ({ gebruikerId: 'u-1', versie, leads, blokken, ...extra });
 const STORING = { status: 503, json: { error: 'Opslag niet bereikbaar', code: 'opslag-storing' } };
 
-beforeEach(() => resetSales());
-afterEach(() => { resetSales(); zetFetch(null); mock.timers.reset(); });
+beforeEach(() => resetSales({ abonnees: true }));
+afterEach(() => { resetSales({ abonnees: true }); zetFetch(null); mock.timers.reset(); });
 
 // ---- laadSales ----
 
@@ -443,4 +443,110 @@ test('gekozenDatum: standaard vandaag (lokaal), zetGekozenDatum meldt enkel bij 
   zetGekozenDatum(null);
   assert.equal(gekozenDatum(), '2026-10-12');
   assert.equal(n, 1);
+});
+
+// ---- fix-ronde review ----
+
+test('resetSales() houdt de abonnees (state-only) en meldt; resetSales({ abonnees:true }) wist ze', async () => {
+  zetFetch(nepFetch({ status: 200, json: blob(3, [lead('a')]) }, { status: 200, json: blob(4) }, { status: 200, json: blob(5) }));
+  let n = 0;
+  onSalesWijziging(() => n++);
+  await laadSales();
+  assert.equal(n, 1);
+  resetSales();
+  assert.equal(n, 2); // melding van de reset
+  assert.equal(salesToestand().versie, 0);
+  assert.deepEqual(salesToestand().leads, []);
+  await laadSales();
+  assert.equal(n, 3); // de abonnee draait nog
+  resetSales({ abonnees: true });
+  await laadSales();
+  assert.equal(n, 3);
+});
+
+test('409 waarvan data geen leads/blokken heeft wist de toestand niet en geeft reden http zonder herpoging', async () => {
+  const f = nepFetch({ status: 200, json: blob(3, [lead('a')]) }, { status: 409, json: { data: {} } });
+  zetFetch(f);
+  await laadSales();
+  const r = await wijzig({ aanvullen: true });
+  assert.deepEqual([r.ok, r.reden, r.status], [false, 'http', 409]);
+  assert.equal(f.aanroepen.length, 2);
+  assert.equal(salesToestand().versie, 3);
+  assert.equal(salesToestand().leads.length, 1);
+});
+
+test('SALES_STANDAARD is bevroren en de samengevoegde werkdagen zijn een eigen kopie; bewaarde null overschrijft de standaard niet', async () => {
+  assert.ok(Object.isFrozen(SALES_STANDAARD) && Object.isFrozen(SALES_STANDAARD.werkdagen));
+  const t = salesToestand();
+  assert.notEqual(t.instellingen.werkdagen, SALES_STANDAARD.werkdagen);
+  t.instellingen.werkdagen.push(6); // geen TypeError en de standaard blijft heel
+  assert.deepEqual(SALES_STANDAARD.werkdagen, [1, 2, 3, 4, 5]);
+  zetFetch(nepFetch({ status: 200, json: { instellingen: { vanTijd: null, totTijd: '18:00' } } }));
+  await laadInstellingen();
+  assert.equal(salesToestand().instellingen.vanTijd, '08:00');
+  assert.equal(salesToestand().instellingen.totTijd, '18:00');
+});
+
+test('een null-body bij 200 gooit nooit en wist niets', async () => {
+  zetFetch(nepFetch({ status: 200, json: blob(2, [lead('a')]) }, { status: 200, json: null }, { status: 200, json: null }, { status: 200, json: null }, { status: 200, json: null }, { status: 200, json: null }));
+  await laadSales();
+  assert.deepEqual(await laadSales(), { ok: false, status: 200 });
+  assert.equal((await wijzig({ aanvullen: true })).ok, false);
+  assert.equal((await laadInstellingen()).ok, true);
+  assert.equal((await importeer({})).ok, true); // import zelf slaagde; de herlaad (null) niet
+  assert.equal(salesToestand().versie, 2);
+  assert.equal(salesToestand().leads.length, 1);
+});
+
+test('een versie in de patch overschrijft de lokale versie niet', async () => {
+  const f = nepFetch({ status: 200, json: blob(3) }, { status: 200, json: blob(4) });
+  zetFetch(f);
+  await laadSales();
+  await wijzig({ versie: 99, aanvullen: true });
+  assert.equal(f.aanroepen[1].body.versie, 3);
+});
+
+test('importeer meldt of de herlaad lukte', async () => {
+  zetFetch(nepFetch({ status: 200, json: { versie: 2, samenvatting: {} } }, { status: 500 }));
+  assert.equal((await importeer({})).herladen, false);
+});
+
+test('DELETE (timerpad) wacht op een lopend PATCH: het late PATCH-antwoord zet de verwijderde lead niet terug', async () => {
+  await metLeads('a');
+  mock.timers.enable({ apis: ['setTimeout'] });
+  let geefPatch;
+  const patchAntwoord = new Promise(r => { geefPatch = r; });
+  const aanroepen = [];
+  zetFetch(async (pad, init) => {
+    aanroepen.push({ pad, init });
+    if (init.method === 'PATCH') { await patchAntwoord; return { ok: true, status: 200, json: async () => blob(2, [lead('a', { notitie: 'x' })]) }; }
+    return { ok: true, status: 200, json: async () => ({ versie: 3 }) };
+  });
+  const p = wijzig({ leads: [{ id: 'a', velden: { notitie: 'x' } }] });
+  verwijderMetOngedaan('a');
+  mock.timers.tick(5000);
+  await tick();
+  assert.equal(aanroepen.filter(a => a.init.method === 'DELETE').length, 0); // wacht op de PATCH
+  geefPatch();
+  await p;
+  await tick();
+  assert.equal(aanroepen.filter(a => a.init.method === 'DELETE').length, 1);
+  assert.deepEqual(salesToestand().leads, []);
+  assert.ok(!salesToestand().uitgesteld.has('a'));
+});
+
+test('DELETE van een ander blob (verkoperwissel binnen het venster) raakt de huidige toestand en versie niet', async () => {
+  zetFetch(nepFetch({ status: 200, json: blob(1, [lead('a')]) }));
+  await laadSales({ gebruikerId: 'u-A' });
+  mock.timers.enable({ apis: ['setTimeout'] });
+  verwijderMetOngedaan('a'); // doel = u-A
+  zetFetch(nepFetch({ status: 200, json: blob(1, [lead('a')]) }));
+  await laadSales({ gebruikerId: 'u-B' }); // de beheerder wisselt: zelfde lead-id 'a' en dezelfde versie bij B
+  const f = nepFetch({ status: 200, json: { versie: 2 } });
+  zetFetch(f);
+  mock.timers.tick(5000);
+  await tick();
+  assert.equal(f.aanroepen[0].pad, '/api/sales?lead=a&gebruiker=u-A');
+  assert.equal(salesToestand().leads.length, 1); // B's lead 'a' blijft
+  assert.equal(salesToestand().versie, 1);       // A's versie wordt niet overgenomen
 });
