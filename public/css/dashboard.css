@@ -38,3 +38,37 @@
 }
 .ring-n { font-variant-numeric: tabular-nums; }
 .ring-sub { color: var(--viz-muted); }
+
+/* ── Gedeeld: assen, rasters, legende, tabel-twin ── */
+.grafiek-leeg { color: var(--viz-muted); font-size: var(--fs-sm); padding: var(--sp-3) 0; }
+.grafiek-scroll { overflow-x: auto; }
+.grafiek-svg { display: block; width: 100%; height: auto; min-width: 460px; }
+.grafiek-svg .grid { stroke: var(--viz-grid); stroke-width: 1; fill: none; }
+.grafiek-svg .as { stroke: var(--viz-as); stroke-width: 1; fill: none; }
+.as-tekst { fill: var(--viz-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.grafiek-svg .seg:focus { outline: none; }
+.grafiek-svg .seg:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.grafiek-svg .seg:hover { opacity: .85; }
+.kolom-hit:hover { fill: var(--viz-grid); fill-opacity: .35; }
+.legende { list-style: none; display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-4); margin: var(--sp-3) 0 0; padding: 0; font-size: var(--fs-xs); color: var(--viz-ink2); }
+.legende li { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.legende-aantal { color: var(--viz-ink); font-variant-numeric: tabular-nums; }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--viz-overige); flex: none; }
+.swatch--1 { background: var(--viz-1); } .swatch--2 { background: var(--viz-2); } .swatch--3 { background: var(--viz-3); }
+.swatch--4 { background: var(--viz-4); } .swatch--5 { background: var(--viz-5); } .swatch--6 { background: var(--viz-6); }
+.swatch--7 { background: var(--viz-7); } .swatch--8 { background: var(--viz-8); } .swatch--overige { background: var(--viz-overige); }
+.tabel-twin { margin-top: var(--sp-3); font-size: var(--fs-xs); color: var(--viz-ink2); }
+.tabel-twin summary { cursor: pointer; width: max-content; padding: var(--sp-1) 0; }
+.tabel-twin summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.tabel-twin table { border-collapse: collapse; margin-top: var(--sp-2); }
+.tabel-twin caption { text-align: left; color: var(--viz-muted); padding-bottom: var(--sp-1); }
+.tabel-twin th, .tabel-twin td { padding: var(--sp-1) var(--sp-3); border-bottom: 1px solid var(--viz-grid); text-align: left; font-weight: 400; color: var(--viz-ink); }
+.tabel-twin thead th { color: var(--viz-ink2); font-weight: 600; }
+.tabel-twin .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── Balkrijen (label | balk | waarde) ── */
+.balken { display: grid; grid-template-columns: minmax(90px, 32%) minmax(0, 1fr) auto; column-gap: var(--sp-3); row-gap: var(--sp-2); align-items: center; }
+.balk-rij { display: contents; }
+.balk-label { font-size: var(--fs-sm); color: var(--viz-ink); overflow-wrap: anywhere; }
+.balk-svg { display: block; min-width: 0; }
+.balk-waarde { font-size: var(--fs-sm); color: var(--viz-ink); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
