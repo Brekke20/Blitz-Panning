@@ -3591,7 +3591,7 @@ function nextAvailableDay(fromDate) {
   for (let i = 0; i < 60; i++) {
     if (d >= today) {
       const dStr = localISO(d);
-      if (settings.werkdagen.includes(d.getDay()) && (dStr !== localISO(today) || window.vrijeDag.vandaagBruikbaarNu(settings, new Date()))) {
+      if (settings.werkdagen.includes(d.getDay()) && (dStr !== localISO(today) || (window.vrijeDag?.vandaagBruikbaarNu(settings, new Date()) ?? true))) {
         const alreadyPlanned = (planning[dStr] || [])
           .filter(p => activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter)
           .reduce((sum, p) => sum + Math.ceil(duurVoor(p.ticket.id) / settings.duurMinuten), 0);

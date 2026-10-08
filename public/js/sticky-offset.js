@@ -19,11 +19,11 @@ export function zetBannerHoogtes() {
 
 function start() {
   zetBannerHoogtes();
-  const ro = new ResizeObserver(zetBannerHoogtes);
+  const ro = (typeof ResizeObserver !== 'undefined') ? new ResizeObserver(zetBannerHoogtes) : null;
   ['offline-banner', 'outbox-banner'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    ro.observe(el);
+    if (ro) ro.observe(el);
     // display none <-> flex verandert de grootte; stijlwijzigingen vangen we hier extra op
     new MutationObserver(zetBannerHoogtes).observe(el, { attributes: true, attributeFilter: ['style', 'class'] });
   });
