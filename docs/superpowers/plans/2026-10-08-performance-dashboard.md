@@ -470,3 +470,8 @@ Sales: `leesGebruikers(store)` → gebruikers met `rol === 'sales'` → `store.g
 - [ ] **Step 2: Spec-dekking nalopen** tegen `2026-10-08-performance-dashboard-design.md` (filters, zes tegels, alle metrics, ringen, donut, kleurgrenzen, instelbaar, 403, tests) en `git diff refactor --stat -- public/index.html public/js/app.js` is leeg of precies één regel.
 - [ ] **Step 3: Opruimen** (skill `opruimen-na-werk`): testservers en browsers stoppen, scratch-HTML weg, `git status` schoon op de bedoelde bestanden.
 - [ ] **Step 4: Commit** `docs: changelog en open punten performance-dashboard`. Niet mergen; het ledger bijwerken en terugmelden.
+
+## Beslissingen opdrachtgever na het plan (2026-10-08) — BINDEND, gaan vóór de taken hierboven
+
+1. **"% met installateur"** = het Zoho-veld **"Installateur al langs geweest"** (`cf.cf_installateur_al_langs_geweest`, waarden "Ja"/"Nee") van het ticket, NIET het (vooraf ingevulde) rapportveld `installateur` en GEEN nieuwe vraag in het rapport. Het rapport bewaart de waarde van dat ticketveld bij het maken van het rapport (zoals `partner`/`regio`, T16) zodat het dashboard het uit de rapportenlijst kan lezen; oudere rapporten zonder die waarde tellen niet mee.
+2. **"Op tijd"** heeft drie categorieën: **te vroeg** (begin vóór het tijdslot), **op tijd** (binnen het tijdslot), **te laat** (na het tijdslot). De ring toont % op tijd; de verdeling te vroeg / op tijd / te laat staat ernaast.
