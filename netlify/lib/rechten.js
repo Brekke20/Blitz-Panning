@@ -5,8 +5,9 @@
 // Rij-schema: { [methode | '*']: string[] | 'open', service?: true, ookBijWijzigen?: true }
 //   - een methode-sleutel (hoofdletters) wint van '*'; '*' geldt voor elke andere methode.
 //   - 'open': geen login nodig (de functie heeft eigen controles); OPTIONS is altijd open.
-//   - een methode zonder regel (en zonder '*') gaat ongewijzigd door: de functie antwoordt zelf 405.
-//     Functies die zelf NIET op methode controleren hebben daarom een '*'-regel (fail-closed).
+//   - een methode zonder regel (en zonder '*') krijgt van de wrapper 405, de functie wordt niet aangeroepen.
+//   - OPTIONS: bij een rij met '*' (niet 'open') antwoordt de wrapper zelf 204; anders gaat OPTIONS naar de functie.
+//     Functies die zelf NIET op methode controleren hebben een '*'-regel.
 //   - service: true  = de service-sleutel van planning-export is geldig (enkel GET, zie auth.js).
 //   - ookBijWijzigen: true = ook toegelaten als de gebruiker nog een wachtwoord moet wijzigen.
 // "T eigen" (technieker enkel eigen data) wordt in de functie zelf afgedwongen; hier staat enkel de rol.

@@ -341,9 +341,9 @@ test('weigeringV1 en weigeringV2: status, CORS en body { error, code }', async (
   assert.deepEqual(await s2.json(), { error: 'Opslag weg.', code: 'opslag-storing' });
 });
 
-// Statische controle: de testseams (en dus de login-omzeiling) bestaan enkel in auth.js en in tests/.
-for (const term of ['zetAuthVoorTests', 'vasteGebruiker']) {
-  test(`${term} komt nergens onder netlify/ of public/ voor behalve netlify/lib/auth.js`, () => {
+// Statische controle: de testseams (en dus de login-omzeiling) bestaan enkel in hun eigen module en in tests/.
+for (const [term, bestand] of [['zetAuthVoorTests', 'netlify/lib/auth.js'], ['vasteGebruiker', 'netlify/lib/auth.js'], ['zetKernSpyVoorTests', 'netlify/lib/beveiligd.js']]) {
+  test(`${term} komt nergens onder netlify/ of public/ voor behalve ${bestand}`, () => {
     const wortel = join(import.meta.dirname, '..');
     const gevonden = [];
     const loop = dir => {
@@ -357,6 +357,6 @@ for (const term of ['zetAuthVoorTests', 'vasteGebruiker']) {
     };
     loop(join(wortel, 'netlify'));
     loop(join(wortel, 'public'));
-    assert.deepEqual(gevonden, ['netlify/lib/auth.js']);
+    assert.deepEqual(gevonden, [bestand]);
   });
 }

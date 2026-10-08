@@ -195,13 +195,67 @@ test('wrapper: OPTIONS gaat zonder auth door naar de kern', async () => {
   assert.equal(h1.oproepen.length, 1);
 });
 
-test('wrapper: methode zonder regel gaat door naar de kern (die antwoordt zelf 405)', async () => {
+test('wrapper: methode zonder regel krijgt 405 en de kern wordt niet aangeroepen (ook niet voor auth of spy)', async () => {
   const s = stub(weiger(401, 'niet-ingelogd'));
-  const h = hSpy(new Response('Method Not Allowed', { status: 405 }));
+  const h = hSpy('kern');
   const res = await beveiligV2('plan-datum', h, { auth: s })(v2Req('PUT'), {});
   assert.equal(res.status, 405);
-  assert.equal(h.oproepen.length, 1);
+  assert.equal(res.headers.get('access-control-allow-origin'), '*');
+  assert.equal(h.oproepen.length, 0);
   assert.equal(s.oproepen.length, 0);
+  const res1 = await beveiligV1('plan', h, { auth: s })({ httpMethod: 'DELETE', headers: {} }, {});
+  assert.equal(res1.statusCode, 405);
+  assert.equal(h.oproepen.length, 0);
+  let spy = 0;
+  zetKernSpyVoorTests(() => { spy++; });
+  assert.equal((await beveiligV2('plan-datum', h, { auth: stub() })(v2Req('PUT'), {})).status, 405);
+  assert.equal(spy, 0);
+});
+
+test('wrapper: een lege rollenlijst in een rij is 403 (vereisGebruiker leest [] als "elke rol")', async () => {
+  RECHTEN['test-leeg'] = { GET: [] };
+  try {
+    const s = stub();
+    const h = hSpy();
+    const res = await beveiligV2('test-leeg', h, { auth: s })(v2Req('GET'), {});
+    assert.equal(res.status, 403);
+    assert.equal(h.oproepen.length, 0);
+    assert.equal(s.oproepen.length, 0);
+  } finally { delete RECHTEN['test-leeg']; }
+});
+
+test('OPTIONS op tickets en setup (geen methodecontrole in de functie): wrapper antwoordt 204, kern nooit, auth niet nodig', async () => {
+  const s = stub(weiger(401, 'niet-ingelogd'));
+  for (const naam of ['tickets', 'setup']) {
+    const h = hSpy('LEK');
+    const r1 = await beveiligV1(naam, h, { auth: s })({ httpMethod: 'OPTIONS', headers: {} }, {});
+    assert.equal(r1.statusCode, 204, naam);
+    assert.equal(r1.headers['Access-Control-Allow-Origin'], '*');
+    const r2 = await beveiligV2(naam, h, { auth: s })(v2Req('OPTIONS'), {});
+    assert.equal(r2.status, 204, naam);
+    assert.equal(h.oproepen.length, 0, naam);
+  }
+  assert.equal(s.oproepen.length, 0);
+});
+
+test('tabelgedreven: voor elke rij met jokerregel (niet open) bereikt een OPTIONS zonder login de kern nooit', async () => {
+  const jokers = Object.keys(RECHTEN).filter(n => Object.hasOwn(RECHTEN[n], '*') && RECHTEN[n]['*'] !== 'open');
+  assert.ok(jokers.length >= 5);
+  for (const naam of jokers) {
+    const h = hSpy('LEK');
+    const s = stub(weiger(401, 'niet-ingelogd'));
+    assert.equal((await beveiligV1(naam, h, { auth: s })({ httpMethod: 'OPTIONS', headers: {} }, {})).statusCode, 204, naam);
+    assert.equal((await beveiligV2(naam, h, { auth: s })(v2Req('OPTIONS'), {})).status, 204, naam);
+    assert.equal(h.oproepen.length, 0, naam);
+  }
+});
+
+test("OPTIONS op 'open'-jokerrijen gaat naar de functie (eigen CORS)", async () => {
+  for (const naam of ['confirm-afspraak', 'planning-export']) {
+    const h = hSpy('eigen');
+    assert.equal(await beveiligV2(naam, h, { auth: stub(weiger(401, 'niet-ingelogd')) })(v2Req('OPTIONS'), {}), 'eigen', naam);
+    assert.equal(h.oproepen.length, 1, naam);
+  }
 });
 
 test("wrapper: 'open'-regels gaan zonder auth door", async () => {
