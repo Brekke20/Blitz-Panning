@@ -80,3 +80,10 @@
 .donut-groot { font-size: 24px; font-weight: 600; font-variant-numeric: proportional-nums; fill: var(--viz-ink); }
 .donut-klein { font-size: 10px; fill: var(--viz-ink2); }
 .donut .legende { margin-top: 0; flex-direction: column; flex-wrap: nowrap; }
+
+/* ── Lijngrafiek ── */
+.lijn-label { font-size: 12px; fill: var(--viz-ink); }
+.lijn-hit:hover, .lijn-hit:focus { fill: var(--viz-grid); fill-opacity: .35; outline: none; }
+.lijn-hit:focus-visible { stroke: var(--focus-ring); stroke-width: 2; }
+.lijn-marker { pointer-events: none; }
+.grafiek--lijn .lijn { pointer-events: none; }
