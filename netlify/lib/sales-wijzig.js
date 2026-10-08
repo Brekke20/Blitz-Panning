@@ -84,8 +84,8 @@ function wijzigLead(lead, velden, opNu) {
     fouten.push(`duurMin moet een geheel getal tussen ${DUUR_MIN} en ${DUUR_MAX} minuten zijn`);
   }
   let bezoek = null; // het nieuw toegevoegde bezoek
+  const oud = Array.isArray(lead.bezoeken) ? lead.bezoeken : []; // een lead zonder lijst telt als zonder historiek
   if ('bezoeken' in v) {
-    const oud = Array.isArray(lead.bezoeken) ? lead.bezoeken : [];
     const nieuw = v.bezoeken;
     if (!Array.isArray(nieuw)) fouten.push('bezoeken moet een lijst zijn');
     else if (nieuw.length < oud.length || !oud.every((b, i) => isDeepStrictEqual(b, nieuw[i]))) {
@@ -100,7 +100,7 @@ function wijzigLead(lead, velden, opNu) {
   if (fouten.length) return { fouten };
 
   if (bezoek) {
-    v.bezoeken = [...lead.bezoeken, bezoek];
+    v.bezoeken = [...oud, bezoek];
     if (bezoek.resultaat === 'opnieuw') {
       if (isIngevuld(v.resultaat)) return { fouten: ['Bij opnieuw langsgaan hoort geen resultaat'] };
     } else {

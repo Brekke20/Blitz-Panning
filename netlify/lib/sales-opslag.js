@@ -67,6 +67,8 @@ export async function muteerSales(store, gebruikerId, { verwachteVersie, wijzig 
             const r = wijzig(structuredClone(data));
             if (r == null) { uitkomst = { status: 'ongewijzigd', data }; return null; }
             if (Array.isArray(r.fouten)) { uitkomst = { status: 'ongeldig', fouten: r.fouten }; return null; }
+            // Geen `data` (bv. enkel { extra }) is geen wijziging: nooit schrijven, het blob wordt dus nooit leeggemaakt.
+            if (r.data === null || typeof r.data !== 'object' || Array.isArray(r.data)) { uitkomst = { status: 'ongewijzigd', data }; return null; }
             uitkomst = { status: 'ok', extra: r.extra };
             const nieuw = vulAan(r.data);
             nieuw.versie = data.versie + 1; // wijzigBlob verhoogt de versie ook zelf; dit dekt een oud blob zonder versie

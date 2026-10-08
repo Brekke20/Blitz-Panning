@@ -460,3 +460,28 @@ test('bewaarLocaties: store-storing -> { status: storing }', async () => {
   kapot.get = async () => { throw new Error('blobs stuk'); };
   assert.deepEqual(await bewaarLocaties({ store: kapot, doelId: 'u1', nu: NU, deps: geoDeps(fn) }), { status: 'storing' });
 });
+
+// ---------- fixronde review ----------
+
+test('muteerSales: een callback zonder data ({} of enkel { extra }) schrijft nooit en maakt het blob niet leeg', async () => {
+  for (const uitvoer of [{}, { extra: { n: 1 } }, { data: null }, { data: 'x' }, { data: [] }]) {
+    const store = maakNepStore({ 'sales/u1': blob([lead('a')]) });
+    const r = await muteerSales(store, 'u1', { wijzig: () => uitvoer });
+    assert.equal(r.status, 'ongewijzigd', JSON.stringify(uitvoer));
+    assert.deepEqual(store._schrijfacties, []);
+    assert.equal(lees(store).leads.length, 1);
+    assert.equal(lees(store).versie, 3);
+  }
+});
+
+test('wijzigLead: een lead zonder bezoeken-lijst telt als lege historiek (resultaat vastleggen werkt)', () => {
+  const basis = lead('a', { status: 'bevestigd', planning: { datum: '2026-10-12', start: '10:00', vast: true } });
+  delete basis.bezoeken;
+  const bezoek = { datum: '2026-10-12', resultaat: 'verkocht', op: 'x' };
+  const r = pasWijzigingToe(blob([basis]), { leads: [{ id: 'a', velden: { bezoeken: [bezoek], status: 'afgewerkt', planning: null, resultaat: { soort: 'verkocht', op: 'x' } } }] }, opties());
+  assert.deepEqual(r.fouten, []);
+  assert.equal(r.data.leads[0].bezoeken.length, 1);
+  assert.deepEqual(r.resultaten, [{ leadId: 'a', soort: 'verkocht' }]);
+  // een leeg bezoeken-veld op zo'n lead is gewoon "geen wijziging"
+  assert.deepEqual(pasWijzigingToe(blob([basis]), { leads: [{ id: 'a', velden: { bezoeken: [] } }] }, opties()).fouten, []);
+});

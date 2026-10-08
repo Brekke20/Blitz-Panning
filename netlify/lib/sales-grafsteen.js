@@ -28,7 +28,8 @@ export function maakGrafsteen(lead, { gebruikerId, nu, geheim } = {}) {
   const sleutels = herkenningssleutels(lead);
   if (!sleutels.length) return null;
   const h = [...new Set(sleutels.map(s => hashSleutel(s, gebruikerId, geheim)))];
-  return { h, op: new Date(nu).toISOString() };
+  const moment = new Date(nu);
+  return { h, op: (Number.isNaN(moment.getTime()) ? new Date() : moment).toISOString() }; // ongeldige `nu`: huidige tijd
 }
 
 const tijd = op => { const t = Date.parse(op); return Number.isNaN(t) ? -Infinity : t; };

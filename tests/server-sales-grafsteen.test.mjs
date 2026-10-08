@@ -104,3 +104,13 @@ test('hashVoor + voegSamen: een eerder verwijderde lead wordt herkend (e-mail, e
   const andere = voegSamen([], [{ voornaam: 'Tom', naam: 'Peeters', postcode: '3500' }], { ...opties, hash: hashVoor('u2', GEHEIM) });
   assert.equal(andere.samenvatting.eerderVerwijderd, 0);
 });
+
+test('maakGrafsteen: ongeldige nu geeft geen RangeError maar de huidige tijd als ISO-string', () => {
+  for (const nu of ['geen-datum', undefined, NaN, {}]) {
+    const voor = Date.now();
+    const g = maakGrafsteen(marie, { gebruikerId: 'u1', nu, geheim: GEHEIM });
+    assert.equal(g.h.length, 2);
+    assert.match(g.op, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    assert.ok(Date.parse(g.op) >= voor - 1 && Date.parse(g.op) <= Date.now() + 1);
+  }
+});
