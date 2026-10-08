@@ -98,7 +98,9 @@ export function pasWijzigingToe(huidig, invoer) {
   if (magAlleSales !== undefined) nieuw.magAlleSales = magAlleSales;
   if (invoer.actief !== undefined) nieuw.actief = invoer.actief;
   if (rol !== 'beheerder') delete nieuw.herstelcodes;
-  const gewijzigd = ['naam', 'rol', 'actief', 'zohoNaam', 'salesNaam', 'magAlleSales'].filter(veld => huidig[veld] !== nieuw[veld]);
+  // magAlleSales ontbreekt bij oudere verkopersrecords: dat is gelijk aan false (geen schijnwijziging in het log).
+  const waarde = (g, veld) => (veld === 'magAlleSales' ? (g.rol === 'sales' ? g.magAlleSales === true : undefined) : g[veld]);
+  const gewijzigd = ['naam', 'rol', 'actief', 'zohoNaam', 'salesNaam', 'magAlleSales'].filter(veld => waarde(huidig, veld) !== waarde(nieuw, veld));
   const blokkeert = huidig.actief === true && nieuw.actief === false;
   const rolWijzigt = huidig.rol !== rol;
   const promotie = rolWijzigt && rol === 'beheerder';

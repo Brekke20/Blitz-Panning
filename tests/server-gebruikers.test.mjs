@@ -394,6 +394,61 @@ test('opslag: een schrijfactie die niet blijft staan (terugleescontrole mislukt)
   assert.deepEqual(await activiteit(o.echt), []);
 });
 
+test('maak: mislukt de eerste terugleescontrole en draait de callback opnieuw met onze gebruiker al in de lijst, dan blijft het 201 met eenmalig wachtwoord en codes (geen 409)', async () => {
+  const o = opzet();
+  let verouderd = false;
+  let eenmaal = true;
+  // de eerste terugleesactie na het schrijven ziet nog de oude blob (iemand anders overschreef kort)
+  const stuk = {
+    ...o.echt,
+    setJSON: async (k, v) => {
+      const oud = k === 'gebruikers' && eenmaal ? await o.echt.get(k, { type: 'json' }) : null;
+      await o.echt.setJSON(k, v);
+      if (oud) { verouderd = oud; eenmaal = false; }
+    },
+    get: async (k, opt) => {
+      if (k === 'gebruikers' && verouderd) { const w = verouderd; verouderd = false; return w; }
+      return o.echt.get(k, opt);
+    },
+  };
+  const env = { SESSIE_GEHEIM: GEHEIM };
+  const auth = maakAuth({ getStore: () => o.echt, env, nu: () => NU0 });
+  const h = maakGebruikers({ getStore: () => stuk, env, nu: () => NU0, auth });
+  const res = await h(maak({ rol: 'beheerder', email: 'retry@blitz.test' }));
+  assert.equal(res.status, 201);
+  const body = await res.json();
+  assert.equal(body.startWachtwoord.length, 12);
+  assert.equal(body.herstelcodes.length, 10);
+  const alle = (await opgeslagen(o.echt)).filter(g => g.email === 'retry@blitz.test');
+  assert.equal(alle.length, 1);
+  assert.equal(alle[0].id, body.gebruiker.id);
+  assert.equal((await o.login(loginReq('retry@blitz.test', body.startWachtwoord))).status, 200);
+});
+
+test('gelijktijdig twee PATCH-verzoeken die twee beheerders tegen elkaar blokkeren/degraderen: één 200, één 409, één actieve beheerder blijft', async () => {
+  const o = opzet({ gebruikers: [
+    ...lijst(),
+    { id: 'u-b2', email: 'b2@blitz.test', naam: 'B2', rol: 'beheerder', actief: true, sessieVersie: 1, wachtwoordHash: hash },
+  ] });
+  const [a, b] = await Promise.all([
+    o.gebruikers(req('PATCH', { id: 'u-b2', actief: false }, BEA())),
+    o.gebruikers(req('PATCH', { id: 'u-bea', rol: 'planner' }, als('u-b2', 1))),
+  ]);
+  assert.deepEqual([a.status, b.status].sort(), [200, 409]);
+  const actieveBeheerders = (await opgeslagen(o.echt)).filter(g => g.rol === 'beheerder' && g.actief === true);
+  assert.equal(actieveBeheerders.length, 1);
+});
+
+test('PATCH zonder echte wijziging (verkoper zonder magAlleSales-veld, zelfde naam) logt niets en schrijft niets', async () => {
+  const gebruikers = lijst().map(g => (g.id === 'u-sal' ? (({ magAlleSales, ...rest }) => rest)(g) : g));
+  const o = opzet({ gebruikers });
+  const voor = JSON.stringify(await opgeslagen(o.echt));
+  const res = await o.gebruikers(req('PATCH', { id: 'u-sal', naam: 'Sal', magAlleSales: false }));
+  assert.equal(res.status, 200);
+  assert.deepEqual(await activiteit(o.echt), []);
+  assert.equal(JSON.stringify(await opgeslagen(o.echt)), voor);
+});
+
 // ---------------- reset / uitloggen ----------------
 test('reset-wachtwoord: enkel het nieuwe startwachtwoord werkt, verplichte wijziging, sessieVersie + 1, één logregel', async () => {
   const o = opzet();

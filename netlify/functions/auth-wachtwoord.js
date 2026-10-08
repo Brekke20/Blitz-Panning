@@ -8,6 +8,7 @@ import { beveiligV2 } from '../lib/beveiligd.js';
 import { verifieerWachtwoord, hashWachtwoord, beleidsFout } from '../lib/wachtwoord.js';
 import { leesGebruikers, wijzigGebruikers } from '../lib/gebruikers.js';
 import { reserveerPoging, wisPoging } from '../lib/login-poging.js';
+import { serieelGebruikers } from '../lib/herstel.js';
 import { logActiviteit } from '../lib/activiteit.js';
 import { authJson, authStore, nieuweSessieCookie, OPSLAG_STORING } from '../lib/auth-antwoord.js';
 
@@ -56,7 +57,7 @@ export function maakHandler({ getStore: haalStore, env = process.env, nu = () =>
     let intussenGewijzigd = false;
     let r;
     try {
-      r = await wijzigGebruikers(store, lijst => {
+      r = await serieelGebruikers(() => wijzigGebruikers(store, lijst => {
         intussenGewijzigd = false;
         const i = lijst.findIndex(g => g && g.id === record.id);
         if (i < 0) return null;
@@ -65,7 +66,7 @@ export function maakHandler({ getStore: haalStore, env = process.env, nu = () =>
         const kopie = [...lijst];
         kopie[i] = { ...lijst[i], wachtwoordHash: nieuweHash, sessieVersie: (lijst[i].sessieVersie ?? 0) + 1, moetWachtwoordWijzigen: false };
         return kopie;
-      });
+      }));
     } catch (e) {
       console.error('auth-wachtwoord: gebruikers niet bewaard (' + (e?.name || 'Error') + ')');
       return authJson(503, OPSLAG_STORING);

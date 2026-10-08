@@ -89,6 +89,9 @@ export function maakHandler({ getStore: haalStore, nu = () => Date.now(), auth }
 
     let dubbel = false;
     const r = await bewaar(store, lijst => {
+      // Herhaling na een mislukte terugleescontrole: staat onze eigen gebruiker (zelfde id) er al, dan is hij bewaard
+      // en is dit geen duplicaat; niets meer schrijven (het eenmalige startwachtwoord/de codes blijven geldig).
+      if (lijst.some(g => g && g.id === nieuw.id)) { dubbel = false; return null; }
       dubbel = lijst.some(g => g && normaliseerEmail(g.email) === nieuw.email);
       return dubbel ? null : [...lijst, nieuw];
     });
