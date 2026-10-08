@@ -11,6 +11,7 @@ import {
 import { haalRapportInhoud, verwerkOpnieuw } from '../lib/rapport-archief-acties.js';
 import { startAchtergrondtaak } from '../lib/rapport-achtergrond.js';
 import { isGeldigId, vergeetEntry } from '../lib/rapport-inhoud.js';
+import { archiveerAfgevallen } from '../lib/rapport-jaararchief.js';
 
 const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
@@ -106,13 +107,18 @@ export default async (req, context) => {
     }
 
     const entry = bouwEntry(body);
-    const { rapports: updatedList } = voegToeOfWerkBij(current.rapports, entry, body);
+    const { rapports: updatedList, afgevallen } = voegToeOfWerkBij(current.rapports, entry, body);
 
     const nieuw = {
       versie:   current.versie + 1,
       rapports: updatedList, // voegToeOfWerkBij kapt af op MAX_RAPPORTEN
     };
     await store.setJSON(BLOB_KEY, nieuw);
+    // Best-effort jaar-archief voor de entries die door de afkapping uit de lijst vallen (nooit een fout voor de POST).
+    if (afgevallen.length) {
+      try { await archiveerAfgevallen(store, afgevallen); }
+      catch (err) { console.error('[rapport-archief] jaar-archief mislukt:', err?.message || err); }
+    }
 
     return new Response(JSON.stringify({ ok: true, id: entry.id, versie: nieuw.versie }), {
       status: 200,

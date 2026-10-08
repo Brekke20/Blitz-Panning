@@ -5,6 +5,7 @@
 import { bouwEntry, voegToeOfWerkBij, wijzigLijst, effectieveStatus, stripZwareVelden } from './rapportlijst.js';
 import { valideerOntvangst, schrijfInhoud, verwijderInhoud } from './rapport-inhoud.js';
 import { nieuweVerwerking } from './rapport-verwerking.js';
+import { archiveerAfgevallen } from './rapport-jaararchief.js';
 
 const NIET_BEREIKBAAR = { error: 'Rapportarchief tijdelijk niet bereikbaar, probeer opnieuw.' };
 
@@ -26,9 +27,11 @@ export async function verwerkOntvangst({ store, body, nu = new Date(), testModus
 
     let startNodig = false;
     let vervangenId = null;
+    let afgevallen = [];
     const res = await wijzigLijst(store, ({ rapports }) => {
       startNodig = false;
       vervangenId = null;
+      afgevallen = [];
       const bestaand = rapports.find(r => r.id === id);
       if (bestaand) {
         // Oude flow: wel gearchiveerd (zelfde id), maar de Zoho-upload is nooit gebeurd (bv.
@@ -54,12 +57,19 @@ export async function verwerkOntvangst({ store, body, nu = new Date(), testModus
       }
       const uit = voegToeOfWerkBij(rapports, entry, archiveBody);
       vervangenId = uit.vervangenId;
+      afgevallen = uit.afgevallen;
       startNodig = !isLocal;
       return { rapports: uit.rapports, controle: terug => terug.some(r => r.id === id) };
     });
     if (!res.ok) return { status: 503, body: NIET_BEREIKBAAR, startNodig: false };
 
     if (vervangenId) await verwijderInhoud(store, vervangenId);
+    // Best-effort, ná het slagen van de lijstschrijfactie: een mislukte archivering mag de upload
+    // nooit een fout geven (archiveerAfgevallen gooit niet en logt zelf; de eigen try is extra veilig).
+    if (afgevallen.length) {
+      try { await archiveerAfgevallen(store, afgevallen); }
+      catch (err) { console.error('[rapport-ontvangen] jaar-archief mislukt:', err?.message || err); }
+    }
     return { status: 200, body: { ok: true, id }, startNodig };
   } catch (err) {
     console.error('[rapport-ontvangen] opslag mislukt:', err?.message || err);
