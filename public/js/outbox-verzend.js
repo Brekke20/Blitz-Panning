@@ -62,12 +62,13 @@
   }
 
   // Zelfde strip als de server (netlify/lib/rapportlijst.js stripZwareVelden): zonder de zware
-  // velden _html en de twee handtekeningen.
+  // velden _html, de twee handtekeningen en de oude inline fotos.
   function stripZwareVelden(rapportData) {
     var kopie = Object.assign({}, rapportData);
     delete kopie._html;
     delete kopie.handtekeningTech;
     delete kopie.handtekeningKlant;
+    delete kopie.fotos;
     return kopie;
   }
 

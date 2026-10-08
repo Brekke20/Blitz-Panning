@@ -5,12 +5,15 @@
 // Alle lijst-wijzigingen lopen via wijzigLijst (read-back-controle); de upload zelf (met het
 // idempotentie-register) wordt als `upload` geïnjecteerd.
 
-import { LIJST_KEY, wijzigLijst } from './rapportlijst.js';
+import { LIJST_KEY, MAX_RAPPORTEN, wijzigLijst } from './rapportlijst.js';
 import { leesInhoud } from './rapport-inhoud.js';
 
 export const HERHAALSCHEMA_MIN = [5, 15, 30, 60, 120];
 export const MAX_POGINGEN = 6; // 1 eerste poging + 5 herhalingen
 export const VASTGELOPEN_NA_MIN = 20;
+// Een verse 'wacht' (nog geen volgendePoging) is net ontvangen: de trigger is dan nog bezig. Het
+// vangnet start pas als de entry al langer dan dit wacht, anders starten trigger en vangnet dubbel.
+export const VERSE_WACHT_MIN = 2;
 export const EINDSTATUSSEN = ['in-zoho', 'lokaal', 'geannuleerd'];
 
 const MIN_MS = 60_000;
@@ -43,7 +46,10 @@ export function moetStarten(entry, nu) {
   const v = entry?.verwerking;
   if (!v) return false;
   if (v.status === 'wacht') {
-    if (!v.volgendePoging) return true;
+    if (!v.volgendePoging) {
+      const sinds = Date.parse(v.bijgewerkt);
+      return !Number.isFinite(sinds) || nu.getTime() - sinds > VERSE_WACHT_MIN * MIN_MS;
+    }
     const vanaf = Date.parse(v.volgendePoging);
     return !Number.isFinite(vanaf) || vanaf <= nu.getTime();
   }
@@ -73,9 +79,29 @@ async function zetVerwerking(store, id, maakEntry) {
   if (!res.ok) throw new Error(`Rapportlijst bijwerken mislukt voor ${id}`);
 }
 
+// Lost update op de rapportlijst (een gelijktijdige schrijver overschreef de lijst net nadat de
+// ontvangst haar entry had toegevoegd): staat de lichte entry nog in de inhoudsblob, dan zetten we ze
+// terug, tenzij een andere entry dezelfde ticketId+datum heeft (een vervangen rapport komt niet terug).
+async function herstelEntry(store, id) {
+  const inhoud = await leesInhoud(store, id);
+  const bewaard = inhoud?.entry;
+  if (!bewaard || bewaard.id !== id) return null;
+  const res = await wijzigLijst(store, ({ rapports }) => {
+    if (rapports.some(r => r.id === id)) return null;
+    if (bewaard.ticketId && rapports.some(r => r.ticketId === bewaard.ticketId && r.datum === bewaard.datum)) return null;
+    return {
+      rapports: [bewaard, ...rapports].slice(0, MAX_RAPPORTEN),
+      controle: terug => terug.some(r => r.id === id),
+    };
+  });
+  if (!res.ok) throw new Error(`Rapportlijst herstellen mislukt voor ${id}`);
+  const lijst = (await store.get(LIJST_KEY, { type: 'json' })) ?? { rapports: [] };
+  return lijst.rapports.find(r => r.id === id) ?? null;
+}
+
 export async function verwerkRapport(id, { store, upload, nu = () => new Date(), maxPogingen = MAX_POGINGEN }) {
   const lijst = (await store.get(LIJST_KEY, { type: 'json' })) ?? { rapports: [] };
-  const entry = lijst.rapports.find(r => r.id === id);
+  const entry = lijst.rapports.find(r => r.id === id) ?? await herstelEntry(store, id);
   if (!entry) return { resultaat: 'niet-gevonden' };
   const status = entry.verwerking?.status;
   if (status !== 'wacht' && status !== 'bezig') return { resultaat: 'overgeslagen' };

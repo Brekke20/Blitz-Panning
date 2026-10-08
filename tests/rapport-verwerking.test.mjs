@@ -79,7 +79,12 @@ test('moetStarten en isVastgelopen', () => {
   const wacht = (volgendePoging) => ({ verwerking: { status: 'wacht', pogingen: 1, volgendePoging, bijgewerkt: NU.toISOString() } });
   assert.equal(moetStarten(wacht(plus(NU, -1).toISOString()), NU), true);
   assert.equal(moetStarten(wacht(plus(NU, 5).toISOString()), NU), false);
-  assert.equal(moetStarten(wacht(null), NU), true);
+  // M2: verse wacht (volgendePoging null) pas starten als bijgewerkt ouder is dan 2 min (de trigger is nog bezig)
+  assert.equal(moetStarten(wacht(null), NU), false);
+  const verseWacht = min => ({ verwerking: { status: 'wacht', pogingen: 0, volgendePoging: null, bijgewerkt: plus(NU, -min).toISOString() } });
+  assert.equal(moetStarten(verseWacht(1), NU), false);
+  assert.equal(moetStarten(verseWacht(2.5), NU), true);
+  assert.equal(moetStarten(verseWacht(3), NU), true);
   const bezig = min => ({ verwerking: { status: 'bezig', pogingen: 0, volgendePoging: null, bijgewerkt: plus(NU, -min).toISOString() } });
   assert.equal(moetStarten(bezig(21), NU), true);
   assert.equal(moetStarten(bezig(5), NU), false);
@@ -232,4 +237,45 @@ test('verwerkRapport: verse wacht-entry houdt pogingen ongewijzigd bij het bezig
   await verwerkRapport(ID, { store, upload: async () => { tijdensUpload = await entryVan(store); return { inProgress: true }; }, nu: () => NU });
   assert.equal(tijdensUpload.verwerking.status, 'bezig');
   assert.equal(tijdensUpload.verwerking.pogingen, 2);
+});
+
+// ---- I1: lost update op de rapportlijst ----------------------------------------------------
+const lichteEntry = (extra = {}) => ({
+  id: ID, ticketId: '1001', datum: '2026-10-08', zohoUploaded: false, inhoudBeschikbaar: true,
+  verwerking: nieuweVerwerking('wacht', NU), ...extra,
+});
+
+test('verwerkRapport I1: entry verdwenen uit de lijst (lost update), blob heeft entry → opnieuw ingevoegd en verwerkt, één entry', async () => {
+  const store = nepStore();
+  await store.setJSON(LIJST_KEY, { versie: 3, rapports: [] });
+  await schrijfInhoud(store, { id: ID, html: '<p>x</p>', ticketId: '1001', filename: 'r.pdf', isLocal: false, entry: lichteEntry() }, NU);
+  const r = await verwerkRapport(ID, { store, upload: async () => ({ attachmentId: 'a1' }), nu: () => NU });
+  assert.deepEqual(r, { resultaat: 'in-zoho' });
+  const { rapports } = await store.get(LIJST_KEY);
+  assert.equal(rapports.length, 1);
+  assert.equal(rapports[0].id, ID);
+  assert.equal(rapports[0].verwerking.status, 'in-zoho');
+  assert.equal(rapports[0].zohoUploaded, true);
+});
+
+test('verwerkRapport I1: entry verdwenen maar een andere entry heeft dezelfde ticketId+datum → niet opnieuw invoegen, niet-gevonden', async () => {
+  const store = nepStore();
+  const ander = { id: '99999999-2222-4333-8444-555555555555', ticketId: '1001', datum: '2026-10-08', verwerking: nieuweVerwerking('wacht', NU) };
+  await store.setJSON(LIJST_KEY, { versie: 3, rapports: [ander] });
+  await schrijfInhoud(store, { id: ID, html: '<p>x</p>', ticketId: '1001', filename: 'r.pdf', isLocal: false, entry: lichteEntry() }, NU);
+  let geupload = false;
+  const r = await verwerkRapport(ID, { store, upload: async () => { geupload = true; return {}; }, nu: () => NU });
+  assert.deepEqual(r, { resultaat: 'niet-gevonden' });
+  assert.equal(geupload, false);
+  const { rapports } = await store.get(LIJST_KEY);
+  assert.deepEqual(rapports.map(e => e.id), [ander.id]);
+});
+
+test('verwerkRapport I1: oude blob zonder entry → niet-gevonden zoals vroeger', async () => {
+  const store = nepStore();
+  await store.setJSON(LIJST_KEY, { versie: 3, rapports: [] });
+  await schrijfInhoud(store, { id: ID, html: '<p>x</p>', ticketId: '1001', filename: 'r.pdf', isLocal: false }, NU);
+  const r = await verwerkRapport(ID, { store, upload: async () => ({}), nu: () => NU });
+  assert.deepEqual(r, { resultaat: 'niet-gevonden' });
+  assert.deepEqual((await store.get(LIJST_KEY)).rapports, []);
 });

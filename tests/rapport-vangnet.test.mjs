@@ -31,7 +31,7 @@ test('constanten', () => {
 
 test('kiesTeStarten: respecteert max 5 en volgorde; negeert entries zonder verwerking, in-zoho, mislukt', () => {
   // De lijst staat nieuwste eerst; "oudste eerst" = achteraan beginnen.
-  const wacht = n => ({ id: `w${n}`, verwerking: verw('wacht') });
+  const wacht = n => ({ id: `w${n}`, verwerking: verw('wacht', { bijgewerkt: voor(3) }) });
   const rapports = [
     wacht(1), wacht(2),
     { id: 'oud' },
@@ -44,6 +44,14 @@ test('kiesTeStarten: respecteert max 5 en volgorde; negeert entries zonder verwe
   assert.deepEqual(kiesTeStarten(rapports, NU, 2), ['w7', 'w6']);
   const toekomst = new Date(NU.getTime() + MIN).toISOString();
   assert.deepEqual(kiesTeStarten([{ id: 'x', verwerking: verw('wacht', { volgendePoging: toekomst }) }], NU), []);
+});
+
+test('M2: kiesTeStarten start een verse wacht (volgendePoging null) pas na 2 minuten', () => {
+  const rapports = [
+    { id: 'vers', verwerking: verw('wacht', { bijgewerkt: voor(1) }) },
+    { id: 'oud', verwerking: verw('wacht', { bijgewerkt: voor(3) }) },
+  ];
+  assert.deepEqual(kiesTeStarten(rapports, NU), ['oud']);
 });
 
 test('kiesTeStarten: bezig > 20 min wordt opnieuw gestart, bezig < 20 min niet', () => {
@@ -149,7 +157,7 @@ test('voerVangnetUit: migratie slaat een entry over waarvan de blob al bestaat z
 test('voerVangnetUit: start() voor elk te starten rapport (max 5)', async () => {
   const store = nepStore();
   const rapports = [];
-  for (let i = 0; i < 7; i++) rapports.push({ id: uuid(i), verwerking: verw('wacht') });
+  for (let i = 0; i < 7; i++) rapports.push({ id: uuid(i), verwerking: verw('wacht', { bijgewerkt: voor(3) }) });
   await store.setJSON(LIJST_KEY, { versie: 1, rapports });
   const gestart = [];
   const r = await voerVangnetUit({
@@ -164,7 +172,7 @@ test('voerVangnetUit: start() voor elk te starten rapport (max 5)', async () => 
 test('voerVangnetUit: zelfVerwerken → verwerk() voor precies 1 rapport, start() nooit', async () => {
   const store = nepStore();
   const rapports = [];
-  for (let i = 0; i < 3; i++) rapports.push({ id: uuid(i), verwerking: verw('wacht') });
+  for (let i = 0; i < 3; i++) rapports.push({ id: uuid(i), verwerking: verw('wacht', { bijgewerkt: voor(3) }) });
   await store.setJSON(LIJST_KEY, { versie: 1, rapports });
   const verwerkt = [];
   const r = await voerVangnetUit({
@@ -189,8 +197,32 @@ test('voerVangnetUit: een fout bij start() stopt de migratie niet', async () => 
   const store = nepStore();
   await lijstMet(store, 2);
   const lijst = await store.get(LIJST_KEY);
-  lijst.rapports.push({ id: uuid(99), verwerking: verw('wacht') });
+  lijst.rapports.push({ id: uuid(99), verwerking: verw('wacht', { bijgewerkt: voor(3) }) });
   await store.setJSON(LIJST_KEY, lijst);
   const r = await voerVangnetUit({ store, start: async () => { throw new Error('boem'); }, verwerk: geen, nu: NU });
   assert.equal(r.gemigreerd, 2);
+});
+
+test('I3: kiesTeMigreren kiest ook entries met enkel een niet-lege rapportData.fotos', () => {
+  const rapports = [
+    { id: 'a', rapportData: { fotos: ['data:x'] } },
+    { id: 'b', rapportData: { fotos: [] } },
+    { id: 'c', rapportData: { probleem: 'x' } },
+  ];
+  assert.deepEqual(kiesTeMigreren(rapports).map(e => e.id), ['a']);
+});
+
+test('I3: voerVangnetUit stript een entry met enkel fotos (geen _html) zonder inhoudsblob te schrijven', async () => {
+  const store = nepStore();
+  const e = { id: uuid(7), ticketId: '1', datum: '2026-09-01', zohoUploaded: true, rapportData: { fotos: ['data:image/jpeg;base64,AAA'], probleem: 'p' } };
+  await store.setJSON(LIJST_KEY, { versie: 1, rapports: [e] });
+  const r = await voerVangnetUit({ store, start: geen, verwerk: geen, nu: NU });
+  assert.equal(r.gemigreerd, 1);
+  const lijst = (await store.get(LIJST_KEY)).rapports;
+  assert.deepEqual(lijst[0].rapportData, { probleem: 'p' });
+  assert.equal(lijst[0].zohoUploaded, true);
+  assert.equal(lijst[0].inhoudBeschikbaar, undefined);
+  assert.equal(store.m.has(INHOUD_PREFIX + uuid(7)), false);
+  const r2 = await voerVangnetUit({ store, start: geen, verwerk: geen, nu: NU });
+  assert.equal(r2.gemigreerd, 0);
 });

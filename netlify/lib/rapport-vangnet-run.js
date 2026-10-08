@@ -4,7 +4,7 @@
 
 import { LIJST_KEY, wijzigLijst } from './rapportlijst.js';
 import { schrijfInhoud, leesInhoud } from './rapport-inhoud.js';
-import { kiesTeStarten, kiesTeMigreren, maakMigratie, heeftInlineHtml } from './rapport-vangnet-logica.js';
+import { kiesTeStarten, kiesTeMigreren, maakMigratie, heeftZwareInhoud } from './rapport-vangnet-logica.js';
 
 async function startDeel({ store, start, verwerk, nu, zelfVerwerken }) {
   const lijst = (await store.get(LIJST_KEY, { type: 'json' })) ?? { rapports: [] };
@@ -31,7 +31,8 @@ async function migreerDeel({ store, nu, tijdsbudgetMs, begin }) {
     if (Date.now() - begin >= tijdsbudgetMs) break;
     try {
       // Eerst de blob (overslaan als hij al bestaat), pas daarna wijzigt de lijst.
-      if (!(await leesInhoud(store, entry.id))) await schrijfInhoud(store, maakMigratie(entry, nu).inhoud, nu);
+      const { inhoud } = maakMigratie(entry, nu);
+      if (inhoud && !(await leesInhoud(store, entry.id))) await schrijfInhoud(store, inhoud, nu);
       klaar.add(entry.id);
     } catch (err) {
       console.error('[rapport-vangnet] migratie mislukt voor', entry.id, err?.message || err);
@@ -40,10 +41,10 @@ async function migreerDeel({ store, nu, tijdsbudgetMs, begin }) {
   if (klaar.size === 0) return 0;
 
   const res = await wijzigLijst(store, ({ rapports }) => {
-    if (!rapports.some(r => klaar.has(r.id) && heeftInlineHtml(r))) return null;
+    if (!rapports.some(r => klaar.has(r.id) && heeftZwareInhoud(r))) return null;
     return {
-      rapports: rapports.map(r => (klaar.has(r.id) && heeftInlineHtml(r) ? maakMigratie(r, nu).lichteEntry : r)),
-      controle: terug => !terug.some(r => klaar.has(r.id) && heeftInlineHtml(r)),
+      rapports: rapports.map(r => (klaar.has(r.id) && heeftZwareInhoud(r) ? maakMigratie(r, nu).lichteEntry : r)),
+      controle: terug => !terug.some(r => klaar.has(r.id) && heeftZwareInhoud(r)),
     };
   });
   if (!res.ok) throw new Error('Rapportlijst bijwerken na migratie mislukt');

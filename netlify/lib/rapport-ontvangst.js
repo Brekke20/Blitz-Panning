@@ -14,8 +14,15 @@ export async function verwerkOntvangst({ store, body, nu = new Date(), testModus
   const { id, archiveBody, html, ticketId, filename, isLocal } = v.waarden;
 
   try {
-    // Inhoud eerst, in een eigen key: staat de entry er, dan is de inhoud er ook.
-    await schrijfInhoud(store, { id, html, ticketId, filename, isLocal }, nu);
+    const entry = {
+      ...bouwEntry({ ...archiveBody, id, ticketId }, { nu, licht: true }),
+      verwerking: nieuweVerwerking(isLocal ? 'lokaal' : 'wacht', nu),
+      inhoudBeschikbaar: true,
+      zohoUploaded: false,
+    };
+    // Inhoud eerst, in een eigen key: staat de entry er, dan is de inhoud er ook. De entry zelf
+    // gaat mee in de blob, zodat verwerkRapport ze kan terugzetten na een lost update op de lijst.
+    await schrijfInhoud(store, { id, html, ticketId, filename, isLocal, entry }, nu);
 
     let startNodig = false;
     let vervangenId = null;
@@ -45,12 +52,6 @@ export async function verwerkOntvangst({ store, body, nu = new Date(), testModus
         startNodig = effectieveStatus(bestaand) === 'wacht';
         return null;
       }
-      const entry = {
-        ...bouwEntry({ ...archiveBody, id, ticketId }, { nu, licht: true }),
-        verwerking: nieuweVerwerking(isLocal ? 'lokaal' : 'wacht', nu),
-        inhoudBeschikbaar: true,
-        zohoUploaded: false,
-      };
       const uit = voegToeOfWerkBij(rapports, entry, archiveBody);
       vervangenId = uit.vervangenId;
       startNodig = !isLocal;

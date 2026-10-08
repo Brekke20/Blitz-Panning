@@ -41,6 +41,11 @@ test('stripZwareVelden verwijdert _html en beide handtekeningen, laat de rest st
   assert.equal(stripZwareVelden(null), null);
 });
 
+test('stripZwareVelden verwijdert ook oude inline fotos (fotos)', () => {
+  const r = stripZwareVelden({ fotos: ['data:image/jpeg;base64,AAA'], probleem: 'x' });
+  assert.deepEqual(r, { probleem: 'x' });
+});
+
 test('bouwEntry licht: rapportData zonder _html/handtekeningen; niet-licht: _html blijft', () => {
   const body = { id: 'a', ticketId: '1', rapportData: { _html: '<p/>', handtekeningTech: 'a', handtekeningKlant: 'b', probleem: 'x' } };
   const licht = bouwEntry(body, { licht: true });

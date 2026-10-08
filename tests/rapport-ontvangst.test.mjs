@@ -354,3 +354,12 @@ test('opnieuw versturen: store.get gooit → 503', async () => {
   assert.equal(r.status, 503);
   assert.equal(r.startNodig, false);
 });
+
+test('I1: de inhoudsblob bewaart de lichte lijst-entry (incl. verwerking) voor herstel na een lost update', async () => {
+  const { store, m } = maakStore();
+  await verwerkOntvangst({ store, body: body(), nu: NU });
+  const blob = JSON.parse(m.get('rapport-inhoud/' + ID_A));
+  const inLijst = lijstVan(m).find(r => r.id === ID_A);
+  assert.deepEqual(blob.entry, inLijst);
+  assert.equal(blob.entry.verwerking.status, 'wacht');
+});

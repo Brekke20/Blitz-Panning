@@ -9,10 +9,12 @@ export function isGeldigId(id) {
   return typeof id === 'string' && UUID_RE.test(id);
 }
 
-export async function schrijfInhoud(store, { id, html, ticketId, filename, isLocal }, nu = new Date()) {
-  await store.setJSON(INHOUD_PREFIX + id, {
-    id, html, ticketId, filename, isLocal, aangemaakt: nu.toISOString(),
-  });
+// `entry` (optioneel): de lichte lijst-entry die verwerkOntvangst in de rapportlijst zet. Zo kan
+// verwerkRapport een entry terugzetten die door een gelijktijdige schrijver uit de lijst verdween.
+export async function schrijfInhoud(store, { id, html, ticketId, filename, isLocal, entry }, nu = new Date()) {
+  const inhoud = { id, html, ticketId, filename, isLocal, aangemaakt: nu.toISOString() };
+  if (entry) inhoud.entry = entry;
+  await store.setJSON(INHOUD_PREFIX + id, inhoud);
 }
 
 export async function leesInhoud(store, id) {

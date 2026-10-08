@@ -18,6 +18,11 @@ function nepResponse(status, data) {
   return { ok: status >= 200 && status < 300, status, json: async () => data };
 }
 
+test('bouwOntvangenBody: rapportData.fotos (oude items) gaat niet mee naar de server', () => {
+  const item = maakItem({ archiveBody: { id: 'item-1', rapportData: { a: 1, fotos: ['data:image/jpeg;base64,AAA'] } } });
+  assert.deepEqual(bouwOntvangenBody(item).archiveBody.rapportData, { a: 1 });
+});
+
 test('bouwOntvangenBody: oud item (archived:true, zohoUploaded:false, rapportData._html gevuld) → body zonder _html en zonder handtekeningen, html = item.html, item onveranderd', () => {
   const item = maakItem({ archived: true, zohoUploaded: false });
   const voor = JSON.stringify(item);

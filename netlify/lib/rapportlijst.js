@@ -22,10 +22,11 @@ export function bepaalDedupVelden(bestaandeEntry, zelfdeItem, body) {
   };
 }
 
-// Kopie van rapportData zonder de zware velden (HTML en handtekeningen).
+// Kopie van rapportData zonder de zware velden (HTML, handtekeningen en inline foto's; oude
+// entries bevatten soms nog `fotos` als base64).
 export function stripZwareVelden(rapportData) {
   if (!rapportData) return rapportData ?? null;
-  const { _html, handtekeningTech, handtekeningKlant, ...rest } = rapportData;
+  const { _html, handtekeningTech, handtekeningKlant, fotos, ...rest } = rapportData;
   return rest;
 }
 
