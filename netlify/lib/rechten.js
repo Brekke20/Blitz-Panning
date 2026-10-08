@@ -64,6 +64,11 @@ export const RECHTEN = {
   // Klantlink (ondertekend) en machine-sleutel (PLANNING_EXPORT_API_KEY): eigen controles in de functie.
   'confirm-afspraak':     { '*': 'open' },
   'planning-export':      { '*': 'open' },
+  // Beheerpagina: activiteitenlog en systeemstatus enkel lezen door de beheerder. De dagelijkse opruiming is open
+  // (geplande functie, idempotent: een aanroep van buitenaf wist enkel wat al ouder dan 12 maanden is).
+  'activiteit':           { GET: BEHEER },
+  'activiteit-opruimen':  { '*': 'open' },
+  'systeemstatus':        { GET: BEHEER },
 };
 
 // Gedeeld met de wrapper: de regel voor naam + methode (undefined = geen regel).
