@@ -636,6 +636,8 @@
 <script type="module" src="/js/venster.js"></script>
 <script type="module" src="/js/outbox.js"></script>
 <script type="module" src="/js/outbox-sync.js"></script>
+<script type="module" src="/js/rapport-inhoud.js"></script>
+<script type="module" src="/js/rapport-status.js"></script>
 <script type="module" src="/js/rapport-archief.js"></script>
 <script type="module" src="/js/excel-export.js"></script>
 <script type="module" src="/js/prijzen.js"></script>
@@ -7166,7 +7168,7 @@ async function voorbeeldRapport(rapportId, btn) {
   const r = _rapportArchief.find(x => x.id === rapportId);
   if (!r) return toast('⚠ Rapport niet gevonden');
   if (!r.ticketId) return toast('⚠ Geen ticket gekoppeld aan dit rapport');
-  const html = r.rapportData?._html;
+  const html = await haalRapportHtml(r);
   if (!html) return toast('⚠ Geen opgeslagen rapport-inhoud om te versturen');
 
   const mySeq = ++_previewSeq;
@@ -7221,7 +7223,7 @@ async function verstuurRapport(rapportId, btn) {
   const r = _rapportArchief.find(x => x.id === rapportId);
   if (!r) return toast('⚠ Rapport niet gevonden');
   if (!r.ticketId) return toast('⚠ Geen ticket gekoppeld aan dit rapport');
-  const html = r.rapportData?._html;
+  const html = await haalRapportHtml(r);
   if (!html) return toast('⚠ Geen opgeslagen rapport-inhoud om te versturen');
 
   if (TEST_MODE) {
