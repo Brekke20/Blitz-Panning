@@ -42,7 +42,7 @@ instellingen per technieker staan in de `localStorage` van het toestel. Met de s
 |---|:-:|:-:|:-:|:-:|
 | Tickets/planning van alle techniekers bekijken | ✔ | ✔ | ✔ (alleen-lezen) | – |
 | Plannen, voorstellen sturen, annuleren, afspraken/verlof beheren | ✔ | ✔ | eigen afspraken/verlof | – |
-| Rapport maken/versturen, foto's, stockverbruik | ✔ | ✔ | eigen tickets | – |
+| Rapport maken/versturen, foto's, stockverbruik | ✔ | ✔ | eigen tickets (de app verbergt de knoppen bij collega's; de server logt elke actie met naam, geen per-ticket-afdwinging) | – |
 | Rapporten-tabblad, opnieuw versturen | ✔ | ✔ | eigen rapporten | – |
 | Prijzen, inventaris beheren | ✔ | ✔ | – | – |
 | Instellingen van techniekers wijzigen (gelogd in het activiteitenlog) | ✔ | ✔ | – (enkel eigen) | – (enkel eigen) |

@@ -46,7 +46,7 @@ export async function logActiviteit(store, { gebruiker, actie, onderwerp = null,
 // Vaste actie-namen (strings): 'login', 'login-mislukt-reeks', 'uitloggen', 'wachtwoord-gewijzigd',
 // 'herstel', 'gebruiker-aangemaakt', 'gebruiker-gewijzigd', 'gebruiker-geblokkeerd', 'plannen',
 // 'voorstel-verstuurd', 'annulatie', 'rapport-verstuurd', 'rapport-opnieuw', 'sales-import',
-// 'sales-lead-verwijderd', 'sales-resultaat', 'instellingen-gewijzigd', 'wachtwoord-gereset'
+// 'sales-lead-verwijderd', 'sales-resultaat', 'instellingen-gewijzigd', 'wachtwoord-gereset', 'foto-toegevoegd', 'notitie-toegevoegd'
 ```
 
 ### Instellingen
