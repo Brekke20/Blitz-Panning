@@ -289,6 +289,20 @@ test('vasteGebruiker: slaat sessie, wachtwoord-wijzigen en csrf over, houdt de r
   assert.deepEqual([r.status, r.code], [403, 'geen-recht']);
 });
 
+test('vasteGebruiker is onmogelijk in een Netlify-runtime: maakAuth gooit en een later gezette runtime-variabele negeert hem', async () => {
+  const vast = { id: 'v', email: '', naam: 'Vast', rol: 'beheerder' };
+  for (const runtime of [{ NETLIFY: 'true' }, { AWS_LAMBDA_FUNCTION_NAME: 'f' }, { LAMBDA_TASK_ROOT: '/var/task' }, { NETLIFY: '' }]) {
+    assert.throws(() => maakAuth({ env: runtime, vasteGebruiker: vast }), /Netlify/i, JSON.stringify(runtime));
+  }
+  // Variabele verschijnt pas na het maken: de vaste gebruiker wordt dan niet meer gebruikt (echte controle, geen cookie: 401).
+  const env = {};
+  const auth = maakAuth({ getStore: () => { throw new Error('mag niet'); }, env, nu, vasteGebruiker: vast });
+  assert.equal((await auth.vereisGebruiker(verzoek())).ok, true);
+  env.NETLIFY = 'true';
+  const r = await auth.vereisGebruiker(verzoek());
+  assert.deepEqual([r.ok, r.status, r.code], [false, 401, 'niet-ingelogd']);
+});
+
 // ---- zetAuthVoorTests, weigering ----
 test('zetAuthVoorTests: vervangt de standaardinstantie en null herstelt', async () => {
   try {
@@ -327,19 +341,22 @@ test('weigeringV1 en weigeringV2: status, CORS en body { error, code }', async (
   assert.deepEqual(await s2.json(), { error: 'Opslag weg.', code: 'opslag-storing' });
 });
 
-test('zetAuthVoorTests komt nergens onder netlify/ of public/ voor behalve netlify/lib/auth.js', () => {
-  const wortel = join(import.meta.dirname, '..');
-  const gevonden = [];
-  const loop = dir => {
-    for (const naam of readdirSync(dir)) {
-      if (naam === 'node_modules') continue;
-      const pad = join(dir, naam);
-      if (statSync(pad).isDirectory()) { loop(pad); continue; }
-      if (!/\.(js|mjs|html|css|json|toml)$/.test(naam)) continue;
-      if (readFileSync(pad, 'utf8').includes('zetAuthVoorTests')) gevonden.push(relative(wortel, pad).split(sep).join('/'));
-    }
-  };
-  loop(join(wortel, 'netlify'));
-  loop(join(wortel, 'public'));
-  assert.deepEqual(gevonden, ['netlify/lib/auth.js']);
-});
+// Statische controle: de testseams (en dus de login-omzeiling) bestaan enkel in auth.js en in tests/.
+for (const term of ['zetAuthVoorTests', 'vasteGebruiker']) {
+  test(`${term} komt nergens onder netlify/ of public/ voor behalve netlify/lib/auth.js`, () => {
+    const wortel = join(import.meta.dirname, '..');
+    const gevonden = [];
+    const loop = dir => {
+      for (const naam of readdirSync(dir)) {
+        if (naam === 'node_modules') continue;
+        const pad = join(dir, naam);
+        if (statSync(pad).isDirectory()) { loop(pad); continue; }
+        if (!/\.(js|mjs|html|css|json|toml)$/.test(naam)) continue;
+        if (readFileSync(pad, 'utf8').includes(term)) gevonden.push(relative(wortel, pad).split(sep).join('/'));
+      }
+    };
+    loop(join(wortel, 'netlify'));
+    loop(join(wortel, 'public'));
+    assert.deepEqual(gevonden, ['netlify/lib/auth.js']);
+  });
+}

@@ -43,6 +43,8 @@ async function standaardGetStore(opties) {
 }
 
 export function maakAuth({ getStore = standaardGetStore, env = process.env, nu = () => Date.now(), vasteGebruiker = null } = {}) {
+  // De login-omzeiling (vasteGebruiker) is onmogelijk in een Netlify-runtime, ook niet via een directe maakAuth-aanroep.
+  if (vasteGebruiker && heeftNetlifyRuntime(env)) throw new Error('vasteGebruiker is niet toegelaten in een Netlify-runtime');
   async function vereisGebruiker(reqOfEvent, { rollen = [], schrijven = false, ookBijWijzigen = false, service = false } = {}) {
     try {
       const rolOk = gebruiker => rollen.length === 0 || rollen.includes(gebruiker.rol);
@@ -50,7 +52,8 @@ export function maakAuth({ getStore = standaardGetStore, env = process.env, nu =
       const csrfOk = () => kop(reqOfEvent, 'x-blitz') === '1';
 
       // Vaste gebruiker (testseam): slaat 1-4 en 6 over, houdt de rollencontrole.
-      if (vasteGebruiker) {
+      // Elke aanroep opnieuw gecontroleerd: een runtime-variabele die pas later verschijnt schakelt hem ook uit.
+      if (vasteGebruiker && !heeftNetlifyRuntime(env)) {
         return rolOk(vasteGebruiker) ? { ok: true, gebruiker: { ...vasteGebruiker } } : weiger('geen-recht');
       }
 
