@@ -78,9 +78,7 @@ export function renderOutboxBanner() {
   const banner = document.getElementById('outbox-banner');
   werkOutboxLiveBij();
   if (!_outboxItems.length) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
-  const offlineBanner  = document.getElementById('offline-banner');
-  const offlineVisible = offlineBanner && getComputedStyle(offlineBanner).display !== 'none';
-  banner.style.top = offlineVisible ? `${92 + offlineBanner.offsetHeight}px` : '92px';
+  // top komt uit app.css (kop-hoogte + offline-balk via --offline-h); geen vaste 92px meer
   // escHtml op alle vrije tekst (ticketnummer, foutmelding) -- die komen respectievelijk uit
   // Zoho-ticketdata en uit fetch-foutmeldingen, geen van beide vertrouwd/gegarandeerd veilig.
   // (M6) data-id-attributen + addEventListener na render, i.p.v. een in de HTML-string
