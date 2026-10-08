@@ -5,7 +5,7 @@ import {
   nieuweVerwerking, naFout, isVastgelopen, moetStarten, verwerkRapport,
 } from '../netlify/lib/rapport-verwerking.js';
 import {
-  INHOUD_PREFIX, isGeldigId, schrijfInhoud, leesInhoud, verwijderInhoud,
+  INHOUD_PREFIX, isGeldigId, schrijfInhoud, leesInhoud, verwijderInhoud, vergeetEntry,
 } from '../netlify/lib/rapport-inhoud.js';
 import { TEST_MISLUKT_TICKETID, testUpload } from '../netlify/lib/rapport-testupload.js';
 import { LIJST_KEY } from '../netlify/lib/rapportlijst.js';
@@ -278,4 +278,21 @@ test('verwerkRapport I1: oude blob zonder entry → niet-gevonden zoals vroeger'
   const r = await verwerkRapport(ID, { store, upload: async () => ({}), nu: () => NU });
   assert.deepEqual(r, { resultaat: 'niet-gevonden' });
   assert.deepEqual((await store.get(LIJST_KEY)).rapports, []);
+});
+
+test('I1: na DELETE (vergeetEntry) komt een verwijderd rapport niet terug via verwerkRapport; html blijft', async () => {
+  const store = nepStore();
+  await store.setJSON(LIJST_KEY, { versie: 1, rapports: [lichteEntry()] });
+  await schrijfInhoud(store, { id: ID, html: '<p>x</p>', ticketId: '1001', filename: 'r.pdf', isLocal: false, entry: lichteEntry() }, NU);
+  // DELETE: lijst gefilterd, daarna vergeetEntry (zoals rapport-archief.js)
+  await store.setJSON(LIJST_KEY, { versie: 2, rapports: [] });
+  await vergeetEntry(store, ID);
+  assert.equal((await leesInhoud(store, ID)).html, '<p>x</p>');
+  assert.equal('entry' in (await leesInhoud(store, ID)), false);
+  const r = await verwerkRapport(ID, { store, upload: async () => assert.fail('geen upload verwacht'), nu: () => NU });
+  assert.deepEqual(r, { resultaat: 'niet-gevonden' });
+  assert.deepEqual((await store.get(LIJST_KEY)).rapports, []);
+  // best-effort: nooit gooien, ook niet bij ontbrekende blob of falende store
+  await vergeetEntry(store, '00000000-0000-4000-8000-000000000000');
+  await vergeetEntry({ get: async () => { throw new Error('x'); } }, ID);
 });

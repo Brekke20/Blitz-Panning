@@ -10,6 +10,7 @@ import {
 } from '../lib/rapportlijst.js';
 import { haalRapportInhoud, verwerkOpnieuw } from '../lib/rapport-archief-acties.js';
 import { startAchtergrondtaak } from '../lib/rapport-achtergrond.js';
+import { isGeldigId, vergeetEntry } from '../lib/rapport-inhoud.js';
 
 const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
@@ -150,6 +151,7 @@ export default async (req, context) => {
 
     const nieuweVersie = current.versie + 1;
     await store.setJSON(BLOB_KEY, { versie: nieuweVersie, rapports: filtered });
+    if (isGeldigId(id)) await vergeetEntry(store, id); // best-effort: voorkomt dat verwerkRapport het rapport terugzet
     return new Response(JSON.stringify({ ok: true, versie: nieuweVersie }), { status: 200, headers: { ...hdrs, 'Content-Type': 'application/json' } });
   }
 

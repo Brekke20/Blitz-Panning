@@ -26,6 +26,18 @@ export async function verwijderInhoud(store, id) {
   try { await store.delete(INHOUD_PREFIX + id); } catch { /* best-effort */ }
 }
 
+// Na het verwijderen van een rapport uit de lijst: haal de bewaarde lijst-entry uit de inhoudsblob,
+// zodat verwerkRapport het rapport niet terugzet (herstelEntry). De html blijft staan.
+// Best-effort: faalt nooit.
+export async function vergeetEntry(store, id) {
+  try {
+    const inhoud = await leesInhoud(store, id);
+    if (!inhoud || !('entry' in inhoud)) return;
+    const { entry, ...rest } = inhoud; // eslint-disable-line no-unused-vars
+    await store.setJSON(INHOUD_PREFIX + id, rest);
+  } catch { /* best-effort */ }
+}
+
 // Netlify-functies weigeren requests > 6 MB; houd marge voor de rest van de body.
 export const MAX_HTML_TEKENS = 5_500_000;
 
