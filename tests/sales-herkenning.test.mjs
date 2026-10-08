@@ -254,3 +254,47 @@ test('dezelfde grafsteen wordt maar eenmaal verbruikt; tweede exemplaar in het b
   assert.equal(r.leads.length, 1);
   assert.deepEqual(r.samenvatting, { nieuw: 1, alAanwezig: 1, adresNakijken: 1, eerderVerwijderd: 1 });
 });
+
+// --- Fix-ronde 1: samenvoegen overschrijft nooit wat de verkoper toevoegde ---
+
+test('upgrade naar volledig adres laat een door de verkoper gecorrigeerde postcode ongemoeid', () => {
+  const b = bestaandeLead({ postcode: '3500' });
+  const r = voeg([b], [imp({ email: 'marie@voorbeeld.test', postcode: '3640', gemeente: 'Kinrooi', straat: 'Straat', huisnr: '1' })]);
+  assert.deepEqual(r.leads[0], b);
+  assert.equal(r.samenvatting.alAanwezig, 1);
+});
+
+test('upgrade naar volledig adres kan bij een lege postcode', () => {
+  const r = voeg([bestaandeLead({ postcode: null, locatie: null })],
+    [imp({ email: 'marie@voorbeeld.test', postcode: '3640', gemeente: 'Kinrooi', straat: 'Straat', huisnr: '1' })]);
+  assert.equal(r.leads[0].straat, 'Straat');
+  assert.equal(r.leads[0].postcode, '3640');
+});
+
+test('upgrade naar volledig adres wist een bestaande adrestekst niet', () => {
+  const r = voeg([bestaandeLead({ adresTekst: 'achter de kerk' })],
+    [imp({ email: 'marie@voorbeeld.test', postcode: '3640', gemeente: 'Kinrooi', straat: 'Straat', huisnr: '1' })]);
+  assert.equal(r.leads[0].adresTekst, 'achter de kerk');
+});
+
+test('een placeholder-gsm telt als leeg: een echt nummer uit een latere export vult het in', () => {
+  const r = voeg([bestaandeLead({ gsm: '+32000000' })], [imp({ email: 'marie@voorbeeld.test', gsm: '0478 12 34 56' })]);
+  assert.equal(r.leads[0].gsm, '0478 12 34 56');
+  const r2 = voeg(r.leads, [imp({ email: 'marie@voorbeeld.test', gsm: '0499 99 99 99' })]);
+  assert.equal(r2.leads[0].gsm, '0478 12 34 56');
+});
+
+test('een placeholder-gsm vervangt een placeholder-gsm niet', () => {
+  const r = voeg([bestaandeLead({ gsm: '+32000000' })], [imp({ email: 'marie@voorbeeld.test', gsm: '+32111' })]);
+  assert.equal(r.leads[0].gsm, '+32000000');
+});
+
+test('ongeldige grafstenen (geen array, null-items) breken niets', () => {
+  const g = { h: ['He:marie@voorbeeld.be'], op: OP };
+  const n = [imp({ naam: 'Janssens', email: 'marie@voorbeeld.be' })];
+  assert.doesNotThrow(() => voeg([], n, { hash, grafstenen: 'kapot' }));
+  assert.deepEqual(voeg([], n, { hash, grafstenen: { h: [] } }).grafstenen, []);
+  const r = voeg([], n, { hash, grafstenen: [null, undefined, 5, { op: OP }, { h: 'x', op: OP }, g] });
+  assert.deepEqual(r.leads[0].eerderVerwijderd, { op: OP });
+  assert.deepEqual(r.grafstenen, []);
+});

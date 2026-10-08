@@ -21,15 +21,22 @@ export function herkenningssleutels(lead) {
 
 const leeg = (x) => x == null || String(x).trim() === '';
 
-/** Vult lege contactvelden aan en upgradet een postcode-adres naar een volledig adres. Wijzigt `bestaande` (een kopie). */
+/**
+ * Vult lege contactvelden aan en upgradet een postcode-adres naar een volledig adres. Wijzigt `bestaande` (een kopie).
+ * Wat de verkoper zelf toevoegde of corrigeerde blijft: een afwijkende postcode of bestaande adrestekst wordt nooit overschreven.
+ */
 function werkBij(bestaande, nieuw) {
-  for (const veld of ['voornaam', 'naam', 'gsm', 'email']) {
+  for (const veld of ['voornaam', 'naam', 'email']) {
     if (leeg(bestaande[veld]) && !leeg(nieuw[veld])) bestaande[veld] = nieuw[veld];
   }
-  if (!bestaande.straat && nieuw.straat && nieuw.huisnr && nieuw.postcode) {
+  // Een placeholder-gsm (zoals +32000000) telt als leeg, zodat een echt nummer uit een latere export het invult.
+  const gsmLeeg = leeg(bestaande.gsm) || normaliseerGsm(bestaande.gsm) === null;
+  if (gsmLeeg && !leeg(nieuw.gsm) && (leeg(bestaande.gsm) || normaliseerGsm(nieuw.gsm) !== null)) bestaande.gsm = nieuw.gsm;
+  const zelfdePostcode = leeg(bestaande.postcode) || String(bestaande.postcode).trim() === String(nieuw.postcode ?? '').trim();
+  if (!bestaande.straat && nieuw.straat && nieuw.huisnr && nieuw.postcode && zelfdePostcode) {
     Object.assign(bestaande, {
       straat: nieuw.straat, huisnr: nieuw.huisnr, postcode: nieuw.postcode, gemeente: nieuw.gemeente ?? null,
-      adresTekst: null, locatie: null, // de server geocodeert opnieuw
+      locatie: null, // de server geocodeert opnieuw
     });
   }
 }
@@ -60,7 +67,9 @@ export function voegSamen(bestaande, nieuwe, { nu, nieuwId, bronExport, grafsten
   };
   leads.forEach(registreer);
 
-  let overgebleven = structuredClone(grafstenen ?? []);
+  const geldigeGrafstenen = (Array.isArray(grafstenen) ? grafstenen : [])
+    .filter((g) => g && typeof g === 'object' && Array.isArray(g.h));
+  let overgebleven = structuredClone(geldigeGrafstenen);
   const perHash = new Map();
   if (hash) overgebleven.forEach((g) => (g.h ?? []).forEach((h) => { if (!perHash.has(h)) perHash.set(h, g); }));
   const verbruikt = new Set();
