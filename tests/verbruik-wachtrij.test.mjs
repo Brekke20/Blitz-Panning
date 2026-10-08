@@ -1,7 +1,7 @@
 // Wagenvoorraad-aftrek na een rapport (etappe 7, Q4): melding bij mislukken, herpoging enkel na een ZEKERE mislukking.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { maakVerbruikWachtrij, classificeer, TEKSTEN } from '../public/js/kern/verbruik-wachtrij.js';
+import { maakVerbruikWachtrij, classificeer, hoortBijGebruiker, TEKSTEN } from '../public/js/kern/verbruik-wachtrij.js';
 
 const ITEMS = [{ materiaalId: 'm1', materiaalNaam: 'Kabel', aantal: 2 }];
 
@@ -221,4 +221,65 @@ test('een 2xx zonder leesbare JSON is onzeker en zet geen stand op null', async 
   assert.deepEqual(t.succes, []);
   assert.equal(t.lijst().length, 0);
   assert.match(t.toasts[0], /^⚠ Onzeker/);
+});
+
+// ── Wachtrij per gebruiker (logins T16): een item van A wordt nooit onder de sessie van B verzonden of verwijderd ──
+test('hoortBijGebruiker: zonder eigenaar (legacy) voor iedereen; met eigenaar enkel voor die gebruiker', () => {
+  assert.equal(hoortBijGebruiker({ id: 'x' }, 'u1'), true);
+  assert.equal(hoortBijGebruiker({ id: 'x', gebruikerId: null }, 'u1'), true);
+  assert.equal(hoortBijGebruiker({ id: 'x', gebruikerId: 'u1' }, 'u1'), true);
+  assert.equal(hoortBijGebruiker({ id: 'x', gebruikerId: 'u1' }, 'u2'), false);
+  assert.equal(hoortBijGebruiker({ id: 'x', gebruikerId: 'u1' }, null), false);
+  assert.equal(hoortBijGebruiker({ id: 'x', gebruikerId: 'u1' }, undefined), false);
+});
+
+test('meld bewaart de eigenaar op het item; zonder gebruiker blijft het veld weg', async () => {
+  const klok = { t: 1000 };
+  const metEigenaar = bouw({ antwoorden: [{ status: 503, data: { error: 'Inventaris-opslag tijdelijk niet bereikbaar, probeer opnieuw.' } }], online: false, klok });
+  // opnieuw bouwen met de afhankelijkheid: bouw() kent ze niet, dus rechtstreeks
+  let lijst = [];
+  const w = maakVerbruikWachtrij({
+    opslag: { lees: () => JSON.parse(JSON.stringify(lijst)), schrijf: l => { lijst = JSON.parse(JSON.stringify(l)); } },
+    post: async () => ok(1), versie: () => 1, naSucces: () => {}, toon: () => {}, online: () => false, nu: () => klok.t,
+    gebruikerId: () => 'u-a',
+  });
+  await w.meld('Jan', ITEMS);
+  assert.equal(lijst[0].gebruikerId, 'u-a');
+  await metEigenaar.w.meld('Jan', ITEMS);
+  assert.equal('gebruikerId' in metEigenaar.lijst()[0], false);
+});
+
+test('verwerk onder een andere gebruiker: item van A blijft staan (geen POST, geen melding); eigen en legacy items worden verwerkt', async () => {
+  const lijst0 = [
+    { id: 'a', technieker: 'A', items: ITEMS, aangemaakt: 1, pogingen: 0, bezigTot: null, eigenaar: null, gebruikerId: 'u-a' },
+    { id: 'b', technieker: 'B', items: ITEMS, aangemaakt: 2, pogingen: 0, bezigTot: null, eigenaar: null, gebruikerId: 'u-b' },
+    { id: 'l', technieker: 'L', items: ITEMS, aangemaakt: 3, pogingen: 0, bezigTot: null, eigenaar: null },
+  ];
+  let lijst = JSON.parse(JSON.stringify(lijst0));
+  const posts = [], toasts = [];
+  const w = maakVerbruikWachtrij({
+    opslag: { lees: () => JSON.parse(JSON.stringify(lijst)), schrijf: l => { lijst = JSON.parse(JSON.stringify(l)); } },
+    // 403 zou voor A definitief zijn (item weg); voor de eigen items geeft de server 200
+    post: async b => { posts.push(b); return b.technieker === 'A' ? { status: 403, data: { error: 'geen toegang' } } : ok(9); },
+    versie: () => 1, naSucces: () => {}, toon: t => toasts.push(t), gebruikerId: () => 'u-b',
+  });
+  await w.verwerk();
+  assert.deepEqual(posts.map(p => p.technieker), ['B', 'L']);
+  assert.deepEqual(lijst.map(e => e.id), ['a'], 'het item van A blijft bewaard');
+  assert.deepEqual(toasts, [TEKSTEN.alsnog, TEKSTEN.alsnog], 'enkel de eigen items melden "alsnog"; niets over A (geen "definitief")');
+});
+
+test('verwerk zonder bekende gebruiker: enkel legacy items', async () => {
+  let lijst = [
+    { id: 'a', technieker: 'A', items: ITEMS, aangemaakt: 1, pogingen: 0, bezigTot: null, eigenaar: null, gebruikerId: 'u-a' },
+    { id: 'l', technieker: 'L', items: ITEMS, aangemaakt: 3, pogingen: 0, bezigTot: null, eigenaar: null },
+  ];
+  const posts = [];
+  const w = maakVerbruikWachtrij({
+    opslag: { lees: () => JSON.parse(JSON.stringify(lijst)), schrijf: l => { lijst = JSON.parse(JSON.stringify(l)); } },
+    post: async b => { posts.push(b.technieker); return ok(2); }, versie: () => 1, naSucces: () => {}, toon: () => {},
+  });
+  await w.verwerk();
+  assert.deepEqual(posts, ['L']);
+  assert.deepEqual(lijst.map(e => e.id), ['a']);
 });
