@@ -13,6 +13,6 @@ export default async (req) => {
   if (!isGeldigId(id)) return;
 
   const store = getStore({ name: winkelNaam(req), consistency: 'strong' });
-  const { upload, maxPogingen } = maakVerwerker({ store, testModus: isTestVerzoek(req) });
+  const { upload, maxPogingen } = await maakVerwerker({ store, testModus: isTestVerzoek(req) });
   await verwerkRapport(id, { store, upload, maxPogingen });
 };

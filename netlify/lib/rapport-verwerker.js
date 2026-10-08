@@ -3,12 +3,13 @@
 // wordt niet door unit-tests geïmporteerd. Gebruikt door rapport-verwerk-background en het vangnet.
 
 import { maakUploader } from './rapport-upload.js';
-import { maakPdf, uploadPdfNaarZoho } from './rapport-zoho.js';
 import { MAX_POGINGEN } from './rapport-verwerking.js';
 import { testUpload } from './rapport-testupload.js';
 
-export function maakVerwerker({ store, testModus }) {
+// Async: rapport-zoho.js (Chromium/puppeteer) wordt enkel buiten de testmodus dynamisch geladen.
+export async function maakVerwerker({ store, testModus }) {
   if (testModus) return { upload: testUpload, maxPogingen: 1 };
+  const { maakPdf, uploadPdfNaarZoho } = await import('./rapport-zoho.js');
   const uploadRapport = maakUploader({ maakPdf, uploadPdfNaarZoho });
   return {
     upload: ({ html, ticketId, filename, verzendId }) => uploadRapport({ html, ticketId, filename, verzendId, store }),

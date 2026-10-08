@@ -194,3 +194,42 @@ test('testUpload: slaagt voor 1001, faalt voor p2', async () => {
   assert.deepEqual(await testUpload({ ticketId: '1001' }), { attachmentId: 'test-bijlage' });
   await assert.rejects(() => testUpload({ ticketId: 'p2' }), /Testfout: Zoho onbereikbaar/);
 });
+
+test('verwerkRapport: entry die al bezig was (onderbroken run) wordt gewoon opnieuw verwerkt', async () => {
+  const store = await opzet({ status: 'bezig', pogingen: 0 });
+  let kreeg;
+  const r = await verwerkRapport(ID, { store, upload: async a => { kreeg = a; return { attachmentId: 'a1' }; }, nu: () => NU });
+  assert.deepEqual(r, { resultaat: 'in-zoho' });
+  assert.equal(kreeg.verzendId, ID);
+  assert.equal((await entryVan(store)).verwerking.status, 'in-zoho');
+});
+
+test('verwerkRapport: bezig met pogingen 5 telt als mislukte poging -> mislukt zonder upload', async () => {
+  const store = await opzet({ status: 'bezig', pogingen: 5 });
+  let aangeroepen = false;
+  const r = await verwerkRapport(ID, { store, upload: async () => { aangeroepen = true; return { attachmentId: 'a' }; }, nu: () => NU, maxPogingen: 6 });
+  assert.deepEqual(r, { resultaat: 'mislukt' });
+  assert.equal(aangeroepen, false);
+  const e = await entryVan(store);
+  assert.equal(e.verwerking.status, 'mislukt');
+  assert.equal(e.verwerking.laatsteFout, 'Vorige poging onderbroken');
+  assert.equal(e.verwerking.volgendePoging, null);
+});
+
+test('verwerkRapport: bezig + upload faalt -> pogingen 2 (onderbroken run + deze fout), status wacht', async () => {
+  const store = await opzet({ status: 'bezig', pogingen: 0 });
+  const r = await verwerkRapport(ID, { store, upload: async () => { throw new Error('Zoho 500'); }, nu: () => NU });
+  assert.deepEqual(r, { resultaat: 'wacht' });
+  const e = await entryVan(store);
+  assert.equal(e.verwerking.pogingen, 2);
+  assert.equal(e.verwerking.status, 'wacht');
+  assert.match(e.verwerking.laatsteFout, /Zoho 500/);
+});
+
+test('verwerkRapport: verse wacht-entry houdt pogingen ongewijzigd bij het bezig-zetten', async () => {
+  const store = await opzet({ status: 'wacht', pogingen: 2 });
+  let tijdensUpload;
+  await verwerkRapport(ID, { store, upload: async () => { tijdensUpload = await entryVan(store); return { inProgress: true }; }, nu: () => NU });
+  assert.equal(tijdensUpload.verwerking.status, 'bezig');
+  assert.equal(tijdensUpload.verwerking.pogingen, 2);
+});

@@ -93,11 +93,25 @@ export async function verwerkRapport(id, { store, upload, nu = () => new Date(),
   const inhoud = await leesInhoud(store, id);
   if (!inhoud) return mislukt('Rapportinhoud ontbreekt');
 
-  await zetVerwerking(store, id, e => (
-    e.verwerking?.status === 'wacht' || e.verwerking?.status === 'bezig'
-      ? { ...e, verwerking: { ...e.verwerking, status: 'bezig', bijgewerkt: nu().toISOString() } }
-      : null
-  ));
+  // Stond de entry al op 'bezig', dan is een eerdere run onderbroken (vangnet na time-out/crash of
+  // een automatische Netlify-retry): die run telt als mislukte poging, anders zou een run die
+  // telkens crasht nooit 'mislukt' bereiken. Een verse 'wacht'-entry houdt zijn pogingen.
+  let onderbrokenMislukt = false;
+  await zetVerwerking(store, id, e => {
+    onderbrokenMislukt = false;
+    const v = e.verwerking;
+    if (v?.status !== 'wacht' && v?.status !== 'bezig') return null;
+    if (v.status === 'bezig') {
+      const na = naFout(v, 'Vorige poging onderbroken', nu(), maxPogingen);
+      if (na.status === 'mislukt') {
+        onderbrokenMislukt = true;
+        return { ...e, verwerking: na };
+      }
+      return { ...e, verwerking: { ...na, status: 'bezig', volgendePoging: null } };
+    }
+    return { ...e, verwerking: { ...v, status: 'bezig', bijgewerkt: nu().toISOString() } };
+  });
+  if (onderbrokenMislukt) return { resultaat: 'mislukt' };
 
   let uitkomst;
   try {
