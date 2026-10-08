@@ -631,6 +631,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.1.7/signature_pad.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="/js/outbox-verzend.js"></script>
+<script src="/js/vrije-dag.js"></script>
 <script type="module" src="/js/test-upload.js"></script>
 <script type="module" src="/js/app-dialog.js"></script>
 <script type="module" src="/js/venster.js"></script>
@@ -3587,7 +3588,7 @@ function nextAvailableDay(fromDate) {
   for (let i = 0; i < 60; i++) {
     if (d >= today) {
       const dStr = localISO(d);
-      if (settings.werkdagen.includes(d.getDay())) {
+      if (settings.werkdagen.includes(d.getDay()) && (dStr !== localISO(today) || window.vrijeDag.vandaagBruikbaarNu(settings, new Date()))) {
         const alreadyPlanned = (planning[dStr] || [])
           .filter(p => activeAssigneeFilter === 'all' || p.ticket.assignee === activeAssigneeFilter)
           .reduce((sum, p) => sum + Math.ceil(duurVoor(p.ticket.id) / settings.duurMinuten), 0);
