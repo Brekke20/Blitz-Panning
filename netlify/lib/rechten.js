@@ -59,6 +59,8 @@ export const RECHTEN = {
   // Gebruikersbeheer: lezen/schrijven enkel beheerder; sales mag enkel GET ?rol=sales (en enkel met magAlleSales,
   // afgedwongen in de functie zelf: hier staat enkel de rol).
   'gebruikers':           { GET: BEHEER_SALES, POST: BEHEER, PATCH: BEHEER },
+  // Instellingen per gebruiker: elke rol leest/schrijft de eigen; wie voor wie mag, wordt in de functie afgedwongen.
+  'instellingen':         { GET: ALLE, PUT: ALLE },
   // Klantlink (ondertekend) en machine-sleutel (PLANNING_EXPORT_API_KEY): eigen controles in de functie.
   'confirm-afspraak':     { '*': 'open' },
   'planning-export':      { '*': 'open' },
