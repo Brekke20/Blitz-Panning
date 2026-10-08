@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { verwerkOntvangst } from '../netlify/lib/rapport-ontvangst.js';
 import { startAchtergrondtaak } from '../netlify/lib/rapport-achtergrond.js';
 import { MAX_HTML_TEKENS } from '../netlify/lib/rapport-inhoud.js';
+import { haalRapportInhoud, verwerkOpnieuw } from '../netlify/lib/rapport-archief-acties.js';
 import { maakHandler } from '../netlify/functions/rapport-ontvangen.js';
 
 // ---- nep-store -------------------------------------------------------------
@@ -244,4 +245,55 @@ test('maakHandler: fout bij starten achtergrondtaak blijft 200 (vangnet); OPTION
   assert.equal((await handler(new Request('https://blitz.example/api/rapport-ontvangen'))).status, 405);
   const kapot = new Request('https://blitz.example/api/rapport-ontvangen', { method: 'POST', body: '{nee' });
   assert.equal((await handler(kapot)).status, 400);
+});
+
+// ---- archief-acties: inhoud ophalen + opnieuw versturen --------------------
+test('inhoud ophalen: bestaand id → html; onbekend → 404; ongeldig id → 400', async () => {
+  const { store } = maakStore();
+  await verwerkOntvangst({ store, body: body(), nu: NU });
+  const ok = await haalRapportInhoud(store, ID_A);
+  assert.deepEqual([ok.status, ok.body], [200, { id: ID_A, html: '<p>x</p>' }]);
+  const weg = await haalRapportInhoud(store, ID_B);
+  assert.deepEqual([weg.status, weg.body], [404, { error: 'Rapportinhoud niet gevonden' }]);
+  const slecht = await haalRapportInhoud(store, '../lijst');
+  assert.equal(slecht.status, 400);
+  assert.equal((await haalRapportInhoud(store, null)).status, 400);
+});
+
+test('opnieuw versturen: mislukt → wacht + startNodig; versie in antwoord', async () => {
+  const { store, m } = maakStore();
+  await verwerkOntvangst({ store, body: body(), nu: NU });
+  const l = JSON.parse(m.get('rapportlijst'));
+  l.rapports[0].verwerking = { status: 'mislukt', pogingen: 6, volgendePoging: null, laatsteFout: 'zoho 500', bijgewerkt: NU.toISOString() };
+  m.set('rapportlijst', JSON.stringify(l));
+  const r = await verwerkOpnieuw({ store, id: ID_A, nu: NU });
+  assert.equal(r.status, 200);
+  assert.equal(r.startNodig, true);
+  assert.equal(r.body.ok, true);
+  assert.equal(typeof r.body.versie, 'number');
+  const e = lijstVan(m)[0];
+  assert.equal(e.verwerking.status, 'wacht');
+  assert.equal(e.verwerking.pogingen, 0);
+  assert.equal(e.verwerking.laatsteFout, null);
+});
+
+test('opnieuw versturen: niet-mislukt → ongewijzigd, geen start; onbekend → 404; ongeldig id → 400', async () => {
+  const { store, m } = maakStore();
+  await verwerkOntvangst({ store, body: body(), nu: NU });
+  const voor = m.get('rapportlijst');
+  const r = await verwerkOpnieuw({ store, id: ID_A, nu: NU }); // status wacht
+  assert.deepEqual([r.status, r.body, r.startNodig], [200, { ok: true, ongewijzigd: true }, false]);
+  assert.equal(m.get('rapportlijst'), voor);
+  const onbekend = await verwerkOpnieuw({ store, id: ID_B, nu: NU });
+  assert.equal(onbekend.status, 404);
+  assert.equal(onbekend.startNodig, false);
+  assert.equal((await verwerkOpnieuw({ store, id: 'x', nu: NU })).status, 400);
+});
+
+test('opnieuw versturen: store.get gooit → 503', async () => {
+  const { store } = maakStore();
+  const kapot = { ...store, async get() { throw new Error('weg'); } };
+  const r = await verwerkOpnieuw({ store: kapot, id: ID_A, nu: NU });
+  assert.equal(r.status, 503);
+  assert.equal(r.startNodig, false);
 });

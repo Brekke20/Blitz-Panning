@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   LIJST_KEY, MAX_RAPPORTEN, LEGE_LIJST,
   bepaalDedupVelden, stripZwareVelden, bouwEntry, voegToeOfWerkBij,
-  effectieveStatus, wijzigLijst,
+  effectieveStatus, wijzigLijst, zetOpnieuw,
 } from '../netlify/lib/rapportlijst.js';
 
 // Nep-store; `naSchrijven(aantalWrites, map)` laat een gelijktijdige schrijver simuleren.
@@ -136,4 +136,34 @@ test('wijzigLijst geeft ok:false na 3 mislukte controles', async () => {
 test('wijzigLijst gooit leesfouten door', async () => {
   const s = { async get() { throw new Error('blobs weg'); }, async setJSON() {} };
   await assert.rejects(() => wijzigLijst(s, () => null), /blobs weg/);
+});
+
+// ---- zetOpnieuw ------------------------------------------------------------
+test('zetOpnieuw: mislukt → wacht met pogingen 0 en laatsteFout null', () => {
+  const nu = new Date('2026-10-08T12:00:00Z');
+  const rapports = [
+    { id: 'a', verwerking: { status: 'mislukt', pogingen: 6, volgendePoging: null, laatsteFout: 'zoho 500', bijgewerkt: 'x' } },
+    { id: 'b', verwerking: { status: 'mislukt' } },
+  ];
+  const uit = zetOpnieuw(rapports, 'a', nu);
+  assert.equal(uit.gevonden, true);
+  assert.equal(uit.zetten, true);
+  assert.deepEqual(uit.rapports[0].verwerking, {
+    status: 'wacht', pogingen: 0, volgendePoging: null, laatsteFout: null, bijgewerkt: nu.toISOString(),
+  });
+  assert.equal(uit.rapports[1], rapports[1]);
+  assert.equal(rapports[0].verwerking.status, 'mislukt'); // invoer niet gemuteerd
+});
+
+test('zetOpnieuw: in-zoho blijft staan (zetten false)', () => {
+  const rapports = [{ id: 'a', zohoUploaded: true, verwerking: { status: 'in-zoho' } }];
+  const uit = zetOpnieuw(rapports, 'a');
+  assert.equal(uit.gevonden, true);
+  assert.equal(uit.zetten, false);
+  assert.deepEqual(uit.rapports, rapports);
+});
+
+test('zetOpnieuw: onbekend id → gevonden false', () => {
+  const uit = zetOpnieuw([{ id: 'a', verwerking: { status: 'mislukt' } }], 'zzz');
+  assert.deepEqual([uit.gevonden, uit.zetten], [false, false]);
 });

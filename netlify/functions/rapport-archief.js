@@ -1,6 +1,6 @@
 // /api/rapport-archief
-// GET  → lijst van gearchiveerde rapports (publiek)
-// POST → nieuw rapport archiveren (open, geen auth)
+// GET  → lijst van gearchiveerde rapports (publiek); ?id=<id> één rapport; ?inhoud=<id> de HTML
+// POST → nieuw rapport archiveren (open, geen auth); { opnieuw: <id> } = mislukt rapport opnieuw versturen
 
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
@@ -8,6 +8,8 @@ import {
   LIJST_KEY as BLOB_KEY, LEGE_LIJST as EMPTY,
   bepaalDedupVelden, bouwEntry, voegToeOfWerkBij,
 } from '../lib/rapportlijst.js';
+import { haalRapportInhoud, verwerkOpnieuw } from '../lib/rapport-archief-acties.js';
+import { startAchtergrondtaak } from '../lib/rapport-achtergrond.js';
 
 const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
@@ -38,7 +40,15 @@ export default async (req, context) => {
 
   // ── GET ───────────────────────────────────────────────────────────────────
   if (req.method === 'GET') {
-    const id = new URL(req.url).searchParams.get('id');
+    const params = new URL(req.url).searchParams;
+    if (params.has('inhoud')) {
+      const uit = await haalRapportInhoud(store, params.get('inhoud'));
+      return new Response(JSON.stringify(uit.body), {
+        status: uit.status,
+        headers: { ...hdrs, 'Content-Type': 'application/json' },
+      });
+    }
+    const id = params.get('id');
     try {
       const raw = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY;
       if (id) {
@@ -66,6 +76,18 @@ export default async (req, context) => {
     let body;
     try { body = await req.json(); }
     catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers: { ...hdrs, 'Content-Type': 'application/json' } }); }
+
+    // "Opnieuw versturen" van een mislukt rapport (vóór de legacy-entry-opbouw afgehandeld).
+    if (body && body.opnieuw !== undefined) {
+      const uit = await verwerkOpnieuw({ store, id: body.opnieuw });
+      if (uit.startNodig) {
+        await startAchtergrondtaak({ origin: new URL(req.url).origin, id: body.opnieuw, testModus: isTestVerzoek(req) });
+      }
+      return new Response(JSON.stringify(uit.body), {
+        status: uit.status,
+        headers: { ...hdrs, 'Content-Type': 'application/json' },
+      });
+    }
 
     let current;
     try { current = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY; }

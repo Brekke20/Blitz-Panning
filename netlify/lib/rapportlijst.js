@@ -117,3 +117,18 @@ export async function wijzigLijst(store, mutatie, { pogingen = 3 } = {}) {
   }
   return { ok: false };
 }
+
+// "Opnieuw versturen": enkel een mislukt rapport gaat terug naar 'wacht' (pogingen opnieuw vanaf 0).
+// Andere statussen blijven onaangeroerd (zetten:false), zodat een dubbele klik of een verlate
+// aanvraag een lopende of voltooide verwerking nooit omgooit.
+export function zetOpnieuw(rapports, id, nu = new Date()) {
+  const idx = rapports.findIndex(r => r.id === id);
+  if (idx < 0) return { rapports, gevonden: false, zetten: false };
+  if (effectieveStatus(rapports[idx]) !== 'mislukt') return { rapports, gevonden: true, zetten: false };
+  const lijst = [...rapports];
+  lijst[idx] = {
+    ...rapports[idx],
+    verwerking: { status: 'wacht', pogingen: 0, volgendePoging: null, laatsteFout: null, bijgewerkt: nu.toISOString() },
+  };
+  return { rapports: lijst, gevonden: true, zetten: true };
+}
