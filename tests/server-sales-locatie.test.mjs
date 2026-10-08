@@ -10,7 +10,7 @@ const router = ({ adresFaalt = false } = {}) => url => {
   if (url.includes('/geocode/')) return adresFaalt ? json({ results: [] }) : json({ results: [{ position: { lat: 51.5, lon: 5.5 } }] });
   if (url.includes('structuredGeocode')) {
     const pc = /postalCode=(\d+)/.exec(url)[1];
-    return json({ results: [{ position: { lat: 50.5, lon: 4.5 }, address: { municipality: 'Gemeente ' + pc } }] });
+    return json({ results: [{ position: { lat: 50.5, lon: 4.5 }, address: { postalCode: pc, municipality: 'Gemeente ' + pc } }] });
   }
   return undefined;
 };
@@ -184,4 +184,76 @@ test('vulLocatiesAan: gevlagde lead blijft gevlagd (en telt als open) zolang het
   assert.equal(leads[0].adresTeGeocoderen, true);
   assert.equal(open, 1);
   assert.equal(calls.length, 0);
+});
+
+const stuk = () => json({}, 500);
+const adresStuk = url => (url.includes('/geocode/') ? stuk() : router()(url));
+
+test('bepaalLocatie: tijdelijke adresfout -> postcode-terugval met adresFout:true (anders dan "niet gevonden")', async () => {
+  const { fn } = maakNepFetch(adresStuk);
+  assert.deepEqual(await bepaalLocatie(volledig(), { store: maakNepStore(), ...deps(fn) }), { lat: 50.5, lon: 4.5, bron: 'postcode', adresFout: true });
+  const { fn: fn2 } = maakNepFetch(router({ adresFaalt: true }));
+  assert.deepEqual(await bepaalLocatie(volledig(), { store: maakNepStore(), ...deps(fn2) }), { lat: 50.5, lon: 4.5, bron: 'postcode' });
+});
+
+test('vulLocatiesAan: tijdelijke adresfout op een nieuwe lead -> postcode-locatie + vlag + teller 1; de vlag blijft tot het adres lukt', async () => {
+  const store = maakNepStore();
+  let stukNu = true;
+  const { fn } = maakNepFetch(url => (stukNu ? adresStuk(url) : router()(url)));
+  const r1 = await vulLocatiesAan([volledig()], { store, ...deps(fn) });
+  assert.equal(r1.leads[0].locatie.bron, 'postcode');
+  assert.equal(r1.leads[0].adresTeGeocoderen, true);
+  assert.equal(r1.leads[0].adresPogingen, 1);
+  assert.equal(r1.open, 1);
+  const r2 = await vulLocatiesAan(r1.leads, { store, ...deps(fn) });
+  assert.equal(r2.leads[0].adresTeGeocoderen, true);
+  assert.equal(r2.leads[0].adresPogingen, 2);
+  stukNu = false;
+  const r3 = await vulLocatiesAan(r2.leads, { store, ...deps(fn) });
+  assert.deepEqual(r3.leads[0].locatie, { lat: 51.5, lon: 5.5, bron: 'adres' });
+  assert.equal('adresTeGeocoderen' in r3.leads[0], false);
+  assert.equal('adresPogingen' in r3.leads[0], false);
+  assert.equal(r3.open, 0);
+});
+
+test('vulLocatiesAan: na 3 tijdelijke fouten geeft het op (vlag en teller weg), nooit eindeloos', async () => {
+  const store = maakNepStore();
+  const { fn, calls } = maakNepFetch(adresStuk);
+  let leads = [volledig()];
+  for (let i = 0; i < 3; i++) leads = (await vulLocatiesAan(leads, { store, ...deps(fn) })).leads;
+  assert.equal(leads[0].locatie.bron, 'postcode');
+  assert.equal('adresTeGeocoderen' in leads[0], false);
+  assert.equal('adresPogingen' in leads[0], false);
+  const voor = calls.length;
+  const r = await vulLocatiesAan(leads, { store, ...deps(fn) });
+  assert.equal(calls.length, voor, 'geen vierde poging');
+  assert.equal(r.open, 0);
+});
+
+test('vulLocatiesAan: echt "niet gevonden" wist de vlag meteen (geen teller)', async () => {
+  const { fn } = maakNepFetch(router({ adresFaalt: true }));
+  const lead = volledig({ locatie: { lat: 50.5, lon: 4.5, bron: 'postcode' }, adresTeGeocoderen: true, adresPogingen: 1 });
+  const { leads, open } = await vulLocatiesAan([lead], { store: maakNepStore(), ...deps(fn) });
+  assert.equal('adresTeGeocoderen' in leads[0], false);
+  assert.equal('adresPogingen' in leads[0], false);
+  assert.equal(open, 0);
+});
+
+test('vulLocatiesAan: een hangende adresaanvraag loopt af op de time-out en telt als tijdelijke fout', async () => {
+  const hangendAdres = (url, o) => (url.includes('/geocode/')
+    ? new Promise((_, reject) => o.signal.addEventListener('abort', () => reject(o.signal.reason)))
+    : router()(url));
+  const { fn } = maakNepFetch(hangendAdres);
+  const { leads } = await vulLocatiesAan([volledig()], { store: maakNepStore(), ...deps(fn), timeoutMs: 20 });
+  assert.equal(leads[0].adresTeGeocoderen, true);
+  assert.equal(leads[0].adresPogingen, 1);
+  assert.equal(leads[0].locatie.bron, 'postcode');
+});
+
+test('vulLocatiesAan: door het budget overgeslagen is geen poging (teller ongewijzigd)', async () => {
+  const { fn } = maakNepFetch(router());
+  const lead = volledig({ locatie: { lat: 50.5, lon: 4.5, bron: 'postcode' }, adresTeGeocoderen: true, adresPogingen: 2 });
+  const { leads } = await vulLocatiesAan([lead], { store: maakNepStore(), ...deps(fn), maxTijdMs: 0 });
+  assert.equal(leads[0].adresPogingen, 2);
+  assert.equal(leads[0].adresTeGeocoderen, true);
 });

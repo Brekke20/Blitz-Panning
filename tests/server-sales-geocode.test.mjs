@@ -6,6 +6,7 @@ import { geocodeAdres, geocodePostcode } from '../netlify/lib/sales-geocode.js';
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
 const SLEUTEL = 'NEP-SLEUTEL-123';
 const geenWacht = async () => {};
+const TIJDELIJK = { fout: true };
 const opts = (fetch, extra = {}) => ({ fetch, sleutel: SLEUTEL, testModus: false, wacht: geenWacht, ...extra });
 
 test('geocodeAdres: URL met geëncodeerde tekst, countrySet=BE en sleutel; geeft lat/lon', async () => {
@@ -24,11 +25,12 @@ test('geocodeAdres: geen resultaten -> null', async () => {
   assert.equal(await geocodeAdres('Nergensstraat 1, 3640 Kinrooi', opts(fn)), null);
 });
 
-test('geocodeAdres: netwerkfout, ongeldig antwoord of HTTP-fout -> null, gooit nooit', async () => {
-  assert.equal(await geocodeAdres('X 1, 3640 Y', opts(async () => { throw new Error('netwerk'); })), null);
-  assert.equal(await geocodeAdres('X 1, 3640 Y', opts(async () => new Response('geen json', { status: 200 }))), null);
-  assert.equal(await geocodeAdres('X 1, 3640 Y', opts(async () => json({}, 500))), null);
-  assert.equal(await geocodeAdres('X 1, 3640 Y', opts(async () => json({ results: [{ position: { lat: 'a', lon: null } }] }))), null);
+test('geocodeAdres: netwerkfout, ongeldig antwoord of HTTP-fout (5xx, 403) -> tijdelijke fout, nooit een exception; onbruikbare positie -> null', async () => {
+  assert.deepEqual(await geocodeAdres('X 1, 3640 Y', opts(async () => { throw new Error('netwerk'); })), TIJDELIJK);
+  assert.deepEqual(await geocodeAdres('X 1, 3640 Y', opts(async () => new Response('geen json', { status: 200 }))), TIJDELIJK);
+  assert.deepEqual(await geocodeAdres('X 1, 3640 Y', opts(async () => json({}, 500))), TIJDELIJK);
+  assert.deepEqual(await geocodeAdres('X 1, 3640 Y', opts(async () => json({}, 403))), TIJDELIJK);
+  assert.equal(await geocodeAdres('X 1, 3640 Y', opts(async () => json({ results: [{ position: { lat: 'a', lon: null } }] }))), null); // onbruikbare positie = niet gevonden
 });
 
 test('geocodeAdres: 429 daarna 200 -> resultaat na 2 pogingen, met backoff', async () => {
@@ -41,10 +43,10 @@ test('geocodeAdres: 429 daarna 200 -> resultaat na 2 pogingen, met backoff', asy
   assert.deepEqual(wachten, [400]);
 });
 
-test('geocodeAdres: blijvend 429 -> null na 3 pogingen', async () => {
+test('geocodeAdres: blijvend 429 -> tijdelijke fout na 3 pogingen', async () => {
   const wachten = [];
   const { fn, calls } = maakNepFetch(() => json({}, 429));
-  assert.equal(await geocodeAdres('Dorpsstraat 12, 3640 Kinrooi', opts(fn, { wacht: async ms => { wachten.push(ms); } })), null);
+  assert.deepEqual(await geocodeAdres('Dorpsstraat 12, 3640 Kinrooi', opts(fn, { wacht: async ms => { wachten.push(ms); } })), TIJDELIJK);
   assert.equal(calls.length, 3);
   assert.deepEqual(wachten, [400, 800]);
 });
@@ -63,17 +65,17 @@ test('geocodeAdres: testmodus is deterministisch, in België en roept fetch nooi
   assert.equal(calls.length, 0);
 });
 
-test('geocodeAdres: ontbrekende sleutel buiten testmodus -> null zonder fetch; lege tekst ook', async () => {
+test('geocodeAdres: ontbrekende sleutel buiten testmodus -> tijdelijke fout zonder fetch; lege tekst -> null', async () => {
   const { fn, calls } = maakNepFetch();
-  assert.equal(await geocodeAdres('Dorpsstraat 12, 3640 Kinrooi', opts(fn, { sleutel: undefined })), null);
-  assert.equal(await geocodeAdres('Dorpsstraat 12, 3640 Kinrooi', opts(fn, { sleutel: '' })), null);
+  assert.deepEqual(await geocodeAdres('Dorpsstraat 12, 3640 Kinrooi', opts(fn, { sleutel: undefined })), TIJDELIJK);
+  assert.deepEqual(await geocodeAdres('Dorpsstraat 12, 3640 Kinrooi', opts(fn, { sleutel: '' })), TIJDELIJK);
   assert.equal(await geocodeAdres('  ', opts(fn)), null);
   assert.equal(await geocodeAdres(null, opts(fn)), null);
   assert.equal(calls.length, 0);
 });
 
 test('geocodePostcode: URL met postalCode en countryCode=BE, gemeente uit het antwoord', async () => {
-  const { fn, calls } = maakNepFetch(() => json({ results: [{ position: { lat: 51.16, lon: 5.74 }, address: { municipality: 'Kinrooi' } }] }));
+  const { fn, calls } = maakNepFetch(() => json({ results: [{ position: { lat: 51.16, lon: 5.74 }, address: { postalCode: '3640', municipality: 'Kinrooi' } }] }));
   const r = await geocodePostcode('3640', opts(fn));
   assert.deepEqual(r, { lat: 51.16, lon: 5.74, gemeente: 'Kinrooi' });
   assert.match(calls[0].url, /^https:\/\/api\.tomtom\.com\/search\/2\/structuredGeocode\.json\?/);
@@ -85,8 +87,8 @@ test('geocodePostcode: URL met postalCode en countryCode=BE, gemeente uit het an
 
 test('geocodePostcode: geen resultaat, fout of geen gemeente-veld', async () => {
   assert.equal(await geocodePostcode('3640', opts(maakNepFetch(() => json({ results: [] })).fn)), null);
-  assert.equal(await geocodePostcode('3640', opts(async () => { throw new Error('x'); })), null);
-  const r = await geocodePostcode('3640', opts(maakNepFetch(() => json({ results: [{ position: { lat: 51, lon: 5 }, address: {} }] })).fn));
+  assert.deepEqual(await geocodePostcode('3640', opts(async () => { throw new Error('x'); })), TIJDELIJK);
+  const r = await geocodePostcode('3640', opts(maakNepFetch(() => json({ results: [{ position: { lat: 51, lon: 5 }, address: { postalCode: '3640' } }] })).fn));
   assert.deepEqual(r, { lat: 51, lon: 5, gemeente: '' });
 });
 
@@ -121,4 +123,41 @@ test('de sleutel komt nooit in de logs', async () => {
     await geocodeAdres('X 1, 3640 Y', opts(async () => json({}, 429)));
   } finally { Object.assign(console, oud); }
   assert.ok(!regels.join('\n').includes(SLEUTEL));
+});
+
+test('elke TomTom-aanvraag krijgt een AbortSignal met time-out (standaard 5 s)', async () => {
+  const signalen = [];
+  const f = async (url, o) => { signalen.push(o?.signal); return json({ results: [{ position: { lat: 51, lon: 5 }, address: { postalCode: '3640' } }] }); };
+  await geocodeAdres('X 1, 3640 Y', opts(f));
+  await geocodePostcode('3640', opts(f));
+  assert.equal(signalen.length, 2);
+  for (const s of signalen) assert.ok(s instanceof AbortSignal);
+});
+
+test('een hangende fetch loopt af op de time-out en telt als tijdelijke fout', async () => {
+  const hangend = (url, { signal }) => new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason)));
+  assert.deepEqual(await geocodeAdres('X 1, 3640 Y', opts(hangend, { timeoutMs: 20 })), TIJDELIJK);
+  assert.deepEqual(await geocodePostcode('3640', opts(hangend, { timeoutMs: 20 })), TIJDELIJK);
+});
+
+test('geocodePostcode: HTTP-fout, 429 of ongeldig antwoord -> tijdelijke fout (geen "niet gevonden")', async () => {
+  assert.deepEqual(await geocodePostcode('3640', opts(async () => json({}, 500))), TIJDELIJK);
+  assert.deepEqual(await geocodePostcode('3640', opts(async () => json({}, 429))), TIJDELIJK);
+  assert.deepEqual(await geocodePostcode('3640', opts(async () => new Response('x', { status: 200 }))), TIJDELIJK);
+  assert.deepEqual(await geocodePostcode('3640', { fetch: async () => json({}), sleutel: undefined }), TIJDELIJK);
+});
+
+test('geocodePostcode: het teruggegeven postalCode moet de gevraagde postcode zijn, anders niet gevonden', async () => {
+  const mooi = (pc) => json({ results: [{ position: { lat: 51, lon: 5 }, address: { postalCode: pc, municipality: 'Kinrooi' } }] });
+  assert.ok(await geocodePostcode('3640', opts(async () => mooi('3640'))));
+  assert.equal(await geocodePostcode('3640', opts(async () => mooi('3500'))), null);
+  assert.equal(await geocodePostcode('3640', opts(async () => mooi(undefined))), null);
+  assert.equal(await geocodePostcode('3640', opts(async () => mooi('3640, 3641'))), null);
+});
+
+test('geocodePostcode: enkel postcodes 1000-9999 (0123 -> null zonder fetch)', async () => {
+  const { fn, calls } = maakNepFetch();
+  assert.equal(await geocodePostcode('0123', opts(fn)), null);
+  assert.equal(await geocodePostcode('0999', opts(fn)), null);
+  assert.equal(calls.length, 0);
 });

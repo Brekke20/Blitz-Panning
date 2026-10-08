@@ -17,8 +17,8 @@ const tijdsWaarde = w => Number(new Date(w));
 // `nu`: functie die een tijdstip (Date, ms of ISO) geeft; ontbreekt die, dan de echte klok.
 const maakKlok = nu => () => (typeof nu === 'function' ? tijdsWaarde(nu()) : (nu != null ? tijdsWaarde(nu) : Date.now()));
 
-function logFout(fout) {
-  console.error('postcode-cache: schrijven mislukt (' + (fout?.name || typeof fout) + ')');
+function logFout(actie, fout) {
+  console.error('postcode-cache: ' + actie + ' mislukt (' + (fout?.name || typeof fout) + ')');
 }
 
 async function leesCache(store) {
@@ -26,7 +26,7 @@ async function leesCache(store) {
     const c = await store.get(CACHE_KEY, { type: 'json' });
     return c && typeof c === 'object' && !Array.isArray(c) ? c : {};
   } catch (e) {
-    logFout(e);
+    logFout('lezen', e);
     return {};
   }
 }
@@ -39,9 +39,9 @@ async function bewaarInCache(store, nieuw) {
       leeg: {},
       wijzig: cache => (Object.keys(nieuw).length ? { ...cache, ...nieuw } : null),
     }));
-    if (!r.ok) logFout({ name: 'terugleescontrole' });
+    if (!r.ok) logFout('schrijven', { name: 'terugleescontrole' });
   } catch (e) {
-    logFout(e);
+    logFout('schrijven', e);
   }
 }
 
@@ -57,7 +57,7 @@ export async function zoekPostcode(store, pc, deps = {}) {
  * Hoogstens één schrijfactie naar de cache per aanroep.
  */
 export async function zoekPostcodes(store, lijst, { nu, maxTijdMs = 15000, parallel = 5, ...deps } = {}) {
-  const uniek = [...new Set((Array.isArray(lijst) ? lijst : []).filter(isPostcode))];
+  const uniek = [...new Set((Array.isArray(lijst) ? lijst : []).filter(pc => isPostcode(pc) && Number(pc) >= 1000))];
   const gevonden = {};
   const open = [];
   if (!uniek.length) return { gevonden, open };
@@ -77,8 +77,8 @@ export async function zoekPostcodes(store, lijst, { nu, maxTijdMs = 15000, paral
     while (volgende < teZoeken.length) {
       if (klok() - start >= maxTijdMs) return; // budget op: de rest blijft open
       const pc = teZoeken[volgende++];
-      const r = await geocodePostcode(pc, deps); // gooit nooit
-      if (r) {
+      const r = await geocodePostcode(pc, deps); // gooit nooit; null = niet gevonden, { fout } = tijdelijk (beide: open, niet gecachet)
+      if (r && !r.fout) {
         gevonden[pc] = r;
         nieuw[pc] = { lat: r.lat, lon: r.lon, gemeente: r.gemeente };
       } else open.push(pc);

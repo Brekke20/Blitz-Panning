@@ -4,21 +4,28 @@ import { geocodeAdres } from './sales-geocode.js';
 import { zoekPostcode, zoekPostcodes, isPostcode } from './sales-postcode.js';
 import { adresTekstVoorGeocoding } from '../../public/js/sales/adres.js';
 
-/** -> { lat, lon, bron: 'adres' | 'postcode' } | null. Muteert de lead niet. */
+/**
+ * -> { lat, lon, bron: 'adres' | 'postcode' } | null. Muteert de lead niet.
+ * Viel de adresgeocoding terug op de postcode door een TIJDELIJKE fout (niet door "niet gevonden"), dan bevat het
+ * resultaat `adresFout: true`: de aanroeper kan de lead dan voor een latere upgrade markeren (`adresTeGeocoderen`).
+ */
 export async function bepaalLocatie(lead, { store, ...deps } = {}) {
   const tekst = adresTekstVoorGeocoding(lead);
+  let adresFout = false;
   if (tekst) {
     const p = await geocodeAdres(tekst, deps);
-    if (p) return { lat: p.lat, lon: p.lon, bron: 'adres' };
+    if (p?.fout) adresFout = true;
+    else if (p) return { lat: p.lat, lon: p.lon, bron: 'adres' };
   }
   if (isPostcode(lead?.postcode)) {
     const p = await zoekPostcode(store, lead.postcode, deps);
-    if (p) return { lat: p.lat, lon: p.lon, bron: 'postcode' };
+    if (p) return { lat: p.lat, lon: p.lon, bron: 'postcode', ...(adresFout ? { adresFout: true } : {}) };
   }
   return null;
 }
 
-const zonderVlag = l => { const { adresTeGeocoderen: _weg, ...rest } = l; return rest; };
+const MAX_ADRES_POGINGEN = 3; // tijdelijke fouten per lead voor we opgeven (de postcode-locatie blijft dan)
+const zonderVlag = l => { const { adresTeGeocoderen: _w, adresPogingen: _p, ...rest } = l; return rest; };
 
 /**
  * Vult de locatie (en een lege gemeente) aan voor leads met een postcode maar zonder locatie, en werkt leads bij die
@@ -26,7 +33,9 @@ const zonderVlag = l => { const { adresTeGeocoderen: _weg, ...rest } = l; return
  * Volgorde (één tijdsbudget `maxTijdMs`, standaard 15 s): eerst de postcode-middelpunten (weinig unieke postcodes, cache,
  * één schrijfactie) zodat elke lead meteen plannbaar is, daarna de adresgeocoding binnen het resterende budget.
  * - Volledig adres, geocoding lukt: locatie bron 'adres', vlag weg.
- * - Volledig adres, geocoding mislukt (geen resultaat): postcode-middelpunt blijft, vlag weg (definitief, geen eindeloze pogingen).
+ * - Volledig adres, geocoding mislukt (echt geen resultaat): postcode-middelpunt blijft, vlag weg (definitief).
+ * - Volledig adres, TIJDELIJKE fout (429, netwerk, time-out, 5xx): postcode-middelpunt blijft, vlag blijft en
+ *   `adresPogingen` telt op; na 3 pogingen wordt opgegeven (vlag en teller weg), dus nooit eindeloos.
  * - Volledig adres, geocoding door het budget overgeslagen: postcode-middelpunt PLUS vlag `adresTeGeocoderen: true`;
  *   een latere run probeert het adres opnieuw.
  * `open` telt leads zonder locatie en leads met een nog openstaande adres-upgrade (vlag). De invoer wordt niet gemuteerd.
@@ -67,8 +76,13 @@ export async function vulLocatiesAan(leads, { store, nu, maxTijdMs = 15000, para
       if (klok() - start >= maxTijdMs) return; // niet aan toe gekomen
       const i = metAdres[volgende++];
       const p = await geocodeAdres(adresTekstVoorGeocoding(lijst[i]), deps);
-      if (p) resultaat[i] = { ...zonderVlag(resultaat[i]), locatie: { lat: p.lat, lon: p.lon, bron: 'adres' } };
-      else resultaat[i] = zonderVlag(resultaat[i]); // adres onvindbaar: de postcode-locatie (indien er een is) blijft
+      if (p?.fout) {
+        // Tijdelijke fout: de postcode-locatie blijft + vlag, tot MAX_ADRES_POGINGEN pogingen; zonder locatie geen vlag.
+        const pogingen = (Number.isInteger(resultaat[i].adresPogingen) ? resultaat[i].adresPogingen : 0) + 1;
+        if (!resultaat[i].locatie || pogingen >= MAX_ADRES_POGINGEN) resultaat[i] = zonderVlag(resultaat[i]);
+        else resultaat[i] = { ...resultaat[i], adresTeGeocoderen: true, adresPogingen: pogingen };
+      } else if (p) resultaat[i] = { ...zonderVlag(resultaat[i]), locatie: { lat: p.lat, lon: p.lon, bron: 'adres' } };
+      else resultaat[i] = zonderVlag(resultaat[i]); // echt niet gevonden: de postcode-locatie (indien er een is) blijft, vlag weg
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, Math.min(parallel, metAdres.length)) }, werker));

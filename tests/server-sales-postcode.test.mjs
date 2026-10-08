@@ -6,7 +6,7 @@ import { isPostcode, zoekPostcode, zoekPostcodes } from '../netlify/lib/sales-po
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
 const postcodeVan = url => /postalCode=(\d+)/.exec(url)?.[1];
-const antwoord = pc => json({ results: [{ position: { lat: 50 + Number(pc) / 10000, lon: 5 }, address: { municipality: 'Gemeente ' + pc } }] });
+const antwoord = pc => json({ results: [{ position: { lat: 50 + Number(pc) / 10000, lon: 5 }, address: { postalCode: pc, municipality: 'Gemeente ' + pc } }] });
 const deps = fetch => ({ fetch, sleutel: 'NEP', testModus: false, wacht: async () => {} });
 const cacheVan = store => JSON.parse(store._data.get('postcode-cache') ?? '{}');
 
@@ -153,4 +153,47 @@ test('zoekPostcodes: testmodus bewaart geen nepcoördinaten in de cache en gebru
   assert.equal(Object.keys(gevonden).length, 2);
   assert.equal(calls.length, 0);
   assert.equal(store._schrijfacties.length, 0);
+});
+
+test('zoekPostcodes: tijdelijke fout (HTTP 500) -> in open en NIET gecachet; later opnieuw geprobeerd', async () => {
+  const store = maakNepStore();
+  let stuk = true;
+  const { fn, calls } = maakNepFetch(url => (stuk ? json({}, 500) : antwoord(postcodeVan(url))));
+  const r1 = await zoekPostcodes(store, ['3640'], deps(fn));
+  assert.deepEqual(r1.open, ['3640']);
+  assert.deepEqual(r1.gevonden, {});
+  assert.equal(store._schrijfacties.length, 0);
+  stuk = false;
+  const r2 = await zoekPostcodes(store, ['3640'], deps(fn));
+  assert.ok(r2.gevonden['3640']);
+  assert.equal(calls.length, 2);
+});
+
+test('zoekPostcodes: antwoord met een andere postalCode dan gevraagd wordt niet gecachet (niet gevonden)', async () => {
+  const store = maakNepStore();
+  const { fn } = maakNepFetch(() => json({ results: [{ position: { lat: 51, lon: 5 }, address: { postalCode: '3500', municipality: 'Hasselt' } }] }));
+  const { gevonden, open } = await zoekPostcodes(store, ['3640'], deps(fn));
+  assert.deepEqual(gevonden, {});
+  assert.deepEqual(open, ['3640']);
+  assert.deepEqual(cacheVan(store), {});
+});
+
+test('zoekPostcodes: enkel 1000-9999 wordt opgezocht en gecachet', async () => {
+  const store = maakNepStore();
+  const { fn, calls } = maakNepFetch(url => antwoord(postcodeVan(url)));
+  const { gevonden } = await zoekPostcodes(store, ['0123', '0999', '1000', '9999'], deps(fn));
+  assert.deepEqual(Object.keys(gevonden).sort(), ['1000', '9999']);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(Object.keys(cacheVan(store)).sort(), ['1000', '9999']);
+});
+
+test('een mislukte cache-LEZING logt "lezen mislukt" (niet "schrijven")', async () => {
+  const store = { async get() { throw new Error('storing'); }, async setJSON() {} };
+  const { fn } = maakNepFetch(url => antwoord(postcodeVan(url)));
+  const oud = console.error;
+  const regels = [];
+  console.error = (...a) => regels.push(a.join(' '));
+  try { await zoekPostcodes(store, ['3640'], deps(fn)); } finally { console.error = oud; }
+  assert.ok(regels.some(r => r.includes('lezen mislukt')), regels.join('|'));
+  assert.ok(regels.every(r => !r.includes('Error') || r.includes('(Error)')));
 });
