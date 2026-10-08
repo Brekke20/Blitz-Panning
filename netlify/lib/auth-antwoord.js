@@ -1,5 +1,6 @@
 // Gedeelde hulp voor de sessiefuncties (auth-login, auth-uitloggen, auth-ik, auth-wachtwoord).
 import { maakCors } from './http.js';
+import { kop } from './verzoek.js';
 import { isLokaleDev } from './lokale-dev.js';
 import { maakSessieCookie, wisSessieCookie, ondertekenToken, SESSIE_LEVENSDUUR_S } from './sessie-token.js';
 
@@ -35,3 +36,9 @@ export const OPSLAG_STORING = Object.freeze({
   error: 'De opslag is tijdelijk niet bereikbaar. Probeer het zo meteen opnieuw.',
   code: 'opslag-storing',
 });
+
+// Open schrijvende functies (login, uitloggen) eisen ook X-Blitz: 1 (login-CSRF, cross-site uitloggen).
+// null = doorgaan; anders het 403-antwoord (zelfde tekst als de wrapper).
+export const eisCsrfKop = req => (kop(req, 'x-blitz') === '1'
+  ? null
+  : authJson(403, { error: 'Verzoek geweigerd.', code: 'csrf' }));

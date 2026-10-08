@@ -5,12 +5,14 @@ import { controleerToken, COOKIE_NAAM } from '../lib/sessie-token.js';
 import { leesCookie } from '../lib/verzoek.js';
 import { leesGebruikers, publiek } from '../lib/gebruikers.js';
 import { logActiviteit } from '../lib/activiteit.js';
-import { authJson, authOpties, authNietToegestaan, authStore, gewistCookie } from '../lib/auth-antwoord.js';
+import { authJson, authOpties, authNietToegestaan, authStore, gewistCookie, eisCsrfKop } from '../lib/auth-antwoord.js';
 
 export function maakHandler({ getStore: haalStore, env = process.env, nu = () => Date.now() }) {
   return async (req) => {
     if (req.method === 'OPTIONS') return authOpties();
     if (req.method !== 'POST') return authNietToegestaan();
+    const csrf = eisCsrfKop(req);
+    if (csrf) return csrf;
 
     // Best-effort: een fout of een ongeldige sessie mag het uitloggen nooit tegenhouden.
     try {

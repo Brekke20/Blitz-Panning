@@ -2,7 +2,7 @@
 import { test, before } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { maakNepStore } from './nep-blobs.mjs';
-import { hashWachtwoord } from '../netlify/lib/wachtwoord.js';
+import { hashWachtwoord, verifieerWachtwoord } from '../netlify/lib/wachtwoord.js';
 import { ondertekenToken, controleerToken, SESSIE_LEVENSDUUR_S } from '../netlify/lib/sessie-token.js';
 import { maakAuth } from '../netlify/lib/auth.js';
 import { maakHandler as maakLogin } from '../netlify/functions/auth-login.js';
@@ -10,6 +10,7 @@ import { maakHandler as maakUitloggen } from '../netlify/functions/auth-uitlogge
 import { maakHandler as maakIk } from '../netlify/functions/auth-ik.js';
 import { maakHandler as maakWachtwoord } from '../netlify/functions/auth-wachtwoord.js';
 import { RECHTEN } from '../netlify/lib/rechten.js';
+import { maskeerEmail } from '../netlify/lib/login-poging.js';
 
 const GEHEIM = 'testgeheim-testgeheim';
 const WW = 'JuistWachtwoord1';
@@ -36,9 +37,11 @@ function opzet({ gebruikers = gebruikersLijst(), env = {} } = {}) {
   const omgeving = { SESSIE_GEHEIM: GEHEIM, ...env };
   const nu = () => klok.ms;
   const auth = maakAuth({ getStore, env: omgeving, nu });
-  const deps = { getStore, env: omgeving, nu };
+  const scrypt = { aantal: 0 };
+  const verifieer = async (w, h) => { scrypt.aantal++; return verifieerWachtwoord(w, h); };
+  const deps = { getStore, env: omgeving, nu, verifieer };
   return {
-    echt, test, aanroepen, klok, omgeving, auth,
+    echt, test, aanroepen, klok, omgeving, auth, scrypt,
     login: maakLogin(deps),
     uitloggen: maakUitloggen(deps),
     ik: maakIk({ ...deps, auth }),
@@ -48,7 +51,7 @@ function opzet({ gebruikers = gebruikersLijst(), env = {} } = {}) {
 
 const post = (pad, body, headers = {}) => new Request(`http://localhost/api/${pad}`, {
   method: 'POST',
-  headers: { 'content-type': 'application/json', ...headers },
+  headers: { 'content-type': 'application/json', 'x-blitz': '1', ...headers },
   body: typeof body === 'string' ? body : JSON.stringify(body),
 });
 const get = (pad, headers = {}) => new Request(`http://localhost/api/${pad}`, { method: 'GET', headers });
@@ -123,18 +126,21 @@ test('login: onbekend adres draait toch een scrypt-verificatie (uniforme tijd)',
   assert.ok(duur > 5, `schijn-verificatie lijkt overgeslagen (${duur.toFixed(1)} ms)`);
 });
 
-test('login: 5 fouten -> 6e (zelfs juist) is 429 met opnieuwOp = nu + 15 min; erna weer mogelijk', async () => {
+test('login: 4 fouten toegelaten, de 5e poging vergrendelt (zelfs juist) met opnieuwOp = nu + 15 min; erna weer mogelijk', async () => {
   const o = opzet();
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 4; i++) {
     const r = await o.login(loginReq('jan@blitz.test', 'fout-' + i));
     assert.equal(r.status, 401, `poging ${i + 1}`);
   }
+  assert.equal(o.scrypt.aantal, 4);
   const vast = await o.login(loginReq('jan@blitz.test', WW));
   assert.equal(vast.status, 429);
+  assert.equal(o.scrypt.aantal, 4, 'vergrendelde poging mag geen scrypt draaien');
   const body = await vast.json();
   assert.equal(body.opnieuwOp, new Date(NU0 + 15 * MIN).toISOString());
   assert.ok(body.error);
   assert.equal(vast.headers.get('set-cookie'), null);
+  assert.equal((await o.login(loginReq('jan@blitz.test', WW))).status, 429);
 
   o.klok.ms = NU0 + 15 * MIN + 1000;
   const weer = await o.login(loginReq('jan@blitz.test', WW));
@@ -154,16 +160,33 @@ test('login: vergrendeling verraadt niet of het adres bestaat (zelfde 429-vorm)'
   assert.equal(bekend.status, 429);
 });
 
-test('login: succes wist de pogingen', async () => {
+test('login: een juist wachtwoord na de reservering wist de teller', async () => {
   const o = opzet();
-  for (let i = 0; i < 4; i++) await o.login(loginReq('jan@blitz.test', 'fout-' + i));
+  for (let i = 0; i < 3; i++) await o.login(loginReq('jan@blitz.test', 'fout-' + i));
   assert.equal((await o.login(loginReq('jan@blitz.test', WW))).status, 200);
-  // na het wissen opnieuw 4 fouten toegelaten zonder vergrendeling
-  for (let i = 0; i < 4; i++) assert.equal((await o.login(loginReq('jan@blitz.test', 'fout-' + i))).status, 401);
+  const staat = await o.echt.get('login-pogingen', { type: 'json' });
+  assert.deepEqual(staat.login, {});
+  // na het wissen opnieuw 3 fouten toegelaten zonder vergrendeling
+  for (let i = 0; i < 3; i++) assert.equal((await o.login(loginReq('jan@blitz.test', 'fout-' + i))).status, 401);
   assert.equal((await o.login(loginReq('jan@blitz.test', WW))).status, 200);
 });
 
-test('login: mislukte opslag van de pogingenteller telt als vergrendeld (fail closed)', async () => {
+test('login: een mislukte poging wordt niet dubbel geteld', async () => {
+  const o = opzet();
+  await o.login(loginReq('jan@blitz.test', 'fout'));
+  const staat = await o.echt.get('login-pogingen', { type: 'json' });
+  assert.deepEqual(Object.values(staat.login).map(e => e.p.length), [1]);
+});
+
+test('login: parallelle stoot foute pogingen laat nooit meer dan de limiet door naar scrypt', async () => {
+  const o = opzet();
+  const resultaten = await Promise.all(Array.from({ length: 25 }, (_, i) => o.login(loginReq('jan@blitz.test', 'fout-' + i))));
+  assert.ok(resultaten.every(r => r.status === 401 || r.status === 429));
+  assert.ok(o.scrypt.aantal <= 4, `scrypt liep ${o.scrypt.aantal}x`);
+  assert.equal((await o.login(loginReq('jan@blitz.test', WW))).status, 429);
+});
+
+test('login: mislukte opslag van de pogingenteller telt als vergrendeld (fail closed), zonder scrypt', async () => {
   const o = opzet();
   const origineel = o.echt.setJSON.bind(o.echt);
   o.echt.setJSON = async (key, obj) => {
@@ -174,6 +197,10 @@ test('login: mislukte opslag van de pogingenteller telt als vergrendeld (fail cl
   assert.equal(res.status, 429);
   assert.ok((await res.json()).opnieuwOp);
   assert.equal(res.headers.get('set-cookie'), null);
+  assert.equal(o.scrypt.aantal, 0);
+  // ook een juist wachtwoord komt er dan niet door
+  assert.equal((await o.login(loginReq('jan@blitz.test', WW))).status, 429);
+  assert.equal(o.scrypt.aantal, 0);
 });
 
 test('login: schrijft login-laatst en laat de blob gebruikers ongemoeid', async () => {
@@ -184,7 +211,7 @@ test('login: schrijft login-laatst en laat de blob gebruikers ongemoeid', async 
   assert.equal(o.echt._schrijfacties.filter(s => s.key === 'gebruikers').length, 0);
 });
 
-test('login: activiteit bevat login en login-mislukt-reeks', async () => {
+test('login: activiteit bevat login en login-mislukt-reeks (bekend adres: de gebruiker zelf, geen onderwerp)', async () => {
   const o = opzet();
   await o.login(loginReq('jan@blitz.test', WW));
   for (let i = 0; i < 5; i++) await o.login(loginReq('bea@blitz.test', 'fout-' + i));
@@ -194,7 +221,48 @@ test('login: activiteit bevat login en login-mislukt-reeks', async () => {
   assert.equal(login[0].gebruikerId, 'u-jan');
   const reeks = items.filter(i => i.actie === 'login-mislukt-reeks');
   assert.equal(reeks.length, 1);
+  assert.equal(reeks[0].gebruikerId, 'u-bea');
+  assert.equal(reeks[0].onderwerp, null);
+  assert.ok(!JSON.stringify(reeks[0]).includes('bea@blitz.test'));
+});
+
+test('login: onbekend adres in login-mislukt-reeks: Systeem met gemaskeerd adres', async () => {
+  const o = opzet();
+  for (let i = 0; i < 5; i++) await o.login(loginReq('Niemand@Blitz.test', 'fout-' + i));
+  const reeks = (await activiteit(o.echt)).filter(i => i.actie === 'login-mislukt-reeks');
+  assert.equal(reeks.length, 1);
   assert.equal(reeks[0].gebruikerId, 'systeem');
+  assert.equal(reeks[0].naam, 'Systeem');
+  assert.equal(reeks[0].onderwerp, 'n***@blitz.test');
+  assert.ok(!JSON.stringify(reeks[0]).toLowerCase().includes('niemand'));
+});
+
+test('maskeerEmail: eerste teken + *** + @domein; zonder @ eerste teken + ***', () => {
+  assert.equal(maskeerEmail('jan@blitz.be'), 'j***@blitz.be');
+  assert.equal(maskeerEmail('zonder-apenstaart'), 'z***');
+  assert.equal(maskeerEmail(''), '***');
+});
+
+test('login: zonder X-Blitz: 1 -> 403 met algemene tekst (geen cookie, geen scrypt, geen pogingtelling)', async () => {
+  const o = opzet();
+  const res = await o.login(new Request('http://localhost/api/auth-login', {
+    method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ email: 'jan@blitz.test', wachtwoord: WW }),
+  }));
+  assert.equal(res.status, 403);
+  assert.deepEqual(await res.json(), { error: 'Verzoek geweigerd.', code: 'csrf' });
+  assert.equal(res.headers.get('set-cookie'), null);
+  assert.equal(o.scrypt.aantal, 0);
+  assert.equal(o.echt._data.has('login-pogingen'), false);
+});
+
+test('login: gebruiker met onbekende rol -> dezelfde 401 (geen cookie)', async () => {
+  const lijst = gebruikersLijst();
+  lijst[0].rol = 'superadmin';
+  const o = opzet({ gebruikers: lijst });
+  const res = await o.login(loginReq('jan@blitz.test', WW));
+  assert.equal(res.status, 401);
+  assert.equal(await res.text(), JSON.stringify({ error: 'Onjuist e-mailadres of wachtwoord' }));
+  assert.equal(res.headers.get('set-cookie'), null);
 });
 
 test('login: met X-Blitz-Test gebruikt toch de echte store blitz-data (strong)', async () => {
@@ -268,6 +336,18 @@ test('uitloggen: zonder sessie of met rommelcookie ook 200 en niets gelogd', asy
     assert.equal(r.status, 200);
     assert.match(r.headers.get('set-cookie'), /Max-Age=0/);
   }
+  assert.equal((await activiteit(o.echt)).length, 0);
+});
+
+test('uitloggen: zonder X-Blitz: 1 -> 403 en de cookie blijft staan', async () => {
+  const o = opzet();
+  const token = tokenVoor('u-jan', 1, nuS() + 1000);
+  const res = await o.uitloggen(new Request('http://localhost/api/auth-uitloggen', {
+    method: 'POST', headers: { 'content-type': 'text/plain', ...metCookie(token) }, body: '{}',
+  }));
+  assert.equal(res.status, 403);
+  assert.deepEqual(await res.json(), { error: 'Verzoek geweigerd.', code: 'csrf' });
+  assert.equal(res.headers.get('set-cookie'), null);
   assert.equal((await activiteit(o.echt)).length, 0);
 });
 
@@ -395,7 +475,7 @@ test('wachtwoord: andere velden van de gebruiker blijven behouden', async () => 
   assert.equal(lijst.length, 4);
 });
 
-test('wachtwoord: fout huidig -> 400 (niet 401) en telt als mislukte poging', async () => {
+test('wachtwoord: fout huidig -> 400 (niet 401) en telt als mislukte poging; vergrendeling zonder scrypt en gelogd', async () => {
   const o = opzet();
   const t = tokenVoor('u-jan', 1, nuS() + 1000);
   const res = await o.wachtwoord(wwReq(t, { huidig: 'fout-fout-fout', nieuw: NIEUW }));
@@ -404,12 +484,47 @@ test('wachtwoord: fout huidig -> 400 (niet 401) en telt als mislukte poging', as
   const staat = await o.echt.get('login-pogingen', { type: 'json' });
   const vermeldingen = Object.values(staat.login);
   assert.equal(vermeldingen.length, 1);
-  assert.equal(vermeldingen[0].p.length, 1);
-  // 4 extra fouten -> 5e vergrendelt, daarna 429 en login ook vergrendeld
-  for (let i = 0; i < 4; i++) await o.wachtwoord(wwReq(t, { huidig: 'fout-' + i + '-fout', nieuw: NIEUW }));
+  assert.equal(vermeldingen[0].p.length, 1); // niet dubbel geteld
+  // 3 extra fouten -> 4 pogingen toegelaten; de 5e (zelfs juiste) vergrendelt zonder scrypt
+  for (let i = 0; i < 3; i++) assert.equal((await o.wachtwoord(wwReq(t, { huidig: 'fout-' + i + '-fout', nieuw: NIEUW }))).status, 400);
+  assert.equal(o.scrypt.aantal, 4);
   const vast = await o.wachtwoord(wwReq(t, { huidig: WW, nieuw: NIEUW }));
   assert.equal(vast.status, 429);
+  assert.equal(o.scrypt.aantal, 4);
   assert.equal((await o.login(loginReq('jan@blitz.test', WW))).status, 429);
+  const reeks = (await activiteit(o.echt)).filter(i => i.actie === 'login-mislukt-reeks');
+  assert.equal(reeks.length, 1);
+  assert.equal(reeks[0].gebruikerId, 'u-jan');
+  assert.equal(reeks[0].onderwerp, null);
+});
+
+test('wachtwoord: parallelle stoot foute pogingen laat nooit meer dan de limiet door naar scrypt', async () => {
+  const o = opzet();
+  const t = tokenVoor('u-jan', 1, nuS() + 1000);
+  const res = await Promise.all(Array.from({ length: 25 }, (_, i) => o.wachtwoord(wwReq(t, { huidig: 'fout-' + i + '-fout', nieuw: NIEUW }))));
+  assert.ok(res.every(r => r.status === 400 || r.status === 429));
+  assert.ok(o.scrypt.aantal <= 4, `scrypt liep ${o.scrypt.aantal}x`);
+});
+
+test('wachtwoord: schrijffout op de pogingenteller -> 429 zonder scrypt', async () => {
+  const o = opzet();
+  const t = tokenVoor('u-jan', 1, nuS() + 1000);
+  const origineel = o.echt.setJSON.bind(o.echt);
+  o.echt.setJSON = async (key, obj) => {
+    if (key === 'login-pogingen') throw new Error('storing');
+    return origineel(key, obj);
+  };
+  const res = await o.wachtwoord(wwReq(t, { huidig: WW, nieuw: NIEUW }));
+  assert.equal(res.status, 429);
+  assert.equal(o.scrypt.aantal, 0);
+});
+
+test('wachtwoord: een geslaagde wijziging wist de teller', async () => {
+  const o = opzet();
+  const t = tokenVoor('u-jan', 1, nuS() + 1000);
+  await o.wachtwoord(wwReq(t, { huidig: 'fout-fout-fout', nieuw: NIEUW }));
+  assert.equal((await o.wachtwoord(wwReq(t, { huidig: WW, nieuw: NIEUW }))).status, 200);
+  assert.deepEqual((await o.echt.get('login-pogingen', { type: 'json' })).login, {});
 });
 
 test('wachtwoord: beleidsfout (9 tekens) en nieuw === huidig -> 400', async () => {
@@ -435,7 +550,9 @@ test('wachtwoord: ontbrekende of niet-tekstvelden en ongeldige JSON -> 400', asy
 test('wachtwoord: zonder X-Blitz -> 403 csrf; zonder sessie -> 401 (kern niet bereikt)', async () => {
   const o = opzet();
   const t = tokenVoor('u-jan', 1, nuS() + 1000);
-  const zonderCsrf = await o.wachtwoord(post('auth-wachtwoord', { huidig: WW, nieuw: NIEUW }, metCookie(t)));
+  const zonderCsrf = await o.wachtwoord(new Request('http://localhost/api/auth-wachtwoord', {
+    method: 'POST', headers: { 'content-type': 'application/json', ...metCookie(t) }, body: JSON.stringify({ huidig: WW, nieuw: NIEUW }),
+  }));
   assert.equal(zonderCsrf.status, 403);
   const zonderSessie = await o.wachtwoord(post('auth-wachtwoord', { huidig: WW, nieuw: NIEUW }, { 'x-blitz': '1' }));
   assert.equal(zonderSessie.status, 401);
