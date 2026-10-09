@@ -527,8 +527,10 @@ test.describe('voorstel: onzeker resultaat, controle of de mail al weg is (Q1)',
     const z = await verstuurAfgebroken(page, verzoeken, mailVerzonden(['luc@test.be']), {
       stubs: { tickets: metP1({ emailEindklant: 'klant@test.be' }) },
     });
-    await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER + ' — voor wie de mail al kreeg is "verzonden" aangevinkt');
-    await expect(verstuurKnop(page)).toBeEnabled();
+    // Eindreview I3: de mail is maar naar een deel vertrokken: de knop blijft DICHT (een nieuwe verzending zou iedereen opnieuw mailen).
+    await expect(toastTekst(page)).toHaveText('⚠ De mail is maar naar een deel van de ontvangers vertrokken — kijk in Zoho na en stuur de ontbrekende mail daar. Voor wie de mail al kreeg is "verzonden" aangevinkt.');
+    await expect(verstuurKnop(page)).toBeDisabled();
+    await expect(verstuurKnop(page)).toHaveText('✉️ Verstuur voorstel');
     await expect(page.locator('#proposal-overlay')).toHaveClass(/open/);
     expect(z.opnames.propose).toHaveLength(1);
     expect(z.opnames['mail-check'].map(o => o.query.ontvangers)).toEqual(['luc@test.be,klant@test.be']);
@@ -565,6 +567,38 @@ test.describe('voorstel: onzeker resultaat, controle of de mail al weg is (Q1)',
     await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (luc@test.be); Mail is verzonden om 09:01 (klant@test.be) — voorstel als verzonden aangevinkt');
     expect(await registerLokaal(page)).toEqual({ p1: { contact: T_MAIL, klant: T_MAIL, tijdslot: '09:30–12:30', tijdslotDatum: '2026-10-08' } });
     expect(z.opnames['voorstel-status'].filter(o => o.methode === 'POST').map(o => o.body.doelgroepen)).toEqual([['contact', 'klant']]);
+  });
+
+  // Eindreview I1: een foutstatus met een JSON-body zonder `error` (bv. een Netlify-time-out) is nooit "gelukt" en wist nooit het register.
+  for (const [naam, antwoord] of [
+    ['500', { status: 500, json: { errorType: 'Sandbox.Timedout', errorMessage: 'Task timed out after 26.00 seconds' } }],
+    ['502', { status: 502, json: { errorMessage: 'Task timed out' } }],
+  ]) {
+    test(`propose ${naam} met een JSON-body zonder error en de mail is al verzonden: mailcontrole, voorstel aangevinkt, register niet gewist`, async ({ page, verzoeken }) => {
+      const z = await start(page, verzoeken, { paden: ['/api/propose', '/api/voorstel-status'], httpFouten: [{ pad: '/api/propose', status: antwoord.status }] });
+      z.zetAntwoord('propose', antwoord);
+      z.zetAntwoord('mail-check', mailVerzonden());
+      await openVoorstel(page);
+      await vulIn(page, '2026-10-08', '10:00');
+      await verstuurKnop(page).click();
+      await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (luc@test.be) — voorstel als verzonden aangevinkt');
+      await eenVerzendingEnEenControle(page, verzoeken, z, { herlading: true, statusPosts: 1 });
+      expect(z.opnames['voorstel-status'].filter(o => o.methode === 'DELETE')).toEqual([]);
+    });
+  }
+
+  test('propose 500 met een JSON-body zonder error en de mail is niet verzonden: de melding, geen DELETE van het register, de knop kan opnieuw', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/propose', '/api/voorstel-status'], httpFouten: [{ pad: '/api/propose', status: 500 }] });
+    z.zetAntwoord('propose', { status: 500, json: { errorMessage: 'Task timed out after 26.00 seconds' } });
+    await openVoorstel(page);
+    await vulIn(page, '2026-10-08', '10:00');
+    await verstuurKnop(page).click();
+    await laatMailControleHerhalen(page, z);
+    await expect(toastTekst(page)).toHaveText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
+    await expect(verstuurKnop(page)).toBeEnabled();
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, PROPOSE]);
+    expect(z.opnames['voorstel-status'].filter(o => o.methode !== 'GET')).toEqual([]);
+    expect(await planningVan(page)).toEqual(BASIS_PLANNING);
   });
 
   test('afgebroken, mail gevonden, register-POST geeft 500: "… maar kon niet als verzonden aangevinkt worden (herlaad de pagina)"', async ({ page, verzoeken }) => {
