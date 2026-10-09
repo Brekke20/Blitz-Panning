@@ -405,11 +405,6 @@
       <div class="set-field">
         <div id="set-toestel-status" style="font-size:0.85rem;font-weight:500"></div>
       </div>
-      <div class="set-field" role="radiogroup" aria-labelledby="set-rol-label">
-        <label class="set-label" id="set-rol-label">Rol op dit toestel</label>
-        <label class="set-row"><input type="radio" name="set-rol" value="coordinator" data-wijzig="set-toestel-rol" data-arg="coordinator"> <span>Coördinator</span></label>
-        <label class="set-row"><input type="radio" name="set-rol" value="technieker" data-wijzig="set-toestel-rol" data-arg="technieker"> <span>Technieker</span></label>
-      </div>
       <div class="set-field" role="radiogroup" aria-labelledby="set-weergave-label">
         <label class="set-label" id="set-weergave-label">Weergave</label>
         <label class="set-row"><input type="radio" name="set-weergave" value="auto" data-wijzig="set-toestel-weergave" data-arg="auto"> <span>Automatisch</span></label>
@@ -417,7 +412,7 @@
         <label class="set-row"><input type="radio" name="set-weergave" value="tablet" data-wijzig="set-toestel-weergave" data-arg="tablet"> <span>Tablet</span></label>
         <label class="set-row"><input type="radio" name="set-weergave" value="computer" data-wijzig="set-toestel-weergave" data-arg="computer"> <span>Computer</span></label>
       </div>
-      <div style="font-size:0.78rem;color:var(--muted)">Deze keuzes gelden enkel voor dit toestel. De rol verbergt knoppen maar is geen beveiliging.</div>
+      <div style="font-size:0.78rem;color:var(--muted)">Deze keuzes gelden enkel voor dit toestel. Wat je ziet en mag doen, hangt af van je account.</div>
       <div class="set-field" id="set-testdata-blok" style="display:none;margin-top:16px">
         <label class="set-label">Testgegevens</label>
         <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">Je werkt in testmodus met een kopie van de echte gegevens.</div>
@@ -426,7 +421,7 @@
     </div>
     <div class="mftr">
       <button class="btn btn--secondary coord-only" data-actie="set-prijsbeheer" title="Beheer productprijzen">💰 Prijzen</button>
-      <button class="btn btn--secondary" data-actie="set-sluit">Annuleren</button>
+      <button class="btn btn--secondary" id="set-sluit-btn" data-actie="set-sluit">Annuleren</button>
       <button class="btn btn--primary" id="set-save-btn" data-actie="set-opslaan">Opslaan</button>
       <div id="app-versie" class="set-versie"></div>
     </div>

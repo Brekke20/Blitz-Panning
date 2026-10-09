@@ -14,7 +14,8 @@
     try { localStorage.setItem(sleutel, waarde); } catch (e) {}
   }
 
-  // Rol van de ingelogde gebruiker (zetLoginRol, logins T15): enkel 'technieker' en 'sales' beperken het toestel.
+  // Rol van de ingelogde gebruiker (zetLoginRol, logins T15). De ACCOUNT bepaalt de weergave op elk toestel: technieker en sales zijn
+  // beperkt, beheerder en planner krijgen de volledige coördinatorweergave (UI/UX-review P1-5; de oude keuze "Rol op dit toestel" is weg).
   var loginRol = null;
 
   function bepaal() {
@@ -38,9 +39,10 @@
     var r = lees('blitz_rol');
     var rolGekozen = (r === 'coordinator' || r === 'technieker');
     var rol = rolGekozen ? r : (soort === 'computer' ? 'coordinator' : 'technieker');
-    // Een ingelogde technieker (of sales) is altijd de beperkte rol, op elk toestel, en krijgt geen tablet-rolvraag.
+    // Een ingelogde technieker (of sales) is altijd de beperkte rol, een beheerder of planner altijd coördinator, op elk toestel
+    // (ook een gsm of tablet: het compacte gedrag komt van `indeling`, niet van de rol). Geen rolvraag meer.
     // Sales houdt zijn eigen waarde 'sales' (CSS behandelt hem als technieker voor .coord-only; sales-schermen gebruiken eigen klassen).
-    if (loginRol) { rol = loginRol === 'sales' ? 'sales' : 'technieker'; rolGekozen = true; }
+    if (loginRol) { rol = loginRol === 'sales' ? 'sales' : loginRol === 'technieker' ? 'technieker' : 'coordinator'; rolGekozen = true; }
 
     return { soort: soort, automatischeSoort: auto, indeling: indeling, staand: staand,
              aanraak: grof, rol: rol, rolGekozen: rolGekozen, kortsteZijde: kortsteZijde };
@@ -80,7 +82,7 @@
   };
 
   window.zetLoginRol = function (r) {
-    loginRol = (r === 'technieker' || r === 'sales') ? r : null;
+    loginRol = (r === 'technieker' || r === 'sales' || r === 'beheerder' || r === 'planner') ? r : null;
     evalueer();
   };
 

@@ -12,12 +12,13 @@ test.describe('laden en rol', () => {
     for (const naam of TABS) await expect(tab(page, naam)).toBeVisible();
   });
 
-  test('technieker ziet geen coördinator-tabs', async ({ page }) => {
-    await startApp(page, { rol: 'technieker', technieker: 'Tim' });
+  // UI/UX P1-5: de rol komt uit het ACCOUNT (loginRol), niet meer uit een toestelkeuze (blitz_rol). Technieker: geen Wachtrij of Route.
+  test('technieker (account) ziet geen coördinator-tabs', async ({ page }) => {
+    await startApp(page, { loginRol: 'technieker', technieker: 'Tim' });
 
     await expect(page.locator('html')).toHaveAttribute('data-rol', 'technieker');
-    for (const naam of ['Wachtrij', 'Route', 'Rapporten']) await expect(tab(page, naam)).toBeHidden();
-    for (const naam of ['Kalender', 'Ingepland']) await expect(tab(page, naam)).toBeVisible();
+    for (const naam of ['Wachtrij', 'Route']) await expect(tab(page, naam)).toBeHidden();
+    for (const naam of ['Kalender', 'Ingepland', 'Rapporten']) await expect(tab(page, naam)).toBeVisible();
 
     await tab(page, 'Kalender').click();
     await expect(page.locator('#tab-planning')).toBeHidden();
@@ -46,17 +47,13 @@ test.describe('laden en rol', () => {
   test.describe('tablet', () => {
     test.use({ hasTouch: true });
 
-    test('tablet vraagt eenmalig de rol', async ({ page }) => {
+    // UI/UX P1-5: de eenmalige tablet-rolvraag bestaat niet meer; het account bepaalt de weergave (een beheerder is coördinator).
+    test('tablet vraagt de rol niet meer: een beheerder blijft coördinator, ook zonder bewaarde toestelrol', async ({ page }) => {
       await startApp(page, { rol: null, viewport: { width: 820, height: 1180 } });
+      await expect(page.getByRole('alertdialog', { name: 'Wie gebruikt deze tablet?' })).toHaveCount(0);
+      await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
       expect(await page.evaluate(() => localStorage.getItem('blitz_rol'))).toBeNull();
-
-      const dialoog = page.getByRole('alertdialog', { name: 'Wie gebruikt deze tablet?' });
-      await expect(dialoog).toBeVisible();
-      await dialoog.getByRole('button', { name: 'Technieker' }).click();
-
-      await expect(page.locator('html')).toHaveAttribute('data-rol', 'technieker');
-      expect(await page.evaluate(() => localStorage.getItem('blitz_rol'))).toBe('technieker');
-      await expect(dialoog).toBeHidden();
+      for (const naam of ['Wachtrij', 'Route', 'Rapporten']) await expect(tab(page, naam)).toBeVisible();
     });
   });
 });

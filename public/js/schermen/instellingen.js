@@ -34,7 +34,6 @@ export function initInstellingen(afhankelijkheden) {
     'prijs-opslaan':     () => afh.prijsOpslaan(),
   });
   registreerWijzigActies(document.body, {
-    'set-toestel-rol':      (el) => kiesToestelRol(el.dataset.arg),
     'set-toestel-weergave': (el) => kiesToestelWeergave(el.dataset.arg),
   });
   const setOverlay = document.getElementById('set-overlay');
@@ -140,14 +139,12 @@ function vulToestelTab() {
   if (a.soort !== a.automatischeSoort) tekst += ` (handmatig: ${SOORT_LABEL[a.soort] || a.soort})`;
   const el = document.getElementById('set-toestel-status');
   if (el) el.textContent = tekst;
-  document.querySelectorAll('input[name="set-rol"]').forEach(r => { r.checked = r.value === a.rol; });
   let w = 'auto';
   try { const o = localStorage.getItem('blitz_weergave'); if (o === 'gsm' || o === 'tablet' || o === 'computer') w = o; } catch {}
   document.querySelectorAll('input[name="set-weergave"]').forEach(r => { r.checked = r.value === w; });
 }
 // Direct bijwerken (naast de apparaatwijziging-listener): als de keuze de effectieve staat niet wijzigt
 // komt er geen event en zou "(handmatig: X)" achterblijven. vulToestelTab is goedkoop en idempotent.
-function kiesToestelRol(r) { window.zetRol(r); vulToestelTab(); }
 function kiesToestelWeergave(w) { window.zetWeergave(w); vulToestelTab(); }
 
 export function setSettingsTab(tab) {
@@ -161,6 +158,9 @@ export function setSettingsTab(tab) {
   document.getElementById('set-tab-algemeen').style.display = tab === 'algemeen' ? '' : 'none';
   document.getElementById('set-tab-beschikbaarheden').style.display = tab === 'beschikbaarheden' ? '' : 'none';
   document.getElementById('set-save-btn').style.display = tab === 'algemeen' ? '' : 'none';
+  // Op de tabs zonder iets om op te slaan (toestel, beschikbaarheden) is "Annuleren" misleidend: dan enkel "Sluiten".
+  const sluitKnop = document.getElementById('set-sluit-btn');
+  if (sluitKnop) sluitKnop.textContent = tab === 'algemeen' ? 'Annuleren' : 'Sluiten';
   if (tab === 'beschikbaarheden') renderBeschikbaarhedenTab();
 }
 

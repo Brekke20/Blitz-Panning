@@ -32,7 +32,7 @@ async function verwachtMeldingen(consoleFouten, delen) {
 }
 
 test.describe('instellingen: tab Dit toestel', () => {
-  test('coördinator: standaardtab Algemeen; de toesteltab toont herkenning, rol en weergave', async ({ page }) => {
+  test('coördinator: standaardtab Algemeen; de toesteltab toont herkenning en weergave (geen rolkeuze meer)', async ({ page }) => {
     await startApp(page);
     const modal = await openInstellingen(page);
     await expect(modal.locator('#set-tab-algemeen')).toBeVisible();
@@ -44,49 +44,43 @@ test.describe('instellingen: tab Dit toestel', () => {
     // De opslaan-knop hoort enkel bij Algemeen.
     await expect(modal.locator('#set-save-btn')).toBeHidden();
     await expect(modal.locator('#set-toestel-status')).toHaveText('Herkend als: Computer · liggend · muis/trackpad');
-    await expect(modal.getByRole('radio', { name: 'Coördinator' })).toBeChecked();
-    await expect(modal.getByRole('radio', { name: 'Technieker' })).not.toBeChecked();
+    // UI/UX P1-5: het account bepaalt de rol; de keuze "Rol op dit toestel" bestaat niet meer.
+    await expect(modal.getByText('Rol op dit toestel')).toHaveCount(0);
+    await expect(modal.getByRole('radio', { name: 'Coördinator' })).toHaveCount(0);
+    await expect(modal.getByRole('radio', { name: 'Technieker' })).toHaveCount(0);
     await expect(modal.getByRole('radio', { name: 'Automatisch' })).toBeChecked();
+    // Niets om op te slaan op deze tab: de knop heet "Sluiten" (op Algemeen "Annuleren").
+    await expect(modal.locator('#set-sluit-btn')).toHaveText('Sluiten');
     // Testmodus: het blok "Testgegevens" is zichtbaar.
     await expect(modal.locator('#set-testdata-blok')).toBeVisible();
     // Terug naar Algemeen: de opslaan-knop komt terug.
     await modal.getByRole('button', { name: 'Algemeen', exact: true }).click();
     await expect(modal.locator('#set-save-btn')).toBeVisible();
+    await expect(modal.locator('#set-sluit-btn')).toHaveText('Annuleren');
   });
 
-  test('technieker-rol: het venster opent op "Dit toestel" en de coördinatortabs bestaan niet', async ({ page }) => {
-    await startApp(page, { rol: 'technieker', technieker: 'Tim' });
+  test('technieker (account): het venster opent op "Dit toestel" en de coördinatortabs bestaan niet', async ({ page }) => {
+    await startApp(page, { loginRol: 'technieker', technieker: 'Tim' });
     const modal = await openInstellingen(page);
     await expect(modal.locator('#set-tab-toestel')).toBeVisible();
     await expect(modal.locator('#set-tab-algemeen')).toBeHidden();
     await expect(modal.locator('#set-subtab-algemeen')).toBeHidden();
     await expect(modal.locator('#set-subtab-beschikbaarheden')).toBeHidden();
-    await expect(modal.getByRole('radio', { name: 'Technieker' })).toBeChecked();
+    await expect(modal.getByText('Rol op dit toestel')).toHaveCount(0); // de dode rolkeuze van de technieker is weg (P1-5)
     // Ook een expliciete klik op een andere tab laat de technieker op "Dit toestel" (setSettingsTab forceert het).
     await page.evaluate(() => kern.instellingen.setSettingsTab('algemeen'));
     await expect(modal.locator('#set-tab-toestel')).toBeVisible();
     await expect(modal.locator('#set-tab-algemeen')).toBeHidden();
   });
 
-  test('rol kiezen (kiesToestelRol): tabs verdwijnen en verschijnen, blitz_rol wordt bewaard en de kalender wordt hertekend', async ({ page }) => {
+  // UI/UX P1-5: een toestelweergave (gsm/tablet) verandert de indeling, nooit de rol: het account beslist.
+  test('weergave "Gsm" kiezen laat een beheerder coördinator: alle tabs blijven, enkel de indeling wordt smal', async ({ page }) => {
     await startApp(page);
     const modal = await openToestel(page);
     for (const naam of ['Wachtrij', 'Route', 'Rapporten']) await expect(page.getByRole('tab', { name: naam })).toBeVisible();
-    const voor = await page.evaluate(() => kern.kalender.renderTelling());
-
-    await modal.getByRole('radio', { name: 'Technieker' }).check();
-    await expect(page.locator('html')).toHaveAttribute('data-rol', 'technieker');
-    expect(await leesOpslag(page, 'blitz_rol')).toBe('technieker');
-    for (const naam of ['Wachtrij', 'Route', 'Rapporten']) await expect(page.getByRole('tab', { name: naam })).toBeHidden();
-    // apparaatwijziging: de kalender is hertekend, het venster blijft open op de toesteltab met een bijgewerkte status.
-    expect(await page.evaluate(() => kern.kalender.renderTelling())).toBeGreaterThan(voor);
-    await expect(modal.locator('#set-tab-toestel')).toBeVisible();
-    await expect(modal.getByRole('radio', { name: 'Technieker' })).toBeChecked();
-    await expect(modal.locator('#set-subtab-algemeen')).toBeHidden();
-
-    await modal.getByRole('radio', { name: 'Coördinator' }).check();
+    await modal.getByRole('radio', { name: 'Gsm' }).check();
+    await expect(page.locator('html')).toHaveAttribute('data-indeling', 'smal');
     await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
-    expect(await leesOpslag(page, 'blitz_rol')).toBe('coordinator');
     for (const naam of ['Wachtrij', 'Route', 'Rapporten']) await expect(page.getByRole('tab', { name: naam })).toBeVisible();
     await expect(modal.locator('#set-subtab-algemeen')).toBeVisible();
   });
@@ -117,7 +111,7 @@ test.describe('instellingen: tab Dit toestel', () => {
     await expect(modal.getByRole('radio', { name: 'Automatisch' })).toBeChecked();
   });
 
-  test('een echt bubbelend change-event op een toesteluitkeuze (delegatie op document.body) zet rol en weergave', async ({ page }) => {
+  test('een echt bubbelend change-event op een toesteluitkeuze (delegatie op document.body) zet de weergave', async ({ page }) => {
     await startApp(page);
     await openToestel(page);
     await page.evaluate(() => {
@@ -127,11 +121,9 @@ test.describe('instellingen: tab Dit toestel', () => {
         r.dispatchEvent(new Event('change', { bubbles: true }));
       };
       kies('set-weergave', 'tablet');
-      kies('set-rol', 'technieker');
     });
     expect(await leesOpslag(page, 'blitz_weergave')).toBe('tablet');
-    expect(await leesOpslag(page, 'blitz_rol')).toBe('technieker');
-    await expect(page.locator('html')).toHaveAttribute('data-rol', 'technieker');
+    await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
     await expect(page.locator('#set-toestel-status')).toHaveText(/\(handmatig: Tablet\)$/);
   });
 
@@ -146,14 +138,14 @@ test.describe('instellingen: tab Dit toestel', () => {
     await expect(page.locator('html')).toHaveAttribute('data-apparaat', 'tablet');
   });
 
-  test('eerste weergavekeuze zonder gekozen rol legt de huidige rol vast (de rol flipt niet mee)', async ({ page }) => {
+  test('weergavekeuze zonder bewaarde toestelrol: de rol blijft die van het account (coördinator), ook op een gsm', async ({ page }) => {
     await startApp(page, { rol: null });
     expect(await leesOpslag(page, 'blitz_rol')).toBeNull();
-    await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator'); // computer: standaardrol
+    await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
     const modal = await openToestel(page);
     await modal.getByRole('radio', { name: 'Gsm' }).check();
-    // Zonder die vastlegging zou de standaardrol van een gsm "technieker" zijn.
-    expect(await leesOpslag(page, 'blitz_rol')).toBe('coordinator');
+    // Vroeger werd hier blitz_rol vastgelegd omdat de standaardrol van een gsm "technieker" was; nu beslist het account.
+    expect(await leesOpslag(page, 'blitz_rol')).toBeNull();
     await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
     await expect(page.locator('html')).toHaveAttribute('data-apparaat', 'gsm');
   });
