@@ -97,7 +97,9 @@ export function savePersonSettings(person) {
   const gebruiker = huidigeGebruiker();
   if (!gebruiker) return; // geen sessie (kan niet na de login): enkel lokaal
   bewaarOpServer(person, settings, gebruiker).then((r) => {
-    if (!r.ok && r.reden === 'geen-recht') toast('Je mag de instellingen van deze persoon niet wijzigen; lokaal bewaard.', 4000);
+    if (r.ok) return;
+    if (r.reden === 'geen-recht') toast('Je mag de instellingen van deze persoon niet wijzigen; lokaal bewaard.', 4000);
+    else if (r.reden === 'ongeldig') toast('De instellingen zijn niet geldig en werden enkel lokaal bewaard.', 4000);
   }).catch(() => { /* bewaarOpServer gooit niet; vangnet */ });
 }
 

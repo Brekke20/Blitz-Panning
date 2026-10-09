@@ -1,9 +1,9 @@
 // Tests voor kern/instellingen-sync.js (logins T16): de server is de bron, localStorage de synchrone cache.
-import { test, beforeEach } from 'node:test';
+import { test, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   synchroniseerInstellingen, bewaarOpServer, wisInstellingenCache,
-  MARKER_SLEUTEL, VUIL_SLEUTEL,
+  heeftVuileInstellingen, MARKER_SLEUTEL, VUIL_SLEUTEL,
 } from '../public/js/kern/instellingen-sync.js';
 
 const maakOpslag = (begin = {}) => {
@@ -132,12 +132,12 @@ test('server heeft waarde + marker van een ander: de serverwaarde komt in de pla
 
 test('mislukt het overzicht (netwerk of 503): opslag ongewijzigd en geen gooi', async () => {
   for (const fout of [netFout(), httpFout(503), httpFout(500)]) {
-    const begin = { blitz_settings: { startlocatie: 'Lokaal' }, blitz_laatste_start: '15:00', [MARKER_SLEUTEL]: 'u-ander' };
+    const begin = { blitz_settings: { startlocatie: 'Lokaal' }, blitz_laatste_start: '15:00', [MARKER_SLEUTEL]: 'u-pl' };
     const opslag = maakOpslag(begin);
     await synchroniseerInstellingen(PLANNER, { apiJson: nepApiJson({ overzicht: fout }), opslag });
     assert.deepEqual(opslag.sleutels(), Object.keys(begin).sort());
     assert.equal(opslag.json('blitz_settings').startlocatie, 'Lokaal');
-    assert.equal(opslag.getItem(MARKER_SLEUTEL), 'u-ander', 'ook de marker blijft (we weten niets zeker)');
+    assert.equal(opslag.getItem(MARKER_SLEUTEL), 'u-pl');
   }
 });
 
@@ -305,4 +305,128 @@ test('wisInstellingenCache vergeet ook de overzicht-cache: daarna kent bewaarOpS
   const r = await bewaarOpServer('Roel', S(), PLANNER, { apiVerzoek: api, opslag });
   assert.deepEqual(api.puts, []);
   assert.equal(r.reden, 'netwerk');
+});
+
+// ── Fix-ronde 1: tijdsbudget, vreemde marker offline, write-ahead, serialisatie, wees-markering, heeftVuileInstellingen ──
+const nooitKlaar = () => new Promise(() => {});
+
+test('tijdsbudget: een GET die nooit antwoordt eindigt na het budget; geen gooi, niets geschreven, geen marker', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const opslag = maakOpslag({ blitz_settings: { startlocatie: 'Lokaal' } });
+    const klaar = synchroniseerInstellingen(PLANNER, { apiJson: nooitKlaar, opslag });
+    let afgerond = false;
+    klaar.then(() => { afgerond = true; });
+    mock.timers.tick(6999);
+    await Promise.resolve(); await Promise.resolve();
+    assert.equal(afgerond, false, 'binnen het budget nog niet klaar');
+    mock.timers.tick(1);
+    assert.equal(await klaar, false);
+    assert.deepEqual(opslag.sleutels(), ['blitz_settings']);
+  } finally { mock.timers.reset(); }
+});
+
+test('tijdsbudget: het budget geldt in totaal; een hangende PUT in ronde 1 stopt de rest en een late afloop schrijft niets meer', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const opslag = maakOpslag({ blitz_settings_Roel: { startlocatie: 'Roel lokaal' }, [VUIL_SLEUTEL]: { Roel: true } });
+    let laatPutKlaar;
+    const api = async (pad, opties = {}) => {
+      if ((opties.methode ?? 'GET') === 'GET') {
+        return ovz({ gebruikerId: 'u-pl', versie: 1, instellingen: S({ startlocatie: 'Eigen server' }) }, { Roel: { gebruikerId: 'u-roel', instellingen: S({ startlocatie: 'Roel server' }) } });
+      }
+      return new Promise((resolve) => { laatPutKlaar = () => resolve({ versie: 9 }); }); // hangt tot het de test uitkomt
+    };
+    const klaar = synchroniseerInstellingen(PLANNER, { apiJson: api, opslag });
+    await new Promise(r => setImmediate(r)); // GET afgehandeld, PUT hangt
+    mock.timers.tick(7000);
+    assert.equal(await klaar, false);
+    laatPutKlaar(); // een late PUT-afloop
+    await new Promise(r => setImmediate(r));
+    assert.equal(opslag.getItem('blitz_settings'), null, 'de serverwaarde van mij werd niet meer in de opslag gezet');
+    assert.equal(opslag.json('blitz_settings_Roel').startlocatie, 'Roel lokaal');
+    assert.deepEqual(opslag.json(VUIL_SLEUTEL), { Roel: true }, 'de markering is niet door de late afloop gewist');
+    assert.equal(opslag.getItem(MARKER_SLEUTEL), null, 'zonder volledige synchronisatie geen marker');
+  } finally { mock.timers.reset(); }
+});
+
+test('een synchronisatie binnen het budget laat geen timer achter en geeft true', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const opslag = maakOpslag();
+    const klaar = await synchroniseerInstellingen(PLANNER, { apiJson: nepApiJson({ overzicht: ovz({ gebruikerId: 'u-pl', versie: 1, instellingen: S() }) }), opslag });
+    assert.equal(klaar, true);
+    mock.timers.tick(20000); // zou een vergeten timer afvuren: geen effect
+    assert.equal(opslag.json('blitz_settings').startlocatie, 'Server 1');
+  } finally { mock.timers.reset(); }
+});
+
+test('offline start met de marker van een ander: de vreemde instellingen zijn meteen weg en de marker is de mijne (mijn offline wijziging blijft later bewaard)', async () => {
+  const opslag = maakOpslag({ blitz_settings: { startlocatie: 'Van de ander' }, blitz_laatste_start: '14:00', [MARKER_SLEUTEL]: 'u-ander', [VUIL_SLEUTEL]: { all: true } });
+  assert.equal(await synchroniseerInstellingen(PLANNER, { apiJson: nepApiJson({ overzicht: netFout() }), opslag }), false);
+  assert.equal(opslag.getItem('blitz_settings'), null);
+  assert.equal(opslag.getItem('blitz_laatste_start'), null);
+  assert.equal(opslag.getItem(VUIL_SLEUTEL), null);
+  assert.equal(opslag.getItem(MARKER_SLEUTEL), 'u-pl');
+  // Mijn eigen offline wijziging, daarna online: niet als "van een ander" gewist.
+  opslag.setItem('blitz_settings', JSON.stringify({ startlocatie: 'Mijn offline' }));
+  opslag.setItem(VUIL_SLEUTEL, JSON.stringify({ all: true }));
+  const api = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-pl', versie: 1, instellingen: S() }) });
+  await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag });
+  assert.equal(api.puts.length, 1);
+  assert.equal(api.puts[0].instellingen.startlocatie, 'Mijn offline');
+});
+
+test('write-ahead: de vuil-markering staat er al tijdens de PUT en verdwijnt na succes', async () => {
+  const opslag = maakOpslag();
+  await laadCache(PLANNER, opslag, ovz({ gebruikerId: 'u-pl', versie: 0, instellingen: null }));
+  let tijdensPut = null;
+  const api = async () => { tijdensPut = opslag.json(VUIL_SLEUTEL); return { ok: true, status: 200, data: {} }; };
+  assert.equal((await bewaarOpServer('Roel', S(), PLANNER, { apiVerzoek: api, opslag })).ok, true);
+  assert.deepEqual(tijdensPut, { Roel: true });
+  assert.equal(opslag.getItem(VUIL_SLEUTEL), null);
+});
+
+test('serialisatie: twee snelle opslagen voor dezelfde persoon gaan na elkaar; de tweede stuurt de actuele opslagwaarde', async () => {
+  const opslag = maakOpslag();
+  await laadCache(PLANNER, opslag, ovz({ gebruikerId: 'u-pl', versie: 0, instellingen: null }));
+  const bodies = []; let ontgrendel;
+  let eerste = true;
+  const api = (pad, opties) => {
+    bodies.push(opties.body.instellingen.startlocatie);
+    if (eerste) { eerste = false; return new Promise((r) => { ontgrendel = () => r({ ok: true, status: 200, data: {} }); }); }
+    return Promise.resolve({ ok: true, status: 200, data: {} });
+  };
+  const p1 = bewaarOpServer('all', S({ startlocatie: 'Een' }), PLANNER, { apiVerzoek: api, opslag });
+  opslag.setItem('blitz_settings', JSON.stringify(S({ startlocatie: 'Twee' }))); // savePersonSettings schrijft eerst lokaal
+  const p2 = bewaarOpServer('all', S({ startlocatie: 'Twee' }), PLANNER, { apiVerzoek: api, opslag });
+  await new Promise(r => setImmediate(r));
+  assert.deepEqual(bodies, ['Een'], 'de tweede wacht op de eerste');
+  ontgrendel();
+  assert.equal((await p1).ok, true);
+  assert.equal((await p2).ok, true);
+  assert.deepEqual(bodies, ['Een', 'Twee']);
+  // Andere personen wachten niet op elkaar.
+  const ander = [];
+  const api2 = (pad, opties) => { ander.push(opties.body.gebruiker ?? 'eigen'); return new Promise(() => {}); };
+  bewaarOpServer('all', S(), PLANNER, { apiVerzoek: api2, opslag });
+  bewaarOpServer('Roel', S(), PLANNER, { apiVerzoek: api2, opslag });
+  await new Promise(r => setImmediate(r));
+  assert.deepEqual(ander.sort(), ['eigen', 'u-roel']);
+});
+
+test('wees-markering: een vuile persoon die niet (meer) in het overzicht staat wordt opgeruimd', async () => {
+  const opslag = maakOpslag({ blitz_settings_Weg: { startlocatie: 'x' }, [VUIL_SLEUTEL]: { Weg: true, Roel: true }, blitz_settings_Roel: { startlocatie: 'Roel lokaal' } });
+  const api = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-pl', versie: 1, instellingen: null }, { Roel: { gebruikerId: 'u-roel', instellingen: null } }) });
+  await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag });
+  assert.equal(opslag.getItem(VUIL_SLEUTEL), null, 'Weg is opgeruimd en Roel is opgeladen');
+  assert.equal(api.puts.length, 1);
+  assert.equal(api.puts[0].gebruiker, 'u-roel');
+});
+
+test('heeftVuileInstellingen: true enkel bij een niet-lege markering', () => {
+  assert.equal(heeftVuileInstellingen(maakOpslag()), false);
+  assert.equal(heeftVuileInstellingen(maakOpslag({ [VUIL_SLEUTEL]: {} })), false);
+  assert.equal(heeftVuileInstellingen(maakOpslag({ [VUIL_SLEUTEL]: { Tim: true } })), true);
+  assert.equal(heeftVuileInstellingen(maakOpslag({ [VUIL_SLEUTEL]: 'kapot{' })), false);
 });

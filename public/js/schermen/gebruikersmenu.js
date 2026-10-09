@@ -3,6 +3,8 @@
 // Veiligheid: de naam en rol komen enkel via textContent in de DOM (nooit innerHTML).
 import { registreerActies } from '../kern/ui.js';
 import { afmelden } from '../kern/sessie.js';
+import { heeftVuileInstellingen } from '../kern/instellingen-sync.js';
+import { appConfirm } from '../app-dialog.js';
 import { toonWachtwoordWijzigen } from './inloggen.js';
 
 const ROL_LABEL = { beheerder: 'Beheerder', planner: 'Planner', technieker: 'Technieker', sales: 'Sales' };
@@ -47,6 +49,20 @@ function opToets(e) {
   wortel.querySelector('.gebruiker-btn')?.focus();
 }
 
+// Afmelden, maar eerst een waarschuwing als er instellingen zijn die nog niet naar de server gingen: afmelden wist de lokale cache,
+// dus die wijzigingen gaan dan verloren (logins T16). Annuleren = ingelogd blijven.
+async function meldAf() {
+  if (heeftVuileInstellingen(globalThis.localStorage)) {
+    const ok = await appConfirm({
+      titel: 'Instellingen nog niet opgeslagen',
+      tekst: 'Er zijn instellingen die nog niet naar de server gingen. Als je nu afmeldt, gaan ze verloren. Toch afmelden?',
+      bevestigLabel: 'Toch afmelden', annuleerLabel: 'Terug', gevaar: true,
+    });
+    if (!ok) return;
+  }
+  afmelden();
+}
+
 // Bouwt de knop en het menu (of bouwt ze opnieuw voor een andere gebruiker); veilig om meerdere keren aan te roepen.
 export function toonGebruikersmenu(gebruiker) {
   const kop = document.querySelector('header');
@@ -79,7 +95,7 @@ export function toonGebruikersmenu(gebruiker) {
     'gebruiker-menu': () => zetOpen(!menu.classList.contains('open')),
     'gebruiker-wachtwoord': () => { zetOpen(false); toonWachtwoordWijzigen({ verplicht: false }); },
     'gebruiker-beheer': () => { zetOpen(false); document.getElementById('tab-beheer')?.click(); },
-    'gebruiker-uitloggen': () => { zetOpen(false); afmelden(); },
+    'gebruiker-uitloggen': () => { zetOpen(false); meldAf(); },
   });
   // Eén keer per document: buiten klikken en Escape sluiten het menu.
   document.removeEventListener('click', opDocumentKlik);

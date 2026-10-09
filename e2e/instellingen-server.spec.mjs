@@ -25,7 +25,7 @@ function instellingenStub({ eigen = null, techniekers = {}, put = () => ({ statu
 }
 const puts = (verzoeken) => verzoeken.van('/api/instellingen', 'PUT');
 // Een bewust beantwoorde 403 geeft de browser als consolefout; die hoort bij de foutenpadtest.
-const negeer403 = (consoleFouten) => { for (let i = consoleFouten.length - 1; i >= 0; i--) if (/403.*\/api\/instellingen/.test(consoleFouten[i])) consoleFouten.splice(i, 1); };
+const negeer403 = (consoleFouten) => { for (let i = consoleFouten.length - 1; i >= 0; i--) if (/(400|403).*\/api\/instellingen/.test(consoleFouten[i])) consoleFouten.splice(i, 1); };
 
 test.describe('instellingen van de server', () => {
   test('het venster toont de serverwaarden; opslaan doet een PUT met de nieuwe waarde', async ({ page, verzoeken }) => {
@@ -112,5 +112,43 @@ test.describe('instellingen van de server', () => {
     expect(await leesOpslag(page, 'blitz_settings')).toBeNull();
     expect(await leesOpslag(page, 'blitz_laatste_start')).toBeNull();
     expect(await leesOpslag(page, 'blitz_instellingen_eigenaar')).toBeNull();
+  });
+
+  test('een door de server geweigerde waarde (400): toast "niet geldig, enkel lokaal bewaard" en geen vuil-markering', async ({ page, consoleFouten }) => {
+    const weiger = () => ({ status: 400, json: { error: '⚠ Duur is ongeldig' } });
+    await startApp(page, { overschrijf: { instellingen: instellingenStub({ eigen: SERVER, put: weiger }) } });
+    const modal = await openInstellingen(page);
+    await modal.locator('#set-start').fill('Ongeldigstraat 1');
+    await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(toastTekst(page)).toHaveText('De instellingen zijn niet geldig en werden enkel lokaal bewaard.');
+    expect((await leesJson(page, 'blitz_settings')).startlocatie).toBe('Ongeldigstraat 1');
+    expect(await leesOpslag(page, 'blitz_instellingen_vuil')).toBeNull();
+    negeer403(consoleFouten);
+  });
+
+  test('uitloggen met instellingen die nog niet naar de server gingen: waarschuwing; Terug blijft ingelogd, Toch afmelden meldt af', async ({ page, verzoeken }) => {
+    await startApp(page, { overschrijf: { instellingen: instellingenStub({ eigen: SERVER }) } });
+    await page.evaluate(() => localStorage.setItem('blitz_instellingen_vuil', JSON.stringify({ all: true })));
+    await page.locator('.gebruiker-btn').click();
+    await page.getByRole('menuitem', { name: 'Uitloggen' }).click();
+    const dialoog = page.getByRole('alertdialog');
+    await expect(dialoog).toContainText('Er zijn instellingen die nog niet naar de server gingen. Als je nu afmeldt, gaan ze verloren. Toch afmelden?');
+    await dialoog.getByRole('button', { name: 'Terug' }).click();
+    await expect(dialoog).toHaveCount(0);
+    expect(verzoeken.van('/api/auth-uitloggen', 'POST')).toHaveLength(0);
+    expect(await leesOpslag(page, 'blitz_settings')).not.toBeNull(); // nog ingelogd, niets gewist
+
+    await page.locator('.gebruiker-btn').click();
+    await page.getByRole('menuitem', { name: 'Uitloggen' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Toch afmelden' }).click();
+    await expect.poll(() => verzoeken.van('/api/auth-uitloggen', 'POST').length).toBe(1);
+  });
+
+  test('uitloggen zonder niet-opgeslagen instellingen: geen waarschuwing', async ({ page, verzoeken }) => {
+    await startApp(page, { overschrijf: { instellingen: instellingenStub({ eigen: SERVER }) } });
+    await page.locator('.gebruiker-btn').click();
+    await page.getByRole('menuitem', { name: 'Uitloggen' }).click();
+    await expect.poll(() => verzoeken.van('/api/auth-uitloggen', 'POST').length).toBe(1);
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
   });
 });

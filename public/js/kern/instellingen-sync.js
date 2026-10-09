@@ -5,20 +5,28 @@
 // cache; `savePersonSettings` (schermen/instellingen.js) schrijft lokaal én roept `bewaarOpServer` aan.
 //
 // Een gedeeld toestel: de cache hoort bij één gebruiker (marker `blitz_instellingen_eigenaar`). Hoort ze bij een ANDERE gebruiker,
-// dan wordt ze gewist vóór er iets gebeurt: de lokale waarde van een ander gaat nooit omhoog als de mijne. Zonder marker (vóór deze
-// versie of net gewist) geldt de lokale waarde als de mijne en gaat ze eenmalig omhoog als de server nog niets van mij heeft.
+// dan wordt ze gewist vóór er iets gebeurt (ook zonder verbinding): de lokale waarde van een ander gaat nooit omhoog als de mijne.
+// Zonder marker (vóór deze versie of net gewist) geldt de lokale waarde als de mijne en gaat ze eenmalig omhoog als de server nog
+// niets van mij heeft.
 //
 // Vuil-markering (`blitz_instellingen_vuil` = { [persoon]: true }): een PUT die niet lukte door een netwerk- of opslagprobleem.
 // De volgende synchronisatie laadt voor zo'n persoon EERST de lokale waarde op; pas als dat lukt (of de server het definitief
 // weigert) mag er weer iets van de server in de cache komen. Zo gaat een offline gemaakte wijziging nooit stil verloren.
+// De markering wordt VÓÓR de PUT gezet (write-ahead) en na een geslaagde of definitief geweigerde PUT gewist: sluit de app midden
+// in de PUT, dan blijft het spoor staan.
+//
+// Tijdsbudget: de app start pas na de synchronisatie; daarom loopt ze in totaal maximaal SYNC_BUDGET_MS. Daarna keert ze terug en
+// schrijft ze niets meer (ook niet als een late fetch later nog antwoordt): de app start met de lokale cache.
 import { apiJson as standaardApiJson, apiVerzoek as standaardApiVerzoek } from './api.js';
 import { settingsKey } from '../schermen/instellingen-logica.js';
 
 export const MARKER_SLEUTEL = 'blitz_instellingen_eigenaar';
 export const VUIL_SLEUTEL = 'blitz_instellingen_vuil';
+export const SYNC_BUDGET_MS = 7000;
 const LAATSTE_START_SLEUTEL = 'blitz_laatste_start';
 const SETTINGS_VOORVOEGSEL = 'blitz_settings';
 const PAD = '/api/instellingen';
+const STOP = Symbol('instellingen-sync-stop');
 
 const isObject = b => Boolean(b) && typeof b === 'object' && !Array.isArray(b);
 const isTijd = v => /^\d{2}:\d{2}$/.test(v || '');
@@ -55,11 +63,26 @@ function zetVuil(opslag, persoon, vuil) {
   if (Object.keys(nu).length) schrijfTekst(opslag, VUIL_SLEUTEL, JSON.stringify(nu)); else verwijder(opslag, VUIL_SLEUTEL);
 }
 
+// Staat er nog een wijziging die niet naar de server ging? (Voor de waarschuwing bij het afmelden.)
+export function heeftVuileInstellingen(opslag = globalThis.localStorage) {
+  return Object.keys(leesVuil(opslag)).length > 0;
+}
+
 // Alles wat bij de instellingen van een gebruiker hoort (zie wisInstellingenCache): de eigenaar-marker niet.
 function wisInstellingen(opslag) {
   for (const k of sleutelsMet(opslag, SETTINGS_VOORVOEGSEL)) verwijder(opslag, k);
   verwijder(opslag, LAATSTE_START_SLEUTEL);
   verwijder(opslag, VUIL_SLEUTEL);
+}
+
+// De lokale cache hoort bij een ANDER dan `mijnId`: weg (ook de vuil-markering: nooit als de mijne omhoog) en de marker wordt de mijne,
+// zodat een wijziging die ik offline maak bij de volgende synchronisatie niet als "van een ander" wordt gewist. Geeft true bij wissen.
+function neemCacheOver(opslag, mijnId) {
+  const marker = leesTekst(opslag, MARKER_SLEUTEL);
+  if (marker === null || marker === mijnId) return false;
+  wisInstellingen(opslag);
+  schrijfTekst(opslag, MARKER_SLEUTEL, mijnId);
+  return true;
 }
 
 // Afmeldhaak (door schermen/rol-schil.js geregistreerd): alle lokale instellingen, de marker en de vuil-markering weg,
@@ -102,8 +125,8 @@ async function stuur(verstuur, lichaam) {
     return { ok: false, reden: naarReden(typeof fout?.status === 'number' ? fout.status : 0) };
   }
 }
-// Verwerkt de uitkomst voor de vuil-markering. geen-recht en geen-account zijn definitief: de markering verdwijnt (anders blijft de
-// persoon voor altijd vastzitten op een lokale waarde die nooit meer omhoog mag); enkel 'netwerk' markeert.
+// Verwerkt de uitkomst voor de vuil-markering. geen-recht, geen-account en ongeldig zijn definitief: de markering verdwijnt (anders
+// blijft de persoon voor altijd vastzitten op een lokale waarde die nooit meer omhoog mag); enkel 'netwerk' laat ze staan.
 function verwerkUitkomst(opslag, persoon, r) {
   if (r.ok || r.reden === 'geen-recht' || r.reden === 'geen-account' || r.reden === 'ongeldig') zetVuil(opslag, persoon, false);
   else zetVuil(opslag, persoon, true);
@@ -118,17 +141,31 @@ function idVoorTechnieker(naam) {
   return sleutel === undefined ? null : t[sleutel];
 }
 
-export async function synchroniseerInstellingen(gebruiker, { apiJson = standaardApiJson, opslag = globalThis.localStorage } = {}) {
+// Geeft true als de synchronisatie volledig liep, false bij een mislukking, een onverwacht antwoord of het verlopen van het budget.
+export async function synchroniseerInstellingen(gebruiker, { apiJson = standaardApiJson, opslag = globalThis.localStorage, budgetMs = SYNC_BUDGET_MS } = {}) {
+  // Een vreemde marker ook zonder verbinding opruimen: een toestel dat offline start toont nooit de instellingen van een ander.
+  if (typeof gebruiker?.id === 'string' && gebruiker.id) neemCacheOver(opslag, gebruiker.id);
+
+  let gestopt = false;
+  let timer;
+  const stop = new Promise((resolve) => { timer = setTimeout(() => { gestopt = true; resolve(STOP); }, budgetMs); });
+  // `gestopt` verandert enkel tijdens een await: na elke wacht volstaat een controle om te garanderen dat er daarna niets meer geschreven wordt.
+  const wacht = (belofte) => Promise.race([belofte, stop]);
+  try {
+    return await voerSynchronisatieUit(gebruiker, apiJson, opslag, wacht, () => gestopt);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function voerSynchronisatieUit(gebruiker, apiJson, opslag, wacht, isGestopt) {
   let overzicht;
-  try { overzicht = await apiJson(`${PAD}?overzicht=1`); } catch { return; } // geen verbinding of 503: de app start met de lokale cache
-  if (!isObject(overzicht) || !isObject(overzicht.eigen)) return;
+  try { overzicht = await wacht(apiJson(`${PAD}?overzicht=1`)); } catch { return false; } // geen verbinding of 503: de app start met de lokale cache
+  if (isGestopt() || !isObject(overzicht) || !isObject(overzicht.eigen)) return false;
 
   const mijnId = typeof gebruiker?.id === 'string' && gebruiker.id ? gebruiker.id : overzicht.eigen.gebruikerId;
-  if (typeof mijnId !== 'string' || !mijnId) return;
-
-  // De lokale cache hoort bij een ANDER: weg, ook de vuil-markering (nooit als de mijne omhoog).
-  const marker = leesTekst(opslag, MARKER_SLEUTEL);
-  if (marker !== null && marker !== mijnId) wisInstellingen(opslag);
+  if (typeof mijnId !== 'string' || !mijnId) return false;
+  neemCacheOver(opslag, mijnId);
 
   const eigenPersoon = eigenPersoonVan(gebruiker);
   const techniekers = isObject(overzicht.techniekers) ? overzicht.techniekers : {};
@@ -145,15 +182,20 @@ export async function synchroniseerInstellingen(gebruiker, { apiJson = standaard
     personen.push({ persoon: naam, id: t.gebruikerId, server: isObject(t.instellingen) ? t.instellingen : null, eigen: false });
   }
 
+  // Een vuile persoon die niet (meer) in het overzicht staat (account verwijderd) kan nooit meer omhoog: de markering weg.
+  const vuil = leesVuil(opslag);
+  const bekend = new Set(personen.map(p => p.persoon));
+  for (const persoon of Object.keys(vuil)) if (!bekend.has(persoon)) { zetVuil(opslag, persoon, false); delete vuil[persoon]; }
+
   // Ronde 1: mislukte PUT's van vroeger. Eerst ALLE vuile lokale waarden omhoog, vóór er iets van de server in de opslag komt;
   // enkel bij succes of een definitieve weigering mag de server voor die persoon weer winnen.
-  const vuil = leesVuil(opslag);
   const blijftLokaal = new Set();
   for (const { persoon, id, eigen } of personen) {
     if (vuil[persoon] !== true) continue;
     const lokaal = leesJson(opslag, settingsKey(persoon));
     if (!lokaal) { zetVuil(opslag, persoon, false); continue; } // niets (meer) om op te laden
-    const r = await stuur(verstuur, { ...(eigen ? {} : { gebruiker: id }), instellingen: lichaamVoor(persoon, lokaal, gebruiker, opslag) });
+    const r = await wacht(stuur(verstuur, { ...(eigen ? {} : { gebruiker: id }), instellingen: lichaamVoor(persoon, lokaal, gebruiker, opslag) }));
+    if (isGestopt()) return false;
     verwerkUitkomst(opslag, persoon, r);
     if (r.ok || r.reden === 'netwerk') blijftLokaal.add(persoon); // gelukt: lokaal = server; netwerk: lokaal blijft staan, niets overschrijven
   }
@@ -167,14 +209,32 @@ export async function synchroniseerInstellingen(gebruiker, { apiJson = standaard
     } else if (eigen) {
       // De server heeft nog niets van mij maar lokaal staat er iets (en het is het mijne: een andere eigenaar is al gewist).
       const lokaal = leesJson(opslag, sleutel);
-      if (lokaal && Object.keys(lokaal).length) await stuur(verstuur, { instellingen: lichaamVoor(persoon, lokaal, gebruiker, opslag) }); // mislukt: volgende start opnieuw
+      if (lokaal && Object.keys(lokaal).length) {
+        await wacht(stuur(verstuur, { instellingen: lichaamVoor(persoon, lokaal, gebruiker, opslag) })); // mislukt: volgende start opnieuw
+        if (isGestopt()) return false;
+      }
     }
   }
   schrijfTekst(opslag, MARKER_SLEUTEL, mijnId);
+  return true;
 }
 
 // Bewaart de instellingen van `persoon` op de server. Faalt nooit hard: geeft { ok } of { ok:false, reden } terug.
-export async function bewaarOpServer(persoon, instellingen, gebruiker, { apiVerzoek = standaardApiVerzoek, opslag = globalThis.localStorage } = {}) {
+// Per persoon na elkaar (een promise-keten): twee snelle opslagen geven geen PUT's die in de verkeerde volgorde aankomen; een PUT die
+// moest wachten stuurt de dan actuele waarde uit de opslag (de nieuwste lokale stand), niet de waarde van het moment van de aanroep.
+const ketens = new Map(); // persoon -> laatste (nooit falende) belofte
+export function bewaarOpServer(persoon, instellingen, gebruiker, opties = {}) {
+  const sleutel = String(persoon ?? 'all');
+  const kopie = JSON.parse(JSON.stringify(instellingen ?? {}));
+  const wachtend = ketens.has(sleutel);
+  const taak = (ketens.get(sleutel) ?? Promise.resolve()).then(() => bewaar(persoon, kopie, gebruiker, opties, wachtend));
+  const staart = taak.then(() => {}, () => {});
+  ketens.set(sleutel, staart);
+  staart.then(() => { if (ketens.get(sleutel) === staart) ketens.delete(sleutel); });
+  return taak;
+}
+
+async function bewaar(persoon, instellingen, gebruiker, { apiVerzoek = standaardApiVerzoek, opslag = globalThis.localStorage }, wachtend) {
   const eigen = isEigen(persoon, gebruiker);
   let doelId = null;
   if (eigen) doelId = gebruiker?.id ?? overzichtCache?.eigenId ?? null;
@@ -185,9 +245,11 @@ export async function bewaarOpServer(persoon, instellingen, gebruiker, { apiVerz
   }
   if (!doelId) return { ok: false, reden: 'geen-account' };
 
+  const actueel = wachtend ? (leesJson(opslag, settingsKey(persoon)) ?? instellingen) : instellingen;
+  zetVuil(opslag, persoon, true); // write-ahead: sluit de app midden in de PUT, dan blijft dit spoor staan
   const r = await stuur(
     lichaam => apiVerzoek(PAD, { methode: 'PUT', body: lichaam }),
-    { ...(eigen ? {} : { gebruiker: doelId }), instellingen: lichaamVoor(persoon, instellingen, gebruiker, opslag) },
+    { ...(eigen ? {} : { gebruiker: doelId }), instellingen: lichaamVoor(persoon, actueel, gebruiker, opslag) },
   );
   verwerkUitkomst(opslag, persoon, r);
   return r;
