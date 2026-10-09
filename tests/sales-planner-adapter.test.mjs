@@ -63,8 +63,8 @@ function mengeling() {
 
 test('bouwPlanInvoer: kandidaten, vrijgegeven en bestaande bezoeken', () => {
   const { invoer, vrijgegeven } = invoerVan(mengeling());
-  assert.deepEqual(invoer.kandidaten.map(k => k.id), ['A', 'B']);
-  assert.deepEqual(vrijgegeven, ['B']);
+  assert.deepEqual(invoer.kandidaten.map(k => k.id), ['A', 'B', 'G']); // G: voorstel van 5 okt, vóór vandaag (6 okt) niet bevestigd = verlopen (I2)
+  assert.deepEqual(vrijgegeven, ['B', 'G']);
   assert.deepEqual(invoer.dagen, ['2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09']);
   assert.deepEqual(invoer.bestaandPerDag['2026-10-06'], [{ id: 'C', uur: '10:00', duurMin: 60, lat: 50.93, lon: 5.34 }]);
   assert.deepEqual(invoer.bestaandPerDag['2026-10-08'].map(b => b.id), ['D']);
@@ -77,6 +77,35 @@ test('bouwPlanInvoer: kandidaten, vrijgegeven en bestaande bezoeken', () => {
   assert.equal(invoer.reistijden, nepReistijden);
   assert.equal(invoer.instellingen.maxPerDag, 3);
   assert.equal(invoer.instellingen.maxReistijdMin, 45);
+});
+
+test('I2: een verlopen voorstel is kandidaat en vrijgegeven, ook buiten de bekeken week; bevestigd, vastgezet en afgewerkt nooit', () => {
+  const leads = [
+    voorgesteld('V1', '2026-09-30'),                                                   // vorige week
+    voorgesteld('V2', '2026-10-05'),                                                   // gisteren (vandaag = 6 okt)
+    voorgesteld('V3', '2026-10-06'),                                                   // vandaag: nog niet verlopen, wel in de week: gewoon vrijgegeven
+    voorgesteld('V4', '2026-10-13'),                                                   // volgende week: niet aangeraakt
+    lead('B', { status: 'bevestigd', planning: { datum: '2026-09-30', start: '10:00', vast: true } }),
+    zetVastUur(lead('H'), { datum: '2026-10-01', start: '14:00' }),                    // vastgezet uur in het verleden
+    lead('E', { status: 'afgewerkt', resultaat: { soort: 'verkocht', op: '2026-10-01T10:00:00.000Z' } }),
+  ];
+  const { invoer, vrijgegeven } = invoerVan(leads);
+  assert.deepEqual(invoer.kandidaten.map(k => k.id), ['V1', 'V2', 'V3']);
+  assert.deepEqual(vrijgegeven, ['V1', 'V2', 'V3']);
+  const overal = Object.values(invoer.bestaandPerDag).flat().map(b => b.id);
+  assert.ok(!overal.includes('B') && !overal.includes('H')); // verleden dagen zitten niet in de planningsdagen
+});
+
+test('I2: verwerkUitkomst plant een verlopen voorstel opnieuw in of zet hem terug op te-plannen; vaste leads nooit', async () => {
+  const leads = [voorgesteld('V1', '2026-09-30'), voorgesteld('V2', '2026-09-30', '09:00', { locatie: null }), lead('B', { status: 'bevestigd', planning: { datum: '2026-09-30', start: '10:00', vast: true } })];
+  const { invoer, vrijgegeven } = invoerVan(leads);
+  assert.deepEqual(vrijgegeven, ['V1', 'V2']);
+  const r = verwerkUitkomst({ uitkomst: await planWeek(invoer), leads, vrijgegeven });
+  const perId = Object.fromEntries(r.wijzigingen.map(w => [w.id, w.velden]));
+  assert.equal(perId.V1.status, 'voorgesteld');
+  assert.ok(perId.V1.planning.datum >= VANDAAG, 'nieuwe dag is vandaag of later');
+  assert.deepEqual(perId.V2, { status: 'te-plannen', planning: null });
+  assert.equal(perId.B, undefined);
 });
 
 test('bouwPlanInvoer: bezoekDuurMin uit de instellingen en eigen duur van de lead', () => {

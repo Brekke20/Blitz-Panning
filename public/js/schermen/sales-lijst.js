@@ -51,6 +51,7 @@ function maakKaart(lead, kanWissen) {
   const chips = el('div', { class: 'sales-kaart-chips' }, el('span', { class: 'sales-chip', text: info.adresLabel }));
   if (info.vastUur) chips.append(el('span', { class: 'sales-chip sales-chip-vast', text: info.vastUur }));
   if (info.zelfToegevoegd) chips.append(el('span', { class: 'sales-chip sales-chip-manueel', text: 'zelf toegevoegd' }));
+  if (info.voorstelVerlopen) chips.append(el('span', { class: 'sales-chip sales-chip-verlopen', text: 'voorstel verlopen' }));
   if (info.eerderVerwijderd) chips.append(el('span', { class: 'sales-chip sales-chip-eerder', text: 'eerder verwijderd' }));
   kaart.append(chips);
   if (info.telHref || info.mailHref) {

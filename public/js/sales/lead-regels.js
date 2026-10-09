@@ -52,6 +52,15 @@ export function isVast(lead) {
   return lead?.planning?.vast === true || lead?.status === 'bevestigd';
 }
 
+/**
+ * Een voorstel (status 'voorgesteld', niet vast) waarvan de dag voorbij is zonder dat de verkoper het bevestigde: het telt weer als te plannen
+ * (Plan deze week mag het herplannen; de lijst toont het als "voorstel verlopen"). Een bevestigde of vastgezette lead nooit. `vandaag` = ISO-datum.
+ */
+export function isVerlopenVoorstel(lead, vandaag) {
+  const datum = lead?.planning?.datum;
+  return lead?.status === 'voorgesteld' && !isVast(lead) && typeof datum === 'string' && typeof vandaag === 'string' && datum < vandaag;
+}
+
 /** Legt dag + uur vast (ook voor een nog niet ingeplande lead, of om een bevestigd uur te wijzigen). Gooit op 'afgewerkt'. Valideert niet: dat doet `valideerLead`. */
 export function zetVastUur(lead, { datum, start }) {
   if (lead?.status === 'afgewerkt') throw new Error('Een afgewerkte lead heeft geen uur');

@@ -95,6 +95,7 @@
 .sales-chip { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 8px; border-radius: var(--r-pill); background: var(--surface3); color: var(--text2); }
 .sales-chip-vast { background: var(--accent-dim); color: var(--accent-ink); }
 .sales-chip-eerder { background: var(--orange-dim); color: var(--orange); }
+.sales-chip-verlopen { background: var(--orange-dim); color: var(--orange); }
 .sales-chip-manueel { background: var(--blue-dim); color: var(--blue); }
 .sales-kaart-contact { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-xs); overflow-wrap: anywhere; }
 .sales-kaart-contact a, .sales-detail-contact a { color: var(--accent-ink); text-decoration: underline; }

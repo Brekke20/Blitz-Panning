@@ -1,6 +1,6 @@
 // schermen/sales-lijst-logica.js — logica van de lijsten Te plannen en Afgewerkt en van de leadkaart (puur, geen DOM).
 import { adresSoort, plaatsLabel } from '../sales/adres.js';
-import { isVast, RESULTAAT_LABEL } from '../sales/lead-regels.js';
+import { isVast, isVerlopenVoorstel, RESULTAAT_LABEL } from '../sales/lead-regels.js';
 import { normaliseerGsm, normaliseerEmail, zelfdeNaam } from '../sales/import.js';
 import { localISO, fmtDateShort } from '../kern/tijd.js';
 import { naamVan, dagLabel } from './sales-tekst.js';
@@ -32,18 +32,21 @@ export function postcodegebieden(leads) {
 // Ontbrekende waarde sorteert achteraan.
 const tekstVolgorde = (a, b) => (a ?? '￿').localeCompare(b ?? '￿');
 
-/** Te plannen (langst wachtende eerst) en ingepland (voorgesteld + bevestigd, op datum en uur); afgewerkt valt weg. */
-export function groepeerLijst(leads) {
+/**
+ * Te plannen (langst wachtende eerst; ook een verlopen voorstel, eindreview I2) en ingepland (voorgesteld + bevestigd, op datum en uur);
+ * afgewerkt valt weg. `vandaag` = ISO-datum (lokaal).
+ */
+export function groepeerLijst(leads, vandaag = localISO(new Date())) {
   const lijst = leads ?? [];
-  const tePlannen = lijst.filter((l) => l.status === 'te-plannen')
+  const tePlannen = lijst.filter((l) => l.status === 'te-plannen' || isVerlopenVoorstel(l, vandaag))
     .sort((a, b) => tekstVolgorde(a.geimporteerdOp, b.geimporteerdOp));
-  const ingepland = lijst.filter((l) => l.status === 'voorgesteld' || l.status === 'bevestigd')
+  const ingepland = lijst.filter((l) => (l.status === 'voorgesteld' && !isVerlopenVoorstel(l, vandaag)) || l.status === 'bevestigd')
     .sort((a, b) => tekstVolgorde(a.planning?.datum, b.planning?.datum) || tekstVolgorde(a.planning?.start, b.planning?.start));
   return { tePlannen, ingepland };
 }
 
 /** Alles wat een leadkaart nodig heeft. `telHref` enkel bij een echt nummer (>= 9 cijfers), `mailHref` enkel bij een e-mailadres. */
-export function kaartInfo(lead) {
+export function kaartInfo(lead, vandaag = localISO(new Date())) {
   const gsm = normaliseerGsm(lead?.gsm);
   const email = normaliseerEmail(lead?.email);
   const vast = isVast(lead) && lead.planning?.datum && lead.planning.start;
@@ -55,6 +58,7 @@ export function kaartInfo(lead) {
     telHref: gsm ? `tel:+${gsm}` : null,
     mailHref: email ? `mailto:${encodeURIComponent(email).replace('%40', '@')}` : null,
     status: lead?.status,
+    voorstelVerlopen: isVerlopenVoorstel(lead, vandaag), // label "voorstel verlopen": de voorgestelde dag is voorbij zonder bevestiging
     eerderVerwijderd: Boolean(lead?.eerderVerwijderd?.op), // label "eerder verwijderd": de lead kwam terug via een nieuwe import
     zelfToegevoegd: lead?.bronExport?.bron === 'manueel',   // label "zelf toegevoegd": de verkoper tikte de lead zelf in ("+ Lead")
   };

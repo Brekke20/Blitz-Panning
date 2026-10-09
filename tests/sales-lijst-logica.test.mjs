@@ -48,9 +48,23 @@ test('groepeerLijst: wachttijd eerst, ingepland op datum en uur, afgewerkt valt 
   const b1 = lead('b1', { status: 'bevestigd', planning: { datum: '2026-10-12', start: '14:00', vast: true } });
   const v1 = lead('v1', { status: 'voorgesteld', planning: { datum: '2026-10-12', start: '09:00', vast: false } });
   const klaar = lead('z', { status: 'afgewerkt', resultaat: { soort: 'offerte', op: '2026-10-02T10:00:00.000Z' } });
-  const r = groepeerLijst([nieuw, v2, b1, klaar, oud, v1]);
+  const r = groepeerLijst([nieuw, v2, b1, klaar, oud, v1], '2026-10-05');
   assert.deepEqual(r.tePlannen.map((l) => l.id), ['o', 'n']);
   assert.deepEqual(r.ingepland.map((l) => l.id), ['v1', 'b1', 'v2']);
+});
+
+test('I2: groepeerLijst: een verlopen voorstel staat bij Nog in te plannen; een bevestigde lead uit het verleden en een voorstel van vandaag niet', () => {
+  const nieuw = lead('n', { geimporteerdOp: '2026-10-05T08:00:00.000Z' });
+  const verlopen = lead('v', { status: 'voorgesteld', geimporteerdOp: '2026-09-20T08:00:00.000Z', planning: { datum: '2026-10-06', start: '09:00', vast: false } });
+  const vandaagVoorstel = lead('w', { status: 'voorgesteld', planning: { datum: '2026-10-07', start: '09:00', vast: false } });
+  const bevestigdVerleden = lead('b', { status: 'bevestigd', planning: { datum: '2026-10-01', start: '14:00', vast: true } });
+  const r = groepeerLijst([nieuw, verlopen, vandaagVoorstel, bevestigdVerleden], '2026-10-07');
+  assert.deepEqual(r.tePlannen.map((l) => l.id), ['v', 'n']);
+  assert.deepEqual(r.ingepland.map((l) => l.id), ['b', 'w']);
+  assert.equal(kaartInfo(verlopen, '2026-10-07').voorstelVerlopen, true);
+  assert.equal(kaartInfo(vandaagVoorstel, '2026-10-07').voorstelVerlopen, false);
+  assert.equal(kaartInfo(bevestigdVerleden, '2026-10-07').voorstelVerlopen, false);
+  assert.equal(kaartInfo(nieuw, '2026-10-07').voorstelVerlopen, false);
 });
 
 test('groepeerLijst: wijzigt de invoer niet', () => {

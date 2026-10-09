@@ -2,7 +2,7 @@
 // De adapter roept `planWeek` zelf niet aan (dat doet het scherm). Een vaste lead (`isVast`: vastgezet uur of bevestigd)
 // is nooit kandidaat: hij staat als bestaand bezoek met uur in `bestaandPerDag`, dus het brein plant eromheen en verschuift hem nooit.
 import { bouwDagen, haversine } from '../planner.js';
-import { isVast } from './lead-regels.js';
+import { isVast, isVerlopenVoorstel } from './lead-regels.js';
 import { isHeleDag } from './blok-regels.js';
 import { standaardLaatsteStart } from '../kern/instellingen-regels.js';
 
@@ -55,7 +55,8 @@ function metStandaarden(instellingen) {
 
 /**
  * Bouwt de invoer voor `planWeek`. weekStart/vandaag zijn ISO 'YYYY-MM-DD'.
- * Kandidaten: te-plannen leads die niet vast zijn, plus voorgestelde leads in deze week vanaf vandaag (`vrijgegeven`: mogen herschikt worden).
+ * Kandidaten: te-plannen leads die niet vast zijn, plus voorgestelde leads in deze week vanaf vandaag en verlopen voorstellen (dag voorbij zonder
+ * bevestiging, ongeacht de week; eindreview I2) (`vrijgegeven`: mogen herschikt worden en vallen terug op te-plannen als er geen plaats is).
  * -> { invoer, vrijgegeven: lead-id's }
  */
 export function bouwPlanInvoer({ leads, blokken = [], instellingen, weekStart, vandaag, depot = null, reistijden, feestdag }) {
@@ -74,7 +75,7 @@ export function bouwPlanInvoer({ leads, blokken = [], instellingen, weekStart, v
     if (lead.status === 'te-plannen') kandidaatLeads.push(lead);
     else if (lead.status === 'voorgesteld') {
       const datum = lead.planning?.datum;
-      if (datum && datum >= weekStart && datum <= weekEinde && datum >= vandaag) {
+      if (isVerlopenVoorstel(lead, vandaag) || (datum && datum >= weekStart && datum <= weekEinde && datum >= vandaag)) {
         kandidaatLeads.push(lead);
         vrijgegeven.push(lead.id);
       }

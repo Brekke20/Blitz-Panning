@@ -209,6 +209,33 @@ test.describe('sales: Plan deze week', () => {
     await verwachtFout(consoleFouten, '/api/instellingen', 503);
   });
 
+  test('I2: een voorstel van vorige week dat niet bevestigd werd: Plan deze week plant het opnieuw; bevestigd en vast blijven; de lijst toonde het als "voorstel verlopen"', async ({ page, verzoeken }) => {
+    const leads = [
+      voorgesteld('v1', 'Verlopen', '2026-09-30', '09:00', 0),
+      bevestigd('b1', 'Bevestigd', '2026-09-30', '10:00', 1),
+      lead('t1', 'Nieuw', 2),
+    ];
+    await startSalesApp(page, { leads, blokken: [] });
+    await tab(page, 'Te plannen').click();
+    const lijst = page.locator('#view-sales-lijst');
+    const verlopen = lijst.locator('.sales-kaart', { hasText: 'Test Verlopen' });
+    await expect(verlopen.locator('.sales-chip-verlopen')).toHaveText('voorstel verlopen');
+    await expect(lijst.locator('.sales-groep', { hasText: 'Nog in te plannen' }).locator('.sales-kaart', { hasText: 'Test Verlopen' })).toHaveCount(1);
+    await expect(lijst.locator('.sales-kaart', { hasText: 'Test Bevestigd' }).locator('.sales-chip-verlopen')).toHaveCount(0);
+    await naarKalender(page);
+    await plan(page).click();
+    await expect(venster(page)).toContainText('Ingepland (2)'); // Verlopen + Nieuw
+    await venster(page).getByRole('button', { name: 'Klaar' }).click();
+    const patch = verzoeken.van('/api/sales', 'PATCH');
+    expect(patch).toHaveLength(1);
+    expect(patch[0].body.leads.map((w) => w.id).sort()).toEqual(['t1', 'v1']); // het bevestigde bezoek is niet aangeraakt
+    const nieuw = patch[0].body.leads.find((w) => w.id === 'v1').velden;
+    expect(nieuw.status).toBe('voorgesteld');
+    expect(nieuw.planning.datum >= '2026-10-05').toBe(true);
+    await tab(page, 'Te plannen').click();
+    await expect(lijst.locator('.sales-chip-verlopen')).toHaveCount(0);
+  });
+
   test('geen te plannen leads: toast "Geen leads om in te plannen" en geen PATCH', async ({ page, verzoeken }) => {
     await startSalesApp(page, { leads: [bevestigd('b1', 'Alleen', '2026-10-06', '10:00')], blokken: [] });
     await naarKalender(page);
