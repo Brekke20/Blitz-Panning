@@ -101,3 +101,20 @@ test('logActiviteit: details die JSON.stringify niet kan weergeven worden toch b
   assert.equal(items[0].details, 'Symbol(s)');
   assert.equal(typeof items[1].details, 'string');
 });
+
+test('M4: logActiviteit met uniek:true slaat een identieke regel (gebruiker, actie, onderwerp, details) over; een afwijking of een ander maandblob wel', async () => {
+  const s = maakNepStore();
+  const reg = (extra = {}, gebruiker = g) => ({ gebruiker, actie: 'rapport-geweigerd', onderwerp: 'T1', details: { id: 'a' }, uniek: true, ...extra });
+  await logActiviteit(s, reg(), { nu: () => NU });
+  await logActiviteit(s, reg(), { nu: () => NU + 1000 });
+  const schrijvenNa1 = s._schrijfacties.length;
+  await logActiviteit(s, reg(), { nu: () => NU + 2000 });
+  assert.equal(s._schrijfacties.length, schrijvenNa1, 'een herhaling schrijft niets');
+  assert.equal((await s.get('activiteit/2026-10', { type: 'json' })).items.length, 1);
+  await logActiviteit(s, reg({ details: { id: 'b' } }), { nu: () => NU + 3000 });
+  await logActiviteit(s, reg({}, { id: 'u-2', naam: 'Roel' }), { nu: () => NU + 4000 });
+  await logActiviteit(s, reg({ uniek: false }), { nu: () => NU + 5000 });
+  assert.equal((await s.get('activiteit/2026-10', { type: 'json' })).items.length, 4, 'ander id, andere gebruiker en zonder uniek komen er wel bij');
+  await logActiviteit(s, reg(), { nu: () => Date.parse('2026-11-02T08:00:00Z') });
+  assert.equal((await s.get('activiteit/2026-11', { type: 'json' })).items.length, 1, 'nieuwe maand: weer één regel');
+});

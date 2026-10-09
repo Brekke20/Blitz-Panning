@@ -131,6 +131,16 @@ test('rapport-ontvangen: technieker overschrijft de inhoud of het rapport van ee
   assert.deepEqual(activiteit(store).map(a => a.actie), ['rapport-geweigerd'], 'de coordinator ziet de weigering');
 });
 
+test('M4: dezelfde geweigerde id door dezelfde gebruiker logt maar één keer rapport-geweigerd (outbox-herhaling); een ander id wel', async () => {
+  const roel = entry(ID_A, 'Roel', { verwerking: { status: 'wacht' } });
+  const roel2 = entry(ID_B, 'Roel', { ticketId: '556', verwerking: { status: 'wacht' } });
+  const { store, h } = opzet({ rapportlijst: { versie: 3, rapports: [roel, roel2] } });
+  for (let i = 0; i < 4; i++) assert.equal((await tim(() => h(post(ontvangstBody(ID_A, 'Tim'))))).status, 403);
+  assert.equal(activiteit(store).filter(a => a.actie === 'rapport-geweigerd').length, 1, 'vier pogingen, één regel');
+  assert.equal((await tim(() => h(post(ontvangstBody(ID_B, 'Tim'))))).status, 403);
+  assert.equal(activiteit(store).filter(a => a.actie === 'rapport-geweigerd').length, 2, 'ander id: nieuwe regel');
+});
+
 test('rapport-ontvangen: technieker dedupt enkel op zijn eigen entry (zelfde ticket+datum als een collega komt erbij)', async () => {
   const roel = entry(ID_B, 'Roel', { ticketId: '555', verwerking: { status: 'wacht' } });
   const { store, h } = opzet({ rapportlijst: { versie: 3, rapports: [roel] } });

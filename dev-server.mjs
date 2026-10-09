@@ -163,7 +163,8 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
+// Enkel localhost (eindreview M1): de testrol-omzeiling (BLITZ_LOKALE_DEV) mag nooit voor het netwerk bereikbaar zijn.
+server.listen(PORT, '127.0.0.1', () => {
   console.log(`\n🚀  Dev server draait op http://localhost:${PORT}`);
   console.log(`    Test mode:  http://localhost:${PORT}/?test\n`);
 });

@@ -37,6 +37,7 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
     } else if (res.status === 403) {
       await logVoorVerzoek(req, gebruiker, {
         actie: 'rapport-geweigerd', onderwerp: String(body?.ticketId ?? ''), details: { id: String(body?.id ?? '').slice(0, 60), reden: 'id-van-ander' },
+        uniek: true, // de outbox herhaalt een geweigerd rapport eindeloos: één regel per gebruiker en id, geen regel per poging (eindreview M4)
       }, logOpties);
     }
     if (res.startNodig) {

@@ -18,7 +18,9 @@ function maakDetails(details) {
 }
 
 // Best-effort: gooit nooit (een mislukte log mag de eigenlijke actie niet breken).
-export async function logActiviteit(store, { gebruiker, actie, onderwerp = null, details = null }, { nu = () => Date.now() } = {}) {
+// `uniek: true`: staat er in dezelfde maandblob al een regel van dezelfde gebruiker met dezelfde actie, hetzelfde onderwerp en dezelfde
+// details, dan wordt er niets bijgeschreven (voor acties die een client eindeloos herhaalt, zoals een geweigerd rapport in de outbox).
+export async function logActiviteit(store, { gebruiker, actie, onderwerp = null, details = null, uniek = false }, { nu = () => Date.now() } = {}) {
   try {
     const ms = nu();
     const item = {
@@ -31,7 +33,11 @@ export async function logActiviteit(store, { gebruiker, actie, onderwerp = null,
     };
     const r = await wijzigBlob(store, maandSleutel(ms), {
       leeg: { versie: 0, items: [] },
-      wijzig: blob => ({ ...blob, items: [...(blob.items ?? []), item] }),
+      wijzig: (blob) => {
+        const items = blob.items ?? [];
+        if (uniek && items.some(i => i.gebruikerId === item.gebruikerId && i.actie === item.actie && i.onderwerp === item.onderwerp && i.details === item.details)) return null;
+        return { ...blob, items: [...items, item] };
+      },
     });
     if (!r.ok) console.error(`[activiteit] loggen mislukt na herhaling (actie ${String(actie).slice(0, 60)})`);
   } catch (err) {
@@ -40,11 +46,11 @@ export async function logActiviteit(store, { gebruiker, actie, onderwerp = null,
 }
 
 // Testverzoeken (header X-Blitz-Test) loggen niets; anders altijd naar de ECHTE store.
-export async function logVoorVerzoek(reqOfEvent, gebruiker, { actie, onderwerp, details }, { getStore, nu } = {}) {
+export async function logVoorVerzoek(reqOfEvent, gebruiker, { actie, onderwerp, details, uniek }, { getStore, nu } = {}) {
   try {
     if (isTestVerzoek(reqOfEvent)) return;
     const store = getStore({ name: 'blitz-data', consistency: 'strong' });
-    await logActiviteit(store, { gebruiker, actie, onderwerp, details }, nu ? { nu } : undefined);
+    await logActiviteit(store, { gebruiker, actie, onderwerp, details, uniek }, nu ? { nu } : undefined);
   } catch (err) {
     console.error('[activiteit] loggen mislukt:', err?.message || err);
   }

@@ -35,3 +35,12 @@ test('TESTGEBRUIKERS: vier rollen, id gelijk aan de sleutel, geen geheime velden
   assert.equal(TESTGEBRUIKERS['test-sales'].salesNaam, 'Test Verkoper');
   assert.equal(TESTGEBRUIKERS['test-sales'].magAlleSales, false);
 });
+
+test('M1: dev-server.mjs luistert enkel op 127.0.0.1 (de testrol-omzeiling staat aan)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const bron = readFileSync(new URL('../dev-server.mjs', import.meta.url), 'utf8');
+  assert.match(bron, /BLITZ_LOKALE_DEV/);
+  const listens = [...bron.matchAll(/\.listen\(([^)]*)\)/g)].map(m => m[1]);
+  assert.ok(listens.length >= 1, 'listen gevonden');
+  for (const l of listens) assert.match(l, /'127\.0\.0\.1'/, `listen(${l}) moet aan 127.0.0.1 gebonden zijn`);
+});
