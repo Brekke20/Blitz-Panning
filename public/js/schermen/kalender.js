@@ -5,7 +5,7 @@
 // binnen functies, nooit op moduleniveau; de hoogste-niveau-effecten (observer, resize, visibilitychange) draaien
 // in `initKalender`. Alleen `kern/brug.js` wijst `window`-namen toe. De schermtoestand (`kalView`, auto-scrollsleutel; de datum is de gedeelde `gekozenDatum`) is module-privé; de knoppen lopen via data-actie-delegatie (C8).
 import { toestand } from '../kern/toestand.js';
-import { escHtml, zetPressed, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
+import { escHtml, zetPressed, registreerActies, registreerWijzigActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
 import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, volgendeWerkdagVan } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
 import {
@@ -62,6 +62,17 @@ export function initKalender(afhankelijkheden) {
     'kal-toewijzen-open': el => afh.toggleAssignRow(el.dataset.ticketId),
     'kal-toewijzen-opslaan': el => afh.saveToewijzen(el.dataset.ticketId),
     'kal-toewijzen-sluit': el => { document.getElementById('assign-row-' + el.dataset.ticketId).style.display = 'none'; },
+  });
+  // Toewijsrij (B16): een andere datum stelt het eerste vrije uur van die dag opnieuw voor, tenzij het uur zelf is aangepast.
+  registreerWijzigActies(document.body, {
+    'kal-toewijzen-datum': el => {
+      const tijd = document.getElementById('assign-time-' + el.dataset.ticketId);
+      if (!tijd || tijd.dataset.handmatig || !el.value) return;
+      let vrij = null;
+      try { vrij = afh.eersteVrijUur(el.value, el.dataset.ticketId); } catch (err) { console.error('eersteVrijUur mislukt:', err); }
+      tijd.value = vrij || '09:00';
+    },
+    'kal-toewijzen-tijd': el => { el.dataset.handmatig = '1'; },
   });
   kalStartHoogteObserver();
   window.addEventListener('resize', () => {
@@ -481,8 +492,8 @@ export function renderKalender() {
         <div class="tsub">${escHtml(t.subject) || '—'}</div>
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
         <div class="t-assign-row" id="assign-row-${t.id}" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
-          <input type="date" id="assign-date-${t.id}" aria-label="Datum toewijzen" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
-          <input type="time" id="assign-time-${t.id}" aria-label="Tijd toewijzen" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)" value="09:00">
+          <input type="date" id="assign-date-${t.id}" aria-label="Datum toewijzen" data-wijzig="kal-toewijzen-datum" data-ticket-id="${escHtml(t.id)}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
+          <input type="time" id="assign-time-${t.id}" aria-label="Tijd toewijzen" data-invoer="kal-toewijzen-tijd" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)" value="09:00">
           <button data-actie="kal-toewijzen-opslaan" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 8px;background:var(--accent);color:var(--on-accent);border:none;border-radius:4px;cursor:pointer;font-weight:600">✓ Opslaan</button>
           <button aria-label="Sluiten" data-actie="kal-toewijzen-sluit" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 6px;background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--muted)">✕</button>
         </div>

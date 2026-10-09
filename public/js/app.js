@@ -172,7 +172,7 @@ function opstart() {
     tijdslotLabelVoor: ticketdetail.tijdslotLabelVoor, telNummer: ticketdetailLogica.telNummer, navigate,
     openDetail: ticketdetail.openDetail, openLocalEventDetail: afspraken.openLocalEventDetail, removeLocalEvent: afspraken.removeLocalEvent, bevestigUitplannen: planacties.bevestigUitplannen,
     herOpenRapport: (...a) => herOpenRapport(...a), rapportArchief: () => _rapportArchief, matchRespToPerson: afspraken.matchRespToPerson, duurVoor,
-    setTab, sjLog, toggleAssignRow: ticketdetail.toggleAssignRow, saveToewijzen: ticketdetail.saveToewijzen, openBlockModal: beschikbaarheid.openBlockModal,
+    eersteVrijUur: capaciteit.eersteVrijUur, setTab, sjLog, toggleAssignRow: ticketdetail.toggleAssignRow, saveToewijzen: ticketdetail.saveToewijzen, openBlockModal: beschikbaarheid.openBlockModal,
   });
   // Ingepland-scherm (schermen/ingepland.js): week-knoppen en de afhankelijkheden van andere schermen; vóór koppelRenders().
   ingepland.initIngepland({
@@ -201,6 +201,7 @@ function opstart() {
     bevestigdLabel: ticketdetailLogica.bevestigdLabel,
     heeftLopendVoorstel: t => ticketdetailLogica.heeftLopendVoorstel(t, toestand.get('voorstelStatus')),
     computeArrivalTimes: (...a) => computeArrivalTimes(...a),
+    eersteVrijUur: capaciteit.eersteVrijUur,
     renderRouteList: (...a) => renderRouteList(...a),
   });
   // Voorstel-scherm (schermen/voorstel.js): voorstelvenster, verzenden en voorstelstatus; vóór koppelRenders().

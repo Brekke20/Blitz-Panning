@@ -10,12 +10,12 @@ import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { magSchrijvenVoor } from '../kern/sessie.js';
 import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
-import { localISO, fmtDate, fmtDateShort, extractLocalHour, timeStrToMin, minToTimeStr } from '../kern/tijd.js';
+import { localISO, fmtDate, fmtDateShort, extractLocalHour, timeStrToMin } from '../kern/tijd.js';
 import { registreerVenster } from '../venster.js';
 import { appConfirm } from '../app-dialog.js';
 import { nextAvailableDay } from './capaciteit.js';
 import { renderKalender } from './kalender.js';
-import { tijdslotVoor, telNummer, roundToNextQuarterStr } from './ticketdetail-logica.js';
+import { tijdslotVoor, telNummer } from './ticketdetail-logica.js';
 import { getHolidayName } from '../kern/feestdagen.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initTicketdetail); een vergeten init faalt luid.
@@ -332,20 +332,20 @@ export function toggleAssignRow(ticketId) {
   if (wasHidden) {
     const dateInp = document.getElementById('assign-date-' + ticketId);
     if (dateInp && !dateInp.value) dateInp.value = localISO(new Date());
-    // Prefill tijdstip: voorkeursuur klant (vast tijdstip) heeft voorrang,
-    // anders berekende aankomsttijd als beschikbaar
+    // Prefill tijdstip: voorkeursuur klant (vast tijdstip) heeft voorrang, anders het eerste vrije uur van die dag (B16);
+    // lukt dat niet (feestdag, hele-dag-blokkering, fout), dan de terugval 09:00. Bij een andere datum in de rij wordt het opnieuw
+    // voorgesteld (kalender.js), tenzij de gebruiker het uur zelf aanpaste (dataset.handmatig) of de klant een voorkeursuur heeft.
     const timeInp = document.getElementById('assign-time-' + ticketId);
     if (timeInp) {
+      delete timeInp.dataset.handmatig;
       const voorkeurTijd = afh.kbPreferredTime(ticketId);
       if (voorkeurTijd) {
         timeInp.value = voorkeurTijd;
+        timeInp.dataset.handmatig = '1'; // een afspraak met de klant: een andere datum verandert het uur niet
       } else {
-        const date    = dateInp?.value || localISO(new Date());
-        const times   = afh.computeArrivalTimes(date);
-        const arrival = times[ticketId];
-        timeInp.value = arrival != null
-          ? roundToNextQuarterStr(minToTimeStr(arrival))
-          : '09:00';
+        let vrij = null;
+        try { vrij = afh.eersteVrijUur(dateInp?.value || localISO(new Date()), ticketId); } catch (err) { console.error('eersteVrijUur mislukt:', err); }
+        timeInp.value = vrij || '09:00';
       }
     }
   }

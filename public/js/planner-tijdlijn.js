@@ -93,3 +93,17 @@ export function extraPlaatsen({ items, duurMin, vanTijd, laatsteStart, maxPerDag
     if (extra > 50) return extra; // veiligheidsgrens
   }
 }
+
+// Het eerste vrije uur voor één nieuw ticket zonder uur (B16, "Toewijzen"): dezelfde plaatsingsregel als leggDagUit/plaatsNieuw
+// (zelfde reistijd, vaste uren, botsing en "volgende stop"-controle), maar ZONDER grens op maxPerDag en zonder te weigeren:
+// valt het voorstel na `laatsteStart`, dan geeft de functie het toch terug met `laat: true` (Brent-besluit: toch voorstellen).
+// `vroegst` = de klok van nu (minuten, enkel voor vandaag): de aankomst valt dan niet vóór die klok + reistijd.
+// Geeft { startMin, laat }. Puur: geen DOM, geen toestand.
+export function eersteVrijeStart({ items, duurMin, vanTijd, laatsteStart, reisMin, vroegst }) {
+  const reis = reisMin ?? REISTIJD_TERUGVAL_MIN;
+  const id = '__eersteVrij';
+  const item = { id, uur: null, duurMin, soort: 'stop', ticket: true, vroegst: vroegst != null ? vroegst + reis : undefined };
+  const { plaatsingen } = leggDagUit({ items: [...items, item], vanTijd, laatsteStart, reisMin: reis });
+  const p = plaatsingen.find(x => x.id === id);
+  return { startMin: p.start, laat: p.laat };
+}

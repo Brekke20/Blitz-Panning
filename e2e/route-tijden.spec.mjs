@@ -143,19 +143,39 @@ test.describe('getoonde aankomsttijden', () => {
     await startApp(page, { technieker: 'Tim' });
     await planWeekZonderRoute(page);
 
-    // Zonder berekende route. Gemeten: de datum staat standaard op vandaag (5 okt) en het tijdstip op
-    // 09:00: #1005 staat niet in planning[datum], dus aankomstTijdenVoorDag heeft geen aankomst voor dit
-    // ticket en de terugvalwaarde 09:00 blijft staan.
+    // B16: het uur is het eerste vrije uur van die dag volgens de plaatsingsregel (planner-tijdlijn.js), niet meer de terugval 09:00.
+    // Afleiding: vanTijd 10:00 en de twee ingeplande stops #1001 en #1002 (zonder uur, elk 120 min, de reistijd telt 30 min per rit):
+    // #1001 10:30-12:30, #1002 13:00-15:00, dus het nieuwe ticket 15:30 (15:00 + 30 min rit; al een kwartier).
+    // De datum staat standaard op vandaag (5 okt).
     let kaart = await openToewijzenRij(page);
     await expect(kaart.getByLabel('Datum toewijzen')).toHaveValue('2026-10-05');
-    await expect(kaart.getByLabel('Tijd toewijzen')).toHaveValue('09:00');
+    await expect(kaart.getByLabel('Tijd toewijzen')).toHaveValue('15:30');
 
-    // Met berekende route voor die dag: zelfde uitkomst (een wachtrij-ticket heeft nooit een berekende aankomst).
+    // Met berekende route voor die dag: zelfde uitkomst (de regel gebruikt de vaste reistijd, geen berekende route).
     await page.getByRole('tab', { name: 'Route' }).click();
     await page.getByRole('button', { name: 'Bereken tijden' }).click();
     await expect.poll(() => stopTijden(page)).toEqual(['10:20', '12:40']);
     kaart = await openToewijzenRij(page);
     await expect(kaart.getByLabel('Datum toewijzen')).toHaveValue('2026-10-05');
-    await expect(kaart.getByLabel('Tijd toewijzen')).toHaveValue('09:00');
+    await expect(kaart.getByLabel('Tijd toewijzen')).toHaveValue('15:30');
+  });
+
+  test('datum wijzigen in de toewijsrij stelt het uur opnieuw voor; een zelf aangepast uur blijft staan', async ({ page }) => {
+    await zetStartTijd(page, '10:00');
+    await startApp(page, { technieker: 'Tim' });
+    await planWeekZonderRoute(page);
+    const kaart = await openToewijzenRij(page);
+    const tijd = kaart.getByLabel('Tijd toewijzen');
+    await expect(tijd).toHaveValue('15:30');
+    // Een lege dag: vanTijd 10:00 + 30 min rit.
+    await kaart.getByLabel('Datum toewijzen').fill('2026-10-13');
+    await expect(tijd).toHaveValue('10:30');
+    // Terug naar de volle dag: opnieuw voorgesteld zolang het uur niet zelf is aangepast.
+    await kaart.getByLabel('Datum toewijzen').fill('2026-10-05');
+    await expect(tijd).toHaveValue('15:30');
+    // Zelf aangepast: een andere datum laat het uur staan.
+    await tijd.fill('14:00');
+    await kaart.getByLabel('Datum toewijzen').fill('2026-10-13');
+    await expect(tijd).toHaveValue('14:00');
   });
 });

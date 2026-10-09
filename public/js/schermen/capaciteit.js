@@ -6,9 +6,10 @@
 // lezen de toestand. Importeert enkel pure kern-modules, dus ook importeerbaar in node.
 import { toestand } from '../kern/toestand.js';
 import { strengeAfh } from '../kern/ui.js';
-import { localISO, timeStrToMin } from '../kern/tijd.js';
+import { localISO, timeStrToMin, minToTimeStr } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
-import { plaatsNieuw, extraPlaatsen } from '../planner-tijdlijn.js';
+import { plaatsNieuw, extraPlaatsen, eersteVrijeStart } from '../planner-tijdlijn.js';
+import { roundToNextQuarterStr } from './ticketdetail-logica.js';
 import { getHolidayName } from '../kern/feestdagen.js';
 
 // De items van één dag voor de plaatsingsregel (planner-tijdlijn.js). Alles komt als parameter binnen.
@@ -120,4 +121,22 @@ export function nextAvailableDay(van, ticketId = null) {
     werkdagen: settings.werkdagen,
     heeftPlaats: dag => !!plekOpDag(dag, nieuw),
   });
+}
+
+// Het eerste vrije uur ('HH:MM', naar het volgende kwartier afgerond) voor een ticket op `datum` (B16, "Toewijzen"): volgens de
+// plaatsingsregel op basis van wat er die dag al staat, ook als het na de laatste starttijd valt. Voor vandaag niet vóór de klok van nu.
+// null bij een feestdag of een hele-dag-blokkering (dan blijft de terugval 09:00 van de aanroeper).
+export function eersteVrijUur(datum, ticketId) {
+  if (getHolidayName(datum)) return null;
+  const settings = toestand.get('settings');
+  const filter = toestand.get('activeAssigneeFilter');
+  if (blokkeringenVoor(toestand.get('avExceptions'), datum, filter, 'fullday').length > 0) return null;
+  const nu = new Date();
+  const { startMin } = eersteVrijeStart({
+    items: dagItemsVan(datum),
+    duurMin: ticketId != null ? afh.duurVoor(ticketId) : settings.duurMinuten,
+    vanTijd: settings.vanTijd, laatsteStart: settings.laatsteStart,
+    vroegst: datum === localISO(nu) ? nu.getHours() * 60 + nu.getMinutes() : undefined,
+  });
+  return roundToNextQuarterStr(minToTimeStr(startMin));
 }
