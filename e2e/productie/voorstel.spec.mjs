@@ -369,8 +369,8 @@ test.describe('voorstel: randgevallen', () => {
     await vulIn(page, '2026-10-08', '10:00');
     await verstuurKnop(page).click();
 
-    // HUIDIG GEDRAG (bug?): bovendien kan de mail al verstuurd zijn
-    // (gateway-timeout tijdens de Zoho-aanroepen) zonder dat de gebruiker dat te horen krijgt.
+    // Was HUIDIG GEDRAG (bug?): de mail kon al verstuurd zijn (gateway-timeout tijdens de Zoho-aanroepen) zonder dat de gebruiker dat hoorde;
+    // sinds Q1 controleert de app dat (zie hieronder).
     // W5-fix: was HUIDIG GEDRAG (parserfout)
     // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
     // T8b (Q1, omgedraaid): een 502 is een onzeker resultaat; de app controleert (enkel lezen) of de mail al weg is. De standaardstub van
