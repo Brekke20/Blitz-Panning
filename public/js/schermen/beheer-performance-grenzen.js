@@ -35,10 +35,11 @@ export function grenzenPaneelHtml(grenzen, { uitgeschakeld = false, fout = false
   const foutHtml = fout
     ? `<p class="dash-melding dash-melding--fout" role="alert">${escHtml(GRENZEN_LAAD_FOUT)}<button type="button" class="btn btn--secondary btn--sm dash-knop" data-actie="dashboard-grenzen-herlaad">Opnieuw laden</button></p>`
     : '';
-  return foutHtml + '<p class="dash-uitleg">Een ring kleurt groen vanaf de groene drempel en oranje vanaf de oranje drempel, anders rood. '
+  return foutHtml + '<p class="dash-uitleg">Bij "hoog is goed" kleurt een ring groen vanaf de groene drempel en oranje vanaf de oranje drempel, anders rood (de groene drempel ligt dan hoger dan de oranje). '
+    + 'Bij "laag is goed" (bv. garantie) kleurt hij groen tot en met de groene drempel en oranje tot en met de oranje drempel, anders rood (de groene drempel ligt dan niet hoger dan de oranje). '
     + 'Laat beide velden leeg voor een ring zonder kleur.</p>'
-    + '<div class="dash-tabel-scroll"><table class="grenzen-tabel"><thead><tr><th scope="col">Ring</th><th scope="col">Groen vanaf (%)</th>'
-    + `<th scope="col">Oranje vanaf (%)</th><th scope="col">Richting</th></tr></thead><tbody>${rijen}</tbody></table></div>`
+    + '<div class="dash-tabel-scroll"><table class="grenzen-tabel"><thead><tr><th scope="col">Ring</th><th scope="col">Groene drempel (%)</th>'
+    + `<th scope="col">Oranje drempel (%)</th><th scope="col">Richting</th></tr></thead><tbody>${rijen}</tbody></table></div>`
     + `<div class="grenzen-acties"><button type="button" class="btn btn--primary dash-knop" data-actie="dashboard-grenzen-bewaar"${uitgeschakeld ? ' disabled' : ''}>Grenzen bewaren</button>`
     + `<button type="button" class="btn btn--secondary dash-knop" data-actie="dashboard-grenzen-standaard"${uitgeschakeld ? ' disabled' : ''}>Standaard terugzetten</button></div>`;
 }

@@ -41,7 +41,9 @@ function wachtendKaart(w) {
   { breed: true });
 }
 
+const NOOT = 'Leads worden na 12 maanden gewist, samen met hun bezoeken: bij een periode van meer dan 12 maanden terug zijn de sales-cijfers onvolledig.';
+
 export function renderSales(data) {
   const s = data?.sales ?? {};
-  return blok('sales', 'Sales', [perWeekKaart(s.perWeek), resultatenKaart(s.resultaten), wachtendKaart(s.wachtend)]);
+  return blok('sales', 'Sales', [perWeekKaart(s.perWeek), resultatenKaart(s.resultaten), wachtendKaart(s.wachtend)], { noot: NOOT });
 }

@@ -59,7 +59,7 @@ test.describe('Performance: overzicht', () => {
     await expect(tegel(page, 'interventies').locator('.tegel-waarde')).toHaveText('10');
     expect(verzoeken.van('/api/dashboard', 'GET')).toHaveLength(1);
     // Dekking-voetnoot uit de fixture.
-    await expect(page.locator('.dash-voetnoten')).toContainText('Op basis van 10 van 12 rapporten, 2 zonder gepland tijdslot');
+    await expect(page.locator('.dash-voetnoten')).toContainText('% op tijd: op basis van 10 van 12 rapporten, 2 zonder gepland tijdslot');
     // Bedieningsgegevens van de gebruiker (HTML in namen) komen niet als markup op de pagina.
     await expect(page.locator('.dash img[src="x"]')).toHaveCount(0);
   });

@@ -218,11 +218,12 @@ export function dekkingVoetnoten(dekking) {
   const tijd = dekking?.tijd;
   if (isGetal(tijd?.rapporten)) {
     const zonder = isGetal(tijd.zonderSlot) && tijd.zonderSlot > 0 ? tijd.zonderSlot : 0;
-    regels.push(`Op basis van ${Math.max(0, tijd.rapporten - zonder)} van ${tijd.rapporten} rapporten${zonder ? `, ${zonder} zonder gepland tijdslot` : ''}`);
+    regels.push(`% op tijd: op basis van ${Math.max(0, tijd.rapporten - zonder)} van ${tijd.rapporten} rapporten${zonder ? `, ${zonder} zonder gepland tijdslot` : ''}`);
   }
   const klant = dekking?.klant;
   if (klant && 'annulatiesVanaf' in klant) {
-    if (klant.annulatiesVanaf === null) regels.push('Annulaties: nog geen gegevens (het log start bij de livegang van de logins)');
+    const logFout = Array.isArray(dekking?.fouten) && dekking.fouten.includes('activiteit'); // dan staat de oorzaak in de foutvoetnoot hieronder
+    if (klant.annulatiesVanaf === null) { if (!logFout) regels.push('Annulaties: nog geen gegevens (het log start bij de livegang van de logins)'); }
     else {
       const m = DAGMAAND_RE.exec(String(klant.annulatiesVanaf));
       if (m) regels.push(`Annulaties sinds ${Number(m[2])}/${Number(m[1])}`);

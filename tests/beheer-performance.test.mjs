@@ -11,7 +11,7 @@ const tekst = x => x.join(' | ');
 
 test('dekkingVoetnoten: aantal rapporten met slot en annulaties sinds', () => {
   const t = tekst(dekkingVoetnoten({ tijd: { rapporten: 52, zonderSlot: 14 }, klant: { annulatiesVanaf: '2026-10-12' } }));
-  assert.match(t, /Op basis van 38 van 52 rapporten, 14 zonder gepland tijdslot/);
+  assert.match(t, /% op tijd: op basis van 38 van 52 rapporten, 14 zonder gepland tijdslot/);
   assert.match(t, /Annulaties sinds 12\/10/);
 });
 
@@ -19,6 +19,12 @@ test('dekkingVoetnoten: annulatiesVanaf null = nog geen gegevens', () => {
   const t = tekst(dekkingVoetnoten({ klant: { annulatiesVanaf: null } }));
   assert.match(t, /nog geen gegevens/);
   assert.match(t, /logins/);
+});
+
+test('dekkingVoetnoten: bij een leesfout van het log geen "het log start bij de livegang" (eindreview M4)', () => {
+  const t = tekst(dekkingVoetnoten({ klant: { annulatiesVanaf: null }, fouten: ['activiteit'] }));
+  assert.doesNotMatch(t, /livegang|nog geen gegevens/);
+  assert.match(t, /Niet alle bronnen konden gelezen worden \(activiteit\)/);
 });
 
 test('dekkingVoetnoten: lege of ontbrekende dekking geeft geen NaN of undefined', () => {
@@ -31,7 +37,7 @@ test('dekkingVoetnoten: lege of ontbrekende dekking geeft geen NaN of undefined'
 
 test('dekkingVoetnoten: zonder rapporten zonder slot geen "zonder gepland tijdslot"', () => {
   const t = tekst(dekkingVoetnoten({ tijd: { rapporten: 10, zonderSlot: 0 } }));
-  assert.match(t, /Op basis van 10 van 10 rapporten/);
+  assert.match(t, /% op tijd: op basis van 10 van 10 rapporten/);
   assert.doesNotMatch(t, /zonder gepland tijdslot/);
 });
 

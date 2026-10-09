@@ -63,7 +63,7 @@ test('Tijd: vier duurkaarten, ringen per technieker met kop en verdeling, stipth
   for (const w of ['Te vroeg', 'Op tijd', 'Te laat']) assert.ok(h.includes(`>${w}<`), w);
   assert.ok(h.includes('Aanrijtijd (schatting vanaf startlocatie) en werktijd per dag'));
   assert.ok(h.includes('grafiek--lijn') && h.includes('grafiek--kolommen'));
-  assert.ok(h.includes('Interventies per dag per technieker'));
+  assert.ok(h.includes('Bezoeken per dag per technieker'));
 });
 
 test('Tijd: ringstatus volgt de grenzen (80 % op tijd is "Let op" bij 90/75)', () => {
@@ -221,6 +221,10 @@ test('Sales: kolommen per verkoper per week, donut met vier legenderijen en tota
   assert.ok(/swatch--1[^]*Offerte[^]*swatch--2[^]*Verkocht[^]*swatch--3[^]*Geen interesse[^]*swatch--4[^]*Opnieuw/.test(donut), 'vaste volgorde en slots');
   assert.ok(donut.includes('donut-groot') && donut.includes('>4<'), 'totaal in het midden');
   assert.ok(h.includes('Wachtende leads') && h.includes('7–14d') && h.includes('An Janssens'));
+});
+
+test('Sales: vaste noot over het wissen van leads na 12 maanden (eindreview M7)', () => {
+  assert.ok(renderSales(data, ctx).includes('Leads worden na 12 maanden gewist'));
 });
 
 test('Sales: geen persoonsgegevens van klanten of leads', () => {

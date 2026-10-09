@@ -53,7 +53,7 @@ function perDagKaart(pd, ctx, data) {
   const g = groepeerPerWeek(datums, namen.map(t => ({
     sleutel: t, label: t, slot: techniekerSlot(t, ctx, data, namen), waarden: datums.map(d => pd.waarden?.[t]?.[d] ?? 0),
   })));
-  const titel = `Interventies per ${g.perWeek ? 'week' : 'dag'} per technieker`;
+  const titel = `Bezoeken per ${g.perWeek ? 'week' : 'dag'} per technieker`;
   return kaart(titel, gestapeldeKolommen({ categorieen: g.punten, reeksen: g.reeksen, titel, eenheid: 'bezoeken', categorieLabel: g.perWeek ? 'Week' : 'Dag' }), { breed: true });
 }
 
