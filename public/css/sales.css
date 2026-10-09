@@ -32,3 +32,18 @@
 @media (max-width: 599px) {
   .sales-balk, .sales-inhoud { padding-left: var(--sp-3); padding-right: var(--sp-3); }
 }
+
+/* Tab "Sales" van de beheerder: eigen subtabbalk (zelfde look als de Beheer-pagina); de panelen verbergen met [hidden]. */
+.sales-beheer { min-width: 0; }
+.sales-titel { font-size: var(--fs-xl); font-weight: 700; line-height: 1.25; padding: var(--sp-4) var(--sp-4) 0; }
+.sales-subtabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; margin: var(--sp-3) var(--sp-4) 0; }
+.sales-subtabs::-webkit-scrollbar { display: none; }
+.sales-subtab {
+  background: none; border: none; border-bottom: 2px solid transparent; padding: 0 var(--sp-4); min-height: 44px;
+  font: inherit; font-size: var(--fs-sm); font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap;
+}
+.sales-subtab:hover { color: var(--text); }
+.sales-subtab[aria-selected="true"] { color: var(--accent-ink); border-bottom-color: var(--accent); }
+.sales-subtab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.sales-subpaneel { min-width: 0; }
+.sales-subpaneel[hidden] { display: none; }

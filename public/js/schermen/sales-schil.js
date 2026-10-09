@@ -22,7 +22,7 @@ registreerAfmeldHaak(() => {
 
 // ---- stijl en view ----
 
-function zorgVoorStijl() {
+export function zorgVoorStijl() {
   if (document.querySelector('link[data-sales-css]')) return;
   const link = document.createElement('link');
   link.rel = 'stylesheet';

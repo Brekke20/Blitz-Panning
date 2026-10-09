@@ -127,25 +127,59 @@ test.describe('sales: verkoperkeuze', () => {
     expect(verzoeken.van('/api/gebruikers', 'GET').length).toBeGreaterThan(0);
   });
 
-  test('de beheerder krijgt de sales-tabs met het voorvoegsel "Sales: " en een verkoperkeuze', async ({ page }) => {
+  test('de beheerder krijgt één tab "Sales" met subtabs en een verkoperkeuze; de hoofdtabnamen blijven eenduidig', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER });
-    await expect(zichtbareTabs(page)).toHaveCount(11);
-    for (const naam of ['Sales: Te plannen', 'Sales: Agenda', 'Sales: Rit', 'Sales: Afgewerkt']) await expect(tab(page, naam)).toBeVisible();
-    // De bestaande tabnamen blijven eenduidig (geen tweede "Kalender" of "Route").
+    await expect(zichtbareTabs(page)).toHaveCount(8);
+    await expect(tab(page, 'Sales')).toBeVisible();
+    // De subtabs bestaan enkel binnen de Sales-view: zolang die niet open is, blijven Kalender en Route eenduidig.
     await expect(page.getByRole('tab', { name: 'Kalender' })).toHaveCount(1);
     await expect(page.getByRole('tab', { name: 'Route' })).toHaveCount(1);
-    await tab(page, 'Sales: Agenda').click();
-    await expect(page.locator('#view-sales-kalender')).toHaveClass(/active/);
-    const keuze = page.locator('#view-sales-kalender').getByLabel('Verkoper');
-    await expect(keuze).toBeVisible();
-    await expect(keuze).toHaveValue('u-bea'); // de eerste verkoper (op naam)
-    await expect(page.locator('#view-sales-kalender .sales-alleen-lezen')).toBeHidden(); // de beheerder mag schrijven
+    await tab(page, 'Sales').click();
+    const subs = page.getByRole('tablist', { name: 'Sales-onderdelen' });
+    await expect(subs.getByRole('tab')).toHaveText(['Te plannen', 'Kalender', 'Route', 'Afgewerkt']);
+    await expect(subs.getByRole('tab', { name: 'Te plannen' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#view-sales-lijst')).toBeVisible();
+    await expect(page.locator('#view-sales-kalender')).toBeHidden();
+    await expect(page.locator('#view-sales-lijst').getByLabel('Verkoper')).toHaveValue('u-bea'); // de eerste verkoper (op naam)
+
+    await subs.getByRole('tab', { name: 'Kalender' }).click();
+    await expect(page.locator('#view-sales-kalender')).toBeVisible();
+    await expect(page.locator('#view-sales-lijst')).toBeHidden();
     await expect(page.locator('#view-sales-kalender')).toContainText('De kalender volgt.');
+    await expect(page.locator('#view-sales-kalender .sales-alleen-lezen')).toBeHidden(); // de beheerder mag schrijven
+    await expect(page.locator('#view-sales-kalender').getByLabel('Verkoper')).toBeVisible();
+    expect(await page.evaluate(() => sessionStorage.getItem('blitz_sales_subtab'))).toBe('sales-kalender');
+  });
+
+  test('subtabs: pijltjestoetsen en Home/End, en het gekozen subtab wordt onthouden', async ({ page }) => {
+    await startSalesApp(page, { gebruiker: BEHEERDER });
+    await tab(page, 'Sales').click();
+    const subs = page.getByRole('tablist', { name: 'Sales-onderdelen' });
+    await subs.getByRole('tab', { name: 'Te plannen' }).focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(subs.getByRole('tab', { name: 'Kalender' })).toHaveAttribute('aria-selected', 'true');
+    await expect(subs.getByRole('tab', { name: 'Kalender' })).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(subs.getByRole('tab', { name: 'Afgewerkt' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#view-sales-afgewerkt')).toBeVisible();
+    await page.keyboard.press('ArrowRight'); // omwikkelen
+    await expect(subs.getByRole('tab', { name: 'Te plannen' })).toHaveAttribute('aria-selected', 'true');
+    await page.keyboard.press('ArrowLeft');
+    await expect(subs.getByRole('tab', { name: 'Afgewerkt' })).toHaveAttribute('aria-selected', 'true');
+    // Wegnavigeren en terug, en na een herlaad: hetzelfde subtab.
+    // Met de Sales-view open bestaat "Kalender" twee keer (hoofdtab en subtab): de hoofdbalk wordt expliciet bevraagd.
+    await page.locator('.tabs-inner').getByRole('tab', { name: 'Kalender', exact: true }).click();
+    await tab(page, 'Sales').click();
+    await expect(subs.getByRole('tab', { name: 'Afgewerkt' })).toHaveAttribute('aria-selected', 'true');
+    await page.reload();
+    await tab(page, 'Sales').click();
+    await expect(subs.getByRole('tab', { name: 'Afgewerkt' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#view-sales-afgewerkt')).toBeVisible();
   });
 
   test('de beheerder zonder actieve verkopers ziet een duidelijke melding', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER, verkopers: [] });
-    await tab(page, 'Sales: Te plannen').click();
+    await tab(page, 'Sales').click();
     await expect(page.locator('#view-sales-lijst')).toContainText('Geen actieve verkopers gevonden.');
   });
 });

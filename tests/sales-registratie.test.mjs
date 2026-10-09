@@ -24,20 +24,13 @@ test('sales: de vier tabs in de volgorde Te plannen, Kalender, Route, Afgewerkt,
   for (const t of sales.lijst) assert.equal(typeof t.laad, 'function', t.id);
 });
 
-test('beheerder: dezelfde id\'s, labels beginnen met "Sales: " en botsen niet met de bestaande tabnamen (Kalender, Route)', () => {
+test('beheerder: één tab "Sales" met een laad-functie (de vier schermen zitten in subtabs, niet in de hoofdbalk)', () => {
   const s = spionen();
   registreerSalesRol(s);
-  const beheer = s.tabs.find(t => t.rol === 'beheerder');
-  assert.ok(beheer);
-  assert.deepEqual(beheer.lijst.map(t => t.id), SALES_TABS.map(t => t.id));
-  for (const t of beheer.lijst) {
-    assert.ok(t.label.startsWith('Sales: '), t.label);
-    assert.equal(typeof t.laad, 'function', t.id);
-  }
-  // Playwright/Testing Library zoeken tabs op een deel van de naam: "Sales: Kalender" zou de tab "Kalender" dubbel maken.
-  for (const bestaand of ['Wachtrij', 'Kalender', 'Route', 'Ingepland', 'Inventaris', 'Rapporten', 'Beheer']) {
-    assert.deepEqual(beheer.lijst.filter(t => t.label.toLowerCase().includes(bestaand.toLowerCase())).map(t => t.label), [], bestaand);
-  }
+  const beheer = s.tabs.filter(t => t.rol === 'beheerder').flatMap(t => t.lijst);
+  assert.deepEqual(beheer.map(t => [t.id, t.label]), [['sales', 'Sales']]);
+  assert.equal(typeof beheer[0].laad, 'function');
+  assert.equal('beheerLabel' in beheer[0], false);
 });
 
 test('de start voor rol sales is een functie', () => {
@@ -56,7 +49,7 @@ test('sales-registratie.js heeft geen statische import-regel (de modulepreload-g
 });
 
 test('elk lazy scherm bestaat als bestand (geen 404 bij de eerste tabwissel)', () => {
-  for (const naam of ['sales-schil', 'sales-venster', 'sales-verkoper', 'sales-start', 'sales-lijst', 'sales-kalender', 'sales-route', 'sales-afgewerkt']) {
+  for (const naam of ['sales-schil', 'sales-beheer', 'sales-venster', 'sales-verkoper', 'sales-start', 'sales-lijst', 'sales-kalender', 'sales-route', 'sales-afgewerkt']) {
     assert.ok(fs.existsSync(path.join(SCHERMEN, naam + '.js')), naam + '.js');
   }
 });

@@ -8,11 +8,11 @@ const zichtbareTabs = (page) => page.locator('.tabs-inner .tab:visible');
 const RAPPORT = { id: 'r1', ticketId: 't1', ticketNumber: '1001', datum: '2026-10-05', technieker: 'Tim', rapportData: { _html: '<p>Rapport</p>' } };
 
 test.describe('tabs per rol', () => {
-  test('beheerder ziet 7 eigen tabs, met Beheer, plus de 4 sales-tabs', async ({ page }) => {
+  test('beheerder ziet 8 tabs, met Beheer en Sales', async ({ page }) => {
     await startApp(page, { loginRol: 'beheerder' });
-    await expect(zichtbareTabs(page)).toHaveCount(11);
+    await expect(zichtbareTabs(page)).toHaveCount(8);
     for (const naam of ['Wachtrij', 'Kalender', 'Route', 'Ingepland', 'Inventaris', 'Rapporten', 'Beheer']) await expect(tab(page, naam)).toBeVisible();
-    for (const naam of ['Sales: Te plannen', 'Sales: Agenda', 'Sales: Rit', 'Sales: Afgewerkt']) await expect(tab(page, naam)).toBeVisible();
+    await expect(tab(page, 'Sales')).toBeVisible();
     await expect(page.locator('#view-beheer')).toHaveAttribute('role', 'tabpanel');
     await expect(page.locator('#tab-beheer')).toHaveAttribute('data-actie', 'hoofdtab');
   });

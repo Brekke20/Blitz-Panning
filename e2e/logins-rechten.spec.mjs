@@ -156,9 +156,9 @@ test.describe('rechten per rol (Rechtentabel): tabs en knoppen', () => {
   const COORD_KNOPPEN = ['d-btn-proposal', 'd-btn-reschedule'];
   const SCHRIJF = ['d-btn-arrival', 'd-btn-fotos', 'd-btn-rapport'];
 
-  test('beheerder: 7 eigen tabs met Beheer plus de 4 sales-tabs; alle knoppen in het detail', async ({ page }) => {
+  test('beheerder: 8 tabs (met Beheer en Sales); alle knoppen in het detail', async ({ page }) => {
     await startApp(page, { loginRol: 'beheerder' });
-    await expect(zichtbareTabs(page)).toHaveCount(11);
+    await expect(zichtbareTabs(page)).toHaveCount(8);
     await expect(tab(page, 'Beheer')).toBeVisible();
     await openPlanningDetail(page);
     for (const id of [...SCHRIJF, ...COORD_KNOPPEN, 'd-plan-btn']) await expect(knop(page, id), id).toBeVisible();
