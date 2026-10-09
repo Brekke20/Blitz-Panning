@@ -8,13 +8,13 @@
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { apiJson, foutTekst, leesFout } from '../kern/api.js';
-import { controleerMail, mailControleTekst, TEKST_CONTROLEREN } from '../kern/mailcontrole.js';
+import { controleerMail, mailControleTekst, mailControleAfsluiting, TEKST_CONTROLEREN } from '../kern/mailcontrole.js';
 import { toast, escHtml, registreerActies, registreerWijzigActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { timeStrToMin, minToTimeStr, extractLocalHour } from '../kern/tijd.js';
 import { registreerVenster } from '../venster.js';
 import { renderTickets } from './wachtrij.js';
 import { renderKalender } from './kalender.js';
-import { bewaarVoorstelRegister, registerEntry } from './voorstel-register.js';
+import { bewaarVoorstelRegister, registerEntry, doelgroepenVoorAdressen } from './voorstel-register.js';
 import { tijdslotVoor, roundToNextQuarterStr, cleanTicketSubject, joinNL, DOELGROEP_LABEL } from './ticketdetail-logica.js';
 
 // Afhankelijkheden uit app.js en andere schermen (ingevuld door initVoorstel); een vergeten init faalt luid.
@@ -238,6 +238,11 @@ export async function sendProposal() {
   const verzendStart = performance.now();
   const verzendStartWand = Date.now(); // I1: loopt door tijdens slaapstand, performance.now() niet
   const verwachtAdressen = [..._proposalOntvangers];
+  // B4: de ticketadressen, het tijdslot en de datum van DEZE verzending, vastgelegd vóór de fetch (het actieve ticket kan intussen wisselen).
+  const registerInvoer = {
+    ticketMails: { email: afh.actiefTicket().email, emailEindklant: afh.actiefTicket().emailEindklant, emailInstallateur: afh.actiefTicket().emailInstallateur },
+    tijdslot: apptWindowSend, date,
+  };
   try {
     // Bereken UTC-tijdstip in de browser (die kent de lokale tijdzone)
     const timeStr             = rawTime || '09:00';
@@ -258,7 +263,12 @@ export async function sendProposal() {
       }),
     });
     const data = await res.json().catch(() => ({ error: 'HTTP ' + res.status })); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>'
-    if (data.error) throw new Error(data.error);
+    if (data.error) {
+      // B2: de server meldt dat de mail al vertrokken is maar de ticket-update daarna faalde: geen gewone fout maar een waarschuwing.
+      const vertrokken = ['contact', 'klant', 'installateur'].filter(d => data.emailSent?.[d] === true);
+      if (vertrokken.length) return naMailZonderTicketUpdate({ ticketId, date, vertrokken, fout: data.error, registerInvoer, btn });
+      throw new Error(data.error);
+    }
 
     // Eén atomische POST met alle doelgroepen die een mail kregen; reset vervangt de oude entry.
     const verzonden = ['contact', 'klant', 'installateur'].filter(d => data.emailSent?.[d] === true);
@@ -318,7 +328,7 @@ export async function sendProposal() {
     if (verwachtAdressen.length && leesFout(err).onzeker) {
       // Q1: de mail kan al weg zijn. De knop blijft op slot tot de controle klaar is: er start nooit vanzelf een tweede verzending.
       toast('✕ ' + foutTekst(err), 5000);
-      return naOnzekerVoorstel(ticketId, verzendStart, verzendStartWand, verwachtAdressen, btn);
+      return naOnzekerVoorstel(ticketId, verzendStart, verzendStartWand, verwachtAdressen, btn, registerInvoer);
     }
     btn.disabled    = false;
     btn.textContent = '✉️ Verstuur voorstel';
@@ -326,18 +336,41 @@ export async function sendProposal() {
   }
 }
 
+// B2: de mail is vertrokken, maar Zoho kon het ticket daarna niet bijwerken. Het venster sluit, het register wordt eerst geschreven (voor precies
+// de doelgroepen die de mail kregen) en pas daarna leest de app de tickets opnieuw (de echte stand). Het ticket wordt NIET lokaal verplaatst.
+// Enkel een duidelijke waarschuwing: de planner zet status en datum in Zoho zelf recht (er is bewust geen "ticket bijwerken"-knop).
+async function naMailZonderTicketUpdate({ ticketId, date, vertrokken, fout, registerInvoer, btn }) {
+  document.getElementById('proposal-overlay').classList.remove('open');
+  btn.disabled = false;
+  btn.textContent = '✉️ Verstuur voorstel';
+  const ok = await schrijfVerzondenRegister({ ticketId, doelgroepen: vertrokken, tijdstip: new Date().toISOString(), tijdslot: registerInvoer.tijdslot, date });
+  afh.planResync();
+  toast(`⚠ Voorstel is verstuurd naar ${joinNL(vertrokken.map(d => DOELGROEP_LABEL[d] || d))}, maar Zoho kon het ticket niet bijwerken (${fout}). Stuur het voorstel NIET opnieuw: zet de status en de datum in Zoho zelf recht.`
+    + (ok ? '' : ' Ook de status in de app kon niet bewaard worden: herlaad de pagina.'), 8000);
+}
+
 // Q1 (etappe 7): na een onzeker resultaat nagaan of de mail al verzonden is (enkel lezen) en dat melden.
+// B4: bij een teruggevonden mail wordt het voorstel ook "verzonden" aangevinkt (register), voor wie de mail kreeg.
 // verzonden: niets opnieuw te versturen; het venster sluit en de tickets worden opnieuw gelezen. Anders gaat de knop weer open.
-async function naOnzekerVoorstel(ticketId, start, startWand, verwacht, btn) {
+async function naOnzekerVoorstel(ticketId, start, startWand, verwacht, btn, registerInvoer) {
   toast(TEKST_CONTROLEREN, 30000);
   const r = await controleerMail({ ticketId, start, startWand, verwacht });
   btn.disabled = false;
   btn.textContent = '✉️ Verstuur voorstel';
+  const gevonden = r.uitkomst === 'verzonden' ? r.verzonden : (r.gevonden || []);
+  let afsluiting = '';
+  if (gevonden.length > 0) {
+    // Altijd het register schrijven voor de doelgroepen die de mail vonden; lukt dat niet (of is er geen doelgroep bij een adres), dan 'mislukt'.
+    const doelgroepen = doelgroepenVoorAdressen(registerInvoer.ticketMails, gevonden.map(v => v.aan));
+    const tijdstip = gevonden.map(v => v.tijdstip).sort()[0];
+    const ok = doelgroepen.length > 0 && await schrijfVerzondenRegister({ ticketId, doelgroepen, tijdstip, tijdslot: registerInvoer.tijdslot, date: registerInvoer.date });
+    afsluiting = mailControleAfsluiting('voorstel', !ok ? 'mislukt' : (r.uitkomst === 'verzonden' ? 'alles' : 'deel'));
+  }
   if (r.uitkomst === 'verzonden') {
     if (String(afh.actiefTicket()?.id) === String(ticketId)) document.getElementById('proposal-overlay').classList.remove('open');
     afh.planResync();
-    toast('✓ ' + mailControleTekst(r), 8000);
+    toast('✓ ' + mailControleTekst(r) + afsluiting, 8000);
     return;
   }
-  toast('⚠ ' + mailControleTekst(r), 8000);
+  toast('⚠ ' + mailControleTekst(r) + afsluiting, 8000);
 }
