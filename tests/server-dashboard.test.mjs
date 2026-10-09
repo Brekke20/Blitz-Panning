@@ -99,6 +99,9 @@ test('filters en herhaal komen aan in het antwoord', async () => {
   assert.equal(body.filters.technieker, 'Tim');
   assert.equal(body.filters.herhaalDagen, 45);
   assert.equal((await lees(h, `${GOED}&herhaal=abc`)).body.filters.herhaalDagen, 30);
+  assert.equal((await lees(h, `${GOED}&herhaal=90`)).body.filters.herhaalDagen, 90, 'zo ver terug leest de server rapporten');
+  assert.equal((await lees(h, `${GOED}&herhaal=91`)).body.filters.herhaalDagen, 30, 'verder dan de terugblik van 90 dagen wordt niet aanvaard (zou stil ondertellen)');
+  assert.equal((await lees(h, `${GOED}&herhaal=365`)).body.filters.herhaalDagen, 30);
 });
 
 test('zonder van en tot: de laatste 30 dagen tot vandaag', async () => {

@@ -22,7 +22,7 @@ const DATUM_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_DAGEN = 800;
 const STANDAARD_DAGEN = 30;
 const MAX_TEKST = 100;
-const MAX_HERHAAL = 365;
+const MAX_HERHAAL = 90; // gelijk aan TERUGBLIK_DAGEN in dashboard-bronnen.js: verder terug lezen we geen rapporten, dus meer zou stil ondertellen
 
 const json = (status, obj) => new Response(JSON.stringify(obj), { status, headers: { ...CORS, 'Cache-Control': 'no-store' } });
 

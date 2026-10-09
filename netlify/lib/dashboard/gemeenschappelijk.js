@@ -51,8 +51,14 @@ export function werktijdMinuten(rd) {
   return leesWerktijd(rd).min;
 }
 
+// Plaatshouders die technieker of Zoho in het serienummerveld zetten ("nvt", "n.v.t.", "-", "0", "?", "onbekend", ...) zijn geen
+// serienummer: als sleutel zouden alle bezoeken ermee als herhaalbezoek van elkaar tellen. Hier wordt het ''; de herhaalcheck valt dan terug op het adres.
+const PLAATSHOUDERS = new Set(['NVT', 'NA', 'ONBEKEND', 'GEEN', 'NIETBEKEND', 'NIETVANTOEPASSING', 'UNKNOWN', 'NONE']);
 export function normaliseerSerienummer(s) {
-  return tekst(s).toUpperCase().replace(/\s+/g, '');
+  const n = tekst(s).toUpperCase().replace(/\s+/g, '');
+  const kern = n.replace(/[^A-Z0-9]/g, '');
+  if (!kern || /^0+$/.test(kern) || PLAATSHOUDERS.has(kern)) return '';
+  return n;
 }
 
 export function normaliseerAdres(s) {

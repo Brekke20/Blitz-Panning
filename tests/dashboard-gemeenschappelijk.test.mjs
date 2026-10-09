@@ -4,6 +4,7 @@ import {
   TYPE_ONBEKEND, MAX_WERKTIJD_MIN, werktijdMinuten, normaliseerRapport, normaliseerSerienummer, normaliseerAdres,
   dagenTussen, inPeriode, vorigePeriode, weekStart, filterRapporten, pct, gemiddelde, mediaan,
 } from '../netlify/lib/dashboard/gemeenschappelijk.js';
+import { herhaalbezoeken } from '../netlify/lib/dashboard/kwaliteit.js';
 
 const entry = (extra = {}, rd = {}) => ({
   id: 'r1', datum: '2026-10-05', technieker: 'Tim', ticketId: 't1', ticketNumber: '1001', klant: 'Jan', adres: 'Antwerpseweg 50, 2440 Geel',
@@ -144,6 +145,8 @@ test('normaliseerSerienummer en normaliseerAdres', () => {
   assert.equal(normaliseerSerienummer(' charx-12 34 '), 'CHARX-1234');
   assert.equal(normaliseerSerienummer(''), '');
   assert.equal(normaliseerSerienummer(null), '');
+  for (const plaats of ['nvt', 'N.V.T.', 'n/a', '-', '--', '0', '000', '?', 'Onbekend', ' geen ', 'N.A.']) assert.equal(normaliseerSerienummer(plaats), '', plaats);
+  assert.equal(normaliseerSerienummer('CHARX-0'), 'CHARX-0', 'een echt serienummer met een nul blijft');
   assert.equal(normaliseerAdres('Antwerpseweg 50, 2440 Geel'), 'antwerpseweg502440geel');
   assert.equal(normaliseerAdres('Geel'), '');
   assert.equal(normaliseerAdres('Rue Léopold 12, Liège'), 'rueleopold12liege');
@@ -186,4 +189,14 @@ test('filterRapporten', () => {
   assert.equal(filterRapporten(lijst, { technieker: '', type: '' }).length, 3);
   assert.equal(filterRapporten(lijst, { type: 'Dual 1' }).length, 2);
   assert.deepEqual(filterRapporten(lijst, { technieker: 'Tim', type: 'Dual 1' }), [lijst[0]]);
+});
+
+test('plaatshouder-serienummer is geen herhaalbezoek-sleutel: valt terug op het adres (eindreview M3)', () => {
+  const a = normaliseerRapport(entry({ id: 'a', datum: '2026-10-01', adres: 'Antwerpseweg 50, 2440 Geel' }, { serienummer: 'nvt' }));
+  const b = normaliseerRapport(entry({ id: 'b', datum: '2026-10-10', adres: 'Kerkstraat 1, 9000 Gent' }, { serienummer: 'NVT' }));
+  assert.equal(a.serienummer, '');
+  assert.equal(herhaalbezoeken([a, b], [b], 30).length, 0, 'twee verschillende klanten met "nvt" zijn geen herhaalbezoek');
+  const c = normaliseerRapport(entry({ id: 'c', datum: '2026-10-10', adres: 'Antwerpseweg 50, 2440 Geel' }, { serienummer: '-' }));
+  const [h] = herhaalbezoeken([a, c], [c], 30);
+  assert.equal(h.vorigeId, 'a', 'zelfde adres blijft wel een herhaalbezoek');
 });
