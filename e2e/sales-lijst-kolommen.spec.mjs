@@ -127,6 +127,18 @@ test.describe('sales: Leads in drie kolommen', () => {
     expect(verzoeken.van('/api/sales', 'DELETE')).toEqual([]);
   });
 
+  test('het verwijderknopje (✕) staat enkel bij Nog in te plannen, niet bij ingeplande of bevestigde bezoeken', async ({ page }) => {
+    await startSalesApp(page, { leads: MIX() });
+    await expect(kolom(page, 'tePlannen').getByRole('button', { name: /Verwijder/ })).toHaveCount(3);
+    await expect(kolom(page, 'ingepland').getByRole('button', { name: /Verwijder/ })).toHaveCount(0);
+    await expect(kolom(page, 'bevestigd').getByRole('button', { name: /Verwijder/ })).toHaveCount(0);
+    await expect(kolom(page, 'ingepland').getByRole('button', { name: /Bevestig/ })).toHaveCount(2); // Bevestigen blijft
+    // een bevestigd bezoek verwijderen kan pas na Terug naar te plannen (in het detail)
+    await kaartIn(page, 'bevestigd', 'Test Donderdag').locator('.sales-kaart-titel').click();
+    await venster(page).getByRole('button', { name: 'Terug naar te plannen' }).click();
+    await expect(kaartIn(page, 'tePlannen', 'Test Donderdag').getByRole('button', { name: 'Verwijder Test Donderdag' })).toHaveCount(1);
+  });
+
   test('leadgegevens worden in elke kolom als tekst getoond (geen HTML)', async ({ page }) => {
     const gevaarlijk = '<img src=x onerror="window.__gehackt=1">';
     await startSalesApp(page, { leads: [

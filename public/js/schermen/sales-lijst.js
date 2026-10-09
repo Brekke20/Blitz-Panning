@@ -42,7 +42,7 @@ function zorgVoorHaken() {
 
 // ---- kaartjes ----
 
-function maakKaart(lead, kanWissen) {
+function maakKaart(lead, kanSchrijven, kanWissen) {
   const info = kaartInfo(lead);
   const kaart = el('div', { class: 'sales-kaart', 'data-actie': 'sales-open', 'data-arg': lead.id, 'data-lead-id': lead.id });
   maakActiveerbaar(kaart, () => openLeadDetail(lead.id), `Open ${info.titel}`);
@@ -64,7 +64,7 @@ function maakKaart(lead, kanWissen) {
     kaart.append(contact);
   }
   // Een voorgesteld bezoek kan hier meteen bevestigd worden (dan verhuist het naar "Bevestigd"); het uur wijzigen en terug naar te plannen staan in het detail.
-  if (kanWissen && lead.status === 'voorgesteld' && info.voorstelUur) {
+  if (kanSchrijven && lead.status === 'voorgesteld' && info.voorstelUur) {
     kaart.append(el('div', { class: 'sales-kaart-acties' },
       el('button', { type: 'button', class: 'btn btn--secondary', 'data-actie': 'sales-bevestig', 'data-arg': lead.id, 'aria-label': `Bevestig ${info.titel}`, text: 'Bevestigen' })));
   }
@@ -72,10 +72,11 @@ function maakKaart(lead, kanWissen) {
 }
 
 // Eén kolom: kop met titel en aantal, daaronder de kaartjes of de tekst van een lege kolom.
-function maakKolom({ sleutel, titel, leeg }, leads, kanWissen) {
+// Het ✕ (verwijderen) staat enkel in de eerste kolom: een ingepland of bevestigd bezoek verwijder je niet per ongeluk (eerst Terug naar te plannen in het detail).
+function maakKolom({ sleutel, titel, leeg }, leads, kanSchrijven) {
   return el('section', { class: 'sales-groep sales-kolom', 'data-kolom': sleutel, 'aria-label': titel },
     el('h3', { class: 'sales-groep-kop', text: `${titel} (${leads.length})` }),
-    leads.length ? el('div', { class: 'sales-kaartlijst' }, ...leads.map(l => maakKaart(l, kanWissen))) : el('p', { class: 'sales-kolom-leeg', text: leeg }));
+    leads.length ? el('div', { class: 'sales-kaartlijst' }, ...leads.map(l => maakKaart(l, kanSchrijven, kanSchrijven && sleutel === 'tePlannen'))) : el('p', { class: 'sales-kolom-leeg', text: leeg }));
 }
 
 // ---- het scherm ----
@@ -105,7 +106,7 @@ function bouwWortel(inhoud) {
   function tekenKaarten() {
     const st = salesToestand();
     const open = st.leads.filter(l => l.status !== 'afgewerkt' && !st.uitgesteld.has(l.id));
-    const kanWissen = schrijfbaarNu();
+    const kanSchrijven = schrijfbaarNu();
     if (open.length === 0) {
       kaarten.replaceChildren(el('p', { class: 'sales-leeg', text: kanImporteren() ? 'Nog geen leads. Laad een export of voeg zelf een lead toe.' : 'Nog geen leads.' }));
       return;
@@ -122,7 +123,7 @@ function bouwWortel(inhoud) {
       kolomKnoppen.set(k.sleutel, knop);
       tabs.append(knop);
     }
-    const kolommen = el('div', { class: 'sales-kolommen', 'data-actief': actieveKolom }, ...KOLOMMEN.map(k => maakKolom(k, groepen[k.sleutel], kanWissen)));
+    const kolommen = el('div', { class: 'sales-kolommen', 'data-actief': actieveKolom }, ...KOLOMMEN.map(k => maakKolom(k, groepen[k.sleutel], kanSchrijven)));
     kaarten.replaceChildren(tabs, kolommen);
   }
 
