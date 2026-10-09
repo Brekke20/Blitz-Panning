@@ -14,6 +14,8 @@ import { registreerVenster } from '../venster.js';
 import { appConfirm } from '../app-dialog.js';
 import { renderBeschikbaarhedenTab } from './beschikbaarheid.js';
 import { valideerInstellingen, settingsKey } from './instellingen-logica.js';
+import { huidigeGebruiker } from '../kern/sessie.js';
+import { bewaarOpServer } from '../kern/instellingen-sync.js';
 
 // Afhankelijkheden uit app.js en prijzen.js (ingevuld door initInstellingen); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('instellingen: initInstellingen() is niet aangeroepen'); } });
@@ -87,8 +89,18 @@ export function loadPersonSettings(person) {
     werkdagen: [...(saved.werkdagen || DEFAULT_SETTINGS.werkdagen)],
   };
 }
+// Lokaal (de snelle cache, loadPersonSettings blijft synchroon) EN op de server (logins T16, fire-and-forget). Een echte 403 meldt
+// een toast; een netwerkfout niet: de vuil-markering (kern/instellingen-sync.js) laadt de lokale waarde bij de volgende start op.
 export function savePersonSettings(person) {
-  localStorage.setItem(settingsKey(person), JSON.stringify(toestand.get('settings')));
+  const settings = toestand.get('settings');
+  localStorage.setItem(settingsKey(person), JSON.stringify(settings));
+  const gebruiker = huidigeGebruiker();
+  if (!gebruiker) return; // geen sessie (kan niet na de login): enkel lokaal
+  bewaarOpServer(person, settings, gebruiker).then((r) => {
+    if (r.ok) return;
+    if (r.reden === 'geen-recht') toast('Je mag de instellingen van deze persoon niet wijzigen; lokaal bewaard.', 4000);
+    else if (r.reden === 'ongeldig') toast('De instellingen zijn niet geldig en werden enkel lokaal bewaard.', 4000);
+  }).catch(() => { /* bewaarOpServer gooit niet; vangnet */ });
 }
 
 export const DAGEN = ['Zo','Ma','Di','Wo','Do','Vr','Za'];

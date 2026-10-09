@@ -12,6 +12,9 @@ import puppeteer from 'puppeteer-core';
 import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
 import { maakZoho, leesJsonVeilig, globaleFetch } from '../lib/zoho.js';
 import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
+import { getStore } from '@netlify/blobs';
+import { beveiligV1 } from '../lib/beveiligd.js';
+import { logVoorVerzoek } from '../lib/activiteit.js';
 
 const CHROMIUM_URL  = 'https://github.com/Sparticuz/chromium/releases/download/v131.0.0/chromium-v131.0.0-pack.tar';
 
@@ -54,11 +57,11 @@ async function standaardPdf(html) {
   }
 }
 
-export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf } = {}) {
+export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf, getStore: haalStore = getStore } = {}) {
   // Instantie per handler: de tokencache (55 min) leeft zolang de functie warm is.
   const zoho = maakZoho({ fetch });
 
-  return async function handler(event) {
+  return async function handler(event, _context, gebruiker) {
     const methodeAntwoord = v1Methode(event, ['POST'], CORS_V1);
     if (methodeAntwoord) return methodeAntwoord;
 
@@ -189,6 +192,10 @@ export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf } = {
         }
       }
 
+      // Enkel als er effectief minstens één mail verstuurd is.
+      if (Object.values(emailSent).some(Boolean)) {
+        await logVoorVerzoek(event, gebruiker, { actie: 'rapport-verstuurd', onderwerp: String(ticketId), details: 'mail' }, { getStore: haalStore });
+      }
       return v1Json(200, { success: true, emailSent, fouten, statusUpdated, statusFout }, CORS_V1);
     } catch (err) {
       return v1Json(500, { error: err.message }, CORS_V1);
@@ -196,4 +203,4 @@ export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf } = {
   };
 }
 
-export const handler = maakHandler();
+export const handler = beveiligV1('send-rapport', maakHandler());

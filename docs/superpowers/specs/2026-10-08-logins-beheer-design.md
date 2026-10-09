@@ -42,9 +42,10 @@ instellingen per technieker staan in de `localStorage` van het toestel. Met de s
 |---|:-:|:-:|:-:|:-:|
 | Tickets/planning van alle techniekers bekijken | ✔ | ✔ | ✔ (alleen-lezen) | – |
 | Plannen, voorstellen sturen, annuleren, afspraken/verlof beheren | ✔ | ✔ | eigen afspraken/verlof | – |
-| Rapport maken/versturen, foto's, stockverbruik | ✔ | ✔ | eigen tickets | – |
+| Rapport maken/versturen, foto's, stockverbruik | ✔ | ✔ | eigen tickets (de app verbergt de knoppen bij collega's; de server logt elke actie met naam, geen per-ticket-afdwinging) | – |
 | Rapporten-tabblad, opnieuw versturen | ✔ | ✔ | eigen rapporten | – |
 | Prijzen, inventaris beheren | ✔ | ✔ | – | – |
+| Instellingen van techniekers wijzigen (gelogd in het activiteitenlog) | ✔ | ✔ | – (enkel eigen) | – (enkel eigen) |
 | Eigen sales-gedeelte | ✔ (iedereen) | – | – | ✔ (eigen; alle bij vinkje) |
 | Beheerpagina, dashboard | ✔ | – | – | – |
 
@@ -63,6 +64,7 @@ rol niet mag. Wat je mag hangt af van je rol; hoe het eruitziet blijft afhangen 
 |---|---|
 | `gebruikers` | `{ versie, gebruikers: [Gebruiker] }` |
 | `login-pogingen` | mislukte pogingen per e-mail / herstel, voor de vergrendeling |
+| `login-laatst` | `{ [gebruikerId]: ISO }` — tijdstip van de laatste login (apart van `gebruikers`, zodat een login een gelijktijdige blokkering nooit ongedaan maakt) |
 | `instellingen` | `{ versie, perGebruiker: { [gebruikerId]: Instellingen } }` |
 | `activiteit/<YYYY-MM>` | `{ versie, items: [Activiteit] }` — één blob per maand |
 | `herstel-noodroute` | hash van de laatst gebruikte noodsleutel (zodat dezelfde sleutel niet twee keer werkt) |
@@ -79,7 +81,7 @@ Gebruiker {
   salesNaam?: string,        // sales: "verantwoordelijke" zoals in de export (bv. "Ward Houwen")
   magAlleSales?: boolean,
   herstelcodes?: [hash],     // enkel beheerder; gebruikte codes worden verwijderd
-  aangemaakt, laatsteLogin
+  aangemaakt                 // `laatsteLogin` staat in de blob `login-laatst`, niet hier
 }
 Instellingen {               // bestaande velden uit de huidige localStorage-instellingen, plus:
   startlocatie, werkdagen, werkuren, …,
@@ -165,7 +167,7 @@ Nieuw scherm `schermen/beheer.js` met tabbladen:
 | `POST /api/auth-herstel` | herstel met code of noodsleutel |
 | `POST /api/auth-setup` | eerste beheerder (enkel als er nog geen gebruikers zijn + setup-code) |
 | `/api/gebruikers` | CRUD, enkel beheerder |
-| `/api/instellingen` | eigen instellingen lezen/schrijven; beheerder: iedereen |
+| `/api/instellingen` | eigen instellingen lezen/schrijven; beheerder: iedereen; planner: ook die van techniekers (elke wijziging gelogd als `instellingen-gewijzigd`) |
 | `/api/activiteit` | GET enkel beheerder; schrijven gebeurt server-side via `netlify/lib/activiteit.js` |
 | `/api/systeemstatus` | enkel beheerder |
 

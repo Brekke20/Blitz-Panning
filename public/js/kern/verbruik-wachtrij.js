@@ -45,12 +45,21 @@ export function classificeer({ res, err }) {
   return { uitkomst: 'onzeker', detail: `Serverfout (HTTP ${res.status})` };
 }
 
+// Per gebruiker (logins T16): een nieuw item krijgt het id van de ingelogde gebruiker (`gebruikerId`). Onder de sessie van een ANDERE
+// gebruiker wordt zo'n item niet verzonden (de server zou het met 403 weigeren en het zou als 'definitief' verdwijnen) maar bewaard
+// tot de eigenaar weer inlogt. Items zonder eigenaar (van vóór deze wijziging) worden zoals vroeger verwerkt.
+export function hoortBijGebruiker(item, gebruikerId) {
+  if (!item || item.gebruikerId === undefined || item.gebruikerId === null) return true;
+  return typeof gebruikerId === 'string' && item.gebruikerId === gebruikerId;
+}
+
 // deps: opslag { lees(), schrijf(lijst) } · post(body) -> { status, data } (gooit bij netwerkfout/time-out) · versie() -> huidige versie
 // · naSucces(data) · naConflict(data) · toon(tekst, ms) · online() -> boolean · nu() -> ms · maakId() -> string
 // · slot(fn) -> Promise: voert fn uit als het slot vrij is (anders niet); standaard zonder slot.
+// · gebruikerId() -> id van de ingelogde gebruiker of null (standaard null: nieuwe items krijgen dan geen eigenaar).
 export function maakVerbruikWachtrij(deps) {
   const { opslag, post, versie, naSucces, naConflict = () => {}, toon, online = () => true, nu = Date.now,
-    maakId = () => String(nu()) + Math.random().toString(36).slice(2), slot = null } = deps;
+    maakId = () => String(nu()) + Math.random().toString(36).slice(2), slot = null, gebruikerId = () => null } = deps;
   const ik = 'eig-' + maakId();
   let bezig = false;
 
@@ -109,7 +118,8 @@ export function maakVerbruikWachtrij(deps) {
 
   // Eerste poging, direct na het verzenden van het rapport. Het item staat met lease in de opslag vóór de POST.
   async function meld(technieker, items) {
-    const e = { id: maakId(), technieker, items, aangemaakt: nu(), pogingen: 0, bezigTot: null, eigenaar: null };
+    const eigenaarId = gebruikerId();
+    const e = { id: maakId(), technieker, items, aangemaakt: nu(), pogingen: 0, bezigTot: null, eigenaar: null, ...(typeof eigenaarId === 'string' && eigenaarId ? { gebruikerId: eigenaarId } : {}) };
     if (!online()) { schrijf([...lees(), e]); toon(TEKSTEN.wachtrij, 5000); return; }
     schrijf([...lees(), { ...e, bezigTot: nu() + LEASE_MS, eigenaar: ik }]);
     const r = await verzend(e, e.id);
@@ -124,6 +134,7 @@ export function maakVerbruikWachtrij(deps) {
       for (const id of lees().map(e => e.id)) {
         const e = vind(id);                                 // vers lezen: een andere tab kan het al afgehandeld hebben
         if (!e) continue;
+        if (!hoortBijGebruiker(e, gebruikerId())) continue; // van een andere gebruiker: laten staan (niet verzenden, niet verwijderen)
         if (e.bezigTot) {
           if (levend(e)) continue;                          // iemand (ook wij) is ermee bezig
           verwijder(e.id);                                  // verzonden, uitkomst onbekend: nooit opnieuw proberen

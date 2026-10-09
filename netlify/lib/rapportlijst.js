@@ -61,9 +61,10 @@ export function bouwEntry(body, { nu = new Date(), licht = false } = {}) {
 // Voegt `entry` toe aan de lijst of werkt de bestaande entry voor hetzelfde ticket op dezelfde
 // datum bij (1 ticket = 1 interventie). `vervangenId` is het id van de vervangen entry als dat
 // verschilt van het nieuwe id, anders null.
-export function voegToeOfWerkBij(rapports, entry, body) {
+export function voegToeOfWerkBij(rapports, entry, body, { eigenFilter = () => true } = {}) {
+  // eigenFilter: een technieker dedupt enkel op zijn EIGEN entries (logins); standaard geen beperking.
   const dupIdx = entry.ticketId
-    ? rapports.findIndex(r => r.ticketId === entry.ticketId && r.datum === entry.datum)
+    ? rapports.findIndex(r => r.ticketId === entry.ticketId && r.datum === entry.datum && eigenFilter(r))
     : -1;
 
   // zohoUploaded/geannuleerd: enkel overerven van de bestaande entry als dit hetzelfde

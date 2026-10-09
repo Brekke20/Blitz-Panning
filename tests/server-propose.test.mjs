@@ -8,6 +8,7 @@ import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { maakNepFetch, metGlobaleFetch, laadVers, v1Event, zetEnv } from './nep-fetch.mjs';
+import { maakNepStore } from './nep-blobs.mjs';
 
 const NU = Date.parse('2026-10-01T10:00:00.000Z');
 const EXP = Math.floor(NU / 1000) + 14 * 24 * 60 * 60;
@@ -121,7 +122,7 @@ test.afterEach(() => {
 async function draai(event, opts = {}) {
   const { fn, calls } = maakNepFetch(opts.router || maakRouter(opts));
   const mod = await laadVers('propose');
-  const res = await metGlobaleFetch(fn, () => mod.handler(event));
+  const res = await metGlobaleFetch(fn, () => mod.maakHandler({ getStore: () => maakNepStore() })(event)); // T12: de activiteitenlog gaat naar een nep-store
   // De mail-HTML gaat naar r.mails; in r.calls staat daar '<mail>' (de rest van het verzoek blijft exact).
   const mails = [];
   const uitgaand = uit(calls).map(c => {
@@ -537,7 +538,7 @@ test('propose: netwerkfout bij token of ticket geeft 500 met de foutmelding', as
 test('propose: tokencache binnen dezelfde module: tweede aanroep vraagt geen nieuw token (org-id wel opnieuw)', async () => {
   const { fn, calls } = maakNepFetch(maakRouter({ ticket: {} }));
   const mod = await laadVers('propose');
-  await metGlobaleFetch(fn, async () => { await mod.handler(post(BODY)); await mod.handler(post(BODY)); });
+  await metGlobaleFetch(fn, async () => { const h = mod.maakHandler({ getStore: () => maakNepStore() }); await h(post(BODY)); await h(post(BODY)); });
   assert.deepEqual(kort(uit(calls)), [
     'POST https://accounts.zoho.eu/oauth/v2/token', 'GET /organizations', 'GET /tickets/555', 'PATCH /tickets/555',
     'GET /organizations', 'GET /tickets/555', 'PATCH /tickets/555',

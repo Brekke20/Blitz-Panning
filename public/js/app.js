@@ -43,6 +43,8 @@ import { refreshOutboxCache, flushOutbox } from './outbox.js';
 import { _invData, loadInventaris, renderInventaris, updateInventarisBadge, resetInvSeenLog } from './inventaris.js';
 import { appConfirm } from './app-dialog.js';
 import { registreerVenster } from './venster.js';
+import { startNaInlog } from './schermen/rol-schil.js';
+import { laadTab } from './kern/navigatie.js';
 
 
 // Leesbare toegang tot de toestand: de plaats van de vroegere window-accessors (kern/brug.js) voor allTickets, planning, settings, ...
@@ -832,6 +834,7 @@ function setTab(tab) {
   _tabEl.classList.add('active'); _tabEl.setAttribute('aria-selected', 'true'); _tabEl.tabIndex = 0;
   document.getElementById('view-' + tab).classList.add('active');
   updateTabIndicator('tab-' + tab);
+  laadTab(tab);
   if (tab === 'planning') {
     setTimeout(() => routeKaart.invalideerKaartGrootte(), 50);
     const date = document.getElementById('plan-date').value;
@@ -900,4 +903,4 @@ function toggleTheme() {
 
 // Escape/focusval per venster: zie public/js/venster.js
 
-document.addEventListener('DOMContentLoaded', opstart);
+document.addEventListener('DOMContentLoaded', () => startNaInlog(opstart));

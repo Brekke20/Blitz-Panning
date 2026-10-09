@@ -8,11 +8,12 @@
 
 import { maakZoho, leesJsonVeilig } from '../lib/zoho.js';
 import { CORS_V1 } from '../lib/http.js';
+import { beveiligV1 } from '../lib/beveiligd.js';
 
 // Instantie op moduleniveau: de tokencache (55 min) leeft zolang de functie warm is.
 const zoho = maakZoho({ orgFoutTekst: 'Zoho Desk org ID niet gevonden' });
 
-export async function handler(event) {
+async function kern(event, context, gebruiker) {
   const headers = { ...CORS_V1 };
 
   try {
@@ -132,3 +133,5 @@ export async function handler(event) {
     };
   }
 }
+
+export const handler = beveiligV1('tickets', kern);

@@ -53,6 +53,10 @@ function checkAuth(event) {
   return header === `Bearer ${expected}`;
 }
 
+// De interne aanroepen lopen door de wrapper van tickets/klantbeschikbaarheid/afspraken: die aanvaarden de
+// service-sleutel (rechten.js: service: true, enkel GET). Zonder deze header krijgen ze 401.
+const metSleutel = () => ({ headers: { Authorization: `Bearer ${process.env.PLANNING_EXPORT_API_KEY}` } });
+
 export async function handler(event) {
   const headers = CORS_V1;
 
@@ -63,7 +67,7 @@ export async function handler(event) {
   try {
     const url = baseUrl(event);
 
-    const ticketsRes = await fetch(`${url}/api/tickets`);
+    const ticketsRes = await fetch(`${url}/api/tickets`, metSleutel());
     if (!ticketsRes.ok) {
       const errBody = await ticketsRes.json().catch(() => ({}));
       throw new Error(`Tickets ophalen mislukt (${ticketsRes.status}): ${JSON.stringify(errBody)}`);
@@ -81,7 +85,7 @@ export async function handler(event) {
     // hele export niet laten falen -- valt terug op DEFAULT_DUUR_MIN.
     // Sinds v1.4.0 persisteert klantbeschikbaarheid.js's PUT-handler ook
     // duurOverride, dus deze opzoeking levert nu effectief afwijkende duren op.
-    const kbRes = await fetch(`${url}/api/klantbeschikbaarheid`);
+    const kbRes = await fetch(`${url}/api/klantbeschikbaarheid`, metSleutel());
     const kbData = kbRes.ok ? await kbRes.json().catch(() => ({})) : {};
     const kbPerTicket = kbData.items || {};
 
@@ -139,7 +143,7 @@ export async function handler(event) {
     // `ev.notitie`, exact zoals elke consument in index.html dat ook al doet
     // (:2339, :3027, :3905, :4012) -- `notitie` is in de praktijk hét
     // adresveld van dit datamodel totdat afspraken.js `adres` ook bewaart.
-    const afsprakenRes = await fetch(`${url}/api/afspraken`);
+    const afsprakenRes = await fetch(`${url}/api/afspraken`, metSleutel());
     if (!afsprakenRes.ok) {
       const errBody = await afsprakenRes.json().catch(() => ({}));
       throw new Error(`Afspraken ophalen mislukt (${afsprakenRes.status}): ${JSON.stringify(errBody)}`);

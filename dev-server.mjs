@@ -36,6 +36,14 @@ for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
 }
 console.log('✅  .env.local geladen');
 
+// ── Lokale dev (logins) ───────────────────────────────────────────────────────
+// BLITZ_LOKALE_DEV maakt de testrol (X-Blitz-Test-Rol) en de rolwisselaar mogelijk; ENKEL hier gezet, nooit door
+// een request en nooit in een Netlify-runtime. De lokale standaardwaarden voor het sessiegeheim en de
+// eerste-beheerder-code gelden enkel in dev-server.mjs; .env.local wint.
+process.env.BLITZ_LOKALE_DEV = '1';
+process.env.SESSIE_GEHEIM ||= 'lokaal-dev-geheim-niet-voor-productie';
+process.env.BEHEER_SETUP_CODE ||= 'lokaal';
+
 // ── MIME types ─────────────────────────────────────────────────────────────────
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -107,7 +115,7 @@ const server = http.createServer(async (req, res) => {
 
   // CORS preflight
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Blitz, X-Blitz-Test, X-Blitz-Test-Rol');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
   try {
@@ -155,7 +163,8 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
+// Enkel localhost (eindreview M1): de testrol-omzeiling (BLITZ_LOKALE_DEV) mag nooit voor het netwerk bereikbaar zijn.
+server.listen(PORT, '127.0.0.1', () => {
   console.log(`\n🚀  Dev server draait op http://localhost:${PORT}`);
   console.log(`    Test mode:  http://localhost:${PORT}/?test\n`);
 });
