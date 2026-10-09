@@ -30,7 +30,7 @@ export function foutTekst(r) {
     case 'opslag': return OPSLAG_TEKST;
     case 'netwerk': return 'Geen verbinding met de server. Probeer het opnieuw.';
     case 'conflict': return 'Deze gegevens zijn intussen gewijzigd. Bekijk de nieuwe stand en probeer het opnieuw.';
-    case 'vervallen': return 'Deze lead bestaat niet meer.';
+    case 'vervallen': return 'Deze lead bestaat niet meer of is intussen gewijzigd of afgewerkt.';
     default: return typeof r?.fout === 'string' && r.fout !== '' ? r.fout : 'Opslaan is mislukt. Probeer het opnieuw.';
   }
 }

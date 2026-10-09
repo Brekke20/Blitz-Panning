@@ -75,12 +75,15 @@ const isOpslag = r => r.status === 503 && r.data?.code === 'opslag-storing';
 // Een bruikbare serverstand: object met versie en de lijsten (anders mag de toestand er niet door gewist worden).
 const isBlob = d => d !== null && typeof d === 'object' && typeof d.versie === 'number' && Array.isArray(d.leads) && Array.isArray(d.blokken);
 
-// Een antwoord van de server (GET/PATCH/409-data, al gecontroleerd met isBlob) -> toestand.
-function neemOver(d) {
+// Een antwoord van de server (GET/PATCH/409-data, al gecontroleerd met isBlob) -> toestand. `enkelHuidige` (schrijfantwoorden): een laat antwoord
+// voor een ANDERE verkoper dan die nu getoond wordt (de beheerder wisselde intussen) wordt genegeerd (eindreview M2).
+function neemOver(d, { enkelHuidige = false } = {}) {
+  if (enkelHuidige && d.gebruikerId && staat.gebruikerId && d.gebruikerId !== staat.gebruikerId) return false;
   staat.gebruikerId = d.gebruikerId ?? staat.gebruikerId;
   staat.versie = d.versie;
   staat.leads = d.leads;
   staat.blokken = d.blokken;
+  return true;
 }
 
 function zetInstellingen(ruw, doelId = null) {
@@ -168,13 +171,14 @@ async function wijzigNu(invoer) {
     catch { return { ok: false, reden: 'netwerk' }; }
     if (r.ok) {
       if (!isBlob(r.data)) return fout(r);
-      neemOver(r.data); meld(); return { ok: true, open: r.data.open };
+      if (neemOver(r.data, { enkelHuidige: true })) meld();
+      return { ok: true, open: r.data.open };
     }
     if (r.status !== 409) return fout(r, r.data?.fouten ? { fouten: r.data.fouten } : {});
     const server = r.data?.data;
     if (!isBlob(server)) return fout(r);                        // 409 zonder bruikbare serverstand: niet raden, niets wissen
-    neemOver(server);                                           // de server-stand is de waarheid, ook bij de laatste 409
-    meld();
+    if (!neemOver(server, { enkelHuidige: true })) return { ok: false, reden: 'conflict', status: 409 }; // een ander doel is intussen getoond
+    meld();                                                     // de server-stand is de waarheid, ook bij de laatste 409
     if (tweede) return { ok: false, reden: 'conflict', status: 409 };
     tweede = true;                                              // EENMAAL opnieuw, dezelfde veld-patch op de verse versie
   }

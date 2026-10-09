@@ -689,3 +689,25 @@ test('I1: bewaarInstellingen zet de instellingen als geladen voor de eigen verko
   assert.equal((await bewaarInstellingen({ vanTijd: '07:30' })).ok, true);
   assert.equal(instellingenGeladenVoor(), true);
 });
+
+// ---- eindreview M2: een laat schrijfantwoord van een vorige verkoper wordt genegeerd ----
+
+test('M2: een laat PATCH-antwoord voor verkoper A na een wissel naar B verandert de getoonde leads (B) niet', async () => {
+  let antwoordA;
+  const f = async (pad, init) => {
+    if (init?.method === 'PATCH') await new Promise((r) => { antwoordA = r; });
+    const json = init?.method === 'PATCH' ? blob(6, [lead('a1', { notitie: 'x' })], [], { gebruikerId: 'u-A' }) : pad.includes('u-B') ? blob(1, [lead('b1')], [], { gebruikerId: 'u-B' }) : blob(5, [lead('a1')], [], { gebruikerId: 'u-A' });
+    return { ok: true, status: 200, json: async () => json };
+  };
+  zetFetch(f);
+  await laadSales({ gebruikerId: 'u-A' });
+  const lopend = wijzig({ leads: [{ id: 'a1', velden: { notitie: 'x' } }] });
+  await new Promise((r) => setTimeout(r, 0));
+  await laadSales({ gebruikerId: 'u-B' });
+  assert.deepEqual(salesToestand().leads.map((l) => l.id), ['b1']);
+  antwoordA();
+  assert.equal((await lopend).ok, true);
+  assert.equal(salesToestand().gebruikerId, 'u-B');
+  assert.deepEqual(salesToestand().leads.map((l) => l.id), ['b1']);
+  assert.equal(salesToestand().versie, 1);
+});
