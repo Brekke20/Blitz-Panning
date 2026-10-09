@@ -91,3 +91,28 @@ Deze zijn met tests vastgelegd zoals ze nu werken, zodat een oplossing later bew
 - **B7 / C4:** het rapportformulier toont een duidelijke melding "aanrijtijd kon niet berekend worden" met een veld om ze zelf in te vullen; nooit meer stil 0. (Kleine, gerichte aanpassing aan de wizard; de wizard wordt verder niet herwerkt.)
 - **Laten zoals het is:** B3 (melding volstaat), B17 (zeldzaam).
 - **C1:** "Geen tickets om in te plannen" is goed.
+
+## F. Logins en beheer (nieuwe punten, allemaal open)
+
+Bron: `.superpowers/sdd/2026-10-08-logins-beheer/progress.md` en de taakrapporten. Handleiding: `docs/logins-en-beheer.md`.
+
+### Bekende beperkingen en beslissingen
+
+| # | Punt |
+|---|---|
+| F1 | Bekende beperking, beslist door de klant op 2026-10-08: `fotos`, `rapport`, `send-rapport`, `comment` en `mail-check` controleren niet of het ticket van de technieker is (alleen `ticketId` in de aanvraag). De app verbergt de knoppen bij collega-tickets (en bij lokale afspraken van een collega) en elke schrijfactie staat met naam in het activiteitenlog. |
+| F2 | Sales-gebruikers mogen de TomTom-functies gebruiken. |
+| F3 | Tijdens het aanmaken van de eerste beheerder kan een gelijktijdige tweede aanvraag niet atomair uitgesloten worden (Blobs 8.2 heeft geen conditionele schrijfactie). Gemitigeerd met controle-na-schrijven; `laatsteLogin` staat in een eigen blob zodat een login `gebruikers` nooit herschrijft. Een upgrade naar `@netlify/blobs` 11.x (heeft `onlyIfMatch`/`onlyIfNew`, vraagt Node 22.12 of hoger) is een vervolgvoorstel. |
+| F4 | De knop "Opnieuw versturen" op de tab Systeemstatus is NIET gebouwd. **Brent beslist** of hij er komt (vóór of na de release). |
+| F5 | Een rapport onder de naam van een collega wordt aanvaard en gelogd (`rapport-verstuurd` met vlag `andereNaam`); een id-botsing met andermans rapport geeft 403, gelogd als `rapport-geweigerd`, en het item blijft in de outbox met "meld dit aan de planner". |
+
+### Open fouten en kleine punten
+
+| # | Punt |
+|---|---|
+| F6 | `/api/activiteit` filtert `van`/`tot` op UTC-dagen, het scherm toont Brusselse dagen: aan de randen van een dag (1 tot 2 uur) kan een regel in de verkeerde dag vallen. |
+| F7 | Onbetrouwbare tests onder belasting (alleen opnieuw draaien lost het op): unit `beschikbaarheid-logica`; e2e `verbinding` P2, `sw/traag`, `app-schil:88`, `route-tijden:64`, `productie/planning:450`. |
+| F8 | De tab Kalender is 478 px breed bij 375 px schermbreedte. Mogelijk bewust (weekraster): nakijken. |
+| F9 | Een opnieuw verstuurd oud rapport (zonder `ingediendDoor`, dus van vóór de release) met een andere naam geeft 403: het item blijft in de outbox en staat in het log. Zeldzaam; de coördinator handelt het handmatig af. |
+| F10 | `rapport-vangnet` kiest de teststore nog op basis van de header `X-Blitz-Test`. Niet bereikbaar via een URL (geplande functie), laag risico. |
+| F11 | De sleutellijst in `public/js/kern/eigenaar.js` (welke lokale gegevens bij een gebruikerswissel gewist worden) is een handmatige kopie van de cache-sleutels: een nieuwe cachesleutel moet er ook bij. |
