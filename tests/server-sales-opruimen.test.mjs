@@ -4,7 +4,7 @@ import { strict as assert } from 'node:assert';
 import { maakNepStore } from './nep-blobs.mjs';
 import { ruimAllesOp } from '../netlify/lib/sales-opruimen.js';
 import { RECHTEN } from '../netlify/lib/rechten.js';
-import { maakOpruimHandler, config } from '../netlify/functions/sales-opruimen.js';
+import { maakOpruimHandler, config, MIN_TUSSENPOOZ_MS, MARKER_SLEUTEL } from '../netlify/functions/sales-opruimen.js';
 
 const NU0 = Date.parse('2026-10-08T10:00:00.000Z'); // grens: 2025-10-08
 const afgewerkt = (id, op) => ({ id, status: 'afgewerkt', resultaat: { soort: 'verkocht', op }, bezoeken: [{ datum: op.slice(0, 10) }], geimporteerdOp: '2025-01-01T00:00:00.000Z' });
@@ -98,7 +98,7 @@ test('ruimAllesOp: lege store -> niets', async () => {
 });
 
 // ---------------- de functie ----------------
-test('sales-opruimen: dagelijks gepland, geen path (niet via een URL aan te roepen), standaard-export zonder argumenten', async () => {
+test('sales-opruimen: dagelijks gepland, geen eigen path (via de /api/*-redirect wel bereikbaar, daarom idempotent en begrensd), standaard-export zonder argumenten', async () => {
   assert.equal(config.schedule, '@daily');
   assert.equal(config.path, undefined);
   const module = await import('../netlify/functions/sales-opruimen.js');
@@ -129,4 +129,56 @@ test('sales-opruimen: een mislukte blob geeft 500 (de scheduler ziet de fout) ma
   const res = await maakOpruimHandler({ getStore: () => kapotBij(echt, 'sales/u-sal'), nu: () => NU0 })();
   assert.equal(res.status, 500);
   assert.deepEqual(blobVan(echt, 'u-weg').leads, []);
+});
+
+// ---------------- begrenzing: hoogstens eens per 6 uur ----------------
+test('sales-opruimen: een tweede aanroep binnen 6 uur antwoordt overgeslagen zonder een verkoperblob te lezen of te schrijven', async () => {
+  const echt = maakNepStore(begin());
+  let tijd = NU0;
+  const run = maakOpruimHandler({ getStore: () => echt, nu: () => tijd });
+  assert.equal((await run()).status, 200);
+  assert.ok(echt._data.has(MARKER_SLEUTEL));
+  assert.ok(!MARKER_SLEUTEL.startsWith('sales/'), 'de marker is geen verkoperblob');
+  const leesBlobs = [];
+  const bewaakt = { ...echt, get: async (k, o) => { leesBlobs.push(k); return echt.get(k, o); }, list: async () => { throw new Error('mag niet'); } };
+  const acties = echt._schrijfacties.length;
+  tijd = NU0 + MIN_TUSSENPOOZ_MS - 1;
+  const res = await maakOpruimHandler({ getStore: () => bewaakt, nu: () => tijd })();
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { overgeslagen: true });
+  assert.ok(leesBlobs.every(k => !k.startsWith('sales/')), 'geen verkoperblob gelezen');
+  assert.equal(echt._schrijfacties.length, acties);
+});
+
+test('sales-opruimen: na het venster (en bij de dagelijkse scheduler) draait de opruiming weer en wist ze nieuw verouderde data', async () => {
+  const echt = maakNepStore(begin());
+  const run = maakOpruimHandler({ getStore: () => echt, nu: () => NU0 });
+  await run();
+  // negen dagen later is de lead 'recent' (laatste bezoek 2025-10-15) verouderd (grens 2025-10-09 + ...): 2026-10-17 -> grens 2025-10-17
+  const later = NU0 + 9 * 24 * 3600 * 1000;
+  const res = await maakOpruimHandler({ getStore: () => echt, nu: () => later })();
+  assert.equal(res.status, 200);
+  const b = await res.json();
+  assert.equal(b.overgeslagen, undefined);
+  assert.equal(b.gewist, 1);
+  assert.deepEqual(blobVan(echt, 'u-sal').leads.map(l => l.id), ['open-oud']);
+});
+
+test('sales-opruimen: een klok die achteruit lijkt te lopen (marker in de toekomst) blokkeert de opruiming niet', async () => {
+  const echt = maakNepStore({ ...begin(), [MARKER_SLEUTEL]: { op: new Date(NU0 + 3 * 24 * 3600 * 1000).toISOString() } });
+  const res = await maakOpruimHandler({ getStore: () => echt, nu: () => NU0 })();
+  assert.equal((await res.json()).overgeslagen, undefined);
+});
+
+test('sales-opruimen: een kapotte marker (geen datum) wordt genegeerd en overschreven', async () => {
+  const echt = maakNepStore({ ...begin(), [MARKER_SLEUTEL]: { op: 'kapot' } });
+  const res = await maakOpruimHandler({ getStore: () => echt, nu: () => NU0 })();
+  assert.equal(res.status, 200);
+  assert.equal(JSON.parse(echt._data.get(MARKER_SLEUTEL)).op, new Date(NU0).toISOString());
+});
+
+test('sales-opruimen: ruimAllesOp zelf raakt de marker niet aan (enkel sales/*)', async () => {
+  const echt = maakNepStore({ ...begin(), [MARKER_SLEUTEL]: { op: new Date(NU0).toISOString() } });
+  await ruimAllesOp({ store: echt, nu: NU0 });
+  assert.ok(echt._data.has(MARKER_SLEUTEL));
 });

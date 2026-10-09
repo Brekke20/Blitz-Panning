@@ -319,6 +319,27 @@ test('body groter dan 3 MB -> 413 met de bestandsgroottetekst, zonder iets te sc
   assert.ok(!echt._data.has(`sales/${EIGEN}`));
 });
 
+test('Content-Length boven 3 MB -> 413 vóór het lezen van de body, zonder store-toegang (de controle na het lezen blijft gelden)', async () => {
+  const { h, gets } = opzet();
+  const r = await metRol('sales', async () => lees(await h(req('POST', { rauw: '{"export":{"leads":[]}}', headers: { 'content-length': String(3 * 1024 * 1024 + 1) } }))));
+  assert.equal(r.status, 413);
+  assert.equal(r.body.error, 'Het bestand is groter dan 2 MB');
+  assert.deepEqual(gets, []);
+  // een gelogen kleine Content-Length met een te grote body wordt door de controle na het lezen alsnog tegengehouden
+  const groot = JSON.stringify({ export: { leads: [], vulling: 'a'.repeat(3 * 1024 * 1024 + 10) } });
+  const r2 = await metRol('sales', async () => lees(await h(req('POST', { rauw: groot, headers: { 'content-length': '10' } }))));
+  assert.equal(r2.status, 413);
+});
+
+test('Content-Length ontbreekt of is onzin: de gewone controle beslist (kleine import slaagt)', async () => {
+  const { h } = opzet();
+  const rauw = JSON.stringify({ export: exportBestand() });
+  for (const cl of [undefined, 'abc', '-5']) {
+    const r = await metRol('sales', async () => lees(await h(req('POST', { rauw, headers: cl === undefined ? {} : { 'content-length': cl } }))));
+    assert.equal(r.status, 200, String(cl));
+  }
+});
+
 test('ongeldige body: geen JSON, geen object, export ontbreekt of is geen object -> 400', async () => {
   const { h } = opzet();
   for (const rauw of ['{kapot', '[]', 'null', '"tekst"', '{}', '{"export":null}', '{"export":[]}', '{"export":"{\\"leads\\":[]}"}', '{"export":5}']) {

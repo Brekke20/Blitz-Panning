@@ -26,6 +26,9 @@ export function maakHandler({
   const kern = async (req, _context, gebruiker) => {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     try {
+      // Eerst de aangekondigde grootte (goedkoop, vóór het lezen); de controle op de gelezen tekst blijft gelden (header kan ontbreken of liegen).
+      const aangekondigd = Number(req.headers.get('content-length'));
+      if (Number.isFinite(aangekondigd) && aangekondigd > MAX_BODY_BYTES) return json(413, { error: 'Het bestand is groter dan 2 MB' });
       let tekst;
       try { tekst = await req.text(); } catch { return json(400, { error: 'Ongeldige JSON' }); }
       if (Buffer.byteLength(tekst, 'utf8') > MAX_BODY_BYTES) return json(413, { error: 'Het bestand is groter dan 2 MB' });

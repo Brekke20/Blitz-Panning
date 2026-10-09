@@ -13,6 +13,8 @@ import { bewaarLocaties, telOpen } from './sales-locaties-bewaren.js';
 import { hashVoor } from './sales-grafsteen.js';
 import { OPSLAG_STORING } from './auth-antwoord.js';
 
+// Tijdsbudget voor het geocoderen: de functie mag 26 s duren en een lopende aanvraag kan het budget nog ~5 s (time-out) overschrijden.
+const LOCATIE_BUDGET_MS = 12000;
 const STORING = Object.freeze({ status: 503, json: OPSLAG_STORING });
 const tijd = nu => (typeof nu === 'function' ? nu() : nu);
 const isObject = x => x !== null && typeof x === 'object' && !Array.isArray(x);
@@ -68,7 +70,7 @@ export async function importeerExport({
   let open = telOpen(data.leads);
   // Locaties buiten het slot. Faalt het bewaren ervan, dan blijven de al geschreven leads staan (ze blijven `open`; een volgende
   // aanvul-ronde of import probeert het opnieuw).
-  const l = await bewaarLocaties({ store, doelId, nu, deps: geoDeps });
+  const l = await bewaarLocaties({ store, doelId, nu, deps: geoDeps, maxTijdMs: LOCATIE_BUDGET_MS });
   if (l.status === 'ok') { data = l.data; open = l.open; }
 
   const { nieuw, alAanwezig, adresNakijken, eerderVerwijderd } = samenvatting;
