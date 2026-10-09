@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+process.env.TZ = 'Europe/Brussels';
 import { bouwKalenderItems, maandChips, tintVan } from '../public/js/schermen/sales-kalender-logica.js';
 import { bepaalLanes } from '../public/js/schermen/kalender-logica.js';
 
@@ -103,4 +104,42 @@ test('maandChips: groepeert per datum, op uur gesorteerd, enkel binnen het maand
 
 test('maandChips: leeg zonder leads en blokken', () => {
   assert.deepEqual(maandChips({ datum: '2026-10-08' }), {});
+});
+
+// ---- Task 16: weekdagen en navigatie ----
+import { weekDagen, navigatieAdres, navigatieLink } from '../public/js/schermen/sales-kalender-logica.js';
+
+test('weekDagen: de werkdagen van de week van de gekozen dag, ma tot zo gesorteerd', () => {
+  assert.deepEqual(weekDagen({ gekozen: '2026-10-08', werkdagen: [1, 2, 3, 4, 5] }),
+    ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09']);
+  assert.deepEqual(weekDagen({ gekozen: '2026-10-11', werkdagen: [1, 3] }), ['2026-10-05', '2026-10-07']); // zondag hoort bij de week van maandag
+});
+
+test('weekDagen: een dag buiten de werkdagen met een bezoek of blok verschijnt toch', () => {
+  const leads = [lead('z', 'bevestigd', '2026-10-10', '10:00')];
+  const blokken = [{ id: 'b', datum: '2026-10-11', start: '00:00', eind: '23:59', soort: 'verlof' }];
+  assert.deepEqual(weekDagen({ gekozen: '2026-10-05', werkdagen: [1, 2, 3, 4, 5], leads, blokken }),
+    ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11']);
+});
+
+test('weekDagen: zonder werkdagen valt hij terug op ma-vr', () => {
+  assert.equal(weekDagen({ gekozen: '2026-10-05', werkdagen: [] }).length, 5);
+  assert.equal(weekDagen({ gekozen: '2026-10-05' }).length, 5);
+});
+
+test('navigatieAdres: volledig adres, anders postcode + gemeente, anders de vrije tekst, anders null', () => {
+  assert.equal(navigatieAdres({ straat: 'Teststraat', huisnr: '5', postcode: '2830', gemeente: 'Willebroek' }), 'Teststraat 5, 2830 Willebroek');
+  assert.equal(navigatieAdres({ postcode: '3500', gemeente: 'Hasselt' }), '3500 Hasselt');
+  assert.equal(navigatieAdres({ postcode: '3640' }), '3640');
+  assert.equal(navigatieAdres({ adresTekst: 'bij de oude molen' }), 'bij de oude molen');
+  assert.equal(navigatieAdres({ locatie: { lat: 50.9, lon: 5.3 } }), '50.9,5.3');
+  assert.equal(navigatieAdres({}), null);
+  assert.equal(navigatieAdres(null), null);
+});
+
+test('navigatieLink: geo: op Android, anders Google Maps (zoals navigate() in app.js)', () => {
+  assert.equal(navigatieLink('Teststraat 5, 2830 Willebroek', true), 'geo:0,0?q=Teststraat%205%2C%202830%20Willebroek');
+  assert.equal(navigatieLink('Teststraat 5, 2830 Willebroek', false),
+    'https://www.google.com/maps/dir/?api=1&destination=Teststraat%205%2C%202830%20Willebroek&travelmode=driving');
+  assert.equal(navigatieLink(null, true), null);
 });

@@ -146,7 +146,7 @@ test.describe('sales: verkoperkeuze', () => {
     await subs.getByRole('tab', { name: 'Kalender' }).click();
     await expect(page.locator('#view-sales-kalender')).toBeVisible();
     await expect(page.locator('#view-sales-lijst')).toBeHidden();
-    await expect(page.locator('#view-sales-kalender')).toContainText('De kalender volgt.');
+    await expect(page.locator('#view-sales-kalender .sales-kal')).toBeVisible(); // de echte kalender (Task 16)
     await expect(page.locator('#view-sales-kalender .sales-alleen-lezen')).toBeHidden(); // de beheerder mag schrijven
     await expect(page.locator('#view-sales-kalender').getByLabel('Verkoper')).toBeVisible();
     expect(await page.evaluate(() => sessionStorage.getItem('blitz_sales_subtab'))).toBe('sales-kalender');
