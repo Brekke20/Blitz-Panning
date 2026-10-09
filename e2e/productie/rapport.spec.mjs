@@ -259,14 +259,14 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     z.zetAntwoord('rapport-verzonden', () => (++n === 1 ? { status: 502, raw: '<html>Bad Gateway</html>' } : { status: 200, json: { ok: true, versie: 5 } }));
     await openVoorbeeld(page);
     await bevestig(page);
-    await expect(toastTekst(page)).toHaveText('✓ Rapport verstuurd naar contactpersoon, maar status kon niet opgeslagen worden — NIET opnieuw versturen, herlaad eerst de pagina');
+    // B6: één melding met alle mail-weg-doelgroepen en de doelgroep waarvan de status niet opgeslagen werd.
+    await expect(toastTekst(page)).toHaveText('✓ Rapport verstuurd naar contactpersoon en klant, maar status kon niet opgeslagen worden voor contactpersoon — NIET opnieuw versturen, herlaad eerst de pagina');
     // Het contact-status-verzoek faalde: de volgende (klant) gebruikt dezelfde, ongewijzigde versie 4.
     expect(z.opnames['rapport-verzonden'].map(o => [o.body.doelgroep, o.body.versie])).toEqual([['contact', 4], ['klant', 4]]);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN, VERZONDEN]);
     expect(await lokaleRapporten(page)).toEqual([{ ...RAPPORT, verzondenKlant: TIJDSTIP }]);
     expect(await page.evaluate(() => kern.rapportArchief.versie())).toBe(5);
-    // HUIDIG GEDRAG (bug?): bij een deels geslaagde status verschijnt enkel de laatste toast; de mislukte doelgroep (contact)
-    // staat daarin, de geslaagde (klant) niet meer, en de kaart toont wel het badge door verzondenKlant.
+    // De kaart toont wel het badge door verzondenKlant.
     await expect(verstuurKnop(page)).toHaveText('✓ Verzonden');
   });
 
@@ -296,21 +296,21 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     expect(z.opnames['rapport-verzonden']).toEqual([]);
   });
 
-  test('statusFout: mail verstuurd, maar ticketstatus niet gezet: de waarschuwing komt na de succestoast', async ({ page, verzoeken }) => {
+  test('statusFout: mail verstuurd, maar ticketstatus niet gezet: de waarschuwing staat in dezelfde melding als het succes', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { paden: ['/api/send-rapport', '/api/rapport-verzonden'] });
     z.zetAntwoord('send-rapport', ({ body }) => body.preview === true
       ? VOORBEELD(ontvanger('contact', 'c@y.be'))
       : VERZONDEN_OK({ contact: true }, { statusUpdated: false, statusFout: 'Zoho 500' }));
     await openVoorbeeld(page);
     await bevestig(page);
-    await expect(toastTekst(page)).toHaveText('⚠ Mail verstuurd, maar ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: Zoho 500');
+    await expect(toastTekst(page)).toHaveText('✓ Rapport verstuurd naar contactpersoon ⚠ Ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: Zoho 500');
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN]);
     // De mail is wel verstuurd en de status staat opgeslagen: badge.
     expect(await lokaleRapporten(page)).toEqual([{ ...RAPPORT, verzondenContact: TIJDSTIP }]);
     await expect(verstuurKnop(page)).toHaveText('✓ Verzonden');
   });
 
-  test('echt verzoek: 500 { error }: toast "✕ …", geen status-verzoeken en de knop blijft uitgeschakeld', async ({ page, verzoeken }) => {
+  test('echt verzoek: 500 { error }: toast "✕ …", geen status-verzoeken en de knop is weer bruikbaar', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { paden: ['/api/send-rapport'], httpFouten: [{ pad: '/api/send-rapport', status: 500 }] });
     z.zetAntwoord('send-rapport', ({ body }) => body.preview === true
       ? VOORBEELD(ontvanger('contact', 'c@y.be'))
@@ -320,9 +320,21 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     await expect(toastTekst(page)).toHaveText('✕ Zoho upload mislukt');
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
     expect(z.opnames['rapport-verzonden']).toEqual([]);
-    // HUIDIG GEDRAG (bug?): bij een fout wordt de kaart niet hertekend, dus de knop blijft uitgeschakeld tot herladen
-    // (de code zegt "terug inschakelen hoeft niet", maar dat geldt enkel na een geslaagde render).
-    await expect(verstuurKnop(page)).toBeDisabled();
+    // B5: een 500 met { error } is een definitief antwoord (de server faalde vóór de verzendlus): niets verstuurd, de knop is weer bruikbaar.
+    await expect(verstuurKnop(page)).toBeEnabled();
+  });
+
+  test('echt verzoek: 400 { error } (geen adressen) maakt de knop weer bruikbaar', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/send-rapport'], httpFouten: [{ pad: '/api/send-rapport', status: 400 }] });
+    z.zetAntwoord('send-rapport', ({ body }) => body.preview === true
+      ? VOORBEELD(ontvanger('contact', 'c@y.be'))
+      : { status: 400, json: { error: 'Geen gekend e-mailadres (klant of installateur) op dit ticket' } });
+    await openVoorbeeld(page);
+    await bevestig(page);
+    await expect(toastTekst(page)).toHaveText('✕ Geen gekend e-mailadres (klant of installateur) op dit ticket');
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
+    expect(z.opnames['rapport-verzonden']).toEqual([]);
+    await expect(verstuurKnop(page)).toBeEnabled();
   });
 
   test('echt verzoek: 502 met HTML-body: toast met HTTP 502', async ({ page, verzoeken }) => {
@@ -528,7 +540,7 @@ test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg 
     await openVoorbeeld(page);
     await bevestig(page);
     await expect(toastTekst(page)).toHaveText('✕ Zoho tijdelijk niet bereikbaar');
-    await expect(verstuurKnop(page)).toBeDisabled();
+    await expect(verstuurKnop(page)).toBeEnabled(); // B5: definitief antwoord, niets verstuurd
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
     expect(mailCheckLijst(verzoeken)).toEqual([]);
   });
