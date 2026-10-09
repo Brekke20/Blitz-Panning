@@ -21,9 +21,9 @@ function bevestigingKaart(b) {
   { uitleg: 'Tijd tussen het versturen van het voorstel en de bevestiging door de klant.' });
 }
 
-function knopKaart(b) {
+function knopKaart(b, grenzen) {
   if (!b?.n) return '';
-  return ringKaart('Bevestigd via de knop', { pct: b.pct, status: statusVoor('bevestigdViaKnop', b.pct), n: b.bevestigd, noemer: b.n },
+  return ringKaart('Bevestigd via de knop', { pct: b.pct, status: statusVoor('bevestigdViaKnop', b.pct, grenzen), n: b.bevestigd, noemer: b.n },
     '', { uitleg: 'Aandeel bevestigde voorstellen dat de klant zelf via de knop in de mail bevestigde.' });
 }
 
@@ -79,7 +79,7 @@ function installateurKaarten(i, dekking, grenzen) {
 export function renderKlant(data, ctx) {
   const k = data?.klant ?? {};
   return blok('klant', 'Klant & planning', [
-    bevestigingKaart(k.bevestiging), knopKaart(k.bevestigdViaKnop), annulatieKaart(k.annulaties),
+    bevestigingKaart(k.bevestiging), knopKaart(k.bevestigdViaKnop, ctx?.grenzen), annulatieKaart(k.annulaties),
     garantieKaart(k.garantie, ctx?.grenzen), ...installateurKaarten(k.installateurAlLangs, k.dekking, ctx?.grenzen),
   ], { noot: NOOT });
 }

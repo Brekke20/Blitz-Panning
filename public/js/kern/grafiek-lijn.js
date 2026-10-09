@@ -40,7 +40,7 @@ function spreid(labels, min, max) {
 }
 
 // punten: [datum-strings]; reeksen: [{ sleutel, label, slot, waarden:[number|null] }] (max 4) -> <svg> + legende + tabel-twin.
-export function lijnGrafiek({ punten, reeksen, titel, eenheid = 'min' }) {
+export function lijnGrafiek({ punten, reeksen, titel, eenheid = 'min', categorieLabel = 'Dag' }) {
   if ((reeksen?.length ?? 0) > MAX_REEKSEN) {
     throw new RangeError(`Een lijngrafiek toont hoogstens ${MAX_REEKSEN} reeksen (kreeg ${reeksen.length}).`);
   }
@@ -100,7 +100,7 @@ export function lijnGrafiek({ punten, reeksen, titel, eenheid = 'min' }) {
   const svg = `<svg class="grafiek-svg" viewBox="0 0 ${B} ${H}" role="group" aria-label="${escHtml(titel)}">${delen.join('')}</svg>`;
   const legende = lijst.length > 1 ? legendeHtml(lijst.map(r => ({ label: r.label, slot: r.slot }))) : '';
   const tabel = grafiekTabel({
-    titel, kolommen: ['Dag', ...lijst.map(r => r.label)],
+    titel, kolommen: [categorieLabel, ...lijst.map(r => r.label)],
     rijen: punten.map((p, i) => [dagLabel(p), ...lijst.map(r => r.w[i])]),
   });
   return `<div class="grafiek grafiek--lijn"><div class="grafiek-scroll">${svg}</div>${legende}${tabel}</div>`;

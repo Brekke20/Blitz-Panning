@@ -42,7 +42,7 @@ function rijtijdKaart(dagen) {
     { sleutel: 'werktijd', label: 'Werktijd', slot: 2, waarden: dagen.map(d => d.werktijdMin) },
   ]);
   const titel = `Aanrijtijd (schatting vanaf startlocatie) en werktijd per ${g.perWeek ? 'week' : 'dag'}`;
-  return kaart(titel, lijnGrafiek({ punten: g.punten, reeksen: g.reeksen, titel, eenheid: 'min' }),
+  return kaart(titel, lijnGrafiek({ punten: g.punten, reeksen: g.reeksen, titel, eenheid: 'min', categorieLabel: g.perWeek ? 'Week' : 'Dag' }),
     { breed: true, uitleg: g.perWeek ? 'Totaal per week (bij een lange periode per week gegroepeerd).' : 'Totaal per dag.' });
 }
 

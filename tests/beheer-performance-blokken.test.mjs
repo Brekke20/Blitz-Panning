@@ -207,3 +207,17 @@ test('Sales: geen persoonsgegevens van klanten of leads', () => {
   const h = renderSales(data, ctx);
   assert.ok(!/@|klant|adres|telefoon|e-?mail/i.test(h.replace(/swatch|klein|class="[^"]*"/g, '')));
 });
+
+test('Klant: de ring "Bevestigd via de knop" volgt ctx.grenzen (ingestelde grens)', () => {
+  const ring = h => h.slice(h.indexOf('Bevestigd via de knop')).match(/class="ring-svg ring--([a-z]+)"/)[1];
+  assert.equal(ring(renderKlant(data, ctx)), 'neutraal', 'standaard geen grenzen');
+  const eigen = { ...STANDAARD_GRENZEN, bevestigdViaKnop: { groen: 90, oranje: 70, richting: 'hoog' } };
+  assert.equal(ring(renderKlant(data, { ...ctx, grenzen: eigen })), 'goed', '100 % >= 90');
+});
+
+test('Tijd: bij weekgroepering heet de eerste tabelkolom "Week"', () => {
+  const datums = Array.from({ length: 25 }, (_, i) => new Date(Date.UTC(2026, 8, 1 + i)).toISOString().slice(0, 10));
+  const lang = { ...data, tijd: { ...data.tijd, rijtijdPerDag: datums.map(d => ({ datum: d, aanrijtijdMin: 30, werktijdMin: 60, n: 1 })) } };
+  assert.ok(renderTijd(lang, ctx).includes('<th scope="col">Week</th>'));
+  assert.ok(renderTijd(data, ctx).includes('<th scope="col">Dag</th>'));
+});

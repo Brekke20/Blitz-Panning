@@ -365,7 +365,7 @@
           "klant": "Klant h8",
           "sleutel": "serie:CHARX-1002",
           "serienummer": "CHARX-1002",
-          "adres": "Straat h8 1, 2000 Antwerpen"
+          "adres": ""
         },
         {
           "id": "h7",
@@ -378,7 +378,7 @@
           "klant": "Klant h7",
           "sleutel": "serie:CHARX-1001",
           "serienummer": "CHARX-1001",
-          "adres": "Straat h7 1, 2000 Antwerpen"
+          "adres": ""
         },
         {
           "id": "h3",
@@ -391,7 +391,7 @@
           "klant": "Klant h3",
           "sleutel": "serie:CHARX-1003",
           "serienummer": "CHARX-1003",
-          "adres": "Straat h3 1, 2000 Antwerpen"
+          "adres": ""
         }
       ]
     },

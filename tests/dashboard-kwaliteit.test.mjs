@@ -37,7 +37,7 @@ test('herhaalbezoek: zelfde serienummer, 20 dagen eerder telt bij 30 en 90; 45 d
   const [h] = herhaalbezoeken([twintig, nu], [nu], 30);
   assert.deepEqual(h, {
     id: nu.id, ticketNumber: nu.ticketNumber, datum: '2026-10-21', vorigeId: twintig.id, vorigeDatum: '2026-10-01',
-    dagen: 20, technieker: 'Tim', klant: 'Jan', sleutel: 'serie:CH1', serienummer: nu.serienummer, adres: nu.adres,
+    dagen: 20, technieker: 'Tim', klant: 'Jan', sleutel: 'serie:CH1', serienummer: nu.serienummer, adres: '',
   });
 });
 

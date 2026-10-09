@@ -25,8 +25,8 @@ function verbruikKaart(titel, groepen, maanden, ctx, data, perTechnieker) {
   const cel = (g, m) => groepen[g]?.[m]?.aantal ?? 0;
   if (maanden.length === 1) {
     const rijen = namen.map(g => [g, cel(g, maanden[0]), groepen[g]?.[maanden[0]]?.waarde ?? 0]);
-    const tabel = grafiekTabel({ titel, kolommen: [perTechnieker ? 'Technieker' : 'Laadpaaltype', 'Aantal', 'Waarde (€)'], rijen });
-    return kaart(titel, tabel.replace('<details class="tabel-twin">', '<details class="tabel-twin" open>'), // open: de tabel ís hier de weergave
+    const tabel = grafiekTabel({ titel, kolommen: [perTechnieker ? 'Technieker' : 'Laadpaaltype', 'Aantal', 'Waarde (€)'], rijen, open: true });
+    return kaart(titel, tabel, // open: de tabel ís hier de weergave
       { uitleg: `${maandLabel(maanden[0])}: één maand, dus enkel een tabel.` });
   }
   return kaart(titel, gestapeldeKolommen({
