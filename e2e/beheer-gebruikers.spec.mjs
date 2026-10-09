@@ -1,7 +1,7 @@
 // Beheerpagina en tab Gebruikers (logins T17): lijst, nieuwe gebruiker met eenmalig startwachtwoord/herstelcodes, bewerken,
 // blokkeren (bevestiging, 409 van de server), wachtwoord resetten, overal uitloggen, eigen herstelcodes, XSS en gsm-weergave.
 // De stub `gebruikers` is stateful en bevat enkel verzonnen gegevens.
-import { test, expect, startApp } from './helpers.mjs';
+import { test, expect, startApp, authIkStub } from './helpers.mjs';
 
 const json = (status, obj) => ({ status, json: obj });
 const START_WW = 'Start-Qx7-uniek-4821';
@@ -54,7 +54,8 @@ async function verwachtFout(consoleFouten, status) {
 }
 
 async function openGebruikers(page, opties = {}) {
-  await startApp(page, { overschrijf: { gebruikers: gebruikersStub(opties.stub) }, ...opties.app });
+  const { overschrijf, ...app } = opties.app ?? {};
+  await startApp(page, { ...app, overschrijf: { gebruikers: gebruikersStub(opties.stub), ...overschrijf } });
   await page.getByRole('tab', { name: 'Beheer', exact: true }).click();
   await expect(page.getByRole('tab', { name: 'Gebruikers', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('.bg-tabel')).toBeVisible();
@@ -370,6 +371,74 @@ test.describe('tab Gebruikers: bewerken, blokkeren, resetten', () => {
     await rij(page, 'u-t1').getByRole('button', { name: 'Overal uitloggen' }).click();
     await expect(toastEl(page)).toHaveText('Tim Techniek is overal uitgelogd.');
     expect(verzoeken.van('/api/gebruikers', 'POST')[0].body).toEqual({ actie: 'uitloggen-overal', id: 'u-t1' });
+  });
+});
+
+test.describe('tab Gebruikers: eigen account, focus en herlogin', () => {
+  test('overal uitloggen van het eigen account vraagt eerst bevestiging', async ({ page, verzoeken }) => {
+    await openGebruikers(page);
+    await rij(page, 'u-test').getByRole('button', { name: 'Overal uitloggen' }).click();
+    const bev = bevestiging(page, 'Overal uitloggen?');
+    await expect(bev).toContainText('Je wordt ook op dit toestel uitgelogd. Doorgaan?');
+    await bev.getByRole('button', { name: 'Terug' }).click();
+    expect(verzoeken.van('/api/gebruikers', 'POST')).toEqual([]);
+    await rij(page, 'u-test').getByRole('button', { name: 'Overal uitloggen' }).click();
+    await bevestiging(page, 'Overal uitloggen?').getByRole('button', { name: 'Uitloggen' }).click();
+    await expect(toastEl(page)).toHaveText('Test Beheerder is overal uitgelogd.');
+    expect(verzoeken.van('/api/gebruikers', 'POST')[0].body).toEqual({ actie: 'uitloggen-overal', id: 'u-test' });
+    await expect(rij(page, 'u-test').getByRole('button', { name: 'Overal uitloggen' })).toBeFocused();
+  });
+
+  test('de focus keert terug naar de knop na blokkeren en na het sluiten van het nieuwe-startwachtwoordvenster', async ({ page }) => {
+    await openGebruikers(page);
+    await rij(page, 'u-t1').getByRole('button', { name: 'Blokkeren' }).click();
+    await bevestiging(page, 'Gebruiker blokkeren?').getByRole('button', { name: 'Blokkeren' }).click();
+    await expect(rij(page, 'u-t1')).toContainText('Geblokkeerd');
+    await expect(rij(page, 'u-t1').getByRole('button', { name: 'Deblokkeren' })).toBeFocused(); // de knop wisselde van functie, de focus volgt
+    await rij(page, 'u-t1').getByRole('button', { name: 'Startwachtwoord opnieuw instellen' }).click();
+    await bevestiging(page, 'Startwachtwoord opnieuw instellen?').getByRole('button', { name: 'Opnieuw instellen' }).click();
+    const geheim = venster(page, 'Nieuw startwachtwoord');
+    await expect(geheim).toBeVisible();
+    await geheim.getByRole('button', { name: 'Ik heb het genoteerd' }).click();
+    await expect(rij(page, 'u-t1').getByRole('button', { name: 'Startwachtwoord opnieuw instellen' })).toBeFocused();
+  });
+
+  test('sessie verloopt terwijl een formulier openstaat: het herlogin-scherm werkt met het toetsenbord (Tab en Enter) en het verzoek wordt herhaald', async ({ page, verzoeken, consoleFouten }) => {
+    const staat = { verlopen: false, geweigerd: false };
+    const ingelogd = authIkStub('beheerder');
+    const weiger = (methode, body) => {
+      if (body?.actie === 'maak' && !staat.geweigerd) {
+        staat.geweigerd = true; staat.verlopen = true;
+        return json(401, { error: 'Niet ingelogd', code: 'niet-ingelogd' });
+      }
+      return undefined;
+    };
+    await openGebruikers(page, {
+      stub: { weiger },
+      app: { overschrijf: {
+        'auth-ik': (z) => (staat.verlopen ? json(401, { error: 'Niet ingelogd', code: 'niet-ingelogd' }) : ingelogd(z)),
+        'auth-login': () => { staat.verlopen = false; return json(200, { ok: true }); },
+      } },
+    });
+    await page.getByRole('button', { name: 'Nieuwe gebruiker' }).click();
+    const dlg = venster(page, 'Nieuwe gebruiker');
+    await dlg.getByLabel('E-mailadres').fill('nieuw@test.be');
+    await dlg.getByLabel('Naam', { exact: true }).fill('Nieuw Persoon');
+    await dlg.getByRole('button', { name: 'Aanmaken' }).click();
+
+    const login = page.locator('#login-overlay');
+    await expect(login.getByRole('heading', { name: 'Inloggen' })).toBeVisible();
+    await expect(login.getByLabel('E-mailadres')).toBeFocused();
+    await page.keyboard.type('b@test.be');
+    await page.keyboard.press('Tab');
+    await expect(login.getByLabel('Wachtwoord', { exact: true })).toBeFocused(); // de val van het beheervenster kaapt Tab niet
+    await page.keyboard.type('een-lang-wachtwoord');
+    await page.keyboard.press('Enter');
+    await expect(login).toHaveCount(0);
+    // Het verzoek is herhaald en geslaagd: het geheimenvenster staat er.
+    await expect(venster(page, 'Gebruiker aangemaakt').locator('[data-geheim="ww"]')).toHaveText(START_WW);
+    expect(verzoeken.van('/api/gebruikers', 'POST')).toHaveLength(2);
+    await verwachtFout(consoleFouten, 401);
   });
 });
 

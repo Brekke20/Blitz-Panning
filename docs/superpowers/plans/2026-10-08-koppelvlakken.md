@@ -138,3 +138,4 @@ is de bron voor de definitieve vorm. Aanvaard:
 Sales- en dashboard-plan: bij hun Task 0 (preflight) toetsen aan deze sectie en aan de gemergde
 logins-code; afwijkingen corrigeren vóór Task 1 van het niet-losse deel.
 - **`vereisGebruiker` bij opslagstoring:** `{ ok:false, status:503, code:'opslag-storing' }` (fail closed). Client: 503 = "later opnieuw proberen", NIET uitloggen.
+- **Beheerhulpen (T17):** `schermen/beheer.js` exporteert naast `registreerBeheerTab`/`openBeheer` ook `h(tag, props, ...kinderen)` (DOM-bouwer zonder innerHTML; tekst altijd via textContent) en `openBeheerVenster({ titel, dwingend, focusTerug })` -> `{ body, wortel, sluit }` (modal dialoog met focusval, die Tab/Escape met rust laat als er een ander overlay bovenop ligt). Beheertabs (T18, dashboard) gebruiken deze in plaats van eigen varianten.

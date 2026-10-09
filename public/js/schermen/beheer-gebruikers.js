@@ -45,8 +45,8 @@ const ticketsVoorNamen = () => {
 
 // ── Eenmalig getoonde geheimen ──────────────────────────────────────────────────────────────────────────────────
 // startWachtwoord en/of herstelcodes: één keer in beeld, kopieerbaar; bij sluiten wordt alles leeggemaakt.
-function toonGeheimen({ titel, intro, startWachtwoord, herstelcodes }) {
-  const venster = openBeheerVenster({ titel, dwingend: true });
+function toonGeheimen({ titel, intro, startWachtwoord, herstelcodes, focusTerug }) {
+  const venster = openBeheerVenster({ titel, dwingend: true, focusTerug });
   const teksten = {};
   const status = h('p', { class: 'bg-status', role: 'status' });
   const blok = (sleutel, label, uitleg, tekst) => {
@@ -153,7 +153,9 @@ function toonGebruikerFormulier({ gebruiker = null, lijst, naSucces }) {
     if (!r.ok) { fout.textContent = foutTekst(r); return; }
     venster.sluit();
     const wie = r.data?.gebruiker?.naam ?? v.waarden.naam;
-    if (nieuw) {
+    if (nieuw && typeof r.data?.startWachtwoord !== 'string') {
+      toast(`${wie} is aangemaakt, maar het startwachtwoord ontbreekt in het antwoord. Gebruik "Startwachtwoord opnieuw instellen".`);
+    } else if (nieuw) {
       toonGeheimen({
         titel: 'Gebruiker aangemaakt',
         intro: `${wie} kan nu inloggen. Geef het startwachtwoord door; je ziet het hier maar één keer.`
@@ -200,11 +202,15 @@ function toonNieuweHerstelcodes() {
     bezig = false;
     verstuur.disabled = false; annuleer.disabled = false;
     if (!r.ok) { fout.textContent = foutTekst(r); return; }
+    if (!Array.isArray(r.data?.herstelcodes) || r.data.herstelcodes.length === 0) {
+      fout.textContent = 'De server gaf geen herstelcodes terug. Probeer het opnieuw.';
+      return;
+    }
     venster.sluit();
     toonGeheimen({
       titel: 'Nieuwe herstelcodes',
       intro: 'Dit zijn je nieuwe herstelcodes. De oude werken niet meer. Je ziet ze hier maar één keer.',
-      herstelcodes: Array.isArray(r.data?.herstelcodes) ? r.data.herstelcodes : [],
+      herstelcodes: r.data.herstelcodes,
     });
   });
 }
@@ -226,10 +232,24 @@ async function render(container) {
   lijstWortel.append(h('p', { class: 'bg-uitleg', role: 'status', text: 'Gebruikers laden…' }));
 
   // Een rij-actie: bevestiging (indien nodig), verzoek, toast, lijst verversen. De knop blijft uit tot het klaar is.
+  // Na afloop (lijst hertekend) krijgt de knop van die actie weer de focus, tenzij er een venster openstaat of de focus elders is.
+  let laatsteActie = null;
+  const WISSEL = { blokkeer: 'deblokkeer', deblokkeer: 'blokkeer' }; // na blokkeren staat op dezelfde plaats "Deblokkeren" (en omgekeerd)
+  const zoekKnop = () => {
+    if (!laatsteActie) return null;
+    const knoppen = [...lijstWortel.querySelectorAll('button[data-id]')].filter(b => b.dataset.id === laatsteActie.id);
+    return knoppen.find(b => b.dataset.actie === laatsteActie.actie) ?? knoppen.find(b => b.dataset.actie === WISSEL[laatsteActie.actie]) ?? null;
+  };
+  const focusTerug = () => zoekKnop() ?? lijstWortel;
   async function actie(knop, werk) {
     if (knop.disabled) return;
     knop.disabled = true;
-    try { await werk(); } finally { knop.disabled = false; }
+    laatsteActie = { id: knop.dataset.id, actie: knop.dataset.actie };
+    try { await werk(); } finally {
+      knop.disabled = false;
+      const actief = document.activeElement;
+      if (!document.querySelector('.beheer-overlay') && (!actief || actief === document.body || lijstWortel.contains(actief))) focusTerug().focus();
+    }
   }
   const verzoekMetToast = async (methode, body, succes) => {
     const r = await roep(methode, body);
@@ -258,10 +278,18 @@ async function render(container) {
       titel: 'Nieuw startwachtwoord',
       intro: `Geef dit startwachtwoord door aan ${g.naam}; je ziet het hier maar één keer. ${g.naam} is overal uitgelogd.`,
       startWachtwoord: r.data.startWachtwoord,
+      focusTerug,
     });
     await laad();
   };
-  const uitloggenOveral = (g) => async () => { await verzoekMetToast('POST', { actie: 'uitloggen-overal', id: g.id }, `${g.naam} is overal uitgelogd.`); };
+  const uitloggenOveral = (g) => async () => {
+    // Het eigen account: ook deze sessie wordt beëindigd, dus eerst bevestigen.
+    if (g.id === eigenId()) {
+      const ja = await appConfirm({ titel: 'Overal uitloggen?', tekst: 'Je wordt ook op dit toestel uitgelogd. Doorgaan?', bevestigLabel: 'Uitloggen', gevaar: true });
+      if (!ja) return;
+    }
+    await verzoekMetToast('POST', { actie: 'uitloggen-overal', id: g.id }, `${g.naam} is overal uitgelogd.`);
+  };
 
   function rij(g) {
     const actief = g.actief === true;

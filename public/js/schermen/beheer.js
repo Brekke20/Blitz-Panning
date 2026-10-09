@@ -106,11 +106,13 @@ export async function openBeheer(container) {
 // ── Venster (modal dialoog) ─────────────────────────────────────────────────────────────────────────────────────
 // openBeheerVenster({ titel, dwingend }) -> { body, wortel, sluit }. De bouwer vult `body` (DOM, geen innerHTML met servergegevens).
 // dwingend: geen sluitknop, Escape of klik ernaast (venster met een eenmalig getoond geheim: enkel de eigen knop sluit).
-// De rest van de pagina is onbereikbaar zolang het open is (inert), de focus blijft erbinnen en keert bij sluiten terug.
+// De rest van de pagina is onbereikbaar zolang het open is (inert), de focus blijft erbinnen en keert bij sluiten terug
+// (naar het element dat focus had, of — als dat intussen vervangen is — naar focusTerug()). Ligt er een ander overlay bovenop
+// (herlogin, appConfirm), dan laat de focusval Tab en Escape met rust.
 const FOCUSBAAR = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 let vensterTeller = 0;
 
-export function openBeheerVenster({ titel, dwingend = false } = {}) {
+export function openBeheerVenster({ titel, dwingend = false, focusTerug = null } = {}) {
   const vorigFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const titelId = `beheer-venster-titel-${++vensterTeller}`;
   const kop = h('div', { class: 'mhdr' }, h('h2', { class: 'mhdr-title', id: titelId, text: String(titel ?? '') }));
@@ -127,10 +129,14 @@ export function openBeheerVenster({ titel, dwingend = false } = {}) {
     document.removeEventListener('keydown', opToets, true);
     for (const el of geInerteerd) el.inert = false;
     overlay.remove();
-    try { if (vorigFocus && document.contains(vorigFocus)) vorigFocus.focus(); } catch { /* element is weg */ }
+    try {
+      const doel = vorigFocus && vorigFocus !== document.body && document.contains(vorigFocus) ? vorigFocus : focusTerug?.();
+      doel?.focus?.();
+    } catch { /* element is weg */ }
   }
   function opToets(e) {
-    if (!open || !overlay.isConnected) return;
+    // Een later toegevoegd overlay (herlogin, appConfirm) ligt bovenop dit venster en is van hem: niet kapen.
+    if (!open || !overlay.isConnected || document.body.lastElementChild !== overlay) return;
     if (e.key === 'Escape') {
       e.preventDefault(); e.stopPropagation();
       if (!dwingend) sluit();
