@@ -339,3 +339,40 @@ test('klantbeschikbaarheid: per bewaring worden hoogstens 10 gewijzigde tickets 
   const toetsen = k.calls.filter(c => /\/tickets\/\d+$/.test(c.url));
   assert.ok(toetsen.length <= 10, String(toetsen.length));
 });
+
+// ---------------------------------------------------------------- statussen (review M7): geen gesloten ticket heropenen
+const MET_STATUS = (status) => ({ assigneeId: 'A1', status, cf: {}, contact: { email: 'c@x.be' } });
+
+test('plan: een technieker met het vinkje kan zijn eigen gesloten of afgewerkte ticket niet (her)plannen (409), een planner wel', async () => {
+  TICKETS[21] = MET_STATUS('Closed');
+  TICKETS[22] = MET_STATUS('Service in te plannen');
+  TICKETS[23] = MET_STATUS('Wachten op planning');
+  TICKETS[24] = MET_STATUS('Wachten op bevestiging planning');
+  TICKETS[25] = MET_STATUS('Geplande service');
+  try {
+    for (const [id, toegelaten] of [['21', false], ['22', true], ['23', true], ['24', true], ['25', false]]) {
+      const r = await plan(metTim(), { ...PLAN, ticketId: id });
+      assert.equal(r.status, toegelaten ? 200 : 409, `plan ${id}`);
+      if (!toegelaten) { assert.equal(r.body.code, 'ticket-status'); assert.deepEqual(schrijvend(r.calls), [], id); }
+    }
+    // uit de planning halen: enkel wat op bevestiging wacht
+    assert.equal((await plan(metTim(), { ticketId: '24', date: null })).status, 200);
+    assert.equal((await plan(metTim(), { ticketId: '21', date: null })).status, 409);
+    assert.equal((await plan(metTim(), { ticketId: '22', date: null })).status, 409);
+    // planner en beheerder: ongewijzigd, ook voor een gesloten ticket
+    for (const rol of ['planner', 'beheerder']) assert.equal((await plan(werk => metRol(rol, werk), { ...PLAN, ticketId: '21' })).status, 200, rol);
+  } finally { for (const id of [21, 22, 23, 24, 25]) delete TICKETS[id]; }
+});
+
+test('plan-datum: een eigen ticket in de planningsflow mag (ook al gepland), een gesloten ticket niet (409); een planner wel', async () => {
+  TICKETS[21] = MET_STATUS('Closed');
+  TICKETS[25] = MET_STATUS('Geplande service');
+  try {
+    assert.equal((await planDatum(metTim(), { ...DATUM, ticketId: '25' })).status, 200);
+    const dicht = await planDatum(metTim(), { ...DATUM, ticketId: '21' });
+    assert.equal(dicht.status, 409);
+    assert.equal(dicht.body.code, 'ticket-status');
+    assert.deepEqual(schrijvend(dicht.calls), []);
+    assert.equal((await planDatum(werk => metRol('planner', werk), { ...DATUM, ticketId: '21' })).status, 200);
+  } finally { delete TICKETS[21]; delete TICKETS[25]; }
+});

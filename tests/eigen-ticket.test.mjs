@@ -84,3 +84,18 @@ test('een al opgehaald ticket en al gevraagde toegang worden hergebruikt (geen d
   assert.equal(r.ok, true);
   assert.deepEqual(zoho.aanroepen, ['/agents/A1']);
 });
+
+test('statussen: een eigen ticket met een andere (of onbekende) status geeft 409; zonder statussen of voor een coordinator geen toets', async () => {
+  const zoho = nepZoho({ tickets: { 11: { assigneeId: 'A1', status: 'Closed' }, 12: { assigneeId: 'A1', status: 'Wachten op planning' }, 13: { assigneeId: 'A1' } }, agenten: AGENTEN });
+  const statussen = ['Wachten op planning'];
+  assert.equal((await eisEigenTicket({ gebruiker: tim, ticketId: '12', zoho, statussen })).ok, true);
+  const dicht = await eisEigenTicket({ gebruiker: tim, ticketId: '11', zoho, statussen });
+  assert.equal(dicht.status, 409);
+  assert.equal(dicht.body.code, 'ticket-status');
+  assert.equal((await eisEigenTicket({ gebruiker: tim, ticketId: '13', zoho, statussen })).status, 409); // geen status bekend: niet doorlaten
+  assert.equal((await eisEigenTicket({ gebruiker: tim, ticketId: '11', zoho })).ok, true);
+  assert.equal((await eisEigenTicket({ gebruiker: { rol: 'planner' }, ticketId: '11', zoho, statussen })).ok, true);
+  // een collega-ticket blijft 403 (de eigenaarstoets gaat voor)
+  const collega = await eisEigenTicket({ gebruiker: tim, ticketId: '12', zoho: nepZoho({ tickets: { 12: { assigneeId: 'A2', status: 'Closed' } }, agenten: AGENTEN }), statussen });
+  assert.equal(collega.status, 403);
+});
