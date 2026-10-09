@@ -175,12 +175,13 @@ test.describe('sales: kalender — blokken', () => {
     expect(verzoeken.van('/api/sales', 'PATCH')).toHaveLength(2);
   });
 
-  test('een blok met uren en omschrijving; een einde voor het begin geeft een fout in het venster; het +-knopje per dag vult de datum in', async ({ page }) => {
+  test('een blok met uren en omschrijving; een einde voor het begin geeft een fout in het venster; de datum van het venster volgt de gekozen dag; één ingang (➕ Blok), geen +-knopje per dag meer', async ({ page }) => {
     await startSalesApp(page, { leads: [], blokken: [] });
     await naarKalender(page);
-    await dag(page, '2026-10-09').getByRole('button', { name: /Blok toevoegen op/ }).click();
+    await expect(kal(page).getByRole('button', { name: /Blok toevoegen/ })).toHaveCount(0); // geen tweede ingang per dag (UI/UX P2-6)
+    await kal(page).getByRole('button', { name: '➕ Blok', exact: true }).click();
     const v = venster(page);
-    await expect(v.getByLabel('Datum')).toHaveValue('2026-10-09');
+    await v.getByLabel('Datum').fill('2026-10-09');
     await v.getByLabel('Van').fill('14:00');
     await v.getByLabel('Tot').fill('13:00');
     await v.getByRole('button', { name: 'Opslaan' }).click();
@@ -232,7 +233,6 @@ test.describe('sales: kalender — gsm en alleen-lezen', () => {
     await expect(dag(page, '2026-10-06').locator('.tl-block.sales-voorgesteld')).toContainText('Test Beaklant');
     await expect(kal(page).getByRole('button', { name: '➕ Blok', exact: true })).toHaveCount(0);
     await expect(kal(page).getByRole('button', { name: /Plan deze week/ })).toHaveCount(0);
-    await expect(kal(page).getByRole('button', { name: /Blok toevoegen op/ })).toHaveCount(0);
     await dag(page, '2026-10-06').locator('.tl-block.sales-voorgesteld').click();
     await expect(venster(page)).toContainText('Test Beaklant');
     await expect(venster(page).locator('a[href="tel:+32470112233"]')).toBeVisible();
