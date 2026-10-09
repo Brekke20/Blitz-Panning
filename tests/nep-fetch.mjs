@@ -2,6 +2,8 @@
 // Geen *.test.mjs, dus geen eigen testbestand. Nooit echte netwerkaanroepen (Z12).
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { zetAuthVoorTests } from '../netlify/lib/auth.js';
+import { zetStandaard } from './auth-hulp.mjs';
 
 const HIER = path.dirname(fileURLToPath(import.meta.url));
 
@@ -49,6 +51,12 @@ export async function metGlobaleFetch(fn, werk) {
 globalThis.fetch = async (url) => {
   throw new Error('Echte fetch in test geblokkeerd: ' + String(url));
 };
+
+// Alle bestaande servertests lopen als ingelogde beheerder (de wrapper laat alles door); de rechten zelf worden
+// in tests/server-beveiliging.test.mjs en per functie met metRol / metGeenSessie getest.
+const STANDAARD_AUTH = { vasteGebruiker: { id: 'test-beheerder', email: 'b@test', naam: 'Test Beheerder', rol: 'beheerder' } };
+zetAuthVoorTests(STANDAARD_AUTH);
+zetStandaard(STANDAARD_AUTH); // metRol / metGeenSessie keren hierna terug naar deze standaard
 
 let teller = 0;
 export async function laadVers(naam) {

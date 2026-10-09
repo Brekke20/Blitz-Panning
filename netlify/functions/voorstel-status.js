@@ -9,10 +9,11 @@
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
 import { leesRegister, schrijfVoorstel, wisVoorstel } from '../lib/voorstelregister.js';
+import { beveiligV2 } from '../lib/beveiligd.js';
 
 const DOELGROEPEN = ['contact', 'klant', 'installateur'];
 
-export default async (req, context) => {
+const kern = async (req, context, gebruiker) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
@@ -59,5 +60,7 @@ export default async (req, context) => {
 
   return new Response('Method Not Allowed', { status: 405, headers });
 };
+
+export default beveiligV2('voorstel-status', kern);
 
 export const config = { path: '/api/voorstel-status' };

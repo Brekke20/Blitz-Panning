@@ -7,7 +7,7 @@ test('Offline: de app start uit de cache, Leaflet komt uit de externe cache', as
   const voor = sw.swVerzoeken().length;
   await sw.zetOffline(true);
   await page.reload();
-  await expect(page.getByRole('tab')).toHaveCount(6);
+  await expect(page.getByRole('tab')).toHaveCount(7); // de gecachte (beheerder-)sessie: zes tabs plus Beheer
   await expect(page.locator('#cnt-tickets')).toBeAttached();
   await expect(page.locator('#offline-banner')).toBeVisible();
   // Leaflet (cdnjs) is er, zonder dat de SW de CDN opnieuw benaderde: cache-eerst uit blitz-extern.

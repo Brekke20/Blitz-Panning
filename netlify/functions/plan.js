@@ -7,11 +7,14 @@
 import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
 import { maakZoho, leesJsonVeilig } from '../lib/zoho.js';
 import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
+import { getStore } from '@netlify/blobs';
+import { beveiligV1 } from '../lib/beveiligd.js';
+import { logVoorVerzoek } from '../lib/activiteit.js';
 
 // Instantie op moduleniveau: de tokencache (55 min) leeft zolang de functie warm is.
 const zoho = maakZoho();
 
-export async function handler(event) {
+async function kern(event, context, gebruiker, haalStore = getStore) {
   const methode = v1Methode(event, ['POST'], CORS_V1);
   if (methode) return methode;
 
@@ -59,8 +62,15 @@ export async function handler(event) {
       throw new Error(`Zoho fout (${patchRes.status}): ${JSON.stringify(patchData)}`);
     }
 
+    await logVoorVerzoek(event, gebruiker, { actie: 'plannen', onderwerp: String(ticketId), details: date || 'uitgepland' }, { getStore: haalStore });
     return v1Json(200, { success: true, ticketId, date: date || null }, CORS_V1);
   } catch (err) {
     return v1Json(500, { error: err.message }, CORS_V1);
   }
 }
+
+// getStore is een testnaad (enkel voor de activiteitenlog).
+export const maakHandler = ({ getStore: haalStore } = {}) =>
+  beveiligV1('plan', (event, context, gebruiker) => kern(event, context, gebruiker, haalStore));
+
+export const handler = maakHandler();

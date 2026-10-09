@@ -118,3 +118,57 @@ export function foutTekst(err, opties) {
   if (f.soort === 'http' && /^HTTP \d{3}$/.test(err?.message || '')) return statusTekst(f.status);
   return err?.message || '';
 }
+
+// Beveiligings-omhulling van fetch (logins T13). Buitenste laag, ná installeerFetchTimeout. Enkel same-origin /api/-verzoeken:
+//  - X-Blitz: 1 bij elke schrijvende methode (alles behalve GET/HEAD/OPTIONS; CSRF-kop die de server eist, ook voor auth-login/-uitloggen);
+//  - X-Blitz-Test-Rol: <rol> als testRol() een tekst geeft (enkel lokale dev; de server negeert het elders);
+//  - 401 (niet van /api/auth-*) of 403 met code 'wachtwoord-wijzigen': await herlogin(), dan het verzoek ÉÉN keer herhalen
+//    (enkel als dat veilig kan: string/URL-invoer, of een tekst-body); een tweede 401 gaat gewoon door naar de aanroeper;
+//  - 503 met code 'opslag-storing': bijStoring() (toast), geen herlogin: "later opnieuw proberen", niet uitloggen.
+// Een eigen `signal` van de aanroeper blijft behouden. Bodies van antwoorden worden enkel via clone() gelezen.
+const LEZEND = new Set(['GET', 'HEAD', 'OPTIONS']);
+const bevatCode = async (res, code) => { try { return (await res.clone().json())?.code === code; } catch { return false; } };
+
+export function installeerApiBeveiliging(doel, { herlogin, testRol = () => null, bijStoring } = {}) {
+  const oorspronkelijk = doel.fetch;
+  const basis = doel.location?.href || 'http://localhost/';
+  const origin = new URL(basis).origin;
+  const urlVan = (invoer) => { try { return new URL(typeof invoer === 'string' ? invoer : (invoer.url ?? String(invoer)), basis); } catch { return null; } };
+  const isRequest = (invoer) => typeof Request !== 'undefined' && invoer instanceof Request;
+
+  doel.fetch = async function (invoer, init) {
+    const url = urlVan(invoer);
+    if (!url || url.origin !== origin || !url.pathname.startsWith('/api/')) return oorspronkelijk.call(doel, invoer, init);
+
+    const methode = String(init?.method || invoer?.method || 'GET').toUpperCase();
+    let rol = null;
+    try { rol = testRol(); } catch { /* geen testrol */ }
+    const metX = !LEZEND.has(methode);
+    let uitInit = init;
+    if (metX || (typeof rol === 'string' && rol)) {
+      const koppen = new Headers(isRequest(invoer) ? invoer.headers : undefined);
+      if (init?.headers) new Headers(init.headers).forEach((v, k) => koppen.set(k, v));
+      if (metX) koppen.set('X-Blitz', '1');
+      if (typeof rol === 'string' && rol) koppen.set('X-Blitz-Test-Rol', rol);
+      uitInit = { ...init, headers: koppen };
+    }
+
+    const verstuur = () => oorspronkelijk.call(doel, invoer, uitInit);
+    const res = await verstuur();
+
+    if (res.status === 503) {
+      if (bijStoring && await bevatCode(res, 'opslag-storing')) { try { bijStoring(); } catch { /* melding mag niets breken */ } }
+      return res;
+    }
+    const isAuthPad = url.pathname.startsWith('/api/auth-');
+    const moetHerlogin = !isAuthPad && herlogin && (res.status === 401 || (res.status === 403 && await bevatCode(res, 'wachtwoord-wijzigen')));
+    if (!moetHerlogin) return res;
+
+    try { await herlogin(); } catch { return res; }
+    const body = uitInit?.body;
+    const herhaalbaar = typeof body === 'string' || (!isRequest(invoer) && (body == null || !(typeof ReadableStream !== 'undefined' && body instanceof ReadableStream)));
+    if (!herhaalbaar) return res;
+    return verstuur();
+  };
+  return () => { doel.fetch = oorspronkelijk; };
+}

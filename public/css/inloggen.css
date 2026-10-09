@@ -1,0 +1,43 @@
+/* Inlog-overlay (logins T14): ondoorzichtig scherm bovenop de app, met de bestaande kleurvariabelen. */
+#login-overlay {
+  position: fixed; inset: 0; z-index: var(--z-modal);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: var(--sp-5) var(--sp-4); overflow-y: auto;
+  background: var(--bg); color: var(--text);
+}
+@media (min-width: 600px) { #login-overlay { align-items: center; } }
+.login-kaart {
+  width: 100%; max-width: 420px; margin: auto 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+  padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-3);
+}
+.login-merk { font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-ink); }
+.login-kaart h2 { font-size: var(--fs-xl); font-weight: 700; line-height: 1.25; }
+.login-intro { font-size: var(--fs-sm); color: var(--text2); line-height: 1.5; }
+.login-formulier { display: flex; flex-direction: column; gap: var(--sp-3); }
+.login-formulier .set-field { margin-bottom: 0; }
+/* 16 px: iOS zoomt anders in op het veld. */
+#login-overlay .set-input { font-size: 16px; min-height: 44px; }
+/* Code of sleutel (geen wachtwoord): type tekst zodat de browser het niet als wachtwoord bewaart; de tekens blijven verborgen. */
+#login-overlay .login-geheim { -webkit-text-security: disc; text-security: disc; }
+.login-fout { min-height: 1.25em; font-size: var(--fs-sm); font-weight: 600; color: var(--red); line-height: 1.4; }
+.login-fout:empty { min-height: 0; }
+.login-acties { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+#login-overlay .btn { min-height: 44px; }
+.login-link { align-self: flex-start; }
+.login-codes {
+  margin: 0; padding: var(--sp-3); background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r);
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace; font-size: var(--fs-md); line-height: 1.7; white-space: pre;
+  overflow-x: auto; user-select: all;
+}
+.login-status { font-size: var(--fs-xs); color: var(--text2); min-height: 1.25em; }
+.login-print-kop { display: none; }
+
+@media print {
+  body.login-afdrukken > *:not(#login-overlay) { display: none !important; }
+  body.login-afdrukken #login-overlay { position: static; display: block; padding: 0; background: #fff; color: #000; overflow: visible; }
+  body.login-afdrukken .login-kaart { max-width: none; border: none; background: #fff; padding: 0; }
+  body.login-afdrukken .login-codes { background: #fff; color: #000; border: 1px solid #000; }
+  body.login-afdrukken .login-print-kop { display: block; font-weight: 700; margin-bottom: 8px; }
+  body.login-afdrukken .login-niet-afdrukken { display: none !important; }
+}

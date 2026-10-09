@@ -251,15 +251,15 @@ test('plan-datum: OPTIONS geeft 204 met de basisset, zonder Content-Type', async
   assert.deepEqual(await v2Antwoord(res), { status: 204, headers: CORS_V2_BASIS, tekst: '' });
 });
 
-test('plan-datum: verkeerde methode geeft 405 als tekst met de basisset', async () => {
+// Sinds logins T10 beantwoordt de wrapper (beveiligd.js) een methode zonder regel in de rechtentabel zelf: JSON-405.
+test('plan-datum: verkeerde methode geeft 405 (van de wrapper, JSON) zonder aanvragen', async () => {
   for (const methode of ['GET', 'PUT', 'DELETE']) {
     const { res, calls } = await draaiV2(DATUM_REQ('x', { methode }));
     assert.deepEqual(calls, []);
     const a = await v2Antwoord(res);
     assert.equal(a.status, 405);
-    assert.equal(a.tekst, 'Method Not Allowed');
-    // Response met stringbody voegt zelf text/plain toe
-    assert.deepEqual(a.headers, { ...CORS_V2_BASIS, 'content-type': 'text/plain;charset=UTF-8' });
+    assert.equal(a.tekst, '{"error":"Method not allowed"}');
+    assert.deepEqual(a.headers, { 'access-control-allow-origin': '*', 'content-type': 'application/json' });
   }
 });
 

@@ -14,6 +14,9 @@
     try { localStorage.setItem(sleutel, waarde); } catch (e) {}
   }
 
+  // Rol van de ingelogde gebruiker (zetLoginRol, logins T15): enkel 'technieker' en 'sales' beperken het toestel.
+  var loginRol = null;
+
   function bepaal() {
     var grof = !!(grofMQ && grofMQ.matches);
     var b = window.innerWidth, h = window.innerHeight;
@@ -35,6 +38,8 @@
     var r = lees('blitz_rol');
     var rolGekozen = (r === 'coordinator' || r === 'technieker');
     var rol = rolGekozen ? r : (soort === 'computer' ? 'coordinator' : 'technieker');
+    // Een ingelogde technieker (of sales) is altijd de beperkte rol, op elk toestel, en krijgt geen tablet-rolvraag.
+    if (loginRol) { rol = 'technieker'; rolGekozen = true; }
 
     return { soort: soort, automatischeSoort: auto, indeling: indeling, staand: staand,
              aanraak: grof, rol: rol, rolGekozen: rolGekozen, kortsteZijde: kortsteZijde };
@@ -70,6 +75,11 @@
   window.zetRol = function (r) {
     if (r !== 'coordinator' && r !== 'technieker') return;
     bewaar('blitz_rol', r);
+    evalueer();
+  };
+
+  window.zetLoginRol = function (r) {
+    loginRol = (r === 'technieker' || r === 'sales') ? r : null;
     evalueer();
   };
 

@@ -8,6 +8,8 @@
 // PATCH → een 'aanvulling'-logregel op status 'verwerkt' zetten (supervisor heeft ze in AFAS geboekt)
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
+import { beveiligV2 } from '../lib/beveiligd.js';
+import { isEigenNaam } from '../lib/eigen.js';
 
 const BLOB_KEY = 'inventaris';
 const ALLOWED_ORIGINS = [
@@ -83,145 +85,158 @@ async function pruneAndGet(store) {
   return { current, error: false };
 }
 
-export default async (req) => {
-  const hdrs = corsHeaders(req);
+const GEEN_RECHT = { error: 'Je kan enkel je eigen wagenvoorraad wijzigen.', code: 'geen-recht' };
 
-  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: hdrs });
+export function maakHandler({ getStore: haalStore = getStore } = {}) {
+  const kern = async (req, context, gebruiker) => {
+    const hdrs = corsHeaders(req);
 
-  const store = getStore({ name: winkelNaam(req), consistency: 'strong' });
+    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: hdrs });
 
-  if (isTestVerzoek(req)) await zorgVoorTestkopie(getStore);
+    const store = haalStore({ name: winkelNaam(req), consistency: 'strong' });
 
-  // ── GET ──────────────────────────────────────────────────────────────────────
-  if (req.method === 'GET') {
-    const { current, error } = await pruneAndGet(store);
-    if (error) return json(toResponse(EMPTY), 200, { ...hdrs, 'X-Source': 'fallback' });
-    return json(toResponse(current), 200, hdrs);
-  }
+    if (isTestVerzoek(req)) await zorgVoorTestkopie(haalStore);
 
-  // ── POST (mutatie of verbruik) ──────────────────────────────────────────────
-  if (req.method === 'POST') {
-    let body;
-    try { body = await req.json(); }
-    catch { return json({ error: 'Ongeldige JSON' }, 400, hdrs); }
+    // ── GET ──────────────────────────────────────────────────────────────────────
+    if (req.method === 'GET') {
+      const { current, error } = await pruneAndGet(store);
+      if (error) return json(toResponse(EMPTY), 200, { ...hdrs, 'X-Source': 'fallback' });
+      return json(toResponse(current), 200, hdrs);
+    }
 
-    const { versie, technieker, actie, items } = body;
+    // ── POST (mutatie of verbruik) ──────────────────────────────────────────────
+    if (req.method === 'POST') {
+      let body;
+      try { body = await req.json(); }
+      catch { return json({ error: 'Ongeldige JSON' }, 400, hdrs); }
 
-    if (typeof versie !== 'number') return json({ error: 'versie is verplicht en moet een getal zijn' }, 400, hdrs);
-    if (!technieker || typeof technieker !== 'string') return json({ error: 'technieker is verplicht' }, 400, hdrs);
-    if (actie !== 'mutatie' && actie !== 'verbruik') return json({ error: "actie moet 'mutatie' of 'verbruik' zijn" }, 400, hdrs);
-    if (!Array.isArray(items) || !items.length) return json({ error: 'items moet een niet-lege array zijn' }, 400, hdrs);
-    for (const it of items) {
-      if (!it.materiaalId || typeof it.materiaalId !== 'string') return json({ error: 'elk item heeft een materiaalId nodig' }, 400, hdrs);
-      if (!it.materiaalNaam || typeof it.materiaalNaam !== 'string') return json({ error: 'elk item heeft een materiaalNaam nodig' }, 400, hdrs);
-      const heeftAantal  = it.aantal  !== undefined;
-      const heeftGedempt = it.gedempt !== undefined;
-      if (!heeftAantal && !heeftGedempt) return json({ error: `item voor ${it.materiaalId} heeft aantal of gedempt nodig` }, 400, hdrs);
-      if (heeftAantal && (typeof it.aantal !== 'number' || !Number.isFinite(it.aantal) || it.aantal === 0)) {
-        return json({ error: `ongeldig aantal voor ${it.materiaalId}` }, 400, hdrs);
+      // Een technieker boekt enkel op zijn eigen wagen (ook een lege of ontbrekende naam is niet eigen).
+      if (gebruiker?.rol === 'technieker' && !isEigenNaam(gebruiker, body?.technieker)) {
+        return json(GEEN_RECHT, 403, hdrs);
       }
-      if (heeftGedempt && typeof it.gedempt !== 'boolean') return json({ error: `ongeldige gedempt-waarde voor ${it.materiaalId}` }, 400, hdrs);
-      if (heeftGedempt && actie !== 'mutatie') return json({ error: 'gedempt kan enkel bij actie mutatie' }, 400, hdrs);
-    }
 
-    const { current, error } = await pruneAndGet(store);
-    if (error) return json({ error: 'Inventaris-opslag tijdelijk niet bereikbaar, probeer opnieuw.' }, 503, hdrs);
+      const { versie, technieker, actie, items } = body;
 
-    if (versie !== current.versie) {
-      return json({ error: 'Inventaris ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: current.versie, data: toResponse(current) }, 409, hdrs);
-    }
-
-    const wagenvoorraad = { ...current.wagenvoorraad };
-    const stock = { ...(wagenvoorraad[technieker] || {}) };
-    const nieuweLogRegels = [];
-    const nu = new Date().toISOString();
-
-    for (const it of items) {
-      const bestaand = normStock(stock[it.materiaalId]);
-      let nieuweAantal  = bestaand.aantal;
-      let nieuweGedempt = bestaand.gedempt;
-
-      if (it.aantal !== undefined) {
-        // verbruik: 'aantal' is de gebruikte hoeveelheid (positief) -> wagenvoorraad daalt.
-        // mutatie: 'aantal' is al signed (positief = aanvulling, negatief = correctie).
-        const rawDelta = actie === 'verbruik' ? -Math.abs(it.aantal) : it.aantal;
-        // Nooit onder 0 -- ook niet als een verlopen/racende client een te grote aftrek stuurt.
-        // De gelogde 'aantal' is de ECHT toegepaste verandering (na klemmen), niet de
-        // gevraagde -- zo blijft de log een waarheidsgetrouwe weergave van de voorraad.
-        nieuweAantal = Math.max(0, bestaand.aantal + rawDelta);
-        const toegepasteDelta = nieuweAantal - bestaand.aantal;
-
-        if (toegepasteDelta !== 0) {
-          const type   = actie === 'verbruik' ? 'verbruik' : (toegepasteDelta > 0 ? 'aanvulling' : 'correctie');
-          const status = type === 'aanvulling' ? 'nieuw' : null;
-          nieuweLogRegels.push({
-            id: crypto.randomUUID(),
-            technieker,
-            materiaalId:   it.materiaalId,
-            materiaalNaam: it.materiaalNaam,
-            aantal: toegepasteDelta,
-            datum: nu,
-            type,
-            status,
-          });
+      if (typeof versie !== 'number') return json({ error: 'versie is verplicht en moet een getal zijn' }, 400, hdrs);
+      if (!technieker || typeof technieker !== 'string') return json({ error: 'technieker is verplicht' }, 400, hdrs);
+      if (actie !== 'mutatie' && actie !== 'verbruik') return json({ error: "actie moet 'mutatie' of 'verbruik' zijn" }, 400, hdrs);
+      if (!Array.isArray(items) || !items.length) return json({ error: 'items moet een niet-lege array zijn' }, 400, hdrs);
+      for (const it of items) {
+        if (!it.materiaalId || typeof it.materiaalId !== 'string') return json({ error: 'elk item heeft een materiaalId nodig' }, 400, hdrs);
+        if (!it.materiaalNaam || typeof it.materiaalNaam !== 'string') return json({ error: 'elk item heeft een materiaalNaam nodig' }, 400, hdrs);
+        const heeftAantal  = it.aantal  !== undefined;
+        const heeftGedempt = it.gedempt !== undefined;
+        if (!heeftAantal && !heeftGedempt) return json({ error: `item voor ${it.materiaalId} heeft aantal of gedempt nodig` }, 400, hdrs);
+        if (heeftAantal && (typeof it.aantal !== 'number' || !Number.isFinite(it.aantal) || it.aantal === 0)) {
+          return json({ error: `ongeldig aantal voor ${it.materiaalId}` }, 400, hdrs);
         }
+        if (heeftGedempt && typeof it.gedempt !== 'boolean') return json({ error: `ongeldige gedempt-waarde voor ${it.materiaalId}` }, 400, hdrs);
+        if (heeftGedempt && actie !== 'mutatie') return json({ error: 'gedempt kan enkel bij actie mutatie' }, 400, hdrs);
       }
-      if (it.gedempt !== undefined) nieuweGedempt = it.gedempt;
 
-      stock[it.materiaalId] = { aantal: nieuweAantal, gedempt: nieuweGedempt };
+      const { current, error } = await pruneAndGet(store);
+      if (error) return json({ error: 'Inventaris-opslag tijdelijk niet bereikbaar, probeer opnieuw.' }, 503, hdrs);
+
+      if (versie !== current.versie) {
+        return json({ error: 'Inventaris ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: current.versie, data: toResponse(current) }, 409, hdrs);
+      }
+
+      const wagenvoorraad = { ...current.wagenvoorraad };
+      const stock = { ...(wagenvoorraad[technieker] || {}) };
+      const nieuweLogRegels = [];
+      const nu = new Date().toISOString();
+
+      for (const it of items) {
+        const bestaand = normStock(stock[it.materiaalId]);
+        let nieuweAantal  = bestaand.aantal;
+        let nieuweGedempt = bestaand.gedempt;
+
+        if (it.aantal !== undefined) {
+          // verbruik: 'aantal' is de gebruikte hoeveelheid (positief) -> wagenvoorraad daalt.
+          // mutatie: 'aantal' is al signed (positief = aanvulling, negatief = correctie).
+          const rawDelta = actie === 'verbruik' ? -Math.abs(it.aantal) : it.aantal;
+          // Nooit onder 0 -- ook niet als een verlopen/racende client een te grote aftrek stuurt.
+          // De gelogde 'aantal' is de ECHT toegepaste verandering (na klemmen), niet de
+          // gevraagde -- zo blijft de log een waarheidsgetrouwe weergave van de voorraad.
+          nieuweAantal = Math.max(0, bestaand.aantal + rawDelta);
+          const toegepasteDelta = nieuweAantal - bestaand.aantal;
+
+          if (toegepasteDelta !== 0) {
+            const type   = actie === 'verbruik' ? 'verbruik' : (toegepasteDelta > 0 ? 'aanvulling' : 'correctie');
+            const status = type === 'aanvulling' ? 'nieuw' : null;
+            nieuweLogRegels.push({
+              id: crypto.randomUUID(),
+              technieker,
+              materiaalId:   it.materiaalId,
+              materiaalNaam: it.materiaalNaam,
+              aantal: toegepasteDelta,
+              datum: nu,
+              type,
+              status,
+            });
+          }
+        }
+        if (it.gedempt !== undefined) nieuweGedempt = it.gedempt;
+
+        stock[it.materiaalId] = { aantal: nieuweAantal, gedempt: nieuweGedempt };
+      }
+
+      wagenvoorraad[technieker] = stock;
+
+      const nieuw = {
+        versie: current.versie + 1,
+        wagenvoorraad,
+        log: [...current.log, ...nieuweLogRegels],
+      };
+
+      try {
+        await store.setJSON(BLOB_KEY, nieuw);
+        return json(toResponse(nieuw), 200, hdrs);
+      } catch (err) {
+        return json({ error: 'Opslaan mislukt: ' + err.message }, 500, hdrs);
+      }
     }
 
-    wagenvoorraad[technieker] = stock;
+    // ── PATCH (logregel als verwerkt markeren) ──────────────────────────────────
+    if (req.method === 'PATCH') {
+      let body;
+      try { body = await req.json(); }
+      catch { return json({ error: 'Ongeldige JSON' }, 400, hdrs); }
 
-    const nieuw = {
-      versie: current.versie + 1,
-      wagenvoorraad,
-      log: [...current.log, ...nieuweLogRegels],
-    };
+      const { versie, id } = body;
+      if (typeof versie !== 'number') return json({ error: 'versie is verplicht en moet een getal zijn' }, 400, hdrs);
+      if (!id || typeof id !== 'string') return json({ error: 'id is verplicht' }, 400, hdrs);
 
-    try {
-      await store.setJSON(BLOB_KEY, nieuw);
-      return json(toResponse(nieuw), 200, hdrs);
-    } catch (err) {
-      return json({ error: 'Opslaan mislukt: ' + err.message }, 500, hdrs);
+      const { current, error } = await pruneAndGet(store);
+      if (error) return json({ error: 'Inventaris-opslag tijdelijk niet bereikbaar, probeer opnieuw.' }, 503, hdrs);
+
+      if (versie !== current.versie) {
+        return json({ error: 'Inventaris ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: current.versie, data: toResponse(current) }, 409, hdrs);
+      }
+
+      const idx = current.log.findIndex(e => e.id === id);
+      if (idx < 0) return json({ error: 'Logregel niet gevonden' }, 404, hdrs);
+      if (current.log[idx].type !== 'aanvulling') return json({ error: 'Enkel aanvullingen kunnen als verwerkt gemarkeerd worden' }, 400, hdrs);
+
+      const log = [...current.log];
+      log[idx] = { ...log[idx], status: 'verwerkt' };
+
+      const nieuw = { versie: current.versie + 1, wagenvoorraad: current.wagenvoorraad, log };
+
+      try {
+        await store.setJSON(BLOB_KEY, nieuw);
+        return json(toResponse(nieuw), 200, hdrs);
+      } catch (err) {
+        return json({ error: 'Opslaan mislukt: ' + err.message }, 500, hdrs);
+      }
     }
-  }
 
-  // ── PATCH (logregel als verwerkt markeren) ──────────────────────────────────
-  if (req.method === 'PATCH') {
-    let body;
-    try { body = await req.json(); }
-    catch { return json({ error: 'Ongeldige JSON' }, 400, hdrs); }
+    return json({ error: 'Method not allowed' }, 405, hdrs);
+  };
 
-    const { versie, id } = body;
-    if (typeof versie !== 'number') return json({ error: 'versie is verplicht en moet een getal zijn' }, 400, hdrs);
-    if (!id || typeof id !== 'string') return json({ error: 'id is verplicht' }, 400, hdrs);
+  return beveiligV2('inventaris', kern);
+}
 
-    const { current, error } = await pruneAndGet(store);
-    if (error) return json({ error: 'Inventaris-opslag tijdelijk niet bereikbaar, probeer opnieuw.' }, 503, hdrs);
-
-    if (versie !== current.versie) {
-      return json({ error: 'Inventaris ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: current.versie, data: toResponse(current) }, 409, hdrs);
-    }
-
-    const idx = current.log.findIndex(e => e.id === id);
-    if (idx < 0) return json({ error: 'Logregel niet gevonden' }, 404, hdrs);
-    if (current.log[idx].type !== 'aanvulling') return json({ error: 'Enkel aanvullingen kunnen als verwerkt gemarkeerd worden' }, 400, hdrs);
-
-    const log = [...current.log];
-    log[idx] = { ...log[idx], status: 'verwerkt' };
-
-    const nieuw = { versie: current.versie + 1, wagenvoorraad: current.wagenvoorraad, log };
-
-    try {
-      await store.setJSON(BLOB_KEY, nieuw);
-      return json(toResponse(nieuw), 200, hdrs);
-    } catch (err) {
-      return json({ error: 'Opslaan mislukt: ' + err.message }, 500, hdrs);
-    }
-  }
-
-  return json({ error: 'Method not allowed' }, 405, hdrs);
-};
+export default maakHandler();
 
 export const config = { path: '/api/inventaris' };
