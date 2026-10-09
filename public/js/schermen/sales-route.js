@@ -14,7 +14,7 @@ import { toast, maakActiveerbaar } from '../kern/ui.js';
 import { apiVerzoek } from '../kern/api.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { geocacheLookup, geocacheStore } from '../kern/opslag.js';
-import { fmtSec, verschuifDatum, timeStrToMin, localISO } from '../kern/tijd.js';
+import { fmtSec, timeStrToMin, localISO } from '../kern/tijd.js';
 import { routeVertraging, haalDrukteDetail } from './route-tijden.js';
 import { renderWeekstrook } from './week-strook.js';
 import { ontleedAdres } from '../sales/adres.js';
@@ -26,7 +26,6 @@ import { openResultaat } from './sales-resultaat.js';
 import { bouwRouteStops, controleerKeten, routeHandtekening, berekenRoute, weekDagInfo } from './sales-route-logica.js';
 import { maakSalesKaart, ONGEVEER_TEKST } from './sales-kaart.js';
 import { KAART_LAGEN } from './route-kaart.js';
-import { dagLabel } from './sales-tekst.js';
 import { el } from './sales-dom.js';
 
 export const LEEG_TEKST = 'Geen bezoeken op deze dag';
@@ -79,11 +78,10 @@ export async function zoekDepot(startlocatie) {
 // ---- opbouw van het scherm (eenmalig per view) ----
 
 function bouwSkelet(inhoud) {
-  const vorige = el('button', { type: 'button', class: 'btn btn--secondary sales-route-dagknop', 'aria-label': 'Vorige dag', text: '‹' });
-  const volgende = el('button', { type: 'button', class: 'btn btn--secondary sales-route-dagknop', 'aria-label': 'Volgende dag', text: '›' });
-  const label = el('span', { class: 'sales-route-datum', 'aria-live': 'polite' });
+  // UI/UX-review P1-4: één navigatie, zoals bij de technieker: het datumveld en de weekstrook (met haar eigen ‹ › voor de week).
+  // De dag-‹ › en het dag-label van vroeger zijn weg; de gekozen dag staat in de strook (actief) en in het datumveld.
   const kiezer = el('input', { type: 'date', class: 'sales-route-datumveld', 'aria-label': 'Kies een dag' });
-  const dagkiezer = el('div', { class: 'sales-route-dagkiezer' }, vorige, label, volgende, kiezer);
+  const dagkiezer = el('div', { class: 'sales-route-dagkiezer' }, kiezer);
   // De weekstrook van de technieker (week-strook.js): per werkdag het aantal bezoeken en of ze bevestigd zijn; een klik kiest die dag.
   const weekstrook = el('div', { class: 'week-strip sales-route-weekstrook', role: 'group', 'aria-label': 'Week van de gekozen datum' });
   const samenvatting = el('div', { class: 'sales-route-samenvatting' });
@@ -101,12 +99,10 @@ function bouwSkelet(inhoud) {
   inhoud.replaceChildren(wortel);
 
   const naarDatum = (iso) => { if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) zetGekozenDatum(iso); };
-  vorige.addEventListener('click', () => naarDatum(verschuifDatum(gekozenDatum(), { dagen: -1 })));
-  volgende.addEventListener('click', () => naarDatum(verschuifDatum(gekozenDatum(), { dagen: 1 })));
   kiezer.addEventListener('change', () => naarDatum(kiezer.value));
 
   return {
-    wortel, label, kiezer, weekstrook, samenvatting, wegafsluiting, melding, nota, lijst, leeg, kaartEl, kaartNoot, inhoudVak,
+    wortel, kiezer, weekstrook, samenvatting, wegafsluiting, melding, nota, lijst, leeg, kaartEl, kaartNoot, inhoudVak,
     kaart: null, laatste: null, route: null, bezigSig: null, aanvraag: 0, depot: null, depotVoor: null, depotBezig: false,
     toonde: false, kaartHerstel: false, wegToastSig: null,
   };
@@ -191,7 +187,6 @@ function teken(inhoud) {
   const s = staatVan(inhoud);
   const toestand = salesToestand();
   const datum = gekozenDatum();
-  s.label.textContent = dagLabel(datum);
   s.kiezer.value = datum;
   renderWeekstrook(s.weekstrook, {
     datum, werkdagen: toestand.instellingen.werkdagen, vandaag: localISO(new Date()), kies: zetGekozenDatum,

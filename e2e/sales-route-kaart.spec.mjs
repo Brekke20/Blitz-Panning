@@ -76,7 +76,7 @@ async function bouwRoute(page, { overschrijf, instellingen = INSTELLING, leads =
   await expect(route(page)).toHaveClass(/active/);
   const routeAntwoord = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/route');
   const drukte = metDrukte ? page.waitForResponse((r) => new URL(r.url()).pathname === '/api/drukte') : null;
-  await route(page).getByRole('button', { name: 'Volgende dag' }).click();
+  await route(page).getByLabel('Kies een dag').fill('2026-10-06'); // volgende dag (via het datumveld)
   await expect(rijen(page)).toHaveCount(2);
   await routeAntwoord;
   if (drukte) await drukte;
@@ -177,10 +177,10 @@ test.describe('sales: kaart met drukte en wegenwerken (zoals de technieker)', ()
     const leads = [...LEADS(), { ...lead('l9', 'Janssens', '11:00', 50.96, 5.43), planning: { datum: '2026-10-07', start: '11:00', vast: false } }];
     await bouwRoute(page, { leads, overschrijf: { route: routeMetSection({ startPointIndex: 0, endPointIndex: 2, simpleCategory: 'ROAD_CLOSURE', delayInSeconds: 0 }) } });
     await expect(route(page).locator('.sales-route-wegafsluiting')).toBeVisible();
-    await route(page).getByRole('button', { name: 'Volgende dag' }).click();
+    await route(page).getByLabel('Kies een dag').fill('2026-10-07'); // volgende dag (via het datumveld)
     await expect(rijen(page)).toHaveCount(1);
     await expect(route(page).locator('.sales-route-wegafsluiting')).toBeHidden(); // één bezoek: geen route, dus geen afsluiting
-    await route(page).getByRole('button', { name: 'Vorige dag' }).click();
+    await route(page).getByLabel('Kies een dag').fill('2026-10-06'); // vorige dag (via het datumveld)
     await expect(rijen(page)).toHaveCount(2);
     await expect(route(page).locator('.sales-route-wegafsluiting')).toBeVisible();
     await rust(page);
@@ -259,7 +259,7 @@ test.describe('sales: kaart met drukte in het scherm van de beheerder', () => {
     await expect(tab(page, 'Sales')).toBeVisible();
     await tab(page, 'Sales').click();
     await page.locator('#sales-subtab-sales-route').click();
-    await route(page).getByRole('button', { name: 'Volgende dag' }).click();
+    await route(page).getByLabel('Kies een dag').fill('2026-10-06'); // volgende dag (via het datumveld)
     await expect(rijen(page)).toHaveCount(2);
     await expect.poll(async () => metStroke(await meetKaart(page), ZWAAR)).toBe(2);
     expect((await meetKaart(page)).legendes).toBe(1);

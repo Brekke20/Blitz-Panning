@@ -78,23 +78,34 @@ test.describe('sales: route en kaart', () => {
     await expect(page.locator('#sales-kaart .leaflet-popup-content')).not.toContainText('ongeveer');
   });
 
-  test('een dag zonder bezoeken toont de lege tekst en geen kaart; ‹ en › wisselen van dag', async ({ page }) => {
+  // UI/UX-review P1-4: één navigatie (datumveld + weekstrook met ‹ › voor de week); de dag-‹ › en het dag-label zijn weg.
+  test('geen dubbele datumnavigatie: geen Vorige/Volgende dag-knoppen, wel één paar Vorige/Volgende week', async ({ page }) => {
+    await startSalesApp(page, { leads: [plan('l1', 'Verhaegen', '09:00', { datum: VOLGENDE_DAG })] });
+    await naarRoute(page);
+    await expect(route(page).getByRole('button', { name: /^(Vorige|Volgende) dag$/ })).toHaveCount(0);
+    await expect(route(page).getByRole('button', { name: 'Vorige week' })).toHaveCount(1);
+    await expect(route(page).getByRole('button', { name: 'Volgende week' })).toHaveCount(1);
+    await expect(route(page).locator('.sales-route-datum')).toHaveCount(0);
+    await expect(route(page).locator('.ws-dag.actief')).toHaveCount(1);
+  });
+
+  test('een dag zonder bezoeken toont de lege tekst en geen kaart; het datumveld wisselt van dag', async ({ page }) => {
     await startSalesApp(page, { leads: [plan('l1', 'Verhaegen', '09:00', { datum: VOLGENDE_DAG })] });
     await naarRoute(page);
     await expect(route(page).getByText('Geen bezoeken op deze dag')).toBeVisible();
     await expect(page.locator('#sales-kaart')).toBeHidden();
-    await expect(route(page).locator('.sales-route-datum')).toHaveText('ma 5 okt');
-    await route(page).getByRole('button', { name: 'Volgende dag' }).click();
-    await expect(route(page).locator('.sales-route-datum')).toHaveText('di 6 okt');
+    await expect(route(page).getByLabel('Kies een dag')).toHaveValue('2026-10-05');
+    await route(page).getByLabel('Kies een dag').fill('2026-10-06'); // volgende dag (via het datumveld)
+    await expect(route(page).getByLabel('Kies een dag')).toHaveValue('2026-10-06');
     await expect(rijen(page)).toHaveCount(1);
     await expect(markers(page)).toHaveCount(1);
     await expect(route(page).locator('.sales-route-samenvatting')).toContainText('1 bezoek');
     await expect(route(page).getByText('Geen bezoeken op deze dag')).toBeHidden();
-    await route(page).getByRole('button', { name: 'Vorige dag' }).click();
+    await route(page).getByLabel('Kies een dag').fill('2026-10-05'); // vorige dag (via het datumveld)
     await expect(route(page).getByText('Geen bezoeken op deze dag')).toBeVisible();
     await expect(page.locator('#sales-kaart')).toBeHidden();
     // en weer terug: de kaart is opnieuw opgemeten en toont zijn marker
-    await route(page).getByRole('button', { name: 'Volgende dag' }).click();
+    await route(page).getByLabel('Kies een dag').fill('2026-10-06'); // volgende dag (via het datumveld)
     await expect(markers(page)).toHaveCount(1);
     await expect(page.locator('#sales-kaart')).toBeVisible();
     // de datumkiezer werkt ook
@@ -254,7 +265,7 @@ test.describe('sales: route buiten de testmodus', () => {
     await expect(tab(page, 'Leads')).toBeVisible();
     expect(await page.evaluate(() => new URLSearchParams(location.search).has('test'))).toBe(false);
     await naarRoute(page);
-    await route(page).getByRole('button', { name: 'Volgende dag' }).click();
+    await route(page).getByLabel('Kies een dag').fill('2026-10-06'); // volgende dag (via het datumveld)
     await expect(rijen(page)).toHaveCount(2);
   };
 
@@ -346,7 +357,7 @@ test.describe('sales: weekstrook bovenaan de Route-tab', () => {
     await startSalesApp(page, { leads: week() });
     await naarRoute(page);
     await dagen(page).nth(2).click(); // wo 7
-    await expect(route(page).locator('.sales-route-datum')).toHaveText('wo 7 okt');
+    await expect(route(page).getByLabel('Kies een dag')).toHaveValue('2026-10-07');
     await expect(dagen(page).nth(2)).toHaveClass(/actief/);
     await expect(strook(page).locator('.ws-dag.actief')).toHaveCount(1);
     await expect(rijen(page)).toHaveCount(1);
@@ -367,13 +378,13 @@ test.describe('sales: weekstrook bovenaan de Route-tab', () => {
     await startSalesApp(page, { leads: week() });
     await naarRoute(page);
     await strook(page).getByRole('button', { name: 'Volgende week' }).click();
-    await expect(route(page).locator('.sales-route-datum')).toHaveText('ma 12 okt');
+    await expect(route(page).getByLabel('Kies een dag')).toHaveValue('2026-10-12');
     await expect(dagen(page).locator('.ws-naam')).toHaveText(['MA 12', 'DI 13', 'WO 14', 'DO 15', 'VR 16']);
     await expect(dagen(page).locator('.ws-aantal')).toHaveText(['0 bezoeken', '0 bezoeken', '1 bezoek', '0 bezoeken', '0 bezoeken']);
     await expect(dagen(page).nth(0)).toHaveClass(/actief/);
     await expect(dagen(page).nth(0)).not.toHaveClass(/vandaag/);
     await strook(page).getByRole('button', { name: 'Vorige week' }).click();
-    await expect(route(page).locator('.sales-route-datum')).toHaveText('ma 5 okt');
+    await expect(route(page).getByLabel('Kies een dag')).toHaveValue('2026-10-05');
     await expect(dagen(page).nth(0)).toHaveClass(/vandaag/);
   });
 
@@ -382,13 +393,13 @@ test.describe('sales: weekstrook bovenaan de Route-tab', () => {
     await naarRoute(page);
     await dagen(page).nth(3).focus(); // do 8
     await page.keyboard.press('ArrowRight');
-    await expect(route(page).locator('.sales-route-datum')).toHaveText('vr 9 okt');
+    await expect(route(page).getByLabel('Kies een dag')).toHaveValue('2026-10-09');
     await expect(dagen(page).nth(4)).toBeFocused();
     await page.keyboard.press('ArrowRight'); // week-omslag: maandag van de volgende week
-    await expect(route(page).locator('.sales-route-datum')).toHaveText('ma 12 okt');
+    await expect(route(page).getByLabel('Kies een dag')).toHaveValue('2026-10-12');
     await expect(dagen(page).nth(0)).toBeFocused();
     await page.keyboard.press('ArrowLeft'); // terug: vrijdag van de vorige week
-    await expect(route(page).locator('.sales-route-datum')).toHaveText('vr 9 okt');
+    await expect(route(page).getByLabel('Kies een dag')).toHaveValue('2026-10-09');
     await expect(dagen(page).nth(4)).toBeFocused();
   });
 
