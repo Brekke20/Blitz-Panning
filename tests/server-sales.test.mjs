@@ -32,9 +32,10 @@ const lead = (id, extra = {}) => ({
 const blob = (leads = [], extra = {}) => ({ versie: 3, leads, blokken: [], grafstenen: [], ...extra });
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
 // adres-URL -> adrespunt (lat 51.5), postcode-URL -> middelpunt (lat 50.5); met opties: niets gevonden
-const router = ({ adresFaalt = false, postcodeFaalt = false } = {}) => url => {
+const router = ({ adresFaalt = false, postcodeFaalt = false, postcode500 = false } = {}) => url => {
   if (url.includes('/geocode/')) return adresFaalt ? json({ results: [] }) : json({ results: [{ position: { lat: 51.5, lon: 5.5 } }] });
   if (url.includes('structuredGeocode')) {
+    if (postcode500) return json({}, 500);
     if (postcodeFaalt) return json({ results: [] });
     const pc = /postalCode=(\d+)/.exec(url)[1];
     return json({ results: [{ position: { lat: 50.5, lon: 4.5 }, address: { postalCode: pc, municipality: 'Gemeente ' + pc } }] });
@@ -121,6 +122,17 @@ for (const [naam, gebruiker, gevraagdId, extra, verwacht] of [
     }
   });
 }
+
+test('bepaalDoel: een niet-actieve (geblokkeerde) verkoper is geen doel; voor sales 403, voor de beheerder 404', async () => {
+  const geblokkeerd = async () => [{ id: 'u-weg', rol: 'sales', actief: false }, { id: 'u-leeg', rol: 'sales' }, { id: 'u-ok', rol: 'sales', actief: true }];
+  for (const id of ['u-weg', 'u-leeg']) {
+    const s = await bepaalDoel({ gebruiker: SALES_ALLE, gevraagdId: id, schrijven: false, leesGebruikers: geblokkeerd, testVerzoek: false });
+    assert.deepEqual([s.ok, s.status], [false, 403], id);
+    const b = await bepaalDoel({ gebruiker: BEHEER, gevraagdId: id, schrijven: true, leesGebruikers: geblokkeerd, testVerzoek: false });
+    assert.deepEqual([b.ok, b.status], [false, 404], id);
+  }
+  assert.equal((await bepaalDoel({ gebruiker: BEHEER, gevraagdId: 'u-ok', schrijven: true, leesGebruikers: geblokkeerd, testVerzoek: false })).ok, true);
+});
 
 test('bepaalDoel: een onbekend id geeft hetzelfde antwoord als een niet-verkoper (geen lek) en zoekt niet voor het eigen id', async () => {
   let opzoekingen = 0;
@@ -591,7 +603,7 @@ const postcodeOpzet = (o = {}) => {
   const { fn, calls } = maakNepFetch(router(o.fetchOpties));
   const gets = [];
   const getStore = opties => { gets.push(opties.name); if (o.kapot) throw new Error('weg'); return opties.name === 'blitz-data' ? echt : test; };
-  return { echt, test, calls, gets, h: maakPostcodeHandler({ getStore, fetch: fn, nu: () => NU0, sleutel: () => 'NEP' }) };
+  return { echt, test, calls, gets, h: maakPostcodeHandler({ getStore, fetch: fn, nu: () => NU0, sleutel: o.sleutel ?? (() => 'NEP') }) };
 };
 const pc = (zoek, o = {}) => req('GET', { pad: 'postcode', zoek, ...o });
 
@@ -615,6 +627,18 @@ test('postcode: ongeldige pc -> 400 (zonder fetch); onbekende -> 404', async () 
   assert.equal(calls.length, 0);
   const geen = postcodeOpzet({ fetchOpties: { postcodeFaalt: true } });
   assert.equal((await metRol('sales', async () => lees(await geen.h(pc('?pc=3640'))))).status, 404);
+});
+
+test('postcode: een tijdelijke TomTom-fout of ontbrekende sleutel -> 503 "opzoeken-storing" (niet "opslag-storing"), nooit 404', async () => {
+  for (const [naam, o] of [['HTTP 500', { fetchOpties: { postcode500: true } }], ['geen sleutel', { sleutel: () => undefined }]]) {
+    const { h, echt } = postcodeOpzet(o);
+    const r = await metRol('sales', async () => lees(await h(pc('?pc=3640'))));
+    assert.equal(r.status, 503, naam);
+    assert.equal(r.body.code, 'opzoeken-storing', naam);
+    assert.notEqual(r.body.code, 'opslag-storing');
+    assert.equal(typeof r.body.error, 'string');
+    assert.ok(!echt._data.has('postcode-cache'), naam + ': niets gecachet');
+  }
 });
 
 test('postcode: planner en technieker -> 403 zonder store; zonder sessie 401; OPTIONS 204', async () => {

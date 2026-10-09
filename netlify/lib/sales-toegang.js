@@ -10,6 +10,7 @@ const goed = doelId => ({ ok: true, doelId });
 
 /**
  * -> { ok:true, doelId } | { ok:false, status:403|404, fout, code? }
+ * - `doel` moet een ACTIEVE verkoper zijn (`actief === true`, zoals de login); een geblokkeerde verkoper telt als onbekend.
  * - sales: het eigen id (ook als `gevraagdId` gelijk is); een ander id enkel om te LEZEN, enkel met magAlleSales en enkel
  *   naar een gebruiker met rol 'sales' (anders 403, ook bij een onbekend id);
  * - beheerder: elk id van een gebruiker met rol 'sales' (404 anders, ook zonder id), lezen én schrijven;
@@ -22,7 +23,7 @@ export async function bepaalDoel({ gebruiker, gevraagdId, schrijven = false, lee
   const gevraagd = typeof gevraagdId === 'string' && gevraagdId !== '' ? gevraagdId : null;
   const verkoperMetId = async id => {
     const doel = (await leesGebruikers()).find(g => g && g.id === id);
-    return Boolean(doel) && doel.rol === 'sales';
+    return Boolean(doel) && doel.rol === 'sales' && doel.actief === true; // een geblokkeerde verkoper is geen doel meer
   };
 
   if (rol === 'sales') {

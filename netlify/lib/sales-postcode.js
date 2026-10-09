@@ -53,14 +53,17 @@ export async function zoekPostcode(store, pc, deps = {}) {
 
 /**
  * Zoekt meerdere postcodes: cache eerst, dan TomTom (max `parallel` tegelijk) tot het tijdsbudget op is.
- * -> { gevonden: { [pc]: { lat, lon, gemeente } }, open: string[] }  (open = niet opgezocht binnen het budget of niet gevonden)
+ * -> { gevonden: { [pc]: { lat, lon, gemeente } }, open: string[], fouten: string[] }
+ *    (open = niet opgezocht binnen het budget, niet gevonden of tijdelijke fout; fouten = de postcodes met een TIJDELIJKE
+ *    TomTom-fout (ook ontbrekende sleutel): een deelverzameling van open, zodat de aanroeper "niet gevonden" kan onderscheiden)
  * Hoogstens één schrijfactie naar de cache per aanroep.
  */
 export async function zoekPostcodes(store, lijst, { nu, maxTijdMs = 15000, parallel = 5, ...deps } = {}) {
   const uniek = [...new Set((Array.isArray(lijst) ? lijst : []).filter(pc => isPostcode(pc) && Number(pc) >= 1000))];
   const gevonden = {};
   const open = [];
-  if (!uniek.length) return { gevonden, open };
+  const fouten = [];
+  if (!uniek.length) return { gevonden, open, fouten };
 
   const cache = await leesCache(store);
   const teZoeken = [];
@@ -81,12 +84,15 @@ export async function zoekPostcodes(store, lijst, { nu, maxTijdMs = 15000, paral
       if (r && !r.fout) {
         gevonden[pc] = r;
         nieuw[pc] = { lat: r.lat, lon: r.lon, gemeente: r.gemeente };
-      } else open.push(pc);
+      } else {
+        open.push(pc);
+        if (r?.fout) fouten.push(pc);
+      }
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, Math.min(parallel, teZoeken.length)) }, werker));
   for (const pc of teZoeken.slice(volgende)) open.push(pc);
 
   if (!deps.testModus) await bewaarInCache(store, nieuw);
-  return { gevonden, open };
+  return { gevonden, open, fouten };
 }

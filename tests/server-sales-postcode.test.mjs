@@ -105,9 +105,10 @@ test('zoekPostcodes: cache-hits tellen niet mee voor het budget en geven geen sc
 test('zoekPostcodes: niet-gevonden postcodes staan in open', async () => {
   const store = maakNepStore();
   const { fn } = maakNepFetch(url => (postcodeVan(url) === '1111' ? json({ results: [] }) : antwoord(postcodeVan(url))));
-  const { gevonden, open } = await zoekPostcodes(store, ['1111', '2222'], deps(fn));
+  const { gevonden, open, fouten } = await zoekPostcodes(store, ['1111', '2222'], deps(fn));
   assert.deepEqual(Object.keys(gevonden), ['2222']);
   assert.deepEqual(open, ['1111']);
+  assert.deepEqual(fouten, [], 'echt niet gevonden is geen tijdelijke fout');
 });
 
 test('zoekPostcodes: twee gelijktijdige aanroepen met verschillende postcodes -> de cache bevat beide reeksen', async () => {
@@ -161,6 +162,7 @@ test('zoekPostcodes: tijdelijke fout (HTTP 500) -> in open en NIET gecachet; lat
   const { fn, calls } = maakNepFetch(url => (stuk ? json({}, 500) : antwoord(postcodeVan(url))));
   const r1 = await zoekPostcodes(store, ['3640'], deps(fn));
   assert.deepEqual(r1.open, ['3640']);
+  assert.deepEqual(r1.fouten, ['3640'], 'tijdelijke fout apart gemeld');
   assert.deepEqual(r1.gevonden, {});
   assert.equal(store._schrijfacties.length, 0);
   stuk = false;
