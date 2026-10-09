@@ -114,6 +114,23 @@ test.describe('instellingen van de server', () => {
     expect(await leesOpslag(page, 'blitz_instellingen_eigenaar')).toBeNull();
   });
 
+  // Merge-review I2: de server vervangt het hele record van een technieker; wat het formulier niet toont (laatsteStart, bezoekDuurMin) mag nooit verdwijnen.
+  test('planner bewaart in ⚙ voor Tim: de PUT bevat ook zijn laatsteStart en bezoekDuurMin van de server (geen veldverlies)', async ({ page, verzoeken }) => {
+    const timServer = { ...SERVER, laatsteStart: '14:45', bezoekDuurMin: 50, kaartStijl: 'satelliet' };
+    const techniekers = { Tim: { gebruikerId: 'u-tim', instellingen: timServer }, Roel: { gebruikerId: 'u-roel', instellingen: null } };
+    await startApp(page, { loginRol: 'planner', technieker: 'Tim', overschrijf: { instellingen: instellingenStub({ eigen: null, techniekers }) } });
+    const modal = await openInstellingen(page);
+    await expect(modal.locator('#set-person-label')).toHaveText('Instellingen voor: Tim');
+    await modal.locator('#set-routekleur').fill('#336699');
+    await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect.poll(() => puts(verzoeken).length).toBe(1);
+    const body = puts(verzoeken)[0].body;
+    expect(body.gebruiker).toBe('u-tim');
+    expect(body.instellingen).toMatchObject({ routeKleur: '#336699', laatsteStart: '14:45', bezoekDuurMin: 50, kaartStijl: 'satelliet', startlocatie: 'Teststraat 1' });
+    // Het serverrecord werd vlak vóór het schrijven opnieuw opgehaald (overzicht), niet uit de lokale kopie gehaald.
+    expect(verzoeken.van('/api/instellingen', 'GET').length).toBeGreaterThanOrEqual(2);
+  });
+
   test('een door de server geweigerde waarde (400): toast "niet geldig, enkel lokaal bewaard" en geen vuil-markering', async ({ page, consoleFouten }) => {
     const weiger = () => ({ status: 400, json: { error: '⚠ Duur is ongeldig' } });
     await startApp(page, { loginRol: 'planner', overschrijf: { instellingen: instellingenStub({ eigen: SERVER, put: weiger }) } });

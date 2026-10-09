@@ -533,4 +533,56 @@ test.describe('⚙-venster en Beheer → Instellingen: één plek om de werkinst
     await expect(venster(page).locator('#set-beheer-hint')).toBeHidden();
     await expect(page.getByRole('tab', { name: 'Beheer', exact: true })).toHaveCount(0);
   });
+
+  // Merge-review I1: een beheerder met een Zoho-naam leest zijn eigen planning onder die naam; Beheer → Instellingen voor zichzelf schrijft
+  // hetzelfde record, dus ⚙ onder zijn eigen naam toont de nieuwe waarde (alleen-lezen, link naar Beheer blijft).
+  test('beheerder met Zoho-naam: wat hij in Beheer voor zichzelf bewaart, staat daarna in ⚙ onder zijn eigen naam', async ({ page }) => {
+    await startApp(page, { technieker: 'Brent', loginGebruiker: { zohoNaam: 'Brent' }, overschrijf: stubs() });
+    await expect(page.locator('#person-name-hdr')).toHaveText('Brent');
+    await page.getByRole('tab', { name: 'Beheer', exact: true }).click();
+    await page.getByRole('tab', { name: 'Instellingen', exact: true }).click();
+    await expect(paneel(page).getByLabel('Gebruiker', { exact: true })).toHaveValue('u-test'); // zichzelf
+    await expect(paneel(page).getByLabel('Startlocatie')).toHaveValue('Heirbaan 9, 9150 Kruibeke');
+    await paneel(page).getByLabel('Startlocatie').fill('Brentstraat 1, 2000 Antwerpen');
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.locator('#toast')).toContainText('Instellingen opgeslagen');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_settings_Brent')).startlocatie)).toBe('Brentstraat 1, 2000 Antwerpen');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_settings')).startlocatie)).toBe('Brentstraat 1, 2000 Antwerpen');
+    await openSettings(page);
+    await expect(venster(page).locator('#set-person-label')).toHaveText('Instellingen voor: Brent');
+    await expect(venster(page).locator('#set-start')).toHaveValue('Brentstraat 1, 2000 Antwerpen');
+    await expect(venster(page).locator('#set-start')).toBeDisabled();
+    await expect(venster(page).getByRole('button', { name: 'Aanpassen in Beheer → Instellingen' })).toBeVisible();
+  });
+
+  // M5: de link opent Beheer bij de persoon die in ⚙ gekozen was.
+  test('de link "Aanpassen in Beheer" opent Beheer bij de persoon die in ⚙ gekozen was (technieker Tim)', async ({ page }) => {
+    await startApp(page, { technieker: 'Tim', overschrijf: stubs() });
+    await openSettings(page);
+    await expect(venster(page).locator('#set-person-label')).toHaveText('Instellingen voor: Tim');
+    await venster(page).getByRole('button', { name: 'Aanpassen in Beheer → Instellingen' }).click();
+    await expect(paneel(page).getByLabel('Gebruiker', { exact: true })).toHaveValue('u-t1');
+    await expect(paneel(page).getByLabel('Startlocatie')).toHaveValue(TIM.startlocatie);
+  });
+
+  // M4: de beheerder bewaart in ⚙ voor een technieker enkel de persoonlijke velden; werkwaarden blijven zoals de server ze heeft.
+  test('beheerder bewaart in ⚙ voor Tim enkel de persoonlijke velden: de PUT bevat de serverwaarden voor de rest, niet de oude lokale kopie', async ({ page, verzoeken }) => {
+    const basis = instellingenStub();
+    const metTim = (a) => (a.methode === 'GET' && a.query.get('overzicht') === '1'
+      ? json(200, { eigen: { gebruikerId: 'u-test', versie: 1, instellingen: null }, techniekers: { Tim: { gebruikerId: 'u-t1', instellingen: TIM } } })
+      : basis(a));
+    await startApp(page, { technieker: 'Tim', overschrijf: { ...stubs(), instellingen: metTim } });
+    // Een verouderde lokale kopie van Tim (bv. ouder dan wat een andere beheerder intussen in Beheer zette).
+    await page.evaluate(() => { const s = kern.toestand.get('settings'); s.startlocatie = 'Oude lokale kopie'; s.duurMinuten = 15; });
+    await openSettings(page);
+    await venster(page).locator('#set-routekleur').fill('#336699');
+    await venster(page).getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect.poll(() => verzoeken.van('/api/instellingen', 'PUT').length).toBeGreaterThan(0);
+    const put = verzoeken.van('/api/instellingen', 'PUT').at(-1).body;
+    expect(put.gebruiker).toBe('u-t1');
+    expect(put.instellingen.routeKleur).toBe('#336699');
+    expect(put.instellingen.startlocatie).toBe(TIM.startlocatie);
+    expect(put.instellingen.duurMinuten).toBe(TIM.duurMinuten);
+    expect(put.instellingen.laatsteStart).toBe(TIM.laatsteStart);
+  });
 });

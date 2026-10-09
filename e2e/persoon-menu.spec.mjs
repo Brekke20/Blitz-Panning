@@ -23,14 +23,23 @@ test.describe('persoonskiezer voor wie mag plannen', () => {
     });
   }
 
-  test('beheerder op een toestel met de toestelrol "technieker" (gsm, tablet) kan nog altijd "Alle technici" kiezen', async ({ page }) => {
-    await startApp(page, { rol: 'technieker', technieker: 'Tim', loginRol: 'beheerder' });
-    await expect(page.locator('html')).toHaveAttribute('data-rol', 'technieker');
-    await page.locator('#person-btn').click();
-    await expect(kies(page, /Alle technici/)).toBeVisible();
-    await kies(page, /Alle technici/).click();
-    await expect(page.locator('#person-name-hdr')).toHaveText('Alle');
-  });
+  // UI/UX P1-5: het account bepaalt de weergave. Een oude toestelkeuze blitz_rol = "technieker" (rol-startparameter van startApp) telt voor een
+  // beheerder of planner niet meer: ook op een gsm of tablet krijgt hij de coördinatorweergave en kan hij "Alle technici" kiezen.
+  for (const loginRol of ['beheerder', 'planner']) {
+    test(`${loginRol} op een gsm met een oude toestelrol "technieker": toch coördinator en kan "Alle technici" kiezen`, async ({ browser }) => {
+      const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'nl-BE', timezoneId: 'Europe/Brussels', serviceWorkers: 'block' });
+      const page = await context.newPage();
+      try {
+        await startApp(page, { rol: 'technieker', technieker: 'Tim', loginRol });
+        await expect(page.locator('html')).toHaveAttribute('data-apparaat', 'gsm');
+        await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
+        await page.locator('#person-btn').click();
+        await expect(kies(page, /Alle technici/)).toBeVisible();
+        await kies(page, /Alle technici/).click();
+        await expect(page.locator('#person-name-hdr')).toHaveText('Alle');
+      } finally { await context.close(); }
+    });
+  }
 
   test('een technieker ziet "Alle technici" niet (enkel zijn eigen planning en die van collega\'s)', async ({ page }) => {
     await startApp(page, { loginRol: 'technieker' });

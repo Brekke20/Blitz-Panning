@@ -15,7 +15,7 @@ import { appConfirm } from '../app-dialog.js';
 import { renderBeschikbaarhedenTab } from './beschikbaarheid.js';
 import { valideerInstellingen, settingsKey } from './instellingen-logica.js';
 import { huidigeGebruiker, huidigeRechten, magPlannenVoor } from '../kern/sessie.js';
-import { bewaarOpServer } from '../kern/instellingen-sync.js';
+import { bewaarOpServer, spiegelEigen } from '../kern/instellingen-sync.js';
 
 // Afhankelijkheden uit app.js en prijzen.js (ingevuld door initInstellingen); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('instellingen: initInstellingen() is niet aangeroepen'); } });
@@ -91,12 +91,13 @@ export function loadPersonSettings(person) {
 }
 // Lokaal (de snelle cache, loadPersonSettings blijft synchroon) EN op de server (logins T16, fire-and-forget). Een echte 403 meldt
 // een toast; een netwerkfout niet: de vuil-markering (kern/instellingen-sync.js) laadt de lokale waarde bij de volgende start op.
-export function savePersonSettings(person) {
+export function savePersonSettings(person, opties = {}) {
   const settings = toestand.get('settings');
   localStorage.setItem(settingsKey(person), JSON.stringify(settings));
   const gebruiker = huidigeGebruiker();
   if (!gebruiker) return; // geen sessie (kan niet na de login): enkel lokaal
-  bewaarOpServer(person, settings, gebruiker).then((r) => {
+  spiegelEigen(person, gebruiker); // 'Alle' en de eigen Zoho-naam zijn hetzelfde serverrecord (merge-review I1)
+  bewaarOpServer(person, settings, gebruiker, opties).then((r) => {
     if (r.ok) return;
     if (r.reden === 'geen-recht') toast('Je mag de instellingen van deze persoon niet wijzigen; lokaal bewaard.', 4000);
     else if (r.reden === 'ongeldig') toast('De instellingen zijn niet geldig en werden enkel lokaal bewaard.', 4000);
@@ -175,6 +176,7 @@ let _werkdagenConcept = [];
 // Hier blijven ze zichtbaar (alleen-lezen); de persoonlijke/toestelinstellingen (routekleur, drukte) blijven bewerkbaar.
 // De planner heeft geen Beheer-tab en bewerkt de werkinstellingen van de technici dus nog hier (de server staat dat toe).
 const WERK_VELDEN = ['set-start', 'set-duration', 'set-max', 'set-maxreistijd', 'set-laatste-start', 'set-van', 'set-tot', 'set-tijdslot'];
+const PERSOONLIJKE_VELDEN = ['routeKleur', 'drukteKleuring', 'kaartStijl'];
 function werkInstellingenAlleenLezen() { return huidigeRechten().beheer === true; }
 function zetWerkVeldenAlleenLezen(lezen) {
   for (const id of WERK_VELDEN) { const el = document.getElementById(id); if (el) el.disabled = lezen; }
@@ -184,7 +186,11 @@ function zetWerkVeldenAlleenLezen(lezen) {
 }
 function naarBeheerInstellingen() {
   closeSettings();
-  try { sessionStorage.setItem('blitz_beheer_tab', 'instellingen'); } catch { /* geen opslag */ }
+  const persoon = toestand.get('activeAssigneeFilter');
+  try {
+    sessionStorage.setItem('blitz_beheer_tab', 'instellingen');
+    if (persoon && persoon !== 'all') sessionStorage.setItem('blitz_beheer_instellingen_persoon', persoon); // Beheer opent bij de persoon die hier gekozen was (M5)
+  } catch { /* geen opslag */ }
   document.getElementById('tab-beheer')?.click();
   document.getElementById('beheer-tab-instellingen')?.click(); // Beheer was al open: meteen naar het juiste tabblad
 }
@@ -266,7 +272,8 @@ export function saveSettings() {
   settings.routeKleur    = w.routeKleur;
   settings.drukteKleuring = document.getElementById('set-drukte').checked;
   const activeAssigneeFilter = toestand.get('activeAssigneeFilter');
-  savePersonSettings(activeAssigneeFilter);
+  // De beheerder wijzigt hier enkel de persoonlijke velden; de werkwaarden van een technieker staan in Beheer (en blijven zoals de server ze heeft).
+  savePersonSettings(activeAssigneeFilter, werkInstellingenAlleenLezen() ? { velden: PERSOONLIJKE_VELDEN } : {});
   document.getElementById('set-overlay').classList.remove('open');
   afh.renderTickets();
   afh.renderKalender();

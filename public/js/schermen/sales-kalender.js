@@ -197,7 +197,7 @@ function kaartjesDag(items) {
   return lijst;
 }
 
-function dagKolom(iso, { smal, schrijfbaar, hoogte, vandaag }) {
+function dagKolom(iso, { smal, hoogte, vandaag }) {
   const st = salesToestand();
   const dag = new Date(`${iso}T12:00:00`);
   const feest = getHolidayName(iso);
@@ -231,14 +231,14 @@ function dagKolom(iso, { smal, schrijfbaar, hoogte, vandaag }) {
 
 // ---- week ----
 
-function weekWeergave({ smal, schrijfbaar }) {
+function weekWeergave({ smal }) {
   const st = salesToestand();
   const dagen = weekDagen({ gekozen: gekozenDatum(), werkdagen: st.instellingen.werkdagen, leads: st.leads, blokken: st.blokken });
   const hoogte = computeTimelineRange();
   const vandaag = localISO(new Date());
   const grid = el('div', { class: `week-grid sales-kal-grid${smal ? '' : ' tl-mode'}` });
   if (!smal) grid.append(renderTimelineGutter());
-  for (const iso of dagen) grid.append(dagKolom(iso, { smal, schrijfbaar, hoogte, vandaag }));
+  for (const iso of dagen) grid.append(dagKolom(iso, { smal, hoogte, vandaag }));
   return grid;
 }
 
@@ -295,7 +295,7 @@ function teken(inhoud) {
   const oud = inhoud.querySelector('.sales-kal-grid');
   const bewaard = oud ? { top: oud.scrollTop, links: oud.scrollLeft } : null;
   const wortel = el('div', { class: 'sales-kal' }, maakKop(schrijfbaar));
-  const grid = weergave === 'maand' ? maandWeergave() : weekWeergave({ smal, schrijfbaar });
+  const grid = weergave === 'maand' ? maandWeergave() : weekWeergave({ smal });
   wortel.append(grid);
   inhoud.replaceChildren(wortel);
   if (weergave === 'week' && !smal) {

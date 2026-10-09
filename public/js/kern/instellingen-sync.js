@@ -103,7 +103,25 @@ export function wisInstellingenCache(opslag) {
 
 // De persoon van wie de instellingen onder mijn eigen gebruikerId staan: een technieker zijn zohoNaam, anders 'all'.
 const eigenPersoonVan = gebruiker => (gebruiker?.rol === 'technieker' && typeof gebruiker.zohoNaam === 'string' && gebruiker.zohoNaam ? gebruiker.zohoNaam : 'all');
-const isEigen = (persoon, gebruiker) => !persoon || persoon === 'all' || persoon === eigenPersoonVan(gebruiker);
+// Alle persoonssleutels (settingsKey) die het ÉÉNE serverrecord van mijn account weerspiegelen (merge-review I1). Een planner of beheerder met een
+// Zoho-naam ziet zijn eigen werk onder die naam en "Alle" onder 'all': beide lezen en schrijven hetzelfde record (de cache houdt ze gelijk).
+// Een technieker: enkel zijn naam; anders enkel 'all'. Sales heeft geen Zoho-naam.
+export function eigenSleutels(gebruiker) {
+  const naam = typeof gebruiker?.zohoNaam === 'string' ? gebruiker.zohoNaam.trim() : '';
+  if (gebruiker?.rol === 'technieker') return [eigenPersoonVan(gebruiker)];
+  return naam && gebruiker?.rol !== 'sales' ? ['all', naam] : ['all'];
+}
+export const isEigen = (persoon, gebruiker) => !persoon || persoon === 'all' || eigenSleutels(gebruiker).includes(persoon);
+
+// Schrijft een eigen record ook onder de andere eigen sleutels (zie eigenSleutels), zodat 'Alle' en de eigen naam nooit uit elkaar lopen.
+export function spiegelEigen(persoon, gebruiker, { opslag = globalThis.localStorage } = {}) {
+  if (!isEigen(persoon, gebruiker)) return;
+  const tekst = leesTekst(opslag, settingsKey(persoon === undefined || persoon === null || persoon === '' ? 'all' : persoon));
+  if (tekst === null) return;
+  for (const sleutel of eigenSleutels(gebruiker)) {
+    if (sleutel !== (persoon || 'all')) schrijfTekst(opslag, settingsKey(sleutel), tekst);
+  }
+}
 
 // De beheerder bewaarde via de beheerpagina de instellingen van zijn EIGEN account op de server (PUT geslaagd): de lokale cache volgt,
 // anders schrijft de volgende savePersonSettings de oude set terug en draait de serverwaarde stil terug (logins T18 fix 1).
@@ -111,9 +129,11 @@ const isEigen = (persoon, gebruiker) => !persoon || persoon === 'all' || persoon
 export function neemEigenOver(instellingen, gebruiker, { opslag = globalThis.localStorage } = {}) {
   const persoon = eigenPersoonVan(gebruiker);
   const kopie = JSON.parse(JSON.stringify(instellingen ?? {}));
-  schrijfTekst(opslag, settingsKey(persoon), JSON.stringify(kopie));
+  for (const sleutel of eigenSleutels(gebruiker)) { // alle eigen sleutels volgen het ene serverrecord (I1)
+    schrijfTekst(opslag, settingsKey(sleutel), JSON.stringify(kopie));
+    zetVuil(opslag, sleutel, false); // de server heeft nu de nieuwste stand: een eerdere mislukte PUT mag niet meer terugkomen
+  }
   if (isTijd(kopie.laatsteStart)) schrijfTekst(opslag, LAATSTE_START_SLEUTEL, kopie.laatsteStart);
-  zetVuil(opslag, persoon, false); // de server heeft nu de nieuwste stand: een eerdere mislukte PUT mag niet meer terugkomen
   return persoon;
 }
 
@@ -135,6 +155,11 @@ function lichaamVoor(persoon, instellingen, gebruiker, opslag) {
   if (isTijd(l)) kopie.laatsteStart = l;
   return kopie;
 }
+
+// I2: de server VERVANGT het hele record van een gebruiker. Voor een ANDERE persoon (technieker) vertrekt de body daarom van het record dat de
+// server nu heeft; enkel de velden van de lokale set komen erbovenop. Velden die het formulier niet toont (laatsteStart, bezoekDuurMin, ...)
+// en niet in de lokale set staan, blijven zo behouden.
+const voegSamenOpServer = (serverRecord, lichaam) => (isObject(serverRecord) ? { ...serverRecord, ...lichaam } : lichaam);
 
 // Eén PUT, geclassificeerd: { ok } of { ok:false, reden }.
 //   403 geen-recht · 404 geen-account · 400/422 ongeldig (de server weigert de waarde: opnieuw proberen heeft geen zin)
@@ -205,9 +230,12 @@ async function voerSynchronisatieUit(gebruiker, apiJson, opslag, wacht, isGestop
 
   const verstuur = lichaam => apiJson(PAD, { methode: 'PUT', body: lichaam }).then(() => ({ ok: true }), (f) => ({ ok: false, status: f?.status }));
   // Wie staat er in het overzicht: ik (eigenPersoon) en de techniekers (een technieker staat er ook zelf in; dubbel overslaan).
-  const personen = [{ persoon: eigenPersoon, id: mijnId, server: isObject(overzicht.eigen.instellingen) ? overzicht.eigen.instellingen : null, eigen: true }];
+  // Mijn ene serverrecord staat onder alle sleutels van eigenSleutels (planner/beheerder met Zoho-naam: 'all' én de naam, I1).
+  const eigenKeys = eigenSleutels(gebruiker);
+  const eigenServer = isObject(overzicht.eigen.instellingen) ? overzicht.eigen.instellingen : null;
+  const personen = eigenKeys.map(persoon => ({ persoon, id: mijnId, server: eigenServer, eigen: true }));
   for (const [naam, t] of Object.entries(techniekers)) {
-    if (naam === eigenPersoon || !isObject(t) || typeof t.gebruikerId !== 'string') continue;
+    if (eigenKeys.includes(naam) || !isObject(t) || typeof t.gebruikerId !== 'string') continue;
     personen.push({ persoon: naam, id: t.gebruikerId, server: isObject(t.instellingen) ? t.instellingen : null, eigen: false });
   }
 
@@ -219,17 +247,29 @@ async function voerSynchronisatieUit(gebruiker, apiJson, opslag, wacht, isGestop
   // Ronde 1: mislukte PUT's van vroeger. Eerst ALLE vuile lokale waarden omhoog, vóór er iets van de server in de opslag komt;
   // enkel bij succes of een definitieve weigering mag de server voor die persoon weer winnen.
   const blijftLokaal = new Set();
-  for (const { persoon, id, eigen } of personen) {
+  let eigenOpgeladen = false; // mijn ene record gaat hooguit één keer omhoog, ook als twee eigen sleutels vuil zijn
+  for (const { persoon, id, server, eigen } of personen) {
     if (vuil[persoon] !== true) continue;
     const lokaal = leesJson(opslag, settingsKey(persoon));
     if (!lokaal) { zetVuil(opslag, persoon, false); continue; } // niets (meer) om op te laden
-    const r = await wacht(stuur(verstuur, { ...(eigen ? {} : { gebruiker: id }), instellingen: lichaamVoor(persoon, lokaal, gebruiker, opslag) }));
+    if (eigen && eigenOpgeladen) { zetVuil(opslag, persoon, false); continue; } // de eerste eigen sleutel regelde het record
+    // I2: een technieker die ik beheer: de body vertrekt van het serverrecord uit het overzicht, zodat velden buiten de lokale set niet verdwijnen.
+    const lichaam = eigen ? lichaamVoor(persoon, lokaal, gebruiker, opslag) : voegSamenOpServer(server, lichaamVoor(persoon, lokaal, gebruiker, opslag));
+    const r = await wacht(stuur(verstuur, { ...(eigen ? {} : { gebruiker: id }), instellingen: lichaam }));
     if (isGestopt()) return false;
     verwerkUitkomst(opslag, persoon, r);
-    if (r.ok || r.reden === 'netwerk') blijftLokaal.add(persoon); // gelukt: lokaal = server; netwerk: lokaal blijft staan, niets overschrijven
+    if (r.ok || r.reden === 'netwerk') {
+      blijftLokaal.add(persoon); // gelukt: lokaal = server; netwerk: lokaal blijft staan, niets overschrijven
+      if (eigen) { // de andere eigen sleutels volgen dit record
+        eigenOpgeladen = true;
+        spiegelEigen(persoon, gebruiker, { opslag });
+        for (const k of eigenKeys) { blijftLokaal.add(k); if (k !== persoon && r.ok) zetVuil(opslag, k, false); }
+      }
+    }
   }
   // Ronde 2: de server is de bron; of, voor mij, de eenmalige overgang van een lokale waarde.
   const magTechniekerSchrijven = gebruiker?.rol === 'planner' || gebruiker?.rol === 'beheerder';
+  let eigenMigratieGedaan = false;
   for (const { persoon, id, server, eigen } of personen) {
     if (blijftLokaal.has(persoon)) continue;
     const sleutel = settingsKey(persoon);
@@ -239,9 +279,11 @@ async function voerSynchronisatieUit(gebruiker, apiJson, opslag, wacht, isGestop
     } else if (eigen) {
       // De server heeft nog niets van mij maar lokaal staat er iets (en het is het mijne: een andere eigenaar is al gewist).
       const lokaal = leesJson(opslag, sleutel);
-      if (lokaal && Object.keys(lokaal).length) {
+      if (lokaal && Object.keys(lokaal).length && !eigenMigratieGedaan) {
+        eigenMigratieGedaan = true; // één PUT voor mijn ene record; de andere eigen sleutels volgen het
         await wacht(stuur(verstuur, { instellingen: lichaamVoor(persoon, lokaal, gebruiker, opslag) })); // mislukt: volgende start opnieuw
         if (isGestopt()) return false;
+        spiegelEigen(persoon, gebruiker, { opslag });
       }
     } else if (magTechniekerSchrijven) {
       // Migratie (eindreview I3): de waarden die de planner vóór de release op ZIJN toestel per technieker instelde gaan eenmalig omhoog
@@ -273,7 +315,9 @@ export function bewaarOpServer(persoon, instellingen, gebruiker, opties = {}) {
   return taak;
 }
 
-async function bewaar(persoon, instellingen, gebruiker, { apiVerzoek = standaardApiVerzoek, opslag = globalThis.localStorage }, wachtend) {
+// opties.velden (optioneel, enkel voor een ANDERE persoon): bewaar enkel deze velden uit de lokale set; de rest blijft zoals de server het heeft
+// (merge-review M4: de beheerder wijzigt in ⚙ enkel de persoonlijke velden en overschrijft de werkwaarden niet met een oude lokale kopie).
+async function bewaar(persoon, instellingen, gebruiker, { apiVerzoek = standaardApiVerzoek, opslag = globalThis.localStorage, velden }, wachtend) {
   const eigen = isEigen(persoon, gebruiker);
   let doelId = null;
   if (eigen) doelId = gebruiker?.id ?? overzichtCache?.eigenId ?? null;
@@ -286,10 +330,22 @@ async function bewaar(persoon, instellingen, gebruiker, { apiVerzoek = standaard
 
   const actueel = wachtend ? (leesJson(opslag, settingsKey(persoon)) ?? instellingen) : instellingen;
   zetVuil(opslag, persoon, true); // write-ahead: sluit de app midden in de PUT, dan blijft dit spoor staan
-  const r = await stuur(
-    lichaam => apiVerzoek(PAD, { methode: 'PUT', body: lichaam }),
-    { ...(eigen ? {} : { gebruiker: doelId }), instellingen: lichaamVoor(persoon, actueel, gebruiker, opslag) },
-  );
+  let lichaam = lichaamVoor(persoon, actueel, gebruiker, opslag);
+  if (!eigen) {
+    // I2: eerst het actuele serverrecord van die technieker ophalen (het overzicht mag ook de planner lezen) en de lokale velden daarop leggen.
+    let vers;
+    try { vers = await apiVerzoek(`${PAD}?overzicht=1`); } catch (fout) { vers = { ok: false, status: typeof fout?.status === 'number' ? fout.status : 0 }; }
+    if (!vers?.ok) {
+      const mislukt = { ok: false, reden: naarReden(vers?.status) };
+      verwerkUitkomst(opslag, persoon, mislukt);
+      return mislukt;
+    }
+    const serverRecord = vers.data?.techniekers?.[persoon]?.instellingen
+      ?? Object.entries(vers.data?.techniekers ?? {}).find(([, t]) => t?.gebruikerId === doelId)?.[1]?.instellingen ?? null;
+    if (Array.isArray(velden)) lichaam = Object.fromEntries(Object.entries(lichaam).filter(([k]) => velden.includes(k)));
+    lichaam = voegSamenOpServer(serverRecord, lichaam);
+  }
+  const r = await stuur(lichaam2 => apiVerzoek(PAD, { methode: 'PUT', body: lichaam2 }), { ...(eigen ? {} : { gebruiker: doelId }), instellingen: lichaam });
   verwerkUitkomst(opslag, persoon, r);
   return r;
 }
