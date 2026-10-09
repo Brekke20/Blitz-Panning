@@ -241,3 +241,5 @@
     .wiz-sam-val { color: var(--text); flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
     .wiz-sam-ok { color: var(--accent-ink); font-weight: 600; }
     .wiz-sam-waarschuw { color: var(--red); font-weight: 600; }
+
+    .wiz-aanrijtijd-waarschuwing { background: var(--red-dim); border: 1px solid var(--red-line); color: var(--text); border-radius: var(--r); padding: 10px 12px; margin-bottom: 10px; font-size: 0.85rem; font-weight: 600; }

@@ -10,6 +10,7 @@ import { syncOplossingNaarZoho } from './schermen/rapport-verzenden.js';
 import { escHtml, toast } from './kern/ui.js';
 import { TEST_UPLOAD } from './test-upload.js';
 import { registreerAchtergrondVerzending } from './outbox-sync.js';
+import { berekenAanrijtijd } from './rapport-aanrijtijd.js';
 
 export let _wizTicket = null;
 export let _wizDate   = null;
@@ -25,6 +26,7 @@ export const R = {
   facturatie: 'klant', facturatieVrij: '',
   servicetype: '2e-lijn',
   aanrijtijdMin: 0,
+  aanrijtijdBron: '', // '' | 'tomtom' | 'onbekend' | 'handmatig' (B7: nooit stil 0)
   interventieType: 'Interventie',
   installateur: '', serienummer: '', aantalLaadpalen: 1, type: '', uitvoering: '', kabel: '', kabellengte: '',
   probleem: '', acties: '',
@@ -165,30 +167,14 @@ async function openRapportIntern(ticketId, date) {
   // de vorige stop van de dag. Geldt voor elk ticket (Zoho én lokale afspraken).
   // De routeplanning zelf (calculateRoute/autoPlan/optimizeRoute) gebruikt deze
   // berekening niet en blijft ongewijzigd.
+  // B7/C4: lukt de berekening niet (geen adres, geen startlocatie, geocoderen of route mislukt, netwerk), dan blijft de
+  // bron 'onbekend' en moet de technieker de aanrijtijd in de stap Facturatie zelf invullen (0 mag): nooit stil 0.
   R.aanrijtijdMin = 0;
+  R.aanrijtijdBron = 'onbekend';
   if (ticket.hasAddress && kern.toestand.get('settings').startlocatie) {
-    try {
-      toast('📡 Aanrijtijd wordt berekend…', 5000);
-      const gRes  = await fetch('/api/optimize', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ origin: kern.toestand.get('settings').startlocatie, stops: [ticket.address] }),
-      });
-      const gData = await gRes.json();
-      const origin = gData.locations?.[0];
-      const dest   = gData.locations?.[1];
-      if (origin && dest) {
-        const rRes  = await fetch('/api/route', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ waypoints: [origin, dest] }),
-        });
-        const rData = await rRes.json();
-        if (rData.legs?.[0]?.travelTimeSeconds) {
-          R.aanrijtijdMin = Math.round(rData.legs[0].travelTimeSeconds / 60);
-        }
-      }
-    } catch { /* niet fataal, aanrijtijd blijft 0 */ }
+    toast('📡 Aanrijtijd wordt berekend…', 5000);
+    const aanrijtijd = await berekenAanrijtijd({ adres: ticket.address, startlocatie: kern.toestand.get('settings').startlocatie });
+    if (aanrijtijd.minuten !== null) { R.aanrijtijdMin = aanrijtijd.minuten; R.aanrijtijdBron = 'tomtom'; }
   }
   R.type = ''; R.uitvoering = ''; R.kabel = ''; R.kabellengte = ''; R.aantalLaadpalen = 1;
   R.hersteld = 'nee'; R.nieuwInter = 'nee';
@@ -375,7 +361,7 @@ export function wizRenderSamenvatting(el) {
     ${kaart('Algemeen', 'algemeen',
       rij('Datum', R.datum ? new Date(R.datum + 'T12:00:00').toLocaleDateString('nl-BE', { day:'2-digit', month:'2-digit', year:'numeric' }) : '') + rij('Technieker', R.technieker) + rij('Adres', R.adres) +
       rij('Start – stop', `${R.start || '?'} – ${R.stop || '?'}`) + rij('Werktijd', R.werktijd) + rij('Type bezoek', R.interventieType))}
-    ${inst ? '' : kaart('Facturatie', 'facturatie', rij('Facturatie aan', fact) + rij('Type interventie', stype) + rij('Aanrijtijd', R.aanrijtijdMin ? `${R.aanrijtijdMin} min` : ''))}
+    ${inst ? '' : kaart('Facturatie', 'facturatie', rij('Facturatie aan', fact) + rij('Type interventie', stype) + rij('Aanrijtijd', R.aanrijtijdMin || R.aanrijtijdBron === 'handmatig' ? `${R.aanrijtijdMin} min` : ''))}
     ${kaart('Product', 'product',
       rij('Installateur', R.installateur) + rij('Serienummer', R.serienummer) + rij('Aantal laadpalen', R.aantalLaadpalen) +
       rij('Type', R.type) + rij('Uitvoering', R.uitvoering) + rij('Kabel', [R.kabel, R.kabellengte].filter(Boolean).join(' ')))}
@@ -564,6 +550,8 @@ export function wizAutoServicetype() {
   return null; // onduidelijk -- geen auto-selectie, huidige/handmatige waarde van R.servicetype blijft staan
 }
 
+const AANRIJTIJD_ONBEKEND = '⚠ Aanrijtijd kon niet berekend worden — vul ze hieronder zelf in (minuten, enkel heen). Typ 0 als er geen aanrijtijd is.';
+const AANRIJTIJD_VERPLICHT = '⚠ Vul de aanrijtijd in (minuten, enkel heen). Typ 0 als er geen aanrijtijd is.';
 export function wizRenderFacturatie(el) {
   if (!R._servicetypeAutoApplied) {
     const auto = wizAutoServicetype();
@@ -621,12 +609,13 @@ export function wizRenderFacturatie(el) {
       </div>
     </div>
     <div id="aanrijtijd-wrap" style="margin-top:6px">
+      ${R.aanrijtijdBron === 'onbekend' ? `<div class="wiz-aanrijtijd-waarschuwing" role="alert">${AANRIJTIJD_ONBEKEND}</div>` : ''}
       <div class="wiz-field">
         <label class="wiz-field-label" for="f-aanrijtijd">Aanrijtijd (minuten, enkel heen)
-          ${R.aanrijtijdMin > 0 ? '<span style="font-size:0.72rem;color:var(--accent-ink);margin-left:6px">📡 TomTom</span>' : ''}
+          ${R.aanrijtijdBron === 'tomtom' ? '<span style="font-size:0.72rem;color:var(--accent-ink);margin-left:6px">📡 TomTom</span>' : ''}
         </label>
-        <input class="wiz-input" id="f-aanrijtijd" type="number" min="0" step="1"
-          value="${R.aanrijtijdMin || ''}" placeholder="bijv. 35"
+        <input class="wiz-input" id="f-aanrijtijd" type="number" min="0" step="1"${R.aanrijtijdBron === 'onbekend' ? ' aria-invalid="true"' : ''}
+          value="${R.aanrijtijdBron === 'tomtom' || R.aanrijtijdBron === 'handmatig' ? R.aanrijtijdMin : (R.aanrijtijdMin || '')}" placeholder="bijv. 35"
           oninput="wizLoonkostPreview()" style="max-width:120px" />
       </div>
     </div>
@@ -645,7 +634,13 @@ export function wizSaveFacturatie() {
   R.facturatie     = wizChecked('f-facturatie') || 'klant';
   R.facturatieVrij = wizV('f-facturatie-vrij');
   R.servicetype    = wizChecked('f-servicetype') || '2e-lijn';
-  R.aanrijtijdMin  = parseInt(document.getElementById('f-aanrijtijd')?.value) || 0;
+  const aanrijtijdRuw = String(document.getElementById('f-aanrijtijd')?.value ?? '').trim();
+  R.aanrijtijdMin  = parseInt(aanrijtijdRuw) || 0;
+  // B7: was de aanrijtijd niet te berekenen (of zelf ingevuld), dan is een lege waarde nooit toegelaten; 0 wel.
+  if (R.aanrijtijdBron === 'onbekend' || R.aanrijtijdBron === 'handmatig') {
+    if (aanrijtijdRuw === '') return AANRIJTIJD_VERPLICHT;
+    R.aanrijtijdBron = 'handmatig';
+  }
 }
 
 // ── Stap 3: Productinfo ──

@@ -1,4 +1,4 @@
-import { test, expect, startApp } from './helpers.mjs';
+import { test, expect, startApp, standaardStub } from './helpers.mjs';
 
 // Rapport en Zoho (W11): de wizard wordt enkel tot het Overzicht aangestuurd. De knop
 // "✓ Rapport versturen" (laatste stap) wordt nooit aangeklikt.
@@ -170,6 +170,86 @@ test.describe('instellingen en rapport', () => {
     }));
     expect(wachtrij.bestaat, 'outbox-store "items" bestaat').toBe(true);
     expect(wachtrij.aantal).toBe(0);
+  });
+
+  // B7/C4: lukt de aanrijtijd-berekening niet, dan toont stap Facturatie een melding en laat Volgende enkel door met een ingevulde waarde (0 mag).
+  const VERPLICHT = '⚠ Vul de aanrijtijd in (minuten, enkel heen). Typ 0 als er geen aanrijtijd is.';
+  const ONBEKEND = '⚠ Aanrijtijd kon niet berekend worden — vul ze hieronder zelf in (minuten, enkel heen). Typ 0 als er geen aanrijtijd is.';
+
+  // De planning (Plan deze week) mag nog normaal rekenen; pas bij het openen van het rapport faalt /api/route (200 zonder benen: geen HTTP-fout in het vangnet).
+  async function openWizardTotFacturatie(page, { routeFaalt }) {
+    const normaal = standaardStub('route');
+    const stand = { faalt: false };
+    await startApp(page, { technieker: 'Tim', overschrijf: { route: (o) => (stand.faalt ? { status: 200, json: { legs: [] } } : normaal(o)) } });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await page.getByRole('button', { name: '⚡ Plan deze week' }).click();
+    const resultaat = page.getByRole('dialog', { name: '⚡ Planningsresultaat' });
+    await expect(resultaat.getByText('Ingepland (2)', { exact: true })).toBeVisible();
+    await resultaat.getByRole('button', { name: 'Sluiten' }).click();
+    await expect(resultaat).toBeHidden();
+    await page.locator('.day-col[data-date="2026-10-05"]').getByRole('button', { name: '#1001', exact: true }).click();
+    const detail = page.getByRole('dialog', { name: /Laadpaal offline na stroomuitval/ });
+    await expect(detail).toBeVisible();
+    stand.faalt = routeFaalt;
+    await detail.getByRole('button', { name: '📋 Rapport' }).click();
+    const wizard = page.getByRole('dialog', { name: '📋 Service Rapport' });
+    await expect(wizard).toHaveClass(/open/);
+    await wizard.getByRole('radio', { name: 'Interventie' }).check();
+    await wizard.getByRole('button', { name: 'Volgende →' }).click();
+    await expect(wizard.locator('#wiz-step-label')).toHaveText('2 / 9 — Facturatie');
+    return wizard;
+  }
+
+  test('aanrijtijd mislukt: de stap Facturatie toont de melding, blokkeert Volgende zonder waarde en laat 0 of een getal toe', async ({ page }) => {
+    const wizard = await openWizardTotFacturatie(page, { routeFaalt: true });
+    const volgende = wizard.getByRole('button', { name: 'Volgende →' });
+    const stap = wizard.locator('#wiz-step-label');
+    const veld = wizard.locator('#f-aanrijtijd');
+
+    await expect(wizard.getByRole('alert').filter({ hasText: ONBEKEND })).toBeVisible();
+    await expect(veld).toHaveAttribute('aria-invalid', 'true');
+    await expect(veld).toHaveValue('');
+    await expect(wizard.getByText('📡 TomTom')).toHaveCount(0);
+
+    // Leeg: geblokkeerd met de toast.
+    await volgende.click();
+    await expect(page.getByText(VERPLICHT)).toBeVisible();
+    await expect(stap).toHaveText('2 / 9 — Facturatie');
+
+    // 0 is een geldige invoer; terug en opnieuw: het veld toont dan 0 (geen stille lege waarde).
+    await veld.fill('0');
+    await volgende.click();
+    await expect(stap).toHaveText('3 / 9 — Product');
+    await wizard.getByRole('button', { name: '← Vorige' }).click();
+    await expect(stap).toHaveText('2 / 9 — Facturatie');
+    await expect(veld).toHaveValue('0');
+    await expect(wizard.getByRole('alert').filter({ hasText: ONBEKEND })).toHaveCount(0);
+
+    // Een ingevulde waarde komt in het Overzicht.
+    await veld.fill('35');
+    await volgende.click();
+    await expect(stap).toHaveText('3 / 9 — Product');
+    await volgende.click();
+    await wizard.getByLabel('Omschrijving probleem').fill('Paal start niet op');
+    await wizard.getByLabel('Ondernomen acties').fill('Controller herstart');
+    await wizard.getByText('Productfout', { exact: true }).click();
+    await volgende.click();
+    await volgende.click(); // foto's
+    await volgende.click(); // status
+    await volgende.click(); // handtekening 1
+    await volgende.click(); // handtekening 2
+    await expect(stap).toHaveText('9 / 9 — Overzicht');
+    await expect(wizard).toContainText('35 min');
+  });
+
+  test('aanrijtijd gelukt: geen melding en de TomTom-badge staat er', async ({ page }) => {
+    const wizard = await openWizardTotFacturatie(page, { routeFaalt: false });
+    await expect(wizard.locator('#f-aanrijtijd')).toHaveValue('20'); // stub: 1200 s
+    await expect(wizard.getByText('📡 TomTom')).toBeVisible();
+    await expect(wizard.getByRole('alert')).toHaveCount(0);
+    await expect(wizard.locator('#f-aanrijtijd')).not.toHaveAttribute('aria-invalid', 'true');
+    await wizard.getByRole('button', { name: 'Volgende →' }).click();
+    await expect(wizard.locator('#wiz-step-label')).toHaveText('3 / 9 — Product');
   });
 
   // Etappe 5b, taak 6: de wizard leest de actieve technieker uit de toestand (geen stille terugval op 'all' meer).
