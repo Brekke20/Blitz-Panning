@@ -184,6 +184,17 @@ function kies(veld, label, alles, lijst, gekozen) {
 // Eén rij: periode-presets, zelf-kiezen-datums, technieker, type en herhaalbezoek (30/90 dagen).
 // filters: { preset, van, tot, technieker, type, herhaalDagen }; opties: { techniekers, types } uit berekenDashboard.
 // Knoppen dragen data-actie="dashboard-preset" + data-arg (registreerActies), velden data-wijzig="dashboard-filter" + data-arg=<veld> (registreerWijzigActies).
+// Een datum uit een <input type="date"> telt pas als ze volledig, echt en van dit tijdperk is (jaar 2000-2100). Bij het intypen met het
+// toetsenbord geeft Chromium al een geldige waarde zodra het jaarvak "2" bevat (0002-10-01): die mag nooit een verzoek veroorzaken.
+export function isGeldigeFilterDatum(w) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(w ?? ''));
+  if (!m) return false;
+  const [j, mm, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (j < 2000 || j > 2100) return false;
+  const dt = new Date(Date.UTC(j, mm - 1, d));
+  return dt.getUTCFullYear() === j && dt.getUTCMonth() === mm - 1 && dt.getUTCDate() === d;
+}
+
 export function filterRijHtml({ filters = {}, opties = {} } = {}) {
   const knoppen = PRESETS.map(p => `<button type="button" class="filter-preset" data-actie="dashboard-preset" data-arg="${escHtml(p.id)}" aria-pressed="${p.id === filters.preset}">${escHtml(p.label)}</button>`).join('');
   const datum = (veld, label, w) => `<label class="filter-veld">${label}<input type="date" data-wijzig="dashboard-filter" data-arg="${escHtml(veld)}" value="${escHtml(w ?? '')}"></label>`;

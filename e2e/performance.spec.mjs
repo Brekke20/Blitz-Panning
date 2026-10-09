@@ -142,6 +142,30 @@ test.describe('Performance: filters', () => {
   });
 });
 
+test.describe('Performance: datum intypen (eindreview I2)', () => {
+  test('een datum met het toetsenbord intypen (dd/mm/jjjj) stuurt pas een verzoek bij een volledige datum en verliest de focus niet', async ({ page, verzoeken }) => {
+    const queries = [];
+    await openPerformance(page, { dashboard: ({ query }) => { queries.push(query.toString()); return json(200, dashboardData()); } });
+    expect(queries).toHaveLength(1);
+    const van = page.locator('.dash-filters input[type="date"][data-arg="van"]');
+    await van.focus(); // eerste segment: dag (nl-BE)
+    // Cijfer voor cijfer, zoals een gebruiker: na "2" staat het jaar op 0002 en Chromium meldt al een geldige waarde.
+    await page.keyboard.type('01092026', { delay: 40 });
+    await expect(van).toHaveValue('2026-09-01');
+    await expect.poll(() => queries.length).toBe(2);
+    expect(queries[1]).toBe('van=2026-09-01&tot=2026-10-05&herhaal=30');
+    expect(queries.join('|')).not.toMatch(/van=0\d{3}/);
+    await expect(van).toBeFocused(); // geen hertekening onder de vingers
+    await expect(page.getByRole('button', { name: 'Zelf kiezen', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Deze maand', exact: true })).toHaveAttribute('aria-pressed', 'false');
+    // Een jaar buiten bereik (bv. halverwege het intypen) laat het filter ongemoeid.
+    await van.fill('0002-09-01');
+    await page.waitForTimeout(400);
+    expect(queries).toHaveLength(2);
+    expect(verzoeken.van('/api/dashboard', 'GET')).toHaveLength(2);
+  });
+});
+
 test.describe('Performance: licht thema', () => {
   test('dezelfde ring heeft in het lichte thema de ingestelde statuskleur (groen en rood)', async ({ page }) => {
     await page.addInitScript(() => { if (window === window.top) localStorage.setItem('blitz_theme', 'light'); });

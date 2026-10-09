@@ -9,7 +9,7 @@ import { bewaarMetVersie } from '../kern/api.js';
 import { registreerActies, registreerWijzigActies, toast } from '../kern/ui.js';
 import { STANDAARD_GRENZEN } from '../kern/dashboard-grenzen.js';
 import { openRapportOpId } from '../rapport-archief.js';
-import { TEGELS, periodeVoorPreset, maakQuery, tegelHtml, filterRijHtml, dekkingVoetnoten } from './beheer-performance-logica.js';
+import { TEGELS, periodeVoorPreset, maakQuery, tegelHtml, filterRijHtml, dekkingVoetnoten, isGeldigeFilterDatum } from './beheer-performance-logica.js';
 import { grenzenPaneelHtml, leesGrenzenUitRijen, voegGrenzenSamen, bewaarUitkomst } from './beheer-performance-grenzen.js';
 import { renderTijd } from './beheer-performance-tijd.js';
 import { renderKwaliteit } from './beheer-performance-kwaliteit.js';
@@ -65,11 +65,27 @@ async function render(container) {
   // De filterrij wordt na elke keuze opnieuw getekend (opties wijzigen mee); de focus keert terug naar hetzelfde veld.
   function tekenFilters() {
     const actief = document.activeElement;
+    const nieuw = h('div');
+    nieuw.innerHTML = filterRijHtml({ filters: t.filters, opties: lees(t.data?.opties) });
+    // Staat de focus in een datumveld, dan blijft dat veld staan (het hertekenen zou het dag-/maand-/jaarsegment waarin getypt wordt kwijtmaken).
+    const datumActief = actief?.type === 'date' && filterVak.contains(actief) ? actief : null;
+    if (datumActief) {
+      const oud = filterVak.firstElementChild, wasNieuw = nieuw.firstElementChild;
+      if (oud && wasNieuw && oud.children.length === wasNieuw.children.length) {
+        [...oud.children].forEach((kind, i) => { if (!kind.contains(datumActief)) kind.replaceWith(wasNieuw.children[i].cloneNode(true)); });
+        return;
+      }
+    }
     const sleutel = filterVak.contains(actief) ? { actie: actief.dataset.actie, wijzig: actief.dataset.wijzig, arg: actief.dataset.arg } : null;
-    filterVak.innerHTML = filterRijHtml({ filters: t.filters, opties: lees(t.data?.opties) });
+    filterVak.replaceChildren(...nieuw.childNodes);
     if (!sleutel) return;
     const sel = sleutel.actie ? `[data-actie="${sleutel.actie}"]` : sleutel.wijzig ? `[data-wijzig="${sleutel.wijzig}"]` : null;
     if (sel) filterVak.querySelector(`${sel}[data-arg="${sleutel.arg}"]`)?.focus();
+  }
+
+  // Enkel de presetknoppen volgen de keuze (bij een ingetypte datum is dat "Zelf kiezen"); de datumvelden blijven onaangeroerd.
+  function werkPresetsBij() {
+    filterVak.querySelectorAll('[data-actie="dashboard-preset"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.arg === t.filters.preset)));
   }
 
   function tekenInhoud() {
@@ -156,12 +172,18 @@ async function render(container) {
     'dashboard-filter': (el, e, veld) => {
       if (!veld) return;
       if (veld === 'van' || veld === 'tot') {
+        // Een onvolledige of onzinnige datum (bv. 0002-10-01 tijdens het intypen) laat het filter ongemoeid: geen verzoek, geen hertekening.
+        if (!isGeldigeFilterDatum(el.value)) return;
+        if (el.value === t.filters[veld] && t.data) return; // dezelfde datum (bv. tussentijds teruggetypt): niets veranderd, geen verzoek
         t.filters = { ...t.filters, [veld]: el.value, preset: 'zelf' };
-        if (!t.filters.van || !t.filters.tot || t.filters.van > t.filters.tot) { // wacht op een geldige periode
-          tekenFilters();
+        werkPresetsBij();
+        if (!isGeldigeFilterDatum(t.filters.van) || !isGeldigeFilterDatum(t.filters.tot) || t.filters.van > t.filters.tot) { // wacht op een geldige periode
           toonMelding('Kies een geldige periode: de begindatum mag niet na de einddatum liggen.');
           return;
         }
+        toonMelding('');
+        laadDashboard();
+        return;
       } else t.filters = { ...t.filters, [veld]: veld === 'herhaalDagen' ? Number(el.value) : el.value };
       tekenFilters();
       laadDashboard();

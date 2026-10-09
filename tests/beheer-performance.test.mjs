@@ -1,7 +1,7 @@
 // Scherm Performance (dashboard T18): het pure deel (voetnoten, instellingen-paneel). De DOM-laag staat in e2e/performance.spec.mjs (T21).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dekkingVoetnoten } from '../public/js/schermen/beheer-performance-logica.js';
+import { dekkingVoetnoten, isGeldigeFilterDatum } from '../public/js/schermen/beheer-performance-logica.js';
 import {
   GRENS_RINGEN, GRENZEN_LAAD_FOUT, grenzenPaneelHtml, leesGrenzenUitRijen, voegGrenzenSamen, bewaarUitkomst,
 } from '../public/js/schermen/beheer-performance-grenzen.js';
@@ -129,4 +129,10 @@ test('[I1] bewaarUitkomst: succes en conflict met serverstand vervangen de stand
   assert.match(bewaarUitkomst({ ok: true, waarde: g, versie: 5, samengevoegd: true }).toast, /samengevoegd/);
   const c = bewaarUitkomst({ ok: false, reden: 'conflict', status: 409, laatsteServer: g, laatsteVersie: 9, versie: 3 });
   assert.deepEqual([c.herteken, c.versie, c.grenzen], [true, 9, g]);
+});
+
+test('isGeldigeFilterDatum: enkel volledige, echte datums van dit tijdperk (nooit 0002-10-01 tijdens het intypen)', () => {
+  for (const ok of ['2026-10-01', '2000-01-01', '2024-02-29', '2100-12-31']) assert.equal(isGeldigeFilterDatum(ok), true, ok);
+  for (const fout of ['', null, undefined, '0002-10-01', '0020-10-01', '0202-10-01', '1999-12-31', '2101-01-01', '2026-02-30', '2025-02-29', '2026-13-01', '20261-01-01', '2026-1-1', 'abc'])
+    assert.equal(isGeldigeFilterDatum(fout), false, String(fout));
 });
