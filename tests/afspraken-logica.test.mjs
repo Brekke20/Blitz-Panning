@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { matchRespToPerson, technieklijst, bouwImportRijen, nieuweImportItems } from '../public/js/schermen/afspraken-logica.js';
+import { matchRespToPerson, technieklijst, bouwImportRijen, nieuweImportItems, zichtbaarAdres } from '../public/js/schermen/afspraken-logica.js';
 
 const AGENTS = ['Roel Peeters', 'Tim Vermeulen'];
 
@@ -65,4 +65,15 @@ test('nieuweImportItems: zonder datum en duplicaten (datum+titel+uur) vallen af;
   const bestaand = [{ id: 'z', titel: 'A', datum: '2026-10-08', uur: '09:00' }, { id: 'y', titel: 'C', datum: '2026-10-09', uur: '11:00' }];
   const nieuw = nieuweImportItems(pending, bestaand);
   assert.deepEqual(nieuw, [{ id: '3', titel: 'C', datum: '2026-10-09', uur: '10:00' }]);
+});
+
+test('zichtbaarAdres: adres gaat voor; import zonder adres toont de notitie; legacy zonder bron toont de notitie; manueel zonder adres geeft lege tekst; alles leeg geeft lege tekst', () => {
+  assert.equal(zichtbaarAdres({ adres: 'Kerkstraat 5', notitie: 'Sleutel', bron: 'manueel' }), 'Kerkstraat 5');
+  assert.equal(zichtbaarAdres({ adres: 'Kerkstraat 5', notitie: 'Sleutel', bron: 'import' }), 'Kerkstraat 5');
+  assert.equal(zichtbaarAdres({ adres: '', notitie: 'Kerkstraat 5, Gent', bron: 'import' }), 'Kerkstraat 5, Gent');
+  assert.equal(zichtbaarAdres({ notitie: 'Kerkstraat 5, Gent' }), 'Kerkstraat 5, Gent');            // oudere afspraak zonder bron
+  assert.equal(zichtbaarAdres({ adres: '', notitie: 'Sleutel op kantoor', bron: 'manueel' }), '');  // B10: handmatig = Notitie, geen adres
+  assert.equal(zichtbaarAdres({ adres: '', notitie: '', bron: 'manueel' }), '');
+  assert.equal(zichtbaarAdres({ adres: '', notitie: '', bron: 'import' }), '');
+  assert.equal(zichtbaarAdres({}), '');
 });

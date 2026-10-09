@@ -15,7 +15,7 @@ import { persoonOfNull } from '../kern/selecties.js';
 import { registreerVenster } from '../venster.js';
 import { telNummer } from './ticketdetail-logica.js';
 import { magSchrijvenVoor } from '../kern/sessie.js';
-import { matchRespToPerson, technieklijst, bouwImportRijen, nieuweImportItems } from './afspraken-logica.js';
+import { matchRespToPerson, technieklijst, bouwImportRijen, nieuweImportItems, zichtbaarAdres } from './afspraken-logica.js';
 
 export { matchRespToPerson };
 
@@ -365,7 +365,7 @@ export function openLocalEventDetail(ev) {
   ].filter(Boolean).join(' · ');
   document.getElementById('ld-datum').textContent = datumTijd;
 
-  const adres = ev.adres || ev.notitie;
+  const adres = zichtbaarAdres(ev);
   const row = (label, val) => val
     ? `<div class="mrow"><span class="mlabel">${label}</span><span class="mval">${escHtml(val)}</span></div>`
     : '';
@@ -383,7 +383,7 @@ export function openLocalEventDetail(ev) {
       : '',
     /\d/.test(telNummer(ev.telefoon)) ? linkRow('Telefoon', ev.telefoon, `tel:${telNummer(ev.telefoon)}`) : row('Telefoon', ev.telefoon),
     linkRow('E-mail',   ev.email,    `mailto:${ev.email}`),
-    ev.adres && ev.notitie ? row('Notitie', ev.notitie) : '',
+    ev.notitie && adres !== ev.notitie ? row('Notitie', ev.notitie) : '',
     row('Technieker', ev.persoon),
   ].filter(Boolean).join('');
 

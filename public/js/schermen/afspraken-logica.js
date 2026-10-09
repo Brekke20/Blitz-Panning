@@ -65,3 +65,11 @@ export function nieuweImportItems(pendingImport, localEvents) {
     );
   }).map(({ _agents, ...rest }) => rest);
 }
+
+// Het adres zoals het in de fiche en op de kaart getoond wordt (B10): het adresveld, of voor geïmporteerde en oudere afspraken
+// (zonder `bron`) de notitie, want daar staat hun adres in het notitieveld. Een handmatige afspraak zonder adres toont haar
+// notitie als Notitie en geeft hier ''. Enkel voor de weergave: routes, kaart, capaciteit en export blijven `adres || notitie` gebruiken.
+export function zichtbaarAdres(ev) {
+  if (ev.adres) return ev.adres;
+  return ev.bron !== 'manueel' && ev.notitie ? ev.notitie : '';
+}
