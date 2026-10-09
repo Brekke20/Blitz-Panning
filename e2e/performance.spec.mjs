@@ -7,6 +7,7 @@ import path from 'node:path';
 import url from 'node:url';
 import { test, expect, startApp, opslagStub } from './helpers.mjs';
 import { STANDAARD_GRENZEN } from '../public/js/kern/dashboard-grenzen.js';
+import { salesStubs, authIkVoor, SALES_GEBRUIKER } from './sales-hulp.mjs';
 
 const MAP = path.dirname(url.fileURLToPath(import.meta.url));
 const FIXTURE = JSON.parse(fs.readFileSync(path.join(MAP, 'fixtures', 'dashboard.json'), 'utf8'));
@@ -288,10 +289,10 @@ test.describe('Performance: kleurgrenzen', () => {
 test.describe('Performance: toegang en storingen', () => {
   for (const rol of ['planner', 'technieker', 'sales']) {
     test(`${rol}: geen tab Beheer (dus geen Performance) en geen enkel dashboard-verzoek`, async ({ page, verzoeken }) => {
-      await startApp(page, { loginRol: rol, overschrijf: { dashboard: dashboardStub(), 'dashboard-instellingen': grenzenStub() } });
-      // De app is klaar: de rol heeft zijn eigen scherm (sales heeft nog geen tabs, enkel een mededeling).
-      if (rol === 'sales') await expect(page.getByRole('heading', { name: 'Het sales-gedeelte volgt' })).toBeVisible();
-      else await expect(page.locator('.tabs-inner .tab:visible').first()).toBeVisible();
+      const extra = rol === 'sales' ? { 'auth-ik': authIkVoor(SALES_GEBRUIKER), ...salesStubs() } : {};
+      await startApp(page, { loginRol: rol, overschrijf: { ...extra, dashboard: dashboardStub(), 'dashboard-instellingen': grenzenStub() } });
+      // De app is klaar: elke rol heeft zijn eigen tabs (sales: Te plannen, Kalender, Route, Afgewerkt).
+      await expect(page.locator('.tabs-inner .tab:visible').first()).toBeVisible();
       await expect(page.getByRole('tab', { name: 'Beheer', exact: true })).toHaveCount(0);
       await expect(page.locator('#tab-beheer')).toHaveCount(0);
       await expect(page.locator('#beheer-tab-performance')).toHaveCount(0);
