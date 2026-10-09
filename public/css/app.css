@@ -1251,6 +1251,17 @@
     .gm-rol { font-size: var(--fs-2xs); color: var(--muted); }
     /* Een tab die de rol niet toestaat (hidden): .tab zet display:flex en zou het attribuut anders overrulen. */
     .tabs-inner .tab[hidden] { display: none !important; }
+    /* UI/UX P2-10 (gsm): smallere tabs, zodat de technieker zijn 4 tabs volledig ziet (alle tabs delen de ruimte); past een rol met veel tabs
+       (beheerder: 8) niet, dan scrollt de balk en tonen "scrollschaduwen" aan de kant waar nog meer staat (alleen zichtbaar bij overloop). */
+    html[data-indeling="smal"] .tab { padding: 0 8px; flex: 1 0 auto; justify-content: center; }
+    html[data-indeling="smal"] .tabs-inner { padding: 0 4px; }
+    html[data-indeling="smal"] .tabs-inner {
+      background:
+        linear-gradient(to right, var(--surface) 30%, transparent) left center / 28px 100% no-repeat local,
+        linear-gradient(to left, var(--surface) 30%, transparent) right center / 28px 100% no-repeat local,
+        linear-gradient(to right, rgba(0, 0, 0, 0.38), transparent) left center / 12px 100% no-repeat scroll,
+        linear-gradient(to left, rgba(0, 0, 0, 0.38), transparent) right center / 12px 100% no-repeat scroll;
+    }
 
 /* v1.10.3: de sticky filterbalk van Rapporten plakt vlak onder de kop en onder de zichtbare melding-
    balken (offline/outbox). De oude vaste top:92px liet een kier of verdween onder de balken. */
