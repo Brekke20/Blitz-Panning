@@ -204,11 +204,6 @@ html[data-indeling="smal"] .sales-kal-grid .day-hdr { height: auto; }
 }
 html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
 
-/* ---- Planningsresultaat (sales-plan.js) ---- */
-.sales-plan-lijst { list-style: none; display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
-.sales-plan-reden { color: var(--text2); font-size: var(--fs-xs); }
-.sales-plan-waarschuwing { color: var(--orange); }
-
 /* ---- Route (sales-route.js, sales-kaart.js) ---- */
 .sales-route-wortel { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
 .sales-route-wortel [hidden] { display: none !important; }

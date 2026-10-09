@@ -99,6 +99,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Interne serverstructuur vernieuwd: gedeelde `netlify/lib/zoho.js` en `http.js`, 14 functies overgezet, identiek gedrag, nieuwe tests.
 - Interne herstructurering: gedeelde fundamenten in `public/js/kern/` (tijd, selecties, toestand met automatisch hertekenen, api, ui).
 - Niets aan de GET van de rapportenlijst (`/api/rapport-archief`): zelfde antwoord en dezelfde lijst van 500; het dashboard leest de lijst en de jaar-archieven rechtstreeks uit de opslag.
+- Sales, proefperiode-feedback (de verkoper werkt zoals de technieker): "Plan deze week" toont het resultaat in hetzelfde venster als bij de technieker ("⚡ Planningsresultaat" met Ingepland, Niet ingepland en de reden per bezoek, ⚠-waarschuwingen en ✕ om te sluiten). Venster en zinnen zijn gedeeld (`plan-resultaat.js`, `plan-resultaat-logica.js`), enkel het woord ("bezoek" i.p.v. "ticket") verschilt.
 
 ### Fixed
 - Tijdvelden en datumvelden openen op Android de klok/kalender bij een tik op het veld zelf, niet enkel op het klokje.

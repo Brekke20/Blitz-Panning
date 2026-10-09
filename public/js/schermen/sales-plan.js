@@ -15,10 +15,9 @@ import { bouwPlanInvoer, verwerkUitkomst, maakReistijdenAdapter } from '../sales
 import { salesToestand, gekozenDatum, wijzig, laadInstellingen, instellingenGeladenVoor } from './sales-data.js';
 import { getoondeVerkoper, schrijfbaarNu } from './sales-verkoper.js';
 import { huidigeGebruiker } from '../kern/sessie.js';
-import { openSalesVenster } from './sales-venster.js';
+import { toonPlanResultaat as toonGedeeldResultaat } from './plan-resultaat.js';
 import { bouwResultaatRegels, weekStartVan } from './sales-plan-logica.js';
 import { foutTekst } from './sales-tekst.js';
-import { el, sectie } from './sales-dom.js';
 
 const GEEN_START = 'Geen startlocatie ingesteld: de ritten starten bij het eerste bezoek. Stel je startadres in via ⚙ Instellingen.';
 const START_NIET_GEVONDEN = 'De startlocatie kon niet opgezocht worden: de ritten starten bij het eerste bezoek. Controleer je startadres via ⚙ Instellingen.';
@@ -44,27 +43,17 @@ async function bepaalDepot(startlocatie) {
   return null;
 }
 
-/** Het venster "Planningsresultaat": regels = { ingepland, nietIngepland, waarschuwingen, bericht? } (zie bouwResultaatRegels). */
+/**
+ * Het resultaatvenster: hetzelfde venster als bij de technieker (plan-resultaat.js). `regels` = { ingepland, nietIngepland, waarschuwingen, bericht? }
+ * (zie bouwResultaatRegels). Een lege uitkomst toont het lege venster; de toast "Geen leads om in te plannen" komt eerder.
+ */
 export function toonPlanResultaat(regels) {
-  return openSalesVenster({
-    titel: 'Planningsresultaat',
-    bouw(body, sluit) {
-      if (regels.bericht) body.append(el('p', { class: 'sales-uitleg', text: regels.bericht }));
-      for (const w of regels.waarschuwingen ?? []) body.append(el('p', { class: 'sales-uitleg sales-plan-waarschuwing', text: `⚠ ${w}` }));
-      const rij = (tekst, extra) => el('li', { class: 'sales-plan-rij' }, el('span', { text: tekst }), extra ? el('div', { class: 'sales-plan-reden', text: extra }) : null);
-      if (regels.ingepland?.length) {
-        body.append(sectie(`Ingepland (${regels.ingepland.length})`, 'sales-plan-ingepland',
-          el('ul', { class: 'sales-plan-lijst' }, ...regels.ingepland.map((r) => rij(`${r.naam} → ${r.datumLabel} ${r.start}`)))));
-      }
-      if (regels.nietIngepland?.length) {
-        body.append(sectie(`Niet ingepland (${regels.nietIngepland.length})`, 'sales-plan-niet',
-          el('ul', { class: 'sales-plan-lijst' }, ...regels.nietIngepland.map((r) => rij(r.naam, r.tekst)))));
-      }
-      if (!regels.ingepland?.length && !regels.nietIngepland?.length) body.append(el('p', { class: 'sales-uitleg', text: 'Er was niets te plannen.' }));
-      const ok = el('button', { type: 'button', class: 'btn btn--primary', text: 'Klaar' });
-      ok.addEventListener('click', sluit);
-      body.append(el('div', { class: 'sales-acties' }, ok));
-    },
+  const leeg = !regels.ingepland?.length && !regels.nietIngepland?.length;
+  toonGedeeldResultaat({
+    bericht: leeg ? [regels.bericht, 'Er was niets te plannen.'].filter(Boolean).join(' ') : regels.bericht,
+    waarschuwingen: regels.waarschuwingen ?? [],
+    ingepland: (regels.ingepland ?? []).map((r) => ({ vet: r.naam, label: `${r.datumLabel} ${r.start}` })),
+    nietIngepland: (regels.nietIngepland ?? []).map((r) => ({ vet: r.naam, reden: r.tekst })),
   });
 }
 
