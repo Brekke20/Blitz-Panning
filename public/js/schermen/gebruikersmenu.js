@@ -1,5 +1,5 @@
 // schermen/gebruikersmenu.js — het gebruikersmenu in de kop, na ⚙ (logins T15): naam en rol van wie ingelogd is,
-// 'Wachtwoord wijzigen', 'Uitloggen' en voor een beheerder een snelkoppeling naar de tab Beheer.
+// 'Wachtwoord wijzigen' en 'Uitloggen'. Geen item voor Beheer: dat is de tab Beheer (geen dubbele ingang).
 // Veiligheid: de naam en rol komen enkel via textContent in de DOM (nooit innerHTML).
 import { registreerActies } from '../kern/ui.js';
 import { afmelden } from '../kern/sessie.js';
@@ -84,7 +84,6 @@ export function toonGebruikersmenu(gebruiker) {
   const hoofd = el('div', 'gm-kop');
   hoofd.append(el('div', 'gm-naam', String(gebruiker.naam ?? '')), el('div', 'gm-rol', rolLabel(gebruiker.rol)));
   menu.append(hoofd, menuItem('gebruiker-wachtwoord', 'Wachtwoord wijzigen'));
-  if (gebruiker.rol === 'beheerder') menu.append(menuItem('gebruiker-beheer', 'Beheer'));
   menu.append(menuItem('gebruiker-uitloggen', 'Uitloggen'));
   wortel.append(knop, menu);
 
@@ -94,7 +93,6 @@ export function toonGebruikersmenu(gebruiker) {
   afmeldActies = registreerActies(wortel, {
     'gebruiker-menu': () => zetOpen(!menu.classList.contains('open')),
     'gebruiker-wachtwoord': () => { zetOpen(false); toonWachtwoordWijzigen({ verplicht: false }); },
-    'gebruiker-beheer': () => { zetOpen(false); document.getElementById('tab-beheer')?.click(); },
     'gebruiker-uitloggen': () => { zetOpen(false); meldAf(); },
   });
   // Eén keer per document: buiten klikken en Escape sluiten het menu.

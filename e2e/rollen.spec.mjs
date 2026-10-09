@@ -113,7 +113,7 @@ test.describe('sales', () => {
 });
 
 test.describe('gebruikersmenu', () => {
-  test('toont de naam als tekst (geen HTML), de rol en de beheerderslink', async ({ page }) => {
+  test('toont de naam als tekst (geen HTML), de rol en geen dubbele Beheer-ingang', async ({ page }) => {
     await startApp(page, { loginRol: 'beheerder', loginGebruiker: { naam: '<b>x</b> Jansen' } });
     const knop = page.locator('.gebruiker-btn');
     await expect(knop).toHaveAttribute('aria-expanded', 'false');
@@ -124,11 +124,12 @@ test.describe('gebruikersmenu', () => {
     await expect(menu.locator('.gm-rol')).toHaveText('Beheerder');
     await expect(menu.locator('b')).toHaveCount(0);
     await expect(menu.getByRole('menuitem', { name: 'Wachtwoord wijzigen' })).toBeVisible();
-    await expect(menu.getByRole('menuitem', { name: 'Beheer' })).toBeVisible();
+    await expect(menu.getByRole('menuitem', { name: 'Beheer' })).toHaveCount(0); // Beheer is de tab, niet ook een menu-item
+    await expect(menu.getByRole('menuitem')).toHaveText(['Wachtwoord wijzigen', 'Uitloggen']);
     await expect(menu.getByRole('menuitem', { name: 'Uitloggen' })).toBeVisible();
   });
 
-  test('een planner krijgt geen Beheer-link', async ({ page }) => {
+  test('een planner heeft geen Beheer in het menu', async ({ page }) => {
     await startApp(page, { loginRol: 'planner' });
     await page.locator('.gebruiker-btn').click();
     await expect(page.locator('.gebruiker-menu').getByRole('menuitem', { name: 'Uitloggen' })).toBeVisible();

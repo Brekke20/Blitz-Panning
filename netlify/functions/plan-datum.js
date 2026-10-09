@@ -9,7 +9,7 @@ import { maakCors, v2Json, v2Methode } from '../lib/http.js';
 import { getStore } from '@netlify/blobs';
 import { beveiligV2 } from '../lib/beveiligd.js';
 import { logVoorVerzoek } from '../lib/activiteit.js';
-import { eisEigenTicket } from '../lib/eigen-ticket.js';
+import { eisEigenTicket, STATUS_TE_PLANNEN, STATUS_PENDING, STATUS_GEPLAND } from '../lib/eigen-ticket.js';
 import { datumInBrussel } from '../lib/bevestigingslink.js';
 
 // Instantie op moduleniveau: de tokencache (55 min) leeft zolang de functie warm is.
@@ -42,7 +42,7 @@ const kern = async (req, context, gebruiker, haalStore = getStore) => {
     const { token, orgId } = await zoho.haalToegang();
 
     // Een technieker met "Mag zelf plannen" wijzigt enkel de datum/tijd van zijn eigen tickets.
-    const eis = await eisEigenTicket({ gebruiker, ticketId, zoho, toegang: { token, orgId } });
+    const eis = await eisEigenTicket({ gebruiker, ticketId, zoho, toegang: { token, orgId }, statussen: [...STATUS_TE_PLANNEN, ...STATUS_PENDING, ...STATUS_GEPLAND] });
     if (!eis.ok) return v2Json(eis.status, eis.body, CORS);
 
     const patchRes = await zoho.verzoek(`/tickets/${ticketId}`, {
