@@ -19,6 +19,7 @@ const COORD = vries(['beheerder', 'planner']);
 const INTERN = vries(['beheerder', 'planner', 'technieker']);
 const ALLE = vries(['beheerder', 'planner', 'technieker', 'sales']);
 const BEHEER_SALES = vries(['beheerder', 'sales']);
+const ENKEL_SALES = vries(['sales']);
 
 export const RECHTEN = {
   // tickets en setup controleren zelf geen methode: '*' houdt elke methode achter de login.
@@ -72,6 +73,10 @@ export const RECHTEN = {
   // Sales-planner: beheerder en sales. Wie welk verkoperblob mag lezen/schrijven staat in netlify/lib/sales-toegang.js.
   'sales':                { GET: BEHEER_SALES, PATCH: BEHEER_SALES, DELETE: BEHEER_SALES },
   'postcode':             { GET: BEHEER_SALES },
+  // Importeren enkel door de verkoper zelf, altijd in het eigen blob. De dagelijkse opruiming is open (geplande functie,
+  // idempotent: wist enkel wat al ouder dan 12 maanden is), net als activiteit-opruimen.
+  'sales-import':         { POST: ENKEL_SALES },
+  'sales-opruimen':       { '*': 'open' },
   // Klantlink (ondertekend) en machine-sleutel (PLANNING_EXPORT_API_KEY): eigen controles in de functie.
   'confirm-afspraak':     { '*': 'open' },
   'planning-export':      { '*': 'open' },

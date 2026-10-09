@@ -45,6 +45,9 @@
 [functions.postcode]
   timeout = 26
 
+[functions.sales-import]
+  timeout = 26
+
 [functions.rapport-vangnet]
   schedule = "*/5 * * * *"
   timeout = 30

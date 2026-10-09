@@ -17,7 +17,7 @@ test('dekking: elke functie onder netlify/functions/ heeft een rij in RECHTEN', 
   const functies = readdirSync(join(wortel, 'netlify', 'functions'), { withFileTypes: true })
     .filter(d => d.isFile() && d.name.endsWith('.js'))
     .map(d => d.name.replace(/\.js$/, ''));
-  assert.equal(functies.length, 44); // + sales, postcode (sales-planner T11)
+  assert.equal(functies.length, 46); // + sales, postcode (sales-planner T11), sales-import, sales-opruimen (T12)
   const ontbreekt = functies.filter(f => !Object.hasOwn(RECHTEN, f));
   assert.deepEqual(ontbreekt, []);
 });
@@ -87,6 +87,12 @@ test('matrix: sales en postcode enkel voor beheerder en sales', () => {
   for (const m of ['POST', 'PUT']) assert.deepEqual(rollen('sales', m), [], `sales ${m}`);
   assert.deepEqual(rollen('postcode', 'GET'), [B, S]);
   for (const m of ['POST', 'PUT', 'PATCH', 'DELETE']) assert.deepEqual(rollen('postcode', m), [], `postcode ${m}`);
+});
+
+test('matrix: sales-import enkel POST voor de rol sales; sales-opruimen is open', () => {
+  assert.deepEqual(rollen('sales-import', 'POST'), [S]);
+  for (const m of ['GET', 'PUT', 'PATCH', 'DELETE']) assert.deepEqual(rollen('sales-import', m), [], `sales-import ${m}`);
+  for (const m of ['GET', 'POST']) assert.equal(rolIsToegelaten('sales-opruimen', m, B), 'open', `sales-opruimen ${m}`);
 });
 
 test('matrix: confirm-afspraak en planning-export zijn open', () => {

@@ -1,5 +1,7 @@
-// Sales-planner: opruimregel (pure logica, geen opslag). Afgewerkte leads en grafstenen worden
-// BEWAAR_MAANDEN na het laatste bezoek / de verwijdering gewist. `ruimAllesOp` (opslag) volgt in Task 12.
+// Sales-planner: opruimregel. `ruimOp` is pure logica: afgewerkte leads en grafstenen worden BEWAAR_MAANDEN na het
+// laatste bezoek / de verwijdering gewist. `ruimAllesOp` past dat toe op alle verkoperblobs (dagelijkse geplande functie).
+import { muteerSales } from './sales-opslag.js';
+import { logActiviteit } from './activiteit.js';
 
 export const BEWAAR_MAANDEN = 12;
 
@@ -51,4 +53,46 @@ export function ruimOp(data, nu) {
     gewist,
     grafstenenGewist: grafstenen.length - grafBewaard.length,
   };
+}
+
+const SYSTEEM = Object.freeze({ id: 'systeem', naam: 'Systeem' });
+const PREFIX = 'sales/';
+
+/**
+ * Ruimt ALLE verkoperblobs `sales/*` op (ook van geblokkeerde of verwijderde verkopers): per blob `ruimOp`, enkel een
+ * schrijfactie bij wijziging (idempotent), en per blob met gewiste leads één logregel (enkel een aantal, door Systeem).
+ * Een blob die faalt stopt de rest niet; het aantal mislukte blobs staat dan als `mislukt` in het resultaat.
+ * -> { gewist, grafstenenGewist, mislukt? }
+ */
+export async function ruimAllesOp({ store, nu }) {
+  const { blobs = [] } = (await store.list({ prefix: PREFIX })) ?? {};
+  let gewist = 0;
+  let grafstenenGewist = 0;
+  let mislukt = 0;
+  for (const { key } of blobs) {
+    const verkoperId = key.slice(PREFIX.length);
+    if (!verkoperId) continue;
+    try {
+      const uitkomst = await muteerSales(store, verkoperId, {
+        wijzig: data => {
+          const r = ruimOp(data, nu);
+          if (r.gewist.length === 0 && r.grafstenenGewist === 0) return null;
+          return { data: r.data, extra: { aantal: r.gewist.length, grafstenen: r.grafstenenGewist } };
+        },
+      });
+      if (uitkomst.status === 'storing') { mislukt++; console.error('[sales-opruimen] blob niet bewaard'); continue; }
+      if (uitkomst.status !== 'ok') continue;
+      gewist += uitkomst.extra.aantal;
+      grafstenenGewist += uitkomst.extra.grafstenen;
+      if (uitkomst.extra.aantal > 0) {
+        await logActiviteit(store, {
+          gebruiker: SYSTEEM, actie: 'sales-lead-verwijderd', onderwerp: verkoperId, details: { aantal: uitkomst.extra.aantal },
+        }, { nu: () => nu });
+      }
+    } catch (e) {
+      mislukt++;
+      console.error('[sales-opruimen] blob mislukt (' + (e?.name || 'Error') + ')');
+    }
+  }
+  return { gewist, grafstenenGewist, ...(mislukt ? { mislukt } : {}) };
 }
