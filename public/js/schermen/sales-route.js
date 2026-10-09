@@ -7,21 +7,23 @@
 // bv. nadat een adres van postcode naar volledig adres ging (melding "Route herberekend").
 // De kaart toont de route zoals bij de technieker: de TomTom-lijn met de drukte-kleuring (voor een toekomstige dag het verwachte verkeer per
 // wegvak via /api/drukte, daarna ingekleurd), wegenwerken, wegafsluitingen met waarschuwing, de legende en de vertraging in de samenvatting.
+// Bovenaan staat de weekstrook van de technieker: de werkdagen van de gekozen week met het aantal bezoeken en of ze bevestigd zijn; een klik kiest die dag.
 // De routekleur en de drukte-kleuring komen uit de instellingen van de verkoper (standaard amber en aan, zoals bij de technieker).
 // Een lead die enkel op de postcode staat ("ongeveer") is zo te zien in de lijst en op de kaart. Alle leadgegevens via textContent.
 import { toast, maakActiveerbaar } from '../kern/ui.js';
 import { apiVerzoek } from '../kern/api.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { geocacheLookup, geocacheStore } from '../kern/opslag.js';
-import { fmtSec, verschuifDatum, timeStrToMin } from '../kern/tijd.js';
+import { fmtSec, verschuifDatum, timeStrToMin, localISO } from '../kern/tijd.js';
 import { routeVertraging, haalDrukteDetail } from './route-tijden.js';
+import { renderWeekstrook } from './week-strook.js';
 import { ontleedAdres } from '../sales/adres.js';
 import { startScherm } from './sales-schil.js';
 import { salesToestand, gekozenDatum, zetGekozenDatum } from './sales-data.js';
 import { schrijfbaarNu } from './sales-verkoper.js';
 import { openLeadDetail } from './sales-detail.js';
 import { openResultaat } from './sales-resultaat.js';
-import { bouwRouteStops, controleerKeten, routeHandtekening, berekenRoute } from './sales-route-logica.js';
+import { bouwRouteStops, controleerKeten, routeHandtekening, berekenRoute, weekDagInfo } from './sales-route-logica.js';
 import { maakSalesKaart, ONGEVEER_TEKST } from './sales-kaart.js';
 import { KAART_LAGEN } from './route-kaart.js';
 import { dagLabel } from './sales-tekst.js';
@@ -82,6 +84,8 @@ function bouwSkelet(inhoud) {
   const label = el('span', { class: 'sales-route-datum', 'aria-live': 'polite' });
   const kiezer = el('input', { type: 'date', class: 'sales-route-datumveld', 'aria-label': 'Kies een dag' });
   const dagkiezer = el('div', { class: 'sales-route-dagkiezer' }, vorige, label, volgende, kiezer);
+  // De weekstrook van de technieker (week-strook.js): per werkdag het aantal bezoeken en of ze bevestigd zijn; een klik kiest die dag.
+  const weekstrook = el('div', { class: 'week-strip sales-route-weekstrook', role: 'group', 'aria-label': 'Week van de gekozen datum' });
   const samenvatting = el('div', { class: 'sales-route-samenvatting' });
   const melding = el('div', { class: 'sales-route-melding', role: 'status', hidden: true });
   const wegafsluiting = el('div', { class: 'sales-route-wegafsluiting', role: 'alert', hidden: true, text: WEGAFSLUITING_TEKST });
@@ -93,7 +97,7 @@ function bouwSkelet(inhoud) {
   const kaartVak = el('div', { class: 'sales-route-kaartvak' }, kaartEl, kaartNoot);
   const lijstVak = el('div', { class: 'sales-route-lijstvak' }, nota, lijst);
   const inhoudVak = el('div', { class: 'sales-route-inhoud' }, lijstVak, kaartVak);
-  const wortel = el('div', { class: 'sales-route-wortel' }, dagkiezer, samenvatting, wegafsluiting, melding, leeg, inhoudVak);
+  const wortel = el('div', { class: 'sales-route-wortel' }, dagkiezer, weekstrook, samenvatting, wegafsluiting, melding, leeg, inhoudVak);
   inhoud.replaceChildren(wortel);
 
   const naarDatum = (iso) => { if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) zetGekozenDatum(iso); };
@@ -102,7 +106,7 @@ function bouwSkelet(inhoud) {
   kiezer.addEventListener('change', () => naarDatum(kiezer.value));
 
   return {
-    wortel, label, kiezer, samenvatting, wegafsluiting, melding, nota, lijst, leeg, kaartEl, kaartNoot, inhoudVak,
+    wortel, label, kiezer, weekstrook, samenvatting, wegafsluiting, melding, nota, lijst, leeg, kaartEl, kaartNoot, inhoudVak,
     kaart: null, laatste: null, route: null, bezigSig: null, aanvraag: 0, depot: null, depotVoor: null, depotBezig: false,
     toonde: false, kaartHerstel: false, wegToastSig: null,
   };
@@ -189,6 +193,10 @@ function teken(inhoud) {
   const datum = gekozenDatum();
   s.label.textContent = dagLabel(datum);
   s.kiezer.value = datum;
+  renderWeekstrook(s.weekstrook, {
+    datum, werkdagen: toestand.instellingen.werkdagen, vandaag: localISO(new Date()), kies: zetGekozenDatum,
+    dagInfo: (iso) => weekDagInfo(toestand.leads, iso),
+  });
 
   const stops = bouwRouteStops(toestand.leads, datum, { standaardDuurMin: toestand.instellingen.bezoekDuurMin });
   const sleutel = `${toestand.gebruikerId ?? ''}|${datum}`;

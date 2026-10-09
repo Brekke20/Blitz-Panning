@@ -29,6 +29,21 @@ export function bouwRouteStops(leads, datum, { standaardDuurMin = STANDAARD_DUUR
     });
 }
 
+/**
+ * De regel van één dag in de weekstrook bovenaan de Route-tab (zelfde vorm als die van de technieker): het aantal bezoeken en of ze bevestigd zijn.
+ * Een voorgesteld bezoek moet de verkoper nog bevestigen; een bevestigd of vast bezoek staat vast.
+ * -> { klasse: 'leeg' | 'nodig' | 'klaar', status, aantal, aria }
+ */
+export function weekDagInfo(leads, datum) {
+  const stops = bouwRouteStops(leads, datum);
+  const n = stops.length;
+  const aantal = n === 1 ? '1 bezoek' : `${n} bezoeken`;
+  if (!n) return { klasse: 'leeg', status: '—', aantal, aria: `${aantal}, niets gepland` };
+  const open = stops.filter((x) => !x.vast).length;
+  if (open) return { klasse: 'nodig', status: '☎ bevestigen', aantal, aria: `${aantal}, ${open} te bevestigen` };
+  return { klasse: 'klaar', status: '✓ bevestigd', aantal, aria: `${aantal}, alle bezoeken bevestigd` };
+}
+
 /** Geschatte ritten tussen opeenvolgende punten (haversine x 1,3 km aan 50 km/u): n-1 legs, zonder coordinaten null. */
 export function schatLegs(punten) {
   const legs = [];

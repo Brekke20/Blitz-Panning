@@ -208,6 +208,10 @@ html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
 .sales-route-wortel { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
 .sales-route-wortel [hidden] { display: none !important; }
 .sales-route-dagkiezer { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.sales-route-weekstrook { border: 1px solid var(--border); border-radius: var(--r); padding: var(--sp-2); }
+/* "2 bezoeken" is langer dan "2 stops": een dag iets breder, zodat het niet afbreekt (op een telefoon scrollen de dagen binnen de strook). */
+.sales-route-weekstrook .ws-dag { flex-basis: 96px; min-width: 96px; }
+.sales-route-weekstrook .ws-aantal { white-space: nowrap; }
 .sales-route-dagknop { min-width: 44px; min-height: 40px; font-size: var(--fs-lg); line-height: 1; padding: 4px 12px; }
 .sales-route-datum { font-weight: 700; min-width: 7ch; text-align: center; }
 .sales-route-datumveld {
