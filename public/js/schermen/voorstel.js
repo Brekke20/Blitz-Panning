@@ -279,7 +279,8 @@ export async function sendProposal() {
       }),
     });
     let leesbaar = true;
-    const data = await res.json().catch(() => { leesbaar = false; return { error: 'HTTP ' + res.status }; }); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>'
+    let data = await res.json().catch(() => null); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>'
+    if (!data || typeof data !== 'object') { leesbaar = false; data = { error: 'HTTP ' + res.status }; } // ook een JSON-body null is onleesbaar (re-review N2)
     // Eindreview I1: een niet-ok status is nooit "gelukt", ook als de body geen `error` heeft (bv. een Netlify-time-out als JSON).
     if (data.error || !res.ok) {
       if (!data.error) data.error = 'HTTP ' + res.status;
@@ -413,7 +414,7 @@ async function naOnzekerVoorstel(ticketId, start, startWand, verwacht, registerI
     // Eindreview I3: de mail is maar naar een deel van de ontvangers vertrokken. Een nieuwe verzending zou alle ontvangers opnieuw mailen
     // (ook wie hem al kreeg): de knop blijft dicht, de planner stuurt de ontbrekende mail in Zoho zelf.
     zetVoorstelKnop(ticketId, 'dicht');
-    toast('⚠ De mail is maar naar een deel van de ontvangers vertrokken — kijk in Zoho na en stuur de ontbrekende mail daar.'
+    toast('⚠ De mail is maar naar een deel van de ontvangers vertrokken — kijk in Zoho na en stuur de ontbrekende mail daar (herlaad de pagina als het rechtgezet is).'
       + (ok ? ' Voor wie de mail al kreeg is "verzonden" aangevinkt.' : ' Aanvinken als verzonden lukte niet: herlaad de pagina.'), 8000);
     return;
   }

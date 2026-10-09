@@ -162,7 +162,8 @@ export async function verstuurRapport(rapportId, btn, ontvangers) {
       body:    JSON.stringify({ ticketId: r.ticketId, html, ticketNumber: r.ticketNumber }),
     });
     let leesbaar = true;
-    const data = await res.json().catch(() => { leesbaar = false; return { error: 'HTTP ' + res.status }; }); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>'
+    let data = await res.json().catch(() => null); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>'
+    if (!data || typeof data !== 'object') { leesbaar = false; data = { error: 'HTTP ' + res.status }; } // ook een JSON-body null is onleesbaar (re-review N2)
     // Eindreview I1: een niet-ok status is nooit "gelukt", ook als de body geen `error` heeft (bv. een Netlify-time-out als JSON).
     if (data.error || !res.ok) {
       const eigenFout = leesbaar && typeof data.error === 'string' && data.error !== ''; // een echte { error } van onze functie

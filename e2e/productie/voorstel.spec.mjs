@@ -528,7 +528,7 @@ test.describe('voorstel: onzeker resultaat, controle of de mail al weg is (Q1)',
       stubs: { tickets: metP1({ emailEindklant: 'klant@test.be' }) },
     });
     // Eindreview I3: de mail is maar naar een deel vertrokken: de knop blijft DICHT (een nieuwe verzending zou iedereen opnieuw mailen).
-    await expect(toastTekst(page)).toHaveText('⚠ De mail is maar naar een deel van de ontvangers vertrokken — kijk in Zoho na en stuur de ontbrekende mail daar. Voor wie de mail al kreeg is "verzonden" aangevinkt.');
+    await expect(toastTekst(page)).toHaveText('⚠ De mail is maar naar een deel van de ontvangers vertrokken — kijk in Zoho na en stuur de ontbrekende mail daar (herlaad de pagina als het rechtgezet is). Voor wie de mail al kreeg is "verzonden" aangevinkt.');
     await expect(verstuurKnop(page)).toBeDisabled();
     await expect(verstuurKnop(page)).toHaveText('✉️ Verstuur voorstel');
     await expect(page.locator('#proposal-overlay')).toHaveClass(/open/);
@@ -573,6 +573,7 @@ test.describe('voorstel: onzeker resultaat, controle of de mail al weg is (Q1)',
   for (const [naam, antwoord] of [
     ['500', { status: 500, json: { errorType: 'Sandbox.Timedout', errorMessage: 'Task timed out after 26.00 seconds' } }],
     ['502', { status: 502, json: { errorMessage: 'Task timed out' } }],
+    ['500 (JSON-body null)', { status: 500, raw: 'null' }], // re-review N2: nooit een TypeError die de knop vrijgeeft
   ]) {
     test(`propose ${naam} met een JSON-body zonder error en de mail is al verzonden: mailcontrole, voorstel aangevinkt, register niet gewist`, async ({ page, verzoeken }) => {
       const z = await start(page, verzoeken, { paden: ['/api/propose', '/api/voorstel-status'], httpFouten: [{ pad: '/api/propose', status: antwoord.status }] });

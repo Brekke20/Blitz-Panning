@@ -590,6 +590,7 @@ test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg 
     // Eindreview I1: een foutstatus met een JSON-body zonder `error` (bv. een Netlify-time-out) is nooit "gelukt".
     ['een 500 met een JSON-body zonder error', { status: 500, json: { errorType: 'Sandbox.Timedout', errorMessage: 'Task timed out after 26.00 seconds' } }, ''],
     ['een 502 met een JSON-body zonder error', { status: 502, json: { errorMessage: 'Task timed out' } }, ''],
+    ['een 200 met JSON-body null', { status: 200, raw: 'null' }, ''], // re-review N2: geen TypeError, wel de mailcontrole
   ]) {
     test(`${naam}: de mailcontrole beslist: niet verzonden geeft de knop vrij, geen statusverzoeken`, async ({ page, verzoeken }) => {
       const z = await start(page, verzoeken, { paden: ['/api/send-rapport'], httpFouten: antwoord.status >= 400 ? [{ pad: '/api/send-rapport', status: antwoord.status }] : [] });
