@@ -75,8 +75,8 @@ export const CDN_VAST = lijstUitSw('CDN_VAST');
 export const CDN_LUI = lijstUitSw('CDN_LUI'); // in CDN_VAST, maar niet bij de installatie opgehaald (ExcelJS)
 export const CACHE_NAME = tekstUitSw('CACHE_NAME');
 export const EXTERN_CACHE = tekstUitSw('EXTERN_CACHE');
-// De bevroren kopie van de service worker van main (v25), voor het updatepad (N4).
-const OUDE_SW = fs.readFileSync(path.join(MAP, 'fixtures', 'sw-v25-main.js'), 'utf8');
+// De bevroren kopie van de service worker van main (v27, live sinds v1.10.3), voor het updatepad (N4).
+const OUDE_SW = fs.readFileSync(path.join(MAP, 'fixtures', 'sw-v27-main.js'), 'utf8');
 
 const pasPatroon = (patroon, u) => (typeof patroon === 'string'
   ? (patroon.startsWith('/') ? u.pathname === patroon : u.href.includes(patroon))
