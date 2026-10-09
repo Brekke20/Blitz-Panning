@@ -435,6 +435,24 @@ test('auth-ik: gebruiker met moetWachtwoordWijzigen krijgt 200 (niet 403) via wr
   assert.equal((await res.json()).moetWachtwoordWijzigen, true);
 });
 
+test('auth-ik: Blobs-fout na de geslaagde wrappercontrole -> 503 opslag-storing (geen 500, geen 401)', async () => {
+  const o = opzet();
+  const oorspronkelijk = o.echt.get.bind(o.echt);
+  let leesbeurten = 0;
+  o.echt.get = async (key, opties) => {
+    if (key === 'gebruikers' && ++leesbeurten >= 2) throw new Error('Blobs onbereikbaar (geheim detail)');
+    return oorspronkelijk(key, opties);
+  };
+  const token = tokenVoor('u-jan', 1, nuS() + 20 * 86400);
+  const res = await o.ik(get('auth-ik', metCookie(token)));
+  assert.equal(leesbeurten, 2, 'de wrapper las eenmaal, de kern een tweede keer');
+  assert.equal(res.status, 503);
+  const body = await res.json();
+  assert.equal(body.code, 'opslag-storing');
+  assert.ok(!JSON.stringify(body).includes('geheim detail'));
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+});
+
 test('auth-ik: ongeldig token, geblokkeerde gebruiker of verouderde sessieVersie -> 401', async () => {
   const o = opzet();
   for (const t of ['rommel', tokenVoor('u-blok', 1, nuS() + 1000), tokenVoor('u-jan', 99, nuS() + 1000)]) {

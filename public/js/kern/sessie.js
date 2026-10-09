@@ -84,29 +84,89 @@ function vereis(naam) {
   return ui[naam];
 }
 
-async function laad() {
-  for (let ronde = 0; ronde < MAX_RONDES; ronde++) {
-    let res = null;
-    try { res = await globalThis.fetch('/api/auth-ik'); } catch { res = null; }
+// Eén auth-ik-verzoek, ingedeeld. Gooit nooit: alles wat geen bruikbaar antwoord is wordt een soort.
+//   ok (200 met gebruiker) · 401 · storing (503) · serverfout (andere status, of 200 zonder geldige JSON: captive portal, proxyfoutpagina)
+//   netwerk (fetch gooit). `ms` = hoe lang het verzoek duurde.
+async function haalAuthIk() {
+  const t0 = Date.now();
+  const klaar = (uitkomst) => ({ ...uitkomst, ms: Date.now() - t0 });
+  let res;
+  try { res = await globalThis.fetch('/api/auth-ik'); } catch { return klaar({ soort: 'netwerk' }); }
+  if (res.status === 503) return klaar({ soort: 'storing' });
+  if (res.status === 401) {
+    let body = null;
+    try { body = await res.json(); } catch { /* geen json */ }
+    return klaar({ soort: '401', body });
+  }
+  if (!res.ok) return klaar({ soort: 'serverfout' });
+  let data = null;
+  try { data = await res.json(); } catch { /* geen json */ }
+  if (!data || typeof data !== 'object' || !data.gebruiker || typeof data.gebruiker.id !== 'string' || typeof data.gebruiker.rol !== 'string') {
+    return klaar({ soort: 'serverfout' });
+  }
+  return klaar({ soort: 'ok', data });
+}
 
-    // Netwerkfout of opslagstoring: gecachte gebruiker (offline start), anders "geen verbinding" tot opnieuw proberen.
-    if (!res || res.status === 503) {
-      if (res) meldOpslagStoring();
-      const cache = leesCache();
-      if (cache) return neemOver(cache, null, undefined);
+// Met een gecachte sessie wacht de opstart hooguit zo lang op auth-ik (eindreview I2); daarna start de app uit de cache en
+// verwerkt de nog lopende aanvraag op de achtergrond.
+export const KORTE_LIMIET_MS = 5000;
+let netwerkMs = 0;           // tijd die een opstart met gecachte sessie op auth-ik wachtte (voor het resterende synchronisatiebudget)
+let uitCacheGestart = false; // het laatste laadSessie startte uit de cache i.p.v. een geslaagd auth-ik
+
+export function laatsteOpstartNetwerkMs() { return netwerkMs; }
+export function startteUitCache() { return uitCacheGestart; }
+
+const WACHT_OP_TIJD = Symbol('auth-ik-te-traag');
+function metLimiet(belofte, ms) {
+  let timer;
+  const te_traag = new Promise((resolve) => { timer = setTimeout(() => resolve(WACHT_OP_TIJD), ms); });
+  return Promise.race([belofte, te_traag]).finally(() => clearTimeout(timer));
+}
+
+// Een late (na de korte limiet binnengekomen) auth-ik-uitkomst: de app draait al uit de cache. Een 401 of een verplichte
+// wachtwoordwijziging opent het gewone scherm; een 200 ververst gebruiker/rechten (een andere gebruiker herlaadt de pagina).
+function verwerkLaat(uitkomst) {
+  if (uitkomst.soort === '401' || (uitkomst.soort === 'ok' && uitkomst.data.moetWachtwoordWijzigen === true)) {
+    laadSessie().catch((fout) => console.warn('Sessie hervalideren mislukt:', fout));
+  } else if (uitkomst.soort === 'ok') {
+    neemOver(uitkomst.data.gebruiker, uitkomst.data.rechten, uitkomst.data.lokaleDev === true);
+    uitCacheGestart = false;
+  }
+}
+
+async function laad() {
+  netwerkMs = 0;
+  uitCacheGestart = false;
+  for (let ronde = 0; ronde < MAX_RONDES; ronde++) {
+    const cache = leesCache();
+    const aanvraag = haalAuthIk();
+    const eerste = cache ? await metLimiet(aanvraag, KORTE_LIMIET_MS) : await aanvraag;
+    if (eerste === WACHT_OP_TIJD) {
+      netwerkMs = KORTE_LIMIET_MS;
+      uitCacheGestart = true;
+      aanvraag.then(verwerkLaat, () => {});
+      return neemOver(cache, null, undefined);
+    }
+    const uitkomst = eerste;
+    // Enkel een opstart MET gecachte sessie telt mee voor het synchronisatiebudget; wie zich net aanmeldde (geen cache) wacht niet op een
+    // tijdsplafond maar op zichzelf.
+    netwerkMs = cache ? uitkomst.ms : 0;
+
+    // Netwerkfout, opslagstoring of een onbruikbaar antwoord (5xx, captive portal): gecachte gebruiker (offline start),
+    // anders "geen verbinding" tot opnieuw proberen. Een latere 401 op een gewone aanroep opent het inlogscherm.
+    if (uitkomst.soort === 'netwerk' || uitkomst.soort === 'storing' || uitkomst.soort === 'serverfout') {
+      if (uitkomst.soort === 'storing') meldOpslagStoring();
+      if (cache) { uitCacheGestart = true; return neemOver(cache, null, undefined); }
       await vereis('toonGeenVerbinding')();
       continue;
     }
-    if (res.status === 401) {
-      let body = null;
-      try { body = await res.json(); } catch { /* geen json */ }
+    if (uitkomst.soort === '401') {
       wisCache(); // de bewaarde gebruiker hoort bij een sessie die niet meer bestaat
-      await vereis('toonInloggen')({ setupNodig: body?.setupNodig === true });
+      await vereis('toonInloggen')({ setupNodig: uitkomst.body?.setupNodig === true });
       continue;
     }
-    if (!res.ok) throw new Error('auth-ik: HTTP ' + res.status);
-    const data = await res.json();
-    if (data?.moetWachtwoordWijzigen === true) {
+    const data = uitkomst.data;
+    if (data.moetWachtwoordWijzigen === true) {
       await vereis('toonWachtwoordWijzigen')();
       continue;
     }

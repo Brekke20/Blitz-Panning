@@ -6,9 +6,9 @@ import './inloggen.js';                       // registreert de loginschermen bi
 import { toonGebruikersmenu } from './gebruikersmenu.js';
 import { toonRolwisselaar } from './rolwisselaar.js';  // testmodus op een lokale dev-server: kies de rol (logins T19)
 import { registreerTabs, tabsVoorRol, registreerStart, startVoorRol, zetActieveRol } from '../kern/navigatie.js';
-import { laadSessie, huidigeGebruiker, registreerAfmeldHaak } from '../kern/sessie.js';
+import { laadSessie, huidigeGebruiker, registreerAfmeldHaak, laatsteOpstartNetwerkMs } from '../kern/sessie.js';
 import { claimToestel, geefToestelVrij } from '../kern/eigenaar.js';
-import { synchroniseerInstellingen, wisInstellingenCache } from '../kern/instellingen-sync.js';
+import { synchroniseerInstellingen, wisInstellingenCache, resterendSyncBudget } from '../kern/instellingen-sync.js';
 import { toast } from '../kern/ui.js';
 
 // De zes bestaande tabs van index.html (de knoppen `tab-<id>`): setTab laadt de inhoud zelf, dus er valt hier niets te laden.
@@ -135,8 +135,8 @@ export async function startNaInlog(opstart) {
   claimToestel(globalThis.localStorage, globalThis.sessionStorage, gebruiker.id);
   pasRolToe(gebruiker);
   toonRolwisselaar(); // enkel in ?test op een lokale dev-server; anders niets
-  // Instellingen van de server in de lokale cache zetten (logins T16) vóór de app ze leest; faalt nooit hard: bij een fout start de app met de lokale cache.
-  try { await synchroniseerInstellingen(gebruiker); } catch (fout) { console.warn('Instellingen synchroniseren mislukt; de lokale cache wordt gebruikt:', fout); }
+  // Instellingen van de server in de lokale cache zetten (logins T16) vóór de app ze leest (met het budget dat na een trage auth-ik overblijft, zodat de opstart ≤ ~8 s blijft); faalt nooit hard: bij een fout start de app met de lokale cache.
+  try { await synchroniseerInstellingen(gebruiker, { budgetMs: resterendSyncBudget(laatsteOpstartNetwerkMs()) }); } catch (fout) { console.warn('Instellingen synchroniseren mislukt; de lokale cache wordt gebruikt:', fout); }
   const start = startVoorRol(gebruiker.rol);
   if (start) start(); else opstart();
 }

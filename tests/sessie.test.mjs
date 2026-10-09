@@ -1,4 +1,4 @@
-import { test, beforeEach } from 'node:test';
+import { test, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 // sessie.js houdt module-toestand bij: elke test laadt een verse instantie.
@@ -18,6 +18,8 @@ async function nieuweSessie({ antwoorden = [], cache = null, zoek = '' } = {}) {
     aanroepen.push({ pad, init });
     const a = antwoorden.shift();
     if (a instanceof Error) throw a;
+    if (typeof a === 'function') return a(); // eigen (bv. hangende) afhandeling
+    if (typeof a.tekst === 'string') return new Response(a.tekst, { status: a.status }); // niet-JSON-body
     return new Response(a.json === undefined ? null : JSON.stringify(a.json), { status: a.status });
   };
   const m = await import('../public/js/kern/sessie.js?v=' + (++teller));
@@ -225,4 +227,86 @@ test('meldOpslagStoring toont een toast en gooit nooit (ook zonder document)', a
   globalThis.document = { getElementById: () => el };
   m.meldOpslagStoring();
   assert.match(el.textContent, /opnieuw/i);
+});
+
+// ---- eindreview I1: onbruikbare antwoorden vallen terug op de cache ----
+for (const [naam, antwoord] of [
+  ['500', { status: 500, json: { error: 'x' } }],
+  ['502', { status: 502, tekst: '<html>Bad gateway</html>' }],
+  ['504', { status: 504, tekst: '' }],
+  ['200 met HTML (captive portal)', { status: 200, tekst: '<html><body>Log in op de wifi</body></html>' }],
+  ['200 met JSON zonder gebruiker', { status: 200, json: { ok: true } }],
+]) {
+  test(`auth-ik ${naam} met cache: de app start met de gecachte gebruiker (geen loginscherm, geen worp)`, async () => {
+    const { m, aanroepen } = await nieuweSessie({ antwoorden: [antwoord], cache: tim });
+    m.zetInlogUi({ toonInloggen: async () => { assert.fail('geen loginscherm'); }, toonGeenVerbinding: async () => { assert.fail('geen verbinding-scherm'); } });
+    const g = await m.laadSessie();
+    assert.deepEqual(g, tim);
+    assert.equal(aanroepen.length, 1);
+    assert.equal(m.startteUitCache(), true);
+  });
+
+  test(`auth-ik ${naam} zonder cache: toonGeenVerbinding en opnieuw proberen (geen worp)`, async () => {
+    const { m } = await nieuweSessie({ antwoorden: [antwoord, ok(planner)] });
+    let n = 0;
+    m.zetInlogUi({ toonGeenVerbinding: async () => { n++; } });
+    const g = await m.laadSessie();
+    assert.equal(n, 1);
+    assert.deepEqual(g, planner);
+  });
+}
+
+// ---- eindreview I2: korte limiet met cache ----
+test('traag auth-ik met cache: na de korte limiet start de app uit de cache; een late 200 ververst de gebruiker op de achtergrond', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    let antwoordt;
+    const traag = () => new Promise((resolve) => { antwoordt = resolve; });
+    const { m } = await nieuweSessie({ antwoorden: [traag], cache: tim });
+    m.zetInlogUi({ toonInloggen: async () => { assert.fail('geen loginscherm'); } });
+    let klaar = false;
+    const belofte = m.laadSessie().then((g) => { klaar = true; return g; });
+    for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+    assert.equal(klaar, false, 'nog binnen de limiet');
+    mock.timers.tick(m.KORTE_LIMIET_MS - 1);
+    for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+    assert.equal(klaar, false);
+    mock.timers.tick(1);
+    const g = await belofte;
+    assert.deepEqual(g, tim, 'start uit de cache na de korte limiet');
+    assert.equal(m.startteUitCache(), true);
+    assert.ok(m.laatsteOpstartNetwerkMs() >= m.KORTE_LIMIET_MS);
+    assert.ok(m.KORTE_LIMIET_MS <= 5000);
+    // het late antwoord (zelfde gebruiker, nieuwe rechten) wordt op de achtergrond verwerkt
+    antwoordt(new Response(JSON.stringify({ gebruiker: tim, rechten: { beheer: false, plannen: false, alleSales: false }, moetWachtwoordWijzigen: false, lokaleDev: false }), { status: 200 }));
+    for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+    assert.equal(m.startteUitCache(), false);
+    assert.deepEqual(m.huidigeGebruiker(), tim);
+  } finally { mock.timers.reset(); }
+});
+
+test('traag auth-ik met cache dat later 401 geeft: het gewone inlogscherm opent (herlogin op de achtergrond)', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    let antwoordt;
+    const traag = () => new Promise((resolve) => { antwoordt = resolve; });
+    const { m, aanroepen } = await nieuweSessie({ antwoorden: [traag, { status: 401, json: { code: 'niet-ingelogd', setupNodig: false } }, ok(planner)], cache: tim });
+    const oproepen = [];
+    m.zetInlogUi({ toonInloggen: async (o) => { oproepen.push(o); } });
+    const belofte = m.laadSessie();
+    for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+    mock.timers.tick(m.KORTE_LIMIET_MS);
+    assert.deepEqual(await belofte, tim);
+    assert.equal(oproepen.length, 0);
+    antwoordt(new Response(JSON.stringify({ code: 'niet-ingelogd' }), { status: 401 }));
+    for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    assert.deepEqual(oproepen, [{ setupNodig: false }], 'het loginscherm opent');
+    assert.ok(aanroepen.length >= 2);
+  } finally { mock.timers.reset(); }
+});
+
+test('snel auth-ik met cache: geen korte-limietpad (startteUitCache false)', async () => {
+  const { m } = await nieuweSessie({ antwoorden: [ok(planner)], cache: planner });
+  await m.laadSessie();
+  assert.equal(m.startteUitCache(), false);
 });

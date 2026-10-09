@@ -23,6 +23,13 @@ import { settingsKey } from '../schermen/instellingen-logica.js';
 export const MARKER_SLEUTEL = 'blitz_instellingen_eigenaar';
 export const VUIL_SLEUTEL = 'blitz_instellingen_vuil';
 export const SYNC_BUDGET_MS = 7000;
+export const OPSTART_TOTAAL_MS = 8000; // auth-ik (≤ 5 s met cache) + synchronisatie samen (eindreview I2)
+export const MIN_SYNC_BUDGET_MS = 1000;
+// Het budget dat nog over is voor de synchronisatie als de opstart al `netwerkMs` op auth-ik wachtte.
+export function resterendSyncBudget(netwerkMs) {
+  const rest = OPSTART_TOTAAL_MS - (Number.isFinite(netwerkMs) && netwerkMs > 0 ? netwerkMs : 0);
+  return Math.max(MIN_SYNC_BUDGET_MS, Math.min(SYNC_BUDGET_MS, rest));
+}
 const LAATSTE_START_SLEUTEL = 'blitz_laatste_start';
 const SETTINGS_VOORVOEGSEL = 'blitz_settings';
 const PAD = '/api/instellingen';

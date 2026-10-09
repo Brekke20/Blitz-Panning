@@ -9,7 +9,7 @@ import { isLokaleDev } from '../lib/lokale-dev.js';
 import { controleerToken, COOKIE_NAAM, VERLENG_ONDER_S } from '../lib/sessie-token.js';
 import { leesCookie } from '../lib/verzoek.js';
 import { leesGebruikers } from '../lib/gebruikers.js';
-import { authJson, authOpties, authStore, nieuweSessieCookie } from '../lib/auth-antwoord.js';
+import { authJson, authOpties, authStore, nieuweSessieCookie, OPSLAG_STORING } from '../lib/auth-antwoord.js';
 
 // `auth` (optioneel) vervangt de standaardcontrole van de wrapper; tests geven een eigen instantie mee.
 export function maakHandler({ getStore: haalStore, env = process.env, nu = () => Date.now(), auth } = {}) {
@@ -17,7 +17,15 @@ export function maakHandler({ getStore: haalStore, env = process.env, nu = () =>
     if (req.method === 'OPTIONS') return authOpties(); // de wrapper laat OPTIONS door (rij zonder jokerregel)
     const nuMs = nu();
     const nuS = Math.floor(nuMs / 1000);
-    const record = (await leesGebruikers(await authStore(haalStore))).find(g => g && g.id === gebruiker.id);
+    // De wrapper las `gebruikers` al; een tijdelijke Blobs-fout hier is een storing (503, de client probeert later opnieuw),
+    // geen 500 en zeker geen uitlog.
+    let record;
+    try {
+      record = (await leesGebruikers(await authStore(haalStore))).find(g => g && g.id === gebruiker.id);
+    } catch (e) {
+      console.error('auth-ik: gebruikers lezen mislukt:', e?.name);
+      return authJson(503, OPSLAG_STORING);
+    }
     let cookie;
     const claims = controleerToken(leesCookie(req, COOKIE_NAAM), env.SESSIE_GEHEIM, nuS);
     if (claims && claims.exp - nuS < VERLENG_ONDER_S) {

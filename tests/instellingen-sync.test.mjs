@@ -3,7 +3,7 @@ import { test, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   synchroniseerInstellingen, bewaarOpServer, wisInstellingenCache,
-  heeftVuileInstellingen, MARKER_SLEUTEL, VUIL_SLEUTEL, neemEigenOver,
+  heeftVuileInstellingen, MARKER_SLEUTEL, VUIL_SLEUTEL, neemEigenOver, resterendSyncBudget,
 } from '../public/js/kern/instellingen-sync.js';
 
 const maakOpslag = (begin = {}) => {
@@ -441,4 +441,13 @@ test('neemEigenOver: schrijft de eigen cache (planner: all, technieker: zohoNaam
   assert.equal(neemEigenOver(S(), TIM, { opslag }), 'Tim');
   assert.deepEqual(opslag.json('blitz_settings_Tim'), S());
   assert.equal(opslag.getItem('blitz_laatste_start'), '15:30', 'zonder geldige laatsteStart blijft de globale waarde staan');
+});
+
+test('resterendSyncBudget: totale opstart ≤ 8 s: een trage auth-ik laat minder over, nooit minder dan 1 s of meer dan 7 s', () => {
+  assert.equal(resterendSyncBudget(0), 7000);
+  assert.equal(resterendSyncBudget(300), 7000);
+  assert.equal(resterendSyncBudget(5000), 3000);
+  assert.equal(resterendSyncBudget(7900), 1000);
+  assert.equal(resterendSyncBudget(20000), 1000);
+  assert.equal(resterendSyncBudget(undefined), 7000);
 });
