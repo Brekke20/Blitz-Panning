@@ -281,6 +281,26 @@ test('overzicht voor planner: eigen + enkel actieve techniekers met zohoNaam, no
   }
 });
 
+test('M7: een technieker krijgt van collega’s geen startlocatie (thuisadres) in ?overzicht=1; zijn eigen waarden en planner/beheerder blijven volledig', async () => {
+  const instellingenStore = maakNepStore({ instellingen: { versie: 2, perGebruiker: {
+    'u-tim': { maxPerDag: 2, vanTijd: '07:00', totTijd: '16:00', startlocatie: 'Thuisstraat 1, Gent' },
+    'u-tom': { maxPerDag: 8, startlocatie: 'Eigenstraat 2, Brugge' },
+  } } });
+  const authStore = maakNepStore({ gebruikers: { versie: 1, gebruikers: lijst() } });
+  const alsTom = await overzichtVoor(instellingenStore, authStore, { id: 'u-tom', rol: 'technieker', zohoNaam: 'Tom Z' });
+  assert.deepEqual(alsTom.techniekers['Tim Z'].instellingen, { maxPerDag: 2, vanTijd: '07:00', totTijd: '16:00' }, 'werkuren/-dagen blijven, startlocatie weg');
+  assert.ok(!JSON.stringify(alsTom).includes('Thuisstraat'), 'het adres van de collega staat nergens in het antwoord');
+  assert.equal(alsTom.techniekers['Tom Z'].instellingen.startlocatie, 'Eigenstraat 2, Brugge', 'zijn eigen startlocatie blijft');
+  for (const rol of ['planner', 'beheerder']) {
+    const o = await overzichtVoor(instellingenStore, authStore, { id: 'u-jan', rol });
+    assert.equal(o.techniekers['Tim Z'].instellingen.startlocatie, 'Thuisstraat 1, Gent', rol);
+  }
+  // ook via de HTTP-functie met een technieker-sessie
+  const { h } = opzet({ begin: { instellingen: { versie: 4, perGebruiker: { 'u-tim': { maxPerDag: 2, startlocatie: 'Thuisstraat 1, Gent' } } } } });
+  const r = await metRol('technieker', () => h(get('?overzicht=1')), { zohoNaam: 'Tom Z' });
+  assert.ok(!JSON.stringify(await r.json()).includes('Thuisstraat'));
+});
+
 test('overzicht voor sales: enkel eigen', async () => {
   const { h } = opzet();
   const r = await metRol('sales', () => h(get('?overzicht=1')));

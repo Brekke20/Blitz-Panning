@@ -60,7 +60,8 @@ export function bewaarInstellingen(store, gebruikerId, instellingen) {
   });
 }
 
-// E4: de eigen instellingen plus (behalve voor sales) die van de actieve techniekers met een zohoNaam.
+// E4: de eigen instellingen plus (behalve voor sales) die van de actieve techniekers met een zohoNaam (voor een technieker zonder
+// de startlocatie van collega's, zie M7).
 // `store` = de store van het verzoek (instellingen), `authStore` = de ECHTE store (gebruikers).
 export async function overzichtVoor(store, authStore, gebruiker) {
   const b = await leesBlob(store);
@@ -76,7 +77,14 @@ export async function overzichtVoor(store, authStore, gebruiker) {
   for (const g of await leesGebruikers(authStore)) {
     if (g?.rol !== 'technieker' || g.actief !== true || typeof g.zohoNaam !== 'string' || !g.zohoNaam) continue;
     if (Object.hasOwn(techniekers, g.zohoNaam)) continue;
-    techniekers[g.zohoNaam] = { gebruikerId: g.id, instellingen: van(g.id) };
+    let instellingen = van(g.id);
+    // Privacy (eindreview M7): de startlocatie is vaak het thuisadres. Een technieker krijgt die van collega's niet; de alleen-lezen-
+    // weergave heeft enkel werkuren, -dagen e.d. nodig. Zijn eigen waarden en alles voor planner/beheerder blijven volledig.
+    if (gebruiker.rol === 'technieker' && g.id !== gebruiker.id && instellingen) {
+      const { startlocatie: _thuis, ...zonderStart } = instellingen;
+      instellingen = zonderStart;
+    }
+    techniekers[g.zohoNaam] = { gebruikerId: g.id, instellingen };
   }
   return { eigen, techniekers };
 }
