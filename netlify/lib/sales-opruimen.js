@@ -12,7 +12,8 @@ const dagVan = tekst => (typeof tekst === 'string' && DAG.test(tekst) ? tekst.sl
 /**
  * 'YYYY-MM-DD' van de laatste activiteit van een lead: de laatste van geimporteerdOp (ook een nieuwe import van dezelfde lead zet `gewijzigdOp`),
  * gewijzigdOp (door de server gezet bij elke wijziging), eerderVerwijderd.op, resultaat.op en van elk bezoek `op` en `datum`.
- * De door de gebruiker gekozen bezoekdatum telt hoogstens tot vandaag (`nu`): een datum in de toekomst stelt het wissen niet uit.
+ * De door de gebruiker gekozen bezoekdatum telt hoogstens tot vandaag (`nu`). Een lead met een voorgesteld of bevestigd bezoek
+ * vandaag of later wordt hoe dan ook bewaard (zie ruimOp); pas als die datum voorbij is, loopt de termijn van 12 maanden.
  * Zonder enige datum: null (de lead wordt dan nooit gewist).
  */
 export function laatsteActiviteitDatum(lead, nu) {
