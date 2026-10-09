@@ -57,12 +57,24 @@ test('valideerSalesInstellingen: lege werkuren worden geweigerd (anders bleef de
   assert.equal(valideerSalesInstellingen(invoer({ totTijd: '' })).fout, '⚠ Eindtijd moet een tijdstip zijn (uu:mm)');
 });
 
-test('valideerSalesInstellingen: een lege laatste start is toegelaten als de standaard (16:00) binnen de werkuren valt', () => {
+test('valideerSalesInstellingen: een lege laatste start is altijd toegelaten (standaard = min(16:00, eindtijd))', () => {
   const r = valideerSalesInstellingen(invoer({ laatsteStart: '' }));
   assert.equal(r.fout, undefined);
   assert.equal('laatsteStart' in r.waarden, false);
-  // werkuren die vóór de standaardwaarde eindigen: de lege laatste start zou erbuiten vallen
-  assert.equal(valideerSalesInstellingen(invoer({ totTijd: '15:00', laatsteStart: '' })).fout, '⚠ Laatste start moet tussen begin- en eindtijd liggen');
+  // werkuren die vóór 16:00 eindigen: de standaard laatste start valt dan op de eindtijd, geen weigering
+  const vroeg = valideerSalesInstellingen(invoer({ totTijd: '15:00', laatsteStart: '' }));
+  assert.equal(vroeg.fout, undefined);
+  assert.deepEqual(vroeg.waarden, { vanTijd: '08:00', totTijd: '15:00', bezoekDuurMin: 60 });
+  // werkuren die na 16:00 beginnen: ook geen weigering
+  assert.equal(valideerSalesInstellingen(invoer({ vanTijd: '17:00', totTijd: '19:00', laatsteStart: '' })).fout, undefined);
+  // een expliciete laatste start buiten de werkuren blijft geweigerd
+  assert.equal(valideerSalesInstellingen(invoer({ totTijd: '15:00', laatsteStart: '16:00' })).fout, '⚠ Laatste start moet tussen begin- en eindtijd liggen');
+});
+
+test('formulierWaarden: zonder bewaarde laatste start is de voorinvulling min(16:00, eindtijd)', () => {
+  assert.equal(formulierWaarden({ vanTijd: '08:00', totTijd: '15:00' }).laatsteStart, '15:00');
+  assert.equal(formulierWaarden({ vanTijd: '08:00', totTijd: '18:00' }).laatsteStart, '16:00');
+  assert.equal(formulierWaarden({ vanTijd: '08:00', totTijd: '15:00', laatsteStart: '14:00' }).laatsteStart, '14:00');
 });
 
 test('valideerSalesInstellingen: bezoekduur 4, 481, abc, 12.5 en een negatief getal worden geweigerd', () => {

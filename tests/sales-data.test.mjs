@@ -97,6 +97,15 @@ test('laadInstellingen: bewaarde waarden worden met de standaardwaarden samengev
   assert.deepEqual(t.instellingen.werkdagen, [1, 2, 3, 4, 5]);
 });
 
+test('laadInstellingen: werkuren die vóór 16:00 eindigen geven als standaard laatste start de eindtijd', async () => {
+  zetFetch(nepFetch({ status: 200, json: { versie: 1, instellingen: { vanTijd: '08:00', totTijd: '15:00' } } }));
+  await laadInstellingen();
+  assert.equal(salesToestand().instellingen.laatsteStart, '15:00');
+  zetFetch(nepFetch({ status: 200, json: { versie: 1, instellingen: { vanTijd: '08:00', totTijd: '15:00', laatsteStart: '14:00' } } }));
+  await laadInstellingen();
+  assert.equal(salesToestand().instellingen.laatsteStart, '14:00');
+});
+
 test('laadInstellingen: fout gooit niet en laat de toestand staan; 503 opslag-storing -> opslag:true', async () => {
   zetFetch(nepFetch(STORING, { status: 500 }));
   assert.deepEqual(await laadInstellingen(), { ok: false, status: 503, opslag: true });

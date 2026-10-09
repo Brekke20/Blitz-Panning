@@ -89,6 +89,13 @@ test('bouwPlanInvoer: bezoekDuurMin uit de instellingen en eigen duur van de lea
   assert.deepEqual(invoer.bestaandPerDag['2026-10-06'].map(b => b.duurMin), [30, 75]);
 });
 
+test('bouwPlanInvoer: zonder laatste start is de standaard min(16:00, eindtijd) van de werkuren', () => {
+  const kort = invoerVan([lead('A')], { instellingen: { ...INSTELLINGEN, laatsteStart: null, totTijd: '15:00' } });
+  assert.equal(kort.invoer.instellingen.laatsteStart, '15:00');
+  const lang = invoerVan([lead('A')], { instellingen: { ...INSTELLINGEN, laatsteStart: null, totTijd: '18:00' } });
+  assert.equal(lang.invoer.instellingen.laatsteStart, '16:00');
+});
+
 test('bouwPlanInvoer: ontbrekende of null-instellingen krijgen standaardwaarden', async () => {
   for (const instellingen of [undefined, null, {}, { werkdagen: null, vanTijd: null, laatsteStart: null, maxPerDag: null, maxReistijdMin: null }]) {
     const { invoer } = invoerVan([lead('A'), lead('B', { locatie: { lat: 50.96, lon: 5.50 } })], { instellingen });

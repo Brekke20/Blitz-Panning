@@ -10,6 +10,7 @@
 
 import { apiVerzoek } from '../kern/api.js';
 import { localISO } from '../kern/tijd.js';
+import { standaardLaatsteStart } from '../kern/instellingen-regels.js';
 
 export const SALES_STANDAARD = Object.freeze({ vanTijd: '08:00', totTijd: '17:00', laatsteStart: '16:00', werkdagen: Object.freeze([1, 2, 3, 4, 5]), bezoekDuurMin: 60 });
 // Standaardwaarden + bewaarde waarden; een bewaarde null/undefined overschrijft de standaard niet; `werkdagen` is altijd een eigen kopie.
@@ -17,6 +18,8 @@ function voegSamen(ruw) {
   const o = Object.fromEntries(Object.entries(ruw).filter(([, w]) => w != null));
   const r = { ...SALES_STANDAARD, ...o };
   r.werkdagen = [...r.werkdagen];
+  // Zonder eigen laatste start geldt min(16:00, eindtijd): werkuren die vóór 16:00 eindigen krijgen geen onmogelijke standaard.
+  if (o.laatsteStart == null) r.laatsteStart = standaardLaatsteStart(r.vanTijd, r.totTijd);
   return r;
 }
 const WACHT_MS = 5000;

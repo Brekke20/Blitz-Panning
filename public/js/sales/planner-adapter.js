@@ -4,6 +4,7 @@
 import { bouwDagen, haversine } from '../planner.js';
 import { isVast } from './lead-regels.js';
 import { isHeleDag } from './blok-regels.js';
+import { standaardLaatsteStart } from '../kern/instellingen-regels.js';
 
 export const STANDAARD_BEZOEKDUUR_MIN = 60;
 
@@ -41,10 +42,11 @@ export function leadNaarKandidaat(lead, { standaardDuurMin = STANDAARD_BEZOEKDUU
 // ontbrekend -> 45, maar een expliciete 0 blijft 0 (zoals daar; het brein weigert dan elke rit).
 function metStandaarden(instellingen) {
   const i = instellingen ?? {};
+  const vanTijd = i.vanTijd || '08:00';
   return {
     werkdagen: Array.isArray(i.werkdagen) ? i.werkdagen : STANDAARD_WERKDAGEN,
-    vanTijd: i.vanTijd || '08:00',
-    laatsteStart: i.laatsteStart || '16:00',
+    vanTijd,
+    laatsteStart: i.laatsteStart || standaardLaatsteStart(vanTijd, i.totTijd),
     maxPerDag: i.maxPerDag > 0 ? i.maxPerDag : STANDAARD_MAX_PER_DAG,
     maxReistijdMin: Number.isFinite(i.maxReistijdMin) && i.maxReistijdMin >= 0 ? i.maxReistijdMin : STANDAARD_MAX_REISTIJD_MIN,
     bezoekDuurMin: i.bezoekDuurMin > 0 ? i.bezoekDuurMin : STANDAARD_BEZOEKDUUR_MIN,

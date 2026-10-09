@@ -2,7 +2,7 @@
 // validatie (via de gedeelde regels van het instellingenscherm en de server) en het object dat bewaard wordt. Geen DOM, geen netwerk.
 // De server vervangt het HELE instellingenobject van de gebruiker bij een PUT: `bouwBewaardObject` vertrekt daarom van de ruwe, bewaarde
 // instellingen zodat onbekende of niet bewerkte sleutels (kaartStijl, werkdagen, …) niet verloren gaan.
-import { valideerVelden } from '../kern/instellingen-regels.js';
+import { valideerVelden, standaardLaatsteStart } from '../kern/instellingen-regels.js';
 
 const STANDAARD = Object.freeze({ vanTijd: '08:00', totTijd: '17:00', laatsteStart: '16:00', bezoekDuurMin: 60 });
 const OPTIONELE_SLEUTELS = ['startlocatie', 'laatsteStart', 'bezoekDuurMin']; // een leeg veld betekent: niet bewaren (de standaard geldt)
@@ -16,7 +16,7 @@ export function formulierWaarden(instellingen) {
     startlocatie: typeof i.startlocatie === 'string' ? i.startlocatie : '',
     vanTijd: i.vanTijd ?? STANDAARD.vanTijd,
     totTijd: i.totTijd ?? STANDAARD.totTijd,
-    laatsteStart: i.laatsteStart ?? STANDAARD.laatsteStart,
+    laatsteStart: i.laatsteStart ?? standaardLaatsteStart(i.vanTijd ?? STANDAARD.vanTijd, i.totTijd ?? STANDAARD.totTijd),
     bezoekDuurMin: i.bezoekDuurMin ?? STANDAARD.bezoekDuurMin,
   };
 }
@@ -38,9 +38,9 @@ export function valideerSalesInstellingen(invoer) {
   // Number('') is 0 en geeft anders de fout "tussen 5 en 480": enkel omzetten als het veld ingevuld is, en enkel een geheel getal
   // (NaN geeft in valideerVelden dezelfde weigering als een getal buiten de grenzen, na de controle van de tijden).
   const duur = duurTekst === '' ? undefined : (/^\d+$/.test(duurTekst) ? Number(duurTekst) : Number.NaN);
-  // Een lege laatste start geldt als de standaard: die moet dan wel binnen de werkuren vallen (anders plant niets meer na de eindtijd).
+  // Een lege laatste start geldt als de standaard min(16:00, eindtijd): die valt per definitie binnen de werkuren, dus niets te controleren.
   const r = valideerVelden({
-    vanTijd: van, totTijd: tot, laatsteStart: laatste || STANDAARD.laatsteStart,
+    vanTijd: van, totTijd: tot, laatsteStart: laatste,
     startlocatie: tekst(invoer.startlocatie), bezoekDuurMin: duur,
   });
   if (r.fout) return { fout: r.fout };

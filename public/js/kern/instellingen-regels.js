@@ -11,6 +11,14 @@ export const MIN_BEZOEKDUUR = 5;
 export const MAX_BEZOEKDUUR = 480;
 export const MAX_STARTLOCATIE = 200;
 
+// De standaard "laatste start" zonder eigen waarde: 16:00, maar nooit na de eindtijd en nooit voor de begintijd (de sales-planner).
+export function standaardLaatsteStart(vanTijd, totTijd, grens = '16:00') {
+  let uit = grens;
+  if (typeof totTijd === 'string' && totTijd !== '' && totTijd < uit) uit = totTijd;
+  if (typeof vanTijd === 'string' && vanTijd !== '' && vanTijd > uit) uit = vanTijd;
+  return uit;
+}
+
 const TIJD_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const KLEUR_RE = /^#[0-9a-f]{6}$/i;
 const KAART_RE = /^[a-z0-9_-]{1,40}$/i;
