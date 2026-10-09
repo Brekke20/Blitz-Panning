@@ -26,7 +26,9 @@ const dagPlus = (datum, n) => new Date(Date.parse(`${datum}T00:00:00Z`) + n * DA
 // -> { rapporten, fouten, bronnen: { actief, archief, archiefJaren } }
 export async function leesRapportenVoorDashboard(store, { vanDatum, totDatum }) {
   const lijst = (await store.get(LIJST_KEY, { type: 'json' })) ?? LEGE_LIJST;
-  const actief = Array.isArray(lijst.rapports) ? lijst.rapports.filter(e => e && typeof e === 'object') : [];
+  // Een bestaande maar onbruikbare lijst is een storing (503), geen lege lijst met stille nullen.
+  if (!Array.isArray(lijst.rapports)) throw new Error('rapportlijst onleesbaar (geen rapports-array)');
+  const actief = lijst.rapports.filter(e => e && typeof e === 'object');
   const oudste = actief.map(e => String(e.datum ?? '')).filter(d => DATUM_RE.test(d)).sort()[0] ?? null;
   const gedekt = oudste !== null && oudste <= vanDatum;
   const jaren = gedekt ? [] : archiefJaren(vanDatum, totDatum);
@@ -110,7 +112,7 @@ export async function leesBronnen({ store, echteStore, testModus }, { tot, vorig
     { activiteit: [], activiteitVanaf: null, activiteitAfgekapt: false });
   return {
     rapporten: lijst.rapporten,
-    register: await probeer('register', () => leesRegister(store), { versie: 0, status: {} }),
+    register: await probeer('register', () => leesRegister(store, { gooiFout: true }), { versie: 0, status: {} }),
     ...log,
     salesBlobs: await probeer('sales', () => leesSales(store, echteStore, testModus), []),
     prijslijst: await probeer('prijslijst', () => store.get('prijslijst', { type: 'json' }), null),

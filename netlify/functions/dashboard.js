@@ -43,7 +43,8 @@ export function maakHandler({ getStore: haalStore, auth, nu } = {}) {
     if (!echteDatum(van) || !echteDatum(tot)) return json(400, { error: 'Ongeldige datum: gebruik het formaat JJJJ-MM-DD.' });
     if (van > tot) return json(400, { error: 'De begindatum ligt na de einddatum.' });
     if (dagenTussen(van, tot) + 1 > MAX_DAGEN) return json(400, { error: `De periode mag hoogstens ${MAX_DAGEN} dagen lang zijn.` });
-    const herhaal = Number.parseInt(params.get('herhaal') ?? '', 10);
+    const herhaalTekst = params.get('herhaal') ?? '';
+    const herhaal = /^\d{1,3}$/.test(herhaalTekst) ? Number(herhaalTekst) : NaN;
     const filters = {
       van, tot, technieker: leesTekst(params, 'technieker'), type: leesTekst(params, 'type'),
       herhaalDagen: Number.isInteger(herhaal) && herhaal > 0 && herhaal <= MAX_HERHAAL ? herhaal : undefined,
@@ -56,7 +57,7 @@ export function maakHandler({ getStore: haalStore, auth, nu } = {}) {
       const store = haalStore({ name: winkelNaam(req), consistency: 'strong' });
       bronnen = await leesBronnen({ store, echteStore: authStore(haalStore), testModus }, { van, tot, vorigeVan: vorigePeriode(van, tot).van });
     } catch (e) {
-      console.error('dashboard: lezen mislukt (' + (e?.name || 'Error') + ')');
+      console.error('dashboard: lezen mislukt (' + (e?.name || 'Error') + ': ' + String(e?.message || '').slice(0, 120) + ')');
       return json(503, OPSLAG_STORING);
     }
     try {
@@ -64,7 +65,8 @@ export function maakHandler({ getStore: haalStore, auth, nu } = {}) {
       const d = berekenDashboard({ ...invoer, filters, nu: new Date(nuMs).toISOString() });
       return json(200, {
         ...d,
-        dekking: { ...d.dekking, fouten },
+        // activiteitAfgekapt ook bij klant: de annulatievergelijking is dan onderteld (de oudste items vallen weg).
+        dekking: { ...d.dekking, klant: { ...d.dekking.klant, activiteitAfgekapt }, fouten },
         bronnen: { ...rapportBronnen, activiteitAfgekapt },
       });
     } catch (e) {

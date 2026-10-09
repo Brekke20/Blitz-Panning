@@ -134,6 +134,28 @@ test('een falende nevenbron (log) geeft 200 met dekking.fouten, de rest werkt', 
   assert.equal(body.klant.annulaties.beschikbaar, false);
 });
 
+test('een falend voorstelregister geeft 200 met dekking.fouten ["register"], niet stille nullen', async () => {
+  const { h } = opzet({ rapportlijst: lijst([entry('a', '2026-10-02')]) }, { echtOmhul: s => kapot(s, /^voorstel-status$/) });
+  const { status, body } = await lees(h, GOED);
+  assert.equal(status, 200);
+  assert.deepEqual(body.dekking.fouten, ['register']);
+  assert.equal(body.kern.huidig.interventies.n, 1);
+});
+
+test('een bestaande maar onleesbare rapportlijst geeft 503 (geen lege lijst)', async () => {
+  const { h } = opzet({ rapportlijst: { versie: 1, rapports: 'stuk' } });
+  const { status, body } = await lees(h, GOED);
+  assert.equal(status, 503);
+  assert.equal(body.code, 'opslag-storing');
+});
+
+test('herhaal=5abc valt terug op de standaard; dekking.klant.activiteitAfgekapt volgt de vlag', async () => {
+  const { h } = opzet();
+  const { body } = await lees(h, `${GOED}&herhaal=5abc`);
+  assert.equal(body.filters.herhaalDagen, 30);
+  assert.equal(body.dekking.klant.activiteitAfgekapt, false);
+});
+
 test('een falende hoofdbron (rapportlijst) geeft 503 opslag-storing', async () => {
   const { h } = opzet({}, { echtOmhul: s => kapot(s, /^rapportlijst$/) });
   const { status, body } = await lees(h, GOED);
@@ -164,6 +186,7 @@ test('annulaties: meer dan 1000 in het venster geeft bronnen.activiteitAfgekapt 
   const { status, body } = await lees(h, GOED);
   assert.equal(status, 200);
   assert.equal(body.bronnen.activiteitAfgekapt, true);
+  assert.equal(body.dekking.klant.activiteitAfgekapt, true);
   assert.equal(body.klant.annulaties.aantal, 1000);
 });
 
