@@ -1,4 +1,4 @@
-// schermen/sales-beheer.js — de tab "Sales" van de beheerder: één tab met een eigen subtabbalk (Te plannen · Kalender · Route · Afgewerkt) en,
+// schermen/sales-beheer.js — de tab "Sales" van de beheerder: één tab met een eigen subtabbalk (Leads · Kalender · Route · Afgewerkt) en,
 // in elk scherm, de verkoperkeuze (sales-schil.js). Zelfde tablist-patroon als de Beheer-pagina (pijltjestoetsen, Home/End, roving tabindex);
 // het gekozen subtab blijft in sessionStorage. De subtabs en hun panelen bestaan enkel binnen #view-sales (de panelen hebben de id's
 // `view-sales-<scherm>`, zodat `zorgVoorView` ze vindt) en dragen een eigen aria-label: de tabnamen in de hoofdbalk blijven eenduidig.

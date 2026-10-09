@@ -14,8 +14,8 @@ import { registreerVenster } from '../venster.js';
 import { appConfirm } from '../app-dialog.js';
 import { renderBeschikbaarhedenTab } from './beschikbaarheid.js';
 import { valideerInstellingen, settingsKey } from './instellingen-logica.js';
-import { huidigeGebruiker } from '../kern/sessie.js';
-import { bewaarOpServer } from '../kern/instellingen-sync.js';
+import { huidigeGebruiker, huidigeRechten, magPlannenVoor } from '../kern/sessie.js';
+import { bewaarOpServer, spiegelEigen } from '../kern/instellingen-sync.js';
 
 // Afhankelijkheden uit app.js en prijzen.js (ingevuld door initInstellingen); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('instellingen: initInstellingen() is niet aangeroepen'); } });
@@ -28,12 +28,12 @@ export function initInstellingen(afhankelijkheden) {
     'set-reset-testdata': () => resetTestdata(),
     'set-prijsbeheer':   () => afh.openPrijsBeheer(),
     'set-opslaan':       () => saveSettings(),
+    'set-naar-beheer':   () => naarBeheerInstellingen(),
     'prijs-sluit':       () => afh.closePrijsBeheer(),
     'prijs-reset':       () => afh.prijsReset(),
     'prijs-opslaan':     () => afh.prijsOpslaan(),
   });
   registreerWijzigActies(document.body, {
-    'set-toestel-rol':      (el) => kiesToestelRol(el.dataset.arg),
     'set-toestel-weergave': (el) => kiesToestelWeergave(el.dataset.arg),
   });
   const setOverlay = document.getElementById('set-overlay');
@@ -45,7 +45,7 @@ export function initInstellingen(afhankelijkheden) {
   // De rol/indeling op het toestel verandert: de toesteltab ververst zich (en een technieker blijft op "Dit toestel").
   window.addEventListener('apparaatwijziging', () => {
     if (!document.getElementById('set-overlay').classList.contains('open')) return;
-    if (window.apparaat?.rol === 'technieker' && _settingsActiveTab !== 'toestel') setSettingsTab('toestel');
+    if (beperktToestel() && _settingsActiveTab !== 'toestel') setSettingsTab('toestel');
     else vulToestelTab();
   });
 }
@@ -91,12 +91,13 @@ export function loadPersonSettings(person) {
 }
 // Lokaal (de snelle cache, loadPersonSettings blijft synchroon) EN op de server (logins T16, fire-and-forget). Een echte 403 meldt
 // een toast; een netwerkfout niet: de vuil-markering (kern/instellingen-sync.js) laadt de lokale waarde bij de volgende start op.
-export function savePersonSettings(person) {
+export function savePersonSettings(person, opties = {}) {
   const settings = toestand.get('settings');
   localStorage.setItem(settingsKey(person), JSON.stringify(settings));
   const gebruiker = huidigeGebruiker();
   if (!gebruiker) return; // geen sessie (kan niet na de login): enkel lokaal
-  bewaarOpServer(person, settings, gebruiker).then((r) => {
+  spiegelEigen(person, gebruiker); // 'Alle' en de eigen Zoho-naam zijn hetzelfde serverrecord (merge-review I1)
+  bewaarOpServer(person, settings, gebruiker, opties).then((r) => {
     if (r.ok) return;
     if (r.reden === 'geen-recht') toast('Je mag de instellingen van deze persoon niet wijzigen; lokaal bewaard.', 4000);
     else if (r.reden === 'ongeldig') toast('De instellingen zijn niet geldig en werden enkel lokaal bewaard.', 4000);
@@ -139,18 +140,20 @@ function vulToestelTab() {
   if (a.soort !== a.automatischeSoort) tekst += ` (handmatig: ${SOORT_LABEL[a.soort] || a.soort})`;
   const el = document.getElementById('set-toestel-status');
   if (el) el.textContent = tekst;
-  document.querySelectorAll('input[name="set-rol"]').forEach(r => { r.checked = r.value === a.rol; });
   let w = 'auto';
   try { const o = localStorage.getItem('blitz_weergave'); if (o === 'gsm' || o === 'tablet' || o === 'computer') w = o; } catch {}
   document.querySelectorAll('input[name="set-weergave"]').forEach(r => { r.checked = r.value === w; });
 }
 // Direct bijwerken (naast de apparaatwijziging-listener): als de keuze de effectieve staat niet wijzigt
 // komt er geen event en zou "(handmatig: X)" achterblijven. vulToestelTab is goedkoop en idempotent.
-function kiesToestelRol(r) { window.zetRol(r); vulToestelTab(); }
 function kiesToestelWeergave(w) { window.zetWeergave(w); vulToestelTab(); }
 
+// De beperkte technieker-weergave toont enkel "Dit toestel"; een technieker met "Mag zelf plannen" stelt ook zijn eigen planning in (Algemeen).
+const beperktToestel = () => window.apparaat?.rol === 'technieker' && !huidigeRechten().planEigen;
+
 export function setSettingsTab(tab) {
-  if (window.apparaat?.rol === 'technieker') tab = 'toestel';
+  if (beperktToestel()) tab = 'toestel';
+  else if (window.apparaat?.rol === 'technieker' && tab === 'beschikbaarheden') tab = 'algemeen';
   _settingsActiveTab = tab;
   document.getElementById('set-subtab-toestel').classList.toggle('active', tab === 'toestel');
   document.getElementById('set-tab-toestel').style.display = tab === 'toestel' ? '' : 'none';
@@ -160,14 +163,40 @@ export function setSettingsTab(tab) {
   document.getElementById('set-tab-algemeen').style.display = tab === 'algemeen' ? '' : 'none';
   document.getElementById('set-tab-beschikbaarheden').style.display = tab === 'beschikbaarheden' ? '' : 'none';
   document.getElementById('set-save-btn').style.display = tab === 'algemeen' ? '' : 'none';
+  // Op de tabs zonder iets om op te slaan (toestel, beschikbaarheden) is "Annuleren" misleidend: dan enkel "Sluiten".
+  const sluitKnop = document.getElementById('set-sluit-btn');
+  if (sluitKnop) sluitKnop.textContent = tab === 'algemeen' ? 'Annuleren' : 'Sluiten';
   if (tab === 'beschikbaarheden') renderBeschikbaarhedenTab();
 }
 
 // B12: de weekdagknoppen werken op een concept; pas Opslaan schrijft het naar de instellingen (Annuleren/Esc/achtergrond laat ze ongemoeid).
 let _werkdagenConcept = [];
 
+// UI/UX-review P1-3: voor de beheerder is Beheer → Instellingen de ENIGE plek waar de werkinstellingen per persoon bewerkt worden.
+// Hier blijven ze zichtbaar (alleen-lezen); de persoonlijke/toestelinstellingen (routekleur, drukte) blijven bewerkbaar.
+// De planner heeft geen Beheer-tab en bewerkt de werkinstellingen van de technici dus nog hier (de server staat dat toe).
+const WERK_VELDEN = ['set-start', 'set-duration', 'set-max', 'set-maxreistijd', 'set-laatste-start', 'set-van', 'set-tot', 'set-tijdslot'];
+const PERSOONLIJKE_VELDEN = ['routeKleur', 'drukteKleuring', 'kaartStijl'];
+function werkInstellingenAlleenLezen() { return huidigeRechten().beheer === true; }
+function zetWerkVeldenAlleenLezen(lezen) {
+  for (const id of WERK_VELDEN) { const el = document.getElementById(id); if (el) el.disabled = lezen; }
+  document.querySelectorAll('#days-grid .day-btn').forEach(b => { b.disabled = lezen; });
+  const hint = document.getElementById('set-beheer-hint');
+  if (hint) hint.hidden = !lezen;
+}
+function naarBeheerInstellingen() {
+  closeSettings();
+  const persoon = toestand.get('activeAssigneeFilter');
+  try {
+    sessionStorage.setItem('blitz_beheer_tab', 'instellingen');
+    if (persoon && persoon !== 'all') sessionStorage.setItem('blitz_beheer_instellingen_persoon', persoon); // Beheer opent bij de persoon die hier gekozen was (M5)
+  } catch { /* geen opslag */ }
+  document.getElementById('tab-beheer')?.click();
+  document.getElementById('beheer-tab-instellingen')?.click(); // Beheer was al open: meteen naar het juiste tabblad
+}
+
 export function openSettings() {
-  setSettingsTab(window.apparaat?.rol === 'technieker' ? 'toestel' : 'algemeen');
+  setSettingsTab(beperktToestel() ? 'toestel' : 'algemeen');
   const settings = toestand.get('settings'); // synchrone functie: geen await, dus de momentopname blijft geldig
   const activeAssigneeFilter = toestand.get('activeAssigneeFilter');
   const who = activeAssigneeFilter === 'all' ? 'Standaard (alle technici)' : activeAssigneeFilter;
@@ -199,6 +228,7 @@ export function openSettings() {
     });
     grid.appendChild(btn);
   });
+  zetWerkVeldenAlleenLezen(werkInstellingenAlleenLezen());
   document.getElementById('set-overlay').classList.add('open');
 }
 
@@ -208,6 +238,10 @@ export function closeSettings(e) {
 }
 
 export function saveSettings() {
+  // Een technieker met "Mag zelf plannen" bewaart enkel zijn eigen instellingen (de server weigert die van een collega ook).
+  if (window.apparaat?.rol === 'technieker' && !magPlannenVoor(toestand.get('activeAssigneeFilter'))) {
+    return toast('Je kan enkel je eigen instellingen wijzigen: kies jezelf in de kiezer bovenaan.', 4000);
+  }
   const settings = toestand.get('settings'); // synchrone functie: geen await, dus de momentopname blijft geldig
   const resultaat = valideerInstellingen({
     startlocatie:    document.getElementById('set-start').value,
@@ -238,7 +272,8 @@ export function saveSettings() {
   settings.routeKleur    = w.routeKleur;
   settings.drukteKleuring = document.getElementById('set-drukte').checked;
   const activeAssigneeFilter = toestand.get('activeAssigneeFilter');
-  savePersonSettings(activeAssigneeFilter);
+  // De beheerder wijzigt hier enkel de persoonlijke velden; de werkwaarden van een technieker staan in Beheer (en blijven zoals de server ze heeft).
+  savePersonSettings(activeAssigneeFilter, werkInstellingenAlleenLezen() ? { velden: PERSOONLIJKE_VELDEN } : {});
   document.getElementById('set-overlay').classList.remove('open');
   afh.renderTickets();
   afh.renderKalender();

@@ -7,6 +7,7 @@
 // geen HTML-string-handlers: de luisteraars van de dynamisch getekende velden blijven addEventListener.
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
+import { huidigeRechten } from '../kern/sessie.js';
 import { toast, escHtml, strengeAfh } from '../kern/ui.js';
 import { apiJson, bewaarMetVersie, leesFout } from '../kern/api.js';
 import { renderTickets } from './wachtrij.js';
@@ -101,6 +102,8 @@ export async function saveKlantBeschikbaarheid() {
 // GC: verwijder entries van tickets die al >90 dagen geleden bijgewerkt zijn
 // én niet meer in een levende set zitten
 export function gcKlantBeschikbaarheid(liveIds) {
+  // Enkel wie mag plannen (beheerder, planner) ruimt op: een technieker met "Mag zelf plannen" bewaart enkel zijn eigen tickets.
+  if (!huidigeRechten().plannen) return;
   const klantBeschikbaarheid = toestand.get('klantBeschikbaarheid'); // synchrone functie: geen await tussen lezen en gebruik
   const ids = verouderdeKbIds(klantBeschikbaarheid, liveIds);
   for (const id of ids) delete klantBeschikbaarheid[id];

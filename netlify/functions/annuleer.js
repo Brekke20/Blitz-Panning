@@ -10,6 +10,7 @@ import { isTestVerzoek, winkelNaam, nepZohoAntwoord, zorgVoorTestkopie } from '.
 import { leesRegister, wisVoorstel } from '../lib/voorstelregister.js';
 import { datumInBrussel } from '../lib/bevestigingslink.js';
 import { maakZoho } from '../lib/zoho.js';
+import { eisEigenTicket } from '../lib/eigen-ticket.js';
 import { maakCors, v2Json, v2Opties } from '../lib/http.js';
 import {
   REDENEN, valideerAnnulatie, valideerRedenToelichting, bouwAnnulatieMail, bouwAnnulatieNotitie, escHtml,
@@ -105,6 +106,9 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
       const ticketData = await ticketRes.json().catch(() => ({}));
       if (ticketRes.status === 404) return json(404, { error: 'Ticket niet gevonden' });
       if (!ticketRes.ok) return json(502, { error: 'Zoho ticket ophalen mislukt' });
+      // Een technieker met "Mag zelf plannen" annuleert enkel zijn eigen afspraken (vóór er een mail of statuswijziging volgt).
+      const eis = await eisEigenTicket({ gebruiker, ticketId, zoho, toegang: { token: accessToken, orgId }, ticket: ticketData });
+      if (!eis.ok) return json(eis.status, eis.body);
 
       // Niet (meer) gepland in Zoho: nooit een annulatiemail sturen; enkel vergrendeling opruimen.
       const ticketStatus = ticketData.status || '';

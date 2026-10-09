@@ -286,7 +286,7 @@ async function openRouteVanMaandag(page) {
   await planWeek(page);
   const maandag = page.locator('.day-col').filter({ hasText: '#1001' });
   await expect(maandag).toHaveCount(1);
-  await maandag.getByRole('button', { name: 'Route berekenen' }).click();
+  await maandag.getByRole('button', { name: 'Route bekijken' }).click();
   await expect(page.getByTestId('route-stop-tijd')).toHaveCount(2);
 }
 
@@ -367,7 +367,7 @@ test.describe('kern: api-payloads', () => {
       overschrijf: { route: () => ({ status: 502, raw: '<html>Bad Gateway</html>' }) },
     });
     await planWeek(page);
-    await page.locator('.day-col').filter({ hasText: '#1001' }).getByRole('button', { name: 'Route berekenen' }).click();
+    await page.locator('.day-col').filter({ hasText: '#1001' }).getByRole('button', { name: 'Route bekijken' }).click();
     // W5-fix (Q2): gewone Nederlandse tekst in plaats van de technische foutklasse.
     await expect(page.getByText('✕ Route: Serverfout (HTTP 502)')).toBeVisible();
     // De 502 is hier bedoeld: de browser meldt hem als HTTP 502 en als consolefout; precies die twee halen we weg.

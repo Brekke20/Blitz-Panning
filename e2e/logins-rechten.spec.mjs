@@ -185,7 +185,7 @@ test.describe('rechten per rol (Rechtentabel): tabs en knoppen', () => {
   test('sales: de vier sales-tabs; geen ticket-tabs en geen planning-API-aanroepen, enkel de sessie, de eigen instellingen en de eigen leads', async ({ page, verzoeken }) => {
     await startSalesApp(page);
     await expect(zichtbareTabs(page)).toHaveCount(4);
-    await expect(zichtbareTabs(page)).toHaveText(['Te plannen', 'Kalender', 'Route', 'Afgewerkt']);
+    await expect(zichtbareTabs(page)).toHaveText(['Leads', 'Kalender', 'Route', 'Afgewerkt']);
     await expect(page.locator('nav[aria-label="Hoofdmenu"]')).toBeVisible();
     await expect(page.locator('#view-sales-lijst')).toBeVisible();
     await expect(page.locator('#view-tickets')).toBeHidden();

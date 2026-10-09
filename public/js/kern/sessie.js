@@ -29,9 +29,11 @@ export function registreerVoorAfmeldHaak(fn) {
 }
 
 const normaal = (n) => String(n ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+// Een technieker met het vinkje "Mag zelf plannen" (Beheer, Gebruikers) plant ook, maar enkel zijn eigen tickets (de server dwingt dat af).
+const planEigenVan = (g) => g?.rol === 'technieker' && g.magZelfPlannen === true;
 const rechtenUitGebruiker = (g) => {
   const beheer = g?.rol === 'beheerder';
-  return { beheer, plannen: beheer || g?.rol === 'planner', alleSales: beheer || g?.magAlleSales === true };
+  return { beheer, plannen: beheer || g?.rol === 'planner', alleSales: beheer || g?.magAlleSales === true, planEigen: planEigenVan(g) };
 };
 
 function leesCache() {
@@ -46,13 +48,38 @@ function wisCache() { try { globalThis.localStorage.removeItem(CACHE_SLEUTEL); }
 export function huidigeGebruiker() { return gebruiker; }
 export function heeftRol(...rollen) { return Boolean(gebruiker) && rollen.flat().includes(gebruiker.rol); }
 export function huidigeRechten() {
-  if (!gebruiker) return { beheer: false, plannen: false, alleSales: false };
-  return { ...(rechten || rechtenUitGebruiker(gebruiker)) };
+  if (!gebruiker) return { beheer: false, plannen: false, alleSales: false, planEigen: false };
+  // planEigen komt altijd uit het gebruikersrecord (ook als een oudere server het veld nog niet meestuurde).
+  return { ...(rechten || rechtenUitGebruiker(gebruiker)), planEigen: planEigenVan(gebruiker) };
 }
 export function magSchrijvenVoor(zohoNaam) {
   if (!gebruiker) return false;
   if (gebruiker.rol === 'planner' || gebruiker.rol === 'beheerder') return true;
   if (gebruiker.rol !== 'technieker') return false;
+  const eigen = normaal(gebruiker.zohoNaam);
+  return eigen !== '' && eigen === normaal(zohoNaam);
+}
+// De Zoho-naam van het ingelogde account ('' als er geen is). Elk account behalve sales kan er een hebben: wie er een heeft voert
+// ook zelf interventies uit (technieker voor het eigen werk), bovenop de rechten van zijn rol.
+export function eigenZohoNaam() {
+  if (!gebruiker || gebruiker.rol === 'sales' || typeof gebruiker.zohoNaam !== 'string') return '';
+  return gebruiker.zohoNaam.trim();
+}
+// Een rapport is "van mij" als ik het zelf indiende (ingediendDoor = mijn id) of mijn Zoho-naam erop staat (oudere rapporten).
+// Spiegelt netlify/lib/eigen.js (isEigenRapport) voor het eigen werk; de server filtert voor een technieker zelf.
+export function isEigenRapport(rapport) {
+  if (!gebruiker || !rapport) return false;
+  if (typeof gebruiker.id === 'string' && gebruiker.id !== '' && rapport.ingediendDoor === gebruiker.id) return true;
+  const eigen = normaal(eigenZohoNaam());
+  return eigen !== '' && eigen === normaal(rapport.technieker);
+}
+// Mag ik tickets van deze technieker (Zoho-naam) plannen, uitplannen, voorstellen sturen of annuleren? Planner en beheerder: elk ticket.
+// Technieker met "Mag zelf plannen": enkel zijn eigen tickets. Wie niet plannen mag (technieker zonder vinkje, sales): nooit.
+// De server toetst hetzelfde; dit verbergt enkel de knoppen.
+export function magPlannenVoor(zohoNaam) {
+  if (!gebruiker) return false;
+  if (gebruiker.rol === 'planner' || gebruiker.rol === 'beheerder') return true;
+  if (!planEigenVan(gebruiker)) return false;
   const eigen = normaal(gebruiker.zohoNaam);
   return eigen !== '' && eigen === normaal(zohoNaam);
 }

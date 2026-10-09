@@ -378,7 +378,7 @@ test('auth-ik: met cookie -> gebruiker zonder hashes, rechten en lokaleDev', asy
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.gebruiker.id, 'u-bea');
-  assert.deepEqual(body.rechten, { beheer: true, plannen: true, alleSales: true });
+  assert.deepEqual(body.rechten, { beheer: true, plannen: true, alleSales: true, planEigen: false });
   assert.equal(body.moetWachtwoordWijzigen, false);
   assert.equal(body.lokaleDev, false);
   const json = JSON.stringify(body);

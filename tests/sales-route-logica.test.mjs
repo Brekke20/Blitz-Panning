@@ -187,6 +187,20 @@ test('berekenRoute: POST /api/route met waypoints en departAt; de legs van TomTo
   assert.deepEqual(r.polyline, [[1, 1], [2, 2]]);
   assert.equal(r.totaalSec, 2700);
   assert.equal(r.totaalMeter, 98000);
+  // het ruwe antwoord blijft bewaard: de kaart kleurt er de drukte en de wegenwerken mee in (zoals bij de technieker)
+  assert.equal(r.data.polyline.length, 2);
+  assert.equal(r.data.legs.length, 2);
+});
+
+test('berekenRoute: zonder routelijn van TomTom is er geen `data` (de kaart tekent dan rechte lijnen); een schatting heeft ook geen data', async () => {
+  const stops = [stopL('a', 50.96, 5.5)];
+  const zonderLijn = async () => ({ ok: true, status: 200, data: { legs: [{ travelTimeSeconds: 700, distanceMeters: 8000 }] } });
+  const r = await berekenRoute({ depot: DEPOT, stops, datum: DAG, vertrekMin: 510, testModus: false, apiVerzoek: zonderLijn });
+  assert.equal(r.geschat, false);
+  assert.equal(r.data, null);
+  assert.deepEqual(r.polyline, [[50.93, 5.34], [50.96, 5.5]]);
+  const geschat = await berekenRoute({ depot: DEPOT, stops, datum: DAG, vertrekMin: 510, testModus: true, apiVerzoek: zonderLijn });
+  assert.equal(geschat.data, null);
 });
 
 test('berekenRoute: een fout (status, netwerk of rare legs) valt terug op de schatting', async () => {

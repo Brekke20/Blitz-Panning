@@ -4,7 +4,6 @@
 // Een vaste lead (bevestigd of vastgezet uur) is nooit kandidaat: de adapter zet hem als bestaand bezoek met uur in de planning,
 // dus het brein plant eromheen en verschuift hem nooit (ook niet buiten de werkuren of op een volle dag).
 import { toast } from '../kern/ui.js';
-import { TEST_MODE } from '../kern/omgeving.js';
 import { apiVerzoek } from '../kern/api.js';
 import { geocacheLookup, geocacheStore } from '../kern/opslag.js';
 import { getHolidayName } from '../kern/feestdagen.js';
@@ -15,10 +14,9 @@ import { bouwPlanInvoer, verwerkUitkomst, maakReistijdenAdapter } from '../sales
 import { salesToestand, gekozenDatum, wijzig, laadInstellingen, instellingenGeladenVoor } from './sales-data.js';
 import { getoondeVerkoper, schrijfbaarNu } from './sales-verkoper.js';
 import { huidigeGebruiker } from '../kern/sessie.js';
-import { openSalesVenster } from './sales-venster.js';
+import { toonPlanResultaat as toonGedeeldResultaat } from './plan-resultaat.js';
 import { bouwResultaatRegels, weekStartVan } from './sales-plan-logica.js';
 import { foutTekst } from './sales-tekst.js';
-import { el, sectie } from './sales-dom.js';
 
 const GEEN_START = 'Geen startlocatie ingesteld: de ritten starten bij het eerste bezoek. Stel je startadres in via ⚙ Instellingen.';
 const START_NIET_GEVONDEN = 'De startlocatie kon niet opgezocht worden: de ritten starten bij het eerste bezoek. Controleer je startadres via ⚙ Instellingen.';
@@ -27,11 +25,10 @@ const CONFLICT = 'Planning niet bewaard: de gegevens waren intussen gewijzigd. P
 
 let bezig = false;
 
-/** Het depot (lat/lon) van de startlocatie: eerst de geocode-cache, daarna (niet in testmodus) /api/optimize; anders null. */
+/** Het depot (lat/lon) van de startlocatie: eerst de geocode-cache, daarna /api/optimize (ook in testmodus, zoals de technieker); anders null. */
 async function bepaalDepot(startlocatie) {
   const hit = geocacheLookup(startlocatie);
   if (hit) return hit;
-  if (TEST_MODE) return null;
   try {
     // /api/optimize vraagt minstens één stop; de startlocatie zelf volstaat (locations[0] is het vertrekpunt).
     const r = await apiVerzoek('/api/optimize', { methode: 'POST', body: { origin: startlocatie, stops: [startlocatie] } });
@@ -44,27 +41,17 @@ async function bepaalDepot(startlocatie) {
   return null;
 }
 
-/** Het venster "Planningsresultaat": regels = { ingepland, nietIngepland, waarschuwingen, bericht? } (zie bouwResultaatRegels). */
+/**
+ * Het resultaatvenster: hetzelfde venster als bij de technieker (plan-resultaat.js). `regels` = { ingepland, nietIngepland, waarschuwingen, bericht? }
+ * (zie bouwResultaatRegels). Een lege uitkomst toont het lege venster; de toast "Geen leads om in te plannen" komt eerder.
+ */
 export function toonPlanResultaat(regels) {
-  return openSalesVenster({
-    titel: 'Planningsresultaat',
-    bouw(body, sluit) {
-      if (regels.bericht) body.append(el('p', { class: 'sales-uitleg', text: regels.bericht }));
-      for (const w of regels.waarschuwingen ?? []) body.append(el('p', { class: 'sales-uitleg sales-plan-waarschuwing', text: `⚠ ${w}` }));
-      const rij = (tekst, extra) => el('li', { class: 'sales-plan-rij' }, el('span', { text: tekst }), extra ? el('div', { class: 'sales-plan-reden', text: extra }) : null);
-      if (regels.ingepland?.length) {
-        body.append(sectie(`Ingepland (${regels.ingepland.length})`, 'sales-plan-ingepland',
-          el('ul', { class: 'sales-plan-lijst' }, ...regels.ingepland.map((r) => rij(`${r.naam} → ${r.datumLabel} ${r.start}`)))));
-      }
-      if (regels.nietIngepland?.length) {
-        body.append(sectie(`Niet ingepland (${regels.nietIngepland.length})`, 'sales-plan-niet',
-          el('ul', { class: 'sales-plan-lijst' }, ...regels.nietIngepland.map((r) => rij(r.naam, r.tekst)))));
-      }
-      if (!regels.ingepland?.length && !regels.nietIngepland?.length) body.append(el('p', { class: 'sales-uitleg', text: 'Er was niets te plannen.' }));
-      const ok = el('button', { type: 'button', class: 'btn btn--primary', text: 'Klaar' });
-      ok.addEventListener('click', sluit);
-      body.append(el('div', { class: 'sales-acties' }, ok));
-    },
+  const leeg = !regels.ingepland?.length && !regels.nietIngepland?.length;
+  toonGedeeldResultaat({
+    bericht: leeg ? [regels.bericht, 'Er was niets te plannen.'].filter(Boolean).join(' ') : regels.bericht,
+    waarschuwingen: regels.waarschuwingen ?? [],
+    ingepland: (regels.ingepland ?? []).map((r) => ({ vet: r.naam, label: `${r.datumLabel} ${r.start}` })),
+    nietIngepland: (regels.nietIngepland ?? []).map((r) => ({ vet: r.naam, reden: r.tekst })),
   });
 }
 
@@ -100,7 +87,7 @@ export async function planDezeWeek({ maandweergave = false } = {}) {
     const leads = stand.leads;
     const { invoer, vrijgegeven } = bouwPlanInvoer({
       leads, blokken: stand.blokken, instellingen: inst, weekStart: localISO(weekStart), vandaag, depot,
-      reistijden: maakReistijdenAdapter({ apiVerzoek, testModus: TEST_MODE }), feestdag: getHolidayName,
+      reistijden: maakReistijdenAdapter({ apiVerzoek, testModus: false }), feestdag: getHolidayName,
     });
     if (!invoer.kandidaten.length) return toast('Geen leads om in te plannen');
 

@@ -1,16 +1,17 @@
-// schermen/sales-lijst.js — de tab "Te plannen": export laden, de leads als kaartjes (nog in te plannen / ingepland), zoeken en filteren op
-// postcodegebied, verwijderen met 5 s "Ongedaan maken" en het leaddetail (sales-detail.js). Werkt in beide plaatsingen: als gewone tab van de
+// schermen/sales-lijst.js — de tab "Leads": export laden, de leads als kaartjes in drie kolommen naast elkaar (nog in te plannen / ingepland /
+// bevestigd; op een smal scherm drie tabbladen met elk hun aantal), zoeken en filteren op postcodegebied, verwijderen met 5 s "Ongedaan maken" en het leaddetail (sales-detail.js). Werkt in beide plaatsingen: als gewone tab van de
 // verkoper en als subtab van de beheerder (de view komt van startScherm; de beheerder krijgt geen import, de server weigert die ook).
 // Veiligheid: alle leadgegevens komen via textContent in de DOM (sales-dom.js); de bestandsinhoud wordt nooit geïnterpreteerd.
 import { appConfirm } from '../app-dialog.js';
 import { toast, registreerActies, maakActiveerbaar } from '../kern/ui.js';
 import { MAX_BYTES, leesExport } from '../sales/import.js';
 import { startScherm } from './sales-schil.js';
-import { salesToestand, onSalesWijziging, importeer, vulLocatiesAan, verwijderMetOngedaan, spoelUitgesteld } from './sales-data.js';
+import { salesToestand, onSalesWijziging, importeer, vulLocatiesAan, verwijderMetOngedaan, spoelUitgesteld, wijzig } from './sales-data.js';
+import { bevestig } from '../sales/lead-regels.js';
 import { kanImporteren, getoondeVerkoper, schrijfbaarNu } from './sales-verkoper.js';
 import { openLeadDetail } from './sales-detail.js';
 import { openLeadToevoegen } from './sales-lead-toevoegen.js';
-import { filterLeads, postcodegebieden, groepeerLijst, kaartInfo, samenvattingTekst, exportTekst, andereVerantwoordelijke } from './sales-lijst-logica.js';
+import { filterLeads, postcodegebieden, groepeerLijst, kaartInfo, KOLOMMEN, samenvattingTekst, exportTekst, andereVerantwoordelijke } from './sales-lijst-logica.js';
 import { naamVan, foutTekst } from './sales-tekst.js';
 import { el } from './sales-dom.js';
 
@@ -19,6 +20,7 @@ const filter = { zoek: '', gebied: '' };   // blijft staan bij een tabwissel; he
 const wortels = new WeakMap();             // inhoud -> { el, vul() }
 const handles = new Map();                 // leadId -> { ongedaan() } van een nog wachtende verwijdering
 let haken = false;
+let actieveKolom = KOLOMMEN[0].sleutel;    // enkel zichtbaar op een smal scherm (de tabbladen); op een breed scherm staan alle drie de kolommen naast elkaar
 
 // ---- uitgestelde verwijdering: pagina verbergen of sluiten stuurt meteen; het resultaat van de timer haalt de balk weg ----
 
@@ -40,7 +42,7 @@ function zorgVoorHaken() {
 
 // ---- kaartjes ----
 
-function maakKaart(lead, kanWissen) {
+function maakKaart(lead, kanSchrijven, kanWissen) {
   const info = kaartInfo(lead);
   const kaart = el('div', { class: 'sales-kaart', 'data-actie': 'sales-open', 'data-arg': lead.id, 'data-lead-id': lead.id });
   maakActiveerbaar(kaart, () => openLeadDetail(lead.id), `Open ${info.titel}`);
@@ -50,6 +52,7 @@ function maakKaart(lead, kanWissen) {
   if (info.plaats) kaart.append(el('div', { class: 'sales-kaart-plaats', text: info.plaats }));
   const chips = el('div', { class: 'sales-kaart-chips' }, el('span', { class: 'sales-chip', text: info.adresLabel }));
   if (info.vastUur) chips.append(el('span', { class: 'sales-chip sales-chip-vast', text: info.vastUur }));
+  if (info.voorstelUur) chips.append(el('span', { class: 'sales-chip sales-chip-voorstel', text: info.voorstelUur }));
   if (info.zelfToegevoegd) chips.append(el('span', { class: 'sales-chip sales-chip-manueel', text: 'zelf toegevoegd' }));
   if (info.voorstelVerlopen) chips.append(el('span', { class: 'sales-chip sales-chip-verlopen', text: 'voorstel verlopen' }));
   if (info.eerderVerwijderd) chips.append(el('span', { class: 'sales-chip sales-chip-eerder', text: 'eerder verwijderd' }));
@@ -60,13 +63,20 @@ function maakKaart(lead, kanWissen) {
     if (info.mailHref) contact.append(el('a', { href: info.mailHref, text: lead.email }));
     kaart.append(contact);
   }
+  // Een voorgesteld bezoek kan hier meteen bevestigd worden (dan verhuist het naar "Bevestigd"); het uur wijzigen en terug naar te plannen staan in het detail.
+  if (kanSchrijven && lead.status === 'voorgesteld' && info.voorstelUur) {
+    kaart.append(el('div', { class: 'sales-kaart-acties' },
+      el('button', { type: 'button', class: 'btn btn--secondary', 'data-actie': 'sales-bevestig', 'data-arg': lead.id, 'aria-label': `Bevestig ${info.titel}`, text: 'Bevestigen' })));
+  }
   return kaart;
 }
 
-function maakGroep(titel, leads, kanWissen) {
-  return el('section', { class: 'sales-groep' },
+// Eén kolom: kop met titel en aantal, daaronder de kaartjes of de tekst van een lege kolom.
+// Het ✕ (verwijderen) staat enkel in de eerste kolom: een ingepland of bevestigd bezoek verwijder je niet per ongeluk (eerst Terug naar te plannen in het detail).
+function maakKolom({ sleutel, titel, leeg }, leads, kanSchrijven) {
+  return el('section', { class: 'sales-groep sales-kolom', 'data-kolom': sleutel, 'aria-label': titel },
     el('h3', { class: 'sales-groep-kop', text: `${titel} (${leads.length})` }),
-    el('div', { class: 'sales-kaartlijst' }, ...leads.map(l => maakKaart(l, kanWissen))));
+    leads.length ? el('div', { class: 'sales-kaartlijst' }, ...leads.map(l => maakKaart(l, kanSchrijven, kanSchrijven && sleutel === 'tePlannen'))) : el('p', { class: 'sales-kolom-leeg', text: leeg }));
 }
 
 // ---- het scherm ----
@@ -84,6 +94,7 @@ function bouwWortel(inhoud) {
   const ongedaan = el('div', { class: 'sales-ongedaan' });
   const kaarten = el('div', { class: 'sales-kaarten' });
   const wortel = el('div', { class: 'sales-lijst-wortel' }, acties, melding, filterbalk, ongedaan, kaarten);
+  const kolomKnoppen = new Map(); // sleutel -> tabknop (smal scherm)
 
   const zetMelding = (regels, { fout = false } = {}) => {
     melding.replaceChildren(...regels.filter(Boolean).map(t => el('p', { text: t })));
@@ -95,18 +106,25 @@ function bouwWortel(inhoud) {
   function tekenKaarten() {
     const st = salesToestand();
     const open = st.leads.filter(l => l.status !== 'afgewerkt' && !st.uitgesteld.has(l.id));
-    const kanWissen = schrijfbaarNu();
+    const kanSchrijven = schrijfbaarNu();
     if (open.length === 0) {
       kaarten.replaceChildren(el('p', { class: 'sales-leeg', text: kanImporteren() ? 'Nog geen leads. Laad een export of voeg zelf een lead toe.' : 'Nog geen leads.' }));
       return;
     }
     const zichtbaar = filterLeads(open, filter);
     if (zichtbaar.length === 0) { kaarten.replaceChildren(el('p', { class: 'sales-leeg', text: 'Geen leads gevonden voor deze zoekopdracht.' })); return; }
-    const { tePlannen, ingepland } = groepeerLijst(zichtbaar);
-    kaarten.replaceChildren(...[
-      tePlannen.length ? maakGroep('Nog in te plannen', tePlannen, kanWissen) : null,
-      ingepland.length ? maakGroep('Ingepland', ingepland, kanWissen) : null,
-    ].filter(Boolean));
+    const groepen = groepeerLijst(zichtbaar);
+    const tabs = el('div', { class: 'sales-kolomtabs', role: 'tablist', 'aria-label': 'Leads per stap' });
+    kolomKnoppen.clear();
+    for (const k of KOLOMMEN) {
+      const gekozen = k.sleutel === actieveKolom;
+      const knop = el('button', { type: 'button', class: 'sales-kolomtab', role: 'tab', 'aria-selected': String(gekozen), 'data-kolomtab': k.sleutel },
+        el('span', { class: 'sales-kolomtab-titel', text: k.titel }), el('span', { class: 'sales-kolomtab-aantal', text: String(groepen[k.sleutel].length) }));
+      kolomKnoppen.set(k.sleutel, knop);
+      tabs.append(knop);
+    }
+    const kolommen = el('div', { class: 'sales-kolommen', 'data-actief': actieveKolom }, ...KOLOMMEN.map(k => maakKolom(k, groepen[k.sleutel], kanSchrijven)));
+    kaarten.replaceChildren(tabs, kolommen);
   }
 
   function vul() {
@@ -161,6 +179,14 @@ function bouwWortel(inhoud) {
     bestand.value = ''; // hetzelfde bestand kan opnieuw gekozen worden
     laadExport(f);
   });
+  // Smal scherm: een kolomtab kiest welke kolom zichtbaar is (de rest verbergt de CSS); op een breed scherm is de tabbalk zelf verborgen.
+  kaarten.addEventListener('click', (e) => {
+    const knop = e.target.closest?.('[data-kolomtab]');
+    if (!knop) return;
+    actieveKolom = knop.dataset.kolomtab;
+    kaarten.querySelector('.sales-kolommen')?.setAttribute('data-actief', actieveKolom);
+    for (const [sleutel, k] of kolomKnoppen) k.setAttribute('aria-selected', String(sleutel === actieveKolom));
+  });
   zoek.addEventListener('input', () => { filter.zoek = zoek.value; tekenKaarten(); });
   gebied.addEventListener('change', () => { filter.gebied = gebied.value; tekenKaarten(); });
 
@@ -181,6 +207,16 @@ function bouwWortel(inhoud) {
   registreerActies(inhoud, {
     'sales-export-laden': () => bestand.click(),
     'sales-lead-toevoegen': () => { openLeadToevoegen({ terugFocus: () => leadKnop.focus() }); },
+    'sales-bevestig': async (knop, _e, id) => {
+      knop.disabled = true; // geen dubbelklik: één PATCH
+      const r = await wijzig((stand) => {
+        const l = stand.leads.find(x => x.id === id);
+        if (!l || l.status !== 'voorgesteld') return null; // intussen gewijzigd of weg
+        const { status, planning } = bevestig(l);
+        return { leads: [{ id, velden: { status, planning } }] };
+      });
+      if (!r.ok) { knop.disabled = false; toast(`Bevestigen mislukt. ${foutTekst(r)}`); }
+    },
     'sales-verwijder': (_knop, _e, id) => { vraagVerwijder(id); },
     'sales-ongedaan': (knop, _e, id) => {
       // Enkel de bewaarde handle gebruiken: verwijderMetOngedaan opnieuw aanroepen zou een NIEUWE verwijdering starten.

@@ -27,7 +27,7 @@ export async function maakRouteMetStops(page) {
   await expect(resultaat).toBeHidden();
   const maandag = page.locator('.day-col').filter({ hasText: '#1001' });
   await expect(maandag).toHaveCount(1);
-  await maandag.getByRole('button', { name: 'Route berekenen' }).click();
+  await maandag.getByRole('button', { name: 'Route bekijken' }).click();
   await expect(page.locator('#view-planning')).toBeVisible();
   await expect(page.getByTestId('route-datum')).toHaveValue('2026-10-05');
   await expect(page.getByTestId('route-aantal-stops')).toHaveText('2');

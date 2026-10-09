@@ -7,7 +7,7 @@ const laadScherm = (id, importeer) => async () => {
 };
 
 export const SALES_TABS = [
-  { id: 'sales-lijst', label: 'Te plannen', laad: laadScherm('sales-lijst', () => import('./sales-lijst.js')) },
+  { id: 'sales-lijst', label: 'Leads', laad: laadScherm('sales-lijst', () => import('./sales-lijst.js')) },
   { id: 'sales-kalender', label: 'Kalender', laad: laadScherm('sales-kalender', () => import('./sales-kalender.js')) },
   { id: 'sales-route', label: 'Route', laad: laadScherm('sales-route', () => import('./sales-route.js')) },
   { id: 'sales-afgewerkt', label: 'Afgewerkt', laad: laadScherm('sales-afgewerkt', () => import('./sales-afgewerkt.js')) },

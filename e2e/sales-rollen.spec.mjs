@@ -26,11 +26,11 @@ const apiGet = (page, pad) => page.evaluate(async (p) => {
 test.describe('sales: rollen en isolatie', () => {
   test('(a) rol sales: enkel de vier sales-tabs, #view-tickets niet actief, geen verzoek naar tickets, inventaris of rapport-archief', async ({ page, verzoeken }) => {
     await startSalesApp(page);
-    await expect(zichtbareTabs(page)).toHaveText(['Te plannen', 'Kalender', 'Route', 'Afgewerkt']);
+    await expect(zichtbareTabs(page)).toHaveText(['Leads', 'Kalender', 'Route', 'Afgewerkt']);
     await expect(page.locator('#view-tickets')).not.toHaveClass(/active/);
     await expect(page.locator('#view-tickets')).toBeHidden();
     // Elke sales-tab doorlopen: ook dan geen verboden verzoeken.
-    for (const naam of ['Kalender', 'Route', 'Afgewerkt', 'Te plannen']) await tab(page, naam).click();
+    for (const naam of ['Kalender', 'Route', 'Afgewerkt', 'Leads']) await tab(page, naam).click();
     await page.clock.runFor(10000);
     const paden = verzoeken.alle.map(r => r.pad);
     for (const verboden of ['/api/tickets', '/api/inventaris', '/api/rapport-archief', ...VERBODEN_PADEN, ...VERBODEN_PADEN_SALES]) {
@@ -104,7 +104,7 @@ test.describe('sales: rollen en isolatie', () => {
     await startSalesApp(page, { gebruiker: BEHEERDER, blobs: BEA_BLOB });
     await tab(page, 'Sales').click();
     const subs = page.getByRole('tablist', { name: 'Sales-onderdelen' });
-    await expect(subs.getByRole('tab')).toHaveText(['Te plannen', 'Kalender', 'Route', 'Afgewerkt']);
+    await expect(subs.getByRole('tab')).toHaveText(['Leads', 'Kalender', 'Route', 'Afgewerkt']);
     const keuze = lijst(page).getByLabel('Verkoper');
     await expect(keuze).toBeVisible();
     await expect(keuze).toHaveValue('u-bea');
@@ -147,7 +147,7 @@ test.describe('sales: rollen en isolatie', () => {
       const { stubs } = maakSalesBackend({ gebruiker, blobs: BEA_BLOB });
       await startApp(page, { loginRol: rol, overschrijf: { sales: stubs.sales, 'sales-import': stubs['sales-import'] } });
       await expect(zichtbareTabs(page).first()).toBeVisible();
-      for (const naam of ['Sales', 'Te plannen', 'Afgewerkt']) await expect(tab(page, naam)).toHaveCount(0);
+      for (const naam of ['Sales', 'Leads', 'Afgewerkt']) await expect(tab(page, naam)).toHaveCount(0);
       await expect(page.locator('[id^="view-sales"]')).toHaveCount(0);
       const r = await apiGet(page, '/api/sales');
       expect(r.status).toBe(403);

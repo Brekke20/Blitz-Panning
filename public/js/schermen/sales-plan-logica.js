@@ -1,29 +1,13 @@
 // schermen/sales-plan-logica.js — het resultaat van "Plan deze week" in gewone taal (puur, geen DOM).
-// Redenen komen van het planner-brein (planner.js); teksten volgen planacties.js, maar over bezoeken in plaats van tickets.
+// Redenen komen van het planner-brein (planner.js); de teksten staan in plan-resultaat-logica.js (gedeeld met planacties.js), over bezoeken.
 import { getWeekStart } from '../kern/tijd.js';
 import { naamVan, dagLabel } from './sales-tekst.js';
+import { redenTekst as gedeeldeRedenTekst, waarschuwingTekst, WOORDEN_BEZOEK } from './plan-resultaat-logica.js';
 
-const ONBEKEND = 'Geen plaats meer deze week';
-
-/** Gewone-taaltekst bij een reden waarom een lead niet ingepland werd. `laatsteStart` is vrij voor latere uitbreiding (nu niet in de tekst). */
-export function redenTekst(reden, { maxReistijdMin = 45, laatsteStart = '16:00' } = {}) {
-  const teksten = {
-    'geen-plaats': ONBEKEND,
-    'te-ver': `Te ver van de andere afspraken (meer dan ${maxReistijdMin} min)`,
-    'klant-geblokkeerd': 'Klant is niet beschikbaar op de vrije dagen',
-    'voorkeursdag-afstand': 'Voorkeursdag botst qua afstand met een ander bezoek',
-    'voorkeursdag-vol': 'Voorkeursdag is al vol',
-    'vast-uur-botst': 'Vast uur botst met een andere afspraak',
-    'adres-niet-gevonden': 'Adres niet gevonden',
-  };
-  return teksten[reden] ?? ONBEKEND;
+/** Gewone-taaltekst bij een reden waarom een lead niet ingepland werd: dezelfde zinnen als bij de technieker (plan-resultaat-logica.js), over bezoeken. */
+export function redenTekst(reden, { maxReistijdMin = 45 } = {}) {
+  return gedeeldeRedenTekst(reden, { maxReistijdMin, woorden: WOORDEN_BEZOEK });
 }
-
-const waarschuwingTekst = (w) => {
-  if (w?.soort === 'reistijd-geschat') return `Reistijd kon niet gecontroleerd worden voor ${(w.ticketIds ?? []).length} bezoeken — kijk de route na`;
-  if (w?.soort === 'locatie-onbekend') return 'Locatie van een bestaande afspraak onbekend — reistijdcontrole minder nauwkeurig';
-  return null; // onbekende soorten tonen we niet
-};
 
 /**
  * Zet het overzicht van `verwerkUitkomst` (planner-adapter) om in regels voor het resultaatvenster.
@@ -37,7 +21,7 @@ export function bouwResultaatRegels({ overzicht, leads, opties = {} }) {
     .filter((w) => w.velden?.status === 'voorgesteld' && w.velden.planning)
     .map((w) => ({ naam: naam(w.id), datumLabel: dagLabel(w.velden.planning.datum), start: w.velden.planning.start }));
   const nietIngepland = (overzicht?.nietGepland ?? []).map((n) => ({ naam: naam(n.leadId), tekst: redenTekst(n.reden, opties) }));
-  const waarschuwingen = (overzicht?.waarschuwingen ?? []).map(waarschuwingTekst).filter(Boolean);
+  const waarschuwingen = (overzicht?.waarschuwingen ?? []).map((w) => waarschuwingTekst(w, WOORDEN_BEZOEK)).filter(Boolean);
   return { ingepland, nietIngepland, waarschuwingen };
 }
 

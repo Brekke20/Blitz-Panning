@@ -121,7 +121,7 @@ test.describe('sales: kalender — acties op een bezoek', () => {
   });
 
   // Vereist sales-resultaat.js (Task 15, tak refactor-sales): de actie laadt dat venster lazy.
-  test('Resultaat: na "Verkocht" verdwijnt het bezoek uit de agenda en staat de lead niet meer in Te plannen', async ({ page, verzoeken }) => {
+  test('Resultaat: na "Verkocht" verdwijnt het bezoek uit de agenda en staat de lead niet meer in Leads bij Nog in te plannen', async ({ page, verzoeken }) => {
     await startSalesApp(page, zaaien());
     await naarKalender(page);
     await dag(page, '2026-10-07').locator('.tl-block.sales-bevestigd').click();
@@ -132,11 +132,11 @@ test.describe('sales: kalender — acties op een bezoek', () => {
     await expect(venster(page)).toHaveCount(0);
     await expect(dag(page, '2026-10-07').locator('.tl-block')).toHaveCount(0);
     expect(verzoeken.van('/api/sales', 'PATCH')).toHaveLength(1);
-    await tab(page, 'Te plannen').click();
+    await tab(page, 'Leads').click();
     await expect(page.locator('#view-sales-lijst .sales-kaart', { hasText: 'Test Peeters' })).toHaveCount(0);
   });
 
-  test('Terug naar te plannen: het bezoek verdwijnt uit de agenda en de lead staat in Te plannen', async ({ page, verzoeken }) => {
+  test('Terug naar te plannen: het bezoek verdwijnt uit de agenda en de lead staat in Leads bij Nog in te plannen', async ({ page, verzoeken }) => {
     await startSalesApp(page, zaaien());
     await naarKalender(page);
     await dag(page, '2026-10-07').locator('.tl-block').click();
@@ -144,7 +144,7 @@ test.describe('sales: kalender — acties op een bezoek', () => {
     await expect(venster(page)).toHaveCount(0);
     await expect(dag(page, '2026-10-07').locator('.tl-block')).toHaveCount(0);
     expect(verzoeken.van('/api/sales', 'PATCH')).toHaveLength(1);
-    await tab(page, 'Te plannen').click();
+    await tab(page, 'Leads').click();
     await expect(page.locator('#view-sales-lijst .sales-kaart', { hasText: 'Test Peeters' })).toBeVisible();
     await expect(page.locator('#view-sales-lijst').getByRole('heading', { name: /Nog in te plannen/ })).toBeVisible();
   });
@@ -175,12 +175,13 @@ test.describe('sales: kalender — blokken', () => {
     expect(verzoeken.van('/api/sales', 'PATCH')).toHaveLength(2);
   });
 
-  test('een blok met uren en omschrijving; een einde voor het begin geeft een fout in het venster; het +-knopje per dag vult de datum in', async ({ page }) => {
+  test('een blok met uren en omschrijving; een einde voor het begin geeft een fout in het venster; de datum van het venster volgt de gekozen dag; één ingang (➕ Blok), geen +-knopje per dag meer', async ({ page }) => {
     await startSalesApp(page, { leads: [], blokken: [] });
     await naarKalender(page);
-    await dag(page, '2026-10-09').getByRole('button', { name: /Blok toevoegen op/ }).click();
+    await expect(kal(page).getByRole('button', { name: /Blok toevoegen/ })).toHaveCount(0); // geen tweede ingang per dag (UI/UX P2-6)
+    await kal(page).getByRole('button', { name: '➕ Blok', exact: true }).click();
     const v = venster(page);
-    await expect(v.getByLabel('Datum')).toHaveValue('2026-10-09');
+    await v.getByLabel('Datum').fill('2026-10-09');
     await v.getByLabel('Van').fill('14:00');
     await v.getByLabel('Tot').fill('13:00');
     await v.getByRole('button', { name: 'Opslaan' }).click();
@@ -232,7 +233,6 @@ test.describe('sales: kalender — gsm en alleen-lezen', () => {
     await expect(dag(page, '2026-10-06').locator('.tl-block.sales-voorgesteld')).toContainText('Test Beaklant');
     await expect(kal(page).getByRole('button', { name: '➕ Blok', exact: true })).toHaveCount(0);
     await expect(kal(page).getByRole('button', { name: /Plan deze week/ })).toHaveCount(0);
-    await expect(kal(page).getByRole('button', { name: /Blok toevoegen op/ })).toHaveCount(0);
     await dag(page, '2026-10-06').locator('.tl-block.sales-voorgesteld').click();
     await expect(venster(page)).toContainText('Test Beaklant');
     await expect(venster(page).locator('a[href="tel:+32470112233"]')).toBeVisible();

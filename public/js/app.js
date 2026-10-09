@@ -45,6 +45,7 @@ import { appConfirm } from './app-dialog.js';
 import { registreerVenster } from './venster.js';
 import { startNaInlog } from './schermen/rol-schil.js';
 import { laadTab } from './kern/navigatie.js';
+import { eigenZohoNaam, huidigeRechten } from './kern/sessie.js';
 import { installeerTijdPicker } from './kern/tijd-picker.js';
 
 
@@ -350,7 +351,6 @@ function opstart() {
     const registreer = () => navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
     if (document.readyState === 'complete') registreer(); else window.addEventListener('load', registreer, { once: true });
   }
-  vraagRolOpTablet();
   planHerstelSchermStaat();
 }
 
@@ -365,11 +365,12 @@ function zetTopbarHoogte() {
 
 // ── Tab + scrollpositie herstellen na een volledige herlaad (cache eerst, dan verse data; of het OS
 // dat de PWA herstart). Bij pagehide / onzichtbaar worden bewaren we in sessionStorage; bij het laden
-// herstellen we als het jonger is dan 10 minuten. Nooit een coord-only tab voor een technieker, en niet
-// zolang de rolvraag op een tablet openstaat (dan pas na het antwoord).
+// herstellen we als het jonger is dan 10 minuten. Nooit een coord-only tab voor een technieker.
 const SCHERMSTAAT_KEY = 'blitz_schermstaat';
-let _rolVraagOpen = false; // wacht de rolvraag nog op een antwoord? (dan stelt planHerstelSchermStaat uit)
-let _schermStaatBewaarOk = false, _herstelUitgesteld = false, _herstelGebruikerActie = false;
+// Een coördinatortab die de beperkte (technieker-)weergave niet toont; een technieker met "Mag zelf plannen" houdt de plan-tabs (.plan-eigen).
+const tabVerborgenVoorToestel = (tabEl) => window.apparaat?.rol === 'technieker' && tabEl.classList.contains('coord-only')
+  && !(tabEl.classList.contains('plan-eigen') && window.apparaat.planEigen === true);
+let _schermStaatBewaarOk = false, _herstelGebruikerActie = false;
 function bewaarSchermStaat() {
   if (!_schermStaatBewaarOk) return; // nog niet hersteld: bewaar de oude staat niet met een lege
   try {
@@ -391,7 +392,6 @@ document.addEventListener('visibilitychange', () => {
   document.addEventListener(ev, () => { _herstelGebruikerActie = true; _schermStaatBewaarOk = true; }, { capture: true, passive: true }));
 
 function planHerstelSchermStaat() {
-  if (_rolVraagOpen) { _herstelUitgesteld = true; return; } // na het antwoord (zie vraagRolOpTablet)
   let st = null;
   try { st = JSON.parse(sessionStorage.getItem(SCHERMSTAAT_KEY) || 'null'); } catch { /* negeer */ }
   const klaar = () => { _schermStaatBewaarOk = true; };
@@ -399,7 +399,7 @@ function planHerstelSchermStaat() {
     klaar(); return;
   }
   const tabEl = document.getElementById('tab-' + st.tab);
-  const toegestaan = tabEl && !(window.apparaat?.rol === 'technieker' && tabEl.classList.contains('coord-only'))
+  const toegestaan = tabEl && !tabVerborgenVoorToestel(tabEl)
     && st.tab !== 'planning'; // Route rekent bij openen (TomTom): niet automatisch herstellen
   if (!toegestaan) { klaar(); return; }
   if (document.querySelector('.tab.active')?.id !== 'tab-' + st.tab) setTab(st.tab);
@@ -417,26 +417,6 @@ function planHerstelSchermStaat() {
   zet();
   setTimeout(zet, 60);
   setTimeout(() => { zet(); klaar(); }, 500);
-}
-
-// Eerste gebruik op een tablet: eenmalig vragen wie het toestel gebruikt (keuze wordt bewaard).
-let _rolVraagGesteld = false;
-function vraagRolOpTablet() {
-  const a = window.apparaat;
-  if (_rolVraagGesteld || !a || a.soort !== 'tablet' || a.rolGekozen) return;
-  _rolVraagGesteld = true;
-  _rolVraagOpen = true;
-  appConfirm({
-    titel: 'Wie gebruikt deze tablet?',
-    tekst: 'Dit kan je later wijzigen in Instellingen → Dit toestel.',
-    bevestigLabel: 'Coördinator',
-    annuleerLabel: 'Technieker'
-  }).then(ok => {
-    _rolVraagOpen = false;
-    _herstelGebruikerActie = false; // de tik op de dialoogknop telt niet als eigen scrollen
-    window.zetRol(ok ? 'coordinator' : 'technieker');
-    if (_herstelUitgesteld) { _herstelUitgesteld = false; planHerstelSchermStaat(); }
-  });
 }
 
 // ══════════════════════════════════════════════
@@ -638,11 +618,14 @@ function initials(name) {
   return name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
+// Wie zelf interventies uitvoert (een account met een Zoho-naam) kan zichzelf altijd kiezen, ook als er op dat moment geen ticket
+// op zijn naam staat.
 function personenUitTickets() {
   return [...new Set([
     ...get('allTickets').map(t => t.assignee),
     ...get('allGepland').map(t => t.assignee),
     ...get('allPending').map(t => t.assignee),
+    eigenZohoNaam(),
   ])].filter(Boolean).sort();
 }
 
@@ -669,7 +652,9 @@ function buildPersonSelector() {
 
   // "Alle" optie
   const allItem = document.createElement('button');
-  allItem.className = `pm-item coord-only${get('activeAssigneeFilter') === 'all' ? ' active' : ''}`;
+  // Wie mag plannen (beheerder, planner) kiest altijd "Alle technici", ook op een gsm of tablet waar de toestelrol "technieker" is
+  // (.coord-only verbergt anders dit item, en de rol van het account beslist, niet het toestel).
+  allItem.className = `pm-item${huidigeRechten().plannen ? '' : ' coord-only'}${get('activeAssigneeFilter') === 'all' ? ' active' : ''}`;
   allItem.innerHTML = `<div class="pm-avatar">A</div><div class="pm-item-info"><div class="pm-item-name">Alle technici</div><div class="pm-item-sub">Gecombineerde weergave</div></div>`;
   allItem.onclick = () => selectPerson('all');
   menu.appendChild(allItem);
@@ -684,10 +669,15 @@ function buildPersonSelector() {
 }
 
 function updatePersonHeader() {
-  const el = document.getElementById('person-avatar-hdr');
   const nm = document.getElementById('person-name-hdr');
-  if (el) el.textContent = initials(get('activeAssigneeFilter'));
   if (nm) nm.textContent = get('activeAssigneeFilter') === 'all' ? 'Alle' : get('activeAssigneeFilter').split(' ')[0];
+  // Onderscheid met het gebruikersmenu (account): deze knop kiest WIE je planning je bekijkt.
+  const knop = document.getElementById('person-btn');
+  if (knop) {
+    const wie = get('activeAssigneeFilter') === 'all' ? 'alle technici' : get('activeAssigneeFilter');
+    knop.title = 'Kies technieker (nu: ' + wie + ')';
+    knop.setAttribute('aria-label', 'Kies technieker, nu ' + wie);
+  }
 }
 
 
@@ -869,7 +859,7 @@ let _apparaatListener = false; // de 'apparaatwijziging'-luisteraar is maar éé
 function pasRolBeperkingToe() {
   if (window.apparaat?.rol !== 'technieker') return;
   const active = document.querySelector('.tab.active');
-  if (active && active.classList.contains('coord-only')) setTab('kalender');
+  if (active && tabVerborgenVoorToestel(active)) setTab('kalender');
 }
 
 // ══════════════════════════════════════════════

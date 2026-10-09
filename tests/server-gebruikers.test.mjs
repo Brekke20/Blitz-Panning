@@ -310,12 +310,14 @@ test('PATCH: ongeldige invoer -> 400, onbekend id -> 404, niets bewaard', async 
   assert.equal(JSON.stringify(await opgeslagen(o.echt)), voor);
 });
 
-test('PATCH: velden die bij de rol horen worden opgeruimd (technieker -> planner verliest zohoNaam)', async () => {
+test('PATCH: velden die bij de rol horen worden opgeruimd (technieker -> planner behoudt zohoNaam, technieker -> sales verliest ze)', async () => {
   const o = opzet();
   assert.equal((await o.gebruikers(req('PATCH', { id: 'u-tim', rol: 'planner' }))).status, 200);
   const tim = await record(o.echt, 'u-tim');
-  assert.equal(tim.zohoNaam, undefined);
+  assert.equal(tim.zohoNaam, 'Tim Z'); // elk account behalve sales mag een Zoho-naam hebben: de koppeling blijft bij een rolwijziging
   assert.equal(tim.rol, 'planner');
+  assert.equal((await o.gebruikers(req('PATCH', { id: 'u-tim', rol: 'sales', salesNaam: 'Tim V' }))).status, 200);
+  assert.equal((await record(o.echt, 'u-tim')).zohoNaam, undefined);
 });
 
 test('PATCH: e-mail, wachtwoordHash, sessieVersie en herstelcodes uit de body worden genegeerd', async () => {
@@ -559,4 +561,118 @@ test('nieuwe-herstelcodes: alleen voor een beheerdersaccount met eigen id; een f
     assert.equal((await o.gebruikers(req('POST', { actie: 'nieuwe-herstelcodes', wachtwoord: 'Fout' + i + 'Wachtwoord' }))).status, 400);
   }
   assert.equal((await o.gebruikers(req('POST', { actie: 'nieuwe-herstelcodes', wachtwoord: WW }))).status, 429);
+});
+
+// ---------------- Zoho-naam op elk account ----------------
+test('maak: een planner en een beheerder mogen een zohoNaam hebben; sales krijgt er nooit een', async () => {
+  const o = opzet();
+  const planner = await o.gebruikers(maak({ rol: 'planner', zohoNaam: ' Pia Z ', email: 'pia@blitz.test' }));
+  assert.equal(planner.status, 201);
+  assert.equal((await planner.json()).gebruiker.zohoNaam, 'Pia Z');
+  const beheerder = await o.gebruikers(maak({ rol: 'beheerder', zohoNaam: 'Bert Z', email: 'bert@blitz.test' }));
+  assert.equal(beheerder.status, 201);
+  assert.equal((await beheerder.json()).gebruiker.zohoNaam, 'Bert Z');
+  const sales = await o.gebruikers(maak({ rol: 'sales', salesNaam: 'S V', zohoNaam: 'Sven Z', email: 'sven@blitz.test' }));
+  assert.equal(sales.status, 201);
+  assert.equal((await sales.json()).gebruiker.zohoNaam, undefined);
+  const zonder = await o.gebruikers(maak({ rol: 'planner', email: 'zonder@blitz.test' }));
+  assert.equal(zonder.status, 201);
+});
+
+test('maak: een zohoNaam die al bij een ander account hoort wordt geweigerd (409), ook met andere hoofdletters en spaties', async () => {
+  const o = opzet();
+  const voor = (await opgeslagen(o.echt)).length;
+  const res = await o.gebruikers(maak({ rol: 'technieker', zohoNaam: ' tim   z ', email: 'dubbel@blitz.test' }));
+  assert.equal(res.status, 409);
+  assert.match((await res.json()).error, /Tim/);
+  const planner = await o.gebruikers(maak({ rol: 'planner', zohoNaam: 'TIM Z', email: 'dubbel2@blitz.test' }));
+  assert.equal(planner.status, 409);
+  assert.equal((await opgeslagen(o.echt)).length, voor);
+});
+
+test('PATCH: een zohoNaam toevoegen aan een planner, wijzigen of wissen; een naam van een ander account geeft 409', async () => {
+  const o = opzet();
+  const toevoegen = await o.gebruikers(req('PATCH', { id: 'u-jan', zohoNaam: 'Jan Z' }));
+  assert.equal(toevoegen.status, 200);
+  assert.equal((await toevoegen.json()).gebruiker.zohoNaam, 'Jan Z');
+  assert.equal((await record(o.echt, 'u-jan')).sessieVersie, 1); // geen uitlog voor een naamkoppeling
+  const bezet = await o.gebruikers(req('PATCH', { id: 'u-jan', zohoNaam: 'tim z' }));
+  assert.equal(bezet.status, 409);
+  assert.equal((await record(o.echt, 'u-jan')).zohoNaam, 'Jan Z');
+  const bezet2 = await o.gebruikers(req('PATCH', { id: 'u-bea', zohoNaam: 'Jan  Z' }));
+  assert.equal(bezet2.status, 409);
+  const eigen = await o.gebruikers(req('PATCH', { id: 'u-jan', zohoNaam: 'jan z' })); // eigen naam, andere schrijfwijze: toegestaan
+  assert.equal(eigen.status, 200);
+  const wissen = await o.gebruikers(req('PATCH', { id: 'u-jan', zohoNaam: '' }));
+  assert.equal(wissen.status, 200);
+  assert.equal((await record(o.echt, 'u-jan')).zohoNaam, undefined);
+  const acties = (await activiteit(o.echt)).map(a => `${a.actie}:${a.details}`);
+  assert.ok(acties.every(a => a.startsWith('gebruiker-gewijzigd:')), acties.join('|'));
+});
+
+test('PATCH: een technieker wijzigt van rol met behoud van zijn zohoNaam (planner mag er een hebben); naar sales verdwijnt ze', async () => {
+  const o = opzet();
+  const planner = await o.gebruikers(req('PATCH', { id: 'u-tim', rol: 'planner', zohoNaam: 'Tim Z' }));
+  assert.equal(planner.status, 200);
+  assert.equal((await record(o.echt, 'u-tim')).zohoNaam, 'Tim Z');
+  const sales = await o.gebruikers(req('PATCH', { id: 'u-tim', rol: 'sales', salesNaam: 'Tim V' }));
+  assert.equal(sales.status, 200);
+  assert.equal((await record(o.echt, 'u-tim')).zohoNaam, undefined);
+});
+
+test('PATCH: een bestaande dubbele zohoNaam (van vroeger) blokkeert andere wijzigingen niet', async () => {
+  const gebruikers = lijst();
+  gebruikers.push({ id: 'u-tim2', email: 'tim2@blitz.test', naam: 'Tim 2', rol: 'technieker', zohoNaam: 'Tim Z', actief: true, sessieVersie: 1, wachtwoordHash: hash });
+  const o = opzet({ gebruikers });
+  const res = await o.gebruikers(req('PATCH', { id: 'u-tim2', naam: 'Tim Twee' }));
+  assert.equal(res.status, 200);
+});
+
+// ---------------- magZelfPlannen ----------------
+test('maak: technieker met magZelfPlannen true wordt zo bewaard; zonder het vinkje is het false; een planner krijgt het veld nooit', async () => {
+  const o = opzet();
+  const met = await o.gebruikers(maak({ rol: 'technieker', zohoNaam: 'Kim Z', email: 'kim@blitz.test', magZelfPlannen: true }));
+  assert.equal(met.status, 201);
+  const kim = await met.json();
+  assert.equal(kim.gebruiker.magZelfPlannen, true);
+  assert.equal((await record(o.echt, kim.gebruiker.id)).magZelfPlannen, true);
+  const zonder = await o.gebruikers(maak({ rol: 'technieker', zohoNaam: 'Lou Z', email: 'lou@blitz.test' }));
+  assert.equal((await zonder.json()).gebruiker.magZelfPlannen, false);
+  const planner = await o.gebruikers(maak({ rol: 'planner', email: 'p2@blitz.test', magZelfPlannen: true }));
+  assert.equal((await planner.json()).gebruiker.magZelfPlannen, undefined);
+});
+
+test('PATCH: magZelfPlannen aan/uit door de beheerder, gelogd als gebruiker-gewijzigd, zonder uitlog; een niet-boolean geeft 400', async () => {
+  const o = opzet();
+  const aan = await o.gebruikers(req('PATCH', { id: 'u-tim', magZelfPlannen: true }));
+  assert.equal(aan.status, 200);
+  assert.equal((await aan.json()).gebruiker.magZelfPlannen, true);
+  assert.equal((await record(o.echt, 'u-tim')).sessieVersie, 1);
+  const uit = await o.gebruikers(req('PATCH', { id: 'u-tim', magZelfPlannen: false }));
+  assert.equal((await uit.json()).gebruiker.magZelfPlannen, false);
+  const log = (await activiteit(o.echt)).filter(a => a.actie === 'gebruiker-gewijzigd');
+  assert.deepEqual(log.map(a => a.details), ['magZelfPlannen', 'magZelfPlannen']);
+  assert.deepEqual(log.map(a => a.onderwerp), ['u-tim', 'u-tim']);
+  assert.equal((await o.gebruikers(req('PATCH', { id: 'u-tim', magZelfPlannen: 'ja' }))).status, 400);
+  // een planner heeft geen techniekersvinkje: het gewoon niet bewaren
+  const planner = await o.gebruikers(req('PATCH', { id: 'u-jan', magZelfPlannen: true }));
+  assert.equal(planner.status, 200);
+  assert.equal((await record(o.echt, 'u-jan')).magZelfPlannen, undefined);
+});
+
+test('magZelfPlannen wijzigen kan enkel de beheerder: planner, technieker en sales krijgen 403 en er verandert niets', async () => {
+  const o = opzet();
+  for (const [uid, sv] of [['u-jan', 1], ['u-tim', 1], ['u-sal', 1]]) {
+    const res = await o.gebruikers(req('PATCH', { id: 'u-tim', magZelfPlannen: true }, als(uid, sv)));
+    assert.equal(res.status, 403, uid);
+  }
+  assert.equal((await record(o.echt, 'u-tim')).magZelfPlannen, undefined);
+});
+
+test('een technieker met magZelfPlannen: de rol wijzigen naar planner of sales laat het vinkje verdwijnen', async () => {
+  const gebruikers = lijst();
+  gebruikers[2] = { ...gebruikers[2], magZelfPlannen: true };
+  const o = opzet({ gebruikers });
+  assert.equal((await o.gebruikers(req('PATCH', { id: 'u-tim', rol: 'planner' }))).status, 200);
+  assert.equal((await record(o.echt, 'u-tim')).magZelfPlannen, undefined);
 });

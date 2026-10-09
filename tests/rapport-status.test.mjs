@@ -5,7 +5,7 @@ globalThis.escHtml = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&l
 
 const {
   effectieveStatus, statusBadgeHtml, opnieuwKnopHtml, opnieuwVersturen,
-  misluktMeldingTekst, teMeldenMislukt,
+  misluktMeldingTekst, teMeldenMislukt, meldingsPersoon,
 } = await import('../public/js/rapport-status.js');
 
 const verw = (status, extra = {}) => ({ id: 'r1', verwerking: { status, ...extra } });
@@ -104,4 +104,13 @@ test('opnieuwVersturen: POST { opnieuw: id }; ok, ongewijzigd en fout', async ()
   const fNet = await opnieuwVersturen('x1', { fetch: maak(new Error('offline')) });
   assert.equal(fNet.ok, false);
   assert.ok(fNet.fout);
+});
+
+test('meldingsPersoon: een account met een Zoho-naam meldt zijn eigen rapporten, anders enkel de technieker-toestelrol met een gekozen persoon', () => {
+  assert.equal(meldingsPersoon('coordinator', ' Brent C ', 'all'), 'Brent C'); // beheerder/planner met Zoho-naam, op elk toestel
+  assert.equal(meldingsPersoon('technieker', 'Tim', 'Roel'), 'Tim');
+  assert.equal(meldingsPersoon('technieker', '', 'Roel'), 'Roel');
+  assert.equal(meldingsPersoon('technieker', '', 'all'), null);
+  assert.equal(meldingsPersoon('technieker', undefined, ''), null);
+  assert.equal(meldingsPersoon('coordinator', '', 'Roel'), null);
 });

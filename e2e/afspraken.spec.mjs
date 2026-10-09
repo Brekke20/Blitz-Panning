@@ -322,11 +322,14 @@ test.describe('afspraken: detailvenster, bewerken en verwijderen', () => {
     await expect(kaart(page, '2026-10-07', 'Alleen notitie')).toHaveCount(1);
   });
 
-  test('✕ op de kaart: verwijdert meteen zonder confirm (PUT zonder dat id)', async ({ page, verzoeken }) => {
+  test('✕ op de kaart: eerst de in-app bevestiging, daarna een PUT zonder dat id (geen native dialoog)', async ({ page, verzoeken }) => {
     await startApp(page, { overschrijf: metSeed([FULL, ENKEL_NOTITIE], 4) });
     await naarKalender(page);
     page.on('dialog', () => { throw new Error('geen dialoog verwacht'); });
     await kaart(page, '2026-10-07', 'Alleen notitie').getByRole('button', { name: 'Afspraak verwijderen' }).click();
+    await expect(page.getByRole('alertdialog')).toContainText("Afspraak 'Alleen notitie' verwijderen?");
+    expect(puts(verzoeken)).toEqual([]);
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Verwijderen' }).click();
     await expect.poll(() => puts(verzoeken).length).toBe(1);
     expect(puts(verzoeken)[0].body).toEqual({ versie: 4, afspraken: [FULL] });
     await expect(kaart(page, '2026-10-07', 'Alleen notitie')).toHaveCount(0);

@@ -35,6 +35,27 @@ test.describe('tabs per rol', () => {
     await expect(page.locator('#tab-planning')).toHaveAttribute('aria-hidden', 'true');
   });
 
+  // UI/UX P1-5: een beheerder of planner op een gsm (zonder eigen toestelkeuze) krijgt de volledige rol, niet stil de techniekerweergave.
+  for (const loginRol of ['beheerder', 'planner']) {
+    test(`${loginRol} op een gsm zonder toestelkeuze: rol coördinator, Wachtrij, Route en Rapporten zichtbaar`, async ({ browser }) => {
+      const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'nl-BE', timezoneId: 'Europe/Brussels', serviceWorkers: 'block' });
+      const page = await context.newPage();
+      try {
+        await startApp(page, { rol: null, loginRol });
+        await expect(page.locator('html')).toHaveAttribute('data-apparaat', 'gsm');
+        await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
+        expect(await page.evaluate(() => localStorage.getItem('blitz_rol'))).toBeNull();
+        for (const naam of ['Wachtrij', 'Route', 'Rapporten']) await expect(tab(page, naam)).toBeVisible();
+      } finally { await context.close(); }
+    });
+  }
+
+  test('beheerder met een oude toestelkeuze blitz_rol "technieker": het account wint, volledige rol', async ({ page }) => {
+    await startApp(page, { rol: 'technieker', loginRol: 'beheerder' });
+    await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
+    await expect(tab(page, 'Wachtrij')).toBeVisible();
+  });
+
   test('technieker op een computer met blitz_rol "coordinator": toch de beperkte rol, coördinatorknoppen verborgen', async ({ page }) => {
     await startApp(page, { rol: 'coordinator', loginRol: 'technieker' });
     await expect(page.locator('html')).toHaveAttribute('data-rol', 'technieker');
@@ -113,7 +134,7 @@ test.describe('sales', () => {
 });
 
 test.describe('gebruikersmenu', () => {
-  test('toont de naam als tekst (geen HTML), de rol en de beheerderslink', async ({ page }) => {
+  test('toont de naam als tekst (geen HTML), de rol en geen dubbele Beheer-ingang', async ({ page }) => {
     await startApp(page, { loginRol: 'beheerder', loginGebruiker: { naam: '<b>x</b> Jansen' } });
     const knop = page.locator('.gebruiker-btn');
     await expect(knop).toHaveAttribute('aria-expanded', 'false');
@@ -124,11 +145,12 @@ test.describe('gebruikersmenu', () => {
     await expect(menu.locator('.gm-rol')).toHaveText('Beheerder');
     await expect(menu.locator('b')).toHaveCount(0);
     await expect(menu.getByRole('menuitem', { name: 'Wachtwoord wijzigen' })).toBeVisible();
-    await expect(menu.getByRole('menuitem', { name: 'Beheer' })).toBeVisible();
+    await expect(menu.getByRole('menuitem', { name: 'Beheer' })).toHaveCount(0); // Beheer is de tab, niet ook een menu-item
+    await expect(menu.getByRole('menuitem')).toHaveText(['Wachtwoord wijzigen', 'Uitloggen']);
     await expect(menu.getByRole('menuitem', { name: 'Uitloggen' })).toBeVisible();
   });
 
-  test('een planner krijgt geen Beheer-link', async ({ page }) => {
+  test('een planner heeft geen Beheer in het menu', async ({ page }) => {
     await startApp(page, { loginRol: 'planner' });
     await page.locator('.gebruiker-btn').click();
     await expect(page.locator('.gebruiker-menu').getByRole('menuitem', { name: 'Uitloggen' })).toBeVisible();

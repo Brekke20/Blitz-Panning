@@ -7,6 +7,7 @@
 //   Geplande service                → klant bevestigd, definitief
 
 import { maakZoho, leesJsonVeilig } from '../lib/zoho.js';
+import { agentNaam } from '../lib/zoho-agenten.js';
 import { CORS_V1 } from '../lib/http.js';
 import { beveiligV1 } from '../lib/beveiligd.js';
 
@@ -24,7 +25,7 @@ async function kern(event, context, gebruiker) {
     const agentsData = await agentsRes.json();
     const agentMap = {};
     for (const a of agentsData.data || []) {
-      agentMap[a.id] = a.name || `${a.firstName || ''} ${a.lastName || ''}`.trim();
+      agentMap[a.id] = agentNaam(a);
     }
 
     // Beide naamsets ondersteunen (Zoho gebruikt soms oude, soms nieuwe namen)

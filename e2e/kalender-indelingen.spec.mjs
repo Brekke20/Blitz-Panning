@@ -237,3 +237,33 @@ test.describe('kalender: wissel van apparaat bij een open kalender', () => {
     await expect(page.locator('.tl-now')).toHaveCount(1);
   });
 });
+
+// UI/UX-review P2-10: op een gsm passen de 4 tabs van de technieker volledig; bij een rol met veel tabs (beheerder) scrolt de balk
+// en tonen scrollschaduwen (achtergrondverlopen) dat er meer staat.
+test.describe('tabbalk op een gsm', () => {
+  test('technieker: alle 4 tabs passen zonder horizontaal scrollen en geen tab is afgeknipt', async ({ page }) => {
+    await zetWeergave(page, 'gsm');
+    await startApp(page, { loginRol: 'technieker', viewport: { width: 375, height: 812 } });
+    await expect(page.locator('html')).toHaveAttribute('data-indeling', 'smal');
+    const m = await page.evaluate(() => {
+      const balk = document.querySelector('.tabs-inner');
+      const tabs = [...balk.querySelectorAll('.tab')].filter(t => t.offsetParent !== null);
+      return { zichtbaar: tabs.length, past: balk.scrollWidth <= balk.clientWidth, rechts: Math.max(...tabs.map(t => t.getBoundingClientRect().right)), breedte: balk.getBoundingClientRect().right };
+    });
+    expect(m.zichtbaar).toBe(4);
+    expect(m.past).toBe(true);
+    expect(m.rechts).toBeLessThanOrEqual(m.breedte + 0.5);
+  });
+
+  test('beheerder: de tabbalk scrolt en heeft scrollschaduwen (verlopen) als teken dat er meer staat', async ({ page }) => {
+    await zetWeergave(page, 'gsm');
+    await startApp(page, { viewport: { width: 375, height: 812 } });
+    await expect(page.locator('html')).toHaveAttribute('data-indeling', 'smal');
+    const m = await page.evaluate(() => {
+      const balk = document.querySelector('.tabs-inner');
+      return { scrolt: balk.scrollWidth > balk.clientWidth, achtergrond: getComputedStyle(balk).backgroundImage };
+    });
+    expect(m.scrolt).toBe(true);
+    expect(m.achtergrond).toContain('linear-gradient');
+  });
+});

@@ -19,6 +19,7 @@ import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
 import { getStore } from '@netlify/blobs';
 import { beveiligV1 } from '../lib/beveiligd.js';
 import { logVoorVerzoek } from '../lib/activiteit.js';
+import { eisEigenTicket } from '../lib/eigen-ticket.js';
 
 // De bevestigingslink wordt ondertekend via de gedeelde module bevestigingslink.js (dezelfde
 // als waarmee confirm-afspraak.js controleert), met de ontvanger (doelgroep) in de handtekening.
@@ -223,6 +224,9 @@ async function kern(event, context, gebruiker, haalStore = getStore) {
     if (!ticketRes.ok) {
       return v1Json(404, { error: 'Ticket niet gevonden' }, CORS_V1);
     }
+    // Een technieker met "Mag zelf plannen" stuurt enkel voorstellen voor zijn eigen tickets (vóór er een mail vertrekt).
+    const eis = await eisEigenTicket({ gebruiker, ticketId, zoho, toegang: { token: accessToken, orgId }, ticket: ticketData });
+    if (!eis.ok) return v1Json(eis.status, eis.body, CORS_V1);
     const cf = ticketData.cf || {};
     const contactEmail      = ticketData.contact?.email || ticketData.contact?.emailId || ticketData.email || '';
     const klantEmail        = cf.cf_e_mail_eindklant || '';

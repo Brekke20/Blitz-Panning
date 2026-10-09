@@ -237,6 +237,9 @@ function maakStandaardStubs() {
 
     // Sessie (logins T14): standaard een ingelogde beheerder; auth-uitloggen is neutraal. Beide staan in geen enkele verbodenlijst.
     'auth-ik': authIkStub('beheerder'), 'auth-uitloggen': ok,
+
+    // Beheer, Gebruikers: de actieve Zoho-agenten voor de keuzelijst Zoho-naam (nooit echt Zoho). Verzonnen namen.
+    'zoho-agenten': () => json(200, { agenten: [{ naam: 'Roel' }, { naam: 'Sven Peeters' }, { naam: 'Tim' }] }),
   };
 }
 

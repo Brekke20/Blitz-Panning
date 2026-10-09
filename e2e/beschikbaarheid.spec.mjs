@@ -284,8 +284,8 @@ test.describe('instellingen: tab Beschikbaarheden', () => {
     await expect.poll(() => puts(verzoeken).length).toBe(1);
     expect(puts(verzoeken)[0].body).toEqual({ versie: 3, exceptions: [BLOK({ id: 'z1', date: '2026-10-20', reason: 'Blijft' })] });
     expect(await lijstTekst(modal)).toEqual(['20 okt 2026 · 🔒 Hele dag — Blijft (Iedereen)']);
-    // Ook de kalender kent de verwijderde dagen niet meer.
-    await modal.getByRole('button', { name: 'Annuleren' }).click();
+    // Ook de kalender kent de verwijderde dagen niet meer. (Op de tab Beschikbaarheden is er niets op te slaan: de knop heet "Sluiten", UI/UX P1-5.)
+    await modal.getByRole('button', { name: 'Sluiten', exact: true }).last().click();
     await page.getByRole('tab', { name: 'Kalender' }).click();
     await expect(page.locator('.day-col[data-date="2026-10-07"]').getByText('🔒 Geblokkeerd')).toHaveCount(0);
   });
@@ -296,7 +296,7 @@ test.describe('instellingen: tab Beschikbaarheden', () => {
     await modal.locator('#bav-date').fill('2026-10-07');
     await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
     await expect(lijst(modal)).toHaveCount(1);
-    await modal.getByRole('button', { name: 'Annuleren' }).click();
+    await modal.getByRole('button', { name: 'Sluiten', exact: true }).last().click();
     await page.getByRole('tab', { name: 'Kalender' }).click();
     await expect(page.locator('.day-col[data-date="2026-10-07"]').getByText('🔒 Geblokkeerd')).toBeVisible();
   });

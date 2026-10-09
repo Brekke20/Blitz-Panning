@@ -14,8 +14,12 @@
     try { localStorage.setItem(sleutel, waarde); } catch (e) {}
   }
 
-  // Rol van de ingelogde gebruiker (zetLoginRol, logins T15): enkel 'technieker' en 'sales' beperken het toestel.
+  // Rol van de ingelogde gebruiker (zetLoginRol, logins T15). De ACCOUNT bepaalt de weergave op elk toestel: technieker en sales zijn
+  // beperkt, beheerder en planner krijgen de volledige coördinatorweergave (UI/UX-review P1-5; de oude keuze "Rol op dit toestel" is weg).
   var loginRol = null;
+  // Een technieker met "Mag zelf plannen" (zetLoginRol, tweede argument): de ingeplande-functies voor zijn eigen tickets blijven zichtbaar
+  // (CSS: .coord-only.plan-eigen); de server en de knoppen per ticket beperken hem tot zijn eigen tickets.
+  var planEigen = false;
 
   function bepaal() {
     var grof = !!(grofMQ && grofMQ.matches);
@@ -38,12 +42,14 @@
     var r = lees('blitz_rol');
     var rolGekozen = (r === 'coordinator' || r === 'technieker');
     var rol = rolGekozen ? r : (soort === 'computer' ? 'coordinator' : 'technieker');
-    // Een ingelogde technieker (of sales) is altijd de beperkte rol, op elk toestel, en krijgt geen tablet-rolvraag.
+    // Een ingelogde technieker (of sales) is altijd de beperkte rol, een beheerder of planner altijd coördinator, op elk toestel
+    // (ook een gsm of tablet: het compacte gedrag komt van `indeling`, niet van de rol). Geen rolvraag meer.
     // Sales houdt zijn eigen waarde 'sales' (CSS behandelt hem als technieker voor .coord-only; sales-schermen gebruiken eigen klassen).
-    if (loginRol) { rol = loginRol === 'sales' ? 'sales' : 'technieker'; rolGekozen = true; }
+    if (loginRol) { rol = loginRol === 'sales' ? 'sales' : loginRol === 'technieker' ? 'technieker' : 'coordinator'; rolGekozen = true; }
 
     return { soort: soort, automatischeSoort: auto, indeling: indeling, staand: staand,
-             aanraak: grof, rol: rol, rolGekozen: rolGekozen, kortsteZijde: kortsteZijde };
+             aanraak: grof, rol: rol, rolGekozen: rolGekozen, kortsteZijde: kortsteZijde,
+             planEigen: planEigen && rol === 'technieker' };
   }
 
   function zetAttributen(a) {
@@ -52,6 +58,7 @@
     root.setAttribute('data-orientatie', a.staand ? 'staand' : 'liggend');
     root.setAttribute('data-aanraak', a.aanraak ? 'ja' : 'nee');
     root.setAttribute('data-rol', a.rol);
+    root.setAttribute('data-plan-eigen', a.planEigen ? 'ja' : 'nee');
   }
 
   function evalueer() {
@@ -60,7 +67,7 @@
     window.apparaat = nu;
     zetAttributen(nu);
     if (vorig && (vorig.soort !== nu.soort || vorig.staand !== nu.staand || vorig.indeling !== nu.indeling ||
-                  vorig.rol !== nu.rol || vorig.aanraak !== nu.aanraak)) {
+                  vorig.rol !== nu.rol || vorig.aanraak !== nu.aanraak || vorig.planEigen !== nu.planEigen)) {
       window.dispatchEvent(new CustomEvent('apparaatwijziging', { detail: nu }));
     }
   }
@@ -79,8 +86,9 @@
     evalueer();
   };
 
-  window.zetLoginRol = function (r) {
-    loginRol = (r === 'technieker' || r === 'sales') ? r : null;
+  window.zetLoginRol = function (r, opties) {
+    loginRol = (r === 'technieker' || r === 'sales' || r === 'beheerder' || r === 'planner') ? r : null;
+    planEigen = !!(opties && opties.planEigen === true);
     evalueer();
   };
 

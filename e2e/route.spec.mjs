@@ -28,7 +28,7 @@ test.describe('route', () => {
     await resultaat.getByRole('button', { name: 'Sluiten' }).click();
     // Voor het openen van de Route-tab is er nog geen route aangevraagd.
     expect(verzoeken.van('/api/route')).toEqual([]);
-    await page.locator('.day-col').filter({ hasText: '#1001' }).getByRole('button', { name: 'Route berekenen' }).click();
+    await page.locator('.day-col').filter({ hasText: '#1001' }).getByRole('button', { name: 'Route bekijken' }).click();
 
     // (De toast 'Route berekend ✓' wordt meteen door 'Drukte laden...' vervangen: niet bruikbaar.)
     await expect(page.getByTestId('route-stop-tijd')).toHaveCount(2);

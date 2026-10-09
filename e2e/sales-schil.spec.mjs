@@ -10,7 +10,7 @@ test.describe('sales: schil en start', () => {
   test('precies de vier sales-tabs, geen ticket-tabs, geen verzoek naar de ticket- of planning-API\'s', async ({ page, verzoeken }) => {
     await startSalesApp(page);
     await expect(zichtbareTabs(page)).toHaveCount(4);
-    await expect(zichtbareTabs(page)).toHaveText(['Te plannen', 'Kalender', 'Route', 'Afgewerkt']);
+    await expect(zichtbareTabs(page)).toHaveText(['Leads', 'Kalender', 'Route', 'Afgewerkt']);
     for (const naam of ['Wachtrij', 'Ingepland', 'Inventaris', 'Rapporten', 'Beheer']) await expect(tab(page, naam)).toHaveCount(0);
     await expect(page.locator('html')).toHaveAttribute('data-rol', 'sales');
     await expect(page.locator('nav[aria-label="Hoofdmenu"]')).toBeVisible();
@@ -28,9 +28,9 @@ test.describe('sales: schil en start', () => {
     expect(verzoeken.verboden).toEqual([]);
   });
 
-  test('"Te plannen" is de eerste tab en toont de lege toestand zonder consolefouten', async ({ page, consoleFouten }) => {
+  test('"Leads" is de eerste tab en toont de lege toestand zonder consolefouten', async ({ page, consoleFouten }) => {
     await startSalesApp(page);
-    await expect(tab(page, 'Te plannen')).toHaveAttribute('aria-selected', 'true');
+    await expect(tab(page, 'Leads')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('#view-sales-lijst')).toHaveClass(/active/);
     await expect(page.locator('#view-tickets')).not.toHaveClass(/active/);
     await expect(page.locator('#view-sales-lijst')).toContainText('Nog geen leads. Laad een export of voeg zelf een lead toe.');
@@ -43,7 +43,7 @@ test.describe('sales: schil en start', () => {
     await expect(page.locator('#view-sales-kalender')).toHaveClass(/active/);
     await expect(page.locator('#view-sales-lijst')).not.toHaveClass(/active/);
     await expect(tab(page, 'Kalender')).toHaveAttribute('aria-selected', 'true');
-    await expect(tab(page, 'Te plannen')).toHaveAttribute('aria-selected', 'false');
+    await expect(tab(page, 'Leads')).toHaveAttribute('aria-selected', 'false');
     const streep = await page.locator('.tabs').evaluate(el => ({ links: el.style.getPropertyValue('--ind-left'), breed: el.style.getPropertyValue('--ind-width') }));
     expect(parseFloat(streep.breed)).toBeGreaterThan(0);
     await tab(page, 'Afgewerkt').click();
@@ -55,7 +55,7 @@ test.describe('sales: schil en start', () => {
   test('een tabwissel heen en weer tekent het scherm niet dubbel en herlaadt de leads', async ({ page, verzoeken }) => {
     await startSalesApp(page);
     await tab(page, 'Kalender').click();
-    await tab(page, 'Te plannen').click();
+    await tab(page, 'Leads').click();
     await expect(page.locator('#view-sales-lijst .sales-leeg')).toHaveCount(1);
     await expect(page.locator('#view-sales-lijst .sales-inhoud')).toHaveCount(1);
     expect(verzoeken.van('/api/sales', 'GET').length).toBeGreaterThanOrEqual(3);
@@ -69,7 +69,7 @@ test.describe('sales: schil en start', () => {
     expect(consoleFouten).toEqual([]);
   });
 
-  test('met bewaarde leads toont "Te plannen" ze (de schil laadt het eigen blob)', async ({ page }) => {
+  test('met bewaarde leads toont "Leads" ze (de schil laadt het eigen blob)', async ({ page }) => {
     await startSalesApp(page, { leads: [{ id: 'l1', naam: 'Verhaegen', voornaam: 'Lotte', status: 'te-plannen', bezoeken: [] }] });
     await expect(page.locator('#view-sales-lijst .sales-kaart')).toHaveCount(1);
     await expect(page.locator('#view-sales-lijst')).toContainText('Lotte Verhaegen');
@@ -90,7 +90,7 @@ test.describe('sales: opslagstoring', () => {
     await expect(view.getByText('De opslag is tijdelijk niet bereikbaar. Probeer het zo meteen opnieuw.')).toBeVisible();
     await expect(view.getByRole('button', { name: 'Opnieuw' })).toBeVisible();
     await expect(page.locator('#login-overlay')).toHaveCount(0);
-    await expect(tab(page, 'Te plannen')).toBeVisible();
+    await expect(tab(page, 'Leads')).toBeVisible();
     await verwachtFout(consoleFouten, '/api/sales', 503);
 
     await view.getByRole('button', { name: 'Opnieuw' }).click();
@@ -137,8 +137,8 @@ test.describe('sales: verkoperkeuze', () => {
     await expect(page.getByRole('tab', { name: 'Route' })).toHaveCount(1);
     await tab(page, 'Sales').click();
     const subs = page.getByRole('tablist', { name: 'Sales-onderdelen' });
-    await expect(subs.getByRole('tab')).toHaveText(['Te plannen', 'Kalender', 'Route', 'Afgewerkt']);
-    await expect(subs.getByRole('tab', { name: 'Te plannen' })).toHaveAttribute('aria-selected', 'true');
+    await expect(subs.getByRole('tab')).toHaveText(['Leads', 'Kalender', 'Route', 'Afgewerkt']);
+    await expect(subs.getByRole('tab', { name: 'Leads' })).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('#view-sales-lijst')).toBeVisible();
     await expect(page.locator('#view-sales-kalender')).toBeHidden();
     await expect(page.locator('#view-sales-lijst').getByLabel('Verkoper')).toHaveValue('u-bea'); // de eerste verkoper (op naam)
@@ -156,7 +156,7 @@ test.describe('sales: verkoperkeuze', () => {
     await startSalesApp(page, { gebruiker: BEHEERDER });
     await tab(page, 'Sales').click();
     const subs = page.getByRole('tablist', { name: 'Sales-onderdelen' });
-    await subs.getByRole('tab', { name: 'Te plannen' }).focus();
+    await subs.getByRole('tab', { name: 'Leads' }).focus();
     await page.keyboard.press('ArrowRight');
     await expect(subs.getByRole('tab', { name: 'Kalender' })).toHaveAttribute('aria-selected', 'true');
     await expect(subs.getByRole('tab', { name: 'Kalender' })).toBeFocused();
@@ -164,7 +164,7 @@ test.describe('sales: verkoperkeuze', () => {
     await expect(subs.getByRole('tab', { name: 'Afgewerkt' })).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('#view-sales-afgewerkt')).toBeVisible();
     await page.keyboard.press('ArrowRight'); // omwikkelen
-    await expect(subs.getByRole('tab', { name: 'Te plannen' })).toHaveAttribute('aria-selected', 'true');
+    await expect(subs.getByRole('tab', { name: 'Leads' })).toHaveAttribute('aria-selected', 'true');
     await page.keyboard.press('ArrowLeft');
     await expect(subs.getByRole('tab', { name: 'Afgewerkt' })).toHaveAttribute('aria-selected', 'true');
     // Wegnavigeren en terug, en na een herlaad: hetzelfde subtab.

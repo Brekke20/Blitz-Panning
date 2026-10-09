@@ -6,7 +6,7 @@ import './inloggen.js';                       // registreert de loginschermen bi
 import { toonGebruikersmenu } from './gebruikersmenu.js';
 import { toonRolwisselaar } from './rolwisselaar.js';  // testmodus op een lokale dev-server: kies de rol (logins T19)
 import { registreerTabs, tabsVoorRol, registreerStart, startVoorRol, zetActieveRol } from '../kern/navigatie.js';
-import { laadSessie, huidigeGebruiker, registreerAfmeldHaak, laatsteOpstartNetwerkMs } from '../kern/sessie.js';
+import { laadSessie, huidigeGebruiker, huidigeRechten, registreerAfmeldHaak, laatsteOpstartNetwerkMs, eigenZohoNaam } from '../kern/sessie.js';
 import { claimToestel, geefToestelVrij } from '../kern/eigenaar.js';
 import { synchroniseerInstellingen, wisInstellingenCache, resterendSyncBudget } from '../kern/instellingen-sync.js';
 import { toast } from '../kern/ui.js';
@@ -28,6 +28,8 @@ registreerTabs('beheerder', [
 ]);
 // Technieker: zijn eigen rapporten (de server filtert) en collega's enkel lezen; geen wachtrij en geen route.
 registreerTabs('technieker', [bestaand('kalender', 'Kalender'), bestaand('gepland', 'Ingepland'), bestaand('inventaris', 'Inventaris'), bestaand('rapporten', 'Rapporten')]);
+// Een technieker met het vinkje "Mag zelf plannen" krijgt er de Wachtrij en de Route bij (enkel voor zijn eigen tickets; de server dwingt dat af).
+registreerTabs('technieker-plan-eigen', [bestaand('tickets', 'Wachtrij'), bestaand('planning', 'Route')]);
 // Sales: de tabs en de start van de sales-planner (en de sales-tabs van de beheerder) staan in sales-registratie.js; de tabs VOEGEN toe.
 registreerTabs('sales', []);
 registreerSalesRol({ registreerTabs, registreerStart });
@@ -74,9 +76,10 @@ function zetTabZichtbaar(knop, zichtbaar) {
 export function pasRolToe(gebruiker) {
   const rol = gebruiker?.rol;
   zetActieveRol(rol);
-  window.zetLoginRol?.(rol); // technieker en sales forceren het toestel-rolgedrag (apparaat.js)
+  const planEigen = huidigeRechten().planEigen === true;
+  window.zetLoginRol?.(rol, { planEigen }); // technieker en sales forceren het toestel-rolgedrag (apparaat.js)
 
-  const tabs = tabsVoorRol(rol);
+  const tabs = [...tabsVoorRol(rol), ...(planEigen ? tabsVoorRol('technieker-plan-eigen') : [])];
   const toegestaan = new Set(tabs.map(t => t.id));
   for (const t of tabs) if (!document.getElementById(`tab-${t.id}`)) maakTab(t);
   for (const knop of document.querySelectorAll('.tabs-inner .tab')) zetTabZichtbaar(knop, toegestaan.has(knop.id.replace(/^tab-/, '')));
@@ -84,11 +87,18 @@ export function pasRolToe(gebruiker) {
   // Een technieker ziet Rapporten (enkel zijn eigen: de server filtert) op elk toestel; de rest van .coord-only blijft verborgen.
   document.getElementById('tab-rapporten')?.classList.toggle('coord-only', rol !== 'technieker');
 
-  // Een technieker start op zijn eigen planning, tenzij hij al een bepaalde persoon gekozen had.
-  if (rol === 'technieker' && gebruiker.zohoNaam) {
+  // "Mijn rapporten" (Rapporten-tab): voor wie alles ziet (beheerder, planner) en zelf interventies uitvoert; een technieker ziet enkel zijn eigen.
+  const mijnRapporten = document.getElementById('rapp-filter-mijn');
+  if (mijnRapporten) mijnRapporten.style.display = rol !== 'technieker' && rol !== 'sales' && eigenZohoNaam() ? '' : 'none';
+
+  // Een technieker start op zijn eigen planning, tenzij hij al een bepaalde persoon gekozen had. Een beheerder of planner met een
+  // Zoho-naam (voert zelf interventies uit) start op zichzelf zolang er op dit toestel nog niets gekozen is; een bewuste keuze,
+  // ook "Alle", blijft staan.
+  if (rol !== 'sales' && gebruiker.zohoNaam) {
     try {
       const gekozen = localStorage.getItem('blitz_active_person');
-      if (!gekozen || gekozen === 'all') localStorage.setItem('blitz_active_person', String(gebruiker.zohoNaam));
+      const opEigen = rol === 'technieker' ? (!gekozen || gekozen === 'all') : !gekozen;
+      if (opEigen) localStorage.setItem('blitz_active_person', String(gebruiker.zohoNaam));
     } catch { /* geen opslag */ }
   }
   toonGebruikersmenu(gebruiker);

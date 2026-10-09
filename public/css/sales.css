@@ -48,7 +48,7 @@
 .sales-subpaneel { min-width: 0; }
 .sales-subpaneel[hidden] { display: none; }
 
-/* ---- Te plannen (sales-lijst.js) ---- */
+/* ---- Leads (sales-lijst.js): drie kolommen ---- */
 .sales-lijst-wortel [hidden], .sales-detail [hidden], .sales-form [hidden] { display: none !important; }
 .sales-lijst-acties { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-bottom: var(--sp-4); }
 .sales-melding {
@@ -76,6 +76,34 @@
 .sales-groep { margin-bottom: var(--sp-5); }
 .sales-groep-kop { font-size: var(--fs-md); font-weight: 700; margin-bottom: var(--sp-3); }
 .sales-kaartlijst { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-3); }
+/* Drie kolommen naast elkaar: nog in te plannen, ingepland, bevestigd. Elke kolom heeft zijn eigen kaartenlijst (één kaart breed). */
+.sales-kolommen { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-4); align-items: start; }
+.sales-kolom { min-width: 0; margin-bottom: 0; padding: var(--sp-3); background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r-lg); }
+.sales-kolom .sales-kaartlijst { grid-template-columns: minmax(0, 1fr); }
+.sales-kolom .sales-groep-kop { display: flex; align-items: baseline; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.sales-kolom-leeg { color: var(--muted); font-size: var(--fs-sm); padding: var(--sp-3) var(--sp-1); }
+.sales-kaart-acties { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.sales-chip-voorstel { background: var(--surface3); color: var(--text2); border: 1px dashed var(--accent); }
+/* De tabbalk (enkel op een smal scherm): titel en aantal van elke kolom. */
+.sales-kolomtabs { display: none; }
+@media (max-width: 759px) {
+  .sales-kolommen { display: block; }
+  .sales-kolom { display: none; }
+  .sales-kolommen[data-actief="tePlannen"] .sales-kolom[data-kolom="tePlannen"],
+  .sales-kolommen[data-actief="ingepland"] .sales-kolom[data-kolom="ingepland"],
+  .sales-kolommen[data-actief="bevestigd"] .sales-kolom[data-kolom="bevestigd"] { display: block; }
+  .sales-kolom .sales-groep-kop { display: none; } /* de tabbalk draagt titel en aantal */
+  .sales-kolomtabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: var(--sp-3); }
+  .sales-kolomtab {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; min-height: 52px; padding: 6px 4px;
+    font: inherit; font-size: var(--fs-xs); font-weight: 600; text-align: center; line-height: 1.2; cursor: pointer;
+    background: var(--surface2); color: var(--text2); border: 1px solid var(--border); border-radius: var(--r);
+  }
+  .sales-kolomtab[aria-selected="true"] { background: var(--accent-dim); color: var(--accent-ink); border-color: var(--accent); }
+  .sales-kolomtab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+  .sales-kolomtab-titel { overflow-wrap: anywhere; }
+  .sales-kolomtab-aantal { font-size: var(--fs-md); font-weight: 700; }
+}
 .sales-kaart {
   display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; padding: var(--sp-3) var(--sp-4); cursor: pointer;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
@@ -168,11 +196,6 @@ html[data-indeling="smal"] .sales-kal-acties { margin-left: 0; }
 .sales-kal-grid .day-hdr { box-sizing: border-box; height: 88px; overflow: hidden; } /* vaste hoogte: de uur-lijnen van alle kolommen lopen gelijk */
 html[data-indeling="smal"] .sales-kal-grid .day-hdr { height: auto; }
 .sales-kal-grid .day-hdr-top { display: flex; align-items: center; gap: 6px; }
-.sales-kal-dag-blok {
-  margin-left: auto; min-width: 28px; min-height: 28px; border-radius: var(--r); cursor: pointer; font-size: var(--fs-xs);
-  background: transparent; border: 1px solid var(--border); color: var(--muted);
-}
-.sales-kal-dag-blok:hover { background: var(--surface2); }
 .sales-kal-nota { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; min-height: 1.5em; font-size: var(--fs-2xs); color: var(--muted); }
 .sales-kal-heledag {
   text-align: left; padding: 2px 6px; border-radius: var(--r); cursor: pointer; font: inherit; font-size: var(--fs-2xs); font-weight: 600;
@@ -204,17 +227,14 @@ html[data-indeling="smal"] .sales-kal-grid .day-hdr { height: auto; }
 }
 html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
 
-/* ---- Planningsresultaat (sales-plan.js) ---- */
-.sales-plan-lijst { list-style: none; display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
-.sales-plan-reden { color: var(--text2); font-size: var(--fs-xs); }
-.sales-plan-waarschuwing { color: var(--orange); }
-
 /* ---- Route (sales-route.js, sales-kaart.js) ---- */
 .sales-route-wortel { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
 .sales-route-wortel [hidden] { display: none !important; }
 .sales-route-dagkiezer { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
-.sales-route-dagknop { min-width: 44px; min-height: 40px; font-size: var(--fs-lg); line-height: 1; padding: 4px 12px; }
-.sales-route-datum { font-weight: 700; min-width: 7ch; text-align: center; }
+.sales-route-weekstrook { border: 1px solid var(--border); border-radius: var(--r); padding: var(--sp-2); }
+/* "2 bezoeken" is langer dan "2 stops": een dag iets breder, zodat het niet afbreekt (op een telefoon scrollen de dagen binnen de strook). */
+.sales-route-weekstrook .ws-dag { flex-basis: 96px; min-width: 96px; }
+.sales-route-weekstrook .ws-aantal { white-space: nowrap; }
 .sales-route-datumveld {
   background: var(--surface2); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--r);
   padding: 6px 10px; font: inherit; font-size: var(--fs-sm); min-height: 40px; max-width: 100%;
@@ -249,7 +269,7 @@ html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
 .sales-route-plaats, .sales-route-rit { color: var(--text2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
 .sales-route-ongeveer { background: var(--orange-dim); color: var(--orange); }
 .sales-route-geenloc { background: var(--red-dim); color: var(--red-ink); }
-.sales-route-waarschuwing { color: var(--red-ink); background: var(--red-dim); border-radius: var(--r); padding: var(--sp-1) var(--sp-2); font-size: var(--fs-sm); font-weight: 600; overflow-wrap: anywhere; }
+.sales-route-waarschuwing, .sales-route-wegafsluiting { color: var(--red-ink); background: var(--red-dim); border-radius: var(--r); padding: var(--sp-1) var(--sp-2); font-size: var(--fs-sm); font-weight: 600; overflow-wrap: anywhere; }
 .sales-route-resultaat { align-self: flex-start; min-height: 36px; padding: 6px 12px; font-size: var(--fs-sm); }
 /* Nummermarkers op de kaart: een bezoek dat enkel op de postcode staat (ongeveer) krijgt een gestippelde rand en een lichte vulling. */
 .sales-marker {

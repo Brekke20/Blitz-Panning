@@ -16,6 +16,29 @@ Een planner past de instellingen van techniekers aan en elke wijziging staat in 
 
 Een technieker ziet de tickets en afspraken van collega's, maar alleen om te lezen. De knoppen Aankomst, Foto's en Rapport staan enkel bij eigen werk. Planners en beheerders zien die knoppen overal.
 
+## Een beheerder of planner die zelf interventies uitvoert (Zoho-naam)
+
+Doet iemand met een beheerders- of plannersaccount ook zelf interventies (bijvoorbeeld jij), dan vul je bij die persoon in Beheer, Gebruikers het veld **Zoho-naam** in: de naam zoals die in Zoho bij de tickets staat. Je kan dit voor elk account doen, behalve voor sales.
+
+- Zo'n account houdt al zijn eigen rechten (een planner blijft plannen, een beheerder blijft beheren) en is er **bovenop** ook technieker voor zijn eigen werk.
+- Zijn eigen naam staat altijd in de keuzelijst bovenaan (naast "Alle technici"), ook als er op dat moment geen ticket op zijn naam staat. Bij de allereerste keer inloggen op een toestel start de app op die eigen naam; wie zelf "Alle technici" koos, blijft daarop staan.
+- Bij zijn eigen tickets staan de knoppen Aankomst, Foto's en Rapport. In de tab Rapporten staat er een extra knop **Mijn rapporten**: de rapporten die hij zelf indiende of waar zijn naam op staat.
+- Faalt een van zijn eigen rapporten definitief naar Zoho, dan krijgt hij daarvan één melding, net als een technieker.
+- De Zoho-naam kies je uit een lijst met de actieve gebruikers van Zoho (de app vraagt die lijst enkel aan Zoho als jij het formulier opent en onthoudt ze 10 minuten; ze wijzigt niets in Zoho). Namen die al bij een ander account horen, staan er grijs bij met "(al gekoppeld aan ...)" en zijn niet te kiezen. Met "— geen —" ontkoppel je de naam. Staat iemand niet in de lijst (uitzondering), kies dan "Andere naam…" en typ de naam zoals in Zoho. Is Zoho even niet bereikbaar, dan zie je een gewoon tekstveld met uitleg; typ de naam dan zelf in.
+- Eén Zoho-naam hoort bij één account. Geef je dezelfde naam aan twee accounts (ook met andere hoofdletters of spaties), dan weigert de app dat met de melding bij welk account de naam al staat. Wil je de naam toch verhuizen, ontkoppel hem dan eerst bij het andere account (veld leeggemaken).
+- Een techniekersaccount blijft altijd een Zoho-naam nodig hebben.
+- Zijn persoonlijke instellingen voor die eigen naam (startadres, werkdagen, enzovoort) blijven op het toestel zelf bewaard; ze worden niet naar de server gesynchroniseerd, zoals bij elke technieker zonder eigen account.
+
+## Een technieker die zijn eigen tickets zelf mag plannen (Mag zelf plannen)
+
+Bij een technieker kan je in Beheer, Gebruikers het vinkje **Mag zelf plannen** aanzetten. Enkel de beheerder kan dat doen; elke wijziging staat in het activiteitenlog als "gebruiker gewijzigd".
+
+- Zo'n technieker ziet er de tabs **Wachtrij** en **Route** bij en kan zijn **eigen** tickets inplannen (ook met "Plan deze week"), verzetten, uit de planning halen, een voorstel naar de klant sturen en een afspraak annuleren.
+- Tickets van collega's blijven voor hem alleen-lezen: de knoppen staan er niet, en de app (de server) weigert het ook als iemand het toch probeert. Of een ticket van hem is, vraagt de app aan Zoho (aan wie het ticket is toegewezen). Is Zoho even niet bereikbaar, dan lukt plannen even niet (er staat dan een melding).
+- Hij ziet "Alle technici" niet in de kiezer bovenaan en kan dus ook niet voor iedereen tegelijk plannen. Zijn eigen instellingen (startadres, werkuren, enzovoort) stelt hij zelf in bij Instellingen, tab Algemeen.
+- De wijziging geldt zodra hij de app opnieuw opent of herlaadt. Zonder het vinkje verandert er niets: een technieker ziet dan de vier gewone tabs en kan niet plannen.
+- Een planner of beheerder heeft dit vinkje niet nodig: die plannen sowieso alles.
+
 ## Stap 1: drie instellingen in Netlify
 
 Een omgevingsvariabele is een instelling die de app uit Netlify haalt. Zo zet je ze:
@@ -55,7 +78,7 @@ Zet **BLITZ_LOKALE_DEV** nooit in Netlify. Zet ook **NETLIFY_DEV** niet. Die sta
 3. Vul je naam, je e-mailadres, een wachtwoord (minstens 10 tekens) en de setupcode in.
 4. De app toont nu **tien herstelcodes**. Dit scherm zie je maar één keer. Bewaar ze voor je verdergaat (zie "Herstelcodes bewaren").
 5. Log in en open de tab Beheer, dan Gebruikers.
-6. Maak de andere accounts aan met de knop Nieuwe gebruiker: eerst de planners, dan de techniekers, dan sales. Kies voor elke persoon de juiste rol. Bij een technieker vul je de naam in zoals die in Zoho staat. Zo weet de app welke tickets van hem zijn.
+6. Maak de andere accounts aan met de knop Nieuwe gebruiker: eerst de planners, dan de techniekers, dan sales. Kies voor elke persoon de juiste rol. Bij een technieker vul je de naam in zoals die in Zoho staat. Zo weet de app welke tickets van hem zijn. Ook een planner of beheerder die zelf interventies doet, krijgt zo'n naam (zie hierboven).
 7. De app toont bij elke nieuwe gebruiker een startwachtwoord. Dat zie je maar één keer. Geef het persoonlijk door (mondeling of op papier, niet per mail of chat). De gebruiker moet het bij de eerste keer inloggen veranderen.
 8. Verwijder BEHEER_SETUP_CODE uit Netlify.
 9. Vraag een planner en een technieker om in te loggen en te kijken of ze de juiste tabs en knoppen zien.
@@ -111,26 +134,26 @@ De sales-planner is het deel van de app waarmee een verkoper zijn eigen bezoeken
 3. Vink **Mag alle sales zien** enkel aan voor wie de leads van collega's moet kunnen bekijken (bijvoorbeeld een verkoopsverantwoordelijke). Hij kan dan een collega uit een lijst kiezen en ziet diens leads, maar alleen om te lezen: hij kan niets verwijderen, plannen of inladen voor een ander. Zonder het vinkje ziet een verkoper uitsluitend zijn eigen leads.
 4. Geef het startwachtwoord persoonlijk door, zoals bij elke gebruiker.
 
-Een verkoper ziet enkel de vier tabs Te plannen, Kalender, Route en Afgewerkt. Planners en techniekers zien niets van sales, en de server weigert hun verzoeken. Jij ziet als beheerder één tab **Sales** met dezelfde vier onderdelen en een lijst om een verkoper te kiezen. Je mag er iets wijzigen, maar je kan geen export inladen: dat doet de verkoper zelf.
+Een verkoper ziet enkel de vier tabs Leads, Kalender, Route en Afgewerkt. Planners en techniekers zien niets van sales, en de server weigert hun verzoeken. Jij ziet als beheerder één tab **Sales** met dezelfde vier onderdelen en een lijst om een verkoper te kiezen. Je mag er iets wijzigen, maar je kan geen export inladen: dat doet de verkoper zelf.
 
 **Hoe een verkoper een export inlaadt (de verkoper zelf)**
 
 1. Exporteer de leadlijst uit het bronsysteem als bestand (.json).
-2. Open de tab Te plannen en klik op **Export laden**. Kies het bestand.
+2. Open de tab Leads en klik op **Export laden**. Kies het bestand.
 3. De app meldt hoeveel leads nieuw zijn, hoeveel er al waren en voor hoeveel het adres nagekeken moet worden. Laad je dezelfde of een nieuwere export nog eens in, dan komt niemand dubbel in de lijst en blijft wat je zelf bijschreef staan. Een lead die je eerder wegklikte en die opnieuw in de export staat, komt terug met het label "eerder verwijderd"; jij beslist.
 4. Is de export van een andere verantwoordelijke, dan vraagt de app eerst of je hem toch wilt inladen.
 
 **Hoe een verkoper zelf een lead toevoegt**
 
-Klik op **+ Lead** in de tab Te plannen en vul minstens de naam, een gsm of e-mailadres en de postcode in. Een notitie kan er altijd bij. Komt de klant later ook in een export voor, dan wordt hij samengevoegd met deze lead.
+Klik op **+ Lead** in de tab Leads en vul minstens de naam, een gsm of e-mailadres en de postcode in. Een notitie kan er altijd bij. Komt de klant later ook in een export voor, dan wordt hij samengevoegd met deze lead.
 
 **Hoe een verkoper zijn week plant**
 
-1. In **Te plannen** staan de leads die nog bezocht moeten worden. Op een lead kan je **bellen** (tik op het nummer), een notitie bijschrijven of het adres aanpassen.
+1. In **Leads** staan alle leads die nog niet afgewerkt zijn, in drie kolommen naast elkaar: **Nog in te plannen** (de langst wachtende bovenaan, ook een voorstel waarvan de dag voorbij is), **Ingepland** (voorgestelde bezoeken, met een knop **Bevestigen**) en **Bevestigd** (vaste bezoeken). Elke kolom toont hoeveel leads erin staan; op een telefoon zijn het drie tabbladen. Op een lead kan je **bellen** (tik op het nummer), een notitie bijschrijven of het adres aanpassen.
 2. Wil je een bezoek op een vast uur, zet dan een **vast uur** op die lead. Het planningsprogramma schuift er dan niets meer aan.
 3. Klik op **Plan deze week**. De app maakt een voorstel voor de bezoeken van de week, rekening houdend met je werkuren, rittijden en vaste uren. Een bezoek staat eerst als **voorgesteld**; bevestig het om het vast te leggen.
 4. De tab **Kalender** toont de week, **Route** toont de rit van een dag op de kaart met de rijtijden.
-5. Na een bezoek noteer je het **resultaat**: Offerte, Verkocht, Geen interesse of Opnieuw langsgaan (dan komt de lead terug in Te plannen). Bij de eerste drie is de lead **Afgewerkt**; hij verdwijnt uit Te plannen en staat in de tab Afgewerkt. Leads, blokken en bezoeken worden 12 maanden na de laatste activiteit bewaard en daarna vanzelf gewist (ook niet afgewerkte leads; ook bij een geblokkeerde verkoper).
+5. Na een bezoek noteer je het **resultaat**: Offerte, Verkocht, Geen interesse of Opnieuw langsgaan (dan komt de lead terug bij Nog in te plannen). Bij de eerste drie is de lead **Afgewerkt**; hij verdwijnt uit Leads en staat in de tab Afgewerkt. Leads, blokken en bezoeken worden 12 maanden na de laatste activiteit bewaard en daarna vanzelf gewist (ook niet afgewerkte leads; ook bij een geblokkeerde verkoper).
 
 **Eigen instellingen**
 

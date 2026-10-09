@@ -5,7 +5,7 @@
 // Veiligheid: alle servergegevens (namen, e-mails, foutteksten) komen via textContent/attributen in de DOM (h() uit beheer.js),
 // nooit via innerHTML. Startwachtwoorden en herstelcodes staan enkel in een dwingend venster (closure + <pre>), worden bij het
 // sluiten leeggemaakt en gaan nooit naar localStorage/sessionStorage, de URL of de console.
-import { registreerBeheerTab, openBeheerVenster, h } from './beheer.js';
+import { registreerBeheerTab, openBeheerVenster, h, beheerVerzoek } from './beheer.js';
 import { apiVerzoek } from '../kern/api.js';
 import { toast } from '../kern/ui.js';
 import { toestand } from '../kern/toestand.js';
@@ -13,7 +13,7 @@ import { huidigeGebruiker } from '../kern/sessie.js';
 import { appConfirm } from '../app-dialog.js';
 import { formatHerstelcodes } from './inloggen-logica.js';
 import {
-  ROLLEN, rolLabel, sorteerGebruikers, valideerGebruikerFormulier, zohoNaamOpties, kanBlokkeren, formatLaatsteLogin,
+  ROLLEN, rolLabel, sorteerGebruikers, valideerGebruikerFormulier, zohoNaamOpties, zohoNaamKeuzes, ZOHO_ANDERE, kanBlokkeren, formatLaatsteLogin,
 } from './beheer-gebruikers-logica.js';
 
 const PAD = '/api/gebruikers';
@@ -96,28 +96,79 @@ function toonGebruikerFormulier({ gebruiker = null, lijst, naSucces }) {
   const naam = h('input', { class: 'set-input', id: 'bg-naam', type: 'text', autocomplete: 'off', maxlength: '100' });
   const rol = h('select', { class: 'set-input', id: 'bg-rol' },
     ROLLEN.map(r => h('option', { value: r, text: rolLabel(r) })));
-  const zoho = h('input', { class: 'set-input', id: 'bg-zoho', type: 'text', autocomplete: 'off', list: 'bg-zoho-opties', spellcheck: 'false' });
-  const zohoOpties = h('datalist', { id: 'bg-zoho-opties' },
-    zohoNaamOpties(ticketsVoorNamen(), gebruiker?.zohoNaam).map(n => h('option', { value: n })));
   const salesNaam = h('input', { class: 'set-input', id: 'bg-sales', type: 'text', autocomplete: 'off' });
   const alleSales = h('input', { type: 'checkbox', id: 'bg-alle-sales' });
+  const zelfPlannen = h('input', { type: 'checkbox', id: 'bg-zelf-plannen' });
   const fout = h('p', { class: 'bg-fout', role: 'alert' });
 
   // Beginwaarden (via de eigenschap `value`, niet via HTML).
   rol.value = gebruiker?.rol ?? 'planner';
   naam.value = gebruiker?.naam ?? '';
-  zoho.value = gebruiker?.zohoNaam ?? '';
   salesNaam.value = gebruiker?.salesNaam ?? '';
   alleSales.checked = gebruiker?.magAlleSales === true;
+  zelfPlannen.checked = gebruiker?.rol === 'technieker' && gebruiker?.magZelfPlannen === true;
   if (laatsteBeheerder) rol.disabled = true;
 
-  const groepTechnieker = h('div', { class: 'bg-groep' }, veld('Zoho-naam', zoho), zohoOpties);
+  // Zoho-naam: elk account behalve sales kan er een hebben (verplicht voor een technieker); een account met een Zoho-naam voert ook zelf
+  // interventies uit, bovenop zijn eigen rechten.
+  const zohoHulp = h('p', { class: 'bg-uitleg bg-hulp', id: 'bg-zoho-hulp' });
+  const zohoVeld = h('div', { class: 'bg-zoho-veld' });
+  const groepTechnieker = h('div', { class: 'bg-groep' },
+    h('div', { class: 'set-field' }, h('label', { class: 'set-label', for: 'bg-zoho', text: 'Zoho-naam' }), zohoVeld), zohoHulp);
+
+  // Het veld Zoho-naam: een keuzelijst met de actieve Zoho-gebruikers (/api/zoho-agenten) zodra die er is, met "— geen —" en
+  // "Andere naam…" (vrije tekst, voor een uitzondering). Zolang de lijst niet geladen is, of bij een Zoho-storing, blijft het een
+  // vrij tekstveld met de namen uit de tickets als suggestie. Een naam die al bij een ander account hoort, is niet te kiezen.
+  let agenten = null; // [{ naam }] zodra geladen
+  let zohoFoutTekst = ''; // aanvulling op de hulptekst als de Zoho-lijst niet beschikbaar is
+  const tekstVeld = (waarde) => {
+    const veldEl = h('input', { class: 'set-input', id: 'bg-zoho', type: 'text', autocomplete: 'off', list: 'bg-zoho-opties', spellcheck: 'false', 'aria-describedby': 'bg-zoho-hulp' });
+    veldEl.value = waarde;
+    const opties = h('datalist', { id: 'bg-zoho-opties' }, zohoNaamOpties(ticketsVoorNamen(), gebruiker?.zohoNaam).map(n => h('option', { value: n })));
+    return [veldEl, opties];
+  };
+  const lijstVeld = (waarde) => {
+    const keuzes = zohoNaamKeuzes({ agenten, huidige: gebruiker?.zohoNaam, gebruikers: lijst, behalveId: gebruiker?.id });
+    const kiesbaar = keuzes.find(k => k.naam === waarde);
+    const sel = h('select', { class: 'set-input', id: 'bg-zoho', 'aria-describedby': 'bg-zoho-hulp' },
+      h('option', { value: '', text: '— geen —' }),
+      keuzes.map(k => h('option', { value: k.naam, text: k.bezetDoor ? `${k.naam} (al gekoppeld aan ${k.bezetDoor})` : k.naam, disabled: k.bezetDoor !== null })),
+      h('option', { value: ZOHO_ANDERE, text: 'Andere naam…' }));
+    const andere = h('input', { class: 'set-input bg-zoho-andere', id: 'bg-zoho-andere', type: 'text', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Andere naam', placeholder: 'Naam zoals in Zoho' });
+    sel.value = waarde === '' ? '' : (kiesbaar ? kiesbaar.naam : ZOHO_ANDERE);
+    andere.value = waarde !== '' && !kiesbaar ? waarde : '';
+    const toon = () => { andere.hidden = sel.value !== ZOHO_ANDERE; if (!andere.hidden) andere.focus(); };
+    sel.addEventListener('change', toon);
+    andere.hidden = sel.value !== ZOHO_ANDERE;
+    return [sel, andere];
+  };
+  const leesZoho = () => {
+    const sel = zohoVeld.querySelector('select');
+    if (!sel) return zohoVeld.querySelector('#bg-zoho')?.value ?? '';
+    return sel.value === ZOHO_ANDERE ? (zohoVeld.querySelector('#bg-zoho-andere')?.value ?? '') : sel.value;
+  };
+  const tekenZoho = (waarde) => zohoVeld.replaceChildren(...(agenten ? lijstVeld(waarde) : tekstVeld(waarde)));
+  tekenZoho(gebruiker?.zohoNaam ?? '');
+  beheerVerzoek('/api/zoho-agenten').then((r) => {
+    if (!zohoVeld.isConnected) return; // het formulier is intussen gesloten
+    if (r.ok && Array.isArray(r.data?.agenten)) { agenten = r.data.agenten; tekenZoho(leesZoho().trim()); return; }
+    zohoFoutTekst = ' De lijst met Zoho-gebruikers is nu niet beschikbaar: typ de naam in zoals in Zoho.';
+    toonRolVelden();
+  });
+  // Enkel een technieker: hij plant dan ook zelf, maar enkel zijn eigen tickets (en stuurt enkel voor die tickets voorstellen).
+  const groepPlan = h('div', { class: 'bg-groep' },
+    h('label', { class: 'bg-vink', for: 'bg-zelf-plannen' }, zelfPlannen, h('span', { text: 'Mag zelf plannen' })),
+    h('p', { class: 'bg-uitleg bg-hulp', text: 'Deze technieker ziet dan ook de Wachtrij en de Route en kan zijn eigen tickets inplannen, verzetten en voorstellen sturen. Tickets van collega’s blijven alleen-lezen. Geldt vanaf de volgende keer dat hij de app opent of herlaadt.' }));
   const groepSales = h('div', { class: 'bg-groep' },
     veld('Naam in export', salesNaam),
     h('label', { class: 'bg-vink', for: 'bg-alle-sales' }, alleSales, h('span', { text: 'Mag alle sales zien' })));
   const toonRolVelden = () => {
-    groepTechnieker.hidden = rol.value !== 'technieker';
+    groepTechnieker.hidden = rol.value === 'sales';
     groepSales.hidden = rol.value !== 'sales';
+    groepPlan.hidden = rol.value !== 'technieker';
+    zohoHulp.textContent = (rol.value === 'technieker'
+      ? 'Kies de naam zoals die in Zoho staat bij de tickets van deze technieker.'
+      : 'Vul in als deze persoon ook interventies uitvoert.') + zohoFoutTekst;
   };
   rol.addEventListener('change', toonRolVelden);
   toonRolVelden();
@@ -129,7 +180,7 @@ function toonGebruikerFormulier({ gebruiker = null, lijst, naSucces }) {
     veld('Naam', naam),
     veld('Rol', rol),
     laatsteBeheerder ? h('p', { class: 'bg-uitleg', text: ENIGE_BEHEERDER }) : null,
-    groepTechnieker, groepSales, fout,
+    groepTechnieker, groepPlan, groepSales, fout,
     h('div', { class: 'beheer-venster-acties' }, annuleer, verstuur));
   venster.body.append(form);
   (nieuw ? email : naam).focus();
@@ -140,11 +191,13 @@ function toonGebruikerFormulier({ gebruiker = null, lijst, naSucces }) {
     if (bezig) return;
     fout.textContent = '';
     const invoer = {
-      naam: naam.value, zohoNaam: zoho.value, salesNaam: salesNaam.value, magAlleSales: alleSales.checked,
+      naam: naam.value, zohoNaam: leesZoho(), salesNaam: salesNaam.value, magAlleSales: alleSales.checked, magZelfPlannen: zelfPlannen.checked,
       ...(nieuw ? { email: email.value } : {}),
     };
-    const v = valideerGebruikerFormulier(invoer, rol.value);
+    const v = valideerGebruikerFormulier(invoer, rol.value, { gebruikers: lijst, id: gebruiker?.id });
     if (v.fout) { fout.textContent = v.fout; return; }
+    // Een leeg veld bij het bewerken ontkoppelt de Zoho-naam (zonder dit veld laat de server de oude staan).
+    if (!nieuw && rol.value !== 'sales' && v.waarden.zohoNaam === undefined && gebruiker.zohoNaam) v.waarden.zohoNaam = '';
     bezig = true;
     verstuur.disabled = true; annuleer.disabled = true;
     const r = nieuw ? await roep('POST', { actie: 'maak', ...v.waarden }) : await roep('PATCH', { id: gebruiker.id, ...v.waarden });
@@ -295,7 +348,7 @@ async function render(container) {
     const actief = g.actief === true;
     const eigen = g.id === eigenId();
     const cel = (label, ...inhoud) => h('td', { 'data-label': label }, h('div', { class: 'bg-cel' }, inhoud));
-    const details = [g.zohoNaam ? `Zoho: ${g.zohoNaam}` : null, g.salesNaam ? `Export: ${g.salesNaam}` : null, g.magAlleSales ? 'Mag alle sales zien' : null].filter(Boolean);
+    const details = [g.zohoNaam ? `Zoho: ${g.zohoNaam}` : null, g.salesNaam ? `Export: ${g.salesNaam}` : null, g.magAlleSales ? 'Mag alle sales zien' : null, g.rol === 'technieker' && g.magZelfPlannen ? 'Mag zelf plannen' : null].filter(Boolean);
     const knop = (tekst, naamActie, handler, extra = {}) => {
       const k = h('button', {
         type: 'button', class: `btn btn--secondary btn--sm${extra.klasse ? ' ' + extra.klasse : ''}`, text: tekst,

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  filterLeads, postcodegebieden, groepeerLijst, kaartInfo, afgewerktRijen,
+  filterLeads, postcodegebieden, groepeerLijst, kaartInfo, afgewerktRijen, KOLOMMEN,
 } from '../public/js/schermen/sales-lijst-logica.js';
 
 // Verzonnen leads (geen echte personen of nummers).
@@ -41,7 +41,7 @@ test('postcodegebieden: aantal per gebied, gesorteerd, zonder postcode overgesla
   assert.deepEqual(r, [{ gebied: '20', aantal: 1 }, { gebied: '35', aantal: 2 }, { gebied: '36', aantal: 1 }]);
 });
 
-test('groepeerLijst: wachttijd eerst, ingepland op datum en uur, afgewerkt valt weg', () => {
+test('groepeerLijst: drie groepen; wachttijd eerst, ingepland en bevestigd op datum en uur, afgewerkt valt weg', () => {
   const nieuw = lead('n', { geimporteerdOp: '2026-10-05T08:00:00.000Z' });
   const oud = lead('o', { geimporteerdOp: '2026-09-20T08:00:00.000Z' });
   const v2 = lead('v2', { status: 'voorgesteld', planning: { datum: '2026-10-13', start: '09:00', vast: false } });
@@ -50,7 +50,30 @@ test('groepeerLijst: wachttijd eerst, ingepland op datum en uur, afgewerkt valt 
   const klaar = lead('z', { status: 'afgewerkt', resultaat: { soort: 'offerte', op: '2026-10-02T10:00:00.000Z' } });
   const r = groepeerLijst([nieuw, v2, b1, klaar, oud, v1], '2026-10-05');
   assert.deepEqual(r.tePlannen.map((l) => l.id), ['o', 'n']);
-  assert.deepEqual(r.ingepland.map((l) => l.id), ['v1', 'b1', 'v2']);
+  assert.deepEqual(r.ingepland.map((l) => l.id), ['v1', 'v2']);
+  assert.deepEqual(r.bevestigd.map((l) => l.id), ['b1']);
+});
+
+test('groepeerLijst: bevestigd sorteert op datum en dan uur; een vastgezet voorstel (planning.vast) telt als bevestigd', () => {
+  const b3 = lead('b3', { status: 'bevestigd', planning: { datum: '2026-10-13', start: '08:00', vast: true } });
+  const b2 = lead('b2', { status: 'bevestigd', planning: { datum: '2026-10-12', start: '15:00', vast: true } });
+  const b1 = lead('b1', { status: 'bevestigd', planning: { datum: '2026-10-12', start: '09:30', vast: true } });
+  const vastVoorstel = lead('f', { status: 'voorgesteld', planning: { datum: '2026-10-12', start: '11:00', vast: true } });
+  const r = groepeerLijst([b3, b2, vastVoorstel, b1], '2026-10-05');
+  assert.deepEqual(r.bevestigd.map((l) => l.id), ['b1', 'f', 'b2', 'b3']);
+  assert.deepEqual(r.ingepland, []);
+  assert.deepEqual(r.tePlannen, []);
+});
+
+test('groepeerLijst: lege invoer geeft drie lege groepen', () => {
+  assert.deepEqual(groepeerLijst([], '2026-10-05'), { tePlannen: [], ingepland: [], bevestigd: [] });
+  assert.deepEqual(groepeerLijst(undefined, '2026-10-05'), { tePlannen: [], ingepland: [], bevestigd: [] });
+});
+
+test('KOLOMMEN: drie kolommen in de volgorde nog in te plannen, ingepland, bevestigd, met sleutel en titel', () => {
+  assert.deepEqual(KOLOMMEN.map((k) => k.sleutel), ['tePlannen', 'ingepland', 'bevestigd']);
+  assert.deepEqual(KOLOMMEN.map((k) => k.titel), ['Nog in te plannen', 'Ingepland', 'Bevestigd']);
+  assert.ok(KOLOMMEN.every((k) => typeof k.leeg === 'string' && k.leeg.length > 0));
 });
 
 test('I2: groepeerLijst: een verlopen voorstel staat bij Nog in te plannen; een bevestigde lead uit het verleden en een voorstel van vandaag niet', () => {
@@ -60,7 +83,8 @@ test('I2: groepeerLijst: een verlopen voorstel staat bij Nog in te plannen; een 
   const bevestigdVerleden = lead('b', { status: 'bevestigd', planning: { datum: '2026-10-01', start: '14:00', vast: true } });
   const r = groepeerLijst([nieuw, verlopen, vandaagVoorstel, bevestigdVerleden], '2026-10-07');
   assert.deepEqual(r.tePlannen.map((l) => l.id), ['v', 'n']);
-  assert.deepEqual(r.ingepland.map((l) => l.id), ['b', 'w']);
+  assert.deepEqual(r.ingepland.map((l) => l.id), ['w']);
+  assert.deepEqual(r.bevestigd.map((l) => l.id), ['b']);
   assert.equal(kaartInfo(verlopen, '2026-10-07').voorstelVerlopen, true);
   assert.equal(kaartInfo(vandaagVoorstel, '2026-10-07').voorstelVerlopen, false);
   assert.equal(kaartInfo(bevestigdVerleden, '2026-10-07').voorstelVerlopen, false);
@@ -71,6 +95,18 @@ test('groepeerLijst: wijzigt de invoer niet', () => {
   const invoer = [lead('n', { geimporteerdOp: '2026-10-05T08:00:00.000Z' }), lead('o', { geimporteerdOp: '2026-09-20T08:00:00.000Z' })];
   groepeerLijst(invoer);
   assert.deepEqual(invoer.map((l) => l.id), ['n', 'o']);
+});
+
+test('kaartInfo: een voorgesteld bezoek toont zijn dag en uur (voorstelUur), een bevestigd bezoek zijn vastUur', () => {
+  const v = kaartInfo(lead('v', { status: 'voorgesteld', planning: { datum: '2026-10-12', start: '09:00', vast: false } }), '2026-10-05');
+  assert.equal(v.voorstelUur, 'ma 12 okt 09:00');
+  assert.equal(v.vastUur, null);
+  const b = kaartInfo(lead('b', { status: 'bevestigd', planning: { datum: '2026-10-12', start: '14:00', vast: true } }), '2026-10-05');
+  assert.equal(b.vastUur, 'ma 12 okt 14:00');
+  assert.equal(b.voorstelUur, null);
+  assert.equal(kaartInfo(lead('n')).voorstelUur, null);
+  // een verlopen voorstel staat links met het label; het oude uur zou misleiden
+  assert.equal(kaartInfo(lead('o', { status: 'voorgesteld', planning: { datum: '2026-10-01', start: '09:00', vast: false } }), '2026-10-05').voorstelUur, null);
 });
 
 test('kaartInfo: titel, plaats, adreslabel per soort', () => {

@@ -32,7 +32,7 @@ async function verwachtMeldingen(consoleFouten, delen) {
 }
 
 test.describe('instellingen: tab Dit toestel', () => {
-  test('coördinator: standaardtab Algemeen; de toesteltab toont herkenning, rol en weergave', async ({ page }) => {
+  test('coördinator: standaardtab Algemeen; de toesteltab toont herkenning en weergave (geen rolkeuze meer)', async ({ page }) => {
     await startApp(page);
     const modal = await openInstellingen(page);
     await expect(modal.locator('#set-tab-algemeen')).toBeVisible();
@@ -44,49 +44,43 @@ test.describe('instellingen: tab Dit toestel', () => {
     // De opslaan-knop hoort enkel bij Algemeen.
     await expect(modal.locator('#set-save-btn')).toBeHidden();
     await expect(modal.locator('#set-toestel-status')).toHaveText('Herkend als: Computer · liggend · muis/trackpad');
-    await expect(modal.getByRole('radio', { name: 'Coördinator' })).toBeChecked();
-    await expect(modal.getByRole('radio', { name: 'Technieker' })).not.toBeChecked();
+    // UI/UX P1-5: het account bepaalt de rol; de keuze "Rol op dit toestel" bestaat niet meer.
+    await expect(modal.getByText('Rol op dit toestel')).toHaveCount(0);
+    await expect(modal.getByRole('radio', { name: 'Coördinator' })).toHaveCount(0);
+    await expect(modal.getByRole('radio', { name: 'Technieker' })).toHaveCount(0);
     await expect(modal.getByRole('radio', { name: 'Automatisch' })).toBeChecked();
+    // Niets om op te slaan op deze tab: de knop heet "Sluiten" (op Algemeen "Annuleren").
+    await expect(modal.locator('#set-sluit-btn')).toHaveText('Sluiten');
     // Testmodus: het blok "Testgegevens" is zichtbaar.
     await expect(modal.locator('#set-testdata-blok')).toBeVisible();
     // Terug naar Algemeen: de opslaan-knop komt terug.
     await modal.getByRole('button', { name: 'Algemeen', exact: true }).click();
     await expect(modal.locator('#set-save-btn')).toBeVisible();
+    await expect(modal.locator('#set-sluit-btn')).toHaveText('Annuleren');
   });
 
-  test('technieker-rol: het venster opent op "Dit toestel" en de coördinatortabs bestaan niet', async ({ page }) => {
-    await startApp(page, { rol: 'technieker', technieker: 'Tim' });
+  test('technieker (account): het venster opent op "Dit toestel" en de coördinatortabs bestaan niet', async ({ page }) => {
+    await startApp(page, { loginRol: 'technieker', technieker: 'Tim' });
     const modal = await openInstellingen(page);
     await expect(modal.locator('#set-tab-toestel')).toBeVisible();
     await expect(modal.locator('#set-tab-algemeen')).toBeHidden();
     await expect(modal.locator('#set-subtab-algemeen')).toBeHidden();
     await expect(modal.locator('#set-subtab-beschikbaarheden')).toBeHidden();
-    await expect(modal.getByRole('radio', { name: 'Technieker' })).toBeChecked();
+    await expect(modal.getByText('Rol op dit toestel')).toHaveCount(0); // de dode rolkeuze van de technieker is weg (P1-5)
     // Ook een expliciete klik op een andere tab laat de technieker op "Dit toestel" (setSettingsTab forceert het).
     await page.evaluate(() => kern.instellingen.setSettingsTab('algemeen'));
     await expect(modal.locator('#set-tab-toestel')).toBeVisible();
     await expect(modal.locator('#set-tab-algemeen')).toBeHidden();
   });
 
-  test('rol kiezen (kiesToestelRol): tabs verdwijnen en verschijnen, blitz_rol wordt bewaard en de kalender wordt hertekend', async ({ page }) => {
+  // UI/UX P1-5: een toestelweergave (gsm/tablet) verandert de indeling, nooit de rol: het account beslist.
+  test('weergave "Gsm" kiezen laat een beheerder coördinator: alle tabs blijven, enkel de indeling wordt smal', async ({ page }) => {
     await startApp(page);
     const modal = await openToestel(page);
     for (const naam of ['Wachtrij', 'Route', 'Rapporten']) await expect(page.getByRole('tab', { name: naam })).toBeVisible();
-    const voor = await page.evaluate(() => kern.kalender.renderTelling());
-
-    await modal.getByRole('radio', { name: 'Technieker' }).check();
-    await expect(page.locator('html')).toHaveAttribute('data-rol', 'technieker');
-    expect(await leesOpslag(page, 'blitz_rol')).toBe('technieker');
-    for (const naam of ['Wachtrij', 'Route', 'Rapporten']) await expect(page.getByRole('tab', { name: naam })).toBeHidden();
-    // apparaatwijziging: de kalender is hertekend, het venster blijft open op de toesteltab met een bijgewerkte status.
-    expect(await page.evaluate(() => kern.kalender.renderTelling())).toBeGreaterThan(voor);
-    await expect(modal.locator('#set-tab-toestel')).toBeVisible();
-    await expect(modal.getByRole('radio', { name: 'Technieker' })).toBeChecked();
-    await expect(modal.locator('#set-subtab-algemeen')).toBeHidden();
-
-    await modal.getByRole('radio', { name: 'Coördinator' }).check();
+    await modal.getByRole('radio', { name: 'Gsm' }).check();
+    await expect(page.locator('html')).toHaveAttribute('data-indeling', 'smal');
     await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
-    expect(await leesOpslag(page, 'blitz_rol')).toBe('coordinator');
     for (const naam of ['Wachtrij', 'Route', 'Rapporten']) await expect(page.getByRole('tab', { name: naam })).toBeVisible();
     await expect(modal.locator('#set-subtab-algemeen')).toBeVisible();
   });
@@ -117,7 +111,7 @@ test.describe('instellingen: tab Dit toestel', () => {
     await expect(modal.getByRole('radio', { name: 'Automatisch' })).toBeChecked();
   });
 
-  test('een echt bubbelend change-event op een toesteluitkeuze (delegatie op document.body) zet rol en weergave', async ({ page }) => {
+  test('een echt bubbelend change-event op een toesteluitkeuze (delegatie op document.body) zet de weergave', async ({ page }) => {
     await startApp(page);
     await openToestel(page);
     await page.evaluate(() => {
@@ -127,11 +121,9 @@ test.describe('instellingen: tab Dit toestel', () => {
         r.dispatchEvent(new Event('change', { bubbles: true }));
       };
       kies('set-weergave', 'tablet');
-      kies('set-rol', 'technieker');
     });
     expect(await leesOpslag(page, 'blitz_weergave')).toBe('tablet');
-    expect(await leesOpslag(page, 'blitz_rol')).toBe('technieker');
-    await expect(page.locator('html')).toHaveAttribute('data-rol', 'technieker');
+    await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
     await expect(page.locator('#set-toestel-status')).toHaveText(/\(handmatig: Tablet\)$/);
   });
 
@@ -146,14 +138,14 @@ test.describe('instellingen: tab Dit toestel', () => {
     await expect(page.locator('html')).toHaveAttribute('data-apparaat', 'tablet');
   });
 
-  test('eerste weergavekeuze zonder gekozen rol legt de huidige rol vast (de rol flipt niet mee)', async ({ page }) => {
+  test('weergavekeuze zonder bewaarde toestelrol: de rol blijft die van het account (coördinator), ook op een gsm', async ({ page }) => {
     await startApp(page, { rol: null });
     expect(await leesOpslag(page, 'blitz_rol')).toBeNull();
-    await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator'); // computer: standaardrol
+    await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
     const modal = await openToestel(page);
     await modal.getByRole('radio', { name: 'Gsm' }).check();
-    // Zonder die vastlegging zou de standaardrol van een gsm "technieker" zijn.
-    expect(await leesOpslag(page, 'blitz_rol')).toBe('coordinator');
+    // Vroeger werd hier blitz_rol vastgelegd omdat de standaardrol van een gsm "technieker" was; nu beslist het account.
+    expect(await leesOpslag(page, 'blitz_rol')).toBeNull();
     await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
     await expect(page.locator('html')).toHaveAttribute('data-apparaat', 'gsm');
   });
@@ -194,11 +186,14 @@ test.describe('instellingen: tab Dit toestel', () => {
   });
 });
 
+// UI/UX-review P1-3: de werkinstellingen per persoon zijn voor de beheerder alleen-lezen in dit venster (Beheer → Instellingen is de enige
+// plek); de planner (geen Beheer-tab) bewerkt ze hier nog. Deze specs testen dat bewerkpad dus als planner; de beheerder staat verderop.
+const PLANNER = { loginRol: 'planner' };
 test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
   const dagKnop = (modal, naam) => modal.locator('#days-grid .day-btn', { hasText: new RegExp(`^${naam}$`) });
 
   test('weekdagknoppen: Ma-Vr staan aan, klikken wisselt aria-pressed; bewaren schrijft de volgorde van klikken', async ({ page }) => {
-    await startApp(page);
+    await startApp(page, PLANNER);
     let modal = await openInstellingen(page);
     expect(await modal.locator('#days-grid .day-btn').allInnerTexts()).toEqual(['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za']);
     for (const d of ['Ma', 'Di', 'Wo', 'Do', 'Vr']) await expect(dagKnop(modal, d)).toHaveAttribute('aria-pressed', 'true');
@@ -219,7 +214,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
   });
 
   test('geen enkele werkdag: toast, het venster blijft open en er wordt niets bewaard', async ({ page }) => {
-    await startApp(page);
+    await startApp(page, PLANNER);
     const modal = await openInstellingen(page);
     for (const d of ['Ma', 'Di', 'Wo', 'Do', 'Vr']) await dagKnop(modal, d).click();
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
@@ -229,7 +224,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
   });
 
   test('Annuleren verwerpt een weekdagklik: bij heropenen staat de dag weer zoals bewaard', async ({ page }) => {
-    await startApp(page);
+    await startApp(page, PLANNER);
     let modal = await openInstellingen(page);
     await dagKnop(modal, 'Za').click();
     await expect(dagKnop(modal, 'Za')).toHaveAttribute('aria-pressed', 'true');
@@ -251,7 +246,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
   });
 
   test('Opslaan neemt de weekdagwijziging wel over', async ({ page }) => {
-    await startApp(page);
+    await startApp(page, PLANNER);
     let modal = await openInstellingen(page);
     await dagKnop(modal, 'Za').click();
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
@@ -273,7 +268,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
   ];
   for (const [naam, velden, tekst] of WEIGERINGEN) {
     test(`weigering: ${naam}`, async ({ page }) => {
-      await startApp(page);
+      await startApp(page, PLANNER);
       const modal = await openInstellingen(page);
       for (const [sel, waarde] of Object.entries(velden)) await modal.locator(sel).fill(waarde);
       await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
@@ -285,7 +280,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
   }
 
   test('de volgorde van de controles: begin/eind gaat vóór duur, en duur vóór het tijdslot', async ({ page }) => {
-    await startApp(page);
+    await startApp(page, PLANNER);
     const modal = await openInstellingen(page);
     await modal.locator('#set-van').fill('17:00');
     await modal.locator('#set-tot').fill('08:00');
@@ -303,7 +298,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
   });
 
   test('max. reistijd 0 blijft geldig (en een leeg veld wordt ook 0); alle velden worden bewaard', async ({ page }) => {
-    await startApp(page);
+    await startApp(page, PLANNER);
     let modal = await openInstellingen(page);
     // Beginwaarden uit DEFAULT_SETTINGS.
     await expect(modal.locator('#set-start')).toHaveValue('Heirbaan 9, 9150 Kruibeke');
@@ -346,7 +341,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
   });
 
   test('lege startlocatie, duur en max vallen terug op de standaardwaarden', async ({ page }) => {
-    await startApp(page);
+    await startApp(page, PLANNER);
     const modal = await openInstellingen(page);
     await modal.locator('#set-start').fill('   ');
     await modal.locator('#set-van').fill('');
@@ -357,7 +352,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
   });
 
   test('Annuleren bewaart niets en een heropend venster toont de bewaarde waarden', async ({ page }) => {
-    await startApp(page);
+    await startApp(page, PLANNER);
     let modal = await openInstellingen(page);
     await modal.locator('#set-max').fill('9');
     await modal.getByRole('button', { name: 'Annuleren' }).click();
@@ -368,7 +363,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
   });
 
   test('routekleur: de hex-weergave volgt de kleurkiezer live en de gekozen kleur wordt bewaard', async ({ page }) => {
-    await startApp(page);
+    await startApp(page, PLANNER);
     const modal = await openInstellingen(page);
     await expect(modal.locator('#set-routekleur-hex')).toHaveText('#F59E0B');
     await modal.locator('#set-routekleur').fill('#12ab34');
@@ -383,7 +378,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
   });
 
   test('laatste start is één waarde voor alle technici (blitz_laatste_start); de rest is per technieker', async ({ page }) => {
-    await startApp(page, { technieker: 'Tim' });
+    await startApp(page, { ...PLANNER, technieker: 'Tim' });
     let modal = await openInstellingen(page);
     await modal.locator('#set-laatste-start').fill('15:00');
     await modal.locator('#set-max').fill('6');
@@ -406,7 +401,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
       if (window !== window.top) return;
       if (localStorage.getItem('blitz_settings_Tim') === null) localStorage.setItem('blitz_settings_Tim', JSON.stringify({ laatsteStart: '12:00', maxPerDag: 7 }));
     });
-    await startApp(page, { technieker: 'Tim' });
+    await startApp(page, { ...PLANNER, technieker: 'Tim' });
     const modal = await openInstellingen(page);
     await expect(modal.locator('#set-laatste-start')).toHaveValue('16:00');
     await expect(modal.locator('#set-max')).toHaveValue('7');

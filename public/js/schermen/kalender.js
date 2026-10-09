@@ -5,6 +5,7 @@
 // binnen functies, nooit op moduleniveau; de hoogste-niveau-effecten (observer, resize, visibilitychange) draaien
 // in `initKalender`. Alleen `kern/brug.js` wijst `window`-namen toe. De schermtoestand (`kalView`, auto-scrollsleutel; de datum is de gedeelde `gekozenDatum`) is module-privé; de knoppen lopen via data-actie-delegatie (C8).
 import { toestand } from '../kern/toestand.js';
+import { magPlannenVoor } from '../kern/sessie.js';
 import { escHtml, zetPressed, registreerActies, registreerWijzigActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
 import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, volgendeWerkdagVan } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
@@ -16,6 +17,8 @@ import { capaciteitsKop, capacityForDay } from './capaciteit.js';
 import { renderRouteList } from './route.js';
 import { getHolidayName } from '../kern/feestdagen.js';
 import { zichtbaarAdres, navigatieAdres } from './afspraken-logica.js';
+import { magSchrijvenVoor } from '../kern/sessie.js';
+import { appConfirm } from '../app-dialog.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initKalender); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('kalender: initKalender() is niet aangeroepen'); } });
@@ -53,7 +56,7 @@ export function initKalender(afhankelijkheden) {
   // Alle knoppen van dit scherm via data-actie-delegatie (de kaartluisteraars slaan zulke klikken over, C8).
   registreerActies(document.body, {
     'kal-uitplannen': el => afh.bevestigUitplannen(el.dataset.ticketId, el.dataset.datum),
-    'kal-event-verwijder': el => afh.removeLocalEvent(el.dataset.eventId),
+    'kal-event-verwijder': el => bevestigVerwijderEvent(el.dataset.eventId),
     'kal-nav': (el, e, arg) => kalNav(Number(arg)),
     'kal-vandaag': () => kalToday(),
     'kal-weergave': (el, e, arg) => setKalView(arg),
@@ -106,7 +109,7 @@ function buildTicketCard(stop, dateStr, { showActions = true } = {}) {
         ${stop.ticket.assignee ? `<div class="cal-meta">${escHtml(stop.ticket.assignee)}</div>` : ''}
         <div class="cal-addr ${stop.ticket.hasAddress ? '' : 'miss'}">${stop.ticket.hasAddress ? escHtml(stop.address) : 'Geen adres'}</div>
       </div>
-      <button class="cal-unplan-x coord-only" data-actie="kal-uitplannen" data-ticket-id="${escHtml(stop.ticket.id)}" data-datum="${escHtml(dateStr)}" title="Uit planning halen" aria-label="Uit planning halen" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;flex-shrink:0;padding:2px 4px;line-height:1">×</button>
+      ${magPlannenVoor(stop.ticket.assignee) ? `<button class="cal-unplan-x coord-only plan-eigen" data-actie="kal-uitplannen" data-ticket-id="${escHtml(stop.ticket.id)}" data-datum="${escHtml(dateStr)}" title="Uit planning halen" aria-label="Uit planning halen" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;flex-shrink:0;padding:2px 4px;line-height:1">×</button>` : ''}
     </div>
     ${showActions ? `<div class="cal-actions">
       ${/\d/.test(afh.telNummer(stop.ticket.telefoonEindklant||stop.ticket.phone)) ? `<a class="cal-btn" href="tel:${escHtml(afh.telNummer(stop.ticket.telefoonEindklant||stop.ticket.phone))}">📞 Bellen</a>` : ''}
@@ -145,6 +148,14 @@ function buildReportCard(entry) {
   return card;
 }
 
+// UI/UX-review P1-2: een ✕ op een gedeelde afspraak wist niet meer in één tik. Eerst een bevestiging (zoals elders in de app).
+async function bevestigVerwijderEvent(id) {
+  const ev = toestand.get('localEvents').find(e => e.id === id);
+  if (!ev || !magSchrijvenVoor(ev.persoon)) return;
+  const ja = await appConfirm({ titel: `Afspraak '${ev.titel || ev.type || ''}' verwijderen?`, bevestigLabel: 'Verwijderen', annuleerLabel: 'Terug', gevaar: true });
+  if (ja) await afh.removeLocalEvent(id);
+}
+
 function buildLocalEventCard(ev, { showActions = true } = {}) {
   const card = document.createElement('div');
   card.className = 'cal-local-event';
@@ -152,8 +163,11 @@ function buildLocalEventCard(ev, { showActions = true } = {}) {
   const adresLabel = zichtbaarAdres(ev); // B10: een handmatige notitie is geen adres
   const notitieRegel = !adresLabel && ev.notitie ? ev.notitie : '';
   const navAdres = navigatieAdres(ev); // ook een notitie die als plaats dient (handmatig zonder adres) houdt zijn Navigeer-knop
+  // Alleen planner/beheerder, of de technieker zelf bij zijn eigen afspraak, krijgt de ✕ (P1-2); wie niet mag schrijven ziet hem niet.
+  const wisKnop = magSchrijvenVoor(ev.persoon)
+    ? `<button class="cal-local-del" data-actie="kal-event-verwijder" data-event-id="${escHtml(ev.id)}" title="Verwijderen" aria-label="Afspraak verwijderen">✕</button>` : '';
   card.innerHTML = `
-    <button class="cal-local-del" data-actie="kal-event-verwijder" data-event-id="${escHtml(ev.id)}" title="Verwijderen" aria-label="Afspraak verwijderen">✕</button>
+    ${wisKnop}
     <span class="cal-local-type">${escHtml(ev.type)}</span>
     <div class="cal-sub" style="margin-top:2px">${escHtml(ev.titel)}</div>
     ${tijdLabel ? `<div class="cal-local-time">⏱ ${tijdLabel}</div>` : ''}
@@ -492,7 +506,7 @@ export function renderKalender() {
         <div class="t-top"><span class="tnum">#${escHtml(t.number)}</span><span class="stag pending">Wacht bevestiging</span>${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}</div>
         <div class="tsub">${escHtml(t.subject) || '—'}</div>
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
-        <div class="t-assign-row" id="assign-row-${t.id}" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
+        ${magPlannenVoor(t.assignee) ? `<div class="t-assign-row" id="assign-row-${t.id}" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
           <input type="date" id="assign-date-${t.id}" aria-label="Datum toewijzen" data-wijzig="kal-toewijzen-datum" data-ticket-id="${escHtml(t.id)}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
           <input type="time" id="assign-time-${t.id}" aria-label="Tijd toewijzen" data-invoer="kal-toewijzen-tijd" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)" value="09:00">
           <button data-actie="kal-toewijzen-opslaan" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 8px;background:var(--accent);color:var(--on-accent);border:none;border-radius:4px;cursor:pointer;font-weight:600">✓ Opslaan</button>
@@ -500,7 +514,7 @@ export function renderKalender() {
         </div>
         <div style="margin-top:6px">
           <button data-actie="kal-toewijzen-open" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 8px;background:var(--accent-dim,rgba(0,223,163,.15));color:var(--accent-ink);border:1px solid var(--accent);border-radius:4px;cursor:pointer;font-weight:600">📅 Toewijzen</button>
-        </div>
+        </div>` : ''}
       </div>`;
       // Bubbel-guard (C8): een klik op een data-actie-knop opent het detail niet.
       card.addEventListener('click', e => { if (e.target.closest('[data-actie]')) return; afh.openDetail(t); });
@@ -633,7 +647,7 @@ export function renderKalender() {
       const rb = document.createElement('button');
       rb.className = 'cal-btn coord-only';
       rb.style.cssText = 'flex:none;width:100%;margin-bottom:4px;background:var(--accent-dim);border:1px solid rgba(245,158,11,0.2);color:var(--accent-ink);padding:4px;border-radius:4px;cursor:pointer;font-size:0.7rem;font-weight:600;font-family:inherit;';
-      rb.textContent = 'Route berekenen';
+      rb.textContent = 'Route bekijken'; // opent de tab Route; het berekenen gebeurt daar ("Bereken tijden") (UI/UX P2-1)
       rb.onclick = () => {
         toestand.set('gekozenDatum', dateStr);
         document.getElementById('plan-date').value = dateStr;
@@ -658,7 +672,7 @@ export function renderKalender() {
     hdrs.forEach(h => { h.style.boxSizing = 'border-box'; h.style.minHeight = `${maxHdr}px`; });
 
     // Post-launch feedback (2026-08-17): vóór de tijdlijn zelf staat per dag soms een "—"
-    // leeg-placeholder (geen stops) of de "Route berekenen"-knop (wel stops) -- verschillend qua
+    // leeg-placeholder (geen stops) of de "Route bekijken"-knop (wel stops) -- verschillend qua
     // hoogte, dus startten de uur-lijnen van elke kolom vroeger op een ANDERE hoogte, ook al leek
     // dat door de gedeelde uren-gutter hierboven niet meer zo. I.p.v. deze twee gevallen apart
     // hard te coderen: gewoon meten hoeveel ruimte elke kolom vóór zijn tijdlijn inneemt, en de
