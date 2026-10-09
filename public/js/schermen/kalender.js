@@ -646,7 +646,7 @@ export function renderKalender() {
       const rb = document.createElement('button');
       rb.className = 'cal-btn coord-only';
       rb.style.cssText = 'flex:none;width:100%;margin-bottom:4px;background:var(--accent-dim);border:1px solid rgba(245,158,11,0.2);color:var(--accent-ink);padding:4px;border-radius:4px;cursor:pointer;font-size:0.7rem;font-weight:600;font-family:inherit;';
-      rb.textContent = 'Route berekenen';
+      rb.textContent = 'Route bekijken'; // opent de tab Route; het berekenen gebeurt daar ("Bereken tijden") (UI/UX P2-1)
       rb.onclick = () => {
         toestand.set('gekozenDatum', dateStr);
         document.getElementById('plan-date').value = dateStr;
@@ -671,7 +671,7 @@ export function renderKalender() {
     hdrs.forEach(h => { h.style.boxSizing = 'border-box'; h.style.minHeight = `${maxHdr}px`; });
 
     // Post-launch feedback (2026-08-17): vóór de tijdlijn zelf staat per dag soms een "—"
-    // leeg-placeholder (geen stops) of de "Route berekenen"-knop (wel stops) -- verschillend qua
+    // leeg-placeholder (geen stops) of de "Route bekijken"-knop (wel stops) -- verschillend qua
     // hoogte, dus startten de uur-lijnen van elke kolom vroeger op een ANDERE hoogte, ook al leek
     // dat door de gedeelde uren-gutter hierboven niet meer zo. I.p.v. deze twee gevallen apart
     // hard te coderen: gewoon meten hoeveel ruimte elke kolom vóór zijn tijdlijn inneemt, en de
