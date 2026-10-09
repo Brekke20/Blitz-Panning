@@ -130,3 +130,24 @@
 .sales-lees-waarde { font-size: var(--fs-sm); white-space: pre-wrap; }
 .sales-modal { max-width: min(520px, 100%); }
 .sales-venster-body { overflow-x: hidden; }
+
+/* ---- Resultaat (sales-resultaat.js) en Afgewerkt (sales-afgewerkt.js) ---- */
+.sales-resultaat-knoppen { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); margin-top: var(--sp-4); }
+.sales-resultaat-knop { min-height: 64px; font-size: var(--fs-md); font-weight: 700; white-space: normal; overflow-wrap: anywhere; }
+.sales-resultaat-knop:disabled { opacity: 0.6; cursor: progress; }
+.sales-resultaat-verkocht { background: var(--accent); color: var(--on-accent, #fff); border-color: var(--accent); }
+@media (max-width: 399px) { .sales-resultaat-knoppen { grid-template-columns: minmax(0, 1fr); } }
+
+.sales-afgewerkt-wortel [hidden] { display: none !important; }
+.sales-afgewerkt-lijst { display: flex; flex-direction: column; gap: var(--sp-3); }
+.sales-afgewerkt-rij {
+  display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; padding: var(--sp-3) var(--sp-4); cursor: pointer;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+}
+.sales-afgewerkt-rij:hover { background: var(--surface2); }
+.sales-afgewerkt-rij:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.sales-afgewerkt-kop { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--sp-2); }
+.sales-afgewerkt-datum { color: var(--text2); font-size: var(--fs-sm); }
+.sales-afgewerkt-notitie { font-size: var(--fs-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+.sales-resultaat-chip-verkocht { background: var(--accent-dim); color: var(--accent-ink); }
+.sales-resultaat-chip-offerte { background: var(--blue-dim); color: var(--blue); }
