@@ -161,7 +161,7 @@ export async function verstuurRapport(rapportId, btn) {
     let leesbaar = true;
     const data = await res.json().catch(() => { leesbaar = false; return { error: 'HTTP ' + res.status }; }); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>'
     if (data.error) {
-      definitiefAntwoord = leesbaar && !leesFout({ status: res.status }).onzeker;
+      definitiefAntwoord = leesbaar && res.status >= 400 && !leesFout({ status: res.status }).onzeker;
       throw new Error(data.error);
     }
 

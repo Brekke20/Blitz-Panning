@@ -36,13 +36,16 @@ export function bouwVerzendMelding({ verzonden = [], nietOpgeslagen = [], fouten
   let duurMs = nietOpgesl.length > 0 ? 8000 : 3500;
 
   if (foutLijst.length > 0) {
-    const details = foutLijst.map(f => `${f.doelgroep}: ${f.fout}`).join('; ');
-    tekst += ` ⚠ Niet verstuurd naar ${labels(foutLijst.map(f => f.doelgroep))}: ${details}`;
+    // Label + fout, zonder de sleutel te herhalen: "Niet verstuurd naar klant: Zoho 500; installateur: x".
+    const details = foutLijst.map(f => `${DOELGROEP_LABEL[f.doelgroep] || f.doelgroep}: ${f.fout}`).join('; ');
+    tekst += ` ⚠ Niet verstuurd naar ${details}`;
     duurMs = 8000;
   }
   if (statusFout) {
     tekst += ` ⚠ Ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: ${statusFout}`;
     duurMs = 8000;
   }
+  // Een lange samengestelde melding blijft langer staan: 8 s tot 200 tekens, daarboven 25 ms extra per teken (max 15 s).
+  if (duurMs === 8000 && tekst.length > 200) duurMs = Math.min(15000, 8000 + (tekst.length - 200) * 25);
   return { tekst, duurMs };
 }

@@ -544,4 +544,23 @@ test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg 
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
     expect(mailCheckLijst(verzoeken)).toEqual([]);
   });
+
+  // I1: de strengere B5-regel. Een antwoord dat niet als { error } te lezen is, bewijst niet dat er niets verstuurd werd
+  // (bv. een afgekapt 200-antwoord nadat de mail al weg was): de knop blijft op slot, geen statusverzoeken, geen mailcontrole.
+  for (const [naam, antwoord, toast] of [
+    ['een 500 met onleesbare HTML-body', { status: 500, raw: '<html>Internal Server Error</html>' }, '✕ Serverfout (HTTP 500)'],
+    ['een 200 met onleesbare (afgekapte) body', { status: 200, raw: '<html>Bad Gateway</html>' }, '✕ Serverfout (HTTP 200)'],
+  ]) {
+    test(`${naam}: de knop blijft op slot (geen bewijs dat er niets verstuurd is), geen statusverzoeken en geen controle`, async ({ page, verzoeken }) => {
+      const z = await start(page, verzoeken, { paden: ['/api/send-rapport'], httpFouten: antwoord.status >= 400 ? [{ pad: '/api/send-rapport', status: antwoord.status }] : [] });
+      z.zetAntwoord('send-rapport', ({ body }) => body.preview === true ? VOORBEELD(ontvanger('contact', 'c@y.be')) : antwoord);
+      await openVoorbeeld(page);
+      await bevestig(page);
+      await expect(toastTekst(page)).toHaveText(toast);
+      await expect(verstuurKnop(page)).toBeDisabled();
+      expect(z.opnames['rapport-verzonden']).toEqual([]);
+      expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
+      expect(mailCheckLijst(verzoeken)).toEqual([]);
+    });
+  }
 });

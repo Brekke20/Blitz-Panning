@@ -32,7 +32,7 @@ test('bouwVerzendMelding: deels opgeslagen', () => {
 
 test('bouwVerzendMelding: mail weg én fouten gevuld (deel geweigerd)', () => {
   assert.deepEqual(bouwVerzendMelding({ verzonden: ['contact'], fouten: [{ doelgroep: 'klant', fout: 'Zoho 500' }] }),
-    { tekst: '✓ Rapport verstuurd naar contactpersoon ⚠ Niet verstuurd naar klant: klant: Zoho 500', duurMs: 8000 });
+    { tekst: '✓ Rapport verstuurd naar contactpersoon ⚠ Niet verstuurd naar klant: Zoho 500', duurMs: 8000 });
 });
 
 test('bouwVerzendMelding: mail weg én statusFout', () => {
@@ -42,8 +42,22 @@ test('bouwVerzendMelding: mail weg én statusFout', () => {
 
 test('bouwVerzendMelding: alle meldingen samen in één tekst', () => {
   const m = bouwVerzendMelding({ verzonden: ['contact'], nietOpgeslagen: ['klant'], fouten: [{ doelgroep: 'installateur', fout: 'x' }], statusFout: 'y' });
-  assert.equal(m.tekst, `✓ Rapport verstuurd naar contactpersoon en klant, ${NIET_OPGESLAGEN} voor klant — ${HERLAAD} ⚠ Niet verstuurd naar installateur: installateur: x ⚠ Ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: y`);
-  assert.equal(m.duurMs, 8000);
+  assert.equal(m.tekst, `✓ Rapport verstuurd naar contactpersoon en klant, ${NIET_OPGESLAGEN} voor klant — ${HERLAAD} ⚠ Niet verstuurd naar installateur: x ⚠ Ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: y`);
+  assert.equal(m.duurMs, Math.min(15000, 8000 + (m.tekst.length - 200) * 25)); // lang: proportioneel (zie de duurtest hieronder)
+});
+
+test('bouwVerzendMelding: meerdere geweigerde ontvangers, label + fout zonder herhaalde sleutel', () => {
+  const m = bouwVerzendMelding({ verzonden: ['installateur'], fouten: [{ doelgroep: 'klant', fout: 'Zoho 500' }, { doelgroep: 'contact', fout: 'Zoho 422' }] });
+  assert.equal(m.tekst, '✓ Rapport verstuurd naar installateur ⚠ Niet verstuurd naar contactpersoon: Zoho 422; klant: Zoho 500');
+});
+
+test('bouwVerzendMelding: een lange samengestelde melding blijft langer staan (max 15 s); een korte blijft 8 s', () => {
+  const lang = bouwVerzendMelding({ verzonden: ['contact'], nietOpgeslagen: ['klant'], fouten: [{ doelgroep: 'installateur', fout: 'f'.repeat(300) }], statusFout: 'y' });
+  assert.equal(lang.duurMs, Math.min(15000, 8000 + (lang.tekst.length - 200) * 25));
+  assert.ok(lang.duurMs > 8000 && lang.duurMs <= 15000);
+  const extreem = bouwVerzendMelding({ verzonden: ['contact'], statusFout: 'y'.repeat(2000) });
+  assert.equal(extreem.duurMs, 15000);
+  assert.equal(bouwVerzendMelding({ verzonden: ['contact'], statusFout: 'Zoho 500' }).duurMs, 8000);
 });
 
 test('bouwVerzendMelding: volgorde contact, klant, installateur ook als de invoer anders staat', () => {
