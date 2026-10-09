@@ -60,23 +60,25 @@ test('ringSvg: onbekende status valt terug op neutraal, geen klasse-injectie', (
 });
 
 test('STATUS_TEKST heeft icoon en woord per status', () => {
-  assert.deepEqual(STATUS_TEKST.goed, { icoon: '✓', woord: 'Op doel' });
-  assert.deepEqual(STATUS_TEKST.aandacht, { icoon: '!', woord: 'Let op' });
-  assert.deepEqual(STATUS_TEKST.slecht, { icoon: '✕', woord: 'Onder doel' });
+  assert.deepEqual(STATUS_TEKST.goed, { icoon: 'vink', woord: 'Op doel' });
+  assert.deepEqual(STATUS_TEKST.aandacht, { icoon: 'uitroepteken', woord: 'Let op' });
+  assert.deepEqual(STATUS_TEKST.slecht, { icoon: 'kruis', woord: 'Onder doel' });
 });
 
 test('ringFiguur: aandacht toont icoon en woord, klasse ring--aandacht', () => {
   const f = ringFiguur({ pct: 80, status: 'aandacht', titel: 'Op tijd' });
   assert.match(f, /^<figure class="ring ring--aandacht"/);
-  assert.ok(f.includes('!'));
+  assert.match(f, /<svg class="ring-icoon" viewBox="0 0 24 24" aria-hidden="true"/);
+  assert.ok(f.includes('ring-icoon-punt')); // het uitroepteken: lijn + punt
   assert.ok(f.includes('Let op'));
   assert.ok(f.includes('<figcaption'));
 });
 
 test('ringFiguur: goed en slecht tonen hun statusregel', () => {
-  assert.ok(ringFiguur({ pct: 95, status: 'goed', titel: 't' }).includes('✓'));
+  assert.match(ringFiguur({ pct: 95, status: 'goed', titel: 't' }), /<svg class="ring-icoon"[^>]*aria-hidden="true"[^>]*><circle[^>]*\/><path d="M7\.5 12\.3 L10\.5 15\.3 L16\.5 8\.7"\/><\/svg> Op doel/);
   assert.ok(ringFiguur({ pct: 95, status: 'goed', titel: 't' }).includes('Op doel'));
-  assert.ok(ringFiguur({ pct: 10, status: 'slecht', titel: 't' }).includes('✕'));
+  assert.match(ringFiguur({ pct: 10, status: 'slecht', titel: 't' }), /<svg class="ring-icoon"[^>]*aria-hidden="true"[^>]*><circle[^>]*\/><path d="M8\.5 8\.5 L15\.5 15\.5 M15\.5 8\.5 L8\.5 15\.5"\/><\/svg> Onder doel/);
+  assert.ok(!/[✓✕]/.test(ringFiguur({ pct: 10, status: 'slecht', titel: 't' }))); // geen tekstglyph meer
   assert.ok(ringFiguur({ pct: 10, status: 'slecht', titel: 't' }).includes('Onder doel'));
 });
 

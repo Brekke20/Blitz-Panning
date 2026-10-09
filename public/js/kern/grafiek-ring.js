@@ -3,11 +3,23 @@
 // Alle tekst uit data gaat door escHtml.
 import { escHtml } from './ui.js';
 
+// Het statusteken is een inline SVG (cirkel + vink/uitroepteken/kruis als paden), geen tekstglyph: zo staat het teken exact in het
+// midden van zijn cirkel, los van het lettertype. Kleur via var(--ring-kleur) (zie .ring-icoon in dashboard.css).
 export const STATUS_TEKST = {
-  goed:     { icoon: '✓', woord: 'Op doel' },
-  aandacht: { icoon: '!', woord: 'Let op' },
-  slecht:   { icoon: '✕', woord: 'Onder doel' },
+  goed:     { icoon: 'vink', woord: 'Op doel' },
+  aandacht: { icoon: 'uitroepteken', woord: 'Let op' },
+  slecht:   { icoon: 'kruis', woord: 'Onder doel' },
 };
+
+const ICOON_TEKEN = {
+  vink: '<path d="M7.5 12.3 L10.5 15.3 L16.5 8.7"/>',
+  uitroepteken: '<path d="M12 7.2 L12 12.6"/><circle class="ring-icoon-punt" cx="12" cy="16.6" r="1.2"/>',
+  kruis: '<path d="M8.5 8.5 L15.5 15.5 M15.5 8.5 L8.5 15.5"/>',
+};
+
+export function statusIcoon(naam) {
+  return `<svg class="ring-icoon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/>${ICOON_TEKEN[naam] ?? ''}</svg>`;
+}
 
 const STATUSSEN = ['goed', 'aandacht', 'slecht', 'neutraal'];
 const STRAAL = 45;
@@ -47,7 +59,7 @@ export function ringFiguur({ pct, status, titel, n = null, noemer = null, sub = 
   const regels = [];
   if (STATUS_TEKST[v]) {
     const t = STATUS_TEKST[v];
-    regels.push(`<span class="ring-status"><span class="ring-icoon" aria-hidden="true">${t.icoon}</span> ${t.woord}</span>`);
+    regels.push(`<span class="ring-status">${statusIcoon(t.icoon)} ${t.woord}</span>`);
   }
   if (!heeftWaarde(pct)) regels.push('<span class="ring-n">geen gegevens</span>');
   else if (Number.isFinite(n) && Number.isFinite(noemer)) regels.push(`<span class="ring-n">${getal.format(n)} van ${getal.format(noemer)}</span>`);

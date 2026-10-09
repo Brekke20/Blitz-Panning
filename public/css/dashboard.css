@@ -33,9 +33,10 @@
 .ring figcaption { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; font-size: var(--fs-xs); color: var(--viz-ink2); }
 .ring-status { font-weight: 600; color: var(--viz-ink); }
 .ring-icoon {
-  display: inline-flex; align-items: center; justify-content: center; width: 1.3em; height: 1.3em; border-radius: 50%;
-  border: 2px solid var(--ring-kleur); font-size: .85em; line-height: 1;
+  display: inline-block; width: 1.1em; height: 1.1em; vertical-align: middle; margin-top: -.15em;
+  fill: none; stroke: var(--ring-kleur); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
 }
+.ring-icoon-punt { fill: var(--ring-kleur); stroke: none; }
 .ring-n { font-variant-numeric: tabular-nums; }
 .ring-sub { color: var(--viz-muted); }
 
