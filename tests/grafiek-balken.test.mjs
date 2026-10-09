@@ -166,3 +166,11 @@ test('M3: bij veel categorieën worden kolomlabels uitgedund i.p.v. tot 2-3 teke
   assert.ok(labels.length < 30 && labels.length >= 5, `labels ${labels.length}`);
   assert.ok(labels.every(l => l.length >= 8), 'geen verminkte labels');
 });
+
+test('balkenRijen: schaalMax legt het maximum vast (percentages: 80 % is geen volle balk)', () => {
+  const h = balkenRijen({ titel: 't', schaalMax: 100, rijen: [{ label: 'A', waarde: 80 }, { label: 'B', waarde: 40 }] });
+  assert.equal(rijRect(h, 0), '80%');
+  assert.equal(rijRect(h, 1), '40%');
+  const boven = balkenRijen({ titel: 't', schaalMax: 50, rijen: [{ label: 'A', waarde: 80 }] });
+  assert.equal(rijRect(boven, 0), '100%', 'nooit breder dan de balk zelf');
+});

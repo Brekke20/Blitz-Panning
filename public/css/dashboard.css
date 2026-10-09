@@ -90,3 +90,48 @@
 
 /* Nooit paginabrede overflow: grid-/flex-kinderen mogen krimpen (tegelcontainers: minmax(0, 1fr)). */
 .grafiek, .balken-blok, .donut, .ring { min-width: 0; }
+
+/* ── Blokken en kaarten (Tijd, Kwaliteit, Onderdelen, Klant, Sales) ──
+   Kaarten staan op var(--surface): de ringspleet en de markerrand van de grafieken gaan daarvan uit. */
+.dash-blok { display: flex; flex-direction: column; gap: var(--sp-3); margin-top: var(--sp-6); min-width: 0; }
+.dash-blok-kop { font-size: var(--fs-lg); font-weight: 600; color: var(--viz-ink); margin: 0; }
+.dash-noot, .dash-leeg { margin: 0; font-size: var(--fs-sm); color: var(--viz-ink2); }
+.dash-leeg { padding: var(--sp-4); border: 1px dashed var(--viz-grid); border-radius: var(--r); }
+.dash-raster { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: var(--sp-4); }
+.dash-kaart { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--sp-4); min-width: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
+.dash-kaart--breed { grid-column: 1 / -1; }
+.dash-kaart-kop { font-size: var(--fs-md); font-weight: 600; color: var(--viz-ink); margin: 0; overflow-wrap: anywhere; }
+.dash-uitleg { margin: 0; font-size: var(--fs-xs); color: var(--viz-ink2); overflow-wrap: anywhere; }
+.dash-kaart .grafiek, .dash-kaart .balken-blok, .dash-kaart .donut { margin: 0; }
+.dash-kaart > .ring { align-self: flex-start; }
+.dash-ringen { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 130px), 1fr)); gap: var(--sp-4) var(--sp-3); }
+.dash-ring { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); min-width: 0; }
+.dash-ring-kop { font-size: var(--fs-sm); font-weight: 600; color: var(--viz-ink); margin: 0; text-align: center; overflow-wrap: anywhere; }
+.dash-sub { font-size: var(--fs-sm); font-weight: 600; color: var(--viz-ink2); margin: var(--sp-2) 0 0; }
+.dash-feiten { margin: 0; display: grid; gap: var(--sp-1); font-size: var(--fs-sm); }
+.dash-feiten > div { display: flex; flex-wrap: wrap; gap: 0 var(--sp-2); justify-content: space-between; }
+.dash-feiten dt { color: var(--viz-ink2); }
+.dash-feiten dd { margin: 0; color: var(--viz-ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.dash-knop { min-height: 36px; white-space: normal; }
+
+/* Herhaalbezoeken: rij = omschrijving links, knoppen rechts (op smal scherm eronder). */
+.herhaal-lijst { list-style: none; margin: 0; padding: 0; display: grid; }
+.herhaal-rij { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); justify-content: space-between; align-items: center; padding: var(--sp-3) 0; border-top: 1px solid var(--viz-grid); }
+.herhaal-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 220px; font-size: var(--fs-sm); color: var(--viz-ink); }
+.herhaal-info > span { overflow-wrap: anywhere; }
+.herhaal-wat, .herhaal-na { color: var(--viz-ink2); font-size: var(--fs-xs); }
+.herhaal-acties { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
+/* Tegels (kerncijfers). Binnen een kaart geen tweede kader. */
+.tegels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: var(--sp-4); }
+.tegel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--sp-4); min-width: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.dash-kaart .tegel { background: none; border: 0; padding: 0; }
+.tegel-kop { font-size: var(--fs-sm); font-weight: 600; color: var(--viz-ink2); margin: 0; overflow-wrap: anywhere; }
+.tegel-getal { margin: 0; }
+.tegel-waarde { font-size: var(--fs-2xl); font-weight: 600; color: var(--viz-ink); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.tegel-waarde--leeg { font-size: var(--fs-md); font-weight: 400; color: var(--viz-muted); }
+.tegel-verschil { margin: 0; font-size: var(--fs-xs); color: var(--viz-ink2); overflow-wrap: anywhere; }
+.tegel-verschil--goed .tegel-verschil-pijl, .tegel-verschil--slecht .tegel-verschil-pijl { font-weight: 600; }
+.tegel-verschil--goed { color: color-mix(in srgb, var(--viz-goed) 55%, var(--viz-ink)); }
+.tegel-verschil--slecht { color: color-mix(in srgb, var(--viz-slecht) 55%, var(--viz-ink)); }
+.tegel--ring { align-items: center; text-align: center; }

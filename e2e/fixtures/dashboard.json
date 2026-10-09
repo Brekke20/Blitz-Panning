@@ -350,7 +350,9 @@
           "dagen": 4,
           "technieker": "Tim",
           "klant": "Klant h10",
-          "sleutel": "adres:dorpsstraat123500hasselt"
+          "sleutel": "adres:dorpsstraat123500hasselt",
+          "serienummer": "",
+          "adres": "Dorpsstraat 12, 3500 Hasselt"
         },
         {
           "id": "h8",
@@ -361,7 +363,9 @@
           "dagen": 5,
           "technieker": "Roel",
           "klant": "Klant h8",
-          "sleutel": "serie:CHARX-1002"
+          "sleutel": "serie:CHARX-1002",
+          "serienummer": "CHARX-1002",
+          "adres": "Straat h8 1, 2000 Antwerpen"
         },
         {
           "id": "h7",
@@ -372,7 +376,9 @@
           "dagen": 4,
           "technieker": "Tim",
           "klant": "Klant h7",
-          "sleutel": "serie:CHARX-1001"
+          "sleutel": "serie:CHARX-1001",
+          "serienummer": "CHARX-1001",
+          "adres": "Straat h7 1, 2000 Antwerpen"
         },
         {
           "id": "h3",
@@ -383,7 +389,9 @@
           "dagen": 4,
           "technieker": "Roel",
           "klant": "Klant h3",
-          "sleutel": "serie:CHARX-1003"
+          "sleutel": "serie:CHARX-1003",
+          "serienummer": "CHARX-1003",
+          "adres": "Straat h3 1, 2000 Antwerpen"
         }
       ]
     },

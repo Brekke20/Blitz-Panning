@@ -50,6 +50,7 @@ export function herhaalbezoeken(alle, geselecteerd, dagen) {
     uit.push({
       id: b.id, ticketNumber: b.ticketNumber, datum: b.datum, vorigeId: vorige.id, vorigeDatum: vorige.datum,
       dagen: vorigeDagen, technieker: b.technieker, klant: b.klant, sleutel,
+      serienummer: b.serienummer, adres: b.adres, // leesbaar voor de lijst (de sleutel is technisch)
     });
   }
   return uit.sort((x, y) => y.datum.localeCompare(x.datum) || x.id.localeCompare(y.id));

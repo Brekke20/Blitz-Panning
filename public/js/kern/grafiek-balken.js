@@ -12,13 +12,14 @@ const GAP = 2;
 const eenheidTekst = eenheid => (eenheid ? ` ${eenheid}` : '');
 
 // rijen: [{ label, waarde, tekst? }] -> raster: label | balk (svg, % van het maximum) | waardetekst.
-export function balkenRijen({ rijen, slot = 1, eenheid = '', titel }) {
+// `schaalMax` (optioneel) legt het maximum vast, bv. 100 bij percentages (anders is de langste balk altijd vol).
+export function balkenRijen({ rijen, slot = 1, eenheid = '', titel, schaalMax }) {
   if (!rijen?.length) return leegBericht();
-  const max = Math.max(0, ...rijen.map(r => positief(r.waarde)));
+  const max = positief(schaalMax) || Math.max(0, ...rijen.map(r => positief(r.waarde)));
   const kleur = slotKleur(slot);
   const html = rijen.map(r => {
     const w = positief(r.waarde);
-    const pct = max > 0 ? n2((w / max) * 100) : '0';
+    const pct = max > 0 ? n2(Math.min(100, (w / max) * 100)) : '0';
     const tekst = r.tekst ?? `${formatGetal(w)}${eenheidTekst(eenheid)}`;
     const label = escHtml(`${r.label}: ${tekst}`);
     // 4px afgerond aan de data-kant (rx op het vlak), vierkant aan de basis (extra vierkant stukje links).
