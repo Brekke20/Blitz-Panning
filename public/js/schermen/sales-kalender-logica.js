@@ -2,7 +2,7 @@
 // De items hebben `startMin`/`endMin`, zodat `bepaalLanes` (kalender-logica.js) ze ongewijzigd kan indelen.
 import { isVast } from '../sales/lead-regels.js';
 import { isHeleDag } from '../sales/blok-regels.js';
-import { timeStrToMin, minToTimeStr, localISO } from '../kern/tijd.js';
+import { timeStrToMin, minToTimeStr, localISO, getWeekStart } from '../kern/tijd.js';
 import { maandRaster } from './kalender-logica.js';
 import { naamVan, blokTitel } from './sales-tekst.js';
 
@@ -52,4 +52,40 @@ export function maandChips({ leads = [], blokken = [], datum }) {
     }
   }
   return uit;
+}
+
+
+/**
+ * De dagen (ISO, ma tot zo) van de week van `gekozen`: de werkdagen plus elke andere dag waarop een bezoek of blok staat (anders zou
+ * een vastgelegd uur in het weekend onzichtbaar zijn). Zonder werkdagen: ma-vr.
+ */
+export function weekDagen({ gekozen, werkdagen, leads = [], blokken = [] }) {
+  const wd = Array.isArray(werkdagen) && werkdagen.length ? werkdagen : [1, 2, 3, 4, 5];
+  const maandag = getWeekStart(new Date(`${gekozen}T12:00:00`), 0);
+  const uit = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(maandag);
+    d.setDate(maandag.getDate() + i);
+    const iso = localISO(d);
+    if (wd.includes(d.getDay()) || bouwKalenderItems({ leads, blokken, datum: iso }).length) uit.push(iso);
+  }
+  return uit;
+}
+
+/** Het adres om naartoe te navigeren: volledig adres, postcode + gemeente, vrije tekst, of 'lat,lon'; null als er niets is. */
+export function navigatieAdres(lead) {
+  if (!lead) return null;
+  const plaats = [lead.postcode, lead.gemeente].filter(Boolean).join(' ');
+  if (lead.straat && plaats) return `${[lead.straat, lead.huisnr].filter(Boolean).join(' ')}, ${plaats}`;
+  if (plaats) return plaats;
+  if (lead.adresTekst) return String(lead.adresTekst);
+  if (Number.isFinite(lead.locatie?.lat) && Number.isFinite(lead.locatie?.lon)) return `${lead.locatie.lat},${lead.locatie.lon}`;
+  return null;
+}
+
+/** Link zoals `navigate()` in app.js: een geo:-link op Android (het toestel kiest de app), anders Google Maps. */
+export function navigatieLink(adres, android) {
+  if (!adres) return null;
+  const enc = encodeURIComponent(adres);
+  return android ? `geo:0,0?q=${enc}` : `https://www.google.com/maps/dir/?api=1&destination=${enc}&travelmode=driving`;
 }
