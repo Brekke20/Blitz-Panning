@@ -8,7 +8,7 @@
 import { foutTekst } from '../kern/api.js';
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
-import { magSchrijvenVoor } from '../kern/sessie.js';
+import { magSchrijvenVoor, magPlannenVoor } from '../kern/sessie.js';
 import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { localISO, fmtDate, fmtDateShort, extractLocalHour, timeStrToMin } from '../kern/tijd.js';
 import { registreerVenster } from '../venster.js';
@@ -122,11 +122,14 @@ export function openDetail(t) {
   const showPlanBtns = !!_detailDate;
   // Collega's alleen-lezen (logins T19): een technieker ziet Aankomst/Foto's/Rapport enkel bij eigen tickets (de server blokkeert dit niet, zie Rechtentabel).
   const magSchrijven = showPlanBtns && magSchrijvenVoor(t.assignee);
+  // Een technieker met "Mag zelf plannen" plant, verzet en annuleert enkel zijn eigen tickets (coördinatoren: alle).
+  const magPlannen = magPlannenVoor(t.assignee);
   document.getElementById('d-btn-arrival').style.display  = magSchrijven ? '' : 'none';
-  document.getElementById('d-btn-proposal').style.display = showPlanBtns ? '' : 'none';
+  document.getElementById('d-btn-proposal').style.display = showPlanBtns && magPlannen ? '' : 'none';
   document.getElementById('d-btn-fotos').style.display    = magSchrijven ? '' : 'none';
   document.getElementById('d-btn-rapport').style.display  = magSchrijven ? '' : 'none';
-  document.getElementById('d-btn-reschedule').style.display = showPlanBtns ? '' : 'none';
+  document.getElementById('d-btn-reschedule').style.display = showPlanBtns && magPlannen ? '' : 'none';
+  document.getElementById('kb-section').style.display = magPlannen ? '' : 'none';
   document.getElementById('d-num').textContent   = '#' + t.number;
   document.getElementById('d-title').textContent = t.subject || '—';
 
@@ -179,7 +182,9 @@ export function openDetail(t) {
   const STATUS_TE_PLANNEN = ['Service in te plannen', 'Wachten op planning'];
   const STATUS_PENDING    = ['Wachten op bevestiging planning'];
   const planBtn = document.getElementById('d-plan-btn');
-  if (STATUS_TE_PLANNEN.includes(t.status)) {
+  if (!magPlannen) {
+    planBtn.style.display = 'none';
+  } else if (STATUS_TE_PLANNEN.includes(t.status)) {
     planBtn.style.display    = '';
     planBtn.textContent      = '+ Voeg toe aan planning';
     planBtn.classList.add('btn--primary'); planBtn.classList.remove('btn--danger');
@@ -192,7 +197,7 @@ export function openDetail(t) {
   }
 
   // Afspraak annuleren vervangt "Uit planning halen" zodra er een voorstel uitstaat.
-  document.getElementById('d-btn-annuleer').style.display = afh.heeftLopendVoorstel(t) ? '' : 'none';
+  document.getElementById('d-btn-annuleer').style.display = magPlannen && afh.heeftLopendVoorstel(t) ? '' : 'none';
 
   document.getElementById('det-overlay').classList.add('open');
 }

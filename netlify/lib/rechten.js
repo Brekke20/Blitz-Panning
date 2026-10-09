@@ -10,6 +10,9 @@
 //     Functies die zelf NIET op methode controleren hebben een '*'-regel.
 //   - service: true  = de service-sleutel van planning-export is geldig (enkel GET, zie auth.js).
 //   - ookBijWijzigen: true = ook toegelaten als de gebruiker nog een wachtwoord moet wijzigen.
+//   - planEigen: true = een technieker met het vinkje "Mag zelf plannen" (gebruiker.magZelfPlannen === true) mag deze methoden ook
+//     (voor de methoden waar technieker nog niet in de lijst staat). De wrapper laat hem enkel door; de FUNCTIE moet nog toetsen dat
+//     het ticket van hem is (netlify/lib/eigen-ticket.js: eisEigenTicket). Een nieuwe functie met dit vlag zonder die toets is een fout.
 // "T eigen" (technieker enkel eigen data) wordt in de functie zelf afgedwongen; hier staat enkel de rol.
 
 const vries = lijst => Object.freeze([...lijst]);
@@ -25,18 +28,19 @@ export const RECHTEN = {
   // tickets en setup controleren zelf geen methode: '*' houdt elke methode achter de login.
   'tickets':              { '*': INTERN, service: true },
   'planning-sinds':       { POST: INTERN },
-  'plan':                 { POST: COORD },
-  'plan-datum':           { POST: COORD },
-  'propose':              { POST: COORD },
-  'annuleer':             { GET: COORD, POST: COORD },
+  // Plannen: coördinator, en een technieker met "Mag zelf plannen" enkel voor zijn eigen tickets (planEigen).
+  'plan':                 { POST: COORD, planEigen: true },
+  'plan-datum':           { POST: COORD, planEigen: true },
+  'propose':              { POST: COORD, planEigen: true },
+  'annuleer':             { GET: COORD, POST: COORD, planEigen: true },
   'optimize':             { '*': ALLE },
   'matrix':               { POST: ALLE },
   'route':                { '*': ALLE },
   'drukte':               { '*': ALLE },
   'afspraken':            { GET: INTERN, PUT: INTERN, service: true },
   'availability':         { GET: INTERN, PUT: INTERN },
-  'klantbeschikbaarheid': { GET: INTERN, PUT: COORD, service: true },
-  'voorstel-status':      { GET: INTERN, POST: COORD, DELETE: COORD },
+  'klantbeschikbaarheid': { GET: INTERN, PUT: COORD, service: true, planEigen: true },
+  'voorstel-status':      { GET: INTERN, POST: COORD, DELETE: COORD, planEigen: true },
   'prijzen':              { GET: INTERN, PUT: COORD },
   'inventaris':           { GET: INTERN, POST: INTERN, PATCH: COORD },
   'rapport-archief':      { GET: INTERN, POST: INTERN, DELETE: INTERN },
@@ -88,6 +92,8 @@ export const RECHTEN = {
   // Performance-dashboard: cijfers en ringgrenzen enkel voor de beheerder.
   'dashboard':            { GET: BEHEER },
   'dashboard-instellingen': { GET: BEHEER, PUT: BEHEER },
+  // Beheer, Gebruikers: de actieve Zoho-agenten (enkel namen) voor de keuzelijst "Zoho-naam"; enkel lezen.
+  'zoho-agenten':         { GET: BEHEER },
 };
 
 // Gedeeld met de wrapper: de regel voor naam + methode (undefined = geen regel).
@@ -113,5 +119,7 @@ export function rechtenVoor(gebruiker) {
     beheer,
     plannen: beheer || rol === 'planner',
     alleSales: beheer || gebruiker?.magAlleSales === true,
+    // Een technieker met "Mag zelf plannen": plannen mag, maar enkel voor zijn eigen tickets. Beheerder en planner hebben dit niet nodig.
+    planEigen: rol === 'technieker' && gebruiker?.magZelfPlannen === true,
   };
 }

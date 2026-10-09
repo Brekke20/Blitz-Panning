@@ -30,6 +30,7 @@ export function publiek(g) {
   if (g.zohoNaam !== undefined) p.zohoNaam = g.zohoNaam;
   if (g.salesNaam !== undefined) p.salesNaam = g.salesNaam;
   if (g.magAlleSales !== undefined) p.magAlleSales = g.magAlleSales;
+  if (g.magZelfPlannen !== undefined) p.magZelfPlannen = g.magZelfPlannen;
   return p;
 }
 
@@ -53,11 +54,17 @@ export function valideerNieuweGebruiker(invoer) {
   const rol = invoer.rol;
   if (!ROLLEN_LIJST.includes(rol)) return { fout: 'Onbekende rol.' };
   const waarden = { email, naam, rol };
-  if (rol === 'technieker') {
+  // De Zoho-naam koppelt het account aan de technieker in Zoho: verplicht voor een technieker, optioneel voor beheerder en planner
+  // (wie zelf interventies uitvoert), nooit voor sales.
+  if (rol !== 'sales') {
     const zohoNaam = String(invoer.zohoNaam ?? '').trim();
-    if (!zohoNaam) return { fout: 'Een technieker heeft een Zoho-naam nodig.' };
-    waarden.zohoNaam = zohoNaam;
+    if (!zohoNaam && rol === 'technieker') return { fout: 'Een technieker heeft een Zoho-naam nodig.' };
+    if (zohoNaam.length > MAX_NAAM) return { fout: `De Zoho-naam mag maximaal ${MAX_NAAM} tekens bevatten.` };
+    if (zohoNaam) waarden.zohoNaam = zohoNaam;
   }
+  // Een technieker met dit vinkje mag ook plannen, maar enkel zijn eigen tickets (de functies dwingen dat zelf af). Enkel de beheerder
+  // zet het (PATCH/POST van gebruikers zijn enkel voor de beheerder); letterlijk true, anders uit.
+  if (rol === 'technieker') waarden.magZelfPlannen = invoer.magZelfPlannen === true;
   if (rol === 'sales') {
     const salesNaam = String(invoer.salesNaam ?? '').trim();
     if (!salesNaam) return { fout: 'Een verkoper heeft een verkopersnaam nodig.' };
@@ -67,10 +74,18 @@ export function valideerNieuweGebruiker(invoer) {
   return { waarden };
 }
 
+// Het account dat deze Zoho-naam al gebruikt (genormaliseerd, het account `behalveId` telt niet mee), anders null. De Zoho-naam
+// hoort bij precies één account: twee accounts met dezelfde naam delen elkaars eigen rechten en data.
+export function zohoNaamBezet(gebruikers, zohoNaam, behalveId) {
+  const gezocht = normaliseerNaam(zohoNaam);
+  if (gezocht === '' || !Array.isArray(gebruikers)) return null;
+  return gebruikers.find(g => g && g.id !== behalveId && normaliseerNaam(g.zohoNaam) === gezocht) ?? null;
+}
+
 // Pure wijziging van één gebruiker (PATCH). `invoer` bevat enkel de velden die mogen veranderen
-// (naam, rol, actief, zohoNaam, salesNaam, magAlleSales); alles anders in de body wordt genegeerd.
+// (naam, rol, actief, zohoNaam, salesNaam, magAlleSales, magZelfPlannen); alles anders in de body wordt genegeerd.
 // Validatie hergebruikt valideerNieuweGebruiker op de samengevoegde waarden, zodat de rolvelden altijd
-// kloppen (technieker heeft een zohoNaam, sales een salesNaam) en velden van een vorige rol verdwijnen.
+// kloppen (technieker heeft een zohoNaam, beheerder/planner mogen er een hebben, sales een salesNaam) en velden van een vorige rol verdwijnen.
 // -> { fout } | { nieuw, gewijzigd: [veldnaam], blokkeert, rolWijzigt, promotie }
 // `sessieVersie` stijgt bij blokkeren en bij een rolwijziging (onmiddellijk uitloggen). `herstelcodes` blijven
 // enkel bij een beheerder bestaan; nieuwe codes bij een promotie zet de aanroeper (async hashing).
@@ -79,7 +94,7 @@ export function pasWijzigingToe(huidig, invoer) {
   for (const veld of ['naam', 'rol', 'zohoNaam', 'salesNaam']) {
     if (invoer[veld] !== undefined && typeof invoer[veld] !== 'string') return { fout: `Ongeldige waarde voor ${veld}.` };
   }
-  for (const veld of ['actief', 'magAlleSales']) {
+  for (const veld of ['actief', 'magAlleSales', 'magZelfPlannen']) {
     if (invoer[veld] !== undefined && typeof invoer[veld] !== 'boolean') return { fout: `Ongeldige waarde voor ${veld}.` };
   }
   const gekozen = (veld) => (invoer[veld] !== undefined ? invoer[veld] : huidig[veld]);
@@ -87,20 +102,27 @@ export function pasWijzigingToe(huidig, invoer) {
     email: 'intern@intern.test', // het e-mailadres is niet wijzigbaar: enkel een geldige plaatshouder voor de validatie
     naam: gekozen('naam'), rol: gekozen('rol'),
     zohoNaam: gekozen('zohoNaam'), salesNaam: gekozen('salesNaam'), magAlleSales: gekozen('magAlleSales'),
+    magZelfPlannen: gekozen('magZelfPlannen'),
   });
   if (v.fout) return { fout: v.fout };
-  const { naam, rol, zohoNaam, salesNaam, magAlleSales } = v.waarden;
+  const { naam, rol, zohoNaam, salesNaam, magAlleSales, magZelfPlannen } = v.waarden;
   const nieuw = { ...huidig };
-  delete nieuw.zohoNaam; delete nieuw.salesNaam; delete nieuw.magAlleSales;
+  delete nieuw.zohoNaam; delete nieuw.salesNaam; delete nieuw.magAlleSales; delete nieuw.magZelfPlannen;
   Object.assign(nieuw, { naam, rol });
   if (zohoNaam !== undefined) nieuw.zohoNaam = zohoNaam;
   if (salesNaam !== undefined) nieuw.salesNaam = salesNaam;
   if (magAlleSales !== undefined) nieuw.magAlleSales = magAlleSales;
+  if (magZelfPlannen !== undefined) nieuw.magZelfPlannen = magZelfPlannen;
   if (invoer.actief !== undefined) nieuw.actief = invoer.actief;
   if (rol !== 'beheerder') delete nieuw.herstelcodes;
   // magAlleSales ontbreekt bij oudere verkopersrecords: dat is gelijk aan false (geen schijnwijziging in het log).
-  const waarde = (g, veld) => (veld === 'magAlleSales' ? (g.rol === 'sales' ? g.magAlleSales === true : undefined) : g[veld]);
-  const gewijzigd = ['naam', 'rol', 'actief', 'zohoNaam', 'salesNaam', 'magAlleSales'].filter(veld => waarde(huidig, veld) !== waarde(nieuw, veld));
+  // Idem magZelfPlannen (enkel technieker; ontbrekend = uit).
+  const waarde = (g, veld) => {
+    if (veld === 'magAlleSales') return g.rol === 'sales' ? g.magAlleSales === true : undefined;
+    if (veld === 'magZelfPlannen') return g.rol === 'technieker' ? g.magZelfPlannen === true : undefined;
+    return g[veld];
+  };
+  const gewijzigd = ['naam', 'rol', 'actief', 'zohoNaam', 'salesNaam', 'magAlleSales', 'magZelfPlannen'].filter(veld => waarde(huidig, veld) !== waarde(nieuw, veld));
   const blokkeert = huidig.actief === true && nieuw.actief === false;
   const rolWijzigt = huidig.rol !== rol;
   const promotie = rolWijzigt && rol === 'beheerder';

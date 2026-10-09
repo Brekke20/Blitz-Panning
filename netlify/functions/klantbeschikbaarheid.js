@@ -13,6 +13,9 @@
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
 import { beveiligV2 } from '../lib/beveiligd.js';
+import { maakZoho } from '../lib/zoho.js';
+import { eisEigenTicket } from '../lib/eigen-ticket.js';
+import { isDeepStrictEqual } from 'node:util';
 
 const BLOB_KEY = 'klantbeschikbaarheid';
 const ALLOWED_ORIGINS = [
@@ -34,96 +37,120 @@ function corsHeaders(req) {
   };
 }
 
-const kern = async (req, context, gebruiker) => {
-  const hdrs  = corsHeaders(req);
-  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: hdrs });
+// De klantbeschikbaarheid van een ticket zonder het tijdstip van de laatste wijziging (om te zien of er echt iets veranderde).
+const zonderTijd = (e) => { if (!e) return undefined; const { bijgewerkt: _b, ...rest } = e; return rest; };
 
-  const store = getStore({ name: winkelNaam(req), consistency: 'strong' });
+// `getStore` en `zoho` zijn testnaden; `auth` vervangt de standaardcontrole van de wrapper.
+export function maakHandler({ getStore: haalStore = getStore, zoho = maakZoho({ tokenFoutMetData: false }), auth } = {}) {
+  const kern = async (req, context, gebruiker) => {
+    const hdrs  = corsHeaders(req);
+    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: hdrs });
 
-  if (isTestVerzoek(req)) await zorgVoorTestkopie(getStore);
+    const store = haalStore({ name: winkelNaam(req), consistency: 'strong' });
 
-  // ── GET ───────────────────────────────────────────────────────────────────
-  if (req.method === 'GET') {
-    try {
-      const raw = await store.get(BLOB_KEY, { type: 'json' });
-      return new Response(JSON.stringify(raw ?? EMPTY), {
+    if (isTestVerzoek(req)) await zorgVoorTestkopie(haalStore);
+
+    // ── GET ───────────────────────────────────────────────────────────────────
+    if (req.method === 'GET') {
+      try {
+        const raw = await store.get(BLOB_KEY, { type: 'json' });
+        return new Response(JSON.stringify(raw ?? EMPTY), {
+          status: 200, headers: { ...hdrs, 'Content-Type': 'application/json' },
+        });
+      } catch {
+        return new Response(JSON.stringify(EMPTY), {
+          status: 200, headers: { ...hdrs, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    // ── PUT ───────────────────────────────────────────────────────────────────
+    if (req.method === 'PUT') {
+      let body;
+      try { body = await req.json(); }
+      catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers: { ...hdrs, 'Content-Type': 'application/json' } }); }
+
+      const { versie, items } = body;
+      if (!items || typeof items !== 'object' || Array.isArray(items)) {
+        return new Response(JSON.stringify({ error: 'items moet een object zijn' }), {
+          status: 400, headers: { ...hdrs, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Optimistic locking
+      let current = EMPTY;
+      try { current = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY; }
+      catch {}
+
+      if (versie !== current.versie) {
+        return new Response(JSON.stringify({
+          error: 'Versiematch mislukt', serverVersie: current.versie, data: current,
+        }), { status: 409, headers: { ...hdrs, 'Content-Type': 'application/json' } });
+      }
+
+      // Valideer en schoon op per ticket-entry
+      const cleaned = {};
+      for (const [ticketId, entry] of Object.entries(items)) {
+        if (!ticketId || typeof ticketId !== 'string') continue;
+        const voorkeur     = (entry.voorkeur && DATE_RE.test(entry.voorkeur)) ? entry.voorkeur : null;
+        const voorkeurTijd = (typeof entry.voorkeurTijd === 'string' && TIME_RE.test(entry.voorkeurTijd)) ? entry.voorkeurTijd : null;
+        const geblokkeerd = [...new Set(
+          (Array.isArray(entry.geblokkeerd) ? entry.geblokkeerd : [])
+            .filter(d => DATE_RE.test(d))
+        )].sort();
+        const notitie = String(entry.notitie || '').slice(0, 500);
+        // duurOverride: positief geheel aantal minuten, anders weglaten. Werd voorheen NOOIT
+        // gepersisteerd (gekend euvel, zie planning-export.js) — vanaf nu wel.
+        // M11 (eindreview v1.4.0): eerst een typeof-guard vóór Number.isInteger() -- Number(x)
+        // coerceert bv. `true` naar 1 en `"120"` naar 120, waardoor een onbedoeld/foutief
+        // getypeerde waarde uit de request-body alsnog als geldige duur werd aanvaard.
+        const duurOverride = (typeof entry.duurOverride === 'number'
+          && Number.isInteger(entry.duurOverride) && entry.duurOverride > 0 && entry.duurOverride <= 1440)
+          ? entry.duurOverride : undefined;
+        // Voorkeur mag niet ook geblokkeerd zijn
+        const voorkeurClean = (voorkeur && geblokkeerd.includes(voorkeur)) ? null : voorkeur;
+        // Sla lege entries niet op
+        if (!voorkeurClean && !voorkeurTijd && !geblokkeerd.length && !notitie && !duurOverride) continue;
+        cleaned[ticketId] = {
+          voorkeur:     voorkeurClean,
+          voorkeurTijd,
+          geblokkeerd,
+          notitie,
+          ...(duurOverride ? { duurOverride } : {}),
+          bijgewerkt:   entry.bijgewerkt || new Date().toISOString(),
+        };
+      }
+
+      // Een technieker met "Mag zelf plannen" wijzigt enkel de klantbeschikbaarheid van zijn eigen tickets (een testverzoek raakt enkel
+      // de testopslag): elk ticket waarvan de inhoud verandert of verdwijnt moet van hem zijn.
+      if (gebruiker?.rol === 'technieker' && !isTestVerzoek(req)) {
+        const huidigeItems = current.items && typeof current.items === 'object' ? current.items : {};
+        const gewijzigd = [...new Set([...Object.keys(cleaned), ...Object.keys(huidigeItems)])]
+          .filter(id => !isDeepStrictEqual(zonderTijd(cleaned[id]), zonderTijd(huidigeItems[id])));
+        for (const ticketId of gewijzigd) {
+          const eis = /^\d+$/.test(ticketId)
+            ? await eisEigenTicket({ gebruiker, ticketId, zoho })
+            : { ok: false, status: 403, body: { error: 'Je mag enkel je eigen tickets plannen.', code: 'geen-recht' } };
+          if (!eis.ok) {
+            return new Response(JSON.stringify(eis.body), { status: eis.status, headers: { ...hdrs, 'Content-Type': 'application/json' } });
+          }
+        }
+      }
+
+      const nieuw = { versie: current.versie + 1, bijgewerkt: new Date().toISOString(), items: cleaned };
+      await store.setJSON(BLOB_KEY, nieuw);
+
+      return new Response(JSON.stringify(nieuw), {
         status: 200, headers: { ...hdrs, 'Content-Type': 'application/json' },
       });
-    } catch {
-      return new Response(JSON.stringify(EMPTY), {
-        status: 200, headers: { ...hdrs, 'Content-Type': 'application/json' },
-      });
-    }
-  }
-
-  // ── PUT ───────────────────────────────────────────────────────────────────
-  if (req.method === 'PUT') {
-    let body;
-    try { body = await req.json(); }
-    catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers: { ...hdrs, 'Content-Type': 'application/json' } }); }
-
-    const { versie, items } = body;
-    if (!items || typeof items !== 'object' || Array.isArray(items)) {
-      return new Response(JSON.stringify({ error: 'items moet een object zijn' }), {
-        status: 400, headers: { ...hdrs, 'Content-Type': 'application/json' },
-      });
     }
 
-    // Optimistic locking
-    let current = EMPTY;
-    try { current = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY; }
-    catch {}
+    return new Response('Method Not Allowed', { status: 405, headers: hdrs });
+  };
 
-    if (versie !== current.versie) {
-      return new Response(JSON.stringify({
-        error: 'Versiematch mislukt', serverVersie: current.versie, data: current,
-      }), { status: 409, headers: { ...hdrs, 'Content-Type': 'application/json' } });
-    }
+return beveiligV2('klantbeschikbaarheid', kern, auth ? { auth } : undefined);
+}
 
-    // Valideer en schoon op per ticket-entry
-    const cleaned = {};
-    for (const [ticketId, entry] of Object.entries(items)) {
-      if (!ticketId || typeof ticketId !== 'string') continue;
-      const voorkeur     = (entry.voorkeur && DATE_RE.test(entry.voorkeur)) ? entry.voorkeur : null;
-      const voorkeurTijd = (typeof entry.voorkeurTijd === 'string' && TIME_RE.test(entry.voorkeurTijd)) ? entry.voorkeurTijd : null;
-      const geblokkeerd = [...new Set(
-        (Array.isArray(entry.geblokkeerd) ? entry.geblokkeerd : [])
-          .filter(d => DATE_RE.test(d))
-      )].sort();
-      const notitie = String(entry.notitie || '').slice(0, 500);
-      // duurOverride: positief geheel aantal minuten, anders weglaten. Werd voorheen NOOIT
-      // gepersisteerd (gekend euvel, zie planning-export.js) — vanaf nu wel.
-      // M11 (eindreview v1.4.0): eerst een typeof-guard vóór Number.isInteger() -- Number(x)
-      // coerceert bv. `true` naar 1 en `"120"` naar 120, waardoor een onbedoeld/foutief
-      // getypeerde waarde uit de request-body alsnog als geldige duur werd aanvaard.
-      const duurOverride = (typeof entry.duurOverride === 'number'
-        && Number.isInteger(entry.duurOverride) && entry.duurOverride > 0 && entry.duurOverride <= 1440)
-        ? entry.duurOverride : undefined;
-      // Voorkeur mag niet ook geblokkeerd zijn
-      const voorkeurClean = (voorkeur && geblokkeerd.includes(voorkeur)) ? null : voorkeur;
-      // Sla lege entries niet op
-      if (!voorkeurClean && !voorkeurTijd && !geblokkeerd.length && !notitie && !duurOverride) continue;
-      cleaned[ticketId] = {
-        voorkeur:     voorkeurClean,
-        voorkeurTijd,
-        geblokkeerd,
-        notitie,
-        ...(duurOverride ? { duurOverride } : {}),
-        bijgewerkt:   entry.bijgewerkt || new Date().toISOString(),
-      };
-    }
-
-    const nieuw = { versie: current.versie + 1, bijgewerkt: new Date().toISOString(), items: cleaned };
-    await store.setJSON(BLOB_KEY, nieuw);
-
-    return new Response(JSON.stringify(nieuw), {
-      status: 200, headers: { ...hdrs, 'Content-Type': 'application/json' },
-    });
-  }
-
-  return new Response('Method Not Allowed', { status: 405, headers: hdrs });
-};
-
-export default beveiligV2('klantbeschikbaarheid', kern);
+export default maakHandler();
 
 export const config = { path: '/api/klantbeschikbaarheid' };

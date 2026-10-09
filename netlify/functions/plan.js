@@ -10,6 +10,7 @@ import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
 import { getStore } from '@netlify/blobs';
 import { beveiligV1 } from '../lib/beveiligd.js';
 import { logVoorVerzoek } from '../lib/activiteit.js';
+import { eisEigenTicket } from '../lib/eigen-ticket.js';
 
 // Instantie op moduleniveau: de tokencache (55 min) leeft zolang de functie warm is.
 const zoho = maakZoho();
@@ -33,6 +34,10 @@ async function kern(event, context, gebruiker, haalStore = getStore) {
     }
 
     const { token, orgId } = await zoho.haalToegang();
+
+    // Een technieker met "Mag zelf plannen" plant (en haalt uit de planning) enkel zijn eigen tickets.
+    const eis = await eisEigenTicket({ gebruiker, ticketId, zoho, toegang: { token, orgId } });
+    if (!eis.ok) return v1Json(eis.status, eis.body, CORS_V1);
 
     // Bepaal patch body
     let patch;

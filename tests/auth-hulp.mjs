@@ -1,6 +1,6 @@
 // Testhulp (geen *.test.mjs): zet tijdelijk een rol of een afwezige sessie voor de servertests.
 //   await metRol('planner', () => handler(req))
-//   await metRol('technieker', werk, { zohoNaam: 'Roel' })
+//   await metRol('technieker', werk, { zohoNaam: 'Roel', magZelfPlannen: true })
 //   await metRol('sales', werk, { magAlleSales: true })
 //   await metGeenSessie(() => handler(req))      // echte cookiecontrole zonder cookie: 401 niet-ingelogd
 // Na afloop (ook bij een fout) is de vorige instelling terug. zetStandaard(opties | null) bepaalt de
@@ -31,11 +31,12 @@ export function zetStandaard(opties) {
   zet(standaard);
 }
 
-export async function metRol(rol, werk, { zohoNaam, magAlleSales } = {}) {
+export async function metRol(rol, werk, { zohoNaam, magAlleSales, magZelfPlannen } = {}) {
   const basis = TESTGEBRUIKERS[`test-${rol}`];
   if (!basis) throw new Error(`metRol: onbekende rol "${rol}"`);
   const gebruiker = { ...basis };
   if (rol === 'technieker' && zohoNaam !== undefined) gebruiker.zohoNaam = zohoNaam;
+  if (rol === 'technieker' && magZelfPlannen !== undefined) gebruiker.magZelfPlannen = magZelfPlannen;
   if (rol === 'sales' && magAlleSales !== undefined) gebruiker.magAlleSales = magAlleSales === true;
   return tijdelijk({ ...(standaard ?? {}), vasteGebruiker: gebruiker }, werk);
 }

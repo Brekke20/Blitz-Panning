@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  sorteerGebruikers, valideerGebruikerFormulier, zohoNaamOpties, rolLabel, kanBlokkeren, formatLaatsteLogin,
+  sorteerGebruikers, valideerGebruikerFormulier, zohoNaamOpties, zohoNaamBezetDoor, zohoNaamKeuzes, ZOHO_ANDERE, rolLabel, kanBlokkeren, formatLaatsteLogin,
 } from '../public/js/schermen/beheer-gebruikers-logica.js';
 
 const g = (id, naam, rol, actief = true) => ({ id, naam, rol, actief, email: `${id}@test.be` });
@@ -21,7 +21,7 @@ test('valideerGebruikerFormulier: technieker zonder zohoNaam geeft een fout, mé
   assert.ok(valideerGebruikerFormulier({ rol: 'technieker', zohoNaam: '', naam: 'Tim', email: 'tim@test.be' }).fout);
   assert.ok(valideerGebruikerFormulier({ zohoNaam: '   ', naam: 'Tim', email: 'tim@test.be' }, 'technieker').fout);
   const r = valideerGebruikerFormulier({ email: ' Tim@Test.be ', naam: ' Tim ', zohoNaam: ' Tim ' }, 'technieker');
-  assert.deepEqual(r, { waarden: { email: 'tim@test.be', naam: 'Tim', rol: 'technieker', zohoNaam: 'Tim' } });
+  assert.deepEqual(r, { waarden: { email: 'tim@test.be', naam: 'Tim', rol: 'technieker', zohoNaam: 'Tim', magZelfPlannen: false } });
 });
 
 test('valideerGebruikerFormulier: sales zonder salesNaam geeft een fout; magAlleSales is enkel waar bij true', () => {
@@ -32,9 +32,13 @@ test('valideerGebruikerFormulier: sales zonder salesNaam geeft een fout; magAlle
   assert.equal(uit.waarden.magAlleSales, false);
 });
 
-test('valideerGebruikerFormulier: planner en beheerder hebben geen rolvelden nodig en krijgen er ook geen', () => {
+test('valideerGebruikerFormulier: planner en beheerder hebben geen rolvelden nodig; een zohoNaam is voor hen optioneel, sales-velden krijgen ze niet', () => {
   const r = valideerGebruikerFormulier({ rol: 'planner', naam: 'Pia', email: 'pia@test.be', zohoNaam: 'Tim', salesNaam: 'x', magAlleSales: true });
-  assert.deepEqual(r, { waarden: { email: 'pia@test.be', naam: 'Pia', rol: 'planner' } });
+  assert.deepEqual(r, { waarden: { email: 'pia@test.be', naam: 'Pia', rol: 'planner', zohoNaam: 'Tim' } });
+  const zonder = valideerGebruikerFormulier({ rol: 'planner', naam: 'Pia', email: 'pia@test.be', zohoNaam: '  ' });
+  assert.deepEqual(zonder, { waarden: { email: 'pia@test.be', naam: 'Pia', rol: 'planner' } });
+  assert.ok(valideerGebruikerFormulier({ rol: 'beheerder', naam: 'Bea', zohoNaam: 'x'.repeat(101) }).fout);
+  assert.equal(valideerGebruikerFormulier({ rol: 'sales', naam: 'Eva', salesNaam: 'E', zohoNaam: 'Tim' }).waarden.zohoNaam, undefined);
   assert.deepEqual(valideerGebruikerFormulier({ naam: 'Bea', email: 'bea@test.be' }, 'beheerder'), { waarden: { email: 'bea@test.be', naam: 'Bea', rol: 'beheerder' } });
 });
 
@@ -86,4 +90,41 @@ test('formatLaatsteLogin: "Nooit" zonder (geldige) datum, anders datum en uur in
   const tekst = formatLaatsteLogin('2026-10-05T07:30:00.000Z'); // 09:30 in Brussel
   assert.match(tekst, /05/);
   assert.match(tekst, /09[:.]30/);
+});
+
+test('zohoNaamBezetDoor en de melding vooraf bij een dubbele Zoho-naam (behalve het account zelf)', () => {
+  const lijst = [{ id: 'a', naam: 'Tim J', zohoNaam: 'Tim  Janssens' }, { id: 'b', naam: 'Pia' }];
+  assert.equal(zohoNaamBezetDoor(lijst, ' tim janssens', 'b')?.id, 'a');
+  assert.equal(zohoNaamBezetDoor(lijst, 'Tim Janssens', 'a'), null);
+  assert.equal(zohoNaamBezetDoor(lijst, '', 'b'), null);
+  assert.equal(zohoNaamBezetDoor(null, 'Tim', 'b'), null);
+  const fout = valideerGebruikerFormulier({ naam: 'Pia', zohoNaam: 'tim janssens' }, 'planner', { gebruikers: lijst, id: 'b' }).fout;
+  assert.match(fout, /Tim J/);
+  assert.deepEqual(valideerGebruikerFormulier({ naam: 'Tim J', zohoNaam: 'Tim Janssens' }, 'technieker', { gebruikers: lijst, id: 'a' }).waarden,
+    { naam: 'Tim J', rol: 'technieker', zohoNaam: 'Tim Janssens', magZelfPlannen: false });
+});
+
+test('zohoNaamKeuzes: agenten plus de huidige waarde, ontdubbeld (ook met andere hoofdletters), gesorteerd; bezette namen met het andere account', () => {
+  const gebruikers = [{ id: 'a', naam: 'Tim J', zohoNaam: 'Tim Janssens' }, { id: 'b', naam: 'Pia', zohoNaam: 'Pia Z' }, { id: 'c', naam: 'Kees' }];
+  const agenten = [{ naam: 'Tim Janssens' }, { naam: 'Roel' }, { naam: 'Pia Z' }, { naam: ' ' }, {}, null, { naam: 'roel' }];
+  assert.deepEqual(zohoNaamKeuzes({ agenten, huidige: '', gebruikers, behalveId: 'c' }), [
+    { naam: 'Pia Z', bezetDoor: 'Pia' }, { naam: 'Roel', bezetDoor: null }, { naam: 'Tim Janssens', bezetDoor: 'Tim J' },
+  ]);
+  // Het eigen account telt niet als bezetter; een huidige waarde buiten de lijst blijft kiesbaar.
+  assert.deepEqual(zohoNaamKeuzes({ agenten, huidige: 'Pia Z', gebruikers, behalveId: 'b' }).find(k => k.naam === 'Pia Z'), { naam: 'Pia Z', bezetDoor: null });
+  assert.deepEqual(zohoNaamKeuzes({ agenten: [{ naam: 'Roel' }], huidige: 'Oud Collega', gebruikers: [], behalveId: 'x' }), [
+    { naam: 'Oud Collega', bezetDoor: null }, { naam: 'Roel', bezetDoor: null },
+  ]);
+  assert.deepEqual(zohoNaamKeuzes({ agenten: ['Tim'], huidige: undefined }), [{ naam: 'Tim', bezetDoor: null }]);
+  assert.deepEqual(zohoNaamKeuzes(), []);
+  assert.equal(typeof ZOHO_ANDERE, 'string');
+});
+
+test('valideerGebruikerFormulier: magZelfPlannen enkel bij een technieker en enkel letterlijk true; andere rollen krijgen het veld nooit', () => {
+  const basis = { naam: 'Tim', email: 'tim@test.be', zohoNaam: 'Tim' };
+  assert.equal(valideerGebruikerFormulier({ ...basis, magZelfPlannen: true }, 'technieker').waarden.magZelfPlannen, true);
+  assert.equal(valideerGebruikerFormulier({ ...basis, magZelfPlannen: 'ja' }, 'technieker').waarden.magZelfPlannen, false);
+  assert.equal(valideerGebruikerFormulier(basis, 'technieker').waarden.magZelfPlannen, false);
+  for (const rol of ['planner', 'beheerder']) assert.equal('magZelfPlannen' in valideerGebruikerFormulier({ ...basis, magZelfPlannen: true }, rol).waarden, false, rol);
+  assert.equal('magZelfPlannen' in valideerGebruikerFormulier({ ...basis, salesNaam: 'T', magZelfPlannen: true }, 'sales').waarden, false);
 });

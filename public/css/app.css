@@ -1144,8 +1144,10 @@
 
     /* Beperkte technieker-weergave: de rol (niet de schermbreedte) verbergt coördinatorfuncties */
     /* Sales (data-rol="sales", sales-planner) is net zo beperkt: de ticketfuncties blijven weg; de sales-schermen gebruiken eigen sales-klassen. */
-    html[data-rol="technieker"] .coord-only, html[data-rol="sales"] .coord-only { display: none !important; }
-    html[data-rol="technieker"] .kal-actions, html[data-rol="sales"] .kal-actions { display: none; } /* geen lege tweede rij */
+    html[data-rol="technieker"] .coord-only:not(.plan-eigen), html[data-rol="sales"] .coord-only { display: none !important; }
+    /* Een technieker met "Mag zelf plannen" houdt de plan-onderdelen (.plan-eigen) voor zijn eigen tickets; zonder het vinkje blijven ze verborgen. */
+    html[data-rol="technieker"]:not([data-plan-eigen="ja"]) .coord-only.plan-eigen { display: none !important; }
+    html[data-rol="technieker"]:not([data-plan-eigen="ja"]) .kal-actions, html[data-rol="sales"] .kal-actions { display: none; } /* geen lege tweede rij */
     /* × (uit planning halen): nooit op gsm (per ongeluk tikken); voor technieker via .coord-only */
     html[data-indeling="smal"] .cal-unplan-x { display: none; }
 

@@ -47,7 +47,7 @@ test('200: huidigeGebruiker, cache en rechten worden bewaard', async () => {
   assert.deepEqual(g, planner);
   assert.deepEqual(m.huidigeGebruiker(), planner);
   assert.deepEqual(JSON.parse(opslag.get('blitz_sessie_cache')), planner);
-  assert.deepEqual(m.huidigeRechten(), { beheer: false, plannen: true, alleSales: false });
+  assert.deepEqual(m.huidigeRechten(), { beheer: false, plannen: true, alleSales: false, planEigen: false });
 });
 
 test('401: toonInloggen met setupNodig, daarna een tweede auth-ik; de cache van een vorige gebruiker is vervangen', async () => {
@@ -100,7 +100,7 @@ test('netwerkfout met cache: resolve met de cache-gebruiker, geen loginscherm', 
   const g = await m.laadSessie();
   assert.deepEqual(g, tim);
   assert.deepEqual(m.huidigeGebruiker(), tim);
-  assert.deepEqual(m.huidigeRechten(), { beheer: false, plannen: false, alleSales: false });
+  assert.deepEqual(m.huidigeRechten(), { beheer: false, plannen: false, alleSales: false, planEigen: false });
 });
 
 test('netwerkfout zonder cache: toonGeenVerbinding; na "opnieuw proberen" volgt een nieuw verzoek', async () => {
@@ -325,4 +325,67 @@ test('snel auth-ik met cache: geen korte-limietpad (startteUitCache false)', asy
   const { m } = await nieuweSessie({ antwoorden: [ok(planner)], cache: planner });
   await m.laadSessie();
   assert.equal(m.startteUitCache(), false);
+});
+
+test('eigenZohoNaam: elk account behalve sales kan er een hebben; getrimd, anders leeg', async () => {
+  for (const [rol, zohoNaam, verwacht] of [['technieker', ' Tim ', 'Tim'], ['beheerder', 'Brent C', 'Brent C'], ['planner', 'Pia', 'Pia'],
+    ['planner', undefined, ''], ['planner', '  ', ''], ['sales', 'Tim', '']]) {
+    const { m } = await nieuweSessie({ antwoorden: [ok({ id: 'u9', email: 'x@x.be', naam: 'X', rol, zohoNaam })] });
+    await m.laadSessie();
+    assert.equal(m.eigenZohoNaam(), verwacht, `${rol} ${zohoNaam}`);
+  }
+  const { m: leeg } = await nieuweSessie();
+  assert.equal(leeg.eigenZohoNaam(), '');
+});
+
+test('isEigenRapport: ingediend door mij of mijn Zoho-naam erop (genormaliseerd); anders niet', async () => {
+  const brent = { id: 'u-brent', email: 'b@x.be', naam: 'Brent', rol: 'beheerder', zohoNaam: 'Brent  Calaerts' };
+  const { m } = await nieuweSessie({ antwoorden: [ok(brent)] });
+  assert.equal(m.isEigenRapport({ ingediendDoor: 'u1' }), false);
+  await m.laadSessie();
+  assert.equal(m.isEigenRapport({ technieker: 'brent calaerts' }), true);
+  assert.equal(m.isEigenRapport({ technieker: 'Tim', ingediendDoor: 'u-brent' }), true);
+  assert.equal(m.isEigenRapport({ technieker: 'Tim', ingediendDoor: 'u-tim' }), false);
+  assert.equal(m.isEigenRapport({}), false);
+  assert.equal(m.isEigenRapport(null), false);
+  const { m: zonder } = await nieuweSessie({ antwoorden: [ok(planner)] });
+  await zonder.laadSessie();
+  assert.equal(zonder.isEigenRapport({ technieker: '' }), false); // geen Zoho-naam: een leeg veld is nooit "van mij"
+});
+
+test('huidigeRechten: planEigen enkel voor een technieker met magZelfPlannen (uit het gebruikersrecord); nooit voor andere rollen', async () => {
+  const met = await nieuweSessie({ antwoorden: [ok({ ...tim, magZelfPlannen: true })] });
+  await met.m.laadSessie();
+  assert.deepEqual(met.m.huidigeRechten(), { beheer: false, plannen: false, alleSales: false, planEigen: true });
+  for (const g of [tim, { ...tim, magZelfPlannen: false }, { ...tim, magZelfPlannen: 'ja' }, { ...planner, magZelfPlannen: true }]) {
+    const t = await nieuweSessie({ antwoorden: [ok(g)] });
+    await t.m.laadSessie();
+    assert.equal(t.m.huidigeRechten().planEigen, false, JSON.stringify(g));
+  }
+  // ook uit de cache (offline start) en als de server het veld in `rechten` nog niet kent
+  const cache = await nieuweSessie({ antwoorden: [new Error('offline')], cache: { ...tim, magZelfPlannen: true } });
+  await cache.m.laadSessie();
+  assert.equal(cache.m.huidigeRechten().planEigen, true);
+});
+
+test('magPlannenVoor: planner/beheerder elk ticket; technieker enkel met het vinkje en enkel zijn eigen genormaliseerde naam; anders nooit', async () => {
+  const uit = await nieuweSessie();
+  assert.equal(uit.m.magPlannenVoor('Tim'), false, 'nog niet ingelogd');
+  const met = await nieuweSessie({ antwoorden: [ok({ ...tim, magZelfPlannen: true })] });
+  await met.m.laadSessie();
+  assert.equal(met.m.magPlannenVoor('tim '), true);
+  assert.equal(met.m.magPlannenVoor('Roel'), false);
+  assert.equal(met.m.magPlannenVoor(''), false);
+  assert.equal(met.m.magPlannenVoor(undefined), false);
+  const zonder = await nieuweSessie({ antwoorden: [ok(tim)] });
+  await zonder.m.laadSessie();
+  assert.equal(zonder.m.magPlannenVoor('Tim'), false); // zonder vinkje plant een technieker niet, ook niet zijn eigen tickets
+  for (const g of [planner, { id: 'u3', email: 'b@x.be', naam: 'B', rol: 'beheerder' }]) {
+    const t = await nieuweSessie({ antwoorden: [ok(g)] });
+    await t.m.laadSessie();
+    assert.equal(t.m.magPlannenVoor('Roel'), true, g.rol);
+  }
+  const sales = await nieuweSessie({ antwoorden: [ok({ id: 'u4', email: 's@x.be', naam: 'S', rol: 'sales', magZelfPlannen: true, zohoNaam: 'Tim' })] });
+  await sales.m.laadSessie();
+  assert.equal(sales.m.magPlannenVoor('Tim'), false);
 });

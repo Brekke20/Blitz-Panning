@@ -14,7 +14,7 @@ import { registreerVenster } from '../venster.js';
 import { appConfirm } from '../app-dialog.js';
 import { renderBeschikbaarhedenTab } from './beschikbaarheid.js';
 import { valideerInstellingen, settingsKey } from './instellingen-logica.js';
-import { huidigeGebruiker } from '../kern/sessie.js';
+import { huidigeGebruiker, huidigeRechten, magPlannenVoor } from '../kern/sessie.js';
 import { bewaarOpServer } from '../kern/instellingen-sync.js';
 
 // Afhankelijkheden uit app.js en prijzen.js (ingevuld door initInstellingen); een vergeten init faalt luid.
@@ -45,7 +45,7 @@ export function initInstellingen(afhankelijkheden) {
   // De rol/indeling op het toestel verandert: de toesteltab ververst zich (en een technieker blijft op "Dit toestel").
   window.addEventListener('apparaatwijziging', () => {
     if (!document.getElementById('set-overlay').classList.contains('open')) return;
-    if (window.apparaat?.rol === 'technieker' && _settingsActiveTab !== 'toestel') setSettingsTab('toestel');
+    if (beperktToestel() && _settingsActiveTab !== 'toestel') setSettingsTab('toestel');
     else vulToestelTab();
   });
 }
@@ -149,8 +149,12 @@ function vulToestelTab() {
 function kiesToestelRol(r) { window.zetRol(r); vulToestelTab(); }
 function kiesToestelWeergave(w) { window.zetWeergave(w); vulToestelTab(); }
 
+// De beperkte technieker-weergave toont enkel "Dit toestel"; een technieker met "Mag zelf plannen" stelt ook zijn eigen planning in (Algemeen).
+const beperktToestel = () => window.apparaat?.rol === 'technieker' && !huidigeRechten().planEigen;
+
 export function setSettingsTab(tab) {
-  if (window.apparaat?.rol === 'technieker') tab = 'toestel';
+  if (beperktToestel()) tab = 'toestel';
+  else if (window.apparaat?.rol === 'technieker' && tab === 'beschikbaarheden') tab = 'algemeen';
   _settingsActiveTab = tab;
   document.getElementById('set-subtab-toestel').classList.toggle('active', tab === 'toestel');
   document.getElementById('set-tab-toestel').style.display = tab === 'toestel' ? '' : 'none';
@@ -167,7 +171,7 @@ export function setSettingsTab(tab) {
 let _werkdagenConcept = [];
 
 export function openSettings() {
-  setSettingsTab(window.apparaat?.rol === 'technieker' ? 'toestel' : 'algemeen');
+  setSettingsTab(beperktToestel() ? 'toestel' : 'algemeen');
   const settings = toestand.get('settings'); // synchrone functie: geen await, dus de momentopname blijft geldig
   const activeAssigneeFilter = toestand.get('activeAssigneeFilter');
   const who = activeAssigneeFilter === 'all' ? 'Standaard (alle technici)' : activeAssigneeFilter;
@@ -208,6 +212,10 @@ export function closeSettings(e) {
 }
 
 export function saveSettings() {
+  // Een technieker met "Mag zelf plannen" bewaart enkel zijn eigen instellingen (de server weigert die van een collega ook).
+  if (window.apparaat?.rol === 'technieker' && !magPlannenVoor(toestand.get('activeAssigneeFilter'))) {
+    return toast('Je kan enkel je eigen instellingen wijzigen: kies jezelf in de kiezer bovenaan.', 4000);
+  }
   const settings = toestand.get('settings'); // synchrone functie: geen await, dus de momentopname blijft geldig
   const resultaat = valideerInstellingen({
     startlocatie:    document.getElementById('set-start').value,

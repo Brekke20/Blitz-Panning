@@ -17,7 +17,7 @@ test('dekking: elke functie onder netlify/functions/ heeft een rij in RECHTEN', 
   const functies = readdirSync(join(wortel, 'netlify', 'functions'), { withFileTypes: true })
     .filter(d => d.isFile() && d.name.endsWith('.js'))
     .map(d => d.name.replace(/\.js$/, ''));
-  assert.equal(functies.length, 48); // 42 logins + dashboard, dashboard-instellingen + sales, postcode, sales-import, sales-opruimen
+  assert.equal(functies.length, 49); // 42 logins + dashboard, dashboard-instellingen + sales, postcode, sales-import, sales-opruimen + zoho-agenten
   const ontbreekt = functies.filter(f => !Object.hasOwn(RECHTEN, f));
   assert.deepEqual(ontbreekt, []);
 });
@@ -38,9 +38,18 @@ test('matrix: tickets, planning-sinds', () => {
   assert.deepEqual(rollen('planning-sinds', 'POST'), [B, P, T]);
 });
 
-test('matrix: plan, propose, annuleer, plan-datum enkel beheerder en planner', () => {
+test('matrix: plan, propose, annuleer, plan-datum voor beheerder en planner (een technieker enkel via planEigen, zie verder)', () => {
   for (const f of ['plan', 'propose', 'annuleer', 'plan-datum']) assert.deepEqual(rollen(f, 'POST'), [B, P], f);
   assert.deepEqual(rollen('annuleer', 'GET'), [B, P]);
+});
+
+test('planEigen: de rijen waar een technieker met "Mag zelf plannen" ook mag (enkel eigen tickets, afgedwongen in de functie)', () => {
+  const metPlanEigen = Object.keys(RECHTEN).filter(n => RECHTEN[n].planEigen === true).sort();
+  assert.deepEqual(metPlanEigen, ['annuleer', 'klantbeschikbaarheid', 'plan', 'plan-datum', 'propose', 'voorstel-status']);
+  // Niets anders krijgt het vlag: beheer, instellingen, TomTom enz. blijven zoals ze waren.
+  for (const naam of metPlanEigen) assert.ok(Object.hasOwn(RECHTEN, naam));
+  // De rol-lijst zelf blijft ongewijzigd (rolIsToegelaten kent het vlag niet): de wrapper voegt de technieker toe.
+  assert.equal(rolIsToegelaten('plan', 'POST', T), false);
 });
 
 test('matrix: TomTom-functies voor alle vier', () => {
@@ -82,6 +91,11 @@ test('matrix: client-log, testdata, setup', () => {
   assert.deepEqual(rollen('setup', 'GET'), [B]);
 });
 
+test('matrix: zoho-agenten enkel lezen door de beheerder', () => {
+  assert.deepEqual(rollen('zoho-agenten', 'GET'), [B]);
+  for (const m of ['POST', 'PUT', 'PATCH', 'DELETE']) assert.deepEqual(rollen('zoho-agenten', m), [], `zoho-agenten ${m}`);
+});
+
 test('matrix: sales en postcode enkel voor beheerder en sales', () => {
   for (const m of ['GET', 'PATCH', 'DELETE']) assert.deepEqual(rollen('sales', m), [B, S], `sales ${m}`);
   for (const m of ['POST', 'PUT']) assert.deepEqual(rollen('sales', m), [], `sales ${m}`);
@@ -117,13 +131,19 @@ test('functies zonder eigen methodecontrole hebben een jokerregel (geen onbeveil
 
 // ---- rechtenVoor ----
 test('rechtenVoor', () => {
-  assert.deepEqual(rechtenVoor({ rol: B }), { beheer: true, plannen: true, alleSales: true });
-  assert.deepEqual(rechtenVoor({ rol: P }), { beheer: false, plannen: true, alleSales: false });
-  assert.deepEqual(rechtenVoor({ rol: T }), { beheer: false, plannen: false, alleSales: false });
-  assert.deepEqual(rechtenVoor({ rol: S }), { beheer: false, plannen: false, alleSales: false });
-  assert.deepEqual(rechtenVoor({ rol: S, magAlleSales: true }), { beheer: false, plannen: false, alleSales: true });
-  assert.deepEqual(rechtenVoor({ rol: P, magAlleSales: 'ja' }), { beheer: false, plannen: true, alleSales: false });
-  assert.deepEqual(rechtenVoor(null), { beheer: false, plannen: false, alleSales: false });
+  assert.deepEqual(rechtenVoor({ rol: B }), { beheer: true, plannen: true, alleSales: true, planEigen: false });
+  assert.deepEqual(rechtenVoor({ rol: P }), { beheer: false, plannen: true, alleSales: false, planEigen: false });
+  assert.deepEqual(rechtenVoor({ rol: T }), { beheer: false, plannen: false, alleSales: false, planEigen: false });
+  assert.deepEqual(rechtenVoor({ rol: S }), { beheer: false, plannen: false, alleSales: false, planEigen: false });
+  assert.deepEqual(rechtenVoor({ rol: S, magAlleSales: true }), { beheer: false, plannen: false, alleSales: true, planEigen: false });
+  assert.deepEqual(rechtenVoor({ rol: P, magAlleSales: 'ja' }), { beheer: false, plannen: true, alleSales: false, planEigen: false });
+  assert.deepEqual(rechtenVoor(null), { beheer: false, plannen: false, alleSales: false, planEigen: false });
+  // planEigen: enkel een technieker met het vinkje (letterlijk true); een planner of beheerder heeft het niet nodig.
+  assert.deepEqual(rechtenVoor({ rol: T, magZelfPlannen: true }), { beheer: false, plannen: false, alleSales: false, planEigen: true });
+  assert.equal(rechtenVoor({ rol: T }).planEigen, false);
+  assert.equal(rechtenVoor({ rol: T, magZelfPlannen: 'ja' }).planEigen, false);
+  assert.equal(rechtenVoor({ rol: P, magZelfPlannen: true }).planEigen, false);
+  assert.equal(rechtenVoor({ rol: S, magZelfPlannen: true }).planEigen, false);
 });
 
 // ---- wrapper ----
@@ -178,7 +198,7 @@ test('wrapper: bij succes krijgt de kern (req, context, gebruiker) en wordt het 
 test('wrapper: rollen uit de rij en schrijven worden doorgegeven; GET is niet schrijvend', async () => {
   const s = stub();
   await beveiligV2('plan-datum', hSpy(), { auth: s })(v2Req('POST'), {});
-  assert.deepEqual(s.oproepen[0].rollen, ['beheerder', 'planner']);
+  assert.deepEqual(s.oproepen[0].rollen, ['beheerder', 'planner', 'technieker']); // plan-datum heeft planEigen: de wrapper laat de technieker toe en controleert het vinkje
   assert.equal(s.oproepen[0].schrijven, true);
   assert.equal(!!s.oproepen[0].service, false);
   assert.equal(!!s.oproepen[0].ookBijWijzigen, false);
@@ -381,4 +401,58 @@ test('wrapper: standaard auth is de globale vereisGebruiker (de testhulp werkt d
   assert.equal((await metRol('technieker', post)).status, 403);
   assert.equal((await metGeenSessie(post)).status, 401);
   assert.equal(h.oproepen.length, 1);
+});
+
+
+// ---- planEigen in de wrapper ----
+const technieker = (extra = {}) => ({ id: 'u-t', rol: T, naam: 'T', email: 't@b.be', zohoNaam: 'Tim', ...extra });
+
+test('wrapper planEigen: een technieker mét magZelfPlannen komt door (de functie controleert het ticket); zonder, met false of een niet-boolean krijgt hij 403', async () => {
+  for (const [extra, toegelaten] of [[{ magZelfPlannen: true }, true], [{}, false], [{ magZelfPlannen: false }, false], [{ magZelfPlannen: 'ja' }, false], [{ magZelfPlannen: 1 }, false]]) {
+    for (const naam of ['plan-datum', 'propose', 'plan', 'annuleer', 'voorstel-status', 'klantbeschikbaarheid']) {
+      const methode = naam === 'klantbeschikbaarheid' ? 'PUT' : 'POST';
+      const h = hSpy('kern');
+      const res = await (naam === 'propose' || naam === 'plan'
+        ? beveiligV1(naam, h, { auth: stub({ ok: true, gebruiker: technieker(extra) }) })({ httpMethod: methode, headers: {} }, {})
+        : beveiligV2(naam, h, { auth: stub({ ok: true, gebruiker: technieker(extra) }) })(v2Req(methode), {}));
+      if (toegelaten) {
+        assert.equal(res, 'kern', `${naam} ${JSON.stringify(extra)}`);
+        assert.equal(h.oproepen.length, 1);
+        assert.equal(h.oproepen[0].gebruiker.zohoNaam, 'Tim'); // de functie krijgt de gebruiker om het ticket te toetsen
+      } else {
+        assert.equal(res.status ?? res.statusCode, 403, `${naam} ${JSON.stringify(extra)}`);
+        assert.equal(h.oproepen.length, 0);
+      }
+    }
+  }
+});
+
+test('wrapper planEigen: andere rollen en andere rijen veranderen niet (sales blijft geweigerd; een rij zonder planEigen laat een technieker met het vinkje niet toe)', async () => {
+  // sales: het vlag hoort enkel bij technieker
+  const s = stub({ ok: true, gebruiker: { id: 'u-s', rol: S, magZelfPlannen: true } });
+  const h = hSpy();
+  // de auth-stub laat elke rol door; de wrapper zelf mag een sales niet via planEigen binnenlaten
+  const res = await beveiligV2('plan-datum', h, { auth: s })(v2Req('POST'), {});
+  assert.equal(res.status, 403);
+  assert.equal(h.oproepen.length, 0);
+  // rij zonder planEigen: de rollenlijst bevat technieker niet, dus vraagt de wrapper er ook niet om
+  const s2 = stub();
+  await beveiligV2('prijzen', hSpy(), { auth: s2 })(v2Req('PUT'), {});
+  assert.deepEqual(s2.oproepen[0].rollen, ['beheerder', 'planner']);
+  // een technieker met het vinkje op een gewone coördinatorsrij (prijzen PUT): auth weigert zelf op de rol; de wrapper voegt niets toe
+  assert.equal(RECHTEN.prijzen.planEigen, undefined);
+});
+
+test('wrapper planEigen: beheerder en planner passeren ongewijzigd, ook zonder vinkje', async () => {
+  for (const rol of [B, P]) {
+    const h = hSpy('kern');
+    assert.equal(await beveiligV2('plan-datum', h, { auth: stub({ ok: true, gebruiker: { id: 'u', rol } }) })(v2Req('POST'), {}), 'kern', rol);
+  }
+});
+
+test('wrapper planEigen: de GET-regels waar een technieker al in staat (voorstel-status, klantbeschikbaarheid) blijven ongewijzigd', async () => {
+  const s = stub({ ok: true, gebruiker: technieker() });
+  const h = hSpy('kern');
+  assert.equal(await beveiligV2('voorstel-status', h, { auth: s })(v2Req('GET'), {}), 'kern'); // lezen mag elke technieker, ook zonder vinkje
+  assert.deepEqual(s.oproepen[0].rollen, ['beheerder', 'planner', 'technieker']);
 });

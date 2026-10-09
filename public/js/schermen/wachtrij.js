@@ -4,6 +4,7 @@
 // DOMContentLoaded). Raakt `document` enkel binnen functies, nooit op moduleniveau. Alleen `kern/brug.js` wijst
 // `window`-namen toe. `quickAdd` zoekt de eerste dag met echte vrije tijd (planner-tijdlijn.js, proefperiode-bugfix).
 import { toestand } from '../kern/toestand.js';
+import { magPlannenVoor } from '../kern/sessie.js';
 import { toast, escHtml, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
 import { localISO, todayISO, fmtDateShort } from '../kern/tijd.js';
 import { ticketsVanTechnieker } from '../kern/selecties.js';
@@ -110,7 +111,7 @@ export function renderTickets() {
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
       </div>
       <div class="t-action">
-        <button class="btn-add" data-actie="wq-inplannen" data-ticket-id="${escHtml(t.id)}" title="Inplannen op eerstvolgende vrije dag" aria-label="Inplannen op eerstvolgende vrije dag" ${afh.inFlight(t.id) ? 'disabled' : ''}>+</button>
+        ${magPlannenVoor(t.assignee) ? `<button class="btn-add" data-actie="wq-inplannen" data-ticket-id="${escHtml(t.id)}" title="Inplannen op eerstvolgende vrije dag" aria-label="Inplannen op eerstvolgende vrije dag" ${afh.inFlight(t.id) ? 'disabled' : ''}>+</button>` : ''}
       </div>`;
     // Bubbel-guard (C8): een klik op een data-actie-knop opent het detail niet.
     card.addEventListener('click', e => { if (e.target.closest('[data-actie]')) return; afh.openDetail(t); });
