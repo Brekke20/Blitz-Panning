@@ -308,6 +308,48 @@ test.describe('voorstel: randgevallen', () => {
     expect(await page.evaluate(() => kern.toestand.get('allPending').find(x => x.id === 'p1').interventieDatum)).toBe('2026-10-07T07:00:00.000Z');
   });
 
+  test('propose faalt na het versturen: de knop blijft dicht tot het register bewaard is (geen tweede verzending mogelijk)', async ({ page, verzoeken }) => {
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/voorstel-status', methode: 'POST' }]);
+    const z = await start(page, verzoeken, { paden: ['/api/propose', '/api/voorstel-status'], httpFouten: [{ pad: '/api/propose', status: 500 }] });
+    z.zetAntwoord('propose', { status: 500, json: {
+      error: 'Zoho PATCH fout (500)', emailSent: { contact: true, klant: false, installateur: false }, fouten: [], ontvangers: ['contact'],
+    } });
+    z.zetAntwoord('voorstel-status', ({ methode }) => methode === 'GET' ? { status: 200, json: { versie: 0, status: {} } } : { hangen: true });
+    await openVoorstel(page);
+    await vulIn(page, '2026-10-08', '10:00');
+    await verstuurKnop(page).click();
+    await expect.poll(() => z.opnames['voorstel-status'].filter(o => o.methode === 'POST').length).toBe(1);
+    await page.evaluate(() => Promise.resolve());
+    // Het register is nog onderweg: knop op slot en venster open, er is nog geen waarschuwing (en dus geen weg naar een tweede verzending).
+    await expect(verstuurKnop(page)).toBeDisabled();
+    await expect(verstuurKnop(page)).toHaveText('Bezig...');
+    await expect(page.locator('#proposal-overlay')).toHaveClass(/open/);
+    // Hangt het register, dan eindigt het na de time-out: pas dan komt de waarschuwing (met de zin over de status) en gaat de knop open.
+    await page.clock.runFor(25000);
+    await page.evaluate(() => Promise.resolve());
+    await expect(toastTekst(page)).toHaveText('⚠ Voorstel is verstuurd naar contactpersoon, maar Zoho kon het ticket niet bijwerken (Zoho PATCH fout (500)). Stuur het voorstel NIET opnieuw: zet de status en de datum in Zoho zelf recht. Ook de status in de app kon niet bewaard worden: herlaad de pagina.');
+    await expect(verstuurKnop(page)).toBeEnabled();
+    await expect(page.locator('#proposal-overlay')).not.toHaveClass(/open/);
+    expect(z.opnames.propose).toHaveLength(1);
+    expect(z.opnames['voorstel-status'].filter(o => o.methode === 'POST')).toHaveLength(1); // netwerkfout: geen retry
+  });
+
+  test('propose faalt na het versturen en één ontvanger kreeg de mail niet: de waarschuwing noemt ook wie niets ontving', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, {
+      paden: ['/api/propose', '/api/voorstel-status'], httpFouten: [{ pad: '/api/propose', status: 500 }],
+      stubs: { tickets: metP1({ emailEindklant: 'klant@test.be' }) },
+    });
+    z.zetAntwoord('propose', { status: 500, json: {
+      error: 'Zoho PATCH fout (500)', emailSent: { contact: true, klant: false, installateur: false },
+      fouten: [{ doelgroep: 'klant', fout: 'Zoho sendReply fout (422)' }], ontvangers: ['contact', 'klant'],
+    } });
+    await openVoorstel(page);
+    await vulIn(page, '2026-10-08', '10:00');
+    await verstuurKnop(page).click();
+    await expect(toastTekst(page)).toHaveText('⚠ Voorstel is verstuurd naar contactpersoon, maar Zoho kon het ticket niet bijwerken (Zoho PATCH fout (500)). Stuur het voorstel NIET opnieuw: zet de status en de datum in Zoho zelf recht. Niet verstuurd naar klant: Zoho sendReply fout (422).');
+    expect(z.opnames['voorstel-status'].filter(o => o.methode === 'POST').map(o => o.body.doelgroepen)).toEqual([['contact']]); // enkel wie de mail kreeg
+  });
+
   test('ticket niet gevonden (404): foutmelding van de server, niets gewijzigd', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { paden: ['/api/propose'], httpFouten: [{ pad: '/api/propose', status: 404 }] });
     z.zetAntwoord('propose', { status: 404, json: { error: 'Ticket niet gevonden' } });
@@ -500,6 +542,22 @@ test.describe('voorstel: onzeker resultaat, controle of de mail al weg is (Q1)',
     await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER);
     await expect(verstuurKnop(page)).toBeEnabled();
     await eenVerzendingEnEenControle(page, verzoeken, z);
+  });
+
+  test('afgebroken, mail gevonden: de knop blijft dicht tot het register bewaard is, daarna pas de melding', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, mailVerzonden(), {
+      netFouten: [{ pad: '/api/voorstel-status', methode: 'POST' }],
+      voorAf: (zz) => zz.zetAntwoord('voorstel-status', ({ methode }) => methode === 'GET' ? { status: 200, json: { versie: 0, status: {} } } : { hangen: true }),
+    });
+    await expect.poll(() => z.opnames['voorstel-status'].filter(o => o.methode === 'POST').length).toBe(1);
+    await page.evaluate(() => Promise.resolve());
+    await expect(verstuurKnop(page)).toBeDisabled(); // het register is nog onderweg: geen weg naar een tweede verzending
+    await expect(verstuurKnop(page)).toHaveText('Bezig...');
+    await page.clock.runFor(25000);
+    await page.evaluate(() => Promise.resolve());
+    await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (luc@test.be) — maar kon niet als verzonden aangevinkt worden (herlaad de pagina)');
+    await expect(verstuurKnop(page)).toBeEnabled();
+    expect(z.opnames.propose).toHaveLength(1);
   });
 
   test('twee ontvangers en beide kregen de mail: één melding per ontvanger', async ({ page, verzoeken }) => {

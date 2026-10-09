@@ -266,7 +266,7 @@ export async function sendProposal() {
     if (data.error) {
       // B2: de server meldt dat de mail al vertrokken is maar de ticket-update daarna faalde: geen gewone fout maar een waarschuwing.
       const vertrokken = ['contact', 'klant', 'installateur'].filter(d => data.emailSent?.[d] === true);
-      if (vertrokken.length) return naMailZonderTicketUpdate({ ticketId, date, vertrokken, fout: data.error, registerInvoer, btn });
+      if (vertrokken.length) return naMailZonderTicketUpdate({ ticketId, date, vertrokken, fouten: data.fouten, fout: data.error, registerInvoer, btn });
       throw new Error(data.error);
     }
 
@@ -339,14 +339,25 @@ export async function sendProposal() {
 // B2: de mail is vertrokken, maar Zoho kon het ticket daarna niet bijwerken. Het venster sluit, het register wordt eerst geschreven (voor precies
 // de doelgroepen die de mail kregen) en pas daarna leest de app de tickets opnieuw (de echte stand). Het ticket wordt NIET lokaal verplaatst.
 // Enkel een duidelijke waarschuwing: de planner zet status en datum in Zoho zelf recht (er is bewust geen "ticket bijwerken"-knop).
-async function naMailZonderTicketUpdate({ ticketId, date, vertrokken, fout, registerInvoer, btn }) {
-  document.getElementById('proposal-overlay').classList.remove('open');
-  btn.disabled = false;
-  btn.textContent = '✉️ Verstuur voorstel';
-  const ok = await schrijfVerzondenRegister({ ticketId, doelgroepen: vertrokken, tijdstip: new Date().toISOString(), tijdslot: registerInvoer.tijdslot, date });
-  afh.planResync();
-  toast(`⚠ Voorstel is verstuurd naar ${joinNL(vertrokken.map(d => DOELGROEP_LABEL[d] || d))}, maar Zoho kon het ticket niet bijwerken (${fout}). Stuur het voorstel NIET opnieuw: zet de status en de datum in Zoho zelf recht.`
-    + (ok ? '' : ' Ook de status in de app kon niet bewaard worden: herlaad de pagina.'), 8000);
+async function naMailZonderTicketUpdate({ ticketId, date, vertrokken, fouten, fout, registerInvoer, btn }) {
+  // De knop blijft dicht en het venster open tot het register bewaard is (gelukt of mislukt): zo kan er niet opnieuw verstuurd worden
+  // terwijl de status nog onderweg is (dubbele klantmail). De waarschuwing komt altijd (finally), ook als het register gooit.
+  let ok = false;
+  try {
+    ok = await schrijfVerzondenRegister({ ticketId, doelgroepen: vertrokken, tijdstip: new Date().toISOString(), tijdslot: registerInvoer.tijdslot, date });
+  } catch (err) {
+    console.warn('Voorstel-status opslaan mislukt:', err);
+  } finally {
+    document.getElementById('proposal-overlay').classList.remove('open');
+    btn.disabled = false;
+    btn.textContent = '✉️ Verstuur voorstel';
+    afh.planResync();
+    // Ook een ontvanger die de mail NIET kreeg (fouten) hoort in de waarschuwing: de planner moet weten wie nog niets ontving.
+    const mislukt = (Array.isArray(fouten) ? fouten : []).filter(f => f && f.doelgroep && !vertrokken.includes(f.doelgroep));
+    toast(`⚠ Voorstel is verstuurd naar ${joinNL(vertrokken.map(d => DOELGROEP_LABEL[d] || d))}, maar Zoho kon het ticket niet bijwerken (${fout}). Stuur het voorstel NIET opnieuw: zet de status en de datum in Zoho zelf recht.`
+      + (mislukt.length ? ` Niet verstuurd naar ${mislukt.map(f => `${DOELGROEP_LABEL[f.doelgroep] || f.doelgroep}: ${f.fout}`).join('; ')}.` : '')
+      + (ok ? '' : ' Ook de status in de app kon niet bewaard worden: herlaad de pagina.'), 8000);
+  }
 }
 
 // Q1 (etappe 7): na een onzeker resultaat nagaan of de mail al verzonden is (enkel lezen) en dat melden.
@@ -355,17 +366,23 @@ async function naMailZonderTicketUpdate({ ticketId, date, vertrokken, fout, regi
 async function naOnzekerVoorstel(ticketId, start, startWand, verwacht, btn, registerInvoer) {
   toast(TEKST_CONTROLEREN, 30000);
   const r = await controleerMail({ ticketId, start, startWand, verwacht });
-  btn.disabled = false;
-  btn.textContent = '✉️ Verstuur voorstel';
   const gevonden = r.uitkomst === 'verzonden' ? r.verzonden : (r.gevonden || []);
   let afsluiting = '';
   if (gevonden.length > 0) {
     // Altijd het register schrijven voor de doelgroepen die de mail vonden; lukt dat niet (of is er geen doelgroep bij een adres), dan 'mislukt'.
+    // De knop blijft op slot tot het register bewaard is (gelukt of mislukt): nooit eerder weer open (dubbele klantmail).
     const doelgroepen = doelgroepenVoorAdressen(registerInvoer.ticketMails, gevonden.map(v => v.aan));
-    const tijdstip = gevonden.map(v => v.tijdstip).sort()[0];
-    const ok = doelgroepen.length > 0 && await schrijfVerzondenRegister({ ticketId, doelgroepen, tijdstip, tijdslot: registerInvoer.tijdslot, date: registerInvoer.date });
+    const tijdstip = gevonden.map(v => v.tijdstip).sort((x, y) => Date.parse(x) - Date.parse(y))[0]; // vroegste, op datumwaarde
+    let ok = false;
+    try {
+      ok = doelgroepen.length > 0 && await schrijfVerzondenRegister({ ticketId, doelgroepen, tijdstip, tijdslot: registerInvoer.tijdslot, date: registerInvoer.date });
+    } catch (err) {
+      console.warn('Voorstel-status opslaan mislukt:', err);
+    }
     afsluiting = mailControleAfsluiting('voorstel', !ok ? 'mislukt' : (r.uitkomst === 'verzonden' ? 'alles' : 'deel'));
   }
+  btn.disabled = false;
+  btn.textContent = '✉️ Verstuur voorstel';
   if (r.uitkomst === 'verzonden') {
     if (String(afh.actiefTicket()?.id) === String(ticketId)) document.getElementById('proposal-overlay').classList.remove('open');
     afh.planResync();
