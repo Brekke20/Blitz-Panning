@@ -2,8 +2,8 @@
 // De code is letterlijk uit index.html verhuisd (D12: ook de opslag in localStorage). Enkel de voorvoegsels zijn nieuw:
 // `afh.` voor app.js, `toestand.get` voor `settings` en de actieve technieker (telkens op het moment van
 // gebruik gelezen) en imports. `saveSettings` muteert `settings` in-place en roept renderTickets()/renderKalender() zelf aan
-// (geen abonnement op `settings`): dat blijft zo. De weekdagknop muteert `settings.werkdagen` meteen, ook als je daarna op
-// Annuleren drukt (HUIDIG GEDRAG, vastgelegd in e2e). De pure validatie staat in instellingen-logica.js.
+// (geen abonnement op `settings`): dat blijft zo. De weekdagknoppen werken op een concept (`_werkdagenConcept`, B12):
+// pas Opslaan schrijft het naar `settings.werkdagen`. De pure validatie staat in instellingen-logica.js.
 // Raakt `document` enkel binnen functies. Alleen `kern/brug.js` wijst `window`-namen toe. De knoppen en de toestelkeuzes lopen
 // via data-actie/data-wijzig-delegatie; beide overlays sluiten via registreerBackdrop (inhoudsklik sluit niet). De sluitknop
 // van het prijsbeheer vraagt zelf een bevestiging bij onopgeslagen wijzigingen (prijzen.js); dat blijft zo.
@@ -163,6 +163,9 @@ export function setSettingsTab(tab) {
   if (tab === 'beschikbaarheden') renderBeschikbaarhedenTab();
 }
 
+// B12: de weekdagknoppen werken op een concept; pas Opslaan schrijft het naar de instellingen (Annuleren/Esc/achtergrond laat ze ongemoeid).
+let _werkdagenConcept = [];
+
 export function openSettings() {
   setSettingsTab(window.apparaat?.rol === 'technieker' ? 'toestel' : 'algemeen');
   const settings = toestand.get('settings'); // synchrone functie: geen await, dus de momentopname blijft geldig
@@ -180,17 +183,17 @@ export function openSettings() {
   document.getElementById('set-routekleur').value = settings.routeKleur || DEFAULT_SETTINGS.routeKleur;
   document.getElementById('set-routekleur-hex').textContent = (settings.routeKleur || DEFAULT_SETTINGS.routeKleur).toUpperCase();
   document.getElementById('set-drukte').checked   = settings.drukteKleuring !== false;
+  _werkdagenConcept = [...settings.werkdagen];
   const grid = document.getElementById('days-grid');
   grid.innerHTML = '';
   DAGEN.forEach((dag, i) => {
     const btn = document.createElement('button');
-    btn.className   = 'day-btn' + (settings.werkdagen.includes(i) ? ' on' : '');
+    btn.className   = 'day-btn' + (_werkdagenConcept.includes(i) ? ' on' : '');
     btn.textContent = dag;
-    btn.setAttribute('aria-pressed', settings.werkdagen.includes(i) ? 'true' : 'false');
+    btn.setAttribute('aria-pressed', _werkdagenConcept.includes(i) ? 'true' : 'false');
     btn.addEventListener('click', () => {
-      const huidig = toestand.get('settings'); // op het moment van de klik gelezen
-      const idx = huidig.werkdagen.indexOf(i);
-      if (idx >= 0) huidig.werkdagen.splice(idx, 1); else huidig.werkdagen.push(i);
+      const idx = _werkdagenConcept.indexOf(i);
+      if (idx >= 0) _werkdagenConcept.splice(idx, 1); else _werkdagenConcept.push(i);
       btn.classList.toggle('on');
       zetPressed(btn, btn.classList.contains('on'));
     });
@@ -217,7 +220,7 @@ export function saveSettings() {
     tijdslotMinuten: +document.getElementById('set-tijdslot').value,
     tijdslotTekst:   document.getElementById('set-tijdslot').value,
     routeKleur:      document.getElementById('set-routekleur').value,
-    werkdagen:       settings.werkdagen,
+    werkdagen:       _werkdagenConcept,
   }, DEFAULT_SETTINGS);
   if (resultaat.fout) return toast(resultaat.fout, 3500);
 
@@ -227,6 +230,7 @@ export function saveSettings() {
   settings.maxPerDag      = w.maxPerDag;
   settings.vanTijd        = w.vanTijd;
   settings.totTijd        = w.totTijd;
+  settings.werkdagen      = [..._werkdagenConcept];
   settings.laatsteStart   = w.laatsteStart;
   bewaarLaatsteStart(settings.laatsteStart); // R8: één waarde voor iedereen
   settings.maxReistijdMin = w.maxReistijdMin;

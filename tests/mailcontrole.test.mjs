@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { zetFetch } from '../public/js/kern/api.js';
 import {
-  beoordeelAntwoord, controleerMail, mailControleTekst, uurBrussel, TEKST_NIET_VERZONDEN, TEKST_ONZEKER, SERVER_MAX_MS,
+  beoordeelAntwoord, controleerMail, mailControleTekst, mailControleAfsluiting, uurBrussel, TEKST_NIET_VERZONDEN, TEKST_ONZEKER, SERVER_MAX_MS,
 } from '../public/js/kern/mailcontrole.js';
 
 const T1 = '2026-10-02T10:01:00.000Z'; // 12:01 in Brussel (zomertijd)
@@ -40,7 +40,44 @@ test('beoordeelAntwoord met verwachte adressen: alles, niets of een deel', () =>
     uitkomst: 'verzonden', verzonden: [{ aan: 'luc@test.be', tijdstip: T1 }, { aan: 'an@y.be', tijdstip: T2 }],
   });
   assert.deepEqual(beoordeelAntwoord(o(false, false), ['luc@test.be', 'an@y.be']), { uitkomst: 'niet-verzonden', verzonden: [] });
-  assert.deepEqual(beoordeelAntwoord(o(true, false), ['luc@test.be', 'an@y.be']), { uitkomst: 'onbekend', verzonden: [] });
+  // B4-voorbereiding: bij een deel levert de uitkomst de gevonden ontvangers (adres in kleine letters, tijdstip uit het antwoord)
+  assert.deepEqual(beoordeelAntwoord(o(true, false), ['luc@test.be', 'an@y.be']), { uitkomst: 'onbekend', verzonden: [], gevonden: [{ aan: 'luc@test.be', tijdstip: T1 }] });
+});
+
+test("beoordeelAntwoord: twijfel zonder enige gevonden ontvanger blijft { uitkomst: 'onbekend', verzonden: [] } (geen gevonden-veld)", () => {
+  const r = beoordeelAntwoord({
+    ok: true, verzonden: false, twijfel: true, tijdstip: null, uitgaand: [],
+    ontvangers: { 'luc@test.be': { verzonden: false, tijdstip: null }, 'an@y.be': { verzonden: false, tijdstip: null } },
+  }, ['luc@test.be', 'an@y.be']);
+  assert.deepEqual(r, { uitkomst: 'onbekend', verzonden: [] });
+  assert.equal('gevonden' in r, false);
+});
+
+test('de andere onbekend-uitkomsten (onvolledig antwoord, geen ontvangers-veld, ongeldig uur) hebben geen gevonden-veld', () => {
+  const zonder = (r) => assert.equal('gevonden' in r, false, JSON.stringify(r));
+  zonder(beoordeelAntwoord({ ok: true }));
+  zonder(beoordeelAntwoord(null, ['luc@test.be']));
+  zonder(beoordeelAntwoord({ ok: true, twijfel: false, verzonden: true, tijdstip: T1, uitgaand: [] }, ['luc@test.be']));
+  zonder(beoordeelAntwoord({ ok: true, twijfel: false, verzonden: false, ontvangers: {} }, ['luc@test.be']));
+  zonder(beoordeelAntwoord({ ok: true, twijfel: false, verzonden: true, ontvangers: { 'luc@test.be': { verzonden: true, tijdstip: 'nonsens' } } }, ['luc@test.be']));
+  // een deel gevonden, maar een ander adres ontbreekt in het antwoord: onvolledig, dus ook geen gevonden
+  zonder(beoordeelAntwoord({ ok: true, twijfel: false, verzonden: true, ontvangers: { 'luc@test.be': { verzonden: true, tijdstip: T1 } } }, ['luc@test.be', 'an@y.be']));
+});
+
+test('mailControleAfsluiting geeft de zes exacte teksten', () => {
+  assert.equal(mailControleAfsluiting('rapport', 'alles'), ' — rapport als verzonden aangevinkt');
+  assert.equal(mailControleAfsluiting('voorstel', 'alles'), ' — voorstel als verzonden aangevinkt');
+  for (const soort of ['rapport', 'voorstel']) {
+    assert.equal(mailControleAfsluiting(soort, 'deel'), ' — voor wie de mail al kreeg is "verzonden" aangevinkt');
+    assert.equal(mailControleAfsluiting(soort, 'mislukt'), ' — maar kon niet als verzonden aangevinkt worden (herlaad de pagina)');
+  }
+});
+
+test('controleerMail geeft de gevonden-lijst bij een gedeeltelijk resultaat ongewijzigd door', async () => {
+  zetFetch(async () => antwoord({ ok: true, twijfel: false, verzonden: false, tijdstip: null, uitgaand: [],
+    ontvangers: { 'luc@test.be': { verzonden: true, tijdstip: T1 }, 'an@y.be': { verzonden: false, tijdstip: null } } }));
+  const r = await controleerMail({ ticketId: '555', start: 0, verwacht: ['Luc@test.be', 'an@y.be'] });
+  assert.deepEqual(r, { uitkomst: 'onbekend', verzonden: [], gevonden: [{ aan: 'luc@test.be', tijdstip: T1 }] });
 });
 
 test('beoordeelAntwoord: elk onvolledig of vreemd antwoord is onbekend, nooit "niet verzonden"', () => {

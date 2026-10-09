@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Brussels';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { leggDagUit, plaatsNieuw, extraPlaatsen } from '../public/js/planner-tijdlijn.js';
+import { leggDagUit, plaatsNieuw, extraPlaatsen, eersteVrijeStart } from '../public/js/planner-tijdlijn.js';
 import { stopsVoorDag } from '../public/js/kern/selecties.js';
 import { isTeLaat } from '../public/js/schermen/route-tijden.js';
 
@@ -132,4 +132,83 @@ test('stopsVoorDag: twee eigen afspraken zonder id botsen niet', () => {
   const ev = (uur) => ({ datum: '2026-10-06', uur, adres: 'X' });
   const { allStops } = stopsVoorDag({ planning: {}, localEvents: [ev('14:00'), ev('09:00')] }, 'all', '2026-10-06', optiesRoute);
   assert.deepEqual(allStops.map(e => e.item.uur), ['09:00', '14:00']);
+});
+
+// ── eersteVrijeStart (B16): het eerste vrije uur voor "Toewijzen", zonder grens op maxPerDag ──
+const evs = (items, extra = {}) => eersteVrijeStart({ items, duurMin: 120, vanTijd: '08:00', laatsteStart: '16:00', ...extra });
+
+test('eersteVrijeStart: lege dag geeft vanTijd + reistijd', () => {
+  assert.deepEqual(evs([]), { startMin: u(8, 30), laat: false });
+  assert.deepEqual(evs([], { vanTijd: '10:00' }), { startMin: u(10, 30), laat: false });
+});
+
+test('eersteVrijeStart: een vast uur 08:30-10:30 duwt het voorstel naar 11:00 (reistijd inbegrepen)', () => {
+  assert.deepEqual(evs([tk('a', '08:30')]), { startMin: u(11, 0), laat: false });
+});
+
+test('eersteVrijeStart: een gat tussen twee vaste stops waar het ticket past', () => {
+  // a 08:00-09:00 (duur 60), b 15:00: nieuw 09:30-11:30 + 30 min rit = 12:00 <= 15:00
+  assert.deepEqual(evs([tk('a', '08:00', 60), tk('b', '15:00', 60)]), { startMin: u(9, 30), laat: false });
+});
+
+test('eersteVrijeStart: een tijdvak-blokkering (soort blok) telt mee zonder reistijd', () => {
+  // blok 08:30-10:30: nieuw start 08:30 botst, klok naar 10:30, aankomst 11:00 (reistijd enkel vanaf de klok)
+  assert.deepEqual(evs([blok('b', '08:30', 120)]), { startMin: u(11, 0), laat: false });
+  // blok 10:00-12:00: nieuw 08:30-10:30 botst; na het blok: 12:00 + 30 = 12:30
+  assert.deepEqual(evs([blok('b', '10:00', 120)]), { startMin: u(12, 30), laat: false });
+});
+
+test('eersteVrijeStart: vroegst (vandaag 10:12) wordt ongewijzigd doorgegeven, zoals bij "+" (geen reistijd erbovenop)', () => {
+  assert.deepEqual(evs([], { vroegst: u(10, 12) }).startMin, u(10, 12));
+  assert.deepEqual(evs([], { vroegst: u(10, 12), kwartier: true }).startMin, u(10, 15));
+});
+
+test('eersteVrijeStart kwartier: lege dag 08:30 en een gat met speling blijven op een kwartier', () => {
+  assert.deepEqual(evs([], { kwartier: true }), { startMin: u(8, 30), laat: false });
+  // a 08:00-09:00, b 15:00: 09:30 is al een kwartier
+  assert.deepEqual(evs([tk('a', '08:00', 60), tk('b', '15:00', 60)], { kwartier: true }).startMin, u(9, 30));
+  // a 08:10-09:10: 09:40 wordt 09:45 (ruime speling tot de volgende stop op 15:00)
+  assert.equal(evs([tk('a', '08:10', 60), tk('b', '15:00', 60)], { kwartier: true }).startMin, u(9, 45));
+});
+
+test('eersteVrijeStart kwartier: afronden mag niet overlappen met een blok erna (I1: stop 08:10/60, blok 10:00, ticket 20 min)', () => {
+  const items = [tk('a', '08:10', 60), blok('b', '10:00', 120)];
+  // zonder afronding eindigt het voorstel exact op 10:00 (09:40-10:00): geldig
+  assert.equal(evs(items, { duurMin: 20 }).startMin, u(9, 40));
+  // afgerond naar 09:45 zou 09:45-10:05 overlappen: het voorstel springt naar na het blok (12:00 + 30 min rit)
+  const r = evs(items, { duurMin: 20, kwartier: true });
+  assert.notEqual(r.startMin, u(9, 45));
+  assert.equal(r.startMin, u(12, 30));
+});
+
+test('eersteVrijeStart kwartier: afronden houdt de reisbuffer naar de volgende stop (stop om 10:30, ticket 20 min)', () => {
+  const items = [tk('a', '08:10', 60), tk('b', '10:30', 60)];
+  // 09:40-10:00 + 30 min rit = 10:30: past precies; afgerond 09:45-10:05 + 30 = 10:35 > 10:30: dus niet; na stop b (11:30) + 30 min rit
+  assert.equal(evs(items, { duurMin: 20 }).startMin, u(9, 40));
+  assert.equal(evs(items, { duurMin: 20, kwartier: true }).startMin, u(12, 0));
+});
+
+test('eersteVrijeStart kwartier: elk resultaat is een geldige vaste plaatsing (geen botsing, reisbuffer intact)', () => {
+  const items = [tk('a', '08:10', 60), blok('b', '10:00', 90), tk('c', '13:20', 45), blok('d', '15:10', 30)];
+  for (const duurMin of [20, 35, 60, 90, 120]) {
+    const { startMin } = evs(items, { duurMin, kwartier: true });
+    assert.equal(startMin % 15, 0);
+    const p = plaatsNieuw({ items, nieuw: { id: 'n', duurMin, uur: `${String(Math.floor(startMin / 60)).padStart(2, '0')}:${String(startMin % 60).padStart(2, '0')}` }, vanTijd: '08:00', laatsteStart: '23:59' });
+    assert.ok(p, `duur ${duurMin}: ${startMin}`);
+  }
+});
+
+
+test('eersteVrijeStart: volle dag: startMin na laatsteStart met laat true', () => {
+  const r = evs([tk('a', '08:30', 210), tk('b', '12:30', 210)]);
+  assert.equal(r.laat, true);
+  assert.ok(r.startMin > u(16, 0));
+});
+
+test('eersteVrijeStart: maxPerDag speelt geen rol', () => {
+  const items = [tk('a', '08:30', 60), tk('b', '10:30', 60), tk('c', '12:30', 60), tk('d', '14:30', 60)];
+  const r = eersteVrijeStart({ items, duurMin: 60, vanTijd: '08:00', laatsteStart: '18:00', maxPerDag: 1 });
+  assert.equal(typeof r.startMin, 'number');
+  assert.equal(r.startMin, u(16, 0)); // na stop d (15:30) + 30 min rit
+  assert.equal(r.laat, false);
 });

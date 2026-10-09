@@ -45,6 +45,7 @@ import { appConfirm } from './app-dialog.js';
 import { registreerVenster } from './venster.js';
 import { startNaInlog } from './schermen/rol-schil.js';
 import { laadTab } from './kern/navigatie.js';
+import { installeerTijdPicker } from './kern/tijd-picker.js';
 
 
 // Leesbare toegang tot de toestand: de plaats van de vroegere window-accessors (kern/brug.js) voor allTickets, planning, settings, ...
@@ -172,7 +173,7 @@ function opstart() {
     tijdslotLabelVoor: ticketdetail.tijdslotLabelVoor, telNummer: ticketdetailLogica.telNummer, navigate,
     openDetail: ticketdetail.openDetail, openLocalEventDetail: afspraken.openLocalEventDetail, removeLocalEvent: afspraken.removeLocalEvent, bevestigUitplannen: planacties.bevestigUitplannen,
     herOpenRapport: (...a) => herOpenRapport(...a), rapportArchief: () => _rapportArchief, matchRespToPerson: afspraken.matchRespToPerson, duurVoor,
-    setTab, sjLog, toggleAssignRow: ticketdetail.toggleAssignRow, saveToewijzen: ticketdetail.saveToewijzen, openBlockModal: beschikbaarheid.openBlockModal,
+    eersteVrijUur: capaciteit.eersteVrijUur, setTab, sjLog, toggleAssignRow: ticketdetail.toggleAssignRow, saveToewijzen: ticketdetail.saveToewijzen, openBlockModal: beschikbaarheid.openBlockModal,
   });
   // Ingepland-scherm (schermen/ingepland.js): week-knoppen en de afhankelijkheden van andere schermen; vóór koppelRenders().
   ingepland.initIngepland({
@@ -201,6 +202,7 @@ function opstart() {
     bevestigdLabel: ticketdetailLogica.bevestigdLabel,
     heeftLopendVoorstel: t => ticketdetailLogica.heeftLopendVoorstel(t, toestand.get('voorstelStatus')),
     computeArrivalTimes: (...a) => computeArrivalTimes(...a),
+    eersteVrijUur: capaciteit.eersteVrijUur,
     renderRouteList: (...a) => renderRouteList(...a),
   });
   // Voorstel-scherm (schermen/voorstel.js): voorstelvenster, verzenden en voorstelstatus; vóór koppelRenders().
@@ -903,4 +905,5 @@ function toggleTheme() {
 
 // Escape/focusval per venster: zie public/js/venster.js
 
+installeerTijdPicker(document, window); // tik op een tijd-/datumveld opent de klok/kalender (Android)
 document.addEventListener('DOMContentLoaded', () => startNaInlog(opstart));

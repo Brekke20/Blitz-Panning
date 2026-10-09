@@ -2,19 +2,21 @@
 // W11: dit pad verstuurt het servicerapport naar klanten (POST /api/send-rapport, per ontvanger POST /api/rapport-verzonden)
 // en schrijft de Zoho-oplossing (POST /api/comment). De code is LETTERLIJK uit index.html verhuisd (D12): enkel de
 // voorvoegsels zijn nieuw (`export`, `afh.` voor het archief en imports). HUIDIG GEDRAG blijft bewust bestaan en is vastgelegd in
-// e2e/productie/rapport.spec.mjs: de verzendknop blijft uitgeschakeld na een 500/502, bij een gedeeltelijke statusfout verschijnt
-// enkel de laatste toast, /api/comment gaat vóór het rapport-archief de deur uit en elk antwoord zonder `error` telt als gelukt.
+// e2e/productie/rapport.spec.mjs: de verzendknop blijft uitgeschakeld na een 502/onleesbaar antwoord (tot de mailcontrole klaar is),
+// /api/comment gaat vóór het rapport-archief de deur uit en elk antwoord zonder `error` telt als gelukt. Sinds de kleine fouten
+// (B5, B6): na een leesbare 400/500 { error } is de knop weer bruikbaar en staat alles in één melding (rapport-verzend-melding.js).
 // `sendBtn.onclick =` blijft een toewijzing (geen addEventListener): elke nieuwe preview vervangt zo de vorige handler; een
 // luisteraar zou zich bij elke preview opstapelen en het rapport meermaals versturen.
 // Raakt `document` enkel binnen functies. Alleen `kern/brug.js` wijst `window`-namen toe. De sluitknoppen lopen via
 // data-actie-delegatie; het venster sluit via registreerBackdrop (inhoudsklik sluit niet).
 import { foutTekst, leesFout } from '../kern/api.js';
-import { controleerMail, mailControleTekst, uurBrussel, TEKST_CONTROLEREN } from '../kern/mailcontrole.js';
+import { controleerMail, mailControleTekst, mailControleAfsluiting, uurBrussel, TEKST_CONTROLEREN } from '../kern/mailcontrole.js';
 import { appConfirm } from '../app-dialog.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { registreerVenster } from '../venster.js';
-import { joinNL, DOELGROEP_LABEL } from './ticketdetail-logica.js';
+import { bouwVerzendMelding } from './rapport-verzend-melding.js';
+import { DOELGROEP_LABEL } from './ticketdetail-logica.js';
 import { haalRapportHtml } from '../rapport-inhoud.js';
 
 // Afhankelijkheden uit rapport-archief.js (ingevuld door initRapportVerzenden): het archief (live gelezen), de archiefversie
@@ -99,7 +101,7 @@ export async function voorbeeldRapport(rapportId, btn) {
     sendBtn.onclick = () => {
       sendBtn.disabled = true;
       document.getElementById('rapport-preview-overlay').classList.remove('open');
-      verstuurRapport(rapportId, btn);
+      verstuurRapport(rapportId, btn, data.ontvangers);
     };
     document.getElementById('rapport-preview-overlay').classList.add('open');
   } catch (err) {
@@ -115,7 +117,9 @@ export function closeRapportPreview(e) {
 // btn (optioneel): de aangeklikte knop, wordt uitgeschakeld tijdens het versturen tegen
 // dubbelklikken. Terug inschakelen hoeft niet -- renderRapportArchief() bouwt alle knoppen
 // opnieuw op met de juiste toestand.
-export async function verstuurRapport(rapportId, btn) {
+// ontvangers (optioneel, enkel vanuit het voorbeeldvenster): [{ doelgroep, naam, email, html }] zoals de server ze bepaalde. Daarmee
+// controleert de app na een onzeker resultaat per adres of de mail in Zoho staat en vinkt ze "verzonden" aan (B4). Zonder: enkel onthouden.
+export async function verstuurRapport(rapportId, btn, ontvangers) {
   const r = afh.rapportArchief().find(x => x.id === rapportId);
   if (!r) return toast('⚠ Rapport niet gevonden');
   if (!r.ticketId) return toast('⚠ Geen ticket gekoppeld aan dit rapport');
@@ -149,14 +153,26 @@ export async function verstuurRapport(rapportId, btn) {
   toast('📤 Rapport versturen...', 6000);
   const verzendStartWand = Date.now(); // I1: loopt door tijdens slaapstand, performance.now() niet
   const verzendStart = performance.now(); // Q1 (etappe 7): begin van de verzending, enkel gebruikt na een onzeker resultaat
+  let onleesbaarOnzeker = false; // M3: onleesbaar antwoord waarvan niet te zeggen is of de mail vertrok
+  let definitiefAntwoord = false; // B5: de server antwoordde leesbaar met { error } (niet 502/503/504): er is niets verstuurd
   try {
     const res  = await fetch('/api/send-rapport', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ ticketId: r.ticketId, html, ticketNumber: r.ticketNumber }),
     });
-    const data = await res.json().catch(() => ({ error: 'HTTP ' + res.status })); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>'
-    if (data.error) throw new Error(data.error);
+    let leesbaar = true;
+    let data = await res.json().catch(() => null); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>'
+    if (!data || typeof data !== 'object') { leesbaar = false; data = { error: 'HTTP ' + res.status }; } // ook een JSON-body null is onleesbaar (re-review N2)
+    // Eindreview I1: een niet-ok status is nooit "gelukt", ook als de body geen `error` heeft (bv. een Netlify-time-out als JSON).
+    if (data.error || !res.ok) {
+      const eigenFout = leesbaar && typeof data.error === 'string' && data.error !== ''; // een echte { error } van onze functie
+      definitiefAntwoord = eigenFout && res.status >= 400 && !leesFout({ status: res.status }).onzeker;
+      // Een antwoord zonder eigen { error } (onleesbaar of een foutstatus zonder error) op een 200 of 5xx zegt niet of de mail vertrok: ook dan de
+      // mailcontrole (zoals bij een 502).
+      onleesbaarOnzeker = !eigenFout && (res.status === 200 || res.status >= 500);
+      throw new Error(data.error || 'HTTP ' + res.status);
+    }
 
     // verzondenOntvangers = mail verstuurd EN status-write geslaagd (alleen dit mag het
     // "✓ Verzonden"-badge voeden -- een badge mag enkel bevestigd-opgeslagen status tonen).
@@ -167,48 +183,53 @@ export async function verstuurRapport(rapportId, btn) {
     for (const doelgroep of ['contact', 'klant', 'installateur']) {
       if (!data.emailSent?.[doelgroep]) continue;
       const tijdstip = new Date().toISOString();
-      let statusData = {};
-      try {
-        const statusRes = await fetch('/api/rapport-verzonden', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ id: rapportId, doelgroep, tijdstip, versie: afh.archiefVersie() }),
-        });
-        statusData = await statusRes.json();
-      } catch (statusErr) {
-        statusData = { error: statusErr.message };
-      }
-      if (statusData.error) {
-        console.warn(`Rapport-verzonden opslaan voor ${doelgroep} mislukt:`, statusData.error);
+      const st = await schrijfRapportStatus({ rapportId, doelgroep, tijdstip, versie: afh.archiefVersie() });
+      if (!st.ok) {
+        console.warn(`Rapport-verzonden opslaan voor ${doelgroep} mislukt:`, st.fout);
         emailedMaarNietOpgeslagen.push(doelgroep);
         continue;
       }
-      if (typeof statusData.versie === 'number') afh.zetArchiefVersie(statusData.versie);
+      if (typeof st.versie === 'number') afh.zetArchiefVersie(st.versie);
       const veld = doelgroep === 'contact' ? 'verzondenContact' : doelgroep === 'klant' ? 'verzondenKlant' : 'verzondenInstallateur';
       r[veld] = tijdstip;
       verzondenOntvangers.push(doelgroep);
     }
 
     afh.renderRapportArchief();
-    if (verzondenOntvangers.length > 0) {
-      toast(`✓ Rapport verstuurd naar ${joinNL(verzondenOntvangers.map(d => DOELGROEP_LABEL[d] || d))}`, 3500);
-    } else if (emailedMaarNietOpgeslagen.length === 0) {
-      if (Array.isArray(data.fouten) && data.fouten.length > 0) {
-        const details = data.fouten.map(f => `${f.doelgroep}: ${f.fout}`).join('; ');
-        toast(`⚠ Rapport versturen geweigerd door Zoho (${details})`, 6000);
-      } else {
-        toast('⚠ Rapport kon niet verstuurd worden (geen adressen bekend)', 4500);
-      }
-    }
-    if (emailedMaarNietOpgeslagen.length > 0) {
-      toast(`✓ Rapport verstuurd naar ${joinNL(emailedMaarNietOpgeslagen.map(d => DOELGROEP_LABEL[d] || d))}, maar status kon niet opgeslagen worden — NIET opnieuw versturen, herlaad eerst de pagina`, 8000);
-    }
-    if (data.statusFout) {
-      toast(`⚠ Mail verstuurd, maar ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: ${data.statusFout}`, 8000);
-    }
+    // B6: één melding met het succes, de niet-opgeslagen statussen, de geweigerde ontvangers en de statusFout (toast() overschrijft de vorige).
+    const m = bouwVerzendMelding({ verzonden: verzondenOntvangers, nietOpgeslagen: emailedMaarNietOpgeslagen, fouten: data.fouten, statusFout: data.statusFout });
+    toast(m.tekst, m.duurMs);
   } catch (err) {
-    toast('✕ ' + foutTekst(err), 5000);
-    if (leesFout(err).onzeker) await naOnzekerRapport(rapportId, r.ticketId, verzendStart, verzendStartWand, btn);
+    if (leesFout(err).onzeker || onleesbaarOnzeker) {
+      toast('✕ ' + foutTekst(err), 5000);
+      await naOnzekerRapport(rapportId, r.ticketId, verzendStart, verzendStartWand, btn, ontvangers);
+    }
+    // B5: een leesbaar { error }-antwoord (400/500) bewijst dat er niets verstuurd is: send-rapport.js antwoordt enkel vóór de
+    // verzendlus met een fout (fouten per ontvanger komen terug in een 200). De knop is dan weer bruikbaar. Bij een onzeker
+    // resultaat beslist de mailcontrole (naOnzekerRapport) of de knop opengaat; elke andere fout laat de knop op slot.
+    else if (definitiefAntwoord) {
+      toast('✕ ' + foutTekst(err), 5000);
+      if (btn) btn.disabled = false;
+    } else {
+      // Op slot en niet te bewijzen dat er niets verstuurd is (bv. onleesbaar 4xx-antwoord of een fout ná het verzenden): zeg wat te doen.
+      toast('✕ ' + foutTekst(err) + ' — kijk in Zoho na of de mail vertrokken is, of herlaad de pagina en probeer opnieuw', 8000);
+    }
+  }
+}
+
+// De status-write per doelgroep (POST /api/rapport-verzonden). Gooit nooit. `versie` weglaten = geen versiecontrole (enkel het item op id).
+async function schrijfRapportStatus({ rapportId, doelgroep, tijdstip, versie }) {
+  try {
+    const res = await fetch('/api/rapport-verzonden', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ id: rapportId, doelgroep, tijdstip, versie }), // versie: undefined valt weg in JSON
+    });
+    const d = await res.json();
+    if (!res.ok || d?.error) return { ok: false, fout: d?.error || 'HTTP ' + res.status }; // een vreemd 4xx/5xx-antwoord zonder error is nooit "opgeslagen"
+    return { ok: true, versie: d?.versie };
+  } catch (e) {
+    return { ok: false, fout: e.message };
   }
 }
 
@@ -228,17 +249,44 @@ function zetMailGedetecteerd(rapportId, tijdstip) {
   } catch { /* geen opslag beschikbaar: dan geen extra bevestiging */ }
 }
 
-// Q1 (etappe 7): na een onzeker resultaat nagaan of de mail al verzonden is (enkel lezen) en dat melden.
-// De knop blijft uitgeschakeld (zoals na elke fout) en gaat enkel open als zeker is dat er niets verstuurd werd.
-async function naOnzekerRapport(rapportId, ticketId, start, startWand, btn) {
+// Q1 (etappe 7): na een onzeker resultaat nagaan of de mail al verzonden is en dat melden.
+// B4: met `ontvangers` (de server bepaalde ze in het voorbeeld) controleert de app per adres en vinkt het rapport voor elke gevonden
+// ontvanger zelf "verzonden" aan, zonder versiecontrole (het item wordt enkel op id aangepast; een versieconflict zou een al verstuurde
+// mail anders weer "niet verzonden" laten lijken). De detectie wordt altijd onthouden (bevestigingsvraag bij opnieuw versturen).
+// De knop gaat enkel open als zeker is dat er niets verstuurd werd; bij een gevonden mail blijft hij op slot, behalve als alles
+// aangevinkt is (dan toont de hertekening "✓ Verzonden" met de bevestigingsvraag bij opnieuw versturen).
+async function naOnzekerRapport(rapportId, ticketId, start, startWand, btn, ontvangers) {
   toast(TEKST_CONTROLEREN, 30000);
-  const r = await controleerMail({ ticketId, start, startWand });
-  if (r.uitkomst === 'verzonden') {
-    // Een latere hertekening zet de knop weer open (de status "Verzonden" schrijven we niet): onthoud de detectie op dit toestel,
+  const metOntvangers = Array.isArray(ontvangers) && ontvangers.length > 0;
+  const r = await controleerMail({ ticketId, start, startWand, verwacht: metOntvangers ? ontvangers.map(o => o.email) : [] });
+  const gevonden = r.uitkomst === 'verzonden' ? r.verzonden : (r.gevonden || []);
+  if (gevonden.length > 0) {
+    // Een latere hertekening zet de knop weer open (zonder aanvinken staat er geen "Verzonden"): onthoud de detectie op dit toestel,
     // zodat een volgende verzending van dit rapport eerst een bevestiging vraagt.
-    zetMailGedetecteerd(rapportId, r.verzonden.map(v => v.tijdstip).sort()[0]);
-    return toast('✓ ' + mailControleTekst(r), 8000);
+    zetMailGedetecteerd(rapportId, gevonden.map(v => v.tijdstip).sort()[0]);
   }
+  let aanvinkStand = null; // 'alles' | 'deel' | 'mislukt' | null (niet aangevinkt)
+  if (metOntvangers && gevonden.length > 0) {
+    let mislukt = 0;
+    const rapport = afh.rapportArchief().find(x => x.id === rapportId);
+    for (const g of gevonden) {
+      const o = ontvangers.find(x => String(x.email).toLowerCase() === String(g.aan).toLowerCase());
+      if (!o || !rapport) { mislukt++; continue; }
+      const st = await schrijfRapportStatus({ rapportId, doelgroep: o.doelgroep, tijdstip: g.tijdstip });
+      if (!st.ok) { console.warn(`Rapport-verzonden opslaan voor ${o.doelgroep} mislukt:`, st.fout); mislukt++; continue; }
+      // Zonder versiecontrole bewijst het antwoord niet dat het archief verder ongewijzigd is: enkel doorschuiven als het precies de volgende versie is.
+      if (typeof st.versie === 'number' && st.versie === afh.archiefVersie() + 1) afh.zetArchiefVersie(st.versie);
+      rapport[o.doelgroep === 'contact' ? 'verzondenContact' : o.doelgroep === 'klant' ? 'verzondenKlant' : 'verzondenInstallateur'] = g.tijdstip;
+    }
+    afh.renderRapportArchief();
+    aanvinkStand = mislukt > 0 ? 'mislukt' : (r.uitkomst === 'verzonden' ? 'alles' : 'deel');
+    // De hertekening bouwde de knop opnieuw op; behalve als alles aangevinkt is blijft hij op slot (kijk eerst in Zoho na).
+    if (aanvinkStand !== 'alles') {
+      document.querySelectorAll('.btn-verstuur-rapport').forEach(b => { if (b.dataset.rapportId === rapportId) b.disabled = true; });
+    }
+  }
+  const afsluiting = aanvinkStand ? mailControleAfsluiting('rapport', aanvinkStand) : '';
+  if (r.uitkomst === 'verzonden') return toast('✓ ' + mailControleTekst(r) + afsluiting, 8000);
   if (r.uitkomst === 'niet-verzonden' && btn) btn.disabled = false;
-  toast('⚠ ' + mailControleTekst(r), 8000);
+  toast('⚠ ' + mailControleTekst(r) + afsluiting, 8000);
 }

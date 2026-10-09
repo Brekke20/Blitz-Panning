@@ -99,6 +99,22 @@ test.describe('kalender: gsm (indeling smal)', () => {
   });
 });
 
+test.describe('kalender: gsm, handmatige afspraak met enkel een notitie', () => {
+  test('de notitie is geen adresregel, maar Navigeer blijft en gaat naar de notitie (B10: routes gebruiken adres || notitie)', async ({ page }) => {
+    await zetWeergave(page, 'gsm');
+    const nota = afspraak('n1', '2026-10-07', '07:00', '07:30', { titel: 'Alleen notitie', adres: '', notitie: 'Depot Geel', bron: 'manueel' });
+    await startApp(page, { viewport: { width: 390, height: 844 }, overschrijf: seed({ afspraken: [nota] }) });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    const kaart = dag(page, '2026-10-07').locator('.cal-local-event').filter({ hasText: 'Alleen notitie' });
+    await expect(kaart.locator('.cal-addr')).toHaveCount(0);
+    await expect(kaart.locator('.cal-meta', { hasText: '📝 Depot Geel' })).toHaveCount(1);
+    await page.evaluate(() => { window.__open = []; window.open = (u) => { window.__open.push(u); return null; }; });
+    await kaart.getByRole('button', { name: '🧭 Navigeer' }).click();
+    await expect.poll(() => page.evaluate(() => window.__open)).toHaveLength(1);
+    expect((await page.evaluate(() => window.__open))[0]).toContain('destination=' + encodeURIComponent('Depot Geel'));
+  });
+});
+
 test.describe('kalender: gsm, kaartklik', () => {
   test('een klik op de kaart opent het detail', async ({ page }) => {
     // Het tijdlijnblok (.tl-ticket) heeft zijn positieve tegenstuk al in voorstel-afspraak-blokkering.spec.mjs

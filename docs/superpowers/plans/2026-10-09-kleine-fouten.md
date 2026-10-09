@@ -388,6 +388,24 @@ Gedrag: `openRapportIntern` roept `berekenAanrijtijd` aan (de toast "📡 Aanrij
 
 ---
 
+### Task 11b: Knop "Opnieuw versturen" in Beheer → Systeemstatus (beslissing Brent 2026-10-09) (**LIVE-KRITIEK: rapport naar Zoho**)
+
+**Files:**
+- Modify: `public/js/schermen/beheer-systeemstatus.js` (knop per mislukt rapport), eventueel een pure helper in een `-logica.js`-bestand ernaast
+- Test: unit voor de pure helper; e2e in `e2e/beheer-tabs.spec.mjs` (of een nieuwe `e2e/beheer-opnieuw.spec.mjs`)
+
+**Interfaces:**
+- Consumes: het bestaande serverpad om een mislukt rapport opnieuw te laten verwerken: `POST /api/rapport-archief` met `{ opnieuw: <id> }` (upload-fix + logins T17b: start de achtergrondverwerking met de interne sleutel `X-Blitz-Intern`; voor de beheerder toegelaten — controleer de rechten in `netlify/functions/rapport-archief.js` en `netlify/lib/eigen.js`). Geen nieuwe serverfunctie.
+- Produces: per rij in de tabel "Mislukte rapporten" een knop **"Opnieuw versturen"**.
+
+Gedrag: klik → bevestiging "Dit rapport opnieuw naar Zoho sturen?" → knop uitgeschakeld met "Bezig…" → bij succes (202/200) toast "Rapport staat opnieuw in de wachtrij" en de rij toont "opnieuw in behandeling"; de lijst herlaadt na ±10 s of via "Vernieuwen"; 503 → toast "De opslag is tijdelijk niet bereikbaar. Probeer het zo meteen opnieuw." en knop weer bruikbaar; 4xx → toast met de servermelding. Dubbelklik stuurt nooit twee aanvragen. Het activiteitenlog krijgt de bestaande actie `rapport-opnieuw` (staat al in het koppelvlak; controleer dat de server ze logt, anders toevoegen met het label in `ACTIES`).
+
+- [ ] **Step 1: Tests (RED):** pure helper (knoptoestand per antwoordstatus); e2e met gestubde `/api/systeemstatus` (één mislukt rapport) en gestubde `POST /api/rapport-archief`: bevestigen → precies één POST met `{ opnieuw: '<id>' }` en header `X-Blitz: 1`, toast, rij toont "opnieuw in behandeling"; 503-variant: knop weer bruikbaar. (De e2e-vangnetfixture faalt op HTTP ≥ 400: verwijder die regels zelf na de controle, zoals `e2e/logins-rechten.spec.mjs`.)
+- [ ] **Step 2: Run** → FAIL. **Step 3: Implementeer.** **Step 4: Run** → PASS; `node --test` volledig.
+- [ ] **Step 5: Commit** `feat(beheer): knop "Opnieuw versturen" bij mislukte rapporten (Systeemstatus)`
+
+---
+
 ### Task 12: Afronding — changelog, bugsdocument, releasechecklist en volledige controle
 
 **Files:**
@@ -405,7 +423,7 @@ Gedrag: `openRapportIntern` roept `berekenAanrijtijd` aan (de toast "📡 Aanrij
 
 ---
 
-## Open vragen voor Brent (het plan gaat uit van het antwoord tussen haakjes)
+## Open vragen voor Brent — BEANTWOORD 2026-10-09: alle vier zoals het plan aannam (zie `docs/bugs-en-open-punten.md` sectie G); daarnaast Task 11b toegevoegd
 
 1. **B2:** is de mail al weg maar kon Zoho het ticket niet bijwerken (status en datum), dan waarschuwt de app en laat ze het rechtzetten in Zoho zelf over aan de planner. Moet er in plaats daarvan een knop "Ticket alsnog bijwerken" komen (die enkel het ticket bijwerkt, zonder opnieuw te mailen)? (Plan: enkel waarschuwen.)
 2. **B10:** bij handmatige afspraken zonder adres staat de notitie voortaan als "Notitie" in de fiche en op het kaartje. De routeberekening en de capaciteit blijven die notitie wel als locatie gebruiken (zoals nu). Akkoord, of moet de route dan ook stoppen met de notitie als adres te gebruiken? (Plan: route ongewijzigd.)

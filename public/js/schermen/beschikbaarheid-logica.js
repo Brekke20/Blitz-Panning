@@ -37,3 +37,16 @@ export function groupExceptionsForDisplay(sortedList, werkdagen) {
   });
   return groups;
 }
+
+// Controle van een nieuw blokkeringsformulier (B8), gedeeld door het venster en de tab "Beschikbaarheden". Volgorde van de controles:
+// eindtijd na begintijd, datum ingevuld, einddatum ingevuld (periode), einddatum niet voor startdatum.
+// De melding "geen werkdagen in deze periode" blijft in de uitbreidingslus (die heeft `werkdagen` nodig).
+export function valideerNieuweBlokkering({ kind, meerdaags, datum, datumTot, van, tot }) {
+  if (kind === 'range' && van >= tot) return { ok: false, melding: '⚠ Eindtijd moet na begintijd liggen' };
+  if (!datum) return { ok: false, melding: '⚠ Kies een datum' };
+  if (kind === 'fullday' && meerdaags) {
+    if (!datumTot) return { ok: false, melding: '⚠ Kies een einddatum, of vink "Meerdere werkdagen" uit' };
+    if (datumTot < datum) return { ok: false, melding: '⚠ Einddatum moet na startdatum liggen' };
+  }
+  return { ok: true };
+}

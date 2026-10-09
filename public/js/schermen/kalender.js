@@ -5,7 +5,7 @@
 // binnen functies, nooit op moduleniveau; de hoogste-niveau-effecten (observer, resize, visibilitychange) draaien
 // in `initKalender`. Alleen `kern/brug.js` wijst `window`-namen toe. De schermtoestand (`kalView`, auto-scrollsleutel; de datum is de gedeelde `gekozenDatum`) is module-privé; de knoppen lopen via data-actie-delegatie (C8).
 import { toestand } from '../kern/toestand.js';
-import { escHtml, zetPressed, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
+import { escHtml, zetPressed, registreerActies, registreerWijzigActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
 import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, volgendeWerkdagVan } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
 import {
@@ -15,6 +15,7 @@ import {
 import { capaciteitsKop, capacityForDay } from './capaciteit.js';
 import { renderRouteList } from './route.js';
 import { getHolidayName } from '../kern/feestdagen.js';
+import { zichtbaarAdres, navigatieAdres } from './afspraken-logica.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initKalender); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('kalender: initKalender() is niet aangeroepen'); } });
@@ -61,6 +62,17 @@ export function initKalender(afhankelijkheden) {
     'kal-toewijzen-open': el => afh.toggleAssignRow(el.dataset.ticketId),
     'kal-toewijzen-opslaan': el => afh.saveToewijzen(el.dataset.ticketId),
     'kal-toewijzen-sluit': el => { document.getElementById('assign-row-' + el.dataset.ticketId).style.display = 'none'; },
+  });
+  // Toewijsrij (B16): een andere datum stelt het eerste vrije uur van die dag opnieuw voor, tenzij het uur zelf is aangepast.
+  registreerWijzigActies(document.body, {
+    'kal-toewijzen-datum': el => {
+      const tijd = document.getElementById('assign-time-' + el.dataset.ticketId);
+      if (!tijd || tijd.dataset.handmatig || !el.value) return;
+      let vrij = null;
+      try { vrij = afh.eersteVrijUur(el.value, el.dataset.ticketId); } catch (err) { console.error('eersteVrijUur mislukt:', err); }
+      tijd.value = vrij || '09:00';
+    },
+    'kal-toewijzen-tijd': el => { el.dataset.handmatig = '1'; },
   });
   kalStartHoogteObserver();
   window.addEventListener('resize', () => {
@@ -137,22 +149,25 @@ function buildLocalEventCard(ev, { showActions = true } = {}) {
   const card = document.createElement('div');
   card.className = 'cal-local-event';
   const tijdLabel = ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '';
-  const adresLabel = ev.adres || ev.notitie;
+  const adresLabel = zichtbaarAdres(ev); // B10: een handmatige notitie is geen adres
+  const notitieRegel = !adresLabel && ev.notitie ? ev.notitie : '';
+  const navAdres = navigatieAdres(ev); // ook een notitie die als plaats dient (handmatig zonder adres) houdt zijn Navigeer-knop
   card.innerHTML = `
     <button class="cal-local-del" data-actie="kal-event-verwijder" data-event-id="${escHtml(ev.id)}" title="Verwijderen" aria-label="Afspraak verwijderen">✕</button>
     <span class="cal-local-type">${escHtml(ev.type)}</span>
     <div class="cal-sub" style="margin-top:2px">${escHtml(ev.titel)}</div>
     ${tijdLabel ? `<div class="cal-local-time">⏱ ${tijdLabel}</div>` : ''}
     ${adresLabel ? `<div class="cal-addr">${escHtml(adresLabel)}</div>` : ''}
+    ${notitieRegel ? `<div class="cal-meta">📝 ${escHtml(notitieRegel)}</div>` : ''}
     ${ev.persoon ? `<div class="cal-meta">${escHtml(ev.persoon)}</div>` : ''}
     ${showActions ? `<div class="cal-actions">
       ${/\d/.test(afh.telNummer(ev.telefoon)) ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(afh.telNummer(ev.telefoon))}">📞 Bellen</a>` : ''}
-      ${adresLabel ? `<button class="cal-btn cal-ev-nav">🧭 Navigeer</button>` : ''}
+      ${navAdres ? `<button class="cal-btn cal-ev-nav">🧭 Navigeer</button>` : ''}
     </div>` : ''}`;
   // ev.id komt uit de afspraken-blob (niet-geauthenticeerd) — daarom als geëscapete data-attribuut, niet als
   // inline onclick-string (niet veilig tegen apostrofs in de brondata); de verwijderknop loopt via data-actie.
   card.querySelector('.cal-ev-call')?.addEventListener('click', e => e.stopPropagation());
-  card.querySelector('.cal-ev-nav')?.addEventListener('click', e => { e.stopPropagation(); afh.navigate(encodeURIComponent(adresLabel)); });
+  card.querySelector('.cal-ev-nav')?.addEventListener('click', e => { e.stopPropagation(); afh.navigate(encodeURIComponent(navAdres)); });
   // Bubbel-guard (C8): een klik op een data-actie-knop (✕) opent het detail niet.
   card.addEventListener('click', e => { if (e.target.closest('[data-actie]')) return; afh.openLocalEventDetail(ev); });
   // Toetsenbord (N11): Enter/Space opent het detail; Tab alleen focust. Toetsen uit de ✕/Bellen/Navigeer-knoppen blijven bij die knoppen.
@@ -316,6 +331,7 @@ function renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, hdrEl) {
   const zonderUur = [
     ...dayStops.filter(s => !s.uur).map(s => ({ label: `#${s.ticket.number}`, title: s.ticket.subject || '', open: () => afh.openDetail(s.ticket) })),
     ...dayReports.filter(r => !r.rapportData?.start).map(r => ({ label: r.ticketNumber ? `#${r.ticketNumber}` : (r.klant || 'Rapport'), title: r.klant || '', open: () => afh.herOpenRapport(afh.rapportArchief().indexOf(r)) })),
+    ...dayEvents.filter(ev => !ev.uur).map(ev => ({ label: ev.titel || ev.type, title: (ev.type ? ev.type + ': ' : '') + (ev.titel || ''), open: () => afh.openLocalEventDetail(ev) })),
   ];
   if (zonderUur.length && hdrEl) {
     const rij = document.createElement('div');
@@ -477,8 +493,8 @@ export function renderKalender() {
         <div class="tsub">${escHtml(t.subject) || '—'}</div>
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
         <div class="t-assign-row" id="assign-row-${t.id}" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
-          <input type="date" id="assign-date-${t.id}" aria-label="Datum toewijzen" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
-          <input type="time" id="assign-time-${t.id}" aria-label="Tijd toewijzen" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)" value="09:00">
+          <input type="date" id="assign-date-${t.id}" aria-label="Datum toewijzen" data-wijzig="kal-toewijzen-datum" data-ticket-id="${escHtml(t.id)}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
+          <input type="time" id="assign-time-${t.id}" aria-label="Tijd toewijzen" data-invoer="kal-toewijzen-tijd" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)" value="09:00">
           <button data-actie="kal-toewijzen-opslaan" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 8px;background:var(--accent);color:var(--on-accent);border:none;border-radius:4px;cursor:pointer;font-weight:600">✓ Opslaan</button>
           <button aria-label="Sluiten" data-actie="kal-toewijzen-sluit" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 6px;background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--muted)">✕</button>
         </div>

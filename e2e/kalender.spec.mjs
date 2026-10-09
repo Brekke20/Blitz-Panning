@@ -292,6 +292,19 @@ test.describe('kalender: items zonder uur', () => {
   });
 });
 
+test.describe('kalender: items zonder uur (tickets en afspraken samen)', () => {
+  test('vijf items zonder uur (tickets en afspraken samen): vier chips en "+1 meer"', async ({ page }) => {
+    const afspraken = ['e1', 'e2'].map(id => afspraak(id, '2026-10-06', '', ''));
+    await startApp(page, { overschrijf: seed({ afspraken }) });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await voegStopsToe(page, [1, 2, 3].map(n => ({ id: `z${n}`, nummer: `900${n}`, datum: '2026-10-06' })));
+    const kop = dag(page, '2026-10-06').locator('.day-hdr-zonderuur');
+    await expect(kop.locator('.zu-chip')).toHaveText(['#9001', '#9002', '#9003', 'Afspraak e1']);
+    await expect(kop.locator('.zu-meer')).toHaveText('+1 meer');
+    await expect(kop.locator('.zu-meer')).toHaveAttribute('title', 'Afspraak e2');
+  });
+});
+
 test.describe('kalender: tijdlijn', () => {
   test('overlappende afspraken staan in twee lanen', async ({ page }) => {
     const afspraken = [afspraak('o1', '2026-10-06', '14:00', '15:30'), afspraak('o2', '2026-10-06', '15:00', '16:00')];

@@ -109,6 +109,12 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
         const uit = await verwerkOpnieuw({ store, id: body.opnieuw });
         if (uit.startNodig) {
           await startAchtergrondtaak({ origin: new URL(req.url).origin, id: body.opnieuw, testModus: isTestVerzoek(req) });
+          // Zichtbaar in het activiteitenlog (Task 11b: de beheerder stuurt een mislukt rapport opnieuw); best-effort, testverzoeken loggen niets.
+          await logVoorVerzoek(req, gebruiker, {
+            actie: 'rapport-opnieuw',
+            onderwerp: String(uit.info?.ticketNummer || body.opnieuw).slice(0, 60),
+            details: { id: String(body.opnieuw).slice(0, 60), technieker: String(uit.info?.technieker ?? '').slice(0, 100) },
+          }, { getStore: haalStore });
         }
         return new Response(JSON.stringify(uit.body), {
           status: uit.status,

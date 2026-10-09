@@ -17,6 +17,7 @@ export function uurBrussel(iso) {
 }
 
 // Zet het antwoord van /api/mail-check om in { uitkomst: 'verzonden' | 'niet-verzonden' | 'onbekend', verzonden: [{ aan, tijdstip }] }.
+// Enkel bij een gedeeltelijk resultaat (minstens één, niet alle verwachte adressen gevonden) komt er een extra veld `gevonden: [{ aan, tijdstip }]` bij.
 // `verwacht` = de adressen waarvan de oproeper weet dat ze de mail moesten krijgen (kan leeg zijn).
 export function beoordeelAntwoord(data, verwacht = []) {
   const onbekend = { uitkomst: 'onbekend', verzonden: [] };
@@ -37,7 +38,8 @@ export function beoordeelAntwoord(data, verwacht = []) {
     }
     if (vonden.length === adressen.length) return { uitkomst: 'verzonden', verzonden: vonden };
     if (vonden.length === 0) return data.twijfel ? onbekend : { uitkomst: 'niet-verzonden', verzonden: [] };
-    return onbekend; // maar een deel van de ontvangers kreeg de mail: geen zekere uitspraak
+    // maar een deel van de ontvangers kreeg de mail: geen zekere uitspraak, wel de gevonden ontvangers (B4: die worden aangevinkt)
+    return { uitkomst: 'onbekend', verzonden: [], gevonden: vonden };
   }
   if (!data.verzonden) return data.twijfel ? onbekend : { uitkomst: 'niet-verzonden', verzonden: [] };
   const lijst = (Array.isArray(data.uitgaand) ? data.uitgaand : [])
@@ -90,4 +92,12 @@ export function mailControleTekst({ uitkomst, verzonden }) {
     return verzonden.map(v => `Mail is verzonden om ${uurBrussel(v.tijdstip)}${v.aan ? ` (${v.aan})` : ''}`).join('; ');
   }
   return uitkomst === 'niet-verzonden' ? TEKST_NIET_VERZONDEN : TEKST_ONZEKER;
+}
+
+// Staartje bij de melding als de oproeper de gevonden mail ook als "verzonden" probeert aan te vinken (B4).
+// soort: 'rapport' | 'voorstel'; stand: 'alles' (alles aangevinkt) | 'deel' (enkel wie de mail kreeg) | 'mislukt' (aanvinken lukte niet).
+export function mailControleAfsluiting(soort, stand) {
+  if (stand === 'alles') return ` — ${soort} als verzonden aangevinkt`;
+  if (stand === 'deel') return ' — voor wie de mail al kreeg is "verzonden" aangevinkt';
+  return ' — maar kon niet als verzonden aangevinkt worden (herlaad de pagina)';
 }

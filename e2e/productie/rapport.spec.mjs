@@ -259,14 +259,14 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     z.zetAntwoord('rapport-verzonden', () => (++n === 1 ? { status: 502, raw: '<html>Bad Gateway</html>' } : { status: 200, json: { ok: true, versie: 5 } }));
     await openVoorbeeld(page);
     await bevestig(page);
-    await expect(toastTekst(page)).toHaveText('✓ Rapport verstuurd naar contactpersoon, maar status kon niet opgeslagen worden — NIET opnieuw versturen, herlaad eerst de pagina');
+    // B6: één melding met alle mail-weg-doelgroepen en de doelgroep waarvan de status niet opgeslagen werd.
+    await expect(toastTekst(page)).toHaveText('✓ Rapport verstuurd naar contactpersoon en klant, maar status kon niet opgeslagen worden voor contactpersoon — NIET opnieuw versturen, herlaad eerst de pagina');
     // Het contact-status-verzoek faalde: de volgende (klant) gebruikt dezelfde, ongewijzigde versie 4.
     expect(z.opnames['rapport-verzonden'].map(o => [o.body.doelgroep, o.body.versie])).toEqual([['contact', 4], ['klant', 4]]);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN, VERZONDEN]);
     expect(await lokaleRapporten(page)).toEqual([{ ...RAPPORT, verzondenKlant: TIJDSTIP }]);
     expect(await page.evaluate(() => kern.rapportArchief.versie())).toBe(5);
-    // HUIDIG GEDRAG (bug?): bij een deels geslaagde status verschijnt enkel de laatste toast; de mislukte doelgroep (contact)
-    // staat daarin, de geslaagde (klant) niet meer, en de kaart toont wel het badge door verzondenKlant.
+    // De kaart toont wel het badge door verzondenKlant.
     await expect(verstuurKnop(page)).toHaveText('✓ Verzonden');
   });
 
@@ -296,21 +296,21 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     expect(z.opnames['rapport-verzonden']).toEqual([]);
   });
 
-  test('statusFout: mail verstuurd, maar ticketstatus niet gezet: de waarschuwing komt na de succestoast', async ({ page, verzoeken }) => {
+  test('statusFout: mail verstuurd, maar ticketstatus niet gezet: de waarschuwing staat in dezelfde melding als het succes', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { paden: ['/api/send-rapport', '/api/rapport-verzonden'] });
     z.zetAntwoord('send-rapport', ({ body }) => body.preview === true
       ? VOORBEELD(ontvanger('contact', 'c@y.be'))
       : VERZONDEN_OK({ contact: true }, { statusUpdated: false, statusFout: 'Zoho 500' }));
     await openVoorbeeld(page);
     await bevestig(page);
-    await expect(toastTekst(page)).toHaveText('⚠ Mail verstuurd, maar ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: Zoho 500');
+    await expect(toastTekst(page)).toHaveText('✓ Rapport verstuurd naar contactpersoon ⚠ Ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: Zoho 500');
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN]);
     // De mail is wel verstuurd en de status staat opgeslagen: badge.
     expect(await lokaleRapporten(page)).toEqual([{ ...RAPPORT, verzondenContact: TIJDSTIP }]);
     await expect(verstuurKnop(page)).toHaveText('✓ Verzonden');
   });
 
-  test('echt verzoek: 500 { error }: toast "✕ …", geen status-verzoeken en de knop blijft uitgeschakeld', async ({ page, verzoeken }) => {
+  test('echt verzoek: 500 { error }: toast "✕ …", geen status-verzoeken en de knop is weer bruikbaar', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { paden: ['/api/send-rapport'], httpFouten: [{ pad: '/api/send-rapport', status: 500 }] });
     z.zetAntwoord('send-rapport', ({ body }) => body.preview === true
       ? VOORBEELD(ontvanger('contact', 'c@y.be'))
@@ -320,9 +320,21 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     await expect(toastTekst(page)).toHaveText('✕ Zoho upload mislukt');
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
     expect(z.opnames['rapport-verzonden']).toEqual([]);
-    // HUIDIG GEDRAG (bug?): bij een fout wordt de kaart niet hertekend, dus de knop blijft uitgeschakeld tot herladen
-    // (de code zegt "terug inschakelen hoeft niet", maar dat geldt enkel na een geslaagde render).
-    await expect(verstuurKnop(page)).toBeDisabled();
+    // B5: een 500 met { error } is een definitief antwoord (de server faalde vóór de verzendlus): niets verstuurd, de knop is weer bruikbaar.
+    await expect(verstuurKnop(page)).toBeEnabled();
+  });
+
+  test('echt verzoek: 400 { error } (geen adressen) maakt de knop weer bruikbaar', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/send-rapport'], httpFouten: [{ pad: '/api/send-rapport', status: 400 }] });
+    z.zetAntwoord('send-rapport', ({ body }) => body.preview === true
+      ? VOORBEELD(ontvanger('contact', 'c@y.be'))
+      : { status: 400, json: { error: 'Geen gekend e-mailadres (klant of installateur) op dit ticket' } });
+    await openVoorbeeld(page);
+    await bevestig(page);
+    await expect(toastTekst(page)).toHaveText('✕ Geen gekend e-mailadres (klant of installateur) op dit ticket');
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
+    expect(z.opnames['rapport-verzonden']).toEqual([]);
+    await expect(verstuurKnop(page)).toBeEnabled();
   });
 
   test('echt verzoek: 502 met HTML-body: toast met HTTP 502', async ({ page, verzoeken }) => {
@@ -403,34 +415,70 @@ const MAILCHECK = '/api/mail-check';
 const T_MAIL = '2026-10-05T07:01:00.000Z'; // 09:01 in Brussel
 const mailCheckLijst = (verzoeken) => verzoeken.alle.filter(r => r.pad === MAILCHECK).map(r => r.methode);
 const MAIL_ONZEKER = '⚠ De klant kan al gemaild zijn — kijk dit na in Zoho voor je opnieuw verstuurt';
-const MAIL_VERZONDEN = { status: 200, json: { ok: true, twijfel: false, verzonden: true, tijdstip: T_MAIL, uitgaand: [{ aan: 'c@y.be', tijdstip: T_MAIL }] } };
-const MAIL_NIET = { status: 200, json: { ok: true, twijfel: false, verzonden: false, tijdstip: null, uitgaand: [] } };
+const MAIL_VERZONDEN = { status: 200, json: { ok: true, twijfel: false, verzonden: true, tijdstip: T_MAIL, uitgaand: [{ aan: 'c@y.be', tijdstip: T_MAIL }], ontvangers: { 'c@y.be': { verzonden: true, tijdstip: T_MAIL } } } };
+const MAIL_NIET = { status: 200, json: { ok: true, twijfel: false, verzonden: false, tijdstip: null, uitgaand: [], ontvangers: { 'c@y.be': { verzonden: false, tijdstip: null } } } };
+// B4: twee ontvangers, enkel contact (c@y.be) kreeg de mail.
+const MAIL_DEEL = { status: 200, json: { ok: true, twijfel: false, verzonden: true, tijdstip: T_MAIL, uitgaand: [{ aan: 'c@y.be', tijdstip: T_MAIL }], ontvangers: { 'c@y.be': { verzonden: true, tijdstip: T_MAIL }, 'x@y.be': { verzonden: false, tijdstip: null } } } };
+const AANGEVINKT = ' — rapport als verzonden aangevinkt';
+const NIET_AANGEVINKT = ' — maar kon niet als verzonden aangevinkt worden (herlaad de pagina)';
 
-async function verstuurAfgebroken(page, verzoeken, mailCheck, { httpFouten = [], netFouten = [] } = {}) {
+async function verstuurAfgebroken(page, verzoeken, mailCheck, { httpFouten = [], netFouten = [], ontvangers = [ontvanger('contact', 'c@y.be')], voorAf = null } = {}) {
   verwachtNetwerkFout(verzoeken, [{ pad: '/api/send-rapport', methode: 'POST' }, ...netFouten]);
-  const z = await start(page, verzoeken, { paden: ['/api/send-rapport'], httpFouten });
-  z.zetAntwoord('send-rapport', ({ body }) => body.preview === true ? VOORBEELD(ontvanger('contact', 'c@y.be')) : { afbreken: 'failed' });
+  const z = await start(page, verzoeken, { paden: ['/api/send-rapport', '/api/rapport-verzonden'], httpFouten });
+  z.zetAntwoord('send-rapport', ({ body }) => body.preview === true ? VOORBEELD(...ontvangers) : { afbreken: 'failed' });
   z.zetAntwoord('mail-check', mailCheck);
+  if (voorAf) voorAf(z);
   await openVoorbeeld(page);
   await bevestig(page);
   return z;
 }
 // Eén voorbeeld en één echte verzending, geen status-schrijfacties, precies één GET naar mail-check met ticket en begin van de verzending.
-async function eenVerzendingEnEenControle(page, verzoeken, z, { controles = 1 } = {}) {
+async function eenVerzendingEnEenControle(page, verzoeken, z, { controles = 1, ontvangers = 'c@y.be' } = {}) {
   expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
   expect(z.opnames['send-rapport'].map(o => 'preview' in o.body)).toEqual([true, false]);
   expect(z.opnames['rapport-verzonden']).toEqual([]);
   expect(mailCheckLijst(verzoeken)).toEqual(Array(controles).fill('GET'));
-  expect(z.opnames['mail-check'].map(o => ({ methode: o.methode, query: mailCheckQuery(o) }))).toEqual(Array(controles).fill({ methode: 'GET', query: { ticketId: 't1', verlopenMs: 'N' } }));
+  expect(z.opnames['mail-check'].map(o => ({ methode: o.methode, query: mailCheckQuery(o) }))).toEqual(Array(controles).fill({ methode: 'GET', query: { ticketId: 't1', verlopenMs: 'N', ontvangers } }));
 }
 
 test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg is (Q1)', () => {
-  test('afgebroken en de mail is al verzonden: melding met uur, de knop blijft uit en er komt geen tweede verzending', async ({ page, verzoeken }) => {
+  test('afgebroken en de mail is al verzonden: rapport wordt als verzonden aangevinkt, geen tweede verzending', async ({ page, verzoeken }) => {
     const z = await verstuurAfgebroken(page, verzoeken, MAIL_VERZONDEN);
-    await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (c@y.be)');
+    await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (c@y.be)' + AANGEVINKT);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN]);
+    // Zonder versie: het item wordt enkel op id aangepast, een versieconflict mag een al verstuurde mail niet weer "niet verzonden" tonen.
+    expect(z.opnames['rapport-verzonden']).toEqual([{ methode: 'POST', body: { id: 'r1', doelgroep: 'contact', tijdstip: T_MAIL }, query: {} }]);
+    expect(await lokaleRapporten(page)).toEqual([{ ...RAPPORT, verzondenContact: T_MAIL }]);
+    await expect(verstuurKnop(page)).toHaveText('✓ Verzonden');
+    expect(z.opnames['send-rapport'].map(o => 'preview' in o.body)).toEqual([true, false]);
+    expect(mailCheckLijst(verzoeken)).toEqual(['GET']);
+    expect(z.opnames['mail-check'].map(o => mailCheckQuery(o))).toEqual([{ ticketId: 't1', verlopenMs: 'N', ontvangers: 'c@y.be' }]);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_mail_gedetecteerd')))).toEqual({ r1: T_MAIL }); // altijd onthouden
+  });
+
+  test('afgebroken, twee ontvangers en enkel de eerste kreeg de mail: enkel die doelgroep wordt aangevinkt en de waarschuwing blijft', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, MAIL_DEEL, { ontvangers: [ontvanger('contact', 'c@y.be'), ontvanger('klant', 'x@y.be')] });
+    await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER + ' — voor wie de mail al kreeg is "verzonden" aangevinkt');
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN]);
+    expect(z.opnames['rapport-verzonden']).toEqual([{ methode: 'POST', body: { id: 'r1', doelgroep: 'contact', tijdstip: T_MAIL }, query: {} }]);
+    expect(await lokaleRapporten(page)).toEqual([{ ...RAPPORT, verzondenContact: T_MAIL }]);
+    await expect(verstuurKnop(page)).toBeDisabled(); // kijk eerst in Zoho na voor de klant
+    expect(mailCheckLijst(verzoeken)).toEqual(['GET']); // een deel is geen "niet verzonden": geen tweede controle
+    expect(z.opnames['mail-check'].map(o => mailCheckQuery(o).ontvangers)).toEqual(['c@y.be,x@y.be']);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_mail_gedetecteerd')))).toEqual({ r1: T_MAIL });
+  });
+
+  test('afgebroken, mail gevonden maar rapport-verzonden geeft 409: melding "… maar kon niet als verzonden aangevinkt worden (herlaad de pagina)", detectie onthouden, geen tweede verzending', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, MAIL_VERZONDEN, {
+      httpFouten: [{ pad: '/api/rapport-verzonden', status: 409 }],
+      voorAf: (zz) => zz.zetAntwoord('rapport-verzonden', { status: 409, json: { error: 'Rapportarchief ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: 9 } }),
+    });
+    await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (c@y.be)' + NIET_AANGEVINKT);
     await expect(verstuurKnop(page)).toBeDisabled();
-    await eenVerzendingEnEenControle(page, verzoeken, z);
-    expect(await lokaleRapporten(page)).toEqual([RAPPORT]); // de controle schrijft zelf niets
+    expect(await lokaleRapporten(page)).toEqual([RAPPORT]);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_mail_gedetecteerd')))).toEqual({ r1: T_MAIL });
+    expect(z.opnames['send-rapport'].map(o => 'preview' in o.body)).toEqual([true, false]);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN]);
   });
 
   test('afgebroken en de mail is niet verzonden: melding en de knop kan opnieuw', async ({ page, verzoeken }) => {
@@ -455,8 +503,9 @@ test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg 
 
     await openVoorbeeld(page);
     await bevestig(page); // geen detectie bekend: geen vraag, de verzending zelf valt onzeker uit
-    await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (c@y.be)');
-    await expect(verstuurKnop(page)).toBeDisabled();
+    await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (c@y.be)' + AANGEVINKT);
+    await expect(verstuurKnop(page)).toHaveText('✓ Verzonden'); // B4: automatisch aangevinkt (de hertekening toont het badge)
+    expect(z.opnames['rapport-verzonden']).toHaveLength(1);
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_mail_gedetecteerd')))).toEqual({ r1: '2026-10-05T07:01:00.000Z' });
     expect(soorten()).toEqual(['voorbeeld', 'echt']);
 
@@ -477,7 +526,7 @@ test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg 
     await expect(verstuurKnop(page)).toBeEnabled(); // Terug: weer bruikbaar
     expect(soorten()).toEqual(['voorbeeld', 'echt', 'voorbeeld']);
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_mail_gedetecteerd')))).toEqual({ r1: '2026-10-05T07:01:00.000Z' }); // blijft onthouden
-    expect(z.opnames['rapport-verzonden']).toEqual([]);
+    expect(z.opnames['rapport-verzonden']).toHaveLength(1); // enkel de automatische van de eerste verzending
 
     // Tweede poging: bevestigen verstuurt precies één echt verzoek, en de onthouden detectie is dan gewist.
     await verstuurKnop(page).click();
@@ -487,7 +536,7 @@ test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg 
     await dialoog.getByRole('button', { name: 'Toch opnieuw versturen' }).click();
     await expect(toastTekst(page)).toHaveText('✓ Rapport verstuurd naar contactpersoon');
     expect(soorten()).toEqual(['voorbeeld', 'echt', 'voorbeeld', 'voorbeeld', 'echt']);
-    expect(z.opnames['rapport-verzonden']).toHaveLength(1);
+    expect(z.opnames['rapport-verzonden']).toHaveLength(2); // automatisch + de bevestigde tweede verzending
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_mail_gedetecteerd')))).toEqual({});
     expect(mailCheckLijst(verzoeken)).toEqual(['GET']);
   });
@@ -528,7 +577,56 @@ test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg 
     await openVoorbeeld(page);
     await bevestig(page);
     await expect(toastTekst(page)).toHaveText('✕ Zoho tijdelijk niet bereikbaar');
+    await expect(verstuurKnop(page)).toBeEnabled(); // B5: definitief antwoord, niets verstuurd
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
+    expect(mailCheckLijst(verzoeken)).toEqual([]);
+  });
+
+  // I1 + M3: de strengere B5-regel. Een antwoord dat niet als { error } te lezen is, bewijst niet dat er niets verstuurd werd.
+  // Een onleesbare 500 of een afgekapt 200-antwoord start de mailcontrole (zoals een 502): die bepaalt of de knop opengaat of de mail aangevinkt wordt.
+  for (const [naam, antwoord, toast] of [
+    ['een 500 met onleesbare HTML-body', { status: 500, raw: '<html>Internal Server Error</html>' }, '✕ Serverfout (HTTP 500)'],
+    ['een 200 met onleesbare (afgekapte) body', { status: 200, raw: '<html>Bad Gateway</html>' }, '✕ Serverfout (HTTP 200)'],
+    // Eindreview I1: een foutstatus met een JSON-body zonder `error` (bv. een Netlify-time-out) is nooit "gelukt".
+    ['een 500 met een JSON-body zonder error', { status: 500, json: { errorType: 'Sandbox.Timedout', errorMessage: 'Task timed out after 26.00 seconds' } }, ''],
+    ['een 502 met een JSON-body zonder error', { status: 502, json: { errorMessage: 'Task timed out' } }, ''],
+    ['een 200 met JSON-body null', { status: 200, raw: 'null' }, ''], // re-review N2: geen TypeError, wel de mailcontrole
+  ]) {
+    test(`${naam}: de mailcontrole beslist: niet verzonden geeft de knop vrij, geen statusverzoeken`, async ({ page, verzoeken }) => {
+      const z = await start(page, verzoeken, { paden: ['/api/send-rapport'], httpFouten: antwoord.status >= 400 ? [{ pad: '/api/send-rapport', status: antwoord.status }] : [] });
+      z.zetAntwoord('send-rapport', ({ body }) => body.preview === true ? VOORBEELD(ontvanger('contact', 'c@y.be')) : antwoord);
+      await openVoorbeeld(page);
+      await bevestig(page);
+      await laatMailControleHerhalen(page, z);
+      await expect(toastTekst(page)).toHaveText('⚠ Mail is niet verzonden — je kan veilig opnieuw versturen');
+      await expect(verstuurKnop(page)).toBeEnabled();
+      expect(z.opnames['rapport-verzonden']).toEqual([]);
+      expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
+      expect(mailCheckLijst(verzoeken)).toEqual(['GET', 'GET']);
+      void toast;
+    });
+
+    test(`${naam}: staat de mail in Zoho, dan wordt het rapport als verzonden aangevinkt`, async ({ page, verzoeken }) => {
+      const z = await start(page, verzoeken, { paden: ['/api/send-rapport', '/api/rapport-verzonden'], httpFouten: antwoord.status >= 400 ? [{ pad: '/api/send-rapport', status: antwoord.status }] : [] });
+      z.zetAntwoord('send-rapport', ({ body }) => body.preview === true ? VOORBEELD(ontvanger('contact', 'c@y.be')) : antwoord);
+      z.zetAntwoord('mail-check', MAIL_VERZONDEN);
+      await openVoorbeeld(page);
+      await bevestig(page);
+      await expect(toastTekst(page)).toHaveText('✓ Mail is verzonden om 09:01 (c@y.be)' + AANGEVINKT);
+      await expect(verstuurKnop(page)).toHaveText('✓ Verzonden');
+      expect(z.opnames['rapport-verzonden']).toEqual([{ methode: 'POST', body: { id: 'r1', doelgroep: 'contact', tijdstip: T_MAIL }, query: {} }]);
+      expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN]);
+    });
+  }
+
+  test('een 403 met onleesbare HTML-body (nooit door onze functie): de knop blijft op slot, de melding zegt wat te doen, geen controle', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/send-rapport'], httpFouten: [{ pad: '/api/send-rapport', status: 403 }] });
+    z.zetAntwoord('send-rapport', ({ body }) => body.preview === true ? VOORBEELD(ontvanger('contact', 'c@y.be')) : { status: 403, raw: '<html>Forbidden</html>' });
+    await openVoorbeeld(page);
+    await bevestig(page);
+    await expect(toastTekst(page)).toHaveText('✕ Verzoek geweigerd (HTTP 403) — kijk in Zoho na of de mail vertrokken is, of herlaad de pagina en probeer opnieuw');
     await expect(verstuurKnop(page)).toBeDisabled();
+    expect(z.opnames['rapport-verzonden']).toEqual([]);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]);
     expect(mailCheckLijst(verzoeken)).toEqual([]);
   });

@@ -472,7 +472,7 @@ test('propose: netwerkfout bij sendReply komt in fouten; PATCH gebeurt toch', as
 });
 
 // ========================================================================= PATCH ====
-test('propose: PATCH-fout geeft 500 "Zoho PATCH fout (<status>): {…}" (na de mails)', async () => {
+test('propose: PATCH-fout geeft 500 "Zoho PATCH fout (<status>): {…}" en meldt welke mails vertrokken zijn', async () => {
   const foutBody = { errorCode: 'INVALID_DATA', message: 'slecht' };
   let r = await draai(post(BODY), {
     ticket: { contact: { email: 'contact@x.be' } },
@@ -482,8 +482,12 @@ test('propose: PATCH-fout geeft 500 "Zoho PATCH fout (<status>): {…}" (na de m
     'POST https://accounts.zoho.eu/oauth/v2/token', 'GET /organizations', 'GET /tickets/555',
     'POST /uploads', 'POST /tickets/555/sendReply', 'PATCH /tickets/555',
   ]);
+  // B2: de mail is weg, enkel de ticket-update faalde: de body noemt welke mails vertrokken zijn (sleutelvolgorde vast).
   assert.deepEqual(r.res, { statusCode: 500, headers: CORS,
-    body: JSON.stringify({ error: `Zoho PATCH fout (422): ${JSON.stringify(foutBody)}` }) });
+    body: JSON.stringify({
+      error: `Zoho PATCH fout (422): ${JSON.stringify(foutBody)}`,
+      emailSent: { contact: true, klant: false, installateur: false }, fouten: [], ontvangers: ['contact'],
+    }) });
 
   r = await draai(post(BODY), { ticket: {}, patchRes: () => new Response('', { status: 500 }) });
   assert.equal(JSON.parse(r.res.body).error, 'Zoho PATCH fout (500): {}');
@@ -492,6 +496,39 @@ test('propose: PATCH-fout geeft 500 "Zoho PATCH fout (<status>): {…}" (na de m
   // lege 204 is geslaagd
   r = await draai(post(BODY), { ticket: {}, patchRes: () => new Response(null, { status: 204 }) });
   assert.equal(r.res.statusCode, 200);
+});
+
+test('propose: PATCH-fout zonder enige geslaagde mail (geen ontvangers): zelfde velden met alles false en ontvangers []', async () => {
+  const r = await draai(post(BODY), { ticket: {}, patchRes: () => json({ message: 'kapot' }, 500) });
+  assert.equal(r.res.statusCode, 500);
+  assert.deepEqual(r.res, { statusCode: 500, headers: CORS,
+    body: JSON.stringify({
+      error: `Zoho PATCH fout (500): ${JSON.stringify({ message: 'kapot' })}`,
+      emailSent: { contact: false, klant: false, installateur: false }, fouten: [], ontvangers: [],
+    }) });
+});
+
+test('propose: PATCH-fout nadat één van twee ontvangers faalde: emailSent en fouten geven beide kanten weer', async () => {
+  const r = await draai(post(BODY), {
+    ticket: { contact: { email: 'contact@x.be' }, cf: { cf_e_mail_eindklant: 'klant@x.be' } },
+    uploadRes: n => n === 1 ? json({ message: 'te groot' }, 400) : json({ id: 'ATT2' }),
+    patchRes: () => json({ message: 'kapot' }, 500),
+  });
+  assert.deepEqual(r.res, { statusCode: 500, headers: CORS,
+    body: JSON.stringify({
+      error: `Zoho PATCH fout (500): ${JSON.stringify({ message: 'kapot' })}`,
+      emailSent: { contact: false, klant: true, installateur: false },
+      fouten: [{ doelgroep: 'contact', fout: `Zoho attachment-upload fout (400): ${JSON.stringify({ message: 'te groot' })}` }],
+      ontvangers: ['contact', 'klant'],
+    }) });
+});
+
+test('propose: een netwerkfout (exception) bij de PATCH meldt ook welke mails vertrokken zijn', async () => {
+  const r = await draai(post(BODY), { ticket: { contact: { email: 'contact@x.be' } }, patchRes: () => { throw new Error('netwerk weg'); } });
+  assert.deepEqual(JSON.parse(r.res.body), {
+    error: 'netwerk weg', emailSent: { contact: true, klant: false, installateur: false }, fouten: [], ontvangers: ['contact'],
+  });
+  assert.equal(r.res.statusCode, 500);
 });
 
 // ================================================================ token, org, ticket ====

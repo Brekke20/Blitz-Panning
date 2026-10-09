@@ -43,7 +43,7 @@ Handleiding voor Brent: `docs/logins-en-beheer.md`. Ledger: `.superpowers/sdd/20
 **Uitrolnotities**
 - [ ] Een gedeelde tablet zonder eigenaarsmarker (de app draaide er al vóór de logins) geeft zijn lokale instellingen aan de EERSTE gebruiker die inlogt. Laat op zo'n toestel eerst de bedoelde gebruiker inloggen.
 - [ ] Onverzonden rapporten in de outbox blijven bij een gebruikerswissel altijd bewaard; een rapport dat met 403 geweigerd wordt (id van andermans rapport) blijft in de outbox met de melding "meld dit aan de planner" en staat als `rapport-geweigerd` in het activiteitenlog.
-- [ ] De knop "Opnieuw versturen" op de tab Systeemstatus is NIET gebouwd. Brent beslist of dat nog vóór de release komt (zie `docs/bugs-en-open-punten.md`, sectie F).
+- [ ] De knop "Opnieuw versturen" op de tab Systeemstatus is gebouwd (kleine fouten): op de testsite één mislukt rapport opnieuw versturen en nakijken dat het in Zoho aankomt en dat `rapport-opnieuw` in het activiteitenlog staat.
 
 ## 1c. Performance-dashboard (`refactor-dashboard`)
 
@@ -59,6 +59,7 @@ Bron: `.superpowers/sdd/2026-10-08-performance-dashboard/progress.md`; open punt
 ## 2. Handmatige controles die geen test kan doen
 
 - [ ] **standaardPdf** (etappe 6): een echt rapport laten genereren met echte Chromium (`rapport.js`) en de PDF openen; Chromium en het Blobs-register zijn niet testbaar.
+- [ ] Op een echt ticket (samen met de mailcontrole-test): na een afgebroken verzending van voorstel en van rapport controleren dat het voorstel/rapport automatisch als verzonden aangevinkt wordt; de foutpaden (Zoho-PATCH faalt na de mail) zijn enkel met nep-antwoorden getest.
 - [ ] **mailcontrole live** (I1/I2): een mail die laat vertrekt (bv. verbinding wegnemen vlak na het versturen): de app meldt niet vroeg "niet verzonden" maar controleert na 30 s opnieuw. Een tablet met een afwijkende klok (enkele minuten voor of achter): de brede controle (rapport, annuleren) blijft kloppen, want de server rekent met zijn eigen klok. `[functions.mail-check] timeout = 26` staat in `netlify.toml`; controleer in de Netlify-UI dat die overgenomen is.
 - [ ] **mail-check op een echt Zoho-ticket** (etappe 7, Q1): `/api/mail-check` op een ticket waarvan zeker een mail verstuurd is en een ticket zonder. Controleren: formaat van het veld `to` (ontvangers), de statuswaarden van threads, de hoofdlettergebruik van het kanaal (`direction`/`channel`) en de paginering. Het formaat van de Zoho-threads is nooit live gecontroleerd. Daarna op een testticket een time-out nabootsen en kijken of de melding "Mail is verzonden om hh:mm" of "niet verzonden" klopt.
 - [ ] **planning-sinds op een echt ticket** (eindreview I2): één live, enkel-lezen test van `/api/planning-sinds` op een echt ticket (via `netlify dev` of een eenmalige curl met `{"opzoeken":["<id>"],"actief":["<id>"]}`). Vergelijk de teruggegeven datum met de statusgeschiedenis in Zoho. De aanroep `GET /tickets/{id}/History?fieldName=status` en de vorm van het antwoord (`eventInfo[].propertyName/propertyValue.previousValue`) zijn nooit live gecontroleerd. Mislukt de opzoeking, dan staat `{ mislukt }` 6 uur in het register `planning-sinds` en volgt geen nieuwe Zoho-aanroep voor dat ticket: kijk in de Netlify-logs naar `planning-sinds:`.
