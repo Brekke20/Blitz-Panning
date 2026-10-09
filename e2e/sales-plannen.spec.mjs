@@ -375,7 +375,7 @@ test.describe('sales: Plan deze week buiten de testmodus (echte reistijden)', ()
     }, { adres: DEPOT });
     const backend = await startSalesApp(page, { instellingen, leads, blokken: [], overschrijf });
     await page.goto('/'); // zonder ?test
-    await expect(tab(page, 'Te plannen')).toBeVisible();
+    await expect(tab(page, 'Leads')).toBeVisible();
     expect(await page.evaluate(() => new URLSearchParams(location.search).has('test'))).toBe(false);
     await naarKalender(page);
     return backend;

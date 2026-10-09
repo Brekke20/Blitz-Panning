@@ -70,7 +70,7 @@ async function bouwRoute(page, { overschrijf, instellingen = INSTELLING, leads =
   }, { adres: DEPOT });
   await startSalesApp(page, { instellingen, leads, overschrijf });
   if (!testModus) await page.goto('/'); // zonder ?test
-  await expect(tab(page, 'Te plannen')).toBeVisible();
+  await expect(tab(page, 'Leads')).toBeVisible();
   expect(await page.evaluate(() => new URLSearchParams(location.search).has('test'))).toBe(testModus);
   await tab(page, 'Route').click();
   await expect(route(page)).toHaveClass(/active/);
