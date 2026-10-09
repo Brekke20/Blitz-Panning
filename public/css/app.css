@@ -1096,6 +1096,12 @@
       border-radius: 10px; letter-spacing: 0.05em; flex-shrink: 0;
     }
 
+    /* Rolwisselaar van de lokale testmodus (naast #test-badge; bestaat enkel op een lokale dev-server) */
+    .test-rol-wissel {
+      flex-shrink: 0; font: inherit; font-size: var(--fs-2xs); font-weight: 700; padding: 1px 4px;
+      border-radius: 8px; border: 1px solid var(--orange); background: var(--surface2); color: var(--text);
+    }
+
     /* ── Focus ring globaal ── */
     :focus-visible {
       outline: 2px solid var(--focus-ring);
