@@ -419,6 +419,17 @@ test.describe('tab Gebruikers: gsm', () => {
     expect(dlgBreedte).toBeLessThanOrEqual(375);
   });
 
+  test('375 px: de hele pagina is niet breder dan het scherm, op het hoofdscherm (Wachtrij) en in Beheer', async ({ page }) => {
+    await startApp(page, { viewport: { width: 375, height: 812 }, overschrijf: { gebruikers: gebruikersStub() } });
+    const breedte = () => page.evaluate(() => ({ breedte: document.documentElement.scrollWidth, venster: window.innerWidth }));
+    const hoofd = await breedte();
+    expect(hoofd.breedte).toBeLessThanOrEqual(hoofd.venster);
+    await page.getByRole('tab', { name: 'Beheer', exact: true }).click();
+    await expect(page.locator('.bg-tabel')).toBeVisible();
+    const beheer = await breedte();
+    expect(beheer.breedte).toBeLessThanOrEqual(beheer.venster);
+  });
+
   test('desktop: tabelrijen', async ({ page }) => {
     await openGebruikers(page);
     expect(await page.locator('.bg-tabel tbody tr').first().evaluate(el => getComputedStyle(el).display)).toBe('table-row');

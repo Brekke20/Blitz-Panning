@@ -32,6 +32,10 @@
       box-shadow: 0 2px 8px rgba(0,223,163,0.2);
     }
     .logo-text { font-size: 0.88rem; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+    /* Smalle kop (375 px, ook met de TEST-badge en de gebruikersknop): het logo mag krimpen i.p.v. de pagina breder te maken. */
+    .logo > div:not(.logo-icon) { min-width: 0; }
+    .logo { min-width: 0; }
+    .logo-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .hbtn {
       background: transparent;
       border: 1px solid var(--border);
