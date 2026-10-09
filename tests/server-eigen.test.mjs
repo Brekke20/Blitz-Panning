@@ -257,6 +257,23 @@ test('rapport-archief DELETE: technieker verwijdert enkel eigen rapporten', asyn
   assert.equal((await planner(() => h(del('r-roel', 6)))).status, 200);
 });
 
+test('I4: rapport-archief DELETE logt altijd rapport-verwijderd (technieker én planner, met ticketnummer); een geweigerde of onbekende verwijdering logt niets', async () => {
+  const { store, h } = opzetArchief();
+  const log = async () => Object.entries(Object.fromEntries(store._data)).filter(([k]) => k.startsWith('activiteit/')).flatMap(([, w]) => JSON.parse(w).items);
+  const del = (id, versie) => req('rapport-archief', 'DELETE', { id, versie });
+  await weigert(await tim(() => h(del('r-roel', 5))));
+  assert.equal((await tim(() => h(del('bestaat-niet', 5)))).status, 404);
+  assert.deepEqual(await log(), [], 'geweigerd of niet gevonden: niets gelogd');
+  assert.equal((await tim(() => h(del('r-tim', 5)))).status, 200);
+  assert.equal((await planner(() => h(del('r-roel', 6)))).status, 200);
+  const items = await log();
+  assert.deepEqual(items.map(i => i.actie), ['rapport-verwijderd', 'rapport-verwijderd']);
+  assert.equal(items[0].onderwerp, 'r-tim', 'het ticketnummer van het rapport staat in het onderwerp');
+  assert.match(items[0].details, /r-tim/);
+  assert.match(items[1].details, /r-roel/);
+  assert.ok(items[0].gebruikerId !== undefined && items[0].naam !== undefined);
+});
+
 // ---------------- rapport-verzonden ----------------
 test('rapport-verzonden: technieker markeert enkel eigen rapporten', async () => {
   const { store } = opzetArchief();

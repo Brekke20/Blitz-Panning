@@ -17,6 +17,7 @@ const LABELS = Object.freeze({
   'rapport-verstuurd': 'Rapport verstuurd',
   'rapport-opnieuw': 'Rapport opnieuw verstuurd',
   'rapport-geweigerd': 'Rapport geweigerd',
+  'rapport-verwijderd': 'Rapport verwijderd',
   'sales-import': 'Sales-import',
   'sales-lead-verwijderd': 'Sales-lead verwijderd',
   'sales-resultaat': 'Sales-resultaat',

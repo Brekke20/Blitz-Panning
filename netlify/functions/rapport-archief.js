@@ -14,6 +14,7 @@ import { startAchtergrondtaak } from '../lib/rapport-achtergrond.js';
 import { isGeldigId, vergeetEntry } from '../lib/rapport-inhoud.js';
 import { beveiligV2 } from '../lib/beveiligd.js';
 import { isEigenNaam, isEigenRapport, filterRapportenVoor } from '../lib/eigen.js';
+import { logVoorVerzoek } from '../lib/activiteit.js';
 
 const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
@@ -203,6 +204,13 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
       const nieuweVersie = current.versie + 1;
       await store.setJSON(BLOB_KEY, { versie: nieuweVersie, rapports: filtered });
       if (isGeldigId(id)) await vergeetEntry(store, id); // best-effort: voorkomt dat verwerkRapport het rapport terugzet
+      // Elke verwijdering is zichtbaar in het activiteitenlog (eindreview I4): ook de technieker mag zijn eigen rapport verwijderen.
+      const weg = current.rapports.filter(r => r.id === id);
+      await logVoorVerzoek(req, gebruiker, {
+        actie: 'rapport-verwijderd',
+        onderwerp: String(weg[0]?.ticketNumber || weg[0]?.ticketId || id).slice(0, 60),
+        details: { id: String(id).slice(0, 60), technieker: String(weg[0]?.technieker ?? '').slice(0, 100), klant: String(weg[0]?.klant ?? '').slice(0, 100) },
+      }, { getStore: haalStore });
       return new Response(JSON.stringify({ ok: true, versie: nieuweVersie }), { status: 200, headers: { ...hdrs, 'Content-Type': 'application/json' } });
     }
 
