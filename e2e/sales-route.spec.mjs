@@ -247,7 +247,7 @@ test.describe('sales: route buiten de testmodus', () => {
     await metDepot(page);
     await startSalesApp(page, { instellingen: DEPOT_INSTELLING, leads: LEADS(), overschrijf: { route: routeAntwoord } });
     await page.goto('/'); // zonder ?test
-    await expect(tab(page, 'Te plannen')).toBeVisible();
+    await expect(tab(page, 'Leads')).toBeVisible();
     expect(await page.evaluate(() => new URLSearchParams(location.search).has('test'))).toBe(false);
     await naarRoute(page);
     await route(page).getByRole('button', { name: 'Volgende dag' }).click();

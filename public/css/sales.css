@@ -48,7 +48,7 @@
 .sales-subpaneel { min-width: 0; }
 .sales-subpaneel[hidden] { display: none; }
 
-/* ---- Te plannen (sales-lijst.js) ---- */
+/* ---- Leads (sales-lijst.js): drie kolommen ---- */
 .sales-lijst-wortel [hidden], .sales-detail [hidden], .sales-form [hidden] { display: none !important; }
 .sales-lijst-acties { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-bottom: var(--sp-4); }
 .sales-melding {
@@ -76,6 +76,34 @@
 .sales-groep { margin-bottom: var(--sp-5); }
 .sales-groep-kop { font-size: var(--fs-md); font-weight: 700; margin-bottom: var(--sp-3); }
 .sales-kaartlijst { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-3); }
+/* Drie kolommen naast elkaar: nog in te plannen, ingepland, bevestigd. Elke kolom heeft zijn eigen kaartenlijst (één kaart breed). */
+.sales-kolommen { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-4); align-items: start; }
+.sales-kolom { min-width: 0; margin-bottom: 0; padding: var(--sp-3); background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r-lg); }
+.sales-kolom .sales-kaartlijst { grid-template-columns: minmax(0, 1fr); }
+.sales-kolom .sales-groep-kop { display: flex; align-items: baseline; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.sales-kolom-leeg { color: var(--muted); font-size: var(--fs-sm); padding: var(--sp-3) var(--sp-1); }
+.sales-kaart-acties { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.sales-chip-voorstel { background: var(--surface3); color: var(--text2); border: 1px dashed var(--accent); }
+/* De tabbalk (enkel op een smal scherm): titel en aantal van elke kolom. */
+.sales-kolomtabs { display: none; }
+@media (max-width: 759px) {
+  .sales-kolommen { display: block; }
+  .sales-kolom { display: none; }
+  .sales-kolommen[data-actief="tePlannen"] .sales-kolom[data-kolom="tePlannen"],
+  .sales-kolommen[data-actief="ingepland"] .sales-kolom[data-kolom="ingepland"],
+  .sales-kolommen[data-actief="bevestigd"] .sales-kolom[data-kolom="bevestigd"] { display: block; }
+  .sales-kolom .sales-groep-kop { display: none; } /* de tabbalk draagt titel en aantal */
+  .sales-kolomtabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: var(--sp-3); }
+  .sales-kolomtab {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; min-height: 52px; padding: 6px 4px;
+    font: inherit; font-size: var(--fs-xs); font-weight: 600; text-align: center; line-height: 1.2; cursor: pointer;
+    background: var(--surface2); color: var(--text2); border: 1px solid var(--border); border-radius: var(--r);
+  }
+  .sales-kolomtab[aria-selected="true"] { background: var(--accent-dim); color: var(--accent-ink); border-color: var(--accent); }
+  .sales-kolomtab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+  .sales-kolomtab-titel { overflow-wrap: anywhere; }
+  .sales-kolomtab-aantal { font-size: var(--fs-md); font-weight: 700; }
+}
 .sales-kaart {
   display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; padding: var(--sp-3) var(--sp-4); cursor: pointer;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);

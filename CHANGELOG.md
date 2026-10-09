@@ -18,6 +18,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ## [Refactor-tak — nog niet uitgebracht] (planner-brein, gebouwd 2026-10-01)
 
 ### Added
+- Sales: de tab "Te plannen" heet nu **Leads** en toont de leads in drie kolommen naast elkaar: Nog in te plannen (langst wachtende eerst, ook een verlopen voorstel), Ingepland (voorgesteld, op datum en uur; met een knop Bevestigen) en Bevestigd (op datum en uur). Elke kolom toont zijn aantal; op een telefoon zijn het drie tabbladen met aantal.
 - Beheer, tab Systeemstatus: een knop "Opnieuw versturen" bij elk mislukt rapport (met bevestiging). Het rapport komt dan opnieuw in de wachtrij naar Zoho; de actie staat als `rapport-opnieuw` in het activiteitenlog.
 - Inloggen met e-mailadres en wachtwoord voor vier rollen: beheerder, planner, technieker en sales. Het eerste beheerdersaccount maak je met een tijdelijke setupcode (`BEHEER_SETUP_CODE`); de beheerder krijgt daarbij tien eenmalige herstelcodes. Een sessie duurt 30 dagen; na vijf foute pogingen volgt een tijdelijke vergrendeling.
 - Beheerpagina (enkel voor de beheerder) met vier tabs: Gebruikers (aanmaken, bewerken, blokkeren, startwachtwoord opnieuw instellen, overal uitloggen), Instellingen, Activiteitenlog en Systeemstatus (Zoho-verbinding, laatste fouten en mislukte rapporten).
