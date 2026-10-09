@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { maakNepStore } from './nep-blobs.mjs';
 import { metRol, metGeenSessie } from './auth-hulp.mjs';
+import { metGlobaleFetch } from './nep-fetch.mjs';
 import { RECHTEN, rolIsToegelaten } from '../netlify/lib/rechten.js';
 import { isEigenRapport } from '../netlify/lib/eigen.js';
 import { maakInternToken, controleerInternToken, INTERN_KOP } from '../netlify/lib/intern-token.js';
@@ -233,4 +234,38 @@ test('rapport-archief POST { opnieuw }: technieker enkel op zijn eigen rapport (
   assert.equal(r.status, 403);
   assert.equal(lijst(store).find(x => x.id === ID_B).verwerking.status, 'mislukt');
   assert.equal(store._schrijfacties.length, 0);
+});
+
+// ---------------- Task 11b: beheerder verstuurt een mislukt rapport opnieuw, met een regel in het activiteitenlog ----------------
+const activiteitLog = store => [...store._data].filter(([k]) => k.startsWith('activiteit/')).flatMap(([, w]) => JSON.parse(w).items);
+
+test('rapport-archief POST { opnieuw }: de beheerder mag het (200), de achtergrondtaak start eenmalig en het log krijgt rapport-opnieuw', async () => {
+  const { store, h } = archief(begin());
+  const stuurde = [];
+  const nep = async (url, opts) => { stuurde.push({ url: String(url), id: JSON.parse(opts.body).id }); return new Response(null, { status: 202 }); };
+  const r = await metGlobaleFetch(nep, () => metRol('beheerder', () => h(req('POST', { opnieuw: ID_B }))));
+  assert.equal(r.status, 200);
+  assert.equal(lijst(store).find(x => x.id === ID_B).verwerking.status, 'wacht');
+  assert.deepEqual(stuurde.map(s => s.id), [ID_B]);
+  const log = activiteitLog(store);
+  assert.deepEqual(log.map(i => i.actie), ['rapport-opnieuw']);
+  assert.match(log[0].details, new RegExp(ID_B));
+
+  // Dubbele aanvraag: rapport staat al op 'wacht': ongewijzigd, geen tweede taak en geen tweede logregel.
+  const r2 = await metGlobaleFetch(nep, () => metRol('beheerder', () => h(req('POST', { opnieuw: ID_B }))));
+  assert.deepEqual([r2.status, (await r2.json()).ongewijzigd], [200, true]);
+  assert.equal(stuurde.length, 1);
+  assert.equal(activiteitLog(store).length, 1);
+});
+
+test('rapport-archief POST { opnieuw }: een testverzoek logt niets; een geweigerde (collega) aanvraag logt niets', async () => {
+  const { store, h } = archief(begin());
+  const nep = async () => new Response(null, { status: 202 });
+  const testReq = new Request('http://localhost/api/rapport-archief', {
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-blitz': '1', 'x-blitz-test': '1' }, body: JSON.stringify({ opnieuw: ID_A }),
+  });
+  await metGlobaleFetch(nep, () => metRol('beheerder', () => h(testReq)));
+  assert.equal(activiteitLog(store).length, 0);
+  assert.equal((await tim(() => h(req('POST', { opnieuw: ID_B })))).status, 403);
+  assert.equal(activiteitLog(store).length, 0);
 });

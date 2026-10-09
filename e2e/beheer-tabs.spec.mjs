@@ -334,7 +334,7 @@ test.describe('tab Systeemstatus', () => {
     await expect(page.getByText('Geen mislukte rapporten')).toBeVisible();
   });
 
-  test('rood bij zoho.ok:false, met foutenlijst en mislukte rapporten (alleen lezen)', async ({ page }) => {
+  test('rood bij zoho.ok:false, met foutenlijst en mislukte rapporten', async ({ page }) => {
     await openTab(page, 'Systeemstatus', { systeemstatus: () => json(200, STATUS_SLECHT()) });
     const zoho = page.locator('.bs-zoho');
     await expect(zoho).toHaveAttribute('data-status', 'fout');
@@ -350,9 +350,11 @@ test.describe('tab Systeemstatus', () => {
     await expect(rapporten.first()).toContainText('Tim');
     await expect(rapporten.first()).toContainText('Zoho weigerde de bijlage');
     await expect(rapporten.nth(1)).toContainText('1050');
-    await expect(page.getByRole('button', { name: /Opnieuw versturen/ })).toHaveCount(0);
-    await expect(page.getByText(/Opnieuw versturen/)).toHaveCount(0);
+    // Task 11b: bij elk mislukt rapport staat een knop "Opnieuw versturen" (de werking staat in de tests hieronder).
+    await expect(page.locator('.bs-rapporten').getByRole('button', { name: 'Opnieuw versturen' })).toHaveCount(2);
   });
+
+  describe_opnieuw();
 
   test('Vernieuwen haalt de status opnieuw op', async ({ page }) => {
     let n = 0;
@@ -376,3 +378,99 @@ test.describe('tab Systeemstatus', () => {
     expect(await geenPaginaScroll(page)).toEqual({ doc: true, view: true, balk: true });
   });
 });
+
+function describe_opnieuw() {
+  // POST-stub voor /api/rapport-archief: antwoordt met `antwoord` (of een functie), laat GET (de archieflijst bij het opstarten) aan de standaard.
+  const archiefStub = (antwoord) => {
+    const standaard = standaardStub('rapport-archief');
+    return (a) => (a.methode === 'POST' ? (typeof antwoord === 'function' ? antwoord(a) : antwoord) : standaard(a));
+  };
+  const opnieuwPosts = (page) => {
+    const lijst = [];
+    page.on('request', (req) => {
+      if (req.method() === 'POST' && new URL(req.url()).pathname === '/api/rapport-archief') lijst.push({ body: req.postDataJSON(), xBlitz: req.headers()['x-blitz'] });
+    });
+    return lijst;
+  };
+  const rij = (page, ticket) => page.locator('.bs-rapporten tbody tr').filter({ hasText: ticket });
+  const bevestig = (page) => page.getByRole('alertdialog', { name: 'Rapport opnieuw versturen?' });
+
+  test('Opnieuw versturen: bevestigen stuurt precies één POST { opnieuw: id } met X-Blitz, toont de toast en "opnieuw in behandeling"', async ({ page }) => {
+    const posts = opnieuwPosts(page);
+    await openTab(page, 'Systeemstatus', { systeemstatus: () => json(200, STATUS_SLECHT()), 'rapport-archief': archiefStub(json(200, { ok: true, versie: 4 })) });
+    const eerste = rij(page, '1042');
+    await eerste.getByRole('button', { name: 'Opnieuw versturen' }).click();
+    await expect(bevestig(page)).toContainText('Dit rapport opnieuw naar Zoho sturen?');
+    expect(posts).toEqual([]); // nog niets verstuurd voor de bevestiging
+    await bevestig(page).getByRole('button', { name: 'Opnieuw versturen' }).click();
+    await expect(page.getByText('Rapport staat opnieuw in de wachtrij')).toBeVisible();
+    await expect(eerste).toContainText('opnieuw in behandeling');
+    await expect(eerste.getByRole('button')).toHaveCount(0);
+    await expect(rij(page, '1050').getByRole('button', { name: 'Opnieuw versturen' })).toBeEnabled(); // het andere rapport is onaangeroerd
+    expect(posts).toEqual([{ body: { opnieuw: 'r1' }, xBlitz: '1' }]);
+  });
+
+  test('Opnieuw versturen: annuleren in de bevestiging stuurt niets en laat de knop bruikbaar', async ({ page }) => {
+    const posts = opnieuwPosts(page);
+    await openTab(page, 'Systeemstatus', { systeemstatus: () => json(200, STATUS_SLECHT()), 'rapport-archief': archiefStub(json(200, { ok: true })) });
+    const knop = rij(page, '1042').getByRole('button', { name: 'Opnieuw versturen' });
+    await knop.click();
+    await bevestig(page).getByRole('button', { name: 'Terug' }).click();
+    await expect(bevestig(page)).toHaveCount(0);
+    await expect(knop).toBeEnabled();
+    expect(posts).toEqual([]);
+  });
+
+  test('Opnieuw versturen: knop is "Bezig…" en uitgeschakeld tijdens de aanvraag; een dubbelklik stuurt nooit twee aanvragen', async ({ page }) => {
+    const posts = opnieuwPosts(page);
+    let vrijgeven;
+    const wacht = new Promise((r) => { vrijgeven = r; });
+    await openTab(page, 'Systeemstatus', { systeemstatus: () => json(200, STATUS_SLECHT()), 'rapport-archief': archiefStub(async () => { await wacht; return json(200, { ok: true }); }) });
+    const knop = rij(page, '1042').getByRole('button', { name: /Opnieuw versturen|Bezig/ });
+    await knop.click();
+    await expect(bevestig(page)).toHaveCount(1);
+    await bevestig(page).getByRole('button', { name: 'Opnieuw versturen' }).dblclick();
+    await expect(knop).toHaveText('Bezig…');
+    await expect(knop).toBeDisabled();
+    vrijgeven();
+    await expect(rij(page, '1042')).toContainText('opnieuw in behandeling');
+    expect(posts).toHaveLength(1);
+  });
+
+  test('Opnieuw versturen: 503 geeft de melding "tijdelijk niet bereikbaar" en de knop is weer bruikbaar', async ({ page, consoleFouten }) => {
+    const posts = opnieuwPosts(page);
+    await openTab(page, 'Systeemstatus', { systeemstatus: () => json(200, STATUS_SLECHT()), 'rapport-archief': archiefStub(json(503, { error: 'Rapportarchief tijdelijk niet bereikbaar, probeer opnieuw.' })) });
+    const eerste = rij(page, '1042');
+    await eerste.getByRole('button', { name: 'Opnieuw versturen' }).click();
+    await bevestig(page).getByRole('button', { name: 'Opnieuw versturen' }).click();
+    await expect(page.getByText('De opslag is tijdelijk niet bereikbaar. Probeer het zo meteen opnieuw.')).toBeVisible();
+    await expect(eerste.getByRole('button', { name: 'Opnieuw versturen' })).toBeEnabled();
+    await expect(eerste).not.toContainText('opnieuw in behandeling');
+    expect(posts).toHaveLength(1);
+    await verwachtFout(consoleFouten, '/api/rapport-archief', 503);
+  });
+
+  test('Opnieuw versturen: een 4xx toont de servermelding', async ({ page, consoleFouten }) => {
+    await openTab(page, 'Systeemstatus', { systeemstatus: () => json(200, STATUS_SLECHT()), 'rapport-archief': archiefStub(json(404, { error: 'Rapport niet gevonden' })) });
+    const eerste = rij(page, '1042');
+    await eerste.getByRole('button', { name: 'Opnieuw versturen' }).click();
+    await bevestig(page).getByRole('button', { name: 'Opnieuw versturen' }).click();
+    await expect(page.getByText('Rapport niet gevonden')).toBeVisible();
+    await expect(eerste.getByRole('button', { name: 'Opnieuw versturen' })).toBeEnabled();
+    await verwachtFout(consoleFouten, '/api/rapport-archief', 404);
+  });
+
+  test('Opnieuw versturen: na Vernieuwen leidt de lijst van de server', async ({ page }) => {
+    let n = 0;
+    await openTab(page, 'Systeemstatus', {
+      systeemstatus: () => { n++; const s = STATUS_SLECHT(); if (n > 1) s.rapporten.mislukt = s.rapporten.mislukt.filter(r => r.id !== 'r1'); return json(200, s); },
+      'rapport-archief': archiefStub(json(200, { ok: true })),
+    });
+    await rij(page, '1042').getByRole('button', { name: 'Opnieuw versturen' }).click();
+    await bevestig(page).getByRole('button', { name: 'Opnieuw versturen' }).click();
+    await expect(rij(page, '1042')).toContainText('opnieuw in behandeling');
+    await page.locator('#beheer-paneel').getByRole('button', { name: 'Vernieuwen' }).click();
+    await expect(rij(page, '1042')).toHaveCount(0);
+    await expect(page.locator('.bs-rapporten tbody tr')).toHaveCount(1);
+  });
+}
