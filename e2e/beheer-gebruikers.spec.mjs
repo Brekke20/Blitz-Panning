@@ -228,7 +228,8 @@ test.describe('tab Gebruikers: nieuwe gebruiker', () => {
     let dlg = venster(page, 'Nieuwe gebruiker');
     await dlg.getByLabel('E-mailadres').fill('pia@test.be');
     await dlg.getByLabel('Naam', { exact: true }).fill('Pia Plan');
-    await expect(dlg.getByLabel('Zoho-naam')).toBeHidden();
+    await expect(dlg.getByLabel('Zoho-naam')).toBeVisible(); // elk account behalve sales kan een Zoho-naam hebben (optioneel)
+    await expect(dlg).toContainText('Vul in als deze persoon ook interventies uitvoert.');
     await expect(dlg.getByLabel('Naam in export')).toBeHidden();
     await dlg.getByRole('button', { name: 'Aanmaken' }).click(); // planner is de standaardrol
     let geheim = venster(page, 'Gebruiker aangemaakt');
@@ -506,5 +507,74 @@ test.describe('tab Gebruikers: gsm', () => {
   test('desktop: tabelrijen', async ({ page }) => {
     await openGebruikers(page);
     expect(await page.locator('.bg-tabel tbody tr').first().evaluate(el => getComputedStyle(el).display)).toBe('table-row');
+  });
+});
+
+test.describe('tab Gebruikers: Zoho-naam op elk account', () => {
+  test('een planner met een Zoho-naam: de naam gaat mee in de POST en staat in de lijst; een leeg veld stuurt niets', async ({ page, verzoeken }) => {
+    await openGebruikers(page);
+    await page.getByRole('button', { name: 'Nieuwe gebruiker' }).click();
+    const dlg = venster(page, 'Nieuwe gebruiker');
+    await dlg.getByLabel('E-mailadres').fill('pia@test.be');
+    await dlg.getByLabel('Naam', { exact: true }).fill('Pia Plan');
+    await dlg.getByLabel('Rol', { exact: true }).selectOption('planner');
+    await expect(dlg.getByLabel('Zoho-naam')).toBeVisible();
+    await dlg.getByLabel('Zoho-naam').fill('Roel');
+    await dlg.getByRole('button', { name: 'Aanmaken' }).click();
+    await venster(page, 'Gebruiker aangemaakt').getByRole('button', { name: 'Ik heb het genoteerd' }).click();
+    expect(verzoeken.van('/api/gebruikers', 'POST')[0].body).toEqual({ actie: 'maak', email: 'pia@test.be', naam: 'Pia Plan', rol: 'planner', zohoNaam: 'Roel' });
+    await expect(rij(page, 'u-n1')).toContainText('Zoho: Roel');
+  });
+
+  test('de beheerder-rol heeft ook het veld; sales niet', async ({ page }) => {
+    await openGebruikers(page);
+    await page.getByRole('button', { name: 'Nieuwe gebruiker' }).click();
+    const dlg = venster(page, 'Nieuwe gebruiker');
+    await dlg.getByLabel('Rol', { exact: true }).selectOption('beheerder');
+    await expect(dlg.getByLabel('Zoho-naam')).toBeVisible();
+    await dlg.getByLabel('Rol', { exact: true }).selectOption('sales');
+    await expect(dlg.getByLabel('Zoho-naam')).toBeHidden();
+  });
+
+  test('een Zoho-naam die al bij een ander account hoort: melding vooraf, geen verzoek', async ({ page, verzoeken }) => {
+    await openGebruikers(page);
+    await page.getByRole('button', { name: 'Nieuwe gebruiker' }).click();
+    const dlg = venster(page, 'Nieuwe gebruiker');
+    await dlg.getByLabel('E-mailadres').fill('pia@test.be');
+    await dlg.getByLabel('Naam', { exact: true }).fill('Pia Plan');
+    await dlg.getByLabel('Zoho-naam').fill(' tim ');
+    await dlg.getByRole('button', { name: 'Aanmaken' }).click();
+    await expect(dlg.getByRole('alert')).toContainText('al gekoppeld aan Tim Techniek');
+    expect(verzoeken.van('/api/gebruikers', 'POST')).toEqual([]);
+  });
+
+  test('bewerken: een planner krijgt een Zoho-naam; leegmaken ontkoppelt hem (zohoNaam: "")', async ({ page, verzoeken }) => {
+    await openGebruikers(page);
+    await rij(page, 'u-p1').getByRole('button', { name: 'Bewerken' }).click();
+    let dlg = venster(page, 'Gebruiker bewerken');
+    await dlg.getByLabel('Zoho-naam').fill('Piet P');
+    await dlg.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(rij(page, 'u-p1')).toContainText('Zoho: Piet P');
+    await rij(page, 'u-p1').getByRole('button', { name: 'Bewerken' }).click();
+    dlg = venster(page, 'Gebruiker bewerken');
+    await dlg.getByLabel('Zoho-naam').fill('');
+    await dlg.getByRole('button', { name: 'Opslaan' }).click();
+    const patches = verzoeken.van('/api/gebruikers', 'PATCH').map(r => r.body);
+    expect(patches).toEqual([
+      { id: 'u-p1', naam: 'Piet Planner', rol: 'planner', zohoNaam: 'Piet P' },
+      { id: 'u-p1', naam: 'Piet Planner', rol: 'planner', zohoNaam: '' },
+    ]);
+    await expect(rij(page, 'u-p1')).not.toContainText('Zoho:');
+  });
+
+  test('de server weigert een dubbele Zoho-naam (409): de servertekst staat in het venster', async ({ page, consoleFouten }) => {
+    const weiger = (methode, body) => (methode === 'PATCH' ? json(409, { error: 'Deze Zoho-naam is al gekoppeld aan Tim Techniek.' }) : undefined);
+    await openGebruikers(page, { stub: { weiger } });
+    await rij(page, 'u-p1').getByRole('button', { name: 'Bewerken' }).click();
+    const dlg = venster(page, 'Gebruiker bewerken');
+    await dlg.getByLabel('Zoho-naam').fill('Nieuwe Naam');
+    await dlg.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(dlg.getByRole('alert')).toHaveText('Deze Zoho-naam is al gekoppeld aan Tim Techniek.');
+    await verwachtFout(consoleFouten, 409);
   });
 });

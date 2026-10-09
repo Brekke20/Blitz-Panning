@@ -16,6 +16,18 @@ Een planner past de instellingen van techniekers aan en elke wijziging staat in 
 
 Een technieker ziet de tickets en afspraken van collega's, maar alleen om te lezen. De knoppen Aankomst, Foto's en Rapport staan enkel bij eigen werk. Planners en beheerders zien die knoppen overal.
 
+## Een beheerder of planner die zelf interventies uitvoert (Zoho-naam)
+
+Doet iemand met een beheerders- of plannersaccount ook zelf interventies (bijvoorbeeld jij), dan vul je bij die persoon in Beheer, Gebruikers het veld **Zoho-naam** in: de naam zoals die in Zoho bij de tickets staat. Je kan dit voor elk account doen, behalve voor sales.
+
+- Zo'n account houdt al zijn eigen rechten (een planner blijft plannen, een beheerder blijft beheren) en is er **bovenop** ook technieker voor zijn eigen werk.
+- Zijn eigen naam staat altijd in de keuzelijst bovenaan (naast "Alle technici"), ook als er op dat moment geen ticket op zijn naam staat. Bij de allereerste keer inloggen op een toestel start de app op die eigen naam; wie zelf "Alle technici" koos, blijft daarop staan.
+- Bij zijn eigen tickets staan de knoppen Aankomst, Foto's en Rapport. In de tab Rapporten staat er een extra knop **Mijn rapporten**: de rapporten die hij zelf indiende of waar zijn naam op staat.
+- Faalt een van zijn eigen rapporten definitief naar Zoho, dan krijgt hij daarvan één melding, net als een technieker.
+- Eén Zoho-naam hoort bij één account. Geef je dezelfde naam aan twee accounts (ook met andere hoofdletters of spaties), dan weigert de app dat met de melding bij welk account de naam al staat. Wil je de naam toch verhuizen, ontkoppel hem dan eerst bij het andere account (veld leeggemaken).
+- Een techniekersaccount blijft altijd een Zoho-naam nodig hebben.
+- Zijn persoonlijke instellingen voor die eigen naam (startadres, werkdagen, enzovoort) blijven op het toestel zelf bewaard; ze worden niet naar de server gesynchroniseerd, zoals bij elke technieker zonder eigen account.
+
 ## Stap 1: drie instellingen in Netlify
 
 Een omgevingsvariabele is een instelling die de app uit Netlify haalt. Zo zet je ze:
@@ -55,7 +67,7 @@ Zet **BLITZ_LOKALE_DEV** nooit in Netlify. Zet ook **NETLIFY_DEV** niet. Die sta
 3. Vul je naam, je e-mailadres, een wachtwoord (minstens 10 tekens) en de setupcode in.
 4. De app toont nu **tien herstelcodes**. Dit scherm zie je maar één keer. Bewaar ze voor je verdergaat (zie "Herstelcodes bewaren").
 5. Log in en open de tab Beheer, dan Gebruikers.
-6. Maak de andere accounts aan met de knop Nieuwe gebruiker: eerst de planners, dan de techniekers, dan sales. Kies voor elke persoon de juiste rol. Bij een technieker vul je de naam in zoals die in Zoho staat. Zo weet de app welke tickets van hem zijn.
+6. Maak de andere accounts aan met de knop Nieuwe gebruiker: eerst de planners, dan de techniekers, dan sales. Kies voor elke persoon de juiste rol. Bij een technieker vul je de naam in zoals die in Zoho staat. Zo weet de app welke tickets van hem zijn. Ook een planner of beheerder die zelf interventies doet, krijgt zo'n naam (zie hierboven).
 7. De app toont bij elke nieuwe gebruiker een startwachtwoord. Dat zie je maar één keer. Geef het persoonlijk door (mondeling of op papier, niet per mail of chat). De gebruiker moet het bij de eerste keer inloggen veranderen.
 8. Verwijder BEHEER_SETUP_CODE uit Netlify.
 9. Vraag een planner en een technieker om in te loggen en te kijken of ze de juiste tabs en knoppen zien.

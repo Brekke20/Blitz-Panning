@@ -23,10 +23,21 @@ export function sorteerGebruikers(lijst) {
     .map(x => x.g);
 }
 
-// `rol` mag ook in `invoer.rol` staan. Een `email`-sleutel in `invoer` wordt gevalideerd en teruggegeven (nieuwe
+const normaliseerNaam = (n) => tekst(n).trim().toLowerCase().replace(/\s+/g, ' ');
+
+// Het account (uit de lijst van de server) dat deze Zoho-naam al gebruikt, genormaliseerd; `behalveId` telt niet mee. Spiegelt
+// zohoNaamBezet in netlify/lib/gebruikers.js (de server weigert een dubbele naam met 409).
+export function zohoNaamBezetDoor(gebruikers, zohoNaam, behalveId) {
+  const gezocht = normaliseerNaam(zohoNaam);
+  if (gezocht === '' || !Array.isArray(gebruikers)) return null;
+  return gebruikers.find(g => g && g.id !== behalveId && normaliseerNaam(g.zohoNaam) === gezocht) ?? null;
+}
+
+// `rol` mag ook in `invoer.rol` staan. `opties.gebruikers` (de lijst van de server) en `opties.id` (het account dat bewerkt wordt)
+// laten de dubbele Zoho-naam vooraf melden. Een `email`-sleutel in `invoer` wordt gevalideerd en teruggegeven (nieuwe
 // gebruiker); zonder die sleutel (bewerken: het e-mailadres is niet wijzigbaar) blijft het e-mailadres buiten beeld.
 // -> { fout } | { waarden }
-export function valideerGebruikerFormulier(invoer, rol) {
+export function valideerGebruikerFormulier(invoer, rol, opties = {}) {
   if (!invoer || typeof invoer !== 'object') return { fout: 'Ongeldige invoer.' };
   const gekozen = rol ?? invoer.rol;
   const waarden = {};
@@ -41,10 +52,14 @@ export function valideerGebruikerFormulier(invoer, rol) {
   if (!ROLLEN.includes(gekozen)) return { fout: 'Kies een rol.' };
   waarden.naam = naam;
   waarden.rol = gekozen;
-  if (gekozen === 'technieker') {
+  // Zoho-naam: verplicht voor een technieker, optioneel voor beheerder en planner (voert zelf interventies uit), nooit voor sales.
+  if (gekozen !== 'sales') {
     const zohoNaam = tekst(invoer.zohoNaam).trim();
-    if (!zohoNaam) return { fout: 'Een technieker heeft een Zoho-naam nodig.' };
-    waarden.zohoNaam = zohoNaam;
+    if (!zohoNaam && gekozen === 'technieker') return { fout: 'Een technieker heeft een Zoho-naam nodig.' };
+    if (zohoNaam.length > MAX_NAAM) return { fout: `De Zoho-naam mag maximaal ${MAX_NAAM} tekens bevatten.` };
+    const bezet = zohoNaamBezetDoor(opties.gebruikers, zohoNaam, opties.id);
+    if (bezet) return { fout: `Deze Zoho-naam is al gekoppeld aan ${bezet.naam}. Kies een andere naam of ontkoppel eerst dat account.` };
+    if (zohoNaam) waarden.zohoNaam = zohoNaam;
   }
   if (gekozen === 'sales') {
     const salesNaam = tekst(invoer.salesNaam).trim();

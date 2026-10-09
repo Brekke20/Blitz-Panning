@@ -111,13 +111,20 @@ function toonGebruikerFormulier({ gebruiker = null, lijst, naSucces }) {
   alleSales.checked = gebruiker?.magAlleSales === true;
   if (laatsteBeheerder) rol.disabled = true;
 
-  const groepTechnieker = h('div', { class: 'bg-groep' }, veld('Zoho-naam', zoho), zohoOpties);
+  // Zoho-naam: elk account behalve sales kan er een hebben (verplicht voor een technieker); een account met een Zoho-naam voert ook zelf
+  // interventies uit, bovenop zijn eigen rechten.
+  const zohoHulp = h('p', { class: 'bg-uitleg bg-hulp', id: 'bg-zoho-hulp' });
+  zoho.setAttribute('aria-describedby', 'bg-zoho-hulp');
+  const groepTechnieker = h('div', { class: 'bg-groep' }, veld('Zoho-naam', zoho), zohoHulp, zohoOpties);
   const groepSales = h('div', { class: 'bg-groep' },
     veld('Naam in export', salesNaam),
     h('label', { class: 'bg-vink', for: 'bg-alle-sales' }, alleSales, h('span', { text: 'Mag alle sales zien' })));
   const toonRolVelden = () => {
-    groepTechnieker.hidden = rol.value !== 'technieker';
+    groepTechnieker.hidden = rol.value === 'sales';
     groepSales.hidden = rol.value !== 'sales';
+    zohoHulp.textContent = rol.value === 'technieker'
+      ? 'De naam zoals die in Zoho staat bij de tickets van deze technieker.'
+      : 'Vul in als deze persoon ook interventies uitvoert.';
   };
   rol.addEventListener('change', toonRolVelden);
   toonRolVelden();
@@ -143,8 +150,10 @@ function toonGebruikerFormulier({ gebruiker = null, lijst, naSucces }) {
       naam: naam.value, zohoNaam: zoho.value, salesNaam: salesNaam.value, magAlleSales: alleSales.checked,
       ...(nieuw ? { email: email.value } : {}),
     };
-    const v = valideerGebruikerFormulier(invoer, rol.value);
+    const v = valideerGebruikerFormulier(invoer, rol.value, { gebruikers: lijst, id: gebruiker?.id });
     if (v.fout) { fout.textContent = v.fout; return; }
+    // Een leeg veld bij het bewerken ontkoppelt de Zoho-naam (zonder dit veld laat de server de oude staan).
+    if (!nieuw && rol.value !== 'sales' && v.waarden.zohoNaam === undefined && gebruiker.zohoNaam) v.waarden.zohoNaam = '';
     bezig = true;
     verstuur.disabled = true; annuleer.disabled = true;
     const r = nieuw ? await roep('POST', { actie: 'maak', ...v.waarden }) : await roep('PATCH', { id: gebruiker.id, ...v.waarden });

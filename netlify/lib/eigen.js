@@ -5,7 +5,8 @@ import { isDeepStrictEqual } from 'node:util';
 import { normaliseerNaam } from './gebruikers.js';
 
 // true als `naam` bij deze gebruiker hoort: technieker met zohoNaam (genormaliseerd gelijk, niet leeg);
-// planner en beheerder altijd; alle anderen (sales, geen gebruiker) nooit.
+// planner en beheerder altijd (ook met een eigen zohoNaam: een account met een Zoho-naam is bovenop zijn rechten technieker voor zijn
+// eigen werk, en een coördinator is nergens beperkt); alle anderen (sales, geen gebruiker) nooit.
 export function isEigenNaam(gebruiker, naam) {
   const rol = gebruiker?.rol;
   if (rol === 'planner' || rol === 'beheerder') return true;

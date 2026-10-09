@@ -2,7 +2,7 @@
 //   GET                    beheerder -> { gebruikers: BeheerGebruiker[] } (met laatsteLogin uit blob `login-laatst`)
 //   GET ?rol=sales         beheerder, of sales met magAlleSales -> { gebruikers: PubliekeGebruiker[] } (actieve verkopers)
 //   GET ?rol=sales&geblokkeerd=1   enkel beheerder: ook de geblokkeerde verkopers (met `actief`), om hun leads te kunnen inzien
-//   POST { actie:'maak', email, naam, rol, zohoNaam?, salesNaam?, magAlleSales?, startWachtwoord? }
+//   POST { actie:'maak', email, naam, rol, zohoNaam? (elke rol behalve sales, uniek over alle accounts: 409), salesNaam?, magAlleSales?, startWachtwoord? }
 //        -> 201 { gebruiker, startWachtwoord, herstelcodes? } (herstelcodes enkel bij rol beheerder, enkel nu getoond)
 //   POST { actie:'reset-wachtwoord', id, startWachtwoord? } -> 200 { startWachtwoord } (verplichte wijziging, uitgelogd)
 //   POST { actie:'uitloggen-overal', id } -> 200 { ok:true }
@@ -21,7 +21,7 @@ import {
 } from '../lib/wachtwoord.js';
 import {
   valideerNieuweGebruiker, leesGebruikers, wijzigGebruikers, leesLaatsteLogins, publiek, beheerWeergave,
-  kanWijzigen, pasWijzigingToe, nieuwId, normaliseerEmail,
+  kanWijzigen, pasWijzigingToe, nieuwId, normaliseerEmail, normaliseerNaam, zohoNaamBezet,
 } from '../lib/gebruikers.js';
 import { maakHerstelcodes, serieelGebruikers } from '../lib/herstel.js';
 import { reserveerPoging, wisPoging } from '../lib/login-poging.js';
@@ -34,6 +34,8 @@ const CORS = Object.freeze(maakCors({
 const VERGRENDELD_TEKST = 'Te veel mislukte pogingen. Probeer het later opnieuw.';
 const GEEN_RECHT = { error: 'Je hebt hier geen toegang toe.', code: 'geen-recht' };
 const NIET_GEVONDEN = { error: 'Gebruiker niet gevonden.' };
+
+const zohoNaamBezetTekst = g => `Deze Zoho-naam is al gekoppeld aan ${g.naam}. Kies een andere naam of ontkoppel eerst dat account.`;
 
 const json = (status, obj) => new Response(JSON.stringify(obj), {
   status, headers: { ...CORS, 'Cache-Control': 'no-store' },
@@ -91,14 +93,19 @@ export function maakHandler({ getStore: haalStore, nu = () => Date.now(), auth }
     if (herstel) nieuw.herstelcodes = herstel.hashes;
 
     let dubbel = false;
+    let naamBezet = null;
     const r = await bewaar(store, lijst => {
+      naamBezet = null;
       // Herhaling na een mislukte terugleescontrole: staat onze eigen gebruiker (zelfde id) er al, dan is hij bewaard
       // en is dit geen duplicaat; niets meer schrijven (het eenmalige startwachtwoord/de codes blijven geldig).
       if (lijst.some(g => g && g.id === nieuw.id)) { dubbel = false; return null; }
       dubbel = lijst.some(g => g && normaliseerEmail(g.email) === nieuw.email);
-      return dubbel ? null : [...lijst, nieuw];
+      if (dubbel) return null;
+      naamBezet = zohoNaamBezet(lijst, nieuw.zohoNaam, nieuw.id);
+      return naamBezet ? null : [...lijst, nieuw];
     });
     if (dubbel) return json(409, { error: 'Er bestaat al een gebruiker met dit e-mailadres.' });
+    if (naamBezet) return json(409, { error: zohoNaamBezetTekst(naamBezet) });
     if (!r || !r.gebruikers.some(g => g && g.id === nieuw.id)) return json(503, OPSLAG_STORING);
 
     await logActiviteit(store, { gebruiker: beheerder, actie: 'gebruiker-aangemaakt', onderwerp: nieuw.id, details: `rol ${nieuw.rol}` }, { nu });
@@ -234,6 +241,11 @@ export function maakHandler({ getStore: haalStore, nu = () => Date.now(), auth }
       }
       const toegestaan = kanWijzigen(lijst, body.id, { actief: w.nieuw.actief, rol: w.nieuw.rol });
       if (!toegestaan.ok) { weigering = json(409, { error: toegestaan.fout }); return null; }
+      // Enkel bij een echte wijziging van de naam: een dubbele naam van vroeger blokkeert andere wijzigingen niet.
+      if (normaliseerNaam(lijst[i].zohoNaam) !== normaliseerNaam(w.nieuw.zohoNaam)) {
+        const bezet = zohoNaamBezet(lijst, w.nieuw.zohoNaam, body.id);
+        if (bezet) { weigering = json(409, { error: zohoNaamBezetTekst(bezet) }); return null; }
+      }
       if (w.promotie) {
         if (!herstel) { weigering = json(409, { error: 'De rol van deze gebruiker is intussen gewijzigd. Probeer opnieuw.' }); return null; }
         w.nieuw.herstelcodes = herstel.hashes;

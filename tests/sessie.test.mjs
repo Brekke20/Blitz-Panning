@@ -326,3 +326,29 @@ test('snel auth-ik met cache: geen korte-limietpad (startteUitCache false)', asy
   await m.laadSessie();
   assert.equal(m.startteUitCache(), false);
 });
+
+test('eigenZohoNaam: elk account behalve sales kan er een hebben; getrimd, anders leeg', async () => {
+  for (const [rol, zohoNaam, verwacht] of [['technieker', ' Tim ', 'Tim'], ['beheerder', 'Brent C', 'Brent C'], ['planner', 'Pia', 'Pia'],
+    ['planner', undefined, ''], ['planner', '  ', ''], ['sales', 'Tim', '']]) {
+    const { m } = await nieuweSessie({ antwoorden: [ok({ id: 'u9', email: 'x@x.be', naam: 'X', rol, zohoNaam })] });
+    await m.laadSessie();
+    assert.equal(m.eigenZohoNaam(), verwacht, `${rol} ${zohoNaam}`);
+  }
+  const { m: leeg } = await nieuweSessie();
+  assert.equal(leeg.eigenZohoNaam(), '');
+});
+
+test('isEigenRapport: ingediend door mij of mijn Zoho-naam erop (genormaliseerd); anders niet', async () => {
+  const brent = { id: 'u-brent', email: 'b@x.be', naam: 'Brent', rol: 'beheerder', zohoNaam: 'Brent  Calaerts' };
+  const { m } = await nieuweSessie({ antwoorden: [ok(brent)] });
+  assert.equal(m.isEigenRapport({ ingediendDoor: 'u1' }), false);
+  await m.laadSessie();
+  assert.equal(m.isEigenRapport({ technieker: 'brent calaerts' }), true);
+  assert.equal(m.isEigenRapport({ technieker: 'Tim', ingediendDoor: 'u-brent' }), true);
+  assert.equal(m.isEigenRapport({ technieker: 'Tim', ingediendDoor: 'u-tim' }), false);
+  assert.equal(m.isEigenRapport({}), false);
+  assert.equal(m.isEigenRapport(null), false);
+  const { m: zonder } = await nieuweSessie({ antwoorden: [ok(planner)] });
+  await zonder.laadSessie();
+  assert.equal(zonder.isEigenRapport({ technieker: '' }), false); // geen Zoho-naam: een leeg veld is nooit "van mij"
+});

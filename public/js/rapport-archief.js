@@ -5,6 +5,7 @@ import { foutTekst } from './kern/api.js';
 import { TEST_MODE } from './kern/omgeving.js';
 import { registreerActies, metBehoudScroll } from './kern/ui.js';
 import { sjLog } from './kern/verklikker.js';
+import { isEigenRapport } from './kern/sessie.js';
 import { renderKalender } from './schermen/kalender.js';
 import { voorbeeldRapport } from './schermen/rapport-verzenden.js';
 import { fmtDate } from './kern/tijd.js';
@@ -22,7 +23,7 @@ export function zetArchiefVersie(v) { _archiefVersie = v; }
 
 // _rapportFilter is enkel intern gebruikt door setRapportFilter/renderRapportArchief hieronder —
 // geen andere plek in de app leest of schrijft dit, dus geen window-bridge nodig.
-let _rapportFilter = 'alle'; // 'alle' | 'Interventie' | 'Installatie'
+let _rapportFilter = 'alle'; // 'alle' | 'Interventie' | 'Installatie' | 'mijn'
 
 export async function laadRapportArchief() {
   const body = document.getElementById('rapp-archief-body');
@@ -61,11 +62,16 @@ export function renderRapportArchief() {
     body.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:20px 0">Nog geen rapporten gearchiveerd.</div>';
     return;
   }
+  // 'mijn' (enkel voor een beheerder/planner met een Zoho-naam): de rapporten die ik zelf indiende of waar mijn naam op staat.
   const gefilterd = _rapportFilter === 'alle'
     ? _rapportArchief
-    : _rapportArchief.filter(r => (r.interventieType || 'Interventie') === _rapportFilter);
+    : _rapportFilter === 'mijn'
+      ? _rapportArchief.filter(isEigenRapport)
+      : _rapportArchief.filter(r => (r.interventieType || 'Interventie') === _rapportFilter);
   if (!gefilterd.length) {
-    body.innerHTML = `<div style="color:var(--muted);font-size:0.82rem;padding:20px 0">Geen rapporten van het type "${escHtml(_rapportFilter)}" gevonden.</div>`;
+    body.innerHTML = _rapportFilter === 'mijn'
+      ? '<div style="color:var(--muted);font-size:0.82rem;padding:20px 0">Je hebt nog geen eigen rapporten.</div>'
+      : `<div style="color:var(--muted);font-size:0.82rem;padding:20px 0">Geen rapporten van het type "${escHtml(_rapportFilter)}" gevonden.</div>`;
     return;
   }
   body.innerHTML = gefilterd.map((r, i) => {

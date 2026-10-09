@@ -5,7 +5,7 @@ import { maakNepStore } from './nep-blobs.mjs';
 import { wijzigBlob } from '../netlify/lib/blob-wijzig.js';
 import {
   ROLLEN_LIJST, leesGebruikers, publiek, beheerWeergave, normaliseerEmail, normaliseerNaam,
-  valideerNieuweGebruiker, kanWijzigen, wijzigGebruikers, nieuwId, leesLaatsteLogins, schrijfLaatsteLogin,
+  valideerNieuweGebruiker, pasWijzigingToe, zohoNaamBezet, kanWijzigen, wijzigGebruikers, nieuwId, leesLaatsteLogins, schrijfLaatsteLogin,
 } from '../netlify/lib/gebruikers.js';
 
 const basis = { email: 'Tim@Blitz.be', naam: ' Tim Janssens ', rol: 'planner' };
@@ -147,4 +147,44 @@ test('schrijfLaatsteLogin: twee gelijktijdige schrijfacties voor verschillende g
 
 test('leesLaatsteLogins: {} zonder blob', async () => {
   assert.deepEqual(await leesLaatsteLogins(maakNepStore()), {});
+});
+
+// ---- Zoho-naam op elk account (beheerder, planner, technieker; nooit sales) ----
+test('valideerNieuweGebruiker: beheerder en planner mogen een zohoNaam hebben (optioneel); sales nooit', () => {
+  for (const rol of ['beheerder', 'planner']) {
+    assert.deepEqual(valideerNieuweGebruiker({ ...basis, rol, zohoNaam: ' Brent C ' }).waarden, { email: 'tim@blitz.be', naam: 'Tim Janssens', rol, zohoNaam: 'Brent C' });
+    assert.equal(valideerNieuweGebruiker({ ...basis, rol, zohoNaam: '   ' }).waarden.zohoNaam, undefined);
+    assert.equal(valideerNieuweGebruiker({ ...basis, rol }).fout, undefined);
+  }
+  const s = valideerNieuweGebruiker({ ...basis, rol: 'sales', salesNaam: 'W', zohoNaam: 'Tim' });
+  assert.equal(s.waarden.zohoNaam, undefined);
+  assert.ok(valideerNieuweGebruiker({ ...basis, rol: 'planner', zohoNaam: 'x'.repeat(101) }).fout);
+});
+
+test('pasWijzigingToe: een planner houdt zijn zohoNaam; een zohoNaam toevoegen, wijzigen of wissen staat in gewijzigd; sales verliest hem', () => {
+  const planner = { id: 'u-p', email: 'p@b.be', naam: 'Pia', rol: 'planner', actief: true, sessieVersie: 1 };
+  const metNaam = pasWijzigingToe(planner, { zohoNaam: 'Pia Z' });
+  assert.equal(metNaam.nieuw.zohoNaam, 'Pia Z');
+  assert.deepEqual(metNaam.gewijzigd, ['zohoNaam']);
+  assert.equal(metNaam.nieuw.sessieVersie, 1);
+  assert.deepEqual(pasWijzigingToe(metNaam.nieuw, { naam: 'Pia 2' }).nieuw.zohoNaam, 'Pia Z');
+  const gewist = pasWijzigingToe(metNaam.nieuw, { zohoNaam: '' });
+  assert.equal(gewist.nieuw.zohoNaam, undefined);
+  assert.deepEqual(gewist.gewijzigd, ['zohoNaam']);
+  const naarSales = pasWijzigingToe(metNaam.nieuw, { rol: 'sales', salesNaam: 'S' });
+  assert.equal(naarSales.nieuw.zohoNaam, undefined);
+});
+
+test('zohoNaamBezet: genormaliseerd (hoofdletters, spaties), behalve het eigen account', () => {
+  const lijst = [
+    { id: 'a', naam: 'A', rol: 'technieker', zohoNaam: 'Tim  Van Dijk' },
+    { id: 'b', naam: 'B', rol: 'planner' },
+    { id: 'c', naam: 'C', rol: 'beheerder', zohoNaam: 'Brent' },
+  ];
+  assert.equal(zohoNaamBezet(lijst, ' tim van dijk', 'x')?.id, 'a');
+  assert.equal(zohoNaamBezet(lijst, 'Brent', 'x')?.id, 'c');
+  assert.equal(zohoNaamBezet(lijst, 'Brent', 'c'), null);
+  assert.equal(zohoNaamBezet(lijst, 'Nieuw', 'x'), null);
+  assert.equal(zohoNaamBezet(lijst, '', 'x'), null);
+  assert.equal(zohoNaamBezet(undefined, 'Tim', 'x'), null);
 });

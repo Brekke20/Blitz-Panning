@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  sorteerGebruikers, valideerGebruikerFormulier, zohoNaamOpties, rolLabel, kanBlokkeren, formatLaatsteLogin,
+  sorteerGebruikers, valideerGebruikerFormulier, zohoNaamOpties, zohoNaamBezetDoor, rolLabel, kanBlokkeren, formatLaatsteLogin,
 } from '../public/js/schermen/beheer-gebruikers-logica.js';
 
 const g = (id, naam, rol, actief = true) => ({ id, naam, rol, actief, email: `${id}@test.be` });
@@ -32,9 +32,13 @@ test('valideerGebruikerFormulier: sales zonder salesNaam geeft een fout; magAlle
   assert.equal(uit.waarden.magAlleSales, false);
 });
 
-test('valideerGebruikerFormulier: planner en beheerder hebben geen rolvelden nodig en krijgen er ook geen', () => {
+test('valideerGebruikerFormulier: planner en beheerder hebben geen rolvelden nodig; een zohoNaam is voor hen optioneel, sales-velden krijgen ze niet', () => {
   const r = valideerGebruikerFormulier({ rol: 'planner', naam: 'Pia', email: 'pia@test.be', zohoNaam: 'Tim', salesNaam: 'x', magAlleSales: true });
-  assert.deepEqual(r, { waarden: { email: 'pia@test.be', naam: 'Pia', rol: 'planner' } });
+  assert.deepEqual(r, { waarden: { email: 'pia@test.be', naam: 'Pia', rol: 'planner', zohoNaam: 'Tim' } });
+  const zonder = valideerGebruikerFormulier({ rol: 'planner', naam: 'Pia', email: 'pia@test.be', zohoNaam: '  ' });
+  assert.deepEqual(zonder, { waarden: { email: 'pia@test.be', naam: 'Pia', rol: 'planner' } });
+  assert.ok(valideerGebruikerFormulier({ rol: 'beheerder', naam: 'Bea', zohoNaam: 'x'.repeat(101) }).fout);
+  assert.equal(valideerGebruikerFormulier({ rol: 'sales', naam: 'Eva', salesNaam: 'E', zohoNaam: 'Tim' }).waarden.zohoNaam, undefined);
   assert.deepEqual(valideerGebruikerFormulier({ naam: 'Bea', email: 'bea@test.be' }, 'beheerder'), { waarden: { email: 'bea@test.be', naam: 'Bea', rol: 'beheerder' } });
 });
 
@@ -86,4 +90,16 @@ test('formatLaatsteLogin: "Nooit" zonder (geldige) datum, anders datum en uur in
   const tekst = formatLaatsteLogin('2026-10-05T07:30:00.000Z'); // 09:30 in Brussel
   assert.match(tekst, /05/);
   assert.match(tekst, /09[:.]30/);
+});
+
+test('zohoNaamBezetDoor en de melding vooraf bij een dubbele Zoho-naam (behalve het account zelf)', () => {
+  const lijst = [{ id: 'a', naam: 'Tim J', zohoNaam: 'Tim  Janssens' }, { id: 'b', naam: 'Pia' }];
+  assert.equal(zohoNaamBezetDoor(lijst, ' tim janssens', 'b')?.id, 'a');
+  assert.equal(zohoNaamBezetDoor(lijst, 'Tim Janssens', 'a'), null);
+  assert.equal(zohoNaamBezetDoor(lijst, '', 'b'), null);
+  assert.equal(zohoNaamBezetDoor(null, 'Tim', 'b'), null);
+  const fout = valideerGebruikerFormulier({ naam: 'Pia', zohoNaam: 'tim janssens' }, 'planner', { gebruikers: lijst, id: 'b' }).fout;
+  assert.match(fout, /Tim J/);
+  assert.deepEqual(valideerGebruikerFormulier({ naam: 'Tim J', zohoNaam: 'Tim Janssens' }, 'technieker', { gebruikers: lijst, id: 'a' }).waarden,
+    { naam: 'Tim J', rol: 'technieker', zohoNaam: 'Tim Janssens' });
 });

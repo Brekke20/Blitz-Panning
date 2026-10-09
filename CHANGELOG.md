@@ -18,6 +18,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ## [Refactor-tak — nog niet uitgebracht] (planner-brein, gebouwd 2026-10-01)
 
 ### Added
+- Elk account behalve sales kan een **Zoho-naam** krijgen (Beheer, Gebruikers). Een beheerder of planner met een Zoho-naam is bovenop zijn eigen rechten ook technieker voor zijn eigen werk: hij start op zijn eigen naam in de persoonskiezer, staat altijd in de lijst (ook zonder tickets), krijgt de melding bij een mislukt eigen rapport en een filter "Mijn rapporten". Een Zoho-naam hoort bij één account: een dubbele naam wordt geweigerd (409, ook zonder verschil in hoofdletters of spaties). Bij een rolwijziging blijft de naam staan (enkel sales verliest hem).
 - Beheer, tab Systeemstatus: een knop "Opnieuw versturen" bij elk mislukt rapport (met bevestiging). Het rapport komt dan opnieuw in de wachtrij naar Zoho; de actie staat als `rapport-opnieuw` in het activiteitenlog.
 - Inloggen met e-mailadres en wachtwoord voor vier rollen: beheerder, planner, technieker en sales. Het eerste beheerdersaccount maak je met een tijdelijke setupcode (`BEHEER_SETUP_CODE`); de beheerder krijgt daarbij tien eenmalige herstelcodes. Een sessie duurt 30 dagen; na vijf foute pogingen volgt een tijdelijke vergrendeling.
 - Beheerpagina (enkel voor de beheerder) met vier tabs: Gebruikers (aanmaken, bewerken, blokkeren, startwachtwoord opnieuw instellen, overal uitloggen), Instellingen, Activiteitenlog en Systeemstatus (Zoho-verbinding, laatste fouten en mislukte rapporten).
@@ -101,6 +102,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Niets aan de GET van de rapportenlijst (`/api/rapport-archief`): zelfde antwoord en dezelfde lijst van 500; het dashboard leest de lijst en de jaar-archieven rechtstreeks uit de opslag.
 
 ### Fixed
+- De persoonskiezer in de kop ("Kies technieker") toont "Alle technici" nu altijd aan wie mag plannen (beheerder, planner), ook op een gsm of tablet met de toestelrol "technieker" (de rol van het account beslist, niet het toestel). Het gebruikersmenu (account, uitloggen) blijft een aparte knop; beide knoppen hebben een duidelijk label.
 - Tijdvelden en datumvelden openen op Android de klok/kalender bij een tik op het veld zelf, niet enkel op het klokje.
 - Voorstel: de registratie dat een voorstelmail verstuurd is (het vinkje en het slotje in de planning) gaat niet meer verloren als twee mensen tegelijk werken. De app leest de nieuwste stand in en probeert opnieuw, en meldt het duidelijk als bewaren toch niet lukt ("NIET opnieuw versturen, herlaad eerst de pagina").
 - Voorstel: is de mail al vertrokken maar kon Zoho het ticket daarna niet bijwerken (status en datum), dan krijgt de planner een duidelijke waarschuwing met wie de mail kreeg (en wie niet) en de opdracht om status en datum in Zoho zelf recht te zetten. Er komt bewust geen knop "ticket alsnog bijwerken" (besluit klant). De server meldt daarvoor welke mails vertrokken zijn.

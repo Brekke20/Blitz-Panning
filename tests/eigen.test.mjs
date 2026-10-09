@@ -1,7 +1,7 @@
 // tests/eigen.test.mjs — pure "eigen"-regels voor de technieker (netlify/lib/eigen.js)
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { isEigenNaam, eigenWijzigingen, filterRapportenVoor } from '../netlify/lib/eigen.js';
+import { isEigenNaam, isEigenRapport, eigenWijzigingen, filterRapportenVoor } from '../netlify/lib/eigen.js';
 
 const tim = { id: 'u-tim', rol: 'technieker', zohoNaam: 'Tim' };
 const planner = { id: 'u-p', rol: 'planner' };
@@ -120,4 +120,15 @@ test('filterRapportenVoor: technieker ziet enkel eigen, anderen alles', () => {
   assert.equal(filterRapportenVoor(planner, r).length, 4);
   assert.equal(filterRapportenVoor(beheerder, r).length, 4);
   assert.deepEqual(filterRapportenVoor({ rol: 'technieker' }, r), []);
+});
+
+test('een beheerder of planner met een zohoNaam: alles blijft eigen (geen beperking), ook de rapporten onder zijn naam', () => {
+  for (const rol of ['beheerder', 'planner']) {
+    const g = { id: 'u-b', rol, zohoNaam: 'Brent' };
+    assert.equal(isEigenNaam(g, 'Brent'), true);
+    assert.equal(isEigenNaam(g, 'Tim'), true);
+    assert.equal(isEigenRapport(g, { technieker: 'Brent' }), true);
+    assert.equal(isEigenRapport(g, { technieker: 'Tim', ingediendDoor: 'u-tim' }), true);
+    assert.equal(filterRapportenVoor(g, [{ technieker: 'Tim' }, { technieker: 'Brent' }]).length, 2);
+  }
 });

@@ -6,7 +6,7 @@ import './inloggen.js';                       // registreert de loginschermen bi
 import { toonGebruikersmenu } from './gebruikersmenu.js';
 import { toonRolwisselaar } from './rolwisselaar.js';  // testmodus op een lokale dev-server: kies de rol (logins T19)
 import { registreerTabs, tabsVoorRol, registreerStart, startVoorRol, zetActieveRol } from '../kern/navigatie.js';
-import { laadSessie, huidigeGebruiker, registreerAfmeldHaak, laatsteOpstartNetwerkMs } from '../kern/sessie.js';
+import { laadSessie, huidigeGebruiker, registreerAfmeldHaak, laatsteOpstartNetwerkMs, eigenZohoNaam } from '../kern/sessie.js';
 import { claimToestel, geefToestelVrij } from '../kern/eigenaar.js';
 import { synchroniseerInstellingen, wisInstellingenCache, resterendSyncBudget } from '../kern/instellingen-sync.js';
 import { toast } from '../kern/ui.js';
@@ -83,6 +83,10 @@ export function pasRolToe(gebruiker) {
 
   // Een technieker ziet Rapporten (enkel zijn eigen: de server filtert) op elk toestel; de rest van .coord-only blijft verborgen.
   document.getElementById('tab-rapporten')?.classList.toggle('coord-only', rol !== 'technieker');
+
+  // "Mijn rapporten" (Rapporten-tab): voor wie alles ziet (beheerder, planner) en zelf interventies uitvoert; een technieker ziet enkel zijn eigen.
+  const mijnRapporten = document.getElementById('rapp-filter-mijn');
+  if (mijnRapporten) mijnRapporten.style.display = rol !== 'technieker' && rol !== 'sales' && eigenZohoNaam() ? '' : 'none';
 
   // Een technieker start op zijn eigen planning, tenzij hij al een bepaalde persoon gekozen had. Een beheerder of planner met een
   // Zoho-naam (voert zelf interventies uit) start op zichzelf zolang er op dit toestel nog niets gekozen is; een bewuste keuze,

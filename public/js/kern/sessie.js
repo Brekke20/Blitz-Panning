@@ -56,6 +56,20 @@ export function magSchrijvenVoor(zohoNaam) {
   const eigen = normaal(gebruiker.zohoNaam);
   return eigen !== '' && eigen === normaal(zohoNaam);
 }
+// De Zoho-naam van het ingelogde account ('' als er geen is). Elk account behalve sales kan er een hebben: wie er een heeft voert
+// ook zelf interventies uit (technieker voor het eigen werk), bovenop de rechten van zijn rol.
+export function eigenZohoNaam() {
+  if (!gebruiker || gebruiker.rol === 'sales' || typeof gebruiker.zohoNaam !== 'string') return '';
+  return gebruiker.zohoNaam.trim();
+}
+// Een rapport is "van mij" als ik het zelf indiende (ingediendDoor = mijn id) of mijn Zoho-naam erop staat (oudere rapporten).
+// Spiegelt netlify/lib/eigen.js (isEigenRapport) voor het eigen werk; de server filtert voor een technieker zelf.
+export function isEigenRapport(rapport) {
+  if (!gebruiker || !rapport) return false;
+  if (typeof gebruiker.id === 'string' && gebruiker.id !== '' && rapport.ingediendDoor === gebruiker.id) return true;
+  const eigen = normaal(eigenZohoNaam());
+  return eigen !== '' && eigen === normaal(rapport.technieker);
+}
 export function isLokaleDev() { return lokaleDev === true; }
 
 // Enkel in testmodus (?test): de rol die de lokale dev-server als testgebruiker gebruikt. Zodra het laatste auth-ik

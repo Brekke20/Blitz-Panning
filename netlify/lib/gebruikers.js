@@ -53,10 +53,13 @@ export function valideerNieuweGebruiker(invoer) {
   const rol = invoer.rol;
   if (!ROLLEN_LIJST.includes(rol)) return { fout: 'Onbekende rol.' };
   const waarden = { email, naam, rol };
-  if (rol === 'technieker') {
+  // De Zoho-naam koppelt het account aan de technieker in Zoho: verplicht voor een technieker, optioneel voor beheerder en planner
+  // (wie zelf interventies uitvoert), nooit voor sales.
+  if (rol !== 'sales') {
     const zohoNaam = String(invoer.zohoNaam ?? '').trim();
-    if (!zohoNaam) return { fout: 'Een technieker heeft een Zoho-naam nodig.' };
-    waarden.zohoNaam = zohoNaam;
+    if (!zohoNaam && rol === 'technieker') return { fout: 'Een technieker heeft een Zoho-naam nodig.' };
+    if (zohoNaam.length > MAX_NAAM) return { fout: `De Zoho-naam mag maximaal ${MAX_NAAM} tekens bevatten.` };
+    if (zohoNaam) waarden.zohoNaam = zohoNaam;
   }
   if (rol === 'sales') {
     const salesNaam = String(invoer.salesNaam ?? '').trim();
@@ -67,10 +70,18 @@ export function valideerNieuweGebruiker(invoer) {
   return { waarden };
 }
 
+// Het account dat deze Zoho-naam al gebruikt (genormaliseerd, het account `behalveId` telt niet mee), anders null. De Zoho-naam
+// hoort bij precies één account: twee accounts met dezelfde naam delen elkaars eigen rechten en data.
+export function zohoNaamBezet(gebruikers, zohoNaam, behalveId) {
+  const gezocht = normaliseerNaam(zohoNaam);
+  if (gezocht === '' || !Array.isArray(gebruikers)) return null;
+  return gebruikers.find(g => g && g.id !== behalveId && normaliseerNaam(g.zohoNaam) === gezocht) ?? null;
+}
+
 // Pure wijziging van één gebruiker (PATCH). `invoer` bevat enkel de velden die mogen veranderen
 // (naam, rol, actief, zohoNaam, salesNaam, magAlleSales); alles anders in de body wordt genegeerd.
 // Validatie hergebruikt valideerNieuweGebruiker op de samengevoegde waarden, zodat de rolvelden altijd
-// kloppen (technieker heeft een zohoNaam, sales een salesNaam) en velden van een vorige rol verdwijnen.
+// kloppen (technieker heeft een zohoNaam, beheerder/planner mogen er een hebben, sales een salesNaam) en velden van een vorige rol verdwijnen.
 // -> { fout } | { nieuw, gewijzigd: [veldnaam], blokkeert, rolWijzigt, promotie }
 // `sessieVersie` stijgt bij blokkeren en bij een rolwijziging (onmiddellijk uitloggen). `herstelcodes` blijven
 // enkel bij een beheerder bestaan; nieuwe codes bij een promotie zet de aanroeper (async hashing).

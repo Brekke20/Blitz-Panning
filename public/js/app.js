@@ -45,7 +45,7 @@ import { appConfirm } from './app-dialog.js';
 import { registreerVenster } from './venster.js';
 import { startNaInlog } from './schermen/rol-schil.js';
 import { laadTab } from './kern/navigatie.js';
-import { huidigeGebruiker, huidigeRechten } from './kern/sessie.js';
+import { eigenZohoNaam, huidigeRechten } from './kern/sessie.js';
 import { installeerTijdPicker } from './kern/tijd-picker.js';
 
 
@@ -639,13 +639,8 @@ function initials(name) {
   return name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
-// De Zoho-naam van het ingelogde account (elke rol behalve sales kan er een hebben): wie zelf interventies uitvoert, kan zichzelf
-// altijd kiezen, ook als er op dat moment geen ticket op zijn naam staat.
-const eigenZohoNaam = () => {
-  const naam = huidigeGebruiker()?.zohoNaam;
-  return typeof naam === 'string' ? naam.trim() : '';
-};
-
+// Wie zelf interventies uitvoert (een account met een Zoho-naam) kan zichzelf altijd kiezen, ook als er op dat moment geen ticket
+// op zijn naam staat.
 function personenUitTickets() {
   return [...new Set([
     ...get('allTickets').map(t => t.assignee),
