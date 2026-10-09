@@ -121,16 +121,27 @@ async function bewaarAvailability() {
   }
 }
 
-// Hertekent een container en behoudt wat de gebruiker intussen al invulde (op id), zodat een half getypte reden blijft staan.
+// Hertekent een container en behoudt wat de gebruiker intussen al invulde (op id), zodat een half getypte reden blijft staan;
+// ook het veld met focus en (bij tekstvelden) de cursor/selectie komen terug (B14).
+const TEKSTSOORTEN = ['text', 'search', 'tel', 'url', 'password', 'textarea'];
 function hertekenMetBehoudVanInvoer(el, render) {
   const bewaard = new Map();
   el?.querySelectorAll('input[id], textarea[id], select[id]').forEach(v => bewaard.set(v.id, v.type === 'checkbox' || v.type === 'radio' ? v.checked : v.value));
+  const actief = el && document.activeElement && el.contains(document.activeElement) && document.activeElement.id ? document.activeElement : null;
+  const focus = actief ? { id: actief.id, selectie: TEKSTSOORTEN.includes(actief.type) ? [actief.selectionStart, actief.selectionEnd, actief.selectionDirection] : null } : null;
   render();
   bewaard.forEach((waarde, id) => {
     const v = el.querySelector('#' + CSS.escape(id));
     if (!v) return;
     if (typeof waarde === 'boolean') v.checked = waarde; else if (v.value !== waarde) v.value = waarde;
   });
+  if (focus) {
+    const v = el.querySelector('#' + CSS.escape(focus.id));
+    if (v) {
+      v.focus({ preventScroll: true });
+      if (focus.selectie) { try { v.setSelectionRange(...focus.selectie); } catch { /* geen selectie voor dit veldtype */ } }
+    }
+  }
 }
 
 async function resyncNaOnzeker() {

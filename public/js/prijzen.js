@@ -237,11 +237,10 @@ export function prijsVoegOnderdeel(categorie) {
   const id = 'nieuw-' + Date.now();
   PRIJZEN_DIRTY.onderdelen.push({ id, naam:'', categorie, tags:[], prijs:0, eenheid:'stuk' });
   renderPrijsEditor();
-  // Scroll naar het nieuwe item
-  setTimeout(() => {
-    const inputs = document.querySelectorAll('.prijs-naam-input');
-    inputs[inputs.length - 1]?.focus();
-  }, 50);
+  // B13: focus (en zichtbaar maken) op het naamveld van het nieuwe onderdeel zelf, niet op het laatste naamveld van de pagina.
+  const nieuw = document.querySelector(`#prijs-body .prijs-naam-input[data-arg="${PRIJZEN_DIRTY.onderdelen.length - 1}"]`);
+  nieuw?.focus();
+  nieuw?.scrollIntoView({ block: 'nearest' });
 }
 
 // ── Opslaan ───────────────────────────────────────────────────────────────────

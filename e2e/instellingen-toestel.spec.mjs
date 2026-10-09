@@ -228,14 +228,37 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
     expect(await leesOpslag(page, 'blitz_settings')).toBeNull();
   });
 
-  test('HUIDIG GEDRAG (bug?): een weekdagklik wijzigt de instellingen in het geheugen ook zonder te bewaren', async ({ page }) => {
+  test('Annuleren verwerpt een weekdagklik: bij heropenen staat de dag weer zoals bewaard', async ({ page }) => {
     await startApp(page);
     let modal = await openInstellingen(page);
     await dagKnop(modal, 'Za').click();
+    await expect(dagKnop(modal, 'Za')).toHaveAttribute('aria-pressed', 'true');
     await modal.getByRole('button', { name: 'Annuleren' }).click();
     expect(await leesOpslag(page, 'blitz_settings')).toBeNull();
     modal = await openInstellingen(page);
-    await expect(dagKnop(modal, 'Za')).toHaveAttribute('aria-pressed', 'true'); // nog steeds aan na Annuleren
+    await expect(dagKnop(modal, 'Za')).toHaveAttribute('aria-pressed', 'false'); // weer uit na Annuleren
+    // Ook Escape en een klik naast het venster verwerpen de klik (Wo uitzetten).
+    await dagKnop(modal, 'Wo').click();
+    await page.keyboard.press('Escape');
+    await expect(modal).toBeHidden();
+    modal = await openInstellingen(page);
+    await expect(dagKnop(modal, 'Wo')).toHaveAttribute('aria-pressed', 'true');
+    await dagKnop(modal, 'Wo').click();
+    await page.locator('#set-overlay').click({ position: { x: 5, y: 5 } });
+    await expect(modal).toBeHidden();
+    modal = await openInstellingen(page);
+    await expect(dagKnop(modal, 'Wo')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('Opslaan neemt de weekdagwijziging wel over', async ({ page }) => {
+    await startApp(page);
+    let modal = await openInstellingen(page);
+    await dagKnop(modal, 'Za').click();
+    await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor alle technici');
+    expect((await leesJson(page, 'blitz_settings')).werkdagen).toEqual([1, 2, 3, 4, 5, 6]);
+    modal = await openInstellingen(page);
+    await expect(dagKnop(modal, 'Za')).toHaveAttribute('aria-pressed', 'true');
   });
 
   const WEIGERINGEN = [
@@ -483,10 +506,9 @@ test.describe('instellingen: prijsbeheer', () => {
     // Het nieuwe onderdeel (categorie controller) staat onder de controllers, niet onderaan de pagina.
     const nieuw = p.locator('.prijs-naam-input[value=""]');
     await expect(nieuw).toHaveCount(1);
-    // HUIDIG GEDRAG (bug?): de focus (na 50 ms) gaat naar het LAATSTE naamveld van de pagina ("Socket"), niet naar het nieuwe.
-    await expect(naamInvoer(page).last()).toBeFocused();
-    await expect(naamInvoer(page).last()).toHaveValue('Socket');
-    await expect(nieuw).not.toBeFocused();
+    // B13: de focus gaat naar het naamveld van het nieuwe onderdeel (niet naar het laatste naamveld van de pagina).
+    await expect(nieuw).toBeFocused();
+    await expect(naamInvoer(page).last()).not.toBeFocused();
     await nieuw.fill('Test onderdeel');
     await p.getByRole('button', { name: 'Opslaan', exact: true }).click();
     const cache = await leesJson(page, 'blitz_prijzen_cache');
