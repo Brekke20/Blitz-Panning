@@ -10,9 +10,10 @@
 // Het dashboard leest de actieve lijst plus de archieven van de gekozen periode (leesArchieven).
 
 import { stripZwareVelden } from './rapportlijst.js';
+import { wijzigBlob } from './blob-wijzig.js';
+import { maakSerieel } from './serieel.js';
 
 export const ARCHIEF_PREFIX = 'rapportlijst-archief-';
-const POGINGEN = 3;
 
 function jaarVan(entry) {
   const uitDatum = /^(\d{4})-/.exec(String(entry?.datum ?? ''));
@@ -31,10 +32,13 @@ function licht(entry) {
   return { ...entry, rapportData: stripZwareVelden(entry.rapportData) };
 }
 
-// Voegt de entries toe aan het archief van hun jaar. Per jaar: lezen, enkel ids toevoegen die er nog
-// niet in staan, `versie + 1` schrijven, terug lezen en tot 3 pogingen herhalen als de nieuwe ids er
-// niet in staan (gelijktijdige schrijver, zoals wijzigLijst). Gooit nooit: bij falen { ok:false } en
-// een console.error met de ids.
+// Voegt de entries toe aan het archief van hun jaar via het gedeelde wijzigBlob (lezen, enkel ids toevoegen
+// die er nog niet in staan, `versie + 1` schrijven, terugleescontrole, tot 3 pogingen) en serieel binnen
+// de instantie (serieel.js), net als de andere beheer-schrijvers. Idempotent op id. Een bestaande maar
+// onbruikbare (corrupte) blob wordt NOOIT overschreven. Gooit nooit: bij falen { ok:false } en een
+// console.error met de ids.
+const serieelArchief = maakSerieel();
+
 export async function archiveerAfgevallen(store, entries) {
   const perSleutel = new Map();
   for (const e of Array.isArray(entries) ? entries : []) {
@@ -47,38 +51,40 @@ export async function archiveerAfgevallen(store, entries) {
   let ok = true;
   let aantal = 0;
   for (const [sleutel, groep] of perSleutel) {
-    let gelukt = false;
+    let toegevoegd = [];
     let laatsteFout = null;
-    let toegevoegd = 0;
-    for (let poging = 0; poging < POGINGEN && !gelukt; poging++) {
-      try {
-        const gelezen = await store.get(sleutel, { type: 'json' });
-        // Een bestaande maar onbruikbare (corrupte) blob wordt NOOIT overschreven: poging laten falen.
-        if (gelezen !== null && gelezen !== undefined && (typeof gelezen !== 'object' || !Array.isArray(gelezen.rapports))) {
-          throw new Error('archiefblob onleesbaar (geen rapports-array), niet overschreven');
-        }
-        const huidig = gelezen ?? { versie: 0, rapports: [] };
-        const bestaand = huidig.rapports;
-        const aanwezig = new Set(bestaand.map(r => String(r.id)));
-        const nieuw = [];
-        for (const e of groep) {
-          const id = String(e.id);
-          if (aanwezig.has(id)) continue;
-          aanwezig.add(id);
-          nieuw.push(licht(e));
-        }
-        if (!nieuw.length) { gelukt = true; toegevoegd = 0; break; }
-
-        await store.setJSON(sleutel, { versie: (huidig.versie ?? 0) + 1, rapports: [...bestaand, ...nieuw] });
-        const terug = await store.get(sleutel, { type: 'json' });
-        const teruggezet = new Set((terug?.rapports ?? []).map(r => String(r.id)));
-        if (nieuw.every(e => teruggezet.has(String(e.id)))) { gelukt = true; toegevoegd = nieuw.length; }
-      } catch (err) {
-        laatsteFout = err;
-      }
+    let gelukt = false;
+    try {
+      const r = await serieelArchief(() => wijzigBlob(store, sleutel, {
+        leeg: { versie: 0, rapports: [] },
+        wijzig: huidig => {
+          // Corrupte blob: nooit overschrijven, de fout laat de hele poging falen.
+          if (huidig === null || typeof huidig !== 'object' || !Array.isArray(huidig.rapports)) {
+            throw new Error('archiefblob onleesbaar (geen rapports-array), niet overschreven');
+          }
+          const aanwezig = new Set(huidig.rapports.map(x => String(x.id)));
+          const nieuw = [];
+          for (const e of groep) {
+            const id = String(e.id);
+            if (aanwezig.has(id)) continue;
+            aanwezig.add(id);
+            nieuw.push(licht(e));
+          }
+          toegevoegd = nieuw;
+          if (!nieuw.length) return null;
+          return { versie: (huidig.versie ?? 0) + 1, rapports: [...huidig.rapports, ...nieuw] };
+        },
+        controleer: terug => {
+          const teruggezet = new Set((terug?.rapports ?? []).map(x => String(x.id)));
+          return toegevoegd.every(e => teruggezet.has(String(e.id)));
+        },
+      }));
+      gelukt = r.ok;
+    } catch (err) {
+      laatsteFout = err;
     }
     if (gelukt) {
-      aantal += toegevoegd;
+      aantal += toegevoegd.length;
     } else {
       ok = false;
       console.error(`[rapport-jaararchief] archiveren mislukt voor ${sleutel}, ids: ${groep.map(e => e.id).join(', ')}`

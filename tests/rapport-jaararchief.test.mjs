@@ -245,3 +245,13 @@ test('verwerkOntvangst: bij een wijzigLijst-herhaling wordt de afgevallen van de
   assert.equal(JSON.parse(store.m.get('rapportlijst')).rapports[0].id, ID_NIEUW);
   assert.deepEqual(archief(store, '2025').rapports.map(e => e.id), ['conc-000']);
 });
+
+test('archiveerAfgevallen: gelijktijdige aanroepen in dezelfde instantie verliezen niets (serieel)', async () => {
+  const store = nepStore();
+  const traag = store.get.bind(store);
+  store.get = async (k, o) => { const v = await traag(k, o); await new Promise(r => setTimeout(r, 5)); return v; };
+  const res = await Promise.all(['a', 'b', 'c', 'd'].map(id => archiveerAfgevallen(store, [ent(id, '2026-01-02')])));
+  assert.ok(res.every(r => r.ok));
+  assert.deepEqual(archief(store, '2026').rapports.map(e => e.id).sort(), ['a', 'b', 'c', 'd']);
+  assert.equal(archief(store, '2026').versie, 4);
+});
