@@ -160,7 +160,6 @@
 .dash-inhoud[aria-busy="true"] { opacity: .6; }
 .dash-voetnoten { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-xs); color: var(--text2); }
 .dash-voetnoten li { overflow-wrap: anywhere; }
-.dash-voetnoten .dash-voetnoot--waarschuwing { color: var(--text); font-weight: 600; }
 .dash-instellingen { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: var(--sp-3) var(--sp-4); min-width: 0; }
 .dash-instellingen > summary { cursor: pointer; font-weight: 600; font-size: var(--fs-md); color: var(--viz-ink); width: max-content; max-width: 100%; }
 .dash-instellingen[open] > summary { margin-bottom: var(--sp-3); }

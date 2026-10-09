@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { dekkingVoetnoten } from '../public/js/schermen/beheer-performance-logica.js';
 import {
-  GRENS_RINGEN, grenzenPaneelHtml, leesGrenzenUitRijen, voegGrenzenSamen,
+  GRENS_RINGEN, GRENZEN_LAAD_FOUT, grenzenPaneelHtml, leesGrenzenUitRijen, voegGrenzenSamen, bewaarUitkomst,
 } from '../public/js/schermen/beheer-performance-grenzen.js';
 import { STANDAARD_GRENZEN } from '../public/js/kern/dashboard-grenzen.js';
 
@@ -101,4 +101,32 @@ test('voegGrenzenSamen: per ring wint de eigen wijziging, de rest volgt de serve
   assert.deepEqual(samen.opTijd, eigen.opTijd);
   assert.deepEqual(samen.firstTimeFix, server.firstTimeFix);
   assert.deepEqual(voegGrenzenSamen(server, basis, basis), server); // niets gewijzigd: de serverstand
+});
+
+test('[I2] grenzenPaneelHtml met fout: uitleg en een Opnieuw laden-knop; zonder fout niet', () => {
+  const met = grenzenPaneelHtml(STANDAARD_GRENZEN, { uitgeschakeld: true, fout: true });
+  assert.ok(met.includes(GRENZEN_LAAD_FOUT));
+  assert.match(met, /data-actie="dashboard-grenzen-herlaad"[^>]*>Opnieuw laden</);
+  assert.doesNotMatch(grenzenPaneelHtml(STANDAARD_GRENZEN), /dashboard-grenzen-herlaad/);
+});
+
+test('[I1] bewaarUitkomst: na een mislukte bewaring wordt het paneel niet opnieuw getekend', () => {
+  for (const r of [{ ok: false, reden: 'http', status: 503 }, { ok: false, reden: 'netwerk' }, { ok: false, reden: 'http', status: 400 },
+    { ok: false, reden: 'http', status: 401 }, { ok: false, reden: 'http', status: 403 }, { ok: false, reden: 'http', status: 500 },
+    { ok: false, reden: 'samenvoegen' }, { ok: false, reden: 'conflict', status: 409 }]) {
+    const u = bewaarUitkomst(r);
+    assert.equal(u.herteken, false, JSON.stringify(r));
+    assert.match(u.toast, /^⚠ /);
+  }
+  assert.match(bewaarUitkomst({ ok: false, reden: 'http', status: 503 }).toast, /opslag/);
+  assert.doesNotMatch(bewaarUitkomst({ ok: false, reden: 'conflict', status: 409 }).toast, /geladen\./); // niets geladen: dat niet beweren
+});
+
+test('[I1] bewaarUitkomst: succes en conflict met serverstand vervangen de stand', () => {
+  const g = { ...STANDAARD_GRENZEN };
+  const ok = bewaarUitkomst({ ok: true, waarde: g, versie: 4, samengevoegd: false });
+  assert.deepEqual([ok.herteken, ok.versie, ok.grenzen, ok.toast], [true, 4, g, 'Grenzen bewaard']);
+  assert.match(bewaarUitkomst({ ok: true, waarde: g, versie: 5, samengevoegd: true }).toast, /samengevoegd/);
+  const c = bewaarUitkomst({ ok: false, reden: 'conflict', status: 409, laatsteServer: g, laatsteVersie: 9, versie: 3 });
+  assert.deepEqual([c.herteken, c.versie, c.grenzen], [true, 9, g]);
 });

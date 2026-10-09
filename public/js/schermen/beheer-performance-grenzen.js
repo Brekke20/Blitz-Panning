@@ -19,7 +19,10 @@ function invoer(ring, veld, tekst, waarde, uit) {
 }
 
 // grenzen = { [sleutel]: { groen, oranje, richting } }. Leeg veld = geen kleur (neutraal).
-export function grenzenPaneelHtml(grenzen, { uitgeschakeld = false } = {}) {
+export const GRENZEN_LAAD_FOUT = 'De grenzen konden niet geladen worden; standaardkleuren worden gebruikt.';
+
+// fout = true: bovenaan een uitleg met een "Opnieuw laden"-knop (data-actie="dashboard-grenzen-herlaad").
+export function grenzenPaneelHtml(grenzen, { uitgeschakeld = false, fout = false } = {}) {
   const rijen = GRENS_RINGEN.map(ring => {
     const g = grenzen?.[ring.sleutel] ?? {};
     const laag = g.richting === 'laag';
@@ -29,7 +32,10 @@ export function grenzenPaneelHtml(grenzen, { uitgeschakeld = false } = {}) {
       + `<td><select data-veld="richting" aria-label="${escHtml(`${ring.label}: richting`)}"${uitgeschakeld ? ' disabled' : ''}>`
       + `<option value="hoog"${laag ? '' : ' selected'}>hoog is goed</option><option value="laag"${laag ? ' selected' : ''}>laag is goed</option></select></td></tr>`;
   }).join('');
-  return '<p class="dash-uitleg">Een ring kleurt groen vanaf de groene drempel en oranje vanaf de oranje drempel, anders rood. '
+  const foutHtml = fout
+    ? `<p class="dash-melding dash-melding--fout" role="alert">${escHtml(GRENZEN_LAAD_FOUT)}<button type="button" class="btn btn--secondary btn--sm dash-knop" data-actie="dashboard-grenzen-herlaad">Opnieuw laden</button></p>`
+    : '';
+  return foutHtml + '<p class="dash-uitleg">Een ring kleurt groen vanaf de groene drempel en oranje vanaf de oranje drempel, anders rood. '
     + 'Laat beide velden leeg voor een ring zonder kleur.</p>'
     + '<div class="dash-tabel-scroll"><table class="grenzen-tabel"><thead><tr><th scope="col">Ring</th><th scope="col">Groen vanaf (%)</th>'
     + `<th scope="col">Oranje vanaf (%)</th><th scope="col">Richting</th></tr></thead><tbody>${rijen}</tbody></table></div>`
@@ -69,4 +75,24 @@ export function voegGrenzenSamen(server, eigen, basis) {
     if (JSON.stringify(eigen?.[sleutel]) !== JSON.stringify(basis?.[sleutel])) samen[sleutel] = eigen[sleutel];
   }
   return samen;
+}
+
+// Wat er na een bewaarpoging (resultaat van bewaarMetVersie) moet gebeuren: toasttekst, of het paneel opnieuw getekend wordt
+// (enkel bij succes of een nieuwe serverstand; na een andere fout blijven de ingetypte waarden staan) en de nieuwe stand.
+export function bewaarUitkomst(r) {
+  if (r?.ok) {
+    return { toast: r.samengevoegd ? 'Grenzen bewaard (samengevoegd met een wijziging van iemand anders)' : 'Grenzen bewaard', herteken: true, grenzen: r.waarde, versie: r.versie };
+  }
+  if (r?.reden === 'conflict') {
+    if (r.laatsteServer) {
+      return { toast: '⚠ Iemand anders wijzigde de grenzen. De nieuwste stand is geladen; pas aan en bewaar opnieuw.', herteken: true, grenzen: r.laatsteServer, versie: r.laatsteVersie ?? r.versie };
+    }
+    return { toast: '⚠ Iemand anders wijzigde de grenzen. Laad de pagina opnieuw om de nieuwste stand te zien.', herteken: false };
+  }
+  const tekst = r?.reden === 'netwerk' ? 'Geen verbinding met de server. Probeer het opnieuw.'
+    : r?.status === 503 ? 'De opslag is tijdelijk niet bereikbaar. Probeer het later opnieuw.'
+      : r?.status === 400 ? 'De server weigerde deze grenzen. Controleer de waarden.'
+        : r?.status === 401 || r?.status === 403 ? 'Bewaren mislukt: geen toegang.'
+          : 'Bewaren mislukt. Probeer het opnieuw.';
+  return { toast: `⚠ ${tekst}`, herteken: false };
 }

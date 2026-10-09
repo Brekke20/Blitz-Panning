@@ -10,7 +10,7 @@ import { registreerActies, registreerWijzigActies, toast } from '../kern/ui.js';
 import { STANDAARD_GRENZEN } from '../kern/dashboard-grenzen.js';
 import { openRapportOpId } from '../rapport-archief.js';
 import { TEGELS, periodeVoorPreset, maakQuery, tegelHtml, filterRijHtml, dekkingVoetnoten } from './beheer-performance-logica.js';
-import { grenzenPaneelHtml, leesGrenzenUitRijen, voegGrenzenSamen } from './beheer-performance-grenzen.js';
+import { grenzenPaneelHtml, leesGrenzenUitRijen, voegGrenzenSamen, bewaarUitkomst } from './beheer-performance-grenzen.js';
 import { renderTijd } from './beheer-performance-tijd.js';
 import { renderKwaliteit } from './beheer-performance-kwaliteit.js';
 import { renderOnderdelen } from './beheer-performance-onderdelen.js';
@@ -24,13 +24,14 @@ const lees = x => (x && typeof x === 'object' ? x : {});
 
 // dashboard.css hoort niet bij de schil: één <link> bij het eerste openen, en wachten (max. 3 s) vóór de eerste render.
 function laadCss() {
-  if (document.querySelector(`link[href$="${CSS_PAD}"]`)) return Promise.resolve();
+  const bestaand = document.querySelector(`link[href$="${CSS_PAD}"]`);
+  if (bestaand?.sheet) return Promise.resolve();
   return new Promise((klaar) => {
-    const link = h('link', { rel: 'stylesheet', href: CSS_PAD });
+    const link = bestaand ?? h('link', { rel: 'stylesheet', href: CSS_PAD }); // een nog ladend <link> (snelle tweede klik): erop wachten
     const stop = setTimeout(klaar, CSS_WACHT_MS);
     link.addEventListener('load', () => { clearTimeout(stop); klaar(); });
     link.addEventListener('error', () => { clearTimeout(stop); klaar(); });
-    document.head.append(link);
+    if (!bestaand) document.head.append(link);
   });
 }
 
@@ -58,7 +59,7 @@ async function render(container) {
   container.replaceChildren(wortel);
   const levend = () => container.isConnected && wortel.isConnected;
 
-  const t = { filters: startFilters(), data: null, grenzen: STANDAARD_GRENZEN, grenzenBasis: STANDAARD_GRENZEN, versie: null, volgnummer: 0 };
+  const t = { filters: startFilters(), data: null, grenzen: STANDAARD_GRENZEN, grenzenBasis: STANDAARD_GRENZEN, versie: null, grenzenFout: false, volgnummer: 0 };
 
   // ── Tekenen ──
   // De filterrij wordt na elke keuze opnieuw getekend (opties wijzigen mee); de focus keert terug naar hetzelfde veld.
@@ -90,8 +91,10 @@ async function render(container) {
     inhoud.innerHTML = `${tegels}${blokken}${voet}`;
   }
 
-  function tekenPaneel() {
-    paneelVak.lastElementChild.innerHTML = grenzenPaneelHtml(t.grenzen, { uitgeschakeld: t.versie === null });
+  // grenzen: wat de velden tonen (standaard de bewaarde stand; "Standaard terugzetten" toont enkel de standaardwaarden, nog niet bewaard).
+  function tekenPaneel(grenzen = t.grenzen) {
+    paneelVak.lastElementChild.innerHTML = grenzenPaneelHtml(grenzen, { uitgeschakeld: t.versie === null, fout: t.grenzenFout });
+    paneelVak.firstElementChild.textContent = t.grenzenFout ? 'Instellingen: kleurgrenzen van de ringen (niet geladen)' : 'Instellingen: kleurgrenzen van de ringen';
   }
 
   function toonMelding(tekst, { fout = false, herlaad = false } = {}) {
@@ -126,9 +129,9 @@ async function render(container) {
     const r = await beheerVerzoek('/api/dashboard-instellingen');
     if (!levend()) return;
     if (r.ok && r.data?.grenzen && Number.isInteger(r.data.versie)) {
-      t.grenzen = r.data.grenzen; t.grenzenBasis = r.data.grenzen; t.versie = r.data.versie;
+      t.grenzen = r.data.grenzen; t.grenzenBasis = r.data.grenzen; t.versie = r.data.versie; t.grenzenFout = false;
     } else {
-      t.grenzen = STANDAARD_GRENZEN; t.grenzenBasis = STANDAARD_GRENZEN; t.versie = null; // standaardkleuren, bewaren uitgeschakeld
+      t.grenzen = STANDAARD_GRENZEN; t.grenzenBasis = STANDAARD_GRENZEN; t.versie = null; t.grenzenFout = true; // standaardkleuren, bewaren uitgeschakeld
     }
     tekenPaneel();
     if (t.data) tekenInhoud();
@@ -144,8 +147,9 @@ async function render(container) {
       laadDashboard();
     },
     'dashboard-herlaad': () => laadDashboard(),
-    'dashboard-open-rapport': (el, e, id) => { if (id) openRapportOpId(id); },
-    'dashboard-grenzen-standaard': () => { t.grenzen = STANDAARD_GRENZEN; tekenPaneel(); if (t.data) tekenInhoud(); },
+    'dashboard-open-rapport': (el, e, id) => { if (id) openRapportOpId(id).catch(() => toast('⚠ Rapport openen mislukt')); },
+    'dashboard-grenzen-standaard': () => tekenPaneel(STANDAARD_GRENZEN),
+    'dashboard-grenzen-herlaad': () => laadGrenzen(),
     'dashboard-grenzen-bewaar': () => bewaarGrenzen(),
   });
   registreerWijzigActies(wortel, {
@@ -153,7 +157,11 @@ async function render(container) {
       if (!veld) return;
       if (veld === 'van' || veld === 'tot') {
         t.filters = { ...t.filters, [veld]: el.value, preset: 'zelf' };
-        if (!t.filters.van || !t.filters.tot || t.filters.van > t.filters.tot) { tekenFilters(); return; } // wacht op een geldige periode
+        if (!t.filters.van || !t.filters.tot || t.filters.van > t.filters.tot) { // wacht op een geldige periode
+          tekenFilters();
+          toonMelding('Kies een geldige periode: de begindatum mag niet na de einddatum liggen.');
+          return;
+        }
       } else t.filters = { ...t.filters, [veld]: veld === 'herhaalDagen' ? Number(el.value) : el.value };
       tekenFilters();
       laadDashboard();
@@ -177,20 +185,14 @@ async function render(container) {
       voegSamen: (server, eigen) => voegGrenzenSamen(server, eigen, basis),
     });
     bezig = false;
-    if (r.ok) {
-      toast(r.samengevoegd ? 'Grenzen bewaard (samengevoegd met een wijziging van iemand anders)' : 'Grenzen bewaard');
-      if (!levend()) return;
-      t.grenzen = r.waarde; t.grenzenBasis = r.waarde; t.versie = r.versie;
-    } else {
-      if (r.reden === 'conflict') toast('⚠ Iemand anders wijzigde de grenzen. De nieuwste stand is geladen; pas aan en bewaar opnieuw.');
-      else if (r.reden === 'netwerk') toast('⚠ Geen verbinding met de server. Probeer het opnieuw.');
-      else if (r.status === 503) toast('⚠ De opslag is tijdelijk niet bereikbaar. Probeer het later opnieuw.');
-      else if (r.status === 400) toast('⚠ De server weigerde deze grenzen. Controleer de waarden.');
-      else if (r.status === 401 || r.status === 403) toast('⚠ Bewaren mislukt: geen toegang.');
-      else toast('⚠ Bewaren mislukt. Probeer het opnieuw.');
-      if (!levend()) return;
-      if (r.reden === 'conflict' && r.laatsteServer) { t.grenzen = r.laatsteServer; t.grenzenBasis = r.laatsteServer; t.versie = r.laatsteVersie ?? r.versie; }
+    const u = bewaarUitkomst(r);
+    toast(u.toast);
+    if (!levend()) return;
+    if (!u.herteken) { // mislukt: de ingetypte waarden blijven staan, enkel de knop is weer bruikbaar
+      paneelVak.querySelector('[data-actie="dashboard-grenzen-bewaar"]')?.removeAttribute('disabled');
+      return;
     }
+    t.grenzen = u.grenzen; t.grenzenBasis = u.grenzen; t.versie = u.versie;
     tekenPaneel();
     if (t.data) tekenInhoud();
   }
