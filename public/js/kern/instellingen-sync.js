@@ -97,6 +97,18 @@ export function wisInstellingenCache(opslag) {
 const eigenPersoonVan = gebruiker => (gebruiker?.rol === 'technieker' && typeof gebruiker.zohoNaam === 'string' && gebruiker.zohoNaam ? gebruiker.zohoNaam : 'all');
 const isEigen = (persoon, gebruiker) => !persoon || persoon === 'all' || persoon === eigenPersoonVan(gebruiker);
 
+// De beheerder bewaarde via de beheerpagina de instellingen van zijn EIGEN account op de server (PUT geslaagd): de lokale cache volgt,
+// anders schrijft de volgende savePersonSettings de oude set terug en draait de serverwaarde stil terug (logins T18 fix 1).
+// Geeft de persoon terug onder wiens sleutel het bewaard werd ('all' of de zohoNaam van een technieker).
+export function neemEigenOver(instellingen, gebruiker, { opslag = globalThis.localStorage } = {}) {
+  const persoon = eigenPersoonVan(gebruiker);
+  const kopie = JSON.parse(JSON.stringify(instellingen ?? {}));
+  schrijfTekst(opslag, settingsKey(persoon), JSON.stringify(kopie));
+  if (isTijd(kopie.laatsteStart)) schrijfTekst(opslag, LAATSTE_START_SLEUTEL, kopie.laatsteStart);
+  zetVuil(opslag, persoon, false); // de server heeft nu de nieuwste stand: een eerdere mislukte PUT mag niet meer terugkomen
+  return persoon;
+}
+
 // Het instellingen-object dat omhoog gaat: een kopie; bij de eigen persoon met de globale laatsteStart (blitz_laatste_start),
 // bij een ander zonder (het is een instelling van het toestel, niet van die persoon).
 function lichaamVoor(persoon, instellingen, gebruiker, opslag) {

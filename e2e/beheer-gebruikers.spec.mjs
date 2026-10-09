@@ -483,6 +483,7 @@ test.describe('tab Gebruikers: gsm', () => {
     // De tabbalk scrolt bewust binnen zichzelf (vier tabs passen niet naast elkaar op 375 px): zijn tabs vallen buiten deze controle.
     const buiten = await page.locator('#view-beheer *').evaluateAll(els => els.filter(el => !el.closest('.beheer-tabs') && el.getBoundingClientRect().right > window.innerWidth + 0.5).map(el => el.className));
     expect(buiten).toEqual([]);
+    expect(await page.locator('.beheer-tabs').evaluate(el => el.getBoundingClientRect().right <= window.innerWidth + 0.5)).toBe(true); // de balk zelf past
     expect(await page.locator('#view-beheer').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     await expect(page.locator('.bg-tabel td[data-label="Laatste login"]').first()).toBeVisible();
     // Een venster past ook.

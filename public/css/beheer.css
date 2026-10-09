@@ -4,7 +4,13 @@
 .beheer-titel { font-size: var(--fs-xl); font-weight: 700; line-height: 1.25; margin-bottom: var(--sp-3); }
 
 /* Tabbalk: scrolt binnen zichzelf, nooit de pagina. */
-.beheer-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; margin-bottom: var(--sp-4); }
+.beheer-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; margin-bottom: var(--sp-4);
+  /* Schaduwrand links/rechts zolang er nog tabs buiten beeld zijn (verdwijnt aan het uiteinde: de bedekking schuift mee). */
+  background:
+    linear-gradient(to right, var(--bg), var(--bg)) left center / 24px 100% no-repeat local,
+    linear-gradient(to left, var(--bg), var(--bg)) right center / 24px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.3), transparent) left center / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.3), transparent) right center / 12px 100% no-repeat scroll; }
 .beheer-tabs::-webkit-scrollbar { display: none; }
 .beheer-tab {
   background: none; border: none; border-bottom: 2px solid transparent; padding: 0 var(--sp-4); min-height: 44px;

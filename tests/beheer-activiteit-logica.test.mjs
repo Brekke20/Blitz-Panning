@@ -1,6 +1,9 @@
 // Pure logica van de tab Activiteitenlog (logins T18): labels, querystring, groeperen per Brusselse dag, standaardperiode.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { actieLabel, ACTIES, bouwActiviteitUrl, groepeerPerDag, standaardPeriode, formatDagKop, formatUur, formatDatumTijd } from '../public/js/schermen/beheer-activiteit-logica.js';
 
 const TWINTIG = [
@@ -87,4 +90,26 @@ test('formatDagKop, formatUur en formatDatumTijd: Brusselse weergave, ongeldig v
   assert.equal(formatDatumTijd('2026-01-15T23:30:00.000Z'), '16/01/2026 00:30');
   assert.equal(formatDatumTijd(''), '—');
   assert.equal(formatDatumTijd(null), '—');
+});
+
+// Elke actienaam die de server logt (`actie: '...'` in netlify/) moet een eigen label hebben, anders toont het log de ruwe sleutel.
+function lees(map) {
+  const uit = [];
+  for (const naam of readdirSync(map)) {
+    const pad = join(map, naam);
+    if (statSync(pad).isDirectory()) { if (naam !== 'node_modules') uit.push(...lees(pad)); } else if (/\.m?js$/.test(naam)) uit.push(pad);
+  }
+  return uit;
+}
+test('elke actienaam die de server logt staat in ACTIES en heeft een label', () => {
+  const gelogd = new Set();
+  for (const pad of lees(fileURLToPath(new URL('../netlify', import.meta.url)))) {
+    for (const m of readFileSync(pad, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').matchAll(/actie:\s*'([a-z][a-z-]*)'/g)) gelogd.add(m[1]);
+  }
+  assert.ok(gelogd.size >= 15, `te weinig actienamen gevonden (${gelogd.size}): is de scan stuk?`);
+  for (const naam of gelogd) {
+    assert.ok(ACTIES.includes(naam), `de server logt '${naam}' maar ACTIES kent die niet`);
+    assert.notEqual(actieLabel(naam), naam, `'${naam}' heeft geen label`);
+  }
+  assert.ok(gelogd.has('rapport-geweigerd') && gelogd.has('herstel-mislukt-reeks'));
 });

@@ -2,18 +2,22 @@
 // instellingen aan (startlocatie, duur, max per dag, werkuren, laatste start, max reistijd, tijdslot, werkdagen en voor sales de bezoekduur).
 // API: GET /api/gebruikers (de keuzelijst), GET /api/instellingen?gebruiker=<id> en PUT /api/instellingen { gebruiker, instellingen }.
 // De regels komen uit het bestaande instellingenscherm (valideerInstellingen) en kern/instellingen-regels.js (bezoekduur): geen kopie.
-// De server vervangt de hele instellingen van één gebruiker; daarom stuurt dit scherm de velden mee die het zelf niet toont
-// (routekleur, kaartstijl, drukte-kleuring) zoals ze waren.
+// De server vervangt de hele instellingen van één gebruiker; daarom leest dit scherm vlak vóór het opslaan de actuele set opnieuw
+// en legt de formuliervelden daarbovenop: de velden die het zelf niet toont (routekleur, kaartstijl, drukte-kleuring) blijven zoals
+// ze op dat moment op de server staan. Bij de EIGEN gebruiker volgt daarna de lokale kopie (kern/instellingen-sync.js neemEigenOver)
+// en de actieve instellingen in toestand, zodat het gewone Instellingen-scherm de nieuwe waarden niet terugdraait.
 // Veiligheid: servergegevens (namen) komen via textContent/attributen in de DOM (h() uit beheer.js), nooit via innerHTML.
 import { registreerBeheerTab, beheerVerzoek, beheerFoutTekst, h } from './beheer.js';
 import { toast } from '../kern/ui.js';
+import { toestand } from '../kern/toestand.js';
 import { huidigeGebruiker } from '../kern/sessie.js';
+import { neemEigenOver } from '../kern/instellingen-sync.js';
 import { valideerVelden } from '../kern/instellingen-regels.js';
-import { DEFAULT_SETTINGS, DAGEN } from './instellingen.js';
+import { DEFAULT_SETTINGS, DAGEN, loadPersonSettings } from './instellingen.js';
 import { valideerInstellingen } from './instellingen-logica.js';
 import { sorteerGebruikers, rolLabel } from './beheer-gebruikers-logica.js';
 
-const STANDAARD_BEZOEKDUUR = 60;
+const STANDAARD_BEZOEKDUUR = 60; // enkel als placeholder: pas bewaard als de beheerder een waarde invult
 const TIJDELIJK = 'Instellingen laden is niet gelukt.';
 // Weekdagen in de volgorde van het instellingenscherm (0 = zondag).
 const DAG_VOLGORDE = [1, 2, 3, 4, 5, 6, 0];
@@ -46,7 +50,7 @@ async function render(container) {
   const van = h('input', { class: 'set-input', id: 'bi-van', type: 'time' });
   const tot = h('input', { class: 'set-input', id: 'bi-tot', type: 'time', 'aria-label': 'Werkuren tot' });
   const tijdslot = h('input', { class: 'set-input', id: 'bi-tijdslot', type: 'number', min: '60', max: '360', step: '30' });
-  const bezoek = h('input', { class: 'set-input', id: 'bi-bezoek', type: 'number', min: '5', max: '480', step: '5' });
+  const bezoek = h('input', { class: 'set-input', id: 'bi-bezoek', type: 'number', min: '5', max: '480', step: '5', placeholder: `Standaard ${STANDAARD_BEZOEKDUUR}` });
   const bezoekVeld = veld('Bezoekduur (minuten)', bezoek, 'bi-bezoek');
   const dagenGroep = h('div', { class: 'days-grid', id: 'bi-dagen', role: 'group', 'aria-labelledby': 'bi-dagen-label' });
   const fout = h('p', { class: 'bg-fout', role: 'alert' });
@@ -84,7 +88,7 @@ async function render(container) {
     tot.value = s.totTijd;
     tijdslot.value = String(s.tijdslotMinuten);
     werkdagen = Array.isArray(s.werkdagen) ? [...s.werkdagen] : [...DEFAULT_SETTINGS.werkdagen];
-    bezoek.value = String(bewaard?.bezoekDuurMin ?? STANDAARD_BEZOEKDUUR);
+    bezoek.value = bewaard?.bezoekDuurMin === undefined ? '' : String(bewaard.bezoekDuurMin);
     bezoekVeld.hidden = gebruiker.rol !== 'sales';
     tekenDagen();
     fout.textContent = '';
@@ -110,36 +114,57 @@ async function render(container) {
     opslaan.disabled = false;
   }
 
+  // Bewaarde de beheerder zijn EIGEN instellingen: lokale kopie en actieve instellingen volgen de server (zie kopregel).
+  function volgEigenOp(doel, instellingen) {
+    const ik = huidigeGebruiker();
+    if (!ik || doel.id !== ik.id) return;
+    try {
+      const persoon = neemEigenOver(instellingen, ik);
+      if (toestand.get('activeAssigneeFilter') === persoon) toestand.set('settings', loadPersonSettings(persoon));
+    } catch { /* geen opslag: de server heeft de waarde, de volgende synchronisatie haalt ze op */ }
+  }
+
   async function bewaar(e) {
     e.preventDefault();
     if (bezig || !huidig) return;
     fout.textContent = '';
-    const bewaard = huidig.bewaard ?? {};
+    const dagen = [...werkdagen].sort((a, b) => a - b);
     const v = valideerInstellingen({
       startlocatie: start.value, duur: +duur.value, max: +max.value, van: van.value, tot: tot.value, laatsteStart: laatste.value,
       maxReistijd: +reistijd.value, tijdslotMinuten: +tijdslot.value, tijdslotTekst: tijdslot.value,
-      routeKleur: bewaard.routeKleur ?? DEFAULT_SETTINGS.routeKleur, werkdagen: [...werkdagen].sort((a, b) => a - b),
+      routeKleur: DEFAULT_SETTINGS.routeKleur, werkdagen: dagen,
     }, DEFAULT_SETTINGS);
     if (v.fout) { fout.textContent = v.fout; return; }
-    const instellingen = { ...bewaard, ...v.waarden, werkdagen: [...werkdagen].sort((a, b) => a - b) };
-    if (huidig.rol === 'sales') {
-      if (bezoek.value.trim() === '') delete instellingen.bezoekDuurMin;
-      else {
-        const b = valideerVelden({ bezoekDuurMin: Number(bezoek.value) });
-        if (b.fout) { fout.textContent = b.fout; return; }
-        instellingen.bezoekDuurMin = b.waarden.bezoekDuurMin;
-      }
+    // De routekleur komt niet van dit formulier (valideerInstellingen vult ze met de standaard): niet meesturen.
+    const { routeKleur: _standaardKleur, ...formulier } = v.waarden;
+    let bezoekWaarde;
+    if (huidig.rol === 'sales' && bezoek.value.trim() !== '') {
+      const b = valideerVelden({ bezoekDuurMin: Number(bezoek.value) });
+      if (b.fout) { fout.textContent = b.fout; return; }
+      bezoekWaarde = b.waarden.bezoekDuurMin;
     }
     const doel = huidig;
     bezig = true;
     opslaan.disabled = true;
     status.textContent = 'Opslaan…';
-    const r = await beheerVerzoek('/api/instellingen', { methode: 'PUT', body: { gebruiker: doel.id, instellingen } });
+    // Actuele stand lezen vlak vóór het schrijven (beperkt verloren updates van de velden die dit scherm niet toont).
+    const vers = await beheerVerzoek(`/api/instellingen?gebruiker=${encodeURIComponent(doel.id)}`);
+    let r = vers;
+    let instellingen = null;
+    if (vers.ok) {
+      const actueel = vers.data?.instellingen && typeof vers.data.instellingen === 'object' ? vers.data.instellingen : {};
+      instellingen = { ...actueel, ...formulier, werkdagen: dagen };
+      if (doel.rol === 'sales') {
+        if (bezoekWaarde === undefined) delete instellingen.bezoekDuurMin; else instellingen.bezoekDuurMin = bezoekWaarde;
+      }
+      r = await beheerVerzoek('/api/instellingen', { methode: 'PUT', body: { gebruiker: doel.id, instellingen } });
+    }
     bezig = false;
     status.textContent = '';
     if (huidig === doel) opslaan.disabled = false;
     if (!r.ok) { fout.textContent = beheerFoutTekst(r); return; }
     if (huidig === doel) huidig.bewaard = instellingen;
+    volgEigenOp(doel, instellingen);
     status.textContent = `Opgeslagen voor ${doel.naam}.`;
     toast(`✓ Instellingen opgeslagen voor ${doel.naam}`);
   }

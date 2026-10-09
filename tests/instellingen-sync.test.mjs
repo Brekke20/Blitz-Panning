@@ -3,7 +3,7 @@ import { test, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   synchroniseerInstellingen, bewaarOpServer, wisInstellingenCache,
-  heeftVuileInstellingen, MARKER_SLEUTEL, VUIL_SLEUTEL,
+  heeftVuileInstellingen, MARKER_SLEUTEL, VUIL_SLEUTEL, neemEigenOver,
 } from '../public/js/kern/instellingen-sync.js';
 
 const maakOpslag = (begin = {}) => {
@@ -429,4 +429,16 @@ test('heeftVuileInstellingen: true enkel bij een niet-lege markering', () => {
   assert.equal(heeftVuileInstellingen(maakOpslag({ [VUIL_SLEUTEL]: {} })), false);
   assert.equal(heeftVuileInstellingen(maakOpslag({ [VUIL_SLEUTEL]: { Tim: true } })), true);
   assert.equal(heeftVuileInstellingen(maakOpslag({ [VUIL_SLEUTEL]: 'kapot{' })), false);
+});
+
+test('neemEigenOver: schrijft de eigen cache (planner: all, technieker: zohoNaam), de globale laatsteStart en wist de vuil-markering', () => {
+  const opslag = maakOpslag({ [VUIL_SLEUTEL]: { all: true, Roel: true }, blitz_settings: { duurMinuten: 30 } });
+  const set = S({ laatsteStart: '15:30' });
+  assert.equal(neemEigenOver(set, PLANNER, { opslag }), 'all');
+  assert.deepEqual(opslag.json('blitz_settings'), set);
+  assert.equal(opslag.getItem('blitz_laatste_start'), '15:30');
+  assert.deepEqual(opslag.json(VUIL_SLEUTEL), { Roel: true }); // enkel de eigen persoon is niet meer vuil
+  assert.equal(neemEigenOver(S(), TIM, { opslag }), 'Tim');
+  assert.deepEqual(opslag.json('blitz_settings_Tim'), S());
+  assert.equal(opslag.getItem('blitz_laatste_start'), '15:30', 'zonder geldige laatsteStart blijft de globale waarde staan');
 });

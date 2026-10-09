@@ -13,9 +13,10 @@ const TIM = { startlocatie: 'Teststraat 1, 2000 Antwerpen', duurMinuten: 90, max
 const SARA = { startlocatie: 'Salesplein 2, 9000 Gent', duurMinuten: 120, maxPerDag: 4, vanTijd: '08:00', totTijd: '17:00', laatsteStart: '16:00', werkdagen: [1, 2, 3, 4, 5], maxReistijdMin: 45, tijdslotMinuten: 180, bezoekDuurMin: 75 };
 
 // Stub voor /api/instellingen: ?gebruiker=<id> leest, PUT schrijft; de rest (overzicht bij het opstarten) blijft de standaard.
-function instellingenStub({ begin = { 'u-t1': TIM, 'u-s1': SARA }, weiger } = {}) {
+function instellingenStub({ begin = { 'u-t1': TIM, 'u-s1': SARA }, weiger, naEersteLezing } = {}) {
   const opslag = structuredClone(begin);
   const standaard = standaardStub('instellingen');
+  const lezingen = {};
   const stub = (a) => {
     if (a.methode === 'PUT') {
       const eigen = weiger?.(a.body);
@@ -25,6 +26,9 @@ function instellingenStub({ begin = { 'u-t1': TIM, 'u-s1': SARA }, weiger } = {}
     }
     const id = a.query.get('gebruiker');
     if (id === null) return standaard(a);
+    // naEersteLezing: gaat vanaf de tweede lezing van dezelfde gebruiker over de bewaarde stand heen (een wijziging tussendoor).
+    lezingen[id] = (lezingen[id] ?? 0) + 1;
+    if (naEersteLezing && lezingen[id] === 2) opslag[id] = { ...(opslag[id] ?? {}), ...naEersteLezing };
     return json(200, { versie: 3, instellingen: opslag[id] ?? null });
   };
   return stub;
@@ -85,6 +89,7 @@ const paneel = (page) => page.locator('#beheer-paneel');
 const geenPaginaScroll = (page) => page.evaluate(() => ({
   doc: document.documentElement.scrollWidth <= window.innerWidth,
   view: document.getElementById('view-beheer').scrollWidth <= document.getElementById('view-beheer').clientWidth,
+  balk: document.querySelector('.beheer-tabs').getBoundingClientRect().right <= window.innerWidth + 0.5, // de tabbalk zelf past; zijn tabs scrollen erin
 }));
 
 test.describe('beheer: tabbalk', () => {
@@ -92,6 +97,24 @@ test.describe('beheer: tabbalk', () => {
     await openTab(page, 'Instellingen');
     const namen = await page.getByRole('tab').evaluateAll(els => els.map(e => e.textContent.trim()).filter(t => ['Gebruikers', 'Instellingen', 'Activiteitenlog', 'Systeemstatus'].includes(t)));
     expect(namen).toEqual(['Gebruikers', 'Instellingen', 'Activiteitenlog', 'Systeemstatus']);
+  });
+
+  test('pijltjestoetsen gaan één stap vooruit en terug zonder te wikkelen', async ({ page }) => {
+    await openTab(page, 'Instellingen');
+    const tab = n => page.getByRole('tab', { name: n, exact: true });
+    await tab('Gebruikers').click();
+    await tab('Gebruikers').focus();
+    for (const volgende of ['Instellingen', 'Activiteitenlog', 'Systeemstatus']) {
+      await page.keyboard.press('ArrowRight');
+      await expect(tab(volgende)).toBeFocused();
+      await expect(tab(volgende)).toHaveAttribute('aria-selected', 'true');
+      await expect(tab(volgende)).toHaveAttribute('tabindex', '0');
+    }
+    for (const vorige of ['Activiteitenlog', 'Instellingen', 'Gebruikers']) {
+      await page.keyboard.press('ArrowLeft');
+      await expect(tab(vorige)).toBeFocused();
+      await expect(tab(vorige)).toHaveAttribute('aria-selected', 'true');
+    }
   });
 });
 
@@ -159,6 +182,55 @@ test.describe('tab Instellingen', () => {
     expect(verzoeken.van('/api/instellingen', 'PUT')).toHaveLength(1);
   });
 
+  test('een sales-gebruiker zonder bewaarde bezoekduur toont een lege waarde met placeholder en bewaart geen 60', async ({ page, verzoeken }) => {
+    await openTab(page, 'Instellingen', { instellingen: instellingenStub({ begin: { 'u-s1': { ...SARA, bezoekDuurMin: undefined } } }) });
+    await paneel(page).getByLabel('Gebruiker', { exact: true }).selectOption('u-s1');
+    const veld = paneel(page).getByLabel('Bezoekduur (minuten)');
+    await expect(paneel(page).getByLabel('Startlocatie')).toHaveValue(SARA.startlocatie);
+    await expect(veld).toHaveValue('');
+    await expect(veld).toHaveAttribute('placeholder', 'Standaard 60');
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.locator('#toast')).toContainText('Instellingen opgeslagen');
+    expect(verzoeken.van('/api/instellingen', 'PUT')[0].body.instellingen).not.toHaveProperty('bezoekDuurMin');
+  });
+
+  test('vlak vóór het opslaan wordt de stand opnieuw gelezen: een tussentijdse wijziging van verborgen velden blijft bewaard', async ({ page, verzoeken }) => {
+    await openTab(page, 'Instellingen', { instellingen: instellingenStub({ naEersteLezing: { routeKleur: '#abcdef', drukteKleuring: true, kaartStijl: 'satelliet' } }) });
+    await paneel(page).getByLabel('Gebruiker', { exact: true }).selectOption('u-t1');
+    await expect(paneel(page).getByLabel('Startlocatie')).toHaveValue(TIM.startlocatie);
+    await paneel(page).getByLabel('Tijd per interventie (minuten)').fill('100');
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.locator('#toast')).toContainText('Instellingen opgeslagen');
+    expect(verzoeken.van('/api/instellingen', 'PUT')[0].body.instellingen).toMatchObject({ duurMinuten: 100, routeKleur: '#abcdef', drukteKleuring: true, kaartStijl: 'satelliet' });
+  });
+
+  test('de eigen instellingen opslaan ververst de lokale kopie en de actieve instellingen; een latere opslag in het gewone scherm draait niets terug', async ({ page, verzoeken }) => {
+    await openTab(page, 'Instellingen');
+    await expect(paneel(page).getByLabel('Gebruiker', { exact: true })).toHaveValue('u-test');
+    await expect(paneel(page).getByLabel('Tijd per interventie (minuten)')).toHaveValue('120');
+    await paneel(page).getByLabel('Tijd per interventie (minuten)').fill('100');
+    await paneel(page).getByLabel('Laatste start').fill('15:30');
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.locator('#toast')).toContainText('Instellingen opgeslagen');
+    const lokaal = await page.evaluate(() => ({ kopie: JSON.parse(localStorage.getItem('blitz_settings')), laatsteStart: localStorage.getItem('blitz_laatste_start') }));
+    expect(lokaal.kopie.duurMinuten).toBe(100);
+    expect(lokaal.laatsteStart).toBe('15:30');
+    expect(await page.evaluate(async () => (await import('/js/kern/toestand.js')).toestand.get('settings').duurMinuten)).toBe(100);
+    // Het gewone scherm bewaart nu zijn (verse) stand: de PUT bevat de nieuwe duur, niet de oude.
+    await page.evaluate(async () => (await import('/js/schermen/instellingen.js')).savePersonSettings('all'));
+    await expect.poll(() => verzoeken.van('/api/instellingen', 'PUT').length).toBe(2);
+    expect(verzoeken.van('/api/instellingen', 'PUT')[1].body.instellingen.duurMinuten).toBe(100);
+  });
+
+  test('de instellingen van een ANDERE gebruiker laten de lokale kopie met rust', async ({ page }) => {
+    await openTab(page, 'Instellingen');
+    await paneel(page).getByLabel('Gebruiker', { exact: true }).selectOption('u-t1');
+    await expect(paneel(page).getByLabel('Startlocatie')).toHaveValue(TIM.startlocatie);
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.locator('#toast')).toContainText('Instellingen opgeslagen');
+    expect(await page.evaluate(() => [localStorage.getItem('blitz_settings_Tim'), localStorage.getItem('blitz_settings')])).toEqual([expect.not.stringContaining('Teststraat'), expect.not.stringContaining('Teststraat')]);
+  });
+
   test('een gebruiker zonder bewaarde instellingen toont de standaardwaarden', async ({ page }) => {
     await openTab(page, 'Instellingen');
     await expect(paneel(page).getByLabel('Gebruiker', { exact: true })).toHaveValue('u-test'); // eerste in de lijst
@@ -187,7 +259,7 @@ test.describe('tab Instellingen', () => {
     await openTab(page, 'Instellingen', {}, { viewport: { width: 375, height: 812 } });
     await paneel(page).getByLabel('Gebruiker', { exact: true }).selectOption('u-s1');
     await expect(paneel(page).getByLabel('Bezoekduur (minuten)')).toBeVisible();
-    expect(await geenPaginaScroll(page)).toEqual({ doc: true, view: true });
+    expect(await geenPaginaScroll(page)).toEqual({ doc: true, view: true, balk: true });
   });
 });
 
@@ -247,7 +319,7 @@ test.describe('tab Activiteitenlog', () => {
   test('375 px: geen horizontale paginascroll', async ({ page }) => {
     await openTab(page, 'Activiteitenlog', {}, { viewport: { width: 375, height: 812 } });
     await expect(page.locator('.ba-rij')).toHaveCount(4);
-    expect(await geenPaginaScroll(page)).toEqual({ doc: true, view: true });
+    expect(await geenPaginaScroll(page)).toEqual({ doc: true, view: true, balk: true });
   });
 });
 
@@ -301,6 +373,6 @@ test.describe('tab Systeemstatus', () => {
   test('375 px: geen horizontale paginascroll', async ({ page }) => {
     await openTab(page, 'Systeemstatus', { systeemstatus: () => json(200, STATUS_SLECHT()) }, { viewport: { width: 375, height: 812 } });
     await expect(page.locator('.bs-rapporten tbody tr')).toHaveCount(2);
-    expect(await geenPaginaScroll(page)).toEqual({ doc: true, view: true });
+    expect(await geenPaginaScroll(page)).toEqual({ doc: true, view: true, balk: true });
   });
 });
