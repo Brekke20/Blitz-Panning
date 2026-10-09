@@ -1,5 +1,5 @@
 // schermen/rol-schil.js — de app start pas na de login en past zich aan de rol van de gebruiker aan (logins T15).
-// Dit is het registratiepunt van de rollen: hier staan de tabs per rol (kern/navigatie.js) en de eigen start van sales.
+// Dit is het registratiepunt van de rollen: hier staan de tabs per rol (kern/navigatie.js); de sales-planner registreert zijn tabs en start via sales-registratie.js.
 // Latere deelprojecten voegen hier één importregel toe (instellingen-sync, rolwisselaar, sales-planning, ...).
 // Veiligheid: de rol verbergt enkel knoppen; de server beslist (rechtentabel). Namen komen enkel via textContent.
 import './inloggen.js';                       // registreert de loginschermen bij kern/sessie.js (zetInlogUi)
@@ -10,6 +10,7 @@ import { laadSessie, huidigeGebruiker, registreerAfmeldHaak, laatsteOpstartNetwe
 import { claimToestel, geefToestelVrij } from '../kern/eigenaar.js';
 import { synchroniseerInstellingen, wisInstellingenCache, resterendSyncBudget } from '../kern/instellingen-sync.js';
 import { toast } from '../kern/ui.js';
+import { registreerSalesRol } from './sales-registratie.js';
 
 // De zes bestaande tabs van index.html (de knoppen `tab-<id>`): setTab laadt de inhoud zelf, dus er valt hier niets te laden.
 const nietsTeLaden = async () => {};
@@ -27,41 +28,14 @@ registreerTabs('beheerder', [
 ]);
 // Technieker: zijn eigen rapporten (de server filtert) en collega's enkel lezen; geen wachtrij en geen route.
 registreerTabs('technieker', [bestaand('kalender', 'Kalender'), bestaand('gepland', 'Ingepland'), bestaand('inventaris', 'Inventaris'), bestaand('rapporten', 'Rapporten')]);
-// Sales: voorlopig een plaatshouder; de sales-planning registreert later haar eigen tabs en start.
+// Sales: de tabs en de start van de sales-planner (en de sales-tabs van de beheerder) staan in sales-registratie.js; de tabs VOEGEN toe.
 registreerTabs('sales', []);
-registreerStart('sales', toonSalesPlaceholder);
+registreerSalesRol({ registreerTabs, registreerStart });
 
 // Uitloggen: de gekozen persoon en de eigenaarsmarkering van dit toestel weg (kern/eigenaar.js); de rapportwachtrij blijft bewust staan.
 registreerAfmeldHaak(() => geefToestelVrij(globalThis.localStorage, globalThis.sessionStorage));
 // ... en de lokale instellingen-cache (blitz_settings*, laatste start, marker, vuil-markering): de server heeft ze, de volgende login haalt ze terug.
 registreerAfmeldHaak(() => wisInstellingenCache(globalThis.localStorage));
-
-function verberg(el) {
-  if (!el) return;
-  el.style.display = 'none';
-  el.setAttribute('aria-hidden', 'true');
-}
-
-// Een neutraal scherm voor sales: geen tabs, geen wachtrij en geen enkele aanroep van de planning-API's (de gewone
-// opstart geeft voor sales 403's). Het gebruikersmenu staat al in de kop (pasRolToe).
-export function toonSalesPlaceholder() {
-  document.querySelector('nav[aria-label="Hoofdmenu"]')?.setAttribute('hidden', '');
-  for (const sel of ['#person-sel', '[data-actie="vernieuw"]', '[data-actie="thema"]', '[data-actie="instellingen"]']) verberg(document.querySelector(sel));
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  const main = document.getElementById('hoofdinhoud');
-  if (!main || document.getElementById('view-sales')) return;
-  const scherm = document.createElement('section');
-  scherm.id = 'view-sales';
-  scherm.className = 'view active rol-placeholder';
-  scherm.setAttribute('aria-labelledby', 'sales-titel');
-  const titel = document.createElement('h2');
-  titel.id = 'sales-titel';
-  titel.textContent = 'Het sales-gedeelte volgt';
-  const tekst = document.createElement('p');
-  tekst.textContent = 'Je bent ingelogd. De sales-planning is nog niet beschikbaar in deze versie.';
-  scherm.append(titel, tekst);
-  main.appendChild(scherm);
-}
 
 // Een tab-knop en view voor een tab die index.html niet kent (bv. Beheer).
 function maakTab(tab) {

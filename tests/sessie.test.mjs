@@ -187,6 +187,22 @@ test('afmelden: POST auth-uitloggen met X-Blitz, cache gewist, alle haken (ook n
   assert.equal(herladen(), 1);
 });
 
+test('afmelden: vóór-haken lopen (afgewacht) VÓÓR auth-uitloggen, de gewone haken erna; een falende vóór-haak stopt niets', async () => {
+  const { m, aanroepen } = await nieuweSessie({ antwoorden: [ok(planner), { status: 200, json: { ok: true } }] });
+  await m.laadSessie();
+  const volgorde = [];
+  m.registreerVoorAfmeldHaak(() => { volgorde.push('voor-stuk'); throw new Error('stuk'); });
+  m.registreerVoorAfmeldHaak(async () => {
+    await new Promise(r => setTimeout(r, 5));
+    volgorde.push('voor-trage'); // pas klaar na een wachttijd: afmelden mag niet vooruitlopen
+    assert.equal(aanroepen.length, 1, 'auth-uitloggen is nog niet verstuurd tijdens de vóór-haak'); // enkel het auth-ik-verzoek
+  });
+  m.registreerAfmeldHaak(() => { volgorde.push('na'); assert.equal(aanroepen.at(-1).pad, '/api/auth-uitloggen'); });
+  await m.afmelden();
+  assert.deepEqual(volgorde, ['voor-stuk', 'voor-trage', 'na']);
+  assert.equal(aanroepen[1].pad, '/api/auth-uitloggen');
+});
+
 test('afmelden: ook bij een netwerkfout wordt alles gewist en herladen', async () => {
   const { m, opslag, herladen } = await nieuweSessie({ antwoorden: [ok(planner), new TypeError('Failed to fetch')] });
   await m.laadSessie();

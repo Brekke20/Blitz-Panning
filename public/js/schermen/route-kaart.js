@@ -23,7 +23,7 @@ export function initKaart(afh) {
 // Migratie: een eerder opgeslagen instellingen().kaartStijl === 'standaard' wijst voortaan automatisch
 // naar deze nieuwe laag — 'standaard' blijft een geldige sleutel, enkel de laag erachter wijzigt
 // (aanvaardbaar, geen aparte migratiecode nodig).
-const KAART_LAGEN = {
+export const KAART_LAGEN = {
   standaard: { naam: 'Standaard', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', opts: { attribution: 'Tiles © Esri', maxZoom: 19 } },
   osm:       { naam: 'OpenStreetMap', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', opts: { attribution: '© OpenStreetMap', maxZoom: 19 } },
   // CARTO's gratis anonieme tegels vereisen sinds kort een API-key (watermerk "API KEY
@@ -144,7 +144,9 @@ function tekenDrukteOvergangen(polyline, segmenten, kleurVan) {
 }
 
 export function initMap() {
-  leafletMap  = L.map('map', { zoomControl: true }).setView([51.0, 4.5], 8);
+  // fadeAnimation uit: Leaflet's tegel-fade is een rAF-lus op Date.now() (tot 200 ms na het laden van een tegel). Onder de e2e-nepklok met
+  // vastgezette tijd (setFixedTime) eindigt die lus nooit en elke page.clock.runFor kost dan echte tijd (zie eindreview-fix-report.md).
+  leafletMap  = L.map('map', { zoomControl: true, fadeAnimation: false }).setView([51.0, 4.5], 8);
   kaartBaseLayers = {};
   Object.entries(KAART_LAGEN).forEach(([sleutel, laag]) => {
     kaartBaseLayers[laag.naam] = L.tileLayer(laag.url, laag.opts);

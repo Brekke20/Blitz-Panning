@@ -59,3 +59,14 @@ test('een kapotte opslag gooit niet', () => {
   assert.doesNotThrow(() => geefToestelVrij(stuk, stuk));
   assert.doesNotThrow(() => claimToestel(null, null, 'tim'));
 });
+
+test('claimToestel met een andere eigenaar wist ook de gekozen verkoper van de sales-planner', () => {
+  const ls = maakOpslag({ [EIGENAAR_SLEUTEL]: 'sam', blitz_sales_verkoper: 'u-sal' });
+  assert.ok(PERSOONLIJKE_SLEUTELS.includes('blitz_sales_verkoper'));
+  assert.equal(claimToestel(ls, maakOpslag(), 'bea'), true);
+  assert.equal(ls.getItem('blitz_sales_verkoper'), null);
+  // dezelfde eigenaar: de keuze blijft
+  const ls2 = maakOpslag({ [EIGENAAR_SLEUTEL]: 'sam', blitz_sales_verkoper: 'u-sal' });
+  assert.equal(claimToestel(ls2, maakOpslag(), 'sam'), false);
+  assert.equal(ls2.getItem('blitz_sales_verkoper'), 'u-sal');
+});

@@ -1,0 +1,16 @@
+{
+  "geexporteerdOp": "2026-10-05T07:30:00.000Z",
+  "verantwoordelijke": "Test Verkoper",
+  "statussen": ["Nieuw", "1e contactpoging gedaan"],
+  "aantal": 8,
+  "leads": [
+    { "naam": "Verhaegen", "voornaam": "Lotte", "gsm": "+32 470 11 22 33", "email": "lotte.verhaegen@voorbeeld.test", "adres": "3640" },
+    { "naam": "Dewitte", "voornaam": "Koen", "gsm": "0471 22 33 44", "email": "koen.dewitte@voorbeeld.test", "adres": "3500" },
+    { "naam": "Mertens", "voornaam": "Sofie", "gsm": "0472 33 44 55", "email": "sofie.mertens@voorbeeld.test", "adres": "2440" },
+    { "naam": "Hendrickx", "voornaam": "Bram", "gsm": "0473 44 55 66", "email": "bram.hendrickx@voorbeeld.test", "adres": "3600" },
+    { "naam": "Lambrechts", "voornaam": "Els", "gsm": "0474 55 66 77", "email": "els.lambrechts@voorbeeld.test", "adres": "3550" },
+    { "naam": "Smeets", "voornaam": "Jan", "gsm": "0475 66 77 88", "email": "jan.smeets@voorbeeld.test", "adres": "Dorpsstraat 12, 3640 Kinrooi" },
+    { "naam": "Claessen", "voornaam": "Mieke", "gsm": "+32000000", "email": "mieke.claessen@voorbeeld.test", "adres": "bij de molen" },
+    { "naam": "Verhaegen", "voornaam": "L.", "gsm": "0476 77 88 99", "email": "Lotte.Verhaegen@Voorbeeld.TEST", "adres": "3640" }
+  ]
+}

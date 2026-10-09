@@ -171,3 +171,46 @@ Bron: `.superpowers/sdd/2026-10-08-performance-dashboard/` (ledger `progress.md`
 | J9 | Rapportwizard: past de technieker een met TomTom berekende aanrijtijd handmatig aan, dan blijft de badge "📡 TomTom" staan (de bron wordt niet 'handmatig'). Geen effect op PDF of TicketLog. (Eindreview M5.) |
 | J10 | `rapport-verzonden.js` leest en schrijft de hele `rapportlijst` zonder controle-na-schrijven (de upload gebruikt `wijzigLijst`): een gelijktijdige schrijver kan overschreven worden. Bestond al; het automatisch aanvinken roept het vaker aan. Idee: omzetten naar `wijzigLijst`. (Eindreview M7.) |
 | J11 | Een voorstel waarvan de mail maar naar een deel van de ontvangers vertrok blijft voor dat ticket vergrendeld tot de pagina herladen wordt: de planner stuurt de ontbrekende mail in Zoho zelf (ruling eindreview I3). |
+
+## I. Sales-planner — open punten
+
+Bron: `.superpowers/sdd/2026-10-08-sales-planner/progress.md` en de taakrapporten. Handleiding: `docs/logins-en-beheer.md`; release-controles: `docs/release-checklist-2.0.md` sectie 1c. Allemaal open, geen blokkade.
+
+### Beslissingen en bekende beperkingen
+
+| # | Punt |
+|---|---|
+| I1 | **Na 12 maanden komt een afgewerkte lead als gewone nieuwe lead terug** bij een nieuwe export (de afgewerkte lead en zijn grafsteen worden samen opgeruimd). Beslist door Brent (2026-10-09): geen spoor bewaren. |
+| I2 | **Wijzigt `SESSIE_GEHEIM`, dan stoppen de grafstenen met passen:** een weggeklikte lead komt dan zonder label "eerder verwijderd" terug. Aanvaard. |
+| I3 | **Herkenning van dezelfde klant** gebeurt op e-mail of gsm; een gedeelde gsm geeft één lead (zelfde huishouden), een lead zonder e-mail, gsm en naam komt bij elke import terug (zeldzaam). Een lead zonder e-mail of bruikbare gsm wordt herkend op naam, voornaam en postcode; dat is een uitbreiding op de spec. Eerst zonder contact en later mét e-mail binnengekomen geeft een duplicaat. |
+| I4 | **"Te plannen" toont ook de reeds ingeplande leads** in een aparte groep "Ingepland". Letterlijk enkel "te plannen" tonen kan door die groep te verbergen. |
+| I5 | **Na een adreswijziging worden de uren niet vanzelf verschoven:** de route en rittijden worden vernieuwd en conflicten gemeld, de uren schuiven pas bij een nieuwe "Plan deze week" (verschuiven op eigen houtje kan een bezoek ongevraagd wijzigen). Zachter dan de oorspronkelijke spec-regel; door Brent aanvaard. |
+| I6 | **Blokken hebben geen adres** (enkel een tijdvak). Het datamodel (`lat`/`lon`) en de adapter ondersteunen het al. |
+| I7 | **Een geblokkeerde of van rol veranderde verkoper:** zijn blob blijft bestaan tot de dagelijkse opruiming alles wist wat 12 maanden geen activiteit had (leads, blokken, grafstenen; besluit Brent 2026-10-09, eindreview I3). De beheerder kan het blob van een geblokkeerde verkoper wel openen, maar enkel lezen (de keuzelijst toont hem met "(geblokkeerd)"; schrijven geeft 403). Een verzoek van een klant om te wissen kan dus pas na deblokkeren of na 12 maanden. |
+| I8 | **Het sales-instellingenvenster** stelt een lege "Laatste start" gelijk aan de standaard: 16:00, of de eindtijd als de werkuren vroeger eindigen. Zonder instellingen: maandag tot vrijdag 08:00 tot 17:00, bezoek 60 minuten, geen startpunt. |
+| I9 | **Postcodecache:** een mislukte schrijfactie wordt enkel gelogd (afleidbare data), de enige plek die niet "fail closed" is. |
+| I10 | **Een verkoper die kort naar een andere app wisselt** laat de 5 seconden "ongedaan maken" na een verwijdering vervallen (de verwijdering wordt dan meteen verstuurd). Bewuste keuze. |
+| I11 | **Een `tel:`- of `mailto:`-link op een leadkaart** zit binnen een kaart die als knop gelezen wordt; schermlezers lezen de kaart als knop. Aanvaardbaar, toegankelijkheidspunt. |
+
+### Controles voor de release (live, nooit tegen echte diensten getest)
+
+| # | Punt |
+|---|---|
+| I12 | De TomTom-aanroepen (`structuredGeocode`, het veld `address.postalCode`, `/api/postcode`) zijn volgens de documentatie gekozen maar nooit live getest. Een TomTom-fout 400 of 404 telt als tijdelijk (maximaal 3 pogingen). Zie de release-checklist, sectie 1c. |
+| I13 | Bevestigen dat Netlify `public/js/sales/*` meebundelt voor `sales-import`, dat `sales-opruimen` als geplande functie draait en dat `/api/route` met `departAt` live werkt (zie de release-checklist, sectie 1c). |
+
+### Open fouten en kleine punten
+
+| # | Punt |
+|---|---|
+| I14 | De dagkop in de kalender heeft een vaste hoogte (88 px): meer dan ongeveer één hele-dag-blok of feestdag per dag wordt in de kop afgekapt (het vlak in de dagkolom blijft zichtbaar en een klik opent het blok). |
+| I15 | Is de startlocatie van de verkoper niet te geocoderen, dan beginnen de ritten bij het eerste bezoek en staat er een toast "startlocatie kon niet opgezocht worden". Er zijn twee aparte routes die de startlocatie opzoeken (de route-tab en "Plan deze week"); samenbrengen is wenselijk. |
+| I16 | In de route-tab slaan de pijltjes naar vorige en volgende dag de weekends niet over. |
+| I17 | De route-e2e hangt af van de CDN (cdnjs, Leaflet): zonder verbinding met de CDN falen die tests. |
+| I18 | Een lead met een volledig adres dat door het tijdsbudget van de import niet gegeocodeerd raakt, krijgt voorlopig de postcode-locatie met een vlag; een latere ronde waardeert hem op. De time-out kan het budget ongeveer 5 s overschrijden. Een lead zonder locatie bij een tijdelijke fout heeft geen teller; een verouderde vlag blijft staan als de postcode ongeldig wordt. |
+| I19 | Een grafsteen zonder geldige datum wordt nooit opgeruimd. |
+| I20 | Een import die enkel bestaande leads aanvult schrijft wel (versie plus 1); enkel een volledig identieke herimport schrijft niet. Een import logt altijd één regel, ook bij 0 nieuwe leads. |
+| I21 | Een verkoper met "Mag alle sales zien" kan voor een collega niets instellen of inladen (alleen-lezen). Enkel de beheerder wijzigt instellingen van een verkoper, via Beheer, Instellingen. |
+| I23 | **Eindreview-minors, bewust niet opgelost (M1, M3, M5, M7 t/m M13):** M1 een uitgestelde verwijdering achter een lange `aanvullen`-keten kan verloren gaan als de app dan sluit; M3 het instellingenvenster slaat een onaangeraakte laatste start (16:00) expliciet op (veld leeg laten met de standaard als placeholder werkt niet in een tijdveld); M5 een ingetikte notitie of adres bij een manuele lead voor een bestaande klant wordt stil niet bewaard (toast zegt enkel "staat al in je lijst"); M7 Plan deze week stelt vandaag uren voor die al voorbij zijn (brein-gedrag, geldt ook voor techniekers); M8 na een 409 gaat Plan deze week door met de overige voorstellen van de oude stand (veiliger: afbreken); M9 een adreswijziging geocodeert alle open leads met het standaardbudget (tot ongeveer 20 s opslaan); M10 `geocodeAdres` aanvaardt elk TomTom-resultaattype als exact adres (gemeente- of straatmiddelpunt telt dan als "adres"); M11 een verkoper met "mag alle sales zien" ziet via `GET /api/instellingen?gebruiker=` het startadres (vaak thuisadres) van collega's (Brent beslist); M12 "blok toevoegen" na een verloren antwoord geeft een dubbel blok; M13 het activiteitenlog gebruikt `sales-lead-verwijderd` voor twee betekenissen (door de gebruiker: lead-id; door de opruiming: verkoper-id met aantal). Opgelost in de eindreview-fixronde: I1 instellingen, I2 verlopen voorstel, I3 bewaartermijn, M2 laat PATCH-antwoord na verkoperwissel, M4 tekst bij vervallen, M6 bezoekdatum in de toekomst. |
+| I24 | **E2E-tests met de vaste nepklok (`vasteKlok`) en Leaflet:** Leaflet's tegel-fade is een rAF-lus op `Date`; bij bevroren tijd eindigt ze nooit en kost elke `page.clock.runFor` echte tijd. Opgelost door `fadeAnimation: false` op de kaart (`route-kaart.js`); zie `.superpowers/sdd/2026-10-08-sales-planner/eindreview-fix-report.md`. |
+| I22 | Onbetrouwbare tests onder belasting (alleen opnieuw draaien lost het op): unit `beschikbaarheid-logica`; e2e sales-schil "tabwissel heen en weer" en tests die de CDN raken. |

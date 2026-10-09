@@ -28,7 +28,7 @@ test('Update van de v25-SW van main naar de nieuwe SW: overname, nieuwe schil, e
   // 3. De app werkt daarna offline (ook Leaflet, dat de oude SW nooit bewaarde).
   await sw.zetOffline(true);
   await page.reload();
-  await expect(page.getByRole('tab')).toHaveCount(7); // de gecachte (beheerder-)sessie: zes tabs plus Beheer
+  await expect(page.getByRole('tab')).toHaveCount(8); // de gecachte (beheerder-)sessie: zes tabs, Beheer en Sales
   await expect(page.locator('#offline-banner')).toBeVisible();
   expect(await page.evaluate(() => typeof L)).toBe('object');
   await sw.zetOffline(false);

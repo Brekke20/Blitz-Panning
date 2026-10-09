@@ -39,7 +39,8 @@
     var rolGekozen = (r === 'coordinator' || r === 'technieker');
     var rol = rolGekozen ? r : (soort === 'computer' ? 'coordinator' : 'technieker');
     // Een ingelogde technieker (of sales) is altijd de beperkte rol, op elk toestel, en krijgt geen tablet-rolvraag.
-    if (loginRol) { rol = 'technieker'; rolGekozen = true; }
+    // Sales houdt zijn eigen waarde 'sales' (CSS behandelt hem als technieker voor .coord-only; sales-schermen gebruiken eigen klassen).
+    if (loginRol) { rol = loginRol === 'sales' ? 'sales' : 'technieker'; rolGekozen = true; }
 
     return { soort: soort, automatischeSoort: auto, indeling: indeling, staand: staand,
              aanraak: grof, rol: rol, rolGekozen: rolGekozen, kortsteZijde: kortsteZijde };

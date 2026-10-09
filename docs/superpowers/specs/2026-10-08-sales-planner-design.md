@@ -19,11 +19,12 @@ Een planner per verkoper, die werkt zoals de planner voor de techniekers, maar:
 | Onderwerp | Keuze |
 |---|---|
 | Wie plant | Elke verkoper zelf; beheerder (en verkopers met "mag alle sales zien") bekijken iedereen |
-| Herimport | **Samenvoegen**: nieuwe leads erbij, bestaande (zelfde e-mail of gsm) niet dubbel, ingevulde gegevens/planning blijven; verdwenen leads blijven staan tot de verkoper ze wegklikt |
+| Herimport | **Samenvoegen**: nieuwe leads erbij, bestaande (zelfde e-mail of gsm) niet dubbel, ingevulde gegevens/planning blijven; verdwenen leads blijven staan tot de verkoper ze wegklikt. Een weggeklikte lead die in een latere export terugkomt, komt terug **met label "eerder verwijderd"**; de verkoper beslist (behouden of opnieuw wegklikken) |
 | Afspreken | Planner stelt voor ("voorgesteld"), verkoper belt en zet het uur vast ("bevestigd"); geen mails |
 | Manueel uur | Verkoper kan bij elke lead zelf een dag + uur vastleggen (ook als die nog niet ingepland was); de planner plant daarrond en verschuift het nooit |
 | Na het bezoek | Kort resultaat: Offerte / Verkocht / Geen interesse / Opnieuw langsgaan + optionele notitie |
-| Privacy | Leads enkel achter login; verwijderen = echt weg; afgewerkte bezoeken 12 maanden bewaard, dan automatisch gewist |
+| Privacy | Leads enkel achter login; verwijderen = echt weg (naam, e-mail, gsm verdwijnen); enkel een HMAC-hash van de herkenningssleutels blijft 12 maanden bewaard als "grafsteen" om een terugkerende lead te herkennen (nooit leesbaar, nooit naar de client); afgewerkte leads 12 maanden bewaard, dan automatisch gewist |
+| Instellingen | De verkoper stelt zelf zijn startadres (ook enkel een postcode), werkuren en standaard bezoekduur in via een klein instellingenvenster; de beheerder kan ze ook instellen |
 
 ## Exportformaat (voorbeeld: `planningsexport_Ward_Houwen_2026-10-08.json`)
 
@@ -54,7 +55,7 @@ Inlezen (`public/js/sales/import.js`, pure functie, getest):
 
 | Key | Inhoud |
 |---|---|
-| `sales/<gebruikerId>` | `{ versie, leads: [Lead], blokken: [Blok] }` — één blob per verkoper (geen botsingen tussen verkopers) |
+| `sales/<gebruikerId>` | `{ versie, leads: [Lead], blokken: [Blok], grafstenen: [{ h: [hash], op }] }` — één blob per verkoper (geen botsingen tussen verkopers); `grafstenen` = HMAC-SHA256-hashes (sleutel afgeleid van `SESSIE_GEHEIM`) van de herkenningssleutels van weggeklikte leads, 12 maanden bewaard, nooit naar de client gestuurd |
 | `postcode-cache` | `{ [postcode]: { lat, lon, gemeente } }` — middelpunt per Belgische postcode, één keer opgezocht |
 
 ```
@@ -67,7 +68,8 @@ Lead {
   planning?: { datum, start, vast: boolean }, // vast = door verkoper vastgelegd uur
   resultaat?: { soort: 'offerte'|'verkocht'|'geen-interesse', notitie?, op },
   bezoeken: [{ datum, resultaat: 'offerte'|'verkocht'|'geen-interesse'|'opnieuw', notitie?, op }], // historiek per bezoek
-  geimporteerdOp, bronExport: { verantwoordelijke, geexporteerdOp }
+  geimporteerdOp, bronExport: { verantwoordelijke, geexporteerdOp },
+  eerderVerwijderd?: { op }                  // label bij een terugkerende, eerder weggeklikte lead; wisbaar door de verkoper
 }
 Blok { id, datum, start, eind, omschrijving, soort: 'verlof'|'kantoor'|'afspraak', lat?, lon? }
 ```
@@ -137,8 +139,8 @@ De andere drie → status `afgewerkt`.
 - Leads zonder locatie (postcode niet gevonden) krijgen de bestaande reden "adres niet gevonden".
 - Geplaatste leads → status `voorgesteld`, `planning = { datum, start, vast: false }`.
 - Opnieuw "Plan deze week" mag `voorgesteld`-bezoeken herschikken, nooit `bevestigd` of `vast`.
-- Wijzigt een adres van postcode naar volledig adres, dan worden de route en de uren van die dag
-  herberekend (de bestaande route-herberekening).
+- Wijzigt een adres van postcode naar volledig adres, dan worden de route en de rittijden van die dag
+  herberekend en conflicten getoond; de uren schuiven pas bij de volgende "Plan deze week".
 - Geen Zoho-aanroepen, geen voorstel-mails, geen stock in de sales-gegevensbron.
 
 Bij het bouwplan wordt nagegaan welke delen van het kalender- en Route-scherm al los staan van de
