@@ -204,7 +204,9 @@ test('testmodus: log blijft leeg (ook al staat er een log in de echte opslag) en
   assert.equal(body.klant.annulaties.aantal, 0);
   assert.equal(body.klant.annulaties.vanaf, null);
   assert.equal(body.kern.huidig.interventies.n, 1);          // uit de teststore (eenmalige kopie)
-  assert.deepEqual(body.sales.perWeek.verkopers, ['Test Verkoper']);
+  // Sinds de sales-planner (T11) kopieert de testmodus nooit echte sales/-blobs naar de teststore (NIET_KOPIEREN):
+  // de echte lead van test-sales mag in testmodus dus niet in het dashboard verschijnen.
+  assert.deepEqual(body.sales.perWeek.verkopers, []);
   assert.ok(test._data.has('rapportlijst'));
 });
 
