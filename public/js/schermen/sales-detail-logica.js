@@ -2,6 +2,7 @@
 import { isVast, isGeldigeDatum, isGeldigUur } from '../sales/lead-regels.js';
 import { isHeleDag } from '../sales/blok-regels.js';
 import { timeStrToMin } from '../kern/tijd.js';
+import { adresSoort } from '../sales/adres.js';
 import { naamVan, blokTitel } from './sales-tekst.js';
 
 const MIN_DUUR_MIN = 15;
@@ -78,4 +79,21 @@ export function vindBotsingen({ leads = [], blokken = [], datum, start, duurMin,
     if (overlapt(s, e, bs, be)) gevonden.push({ soort: 'blok', omschrijving: blokTitel(b), start: b.start, eind: b.eind, _s: bs });
   }
   return gevonden.sort((a, b) => a._s - b._s).map(({ _s, ...rest }) => rest);
+}
+
+const gelijk = (a, b) => (a ?? null) === (b ?? null);
+
+/** Enkel de velden uit `velden` (resultaat van valideerDetail) die echt van de lead verschillen: een kleinere patch botst minder. */
+export function wijzigingen(lead, velden) {
+  const verschil = {};
+  for (const [sleutel, waarde] of Object.entries(velden ?? {})) {
+    if (!gelijk(lead?.[sleutel], waarde)) verschil[sleutel] = waarde;
+  }
+  return verschil;
+}
+
+/** Gaat een voorgesteld of bevestigd bezoek door de adreswijziging van enkel postcode naar volledig adres? Dan verschuift de route van die dag. */
+export function routeHerberekend(voor, na) {
+  if (voor?.status !== 'voorgesteld' && voor?.status !== 'bevestigd') return false;
+  return adresSoort(voor) !== 'volledig' && adresSoort(na) === 'volledig';
 }

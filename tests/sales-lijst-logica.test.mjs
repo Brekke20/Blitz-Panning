@@ -174,3 +174,42 @@ test('afgewerktRijen: periodegrens loopt niet over aan het einde van een maand',
   const l2 = [klaar('a', '2027-02-28', 'offerte'), klaar('b', '2027-02-27', 'offerte')];
   assert.deepEqual(afgewerktRijen(l2, { nu: schrikkel, periode: '12m' }).map((x) => x.leadId), ['a']);
 });
+
+// ---- importteksten (Task 14) ----
+import { samenvattingTekst, exportTekst, andereVerantwoordelijke } from '../public/js/schermen/sales-lijst-logica.js';
+
+test('samenvattingTekst: het deel "eerder verwijderd" staat er enkel bij een aantal > 0', () => {
+  assert.equal(samenvattingTekst({ nieuw: 12, alAanwezig: 7, adresNakijken: 1, eerderVerwijderd: 2 }),
+    '12 nieuw (waarvan 2 eerder verwijderd), 7 al aanwezig, 1 adres nakijken');
+  assert.equal(samenvattingTekst({ nieuw: 3, alAanwezig: 0, adresNakijken: 1, eerderVerwijderd: 0 }), '3 nieuw, 0 al aanwezig, 1 adres nakijken');
+  assert.equal(samenvattingTekst({ nieuw: 1, alAanwezig: 0, adresNakijken: 0 }), '1 nieuw, 0 al aanwezig, 0 adres nakijken');
+});
+
+test('exportTekst: verantwoordelijke, aantal, statussen en overgeslagen leads (enkel wat er is)', () => {
+  assert.equal(exportTekst({ verantwoordelijke: 'Test Verkoper', aantal: 6, statussen: ['Nieuw', 'Gebeld'], overgeslagen: 0 }),
+    'Export van Test Verkoper · 6 leads · statussen: Nieuw, Gebeld');
+  assert.equal(exportTekst({ verantwoordelijke: null, aantal: 1, statussen: [], overgeslagen: 2 }), 'Export · 1 lead · 2 leads zonder naam of contactgegevens overgeslagen');
+  assert.equal(exportTekst({ verantwoordelijke: null, aantal: null, statussen: [] }), 'Export');
+  assert.equal(exportTekst(undefined), '');
+});
+
+test('andereVerantwoordelijke: enkel bij een ingevulde naam die niet (hoofdletter- en spatieongevoelig) de verkoper is', () => {
+  assert.equal(andereVerantwoordelijke('Andere Verkoper', 'Test Verkoper'), true);
+  assert.equal(andereVerantwoordelijke('test  verkoper', 'Test Verkoper'), false);
+  assert.equal(andereVerantwoordelijke(null, 'Test Verkoper'), false); // niets om mee te vergelijken
+  assert.equal(andereVerantwoordelijke('', 'Test Verkoper'), false);
+});
+
+// ---- foutTekst (Task 14) ----
+import { foutTekst, OPSLAG_TEKST } from '../public/js/schermen/sales-tekst.js';
+
+test('foutTekst: een begrijpelijke tekst per reden van een mislukte schrijfactie', () => {
+  assert.equal(OPSLAG_TEKST, 'De opslag is tijdelijk niet bereikbaar. Probeer het zo meteen opnieuw.');
+  assert.equal(foutTekst({ reden: 'opslag' }), OPSLAG_TEKST);
+  assert.match(foutTekst({ reden: 'netwerk' }), /verbinding/i);
+  assert.match(foutTekst({ reden: 'conflict' }), /intussen gewijzigd/);
+  assert.match(foutTekst({ reden: 'vervallen' }), /bestaat niet meer/);
+  assert.equal(foutTekst({ reden: 'http', fout: 'Postcode moet 4 cijfers zijn' }), 'Postcode moet 4 cijfers zijn');
+  assert.equal(foutTekst({ reden: 'http' }), 'Opslaan is mislukt. Probeer het opnieuw.');
+  assert.equal(foutTekst(undefined), 'Opslaan is mislukt. Probeer het opnieuw.');
+});

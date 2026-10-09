@@ -7,8 +7,9 @@
 import { onSalesWijziging, laadSales, laadInstellingen, resetSales, spoelUitgesteld } from './sales-data.js';
 import { registreerAfmeldHaak, registreerVoorAfmeldHaak, huidigeGebruiker } from '../kern/sessie.js';
 import { renderVerkoperBalk, getoondeVerkoper, VERKOPER_SLEUTEL } from './sales-verkoper.js';
+import { OPSLAG_TEKST } from './sales-tekst.js';
 
-export const OPSLAG_TEKST = 'De opslag is tijdelijk niet bereikbaar. Probeer het zo meteen opnieuw.';
+export { OPSLAG_TEKST };
 const LAAD_TEKST = 'De leads konden niet geladen worden.';
 
 // ---- afmelden (één keer, bij het laden van deze module) ----

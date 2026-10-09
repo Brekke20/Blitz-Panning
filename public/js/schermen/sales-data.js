@@ -123,9 +123,13 @@ export async function bewaarInstellingen(instellingen /* volledig object */) {
 
 // ---- schrijven ----
 
-async function wijzigNu(patch) {
+async function wijzigNu(invoer) {
   let tweede = false;
   for (;;) {
+    // Een functie berekent de patch op de actuele stand: na een 409 (nieuwe serverstand) opnieuw, zodat bv. een toe te voegen bezoek
+    // op de verse historiek aansluit. Geeft ze null, dan is de wijziging vervallen (bv. de lead is intussen weg).
+    const patch = invoer instanceof Function ? invoer(staat) : invoer;
+    if (patch == null) return { ok: false, reden: 'vervallen' };
     let r;
     try { r = await apiVerzoek('/api/sales' + query(gebruikerQuery(doel)), { methode: 'PATCH', body: { ...patch, versie: staat.versie } }); }
     catch { return { ok: false, reden: 'netwerk' }; }
@@ -150,7 +154,11 @@ function inKeten(werk) {
   return p;
 }
 
-/** patch = { leads?: [{ id, velden }], blokken?: { toevoegen?, wijzig?, verwijder? }, aanvullen? } -> { ok, open? } | { ok:false, reden, status?, fouten?, fout? } */
+/**
+ * patch = { leads?: [{ id, velden }], blokken?: { toevoegen?, wijzig?, verwijder? }, aanvullen? }, of een functie `(salesToestand) => patch | null`
+ * die na een 409 opnieuw op de verse stand wordt uitgevoerd.
+ * -> { ok, open? } | { ok:false, reden: 'netwerk'|'http'|'opslag'|'conflict'|'vervallen', status?, fouten?, fout? }
+ */
 export function wijzig(patch) { return inKeten(() => wijzigNu(patch)); }
 
 export async function importeer(exportObject) {
@@ -160,6 +168,22 @@ export async function importeer(exportObject) {
   if (!r.ok) return fout(r);
   const herlaad = await laadSales({ gebruikerId: doel });
   return { ok: true, samenvatting: r.data?.samenvatting, export: r.data?.export, open: r.data?.open, herladen: herlaad.ok };
+}
+
+/**
+ * Na een import of adreswijziging: bepaalt de nog ontbrekende locaties door wijzig({ aanvullen: true }) te herhalen (de server werkt per
+ * ronde binnen een tijdsbudget). Stopt als niets meer open staat, een ronde mislukt, er geen vooruitgang is of na `max` rondes.
+ * `voortgang(open)` wordt voor elke ronde aangeroepen. -> het aantal leads dat nog open staat.
+ */
+export async function vulLocatiesAan(open, { max = 10, voortgang } = {}) {
+  let rest = open;
+  for (let ronde = 0; ronde < max && rest > 0; ronde++) {
+    voortgang?.(rest);
+    const r = await wijzig({ aanvullen: true });
+    if (!r.ok || !(r.open < rest)) { if (r.ok) rest = r.open; break; }
+    rest = r.open;
+  }
+  return rest;
 }
 
 // ---- uitgestelde verwijdering (5 s ongedaan maken) ----

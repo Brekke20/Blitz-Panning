@@ -180,6 +180,38 @@ test('wijzig: 409 met data -> server-stand overnemen en de patch EENMAAL opnieuw
   assert.equal(salesToestand().leads.length, 2);
 });
 
+test('wijzig met een functie: na een 409 wordt de patch opnieuw berekend op de verse stand (bv. een bezoek toevoegen aan de nieuwe historiek)', async () => {
+  const oud = { datum: '2026-10-01', resultaat: 'opnieuw', op: '2026-10-01T08:00:00.000Z' };
+  const nieuwBezoek = { datum: '2026-10-02', resultaat: 'offerte', op: '2026-10-02T08:00:00.000Z' };
+  const f = nepFetch(
+    { status: 200, json: blob(3, [lead('a')]) },
+    { status: 409, json: { error: 'Versiematch mislukt', serverVersie: 4, data: blob(4, [lead('a', { bezoeken: [oud] })]) } },
+    { status: 200, json: blob(5, [lead('a', { bezoeken: [oud, nieuwBezoek] })]) },
+  );
+  zetFetch(f);
+  await laadSales();
+  const gezien = [];
+  const r = await wijzig((staat) => {
+    const l = staat.leads.find(x => x.id === 'a');
+    gezien.push((l.bezoeken ?? []).length);
+    return { leads: [{ id: 'a', velden: { bezoeken: [...(l.bezoeken ?? []), nieuwBezoek] } }] };
+  });
+  assert.equal(r.ok, true);
+  assert.deepEqual(gezien, [0, 1]); // eerst op de oude stand, na de 409 op de verse
+  assert.deepEqual(f.aanroepen[1].body.leads[0].velden.bezoeken, [nieuwBezoek]);
+  assert.deepEqual(f.aanroepen[2].body.leads[0].velden.bezoeken, [oud, nieuwBezoek]);
+  assert.equal(f.aanroepen[2].body.versie, 4);
+});
+
+test('wijzig met een functie die null geeft (lead intussen weg): niets versturen, reden "vervallen"', async () => {
+  const f = nepFetch({ status: 200, json: blob(3, [lead('a')]) });
+  zetFetch(f);
+  await laadSales();
+  const r = await wijzig(() => null);
+  assert.deepEqual([r.ok, r.reden], [false, 'vervallen']);
+  assert.equal(f.aanroepen.length, 1);
+});
+
 test('wijzig: tweede 409 -> { ok:false, reden:"conflict" }, de server-stand is overgenomen, geen derde poging', async () => {
   const f = nepFetch(
     { status: 200, json: blob(3, [lead('a')]) },
@@ -549,4 +581,44 @@ test('DELETE van een ander blob (verkoperwissel binnen het venster) raakt de hui
   assert.equal(f.aanroepen[0].pad, '/api/sales?lead=a&gebruiker=u-A');
   assert.equal(salesToestand().leads.length, 1); // B's lead 'a' blijft
   assert.equal(salesToestand().versie, 1);       // A's versie wordt niet overgenomen
+});
+
+// ---- vulLocatiesAan (Task 14) ----
+import { vulLocatiesAan } from '../public/js/schermen/sales-data.js';
+
+test('vulLocatiesAan: herhaalt wijzig({ aanvullen }) tot er niets meer open staat en meldt de voortgang', async () => {
+  const f = nepFetch(
+    { status: 200, json: blob(1, [lead('a')]) },
+    { status: 200, json: { ...blob(2, [lead('a')]), open: 3 } },
+    { status: 200, json: { ...blob(3, [lead('a')]), open: 1 } },
+    { status: 200, json: { ...blob(4, [lead('a')]), open: 0 } },
+  );
+  zetFetch(f);
+  await laadSales();
+  const gezien = [];
+  const rest = await vulLocatiesAan(5, { voortgang: (n) => gezien.push(n) });
+  assert.equal(rest, 0);
+  assert.deepEqual(gezien, [5, 3, 1]);
+  assert.deepEqual(f.aanroepen.slice(1).map(a => a.body.aanvullen), [true, true, true]);
+});
+
+test('vulLocatiesAan: stopt zonder vooruitgang, bij een fout en na het maximum aantal rondes (nooit eindeloos)', async () => {
+  let f = nepFetch({ status: 200, json: blob(1) }, { status: 200, json: { ...blob(2), open: 4 } });
+  zetFetch(f);
+  await laadSales();
+  assert.equal(await vulLocatiesAan(4), 4); // 4 -> 4: geen vooruitgang
+  assert.equal(f.aanroepen.length, 2);
+
+  f = nepFetch({ status: 200, json: blob(1) }, STORING);
+  zetFetch(f);
+  await laadSales();
+  assert.equal(await vulLocatiesAan(2), 2); // mislukt: het oude aantal blijft
+
+  f = nepFetch({ status: 200, json: blob(1) }, ...[9, 8, 7, 6].map((o, i) => ({ status: 200, json: { ...blob(2 + i), open: o } })));
+  zetFetch(f);
+  await laadSales();
+  assert.equal(await vulLocatiesAan(10, { max: 3 }), 7); // drie rondes
+  assert.equal(f.aanroepen.length, 4);
+  assert.equal(await vulLocatiesAan(0), 0); // niets te doen: geen verzoek
+  assert.equal(f.aanroepen.length, 4);
 });

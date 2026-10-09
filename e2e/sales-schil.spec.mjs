@@ -71,7 +71,8 @@ test.describe('sales: schil en start', () => {
 
   test('met bewaarde leads toont "Te plannen" ze (de schil laadt het eigen blob)', async ({ page }) => {
     await startSalesApp(page, { leads: [{ id: 'l1', naam: 'Verhaegen', voornaam: 'Lotte', status: 'te-plannen', bezoeken: [] }] });
-    await expect(page.locator('#view-sales-lijst')).toContainText('1 leads');
+    await expect(page.locator('#view-sales-lijst .sales-kaart')).toHaveCount(1);
+    await expect(page.locator('#view-sales-lijst')).toContainText('Lotte Verhaegen');
   });
 });
 

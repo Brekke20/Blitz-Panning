@@ -1,7 +1,7 @@
 // schermen/sales-lijst-logica.js — logica van de lijsten Te plannen en Afgewerkt en van de leadkaart (puur, geen DOM).
 import { adresSoort, plaatsLabel } from '../sales/adres.js';
 import { isVast, RESULTAAT_LABEL } from '../sales/lead-regels.js';
-import { normaliseerGsm, normaliseerEmail } from '../sales/import.js';
+import { normaliseerGsm, normaliseerEmail, zelfdeNaam } from '../sales/import.js';
 import { localISO, fmtDateShort } from '../kern/tijd.js';
 import { naamVan, dagLabel } from './sales-tekst.js';
 
@@ -98,4 +98,28 @@ export function afgewerktRijen(leads, { resultaat = '', periode = 'alles', nu = 
     });
   }
   return rijen.sort((a, b) => b.datum.localeCompare(a.datum));
+}
+
+// ---- importteksten (Task 14) ----
+
+/** '12 nieuw (waarvan 2 eerder verwijderd), 7 al aanwezig, 1 adres nakijken'; het stuk tussen haakjes enkel bij eerderVerwijderd > 0. */
+export function samenvattingTekst({ nieuw = 0, alAanwezig = 0, adresNakijken = 0, eerderVerwijderd = 0 } = {}) {
+  const eerder = eerderVerwijderd > 0 ? ` (waarvan ${eerderVerwijderd} eerder verwijderd)` : '';
+  return `${nieuw} nieuw${eerder}, ${alAanwezig} al aanwezig, ${adresNakijken} adres nakijken`;
+}
+
+/** De gegevens van het exportbestand voor onder de samenvatting; '' zonder gegevens. */
+export function exportTekst(exp) {
+  if (!exp || typeof exp !== 'object') return '';
+  const delen = [exp.verantwoordelijke ? `Export van ${exp.verantwoordelijke}` : 'Export'];
+  if (Number.isFinite(exp.aantal)) delen.push(`${exp.aantal} ${exp.aantal === 1 ? 'lead' : 'leads'}`);
+  if (Array.isArray(exp.statussen) && exp.statussen.length) delen.push(`statussen: ${exp.statussen.join(', ')}`);
+  if (exp.overgeslagen > 0) delen.push(`${exp.overgeslagen} ${exp.overgeslagen === 1 ? 'lead' : 'leads'} zonder naam of contactgegevens overgeslagen`);
+  return delen.join(' · ');
+}
+
+/** Is de export van iemand anders dan de verkoper wiens leads getoond worden? Een export zonder naam valt niet te vergelijken. */
+export function andereVerantwoordelijke(verantwoordelijke, salesNaam) {
+  if (!verantwoordelijke || String(verantwoordelijke).trim() === '') return false;
+  return !zelfdeNaam(verantwoordelijke, salesNaam);
 }

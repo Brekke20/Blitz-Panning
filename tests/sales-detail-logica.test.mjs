@@ -154,3 +154,25 @@ test('vindBotsingen: een item zonder uur wordt overgeslagen', () => {
   const blokken = [{ id: 'b', datum: '2026-10-12', soort: 'kantoor' }];
   assert.deepEqual(vindBotsingen({ ...basis, leads, blokken }), []);
 });
+
+// ---- wijzigingen en route-melding (Task 14) ----
+import { wijzigingen, routeHerberekend } from '../public/js/schermen/sales-detail-logica.js';
+
+test('wijzigingen: enkel de velden die echt verschillen van de lead (leeg = null)', () => {
+  const lead = { id: 'a', straat: null, huisnr: null, postcode: '3500', gemeente: 'Hasselt', notitie: 'oud', duurMin: 45 };
+  const { velden } = valideerDetail({ straat: 'Dorpsstraat', huisnr: '12', postcode: '3500', gemeente: 'Hasselt', notitie: 'oud', duurMin: '45' });
+  assert.deepEqual(wijzigingen(lead, velden), { straat: 'Dorpsstraat', huisnr: '12' });
+  assert.deepEqual(wijzigingen(lead, valideerDetail({ postcode: '3500', gemeente: 'Hasselt', notitie: 'oud', duurMin: '45' }).velden), {});
+  // een notitie of duur wissen
+  assert.deepEqual(wijzigingen(lead, valideerDetail({ postcode: '3500', gemeente: 'Hasselt', notitie: '', duurMin: '' }).velden), { notitie: null, duurMin: null });
+});
+
+test('routeHerberekend: enkel een voorgesteld of bevestigd bezoek dat van enkel postcode naar volledig adres gaat', () => {
+  const postcode = { status: 'bevestigd', postcode: '3500', locatie: { lat: 1, lon: 2, bron: 'postcode' } };
+  const volledig = { ...postcode, straat: 'Dorpsstraat', huisnr: '12', locatie: { lat: 1, lon: 2, bron: 'adres' } };
+  assert.equal(routeHerberekend(postcode, volledig), true);
+  assert.equal(routeHerberekend({ ...postcode, status: 'voorgesteld' }, { ...volledig, status: 'voorgesteld' }), true);
+  assert.equal(routeHerberekend({ ...postcode, status: 'te-plannen' }, { ...volledig, status: 'te-plannen' }), false);
+  assert.equal(routeHerberekend(volledig, volledig), false);
+  assert.equal(routeHerberekend(postcode, postcode), false);
+});
