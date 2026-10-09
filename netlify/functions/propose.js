@@ -354,17 +354,23 @@ async function kern(event, context, gebruiker, haalStore = getStore) {
     // 2. Ticket PATCH NA sendReply: status → Wachten op bevestiging planning + interventieDatum
     // Volgorde is belangrijk: Zoho zet status automatisch op "Wachten op klant" na sendReply,
     // dus de PATCH moet daarna komen om de juiste status te garanderen.
-    const patchRes = await zoho.verzoek(`/tickets/${ticketId}`, {
-      token: accessToken, orgId, methode: 'PATCH',
-      json: {
-        status: 'Wachten op bevestiging planning',
-        cf:     { cf_interventie_datm: interventieDatum },
-      },
-    });
+    // B2: faalt de update hier, dan zijn de mails al weg. Status en foutTekst blijven zoals voorheen (500, "Zoho PATCH fout (...)"), maar de body
+    // meldt nu ook welke mails vertrokken zijn, zodat de app de planner kan waarschuwen en het voorstelregister kan bijwerken.
+    try {
+      const patchRes = await zoho.verzoek(`/tickets/${ticketId}`, {
+        token: accessToken, orgId, methode: 'PATCH',
+        json: {
+          status: 'Wachten op bevestiging planning',
+          cf:     { cf_interventie_datm: interventieDatum },
+        },
+      });
 
-    const patchData = await leesJsonVeilig(patchRes);
-    if (!patchRes.ok) {
-      throw new Error(`Zoho PATCH fout (${patchRes.status}): ${JSON.stringify(patchData)}`);
+      const patchData = await leesJsonVeilig(patchRes);
+      if (!patchRes.ok) {
+        throw new Error(`Zoho PATCH fout (${patchRes.status}): ${JSON.stringify(patchData)}`);
+      }
+    } catch (patchErr) {
+      return v1Json(500, { error: patchErr.message, emailSent, fouten, ontvangers: ontvangers.map(o => o.doelgroep) }, CORS_V1);
     }
 
     await logVoorVerzoek(event, gebruiker, { actie: 'voorstel-verstuurd', onderwerp: String(ticketId), details: date }, { getStore: haalStore });
