@@ -16,6 +16,8 @@ import { capaciteitsKop, capacityForDay } from './capaciteit.js';
 import { renderRouteList } from './route.js';
 import { getHolidayName } from '../kern/feestdagen.js';
 import { zichtbaarAdres, navigatieAdres } from './afspraken-logica.js';
+import { magSchrijvenVoor } from '../kern/sessie.js';
+import { appConfirm } from '../app-dialog.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initKalender); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('kalender: initKalender() is niet aangeroepen'); } });
@@ -53,7 +55,7 @@ export function initKalender(afhankelijkheden) {
   // Alle knoppen van dit scherm via data-actie-delegatie (de kaartluisteraars slaan zulke klikken over, C8).
   registreerActies(document.body, {
     'kal-uitplannen': el => afh.bevestigUitplannen(el.dataset.ticketId, el.dataset.datum),
-    'kal-event-verwijder': el => afh.removeLocalEvent(el.dataset.eventId),
+    'kal-event-verwijder': el => bevestigVerwijderEvent(el.dataset.eventId),
     'kal-nav': (el, e, arg) => kalNav(Number(arg)),
     'kal-vandaag': () => kalToday(),
     'kal-weergave': (el, e, arg) => setKalView(arg),
@@ -145,6 +147,14 @@ function buildReportCard(entry) {
   return card;
 }
 
+// UI/UX-review P1-2: een ✕ op een gedeelde afspraak wist niet meer in één tik. Eerst een bevestiging (zoals elders in de app).
+async function bevestigVerwijderEvent(id) {
+  const ev = toestand.get('localEvents').find(e => e.id === id);
+  if (!ev || !magSchrijvenVoor(ev.persoon)) return;
+  const ja = await appConfirm({ titel: `Afspraak '${ev.titel || ev.type || ''}' verwijderen?`, bevestigLabel: 'Verwijderen', annuleerLabel: 'Terug', gevaar: true });
+  if (ja) await afh.removeLocalEvent(id);
+}
+
 function buildLocalEventCard(ev, { showActions = true } = {}) {
   const card = document.createElement('div');
   card.className = 'cal-local-event';
@@ -152,8 +162,11 @@ function buildLocalEventCard(ev, { showActions = true } = {}) {
   const adresLabel = zichtbaarAdres(ev); // B10: een handmatige notitie is geen adres
   const notitieRegel = !adresLabel && ev.notitie ? ev.notitie : '';
   const navAdres = navigatieAdres(ev); // ook een notitie die als plaats dient (handmatig zonder adres) houdt zijn Navigeer-knop
+  // Alleen planner/beheerder, of de technieker zelf bij zijn eigen afspraak, krijgt de ✕ (P1-2); wie niet mag schrijven ziet hem niet.
+  const wisKnop = magSchrijvenVoor(ev.persoon)
+    ? `<button class="cal-local-del" data-actie="kal-event-verwijder" data-event-id="${escHtml(ev.id)}" title="Verwijderen" aria-label="Afspraak verwijderen">✕</button>` : '';
   card.innerHTML = `
-    <button class="cal-local-del" data-actie="kal-event-verwijder" data-event-id="${escHtml(ev.id)}" title="Verwijderen" aria-label="Afspraak verwijderen">✕</button>
+    ${wisKnop}
     <span class="cal-local-type">${escHtml(ev.type)}</span>
     <div class="cal-sub" style="margin-top:2px">${escHtml(ev.titel)}</div>
     ${tijdLabel ? `<div class="cal-local-time">⏱ ${tijdLabel}</div>` : ''}

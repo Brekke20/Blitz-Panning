@@ -356,6 +356,7 @@ export function openLocalEventDetail(ev) {
   const magSchrijven = magSchrijvenVoor(ev.persoon);
   document.getElementById('ld-btn-arrival').style.display = magSchrijven ? '' : 'none';
   document.getElementById('ld-btn-rapport').style.display = magSchrijven ? '' : 'none';
+  document.getElementById('ld-del-btn').style.display = magSchrijven ? '' : 'none'; // verwijderen: planner/beheerder of eigen afspraak (P1-2)
   document.getElementById('ld-type').innerHTML  = `<span class="cal-local-type">${escHtml(ev.type)}</span>`;
   document.getElementById('ld-titel').textContent = ev.titel || '—';
 

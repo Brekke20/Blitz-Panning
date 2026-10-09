@@ -543,6 +543,9 @@
     .cal-local-event:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); background: var(--surface2); }
     .cal-local-event:active { transform: none; }
     .cal-local-del:hover { color: var(--red); }
+    /* P1-2: op aanraakschermen een echt 44px-doel (geen 15px-✕), met ruimte in de kaart zodat de titel er niet onder loopt */
+    html[data-aanraak="ja"] .cal-local-del { top: 0; right: 0; min-width: 44px; min-height: 44px; padding: 0; font-size: 1rem; }
+    html[data-aanraak="ja"] .cal-local-event { padding-right: 46px; }
 
     /* ── Import modal ── */
     #import-overlay { align-items: flex-start; padding: 24px; }
