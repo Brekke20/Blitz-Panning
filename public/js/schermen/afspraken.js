@@ -14,6 +14,7 @@ import { fmtDate } from '../kern/tijd.js';
 import { persoonOfNull } from '../kern/selecties.js';
 import { registreerVenster } from '../venster.js';
 import { telNummer } from './ticketdetail-logica.js';
+import { magSchrijvenVoor } from '../kern/sessie.js';
 import { matchRespToPerson, technieklijst, bouwImportRijen, nieuweImportItems } from './afspraken-logica.js';
 
 export { matchRespToPerson };
@@ -351,7 +352,10 @@ let _localDetEvent = null;
 
 export function openLocalEventDetail(ev) {
   _localDetEvent = ev;
-  document.getElementById('ld-btn-rapport').style.display = '';
+  // Collega's alleen-lezen (logins T19): Aankomst en Rapport enkel voor planner/beheerder of de eigen afspraak van een technieker.
+  const magSchrijven = magSchrijvenVoor(ev.persoon);
+  document.getElementById('ld-btn-arrival').style.display = magSchrijven ? '' : 'none';
+  document.getElementById('ld-btn-rapport').style.display = magSchrijven ? '' : 'none';
   document.getElementById('ld-type').innerHTML  = `<span class="cal-local-type">${escHtml(ev.type)}</span>`;
   document.getElementById('ld-titel').textContent = ev.titel || '—';
 

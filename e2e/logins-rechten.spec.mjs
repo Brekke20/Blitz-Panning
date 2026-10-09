@@ -122,6 +122,35 @@ test.describe('ticketdetail: collega\'s alleen-lezen', () => {
   }
 });
 
+test.describe("lokale afspraak: collega's alleen-lezen", () => {
+  const SCHRIJF = ['ld-btn-arrival', 'ld-btn-rapport'];
+  const openLokaal = async (page, persoon) => {
+    await page.evaluate((p) => kern.afspraken.openLocalEventDetail({ id: 'l1', type: 'Interventie', titel: 'Controle laadpaal', datum: '2026-10-07', uur: '10:00', einduur: '11:00', adres: 'Dorpsstraat 1, Gent', persoon: p }), persoon);
+    await expect(page.locator('#local-det-overlay')).toHaveClass(/open/);
+  };
+
+  test('technieker (Tim) bij een afspraak van Roel: geen Aankomst of Rapport; het detail blijft leesbaar', async ({ page }) => {
+    await startApp(page, { loginRol: 'technieker' });
+    await openLokaal(page, 'Roel');
+    for (const id of SCHRIJF) await expect(knop(page, id), id).toBeHidden();
+    await expect(page.locator('#ld-titel')).toHaveText('Controle laadpaal');
+  });
+
+  test('technieker (Tim) bij zijn eigen afspraak: Aankomst en Rapport zijn er', async ({ page }) => {
+    await startApp(page, { loginRol: 'technieker' });
+    await openLokaal(page, 'Tim');
+    for (const id of SCHRIJF) await expect(knop(page, id), id).toBeVisible();
+  });
+
+  for (const rol of ['planner', 'beheerder']) {
+    test(`${rol} heeft de knoppen bij elke afspraak, ook die van een collega`, async ({ page }) => {
+      await startApp(page, { loginRol: rol });
+      await openLokaal(page, 'Roel');
+      for (const id of SCHRIJF) await expect(knop(page, id), id).toBeVisible();
+    });
+  }
+});
+
 test.describe('rechten per rol (Rechtentabel): tabs en knoppen', () => {
   const COORD_KNOPPEN = ['d-btn-proposal', 'd-btn-reschedule'];
   const SCHRIJF = ['d-btn-arrival', 'd-btn-fotos', 'd-btn-rapport'];
