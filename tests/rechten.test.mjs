@@ -17,7 +17,7 @@ test('dekking: elke functie onder netlify/functions/ heeft een rij in RECHTEN', 
   const functies = readdirSync(join(wortel, 'netlify', 'functions'), { withFileTypes: true })
     .filter(d => d.isFile() && d.name.endsWith('.js'))
     .map(d => d.name.replace(/\.js$/, ''));
-  assert.equal(functies.length, 48); // 42 logins + dashboard, dashboard-instellingen + sales, postcode, sales-import, sales-opruimen
+  assert.equal(functies.length, 49); // 42 logins + dashboard, dashboard-instellingen + sales, postcode, sales-import, sales-opruimen + zoho-agenten
   const ontbreekt = functies.filter(f => !Object.hasOwn(RECHTEN, f));
   assert.deepEqual(ontbreekt, []);
 });
@@ -80,6 +80,11 @@ test('matrix: client-log, testdata, setup', () => {
   assert.deepEqual(rollen('client-log', 'POST'), alleVier);
   assert.deepEqual(rollen('testdata', 'POST'), [B]);
   assert.deepEqual(rollen('setup', 'GET'), [B]);
+});
+
+test('matrix: zoho-agenten enkel lezen door de beheerder', () => {
+  assert.deepEqual(rollen('zoho-agenten', 'GET'), [B]);
+  for (const m of ['POST', 'PUT', 'PATCH', 'DELETE']) assert.deepEqual(rollen('zoho-agenten', m), [], `zoho-agenten ${m}`);
 });
 
 test('matrix: sales en postcode enkel voor beheerder en sales', () => {

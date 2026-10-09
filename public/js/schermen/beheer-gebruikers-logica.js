@@ -82,6 +82,24 @@ export function zohoNaamOpties(tickets, huidige) {
   return [...namen].sort(vergelijk);
 }
 
+// De waarde van de keuzelijst Zoho-naam voor "een andere naam" (vrij tekstveld); komt nooit als naam naar de server.
+export const ZOHO_ANDERE = '__andere__';
+
+// Keuzes voor de lijst Zoho-naam: de actieve Zoho-agenten (`agenten`: [{ naam }] van /api/zoho-agenten) plus de huidige waarde van dit
+// account als die er niet in staat, gesorteerd. `bezetDoor` = de naam van het ANDERE account dat die Zoho-naam al gebruikt, anders null
+// (zo'n keuze is niet te kiezen: één Zoho-naam hoort bij één account). `behalveId` = het account dat bewerkt wordt.
+export function zohoNaamKeuzes({ agenten, huidige, gebruikers, behalveId } = {}) {
+  const namen = new Map(); // genormaliseerd -> naam zoals getoond
+  const voegToe = (naam) => {
+    const n = tekst(naam).trim();
+    if (n && !namen.has(normaliseerNaam(n))) namen.set(normaliseerNaam(n), n);
+  };
+  for (const a of Array.isArray(agenten) ? agenten : []) voegToe(typeof a === 'string' ? a : a?.naam);
+  voegToe(huidige);
+  return [...namen.values()].sort(vergelijk)
+    .map(naam => ({ naam, bezetDoor: zohoNaamBezetDoor(gebruikers, naam, behalveId)?.naam ?? null }));
+}
+
 const isActieveBeheerder = (g) => g?.rol === 'beheerder' && g.actief === true;
 
 // Spiegelt de laatste-beheerder-regel van de server (kanWijzigen) voor de knop; de server beslist.

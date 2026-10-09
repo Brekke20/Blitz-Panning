@@ -88,6 +88,8 @@ export const RECHTEN = {
   // Performance-dashboard: cijfers en ringgrenzen enkel voor de beheerder.
   'dashboard':            { GET: BEHEER },
   'dashboard-instellingen': { GET: BEHEER, PUT: BEHEER },
+  // Beheer, Gebruikers: de actieve Zoho-agenten (enkel namen) voor de keuzelijst "Zoho-naam"; enkel lezen.
+  'zoho-agenten':         { GET: BEHEER },
 };
 
 // Gedeeld met de wrapper: de regel voor naam + methode (undefined = geen regel).

@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  sorteerGebruikers, valideerGebruikerFormulier, zohoNaamOpties, zohoNaamBezetDoor, rolLabel, kanBlokkeren, formatLaatsteLogin,
+  sorteerGebruikers, valideerGebruikerFormulier, zohoNaamOpties, zohoNaamBezetDoor, zohoNaamKeuzes, ZOHO_ANDERE, rolLabel, kanBlokkeren, formatLaatsteLogin,
 } from '../public/js/schermen/beheer-gebruikers-logica.js';
 
 const g = (id, naam, rol, actief = true) => ({ id, naam, rol, actief, email: `${id}@test.be` });
@@ -102,4 +102,20 @@ test('zohoNaamBezetDoor en de melding vooraf bij een dubbele Zoho-naam (behalve 
   assert.match(fout, /Tim J/);
   assert.deepEqual(valideerGebruikerFormulier({ naam: 'Tim J', zohoNaam: 'Tim Janssens' }, 'technieker', { gebruikers: lijst, id: 'a' }).waarden,
     { naam: 'Tim J', rol: 'technieker', zohoNaam: 'Tim Janssens' });
+});
+
+test('zohoNaamKeuzes: agenten plus de huidige waarde, ontdubbeld (ook met andere hoofdletters), gesorteerd; bezette namen met het andere account', () => {
+  const gebruikers = [{ id: 'a', naam: 'Tim J', zohoNaam: 'Tim Janssens' }, { id: 'b', naam: 'Pia', zohoNaam: 'Pia Z' }, { id: 'c', naam: 'Kees' }];
+  const agenten = [{ naam: 'Tim Janssens' }, { naam: 'Roel' }, { naam: 'Pia Z' }, { naam: ' ' }, {}, null, { naam: 'roel' }];
+  assert.deepEqual(zohoNaamKeuzes({ agenten, huidige: '', gebruikers, behalveId: 'c' }), [
+    { naam: 'Pia Z', bezetDoor: 'Pia' }, { naam: 'Roel', bezetDoor: null }, { naam: 'Tim Janssens', bezetDoor: 'Tim J' },
+  ]);
+  // Het eigen account telt niet als bezetter; een huidige waarde buiten de lijst blijft kiesbaar.
+  assert.deepEqual(zohoNaamKeuzes({ agenten, huidige: 'Pia Z', gebruikers, behalveId: 'b' }).find(k => k.naam === 'Pia Z'), { naam: 'Pia Z', bezetDoor: null });
+  assert.deepEqual(zohoNaamKeuzes({ agenten: [{ naam: 'Roel' }], huidige: 'Oud Collega', gebruikers: [], behalveId: 'x' }), [
+    { naam: 'Oud Collega', bezetDoor: null }, { naam: 'Roel', bezetDoor: null },
+  ]);
+  assert.deepEqual(zohoNaamKeuzes({ agenten: ['Tim'], huidige: undefined }), [{ naam: 'Tim', bezetDoor: null }]);
+  assert.deepEqual(zohoNaamKeuzes(), []);
+  assert.equal(typeof ZOHO_ANDERE, 'string');
 });
