@@ -163,11 +163,14 @@ export async function verstuurRapport(rapportId, btn, ontvangers) {
     });
     let leesbaar = true;
     const data = await res.json().catch(() => { leesbaar = false; return { error: 'HTTP ' + res.status }; }); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>'
-    if (data.error) {
-      definitiefAntwoord = leesbaar && res.status >= 400 && !leesFout({ status: res.status }).onzeker;
-      // Een onleesbaar antwoord op een 200 (afgekapt) of een 500 zegt niet of de mail vertrok: ook dan de mailcontrole (zoals bij een 502).
-      onleesbaarOnzeker = !leesbaar && (res.status === 200 || res.status >= 500);
-      throw new Error(data.error);
+    // Eindreview I1: een niet-ok status is nooit "gelukt", ook als de body geen `error` heeft (bv. een Netlify-time-out als JSON).
+    if (data.error || !res.ok) {
+      const eigenFout = leesbaar && typeof data.error === 'string' && data.error !== ''; // een echte { error } van onze functie
+      definitiefAntwoord = eigenFout && res.status >= 400 && !leesFout({ status: res.status }).onzeker;
+      // Een antwoord zonder eigen { error } (onleesbaar of een foutstatus zonder error) op een 200 of 5xx zegt niet of de mail vertrok: ook dan de
+      // mailcontrole (zoals bij een 502).
+      onleesbaarOnzeker = !eigenFout && (res.status === 200 || res.status >= 500);
+      throw new Error(data.error || 'HTTP ' + res.status);
     }
 
     // verzondenOntvangers = mail verstuurd EN status-write geslaagd (alleen dit mag het

@@ -587,6 +587,9 @@ test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg 
   for (const [naam, antwoord, toast] of [
     ['een 500 met onleesbare HTML-body', { status: 500, raw: '<html>Internal Server Error</html>' }, '✕ Serverfout (HTTP 500)'],
     ['een 200 met onleesbare (afgekapte) body', { status: 200, raw: '<html>Bad Gateway</html>' }, '✕ Serverfout (HTTP 200)'],
+    // Eindreview I1: een foutstatus met een JSON-body zonder `error` (bv. een Netlify-time-out) is nooit "gelukt".
+    ['een 500 met een JSON-body zonder error', { status: 500, json: { errorType: 'Sandbox.Timedout', errorMessage: 'Task timed out after 26.00 seconds' } }, ''],
+    ['een 502 met een JSON-body zonder error', { status: 502, json: { errorMessage: 'Task timed out' } }, ''],
   ]) {
     test(`${naam}: de mailcontrole beslist: niet verzonden geeft de knop vrij, geen statusverzoeken`, async ({ page, verzoeken }) => {
       const z = await start(page, verzoeken, { paden: ['/api/send-rapport'], httpFouten: antwoord.status >= 400 ? [{ pad: '/api/send-rapport', status: antwoord.status }] : [] });
