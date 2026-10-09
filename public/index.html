@@ -347,6 +347,11 @@
       <button class="set-subtab" id="set-subtab-toestel" data-actie="set-tab" data-arg="toestel">Dit toestel</button>
     </div>
     <div class="mbody" id="set-tab-algemeen">
+      <!-- Enkel voor de beheerder: de werkinstellingen per persoon bewerkt hij op één plek, in Beheer → Instellingen. -->
+      <div class="set-hint" id="set-beheer-hint" hidden>
+        <div>Deze werkinstellingen per persoon zijn hier alleen-lezen. Aanpassen doe je op één plek: in Beheer.</div>
+        <button type="button" class="btn btn--secondary" data-actie="set-naar-beheer">Aanpassen in Beheer → Instellingen</button>
+      </div>
       <div class="set-field">
         <label class="set-label" for="set-start">Startlocatie</label>
         <input class="set-input" id="set-start" type="text" placeholder="bv. Heirbaan 9, 9150 Kruibeke" />
@@ -364,7 +369,7 @@
         <input class="set-input" id="set-maxreistijd" type="number" min="0" max="240" step="5" />
       </div>
       <div class="set-field">
-        <label class="set-label" for="set-laatste-start">Laatste start (geldt voor iedereen)</label>
+        <label class="set-label" for="set-laatste-start">Laatste start (geldt voor al je planning, voor alle technici)</label>
         <input class="set-input" id="set-laatste-start" type="time" />
       </div>
       <div class="set-field">
@@ -402,11 +407,6 @@
       <div class="set-field">
         <div id="set-toestel-status" style="font-size:0.85rem;font-weight:500"></div>
       </div>
-      <div class="set-field" role="radiogroup" aria-labelledby="set-rol-label">
-        <label class="set-label" id="set-rol-label">Rol op dit toestel</label>
-        <label class="set-row"><input type="radio" name="set-rol" value="coordinator" data-wijzig="set-toestel-rol" data-arg="coordinator"> <span>Coördinator</span></label>
-        <label class="set-row"><input type="radio" name="set-rol" value="technieker" data-wijzig="set-toestel-rol" data-arg="technieker"> <span>Technieker</span></label>
-      </div>
       <div class="set-field" role="radiogroup" aria-labelledby="set-weergave-label">
         <label class="set-label" id="set-weergave-label">Weergave</label>
         <label class="set-row"><input type="radio" name="set-weergave" value="auto" data-wijzig="set-toestel-weergave" data-arg="auto"> <span>Automatisch</span></label>
@@ -414,7 +414,7 @@
         <label class="set-row"><input type="radio" name="set-weergave" value="tablet" data-wijzig="set-toestel-weergave" data-arg="tablet"> <span>Tablet</span></label>
         <label class="set-row"><input type="radio" name="set-weergave" value="computer" data-wijzig="set-toestel-weergave" data-arg="computer"> <span>Computer</span></label>
       </div>
-      <div style="font-size:0.78rem;color:var(--muted)">Deze keuzes gelden enkel voor dit toestel. De rol verbergt knoppen maar is geen beveiliging.</div>
+      <div style="font-size:0.78rem;color:var(--muted)">Deze keuzes gelden enkel voor dit toestel. Wat je ziet en mag doen, hangt af van je account.</div>
       <div class="set-field" id="set-testdata-blok" style="display:none;margin-top:16px">
         <label class="set-label">Testgegevens</label>
         <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">Je werkt in testmodus met een kopie van de echte gegevens.</div>
@@ -423,7 +423,7 @@
     </div>
     <div class="mftr">
       <button class="btn btn--secondary coord-only" data-actie="set-prijsbeheer" title="Beheer productprijzen">💰 Prijzen</button>
-      <button class="btn btn--secondary" data-actie="set-sluit">Annuleren</button>
+      <button class="btn btn--secondary" id="set-sluit-btn" data-actie="set-sluit">Annuleren</button>
       <button class="btn btn--primary" id="set-save-btn" data-actie="set-opslaan">Opslaan</button>
       <div id="app-versie" class="set-versie"></div>
     </div>
@@ -476,8 +476,8 @@
       <!-- Ingevuld door renderImportModal() -->
     </div>
     <div class="mftr">
-      <button class="btn-cancel" data-actie="import-sluit">Annuleren</button>
-      <button class="btn-save"   data-actie="import-bevestig">✓ Importeren</button>
+      <button class="btn btn--secondary" data-actie="import-sluit">Annuleren</button>
+      <button class="btn btn--primary" data-actie="import-bevestig">✓ Importeren</button>
     </div>
   </div>
 </div>
@@ -495,11 +495,11 @@
       <div class="msec" id="ld-body"></div>
     </div>
     <div class="mftr">
-      <button class="btn-cancel" data-actie="local-foto">📷 Foto's</button>
-      <button class="btn-cancel" id="ld-btn-arrival" title="Aankomst registreren" data-actie="local-aankomst">⏱️ Aankomst</button>
-      <button class="btn-cancel" id="ld-btn-rapport" data-actie="local-rapport">📋 Rapport</button>
-      <button class="btn-cancel" id="ld-edit-btn" data-actie="local-bewerk">✏️ Bewerken</button>
-      <button class="btn-cancel" id="ld-del-btn" style="color:var(--red);border-color:var(--red)" data-actie="local-verwijder">🗑 Verwijderen</button>
+      <button class="btn btn--secondary" data-actie="local-foto">📷 Foto's</button>
+      <button class="btn btn--secondary" id="ld-btn-arrival" title="Aankomst registreren" data-actie="local-aankomst">⏱️ Aankomst</button>
+      <button class="btn btn--secondary" id="ld-btn-rapport" data-actie="local-rapport">📋 Rapport</button>
+      <button class="btn btn--secondary" id="ld-edit-btn" data-actie="local-bewerk">✏️ Bewerken</button>
+      <button class="btn btn--danger" id="ld-del-btn" data-actie="local-verwijder">🗑 Verwijderen</button>
     </div>
   </div>
 </div>
@@ -570,8 +570,8 @@
     </div>
     <div class="mftr">
       <input type="hidden" id="man-edit-id" value="" />
-      <button class="btn-cancel" data-actie="manueel-sluit">Annuleren</button>
-      <button class="btn-save"   data-actie="manueel-opslaan">Opslaan</button>
+      <button class="btn btn--secondary" data-actie="manueel-sluit">Annuleren</button>
+      <button class="btn btn--primary" data-actie="manueel-opslaan">Opslaan</button>
     </div>
   </div>
 </div>
@@ -632,8 +632,8 @@
       <div id="proposal-preview" style="border:1px solid var(--border);border-radius:6px;overflow:hidden;max-height:300px;overflow-y:auto;font-size:12px"></div>
     </div>
     <div class="mftr">
-      <button class="btn-cancel" data-actie="voorstel-sluit">Annuleren</button>
-      <button class="btn-save" id="proposal-send-btn" data-actie="voorstel-verstuur">✉️ Verstuur voorstel</button>
+      <button class="btn btn--secondary" data-actie="voorstel-sluit">Annuleren</button>
+      <button class="btn btn--primary" id="proposal-send-btn" data-actie="voorstel-verstuur">✉️ Verstuur voorstel</button>
     </div>
   </div>
 </div>
@@ -685,8 +685,8 @@
       <!-- gevuld door voorbeeldRapport() -->
     </div>
     <div class="mftr">
-      <button class="btn-cancel" data-actie="rapport-preview-sluit">Annuleren</button>
-      <button class="btn-save" id="rapport-preview-send-btn">✓ Bevestig en verstuur</button>
+      <button class="btn btn--secondary" data-actie="rapport-preview-sluit">Annuleren</button>
+      <button class="btn btn--primary" id="rapport-preview-send-btn">✓ Bevestig en verstuur</button>
     </div>
   </div>
 </div>

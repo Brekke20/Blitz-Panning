@@ -222,13 +222,15 @@ test.describe('tab Instellingen', () => {
     expect(verzoeken.van('/api/instellingen', 'PUT')[1].body.instellingen.duurMinuten).toBe(100);
   });
 
-  test('de instellingen van een ANDERE gebruiker laten de lokale kopie met rust', async ({ page }) => {
+  // UI/UX P1-3: Beheer → Instellingen is de enige plek om de werkinstellingen van een technieker te bewerken. De lokale kopie van DIE
+  // technieker volgt daarom de server (anders schrijft een latere ⚙-opslag voor Tim de oude set terug); de eigen kopie blijft ongemoeid.
+  test('de instellingen van een ANDERE gebruiker (technieker Tim): zijn lokale kopie volgt de server, de eigen kopie blijft met rust', async ({ page }) => {
     await openTab(page, 'Instellingen');
     await paneel(page).getByLabel('Gebruiker', { exact: true }).selectOption('u-t1');
     await expect(paneel(page).getByLabel('Startlocatie')).toHaveValue(TIM.startlocatie);
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page.locator('#toast')).toContainText('Instellingen opgeslagen');
-    expect(await page.evaluate(() => [localStorage.getItem('blitz_settings_Tim'), localStorage.getItem('blitz_settings')])).toEqual([expect.not.stringContaining('Teststraat'), expect.not.stringContaining('Teststraat')]);
+    expect(await page.evaluate(() => [localStorage.getItem('blitz_settings_Tim'), localStorage.getItem('blitz_settings')])).toEqual([expect.stringContaining('Teststraat'), expect.not.stringContaining('Teststraat')]);
   });
 
   test('een gebruiker zonder bewaarde instellingen toont de standaardwaarden', async ({ page }) => {
@@ -474,3 +476,61 @@ function describe_opnieuw() {
     await expect(page.locator('.bs-rapporten tbody tr')).toHaveCount(1);
   });
 }
+
+// UI/UX-review P1-3: twee schermen voor dezelfde werkinstellingen per persoon. Voor de beheerder is Beheer → Instellingen de enige
+// plek om ze te bewerken; het ⚙-venster toont ze alleen-lezen met een link. Persoonlijke/toestelkeuzes (routekleur) blijven bewerkbaar.
+// De planner heeft geen Beheer-tab en bewerkt de werkinstellingen van de technici nog in het ⚙-venster.
+test.describe('⚙-venster en Beheer → Instellingen: één plek om de werkinstellingen te bewerken', () => {
+  const WERKVELDEN = ['#set-start', '#set-duration', '#set-max', '#set-maxreistijd', '#set-laatste-start', '#set-van', '#set-tot', '#set-tijdslot'];
+  const stubs = () => ({ gebruikers: gebruikersStub(), instellingen: instellingenStub(), activiteit: activiteitStub(), systeemstatus: () => json(200, STATUS_GOED()) });
+  const venster = (page) => page.getByRole('dialog', { name: '⚙️ Instellingen' });
+  const openSettings = async (page) => {
+    await page.getByRole('button', { name: 'Instellingen', exact: true }).click();
+    await expect(venster(page)).toBeVisible();
+  };
+
+  test('beheerder: werkvelden en werkdagen alleen-lezen, routekleur bewerkbaar, met de link naar Beheer', async ({ page }) => {
+    await startApp(page, { overschrijf: stubs() });
+    await openSettings(page);
+    for (const sel of WERKVELDEN) await expect(venster(page).locator(sel), sel).toBeDisabled();
+    await expect(venster(page).locator('#days-grid .day-btn').first()).toBeDisabled();
+    await expect(venster(page).locator('#set-routekleur')).toBeEnabled();
+    await expect(venster(page).locator('#set-drukte')).toBeEnabled();
+    await expect(venster(page).locator('#set-beheer-hint')).toBeVisible();
+    // Het label van "Laatste start" is in beide schermen waar: een waarde van de gebruiker zelf, niet "voor iedereen".
+    await expect(venster(page).getByText('geldt voor iedereen')).toHaveCount(0);
+    await expect(venster(page).locator('label[for="set-laatste-start"]')).toContainText('al je planning');
+  });
+
+  test('de link "Aanpassen in Beheer → Instellingen" sluit het venster en opent dat tabblad; het label daar is ook waar', async ({ page }) => {
+    await startApp(page, { overschrijf: stubs() });
+    await openSettings(page);
+    await venster(page).getByRole('button', { name: 'Aanpassen in Beheer → Instellingen' }).click();
+    await expect(venster(page)).toBeHidden();
+    await expect(page.getByRole('tab', { name: 'Instellingen', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(paneel(page).getByLabel('Startlocatie')).toBeVisible();
+    await expect(paneel(page).getByLabel('Laatste start')).toBeVisible();
+    await expect(paneel(page).locator('label[for="bi-laatste"]')).toContainText('de planning die deze gebruiker zelf maakt');
+  });
+
+  test('beheerder: Opslaan in het ⚙-venster bewaart enkel de persoonlijke keuze (routekleur); de werkwaarden blijven gelijk', async ({ page, verzoeken }) => {
+    await startApp(page, { overschrijf: stubs() });
+    await openSettings(page);
+    const duur = await venster(page).locator('#set-duration').inputValue();
+    await venster(page).locator('#set-routekleur').fill('#336699');
+    await venster(page).getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('Instellingen opgeslagen');
+    await expect.poll(() => verzoeken.van('/api/instellingen', 'PUT').length).toBe(1);
+    const put = verzoeken.van('/api/instellingen', 'PUT')[0].body.instellingen;
+    expect(put.routeKleur).toBe('#336699');
+    expect(String(put.duurMinuten)).toBe(duur);
+  });
+
+  test('planner (geen Beheer-tab): de werkvelden blijven bewerkbaar en er is geen link naar Beheer', async ({ page }) => {
+    await startApp(page, { loginRol: 'planner', overschrijf: stubs() });
+    await openSettings(page);
+    for (const sel of WERKVELDEN) await expect(venster(page).locator(sel), sel).toBeEnabled();
+    await expect(venster(page).locator('#set-beheer-hint')).toBeHidden();
+    await expect(page.getByRole('tab', { name: 'Beheer', exact: true })).toHaveCount(0);
+  });
+});

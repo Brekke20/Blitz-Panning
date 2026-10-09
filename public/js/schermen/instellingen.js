@@ -28,12 +28,12 @@ export function initInstellingen(afhankelijkheden) {
     'set-reset-testdata': () => resetTestdata(),
     'set-prijsbeheer':   () => afh.openPrijsBeheer(),
     'set-opslaan':       () => saveSettings(),
+    'set-naar-beheer':   () => naarBeheerInstellingen(),
     'prijs-sluit':       () => afh.closePrijsBeheer(),
     'prijs-reset':       () => afh.prijsReset(),
     'prijs-opslaan':     () => afh.prijsOpslaan(),
   });
   registreerWijzigActies(document.body, {
-    'set-toestel-rol':      (el) => kiesToestelRol(el.dataset.arg),
     'set-toestel-weergave': (el) => kiesToestelWeergave(el.dataset.arg),
   });
   const setOverlay = document.getElementById('set-overlay');
@@ -139,14 +139,12 @@ function vulToestelTab() {
   if (a.soort !== a.automatischeSoort) tekst += ` (handmatig: ${SOORT_LABEL[a.soort] || a.soort})`;
   const el = document.getElementById('set-toestel-status');
   if (el) el.textContent = tekst;
-  document.querySelectorAll('input[name="set-rol"]').forEach(r => { r.checked = r.value === a.rol; });
   let w = 'auto';
   try { const o = localStorage.getItem('blitz_weergave'); if (o === 'gsm' || o === 'tablet' || o === 'computer') w = o; } catch {}
   document.querySelectorAll('input[name="set-weergave"]').forEach(r => { r.checked = r.value === w; });
 }
 // Direct bijwerken (naast de apparaatwijziging-listener): als de keuze de effectieve staat niet wijzigt
 // komt er geen event en zou "(handmatig: X)" achterblijven. vulToestelTab is goedkoop en idempotent.
-function kiesToestelRol(r) { window.zetRol(r); vulToestelTab(); }
 function kiesToestelWeergave(w) { window.zetWeergave(w); vulToestelTab(); }
 
 // De beperkte technieker-weergave toont enkel "Dit toestel"; een technieker met "Mag zelf plannen" stelt ook zijn eigen planning in (Algemeen).
@@ -164,11 +162,32 @@ export function setSettingsTab(tab) {
   document.getElementById('set-tab-algemeen').style.display = tab === 'algemeen' ? '' : 'none';
   document.getElementById('set-tab-beschikbaarheden').style.display = tab === 'beschikbaarheden' ? '' : 'none';
   document.getElementById('set-save-btn').style.display = tab === 'algemeen' ? '' : 'none';
+  // Op de tabs zonder iets om op te slaan (toestel, beschikbaarheden) is "Annuleren" misleidend: dan enkel "Sluiten".
+  const sluitKnop = document.getElementById('set-sluit-btn');
+  if (sluitKnop) sluitKnop.textContent = tab === 'algemeen' ? 'Annuleren' : 'Sluiten';
   if (tab === 'beschikbaarheden') renderBeschikbaarhedenTab();
 }
 
 // B12: de weekdagknoppen werken op een concept; pas Opslaan schrijft het naar de instellingen (Annuleren/Esc/achtergrond laat ze ongemoeid).
 let _werkdagenConcept = [];
+
+// UI/UX-review P1-3: voor de beheerder is Beheer → Instellingen de ENIGE plek waar de werkinstellingen per persoon bewerkt worden.
+// Hier blijven ze zichtbaar (alleen-lezen); de persoonlijke/toestelinstellingen (routekleur, drukte) blijven bewerkbaar.
+// De planner heeft geen Beheer-tab en bewerkt de werkinstellingen van de technici dus nog hier (de server staat dat toe).
+const WERK_VELDEN = ['set-start', 'set-duration', 'set-max', 'set-maxreistijd', 'set-laatste-start', 'set-van', 'set-tot', 'set-tijdslot'];
+function werkInstellingenAlleenLezen() { return huidigeRechten().beheer === true; }
+function zetWerkVeldenAlleenLezen(lezen) {
+  for (const id of WERK_VELDEN) { const el = document.getElementById(id); if (el) el.disabled = lezen; }
+  document.querySelectorAll('#days-grid .day-btn').forEach(b => { b.disabled = lezen; });
+  const hint = document.getElementById('set-beheer-hint');
+  if (hint) hint.hidden = !lezen;
+}
+function naarBeheerInstellingen() {
+  closeSettings();
+  try { sessionStorage.setItem('blitz_beheer_tab', 'instellingen'); } catch { /* geen opslag */ }
+  document.getElementById('tab-beheer')?.click();
+  document.getElementById('beheer-tab-instellingen')?.click(); // Beheer was al open: meteen naar het juiste tabblad
+}
 
 export function openSettings() {
   setSettingsTab(beperktToestel() ? 'toestel' : 'algemeen');
@@ -203,6 +222,7 @@ export function openSettings() {
     });
     grid.appendChild(btn);
   });
+  zetWerkVeldenAlleenLezen(werkInstellingenAlleenLezen());
   document.getElementById('set-overlay').classList.add('open');
 }
 

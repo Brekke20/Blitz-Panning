@@ -215,11 +215,7 @@ function dagKolom(iso, { smal, schrijfbaar, hoogte, vandaag }) {
   const top = el('div', { class: 'day-hdr-top' },
     el('div', { class: `day-hdr-name${iso === vandaag ? ' today' : iso < vandaag ? ' past' : ''}`, text: dag.toLocaleDateString('nl-BE', { weekday: 'short' }) }),
     el('div', { class: `day-hdr-num${iso === vandaag ? ' today' : ''}`, text: dag.getDate() }));
-  if (schrijfbaar) {
-    const plus = el('button', { type: 'button', class: 'sales-kal-dag-blok', 'aria-label': `Blok toevoegen op ${dagLabel(iso)}`, title: 'Blok toevoegen', text: '➕' });
-    plus.addEventListener('click', () => openBlokVenster({ datum: iso }));
-    top.append(plus);
-  }
+  // Eén ingang voor een blok: de knop "➕ Blok" bovenaan (UI/UX P2-6); het venster vraagt de datum zelf.
   const hdr = el('div', { class: 'day-hdr' }, top, nota);
   const body = el('div', { class: `day-body${feest ? ' holiday-day' : heleDagen.length ? ' blocked-day' : ''}` });
   if (smal) {

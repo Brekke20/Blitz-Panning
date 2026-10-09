@@ -29,7 +29,7 @@ const negeer403 = (consoleFouten) => { for (let i = consoleFouten.length - 1; i 
 
 test.describe('instellingen van de server', () => {
   test('het venster toont de serverwaarden; opslaan doet een PUT met de nieuwe waarde', async ({ page, verzoeken }) => {
-    await startApp(page, { overschrijf: { instellingen: instellingenStub({ eigen: SERVER }) } });
+    await startApp(page, { loginRol: 'planner', overschrijf: { instellingen: instellingenStub({ eigen: SERVER }) } }); // werkvelden bewerken: planner (UI/UX P1-3)
     expect(verzoeken.van('/api/instellingen', 'GET')).toHaveLength(1);
     expect(puts(verzoeken)).toHaveLength(0); // de server heeft een waarde: niets te migreren
 
@@ -116,7 +116,7 @@ test.describe('instellingen van de server', () => {
 
   test('een door de server geweigerde waarde (400): toast "niet geldig, enkel lokaal bewaard" en geen vuil-markering', async ({ page, consoleFouten }) => {
     const weiger = () => ({ status: 400, json: { error: '⚠ Duur is ongeldig' } });
-    await startApp(page, { overschrijf: { instellingen: instellingenStub({ eigen: SERVER, put: weiger }) } });
+    await startApp(page, { loginRol: 'planner', overschrijf: { instellingen: instellingenStub({ eigen: SERVER, put: weiger }) } });
     const modal = await openInstellingen(page);
     await modal.locator('#set-start').fill('Ongeldigstraat 1');
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();

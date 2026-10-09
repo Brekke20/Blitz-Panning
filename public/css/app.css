@@ -540,6 +540,9 @@
     .cal-local-event:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); background: var(--surface2); }
     .cal-local-event:active { transform: none; }
     .cal-local-del:hover { color: var(--red); }
+    /* P1-2: op aanraakschermen een echt 44px-doel (geen 15px-✕), met ruimte in de kaart zodat de titel er niet onder loopt */
+    html[data-aanraak="ja"] .cal-local-del { top: 0; right: 0; min-width: 44px; min-height: 44px; padding: 0; font-size: 1rem; }
+    html[data-aanraak="ja"] .cal-local-event { padding-right: 46px; }
 
     /* ── Import modal ── */
     #import-overlay { align-items: flex-start; padding: 24px; }
@@ -941,6 +944,9 @@
     .set-subtab.active { color:var(--accent-ink); border-bottom-color:var(--accent); }
     .set-subtab:hover { color:var(--text); }
     .set-field { margin-bottom: 15px; }
+    .set-hint { margin-bottom: 15px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface2); font-size: 0.83rem; color: var(--text2); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+    .set-hint[hidden] { display: none; }
+    .set-input:disabled, .day-btn:disabled { opacity: 0.65; cursor: not-allowed; }
     .set-label { font-size: var(--fs-2xs); font-weight: 500; color: var(--muted); margin-bottom: 6px; display: block; }
     .set-input {
       width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text);
@@ -1244,6 +1250,17 @@
     .gm-rol { font-size: var(--fs-2xs); color: var(--muted); }
     /* Een tab die de rol niet toestaat (hidden): .tab zet display:flex en zou het attribuut anders overrulen. */
     .tabs-inner .tab[hidden] { display: none !important; }
+    /* UI/UX P2-10 (gsm): smallere tabs, zodat de technieker zijn 4 tabs volledig ziet (alle tabs delen de ruimte); past een rol met veel tabs
+       (beheerder: 8) niet, dan scrollt de balk en tonen "scrollschaduwen" aan de kant waar nog meer staat (alleen zichtbaar bij overloop). */
+    html[data-indeling="smal"] .tab { padding: 0 8px; flex: 1 0 auto; justify-content: center; }
+    html[data-indeling="smal"] .tabs-inner { padding: 0 4px; }
+    html[data-indeling="smal"] .tabs-inner {
+      background:
+        linear-gradient(to right, var(--surface) 30%, transparent) left center / 28px 100% no-repeat local,
+        linear-gradient(to left, var(--surface) 30%, transparent) right center / 28px 100% no-repeat local,
+        linear-gradient(to right, rgba(0, 0, 0, 0.38), transparent) left center / 12px 100% no-repeat scroll,
+        linear-gradient(to left, rgba(0, 0, 0, 0.38), transparent) right center / 12px 100% no-repeat scroll;
+    }
 
 /* v1.10.3: de sticky filterbalk van Rapporten plakt vlak onder de kop en onder de zichtbare melding-
    balken (offline/outbox). De oude vaste top:92px liet een kier of verdween onder de balken. */

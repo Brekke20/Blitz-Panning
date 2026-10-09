@@ -551,12 +551,27 @@ test.describe('tab Ingepland: details', () => {
 });
 
 test.describe('kalender: ✕ op een eigen afspraak (data-actie, etappe 4)', () => {
-  test('✕ verwijdert de afspraak (PUT met het id) en opent het detail niet', async ({ page, verzoeken }) => {
+  // UI/UX-review P1-2: ✕ wist niet meer in één tik. Eerst een bevestiging; "Terug" laat alles staan.
+  test('✕ vraagt eerst een bevestiging; Terug laat de afspraak staan', async ({ page, verzoeken }) => {
+    await startApp(page, { overschrijf: seed() });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    const kaart = dag(page, '2026-10-07').locator('.cal-local-event');
+    await kaart.locator('.cal-local-del').click();
+    const dlg = page.getByRole('alertdialog');
+    await expect(dlg).toContainText("Afspraak 'Teamoverleg' verwijderen?");
+    await dlg.getByRole('button', { name: 'Terug' }).click();
+    await expect(dlg).toHaveCount(0);
+    await expect(kaart).toHaveCount(1);
+    expect(verzoeken.van('/api/afspraken', 'PUT')).toEqual([]);
+  });
+
+  test('✕ + bevestigen verwijdert de afspraak (PUT met het id) en opent het detail niet', async ({ page, verzoeken }) => {
     await startApp(page, { overschrijf: seed() });
     await page.getByRole('tab', { name: 'Kalender' }).click();
     const kaart = dag(page, '2026-10-07').locator('.cal-local-event');
     await expect(kaart).toHaveCount(1);
     await kaart.locator('.cal-local-del').click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Verwijderen' }).click();
     await expect(dag(page, '2026-10-07').locator('.cal-local-event')).toHaveCount(0);
     await expect.poll(() => verzoeken.van('/api/afspraken', 'PUT').length).toBe(1);
     expect(verzoeken.van('/api/afspraken', 'PUT')[0].body.afspraken.map(a => a.id)).not.toContain('a1');
@@ -606,3 +621,34 @@ const rust = (page) => page.evaluate(() => new Promise((klaar) => {
     kanaal.port2.postMessage(0);
   }));
 }));
+
+// P1-2: wie niet mag schrijven (technieker bij een gedeelde of andermans afspraak) krijgt geen ✕; bij de eigen afspraak wel. Op een
+// aanraakscherm is het doel minstens 44 px.
+test.describe('kalender: ✕ enkel voor wie mag wissen', () => {
+  test('technieker Tim: geen ✕ op een gedeelde afspraak (persoon leeg) of die van Roel, wel op zijn eigen', async ({ page }) => {
+    await startApp(page, {
+      loginRol: 'technieker', technieker: 'Tim',
+      overschrijf: seed({ afspraken: [afspraak('eigen', '2026-10-07', '09:00', '10:00', { persoon: 'Tim' }), afspraak('roel', '2026-10-07', '11:00', '12:00', { persoon: 'Roel' })] }),
+    });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    const kaarten = dag(page, '2026-10-07').locator('.cal-local-event');
+    await expect(kaarten.filter({ hasText: 'Teamoverleg' })).toHaveCount(1);
+    await expect(kaarten.filter({ hasText: 'Teamoverleg' }).locator('.cal-local-del')).toHaveCount(0);
+    await expect(kaarten.filter({ hasText: 'Afspraak roel' }).locator('.cal-local-del')).toHaveCount(0);
+    await expect(kaarten.filter({ hasText: 'Afspraak eigen' }).locator('.cal-local-del')).toHaveCount(1);
+  });
+
+  test('beheerder op een aanraakscherm: de ✕ is minstens 44 x 44 px', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'nl-BE', timezoneId: 'Europe/Brussels', serviceWorkers: 'block' });
+    const page = await context.newPage();
+    try {
+      await startApp(page, { overschrijf: seed() });
+      await page.getByRole('tab', { name: 'Kalender' }).click();
+      const knop = page.locator('.cal-local-del').first();
+      await expect(knop).toBeVisible();
+      const box = await knop.boundingBox();
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    } finally { await context.close(); }
+  });
+});

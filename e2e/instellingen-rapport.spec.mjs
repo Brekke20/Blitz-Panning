@@ -14,14 +14,14 @@ const leesOpslag = (page, sleutel) => page.evaluate((k) => localStorage.getItem(
 
 test.describe('instellingen en rapport', () => {
   test('instellingen bewaren', async ({ page }) => {
-    await startApp(page);
+    await startApp(page, { loginRol: 'planner' }); // werkinstellingen bewerken: planner (de beheerder doet dat in Beheer)
     let modal = await openInstellingen(page);
     await expect(modal.locator('#set-person-label')).toHaveText('Instellingen voor: Standaard (alle technici)');
     const oud = await modal.locator('#set-laatste-start').inputValue();
     expect(oud).not.toBe('15:00');
     expect(await leesOpslag(page, 'blitz_laatste_start')).toBeNull();
 
-    await modal.getByLabel('Laatste start (geldt voor iedereen)').fill('15:00');
+    await modal.getByLabel('Laatste start (geldt voor al je planning, voor alle technici)').fill('15:00');
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
 
     await expect(page.getByText('✓ Instellingen opgeslagen voor alle technici')).toBeVisible();
@@ -39,17 +39,17 @@ test.describe('instellingen en rapport', () => {
   });
 
   test('laatste start buiten de werktijden wordt geweigerd', async ({ page }) => {
-    await startApp(page);
+    await startApp(page, { loginRol: 'planner' }); // werkinstellingen bewerken: planner (de beheerder doet dat in Beheer)
     // Eerst een geldige waarde bewaren, zodat "blijft de oude waarde" iets betekent.
     let modal = await openInstellingen(page);
-    await modal.getByLabel('Laatste start (geldt voor iedereen)').fill('15:00');
+    await modal.getByLabel('Laatste start (geldt voor al je planning, voor alle technici)').fill('15:00');
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
     await expect(page.getByText('✓ Instellingen opgeslagen voor alle technici')).toBeVisible();
 
     modal = await openInstellingen(page);
     await modal.locator('#set-van').fill('08:00');
     await modal.locator('#set-tot').fill('17:00');
-    await modal.getByLabel('Laatste start (geldt voor iedereen)').fill('23:00');
+    await modal.getByLabel('Laatste start (geldt voor al je planning, voor alle technici)').fill('23:00');
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
 
     await expect(page.getByText('⚠ Laatste start moet tussen begin- en eindtijd liggen')).toBeVisible();
