@@ -204,6 +204,8 @@ async function openRapportIntern(ticketId, date) {
       for (const k of Object.keys(concept.R)) {
         if (CONCEPT_UIT.includes(k)) continue;
         if ((k === 'onderdelen' || k === 'oorzaakStoring') && !Array.isArray(concept.R[k])) continue;
+        // Een concept van vóór de bronmarkering kan een stille 0 bevatten: dan blijft de verse berekening (of 'onbekend') staan.
+        if (k === 'aanrijtijdMin' && !('aanrijtijdBron' in concept.R)) continue;
         R[k] = concept.R[k];
       }
       const i = WIZ_STEPS.findIndex(st => st.id === concept.stap);
@@ -361,7 +363,7 @@ export function wizRenderSamenvatting(el) {
     ${kaart('Algemeen', 'algemeen',
       rij('Datum', R.datum ? new Date(R.datum + 'T12:00:00').toLocaleDateString('nl-BE', { day:'2-digit', month:'2-digit', year:'numeric' }) : '') + rij('Technieker', R.technieker) + rij('Adres', R.adres) +
       rij('Start – stop', `${R.start || '?'} – ${R.stop || '?'}`) + rij('Werktijd', R.werktijd) + rij('Type bezoek', R.interventieType))}
-    ${inst ? '' : kaart('Facturatie', 'facturatie', rij('Facturatie aan', fact) + rij('Type interventie', stype) + rij('Aanrijtijd', R.aanrijtijdMin || R.aanrijtijdBron === 'handmatig' ? `${R.aanrijtijdMin} min` : ''))}
+    ${inst ? '' : kaart('Facturatie', 'facturatie', rij('Facturatie aan', fact) + rij('Type interventie', stype) + rij('Aanrijtijd', R.aanrijtijdMin || R.aanrijtijdBron === 'handmatig' || R.aanrijtijdBron === 'tomtom' ? `${R.aanrijtijdMin} min` : ''))}
     ${kaart('Product', 'product',
       rij('Installateur', R.installateur) + rij('Serienummer', R.serienummer) + rij('Aantal laadpalen', R.aantalLaadpalen) +
       rij('Type', R.type) + rij('Uitvoering', R.uitvoering) + rij('Kabel', [R.kabel, R.kabellengte].filter(Boolean).join(' ')))}
@@ -636,11 +638,13 @@ export function wizSaveFacturatie() {
   R.servicetype    = wizChecked('f-servicetype') || '2e-lijn';
   const aanrijtijdRuw = String(document.getElementById('f-aanrijtijd')?.value ?? '').trim();
   R.aanrijtijdMin  = parseInt(aanrijtijdRuw) || 0;
-  // B7: was de aanrijtijd niet te berekenen (of zelf ingevuld), dan is een lege waarde nooit toegelaten; 0 wel.
-  if (R.aanrijtijdBron === 'onbekend' || R.aanrijtijdBron === 'handmatig') {
-    if (aanrijtijdRuw === '') return AANRIJTIJD_VERPLICHT;
-    R.aanrijtijdBron = 'handmatig';
+  // B7: een lege waarde is nooit toegelaten (0 wel). De bron gaat bij een leeg veld terug naar 'onbekend', zodat ook Vorige, een
+  // autosave of een teruggezet concept (die de foutwaarde negeren) later nooit een stille 0 doorlaten: het veld blijft leeg en gemarkeerd.
+  if (aanrijtijdRuw === '') {
+    R.aanrijtijdBron = 'onbekend';
+    return AANRIJTIJD_VERPLICHT;
   }
+  if (R.aanrijtijdBron === 'onbekend') R.aanrijtijdBron = 'handmatig';
 }
 
 // ── Stap 3: Productinfo ──

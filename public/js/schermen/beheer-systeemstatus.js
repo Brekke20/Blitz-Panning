@@ -42,11 +42,11 @@ function foutenBlok(fouten) {
 }
 
 // bezig: ids waarvoor nu een aanvraag loopt; opnieuw: ids die net opnieuw in de wachtrij gezet zijn (rij toont "opnieuw in behandeling").
-function actieCel(r, { opnieuw, verstuur }) {
+function actieCel(r, { bezig, opnieuw, verstuur }) {
   const id = typeof r?.id === 'string' ? r.id : '';
   if (id !== '' && opnieuw.has(id)) return h('span', { class: 'bs-sub', 'data-opnieuw': id, text: 'opnieuw in behandeling' });
   const knop = h('button', { type: 'button', class: 'btn btn--secondary', 'data-actie': 'opnieuw', 'data-id': id, text: 'Opnieuw versturen' });
-  if (id === '') knop.disabled = true; // zonder id is er niets om opnieuw te laten verwerken
+  if (id === '' || bezig.has(id)) knop.disabled = true; // zonder id is er niets om te versturen; bij een lopende aanvraag blijft de knop uit na een hertekening
   knop.addEventListener('click', () => verstuur(id, knop));
   return knop;
 }

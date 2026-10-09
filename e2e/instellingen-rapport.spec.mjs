@@ -242,6 +242,43 @@ test.describe('instellingen en rapport', () => {
     await expect(wizard).toContainText('35 min');
   });
 
+  test('aanrijtijd: een leeggemaakt veld blijft verplicht na Vorige en Volgende (nooit een stille 0), ook bij een eerder ingevulde waarde', async ({ page }) => {
+    const wizard = await openWizardTotFacturatie(page, { routeFaalt: true });
+    const volgende = wizard.getByRole('button', { name: 'Volgende →' });
+    const stap = wizard.locator('#wiz-step-label');
+    const veld = wizard.locator('#f-aanrijtijd');
+    await veld.fill('35');
+    await volgende.click();
+    await expect(stap).toHaveText('3 / 9 — Product');
+    await wizard.getByRole('button', { name: '← Vorige' }).click();
+    await expect(veld).toHaveValue('35');
+    await veld.fill('');
+    await wizard.getByRole('button', { name: '← Vorige' }).click(); // negeert de foutwaarde van de opslag
+    await expect(stap).toHaveText('1 / 9 — Algemeen');
+    await volgende.click();
+    await expect(stap).toHaveText('2 / 9 — Facturatie');
+    await expect(veld).toHaveValue('');
+    await expect(wizard.getByRole('alert').filter({ hasText: ONBEKEND })).toBeVisible();
+    await volgende.click();
+    await expect(page.getByText(VERPLICHT)).toBeVisible();
+    await expect(stap).toHaveText('2 / 9 — Facturatie');
+  });
+
+  test('aanrijtijd: een leeg veld wordt in het concept bewaard als bron onbekend (geen stille 0 na het terugzetten)', async ({ page }) => {
+    const wizard = await openWizardTotFacturatie(page, { routeFaalt: true });
+    const veld = wizard.locator('#f-aanrijtijd');
+    await veld.fill('35');
+    await veld.fill('');
+    await wizard.getByRole('radio', { name: /Garantie/ }).check(); // een echte wijziging, anders schrijft het concept niets
+    await wizard.getByRole('button', { name: '← Vorige' }).click();
+    const concept = await page.evaluate(() => {
+      const k = Object.keys(localStorage).find(x => x.includes('rapportconcept'));
+      return k ? JSON.parse(localStorage.getItem(k)).R : null;
+    });
+    expect(concept?.aanrijtijdBron).toBe('onbekend');
+    expect(concept?.aanrijtijdMin).toBe(0);
+  });
+
   test('aanrijtijd gelukt: geen melding en de TomTom-badge staat er', async ({ page }) => {
     const wizard = await openWizardTotFacturatie(page, { routeFaalt: false });
     await expect(wizard.locator('#f-aanrijtijd')).toHaveValue('20'); // stub: 1200 s
