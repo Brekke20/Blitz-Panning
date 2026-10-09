@@ -1,0 +1,306 @@
+// Beheerpagina, tabs Instellingen, Activiteitenlog en Systeemstatus (logins T18). Alle stubs bevatten enkel verzonnen gegevens.
+import { test, expect, startApp, standaardStub } from './helpers.mjs';
+
+const json = (status, obj) => ({ status, json: obj });
+
+const GEBRUIKERS = () => [
+  { id: 'u-test', email: 'b@test.be', naam: 'Test Beheerder', rol: 'beheerder', actief: true, laatsteLogin: null, aangemaakt: '2026-09-01T08:00:00.000Z', moetWachtwoordWijzigen: false },
+  { id: 'u-t1', email: 'tim@test.be', naam: 'Tim Techniek', rol: 'technieker', zohoNaam: 'Tim', actief: true, laatsteLogin: null, aangemaakt: '2026-09-03T08:00:00.000Z', moetWachtwoordWijzigen: false },
+  { id: 'u-s1', email: 'sara@test.be', naam: 'Sara Sales', rol: 'sales', actief: true, laatsteLogin: null, aangemaakt: '2026-09-04T08:00:00.000Z', moetWachtwoordWijzigen: false },
+];
+
+const TIM = { startlocatie: 'Teststraat 1, 2000 Antwerpen', duurMinuten: 90, maxPerDag: 5, vanTijd: '07:30', totTijd: '16:30', laatsteStart: '15:00', werkdagen: [1, 2, 3, 4], maxReistijdMin: 40, tijdslotMinuten: 120, routeKleur: '#123456', kaartStijl: 'standaard', drukteKleuring: false };
+const SARA = { startlocatie: 'Salesplein 2, 9000 Gent', duurMinuten: 120, maxPerDag: 4, vanTijd: '08:00', totTijd: '17:00', laatsteStart: '16:00', werkdagen: [1, 2, 3, 4, 5], maxReistijdMin: 45, tijdslotMinuten: 180, bezoekDuurMin: 75 };
+
+// Stub voor /api/instellingen: ?gebruiker=<id> leest, PUT schrijft; de rest (overzicht bij het opstarten) blijft de standaard.
+function instellingenStub({ begin = { 'u-t1': TIM, 'u-s1': SARA }, weiger } = {}) {
+  const opslag = structuredClone(begin);
+  const standaard = standaardStub('instellingen');
+  const stub = (a) => {
+    if (a.methode === 'PUT') {
+      const eigen = weiger?.(a.body);
+      if (eigen) return eigen;
+      opslag[a.body.gebruiker] = a.body.instellingen;
+      return json(200, { versie: 7 });
+    }
+    const id = a.query.get('gebruiker');
+    if (id === null) return standaard(a);
+    return json(200, { versie: 3, instellingen: opslag[id] ?? null });
+  };
+  return stub;
+}
+
+const gebruikersStub = (lijst = GEBRUIKERS()) => ({ methode }) => (methode === 'GET' ? json(200, { gebruikers: structuredClone(lijst) }) : json(400, { error: 'x' }));
+
+const ITEMS = () => [
+  { op: '2026-10-08T09:15:00.000Z', gebruikerId: 'u-test', naam: 'Test Beheerder', actie: 'login', onderwerp: null, details: null },
+  { op: '2026-10-07T22:30:00.000Z', gebruikerId: 'u-t1', naam: 'Tim Techniek', actie: 'plannen', onderwerp: '1042', details: '2026-10-09' },
+  { op: '2026-10-07T20:00:00.000Z', gebruikerId: 'systeem', naam: 'Systeem', actie: 'login-mislukt-reeks', onderwerp: 'a***@test.be', details: '<img src=x onerror=window.__xss=1>' },
+  { op: '2026-10-07T08:00:00.000Z', gebruikerId: 'u-t1', naam: '<b>Tim</b>', actie: 'iets-nieuws', onderwerp: '<i>x</i>', details: 'a < b & c' },
+];
+
+// Stateful nep van /api/activiteit: past de filters toe en noteert elke querystring.
+function activiteitStub({ items = ITEMS(), status = 200 } = {}) {
+  const queries = [];
+  const stub = ({ query }) => {
+    queries.push(query.toString());
+    if (status !== 200) return json(status, { error: 'De opslag is tijdelijk niet bereikbaar.' });
+    const id = query.get('gebruiker'); const actie = query.get('actie');
+    const gefilterd = items.filter(i => (!id || i.gebruikerId === id) && (!actie || i.actie === actie));
+    const gebruikers = [...new Map(items.map(i => [i.gebruikerId, { id: i.gebruikerId, naam: i.naam }])).values()];
+    return json(200, { items: gefilterd, gebruikers });
+  };
+  stub.queries = queries;
+  return stub;
+}
+
+const STATUS_GOED = () => ({ zoho: { ok: true, tijdstip: '2026-10-08T10:00:00.000Z' }, foutenlog: [], rapporten: { mislukt: [] } });
+const STATUS_SLECHT = () => ({
+  zoho: { ok: false, fout: 'Zoho is niet bereikbaar.', tijdstip: '2026-10-08T10:00:00.000Z' },
+  foutenlog: [
+    { tijdstip: '2026-10-08T09:00:00.000Z', ticketId: '1042', stap: 'zoho-status', fout: 'Time-out <script>x</script>' },
+    { tijdstip: '2026-10-08T08:00:00.000Z', ticketId: '1043', stap: 'upload', fout: 'Verbinding verbroken' },
+  ],
+  rapporten: { mislukt: [
+    { id: 'r1', ticketNumber: '1042', technieker: 'Tim', datum: '2026-10-07', laatsteFout: 'Zoho weigerde de bijlage' },
+    { id: 'r2', ticketNumber: '1050', technieker: 'Roel', datum: '2026-10-06', laatsteFout: null },
+  ] },
+});
+
+async function openTab(page, naam, overschrijf = {}, app = {}) {
+  await startApp(page, { ...app, overschrijf: { gebruikers: gebruikersStub(), instellingen: instellingenStub(), activiteit: activiteitStub(), systeemstatus: () => json(200, STATUS_GOED()), ...overschrijf } });
+  await page.getByRole('tab', { name: 'Beheer', exact: true }).click();
+  await page.getByRole('tab', { name: naam, exact: true }).click();
+  await expect(page.getByRole('tab', { name: naam, exact: true })).toHaveAttribute('aria-selected', 'true');
+}
+
+// Een bedoelde 4xx/5xx meldt de browser als HTTP-fout en als consolefout; die halen we weg.
+async function verwachtFout(consoleFouten, pad, status) {
+  const isDeze = (f) => f.includes(pad) && f.includes(String(status));
+  await expect.poll(() => consoleFouten.filter(isDeze).length).toBeGreaterThanOrEqual(1);
+  for (const f of consoleFouten.filter(isDeze)) consoleFouten.splice(consoleFouten.indexOf(f), 1);
+}
+
+const paneel = (page) => page.locator('#beheer-paneel');
+const geenPaginaScroll = (page) => page.evaluate(() => ({
+  doc: document.documentElement.scrollWidth <= window.innerWidth,
+  view: document.getElementById('view-beheer').scrollWidth <= document.getElementById('view-beheer').clientWidth,
+}));
+
+test.describe('beheer: tabbalk', () => {
+  test('de tabs staan in de vaste volgorde en elke tab registreert zichzelf', async ({ page }) => {
+    await openTab(page, 'Instellingen');
+    const namen = await page.getByRole('tab').evaluateAll(els => els.map(e => e.textContent.trim()).filter(t => ['Gebruikers', 'Instellingen', 'Activiteitenlog', 'Systeemstatus'].includes(t)));
+    expect(namen).toEqual(['Gebruikers', 'Instellingen', 'Activiteitenlog', 'Systeemstatus']);
+  });
+});
+
+test.describe('tab Instellingen', () => {
+  test('toont de waarden van de gekozen gebruiker en wisselt van gebruiker', async ({ page, verzoeken }) => {
+    await openTab(page, 'Instellingen');
+    const kies = paneel(page).getByLabel('Gebruiker', { exact: true });
+    await kies.selectOption('u-t1');
+    await expect(paneel(page).getByLabel('Startlocatie')).toHaveValue(TIM.startlocatie);
+    await expect(paneel(page).getByLabel('Tijd per interventie (minuten)')).toHaveValue('90');
+    await expect(paneel(page).getByLabel('Max interventies per dag')).toHaveValue('5');
+    await expect(paneel(page).getByLabel('Max. reistijd tussen interventies (minuten)')).toHaveValue('40');
+    await expect(paneel(page).getByLabel('Werkuren', { exact: true })).toHaveValue('07:30');
+    await expect(paneel(page).getByLabel('Werkuren tot')).toHaveValue('16:30');
+    await expect(paneel(page).getByLabel('Laatste start')).toHaveValue('15:00');
+    await expect(paneel(page).getByLabel('Tijdslot-grootte voor klant/technieker (minuten)')).toHaveValue('120');
+    const dagen = paneel(page).getByRole('group', { name: 'Werkdagen' }).getByRole('button');
+    await expect(dagen.filter({ hasText: 'Ma' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(dagen.filter({ hasText: 'Vr' })).toHaveAttribute('aria-pressed', 'false');
+    expect(verzoeken.van('/api/instellingen', 'GET').length).toBeGreaterThan(0);
+    await expect(paneel(page).getByLabel('Bezoekduur (minuten)')).toBeHidden(); // technieker: geen bezoekduur
+  });
+
+  test('de bestaande validatie: een ongeldige duur toont de foutmelding en stuurt geen PUT', async ({ page, verzoeken }) => {
+    await openTab(page, 'Instellingen');
+    await paneel(page).getByLabel('Gebruiker', { exact: true }).selectOption('u-t1');
+    await expect(paneel(page).getByLabel('Startlocatie')).toHaveValue(TIM.startlocatie);
+    await paneel(page).getByLabel('Tijd per interventie (minuten)').fill('10');
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'Minimale interventieduur is 15 minuten' })).toBeVisible();
+    expect(verzoeken.van('/api/instellingen', 'PUT')).toEqual([]);
+  });
+
+  test('opslaan stuurt PUT met gebruiker en behoudt velden die het formulier niet toont', async ({ page, verzoeken }) => {
+    await openTab(page, 'Instellingen');
+    await paneel(page).getByLabel('Gebruiker', { exact: true }).selectOption('u-t1');
+    await expect(paneel(page).getByLabel('Startlocatie')).toHaveValue(TIM.startlocatie);
+    await paneel(page).getByLabel('Tijd per interventie (minuten)').fill('105');
+    await paneel(page).getByRole('group', { name: 'Werkdagen' }).getByRole('button', { name: 'Vr' }).click();
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.locator('#toast')).toContainText('Instellingen opgeslagen');
+    const put = verzoeken.van('/api/instellingen', 'PUT');
+    expect(put).toHaveLength(1);
+    expect(put[0].body.gebruiker).toBe('u-t1');
+    expect(put[0].body.instellingen).toMatchObject({
+      startlocatie: TIM.startlocatie, duurMinuten: 105, maxPerDag: 5, vanTijd: '07:30', totTijd: '16:30', laatsteStart: '15:00',
+      maxReistijdMin: 40, tijdslotMinuten: 120, werkdagen: expect.arrayContaining([1, 2, 3, 4, 5]),
+      routeKleur: '#123456', kaartStijl: 'standaard', drukteKleuring: false,
+    });
+    expect(put[0].body.instellingen.bezoekDuurMin).toBeUndefined();
+  });
+
+  test('een sales-gebruiker toont en bewaart de bezoekduur', async ({ page, verzoeken }) => {
+    await openTab(page, 'Instellingen');
+    await paneel(page).getByLabel('Gebruiker', { exact: true }).selectOption('u-s1');
+    const veld = paneel(page).getByLabel('Bezoekduur (minuten)');
+    await expect(veld).toHaveValue('75');
+    await veld.fill('90');
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.locator('#toast')).toContainText('Instellingen opgeslagen');
+    expect(verzoeken.van('/api/instellingen', 'PUT')[0].body).toMatchObject({ gebruiker: 'u-s1', instellingen: { bezoekDuurMin: 90 } });
+    await veld.fill('2');
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'Bezoekduur moet tussen 5 en 480 minuten liggen' })).toBeVisible();
+    expect(verzoeken.van('/api/instellingen', 'PUT')).toHaveLength(1);
+  });
+
+  test('een gebruiker zonder bewaarde instellingen toont de standaardwaarden', async ({ page }) => {
+    await openTab(page, 'Instellingen');
+    await expect(paneel(page).getByLabel('Gebruiker', { exact: true })).toHaveValue('u-test'); // eerste in de lijst
+    await expect(paneel(page).getByLabel('Tijd per interventie (minuten)')).toHaveValue('120');
+    await expect(paneel(page).getByLabel('Startlocatie')).toHaveValue('Heirbaan 9, 9150 Kruibeke');
+  });
+
+  test('een 503 bij het opslaan toont "tijdelijk niet bereikbaar" en laat de gebruiker ingelogd', async ({ page, consoleFouten }) => {
+    await openTab(page, 'Instellingen', { instellingen: instellingenStub({ weiger: () => json(503, { error: 'x' }) }) });
+    await paneel(page).getByLabel('Gebruiker', { exact: true }).selectOption('u-t1');
+    await expect(paneel(page).getByLabel('Startlocatie')).toHaveValue(TIM.startlocatie);
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'tijdelijk niet bereikbaar' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Instellingen', exact: true })).toBeVisible();
+    await verwachtFout(consoleFouten, '/api/instellingen', 503);
+  });
+
+  test('een servernaam met HTML verschijnt als tekst in de keuzelijst', async ({ page }) => {
+    const lijst = GEBRUIKERS(); lijst[1].naam = '<img src=x onerror=window.__xss=1>';
+    await openTab(page, 'Instellingen', { gebruikers: gebruikersStub(lijst) });
+    await expect(paneel(page).getByLabel('Gebruiker', { exact: true }).locator('option', { hasText: '<img src=x' })).toHaveCount(1);
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+  });
+
+  test('375 px: geen horizontale paginascroll', async ({ page }) => {
+    await openTab(page, 'Instellingen', {}, { viewport: { width: 375, height: 812 } });
+    await paneel(page).getByLabel('Gebruiker', { exact: true }).selectOption('u-s1');
+    await expect(paneel(page).getByLabel('Bezoekduur (minuten)')).toBeVisible();
+    expect(await geenPaginaScroll(page)).toEqual({ doc: true, view: true });
+  });
+});
+
+test.describe('tab Activiteitenlog', () => {
+  test('toont de laatste 30 dagen per dag, nieuwste eerst, met Brusselse tijden', async ({ page }) => {
+    const stub = activiteitStub();
+    await openTab(page, 'Activiteitenlog', { activiteit: stub });
+    await expect(page.getByRole('heading', { name: 'donderdag 8 oktober 2026' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'woensdag 7 oktober 2026' })).toBeVisible();
+    // 22:30 UTC op 7 okt = 00:30 Brussel op 8 okt
+    const eerste = page.locator('.ba-dag').first();
+    await expect(eerste).toContainText('00:30');
+    await expect(eerste).toContainText('11:15');
+    await expect(eerste).toContainText('Ingelogd');
+    await expect(eerste).toContainText('Ingepland');
+    expect(stub.queries[0]).toBe('van=2026-09-05&tot=2026-10-05'); // VASTE_NU is 2026-10-05 in Brussel
+  });
+
+  test('filtert op persoon, actie en periode via de querystring', async ({ page }) => {
+    const stub = activiteitStub();
+    await openTab(page, 'Activiteitenlog', { activiteit: stub });
+    await expect(page.locator('.ba-rij')).toHaveCount(4);
+    await paneel(page).getByLabel('Persoon').selectOption('u-t1');
+    await expect(page.locator('.ba-rij')).toHaveCount(2);
+    expect(stub.queries.at(-1)).toBe('van=2026-09-05&tot=2026-10-05&gebruiker=u-t1');
+    await paneel(page).getByLabel('Actie').selectOption('plannen');
+    await expect(page.locator('.ba-rij')).toHaveCount(1);
+    expect(stub.queries.at(-1)).toBe('van=2026-09-05&tot=2026-10-05&gebruiker=u-t1&actie=plannen');
+    await paneel(page).getByLabel('Van').fill('2026-10-01');
+    await expect.poll(() => stub.queries.at(-1)).toBe('van=2026-10-01&tot=2026-10-05&gebruiker=u-t1&actie=plannen');
+    await paneel(page).getByLabel('Persoon').selectOption({ label: 'Iedereen' });
+    await paneel(page).getByLabel('Actie').selectOption({ label: 'Alle acties' });
+    await expect.poll(() => stub.queries.at(-1)).toBe('van=2026-10-01&tot=2026-10-05');
+    await expect(page.locator('.ba-rij')).toHaveCount(4);
+  });
+
+  test('details, onderwerp en naam met HTML verschijnen als tekst; een onbekende actie toont de ruwe naam', async ({ page }) => {
+    await openTab(page, 'Activiteitenlog');
+    await expect(page.locator('.ba-rij').filter({ hasText: 'Reeks mislukte logins' })).toContainText('<img src=x onerror=window.__xss=1>');
+    await expect(page.locator('.ba-rij').filter({ hasText: 'a < b & c' })).toContainText('<b>Tim</b>');
+    await expect(page.locator('.ba-rij').filter({ hasText: 'a < b & c' })).toContainText('iets-nieuws');
+    await expect(page.locator('#beheer-paneel img, #beheer-paneel b, #beheer-paneel i')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+  });
+
+  test('een lege uitkomst geeft een duidelijke tekst', async ({ page }) => {
+    await openTab(page, 'Activiteitenlog', { activiteit: activiteitStub({ items: [] }) });
+    await expect(page.getByText('Geen activiteit gevonden')).toBeVisible();
+  });
+
+  test('een 503 toont "tijdelijk niet bereikbaar"', async ({ page, consoleFouten }) => {
+    await openTab(page, 'Activiteitenlog', { activiteit: activiteitStub({ status: 503 }) });
+    await expect(page.getByRole('alert').filter({ hasText: 'tijdelijk niet bereikbaar' })).toBeVisible();
+    await verwachtFout(consoleFouten, '/api/activiteit', 503);
+  });
+
+  test('375 px: geen horizontale paginascroll', async ({ page }) => {
+    await openTab(page, 'Activiteitenlog', {}, { viewport: { width: 375, height: 812 } });
+    await expect(page.locator('.ba-rij')).toHaveCount(4);
+    expect(await geenPaginaScroll(page)).toEqual({ doc: true, view: true });
+  });
+});
+
+test.describe('tab Systeemstatus', () => {
+  test('groen als Zoho bereikbaar is, zonder fouten of mislukte rapporten', async ({ page }) => {
+    await openTab(page, 'Systeemstatus');
+    const zoho = page.locator('.bs-zoho');
+    await expect(zoho).toHaveAttribute('data-status', 'ok');
+    await expect(zoho).toContainText('Verbonden');
+    await expect(zoho).toContainText('08/10/2026 12:00');
+    await expect(page.getByText('Geen recente fouten')).toBeVisible();
+    await expect(page.getByText('Geen mislukte rapporten')).toBeVisible();
+  });
+
+  test('rood bij zoho.ok:false, met foutenlijst en mislukte rapporten (alleen lezen)', async ({ page }) => {
+    await openTab(page, 'Systeemstatus', { systeemstatus: () => json(200, STATUS_SLECHT()) });
+    const zoho = page.locator('.bs-zoho');
+    await expect(zoho).toHaveAttribute('data-status', 'fout');
+    await expect(zoho).toContainText('Niet bereikbaar');
+    await expect(zoho).toContainText('Zoho is niet bereikbaar.');
+    const fouten = page.locator('.bs-fouten tbody tr');
+    await expect(fouten).toHaveCount(2);
+    await expect(fouten.first()).toContainText('Time-out <script>x</script>');
+    await expect(page.locator('.bs-fouten script')).toHaveCount(0);
+    const rapporten = page.locator('.bs-rapporten tbody tr');
+    await expect(rapporten).toHaveCount(2);
+    await expect(rapporten.first()).toContainText('1042');
+    await expect(rapporten.first()).toContainText('Tim');
+    await expect(rapporten.first()).toContainText('Zoho weigerde de bijlage');
+    await expect(rapporten.nth(1)).toContainText('1050');
+    await expect(page.getByRole('button', { name: /Opnieuw versturen/ })).toHaveCount(0);
+    await expect(page.getByText(/Opnieuw versturen/)).toHaveCount(0);
+  });
+
+  test('Vernieuwen haalt de status opnieuw op', async ({ page }) => {
+    let n = 0;
+    await openTab(page, 'Systeemstatus', { systeemstatus: () => json(200, ++n === 1 ? STATUS_GOED() : STATUS_SLECHT()) });
+    await expect(page.locator('.bs-zoho')).toHaveAttribute('data-status', 'ok');
+    await page.locator('#beheer-paneel').getByRole('button', { name: 'Vernieuwen' }).click();
+    await expect(page.locator('.bs-zoho')).toHaveAttribute('data-status', 'fout');
+    expect(n).toBe(2);
+  });
+
+  test('een 503 toont "tijdelijk niet bereikbaar" en een Vernieuwen-knop', async ({ page, consoleFouten }) => {
+    await openTab(page, 'Systeemstatus', { systeemstatus: () => json(503, { error: 'x' }) });
+    await expect(page.getByRole('alert').filter({ hasText: 'tijdelijk niet bereikbaar' })).toBeVisible();
+    await expect(page.locator('#beheer-paneel').getByRole('button', { name: 'Vernieuwen' })).toBeVisible();
+    await verwachtFout(consoleFouten, '/api/systeemstatus', 503);
+  });
+
+  test('375 px: geen horizontale paginascroll', async ({ page }) => {
+    await openTab(page, 'Systeemstatus', { systeemstatus: () => json(200, STATUS_SLECHT()) }, { viewport: { width: 375, height: 812 } });
+    await expect(page.locator('.bs-rapporten tbody tr')).toHaveCount(2);
+    expect(await geenPaginaScroll(page)).toEqual({ doc: true, view: true });
+  });
+});

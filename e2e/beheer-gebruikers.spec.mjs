@@ -99,7 +99,9 @@ test.describe('beheerpagina: tabbalk', () => {
     const proef = page.getByRole('tab', { name: 'Proef', exact: true });
     await expect(gebruikers).toHaveAttribute('aria-selected', 'true'); // opnieuw openen: de bewaarde keuze
     await gebruikers.focus();
-    await page.keyboard.press('ArrowRight');
+    // Sinds T18 staan er vier tabs vóór Proef (Gebruikers, Instellingen, Activiteitenlog, Systeemstatus): End springt er in één keer heen,
+    // zonder de tussenliggende tabs te openen (die roepen eigen API's aan die dit spec niet stubt).
+    await page.keyboard.press('End');
     await expect(proef).toHaveAttribute('aria-selected', 'true');
     await expect(proef).toBeFocused();
     await expect(proef).toHaveAttribute('tabindex', '0');
@@ -478,7 +480,8 @@ test.describe('tab Gebruikers: gsm', () => {
     const rijStijl = await page.locator('.bg-tabel tbody tr').first().evaluate(el => getComputedStyle(el).display);
     expect(rijStijl).toBe('block');
     // Niets binnen de beheerpagina steekt buiten het scherm (de kop van de app zelf, buiten deze view, is niet van deze taak).
-    const buiten = await page.locator('#view-beheer *').evaluateAll(els => els.filter(el => el.getBoundingClientRect().right > window.innerWidth + 0.5).map(el => el.className));
+    // De tabbalk scrolt bewust binnen zichzelf (vier tabs passen niet naast elkaar op 375 px): zijn tabs vallen buiten deze controle.
+    const buiten = await page.locator('#view-beheer *').evaluateAll(els => els.filter(el => !el.closest('.beheer-tabs') && el.getBoundingClientRect().right > window.innerWidth + 0.5).map(el => el.className));
     expect(buiten).toEqual([]);
     expect(await page.locator('#view-beheer').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     await expect(page.locator('.bg-tabel td[data-label="Laatste login"]').first()).toBeVisible();

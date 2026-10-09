@@ -3,6 +3,8 @@
 // De tabbladen registreren zichzelf via registreerBeheerTab; welke bestanden dat doen staat in beheer-tabs.js (één importregel per tab).
 // Veiligheid: vrije tekst (namen, e-mails) komt uitsluitend via textContent/attributen in de DOM (h() gebruikt nooit innerHTML).
 
+import { apiVerzoek } from '../kern/api.js';
+
 const KEUZE_SLEUTEL = 'blitz_beheer_tab'; // sessionStorage: het gekozen tabblad blijft staan binnen deze sessie
 const tabs = []; // { id, label, render }
 
@@ -27,6 +29,24 @@ export function h(tag, props = {}, ...kinderen) {
   }
   for (const kind of kinderen.flat()) if (kind !== null && kind !== undefined && kind !== false) el.append(kind);
   return el;
+}
+
+// Gedeelde API-hulp voor de tabs Instellingen, Activiteitenlog en Systeemstatus (logins T18).
+// beheerVerzoek(pad, { methode, body }) gooit nooit -> { ok, status, data, netwerk }. Een mislukking is nooit een uitlog:
+// beheerFoutTekst(r) geeft de tekst voor de gebruiker (503 = tijdelijk niet bereikbaar, de server-foutmelding als die er is).
+export async function beheerVerzoek(pad, { methode = 'GET', body } = {}) {
+  try {
+    const r = await apiVerzoek(pad, methode === 'GET' ? {} : { methode, body, headers: { 'X-Blitz': '1' } });
+    return { ok: r.ok, status: r.status, data: r.data, netwerk: false };
+  } catch {
+    return { ok: false, status: 0, data: null, netwerk: true };
+  }
+}
+export function beheerFoutTekst(r) {
+  if (r.netwerk) return 'Geen verbinding met de server. Probeer het opnieuw.';
+  if (r.status === 503) return 'De opslag is tijdelijk niet bereikbaar. Probeer het later opnieuw.';
+  if (typeof r.data?.error === 'string' && r.data.error) return r.data.error;
+  return `De actie is mislukt (HTTP ${r.status}).`;
 }
 
 function leesKeuze() {
@@ -71,6 +91,7 @@ export async function openBeheer(container) {
       knop.setAttribute('aria-controls', 'beheer-paneel');
     }
     if (focus) knoppen.get(tab.id).focus();
+    else knoppen.get(tab.id).scrollIntoView?.({ block: 'nearest', inline: 'nearest' }); // op een smalle gsm: de gekozen tab zichtbaar in de scrollbare balk
     const mijn = ++volgnummer;
     const nieuw = h('div', { class: 'beheer-paneel', role: 'tabpanel', tabindex: '0', id: 'beheer-paneel', 'aria-labelledby': `beheer-tab-${tab.id}`, 'aria-busy': 'true' });
     paneel.replaceWith(nieuw);

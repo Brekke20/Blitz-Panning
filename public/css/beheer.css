@@ -84,3 +84,31 @@
   white-space: pre-wrap; overflow-wrap: anywhere; user-select: all;
 }
 .bg-status { font-size: var(--fs-xs); color: var(--text2); min-height: 1.25em; }
+
+/* Tabs Instellingen, Activiteitenlog en Systeemstatus (logins T18). Hergebruikt .set-*, .day-btn en de .bg-tabel-kaarten. */
+.bi { max-width: 560px; }
+.bi .set-input { font-size: 16px; min-height: 44px; }
+.bi .set-row { align-items: center; }
+.bi-tot { color: var(--muted); font-size: var(--fs-sm); flex-shrink: 0; }
+.bi .day-btn { min-height: 44px; min-width: 44px; }
+.bi-acties { display: flex; justify-content: flex-end; margin-top: var(--sp-3); }
+.bi-acties .btn { min-height: 44px; }
+.bi .bg-fout { margin-bottom: var(--sp-2); }
+
+.ba-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.ba-filter { min-width: 0; }
+.ba-filters .set-input { font-size: 16px; min-height: 44px; min-width: 0; }
+.ba-lijst:focus { outline: none; }
+.ba-dag { margin-bottom: var(--sp-4); }
+.ba-dagkop { font-size: var(--fs-sm); font-weight: 700; color: var(--text2); text-transform: capitalize; margin-bottom: var(--sp-2); }
+.ba-tabel td[data-label="Tijd"] { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ba-actie { font-weight: 600; }
+.ba-details, .bs-fouten td, .bs-rapporten td { overflow-wrap: anywhere; }
+
+.bs-kop { font-size: var(--fs-md); font-weight: 700; margin: var(--sp-4) 0 var(--sp-2); }
+.bs-zoho { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: var(--sp-3) var(--sp-4); }
+.bs-zoho[data-status="fout"] { border-color: var(--red); }
+.bs-zoho .bs-kop { margin-top: 0; }
+.bs-zoho-regel { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); }
+.bs-sub { font-size: var(--fs-xs); color: var(--muted); }
+.bs .btn { min-height: 44px; }
