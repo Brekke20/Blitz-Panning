@@ -357,6 +357,7 @@ export function openLocalEventDetail(ev) {
   document.getElementById('ld-btn-arrival').style.display = magSchrijven ? '' : 'none';
   document.getElementById('ld-btn-rapport').style.display = magSchrijven ? '' : 'none';
   document.getElementById('ld-del-btn').style.display = magSchrijven ? '' : 'none'; // verwijderen: planner/beheerder of eigen afspraak (P1-2)
+  document.getElementById('ld-edit-btn').style.display = magSchrijven ? '' : 'none'; // bewerken idem: de server weigert het toch voor een collega (merge-review M2)
   document.getElementById('ld-type').innerHTML  = `<span class="cal-local-type">${escHtml(ev.type)}</span>`;
   document.getElementById('ld-titel').textContent = ev.titel || '—';
 

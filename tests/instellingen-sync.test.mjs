@@ -3,7 +3,7 @@ import { test, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   synchroniseerInstellingen, bewaarOpServer, wisInstellingenCache,
-  heeftVuileInstellingen, MARKER_SLEUTEL, VUIL_SLEUTEL, neemEigenOver, resterendSyncBudget,
+  heeftVuileInstellingen, MARKER_SLEUTEL, VUIL_SLEUTEL, neemEigenOver, resterendSyncBudget, spiegelEigen, eigenSleutels,
 } from '../public/js/kern/instellingen-sync.js';
 
 const maakOpslag = (begin = {}) => {
@@ -40,9 +40,18 @@ function nepApiJson({ overzicht, put = () => ({ versie: 1 }) } = {}) {
   return f;
 }
 // Nep-apiVerzoek voor bewaarOpServer: { ok, status, data }.
-function nepApiVerzoek(antwoord = { ok: true, status: 200, data: { versie: 1 } }) {
+// Sinds merge-review I2 haalt bewaarOpServer voor een ANDERE persoon eerst het overzicht op (GET ?overzicht=1, `techniekers` = het serverrecord
+// per technieker) en legt de lokale velden daarop; een mislukt antwoord (`antwoord` is een fout of niet-ok) geldt ook voor die GET.
+function nepApiVerzoek(antwoord = { ok: true, status: 200, data: { versie: 1 } }, techniekers = {}) {
   const puts = [];
+  const gets = [];
   const f = async (pad, opties) => {
+    if (pad === '/api/instellingen?overzicht=1') {
+      gets.push(pad);
+      if (antwoord instanceof Error) throw antwoord;
+      if (typeof antwoord !== 'function' && antwoord.ok === false) return antwoord;
+      return { ok: true, status: 200, data: { eigen: {}, techniekers: structuredClone(techniekers) } };
+    }
     assert.equal(pad, '/api/instellingen');
     assert.equal(opties.methode, 'PUT');
     puts.push(opties.body);
@@ -51,6 +60,7 @@ function nepApiVerzoek(antwoord = { ok: true, status: 200, data: { versie: 1 } }
     return a;
   };
   f.puts = puts;
+  f.gets = gets;
   return f;
 }
 // Laadt de overzicht-cache van de module (techniekers-id's) voor bewaarOpServer.
@@ -310,7 +320,8 @@ test('vuile persoon: de lokale waarde gaat EERST omhoog (PUT vóór de serverwaa
     put: () => { gezienBijPut = { eigen: opslag.getItem('blitz_settings'), roel: opslag.json('blitz_settings_Roel').startlocatie }; return { versie: 5 }; },
   });
   await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag });
-  assert.deepEqual(api.puts, [{ gebruiker: 'u-roel', instellingen: { startlocatie: 'Roel lokaal' } }], 'zonder laatsteStart');
+  // I2: de body vertrekt van het serverrecord uit het overzicht (hier duurMinuten 90); enkel de lokale velden komen erbovenop; laatsteStart (lokaal 15:00) gaat niet mee.
+  assert.deepEqual(api.puts, [{ gebruiker: 'u-roel', instellingen: { startlocatie: 'Roel lokaal', duurMinuten: 90 } }]);
   assert.equal(gezienBijPut.eigen, null, 'tijdens de PUT stond er nog niets van de server in de opslag');
   assert.equal(gezienBijPut.roel, 'Roel lokaal');
   assert.equal(opslag.json('blitz_settings_Roel').startlocatie, 'Roel lokaal', 'de lokale waarde blijft (zij is nu ook de serverwaarde)');
@@ -477,11 +488,13 @@ test('serialisatie: twee snelle opslagen voor dezelfde persoon gaan na elkaar; d
   assert.deepEqual(bodies, ['Een', 'Twee']);
   // Andere personen wachten niet op elkaar.
   const ander = [];
-  const api2 = (pad, opties) => { ander.push(opties.body.gebruiker ?? 'eigen'); return new Promise(() => {}); };
-  bewaarOpServer('all', S(), PLANNER, { apiVerzoek: api2, opslag });
-  bewaarOpServer('Roel', S(), PLANNER, { apiVerzoek: api2, opslag });
+  const api2 = (pad, opties) => { if (!opties) return Promise.resolve({ ok: true, status: 200, data: { techniekers: {} } }); ander.push(opties.body.gebruiker ?? 'eigen'); return new Promise((r) => { vrij.push(() => r({ ok: true, status: 200, data: {} })); }); };
+  const vrij = [];
+  const klaar = [bewaarOpServer('all', S(), PLANNER, { apiVerzoek: api2, opslag }), bewaarOpServer('Roel', S(), PLANNER, { apiVerzoek: api2, opslag })];
   await new Promise(r => setImmediate(r));
   assert.deepEqual(ander.sort(), ['eigen', 'u-roel']);
+  vrij.forEach(f => f()); // laat de ketens leeg lopen: latere tests bewaren weer voor dezelfde personen
+  await Promise.all(klaar);
 });
 
 test('wees-markering: een vuile persoon die niet (meer) in het overzicht staat wordt opgeruimd', async () => {
@@ -510,4 +523,99 @@ test('neemEigenOver: schrijft de eigen cache (planner: all, technieker: zohoNaam
   assert.equal(neemEigenOver(S(), TIM, { opslag }), 'Tim');
   assert.deepEqual(opslag.json('blitz_settings_Tim'), S());
   assert.equal(opslag.getItem('blitz_laatste_start'), '15:30', 'zonder geldige laatsteStart blijft de globale waarde staan');
+});
+
+// ── merge-review I2: een planner/beheerder die voor een technieker bewaart verliest nooit velden die het formulier niet toont ──
+test('I2: bewaren voor Roel legt de lokale velden op het serverrecord: laatsteStart, bezoekDuurMin en onbekende velden blijven behouden', async () => {
+  const opslag = maakOpslag();
+  await laadCache(PLANNER, opslag, ovz({ gebruikerId: 'u-pl', versie: 0, instellingen: null }));
+  const serverRoel = S({ laatsteStart: '15:00', bezoekDuurMin: 45, kaartStijl: 'satelliet', routeKleur: '#111111' });
+  const api = nepApiVerzoek(undefined, { Roel: { gebruikerId: 'u-roel', instellingen: serverRoel } });
+  // lokaal (oude cache): andere startlocatie + nieuwe routekleur; zonder laatsteStart/bezoekDuurMin
+  const r = await bewaarOpServer('Roel', { startlocatie: 'Nieuw', duurMinuten: 90, routeKleur: '#222222' }, PLANNER, { apiVerzoek: api, opslag });
+  assert.equal(r.ok, true);
+  assert.equal(api.gets.length, 1, 'eerst het actuele serverrecord ophalen');
+  assert.deepEqual(api.puts, [{ gebruiker: 'u-roel', instellingen: { startlocatie: 'Nieuw', duurMinuten: 90, laatsteStart: '15:00', bezoekDuurMin: 45, kaartStijl: 'satelliet', routeKleur: '#222222' } }]);
+});
+
+test('I2: het ophalen van het serverrecord mislukt (netwerk): geen PUT (dus geen veldverlies), wel een vuil-markering', async () => {
+  const opslag = maakOpslag();
+  await laadCache(PLANNER, opslag, ovz({ gebruikerId: 'u-pl', versie: 0, instellingen: null }));
+  const api = nepApiVerzoek(netFout());
+  assert.deepEqual(await bewaarOpServer('Roel', S(), PLANNER, { apiVerzoek: api, opslag }), { ok: false, reden: 'netwerk' });
+  assert.deepEqual(api.puts, []);
+  assert.deepEqual(opslag.json(VUIL_SLEUTEL), { Roel: true });
+});
+
+test('I2: een eigen record (planner op all) blijft zonder extra GET en met de globale laatsteStart', async () => {
+  const opslag = maakOpslag({ blitz_laatste_start: '14:30' });
+  await laadCache(PLANNER, opslag, ovz({ gebruikerId: 'u-pl', versie: 0, instellingen: null }));
+  const api = nepApiVerzoek();
+  await bewaarOpServer('all', S(), PLANNER, { apiVerzoek: api, opslag });
+  assert.equal(api.gets.length, 0);
+  assert.deepEqual(api.puts, [{ instellingen: S({ laatsteStart: '14:30' }) }]);
+});
+
+// ── merge-review I1: Alle en de eigen Zoho-naam van een planner/beheerder zijn hetzelfde serverrecord ──
+const BEHEERDER_BRENT = { id: 'u-br', rol: 'beheerder', zohoNaam: 'Brent' };
+
+test('I1: synchronisatie zet het eigen serverrecord onder blitz_settings EN blitz_settings_Brent', async () => {
+  const opslag = maakOpslag({ blitz_settings_Brent: { startlocatie: 'Oud lokaal' } });
+  await synchroniseerInstellingen(BEHEERDER_BRENT, {
+    apiJson: nepApiJson({ overzicht: ovz({ gebruikerId: 'u-br', versie: 2, instellingen: S({ startlocatie: 'Server Brent', laatsteStart: '15:15' }) }) }), opslag,
+  });
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Server Brent');
+  assert.equal(opslag.json('blitz_settings_Brent').startlocatie, 'Server Brent');
+  assert.equal(opslag.getItem('blitz_laatste_start'), '15:15');
+});
+
+test('I1: neemEigenOver (Beheer, voor jezelf) schrijft beide eigen sleutels en wist beide vuil-markeringen', () => {
+  const opslag = maakOpslag({ [VUIL_SLEUTEL]: { all: true, Brent: true, Roel: true } });
+  neemEigenOver(S({ laatsteStart: '15:30' }), BEHEERDER_BRENT, { opslag });
+  assert.deepEqual(opslag.json('blitz_settings'), S({ laatsteStart: '15:30' }));
+  assert.deepEqual(opslag.json('blitz_settings_Brent'), S({ laatsteStart: '15:30' }));
+  assert.deepEqual(opslag.json(VUIL_SLEUTEL), { Roel: true });
+});
+
+test('I1: bewaren onder de eigen naam is een eigen PUT (zonder gebruiker-veld, met laatsteStart), zonder extra GET', async () => {
+  const opslag = maakOpslag({ blitz_laatste_start: '15:00' });
+  await laadCache(BEHEERDER_BRENT, opslag, ovz({ gebruikerId: 'u-br', versie: 0, instellingen: null }));
+  const api = nepApiVerzoek();
+  assert.equal((await bewaarOpServer('Brent', S(), BEHEERDER_BRENT, { apiVerzoek: api, opslag })).ok, true);
+  assert.deepEqual(api.puts, [{ instellingen: S({ laatsteStart: '15:00' }) }]);
+  assert.equal(api.gets.length, 0);
+});
+
+test('I1: spiegelEigen kopieert een lokale wijziging van Alle naar de eigen naam en omgekeerd; voor een technieker of een collega niets', () => {
+  const opslag = maakOpslag({ blitz_settings: S({ startlocatie: 'Via Alle' }), blitz_settings_Roel: S({ startlocatie: 'Roel' }) });
+  spiegelEigen('all', BEHEERDER_BRENT, { opslag });
+  assert.equal(opslag.json('blitz_settings_Brent').startlocatie, 'Via Alle');
+  opslag.setItem('blitz_settings_Brent', JSON.stringify(S({ startlocatie: 'Via naam' })));
+  spiegelEigen('Brent', BEHEERDER_BRENT, { opslag });
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Via naam');
+  spiegelEigen('Roel', BEHEERDER_BRENT, { opslag });
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Via naam', 'Roel is een collega: niets gespiegeld');
+  assert.deepEqual(eigenSleutels(TIM), ['Tim']);
+  assert.deepEqual(eigenSleutels(PLANNER), ['all']);
+  assert.deepEqual(eigenSleutels(BEHEERDER_BRENT), ['all', 'Brent']);
+});
+
+test('I1: een vuile eigen sleutel gaat een keer omhoog en de andere eigen sleutel volgt dat record', async () => {
+  const opslag = maakOpslag({ blitz_settings_Brent: { startlocatie: 'Brent lokaal' }, [VUIL_SLEUTEL]: { Brent: true }, [MARKER_SLEUTEL]: 'u-br' });
+  const api = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-br', versie: 1, instellingen: S({ startlocatie: 'Server' }) }) });
+  await synchroniseerInstellingen(BEHEERDER_BRENT, { apiJson: api, opslag });
+  assert.equal(api.puts.length, 1);
+  assert.equal(api.puts[0].instellingen.startlocatie, 'Brent lokaal');
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Brent lokaal', 'Alle volgt de lokale waarde die nu ook de serverwaarde is');
+  assert.equal(opslag.getItem(VUIL_SLEUTEL), null);
+});
+
+test('M4: met opties.velden gaan voor een andere persoon enkel die velden uit de lokale set mee; de rest blijft zoals de server het heeft', async () => {
+  const opslag = maakOpslag();
+  await laadCache(PLANNER, opslag, ovz({ gebruikerId: 'u-pl', versie: 0, instellingen: null }));
+  const api = nepApiVerzoek(undefined, { Roel: { gebruikerId: 'u-roel', instellingen: S({ laatsteStart: '15:00', routeKleur: '#111111' }) } });
+  const oudeLokaal = { startlocatie: 'Verouderd', duurMinuten: 15, routeKleur: '#222222', drukteKleuring: false };
+  const r = await bewaarOpServer('Roel', oudeLokaal, PLANNER, { apiVerzoek: api, opslag, velden: ['routeKleur', 'drukteKleuring', 'kaartStijl'] });
+  assert.equal(r.ok, true);
+  assert.deepEqual(api.puts, [{ gebruiker: 'u-roel', instellingen: { startlocatie: 'Server 1', duurMinuten: 90, laatsteStart: '15:00', routeKleur: '#222222', drukteKleuring: false } }]);
 });

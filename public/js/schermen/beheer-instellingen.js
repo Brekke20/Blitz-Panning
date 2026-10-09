@@ -11,7 +11,7 @@ import { registreerBeheerTab, beheerVerzoek, beheerFoutTekst, h } from './beheer
 import { toast } from '../kern/ui.js';
 import { toestand } from '../kern/toestand.js';
 import { huidigeGebruiker } from '../kern/sessie.js';
-import { neemEigenOver, neemPersoonOver } from '../kern/instellingen-sync.js';
+import { neemEigenOver, neemPersoonOver, eigenSleutels } from '../kern/instellingen-sync.js';
 import { valideerVelden } from '../kern/instellingen-regels.js';
 import { DEFAULT_SETTINGS, DAGEN, loadPersonSettings } from './instellingen.js';
 import { valideerInstellingen } from './instellingen-logica.js';
@@ -42,6 +42,12 @@ async function render(container) {
     gebruikers.map(g => h('option', { value: g.id, text: `${g.naam} (${rolLabel(g.rol)})${g.actief === false ? ' — geblokkeerd' : ''}` })));
   const eigenId = huidigeGebruiker()?.id;
   if (gebruikers.some(g => g.id === eigenId)) kies.value = eigenId; // begin bij de eigen instellingen
+  // Kwam de beheerder via "Aanpassen in Beheer" uit het ⚙-venster, dan begint hij bij de persoon die daar gekozen was (eenmalig).
+  let gevraagd = null;
+  try { gevraagd = sessionStorage.getItem('blitz_beheer_instellingen_persoon'); sessionStorage.removeItem('blitz_beheer_instellingen_persoon'); } catch { /* geen opslag */ }
+  const norm = (t) => String(t ?? '').trim().toLowerCase();
+  const gewenst = gevraagd ? gebruikers.find(g => norm(g.zohoNaam) === norm(gevraagd)) : null;
+  if (gewenst) kies.value = gewenst.id;
   const start = h('input', { class: 'set-input', id: 'bi-start', type: 'text', autocomplete: 'off', placeholder: 'bv. Heirbaan 9, 9150 Kruibeke' });
   const duur = h('input', { class: 'set-input', id: 'bi-duur', type: 'number', min: '15', max: '480', step: '15' });
   const max = h('input', { class: 'set-input', id: 'bi-max', type: 'number', min: '1', max: '20' });
@@ -127,8 +133,9 @@ async function render(container) {
     }
     if (!ik || doel.id !== ik.id) return;
     try {
-      const persoon = neemEigenOver(instellingen, ik);
-      if (toestand.get('activeAssigneeFilter') === persoon) toestand.set('settings', loadPersonSettings(persoon));
+      neemEigenOver(instellingen, ik); // schrijft onder alle eigen sleutels ('Alle' en, met een Zoho-naam, die naam)
+      const actief = toestand.get('activeAssigneeFilter');
+      if (eigenSleutels(ik).includes(actief)) toestand.set('settings', loadPersonSettings(actief));
     } catch { /* geen opslag: de server heeft de waarde, de volgende synchronisatie haalt ze op */ }
   }
 
