@@ -3,10 +3,13 @@
 // URL+versie, Google Fonts lopen stale-while-revalidate in een tweede cache. /api en alles wat geen GET is, raakt deze
 // worker nooit aan.
 importScripts('/sw-strategie.js');
+// Gedeelde verzendlogica voor de outbox (klassiek script, zet self.outboxVerzend; v1.10.2). In een try: bij een offline
+// install-race blijft de worker werken, enkel zonder Background Sync.
+try { importScripts('/js/outbox-verzend.js'); } catch (e) { /* zie hierboven */ }
 
-const CACHE_NAME = 'blitz-planning-v25';
+const CACHE_NAME = 'blitz-planning-v27';
 const EXTERN_CACHE = 'blitz-extern-v1';
-const SHELL = ['/', '/index.html', '/manifest.json', '/js/apparaat.js', '/js/kern/brug.js', '/js/kern/tijd.js', '/js/kern/ui.js', '/js/kern/selecties.js', '/js/kern/toestand.js', '/js/kern/api.js', '/js/kern/netwerk.js', '/js/kern/sessie.js', '/js/kern/navigatie.js', '/js/kern/eigenaar.js', '/js/kern/instellingen-sync.js', '/js/kern/mailcontrole.js', '/js/kern/omgeving.js', '/js/kern/feestdagen.js', '/js/kern/testdata.js', '/js/kern/verklikker.js', '/js/kern/opslag.js', '/js/kern/verbruik-wachtrij.js', '/js/kern/exceljs.js', '/js/kern/instellingen-regels.js', '/js/schermen/route-tijden.js', '/js/schermen/route-kaart.js', '/js/schermen/route.js', '/js/schermen/capaciteit.js', '/js/schermen/wachtrij-logica.js', '/js/schermen/wachtrij.js', '/js/schermen/kalender-logica.js', '/js/schermen/kalender.js', '/js/schermen/ingepland.js', '/js/schermen/ticketdetail-logica.js', '/js/schermen/ticketdetail.js', '/js/schermen/voorstel.js', '/js/schermen/annuleren.js', '/js/schermen/klantbeschikbaarheid-logica.js', '/js/schermen/klantbeschikbaarheid.js', '/js/schermen/beschikbaarheid.js', '/js/schermen/beschikbaarheid-logica.js', '/js/schermen/afspraken.js', '/js/schermen/afspraken-logica.js', '/js/schermen/instellingen.js', '/js/schermen/instellingen-logica.js', '/js/schermen/inloggen-logica.js', '/js/schermen/inloggen.js', '/js/schermen/rol-schil.js', '/js/schermen/gebruikersmenu.js', '/js/schermen/fotos.js', '/js/schermen/rapport-verzenden.js', '/js/schermen/planacties.js', '/js/app.js', '/js/app-dialog.js', '/js/venster.js', '/js/outbox.js', '/js/rapport-archief.js', '/js/excel-export.js', '/js/prijzen.js', '/js/rapport-wizard.js', '/js/inventaris.js', '/js/sorteer.js', '/js/planner.js', '/js/planner-tijdlijn.js', '/css/base.css', '/css/app.css', '/css/wizard.css', '/css/prijzen.css', '/css/inventaris.css', '/css/inloggen.css', '/css/beheer.css', '/js/schermen/beheer.js', '/js/schermen/beheer-tabs.js', '/js/schermen/beheer-gebruikers-logica.js', '/js/schermen/beheer-gebruikers.js'];
+const SHELL = ['/', '/index.html', '/manifest.json', '/js/apparaat.js', '/js/kern/brug.js', '/js/kern/tijd.js', '/js/kern/ui.js', '/js/kern/selecties.js', '/js/kern/toestand.js', '/js/kern/api.js', '/js/kern/netwerk.js', '/js/kern/sessie.js', '/js/kern/navigatie.js', '/js/kern/eigenaar.js', '/js/kern/instellingen-sync.js', '/js/kern/mailcontrole.js', '/js/kern/omgeving.js', '/js/kern/feestdagen.js', '/js/kern/testdata.js', '/js/kern/verklikker.js', '/js/kern/opslag.js', '/js/kern/verbruik-wachtrij.js', '/js/kern/exceljs.js', '/js/kern/instellingen-regels.js', '/js/schermen/route-tijden.js', '/js/schermen/route-kaart.js', '/js/schermen/route.js', '/js/schermen/capaciteit.js', '/js/schermen/wachtrij-logica.js', '/js/schermen/wachtrij.js', '/js/schermen/kalender-logica.js', '/js/schermen/kalender.js', '/js/schermen/ingepland.js', '/js/schermen/ticketdetail-logica.js', '/js/schermen/ticketdetail.js', '/js/schermen/voorstel.js', '/js/schermen/annuleren.js', '/js/schermen/klantbeschikbaarheid-logica.js', '/js/schermen/klantbeschikbaarheid.js', '/js/schermen/beschikbaarheid.js', '/js/schermen/beschikbaarheid-logica.js', '/js/schermen/afspraken.js', '/js/schermen/afspraken-logica.js', '/js/schermen/instellingen.js', '/js/schermen/instellingen-logica.js', '/js/schermen/inloggen-logica.js', '/js/schermen/inloggen.js', '/js/schermen/rol-schil.js', '/js/schermen/gebruikersmenu.js', '/js/schermen/fotos.js', '/js/schermen/rapport-verzenden.js', '/js/schermen/planacties.js', '/js/app.js', '/js/app-dialog.js', '/js/venster.js', '/js/outbox.js', '/js/outbox-verzend.js', '/js/outbox-sync.js', '/js/test-upload.js', '/js/rapport-inhoud.js', '/js/rapport-status.js', '/js/rapport-archief.js', '/js/excel-export.js', '/js/prijzen.js', '/js/rapport-wizard.js', '/js/inventaris.js', '/js/sorteer.js', '/js/planner.js', '/js/planner-tijdlijn.js', '/js/sticky-offset.js', '/js/versie.js', '/css/base.css', '/css/app.css', '/css/wizard.css', '/css/prijzen.css', '/css/inventaris.css', '/css/inloggen.css', '/css/beheer.css', '/js/schermen/beheer.js', '/js/schermen/beheer-tabs.js', '/js/schermen/beheer-gebruikers-logica.js', '/js/schermen/beheer-gebruikers.js'];
 const CDN_VAST = ['https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.1.7/signature_pad.umd.min.js', 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/layers.png', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/layers-2x.png'];
 // URL's in CDN_VAST die NIET bij de installatie worden opgehaald (enkel bij het eerste gebruik bewaard). Nu leeg: ExcelJS (258 kB gzip) wordt
 // weer vooraf opgehaald zodat de eerste Excel-export ook offline werkt (zoals live); omdat de URL op versie vastgepind is, kost dat één keer per
@@ -44,11 +47,24 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
-// (T20) Geen 'sync'-event/Background Sync geregistreerd: dat zou een onderbroken rapport-verzending
-// ook kunnen afwerken terwijl de app/tab gesloten is, maar wordt bewust niet gebruikt -- niet
-// beschikbaar op iOS (waar deze app ook draait) en nergens elders in deze app aanwezig. De
-// outbox (public/js/outbox.js) herneemt in plaats daarvan gewoon bij de eerstvolgende
-// app-opening, dankzij de IndexedDB-wachtrij die het punt onthoudt waar een poging bleef steken.
+// Background Sync (tag 'rapport-outbox'): de pagina registreert deze tag na het opslaan van een
+// rapport in de outbox (public/js/outbox-sync.js). Op Android/Chrome wekt de browser deze service
+// worker zodra er weer verbinding is -- ook als de app gesloten of het scherm vergrendeld is -- en
+// verstuurt verzendAlles de wachtende items naar /api/rapport-ontvangen. Gooien bij mislukte items
+// laat de browser later zelf opnieuw proberen. Web Locks in verzendAlles voorkomen dat pagina en
+// service worker hetzelfde item tegelijk versturen (de server is bovendien idempotent op het id).
+// iOS/Safari kent Background Sync niet (geen 'sync' in de registratie): daar hervat de outbox
+// (public/js/outbox.js) gewoon bij het openen van de app, vanuit de IndexedDB-wachtrij.
+self.addEventListener('sync', e => {
+  if (e.tag === 'rapport-outbox' && self.outboxVerzend) {
+    e.waitUntil(
+      self.outboxVerzend.verzendAlles({ fetch: self.fetch.bind(self) }).then(r => {
+        if (r.mislukt) throw new Error('Rapporten niet verstuurd');
+      })
+    );
+  }
+});
+
 self.addEventListener('fetch', e => {
   // behandel() geeft null voor /api, niet-GET en onbekende hosts: dan doet de browser het verzoek zelf.
   const r = strategie.behandel(e.request, { waitUntil: (p) => e.waitUntil(p) });

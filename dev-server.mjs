@@ -5,6 +5,7 @@
  * Serveert:
  *   /          → public/index.html
  *   /api/*     → netlify/functions/*.js (als ES module)
+ *   /.netlify/functions/<naam> → idem; '-background' antwoordt meteen 202 en draait los
  *
  * Credentials worden geladen uit .env.local in dezelfde map.
  */
@@ -87,8 +88,11 @@ async function callFunction(fnName, req, body) {
     }
     const init = { method: req.method, headers: fetchHeaders };
     if (body && req.method !== 'GET' && req.method !== 'HEAD') init.body = body;
-    const request  = new Request(`http://localhost${req.url}`, init);
+    // Host uit het verzoek (incl. poort), zodat new URL(req.url).origin in functies klopt
+    const request  = new Request(`http://${req.headers.host || 'localhost'}${req.url}`, init);
     const response = await mod.default(request);
+    // Background Functions geven niets terug (Netlify negeert het antwoord)
+    if (!response) return { statusCode: 202, body: '' };
     const resBody    = await response.text();
     const resHeaders = {};
     response.headers.forEach((v, k) => { resHeaders[k] = v; });
@@ -119,6 +123,24 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith('/api/')) {
       const fnName = pathname.slice(5).split('/')[0]; // /api/tickets → tickets
       console.log(`[API] ${req.method} /api/${fnName}`);
+      const result = await callFunction(fnName, req, body || null);
+      res.writeHead(result.statusCode || 200, { 'Content-Type': 'application/json', ...result.headers });
+      res.end(result.body || '');
+      return;
+    }
+
+    // Rechtstreekse functie-aanroep (zoals startAchtergrondtaak doet): /.netlify/functions/<naam>
+    if (pathname.startsWith('/.netlify/functions/')) {
+      const fnName = pathname.slice('/.netlify/functions/'.length).split('/')[0];
+      console.log(`[FN] ${req.method} ${fnName}`);
+      if (fnName.endsWith('-background')) {
+        // Background Function: Netlify antwoordt meteen 202 en draait de functie los van het verzoek
+        res.writeHead(202);
+        res.end();
+        callFunction(fnName, req, body || null)
+          .catch(err => console.error('[BACKGROUND]', fnName, err));
+        return;
+      }
       const result = await callFunction(fnName, req, body || null);
       res.writeHead(result.statusCode || 200, { 'Content-Type': 'application/json', ...result.headers });
       res.end(result.body || '');

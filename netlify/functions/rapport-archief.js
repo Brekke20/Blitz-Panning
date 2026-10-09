@@ -1,18 +1,24 @@
 // /api/rapport-archief
-// GET  → lijst van gearchiveerde rapports (publiek)
-// POST → nieuw rapport archiveren (open, geen auth)
+// GET  → lijst van gearchiveerde rapports (publiek); ?id=<id> één rapport; ?inhoud=<id> de HTML
+// POST → nieuw rapport archiveren; { opnieuw: <id> } = mislukt rapport opnieuw versturen
+// Achter de rechtentabel (beveiligV2): een technieker ziet/wijzigt enkel zijn eigen rapporten.
 
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
+import {
+  LIJST_KEY as BLOB_KEY, LEGE_LIJST as EMPTY,
+  bepaalDedupVelden, bouwEntry, voegToeOfWerkBij,
+} from '../lib/rapportlijst.js';
+import { haalRapportInhoud, verwerkOpnieuw } from '../lib/rapport-archief-acties.js';
+import { startAchtergrondtaak } from '../lib/rapport-achtergrond.js';
+import { isGeldigId, vergeetEntry } from '../lib/rapport-inhoud.js';
 import { beveiligV2 } from '../lib/beveiligd.js';
 import { isEigenNaam, filterRapportenVoor } from '../lib/eigen.js';
 
-const BLOB_KEY = 'rapportlijst';
 const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
   'http://localhost:8888',
 ];
-const EMPTY = { versie: 0, rapports: [] };
 
 function corsHeaders(req) {
   const origin  = req.headers.get('origin') || '';
@@ -25,23 +31,16 @@ function corsHeaders(req) {
   };
 }
 
-// ── Pure logica (geen I/O) -- apart van de Blobs-aanroepen zodat dit zonder Netlify Blobs-
-// emulatie met een klein Node-scriptje te verifiëren is (zelfde patroon als rapport.js). ──
-//
-// (Fix-ronde 1, punt 1) Bepaalt de definitieve zohoUploaded/geannuleerd-velden voor een
-// binnenkomende POST t.o.v. een eventuele bestaande dedup-match (zelfde ticketId+datum).
-// `bestaandeEntry` is de huidige entry op dupIdx (of null bij een nieuw rapport), `zelfdeItem`
-// geeft aan of het binnenkomende `id` gelijk is aan dat van de bestaande entry (zelfde
-// wachtrij-item dat zichzelf opnieuw bevestigt, i.p.v. een ander item dat via ticket+datum botst).
-export function bepaalDedupVelden(bestaandeEntry, zelfdeItem, body) {
-  const alGeupload = !!(zelfdeItem && bestaandeEntry?.zohoUploaded === true);
-  return {
-    zohoUploaded: body.zohoUploaded === true || alGeupload,
-    // Een reeds bevestigde Zoho-upload kan nooit met terugwerkende kracht "geannuleerd" worden
-    // door een racende/verlate cancel-POST -- zie rapport.js's pasMarkeringToe() voor de
-    // omgekeerde volgorde (upload-bevestiging ná een eerder geschreven cancel).
-    geannuleerd: alGeupload ? false : body.geannuleerd === true,
-  };
+// bepaalDedupVelden woont in ../lib/rapportlijst.js; hier her-geëxporteerd voor bestaande tests/imports.
+export { bepaalDedupVelden };
+
+// Hoort het rapport met dit id bij deze (technieker-)gebruiker? Onbekend id = nee.
+async function isEigenRapport(store, id, gebruiker) {
+  try {
+    const lijst = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY;
+    const treffers = lijst.rapports.filter(r => r.id === id);
+    return treffers.length > 0 && treffers.every(r => isEigenNaam(gebruiker, r.technieker));
+  } catch { return false; }
 }
 
 const GEEN_RECHT = { error: 'Je kan enkel je eigen rapporten wijzigen.', code: 'geen-recht' };
@@ -57,7 +56,19 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
 
     // ── GET ───────────────────────────────────────────────────────────────────
     if (req.method === 'GET') {
-      const id = new URL(req.url).searchParams.get('id');
+      const params = new URL(req.url).searchParams;
+      if (params.has('inhoud')) {
+        // Een technieker leest enkel de inhoud van zijn eigen rapporten (een collega's rapport bestaat voor hem niet).
+        if (gebruiker?.rol === 'technieker' && !(await isEigenRapport(store, params.get('inhoud'), gebruiker))) {
+          return new Response(JSON.stringify({ error: 'Rapportinhoud niet gevonden' }), { status: 404, headers: { ...hdrs, 'Content-Type': 'application/json' } });
+        }
+        const uit = await haalRapportInhoud(store, params.get('inhoud'));
+        return new Response(JSON.stringify(uit.body), {
+          status: uit.status,
+          headers: { ...hdrs, 'Content-Type': 'application/json' },
+        });
+      }
+      const id = params.get('id');
       try {
         const opgeslagen = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY;
         // Een technieker ziet enkel zijn eigen rapporten (een rapport van een collega bestaat voor hem niet).
@@ -88,6 +99,21 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
       try { body = await req.json(); }
       catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers: { ...hdrs, 'Content-Type': 'application/json' } }); }
 
+      // "Opnieuw versturen" van een mislukt rapport (vóór de legacy-entry-opbouw afgehandeld).
+      if (body && body.opnieuw !== undefined) {
+        if (gebruiker?.rol === 'technieker' && !(await isEigenRapport(store, body.opnieuw, gebruiker))) {
+          return new Response(JSON.stringify(GEEN_RECHT), { status: 403, headers: { ...hdrs, 'Content-Type': 'application/json' } });
+        }
+        const uit = await verwerkOpnieuw({ store, id: body.opnieuw });
+        if (uit.startNodig) {
+          await startAchtergrondtaak({ origin: new URL(req.url).origin, id: body.opnieuw, testModus: isTestVerzoek(req) });
+        }
+        return new Response(JSON.stringify(uit.body), {
+          status: uit.status,
+          headers: { ...hdrs, 'Content-Type': 'application/json' },
+        });
+      }
+
       // Een technieker archiveert enkel rapporten op zijn eigen naam.
       if (gebruiker?.rol === 'technieker' && !isEigenNaam(gebruiker, body?.technieker)) {
         return new Response(JSON.stringify(GEEN_RECHT), { status: 403, headers: { ...hdrs, 'Content-Type': 'application/json' } });
@@ -108,75 +134,27 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
         }), { status: 409, headers: { ...hdrs, 'Content-Type': 'application/json' } });
       }
 
-      const entry = {
-        id:              String(body.id || crypto.randomUUID()),
-        datum:           String(body.datum           || ''),
-        aangemaakt:      new Date().toISOString(),
-        technieker:      String(body.technieker       || ''),
-        ticketId:        String(body.ticketId         || ''),
-        ticketNumber:    String(body.ticketNumber     || ''),
-        klant:           String(body.klant            || ''),
-        adres:           String(body.adres            || ''),
-        nieuwInter:      body.nieuwInter === 'ja' ? 'ja' : 'nee',
-        hersteld:        body.hersteld   === 'ja' ? 'ja' : 'nee',
-        servicetype:     String(body.servicetype      || ''),
-        facturatie:      String(body.facturatie       || ''),
-        prioriteit:      String(body.prioriteit       || ''),
-        interventieType: String(body.interventieType  || 'Interventie'),
-        totaalOnderdelen: parseFloat(body.totaalOnderdelen) || 0,
-        // Bewaar het volledige R-object om rapport te kunnen hergeneren
-        rapportData:     body.rapportData || null,
-        // (T20) Gezet door outboxCancelItem() (public/js/outbox.js) wanneer een technieker een
-        // reeds-gearchiveerd, nog-niet-naar-Zoho-verstuurd rapport annuleert. Ontbreekt dit veld
-        // (oudere/andere POSTs), dan blijft het gewoon false -- geen breaking change. Definitieve
-        // waarde wordt hieronder gezet (samen met zohoUploaded, zie de dedup-bescherming erna).
-        geannuleerd:     false,
-      };
+      const entry = bouwEntry(body);
 
-      // Dedup: als er al een rapport bestaat voor hetzelfde ticket op dezelfde datum,
-      // update die entry i.p.v. een duplicaat te prependen (1 ticket = 1 interventie).
       // Een technieker dedupt enkel op zijn EIGEN entry: staat het rapport voor dit ticket+datum op naam van een collega,
       // dan blijft dat onaangeroerd en komt het zijne als nieuwe entry erbij (beide rapporten blijven bewaard).
       const eigenDedup = r => gebruiker?.rol !== 'technieker' || isEigenNaam(gebruiker, r.technieker);
-      const dupIdx = current.rapports.findIndex(
-        r => r.ticketId === entry.ticketId && r.datum === entry.datum && entry.ticketId && eigenDedup(r)
-      );
-
       // Een technieker mag nooit een rapport van een collega verbergen of overschrijven via een gelijk id: elk ANDER
       // rapport dan het dedup-doel met dit id moet van hem zijn.
       if (gebruiker?.rol === 'technieker') {
+        const dupIdx = entry.ticketId
+          ? current.rapports.findIndex(r => r.ticketId === entry.ticketId && r.datum === entry.datum && eigenDedup(r))
+          : -1;
         const botsing = current.rapports.some((r, i) => i !== dupIdx && r.id === entry.id && !isEigenNaam(gebruiker, r.technieker));
         if (botsing) {
           return new Response(JSON.stringify(GEEN_RECHT), { status: 403, headers: { ...hdrs, 'Content-Type': 'application/json' } });
         }
       }
-
-      // zohoUploaded/geannuleerd: enkel overerven van de bestaande entry als dit hetzelfde
-      // wachtrij-item is dat zichzelf opnieuw bevestigt (zelfde id) — bv. na een mislukte
-      // confirm-call. Botst een ANDER item via dedup (zelfde ticket+datum, maar een nieuw, later
-      // aangemaakt rapport dezelfde dag), dan begint dat item altijd fris, zodat het zelf een
-      // verse PDF naar Zoho stuurt i.p.v. stil te veronderstellen dat het al gebeurd is. Zie
-      // bepaalDedupVelden() hierboven voor de geannuleerd-bescherming bij een al-geüploade entry.
-      const zelfdeItem = dupIdx >= 0 && entry.id === current.rapports[dupIdx].id;
-      Object.assign(entry, bepaalDedupVelden(dupIdx >= 0 ? current.rapports[dupIdx] : null, zelfdeItem, body));
-
-      let updatedList;
-      if (dupIdx >= 0) {
-        updatedList = [...current.rapports];
-        // Bewust het id van de HUIDIGE POST behouden (entry.id, want entry wordt als
-        // laatste gespreid) en NIET dat van de oude entry: het antwoord hieronder
-        // rapporteert entry.id, en de client zoekt dit rapport later terug via
-        // GET ?id=<dat id> (check-zoho-voorcontrole in de outbox). Zou het opgeslagen
-        // id afwijken van het gerapporteerde, dan vindt die lookup niets en valt de
-        // dubbele-Zoho-upload-bescherming stil weg voor dat wachtrij-item.
-        updatedList[dupIdx] = { ...updatedList[dupIdx], ...entry };
-      } else {
-        updatedList = [entry, ...current.rapports];
-      }
+      const { rapports: updatedList } = voegToeOfWerkBij(current.rapports, entry, body, { eigenFilter: eigenDedup });
 
       const nieuw = {
         versie:   current.versie + 1,
-        rapports: updatedList.slice(0, 500), // max 500 bewaren
+        rapports: updatedList, // voegToeOfWerkBij kapt af op MAX_RAPPORTEN
       };
       await store.setJSON(BLOB_KEY, nieuw);
 
@@ -224,6 +202,7 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
 
       const nieuweVersie = current.versie + 1;
       await store.setJSON(BLOB_KEY, { versie: nieuweVersie, rapports: filtered });
+      if (isGeldigId(id)) await vergeetEntry(store, id); // best-effort: voorkomt dat verwerkRapport het rapport terugzet
       return new Response(JSON.stringify({ ok: true, versie: nieuweVersie }), { status: 200, headers: { ...hdrs, 'Content-Type': 'application/json' } });
     }
 

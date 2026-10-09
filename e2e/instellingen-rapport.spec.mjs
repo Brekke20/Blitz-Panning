@@ -148,6 +148,7 @@ test.describe('instellingen en rapport', () => {
     expect(verzoeken.van('/api/optimize').length).toBeGreaterThan(0);
     expect(verzoeken.van('/api/send-rapport')).toEqual([]);
     expect(verzoeken.van('/api/rapport')).toEqual([]);
+    expect(verzoeken.van('/api/rapport-ontvangen')).toEqual([]); // v1.10.2: de outbox verstuurt in één stap naar dit pad
     expect(verzoeken.van('/api/rapport-verzonden')).toEqual([]);
     expect(verzoeken.van('/api/rapport-archief', 'POST')).toEqual([]);
     expect(verzoeken.van('/api/rapport-archief', 'PUT')).toEqual([]);

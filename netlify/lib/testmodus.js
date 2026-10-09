@@ -9,7 +9,7 @@ const MARKER_KEY   = '_testkopie';
 // Authenticatiegegevens (gebruikers, pogingen, laatste logins, noodroute, activiteit) leven altijd
 // enkel in de echte opslag, ook bij een testverzoek.
 const NIET_KOPIEREN = [
-  /^client-log/, /^foutenlog$/, /^rapport-verzend-status/, /^foto-/,
+  /^client-log/, /^foutenlog$/, /^rapport-verzend-status/, /^foto-/, /^rapport-inhoud\//,
   /^gebruikers$/, /^login-pogingen$/, /^login-laatst$/, /^herstel-noodroute$/, /^activiteit\//,
 ];
 

@@ -24,7 +24,7 @@ export const TICKETS_STUB = maakDummyData(Date.parse(VASTE_NU));
 
 // Paden die een test nooit mag aanroepen: schrijven naar Zoho of mailen (E12, W11).
 export const VERBODEN_PADEN = [
-  '/api/propose', '/api/annuleer', '/api/send-rapport', '/api/rapport',
+  '/api/propose', '/api/annuleer', '/api/send-rapport', '/api/rapport', '/api/rapport-ontvangen',
   '/api/rapport-verzonden', '/api/plan', '/api/plan-datum', '/api/comment',
 ];
 
@@ -233,7 +233,7 @@ function maakStandaardStubs() {
     // Schrijf- en mail-eindpunten: neutraal succes. Aanroepen staan in `verzoeken.alle` en de
     // verboden paden laten de test falen.
     plan: ok, 'plan-datum': ok, propose: ok, annuleer: ok, comment: ok,
-    'send-rapport': ok, rapport: ok, 'rapport-verzonden': ok, testdata: ok, 'client-log': ok,
+    'send-rapport': ok, rapport: ok, 'rapport-ontvangen': ok, 'rapport-verzonden': ok, testdata: ok, 'client-log': ok,
 
     // Sessie (logins T14): standaard een ingelogde beheerder; auth-uitloggen is neutraal. Beide staan in geen enkele verbodenlijst.
     'auth-ik': authIkStub('beheerder'), 'auth-uitloggen': ok,

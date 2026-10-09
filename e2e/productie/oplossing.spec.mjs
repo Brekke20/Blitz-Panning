@@ -91,7 +91,7 @@ test.describe('syncOplossingNaarZoho: directe aanroep in productiemodus', () => 
 
 test.describe('syncOplossingNaarZoho: via de echte wizard', () => {
   test('rapport versturen vanuit de wizard stuurt één POST /api/comment met ticket-id en de getrimde acties', async ({ page, verzoeken }) => {
-    verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/comment', '/api/rapport', '/api/rapport-archief', '/api/optimize', '/api/route']);
+    verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/comment', '/api/rapport-ontvangen', '/api/optimize', '/api/route']);
     const c = commentStub();
     await startAppProductie(page, { technieker: 'Tim', vasteKlok: true, overschrijf: { comment: c.comment } });
     await page.getByRole('tab', { name: 'Kalender' }).click();
@@ -123,10 +123,11 @@ test.describe('syncOplossingNaarZoho: via de echte wizard', () => {
     await dialoog.getByRole('button', { name: 'Versturen' }).click();
     await expect.poll(() => c.opnames.length).toBe(1);
     expect(c.opnames).toEqual([{ methode: 'POST', body: { ticketId: 'p1', content: 'Voeding gecontroleerd' }, query: {} }]);
-    // Gemeten volgorde: aanrijtijd (optimize, route), dan de oplossing-sync (niet afgewacht), dan de outbox: archief, PDF-upload (rapport), archief.
+    // Gemeten volgorde: aanrijtijd (optimize, route), dan de oplossing-sync (niet afgewacht), dan de outbox: sinds v1.10.2 één POST naar
+    // /api/rapport-ontvangen (de server archiveert en stuurt het rapport daarna zelf op de achtergrond naar Zoho).
     // De outbox werkt in meerdere asynchrone stappen (tussen twee verzoeken staat er kortstondig niets open): wacht daarom op de volledige lijst
     // in plaats van één keer te lezen na `settle`; een extra of ontbrekend verzoek laat de poll op zijn time-out falen met de laatste lijst.
     await expect.poll(() => schrijfLijst(page, verzoeken), { timeout: 15000 })
-      .toEqual([START, 'POST /api/optimize', 'POST /api/route', COMMENT, 'POST /api/rapport-archief', 'POST /api/rapport', 'POST /api/rapport-archief']);
+      .toEqual([START, 'POST /api/optimize', 'POST /api/route', COMMENT, 'POST /api/rapport-ontvangen']);
   });
 });

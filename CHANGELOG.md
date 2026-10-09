@@ -100,6 +100,39 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Removed
 - Ongebruikte oude code: de clusterfuncties (`geoCluster`, `geoClusterFrom`, `estimateTravelMinFromRoute`) en de ongebruikte functie `removeTicketFromAllDays` (een ticket uit alle dagen halen; niets riep ze nog aan).
 
+## [1.10.3] — 2026-10-08
+
+### Fixed
+- De knop "+" plant een ticket niet meer op vandaag als er binnen de werkuren geen tijd meer is voor een
+  interventie (bv. na 14u30 bij werkuren tot 17u en een interventie van 2 uur); dan kiest hij de volgende werkdag.
+- Route-tabblad: de oranje balk "ticket zonder tijdstip" met de knop "Tijden vastleggen" schoof over de
+  eerste afspraak heen en verborg de titel. De balk neemt nu zijn eigen plek in boven de lijst.
+- Rapporten-tabblad: de filterbalk (Alle / Interventie / Installatie / datums / Excel / Herladen) bleef met
+  een kier onder de kop hangen, zodat rapporten erboven door schoven. Hij sluit nu aan onder de kop, ook als
+  de melding "geen verbinding" of "rapport wordt verstuurd" zichtbaar is. Die meldingsbalken zijn nu ook
+  niet meer doorzichtig.
+
+### Added
+- Het versienummer staat nu onderaan bij Instellingen.
+
+## [1.10.2] — 2026-10-08
+
+### Fixed
+- Rapporten worden nu op de server verwerkt in plaats van op de telefoon. Dat werkt ook als het
+  scherm vergrendeld is (Android via Background Sync; iOS zet het verder bij het heropenen van de app).
+- Een rapport gaat in één korte overdracht naar de server en wordt niet meer dubbel verstuurd.
+- De rapportlijst wordt licht: HTML en foto's worden apart bewaard, oude rapporten worden
+  automatisch verhuisd.
+- Per rapport zie je de status: *In verwerking*, *In Zoho*, *Mislukt* of *Lokaal*. Bij *Mislukt*
+  kun je met de knop **Opnieuw versturen** het rapport opnieuw sturen. Bij een definitieve fout krijgt
+  de technieker een melding.
+- Automatisch opnieuw proberen (na 5 min, 15 min, 30 min, 1 u en 2 u), met een vangnet dat elke
+  5 minuten controleert of er nog rapporten vastzitten.
+- Rapporten die al vastzaten op een toestel (bewaard maar nog niet in Zoho) worden na de update alsnog verstuurd.
+
+### Changed
+- Annuleren kan enkel zolang het rapport nog niet naar de server verstuurd is.
+
 ## [1.10.1] — 2026-09-30
 
 ### Fixed

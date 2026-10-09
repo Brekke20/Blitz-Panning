@@ -8,6 +8,8 @@ import { closeLocalDet } from './schermen/afspraken.js';
 import { loadFotos, renderFotoGridInto, handleFotoFiles } from './schermen/fotos.js';
 import { syncOplossingNaarZoho } from './schermen/rapport-verzenden.js';
 import { escHtml, toast } from './kern/ui.js';
+import { TEST_UPLOAD } from './test-upload.js';
+import { registreerAchtergrondVerzending } from './outbox-sync.js';
 
 export let _wizTicket = null;
 export let _wizDate   = null;
@@ -299,7 +301,7 @@ export function wizNext() {
     const isLokaal = !!_wizTicket?.isLocal;
     const nr = _wizTicket?.number || _wizTicket?.id || '';
     let tekst;
-    if (TEST_MODE) {
+    if (TEST_MODE && !TEST_UPLOAD) {
       tekst = ['🧪 Testmodus: er wordt niets verstuurd of opgeslagen.', 'Enkel het afdrukvoorbeeld opent in een nieuw venster.'];
     } else {
       tekst = ['Het rapport wordt gearchiveerd.'];
@@ -1360,7 +1362,7 @@ export async function printRapport() {
   // Testmodus (?test, ook op de live site): niets naar de server. Geen outbox-item (dus geen
   // archief, geen Zoho-upload), geen oplossing-sync en geen voorraadaftrek. Enkel het
   // afdrukvoorbeeld (hierboven al synchroon geopend) en het sluiten van de wizard.
-  if (TEST_MODE) {
+  if (TEST_MODE && !TEST_UPLOAD) {
     toast('🧪 Testmodus — rapport niet verzonden (enkel afdrukvoorbeeld)', 5000);
     wisConcept(_wizTicketId, _wizDate);
   } else if (!_rapportUploaded) {
@@ -1381,11 +1383,11 @@ export async function printRapport() {
         id:           crypto.randomUUID(),
         html,
         isLocal:      !!_wizTicket.isLocal,
-        archived:     false,
-        zohoUploaded: false,
+        ontvangen:    false,
         attempts:     0,
         lastError:    null,
         createdAt:    new Date().toISOString(),
+        testModus:    TEST_MODE, // ?test&upload: ook de achtergrondverzender gebruikt dan de testopslag
         ticket: {
           id:       _wizTicket.id   || '',
           number:   _wizTicket.number || '',
@@ -1405,12 +1407,10 @@ export async function printRapport() {
           prioriteit:       _wizTicket.priority || '',
           interventieType:  R.interventieType || 'Interventie',
           totaalOnderdelen: totaal,
-          // Fix (bugronde 2026-09-22, item H): R.fotos (de losse dataUrl's) NIET apart
-          // meesturen -- die foto's staan al ingebakken als <img>-tags in `html`/`_html`
-          // (zie de Foto's-sectie hierboven in dit bestand). Zonder deze exclusie werd elke
-          // foto ~2× opgeslagen binnen hetzelfde archiefrecord, wat bij rapporten met veel
-          // foto's het archiveren stil kon laten mislukken (payload te groot voor Netlify Blobs).
-          rapportData:      { ...(({ fotos, ...rest }) => rest)(R), _html: html },
+          // R.fotos (losse dataUrl's) en de handtekeningen NIET meesturen -- die staan al
+          // ingebakken als <img>-tags in `html`. De HTML zelf gaat apart mee (item.html) en wordt
+          // server-side bij het rapport bewaard, dus ook geen `_html` meer in rapportData.
+          rapportData:      (({ fotos, handtekeningTech, handtekeningKlant, ...rest }) => rest)(R),
           // Geen 'versie' hier — dedup gebeurt server-side op ticketId+datum
           // (rapport-archief.js), zodat opgestapelde wachtrij-items elkaar niet
           // vals-positief als conflict blokkeren.
@@ -1418,6 +1418,7 @@ export async function printRapport() {
       };
 
       await outboxAdd(item);
+      registreerAchtergrondVerzending(); // Background Sync (Android), niet afgewacht
       wisConcept(_wizTicketId, _wizDate); // rapport staat veilig in de outbox
       await refreshOutboxCache();
 
@@ -1442,10 +1443,10 @@ export async function printRapport() {
 
       if (result === 'timeout') {
         toast('⏳ Rapport wordt verstuurd — je kan gewoon verder, dit gebeurt op de achtergrond', 5000);
-      } else if (nextOutboxAction(result) === 'done') {
+      } else if (result?.ontvangen === true || nextOutboxAction(result) === 'done') {
         toast(item.isLocal
           ? '✓ Rapport opgeslagen in archief — geen Zoho-ticket gekoppeld'
-          : '✓ Rapport bewaard en doorgestuurd naar Zoho', 4500);
+          : '✓ Rapport verstuurd — het wordt op de achtergrond naar Zoho gestuurd', 4500);
       } else {
         toast('⏳ Rapport staat klaar om te versturen. We proberen opnieuw zodra je verbinding hebt. Je hoeft niets te doen.', 5000);
       }
