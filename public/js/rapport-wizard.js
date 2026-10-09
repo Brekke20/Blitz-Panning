@@ -205,11 +205,20 @@ async function openRapportIntern(ticketId, date) {
         if (CONCEPT_UIT.includes(k)) continue;
         if ((k === 'onderdelen' || k === 'oorzaakStoring') && !Array.isArray(concept.R[k])) continue;
         // Een concept van vóór de bronmarkering kan een stille 0 bevatten: dan blijft de verse berekening (of 'onbekend') staan.
-        if (k === 'aanrijtijdMin' && !('aanrijtijdBron' in concept.R)) continue;
+        // Een echte (> 0) waarde uit zo'n concept blijft behouden als handmatig ingevuld (eindreview M4).
+        if (k === 'aanrijtijdMin' && !('aanrijtijdBron' in concept.R)) {
+          if (concept.R[k] > 0) { R.aanrijtijdMin = concept.R[k]; R.aanrijtijdBron = 'handmatig'; }
+          continue;
+        }
         R[k] = concept.R[k];
       }
       const i = WIZ_STEPS.findIndex(st => st.id === concept.stap);
       if (i >= 0) _wizStep = i;
+      // Eindreview I2: een hervat concept voorbij de stap Facturatie met een onbekende aanrijtijd begint opnieuw bij Facturatie.
+      if (aanrijtijdOntbreekt() && _wizStep > WIZ_STEPS.findIndex(st => st.id === 'facturatie')) {
+        _wizStep = WIZ_STEPS.findIndex(st => st.id === 'facturatie');
+        toast(AANRIJTIJD_VERPLICHT, 4000);
+      }
     }
     // false (Opnieuw beginnen, Escape, achtergrond): concept NIET wissen; leeg formulier, het oude
     // concept wordt pas overschreven zodra de gebruiker iets wijzigt, of verloopt na 7 dagen.
@@ -276,6 +285,7 @@ export function wizNext() {
     wizRenderStep();
   } else if (_wizVanOverzicht) {
     // "Wijzig" vanuit het overzicht: na de aanpassing terug naar het overzicht
+    if (aanrijtijdOntbreekt()) return naarFacturatieVoorAanrijtijd(); // bv. Installatie gewijzigd naar Interventie
     _wizVanOverzicht = false;
     _wizStep = WIZ_STEPS.findIndex(st => st.id === 'samenvatting');
     bewaarConcept();
@@ -285,6 +295,7 @@ export function wizNext() {
     bewaarConcept();
     wizRenderStep();
   } else {
+    if (aanrijtijdOntbreekt()) return naarFacturatieVoorAanrijtijd();
     // Bevestiging vóór versturen; printRapport enkel via onBevestig (binnen de klik-gesture, voor window.open)
     const isLokaal = !!_wizTicket?.isLocal;
     const nr = _wizTicket?.number || _wizTicket?.id || '';
@@ -554,6 +565,10 @@ export function wizAutoServicetype() {
 
 const AANRIJTIJD_ONBEKEND = '⚠ Aanrijtijd kon niet berekend worden — vul ze hieronder zelf in (minuten, enkel heen). Typ 0 als er geen aanrijtijd is.';
 const AANRIJTIJD_VERPLICHT = '⚠ Vul de aanrijtijd in (minuten, enkel heen). Typ 0 als er geen aanrijtijd is.';
+// Eindreview I2: een Interventie met een onbekende aanrijtijd mag nooit ingediend worden (ook niet via een omweg: Installatie -> Interventie
+// in het Overzicht, of een hervat concept na de stap Facturatie). Dan terug naar de stap Facturatie met de melding.
+function aanrijtijdOntbreekt() { return R.interventieType !== 'Installatie' && R.aanrijtijdBron === 'onbekend'; }
+function naarFacturatieVoorAanrijtijd() { toast(AANRIJTIJD_VERPLICHT, 4000); wizGaNaar('facturatie'); }
 export function wizRenderFacturatie(el) {
   if (!R._servicetypeAutoApplied) {
     const auto = wizAutoServicetype();
@@ -1335,6 +1350,7 @@ ${isInstallatie ? '' : `<tr><td>Loonkosten (excl. btw)${isGarantieTotaal ? ' <sp
 }
 
 export async function printRapport() {
+  if (aanrijtijdOntbreekt()) return naarFacturatieVoorAanrijtijd(); // vangnet (eindreview I2), vóór window.open
   // Venster synchroon openen, vóór elke await. Browsers laten window.open() enkel toe
   // binnen de korte "transient user activation" na de klik (Chrome: ~5s). Wachten we
   // eerst de outbox-poging af (tot 5s), dan is die activation op het trage/offline-pad

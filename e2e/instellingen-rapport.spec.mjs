@@ -279,6 +279,51 @@ test.describe('instellingen en rapport', () => {
     expect(concept?.aanrijtijdMin).toBe(0);
   });
 
+  // Eindreview I2: de verplichte aanrijtijd geldt ook aan het einde. Een bewaard concept (met een onbekende aanrijtijd) wordt hervat via de dialoog.
+  async function openMetConcept(page, conceptR, stap) {
+    const normaal = standaardStub('route');
+    const stand = { faalt: false };
+    await startApp(page, { technieker: 'Tim', overschrijf: { route: (o) => (stand.faalt ? { status: 200, json: { legs: [] } } : normaal(o)) } });
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await page.getByRole('button', { name: '⚡ Plan deze week' }).click();
+    const resultaat = page.getByRole('dialog', { name: '⚡ Planningsresultaat' });
+    await expect(resultaat.getByText('Ingepland (2)', { exact: true })).toBeVisible();
+    await resultaat.getByRole('button', { name: 'Sluiten' }).click();
+    await expect(resultaat).toBeHidden();
+    await page.locator('.day-col[data-date="2026-10-05"]').getByRole('button', { name: '#1001', exact: true }).click();
+    const detail = page.getByRole('dialog', { name: /Laadpaal offline na stroomuitval/ });
+    await expect(detail).toBeVisible();
+    stand.faalt = true;
+    await page.evaluate(({ R, stap }) => {
+      const t = [...kern.toestand.get('allTickets'), ...Object.values(kern.toestand.get('planning')).flat().map(p => p.ticket)].find(x => String(x.number) === '1001');
+      localStorage.setItem(`blitz_test_rapportconcept:${t.id}:2026-10-05`, JSON.stringify({ v: 1, opgeslagen: new Date().toISOString(), stap, R }));
+    }, { R: conceptR, stap });
+    await detail.getByRole('button', { name: '📋 Rapport' }).click();
+    await page.getByRole('button', { name: 'Hervatten' }).click();
+    return page.getByRole('dialog', { name: '📋 Service Rapport' });
+  }
+
+  test('een hervat concept voorbij Facturatie met een onbekende aanrijtijd begint opnieuw bij Facturatie, met de melding', async ({ page }) => {
+    const wizard = await openMetConcept(page, { interventieType: 'Interventie', aanrijtijdMin: 0, aanrijtijdBron: 'onbekend' }, 'samenvatting');
+    await expect(wizard.locator('#wiz-step-label')).toHaveText('2 / 9 — Facturatie');
+    await expect(page.getByText(VERPLICHT)).toBeVisible();
+    await expect(wizard.getByRole('alert').filter({ hasText: ONBEKEND })).toBeVisible();
+  });
+
+  test('Installatie wijzigen naar Interventie in het Overzicht zonder aanrijtijd stuurt naar Facturatie in plaats van terug naar het Overzicht', async ({ page }) => {
+    const wizard = await openMetConcept(page, { interventieType: 'Installatie', aanrijtijdMin: 0, aanrijtijdBron: 'onbekend' }, 'samenvatting');
+    await expect(wizard.locator('#wiz-step-label')).toContainText('Overzicht'); // Installatie: geen aanrijtijd nodig
+    await wizard.locator('.wiz-sam-kaart').first().getByRole('button', { name: 'Wijzig' }).click();
+    await wizard.getByRole('radio', { name: 'Interventie' }).check();
+    await wizard.getByRole('button', { name: 'Terug naar overzicht' }).click();
+    await expect(wizard.locator('#wiz-step-label')).toContainText('Facturatie');
+    await expect(page.getByText(VERPLICHT)).toBeVisible();
+    // Invullen laat de weg terug naar het Overzicht open.
+    await wizard.locator('#f-aanrijtijd').fill('0');
+    await wizard.getByRole('button', { name: 'Terug naar overzicht' }).click();
+    await expect(wizard.locator('#wiz-step-label')).toContainText('Overzicht');
+  });
+
   test('aanrijtijd gelukt: geen melding en de TomTom-badge staat er', async ({ page }) => {
     const wizard = await openWizardTotFacturatie(page, { routeFaalt: false });
     await expect(wizard.locator('#f-aanrijtijd')).toHaveValue('20'); // stub: 1200 s
