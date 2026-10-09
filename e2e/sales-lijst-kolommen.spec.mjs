@@ -81,7 +81,7 @@ test.describe('sales: Leads in drie kolommen', () => {
     await tab(page, 'Kalender').click();
     await expect(kal(page).locator('.day-col[data-date]').first()).toBeVisible();
     await kal(page).getByRole('button', { name: /Plan deze week/ }).click();
-    await venster(page).getByRole('button', { name: 'Klaar' }).click();
+    await page.getByRole('dialog', { name: '⚡ Planningsresultaat' }).getByRole('button', { name: 'Sluiten' }).click();
     await tab(page, 'Leads').click();
     await expect(kaartIn(page, 'ingepland', 'Test Verhuizer')).toHaveCount(1);
     await expect(kolom(page, 'tePlannen').locator('.sales-kaart')).toHaveCount(0);
