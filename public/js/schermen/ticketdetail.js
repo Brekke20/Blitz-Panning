@@ -8,6 +8,7 @@
 import { foutTekst } from '../kern/api.js';
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
+import { magSchrijvenVoor } from '../kern/sessie.js';
 import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { localISO, fmtDate, fmtDateShort, extractLocalHour, timeStrToMin, minToTimeStr } from '../kern/tijd.js';
 import { registreerVenster } from '../venster.js';
@@ -119,10 +120,12 @@ export function openDetail(t) {
     if (stops.some(s => s.ticket.id === t.id)) { _detailDate = date; break; }
   }
   const showPlanBtns = !!_detailDate;
-  document.getElementById('d-btn-arrival').style.display  = showPlanBtns ? '' : 'none';
+  // Collega's alleen-lezen (logins T19): een technieker ziet Aankomst/Foto's/Rapport enkel bij eigen tickets (de server blokkeert dit niet, zie Rechtentabel).
+  const magSchrijven = showPlanBtns && magSchrijvenVoor(t.assignee);
+  document.getElementById('d-btn-arrival').style.display  = magSchrijven ? '' : 'none';
   document.getElementById('d-btn-proposal').style.display = showPlanBtns ? '' : 'none';
-  document.getElementById('d-btn-fotos').style.display    = showPlanBtns ? '' : 'none';
-  document.getElementById('d-btn-rapport').style.display  = showPlanBtns ? '' : 'none';
+  document.getElementById('d-btn-fotos').style.display    = magSchrijven ? '' : 'none';
+  document.getElementById('d-btn-rapport').style.display  = magSchrijven ? '' : 'none';
   document.getElementById('d-btn-reschedule').style.display = showPlanBtns ? '' : 'none';
   document.getElementById('d-num').textContent   = '#' + t.number;
   document.getElementById('d-title').textContent = t.subject || '—';

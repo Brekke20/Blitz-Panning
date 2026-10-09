@@ -14,7 +14,7 @@ const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'pu
 
 // Eigenschappen die de browser zelf levert, of die een externe bibliotheek (CDN) op window zet.
 const BROWSER = new Set([
-  'location', 'localStorage', 'sessionStorage', 'matchMedia', 'open', 'close', 'innerWidth', 'innerHeight', 'scrollTo', 'scrollBy',
+  'location', 'localStorage', 'sessionStorage', 'matchMedia', 'open', 'close', 'print', 'innerWidth', 'innerHeight', 'scrollTo', 'scrollBy',
   'scrollX', 'scrollY', 'addEventListener', 'removeEventListener', 'dispatchEvent', 'fetch', 'confirm', 'alert', 'screen',
   'navigator', 'document', 'history', 'requestAnimationFrame', 'getComputedStyle', 'setTimeout', 'clearTimeout',
   'SignaturePad', 'L', 'ExcelJS', 'indexedDB', 'Notification', 'ResizeObserver',

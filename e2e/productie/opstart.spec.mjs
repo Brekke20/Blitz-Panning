@@ -9,7 +9,9 @@ test('Laden: exact de verwachte opstartverzoeken, geen testmodus', async ({ page
   const verzameling = [...new Set(verzoeken.alle.map(r => `${r.methode} ${r.pad}`))].sort();
   expect(verzameling).toEqual([
     'GET /api/afspraken',
+    'GET /api/auth-ik', // de sessie (logins T15): de app start pas na de login
     'GET /api/availability',
+    'GET /api/instellingen', // de instellingen van de server naar de lokale cache (logins T16)
     'GET /api/inventaris',
     'GET /api/klantbeschikbaarheid',
     'GET /api/prijzen',

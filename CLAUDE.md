@@ -3,7 +3,8 @@
 ## Stack
 
 Single-file PWA: `public/index.html`  
-Serverless backend: `netlify/functions/` (ES modules, Netlify Blobs `blitz-data` store, `consistency: 'strong'`)
+Serverless backend: `netlify/functions/` (ES modules, Netlify Blobs `blitz-data` store, `consistency: 'strong'`)  
+Login: eigen sessiecookie (`netlify/lib/auth.js`), rechten per functie in `netlify/lib/rechten.js`; elke nieuwe functie krijgt een rij daar en een `beveiligV1/V2`-wrapper (`tests/rechten.test.mjs` dwingt dit af).
 
 ## Excel exports (browser-side)
 

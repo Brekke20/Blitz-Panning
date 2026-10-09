@@ -46,7 +46,7 @@ export async function logActiviteit(store, { gebruiker, actie, onderwerp = null,
 // Vaste actie-namen (strings): 'login', 'login-mislukt-reeks', 'uitloggen', 'wachtwoord-gewijzigd',
 // 'herstel', 'gebruiker-aangemaakt', 'gebruiker-gewijzigd', 'gebruiker-geblokkeerd', 'plannen',
 // 'voorstel-verstuurd', 'annulatie', 'rapport-verstuurd', 'rapport-opnieuw', 'sales-import',
-// 'sales-lead-verwijderd', 'sales-resultaat'
+// 'sales-lead-verwijderd', 'sales-resultaat', 'instellingen-gewijzigd', 'wachtwoord-gereset', 'foto-toegevoegd', 'notitie-toegevoegd'
 ```
 
 ### Instellingen
@@ -54,7 +54,7 @@ export async function logActiviteit(store, { gebruiker, actie, onderwerp = null,
 - Blob `instellingen`: `{ versie, perGebruiker: { [gebruikerId]: Instellingen } }`.
 - `GET /api/instellingen` → eigen instellingen; `GET /api/instellingen?gebruiker=<id>` → enkel
   beheerder, of sales met `magAlleSales` voor een sales-gebruiker.
-- `PUT /api/instellingen` body `{ gebruiker?: id, instellingen, versie }`.
+- `PUT /api/instellingen` body `{ gebruiker?: id, instellingen, versie }`. Schrijven voor een ander: beheerder voor iedereen; planner enkel voor een gebruiker met rol technieker (gelogd als `instellingen-gewijzigd`); technieker en sales enkel eigen.
 - Servermodule `netlify/lib/instellingen.js`:
   `export async function leesInstellingen(store, gebruikerId) -> Instellingen | null`.
 - `Instellingen` = de bestaande velden uit `public/js/schermen/instellingen-logica.js`
@@ -137,3 +137,5 @@ is de bron voor de definitieve vorm. Aanvaard:
 
 Sales- en dashboard-plan: bij hun Task 0 (preflight) toetsen aan deze sectie en aan de gemergde
 logins-code; afwijkingen corrigeren vóór Task 1 van het niet-losse deel.
+- **`vereisGebruiker` bij opslagstoring:** `{ ok:false, status:503, code:'opslag-storing' }` (fail closed). Client: 503 = "later opnieuw proberen", NIET uitloggen.
+- **Beheerhulpen (T17):** `schermen/beheer.js` exporteert naast `registreerBeheerTab`/`openBeheer` ook `h(tag, props, ...kinderen)` (DOM-bouwer zonder innerHTML; tekst altijd via textContent) en `openBeheerVenster({ titel, dwingend, focusTerug })` -> `{ body, wortel, sluit }` (modal dialoog met focusval, die Tab/Escape met rust laat als er een ander overlay bovenop ligt). Beheertabs (T18, dashboard) gebruiken deze in plaats van eigen varianten.

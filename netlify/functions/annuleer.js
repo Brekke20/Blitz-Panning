@@ -14,6 +14,8 @@ import { maakCors, v2Json, v2Opties } from '../lib/http.js';
 import {
   REDENEN, valideerAnnulatie, valideerRedenToelichting, bouwAnnulatieMail, bouwAnnulatieNotitie, escHtml,
 } from '../lib/annulatie.js';
+import { beveiligV2 } from '../lib/beveiligd.js';
+import { logVoorVerzoek } from '../lib/activiteit.js';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // Statussen waarin een afspraak effectief 'gepland' is (annuleren heeft dan zin).
@@ -52,7 +54,7 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
     }
   }
 
-  return async (req) => {
+  return async (req, _context, gebruiker) => {
     if (req.method === 'OPTIONS') return v2Opties(CORS);
 
     if (req.method === 'GET') {
@@ -117,6 +119,7 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
         const redenLabel = REDENEN.find(r => r.code === reden).label;
         const opruimNotitie = `Vergrendeling opgeruimd via Blitz Planning${door ? ` door ${escHtml(door)}` : ''} op ${tijdstipNu()}. Ticket stond al op ${escHtml(ticketStatus || 'onbekend')}. Reden: ${escHtml(redenLabel)}${toelichting ? ` — ${escHtml(toelichting)}` : ''}.`;
         await addZohoComment(ticketId, accessToken, orgId, opruimNotitie);
+        await logVoorVerzoek(req, gebruiker, { actie: 'annulatie', onderwerp: ticketId, details: `${reden}, opgeruimd` }, { getStore: haalStore });
         const leeg = { contact: false, klant: false, installateur: false };
         try {
           await wisVoorstel(store, ticketId);
@@ -224,6 +227,7 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
         toelichting, mailKlant, gemaild,
       });
       await addZohoComment(ticketId, accessToken, orgId, notitie);
+      await logVoorVerzoek(req, gebruiker, { actie: 'annulatie', onderwerp: ticketId, details: reden }, { getStore: haalStore });
 
       // 4. Register wissen.
       try {
@@ -244,6 +248,6 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
   };
 }
 
-export default maakHandler({ getStore, fetch: globalThis.fetch });
+export default beveiligV2('annuleer', maakHandler({ getStore, fetch: globalThis.fetch }));
 
 export const config = { path: '/api/annuleer' };

@@ -5,6 +5,7 @@
 // historische verkeerspatronen voor die dag/dat uur i.p.v. het verkeer van "nu".
 
 import { CORS_V1, v1Json, v1Opties } from '../lib/http.js';
+import { beveiligV1 } from '../lib/beveiligd.js';
 
 const TOMTOM_BASE = 'https://api.tomtom.com';
 const API_KEY = () => process.env.TOMTOM_API_KEY;
@@ -24,7 +25,7 @@ async function fetchTomTomRoute(url, attempt = 1) {
   return res;
 }
 
-export async function handler(event) {
+async function kern(event, context, gebruiker) {
   const headers = CORS_V1;
 
   if (event.httpMethod === 'OPTIONS') return v1Opties(headers);
@@ -111,3 +112,5 @@ export async function handler(event) {
     return v1Json(500, { error: err.message }, headers);
   }
 }
+
+export const handler = beveiligV1('route', kern);

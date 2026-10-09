@@ -49,6 +49,12 @@ export const TOEGESTANE_CONSOLERUIS = [
     reden: "page.clock.install injecteert zijn script ook in het sandbox-iframe #rapport-preview-frame (sandbox zonder allow-scripts).",
   },
   {
+    // De loginlaag (logins T15): een 400/401/403/409/429 op een /api/auth-*-eindpunt is hier het verwachte antwoord (foute login,
+    // niet ingelogd, setup al gedaan, vergrendeld); de browser meldt het als HTTP-fout en als "Failed to load resource".
+    patroon: /^(HTTP (400|401|403|409|429): http:\/\/localhost:3338\/api\/auth-[\w-]+|console\.error: Failed to load resource: the server responded with a status of (400|401|403|409|429) \([^)]*\) \(http:\/\/localhost:3338\/api\/auth-[\w-]+\))$/,
+    reden: "De loginschermen krijgen op auth-login, auth-ik, auth-setup, auth-herstel en auth-wachtwoord bewust een 4xx; dat is de foutpaden-test, geen fout van de app.",
+  },
+  {
     // Leaflet annuleert tegels die nog laden zodra de kaart na een routeberekening inzoomt of tegels
     // verwijdert (img.src wordt leeggemaakt). De browser meldt dat als requestfailed ERR_ABORTED, ook al
     // is het een gestubde, niet-bestaande tegel; of het gebeurt hangt van de timing af (flaky zonder dit).
@@ -120,6 +126,20 @@ function maakOpslag(leeg, veld) {
 export function opslagStub(begin, veld) {
   const opslag = maakOpslag(begin, veld);
   return ({ methode, body }) => methode === 'PUT' ? opslag.schrijf(body) : opslag.get();
+}
+
+// Het antwoord van GET /api/auth-ik voor een ingelogde gebruiker met de gegeven rol (logins T14): de loginlaag is in elke
+// e2e-run al "voorbij", tenzij een test auth-ik zelf overschrijft (bv. 401 voor het inlogscherm).
+// `gebruiker` overschrijft velden van de teruggegeven gebruiker (bv. { naam, zohoNaam }); een technieker is standaard Tim (de dummydata).
+export function authIkStub(rol = 'beheerder', gebruiker = {}) {
+  const beheer = rol === 'beheerder';
+  const standaard = rol === 'technieker' ? { naam: 'Test Technieker', zohoNaam: 'Tim' } : { naam: 'Test Beheerder' };
+  return () => json(200, {
+    gebruiker: { id: 'u-test', email: 'b@test.be', ...standaard, rol, ...gebruiker },
+    rechten: { beheer, plannen: beheer || rol === 'planner', alleSales: beheer },
+    moetWachtwoordWijzigen: false,
+    lokaleDev: false,
+  });
 }
 
 function maakStandaardStubs() {
@@ -204,10 +224,19 @@ function maakStandaardStubs() {
       return json(200, fotos[id] || huidig);
     },
 
+    // Instellingen per gebruiker (logins T16): de server heeft nog niets van de ingelogde gebruiker; een PUT slaagt neutraal.
+    // Specs die server-instellingen nodig hebben overschrijven dit (zie instellingen-server.spec.mjs).
+    instellingen: ({ methode }) => (methode === 'PUT'
+      ? json(200, { versie: 1 })
+      : json(200, { eigen: { gebruikerId: 'u-test', versie: 0, instellingen: null }, techniekers: {} })),
+
     // Schrijf- en mail-eindpunten: neutraal succes. Aanroepen staan in `verzoeken.alle` en de
     // verboden paden laten de test falen.
     plan: ok, 'plan-datum': ok, propose: ok, annuleer: ok, comment: ok,
     'send-rapport': ok, rapport: ok, 'rapport-ontvangen': ok, 'rapport-verzonden': ok, testdata: ok, 'client-log': ok,
+
+    // Sessie (logins T14): standaard een ingelogde beheerder; auth-uitloggen is neutraal. Beide staan in geen enkele verbodenlijst.
+    'auth-ik': authIkStub('beheerder'), 'auth-uitloggen': ok,
   };
 }
 
@@ -278,7 +307,11 @@ export async function stubExtern(page, { overschrijf = {} } = {}) {
 // Verwachte wachtrijtelling voor een technieker-filter (DUMMY_DATA: Tim 2, Roel 1 te plannen).
 export const TE_PLANNEN = { all: 3, Tim: 2, Roel: 1 };
 
-export async function startApp(page, { rol = 'coordinator', technieker = 'all', viewport, overschrijf } = {}) {
+// `loginRol`: de rol die de auth-ik-stub teruggeeft (standaard 'beheerder'; los van `rol`, de oude rolkeuze in de app).
+// `loginGebruiker`: velden van de ingelogde gebruiker in de auth-ik-stub (zie authIkStub). Een ingelogde technieker start op zijn eigen
+// planning (zohoNaam, bij blitz_active_person 'all'); voor sales (geen wachtrij) of met wachtOpApp: false (een test die zelf
+// de login afwerkt) wacht startApp niet op de tickets.
+export async function startApp(page, { rol = 'coordinator', technieker = 'all', viewport, overschrijf, loginRol = 'beheerder', loginGebruiker = {}, wachtOpApp = true } = {}) {
   if (viewport) await page.setViewportSize(viewport);
   // Alleen zetten als er nog niets staat: een test die in de app van persoon wisselt en herlaadt,
   // behoudt zo zijn keuze.
@@ -288,14 +321,19 @@ export async function startApp(page, { rol = 'coordinator', technieker = 'all', 
     const zet = (k, v) => { if (localStorage.getItem(k) === null) localStorage.setItem(k, v); };
     if (rol !== null) zet('blitz_rol', rol); // rol: null = nog nooit gekozen (tablet-vraag)
     zet('blitz_active_person', technieker);
+    // Het toestel is al van de teststub-gebruiker (kern/eigenaar.js wist anders de persoon hierboven); eenmalig per tabblad, zodat een
+    // uitlog (die de markering weghaalt) na een herlaad niet meteen weer ongedaan wordt gemaakt.
+    if (!sessionStorage.getItem('__test_eigenaar')) { sessionStorage.setItem('__test_eigenaar', '1'); zet('blitz_eigenaar', 'u-test'); }
     zet('blitz_theme', 'dark');
   }, { rol, technieker });
   // De tijd loopt door vanaf VASTE_NU (geen bevroren klok); gebruik page.clock.setFixedTime als een
   // test ooit op de minuut nauwkeurig moet zijn.
   await page.clock.install({ time: new Date(VASTE_NU) });
-  await stubExtern(page, { overschrijf });
+  await stubExtern(page, { overschrijf: { 'auth-ik': authIkStub(loginRol, loginGebruiker), ...overschrijf } });
   await page.goto('/?test');
-  await expect(page.locator('#cnt-tickets')).toHaveText(String(TE_PLANNEN[technieker] ?? 0));
+  if (loginRol === 'sales' || wachtOpApp === false) return;
+  const eigen = loginRol === 'technieker' && technieker === 'all' ? (loginGebruiker.zohoNaam ?? 'Tim') : technieker;
+  await expect(page.locator('#cnt-tickets')).toHaveText(String(TE_PLANNEN[eigen] ?? 0));
 }
 
 // ── test met automatische controles ───────────────────────────────────────────

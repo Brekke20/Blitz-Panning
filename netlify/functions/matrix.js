@@ -6,6 +6,7 @@
 // sequentiële aanvraag zou doen -- traag bij een lange wachtrij).
 
 import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
+import { beveiligV1 } from '../lib/beveiligd.js';
 
 const TOMTOM_BASE = 'https://api.tomtom.com';
 const API_KEY = () => process.env.TOMTOM_API_KEY;
@@ -25,7 +26,7 @@ async function fetchTomTomMatrix(body, attempt = 1) {
   return res;
 }
 
-export async function handler(event) {
+async function kern(event, context, gebruiker) {
   const headers = CORS_V1;
   const gate = v1Methode(event, ['POST'], headers);
   if (gate) return gate;
@@ -66,3 +67,5 @@ export async function handler(event) {
     return v1Json(500, { error: err.message }, headers);
   }
 }
+
+export const handler = beveiligV1('matrix', kern);

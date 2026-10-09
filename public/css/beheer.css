@@ -1,0 +1,120 @@
+/* Beheerpagina (logins T17): tabbalk, tab Gebruikers (tabel, op een gsm een kaartenlijst) en de vensters. Enkel bestaande tokens. */
+#view-beheer { min-width: 0; }
+.beheer { padding: var(--sp-4); max-width: 1100px; margin: 0 auto; min-width: 0; }
+.beheer-titel { font-size: var(--fs-xl); font-weight: 700; line-height: 1.25; margin-bottom: var(--sp-3); }
+
+/* Tabbalk: scrolt binnen zichzelf, nooit de pagina. */
+.beheer-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; margin-bottom: var(--sp-4);
+  /* Schaduwrand links/rechts zolang er nog tabs buiten beeld zijn (verdwijnt aan het uiteinde: de bedekking schuift mee). */
+  background:
+    linear-gradient(to right, var(--bg), var(--bg)) left center / 24px 100% no-repeat local,
+    linear-gradient(to left, var(--bg), var(--bg)) right center / 24px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.3), transparent) left center / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.3), transparent) right center / 12px 100% no-repeat scroll; }
+.beheer-tabs::-webkit-scrollbar { display: none; }
+.beheer-tab {
+  background: none; border: none; border-bottom: 2px solid transparent; padding: 0 var(--sp-4); min-height: 44px;
+  font: inherit; font-size: var(--fs-sm); font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap;
+}
+.beheer-tab:hover { color: var(--text); }
+.beheer-tab[aria-selected="true"] { color: var(--accent-ink); border-bottom-color: var(--accent); }
+.beheer-tab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.beheer-paneel { min-width: 0; }
+.beheer-paneel:focus { outline: none; }
+.beheer-paneel:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.beheer-fout, .bg-fout { font-size: var(--fs-sm); font-weight: 600; color: var(--red); line-height: 1.4; }
+.bg-fout:empty { display: none; }
+
+/* Tab Gebruikers */
+.bg-kop { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+.bg-titel { font-size: var(--fs-lg); font-weight: 700; }
+.bg-toolbar { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.bg-lijst { min-width: 0; overflow-x: auto; } /* een smalle tablet scrolt de tabel binnen zichzelf, nooit de pagina */
+.bg-lijst:focus { outline: none; }
+.bg-uitleg { font-size: var(--fs-sm); color: var(--text2); line-height: 1.5; margin-bottom: var(--sp-3); }
+.bg-sub { display: block; font-size: var(--fs-2xs); color: var(--muted); margin-top: 2px; }
+
+.bg-tabel { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.bg-tabel th {
+  text-align: left; font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase;
+  padding: var(--sp-2) 10px; border-bottom: 1px solid var(--border);
+}
+.bg-tabel td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: top; overflow-wrap: break-word; }
+.bg-tabel td[data-label="Rol"], .bg-tabel td[data-label="Laatste login"], .bg-tabel td[data-label="Status"] { white-space: nowrap; }
+.bg-tabel td[data-label="Status"] .bg-sub { white-space: normal; min-width: 130px; }
+.bg-cel { min-width: 0; }
+.bg-naam { font-weight: 600; }
+.bg-inactief { opacity: 0.75; }
+.bg-acties { display: flex; flex-wrap: wrap; gap: 6px; }
+.bg-acties .btn { white-space: normal; text-align: center; }
+.bg-chip { display: inline-block; font-size: var(--fs-2xs); font-weight: 700; padding: 2px 8px; border-radius: var(--r-pill); }
+.bg-chip--actief { background: var(--green-dim); color: var(--accent-ink); }
+.bg-chip--geblokkeerd { background: var(--red-dim); color: var(--red-ink); }
+
+/* Gsm en kleine tablet (tot 899 px, ruim boven de 600 px uit de opdracht: een brede tabel met zes kolommen past daar niet):
+   elke gebruiker is een kaart; de kolomkoppen verdwijnen visueel (blijven voor schermlezers) en worden labels. */
+@media (max-width: 899px) {
+  .bg-tabel, .bg-tabel tbody, .bg-tabel tr, .bg-tabel td { display: block; width: 100%; }
+  .bg-tabel thead { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+  .bg-tabel tr {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+    padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-3);
+  }
+  .bg-tabel td { display: flex; gap: var(--sp-3); border: none; padding: 6px 0; white-space: normal !important; overflow-wrap: anywhere; }
+  .bg-tabel td::before { content: attr(data-label); flex: 0 0 92px; font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); padding-top: 2px; }
+  .bg-tabel .bg-cel { flex: 1; }
+}
+@media (max-width: 599px) {
+  .beheer { padding: var(--sp-3); }
+  .bg-acties .btn { min-height: 44px; flex: 1 1 100%; }
+  .bg-toolbar { width: 100%; }
+  .bg-toolbar .btn { flex: 1 1 100%; min-height: 44px; }
+}
+
+/* Vensters (nieuw/bewerken, geheimen, eigen herstelcodes) */
+.beheer-venster { max-width: 480px; }
+.beheer-venster .mhdr-title { padding-right: 32px; font-size: var(--fs-md); }
+.beheer-venster-body { padding: var(--sp-4) var(--sp-5) var(--sp-5); }
+.beheer-venster .set-input { font-size: 16px; min-height: 44px; }
+.beheer-venster .btn { min-height: 44px; }
+.beheer-venster-acties { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-4); }
+.bg-form .set-field { margin-bottom: var(--sp-3); }
+.bg-form .bg-fout { margin-top: var(--sp-2); }
+.bg-vink { display: flex; align-items: center; gap: var(--sp-2); min-height: 44px; font-size: var(--fs-sm); cursor: pointer; }
+.bg-vink input { width: 20px; height: 20px; flex-shrink: 0; }
+.bg-geheim-blok { margin-bottom: var(--sp-4); }
+.bg-geheim-kop { font-size: var(--fs-sm); font-weight: 700; margin-bottom: var(--sp-1); }
+.bg-geheim {
+  margin: 0 0 var(--sp-2); padding: var(--sp-3); background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r);
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace; font-size: var(--fs-md); line-height: 1.7;
+  white-space: pre-wrap; overflow-wrap: anywhere; user-select: all;
+}
+.bg-status { font-size: var(--fs-xs); color: var(--text2); min-height: 1.25em; }
+
+/* Tabs Instellingen, Activiteitenlog en Systeemstatus (logins T18). Hergebruikt .set-*, .day-btn en de .bg-tabel-kaarten. */
+.bi { max-width: 560px; }
+.bi .set-input { font-size: 16px; min-height: 44px; }
+.bi .set-row { align-items: center; }
+.bi-tot { color: var(--muted); font-size: var(--fs-sm); flex-shrink: 0; }
+.bi .day-btn { min-height: 44px; min-width: 44px; }
+.bi-acties { display: flex; justify-content: flex-end; margin-top: var(--sp-3); }
+.bi-acties .btn { min-height: 44px; }
+.bi .bg-fout { margin-bottom: var(--sp-2); }
+
+.ba-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.ba-filter { min-width: 0; }
+.ba-filters .set-input { font-size: 16px; min-height: 44px; min-width: 0; }
+.ba-lijst:focus { outline: none; }
+.ba-dag { margin-bottom: var(--sp-4); }
+.ba-dagkop { font-size: var(--fs-sm); font-weight: 700; color: var(--text2); text-transform: capitalize; margin-bottom: var(--sp-2); }
+.ba-tabel td[data-label="Tijd"] { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ba-actie { font-weight: 600; }
+.ba-details, .bs-fouten td, .bs-rapporten td { overflow-wrap: anywhere; }
+
+.bs-kop { font-size: var(--fs-md); font-weight: 700; margin: var(--sp-4) 0 var(--sp-2); }
+.bs-zoho { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: var(--sp-3) var(--sp-4); }
+.bs-zoho[data-status="fout"] { border-color: var(--red); }
+.bs-zoho .bs-kop { margin-top: 0; }
+.bs-zoho-regel { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); }
+.bs-sub { font-size: var(--fs-xs); color: var(--muted); }
+.bs .btn { min-height: 44px; }

@@ -38,7 +38,7 @@ test.describe('hoofdtabs', () => {
   });
 
   test('de tabbalk reageert op de pijltjestoetsen (focus naar de volgende zichtbare tab)', async ({ page }) => {
-    await startApp(page, { rol: 'coordinator' });
+    await startApp(page, { rol: 'coordinator', loginRol: 'planner' }); // een beheerder heeft er nog een tab (Beheer) achter
     await page.locator('#tab-tickets').focus();
     await page.keyboard.press('ArrowRight');
     await expect(page.locator('#tab-kalender')).toBeFocused();

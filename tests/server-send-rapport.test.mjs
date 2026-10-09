@@ -9,6 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { maakNepFetch, laadVers, v1Event, zetEnv } from './nep-fetch.mjs';
+import { maakNepStore } from './nep-blobs.mjs';
 
 const DESK = 'https://desk.zoho.eu/api/v1';
 const FROM = 'service@blitz.test';
@@ -88,7 +89,7 @@ async function draai(event, opts = {}) {
   const oud = console.error;
   console.error = (...a) => gelogd.push(a.map(String).join(' '));
   let res;
-  try { res = await mod.maakHandler({ fetch: fn, maakPdf })(event); }
+  try { res = await mod.maakHandler({ fetch: fn, maakPdf, getStore: () => maakNepStore() })(event); } // T12: activiteitenlog naar een nep-store
   finally { console.error = oud; }
   // De mail-HTML gaat naar r.mails; in r.calls staat daar '<mail>' (de rest van het verzoek blijft exact).
   const mails = [];
@@ -348,7 +349,7 @@ test('de upload-id van elke ontvanger gaat in zijn eigen sendReply', async () =>
 test('geen duplicaatbeveiliging: een tweede aanroep verstuurt opnieuw (token uit cache, org opnieuw)', async () => {
   const { fn, calls } = maakNepFetch(maakRouter({ ticket: EEN }));
   const mod = await laadVers('send-rapport');
-  const h = mod.maakHandler({ fetch: fn, maakPdf: async () => PDF });
+  const h = mod.maakHandler({ fetch: fn, maakPdf: async () => PDF, getStore: () => maakNepStore() });
   const a = await h(post(BODY));
   const b = await h(post(BODY));
   assert.equal(a.statusCode, 200); assert.equal(b.statusCode, 200);

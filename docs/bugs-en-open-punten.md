@@ -84,3 +84,44 @@ Deze zijn met tests vastgelegd zoals ze nu werken, zodat een oplossing later bew
 - Rapport-PDF (standaardPdf) handmatig testen.
 - Excel-export van het inventarislogboek handmatig testen.
 - Volledige releasechecklist: zie de release-checklist in `docs/`.
+
+## E. Beslissingen Brent (2026-10-08) over deel B en C
+
+- **Oplossen vóór v2.0.0** (apart deelproject "kleine fouten" op de refactor-tak): B1, B2, B4 (= C2: ja, automatisch op "verzonden" als de mail in Zoho teruggevonden wordt), B5, B6 (alle mislukte statusupdates tonen), B8, B9, B10, B11, B12, B13, B14, B16 (eerste vrije uur voorstellen i.p.v. 09:00).
+- **B7 / C4:** het rapportformulier toont een duidelijke melding "aanrijtijd kon niet berekend worden" met een veld om ze zelf in te vullen; nooit meer stil 0. (Kleine, gerichte aanpassing aan de wizard; de wizard wordt verder niet herwerkt.)
+- **Laten zoals het is:** B3 (melding volstaat), B17 (zeldzaam).
+- **C1:** "Geen tickets om in te plannen" is goed.
+
+## F. Logins en beheer (nieuwe punten, allemaal open)
+
+Bron: `.superpowers/sdd/2026-10-08-logins-beheer/progress.md` en de taakrapporten. Handleiding: `docs/logins-en-beheer.md`.
+
+### Bekende beperkingen en beslissingen
+
+| # | Punt |
+|---|---|
+| F1 | Bekende beperking, beslist door de klant op 2026-10-08: `fotos`, `rapport`, `send-rapport`, `comment` en `mail-check` controleren niet of het ticket van de technieker is (alleen `ticketId` in de aanvraag). De app verbergt de knoppen bij collega-tickets (en bij lokale afspraken van een collega) en elke schrijfactie staat met naam in het activiteitenlog. |
+| F2 | Sales-gebruikers mogen de TomTom-functies gebruiken. |
+| F3 | Tijdens het aanmaken van de eerste beheerder kan een gelijktijdige tweede aanvraag niet atomair uitgesloten worden (Blobs 8.2 heeft geen conditionele schrijfactie). Gemitigeerd met controle-na-schrijven; `laatsteLogin` staat in een eigen blob zodat een login `gebruikers` nooit herschrijft. Een upgrade naar `@netlify/blobs` 11.x (heeft `onlyIfMatch`/`onlyIfNew`, vraagt Node 22.12 of hoger) is een vervolgvoorstel. |
+| F4 | De knop "Opnieuw versturen" op de tab Systeemstatus is NIET gebouwd. **Brent beslist** of hij er komt (vóór of na de release). |
+| F5 | Een rapport onder de naam van een collega wordt aanvaard en gelogd (`rapport-verstuurd` met vlag `andereNaam`); een id-botsing met andermans rapport geeft 403, gelogd als `rapport-geweigerd`, en het item blijft in de outbox met "meld dit aan de planner". |
+
+### Open fouten en kleine punten
+
+| # | Punt |
+|---|---|
+| F6 | `/api/activiteit` filtert `van`/`tot` op UTC-dagen, het scherm toont Brusselse dagen: aan de randen van een dag (1 tot 2 uur) kan een regel in de verkeerde dag vallen. |
+| F7 | Onbetrouwbare tests onder belasting (alleen opnieuw draaien lost het op): unit `beschikbaarheid-logica`; e2e `verbinding` P2, `sw/traag`, `app-schil:88`, `route-tijden:64`, `productie/planning:450`. |
+| F8 | De tab Kalender is 478 px breed bij 375 px schermbreedte. Mogelijk bewust (weekraster): nakijken. |
+| F9 | Een opnieuw verstuurd oud rapport (zonder `ingediendDoor`, dus van vóór de release) met een andere naam geeft 403: het item blijft in de outbox en staat in het log. Zeldzaam; de coördinator handelt het handmatig af. |
+| F10 | `rapport-vangnet` kiest de teststore nog op basis van de header `X-Blitz-Test`. Niet bereikbaar via een URL (geplande functie), laag risico. |
+| F11 | De sleutellijst in `public/js/kern/eigenaar.js` (welke lokale gegevens bij een gebruikerswissel gewist worden) is een handmatige kopie van de cache-sleutels: een nieuwe cachesleutel moet er ook bij. |
+| F12 | `zohoNaam` wordt niet op uniciteit of op exacte overeenkomst met Zoho gecontroleerd (`netlify/lib/gebruikers.js:56-60`). Twee techniekers met dezelfde genormaliseerde naam delen elkaars eigen rechten en de tweede valt uit het instellingenoverzicht (`netlify/lib/instellingen.js`); de client filtert exact (`public/js/kern/selecties.js:15`) en de server genormaliseerd, dus "tim" in plaats van "Tim" geeft de technieker een lege planning. Idee: een dubbele naam weigeren (409) en in het beheerscherm waarschuwen. (Eindreview M2.) |
+| F13 | Lokale instellingen die de servervalidatie niet halen, komen nooit op de server en dat blijft onzichtbaar (`public/js/kern/instellingen-sync.js`, ronde 2 en de migratie van een planner-toestel). Voorbeeld: een globale `laatsteStart` van 16:00 bij een technieker met eindtijd 15:30 geeft 400 en wordt bij elke start opnieuw geweigerd. Idee: bij een weigering `laatsteStart` weglaten en opnieuw proberen, of een melding tonen. (Eindreview M3.) |
+| F14 | Eén gedeelde blob `login-pogingen` (`netlify/lib/login-poging.js`, `netlify/lib/blob-wijzig.js`): bij drukte kan een gelijktijdige schrijver een login als "Te veel mislukte pogingen" (429) laten eindigen terwijl de gebruiker niets fout deed. Fail-closed is bewust; mogelijke verbetering is een blob per sleutel (met opruiming van verlopen blobs) of een eigen melding 503 voor "teller niet bewaard". Niet gebouwd: raakt een twaalftal tests en de opschoning. (Eindreview M5.) |
+| F15 | Onbeperkt scrypt-werk voor anonieme aanroepers: `auth-herstel` doet per verzoek 10 verificaties (`netlify/lib/herstel.js`), de vergrendeling geldt per e-mailadres, een stroom met telkens een ander adres wordt niet afgeremd (kost enkel rekentijd). Idee: een globale bovengrens per minuut. Niet gebouwd: zou in dezelfde pogingenblob moeten (zie F14). (Eindreview M6.) |
+| F16 | `leesActiviteit` geeft maximaal 1000 nieuwste regels (`netlify/lib/activiteit.js`, `MAX_RESULTATEN`). Het dashboard dat dit als koppelvlak gebruikt telt over een lange periode dus stil te weinig: in het koppelvlak vermelden of een `limiet`-optie geven. (Eindreview M8.) |
+| F17 | Herlogin tijdens een outbox-verzending: de pagina-outbox gebruikt de omhulde fetch (`public/js/outbox-verzend.js:118-131`, `public/js/kern/api.js:300-304`); duurt het herinloggen langer dan 60 s, dan is het signaal afgebroken en faalt de herhaling meteen met "time-out". Geen verlies (het item blijft), enkel een verwarrende melding. (Eindreview M9.) |
+| F18 | De melding "kon niet naar Zoho" voor de technieker kijkt enkel naar de naam (`public/js/rapport-status.js:101`): een rapport dat hij onder een andere naam indiende (aanvaard en gelogd) levert hem die melding niet. Idee: `ingediendDoor` gebruiken. (Eindreview M10.) |
+| F19 | **Brent beslist:** mag een technieker zijn eigen rapport uit het archief verwijderen? Nu wel (zoals in de live versie, en de knop staat zichtbaar in zijn tab Rapporten); elke verwijdering staat sinds de eindreview als `rapport-verwijderd` met ticketnummer in het activiteitenlog. Wil je dat niet: één regel in `netlify/lib/rechten.js` (`DELETE` voor `rapport-archief` enkel coördinator) en de knop verbergen voor de technieker. (Eindreview I4.) |
+| F20 | Een technieker krijgt van collega's de startlocatie (vaak een thuisadres) niet meer in het instellingenoverzicht. Bekijkt hij de route van een collega, dan rekent die met de standaardstartlocatie in plaats van het vertrekpunt van die collega. Gewenst voor de privacy; controleer of dat in de alleen-lezen-weergave acceptabel is. (Eindreview M7.) |

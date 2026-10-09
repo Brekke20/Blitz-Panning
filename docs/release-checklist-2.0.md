@@ -4,15 +4,46 @@ Voor het moment dat Brent de refactor vrijgeeft (zie "Branchbeleid" in `CLAUDE.m
 
 ## 1. CACHE_NAME-bump en updatepad van de service worker (spec etappe 7, N5)
 
-- [ ] `CACHE_NAME` in `public/sw.js` ophogen (nu `blitz-planning-v25`, naar het eerstvolgende nummer). `EXTERN_CACHE` (`blitz-extern-v1`) NIET ophogen.
-- [ ] De test "N19 (refactor-tak vóór release): CACHE_NAME staat nog op blitz-planning-v25 ..." in `tests/sw-schil.test.mjs` bewust aanpassen aan het nieuwe nummer; daarna `node --test` groen (SHELL-test, N16).
+- [ ] `CACHE_NAME` in `public/sw.js` ophogen (nu `blitz-planning-v27`, naar het eerstvolgende nummer). `EXTERN_CACHE` (`blitz-extern-v1`) NIET ophogen.
+- [ ] De test "N19 (refactor-tak vóór release): CACHE_NAME staat op de live waarde blitz-planning-v27 ..." in `tests/sw-schil.test.mjs` bewust aanpassen aan het nieuwe nummer; daarna `node --test` groen (SHELL-test, N16).
 - [ ] `NAV_TIMEOUT_MS` staat op 4000 (Brent, 2026-10-02: een trage verbinding start na 4 s uit de bewaarde kopie, die één release oud mag zijn). Controleren dat dit nog zo is.
 - [ ] `npx playwright test --project=sw` groen, ook `e2e/sw/update.spec.mjs` na de bump (de oude cachenaam is weg uit `caches.keys()`).
-- [ ] Handmatig in een echte browser met een v25-installatie: één herlading toont de nieuwe versie; `skipWaiting` en `clients.claim` werken.
+- [ ] Handmatig in een echte browser met een v27-installatie: één herlading toont de nieuwe versie; `skipWaiting` en `clients.claim` werken.
 - [ ] Netlify cachet `sw.js` en `sw-strategie.js` niet lang: de standaard `max-age=0, must-revalidate` volstaat; controleren op de live site.
 - [ ] Geen hotfix op `main` die JS wijzigt zonder ook de SHELL-test (`tests/sw-schil.test.mjs`) te draaien.
 - [ ] `EXTERN_CACHE` (`blitz-extern-v1`): heeft `CDN_VAST` in `public/sw.js` sinds deze release een andere bibliotheekversie of -URL gekregen, dan blijven de oude sleutels eeuwig in de externe cache staan (`activeer` bewaart de naam). Verhoog dan `EXTERN_CACHE` (en pas de N19-test aan), of ruim de oude sleutels op in `activeer`. Is `CDN_VAST` ongewijzigd, dan niets doen.
 - [ ] Versienummer in `package.json`, `CHANGELOG.md` (sectie "Refactor-tak — nog niet uitgebracht" hernoemen naar de versie), git-tag.
+
+## 1b. Logins (logins + beheer, `refactor-logins`)
+
+Handleiding voor Brent: `docs/logins-en-beheer.md`. Ledger: `.superpowers/sdd/2026-10-08-logins-beheer/progress.md`.
+
+**Netlify-instellingen**
+- [ ] `SESSIE_GEHEIM` ingesteld (lange willekeurige tekst, minstens 32 tekens). Dezelfde waarde voedt de interne sleutel van de achtergrondfunctie.
+- [ ] `BEHEER_SETUP_CODE` ingesteld voor het eerste beheerdersaccount; na het aanmaken van de eerste beheerder weer verwijderd.
+- [ ] `BEHEER_HERSTELSLEUTEL` staat er NIET (enkel tijdelijk bij een noodgeval, minstens 32 tekens, daarna weer weg).
+- [ ] `BLITZ_LOKALE_DEV` en `NETLIFY_DEV` zijn NIET gezet in Netlify (anders valt de bescherming van de testrol weg).
+- [ ] Netlify-functietime-outs: `auth-login` (scrypt) heeft ruim genoeg tijd, ook bij een koude start.
+- [ ] `CACHE_NAME` staat op `blitz-planning-v27` (komt van `refactor`, niet door de logins-tak gewijzigd) en wordt bij de release bewust opgehoogd (zie sectie 1).
+- [ ] Tweestapsverificatie aangezet op Brents Netlify-login (aanbeveling).
+
+**Live-proeven (één keer, kort)**
+- [ ] Een verzoek met de kop `X-Blitz-Test-Rol` zonder sessie geeft 401 (de testrol werkt dus niet in productie).
+- [ ] De `confirm-afspraak`-link uit een echte voorstelmail werkt zonder login.
+- [ ] `planning-export` met zijn sleutel geeft nog data (ook de interne aanroepen naar tickets, afspraken en klantbeschikbaarheid met de Bearer-sleutel).
+- [ ] Rechtenrijen in `netlify/lib/rechten.js` voor de upload-fix: `rapport-ontvangen` (POST voor alle interne rollen; geen weigering op naam, een rapport onder de naam van een collega wordt aanvaard en gelogd; enkel een id-botsing met andermans rapport geeft 403), `rapport-verwerk-background` en de geplande `rapport-vangnet` (rij `open`, want niet door een gebruiker aangeroepen; de achtergrondfunctie wordt in de functie zelf beschermd met de interne sleutel, omdat ze via haar URL bereikbaar is). `tests/rechten.test.mjs` is groen.
+- [ ] **De interne sleutel overleeft de server-naar-server-aanroep.** `rapport-ontvangen` roept `rapport-verwerk-background` aan met de kop `X-Blitz-Intern`. Live bewijzen zoals het bewijs van v1.10.2: een rapport versturen, het scherm meteen vergrendelen, en controleren dat het rapport toch in Zoho aankomt. Een rechtstreeks verzoek naar de achtergrondfunctie zonder die kop moet geweigerd worden. Controleer ook dat `SESSIE_GEHEIM` echt gezet is (zonder geeft de achtergrondverwerking een fout).
+- [ ] **Opstart op een gsm met traag netwerk** (eindreview I1/I2): in DevTools "Slow 3G", en in vliegtuigmodus met een gecachte sessie. De planning moet binnen ongeveer 8 s zichtbaar zijn (auth-ik wacht met een gecachte sessie hooguit 5 s, daarna start de app uit de cache) en de app moet gewoon starten bij een 5xx of een inlogpagina van een klant-wifi op `/api/auth-ik`. Een verlopen sessie opent daarna het inlogscherm.
+- [ ] **Eerste dag, volgorde** (eindreview I3): laat eerst de planner inloggen op het coördinatortoestel (daar staan de instellingen per technieker; die gaan bij de eerste synchronisatie eenmalig naar de server als de server er nog niets van heeft), daarna pas de techniekers. Vergelijk per technieker startlocatie, werkuren en maximaal per dag met de waarden van vóór de release.
+- [ ] **zohoNaam per technieker** (eindreview M2): exact gelijk aan de naam waaronder Zoho de tickets toewijst (hoofdletters en spaties). De technieker ziet na zijn eerste login zijn eigen tickets.
+- [ ] **Outbox van vóór de update** (eindreview, punt 8): bestaande items in de outbox (oude service worker nog actief) blijven staan tot na de login en worden dan verzonden.
+- [ ] **`auth-login` bij een koude start** antwoordt binnen de functietime-out (scrypt plus drie of vier Blobs-rondes).
+- [ ] **Proef ZONDER `?test` samen met Brent** (niet 's nachts gedaan, want zonder `?test` kan de lokale server echte Zoho aanspreken): het eerste-beheerderscherm met `BEHEER_SETUP_CODE`, inloggen, een gebruiker aanmaken (startwachtwoord, verplichte wijziging), uitloggen, en een gebruiker blokkeren (die kan niet meer inloggen).
+
+**Uitrolnotities**
+- [ ] Een gedeelde tablet zonder eigenaarsmarker (de app draaide er al vóór de logins) geeft zijn lokale instellingen aan de EERSTE gebruiker die inlogt. Laat op zo'n toestel eerst de bedoelde gebruiker inloggen.
+- [ ] Onverzonden rapporten in de outbox blijven bij een gebruikerswissel altijd bewaard; een rapport dat met 403 geweigerd wordt (id van andermans rapport) blijft in de outbox met de melding "meld dit aan de planner" en staat als `rapport-geweigerd` in het activiteitenlog.
+- [ ] De knop "Opnieuw versturen" op de tab Systeemstatus is NIET gebouwd. Brent beslist of dat nog vóór de release komt (zie `docs/bugs-en-open-punten.md`, sectie F).
 
 ## 2. Handmatige controles die geen test kan doen
 
@@ -24,7 +55,7 @@ Voor het moment dat Brent de refactor vrijgeeft (zie "Branchbeleid" in `CLAUDE.m
 - [ ] **CONFIRM_LINK_SECRET** nog ingesteld in Netlify, en de groene bevestigknop in de voorstelmail testen zodra de release live staat, op een testticket (op de lokale proefserver ontbreekt die knop omdat het geheim niet in `.env.local` staat: verwacht).
 - [ ] **confirm-afspraak getStore-seam** (etappe 6): de functie `confirm-afspraak` heeft een `getStore`-naad die enkel de test raakt; echt doorlopen met een bevestigde afspraak.
 - [ ] **Non-JSON token- of org-antwoord** (etappe 6, T3): wat doet de app als Zoho bij het token of de organisatie een antwoord zonder JSON geeft? Nagaan dat de fout begrijpelijk is.
-- [ ] **Offline start** op een gsm met de oude v25 geïnstalleerd en daarna de nieuwe versie: de app start zonder verbinding met de kaartbibliotheek aanwezig.
+- [ ] **Offline start** op een gsm met de oude v27 geïnstalleerd en daarna de nieuwe versie: de app start zonder verbinding met de kaartbibliotheek aanwezig.
 - [ ] **Wagenvoorraad-aftrek** (Q4): een rapport versturen met een kortstondig weggevallen verbinding; de melding verschijnt, de aftrek komt later vanzelf, en er wordt nooit dubbel afgetrokken (ook niet met twee tabs open).
 
 - [ ] **Laadmeting op een echte tablet** (`docs/bugs-en-open-punten.md`, laadmeting): Chrome DevTools met "Slow 4G"-throttling of een echt toestel; koude start, warme start en start met service worker, en `node scripts/meet-laden.mjs` (mediaan van alternerende voor/na-runs) als vergelijking. Het harnas draait HTTP/1.1 op localhost en kan de winst van modulepreload niet tonen; beslis pas na een meting op een echt netwerk.
@@ -48,7 +79,7 @@ Voor het moment dat Brent de refactor vrijgeeft (zie "Branchbeleid" in `CLAUDE.m
 
 - [ ] **(a) Pre-push-hook.** `.git/hooks/pre-push` blokkeert elke push naar `main` die `ea28f2f` bevat. De release-push heeft dus een bewuste stap nodig die Brent goedkeurt: de hook aanpassen of verwijderen. NOOIT `--no-verify`. In dezelfde stap: de sectie "Branchbeleid" in `CLAUDE.md` bijwerken (refactor is nu de hoofdlijn) en de memory-notitie `feedback_branchbeleid_refactor.md`.
 - [ ] **(b) Hotfixes.** `git fetch`, daarna `origin/main` nakijken op nieuwe commits (hotfixes) en `git merge main` in `refactor` vóór de release. Lokale `main` is een voorouder van `refactor`, maar `origin/main` is nog niet opgehaald. Draai na de merge opnieuw `node --test` en de sw-tests.
-- [ ] **(c) Versiekeuze.** 2.0.0 of 1.11.0 beslist Brent (strikt volgens semver is 1.11.0 verdedigbaar: niets breekt data of verwijdert een functie; "Plan deze week" met "Iedereen" toont nu een melding). Zet `package.json`, geef de CHANGELOG-sectie de versie én een datum, en zet de git-tag op de deploy-commit.
+- [ ] **(c) Versiekeuze.** BESLIST (Brent, 2026-10-08): **2.0.0** — de release met de sales-planner is een grote release. (Vroeger: 2.0.0 of 1.11.0 beslist Brent (strikt volgens semver is 1.11.0 verdedigbaar: niets breekt data of verwijdert een functie; "Plan deze week" met "Iedereen" toont nu een melding). Zet `package.json`, geef de CHANGELOG-sectie de versie én een datum, en zet de git-tag op de deploy-commit.
 - [ ] **(d) Netlify-UI.**
   - [ ] Controleer de functietime-outs (`timeout = 26`) van alle functies waar `netlify.toml` er een instelt (`propose`, `send-rapport`, `annuleer`, `mail-check`, enz.), niet enkel `mail-check`. De clientlogica (`SERVER_MAX_MS = 30000`) gaat ervan uit dat ze uiterlijk na 26 s stoppen.
   - [ ] Controleer dat de nieuwe functies `mail-check` en `planning-sinds` in de deploy staan, en dat de `ZOHO_*`-variabelen site-breed zijn.
