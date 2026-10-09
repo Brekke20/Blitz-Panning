@@ -192,6 +192,26 @@ test('Klant: zonder annulatie-log geen cijfer maar een uitleg', () => {
   assert.ok(h.includes('geen gegevens') && h.includes('livegang van de logins'));
 });
 
+test('Klant: annulatie-tegel toont het aantal van de periode ook als de vorige periode niet in het log zit (eindreview I1)', () => {
+  // Go-live-week: de vorige periode begint vóór het log; "Dit jaar" na juli: idem door de bewaartermijn.
+  for (const [aantal, vanaf] of [[3, '2026-10-15'], [0, '2026-10-15'], [12, '2026-01-20']]) {
+    const d = structuredClone(data);
+    d.klant.annulaties = { aantal, vorige: 0, beschikbaar: false, vanaf };
+    const h = renderKlant(d, ctx);
+    const tegel = h.slice(h.indexOf('tegel--annulaties'), h.indexOf('</article>', h.indexOf('tegel--annulaties')));
+    assert.ok(tegel.includes(`<span class="tegel-waarde">${aantal}</span>`), `aantal ${aantal} zichtbaar`);
+    assert.ok(!tegel.includes('geen gegevens</span>'), 'geen "geen gegevens"');
+    assert.ok(tegel.includes('Geteld sinds'), 'sinds-regel');
+    assert.ok(!tegel.includes('vorige periode:'), 'geen vergelijking');
+    assert.ok(tegel.includes('geen vergelijking'), 'korte uitleg');
+    assert.ok(!tegel.includes('livegang van de logins'), 'geen "log start"-zin zodra vanaf bekend is');
+  }
+  const d = structuredClone(data);
+  d.klant.annulaties = { aantal: 3, vorige: 2, beschikbaar: true, vanaf: '2026-01-20' };
+  const h = renderKlant(d, ctx);
+  assert.ok(h.includes('vorige periode: 2') && !h.includes('geen vergelijking'));
+});
+
 test('Sales: kolommen per verkoper per week, donut met vier legenderijen en totaal in het midden, wachtende leads', () => {
   const h = renderSales(data, ctx);
   assert.ok(h.includes('grafiek--kolommen') && h.includes('wk 28 sep'));

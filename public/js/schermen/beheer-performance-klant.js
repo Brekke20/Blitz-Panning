@@ -28,12 +28,14 @@ function knopKaart(b, grenzen) {
 }
 
 // Eigen tegel (met kop) in een kaart zonder tweede kop; "sinds …" want het log start pas bij de livegang van de logins.
+// `beschikbaar` gaat enkel over de vergelijking met de vorige periode; het aantal van de gekozen periode telt zodra het log bekend is (`vanaf`).
 function annulatieKaart(a) {
   if (!a) return '';
-  const heeft = a.beschikbaar && isGetal(a.aantal);
+  const heeft = !!a.vanaf && isGetal(a.aantal);
   const waarde = heeft ? `<span class="tegel-waarde">${escHtml(formatGetal(a.aantal))}</span>` : '<span class="tegel-waarde tegel-waarde--leeg">geen gegevens</span>';
-  const sinds = a.beschikbaar && a.vanaf ? `Geteld sinds ${dagMaand(a.vanaf)}` : 'Het log start bij de livegang van de logins.';
-  const vorige = heeft && isGetal(a.vorige) ? ` · vorige periode: ${formatGetal(a.vorige)}` : '';
+  const sinds = a.vanaf ? `Geteld sinds ${dagMaand(a.vanaf)}` : 'Het log start bij de livegang van de logins.';
+  const vorige = heeft && a.beschikbaar && isGetal(a.vorige) ? ` · vorige periode: ${formatGetal(a.vorige)}`
+    : heeft ? ' · geen vergelijking: de vorige periode valt (deels) vóór het log' : '';
   return kaart(null, `<article class="tegel tegel--aantal tegel--annulaties"><h3 class="tegel-kop">Annulaties</h3><p class="tegel-getal">${waarde}</p>`
     + `<p class="tegel-verschil tegel-verschil--geen">${escHtml(sinds + vorige)}</p></article>`);
 }
