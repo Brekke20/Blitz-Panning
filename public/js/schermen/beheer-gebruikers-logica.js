@@ -61,6 +61,8 @@ export function valideerGebruikerFormulier(invoer, rol, opties = {}) {
     if (bezet) return { fout: `Deze Zoho-naam is al gekoppeld aan ${bezet.naam}. Kies een andere naam of ontkoppel eerst dat account.` };
     if (zohoNaam) waarden.zohoNaam = zohoNaam;
   }
+  // "Mag zelf plannen": enkel een technieker; hij plant en stuurt voorstellen dan voor zijn eigen tickets (de server dwingt dat af).
+  if (gekozen === 'technieker') waarden.magZelfPlannen = invoer.magZelfPlannen === true;
   if (gekozen === 'sales') {
     const salesNaam = tekst(invoer.salesNaam).trim();
     if (!salesNaam) return { fout: 'Een verkoper heeft een naam in de export nodig.' };

@@ -29,6 +29,16 @@ Doet iemand met een beheerders- of plannersaccount ook zelf interventies (bijvoo
 - Een techniekersaccount blijft altijd een Zoho-naam nodig hebben.
 - Zijn persoonlijke instellingen voor die eigen naam (startadres, werkdagen, enzovoort) blijven op het toestel zelf bewaard; ze worden niet naar de server gesynchroniseerd, zoals bij elke technieker zonder eigen account.
 
+## Een technieker die zijn eigen tickets zelf mag plannen (Mag zelf plannen)
+
+Bij een technieker kan je in Beheer, Gebruikers het vinkje **Mag zelf plannen** aanzetten. Enkel de beheerder kan dat doen; elke wijziging staat in het activiteitenlog als "gebruiker gewijzigd".
+
+- Zo'n technieker ziet er de tabs **Wachtrij** en **Route** bij en kan zijn **eigen** tickets inplannen (ook met "Plan deze week"), verzetten, uit de planning halen, een voorstel naar de klant sturen en een afspraak annuleren.
+- Tickets van collega's blijven voor hem alleen-lezen: de knoppen staan er niet, en de app (de server) weigert het ook als iemand het toch probeert. Of een ticket van hem is, vraagt de app aan Zoho (aan wie het ticket is toegewezen). Is Zoho even niet bereikbaar, dan lukt plannen even niet (er staat dan een melding).
+- Hij ziet "Alle technici" niet in de kiezer bovenaan en kan dus ook niet voor iedereen tegelijk plannen. Zijn eigen instellingen (startadres, werkuren, enzovoort) stelt hij zelf in bij Instellingen, tab Algemeen.
+- De wijziging geldt zodra hij de app opnieuw opent of herlaadt. Zonder het vinkje verandert er niets: een technieker ziet dan de vier gewone tabs en kan niet plannen.
+- Een planner of beheerder heeft dit vinkje niet nodig: die plannen sowieso alles.
+
 ## Stap 1: drie instellingen in Netlify
 
 Een omgevingsvariabele is een instelling die de app uit Netlify haalt. Zo zet je ze:

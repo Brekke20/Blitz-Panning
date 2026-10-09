@@ -44,11 +44,13 @@ async function beslis(naam, methodeRuw, reqOfEvent, auth) {
   if (regel === undefined) return { nietToegestaan: true }; // methode zonder regel: 405, kern niet aanroepen
   if (regel === 'open') return { gebruiker: undefined, methode };
   if (!Array.isArray(regel) || regel.length === 0) return { weiger: GEEN_RECHT }; // lege lijst = 'iedere rol' voor auth: weigeren
+  // planEigen: de technieker staat niet in de rollenlijst maar mag er met het vinkje "Mag zelf plannen" toch door (zie rechten.js).
+  const metPlanEigen = rij.planEigen === true && !regel.includes('technieker');
   let resultaat;
   try {
     const controle = auth ? auth.vereisGebruiker : vereisGebruiker;
     resultaat = await controle(reqOfEvent, {
-      rollen: regel,
+      rollen: metPlanEigen ? [...regel, 'technieker'] : regel,
       schrijven: !NIET_SCHRIJVEND.has(methode),
       service: rij.service === true,
       ookBijWijzigen: rij.ookBijWijzigen === true,
@@ -63,6 +65,11 @@ async function beslis(naam, methodeRuw, reqOfEvent, auth) {
     return { weiger: NIET_INGELOGD };
   }
   if (!resultaat.gebruiker || typeof resultaat.gebruiker !== 'object') return { weiger: NIET_INGELOGD };
+  if (metPlanEigen) {
+    const g = resultaat.gebruiker;
+    const toegelaten = regel.includes(g.rol) || (g.rol === 'technieker' && g.magZelfPlannen === true);
+    if (!toegelaten) return { weiger: GEEN_RECHT };
+  }
   return { gebruiker: resultaat.gebruiker, methode };
 }
 

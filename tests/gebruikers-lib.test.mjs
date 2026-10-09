@@ -31,7 +31,7 @@ test('valideerNieuweGebruiker: normaliseert en bewaart enkel relevante velden', 
   assert.equal(r.fout, undefined);
   assert.deepEqual(r.waarden, { email: 'tim@blitz.be', naam: 'Tim Janssens', rol: 'planner' });
   const t = valideerNieuweGebruiker({ ...basis, rol: 'technieker', zohoNaam: ' Tim J ', salesNaam: 'x', magAlleSales: true });
-  assert.deepEqual(t.waarden, { email: 'tim@blitz.be', naam: 'Tim Janssens', rol: 'technieker', zohoNaam: 'Tim J' });
+  assert.deepEqual(t.waarden, { email: 'tim@blitz.be', naam: 'Tim Janssens', rol: 'technieker', zohoNaam: 'Tim J', magZelfPlannen: false });
   const s = valideerNieuweGebruiker({ ...basis, rol: 'sales', salesNaam: 'Ward Houwen', magAlleSales: true });
   assert.deepEqual(s.waarden, { email: 'tim@blitz.be', naam: 'Tim Janssens', rol: 'sales', salesNaam: 'Ward Houwen', magAlleSales: true });
   const s2 = valideerNieuweGebruiker({ ...basis, rol: 'sales', salesNaam: 'Ward Houwen' });
@@ -187,4 +187,37 @@ test('zohoNaamBezet: genormaliseerd (hoofdletters, spaties), behalve het eigen a
   assert.equal(zohoNaamBezet(lijst, 'Nieuw', 'x'), null);
   assert.equal(zohoNaamBezet(lijst, '', 'x'), null);
   assert.equal(zohoNaamBezet(undefined, 'Tim', 'x'), null);
+});
+
+// ---- magZelfPlannen (enkel technieker; enkel door de beheerder te zetten) ----
+test('valideerNieuweGebruiker: magZelfPlannen enkel bij een technieker, enkel letterlijk true; andere rollen krijgen het veld nooit', () => {
+  const t = valideerNieuweGebruiker({ ...basis, rol: 'technieker', zohoNaam: 'Tim', magZelfPlannen: true });
+  assert.deepEqual(t.waarden, { email: 'tim@blitz.be', naam: 'Tim Janssens', rol: 'technieker', zohoNaam: 'Tim', magZelfPlannen: true });
+  assert.equal(valideerNieuweGebruiker({ ...basis, rol: 'technieker', zohoNaam: 'Tim', magZelfPlannen: 'ja' }).waarden.magZelfPlannen, false);
+  assert.equal(valideerNieuweGebruiker({ ...basis, rol: 'technieker', zohoNaam: 'Tim' }).waarden.magZelfPlannen, false);
+  for (const rol of ['planner', 'beheerder']) assert.equal(valideerNieuweGebruiker({ ...basis, rol, magZelfPlannen: true }).waarden.magZelfPlannen, undefined);
+  assert.equal(valideerNieuweGebruiker({ ...basis, rol: 'sales', salesNaam: 'S', magZelfPlannen: true }).waarden.magZelfPlannen, undefined);
+});
+
+test('publiek en beheerWeergave: magZelfPlannen staat erin voor een technieker (de client en de rechten hebben het nodig)', () => {
+  const g = { id: 'u1', email: 'a@b.be', naam: 'A', rol: 'technieker', zohoNaam: 'A', magZelfPlannen: true, wachtwoordHash: 'x' };
+  assert.equal(publiek(g).magZelfPlannen, true);
+  assert.equal(beheerWeergave(g).magZelfPlannen, true);
+  assert.equal(publiek({ ...g, magZelfPlannen: undefined }).magZelfPlannen, undefined);
+});
+
+test('pasWijzigingToe: magZelfPlannen aan- en uitzetten (staat in gewijzigd, geen uitlog); verdwijnt bij een andere rol; ontbrekend = uit zonder schijnwijziging', () => {
+  const tim = { id: 'u-t', email: 't@b.be', naam: 'Tim', rol: 'technieker', zohoNaam: 'Tim', actief: true, sessieVersie: 1 };
+  const aan = pasWijzigingToe(tim, { magZelfPlannen: true });
+  assert.equal(aan.nieuw.magZelfPlannen, true);
+  assert.deepEqual(aan.gewijzigd, ['magZelfPlannen']);
+  assert.equal(aan.nieuw.sessieVersie, 1);
+  const uit = pasWijzigingToe(aan.nieuw, { magZelfPlannen: false });
+  assert.equal(uit.nieuw.magZelfPlannen, false);
+  assert.deepEqual(uit.gewijzigd, ['magZelfPlannen']);
+  assert.deepEqual(pasWijzigingToe(tim, { magZelfPlannen: false }).gewijzigd, []); // ontbrekend telt als uit
+  assert.deepEqual(pasWijzigingToe(aan.nieuw, { naam: 'Tim 2' }).nieuw.magZelfPlannen, true); // blijft staan
+  const naarPlanner = pasWijzigingToe(aan.nieuw, { rol: 'planner' });
+  assert.equal(naarPlanner.nieuw.magZelfPlannen, undefined);
+  assert.ok(pasWijzigingToe(tim, { magZelfPlannen: 'ja' }).fout);
 });

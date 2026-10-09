@@ -21,7 +21,7 @@ test('valideerGebruikerFormulier: technieker zonder zohoNaam geeft een fout, mé
   assert.ok(valideerGebruikerFormulier({ rol: 'technieker', zohoNaam: '', naam: 'Tim', email: 'tim@test.be' }).fout);
   assert.ok(valideerGebruikerFormulier({ zohoNaam: '   ', naam: 'Tim', email: 'tim@test.be' }, 'technieker').fout);
   const r = valideerGebruikerFormulier({ email: ' Tim@Test.be ', naam: ' Tim ', zohoNaam: ' Tim ' }, 'technieker');
-  assert.deepEqual(r, { waarden: { email: 'tim@test.be', naam: 'Tim', rol: 'technieker', zohoNaam: 'Tim' } });
+  assert.deepEqual(r, { waarden: { email: 'tim@test.be', naam: 'Tim', rol: 'technieker', zohoNaam: 'Tim', magZelfPlannen: false } });
 });
 
 test('valideerGebruikerFormulier: sales zonder salesNaam geeft een fout; magAlleSales is enkel waar bij true', () => {
@@ -101,7 +101,7 @@ test('zohoNaamBezetDoor en de melding vooraf bij een dubbele Zoho-naam (behalve 
   const fout = valideerGebruikerFormulier({ naam: 'Pia', zohoNaam: 'tim janssens' }, 'planner', { gebruikers: lijst, id: 'b' }).fout;
   assert.match(fout, /Tim J/);
   assert.deepEqual(valideerGebruikerFormulier({ naam: 'Tim J', zohoNaam: 'Tim Janssens' }, 'technieker', { gebruikers: lijst, id: 'a' }).waarden,
-    { naam: 'Tim J', rol: 'technieker', zohoNaam: 'Tim Janssens' });
+    { naam: 'Tim J', rol: 'technieker', zohoNaam: 'Tim Janssens', magZelfPlannen: false });
 });
 
 test('zohoNaamKeuzes: agenten plus de huidige waarde, ontdubbeld (ook met andere hoofdletters), gesorteerd; bezette namen met het andere account', () => {
@@ -118,4 +118,13 @@ test('zohoNaamKeuzes: agenten plus de huidige waarde, ontdubbeld (ook met andere
   assert.deepEqual(zohoNaamKeuzes({ agenten: ['Tim'], huidige: undefined }), [{ naam: 'Tim', bezetDoor: null }]);
   assert.deepEqual(zohoNaamKeuzes(), []);
   assert.equal(typeof ZOHO_ANDERE, 'string');
+});
+
+test('valideerGebruikerFormulier: magZelfPlannen enkel bij een technieker en enkel letterlijk true; andere rollen krijgen het veld nooit', () => {
+  const basis = { naam: 'Tim', email: 'tim@test.be', zohoNaam: 'Tim' };
+  assert.equal(valideerGebruikerFormulier({ ...basis, magZelfPlannen: true }, 'technieker').waarden.magZelfPlannen, true);
+  assert.equal(valideerGebruikerFormulier({ ...basis, magZelfPlannen: 'ja' }, 'technieker').waarden.magZelfPlannen, false);
+  assert.equal(valideerGebruikerFormulier(basis, 'technieker').waarden.magZelfPlannen, false);
+  for (const rol of ['planner', 'beheerder']) assert.equal('magZelfPlannen' in valideerGebruikerFormulier({ ...basis, magZelfPlannen: true }, rol).waarden, false, rol);
+  assert.equal('magZelfPlannen' in valideerGebruikerFormulier({ ...basis, salesNaam: 'T', magZelfPlannen: true }, 'sales').waarden, false);
 });

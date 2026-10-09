@@ -8,6 +8,7 @@
 // De knoppen lopen via data-actie-delegatie; de resultaat-overlay sluit via registreerBackdrop. `window.bouwDagen`,
 // en `window.planWeek` (planner.js) blijft zoals het was.
 import { toestand } from '../kern/toestand.js';
+import { magPlannenVoor } from '../kern/sessie.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { localISO, getWeekStart, fmtDateShort } from '../kern/tijd.js';
@@ -81,6 +82,8 @@ export async function addTicketToDate(ticketId, date) {
   if (inFlightTickets.has(ticketId)) return false;
   const t = toestand.get('allTickets').find(t => t.id === ticketId);
   if (!t) return false;
+  // Een technieker met "Mag zelf plannen" plant enkel zijn eigen tickets (de server weigert de rest ook).
+  if (!magPlannenVoor(t.assignee)) { toast('Je mag enkel je eigen tickets plannen.'); return false; }
   if (!toestand.get('planning')[date]) toestand.get('planning')[date] = [];
   if (toestand.get('planning')[date].find(p => p.ticket.id === ticketId)) return true; // al ingepland
 
@@ -166,6 +169,7 @@ export async function removeTicketFromDate(ticketId, date) {
 
   const stop = toestand.get('planning')[date].find(p => p.ticket.id === ticketId);
   if (!stop) return;
+  if (!magPlannenVoor(stop.ticket.assignee)) { toast('Je mag enkel je eigen tickets uit de planning halen.'); return; }
 
   // Optimistische update
   toestand.get('planning')[date] = toestand.get('planning')[date].filter(p => p.ticket.id !== ticketId);
@@ -247,6 +251,7 @@ export async function bevestigUitplannen(ticketId, date) {
 
 export async function autoPlan() {
   if (toestand.get('activeAssigneeFilter') === 'all') return toast('Kies eerst een technieker');
+  if (!magPlannenVoor(toestand.get('activeAssigneeFilter'))) return toast('Je mag enkel je eigen planning inplannen: kies jezelf in de kiezer bovenaan.', 5000);
   const pendingIds  = new Set(toestand.get('allPending').map(t => t.id));
   const myTickets   = selecties.ticketsVanTechnieker(toestand.get('allTickets'), toestand.get('activeAssigneeFilter'));
   const toplan      = myTickets.filter(t => t.hasAddress && !pendingIds.has(t.id));

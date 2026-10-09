@@ -4,6 +4,7 @@
 // van andere schermen via `initRoute(afh)` (aan het begin van DOMContentLoaded). Raakt `document` enkel binnen
 // functies, nooit op moduleniveau. Alleen `kern/brug.js` wijst `window`-namen toe.
 import { toestand } from '../kern/toestand.js';
+import { magPlannenVoor, magSchrijvenVoor } from '../kern/sessie.js';
 import { toast, escHtml, registreerActies, strengeAfh } from '../kern/ui.js';
 import { localISO, fmtSec, timeStrToMin, minToTimeStr, extractLocalHour } from '../kern/tijd.js';
 import { apiVerzoek, foutTekst } from '../kern/api.js';
@@ -135,6 +136,7 @@ export function clearDay() {
   const date  = document.getElementById('plan-date').value;
   const stops = planItemsVanTechnieker(get('planning')[date], get('activeAssigneeFilter'));
   if (!stops.length) return;
+  if (!magStopsWijzigen(stops)) return toast('Je mag enkel je eigen planning wijzigen.');
   // Tickets met een verstuurd/bevestigd voorstel blijven staan: die moeten via "Afspraak annuleren".
   const vrij = stops.filter(p => !afh.heeftLopendVoorstel(p.ticket));
   const overgeslagen = stops.length - vrij.length;
@@ -147,7 +149,7 @@ export function clearDay() {
 
 export function updateRouteBtns(date) {
   const stops = planItemsVanTechnieker(get('planning')[date], get('activeAssigneeFilter'));
-  document.getElementById('btn-optimize').disabled = stops.length < 2;
+  document.getElementById('btn-optimize').disabled = stops.length < 2 || !magStopsWijzigen(stops);
   document.getElementById('btn-route').disabled    = stops.length < 1;
   document.getElementById('s-stops').textContent   = stops.length;
 }
@@ -269,6 +271,9 @@ function renderWeekstrook(date) {
   el.querySelector('.ws-dag.actief')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
 }
 
+// Een technieker met "Mag zelf plannen" wijzigt (slepen, optimaliseren, leegmaken) enkel zijn eigen stops; coördinatoren alle.
+const magStopsWijzigen = (stops) => stops.every(p => magPlannenVoor(p.ticket?.assignee));
+
 export function renderRouteList(date) {
   renderTeller++;
   const list  = document.getElementById('route-list');
@@ -277,7 +282,7 @@ export function renderRouteList(date) {
   // Fix-ronde 1 (#3): slepen mag enkel als de dag (na filter) van hoogstens één technieker is
   // -- anders zou de volgorde/persist-logica tijden van meerdere technici als één
   // sequentiële route door elkaar husselen.
-  const eenTechnieker = dagHeeftEenTechnieker(stops);
+  const eenTechnieker = dagHeeftEenTechnieker(stops) && magStopsWijzigen(stops);
   // Verouderde route (stops verwijderd/gewisseld, andere dag of filter): kaart en samenvatting
   // leegmaken, markers van de resterende stops opnieuw tekenen; geen automatische TomTom-aanroep.
   if (routeData && (currentRouteDate !== date || routeData._sig !== routeHandtekeningVoorDag(date))) {
@@ -410,10 +415,10 @@ export function renderRouteList(date) {
         </div>
         <div class="stop-actions">
           <button class="sico btn-navigeer" title="Navigeren" data-adres="${escHtml(item.address||'')}">🧭 Navigeer</button>
-          <button class="sico" title="Afspraakvoorstel sturen" data-actie="route-voorstel">📨 Voorstel</button>
-          <button class="sico" title="Aankomst registreren" data-actie="route-aankomst">⏱️ Aankomst</button>
-          <button class="sico" title="Service rapport" data-actie="route-rapport">📋 Rapport</button>
-          <button class="sico" title="Uit planning halen" data-actie="route-uitplannen">✕ Uit planning halen</button>
+          ${magPlannenVoor(item.ticket.assignee) ? '<button class="sico" title="Afspraakvoorstel sturen" data-actie="route-voorstel">📨 Voorstel</button>' : ''}
+          ${magSchrijvenVoor(item.ticket.assignee) ? `<button class="sico" title="Aankomst registreren" data-actie="route-aankomst">⏱️ Aankomst</button>
+          <button class="sico" title="Service rapport" data-actie="route-rapport">📋 Rapport</button>` : ''}
+          ${magPlannenVoor(item.ticket.assignee) ? '<button class="sico" title="Uit planning halen" data-actie="route-uitplannen">✕ Uit planning halen</button>' : ''}
         </div>`;
       // R9: de knoppen lezen ticket, datum en aankomstminuten van de kaart (dataset i.p.v. inline-strings; waarden blijven exact zoals voorheen).
       stop.dataset.ticketId = item.ticket.id;
@@ -858,6 +863,7 @@ export async function optimizeRoute() {
   if (!dagHeeftEenTechnieker(stops)) {
     return toast('⚠ Kies eerst een technieker — de dag bevat stops van meerdere technici');
   }
+  if (!magStopsWijzigen(stops)) return toast('Je mag enkel je eigen planning optimaliseren.');
 
   // Optimaliseren start altijd vanaf nul (Beslissing Brent, 2026-09-21): negeert de
   // sleepvolgorde/huidige uren van vrije tickets. Ankers (lokale afspraken + vergrendelde

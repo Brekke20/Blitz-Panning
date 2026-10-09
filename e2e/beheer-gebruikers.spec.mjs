@@ -189,7 +189,7 @@ test.describe('tab Gebruikers: nieuwe gebruiker', () => {
 
     const post = verzoeken.van('/api/gebruikers', 'POST');
     expect(post).toHaveLength(1);
-    expect(post[0].body).toEqual({ actie: 'maak', email: 'roel.nieuw@test.be', naam: 'Roel Nieuw', rol: 'technieker', zohoNaam: 'Roel' });
+    expect(post[0].body).toEqual({ actie: 'maak', email: 'roel.nieuw@test.be', naam: 'Roel Nieuw', rol: 'technieker', zohoNaam: 'Roel', magZelfPlannen: false });
     expect(post[0].headers['content-type']).toBe('application/json');
 
     const geheim = venster(page, 'Gebruiker aangemaakt');
@@ -296,7 +296,7 @@ test.describe('tab Gebruikers: bewerken, blokkeren, resetten', () => {
     await dlg.getByLabel('Naam', { exact: true }).fill('Tim Nieuw');
     await dlg.getByRole('button', { name: 'Opslaan' }).click();
     await expect(toastEl(page)).toHaveText('Tim Nieuw is bijgewerkt.');
-    expect(verzoeken.van('/api/gebruikers', 'PATCH')[0].body).toEqual({ id: 'u-t1', naam: 'Tim Nieuw', rol: 'technieker', zohoNaam: 'Tim' });
+    expect(verzoeken.van('/api/gebruikers', 'PATCH')[0].body).toEqual({ id: 'u-t1', naam: 'Tim Nieuw', rol: 'technieker', zohoNaam: 'Tim', magZelfPlannen: false });
     await expect(rij(page, 'u-t1')).toContainText('Tim Nieuw');
 
     await rij(page, 'u-p1').getByRole('button', { name: 'Bewerken' }).click();
@@ -611,7 +611,7 @@ test.describe('tab Gebruikers: Zoho-naam kiezen uit de Zoho-gebruikers', () => {
     await dlg.getByLabel('Naam', { exact: true }).fill('Tim Nieuw');
     await dlg.getByRole('button', { name: 'Opslaan' }).click();
     await expect(toastEl(page)).toHaveText('Tim Nieuw is bijgewerkt.');
-    expect(verzoeken.van('/api/gebruikers', 'PATCH')[0].body).toEqual({ id: 'u-t1', naam: 'Tim Nieuw', rol: 'technieker', zohoNaam: 'Oud Collega' });
+    expect(verzoeken.van('/api/gebruikers', 'PATCH')[0].body).toEqual({ id: 'u-t1', naam: 'Tim Nieuw', rol: 'technieker', zohoNaam: 'Oud Collega', magZelfPlannen: false });
   });
 
   test('Zoho-storing (503): vrij tekstveld met de namen uit de tickets als suggestie, met uitleg; opslaan werkt gewoon', async ({ page, verzoeken, consoleFouten }) => {
@@ -644,5 +644,61 @@ test.describe('tab Gebruikers: Zoho-naam kiezen uit de Zoho-gebruikers', () => {
     ontgrendel();
     await expect(dlg.getByLabel('Zoho-naam')).toHaveJSProperty('tagName', 'SELECT');
     await expect(dlg.getByLabel('Zoho-naam')).toHaveValue('Roel');
+  });
+});
+
+test.describe('tab Gebruikers: "Mag zelf plannen"', () => {
+  test('het vinkje staat enkel bij een technieker; aanvinken stuurt magZelfPlannen: true mee en de lijst toont "Mag zelf plannen"', async ({ page, verzoeken }) => {
+    await openGebruikers(page);
+    await rij(page, 'u-t1').getByRole('button', { name: 'Bewerken' }).click();
+    const dlg = venster(page, 'Gebruiker bewerken');
+    const vink = dlg.getByLabel('Mag zelf plannen');
+    await expect(vink).toBeVisible();
+    await expect(vink).not.toBeChecked();
+    await expect(dlg).toContainText('Tickets van collega’s blijven alleen-lezen');
+    await vink.check();
+    await dlg.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(toastEl(page)).toHaveText('Tim Techniek is bijgewerkt.');
+    expect(verzoeken.van('/api/gebruikers', 'PATCH')[0].body).toEqual({ id: 'u-t1', naam: 'Tim Techniek', rol: 'technieker', zohoNaam: 'Tim', magZelfPlannen: true });
+    await expect(rij(page, 'u-t1')).toContainText('Mag zelf plannen');
+    // opnieuw openen: het vinkje staat aan; uitzetten stuurt false
+    await rij(page, 'u-t1').getByRole('button', { name: 'Bewerken' }).click();
+    const dlg2 = venster(page, 'Gebruiker bewerken');
+    await expect(dlg2.getByLabel('Mag zelf plannen')).toBeChecked();
+    await dlg2.getByLabel('Mag zelf plannen').uncheck();
+    await dlg2.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(rij(page, 'u-t1')).not.toContainText('Mag zelf plannen');
+    expect(verzoeken.van('/api/gebruikers', 'PATCH')[1].body.magZelfPlannen).toBe(false);
+  });
+
+  test('andere rollen hebben het vinkje niet; een nieuwe technieker met vinkje: POST bevat magZelfPlannen: true', async ({ page, verzoeken }) => {
+    await openGebruikers(page);
+    await page.getByRole('button', { name: 'Nieuwe gebruiker' }).click();
+    const dlg = venster(page, 'Nieuwe gebruiker');
+    for (const rolNaam of ['planner', 'beheerder', 'sales']) {
+      await dlg.getByLabel('Rol', { exact: true }).selectOption(rolNaam);
+      await expect(dlg.getByLabel('Mag zelf plannen')).toBeHidden();
+    }
+    await dlg.getByLabel('E-mailadres').fill('kim@test.be');
+    await dlg.getByLabel('Naam', { exact: true }).fill('Kim Techniek');
+    await dlg.getByLabel('Rol', { exact: true }).selectOption('technieker');
+    await dlg.getByLabel('Zoho-naam').selectOption('Roel');
+    await dlg.getByLabel('Mag zelf plannen').check();
+    await dlg.getByRole('button', { name: 'Aanmaken' }).click();
+    await venster(page, 'Gebruiker aangemaakt').getByRole('button', { name: 'Ik heb het genoteerd' }).click();
+    expect(verzoeken.van('/api/gebruikers', 'POST')[0].body).toEqual({
+      actie: 'maak', email: 'kim@test.be', naam: 'Kim Techniek', rol: 'technieker', zohoNaam: 'Roel', magZelfPlannen: true,
+    });
+  });
+
+  test('een planner naar technieker: het vinkje staat uit; van technieker naar planner stuurt geen magZelfPlannen', async ({ page, verzoeken }) => {
+    await openGebruikers(page);
+    await rij(page, 'u-t1').getByRole('button', { name: 'Bewerken' }).click();
+    const dlg = venster(page, 'Gebruiker bewerken');
+    await dlg.getByLabel('Rol', { exact: true }).selectOption('planner');
+    await dlg.getByRole('button', { name: 'Opslaan' }).click();
+    const body = verzoeken.van('/api/gebruikers', 'PATCH')[0].body;
+    expect(body.rol).toBe('planner');
+    expect('magZelfPlannen' in body).toBe(false);
   });
 });

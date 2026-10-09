@@ -98,6 +98,7 @@ function toonGebruikerFormulier({ gebruiker = null, lijst, naSucces }) {
     ROLLEN.map(r => h('option', { value: r, text: rolLabel(r) })));
   const salesNaam = h('input', { class: 'set-input', id: 'bg-sales', type: 'text', autocomplete: 'off' });
   const alleSales = h('input', { type: 'checkbox', id: 'bg-alle-sales' });
+  const zelfPlannen = h('input', { type: 'checkbox', id: 'bg-zelf-plannen' });
   const fout = h('p', { class: 'bg-fout', role: 'alert' });
 
   // Beginwaarden (via de eigenschap `value`, niet via HTML).
@@ -105,6 +106,7 @@ function toonGebruikerFormulier({ gebruiker = null, lijst, naSucces }) {
   naam.value = gebruiker?.naam ?? '';
   salesNaam.value = gebruiker?.salesNaam ?? '';
   alleSales.checked = gebruiker?.magAlleSales === true;
+  zelfPlannen.checked = gebruiker?.rol === 'technieker' && gebruiker?.magZelfPlannen === true;
   if (laatsteBeheerder) rol.disabled = true;
 
   // Zoho-naam: elk account behalve sales kan er een hebben (verplicht voor een technieker); een account met een Zoho-naam voert ook zelf
@@ -153,12 +155,17 @@ function toonGebruikerFormulier({ gebruiker = null, lijst, naSucces }) {
     zohoFoutTekst = ' De lijst met Zoho-gebruikers is nu niet beschikbaar: typ de naam in zoals in Zoho.';
     toonRolVelden();
   });
+  // Enkel een technieker: hij plant dan ook zelf, maar enkel zijn eigen tickets (en stuurt enkel voor die tickets voorstellen).
+  const groepPlan = h('div', { class: 'bg-groep' },
+    h('label', { class: 'bg-vink', for: 'bg-zelf-plannen' }, zelfPlannen, h('span', { text: 'Mag zelf plannen' })),
+    h('p', { class: 'bg-uitleg bg-hulp', text: 'Deze technieker ziet dan ook de Wachtrij en de Route en kan zijn eigen tickets inplannen, verzetten en voorstellen sturen. Tickets van collega’s blijven alleen-lezen. Geldt vanaf de volgende keer dat hij de app opent of herlaadt.' }));
   const groepSales = h('div', { class: 'bg-groep' },
     veld('Naam in export', salesNaam),
     h('label', { class: 'bg-vink', for: 'bg-alle-sales' }, alleSales, h('span', { text: 'Mag alle sales zien' })));
   const toonRolVelden = () => {
     groepTechnieker.hidden = rol.value === 'sales';
     groepSales.hidden = rol.value !== 'sales';
+    groepPlan.hidden = rol.value !== 'technieker';
     zohoHulp.textContent = (rol.value === 'technieker'
       ? 'Kies de naam zoals die in Zoho staat bij de tickets van deze technieker.'
       : 'Vul in als deze persoon ook interventies uitvoert.') + zohoFoutTekst;
@@ -173,7 +180,7 @@ function toonGebruikerFormulier({ gebruiker = null, lijst, naSucces }) {
     veld('Naam', naam),
     veld('Rol', rol),
     laatsteBeheerder ? h('p', { class: 'bg-uitleg', text: ENIGE_BEHEERDER }) : null,
-    groepTechnieker, groepSales, fout,
+    groepTechnieker, groepPlan, groepSales, fout,
     h('div', { class: 'beheer-venster-acties' }, annuleer, verstuur));
   venster.body.append(form);
   (nieuw ? email : naam).focus();
@@ -184,7 +191,7 @@ function toonGebruikerFormulier({ gebruiker = null, lijst, naSucces }) {
     if (bezig) return;
     fout.textContent = '';
     const invoer = {
-      naam: naam.value, zohoNaam: leesZoho(), salesNaam: salesNaam.value, magAlleSales: alleSales.checked,
+      naam: naam.value, zohoNaam: leesZoho(), salesNaam: salesNaam.value, magAlleSales: alleSales.checked, magZelfPlannen: zelfPlannen.checked,
       ...(nieuw ? { email: email.value } : {}),
     };
     const v = valideerGebruikerFormulier(invoer, rol.value, { gebruikers: lijst, id: gebruiker?.id });
@@ -341,7 +348,7 @@ async function render(container) {
     const actief = g.actief === true;
     const eigen = g.id === eigenId();
     const cel = (label, ...inhoud) => h('td', { 'data-label': label }, h('div', { class: 'bg-cel' }, inhoud));
-    const details = [g.zohoNaam ? `Zoho: ${g.zohoNaam}` : null, g.salesNaam ? `Export: ${g.salesNaam}` : null, g.magAlleSales ? 'Mag alle sales zien' : null].filter(Boolean);
+    const details = [g.zohoNaam ? `Zoho: ${g.zohoNaam}` : null, g.salesNaam ? `Export: ${g.salesNaam}` : null, g.magAlleSales ? 'Mag alle sales zien' : null, g.rol === 'technieker' && g.magZelfPlannen ? 'Mag zelf plannen' : null].filter(Boolean);
     const knop = (tekst, naamActie, handler, extra = {}) => {
       const k = h('button', {
         type: 'button', class: `btn btn--secondary btn--sm${extra.klasse ? ' ' + extra.klasse : ''}`, text: tekst,

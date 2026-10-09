@@ -627,3 +627,52 @@ test('PATCH: een bestaande dubbele zohoNaam (van vroeger) blokkeert andere wijzi
   const res = await o.gebruikers(req('PATCH', { id: 'u-tim2', naam: 'Tim Twee' }));
   assert.equal(res.status, 200);
 });
+
+// ---------------- magZelfPlannen ----------------
+test('maak: technieker met magZelfPlannen true wordt zo bewaard; zonder het vinkje is het false; een planner krijgt het veld nooit', async () => {
+  const o = opzet();
+  const met = await o.gebruikers(maak({ rol: 'technieker', zohoNaam: 'Kim Z', email: 'kim@blitz.test', magZelfPlannen: true }));
+  assert.equal(met.status, 201);
+  const kim = await met.json();
+  assert.equal(kim.gebruiker.magZelfPlannen, true);
+  assert.equal((await record(o.echt, kim.gebruiker.id)).magZelfPlannen, true);
+  const zonder = await o.gebruikers(maak({ rol: 'technieker', zohoNaam: 'Lou Z', email: 'lou@blitz.test' }));
+  assert.equal((await zonder.json()).gebruiker.magZelfPlannen, false);
+  const planner = await o.gebruikers(maak({ rol: 'planner', email: 'p2@blitz.test', magZelfPlannen: true }));
+  assert.equal((await planner.json()).gebruiker.magZelfPlannen, undefined);
+});
+
+test('PATCH: magZelfPlannen aan/uit door de beheerder, gelogd als gebruiker-gewijzigd, zonder uitlog; een niet-boolean geeft 400', async () => {
+  const o = opzet();
+  const aan = await o.gebruikers(req('PATCH', { id: 'u-tim', magZelfPlannen: true }));
+  assert.equal(aan.status, 200);
+  assert.equal((await aan.json()).gebruiker.magZelfPlannen, true);
+  assert.equal((await record(o.echt, 'u-tim')).sessieVersie, 1);
+  const uit = await o.gebruikers(req('PATCH', { id: 'u-tim', magZelfPlannen: false }));
+  assert.equal((await uit.json()).gebruiker.magZelfPlannen, false);
+  const log = (await activiteit(o.echt)).filter(a => a.actie === 'gebruiker-gewijzigd');
+  assert.deepEqual(log.map(a => a.details), ['magZelfPlannen', 'magZelfPlannen']);
+  assert.deepEqual(log.map(a => a.onderwerp), ['u-tim', 'u-tim']);
+  assert.equal((await o.gebruikers(req('PATCH', { id: 'u-tim', magZelfPlannen: 'ja' }))).status, 400);
+  // een planner heeft geen techniekersvinkje: het gewoon niet bewaren
+  const planner = await o.gebruikers(req('PATCH', { id: 'u-jan', magZelfPlannen: true }));
+  assert.equal(planner.status, 200);
+  assert.equal((await record(o.echt, 'u-jan')).magZelfPlannen, undefined);
+});
+
+test('magZelfPlannen wijzigen kan enkel de beheerder: planner, technieker en sales krijgen 403 en er verandert niets', async () => {
+  const o = opzet();
+  for (const [uid, sv] of [['u-jan', 1], ['u-tim', 1], ['u-sal', 1]]) {
+    const res = await o.gebruikers(req('PATCH', { id: 'u-tim', magZelfPlannen: true }, als(uid, sv)));
+    assert.equal(res.status, 403, uid);
+  }
+  assert.equal((await record(o.echt, 'u-tim')).magZelfPlannen, undefined);
+});
+
+test('een technieker met magZelfPlannen: de rol wijzigen naar planner of sales laat het vinkje verdwijnen', async () => {
+  const gebruikers = lijst();
+  gebruikers[2] = { ...gebruikers[2], magZelfPlannen: true };
+  const o = opzet({ gebruikers });
+  assert.equal((await o.gebruikers(req('PATCH', { id: 'u-tim', rol: 'planner' }))).status, 200);
+  assert.equal((await record(o.echt, 'u-tim')).magZelfPlannen, undefined);
+});

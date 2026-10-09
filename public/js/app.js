@@ -369,6 +369,9 @@ function zetTopbarHoogte() {
 // herstellen we als het jonger is dan 10 minuten. Nooit een coord-only tab voor een technieker, en niet
 // zolang de rolvraag op een tablet openstaat (dan pas na het antwoord).
 const SCHERMSTAAT_KEY = 'blitz_schermstaat';
+// Een coördinatortab die de beperkte (technieker-)weergave niet toont; een technieker met "Mag zelf plannen" houdt de plan-tabs (.plan-eigen).
+const tabVerborgenVoorToestel = (tabEl) => window.apparaat?.rol === 'technieker' && tabEl.classList.contains('coord-only')
+  && !(tabEl.classList.contains('plan-eigen') && window.apparaat.planEigen === true);
 let _rolVraagOpen = false; // wacht de rolvraag nog op een antwoord? (dan stelt planHerstelSchermStaat uit)
 let _schermStaatBewaarOk = false, _herstelUitgesteld = false, _herstelGebruikerActie = false;
 function bewaarSchermStaat() {
@@ -400,7 +403,7 @@ function planHerstelSchermStaat() {
     klaar(); return;
   }
   const tabEl = document.getElementById('tab-' + st.tab);
-  const toegestaan = tabEl && !(window.apparaat?.rol === 'technieker' && tabEl.classList.contains('coord-only'))
+  const toegestaan = tabEl && !tabVerborgenVoorToestel(tabEl)
     && st.tab !== 'planning'; // Route rekent bij openen (TomTom): niet automatisch herstellen
   if (!toegestaan) { klaar(); return; }
   if (document.querySelector('.tab.active')?.id !== 'tab-' + st.tab) setTab(st.tab);
@@ -882,7 +885,7 @@ let _apparaatListener = false; // de 'apparaatwijziging'-luisteraar is maar éé
 function pasRolBeperkingToe() {
   if (window.apparaat?.rol !== 'technieker') return;
   const active = document.querySelector('.tab.active');
-  if (active && active.classList.contains('coord-only')) setTab('kalender');
+  if (active && tabVerborgenVoorToestel(active)) setTab('kalender');
 }
 
 // ══════════════════════════════════════════════
