@@ -40,9 +40,20 @@ export function eigenWijzigingen(oudeLijst, nieuweLijst, { sleutel = 'id', eigen
   return { ok: true };
 }
 
-// Technieker: enkel rapporten met zijn eigen `technieker`; anderen alles.
+// Een rapport is "van" een technieker als hij het zelf ingediend heeft (ingediendDoor = zijn gebruikers-id, gezet door
+// rapport-ontvangen) OF zijn naam erop staat (oude entries zonder ingediendDoor: enkel de naamregel). Planner en
+// beheerder: altijd; sales en onbekend: nooit.
+export function isEigenRapport(gebruiker, rapport) {
+  const rol = gebruiker?.rol;
+  if (rol === 'planner' || rol === 'beheerder') return true;
+  if (rol !== 'technieker') return false;
+  if (typeof gebruiker.id === 'string' && gebruiker.id !== '' && rapport?.ingediendDoor === gebruiker.id) return true;
+  return isEigenNaam(gebruiker, rapport?.technieker);
+}
+
+// Technieker: enkel eigen rapporten (zie isEigenRapport); anderen alles.
 export function filterRapportenVoor(gebruiker, rapports) {
   const lijst = Array.isArray(rapports) ? rapports : [];
   if (gebruiker?.rol !== 'technieker') return lijst;
-  return lijst.filter(r => isEigenNaam(gebruiker, r?.technieker));
+  return lijst.filter(r => isEigenRapport(gebruiker, r));
 }

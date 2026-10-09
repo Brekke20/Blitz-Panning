@@ -13,7 +13,7 @@ import { haalRapportInhoud, verwerkOpnieuw } from '../lib/rapport-archief-acties
 import { startAchtergrondtaak } from '../lib/rapport-achtergrond.js';
 import { isGeldigId, vergeetEntry } from '../lib/rapport-inhoud.js';
 import { beveiligV2 } from '../lib/beveiligd.js';
-import { isEigenNaam, filterRapportenVoor } from '../lib/eigen.js';
+import { isEigenNaam, isEigenRapport, filterRapportenVoor } from '../lib/eigen.js';
 
 const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
@@ -35,11 +35,11 @@ function corsHeaders(req) {
 export { bepaalDedupVelden };
 
 // Hoort het rapport met dit id bij deze (technieker-)gebruiker? Onbekend id = nee.
-async function isEigenRapport(store, id, gebruiker) {
+async function isEigenRapportId(store, id, gebruiker) {
   try {
     const lijst = (await store.get(BLOB_KEY, { type: 'json' })) ?? EMPTY;
     const treffers = lijst.rapports.filter(r => r.id === id);
-    return treffers.length > 0 && treffers.every(r => isEigenNaam(gebruiker, r.technieker));
+    return treffers.length > 0 && treffers.every(r => isEigenRapport(gebruiker, r));
   } catch { return false; }
 }
 
@@ -59,7 +59,7 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
       const params = new URL(req.url).searchParams;
       if (params.has('inhoud')) {
         // Een technieker leest enkel de inhoud van zijn eigen rapporten (een collega's rapport bestaat voor hem niet).
-        if (gebruiker?.rol === 'technieker' && !(await isEigenRapport(store, params.get('inhoud'), gebruiker))) {
+        if (gebruiker?.rol === 'technieker' && !(await isEigenRapportId(store, params.get('inhoud'), gebruiker))) {
           return new Response(JSON.stringify({ error: 'Rapportinhoud niet gevonden' }), { status: 404, headers: { ...hdrs, 'Content-Type': 'application/json' } });
         }
         const uit = await haalRapportInhoud(store, params.get('inhoud'));
@@ -101,7 +101,7 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
 
       // "Opnieuw versturen" van een mislukt rapport (vóór de legacy-entry-opbouw afgehandeld).
       if (body && body.opnieuw !== undefined) {
-        if (gebruiker?.rol === 'technieker' && !(await isEigenRapport(store, body.opnieuw, gebruiker))) {
+        if (gebruiker?.rol === 'technieker' && !(await isEigenRapportId(store, body.opnieuw, gebruiker))) {
           return new Response(JSON.stringify(GEEN_RECHT), { status: 403, headers: { ...hdrs, 'Content-Type': 'application/json' } });
         }
         const uit = await verwerkOpnieuw({ store, id: body.opnieuw });
@@ -138,14 +138,14 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
 
       // Een technieker dedupt enkel op zijn EIGEN entry: staat het rapport voor dit ticket+datum op naam van een collega,
       // dan blijft dat onaangeroerd en komt het zijne als nieuwe entry erbij (beide rapporten blijven bewaard).
-      const eigenDedup = r => gebruiker?.rol !== 'technieker' || isEigenNaam(gebruiker, r.technieker);
+      const eigenDedup = r => gebruiker?.rol !== 'technieker' || isEigenRapport(gebruiker, r);
       // Een technieker mag nooit een rapport van een collega verbergen of overschrijven via een gelijk id: elk ANDER
       // rapport dan het dedup-doel met dit id moet van hem zijn.
       if (gebruiker?.rol === 'technieker') {
         const dupIdx = entry.ticketId
           ? current.rapports.findIndex(r => r.ticketId === entry.ticketId && r.datum === entry.datum && eigenDedup(r))
           : -1;
-        const botsing = current.rapports.some((r, i) => i !== dupIdx && r.id === entry.id && !isEigenNaam(gebruiker, r.technieker));
+        const botsing = current.rapports.some((r, i) => i !== dupIdx && r.id === entry.id && !isEigenRapport(gebruiker, r));
         if (botsing) {
           return new Response(JSON.stringify(GEEN_RECHT), { status: 403, headers: { ...hdrs, 'Content-Type': 'application/json' } });
         }
@@ -190,7 +190,7 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
 
       // Een technieker verwijdert enkel zijn eigen rapporten: ALLE rapporten met dit id moeten van hem zijn.
       if (gebruiker?.rol === 'technieker') {
-        if (current.rapports.some(r => r.id === id && !isEigenNaam(gebruiker, r.technieker))) {
+        if (current.rapports.some(r => r.id === id && !isEigenRapport(gebruiker, r))) {
           return new Response(JSON.stringify(GEEN_RECHT), { status: 403, headers: { ...hdrs, 'Content-Type': 'application/json' } });
         }
       }

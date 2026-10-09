@@ -6,6 +6,7 @@ import { strict as assert } from 'node:assert';
 import { maakNepStore } from './nep-blobs.mjs';
 import { metRol, metGeenSessie } from './auth-hulp.mjs';
 import { RECHTEN, rolIsToegelaten } from '../netlify/lib/rechten.js';
+import { isEigenRapport } from '../netlify/lib/eigen.js';
 import { maakInternToken, controleerInternToken, INTERN_KOP } from '../netlify/lib/intern-token.js';
 import { startAchtergrondtaak } from '../netlify/lib/rapport-achtergrond.js';
 import { maakHandler as maakOntvangen } from '../netlify/functions/rapport-ontvangen.js';
@@ -60,13 +61,59 @@ test('rapport-ontvangen: sales 403; planner, beheerder en technieker (eigen naam
   assert.equal((await tim(() => t.h(post(ontvangstBody(ID_A, 'tim'))))).status, 200); // naam hoofdletterongevoelig
 });
 
-test('rapport-ontvangen: technieker kan geen rapport op naam van een collega versturen', async () => {
+const activiteit = store => [...store._data.keys()].filter(k => k.startsWith('activiteit/')).flatMap(k => JSON.parse(store._data.get(k)).items);
+
+test('rapport-ontvangen: overname (Tim verstuurt een rapport op naam van Roel) wordt aanvaard, met ingediendDoor, en gelogd met andereNaam', async () => {
   const { store, h, aanroepen } = opzet();
   const r = await tim(() => h(post(ontvangstBody(ID_A, 'Roel'))));
-  assert.equal(r.status, 403);
-  assert.equal((await r.json()).code, 'geen-recht');
-  assert.equal(store._schrijfacties.length, 0);
-  assert.equal(aanroepen.length, 0);
+  assert.equal(r.status, 200);
+  const e = lijst(store)[0];
+  assert.equal(e.technieker, 'Roel');
+  assert.equal(e.ingediendDoor, 'test-technieker');
+  assert.equal(e.ingediendDoorNaam, 'Test Technieker');
+  assert.equal(aanroepen.length, 1, 'het rapport gaat gewoon naar Zoho');
+  const log = activiteit(store);
+  assert.equal(log.length, 1);
+  assert.equal(log[0].actie, 'rapport-verstuurd');
+  assert.equal(log[0].gebruikerId, 'test-technieker');
+  assert.equal(log[0].onderwerp, '555');
+  assert.deepEqual(JSON.parse(log[0].details), { andereNaam: true, naamInRapport: 'Roel' });
+  // een herhaalde POST (zelfde id) logt niet nog eens
+  assert.equal((await tim(() => h(post(ontvangstBody(ID_A, 'Roel'))))).status, 200);
+  assert.equal(activiteit(store).length, 1);
+});
+
+test('rapport-ontvangen: meerdere techniekers, typfout of lege naam worden aanvaard (Tim ziet het rapport als eigen via ingediendDoor)', async () => {
+  for (const [i, naam] of ['Tim en Jan', 'Tm', ''].entries()) {
+    const id = '3333333' + i + '-3333-4333-8333-333333333333';
+    const { store, h } = opzet();
+    const r = await tim(() => h(post(ontvangstBody(id, naam, { ticketId: '77' + i }))));
+    assert.equal(r.status, 200, 'naam: "' + naam + '"');
+    const e = lijst(store)[0];
+    assert.equal(isEigenRapport({ rol: 'technieker', id: 'test-technieker', zohoNaam: 'Tim' }, e), true);
+    // via de archieflijst ziet Tim het ook
+    const a = maakArchief({ getStore: () => store });
+    const lijstRes = await tim(() => a(req('GET')));
+    assert.equal((await lijstRes.json()).rapports.length, 1);
+  }
+});
+
+test('rapport-ontvangen: een eigen naam logt niets extra (geen andereNaam)', async () => {
+  const { store, h } = opzet();
+  assert.equal((await tim(() => h(post(ontvangstBody(ID_A, 'Tim'))))).status, 200);
+  assert.equal(activiteit(store).length, 0);
+});
+
+test('eigen rapport: ingediendDoor OF naam; oude entries zonder ingediendDoor enkel de naamregel; collega en sales nooit', () => {
+  const tim = { rol: 'technieker', id: 'u-tim', zohoNaam: 'Tim' };
+  assert.equal(isEigenRapport(tim, { technieker: 'Roel', ingediendDoor: 'u-tim' }), true);
+  assert.equal(isEigenRapport(tim, { technieker: 'tim' }), true);              // legacy: naam, ook andere hoofdletters
+  assert.equal(isEigenRapport(tim, { technieker: 'Roel' }), false);            // legacy van een collega
+  assert.equal(isEigenRapport(tim, { technieker: 'Roel', ingediendDoor: 'u-roel' }), false);
+  assert.equal(isEigenRapport({ rol: 'technieker', id: 'u-roel', zohoNaam: 'Roel' }, { technieker: 'Roel', ingediendDoor: 'u-tim' }), true); // de genoemde collega ziet het ook
+  assert.equal(isEigenRapport({ rol: 'technieker', id: '', zohoNaam: 'Tim' }, { technieker: 'Roel', ingediendDoor: '' }), false);
+  assert.equal(isEigenRapport({ rol: 'planner', id: 'p' }, { technieker: 'x' }), true);
+  assert.equal(isEigenRapport({ rol: 'sales', id: 's' }, { technieker: 'x', ingediendDoor: 's' }), false);
 });
 
 test('rapport-ontvangen: technieker overschrijft de inhoud of het rapport van een collega met hetzelfde id nooit', async () => {
@@ -79,8 +126,9 @@ test('rapport-ontvangen: technieker overschrijft de inhoud of het rapport van ee
   assert.equal(r.status, 403);
   assert.equal(JSON.parse(store._data.get('rapport-inhoud/' + ID_A)).html, '<p>van Roel</p>');
   assert.deepEqual(lijst(store).map(x => x.technieker), ['Roel']);
-  assert.equal(store._schrijfacties.length, 0);
+  assert.equal(store._schrijfacties.filter(s => !s.key.startsWith('activiteit/')).length, 0, 'enkel het activiteitenlog is geschreven');
   assert.equal(aanroepen.length, 0);
+  assert.deepEqual(activiteit(store).map(a => a.actie), ['rapport-geweigerd'], 'de coordinator ziet de weigering');
 });
 
 test('rapport-ontvangen: technieker dedupt enkel op zijn eigen entry (zelfde ticket+datum als een collega komt erbij)', async () => {

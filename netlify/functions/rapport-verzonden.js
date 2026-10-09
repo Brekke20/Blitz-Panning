@@ -4,7 +4,7 @@
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
 import { beveiligV2 } from '../lib/beveiligd.js';
-import { isEigenNaam } from '../lib/eigen.js';
+import { isEigenRapport } from '../lib/eigen.js';
 
 export function maakHandler({ getStore: haalStore = getStore } = {}) {
   const kern = async (req, context, gebruiker) => {
@@ -29,7 +29,7 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
     const idx = current.rapports.findIndex(r => r.id === id);
     if (idx < 0) return new Response(JSON.stringify({ error: 'Rapport niet gevonden' }), { status: 404, headers });
     // Een technieker markeert enkel zijn eigen rapporten als verzonden.
-    if (gebruiker?.rol === 'technieker' && !isEigenNaam(gebruiker, current.rapports[idx].technieker)) {
+    if (gebruiker?.rol === 'technieker' && !isEigenRapport(gebruiker, current.rapports[idx])) {
       return new Response(JSON.stringify({ error: 'Je kan enkel je eigen rapporten bijwerken.', code: 'geen-recht' }), { status: 403, headers });
     }
 
