@@ -12,7 +12,7 @@ import { localISO, fmtDateShort } from '../kern/tijd.js';
 import { planWeek } from '../planner.js';
 import { isVast } from '../sales/lead-regels.js';
 import { bouwPlanInvoer, verwerkUitkomst, maakReistijdenAdapter } from '../sales/planner-adapter.js';
-import { salesToestand, gekozenDatum, wijzig, laadInstellingen } from './sales-data.js';
+import { salesToestand, gekozenDatum, wijzig, laadInstellingen, instellingenGeladenVoor } from './sales-data.js';
 import { getoondeVerkoper, schrijfbaarNu } from './sales-verkoper.js';
 import { huidigeGebruiker } from '../kern/sessie.js';
 import { openSalesVenster } from './sales-venster.js';
@@ -22,6 +22,7 @@ import { el, sectie } from './sales-dom.js';
 
 const GEEN_START = 'Geen startlocatie ingesteld: de ritten starten bij het eerste bezoek. Stel je startadres in via ⚙ Instellingen.';
 const START_NIET_GEVONDEN = 'De startlocatie kon niet opgezocht worden: de ritten starten bij het eerste bezoek. Controleer je startadres via ⚙ Instellingen.';
+const INSTELLINGEN_PLAN_FOUT = 'De instellingen van deze verkoper konden niet geladen worden: er is niet gepland. Probeer het opnieuw.';
 const CONFLICT = 'Planning niet bewaard: de gegevens waren intussen gewijzigd. Plan opnieuw.';
 
 let bezig = false;
@@ -78,7 +79,9 @@ export async function planDezeWeek({ maandweergave = false } = {}) {
   try {
     const verkoper = getoondeVerkoper();
     const gebruikerId = verkoper.id && verkoper.id !== huidigeGebruiker()?.id ? verkoper.id : undefined; // zoals de schil: het eigen blob heeft geen ?gebruiker=
-    await laadInstellingen({ gebruikerId }); // een mislukte lading houdt de huidige (of standaard)instellingen
+    await laadInstellingen({ gebruikerId });
+    // Eindreview I1: nooit plannen met de instellingen van een andere verkoper of met standaarden als de lading van deze verkoper mislukte.
+    if (!instellingenGeladenVoor(gebruikerId)) return toast(INSTELLINGEN_PLAN_FOUT, 6000);
     const stand = salesToestand();
     const inst = stand.instellingen;
 

@@ -154,6 +154,36 @@ test.describe('sales: instellingenvenster', () => {
     });
   }
 
+  // Eindreview I1: een mislukte lading mag nooit tot een formulier met standaarden (en dus een overschreven serverobject) leiden.
+  test('I1: de instellingen laden niet (503): melding i.p.v. formulier, geen Bewaren en geen PUT; "Opnieuw proberen" opent daarna het echte formulier en PUT behoudt de onbekende velden', async ({ page, verzoeken, consoleFouten }) => {
+    const bewaard = { kaartStijl: 'donker', werkdagen: [1, 2, 3], startlocatie: 'Dorpsstraat 12, 3640 Kinrooi', vanTijd: '09:00', totTijd: '15:00', maxPerDag: 4, maxReistijdMin: 50 };
+    const echte = salesStubs({ leads: [lead('l1', 'Verhaegen')], instellingen: bewaard });
+    let stuk = true;
+    const instellingen = async (z) => (z.methode === 'GET' && stuk ? { status: 503, json: { error: OPSLAG_TEKST, code: 'opslag-storing' } } : echte.instellingen(z));
+    await startSalesApp(page, { leads: [lead('l1', 'Verhaegen')], instellingen: bewaard, overschrijf: { instellingen } });
+    await knop(page).click();
+    await expect(venster(page).locator('.sales-venster-fout')).toContainText('konden niet geladen worden');
+    await expect(venster(page).getByRole('button', { name: 'Bewaren' })).toHaveCount(0);
+    await expect(venster(page).getByLabel('Startadres')).toHaveCount(0);
+    // Opnieuw proberen terwijl het nog stuk is: de melding blijft, er is niets bewaard.
+    await venster(page).getByRole('button', { name: 'Opnieuw proberen' }).click();
+    await expect(venster(page).locator('.sales-venster-fout')).toContainText('konden niet geladen worden');
+    expect(verzoeken.van('/api/instellingen', 'PUT')).toEqual([]);
+    // Hersteld: opnieuw proberen opent het formulier met de ECHTE waarden (niet 08:00-17:00).
+    stuk = false;
+    await venster(page).getByRole('button', { name: 'Opnieuw proberen' }).click();
+    await expect(venster(page).getByLabel('Werkuren van')).toHaveValue('09:00');
+    await expect(venster(page).getByLabel('Werkuren tot')).toHaveValue('15:00');
+    await expect(venster(page).getByLabel('Startadres')).toHaveValue('Dorpsstraat 12, 3640 Kinrooi');
+    await vul(page, { duur: '45' });
+    await venster(page).getByRole('button', { name: 'Bewaren' }).click();
+    await expect(venster(page)).toHaveCount(0);
+    const puts = verzoeken.van('/api/instellingen', 'PUT');
+    expect(puts).toHaveLength(1);
+    expect(puts[0].body.instellingen).toMatchObject({ kaartStijl: 'donker', werkdagen: [1, 2, 3], maxPerDag: 4, maxReistijdMin: 50, vanTijd: '09:00', totTijd: '15:00', bezoekDuurMin: 45 });
+    await verwachtFout(consoleFouten, '/api/instellingen', 503);
+  });
+
   test('dubbelklik op Bewaren: precies één PUT', async ({ page, verzoeken }) => {
     const echte = salesStubs({ leads: [lead('l1', 'Verhaegen')] });
     const instellingen = async (z) => {

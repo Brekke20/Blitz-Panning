@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.mjs';
-import { startSalesApp, salesStubs, verwachtFout, SALES_GEBRUIKER } from './sales-hulp.mjs';
+import { startSalesApp, salesStubs, verwachtFout, BEHEERDER, SALES_GEBRUIKER } from './sales-hulp.mjs';
 
 // "Plan deze week" voor de verkoper (Task 17). Klok: maandag 5 okt 2026 09:00. Geen TomTom, geen Zoho: testmodus rekent reistijden met
 // haversine x 1,3 zonder netwerkaanroep. Alle namen zijn verzonnen.
@@ -185,6 +185,28 @@ test.describe('sales: Plan deze week', () => {
     for (const kolom of await kal(page).locator('.day-col[data-date]').all()) {
       for (const [b, e] of await bezoekTijden(kolom)) { expect(b).toBeGreaterThanOrEqual(8 * 60); expect(b).toBeLessThanOrEqual(16 * 60); expect(e).toBeLessThanOrEqual(17 * 60 + 60); }
     }
+  });
+
+  test('I1: de beheerder wisselt van verkoper en de instellingen van de nieuwe laden niet: Plan deze week plant niet met die van de vorige', async ({ page, verzoeken, consoleFouten }) => {
+    const bea = { versie: 1, leads: achtLeads().slice(0, 2), blokken: [], grafstenen: [] };
+    const carl = { versie: 1, leads: achtLeads().slice(2, 4), blokken: [], grafstenen: [] };
+    const blobs = {
+      'sales/u-bea': bea, 'sales/u-carl': carl,
+      instellingen: { versie: 1, perGebruiker: { 'u-bea': { startlocatie: 'Hasselt', vanTijd: '10:00', werkdagen: [1] }, 'u-carl': { vanTijd: '08:00' } } },
+    };
+    const echte = salesStubs({ gebruiker: BEHEERDER, blobs });
+    const instellingen = async (z) => (z.query?.get('gebruiker') === 'u-carl' ? { status: 503, json: { error: 'Opslag stuk', code: 'opslag-storing' } } : echte.instellingen(z));
+    await startSalesApp(page, { gebruiker: BEHEERDER, blobs, overschrijf: { instellingen } });
+    await tab(page, 'Sales').click();
+    await page.getByRole('tablist', { name: 'Sales-onderdelen' }).getByRole('tab', { name: 'Kalender' }).click();
+    await expect(kal(page).getByLabel('Verkoper')).toHaveValue('u-bea');
+    await kal(page).getByLabel('Verkoper').selectOption('u-carl');
+    await expect(kal(page).locator('.day-col[data-date]').first()).toBeVisible();
+    await plan(page).click();
+    await expect(toast(page)).toContainText('instellingen van deze verkoper konden niet geladen worden');
+    expect(verzoeken.van('/api/sales', 'PATCH')).toEqual([]);
+    await expect(venster(page)).toHaveCount(0);
+    await verwachtFout(consoleFouten, '/api/instellingen', 503);
   });
 
   test('geen te plannen leads: toast "Geen leads om in te plannen" en geen PATCH', async ({ page, verzoeken }) => {

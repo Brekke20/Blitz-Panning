@@ -29,7 +29,9 @@ const ISO_DATUM = /^\d{4}-\d{2}-\d{2}$/;
 
 const nieuweToestand = () => ({
   gebruikerId: null, versie: 0, leads: [], blokken: [],
-  instellingenRuw: {}, instellingen: voegSamen({}),
+  // instellingenGeladen: de instellingen hieronder komen echt van de server, voor het doel `instellingenDoel` (gebruikerId of null = eigen).
+  // Zonder die vlag zijn het enkel standaarden (nooit bewaren) en mag "Plan deze week" ze niet gebruiken (eindreview I1).
+  instellingenRuw: {}, instellingen: voegSamen({}), instellingenGeladen: false, instellingenDoel: null,
   gekozenDatum: localISO(new Date()), uitgesteld: new Set(),
 });
 let staat = nieuweToestand();
@@ -81,10 +83,24 @@ function neemOver(d) {
   staat.blokken = d.blokken;
 }
 
-function zetInstellingen(ruw) {
+function zetInstellingen(ruw, doelId = null) {
   const o = ruw && typeof ruw === 'object' && !Array.isArray(ruw) ? ruw : {};
   staat.instellingenRuw = o;
   staat.instellingen = voegSamen(o);
+  staat.instellingenGeladen = true;
+  staat.instellingenDoel = doelId || null;
+}
+// Instellingen van een ander doel (of een mislukte lading) mogen nooit blijven staan: terug op de standaarden, niet geladen.
+function wisInstellingen() {
+  staat.instellingenRuw = {};
+  staat.instellingen = voegSamen({});
+  staat.instellingenGeladen = false;
+  staat.instellingenDoel = null;
+}
+
+/** Staan er echt van de server geladen instellingen voor deze verkoper (gebruikerId; leeg = eigen)? Zo niet: niet bewaren en niet plannen. */
+export function instellingenGeladenVoor(gebruikerId) {
+  return staat.instellingenGeladen && staat.instellingenDoel === (gebruikerId || null);
 }
 
 // ---- lezen ----
@@ -96,17 +112,31 @@ export async function laadSales({ gebruikerId } = {}) {
   if (!r.ok) return isOpslag(r) ? { ok: false, status: r.status, opslag: true } : { ok: false, status: r.status };
   if (!isBlob(r.data)) return { ok: false, status: r.status };
   doel = gebruikerId || null;
+  if (staat.instellingenGeladen && staat.instellingenDoel !== doel) wisInstellingen(); // een andere verkoper: de vorige instellingen gelden niet
   neemOver(r.data);
   meld();
   return { ok: true, status: r.status, open: r.data.open };
 }
 
+// Een mislukte lading wist geladen instellingen van een ANDER doel (nooit die van de vorige verkoper gebruiken); instellingen van hetzelfde doel
+// blijven staan (ze zijn enkel mogelijk verouderd).
+function mislukt(wie, status, opslag) {
+  if (staat.instellingenDoel !== wie) wisInstellingen();
+  meld();
+  return opslag ? { ok: false, status, opslag: true } : { ok: false, status };
+}
+
 export async function laadInstellingen({ gebruikerId } = {}) {
+  const wie = gebruikerId || null;
   let r;
   try { r = await apiVerzoek('/api/instellingen' + query(gebruikerQuery(gebruikerId))); }
-  catch { return { ok: false, status: 0 }; }
-  if (!r.ok) return isOpslag(r) ? { ok: false, status: r.status, opslag: true } : { ok: false, status: r.status };
-  zetInstellingen(r.data?.instellingen);
+  catch { return mislukt(wie, 0); }
+  if (!r.ok) return mislukt(wie, r.status, isOpslag(r));
+  // Een onleesbaar antwoord (geen object, of instellingen die geen object/null zijn) is geen bruikbare lading: anders zouden standaarden voor
+  // de bewaarde waarden doorgaan. `instellingen: null` is wel geldig: er zijn nog geen instellingen bewaard.
+  const ins = r.data?.instellingen;
+  if (r.data === null || typeof r.data !== 'object' || (ins != null && (typeof ins !== 'object' || Array.isArray(ins)))) return mislukt(wie, r.status);
+  zetInstellingen(ins, wie);
   meld();
   return { ok: true, status: r.status };
 }
@@ -119,7 +149,7 @@ export async function bewaarInstellingen(instellingen /* volledig object */) {
   try { r = await apiVerzoek('/api/instellingen', { methode: 'PUT', body: { instellingen } }); }
   catch { return { ok: false, reden: 'netwerk' }; }
   if (!r.ok) return fout(r);
-  zetInstellingen(r.data?.instellingen && typeof r.data.instellingen === 'object' ? r.data.instellingen : instellingen);
+  zetInstellingen(r.data?.instellingen && typeof r.data.instellingen === 'object' ? r.data.instellingen : instellingen, null);
   meld();
   return { ok: true };
 }

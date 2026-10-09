@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { zetFetch } from '../public/js/kern/api.js';
 import {
   salesToestand, onSalesWijziging, laadSales, laadInstellingen, bewaarInstellingen, wijzig, importeer,
-  verwijderMetOngedaan, spoelUitgesteld, gekozenDatum, zetGekozenDatum, SALES_STANDAARD, resetSales,
+  verwijderMetOngedaan, spoelUitgesteld, gekozenDatum, zetGekozenDatum, SALES_STANDAARD, resetSales, instellingenGeladenVoor,
 } from '../public/js/schermen/sales-data.js';
 
 // Nep-fetch: antwoorden in volgorde (Error => netwerkfout); onthoudt de aanroepen.
@@ -533,7 +533,8 @@ test('een null-body bij 200 gooit nooit en wist niets', async () => {
   await laadSales();
   assert.deepEqual(await laadSales(), { ok: false, status: 200 });
   assert.equal((await wijzig({ aanvullen: true })).ok, false);
-  assert.equal((await laadInstellingen()).ok, true);
+  assert.equal((await laadInstellingen()).ok, false); // geen bruikbare lading: geen geladen instellingen
+  assert.equal(salesToestand().instellingenGeladen, false);
   assert.equal((await importeer({})).ok, true); // import zelf slaagde; de herlaad (null) niet
   assert.equal(salesToestand().versie, 2);
   assert.equal(salesToestand().leads.length, 1);
@@ -630,4 +631,61 @@ test('vulLocatiesAan: stopt zonder vooruitgang, bij een fout en na het maximum a
   assert.equal(f.aanroepen.length, 4);
   assert.equal(await vulLocatiesAan(0), 0); // niets te doen: geen verzoek
   assert.equal(f.aanroepen.length, 4);
+});
+
+// ---- eindreview I1: instellingen nooit als geladen beschouwen zonder serverlading, nooit die van een andere verkoper ----
+
+test('I1: instellingenGeladenVoor: pas na een geslaagde lading, voor precies dat doel', async () => {
+  assert.equal(instellingenGeladenVoor(), false);
+  zetFetch(nepFetch({ status: 200, json: { versie: 1, instellingen: { vanTijd: '09:00' } } }));
+  await laadInstellingen();
+  assert.equal(instellingenGeladenVoor(), true);
+  assert.equal(instellingenGeladenVoor('u-7'), false);
+  zetFetch(nepFetch({ status: 200, json: { versie: 1, instellingen: null } }));
+  await laadInstellingen({ gebruikerId: 'u-7' });
+  assert.equal(instellingenGeladenVoor('u-7'), true);
+  assert.equal(instellingenGeladenVoor(), false);
+});
+
+test('I1: een mislukte lading (503/500/netwerk/onleesbaar) zonder eerdere lading: niet geladen, standaarden', async () => {
+  zetFetch(nepFetch(STORING, { status: 500 }, new TypeError('offline'), { status: 200, json: { instellingen: [1] } }, { status: 200, json: null }));
+  for (let i = 0; i < 5; i++) assert.equal((await laadInstellingen()).ok, false);
+  assert.equal(instellingenGeladenVoor(), false);
+  assert.deepEqual(salesToestand().instellingen, SALES_STANDAARD);
+  assert.deepEqual(salesToestand().instellingenRuw, {});
+});
+
+test('I1: een mislukte lading voor een ANDERE verkoper wist de instellingen van de vorige (nooit A\'s instellingen bij B)', async () => {
+  zetFetch(nepFetch({ status: 200, json: { versie: 1, instellingen: { vanTijd: '10:00', startlocatie: 'Hasselt', werkdagen: [1, 2] } } }, { status: 503, json: STORING.json }));
+  await laadInstellingen({ gebruikerId: 'u-A' });
+  assert.equal(salesToestand().instellingen.startlocatie, 'Hasselt');
+  assert.equal((await laadInstellingen({ gebruikerId: 'u-B' })).ok, false);
+  assert.equal(instellingenGeladenVoor('u-A'), false);
+  assert.equal(instellingenGeladenVoor('u-B'), false);
+  assert.deepEqual(salesToestand().instellingen, SALES_STANDAARD);
+  assert.deepEqual(salesToestand().instellingenRuw, {});
+});
+
+test('I1: een mislukte HERlading voor hetzelfde doel houdt de eerder geladen instellingen (enkel mogelijk verouderd)', async () => {
+  zetFetch(nepFetch({ status: 200, json: { versie: 1, instellingen: { vanTijd: '10:00' } } }, { status: 500 }));
+  await laadInstellingen();
+  assert.equal((await laadInstellingen()).ok, false);
+  assert.equal(instellingenGeladenVoor(), true);
+  assert.equal(salesToestand().instellingen.vanTijd, '10:00');
+});
+
+test('I1: laadSales van een andere verkoper wist geladen instellingen van de vorige; van hetzelfde doel niet', async () => {
+  zetFetch(nepFetch({ status: 200, json: { versie: 1, instellingen: { vanTijd: '10:00' } } }, { status: 200, json: blob(1, [], [], { gebruikerId: 'u-A' }) }, { status: 200, json: blob(1, [], [], { gebruikerId: 'u-B' }) }));
+  await laadInstellingen({ gebruikerId: 'u-A' });
+  await laadSales({ gebruikerId: 'u-A' });
+  assert.equal(instellingenGeladenVoor('u-A'), true);
+  await laadSales({ gebruikerId: 'u-B' });
+  assert.equal(instellingenGeladenVoor('u-A'), false);
+  assert.deepEqual(salesToestand().instellingen, SALES_STANDAARD);
+});
+
+test('I1: bewaarInstellingen zet de instellingen als geladen voor de eigen verkoper', async () => {
+  zetFetch(nepFetch({ status: 200, json: { versie: 5 } }));
+  assert.equal((await bewaarInstellingen({ vanTijd: '07:30' })).ok, true);
+  assert.equal(instellingenGeladenVoor(), true);
 });

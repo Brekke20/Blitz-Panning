@@ -4,21 +4,42 @@
 // Een gewijzigd startadres wist niets in de leads: "Plan deze week" geocodeert het nieuwe adres bij de volgende planning.
 // Alle invoer gaat via .value/textContent (sales-dom.js).
 import { toast } from '../kern/ui.js';
-import { salesToestand, bewaarInstellingen, laadInstellingen } from './sales-data.js';
+import { salesToestand, bewaarInstellingen, laadInstellingen, instellingenGeladenVoor } from './sales-data.js';
 import { kanImporteren } from './sales-verkoper.js';
 import { openSalesVenster } from './sales-venster.js';
 import { formulierWaarden, valideerSalesInstellingen, bouwBewaardObject } from './sales-instellingen-logica.js';
 import { foutTekst } from './sales-tekst.js';
 import { el, veld } from './sales-dom.js';
 
+export const INSTELLINGEN_NIET_GELADEN = 'Je instellingen konden niet geladen worden, dus je kunt ze nu niet wijzigen. Probeer het opnieuw.';
+
 /** Opent het venster. -> { sluit() } of null als dit niet de eigen leads van de verkoper zijn (beheerder, weergave van een collega). */
 export function openSalesInstellingen() {
   if (!kanImporteren()) return null;
+  const geladen = instellingenGeladenVoor(); // eigen instellingen (de knop bestaat enkel bij de eigen leads)
   const w = formulierWaarden(salesToestand().instellingen);
 
   return openSalesVenster({
     titel: 'Instellingen',
     bouw(body, sluit) {
+      // Eindreview I1: zijn de instellingen niet van de server geladen, dan tonen we geen formulier met standaarden (bewaren zou de echte
+      // instellingen overschrijven) maar een melding met "Opnieuw proberen" (laadt opnieuw en opent dan het venster) en Sluiten.
+      if (!geladen) {
+        const opnieuw = el('button', { type: 'button', class: 'btn btn--primary sales-instellingen-opnieuw', text: 'Opnieuw proberen' });
+        const dicht = el('button', { type: 'button', class: 'btn btn--secondary', text: 'Sluiten' });
+        dicht.addEventListener('click', () => sluit());
+        opnieuw.addEventListener('click', async () => {
+          opnieuw.disabled = true;
+          const r = await laadInstellingen();
+          if (r.ok) { sluit(); openSalesInstellingen(); return; }
+          opnieuw.disabled = false;
+          toonFoutTekst(INSTELLINGEN_NIET_GELADEN);
+        });
+        const melding = el('div', { class: 'sales-venster-fout', role: 'alert', text: INSTELLINGEN_NIET_GELADEN });
+        const toonFoutTekst = (tekst) => { melding.textContent = tekst; };
+        body.append(melding, el('div', { class: 'sales-acties' }, dicht, opnieuw));
+        return;
+      }
       const fout = el('div', { class: 'sales-venster-fout', role: 'alert', hidden: true });
       const toonFout = (tekst) => { fout.textContent = tekst || ''; fout.hidden = !tekst; };
 
@@ -43,6 +64,7 @@ export function openSalesInstellingen() {
         e.preventDefault();
         if (bezig) return;
         toonFout('');
+        if (!instellingenGeladenVoor()) { toonFout(INSTELLINGEN_NIET_GELADEN); return; } // nooit bewaren zonder de geladen serverinstellingen
         const ingevoerd = {
           startlocatie: startadres.invoer.value, vanTijd: van.invoer.value, totTijd: tot.invoer.value,
           laatsteStart: laatste.invoer.value, bezoekDuurMin: duur.invoer.value,
