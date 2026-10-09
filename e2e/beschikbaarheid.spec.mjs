@@ -157,25 +157,24 @@ test.describe('instellingen: tab Beschikbaarheden', () => {
     expect(await lijstTekst(modal)).toEqual([]);
   });
 
-  test('meerdaags aangevinkt zonder einddatum: HUIDIG GEDRAG (bug?) er wordt één enkele dag toegevoegd', async ({ page, verzoeken }) => {
+  test('meerdaags aangevinkt zonder einddatum: toast "⚠ Kies een einddatum, of vink "Meerdere werkdagen" uit", geen PUT', async ({ page, verzoeken }) => {
     await startApp(page);
     const modal = await openTab(page);
     await modal.locator('#bav-date').fill('2026-10-08');
     await modal.locator('#bav-multiday').check();
     await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
-    await expect(lijst(modal)).toHaveCount(1);
-    expect(await lijstTekst(modal)).toEqual(['8 okt 2026 · 🔒 Hele dag (Iedereen)']);
-    expect(puts(verzoeken)[0].body.exceptions.map(e => e.date)).toEqual(['2026-10-08']);
+    await expect(toastTekst(page)).toHaveText('⚠ Kies een einddatum, of vink "Meerdere werkdagen" uit');
+    expect(puts(verzoeken)).toEqual([]);
+    expect(await lijstTekst(modal)).toEqual([]);
   });
 
-  test('lege datum: HUIDIG GEDRAG (bug?) geen validatie, een blokkade met datum "" wordt bewaard (en niet getoond)', async ({ page, verzoeken }) => {
+  test('lege datum: toast "⚠ Kies een datum" en geen PUT', async ({ page, verzoeken }) => {
     await startApp(page);
     const modal = await openTab(page);
     await modal.locator('#bav-date').fill('');
     await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
-    await expect.poll(() => puts(verzoeken).length).toBe(1);
-    expect(puts(verzoeken)[0].body.exceptions.map(e => e.date)).toEqual(['']);
-    // Een verleden of lege datum valt buiten het filter `datum >= vandaag`: de lijst blijft leeg.
+    await expect(toastTekst(page)).toHaveText('⚠ Kies een datum');
+    expect(puts(verzoeken)).toEqual([]);
     expect(await lijstTekst(modal)).toEqual([]);
   });
 
@@ -389,11 +388,38 @@ test.describe('blokkeringsvenster vanuit de kalender: keuzeknoppen en datumvelde
     await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
     await expect.poll(() => puts(verzoeken).length).toBe(1);
     expect(puts(verzoeken)[0].body.exceptions.map(e => [e.date, e.kind, e.reason])).toEqual([['2026-10-13', 'fullday', 'Cursus'], ['2026-10-14', 'fullday', 'Cursus']]);
-    // HUIDIG GEDRAG (bug?): het datumveld wijzigt ook de dag die het venster toont (_avFormDate): de lijst toont nu 13 okt,
-    // terwijl de titel nog "dinsdag 6 oktober" zegt.
+    // B9: het veld "Van datum" wijzigt enkel het begin van de periode; het venster blijft de geopende dag tonen.
     await expect(modal.locator('#block-date-label')).toHaveText('dinsdag 6 oktober');
-    await expect(modal.locator('.av-item')).toHaveCount(1);
-    await expect(modal.locator('.av-item')).toContainText('🔒 Hele dag — Cursus (Iedereen)');
+    await expect(modal.locator('.av-item')).toHaveCount(0);
+    await expect(modal.getByText('Geen blokkeringen voor deze dag.')).toBeVisible();
+  });
+
+  test('Van datum leeg bij meerdere werkdagen: "⚠ Kies een datum"', async ({ page, verzoeken }) => {
+    const modal = await openBlok(page);
+    await modal.locator('#av-multiday').check();
+    await modal.locator('#av-date-van').fill('');
+    await modal.locator('#av-date-tot').fill('2026-10-14');
+    await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect(page.locator('#toast')).toHaveText('⚠ Kies een datum');
+    expect(puts(verzoeken)).toEqual([]);
+  });
+
+  test('meerdaags zonder Tot-datum: "⚠ Kies een einddatum, of vink "Meerdere werkdagen" uit"', async ({ page, verzoeken }) => {
+    const modal = await openBlok(page);
+    await modal.locator('#av-multiday').check();
+    await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect(page.locator('#toast')).toHaveText('⚠ Kies een einddatum, of vink "Meerdere werkdagen" uit');
+    expect(puts(verzoeken)).toEqual([]);
+  });
+
+  test('een enkele dag na het wijzigen van Van datum blijft op de geopende dag', async ({ page, verzoeken }) => {
+    const modal = await openBlok(page);
+    await modal.locator('#av-multiday').check();
+    await modal.locator('#av-date-van').fill('2026-10-13');
+    await modal.locator('#av-multiday').uncheck();
+    await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect.poll(() => puts(verzoeken).length).toBe(1);
+    expect(puts(verzoeken)[0].body.exceptions.map(e => e.date)).toEqual(['2026-10-06']);
   });
 
   test('weigeringen: eindtijd voor begintijd, einddatum voor begindatum en geen werkdagen', async ({ page, verzoeken }) => {
