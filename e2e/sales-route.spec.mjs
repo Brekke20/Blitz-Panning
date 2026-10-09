@@ -36,7 +36,7 @@ const metDepot = (page, adres = 'Depotstraat 1, 3500 Hasselt', lat = 50.93, lon 
 const DEPOT_INSTELLING = { startlocatie: 'Depotstraat 1, 3500 Hasselt', vanTijd: '08:00', totTijd: '17:00' };
 
 test.describe('sales: route en kaart', () => {
-  test('dag met 3 bezoeken: lijst op uur, kaart met 3 markers waarvan 1 "ongeveer", samenvatting, geen /api/route in testmodus', async ({ page, verzoeken }) => {
+  test('dag met 3 bezoeken: lijst op uur, kaart met 3 markers waarvan 1 "ongeveer", samenvatting; ook in testmodus de route van TomTom (stub), zoals de technieker', async ({ page, verzoeken }) => {
     await startSalesApp(page, { leads: DRIE() });
     await naarRoute(page);
     await expect(rijen(page)).toHaveCount(3);
@@ -52,10 +52,13 @@ test.describe('sales: route en kaart', () => {
     await expect(page.locator('#sales-kaart .sales-marker-ongeveer')).toHaveText('3');
     await expect(route(page).locator('.sales-route-samenvatting')).toContainText('3 bezoeken');
     await expect(route(page).locator('.sales-route-samenvatting')).toContainText('1 ongeveer');
-    // ritten tussen de bezoeken zijn geschat in testmodus; de toast meldt het
-    await expect(rijen(page).nth(1).locator('.sales-route-rit')).toContainText('rit ca.');
-    await expect(page.locator('#toast')).toContainText('Rit geschat');
-    expect(verzoeken.van('/api/route')).toEqual([]);
+    // ook in testmodus komen de ritten van /api/route (stub: 20 min, 20 km), niet geschat; zonder startadres zijn de wegpunten enkel de drie bezoeken
+    await expect(rijen(page).nth(1).locator('.sales-route-rit')).toHaveText('rit 20min · 20 km');
+    await expect(route(page).locator('.sales-route-samenvatting')).not.toContainText('geschat');
+    await expect(page.locator('#toast')).not.toContainText('Rit geschat');
+    const oproepen = verzoeken.van('/api/route', 'POST');
+    expect(oproepen).toHaveLength(1);
+    expect(oproepen[0].body.waypoints).toEqual([{ lat: 50.93, lon: 5.34 }, { lat: 50.97, lon: 5.45 }, { lat: 50.95, lon: 5.4 }]);
     expect(await handtekening(page)).toContain('l1@');
     // de wachtende lead (Teplannen) staat er niet bij
     await expect(route(page)).not.toContainText('Teplannen');
@@ -133,9 +136,10 @@ test.describe('sales: route en kaart', () => {
     await startSalesApp(page, { instellingen: DEPOT_INSTELLING, leads: [plan('l1', 'Claes', '11:00', { locatie: { lat: 51.22, lon: 4.4, bron: 'adres' } })] });
     await naarRoute(page);
     await expect(rijen(page)).toHaveCount(1);
-    await expect(rijen(page).first().locator('.sales-route-rit')).toContainText('rit ca.');
+    await expect(rijen(page).first().locator('.sales-route-rit')).toHaveText('rit 20min · 20 km');
     await expect(route(page).locator('.sales-route-waarschuwing')).toHaveCount(0);
-    await expect(route(page).locator('.sales-route-samenvatting')).toContainText('rijden (geschat)');
+    await expect(route(page).locator('.sales-route-samenvatting')).toContainText('20min rijden');
+    await expect(route(page).locator('.sales-route-samenvatting')).not.toContainText('geschat');
   });
 
   test('zonder startadres: geen vertrekrij, een melding en geen valse waarschuwing', async ({ page }) => {
@@ -169,7 +173,7 @@ test.describe('sales: route en kaart', () => {
     await expect(route(page).locator('.sales-route-ongeveer')).toHaveCount(0);
     await expect(page.locator('#sales-kaart .sales-marker-ongeveer')).toHaveCount(0);
     await expect(markers(page)).toHaveCount(3);
-    expect(verzoeken.van('/api/route')).toEqual([]);
+    expect(verzoeken.van('/api/route', 'POST').length).toBeGreaterThanOrEqual(2); // één keer vóór en één keer na het adres
   });
 
   test('een lead zonder locatie staat in de lijst maar niet op de kaart; de rit eromheen is onbekend (geen waarschuwing)', async ({ page }) => {

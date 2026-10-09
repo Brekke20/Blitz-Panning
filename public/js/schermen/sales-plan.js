@@ -4,7 +4,6 @@
 // Een vaste lead (bevestigd of vastgezet uur) is nooit kandidaat: de adapter zet hem als bestaand bezoek met uur in de planning,
 // dus het brein plant eromheen en verschuift hem nooit (ook niet buiten de werkuren of op een volle dag).
 import { toast } from '../kern/ui.js';
-import { TEST_MODE } from '../kern/omgeving.js';
 import { apiVerzoek } from '../kern/api.js';
 import { geocacheLookup, geocacheStore } from '../kern/opslag.js';
 import { getHolidayName } from '../kern/feestdagen.js';
@@ -26,11 +25,10 @@ const CONFLICT = 'Planning niet bewaard: de gegevens waren intussen gewijzigd. P
 
 let bezig = false;
 
-/** Het depot (lat/lon) van de startlocatie: eerst de geocode-cache, daarna (niet in testmodus) /api/optimize; anders null. */
+/** Het depot (lat/lon) van de startlocatie: eerst de geocode-cache, daarna /api/optimize (ook in testmodus, zoals de technieker); anders null. */
 async function bepaalDepot(startlocatie) {
   const hit = geocacheLookup(startlocatie);
   if (hit) return hit;
-  if (TEST_MODE) return null;
   try {
     // /api/optimize vraagt minstens één stop; de startlocatie zelf volstaat (locations[0] is het vertrekpunt).
     const r = await apiVerzoek('/api/optimize', { methode: 'POST', body: { origin: startlocatie, stops: [startlocatie] } });
@@ -89,7 +87,7 @@ export async function planDezeWeek({ maandweergave = false } = {}) {
     const leads = stand.leads;
     const { invoer, vrijgegeven } = bouwPlanInvoer({
       leads, blokken: stand.blokken, instellingen: inst, weekStart: localISO(weekStart), vandaag, depot,
-      reistijden: maakReistijdenAdapter({ apiVerzoek, testModus: TEST_MODE }), feestdag: getHolidayName,
+      reistijden: maakReistijdenAdapter({ apiVerzoek, testModus: false }), feestdag: getHolidayName,
     });
     if (!invoer.kandidaten.length) return toast('Geen leads om in te plannen');
 

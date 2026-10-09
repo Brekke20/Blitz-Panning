@@ -2,8 +2,8 @@
 // bezoek de rit vanaf het vorige, een waarschuwing als een bezoek het volgende niet haalt, de kaart (sales-kaart.js) en een samenvatting.
 // Werkt als gewone tab van de verkoper en als subtab van de beheerder (de view komt van startScherm). De dag is de gedeelde gekozen
 // datum van de Kalender (sales-data.js).
-// Ritten: POST /api/route (depot + bezoeken met locatie); in testmodus of bij een fout de geschatte ritten (haversine x 1,3 aan 50 km/u)
-// met de toast "Rit geschat". De route wordt opnieuw berekend zodra de handtekening (volgorde, leads, coordinaten, depot) verandert,
+// Ritten: POST /api/route (depot + bezoeken met locatie), ook in testmodus (zoals de technieker; de testmodus geeft de leads echte Limburgse
+// coordinaten); bij een fout de geschatte ritten (haversine x 1,3 aan 50 km/u) met de toast "Rit geschat". De route wordt opnieuw berekend zodra de handtekening (volgorde, leads, coordinaten, depot) verandert,
 // bv. nadat een adres van postcode naar volledig adres ging (melding "Route herberekend").
 // De kaart toont de route zoals bij de technieker: de TomTom-lijn met de drukte-kleuring (voor een toekomstige dag het verwachte verkeer per
 // wegvak via /api/drukte, daarna ingekleurd), wegenwerken, wegafsluitingen met waarschuwing, de legende en de vertraging in de samenvatting.
@@ -53,7 +53,7 @@ async function opPostcode(pc) {
 
 /**
  * Het depot voor een startadres: de geocache van het toestel, anders (live) TomTom via /api/optimize, anders het postcode-middelpunt.
- * `ongeveer` = enkel een postcode bekend. In testmodus nooit TomTom (enkel /api/postcode, dat dan nepcoordinaten geeft). -> { lat, lon, ongeveer } | null
+ * `ongeveer` = enkel een postcode bekend. Een enkele postcode: het middelpunt via /api/postcode (in testmodus niet in de geocache bewaard). -> { lat, lon, ongeveer } | null
  */
 export async function zoekDepot(startlocatie) {
   const tekst = String(startlocatie ?? '').trim();
@@ -62,7 +62,7 @@ export async function zoekDepot(startlocatie) {
   const enkelPostcode = ontleed.soort === 'postcode';
   const bewaard = geocacheLookup(tekst);
   if (bewaard) return { ...bewaard, ongeveer: enkelPostcode };
-  if (!enkelPostcode && !TEST_MODE) {
+  if (!enkelPostcode) {
     try {
       const r = await apiVerzoek('/api/optimize', { methode: 'POST', body: { origin: tekst, stops: [tekst] } });
       const punt = r.ok ? r.data?.locations?.[0] : null;
@@ -301,7 +301,7 @@ async function rekenRoute(inhoud, s, { sig, sleutel, stops, depot, datum, vanTij
   let resultaat;
   try {
     resultaat = await berekenRoute({
-      depot, stops, datum, vertrekMin: vanTijd ? timeStrToMin(vanTijd) : null, apiVerzoek, testModus: TEST_MODE,
+      depot, stops, datum, vertrekMin: vanTijd ? timeStrToMin(vanTijd) : null, apiVerzoek, testModus: false,
     });
   } catch (fout) {
     console.error('Sales-route berekenen mislukt:', fout);

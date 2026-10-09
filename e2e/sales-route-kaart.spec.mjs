@@ -3,8 +3,8 @@ import { startSalesApp, verwachtFout, BEHEERDER } from './sales-hulp.mjs';
 
 // De route van de verkoper met dezelfde kaart als de technieker (Brent, proefperiode): de TomTom-lijn in de routekleur met de drukte-kleuring
 // (per wegvak voor een toekomstige dag), wegenwerken, wegafsluiting met waarschuwing en de legende. Gemeten tegen de route-kaart-spec van de technieker
-// (e2e/route-kaart.spec.mjs). Buiten de testmodus (de pagina opnieuw laden zonder ?test), want in testmodus rekent de verkoper met geschatte ritten;
-// de stubs van /api/route en /api/drukte komen uit helpers.mjs. De dag is dinsdag 6 okt (vertrek 08:00 ligt na VASTE_NU, dus een toekomstig departAt).
+// (e2e/route-kaart.spec.mjs). Standaard buiten de testmodus (de pagina opnieuw laden zonder ?test); de testmodus doet hetzelfde (de klant keek in de demo
+// en wilde de kleurlijnen daar ook zien: laatste test). De stubs van /api/route en /api/drukte komen uit helpers.mjs, nooit echt TomTom. De dag is dinsdag 6 okt (vertrek 08:00 ligt na VASTE_NU, dus een toekomstig departAt).
 const DAG = '2026-10-06';
 const route = (page) => page.locator('#view-sales-route');
 const tab = (page, naam) => page.getByRole('tab', { name: naam, exact: true });
@@ -63,14 +63,15 @@ const routeMetDrukkeRitten = routeMet((json) => {
 const routeMetSection = (sec) => routeMet((json, body) => { if ((body?.waypoints ?? []).length >= 3) json.sections = [sec]; });
 
 /** Opent de Route-tab op dinsdag 6 okt (buiten de testmodus) en wacht op de route en, als dat gevraagd wordt, op het drukte-detail. */
-async function bouwRoute(page, { overschrijf, instellingen = INSTELLING, leads = LEADS(), metDrukte = true } = {}) {
+async function bouwRoute(page, { overschrijf, instellingen = INSTELLING, leads = LEADS(), metDrukte = true, testModus = false } = {}) {
   await page.addInitScript(({ adres }) => {
     if (window !== window.top) return;
     localStorage.setItem('blitz_geocache', JSON.stringify({ [adres.toLowerCase()]: { lat: 50.93, lon: 5.34, t: Date.now() } }));
   }, { adres: DEPOT });
   await startSalesApp(page, { instellingen, leads, overschrijf });
-  await page.goto('/'); // zonder ?test
+  if (!testModus) await page.goto('/'); // zonder ?test
   await expect(tab(page, 'Te plannen')).toBeVisible();
+  expect(await page.evaluate(() => new URLSearchParams(location.search).has('test'))).toBe(testModus);
   await tab(page, 'Route').click();
   await expect(route(page)).toHaveClass(/active/);
   const routeAntwoord = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/route');
@@ -221,16 +222,25 @@ test.describe('sales: kaart met drukte en wegenwerken (zoals de technieker)', ()
     expect(m.legende).toBeLessThan(m.kaart);
   });
 
-  test('in testmodus (geschatte ritten): een gestippelde rechte lijn in de routekleur, geen legende en geen /api/route of /api/drukte', async ({ page, verzoeken }) => {
-    await startSalesApp(page, { instellingen: INSTELLING, leads: LEADS() });
-    await tab(page, 'Route').click();
-    await route(page).getByRole('button', { name: 'Volgende dag' }).click();
-    await expect(rijen(page)).toHaveCount(2);
-    await expect(page.locator('#sales-kaart .leaflet-marker-icon')).toHaveCount(2);
+  test('in testmodus (?test) net zo: /api/route en /api/drukte worden aangeroepen en de kaart toont de kleurlijnen en de legende', async ({ page, verzoeken }) => {
+    await bouwRoute(page, { testModus: true, overschrijf: { route: routeMetDrukkeRitten } });
+    const kaart = await meetKaart(page);
+    expect(kaart.markers).toEqual(['1', '2']);
+    expect(metStroke(kaart, AMBER)).toBe(1);
+    expect(metStroke(kaart, ZWAAR)).toBe(2);
+    expect(kaart.paden.filter((p) => p.streep === '6 8')).toEqual([]); // geen gestippelde schatting
+    expect(kaart.legendes).toBe(1);
+    expect(verzoeken.van('/api/route', 'POST')).toHaveLength(1);
+    expect(verzoeken.van('/api/drukte', 'POST')).toHaveLength(1);
+    await expect(page.locator('#toast')).not.toContainText('Rit geschat');
+  });
+
+  test('als /api/route in testmodus mislukt: gestippelde rechte lijn in de routekleur, "Rit geschat", geen legende', async ({ page, consoleFouten }) => {
+    await bouwRoute(page, { testModus: true, metDrukte: false, overschrijf: { route: () => ({ status: 500, json: { error: 'TomTom stuk' } }) } });
+    await expect(page.locator('#toast')).toContainText('Rit geschat');
     await expect.poll(async () => (await meetKaart(page)).paden.filter((p) => p.stroke === AMBER && p.streep === '6 8').length).toBe(1);
     expect((await meetKaart(page)).legendes).toBe(0);
-    expect(verzoeken.van('/api/route')).toEqual([]);
-    expect(verzoeken.van('/api/drukte')).toEqual([]);
+    await verwachtFout(consoleFouten, '/api/route', 500);
   });
 });
 

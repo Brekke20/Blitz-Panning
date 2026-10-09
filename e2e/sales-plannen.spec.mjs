@@ -1,8 +1,8 @@
 import { test, expect } from './helpers.mjs';
 import { startSalesApp, salesStubs, verwachtFout, BEHEERDER, SALES_GEBRUIKER } from './sales-hulp.mjs';
 
-// "Plan deze week" voor de verkoper (Task 17). Klok: maandag 5 okt 2026 09:00. Geen TomTom, geen Zoho: testmodus rekent reistijden met
-// haversine x 1,3 zonder netwerkaanroep. Alle namen zijn verzonnen.
+// "Plan deze week" voor de verkoper (Task 17). Klok: maandag 5 okt 2026 09:00. Geen echte TomTom, geen Zoho: de stubs van helpers.mjs antwoorden (matrix overal 20 min). Zonder bestaande bezoeken of depot vraagt het brein geen reistijd; de
+// reistijd-tests staan onderaan (buiten de testmodus). Alle namen zijn verzonnen.
 const kal = (page) => page.locator('#view-sales-kalender');
 const dag = (page, iso) => kal(page).locator(`.day-col[data-date="${iso}"]`);
 const venster = (page) => page.locator('.sales-overlay.open');
@@ -36,7 +36,7 @@ const overlap = (lijst) => lijst.some(([b1, e1], i) => lijst.some(([b2, e2], j) 
 const toast = (page) => page.locator('#toast');
 
 test.describe('sales: Plan deze week', () => {
-  test('(a) 8 te-plannen leads worden voorgesteld: resultaatvenster, één PATCH, geen matrix/route/propose/optimize', async ({ page, verzoeken }) => {
+  test('(a) 8 te-plannen leads worden voorgesteld: resultaatvenster, één PATCH, geen route/propose/optimize (de matrix mag: reistijden via de stub)', async ({ page, verzoeken }) => {
     await startSalesApp(page, { leads: achtLeads(), blokken: [] });
     await naarKalender(page);
     await expect(kal(page).locator('.tl-block')).toHaveCount(0);
@@ -52,7 +52,7 @@ test.describe('sales: Plan deze week', () => {
     expect(patches).toHaveLength(1);
     expect(patches[0].body.leads).toHaveLength(8);
     for (const w of patches[0].body.leads) expect(w.velden).toMatchObject({ status: 'voorgesteld', planning: { vast: false } });
-    for (const pad of ['/api/matrix', '/api/route', '/api/propose', '/api/optimize', '/api/voorstel']) expect(verzoeken.van(pad), pad).toEqual([]);
+    for (const pad of ['/api/route', '/api/propose', '/api/optimize', '/api/voorstel']) expect(verzoeken.van(pad), pad).toEqual([]);
     // Geen lead blijft in Te plannen.
     await tab(page, 'Te plannen').click();
     await expect(page.locator('#view-sales-lijst .sales-kaart')).toHaveCount(8);
@@ -288,6 +288,15 @@ test.describe('sales: Plan deze week', () => {
 
 // Hetzelfde resultaatvenster als bij de technieker (Brent, proefperiode: de planning van de verkoper moet er hetzelfde uitzien en zich gedragen).
 test.describe('sales: resultaatvenster van Plan deze week (zelfde als technieker)', () => {
+  test('in testmodus (?test) vraagt het brein de reistijd ook via /api/matrix (stub), zoals de technieker', async ({ page, verzoeken }) => {
+    const leads = [bevestigd('b1', 'Bevest', '2026-10-05', '10:00', 0), lead('n1', 'Verstraete', 6)];
+    await startSalesApp(page, { leads, blokken: [], instellingen: { vanTijd: '08:00', totTijd: '17:00', werkdagen: [1] } });
+    await naarKalender(page);
+    await plan(page).click();
+    await expect(resultaat(page).getByText('Ingepland (1)', { exact: true })).toBeVisible();
+    expect(verzoeken.van('/api/matrix', 'POST').length).toBeGreaterThanOrEqual(1);
+  });
+
   test('titel, ✕ en Escape sluiten; secties Ingepland en Niet ingepland met het bolletje en de reden eronder', async ({ page }) => {
     const leads = [...achtLeads().slice(0, 2), lead('m1', 'Molenaar', 0, { postcode: null, gemeente: null, adresTekst: 'bij de molen', locatie: null })];
     await startSalesApp(page, { leads, blokken: [] });
