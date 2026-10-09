@@ -53,7 +53,7 @@ export function werktijdMinuten(rd) {
 
 // Plaatshouders die technieker of Zoho in het serienummerveld zetten ("nvt", "n.v.t.", "-", "0", "?", "onbekend", ...) zijn geen
 // serienummer: als sleutel zouden alle bezoeken ermee als herhaalbezoek van elkaar tellen. Hier wordt het ''; de herhaalcheck valt dan terug op het adres.
-const PLAATSHOUDERS = new Set(['NVT', 'NA', 'ONBEKEND', 'GEEN', 'NIETBEKEND', 'NIETVANTOEPASSING', 'UNKNOWN', 'NONE']);
+const PLAATSHOUDERS = new Set(['NVT', 'NA', 'ONBEKEND', 'GEEN', 'NIETBEKEND', 'NIETVANTOEPASSING', 'UNKNOWN', 'NONE', 'X', 'XX', 'TBD', 'NB']);
 export function normaliseerSerienummer(s) {
   const n = tekst(s).toUpperCase().replace(/\s+/g, '');
   const kern = n.replace(/[^A-Z0-9]/g, '');

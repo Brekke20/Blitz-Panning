@@ -145,7 +145,7 @@ test('normaliseerSerienummer en normaliseerAdres', () => {
   assert.equal(normaliseerSerienummer(' charx-12 34 '), 'CHARX-1234');
   assert.equal(normaliseerSerienummer(''), '');
   assert.equal(normaliseerSerienummer(null), '');
-  for (const plaats of ['nvt', 'N.V.T.', 'n/a', '-', '--', '0', '000', '?', 'Onbekend', ' geen ', 'N.A.']) assert.equal(normaliseerSerienummer(plaats), '', plaats);
+  for (const plaats of ['nvt', 'N.V.T.', 'n/a', '-', '--', '0', '000', '?', 'Onbekend', ' geen ', 'N.A.', 'x', 'XX', 'tbd', 'TBD', 'nb', 'n.b.', '/', ' / ']) assert.equal(normaliseerSerienummer(plaats), '', plaats);
   assert.equal(normaliseerSerienummer('CHARX-0'), 'CHARX-0', 'een echt serienummer met een nul blijft');
   assert.equal(normaliseerAdres('Antwerpseweg 50, 2440 Geel'), 'antwerpseweg502440geel');
   assert.equal(normaliseerAdres('Geel'), '');

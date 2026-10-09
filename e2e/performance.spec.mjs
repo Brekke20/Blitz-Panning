@@ -164,6 +164,38 @@ test.describe('Performance: datum intypen (eindreview I2)', () => {
     expect(queries).toHaveLength(2);
     expect(verzoeken.van('/api/dashboard', 'GET')).toHaveLength(2);
   });
+
+  test('een leeggemaakt datumveld toont weer de geldende datum, zonder verzoek (re-review N2)', async ({ page, verzoeken }) => {
+    await openPerformance(page);
+    const van = page.locator('.dash-filters input[type="date"][data-arg="van"]');
+    await expect(van).toHaveValue('2026-10-01');
+    await van.fill('');
+    await van.blur(); // het herstel gebeurt bij het verlaten van het veld, niet tijdens het typen
+    await expect(van).toHaveValue('2026-10-01');
+    await page.waitForTimeout(300);
+    expect(verzoeken.van('/api/dashboard', 'GET')).toHaveLength(1);
+  });
+
+  test('een ongeldige periode (van na tot) laat een nog onderweg zijnd antwoord niet meer verschijnen (re-review N3)', async ({ page }) => {
+    const queries = [];
+    await openPerformance(page, {
+      dashboard: async ({ query }) => {
+        queries.push(query.toString());
+        const trage = query.get('van') === '2026-09-01';
+        if (trage) await new Promise((r) => setTimeout(r, 1200));
+        return json(200, dashboardData((d) => { if (trage) d.kern.huidig.interventies = { n: 3 }; }));
+      },
+    });
+    await expect(tegel(page, 'interventies').locator('.tegel-waarde')).toHaveText('10');
+    await page.locator('.dash-filters input[type="date"][data-arg="van"]').fill('2026-09-01'); // geldig: trage respons onderweg
+    await expect.poll(() => queries.length).toBe(2);
+    await page.locator('.dash-filters input[type="date"][data-arg="tot"]').fill('2026-08-01'); // nu van > tot
+    await expect(page.locator('.dash-melding')).toContainText('Kies een geldige periode');
+    await page.waitForTimeout(1800); // de trage respons is intussen binnen
+    await expect(tegel(page, 'interventies').locator('.tegel-waarde')).toHaveText('10');
+    await expect(page.locator('.dash-melding')).toContainText('Kies een geldige periode');
+    expect(queries).toHaveLength(2);
+  });
 });
 
 test.describe('Performance: licht thema', () => {

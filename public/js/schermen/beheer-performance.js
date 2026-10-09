@@ -173,11 +173,14 @@ async function render(container) {
       if (!veld) return;
       if (veld === 'van' || veld === 'tot') {
         // Een onvolledige of onzinnige datum (bv. 0002-10-01 tijdens het intypen) laat het filter ongemoeid: geen verzoek, geen hertekening.
+        if (el.value === '') return; // onvolledig of leeggemaakt: tijdens het typen laten staan; bij het verlaten van het veld herstelt `focusout` de geldende datum
         if (!isGeldigeFilterDatum(el.value)) return;
         if (el.value === t.filters[veld] && t.data) return; // dezelfde datum (bv. tussentijds teruggetypt): niets veranderd, geen verzoek
         t.filters = { ...t.filters, [veld]: el.value, preset: 'zelf' };
         werkPresetsBij();
         if (!isGeldigeFilterDatum(t.filters.van) || !isGeldigeFilterDatum(t.filters.tot) || t.filters.van > t.filters.tot) { // wacht op een geldige periode
+          t.volgnummer++; // een nog onderweg zijnd antwoord van de vorige periode mag niet meer getoond worden
+          inhoud.removeAttribute('aria-busy');
           toonMelding('Kies een geldige periode: de begindatum mag niet na de einddatum liggen.');
           return;
         }
@@ -188,6 +191,14 @@ async function render(container) {
       tekenFilters();
       laadDashboard();
     },
+  });
+
+  // Een leeggebleven datumveld toont weer de geldende datum zodra het de focus verliest (zo blijft het intypen ongemoeid en doet het veld nooit stil niets).
+  wortel.addEventListener('focusout', (e) => {
+    const el = e.target;
+    if (el?.matches?.('input[data-wijzig="dashboard-filter"][data-arg="van"], input[data-wijzig="dashboard-filter"][data-arg="tot"]') && el.value === '') {
+      el.value = t.filters[el.dataset.arg] ?? '';
+    }
   });
 
   let bezig = false;

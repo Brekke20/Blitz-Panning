@@ -197,7 +197,7 @@ test('Klant: annulatie-tegel toont het aantal van de periode ook als de vorige p
   for (const [aantal, vanaf] of [[3, '2026-10-15'], [0, '2026-10-15'], [12, '2026-01-20']]) {
     const d = structuredClone(data);
     d.klant.annulaties = { aantal, vorige: 0, beschikbaar: false, vanaf };
-    const h = renderKlant(d, ctx);
+    const h = renderKlant(d, { ...ctx, filters: { van: '2026-10-20', tot: '2026-10-31' } }); // de gekozen periode ligt volledig binnen het log
     const tegel = h.slice(h.indexOf('tegel--annulaties'), h.indexOf('</article>', h.indexOf('tegel--annulaties')));
     assert.ok(tegel.includes(`<span class="tegel-waarde">${aantal}</span>`), `aantal ${aantal} zichtbaar`);
     assert.ok(!tegel.includes('geen gegevens</span>'), 'geen "geen gegevens"');
@@ -208,8 +208,26 @@ test('Klant: annulatie-tegel toont het aantal van de periode ook als de vorige p
   }
   const d = structuredClone(data);
   d.klant.annulaties = { aantal: 3, vorige: 2, beschikbaar: true, vanaf: '2026-01-20' };
-  const h = renderKlant(d, ctx);
+  const h = renderKlant(d, { ...ctx, filters: { van: '2026-02-01', tot: '2026-02-28' } });
   assert.ok(h.includes('vorige periode: 2') && !h.includes('geen vergelijking'));
+});
+
+test('Klant: annulatie-tegel kijkt naar de gekozen periode: vóór het log "geen gegevens", deels ervoor "minstens", gedekt gewoon (N1)', () => {
+  const tegelVan = (filters, aantal = 0) => {
+    const d = structuredClone(data);
+    d.klant.annulaties = { aantal, vorige: 0, beschikbaar: false, vanaf: '2026-10-20' };
+    const h = renderKlant(d, { ...ctx, filters });
+    return h.slice(h.indexOf('tegel--annulaties'), h.indexOf('</article>', h.indexOf('tegel--annulaties')));
+  };
+  const voor = tegelVan({ van: '2026-09-01', tot: '2026-09-30' });
+  assert.ok(voor.includes('geen gegevens</span>') && !voor.includes('>0<') && !voor.includes('minstens'), 'periode volledig vóór het log');
+  assert.ok(voor.includes('20/10'), 'zegt wanneer het log start');
+  const deels = tegelVan({ van: '2026-10-01', tot: '2026-10-31' }, 3);
+  assert.ok(deels.includes('<span class="tegel-waarde">minstens 3</span>') && deels.includes('Geteld sinds 20/10'), 'periode begint vóór het log');
+  const gedekt = tegelVan({ van: '2026-10-20', tot: '2026-10-31' }, 3);
+  assert.ok(gedekt.includes('<span class="tegel-waarde">3</span>') && !gedekt.includes('minstens') && !gedekt.includes('geen gegevens'), 'volledig gedekt (van gelijk aan vanaf)');
+  const einde = tegelVan({ van: '2026-10-01', tot: '2026-10-20' }, 1);
+  assert.ok(einde.includes('minstens 1'), 'tot gelijk aan vanaf telt nog als (deels) gedekt');
 });
 
 test('Sales: kolommen per verkoper per week, donut met vier legenderijen en totaal in het midden, wachtende leads', () => {

@@ -28,12 +28,19 @@ function knopKaart(b, grenzen) {
 }
 
 // Eigen tegel (met kop) in een kaart zonder tweede kop; "sinds …" want het log start pas bij de livegang van de logins.
-// `beschikbaar` gaat enkel over de vergelijking met de vorige periode; het aantal van de gekozen periode telt zodra het log bekend is (`vanaf`).
-function annulatieKaart(a) {
+// `beschikbaar` gaat enkel over de vergelijking met de vorige periode. Het aantal van de gekozen periode telt enkel waar het log reikt (`vanaf`):
+// ligt de periode helemaal vóór het log, dan is er niets te tellen ("geen gegevens"); begint ze ervóór, dan is het aantal een ondergrens ("minstens").
+export function annulatieKaart(a, filters) {
   if (!a) return '';
-  const heeft = !!a.vanaf && isGetal(a.aantal);
-  const waarde = heeft ? `<span class="tegel-waarde">${escHtml(formatGetal(a.aantal))}</span>` : '<span class="tegel-waarde tegel-waarde--leeg">geen gegevens</span>';
-  const sinds = a.vanaf ? `Geteld sinds ${dagMaand(a.vanaf)}` : 'Het log start bij de livegang van de logins.';
+  const voorLog = !!a.vanaf && !!filters?.tot && filters.tot < a.vanaf; // hele periode vóór het log
+  const deels = !voorLog && !!a.vanaf && !!filters?.van && filters.van < a.vanaf; // begint vóór het log
+  const heeft = !!a.vanaf && isGetal(a.aantal) && !voorLog;
+  const getal = heeft ? `${deels ? 'minstens ' : ''}${formatGetal(a.aantal)}` : '';
+  const waarde = heeft ? `<span class="tegel-waarde">${escHtml(getal)}</span>` : '<span class="tegel-waarde tegel-waarde--leeg">geen gegevens</span>';
+  const sinds = !a.vanaf ? 'Het log start bij de livegang van de logins.'
+    : voorLog ? `Het log start pas op ${dagMaand(a.vanaf)}; deze periode ligt ervoor.`
+    : deels ? `Geteld sinds ${dagMaand(a.vanaf)}: de periode begint vóór het log`
+    : `Geteld sinds ${dagMaand(a.vanaf)}`;
   const vorige = heeft && a.beschikbaar && isGetal(a.vorige) ? ` · vorige periode: ${formatGetal(a.vorige)}`
     : heeft ? ' · geen vergelijking: de vorige periode valt (deels) vóór het log' : '';
   return kaart(null, `<article class="tegel tegel--aantal tegel--annulaties"><h3 class="tegel-kop">Annulaties</h3><p class="tegel-getal">${waarde}</p>`
@@ -81,7 +88,7 @@ function installateurKaarten(i, dekking, grenzen) {
 export function renderKlant(data, ctx) {
   const k = data?.klant ?? {};
   return blok('klant', 'Klant & planning', [
-    bevestigingKaart(k.bevestiging), knopKaart(k.bevestigdViaKnop, ctx?.grenzen), annulatieKaart(k.annulaties),
+    bevestigingKaart(k.bevestiging), knopKaart(k.bevestigdViaKnop, ctx?.grenzen), annulatieKaart(k.annulaties, ctx?.filters),
     garantieKaart(k.garantie, ctx?.grenzen), ...installateurKaarten(k.installateurAlLangs, k.dekking, ctx?.grenzen),
   ], { noot: NOOT });
 }
