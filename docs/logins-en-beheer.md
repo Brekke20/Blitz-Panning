@@ -100,6 +100,34 @@ Wie in Netlify kan, kan alles instellen. Zet daarom tweestapsverificatie aan op 
 - **Activiteitenlog:** wie wat deed en wanneer: inloggen, foute pogingen, wijzigingen van gebruikers en instellingen, foto's, notities en rapporten. Het log wordt 12 maanden bewaard.
 - **Systeemstatus:** of de verbinding met Zoho werkt, de laatste fouten van de app en rapporten die niet verwerkt raakten.
 
+## Sales: verkopers aanmaken en hoe zij werken
+
+De sales-planner is het deel van de app waarmee een verkoper zijn eigen bezoeken plant. De handleiding hieronder gaat over het inloggen en de rollen; de werking staat in de CHANGELOG.
+
+**Een verkoper aanmaken (jij, de beheerder)**
+
+1. Open Beheer, dan Gebruikers, en klik op Nieuwe gebruiker. Kies de rol Sales.
+2. Vul het veld **Naam in export** in: precies de naam die als verantwoordelijke in het exportbestand van zijn leadlijst staat. De app gebruikt die naam om te waarschuwen als iemand per vergissing de export van een collega inlaadt (dat kan nog, na een bevestiging). Zonder die naam kan je geen verkoper aanmaken.
+3. Vink **Mag alle sales zien** enkel aan voor wie de leads van collega's moet kunnen bekijken (bijvoorbeeld een verkoopsverantwoordelijke). Hij kan dan een collega uit een lijst kiezen en ziet diens leads, maar alleen om te lezen: hij kan niets verwijderen, plannen of inladen voor een ander. Zonder het vinkje ziet een verkoper uitsluitend zijn eigen leads.
+4. Geef het startwachtwoord persoonlijk door, zoals bij elke gebruiker.
+
+Een verkoper ziet enkel de vier tabs Te plannen, Kalender, Route en Afgewerkt. Planners en techniekers zien niets van sales, en de server weigert hun verzoeken. Jij ziet als beheerder één tab **Sales** met dezelfde vier onderdelen en een lijst om een verkoper te kiezen. Je mag er iets wijzigen, maar je kan geen export inladen: dat doet de verkoper zelf.
+
+**Hoe een verkoper een export inlaadt (de verkoper zelf)**
+
+1. Exporteer de leadlijst uit het bronsysteem als bestand (.json).
+2. Open de tab Te plannen en klik op **Export laden**. Kies het bestand.
+3. De app meldt hoeveel leads nieuw zijn, hoeveel er al waren en voor hoeveel het adres nagekeken moet worden. Laad je dezelfde of een nieuwere export nog eens in, dan komt niemand dubbel in de lijst en blijft wat je zelf bijschreef staan. Een lead die je eerder wegklikte en die opnieuw in de export staat, komt terug met het label "eerder verwijderd"; jij beslist.
+4. Is de export van een andere verantwoordelijke, dan vraagt de app eerst of je hem toch wilt inladen.
+
+**Hoe een verkoper zelf een lead toevoegt**
+
+Klik op **+ Lead** in de tab Te plannen en vul minstens de naam, een gsm of e-mailadres en de postcode in. Een notitie kan er altijd bij. Komt de klant later ook in een export voor, dan wordt hij samengevoegd met deze lead.
+
+**Eigen instellingen**
+
+Een verkoper stelt zijn startadres, werkuren, laatste start en bezoekduur zelf in met de knop Instellingen. Als beheerder doe je dat voor een verkoper via Beheer, Instellingen.
+
 ## Een paar dingen om te weten
 
 - Verstuurt een technieker een rapport onder de naam van een collega, dan wordt dat aanvaard. Het staat wel met zijn naam in het activiteitenlog.

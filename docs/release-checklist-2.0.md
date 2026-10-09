@@ -45,6 +45,20 @@ Handleiding voor Brent: `docs/logins-en-beheer.md`. Ledger: `.superpowers/sdd/20
 - [ ] Onverzonden rapporten in de outbox blijven bij een gebruikerswissel altijd bewaard; een rapport dat met 403 geweigerd wordt (id van andermans rapport) blijft in de outbox met de melding "meld dit aan de planner" en staat als `rapport-geweigerd` in het activiteitenlog.
 - [ ] De knop "Opnieuw versturen" op de tab Systeemstatus is NIET gebouwd. Brent beslist of dat nog vóór de release komt (zie `docs/bugs-en-open-punten.md`, sectie F).
 
+## 1c. Sales-planner (`refactor-sales`)
+
+Handleiding voor Brent: `docs/logins-en-beheer.md` (sectie "Sales"). Ledger: `.superpowers/sdd/2026-10-08-sales-planner/progress.md`. Open punten: `docs/bugs-en-open-punten.md`, sectie I.
+
+- [ ] **Echte TomTom-geocoding.** De sales-code is nooit tegen de echte dienst getest (alle tests gebruiken nepantwoorden). Doe één live-proef met een export van enkele verzonnen of eigen leads: (1) een lead met enkel een postcode krijgt een marker op het middelpunt van die postcode; (2) een lead met volledig adres staat op het juiste adres; (3) controleer in het antwoord van `structuredGeocode` dat het veld `address.postalCode` bestaat en overeenkomt met de gevraagde postcode (de code controleert de postcode van het antwoord en weigert anders); (4) `/api/postcode?pc=3640` geeft plaats en middelpunt en de tweede aanroep komt uit de cache (blob `postcode-cache`).
+- [ ] **Netlify bundelt `public/js/sales/*` voor `sales-import`.** De serverfuncties `sales`, `sales-import` en `sales-opruimen` importeren de pure regelmodules uit `public/js/sales/` en `public/js/kern/`. Controleer in de eerste deploy-preview dat `/api/sales-import` een export inleest (geen "Cannot find module" in de functielogs).
+- [ ] **De geplande opruiming `sales-opruimen` staat geregistreerd.** Netlify-UI, Functions: `sales-opruimen` staat als geplande functie (`@daily`) en draait; de functielogs tonen na de eerste nacht een uitvoering (hoogstens eens per 6 uur, via de marker `sales-opruimen-laatste`). Controleer ook dat `activiteit-opruimen` ernaast nog draait.
+- [ ] **`/api/route` live met `departAt`.** De tab Route stuurt `{ waypoints, departAt }`. Controleer met een echte verkoper en een dag met 3 bezoeken dat de ritten op de kaart en in de lijst geen "Rit geschat"-toast geven en dat de rijtijd verschilt naargelang het vertrekuur (verkeer).
+- [ ] **`SESSIE_GEHEIM` blijft ongewijzigd na de livegang.** De code die onthoudt dat een lead weggeklikt werd (grafsteen) is afgeleid van dit geheim; wijzigt het, dan komen weggeklikte leads zonder label "eerder verwijderd" terug.
+- [ ] **Functietime-outs.** `[functions.sales]`, `[functions.postcode]` en `[functions.sales-import]` staan op 26 s in `netlify.toml`; controleer dat de Netlify-UI dat overneemt. Het geocodingbudget van een import is 12 s.
+- [ ] **Rollen live nakijken.** Een testverkoper ziet enkel de vier sales-tabs; met "Mag alle sales zien" ziet hij een collega alleen-lezen; een planner en een technieker krijgen 403 op `/api/sales`; de beheerder heeft één tab Sales en geen knop Export laden.
+- [ ] **Smalle schermen.** De beheerder heeft nu 8 hoofdtabs (7 + Sales): controleer de tabbalk op 375 px.
+- [ ] **Sales-bestanden in de service worker.** `public/sw.js` `SHELL` bevat de sales-bestanden (de SHELL-test is groen); de `CACHE_NAME`-bump van sectie 1 geldt ook voor deze bestanden.
+
 ## 2. Handmatige controles die geen test kan doen
 
 - [ ] **standaardPdf** (etappe 6): een echt rapport laten genereren met echte Chromium (`rapport.js`) en de PDF openen; Chromium en het Blobs-register zijn niet testbaar.
