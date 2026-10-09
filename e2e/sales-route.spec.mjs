@@ -36,7 +36,7 @@ const metDepot = (page, adres = 'Depotstraat 1, 3500 Hasselt', lat = 50.93, lon 
 const DEPOT_INSTELLING = { startlocatie: 'Depotstraat 1, 3500 Hasselt', vanTijd: '08:00', totTijd: '17:00' };
 
 test.describe('sales: route en kaart', () => {
-  test('dag met 3 bezoeken: lijst op uur, kaart met 3 markers waarvan 1 "ongeveer", samenvatting, geen /api/route in testmodus', async ({ page, verzoeken }) => {
+  test('dag met 3 bezoeken: lijst op uur, kaart met 3 markers waarvan 1 "ongeveer", samenvatting; ook in testmodus de route van TomTom (stub), zoals de technieker', async ({ page, verzoeken }) => {
     await startSalesApp(page, { leads: DRIE() });
     await naarRoute(page);
     await expect(rijen(page)).toHaveCount(3);
@@ -52,10 +52,13 @@ test.describe('sales: route en kaart', () => {
     await expect(page.locator('#sales-kaart .sales-marker-ongeveer')).toHaveText('3');
     await expect(route(page).locator('.sales-route-samenvatting')).toContainText('3 bezoeken');
     await expect(route(page).locator('.sales-route-samenvatting')).toContainText('1 ongeveer');
-    // ritten tussen de bezoeken zijn geschat in testmodus; de toast meldt het
-    await expect(rijen(page).nth(1).locator('.sales-route-rit')).toContainText('rit ca.');
-    await expect(page.locator('#toast')).toContainText('Rit geschat');
-    expect(verzoeken.van('/api/route')).toEqual([]);
+    // ook in testmodus komen de ritten van /api/route (stub: 20 min, 20 km), niet geschat; zonder startadres zijn de wegpunten enkel de drie bezoeken
+    await expect(rijen(page).nth(1).locator('.sales-route-rit')).toHaveText('rit 20min · 20 km');
+    await expect(route(page).locator('.sales-route-samenvatting')).not.toContainText('geschat');
+    await expect(page.locator('#toast')).not.toContainText('Rit geschat');
+    const oproepen = verzoeken.van('/api/route', 'POST');
+    expect(oproepen).toHaveLength(1);
+    expect(oproepen[0].body.waypoints).toEqual([{ lat: 50.93, lon: 5.34 }, { lat: 50.97, lon: 5.45 }, { lat: 50.95, lon: 5.4 }]);
     expect(await handtekening(page)).toContain('l1@');
     // de wachtende lead (Teplannen) staat er niet bij
     await expect(route(page)).not.toContainText('Teplannen');
@@ -133,9 +136,10 @@ test.describe('sales: route en kaart', () => {
     await startSalesApp(page, { instellingen: DEPOT_INSTELLING, leads: [plan('l1', 'Claes', '11:00', { locatie: { lat: 51.22, lon: 4.4, bron: 'adres' } })] });
     await naarRoute(page);
     await expect(rijen(page)).toHaveCount(1);
-    await expect(rijen(page).first().locator('.sales-route-rit')).toContainText('rit ca.');
+    await expect(rijen(page).first().locator('.sales-route-rit')).toHaveText('rit 20min · 20 km');
     await expect(route(page).locator('.sales-route-waarschuwing')).toHaveCount(0);
-    await expect(route(page).locator('.sales-route-samenvatting')).toContainText('rijden (geschat)');
+    await expect(route(page).locator('.sales-route-samenvatting')).toContainText('20min rijden');
+    await expect(route(page).locator('.sales-route-samenvatting')).not.toContainText('geschat');
   });
 
   test('zonder startadres: geen vertrekrij, een melding en geen valse waarschuwing', async ({ page }) => {
@@ -169,7 +173,7 @@ test.describe('sales: route en kaart', () => {
     await expect(route(page).locator('.sales-route-ongeveer')).toHaveCount(0);
     await expect(page.locator('#sales-kaart .sales-marker-ongeveer')).toHaveCount(0);
     await expect(markers(page)).toHaveCount(3);
-    expect(verzoeken.van('/api/route')).toEqual([]);
+    expect(verzoeken.van('/api/route', 'POST').length).toBeGreaterThanOrEqual(2); // één keer vóór en één keer na het adres
   });
 
   test('een lead zonder locatie staat in de lijst maar niet op de kaart; de rit eromheen is onbekend (geen waarschuwing)', async ({ page }) => {
@@ -302,5 +306,144 @@ test.describe('sales: route in het scherm van de beheerder', () => {
     const afmeting = await page.locator('#sales-kaart').evaluate((e) => ({ b: e.clientWidth, h: e.clientHeight }));
     expect(afmeting.b).toBeGreaterThan(100);
     expect(afmeting.h).toBeGreaterThan(100);
+  });
+});
+
+// De weekstrook bovenaan de Route-tab: dezelfde als bij de technieker (week-strook.js, #week-strip): per werkdag het aantal bezoeken en de status.
+test.describe('sales: weekstrook bovenaan de Route-tab', () => {
+  const strook = (page) => route(page).locator('.sales-route-weekstrook');
+  const dagen = (page) => strook(page).locator('.ws-dag');
+  const week = () => [
+    ...DRIE(), // ma 5 okt: 3 bezoeken, 2 nog te bevestigen (Maes is vast)
+    plan('l6', 'Janssens', '09:00', { datum: '2026-10-07', vast: true }), // wo 7 okt: 1 bevestigd bezoek
+    plan('l7', 'Wouters', '09:00', { datum: '2026-10-14' }), // volgende week
+  ];
+
+  test('de werkdagen van de gekozen week met aantal en status, de actieve dag en vandaag gemarkeerd', async ({ page }) => {
+    await startSalesApp(page, { leads: week() });
+    await naarRoute(page);
+    await expect(strook(page)).toBeVisible();
+    await expect(strook(page)).toHaveAttribute('role', 'group');
+    await expect(dagen(page)).toHaveCount(5);
+    await expect(dagen(page).locator('.ws-naam')).toHaveText(['MA 5', 'DI 6', 'WO 7', 'DO 8', 'VR 9']);
+    await expect(dagen(page).locator('.ws-aantal')).toHaveText(['3 bezoeken', '0 bezoeken', '1 bezoek', '0 bezoeken', '0 bezoeken']);
+    await expect(dagen(page).locator('.ws-status')).toHaveText(['☎ bevestigen', '—', '✓ bevestigd', '—', '—']);
+    await expect(dagen(page).nth(0)).toHaveClass(/nodig/);
+    await expect(dagen(page).nth(2)).toHaveClass(/klaar/);
+    await expect(dagen(page).nth(1)).toHaveClass(/leeg/);
+    // de gekozen dag (ma 5, ook vandaag) is actief en onderstreept; de andere dagen niet
+    await expect(strook(page).locator('.ws-dag.actief')).toHaveCount(1);
+    await expect(dagen(page).nth(0)).toHaveClass(/actief/);
+    await expect(dagen(page).nth(0)).toHaveClass(/vandaag/);
+    await expect(dagen(page).nth(0)).toHaveAttribute('aria-pressed', 'true');
+    await expect(dagen(page).nth(0)).toHaveAttribute('aria-current', 'date');
+    await expect(dagen(page).nth(0)).toHaveAttribute('aria-label', 'MA 5: 3 bezoeken, 2 te bevestigen');
+    await expect(dagen(page).nth(2)).toHaveAttribute('aria-label', 'WO 7: 1 bezoek, alle bezoeken bevestigd');
+    await expect(dagen(page).nth(1)).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('een dag aanklikken kiest die dag: lijst, label, kaart en de gedeelde gekozen datum volgen', async ({ page }) => {
+    await startSalesApp(page, { leads: week() });
+    await naarRoute(page);
+    await dagen(page).nth(2).click(); // wo 7
+    await expect(route(page).locator('.sales-route-datum')).toHaveText('wo 7 okt');
+    await expect(dagen(page).nth(2)).toHaveClass(/actief/);
+    await expect(strook(page).locator('.ws-dag.actief')).toHaveCount(1);
+    await expect(rijen(page)).toHaveCount(1);
+    await expect(rijen(page).first().locator('.sales-route-naam')).toHaveText('Test Janssens');
+    await expect(markers(page)).toHaveCount(1);
+    // een lege dag: de lege tekst, de strook blijft
+    await dagen(page).nth(1).click();
+    await expect(route(page).getByText('Geen bezoeken op deze dag')).toBeVisible();
+    await expect(strook(page)).toBeVisible();
+    // de Kalender toont dezelfde week (gedeelde datum)
+    await tab(page, 'Kalender').click();
+    await expect(page.locator('#view-sales-kalender .kal-lbl-tekst')).toContainText('5 okt');
+    await tab(page, 'Route').click();
+    await expect(dagen(page).nth(1)).toHaveClass(/actief/);
+  });
+
+  test('‹ en › springen een week: dezelfde weekdag, en de aantallen van die week', async ({ page }) => {
+    await startSalesApp(page, { leads: week() });
+    await naarRoute(page);
+    await strook(page).getByRole('button', { name: 'Volgende week' }).click();
+    await expect(route(page).locator('.sales-route-datum')).toHaveText('ma 12 okt');
+    await expect(dagen(page).locator('.ws-naam')).toHaveText(['MA 12', 'DI 13', 'WO 14', 'DO 15', 'VR 16']);
+    await expect(dagen(page).locator('.ws-aantal')).toHaveText(['0 bezoeken', '0 bezoeken', '1 bezoek', '0 bezoeken', '0 bezoeken']);
+    await expect(dagen(page).nth(0)).toHaveClass(/actief/);
+    await expect(dagen(page).nth(0)).not.toHaveClass(/vandaag/);
+    await strook(page).getByRole('button', { name: 'Vorige week' }).click();
+    await expect(route(page).locator('.sales-route-datum')).toHaveText('ma 5 okt');
+    await expect(dagen(page).nth(0)).toHaveClass(/vandaag/);
+  });
+
+  test('pijltjestoetsen: naar de volgende werkdag en over het einde van de week heen', async ({ page }) => {
+    await startSalesApp(page, { leads: week() });
+    await naarRoute(page);
+    await dagen(page).nth(3).focus(); // do 8
+    await page.keyboard.press('ArrowRight');
+    await expect(route(page).locator('.sales-route-datum')).toHaveText('vr 9 okt');
+    await expect(dagen(page).nth(4)).toBeFocused();
+    await page.keyboard.press('ArrowRight'); // week-omslag: maandag van de volgende week
+    await expect(route(page).locator('.sales-route-datum')).toHaveText('ma 12 okt');
+    await expect(dagen(page).nth(0)).toBeFocused();
+    await page.keyboard.press('ArrowLeft'); // terug: vrijdag van de vorige week
+    await expect(route(page).locator('.sales-route-datum')).toHaveText('vr 9 okt');
+    await expect(dagen(page).nth(4)).toBeFocused();
+  });
+
+  test('enkel de werkdagen uit de instellingen van de verkoper (ma-wo)', async ({ page }) => {
+    await startSalesApp(page, { leads: week(), instellingen: { vanTijd: '08:00', totTijd: '17:00', werkdagen: [1, 2, 3] } });
+    await naarRoute(page);
+    await expect(dagen(page).locator('.ws-naam')).toHaveText(['MA 5', 'DI 6', 'WO 7']);
+  });
+
+  test('een bezoek bevestigen of bijplannen ververst de strook meteen', async ({ page }) => {
+    await startSalesApp(page, { leads: [plan('l1', 'Verhaegen', '09:00')] });
+    await naarRoute(page);
+    await expect(dagen(page).nth(0)).toHaveClass(/nodig/);
+    await page.evaluate(() => import('/js/schermen/sales-data.js').then((m) => m.wijzig(() => ({ leads: [{ id: 'l1', velden: { status: 'bevestigd', planning: { datum: '2026-10-05', start: '09:00', vast: true } } }] }))));
+    await expect(dagen(page).nth(0)).toHaveClass(/klaar/);
+    await expect(dagen(page).nth(0).locator('.ws-status')).toHaveText('✓ bevestigd');
+  });
+
+  test('telefoonbreedte: de strook past, de dagen scrollen binnen de strook en de pagina scrolt niet horizontaal', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 700 });
+    await startSalesApp(page, { leads: week() });
+    await naarRoute(page);
+    await expect(dagen(page)).toHaveCount(5);
+    const m = await page.evaluate(() => {
+      const strook = document.querySelector('#view-sales-route .sales-route-weekstrook');
+      return {
+        overloop: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        strook: strook.getBoundingClientRect().width,
+        dagen: strook.querySelector('.ws-dagen').scrollWidth,
+        dagenZichtbaar: strook.querySelector('.ws-dagen').clientWidth,
+      };
+    });
+    expect(m.overloop).toBeLessThanOrEqual(0);
+    expect(m.strook).toBeLessThanOrEqual(375);
+    expect(m.dagen).toBeGreaterThanOrEqual(m.dagenZichtbaar); // scrollt eventueel binnen de strook
+  });
+
+  test('de beheerder ziet de strook ook in de subtab Route van "Sales"', async ({ page }) => {
+    await startSalesApp(page, { gebruiker: BEHEERDER, blobs: { 'sales/u-bea': { versie: 1, gebruikerId: 'u-bea', leads: week(), blokken: [], grafstenen: [] } } });
+    await tab(page, 'Sales').click();
+    await page.locator('#sales-subtab-sales-route').click();
+    await expect(dagen(page)).toHaveCount(5);
+    await expect(dagen(page).nth(0).locator('.ws-aantal')).toHaveText('3 bezoeken');
+    await dagen(page).nth(2).click();
+    await expect(rijen(page)).toHaveCount(1);
+    // en de strook van de technieker is een ander element
+    await expect(page.locator('#week-strip')).toHaveCount(1);
+    await expect(page.locator('#week-strip')).toBeHidden();
+  });
+
+  test('de strook zegt nooit iets over leadnamen (geen HTML uit leadgegevens)', async ({ page }) => {
+    await startSalesApp(page, { leads: [plan('l1', '<img src=x onerror="window.__pwned=1">', '09:00')] });
+    await naarRoute(page);
+    await expect(dagen(page).nth(0).locator('.ws-aantal')).toHaveText('1 bezoek');
+    await expect(strook(page).locator('img')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
   });
 });

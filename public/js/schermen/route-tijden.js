@@ -1,7 +1,7 @@
 // schermen/route-tijden.js — pure berekeningen van de Route-tab (etappe 3): aankomsttijden, ankers,
 // handtekening, dagklok. Geen DOM, geen `window`, geen instellingen: alles komt als parameter binnen
 // (`vanTijd`, `duurVoor`, `werktijdMin`). De bodies zijn letterlijk overgenomen uit index.html.
-import { timeStrToMin } from '../kern/tijd.js';
+import { timeStrToMin, fmtSec } from '../kern/tijd.js';
 
 // Pure helper (Taak 4), geëxtraheerd uit renderRouteList(): berekent cumulatieve
 // aankomsttijden (minuten na middernacht) voor een allStops-lijst, plus de legIdx-mapping
@@ -142,3 +142,34 @@ export function drukteMagnitude(ratio) {
   if (ratio >= 1.03) return 1;
   return 0;
 }
+
+// Lengte van de wegvak-stukjes voor het /api/drukte-detail (verwachte drukte per stukje i.p.v. per rit) — een instelling is YAGNI.
+export const DRUKTE_SEGMENT_METERS = 1500;
+
+// De vertraging van een berekende route als tekst, voor de samenvatting (technieker en verkoper): 'geen', '+12min' of '+12min (verwacht)'.
+// Live vertraging (totalTrafficDelaySeconds) is bij een toekomstig departAt altijd ~0 — TomTom levert dan geen live sections; val dan terug
+// op het verschil tussen de historische (typische) reistijd en de vrije doorstroming als "verwachte" vertraging. Pas boven 1 minuut.
+export function routeVertraging(rData) {
+  const verwachtVerschil = (rData?.totalHistoricTrafficTravelTimeSeconds != null && rData?.totalNoTrafficTravelTimeSeconds != null)
+    ? rData.totalHistoricTrafficTravelTimeSeconds - rData.totalNoTrafficTravelTimeSeconds
+    : 0;
+  if (rData?.totalTrafficDelaySeconds > 60) return '+' + fmtSec(rData.totalTrafficDelaySeconds);
+  if (verwachtVerschil > 60) return '+' + fmtSec(verwachtVerschil) + ' (verwacht)';
+  return 'geen';
+}
+
+// Verwachte drukte per wegvak voor een toekomstige dag: de historische reistijd per stukje van de routelijn via /api/drukte, ná de gewone
+// routeberekening. Enkel zinvol met een toekomstig departAt (`departAtUsed`; anders geeft /api/route zelf live sections), een routelijn van
+// minstens 2 punten en als de gebruiker drukte-kleuring aan heeft. `apiVerzoek` = kern/api.js. Geeft het detail ({ segmenten, info }) of null
+// (niet van toepassing); gooit bij een fout van de server of het netwerk, zodat de oproeper kan beslissen (de technieker logt, de verkoper ook).
+export async function haalDrukteDetail({ rData, apiVerzoek, drukteKleuring }) {
+  if (!drukteKleuring || !rData?.departAtUsed || !(rData.polyline?.length >= 2)) return null;
+  const r = await apiVerzoek('/api/drukte', {
+    methode: 'POST',
+    body: { polyline: rData.polyline, departAt: rData.departAtUsed, segmentMeters: DRUKTE_SEGMENT_METERS },
+  });
+  const data = r?.data;
+  if (!r?.ok || data?.error || !Array.isArray(data?.segmenten)) throw new Error(data?.error || `HTTP ${r?.status}`);
+  return { segmenten: data.segmenten, info: { reconstructie: data.reconstructie, onbetrouwbaar: data.onbetrouwbaar, aantalAanvragen: data.aantalAanvragen } };
+}
+

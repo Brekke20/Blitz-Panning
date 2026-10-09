@@ -11,9 +11,10 @@ import { planItemsVanTechnieker, stopsVoorDag as selStopsVoorDag } from '../kern
 import { maakSorteerbaar } from '../sorteer.js';
 import {
   berekenAankomsten, aankomstPerTicket, fmtTijd, dagHeeftEenTechnieker, stopZonderTijdstip, routeHandtekening,
-  mergeMetAnkers, buitenDagklok as buitenDagklokTijd, isTeLaat,
+  mergeMetAnkers, buitenDagklok as buitenDagklokTijd, isTeLaat, routeVertraging, haalDrukteDetail,
 } from './route-tijden.js';
 import { updateKaart, wisKaart, herstelWegafsluitingToast, zoomOpGekendeStops } from './route-kaart.js';
+import { renderWeekstrook as renderWeekstrookGedeeld } from './week-strook.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initRoute); een vergeten initRoute faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('route: initRoute() is niet aangeroepen'); } });
@@ -178,27 +179,13 @@ export function isStopAnchored(item) {
 // ── Weekstrook (v1.9.5) ──────────────────────────────────────────────
 // Week (ma..zo) van de gekozen datum: per werkdag aantal stops (met persoonsfilter, zoals de
 // routelijst) en tijdstatus. Wordt vanuit renderRouteList() ververst -- dat is het bestaande
-// her-render-pad (optimaliseren, slepen, herladen, datumwissel); luisteraars staan 1x op de strook.
-const WEEKSTROOK_DAG = ['ZO','MA','DI','WO','DO','VR','ZA'];
-function isoNaarDatum(iso) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); }
-function weekstrookDagen(date) {
-  const d0 = isoNaarDatum(date);
-  const maandag = new Date(d0); maandag.setDate(d0.getDate() - ((d0.getDay() + 6) % 7));
-  const dagen = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(maandag); d.setDate(maandag.getDate() + i);
-    if ((get('settings').werkdagen || [1,2,3,4,5]).includes(d.getDay())) dagen.push(d);
-  }
-  return { maandag, dagen };
-}
+// her-render-pad (optimaliseren, slepen, herladen, datumwissel). De strook zelf (markup, luisteraars) staat
+// in week-strook.js, gedeeld met de route van de verkoper.
 function weekstrookKies(iso) {
   const inp = document.getElementById('plan-date');
   if (!iso || !inp) return;
   inp.value = iso;
   onDateChange(iso);
-}
-function weekstrookVerschuif(date, dagen) {
-  const d = isoNaarDatum(date); d.setDate(d.getDate() + dagen); return localISO(d);
 }
 // Handtekening van de huidige (gefilterde) stops van een dag, voor de verouderd-controle.
 function routeHandtekeningVoorDag(date) {
@@ -214,59 +201,17 @@ function wisRouteWeergave() {
 }
 
 function renderWeekstrook(date) {
-  const el = document.getElementById('week-strip');
-  if (!el || !date) return;
-  if (!el._gebonden) {
-    el._gebonden = true;
-    el.addEventListener('click', e => {
-      const b = e.target.closest('button[data-ws]');
-      if (!b) return;
-      const cur = document.getElementById('plan-date').value;
-      if (b.dataset.ws === 'vorige') weekstrookKies(weekstrookVerschuif(cur, -7));
-      else if (b.dataset.ws === 'volgende') weekstrookKies(weekstrookVerschuif(cur, 7));
-      else weekstrookKies(b.dataset.ws);
-    });
-    el.addEventListener('keydown', e => {
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-      const b = e.target.closest('button[data-ws]');
-      if (!b || b.dataset.ws === 'vorige' || b.dataset.ws === 'volgende') return;
-      e.preventDefault();
-      const dir = e.key === 'ArrowRight' ? 1 : -1;
-      const { dagen } = weekstrookDagen(b.dataset.ws);
-      const isos = dagen.map(localISO);
-      const i = isos.indexOf(b.dataset.ws) + dir;
-      if (i >= 0 && i < isos.length) { el._focusNaRender = true; return weekstrookKies(isos[i]); }
-      // Week-omslag: eerste/laatste werkdag van de volgende/vorige week
-      const buur = weekstrookDagen(weekstrookVerschuif(b.dataset.ws, dir * 7)).dagen;
-      if (!buur.length) return;
-      el._focusNaRender = true;
-      weekstrookKies(localISO(dir > 0 ? buur[0] : buur[buur.length - 1]));
-    });
-  }
-  const hadFocus = el.contains(document.activeElement) || el._focusNaRender;
-  el._focusNaRender = false;
-  const { dagen } = weekstrookDagen(date);
-  const vandaag = localISO(new Date());
-  const geselecteerd = dagen.some(d => localISO(d) === date);
-  let html = '<button type="button" class="ws-nav" data-ws="vorige" aria-label="Vorige week" title="Vorige week">‹</button><div class="ws-dagen">';
-  dagen.forEach((d, idx) => {
-    const iso = localISO(d);
-    const stops = planItemsVanTechnieker(get('planning')[iso], get('activeAssigneeFilter'));
-    const zonder = stops.filter(p => stopZonderTijdstip(p, isStopAnchored(p))).length;
-    let status, cls;
-    if (!stops.length) { status = '—'; cls = 'leeg'; }
-    else if (zonder) { status = '⏱ nodig'; cls = 'nodig'; }
-    else { status = '✓ tijden'; cls = 'klaar'; }
-    const sel = iso === date;
-    const tab = sel || (!geselecteerd && idx === 0) ? 0 : -1;
-    html += `<button type="button" class="ws-dag ${cls}${sel ? ' actief' : ''}${iso === vandaag ? ' vandaag' : ''}" data-ws="${iso}" tabindex="${tab}" aria-pressed="${sel}"${sel ? ' aria-current="date"' : ''}` +
-      ` aria-label="${WEEKSTROOK_DAG[d.getDay()]} ${d.getDate()}: ${afh.meervoud(stops.length, 'stop', 'stops')}, ${zonder ? zonder + ' zonder tijdstip' : (stops.length ? 'alle tijden klaar' : 'niets gepland')}">` +
-      `<span class="ws-naam">${WEEKSTROOK_DAG[d.getDay()]} ${d.getDate()}</span><span class="ws-aantal">${afh.meervoud(stops.length, 'stop', 'stops')}</span><span class="ws-status">${status}</span></button>`;
+  renderWeekstrookGedeeld(document.getElementById('week-strip'), {
+    datum: date, werkdagen: get('settings').werkdagen, vandaag: localISO(new Date()), kies: weekstrookKies,
+    dagInfo: (iso) => {
+      const stops = planItemsVanTechnieker(get('planning')[iso], get('activeAssigneeFilter'));
+      const zonder = stops.filter(p => stopZonderTijdstip(p, isStopAnchored(p))).length;
+      const aantal = afh.meervoud(stops.length, 'stop', 'stops');
+      if (!stops.length) return { klasse: 'leeg', status: '—', aantal, aria: `${aantal}, niets gepland` };
+      if (zonder) return { klasse: 'nodig', status: '⏱ nodig', aantal, aria: `${aantal}, ${zonder} zonder tijdstip` };
+      return { klasse: 'klaar', status: '✓ tijden', aantal, aria: `${aantal}, alle tijden klaar` };
+    },
   });
-  html += '</div><button type="button" class="ws-nav" data-ws="volgende" aria-label="Volgende week" title="Volgende week">›</button>';
-  el.innerHTML = html;
-  if (hadFocus) (el.querySelector('.ws-dag.actief') || el.querySelector('.ws-dag'))?.focus();
-  el.querySelector('.ws-dag.actief')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
 }
 
 export function renderRouteList(date) {
@@ -563,19 +508,8 @@ export async function calculateRoute() {
     updateMap(date);
     document.getElementById('s-dist').textContent  = (rData.totalDistanceMeters / 1000).toFixed(0) + ' km';
     document.getElementById('s-time').textContent  = fmtSec(rData.totalTravelTimeSeconds);
-    // Live vertraging (trafficDelaySeconds) is bij een toekomstig departAt altijd ~0 —
-    // TomTom levert dan geen live sections. Val in dat geval terug op het verschil tussen
-    // de historische (typische) reistijd en de vrije doorstroming als "verwachte" vertraging.
-    const verwachtVerschil = (rData.totalHistoricTrafficTravelTimeSeconds != null && rData.totalNoTrafficTravelTimeSeconds != null)
-      ? rData.totalHistoricTrafficTravelTimeSeconds - rData.totalNoTrafficTravelTimeSeconds
-      : 0;
-    if (rData.totalTrafficDelaySeconds > 60) {
-      document.getElementById('s-delay').textContent = '+' + fmtSec(rData.totalTrafficDelaySeconds);
-    } else if (verwachtVerschil > 60) {
-      document.getElementById('s-delay').textContent = '+' + fmtSec(verwachtVerschil) + ' (verwacht)';
-    } else {
-      document.getElementById('s-delay').textContent = 'geen';
-    }
+    // De vertraging (live, of bij een toekomstig departAt de verwachte): gedeelde regel met de route van de verkoper (route-tijden.js).
+    document.getElementById('s-delay').textContent = routeVertraging(rData);
     document.getElementById('s-eta').textContent   = rData.arrivalTime ? new Date(rData.arrivalTime).toLocaleTimeString('nl-BE', { hour:'2-digit', minute:'2-digit' }) : '—';
     // (C2c) Stops die nog steeds geen coördinaten hebben na de geocode-stap hierboven (adres
     // niet gevonden, of een lokale afspraak met een vrije-tekst-notitie i.p.v. een echt adres)
@@ -603,16 +537,12 @@ async function laadDrukteDetail(date, rData) {
   if (!get('settings').drukteKleuring || !rData.departAtUsed || !(rData.polyline?.length >= 2)) return;
   toast('Drukte laden...', 4000);
   try {
-    const data = (await apiVerzoek('/api/drukte', {
-      methode: 'POST',
-      body:    { polyline: rData.polyline, departAt: rData.departAtUsed, segmentMeters: DRUKTE_SEGMENT_METERS },
-    })).data;
-    if (data.error) throw new Error(data.error);
+    const detail = await haalDrukteDetail({ rData, apiVerzoek, drukteKleuring: true });
     // De route kan ondertussen vervangen zijn door een nieuwe berekening — dan is dit
     // detail verouderd en negeren we het.
     if (routeData === rData && currentRouteDate === date) {
-      rData.drukteDetail = data.segmenten;
-      rData.drukteDetailInfo = { reconstructie: data.reconstructie, onbetrouwbaar: data.onbetrouwbaar, aantalAanvragen: data.aantalAanvragen };
+      rData.drukteDetail = detail.segmenten;
+      rData.drukteDetailInfo = detail.info;
       console.info('drukte-detail:', rData.drukteDetailInfo);
       updateMap(date);
     }
@@ -620,10 +550,6 @@ async function laadDrukteDetail(date, rData) {
     console.warn('Drukte-detail niet beschikbaar:', err);
   }
 }
-
-// Lengte van de wegvak-stukjes voor het /api/drukte-detail (zie laadDrukteDetail) — een
-// instelling is YAGNI, dit is geen keuze die een gebruiker per rit wil aanpassen.
-const DRUKTE_SEGMENT_METERS = 1500;
 
 // applyRouteOrder(date, orderedEntries): vertaalt een gewenste allStops-volgorde
 // ({kind,item,uur}[], alle stops van de dag voor de actieve filter incl. ankers) naar

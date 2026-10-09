@@ -5,15 +5,14 @@
 // voor de gedeelde gegevens (altijd live gelezen, zoals de globale getters vroeger), `selecties.` en imports.
 // inFlightTickets is module-privé (inFlight(id) is de leesingang). Het gepinde HUIDIG GEDRAG (technische parser-foutmelding bij een
 // 502 met HTML) blijft bewust ongewijzigd. Raakt `document` enkel binnen functies. Alleen `kern/brug.js` wijst `window`-namen toe.
-// De knoppen lopen via data-actie-delegatie; de resultaat-overlay sluit via registreerBackdrop. `window.bouwDagen`,
+// De knoppen lopen via data-actie-delegatie; het resultaatvenster (plan-resultaat.js, gedeeld met de verkoper) sluit zelf. `window.bouwDagen`,
 // en `window.planWeek` (planner.js) blijft zoals het was.
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
-import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
+import { toast, registreerActies, strengeAfh } from '../kern/ui.js';
 import { localISO, getWeekStart, fmtDateShort } from '../kern/tijd.js';
 import { apiVerzoek, leesFout, foutTekst } from '../kern/api.js';
 import * as selecties from '../kern/selecties.js';
-import { registreerVenster } from '../venster.js';
 import { appConfirm } from '../app-dialog.js';
 import { renderTickets } from './wachtrij.js';
 import { renderKalender, isMaandweergave } from './kalender.js';
@@ -21,19 +20,16 @@ import { renderGepland } from './ingepland.js';
 import { leesLaatsteStart } from './instellingen.js';
 import { heeftLopendVoorstel } from './ticketdetail-logica.js';
 import { getHolidayName } from '../kern/feestdagen.js';
+import { initPlanResultaat, toonPlanResultaat, sluitPlanResultaat } from './plan-resultaat.js';
+import { redenTekst, waarschuwingTekst, WOORDEN_TICKET } from './plan-resultaat-logica.js';
 
 // Afhankelijkheden uit app.js en andere schermen (ingevuld door initPlanacties); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('planacties: initPlanacties() is niet aangeroepen'); } });
 
 export function initPlanacties(afhankelijkheden) {
   afh = strengeAfh('planacties', afhankelijkheden);
-  registreerActies(document.body, {
-    'plan-week':    () => autoPlan(),
-    'result-sluit': () => closeResult(),
-  });
-  const overlay = document.getElementById('result-overlay');
-  registreerBackdrop(overlay, closeResult);
-  registreerVenster({ el: overlay, sluit: () => closeResult(), terugFocus: () => document.getElementById('btn-autoplan') });
+  registreerActies(document.body, { 'plan-week': () => autoPlan() });
+  initPlanResultaat(); // het resultaatvenster (✕, achtergrond, Escape) is gedeeld met de planning van de verkoper
 }
 
 let inFlightTickets = new Set(); // voorkomt dubbele API calls
@@ -423,79 +419,16 @@ export async function autoPlan() {
   }
 }
 
-// Redenen waarom een ticket niet gepland werd (planner-brein + 'zoho-fout' van de schil)
-function redenTekst(reden) {
-  const teksten = {
-    'geen-plaats':          'Geen plaats meer deze week',
-    'te-ver':               `Te ver van de andere afspraken (meer dan ${toestand.get('settings').maxReistijdMin ?? 45} min)`,
-    'klant-geblokkeerd':    'Klant is niet beschikbaar op de vrije dagen',
-    'voorkeursdag-afstand': 'Voorkeursdag botst qua afstand met een ander ticket',
-    'voorkeursdag-vol':     'Voorkeursdag is al vol',
-    'vast-uur-botst':       'Voorkeursuur botst met een andere afspraak',
-    'adres-niet-gevonden':  'Adres niet gevonden',
-    'zoho-fout':            'Kon niet opgeslagen worden in Zoho',
-  };
-  return teksten[reden] || 'Geen plaats meer deze week';
-}
-
+// Het resultaatvenster is gedeeld met de verkoper (plan-resultaat.js); hier enkel de tickets omzetten naar regels.
 function showResult(geplande, nietGepland, skipped, bericht, waarschuwingen = []) {
-  const body = document.getElementById('result-body');
-  body.innerHTML = '';
-
-  if (bericht) {
-    body.innerHTML = `<p style="color:var(--muted);font-size:0.83rem">${bericht}</p>`;
-  }
-
-  waarschuwingen.forEach(w => {
-    const tekst = w.soort === 'reistijd-geschat'
-      ? `⚠ Reistijd kon niet gecontroleerd worden voor ${(w.ticketIds || []).length} tickets — kijk de route na`
-      : w.soort === 'locatie-onbekend'
-        ? '⚠ Locatie van een bestaande afspraak onbekend — reistijdcontrole minder nauwkeurig'
-        : null;
-    if (!tekst) return;
-    const p = document.createElement('p');
-    p.style.cssText = 'color:var(--muted);font-size:0.83rem';
-    p.innerHTML = escHtml(tekst);
-    body.appendChild(p);
+  const opties = { maxReistijdMin: toestand.get('settings').maxReistijdMin ?? 45, woorden: WOORDEN_TICKET };
+  toonPlanResultaat({
+    bericht,
+    waarschuwingen: waarschuwingen.map(w => waarschuwingTekst(w, WOORDEN_TICKET)).filter(Boolean),
+    ingepland: geplande.map(({ ticket, date }) => ({ vet: '#' + ticket.number, tekst: ticket.subject, label: fmtDateShort(date) })),
+    nietIngepland: nietGepland.map(({ ticket: t, reden }) => ({ vet: '#' + t.number, tekst: t.subject, reden: redenTekst(reden, opties) })),
+    overgeslagen: { titel: 'Overgeslagen — geen adres', items: skipped.map(t => ({ vet: '#' + t.number, tekst: t.subject })) },
   });
-
-  if (geplande.length) {
-    const s = document.createElement('div'); s.className = 'result-section';
-    s.innerHTML = `<div class="result-section-title">Ingepland (${geplande.length})</div>`;
-    geplande.forEach(({ ticket, date }) => {
-      const row = document.createElement('div'); row.className = 'result-item';
-      row.innerHTML = `<div class="result-dot ok"></div><div><b>#${escHtml(ticket.number)}</b> ${escHtml(ticket.subject)} → ${fmtDateShort(date)}</div>`;
-      s.appendChild(row);
-    });
-    body.appendChild(s);
-  }
-
-  if (nietGepland.length) {
-    const s = document.createElement('div'); s.className = 'result-section';
-    s.innerHTML = `<div class="result-section-title">Niet ingepland (${nietGepland.length})</div>`;
-    nietGepland.forEach(({ ticket: t, reden }) => {
-      const row = document.createElement('div'); row.className = 'result-item';
-      row.innerHTML = `<div class="result-dot skip"></div><div><b>#${escHtml(t.number)}</b> ${escHtml(t.subject)}<div style="color:var(--muted);font-size:0.78rem">${escHtml(redenTekst(reden))}</div></div>`;
-      s.appendChild(row);
-    });
-    body.appendChild(s);
-  }
-
-  if (skipped.length) {
-    const s = document.createElement('div'); s.className = 'result-section';
-    s.innerHTML = `<div class="result-section-title">Overgeslagen — geen adres (${skipped.length})</div>`;
-    skipped.forEach(t => {
-      const row = document.createElement('div'); row.className = 'result-item';
-      row.innerHTML = `<div class="result-dot skip"></div><div><b>#${escHtml(t.number)}</b> ${escHtml(t.subject)}</div>`;
-      s.appendChild(row);
-    });
-    body.appendChild(s);
-  }
-
-  document.getElementById('result-overlay').classList.add('open');
 }
 
-export function closeResult(e) {
-  if (e && e.target !== document.getElementById('result-overlay')) return;
-  document.getElementById('result-overlay').classList.remove('open');
-}
+export function closeResult(e) { sluitPlanResultaat(e); }

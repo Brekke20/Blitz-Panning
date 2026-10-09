@@ -232,15 +232,14 @@ html[data-indeling="smal"] .sales-kal-grid .day-hdr { height: auto; }
 }
 html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
 
-/* ---- Planningsresultaat (sales-plan.js) ---- */
-.sales-plan-lijst { list-style: none; display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
-.sales-plan-reden { color: var(--text2); font-size: var(--fs-xs); }
-.sales-plan-waarschuwing { color: var(--orange); }
-
 /* ---- Route (sales-route.js, sales-kaart.js) ---- */
 .sales-route-wortel { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
 .sales-route-wortel [hidden] { display: none !important; }
 .sales-route-dagkiezer { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.sales-route-weekstrook { border: 1px solid var(--border); border-radius: var(--r); padding: var(--sp-2); }
+/* "2 bezoeken" is langer dan "2 stops": een dag iets breder, zodat het niet afbreekt (op een telefoon scrollen de dagen binnen de strook). */
+.sales-route-weekstrook .ws-dag { flex-basis: 96px; min-width: 96px; }
+.sales-route-weekstrook .ws-aantal { white-space: nowrap; }
 .sales-route-dagknop { min-width: 44px; min-height: 40px; font-size: var(--fs-lg); line-height: 1; padding: 4px 12px; }
 .sales-route-datum { font-weight: 700; min-width: 7ch; text-align: center; }
 .sales-route-datumveld {
@@ -277,7 +276,7 @@ html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
 .sales-route-plaats, .sales-route-rit { color: var(--text2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
 .sales-route-ongeveer { background: var(--orange-dim); color: var(--orange); }
 .sales-route-geenloc { background: var(--red-dim); color: var(--red-ink); }
-.sales-route-waarschuwing { color: var(--red-ink); background: var(--red-dim); border-radius: var(--r); padding: var(--sp-1) var(--sp-2); font-size: var(--fs-sm); font-weight: 600; overflow-wrap: anywhere; }
+.sales-route-waarschuwing, .sales-route-wegafsluiting { color: var(--red-ink); background: var(--red-dim); border-radius: var(--r); padding: var(--sp-1) var(--sp-2); font-size: var(--fs-sm); font-weight: 600; overflow-wrap: anywhere; }
 .sales-route-resultaat { align-self: flex-start; min-height: 36px; padding: 6px 12px; font-size: var(--fs-sm); }
 /* Nummermarkers op de kaart: een bezoek dat enkel op de postcode staat (ongeveer) krijgt een gestippelde rand en een lichte vulling. */
 .sales-marker {

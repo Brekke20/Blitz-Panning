@@ -1,11 +1,15 @@
 import { test, expect } from './helpers.mjs';
 import { startSalesApp, salesStubs, verwachtFout, BEHEERDER, SALES_GEBRUIKER } from './sales-hulp.mjs';
 
-// "Plan deze week" voor de verkoper (Task 17). Klok: maandag 5 okt 2026 09:00. Geen TomTom, geen Zoho: testmodus rekent reistijden met
-// haversine x 1,3 zonder netwerkaanroep. Alle namen zijn verzonnen.
+// "Plan deze week" voor de verkoper (Task 17). Klok: maandag 5 okt 2026 09:00. Geen echte TomTom, geen Zoho: de stubs van helpers.mjs antwoorden (matrix overal 20 min). Zonder bestaande bezoeken of depot vraagt het brein geen reistijd; de
+// reistijd-tests staan onderaan (buiten de testmodus). Alle namen zijn verzonnen.
 const kal = (page) => page.locator('#view-sales-kalender');
 const dag = (page, iso) => kal(page).locator(`.day-col[data-date="${iso}"]`);
 const venster = (page) => page.locator('.sales-overlay.open');
+// Het resultaat van "Plan deze week" is hetzelfde venster als bij de technieker (#result-overlay): zelfde naam, zelfde sluitknop.
+const resultaat = (page) => page.getByRole('dialog', { name: '⚡ Planningsresultaat' });
+const sluitResultaat = (page) => resultaat(page).getByRole('button', { name: 'Sluiten' }).click();
+const sectie = (page, titel) => resultaat(page).locator('.result-section', { hasText: titel });
 const tab = (page, naam) => page.getByRole('tab', { name: naam, exact: true });
 const plan = (page) => kal(page).getByRole('button', { name: /Plan deze week/ });
 const naarKalender = async (page) => { await tab(page, 'Kalender').click(); await expect(kal(page).locator('.day-col[data-date]').first()).toBeVisible(); };
@@ -32,15 +36,15 @@ const overlap = (lijst) => lijst.some(([b1, e1], i) => lijst.some(([b2, e2], j) 
 const toast = (page) => page.locator('#toast');
 
 test.describe('sales: Plan deze week', () => {
-  test('(a) 8 te-plannen leads worden voorgesteld: resultaatvenster, één PATCH, geen matrix/route/propose/optimize', async ({ page, verzoeken }) => {
+  test('(a) 8 te-plannen leads worden voorgesteld: resultaatvenster, één PATCH, geen route/propose/optimize (de matrix mag: reistijden via de stub)', async ({ page, verzoeken }) => {
     await startSalesApp(page, { leads: achtLeads(), blokken: [] });
     await naarKalender(page);
     await expect(kal(page).locator('.tl-block')).toHaveCount(0);
     await plan(page).click();
-    await expect(venster(page)).toContainText('Planningsresultaat');
-    await expect(venster(page).getByRole('heading', { name: 'Ingepland (8)' })).toBeVisible();
-    await expect(venster(page).getByRole('heading', { name: /Niet ingepland/ })).toHaveCount(0);
-    await venster(page).getByRole('button', { name: 'Klaar' }).click();
+    await expect(resultaat(page)).toBeVisible();
+    await expect(resultaat(page).getByText('Ingepland (8)', { exact: true })).toBeVisible();
+    await expect(resultaat(page).getByText(/Niet ingepland/)).toHaveCount(0);
+    await sluitResultaat(page);
     await expect(kal(page).locator('.tl-block.sales-voorgesteld')).toHaveCount(8);
     await expect(kal(page).locator('.tl-block.sales-bevestigd')).toHaveCount(0);
     for (const kolom of await kal(page).locator('.day-col[data-date]').all()) expect(overlap(await bezoekTijden(kolom))).toBe(false);
@@ -48,7 +52,7 @@ test.describe('sales: Plan deze week', () => {
     expect(patches).toHaveLength(1);
     expect(patches[0].body.leads).toHaveLength(8);
     for (const w of patches[0].body.leads) expect(w.velden).toMatchObject({ status: 'voorgesteld', planning: { vast: false } });
-    for (const pad of ['/api/matrix', '/api/route', '/api/propose', '/api/optimize', '/api/voorstel']) expect(verzoeken.van(pad), pad).toEqual([]);
+    for (const pad of ['/api/route', '/api/propose', '/api/optimize', '/api/voorstel']) expect(verzoeken.van(pad), pad).toEqual([]);
     // Geen lead blijft bij Nog in te plannen: alle acht staan in de middelste kolom.
     await tab(page, 'Leads').click();
     await expect(page.locator('#view-sales-lijst .sales-kaart')).toHaveCount(8);
@@ -70,10 +74,10 @@ test.describe('sales: Plan deze week', () => {
 
     for (const ronde of [1, 2]) {
       await plan(page).click();
-      await expect(venster(page)).toContainText('Planningsresultaat');
-      await expect(venster(page)).toContainText('Ingepland (7)');
-      await expect(venster(page)).not.toContainText('Test Hendrix');
-      await venster(page).getByRole('button', { name: 'Klaar' }).click();
+      await expect(resultaat(page)).toBeVisible();
+      await expect(resultaat(page)).toContainText('Ingepland (7)');
+      await expect(resultaat(page)).not.toContainText('Test Hendrix');
+      await sluitResultaat(page);
       const vast = dag(page, '2026-10-06').locator('.tl-block.sales-bevestigd');
       await expect(vast).toHaveCount(1);
       await expect(vast).toContainText('Test Hendrix');
@@ -96,8 +100,8 @@ test.describe('sales: Plan deze week', () => {
     await startSalesApp(page, { leads, blokken: [] });
     await naarKalender(page);
     await plan(page).click();
-    await expect(venster(page)).toContainText('Ingepland (5)');
-    await venster(page).getByRole('button', { name: 'Klaar' }).click();
+    await expect(resultaat(page)).toContainText('Ingepland (5)');
+    await sluitResultaat(page);
     const vroeg = dag(page, '2026-10-07').locator('.tl-block.sales-bevestigd', { hasText: 'Test Vroeg' });
     await expect(vroeg).toContainText('07:00–08:00');
     await expect(dag(page, '2026-10-08').locator('.tl-block.sales-bevestigd')).toHaveCount(4);
@@ -110,8 +114,8 @@ test.describe('sales: Plan deze week', () => {
     await startSalesApp(page, { leads, blokken: [] });
     await naarKalender(page);
     await plan(page).click();
-    await expect(venster(page)).toContainText('Ingepland (3)');
-    await venster(page).getByRole('button', { name: 'Klaar' }).click();
+    await expect(resultaat(page)).toContainText('Ingepland (3)');
+    await sluitResultaat(page);
     expect(verzoeken.van('/api/sales', 'PATCH')[0].body.leads.map((w) => w.id).sort()).toEqual(['n0', 'n1', 'n2']);
     await kal(page).getByRole('button', { name: 'Volgende periode' }).click();
     await expect(dag(page, '2026-10-14').locator('.tl-block.sales-bevestigd')).toContainText('10:00–11:00');
@@ -122,10 +126,10 @@ test.describe('sales: Plan deze week', () => {
     await startSalesApp(page, { leads, blokken: [] });
     await naarKalender(page);
     await plan(page).click();
-    await expect(venster(page).getByRole('heading', { name: 'Ingepland (3)' })).toBeVisible();
-    await expect(venster(page).getByRole('heading', { name: 'Niet ingepland (1)' })).toBeVisible();
-    await expect(venster(page).locator('.sales-plan-niet')).toContainText('Test Molenaar');
-    await expect(venster(page).locator('.sales-plan-niet')).toContainText('Adres niet gevonden');
+    await expect(resultaat(page).getByText('Ingepland (3)', { exact: true })).toBeVisible();
+    await expect(resultaat(page).getByText('Niet ingepland (1)', { exact: true })).toBeVisible();
+    await expect(sectie(page, 'Niet ingepland')).toContainText('Test Molenaar');
+    await expect(sectie(page, 'Niet ingepland')).toContainText('Adres niet gevonden');
   });
 
   test('(d) een bevestigd bezoek wordt nooit herschikt; een voorgesteld bezoek op een geblokkeerde dag verhuist', async ({ page }) => {
@@ -134,8 +138,8 @@ test.describe('sales: Plan deze week', () => {
     await startSalesApp(page, { leads, blokken: [heleDag('h1', '2026-10-06')] });
     await naarKalender(page);
     await plan(page).click();
-    await expect(venster(page)).toContainText('Ingepland (1)');
-    await venster(page).getByRole('button', { name: 'Klaar' }).click();
+    await expect(resultaat(page)).toContainText('Ingepland (1)');
+    await sluitResultaat(page);
     await expect(dag(page, '2026-10-06').locator('.tl-block.sales-voorgesteld')).toHaveCount(0);
     await expect(dag(page, '2026-10-06').locator('.tl-block.sales-bevestigd')).toContainText('14:00–15:00');
     const elders = kal(page).locator('.day-col:not([data-date="2026-10-06"]) .tl-block.sales-voorgesteld', { hasText: 'Test Pieters' });
@@ -153,10 +157,10 @@ test.describe('sales: Plan deze week', () => {
     await startSalesApp(page, { leads, blokken });
     await naarKalender(page);
     await plan(page).click();
-    await expect(venster(page).getByRole('heading', { name: 'Niet ingepland (1)' })).toBeVisible();
-    await expect(venster(page).locator('.sales-plan-niet')).toContainText('Test Verstraete');
-    await expect(venster(page).locator('.sales-plan-niet .sales-plan-reden')).not.toBeEmpty();
-    await venster(page).getByRole('button', { name: 'Klaar' }).click();
+    await expect(resultaat(page).getByText('Niet ingepland (1)', { exact: true })).toBeVisible();
+    await expect(sectie(page, 'Niet ingepland')).toContainText('Test Verstraete');
+    await expect(sectie(page, 'Niet ingepland').locator('.result-item > div:last-child > div')).not.toBeEmpty();
+    await sluitResultaat(page);
     await expect(kal(page).locator('.tl-block.sales-voorgesteld')).toHaveCount(0);
     await expect(kal(page).locator('.tl-block.sales-bevestigd')).toHaveCount(4);
     const patch = verzoeken.van('/api/sales', 'PATCH')[0];
@@ -179,9 +183,9 @@ test.describe('sales: Plan deze week', () => {
     await startSalesApp(page, { leads: achtLeads(), blokken: [], instellingen: null });
     await naarKalender(page);
     await plan(page).click();
-    await expect(venster(page)).toContainText('Ingepland (8)');
+    await expect(resultaat(page)).toContainText('Ingepland (8)');
     await expect(toast(page)).toContainText('Geen startlocatie ingesteld: de ritten starten bij het eerste bezoek. Stel je startadres in via ⚙ Instellingen.');
-    await venster(page).getByRole('button', { name: 'Klaar' }).click();
+    await sluitResultaat(page);
     await expect(kal(page).locator('.day-col[data-date]')).toHaveCount(5); // enkel ma-vr: geen enkel bezoek in het weekend
     for (const kolom of await kal(page).locator('.day-col[data-date]').all()) {
       for (const [b, e] of await bezoekTijden(kolom)) { expect(b).toBeGreaterThanOrEqual(8 * 60); expect(b).toBeLessThanOrEqual(16 * 60); expect(e).toBeLessThanOrEqual(17 * 60 + 60); }
@@ -206,7 +210,7 @@ test.describe('sales: Plan deze week', () => {
     await plan(page).click();
     await expect(toast(page)).toContainText('instellingen van deze verkoper konden niet geladen worden');
     expect(verzoeken.van('/api/sales', 'PATCH')).toEqual([]);
-    await expect(venster(page)).toHaveCount(0);
+    await expect(resultaat(page)).toBeHidden();
     await verwachtFout(consoleFouten, '/api/instellingen', 503);
   });
 
@@ -225,8 +229,8 @@ test.describe('sales: Plan deze week', () => {
     await expect(lijst.locator('.sales-kaart', { hasText: 'Test Bevestigd' }).locator('.sales-chip-verlopen')).toHaveCount(0);
     await naarKalender(page);
     await plan(page).click();
-    await expect(venster(page)).toContainText('Ingepland (2)'); // Verlopen + Nieuw
-    await venster(page).getByRole('button', { name: 'Klaar' }).click();
+    await expect(resultaat(page)).toContainText('Ingepland (2)'); // Verlopen + Nieuw
+    await sluitResultaat(page);
     const patch = verzoeken.van('/api/sales', 'PATCH');
     expect(patch).toHaveLength(1);
     expect(patch[0].body.leads.map((w) => w.id).sort()).toEqual(['t1', 'v1']); // het bevestigde bezoek is niet aangeraakt
@@ -243,7 +247,7 @@ test.describe('sales: Plan deze week', () => {
     await plan(page).click();
     await expect(toast(page)).toHaveText('Geen leads om in te plannen');
     expect(verzoeken.van('/api/sales', 'PATCH')).toEqual([]);
-    await expect(venster(page)).toHaveCount(0);
+    await expect(resultaat(page)).toBeHidden();
   });
 
   test('een week die voorbij is: melding en niets gepland', async ({ page, verzoeken }) => {
@@ -260,8 +264,8 @@ test.describe('sales: Plan deze week', () => {
     await naarKalender(page);
     await kal(page).getByRole('button', { name: 'Maand', exact: true }).click();
     await plan(page).click();
-    await expect(venster(page)).toContainText('Maandweergave: je plant de week van');
-    await expect(venster(page)).toContainText('Ingepland (2)');
+    await expect(resultaat(page)).toContainText('Maandweergave: je plant de week van');
+    await expect(resultaat(page)).toContainText('Ingepland (2)');
   });
 
   test('een 409-conflict op het bewaren: toast "Planning niet bewaard", de leads blijven ongewijzigd', async ({ page, verzoeken, consoleFouten }) => {
@@ -276,9 +280,142 @@ test.describe('sales: Plan deze week', () => {
     await naarKalender(page);
     await plan(page).click();
     await expect(toast(page)).toHaveText('Planning niet bewaard: de gegevens waren intussen gewijzigd. Plan opnieuw.');
-    await expect(venster(page)).toHaveCount(0);
+    await expect(resultaat(page)).toBeHidden();
     await expect(kal(page).locator('.tl-block')).toHaveCount(0);
     expect(verzoeken.van('/api/sales', 'PATCH')).toHaveLength(2); // één keer opnieuw na het 409
     await verwachtFout(consoleFouten, '/api/sales', 409, 4);
+  });
+});
+
+// Hetzelfde resultaatvenster als bij de technieker (Brent, proefperiode: de planning van de verkoper moet er hetzelfde uitzien en zich gedragen).
+test.describe('sales: resultaatvenster van Plan deze week (zelfde als technieker)', () => {
+  test('in testmodus (?test) vraagt het brein de reistijd ook via /api/matrix (stub), zoals de technieker', async ({ page, verzoeken }) => {
+    const leads = [bevestigd('b1', 'Bevest', '2026-10-05', '10:00', 0), lead('n1', 'Verstraete', 6)];
+    await startSalesApp(page, { leads, blokken: [], instellingen: { vanTijd: '08:00', totTijd: '17:00', werkdagen: [1] } });
+    await naarKalender(page);
+    await plan(page).click();
+    await expect(resultaat(page).getByText('Ingepland (1)', { exact: true })).toBeVisible();
+    expect(verzoeken.van('/api/matrix', 'POST').length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('titel, ✕ en Escape sluiten; secties Ingepland en Niet ingepland met het bolletje en de reden eronder', async ({ page }) => {
+    const leads = [...achtLeads().slice(0, 2), lead('m1', 'Molenaar', 0, { postcode: null, gemeente: null, adresTekst: 'bij de molen', locatie: null })];
+    await startSalesApp(page, { leads, blokken: [] });
+    await naarKalender(page);
+    await plan(page).click();
+    await expect(resultaat(page)).toBeVisible();
+    await expect(resultaat(page).locator('#result-titel')).toHaveText('⚡ Planningsresultaat');
+    await expect(sectie(page, 'Ingepland (2)').locator('.result-item')).toHaveCount(2);
+    await expect(sectie(page, 'Ingepland (2)').locator('.result-dot.ok')).toHaveCount(2);
+    await expect(sectie(page, 'Ingepland (2)')).toContainText(/Test Aerts → .*5 okt/);
+    await expect(sectie(page, 'Niet ingepland (1)').locator('.result-dot.skip')).toHaveCount(1);
+    await expect(sectie(page, 'Niet ingepland (1)')).toContainText('Test Molenaar');
+    await expect(sectie(page, 'Niet ingepland (1)')).toContainText('Adres niet gevonden');
+    await page.keyboard.press('Escape');
+    await expect(resultaat(page)).toBeHidden();
+    await plan(page).click(); // de lead zonder locatie is nog te plannen: het venster komt opnieuw
+    await expect(resultaat(page)).toBeVisible();
+    await sluitResultaat(page);
+    await expect(resultaat(page)).toBeHidden();
+    await expect(plan(page)).toBeFocused(); // de focus keert terug naar de knop (die intussen opnieuw getekend is)
+  });
+
+  test('namen in het resultaat worden nooit als HTML getoond', async ({ page }) => {
+    const gevaarlijk = '<img src=x onerror="window.__pwned=1">';
+    await startSalesApp(page, { leads: [lead('x1', gevaarlijk, 0), lead('x2', 'Normaal', 1, { postcode: null, gemeente: null, adresTekst: 'ergens', locatie: null, voornaam: gevaarlijk })], blokken: [] });
+    await naarKalender(page);
+    await plan(page).click();
+    await expect(resultaat(page)).toBeVisible();
+    await expect(resultaat(page).locator('#result-body')).toContainText('<img src=x onerror="window.__pwned=1">');
+    await expect(resultaat(page).locator('#result-body img')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+  });
+
+  test('telefoonbreedte: het venster past binnen het scherm, geen horizontale scroll op de pagina', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 700 });
+    await startSalesApp(page, { leads: [lead('l1', 'Een-heel-lange-familienaam-zonder-spaties-erin-voor-de-proef', 0), lead('l2', 'Janssens', 1)], blokken: [] });
+    await naarKalender(page);
+    await plan(page).click();
+    await expect(resultaat(page)).toBeVisible();
+    const m = await page.evaluate(() => ({
+      breedte: document.getElementById('result-modal').getBoundingClientRect().width,
+      overloop: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      binnen: document.getElementById('result-body').scrollWidth - document.getElementById('result-body').clientWidth,
+    }));
+    expect(m.breedte).toBeLessThanOrEqual(375);
+    expect(m.overloop).toBeLessThanOrEqual(0);
+    expect(m.binnen).toBeLessThanOrEqual(0);
+  });
+
+  test('de beheerder (subtab Kalender van "Sales") krijgt hetzelfde venster, en het sluit netjes', async ({ page }) => {
+    await startSalesApp(page, { gebruiker: BEHEERDER, blobs: { 'sales/u-bea': { versie: 1, leads: achtLeads().slice(0, 3), blokken: [], grafstenen: [] } } });
+    await tab(page, 'Sales').click();
+    await page.getByRole('tablist', { name: 'Sales-onderdelen' }).getByRole('tab', { name: 'Kalender' }).click();
+    await expect(kal(page).locator('.day-col[data-date]').first()).toBeVisible();
+    await plan(page).click();
+    await expect(resultaat(page).getByText('Ingepland (3)', { exact: true })).toBeVisible();
+    await sluitResultaat(page);
+    await expect(resultaat(page)).toBeHidden();
+    await expect(kal(page).locator('.tl-block.sales-voorgesteld')).toHaveCount(3);
+  });
+});
+
+// Buiten de testmodus (de pagina opnieuw laden zonder ?test): echte reistijden via /api/matrix, zoals bij de technieker. De stubs van de sales-server
+// blijven testmodus; het depot staat in de geocache van het toestel, zodat er geen TomTom-geocoding nodig is.
+test.describe('sales: Plan deze week buiten de testmodus (echte reistijden)', () => {
+  const DEPOT = 'Depotstraat 1, 3500 Hasselt';
+  const INSTELLING = { startlocatie: DEPOT, vanTijd: '08:00', totTijd: '17:00', werkdagen: [1] };
+  const matrixMet = (minuten) => ({ body }) => ({
+    status: 200, json: { results: (body?.destinations ?? []).map(() => ({ travelTimeSeconds: minuten * 60, distanceMeters: 50000 })) },
+  });
+  const startLive = async (page, { leads, instellingen = INSTELLING, overschrijf }) => {
+    await page.addInitScript(({ adres }) => {
+      if (window !== window.top) return;
+      localStorage.setItem('blitz_geocache', JSON.stringify({ [adres.toLowerCase()]: { lat: 50.93, lon: 5.34, t: Date.now() } }));
+    }, { adres: DEPOT });
+    const backend = await startSalesApp(page, { instellingen, leads, blokken: [], overschrijf });
+    await page.goto('/'); // zonder ?test
+    await expect(tab(page, 'Te plannen')).toBeVisible();
+    expect(await page.evaluate(() => new URLSearchParams(location.search).has('test'))).toBe(false);
+    await naarKalender(page);
+    return backend;
+  };
+  const metBevestigd = () => [bevestigd('b1', 'Bevest', '2026-10-05', '10:00', 0), lead('n1', 'Verstraete', 6, { locatie: { lat: 51.2, lon: 5.6, bron: 'adres' } })];
+
+  test('het brein vraagt de reistijd op via /api/matrix; is die te lang, dan staat het bezoek onder Niet ingepland met de reden', async ({ page, verzoeken }) => {
+    await startLive(page, { leads: metBevestigd(), overschrijf: { matrix: matrixMet(90) } });
+    await plan(page).click();
+    await expect(resultaat(page).getByText('Niet ingepland (1)', { exact: true })).toBeVisible();
+    await expect(sectie(page, 'Niet ingepland')).toContainText('Test Verstraete');
+    await expect(sectie(page, 'Niet ingepland')).toContainText('Te ver van de andere afspraken (meer dan 45 min)');
+    await expect(resultaat(page).getByText(/Ingepland \(/)).toHaveCount(0);
+    const oproepen = verzoeken.van('/api/matrix', 'POST');
+    expect(oproepen.length).toBeGreaterThanOrEqual(1);
+    for (const o of oproepen) {
+      expect(typeof o.body.origin.lat).toBe('number');
+      expect(o.body.destinations.length).toBeGreaterThanOrEqual(1);
+    }
+    expect(verzoeken.van('/api/sales', 'PATCH')).toEqual([]); // niets te bewaren: het bevestigde bezoek bleef, de lead bleef te plannen
+  });
+
+  test('een korte reistijd: het bezoek wordt voorgesteld', async ({ page, verzoeken }) => {
+    await startLive(page, { leads: metBevestigd(), overschrijf: { matrix: matrixMet(10) } });
+    await plan(page).click();
+    await expect(resultaat(page).getByText('Ingepland (1)', { exact: true })).toBeVisible();
+    await expect(resultaat(page).getByText(/Niet ingepland/)).toHaveCount(0);
+    await expect(resultaat(page).getByText(/Reistijd kon niet gecontroleerd worden/)).toHaveCount(0);
+    expect(verzoeken.van('/api/matrix', 'POST').length).toBeGreaterThanOrEqual(1);
+    expect(verzoeken.van('/api/sales', 'PATCH')).toHaveLength(1);
+  });
+
+  test('de matrix valt uit: het bezoek wordt toch voorgesteld met de waarschuwing dat de reistijd geschat is', async ({ page, consoleFouten }) => {
+    await startLive(page, {
+      leads: metBevestigd(), instellingen: { ...INSTELLING, maxReistijdMin: 300 },
+      overschrijf: { matrix: () => ({ status: 500, json: { error: 'matrix stuk' } }) },
+    });
+    await plan(page).click();
+    await expect(resultaat(page).getByText('Ingepland (1)', { exact: true })).toBeVisible();
+    await expect(resultaat(page).getByText('⚠ Reistijd kon niet gecontroleerd worden voor 1 bezoek — kijk de route na')).toBeVisible();
+    await verwachtFout(consoleFouten, '/api/matrix', 500, 1);
   });
 });

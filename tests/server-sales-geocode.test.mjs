@@ -161,3 +161,22 @@ test('geocodePostcode: enkel postcodes 1000-9999 (0123 -> null zonder fetch)', a
   assert.equal(await geocodePostcode('0999', opts(fn)), null);
   assert.equal(calls.length, 0);
 });
+
+test('testmodus: een bekende postcode krijgt het echte middelpunt, een adres ligt er vlak naast, een onbekende postcode ligt in Limburg', async () => {
+  const { fn, calls } = maakNepFetch();
+  const t = { testModus: true, sleutel: undefined };
+  const hasselt = await geocodePostcode('3500', opts(fn, t));
+  assert.deepEqual({ lat: hasselt.lat, lon: hasselt.lon }, { lat: 50.9307, lon: 5.3325 });
+  const genk = await geocodePostcode('3600', opts(fn, t));
+  assert.deepEqual({ lat: genk.lat, lon: genk.lon }, { lat: 50.965, lon: 5.5008 });
+  const adres = await geocodeAdres('Kerkstraat 3, 3500 Hasselt', opts(fn, t));
+  assert.ok(Math.abs(adres.lat - 50.9307) <= 0.011 && Math.abs(adres.lon - 5.3325) <= 0.016, 'adres in Hasselt');
+  assert.deepEqual(adres, await geocodeAdres('Kerkstraat 3, 3500 Hasselt', opts(fn, t)));
+  for (const pc of ['9999', '1234', '8000', '5000']) {
+    const p = await geocodePostcode(pc, opts(fn, t));
+    assert.ok(p.lat >= 50.8 && p.lat <= 51.2 && p.lon >= 5.1 && p.lon <= 5.7, `${pc} in het Limburgse kader`);
+  }
+  const zonder = await geocodeAdres('bij de molen', opts(fn, t));
+  assert.ok(zonder.lat >= 50.8 && zonder.lat <= 51.2 && zonder.lon >= 5.1 && zonder.lon <= 5.7);
+  assert.equal(calls.length, 0);
+});
