@@ -7,7 +7,8 @@
 // Een gedeeld toestel: de cache hoort bij één gebruiker (marker `blitz_instellingen_eigenaar`). Hoort ze bij een ANDERE gebruiker,
 // dan wordt ze gewist vóór er iets gebeurt (ook zonder verbinding): de lokale waarde van een ander gaat nooit omhoog als de mijne.
 // Zonder marker (vóór deze versie of net gewist) geldt de lokale waarde als de mijne en gaat ze eenmalig omhoog als de server nog
-// niets van mij heeft.
+// niets van mij heeft. Op een planner-/beheerdertoestel gaan ook de lokaal bewaarde waarden van een TECHNIEKER eenmalig omhoog als de
+// server voor die technieker nog niets heeft (eindreview I3); heeft de server wel waarden, dan wint de server.
 //
 // Vuil-markering (`blitz_instellingen_vuil` = { [persoon]: true }): een PUT die niet lukte door een netwerk- of opslagprobleem.
 // De volgende synchronisatie laadt voor zo'n persoon EERST de lokale waarde op; pas als dat lukt (of de server het definitief
@@ -219,7 +220,8 @@ async function voerSynchronisatieUit(gebruiker, apiJson, opslag, wacht, isGestop
     if (r.ok || r.reden === 'netwerk') blijftLokaal.add(persoon); // gelukt: lokaal = server; netwerk: lokaal blijft staan, niets overschrijven
   }
   // Ronde 2: de server is de bron; of, voor mij, de eenmalige overgang van een lokale waarde.
-  for (const { persoon, server, eigen } of personen) {
+  const magTechniekerSchrijven = gebruiker?.rol === 'planner' || gebruiker?.rol === 'beheerder';
+  for (const { persoon, id, server, eigen } of personen) {
     if (blijftLokaal.has(persoon)) continue;
     const sleutel = settingsKey(persoon);
     if (server) {
@@ -230,6 +232,15 @@ async function voerSynchronisatieUit(gebruiker, apiJson, opslag, wacht, isGestop
       const lokaal = leesJson(opslag, sleutel);
       if (lokaal && Object.keys(lokaal).length) {
         await wacht(stuur(verstuur, { instellingen: lichaamVoor(persoon, lokaal, gebruiker, opslag) })); // mislukt: volgende start opnieuw
+        if (isGestopt()) return false;
+      }
+    } else if (magTechniekerSchrijven) {
+      // Migratie (eindreview I3): de waarden die de planner vóór de release op ZIJN toestel per technieker instelde gaan eenmalig omhoog
+      // als de server voor die technieker nog niets heeft. Heeft de server wel waarden, dan wint de server (hierboven). Na een gelukte
+      // PUT heeft de server waarden en gebeurt dit nooit meer; mislukt hij, dan volgt een nieuwe poging bij de volgende start.
+      const lokaal = leesJson(opslag, sleutel);
+      if (lokaal && Object.keys(lokaal).length) {
+        await wacht(stuur(verstuur, { gebruiker: id, instellingen: lichaamVoor(persoon, lokaal, gebruiker, opslag) }));
         if (isGestopt()) return false;
       }
     }

@@ -77,17 +77,86 @@ test('technieker Tim: eigen serverwaarde onder blitz_settings_Tim (niet onder bl
   assert.equal(opslag.getItem('blitz_settings'), null);
 });
 
-test('techniekerinstellingen uit het overzicht komen onder hun settingsKey; techniekers zonder waarde blijven ongemoeid', async () => {
-  const opslag = maakOpslag({ blitz_settings_Roel: { startlocatie: 'Roel lokaal' } });
-  await synchroniseerInstellingen(PLANNER, {
-    apiJson: nepApiJson({ overzicht: ovz({ gebruikerId: 'u-pl', versie: 1, instellingen: null }, {
-      Tim: { gebruikerId: 'u-tim', instellingen: S({ startlocatie: 'Tim server' }) },
-      Roel: { gebruikerId: 'u-roel', instellingen: null },
-    }) }), opslag,
-  });
+test('techniekerinstellingen uit het overzicht komen onder hun settingsKey; een technieker met serverwaarde wint van de lokale waarde', async () => {
+  const opslag = maakOpslag({ blitz_settings_Tim: { startlocatie: 'Tim lokaal' } });
+  const api = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-pl', versie: 1, instellingen: null }, {
+    Tim: { gebruikerId: 'u-tim', instellingen: S({ startlocatie: 'Tim server' }) },
+    Roel: { gebruikerId: 'u-roel', instellingen: null },
+  }) });
+  await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag });
   assert.equal(opslag.json('blitz_settings_Tim').startlocatie, 'Tim server');
-  assert.equal(opslag.json('blitz_settings_Roel').startlocatie, 'Roel lokaal');
+  assert.deepEqual(api.puts, [], 'niets lokaals voor Roel en Tim heeft een serverwaarde: geen PUT');
   assert.equal(opslag.getItem('blitz_settings'), null, 'niets lokaals en niets op de server: niets te schrijven');
+});
+
+// Eindreview I3: dit gedrag was eerder omgekeerd ("techniekers zonder waarde blijven ongemoeid" en niets omhoog): de waarden die de
+// planner op zijn toestel per technieker instelde gingen zo bij de eerste login van de technieker (gsm-waarde) of bij afmelden verloren.
+test('I3 migratie: planner-toestel met lokale waarde van technieker Roel en server instellingen null: één PUT { gebruiker, instellingen } (zonder laatsteStart)', async () => {
+  const opslag = maakOpslag({ blitz_settings_Roel: { startlocatie: 'Roel lokaal', maxPerDag: 4 }, blitz_laatste_start: '15:00' });
+  const api = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-pl', versie: 1, instellingen: null }, {
+    Tim: { gebruikerId: 'u-tim', instellingen: null },
+    Roel: { gebruikerId: 'u-roel', instellingen: null },
+  }) });
+  await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag });
+  assert.deepEqual(api.puts, [{ gebruiker: 'u-roel', instellingen: { startlocatie: 'Roel lokaal', maxPerDag: 4 } }]);
+  assert.equal(opslag.json('blitz_settings_Roel').startlocatie, 'Roel lokaal', 'de lokale waarde blijft staan');
+  assert.equal(opslag.getItem(VUIL_SLEUTEL), null);
+});
+
+test('I3 migratie: ook de beheerder uploadt; een technieker of sales uploadt nooit de waarden van collega’s', async () => {
+  const techniekers = { Tim: { gebruikerId: 'u-tim', instellingen: null }, Roel: { gebruikerId: 'u-roel', instellingen: null } };
+  const beheerder = maakOpslag({ blitz_settings_Roel: { startlocatie: 'R' } });
+  const apiB = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-b', versie: 0, instellingen: null }, techniekers) });
+  await synchroniseerInstellingen({ id: 'u-b', rol: 'beheerder' }, { apiJson: apiB, opslag: beheerder });
+  assert.equal(apiB.puts.length, 1);
+  assert.equal(apiB.puts[0].gebruiker, 'u-roel');
+
+  const tech = maakOpslag({ blitz_settings_Roel: { startlocatie: 'R' } });
+  const apiT = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-tim', versie: 0, instellingen: null }, techniekers) });
+  await synchroniseerInstellingen(TIM, { apiJson: apiT, opslag: tech });
+  assert.deepEqual(apiT.puts, [], 'technieker: alleen zijn eigen waarde');
+
+  const sales = maakOpslag({ blitz_settings_Roel: { startlocatie: 'R' } });
+  const apiS = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-s', versie: 0, instellingen: null }, techniekers) });
+  await synchroniseerInstellingen({ id: 'u-s', rol: 'sales' }, { apiJson: apiS, opslag: sales });
+  assert.deepEqual(apiS.puts, []);
+});
+
+test('I3 migratie: eenmalig: na een geslaagde PUT heeft de server waarden en wint de server; mislukt de PUT dan volgt een nieuwe poging bij de volgende start', async () => {
+  const opslag = maakOpslag({ blitz_settings_Roel: { startlocatie: 'Roel lokaal' } });
+  const zonder = { Roel: { gebruikerId: 'u-roel', instellingen: null } };
+  const faal = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-pl', versie: 0, instellingen: null }, zonder), put: () => { throw httpFout(500); } });
+  await synchroniseerInstellingen(PLANNER, { apiJson: faal, opslag });
+  assert.equal(faal.puts.length, 1);
+  assert.equal(opslag.json('blitz_settings_Roel').startlocatie, 'Roel lokaal', 'lokale waarde blijft bij een mislukking');
+  const opnieuw = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-pl', versie: 0, instellingen: null }, zonder) });
+  await synchroniseerInstellingen(PLANNER, { apiJson: opnieuw, opslag });
+  assert.equal(opnieuw.puts.length, 1, 'tweede poging');
+  // Nu heeft de server een waarde: de server wint, geen PUT meer.
+  const klaar = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-pl', versie: 0, instellingen: null }, { Roel: { gebruikerId: 'u-roel', instellingen: S({ startlocatie: 'Roel server' }) } }) });
+  await synchroniseerInstellingen(PLANNER, { apiJson: klaar, opslag });
+  assert.deepEqual(klaar.puts, []);
+  assert.equal(opslag.json('blitz_settings_Roel').startlocatie, 'Roel server');
+});
+
+test('I3 migratie: lege lokale waarde of een vreemde eigenaar: niets omhoog', async () => {
+  const leeg = maakOpslag({ blitz_settings_Roel: {} });
+  const api = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-pl', versie: 0, instellingen: null }, { Roel: { gebruikerId: 'u-roel', instellingen: null } }) });
+  await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag: leeg });
+  assert.deepEqual(api.puts, []);
+  const ander = maakOpslag({ blitz_settings_Roel: { startlocatie: 'Van de ander' }, [MARKER_SLEUTEL]: 'u-ander' });
+  const api2 = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-pl', versie: 0, instellingen: null }, { Roel: { gebruikerId: 'u-roel', instellingen: null } }) });
+  await synchroniseerInstellingen(PLANNER, { apiJson: api2, opslag: ander });
+  assert.deepEqual(api2.puts, [], 'de cache van een ander is gewist vóór er iets omhoog kan');
+});
+
+test('resterendSyncBudget: totale opstart ≤ 8 s: een trage auth-ik laat minder over, nooit minder dan 1 s of meer dan 7 s', () => {
+  assert.equal(resterendSyncBudget(0), 7000);
+  assert.equal(resterendSyncBudget(300), 7000);
+  assert.equal(resterendSyncBudget(5000), 3000);
+  assert.equal(resterendSyncBudget(7900), 1000);
+  assert.equal(resterendSyncBudget(20000), 1000);
+  assert.equal(resterendSyncBudget(undefined), 7000);
 });
 
 test('server null + lokale waarde + geen marker: één PUT met de lokale waarde (met laatsteStart) en marker = mijn id', async () => {
@@ -441,13 +510,4 @@ test('neemEigenOver: schrijft de eigen cache (planner: all, technieker: zohoNaam
   assert.equal(neemEigenOver(S(), TIM, { opslag }), 'Tim');
   assert.deepEqual(opslag.json('blitz_settings_Tim'), S());
   assert.equal(opslag.getItem('blitz_laatste_start'), '15:30', 'zonder geldige laatsteStart blijft de globale waarde staan');
-});
-
-test('resterendSyncBudget: totale opstart ≤ 8 s: een trage auth-ik laat minder over, nooit minder dan 1 s of meer dan 7 s', () => {
-  assert.equal(resterendSyncBudget(0), 7000);
-  assert.equal(resterendSyncBudget(300), 7000);
-  assert.equal(resterendSyncBudget(5000), 3000);
-  assert.equal(resterendSyncBudget(7900), 1000);
-  assert.equal(resterendSyncBudget(20000), 1000);
-  assert.equal(resterendSyncBudget(undefined), 7000);
 });
