@@ -84,11 +84,14 @@ export function pasRolToe(gebruiker) {
   // Een technieker ziet Rapporten (enkel zijn eigen: de server filtert) op elk toestel; de rest van .coord-only blijft verborgen.
   document.getElementById('tab-rapporten')?.classList.toggle('coord-only', rol !== 'technieker');
 
-  // Een technieker start op zijn eigen planning, tenzij hij al een bepaalde persoon gekozen had.
-  if (rol === 'technieker' && gebruiker.zohoNaam) {
+  // Een technieker start op zijn eigen planning, tenzij hij al een bepaalde persoon gekozen had. Een beheerder of planner met een
+  // Zoho-naam (voert zelf interventies uit) start op zichzelf zolang er op dit toestel nog niets gekozen is; een bewuste keuze,
+  // ook "Alle", blijft staan.
+  if (rol !== 'sales' && gebruiker.zohoNaam) {
     try {
       const gekozen = localStorage.getItem('blitz_active_person');
-      if (!gekozen || gekozen === 'all') localStorage.setItem('blitz_active_person', String(gebruiker.zohoNaam));
+      const opEigen = rol === 'technieker' ? (!gekozen || gekozen === 'all') : !gekozen;
+      if (opEigen) localStorage.setItem('blitz_active_person', String(gebruiker.zohoNaam));
     } catch { /* geen opslag */ }
   }
   toonGebruikersmenu(gebruiker);

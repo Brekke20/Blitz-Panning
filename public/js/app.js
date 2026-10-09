@@ -45,6 +45,7 @@ import { appConfirm } from './app-dialog.js';
 import { registreerVenster } from './venster.js';
 import { startNaInlog } from './schermen/rol-schil.js';
 import { laadTab } from './kern/navigatie.js';
+import { huidigeGebruiker, huidigeRechten } from './kern/sessie.js';
 import { installeerTijdPicker } from './kern/tijd-picker.js';
 
 
@@ -638,11 +639,19 @@ function initials(name) {
   return name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
+// De Zoho-naam van het ingelogde account (elke rol behalve sales kan er een hebben): wie zelf interventies uitvoert, kan zichzelf
+// altijd kiezen, ook als er op dat moment geen ticket op zijn naam staat.
+const eigenZohoNaam = () => {
+  const naam = huidigeGebruiker()?.zohoNaam;
+  return typeof naam === 'string' ? naam.trim() : '';
+};
+
 function personenUitTickets() {
   return [...new Set([
     ...get('allTickets').map(t => t.assignee),
     ...get('allGepland').map(t => t.assignee),
     ...get('allPending').map(t => t.assignee),
+    eigenZohoNaam(),
   ])].filter(Boolean).sort();
 }
 
@@ -669,7 +678,9 @@ function buildPersonSelector() {
 
   // "Alle" optie
   const allItem = document.createElement('button');
-  allItem.className = `pm-item coord-only${get('activeAssigneeFilter') === 'all' ? ' active' : ''}`;
+  // Wie mag plannen (beheerder, planner) kiest altijd "Alle technici", ook op een gsm of tablet waar de toestelrol "technieker" is
+  // (.coord-only verbergt anders dit item, en de rol van het account beslist, niet het toestel).
+  allItem.className = `pm-item${huidigeRechten().plannen ? '' : ' coord-only'}${get('activeAssigneeFilter') === 'all' ? ' active' : ''}`;
   allItem.innerHTML = `<div class="pm-avatar">A</div><div class="pm-item-info"><div class="pm-item-name">Alle technici</div><div class="pm-item-sub">Gecombineerde weergave</div></div>`;
   allItem.onclick = () => selectPerson('all');
   menu.appendChild(allItem);
@@ -688,6 +699,13 @@ function updatePersonHeader() {
   const nm = document.getElementById('person-name-hdr');
   if (el) el.textContent = initials(get('activeAssigneeFilter'));
   if (nm) nm.textContent = get('activeAssigneeFilter') === 'all' ? 'Alle' : get('activeAssigneeFilter').split(' ')[0];
+  // Onderscheid met het gebruikersmenu (account): deze knop kiest WIE je planning je bekijkt.
+  const knop = document.getElementById('person-btn');
+  if (knop) {
+    const wie = get('activeAssigneeFilter') === 'all' ? 'alle technici' : get('activeAssigneeFilter');
+    knop.title = 'Kies technieker (nu: ' + wie + ')';
+    knop.setAttribute('aria-label', 'Kies technieker, nu ' + wie);
+  }
 }
 
 
