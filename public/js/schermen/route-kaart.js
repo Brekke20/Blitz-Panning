@@ -23,7 +23,7 @@ export function initKaart(afh) {
 // Migratie: een eerder opgeslagen instellingen().kaartStijl === 'standaard' wijst voortaan automatisch
 // naar deze nieuwe laag — 'standaard' blijft een geldige sleutel, enkel de laag erachter wijzigt
 // (aanvaardbaar, geen aparte migratiecode nodig).
-const KAART_LAGEN = {
+export const KAART_LAGEN = {
   standaard: { naam: 'Standaard', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', opts: { attribution: 'Tiles © Esri', maxZoom: 19 } },
   osm:       { naam: 'OpenStreetMap', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', opts: { attribution: '© OpenStreetMap', maxZoom: 19 } },
   // CARTO's gratis anonieme tegels vereisen sinds kort een API-key (watermerk "API KEY

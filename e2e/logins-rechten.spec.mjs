@@ -2,6 +2,7 @@
 // de zichtbare tabs en knoppen per rol (Rechtentabel), een geweigerde schrijfactie (403) en een verlopen sessie.
 // Alles draait tegen stubs: er verlaat niets de pagina. De server beslist altijd zelf; de client verbergt enkel knoppen.
 import { test, expect, startApp, authIkStub, opslagStub } from './helpers.mjs';
+import { startSalesApp, VERBODEN_PADEN_SALES } from './sales-hulp.mjs';
 
 const json = (status, obj) => ({ status, json: obj });
 
@@ -155,9 +156,9 @@ test.describe('rechten per rol (Rechtentabel): tabs en knoppen', () => {
   const COORD_KNOPPEN = ['d-btn-proposal', 'd-btn-reschedule'];
   const SCHRIJF = ['d-btn-arrival', 'd-btn-fotos', 'd-btn-rapport'];
 
-  test('beheerder: 7 tabs met Beheer; alle knoppen in het detail', async ({ page }) => {
+  test('beheerder: 7 eigen tabs met Beheer plus de 4 sales-tabs; alle knoppen in het detail', async ({ page }) => {
     await startApp(page, { loginRol: 'beheerder' });
-    await expect(zichtbareTabs(page)).toHaveCount(7);
+    await expect(zichtbareTabs(page)).toHaveCount(11);
     await expect(tab(page, 'Beheer')).toBeVisible();
     await openPlanningDetail(page);
     for (const id of [...SCHRIJF, ...COORD_KNOPPEN, 'd-plan-btn']) await expect(knop(page, id), id).toBeVisible();
@@ -181,14 +182,17 @@ test.describe('rechten per rol (Rechtentabel): tabs en knoppen', () => {
     for (const id of [...COORD_KNOPPEN, 'd-plan-btn', 'd-btn-annuleer']) await expect(knop(page, id), id).toBeHidden();
   });
 
-  test('sales: geen tabs en geen hoofdmenu, enkel de plaatshouder; de planning-API\'s worden niet aangeroepen', async ({ page, verzoeken }) => {
-    await startApp(page, { loginRol: 'sales' });
-    await expect(page.locator('#view-sales')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Het sales-gedeelte volgt' })).toBeVisible();
-    await expect(page.locator('nav[aria-label="Hoofdmenu"]')).toBeHidden();
-    await expect(zichtbareTabs(page)).toHaveCount(0);
-    // Enkel de sessie en de eigen instellingen (de opstart van elke rol); geen tickets, planning, afspraken of route.
-    expect(verzoeken.alle.map(r => r.pad).filter(p => p !== '/api/auth-ik' && p !== '/api/instellingen')).toEqual([]);
+  test('sales: de vier sales-tabs; geen ticket-tabs en geen planning-API-aanroepen, enkel de sessie, de eigen instellingen en de eigen leads', async ({ page, verzoeken }) => {
+    await startSalesApp(page);
+    await expect(zichtbareTabs(page)).toHaveCount(4);
+    await expect(zichtbareTabs(page)).toHaveText(['Te plannen', 'Kalender', 'Route', 'Afgewerkt']);
+    await expect(page.locator('nav[aria-label="Hoofdmenu"]')).toBeVisible();
+    await expect(page.locator('#view-sales-lijst')).toBeVisible();
+    await expect(page.locator('#view-tickets')).toBeHidden();
+    // Enkel de sessie, de eigen instellingen en de eigen leads (de opstart van rol sales); geen tickets, planning, afspraken of route.
+    const paden = [...new Set(verzoeken.alle.map(r => r.pad))].sort();
+    expect(paden).toEqual(['/api/auth-ik', '/api/instellingen', '/api/sales']);
+    for (const verboden of VERBODEN_PADEN_SALES) expect(paden).not.toContain(verboden);
   });
 });
 

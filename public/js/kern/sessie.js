@@ -14,12 +14,18 @@ let lokaleDev = null;        // vlag uit het laatste auth-ik; null = nog geen an
 let lopend = null;           // gedeelde lopende laadSessie-belofte
 const ui = {};               // { toonInloggen, toonWachtwoordWijzigen, toonGeenVerbinding }
 const afmeldHaken = [];
+const voorAfmeldHaken = [];  // lopen VÓÓR auth-uitloggen: de sessie bestaat dan nog (bv. nog te versturen verzoeken)
 
 export function zetInlogUi(delen) {
   for (const [naam, fn] of Object.entries(delen || {})) if (fn instanceof Function) ui[naam] = fn;
 }
 export function registreerAfmeldHaak(fn) {
   if (fn instanceof Function) afmeldHaken.push(fn);
+}
+// Een haak die wordt afgewacht VÓÓR het uitloggen op de server (sales: uitgestelde verwijderingen versturen terwijl de sessie nog geldt;
+// na auth-uitloggen geeft elk verzoek 401 en opent de fetch-omhulling het inlogscherm). Een falende haak houdt het afmelden niet tegen.
+export function registreerVoorAfmeldHaak(fn) {
+  if (fn instanceof Function) voorAfmeldHaken.push(fn);
 }
 
 const normaal = (n) => String(n ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -182,6 +188,9 @@ export function laadSessie() {
 }
 
 export async function afmelden() {
+  for (const haak of voorAfmeldHaken) {
+    try { await haak(); } catch { /* één kapotte haak mag het afmelden niet tegenhouden */ }
+  }
   try {
     await globalThis.fetch('/api/auth-uitloggen', { method: 'POST', headers: { 'X-Blitz': '1' } });
   } catch { /* offline: lokaal toch afmelden; de server-cookie vervalt vanzelf */ }

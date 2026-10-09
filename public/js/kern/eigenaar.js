@@ -12,6 +12,7 @@ const PERSOON_SLEUTEL = 'blitz_active_person';
 export const PERSOONLIJKE_SLEUTELS = [
   PERSOON_SLEUTEL, 'blitz_tickets_cache', 'blitz_afspraken_cache', 'blitz_availability_cache', 'blitz_klantbeschikbaarheid_cache',
   'blitz_inventaris_cache', 'blitz_inventaris_cache_test',
+  'blitz_sales_verkoper', // sales-planner: de gekozen verkoper van een beheerder/sales-verantwoordelijke (sales-verkoper.js)
 ];
 // sessionStorage: de bewaarde tab en scrollpositie (zou een tab openen die deze rol niet heeft).
 export const SESSIE_SLEUTELS = ['blitz_schermstaat'];

@@ -1,0 +1,34 @@
+/* sales.css — de schermen van de sales-planner (voorvoegsel `sales-`; tokens uit base.css, geen eigen kleuren). */
+
+.sales-balk { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); }
+.sales-balk:empty { display: none; }
+.sales-inhoud { padding: var(--sp-4); min-width: 0; }
+
+.sales-verkoper { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--text2); font-size: var(--fs-sm); }
+.sales-verkoper-keuze {
+  background: var(--surface2); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--r);
+  padding: 6px 10px; font: inherit; font-size: var(--fs-sm); min-height: 36px;
+}
+.sales-verkoper-fout { color: var(--red-ink); font-size: var(--fs-xs); }
+.sales-alleen-lezen { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 8px; border-radius: var(--r-pill); background: var(--surface3); color: var(--muted); }
+
+.sales-leeg { color: var(--muted); text-align: center; padding: var(--sp-6) var(--sp-4); }
+.sales-fout {
+  max-width: 520px; margin: var(--sp-5) auto; padding: var(--sp-4); text-align: center; color: var(--text);
+  background: var(--red-dim); border: 1px solid var(--red-line); border-radius: var(--r-lg);
+}
+.sales-fout p { margin-bottom: var(--sp-3); line-height: 1.4; }
+
+/* Vensters (sales-venster.js): .overlay/.modal komen uit app.css */
+.sales-modal-breed { max-width: 760px; }
+
+/* Bezoektinten op kalender en route: een voorgesteld bezoek is lichter dan een bevestigd (vast) bezoek. */
+.sales-voorgesteld { background: var(--accent-dim); border-left: 3px dashed var(--accent); }
+.sales-bevestigd { background: color-mix(in srgb, var(--accent) 28%, var(--surface)); border-left: 3px solid var(--accent); }
+/* Een lead met enkel een postcode staat ongeveer op de kaart: gestippelde rand. */
+.sales-marker-ongeveer { border: 2px dotted var(--accent); }
+
+.sales-leeg + .sales-leeg { padding-top: 0; }
+@media (max-width: 599px) {
+  .sales-balk, .sales-inhoud { padding-left: var(--sp-3); padding-right: var(--sp-3); }
+}

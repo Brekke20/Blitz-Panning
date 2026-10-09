@@ -1,16 +1,18 @@
 // Rol, tabs en gebruikersmenu (logins T15): de app past zich na de login aan de rol van de gebruiker aan.
 // De loginrol komt uit de auth-ik-stub (startApp({ loginRol })); de oude toestelrol (blitz_rol) is daarvan los.
 import { test, expect, startApp, opslagStub } from './helpers.mjs';
+import { startSalesApp } from './sales-hulp.mjs';
 
 const tab = (page, naam) => page.getByRole('tab', { name: naam });
 const zichtbareTabs = (page) => page.locator('.tabs-inner .tab:visible');
 const RAPPORT = { id: 'r1', ticketId: 't1', ticketNumber: '1001', datum: '2026-10-05', technieker: 'Tim', rapportData: { _html: '<p>Rapport</p>' } };
 
 test.describe('tabs per rol', () => {
-  test('beheerder ziet 7 tabs, met Beheer', async ({ page }) => {
+  test('beheerder ziet 7 eigen tabs, met Beheer, plus de 4 sales-tabs', async ({ page }) => {
     await startApp(page, { loginRol: 'beheerder' });
-    await expect(zichtbareTabs(page)).toHaveCount(7);
+    await expect(zichtbareTabs(page)).toHaveCount(11);
     for (const naam of ['Wachtrij', 'Kalender', 'Route', 'Ingepland', 'Inventaris', 'Rapporten', 'Beheer']) await expect(tab(page, naam)).toBeVisible();
+    for (const naam of ['Sales: Te plannen', 'Sales: Agenda', 'Sales: Rit', 'Sales: Afgewerkt']) await expect(tab(page, naam)).toBeVisible();
     await expect(page.locator('#view-beheer')).toHaveAttribute('role', 'tabpanel');
     await expect(page.locator('#tab-beheer')).toHaveAttribute('data-actie', 'hoofdtab');
   });
@@ -80,20 +82,33 @@ test.describe('tabs per rol', () => {
 });
 
 test.describe('sales', () => {
-  test('toont de plaatshouder en roept geen enkele planning-API aan', async ({ page, verzoeken }) => {
-    await startApp(page, { loginRol: 'sales', loginGebruiker: { naam: 'Test Verkoper' } });
-    await expect(page.getByRole('heading', { name: 'Het sales-gedeelte volgt' })).toBeVisible();
-    await expect(zichtbareTabs(page)).toHaveCount(0);
+  test('start op de sales-tabs, het toestel krijgt rol "sales" en geen enkele planning-API wordt aangeroepen', async ({ page, verzoeken }) => {
+    await startSalesApp(page);
+    await expect(page.locator('html')).toHaveAttribute('data-rol', 'sales');
+    await expect(zichtbareTabs(page)).toHaveCount(4);
+    await expect(page.locator('#view-sales-lijst')).toBeVisible();
     await expect(page.locator('#view-tickets')).toBeHidden();
     // Het gebruikersmenu is er wel (uitloggen moet kunnen).
     await expect(page.locator('#gebruiker-sel .gebruiker-btn')).toBeVisible();
     // Genoeg tijd laten verstrijken zodat een opstart die toch zou lopen zijn verzoeken heeft gedaan.
     await page.clock.runFor(10000);
     await page.evaluate(() => Promise.resolve());
-    // Enkel de eigen instellingen (logins T16: GET /api/instellingen, voor sales enkel het eigen blok) horen erbij.
-    expect(verzoeken.alle.filter(r => r.pad !== '/api/auth-ik' && r.pad !== '/api/instellingen')).toEqual([]);
-    expect(verzoeken.alle.filter(r => r.pad === '/api/instellingen').map(r => r.methode)).toEqual(['GET']);
+    // Enkel de sessie, de eigen instellingen (voor sales enkel het eigen blok) en de eigen leads.
+    expect([...new Set(verzoeken.alle.map(r => r.pad))].sort()).toEqual(['/api/auth-ik', '/api/instellingen', '/api/sales']);
+    // Instellingen: enkel lezen (de opstartsynchronisatie en het laden van de sales-schil), nooit schrijven.
+    const instellingen = verzoeken.alle.filter(r => r.pad === '/api/instellingen').map(r => r.methode);
+    expect(instellingen.length).toBeGreaterThan(0);
+    expect(instellingen.every(m => m === 'GET')).toBe(true);
     expect(verzoeken.van('/api/tickets')).toEqual([]);
+  });
+
+  test('sales is net als de technieker beperkt: .coord-only is verborgen (apparaat.js zet data-rol "sales", CSS behandelt hem gelijk)', async ({ page }) => {
+    await startSalesApp(page);
+    await expect(page.locator('#btn-autoplan')).toBeHidden();
+    await expect(page.locator('html')).toHaveAttribute('data-rol', 'sales');
+    // Een latere toestelrolkeuze maakt hem niet coördinator.
+    await page.evaluate(() => window.zetRol('coordinator'));
+    await expect(page.locator('html')).toHaveAttribute('data-rol', 'sales');
   });
 });
 

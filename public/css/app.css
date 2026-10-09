@@ -1143,8 +1143,9 @@
     html[data-indeling="smal"] .day-col { min-width: unset; border-right: none; border-bottom: 1px solid var(--border); }
 
     /* Beperkte technieker-weergave: de rol (niet de schermbreedte) verbergt coördinatorfuncties */
-    html[data-rol="technieker"] .coord-only { display: none !important; }
-    html[data-rol="technieker"] .kal-actions { display: none; } /* geen lege tweede rij */
+    /* Sales (data-rol="sales", sales-planner) is net zo beperkt: de ticketfuncties blijven weg; de sales-schermen gebruiken eigen sales-klassen. */
+    html[data-rol="technieker"] .coord-only, html[data-rol="sales"] .coord-only { display: none !important; }
+    html[data-rol="technieker"] .kal-actions, html[data-rol="sales"] .kal-actions { display: none; } /* geen lege tweede rij */
     /* × (uit planning halen): nooit op gsm (per ongeluk tikken); voor technieker via .coord-only */
     html[data-indeling="smal"] .cal-unplan-x { display: none; }
 
@@ -1244,10 +1245,6 @@
     .gm-rol { font-size: var(--fs-2xs); color: var(--muted); }
     /* Een tab die de rol niet toestaat (hidden): .tab zet display:flex en zou het attribuut anders overrulen. */
     .tabs-inner .tab[hidden] { display: none !important; }
-    /* Plaatshouder voor een rol zonder eigen scherm (sales, tot de sales-planning er is). */
-    .rol-placeholder { padding: var(--sp-6, 32px) var(--sp-4, 16px); max-width: 560px; margin: 0 auto; }
-    .rol-placeholder h2 { font-size: var(--fs-xl); font-weight: 700; margin-bottom: 8px; }
-    .rol-placeholder p { color: var(--text2); line-height: 1.5; }
 
 /* v1.10.3: de sticky filterbalk van Rapporten plakt vlak onder de kop en onder de zichtbare melding-
    balken (offline/outbox). De oude vaste top:92px liet een kier of verdween onder de balken. */

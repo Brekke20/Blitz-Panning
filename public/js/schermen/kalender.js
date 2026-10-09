@@ -165,7 +165,7 @@ function buildLocalEventCard(ev, { showActions = true } = {}) {
 // dagStartMin/dagEindMin/totalHeight gebruiken, anders lopen de uur-lijnen in de dag-kolommen niet
 // meer gelijk met de uur-labels in de gutter. Fase 2 (v1.7.0): vast 00:00-24:00 (het volledige
 // etmaal), zodat ook vroege/late afspraken zichtbaar zijn; de werkuren-instelling speelt geen rol meer.
-function computeTimelineRange() {
+export function computeTimelineRange() {
   const dagStartMin = 0;
   const dagEindMin = 1440;
   const displayStartH = 0;
@@ -175,7 +175,7 @@ function computeTimelineRange() {
 }
 
 // Twee achtergrondbanden (00:00-werkuurstart en werkuureinde-24:00); eerste kinderen van de wrap.
-function appendOffhoursBands(wrap, dagStartMin, totalHeight) {
+export function appendOffhoursBands(wrap, dagStartMin, totalHeight) {
   const boven = document.createElement('div');
   boven.className = 'tl-offhours';
   boven.style.top = '0px';
@@ -194,7 +194,7 @@ function appendOffhoursBands(wrap, dagStartMin, totalHeight) {
 // die de andere kolommen ook reserveerden (voor uitlijning) maar nooit gebruikten: lege ruimte in
 // elke kolom behalve de eerste, en alle kolommen "verschillend" qua bruikbare breedte. Nu krijgen
 // alle dag-kolommen exact dezelfde afmetingen.
-function renderTimelineGutter() {
+export function renderTimelineGutter() {
   const { dagStartMin, displayStartH, displayEndH, totalHeight } = computeTimelineRange();
   const col = document.createElement('div');
   col.className = 'day-col tl-gutter';
