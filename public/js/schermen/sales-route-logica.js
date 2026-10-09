@@ -117,7 +117,9 @@ export function vertrekIso(datum, minuten, nu = new Date()) {
 
 /**
  * De route van een dag. Testmodus of een mislukte aanvraag (status, netwerk, onverwacht antwoord): geschatte benen uit `schatLegs`
- * (`geschat: true`, bij een fout `reden: 'fout'`). -> { legs: [{ ritSec, afstandM }] per stop, polyline, geschat, reden?, totaalSec, totaalMeter }
+ * (`geschat: true`, bij een fout `reden: 'fout'`). -> { legs: [{ ritSec, afstandM }] per stop, polyline, geschat, reden?, totaalSec, totaalMeter, data }
+ * `data` = het ruwe antwoord van /api/route (legs met verkeersgegevens, sections, departAtUsed, ...) voor de drukte- en werken-kleuring van de kaart (zelfde
+ * tekening als de route van de technieker); null bij een schatting of als de routelijn van TomTom ontbrak (dan is de lijn een eigen, rechte verbinding).
  * `vertrekMin` = vertrek uit het depot in minuten (voor `departAt`); zonder depot telt het eerste bezoek.
  */
 export async function berekenRoute({ depot, stops, datum, vertrekMin, apiVerzoek, testModus, nu = new Date() }) {
@@ -129,9 +131,9 @@ export async function berekenRoute({ depot, stops, datum, vertrekMin, apiVerzoek
   const schat = (reden) => {
     const ruw = schatLegs(punten);
     const legs = ritPerStop(depot, stops, ruw);
-    return { legs, polyline: punten.map((p) => [p.lat, p.lon]), geschat: true, ...(reden ? { reden } : {}), ...totalen(legs) };
+    return { legs, polyline: punten.map((p) => [p.lat, p.lon]), geschat: true, ...(reden ? { reden } : {}), ...totalen(legs), data: null };
   };
-  if (punten.length < 2) return { legs: ritPerStop(depot, stops, []), polyline: [], geschat: false, totaalSec: 0, totaalMeter: 0 };
+  if (punten.length < 2) return { legs: ritPerStop(depot, stops, []), polyline: [], geschat: false, totaalSec: 0, totaalMeter: 0, data: null };
   if (testModus) return schat('test');
   try {
     const eerste = (stops ?? []).find((s) => heeft(s.locatie));
@@ -140,8 +142,9 @@ export async function berekenRoute({ depot, stops, datum, vertrekMin, apiVerzoek
     const ruw = r?.data?.legs;
     if (!r?.ok || !Array.isArray(ruw) || ruw.length !== punten.length - 1) return schat('fout');
     const legs = ritPerStop(depot, stops, ruw);
-    const polyline = Array.isArray(r.data.polyline) && r.data.polyline.length >= 2 ? r.data.polyline : punten.map((p) => [p.lat, p.lon]);
-    return { legs, polyline, geschat: false, ...totalen(legs) };
+    const heeftLijn = Array.isArray(r.data.polyline) && r.data.polyline.length >= 2;
+    const polyline = heeftLijn ? r.data.polyline : punten.map((p) => [p.lat, p.lon]);
+    return { legs, polyline, geschat: false, ...totalen(legs), data: heeftLijn ? r.data : null };
   } catch {
     return schat('fout');
   }

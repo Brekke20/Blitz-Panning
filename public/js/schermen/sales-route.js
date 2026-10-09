@@ -5,12 +5,16 @@
 // Ritten: POST /api/route (depot + bezoeken met locatie); in testmodus of bij een fout de geschatte ritten (haversine x 1,3 aan 50 km/u)
 // met de toast "Rit geschat". De route wordt opnieuw berekend zodra de handtekening (volgorde, leads, coordinaten, depot) verandert,
 // bv. nadat een adres van postcode naar volledig adres ging (melding "Route herberekend").
+// De kaart toont de route zoals bij de technieker: de TomTom-lijn met de drukte-kleuring (voor een toekomstige dag het verwachte verkeer per
+// wegvak via /api/drukte, daarna ingekleurd), wegenwerken, wegafsluitingen met waarschuwing, de legende en de vertraging in de samenvatting.
+// De routekleur en de drukte-kleuring komen uit de instellingen van de verkoper (standaard amber en aan, zoals bij de technieker).
 // Een lead die enkel op de postcode staat ("ongeveer") is zo te zien in de lijst en op de kaart. Alle leadgegevens via textContent.
 import { toast, maakActiveerbaar } from '../kern/ui.js';
 import { apiVerzoek } from '../kern/api.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { geocacheLookup, geocacheStore } from '../kern/opslag.js';
 import { fmtSec, verschuifDatum, timeStrToMin } from '../kern/tijd.js';
+import { routeVertraging, haalDrukteDetail } from './route-tijden.js';
 import { ontleedAdres } from '../sales/adres.js';
 import { startScherm } from './sales-schil.js';
 import { salesToestand, gekozenDatum, zetGekozenDatum } from './sales-data.js';
@@ -25,6 +29,9 @@ import { el } from './sales-dom.js';
 
 export const LEEG_TEKST = 'Geen bezoeken op deze dag';
 export const WAARSCHUWING_TEKST = (laatMin) => `⚠ haalt het volgende bezoek niet (+${laatMin} min)`;
+// Dezelfde teksten als de route van de technieker (route-kaart.js).
+export const WEGAFSLUITING_TEKST = '⚠ wegafsluiting op de route';
+const WEGAFSLUITING_TOAST = '⚠ Wegafsluiting op de route — controleer de bereikbaarheid van het adres';
 const GEEN_START_TEKST = 'Geen startlocatie ingesteld: de eerste rit is niet berekend. Stel je startadres in via ⚙ Instellingen.';
 const START_ONBEKEND_TEKST = 'Het startadres kon niet gevonden worden: de eerste rit is niet berekend.';
 
@@ -77,6 +84,7 @@ function bouwSkelet(inhoud) {
   const dagkiezer = el('div', { class: 'sales-route-dagkiezer' }, vorige, label, volgende, kiezer);
   const samenvatting = el('div', { class: 'sales-route-samenvatting' });
   const melding = el('div', { class: 'sales-route-melding', role: 'status', hidden: true });
+  const wegafsluiting = el('div', { class: 'sales-route-wegafsluiting', role: 'alert', hidden: true, text: WEGAFSLUITING_TEKST });
   const nota = el('p', { class: 'sales-route-nota', hidden: true });
   const lijst = el('ol', { class: 'sales-route-lijst' });
   const leeg = el('p', { class: 'sales-leeg sales-route-leeg', hidden: true, text: LEEG_TEKST });
@@ -85,7 +93,7 @@ function bouwSkelet(inhoud) {
   const kaartVak = el('div', { class: 'sales-route-kaartvak' }, kaartEl, kaartNoot);
   const lijstVak = el('div', { class: 'sales-route-lijstvak' }, nota, lijst);
   const inhoudVak = el('div', { class: 'sales-route-inhoud' }, lijstVak, kaartVak);
-  const wortel = el('div', { class: 'sales-route-wortel' }, dagkiezer, samenvatting, melding, leeg, inhoudVak);
+  const wortel = el('div', { class: 'sales-route-wortel' }, dagkiezer, samenvatting, wegafsluiting, melding, leeg, inhoudVak);
   inhoud.replaceChildren(wortel);
 
   const naarDatum = (iso) => { if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) zetGekozenDatum(iso); };
@@ -94,9 +102,9 @@ function bouwSkelet(inhoud) {
   kiezer.addEventListener('change', () => naarDatum(kiezer.value));
 
   return {
-    wortel, label, kiezer, samenvatting, melding, nota, lijst, leeg, kaartEl, kaartNoot, inhoudVak,
+    wortel, label, kiezer, samenvatting, wegafsluiting, melding, nota, lijst, leeg, kaartEl, kaartNoot, inhoudVak,
     kaart: null, laatste: null, route: null, bezigSig: null, aanvraag: 0, depot: null, depotVoor: null, depotBezig: false,
-    toonde: false, kaartHerstel: false,
+    toonde: false, kaartHerstel: false, wegToastSig: null,
   };
 }
 
@@ -168,6 +176,8 @@ function samenvattingTekst(stops, route) {
   const delen = [stops.length === 1 ? '1 bezoek' : `${stops.length} bezoeken`];
   if (route && route.totaalMeter > 0) delen.push(`${Math.max(1, Math.round(route.totaalMeter / 1000))} km`);
   if (route && route.totaalSec > 0) delen.push(`${fmtSec(route.totaalSec)} rijden${route.geschat ? ' (geschat)' : ''}`);
+  const vertraging = route?.data ? routeVertraging(route.data) : 'geen';
+  if (vertraging !== 'geen') delen.push(`vertraging ${vertraging}`);
   const ongeveer = stops.filter((x) => x.ongeveer).length;
   if (ongeveer) delen.push(`${ongeveer} ongeveer`);
   return delen.join(' · ');
@@ -219,6 +229,7 @@ function teken(inhoud) {
   if (!heeftStops) {
     s.wortel.dataset.handtekening = '';
     s.melding.hidden = true;
+    s.wegafsluiting.hidden = true;
     s.kaartHerstel = true; // de kaart zit nu in een verborgen vak: bij de volgende keer opnieuw opmeten
     return;
   }
@@ -234,7 +245,7 @@ function teken(inhoud) {
     s.kaart = maakSalesKaart(s.kaartEl, { kaartStijl: typeof stijl === 'string' && Object.hasOwn(KAART_LAGEN, stijl) ? stijl : undefined });
     s.kaartNoot.hidden = s.kaart.beschikbaar;
   }
-  tekenKaart(s, stops, depot, geldig);
+  tekenKaart(s, stops, depot, geldig, sig);
   if (eerstGetoond || s.kaartHerstel) { s.kaartHerstel = false; requestAnimationFrame(() => s.kaart?.invalideer()); }
 
   if (!geldig && !s.depotBezig && s.bezigSig !== sig) rekenRoute(inhoud, s, { sig, sleutel, stops, depot, datum, vanTijd: toestand.instellingen.vanTijd });
@@ -249,8 +260,31 @@ function tekenRoute(s, stops, depot, route, start, instellingen, kanResultaat) {
   s.samenvatting.textContent = samenvattingTekst(stops, route);
 }
 
-function tekenKaart(s, stops, depot, route) {
-  s.kaart?.toon({ depot, stops, polyline: route?.polyline ?? [], geschat: route?.geschat === true });
+// De routekleur en de drukte-kleuring van de verkoper (ruwe instellingen; ontbrekend = de standaard van de technieker: amber en aan).
+const kaartInstellingen = () => {
+  const ruw = salesToestand().instellingenRuw ?? {};
+  return { routeKleur: typeof ruw.routeKleur === 'string' ? ruw.routeKleur : undefined, drukteKleuring: ruw.drukteKleuring !== false };
+};
+
+function tekenKaart(s, stops, depot, route, sig) {
+  const uit = s.kaart?.toon({
+    depot, stops, polyline: route?.polyline ?? [], geschat: route?.geschat === true, routeData: route?.data ?? null, ...kaartInstellingen(),
+  });
+  const weg = uit?.wegafsluiting === true;
+  s.wegafsluiting.hidden = !weg;
+  if (weg && s.wegToastSig !== sig) { s.wegToastSig = sig; toast(WEGAFSLUITING_TOAST, 6000); } // één keer per route, ook al wordt de kaart nog meermaals getekend
+}
+
+// De verwachte drukte per wegvak (toekomstige dag) komt na de route binnen en kleurt de kaart in; zonder (of bij een fout) blijft het leg-vangnet staan.
+async function laadDrukte(inhoud, s, route) {
+  try {
+    const detail = await haalDrukteDetail({ rData: route.data, apiVerzoek, drukteKleuring: kaartInstellingen().drukteKleuring });
+    if (!detail || s.route !== route || staten.get(inhoud) !== s) return; // niet van toepassing, of de route is intussen vervangen
+    route.data.drukteDetail = detail.segmenten;
+    teken(inhoud);
+  } catch (fout) {
+    console.warn('Drukte-detail niet beschikbaar:', fout);
+  }
 }
 
 async function rekenRoute(inhoud, s, { sig, sleutel, stops, depot, datum, vanTijd }) {
@@ -280,6 +314,7 @@ async function rekenRoute(inhoud, s, { sig, sleutel, stops, depot, datum, vanTij
     s.melding.hidden = true;
   }
   teken(inhoud);
+  if (!resultaat.geschat && resultaat.data) laadDrukte(inhoud, s, s.route);
 }
 
 export const toon = (view) => startScherm(view, teken);

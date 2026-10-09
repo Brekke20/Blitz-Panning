@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import {
   berekenAankomsten, aankomstPerTicket, fmtTijd, dagHeeftEenTechnieker, buitenDagklok,
-  mergeMetAnkers, routeHandtekening, stopZonderTijdstip, drukteMagnitude,
+  mergeMetAnkers, routeHandtekening, stopZonderTijdstip, drukteMagnitude, routeVertraging, haalDrukteDetail, DRUKTE_SEGMENT_METERS,
 } from '../public/js/schermen/route-tijden.js';
 
 const duur = (d) => (id) => d[id];
@@ -132,3 +132,57 @@ test('drukteMagnitude: klassen op de drempels 1,03 / 1,10 / 1,25', () => {
   assert.equal(drukteMagnitude(0), 0);      // geen/ontbrekend signaal
   assert.equal(drukteMagnitude(2), 3);      // ruim boven de hoogste drempel
 });
+
+// ---- gedeeld met de route van de verkoper: vertraging en drukte-detail ----
+
+test('routeVertraging: live vertraging, verwachte vertraging (toekomstige dag) of geen', () => {
+  assert.equal(routeVertraging({ totalTrafficDelaySeconds: 720 }), '+12min');
+  assert.equal(routeVertraging({ totalTrafficDelaySeconds: 3900 }), '+1u 5min');
+  // live ~0 bij een toekomstig departAt: het verschil historisch - vrij is de verwachte vertraging
+  assert.equal(routeVertraging({ totalTrafficDelaySeconds: 0, totalHistoricTrafficTravelTimeSeconds: 2000, totalNoTrafficTravelTimeSeconds: 1400 }), '+10min (verwacht)');
+  // tot en met 1 minuut telt niet
+  assert.equal(routeVertraging({ totalTrafficDelaySeconds: 60 }), 'geen');
+  assert.equal(routeVertraging({ totalHistoricTrafficTravelTimeSeconds: 1460, totalNoTrafficTravelTimeSeconds: 1400 }), 'geen');
+  assert.equal(routeVertraging({}), 'geen');
+  assert.equal(routeVertraging(null), 'geen');
+});
+
+test('haalDrukteDetail: niet van toepassing (uit, geen toekomstig vertrek, te korte lijn) geeft null zonder verzoek', async () => {
+  let n = 0;
+  const apiVerzoek = async () => { n++; };
+  const rData = { departAtUsed: '2026-10-06T06:00:00.000Z', polyline: [[1, 1], [2, 2]] };
+  assert.equal(await haalDrukteDetail({ rData, apiVerzoek, drukteKleuring: false }), null);
+  assert.equal(await haalDrukteDetail({ rData: { ...rData, departAtUsed: null }, apiVerzoek, drukteKleuring: true }), null);
+  assert.equal(await haalDrukteDetail({ rData: { ...rData, polyline: [[1, 1]] }, apiVerzoek, drukteKleuring: true }), null);
+  assert.equal(await haalDrukteDetail({ rData: null, apiVerzoek, drukteKleuring: true }), null);
+  assert.equal(n, 0);
+});
+
+test('haalDrukteDetail: POST /api/drukte met de routelijn, het vertrek en de stukjes van 1500 m; geeft segmenten en info terug', async () => {
+  const oproepen = [];
+  const apiVerzoek = async (pad, opties) => {
+    oproepen.push({ pad, opties });
+    return { ok: true, status: 200, data: { segmenten: [{ startIndex: 0, endIndex: 1 }], reconstructie: true, onbetrouwbaar: 0, aantalAanvragen: 1 } };
+  };
+  const rData = { departAtUsed: '2026-10-06T06:00:00.000Z', polyline: [[1, 1], [2, 2], [3, 3]] };
+  const r = await haalDrukteDetail({ rData, apiVerzoek, drukteKleuring: true });
+  assert.equal(DRUKTE_SEGMENT_METERS, 1500);
+  assert.equal(oproepen.length, 1);
+  assert.equal(oproepen[0].pad, '/api/drukte');
+  assert.equal(oproepen[0].opties.methode, 'POST');
+  assert.deepEqual(oproepen[0].opties.body, { polyline: rData.polyline, departAt: rData.departAtUsed, segmentMeters: 1500 });
+  assert.deepEqual(r.segmenten, [{ startIndex: 0, endIndex: 1 }]);
+  assert.deepEqual(r.info, { reconstructie: true, onbetrouwbaar: 0, aantalAanvragen: 1 });
+});
+
+test('haalDrukteDetail: een fout van de server of het netwerk wordt gegooid (de oproeper beslist)', async () => {
+  const rData = { departAtUsed: '2026-10-06T06:00:00.000Z', polyline: [[1, 1], [2, 2]] };
+  const gevallen = [
+    async () => ({ ok: false, status: 500, data: { error: 'stuk' } }),
+    async () => ({ ok: true, status: 200, data: { error: 'TomTom weigert' } }),
+    async () => ({ ok: true, status: 200, data: {} }),
+    async () => { throw new TypeError('netwerk'); },
+  ];
+  for (const apiVerzoek of gevallen) await assert.rejects(() => haalDrukteDetail({ rData, apiVerzoek, drukteKleuring: true }));
+});
+

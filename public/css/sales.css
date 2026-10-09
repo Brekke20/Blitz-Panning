@@ -244,7 +244,7 @@ html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
 .sales-route-plaats, .sales-route-rit { color: var(--text2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
 .sales-route-ongeveer { background: var(--orange-dim); color: var(--orange); }
 .sales-route-geenloc { background: var(--red-dim); color: var(--red-ink); }
-.sales-route-waarschuwing { color: var(--red-ink); background: var(--red-dim); border-radius: var(--r); padding: var(--sp-1) var(--sp-2); font-size: var(--fs-sm); font-weight: 600; overflow-wrap: anywhere; }
+.sales-route-waarschuwing, .sales-route-wegafsluiting { color: var(--red-ink); background: var(--red-dim); border-radius: var(--r); padding: var(--sp-1) var(--sp-2); font-size: var(--fs-sm); font-weight: 600; overflow-wrap: anywhere; }
 .sales-route-resultaat { align-self: flex-start; min-height: 36px; padding: 6px 12px; font-size: var(--fs-sm); }
 /* Nummermarkers op de kaart: een bezoek dat enkel op de postcode staat (ongeveer) krijgt een gestippelde rand en een lichte vulling. */
 .sales-marker {

@@ -11,7 +11,7 @@ import { planItemsVanTechnieker, stopsVoorDag as selStopsVoorDag } from '../kern
 import { maakSorteerbaar } from '../sorteer.js';
 import {
   berekenAankomsten, aankomstPerTicket, fmtTijd, dagHeeftEenTechnieker, stopZonderTijdstip, routeHandtekening,
-  mergeMetAnkers, buitenDagklok as buitenDagklokTijd, isTeLaat,
+  mergeMetAnkers, buitenDagklok as buitenDagklokTijd, isTeLaat, routeVertraging, haalDrukteDetail,
 } from './route-tijden.js';
 import { updateKaart, wisKaart, herstelWegafsluitingToast, zoomOpGekendeStops } from './route-kaart.js';
 
@@ -563,19 +563,8 @@ export async function calculateRoute() {
     updateMap(date);
     document.getElementById('s-dist').textContent  = (rData.totalDistanceMeters / 1000).toFixed(0) + ' km';
     document.getElementById('s-time').textContent  = fmtSec(rData.totalTravelTimeSeconds);
-    // Live vertraging (trafficDelaySeconds) is bij een toekomstig departAt altijd ~0 —
-    // TomTom levert dan geen live sections. Val in dat geval terug op het verschil tussen
-    // de historische (typische) reistijd en de vrije doorstroming als "verwachte" vertraging.
-    const verwachtVerschil = (rData.totalHistoricTrafficTravelTimeSeconds != null && rData.totalNoTrafficTravelTimeSeconds != null)
-      ? rData.totalHistoricTrafficTravelTimeSeconds - rData.totalNoTrafficTravelTimeSeconds
-      : 0;
-    if (rData.totalTrafficDelaySeconds > 60) {
-      document.getElementById('s-delay').textContent = '+' + fmtSec(rData.totalTrafficDelaySeconds);
-    } else if (verwachtVerschil > 60) {
-      document.getElementById('s-delay').textContent = '+' + fmtSec(verwachtVerschil) + ' (verwacht)';
-    } else {
-      document.getElementById('s-delay').textContent = 'geen';
-    }
+    // De vertraging (live, of bij een toekomstig departAt de verwachte): gedeelde regel met de route van de verkoper (route-tijden.js).
+    document.getElementById('s-delay').textContent = routeVertraging(rData);
     document.getElementById('s-eta').textContent   = rData.arrivalTime ? new Date(rData.arrivalTime).toLocaleTimeString('nl-BE', { hour:'2-digit', minute:'2-digit' }) : '—';
     // (C2c) Stops die nog steeds geen coördinaten hebben na de geocode-stap hierboven (adres
     // niet gevonden, of een lokale afspraak met een vrije-tekst-notitie i.p.v. een echt adres)
@@ -603,16 +592,12 @@ async function laadDrukteDetail(date, rData) {
   if (!get('settings').drukteKleuring || !rData.departAtUsed || !(rData.polyline?.length >= 2)) return;
   toast('Drukte laden...', 4000);
   try {
-    const data = (await apiVerzoek('/api/drukte', {
-      methode: 'POST',
-      body:    { polyline: rData.polyline, departAt: rData.departAtUsed, segmentMeters: DRUKTE_SEGMENT_METERS },
-    })).data;
-    if (data.error) throw new Error(data.error);
+    const detail = await haalDrukteDetail({ rData, apiVerzoek, drukteKleuring: true });
     // De route kan ondertussen vervangen zijn door een nieuwe berekening — dan is dit
     // detail verouderd en negeren we het.
     if (routeData === rData && currentRouteDate === date) {
-      rData.drukteDetail = data.segmenten;
-      rData.drukteDetailInfo = { reconstructie: data.reconstructie, onbetrouwbaar: data.onbetrouwbaar, aantalAanvragen: data.aantalAanvragen };
+      rData.drukteDetail = detail.segmenten;
+      rData.drukteDetailInfo = detail.info;
       console.info('drukte-detail:', rData.drukteDetailInfo);
       updateMap(date);
     }
@@ -620,10 +605,6 @@ async function laadDrukteDetail(date, rData) {
     console.warn('Drukte-detail niet beschikbaar:', err);
   }
 }
-
-// Lengte van de wegvak-stukjes voor het /api/drukte-detail (zie laadDrukteDetail) — een
-// instelling is YAGNI, dit is geen keuze die een gebruiker per rit wil aanpassen.
-const DRUKTE_SEGMENT_METERS = 1500;
 
 // applyRouteOrder(date, orderedEntries): vertaalt een gewenste allStops-volgorde
 // ({kind,item,uur}[], alle stops van de dag voor de actieve filter incl. ankers) naar
