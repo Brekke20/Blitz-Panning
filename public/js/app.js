@@ -45,6 +45,7 @@ import { appConfirm } from './app-dialog.js';
 import { registreerVenster } from './venster.js';
 import { startNaInlog } from './schermen/rol-schil.js';
 import { laadTab } from './kern/navigatie.js';
+import { installeerTijdPicker } from './kern/tijd-picker.js';
 
 
 // Leesbare toegang tot de toestand: de plaats van de vroegere window-accessors (kern/brug.js) voor allTickets, planning, settings, ...
@@ -903,4 +904,5 @@ function toggleTheme() {
 
 // Escape/focusval per venster: zie public/js/venster.js
 
+installeerTijdPicker(document, window); // tik op een tijd-/datumveld opent de klok/kalender (Android)
 document.addEventListener('DOMContentLoaded', () => startNaInlog(opstart));
