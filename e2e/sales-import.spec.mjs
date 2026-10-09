@@ -251,7 +251,7 @@ test.describe('sales: leaddetail', () => {
     expect(verzoeken.van('/api/sales', 'PATCH').at(-1).body.leads[0].velden).toEqual({ notitie: 'Liever per mail' });
   });
 
-  test('(f) Vast uur afspreken voor een nog niet ingeplande lead: hij verhuist naar Ingepland; het uur is later te wijzigen', async ({ page, verzoeken }) => {
+  test('(f) Vast uur afspreken voor een nog niet ingeplande lead: hij verhuist naar Bevestigd; het uur is later te wijzigen', async ({ page, verzoeken }) => {
     await startSalesApp(page, { leads: [lead('l1', 'Verhaegen')] });
     await kaartTitel(page, 'Verhaegen').click();
     await expect(venster(page).getByRole('heading', { name: 'Vast uur afspreken' })).toBeVisible();
@@ -259,7 +259,7 @@ test.describe('sales: leaddetail', () => {
     await venster(page).getByLabel('Uur', { exact: true }).fill('10:00');
     await venster(page).getByRole('button', { name: 'Vast uur vastleggen' }).click();
     await expect(venster(page)).toHaveCount(0);
-    const ingepland = lijst(page).locator('.sales-groep', { hasText: 'Ingepland' });
+    const ingepland = lijst(page).locator('.sales-kolom[data-kolom="bevestigd"]');
     await expect(ingepland.locator('.sales-kaart', { hasText: 'Verhaegen' })).toContainText('di 6 okt 10:00');
     const patch = verzoeken.van('/api/sales', 'PATCH').at(-1).body;
     expect(patch.leads[0].velden).toEqual({ status: 'bevestigd', planning: { datum: '2026-10-06', start: '10:00', vast: true } });
@@ -301,18 +301,18 @@ test.describe('sales: leaddetail', () => {
     await venster(page).getByRole('button', { name: 'Vast uur vastleggen' }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Toch vastleggen' }).click();
     await expect(venster(page)).toHaveCount(0);
-    await expect(lijst(page).locator('.sales-groep', { hasText: 'Ingepland' }).locator('.sales-kaart', { hasText: 'Verhaegen' })).toContainText('10:30');
+    await expect(lijst(page).locator('.sales-kolom[data-kolom="bevestigd"]').locator('.sales-kaart', { hasText: 'Verhaegen' })).toContainText('10:30');
   });
 
-  test('Terug naar te plannen haalt een ingeplande lead uit Ingepland', async ({ page, verzoeken }) => {
+  test('Terug naar te plannen haalt een bevestigde lead uit Bevestigd', async ({ page, verzoeken }) => {
     const vast = lead('l1', 'Verhaegen', { status: 'bevestigd', planning: { datum: '2026-10-06', start: '10:00', vast: true } });
     await startSalesApp(page, { leads: [vast] });
-    await expect(lijst(page).locator('.sales-groep', { hasText: 'Ingepland' }).locator('.sales-kaart')).toHaveCount(1);
+    await expect(lijst(page).locator('.sales-kolom[data-kolom="bevestigd"]').locator('.sales-kaart')).toHaveCount(1);
     await kaartTitel(page, 'Verhaegen').click();
     await venster(page).getByRole('button', { name: 'Terug naar te plannen' }).click();
     await expect(venster(page)).toHaveCount(0);
-    await expect(lijst(page).locator('.sales-groep', { hasText: 'Ingepland' })).toHaveCount(0);
-    await expect(lijst(page).locator('.sales-groep', { hasText: 'Nog in te plannen' }).locator('.sales-kaart')).toHaveCount(1);
+    await expect(lijst(page).locator('.sales-kolom[data-kolom="bevestigd"]').locator('.sales-kaart')).toHaveCount(0);
+    await expect(lijst(page).locator('.sales-kolom[data-kolom="tePlannen"]').locator('.sales-kaart')).toHaveCount(1);
     expect(verzoeken.van('/api/sales', 'PATCH').at(-1).body.leads[0].velden).toMatchObject({ status: 'te-plannen', planning: null });
   });
 

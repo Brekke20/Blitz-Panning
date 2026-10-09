@@ -291,7 +291,7 @@ test.describe('Performance: toegang en storingen', () => {
     test(`${rol}: geen tab Beheer (dus geen Performance) en geen enkel dashboard-verzoek`, async ({ page, verzoeken }) => {
       const extra = rol === 'sales' ? { 'auth-ik': authIkVoor(SALES_GEBRUIKER), ...salesStubs() } : {};
       await startApp(page, { loginRol: rol, overschrijf: { ...extra, dashboard: dashboardStub(), 'dashboard-instellingen': grenzenStub() } });
-      // De app is klaar: elke rol heeft zijn eigen tabs (sales: Te plannen, Kalender, Route, Afgewerkt).
+      // De app is klaar: elke rol heeft zijn eigen tabs (sales: Leads, Kalender, Route, Afgewerkt).
       await expect(page.locator('.tabs-inner .tab:visible').first()).toBeVisible();
       await expect(page.getByRole('tab', { name: 'Beheer', exact: true })).toHaveCount(0);
       await expect(page.locator('#tab-beheer')).toHaveCount(0);

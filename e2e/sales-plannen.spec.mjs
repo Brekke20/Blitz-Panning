@@ -49,16 +49,17 @@ test.describe('sales: Plan deze week', () => {
     expect(patches[0].body.leads).toHaveLength(8);
     for (const w of patches[0].body.leads) expect(w.velden).toMatchObject({ status: 'voorgesteld', planning: { vast: false } });
     for (const pad of ['/api/matrix', '/api/route', '/api/propose', '/api/optimize', '/api/voorstel']) expect(verzoeken.van(pad), pad).toEqual([]);
-    // Geen lead blijft in Te plannen.
-    await tab(page, 'Te plannen').click();
+    // Geen lead blijft bij Nog in te plannen: alle acht staan in de middelste kolom.
+    await tab(page, 'Leads').click();
     await expect(page.locator('#view-sales-lijst .sales-kaart')).toHaveCount(8);
-    await expect(page.locator('#view-sales-lijst').getByRole('heading', { name: /Nog in te plannen/ })).toHaveCount(0);
+    await expect(page.locator('#view-sales-lijst').getByRole('heading', { name: 'Nog in te plannen (0)' })).toBeVisible();
+    await expect(page.locator('#view-sales-lijst').getByRole('heading', { name: 'Ingepland (8)' })).toBeVisible();
   });
 
   test('(b) een vast uur dinsdag 10:00 via het detail blijft ongewijzigd, ook bij een tweede keer, zonder overlap en zonder vermelding in het venster', async ({ page, verzoeken }) => {
     const leads = achtLeads();
     await startSalesApp(page, { leads, blokken: [] });
-    await tab(page, 'Te plannen').click();
+    await tab(page, 'Leads').click();
     await page.locator('#view-sales-lijst .sales-kaart-titel', { hasText: 'Test Hendrix' }).click();
     await venster(page).locator('.sales-vast input[type=date]').fill('2026-10-06');
     await venster(page).locator('.sales-vast input[type=time]').fill('10:00');
@@ -160,7 +161,7 @@ test.describe('sales: Plan deze week', () => {
     await expect(kal(page).locator('.tl-block.sales-bevestigd')).toHaveCount(4);
     const patch = verzoeken.van('/api/sales', 'PATCH')[0];
     expect(patch.body.leads).toEqual([{ id: 'p1', velden: { status: 'te-plannen', planning: null } }]);
-    await tab(page, 'Te plannen').click();
+    await tab(page, 'Leads').click();
     await expect(page.locator('#view-sales-lijst .sales-kaart', { hasText: 'Test Verstraete' })).toBeVisible();
   });
 
@@ -216,11 +217,11 @@ test.describe('sales: Plan deze week', () => {
       lead('t1', 'Nieuw', 2),
     ];
     await startSalesApp(page, { leads, blokken: [] });
-    await tab(page, 'Te plannen').click();
+    await tab(page, 'Leads').click();
     const lijst = page.locator('#view-sales-lijst');
     const verlopen = lijst.locator('.sales-kaart', { hasText: 'Test Verlopen' });
     await expect(verlopen.locator('.sales-chip-verlopen')).toHaveText('voorstel verlopen');
-    await expect(lijst.locator('.sales-groep', { hasText: 'Nog in te plannen' }).locator('.sales-kaart', { hasText: 'Test Verlopen' })).toHaveCount(1);
+    await expect(lijst.locator('.sales-kolom[data-kolom="tePlannen"]').locator('.sales-kaart', { hasText: 'Test Verlopen' })).toHaveCount(1);
     await expect(lijst.locator('.sales-kaart', { hasText: 'Test Bevestigd' }).locator('.sales-chip-verlopen')).toHaveCount(0);
     await naarKalender(page);
     await plan(page).click();
@@ -232,7 +233,7 @@ test.describe('sales: Plan deze week', () => {
     const nieuw = patch[0].body.leads.find((w) => w.id === 'v1').velden;
     expect(nieuw.status).toBe('voorgesteld');
     expect(nieuw.planning.datum >= '2026-10-05').toBe(true);
-    await tab(page, 'Te plannen').click();
+    await tab(page, 'Leads').click();
     await expect(lijst.locator('.sales-chip-verlopen')).toHaveCount(0);
   });
 

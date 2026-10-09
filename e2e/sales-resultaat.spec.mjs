@@ -79,7 +79,7 @@ test.describe('sales: resultaat ingeven', () => {
 
   test('"Opnieuw langsgaan": lead terug in "Nog in te plannen", het bezoek staat in de historiek en niet in Afgewerkt', async ({ page, verzoeken }) => {
     await startSalesApp(page, { leads: [bevestigd('l1', 'Verhaegen')] });
-    await expect(lijst(page).locator('.sales-groep', { hasText: 'Ingepland' })).toBeVisible();
+    await expect(lijst(page).locator('.sales-kolom[data-kolom="bevestigd"]').locator('.sales-kaart')).toHaveCount(1);
     await openResultaat(page, 'l1');
     await venster(page).getByLabel('Notitie').fill('Niet thuis');
     await venster(page).getByRole('button', { name: 'Opnieuw langsgaan' }).click();
@@ -94,9 +94,9 @@ test.describe('sales: resultaat ingeven', () => {
     expect(velden.bezoeken).toHaveLength(1);
     expect(velden.bezoeken[0]).toMatchObject({ datum: '2026-10-06', resultaat: 'opnieuw', notitie: 'Niet thuis' });
 
-    const groep = lijst(page).locator('.sales-groep', { hasText: 'Nog in te plannen' });
+    const groep = lijst(page).locator('.sales-kolom[data-kolom="tePlannen"]');
     await expect(groep.locator('.sales-kaart', { hasText: 'Verhaegen' })).toBeVisible();
-    await expect(lijst(page).locator('.sales-groep', { hasText: 'Ingepland' })).toHaveCount(0);
+    await expect(lijst(page).locator('.sales-kolom[data-kolom="bevestigd"]').locator('.sales-kaart')).toHaveCount(0);
     await groep.locator('.sales-kaart', { hasText: 'Verhaegen' }).click();
     await expect(venster(page).locator('.sales-historiek')).toContainText('Opnieuw langsgaan');
     await expect(venster(page).locator('.sales-historiek')).toContainText('Niet thuis');

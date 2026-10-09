@@ -121,7 +121,7 @@ test.describe('sales: kalender — acties op een bezoek', () => {
   });
 
   // Vereist sales-resultaat.js (Task 15, tak refactor-sales): de actie laadt dat venster lazy.
-  test('Resultaat: na "Verkocht" verdwijnt het bezoek uit de agenda en staat de lead niet meer in Te plannen', async ({ page, verzoeken }) => {
+  test('Resultaat: na "Verkocht" verdwijnt het bezoek uit de agenda en staat de lead niet meer in Leads bij Nog in te plannen', async ({ page, verzoeken }) => {
     await startSalesApp(page, zaaien());
     await naarKalender(page);
     await dag(page, '2026-10-07').locator('.tl-block.sales-bevestigd').click();
@@ -132,11 +132,11 @@ test.describe('sales: kalender — acties op een bezoek', () => {
     await expect(venster(page)).toHaveCount(0);
     await expect(dag(page, '2026-10-07').locator('.tl-block')).toHaveCount(0);
     expect(verzoeken.van('/api/sales', 'PATCH')).toHaveLength(1);
-    await tab(page, 'Te plannen').click();
+    await tab(page, 'Leads').click();
     await expect(page.locator('#view-sales-lijst .sales-kaart', { hasText: 'Test Peeters' })).toHaveCount(0);
   });
 
-  test('Terug naar te plannen: het bezoek verdwijnt uit de agenda en de lead staat in Te plannen', async ({ page, verzoeken }) => {
+  test('Terug naar te plannen: het bezoek verdwijnt uit de agenda en de lead staat in Leads bij Nog in te plannen', async ({ page, verzoeken }) => {
     await startSalesApp(page, zaaien());
     await naarKalender(page);
     await dag(page, '2026-10-07').locator('.tl-block').click();
@@ -144,7 +144,7 @@ test.describe('sales: kalender — acties op een bezoek', () => {
     await expect(venster(page)).toHaveCount(0);
     await expect(dag(page, '2026-10-07').locator('.tl-block')).toHaveCount(0);
     expect(verzoeken.van('/api/sales', 'PATCH')).toHaveLength(1);
-    await tab(page, 'Te plannen').click();
+    await tab(page, 'Leads').click();
     await expect(page.locator('#view-sales-lijst .sales-kaart', { hasText: 'Test Peeters' })).toBeVisible();
     await expect(page.locator('#view-sales-lijst').getByRole('heading', { name: /Nog in te plannen/ })).toBeVisible();
   });

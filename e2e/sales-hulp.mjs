@@ -99,7 +99,7 @@ export async function startSalesApp(page, { gebruiker = SALES_GEBRUIKER, oversch
     overschrijf: { 'auth-ik': authIkVoor(gebruiker), ...backend.stubs, ...overschrijf },
     ...rest,
   });
-  const eersteTab = gebruiker.rol === 'beheerder' ? 'Sales' : 'Te plannen';
+  const eersteTab = gebruiker.rol === 'beheerder' ? 'Sales' : 'Leads';
   await expect(page.getByRole('tab', { name: eersteTab, exact: true })).toBeVisible();
   return backend;
 }

@@ -1,4 +1,4 @@
-// schermen/sales-lijst-logica.js — logica van de lijsten Te plannen en Afgewerkt en van de leadkaart (puur, geen DOM).
+// schermen/sales-lijst-logica.js — logica van het scherm Leads (drie kolommen), de lijst Afgewerkt en van de leadkaart (puur, geen DOM).
 import { adresSoort, plaatsLabel } from '../sales/adres.js';
 import { isVast, isVerlopenVoorstel, RESULTAAT_LABEL } from '../sales/lead-regels.js';
 import { normaliseerGsm, normaliseerEmail, zelfdeNaam } from '../sales/import.js';
@@ -32,17 +32,27 @@ export function postcodegebieden(leads) {
 // Ontbrekende waarde sorteert achteraan.
 const tekstVolgorde = (a, b) => (a ?? '￿').localeCompare(b ?? '￿');
 
+/** De drie kolommen van het scherm Leads, van links naar rechts: de sleutel in het resultaat van `groepeerLijst`, de titel en de tekst van een lege kolom. */
+export const KOLOMMEN = Object.freeze([
+  Object.freeze({ sleutel: 'tePlannen', titel: 'Nog in te plannen', leeg: 'Geen leads meer in te plannen.' }),
+  Object.freeze({ sleutel: 'ingepland', titel: 'Ingepland', leeg: 'Geen voorgestelde bezoeken.' }),
+  Object.freeze({ sleutel: 'bevestigd', titel: 'Bevestigd', leeg: 'Geen bevestigde bezoeken.' }),
+]);
+
+const opMoment = (a, b) => tekstVolgorde(a.planning?.datum, b.planning?.datum) || tekstVolgorde(a.planning?.start, b.planning?.start);
+
 /**
- * Te plannen (langst wachtende eerst; ook een verlopen voorstel, eindreview I2) en ingepland (voorgesteld + bevestigd, op datum en uur);
- * afgewerkt valt weg. `vandaag` = ISO-datum (lokaal).
+ * Drie groepen, afgewerkt valt weg: `tePlannen` (status te-plannen, ook een verlopen voorstel, eindreview I2; langst wachtende eerst),
+ * `ingepland` (voorgesteld, nog niet bevestigd; op datum en uur) en `bevestigd` (bevestigd of vastgezet; op datum en uur). `vandaag` = ISO-datum (lokaal).
  */
 export function groepeerLijst(leads, vandaag = localISO(new Date())) {
   const lijst = leads ?? [];
-  const tePlannen = lijst.filter((l) => l.status === 'te-plannen' || isVerlopenVoorstel(l, vandaag))
+  const verlopen = (l) => isVerlopenVoorstel(l, vandaag);
+  const tePlannen = lijst.filter((l) => l.status === 'te-plannen' || verlopen(l))
     .sort((a, b) => tekstVolgorde(a.geimporteerdOp, b.geimporteerdOp));
-  const ingepland = lijst.filter((l) => (l.status === 'voorgesteld' && !isVerlopenVoorstel(l, vandaag)) || l.status === 'bevestigd')
-    .sort((a, b) => tekstVolgorde(a.planning?.datum, b.planning?.datum) || tekstVolgorde(a.planning?.start, b.planning?.start));
-  return { tePlannen, ingepland };
+  const ingepland = lijst.filter((l) => l.status === 'voorgesteld' && !verlopen(l) && !isVast(l)).sort(opMoment);
+  const bevestigd = lijst.filter((l) => l.status !== 'afgewerkt' && l.status !== 'te-plannen' && isVast(l)).sort(opMoment);
+  return { tePlannen, ingepland, bevestigd };
 }
 
 /** Alles wat een leadkaart nodig heeft. `telHref` enkel bij een echt nummer (>= 9 cijfers), `mailHref` enkel bij een e-mailadres. */
@@ -50,11 +60,13 @@ export function kaartInfo(lead, vandaag = localISO(new Date())) {
   const gsm = normaliseerGsm(lead?.gsm);
   const email = normaliseerEmail(lead?.email);
   const vast = isVast(lead) && lead.planning?.datum && lead.planning.start;
+  const voorstel = lead?.status === 'voorgesteld' && !isVast(lead) && !isVerlopenVoorstel(lead, vandaag) && lead.planning?.datum && lead.planning.start;
   return {
     titel: naamVan(lead),
     plaats: plaatsLabel(lead),
     adresLabel: ADRES_LABEL[adresSoort(lead)],
     vastUur: vast ? `${dagLabel(lead.planning.datum)} ${lead.planning.start}` : null,
+    voorstelUur: voorstel ? `${dagLabel(lead.planning.datum)} ${lead.planning.start}` : null, // het voorgestelde (nog niet vaste) bezoek in de middelste kolom
     telHref: gsm ? `tel:+${gsm}` : null,
     mailHref: email ? `mailto:${encodeURIComponent(email).replace('%40', '@')}` : null,
     status: lead?.status,

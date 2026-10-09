@@ -1,5 +1,5 @@
 // schermen/sales-detail.js — het leaddetail (venster): adres, notitie en bezoekduur bewerken, de historiek lezen, een vast uur afspreken en
-// terug naar te plannen. Door "Te plannen" geopend en door de kalender/route hergebruikt: openLeadDetail(leadId, { focus: 'vast-uur' }).
+// terug naar te plannen. Door "Leads" geopend en door de kalender/route hergebruikt: openLeadDetail(leadId, { focus: 'vast-uur' }).
 // Alleen-lezen modus (schrijfbaarNu() === false): enkel tekst, geen invoer en geen knoppen. De server is de grens; dit is de weergave.
 // Alle leadgegevens gaan via textContent/value in de DOM (sales-dom.js).
 import { appConfirm } from '../app-dialog.js';

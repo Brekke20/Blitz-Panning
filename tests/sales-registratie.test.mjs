@@ -14,13 +14,13 @@ function spionen() {
   return { tabs, starts, registreerTabs: (rol, lijst) => tabs.push({ rol, lijst }), registreerStart: (rol, fn) => starts.push({ rol, fn }) };
 }
 
-test('sales: de vier tabs in de volgorde Te plannen, Kalender, Route, Afgewerkt, elk met een laad-functie', () => {
+test('sales: de vier tabs in de volgorde Leads, Kalender, Route, Afgewerkt, elk met een laad-functie', () => {
   const s = spionen();
   registreerSalesRol(s);
   const sales = s.tabs.find(t => t.rol === 'sales');
   assert.ok(sales);
   assert.deepEqual(sales.lijst.map(t => t.id), ['sales-lijst', 'sales-kalender', 'sales-route', 'sales-afgewerkt']);
-  assert.deepEqual(sales.lijst.map(t => t.label), ['Te plannen', 'Kalender', 'Route', 'Afgewerkt']);
+  assert.deepEqual(sales.lijst.map(t => t.label), ['Leads', 'Kalender', 'Route', 'Afgewerkt']);
   for (const t of sales.lijst) assert.equal(typeof t.laad, 'function', t.id);
 });
 

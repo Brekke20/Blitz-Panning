@@ -1,4 +1,4 @@
-// schermen/sales-lead-toevoegen.js — het venster "Lead toevoegen" (knop "+ Lead" in Te plannen): de verkoper tikt een lead zelf in (telefoon,
+// schermen/sales-lead-toevoegen.js — het venster "Lead toevoegen" (knop "+ Lead" in Leads): de verkoper tikt een lead zelf in (telefoon,
 // beurs, doorverwijzing). Minimum: een naam (voornaam of naam), een gsm-nummer of e-mailadres en een postcode; de rest is optioneel en later aan te
 // vullen in de fiche. De lead gaat als export-object met bron 'manueel' naar POST /api/sales-import (dezelfde herkenning, grafstenen en geocoding
 // als een JSON-export; de server dwingt het minimum ook af). Bestaat de klant al: melding en de bestaande fiche openen, niets dubbel.

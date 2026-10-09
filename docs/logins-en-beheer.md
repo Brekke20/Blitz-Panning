@@ -111,26 +111,26 @@ De sales-planner is het deel van de app waarmee een verkoper zijn eigen bezoeken
 3. Vink **Mag alle sales zien** enkel aan voor wie de leads van collega's moet kunnen bekijken (bijvoorbeeld een verkoopsverantwoordelijke). Hij kan dan een collega uit een lijst kiezen en ziet diens leads, maar alleen om te lezen: hij kan niets verwijderen, plannen of inladen voor een ander. Zonder het vinkje ziet een verkoper uitsluitend zijn eigen leads.
 4. Geef het startwachtwoord persoonlijk door, zoals bij elke gebruiker.
 
-Een verkoper ziet enkel de vier tabs Te plannen, Kalender, Route en Afgewerkt. Planners en techniekers zien niets van sales, en de server weigert hun verzoeken. Jij ziet als beheerder één tab **Sales** met dezelfde vier onderdelen en een lijst om een verkoper te kiezen. Je mag er iets wijzigen, maar je kan geen export inladen: dat doet de verkoper zelf.
+Een verkoper ziet enkel de vier tabs Leads, Kalender, Route en Afgewerkt. Planners en techniekers zien niets van sales, en de server weigert hun verzoeken. Jij ziet als beheerder één tab **Sales** met dezelfde vier onderdelen en een lijst om een verkoper te kiezen. Je mag er iets wijzigen, maar je kan geen export inladen: dat doet de verkoper zelf.
 
 **Hoe een verkoper een export inlaadt (de verkoper zelf)**
 
 1. Exporteer de leadlijst uit het bronsysteem als bestand (.json).
-2. Open de tab Te plannen en klik op **Export laden**. Kies het bestand.
+2. Open de tab Leads en klik op **Export laden**. Kies het bestand.
 3. De app meldt hoeveel leads nieuw zijn, hoeveel er al waren en voor hoeveel het adres nagekeken moet worden. Laad je dezelfde of een nieuwere export nog eens in, dan komt niemand dubbel in de lijst en blijft wat je zelf bijschreef staan. Een lead die je eerder wegklikte en die opnieuw in de export staat, komt terug met het label "eerder verwijderd"; jij beslist.
 4. Is de export van een andere verantwoordelijke, dan vraagt de app eerst of je hem toch wilt inladen.
 
 **Hoe een verkoper zelf een lead toevoegt**
 
-Klik op **+ Lead** in de tab Te plannen en vul minstens de naam, een gsm of e-mailadres en de postcode in. Een notitie kan er altijd bij. Komt de klant later ook in een export voor, dan wordt hij samengevoegd met deze lead.
+Klik op **+ Lead** in de tab Leads en vul minstens de naam, een gsm of e-mailadres en de postcode in. Een notitie kan er altijd bij. Komt de klant later ook in een export voor, dan wordt hij samengevoegd met deze lead.
 
 **Hoe een verkoper zijn week plant**
 
-1. In **Te plannen** staan de leads die nog bezocht moeten worden. Op een lead kan je **bellen** (tik op het nummer), een notitie bijschrijven of het adres aanpassen.
+1. In **Leads** staan alle leads die nog niet afgewerkt zijn, in drie kolommen naast elkaar: **Nog in te plannen** (de langst wachtende bovenaan, ook een voorstel waarvan de dag voorbij is), **Ingepland** (voorgestelde bezoeken, met een knop **Bevestigen**) en **Bevestigd** (vaste bezoeken). Elke kolom toont hoeveel leads erin staan; op een telefoon zijn het drie tabbladen. Op een lead kan je **bellen** (tik op het nummer), een notitie bijschrijven of het adres aanpassen.
 2. Wil je een bezoek op een vast uur, zet dan een **vast uur** op die lead. Het planningsprogramma schuift er dan niets meer aan.
 3. Klik op **Plan deze week**. De app maakt een voorstel voor de bezoeken van de week, rekening houdend met je werkuren, rittijden en vaste uren. Een bezoek staat eerst als **voorgesteld**; bevestig het om het vast te leggen.
 4. De tab **Kalender** toont de week, **Route** toont de rit van een dag op de kaart met de rijtijden.
-5. Na een bezoek noteer je het **resultaat**: Offerte, Verkocht, Geen interesse of Opnieuw langsgaan (dan komt de lead terug in Te plannen). Bij de eerste drie is de lead **Afgewerkt**; hij verdwijnt uit Te plannen en staat in de tab Afgewerkt. Leads, blokken en bezoeken worden 12 maanden na de laatste activiteit bewaard en daarna vanzelf gewist (ook niet afgewerkte leads; ook bij een geblokkeerde verkoper).
+5. Na een bezoek noteer je het **resultaat**: Offerte, Verkocht, Geen interesse of Opnieuw langsgaan (dan komt de lead terug bij Nog in te plannen). Bij de eerste drie is de lead **Afgewerkt**; hij verdwijnt uit Leads en staat in de tab Afgewerkt. Leads, blokken en bezoeken worden 12 maanden na de laatste activiteit bewaard en daarna vanzelf gewist (ook niet afgewerkte leads; ook bij een geblokkeerde verkoper).
 
 **Eigen instellingen**
 
