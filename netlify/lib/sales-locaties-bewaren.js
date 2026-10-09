@@ -10,7 +10,7 @@ const ZELFDE_ADRES = (a, b) => ADRESVELDEN.every(v => (a?.[v] ?? null) === (b?.[
 const ZELFDE_LOCATIE = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const SERVERVELDEN = ['adresTeGeocoderen', 'adresPogingen'];
 
-const telOpen = leads => leads.filter(l => isPostcode(l?.postcode) && (!l.locatie || l.adresTeGeocoderen === true)).length;
+export const telOpen = leads => leads.filter(l => isPostcode(l?.postcode) && (!l.locatie || l.adresTeGeocoderen === true)).length;
 
 /**
  * Bepaalt de locaties van leads zonder locatie (en werkt leads bij met een openstaande adres-upgrade) en bewaart ze.

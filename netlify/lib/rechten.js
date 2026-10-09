@@ -69,6 +69,9 @@ export const RECHTEN = {
   'gebruikers':           { GET: BEHEER_SALES, POST: BEHEER, PATCH: BEHEER },
   // Instellingen per gebruiker: elke rol leest/schrijft de eigen; wie voor wie mag, wordt in de functie afgedwongen.
   'instellingen':         { GET: ALLE, PUT: ALLE },
+  // Sales-planner: beheerder en sales. Wie welk verkoperblob mag lezen/schrijven staat in netlify/lib/sales-toegang.js.
+  'sales':                { GET: BEHEER_SALES, PATCH: BEHEER_SALES, DELETE: BEHEER_SALES },
+  'postcode':             { GET: BEHEER_SALES },
   // Klantlink (ondertekend) en machine-sleutel (PLANNING_EXPORT_API_KEY): eigen controles in de functie.
   'confirm-afspraak':     { '*': 'open' },
   'planning-export':      { '*': 'open' },
