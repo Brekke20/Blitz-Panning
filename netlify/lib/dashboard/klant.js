@@ -60,7 +60,9 @@ function bevestiging(lijst) {
 // enkel over de vergelijking met de vorige periode: het log loopt al sinds voor het begin van de vorige
 // periode. `aantal` van de gekozen periode blijft geldig (het log kent niets van vóór `vanaf`, dat toont de UI).
 function annulaties({ activiteit, activiteitVanaf, van, tot, vorigeVan, vorigeTot }) {
-  const datums = (activiteit || []).filter(a => a?.actie === 'annulatie').map(a => datumInBrussel(a.op)).filter(Boolean);
+  // De opruim-variant van annuleer.js ('<reden>, opgeruimd': ticket stond al niet meer gepland, geen annulatiemail) telt niet mee.
+  const echt = a => a?.actie === 'annulatie' && !/, opgeruimd$/.test(String(a.details ?? ''));
+  const datums = (activiteit || []).filter(echt).map(a => datumInBrussel(a.op)).filter(Boolean);
   const vanaf = datumInBrussel(activiteitVanaf);
   return {
     aantal: datums.filter(d => inPeriode(d, van, tot)).length,

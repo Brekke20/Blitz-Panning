@@ -110,6 +110,18 @@ test('annulaties: enkel actie annulatie, per Brusselse datum, vorige periode en 
   assert.equal(k3.annulaties.aantal, 1);
 });
 
+test('annulaties: de opruim-variant ("<reden>, opgeruimd") telt niet mee, een gewone annulatie wel', () => {
+  const activiteit = [
+    { ...log('2026-10-03T10:00:00.000Z'), details: 'Klant belde af' },
+    { ...log('2026-10-03T11:00:00.000Z'), details: 'Klant belde af, opgeruimd' },
+    { ...log('2026-10-03T12:00:00.000Z'), details: null },
+    { ...log('2026-09-25T10:00:00.000Z'), details: 'ander, opgeruimd' },
+  ];
+  const k = berekenKlant({ ...basis, activiteit, activiteitVanaf: '2026-09-01T08:00:00.000Z' });
+  assert.equal(k.annulaties.aantal, 2);
+  assert.equal(k.annulaties.vorige, 0);
+});
+
 test('annulaties: vorige periode vóór het begin van het log is niet beschikbaar', () => {
   const k = berekenKlant({ ...basis, activiteit: [log('2026-10-03T10:00:00.000Z')], activiteitVanaf: '2026-10-02T08:00:00.000Z' });
   assert.equal(k.annulaties.aantal, 1);

@@ -42,3 +42,6 @@
 [functions.rapport-vangnet]
   schedule = "*/5 * * * *"
   timeout = 30
+
+[functions.dashboard]
+  timeout = 26
