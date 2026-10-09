@@ -60,7 +60,11 @@ export function kanImporteren() {
  */
 export async function renderVerkoperBalk(container, { onWijzig } = {}) {
   container.replaceChildren();
-  if (!huidigeRechten().alleSales) return;
+  const instellingen = maakInstellingenKnop();
+  if (!huidigeRechten().alleSales) {
+    if (kanImporteren()) container.appendChild(instellingen); // een gewone verkoper: enkel de instellingenknop
+    return;
+  }
   const ok = await laadVerkopers();
   container.replaceChildren();
   const ik = huidigeGebruiker();
@@ -94,14 +98,28 @@ export async function renderVerkoperBalk(container, { onWijzig } = {}) {
   leesMelding.textContent = 'Alleen lezen';
   leesMelding.hidden = !getoond.id || magSchrijven(ik, getoond.id);
   container.appendChild(leesMelding);
+  instellingen.hidden = !kanImporteren(); // enkel bij de eigen leads: niet bij de weergave van een collega
+  container.appendChild(instellingen);
 
   keuze.addEventListener('change', () => {
     const id = keuze.value;
     bewaarKeuze(id);
     const schrijfbaar = magSchrijven(huidigeGebruiker(), id);
     leesMelding.hidden = schrijfbaar;
+    instellingen.hidden = !kanImporteren();
     onWijzig?.(id, schrijfbaar);
   });
+}
+
+// De knop ⚙ Instellingen (enkel voor de verkoper die zijn eigen leads toont; de beheerder gebruikt Beheer > Instellingen).
+// Het venster laadt lazy: sales-instellingen.js importeert zelf uit dit bestand.
+function maakInstellingenKnop() {
+  const knop = document.createElement('button');
+  knop.type = 'button';
+  knop.className = 'btn-sec sales-instellingen-knop';
+  knop.textContent = '⚙ Instellingen';
+  knop.addEventListener('click', () => { import('./sales-instellingen.js').then(m => m.openSalesInstellingen()); });
+  return knop;
 }
 
 /** Enkel voor tests en het afmelden: de lijst vergeten. */

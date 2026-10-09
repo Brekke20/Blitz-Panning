@@ -135,7 +135,6 @@
 .sales-resultaat-knoppen { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); margin-top: var(--sp-4); }
 .sales-resultaat-knop { min-height: 64px; font-size: var(--fs-md); font-weight: 700; white-space: normal; overflow-wrap: anywhere; }
 .sales-resultaat-knop:disabled { opacity: 0.6; cursor: progress; }
-.sales-resultaat-verkocht { background: var(--accent); color: var(--on-accent, #fff); border-color: var(--accent); }
 @media (max-width: 399px) { .sales-resultaat-knoppen { grid-template-columns: minmax(0, 1fr); } }
 
 .sales-afgewerkt-wortel [hidden] { display: none !important; }
@@ -151,3 +150,7 @@
 .sales-afgewerkt-notitie { font-size: var(--fs-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
 .sales-resultaat-chip-verkocht { background: var(--accent-dim); color: var(--accent-ink); }
 .sales-resultaat-chip-offerte { background: var(--blue-dim); color: var(--blue); }
+
+/* ---- Instellingen van de verkoper (sales-instellingen.js, knop in de verkoperbalk) ---- */
+.sales-instellingen-knop { margin-left: auto; min-height: 36px; padding: 6px 12px; font-size: var(--fs-sm); white-space: nowrap; }
+.sales-instellingen-knop[hidden] { display: none; }

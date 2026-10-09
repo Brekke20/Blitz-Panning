@@ -41,7 +41,7 @@ export function openResultaat(leadId) {
       const toonFout = (tekst) => { fout.textContent = tekst || ''; fout.hidden = !tekst; };
       const notitie = veld('Notitie', { soort: 'textarea', maxlength: MAX_NOTITIE, rows: 3 });
       const knoppen = SOORTEN.map(soort => el('button', {
-        type: 'button', class: `btn sales-resultaat-knop sales-resultaat-${soort}`, 'data-soort': soort, text: RESULTAAT_LABEL[soort],
+        type: 'button', class: `btn ${soort === 'verkocht' ? 'btn--primary' : 'btn--secondary'} sales-resultaat-knop sales-resultaat-${soort}`, 'data-soort': soort, text: RESULTAAT_LABEL[soort],
       }));
       let bezig = false;
       const zetBezig = (aan) => { bezig = aan; for (const k of knoppen) k.disabled = aan; };
