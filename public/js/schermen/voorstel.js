@@ -14,6 +14,7 @@ import { timeStrToMin, minToTimeStr, extractLocalHour } from '../kern/tijd.js';
 import { registreerVenster } from '../venster.js';
 import { renderTickets } from './wachtrij.js';
 import { renderKalender } from './kalender.js';
+import { bewaarVoorstelRegister, registerEntry } from './voorstel-register.js';
 import { tijdslotVoor, roundToNextQuarterStr, cleanTicketSubject, joinNL, DOELGROEP_LABEL } from './ticketdetail-logica.js';
 
 // Afhankelijkheden uit app.js en andere schermen (ingevuld door initVoorstel); een vergeten init faalt luid.
@@ -53,6 +54,27 @@ export async function loadVoorstelStatus() {
     console.warn('Voorstel-status laden mislukt:', err);
     return false;
   }
+}
+
+const TEKST_REGISTER_MISLUKT = '⚠ Voorstel verstuurd, maar de status kon niet bewaard worden — NIET opnieuw versturen, herlaad eerst de pagina';
+
+function hertekenVoorstelStatus(date) {
+  try { renderTickets(); renderKalender(); afh.renderRouteList(date); } catch (e) { console.warn('Hertekenen mislukt:', e); }
+}
+
+// Schrijft het register voor de doelgroepen die de mail kregen (B1) en zet daarna de lokale entry, ook als het bewaren mislukte
+// (de mail is weg; de entry verdwijnt bij de volgende lading van de server). Geeft true als het bewaren op de server lukte.
+async function schrijfVerzondenRegister({ ticketId, doelgroepen, tijdstip, tijdslot, date }) {
+  const tijdslotDatum = tijdslot ? date : undefined;
+  const r = await bewaarVoorstelRegister({
+    ticketId, doelgroepen, tijdstip, tijdslot: tijdslot || undefined, tijdslotDatum,
+    leesVersie: () => _voorstelStatusVersie, herlaad: loadVoorstelStatus,
+  });
+  if (r.ok && typeof r.versie === 'number') _voorstelStatusVersie = r.versie;
+  if (!r.ok) console.warn('Voorstel-status opslaan mislukt:', r.reden, r.status ?? '');
+  toestand.get('voorstelStatus')[ticketId] = registerEntry({ doelgroepen, tijdstip, tijdslot, tijdslotDatum });
+  hertekenVoorstelStatus(date);
+  return r.ok;
 }
 
 export function openProposal(ticketId, date, arrivalMin) {
@@ -240,34 +262,12 @@ export async function sendProposal() {
 
     // Eén atomische POST met alle doelgroepen die een mail kregen; reset vervangt de oude entry.
     const verzonden = ['contact', 'klant', 'installateur'].filter(d => data.emailSent?.[d] === true);
-    const hertekenStatus = () => {
-      try { renderTickets(); renderKalender(); afh.renderRouteList(date); } catch (e) { console.warn('Hertekenen mislukt:', e); }
-    };
+    const hertekenStatus = () => hertekenVoorstelStatus(date);
     if (verzonden.length) {
-      const tijdstip = new Date().toISOString();
-      const schrijfStatus = async (poging) => {
-        const r = await fetch('/api/voorstel-status', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({
-            ticketId, doelgroepen: verzonden, tijdstip, reset: true, versie: _voorstelStatusVersie,
-            ...(apptWindowSend ? { tijdslot: apptWindowSend, tijdslotDatum: date } : {}),
-          }),
-        });
-        if (r.status === 409 && poging === 0) {
-          if (!(await loadVoorstelStatus())) return;
-          return schrijfStatus(1);
-        }
-        const d = await r.json();
-        if (d.error) { console.warn('Voorstel-status opslaan mislukt:', d.error); return; }
-        if (typeof d.versie === 'number') _voorstelStatusVersie = d.versie;
-        const entry = {};
-        verzonden.forEach(x => { entry[x] = tijdstip; });
-        if (apptWindowSend) { entry.tijdslot = apptWindowSend; entry.tijdslotDatum = date; }
-        toestand.get('voorstelStatus')[ticketId] = entry;
-        hertekenStatus();
-      };
-      schrijfStatus(0).catch(err => console.warn('Voorstel-status opslaan mislukt:', err));
+      // B1: het register gaat niet meer verloren bij gelijktijdig werken (zie voorstel-register.js); bij mislukken een waarschuwing.
+      schrijfVerzondenRegister({ ticketId, doelgroepen: verzonden, tijdstip: new Date().toISOString(), tijdslot: apptWindowSend, date })
+        .then(ok => { if (!ok) toast(TEKST_REGISTER_MISLUKT, 8000); })
+        .catch(err => console.warn('Voorstel-status opslaan mislukt:', err));
     } else {
       // Geen enkele mail verstuurd: een oude registerentry (verzonden-vinkje, tijdslot, bevestigd) wissen.
       fetch('/api/voorstel-status?ticketId=' + encodeURIComponent(ticketId), { method: 'DELETE' })

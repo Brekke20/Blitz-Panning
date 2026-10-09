@@ -235,7 +235,7 @@ test.describe('voorstel: randgevallen', () => {
     expect(z.register().versie).toBe(9);
   });
 
-  test('tweede 409 in een rij: geen derde POST en het register blijft lokaal leeg', async ({ page, verzoeken }) => {
+  test('tweede 409 in een rij: de derde poging zonder versie slaagt en het register is geschreven', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, {
       paden: ['/api/propose', '/api/voorstel-status'], register: { versie: 7, status: {} },
       httpFouten: [{ pad: '/api/voorstel-status', status: 409 }],
@@ -245,13 +245,38 @@ test.describe('voorstel: randgevallen', () => {
     await vulIn(page, '2026-10-08', '10:00');
     await verstuurKnop(page).click();
     await expect(toastTekst(page)).toHaveText('✓ Voorstel verstuurd naar contactpersoon');
-    await expect.poll(() => z.opnames['voorstel-status'].filter(o => o.methode === 'POST').length).toBe(2);
-    expect(await schrijfLijst(page, verzoeken)).toEqual([START, PROPOSE, STATUS_POST, STATUS_POST]);
-    // HUIDIG GEDRAG (bug?): de mail is verstuurd en het ticket staat bijgewerkt, maar het register is niet geschreven
-    // en de gebruiker krijgt geen waarschuwing (enkel console.warn).
-    expect(await registerLokaal(page)).toEqual({});
-    expect(z.register().status).toEqual({});
+    await expect.poll(() => z.opnames['voorstel-status'].filter(o => o.methode === 'POST').length).toBe(3);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, PROPOSE, STATUS_POST, STATUS_POST, STATUS_POST]);
+    const slot = { tijdslot: '09:30–12:30', tijdslotDatum: '2026-10-08' };
+    const posts = z.opnames['voorstel-status'].filter(o => o.methode === 'POST').map(o => o.body);
+    expect(posts).toHaveLength(3);
+    expect('versie' in posts[2]).toBe(false); // de derde zonder versiecontrole (reset vervangt enkel de entry van dit ticket)
+    expect(posts[2]).toEqual({ ticketId: 'p1', doelgroepen: ['contact'], tijdstip: TIJDSTIP, reset: true, ...slot });
+    await expect.poll(() => registerLokaal(page)).toEqual({ p1: { contact: TIJDSTIP, ...slot } });
+    expect(z.register().status).toEqual({ p1: { contact: TIJDSTIP, ...slot } });
     expect(await planningVan(page)).toEqual({ '2026-10-08': ['p1'], '2026-10-09': ['g1'] });
+  });
+
+  test('register-POST geeft 500 (niet 409): geen retry en een waarschuwing', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, {
+      paden: ['/api/propose', '/api/voorstel-status'], register: { versie: 7, status: {} },
+      httpFouten: [{ pad: '/api/voorstel-status', status: 500 }],
+    });
+    z.zetAntwoord('voorstel-status', ({ methode }) => methode === 'GET'
+      ? { status: 200, json: { versie: 7, status: {} } }
+      : { status: 500, json: { error: 'Opslag kapot' } });
+    await openVoorstel(page);
+    await vulIn(page, '2026-10-08', '10:00');
+    await verstuurKnop(page).click();
+    await expect(toastTekst(page)).toHaveText('⚠ Voorstel verstuurd, maar de status kon niet bewaard worden — NIET opnieuw versturen, herlaad eerst de pagina');
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, PROPOSE, STATUS_POST]); // precies één POST, geen retry
+    // De mail is weg: planning en lijsten zijn wel bijgewerkt, de knop is terug.
+    expect(await planningVan(page)).toEqual({ '2026-10-08': ['p1'], '2026-10-09': ['g1'] });
+    expect(await lijstenVan(page)).toEqual({ tickets: ['t1', 't2', 't3'], pending: ['p1', 'p2'] });
+    await expect(verstuurKnop(page)).toHaveText('✉️ Verstuur voorstel');
+    await expect(verstuurKnop(page)).toBeEnabled();
+    // De lokale entry staat er toch (de mail is weg); hij verdwijnt bij de volgende lading van de server.
+    expect(await registerLokaal(page)).toEqual({ p1: { contact: TIJDSTIP, tijdslot: '09:30–12:30', tijdslotDatum: '2026-10-08' } });
   });
 
   test('propose faalt na het versturen (Zoho-PATCH 500): foutmelding, knop terug, geen registerverzoek, ticket ongewijzigd', async ({ page, verzoeken }) => {
