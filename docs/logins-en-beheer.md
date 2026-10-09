@@ -124,6 +124,14 @@ Een verkoper ziet enkel de vier tabs Te plannen, Kalender, Route en Afgewerkt. P
 
 Klik op **+ Lead** in de tab Te plannen en vul minstens de naam, een gsm of e-mailadres en de postcode in. Een notitie kan er altijd bij. Komt de klant later ook in een export voor, dan wordt hij samengevoegd met deze lead.
 
+**Hoe een verkoper zijn week plant**
+
+1. In **Te plannen** staan de leads die nog bezocht moeten worden. Op een lead kan je **bellen** (tik op het nummer), een notitie bijschrijven of het adres aanpassen.
+2. Wil je een bezoek op een vast uur, zet dan een **vast uur** op die lead. Het planningsprogramma schuift er dan niets meer aan.
+3. Klik op **Plan deze week**. De app maakt een voorstel voor de bezoeken van de week, rekening houdend met je werkuren, rittijden en vaste uren. Een bezoek staat eerst als **voorgesteld**; bevestig het om het vast te leggen.
+4. De tab **Kalender** toont de week, **Route** toont de rit van een dag op de kaart met de rijtijden.
+5. Na een bezoek noteer je het **resultaat**: Offerte, Verkocht, Geen interesse of Opnieuw langsgaan (dan komt de lead terug in Te plannen). Bij de eerste drie is de lead **Afgewerkt**; hij verdwijnt uit Te plannen en staat in de tab Afgewerkt. Afgewerkte leads worden 12 maanden bewaard en daarna vanzelf gewist.
+
 **Eigen instellingen**
 
 Een verkoper stelt zijn startadres, werkuren, laatste start en bezoekduur zelf in met de knop Instellingen. Als beheerder doe je dat voor een verkoper via Beheer, Instellingen.

@@ -56,6 +56,7 @@ Handleiding voor Brent: `docs/logins-en-beheer.md` (sectie "Sales"). Ledger: `.s
 - [ ] **`SESSIE_GEHEIM` blijft ongewijzigd na de livegang.** De code die onthoudt dat een lead weggeklikt werd (grafsteen) is afgeleid van dit geheim; wijzigt het, dan komen weggeklikte leads zonder label "eerder verwijderd" terug.
 - [ ] **Functietime-outs.** `[functions.sales]`, `[functions.postcode]` en `[functions.sales-import]` staan op 26 s in `netlify.toml`; controleer dat de Netlify-UI dat overneemt. Het geocodingbudget van een import is 12 s.
 - [ ] **Rollen live nakijken.** Een testverkoper ziet enkel de vier sales-tabs; met "Mag alle sales zien" ziet hij een collega alleen-lezen; een planner en een technieker krijgen 403 op `/api/sales`; de beheerder heeft één tab Sales en geen knop Export laden.
+- [ ] **Hele keten met echte gebruikers (samen met Brent).** De beheerder maakt een verkoper aan (Naam in export, eventueel Mag alle sales zien); de verkoper logt in, laadt een echte export, voegt met + Lead een lead toe, plant de week en bekijkt de route. Daarna controleren dat een tweede verkoper niets van de eerste ziet.
 - [ ] **Smalle schermen.** De beheerder heeft nu 8 hoofdtabs (7 + Sales): controleer de tabbalk op 375 px.
 - [ ] **Sales-bestanden in de service worker.** `public/sw.js` `SHELL` bevat de sales-bestanden (de SHELL-test is groen); de `CACHE_NAME`-bump van sectie 1 geldt ook voor deze bestanden.
 
