@@ -222,7 +222,7 @@ async function schrijfRapportStatus({ rapportId, doelgroep, tijdstip, versie }) 
       body:    JSON.stringify({ id: rapportId, doelgroep, tijdstip, versie }), // versie: undefined valt weg in JSON
     });
     const d = await res.json();
-    if (d?.error) return { ok: false, fout: d.error };
+    if (!res.ok || d?.error) return { ok: false, fout: d?.error || 'HTTP ' + res.status }; // een vreemd 4xx/5xx-antwoord zonder error is nooit "opgeslagen"
     return { ok: true, versie: d?.versie };
   } catch (e) {
     return { ok: false, fout: e.message };
