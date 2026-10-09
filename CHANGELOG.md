@@ -62,6 +62,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
   - *Nieuw op de server:* de functies `/api/sales` (leads en blokken lezen en wijzigen, met versiecontrole), `/api/sales-import` (export inlezen en samenvoegen), `/api/postcode` (postcode naar plaats en middelpunt, met cache) en een dagelijkse opruiming (`sales-opruimen`).
 
 ### Changed
+- Kop: de persoonskiezer is nu een benoemde knop ("👤 Planning: Tim ▾", op een gsm enkel icoon en naam) zonder rondje met initialen; het rondje met initialen is voorbehouden aan het gebruikersmenu (account). Het item "Beheer" in dat menu is weg: Beheer is de tab.
 - Elke actie wordt nu op de server op rol gecontroleerd (rechtentabel in `netlify/lib/rechten.js`, met een test die dwingt dat elke functie een rij heeft). Zonder geldige sessie geeft elke beveiligde functie 401. De drie uploadfuncties (`rapport-ontvangen`, `rapport-verwerk-background`, `rapport-vangnet`) vallen er ook onder.
 - Een technieker ziet de tickets en afspraken van collega's alleen-lezen: de knoppen Aankomst, Foto's en Rapport verschijnen enkel bij eigen werk (planner en beheerder altijd). De server blokkeert dit voor vijf ticketfuncties niet (besluit klant 2026-10-08), maar elke schrijfactie staat met naam in het activiteitenlog.
 - Het loginscherm komt over de app heen bij een verlopen sessie; de app blijft staan en de onderbroken actie wordt na het inloggen één keer herhaald.

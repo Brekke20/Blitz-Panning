@@ -75,7 +75,6 @@ test.describe('persoonkiezer', () => {
     await expect(items.nth(0)).toHaveClass(/active/);
     await items.nth(2).click(); // Tim
     await expect(page.locator('#person-name-hdr')).toHaveText('Tim');
-    await expect(page.locator('#person-avatar-hdr')).toHaveText('T');
     expect(await page.evaluate(() => localStorage.getItem('blitz_active_person'))).toBe('Tim');
     await expect(page.locator('#person-menu')).not.toHaveClass(/open/);
     await page.locator('#person-btn').click();

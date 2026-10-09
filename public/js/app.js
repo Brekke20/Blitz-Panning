@@ -693,9 +693,7 @@ function buildPersonSelector() {
 }
 
 function updatePersonHeader() {
-  const el = document.getElementById('person-avatar-hdr');
   const nm = document.getElementById('person-name-hdr');
-  if (el) el.textContent = initials(get('activeAssigneeFilter'));
   if (nm) nm.textContent = get('activeAssigneeFilter') === 'all' ? 'Alle' : get('activeAssigneeFilter').split(' ')[0];
   // Onderscheid met het gebruikersmenu (account): deze knop kiest WIE je planning je bekijkt.
   const knop = document.getElementById('person-btn');

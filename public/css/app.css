@@ -61,13 +61,9 @@
       transition: background 0.15s, border-color 0.15s;
     }
     .person-btn:hover { background: var(--surface3); border-color: var(--accent); }
-    .person-avatar {
-      width: 24px; height: 24px; border-radius: 50%;
-      background: var(--accent-dim); color: var(--accent-ink);
-      font-size: var(--fs-2xs); font-weight: 700;
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-      letter-spacing: -0.5px;
-    }
+    /* De persoonskiezer is een benoemde knop ("👤 Planning: Tim ▾"), geen rondje met initialen: dat is voorbehouden aan het gebruikersmenu (account). */
+    .person-icoon { font-size: 0.9rem; line-height: 1; flex-shrink: 0; }
+    .person-voor { color: var(--muted); font-weight: 400; flex-shrink: 0; }
     .person-chevron { color: var(--muted); font-size: var(--fs-2xs); }
     .person-menu {
       position: absolute; top: calc(100% + 8px); right: 0;
@@ -408,6 +404,7 @@
     html[data-indeling="smal"] .logo-text { display: none; }
     html[data-indeling="smal"] .logo { flex: 1 1 0; min-width: 0; }
     html[data-indeling="smal"] .person-btn { max-width: 108px; padding: 5px 6px; gap: 4px; }
+    html[data-indeling="smal"] .person-voor { display: none; } /* op een gsm enkel het icoon en de naam */
     html[data-indeling="smal"] #person-name-hdr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     html[data-indeling="smal"] .hbtn { min-width: 40px; width: 40px; }
     html[data-indeling="smal"][data-aanraak="ja"] .hbtn { min-width: 44px; width: 44px; }
