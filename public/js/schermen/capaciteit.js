@@ -9,7 +9,6 @@ import { strengeAfh } from '../kern/ui.js';
 import { localISO, timeStrToMin, minToTimeStr } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
 import { plaatsNieuw, extraPlaatsen, eersteVrijeStart } from '../planner-tijdlijn.js';
-import { roundToNextQuarterStr } from './ticketdetail-logica.js';
 import { getHolidayName } from '../kern/feestdagen.js';
 
 // De items van één dag voor de plaatsingsregel (planner-tijdlijn.js). Alles komt als parameter binnen.
@@ -123,9 +122,10 @@ export function nextAvailableDay(van, ticketId = null) {
   });
 }
 
-// Het eerste vrije uur ('HH:MM', naar het volgende kwartier afgerond) voor een ticket op `datum` (B16, "Toewijzen"): volgens de
+// Het eerste vrije uur ('HH:MM', op een kwartier) voor een ticket op `datum` (B16, "Toewijzen"): volgens de
 // plaatsingsregel op basis van wat er die dag al staat, ook als het na de laatste starttijd valt. Voor vandaag niet vóór de klok van nu.
-// null bij een feestdag of een hele-dag-blokkering (dan blijft de terugval 09:00 van de aanroeper).
+// null bij een feestdag, een hele-dag-blokkering of als het voorstel niet meer binnen dezelfde dag valt (na 23:45, geen wrap naar 00:xx):
+// dan blijft de terugval 09:00 van de aanroeper.
 export function eersteVrijUur(datum, ticketId) {
   if (getHolidayName(datum)) return null;
   const settings = toestand.get('settings');
@@ -137,6 +137,8 @@ export function eersteVrijUur(datum, ticketId) {
     duurMin: ticketId != null ? afh.duurVoor(ticketId) : settings.duurMinuten,
     vanTijd: settings.vanTijd, laatsteStart: settings.laatsteStart,
     vroegst: datum === localISO(nu) ? nu.getHours() * 60 + nu.getMinutes() : undefined,
+    kwartier: true,
   });
-  return roundToNextQuarterStr(minToTimeStr(startMin));
+  if (startMin > 23 * 60 + 45) return null;
+  return minToTimeStr(startMin);
 }

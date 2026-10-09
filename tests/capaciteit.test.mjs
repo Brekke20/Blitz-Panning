@@ -1,5 +1,5 @@
 process.env.TZ = 'Europe/Brussels';
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { bouwDagItems, volgendeBeschikbareDag, capaciteitsKop, initCapaciteit, eersteVrijUur } from '../public/js/schermen/capaciteit.js';
 import { plaatsNieuw, extraPlaatsen } from '../public/js/planner-tijdlijn.js';
@@ -136,4 +136,23 @@ test('eersteVrijUur(datum): null bij feestdag/hele-dag-blokkering', () => {
   assert.equal(eersteVrijUur('2030-05-01', 'x'), null); // Dag van de Arbeid
   zaaiToestand({ avExceptions: [{ id: 'b', scope: 'global', person: null, date: DAG, kind: 'fullday', from: null, to: null, reason: '' }] });
   assert.equal(eersteVrijUur(DAG, 'x'), null);
+});
+
+test('eersteVrijUur(datum): vandaag niet vóór de klok van nu en gelijk aan "+" (10:12 geeft 10:15, geen reistijd erbovenop)', () => {
+  mock.timers.enable({ apis: ['Date'], now: new Date(2030, 2, 12, 10, 12).getTime() });
+  try {
+    zaaiToestand();
+    assert.equal(eersteVrijUur(DAG, 'x'), '10:15');
+    assert.equal(eersteVrijUur('2030-03-13', 'x'), '08:30'); // een andere dag: de klok speelt geen rol
+  } finally { mock.timers.reset(); }
+});
+
+test('eersteVrijUur(datum): nooit voorbij het einde van de dag (geen wrap naar 00:xx): dan null en blijft de terugval van de aanroeper', () => {
+  zaaiToestand({ avExceptions: [{ id: 'b', scope: 'global', person: null, date: DAG, kind: 'range', from: '08:00', to: '23:50', reason: '' }] });
+  assert.equal(eersteVrijUur(DAG, 'x'), null);
+});
+
+test('eersteVrijUur(datum): na een blokkering tot 18:00 wordt 18:30 voorgesteld (na de laatste starttijd, toch binnen dezelfde dag)', () => {
+  zaaiToestand({ avExceptions: [{ id: 'b', scope: 'global', person: null, date: DAG, kind: 'range', from: '08:00', to: '18:00', reason: '' }] });
+  assert.equal(eersteVrijUur(DAG, 'x'), '18:30');
 });

@@ -158,9 +158,46 @@ test('eersteVrijeStart: een tijdvak-blokkering (soort blok) telt mee zonder reis
   assert.deepEqual(evs([blok('b', '10:00', 120)]), { startMin: u(12, 30), laat: false });
 });
 
-test('eersteVrijeStart: vroegst (vandaag 10:12) geeft niet vóór 10:42', () => {
-  assert.deepEqual(evs([], { vroegst: u(10, 12) }).startMin, u(10, 42));
+test('eersteVrijeStart: vroegst (vandaag 10:12) wordt ongewijzigd doorgegeven, zoals bij "+" (geen reistijd erbovenop)', () => {
+  assert.deepEqual(evs([], { vroegst: u(10, 12) }).startMin, u(10, 12));
+  assert.deepEqual(evs([], { vroegst: u(10, 12), kwartier: true }).startMin, u(10, 15));
 });
+
+test('eersteVrijeStart kwartier: lege dag 08:30 en een gat met speling blijven op een kwartier', () => {
+  assert.deepEqual(evs([], { kwartier: true }), { startMin: u(8, 30), laat: false });
+  // a 08:00-09:00, b 15:00: 09:30 is al een kwartier
+  assert.deepEqual(evs([tk('a', '08:00', 60), tk('b', '15:00', 60)], { kwartier: true }).startMin, u(9, 30));
+  // a 08:10-09:10: 09:40 wordt 09:45 (ruime speling tot de volgende stop op 15:00)
+  assert.equal(evs([tk('a', '08:10', 60), tk('b', '15:00', 60)], { kwartier: true }).startMin, u(9, 45));
+});
+
+test('eersteVrijeStart kwartier: afronden mag niet overlappen met een blok erna (I1: stop 08:10/60, blok 10:00, ticket 20 min)', () => {
+  const items = [tk('a', '08:10', 60), blok('b', '10:00', 120)];
+  // zonder afronding eindigt het voorstel exact op 10:00 (09:40-10:00): geldig
+  assert.equal(evs(items, { duurMin: 20 }).startMin, u(9, 40));
+  // afgerond naar 09:45 zou 09:45-10:05 overlappen: het voorstel springt naar na het blok (12:00 + 30 min rit)
+  const r = evs(items, { duurMin: 20, kwartier: true });
+  assert.notEqual(r.startMin, u(9, 45));
+  assert.equal(r.startMin, u(12, 30));
+});
+
+test('eersteVrijeStart kwartier: afronden houdt de reisbuffer naar de volgende stop (stop om 10:30, ticket 20 min)', () => {
+  const items = [tk('a', '08:10', 60), tk('b', '10:30', 60)];
+  // 09:40-10:00 + 30 min rit = 10:30: past precies; afgerond 09:45-10:05 + 30 = 10:35 > 10:30: dus niet; na stop b (11:30) + 30 min rit
+  assert.equal(evs(items, { duurMin: 20 }).startMin, u(9, 40));
+  assert.equal(evs(items, { duurMin: 20, kwartier: true }).startMin, u(12, 0));
+});
+
+test('eersteVrijeStart kwartier: elk resultaat is een geldige vaste plaatsing (geen botsing, reisbuffer intact)', () => {
+  const items = [tk('a', '08:10', 60), blok('b', '10:00', 90), tk('c', '13:20', 45), blok('d', '15:10', 30)];
+  for (const duurMin of [20, 35, 60, 90, 120]) {
+    const { startMin } = evs(items, { duurMin, kwartier: true });
+    assert.equal(startMin % 15, 0);
+    const p = plaatsNieuw({ items, nieuw: { id: 'n', duurMin, uur: `${String(Math.floor(startMin / 60)).padStart(2, '0')}:${String(startMin % 60).padStart(2, '0')}` }, vanTijd: '08:00', laatsteStart: '23:59' });
+    assert.ok(p, `duur ${duurMin}: ${startMin}`);
+  }
+});
+
 
 test('eersteVrijeStart: volle dag: startMin na laatsteStart met laat true', () => {
   const r = evs([tk('a', '08:30', 210), tk('b', '12:30', 210)]);

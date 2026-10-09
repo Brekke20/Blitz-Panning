@@ -97,13 +97,22 @@ export function extraPlaatsen({ items, duurMin, vanTijd, laatsteStart, maxPerDag
 // Het eerste vrije uur voor één nieuw ticket zonder uur (B16, "Toewijzen"): dezelfde plaatsingsregel als leggDagUit/plaatsNieuw
 // (zelfde reistijd, vaste uren, botsing en "volgende stop"-controle), maar ZONDER grens op maxPerDag en zonder te weigeren:
 // valt het voorstel na `laatsteStart`, dan geeft de functie het toch terug met `laat: true` (Brent-besluit: toch voorstellen).
-// `vroegst` = de klok van nu (minuten, enkel voor vandaag): de aankomst valt dan niet vóór die klok + reistijd.
+// `vroegst` = de klok van nu (minuten, enkel voor vandaag), ongewijzigd doorgegeven zoals bij "+" (plaatsNieuw).
+// `kwartier: true` rondt het uur af naar het volgende kwartier BINNEN de plaatsing: het afgeronde uur wordt opnieuw door de
+// botsings- en reistijdcontrole gehaald (herhaald tot het een kwartier is), zodat het nooit overlapt met een blok of vaste stop.
 // Geeft { startMin, laat }. Puur: geen DOM, geen toestand.
-export function eersteVrijeStart({ items, duurMin, vanTijd, laatsteStart, reisMin, vroegst }) {
+export function eersteVrijeStart({ items, duurMin, vanTijd, laatsteStart, reisMin, vroegst, kwartier = false }) {
   const reis = reisMin ?? REISTIJD_TERUGVAL_MIN;
   const id = '__eersteVrij';
-  const item = { id, uur: null, duurMin, soort: 'stop', ticket: true, vroegst: vroegst != null ? vroegst + reis : undefined };
-  const { plaatsingen } = leggDagUit({ items: [...items, item], vanTijd, laatsteStart, reisMin: reis });
-  const p = plaatsingen.find(x => x.id === id);
+  let ondergrens = vroegst;
+  let p;
+  for (let i = 0; i < 100; i++) {
+    const item = { id, uur: null, duurMin, soort: 'stop', ticket: true, vroegst: ondergrens };
+    const { plaatsingen } = leggDagUit({ items: [...items, item], vanTijd, laatsteStart, reisMin: reis });
+    p = plaatsingen.find(x => x.id === id);
+    if (!kwartier || p.start % 15 === 0) break;
+    ondergrens = Math.ceil(p.start / 15) * 15; // klok loopt enkel vooruit: de lus eindigt
+  }
   return { startMin: p.start, laat: p.laat };
 }
+

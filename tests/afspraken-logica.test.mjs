@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { matchRespToPerson, technieklijst, bouwImportRijen, nieuweImportItems, zichtbaarAdres } from '../public/js/schermen/afspraken-logica.js';
+import { matchRespToPerson, technieklijst, bouwImportRijen, nieuweImportItems, zichtbaarAdres, navigatieAdres } from '../public/js/schermen/afspraken-logica.js';
 
 const AGENTS = ['Roel Peeters', 'Tim Vermeulen'];
 
@@ -76,4 +76,12 @@ test('zichtbaarAdres: adres gaat voor; import zonder adres toont de notitie; leg
   assert.equal(zichtbaarAdres({ adres: '', notitie: '', bron: 'manueel' }), '');
   assert.equal(zichtbaarAdres({ adres: '', notitie: '', bron: 'import' }), '');
   assert.equal(zichtbaarAdres({}), '');
+});
+
+test('navigatieAdres: adres || notitie, ook voor een handmatige afspraak waarvan enkel de notitie als plaats dient (B10: Navigeer blijft)', () => {
+  assert.equal(navigatieAdres({ adres: 'Kerkstraat 5', notitie: 'Sleutel', bron: 'manueel' }), 'Kerkstraat 5');
+  assert.equal(navigatieAdres({ adres: '', notitie: 'Kerkstraat 5, Gent', bron: 'manueel' }), 'Kerkstraat 5, Gent');
+  assert.equal(navigatieAdres({ adres: '', notitie: 'Gent', bron: 'import' }), 'Gent');
+  assert.equal(navigatieAdres({ adres: '', notitie: '', bron: 'manueel' }), '');
+  assert.equal(navigatieAdres({}), '');
 });

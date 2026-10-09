@@ -15,7 +15,7 @@ import { persoonOfNull } from '../kern/selecties.js';
 import { registreerVenster } from '../venster.js';
 import { telNummer } from './ticketdetail-logica.js';
 import { magSchrijvenVoor } from '../kern/sessie.js';
-import { matchRespToPerson, technieklijst, bouwImportRijen, nieuweImportItems, zichtbaarAdres } from './afspraken-logica.js';
+import { matchRespToPerson, technieklijst, bouwImportRijen, nieuweImportItems, zichtbaarAdres, navigatieAdres } from './afspraken-logica.js';
 
 export { matchRespToPerson };
 
@@ -383,7 +383,12 @@ export function openLocalEventDetail(ev) {
       : '',
     /\d/.test(telNummer(ev.telefoon)) ? linkRow('Telefoon', ev.telefoon, `tel:${telNummer(ev.telefoon)}`) : row('Telefoon', ev.telefoon),
     linkRow('E-mail',   ev.email,    `mailto:${ev.email}`),
-    ev.notitie && adres !== ev.notitie ? row('Notitie', ev.notitie) : '',
+    ev.notitie && adres !== ev.notitie
+      ? (!adres
+        // handmatig zonder adres: de notitie blijft een Notitie, maar dient nog als plaats (Navigeer, zoals in routes)
+        ? `<div class="mrow"><span class="mlabel">Notitie</span><span class="mval">${escHtml(ev.notitie)} <a href="#" class="mval-nav-link" data-adres="${escHtml(ev.notitie)}">🧭 Navigeer ↗</a></span></div>`
+        : row('Notitie', ev.notitie))
+      : '',
     row('Technieker', ev.persoon),
   ].filter(Boolean).join('');
 

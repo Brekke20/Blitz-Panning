@@ -160,20 +160,21 @@ test.describe('afspraken: detailvenster, bewerken en verwijderen', () => {
     await expect(detail(page)).not.toHaveClass(/open/);
   });
 
-  test('een handmatige afspraak zonder adres toont de notitie als Notitie, niet als adres', async ({ page }) => {
+  test('een handmatige afspraak zonder adres toont de notitie als Notitie, niet als adres (Navigeer blijft)', async ({ page }) => {
     await startApp(page, { overschrijf: metSeed([ENKEL_NOTITIE]) });
     await naarKalender(page);
     await openDetail(page, '2026-10-07', 'Alleen notitie');
     await expect(detail(page).locator('#ld-datum')).toHaveText('wo 7 okt 2026 · 09:00'); // zonder einduur
     await expect(detail(page).locator('.mrow', { hasText: 'Adres' })).toHaveCount(0);
     await expect(detail(page).locator('.mrow', { hasText: 'Notitie' })).toContainText('Sleutel op kantoor');
-    await expect(detail(page).locator('.mval-nav-link')).toHaveCount(0);
+    // De notitie dient nog als plaats (routes gebruiken `adres || notitie`): de Navigeer-link blijft, op de notitie.
+    await expect(detail(page).locator('.mval-nav-link')).toHaveCount(1);
+    await expect(detail(page).locator('.mval-nav-link')).toHaveAttribute('data-adres', 'Sleutel op kantoor');
     await expect(detail(page).locator('.mrow', { hasText: 'Telefoon' })).toHaveCount(0);
-    // De kaart: geen adresregel en geen navigeerknop, wel de notitieregel.
+    // De kaart: geen adresregel, wel de notitieregel. (De Navigeer-knop van de kaart staat in de gsm-lijst: kalender-indelingen.spec.)
     const k = kaart(page, '2026-10-07', 'Alleen notitie');
     await expect(k.locator('.cal-addr')).toHaveCount(0);
     await expect(k.locator('.cal-meta', { hasText: '📝 Sleutel op kantoor' })).toHaveCount(1);
-    await expect(k.getByRole('button', { name: '🧭 Navigeer' })).toHaveCount(0);
   });
 
   test('een geïmporteerde afspraak (bron "import") met enkel een notitie toont die nog steeds als adres met navigatielink', async ({ page }) => {

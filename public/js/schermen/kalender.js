@@ -15,7 +15,7 @@ import {
 import { capaciteitsKop, capacityForDay } from './capaciteit.js';
 import { renderRouteList } from './route.js';
 import { getHolidayName } from '../kern/feestdagen.js';
-import { zichtbaarAdres } from './afspraken-logica.js';
+import { zichtbaarAdres, navigatieAdres } from './afspraken-logica.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initKalender); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('kalender: initKalender() is niet aangeroepen'); } });
@@ -151,6 +151,7 @@ function buildLocalEventCard(ev, { showActions = true } = {}) {
   const tijdLabel = ev.uur ? `${ev.uur}${ev.einduur ? '–' + ev.einduur : ''}` : '';
   const adresLabel = zichtbaarAdres(ev); // B10: een handmatige notitie is geen adres
   const notitieRegel = !adresLabel && ev.notitie ? ev.notitie : '';
+  const navAdres = navigatieAdres(ev); // ook een notitie die als plaats dient (handmatig zonder adres) houdt zijn Navigeer-knop
   card.innerHTML = `
     <button class="cal-local-del" data-actie="kal-event-verwijder" data-event-id="${escHtml(ev.id)}" title="Verwijderen" aria-label="Afspraak verwijderen">✕</button>
     <span class="cal-local-type">${escHtml(ev.type)}</span>
@@ -161,12 +162,12 @@ function buildLocalEventCard(ev, { showActions = true } = {}) {
     ${ev.persoon ? `<div class="cal-meta">${escHtml(ev.persoon)}</div>` : ''}
     ${showActions ? `<div class="cal-actions">
       ${/\d/.test(afh.telNummer(ev.telefoon)) ? `<a class="cal-btn cal-ev-call" href="tel:${escHtml(afh.telNummer(ev.telefoon))}">📞 Bellen</a>` : ''}
-      ${adresLabel ? `<button class="cal-btn cal-ev-nav">🧭 Navigeer</button>` : ''}
+      ${navAdres ? `<button class="cal-btn cal-ev-nav">🧭 Navigeer</button>` : ''}
     </div>` : ''}`;
   // ev.id komt uit de afspraken-blob (niet-geauthenticeerd) — daarom als geëscapete data-attribuut, niet als
   // inline onclick-string (niet veilig tegen apostrofs in de brondata); de verwijderknop loopt via data-actie.
   card.querySelector('.cal-ev-call')?.addEventListener('click', e => e.stopPropagation());
-  card.querySelector('.cal-ev-nav')?.addEventListener('click', e => { e.stopPropagation(); afh.navigate(encodeURIComponent(adresLabel)); });
+  card.querySelector('.cal-ev-nav')?.addEventListener('click', e => { e.stopPropagation(); afh.navigate(encodeURIComponent(navAdres)); });
   // Bubbel-guard (C8): een klik op een data-actie-knop (✕) opent het detail niet.
   card.addEventListener('click', e => { if (e.target.closest('[data-actie]')) return; afh.openLocalEventDetail(ev); });
   // Toetsenbord (N11): Enter/Space opent het detail; Tab alleen focust. Toetsen uit de ✕/Bellen/Navigeer-knoppen blijven bij die knoppen.

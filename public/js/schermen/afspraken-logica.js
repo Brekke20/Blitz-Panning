@@ -73,3 +73,9 @@ export function zichtbaarAdres(ev) {
   if (ev.adres) return ev.adres;
   return ev.bron !== 'manueel' && ev.notitie ? ev.notitie : '';
 }
+
+// Het adres waarnaar "Navigeer" gaat (B10): zoals routes en kaart `adres || notitie`, ook voor een handmatige afspraak waarvan
+// enkel de notitie als plaats is ingevuld (oudere afspraken verliezen hun Navigeer-link dus niet).
+export function navigatieAdres(ev) {
+  return ev.adres || ev.notitie || '';
+}
