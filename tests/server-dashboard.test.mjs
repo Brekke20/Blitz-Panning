@@ -295,7 +295,7 @@ test('[RF6] 500 lichte entries plus twee jaar-archieven van 3000: snel en een an
   const res = await metRol('beheerder', () => h(get('?van=2025-01-01&tot=2026-10-07')));
   const tekst = await res.text();
   assert.equal(res.status, 200);
-  assert.ok(Date.now() - start < 5000, `${Date.now() - start} ms`); // apart ~1,7 s; 5 s laat marge voor een volle suite onder belasting (eindreview M10)
+  assert.ok(Date.now() - start < 10000, `${Date.now() - start} ms`); // apart ~1,7-2,3 s; 10 s laat marge voor een volle suite onder belasting (eindreview M10)
   assert.ok(tekst.length < 200000, `${tekst.length} bytes`);
   const body = JSON.parse(tekst);
   assert.equal(body.bronnen.archief, 6000);
