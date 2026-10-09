@@ -1,13 +1,15 @@
 // /api/rapport-ontvangen — snelle, idempotente ontvangst van een service-rapport. Slaat de inhoud
 // en een lichte lijst-entry op en start daarna de Background Function die de PDF maakt en naar
 // Zoho uploadt. Logica: netlify/lib/rapport-ontvangst.js en rapport-achtergrond.js.
+// Achter de rechtentabel (beveiligV2): beheerder, planner en technieker (technieker enkel eigen rapporten).
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
 import { verwerkOntvangst } from '../lib/rapport-ontvangst.js';
 import { startAchtergrondtaak } from '../lib/rapport-achtergrond.js';
+import { beveiligV2 } from '../lib/beveiligd.js';
 
 export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
-  return async (req) => {
+  const kern = async (req, context, gebruiker) => {
     const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers });
     if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405, headers });
@@ -21,12 +23,13 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
     const store = haalStore({ name: winkelNaam(req), consistency: 'strong' });
     if (testModus) await zorgVoorTestkopie(haalStore);
 
-    const res = await verwerkOntvangst({ store, body, testModus });
+    const res = await verwerkOntvangst({ store, body, testModus, gebruiker });
     if (res.startNodig) {
       await startAchtergrondtaak({ origin: new URL(req.url).origin, id: res.body.id, testModus, fetch: doFetch });
     }
     return new Response(JSON.stringify(res.body), { status: res.status, headers });
   };
+  return beveiligV2('rapport-ontvangen', kern);
 }
 
 export default maakHandler({ getStore, fetch: globalThis.fetch });

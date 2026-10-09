@@ -2,18 +2,30 @@
 // blob, lichte entry in de rapportlijst met verwerking 'wacht' (of 'lokaal'). De zware verwerking
 // (PDF + Zoho) gebeurt later in de Background Function. Zie rapport-verwerking.js.
 
-import { bouwEntry, voegToeOfWerkBij, wijzigLijst, effectieveStatus, stripZwareVelden } from './rapportlijst.js';
+import { bouwEntry, voegToeOfWerkBij, wijzigLijst, effectieveStatus, stripZwareVelden, LIJST_KEY, LEGE_LIJST } from './rapportlijst.js';
 import { valideerOntvangst, schrijfInhoud, verwijderInhoud } from './rapport-inhoud.js';
 import { nieuweVerwerking } from './rapport-verwerking.js';
+import { isEigenNaam } from './eigen.js';
 
 const NIET_BEREIKBAAR = { error: 'Rapportarchief tijdelijk niet bereikbaar, probeer opnieuw.' };
 
-export async function verwerkOntvangst({ store, body, nu = new Date(), testModus = false }) {
+const GEEN_RECHT = { error: 'Je kan enkel je eigen rapporten versturen.', code: 'geen-recht' };
+
+// gebruiker (logins): een technieker verstuurt enkel rapporten op zijn eigen naam, raakt het rapport (of de inhoud)
+// van een collega met hetzelfde id nooit aan en dedupt enkel op zijn eigen entries. Planner/beheerder: geen beperking.
+export async function verwerkOntvangst({ store, body, nu = new Date(), testModus = false, gebruiker = null }) {
   const v = valideerOntvangst(body, { testModus });
   if (!v.ok) return { status: v.status, body: { error: v.fout }, startNodig: false };
   const { id, archiveBody, html, ticketId, filename, isLocal } = v.waarden;
 
   try {
+    const isTech = gebruiker?.rol === 'technieker';
+    const eigenFilter = isTech ? (r => isEigenNaam(gebruiker, r?.technieker)) : undefined;
+    if (isTech) {
+      if (!isEigenNaam(gebruiker, archiveBody?.technieker)) return { status: 403, body: GEEN_RECHT, startNodig: false };
+      const lijst = (await store.get(LIJST_KEY, { type: 'json' })) ?? LEGE_LIJST;
+      if (lijst.rapports.some(r => r.id === id && !eigenFilter(r))) return { status: 403, body: GEEN_RECHT, startNodig: false };
+    }
     const entry = {
       ...bouwEntry({ ...archiveBody, id, ticketId }, { nu, licht: true }),
       verwerking: nieuweVerwerking(isLocal ? 'lokaal' : 'wacht', nu),
@@ -52,7 +64,7 @@ export async function verwerkOntvangst({ store, body, nu = new Date(), testModus
         startNodig = effectieveStatus(bestaand) === 'wacht';
         return null;
       }
-      const uit = voegToeOfWerkBij(rapports, entry, archiveBody);
+      const uit = voegToeOfWerkBij(rapports, entry, archiveBody, eigenFilter ? { eigenFilter } : undefined);
       vervangenId = uit.vervangenId;
       startNodig = !isLocal;
       return { rapports: uit.rapports, controle: terug => terug.some(r => r.id === id) };

@@ -40,6 +40,14 @@ export const RECHTEN = {
   'inventaris':           { GET: INTERN, POST: INTERN, PATCH: COORD },
   'rapport-archief':      { GET: INTERN, POST: INTERN, DELETE: INTERN },
   'rapport-verzonden':    { POST: INTERN },
+  // Upload-functies (v1.10.2). rapport-ontvangen: technieker enkel eigen rapporten (afgedwongen in de functie).
+  // rapport-verwerk-background wordt server-naar-server aangeroepen en is via /.netlify/functions/ publiek bereikbaar:
+  // 'open' (geen sessie), met een EIGEN controle in de functie (interne sleutel, netlify/lib/intern-token.js).
+  // rapport-vangnet is een geplande functie (schema in netlify.toml, geen config.path: Netlify weigert een aanroep via
+  // de URL); de scheduler draagt geen sessie, dus 'open' en bewust niet in de wrapper.
+  'rapport-ontvangen':    { POST: INTERN },
+  'rapport-verwerk-background': { '*': 'open' },
+  'rapport-vangnet':      { '*': 'open' },
   'rapport':              { POST: INTERN },
   'send-rapport':         { POST: INTERN },
   'comment':              { POST: INTERN },

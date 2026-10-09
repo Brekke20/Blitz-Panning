@@ -125,6 +125,9 @@
       var res = await doFetch('/api/rapport-ontvangen', {
         method: 'POST',
         headers: headers,
+        // De service worker draait zonder pagina: de sessiecookie moet expliciet mee (zelfde oorsprong), anders is het
+        // verzoek voor de server anoniem en komt het rapport in de outbox te staan met "Niet ingelogd".
+        credentials: 'same-origin',
         body: JSON.stringify(bouwOntvangenBody(item)),
         signal: ctrl.signal,
       });
