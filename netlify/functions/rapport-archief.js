@@ -12,6 +12,7 @@ import {
 import { haalRapportInhoud, verwerkOpnieuw } from '../lib/rapport-archief-acties.js';
 import { startAchtergrondtaak } from '../lib/rapport-achtergrond.js';
 import { isGeldigId, vergeetEntry } from '../lib/rapport-inhoud.js';
+import { archiveerAfgevallen } from '../lib/rapport-jaararchief.js';
 import { beveiligV2 } from '../lib/beveiligd.js';
 import { isEigenNaam, isEigenRapport, filterRapportenVoor } from '../lib/eigen.js';
 import { logVoorVerzoek } from '../lib/activiteit.js';
@@ -151,13 +152,18 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
           return new Response(JSON.stringify(GEEN_RECHT), { status: 403, headers: { ...hdrs, 'Content-Type': 'application/json' } });
         }
       }
-      const { rapports: updatedList } = voegToeOfWerkBij(current.rapports, entry, body, { eigenFilter: eigenDedup });
+      const { rapports: updatedList, afgevallen } = voegToeOfWerkBij(current.rapports, entry, body, { eigenFilter: eigenDedup });
 
       const nieuw = {
         versie:   current.versie + 1,
         rapports: updatedList, // voegToeOfWerkBij kapt af op MAX_RAPPORTEN
       };
       await store.setJSON(BLOB_KEY, nieuw);
+      // Best-effort jaar-archief voor de entries die door de afkapping uit de lijst vallen (nooit een fout voor de POST).
+      if (afgevallen.length) {
+        try { await archiveerAfgevallen(store, afgevallen); }
+        catch (err) { console.error('[rapport-archief] jaar-archief mislukt:', err?.message || err); }
+      }
 
       return new Response(JSON.stringify({ ok: true, id: entry.id, versie: nieuw.versie }), {
         status: 200,

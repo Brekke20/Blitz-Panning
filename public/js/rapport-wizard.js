@@ -4,10 +4,12 @@
 // (printRapport, via de outbox-module). Zie CLAUDE.md "Rapport wizard — R object key fields".
 import { TEST_MODE } from './kern/omgeving.js';
 import { arrivalData, getPlanningTicket, sluitDetailStil } from './schermen/ticketdetail.js';
+import { geplandTijdslotVoor, rapportTicketVelden } from './schermen/ticketdetail-logica.js';
 import { closeLocalDet } from './schermen/afspraken.js';
 import { loadFotos, renderFotoGridInto, handleFotoFiles } from './schermen/fotos.js';
 import { syncOplossingNaarZoho } from './schermen/rapport-verzenden.js';
 import { escHtml, toast } from './kern/ui.js';
+import { berekenLoonkost } from './kern/loonkost.js';
 import { TEST_UPLOAD } from './test-upload.js';
 import { registreerAchtergrondVerzending } from './outbox-sync.js';
 
@@ -51,7 +53,8 @@ export const WIZ_STEPS = [
 // Bewaart de ingevulde velden zodat een rapport niet verloren gaat bij herladen of sluiten.
 // Foto's en handtekeningen (zwaar, en de handtekening is bewijs) worden bewust NIET bewaard.
 const CONCEPT_MAX_DAGEN = 7;
-const CONCEPT_UIT = ['fotos', 'handtekeningTech', 'handtekeningKlant'];
+// Ook uit het concept: velden die bij het openen vers uit het ticket/de planning komen (dashboard, Taak 16); een concept mag ze nooit overschrijven.
+const CONCEPT_UIT = ['fotos', 'handtekeningTech', 'handtekeningKlant', 'geplandTijdslot', 'partner', 'regio', 'installateurAlLangsGeweest'];
 let _wizTicketId = null;
 let _wizVanOverzicht = false;
 let _conceptTimer = null;
@@ -201,6 +204,14 @@ async function openRapportIntern(ticketId, date) {
   _rapportUploaded = false; // reset guard bij nieuwe wizard-sessie
 
   _wizStep = 0;
+
+  // Dashboard-velden (Taak 16): het geplande tijdslot en de ticketvelden partner/regio/installateurAlLangsGeweest.
+  // Altijd vers (R blijft tussen tickets bestaan) en vóór het concept; CONCEPT_UIT houdt ze buiten elk concept.
+  const planUur = (kern.toestand.get('planning')[date] || []).find(s => s.ticket?.id === ticketId)?.uur;
+  R.geplandTijdslot = geplandTijdslotVoor({
+    voorstel: kern.toestand.get('voorstelStatus')[ticketId], datum: date, planUur, isLocal: !!ticket.isLocal, settings: kern.toestand.get('settings'),
+  });
+  Object.assign(R, rapportTicketVelden(ticket));
 
   // Concept hervatten? (na het resetten van R; foto's/handtekeningen blijven vers)
   const concept = leesConcept(ticketId, date);
@@ -491,24 +502,6 @@ export function fmtDuur(min) {
 }
 
 // ── Stap 2: Facturatie & Servicetype ──
-export function berekenLoonkost(servicetype, werktijdMin, aanrijtijdMin) {
-  if (servicetype === '2e-lijn') {
-    const totMin    = (werktijdMin || 0) + (aanrijtijdMin || 0);
-    const totUren   = totMin / 60;
-    const extraUren = totUren > 3 ? Math.ceil(totUren - 3) : 0;
-    return { bruto: 175 + extraUren * 75, totMin, extraUren };
-  }
-  if (servicetype === '1e-lijn') {
-    const totMin = (werktijdMin || 0) + (aanrijtijdMin || 0);
-    const gestartUren = Math.ceil(totMin / 60);
-    return { bruto: gestartUren * 115, gestartUren, totMin, extraUren: 0 };
-  }
-  // garantie: zelfde berekening als 1e lijn maar netto = 0
-  const totMin = (werktijdMin || 0) + (aanrijtijdMin || 0);
-  const gestartUren = Math.ceil(totMin / 60);
-  return { bruto: gestartUren * 115, gestartUren, netto: 0, totMin, extraUren: 0 };
-}
-
 export function wizLoonkostPreview() {
   const st       = wizChecked('f-servicetype') || R.servicetype;
   const wMin     = calcWerktijdMin(R.start, R.stop);
@@ -1509,6 +1502,8 @@ window.printRapport          = printRapport;
 // Dat blijft een kale aanroep in een classic <script> — die lost een onbekende identifier op
 // via de globale scope-chain (window), dus enkel deze bridge is nodig, geen wijziging daar.
 window.calcWerktijdMin = calcWerktijdMin;
+
+export { berekenLoonkost };
 
 // berekenLoonkost wordt ook aangeroepen vanuit rapport-archief.js (renderRapportArchief,
 // voor de prijsweergave op archiefkaarten) — zonder deze bridge gooit dat een

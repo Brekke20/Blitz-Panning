@@ -45,6 +45,17 @@ Handleiding voor Brent: `docs/logins-en-beheer.md`. Ledger: `.superpowers/sdd/20
 - [ ] Onverzonden rapporten in de outbox blijven bij een gebruikerswissel altijd bewaard; een rapport dat met 403 geweigerd wordt (id van andermans rapport) blijft in de outbox met de melding "meld dit aan de planner" en staat als `rapport-geweigerd` in het activiteitenlog.
 - [ ] De knop "Opnieuw versturen" op de tab Systeemstatus is NIET gebouwd. Brent beslist of dat nog vóór de release komt (zie `docs/bugs-en-open-punten.md`, sectie F).
 
+## 1c. Performance-dashboard (`refactor-dashboard`)
+
+Bron: `.superpowers/sdd/2026-10-08-performance-dashboard/progress.md`; open punten in `docs/bugs-en-open-punten.md`, sectie H.
+
+- [ ] **Rooktest als beheerder op de eerste Netlify-preview** (niet eerder te doen: lokaal bestaat er geen echte blobopslag met echte rapporten): Beheer, tab Performance. Zes tegels, vijf blokken, geen foutmelding, voetnoten kloppen met de werkelijkheid; filters (periode, technieker, type); instellingen-paneel (grenzen wijzigen en bewaren, daarna herladen). Als planner, technieker en sales: geen tab Beheer en een rechtstreeks verzoek op `/api/dashboard` geeft 403.
+- [ ] **Bundeling van de relatieve imports.** De functies `dashboard` en `dashboard-instellingen` importeren `public/js/kern/dashboard-grenzen.js` en `public/js/kern/loonkost.js` via een relatief pad buiten `netlify/`. Bevestig in de eerste deploy dat Netlify die bestanden meebundelt (de functie start zonder importfout; zo niet: de bestanden naar `netlify/lib/` verplaatsen of een `included_files`-regel in `netlify.toml`).
+- [ ] **Meting op de echte rapportlijst**: `node scripts/meet-rapportlijst.mjs` op de echte blob, MET Brents akkoord (het script leest productiegegevens). Tot nu toe enkel synthetisch gemeten (ongeveer 12,8 KB per rapport, ongeveer 3 MB per jaar). Vergelijk met de verwachting en beslis of de jaar-archieven groot genoeg zijn om te splitsen.
+- [ ] **Jaar-archieven `rapportlijst-archief-<jaar>`**: na de livegang controleren dat er per jaar één blob bijkomt (naam, grootte), dat een rapport dat uit de lijst van 500 valt daar terechtkomt, en dat de dashboardcijfers over meer dan de laatste 500 rapporten kloppen. Rapporten van vóór de livegang staan er niet in (H4).
+- [ ] **Rechten**: `dashboard` en `dashboard-instellingen` staan in `netlify/lib/rechten.js` (alleen beheerder); `tests/rechten.test.mjs` is groen. Bij het samenvoegen met de sales-tak (`refactor-sales`) zijn conflicten in `tests/rechten.test.mjs` te verwachten (het vaste aantal functiebestanden en de rijen van beide takken): tellen en rijen van beide kanten overnemen, daarna opnieuw draaien.
+- [ ] Nieuwe velden in rapporten (`geplandTijdslot`, `partner`, `regio`, `installateurAlLangsGeweest`): na de livegang een rapport versturen en in het dashboard controleren dat het in de cijfers meetelt.
+
 ## 2. Handmatige controles die geen test kan doen
 
 - [ ] **standaardPdf** (etappe 6): een echt rapport laten genereren met echte Chromium (`rapport.js`) en de PDF openen; Chromium en het Blobs-register zijn niet testbaar.

@@ -6,8 +6,10 @@ const SLEUTEL = 'voorstel-status';
 const TIJDSLOT_RE = /^([01]\d|2[0-3]):[0-5]\d–([01]\d|2[0-3]):[0-5]\d$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export async function leesRegister(store) {
-  const data = await store.get(SLEUTEL, { type: 'json' }).catch(() => null);
+// `gooiFout: true` (enkel het dashboard): een leesfout gooit door i.p.v. een leeg register op te leveren, zodat de
+// bron als `register` in dekking.fouten komt. Een ontbrekende blob blijft een leeg register.
+export async function leesRegister(store, { gooiFout = false } = {}) {
+  const data = gooiFout ? await store.get(SLEUTEL, { type: 'json' }) : await store.get(SLEUTEL, { type: 'json' }).catch(() => null);
   if (!data || typeof data !== 'object') return { versie: 0, status: {} };
   return { versie: typeof data.versie === 'number' ? data.versie : 0, status: data.status || {} };
 }

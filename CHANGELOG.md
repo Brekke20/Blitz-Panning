@@ -40,6 +40,11 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Extra testrobot die de app draait zoals in productie (zonder testmodus) tegen een volledig
   nagebootste backend, zodat de berichten naar Zoho (plannen, datum, voorstel, annuleren)
   exact gecontroleerd worden.
+- Performance-dashboard (enkel voor de beheerder, nieuwe tab "Performance" op de beheerpagina): een filterrij (deze maand, vorige maand, dit kwartaal, dit jaar of eigen periode; technieker, type en herhaalbezoek binnen 30 of 90 dagen), zes kerncijfer-tegels met het verschil met de vorige periode en vijf blokken: Tijd & stiptheid, Kwaliteit, Onderdelen, Klant & planning en Sales. De cijfers komen uit de nieuwe functie `/api/dashboard` (enkel de beheerder, anderen krijgen 403); onder elk blok staat een voetnoot met de dekking (op basis van hoeveel rapporten, welke bronnen niet gelezen konden worden, sinds wanneer annulaties geteld worden).
+- Ringen met instelbare kleurgrenzen: de ringen % op tijd, first-time-fix, bevestigd via de knop, garantie en "installateur al langs geweest" kleuren groen, oranje of rood volgens grenzen die de beheerder zelf instelt (paneel "Instellingen: kleurgrenzen van de ringen", bewaard via `/api/dashboard-instellingen`, met versiecontrole). Standaard: op tijd 90 en 75, first-time-fix 80 en 65, de rest zonder kleur. Naast de kleur staan altijd een icoon, een woord en het getal.
+- "Op tijd" in drie categorieën: te vroeg, op tijd en te laat (aankomst tegenover het geplande tijdslot); de ring toont het percentage op tijd en het bijschrift de verdeling.
+- Nieuwe velden in de rapporten, vanaf de livegang: `geplandTijdslot`, `partner`, `regio` en `installateurAlLangsGeweest` (uit Zoho `cf_installateur_al_langs_geweest`, Ja of Nee, zonder nieuwe rapportvraag). Het dashboard rekent enkel met rapporten die deze velden hebben; oudere rapporten tellen in die cijfers niet mee.
+- Jaar-archief `rapportlijst-archief-<jaar>`: een rapport dat uit de lijst van de nieuwste 500 valt, wordt eerst in het archief van zijn jaar bewaard (append-only, ontdubbeld op id) zodat het dashboard ook over lange periodes kan rekenen. De rapportenlijst zelf en het verwijderen uit de lijst blijven ongewijzigd.
 
 ### Changed
 - Elke actie wordt nu op de server op rol gecontroleerd (rechtentabel in `netlify/lib/rechten.js`, met een test die dwingt dat elke functie een rij heeft). Zonder geldige sessie geeft elke beveiligde functie 401. De drie uploadfuncties (`rapport-ontvangen`, `rapport-verwerk-background`, `rapport-vangnet`) vallen er ook onder.
@@ -81,6 +86,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
   zichtbare wijziging.
 - Interne serverstructuur vernieuwd: gedeelde `netlify/lib/zoho.js` en `http.js`, 14 functies overgezet, identiek gedrag, nieuwe tests.
 - Interne herstructurering: gedeelde fundamenten in `public/js/kern/` (tijd, selecties, toestand met automatisch hertekenen, api, ui).
+- Niets aan de GET van de rapportenlijst (`/api/rapport-archief`): zelfde antwoord en dezelfde lijst van 500; het dashboard leest de lijst en de jaar-archieven rechtstreeks uit de opslag.
 
 ### Fixed
 - Vastleggen van tijden, slepen of optimaliseren in de Route-tab dat een ticket na het laatste startuur zou laten starten, vraagt nu eerst bevestiging met de lijst van de late tickets en hun aankomsttijd; bij Terug wordt er niets bewaard en komen de oude tijden terug. De rode waarschuwing blijft ook zichtbaar bij een vast uur na het laatste startuur. Het plusje plant vandaag nooit een aankomst vóór het huidige uur. De vertrektijd voor de route volgt de eerste stop in de werkelijke volgorde.

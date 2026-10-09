@@ -221,6 +221,26 @@ export async function herOpenRapport(idx) {
     win.close();
     return toast('Geen opgeslagen HTML beschikbaar');
   }
+  toonInVenster(win, html);
+}
+
+// Rapport openen op id (doorklik uit het dashboard-herhaalbezoek). De archieflijst toont enkel de
+// nieuwste 500, dus een oud rapport staat er mogelijk niet in: dan geen heeftRapportInhoud-
+// voorcontrole, de GET ?inhoud=<id> beslist. window.open blijft synchroon eerst (pop-upblokkering).
+export async function openRapportOpId(id) {
+  const win = window.open('', '_blank');
+  if (!win) return toast('Het PDF-venster werd geblokkeerd. Sta pop-ups toe om de PDF te zien.');
+  const entry = _rapportArchief.find(r => r.id === id);
+  const html = await haalRapportHtml(entry ?? { id });
+  if (html === null) {
+    win.close();
+    return toast('Geen opgeslagen HTML beschikbaar');
+  }
+  toonInVenster(win, html);
+}
+
+// Rendert de rapport-HTML in een sandboxed iframe (zonder allow-scripts) in het net geopende venster.
+function toonInVenster(win, html) {
   win.document.write(
     '<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8">' +
     '<title>Service rapport</title>' +

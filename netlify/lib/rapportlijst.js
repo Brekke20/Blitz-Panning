@@ -87,7 +87,9 @@ export function voegToeOfWerkBij(rapports, entry, body, { eigenFilter = () => tr
   } else {
     lijst = [nieuw, ...rapports];
   }
-  return { rapports: lijst.slice(0, MAX_RAPPORTEN), vervangenId };
+  // `afgevallen` = de entries die door de afkapping uit de actieve lijst vallen (nieuwste eerst, leeg bij
+  // ≤ MAX_RAPPORTEN); de aanroepers geven ze door aan archiveerAfgevallen (rapport-jaararchief.js).
+  return { rapports: lijst.slice(0, MAX_RAPPORTEN), vervangenId, afgevallen: lijst.slice(MAX_RAPPORTEN) };
 }
 
 // Verwerkingsstatus van een entry; oude entries zonder `verwerking` worden afgeleid.
