@@ -7,6 +7,7 @@ import { maakNepFetch } from './nep-fetch.mjs';
 import { metRol, metGeenSessie } from './auth-hulp.mjs';
 import { maakHandler } from '../netlify/functions/sales.js';
 import { maakHandler as maakPostcodeHandler } from '../netlify/functions/postcode.js';
+import { maakHandler as maakImportHandler } from '../netlify/functions/sales-import.js';
 import { bepaalDoel } from '../netlify/lib/sales-toegang.js';
 import { hashSleutel } from '../netlify/lib/sales-grafsteen.js';
 import { maakAuth } from '../netlify/lib/auth.js';
@@ -668,4 +669,104 @@ test('postcode: testmodus -> nepcoördinaten zonder fetch', async () => {
 test('postcode: opslag onbereikbaar -> 503 opslag-storing', async () => {
   const { h } = postcodeOpzet({ kapot: true });
   verwachtStoring(await metRol('sales', async () => lees(await h(pc('?pc=3640')))), 'postcode');
+});
+
+
+// ---------------- Task 19: de volledige rollen- en isolatiematrix (één tabelgedreven test) ----------------
+// Rollen × methode (GET/PATCH/DELETE) × eigen/ander blob × met/zonder magAlleSales. 'eigen' = het blob van de ingelogde gebruiker
+// (alleen een verkoper heeft er een), 'ander' = het blob van u-sam (leads s1; versie 7). Verwachte status en, bij een weigering,
+// de code van het antwoord. Elke weigering laat alle sales/*-blobs onaangeroerd; elk antwoord is vrij van grafstenen.
+const MATRIX_SEED = () => ({
+  [`sales/${EIGEN}`]: blob([lead('a'), lead('b')], { grafstenen: [{ h: ['x'], op: NU_ISO }] }),
+  'sales/u-sam': blob([lead('s1')], { versie: 7, grafstenen: [{ h: ['y'], op: NU_ISO }] }),
+});
+const matrixVerzoek = (methode, doel) => {
+  const eigen = doel === 'eigen';
+  const zoek = (eigen ? '' : '?gebruiker=u-sam');
+  if (methode === 'GET') return get(zoek);
+  if (methode === 'PATCH') return patch(eigen ? patchA(3) : { versie: 7, leads: [{ id: 's1', velden }] }, { zoek });
+  return del(`${eigen ? '?lead=a' : '?lead=s1&gebruiker=u-sam'}`);
+};
+const ROLLEN = [
+  ['beheerder', 'beheerder', {}],
+  ['planner', 'planner', {}],
+  ['technieker', 'technieker', {}],
+  ['sales (zonder magAlleSales)', 'sales', { magAlleSales: false }],
+  ['sales (met magAlleSales)', 'sales', { magAlleSales: true }],
+];
+// [rol-label][methode][doel] -> status
+const VERWACHT = {
+  beheerder:                    { GET: { eigen: 404, ander: 200 }, PATCH: { eigen: 404, ander: 200 }, DELETE: { eigen: 404, ander: 200 } },
+  planner:                      { GET: { eigen: 403, ander: 403 }, PATCH: { eigen: 403, ander: 403 }, DELETE: { eigen: 403, ander: 403 } },
+  technieker:                   { GET: { eigen: 403, ander: 403 }, PATCH: { eigen: 403, ander: 403 }, DELETE: { eigen: 403, ander: 403 } },
+  'sales (zonder magAlleSales)': { GET: { eigen: 200, ander: 403 }, PATCH: { eigen: 200, ander: 403 }, DELETE: { eigen: 200, ander: 403 } },
+  'sales (met magAlleSales)':    { GET: { eigen: 200, ander: 200 }, PATCH: { eigen: 200, ander: 403 }, DELETE: { eigen: 200, ander: 403 } },
+};
+
+test('rollenmatrix /api/sales: rol x methode x eigen/ander x magAlleSales, onaangeroerde blobs bij weigering, nooit grafstenen', async () => {
+  for (const [label, rol, opties] of ROLLEN) {
+    for (const methode of ['GET', 'PATCH', 'DELETE']) {
+      for (const doelsoort of ['eigen', 'ander']) {
+        const naam = `${label} ${methode} ${doelsoort}`;
+        const { h, echt } = opzet({ begin: MATRIX_SEED() });
+        const voor = new Map([...echt._data].filter(([k]) => k.startsWith('sales/')));
+        const r = await metRol(rol, async () => lees(await h(matrixVerzoek(methode, doelsoort))), opties);
+        assert.equal(r.status, VERWACHT[label][methode][doelsoort], naam);
+        assert.ok(!JSON.stringify(r.body).includes('grafstenen'), `${naam}: geen grafstenen in het antwoord`);
+        if (r.status >= 400) {
+          assert.equal(typeof r.body.error, 'string', naam);
+          if (r.status === 403) assert.ok(['geen-recht'].includes(r.body.code), `${naam}: code ${r.body.code}`);
+          for (const [k, w] of voor) assert.equal(echt._data.get(k), w, `${naam}: ${k} onaangeroerd`);
+        }
+      }
+    }
+  }
+});
+
+test('rollenmatrix: een 409 (verkeerde versie) en een geslaagde DELETE bevatten geen grafstenen; de grafsteen blijft wel in het blob', async () => {
+  const { h, echt } = opzet({ begin: MATRIX_SEED() });
+  const conflict = await metRol('sales', async () => lees(await h(patch(patchA(1)))));
+  assert.equal(conflict.status, 409);
+  assert.ok(!JSON.stringify(conflict.body).includes('grafstenen'));
+  const weg = await metRol('sales', async () => lees(await h(del('?lead=a'))));
+  assert.equal(weg.status, 200);
+  assert.ok(!JSON.stringify(weg.body).includes('grafstenen'));
+  assert.equal(blobVan(echt, EIGEN).grafstenen.length, 2); // de bestaande en die van de verwijderde lead
+});
+
+test('rollenmatrix /api/sales-import: enkel sales; beheerder, planner en technieker 403; antwoord zonder grafstenen', async () => {
+  const exportBestand = { geexporteerdOp: '2026-10-08T08:00:00.000Z', verantwoordelijke: 'Test Verkoper', statussen: ['Nieuw'], aantal: 1,
+    leads: [{ naam: 'Verzonnen', voornaam: 'Annelies', gsm: '+32 470 11 22 33', email: 'annelies@voorbeeld.test', adres: '3640' }] };
+  for (const [label, rol, opties] of ROLLEN) {
+    const echt = maakNepStore({ gebruikers: { versie: 1, gebruikers: gebruikers() }, ...MATRIX_SEED() });
+    const { fn } = maakNepFetch(router());
+    const gets = [];
+    const getStore = o => { gets.push(o.name); return o.name === 'blitz-data' ? echt : maakNepStore({}); };
+    const h = maakImportHandler({ getStore, fetch: fn, nu: () => NU0, sleutel: () => 'NEP', geheim: () => GEHEIM });
+    const voor = new Map([...echt._data].filter(([k]) => k.startsWith('sales/')));
+    const r = await metRol(rol, async () => lees(await h(req('POST', { pad: 'sales-import', body: { export: exportBestand } }))), opties);
+    const verwacht = rol === 'sales' ? 200 : 403;
+    assert.equal(r.status, verwacht, label);
+    assert.ok(!JSON.stringify(r.body).includes('grafstenen'), `${label}: geen grafstenen`);
+    if (verwacht === 403) {
+      assert.equal(r.body.code, 'geen-recht', label);
+      assert.deepEqual(gets, [], `${label}: geen store aangeraakt`);
+      for (const [k, w] of voor) assert.equal(echt._data.get(k), w, `${label}: ${k} onaangeroerd`);
+    } else {
+      assert.equal(JSON.parse(echt._data.get(`sales/${EIGEN}`)).leads.length, 3, `${label}: import schrijft in het eigen blob`);
+      assert.equal(JSON.parse(echt._data.get('sales/u-sam')).versie, 7, `${label}: het blob van een ander blijft onaangeroerd`);
+    }
+  }
+});
+
+test('rollenmatrix /api/postcode: beheerder en sales mogen; planner en technieker 403', async () => {
+  for (const [label, rol, opties] of ROLLEN) {
+    const echt = maakNepStore({ gebruikers: { versie: 1, gebruikers: gebruikers() } });
+    const { fn } = maakNepFetch(router());
+    const h = maakPostcodeHandler({ getStore: o => (o.name === 'blitz-data' ? echt : maakNepStore({})), fetch: fn, nu: () => NU0, sleutel: () => 'NEP' });
+    const r = await metRol(rol, async () => lees(await h(req('GET', { pad: 'postcode', zoek: '?pc=3640' }))), opties);
+    const verwacht = rol === 'beheerder' || rol === 'sales' ? 200 : 403;
+    assert.equal(r.status, verwacht, label);
+    if (verwacht === 403) assert.equal(r.body.code, 'geen-recht', label);
+  }
 });
