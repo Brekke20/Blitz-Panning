@@ -144,7 +144,9 @@ function tekenDrukteOvergangen(polyline, segmenten, kleurVan) {
 }
 
 export function initMap() {
-  leafletMap  = L.map('map', { zoomControl: true }).setView([51.0, 4.5], 8);
+  // fadeAnimation uit: Leaflet's tegel-fade is een rAF-lus op Date.now() (tot 200 ms na het laden van een tegel). Onder de e2e-nepklok met
+  // vastgezette tijd (setFixedTime) eindigt die lus nooit en elke page.clock.runFor kost dan echte tijd (zie eindreview-fix-report.md).
+  leafletMap  = L.map('map', { zoomControl: true, fadeAnimation: false }).setView([51.0, 4.5], 8);
   kaartBaseLayers = {};
   Object.entries(KAART_LAGEN).forEach(([sleutel, laag]) => {
     kaartBaseLayers[laag.naam] = L.tileLayer(laag.url, laag.opts);
