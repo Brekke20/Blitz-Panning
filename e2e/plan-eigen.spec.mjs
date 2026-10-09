@@ -133,3 +133,26 @@ test.describe('beheerder en planner: niet beperkt', () => {
     await expect(page.locator('#view-tickets .btn-add')).toHaveCount(1);
   });
 });
+
+// De opruiming van verouderde klantbeschikbaarheid-entries (gesloten tickets, collega's) draait bij elke ticketlading; een technieker met het
+// vinkje bewaart enkel zijn eigen tickets en doet dus niet mee (review I1: anders mislukte zijn bewaring bij elke start).
+const gcMetOudeEntry = (page) => page.evaluate(async () => {
+  const { toestand } = await import('/js/kern/toestand.js');
+  const kb = await import('/js/schermen/klantbeschikbaarheid.js');
+  toestand.get('klantBeschikbaarheid')['999'] = { voorkeur: '2025-01-01', geblokkeerd: [], notitie: 'oud', bijgewerkt: '2025-01-01T00:00:00.000Z' };
+  kb.gcKlantBeschikbaarheid(new Set());
+  return Object.keys(toestand.get('klantBeschikbaarheid'));
+});
+
+test.describe('opruiming van klantbeschikbaarheid', () => {
+  test('technieker met het vinkje: geen opruiming (en dus geen bewaring die kan mislukken)', async ({ page, verzoeken }) => {
+    await startApp(page, { loginRol: 'technieker', loginGebruiker: TIM, technieker: 'Tim' });
+    expect(await gcMetOudeEntry(page)).toContain('999');
+    expect(verzoeken.van('/api/klantbeschikbaarheid', 'PUT')).toEqual([]);
+  });
+
+  test('planner: ruimt de verouderde entry wel op', async ({ page }) => {
+    await startApp(page, { loginRol: 'planner', technieker: 'Tim' });
+    expect(await gcMetOudeEntry(page)).not.toContain('999');
+  });
+});

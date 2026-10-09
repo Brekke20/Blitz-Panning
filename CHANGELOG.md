@@ -104,6 +104,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Niets aan de GET van de rapportenlijst (`/api/rapport-archief`): zelfde antwoord en dezelfde lijst van 500; het dashboard leest de lijst en de jaar-archieven rechtstreeks uit de opslag.
 
 ### Fixed
+- Klantbeschikbaarheid bewaren door een technieker met "Mag zelf plannen" mislukt niet meer als zijn lijst ook tickets van collega's of gesloten tickets raakt: de server bewaart wat hij mag, negeert de rest per ticket (de bestaande entry van een collega blijft ongewijzigd) en laat entries van tickets die in Zoho niet meer bestaan verdwijnen. De opruiming van verouderde entries draait enkel nog voor beheerder en planner; een agent die in Zoho niet meer bestaat geeft "niet jouw ticket" in plaats van "Zoho niet bereikbaar".
 - De persoonskiezer in de kop ("Kies technieker") toont "Alle technici" nu altijd aan wie mag plannen (beheerder, planner), ook op een gsm of tablet met de toestelrol "technieker" (de rol van het account beslist, niet het toestel). Het gebruikersmenu (account, uitloggen) blijft een aparte knop; beide knoppen hebben een duidelijk label.
 - Tijdvelden en datumvelden openen op Android de klok/kalender bij een tik op het veld zelf, niet enkel op het klokje.
 - Voorstel: de registratie dat een voorstelmail verstuurd is (het vinkje en het slotje in de planning) gaat niet meer verloren als twee mensen tegelijk werken. De app leest de nieuwste stand in en probeert opnieuw, en meldt het duidelijk als bewaren toch niet lukt ("NIET opnieuw versturen, herlaad eerst de pagina").
