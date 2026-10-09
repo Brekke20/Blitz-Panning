@@ -4,3 +4,4 @@ import './beheer-gebruikers.js';
 import './beheer-instellingen.js';
 import './beheer-activiteit.js';
 import './beheer-systeemstatus.js';
+import './beheer-performance.js';

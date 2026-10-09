@@ -123,7 +123,7 @@
 .herhaal-acties { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 
 /* Tegels (kerncijfers). Binnen een kaart geen tweede kader. */
-.tegels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: var(--sp-4); }
+.tegels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); gap: var(--sp-4); }
 .tegel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--sp-4); min-width: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
 .dash-kaart .tegel { background: none; border: 0; padding: 0; }
 .tegel-kop { font-size: var(--fs-sm); font-weight: 600; color: var(--viz-ink2); margin: 0; overflow-wrap: anywhere; }
@@ -135,3 +135,44 @@
 .tegel-verschil--goed { color: color-mix(in srgb, var(--viz-goed) 55%, var(--viz-ink)); }
 .tegel-verschil--slecht { color: color-mix(in srgb, var(--viz-slecht) 55%, var(--viz-ink)); }
 .tegel--ring { align-items: center; text-align: center; }
+
+/* ── Scherm Performance (beheertab): filterrij, tegels, voetnoten, instellingen ── */
+.dash { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; }
+.filterrij { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-3) var(--sp-4); }
+.filter-presets { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.filter-preset {
+  min-height: 36px; padding: 0 var(--sp-3); border-radius: var(--r-pill); border: 1px solid var(--border-strong);
+  background: transparent; color: var(--text2); font: inherit; font-size: var(--fs-sm); cursor: pointer;
+}
+.filter-preset:hover { background: var(--surface2); color: var(--text); }
+.filter-preset[aria-pressed="true"] { background: var(--accent-dim); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.filter-preset:focus-visible, .filter-veld select:focus-visible, .filter-veld input:focus-visible,
+.grenzen-tabel input:focus-visible, .grenzen-tabel select:focus-visible, .dash-instellingen > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.filter-veld { display: flex; flex-direction: column; gap: var(--sp-1); font-size: var(--fs-xs); color: var(--text2); min-width: 0; }
+.filter-veld select, .filter-veld input, .grenzen-tabel input, .grenzen-tabel select {
+  min-height: 36px; padding: 0 var(--sp-2); border-radius: var(--r); border: 1px solid var(--border-strong);
+  background: var(--surface); color: var(--text); font: inherit; font-size: var(--fs-sm); max-width: 100%;
+}
+.dash-melding { margin: 0; padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border-strong); border-radius: var(--r); font-size: var(--fs-sm); color: var(--text); }
+.dash-melding--fout { border-color: var(--viz-slecht); }
+.dash-melding .dash-knop { margin-left: var(--sp-2); }
+.dash-inhoud { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; transition: opacity .15s; }
+.dash-inhoud[aria-busy="true"] { opacity: .6; }
+.dash-voetnoten { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-xs); color: var(--text2); }
+.dash-voetnoten li { overflow-wrap: anywhere; }
+.dash-voetnoten .dash-voetnoot--waarschuwing { color: var(--text); font-weight: 600; }
+.dash-instellingen { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: var(--sp-3) var(--sp-4); min-width: 0; }
+.dash-instellingen > summary { cursor: pointer; font-weight: 600; font-size: var(--fs-md); color: var(--viz-ink); width: max-content; max-width: 100%; }
+.dash-instellingen[open] > summary { margin-bottom: var(--sp-3); }
+.dash-instellingen-inhoud { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.dash-tabel-scroll { overflow-x: auto; contain: inline-size; max-width: 100%; }
+.grenzen-tabel { border-collapse: collapse; font-size: var(--fs-sm); }
+.grenzen-tabel th, .grenzen-tabel td { padding: var(--sp-2) var(--sp-3) var(--sp-2) 0; text-align: left; font-weight: 400; color: var(--viz-ink); vertical-align: middle; }
+.grenzen-tabel thead th { color: var(--viz-ink2); font-weight: 600; font-size: var(--fs-xs); }
+.grenzen-tabel tbody th { font-weight: 600; }
+.grenzen-tabel input { width: 5.5rem; }
+.grenzen-acties { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+@media (max-width: 480px) {
+  .filter-veld { flex: 1 1 140px; }
+  .filter-veld select, .filter-veld input { width: 100%; font-size: 16px; }
+}

@@ -194,3 +194,31 @@ export function filterRijHtml({ filters = {}, opties = {} } = {}) {
     + `${kies('type', 'Type', 'Alle types', opties.types, filters.type)}`
     + `<label class="filter-veld">Herhaalbezoek binnen<select data-wijzig="dashboard-filter" data-arg="herhaalDagen">${herhaal}</select></label></div>`;
 }
+
+// ---- Voetnoten (dekking) ----
+
+const DAGMAAND_RE = /^\d{4}-(\d{2})-(\d{2})$/;
+export const AFGEKAPT_ZIN = 'Er zijn meer dan 1000 logregels in deze periode; annulaties kunnen onvolledig zijn.';
+
+// dekking = antwoord.dekking (+ klant.activiteitAfgekapt, fouten). -> lijst voetnoten als HTML-veilige tekst (al door escHtml);
+// lege of onvolledige dekking geeft enkel de regels waarvoor gegevens zijn, nooit NaN of undefined.
+export function dekkingVoetnoten(dekking) {
+  const regels = [];
+  const tijd = dekking?.tijd;
+  if (isGetal(tijd?.rapporten)) {
+    const zonder = isGetal(tijd.zonderSlot) && tijd.zonderSlot > 0 ? tijd.zonderSlot : 0;
+    regels.push(`Op basis van ${Math.max(0, tijd.rapporten - zonder)} van ${tijd.rapporten} rapporten${zonder ? `, ${zonder} zonder gepland tijdslot` : ''}`);
+  }
+  const klant = dekking?.klant;
+  if (klant && 'annulatiesVanaf' in klant) {
+    if (klant.annulatiesVanaf === null) regels.push('Annulaties: nog geen gegevens (het log start bij de livegang van de logins)');
+    else {
+      const m = DAGMAAND_RE.exec(String(klant.annulatiesVanaf));
+      if (m) regels.push(`Annulaties sinds ${Number(m[2])}/${Number(m[1])}`);
+    }
+  }
+  if (klant?.activiteitAfgekapt === true) regels.push(AFGEKAPT_ZIN);
+  const fouten = Array.isArray(dekking?.fouten) ? dekking.fouten.filter(f => typeof f === 'string' && f) : [];
+  if (fouten.length) regels.push(`Niet alle bronnen konden gelezen worden (${fouten.join(', ')}); de cijfers kunnen onvolledig zijn`);
+  return regels.map(r => escHtml(r));
+}
