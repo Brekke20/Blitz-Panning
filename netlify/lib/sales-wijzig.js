@@ -5,7 +5,8 @@
 // - een resultaat ontstaat enkel samen met een nieuw bezoek (zoals `geefResultaat`) en bezoek + resultaat krijgen
 //   EXACT dezelfde `op` (de serverklok, één tijdstip twee keer gebruikt);
 // - `duurMin` blijft binnen een zinnig bereik (15-480 minuten);
-// - de server-velden `adresTeGeocoderen` en `adresPogingen` zijn niet schrijfbaar en worden gewist bij een adreswijziging.
+// - de server-velden `adresTeGeocoderen` en `adresPogingen` zijn niet schrijfbaar en worden gewist bij een adreswijziging;
+// - elke gewijzigde lead krijgt `gewijzigdOp` (serverklok): de laatste activiteit voor de bewaartermijn (sales-opruimen.js).
 import { isDeepStrictEqual } from 'node:util';
 import { pasLeadToe, RESULTAAT_LABEL } from '../../public/js/sales/lead-regels.js';
 import { valideerBlok } from '../../public/js/sales/blok-regels.js';
@@ -145,7 +146,7 @@ export function pasWijzigingToe(data, body, { nu, nieuwBlokId } = {}) {
     if (index < 0) { fouten.push(`Onbekende lead: ${id}`); continue; }
     const r = wijzigLead(nieuw.leads[index], velden, opNu);
     if (r.fouten) { fouten.push(...r.fouten.map(f => `Lead ${id}: ${f}`)); continue; }
-    nieuw.leads[index] = r.lead;
+    nieuw.leads[index] = { ...r.lead, gewijzigdOp: opNu };
     if (r.adresGewijzigd && !adresGewijzigd.includes(id)) adresGewijzigd.push(id);
     if (r.resultaat) resultaten.push({ leadId: id, ...r.resultaat });
   }

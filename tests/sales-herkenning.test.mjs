@@ -37,6 +37,17 @@ test('zelfde e-mail met andere hoofdletters en spaties is al aanwezig', () => {
   assert.deepEqual(r.samenvatting, { nieuw: 0, alAanwezig: 1, adresNakijken: 0, eerderVerwijderd: 0 });
 });
 
+test('I3: een nieuwe import van een bestaande lead is activiteit (gewijzigdOp), maar een herhaalde import schrijft niets', () => {
+  const eerste = voeg([], [marie()]);                                 // geimporteerdOp = NU
+  const dagenLater = (n) => new Date(Date.parse(NU) + n * 86400000).toISOString();
+  const herhaald = voeg(eerste.leads, [marie()], { nu: dagenLater(5) });
+  assert.deepEqual(herhaald.leads, eerste.leads);                     // binnen 30 dagen: ongewijzigd
+  const maandLater = voeg(eerste.leads, [marie()], { nu: dagenLater(40) });
+  assert.equal(maandLater.leads[0].gewijzigdOp, dagenLater(40));      // laatste activiteit ouder dan 30 dagen: ververst
+  const aangevuld = voeg(eerste.leads, [{ ...marie(), notitie: 'Bel na 17u' }], { nu: dagenLater(2) });
+  assert.equal(aangevuld.leads[0].gewijzigdOp, dagenLater(2));        // een aanvulling is altijd een wijziging
+});
+
 test('zelfde gsm in andere schrijfwijze is al aanwezig', () => {
   const bestaande = voeg([], [imp({ naam: 'Peeters', gsm: '+32 478 12 34 56' })]).leads;
   const r = voeg(bestaande, [imp({ naam: 'Peeters', gsm: '0478123456' })]);

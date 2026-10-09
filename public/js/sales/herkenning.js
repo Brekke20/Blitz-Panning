@@ -20,6 +20,13 @@ export function herkenningssleutels(lead) {
 }
 
 const leeg = (x) => x == null || String(x).trim() === '';
+const VERVERS_DAGEN = 30;
+// Is `tijdstip` (ISO) meer dan `dagen` dagen vóór `nu` (ISO)? Een onleesbaar tijdstip telt als oud (dan wordt het ververst).
+function ouderDan(tijdstip, nu, dagen) {
+  const t = Date.parse(tijdstip);
+  const n = Date.parse(nu);
+  return !Number.isFinite(t) || !Number.isFinite(n) || n - t > dagen * 86400000;
+}
 
 /**
  * Vult lege contactvelden aan en upgradet een postcode-adres naar een volledig adres. Wijzigt `bestaande` (een kopie).
@@ -83,7 +90,11 @@ export function voegSamen(bestaande, nieuwe, { nu, nieuwId, bronExport, grafsten
     const sleutels = herkenningssleutels(n);
     const gevonden = sleutels.map((s) => perSleutel.get(s)).find(Boolean);
     if (gevonden) {
+      const voor = JSON.stringify(gevonden);
       werkBij(gevonden, n);
+      // Een nieuwe import van dezelfde klant is activiteit (bewaartermijn: 12 maanden na de laatste activiteit), maar een herhaalde import
+      // schrijft niets: enkel bij een aanvulling, of als de laatste activiteit al meer dan 30 dagen oud is.
+      if (JSON.stringify(gevonden) !== voor || ouderDan(gevonden.gewijzigdOp ?? gevonden.geimporteerdOp, nu, VERVERS_DAGEN)) gevonden.gewijzigdOp = nu;
       registreer(gevonden); // aangevulde e-mail/gsm tellen vanaf nu mee
       samenvatting.alAanwezig++;
       continue;

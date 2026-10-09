@@ -1,5 +1,6 @@
 // schermen/sales-verkoper.js — wiens leads toont het scherm? De verkoper zelf zijn eigen leads; de beheerder en een sales-gebruiker met
-// "mag alle sales zien" kiezen een verkoper uit een lijst (actieve verkopers, GET /api/gebruikers?rol=sales). De keuze blijft in
+// "mag alle sales zien" kiezen een verkoper uit een lijst (actieve verkopers, GET /api/gebruikers?rol=sales; de beheerder ziet ook de
+// geblokkeerde verkopers, enkel om te lezen). De keuze blijft in
 // localStorage 'blitz_sales_verkoper' (per toestel; kern/eigenaar.js en het afmelden wissen ze bij een andere gebruiker).
 // Veiligheid: namen komen enkel via textContent in de DOM; de server beslist wie wat mag (sales-toegang), dit is enkel de weergave.
 import { apiVerzoek } from '../kern/api.js';
@@ -10,19 +11,19 @@ import { salesToestand } from './sales-data.js';
 export const VERKOPER_SLEUTEL = 'blitz_sales_verkoper';
 
 let lijstBelofte = null;  // belofte van de lijst actieve verkopers (null = nog niet gevraagd of mislukt)
-let verkopers = [];       // [{ id, naam, salesNaam }] gesorteerd op naam; leeg zolang niet geladen
+let verkopers = [];       // [{ id, naam, salesNaam, actief }] gesorteerd op naam; leeg zolang niet geladen
 
 const bewaardeKeuze = () => { try { return globalThis.localStorage.getItem(VERKOPER_SLEUTEL); } catch { return null; } };
 function bewaarKeuze(id) { try { globalThis.localStorage.setItem(VERKOPER_SLEUTEL, id); } catch { /* geen opslag */ } }
 
-const naarVerkoper = (g) => ({ id: g.id, naam: g.naam ?? '', salesNaam: g.salesNaam || g.naam || '' });
+const naarVerkoper = (g) => ({ id: g.id, naam: g.naam ?? '', salesNaam: g.salesNaam || g.naam || '', actief: g.actief !== false });
 
 // De lijst wordt één keer per paginasessie opgehaald; bij een fout probeert de volgende aanroep opnieuw.
 function laadVerkopers() {
   if (!lijstBelofte) {
     lijstBelofte = (async () => {
       let r;
-      try { r = await apiVerzoek('/api/gebruikers?rol=sales'); } catch { return false; }
+      try { r = await apiVerzoek('/api/gebruikers?rol=sales' + (huidigeRechten().beheer ? '&geblokkeerd=1' : '')); } catch { return false; }
       if (!r.ok || !Array.isArray(r.data?.gebruikers)) return false;
       verkopers = r.data.gebruikers.filter(g => g && typeof g.id === 'string').map(naarVerkoper)
         .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
@@ -42,11 +43,14 @@ export function getoondeVerkoper() {
   const gekozen = verkopers.find(v => v.id === bewaard);
   if (gekozen) return gekozen;
   if (ik.rol === 'sales') return verkopers.find(v => v.id === ik.id) ?? eigen; // standaard: de eigen leads
-  return verkopers[0] ?? { id: null, naam: '', salesNaam: '' };            // beheerder: de eerste verkoper
+  return verkopers.find(v => v.actief) ?? verkopers[0] ?? { id: null, naam: '', salesNaam: '' }; // beheerder: de eerste (actieve) verkoper
 }
 
-/** Mag de ingelogde gebruiker de nu geladen leads wijzigen? (beheerder: altijd; sales: enkel het eigen blob) */
-export function schrijfbaarNu() { return magSchrijven(huidigeGebruiker(), salesToestand().gebruikerId); }
+// Schrijven kan als de rol het toelaat (toegang.js) en de verkoper niet geblokkeerd is: de leads van een geblokkeerde verkoper zijn enkel te lezen.
+const schrijfbaarVoor = (id) => magSchrijven(huidigeGebruiker(), id) && verkopers.find(v => v.id === id)?.actief !== false;
+
+/** Mag de ingelogde gebruiker de nu geladen leads wijzigen? (beheerder: elke actieve verkoper; sales: enkel het eigen blob) */
+export function schrijfbaarNu() { return schrijfbaarVoor(salesToestand().gebruikerId); }
 
 /** Importeren en de eigen instellingen: enkel een verkoper die zijn EIGEN leads toont (niet de beheerder, niet de weergave van een ander). */
 export function kanImporteren() {
@@ -80,7 +84,7 @@ export async function renderVerkoperBalk(container, { onWijzig } = {}) {
   for (const v of verkopers) {
     const o = document.createElement('option');
     o.value = v.id;
-    o.textContent = v.naam + (ik && v.id === ik.id ? ' (jij)' : '');
+    o.textContent = v.naam + (ik && v.id === ik.id ? ' (jij)' : '') + (v.actief ? '' : ' (geblokkeerd)');
     keuze.appendChild(o);
   }
   if (getoond.id) keuze.value = getoond.id;
@@ -96,7 +100,7 @@ export async function renderVerkoperBalk(container, { onWijzig } = {}) {
   const leesMelding = document.createElement('span');
   leesMelding.className = 'sales-alleen-lezen';
   leesMelding.textContent = 'Alleen lezen';
-  leesMelding.hidden = !getoond.id || magSchrijven(ik, getoond.id);
+  leesMelding.hidden = !getoond.id || schrijfbaarVoor(getoond.id);
   container.appendChild(leesMelding);
   instellingen.hidden = !kanImporteren(); // enkel bij de eigen leads: niet bij de weergave van een collega
   container.appendChild(instellingen);
@@ -104,7 +108,7 @@ export async function renderVerkoperBalk(container, { onWijzig } = {}) {
   keuze.addEventListener('change', () => {
     const id = keuze.value;
     bewaarKeuze(id);
-    const schrijfbaar = magSchrijven(huidigeGebruiker(), id);
+    const schrijfbaar = schrijfbaarVoor(id);
     leesMelding.hidden = schrijfbaar;
     instellingen.hidden = !kanImporteren();
     onWijzig?.(id, schrijfbaar);

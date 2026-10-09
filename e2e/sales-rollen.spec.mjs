@@ -1,5 +1,5 @@
 import { test, expect, startApp, VERBODEN_PADEN } from './helpers.mjs';
-import { startSalesApp, maakSalesBackend, verwachtFout, BEHEERDER, SALES_GEBRUIKER, VERBODEN_PADEN_SALES } from './sales-hulp.mjs';
+import { startSalesApp, maakSalesBackend, verwachtFout, BEHEERDER, SALES_GEBRUIKER, ANDERE_VERKOPERS, VERBODEN_PADEN_SALES } from './sales-hulp.mjs';
 
 // Rollen en isolatie van de sales-planner (Task 19): wie ziet en doet wat. De stubs zijn de ECHTE server-handlers (geen eigen rechtenlogica
 // in de test): een 403 komt dus van de echte rechtenrijen en `bepaalDoel`.
@@ -117,6 +117,28 @@ test.describe('sales: rollen en isolatie', () => {
     await subs.getByRole('tab', { name: 'Kalender' }).click();
     await expect(page.locator('#view-sales-kalender .sales-kal')).toBeVisible();
     await expect(page.locator('#view-sales-kalender').getByRole('button', { name: /Plan deze week/ })).toBeVisible();
+  });
+
+  test('I3: de beheerder kan de leads van een geblokkeerde verkoper inzien (alleen lezen); de standaardkeuze is een actieve verkoper', async ({ page, verzoeken }) => {
+    const geblokkeerd = { id: 'u-aad', email: 'aad@test.be', naam: 'Aad Verkoper', rol: 'sales', salesNaam: 'Aad V.', magAlleSales: false, actief: false };
+    const verkopers = [geblokkeerd, ...ANDERE_VERKOPERS];
+    const blobs = { ...BEA_BLOB, 'sales/u-aad': { versie: 2, leads: [lead('a1', 'Smeets'), lead('a2', 'Vermeer')], blokken: [], grafstenen: [] } };
+    await startSalesApp(page, { gebruiker: BEHEERDER, verkopers, blobs });
+    await tab(page, 'Sales').click();
+    const keuze = lijst(page).getByLabel('Verkoper');
+    await expect(keuze).toHaveValue('u-bea'); // 'Aad' staat alfabetisch eerst maar is geblokkeerd
+    await expect(keuze.locator('option[value="u-aad"]')).toHaveText('Aad Verkoper (geblokkeerd)');
+    await expect(lijst(page).locator('.sales-alleen-lezen')).toBeHidden();
+    await keuze.selectOption('u-aad');
+    await expect(lijst(page).locator('.sales-kaart')).toHaveCount(2);
+    await expect(lijst(page).locator('.sales-kaart', { hasText: 'Smeets' })).toBeVisible();
+    await expect(lijst(page).locator('.sales-alleen-lezen')).toBeVisible();   // alleen lezen
+    await expect(lijst(page).locator('.sales-kaart-wis')).toHaveCount(0);      // geen ✕
+    await page.getByRole('tablist', { name: 'Sales-onderdelen' }).getByRole('tab', { name: 'Kalender' }).click();
+    await expect(page.locator('#view-sales-kalender .sales-kal')).toBeVisible();
+    await expect(page.locator('#view-sales-kalender').getByRole('button', { name: /Plan deze week/ })).toHaveCount(0); // geen ⚡ bij alleen lezen
+    expect(verzoeken.van('/api/sales', 'PATCH')).toEqual([]);
+    expect(verzoeken.van('/api/sales', 'DELETE')).toEqual([]);
   });
 
   for (const rol of ['technieker', 'planner']) {

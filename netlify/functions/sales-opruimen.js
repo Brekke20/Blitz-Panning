@@ -1,4 +1,5 @@
-// Dagelijkse opruiming van de verkoperblobs: wist afgewerkte leads en grafstenen ouder dan 12 maanden (alle `sales/*`).
+// Dagelijkse opruiming van de verkoperblobs (alle `sales/*`, ook van geblokkeerde of verwijderde verkopers, in de echte opslag EN in de testopslag):
+// wist leads zonder activiteit in de laatste 12 maanden, blokken en grafstenen ouder dan 12 maanden (zie lib/sales-opruimen.js).
 // Geplande functie zonder eigen `config.path`, maar via de `/api/*`-redirect van netlify.toml wel van buitenaf aan te roepen.
 // Daarom: idempotent en onschadelijk (er wordt enkel gewist wat al verouderd is) en begrensd in belasting: de opruiming draait
 // hoogstens eens per MIN_TUSSENPOOZ_MS (marker-blob `sales-opruimen-laatste`, bewust NIET onder `sales/`); een aanroep binnen dat
@@ -8,6 +9,7 @@
 import { getStore } from '@netlify/blobs';
 import { ruimAllesOp } from '../lib/sales-opruimen.js';
 import { authStore } from '../lib/auth-antwoord.js';
+import { TEST_WINKEL } from '../lib/testmodus.js';
 
 export const MIN_TUSSENPOOZ_MS = 6 * 60 * 60 * 1000;
 export const MARKER_SLEUTEL = 'sales-opruimen-laatste';
@@ -30,7 +32,16 @@ export function maakOpruimHandler({ getStore: haalStore, nu = () => Date.now() }
       // geplande run (na een dag) herhaald.
       await store.setJSON(MARKER_SLEUTEL, { op: new Date(moment).toISOString() });
       const r = await ruimAllesOp({ store, nu: moment });
-      if (r.gewist || r.grafstenenGewist) console.log(`[sales-opruimen] ${r.gewist} lead(s) en ${r.grafstenenGewist} grafsteen(en) gewist`);
+      // De testopslag kan door een testverzoek echte leads bevatten (een export ingeladen in testmodus): dezelfde termijn, zonder logregel.
+      try {
+        const test = await ruimAllesOp({ store: await haalStore({ name: TEST_WINKEL, consistency: 'strong' }), nu: moment, logStore: null });
+        r.gewist += test.gewist; r.blokkenGewist += test.blokkenGewist; r.grafstenenGewist += test.grafstenenGewist;
+        if (test.mislukt) r.mislukt = (r.mislukt ?? 0) + test.mislukt;
+      } catch (e) {
+        r.mislukt = (r.mislukt ?? 0) + 1;
+        console.error('[sales-opruimen] testopslag mislukt (' + (e?.name || 'Error') + ')');
+      }
+      if (r.gewist || r.blokkenGewist || r.grafstenenGewist) console.log(`[sales-opruimen] ${r.gewist} lead(s), ${r.blokkenGewist} blok(ken) en ${r.grafstenenGewist} grafsteen(en) gewist`);
       if (r.mislukt) return json(500, { ...r, error: 'Opruimen was niet overal gelukt.' });
       return json(200, r);
     } catch (e) {

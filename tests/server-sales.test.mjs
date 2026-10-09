@@ -124,14 +124,18 @@ for (const [naam, gebruiker, gevraagdId, extra, verwacht] of [
   });
 }
 
-test('bepaalDoel: een niet-actieve (geblokkeerde) verkoper is geen doel; voor sales 403, voor de beheerder 404', async () => {
-  const geblokkeerd = async () => [{ id: 'u-weg', rol: 'sales', actief: false }, { id: 'u-leeg', rol: 'sales' }, { id: 'u-ok', rol: 'sales', actief: true }];
+test('bepaalDoel: een niet-actieve (geblokkeerde) verkoper is voor sales geen doel (403); de beheerder kan hem LEZEN maar niet schrijven (403 geblokkeerd)', async () => {
+  const geblokkeerd = async () => [{ id: 'u-weg', rol: 'sales', actief: false }, { id: 'u-leeg', rol: 'sales' }, { id: 'u-ok', rol: 'sales', actief: true }, { id: 'u-tim', rol: 'technieker', actief: false }];
   for (const id of ['u-weg', 'u-leeg']) {
     const s = await bepaalDoel({ gebruiker: SALES_ALLE, gevraagdId: id, schrijven: false, leesGebruikers: geblokkeerd, testVerzoek: false });
     assert.deepEqual([s.ok, s.status], [false, 403], id);
+    const lezen = await bepaalDoel({ gebruiker: BEHEER, gevraagdId: id, schrijven: false, leesGebruikers: geblokkeerd, testVerzoek: false });
+    assert.deepEqual([lezen.ok, lezen.doelId], [true, id], id);
     const b = await bepaalDoel({ gebruiker: BEHEER, gevraagdId: id, schrijven: true, leesGebruikers: geblokkeerd, testVerzoek: false });
-    assert.deepEqual([b.ok, b.status], [false, 404], id);
+    assert.deepEqual([b.ok, b.status, b.code], [false, 403, 'geblokkeerd'], id);
   }
+  // een geblokkeerde NIET-verkoper blijft voor de beheerder onbekend (404), lezen of schrijven
+  assert.equal((await bepaalDoel({ gebruiker: BEHEER, gevraagdId: 'u-tim', schrijven: false, leesGebruikers: geblokkeerd, testVerzoek: false })).status, 404);
   assert.equal((await bepaalDoel({ gebruiker: BEHEER, gevraagdId: 'u-ok', schrijven: true, leesGebruikers: geblokkeerd, testVerzoek: false })).ok, true);
 });
 
@@ -187,6 +191,24 @@ for (const [naam, rol, opties, methode, zoek, body, status] of [
     }
   });
 }
+
+test('toegang: de beheerder leest het blob van een geblokkeerde verkoper (zonder schrijfactie); PATCH en DELETE geven 403 geblokkeerd en laten alles onaangeroerd', async () => {
+  const begin = { ...SEED(), gebruikers: { versie: 1, gebruikers: gebruikers().map(g => (g.id === 'u-sam' ? { ...g, actief: false } : g)) } };
+  const { h, echt } = opzet({ begin });
+  const voor = new Map([...echt._data].filter(([k]) => k.startsWith('sales/')));
+  const gelezen = await metRol('beheerder', async () => lees(await h(req('GET', { zoek: '?gebruiker=u-sam' }))));
+  assert.equal(gelezen.status, 200);
+  assert.deepEqual(gelezen.body.leads.map(l => l.id), ['s1']);
+  for (const [methode, zoek, body] of [['PATCH', '?gebruiker=u-sam', { versie: 7, leads: [{ id: 's1', velden }] }], ['DELETE', '?lead=s1&gebruiker=u-sam', undefined]]) {
+    const r = await metRol('beheerder', async () => lees(await h(req(methode, { zoek, body }))));
+    assert.equal(r.status, 403, methode);
+    assert.equal(r.body.code, 'geblokkeerd', methode);
+  }
+  for (const [k, w] of voor) assert.equal(echt._data.get(k), w, `${k} onaangeroerd`);
+  // sales met magAlleSales ziet de geblokkeerde collega niet (403, ook bij lezen)
+  const sales = await metRol('sales', async () => lees(await h(req('GET', { zoek: '?gebruiker=u-sam' }))), { magAlleSales: true });
+  assert.equal(sales.status, 403);
+});
 
 test('toegang: planner en technieker -> 403 geen-recht van de wrapper; de kern draait niet (geen store aangeraakt)', async () => {
   for (const rol of ['planner', 'technieker']) {

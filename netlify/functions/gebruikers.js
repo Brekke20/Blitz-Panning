@@ -1,6 +1,7 @@
 // /api/gebruikers — gebruikersbeheer (enkel beheerder) en sales-overzicht.
 //   GET                    beheerder -> { gebruikers: BeheerGebruiker[] } (met laatsteLogin uit blob `login-laatst`)
 //   GET ?rol=sales         beheerder, of sales met magAlleSales -> { gebruikers: PubliekeGebruiker[] } (actieve verkopers)
+//   GET ?rol=sales&geblokkeerd=1   enkel beheerder: ook de geblokkeerde verkopers (met `actief`), om hun leads te kunnen inzien
 //   POST { actie:'maak', email, naam, rol, zohoNaam?, salesNaam?, magAlleSales?, startWachtwoord? }
 //        -> 201 { gebruiker, startWachtwoord, herstelcodes? } (herstelcodes enkel bij rol beheerder, enkel nu getoond)
 //   POST { actie:'reset-wachtwoord', id, startWachtwoord? } -> 200 { startWachtwoord } (verplichte wijziging, uitgelogd)
@@ -63,6 +64,8 @@ export function maakHandler({ getStore: haalStore, nu = () => Date.now(), auth }
     }
     if (rollen.length !== 1 || rollen[0] !== 'sales' || !rechten.alleSales) return json(403, GEEN_RECHT);
     const alle = await leesGebruikers(store);
+    const metGeblokkeerd = rechten.beheer === true && new URL(req.url).searchParams.get('geblokkeerd') === '1';
+    if (metGeblokkeerd) return json(200, { gebruikers: alle.filter(g => g.rol === 'sales').map(g => ({ ...publiek(g), actief: g.actief === true })) });
     return json(200, { gebruikers: alle.filter(g => g.rol === 'sales' && g.actief === true).map(publiek) });
   }
 

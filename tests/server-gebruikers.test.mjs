@@ -143,6 +143,19 @@ test('GET ?rol=sales: beheerder en sales met magAlleSales krijgen enkel (actieve
   }
 });
 
+test('I3: GET ?rol=sales&geblokkeerd=1: enkel de beheerder krijgt ook de geblokkeerde verkopers (met actief); sales met magAlleSales blijft bij de actieve', async () => {
+  const o = opzet();
+  const res = await o.gebruikers(get(BEA(), '?rol=sales&geblokkeerd=1'));
+  assert.equal(res.status, 200);
+  const tekst = await res.text();
+  assert.deepEqual(verboden(tekst), []);
+  const { gebruikers } = JSON.parse(tekst);
+  assert.deepEqual(gebruikers.map(g => [g.id, g.actief]).sort(), [['u-sal', true], ['u-sam', true], ['u-uit', false]]);
+  const alsSales = JSON.parse(await (await o.gebruikers(get(als('u-sam', 1), '?rol=sales&geblokkeerd=1'))).text()).gebruikers;
+  assert.deepEqual(alsSales.map(g => g.id).sort(), ['u-sal', 'u-sam']);
+  assert.ok(alsSales.every(g => !('actief' in g)));
+});
+
 test('GET: sales zonder magAlleSales, sales zonder ?rol en andere rol-waarden krijgen 403', async () => {
   const o = opzet();
   assert.equal((await o.gebruikers(get(als('u-sal', 1), '?rol=sales'))).status, 403);

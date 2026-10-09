@@ -3,7 +3,7 @@
 // (een kopie van 'blitz-data') en schrijft nooit naar Zoho.
 
 const ECHTE_WINKEL = 'blitz-data';
-const TEST_WINKEL  = 'blitz-data-test';
+export const TEST_WINKEL = 'blitz-data-test';
 const MARKER_KEY   = '_testkopie';
 // Sleutels die niet naar de testopslag gekopieerd worden.
 // Authenticatiegegevens (gebruikers, pogingen, laatste logins, noodroute, activiteit) leven altijd

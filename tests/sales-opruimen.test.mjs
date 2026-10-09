@@ -1,8 +1,10 @@
+// Opruimregel (eindreview I3, besluit Brent 2026-10-09): 12 maanden na de LAATSTE ACTIVITEIT voor elke lead, ook niet afgewerkte; blokken en
+// grafstenen ouder dan 12 maanden. Verzonnen gegevens.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BEWAAR_MAANDEN, laatsteBezoekDatum, ruimOp } from '../netlify/lib/sales-opruimen.js';
+import { BEWAAR_MAANDEN, laatsteActiviteitDatum, ruimOp } from '../netlify/lib/sales-opruimen.js';
 
-const NU = '2026-10-09T03:00:00.000Z';
+const NU = '2026-10-09T03:00:00.000Z'; // grens: 2025-10-09 (strikt ervoor vervalt)
 const lead = (id, extra = {}) => ({
   id, naam: 'Janssens', status: 'afgewerkt', geimporteerdOp: '2024-01-01T08:00:00.000Z', bezoeken: [], ...extra,
 });
@@ -10,17 +12,26 @@ const bezoek = (datum, extra = {}) => ({ datum, resultaat: 'offerte', op: datum 
 
 test('constante', () => assert.equal(BEWAAR_MAANDEN, 12));
 
-test('laatsteBezoekDatum: max van bezoeken en resultaat.op, anders geimporteerdOp', () => {
-  assert.equal(laatsteBezoekDatum(lead('a', { bezoeken: [bezoek('2025-03-01'), bezoek('2025-05-02')] })), '2025-05-02');
-  assert.equal(laatsteBezoekDatum(lead('a', {
+test('laatsteActiviteitDatum: de laatste van import, wijziging, eerder verwijderd, resultaat en bezoeken (op en datum)', () => {
+  assert.equal(laatsteActiviteitDatum(lead('a', { bezoeken: [bezoek('2025-03-01'), bezoek('2025-05-02')] }), NU), '2025-05-02');
+  assert.equal(laatsteActiviteitDatum(lead('a', {
     bezoeken: [bezoek('2025-03-01')], resultaat: { soort: 'offerte', op: '2025-08-09T12:00:00.000Z' },
-  })), '2025-08-09');
-  assert.equal(laatsteBezoekDatum(lead('a')), '2024-01-01');
-  assert.equal(laatsteBezoekDatum({ id: 'x' }), null);
-  assert.equal(laatsteBezoekDatum(null), null);
+  }), NU), '2025-08-09');
+  assert.equal(laatsteActiviteitDatum(lead('a'), NU), '2024-01-01');
+  assert.equal(laatsteActiviteitDatum(lead('a', { gewijzigdOp: '2026-02-03T09:00:00.000Z' }), NU), '2026-02-03');
+  assert.equal(laatsteActiviteitDatum(lead('a', { eerderVerwijderd: { op: '2025-12-24T09:00:00.000Z' } }), NU), '2025-12-24');
+  assert.equal(laatsteActiviteitDatum(lead('a', { bezoeken: [{ datum: '2025-01-01', resultaat: 'opnieuw', op: '2025-06-06T08:00:00.000Z' }] }), NU), '2025-06-06');
+  assert.equal(laatsteActiviteitDatum({ id: 'x' }, NU), null);
+  assert.equal(laatsteActiviteitDatum(null, NU), null);
 });
 
-test('afgewerkt, laatste bezoek 12 maanden en 1 dag geleden: gewist; precies 12 maanden: blijft', () => {
+test('een bezoekdatum in de toekomst stelt het wissen niet uit (telt hoogstens tot vandaag)', () => {
+  const l = lead('a', { status: 'te-plannen', geimporteerdOp: '2024-01-01T08:00:00.000Z', bezoeken: [{ datum: '2099-01-01', resultaat: 'opnieuw', op: '2024-02-01T08:00:00.000Z' }] });
+  assert.equal(laatsteActiviteitDatum(l, NU), '2026-10-09');
+  assert.equal(laatsteActiviteitDatum(l), '2099-01-01'); // zonder `nu` geen begrenzing (enkel intern gebruik)
+});
+
+test('afgewerkt, laatste activiteit 12 maanden en 1 dag geleden: gewist; precies 12 maanden: blijft', () => {
   const data = { leads: [
     lead('oud', { bezoeken: [bezoek('2025-10-08')] }),
     lead('grens', { bezoeken: [bezoek('2025-10-09')] }),
@@ -35,23 +46,52 @@ test('afgewerkt met recent bezoek maar oud eerste bezoek blijft', () => {
   assert.deepEqual(ruimOp(data, NU).gewist, []);
 });
 
-test('te-plannen lead met enkel oude bezoeken blijft', () => {
-  const data = { leads: [lead('a', { status: 'te-plannen', bezoeken: [bezoek('2024-02-01', { resultaat: 'opnieuw' })] })], blokken: [] };
+test('I3: elke lead vervalt na 12 maanden zonder activiteit, ook te-plannen, voorgesteld en bevestigd uit het verleden', () => {
+  const oudPlanning = { datum: '2025-01-15', start: '10:00' };
+  const data = { leads: [
+    lead('tp', { status: 'te-plannen', bezoeken: [bezoek('2024-02-01', { resultaat: 'opnieuw' })] }),
+    lead('tp-nooit', { status: 'te-plannen' }),                                                                  // nooit bezocht, import van 2024
+    lead('vg', { status: 'voorgesteld', planning: { ...oudPlanning, vast: false } }),
+    lead('bv', { status: 'bevestigd', planning: { ...oudPlanning, vast: true } }),
+    lead('tp-vers', { status: 'te-plannen', geimporteerdOp: '2026-09-01T08:00:00.000Z' }),                     // recent geimporteerd
+  ], blokken: [] };
   const r = ruimOp(data, NU);
-  assert.deepEqual(r.gewist, []);
-  assert.equal(r.data.leads.length, 1);
+  assert.deepEqual(r.gewist.sort(), ['bv', 'tp', 'tp-nooit', 'vg']);
+  assert.deepEqual(r.data.leads.map(l => l.id), ['tp-vers']);
 });
 
-test('resultaat.op nieuwer dan bezoeken telt mee', () => {
-  const data = { leads: [lead('a', {
-    bezoeken: [bezoek('2024-02-01')], resultaat: { soort: 'offerte', op: '2026-06-01T09:00:00.000Z' },
-  })], blokken: [] };
+test('I3: een wijziging (gewijzigdOp) of een nieuwe import van dezelfde lead telt als activiteit', () => {
+  const data = { leads: [
+    lead('gewijzigd', { status: 'te-plannen', gewijzigdOp: '2026-03-01T08:00:00.000Z' }),
+    lead('niet', { status: 'te-plannen' }),
+  ], blokken: [] };
+  assert.deepEqual(ruimOp(data, NU).gewist, ['niet']);
+});
+
+test('I3: een lead met een voorgestelde of bevestigde afspraak van vandaag of later wordt nooit gewist', () => {
+  const data = { leads: [
+    lead('morgen', { status: 'bevestigd', planning: { datum: '2026-10-10', start: '10:00', vast: true } }),
+    lead('vandaag', { status: 'voorgesteld', planning: { datum: '2026-10-09', start: '10:00', vast: false } }),
+    lead('gisteren', { status: 'voorgesteld', planning: { datum: '2026-10-08', start: '10:00', vast: false } }),
+  ], blokken: [] };
+  assert.deepEqual(ruimOp(data, NU).gewist, ['gisteren']);
+});
+
+test('een lead zonder enige datum wordt nooit gewist', () => {
+  const data = { leads: [{ id: 'x', status: 'te-plannen' }], blokken: [] };
   assert.deepEqual(ruimOp(data, NU).gewist, []);
 });
 
-test('zonder bezoeken telt geimporteerdOp', () => {
-  const data = { leads: [lead('oud'), lead('nieuw', { geimporteerdOp: '2026-09-01T08:00:00.000Z' })], blokken: [] };
-  assert.deepEqual(ruimOp(data, NU).gewist, ['oud']);
+test('I3: blokken ouder dan 12 maanden vervallen (op hun datum), precies 12 maanden en recentere blijven; telling klopt', () => {
+  const data = { leads: [], blokken: [
+    { id: 'b1', datum: '2025-10-08', start: '09:00', eind: '10:00', soort: 'afspraak', omschrijving: 'afspraak bij Peeters' },
+    { id: 'b2', datum: '2025-10-09', start: '09:00', eind: '10:00', soort: 'afspraak' },
+    { id: 'b3', datum: '2026-11-01', start: '09:00', eind: '10:00', soort: 'verlof' },
+    { id: 'b4', datum: '2024-01-01', start: '00:00', eind: '23:59', soort: 'verlof' },
+  ] };
+  const r = ruimOp(data, NU);
+  assert.equal(r.blokkenGewist, 2);
+  assert.deepEqual(r.data.blokken.map(b => b.id), ['b2', 'b3']);
 });
 
 test('schrikkeldag en maandeinde: 2026-02-28 versus 2025-02-28', () => {
@@ -69,23 +109,24 @@ test('schrikkeldag en maandeinde: 2026-02-28 versus 2025-02-28', () => {
 
 test('lege data en ontbrekende lijsten', () => {
   const r = ruimOp({ leads: [], blokken: [] }, NU);
-  assert.deepEqual(r, { data: { leads: [], blokken: [], grafstenen: [] }, gewist: [], grafstenenGewist: 0 });
+  assert.deepEqual(r, { data: { leads: [], blokken: [], grafstenen: [] }, gewist: [], blokkenGewist: 0, grafstenenGewist: 0 });
   const r2 = ruimOp({}, NU);
   assert.deepEqual(r2.data.leads, []);
+  assert.deepEqual(r2.data.blokken, []);
   assert.deepEqual(r2.data.grafstenen, []);
 });
 
-test('invoer niet gemuteerd, blokken ongewijzigd', () => {
+test('invoer niet gemuteerd, recente blokken en leads onveranderd bewaard', () => {
   const data = {
-    leads: [lead('oud', { bezoeken: [bezoek('2024-02-01')] }), lead('ok', { status: 'te-plannen' })],
-    blokken: [{ id: 'b1', datum: '2024-01-01' }],
+    leads: [lead('oud', { bezoeken: [bezoek('2024-02-01')] }), lead('ok', { status: 'te-plannen', geimporteerdOp: '2026-08-01T08:00:00.000Z' })],
+    blokken: [{ id: 'b1', datum: '2024-01-01' }, { id: 'b2', datum: '2026-10-01' }],
     grafstenen: [{ h: 'aa', op: '2024-01-01T00:00:00.000Z' }],
   };
   const kopie = structuredClone(data);
   const r = ruimOp(data, NU);
   assert.deepEqual(data, kopie);
-  assert.deepEqual(r.data.blokken, kopie.blokken);
-  assert.equal(r.data.leads.length, 1);
+  assert.deepEqual(r.data.blokken, [kopie.blokken[1]]);
+  assert.deepEqual(r.data.leads, [kopie.leads[1]]);
 });
 
 test('grafstenen: 12 maanden en 1 dag gewist, precies 12 maanden blijft, telling klopt', () => {
@@ -101,7 +142,7 @@ test('grafstenen: 12 maanden en 1 dag gewist, precies 12 maanden blijft, telling
 });
 
 test('ontbrekende grafstenen geeft [] en 0', () => {
-  const r = ruimOp({ leads: [lead('a', { status: 'te-plannen' })], blokken: [] }, NU);
+  const r = ruimOp({ leads: [lead('a', { status: 'te-plannen', geimporteerdOp: '2026-09-01T08:00:00.000Z' })], blokken: [] }, NU);
   assert.deepEqual(r.data.grafstenen, []);
   assert.equal(r.grafstenenGewist, 0);
 });

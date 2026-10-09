@@ -170,6 +170,15 @@ test('lead-velden toegepast via pasLeadToe; invoer niet gemuteerd', () => {
   assert.deepEqual(r.resultaten, []);
 });
 
+test('I3: elke gewijzigde lead krijgt gewijzigdOp (serverklok); een ongewijzigde lead niet; de client kan het veld niet zelf zetten', () => {
+  const data = blob([lead('a'), lead('b')]);
+  const r = pasWijzigingToe(data, { leads: [{ id: 'a', velden: { notitie: 'x' } }] }, opties());
+  assert.equal(r.data.leads[0].gewijzigdOp, NU);
+  assert.equal('gewijzigdOp' in r.data.leads[1], false);
+  const vals = pasWijzigingToe(data, { leads: [{ id: 'a', velden: { gewijzigdOp: '2099-01-01T00:00:00.000Z' } }] }, opties());
+  assert.ok(vals.fouten.length > 0);
+});
+
 test('onbekende lead-id -> fout; fout in één van twee leads -> niets toegepast', () => {
   const data = blob([lead('a'), lead('b')]);
   assert.ok(pasWijzigingToe(data, { leads: [{ id: 'zzz', velden: { notitie: 'x' } }] }, opties()).fouten.length > 0);

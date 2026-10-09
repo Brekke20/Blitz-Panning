@@ -130,7 +130,7 @@ Klik op **+ Lead** in de tab Te plannen en vul minstens de naam, een gsm of e-ma
 2. Wil je een bezoek op een vast uur, zet dan een **vast uur** op die lead. Het planningsprogramma schuift er dan niets meer aan.
 3. Klik op **Plan deze week**. De app maakt een voorstel voor de bezoeken van de week, rekening houdend met je werkuren, rittijden en vaste uren. Een bezoek staat eerst als **voorgesteld**; bevestig het om het vast te leggen.
 4. De tab **Kalender** toont de week, **Route** toont de rit van een dag op de kaart met de rijtijden.
-5. Na een bezoek noteer je het **resultaat**: Offerte, Verkocht, Geen interesse of Opnieuw langsgaan (dan komt de lead terug in Te plannen). Bij de eerste drie is de lead **Afgewerkt**; hij verdwijnt uit Te plannen en staat in de tab Afgewerkt. Afgewerkte leads worden 12 maanden bewaard en daarna vanzelf gewist.
+5. Na een bezoek noteer je het **resultaat**: Offerte, Verkocht, Geen interesse of Opnieuw langsgaan (dan komt de lead terug in Te plannen). Bij de eerste drie is de lead **Afgewerkt**; hij verdwijnt uit Te plannen en staat in de tab Afgewerkt. Leads, blokken en bezoeken worden 12 maanden na de laatste activiteit bewaard en daarna vanzelf gewist (ook niet afgewerkte leads; ook bij een geblokkeerde verkoper).
 
 **Eigen instellingen**
 
