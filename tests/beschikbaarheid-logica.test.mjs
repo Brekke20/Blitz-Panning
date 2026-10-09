@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Brussels';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nextWorkday, groupExceptionsForDisplay } from '../public/js/schermen/beschikbaarheid-logica.js';
+import { nextWorkday, groupExceptionsForDisplay, valideerNieuweBlokkering } from '../public/js/schermen/beschikbaarheid-logica.js';
 
 const MA_VR = [1, 2, 3, 4, 5];
 
@@ -111,4 +111,37 @@ test('nextWorkday: jaargrens, 31 dec -> eerstvolgende werkdag in januari', () =>
   assert.equal(nextWorkday('2026-12-31', MA_VR), '2027-01-01'); // do -> vr
   assert.equal(nextWorkday('2027-12-31', MA_VR), '2028-01-03'); // vr -> ma
   assert.equal(nextWorkday('2025-12-31', [1, 2, 3, 4, 5]), '2026-01-01');
+});
+
+test('valideerNieuweBlokkering: de vier weigeringen met exacte tekst en in de vastgelegde volgorde', () => {
+  // 1. eindtijd voor begintijd gaat voor een lege datum
+  assert.deepEqual(valideerNieuweBlokkering({ kind: 'range', meerdaags: false, datum: '', datumTot: '', van: '10:00', tot: '09:00' }),
+    { ok: false, melding: '⚠ Eindtijd moet na begintijd liggen' });
+  // 2. lege datum
+  assert.deepEqual(valideerNieuweBlokkering({ kind: 'fullday', meerdaags: true, datum: '', datumTot: '', van: null, tot: null }),
+    { ok: false, melding: '⚠ Kies een datum' });
+  // 3. meerdaags zonder einddatum
+  assert.deepEqual(valideerNieuweBlokkering({ kind: 'fullday', meerdaags: true, datum: '2026-10-13', datumTot: '', van: null, tot: null }),
+    { ok: false, melding: '⚠ Kies een einddatum, of vink "Meerdere werkdagen" uit' });
+  // 4. einddatum voor startdatum
+  assert.deepEqual(valideerNieuweBlokkering({ kind: 'fullday', meerdaags: true, datum: '2026-10-14', datumTot: '2026-10-13', van: null, tot: null }),
+    { ok: false, melding: '⚠ Einddatum moet na startdatum liggen' });
+});
+
+test('valideerNieuweBlokkering: geldig: hele dag, tijdvak, periode', () => {
+  assert.deepEqual(valideerNieuweBlokkering({ kind: 'fullday', meerdaags: false, datum: '2026-10-13', datumTot: null, van: null, tot: null }), { ok: true });
+  assert.deepEqual(valideerNieuweBlokkering({ kind: 'range', meerdaags: false, datum: '2026-10-13', datumTot: null, van: '09:00', tot: '12:00' }), { ok: true });
+  assert.deepEqual(valideerNieuweBlokkering({ kind: 'fullday', meerdaags: true, datum: '2026-10-13', datumTot: '2026-10-13', van: null, tot: null }), { ok: true });
+  assert.deepEqual(valideerNieuweBlokkering({ kind: 'fullday', meerdaags: true, datum: '2026-10-13', datumTot: '2026-10-16', van: null, tot: null }), { ok: true });
+});
+
+test('valideerNieuweBlokkering: lege datum bij een tijdvak wordt ook geweigerd', () => {
+  assert.deepEqual(valideerNieuweBlokkering({ kind: 'range', meerdaags: false, datum: '', datumTot: null, van: '09:00', tot: '12:00' }),
+    { ok: false, melding: '⚠ Kies een datum' });
+  assert.deepEqual(valideerNieuweBlokkering({ kind: 'fullday', meerdaags: false, datum: null, datumTot: null, van: null, tot: null }),
+    { ok: false, melding: '⚠ Kies een datum' });
+});
+
+test('valideerNieuweBlokkering: meerdaags uitgevinkt met lege datumTot is geldig', () => {
+  assert.deepEqual(valideerNieuweBlokkering({ kind: 'fullday', meerdaags: false, datum: '2026-10-13', datumTot: '', van: null, tot: null }), { ok: true });
 });

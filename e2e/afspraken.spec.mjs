@@ -160,16 +160,31 @@ test.describe('afspraken: detailvenster, bewerken en verwijderen', () => {
     await expect(detail(page)).not.toHaveClass(/open/);
   });
 
-  test('HUIDIG GEDRAG (bug?): zonder adres wordt de notitie als adres getoond (met navigatielink) en niet als notitie', async ({ page }) => {
+  test('een handmatige afspraak zonder adres toont de notitie als Notitie, niet als adres (Navigeer blijft)', async ({ page }) => {
     await startApp(page, { overschrijf: metSeed([ENKEL_NOTITIE]) });
     await naarKalender(page);
     await openDetail(page, '2026-10-07', 'Alleen notitie');
     await expect(detail(page).locator('#ld-datum')).toHaveText('wo 7 okt 2026 · 09:00'); // zonder einduur
-    await expect(detail(page).locator('.mrow', { hasText: 'Adres' })).toContainText('Sleutel op kantoor ↗');
-    await expect(detail(page).locator('.mrow', { hasText: 'Notitie' })).toHaveCount(0);
+    await expect(detail(page).locator('.mrow', { hasText: 'Adres' })).toHaveCount(0);
+    await expect(detail(page).locator('.mrow', { hasText: 'Notitie' })).toContainText('Sleutel op kantoor');
+    // De notitie dient nog als plaats (routes gebruiken `adres || notitie`): de Navigeer-link blijft, op de notitie.
+    await expect(detail(page).locator('.mval-nav-link')).toHaveCount(1);
+    await expect(detail(page).locator('.mval-nav-link')).toHaveAttribute('data-adres', 'Sleutel op kantoor');
     await expect(detail(page).locator('.mrow', { hasText: 'Telefoon' })).toHaveCount(0);
-    // De kaart zelf doet hetzelfde (adreslabel = adres of notitie).
-    await expect(kaart(page, '2026-10-07', 'Alleen notitie').locator('.cal-addr')).toHaveText('Sleutel op kantoor');
+    // De kaart: geen adresregel, wel de notitieregel. (De Navigeer-knop van de kaart staat in de gsm-lijst: kalender-indelingen.spec.)
+    const k = kaart(page, '2026-10-07', 'Alleen notitie');
+    await expect(k.locator('.cal-addr')).toHaveCount(0);
+    await expect(k.locator('.cal-meta', { hasText: '📝 Sleutel op kantoor' })).toHaveCount(1);
+  });
+
+  test('een geïmporteerde afspraak (bron "import") met enkel een notitie toont die nog steeds als adres met navigatielink', async ({ page }) => {
+    const IMPORT = { ...ENKEL_NOTITIE, id: 'ev-imp', titel: 'Import zonder adres', bron: 'import', notitie: 'Dorpsstraat 1, 2000 Antwerpen' };
+    await startApp(page, { overschrijf: metSeed([IMPORT]) });
+    await naarKalender(page);
+    await openDetail(page, '2026-10-07', 'Import zonder adres');
+    await expect(detail(page).locator('.mrow', { hasText: 'Adres' })).toContainText('Dorpsstraat 1, 2000 Antwerpen ↗');
+    await expect(detail(page).locator('.mrow', { hasText: 'Notitie' })).toHaveCount(0);
+    await expect(kaart(page, '2026-10-07', 'Import zonder adres').locator('.cal-addr')).toHaveText('Dorpsstraat 1, 2000 Antwerpen');
   });
 
   test('zonder contactgegevens: de melding "Geen contactgegevens beschikbaar"; geen tijd in de kop', async ({ page }) => {
@@ -180,11 +195,18 @@ test.describe('afspraken: detailvenster, bewerken en verwijderen', () => {
     await expect(detail(page).locator('#ld-datum')).toHaveText('do 8 okt 2026 · 08:00');
   });
 
-  test('HUIDIG GEDRAG (bug?): een afspraak zonder uur staat bewaard maar verschijnt niet op de kalendertijdlijn', async ({ page }) => {
+  test('een afspraak zonder uur staat als chip "Zonder uur:" in de dagkop; een klik opent het detail', async ({ page }) => {
     await startApp(page, { overschrijf: metSeed([{ ...LEEG, id: 'ev-zonder-uur', titel: 'Zonder uur', uur: '' }]) });
     await naarKalender(page);
-    await expect(page.locator('.day-col[data-date="2026-10-08"]')).toBeVisible();
+    const kop = page.locator('.day-col[data-date="2026-10-08"] .day-hdr-zonderuur');
+    await expect(kop.locator('.zu-label')).toHaveText('Zonder uur:');
+    await expect(kop.locator('.zu-chip')).toHaveText(['Zonder uur']);
+    await expect(kop.locator('.zu-chip')).toHaveAttribute('title', 'Service: Zonder uur');
+    // Nog steeds geen blok op de tijdlijn.
     await expect(page.locator('.cal-local-event')).toHaveCount(0);
+    await kop.locator('.zu-chip').click();
+    await expect(detail(page)).toHaveClass(/open/);
+    await expect(detail(page).locator('#ld-titel')).toHaveText('Zonder uur');
   });
 
   test('knop Foto\'s: opent het fotovenster en vraagt de foto\'s op met het afspraak-id als ticketId', async ({ page, verzoeken }) => {

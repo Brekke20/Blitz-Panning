@@ -15,7 +15,7 @@ import { apiJson, apiVerzoek, leesFout } from '../kern/api.js';
 import { localISO } from '../kern/tijd.js';
 import { persoonOfNull } from '../kern/selecties.js';
 import { registreerVenster } from '../venster.js';
-import { groupExceptionsForDisplay } from './beschikbaarheid-logica.js';
+import { groupExceptionsForDisplay, valideerNieuweBlokkering } from './beschikbaarheid-logica.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initBeschikbaarheid); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('beschikbaarheid: initBeschikbaarheid() is niet aangeroepen'); } });
@@ -34,7 +34,7 @@ export function initBeschikbaarheid(afhankelijkheden) {
   });
   registreerWijzigActies(document.body, {
     'av-multiday':       (el) => avSetMultiDay(el.checked),
-    'av-datum':          (el) => { _avFormDate = el.value; },
+    'av-datum':          (el) => { _avVanDatum = el.value; },
     'av-datum-tot':      (el) => { _avFormDateTot = el.value; },
     'bav-multiday':      (el) => bavSetMultiDay(el.checked),
     'bav-datum':         (el) => { _bavFormDate = el.value; },
@@ -121,16 +121,27 @@ async function bewaarAvailability() {
   }
 }
 
-// Hertekent een container en behoudt wat de gebruiker intussen al invulde (op id), zodat een half getypte reden blijft staan.
+// Hertekent een container en behoudt wat de gebruiker intussen al invulde (op id), zodat een half getypte reden blijft staan;
+// ook het veld met focus en (bij tekstvelden) de cursor/selectie komen terug (B14).
+const TEKSTSOORTEN = ['text', 'search', 'tel', 'url', 'password', 'textarea'];
 function hertekenMetBehoudVanInvoer(el, render) {
   const bewaard = new Map();
   el?.querySelectorAll('input[id], textarea[id], select[id]').forEach(v => bewaard.set(v.id, v.type === 'checkbox' || v.type === 'radio' ? v.checked : v.value));
+  const actief = el && document.activeElement && el.contains(document.activeElement) && document.activeElement.id ? document.activeElement : null;
+  const focus = actief ? { id: actief.id, selectie: TEKSTSOORTEN.includes(actief.type) ? [actief.selectionStart, actief.selectionEnd, actief.selectionDirection] : null } : null;
   render();
   bewaard.forEach((waarde, id) => {
     const v = el.querySelector('#' + CSS.escape(id));
     if (!v) return;
     if (typeof waarde === 'boolean') v.checked = waarde; else if (v.value !== waarde) v.value = waarde;
   });
+  if (focus) {
+    const v = el.querySelector('#' + CSS.escape(focus.id));
+    if (v) {
+      v.focus({ preventScroll: true });
+      if (focus.selectie) { try { v.setSelectionRange(...focus.selectie); } catch { /* geen selectie voor dit veldtype */ } }
+    }
+  }
 }
 
 async function resyncNaOnzeker() {
@@ -145,12 +156,14 @@ async function resyncNaOnzeker() {
 // Status: welke knop actief is in het formulier
 let _avFormKind     = 'fullday'; // 'fullday' | 'range'
 let _avFormScope    = 'person';  // 'person'  | 'global'
-let _avFormDate     = null;
+let _avFormDate     = null;      // de getoonde dag van het venster (titel en lijst "Bestaande blokkeringen")
+let _avVanDatum     = null;      // het veld "Van datum" bij meerdere werkdagen (B9: wijzigt de getoonde dag niet)
 let _avFormDateTot  = null;      // einde datumrange (alleen bij fullday + meerdere dagen)
 let _avFormMultiDay = false;     // true = verlof over meerdere werkdagen
 
 export function openBlockModal(dateStr) {
   _avFormDate     = dateStr;
+  _avVanDatum     = dateStr;
   _avFormDateTot  = null;
   _avFormMultiDay = false;
   _avFormKind     = 'fullday';
@@ -222,7 +235,7 @@ function renderBlockModal() {
         ${_avFormMultiDay ? `
         <div class="av-time-row" style="gap:8px;margin-top:8px">
           <span style="font-size:0.8rem;color:var(--muted)">Van</span>
-          <input type="date" class="av-time-input" id="av-date-van" aria-label="Van datum" value="${_avFormDate}" data-wijzig="av-datum" />
+          <input type="date" class="av-time-input" id="av-date-van" aria-label="Van datum" value="${_avVanDatum || ''}" data-wijzig="av-datum" />
           <span style="font-size:0.8rem;color:var(--muted)">Tot</span>
           <input type="date" class="av-time-input" id="av-date-tot" aria-label="Tot datum" value="${_avFormDateTot || ''}" data-wijzig="av-datum-tot" />
         </div>` : ''}
@@ -257,6 +270,7 @@ function renderBlockModal() {
 function avSetKind(kind) {
   _avFormKind = kind;
   if (kind !== 'fullday') _avFormMultiDay = false; // multiday alleen bij fullday
+  if (!_avFormMultiDay) _avVanDatum = _avFormDate;
   renderBlockModal();
 }
 
@@ -267,7 +281,7 @@ function avSetScope(scope) {
 
 function avSetMultiDay(checked) {
   _avFormMultiDay = checked;
-  if (!checked) _avFormDateTot = null;
+  if (!checked) { _avFormDateTot = null; _avVanDatum = _avFormDate; }
   renderBlockModal();
 }
 
@@ -278,19 +292,14 @@ async function avAddException() {
   const to       = _avFormKind === 'range' ? (document.getElementById('av-tot')?.value || toestand.get('settings').totTijd) : null;
   const reason   = document.getElementById('av-reden')?.value?.trim() || '';
 
-  if (_avFormKind === 'range' && from >= to) {
-    toast('⚠ Eindtijd moet na begintijd liggen', 2500);
-    return;
-  }
+  const periode = _avFormKind === 'fullday' && _avFormMultiDay;
+  const check = valideerNieuweBlokkering({ kind: _avFormKind, meerdaags: _avFormMultiDay, datum: periode ? _avVanDatum : _avFormDate, datumTot: _avFormDateTot, van: from, tot: to });
+  if (!check.ok) { toast(check.melding, 2500); return; }
 
-  // Meerdere werkdagen (verlof-range)
-  if (_avFormKind === 'fullday' && _avFormMultiDay && _avFormDateTot) {
-    const vanDate = new Date(_avFormDate   + 'T12:00:00');
+  // Meerdere werkdagen (verlof-range): begint bij "Van datum", niet bij de getoonde dag
+  if (periode) {
+    const vanDate = new Date(_avVanDatum   + 'T12:00:00');
     const totDate = new Date(_avFormDateTot + 'T12:00:00');
-    if (totDate < vanDate) {
-      toast('⚠ Einddatum moet na startdatum liggen', 2500);
-      return;
-    }
     const newExceptions = [];
     const cur = new Date(vanDate);
     while (cur <= totDate) {
@@ -317,6 +326,7 @@ async function avAddException() {
     toestand.raak('avExceptions'); // in-place push
     _avFormMultiDay = false;
     _avFormDateTot  = null;
+    _avVanDatum     = _avFormDate;
     renderBlockModal();
     const ok = await saveAvailability();
     if (!ok) {
@@ -532,18 +542,12 @@ async function avAddExceptionFromSettings() {
   const to       = _bavFormKind === 'range' ? (document.getElementById('bav-tot')?.value || toestand.get('settings').totTijd) : null;
   const reason   = document.getElementById('bav-reden')?.value?.trim() || '';
 
-  if (_bavFormKind === 'range' && from >= to) {
-    toast('⚠ Eindtijd moet na begintijd liggen', 2500);
-    return;
-  }
+  const check = valideerNieuweBlokkering({ kind: _bavFormKind, meerdaags: _bavFormMultiDay, datum: _bavFormDate, datumTot: _bavFormDateTot, van: from, tot: to });
+  if (!check.ok) { toast(check.melding, 2500); return; }
 
-  if (_bavFormKind === 'fullday' && _bavFormMultiDay && _bavFormDateTot) {
+  if (_bavFormKind === 'fullday' && _bavFormMultiDay) {
     const vanDate = new Date(_bavFormDate    + 'T12:00:00');
     const totDate = new Date(_bavFormDateTot + 'T12:00:00');
-    if (totDate < vanDate) {
-      toast('⚠ Einddatum moet na startdatum liggen', 2500);
-      return;
-    }
     const newExceptions = [];
     const cur = new Date(vanDate);
     while (cur <= totDate) {

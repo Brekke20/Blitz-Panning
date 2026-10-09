@@ -1,8 +1,9 @@
 process.env.TZ = 'Europe/Brussels';
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { bouwDagItems, volgendeBeschikbareDag, capaciteitsKop } from '../public/js/schermen/capaciteit.js';
+import { bouwDagItems, volgendeBeschikbareDag, capaciteitsKop, initCapaciteit, eersteVrijUur } from '../public/js/schermen/capaciteit.js';
 import { plaatsNieuw, extraPlaatsen } from '../public/js/planner-tijdlijn.js';
+import { toestand } from '../public/js/kern/toestand.js';
 
 // Brent-besluit (proefperiode): het aantalmodel (capaciteitVoorDag/blokkeerMinuten, slots tellen) is vervangen door de
 // plaatsingsregel uit planner-tijdlijn.js. De oude tests van die functies zijn bewust vervangen; de regel zelf staat in
@@ -98,4 +99,60 @@ test('capaciteitsKop: 3/3 is vol', () => {
 
 test('capaciteitsKop: 0/0 is vol', () => {
   assert.deepEqual(capaciteitsKop({ aantal: 0, cap: 0, duurMinuten: 120, travelMin: 30 }), { label: '0/0 stops · ±0u', vol: true });
+});
+
+// ── eersteVrijUur (B16): toestandslezer, vaste toekomstdatum zodat de klok van nu geen rol speelt ──
+const DAG = '2030-03-12'; // dinsdag, geen feestdag
+function zaaiToestand({ planning = {}, avExceptions = [], localEvents = [] } = {}) {
+  toestand.set('settings', { vanTijd: '08:00', laatsteStart: '16:00', duurMinuten: 120, maxPerDag: 4, werkdagen: [1, 2, 3, 4, 5] });
+  toestand.set('activeAssigneeFilter', 'all');
+  toestand.set('planning', planning);
+  toestand.set('avExceptions', avExceptions);
+  toestand.set('localEvents', localEvents);
+  initCapaciteit({ duurVoor: () => 120, werktijdMin: werk, kbPreferredTime: () => null });
+}
+const stop = (id, uur) => ({ ticket: { id, assignee: 'Tim' }, address: 'x', uur });
+
+test('eersteVrijUur(datum): lege dag geeft vanTijd + reistijd', () => {
+  zaaiToestand();
+  assert.equal(eersteVrijUur(DAG, 'x'), '08:30');
+});
+
+test('eersteVrijUur(datum): afrondend naar het volgende kwartier', () => {
+  // Stop 08:00-10:00 (duur 120): nieuw kan pas na het einde: 10:00 + 30 min reistijd = 10:30; stop 08:20 geeft 10:20 + 30 = 10:50 -> 11:00.
+  zaaiToestand({ planning: { [DAG]: [stop('a', '08:20')] } });
+  assert.equal(eersteVrijUur(DAG, 'x'), '11:00');
+});
+
+test('eersteVrijUur(datum): ook na de laatste starttijd (volle dag) wordt een uur voorgesteld', () => {
+  zaaiToestand({ planning: { [DAG]: [stop('a', '08:30'), stop('b', '11:00'), stop('c', '13:30'), stop('d', '16:00')] } });
+  const uur = eersteVrijUur(DAG, 'x');
+  assert.match(uur, /^\d\d:\d\d$/);
+  assert.ok(uur > '16:00', uur);
+});
+
+test('eersteVrijUur(datum): null bij feestdag/hele-dag-blokkering', () => {
+  zaaiToestand();
+  assert.equal(eersteVrijUur('2030-05-01', 'x'), null); // Dag van de Arbeid
+  zaaiToestand({ avExceptions: [{ id: 'b', scope: 'global', person: null, date: DAG, kind: 'fullday', from: null, to: null, reason: '' }] });
+  assert.equal(eersteVrijUur(DAG, 'x'), null);
+});
+
+test('eersteVrijUur(datum): vandaag niet vóór de klok van nu en gelijk aan "+" (10:12 geeft 10:15, geen reistijd erbovenop)', () => {
+  mock.timers.enable({ apis: ['Date'], now: new Date(2030, 2, 12, 10, 12).getTime() });
+  try {
+    zaaiToestand();
+    assert.equal(eersteVrijUur(DAG, 'x'), '10:15');
+    assert.equal(eersteVrijUur('2030-03-13', 'x'), '08:30'); // een andere dag: de klok speelt geen rol
+  } finally { mock.timers.reset(); }
+});
+
+test('eersteVrijUur(datum): nooit voorbij het einde van de dag (geen wrap naar 00:xx): dan null en blijft de terugval van de aanroeper', () => {
+  zaaiToestand({ avExceptions: [{ id: 'b', scope: 'global', person: null, date: DAG, kind: 'range', from: '08:00', to: '23:50', reason: '' }] });
+  assert.equal(eersteVrijUur(DAG, 'x'), null);
+});
+
+test('eersteVrijUur(datum): na een blokkering tot 18:00 wordt 18:30 voorgesteld (na de laatste starttijd, toch binnen dezelfde dag)', () => {
+  zaaiToestand({ avExceptions: [{ id: 'b', scope: 'global', person: null, date: DAG, kind: 'range', from: '08:00', to: '18:00', reason: '' }] });
+  assert.equal(eersteVrijUur(DAG, 'x'), '18:30');
 });

@@ -664,7 +664,7 @@ test.describe('verbinding: resync is betrouwbaar (fix-ronde 1)', () => {
     expect(redenen).toEqual(['Cursus', 'Verlof']); // het late antwoord is weggegooid
   });
 
-  test('beschikbaarheid: de herlading wist een half getypte reden in het blokkeringsvenster niet', async ({ page, verzoeken }) => {
+  test('beschikbaarheid: de herlading wist een half getypte reden in het blokkeringsvenster niet en laat de cursor staan', async ({ page, verzoeken }) => {
     verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/availability']);
     verwachtNetwerkFout(verzoeken, [{ pad: '/api/availability', methode: 'PUT' }]);
     verwachtConsoleFout(verzoeken, [{ tekst: /^Beschikbaarheid opslaan mislukt: TypeError\b/ }]);
@@ -684,8 +684,43 @@ test.describe('verbinding: resync is betrouwbaar (fix-ronde 1)', () => {
     await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
     await expect(toastTekst(page)).toContainText('Opslaan is niet gelukt');
     await modal.getByLabel('Reden').fill('Half getypt'); // de gebruiker typt al verder
+    await modal.locator('#av-reden').evaluate(el => el.setSelectionRange(3, 3)); // cursor midden in het woord
     await page.clock.runFor(1);
     await expect(modal.getByText('🔒 Hele dag — Verlof')).toBeVisible(); // de herlading is gebeurd
     await expect(modal.getByLabel('Reden')).toHaveValue('Half getypt');
+    // B14: de herlading zet de focus en de cursor terug.
+    await expect(modal.getByLabel('Reden')).toBeFocused();
+    expect(await modal.locator('#av-reden').evaluate(el => [el.selectionStart, el.selectionEnd])).toEqual([3, 3]);
+  });
+
+  test('beschikbaarheid: de herlading wist een half getypte reden in het tabblad Beschikbaarheden niet en laat de cursor staan', async ({ page, verzoeken }) => {
+    verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/availability']);
+    verwachtNetwerkFout(verzoeken, [{ pad: '/api/availability', methode: 'PUT' }]);
+    verwachtConsoleFout(verzoeken, [{ tekst: /^Beschikbaarheid opslaan mislukt: TypeError\b/ }]);
+    let stand = { versie: 0, exceptions: [] };
+    const availability = ({ methode, body }) => {
+      if (methode !== 'PUT') return { status: 200, json: stand };
+      stand = { versie: stand.versie + 1, exceptions: body.exceptions };
+      return { afbreken: 'failed' };
+    };
+    const z = zohoStubs();
+    await startAppProductie(page, { technieker: 'Tim', overschrijf: { ...z.overschrijf, availability } });
+    await openKalender(page);
+    await pauzeerKlok(page);
+    await page.getByRole('button', { name: 'Instellingen', exact: true }).click();
+    const modal = page.getByRole('dialog', { name: '⚙️ Instellingen' });
+    await modal.getByRole('button', { name: 'Beschikbaarheden', exact: true }).click();
+    await expect(modal.locator('#set-tab-beschikbaarheden')).toBeVisible();
+    await modal.getByLabel('Reden').fill('Verlof');
+    await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect(toastTekst(page)).toContainText('Opslaan is niet gelukt');
+    await modal.getByLabel('Reden').fill('Half getypt'); // de gebruiker typt al verder
+    await modal.locator('#bav-reden').evaluate(el => el.setSelectionRange(3, 3)); // cursor midden in het woord
+    await page.clock.runFor(1);
+    await expect(modal.locator('#set-tab-beschikbaarheden .av-item', { hasText: 'Verlof' })).toBeVisible(); // de herlading is gebeurd
+    await expect(modal.getByLabel('Reden')).toHaveValue('Half getypt');
+    // B14: de herlading zet de focus en de cursor terug.
+    await expect(modal.getByLabel('Reden')).toBeFocused();
+    expect(await modal.locator('#bav-reden').evaluate(el => [el.selectionStart, el.selectionEnd])).toEqual([3, 3]);
   });
 });
