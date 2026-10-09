@@ -345,6 +345,11 @@
       <button class="set-subtab" id="set-subtab-toestel" data-actie="set-tab" data-arg="toestel">Dit toestel</button>
     </div>
     <div class="mbody" id="set-tab-algemeen">
+      <!-- Enkel voor de beheerder: de werkinstellingen per persoon bewerkt hij op één plek, in Beheer → Instellingen. -->
+      <div class="set-hint" id="set-beheer-hint" hidden>
+        <div>Deze werkinstellingen per persoon zijn hier alleen-lezen. Aanpassen doe je op één plek: in Beheer.</div>
+        <button type="button" class="btn btn--secondary" data-actie="set-naar-beheer">Aanpassen in Beheer → Instellingen</button>
+      </div>
       <div class="set-field">
         <label class="set-label" for="set-start">Startlocatie</label>
         <input class="set-input" id="set-start" type="text" placeholder="bv. Heirbaan 9, 9150 Kruibeke" />
@@ -362,7 +367,7 @@
         <input class="set-input" id="set-maxreistijd" type="number" min="0" max="240" step="5" />
       </div>
       <div class="set-field">
-        <label class="set-label" for="set-laatste-start">Laatste start (geldt voor iedereen)</label>
+        <label class="set-label" for="set-laatste-start">Laatste start (geldt voor al je planning, voor alle technici)</label>
         <input class="set-input" id="set-laatste-start" type="time" />
       </div>
       <div class="set-field">

@@ -11,7 +11,7 @@ import { registreerBeheerTab, beheerVerzoek, beheerFoutTekst, h } from './beheer
 import { toast } from '../kern/ui.js';
 import { toestand } from '../kern/toestand.js';
 import { huidigeGebruiker } from '../kern/sessie.js';
-import { neemEigenOver } from '../kern/instellingen-sync.js';
+import { neemEigenOver, neemPersoonOver } from '../kern/instellingen-sync.js';
 import { valideerVelden } from '../kern/instellingen-regels.js';
 import { DEFAULT_SETTINGS, DAGEN, loadPersonSettings } from './instellingen.js';
 import { valideerInstellingen } from './instellingen-logica.js';
@@ -77,7 +77,7 @@ async function render(container) {
   }
 
   function vul(gebruiker, bewaard) {
-    huidig = { id: gebruiker.id, naam: gebruiker.naam, rol: gebruiker.rol, bewaard };
+    huidig = { id: gebruiker.id, naam: gebruiker.naam, rol: gebruiker.rol, zohoNaam: gebruiker.zohoNaam, bewaard };
     const s = { ...DEFAULT_SETTINGS, ...(bewaard ?? {}) };
     start.value = s.startlocatie || DEFAULT_SETTINGS.startlocatie;
     duur.value = String(s.duurMinuten);
@@ -117,6 +117,14 @@ async function render(container) {
   // Bewaarde de beheerder zijn EIGEN instellingen: lokale kopie en actieve instellingen volgen de server (zie kopregel).
   function volgEigenOp(doel, instellingen) {
     const ik = huidigeGebruiker();
+    if (ik && doel.id !== ik.id && doel.rol === 'technieker' && typeof doel.zohoNaam === 'string' && doel.zohoNaam) {
+      // Een technieker: zijn lokale kopie (waaruit het ⚙-venster leest) volgt de server (UI/UX P1-3: één plek om te bewerken).
+      try {
+        neemPersoonOver(doel.zohoNaam, instellingen);
+        if (toestand.get('activeAssigneeFilter') === doel.zohoNaam) toestand.set('settings', loadPersonSettings(doel.zohoNaam));
+      } catch { /* geen opslag: de volgende synchronisatie haalt de serverwaarde op */ }
+      return;
+    }
     if (!ik || doel.id !== ik.id) return;
     try {
       const persoon = neemEigenOver(instellingen, ik);
@@ -175,7 +183,7 @@ async function render(container) {
     veld('Tijd per interventie (minuten)', duur, 'bi-duur'),
     veld('Max interventies per dag', max, 'bi-max'),
     veld('Max. reistijd tussen interventies (minuten)', reistijd, 'bi-reistijd'),
-    veld('Laatste start', laatste, 'bi-laatste'),
+    veld('Laatste start (voor de planning die deze gebruiker zelf maakt)', laatste, 'bi-laatste'),
     h('div', { class: 'set-field' }, h('label', { class: 'set-label', for: 'bi-van', text: 'Werkuren' }),
       h('div', { class: 'set-row' }, van, h('span', { class: 'bi-tot', text: 'tot' }), tot)),
     veld('Tijdslot-grootte voor klant/technieker (minuten)', tijdslot, 'bi-tijdslot'),

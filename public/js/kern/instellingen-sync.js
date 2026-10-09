@@ -117,6 +117,15 @@ export function neemEigenOver(instellingen, gebruiker, { opslag = globalThis.loc
   return persoon;
 }
 
+// De beheerder bewaarde via de beheerpagina de instellingen van een TECHNIEKER: de lokale cache van die persoon volgt, anders schrijft een
+// latere savePersonSettings (bv. routekleur in het toestelvenster) de oude set terug. De globale laatsteStart blijft buiten beeld.
+export function neemPersoonOver(persoon, instellingen, { opslag = globalThis.localStorage } = {}) {
+  const kopie = JSON.parse(JSON.stringify(instellingen ?? {}));
+  delete kopie.laatsteStart;
+  schrijfTekst(opslag, settingsKey(persoon), JSON.stringify(kopie));
+  zetVuil(opslag, persoon, false);
+}
+
 // Het instellingen-object dat omhoog gaat: een kopie; bij de eigen persoon met de globale laatsteStart (blitz_laatste_start),
 // bij een ander zonder (het is een instelling van het toestel, niet van die persoon).
 function lichaamVoor(persoon, instellingen, gebruiker, opslag) {

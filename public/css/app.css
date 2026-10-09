@@ -947,6 +947,9 @@
     .set-subtab.active { color:var(--accent-ink); border-bottom-color:var(--accent); }
     .set-subtab:hover { color:var(--text); }
     .set-field { margin-bottom: 15px; }
+    .set-hint { margin-bottom: 15px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface2); font-size: 0.83rem; color: var(--text2); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+    .set-hint[hidden] { display: none; }
+    .set-input:disabled, .day-btn:disabled { opacity: 0.65; cursor: not-allowed; }
     .set-label { font-size: var(--fs-2xs); font-weight: 500; color: var(--muted); margin-bottom: 6px; display: block; }
     .set-input {
       width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text);
