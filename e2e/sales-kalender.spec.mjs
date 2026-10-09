@@ -120,6 +120,22 @@ test.describe('sales: kalender — acties op een bezoek', () => {
     await expect(dag(page, '2026-10-06').locator('.tl-block.sales-bevestigd')).toContainText('13:00');
   });
 
+  // Vereist sales-resultaat.js (Task 15, tak refactor-sales): de actie laadt dat venster lazy.
+  test('Resultaat: na "Verkocht" verdwijnt het bezoek uit de agenda en staat de lead niet meer in Te plannen', async ({ page, verzoeken }) => {
+    await startSalesApp(page, zaaien());
+    await naarKalender(page);
+    await dag(page, '2026-10-07').locator('.tl-block.sales-bevestigd').click();
+    await venster(page).getByRole('button', { name: 'Resultaat', exact: true }).click();
+    await expect(venster(page)).toContainText('Resultaat — Test Peeters');
+    await venster(page).getByLabel('Notitie').fill('Wil een offerte voor de zomer');
+    await venster(page).getByRole('button', { name: 'Verkocht', exact: true }).click();
+    await expect(venster(page)).toHaveCount(0);
+    await expect(dag(page, '2026-10-07').locator('.tl-block')).toHaveCount(0);
+    expect(verzoeken.van('/api/sales', 'PATCH')).toHaveLength(1);
+    await tab(page, 'Te plannen').click();
+    await expect(page.locator('#view-sales-lijst .sales-kaart', { hasText: 'Test Peeters' })).toHaveCount(0);
+  });
+
   test('Terug naar te plannen: het bezoek verdwijnt uit de agenda en de lead staat in Te plannen', async ({ page, verzoeken }) => {
     await startSalesApp(page, zaaien());
     await naarKalender(page);
