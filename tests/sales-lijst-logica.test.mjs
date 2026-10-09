@@ -92,6 +92,12 @@ test('kaartInfo: vastUur enkel bij een vast bezoek (bevestigd of vastgezet)', ()
   assert.equal(kaartInfo(voorgesteld).vastUur, null);
 });
 
+test('kaartInfo: zelfToegevoegd enkel bij een manueel toegevoegde lead (bronExport.bron)', () => {
+  assert.equal(kaartInfo(lead('a', { bronExport: { verantwoordelijke: null, geexporteerdOp: null, bron: 'manueel' } })).zelfToegevoegd, true);
+  assert.equal(kaartInfo(lead('b', { bronExport: { verantwoordelijke: 'Test Verkoper', geexporteerdOp: null } })).zelfToegevoegd, false);
+  assert.equal(kaartInfo(lead('c')).zelfToegevoegd, false);
+});
+
 test('kaartInfo: eerderVerwijderd is waar bij { op }, anders onwaar', () => {
   assert.equal(kaartInfo(lead('a', { eerderVerwijderd: { op: '2026-09-01T10:00:00.000Z' } })).eerderVerwijderd, true);
   assert.equal(kaartInfo(lead('b')).eerderVerwijderd, false);

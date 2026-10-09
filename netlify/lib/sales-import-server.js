@@ -7,6 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { leesExport } from '../../public/js/sales/import.js';
+import { MANUEEL, controleerManueleExport } from '../../public/js/sales/manueel.js';
 import { voegSamen } from '../../public/js/sales/herkenning.js';
 import { muteerSales } from './sales-opslag.js';
 import { bewaarLocaties, telOpen } from './sales-locaties-bewaren.js';
@@ -46,6 +47,11 @@ export async function importeerExport({
 }) {
   if (!isObject(body) || !isObject(body.export)) return { status: 400, json: { error: 'Geen geldig exportbestand' } };
   if (heeftProtoSleutel(body.export)) return { status: 400, json: { error: 'Geen geldig exportbestand' } };
+  // Een manueel toegevoegde lead (bron 'manueel'): de server dwingt het minimum zelf af (naam, gsm of e-mail, postcode).
+  if (body.export.bron === MANUEEL) {
+    const controle = controleerManueleExport(body.export);
+    if (controle) return { status: 400, json: { error: controle.fout } };
+  }
   const gelezen = leesExport(body.export);
   if (!gelezen.ok) return { status: 400, json: { error: gelezen.fout } };
 
@@ -53,7 +59,8 @@ export async function importeerExport({
   const sleutel = typeof geheim === 'function' ? geheim() : geheim;
   const hash = typeof sleutel === 'string' && sleutel !== '' ? hashVoor(doelId, sleutel) : null; // zonder geheim: geen grafsteen-herkenning
   const moment = new Date(tijd(nu)).toISOString();
-  const bronExport = { verantwoordelijke: gelezen.verantwoordelijke, geexporteerdOp: gelezen.geexporteerdOp };
+  const manueel = gelezen.bron === MANUEEL;
+  const bronExport = { verantwoordelijke: gelezen.verantwoordelijke, geexporteerdOp: gelezen.geexporteerdOp, ...(manueel ? { bron: MANUEEL } : {}) };
 
   let samenvatting = null; // opnieuw gezet bij elke aanroep van de callback (ook bij een herhaling door wijzigBlob)
   const uitkomst = await muteerSales(store, doelId, {
@@ -74,7 +81,7 @@ export async function importeerExport({
   if (l.status === 'ok') { data = l.data; open = l.open; }
 
   const { nieuw, alAanwezig, adresNakijken, eerderVerwijderd } = samenvatting;
-  await log({ actie: 'sales-import', details: { nieuw, alAanwezig, adresNakijken, eerderVerwijderd } });
+  await log({ actie: 'sales-import', details: { nieuw, alAanwezig, adresNakijken, eerderVerwijderd, ...(manueel ? { bron: MANUEEL } : {}) } });
   return {
     status: 200,
     json: {

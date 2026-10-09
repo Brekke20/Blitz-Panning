@@ -9,6 +9,7 @@ import { startScherm } from './sales-schil.js';
 import { salesToestand, onSalesWijziging, importeer, vulLocatiesAan, verwijderMetOngedaan, spoelUitgesteld } from './sales-data.js';
 import { kanImporteren, getoondeVerkoper, schrijfbaarNu } from './sales-verkoper.js';
 import { openLeadDetail } from './sales-detail.js';
+import { openLeadToevoegen } from './sales-lead-toevoegen.js';
 import { filterLeads, postcodegebieden, groepeerLijst, kaartInfo, samenvattingTekst, exportTekst, andereVerantwoordelijke } from './sales-lijst-logica.js';
 import { naamVan, foutTekst } from './sales-tekst.js';
 import { el } from './sales-dom.js';
@@ -49,6 +50,7 @@ function maakKaart(lead, kanWissen) {
   if (info.plaats) kaart.append(el('div', { class: 'sales-kaart-plaats', text: info.plaats }));
   const chips = el('div', { class: 'sales-kaart-chips' }, el('span', { class: 'sales-chip', text: info.adresLabel }));
   if (info.vastUur) chips.append(el('span', { class: 'sales-chip sales-chip-vast', text: info.vastUur }));
+  if (info.zelfToegevoegd) chips.append(el('span', { class: 'sales-chip sales-chip-manueel', text: 'zelf toegevoegd' }));
   if (info.eerderVerwijderd) chips.append(el('span', { class: 'sales-chip sales-chip-eerder', text: 'eerder verwijderd' }));
   kaart.append(chips);
   if (info.telHref || info.mailHref) {
@@ -72,6 +74,7 @@ function bouwWortel(inhoud) {
   zorgVoorHaken();
   const bestand = el('input', { type: 'file', accept: '.json,application/json', class: 'sales-bestand', hidden: true, 'aria-label': 'Exportbestand (.json)' });
   const exportKnop = el('button', { type: 'button', class: 'btn btn--primary', 'data-actie': 'sales-export-laden', text: 'Export laden' });
+  const leadKnop = el('button', { type: 'button', class: 'btn btn--secondary', 'data-actie': 'sales-lead-toevoegen', text: '+ Lead' });
   const acties = el('div', { class: 'sales-lijst-acties' });
   const melding = el('div', { class: 'sales-melding', hidden: true });
   const zoek = el('input', { type: 'search', class: 'sales-zoek', 'aria-label': 'Zoeken', placeholder: 'Zoek op naam of gemeente', autocomplete: 'off' });
@@ -93,7 +96,7 @@ function bouwWortel(inhoud) {
     const open = st.leads.filter(l => l.status !== 'afgewerkt' && !st.uitgesteld.has(l.id));
     const kanWissen = schrijfbaarNu();
     if (open.length === 0) {
-      kaarten.replaceChildren(el('p', { class: 'sales-leeg', text: kanImporteren() ? 'Nog geen leads. Laad een export.' : 'Nog geen leads.' }));
+      kaarten.replaceChildren(el('p', { class: 'sales-leeg', text: kanImporteren() ? 'Nog geen leads. Laad een export of voeg zelf een lead toe.' : 'Nog geen leads.' }));
       return;
     }
     const zichtbaar = filterLeads(open, filter);
@@ -109,7 +112,9 @@ function bouwWortel(inhoud) {
     const st = salesToestand();
     const open = st.leads.filter(l => l.status !== 'afgewerkt' && !st.uitgesteld.has(l.id));
     const mag = kanImporteren();
-    acties.replaceChildren(...(mag ? [exportKnop, bestand] : [])); // de beheerder en de weergave van een andere verkoper: geen import
+    // De beheerder en de weergave van een andere verkoper: geen import en geen "+ Lead" (de server weigert het ook). Enkel aanpassen bij een
+    // wijziging, zodat een knop met focus niet telkens uit de DOM gehaald wordt.
+    if ((acties.childElementCount > 0) !== mag) acties.replaceChildren(...(mag ? [exportKnop, leadKnop, bestand] : []));
     // Het postcodegebied: de keuze blijft, tenzij dat gebied er niet meer is.
     const gebieden = postcodegebieden(open);
     if (filter.gebied && !gebieden.some(g => g.gebied === filter.gebied)) filter.gebied = '';
@@ -174,6 +179,7 @@ function bouwWortel(inhoud) {
 
   registreerActies(inhoud, {
     'sales-export-laden': () => bestand.click(),
+    'sales-lead-toevoegen': () => { openLeadToevoegen({ terugFocus: () => leadKnop.focus() }); },
     'sales-verwijder': (_knop, _e, id) => { vraagVerwijder(id); },
     'sales-ongedaan': (knop, _e, id) => {
       // Enkel de bewaarde handle gebruiken: verwijderMetOngedaan opnieuw aanroepen zou een NIEUWE verwijdering starten.

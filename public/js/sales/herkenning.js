@@ -26,7 +26,7 @@ const leeg = (x) => x == null || String(x).trim() === '';
  * Wat de verkoper zelf toevoegde of corrigeerde blijft: een afwijkende postcode of bestaande adrestekst wordt nooit overschreven.
  */
 function werkBij(bestaande, nieuw) {
-  for (const veld of ['voornaam', 'naam', 'email']) {
+  for (const veld of ['voornaam', 'naam', 'email', 'notitie']) {
     if (leeg(bestaande[veld]) && !leeg(nieuw[veld])) bestaande[veld] = nieuw[veld];
   }
   // Een placeholder-gsm (zoals +32000000) telt als leeg, zodat een echt nummer uit een latere export het invult.
@@ -46,7 +46,12 @@ function nieuweLead(n, { nu, nieuwId, bronExport }) {
     id: nieuwId(), voornaam: n.voornaam ?? null, naam: n.naam ?? null, gsm: n.gsm ?? null, email: n.email ?? null,
     postcode: n.postcode ?? null, gemeente: n.gemeente ?? null, straat: n.straat ?? null, huisnr: n.huisnr ?? null,
     adresTekst: n.adresTekst ?? null, locatie: null, status: 'te-plannen', bezoeken: [],
-    geimporteerdOp: nu, bronExport: { verantwoordelijke: bronExport?.verantwoordelijke ?? null, geexporteerdOp: bronExport?.geexporteerdOp ?? null },
+    ...(n.notitie ? { notitie: n.notitie } : {}), // enkel een manueel toegevoegde lead heeft bij het begin een notitie
+    geimporteerdOp: nu,
+    bronExport: {
+      verantwoordelijke: bronExport?.verantwoordelijke ?? null, geexporteerdOp: bronExport?.geexporteerdOp ?? null,
+      ...(bronExport?.bron === 'manueel' ? { bron: 'manueel' } : {}), // label "zelf toegevoegd"
+    },
   };
 }
 

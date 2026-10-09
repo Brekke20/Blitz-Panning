@@ -56,6 +56,7 @@ export function kaartInfo(lead) {
     mailHref: email ? `mailto:${encodeURIComponent(email).replace('%40', '@')}` : null,
     status: lead?.status,
     eerderVerwijderd: Boolean(lead?.eerderVerwijderd?.op), // label "eerder verwijderd": de lead kwam terug via een nieuwe import
+    zelfToegevoegd: lead?.bronExport?.bron === 'manueel',   // label "zelf toegevoegd": de verkoper tikte de lead zelf in ("+ Lead")
   };
 }
 

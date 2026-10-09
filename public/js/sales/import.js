@@ -5,6 +5,7 @@ import { ontleedAdres } from './adres.js';
 export const MAX_LEADS = 500;
 export const MAX_BYTES = 2 * 1024 * 1024;
 const MAX_VELD = 200;
+const MAX_NOTITIE = 1000;
 
 /** E-mail lowercase en getrimd, of null zonder '@'. */
 export function normaliseerEmail(x) {
@@ -39,7 +40,27 @@ function tekstVeld(x) {
   return t === '' ? null : t;
 }
 
-function leesLead(r) {
+// Notitie: vrije tekst tot 1000 tekens (zoals valideerLead).
+function notitieVeld(x) {
+  if (typeof x !== 'string') return null;
+  const t = x.trim().slice(0, MAX_NOTITIE).trim();
+  return t === '' ? null : t;
+}
+
+// Een manueel ingetikte lead (export met bron 'manueel'): de velden staan los in plaats van in één "adres"-tekst.
+// Straat telt enkel samen met huisnummer en postcode; een ongeldige postcode valt weg (de server dwingt het minimum zelf af).
+function leesManueleLead(r, lead) {
+  const postcode = tekstVeld(r.postcode);
+  lead.postcode = postcode && /^\d{4}$/.test(postcode) ? postcode : null;
+  lead.gemeente = tekstVeld(r.gemeente);
+  const straat = tekstVeld(r.straat);
+  const huisnr = tekstVeld(r.huisnr);
+  if (straat && huisnr && lead.postcode) Object.assign(lead, { straat, huisnr });
+  lead.notitie = notitieVeld(r.notitie);
+  return lead;
+}
+
+function leesLead(r, { manueel = false } = {}) {
   if (!r || typeof r !== 'object' || Array.isArray(r)) return null;
   const voornaam = tekstVeld(r.voornaam);
   const naam = tekstVeld(r.naam);
@@ -47,6 +68,7 @@ function leesLead(r) {
   const email = normaliseerEmail(tekstVeld(r.email) ?? '');
   if (!voornaam && !naam && !gsm && !email) return null;
   const lead = { voornaam, naam, gsm, email, postcode: null, gemeente: null, straat: null, huisnr: null, adresTekst: null };
+  if (manueel) return leesManueleLead(r, lead);
   const a = ontleedAdres(tekstVeld(r.adres) ?? '');
   if (a.soort === 'postcode') {
     lead.postcode = a.postcode;
@@ -70,14 +92,16 @@ export function leesExport(invoer) {
     return { ok: false, fout: 'Geen geldige export: "leads" ontbreekt' };
   }
   if (data.leads.length > MAX_LEADS) return { ok: false, fout: 'Maximaal 500 leads per bestand' };
+  const manueel = data.bron === 'manueel';
   const leads = [];
   let overgeslagen = 0;
   for (const r of data.leads) {
-    const lead = leesLead(r);
+    const lead = leesLead(r, { manueel });
     if (lead) leads.push(lead); else overgeslagen++;
   }
   return {
     ok: true,
+    bron: manueel ? 'manueel' : null,
     verantwoordelijke: tekstVeld(data.verantwoordelijke),
     geexporteerdOp: tekstVeld(data.geexporteerdOp),
     statussen: Array.isArray(data.statussen) ? data.statussen.map(tekstVeld).filter(Boolean) : [],

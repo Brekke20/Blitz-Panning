@@ -33,7 +33,7 @@ test.describe('sales: schil en start', () => {
     await expect(tab(page, 'Te plannen')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('#view-sales-lijst')).toHaveClass(/active/);
     await expect(page.locator('#view-tickets')).not.toHaveClass(/active/);
-    await expect(page.locator('#view-sales-lijst')).toContainText('Nog geen leads. Laad een export.');
+    await expect(page.locator('#view-sales-lijst')).toContainText('Nog geen leads. Laad een export of voeg zelf een lead toe.');
     expect(consoleFouten).toEqual([]);
   });
 
@@ -94,7 +94,7 @@ test.describe('sales: opslagstoring', () => {
     await verwachtFout(consoleFouten, '/api/sales', 503);
 
     await view.getByRole('button', { name: 'Opnieuw' }).click();
-    await expect(view).toContainText('Nog geen leads. Laad een export.');
+    await expect(view).toContainText('Nog geen leads. Laad een export of voeg zelf een lead toe.');
     await expect(view.getByRole('button', { name: 'Opnieuw' })).toHaveCount(0);
   });
 });

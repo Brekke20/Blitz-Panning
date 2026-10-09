@@ -438,3 +438,112 @@ test('importeerExport: geeft { status, json } volgens het contract en gebruikt d
   assert.deepEqual(blobVan(echt, 'u-x').leads.map(l => l.id), ['id-1', 'id-2', 'id-3', 'id-4', 'id-5', 'id-6']);
   assert.deepEqual(log, [{ actie: 'sales-import', details: { nieuw: 6, alAanwezig: 0, adresNakijken: 1, eerderVerwijderd: 0 } }]);
 });
+
+// ---------------- een lead manueel toevoegen (Task 14b): bron 'manueel' ----------------
+const manueel = (extra = {}, lead = {}) => ({
+  bron: 'manueel', verantwoordelijke: null, geexporteerdOp: null, aantal: 1, statussen: [],
+  leads: [{ voornaam: 'Greet', naam: 'Peeters', gsm: '0470 11 22 33', email: null, postcode: '3500', gemeente: 'Hasselt', straat: null, huisnr: null, notitie: 'Bel na vijf uur', ...lead }],
+  ...extra,
+});
+
+test('manueel: één lead met het minimum wordt een nieuwe lead met notitie, herkomst "manueel" en een postcode-locatie', async () => {
+  const { h, echt } = opzet();
+  const r = await importeer(h, manueel());
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.samenvatting, { nieuw: 1, alAanwezig: 0, adresNakijken: 0, eerderVerwijderd: 0, overgeslagen: 0 });
+  const [l] = blobVan(echt).leads;
+  assert.equal(l.voornaam, 'Greet');
+  assert.equal(l.notitie, 'Bel na vijf uur');
+  assert.equal(l.status, 'te-plannen');
+  assert.equal(l.postcode, '3500');
+  assert.deepEqual(l.bronExport, { verantwoordelijke: null, geexporteerdOp: null, bron: 'manueel' });
+  assert.equal(l.locatie.bron, 'postcode');
+  assert.match(l.id, UUID);
+});
+
+test('manueel: het minimum wordt ook op de server afgedwongen (400 met een Nederlandse tekst, niets bewaard)', async () => {
+  const { h, echt } = opzet();
+  const gevallen = [
+    [{ voornaam: '', naam: '' }, 'Vul een naam in'],
+    [{ gsm: null, email: null }, 'Vul een gsm-nummer of e-mailadres in'],
+    [{ postcode: null }, 'Postcode bestaat uit 4 cijfers'],
+    [{ postcode: '35' }, 'Postcode bestaat uit 4 cijfers'],
+    [{ gsm: '0470 11', email: null }, 'Dit gsm-nummer lijkt niet te kloppen'],
+    [{ straat: 'Dorpsstraat' }, 'Vul straat én huisnummer in'],
+  ];
+  for (const [lead, tekst] of gevallen) {
+    const r = await importeer(h, manueel({}, lead));
+    assert.equal(r.status, 400, JSON.stringify(lead));
+    assert.equal(r.body.error, tekst);
+  }
+  assert.equal(echt._data.get(`sales/${EIGEN}`), undefined, 'niets bewaard');
+});
+
+test('manueel: precies één lead (nul of meerdere -> 400); een gewone export met een onbekende bron blijft een gewone export', async () => {
+  const { h, echt } = opzet();
+  const leeg = await importeer(h, manueel({ leads: [] }));
+  assert.equal(leeg.status, 400);
+  const twee = manueel();
+  twee.leads.push({ ...twee.leads[0], gsm: '0471 22 33 44' });
+  assert.equal((await importeer(h, twee)).status, 400);
+  assert.equal(echt._data.get(`sales/${EIGEN}`), undefined);
+  const gewoon = await importeer(h, exportBestand({ bron: 'iets-anders' }));
+  assert.equal(gewoon.status, 200);
+  assert.equal(gewoon.body.samenvatting.nieuw, 6);
+});
+
+test('manueel: dezelfde gsm of hetzelfde e-mailadres als een bestaande lead -> al aanwezig, geen dubbele lead', async () => {
+  const { h, echt } = opzet();
+  await importeer(h, manueel());
+  const nogmaals = await importeer(h, manueel({}, { voornaam: 'Greta', gsm: '+32 470 11 22 33', notitie: 'andere notitie' }));
+  assert.equal(nogmaals.status, 200);
+  assert.deepEqual([nogmaals.body.samenvatting.nieuw, nogmaals.body.samenvatting.alAanwezig], [0, 1]);
+  const leads = blobVan(echt).leads;
+  assert.equal(leads.length, 1);
+  assert.equal(leads[0].voornaam, 'Greet'); // wat er al stond blijft
+  assert.equal(leads[0].notitie, 'Bel na vijf uur');
+  // ook een lead uit een gewone export wordt herkend
+  const { h: h2, echt: echt2 } = opzet();
+  await importeer(h2, exportBestand());
+  const r = await importeer(h2, manueel({}, { voornaam: 'Dirk', naam: 'Nagemaakt', gsm: '0499 77 88 99', postcode: '9000', notitie: null }));
+  assert.equal(r.body.samenvatting.alAanwezig, 1);
+  assert.equal(blobVan(echt2).leads.length, 6);
+});
+
+test('manueel: een eerder verwijderde klant komt terug met het label "eerder verwijderd" (grafsteen)', async () => {
+  const { h, hSales, echt } = opzet();
+  await importeer(h, manueel());
+  const [doel] = blobVan(echt).leads;
+  const del = await metRol('sales', async () => lees(await hSales(req('DELETE', { pad: 'sales', zoek: `?lead=${doel.id}` }))));
+  assert.equal(del.status, 200);
+  const terug = await importeer(h, manueel());
+  assert.equal(terug.body.samenvatting.nieuw, 1);
+  assert.equal(terug.body.samenvatting.eerderVerwijderd, 1);
+  const l = blobVan(echt).leads[0];
+  assert.match(l.eerderVerwijderd.op, /^2026-10-08T/);
+  assert.equal(l.bronExport.bron, 'manueel');
+});
+
+test('manueel: het activiteitenlog bevat enkel aantallen en de bron, nooit persoonsgegevens', async () => {
+  const { h, echt } = opzet();
+  await importeer(h, manueel());
+  const items = logItems(echt);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].actie, 'sales-import');
+  assert.deepEqual(JSON.parse(items[0].details), { nieuw: 1, alAanwezig: 0, adresNakijken: 0, eerderVerwijderd: 0, bron: 'manueel' });
+  const heleLog = JSON.stringify(echt._data.get('activiteit/2026-10')).toLowerCase();
+  for (const geheim of ['greet', 'peeters', '470 11', '32470', 'hasselt', 'bel na vijf']) assert.ok(!heleLog.includes(geheim), `"${geheim}" staat in het log`);
+});
+
+test('manueel: een volledig adres wordt gegeocodeerd (adres-locatie); de notitie blijft bij een latere export staan', async () => {
+  const { h, echt } = opzet();
+  await importeer(h, manueel({}, { straat: 'Teststraat', huisnr: '5', postcode: '2830', gemeente: 'Willebroek' }));
+  const l = blobVan(echt).leads[0];
+  assert.equal(l.straat, 'Teststraat');
+  assert.equal(l.locatie.bron, 'adres');
+  // dezelfde persoon (zelfde gsm) in een gewone export: de lead blijft één lead met zijn notitie
+  const r = await importeer(h, exportBestand({ aantal: 1, leads: [{ naam: 'Peeters', voornaam: 'Greet', gsm: '+32 470 11 22 33', adres: '2830 Willebroek' }] }));
+  assert.equal(r.body.samenvatting.alAanwezig, 1);
+  assert.equal(blobVan(echt).leads.length, 1);
+  assert.equal(blobVan(echt).leads[0].notitie, 'Bel na vijf uur');
+});
