@@ -40,6 +40,79 @@ function corsHeaders(req) {
 // De klantbeschikbaarheid van een ticket zonder het tijdstip van de laatste wijziging (om te zien of er echt iets veranderde).
 const zonderTijd = (e) => { if (!e) return undefined; const { bijgewerkt: _b, ...rest } = e; return rest; };
 
+// De opschoning van één entry (null = lege entry: wordt niet bewaard).
+function schoonEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const voorkeur     = (entry.voorkeur && DATE_RE.test(entry.voorkeur)) ? entry.voorkeur : null;
+  const voorkeurTijd = (typeof entry.voorkeurTijd === 'string' && TIME_RE.test(entry.voorkeurTijd)) ? entry.voorkeurTijd : null;
+  const geblokkeerd = [...new Set(
+    (Array.isArray(entry.geblokkeerd) ? entry.geblokkeerd : [])
+      .filter(d => DATE_RE.test(d))
+  )].sort();
+  const notitie = String(entry.notitie || '').slice(0, 500);
+  // duurOverride: positief geheel aantal minuten, anders weglaten. Werd voorheen NOOIT
+  // gepersisteerd (gekend euvel, zie planning-export.js) — vanaf nu wel.
+  // M11 (eindreview v1.4.0): eerst een typeof-guard vóór Number.isInteger() -- Number(x)
+  // coerceert bv. `true` naar 1 en `"120"` naar 120, waardoor een onbedoeld/foutief
+  // getypeerde waarde uit de request-body alsnog als geldige duur werd aanvaard.
+  const duurOverride = (typeof entry.duurOverride === 'number'
+    && Number.isInteger(entry.duurOverride) && entry.duurOverride > 0 && entry.duurOverride <= 1440)
+    ? entry.duurOverride : undefined;
+  // Voorkeur mag niet ook geblokkeerd zijn
+  const voorkeurClean = (voorkeur && geblokkeerd.includes(voorkeur)) ? null : voorkeur;
+  // Sla lege entries niet op
+  if (!voorkeurClean && !voorkeurTijd && !geblokkeerd.length && !notitie && !duurOverride) return null;
+  return {
+    voorkeur:     voorkeurClean,
+    voorkeurTijd,
+    geblokkeerd,
+    notitie,
+    ...(duurOverride ? { duurOverride } : {}),
+    bijgewerkt:   entry.bijgewerkt || new Date().toISOString(),
+  };
+}
+
+// Een technieker met "Mag zelf plannen" wijzigt enkel de klantbeschikbaarheid van zijn eigen tickets. Per ticket waarvan de inhoud
+// verandert of verdwijnt beslist Zoho (eisEigenTicket); bewaard wordt wat hij mag. Een wijziging van een collega (of een niet te
+// toetsen id) wordt GENEGEERD: de huidige entry blijft staan en de rest van zijn bewaring slaagt gewoon (de client ruimt bij elke
+// start verouderde entries van gesloten tickets en collega's op, dat mag zijn bewaring nooit doen mislukken). Een entry van een ticket
+// dat in Zoho niet meer bestaat mag hij enkel laten verdwijnen, nooit wijzigen. Kan Zoho het niet beantwoorden: 503 (er wordt niets bewaard).
+const MAX_TOETSEN = 10; // gewijzigde tickets die per bewaring bij Zoho gecontroleerd worden (wijzigingen eerst, dan verwijderingen)
+const TOETS_PARALLEL = 5;
+async function beperkTotEigen({ gebruiker, zoho, huidigeItems, cleaned }) {
+  const huidigSchoon = {};
+  for (const [id, e] of Object.entries(huidigeItems)) { const sch = schoonEntry(e); if (sch) huidigSchoon[id] = sch; }
+  const gewijzigd = [...new Set([...Object.keys(cleaned), ...Object.keys(huidigSchoon)])]
+    .filter(id => !isDeepStrictEqual(zonderTijd(cleaned[id]), zonderTijd(huidigSchoon[id])));
+  const teToetsen = [...gewijzigd.filter(id => cleaned[id]), ...gewijzigd.filter(id => !cleaned[id])].slice(0, MAX_TOETSEN);
+  const uitslag = new Map(); // id -> 'ja' | 'weg' | 'nee'
+  let storing = null;
+  for (let i = 0; i < teToetsen.length; i += TOETS_PARALLEL) {
+    const groep = teToetsen.slice(i, i + TOETS_PARALLEL);
+    const antwoorden = await Promise.all(groep.map(async (id) => {
+      if (!/^\d+$/.test(id)) return [id, { ok: false, status: 403 }];
+      return [id, await eisEigenTicket({ gebruiker, ticketId: id, zoho })];
+    }));
+    for (const [id, eis] of antwoorden) {
+      if (eis.ok) uitslag.set(id, 'ja');
+      else if (eis.status === 404) uitslag.set(id, 'weg');
+      else if (eis.status === 503) storing = eis;
+      else uitslag.set(id, 'nee');
+    }
+  }
+  if (storing) return { storing };
+  const items = {};
+  const genegeerd = [];
+  for (const id of new Set([...Object.keys(huidigeItems), ...Object.keys(cleaned)])) {
+    if (!gewijzigd.includes(id)) { if (huidigeItems[id]) items[id] = huidigeItems[id]; continue; } // ongewijzigd: de bestaande entry blijft zoals ze is
+    const u = uitslag.get(id);
+    if (u === 'ja' || (u === 'weg' && !cleaned[id])) { if (cleaned[id]) items[id] = cleaned[id]; continue; }
+    if (huidigeItems[id]) items[id] = huidigeItems[id];
+    genegeerd.push(id);
+  }
+  return { items, genegeerd };
+}
+
 // `getStore` en `zoho` zijn testnaden; `auth` vervangt de standaardcontrole van de wrapper.
 export function maakHandler({ getStore: haalStore = getStore, zoho = maakZoho({ tokenFoutMetData: false }), auth } = {}) {
   const kern = async (req, context, gebruiker) => {
@@ -92,55 +165,27 @@ export function maakHandler({ getStore: haalStore = getStore, zoho = maakZoho({ 
       const cleaned = {};
       for (const [ticketId, entry] of Object.entries(items)) {
         if (!ticketId || typeof ticketId !== 'string') continue;
-        const voorkeur     = (entry.voorkeur && DATE_RE.test(entry.voorkeur)) ? entry.voorkeur : null;
-        const voorkeurTijd = (typeof entry.voorkeurTijd === 'string' && TIME_RE.test(entry.voorkeurTijd)) ? entry.voorkeurTijd : null;
-        const geblokkeerd = [...new Set(
-          (Array.isArray(entry.geblokkeerd) ? entry.geblokkeerd : [])
-            .filter(d => DATE_RE.test(d))
-        )].sort();
-        const notitie = String(entry.notitie || '').slice(0, 500);
-        // duurOverride: positief geheel aantal minuten, anders weglaten. Werd voorheen NOOIT
-        // gepersisteerd (gekend euvel, zie planning-export.js) — vanaf nu wel.
-        // M11 (eindreview v1.4.0): eerst een typeof-guard vóór Number.isInteger() -- Number(x)
-        // coerceert bv. `true` naar 1 en `"120"` naar 120, waardoor een onbedoeld/foutief
-        // getypeerde waarde uit de request-body alsnog als geldige duur werd aanvaard.
-        const duurOverride = (typeof entry.duurOverride === 'number'
-          && Number.isInteger(entry.duurOverride) && entry.duurOverride > 0 && entry.duurOverride <= 1440)
-          ? entry.duurOverride : undefined;
-        // Voorkeur mag niet ook geblokkeerd zijn
-        const voorkeurClean = (voorkeur && geblokkeerd.includes(voorkeur)) ? null : voorkeur;
-        // Sla lege entries niet op
-        if (!voorkeurClean && !voorkeurTijd && !geblokkeerd.length && !notitie && !duurOverride) continue;
-        cleaned[ticketId] = {
-          voorkeur:     voorkeurClean,
-          voorkeurTijd,
-          geblokkeerd,
-          notitie,
-          ...(duurOverride ? { duurOverride } : {}),
-          bijgewerkt:   entry.bijgewerkt || new Date().toISOString(),
-        };
+        const schoon = schoonEntry(entry);
+        if (schoon) cleaned[ticketId] = schoon;
       }
 
-      // Een technieker met "Mag zelf plannen" wijzigt enkel de klantbeschikbaarheid van zijn eigen tickets (een testverzoek raakt enkel
-      // de testopslag): elk ticket waarvan de inhoud verandert of verdwijnt moet van hem zijn.
+      // Een technieker met "Mag zelf plannen" (zie beperkTotEigen); een testverzoek raakt enkel de testopslag.
+      let teBewaren = cleaned;
+      let genegeerd = null;
       if (gebruiker?.rol === 'technieker' && !isTestVerzoek(req)) {
         const huidigeItems = current.items && typeof current.items === 'object' ? current.items : {};
-        const gewijzigd = [...new Set([...Object.keys(cleaned), ...Object.keys(huidigeItems)])]
-          .filter(id => !isDeepStrictEqual(zonderTijd(cleaned[id]), zonderTijd(huidigeItems[id])));
-        for (const ticketId of gewijzigd) {
-          const eis = /^\d+$/.test(ticketId)
-            ? await eisEigenTicket({ gebruiker, ticketId, zoho })
-            : { ok: false, status: 403, body: { error: 'Je mag enkel je eigen tickets plannen.', code: 'geen-recht' } };
-          if (!eis.ok) {
-            return new Response(JSON.stringify(eis.body), { status: eis.status, headers: { ...hdrs, 'Content-Type': 'application/json' } });
-          }
+        const r = await beperkTotEigen({ gebruiker, zoho, huidigeItems, cleaned });
+        if (r.storing) {
+          return new Response(JSON.stringify(r.storing.body), { status: r.storing.status, headers: { ...hdrs, 'Content-Type': 'application/json' } });
         }
+        teBewaren = r.items;
+        genegeerd = r.genegeerd;
       }
 
-      const nieuw = { versie: current.versie + 1, bijgewerkt: new Date().toISOString(), items: cleaned };
+      const nieuw = { versie: current.versie + 1, bijgewerkt: new Date().toISOString(), items: teBewaren };
       await store.setJSON(BLOB_KEY, nieuw);
 
-      return new Response(JSON.stringify(nieuw), {
+      return new Response(JSON.stringify(genegeerd && genegeerd.length ? { ...nieuw, genegeerd } : nieuw), {
         status: 200, headers: { ...hdrs, 'Content-Type': 'application/json' },
       });
     }

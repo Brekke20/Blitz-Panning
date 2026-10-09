@@ -73,9 +73,9 @@ test('Zoho-fouten: onbekend ticket 404, een andere fout of netwerkfout 503 zoho-
     assert.equal(r.ok, false, stuk2);
     assert.equal(r.status, 503, stuk2);
   }
-  // de agent is onbekend/onbereikbaar: niet doorlaten
+  // een niet (meer) bestaande agent (404): het ticket is niet van hem (403); een andere fout bij de agent is een storing (503)
   const r = await eisEigenTicket({ gebruiker: tim, ticketId: '11', zoho: nepZoho({ tickets: { 11: { assigneeId: 'A5' } }, agenten: AGENTEN }) });
-  assert.equal(r.status, 503);
+  assert.equal(r.status, 403);
 });
 
 test('een al opgehaald ticket en al gevraagde toegang worden hergebruikt (geen dubbele aanroepen)', async () => {

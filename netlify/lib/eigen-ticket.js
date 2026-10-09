@@ -33,6 +33,7 @@ export async function eisEigenTicket({ gebruiker, ticketId, zoho, toegang, ticke
     const agentId = t?.assigneeId;
     if (typeof agentId !== 'string' && typeof agentId !== 'number') return weiger(403, NIET_EIGEN); // niemand toegewezen: niet van hem
     const res = await zoho.verzoek(`/agents/${encodeURIComponent(agentId)}`, { token, orgId });
+    if (res.status === 404) return weiger(403, NIET_EIGEN); // een niet (meer) bestaande agent: het ticket is niet van hem
     if (!res.ok) return weiger(503, ZOHO_STORING);
     const naam = agentNaam(await res.json().catch(() => null));
     return isEigenNaam(gebruiker, naam) ? { ok: true } : weiger(403, NIET_EIGEN);

@@ -241,36 +241,101 @@ test('voorstel-status: de technieker met het vinkje registreert en wist enkel vo
   assert.equal(calls.length, nPlanner);
 });
 
-test('klantbeschikbaarheid: de technieker met het vinkje wijzigt enkel de gegevens van zijn eigen tickets', async () => {
+const KB = (extra = {}) => ({ voorkeur: '2026-10-20', voorkeurTijd: null, geblokkeerd: [], notitie: 'x', bijgewerkt: '2026-10-01T08:00:00.000Z', ...extra });
+
+async function kbOpzet(beginItems, { stuk } = {}) {
   const { maakHandler } = await laadVers('klantbeschikbaarheid');
-  const store = maakNepStore({ klantbeschikbaarheid: { versie: 4, items: { 12: { voorkeur: '2026-10-20', voorkeurTijd: null, geblokkeerd: [], notitie: 'collega', bijgewerkt: '2026-10-01T08:00:00.000Z' } } } });
-  const { zoho } = nepZoho();
+  const store = maakNepStore({ klantbeschikbaarheid: { versie: 4, items: beginItems } });
+  const { zoho, calls } = nepZoho({ stuk });
   const handler = (rol, extra) => maakHandler({ getStore: () => store, zoho, auth: authVoor(rol, extra) });
   const put = (versie, items, headers = {}) => new Request('http://localhost/api/klantbeschikbaarheid', {
     method: 'PUT', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ versie, items }),
   });
-  const collegaItem = { voorkeur: '2026-10-20', notitie: 'collega', bijgewerkt: '2026-10-01T08:00:00.000Z' };
-  const tim = handler('technieker', TIM);
-  // een nieuw eigen item, het item van de collega ongewijzigd meegestuurd (ook met een ander tijdstip): toegelaten
-  const eigen = await tim(put(4, { 11: { voorkeur: '2026-10-21', notitie: 'mijn klant' }, 12: { ...collegaItem, bijgewerkt: 'ander' } }), {});
+  const bewaard = () => store.get('klantbeschikbaarheid', { type: 'json' });
+  return { handler, put, bewaard, calls };
+}
+
+test('klantbeschikbaarheid: de technieker met het vinkje bewaart zijn eigen tickets; wijzigingen van een collega worden genegeerd, nooit overgenomen', async () => {
+  const k = await kbOpzet({ 12: KB({ notitie: 'collega' }) });
+  const tim = k.handler('technieker', TIM);
+  // nieuw eigen item + het item van de collega ongewijzigd (met een ander tijdstip): bewaard, collega-item onaangeroerd (ook zijn tijdstip)
+  const eigen = await tim(k.put(4, { 11: { voorkeur: '2026-10-21', notitie: 'mijn klant' }, 12: KB({ notitie: 'collega', bijgewerkt: 'ander' }) }), {});
   assert.equal(eigen.status, 200);
-  const opgeslagen = await store.get('klantbeschikbaarheid', { type: 'json' });
-  assert.equal(opgeslagen.versie, 5);
-  assert.equal(opgeslagen.items[11].notitie, 'mijn klant');
-  assert.equal(opgeslagen.items[12].notitie, 'collega');
-  // het item van de collega wijzigen of laten verdwijnen: 403 en niets bewaard
-  const wijzig = await tim(put(5, { 11: { voorkeur: '2026-10-21', notitie: 'mijn klant' }, 12: { ...collegaItem, notitie: 'GEKAAPT' } }), {});
-  assert.equal(wijzig.status, 403);
-  const wis = await tim(put(5, { 11: { voorkeur: '2026-10-21', notitie: 'mijn klant' } }), {});
-  assert.equal(wis.status, 403);
-  const nieuweCollega = await tim(put(5, { 11: { voorkeur: '2026-10-21', notitie: 'mijn klant' }, 12: collegaItem, 13: { notitie: 'x' } }), {});
-  assert.equal(nieuweCollega.status, 403); // 13 heeft niemand toegewezen
-  const nu = await store.get('klantbeschikbaarheid', { type: 'json' });
-  assert.equal(nu.versie, 5);
-  assert.equal(nu.items[12].notitie, 'collega');
-  // zonder vinkje: wrapper 403; lezen mag
-  assert.equal((await handler('technieker', { ...TIM, magZelfPlannen: false })(put(5, {}), {})).status, 403);
-  assert.equal((await handler('technieker', { ...TIM, magZelfPlannen: false })(new Request('http://localhost/api/klantbeschikbaarheid'), {})).status, 200);
-  // planner: alles
-  assert.equal((await handler('planner')(put(5, { 12: { ...collegaItem, notitie: 'door planner' } }), {})).status, 200);
+  const a = await k.bewaard();
+  assert.equal(a.versie, 5);
+  assert.equal(a.items[11].notitie, 'mijn klant');
+  assert.deepEqual(a.items[12], KB({ notitie: 'collega' }));
+  // eigen wijziging + een poging om het item van de collega te wijzigen: de hele bewaring slaagt, enkel zijn eigen deel komt erin
+  const gemengd = await tim(k.put(5, { 11: { voorkeur: '2026-10-22', notitie: 'mijn klant 2' }, 12: KB({ notitie: 'GEKAAPT' }) }), {});
+  assert.equal(gemengd.status, 200);
+  const body = await gemengd.json();
+  assert.deepEqual(body.genegeerd, ['12']);
+  const b = await k.bewaard();
+  assert.equal(b.items[11].notitie, 'mijn klant 2');
+  assert.equal(b.items[12].notitie, 'collega');
+});
+
+test('klantbeschikbaarheid: de opruiming van de client (entries van collegas en gesloten tickets weg) laat zijn bewaring niet mislukken', async () => {
+  // 12 = collega, 99 = ticket dat in Zoho niet meer bestaat, 13 = niemand toegewezen, abc = geen ticket-id
+  const k = await kbOpzet({ 11: KB({ notitie: 'van mij' }), 12: KB({ notitie: 'collega' }), 99: KB({ notitie: 'gesloten' }), 13: KB({ notitie: 'niemand' }), abc: KB({ notitie: 'vreemd' }) });
+  const tim = k.handler('technieker', TIM);
+  const res = await tim(k.put(4, { 11: { voorkeur: '2026-10-25', notitie: 'van mij, nieuw' } }), {}); // 12, 99, 13 en abc verdwenen uit zijn map
+  assert.equal(res.status, 200);
+  const nu = await k.bewaard();
+  assert.equal(nu.items[11].notitie, 'van mij, nieuw');
+  assert.equal(nu.items[12].notitie, 'collega');   // collega: blijft
+  assert.equal(nu.items[13].notitie, 'niemand');   // niemand toegewezen: niet van hem, blijft
+  assert.equal(nu.items.abc.notitie, 'vreemd');    // niet te toetsen: blijft
+  assert.equal(nu.items[99], undefined);           // bestaat in Zoho niet meer: mag verdwijnen
+  assert.deepEqual((await res.json()).genegeerd.sort(), ['12', '13', 'abc']);
+});
+
+test('klantbeschikbaarheid: een entry van een verdwenen ticket mag hij enkel laten verdwijnen, niet wijzigen', async () => {
+  const k = await kbOpzet({ 99: KB({ notitie: 'gesloten' }) });
+  const tim = k.handler('technieker', TIM);
+  const res = await tim(k.put(4, { 99: KB({ notitie: 'GEWIJZIGD' }) }), {});
+  assert.equal(res.status, 200);
+  assert.equal((await k.bewaard()).items[99].notitie, 'gesloten');
+});
+
+test('klantbeschikbaarheid: een oude entry zonder voorkeurTijd (legacy) is geen wijziging: geen toets van andermans ticket en zijn tijdstip blijft', async () => {
+  const k = await kbOpzet({ 12: { voorkeur: '2026-10-20', geblokkeerd: [], notitie: 'oud', bijgewerkt: '2026-01-01T00:00:00.000Z' } });
+  const tim = k.handler('technieker', TIM);
+  const voor = k.calls.length;
+  const res = await tim(k.put(4, { 12: { voorkeur: '2026-10-20', voorkeurTijd: null, geblokkeerd: [], notitie: 'oud' }, 11: { notitie: 'mijn' } }), {});
+  assert.equal(res.status, 200);
+  const nu = await k.bewaard();
+  assert.equal(nu.items[12].bijgewerkt, '2026-01-01T00:00:00.000Z');
+  assert.equal(nu.items[11].notitie, 'mijn');
+  assert.ok(k.calls.length > voor);
+  assert.ok(!k.calls.slice(voor).some(c => c.url.includes('/tickets/12')));
+});
+
+test('klantbeschikbaarheid: Zoho-storing bij het toetsen is 503 zonder iets te bewaren; zonder vinkje 403; planner en testverzoek ongewijzigd', async () => {
+  const k = await kbOpzet({ 12: KB() }, { stuk: true });
+  const storing = await k.handler('technieker', TIM)(k.put(4, { 11: { notitie: 'x' }, 12: KB() }), {});
+  assert.equal(storing.status, 503);
+  assert.equal((await k.bewaard()).versie, 4);
+  const k2 = await kbOpzet({ 12: KB() });
+  assert.equal((await k2.handler('technieker', { ...TIM, magZelfPlannen: false })(k2.put(4, {}), {})).status, 403);
+  assert.equal((await k2.handler('planner')(k2.put(4, { 12: KB({ notitie: 'planner' }) }), {})).status, 200);
+  assert.equal((await k2.bewaard()).items[12].notitie, 'planner');
+  const voor = k2.calls.length;
+  assert.equal((await k2.handler('technieker', TIM)(k2.put(5, { 12: KB({ notitie: 'test' }) }, kopTest), {})).status, 200);
+  assert.equal(k2.calls.length, voor);
+});
+
+test('klantbeschikbaarheid: per bewaring worden hoogstens 10 gewijzigde tickets bij Zoho getoetst (wijzigingen eerst), de rest wordt genegeerd', async () => {
+  const begin = {};
+  for (let i = 100; i < 125; i++) begin[i] = KB({ notitie: 'n' + i });
+  const k = await kbOpzet(begin);
+  const res = await k.handler('technieker', TIM)(k.put(4, { 11: { notitie: 'mijn nieuwe' } }), {}); // 25 verwijderingen + 1 eigen wijziging
+  assert.equal(res.status, 200);
+  const nu = await k.bewaard();
+  assert.equal(nu.items[11].notitie, 'mijn nieuwe');
+  // de eerste 9 verwijderingen (naast de eigen wijziging) werden getoetst: die tickets bestaan in Zoho niet (meer) en verdwenen; de andere 16 bleven ongetoetst staan
+  assert.equal(Object.keys(nu.items).length, 17);
+  assert.equal(nu.items[124].notitie, 'n124');
+  const toetsen = k.calls.filter(c => /\/tickets\/\d+$/.test(c.url));
+  assert.ok(toetsen.length <= 10, String(toetsen.length));
 });
