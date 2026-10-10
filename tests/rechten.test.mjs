@@ -103,8 +103,8 @@ test('matrix: sales en postcode enkel voor beheerder en sales', () => {
   for (const m of ['POST', 'PUT', 'PATCH', 'DELETE']) assert.deepEqual(rollen('postcode', m), [], `postcode ${m}`);
 });
 
-test('matrix: sales-import enkel POST voor de rol sales; sales-opruimen is open', () => {
-  assert.deepEqual(rollen('sales-import', 'POST'), [S]);
+test('matrix: sales-import enkel POST voor beheerder (enkel manuele lead) en sales; sales-opruimen is open', () => {
+  assert.deepEqual(rollen('sales-import', 'POST'), [B, S]);
   for (const m of ['GET', 'PUT', 'PATCH', 'DELETE']) assert.deepEqual(rollen('sales-import', m), [], `sales-import ${m}`);
   for (const m of ['GET', 'POST']) assert.equal(rolIsToegelaten('sales-opruimen', m, B), 'open', `sales-opruimen ${m}`);
 });

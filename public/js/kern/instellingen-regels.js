@@ -7,7 +7,7 @@ export const WERKUREN_STANDAARD = Object.freeze({ vanTijd: '08:00', totTijd: '17
 export const MIN_DUUR = 15;
 export const MIN_MAX_PER_DAG = 1;
 export const MIN_TIJDSLOT = 60;
-export const MIN_BEZOEKDUUR = 5;
+export const MIN_BEZOEKDUUR = 15; // ook de minimale duur van een bezoek bij een lead (sales-wijzig, lead-regels)
 export const MAX_BEZOEKDUUR = 480;
 export const MAX_STARTLOCATIE = 200;
 

@@ -59,6 +59,7 @@ test('schoonInstellingen: weigeringen met Nederlandse tekst', () => {
     ['tijdslotMinuten', 30, 'Tijdslot'],
     ['maxReistijdMin', -1, 'reistijd'],
     ['bezoekDuurMin', 4, 'Bezoek'],
+    ['bezoekDuurMin', 14, 'Bezoek'],
     ['bezoekDuurMin', 481, 'Bezoek'],
   ]) {
     const r = schoonInstellingen({ [veld]: waarde });

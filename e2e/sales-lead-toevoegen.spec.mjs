@@ -1,5 +1,9 @@
 import { test, expect } from './helpers.mjs';
-import { startSalesApp, salesStubs, verwachtFout, BEHEERDER } from './sales-hulp.mjs';
+import { startSalesApp, salesStubs, maakSalesBackend, verwachtFout, BEHEERDER, SALES_GEBRUIKER, ANDERE_VERKOPERS } from './sales-hulp.mjs';
+// Het export-object van "+ Lead" (zelfde vorm als bouwManueelExport in public/js/sales/manueel.js).
+const bouwManueelExport = ({ voornaam, naam, gsm, email, postcode, gemeente, straat, huisnr, notitie }) => ({
+  bron: 'manueel', verantwoordelijke: null, geexporteerdOp: null, aantal: 1, statussen: [], leads: [{ voornaam, naam, gsm, email, postcode, gemeente, straat, huisnr, notitie }],
+});
 
 // Een lead manueel toevoegen (Task 14b): knop "+ Lead", minimum naam + (gsm of e-mail) + postcode, samenvoegen met een latere export.
 // Alle namen, e-mails en nummers zijn verzonnen; de stubs zijn de echte server-handlers (testmodus: nepcoordinaten).
@@ -179,11 +183,79 @@ test.describe('sales: lead manueel toevoegen', () => {
     expect(verzoeken.van('/api/sales-import')).toEqual([]);
   });
 
-  test('de beheerder en de weergave van een andere verkoper krijgen geen knop "+ Lead"', async ({ page }) => {
-    await startSalesApp(page, { gebruiker: BEHEERDER, blobs: { 'sales/u-bea': { versie: 1, leads: [lead('b1', 'Beheerdersklant')], blokken: [], grafstenen: [] } } });
-    await page.getByRole('tab', { name: 'Sales', exact: true }).click();
+  test('de weergave van een andere verkoper (sales met "mag alle sales zien") krijgt geen knop "+ Lead"', async ({ page }) => {
+    await startSalesApp(page, { gebruiker: { ...SALES_GEBRUIKER, magAlleSales: true }, blobs: { 'sales/u-bea': { versie: 1, leads: [lead('b1', 'Beaklant')], blokken: [], grafstenen: [] } } });
+    await expect(plusLead(page)).toBeVisible(); // eerst de eigen leads
+    await lijst(page).getByLabel('Verkoper').selectOption('u-bea');
     await expect(lijst(page).locator('.sales-kaart')).toHaveCount(1);
     await expect(plusLead(page)).toHaveCount(0);
+  });
+
+  test('de beheerder krijgt "+ Lead" (niet "Export laden") voor de gekozen verkoper; niet bij een geblokkeerde verkoper', async ({ page }) => {
+    const geblokkeerd = { id: 'u-aad', email: 'aad@test.be', naam: 'Aad Verkoper', rol: 'sales', salesNaam: 'Aad V.', magAlleSales: false, actief: false };
+    await startSalesApp(page, { gebruiker: BEHEERDER, verkopers: [geblokkeerd, ...ANDERE_VERKOPERS], blobs: { 'sales/u-bea': { versie: 1, leads: [lead('b1', 'Beaklant')], blokken: [], grafstenen: [] } } });
+    await page.getByRole('tab', { name: 'Sales', exact: true }).click();
+    await expect(lijst(page).locator('.sales-kaart')).toHaveCount(1);
+    await expect(plusLead(page)).toBeVisible();
+    await expect(lijst(page).getByRole('button', { name: 'Export laden' })).toHaveCount(0);
+    await lijst(page).getByLabel('Verkoper').selectOption('u-aad');
+    await expect(lijst(page).locator('.sales-alleen-lezen')).toBeVisible();
+    await expect(plusLead(page)).toHaveCount(0);
+    await lijst(page).getByLabel('Verkoper').selectOption('u-carl');
+    await expect(plusLead(page)).toBeVisible();
+  });
+
+  test('de beheerder voegt een lead toe voor de gekozen verkoper: de kaart verschijnt, het blob van die verkoper bevat hem, dat van de beheerder niet', async ({ page, verzoeken }) => {
+    const backend = await startSalesApp(page, { gebruiker: BEHEERDER });
+    await page.getByRole('tab', { name: 'Sales', exact: true }).click();
+    await lijst(page).getByLabel('Verkoper').selectOption('u-carl');
+    await expect(plusLead(page)).toBeVisible();
+    await plusLead(page).click();
+    await venster(page).getByLabel('Voornaam').fill('Greet');
+    await venster(page).getByLabel('Gsm').fill('0470 11 22 33');
+    await venster(page).getByLabel('Postcode').fill('3500');
+    await venster(page).getByRole('button', { name: 'Opslaan' }).click();
+    await expect(venster(page)).toHaveCount(0);
+    await expect(kaart(page, 'Greet')).toBeVisible();
+    await expect(kaart(page, 'Greet')).toContainText('zelf toegevoegd');
+    await expect(page.locator('#toast')).toHaveText('Lead toegevoegd');
+    expect(verzoeken.van('/api/sales-import', 'POST')).toHaveLength(1);
+    const blobCarl = JSON.parse(backend.test._data.get('sales/u-carl'));
+    expect(blobCarl.leads).toHaveLength(1);
+    expect(blobCarl.leads[0].voornaam).toBe('Greet');
+    expect(backend.test._data.get('sales/u-test')).toBeUndefined(); // de beheerder zelf heeft geen blob
+    // een andere verkoper blijft leeg
+    await lijst(page).getByLabel('Verkoper').selectOption('u-bea');
+    await expect(lijst(page).locator('.sales-kaart')).toHaveCount(0);
+  });
+
+  test('de verkoper ziet de lead die de beheerder voor hem toevoegde (echte handler, daarna de app als die verkoper)', async ({ page }) => {
+    const carl = ANDERE_VERKOPERS.find(v => v.id === 'u-carl');
+    const door = maakSalesBackend({ gebruiker: BEHEERDER });
+    const r = await door.stubs['sales-import']({
+      methode: 'POST', pad: '/api/sales-import', query: new URLSearchParams('gebruiker=u-carl'),
+      body: { export: bouwManueelExport({ voornaam: 'Greet', naam: 'Peeters', gsm: '0470 11 22 33', email: null, postcode: '3500', gemeente: null, straat: null, huisnr: null, notitie: null }) },
+    });
+    expect(r.status).toBe(200);
+    const blobCarl = JSON.parse(door.test._data.get('sales/u-carl'));
+    await startSalesApp(page, { gebruiker: carl, blobs: { 'sales/u-carl': blobCarl } });
+    await expect(kaart(page, 'Greet Peeters')).toBeVisible();
+    await expect(kaart(page, 'Greet Peeters')).toContainText('zelf toegevoegd');
+  });
+
+  test('een verkoper kan niet voor een andere verkoper toevoegen (403 van de echte handler, niets geschreven); voor zichzelf wel', async ({ page, consoleFouten }) => {
+    const backend = await startSalesApp(page);
+    const post = (pad, body) => page.evaluate(async ([p, b]) => {
+      const res = await fetch(p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-blitz': '1' }, body: JSON.stringify(b) });
+      return { status: res.status, body: await res.json().catch(() => null) };
+    }, [pad, body]);
+    const manueel = bouwManueelExport({ voornaam: 'Greet', naam: null, gsm: '0470 11 22 33', email: null, postcode: '3500', gemeente: null, straat: null, huisnr: null, notitie: null });
+    const ander = await post('/api/sales-import?gebruiker=u-bea', { export: manueel });
+    expect(ander.status).toBe(403);
+    expect(ander.body.code).toBe('geen-recht');
+    expect(backend.test._data.get('sales/u-bea')).toBeUndefined();
+    await verwachtFout(consoleFouten, '/api/sales-import', 403);
+    expect((await post('/api/sales-import', { export: manueel })).status).toBe(200);
   });
 
   test('op telefoonbreedte past het venster zonder horizontale scroll en blijft Opslaan bereikbaar', async ({ page }) => {

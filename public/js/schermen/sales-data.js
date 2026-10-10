@@ -203,7 +203,7 @@ export function wijzig(patch) { return inKeten(() => wijzigNu(patch)); }
 
 export async function importeer(exportObject) {
   let r;
-  try { r = await apiVerzoek('/api/sales-import', { methode: 'POST', body: { export: exportObject } }); }
+  try { r = await apiVerzoek('/api/sales-import' + query(gebruikerQuery(doel)), { methode: 'POST', body: { export: exportObject } }); }
   catch { return { ok: false, reden: 'netwerk' }; }
   if (!r.ok) return fout(r);
   const herlaad = await laadSales({ gebruikerId: doel });

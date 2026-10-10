@@ -48,7 +48,7 @@ export function openSalesInstellingen() {
       const van = veld('Werkuren van', { soort: 'time', value: w.vanTijd });
       const tot = veld('Werkuren tot', { soort: 'time', value: w.totTijd });
       const laatste = veld('Laatste start', { soort: 'time', value: w.laatsteStart });
-      const duur = veld('Standaard bezoekduur (min)', { value: w.bezoekDuurMin, inputmode: 'numeric', autocomplete: 'off' });
+      const duur = veld('Standaard bezoekduur (min)', { soort: 'number', min: 15, value: w.bezoekDuurMin, inputmode: 'numeric', autocomplete: 'off' });
 
       const bewaar = el('button', { type: 'submit', class: 'btn btn--primary', text: 'Bewaren' });
       const annuleer = el('button', { type: 'button', class: 'btn btn--secondary', text: 'Annuleren' });
