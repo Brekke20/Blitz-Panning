@@ -201,6 +201,11 @@ function inKeten(werk) {
  */
 export function wijzig(patch) { return inKeten(() => wijzigNu(patch)); }
 
+/** Een lead terug naar "Nog in te plannen": status te-plannen, het voorstel of vaste uur en een eventueel resultaat weg. Gedeeld door het leaddetail en het ✕ op de kaarten. */
+export function terugNaarTePlannen(leadId) {
+  return wijzig({ leads: [{ id: leadId, velden: { status: 'te-plannen', planning: null, resultaat: null } }] });
+}
+
 export async function importeer(exportObject) {
   let r;
   try { r = await apiVerzoek('/api/sales-import' + query(gebruikerQuery(doel)), { methode: 'POST', body: { export: exportObject } }); }
