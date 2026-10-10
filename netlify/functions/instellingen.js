@@ -1,10 +1,11 @@
 // /api/instellingen — instellingen per gebruiker (blob `instellingen`, store van het verzoek).
 //   GET                    eigen instellingen -> { versie, instellingen: Instellingen | null }
-//   GET ?gebruiker=<id>    beheerder: iedereen (404 bij onbekend id); sales met magAlleSales: enkel een sales-gebruiker;
-//                          eigen id: altijd; anders 403
+//   GET ?gebruiker=<id>    beheerder: iedereen (404 bij onbekend id); planner: enkel een technieker (403 voor onbekend id én voor
+//                          beheerder/planner/sales, zonder onderscheid); sales met magAlleSales: enkel een sales-gebruiker; eigen id: altijd; anders 403
 //   GET ?overzicht=1       -> { eigen, techniekers } (sales: enkel { eigen }), techniekers per zohoNaam
 //   PUT { gebruiker?, instellingen, versie? } -> 200 { versie }; schrijft de eigen instellingen of die van `gebruiker`:
-//        beheerder voor iedereen, planner enkel voor een technieker; technieker en sales enkel voor zichzelf (403 vóór de
+//        beheerder voor iedereen, planner enkel voor een technieker, sales manager (magAlleSales) enkel voor een verkoper;
+//        technieker en gewone sales enkel voor zichzelf (403 vóór de
 //        opzoeking, zodat het bestaan van een id niet lekt). Per gebruiker samengevoegd: geen 409 op de hele blob.
 //        Een schrijfactie voor een ANDER wordt gelogd (`instellingen-gewijzigd`, enkel veldnamen, nooit waarden).
 // De gebruikerslijst komt altijd uit de ECHTE store `blitz-data`; de instellingen uit de store van het verzoek.
@@ -42,6 +43,11 @@ export function maakHandler({ getStore: haalStore, nu = () => Date.now(), auth }
     if (doelId !== null && doelId !== gebruiker.id) {
       if (gebruiker.rol === 'beheerder') {
         if (!(await zoekDoel(aStore, doelId))) return json(404, NIET_GEVONDEN);
+      } else if (gebruiker.rol === 'planner') {
+        // Gelijk aan schrijven: een planner leest en bewaart enkel de instellingen van techniekers (en zijn eigen).
+        // Onbekend id en niet-technieker geven dezelfde 403 (het bestaan en de rol van een id lekken niet).
+        const doel = await zoekDoel(aStore, doelId);
+        if (!doel || doel.rol !== 'technieker') return json(403, GEEN_RECHT);
       } else if (gebruiker.rol === 'sales' && gebruiker.magAlleSales === true) {
         const doel = await zoekDoel(aStore, doelId);
         if (!doel || doel.rol !== 'sales') return json(403, GEEN_RECHT);
@@ -63,10 +69,17 @@ export function maakHandler({ getStore: haalStore, nu = () => Date.now(), auth }
     const doelId = body.gebruiker === undefined || body.gebruiker === '' ? gebruiker.id : body.gebruiker;
     const voorAnder = doelId !== gebruiker.id;
     if (voorAnder) {
-      if (gebruiker.rol !== 'beheerder' && gebruiker.rol !== 'planner') return json(403, GEEN_RECHT);
+      const salesManager = gebruiker.rol === 'sales' && gebruiker.magAlleSales === true;
+      if (gebruiker.rol !== 'beheerder' && gebruiker.rol !== 'planner' && !salesManager) return json(403, GEEN_RECHT);
       const doel = await zoekDoel(aStore, doelId);
-      if (!doel) return json(404, NIET_GEVONDEN);
-      if (gebruiker.rol === 'planner' && doel.rol !== 'technieker') return json(403, GEEN_RECHT);
+      if (salesManager) {
+        // Een sales manager bewaart enkel de instellingen van verkopers; ook een onbekend id geeft 403 (geen lek, gelijk aan lezen).
+        if (!doel || doel.rol !== 'sales') return json(403, GEEN_RECHT);
+      } else if (gebruiker.rol === 'planner') {
+        if (!doel || doel.rol !== 'technieker') return json(403, GEEN_RECHT); // zelfde 403 voor onbekend en niet-technieker
+      } else if (!doel) {
+        return json(404, NIET_GEVONDEN); // beheerder
+      }
     }
 
     const schoon = schoonInstellingen(body.instellingen);

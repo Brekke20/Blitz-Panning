@@ -97,7 +97,8 @@ async function leesSales(store, echteStore, testModus) {
 
 // store = de store van het verzoek (rapportlijst, register, prijslijst, sales); echteStore = altijd de echte opslag
 // (gebruikers en activiteitenlog).
-export async function leesBronnen({ store, echteStore, testModus }, { tot, vorigeVan }) {
+// deel: 'alles' | 'techniekers' (geen sales-blobs lezen) | 'sales' (enkel de sales-blobs; geen rapporten, register, log of prijslijst).
+export async function leesBronnen({ store, echteStore, testModus }, { tot, vorigeVan, deel = 'alles' }) {
   const fouten = [];
   const probeer = async (naam, werk, terugval) => {
     try { return await werk(); } catch (e) {
@@ -106,6 +107,13 @@ export async function leesBronnen({ store, echteStore, testModus }, { tot, vorig
       return terugval;
     }
   };
+  if (deel === 'sales') {
+    return {
+      rapporten: [], register: null, activiteit: [], activiteitVanaf: null, activiteitAfgekapt: false,
+      salesBlobs: await probeer('sales', () => leesSales(store, echteStore, testModus), []),
+      prijslijst: null, fouten, rapportBronnen: {},
+    };
+  }
   const lijst = await leesRapportenVoorDashboard(store, { vanDatum: dagPlus(vorigeVan, -TERUGBLIK_DAGEN), totDatum: tot });
   fouten.push(...lijst.fouten);
   const log = await probeer('activiteit', () => leesLog(echteStore, testModus, { tot, vorigeVan }),
@@ -114,7 +122,7 @@ export async function leesBronnen({ store, echteStore, testModus }, { tot, vorig
     rapporten: lijst.rapporten,
     register: await probeer('register', () => leesRegister(store, { gooiFout: true }), { versie: 0, status: {} }),
     ...log,
-    salesBlobs: await probeer('sales', () => leesSales(store, echteStore, testModus), []),
+    salesBlobs: deel === 'techniekers' ? [] : await probeer('sales', () => leesSales(store, echteStore, testModus), []),
     prijslijst: await probeer('prijslijst', () => store.get('prijslijst', { type: 'json' }), null),
     fouten,
     rapportBronnen: lijst.bronnen,

@@ -129,10 +129,10 @@ test.describe('beheerpagina: tabbalk', () => {
     await expect(proef).toHaveAttribute('aria-selected', 'true');
   });
 
-  test('een planner heeft geen Beheer-tab en roept /api/gebruikers nooit aan', async ({ page, verzoeken }) => {
+  test('een planner heeft Beheer maar geen subtab Gebruikers en roept /api/gebruikers niet aan zolang Beheer dicht is', async ({ page, verzoeken }) => {
     await startApp(page, { loginRol: 'planner' });
-    await expect(page.getByRole('tab', { name: 'Beheer', exact: true })).toHaveCount(0);
-    await expect(page.locator('#view-beheer')).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: 'Beheer', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Gebruikers', exact: true })).toHaveCount(0);
     expect(verzoeken.van('/api/gebruikers')).toEqual([]);
   });
 });
@@ -254,7 +254,7 @@ test.describe('tab Gebruikers: nieuwe gebruiker', () => {
     await dlg.getByLabel('Rol', { exact: true }).selectOption('sales');
     await expect(dlg.getByLabel('Zoho-naam')).toBeHidden();
     await dlg.getByLabel('Naam in export').fill('Eva V.');
-    await dlg.getByLabel('Mag alle sales zien').check();
+    await dlg.getByLabel('Sales manager').check();
     await dlg.getByRole('button', { name: 'Aanmaken' }).click();
     geheim = venster(page, 'Gebruiker aangemaakt');
     await geheim.getByRole('button', { name: 'Ik heb het genoteerd' }).click();

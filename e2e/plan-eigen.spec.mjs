@@ -116,16 +116,18 @@ test.describe('technieker met "Mag zelf plannen"', () => {
     await kies(page, 'Roel');
     await expect(page.locator('#route-list').getByRole('button', { name: /Voorstel/ })).toHaveCount(0);
     await expect(page.locator('#route-list').getByRole('button', { name: /Uit planning halen/ })).toHaveCount(0);
-    await expect(page.locator('#btn-optimize')).toBeDisabled();
+    await expect(page.locator('#btn-optimize')).toBeHidden();
+    await expect(page.getByRole('button', { name: '✕ Leeg' })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Bereken tijden' })).toBeVisible(); // enkel weergeven, bewaart niets
   });
 
-  test('Instellingen: hij stelt zijn eigen planning in (Algemeen); voor een collega weigert de app het bewaren', async ({ page }) => {
+  test('Instellingen: hij stelt zijn eigen planning in (Algemeen)', async ({ page }) => {
     await startApp(page, { loginRol: 'technieker', loginGebruiker: TIM, technieker: 'Tim' });
     await page.getByRole('button', { name: 'Instellingen' }).click();
     await expect(page.locator('#set-subtab-algemeen')).toBeVisible();
     await expect(page.locator('#set-subtab-beschikbaarheden')).toBeHidden();
     await expect(page.locator('#set-tab-algemeen')).toBeVisible();
-    await expect(page.locator('#set-person-label')).toContainText('Tim');
+    await expect(page.locator('#set-titel')).toContainText('Instellingen — Tim');
   });
 });
 

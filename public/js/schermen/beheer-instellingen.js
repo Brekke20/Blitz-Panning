@@ -208,4 +208,4 @@ async function render(container) {
   await laad();
 }
 
-registreerBeheerTab({ id: 'instellingen', label: 'Instellingen', render });
+registreerBeheerTab({ id: 'instellingen', label: 'Instellingen', render, rollen: ['beheerder', 'planner', 'sales-manager'] });

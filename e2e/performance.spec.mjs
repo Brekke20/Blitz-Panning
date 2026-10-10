@@ -287,7 +287,7 @@ test.describe('Performance: kleurgrenzen', () => {
 });
 
 test.describe('Performance: toegang en storingen', () => {
-  for (const rol of ['planner', 'technieker', 'sales']) {
+  for (const rol of ['technieker', 'sales']) { // sales = een gewone verkoper (zonder "Sales manager"); planner en sales manager: zie beheer-rollen.spec
     test(`${rol}: geen tab Beheer (dus geen Performance) en geen enkel dashboard-verzoek`, async ({ page, verzoeken }) => {
       const extra = rol === 'sales' ? { 'auth-ik': authIkVoor(SALES_GEBRUIKER), ...salesStubs() } : {};
       await startApp(page, { loginRol: rol, overschrijf: { ...extra, dashboard: dashboardStub(), 'dashboard-instellingen': grenzenStub() } });
@@ -304,7 +304,7 @@ test.describe('Performance: toegang en storingen', () => {
   test('403 van de server: een melding, geen cijfers en geen "Opnieuw proberen"', async ({ page, consoleFouten }) => {
     await openPerformance(page, { dashboard: () => json(403, { error: 'Geen toegang', code: 'geen-recht' }) });
     const melding = page.locator('.dash-meldingen .dash-melding--fout');
-    await expect(melding).toContainText('Alleen een beheerder heeft toegang tot het dashboard.');
+    await expect(melding).toContainText('Je hebt geen toegang tot dit dashboard.');
     await verwachtFout(consoleFouten, '/api/dashboard', 403);
     await expect(page.locator('.tegel')).toHaveCount(0);
     await expect(page.locator('.dash-blok')).toHaveCount(0);

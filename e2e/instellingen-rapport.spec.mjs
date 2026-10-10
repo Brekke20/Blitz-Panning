@@ -14,9 +14,9 @@ const leesOpslag = (page, sleutel) => page.evaluate((k) => localStorage.getItem(
 
 test.describe('instellingen en rapport', () => {
   test('instellingen bewaren', async ({ page }) => {
-    await startApp(page, { loginRol: 'planner' }); // werkinstellingen bewerken: planner (de beheerder doet dat in Beheer)
+    await startApp(page, { loginRol: 'planner', loginGebruiker: { zohoNaam: 'Brent' } }); // eigen werkinstellingen bewerken: planner met Zoho-naam (de beheerder doet dat in Beheer)
     let modal = await openInstellingen(page);
-    await expect(modal.locator('#set-person-label')).toHaveText('Instellingen voor: Standaard (alle technici)');
+    await expect(modal.getByRole('heading', { name: '⚙️ Instellingen — Brent' })).toBeVisible();
     const oud = await modal.locator('#set-laatste-start').inputValue();
     expect(oud).not.toBe('15:00');
     expect(await leesOpslag(page, 'blitz_laatste_start')).toBeNull();
@@ -24,7 +24,7 @@ test.describe('instellingen en rapport', () => {
     await modal.getByLabel('Laatste start (geldt voor al je planning, voor alle technici)').fill('15:00');
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
 
-    await expect(page.getByText('✓ Instellingen opgeslagen voor alle technici')).toBeVisible();
+    await expect(page.getByText('✓ Instellingen opgeslagen voor Brent')).toBeVisible();
     await expect(modal).toBeHidden();
     expect(await leesOpslag(page, 'blitz_laatste_start')).toBe('15:00');
 
@@ -39,12 +39,12 @@ test.describe('instellingen en rapport', () => {
   });
 
   test('laatste start buiten de werktijden wordt geweigerd', async ({ page }) => {
-    await startApp(page, { loginRol: 'planner' }); // werkinstellingen bewerken: planner (de beheerder doet dat in Beheer)
+    await startApp(page, { loginRol: 'planner', loginGebruiker: { zohoNaam: 'Brent' } }); // eigen werkinstellingen bewerken: planner met Zoho-naam (de beheerder doet dat in Beheer)
     // Eerst een geldige waarde bewaren, zodat "blijft de oude waarde" iets betekent.
     let modal = await openInstellingen(page);
     await modal.getByLabel('Laatste start (geldt voor al je planning, voor alle technici)').fill('15:00');
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page.getByText('✓ Instellingen opgeslagen voor alle technici')).toBeVisible();
+    await expect(page.getByText('✓ Instellingen opgeslagen voor Brent')).toBeVisible();
 
     modal = await openInstellingen(page);
     await modal.locator('#set-van').fill('08:00');
@@ -63,17 +63,16 @@ test.describe('instellingen en rapport', () => {
     await expect(modal.locator('#set-laatste-start')).toHaveValue('15:00');
   });
 
-  test('instellingen voor één technieker', async ({ page }) => {
-    await startApp(page, { technieker: 'Tim' });
+  test('instellingen voor een planner die zelf Tim is (Zoho-naam): de eigen sleutel', async ({ page }) => {
+    await startApp(page, { loginRol: 'planner', loginGebruiker: { zohoNaam: 'Tim' }, technieker: 'Tim' });
     const modal = await openInstellingen(page);
-    await expect(modal.locator('#set-person-label')).toHaveText('Instellingen voor: Tim');
+    await expect(modal.getByRole('heading', { name: '⚙️ Instellingen — Tim' })).toBeVisible();
 
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
     await expect(page.getByText('✓ Instellingen opgeslagen voor Tim')).toBeVisible();
     await expect(modal).toBeHidden();
-    // Per-technieker sleutel, niet de algemene.
+    // Onder de eigen naam bewaard (en gespiegeld onder 'Alle': hetzelfde eigen serverrecord).
     expect(await leesOpslag(page, 'blitz_settings_Tim')).not.toBeNull();
-    expect(await leesOpslag(page, 'blitz_settings')).toBeNull();
   });
 
   test('rapportwizard loopt tot het voorbeeld zonder te versturen', async ({ page, verzoeken }) => {

@@ -1,17 +1,32 @@
 // schermen/beheer.js — de beheerpagina: tabbalk (role=tablist, pijltjestoetsen) en een kleine venster-hulp (logins T17).
-// Wordt lazy geladen door rol-schil.js (tab Beheer, enkel voor de beheerder); de server beslist wie /api/gebruikers e.d. mag gebruiken.
+// Wordt lazy geladen door rol-schil.js (tab Beheer: beheerder, planner en sales manager); de server beslist wie /api/gebruikers e.d. mag gebruiken.
+// Welke subtabs iemand ziet, hangt van de rol af (rollen per tab, zie registreerBeheerTab): de beheerder ziet alles, de planner en de
+// sales manager (sales + magAlleSales) enkel Instellingen en Performance. Een tab zonder `rollen` is enkel voor de beheerder (fail-closed).
 // De tabbladen registreren zichzelf via registreerBeheerTab; welke bestanden dat doen staat in beheer-tabs.js (één importregel per tab).
 // Veiligheid: vrije tekst (namen, e-mails) komt uitsluitend via textContent/attributen in de DOM (h() gebruikt nooit innerHTML).
 
 import { apiVerzoek } from '../kern/api.js';
+import { huidigeGebruiker } from '../kern/sessie.js';
 
 const KEUZE_SLEUTEL = 'blitz_beheer_tab'; // sessionStorage: het gekozen tabblad blijft staan binnen deze sessie
-const tabs = []; // { id, label, render }
+const tabs = []; // { id, label, render, rollen }
+const BEHEERDER_ENKEL = ['beheerder'];
 
-// registreerBeheerTab({ id, label, render }): render(container) -> Promise<void>. Dezelfde id vervangt de bestaande op dezelfde plaats.
-export function registreerBeheerTab({ id, label, render } = {}) {
+// De beheerrol van een gebruiker: 'beheerder', 'planner', 'sales-manager' (sales met magAlleSales) of null (geen Beheer).
+export function beheerRolVan(gebruiker) {
+  if (gebruiker?.rol === 'beheerder' || gebruiker?.rol === 'planner') return gebruiker.rol;
+  return gebruiker?.rol === 'sales' && gebruiker.magAlleSales === true ? 'sales-manager' : null;
+}
+// De tabs die deze beheerrol mag zien, in registratievolgorde.
+export function zichtbareTabs(beheerRol, alle = tabs) {
+  return beheerRol ? alle.filter(t => t.rollen.includes(beheerRol)) : [];
+}
+
+// registreerBeheerTab({ id, label, render, rollen }): render(container) -> Promise<void>. Dezelfde id vervangt de bestaande op dezelfde plaats.
+// rollen: welke beheerrollen de tab zien ('beheerder' | 'planner' | 'sales-manager'); standaard enkel de beheerder.
+export function registreerBeheerTab({ id, label, render, rollen = BEHEERDER_ENKEL } = {}) {
   if (typeof id !== 'string' || id === '' || typeof label !== 'string' || !(render instanceof Function)) return;
-  const nieuw = { id, label, render };
+  const nieuw = { id, label, render, rollen: Array.isArray(rollen) ? [...rollen] : BEHEERDER_ENKEL };
   const i = tabs.findIndex(t => t.id === id);
   if (i >= 0) tabs[i] = nieuw; else tabs.push(nieuw);
 }
@@ -60,6 +75,7 @@ function bewaarKeuze(id) {
 export async function openBeheer(container) {
   await import('./beheer-tabs.js'); // registreert de tabbladen
   if (!container) return;
+  const tabs = zichtbareTabs(beheerRolVan(huidigeGebruiker())); // enkel wat deze rol mag zien (de server weigert de rest hoe dan ook)
   let volgnummer = 0; // enkel de laatst gekozen tab mag zijn paneel vullen
   const titel = h('h2', { class: 'beheer-titel', text: 'Beheer' });
   const balk = h('div', { class: 'beheer-tabs', role: 'tablist', 'aria-label': 'Beheer' });

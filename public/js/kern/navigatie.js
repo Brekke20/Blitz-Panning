@@ -6,6 +6,7 @@
 const tabsPerRol = new Map();   // rol -> tab[] in registratievolgorde
 const startPerRol = new Map();  // rol -> () => void
 let actieveRol = null;
+let extraRollen = [];       // extra register-sleutels waarvan laadTab ook de tabs kent (bv. 'sales-manager': de tab Beheer voor een sales manager)
 
 const geldigeTab = (t) => t && typeof t === 'object' && typeof t.id === 'string' && t.id !== '';
 
@@ -29,16 +30,19 @@ export function registreerStart(rol, fn) {
 }
 export function startVoorRol(rol) { return startPerRol.get(rol) || null; }
 
-// De rol waarvoor laadTab zoekt; gezet door pasRolToe.
-export function zetActieveRol(rol) { actieveRol = typeof rol === 'string' ? rol : null; }
+// De rol waarvoor laadTab zoekt; gezet door pasRolToe. `extra`: tabs van die andere register-sleutels laadt laadTab ook.
+export function zetActieveRol(rol, extra = []) {
+  actieveRol = typeof rol === 'string' ? rol : null;
+  extraRollen = Array.isArray(extra) ? extra.filter(r => typeof r === 'string') : [];
+}
 
 // Roept laad() van de geregistreerde tab van de actieve rol aan. Onbekend = niets; een fout bij het laden stoort
 // de tabwissel niet (wel gelogd).
 export async function laadTab(id) {
-  const tab = tabsVoorRol(actieveRol).find(t => t.id === id);
+  const tab = [actieveRol, ...extraRollen].flatMap(r => tabsVoorRol(r)).find(t => t.id === id);
   if (!tab || !(tab.laad instanceof Function)) return;
   try { await tab.laad(); } catch (fout) { console.error('Tab laden mislukt:', id, fout); }
 }
 
 // Enkel voor tests: terug naar een lege toestand.
-export function wisNavigatieVoorTest() { tabsPerRol.clear(); startPerRol.clear(); actieveRol = null; }
+export function wisNavigatieVoorTest() { tabsPerRol.clear(); startPerRol.clear(); actieveRol = null; extraRollen = []; }

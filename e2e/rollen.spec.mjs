@@ -17,11 +17,12 @@ test.describe('tabs per rol', () => {
     await expect(page.locator('#tab-beheer')).toHaveAttribute('data-actie', 'hoofdtab');
   });
 
-  test('planner ziet 6 tabs, zonder Beheer', async ({ page }) => {
+  test('planner ziet 7 tabs: de zes werktabs en Beheer (met enkel Instellingen en Performance, zie beheer-rollen.spec)', async ({ page }) => {
     await startApp(page, { loginRol: 'planner' });
-    await expect(zichtbareTabs(page)).toHaveCount(6);
-    await expect(tab(page, 'Beheer')).toHaveCount(0);
-    await expect(page.locator('#tab-beheer')).toHaveCount(0);
+    await expect(zichtbareTabs(page)).toHaveCount(7);
+    await expect(tab(page, 'Beheer')).toBeVisible();
+    await expect(tab(page, 'Sales')).toHaveCount(0);
+    await expect(page.locator('#tab-beheer')).toHaveAttribute('data-actie', 'hoofdtab');
   });
 
   test('technieker ziet Kalender, Ingepland, Inventaris en Rapporten, geen Wachtrij of Route', async ({ page }) => {

@@ -96,6 +96,25 @@ test('matrix: zoho-agenten enkel lezen door de beheerder', () => {
   for (const m of ['POST', 'PUT', 'PATCH', 'DELETE']) assert.deepEqual(rollen('zoho-agenten', m), [], `zoho-agenten ${m}`);
 });
 
+test('matrix: Beheer voor de planner en de sales manager: enkel Instellingen en Performance (lezen) en de beperkte gebruikerslijst; de rest blijft enkel beheerder', () => {
+  // de beperkte gebruikerslijst (planner, sales manager) en de eigen-regels per functie: de rol komt door, de functie beperkt verder
+  assert.deepEqual(rollen('gebruikers', 'GET'), [B, P, S]);
+  for (const m of ['POST', 'PATCH']) assert.deepEqual(rollen('gebruikers', m), [B], `gebruikers ${m}`);
+  assert.deepEqual(rollen('instellingen', 'GET'), alleVier);
+  assert.deepEqual(rollen('instellingen', 'PUT'), alleVier);
+  // Performance: beheerder alles, planner techniekers, sales (enkel met magAlleSales, in de functie) sales; nooit schrijven
+  assert.deepEqual(rollen('dashboard', 'GET'), [B, P, S]);
+  for (const m of ['POST', 'PUT', 'PATCH', 'DELETE']) assert.deepEqual(rollen('dashboard', m), [], `dashboard ${m}`);
+  assert.deepEqual(rollen('dashboard-instellingen', 'GET'), [B, P]);
+  assert.deepEqual(rollen('dashboard-instellingen', 'PUT'), [B]);
+  // alles anders van Beheer: enkel de beheerder
+  assert.deepEqual(rollen('activiteit', 'GET'), [B]);
+  assert.deepEqual(rollen('systeemstatus', 'GET'), [B]);
+  assert.deepEqual(rollen('zoho-agenten', 'GET'), [B]);
+  assert.deepEqual(rollen('client-log', 'GET'), [B]);
+  assert.deepEqual(rollen('testdata', 'POST'), [B]);
+});
+
 test('matrix: sales en postcode enkel voor beheerder en sales', () => {
   for (const m of ['GET', 'PATCH', 'DELETE']) assert.deepEqual(rollen('sales', m), [B, S], `sales ${m}`);
   for (const m of ['POST', 'PUT']) assert.deepEqual(rollen('sales', m), [], `sales ${m}`);
@@ -137,6 +156,10 @@ test('rechtenVoor', () => {
   assert.deepEqual(rechtenVoor({ rol: S }), { beheer: false, plannen: false, alleSales: false, planEigen: false });
   assert.deepEqual(rechtenVoor({ rol: S, magAlleSales: true }), { beheer: false, plannen: false, alleSales: true, planEigen: false });
   assert.deepEqual(rechtenVoor({ rol: P, magAlleSales: 'ja' }), { beheer: false, plannen: true, alleSales: false, planEigen: false });
+  // M2: alleSales enkel voor beheerder of een verkoper met het vinkje; een planner of technieker met een achtergebleven vinkje niet
+  assert.equal(rechtenVoor({ rol: T, magAlleSales: true }).alleSales, false);
+  assert.equal(rechtenVoor({ rol: P, magAlleSales: true }).alleSales, false);
+  assert.equal(rechtenVoor({ rol: B, magAlleSales: false }).alleSales, true);
   assert.deepEqual(rechtenVoor(null), { beheer: false, plannen: false, alleSales: false, planEigen: false });
   // planEigen: enkel een technieker met het vinkje (letterlijk true); een planner of beheerder heeft het niet nodig.
   assert.deepEqual(rechtenVoor({ rol: T, magZelfPlannen: true }), { beheer: false, plannen: false, alleSales: false, planEigen: true });

@@ -20,12 +20,13 @@ const COORDINATOR_TABS = [
   bestaand('gepland', 'Ingepland'), bestaand('inventaris', 'Inventaris'), bestaand('rapporten', 'Rapporten'),
 ];
 
-registreerTabs('planner', COORDINATOR_TABS);
-registreerTabs('beheerder', [
-  ...COORDINATOR_TABS,
-  // Lazy: beheer*.js wordt pas geladen als de tab opent (geen modulepreload).
-  { id: 'beheer', label: 'Beheer', laad: () => import('./beheer.js').then(m => m.openBeheer(document.getElementById('view-beheer'))) },
-]);
+// Lazy: beheer*.js wordt pas geladen als de tab opent (geen modulepreload). Welke subtabs iemand ziet, bepaalt beheer.js per rol
+// (beheerder: alles; planner en sales manager: enkel Instellingen en Performance); de server beslist wat echt mag.
+const BEHEER_TAB = { id: 'beheer', label: 'Beheer', laad: () => import('./beheer.js').then(m => m.openBeheer(document.getElementById('view-beheer'))) };
+registreerTabs('planner', [...COORDINATOR_TABS, BEHEER_TAB]);
+registreerTabs('beheerder', [...COORDINATOR_TABS, BEHEER_TAB]);
+// Een sales manager (sales + "Sales manager"-vinkje, magAlleSales) krijgt de tab Beheer bovenop zijn vier sales-tabs.
+registreerTabs('sales-manager', [BEHEER_TAB]);
 // Technieker: zijn eigen rapporten (de server filtert) en collega's enkel lezen; geen wachtrij en geen route.
 registreerTabs('technieker', [bestaand('kalender', 'Kalender'), bestaand('gepland', 'Ingepland'), bestaand('inventaris', 'Inventaris'), bestaand('rapporten', 'Rapporten')]);
 // Een technieker met het vinkje "Mag zelf plannen" krijgt er de Wachtrij en de Route bij (enkel voor zijn eigen tickets; de server dwingt dat af).
@@ -75,11 +76,12 @@ function zetTabZichtbaar(knop, zichtbaar) {
 // Past de pagina aan de rol aan: toestelrol, zichtbare tabs, rapporten voor de technieker, eigen persoon, gebruikersmenu.
 export function pasRolToe(gebruiker) {
   const rol = gebruiker?.rol;
-  zetActieveRol(rol);
+  const salesManager = rol === 'sales' && gebruiker?.magAlleSales === true;
+  zetActieveRol(rol, salesManager ? ['sales-manager'] : []);
   const planEigen = huidigeRechten().planEigen === true;
   window.zetLoginRol?.(rol, { planEigen }); // technieker en sales forceren het toestel-rolgedrag (apparaat.js)
 
-  const tabs = [...tabsVoorRol(rol), ...(planEigen ? tabsVoorRol('technieker-plan-eigen') : [])];
+  const tabs = [...tabsVoorRol(rol), ...(planEigen ? tabsVoorRol('technieker-plan-eigen') : []), ...(salesManager ? tabsVoorRol('sales-manager') : [])];
   const toegestaan = new Set(tabs.map(t => t.id));
   for (const t of tabs) if (!document.getElementById(`tab-${t.id}`)) maakTab(t);
   for (const knop of document.querySelectorAll('.tabs-inner .tab')) zetTabZichtbaar(knop, toegestaan.has(knop.id.replace(/^tab-/, '')));

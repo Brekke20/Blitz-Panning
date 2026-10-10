@@ -5,6 +5,7 @@
 // <div class="dash"> binnen het paneel; vóór elke schrijfactie wordt gecontroleerd dat het paneel nog in de pagina hangt
 // (een nieuwe tab-klik vervangt het paneel terwijl een oude fetch nog loopt).
 import { registreerBeheerTab, beheerVerzoek, beheerFoutTekst, h } from './beheer.js';
+import { huidigeGebruiker, huidigeRechten } from '../kern/sessie.js';
 import { bewaarMetVersie } from '../kern/api.js';
 import { registreerActies, registreerWijzigActies, toast } from '../kern/ui.js';
 import { STANDAARD_GRENZEN } from '../kern/dashboard-grenzen.js';
@@ -20,6 +21,10 @@ import { renderSales } from './beheer-performance-sales.js';
 const CSS_PAD = '/css/dashboard.css';
 const CSS_WACHT_MS = 3000;
 const BLOKKEN = [renderTijd, renderKwaliteit, renderOnderdelen, renderKlant, renderSales]; // vaste volgorde
+// Wat deze rol van het dashboard ziet (de server geeft enkel dat deel): de beheerder alles, de planner het techniekers-deel (geen sales),
+// de sales manager enkel sales (geen tegels met techniekercijfers, geen technieker-/type-/herhaalfilter).
+const deelVoorRol = rol => (rol === 'sales' ? 'sales' : rol === 'planner' ? 'techniekers' : 'alles');
+const blokkenVoor = deel => (deel === 'sales' ? [renderSales] : deel === 'techniekers' ? BLOKKEN.filter(fn => fn !== renderSales) : BLOKKEN);
 const lees = x => (x && typeof x === 'object' ? x : {});
 
 // dashboard.css hoort niet bij de schil: één <link> bij het eerste openen, en wachten (max. 3 s) vóór de eerste render.
@@ -43,19 +48,23 @@ function startFilters() {
 // Een mislukking is nooit een uitlog: 401 start al de herlogin (kern/brug.js), 503 toont al de opslagmelding.
 function foutTekstVoor(r) {
   if (r.status === 401) return 'Je sessie is verlopen. Meld je opnieuw aan om het dashboard te zien.';
-  if (r.status === 403) return 'Alleen een beheerder heeft toegang tot het dashboard.';
+  if (r.status === 403) return 'Je hebt geen toegang tot dit dashboard.';
   return beheerFoutTekst(r);
 }
 
 async function render(container) {
   await laadCss();
+  const deel = deelVoorRol(huidigeGebruiker()?.rol);
+  const magGrenzenBewerken = huidigeRechten().beheer === true; // enkel de beheerder past de kleurgrenzen aan; de server weigert de rest
+  const leestGrenzen = deel !== 'sales'; // de sales manager ziet geen ringen met techniekercijfers
   const wortel = h('div', { class: 'dash' });
   const filterVak = h('div', { class: 'dash-filters' });
   const melding = h('div', { class: 'dash-meldingen', role: 'status' });
   const inhoud = h('div', { class: 'dash-inhoud' });
   const paneelVak = h('details', { class: 'dash-instellingen' },
     h('summary', { text: 'Instellingen: kleurgrenzen van de ringen' }), h('div', { class: 'dash-instellingen-inhoud' }));
-  wortel.append(filterVak, melding, inhoud, paneelVak);
+  wortel.append(filterVak, melding, inhoud);
+  if (magGrenzenBewerken) wortel.append(paneelVak);
   container.replaceChildren(wortel);
   const levend = () => container.isConnected && wortel.isConnected;
 
@@ -66,7 +75,7 @@ async function render(container) {
   function tekenFilters() {
     const actief = document.activeElement;
     const nieuw = h('div');
-    nieuw.innerHTML = filterRijHtml({ filters: t.filters, opties: lees(t.data?.opties) });
+    nieuw.innerHTML = filterRijHtml({ filters: t.filters, opties: lees(t.data?.opties), deel });
     // Staat de focus in een datumveld, dan blijft dat veld staan (het hertekenen zou het dag-/maand-/jaarsegment waarin getypt wordt kwijtmaken).
     const datumActief = actief?.type === 'date' && filterVak.contains(actief) ? actief : null;
     if (datumActief) {
@@ -93,8 +102,8 @@ async function render(container) {
     if (!d) return;
     const ctx = { grenzen: t.grenzen, techniekers: lees(d.opties).techniekers, filters: t.filters };
     const kern = lees(d.kern);
-    const tegels = `<div class="tegels">${TEGELS.map(x => tegelHtml(x, kern.huidig, kern.vorige, t.grenzen)).join('')}</div>`;
-    const blokken = BLOKKEN.map((fn) => {
+    const tegels = deel === 'sales' ? '' : `<div class="tegels">${TEGELS.map(x => tegelHtml(x, kern.huidig, kern.vorige, t.grenzen)).join('')}</div>`;
+    const blokken = blokkenVoor(deel).map((fn) => {
       try { return fn(d, ctx); } catch (fout) {
         console.error('Dashboardblok mislukt:', fn.name, fout);
         return '<p class="dash-melding dash-melding--fout">Dit onderdeel kon niet getoond worden.</p>';
@@ -109,6 +118,7 @@ async function render(container) {
 
   // grenzen: wat de velden tonen (standaard de bewaarde stand; "Standaard terugzetten" toont enkel de standaardwaarden, nog niet bewaard).
   function tekenPaneel(grenzen = t.grenzen) {
+    if (!magGrenzenBewerken) return;
     paneelVak.lastElementChild.innerHTML = grenzenPaneelHtml(grenzen, { uitgeschakeld: t.versie === null, fout: t.grenzenFout });
     paneelVak.firstElementChild.textContent = t.grenzenFout ? 'Instellingen: kleurgrenzen van de ringen (niet geladen)' : 'Instellingen: kleurgrenzen van de ringen';
   }
@@ -142,6 +152,7 @@ async function render(container) {
   }
 
   async function laadGrenzen() {
+    if (!leestGrenzen) return;
     const r = await beheerVerzoek('/api/dashboard-instellingen');
     if (!levend()) return;
     if (r.ok && r.data?.grenzen && Number.isInteger(r.data.versie)) {
@@ -235,4 +246,4 @@ async function render(container) {
   await Promise.all([laadDashboard(), laadGrenzen()]);
 }
 
-registreerBeheerTab({ id: 'performance', label: 'Performance', render });
+registreerBeheerTab({ id: 'performance', label: 'Performance', render, rollen: ['beheerder', 'planner', 'sales-manager'] });

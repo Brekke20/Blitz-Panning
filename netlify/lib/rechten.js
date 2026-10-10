@@ -22,6 +22,7 @@ const COORD = vries(['beheerder', 'planner']);
 const INTERN = vries(['beheerder', 'planner', 'technieker']);
 const ALLE = vries(['beheerder', 'planner', 'technieker', 'sales']);
 const BEHEER_SALES = vries(['beheerder', 'sales']);
+const BEHEER_PLANNER_SALES = vries(['beheerder', 'planner', 'sales']);
 
 export const RECHTEN = {
   // tickets en setup controleren zelf geen methode: '*' houdt elke methode achter de login.
@@ -68,9 +69,10 @@ export const RECHTEN = {
   'auth-herstel':         { '*': 'open' }, // herstelcode of noodsleutel + e-mail van een actieve beheerder
   'auth-ik':              { GET: ALLE, ookBijWijzigen: true },
   'auth-wachtwoord':      { POST: ALLE, ookBijWijzigen: true },
-  // Gebruikersbeheer: lezen/schrijven enkel beheerder; sales mag enkel GET ?rol=sales (en enkel met magAlleSales,
-  // afgedwongen in de functie zelf: hier staat enkel de rol).
-  'gebruikers':           { GET: BEHEER_SALES, POST: BEHEER, PATCH: BEHEER },
+  // Gebruikersbeheer: schrijven enkel beheerder; sales mag enkel GET ?rol=sales (en enkel met magAlleSales,
+  // afgedwongen in de functie zelf: hier staat enkel de rol). Een planner mag enkel GET zonder ?rol, en krijgt dan een
+  // beperkte lijst (id, naam, rol, zohoNaam, actief; enkel techniekers en hijzelf, geen e-mail): voor Beheer, Instellingen.
+  'gebruikers':           { GET: BEHEER_PLANNER_SALES, POST: BEHEER, PATCH: BEHEER },
   // Instellingen per gebruiker: elke rol leest/schrijft de eigen; wie voor wie mag, wordt in de functie afgedwongen.
   'instellingen':         { GET: ALLE, PUT: ALLE },
   // Sales-planner: beheerder en sales. Wie welk verkoperblob mag lezen/schrijven staat in netlify/lib/sales-toegang.js.
@@ -89,9 +91,11 @@ export const RECHTEN = {
   'activiteit':           { GET: BEHEER },
   'activiteit-opruimen':  { '*': 'open' },
   'systeemstatus':        { GET: BEHEER },
-  // Performance-dashboard: cijfers en ringgrenzen enkel voor de beheerder.
-  'dashboard':            { GET: BEHEER },
-  'dashboard-instellingen': { GET: BEHEER, PUT: BEHEER },
+  // Performance-dashboard (enkel lezen). De rol bepaalt het deel dat de functie teruggeeft: de beheerder alles, de planner enkel
+  // het techniekers-deel, sales enkel met magAlleSales (een sales manager) en dan enkel het sales-deel (afgedwongen in de functie).
+  // De ringgrenzen (techniekers) lezen: beheerder en planner; aanpassen blijft enkel de beheerder.
+  'dashboard':            { GET: BEHEER_PLANNER_SALES },
+  'dashboard-instellingen': { GET: COORD, PUT: BEHEER },
   // Beheer, Gebruikers: de actieve Zoho-agenten (enkel namen) voor de keuzelijst "Zoho-naam"; enkel lezen.
   'zoho-agenten':         { GET: BEHEER },
 };
@@ -118,7 +122,8 @@ export function rechtenVoor(gebruiker) {
   return {
     beheer,
     plannen: beheer || rol === 'planner',
-    alleSales: beheer || gebruiker?.magAlleSales === true,
+    // Enkel een verkoper met het vinkje (Sales manager); een planner of technieker met een achtergebleven vinkje krijgt het niet.
+    alleSales: beheer || (rol === 'sales' && gebruiker?.magAlleSales === true),
     // Een technieker met "Mag zelf plannen": plannen mag, maar enkel voor zijn eigen tickets. Beheerder en planner hebben dit niet nodig.
     planEigen: rol === 'technieker' && gebruiker?.magZelfPlannen === true,
   };

@@ -195,15 +195,17 @@ export function isGeldigeFilterDatum(w) {
   return dt.getUTCFullYear() === j && dt.getUTCMonth() === mm - 1 && dt.getUTCDate() === d;
 }
 
-export function filterRijHtml({ filters = {}, opties = {} } = {}) {
+// deel: 'alles' | 'techniekers' (planner) | 'sales' (sales manager: enkel de periode, geen technieker-, type- of herhaalfilter).
+export function filterRijHtml({ filters = {}, opties = {}, deel = 'alles' } = {}) {
   const knoppen = PRESETS.map(p => `<button type="button" class="filter-preset" data-actie="dashboard-preset" data-arg="${escHtml(p.id)}" aria-pressed="${p.id === filters.preset}">${escHtml(p.label)}</button>`).join('');
   const datum = (veld, label, w) => `<label class="filter-veld">${label}<input type="date" data-wijzig="dashboard-filter" data-arg="${escHtml(veld)}" value="${escHtml(w ?? '')}"></label>`;
   const herhaal = [30, 90].map(n => `<option value="${n}"${n === Number(filters.herhaalDagen ?? 30) ? ' selected' : ''}>${n} dagen</option>`).join('');
   return `<div class="filterrij" role="group" aria-label="Filters"><div class="filter-presets">${knoppen}</div>`
     + `${datum('van', 'Van', filters.van)}${datum('tot', 'Tot', filters.tot)}`
-    + `${kies('technieker', 'Technieker', 'Alle techniekers', opties.techniekers, filters.technieker)}`
+    + (deel === 'sales' ? '' : `${kies('technieker', 'Technieker', 'Alle techniekers', opties.techniekers, filters.technieker)}`
     + `${kies('type', 'Type', 'Alle types', opties.types, filters.type)}`
-    + `<label class="filter-veld">Herhaalbezoek binnen<select data-wijzig="dashboard-filter" data-arg="herhaalDagen">${herhaal}</select></label></div>`;
+    + `<label class="filter-veld">Herhaalbezoek binnen<select data-wijzig="dashboard-filter" data-arg="herhaalDagen">${herhaal}</select></label>`)
+    + '</div>';
 }
 
 // ---- Voetnoten (dekking) ----

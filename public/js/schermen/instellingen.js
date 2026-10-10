@@ -14,8 +14,10 @@ import { registreerVenster } from '../venster.js';
 import { appConfirm } from '../app-dialog.js';
 import { renderBeschikbaarhedenTab } from './beschikbaarheid.js';
 import { valideerInstellingen, settingsKey } from './instellingen-logica.js';
-import { huidigeGebruiker, huidigeRechten, magPlannenVoor } from '../kern/sessie.js';
-import { bewaarOpServer, spiegelEigen } from '../kern/instellingen-sync.js';
+import { isKleur } from '../kern/instellingen-regels.js';
+import { bouwKleurKeuze, leesKleurKeuze } from '../kern/kleur-keuze.js';
+import { huidigeGebruiker, huidigeRechten, eigenZohoNaam } from '../kern/sessie.js';
+import { bewaarOpServer, spiegelEigen, eigenSleutels } from '../kern/instellingen-sync.js';
 
 // Afhankelijkheden uit app.js en prijzen.js (ingevuld door initInstellingen); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('instellingen: initInstellingen() is niet aangeroepen'); } });
@@ -91,8 +93,9 @@ export function loadPersonSettings(person) {
 }
 // Lokaal (de snelle cache, loadPersonSettings blijft synchroon) EN op de server (logins T16, fire-and-forget). Een echte 403 meldt
 // een toast; een netwerkfout niet: de vuil-markering (kern/instellingen-sync.js) laadt de lokale waarde bij de volgende start op.
-export function savePersonSettings(person, opties = {}) {
-  const settings = toestand.get('settings');
+// `instellingen` (optioneel): de te bewaren set; standaard de actieve set uit de toestand (kaartstijl van de getoonde persoon).
+export function savePersonSettings(person, opties = {}, instellingen = toestand.get('settings')) {
+  const settings = instellingen;
   localStorage.setItem(settingsKey(person), JSON.stringify(settings));
   const gebruiker = huidigeGebruiker();
   if (!gebruiker) return; // geen sessie (kan niet na de login): enkel lokaal
@@ -102,6 +105,19 @@ export function savePersonSettings(person, opties = {}) {
     if (r.reden === 'geen-recht') toast('Je mag de instellingen van deze persoon niet wijzigen; lokaal bewaard.', 4000);
     else if (r.reden === 'ongeldig') toast('De instellingen zijn niet geldig en werden enkel lokaal bewaard.', 4000);
   }).catch(() => { /* bewaarOpServer gooit niet; vangnet */ });
+}
+
+// De kaartstijl is een persoonlijke instelling: ze hoort bij de EIGEN set van de ingelogde gebruiker (zelfde doel als ⚙), ook als hij de
+// week van een collega bekijkt. De kaart toont dus altijd de eigen stijl; een keuze op de kaart bewaart nooit bij de collega.
+export function eigenKaartStijl() { return loadPersonSettings(eigenPersoon()).kaartStijl; }
+export function bewaarEigenKaartStijl(sleutel) {
+  const persoon = eigenPersoon();
+  const eigen = loadPersonSettings(persoon);
+  eigen.kaartStijl = sleutel;
+  savePersonSettings(persoon, {}, eigen);
+  const gebruiker = huidigeGebruiker();
+  // Bekijkt hij zijn eigen set (of "Alle", hetzelfde eigen record), dan volgt de getoonde set; een collega blijft ongemoeid.
+  if (toontEigenSet(gebruiker)) toestand.set('settings', loadPersonSettings(toestand.get('activeAssigneeFilter')));
 }
 
 export const DAGEN = ['Zo','Ma','Di','Wo','Do','Vr','Za'];
@@ -174,10 +190,29 @@ let _werkdagenConcept = [];
 
 // UI/UX-review P1-3: voor de beheerder is Beheer → Instellingen de ENIGE plek waar de werkinstellingen per persoon bewerkt worden.
 // Hier blijven ze zichtbaar (alleen-lezen); de persoonlijke/toestelinstellingen (routekleur, drukte) blijven bewerkbaar.
-// De planner heeft geen Beheer-tab en bewerkt de werkinstellingen van de technici dus nog hier (de server staat dat toe).
+// De planner heeft geen Beheer-tab en bewerkt hier zijn EIGEN werkinstellingen (die van techniekers kan enkel de beheerder in Beheer).
+// ⚙ opent ALTIJD de instellingen van de ingelogde gebruiker zelf, los van de persoonskiezer: het doel is de eigen Zoho-naam, of 'all'
+// (het ene eigen serverrecord, zie eigenSleutels) als de gebruiker er geen heeft. Zonder Zoho-naam (planner/beheerder die zelf geen
+// interventies doet) toont het venster enkel de persoonlijke velden; de werkinstellingen van techniekers staan in Beheer → Instellingen.
+// Het venster werkt op een eigen kopie (_doelSettings): de getoonde persoon (toestand.settings: kaart, route, kalender) blijft ongemoeid
+// tot er bewaard wordt en dan enkel als de getoonde persoon dezelfde eigen set is.
+let _doelPersoon = 'all';
+let _doelSettings = null;
+const eigenPersoon = () => eigenZohoNaam() || 'all';
+const eigenNaam = () => eigenZohoNaam() || String(huidigeGebruiker()?.naam ?? '').trim();
+const heeftWerkInstellingen = () => eigenZohoNaam() !== '';
 const WERK_VELDEN = ['set-start', 'set-duration', 'set-max', 'set-maxreistijd', 'set-laatste-start', 'set-van', 'set-tot', 'set-tijdslot'];
-const PERSOONLIJKE_VELDEN = ['routeKleur', 'drukteKleuring', 'kaartStijl'];
 function werkInstellingenAlleenLezen() { return huidigeRechten().beheer === true; }
+// Is de set van de getoonde persoon hetzelfde serverrecord als de eigen set (de eigen naam, of 'Alle' bij planner/beheerder)?
+function toontEigenSet(gebruiker) { return Boolean(gebruiker) && eigenSleutels(gebruiker).includes(toestand.get('activeAssigneeFilter')); }
+// Zonder Zoho-naam: de werkvelden (en de bijbehorende uitleg) verdwijnen; enkel de persoonlijke velden blijven.
+function toonWerkVelden(toon) {
+  for (const id of WERK_VELDEN) { const veld = document.getElementById(id)?.closest('.set-field'); if (veld) veld.style.display = toon ? '' : 'none'; }
+  const dagen = document.getElementById('days-grid')?.closest('.set-field');
+  if (dagen) dagen.style.display = toon ? '' : 'none';
+  const hint = document.getElementById('set-geen-werk-hint');
+  if (hint) hint.hidden = toon || huidigeRechten().beheer !== true; // enkel de beheerder krijgt de verwijzing naar Beheer
+}
 function zetWerkVeldenAlleenLezen(lezen) {
   for (const id of WERK_VELDEN) { const el = document.getElementById(id); if (el) el.disabled = lezen; }
   document.querySelectorAll('#days-grid .day-btn').forEach(b => { b.disabled = lezen; });
@@ -186,10 +221,9 @@ function zetWerkVeldenAlleenLezen(lezen) {
 }
 function naarBeheerInstellingen() {
   closeSettings();
-  const persoon = toestand.get('activeAssigneeFilter');
   try {
     sessionStorage.setItem('blitz_beheer_tab', 'instellingen');
-    if (persoon && persoon !== 'all') sessionStorage.setItem('blitz_beheer_instellingen_persoon', persoon); // Beheer opent bij de persoon die hier gekozen was (M5)
+    sessionStorage.removeItem('blitz_beheer_instellingen_persoon'); // Beheer begint bij de beheerder zelf; de techniekers kies je daar in de lijst
   } catch { /* geen opslag */ }
   document.getElementById('tab-beheer')?.click();
   document.getElementById('beheer-tab-instellingen')?.click(); // Beheer was al open: meteen naar het juiste tabblad
@@ -197,10 +231,11 @@ function naarBeheerInstellingen() {
 
 export function openSettings() {
   setSettingsTab(beperktToestel() ? 'toestel' : 'algemeen');
-  const settings = toestand.get('settings'); // synchrone functie: geen await, dus de momentopname blijft geldig
-  const activeAssigneeFilter = toestand.get('activeAssigneeFilter');
-  const who = activeAssigneeFilter === 'all' ? 'Standaard (alle technici)' : activeAssigneeFilter;
-  document.getElementById('set-person-label').textContent = `Instellingen voor: ${who}`;
+  _doelPersoon = eigenPersoon();
+  _doelSettings = loadPersonSettings(_doelPersoon); // eigen kopie: de getoonde persoon (toestand.settings) blijft onaangeroerd
+  const settings = _doelSettings;
+  const naam = eigenNaam();
+  document.getElementById('set-titel').textContent = naam ? `⚙️ Instellingen — ${naam}` : '⚙️ Instellingen';
   document.getElementById('set-start').value    = settings.startlocatie;
   document.getElementById('set-duration').value = settings.duurMinuten;
   document.getElementById('set-max').value      = settings.maxPerDag;
@@ -209,8 +244,7 @@ export function openSettings() {
   document.getElementById('set-tot').value      = settings.totTijd;
   document.getElementById('set-laatste-start').value = leesLaatsteStart(); // R8: zelfde waarde voor elke technieker
   document.getElementById('set-tijdslot').value = settings.tijdslotMinuten;
-  document.getElementById('set-routekleur').value = settings.routeKleur || DEFAULT_SETTINGS.routeKleur;
-  document.getElementById('set-routekleur-hex').textContent = (settings.routeKleur || DEFAULT_SETTINGS.routeKleur).toUpperCase();
+  bouwKleurKeuze(document.getElementById('set-routekleur'), settings.routeKleur || DEFAULT_SETTINGS.routeKleur); // rij vaste kleuren; de keuze wordt pas bij Opslaan bewaard
   document.getElementById('set-drukte').checked   = settings.drukteKleuring !== false;
   _werkdagenConcept = [...settings.werkdagen];
   const grid = document.getElementById('days-grid');
@@ -229,7 +263,8 @@ export function openSettings() {
     });
     grid.appendChild(btn);
   });
-  zetWerkVeldenAlleenLezen(werkInstellingenAlleenLezen());
+  toonWerkVelden(heeftWerkInstellingen());
+  zetWerkVeldenAlleenLezen(heeftWerkInstellingen() && werkInstellingenAlleenLezen());
   document.getElementById('set-overlay').classList.add('open');
 }
 
@@ -239,46 +274,51 @@ export function closeSettings(e) {
 }
 
 export function saveSettings() {
-  // Een technieker met "Mag zelf plannen" bewaart enkel zijn eigen instellingen (de server weigert die van een collega ook).
-  if (window.apparaat?.rol === 'technieker' && !magPlannenVoor(toestand.get('activeAssigneeFilter'))) {
-    return toast('Je kan enkel je eigen instellingen wijzigen: kies jezelf in de kiezer bovenaan.', 4000);
-  }
-  const settings = toestand.get('settings'); // synchrone functie: geen await, dus de momentopname blijft geldig
-  const resultaat = valideerInstellingen({
-    startlocatie:    document.getElementById('set-start').value,
-    duur:            +document.getElementById('set-duration').value,
-    max:             +document.getElementById('set-max').value,
-    van:             document.getElementById('set-van').value,
-    tot:             document.getElementById('set-tot').value,
-    laatsteStart:    document.getElementById('set-laatste-start').value,
-    maxReistijd:     +document.getElementById('set-maxreistijd').value,
-    tijdslotMinuten: +document.getElementById('set-tijdslot').value,
-    tijdslotTekst:   document.getElementById('set-tijdslot').value,
-    routeKleur:      document.getElementById('set-routekleur').value,
-    werkdagen:       _werkdagenConcept,
-  }, DEFAULT_SETTINGS);
-  if (resultaat.fout) return toast(resultaat.fout, 3500);
+  const settings = _doelSettings; // de eigen set van het geopende venster (zie openSettings)
+  if (!settings) return;
+  const gebruiker = huidigeGebruiker();
+  if (heeftWerkInstellingen() && !werkInstellingenAlleenLezen()) {
+    const resultaat = valideerInstellingen({
+      startlocatie:    document.getElementById('set-start').value,
+      duur:            +document.getElementById('set-duration').value,
+      max:             +document.getElementById('set-max').value,
+      van:             document.getElementById('set-van').value,
+      tot:             document.getElementById('set-tot').value,
+      laatsteStart:    document.getElementById('set-laatste-start').value,
+      maxReistijd:     +document.getElementById('set-maxreistijd').value,
+      tijdslotMinuten: +document.getElementById('set-tijdslot').value,
+      tijdslotTekst:   document.getElementById('set-tijdslot').value,
+      routeKleur:      leesKleurKeuze(document.getElementById('set-routekleur')),
+      werkdagen:       _werkdagenConcept,
+    }, DEFAULT_SETTINGS);
+    if (resultaat.fout) return toast(resultaat.fout, 3500);
 
-  const w = resultaat.waarden;
-  settings.startlocatie   = w.startlocatie;
-  settings.duurMinuten    = w.duurMinuten;
-  settings.maxPerDag      = w.maxPerDag;
-  settings.vanTijd        = w.vanTijd;
-  settings.totTijd        = w.totTijd;
-  settings.werkdagen      = [..._werkdagenConcept];
-  settings.laatsteStart   = w.laatsteStart;
-  bewaarLaatsteStart(settings.laatsteStart); // R8: één waarde voor iedereen
-  settings.maxReistijdMin = w.maxReistijdMin;
-  settings.tijdslotMinuten = w.tijdslotMinuten;
-  settings.routeKleur    = w.routeKleur;
+    const w = resultaat.waarden;
+    settings.startlocatie   = w.startlocatie;
+    settings.duurMinuten    = w.duurMinuten;
+    settings.maxPerDag      = w.maxPerDag;
+    settings.vanTijd        = w.vanTijd;
+    settings.totTijd        = w.totTijd;
+    settings.werkdagen      = [..._werkdagenConcept];
+    settings.laatsteStart   = w.laatsteStart;
+    bewaarLaatsteStart(settings.laatsteStart); // R8: één waarde voor iedereen
+    settings.maxReistijdMin = w.maxReistijdMin;
+    settings.tijdslotMinuten = w.tijdslotMinuten;
+    settings.routeKleur    = w.routeKleur;
+  } else {
+    // De werkwaarden staan in Beheer (de beheerder) of bestaan niet voor deze gebruiker (geen Zoho-naam): enkel de persoonlijke velden.
+    const kleur = leesKleurKeuze(document.getElementById('set-routekleur'));
+    settings.routeKleur = isKleur(kleur) ? kleur : DEFAULT_SETTINGS.routeKleur;
+  }
   settings.drukteKleuring = document.getElementById('set-drukte').checked;
-  const activeAssigneeFilter = toestand.get('activeAssigneeFilter');
-  // De beheerder wijzigt hier enkel de persoonlijke velden; de werkwaarden van een technieker staan in Beheer (en blijven zoals de server ze heeft).
-  savePersonSettings(activeAssigneeFilter, werkInstellingenAlleenLezen() ? { velden: PERSOONLIJKE_VELDEN } : {});
+  savePersonSettings(_doelPersoon, {}, settings);
+  // Bekijkt de gebruiker zijn eigen set (of "Alle", hetzelfde eigen record), dan volgt de getoonde set; een collega blijft ongemoeid.
+  if (toontEigenSet(gebruiker)) toestand.set('settings', loadPersonSettings(toestand.get('activeAssigneeFilter')));
   document.getElementById('set-overlay').classList.remove('open');
   afh.renderTickets();
   afh.renderKalender();
   // Kleur/drukte meteen zichtbaar wisselen als er al een berekende route staat
   afh.vernieuwKaart();
-  toast('✓ Instellingen opgeslagen voor ' + (activeAssigneeFilter === 'all' ? 'alle technici' : activeAssigneeFilter.split(' ')[0]));
+  const eerste = eigenNaam().split(' ')[0];
+  toast('✓ Instellingen opgeslagen' + (eerste ? ' voor ' + eerste : ''));
 }

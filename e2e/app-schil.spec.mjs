@@ -38,12 +38,12 @@ test.describe('hoofdtabs', () => {
   });
 
   test('de tabbalk reageert op de pijltjestoetsen (focus naar de volgende zichtbare tab)', async ({ page }) => {
-    await startApp(page, { rol: 'coordinator', loginRol: 'planner' }); // een beheerder heeft er nog een tab (Beheer) achter
+    await startApp(page, { rol: 'coordinator', loginRol: 'planner' }); // een planner heeft Beheer als laatste tab (net als de beheerder, dat heeft er ook Sales)
     await page.locator('#tab-tickets').focus();
     await page.keyboard.press('ArrowRight');
     await expect(page.locator('#tab-kalender')).toBeFocused();
     await page.keyboard.press('End');
-    await expect(page.locator('#tab-rapporten')).toBeFocused();
+    await expect(page.locator('#tab-beheer')).toBeFocused();
     await page.keyboard.press('Home');
     await expect(page.locator('#tab-tickets')).toBeFocused();
   });

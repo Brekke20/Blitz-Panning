@@ -29,7 +29,7 @@ const negeer403 = (consoleFouten) => { for (let i = consoleFouten.length - 1; i 
 
 test.describe('instellingen van de server', () => {
   test('het venster toont de serverwaarden; opslaan doet een PUT met de nieuwe waarde', async ({ page, verzoeken }) => {
-    await startApp(page, { loginRol: 'planner', overschrijf: { instellingen: instellingenStub({ eigen: SERVER }) } }); // werkvelden bewerken: planner (UI/UX P1-3)
+    await startApp(page, { loginRol: 'planner', loginGebruiker: { zohoNaam: 'Brent' }, overschrijf: { instellingen: instellingenStub({ eigen: SERVER }) } }); // eigen werkvelden bewerken: planner met Zoho-naam (UI/UX P1-3)
     expect(verzoeken.van('/api/instellingen', 'GET')).toHaveLength(1);
     expect(puts(verzoeken)).toHaveLength(0); // de server heeft een waarde: niets te migreren
 
@@ -45,7 +45,7 @@ test.describe('instellingen van de server', () => {
 
     await modal.locator('#set-start').fill('Nieuwstraat 2');
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor alle technici');
+    await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor Brent');
     await expect.poll(() => puts(verzoeken).length).toBe(1);
     const put = puts(verzoeken)[0];
     expect(put.body.gebruiker).toBeUndefined(); // eigen instellingen: zonder doel
@@ -61,35 +61,34 @@ test.describe('instellingen van de server', () => {
     expect((await leesJson(page, 'blitz_settings')).startlocatie).toBe('Oude lokale straat');
   });
 
-  test('planner met Tim gekozen: de PUT draagt het gebruikerId van Tim, geen foutmelding en de waarde staat lokaal', async ({ page, verzoeken }) => {
-    await startApp(page, { loginRol: 'planner', technieker: 'Tim', overschrijf: { instellingen: instellingenStub({ eigen: null, techniekers: TECHNIEKERS }) } });
+  test('planner met Tim gekozen: ⚙ bewaart de EIGEN set (PUT zonder doel), Tim blijft onaangeroerd', async ({ page, verzoeken }) => {
+    await startApp(page, { loginRol: 'planner', loginGebruiker: { zohoNaam: 'Brent' }, technieker: 'Tim', overschrijf: { instellingen: instellingenStub({ eigen: null, techniekers: TECHNIEKERS }) } });
     const modal = await openInstellingen(page);
-    await expect(modal.locator('#set-person-label')).toHaveText('Instellingen voor: Tim');
-    await modal.locator('#set-start').fill('Timstraat 3');
+    await expect(modal.getByRole('heading', { name: '⚙️ Instellingen — Brent' })).toBeVisible();
+    await modal.locator('#set-start').fill('Brentstraat 3');
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor Tim');
+    await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor Brent');
     await expect.poll(() => puts(verzoeken).length).toBe(1);
     const put = puts(verzoeken)[0];
-    expect(put.body.gebruiker).toBe('u-tim');
-    expect(put.body.instellingen.startlocatie).toBe('Timstraat 3');
-    expect(put.body.instellingen.laatsteStart).toBeUndefined(); // globale toestelinstelling hoort niet bij Tim
-    // Geen foutmelding verschenen (de toast blijft de succesmelding).
+    expect(put.body.gebruiker).toBeUndefined(); // eigen record, niet dat van Tim
+    expect(put.body.instellingen.startlocatie).toBe('Brentstraat 3');
     await page.waitForTimeout(300);
     await expect(toastTekst(page)).not.toContainText('Je mag de instellingen');
-    expect((await leesJson(page, 'blitz_settings_Tim')).startlocatie).toBe('Timstraat 3');
+    expect((await leesJson(page, 'blitz_settings_Brent')).startlocatie).toBe('Brentstraat 3');
+    expect(await leesOpslag(page, 'blitz_settings_Tim')).toBeNull();
+    // De getoonde persoon (Tim) behoudt zijn eigen instellingen in de toestand.
+    expect(await page.evaluate(() => kern.toestand.get('settings').startlocatie)).not.toBe('Brentstraat 3');
   });
 
   test('een 403 geen-recht op de PUT: toast "lokaal bewaard" en de waarde staat toch in localStorage', async ({ page, verzoeken, consoleFouten }) => {
-    const weiger = (body) => (body.gebruiker && body.gebruiker !== 'u-test'
-      ? { status: 403, json: { error: 'Je hebt hier geen toegang toe.', code: 'geen-recht' } }
-      : { status: 200, json: { versie: 2 } });
-    await startApp(page, { loginRol: 'planner', technieker: 'Tim', overschrijf: { instellingen: instellingenStub({ eigen: null, techniekers: TECHNIEKERS, put: weiger }) } });
+    const weiger = () => ({ status: 403, json: { error: 'Je hebt hier geen toegang toe.', code: 'geen-recht' } });
+    await startApp(page, { loginRol: 'planner', loginGebruiker: { zohoNaam: 'Brent' }, overschrijf: { instellingen: instellingenStub({ eigen: null, techniekers: TECHNIEKERS, put: weiger }) } });
     const modal = await openInstellingen(page);
-    await modal.locator('#set-start').fill('Timstraat 9');
+    await modal.locator('#set-start').fill('Brentstraat 9');
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
     await expect(toastTekst(page)).toHaveText('Je mag de instellingen van deze persoon niet wijzigen; lokaal bewaard.');
     expect(puts(verzoeken)).toHaveLength(1);
-    expect((await leesJson(page, 'blitz_settings_Tim')).startlocatie).toBe('Timstraat 9');
+    expect((await leesJson(page, 'blitz_settings_Brent')).startlocatie).toBe('Brentstraat 9');
     expect(await leesOpslag(page, 'blitz_instellingen_vuil')).toBeNull(); // geen-recht is geen netwerkprobleem
     negeer403(consoleFouten);
   });
@@ -114,26 +113,9 @@ test.describe('instellingen van de server', () => {
     expect(await leesOpslag(page, 'blitz_instellingen_eigenaar')).toBeNull();
   });
 
-  // Merge-review I2: de server vervangt het hele record van een technieker; wat het formulier niet toont (laatsteStart, bezoekDuurMin) mag nooit verdwijnen.
-  test('planner bewaart in ⚙ voor Tim: de PUT bevat ook zijn laatsteStart en bezoekDuurMin van de server (geen veldverlies)', async ({ page, verzoeken }) => {
-    const timServer = { ...SERVER, laatsteStart: '14:45', bezoekDuurMin: 50, kaartStijl: 'satelliet' };
-    const techniekers = { Tim: { gebruikerId: 'u-tim', instellingen: timServer }, Roel: { gebruikerId: 'u-roel', instellingen: null } };
-    await startApp(page, { loginRol: 'planner', technieker: 'Tim', overschrijf: { instellingen: instellingenStub({ eigen: null, techniekers }) } });
-    const modal = await openInstellingen(page);
-    await expect(modal.locator('#set-person-label')).toHaveText('Instellingen voor: Tim');
-    await modal.locator('#set-routekleur').fill('#336699');
-    await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect.poll(() => puts(verzoeken).length).toBe(1);
-    const body = puts(verzoeken)[0].body;
-    expect(body.gebruiker).toBe('u-tim');
-    expect(body.instellingen).toMatchObject({ routeKleur: '#336699', laatsteStart: '14:45', bezoekDuurMin: 50, kaartStijl: 'satelliet', startlocatie: 'Teststraat 1' });
-    // Het serverrecord werd vlak vóór het schrijven opnieuw opgehaald (overzicht), niet uit de lokale kopie gehaald.
-    expect(verzoeken.van('/api/instellingen', 'GET').length).toBeGreaterThanOrEqual(2);
-  });
-
   test('een door de server geweigerde waarde (400): toast "niet geldig, enkel lokaal bewaard" en geen vuil-markering', async ({ page, consoleFouten }) => {
     const weiger = () => ({ status: 400, json: { error: '⚠ Duur is ongeldig' } });
-    await startApp(page, { loginRol: 'planner', overschrijf: { instellingen: instellingenStub({ eigen: SERVER, put: weiger }) } });
+    await startApp(page, { loginRol: 'planner', loginGebruiker: { zohoNaam: 'Brent' }, overschrijf: { instellingen: instellingenStub({ eigen: SERVER, put: weiger }) } });
     const modal = await openInstellingen(page);
     await modal.locator('#set-start').fill('Ongeldigstraat 1');
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
