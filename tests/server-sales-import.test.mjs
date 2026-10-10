@@ -466,7 +466,7 @@ test('manueel: het minimum wordt ook op de server afgedwongen (400 met een Neder
   const gevallen = [
     [{ voornaam: '', naam: '' }, 'Vul een naam in'],
     [{ gsm: null, email: null }, 'Vul een gsm-nummer of e-mailadres in'],
-    [{ postcode: null }, 'Postcode bestaat uit 4 cijfers'],
+    [{ postcode: null }, 'Vul een postcode in'],
     [{ postcode: '35' }, 'Postcode bestaat uit 4 cijfers'],
     [{ gsm: '0470 11', email: null }, 'Dit gsm-nummer lijkt niet te kloppen'],
     [{ straat: 'Dorpsstraat' }, 'Vul straat én huisnummer in'],

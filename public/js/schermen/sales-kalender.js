@@ -2,15 +2,15 @@
 // lichter dan bevestigd), blokken, ⚡ Plan deze week en ➕ Blok. Hergebruikt de uur-as, laan-indeling en dagkolommen van de technieker-kalender
 // (kalender-logica.js, kalender.js) maar met eigen `sales-`-klassen voor alles wat de rol "sales" niet mag verbergen (geen .coord-only/.kal-actions).
 // Alle leadgegevens gaan via textContent in de DOM. De gekozen dag is sales-data.gekozenDatum (gedeeld met de Route-tab).
-import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, minToTimeStr } from '../kern/tijd.js';
+import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, minToTimeStr, openingsDatum } from '../kern/tijd.js';
 import { toast, maakActiveerbaar } from '../kern/ui.js';
 import { getHolidayName } from '../kern/feestdagen.js';
-import { TIMELINE_PX_PER_MIN, timelineTopHeight, bepaalLanes, maandRaster } from './kalender-logica.js';
+import { TIMELINE_PX_PER_MIN, SALES_MIN_BLOCK_PX, timelineTopHeight, bepaalLanes, maandRaster } from './kalender-logica.js';
 import { computeTimelineRange, appendOffhoursBands, renderTimelineGutter } from './kalender.js';
 import { startScherm } from './sales-schil.js';
 import { salesToestand, gekozenDatum, zetGekozenDatum } from './sales-data.js';
 import { schrijfbaarNu } from './sales-verkoper.js';
-import { bouwKalenderItems, maandChips, weekDagen, navigatieAdres } from './sales-kalender-logica.js';
+import { bouwKalenderItems, maandChips, weekDagen, navigatieAdres, eersteWerkdag } from './sales-kalender-logica.js';
 import { kaartInfo } from './sales-lijst-logica.js';
 import { openBezoekActies, navigeer } from './sales-bezoek.js';
 import { openBlokVenster } from './sales-blok.js';
@@ -47,8 +47,11 @@ function stap(richting) {
   herteken();
 }
 
+// "Vandaag" = de openingsdatum: in het weekend de eerste werkdag van de komende week.
+const openingsdag = () => openingsDatum(new Date(), salesToestand().instellingen.werkdagen);
+
 function naarVandaag() {
-  zetGekozenDatum(localISO(new Date()));
+  zetGekozenDatum(openingsdag());
   herteken();
 }
 
@@ -74,10 +77,10 @@ function periodeTekst() {
 }
 
 function nietVandaag() {
-  const nu = new Date();
+  const open = openingsdag();
   const [j, m] = gekozenDatum().split('-').map(Number);
-  if (weergave === 'maand') return j !== nu.getFullYear() || m !== nu.getMonth() + 1;
-  return weekVerschil(gekozenDatum(), localISO(nu)) !== 0;
+  if (weergave === 'maand') return j !== Number(open.slice(0, 4)) || m !== Number(open.slice(5, 7));
+  return weekVerschil(gekozenDatum(), open) !== 0;
 }
 
 function maakKop(schrijfbaar) {
@@ -111,7 +114,7 @@ function maakKop(schrijfbaar) {
       finally { plan.disabled = false; plan.textContent = '⚡ Plan deze week'; }
     });
     const blok = el('button', { type: 'button', class: 'btn-sec', text: '➕ Blok' });
-    blok.addEventListener('click', () => openBlokVenster({ datum: gekozenDatum() }));
+    blok.addEventListener('click', () => openBlokVenster({ datum: eersteWerkdag(gekozenDatum(), salesToestand().instellingen.werkdagen) })); // nooit een weekenddag vooraf invullen
     kop.append(el('div', { class: 'sales-kal-acties' }, plan, blok));
   }
   return kop;
@@ -152,9 +155,9 @@ function tijdlijnDag(iso, items, hoogte) {
     wrap.append(lijn);
   }
   const leads = new Map(salesToestand().leads.map((l) => [l.id, l]));
-  const geplaatst = bepaalLanes(items.filter((i) => !i.heleDag));
+  const geplaatst = bepaalLanes(items.filter((i) => !i.heleDag), { minDuurMin: 0 }); // echte duur: de leesbaarheidsvloer telt niet mee voor overlap
   for (const item of geplaatst) {
-    const { top, height } = timelineTopHeight(item.startMin, item.endMin, dagStartMin, totalHeight);
+    const { top, height } = timelineTopHeight(item.startMin, item.endMin, dagStartMin, totalHeight, SALES_MIN_BLOCK_PX);
     const blok = item.type === 'blok'
       ? el('div', { class: 'tl-block tl-blocked sales-blok' }, el('div', { text: blokTekst(item) }))
       : el('div', { class: `tl-block sales-bezoek sales-${item.tint}` }, ...bezoekInhoud(item, leads.get(item.id)));

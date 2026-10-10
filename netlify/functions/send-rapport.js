@@ -14,6 +14,7 @@ import { maakZoho, leesJsonVeilig, globaleFetch } from '../lib/zoho.js';
 import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
 import { getStore } from '@netlify/blobs';
 import { beveiligV1 } from '../lib/beveiligd.js';
+import { alsV2 } from '../lib/v2-adapter.js';
 import { logVoorVerzoek } from '../lib/activiteit.js';
 
 const CHROMIUM_URL  = 'https://github.com/Sparticuz/chromium/releases/download/v131.0.0/chromium-v131.0.0-pack.tar';
@@ -203,4 +204,4 @@ export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf, getS
   };
 }
 
-export const handler = beveiligV1('send-rapport', maakHandler());
+export default alsV2(beveiligV1('send-rapport', maakHandler()));

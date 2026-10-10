@@ -1,4 +1,6 @@
 // Wrapper die elke functie achter de rechtentabel zet: beveiligV1 (event) en beveiligV2 (Request).
+// beveiligV1 draait in productie altijd achter alsV2 (netlify/lib/v2-adapter.js): een functie is dus nooit een echte
+// v1-Lambda, want enkel een v2-functie krijgt de volledige Netlify Blobs-omgeving (strong consistency).
 //   const handler = beveiligV1('plan', async (event, context, gebruiker) => {...});
 //   export default beveiligV2('plan-datum', async (req, context, gebruiker) => {...});
 // Fail-closed: een weigering, een auth-resultaat zonder ok:true of een fout in de controle roept de functie

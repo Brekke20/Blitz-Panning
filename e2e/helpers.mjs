@@ -314,7 +314,7 @@ export const TE_PLANNEN = { all: 3, Tim: 2, Roel: 1 };
 // `loginGebruiker`: velden van de ingelogde gebruiker in de auth-ik-stub (zie authIkStub). Een ingelogde technieker start op zijn eigen
 // planning (zohoNaam, bij blitz_active_person 'all'); voor sales (geen wachtrij) of met wachtOpApp: false (een test die zelf
 // de login afwerkt) wacht startApp niet op de tickets.
-export async function startApp(page, { rol = 'coordinator', technieker = 'all', viewport, overschrijf, loginRol = 'beheerder', loginGebruiker = {}, wachtOpApp = true } = {}) {
+export async function startApp(page, { rol = 'coordinator', technieker = 'all', viewport, overschrijf, loginRol = 'beheerder', loginGebruiker = {}, wachtOpApp = true, nu = VASTE_NU } = {}) {
   if (viewport) await page.setViewportSize(viewport);
   // Alleen zetten als er nog niets staat: een test die in de app van persoon wisselt en herlaadt,
   // behoudt zo zijn keuze.
@@ -331,7 +331,7 @@ export async function startApp(page, { rol = 'coordinator', technieker = 'all', 
   }, { rol, technieker });
   // De tijd loopt door vanaf VASTE_NU (geen bevroren klok); gebruik page.clock.setFixedTime als een
   // test ooit op de minuut nauwkeurig moet zijn.
-  await page.clock.install({ time: new Date(VASTE_NU) });
+  await page.clock.install({ time: new Date(nu) }); // `nu`: een andere vaste starttijd (bv. een zaterdag)
   await stubExtern(page, { overschrijf: { 'auth-ik': authIkStub(loginRol, loginGebruiker), ...overschrijf } });
   await page.goto('/?test');
   if (loginRol === 'sales' || wachtOpApp === false) return;

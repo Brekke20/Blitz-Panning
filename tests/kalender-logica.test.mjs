@@ -43,6 +43,16 @@ test('timelineTopHeight: minimumhoogte 155', () => {
   assert.equal(height, 155);
 });
 
+test('timelineTopHeight: eigen minimumhoogte (sales) en bepaalLanes met echte duur', () => {
+  assert.equal(timelineTopHeight(600, 630, 0, 1872, 40).height, 40);
+  assert.ok(Math.abs(timelineTopHeight(480, 540, 0, 1872, 40).height - 78) < 1e-9); // 1 u = 78 px, geen 2 u
+  // 08:00-09:00 en 09:37-10:37 overlappen niet: met minDuurMin 0 elk één laan; standaard (service-kaarten) staan ze naast elkaar.
+  const sales = bepaalLanes([{ startMin: 480, endMin: 540 }, { startMin: 577, endMin: 637 }], { minDuurMin: 0 });
+  assert.deepEqual(sales.map(i => [i.lane, i.laneCount]), [[0, 1], [0, 1]]);
+  const service = bepaalLanes([{ startMin: 480, endMin: 540 }, { startMin: 577, endMin: 637 }]);
+  assert.deepEqual(service.map(i => i.laneCount), [2, 2]);
+});
+
 test('timelineTopHeight: laat blok blijft binnen de tijdlijn', () => {
   const { top, height } = timelineTopHeight(1410, 1440, 0, 1872); // 23:30
   assert.equal(height, 155);

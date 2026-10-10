@@ -12,6 +12,7 @@ export const MAX_NOTITIE = 1000;
 export const FOUT_NAAM = 'Vul een naam in';
 export const FOUT_CONTACT = 'Vul een gsm-nummer of e-mailadres in';
 export const FOUT_POSTCODE = 'Postcode bestaat uit 4 cijfers';
+export const FOUT_POSTCODE_LEEG = 'Vul een postcode in';
 export const FOUT_STRAAT = 'Vul straat én huisnummer in';
 export const FOUT_PRECIES_EEN = 'Een manueel toegevoegde lead bestaat uit precies één lead';
 
@@ -33,7 +34,7 @@ export function valideerManueleLead(invoer) {
   if (v.gsm === '' && v.email === '') fouten.contact = FOUT_CONTACT;
   if (v.gsm !== '' && normaliseerGsm(v.gsm) === null) fouten.gsm = 'Dit gsm-nummer lijkt niet te kloppen';
   if (v.email !== '' && normaliseerEmail(v.email) === null) fouten.email = 'Dit e-mailadres lijkt niet te kloppen';
-  if (!/^\d{4}$/.test(v.postcode)) fouten.postcode = FOUT_POSTCODE;
+  if (!/^\d{4}$/.test(v.postcode)) fouten.postcode = v.postcode === '' ? FOUT_POSTCODE_LEEG : FOUT_POSTCODE;
   if ((v.straat === '') !== (v.huisnr === '')) fouten.straat = FOUT_STRAAT;
   for (const [k, label] of Object.entries(LABELS)) {
     if (v[k].length > MAX_VELD && !fouten[k]) fouten[k] = `${label} is te lang (max. ${MAX_VELD} tekens)`;

@@ -37,7 +37,7 @@ test('bouwResultaatRegels: geplaatst, niet geplaatst en een reistijd-waarschuwin
   assert.equal(r.nietIngepland.length, 1);
   assert.equal(r.nietIngepland[0].naam, 'Marie Peeters');
   assert.match(r.nietIngepland[0].tekst, /meer dan 40 min/);
-  assert.deepEqual(r.waarschuwingen, ['Reistijd kon niet gecontroleerd worden voor 2 bezoeken — kijk de route na']);
+  assert.deepEqual(r.waarschuwingen, ['Reistijd kon niet gecontroleerd worden voor Marie Janssens, Marie Peeters — kijk de route na']);
 });
 
 test('bouwResultaatRegels: een lead die terug op te-plannen gezet werd is niet ingepland', () => {
@@ -71,4 +71,11 @@ test('weekStartVan: maandag van de week (lokaal)', () => {
   const d = weekStartVan('2026-10-08');
   assert.ok(d instanceof Date);
   assert.equal(d.getHours(), 0);
+});
+
+test('bouwResultaatRegels: de reistijd-waarschuwing noemt het bezoek bij naam; bij meer dan drie "+n"', () => {
+  const leads = ['a', 'b', 'c', 'd', 'e'].map((id) => lead(id, 'N' + id));
+  const maak = (ids) => bouwResultaatRegels({ overzicht: { waarschuwingen: [{ soort: 'reistijd-geschat', ticketIds: ids }] }, leads }).waarschuwingen;
+  assert.deepEqual(maak(['c']), ['Reistijd kon niet gecontroleerd worden voor Marie Nc — kijk de route na']);
+  assert.deepEqual(maak(['a', 'b', 'c', 'd', 'e']), ['Reistijd kon niet gecontroleerd worden voor Marie Na, Marie Nb, Marie Nc +2 — kijk de route na']);
 });

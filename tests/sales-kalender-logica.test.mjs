@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 process.env.TZ = 'Europe/Brussels';
-import { bouwKalenderItems, maandChips, tintVan } from '../public/js/schermen/sales-kalender-logica.js';
+import { bouwKalenderItems, maandChips, tintVan, eersteWerkdag } from '../public/js/schermen/sales-kalender-logica.js';
 import { bepaalLanes } from '../public/js/schermen/kalender-logica.js';
 
 // Verzonnen leads en blokken.
@@ -142,4 +142,13 @@ test('navigatieLink: geo: op Android, anders Google Maps (zoals navigate() in ap
   assert.equal(navigatieLink('Teststraat 5, 2830 Willebroek', false),
     'https://www.google.com/maps/dir/?api=1&destination=Teststraat%205%2C%202830%20Willebroek&travelmode=driving');
   assert.equal(navigatieLink(null, true), null);
+});
+
+test('eersteWerkdag: een werkdag blijft, een weekenddag schuift naar maandag; eigen werkdagen en terugval ma-vr', () => {
+  assert.equal(eersteWerkdag('2026-10-09', [1, 2, 3, 4, 5]), '2026-10-09'); // vrijdag
+  assert.equal(eersteWerkdag('2026-10-10', [1, 2, 3, 4, 5]), '2026-10-12'); // zaterdag
+  assert.equal(eersteWerkdag('2026-10-11', [1, 2, 3, 4, 5]), '2026-10-12'); // zondag
+  assert.equal(eersteWerkdag('2026-10-10', [1, 2, 3, 4, 5, 6]), '2026-10-10'); // zaterdag is werkdag
+  assert.equal(eersteWerkdag('2026-10-10', undefined), '2026-10-12');
+  assert.equal(eersteWerkdag('2026-10-10', []), '2026-10-12');
 });

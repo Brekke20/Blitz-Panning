@@ -29,9 +29,15 @@ export function redenTekst(reden, { maxReistijdMin = 45, woorden = WOORDEN_TICKE
 }
 
 /** De tekst (zonder ⚠) bij een waarschuwing van het brein; null voor een onbekende soort (die tonen we niet). */
-export function waarschuwingTekst(w, woorden = WOORDEN_TICKET) {
+export function waarschuwingTekst(w, woorden = WOORDEN_TICKET, naamVan = null) {
   if (w?.soort === 'reistijd-geschat') {
     const aantal = (w.ticketIds ?? []).length;
+    // Met een naam-functie (verkoper): de bezoeken bij naam, hoogstens drie, de rest als "+n".
+    if (naamVan && aantal) {
+      const namen = w.ticketIds.map((id) => naamVan(id));
+      const zichtbaar = namen.slice(0, 3).join(', ') + (namen.length > 3 ? ` +${namen.length - 3}` : '');
+      return `Reistijd kon niet gecontroleerd worden voor ${zichtbaar} — kijk de route na`;
+    }
     return `Reistijd kon niet gecontroleerd worden voor ${aantal} ${aantal === 1 && woorden.enkelvoud ? woorden.enkel : woorden.meer} — kijk de route na`;
   }
   if (w?.soort === 'locatie-onbekend') return 'Locatie van een bestaande afspraak onbekend — reistijdcontrole minder nauwkeurig';

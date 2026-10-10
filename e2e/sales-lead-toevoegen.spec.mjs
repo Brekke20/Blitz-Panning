@@ -50,7 +50,7 @@ test.describe('sales: lead manueel toevoegen', () => {
     await venster(page).getByRole('button', { name: 'Opslaan' }).click();
     await expect(venster(page)).toContainText('Vul een naam in');
     await expect(venster(page)).toContainText('Vul een gsm-nummer of e-mailadres in');
-    await expect(venster(page)).toContainText('Postcode bestaat uit 4 cijfers');
+    await expect(venster(page)).toContainText('Vul een postcode in');
     await expect(venster(page).getByLabel('Voornaam')).toBeFocused(); // naar het eerste ongeldige veld
     expect(verzoeken.van('/api/sales-import')).toEqual([]);
 

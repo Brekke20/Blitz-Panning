@@ -474,15 +474,15 @@ test('gekozenDatum: standaard vandaag (lokaal), zetGekozenDatum meldt enkel bij 
   assert.match(gekozenDatum(), /^\d{4}-\d{2}-\d{2}$/);
   let n = 0;
   onSalesWijziging(() => n++);
-  zetGekozenDatum('2026-10-12');
-  assert.equal(gekozenDatum(), '2026-10-12');
-  assert.equal(salesToestand().gekozenDatum, '2026-10-12');
+  zetGekozenDatum('2031-03-05');
+  assert.equal(gekozenDatum(), '2031-03-05');
+  assert.equal(salesToestand().gekozenDatum, '2031-03-05');
   assert.equal(n, 1);
-  zetGekozenDatum('2026-10-12');
+  zetGekozenDatum('2031-03-05');
   assert.equal(n, 1);
   zetGekozenDatum('morgen');
   zetGekozenDatum(null);
-  assert.equal(gekozenDatum(), '2026-10-12');
+  assert.equal(gekozenDatum(), '2031-03-05');
   assert.equal(n, 1);
 });
 
@@ -710,4 +710,17 @@ test('M2: een laat PATCH-antwoord voor verkoper A na een wissel naar B verandert
   assert.equal(salesToestand().gebruikerId, 'u-B');
   assert.deepEqual(salesToestand().leads.map((l) => l.id), ['b1']);
   assert.equal(salesToestand().versie, 1);
+});
+
+test('gekozenDatum: vaste klok op een zaterdag -> de verse toestand opent op maandag van de komende week', async () => {
+  const echteDatum = globalThis.Date;
+  const vast = new echteDatum(2026, 9, 10, 10, 0, 0); // za 10 okt 2026
+  globalThis.Date = class extends echteDatum {
+    constructor(...a) { if (a.length) super(...a); else super(vast.getTime()); }
+    static now() { return vast.getTime(); }
+  };
+  try {
+    const vers = await import('../public/js/schermen/sales-data.js?weekend=' + Math.random());
+    assert.equal(vers.gekozenDatum(), '2026-10-12');
+  } finally { globalThis.Date = echteDatum; }
 });

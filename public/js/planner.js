@@ -82,7 +82,7 @@ export function bouwDagen({ weekStart, vandaag, werkdagen, uitgesloten, voorkeur
 export async function planWeek(invoer) {
   const {
     kandidaten, dagen, extraVoor = {}, bestaandPerDag = {}, eigenAfspraken = {}, klant = {},
-    instellingen, depot, vandaag, reistijden, blokkeringen = {},
+    instellingen, depot, vandaag, reistijden, blokkeringen = {}, reisMarge = null,
   } = invoer;
   const maxReistijdMin = instellingen.maxReistijdMin;
   const vanTijdMin = timeStrToMin(instellingen.vanTijd || '08:00');
@@ -115,9 +115,10 @@ export async function planWeek(invoer) {
       catch { antwoord = null; }
       for (const c of ontbreekt) {
         const v = antwoord && typeof antwoord.get === 'function' ? antwoord.get(c.id) : null;
-        geheugen.set(sleutel(c), (typeof v === 'number' && isFinite(v))
-          ? { min: v, geschat: false }
-          : { min: haversine(van.lat, van.lon, c.lat, c.lon) * 1.3, geschat: true });
+        const min = (typeof v === 'number' && isFinite(v)) ? v : haversine(van.lat, van.lon, c.lat, c.lon) * 1.3;
+        // `min` = de reistijd zelf (voor de maxReistijd-grens en het sorteren), `plan` = de reistijd waarmee de klok loopt: bij
+        // `reisMarge` (optionele functie min -> min, bv. de veiligheidsmarge van de verkoper) met marge, anders gelijk aan `min`.
+        geheugen.set(sleutel(c), { min, plan: reisMarge ? reisMarge(min) : min, geschat: !(typeof v === 'number' && isFinite(v)) });
       }
     }
     for (const c of lijst) uit.set(c.id, geheugen.get(sleutel(c)));
@@ -222,7 +223,7 @@ export async function planWeek(invoer) {
       if (!volgende) return { ok: true, r: null };
       const r = (await reistijdenVan(volgende, lijst, dag, volgende.s)).get(c.id);
       if (r && r.min > maxReistijdMin) return { ok: false, reden: 'te-ver', r, volgende };
-      if (r && e + r.min > volgende.s) return { ok: false, reden: 'te-laat', r, volgende };
+      if (r && e + r.plan > volgende.s) return { ok: false, reden: 'te-laat', r, volgende };
       return { ok: true, r, volgende };
     };
 
@@ -248,7 +249,7 @@ export async function planWeek(invoer) {
         const r = (await reistijdenVan(ref, [t], dag, refVertrek)).get(t.id);
         geschat = !!r?.geschat;
         if (r && r.min > maxReistijdMin) return { ok: false, reden: 'te-ver' };
-        if (r && refEindeGekend && refVertrek + r.min > s) return { ok: false, reden: 'vast-uur-botst' }; // vorige stop → hier niet op tijd
+        if (r && refEindeGekend && refVertrek + r.plan > s) return { ok: false, reden: 'vast-uur-botst' }; // vorige stop → hier niet op tijd
       }
       const v = await vooruit(t, s, alle);
       if (!v.ok) return { ok: false, reden: v.reden === 'te-ver' ? 'te-ver' : 'vast-uur-botst' };
@@ -292,7 +293,7 @@ export async function planWeek(invoer) {
     const reis = (cands, vertrek) => reistijdenVan(positie(), cands, dag, vertrek);
 
     // Bestaande stops zonder uur: vooraan in de keten vanaf vanTijd, in hun huidige volgorde.
-    const legNaar = async p => heeftLoc(p) ? ((await reis([p], klok)).get(p.id)?.min ?? 0) : 0;
+    const legNaar = async p => heeftLoc(p) ? ((await reis([p], klok)).get(p.id)?.plan ?? 0) : 0;
     for (const p of keten) {
       normaliseer();
       let aank = klok + await legNaar(p);
@@ -306,7 +307,7 @@ export async function planWeek(invoer) {
           const volgende = blokken.filter(x => x.stop && heeftLoc(x) && x.s >= eind).sort((x, y) => x.s - y.s)[0];
           if (volgende) {
             const r = (await reistijdenVan(volgende, [p], dag, volgende.s)).get(p.id);
-            if (r && eind + r.min > volgende.s) sprong = volgende;
+            if (r && eind + r.plan > volgende.s) sprong = volgende;
           }
         }
         if (!sprong) break;
@@ -356,7 +357,7 @@ export async function planWeek(invoer) {
             gekozen = { c, aank: p.s, opUur: true, geschat: p.geschat };
             break;
           }
-          const aank = klok + (r?.min ?? 0);
+          const aank = klok + (r?.plan ?? 0);
           if (aank > laatsteStartMin) continue;
           const b = overlapt(blokken, aank, aank + c.duurMin)[0];
           if (b) { if (!sprong || b.e < sprong.e) sprong = b; continue; }

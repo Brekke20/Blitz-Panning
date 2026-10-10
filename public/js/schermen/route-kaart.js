@@ -292,6 +292,7 @@ export function initMap() {
   kaartBaseLayers[KAART_LAGEN[startSleutel].naam].addTo(leafletMap);
   L.control.layers(kaartBaseLayers, null, { position: 'topright', collapsed: false }).addTo(leafletMap);
   leafletMap.on('baselayerchange', e => {
+    if (kaartStijlWordtToegepast) return; // programmatische wissel (persoonswissel): enkel weergeven, nooit bewaren (AT-fix 1)
     const sleutel = Object.keys(KAART_LAGEN).find(k => KAART_LAGEN[k].naam === e.name);
     if (!sleutel) return;
     instellingen().kaartStijl = sleutel;
@@ -302,13 +303,18 @@ export function initMap() {
 
 // Schakelt de actieve basislaag om naar instellingen().kaartStijl — gebruikt na een persoonswissel
 // zodat de kaart meteen de eigen kaartstijl van die persoon toont.
+let kaartStijlWordtToegepast = false;
 export function applyKaartStijl() {
   if (!leafletMap) return;
   const sleutel = KAART_LAGEN[instellingen().kaartStijl] ? instellingen().kaartStijl : 'standaard';
   const doelLaag = kaartBaseLayers[KAART_LAGEN[sleutel].naam];
   if (!doelLaag) return;
-  Object.values(kaartBaseLayers).forEach(laag => { if (leafletMap.hasLayer(laag)) leafletMap.removeLayer(laag); });
-  doelLaag.addTo(leafletMap);
+  // Leaflet vuurt 'baselayerchange' ook bij addTo: zonder vlag zou een persoonswissel de instellingen van die persoon naar de server schrijven.
+  kaartStijlWordtToegepast = true;
+  try {
+    Object.values(kaartBaseLayers).forEach(laag => { if (leafletMap.hasLayer(laag)) leafletMap.removeLayer(laag); });
+    doelLaag.addTo(leafletMap);
+  } finally { kaartStijlWordtToegepast = false; }
 }
 
 export function updateKaart({ date, allStops, routeData, currentRouteDate }) {

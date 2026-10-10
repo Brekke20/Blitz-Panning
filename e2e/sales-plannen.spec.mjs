@@ -415,7 +415,7 @@ test.describe('sales: Plan deze week buiten de testmodus (echte reistijden)', ()
     });
     await plan(page).click();
     await expect(resultaat(page).getByText('Ingepland (1)', { exact: true })).toBeVisible();
-    await expect(resultaat(page).getByText('⚠ Reistijd kon niet gecontroleerd worden voor 1 bezoek — kijk de route na')).toBeVisible();
+    await expect(resultaat(page).getByText('⚠ Reistijd kon niet gecontroleerd worden voor Test Verstraete — kijk de route na')).toBeVisible();
     await verwachtFout(consoleFouten, '/api/matrix', 500, 1);
   });
 });

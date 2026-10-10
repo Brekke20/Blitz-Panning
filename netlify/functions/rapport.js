@@ -17,12 +17,12 @@ import { normaliseerVerzendId } from '../lib/rapport-register.js';
 import { maakPdf, uploadPdfNaarZoho } from '../lib/rapport-zoho.js';
 import { maakUploader, markeerLijstUpgeload } from '../lib/rapport-upload.js';
 import { beveiligV1 } from '../lib/beveiligd.js';
+import { alsV2 } from '../lib/v2-adapter.js';
 import { logVoorVerzoek } from '../lib/activiteit.js';
 
 const standaardUploader = maakUploader({ maakPdf, uploadPdfNaarZoho });
 
-// (C1) getStore() zit in een EIGEN try: faalt het (deze functie is een v1-handler(event) en de
-// blobs-context in de Lambda-compat-runtime is onbewezen), dan gaat de upload gewoon door zonder
+// (C1) getStore() zit in een EIGEN try: faalt het (de Blobs-omgeving kan ontbreken of haperen), dan gaat de upload gewoon door zonder
 // register -- een geslaagde Zoho-upload mag nooit als 500 eindigen door een store-probleem.
 function haalStore(event, geef = getStore) {
   try {
@@ -109,4 +109,4 @@ export const maakHandler = ({ getStore: geefStore, maakPdf: pdf } = {}) => {
   return beveiligV1('rapport', (event, context, gebruiker) => kern(event, context, gebruiker, { geefStore, uploadRapport }));
 };
 
-export const handler = maakHandler();
+export default alsV2(maakHandler());

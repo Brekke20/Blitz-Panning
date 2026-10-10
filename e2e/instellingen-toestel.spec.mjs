@@ -195,7 +195,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
   test('weekdagknoppen: Ma-Vr staan aan, klikken wisselt aria-pressed; bewaren schrijft de volgorde van klikken', async ({ page }) => {
     await startApp(page, PLANNER);
     let modal = await openInstellingen(page);
-    expect(await modal.locator('#days-grid .day-btn').allInnerTexts()).toEqual(['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za']);
+    expect(await modal.locator('#days-grid .day-btn').allInnerTexts()).toEqual(['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo']);
     for (const d of ['Ma', 'Di', 'Wo', 'Do', 'Vr']) await expect(dagKnop(modal, d)).toHaveAttribute('aria-pressed', 'true');
     for (const d of ['Zo', 'Za']) await expect(dagKnop(modal, d)).toHaveAttribute('aria-pressed', 'false');
     await dagKnop(modal, 'Za').click();

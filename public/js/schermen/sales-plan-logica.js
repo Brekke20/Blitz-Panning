@@ -21,7 +21,7 @@ export function bouwResultaatRegels({ overzicht, leads, opties = {} }) {
     .filter((w) => w.velden?.status === 'voorgesteld' && w.velden.planning)
     .map((w) => ({ naam: naam(w.id), datumLabel: dagLabel(w.velden.planning.datum), start: w.velden.planning.start }));
   const nietIngepland = (overzicht?.nietGepland ?? []).map((n) => ({ naam: naam(n.leadId), tekst: redenTekst(n.reden, opties) }));
-  const waarschuwingen = (overzicht?.waarschuwingen ?? []).map((w) => waarschuwingTekst(w, WOORDEN_BEZOEK)).filter(Boolean);
+  const waarschuwingen = (overzicht?.waarschuwingen ?? []).map((w) => waarschuwingTekst(w, WOORDEN_BEZOEK, naam)).filter(Boolean);
   return { ingepland, nietIngepland, waarschuwingen };
 }
 

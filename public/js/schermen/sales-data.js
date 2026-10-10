@@ -9,7 +9,7 @@
 //   { soort: 'verwijder-mislukt', ok: false, leadId, reden, status? }  de lead staat weer in de weergave (reden: 'http'|'netwerk'|'opslag')
 
 import { apiVerzoek } from '../kern/api.js';
-import { localISO } from '../kern/tijd.js';
+import { openingsDatum } from '../kern/tijd.js';
 import { standaardLaatsteStart } from '../kern/instellingen-regels.js';
 
 export const SALES_STANDAARD = Object.freeze({ vanTijd: '08:00', totTijd: '17:00', laatsteStart: '16:00', werkdagen: Object.freeze([1, 2, 3, 4, 5]), bezoekDuurMin: 60 });
@@ -32,7 +32,7 @@ const nieuweToestand = () => ({
   // instellingenGeladen: de instellingen hieronder komen echt van de server, voor het doel `instellingenDoel` (gebruikerId of null = eigen).
   // Zonder die vlag zijn het enkel standaarden (nooit bewaren) en mag "Plan deze week" ze niet gebruiken (eindreview I1).
   instellingenRuw: {}, instellingen: voegSamen({}), instellingenGeladen: false, instellingenDoel: null,
-  gekozenDatum: localISO(new Date()), uitgesteld: new Set(),
+  gekozenDatum: openingsDatum(new Date()), datumGekozen: false, uitgesteld: new Set(), // weekend: de komende week
 });
 let staat = nieuweToestand();
 let doel = null;                    // het `gebruikerId` dat laadSales kreeg (enkel dan gaat `?gebruiker=` mee); null = eigen blob
@@ -92,6 +92,9 @@ function zetInstellingen(ruw, doelId = null) {
   staat.instellingen = voegSamen(o);
   staat.instellingenGeladen = true;
   staat.instellingenDoel = doelId || null;
+  // De openingsdatum hing van de standaardwerkdagen af; nu de echte werkdagen bekend zijn (bv. zaterdag erbij), opnieuw bepalen,
+  // maar nooit nadat de verkoper zelf een datum koos.
+  if (!staat.datumGekozen) staat.gekozenDatum = openingsDatum(new Date(), staat.instellingen.werkdagen);
 }
 // Instellingen van een ander doel (of een mislukte lading) mogen nooit blijven staan: terug op de standaarden, niet geladen.
 function wisInstellingen() {
@@ -283,5 +286,6 @@ export function gekozenDatum() { return staat.gekozenDatum; }
 export function zetGekozenDatum(iso) {
   if (typeof iso !== 'string' || !ISO_DATUM.test(iso) || iso === staat.gekozenDatum) return;
   staat.gekozenDatum = iso;
+  staat.datumGekozen = true;
   meld();
 }

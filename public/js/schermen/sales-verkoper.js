@@ -18,7 +18,7 @@ function bewaarKeuze(id) { try { globalThis.localStorage.setItem(VERKOPER_SLEUTE
 
 const naarVerkoper = (g) => ({ id: g.id, naam: g.naam ?? '', salesNaam: g.salesNaam || g.naam || '', actief: g.actief !== false });
 
-// De lijst wordt één keer per paginasessie opgehaald; bij een fout probeert de volgende aanroep opnieuw.
+// De lijst wordt hergebruikt tot de verkoperbalk opnieuw getekend wordt (renderVerkoperBalk vraagt ze dan opnieuw); bij een fout probeert de volgende aanroep opnieuw.
 function laadVerkopers() {
   if (!lijstBelofte) {
     lijstBelofte = (async () => {
@@ -69,6 +69,9 @@ export async function renderVerkoperBalk(container, { onWijzig } = {}) {
     if (kanImporteren()) container.appendChild(instellingen); // een gewone verkoper: enkel de instellingenknop
     return;
   }
+  // Elke keer dat een sales-view (opnieuw) opent de lijst opnieuw vragen: de beheerder kan intussen in Beheer > Gebruikers een verkoper
+  // hebben aangemaakt of geblokkeerd (acceptatietest S7). Eén kleine GET; de oude lijst blijft staan tot het antwoord er is.
+  lijstBelofte = null;
   const ok = await laadVerkopers();
   container.replaceChildren();
   const ik = huidigeGebruiker();

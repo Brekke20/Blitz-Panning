@@ -19,7 +19,10 @@ export function renderTelling() { return renderTeller; }
 export function initIngepland(afhankelijkheden) {
   afh = strengeAfh('ingepland', afhankelijkheden);
   // De week-knoppen via data-actie-delegatie.
-  registreerActies(document.body, { 'gep-nav': (el, e, arg) => gepNav(Number(arg)) });
+  registreerActies(document.body, {
+    'gep-nav': (el, e, arg) => gepNav(Number(arg)),
+    'gep-spring': (el, e, arg) => { if (/^\d{4}-\d{2}-\d{2}$/.test(arg)) toestand.set('gekozenDatum', arg); },
+  });
 }
 
 // Brent-verzoek (proefperiode): Ingepland toont dezelfde week als de Kalender en de Route-tab (gedeelde `gekozenDatum`); ‹ › = één week.
@@ -86,8 +89,20 @@ export function renderGepland() {
     });
     body.appendChild(wrapper);
   }
-  if (!any) body.innerHTML = '<div class="empty">Geen geplande service deze week</div>';
-  // Badge toont gefilterd gepland-aantal
+  // Badge toont gefilterd gepland-aantal (alle weken); een lege getoonde week legt dat uit en biedt de sprong naar de dichtstbijzijnde week met service.
   const filteredGepland = ticketsVanTechnieker(allGepland, activeAssigneeFilter);
+  if (!any) {
+    body.innerHTML = '<div class="empty">Geen geplande service deze week</div>';
+    const datums = filteredGepland.filter(t => t.interventieDatum).map(t => localISO(new Date(t.interventieDatum))).sort();
+    if (datums.length) {
+      const ws = localISO(weekStart);
+      const naDeze = datums.find(d => d >= ws) || datums[datums.length - 1];
+      const hint = document.createElement('div');
+      hint.className = 'gep-elders';
+      hint.style.cssText = 'text-align:center;color:var(--muted);font-size:0.875rem;margin-top:-40px;padding-bottom:40px';
+      hint.innerHTML = `${datums.length} ingepland in een andere week · <button type="button" class="btn-sec" style="padding:4px 10px;font-size:0.8rem" data-actie="gep-spring" data-arg="${escHtml(naDeze)}">Ga naar ${escHtml(fmtDateShort(new Date(`${naDeze}T12:00:00`)))}</button>`;
+      body.appendChild(hint);
+    }
+  }
   document.getElementById('cnt-gepland').textContent = filteredGepland.length;
 }

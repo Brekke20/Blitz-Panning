@@ -18,6 +18,7 @@ import { maakZoho, leesJsonVeilig } from '../lib/zoho.js';
 import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
 import { getStore } from '@netlify/blobs';
 import { beveiligV1 } from '../lib/beveiligd.js';
+import { alsV2 } from '../lib/v2-adapter.js';
 import { logVoorVerzoek } from '../lib/activiteit.js';
 import { eisEigenTicket } from '../lib/eigen-ticket.js';
 
@@ -388,4 +389,4 @@ async function kern(event, context, gebruiker, haalStore = getStore) {
 export const maakHandler = ({ getStore: haalStore } = {}) =>
   beveiligV1('propose', (event, context, gebruiker) => kern(event, context, gebruiker, haalStore));
 
-export const handler = maakHandler();
+export default alsV2(maakHandler());

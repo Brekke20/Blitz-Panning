@@ -169,3 +169,17 @@ test.describe('instellingen van de server', () => {
     await expect(page.getByRole('alertdialog')).toHaveCount(0);
   });
 });
+
+// Acceptatietest S4: enkel kijken naar een collega schrijft nooit instellingen (de kaartlaag-wissel bij een persoonswissel bewaarde ze).
+test.describe('persoon wisselen schrijft geen instellingen', () => {
+  test('technieker kijkt naar een collega: geen PUT en geen toast', async ({ page, verzoeken }) => {
+    await startApp(page, { loginRol: 'technieker', overschrijf: { instellingen: instellingenStub({ eigen: SERVER, techniekers: TECHNIEKERS, put: () => ({ status: 403, json: { error: 'Je hebt hier geen toegang toe.', code: 'geen-recht' } }) }) } });
+    await page.locator('#person-btn').click();
+    await page.locator('#person-menu').getByRole('button', { name: /Roel/ }).click();
+    await expect(page.locator('#person-name-hdr')).toHaveText('Roel');
+    await page.waitForTimeout(500);
+    expect(puts(verzoeken)).toHaveLength(0);
+    await expect(toastTekst(page)).not.toContainText('Je mag de instellingen');
+    expect(await page.evaluate(() => localStorage.getItem('blitz_instellingen_vuil'))).toBeNull();
+  });
+});

@@ -30,6 +30,14 @@ export function bouwRouteStops(leads, datum, { standaardDuurMin = STANDAARD_DUUR
 }
 
 /**
+ * Het aantal afgewerkte bezoeken (resultaat Offerte/Verkocht/Geen interesse) van een dag. Een lead met een resultaat verlaat de route
+ * (planning gewist, status afgewerkt); dit getal laat zien dat de dag wel degelijk bezocht is. Telt per lead één keer.
+ */
+export function afgewerktOpDag(leads, datum) {
+  return (leads ?? []).filter((l) => l.status === 'afgewerkt' && (l.bezoeken ?? []).some((b) => b?.datum === datum && b.resultaat !== 'opnieuw')).length;
+}
+
+/**
  * De regel van één dag in de weekstrook bovenaan de Route-tab (zelfde vorm als die van de technieker): het aantal bezoeken en of ze bevestigd zijn.
  * Een voorgesteld bezoek moet de verkoper nog bevestigen; een bevestigd of vast bezoek staat vast.
  * -> { klasse: 'leeg' | 'nodig' | 'klaar', status, aantal, aria }
@@ -159,7 +167,7 @@ export async function berekenRoute({ depot, stops, datum, vertrekMin, apiVerzoek
     const legs = ritPerStop(depot, stops, ruw);
     const heeftLijn = Array.isArray(r.data.polyline) && r.data.polyline.length >= 2;
     const polyline = heeftLijn ? r.data.polyline : punten.map((p) => [p.lat, p.lon]);
-    return { legs, polyline, geschat: false, ...totalen(legs), data: heeftLijn ? r.data : null };
+    return { legs, polyline, geschat: false, ...(r.data.verkeerNietBeschikbaar === true ? { verkeerNietBeschikbaar: true } : {}), ...totalen(legs), data: heeftLijn ? r.data : null };
   } catch {
     return schat('fout');
   }

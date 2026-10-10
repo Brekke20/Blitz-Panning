@@ -48,7 +48,7 @@ const sectie = (titel, rijen) => {
 const kop = ({ vet, tekst }) => `<b>${escHtml(vet)}</b>${tekst ? ` ${escHtml(tekst)}` : ''}`;
 const stil = (tekst) => {
   const p = document.createElement('p');
-  p.style.cssText = 'color:var(--muted);font-size:0.83rem';
+  p.style.cssText = 'color:var(--muted);font-size:0.83rem;margin:0 0 8px';
   p.textContent = tekst;
   return p;
 };

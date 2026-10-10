@@ -21,6 +21,13 @@ function isoPlusDagen(datum, n) {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Veiligheidsmarge van de verkoper op een rit: de planning rekent met 10 % + 2 min extra bovenop de reistijd van de matrix (historisch verkeer),
+ * zodat een vers geplande keten niet meteen "haalt het volgende bezoek niet" krijgt op de Route-tab, die met de echte TomTom-route
+ * (vertrektijd + verkeer) rekent en enkele minuten kan afwijken. De grens `maxReistijdMin` blijft op de reistijd zelf (zonder marge) gelden.
+ */
+export const ritMetMarge = (min) => Math.ceil(min * 1.1 + 2);
+
 const duurVan = (lead, standaardDuurMin) => lead.duurMin ?? standaardDuurMin;
 
 /** Een lead als kandidaat voor het brein: altijd prioriteit 'medium', wachttijd vanaf de import. */
@@ -120,6 +127,7 @@ export function bouwPlanInvoer({ leads, blokken = [], instellingen, weekStart, v
       depot,
       vandaag,
       reistijden,
+      reisMarge: ritMetMarge,
     },
     vrijgegeven,
   };

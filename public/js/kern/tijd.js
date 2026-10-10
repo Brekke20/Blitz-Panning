@@ -23,6 +23,20 @@ export function verschuifDatum(iso, { dagen = 0, maanden = 0, ankerDag = null } 
   return localISO(d);
 }
 
+// De datum waarop Kalender, Route, Ingepland en "Plan deze week" openen: vandaag, behalve in het weekend (zaterdag/zondag, en geen werkdag
+// volgens `werkdagen` = getDay()-nummers): dan de eerste werkdag van de KOMENDE week, want de week die voorbij is, valt niets meer te plannen.
+export function openingsDatum(nu = new Date(), werkdagen = null) {
+  const dag = nu.getDay();
+  if ((dag !== 0 && dag !== 6) || (werkdagen && werkdagen.includes(dag))) return localISO(nu);
+  const maandag = verschuifDatum(localISO(nu), { dagen: dag === 0 ? 1 : 2 });
+  const gewerkt = werkdagen && werkdagen.length ? werkdagen : [1, 2, 3, 4, 5];
+  for (let i = 0; i < 7; i++) {
+    const iso = verschuifDatum(maandag, { dagen: i });
+    if (gewerkt.includes(isoNaarDatum(iso).getDay())) return iso;
+  }
+  return maandag;
+}
+
 // Aantal weken tussen de week van `vandaagIso` en de week van `iso` (negatief = verleden); de oude `kalOffset`.
 export function weekVerschil(iso, vandaagIso) {
   const a = getWeekStart(isoNaarDatum(iso), 0), b = getWeekStart(isoNaarDatum(vandaagIso), 0);

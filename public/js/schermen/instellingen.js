@@ -215,7 +215,8 @@ export function openSettings() {
   _werkdagenConcept = [...settings.werkdagen];
   const grid = document.getElementById('days-grid');
   grid.innerHTML = '';
-  DAGEN.forEach((dag, i) => {
+  [1, 2, 3, 4, 5, 6, 0].forEach((i) => { // Ma–Zo, zoals in Beheer > Instellingen
+    const dag = DAGEN[i];
     const btn = document.createElement('button');
     btn.className   = 'day-btn' + (_werkdagenConcept.includes(i) ? ' on' : '');
     btn.textContent = dag;
