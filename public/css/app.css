@@ -1165,8 +1165,9 @@
     html[data-rol="technieker"] .coord-only:not(.plan-eigen), html[data-rol="sales"] .coord-only { display: none !important; }
     /* Een technieker met "Mag zelf plannen" houdt de plan-onderdelen (.plan-eigen) voor zijn eigen tickets; zonder het vinkje blijven ze verborgen. */
     html[data-rol="technieker"]:not([data-plan-eigen="ja"]) .coord-only.plan-eigen { display: none !important; }
-    /* Hij bekijkt een collega: geen "Plan deze week" (hij mag enkel zijn eigen week plannen). */
-    html[data-rol="technieker"][data-plan-ander="ja"] #btn-autoplan { display: none !important; }
+    /* Hij bekijkt een collega: geen "Plan deze week", "Optimaliseer" of "Leeg" (hij mag enkel zijn eigen week plannen).
+    /* "Bereken tijden" blijft: dat toont enkel de rijtijden van de route, zonder iets te bewaren. */
+    html[data-rol="technieker"][data-plan-ander="ja"] :is(#btn-autoplan, #btn-optimize, [data-actie="route-leeg"]) { display: none !important; }
     html[data-rol="technieker"]:not([data-plan-eigen="ja"]) .kal-actions, html[data-rol="sales"] .kal-actions { display: none; } /* geen lege tweede rij */
     /* × (uit planning halen): nooit op gsm (per ongeluk tikken); voor technieker via .coord-only */
     html[data-indeling="smal"] .cal-unplan-x { display: none; }
