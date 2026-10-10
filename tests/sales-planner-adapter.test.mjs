@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { planWeek, haversine } from '../public/js/planner.js';
 import { zetVastUur, isVast } from '../public/js/sales/lead-regels.js';
+import { bouwRouteStops, controleerKeten } from '../public/js/schermen/sales-route-logica.js';
+import { timeStrToMin } from '../public/js/kern/tijd.js';
 import {
-  STANDAARD_BEZOEKDUUR_MIN, leadNaarKandidaat, bouwPlanInvoer, verwerkUitkomst, maakReistijdenAdapter,
+  STANDAARD_BEZOEKDUUR_MIN, ritMetMarge, leadNaarKandidaat, bouwPlanInvoer, verwerkUitkomst, maakReistijdenAdapter,
 } from '../public/js/sales/planner-adapter.js';
 
 // ---- hulpfuncties (verzonnen leads en coordinaten rond Hasselt / Genk / Antwerpen) ----
@@ -322,4 +324,40 @@ test('maakReistijdenAdapter: een fout geeft overal null en gooit nooit', async (
     const m = await maakReistijdenAdapter({ apiVerzoek, testModus: false })(van, naar, '2026-10-06T08:00:00.000Z');
     assert.deepEqual([m.get('a'), m.get('b')], verwacht[i]);
   }
+});
+
+// ---- veiligheidsmarge: een vers geplande keten krijgt op de Route-tab geen "haalt het volgende bezoek niet" (acceptatietest S2) ----
+test('ritMetMarge: 10 % + 2 min, naar boven afgerond', () => {
+  assert.equal(ritMetMarge(0), 2);
+  assert.equal(ritMetMarge(10), 13);
+  assert.equal(ritMetMarge(37), 43);
+});
+
+test('bouwPlanInvoer zet de marge in de invoer van het brein', () => {
+  assert.equal(invoerVan([lead('A')]).invoer.reisMarge, ritMetMarge);
+});
+
+test('plan met marge: de echte route mag enkele minuten langer zijn dan de matrix zonder dat de Route-tab waarschuwt', async () => {
+  // Matrix (planning) en route (controle) wijken af: de route is 8 % + 1 min langer dan de matrix (bij ritten van ~40 min = +4 min, zoals in de acceptatietest).
+  const matrix = nepReistijden;
+  const routeMin = (van, naar) => { const m = haversine(van.lat, van.lon, naar.lat, naar.lon) * 1.3; return m * 1.08 + 1; };
+  const leads = ['A', 'B', 'C'].map((id, i) => lead(id, { locatie: { lat: 50.93 + i * 0.25, lon: 5.34 - i * 0.2, bron: 'adres' } }));
+  const { invoer, vrijgegeven } = invoerVan(leads, { reistijden: matrix });
+  const uitkomst = await planWeek(invoer);
+  const { wijzigingen } = verwerkUitkomst({ uitkomst, leads, vrijgegeven });
+  assert.ok(wijzigingen.length >= 2, 'meerdere bezoeken op één dag om de keten te toetsen');
+  const geplaatst = leads.map((l) => {
+    const w = wijzigingen.find((x) => x.id === l.id);
+    return w?.velden.status === 'voorgesteld' ? { ...l, status: 'voorgesteld', planning: w.velden.planning } : null;
+  }).filter(Boolean);
+  const perDag = Map.groupBy(geplaatst, (l) => l.planning.datum);
+  let gecontroleerd = 0;
+  for (const [datum, dagLeads] of perDag) {
+    const stops = bouwRouteStops(dagLeads, datum, { standaardDuurMin: 60 });
+    const punten = [DEPOT, ...stops.map((s) => s.locatie)];
+    const legsMin = stops.map((_, i) => routeMin(punten[i], punten[i + 1]));
+    assert.deepEqual(controleerKeten(stops, legsMin, timeStrToMin(INSTELLINGEN.vanTijd)), [], `dag ${datum}`);
+    gecontroleerd += stops.length;
+  }
+  assert.ok(gecontroleerd >= 2);
 });
