@@ -186,9 +186,10 @@ test.describe('instellingen: tab Dit toestel', () => {
   });
 });
 
-// UI/UX-review P1-3: de werkinstellingen per persoon zijn voor de beheerder alleen-lezen in dit venster (Beheer → Instellingen is de enige
-// plek); de planner (geen Beheer-tab) bewerkt ze hier nog. Deze specs testen dat bewerkpad dus als planner; de beheerder staat verderop.
-const PLANNER = { loginRol: 'planner' };
+// UI/UX-review P1-3: de werkinstellingen zijn voor de beheerder alleen-lezen in dit venster (Beheer → Instellingen is de enige
+// plek); de planner (geen Beheer-tab) bewerkt zijn EIGEN werkinstellingen hier. ⚙ opent altijd de eigen set (de eigen Zoho-naam,
+// hier 'Brent'; 'Alle' is hetzelfde eigen record). Deze specs testen dat bewerkpad dus als planner met Zoho-naam; de beheerder staat verderop.
+const PLANNER = { loginRol: 'planner', loginGebruiker: { naam: 'Test Planner', zohoNaam: 'Brent' } };
 test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
   const dagKnop = (modal, naam) => modal.locator('#days-grid .day-btn', { hasText: new RegExp(`^${naam}$`) });
 
@@ -205,7 +206,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
     await expect(dagKnop(modal, 'Wo')).toHaveAttribute('aria-pressed', 'false');
     await dagKnop(modal, 'Zo').click();
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor alle technici');
+    await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor Brent');
     // Gemeten: de array wordt in klikvolgorde aangepast (Za erbij, Wo eruit, Zo erbij).
     expect((await leesJson(page, 'blitz_settings')).werkdagen).toEqual([1, 2, 4, 5, 6, 0]);
     modal = await openInstellingen(page);
@@ -250,7 +251,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
     let modal = await openInstellingen(page);
     await dagKnop(modal, 'Za').click();
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor alle technici');
+    await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor Brent');
     expect((await leesJson(page, 'blitz_settings')).werkdagen).toEqual([1, 2, 3, 4, 5, 6]);
     modal = await openInstellingen(page);
     await expect(dagKnop(modal, 'Za')).toHaveAttribute('aria-pressed', 'true');
@@ -323,7 +324,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
     await modal.locator('#set-tijdslot').fill('120');
     await modal.locator('#set-drukte').uncheck();
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor alle technici');
+    await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor Brent');
     await expect(modal).toBeHidden();
     const s = await leesJson(page, 'blitz_settings');
     expect(s).toMatchObject({
@@ -347,7 +348,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
     await modal.locator('#set-van').fill('');
     await modal.locator('#set-tot').fill('');
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor alle technici');
+    await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor Brent');
     expect(await leesJson(page, 'blitz_settings')).toMatchObject({ startlocatie: 'Heirbaan 9, 9150 Kruibeke', vanTijd: '08:00', totTijd: '17:00' });
   });
 
@@ -377,29 +378,30 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
     await expect(opnieuw.locator('#set-routekleur-hex')).toHaveText('#12AB34');
   });
 
-  test('laatste start is één waarde voor alle technici (blitz_laatste_start); de rest is per technieker', async ({ page }) => {
+  test('laatste start is één waarde voor alle technici (blitz_laatste_start); ⚙ bewaart de eigen set, ook als je een collega bekijkt', async ({ page }) => {
     await startApp(page, { ...PLANNER, technieker: 'Tim' });
     let modal = await openInstellingen(page);
     await modal.locator('#set-laatste-start').fill('15:00');
     await modal.locator('#set-max').fill('6');
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor Tim');
+    await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor Brent');
     expect(await leesOpslag(page, 'blitz_laatste_start')).toBe('15:00');
-    expect((await leesJson(page, 'blitz_settings_Tim')).maxPerDag).toBe(6);
+    expect((await leesJson(page, 'blitz_settings_Brent')).maxPerDag).toBe(6);
+    expect(await leesOpslag(page, 'blitz_settings_Tim')).toBeNull(); // de collega die je bekijkt blijft onaangeroerd
 
     await page.locator('#person-btn').click();
     await page.locator('#person-menu').getByRole('button', { name: /Roel/ }).click();
     await expect(page.locator('#person-name-hdr')).toHaveText('Roel');
     modal = await openInstellingen(page);
-    await expect(modal.locator('#set-person-label')).toHaveText('Instellingen voor: Roel');
-    await expect(modal.locator('#set-laatste-start')).toHaveValue('15:00'); // gedeeld
-    await expect(modal.locator('#set-max')).toHaveValue('4'); // per technieker
+    await expect(modal.getByRole('heading', { name: /Instellingen — Brent/ })).toBeVisible(); // nog steeds de eigen set
+    await expect(modal.locator('#set-laatste-start')).toHaveValue('15:00');
+    await expect(modal.locator('#set-max')).toHaveValue('6');
   });
 
-  test('een eerder per technieker bewaarde laatste start wordt genegeerd (R8): enkel blitz_laatste_start telt', async ({ page }) => {
+  test('een eerder per persoon bewaarde laatste start wordt genegeerd (R8): enkel blitz_laatste_start telt', async ({ page }) => {
     await page.addInitScript(() => {
       if (window !== window.top) return;
-      if (localStorage.getItem('blitz_settings_Tim') === null) localStorage.setItem('blitz_settings_Tim', JSON.stringify({ laatsteStart: '12:00', maxPerDag: 7 }));
+      if (localStorage.getItem('blitz_settings_Brent') === null) localStorage.setItem('blitz_settings_Brent', JSON.stringify({ laatsteStart: '12:00', maxPerDag: 7 }));
     });
     await startApp(page, { ...PLANNER, technieker: 'Tim' });
     const modal = await openInstellingen(page);

@@ -12,7 +12,7 @@ Dit document is voor Brent. Het legt in gewone taal uit wat je moet instellen en
 
 ## Wie mag wat (kort)
 
-Een planner past de instellingen van techniekers aan en elke wijziging staat in het activiteitenlog. De beheerder past alle instellingen aan. Sales en technieker passen enkel hun eigen instellingen aan.
+De knop ⚙ (Instellingen) opent altijd je **eigen** instellingen, ook als je bovenaan de week van een collega bekijkt. De titel van het venster noemt jouw naam. Heb je een Zoho-naam (technieker, of een planner/beheerder die zelf interventies doet), dan zijn dat de instellingen onder die naam. Heb je er geen, dan zie je enkel de persoonlijke keuzes (routekleur, drukte op de route); de werkinstellingen van techniekers pas je aan in Beheer, Instellingen. De beheerder ziet zijn eigen werkinstellingen in ⚙ alleen-lezen en past ze aan in Beheer. Elke wijziging in Beheer staat in het activiteitenlog.
 
 Een technieker ziet de tickets en afspraken van collega's, maar alleen om te lezen. De knoppen Aankomst, Foto's en Rapport staan enkel bij eigen werk. Planners en beheerders zien die knoppen overal.
 
@@ -35,7 +35,7 @@ Bij een technieker kan je in Beheer, Gebruikers het vinkje **Mag zelf plannen** 
 
 - Zo'n technieker ziet er de tabs **Wachtrij** en **Route** bij en kan zijn **eigen** tickets inplannen (ook met "Plan deze week"), verzetten, uit de planning halen, een voorstel naar de klant sturen en een afspraak annuleren.
 - Tickets van collega's blijven voor hem alleen-lezen: de knoppen staan er niet, en de app (de server) weigert het ook als iemand het toch probeert. Of een ticket van hem is, vraagt de app aan Zoho (aan wie het ticket is toegewezen). Is Zoho even niet bereikbaar, dan lukt plannen even niet (er staat dan een melding).
-- Hij ziet "Alle technici" niet in de kiezer bovenaan en kan dus ook niet voor iedereen tegelijk plannen. Zijn eigen instellingen (startadres, werkuren, enzovoort) stelt hij zelf in bij Instellingen, tab Algemeen.
+- Hij ziet "Alle technici" niet in de kiezer bovenaan en kan dus ook niet voor iedereen tegelijk plannen. Zijn eigen instellingen (startadres, werkuren, enzovoort) stelt hij zelf in bij Instellingen (⚙), tab Algemeen. Dat venster toont altijd zijn eigen instellingen, ook als hij de week van een collega bekijkt.
 - De wijziging geldt zodra hij de app opnieuw opent of herlaadt. Zonder het vinkje verandert er niets: een technieker ziet dan de vier gewone tabs en kan niet plannen.
 - Een planner of beheerder heeft dit vinkje niet nodig: die plannen sowieso alles.
 

@@ -340,7 +340,6 @@
     <div class="mhdr">
       <button class="btn btn-icon btn--ghost mhdr-close" data-actie="set-sluit" title="Sluiten" aria-label="Sluiten">✕</button>
       <div class="mhdr-title" id="set-titel" role="heading" aria-level="2">⚙️ Instellingen</div>
-      <div class="mhdr-num coord-only plan-eigen" id="set-person-label" style="font-size:0.78rem;color:var(--accent-ink);margin-top:2px"></div>
     </div>
     <div class="set-subtabs">
       <button class="set-subtab active coord-only plan-eigen" id="set-subtab-algemeen" data-actie="set-tab" data-arg="algemeen">Algemeen</button>
@@ -352,6 +351,11 @@
       <div class="set-hint" id="set-beheer-hint" hidden>
         <div>Deze werkinstellingen per persoon zijn hier alleen-lezen. Aanpassen doe je op één plek: in Beheer.</div>
         <button type="button" class="btn btn--secondary" data-actie="set-naar-beheer">Aanpassen in Beheer → Instellingen</button>
+      </div>
+      <!-- Enkel voor de beheerder zonder Zoho-naam: de werkvelden zijn dan verborgen. -->
+      <div class="set-hint" id="set-geen-werk-hint" hidden>
+        <div>Werkinstellingen van techniekers pas je aan in Beheer → Instellingen.</div>
+        <button type="button" class="btn btn--secondary" data-actie="set-naar-beheer">Naar Beheer → Instellingen</button>
       </div>
       <div class="set-field">
         <label class="set-label" for="set-start">Startlocatie</label>
