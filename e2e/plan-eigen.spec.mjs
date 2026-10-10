@@ -55,12 +55,14 @@ test.describe('technieker met "Mag zelf plannen"', () => {
     expect(verzoeken.van('/api/plan')).toEqual([]); // testmodus: nooit Zoho
   });
 
-  test('"Plan deze week" plant enkel zijn eigen tickets; bij een collega krijgt hij een toast en wordt niets gepland', async ({ page, verzoeken }) => {
+  test('"Plan deze week" plant enkel zijn eigen tickets; bij een collega is de knop weg en wordt niets gepland', async ({ page, verzoeken }) => {
     await startApp(page, { loginRol: 'technieker', loginGebruiker: TIM, technieker: 'Tim', overschrijf: { matrix: matrixMet(20) } });
     await tab(page, 'Kalender').click();
     await expect(page.getByRole('button', { name: '⚡ Plan deze week' })).toBeVisible();
     await kies(page, 'Roel');
-    await page.getByRole('button', { name: '⚡ Plan deze week' }).click();
+    await expect(page.getByRole('button', { name: '⚡ Plan deze week' })).toBeHidden();
+    // Ook wie de knop toch zou bereiken (bv. via de actie zelf) krijgt een weigering en er wordt niets gepland.
+    await page.evaluate(() => document.getElementById('btn-autoplan').click());
     await expect(page.locator('#toast')).toContainText('Je mag enkel je eigen planning inplannen');
     await expect(page.getByRole('dialog', { name: '⚡ Planningsresultaat' })).toBeHidden();
     expect(verzoeken.van('/api/matrix')).toEqual([]);

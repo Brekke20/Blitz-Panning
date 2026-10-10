@@ -45,7 +45,7 @@ import { appConfirm } from './app-dialog.js';
 import { registreerVenster } from './venster.js';
 import { startNaInlog } from './schermen/rol-schil.js';
 import { laadTab } from './kern/navigatie.js';
-import { eigenZohoNaam, huidigeRechten } from './kern/sessie.js';
+import { eigenZohoNaam, huidigeRechten, magPlannenVoor } from './kern/sessie.js';
 import { installeerTijdPicker } from './kern/tijd-picker.js';
 
 
@@ -717,6 +717,12 @@ function koppelRenders() {
   st.zetOmhulling(draai => metBehoudScroll(draai));
   const planDatum = () => document.getElementById('plan-date')?.value || localISO(new Date());
   st.abonneer(['activeAssigneeFilter'], () => updatePersonHeader());
+  // Een technieker met "Mag zelf plannen" die de week van een collega (of iedereen) bekijkt: "Plan deze week" verdwijnt (CSS
+  // html[data-plan-ander="ja"]); autoPlan en de server weigeren het hoe dan ook. Planner en beheerder: altijd 'nee'.
+  const zetPlanAnder = () => document.documentElement.setAttribute('data-plan-ander',
+    window.apparaat?.rol === 'technieker' && !magPlannenVoor(get('activeAssigneeFilter')) ? 'ja' : 'nee');
+  st.abonneer(['activeAssigneeFilter'], zetPlanAnder);
+  zetPlanAnder();
   st.abonneer(['planning', 'allTickets', 'allPending', 'allGepland'], () => { if (!_eigenToepassing) _lokaleWijziging++; });
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => buildPersonSelector());
   st.abonneer(['allTickets', 'activeAssigneeFilter'], () => wachtrij.renderTickets());
