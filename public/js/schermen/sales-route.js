@@ -19,13 +19,12 @@ import { routeVertraging, haalDrukteDetail } from './route-tijden.js';
 import { renderWeekstrook } from './week-strook.js';
 import { ontleedAdres } from '../sales/adres.js';
 import { startScherm } from './sales-schil.js';
-import { salesToestand, gekozenDatum, zetGekozenDatum } from './sales-data.js';
-import { schrijfbaarNu } from './sales-verkoper.js';
+import { salesToestand, gekozenDatum, zetGekozenDatum, bewaarInstellingen, instellingenGeladenVoor } from './sales-data.js';
+import { schrijfbaarNu, kanImporteren } from './sales-verkoper.js';
 import { openLeadDetail } from './sales-detail.js';
 import { openResultaat } from './sales-resultaat.js';
 import { bouwRouteStops, controleerKeten, routeHandtekening, berekenRoute, weekDagInfo, afgewerktOpDag } from './sales-route-logica.js';
 import { maakSalesKaart, ONGEVEER_TEKST } from './sales-kaart.js';
-import { KAART_LAGEN } from './route-kaart.js';
 import { el } from './sales-dom.js';
 
 export const LEEG_TEKST = 'Geen bezoeken op deze dag';
@@ -104,7 +103,7 @@ function bouwSkelet(inhoud) {
   return {
     wortel, kiezer, weekstrook, samenvatting, wegafsluiting, melding, nota, lijst, leeg, kaartEl, kaartNoot, inhoudVak,
     kaart: null, laatste: null, route: null, bezigSig: null, aanvraag: 0, depot: null, depotVoor: null, depotBezig: false,
-    toonde: false, kaartHerstel: false, wegToastSig: null,
+    toonde: false, kaartHerstel: false, wegToastSig: null, stijlSig: null, stijlGekozen: false,
   };
 }
 
@@ -245,10 +244,19 @@ function teken(inhoud) {
   const kanResultaat = schrijfbaarNu();
   tekenRoute(s, stops, depot, geldig, start, toestand.instellingen, kanResultaat, afgewerkt);
 
+  const keuzeVanGebruiker = (sleutel) => { s.stijlGekozen = true; bewaarKaartStijl(sleutel); };
   if (!s.kaart) {
-    const stijl = toestand.instellingenRuw?.kaartStijl;
-    s.kaart = maakSalesKaart(s.kaartEl, { kaartStijl: typeof stijl === 'string' && Object.hasOwn(KAART_LAGEN, stijl) ? stijl : undefined });
+    s.kaart = maakSalesKaart(s.kaartEl, { kaartStijl: toestand.instellingenRuw?.kaartStijl, bijKeuze: keuzeVanGebruiker });
+    s.stijlSig = stijlSignatuur(toestand);
     s.kaartNoot.hidden = s.kaart.beschikbaar;
+  } else if (s.stijlSig !== stijlSignatuur(toestand)) {
+    // Een andere verkoper, of de eigen instellingen zijn net geladen/bewaard: de kaart toont de bewaarde stijl van wie nu getoond wordt, tenzij
+    // de gebruiker zelf al koos voor dit doel (een late bewaar-echo mag zijn keuze niet terugzetten). Enkel weergeven: zetStijl roept bijKeuze
+    // niet aan, dus het bekijken van een ander bewaart niets.
+    const doelWisselde = s.stijlSig?.split('|')[0] !== stijlSignatuur(toestand).split('|')[0];
+    s.stijlSig = stijlSignatuur(toestand);
+    if (doelWisselde) s.stijlGekozen = false;
+    if (!s.stijlGekozen) s.kaart.zetStijl(toestand.instellingenRuw?.kaartStijl);
   }
   tekenKaart(s, stops, depot, geldig, sig);
   if (eerstGetoond || s.kaartHerstel) { s.kaartHerstel = false; requestAnimationFrame(() => s.kaart?.invalideer()); }
@@ -263,6 +271,21 @@ function tekenRoute(s, stops, depot, route, start, instellingen, kanResultaat, a
   const laat = route ? controleerKeten(stops, legsMin, depotVertrekMin) : [];
   tekenLijst(s, stops, depot, route, start && (depot || s.depotBezig) ? start : '', laat, route?.geschat === true, kanResultaat);
   s.samenvatting.textContent = samenvattingTekst(stops, route) + (afgewerkt ? ` · ✓ ${afgewerkt} afgewerkt` : '');
+}
+
+// De achtergrondkaart per verkoper: wie getoond wordt + diens bewaarde stijl. Verandert die, dan volgt de kaart (zonder te bewaren).
+const stijlSignatuur = (toestand) => `${toestand.instellingenDoel ?? ''}|${toestand.instellingenRuw?.kaartStijl ?? ''}`;
+
+// De keuze van de gebruiker in de lagenkeuze van de kaart wordt bewaard in de EIGEN instellingen van de verkoper (zoals bij de technieker,
+// PUT /api/instellingen met het volledige ruwe object). Alleen bij de eigen leads en met van de server geladen instellingen: bij het bekijken
+// van een andere verkoper (of door de beheerder) geldt de keuze enkel voor deze weergave en wordt NIETS bewaard.
+function bewaarKaartStijl(sleutel) {
+  if (!kanImporteren() || !instellingenGeladenVoor()) return;
+  const ruw = salesToestand().instellingenRuw ?? {};
+  if (ruw.kaartStijl === sleutel) return;
+  bewaarInstellingen({ ...ruw, kaartStijl: sleutel }).then((r) => {
+    if (!r.ok) toast('Kaartstijl niet bewaard');
+  });
 }
 
 // De routekleur en de drukte-kleuring van de verkoper (ruwe instellingen; ontbrekend = de standaard van de technieker: amber en aan).
