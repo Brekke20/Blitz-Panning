@@ -138,6 +138,7 @@ async function planRonde(invoer, { startKeuze = {}, geheugen = new Map() } = {})
   const legeDagGehad = new Set(); // tickets die op een nog lege dag kans op de starterplaats kregen, op een dag die daarna vol zat
   const starterKansen = {};       // dag -> ids die op die dag als starter kwamen te vallen (voor de herverdeling in planWeek)
   const ruimteDagen = new Set();  // lege (starter)dagen die met plaats over eindigden
+  const ruimteGehad = new Set();  // tickets die op zo'n starterdag MET plaats over kans kregen (en er dus enkel op afstand of tijd faalden)
 
   // Tijdlijn-hulp (3.3): vaste blokken van een dag als { s, e, lat, lon, stop, id } in minuten.
   // `stop` = een echte stop in de keten (bestaand ticket, of eigen afspraak met locatie); blokkeringen niet.
@@ -410,7 +411,7 @@ async function planRonde(invoer, { startKeuze = {}, geheugen = new Map() } = {})
     if (dagStarterIds.size) {
       starterKansen[dag] = [...dagStarterIds];
       // Zat de dag vol, dan was de week gewoon vol voor wie hier kans kreeg; anders is er plaats over (kandidaat voor herverdeling).
-      if (aantal >= maxPerDag) dagStarterIds.forEach(id => legeDagGehad.add(id)); else ruimteDagen.add(dag);
+      if (aantal >= maxPerDag) dagStarterIds.forEach(id => legeDagGehad.add(id)); else { ruimteDagen.add(dag); dagStarterIds.forEach(id => ruimteGehad.add(id)); }
     }
 
     dagGeplaatst.sort((a, b) => a.aank - b.aank)
@@ -421,8 +422,9 @@ async function planRonde(invoer, { startKeuze = {}, geheugen = new Map() } = {})
   for (const t of pool) {
     const toegestaneDagen = dagen.filter(d => magOpDag(t.id, d) && (!prefDayAvailable.get(t.id) || prefDayAvailable.get(t.id) === d));
     if (toegestaneDagen.length && toegestaneDagen.every(d => kbBlocked(t.id, d))) noteer(t.id, 'klant-geblokkeerd');
-    // 'te-ver' enkel als er geen lege dag meer was: kreeg het ticket op een lege dag kans, dan was de week gewoon vol.
-    if (redenVan.get(t.id) === 'te-ver' && legeDagGehad.has(t.id)) redenVan.set(t.id, 'geen-plaats');
+    // 'te-ver' blijft 'te-ver' als het ticket op een dag met plaats over enkel op afstand faalde; kreeg het enkel kans op lege dagen die
+    // daarna vol zaten, dan was de week gewoon vol ('geen-plaats').
+    if (redenVan.get(t.id) === 'te-ver' && legeDagGehad.has(t.id) && !ruimteGehad.has(t.id)) redenVan.set(t.id, 'geen-plaats');
   }
 
   const geplaatstIds = new Set(geplaatst.map(g => g.ticketId));

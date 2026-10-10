@@ -87,3 +87,16 @@ test('herverdeling: een lead met veel hogere voorrang blijft geplaatst; twee lag
   assert.deepEqual(ids(u), ['kinrooi']);
   assert.deepEqual(u.nietGepland.map(n => n.ticketId).sort(), ['rotselaar', 'truiden']);
 });
+
+test('reden: faalt een lead op een dag MET plaats enkel op afstand, dan blijft het "te-ver", ook al zat een andere dag eerder vol', async () => {
+  // Maandag: twee dringende leads bij Willebroek vullen de dag (max 2). Donderdag: Kinrooi (dringend, lang in planning) opent de dag;
+  // Rotselaar en Sint-Truiden liggen te ver van Kinrooi en mogen hem niet verdringen (voorrang). Donderdag had nog plaats.
+  const MA = '2026-10-12';
+  const u = await planWeek(maak([
+    lead('w1', 1, 'High', WILLEBROEK, { inPlanningSinds: '2026-09-01' }), lead('w2', 2, 'High', WILLEBROEK, { inPlanningSinds: '2026-09-01' }),
+    lead('kinrooi', 3, 'High', KINROOI, { inPlanningSinds: '2026-09-21' }),
+    lead('rotselaar', 4, 'Low', ROTSELAAR), lead('truiden', 5, 'Low', SINT_TRUIDEN),
+  ], { dagen: [MA, DO], instellingen: { vanTijd: '08:00', laatsteStart: '16:00', maxPerDag: 2, maxReistijdMin: 45 } }));
+  assert.deepEqual(ids(u), ['kinrooi', 'w1', 'w2']);
+  assert.deepEqual(u.nietGepland.map(n => n.reden), ['te-ver', 'te-ver']);
+});
