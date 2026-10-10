@@ -106,7 +106,8 @@
 .ba-filters .set-input { font-size: 16px; min-height: 44px; min-width: 0; }
 .ba-lijst:focus { outline: none; }
 .ba-dag { margin-bottom: var(--sp-4); }
-.ba-dagkop { font-size: var(--fs-sm); font-weight: 700; color: var(--text2); text-transform: capitalize; margin-bottom: var(--sp-2); }
+.ba-dagkop { font-size: var(--fs-sm); font-weight: 700; color: var(--text2); margin-bottom: var(--sp-2); }
+.ba-dagkop::first-letter { text-transform: uppercase; } /* enkel de eerste letter: 'Zaterdag 10 oktober 2026' */
 .ba-tabel td[data-label="Tijd"] { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ba-actie { font-weight: 600; }
 .ba-details, .bs-fouten td, .bs-rapporten td { overflow-wrap: anywhere; }

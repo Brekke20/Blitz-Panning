@@ -23,7 +23,7 @@ import { salesToestand, gekozenDatum, zetGekozenDatum } from './sales-data.js';
 import { schrijfbaarNu } from './sales-verkoper.js';
 import { openLeadDetail } from './sales-detail.js';
 import { openResultaat } from './sales-resultaat.js';
-import { bouwRouteStops, controleerKeten, routeHandtekening, berekenRoute, weekDagInfo } from './sales-route-logica.js';
+import { bouwRouteStops, controleerKeten, routeHandtekening, berekenRoute, weekDagInfo, afgewerktOpDag } from './sales-route-logica.js';
 import { maakSalesKaart, ONGEVEER_TEKST } from './sales-kaart.js';
 import { KAART_LAGEN } from './route-kaart.js';
 import { el } from './sales-dom.js';
@@ -221,6 +221,8 @@ function teken(inhoud) {
 
   const heeftStops = stops.length > 0;
   s.leeg.hidden = heeftStops;
+  const afgewerkt = afgewerktOpDag(toestand.leads, datum);
+  s.leeg.textContent = afgewerkt ? `${LEEG_TEKST} · ✓ ${afgewerkt} afgewerkt (zie het tabblad Afgewerkt)` : LEEG_TEKST;
   s.inhoudVak.hidden = !heeftStops;
   s.samenvatting.hidden = !heeftStops;
 
@@ -241,7 +243,7 @@ function teken(inhoud) {
   s.wortel.dataset.handtekening = sig;
   const geldig = s.route?.sig === sig ? s.route : null;
   const kanResultaat = schrijfbaarNu();
-  tekenRoute(s, stops, depot, geldig, start, toestand.instellingen, kanResultaat);
+  tekenRoute(s, stops, depot, geldig, start, toestand.instellingen, kanResultaat, afgewerkt);
 
   if (!s.kaart) {
     const stijl = toestand.instellingenRuw?.kaartStijl;
@@ -254,13 +256,13 @@ function teken(inhoud) {
   if (!geldig && !s.depotBezig && s.bezigSig !== sig) rekenRoute(inhoud, s, { sig, sleutel, stops, depot, datum, vanTijd: toestand.instellingen.vanTijd });
 }
 
-function tekenRoute(s, stops, depot, route, start, instellingen, kanResultaat) {
+function tekenRoute(s, stops, depot, route, start, instellingen, kanResultaat, afgewerkt = 0) {
   const legsMin = route ? route.legs.map((l) => (l.ritSec == null ? null : l.ritSec / 60)) : stops.map(() => null);
   // Het eerste bezoek wordt gecontroleerd vanaf het vertrek uit het depot (= begin van de werkdag).
   const depotVertrekMin = depot && instellingen.vanTijd ? timeStrToMin(instellingen.vanTijd) : undefined;
   const laat = route ? controleerKeten(stops, legsMin, depotVertrekMin) : [];
   tekenLijst(s, stops, depot, route, start && (depot || s.depotBezig) ? start : '', laat, route?.geschat === true, kanResultaat);
-  s.samenvatting.textContent = samenvattingTekst(stops, route);
+  s.samenvatting.textContent = samenvattingTekst(stops, route) + (afgewerkt ? ` · ✓ ${afgewerkt} afgewerkt` : '');
 }
 
 // De routekleur en de drukte-kleuring van de verkoper (ruwe instellingen; ontbrekend = de standaard van de technieker: amber en aan).
@@ -307,13 +309,16 @@ async function rekenRoute(inhoud, s, { sig, sleutel, stops, depot, datum, vanTij
   s.bezigSig = null;
   const vorige = s.laatste;
   s.route = { sig, ...resultaat };
-  s.laatste = { sleutel, sig };
+  const ids = stops.map((x) => x.leadId).join('|');
+  s.laatste = { sleutel, sig, ids };
   if (resultaat.geschat) toast('Rit geschat');
-  if (vorige && vorige.sleutel === sleutel && vorige.sig !== sig) {
+  // "Route herberekend" enkel als dezelfde bezoeken een andere route kregen (bv. een adres). Verdwijnt of komt er een bezoek bij (resultaat
+  // gegeven, teruggezet, ingepland), dan is dat zelf het nieuws en mag de toast daarvan ("Resultaat bewaard") niet overschreven worden.
+  if (vorige && vorige.sleutel === sleutel && vorige.sig !== sig && vorige.ids === ids) {
     s.melding.textContent = 'Route herberekend';
     s.melding.hidden = false;
     toast('Route herberekend');
-  } else if (!vorige || vorige.sleutel !== sleutel) {
+  } else if (!vorige || vorige.sleutel !== sleutel || vorige.ids !== ids) {
     s.melding.hidden = true;
   }
   teken(inhoud);

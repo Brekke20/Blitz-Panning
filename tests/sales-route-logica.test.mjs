@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bouwRouteStops, schatLegs, controleerKeten, routeHandtekening, wegpunten, ritPerStop, vertrekIso, berekenRoute } from '../public/js/schermen/sales-route-logica.js';
+import { bouwRouteStops, afgewerktOpDag, schatLegs, controleerKeten, routeHandtekening, wegpunten, ritPerStop, vertrekIso, berekenRoute } from '../public/js/schermen/sales-route-logica.js';
 import { haversine } from '../public/js/planner.js';
 
 const DAG = '2026-10-12';
@@ -237,4 +237,12 @@ test('berekenRoute: een stop zonder locatie blijft zonder rit, de rest wordt wel
   assert.equal(r.legs.length, 2);
   assert.ok(r.legs[0].ritSec > 0);
   assert.equal(r.legs[1].ritSec, null);
+});
+
+test('afgewerktOpDag: telt afgewerkte leads met een bezoek op die dag; "opnieuw" en andere dagen niet', () => {
+  const klaar = (id, datum, resultaat = 'verkocht', status = 'afgewerkt') => ({ id, status, bezoeken: [{ datum, resultaat, op: '2026-10-12T10:00:00.000Z' }] });
+  const leads = [klaar('a', DAG), klaar('b', DAG, 'offerte'), klaar('c', '2026-10-13'), klaar('d', DAG, 'opnieuw', 'te-plannen'), { id: 'e', status: 'voorgesteld' }];
+  assert.equal(afgewerktOpDag(leads, DAG), 2);
+  assert.equal(afgewerktOpDag(leads, '2026-10-13'), 1);
+  assert.equal(afgewerktOpDag(undefined, DAG), 0);
 });

@@ -19,10 +19,10 @@ export function openLeadToevoegen({ terugFocus } = {}) {
   const handle = openSalesVenster({
     titel: 'Lead toevoegen',
     bouw(body, sluit) {
-      const voornaam = veld('Voornaam', { value: '', maxlength: 200, autocomplete: 'off', verplicht: true });
-      const naam = veld('Naam', { value: '', maxlength: 200, autocomplete: 'off', verplicht: true });
-      const gsm = veld('Gsm', { soort: 'tel', maxlength: 200, autocomplete: 'off', inputmode: 'tel', verplicht: true });
-      const email = veld('E-mail', { soort: 'email', maxlength: 200, autocomplete: 'off', inputmode: 'email', verplicht: true });
+      const voornaam = veld('Voornaam', { value: '', maxlength: 200, autocomplete: 'off' });
+      const naam = veld('Naam', { value: '', maxlength: 200, autocomplete: 'off' });
+      const gsm = veld('Gsm', { soort: 'tel', maxlength: 200, autocomplete: 'off', inputmode: 'tel' });
+      const email = veld('E-mail', { soort: 'email', maxlength: 200, autocomplete: 'off', inputmode: 'email' });
       const postcode = veld('Postcode', { maxlength: 10, autocomplete: 'off', inputmode: 'numeric', verplicht: true });
       const gemeente = veld('Gemeente', { maxlength: 200, autocomplete: 'off' });
       const straat = veld('Straat', { maxlength: 200, autocomplete: 'off' });
@@ -36,7 +36,7 @@ export function openLeadToevoegen({ terugFocus } = {}) {
       annuleer.addEventListener('click', () => sluit());
 
       const form = el('form', { class: 'sales-form', novalidate: true },
-        el('p', { class: 'sales-uitleg', text: '* verplicht: een naam (voornaam of naam volstaat), een gsm-nummer of e-mailadres (één van de twee volstaat) en een postcode.' }),
+        el('p', { class: 'sales-uitleg', text: 'Nodig: een naam (voornaam of naam volstaat), een gsm-nummer of e-mailadres (één van de twee volstaat) en een postcode (*).' }),
         el('div', { class: 'sales-rij' }, voornaam.wrap, naam.wrap),
         el('div', { class: 'sales-rij' }, gsm.wrap, email.wrap),
         el('div', { class: 'sales-rij' }, postcode.wrap, gemeente.wrap),

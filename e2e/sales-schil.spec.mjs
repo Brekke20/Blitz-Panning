@@ -152,6 +152,24 @@ test.describe('sales: verkoperkeuze', () => {
     expect(await page.evaluate(() => sessionStorage.getItem('blitz_sales_subtab'))).toBe('sales-kalender');
   });
 
+  test('S7: een verkoper die intussen is aangemaakt staat in de keuzelijst zodra de beheerder de Sales-tab opnieuw opent', async ({ page }) => {
+    const NIEUW = { id: 'u-nieuw', email: 'nieuw@test.be', naam: 'Nieuwe Verkoper', rol: 'sales', salesNaam: 'Nieuwe V.', magAlleSales: false, actief: true };
+    const echte = salesStubs({ gebruiker: BEHEERDER, verkopers: [NIEUW] }); // de gebruiker bestaat in de opslag; de lijst "verschijnt" pas later
+    let lijst = [];
+    const gebruikers = (z) => (z.methode === 'GET' && z.query?.get('rol') === 'sales' ? { status: 200, json: { gebruikers: lijst } } : echte.gebruikers(z));
+    await startSalesApp(page, { gebruiker: BEHEERDER, overschrijf: { ...echte, gebruikers } });
+    await tab(page, 'Sales').click();
+    await expect(page.locator('#view-sales-lijst')).toContainText('Geen actieve verkopers gevonden.');
+    // In Beheer > Gebruikers wordt een verkoper aangemaakt (hier: de stub geeft hem nu terug).
+    lijst = [NIEUW];
+    await page.locator('.tabs-inner').getByRole('tab', { name: 'Beheer', exact: true }).click();
+    await tab(page, 'Sales').click();
+    const keuze = page.locator('#view-sales-lijst').getByLabel('Verkoper');
+    await expect(keuze).toBeVisible();
+    await expect(keuze.locator('option')).toHaveText(['Nieuwe Verkoper']);
+    await expect(page.locator('#view-sales-lijst')).not.toContainText('Geen actieve verkopers gevonden.');
+  });
+
   test('subtabs: pijltjestoetsen en Home/End, en het gekozen subtab wordt onthouden', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER });
     await tab(page, 'Sales').click();

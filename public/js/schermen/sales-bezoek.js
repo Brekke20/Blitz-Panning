@@ -1,6 +1,7 @@
 // schermen/sales-bezoek.js — de acties op een bezoek of blok in de agenda (venster): bellen (tel:), navigeren, Bevestigen, Uur wijzigen,
 // Terug naar te plannen, Resultaat, Details; bij een blok: Verwijderen. Schrijfknoppen enkel als schrijfbaarNu() (alleen-lezen = enkel bellen,
 // navigeren en details). De server is de grens; dit is de weergave. Alle leadgegevens gaan via textContent in de DOM (sales-dom.js).
+import { appConfirm } from '../app-dialog.js';
 import { toast } from '../kern/ui.js';
 import { bevestig, terugNaarTePlannen } from '../sales/lead-regels.js';
 import { isHeleDag } from '../sales/blok-regels.js';
@@ -138,6 +139,8 @@ function openBlok(blok) {
       const wis = el('button', { type: 'button', class: 'btn btn--secondary', text: 'Verwijderen' });
       wis.addEventListener('click', async () => {
         toon('');
+        const ja = await appConfirm({ titel: `${blokTitel(blok)} verwijderen?`, tekst: wanneer, bevestigLabel: 'Verwijderen', annuleerLabel: 'Terug', gevaar: true });
+        if (!ja) return;
         wis.disabled = true;
         const r = await wijzig({ blokken: { verwijder: [blok.id] } });
         if (r.ok) sluit(); else { toon(foutTekst(r)); wis.disabled = false; }
