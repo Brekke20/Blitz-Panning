@@ -39,6 +39,13 @@ function gebruikersStub({ begin = BEGIN(), weiger } = {}) {
       }
       case 'reset-wachtwoord': return json(200, { startWachtwoord: START_WW });
       case 'uitloggen-overal': return json(200, { ok: true });
+      case 'verwijder': {
+        const doel = lijst.find(g => g.id === body.id);
+        if (!doel) return json(404, { error: 'Gebruiker niet gevonden.' });
+        if (doel.actief) return json(409, { error: 'Blokkeer deze gebruiker eerst. Enkel een geblokkeerde gebruiker kan verwijderd worden.' });
+        lijst = lijst.filter(g => g.id !== body.id);
+        return json(200, { ok: true, opgeruimd: true });
+      }
       case 'nieuwe-herstelcodes':
         return body.wachtwoord === EIGEN_WW ? json(200, { herstelcodes: codesVoor() }) : json(400, { error: 'Het wachtwoord is onjuist.' });
       default: return json(400, { error: 'Onbekende actie.' });
@@ -473,6 +480,87 @@ test.describe('tab Gebruikers: eigen herstelcodes', () => {
     ]);
     await geheim.getByRole('button', { name: 'Ik heb het genoteerd' }).click();
     await nietInPagina(page, 'CODE01-ZQXW', 'CODE10-ZQXW', EIGEN_WW);
+  });
+});
+
+test.describe('tab Gebruikers: verwijderen', () => {
+  const verwijderKnop = (page, id) => rij(page, id).getByRole('button', { name: /^Verwijderen/ });
+
+  test('Verwijderen verschijnt pas na blokkeren; niet bij een actieve gebruiker en niet bij jezelf', async ({ page }) => {
+    await openGebruikers(page);
+    await expect(verwijderKnop(page, 'u-p1')).toHaveCount(0);
+    await expect(verwijderKnop(page, 'u-test')).toHaveCount(0);
+    await expect(verwijderKnop(page, 'u-x1')).toBeVisible(); // Aaron Oud is al geblokkeerd
+    await rij(page, 'u-p1').getByRole('button', { name: 'Blokkeren' }).click();
+    await bevestiging(page, 'Gebruiker blokkeren?').getByRole('button', { name: 'Blokkeren' }).click();
+    await expect(rij(page, 'u-p1').getByRole('button', { name: 'Deblokkeren' })).toBeVisible();
+    await expect(verwijderKnop(page, 'u-p1')).toBeVisible();
+  });
+
+  test('blokkeren, dan verwijderen met de naam overtikken: de gebruiker verdwijnt uit de lijst', async ({ page, verzoeken }) => {
+    await openGebruikers(page);
+    await rij(page, 'u-p1').getByRole('button', { name: 'Blokkeren' }).click();
+    await bevestiging(page, 'Gebruiker blokkeren?').getByRole('button', { name: 'Blokkeren' }).click();
+    await verwijderKnop(page, 'u-p1').click();
+
+    const dlg = venster(page, 'Gebruiker verwijderen?');
+    await expect(dlg).toContainText('Piet Planner wordt definitief verwijderd');
+    await expect(dlg).toContainText('Rapporten en tickets blijven bewaard');
+    await expect(dlg).not.toContainText('leads'); // geen verkoper: geen leads-waarschuwing
+    const bevestig = dlg.getByRole('button', { name: 'Definitief verwijderen' });
+    await expect(bevestig).toBeDisabled();
+    const naam = dlg.getByLabel(/Typ de naam/);
+    await naam.fill('Piet');
+    await expect(bevestig).toBeDisabled();
+    await naam.fill('Piet Plannr');
+    await expect(bevestig).toBeDisabled();
+    expect(verzoeken.van('/api/gebruikers', 'POST').filter(r => r.body?.actie === 'verwijder')).toEqual([]);
+    await naam.fill('Piet Planner');
+    await expect(bevestig).toBeEnabled();
+    await bevestig.click();
+
+    await expect(dlg).toHaveCount(0);
+    await expect(rij(page, 'u-p1')).toHaveCount(0);
+    await expect(toastEl(page)).toContainText('Piet Planner is verwijderd');
+    expect(verzoeken.van('/api/gebruikers', 'POST').filter(r => r.body?.actie === 'verwijder').map(r => r.body)).toEqual([{ actie: 'verwijder', id: 'u-p1' }]);
+  });
+
+  test('Annuleren en Escape sluiten het venster zonder iets te verwijderen; Enter met een verkeerde naam doet niets', async ({ page, verzoeken }) => {
+    await openGebruikers(page);
+    await verwijderKnop(page, 'u-x1').click();
+    const dlg = venster(page, 'Gebruiker verwijderen?');
+    await dlg.getByLabel(/Typ de naam/).fill('fout');
+    await page.keyboard.press('Enter');
+    await expect(dlg).toBeVisible();
+    await dlg.getByRole('button', { name: 'Annuleren' }).click();
+    await expect(dlg).toHaveCount(0);
+    await verwijderKnop(page, 'u-x1').click();
+    await page.keyboard.press('Escape');
+    await expect(venster(page, 'Gebruiker verwijderen?')).toHaveCount(0);
+    await expect(rij(page, 'u-x1')).toBeVisible();
+    expect(verzoeken.van('/api/gebruikers', 'POST').filter(r => r.body?.actie === 'verwijder')).toEqual([]);
+  });
+
+  test('een verkoper: het venster waarschuwt dat zijn leads en planning ook verdwijnen; hoofdletters en spaties in de naam tellen niet', async ({ page }) => {
+    const begin = [...BEGIN(), { id: 'u-s1', email: 'sara@test.be', naam: 'Sara Sales', rol: 'sales', salesNaam: 'Sara', actief: false, laatsteLogin: null, aangemaakt: '2026-09-05T08:00:00.000Z', moetWachtwoordWijzigen: false }];
+    await openGebruikers(page, { stub: { begin } });
+    await verwijderKnop(page, 'u-s1').click();
+    const dlg = venster(page, 'Gebruiker verwijderen?');
+    await expect(dlg).toContainText('Zijn leads en planning worden ook verwijderd. Wil je die bewaren, laat hem dan geblokkeerd.');
+    await dlg.getByLabel(/Typ de naam/).fill('  sara   SALES ');
+    await dlg.getByRole('button', { name: 'Definitief verwijderen' }).click();
+    await expect(rij(page, 'u-s1')).toHaveCount(0);
+  });
+
+  test('een weigering van de server (409) komt in het venster, dat openblijft', async ({ page, consoleFouten }) => {
+    await openGebruikers(page, { stub: { weiger: (m, b) => (b?.actie === 'verwijder' ? json(409, { error: 'Er moet minstens één actieve beheerder overblijven.' }) : undefined) } });
+    await verwijderKnop(page, 'u-x1').click();
+    const dlg = venster(page, 'Gebruiker verwijderen?');
+    await dlg.getByLabel(/Typ de naam/).fill('Aaron Oud');
+    await dlg.getByRole('button', { name: 'Definitief verwijderen' }).click();
+    await expect(dlg.getByRole('alert')).toHaveText('Er moet minstens één actieve beheerder overblijven.');
+    await expect(rij(page, 'u-x1')).toBeVisible();
+    await verwachtFout(consoleFouten, 409);
   });
 });
 

@@ -11,6 +11,7 @@ const LABELS = Object.freeze({
   'gebruiker-aangemaakt': 'Gebruiker aangemaakt',
   'gebruiker-gewijzigd': 'Gebruiker gewijzigd',
   'gebruiker-geblokkeerd': 'Gebruiker geblokkeerd',
+  'gebruiker-verwijderd': 'Gebruiker verwijderd',
   'plannen': 'Ingepland',
   'voorstel-verstuurd': 'Voorstel verstuurd',
   'annulatie': 'Geannuleerd',

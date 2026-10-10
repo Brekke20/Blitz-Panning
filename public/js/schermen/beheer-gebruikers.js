@@ -15,6 +15,7 @@ import { appConfirm } from '../app-dialog.js';
 import { formatHerstelcodes } from './inloggen-logica.js';
 import {
   ROLLEN, rolLabel, sorteerGebruikers, valideerGebruikerFormulier, zohoNaamOpties, zohoNaamKeuzes, ZOHO_ANDERE, kanBlokkeren, formatLaatsteLogin,
+  kanVerwijderen, verwijderUitleg, naamKomtOver,
 } from './beheer-gebruikers-logica.js';
 
 const PAD = '/api/gebruikers';
@@ -230,6 +231,44 @@ function toonGebruikerFormulier({ gebruiker = null, lijst, naSucces }) {
   });
 }
 
+// Definitief verwijderen van een GEBLOKKEERDE gebruiker: uitleg in gewone taal, en de beheerder moet de naam overtikken.
+// De server dwingt de regels af (geblokkeerd, niet jezelf, een actieve beheerder blijft over); dit venster spiegelt ze enkel.
+function toonVerwijderVenster({ gebruiker, naSucces, focusTerug }) {
+  const venster = openBeheerVenster({ titel: 'Gebruiker verwijderen?', focusTerug });
+  const naamVeld = h('input', { class: 'set-input', id: 'bg-verwijder-naam', type: 'text', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false' });
+  const fout = h('p', { class: 'bg-fout', role: 'alert' });
+  const annuleer = h('button', { type: 'button', class: 'btn btn--secondary', text: 'Annuleren', onclick: venster.sluit });
+  const bevestig = h('button', { type: 'submit', class: 'btn btn--danger btn--solid', text: 'Definitief verwijderen' });
+  bevestig.disabled = true;
+  const form = h('form', { class: 'bg-form', novalidate: true },
+    verwijderUitleg(gebruiker).map(t => h('p', { class: 'bg-uitleg', text: t })),
+    h('div', { class: 'set-field' },
+      h('label', { class: 'set-label', for: 'bg-verwijder-naam', text: `Typ de naam "${gebruiker.naam}" om te bevestigen` }), naamVeld),
+    fout,
+    h('div', { class: 'beheer-venster-acties' }, annuleer, bevestig));
+  venster.body.append(form);
+  naamVeld.addEventListener('input', () => { bevestig.disabled = !naamKomtOver(naamVeld.value, gebruiker.naam); });
+  naamVeld.focus();
+
+  let bezig = false;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (bezig || !naamKomtOver(naamVeld.value, gebruiker.naam)) return;
+    fout.textContent = '';
+    bezig = true;
+    bevestig.disabled = true; annuleer.disabled = true;
+    const r = await roep('POST', { actie: 'verwijder', id: gebruiker.id });
+    bezig = false;
+    annuleer.disabled = false;
+    if (!r.ok) { bevestig.disabled = !naamKomtOver(naamVeld.value, gebruiker.naam); fout.textContent = foutTekst(r); return; }
+    venster.sluit();
+    toast(r.data?.opgeruimd === false
+      ? `${gebruiker.naam} is verwijderd, maar een deel van zijn of haar gegevens kon nog niet gewist worden. De dagelijkse opruiming haalt dat later weg.`
+      : `${gebruiker.naam} is verwijderd.`);
+    await naSucces();
+  });
+}
+
 // "Nieuwe herstelcodes maken" voor het eigen beheerdersaccount: vraagt het eigen wachtwoord.
 function toonNieuweHerstelcodes() {
   const venster = openBeheerVenster({ titel: 'Nieuwe herstelcodes maken' });
@@ -368,7 +407,11 @@ async function render(container) {
         ? knop('Blokkeren', 'blokkeer', blokkeer(g), kanBlokkeren(lijst, g.id) ? {} : { uit: true, titel: ENIGE_BEHEERDER, klasse: 'btn--danger' })
         : knop('Deblokkeren', 'deblokkeer', deblokkeer(g)),
       knop('Startwachtwoord opnieuw instellen', 'reset', resetWachtwoord(g)),
-      knop('Overal uitloggen', 'uitloggen', uitloggenOveral(g)));
+      knop('Overal uitloggen', 'uitloggen', uitloggenOveral(g)),
+      // Verwijderen komt pas na blokkeren: zo is het altijd een bewuste tweede stap (en nooit voor jezelf).
+      !actief && kanVerwijderen(lijst, g.id, eigenId())
+        ? knop('Verwijderen', 'verwijder', async () => toonVerwijderVenster({ gebruiker: g, naSucces: laad, focusTerug }), { klasse: 'btn--danger' })
+        : null);
     return h('tr', { class: actief ? null : 'bg-inactief', 'data-id': g.id },
       cel('Naam', h('span', { class: 'bg-naam', text: eigen ? `${g.naam} (jij)` : String(g.naam ?? '') }),
         details.length ? h('small', { class: 'bg-sub', text: details.join(' · ') }) : null),

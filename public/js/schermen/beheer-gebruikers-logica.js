@@ -113,6 +113,32 @@ export function kanBlokkeren(gebruikers, id) {
   return gebruikers.some(g => g && g.id !== id && isActieveBeheerder(g));
 }
 
+// Spiegelt kanVerwijderen van de server voor de knop (de server beslist): enkel een geblokkeerde gebruiker, nooit jezelf, en er blijft
+// een actieve beheerder over.
+export function kanVerwijderen(gebruikers, id, eigenId) {
+  if (!Array.isArray(gebruikers)) return false;
+  const doel = gebruikers.find(g => g && g.id === id);
+  if (!doel || doel.actief === true || id === eigenId) return false;
+  return gebruikers.some(g => g && g.id !== id && isActieveBeheerder(g));
+}
+
+// De tekst van het bevestigingsvenster voor het verwijderen, in gewone taal. Een verkoper krijgt de extra waarschuwing over zijn leads.
+export function verwijderUitleg(gebruiker) {
+  const naam = tekst(gebruiker?.naam);
+  const alinea = [
+    `${naam} wordt definitief verwijderd. ${naam} kan dan niet meer inloggen en zijn of haar instellingen worden gewist. Dit kan niet ongedaan gemaakt worden.`,
+    'Rapporten en tickets blijven bewaard. Het activiteitenlogboek blijft ook: de bestaande regels blijven staan en de verwijdering komt er als nieuwe regel bij.',
+  ];
+  if (gebruiker?.rol === 'sales') alinea.push('Zijn leads en planning worden ook verwijderd. Wil je die bewaren, laat hem dan geblokkeerd.');
+  return alinea;
+}
+
+// Is de ingetikte naam gelijk aan de naam van de gebruiker? Spaties aan de rand en hoofdletters tellen niet mee.
+export function naamKomtOver(ingetikt, naam) {
+  const norm = (w) => (typeof w === 'string' ? w.trim().replace(/\s+/g, ' ').toLowerCase() : '');
+  return norm(naam) !== '' && norm(ingetikt) === norm(naam);
+}
+
 export function formatLaatsteLogin(iso) {
   const d = new Date(iso);
   if (typeof iso !== 'string' || Number.isNaN(d.getTime())) return 'Nooit';

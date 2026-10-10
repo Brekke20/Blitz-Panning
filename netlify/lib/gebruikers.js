@@ -147,6 +147,20 @@ export function kanWijzigen(gebruikers, id, wijziging = {}) {
   return { ok: true };
 }
 
+// Definitief verwijderen: enkel een GEBLOKKEERDE gebruiker (een bewuste tweede stap), nooit jezelf, en er blijft altijd een
+// actieve beheerder over. Aanroepen binnen de wijzigGebruikers-callback, op de lijst die die callback ontvangt.
+// -> { ok:true } | { ok:false, fout, status } (status = HTTP-status voor de weigering)
+export function kanVerwijderen(gebruikers, id, eigenId) {
+  const doel = gebruikers.find(g => g && g.id === id);
+  if (!doel) return { ok: false, status: 404, fout: 'Gebruiker niet gevonden.' };
+  if (id === eigenId) return { ok: false, status: 409, fout: 'Je kunt je eigen account niet verwijderen.' };
+  if (doel.actief === true) return { ok: false, status: 409, fout: 'Blokkeer deze gebruiker eerst. Enkel een geblokkeerde gebruiker kan verwijderd worden.' };
+  // Een geblokkeerde gebruiker is nooit een actieve beheerder; toch blijft deze controle staan (verdediging in de diepte).
+  const over = gebruikers.filter(g => g && g.id !== id);
+  if (!over.some(isActieveBeheerder)) return { ok: false, status: 409, fout: 'Er moet minstens één actieve beheerder overblijven.' };
+  return { ok: true };
+}
+
 // wijzig(gebruikers) -> nieuwe array | null (null = niets doen)
 export async function wijzigGebruikers(store, wijzig) {
   const r = await wijzigBlob(store, GEBRUIKERS, {
@@ -162,6 +176,16 @@ export async function wijzigGebruikers(store, wijzig) {
 export async function leesLaatsteLogins(store) {
   const blob = await store.get(LAATSTE_LOGIN, { type: 'json' });
   return blob && typeof blob === 'object' && !Array.isArray(blob) ? blob : {};
+}
+
+// Haalt de laatste-loginregel van een (verwijderde) gebruiker weg. Best-effort: gooit nooit.
+export async function wisLaatsteLogin(store, gebruikerId) {
+  try {
+    await wijzigBlob(store, LAATSTE_LOGIN, {
+      leeg: {},
+      wijzig: map => (Object.hasOwn(map, gebruikerId) ? Object.fromEntries(Object.entries(map).filter(([k]) => k !== gebruikerId)) : null),
+    });
+  } catch { /* best-effort */ }
 }
 
 export async function schrijfLaatsteLogin(store, gebruikerId, iso) {
