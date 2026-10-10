@@ -142,7 +142,8 @@ test('huidig: fill-lus slaat te verre kandidaat over ten voordele van de volgend
   const FILL = { id: 'fill', number: '204', priority: 'Low', interventieDatum: null, lat: 51.35, lon: 4.40, duurMin: 120 }; // ~26 min
   const u = await planWeek(maakEenDag([VER, FILL, SEED], { bestaandPerDag: {} }));
   assert.deepEqual(ids(u), ['seed', 'fill']);
-  assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'geen-plaats' }]);
+  // gewijzigd door at-plan: de dag had nog plaats (2 van 3) en VER faalde enkel op afstand, dus 'te-ver' (was het misleidende 'geen-plaats').
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'te-ver' }]);
 });
 
 // ---- R2: bouwDagen / reikwijdte --------------------------------------------
@@ -535,14 +536,16 @@ test('reden: enkel te ver voor elke niet-lege dag en geen lege dag meer → te-v
   assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'te-ver' }]);
 });
 
-test('reden: te ver op dag 1 maar verliest de starter op lege dag 2 → geen-plaats', async () => {
+// gewijzigd door at-plan: dag 2 zat niet vol (1 van 2) en 'ver' faalde enkel op afstand t.o.v. de starter → 'te-ver' (was 'geen-plaats').
+// 'geen-plaats' blijft voor een lead die kans kreeg op een lege dag die daarna wél vol zat (zie de test 'reden: week vol').
+test('reden: te ver op dag 1 en afstand tot de starter op lege dag 2 (dag niet vol) → te-ver', async () => {
   const u = await planWeek(maakInvoer({
     kandidaten: [mk('hoog', 1, { priority: 'High', lat: 50.93, lon: 5.34 }), mk('ver', 2, { lat: 50.93, lon: 5.34, priority: 'Low' })],
     dagen: ['2026-10-05', '2026-10-06'], bestaandPerDag: bestaandAnt(),
     instellingen: inst({ maxPerDag: 2 }), reistijden: vast({ hoog: 90, ver: 90 }),
   }));
   assert.deepEqual(datumsVan(u, 'hoog'), ['2026-10-06']);
-  assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'geen-plaats' }]);
+  assert.deepEqual(u.nietGepland, [{ ticketId: 'ver', reden: 'te-ver' }]);
 });
 
 // ---- R7: voorkeursdag eerst, botsingen ---------------------------------------

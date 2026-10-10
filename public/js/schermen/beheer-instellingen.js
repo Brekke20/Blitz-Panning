@@ -56,7 +56,7 @@ async function render(container) {
   const van = h('input', { class: 'set-input', id: 'bi-van', type: 'time' });
   const tot = h('input', { class: 'set-input', id: 'bi-tot', type: 'time', 'aria-label': 'Werkuren tot' });
   const tijdslot = h('input', { class: 'set-input', id: 'bi-tijdslot', type: 'number', min: '60', max: '360', step: '30' });
-  const bezoek = h('input', { class: 'set-input', id: 'bi-bezoek', type: 'number', min: '5', max: '480', step: '5', placeholder: `Standaard ${STANDAARD_BEZOEKDUUR}` });
+  const bezoek = h('input', { class: 'set-input', id: 'bi-bezoek', type: 'number', min: '15', max: '480', step: '5', placeholder: `Standaard ${STANDAARD_BEZOEKDUUR}` });
   const bezoekVeld = veld('Bezoekduur (minuten)', bezoek, 'bi-bezoek');
   const dagenGroep = h('div', { class: 'days-grid', id: 'bi-dagen', role: 'group', 'aria-labelledby': 'bi-dagen-label' });
   const fout = h('p', { class: 'bg-fout', role: 'alert' });

@@ -77,17 +77,17 @@ test('formulierWaarden: zonder bewaarde laatste start is de voorinvulling min(16
   assert.equal(formulierWaarden({ vanTijd: '08:00', totTijd: '15:00', laatsteStart: '14:00' }).laatsteStart, '14:00');
 });
 
-test('valideerSalesInstellingen: bezoekduur 4, 481, abc, 12.5 en een negatief getal worden geweigerd', () => {
-  const tekst = '⚠ Bezoekduur moet tussen 5 en 480 minuten liggen';
-  for (const v of ['4', '481', 'abc', '12.5', '-30', '1e2']) assert.equal(valideerSalesInstellingen(invoer({ bezoekDuurMin: v })).fout, tekst, v);
+test('valideerSalesInstellingen: bezoekduur 4, 5, 14, 481, abc, 12.5 en een negatief getal worden geweigerd', () => {
+  const tekst = '⚠ Bezoekduur moet tussen 15 en 480 minuten liggen';
+  for (const v of ['4', '5', '14', '481', 'abc', '12.5', '-30', '1e2']) assert.equal(valideerSalesInstellingen(invoer({ bezoekDuurMin: v })).fout, tekst, v);
 });
 
-test('valideerSalesInstellingen: bezoekduur op de grenzen 5 en 480 is geldig; leeg is toegelaten (de standaard)', () => {
-  assert.equal(valideerSalesInstellingen(invoer({ bezoekDuurMin: '5' })).waarden.bezoekDuurMin, 5);
+test('valideerSalesInstellingen: bezoekduur op de grenzen 15 en 480 is geldig; leeg is toegelaten (de standaard)', () => {
+  assert.equal(valideerSalesInstellingen(invoer({ bezoekDuurMin: '15' })).waarden.bezoekDuurMin, 15);
   assert.equal(valideerSalesInstellingen(invoer({ bezoekDuurMin: '480' })).waarden.bezoekDuurMin, 480);
   const leeg = valideerSalesInstellingen(invoer({ bezoekDuurMin: '' }));
   assert.equal(leeg.fout, undefined);
-  assert.equal('bezoekDuurMin' in leeg.waarden, false); // Number('') = 0 mag geen fout "tussen 5 en 480" geven
+  assert.equal('bezoekDuurMin' in leeg.waarden, false); // Number('') = 0 mag geen fout "tussen 15 en 480" geven
 });
 
 test('valideerSalesInstellingen: een startadres langer dan 200 tekens wordt geweigerd', () => {

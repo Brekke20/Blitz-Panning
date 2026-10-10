@@ -178,7 +178,7 @@ test.describe('tab Instellingen', () => {
     expect(verzoeken.van('/api/instellingen', 'PUT')[0].body).toMatchObject({ gebruiker: 'u-s1', instellingen: { bezoekDuurMin: 90 } });
     await veld.fill('2');
     await page.getByRole('button', { name: 'Opslaan' }).click();
-    await expect(page.getByRole('alert').filter({ hasText: 'Bezoekduur moet tussen 5 en 480 minuten liggen' })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: 'Bezoekduur moet tussen 15 en 480 minuten liggen' })).toBeVisible();
     expect(verzoeken.van('/api/instellingen', 'PUT')).toHaveLength(1);
   });
 

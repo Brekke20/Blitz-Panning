@@ -1,6 +1,8 @@
-// /api/sales-import — POST { export: <object> }: het exportbestand van de verkoper importeren in het EIGEN blob.
-//   200 { versie, samenvatting, export, open } | 400 { error } | 413 (body > 3 MB) | 503 opslag-storing
-// Enkel de rol sales (rechtenrij); de wrapper doet de login en de X-Blitz-controle. Nooit een ?gebruiker= (altijd het eigen blob).
+// /api/sales-import — POST [?gebruiker=<id>] { export: <object> }: het exportbestand van de verkoper importeren in het EIGEN blob.
+//   200 { versie, samenvatting, export, open } | 400 { error } | 403 | 404 | 413 (body > 3 MB) | 503 opslag-storing
+// Rollen sales en beheerder (rechtenrij); de wrapper doet de login en de X-Blitz-controle. Een verkoper importeert (en voegt leads toe)
+// enkel in het EIGEN blob (een ander ?gebruiker= -> 403). De beheerder mag ENKEL een manuele lead toevoegen (bron 'manueel', "+ Lead"),
+// voor de verkoper in ?gebruiker= (een actieve gebruiker met rol sales; anders 404 of 403 geblokkeerd); een echt exportbestand -> 403.
 // Antwoorden bevatten nooit `grafstenen`; in logs en consolefouten staan enkel fouttypes, nooit persoonsgegevens.
 import { randomUUID } from 'node:crypto';
 import { getStore } from '@netlify/blobs';
@@ -8,9 +10,13 @@ import { beveiligV2 } from '../lib/beveiligd.js';
 import { maakCors } from '../lib/http.js';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
 import { logVoorVerzoek } from '../lib/activiteit.js';
-import { OPSLAG_STORING } from '../lib/auth-antwoord.js';
+import { OPSLAG_STORING, authStore } from '../lib/auth-antwoord.js';
+import { leesGebruikers } from '../lib/gebruikers.js';
+import { bepaalDoel } from '../lib/sales-toegang.js';
+import { MANUEEL } from '../../public/js/sales/manueel.js';
 import { importeerExport } from '../lib/sales-import-server.js';
 
+const GEEN_RECHT = Object.freeze({ error: 'Je hebt hier geen toegang toe.', code: 'geen-recht' });
 const MAX_BODY_BYTES = 3 * 1024 * 1024; // het bestand zelf mag 2 MB zijn; de rest is de omhulling { export: ... }
 
 const CORS = Object.freeze(maakCors({
@@ -37,9 +43,17 @@ export function maakHandler({
 
       const testVerzoek = isTestVerzoek(req);
       if (testVerzoek) await zorgVoorTestkopie(haalStore);
+      // De beheerder voegt enkel een manuele lead toe (geen exportbestand); wie het doel mag zijn, bepaalt dezelfde regel als in /api/sales.
+      if (gebruiker.rol === 'beheerder' && body?.export?.bron !== MANUEEL) return json(403, GEEN_RECHT);
+      const aStore = await authStore(haalStore); // echte store: enkel voor de gebruikerslijst
+      const gevraagdId = new URL(req.url).searchParams.get('gebruiker');
+      const toegang = await bepaalDoel({
+        gebruiker, gevraagdId, schrijven: true, testVerzoek, leesGebruikers: () => leesGebruikers(aStore),
+      });
+      if (!toegang.ok) return json(toegang.status, { error: toegang.fout, ...(toegang.code ? { code: toegang.code } : {}) });
       const store = await haalStore({ name: winkelNaam(req), consistency: 'strong' });
       const uitkomst = await importeerExport({
-        store, doelId: gebruiker.id, body, nu, nieuwId,
+        store, doelId: toegang.doelId, voorVerkoper: toegang.doelId !== gebruiker.id, body, nu, nieuwId,
         deps: { fetch, sleutel: sleutel(), testModus: testVerzoek, geheim },
         log: d => logVoorVerzoek(req, gebruiker, d, { getStore: haalStore, nu }),
       });

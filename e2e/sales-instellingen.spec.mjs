@@ -110,10 +110,10 @@ test.describe('sales: instellingenvenster', () => {
     await expect(venster(page).locator('.sales-venster-fout')).toHaveText('⚠ Begintijd moet voor eindtijd liggen');
     await vul(page, { van: '08:00', tot: '17:00', duur: '4' });
     await venster(page).getByRole('button', { name: 'Bewaren' }).click();
-    await expect(venster(page).locator('.sales-venster-fout')).toHaveText('⚠ Bezoekduur moet tussen 5 en 480 minuten liggen');
-    await vul(page, { duur: 'abc' });
+    await expect(venster(page).locator('.sales-venster-fout')).toHaveText('⚠ Bezoekduur moet tussen 15 en 480 minuten liggen');
+    await vul(page, { duur: '14' }); // type=number: letters kan je niet intikken (logica-test dekt tekst)
     await venster(page).getByRole('button', { name: 'Bewaren' }).click();
-    await expect(venster(page).locator('.sales-venster-fout')).toHaveText('⚠ Bezoekduur moet tussen 5 en 480 minuten liggen');
+    await expect(venster(page).locator('.sales-venster-fout')).toHaveText('⚠ Bezoekduur moet tussen 15 en 480 minuten liggen');
     await vul(page, { duur: '60', laatste: '18:00' });
     await venster(page).getByRole('button', { name: 'Bewaren' }).click();
     await expect(venster(page).locator('.sales-venster-fout')).toHaveText('⚠ Laatste start moet tussen begin- en eindtijd liggen');

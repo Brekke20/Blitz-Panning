@@ -67,13 +67,13 @@ const logItems = echt => JSON.parse(echt._data.get('activiteit/2026-10') ?? '{"i
 const schrijvenNaar = (store, sleutel) => store._schrijfacties.filter(a => a.key === sleutel).length;
 
 // ---------------- rechten ----------------
-test('rechtenrij: sales-import enkel POST voor de rol sales', () => {
-  assert.deepEqual([...RECHTEN['sales-import'].POST], ['sales']);
+test('rechtenrij: sales-import enkel POST, voor beheerder (enkel een manuele lead, in de functie afgedwongen) en sales', () => {
+  assert.deepEqual([...RECHTEN['sales-import'].POST].sort(), ['beheerder', 'sales']);
   assert.equal(RECHTEN['sales-import']['*'], undefined);
   for (const m of ['GET', 'PUT', 'PATCH', 'DELETE']) assert.equal(RECHTEN['sales-import'][m], undefined, m);
 });
 
-test('toegang: beheerder, planner en technieker -> 403 geen-recht (wrapper), geen store aangeraakt', async () => {
+test('toegang: beheerder (met een echt exportbestand), planner en technieker -> 403 geen-recht, geen store aangeraakt', async () => {
   for (const rol of ['beheerder', 'planner', 'technieker']) {
     const { h, gets } = opzet();
     const r = await metRol(rol, async () => lees(await h(post(exportBestand()))));
@@ -101,12 +101,18 @@ test('toegang: GET -> 405 van de wrapper', async () => {
   assert.equal(r.status, 405);
 });
 
-test('toegang: een ?gebruiker=-parameter wordt genegeerd (altijd het eigen blob)', async () => {
+test('toegang: een verkoper die een ander id meegeeft -> 403, niets geschreven (ook niet in het eigen blob); het eigen id mag', async () => {
   const { h, echt } = opzet({ begin: { 'sales/u-sam': { versie: 1, leads: [], blokken: [], grafstenen: [] } } });
-  const r = await importeer(h, exportBestand(), { zoek: '?gebruiker=u-sam' });
-  assert.equal(r.status, 200);
-  assert.equal(blobVan(echt).leads.length, 6);
+  for (const exp of [exportBestand(), manueel()]) {
+    const r = await importeer(h, exp, { zoek: '?gebruiker=u-sam' });
+    assert.equal(r.status, 403);
+    assert.equal(r.body.code, 'geen-recht');
+  }
+  assert.equal(echt._data.get(`sales/${EIGEN}`), undefined);
   assert.deepEqual(blobVan(echt, 'u-sam').leads, []);
+  const eigen = await importeer(h, exportBestand(), { zoek: `?gebruiker=${EIGEN}` });
+  assert.equal(eigen.status, 200);
+  assert.equal(blobVan(echt).leads.length, 6);
 });
 
 // ---------------- de import ----------------
@@ -546,4 +552,63 @@ test('manueel: een volledig adres wordt gegeocodeerd (adres-locatie); de notitie
   assert.equal(r.body.samenvatting.alAanwezig, 1);
   assert.equal(blobVan(echt).leads.length, 1);
   assert.equal(blobVan(echt).leads[0].notitie, 'Bel na vijf uur');
+});
+
+// ---------------- de beheerder voegt een manuele lead toe voor een verkoper ----------------
+const GEBRUIKERS = { versie: 1, gebruikers: [
+  { id: 'u-bea', naam: 'Bea', rol: 'beheerder', actief: true },
+  { id: 'u-sam', naam: 'Sam', rol: 'sales', actief: true },
+  { id: 'u-weg', naam: 'Wim', rol: 'sales', actief: false },
+  { id: 'u-tim', naam: 'Tim', rol: 'technieker', actief: true },
+] };
+const alsBeheerder = async (h, exp, zoek) => lees(await metRol('beheerder', () => h(post(exp, { zoek }))));
+const opzetBeheer = () => opzet({ begin: { gebruikers: GEBRUIKERS, 'sales/u-sam': { versie: 1, leads: [], blokken: [], grafstenen: [] } } });
+
+test('beheerder: een manuele lead voor een actieve verkoper komt in het blob van die verkoper (niet in dat van de beheerder), met een logregel', async () => {
+  const { h, echt } = opzetBeheer();
+  const r = await alsBeheerder(h, manueel(), '?gebruiker=u-sam');
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.samenvatting.nieuw, 1);
+  const l = blobVan(echt, 'u-sam').leads;
+  assert.equal(l.length, 1);
+  assert.equal(l[0].voornaam, 'Greet');
+  assert.equal(l[0].bronExport.bron, 'manueel');
+  assert.equal(echt._data.get('sales/test-beheerder'), undefined);
+  const items = logItems(echt);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].actie, 'sales-import');
+  assert.equal(items[0].gebruikerId, 'test-beheerder'); // wie
+  assert.equal(items[0].onderwerp, 'u-sam');            // voor welke verkoper
+  assert.deepEqual(JSON.parse(items[0].details), { nieuw: 1, alAanwezig: 0, adresNakijken: 0, eerderVerwijderd: 0, bron: 'manueel', voorVerkoper: true });
+});
+
+test('beheerder: zonder verkoper, met een niet-verkoper of onbekend id -> 404; met een geblokkeerde verkoper -> 403 geblokkeerd; niets geschreven', async () => {
+  for (const [zoek, status, code] of [['', 404], ['?gebruiker=u-tim', 404], ['?gebruiker=u-bea', 404], ['?gebruiker=bestaat-niet', 404], ['?gebruiker=u-weg', 403, 'geblokkeerd']]) {
+    const { h, echt } = opzetBeheer();
+    const r = await alsBeheerder(h, manueel(), zoek);
+    assert.equal(r.status, status, zoek);
+    if (code) assert.equal(r.body.code, code, zoek);
+    assert.equal(echt._data.get('sales/u-weg'), undefined, zoek);
+    assert.deepEqual(blobVan(echt, 'u-sam').leads, [], zoek);
+    assert.deepEqual(logItems(echt), [], zoek);
+  }
+});
+
+test('beheerder: een echt exportbestand (of een andere bron) -> 403, ook met een geldige verkoper; "Export laden" blijft voor de verkoper zelf', async () => {
+  for (const exp of [exportBestand(), { ...manueel(), bron: 'anders' }, { ...manueel(), bron: undefined }]) {
+    const { h, echt } = opzetBeheer();
+    const r = await alsBeheerder(h, exp, '?gebruiker=u-sam');
+    assert.equal(r.status, 403);
+    assert.equal(r.body.code, 'geen-recht');
+    assert.deepEqual(blobVan(echt, 'u-sam').leads, []);
+  }
+});
+
+test('beheerder: het minimum van een manuele lead blijft gelden (400), en testverzoek met test-sales is geldig', async () => {
+  const { h, echt } = opzetBeheer();
+  const slecht = await alsBeheerder(h, manueel({}, { voornaam: null, naam: null }), '?gebruiker=u-sam');
+  assert.equal(slecht.status, 400);
+  assert.deepEqual(blobVan(echt, 'u-sam').leads, []);
+  const proef = await metRol('beheerder', async () => lees(await h(post(manueel(), { zoek: '?gebruiker=test-sales', headers: { 'x-blitz-test': '1' } }))));
+  assert.equal(proef.status, 200, JSON.stringify(proef.body));
 });

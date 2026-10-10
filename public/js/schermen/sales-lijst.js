@@ -1,6 +1,6 @@
 // schermen/sales-lijst.js — de tab "Leads": export laden, de leads als kaartjes in drie kolommen naast elkaar (nog in te plannen / ingepland /
 // bevestigd; op een smal scherm drie tabbladen met elk hun aantal), zoeken en filteren op postcodegebied, verwijderen met 5 s "Ongedaan maken" en het leaddetail (sales-detail.js). Werkt in beide plaatsingen: als gewone tab van de
-// verkoper en als subtab van de beheerder (de view komt van startScherm; de beheerder krijgt geen import, de server weigert die ook).
+// verkoper en als subtab van de beheerder (de view komt van startScherm; de beheerder krijgt geen import maar wel "+ Lead" voor de gekozen verkoper).
 // Veiligheid: alle leadgegevens komen via textContent in de DOM (sales-dom.js); de bestandsinhoud wordt nooit geïnterpreteerd.
 import { appConfirm } from '../app-dialog.js';
 import { toast, registreerActies, maakActiveerbaar } from '../kern/ui.js';
@@ -8,7 +8,7 @@ import { MAX_BYTES, leesExport } from '../sales/import.js';
 import { startScherm } from './sales-schil.js';
 import { salesToestand, onSalesWijziging, importeer, vulLocatiesAan, verwijderMetOngedaan, spoelUitgesteld, wijzig } from './sales-data.js';
 import { bevestig } from '../sales/lead-regels.js';
-import { kanImporteren, getoondeVerkoper, schrijfbaarNu } from './sales-verkoper.js';
+import { kanImporteren, kanLeadToevoegen, getoondeVerkoper, schrijfbaarNu } from './sales-verkoper.js';
 import { openLeadDetail } from './sales-detail.js';
 import { openLeadToevoegen } from './sales-lead-toevoegen.js';
 import { filterLeads, postcodegebieden, groepeerLijst, kaartInfo, KOLOMMEN, samenvattingTekst, exportTekst, andereVerantwoordelijke } from './sales-lijst-logica.js';
@@ -108,7 +108,7 @@ function bouwWortel(inhoud) {
     const open = st.leads.filter(l => l.status !== 'afgewerkt' && !st.uitgesteld.has(l.id));
     const kanSchrijven = schrijfbaarNu();
     if (open.length === 0) {
-      kaarten.replaceChildren(el('p', { class: 'sales-leeg', text: kanImporteren() ? 'Nog geen leads. Laad een export of voeg zelf een lead toe.' : 'Nog geen leads.' }));
+      kaarten.replaceChildren(el('p', { class: 'sales-leeg', text: kanImporteren() ? 'Nog geen leads. Laad een export of voeg zelf een lead toe.' : (kanLeadToevoegen() ? 'Nog geen leads. Voeg een lead toe.' : 'Nog geen leads.') }));
       return;
     }
     const zichtbaar = filterLeads(open, filter);
@@ -130,10 +130,14 @@ function bouwWortel(inhoud) {
   function vul() {
     const st = salesToestand();
     const open = st.leads.filter(l => l.status !== 'afgewerkt' && !st.uitgesteld.has(l.id));
-    const mag = kanImporteren();
-    // De beheerder en de weergave van een andere verkoper: geen import en geen "+ Lead" (de server weigert het ook). Enkel aanpassen bij een
-    // wijziging, zodat een knop met focus niet telkens uit de DOM gehaald wordt.
-    if ((acties.childElementCount > 0) !== mag) acties.replaceChildren(...(mag ? [exportKnop, leadKnop, bestand] : []));
+    // De verkoper bij zijn eigen leads: "Export laden" en "+ Lead". De beheerder: enkel "+ Lead" voor de gekozen (niet geblokkeerde) verkoper;
+    // de weergave van een andere verkoper: niets (de server weigert het ook). Enkel aanpassen bij een wijziging, zodat een knop met focus
+    // niet telkens uit de DOM gehaald wordt.
+    const modus = kanImporteren() ? 'alles' : (kanLeadToevoegen() ? 'lead' : '');
+    if (acties.dataset.modus !== modus) {
+      acties.dataset.modus = modus;
+      acties.replaceChildren(...(modus === 'alles' ? [exportKnop, leadKnop, bestand] : modus === 'lead' ? [leadKnop] : []));
+    }
     // Het postcodegebied: de keuze blijft, tenzij dat gebied er niet meer is.
     const gebieden = postcodegebieden(open);
     if (filter.gebied && !gebieden.some(g => g.gebied === filter.gebied)) filter.gebied = '';

@@ -103,12 +103,13 @@ test.describe('sales: Te plannen — export laden', () => {
     expect(verzoeken.van('/api/sales-import')).toEqual([]);
   });
 
-  test('(i) de beheerder krijgt geen knop Export laden', async ({ page }) => {
+  test('(i) de beheerder krijgt geen knop Export laden (wel "+ Lead")', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER, leads: [], blobs: { 'sales/u-bea': { versie: 1, leads: [lead('b1', 'Beheerdersklant')], blokken: [], grafstenen: [] } } });
     await page.getByRole('tab', { name: 'Sales', exact: true }).click();
     await expect(lijst(page).locator('.sales-kaart')).toHaveCount(1);
     await expect(lijst(page).getByRole('button', { name: 'Export laden' })).toHaveCount(0);
     await expect(lijst(page).locator('input[type=file]')).toHaveCount(0);
+    await expect(lijst(page).getByRole('button', { name: '+ Lead' })).toHaveCount(1);
     // de beheerder mag wel bewerken, dus de ✕ staat er
     await expect(lijst(page).getByRole('button', { name: /Verwijder/ })).toHaveCount(1);
   });

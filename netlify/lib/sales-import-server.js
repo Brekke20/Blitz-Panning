@@ -43,7 +43,7 @@ export function heeftProtoSleutel(waarde) {
  * Het antwoord bevat nooit `grafstenen`.
  */
 export async function importeerExport({
-  store, doelId, body, nu, nieuwId = () => randomUUID(), deps = {}, log = async () => {},
+  store, doelId, voorVerkoper = false, body, nu, nieuwId = () => randomUUID(), deps = {}, log = async () => {},
 }) {
   if (!isObject(body) || !isObject(body.export)) return { status: 400, json: { error: 'Geen geldig exportbestand' } };
   if (heeftProtoSleutel(body.export)) return { status: 400, json: { error: 'Geen geldig exportbestand' } };
@@ -81,7 +81,8 @@ export async function importeerExport({
   if (l.status === 'ok') { data = l.data; open = l.open; }
 
   const { nieuw, alAanwezig, adresNakijken, eerderVerwijderd } = samenvatting;
-  await log({ actie: 'sales-import', details: { nieuw, alAanwezig, adresNakijken, eerderVerwijderd, ...(manueel ? { bron: MANUEEL } : {}) } });
+  // voorVerkoper: de beheerder voegde een lead toe voor deze verkoper (het log toont wie via gebruikerId, voor wie via `verkoper`: enkel het id).
+  await log({ actie: 'sales-import', ...(voorVerkoper ? { onderwerp: doelId } : {}), details: { nieuw, alAanwezig, adresNakijken, eerderVerwijderd, ...(manueel ? { bron: MANUEEL } : {}), ...(voorVerkoper ? { voorVerkoper: true } : {}) } });
   return {
     status: 200,
     json: {

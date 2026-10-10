@@ -35,7 +35,7 @@ export function valideerSalesInstellingen(invoer) {
 
   const laatste = tekst(invoer.laatsteStart);
   const duurTekst = tekst(invoer.bezoekDuurMin);
-  // Number('') is 0 en geeft anders de fout "tussen 5 en 480": enkel omzetten als het veld ingevuld is, en enkel een geheel getal
+  // Number('') is 0 en geeft anders de fout "tussen 15 en 480": enkel omzetten als het veld ingevuld is, en enkel een geheel getal
   // (NaN geeft in valideerVelden dezelfde weigering als een getal buiten de grenzen, na de controle van de tijden).
   const duur = duurTekst === '' ? undefined : (/^\d+$/.test(duurTekst) ? Number(duurTekst) : Number.NaN);
   // Een lege laatste start geldt als de standaard min(16:00, eindtijd): die valt per definitie binnen de werkuren, dus niets te controleren.
