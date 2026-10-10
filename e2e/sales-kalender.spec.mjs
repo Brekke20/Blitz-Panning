@@ -190,8 +190,31 @@ test.describe('sales: kalender — blokken', () => {
     await banner.click();
     await expect(venster(page)).toContainText('Verlof');
     await venster(page).getByRole('button', { name: 'Verwijderen' }).click();
+    // AT S6: eerst een bevestiging; Terug laat het blok staan en stuurt niets.
+    const dialoog = page.getByRole('alertdialog');
+    await expect(dialoog).toContainText('verwijderen?');
+    await dialoog.getByRole('button', { name: 'Terug' }).click();
+    await expect(dialoog).toHaveCount(0);
+    expect(verzoeken.van('/api/sales', 'PATCH')).toHaveLength(1);
+    await expect(dag(page, '2026-10-06').locator('.sales-kal-heledag')).toHaveCount(1);
+    await venster(page).getByRole('button', { name: 'Verwijderen' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Verwijderen' }).click();
     await expect(dag(page, '2026-10-06').locator('.sales-kal-heledag')).toHaveCount(0);
     expect(verzoeken.van('/api/sales', 'PATCH')).toHaveLength(2);
+  });
+
+  test('➕ Blok vult de gekozen werkdag in; is de gekozen dag een weekenddag, dan de eerstvolgende werkdag (AT S6)', async ({ page }) => {
+    await startSalesApp(page, { leads: [], blokken: [] });
+    await naarKalender(page);
+    await kal(page).getByRole('button', { name: '➕ Blok', exact: true }).click();
+    await expect(venster(page).getByLabel('Datum')).toHaveValue('2026-10-05'); // maandag (vaste klok)
+    await venster(page).getByRole('button', { name: 'Sluiten' }).click();
+    await expect(venster(page)).toHaveCount(0);
+    await kal(page).getByRole('button', { name: 'Maand', exact: true }).click();
+    await kal(page).locator('.month-cell[data-date="2026-10-10"]').click(); // zaterdag
+    await expect(dag(page, '2026-10-09')).toBeVisible(); // de week van die zaterdag (zonder weekendkolom)
+    await kal(page).getByRole('button', { name: '➕ Blok', exact: true }).click();
+    await expect(venster(page).getByLabel('Datum')).toHaveValue('2026-10-12'); // maandag erna
   });
 
   test('een blok met uren en omschrijving; een einde voor het begin geeft een fout in het venster; de datum van het venster volgt de gekozen dag; één ingang (➕ Blok), geen +-knopje per dag meer', async ({ page }) => {

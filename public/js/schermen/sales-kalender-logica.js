@@ -2,7 +2,7 @@
 // De items hebben `startMin`/`endMin`, zodat `bepaalLanes` (kalender-logica.js) ze ongewijzigd kan indelen.
 import { isVast } from '../sales/lead-regels.js';
 import { isHeleDag } from '../sales/blok-regels.js';
-import { timeStrToMin, minToTimeStr, localISO, getWeekStart } from '../kern/tijd.js';
+import { timeStrToMin, minToTimeStr, localISO, getWeekStart, verschuifDatum } from '../kern/tijd.js';
 import { maandRaster } from './kalender-logica.js';
 import { naamVan, blokTitel } from './sales-tekst.js';
 
@@ -70,6 +70,17 @@ export function weekDagen({ gekozen, werkdagen, leads = [], blokken = [] }) {
     if (wd.includes(d.getDay()) || bouwKalenderItems({ leads, blokken, datum: iso }).length) uit.push(iso);
   }
   return uit;
+}
+
+/**
+ * De dag waarop ➕ Blok begint: `iso` zelf als dat een werkdag is, anders de eerstvolgende werkdag (nooit een weekenddag invullen).
+ * Zonder (geldige) werkdagen: ma-vr.
+ */
+export function eersteWerkdag(iso, werkdagen) {
+  const wd = Array.isArray(werkdagen) && werkdagen.length ? werkdagen : [1, 2, 3, 4, 5];
+  let dag = iso;
+  for (let i = 0; i < 7 && !wd.includes(new Date(`${dag}T12:00:00`).getDay()); i++) dag = verschuifDatum(dag, { dagen: 1 });
+  return dag;
 }
 
 /** Het adres om naartoe te navigeren: volledig adres, postcode + gemeente, vrije tekst, of 'lat,lon'; null als er niets is. */

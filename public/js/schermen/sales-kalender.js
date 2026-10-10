@@ -10,7 +10,7 @@ import { computeTimelineRange, appendOffhoursBands, renderTimelineGutter } from 
 import { startScherm } from './sales-schil.js';
 import { salesToestand, gekozenDatum, zetGekozenDatum } from './sales-data.js';
 import { schrijfbaarNu } from './sales-verkoper.js';
-import { bouwKalenderItems, maandChips, weekDagen, navigatieAdres } from './sales-kalender-logica.js';
+import { bouwKalenderItems, maandChips, weekDagen, navigatieAdres, eersteWerkdag } from './sales-kalender-logica.js';
 import { kaartInfo } from './sales-lijst-logica.js';
 import { openBezoekActies, navigeer } from './sales-bezoek.js';
 import { openBlokVenster } from './sales-blok.js';
@@ -111,7 +111,7 @@ function maakKop(schrijfbaar) {
       finally { plan.disabled = false; plan.textContent = '⚡ Plan deze week'; }
     });
     const blok = el('button', { type: 'button', class: 'btn-sec', text: '➕ Blok' });
-    blok.addEventListener('click', () => openBlokVenster({ datum: gekozenDatum() }));
+    blok.addEventListener('click', () => openBlokVenster({ datum: eersteWerkdag(gekozenDatum(), salesToestand().instellingen.werkdagen) })); // nooit een weekenddag vooraf invullen
     kop.append(el('div', { class: 'sales-kal-acties' }, plan, blok));
   }
   return kop;
