@@ -134,7 +134,7 @@ De sales-planner is het deel van de app waarmee een verkoper zijn eigen bezoeken
 3. Vink **Mag alle sales zien** enkel aan voor wie de leads van collega's moet kunnen bekijken (bijvoorbeeld een verkoopsverantwoordelijke). Hij kan dan een collega uit een lijst kiezen en ziet diens leads, maar alleen om te lezen: hij kan niets verwijderen, plannen of inladen voor een ander. Zonder het vinkje ziet een verkoper uitsluitend zijn eigen leads.
 4. Geef het startwachtwoord persoonlijk door, zoals bij elke gebruiker.
 
-Een verkoper ziet enkel de vier tabs Leads, Kalender, Route en Afgewerkt. Planners en techniekers zien niets van sales, en de server weigert hun verzoeken. Jij ziet als beheerder één tab **Sales** met dezelfde vier onderdelen en een lijst om een verkoper te kiezen. Je mag er iets wijzigen, maar je kan geen export inladen: dat doet de verkoper zelf.
+Een verkoper ziet enkel de vier tabs Leads, Kalender, Route en Afgewerkt. Planners en techniekers zien niets van sales, en de server weigert hun verzoeken. Jij ziet als beheerder één tab **Sales** met dezelfde vier onderdelen en een lijst om een verkoper te kiezen. Je mag er iets wijzigen en met **+ Lead** een lead toevoegen voor de gekozen verkoper (dat staat in het activiteitenlog), maar je kan geen export inladen: dat doet de verkoper zelf.
 
 **Hoe een verkoper een export inlaadt (de verkoper zelf)**
 
