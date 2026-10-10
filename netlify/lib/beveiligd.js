@@ -1,4 +1,6 @@
 // Wrapper die elke functie achter de rechtentabel zet: beveiligV1 (event) en beveiligV2 (Request).
+// beveiligV1 draait in productie altijd achter alsV2 (netlify/lib/v2-adapter.js): een functie is dus nooit een echte
+// v1-Lambda, want enkel een v2-functie krijgt de volledige Netlify Blobs-omgeving (strong consistency).
 //   const handler = beveiligV1('plan', async (event, context, gebruiker) => {...});
 //   export default beveiligV2('plan-datum', async (req, context, gebruiker) => {...});
 // Fail-closed: een weigering, een auth-resultaat zonder ok:true of een fout in de controle roept de functie
@@ -8,7 +10,6 @@ import { vereisGebruiker, weigeringV1, weigeringV2 } from './auth.js';
 import { RECHTEN, regelVoor } from './rechten.js';
 import { heeftNetlifyRuntime } from './lokale-dev.js';
 import { v1Json, v1Opties, v2Json, v2Opties } from './http.js';
-import { verbindBlobs } from './blobs-context.js';
 
 const CORS = Object.freeze({ 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' });
 const NIET_SCHRIJVEND = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -77,8 +78,6 @@ async function beslis(naam, methodeRuw, reqOfEvent, auth) {
 export function beveiligV1(naam, handler, { auth } = {}) {
   controleerNaam(naam);
   return async (event, context) => {
-    // v1 (Lambda-compat) krijgt de Blobs-omgeving niet vanzelf: vóór de login (die de gebruikers uit Blobs leest).
-    await verbindBlobs(event);
     const b = await beslis(naam, event?.httpMethod, event, auth);
     if (b.weiger) return weigeringV1(b.weiger, CORS);
     if (b.opties) return v1Opties(CORS);

@@ -10,6 +10,7 @@ import { maakZoho, leesJsonVeilig } from '../lib/zoho.js';
 import { agentNaam } from '../lib/zoho-agenten.js';
 import { CORS_V1 } from '../lib/http.js';
 import { beveiligV1 } from '../lib/beveiligd.js';
+import { alsV2 } from '../lib/v2-adapter.js';
 
 // Instantie op moduleniveau: de tokencache (55 min) leeft zolang de functie warm is.
 const zoho = maakZoho({ orgFoutTekst: 'Zoho Desk org ID niet gevonden' });
@@ -135,4 +136,4 @@ async function kern(event, context, gebruiker) {
   }
 }
 
-export const handler = beveiligV1('tickets', kern);
+export default alsV2(beveiligV1('tickets', kern));

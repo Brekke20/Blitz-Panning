@@ -6,6 +6,7 @@
 
 import { CORS_V1, v1Json, v1Opties } from '../lib/http.js';
 import { beveiligV1 } from '../lib/beveiligd.js';
+import { alsV2 } from '../lib/v2-adapter.js';
 
 const TOMTOM_BASE = 'https://api.tomtom.com';
 const API_KEY = () => process.env.TOMTOM_API_KEY;
@@ -113,4 +114,4 @@ async function kern(event, context, gebruiker) {
   }
 }
 
-export const handler = beveiligV1('route', kern);
+export default alsV2(beveiligV1('route', kern));
