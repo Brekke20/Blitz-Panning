@@ -17,6 +17,9 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Refactor-tak — nog niet uitgebracht] (planner-brein, gebouwd 2026-10-01)
 
+### Fixed
+- Proefperiode op de Deploy Preview: `/api/tickets`, `/api/route` en de andere event-functies (plan, propose, comment, rapport, send-rapport, optimize, matrix, drukte, setup) gaven voor elke ingelogde gebruiker 503 "opslag niet bereikbaar". Oorzaak: deze functies draaien als Lambda-compat (v1) en krijgen de Blobs-omgeving pas na `connectLambda(event)`; de loginlaag leest de gebruikers uit Blobs en zag dat als opslagstoring. De wrapper `beveiligV1` roept nu eerst `connectLambda(event)` aan (`netlify/lib/blobs-context.js`). De persoonskiezer wordt bovendien bij het opstarten en na een mislukte ticketlading opgebouwd, zodat hij nooit leeg blijft.
+
 ### Added
 - Sales: de tab "Te plannen" heet nu **Leads** en toont de leads in drie kolommen naast elkaar: Nog in te plannen (langst wachtende eerst, ook een verlopen voorstel), Ingepland (voorgesteld, op datum en uur; met een knop Bevestigen) en Bevestigd (op datum en uur). Elke kolom toont zijn aantal; op een telefoon zijn het drie tabbladen met aantal.
 - Vinkje **Mag zelf plannen** bij een technieker (Beheer, Gebruikers; enkel de beheerder kan het zetten, gelogd als gebruiker-gewijzigd). Zo'n technieker ziet ook de Wachtrij en de Route, plant, verzet en annuleert zijn EIGEN tickets, stuurt voorstellen en gebruikt "Plan deze week" voor zichzelf; collega's blijven alleen-lezen en "Alle technici" ontbreekt in zijn kiezer. De server dwingt het af: `plan`, `plan-datum`, `propose`, `annuleer`, `voorstel-status` en `klantbeschikbaarheid` laten hem enkel door (rechtentabel: `planEigen`) en vragen aan Zoho of het ticket van hem is (`netlify/lib/eigen-ticket.js`); een collega-ticket geeft 403, een Zoho-storing 503, een testverzoek raakt Zoho nooit. Zonder het vinkje verandert er niets.

@@ -140,3 +140,32 @@ test.describe('kop: persoonskiezer en gebruikersmenu zijn duidelijk verschillend
     });
   }
 });
+
+// Proefperiode: /api/tickets gaf 503 (opslag-storing) en de kiezer bleef leeg ("doet niets"). Ook zonder tickets toont hij minstens
+// de eigen Zoho-naam en, voor wie mag plannen, "Alle technici".
+test.describe('persoonskiezer als de tickets niet laden', () => {
+  const stortIn = { tickets: () => ({ status: 503, json: { error: 'De opslag is tijdelijk niet bereikbaar. Probeer het zo meteen opnieuw.', code: 'opslag-storing' } }) };
+
+  test('technieker met Zoho-naam met spatie: de kiezer toont minstens zijn eigen naam', async ({ page, consoleFouten }) => {
+    await startApp(page, { loginRol: 'technieker', loginGebruiker: { zohoNaam: 'Brent Calaerts', magZelfPlannen: true }, technieker: 'all', overschrijf: stortIn, wachtOpApp: false });
+    await page.locator('#person-btn').click();
+    await expect(menu(page)).toHaveClass(/open/);
+    await expect(kies(page, /Brent Calaerts/)).toBeVisible();
+    await expect(kies(page, /Alle technici/)).toBeHidden();
+    await expect(page.locator('#person-name-hdr')).toHaveText('Brent');
+    consoleFouten.length = 0; // de 503 op /api/tickets is hier de bedoelde fout
+  });
+
+  for (const loginRol of ['beheerder', 'planner']) {
+    test(`${loginRol}: de kiezer toont "Alle technici" en de eigen naam, en kiezen werkt`, async ({ page, consoleFouten }) => {
+      await startApp(page, { loginRol, loginGebruiker: { zohoNaam: 'Brent Calaerts' }, technieker: 'all', overschrijf: stortIn, wachtOpApp: false });
+      await page.locator('#person-btn').click();
+      await expect(menu(page)).toHaveClass(/open/);
+      await expect(kies(page, /Alle technici/)).toBeVisible();
+      await expect(kies(page, /Brent Calaerts/)).toBeVisible();
+      await kies(page, /Brent Calaerts/).click();
+      await expect(page.locator('#person-name-hdr')).toHaveText('Brent');
+      consoleFouten.length = 0;
+    });
+  }
+});

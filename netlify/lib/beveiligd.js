@@ -8,6 +8,7 @@ import { vereisGebruiker, weigeringV1, weigeringV2 } from './auth.js';
 import { RECHTEN, regelVoor } from './rechten.js';
 import { heeftNetlifyRuntime } from './lokale-dev.js';
 import { v1Json, v1Opties, v2Json, v2Opties } from './http.js';
+import { verbindBlobs } from './blobs-context.js';
 
 const CORS = Object.freeze({ 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' });
 const NIET_SCHRIJVEND = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -76,6 +77,8 @@ async function beslis(naam, methodeRuw, reqOfEvent, auth) {
 export function beveiligV1(naam, handler, { auth } = {}) {
   controleerNaam(naam);
   return async (event, context) => {
+    // v1 (Lambda-compat) krijgt de Blobs-omgeving niet vanzelf: vóór de login (die de gebruikers uit Blobs leest).
+    await verbindBlobs(event);
     const b = await beslis(naam, event?.httpMethod, event, auth);
     if (b.weiger) return weigeringV1(b.weiger, CORS);
     if (b.opties) return v1Opties(CORS);
