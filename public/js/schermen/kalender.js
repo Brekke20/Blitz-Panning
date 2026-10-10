@@ -7,7 +7,7 @@
 import { toestand } from '../kern/toestand.js';
 import { magPlannenVoor } from '../kern/sessie.js';
 import { escHtml, zetPressed, registreerActies, registreerWijzigActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
-import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, volgendeWerkdagVan } from '../kern/tijd.js';
+import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, volgendeWerkdagVan, openingsDatum } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
 import {
   TIMELINE_PX_PER_MIN, WERKUUR_START, WERKUUR_EIND, isBuitenWerkuren, timelineTopHeight,
@@ -48,7 +48,8 @@ export function activeerKalender() { renderKalender(); kalAutoScroll(true); }
 // Een bewust gekozen toekomstige datum blijft staan. Aangeroepen bij terugkeer naar de pagina en in de minuutklok (middernacht).
 export function rolloverGekozenDatum() {
   const vandaag = localISO(new Date());
-  if (gekozenIso() < vandaag) toestand.set('gekozenDatum', vandaag);
+  // Op zaterdag/zondag is "vandaag" de eerste werkdag van de komende week (zie openingsDatum).
+  if (gekozenIso() < vandaag) toestand.set('gekozenDatum', openingsDatum(new Date(), toestand.get('settings').werkdagen));
 }
 
 export function initKalender(afhankelijkheden) {
@@ -469,9 +470,10 @@ function kalZichtbareDagen() {
 function kalZetVandaagKnop() {
   // "↺ Vandaag" enkel tonen als de getoonde periode niet de huidige is
   const dagModus = window.apparaat.indeling === 'tablet-staand' && kalView !== 'month';
-  const nu = new Date();
-  const nietVandaag = kalView === 'month' ? (gekozenDatum().getFullYear() !== nu.getFullYear() || gekozenDatum().getMonth() !== nu.getMonth())
-    : dagModus ? gekozenIso() !== localISO(nu) : weekVerschil(gekozenIso(), localISO(nu)) !== 0;
+  const open = openingsDatum(new Date(), toestand.get('settings').werkdagen); // in het weekend de komende week
+  const [oj, om] = open.split('-').map(Number);
+  const nietVandaag = kalView === 'month' ? (gekozenDatum().getFullYear() !== oj || gekozenDatum().getMonth() + 1 !== om)
+    : dagModus ? gekozenIso() !== open : weekVerschil(gekozenIso(), open) !== 0;
   const knop = document.getElementById('kal-label');
   if (knop) knop.classList.toggle('niet-vandaag', nietVandaag);
 }
@@ -755,7 +757,7 @@ function kalNav(dir) {
   kalAutoScroll(true);
 }
 function kalToday() {
-  const vandaag = localISO(new Date());
+  const vandaag = openingsDatum(new Date(), toestand.get('settings').werkdagen); // in het weekend de komende week
   if (gekozenIso() === vandaag) { kalAutoScroll(true); return; }
   toestand.set('gekozenDatum', vandaag);
   toestand.spoel(); // eerst tekenen, daarna scrollen

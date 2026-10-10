@@ -2,7 +2,7 @@
 // lichter dan bevestigd), blokken, ⚡ Plan deze week en ➕ Blok. Hergebruikt de uur-as, laan-indeling en dagkolommen van de technieker-kalender
 // (kalender-logica.js, kalender.js) maar met eigen `sales-`-klassen voor alles wat de rol "sales" niet mag verbergen (geen .coord-only/.kal-actions).
 // Alle leadgegevens gaan via textContent in de DOM. De gekozen dag is sales-data.gekozenDatum (gedeeld met de Route-tab).
-import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, minToTimeStr } from '../kern/tijd.js';
+import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, minToTimeStr, openingsDatum } from '../kern/tijd.js';
 import { toast, maakActiveerbaar } from '../kern/ui.js';
 import { getHolidayName } from '../kern/feestdagen.js';
 import { TIMELINE_PX_PER_MIN, timelineTopHeight, bepaalLanes, maandRaster } from './kalender-logica.js';
@@ -47,8 +47,11 @@ function stap(richting) {
   herteken();
 }
 
+// "Vandaag" = de openingsdatum: in het weekend de eerste werkdag van de komende week.
+const openingsdag = () => openingsDatum(new Date(), salesToestand().instellingen.werkdagen);
+
 function naarVandaag() {
-  zetGekozenDatum(localISO(new Date()));
+  zetGekozenDatum(openingsdag());
   herteken();
 }
 
@@ -74,10 +77,10 @@ function periodeTekst() {
 }
 
 function nietVandaag() {
-  const nu = new Date();
+  const open = openingsdag();
   const [j, m] = gekozenDatum().split('-').map(Number);
-  if (weergave === 'maand') return j !== nu.getFullYear() || m !== nu.getMonth() + 1;
-  return weekVerschil(gekozenDatum(), localISO(nu)) !== 0;
+  if (weergave === 'maand') return j !== Number(open.slice(0, 4)) || m !== Number(open.slice(5, 7));
+  return weekVerschil(gekozenDatum(), open) !== 0;
 }
 
 function maakKop(schrijfbaar) {
