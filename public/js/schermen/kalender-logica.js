@@ -9,6 +9,9 @@ export const TIMELINE_PX_PER_MIN = 1.3;
 // buildTicketCard()'s showActions) -- deze vloer garandeert dat elk blok, ongeacht duur, minstens
 // de volledige kaart toont.
 export const TIMELINE_MIN_BLOCK_PX = 155;
+// De agenda van de verkoper heeft veel lichtere blokken (tijd, naam, plaats): enkel een leesbaarheidsvloer van ~30 min, geen 2 u (AT-fix S5).
+// Die vloer telt NIET mee in de laan-indeling (bepaalLanes met minDuurMin 0): twee bezoeken die elkaar niet overlappen staan onder elkaar.
+export const SALES_MIN_BLOCK_PX = 40;
 
 // Werkuren (fase 2 v1.7.0): de tijdlijn toont het volledige etmaal; buiten deze uren komt een
 // donkere band. Start vóór 08:30 of op/na 17:00 = "buiten werkuren".
@@ -21,10 +24,10 @@ export function isBuitenWerkuren(hhmm) {
   return min < WERKUUR_START || min >= WERKUUR_EIND;
 }
 
-export function timelineTopHeight(startMin, endMin, dagStartMin, totalHeight) {
+export function timelineTopHeight(startMin, endMin, dagStartMin, totalHeight, minHoogtePx = TIMELINE_MIN_BLOCK_PX) {
   endMin = Math.min(endMin, 1440);
   let top = Math.max(0, (startMin - dagStartMin) * TIMELINE_PX_PER_MIN);
-  const height = Math.max(TIMELINE_MIN_BLOCK_PX, (endMin - startMin) * TIMELINE_PX_PER_MIN);
+  const height = Math.max(minHoogtePx, (endMin - startMin) * TIMELINE_PX_PER_MIN);
   // Een laat blok (bv. 23:30) moet volledig zichtbaar blijven binnen de tijdlijn.
   if (totalHeight != null && top + height > totalHeight) top = Math.max(0, totalHeight - height);
   return { top, height };
@@ -36,13 +39,13 @@ export function timelineTopHeight(startMin, endMin, dagStartMin, totalHeight) {
 // gulzige laan-toewijzing (eerste vrije laan wiens laatste blok al afgelopen is vóór dit blok
 // begint). Klein aantal items per dag in de praktijk, dus een simpele O(n²)-aanpak volstaat.
 // Zet `lane` en `laneCount` op elk item (muteert) en geeft de items terug.
-export function bepaalLanes(items) {
+// `minDuurMin` (optioneel): de minimale zichtbare duur waarmee overlap bepaald wordt; standaard die van de service-kaarten, 0 = echte duur.
+export function bepaalLanes(items, { minDuurMin = TIMELINE_MIN_BLOCK_PX / TIMELINE_PX_PER_MIN } = {}) {
   const n = items.length;
   // v1.10.1: overlap bepalen op de ZICHTBARE hoogte van het blok, niet op de werkelijke duur. Een
   // kort blok (bv. afgerond rapport 13:17–13:53) wordt minstens TIMELINE_MIN_BLOCK_PX hoog getekend
   // (~2 u) en liep zo visueel over een blok om 14:23 heen, terwijl de laan-toewijzing ze als
   // niet-overlappend zag.
-  const minDuurMin = TIMELINE_MIN_BLOCK_PX / TIMELINE_PX_PER_MIN;
   const visEnd = it => Math.max(it.endMin, it.startMin + minDuurMin);
   const parent = items.map((_, i) => i);
   function find(i) { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; }
