@@ -10,6 +10,7 @@ import { apiVerzoek } from '../kern/api.js';
 import { toast } from '../kern/ui.js';
 import { toestand } from '../kern/toestand.js';
 import { huidigeGebruiker } from '../kern/sessie.js';
+import { voegWachtwoordOogToe } from '../kern/wachtwoord-oog.js';
 import { appConfirm } from '../app-dialog.js';
 import { formatHerstelcodes } from './inloggen-logica.js';
 import {
@@ -241,6 +242,7 @@ function toonNieuweHerstelcodes() {
     veld('Je wachtwoord', wachtwoord), fout,
     h('div', { class: 'beheer-venster-acties' }, annuleer, verstuur));
   venster.body.append(form);
+  voegWachtwoordOogToe(wachtwoord);
   wachtwoord.focus();
   let bezig = false;
   form.addEventListener('submit', async (e) => {

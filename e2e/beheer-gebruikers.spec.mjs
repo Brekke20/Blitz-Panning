@@ -476,6 +476,22 @@ test.describe('tab Gebruikers: eigen herstelcodes', () => {
   });
 });
 
+test.describe('tab Gebruikers: wachtwoord tonen', () => {
+  test('het eigen-wachtwoordveld heeft het gedeelde oogje: tonen en verbergen, geen submit', async ({ page, verzoeken }) => {
+    await openGebruikers(page);
+    await page.getByRole('button', { name: 'Nieuwe herstelcodes maken' }).click();
+    const dlg = venster(page, 'Nieuwe herstelcodes maken');
+    const ww = dlg.getByLabel('Je wachtwoord', { exact: true });
+    await ww.fill(EIGEN_WW);
+    await dlg.getByRole('button', { name: 'Wachtwoord tonen' }).click();
+    await expect(ww).toHaveAttribute('type', 'text');
+    await expect(dlg.getByRole('button', { name: 'Wachtwoord verbergen' })).toHaveAttribute('aria-pressed', 'true');
+    await dlg.getByRole('button', { name: 'Wachtwoord verbergen' }).click();
+    await expect(ww).toHaveAttribute('type', 'password');
+    expect(verzoeken.van('/api/gebruikers', 'POST')).toEqual([]);
+  });
+});
+
 test.describe('tab Gebruikers: gsm', () => {
   test('375 px: kaartenlijst zonder horizontale paginascroll; op desktop een gewone tabel', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });

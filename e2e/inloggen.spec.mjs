@@ -26,7 +26,8 @@ function loginStubs({ setupNodig = false, extra = {} } = {}) {
 
 const overlay = (page) => page.locator('#login-overlay');
 const kop = (page, naam) => overlay(page).getByRole('heading', { name: naam });
-const veld = (page, label) => overlay(page).getByLabel(label);
+// Een tekstlabel moet exact kloppen: het oogje (aria-label "Wachtwoord tonen") bevat ook het woord "Wachtwoord".
+const veld = (page, label) => overlay(page).getByLabel(label, typeof label === 'string' ? { exact: true } : {});
 const foutmelding = (page) => overlay(page).locator('[data-fout]');
 
 async function openUitgelogd(page, opties) {
@@ -247,5 +248,153 @@ test.describe('wachtwoord vergeten (beheerder)', () => {
     await overlay(page).getByRole('button', { name: 'Wachtwoord herstellen' }).click();
     await expect(foutmelding(page)).toHaveText('De twee wachtwoorden zijn niet gelijk.');
     expect(verzoeken.van('/api/auth-herstel', 'POST')).toEqual([]);
+  });
+});
+
+const OPSLAG_SLEUTEL = 'blitz_onthoud_email';
+const leesOpslag = (page) => page.evaluate((k) => localStorage.getItem(k), OPSLAG_SLEUTEL);
+const alleOpslag = (page) => page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }));
+const vink = (page) => overlay(page).getByRole('checkbox', { name: 'Onthoud mij' });
+const inloggen = (page) => overlay(page).getByRole('button', { name: 'Inloggen', exact: true }).click();
+
+test.describe('onthoud mij', () => {
+  test('standaard staat het vinkje uit en het veld leeg; de velden hebben de juiste autocomplete-hints', async ({ page }) => {
+    await openUitgelogd(page);
+    await expect(vink(page)).not.toBeChecked();
+    await expect(veld(page, 'E-mailadres')).toHaveValue('');
+    await expect(veld(page, 'E-mailadres')).toHaveAttribute('autocomplete', 'username');
+    await expect(veld(page, 'Wachtwoord')).toHaveAttribute('autocomplete', 'current-password');
+    await expect(veld(page, 'E-mailadres')).toBeFocused();
+    expect(await leesOpslag(page)).toBeNull();
+  });
+
+  test('aan + geslaagde login bewaart enkel het adres; na herladen: ingevuld, vinkje aan, focus op het wachtwoord', async ({ page }) => {
+    const l = await openUitgelogd(page);
+    await vulInlog(page, 'brent@test.be', WW);
+    await vink(page).check();
+    await inloggen(page);
+    await expect(overlay(page)).toHaveCount(0);
+    await appGestart(page);
+    expect(await leesOpslag(page)).toBe('brent@test.be');
+    expect(await alleOpslag(page)).not.toContain(WW); // het wachtwoord staat nooit in de opslag
+
+    l.staat.ingelogd = false; // de sessie is weg: bij het herladen komt het inlogscherm terug
+    await page.reload();
+    await expect(kop(page, 'Inloggen')).toBeVisible();
+    await expect(veld(page, 'E-mailadres')).toHaveValue('brent@test.be');
+    await expect(vink(page)).toBeChecked();
+    await expect(veld(page, 'Wachtwoord')).toBeFocused();
+    await expect(veld(page, 'Wachtwoord')).toHaveValue('');
+  });
+
+  test('uit bij een geslaagde login wist het bewaarde adres (en een mislukte login laat het staan)', async ({ page }) => {
+    const l = loginStubs();
+    let eerste = true;
+    l.stubs['auth-login'] = () => { if (eerste) { eerste = false; return { status: 401, json: { error: 'fout' } }; } l.staat.ingelogd = true; return OK; };
+    await page.addInitScript(([k, v]) => { if (window === window.top && localStorage.getItem(k) === null) localStorage.setItem(k, v); }, [OPSLAG_SLEUTEL, 'oud@test.be']);
+    await startApp(page, { overschrijf: l.stubs, wachtOpApp: false });
+    await expect(veld(page, 'E-mailadres')).toHaveValue('oud@test.be');
+    await expect(vink(page)).toBeChecked();
+    await vink(page).uncheck();
+    await vulInlog(page, 'oud@test.be', 'fout-wachtwoord');
+    await inloggen(page);
+    await expect(foutmelding(page)).toHaveText('Onjuist e-mailadres of wachtwoord');
+    expect(await leesOpslag(page)).toBe('oud@test.be'); // mislukte login: onaangeroerd
+    await veld(page, 'Wachtwoord').fill(WW);
+    await inloggen(page);
+    await expect(overlay(page)).toHaveCount(0);
+    expect(await leesOpslag(page)).toBeNull();
+  });
+
+  test('uitloggen wist het bewaarde adres niet', async ({ page }) => {
+    let uitlogStub = null;
+    const l = loginStubs({ extra: { 'auth-uitloggen': () => { uitlogStub(); return OK; } } });
+    uitlogStub = () => { l.staat.ingelogd = false; };
+    await startApp(page, { overschrijf: l.stubs, wachtOpApp: false });
+    await vulInlog(page, 'brent@test.be', WW);
+    await vink(page).check();
+    await inloggen(page);
+    await appGestart(page);
+    await page.locator('.gebruiker-btn').click();
+    await page.getByRole('menuitem', { name: 'Uitloggen' }).click();
+    await expect(kop(page, 'Inloggen')).toBeVisible();
+    expect(await leesOpslag(page)).toBe('brent@test.be');
+    await expect(veld(page, 'E-mailadres')).toHaveValue('brent@test.be');
+  });
+
+  test('een localStorage die gooit breekt het inloggen niet', async ({ page }) => {
+    await page.addInitScript(() => {
+      if (window !== window.top) return;
+      const echt = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) { if (k === 'blitz_onthoud_email') throw new Error('vol'); return echt.call(this, k, v); };
+    });
+    await openUitgelogd(page);
+    await vulInlog(page, 'brent@test.be', WW);
+    await vink(page).check();
+    await inloggen(page);
+    await expect(overlay(page)).toHaveCount(0);
+    await appGestart(page);
+  });
+});
+
+test.describe('wachtwoord tonen (oogje)', () => {
+  const oog = (page, n = 0) => overlay(page).locator('.ww-oog').nth(n);
+
+  test('inloggen: type en aria-label wisselen, het oogje is geen submit en bereikbaar met het toetsenbord', async ({ page, verzoeken }) => {
+    await openUitgelogd(page);
+    const ww = veld(page, 'Wachtwoord');
+    await ww.fill(WW);
+    await expect(ww).toHaveAttribute('type', 'password');
+    const knop = overlay(page).getByRole('button', { name: 'Wachtwoord tonen' });
+    await expect(knop).toHaveAttribute('type', 'button');
+    await expect(knop).toHaveAttribute('aria-pressed', 'false');
+    const doos = await knop.boundingBox();
+    expect(doos.width).toBeGreaterThanOrEqual(40);
+    expect(doos.height).toBeGreaterThanOrEqual(40);
+
+    await knop.click();
+    await expect(ww).toHaveAttribute('type', 'text');
+    await expect(ww).toHaveValue(WW);
+    const verberg = overlay(page).getByRole('button', { name: 'Wachtwoord verbergen' });
+    await expect(verberg).toHaveAttribute('aria-pressed', 'true');
+    expect(verzoeken.van('/api/auth-login', 'POST')).toHaveLength(0); // geen submit
+
+    // Toetsenbord: Tab vanuit het wachtwoordveld komt op het oogje; Enter wisselt terug.
+    await ww.focus();
+    await page.keyboard.press('Tab');
+    await expect(verberg).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(ww).toHaveAttribute('type', 'password');
+    await expect(oog(page)).toHaveAttribute('aria-label', 'Wachtwoord tonen');
+    expect(verzoeken.van('/api/auth-login', 'POST')).toHaveLength(0);
+  });
+
+  test('wachtwoord wijzigen: elk van de drie velden heeft een eigen oogje', async ({ page }) => {
+    const l = loginStubs();
+    l.stubs['auth-login'] = () => ({ status: 200, json: { ok: true, moetWachtwoordWijzigen: true } });
+    await startApp(page, { overschrijf: l.stubs, wachtOpApp: false });
+    await vulInlog(page);
+    await inloggen(page);
+    await expect(kop(page, 'Wachtwoord wijzigen')).toBeVisible();
+    await expect(overlay(page).locator('.ww-oog')).toHaveCount(3);
+    await oog(page, 1).click();
+    await expect(veld(page, /^Nieuw wachtwoord/)).toHaveAttribute('type', 'text');
+    await expect(veld(page, 'Huidig wachtwoord')).toHaveAttribute('type', 'password');
+    await expect(veld(page, 'Herhaal nieuw wachtwoord')).toHaveAttribute('type', 'password');
+  });
+
+  test('herstelscherm: oogje bij de twee wachtwoordvelden, niet bij de herstelcode', async ({ page }) => {
+    await openUitgelogd(page);
+    await overlay(page).getByRole('button', { name: 'Wachtwoord vergeten (beheerder)' }).click();
+    await expect(overlay(page).locator('.ww-oog')).toHaveCount(2);
+    await expect(veld(page, 'Herstelcode of noodsleutel').locator('xpath=..').locator('.ww-oog')).toHaveCount(0);
+  });
+
+  test('setup van het eerste beheerdersaccount heeft ook de oogjes', async ({ page }) => {
+    await startApp(page, { overschrijf: loginStubs({ setupNodig: true }).stubs, wachtOpApp: false });
+    await expect(kop(page, 'Beheerder instellen')).toBeVisible();
+    await expect(overlay(page).locator('.ww-oog')).toHaveCount(2);
+    await oog(page, 0).click();
+    await expect(veld(page, /^Wachtwoord \(/)).toHaveAttribute('type', 'text');
   });
 });

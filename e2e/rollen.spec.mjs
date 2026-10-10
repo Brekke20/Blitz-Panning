@@ -236,8 +236,8 @@ test.describe('gedeeld toestel', () => {
 
     // Roel logt in: eigen persoon, de cache van Tim is weg en de app toont Roels wachtrij.
     await page.getByLabel('E-mailadres').fill('roel@test.be');
-    await page.getByLabel('Wachtwoord').fill('een-lang-wachtwoord');
-    await page.getByLabel('Wachtwoord').press('Enter');
+    await page.getByLabel('Wachtwoord', { exact: true }).fill('een-lang-wachtwoord');
+    await page.getByLabel('Wachtwoord', { exact: true }).press('Enter');
     await expect(page.locator('#login-overlay')).toHaveCount(0);
     await expect(page.locator('#cnt-tickets')).toHaveText('1');
     expect(await opslag(page, 'blitz_active_person')).toBe('Roel');
