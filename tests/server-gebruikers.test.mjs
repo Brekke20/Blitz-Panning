@@ -71,19 +71,19 @@ const activiteit = async echt => (await echt.get('activiteit/2026-10', { type: '
 const verboden = json => ['wachtwoordHash', 'scrypt$', 'herstelcodes', 'sessieVersie'].filter(v => json.includes(v));
 
 // ---------------- rechten ----------------
-test('rechtenrij: GET beheerder + sales, POST/PATCH enkel beheerder, geen DELETE', () => {
-  assert.deepEqual([...RECHTEN.gebruikers.GET], ['beheerder', 'sales']);
+test('rechtenrij: GET beheerder + planner (beperkt) + sales, POST/PATCH enkel beheerder, geen DELETE', () => {
+  assert.deepEqual([...RECHTEN.gebruikers.GET], ['beheerder', 'planner', 'sales']);
   assert.deepEqual([...RECHTEN.gebruikers.POST], ['beheerder']);
   assert.deepEqual([...RECHTEN.gebruikers.PATCH], ['beheerder']);
   assert.equal(RECHTEN.gebruikers.DELETE, undefined);
 });
 
-test('zonder sessie: 401; planner, technieker en sales (via metRol): 403 op POST en PATCH; planner en technieker ook op GET', async () => {
+test('zonder sessie: 401; planner, technieker en sales (via metRol): 403 op POST en PATCH; technieker ook op GET', async () => {
   const o = opzet();
   const h = maakGebruikers({ getStore: () => o.echt, env: { SESSIE_GEHEIM: GEHEIM }, nu: () => NU0 });
   assert.equal((await metGeenSessie(() => h(get({})))).status, 401);
   for (const rol of ['planner', 'technieker']) {
-    assert.equal((await metRol(rol, () => h(get({})))).status, 403, `${rol} GET`);
+    if (rol === 'technieker') assert.equal((await metRol(rol, () => h(get({})))).status, 403, `${rol} GET`);
     assert.equal((await metRol(rol, () => h(maak({}, {})))).status, 403, `${rol} POST`);
     assert.equal((await metRol(rol, () => h(req('PATCH', { id: 'u-jan', naam: 'X' }, {})))).status, 403, `${rol} PATCH`);
   }
@@ -91,10 +91,10 @@ test('zonder sessie: 401; planner, technieker en sales (via metRol): 403 op POST
   assert.equal((await opgeslagen(o.echt)).length, lijst().length);
 });
 
-test('planner en technieker met een echte sessie: 403 op GET/POST/PATCH', async () => {
+test('planner en technieker met een echte sessie: 403 op POST/PATCH (en de technieker ook op GET)', async () => {
   const o = opzet();
+  assert.equal((await o.gebruikers(get(als('u-tim', 1)))).status, 403);
   for (const [uid, headers] of [['u-jan', als('u-jan', 1)], ['u-tim', als('u-tim', 1)]]) {
-    assert.equal((await o.gebruikers(get(headers))).status, 403, uid);
     assert.equal((await o.gebruikers(maak({}, headers))).status, 403, uid);
     assert.equal((await o.gebruikers(req('PATCH', { id: 'u-bea', actief: false }, headers))).status, 403, uid);
   }
@@ -156,10 +156,10 @@ test('I3: GET ?rol=sales&geblokkeerd=1: enkel de beheerder krijgt ook de geblokk
   assert.ok(alsSales.every(g => !('actief' in g)));
 });
 
-test('GET: sales zonder magAlleSales, sales zonder ?rol en andere rol-waarden krijgen 403', async () => {
+test('GET: sales zonder magAlleSales (ook zonder ?rol) en andere rol-waarden krijgen 403', async () => {
   const o = opzet();
   assert.equal((await o.gebruikers(get(als('u-sal', 1), '?rol=sales'))).status, 403);
-  assert.equal((await o.gebruikers(get(als('u-sam', 1)))).status, 403);
+  assert.equal((await o.gebruikers(get(als('u-sal', 1)))).status, 403);
   assert.equal((await o.gebruikers(get(als('u-sam', 1), '?rol=planner'))).status, 403);
   assert.equal((await o.gebruikers(get(BEA(), '?rol=planner'))).status, 403);
   assert.equal((await o.gebruikers(get(BEA(), '?rol=sales&x=1'))).status, 200);
@@ -675,4 +675,53 @@ test('een technieker met magZelfPlannen: de rol wijzigen naar planner of sales l
   const o = opzet({ gebruikers });
   assert.equal((await o.gebruikers(req('PATCH', { id: 'u-tim', rol: 'planner' }))).status, 200);
   assert.equal((await record(o.echt, 'u-tim')).magZelfPlannen, undefined);
+});
+
+// ---------------- planner en sales manager: beperkte lijst voor Beheer, Instellingen ----------------
+const meer = () => [...lijst(),
+  { id: 'u-weg', email: 'weg@blitz.test', naam: 'Weg', rol: 'technieker', zohoNaam: 'Weg Z', actief: false, sessieVersie: 1, wachtwoordHash: hash, moetWachtwoordWijzigen: true },
+  { id: 'u-pia', email: 'pia@blitz.test', naam: 'Pia', rol: 'planner', actief: true, sessieVersie: 1, wachtwoordHash: hash }];
+
+test('GET door een planner: enkel techniekers en de planner zelf, enkel id/naam/rol/zohoNaam/actief; geen e-mail, beheerder, sales of inloggegevens', async () => {
+  const o = opzet({ gebruikers: meer() });
+  const r = await o.gebruikers(get(als('u-jan', 1)));
+  assert.equal(r.status, 200);
+  const tekst = await r.text();
+  assert.deepEqual(JSON.parse(tekst).gebruikers, [
+    { id: 'u-tim', naam: 'Tim', rol: 'technieker', actief: true, zohoNaam: 'Tim Z' },
+    { id: 'u-weg', naam: 'Weg', rol: 'technieker', actief: false, zohoNaam: 'Weg Z' },
+    { id: 'u-jan', naam: 'Jan', rol: 'planner', actief: true },
+  ]);
+  for (const v of ['@blitz.test', 'email', 'Bea', 'Sal', 'Sam', 'Pia', 'laatsteLogin', 'aangemaakt', 'moetWachtwoordWijzigen', ...verboden(tekst)]) assert.ok(!tekst.includes(v), v);
+});
+
+test('GET door een sales manager: enkel verkopers (id, naam, rol, actief), ook geblokkeerde; geen e-mail, techniekers, planners of beheerders', async () => {
+  const o = opzet({ gebruikers: meer() });
+  const r = await o.gebruikers(get(als('u-sam', 1)));
+  assert.equal(r.status, 200);
+  const tekst = await r.text();
+  assert.deepEqual(JSON.parse(tekst).gebruikers, [
+    { id: 'u-sal', naam: 'Sal', rol: 'sales', actief: true },
+    { id: 'u-sam', naam: 'Sam', rol: 'sales', actief: true },
+    { id: 'u-uit', naam: 'Uit', rol: 'sales', actief: false },
+  ]);
+  for (const v of ['@blitz.test', 'email', 'salesNaam', 'magAlleSales', 'Bea', 'Jan', 'Tim', 'Pia', ...verboden(tekst)]) assert.ok(!tekst.includes(v), v);
+});
+
+test('GET door een planner met ?rol=...: 403 (de sales-lijst blijft voor beheerder en sales manager)', async () => {
+  const o = opzet();
+  for (const zoek of ['?rol=sales', '?rol=sales&geblokkeerd=1', '?rol=technieker', '?rol=planner', '?rol=sales&rol=technieker']) {
+    assert.equal((await o.gebruikers(get(als('u-jan', 1), zoek))).status, 403, zoek);
+  }
+});
+
+test('planner en sales manager mogen niets schrijven op /api/gebruikers: POST (alle acties) en PATCH geven 403 en wijzigen niets', async () => {
+  const o = opzet();
+  for (const headers of [als('u-jan', 1), als('u-sam', 1)]) {
+    for (const body of [{ actie: 'maak', email: 'x@blitz.test', naam: 'X', rol: 'planner' }, { actie: 'reset-wachtwoord', id: 'u-tim' }, { actie: 'uitloggen-overal', id: 'u-tim' }, { actie: 'verwijder', id: 'u-uit' }]) {
+      assert.equal((await o.gebruikers(req('POST', body, headers))).status, 403, body.actie);
+    }
+    assert.equal((await o.gebruikers(req('PATCH', { id: 'u-tim', rol: 'beheerder' }, headers))).status, 403);
+  }
+  assert.equal((await opgeslagen(o.echt)).length, lijst().length);
 });

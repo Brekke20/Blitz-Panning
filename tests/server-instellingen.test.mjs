@@ -239,16 +239,58 @@ test('testverzoeken: testgebruiker schrijft in blitz-data-test, geen logregel, g
 });
 
 // ---------------- GET ?gebruiker= ----------------
-test('GET ?gebruiker=: technieker en planner voor een collega 403, eigen id mag; beheerder voor iedereen, onbekend 404', async () => {
+test('GET ?gebruiker=: technieker voor een collega 403, eigen id mag; beheerder voor iedereen, onbekend 404', async () => {
   const { h } = opzet({ begin: { instellingen: { versie: 3, perGebruiker: { 'u-tim': { duurMinuten: 77 } } } } });
   assert.equal((await metRol('technieker', () => h(get('?gebruiker=u-tim')))).status, 403);
   assert.equal((await metRol('technieker', () => h(get('?gebruiker=test-technieker')))).status, 200);
-  assert.equal((await metRol('planner', () => h(get('?gebruiker=u-tim')))).status, 403);
   const rb = await metRol('beheerder', () => h(get('?gebruiker=u-tim')));
   assert.equal(rb.status, 200);
   assert.deepEqual(await rb.json(), { versie: 3, instellingen: { duurMinuten: 77 } });
   assert.equal((await metRol('beheerder', () => h(get('?gebruiker=u-niet')))).status, 404);
   assert.equal((await (await metRol('beheerder', () => h(get('?gebruiker=u-jan')))).json()).instellingen, null);
+});
+
+test('GET ?gebruiker= door een planner: een technieker (ook geblokkeerd) en het eigen id mogen; planner, beheerder, sales 403; onbekend 404', async () => {
+  const { h } = opzet({ begin: { instellingen: { versie: 3, perGebruiker: { 'u-tim': { duurMinuten: 77 }, 'u-weg': { duurMinuten: 66 } } } } });
+  const rt = await metRol('planner', () => h(get('?gebruiker=u-tim')));
+  assert.equal(rt.status, 200);
+  assert.deepEqual(await rt.json(), { versie: 3, instellingen: { duurMinuten: 77 } });
+  assert.equal((await metRol('planner', () => h(get('?gebruiker=u-weg')))).status, 200);
+  assert.equal((await metRol('planner', () => h(get('?gebruiker=test-planner')))).status, 200);
+  for (const doel of ['u-pia', 'u-jan', 'u-bea', 'u-sal', 'u-sam']) {
+    assert.equal((await metRol('planner', () => h(get(`?gebruiker=${doel}`)))).status, 403, doel);
+  }
+  assert.equal((await metRol('planner', () => h(get('?gebruiker=u-bestaatniet')))).status, 404);
+});
+
+test('sales manager: bewaart de instellingen van een verkoper (gelogd, zonder waarden), nooit van technieker, planner of beheerder; onbekend id 403', async () => {
+  const { h, echt } = opzet();
+  const manager = { magAlleSales: true };
+  const r = await metRol('sales', () => h(put({ gebruiker: 'u-sal', instellingen: geldig({ bezoekDuurMin: 45 }) })), manager);
+  assert.equal(r.status, 200);
+  const b = await blob(echt);
+  assert.deepEqual(Object.keys(b.perGebruiker), ['u-sal']);
+  assert.equal(b.perGebruiker['u-sal'].bezoekDuurMin, 45);
+  const log = await activiteit(echt);
+  assert.equal(log.length, 1);
+  assert.equal(log[0].actie, 'instellingen-gewijzigd');
+  assert.equal(log[0].onderwerp, 'u-sal');
+  assert.equal(log[0].gebruikerId, 'test-sales');
+  assert.ok(!log[0].details.includes('Gent') && !log[0].details.includes('45'));
+  for (const doel of ['u-tim', 'u-jan', 'u-pia', 'u-bea', 'u-bestaatniet']) {
+    assert.equal((await metRol('sales', () => h(put({ gebruiker: doel, instellingen: geldig() })), manager)).status, 403, doel);
+  }
+  assert.equal((await activiteit(echt)).length, 1);
+  assert.deepEqual(Object.keys((await blob(echt)).perGebruiker), ['u-sal']);
+  // lezen: een verkoper wel, een technieker niet
+  assert.equal((await metRol('sales', () => h(get('?gebruiker=u-sam')), manager)).status, 200);
+  assert.equal((await metRol('sales', () => h(get('?gebruiker=u-tim')), manager)).status, 403);
+});
+
+test('gewone verkoper (magAlleSales false) bewaart niets voor een collega-verkoper: 403', async () => {
+  const { h, echt } = opzet();
+  assert.equal((await metRol('sales', () => h(put({ gebruiker: 'u-sal', instellingen: geldig() })), { magAlleSales: false })).status, 403);
+  assert.equal(await blob(echt), null);
 });
 
 test('GET ?gebruiker=: sales met magAlleSales leest een andere sales, nooit een technieker; zonder magAlleSales 403', async () => {

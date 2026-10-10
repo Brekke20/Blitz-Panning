@@ -34,6 +34,14 @@ export function publiek(g) {
   return p;
 }
 
+// De beperkte lijst voor een planner (Beheer, Instellingen): enkel techniekers en hijzelf, enkel id, naam, rol, zohoNaam en actief.
+// Nooit een e-mailadres, laatste login, wachtwoordstatus of een beheerder/sales/andere planner.
+export function plannerWeergave(g) {
+  const p = { id: g.id, naam: g.naam, rol: g.rol, actief: g.actief === true };
+  if (typeof g.zohoNaam === 'string' && g.zohoNaam) p.zohoNaam = g.zohoNaam;
+  return p;
+}
+
 export function beheerWeergave(g, laatsteLogin = null) {
   return {
     ...publiek(g),

@@ -1,4 +1,4 @@
-// tests/server-dashboard.test.mjs — /api/dashboard en /api/dashboard-instellingen (enkel beheerder)
+// tests/server-dashboard.test.mjs — /api/dashboard (beheerder: alles; planner: techniekers; sales manager: enkel sales) en /api/dashboard-instellingen
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { maakNepStore } from './nep-blobs.mjs';
@@ -50,14 +50,14 @@ const lees = async (h, zoek, rol = 'beheerder', headers) => {
 const GOED = '?van=2026-10-01&tot=2026-10-08';
 
 // ---------------- rechten ----------------
-test('rechtenrijen: dashboard enkel beheerder, instellingen GET en PUT enkel beheerder', () => {
-  assert.equal(rolIsToegelaten('dashboard', 'GET', 'beheerder'), true);
-  for (const rol of ['planner', 'technieker', 'sales']) {
-    assert.equal(rolIsToegelaten('dashboard', 'GET', rol), false, rol);
-    assert.equal(rolIsToegelaten('dashboard-instellingen', 'PUT', rol), false, rol);
-  }
+test('rechtenrijen: dashboard lezen voor beheerder, planner en sales (de functie toetst magAlleSales); grenzen lezen beheerder en planner, schrijven enkel beheerder', () => {
+  for (const rol of ['beheerder', 'planner', 'sales']) assert.equal(rolIsToegelaten('dashboard', 'GET', rol), true, rol);
+  assert.equal(rolIsToegelaten('dashboard', 'GET', 'technieker'), false);
+  for (const rol of ['beheerder', 'planner']) assert.equal(rolIsToegelaten('dashboard-instellingen', 'GET', rol), true, rol);
+  for (const rol of ['technieker', 'sales']) assert.equal(rolIsToegelaten('dashboard-instellingen', 'GET', rol), false, rol);
+  for (const rol of ['planner', 'technieker', 'sales']) assert.equal(rolIsToegelaten('dashboard-instellingen', 'PUT', rol), false, rol);
   assert.equal(rolIsToegelaten('dashboard-instellingen', 'PUT', 'beheerder'), true);
-  assert.equal(rolIsToegelaten('dashboard-instellingen', 'GET', 'beheerder'), true);
+  for (const m of ['POST', 'PUT', 'PATCH', 'DELETE']) for (const rol of ['planner', 'sales']) assert.equal(rolIsToegelaten('dashboard', m, rol), false, `dashboard ${m} ${rol}`);
 });
 
 test('zonder sessie: 401', async () => {
@@ -68,9 +68,76 @@ test('zonder sessie: 401', async () => {
   assert.equal(res2.status, 401);
 });
 
-test('planner, technieker en sales: 403 zonder cijfers in de body', async () => {
+test('planner: 200 op het techniekers-deel (kern, tijd, klant) en NOOIT sales; sales-blobs worden niet eens gelezen; grenzen lezen mag, bewaren geeft 403', async () => {
+  const bezoek = { datum: '2026-10-03', resultaat: 'verkocht', op: '2026-10-03T08:00:00.000Z' };
+  const gelezen = [];
+  const basis = maakNepStore({
+    gebruikers: { versie: 1, gebruikers: [{ id: 'u-s1', naam: 'Sara Peeters', rol: 'sales', salesNaam: 'Sara', actief: true }] },
+    rapportlijst: lijst([entry('a', '2026-10-02')]),
+    'sales/u-s1': { versie: 1, leads: [{ id: 'l1', bedrijf: 'Geheim BV', bezoeken: [bezoek] }] },
+  });
+  const echt = { ...basis, get: async (k, o) => { gelezen.push(k); return basis.get(k, o); } };
+  const getStore = () => echt;
+  const h = maakHandler({ getStore, nu: () => NU });
+  const hi = maakInstellingenHandler({ getStore });
+  const { status, body } = await lees(h, GOED, 'planner');
+  assert.equal(status, 200);
+  assert.equal(body.deel, 'techniekers');
+  assert.equal(body.kern.huidig.interventies.n, 1);
+  assert.ok(body.tijd && body.klant && body.kwaliteit && body.onderdelen);
+  assert.ok(!('sales' in body));
+  assert.ok(!('sales' in body.dekking));
+  assert.ok(!/Sara|Geheim|verkopers/.test(JSON.stringify(body)));
+  assert.ok(!gelezen.some(k => k.startsWith('sales/')), gelezen.join());
+  assert.equal((await metRol('planner', () => hi(new Request('http://localhost/api/dashboard-instellingen', { headers: { 'x-blitz': '1' } })))).status, 200);
+  const schrijf = await metRol('planner', () => hi(new Request('http://localhost/api/dashboard-instellingen', {
+    method: 'PUT', headers: { 'content-type': 'application/json', 'x-blitz': '1' }, body: JSON.stringify({ grenzen: STANDAARD_GRENZEN, versie: 0 }),
+  })));
+  assert.equal(schrijf.status, 403);
+  assert.equal(basis._data.get('dashboard-instellingen'), undefined);
+});
+
+test('sales manager (sales + magAlleSales): 200 met enkel het sales-deel; geen rapporten gelezen, geen techniekerdata, geen kosten; grenzen 403', async () => {
+  const bezoek = { datum: '2026-10-03', resultaat: 'verkocht', op: '2026-10-03T08:00:00.000Z' };
+  const gelezen = [];
+  const basis = maakNepStore({
+    gebruikers: { versie: 1, gebruikers: [{ id: 'u-s1', naam: 'Sara Peeters', rol: 'sales', salesNaam: 'Sara', actief: true }] },
+    rapportlijst: lijst([entry('a', '2026-10-02')]),
+    prijslijst: { onderdelen: [{ id: 'x', naam: 'X', prijs: 10 }] },
+    'sales/u-s1': { versie: 1, leads: [{ id: 'l1', bedrijf: 'Geheim BV', bezoeken: [bezoek] }] },
+  });
+  const echt = { ...basis, get: async (k, o) => { gelezen.push(k); return basis.get(k, o); } };
+  const getStore = () => echt;
+  const h = maakHandler({ getStore, nu: () => NU });
+  const hi = maakInstellingenHandler({ getStore });
+  const res = await metRol('sales', () => h(get(GOED)), { magAlleSales: true });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.deel, 'sales');
+  assert.deepEqual(body.sales.perWeek.verkopers, ['Sara']);
+  assert.equal(body.sales.resultaten.totaal, 1);
+  assert.deepEqual(Object.keys(body.dekking).sort(), ['fouten', 'sales']);
+  for (const verboden of ['kern', 'tijd', 'kwaliteit', 'onderdelen', 'klant', 'opties']) assert.ok(!(verboden in body), verboden);
+  assert.ok(!/Geheim|Tim|loonkost|kost/i.test(JSON.stringify(body)));
+  assert.ok(!gelezen.some(k => k.startsWith('rapportlijst') || k === 'prijslijst' || k.startsWith('activiteit') || k === 'register'), gelezen.join());
+  const gr = await metRol('sales', () => hi(new Request('http://localhost/api/dashboard-instellingen', { headers: { 'x-blitz': '1' } })), { magAlleSales: true });
+  assert.equal(gr.status, 403);
+});
+
+test('gewone verkoper (zonder magAlleSales): 403 op het dashboard, zonder cijfers', async () => {
+  const { h } = opzet({ rapportlijst: lijst([entry('a', '2026-10-02')]) });
+  for (const opties of [{ magAlleSales: false }, {}]) {
+    const res = await metRol('sales', () => h(get(GOED)), opties);
+    assert.equal(res.status, 403, JSON.stringify(opties));
+    const body = await res.json();
+    assert.equal(body.kern, undefined);
+    assert.equal(body.sales, undefined);
+  }
+});
+
+test('technieker: 403 zonder cijfers in de body', async () => {
   const { h, hi } = opzet({ rapportlijst: lijst([entry('a', '2026-10-02')]) });
-  for (const rol of ['planner', 'technieker', 'sales']) {
+  for (const rol of ['technieker']) {
     const { status, body } = await lees(h, GOED, rol);
     assert.equal(status, 403, rol);
     assert.equal(body.kern, undefined, rol);
