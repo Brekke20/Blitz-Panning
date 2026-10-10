@@ -1146,6 +1146,10 @@
     html[data-indeling="smal"] .day-col { min-width: unset; border-right: none; border-bottom: 1px solid var(--border); }
 
     /* Beperkte technieker-weergave: de rol (niet de schermbreedte) verbergt coördinatorfuncties */
+    /* De rolgebonden schil (tabs, persoonkeuze, vernieuw/instellingen, hoofdinhoud) blijft onzichtbaar tot de rol bekend en toegepast is
+       (rol-schil.js haalt data-schil weg): anders flitst de planner-schil kort op voor een verkoper. Het logo, het thema en het loginscherm blijven. */
+    html[data-schil="laden"] .tabs, html[data-schil="laden"] #person-sel, html[data-schil="laden"] #hoofdinhoud,
+    html[data-schil="laden"] [data-actie="vernieuw"], html[data-schil="laden"] [data-actie="instellingen"] { visibility: hidden; }
     /* Sales (data-rol="sales", sales-planner) is net zo beperkt: de ticketfuncties blijven weg; de sales-schermen gebruiken eigen sales-klassen. */
     html[data-rol="technieker"] .coord-only:not(.plan-eigen), html[data-rol="sales"] .coord-only { display: none !important; }
     /* Een technieker met "Mag zelf plannen" houdt de plan-onderdelen (.plan-eigen) voor zijn eigen tickets; zonder het vinkje blijven ze verborgen. */

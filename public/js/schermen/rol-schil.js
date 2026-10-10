@@ -104,6 +104,12 @@ export function pasRolToe(gebruiker) {
   toonGebruikersmenu(gebruiker);
 }
 
+// Haalt de "laden"-markering van de schil weg (index.html zet data-schil="laden", app.css verbergt tabs en inhoud daarmee): de schil toont pas
+// als de rol is toegepast, zodat de planner-schil niet kort zichtbaar is voor een verkoper. Veilig om meermaals of zonder document aan te roepen.
+export function geefSchilVrij() {
+  try { globalThis.document?.documentElement?.removeAttribute('data-schil'); } catch { /* geen document */ }
+}
+
 // Wacht op de login, past de rol toe en start dan de app: de eigen start van de rol, anders de gewone opstart.
 export async function startNaInlog(opstart) {
   try {
@@ -111,10 +117,11 @@ export async function startNaInlog(opstart) {
   } catch (fout) {
     console.error('Sessie laden mislukt:', fout);
     toast('Inloggen is niet gelukt. Herlaad de pagina.');
+    geefSchilVrij();
     return;
   }
   const gebruiker = huidigeGebruiker();
-  if (!gebruiker) { console.warn('startNaInlog: geen gebruiker na de login; de app start niet'); return; }
+  if (!gebruiker) { console.warn('startNaInlog: geen gebruiker na de login; de app start niet'); geefSchilVrij(); return; }
   // Gedeeld toestel: staat van een vorige gebruiker (gekozen persoon, ticket-/planningcaches) eerst weg, vóór pasRolToe en de opstart.
   claimToestel(globalThis.localStorage, globalThis.sessionStorage, gebruiker.id);
   pasRolToe(gebruiker);
@@ -122,5 +129,7 @@ export async function startNaInlog(opstart) {
   // Instellingen van de server in de lokale cache zetten (logins T16) vóór de app ze leest (met het budget dat na een trage auth-ik overblijft, zodat de opstart ≤ ~8 s blijft); faalt nooit hard: bij een fout start de app met de lokale cache.
   try { await synchroniseerInstellingen(gebruiker, { budgetMs: resterendSyncBudget(laatsteOpstartNetwerkMs()) }); } catch (fout) { console.warn('Instellingen synchroniseren mislukt; de lokale cache wordt gebruikt:', fout); }
   const start = startVoorRol(gebruiker.rol);
-  if (start) start(); else opstart();
+  // Een rol met een eigen start (sales) houdt de schil verborgen tot die start de tabs, de kop en de eerste tab gezet heeft; de gewone opstart
+  // toont de schil meteen (de tabs staan dan al op de rol).
+  if (start) { try { await start(); } finally { geefSchilVrij(); } } else { geefSchilVrij(); opstart(); }
 }
