@@ -26,6 +26,13 @@ async function fetchTomTomRoute(url, attempt = 1) {
   return res;
 }
 
+// TomTom: HTTP 400 met detailedError.code NO_ROUTE_FOUND (of dat woord in de tekst) = geen route voor dit tijdstip.
+function geenRouteGevonden(status, data) {
+  if (status !== 400 && status !== 404) return false;
+  const tekst = JSON.stringify(data ?? {});
+  return /NO_ROUTE_FOUND/.test(tekst);
+}
+
 async function kern(event, context, gebruiker) {
   const headers = CORS_V1;
 
@@ -60,8 +67,19 @@ async function kern(event, context, gebruiker) {
     const res = await fetchTomTomRoute(url);
     const data = await res.json();
 
-    const route = data.routes?.[0];
+    let route = data.routes?.[0];
+    // Geplande afsluiting op het gevraagde tijdstip: TomTom antwoordt dan 400 NO_ROUTE_FOUND met een departAt, terwijl
+    // dezelfde route zonder departAt wel lukt. Eén keer opnieuw zonder vertrektijd (live verkeer); het antwoord meldt
+    // dat via `verkeerNietBeschikbaar` zodat de UI dat kan zeggen. Alle andere fouten blijven zoals ze waren.
+    let verkeerNietBeschikbaar = false;
+    if (!route && departAtUsed && geenRouteGevonden(res.status, data)) {
+      const res2 = await fetchTomTomRoute(url.replace(/&departAt=[^&]*/, ''));
+      const data2 = await res2.json();
+      route = data2.routes?.[0];
+      if (route) verkeerNietBeschikbaar = true;
+    }
     if (!route) throw new Error('No route returned from TomTom');
+    const departAtGebruikt = verkeerNietBeschikbaar ? null : departAtUsed;
 
     const summary = route.summary;
     const legs = route.legs?.map(leg => ({
@@ -104,7 +122,8 @@ async function kern(event, context, gebruiker) {
         departureTime: summary.departureTime,
         legs,
         sections,
-        departAtUsed,
+        departAtUsed: departAtGebruikt,
+        ...(verkeerNietBeschikbaar ? { verkeerNietBeschikbaar: true } : {}),
         polyline: route.legs?.flatMap(leg =>
           leg.points?.map(p => [p.latitude, p.longitude]) || []
         ) || [],

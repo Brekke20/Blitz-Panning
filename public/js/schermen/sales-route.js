@@ -312,6 +312,7 @@ async function rekenRoute(inhoud, s, { sig, sleutel, stops, depot, datum, vanTij
   const ids = stops.map((x) => x.leadId).join('|');
   s.laatste = { sleutel, sig, ids };
   if (resultaat.geschat) toast('Rit geschat');
+  else if (resultaat.verkeerNietBeschikbaar) toast('Verkeer niet beschikbaar voor dat tijdstip: route zonder vertrektijd berekend');
   // "Route herberekend" enkel als dezelfde bezoeken een andere route kregen (bv. een adres). Verdwijnt of komt er een bezoek bij (resultaat
   // gegeven, teruggezet, ingepland), dan is dat zelf het nieuws en mag de toast daarvan ("Resultaat bewaard") niet overschreven worden.
   if (vorige && vorige.sleutel === sleutel && vorige.sig !== sig && vorige.ids === ids) {

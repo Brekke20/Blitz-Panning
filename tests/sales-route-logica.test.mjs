@@ -246,3 +246,12 @@ test('afgewerktOpDag: telt afgewerkte leads met een bezoek op die dag; "opnieuw"
   assert.equal(afgewerktOpDag(leads, '2026-10-13'), 1);
   assert.equal(afgewerktOpDag(undefined, DAG), 0);
 });
+
+test('berekenRoute: markering verkeerNietBeschikbaar van /api/route komt door naar het resultaat', async () => {
+  const stops = [{ leadId: 'a', locatie: { lat: 51.1, lon: 4.2 }, startMin: 540 }];
+  const depot = { lat: 51.0, lon: 4.0 };
+  const apiVerzoek = async () => ({ ok: true, data: { legs: [{ travelTimeSeconds: 600, distanceMeters: 9000 }], polyline: [[51, 4], [51.1, 4.2]], verkeerNietBeschikbaar: true, departAtUsed: null } });
+  const r = await berekenRoute({ depot, stops, datum: '2099-01-05', vertrekMin: 500, apiVerzoek, testModus: false });
+  assert.equal(r.geschat, false);
+  assert.equal(r.verkeerNietBeschikbaar, true);
+});

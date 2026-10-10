@@ -8,7 +8,7 @@
 import { foutTekst } from './kern/api.js';
 import { toestand } from './kern/toestand.js';
 import { TEST_MODE } from './kern/omgeving.js';
-import { localISO, extractLocalHour } from './kern/tijd.js';
+import { localISO, extractLocalHour, openingsDatum } from './kern/tijd.js';
 import { startTicketLogExport } from './kern/exceljs.js';
 import { toast, registreerActies, metBehoudScroll } from './kern/ui.js';
 import { ticketsVanTechnieker } from './kern/selecties.js';
@@ -248,8 +248,10 @@ function opstart() {
   if (!document.documentElement.getAttribute('data-theme')) {
     document.documentElement.setAttribute('data-theme', localStorage.getItem('blitz_theme') || 'dark');
   }
-  document.getElementById('plan-date').value = localISO(new Date());
-  set('gekozenDatum', localISO(new Date())); // gedeelde datum van Kalender, Route en Ingepland (niet bewaard over herladen)
+  // In het weekend openen Kalender, Route en Ingepland op de komende week (eerste werkdag), niet op de week die voorbij is.
+  const openingsdag = openingsDatum(new Date(), get('settings').werkdagen);
+  document.getElementById('plan-date').value = openingsdag;
+  set('gekozenDatum', openingsdag); // gedeelde datum van Kalender, Route en Ingepland (niet bewaard over herladen)
   set('activeAssigneeFilter', localStorage.getItem('blitz_active_person') || 'all');
   koppelRenders(); // vanaf hier volgen de schermen de toestand (K6/K7)
   updatePersonHeader();

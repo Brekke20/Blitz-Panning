@@ -103,3 +103,20 @@ test('verschuifDatum: met ankerDag drijft de dag niet weg (31 jan, 28 feb, 31 mr
   assert.equal(verschuifDatum(feb, { maanden: 1, ankerDag: 31 }), '2026-03-31');
   assert.equal(verschuifDatum('2026-03-31', { maanden: -1, ankerDag: 31 }), '2026-02-28');
 });
+
+// ---- openingsDatum: in het weekend openen op de komende week ----
+import { openingsDatum } from '../public/js/kern/tijd.js';
+test('openingsDatum: doordeweeks vandaag', () => {
+  for (const d of [12, 13, 14, 15, 16]) assert.equal(openingsDatum(new Date(2026, 9, d, 10, 0), [1, 2, 3, 4, 5]), `2026-10-${d}`);
+});
+test('openingsDatum: zaterdag en zondag -> maandag van de komende week', () => {
+  assert.equal(openingsDatum(new Date(2026, 9, 10, 10, 0), [1, 2, 3, 4, 5]), '2026-10-12'); // za 10 okt
+  assert.equal(openingsDatum(new Date(2026, 9, 11, 23, 59), [1, 2, 3, 4, 5]), '2026-10-12'); // zo 11 okt
+  assert.equal(openingsDatum(new Date(2026, 9, 10, 10, 0)), '2026-10-12'); // zonder werkdagen: ma-vr
+});
+test('openingsDatum: eerste werkdag van de komende week (maandag geen werkdag) en zaterdag als werkdag blijft vandaag', () => {
+  assert.equal(openingsDatum(new Date(2026, 9, 10, 10, 0), [2, 3, 4]), '2026-10-13');
+  assert.equal(openingsDatum(new Date(2026, 9, 10, 10, 0), [1, 2, 3, 4, 5, 6]), '2026-10-10');
+  assert.equal(openingsDatum(new Date(2026, 9, 11, 10, 0), [1, 2, 3, 4, 5, 6]), '2026-10-12');
+  assert.equal(openingsDatum(new Date(2026, 9, 31, 10, 0), [1, 2, 3, 4, 5]), '2026-11-02'); // maandwissel
+});

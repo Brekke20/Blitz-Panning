@@ -740,3 +740,19 @@ test('keten: bestaande stop zonder uur die over een blok springt, rekent de rit 
   }));
   assert.deepEqual(u.geplaatst, [{ ticketId: 'a', datum: EEN, verwachteAankomst: '11:00' }]);
 });
+
+test('reisMarge: de klok loopt met marge, de maxReistijd-grens blijft op de reistijd zelf', async () => {
+  const zonder = await planWeek(maakInvoer());
+  const met = await planWeek(maakInvoer({ reisMarge: min => min + 10 }));
+  // Geen marge (technieker) = ongewijzigd; met marge komt de eerste aankomst precies 10 min later.
+  const uur = u => Number(u.slice(0, 2)) * 60 + Number(u.slice(3));
+  const eerste = u => u.geplaatst[0];
+  assert.equal(eerste(met).ticketId, eerste(zonder).ticketId);
+  assert.equal(uur(eerste(met).verwachteAankomst) - uur(eerste(zonder).verwachteAankomst), 10);
+  // Een rit van 40 min (grens 45) blijft toegelaten, ook al is de marge-rit 50 min.
+  const stopA = { id: 'a', number: '1', priority: 'Medium', interventieDatum: null, lat: 51.0, lon: 4.0, duurMin: 60 };
+  const stopB = { id: 'b', number: '2', priority: 'Medium', interventieDatum: null, lat: 51.3, lon: 4.0, duurMin: 60 };
+  const vast = async (van, naar) => new Map(naar.map(n => [n.id, n.id === 'b' ? 40 : 10]));
+  const u = await planWeek(maakInvoer({ kandidaten: [stopA, stopB], reistijden: vast, reisMarge: min => min + 10 }));
+  assert.equal(u.geplaatst.length, 2);
+});

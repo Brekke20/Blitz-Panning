@@ -167,7 +167,7 @@ export async function berekenRoute({ depot, stops, datum, vertrekMin, apiVerzoek
     const legs = ritPerStop(depot, stops, ruw);
     const heeftLijn = Array.isArray(r.data.polyline) && r.data.polyline.length >= 2;
     const polyline = heeftLijn ? r.data.polyline : punten.map((p) => [p.lat, p.lon]);
-    return { legs, polyline, geschat: false, ...totalen(legs), data: heeftLijn ? r.data : null };
+    return { legs, polyline, geschat: false, ...(r.data.verkeerNietBeschikbaar === true ? { verkeerNietBeschikbaar: true } : {}), ...totalen(legs), data: heeftLijn ? r.data : null };
   } catch {
     return schat('fout');
   }

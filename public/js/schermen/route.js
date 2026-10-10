@@ -525,7 +525,7 @@ export async function calculateRoute() {
     if (nietGevonden > 0) {
       toast(`⚠ ${nietGevonden} adres(sen) niet gevonden — die stops staan niet op de route`, 6000);
     } else {
-      toast('Route berekend ✓');
+      toast(rData.verkeerNietBeschikbaar ? 'Route berekend ✓ (verkeer niet beschikbaar voor dat tijdstip)' : 'Route berekend ✓', rData.verkeerNietBeschikbaar ? 5000 : undefined);
     }
     // Zonder await: de kaart met het rit-vangnet staat al, het per-wegvak-detail kleurt na.
     laadDrukteDetail(date, rData);
