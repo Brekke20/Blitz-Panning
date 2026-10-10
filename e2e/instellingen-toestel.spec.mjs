@@ -310,8 +310,7 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
     await expect(modal.locator('#set-tot')).toHaveValue('17:00');
     await expect(modal.locator('#set-laatste-start')).toHaveValue('16:00');
     await expect(modal.locator('#set-tijdslot')).toHaveValue('180');
-    await expect(modal.locator('#set-routekleur')).toHaveValue('#f59e0b');
-    await expect(modal.locator('#set-routekleur-hex')).toHaveText('#F59E0B');
+    await expect(modal.getByRole('button', { name: 'Oranje' })).toHaveAttribute('aria-pressed', 'true'); // standaard routekleur #f59e0b
     await expect(modal.locator('#set-drukte')).toBeChecked();
 
     await modal.locator('#set-maxreistijd').fill('0');
@@ -361,21 +360,6 @@ test.describe('instellingen: algemeen (werkdagen, weigeringen, kleur)', () => {
     expect(await leesOpslag(page, 'blitz_settings')).toBeNull();
     modal = await openInstellingen(page);
     await expect(modal.locator('#set-max')).toHaveValue('4');
-  });
-
-  test('routekleur: de hex-weergave volgt de kleurkiezer live en de gekozen kleur wordt bewaard', async ({ page }) => {
-    await startApp(page, PLANNER);
-    const modal = await openInstellingen(page);
-    await expect(modal.locator('#set-routekleur-hex')).toHaveText('#F59E0B');
-    await modal.locator('#set-routekleur').fill('#12ab34');
-    await expect(modal.locator('#set-routekleur-hex')).toHaveText('#12AB34'); // hoofdletters, zonder te bewaren
-    expect(await leesOpslag(page, 'blitz_settings')).toBeNull();
-    await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    expect((await leesJson(page, 'blitz_settings')).routeKleur).toBe('#12ab34');
-    // Heropenen toont de bewaarde kleur; een nieuwe sessie zonder bewaarde kleur toont de standaard.
-    const opnieuw = await openInstellingen(page);
-    await expect(opnieuw.locator('#set-routekleur')).toHaveValue('#12ab34');
-    await expect(opnieuw.locator('#set-routekleur-hex')).toHaveText('#12AB34');
   });
 
   test('laatste start is één waarde voor alle technici (blitz_laatste_start); ⚙ bewaart de eigen set, ook als je een collega bekijkt', async ({ page }) => {

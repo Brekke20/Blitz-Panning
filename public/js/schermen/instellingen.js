@@ -15,6 +15,7 @@ import { appConfirm } from '../app-dialog.js';
 import { renderBeschikbaarhedenTab } from './beschikbaarheid.js';
 import { valideerInstellingen, settingsKey } from './instellingen-logica.js';
 import { isKleur } from '../kern/instellingen-regels.js';
+import { bouwKleurKeuze, leesKleurKeuze } from '../kern/kleur-keuze.js';
 import { huidigeGebruiker, huidigeRechten, eigenZohoNaam } from '../kern/sessie.js';
 import { bewaarOpServer, spiegelEigen, eigenSleutels } from '../kern/instellingen-sync.js';
 
@@ -230,8 +231,7 @@ export function openSettings() {
   document.getElementById('set-tot').value      = settings.totTijd;
   document.getElementById('set-laatste-start').value = leesLaatsteStart(); // R8: zelfde waarde voor elke technieker
   document.getElementById('set-tijdslot').value = settings.tijdslotMinuten;
-  document.getElementById('set-routekleur').value = settings.routeKleur || DEFAULT_SETTINGS.routeKleur;
-  document.getElementById('set-routekleur-hex').textContent = (settings.routeKleur || DEFAULT_SETTINGS.routeKleur).toUpperCase();
+  bouwKleurKeuze(document.getElementById('set-routekleur'), settings.routeKleur || DEFAULT_SETTINGS.routeKleur); // rij vaste kleuren; de keuze wordt pas bij Opslaan bewaard
   document.getElementById('set-drukte').checked   = settings.drukteKleuring !== false;
   _werkdagenConcept = [...settings.werkdagen];
   const grid = document.getElementById('days-grid');
@@ -275,7 +275,7 @@ export function saveSettings() {
       maxReistijd:     +document.getElementById('set-maxreistijd').value,
       tijdslotMinuten: +document.getElementById('set-tijdslot').value,
       tijdslotTekst:   document.getElementById('set-tijdslot').value,
-      routeKleur:      document.getElementById('set-routekleur').value,
+      routeKleur:      leesKleurKeuze(document.getElementById('set-routekleur')),
       werkdagen:       _werkdagenConcept,
     }, DEFAULT_SETTINGS);
     if (resultaat.fout) return toast(resultaat.fout, 3500);
@@ -294,7 +294,7 @@ export function saveSettings() {
     settings.routeKleur    = w.routeKleur;
   } else {
     // De werkwaarden staan in Beheer (de beheerder) of bestaan niet voor deze gebruiker (geen Zoho-naam): enkel de persoonlijke velden.
-    const kleur = document.getElementById('set-routekleur').value;
+    const kleur = leesKleurKeuze(document.getElementById('set-routekleur'));
     settings.routeKleur = isKleur(kleur) ? kleur : DEFAULT_SETTINGS.routeKleur;
   }
   settings.drukteKleuring = document.getElementById('set-drukte').checked;

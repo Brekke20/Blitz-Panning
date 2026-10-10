@@ -120,6 +120,7 @@
   <link rel="modulepreload" href="/js/kern/exceljs.js">
   <link rel="modulepreload" href="/js/kern/tijd-picker.js">
   <link rel="modulepreload" href="/js/kern/instellingen-regels.js">
+  <link rel="modulepreload" href="/js/kern/kleur-keuze.js">
   <link rel="modulepreload" href="/js/kern/feestdagen.js">
   <link rel="modulepreload" href="/js/kern/loonkost.js">
   <link rel="modulepreload" href="/js/schermen/wachtrij-logica.js">
@@ -390,11 +391,8 @@
         <input class="set-input" id="set-tijdslot" type="number" min="60" max="360" step="30" />
       </div>
       <div class="set-field">
-        <label class="set-label" for="set-routekleur">Kleur routelijn</label>
-        <div class="set-row" style="gap:10px;align-items:center">
-          <input class="set-color-swatch" id="set-routekleur" type="color">
-          <span class="set-color-hex" id="set-routekleur-hex"></span>
-        </div>
+        <div class="set-label" id="set-routekleur-label">Kleur routelijn</div>
+        <div id="set-routekleur" role="group" aria-labelledby="set-routekleur-label"></div>
       </div>
       <div class="set-field">
         <div class="set-label" id="set-drukte-kop">Drukte tonen op de route (verwachte vertraging per wegstuk)</div>

@@ -50,12 +50,12 @@ test.describe('⚙ opent altijd de eigen instellingen', () => {
     const modal = await openInstellingen(page);
     await expect(modal.getByRole('heading', { name: '⚙️ Instellingen — Brent' })).toBeVisible();
     for (const sel of WERKVELDEN) await expect(modal.locator(sel), sel).toBeDisabled();
-    await modal.locator('#set-routekleur').fill('#336699');
+    await modal.getByRole('button', { name: 'Blauw' }).click();
     await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
     await expect(toastTekst(page)).toHaveText('✓ Instellingen opgeslagen voor Brent');
     await expect.poll(() => puts(verzoeken).length).toBe(1);
     expect(puts(verzoeken)[0].body.gebruiker).toBeUndefined();
-    expect(puts(verzoeken)[0].body.instellingen.routeKleur).toBe('#336699');
+    expect(puts(verzoeken)[0].body.instellingen.routeKleur).toBe('#2563eb');
     expect(await leesOpslag(page, 'blitz_settings_Tim')).toBeNull();
   });
 

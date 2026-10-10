@@ -495,7 +495,7 @@ test.describe('⚙-venster en Beheer → Instellingen: één plek om de werkinst
     await openSettings(page);
     for (const sel of WERKVELDEN) await expect(venster(page).locator(sel), sel).toBeDisabled();
     await expect(venster(page).locator('#days-grid .day-btn').first()).toBeDisabled();
-    await expect(venster(page).locator('#set-routekleur')).toBeEnabled();
+    await expect(venster(page).getByRole('button', { name: 'Blauw' })).toBeEnabled();
     await expect(venster(page).locator('#set-drukte')).toBeEnabled();
     await expect(venster(page).locator('#set-beheer-hint')).toBeVisible();
     // Het label van "Laatste start" is in beide schermen waar: een waarde van de gebruiker zelf, niet "voor iedereen".
@@ -529,12 +529,12 @@ test.describe('⚙-venster en Beheer → Instellingen: één plek om de werkinst
     await startApp(page, { loginGebruiker: { zohoNaam: 'Brent' }, overschrijf: stubs() });
     await openSettings(page);
     const duur = await venster(page).locator('#set-duration').inputValue();
-    await venster(page).locator('#set-routekleur').fill('#336699');
+    await venster(page).getByRole('button', { name: 'Blauw' }).click();
     await venster(page).getByRole('button', { name: 'Opslaan', exact: true }).click();
     await expect(page.locator('#toast')).toContainText('Instellingen opgeslagen');
     await expect.poll(() => verzoeken.van('/api/instellingen', 'PUT').length).toBe(1);
     const put = verzoeken.van('/api/instellingen', 'PUT')[0].body.instellingen;
-    expect(put.routeKleur).toBe('#336699');
+    expect(put.routeKleur).toBe('#2563eb');
     expect(String(put.duurMinuten)).toBe(duur);
   });
 
@@ -598,13 +598,13 @@ test.describe('⚙-venster en Beheer → Instellingen: één plek om de werkinst
       : basis(a));
     await startApp(page, { technieker: 'Tim', loginGebruiker: { zohoNaam: 'Brent' }, overschrijf: { ...stubs(), instellingen: metTim } });
     await openSettings(page);
-    await venster(page).locator('#set-routekleur').fill('#336699');
+    await venster(page).getByRole('button', { name: 'Blauw' }).click();
     await venster(page).getByRole('button', { name: 'Opslaan', exact: true }).click();
     await expect(page.locator('#toast')).toHaveText('✓ Instellingen opgeslagen voor Brent');
     await expect.poll(() => verzoeken.van('/api/instellingen', 'PUT').length).toBeGreaterThan(0);
     for (const put of verzoeken.van('/api/instellingen', 'PUT')) {
       expect(put.body.gebruiker).toBeUndefined();
-      expect(put.body.instellingen.routeKleur).toBe('#336699');
+      expect(put.body.instellingen.routeKleur).toBe('#2563eb');
     }
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_settings_Tim')).routeKleur)).toBe(TIM.routeKleur); // Tim ongewijzigd
   });

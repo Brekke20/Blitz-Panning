@@ -274,9 +274,6 @@ function opstart() {
   document.querySelectorAll('.rapp-filter-btn').forEach(btn => {
     btn.addEventListener('click', () => setRapportFilter(btn.dataset.filter));
   });
-  document.getElementById('set-routekleur')?.addEventListener('input', (e) => {
-    document.getElementById('set-routekleur-hex').textContent = e.target.value.toUpperCase();
-  });
   routeKaart.initKaart({
     instellingen: () => get('settings'),
     bewaarKaartStijl: () => instellingen.savePersonSettings(get('activeAssigneeFilter')),
