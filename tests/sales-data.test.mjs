@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { zetFetch } from '../public/js/kern/api.js';
 import {
   salesToestand, onSalesWijziging, laadSales, laadInstellingen, bewaarInstellingen, wijzig, importeer,
-  verwijderMetOngedaan, spoelUitgesteld, gekozenDatum, zetGekozenDatum, SALES_STANDAARD, resetSales, instellingenGeladenVoor,
+  verwijderMetOngedaan, spoelUitgesteld, terugNaarTePlannen, gekozenDatum, zetGekozenDatum, SALES_STANDAARD, resetSales, instellingenGeladenVoor,
 } from '../public/js/schermen/sales-data.js';
 
 // Nep-fetch: antwoorden in volgorde (Error => netwerkfout); onthoudt de aanroepen.
@@ -160,6 +160,19 @@ test('wijzig: stuurt { versie, ...patch } naar PATCH /api/sales en neemt het ant
   assert.deepEqual(a.body, { versie: 3, leads: [{ id: 'a', velden: { status: 'gepland' } }] });
   assert.equal(salesToestand().versie, 4);
   assert.equal(salesToestand().leads[0].status, 'gepland');
+});
+
+test('terugNaarTePlannen: PATCH met status te-plannen, planning en resultaat leeg (zelfde actie als het detail en het ✕ op de kaarten)', async () => {
+  const f = nepFetch(
+    { status: 200, json: blob(3, [lead('a', { status: 'bevestigd', planning: { datum: '2026-10-12', start: '09:00' } })]) },
+    { status: 200, json: blob(4, [lead('a')]) },
+  );
+  zetFetch(f);
+  await laadSales();
+  const r = await terugNaarTePlannen('a');
+  assert.equal(r.ok, true);
+  assert.deepEqual(f.aanroepen[1].body, { versie: 3, leads: [{ id: 'a', velden: { status: 'te-plannen', planning: null, resultaat: null } }] });
+  assert.equal(salesToestand().leads[0].status, 'te-plannen');
 });
 
 test('wijzig gebruikt ?gebruiker= als laadSales er een kreeg', async () => {

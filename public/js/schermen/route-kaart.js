@@ -35,7 +35,6 @@ export const KAART_LAGEN = {
 };
 // Module-privé kaarttoestand (Leaflet wordt pas bij initMap() aangeraakt, nooit op moduleniveau).
 let leafletMap = null, routeLayer = null;
-let kaartBaseLayers = {};
 let routeLegendeControl = null;
 
 // Drukte-kleuring per wegstuk (TomTom TRAFFIC-secties, magnitudeOfDelay 0-4). Enkel voor
@@ -280,41 +279,53 @@ export function tekenRouteLaag({ kaart, laag, routeData, routeKleur, drukteKleur
   return { poly, legende, wegafsluiting };
 }
 
+// Gedeelde lagenkeuze (technieker-route én sales-route): de vijf basiskaarten als Leaflet-lagen op `kaart`, de keuzelijst rechtsboven en de
+// bewaarhaak. `startSleutel`: sleutel van KAART_LAGEN (onbekend = standaard). `bijKeuze(sleutel)` wordt enkel aangeroepen als de GEBRUIKER een
+// andere kaart kiest; een wissel via `zet(sleutel)` (persoonswissel, andere verkoper) toont enkel en bewaart nooit (AT-fix 1: Leaflet vuurt
+// 'baselayerchange' ook bij addTo, zonder die vlag zou het bekijken van een ander diens instellingen overschrijven).
+const geldigeSleutel = (sleutel) => (typeof sleutel === 'string' && Object.hasOwn(KAART_LAGEN, sleutel) ? sleutel : 'standaard');
+export function voegKaartLagenToe(kaart, { startSleutel, bijKeuze } = {}) {
+  const lagen = {};
+  Object.values(KAART_LAGEN).forEach((laag) => { lagen[laag.naam] = L.tileLayer(laag.url, laag.opts); });
+  lagen[KAART_LAGEN[geldigeSleutel(startSleutel)].naam].addTo(kaart);
+  L.control.layers(lagen, null, { position: 'topright', collapsed: false }).addTo(kaart);
+  let wordtToegepast = false;
+  kaart.on('baselayerchange', (e) => {
+    if (wordtToegepast) return;
+    const sleutel = Object.keys(KAART_LAGEN).find((k) => KAART_LAGEN[k].naam === e.name);
+    if (sleutel) bijKeuze?.(sleutel);
+  });
+  return {
+    /** Schakelt de actieve basislaag om naar `sleutel` (onbekend = standaard), zonder iets te bewaren. */
+    zet(sleutel) {
+      const doelLaag = lagen[KAART_LAGEN[geldigeSleutel(sleutel)].naam];
+      if (!doelLaag) return;
+      wordtToegepast = true;
+      try {
+        Object.values(lagen).forEach((laag) => { if (kaart.hasLayer(laag)) kaart.removeLayer(laag); });
+        doelLaag.addTo(kaart);
+      } finally { wordtToegepast = false; }
+    },
+  };
+}
+
+let kaartLagenKeuze = null;
 export function initMap() {
   // fadeAnimation uit: Leaflet's tegel-fade is een rAF-lus op Date.now() (tot 200 ms na het laden van een tegel). Onder de e2e-nepklok met
   // vastgezette tijd (setFixedTime) eindigt die lus nooit en elke page.clock.runFor kost dan echte tijd (zie eindreview-fix-report.md).
   leafletMap  = L.map('map', { zoomControl: true, fadeAnimation: false }).setView([51.0, 4.5], 8);
-  kaartBaseLayers = {};
-  Object.entries(KAART_LAGEN).forEach(([sleutel, laag]) => {
-    kaartBaseLayers[laag.naam] = L.tileLayer(laag.url, laag.opts);
-  });
-  const startSleutel = KAART_LAGEN[instellingen().kaartStijl] ? instellingen().kaartStijl : 'standaard';
-  kaartBaseLayers[KAART_LAGEN[startSleutel].naam].addTo(leafletMap);
-  L.control.layers(kaartBaseLayers, null, { position: 'topright', collapsed: false }).addTo(leafletMap);
-  leafletMap.on('baselayerchange', e => {
-    if (kaartStijlWordtToegepast) return; // programmatische wissel (persoonswissel): enkel weergeven, nooit bewaren (AT-fix 1)
-    const sleutel = Object.keys(KAART_LAGEN).find(k => KAART_LAGEN[k].naam === e.name);
-    if (!sleutel) return;
-    instellingen().kaartStijl = sleutel;
-    bewaarKaartStijl(sleutel);
+  kaartLagenKeuze = voegKaartLagenToe(leafletMap, {
+    startSleutel: instellingen().kaartStijl,
+    bijKeuze: (sleutel) => { instellingen().kaartStijl = sleutel; bewaarKaartStijl(sleutel); },
   });
   routeLayer  = L.layerGroup().addTo(leafletMap);
 }
 
 // Schakelt de actieve basislaag om naar instellingen().kaartStijl — gebruikt na een persoonswissel
 // zodat de kaart meteen de eigen kaartstijl van die persoon toont.
-let kaartStijlWordtToegepast = false;
 export function applyKaartStijl() {
-  if (!leafletMap) return;
-  const sleutel = KAART_LAGEN[instellingen().kaartStijl] ? instellingen().kaartStijl : 'standaard';
-  const doelLaag = kaartBaseLayers[KAART_LAGEN[sleutel].naam];
-  if (!doelLaag) return;
-  // Leaflet vuurt 'baselayerchange' ook bij addTo: zonder vlag zou een persoonswissel de instellingen van die persoon naar de server schrijven.
-  kaartStijlWordtToegepast = true;
-  try {
-    Object.values(kaartBaseLayers).forEach(laag => { if (leafletMap.hasLayer(laag)) leafletMap.removeLayer(laag); });
-    doelLaag.addTo(leafletMap);
-  } finally { kaartStijlWordtToegepast = false; }
+  if (!leafletMap || !kaartLagenKeuze) return;
+  kaartLagenKeuze.zet(instellingen().kaartStijl);
 }
 
 export function updateKaart({ date, allStops, routeData, currentRouteDate }) {

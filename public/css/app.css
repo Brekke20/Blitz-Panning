@@ -953,6 +953,17 @@
       padding: 8px 11px; border-radius: var(--r); font-size: 0.85rem; font-family: inherit;
       transition: border-color 0.15s, box-shadow 0.15s;
     }
+    /* Oogje bij een wachtwoordveld (kern/wachtwoord-oog.js): knop met raakvlak 44×44 px in het veld, rechts. */
+    .ww-wrap { position: relative; display: block; }
+    .ww-wrap > .set-input { padding-right: 48px; }
+    .ww-oog {
+      position: absolute; top: 50%; right: 0; transform: translateY(-50%); width: 44px; height: 44px; min-width: 44px; min-height: 44px;
+      display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; background: transparent;
+      color: var(--text2); cursor: pointer; border-radius: var(--r);
+    }
+    .ww-oog:hover { color: var(--text); }
+    .ww-oog:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+    .ww-oog[aria-pressed="true"] { color: var(--accent-ink); }
     .set-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
     .set-input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
     .set-row { display: flex; gap: 8px; align-items: center; }

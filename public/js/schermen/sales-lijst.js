@@ -6,8 +6,8 @@ import { appConfirm } from '../app-dialog.js';
 import { toast, registreerActies, maakActiveerbaar } from '../kern/ui.js';
 import { MAX_BYTES, leesExport } from '../sales/import.js';
 import { startScherm } from './sales-schil.js';
-import { salesToestand, onSalesWijziging, importeer, vulLocatiesAan, verwijderMetOngedaan, spoelUitgesteld, wijzig } from './sales-data.js';
-import { bevestig } from '../sales/lead-regels.js';
+import { salesToestand, onSalesWijziging, importeer, vulLocatiesAan, verwijderMetOngedaan, spoelUitgesteld, wijzig, terugNaarTePlannen } from './sales-data.js';
+import { bevestig, isVast } from '../sales/lead-regels.js';
 import { kanImporteren, kanLeadToevoegen, getoondeVerkoper, schrijfbaarNu } from './sales-verkoper.js';
 import { openLeadDetail } from './sales-detail.js';
 import { openLeadToevoegen } from './sales-lead-toevoegen.js';
@@ -16,6 +16,7 @@ import { naamVan, foutTekst } from './sales-tekst.js';
 import { el } from './sales-dom.js';
 
 const MAX_AANVUL_RONDES = 10;
+const TERUG_TEKST = 'Terug naar nog in te plannen';
 const filter = { zoek: '', gebied: '' };   // blijft staan bij een tabwissel; het zoekveld tekent zichzelf niet opnieuw
 const wortels = new WeakMap();             // inhoud -> { el, vul() }
 const handles = new Map();                 // leadId -> { ongedaan() } van een nog wachtende verwijdering
@@ -42,12 +43,14 @@ function zorgVoorHaken() {
 
 // ---- kaartjes ----
 
-function maakKaart(lead, kanSchrijven, kanWissen) {
+function maakKaart(lead, kanSchrijven, kanWissen, kanTerug) {
   const info = kaartInfo(lead);
   const kaart = el('div', { class: 'sales-kaart', 'data-actie': 'sales-open', 'data-arg': lead.id, 'data-lead-id': lead.id });
   maakActiveerbaar(kaart, () => openLeadDetail(lead.id), `Open ${info.titel}`);
   const kop = el('div', { class: 'sales-kaart-kop' }, el('span', { class: 'sales-kaart-titel', text: info.titel }));
   if (kanWissen) kop.append(el('button', { type: 'button', class: 'sales-kaart-wis', 'data-actie': 'sales-verwijder', 'data-arg': lead.id, 'aria-label': `Verwijder ${info.titel}`, text: '✕' }));
+  // Ingepland en Bevestigd: een ✕ op dezelfde plaats met een andere betekenis (terug naar Nog in te plannen), met een eigen naam en tooltip.
+  if (kanTerug) kop.append(el('button', { type: 'button', class: 'sales-kaart-wis sales-kaart-terug', 'data-actie': 'sales-terug', 'data-arg': lead.id, title: TERUG_TEKST, 'aria-label': `${TERUG_TEKST}: ${info.titel}`, text: '✕' }));
   kaart.append(kop);
   if (info.plaats) kaart.append(el('div', { class: 'sales-kaart-plaats', text: info.plaats }));
   const chips = el('div', { class: 'sales-kaart-chips' }, el('span', { class: 'sales-chip', text: info.adresLabel }));
@@ -72,11 +75,12 @@ function maakKaart(lead, kanSchrijven, kanWissen) {
 }
 
 // Eén kolom: kop met titel en aantal, daaronder de kaartjes of de tekst van een lege kolom.
-// Het ✕ (verwijderen) staat enkel in de eerste kolom: een ingepland of bevestigd bezoek verwijder je niet per ongeluk (eerst Terug naar te plannen in het detail).
+// Het ✕ in de eerste kolom verwijdert de lead (met 5 s ongedaan maken); een ingepland of bevestigd bezoek verwijder je niet per ongeluk. Daar staat een ander ✕:
+// terug naar Nog in te plannen (zelfde actie als "Terug naar te plannen" in het detail).
 function maakKolom({ sleutel, titel, leeg }, leads, kanSchrijven) {
   return el('section', { class: 'sales-groep sales-kolom', 'data-kolom': sleutel, 'aria-label': titel },
     el('h3', { class: 'sales-groep-kop', text: `${titel} (${leads.length})` }),
-    leads.length ? el('div', { class: 'sales-kaartlijst' }, ...leads.map(l => maakKaart(l, kanSchrijven, kanSchrijven && sleutel === 'tePlannen'))) : el('p', { class: 'sales-kolom-leeg', text: leeg }));
+    leads.length ? el('div', { class: 'sales-kaartlijst' }, ...leads.map(l => maakKaart(l, kanSchrijven, kanSchrijven && sleutel === 'tePlannen', kanSchrijven && sleutel !== 'tePlannen'))) : el('p', { class: 'sales-kolom-leeg', text: leeg }));
 }
 
 // ---- het scherm ----
@@ -220,6 +224,20 @@ function bouwWortel(inhoud) {
         return { leads: [{ id, velden: { status, planning } }] };
       });
       if (!r.ok) { knop.disabled = false; toast(`Bevestigen mislukt. ${foutTekst(r)}`); }
+    },
+    'sales-terug': async (knop, _e, id) => {
+      const lead = salesToestand().leads.find(l => l.id === id);
+      if (!lead) return;
+      const naam = naamVan(lead);
+      if (isVast(lead)) { // bevestigd: de klant had het uur bevestigd, dus eerst vragen
+        const uur = kaartInfo(lead).vastUur;
+        const ok = await appConfirm({ titel: `${TERUG_TEKST}?`, tekst: `${naam} was bevestigd${uur ? ` voor ${uur}` : ''}. Terugzetten bij Nog in te plannen? Het bevestigde uur vervalt.`, bevestigLabel: 'Terugzetten', annuleerLabel: 'Annuleren', gevaar: true });
+        if (!ok) return;
+      }
+      knop.disabled = true; // geen dubbelklik: één PATCH
+      const r = await terugNaarTePlannen(id);
+      if (!r.ok) { knop.disabled = false; toast(`Terugzetten mislukt. ${foutTekst(r)}`); return; }
+      toast(`${naam} staat terug bij Nog in te plannen`);
     },
     'sales-verwijder': (_knop, _e, id) => { vraagVerwijder(id); },
     'sales-ongedaan': (knop, _e, id) => {

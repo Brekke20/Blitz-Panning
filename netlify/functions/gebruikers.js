@@ -7,6 +7,8 @@
 //   POST { actie:'reset-wachtwoord', id, startWachtwoord? } -> 200 { startWachtwoord } (verplichte wijziging, uitgelogd)
 //   POST { actie:'uitloggen-overal', id } -> 200 { ok:true }
 //   POST { actie:'nieuwe-herstelcodes', wachtwoord } -> 200 { herstelcodes } (eigen beheerdersaccount, eigen wachtwoord)
+//   POST { actie:'verwijder', id } -> 200 { ok:true, opgeruimd } (enkel een GEBLOKKEERDE gebruiker, nooit jezelf; verwijdert het
+//        gebruikersrecord, zijn instellingen en zijn verkoperblob; rapporten, archief en Zoho blijven; log 'gebruiker-verwijderd')
 //   PATCH { id, naam?, rol?, actief?, zohoNaam?, salesNaam?, magAlleSales? } -> 200 { gebruiker, herstelcodes? }
 // Alle schrijfacties lopen via wijzigGebruikers binnen dezelfde serieel-keten als setup en herstel; kanWijzigen
 // (de laatste actieve beheerder blijft beschermd) wordt BINNEN die callback op de ontvangen lijst aangeroepen.
@@ -21,8 +23,11 @@ import {
 } from '../lib/wachtwoord.js';
 import {
   valideerNieuweGebruiker, leesGebruikers, wijzigGebruikers, leesLaatsteLogins, publiek, beheerWeergave,
-  kanWijzigen, pasWijzigingToe, nieuwId, normaliseerEmail, normaliseerNaam, zohoNaamBezet,
+  kanWijzigen, kanVerwijderen, wisLaatsteLogin, pasWijzigingToe, nieuwId, normaliseerEmail, normaliseerNaam, zohoNaamBezet,
 } from '../lib/gebruikers.js';
+import { verwijderInstellingen } from '../lib/instellingen.js';
+import { verwijderSales } from '../lib/sales-opslag.js';
+import { TEST_WINKEL } from '../lib/testmodus.js';
 import { maakHerstelcodes, serieelGebruikers } from '../lib/herstel.js';
 import { reserveerPoging, wisPoging } from '../lib/login-poging.js';
 import { logActiviteit } from '../lib/activiteit.js';
@@ -214,6 +219,53 @@ export function maakHandler({ getStore: haalStore, nu = () => Date.now(), auth }
     return json(200, { herstelcodes: codes });
   }
 
+  // ---------------- POST: verwijder ----------------
+  // Volgorde: eerst het gebruikersrecord (dat sluit elke sessie meteen af en is de beslissing; de regels worden BINNEN de callback op de
+  // ontvangen lijst afgedwongen), daarna de eigen gegevens van die gebruiker (best-effort). De rapporten, het archief en Zoho-tickets
+  // worden niet aangeraakt; het activiteitenlog behoudt zijn bestaande regels en krijgt één nieuwe regel zonder wachtwoordgegevens.
+  async function verwijder(body, store, beheerder) {
+    if (typeof body.id !== 'string' || body.id === '') return json(400, { error: 'Gebruiker ontbreekt.' });
+    let weigering = null;
+    let doel = null;
+    let eerste = null; // het record dat de eerste evaluatie wilde verwijderen
+    const r = await bewaar(store, lijst => {
+      weigering = null;
+      // Herhaling na een mislukte terugleescontrole: staat onze eigen schrijfactie er blijkbaar al, dan is de gebruiker weg.
+      if (eerste && !lijst.some(g => g && g.id === body.id)) { doel = eerste; return null; }
+      doel = null;
+      const k = kanVerwijderen(lijst, body.id, beheerder.id);
+      if (!k.ok) { weigering = json(k.status, { error: k.fout }); return null; }
+      doel = lijst.find(g => g && g.id === body.id);
+      eerste = doel;
+      return lijst.filter(g => !(g && g.id === body.id));
+    });
+    if (weigering) return weigering;
+    if (!r) return json(503, OPSLAG_STORING);
+    if (r.gebruikers.some(g => g && g.id === body.id)) return json(503, OPSLAG_STORING);
+    if (!doel) return json(503, OPSLAG_STORING);
+
+    // De eigen gegevens: in de echte opslag en in de testopslag (een testverzoek kan een kopie van instellingen of een ingeladen export hebben).
+    let opgeruimd = true;
+    const ruimOp = async (winkel, metLaatsteLogin) => {
+      try {
+        await verwijderSales(winkel, doel.id);
+        await verwijderInstellingen(winkel, doel.id);
+        if (metLaatsteLogin) await wisLaatsteLogin(winkel, doel.id);
+      } catch (e) {
+        opgeruimd = false;
+        console.error('gebruikers: opruimen na verwijderen mislukt (' + (e?.name || 'Error') + ')');
+      }
+    };
+    await ruimOp(store, true);
+    try { await ruimOp(await haalStore({ name: TEST_WINKEL, consistency: 'strong' }), false); } catch { opgeruimd = false; }
+    await wisPoging(store, doel.email); // een eventuele vergrendeling van dit adres hoort bij de verwijderde gebruiker
+
+    await logActiviteit(store, {
+      gebruiker: beheerder, actie: 'gebruiker-verwijderd', onderwerp: doel.id, details: `${doel.naam}, rol ${doel.rol}`,
+    }, { nu });
+    return json(200, { ok: true, opgeruimd });
+  }
+
   // ---------------- PATCH ----------------
   async function wijzig(body, store, beheerder) {
     if (typeof body.id !== 'string' || body.id === '') return json(400, { error: 'Gebruiker ontbreekt.' });
@@ -291,6 +343,7 @@ export function maakHandler({ getStore: haalStore, nu = () => Date.now(), auth }
         case 'reset-wachtwoord': return await resetWachtwoord(body, store, gebruiker);
         case 'uitloggen-overal': return await uitloggenOveral(body, store, gebruiker);
         case 'nieuwe-herstelcodes': return await nieuweHerstelcodes(body, store, gebruiker);
+        case 'verwijder': return await verwijder(body, store, gebruiker);
         default: return json(400, { error: 'Onbekende actie.' });
       }
     } catch (e) {

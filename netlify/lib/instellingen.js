@@ -60,6 +60,26 @@ export function bewaarInstellingen(store, gebruikerId, instellingen) {
   });
 }
 
+// Haalt de instellingen van ÉÉN gebruiker weg (verwijderde gebruiker); de rest blijft staan. Geen blob of geen sleutel: niets schrijven.
+// Gooit bij ok:false (de aanroeper vangt dat op).
+export function verwijderInstellingen(store, gebruikerId) {
+  if (!sleutel(gebruikerId)) return Promise.resolve(false);
+  return serieelInstellingen(async () => {
+    let was = false;
+    const r = await wijzigBlob(store, BLOB, {
+      leeg: { versie: 0, perGebruiker: {} },
+      wijzig: blob => {
+        const perGebruiker = isObject(blob.perGebruiker) ? blob.perGebruiker : {};
+        was = Object.hasOwn(perGebruiker, gebruikerId);
+        if (!was) return null;
+        return { ...blob, perGebruiker: Object.fromEntries(Object.entries(perGebruiker).filter(([k]) => k !== gebruikerId)) };
+      },
+    });
+    if (!r.ok) throw new Error('instellingen: verwijderen mislukt na herhaling');
+    return was;
+  });
+}
+
 // E4: de eigen instellingen plus (behalve voor sales) die van de actieve techniekers met een zohoNaam (voor een technieker zonder
 // de startlocatie van collega's, zie M7).
 // `store` = de store van het verzoek (instellingen), `authStore` = de ECHTE store (gebruikers).

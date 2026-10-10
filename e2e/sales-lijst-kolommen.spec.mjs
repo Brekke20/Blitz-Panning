@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.mjs';
-import { startSalesApp, BEHEERDER } from './sales-hulp.mjs';
+import { startSalesApp, BEHEERDER, SALES_GEBRUIKER } from './sales-hulp.mjs';
 
 // Het scherm "Leads" in drie kolommen: Nog in te plannen | Ingepland | Bevestigd. Klok: maandag 5 okt 2026 09:00. Alle namen zijn verzonnen.
 const lijst = (page) => page.locator('#view-sales-lijst');
@@ -192,5 +192,144 @@ test.describe('sales: Leads op een telefoon (375 px)', () => {
     await expect(tabs.getByRole('tab').nth(2)).toHaveText('Bevestigd1');
     await expect(kolom(page, 'ingepland')).toBeVisible();
     await expect(kaartIn(page, 'ingepland', 'Test Tweede')).toBeVisible();
+  });
+});
+
+// Het ✕ op een kaart in Ingepland en Bevestigd: terug naar Nog in te plannen (niet te verwarren met het ✕ van de eerste kolom: verwijderen).
+const TERUG = 'Terug naar nog in te plannen';
+const terugKnop = (page, sleutel, naam) => kaartIn(page, sleutel, naam).getByRole('button', { name: TERUG });
+
+test.describe('sales: ✕ terug naar Nog in te plannen (Ingepland en Bevestigd)', () => {
+  test('beide kolommen hebben het ✕ op dezelfde plaats als het ✕ van de eerste kolom, met een eigen naam en tooltip; het verwijder-✕ blijft enkel links', async ({ page }) => {
+    await startSalesApp(page, { leads: MIX() });
+    await expect(kolom(page, 'ingepland').getByRole('button', { name: TERUG })).toHaveCount(2);
+    await expect(kolom(page, 'bevestigd').getByRole('button', { name: TERUG })).toHaveCount(2);
+    await expect(kolom(page, 'tePlannen').getByRole('button', { name: TERUG })).toHaveCount(0); // links blijft het verwijder-✕
+    await expect(kolom(page, 'tePlannen').getByRole('button', { name: /Verwijder/ })).toHaveCount(3);
+    await expect(kolom(page, 'ingepland').getByRole('button', { name: /Verwijder/ })).toHaveCount(0);
+    const knop = terugKnop(page, 'ingepland', 'Test Maandag');
+    await expect(knop).toHaveText('✕');
+    await expect(knop).toHaveAttribute('title', TERUG);
+    await expect(knop).toHaveAttribute('aria-label', `${TERUG}: Test Maandag`);
+    // dezelfde plaats: rechtsboven in de kop van de kaart, zoals het ✕ links
+    const kaart = await kaartIn(page, 'ingepland', 'Test Maandag').boundingBox();
+    const k = await knop.boundingBox();
+    const links = await kaartIn(page, 'tePlannen', 'Test Oud').getByRole('button', { name: /Verwijder/ }).boundingBox();
+    expect(k.x + k.width).toBeGreaterThan(kaart.x + kaart.width - 24);
+    expect(k.y).toBeLessThan(kaart.y + 24);
+    expect(Math.abs(k.width - links.width)).toBeLessThan(1);
+    // Bevestigen blijft op de kaarten van Ingepland
+    await expect(kolom(page, 'ingepland').getByRole('button', { name: /^Bevestig / })).toHaveCount(2);
+  });
+
+  test('Ingepland: meteen terug (één PATCH, geen bevestigingsvraag) met een toast; de kaart staat links', async ({ page, verzoeken }) => {
+    await startSalesApp(page, { leads: MIX() });
+    const voor = verzoeken.van('/api/sales', 'PATCH').length;
+    await terugKnop(page, 'ingepland', 'Test Maandag').click();
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+    await expect(kaartIn(page, 'tePlannen', 'Test Maandag')).toHaveCount(1);
+    await expect(kaartIn(page, 'ingepland', 'Test Maandag')).toHaveCount(0);
+    await expect(page.locator('#toast')).toContainText('Test Maandag staat terug bij Nog in te plannen');
+    await expect(lijst(page).getByRole('heading', { name: 'Nog in te plannen (4)' })).toBeVisible();
+    await expect(lijst(page).getByRole('heading', { name: 'Ingepland (1)' })).toBeVisible();
+    const patches = verzoeken.van('/api/sales', 'PATCH');
+    expect(patches).toHaveLength(voor + 1);
+    expect(patches.at(-1).body.leads).toEqual([{ id: 'v1', velden: { status: 'te-plannen', planning: null, resultaat: null } }]);
+    // het leaddetail van de teruggezette lead toont geen "Terug naar te plannen" meer
+    await kaartIn(page, 'tePlannen', 'Test Maandag').locator('.sales-kaart-titel').click();
+    await expect(venster(page)).toBeVisible();
+    await expect(venster(page).getByRole('button', { name: 'Terug naar te plannen' })).toHaveCount(0);
+  });
+
+  test('Bevestigd: eerst een bevestigingsvraag; Annuleren doet niets, Terugzetten stuurt één PATCH en toont de toast', async ({ page, verzoeken }) => {
+    await startSalesApp(page, { leads: MIX() });
+    const voor = verzoeken.van('/api/sales', 'PATCH').length;
+    const dialoog = page.getByRole('alertdialog');
+    await terugKnop(page, 'bevestigd', 'Test Donderdag').click();
+    await expect(dialoog).toBeVisible();
+    await expect(dialoog).toContainText('Test Donderdag was bevestigd voor do 8 okt 10:00');
+    await dialoog.getByRole('button', { name: 'Annuleren' }).click();
+    await expect(dialoog).toHaveCount(0);
+    await expect(kaartIn(page, 'bevestigd', 'Test Donderdag')).toHaveCount(1);
+    expect(verzoeken.van('/api/sales', 'PATCH')).toHaveLength(voor);
+
+    await terugKnop(page, 'bevestigd', 'Test Donderdag').click();
+    await dialoog.getByRole('button', { name: 'Terugzetten' }).click();
+    await expect(kaartIn(page, 'tePlannen', 'Test Donderdag')).toHaveCount(1);
+    await expect(kaartIn(page, 'bevestigd', 'Test Donderdag')).toHaveCount(0);
+    await expect(page.locator('#toast')).toContainText('Test Donderdag staat terug bij Nog in te plannen');
+    const patches = verzoeken.van('/api/sales', 'PATCH');
+    expect(patches).toHaveLength(voor + 1);
+    expect(patches.at(-1).body.leads).toEqual([{ id: 'b2', velden: { status: 'te-plannen', planning: null, resultaat: null } }]);
+  });
+
+  test('het ✕ opent het leaddetail niet', async ({ page }) => {
+    await startSalesApp(page, { leads: [voorgesteld('v1', 'Alleen', '2026-10-06', '09:00')] });
+    await terugKnop(page, 'ingepland', 'Test Alleen').click();
+    await expect(kaartIn(page, 'tePlannen', 'Test Alleen')).toHaveCount(1);
+    await expect(venster(page)).toHaveCount(0);
+  });
+
+  test('de beheerder (mag schrijven) heeft het ✕', async ({ page }) => {
+    await startSalesApp(page, { gebruiker: BEHEERDER, leads: [], blobs: { 'sales/u-bea': { versie: 1, leads: [voorgesteld('b1', 'Beaklant', '2026-10-06', '09:00'), bevestigd('b2', 'Beabevestigd', '2026-10-07', '10:00')], blokken: [], grafstenen: [] } } });
+    await page.getByRole('tab', { name: 'Sales', exact: true }).click();
+    await expect(kaartIn(page, 'ingepland', 'Test Beaklant')).toHaveCount(1);
+    await expect(terugKnop(page, 'ingepland', 'Test Beaklant')).toHaveCount(1);
+    await expect(terugKnop(page, 'bevestigd', 'Test Beabevestigd')).toHaveCount(1);
+  });
+
+  test('alleen-lezen weergave (verkoper met "mag alle sales zien" bij een collega): geen ✕ in Ingepland en Bevestigd', async ({ page }) => {
+    const gebruiker = { ...SALES_GEBRUIKER, magAlleSales: true };
+    await startSalesApp(page, { gebruiker, blobs: { 'sales/u-bea': { versie: 1, leads: [voorgesteld('b1', 'Beaklant', '2026-10-06', '09:00'), bevestigd('b2', 'Beabevestigd', '2026-10-07', '10:00')], blokken: [], grafstenen: [] } } });
+    await lijst(page).getByLabel('Verkoper').selectOption('u-bea');
+    await expect(kaartIn(page, 'ingepland', 'Test Beaklant')).toHaveCount(1);
+    await expect(kaartIn(page, 'bevestigd', 'Test Beabevestigd')).toHaveCount(1);
+    await expect(lijst(page).getByRole('button', { name: TERUG })).toHaveCount(0);
+    await expect(lijst(page).locator('.sales-kaart-wis')).toHaveCount(0);
+  });
+
+  test('smal scherm (375 px): het ✕ staat op de kaart in het tabblad Ingepland en werkt', async ({ page }) => {
+    await startSalesApp(page, { viewport: { width: 375, height: 812 }, leads: MIX() });
+    await lijst(page).locator('.sales-kolomtabs').getByRole('tab').nth(1).click();
+    const knop = terugKnop(page, 'ingepland', 'Test Dinsdag');
+    await expect(knop).toBeVisible();
+    const k = await knop.boundingBox();
+    expect(k.x + k.width).toBeLessThanOrEqual(375);
+    await knop.click();
+    await expect(page.locator('#toast')).toContainText('Test Dinsdag staat terug bij Nog in te plannen');
+  });
+});
+
+// De klikzone van telefoon en e-mail op de kaarten: enkel zo breed als de tekst; ernaast klikken opent de lead.
+test.describe('sales: klikzone van de contactlinks op de leadkaarten', () => {
+  const metContact = () => [lead('c1', 'Contact', { gsm: '+32 470 11 22 33', email: 'test.contact@voorbeeld.test' })];
+  for (const [naam, viewport] of [['breed scherm', { width: 1280, height: 800 }], ['375 px', { width: 375, height: 812 }]]) {
+    test(`${naam}: de link is zo breed als de tekst; klikken rechts ernaast opent de lead zonder mailto- of tel-navigatie`, async ({ page }) => {
+      await startSalesApp(page, { viewport, leads: metContact() });
+      const kaart = kaartIn(page, 'tePlannen', 'Test Contact');
+      const mail = kaart.getByRole('link', { name: 'test.contact@voorbeeld.test' });
+      const tel = kaart.getByRole('link', { name: '+32 470 11 22 33' });
+      const k = await kaart.boundingBox();
+      for (const link of [mail, tel]) {
+        const b = await link.boundingBox();
+        const tekstBreedte = await link.evaluate((a) => { const r = document.createRange(); r.selectNodeContents(a); return r.getBoundingClientRect().width; });
+        expect(b.width).toBeLessThanOrEqual(tekstBreedte + 1);
+        expect(b.width).toBeLessThan(k.width - 40); // niet over de volle breedte van de kaart
+      }
+      // elke klik op een <a> vastleggen (capture): er mag er geen zijn
+      await page.evaluate(() => { window.__linkKlikken = 0; document.addEventListener('click', (e) => { if (e.target.closest?.('a')) window.__linkKlikken++; }, true); });
+      const b = await mail.boundingBox();
+      await page.mouse.click(b.x + b.width + 12, b.y + b.height / 2);
+      await expect(venster(page)).toBeVisible();
+      expect(await page.evaluate(() => window.__linkKlikken)).toBe(0);
+    });
+  }
+
+  test('een klik op de tekst van de link zelf blijft mailto gebruiken en opent het detail niet', async ({ page }) => {
+    await startSalesApp(page, { leads: metContact() });
+    await page.evaluate(() => { document.addEventListener('click', (e) => { const a = e.target.closest?.('a'); if (a) { window.__href = a.getAttribute('href'); e.preventDefault(); } }); });
+    await kaartIn(page, 'tePlannen', 'Test Contact').getByRole('link', { name: 'test.contact@voorbeeld.test' }).click();
+    expect(await page.evaluate(() => window.__href)).toBe('mailto:test.contact@voorbeeld.test');
+    await expect(venster(page)).toHaveCount(0);
   });
 });

@@ -118,6 +118,7 @@
 }
 .sales-kaart-wis:hover { background: var(--red-dim); color: var(--red-ink); border-color: var(--red-line); }
 .sales-kaart-wis:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.sales-kaart-terug:hover { background: var(--surface3); color: var(--text); border-color: var(--border); } /* niet rood: dit verwijdert niets */
 .sales-kaart-plaats { color: var(--text2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
 .sales-kaart-chips { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
 .sales-chip { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 8px; border-radius: var(--r-pill); background: var(--surface3); color: var(--text2); }
@@ -125,7 +126,8 @@
 .sales-chip-eerder { background: var(--orange-dim); color: var(--orange); }
 .sales-chip-verlopen { background: var(--orange-dim); color: var(--orange); }
 .sales-chip-manueel { background: var(--blue-dim); color: var(--blue); }
-.sales-kaart-contact { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.sales-kaart-contact { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.sales-kaart-contact a { width: max-content; max-width: 100%; padding: 3px 0; } /* de klikzone is zo breed als de tekst: ernaast klikken opent de lead */
 .sales-kaart-contact a, .sales-detail-contact a { color: var(--accent-ink); text-decoration: underline; }
 
 /* ---- leaddetail en toevoegvenster ---- */

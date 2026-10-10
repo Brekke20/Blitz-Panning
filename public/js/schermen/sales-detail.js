@@ -6,7 +6,7 @@ import { appConfirm } from '../app-dialog.js';
 import { toast } from '../kern/ui.js';
 import { localISO } from '../kern/tijd.js';
 import { isVast, zetVastUur, RESULTAAT_LABEL } from '../sales/lead-regels.js';
-import { salesToestand, wijzig } from './sales-data.js';
+import { salesToestand, wijzig, terugNaarTePlannen } from './sales-data.js';
 import { schrijfbaarNu } from './sales-verkoper.js';
 import { openSalesVenster } from './sales-venster.js';
 import { valideerDetail, valideerVastUur, vindBotsingen, wijzigingen, routeHerberekend } from './sales-detail-logica.js';
@@ -168,7 +168,7 @@ export function openLeadDetail(leadId, { focus } = {}) {
         terug.addEventListener('click', async () => {
           toonFout('');
           bezig(terug, true);
-          const res = await wijzig({ leads: [{ id: leadId, velden: { status: 'te-plannen', planning: null, resultaat: null } }] });
+          const res = await terugNaarTePlannen(leadId);
           if (!res.ok) { toonFout(foutTekst(res)); bezig(terug, false); return; }
           sluit();
         });

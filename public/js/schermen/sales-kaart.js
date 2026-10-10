@@ -5,7 +5,7 @@
 // routekleur, met de drukte-kleuring, de wegenwerken en wegafsluitingen en de legende. `L` (Leaflet, CDN) is een global en wordt enkel binnen functies gebruikt; ontbreekt
 // hij (CDN onbereikbaar), dan geeft `maakSalesKaart` een kaart terug met `beschikbaar: false` die niets doet.
 // Veiligheid: leadgegevens komen via textContent in de popups (DOM-elementen, nooit HTML-tekst).
-import { KAART_LAGEN, tekenRouteLaag } from './route-kaart.js';
+import { voegKaartLagenToe, tekenRouteLaag } from './route-kaart.js';
 
 export const ONGEVEER_TEKST = 'ongeveer — enkel postcode';
 const BELGIE = [50.85, 4.35];
@@ -30,7 +30,7 @@ const kleur = () => {
   try { return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#00dfa3'; } catch { return '#00dfa3'; }
 };
 
-const GEEN_KAART = Object.freeze({ beschikbaar: false, toon() { return { wegafsluiting: false }; }, invalideer() {}, vernietig() {} });
+const GEEN_KAART = Object.freeze({ beschikbaar: false, toon() { return { wegafsluiting: false }; }, zetStijl() {}, invalideer() {}, vernietig() {} });
 const STANDAARD_ROUTEKLEUR = '#f59e0b'; // dezelfde standaard als de route van de technieker
 
 /**
@@ -41,9 +41,11 @@ const STANDAARD_ROUTEKLEUR = '#f59e0b'; // dezelfde standaard als de route van d
  *  - routeData: het ruwe antwoord van /api/route (met `drukteDetail` als dat geladen is) voor de drukte- en werken-kleuring; zonder: enkel de lijn
  *  - routeKleur: hex (ongeldig of leeg: amber, zoals bij de technieker); drukteKleuring: false zet de kleuring en de legende uit (standaard aan)
  *  - geeft terug of er een wegafsluiting op de route ligt (de oproeper toont de waarschuwing)
- * `kaartStijl`: sleutel van KAART_LAGEN (onbekend = standaard).
+ * De achtergrondkaart kiest de gebruiker zoals bij de technieker (dezelfde keuzelijst met dezelfde namen, gedeelde code in route-kaart.js):
+ * `kaartStijl`: sleutel van KAART_LAGEN (onbekend = standaard) voor de start; `bijKeuze(sleutel)` enkel als de GEBRUIKER een andere kaart kiest;
+ * `zetStijl(sleutel)` toont een andere kaart zonder `bijKeuze` aan te roepen (bv. na een wissel van verkoper: er wordt niets bewaard).
  */
-export function maakSalesKaart(containerEl, { kaartStijl } = {}) {
+export function maakSalesKaart(containerEl, { kaartStijl, bijKeuze } = {}) {
   if (!containerEl || typeof L === 'undefined') return GEEN_KAART;
   let kaart;
   try {
@@ -53,8 +55,7 @@ export function maakSalesKaart(containerEl, { kaartStijl } = {}) {
     console.error('Sales-kaart maken mislukt:', fout);
     return GEEN_KAART;
   }
-  const laag = typeof kaartStijl === 'string' && Object.hasOwn(KAART_LAGEN, kaartStijl) ? KAART_LAGEN[kaartStijl] : KAART_LAGEN.standaard;
-  L.tileLayer(laag.url, laag.opts).addTo(kaart);
+  const lagenKeuze = voegKaartLagenToe(kaart, { startSleutel: kaartStijl, bijKeuze });
   const lagen = L.layerGroup().addTo(kaart);
   let legende = null;
   let grenzen = null;
@@ -100,6 +101,7 @@ export function maakSalesKaart(containerEl, { kaartStijl } = {}) {
       pasGrenzenToe();
       return { wegafsluiting };
     },
+    zetStijl(sleutel) { lagenKeuze.zet(sleutel); },
     /** Na een verandering van de zichtbaarheid of grootte (subtab, tabwissel, draaien van het toestel). */
     invalideer() {
       kaart.invalidateSize();

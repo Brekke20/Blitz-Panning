@@ -1,5 +1,5 @@
 import { test, expect, standaardStub } from './helpers.mjs';
-import { startSalesApp, verwachtFout, BEHEERDER } from './sales-hulp.mjs';
+import { startSalesApp, verwachtFout, BEHEERDER, SALES_GEBRUIKER } from './sales-hulp.mjs';
 
 // De route van de verkoper met dezelfde kaart als de technieker (Brent, proefperiode): de TomTom-lijn in de routekleur met de drukte-kleuring
 // (per wegvak voor een toekomstige dag), wegenwerken, wegafsluiting met waarschuwing en de legende. Gemeten tegen de route-kaart-spec van de technieker
@@ -265,5 +265,139 @@ test.describe('sales: kaart met drukte in het scherm van de beheerder', () => {
     expect((await meetKaart(page)).legendes).toBe(1);
     await expect(page.locator('#map .route-legende')).toHaveCount(0);
     await expect(page.locator('#sales-kaart.leaflet-container')).toHaveCount(1);
+  });
+});
+
+// De keuze van de achtergrondkaart (Standaard, OpenStreetMap, Licht, Donker, Satelliet), met dezelfde namen en dezelfde gedeelde code als de route van de technieker.
+// De keuze wordt per verkoper onthouden in de EIGEN instellingen (PUT /api/instellingen); bij het bekijken van een ander wordt nooit iets bewaard.
+const kaartKeuze = (page, naam) => page.locator('#sales-kaart .leaflet-control-layers').getByRole('radio', { name: naam, exact: true });
+const NAMEN = ['Standaard', 'OpenStreetMap', 'Licht', 'Donker', 'Satelliet'];
+const actieveKaart = async (page) => {
+  const gekozen = [];
+  for (const n of NAMEN) if (await kaartKeuze(page, n).isChecked()) gekozen.push(n);
+  return gekozen;
+};
+const instellingenPuts = (verzoeken) => verzoeken.van('/api/instellingen', 'PUT');
+
+test.describe('sales: kaartvarianten (zoals de technieker)', () => {
+  test('de sales-kaart toont dezelfde vijf varianten met dezelfde namen; Standaard is actief en maar één laag tegelijk', async ({ page }) => {
+    await bouwRoute(page);
+    const radios = page.locator('#sales-kaart .leaflet-control-layers').getByRole('radio');
+    await expect(radios).toHaveCount(5);
+    for (const n of NAMEN) await expect(kaartKeuze(page, n)).toBeVisible();
+    expect(await actieveKaart(page)).toEqual(['Standaard']);
+    await expect(page.locator('#sales-kaart .leaflet-tile-pane .leaflet-layer')).toHaveCount(1);
+  });
+
+  test('een bewaarde variant is bij het openen actief', async ({ page }) => {
+    await bouwRoute(page, { instellingen: { ...INSTELLING, kaartStijl: 'satelliet' } });
+    expect(await actieveKaart(page)).toEqual(['Satelliet']);
+  });
+
+  test('kiezen wisselt de laag en bewaart in de eigen instellingen (één PUT, rest van de instellingen blijft); na herladen staat de keuze er nog', async ({ page, verzoeken }) => {
+    await bouwRoute(page, { instellingen: { ...INSTELLING, routeKleur: '#3366ff' } });
+    await kaartKeuze(page, 'OpenStreetMap').check();
+    expect(await actieveKaart(page)).toEqual(['OpenStreetMap']);
+    await expect.poll(() => instellingenPuts(verzoeken).length).toBe(1);
+    expect(instellingenPuts(verzoeken)[0].body.instellingen).toEqual({ ...INSTELLING, routeKleur: '#3366ff', kaartStijl: 'osm' });
+    await rust(page);
+    expect(await actieveKaart(page)).toEqual(['OpenStreetMap']); // het bewaar-antwoord zet de keuze niet terug
+    expect(metStroke(await meetKaart(page), '#3366ff')).toBe(1); // route blijft getekend
+
+    await page.goto('/');
+    await expect(tab(page, 'Leads')).toBeVisible();
+    await tab(page, 'Route').click();
+    await route(page).getByLabel('Kies een dag').fill('2026-10-06');
+    await expect(rijen(page)).toHaveCount(2);
+    expect(await actieveKaart(page)).toEqual(['OpenStreetMap']);
+  });
+
+  test('een bewaarde variant openen bewaart niets; dezelfde variant opnieuw kiezen geeft geen extra PUT', async ({ page, verzoeken }) => {
+    await bouwRoute(page, { instellingen: { ...INSTELLING, kaartStijl: 'licht' } });
+    expect(instellingenPuts(verzoeken)).toEqual([]); // enkel tonen bij het openen bewaart niets
+    await kaartKeuze(page, 'Donker').check();
+    await expect.poll(() => instellingenPuts(verzoeken).length).toBe(1);
+    await kaartKeuze(page, 'Donker').check();
+    await rust(page);
+    expect(instellingenPuts(verzoeken)).toHaveLength(1);
+  });
+
+  const lijstVan = (pre) => [lead(`${pre}1`, `${pre}klant`, '09:00', 50.95, 5.4), lead(`${pre}2`, `${pre}peeters`, '10:00', 50.97, 5.45)];
+  const bouwMetCollegas = async (page, { gebruiker, instellingenPerGebruiker }) => {
+    await page.addInitScript(({ adres }) => {
+      if (window !== window.top) return;
+      localStorage.setItem('blitz_geocache', JSON.stringify({ [adres.toLowerCase()]: { lat: 50.93, lon: 5.34, t: Date.now() } }));
+    }, { adres: DEPOT });
+    await startSalesApp(page, {
+      gebruiker,
+      leads: LEADS(),
+      blobs: {
+        'sales/u-bea': { versie: 1, gebruikerId: 'u-bea', leads: lijstVan('Bea'), blokken: [], grafstenen: [] },
+        'sales/u-carl': { versie: 1, gebruikerId: 'u-carl', leads: lijstVan('Carl'), blokken: [], grafstenen: [] },
+        instellingen: { versie: 1, perGebruiker: instellingenPerGebruiker },
+      },
+    });
+    await page.goto('/');
+  };
+
+  test('de beheerder bekijkt een verkoper: diens bewaarde variant staat aan; een andere kiezen bewaart NIETS (geen PUT); een andere verkoper toont diens eigen variant', async ({ page, verzoeken }) => {
+    await bouwMetCollegas(page, { gebruiker: BEHEERDER, instellingenPerGebruiker: { 'u-bea': { ...INSTELLING, kaartStijl: 'donker' }, 'u-carl': { ...INSTELLING, kaartStijl: 'satelliet' } } });
+    await expect(tab(page, 'Sales')).toBeVisible();
+    await tab(page, 'Sales').click();
+    await page.locator('#sales-subtab-sales-route').click();
+    await route(page).getByLabel('Verkoper').selectOption('u-bea');
+    await route(page).getByLabel('Kies een dag').fill('2026-10-06');
+    await expect(rijen(page)).toHaveCount(2);
+    await expect.poll(() => actieveKaart(page)).toEqual(['Donker']);
+
+    await kaartKeuze(page, 'Licht').check(); // enkel weergave
+    await rust(page);
+    expect(await actieveKaart(page)).toEqual(['Licht']);
+    expect(instellingenPuts(verzoeken)).toEqual([]);
+
+    await route(page).getByLabel('Verkoper').selectOption('u-carl');
+    await expect(route(page).locator('.sales-route-lijst')).toContainText('Carlklant');
+    await expect.poll(() => actieveKaart(page)).toEqual(['Satelliet']); // Carls eigen bewaarde variant, niet de weergavekeuze van Bea
+    expect(instellingenPuts(verzoeken)).toEqual([]);
+    await route(page).getByLabel('Verkoper').selectOption('u-bea');
+    await expect(route(page).locator('.sales-route-lijst')).toContainText('Beaklant');
+    await expect.poll(() => actieveKaart(page)).toEqual(['Donker']); // Bea is niet veranderd
+    expect(instellingenPuts(verzoeken)).toEqual([]);
+  });
+
+  test('een verkoper met "mag alle sales zien" kijkt naar een collega: wisselen van variant bewaart niets (ook niet in de eigen instellingen); terug bij de eigen leads staat de eigen bewaarde variant er', async ({ page, verzoeken }) => {
+    const gebruiker = { ...SALES_GEBRUIKER, magAlleSales: true };
+    await bouwMetCollegas(page, { gebruiker, instellingenPerGebruiker: { 'u-test': { ...INSTELLING, kaartStijl: 'osm' }, 'u-bea': { ...INSTELLING, kaartStijl: 'donker' } } });
+    await expect(tab(page, 'Leads')).toBeVisible();
+    await tab(page, 'Route').click();
+    await route(page).getByLabel('Kies een dag').fill('2026-10-06');
+    await route(page).getByLabel('Verkoper').selectOption('u-bea');
+    await expect(route(page).locator('.sales-route-lijst')).toContainText('Beaklant');
+    await expect.poll(() => actieveKaart(page)).toEqual(['Donker']);
+    await kaartKeuze(page, 'Satelliet').check();
+    await rust(page);
+    expect(instellingenPuts(verzoeken)).toEqual([]); // niets bewaard, noch voor Bea noch voor mezelf
+
+    await route(page).getByLabel('Verkoper').selectOption('u-test');
+    await expect(route(page).locator('.sales-route-lijst')).toContainText('Test Verhaegen');
+    await expect.poll(() => actieveKaart(page)).toEqual(['OpenStreetMap']);
+    expect(instellingenPuts(verzoeken)).toEqual([]);
+    // bij de eigen leads bewaart een keuze wel
+    await kaartKeuze(page, 'Licht').check();
+    await expect.poll(() => instellingenPuts(verzoeken).length).toBe(1);
+    expect(instellingenPuts(verzoeken)[0].body.instellingen.kaartStijl).toBe('licht');
+  });
+
+  test('375 px: de keuzelijst past in de kaart en veroorzaakt geen horizontale scroll', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 700 });
+    await bouwRoute(page);
+    const m = await page.evaluate(() => ({
+      overloop: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      kaart: document.getElementById('sales-kaart').getBoundingClientRect(),
+      keuze: document.querySelector('#sales-kaart .leaflet-control-layers').getBoundingClientRect(),
+    }));
+    expect(m.overloop).toBeLessThanOrEqual(0);
+    expect(m.keuze.left).toBeGreaterThanOrEqual(m.kaart.left);
+    expect(m.keuze.right).toBeLessThanOrEqual(m.kaart.right + 1);
   });
 });

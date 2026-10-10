@@ -85,6 +85,23 @@ Zet **BLITZ_LOKALE_DEV** nooit in Netlify. Zet ook **NETLIFY_DEV** niet. Die sta
 
 Weet iemand zijn wachtwoord niet meer, dan klik je in Beheer, Gebruikers op Startwachtwoord opnieuw instellen. Je krijgt een nieuw startwachtwoord dat je weer persoonlijk doorgeeft. Met Overal uitloggen zet je iemand op alle toestellen buiten. Met Blokkeren kan iemand niet meer inloggen (bijvoorbeeld als hij het bedrijf verlaat).
 
+## Een gebruiker verwijderen
+
+Blokkeren is meestal genoeg: de gebruiker kan niet meer inloggen en alles blijft bewaard. Wil je iemand echt definitief verwijderen, dan kan dat in twee stappen.
+
+1. Blokkeer de gebruiker eerst. Pas daarna verschijnt bij die persoon de knop Verwijderen. Bij een actieve gebruiker en bij jezelf zie je die knop nooit.
+2. Klik op Verwijderen. De app legt in gewone taal uit wat er gebeurt en vraagt je de naam van de gebruiker over te typen. Pas dan wordt de knop Definitief verwijderen actief.
+
+Wat verdwijnt: het account (en dus elke sessie) en de persoonlijke instellingen van die gebruiker. Bij een verkoper gaan ook zijn leads, planningsblokken en bezoeken weg. De app zegt dat uitdrukkelijk in het venster. Wil je zijn leads bewaren, laat hem dan geblokkeerd.
+
+Wat blijft: de rapporten en het archief, de tickets in Zoho en het activiteitenlog. De bestaande regels in het log blijven staan en de verwijdering komt er als nieuwe regel bij (met de naam en de rol, zonder wachtwoordgegevens). Verwijderen kan niet ongedaan gemaakt worden. De laatste actieve beheerder kan nooit verwijderd worden.
+
+## Inloggen: Onthoud mij en het oogje
+
+Op het inlogscherm staat onder het wachtwoord een vinkje Onthoud mij. Vink je het aan en log je in, dan bewaart de browser alleen je e-mailadres (nooit je wachtwoord). De volgende keer staat je adres al ingevuld en kun je meteen je wachtwoord typen. Haal je het vinkje weg bij een volgende login, dan wordt het bewaarde adres gewist. Uitloggen laat het adres staan. Op een gedeeld toestel laat je het vinkje dus beter uit.
+
+Naast elk wachtwoordveld staat een oogje. Daarmee zie je even wat je typt, handig op een gsm. Nog eens klikken verbergt het weer.
+
 ## Herstelcodes bewaren
 
 - Je hebt er tien. Elke code werkt één keer.
