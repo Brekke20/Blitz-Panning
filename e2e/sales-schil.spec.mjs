@@ -58,7 +58,7 @@ test.describe('sales: schil en start', () => {
     await tab(page, 'Leads').click();
     await expect(page.locator('#view-sales-lijst .sales-leeg')).toHaveCount(1);
     await expect(page.locator('#view-sales-lijst .sales-inhoud')).toHaveCount(1);
-    expect(verzoeken.van('/api/sales', 'GET').length).toBeGreaterThanOrEqual(3);
+    await expect.poll(() => verzoeken.van('/api/sales', 'GET').length).toBeGreaterThanOrEqual(3); // het herladen loopt asynchroon
   });
 
   test('zonder bewaarde instellingen (instellingen: null) werkt alles met de standaardwaarden', async ({ page, verzoeken, consoleFouten }) => {
