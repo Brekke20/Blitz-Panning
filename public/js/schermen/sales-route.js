@@ -309,6 +309,7 @@ async function rekenRoute(inhoud, s, { sig, sleutel, stops, depot, datum, vanTij
   s.route = { sig, ...resultaat };
   s.laatste = { sleutel, sig };
   if (resultaat.geschat) toast('Rit geschat');
+  else if (resultaat.verkeerNietBeschikbaar) toast('Verkeer niet beschikbaar voor dat tijdstip: route zonder vertrektijd berekend');
   if (vorige && vorige.sleutel === sleutel && vorige.sig !== sig) {
     s.melding.textContent = 'Route herberekend';
     s.melding.hidden = false;
