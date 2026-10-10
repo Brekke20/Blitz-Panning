@@ -253,6 +253,7 @@ function opstart() {
   set('activeAssigneeFilter', localStorage.getItem('blitz_active_person') || 'all');
   koppelRenders(); // vanaf hier volgen de schermen de toestand (K6/K7)
   updatePersonHeader();
+  buildPersonSelector(); // meteen vullen (eigen naam / "Alle technici"): faalt de ticketlading, dan blijft de kiezer niet leeg
   // TEST badge tonen indien actief
   if (TEST_MODE) document.getElementById('test-badge').style.display = 'inline-block';
   // Offline banner
@@ -595,6 +596,7 @@ async function loadTickets({ stilleToast = false, stil = false, zonderCache = fa
     if (TEST_MODE) toast('🧪 Testmodus actief — dummy data geladen');
     else if (!stilleToast) toast(`${get('allTickets').length} te plannen · ${get('allPending').length} wacht bevestiging · ${get('allGepland').length} gepland`);
   } catch (err) {
+    buildPersonSelector(); // een mislukte lading verandert de toestand niet, dus geen abonnee-render: de kiezer toch (her)bouwen
     const rauw = err.message || '';
     const msg = foutTekst(err) || '';
     const isAuth = /401|403|invalid.token|expired|unauthorized/i.test(rauw);
