@@ -531,7 +531,6 @@ test.describe('⚙-venster en Beheer → Instellingen: één plek om de werkinst
     await openSettings(page);
     for (const sel of WERKVELDEN) await expect(venster(page).locator(sel), sel).toBeEnabled();
     await expect(venster(page).locator('#set-beheer-hint')).toBeHidden();
-    await expect(page.getByRole('tab', { name: 'Beheer', exact: true })).toHaveCount(0);
   });
 
   // Merge-review I1: een beheerder met een Zoho-naam leest zijn eigen planning onder die naam; Beheer → Instellingen voor zichzelf schrijft

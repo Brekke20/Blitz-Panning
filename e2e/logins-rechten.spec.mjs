@@ -164,10 +164,10 @@ test.describe('rechten per rol (Rechtentabel): tabs en knoppen', () => {
     for (const id of [...SCHRIJF, ...COORD_KNOPPEN, 'd-plan-btn']) await expect(knop(page, id), id).toBeVisible();
   });
 
-  test('planner: 6 tabs zonder Beheer; alle knoppen in het detail', async ({ page }) => {
+  test('planner: 7 tabs (met Beheer, enkel Instellingen en Performance); alle knoppen in het detail', async ({ page }) => {
     await startApp(page, { loginRol: 'planner' });
-    await expect(zichtbareTabs(page)).toHaveCount(6);
-    await expect(tab(page, 'Beheer')).toHaveCount(0);
+    await expect(zichtbareTabs(page)).toHaveCount(7);
+    await expect(tab(page, 'Beheer')).toBeVisible();
     await openPlanningDetail(page);
     for (const id of [...SCHRIJF, ...COORD_KNOPPEN, 'd-plan-btn']) await expect(knop(page, id), id).toBeVisible();
   });

@@ -310,3 +310,24 @@ test('berekenDashboard verandert de invoer niet', () => {
   berekenDashboard(invoer);
   assert.equal(JSON.stringify(invoer), kopie);
 });
+
+// ---- deel: planner (techniekers) en sales manager (sales) ----
+test('deel "techniekers": alles behalve sales (geen sales-sleutel, geen dekking.sales), deel staat in het antwoord', () => {
+  const d = bereken({});
+  const t = berekenDashboard({ ...metFilters(), deel: 'techniekers' });
+  assert.equal(t.deel, 'techniekers');
+  assert.ok(!('sales' in t));
+  assert.ok(!('sales' in t.dekking));
+  for (const k of ['kern', 'tijd', 'kwaliteit', 'onderdelen', 'klant', 'opties']) assert.deepEqual(t[k], d[k], k);
+  assert.ok(!('deel' in d)); // de beheerder (alles) houdt exact het oude antwoord
+});
+
+test('deel "sales": enkel sales en dekking.sales; geen kern, tijd, kwaliteit, onderdelen, klant, opties of technieker-filters', () => {
+  const d = bereken({});
+  const s = berekenDashboard({ ...metFilters(), deel: 'sales' });
+  assert.equal(s.deel, 'sales');
+  assert.deepEqual(s.sales, d.sales);
+  assert.deepEqual(Object.keys(s.dekking), ['sales']);
+  assert.deepEqual(Object.keys(s.filters).sort(), ['tot', 'van']);
+  for (const k of ['kern', 'tijd', 'kwaliteit', 'onderdelen', 'klant', 'opties']) assert.ok(!(k in s), k);
+});

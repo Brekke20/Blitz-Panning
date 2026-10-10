@@ -259,3 +259,12 @@ test('tegelHtml: op tijd zonder gegevens toont geen verdeling "0 te vroeg · …
   assert.ok(leeg.includes('geen gegevens'));
   assert.ok(!leeg.includes('te vroeg'));
 });
+
+test('filterRijHtml: deel "sales" (sales manager) toont enkel presets en periode, geen technieker-, type- of herhaalfilter', () => {
+  const h = filterRijHtml({ filters: { preset: 'deze-maand', van: '2026-10-01', tot: '2026-10-31' }, opties: {}, deel: 'sales' });
+  for (const veld of ['van', 'tot']) assert.ok(h.includes(`data-wijzig="dashboard-filter" data-arg="${veld}"`), veld);
+  for (const veld of ['technieker', 'type', 'herhaalDagen']) assert.ok(!h.includes(`data-arg="${veld}"`), veld);
+  assert.ok(!h.includes('Alle techniekers'));
+  assert.equal((h.match(/<div class="filterrij"/g) || []).length, 1);
+  assert.ok(h.endsWith('</div>'));
+});

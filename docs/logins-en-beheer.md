@@ -6,13 +6,14 @@ Dit document is voor Brent. Het legt in gewone taal uit wat je moet instellen en
 
 - Iedereen logt in met een e-mailadres en een wachtwoord.
 - Er zijn vier rollen: beheerder, planner, technieker en sales.
-- Alleen de beheerder ziet de tab Beheer. Daar maak je gebruikers aan, pas je instellingen aan en bekijk je wat er gebeurd is.
+- De beheerder ziet de volledige tab Beheer. Daar maak je gebruikers aan, pas je instellingen aan en bekijk je wat er gebeurd is.
+- Een planner en een sales manager zien ook de tab Beheer, maar enkel met de onderdelen **Instellingen** en **Performance**. De rest is voor hen onzichtbaar en de server weigert hun verzoeken (zie "Wie ziet wat in Beheer" hieronder).
 - Een sessie blijft 30 dagen geldig. Daarna moet je opnieuw inloggen.
 - Na vijf foute pogingen wordt het account tijdelijk vergrendeld.
 
 ## Wie mag wat (kort)
 
-Een planner past de instellingen van techniekers aan en elke wijziging staat in het activiteitenlog. De beheerder past alle instellingen aan. Sales en technieker passen enkel hun eigen instellingen aan.
+Een planner past de instellingen van techniekers aan (in Beheer, Instellingen) en elke wijziging staat in het activiteitenlog. Een sales manager doet hetzelfde voor verkopers. De beheerder past alle instellingen aan. Een gewone verkoper en een technieker passen enkel hun eigen instellingen aan. Het tandwiel (⚙) in de kop toont voor iedereen enkel de eigen instellingen.
 
 Een technieker ziet de tickets en afspraken van collega's, maar alleen om te lezen. De knoppen Aankomst, Foto's en Rapport staan enkel bij eigen werk. Planners en beheerders zien die knoppen overal.
 
@@ -133,10 +134,24 @@ Dit is voor het geval je geen werkend wachtwoord meer hebt en ook geen herstelco
 
 Wie in Netlify kan, kan alles instellen. Zet daarom tweestapsverificatie aan op je eigen Netlify-account (in je Netlify-profiel onder Security). Dat is dringend aan te raden.
 
+## Wie ziet wat in Beheer
+
+| Onderdeel van Beheer | Beheerder | Planner | Sales manager | Gewone verkoper, technieker |
+|---|---|---|---|---|
+| Gebruikers, Activiteitenlog, Systeemstatus | ja | nee | nee | geen Beheer |
+| Instellingen | van iedereen | van techniekers (en de eigen) | van verkopers (en de eigen) | geen Beheer |
+| Performance | alles | enkel het techniekers-deel (geen sales) | enkel het sales-deel (geen techniekercijfers of kosten) | geen Beheer |
+| Kleurgrenzen van de ringen aanpassen | ja | nee | nee | nee |
+
+- De lijst met gebruikers in Instellingen is voor een planner beperkt tot techniekers en hemzelf, voor een sales manager tot verkopers: enkel naam, rol en of het account actief is. Nooit een e-mailadres.
+- Wijzigt een planner of sales manager de instellingen van een ander, dan staat dat (enkel de veldnamen, niet de waarden) in het activiteitenlog.
+- Een planner of sales manager die bij een vorig bezoek op een onderdeel stond dat hij niet (meer) mag zien, komt op Instellingen terecht.
+
 ## Wat de beheerpagina toont
 
 - **Gebruikers:** wie een account heeft, met rol en laatste login, en de knoppen hierboven.
-- **Instellingen:** de instellingen van de gebruikers.
+- **Instellingen:** de instellingen van de gebruikers (planner: techniekers; sales manager: verkopers).
+- **Performance:** het dashboard met cijfers over tijd, kwaliteit, onderdelen, klant en sales. De planner en de sales manager zien elk hun eigen deel.
 - **Activiteitenlog:** wie wat deed en wanneer: inloggen, foute pogingen, wijzigingen van gebruikers en instellingen, foto's, notities en rapporten. Het log wordt 12 maanden bewaard.
 - **Systeemstatus:** of de verbinding met Zoho werkt, de laatste fouten van de app en rapporten die niet verwerkt raakten.
 
@@ -148,7 +163,7 @@ De sales-planner is het deel van de app waarmee een verkoper zijn eigen bezoeken
 
 1. Open Beheer, dan Gebruikers, en klik op Nieuwe gebruiker. Kies de rol Sales.
 2. Vul het veld **Naam in export** in: precies de naam die als verantwoordelijke in het exportbestand van zijn leadlijst staat. De app gebruikt die naam om te waarschuwen als iemand per vergissing de export van een collega inlaadt (dat kan nog, na een bevestiging). Zonder die naam kan je geen verkoper aanmaken.
-3. Vink **Mag alle sales zien** enkel aan voor wie de leads van collega's moet kunnen bekijken (bijvoorbeeld een verkoopsverantwoordelijke). Hij kan dan een collega uit een lijst kiezen en ziet diens leads, maar alleen om te lezen: hij kan niets verwijderen, plannen of inladen voor een ander. Zonder het vinkje ziet een verkoper uitsluitend zijn eigen leads.
+3. Vink **Sales manager** enkel aan voor wie de leads van collega's moet kunnen bekijken (bijvoorbeeld een verkoopsverantwoordelijke). Hij kan dan een collega uit een lijst kiezen en ziet diens leads, maar alleen om te lezen: hij kan niets verwijderen, plannen of inladen voor een ander. Daarnaast krijgt hij de tab Beheer met Instellingen (de instellingen van verkopers aanpassen) en Performance (enkel het sales-deel). Zonder het vinkje ziet een verkoper uitsluitend zijn eigen leads en heeft hij geen Beheer.
 4. Geef het startwachtwoord persoonlijk door, zoals bij elke gebruiker.
 
 Een verkoper ziet enkel de vier tabs Leads, Kalender, Route en Afgewerkt. Planners en techniekers zien niets van sales, en de server weigert hun verzoeken. Jij ziet als beheerder één tab **Sales** met dezelfde vier onderdelen en een lijst om een verkoper te kiezen. Je mag er iets wijzigen en met **+ Lead** een lead toevoegen voor de gekozen verkoper (dat staat in het activiteitenlog), maar je kan geen export inladen: dat doet de verkoper zelf.
@@ -174,7 +189,7 @@ Klik op **+ Lead** in de tab Leads en vul minstens de naam, een gsm of e-mailadr
 
 **Eigen instellingen**
 
-Een verkoper stelt zijn startadres, werkuren, laatste start en bezoekduur zelf in met de knop Instellingen. Als beheerder doe je dat voor een verkoper via Beheer, Instellingen.
+Een verkoper stelt zijn startadres, werkuren, laatste start en bezoekduur zelf in met de knop Instellingen. Als beheerder (of sales manager) doe je dat voor een verkoper via Beheer, Instellingen.
 
 ## Een paar dingen om te weten
 
