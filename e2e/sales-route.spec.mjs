@@ -215,6 +215,30 @@ test.describe('sales: route en kaart', () => {
     await expect(page.locator('.sales-overlay.open .mhdr-title')).toHaveText('Resultaat — Test Peeters');
   });
 
+  test('AT S8: na een resultaat blijft "Resultaat bewaard" staan (geen "Route herberekend") en toont de dag dat er een bezoek afgewerkt is', async ({ page, verzoeken }) => {
+    await startSalesApp(page, { leads: DRIE() });
+    await naarRoute(page);
+    await expect(rijen(page)).toHaveCount(3);
+    await expect.poll(() => verzoeken.van('/api/route', 'POST').length).toBeGreaterThanOrEqual(1);
+    const routesVoor = verzoeken.van('/api/route', 'POST').length;
+    await rijen(page).nth(1).getByRole('button', { name: /Resultaat/ }).click();
+    await page.locator('.sales-overlay.open').getByRole('button', { name: 'Verkocht', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('Resultaat bewaard: Verkocht');
+    await expect(rijen(page)).toHaveCount(2);
+    await expect.poll(() => verzoeken.van('/api/route', 'POST').length).toBeGreaterThan(routesVoor); // de route is herberekend...
+    await expect(page.locator('#toast')).toContainText('Resultaat bewaard: Verkocht'); // ...maar overschrijft de bevestiging niet
+    await expect(page.locator('#toast')).not.toContainText('Route herberekend');
+    await expect(route(page).locator('.sales-route-melding')).toBeHidden();
+    await expect(route(page).locator('.sales-route-samenvatting')).toContainText('✓ 1 afgewerkt');
+    // Alles afgewerkt: de lege dag zegt dat er bezoeken afgewerkt zijn en waar ze staan.
+    for (let i = 0; i < 2; i++) {
+      await rijen(page).first().getByRole('button', { name: /Resultaat/ }).click();
+      await page.locator('.sales-overlay.open').getByRole('button', { name: 'Geen interesse', exact: true }).click();
+      if (i === 0) await expect(rijen(page)).toHaveCount(1);
+    }
+    await expect(route(page).locator('.sales-route-leeg')).toContainText('Geen bezoeken op deze dag · ✓ 3 afgewerkt');
+  });
+
   test('leadgegevens worden nooit als HTML getoond (lijst en popup)', async ({ page }) => {
     await startSalesApp(page, { leads: [plan('l1', '<img src=x onerror="window.__pwned=1">', '09:00')] });
     await naarRoute(page);
