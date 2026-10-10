@@ -431,12 +431,15 @@ async function planRonde(invoer, { startKeuze = {}, geheugen = new Map() } = {})
   const waarschuwingen = [];
   if (geschatIds.size) waarschuwingen.push({ soort: 'reistijd-geschat', ticketIds: [...geschatIds] });
   if (onbekendIds.size) waarschuwingen.push({ soort: 'locatie-onbekend', ticketIds: [...onbekendIds] });
-  return { geplaatst, nietGepland, waarschuwingen, starterKansen, ruimteDagen: [...ruimteDagen], startKeuze };
+  // Som van de voorrang van de geplaatste tickets: de herverdeling in planWeek mag geen dringend ticket inruilen voor meerdere minder dringende.
+  const kandidaatVan = new Map(kandidaten.map(t => [t.id, t]));
+  const voorrangSom = geplaatst.reduce((som, g) => som + voorrang(kandidaatVan.get(g.ticketId), vandaag), 0);
+  return { geplaatst, nietGepland, waarschuwingen, starterKansen, ruimteDagen: [...ruimteDagen], startKeuze, voorrangSom };
 }
 
 // Het planner-brein. Eerst één ronde (greedy per dag). Blijven er daarna leads liggen terwijl een lege dag, geopend door één verre lead,
 // nog plaats had, dan probeert het brein die dag met een andere starter (een van de blijvers) en neemt het de uitkomst over als er meer
-// leads door geplaatst worden. Vaste/bevestigde bezoeken (bestaandPerDag, eigen afspraken, blokkeringen) staan in elke ronde ongewijzigd vast.
+// leads door geplaatst worden EN de som van hun voorrang niet lager ligt (twee lage verdringen nooit één zeer dringend ticket). Vaste/bevestigde bezoeken (bestaandPerDag, eigen afspraken, blokkeringen) staan in elke ronde ongewijzigd vast.
 const MAX_HERVERDELING_RONDES = 3;  // opeenvolgende verbeteringen
 const MAX_HERVERDELING_POGINGEN = 12; // extra plannen per planWeek-aanroep (houdt het aantal reistijd-opvragingen beperkt)
 export async function planWeek(invoer) {
@@ -451,7 +454,8 @@ export async function planWeek(invoer) {
         if (!blijvers.has(id) || pogingen >= MAX_HERVERDELING_POGINGEN) continue;
         pogingen++;
         const r = await planRonde(invoer, { geheugen, startKeuze: { ...beste.startKeuze, [dag]: id } });
-        if (r.geplaatst.length > (beter || beste).geplaatst.length) beter = r;
+        const ref = beter || beste;
+        if (r.geplaatst.length > ref.geplaatst.length && r.voorrangSom >= beste.voorrangSom - 1e-9) beter = r;
       }
     }
     if (!beter) break;

@@ -77,3 +77,13 @@ test('herverdeling: de reistijd-functie wordt niet onnodig vaak aangeroepen', as
   ], { reistijden: geteld }));
   assert.ok(n < 40, `te veel aanroepen: ${n}`);
 });
+
+test('herverdeling: een lead met veel hogere voorrang blijft geplaatst; twee lage verdringen hem niet (herverdeling niet overgenomen)', async () => {
+  // Kinrooi: High + al 3 weken in planning (voorrang 4,5). De twee anderen: Low (1 + 1 = 2) — samen minder dan Kinrooi.
+  const u = await planWeek(maak([
+    lead('kinrooi', 1, 'High', KINROOI, { inPlanningSinds: '2026-09-21' }),
+    lead('rotselaar', 2, 'Low', ROTSELAAR), lead('truiden', 3, 'Low', SINT_TRUIDEN),
+  ]));
+  assert.deepEqual(ids(u), ['kinrooi']);
+  assert.deepEqual(u.nietGepland.map(n => n.ticketId).sort(), ['rotselaar', 'truiden']);
+});
