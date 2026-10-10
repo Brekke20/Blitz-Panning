@@ -100,7 +100,7 @@ test.describe('sales: rollen en isolatie', () => {
     expect(JSON.stringify(nu.body)).not.toContain('binnengeglipt');
   });
 
-  test('(d) beheerder: één tab "Sales" met subtabs en verkoperkeuze; mag schrijven (✕, Plan deze week) maar heeft geen Export laden', async ({ page }) => {
+  test('(d) beheerder: één tab "Sales" met subtabs en verkoperkeuze; mag schrijven (✕, Plan deze week, + Lead) maar heeft geen Export laden', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER, blobs: BEA_BLOB });
     await tab(page, 'Sales').click();
     const subs = page.getByRole('tablist', { name: 'Sales-onderdelen' });
@@ -112,7 +112,7 @@ test.describe('sales: rollen en isolatie', () => {
     await expect(lijst(page).locator('.sales-alleen-lezen')).toBeHidden(); // schrijfbaar
     await expect(lijst(page).locator('.sales-kaart-wis')).toHaveCount(2);
     await expect(lijst(page).getByRole('button', { name: 'Export laden' })).toHaveCount(0);
-    await expect(lijst(page).getByRole('button', { name: '+ Lead' })).toHaveCount(0);
+    await expect(lijst(page).getByRole('button', { name: '+ Lead' })).toHaveCount(1);
 
     await subs.getByRole('tab', { name: 'Kalender' }).click();
     await expect(page.locator('#view-sales-kalender .sales-kal')).toBeVisible();
@@ -134,6 +134,7 @@ test.describe('sales: rollen en isolatie', () => {
     await expect(lijst(page).locator('.sales-kaart', { hasText: 'Smeets' })).toBeVisible();
     await expect(lijst(page).locator('.sales-alleen-lezen')).toBeVisible();   // alleen lezen
     await expect(lijst(page).locator('.sales-kaart-wis')).toHaveCount(0);      // geen ✕
+    await expect(lijst(page).getByRole('button', { name: '+ Lead' })).toHaveCount(0); // en geen "+ Lead"
     await page.getByRole('tablist', { name: 'Sales-onderdelen' }).getByRole('tab', { name: 'Kalender' }).click();
     await expect(page.locator('#view-sales-kalender .sales-kal')).toBeVisible();
     await expect(page.locator('#view-sales-kalender').getByRole('button', { name: /Plan deze week/ })).toHaveCount(0); // geen ⚡ bij alleen lezen

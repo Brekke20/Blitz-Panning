@@ -58,6 +58,13 @@ export function kanImporteren() {
   return heeftRol('sales') && Boolean(ik) && getoondeVerkoper().id === ik.id;
 }
 
+/** "+ Lead": de verkoper bij zijn eigen leads, of de beheerder bij een geselecteerde, niet geblokkeerde verkoper (de server dwingt dat af). */
+export function kanLeadToevoegen() {
+  if (kanImporteren()) return true;
+  const id = getoondeVerkoper().id;
+  return heeftRol('beheerder') && Boolean(id) && schrijfbaarVoor(id);
+}
+
 /**
  * Tekent de verkoperbalk in `container` (leeg voor een gewone verkoper). De keuzelijst staat er enkel voor beheerder of sales met magAlleSales.
  * `onWijzig(gebruikerId, schrijfbaar)` na een keuze van de gebruiker. Wacht op de lijst, zodat `getoondeVerkoper()` daarna klopt.
