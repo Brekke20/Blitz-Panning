@@ -79,7 +79,9 @@ export function bouwDagen({ weekStart, vandaag, werkdagen, uitgesloten, voorkeur
   return { dagen, extraVoor };
 }
 
-export async function planWeek(invoer) {
+// Eén planronde. `opties.startKeuze` = { dag: ticketId }: op die (lege) dag wordt dit ticket als starter geprobeerd i.p.v. de lead met de
+// hoogste voorrang (zie planWeek hieronder); `opties.geheugen` = het gedeelde reistijdgeheugen van alle rondes van één planWeek-aanroep.
+async function planRonde(invoer, { startKeuze = {}, geheugen = new Map() } = {}) {
   const {
     kandidaten, dagen, extraVoor = {}, bestaandPerDag = {}, eigenAfspraken = {}, klant = {},
     instellingen, depot, vandaag, reistijden, blokkeringen = {}, reisMarge = null,
@@ -100,7 +102,6 @@ export async function planWeek(invoer) {
   // Reistijdgeheugen (4.1): per planWeek-aanroep, sleutel `${van.lat},${van.lon}|${naar.id}|${vertrekkwartier}`.
   // Alleen ontbrekende sleutels gaan naar `reistijden`. Een ontbrekende of ongeldige waarde (null, geen Map,
   // gooit) wordt de schatting km x 1,3 (R6) met markering `geschat`; er is geen fail-open meer.
-  const geheugen = new Map(); // sleutel -> { min, geschat }
   const heeftLoc = x => !!(x && x.lat && x.lon);
   async function reistijdenVan(van, cands, dag, vertrekMin) {
     const uit = new Map();
@@ -134,7 +135,9 @@ export async function planWeek(invoer) {
     const huidig = redenVan.get(id);
     if (!huidig || REDEN_RANG.indexOf(reden) < REDEN_RANG.indexOf(huidig)) redenVan.set(id, reden);
   };
-  const legeDagGehad = new Set(); // tickets die op een nog lege dag kans op de starterplaats kregen
+  const legeDagGehad = new Set(); // tickets die op een nog lege dag kans op de starterplaats kregen, op een dag die daarna vol zat
+  const starterKansen = {};       // dag -> ids die op die dag als starter kwamen te vallen (voor de herverdeling in planWeek)
+  const ruimteDagen = new Set();  // lege (starter)dagen die met plaats over eindigden
 
   // Tijdlijn-hulp (3.3): vaste blokken van een dag als { s, e, lat, lon, stop, id } in minuten.
   // `stop` = een echte stop in de keten (bestaand ticket, of eigen afspraak met locatie); blokkeringen niet.
@@ -188,6 +191,7 @@ export async function planWeek(invoer) {
     let ketenLoc = keten.some(heeftLoc);
     // 3.4: heeft de dag minstens één stop met gekende locatie? Zo niet, dan geldt hij als leeg.
     const dagHeeftLocatie = () => ketenLoc || blokken.some(b => b.stop && heeftLoc(b));
+    const dagStarterIds = new Set(); // tickets die op deze dag in de starter-pool zaten
 
     // Op een extra dag mogen enkel de tickets uit extraVoor[datum]; klant-, voorkeursdag-uitsluitingen.
     const toegelaten = t => {
@@ -341,8 +345,9 @@ export async function planWeek(invoer) {
         if (voorkeurFase) {
           fillPool.sort((a, b) => (vr.get(b.id) - vr.get(a.id)) || (reisMin(a) - reisMin(b)) || nummer(a, b));
         } else if (starter) {
-          fillPool.forEach(t => legeDagGehad.add(t.id));
-          fillPool.sort((a, b) => (vr.get(b.id) - vr.get(a.id)) || (reisMin(a) - reisMin(b)) || nummer(a, b));
+          fillPool.forEach(t => dagStarterIds.add(t.id));
+          const gewenst = startKeuze[dag];
+          fillPool.sort((a, b) => ((b.id === gewenst) - (a.id === gewenst)) || (vr.get(b.id) - vr.get(a.id)) || (reisMin(a) - reisMin(b)) || nummer(a, b));
         } else {
           const score = c => reisMin(c) / vr.get(c.id);
           fillPool.sort((a, b) => (score(a) - score(b)) || (vr.get(b.id) - vr.get(a.id)) || nummer(a, b));
@@ -402,6 +407,11 @@ export async function planWeek(invoer) {
       pool.splice(pool.indexOf(t), 1);
     }
     await vul(false);
+    if (dagStarterIds.size) {
+      starterKansen[dag] = [...dagStarterIds];
+      // Zat de dag vol, dan was de week gewoon vol voor wie hier kans kreeg; anders is er plaats over (kandidaat voor herverdeling).
+      if (aantal >= maxPerDag) dagStarterIds.forEach(id => legeDagGehad.add(id)); else ruimteDagen.add(dag);
+    }
 
     dagGeplaatst.sort((a, b) => a.aank - b.aank)
       .forEach(({ t, aank }) => geplaatst.push({ ticketId: t.id, datum: dag, verwachteAankomst: minNaarUur(aank) }));
@@ -421,6 +431,33 @@ export async function planWeek(invoer) {
   const waarschuwingen = [];
   if (geschatIds.size) waarschuwingen.push({ soort: 'reistijd-geschat', ticketIds: [...geschatIds] });
   if (onbekendIds.size) waarschuwingen.push({ soort: 'locatie-onbekend', ticketIds: [...onbekendIds] });
+  return { geplaatst, nietGepland, waarschuwingen, starterKansen, ruimteDagen: [...ruimteDagen], startKeuze };
+}
+
+// Het planner-brein. Eerst één ronde (greedy per dag). Blijven er daarna leads liggen terwijl een lege dag, geopend door één verre lead,
+// nog plaats had, dan probeert het brein die dag met een andere starter (een van de blijvers) en neemt het de uitkomst over als er meer
+// leads door geplaatst worden. Vaste/bevestigde bezoeken (bestaandPerDag, eigen afspraken, blokkeringen) staan in elke ronde ongewijzigd vast.
+const MAX_HERVERDELING_RONDES = 3;  // opeenvolgende verbeteringen
+const MAX_HERVERDELING_POGINGEN = 12; // extra plannen per planWeek-aanroep (houdt het aantal reistijd-opvragingen beperkt)
+export async function planWeek(invoer) {
+  const geheugen = new Map();
+  let beste = await planRonde(invoer, { geheugen });
+  let pogingen = 0;
+  for (let ronde = 0; ronde < MAX_HERVERDELING_RONDES; ronde++) {
+    const blijvers = new Set(beste.nietGepland.map(n => n.ticketId));
+    let beter = null;
+    for (const dag of beste.ruimteDagen) {
+      for (const id of (beste.starterKansen[dag] || [])) {
+        if (!blijvers.has(id) || pogingen >= MAX_HERVERDELING_POGINGEN) continue;
+        pogingen++;
+        const r = await planRonde(invoer, { geheugen, startKeuze: { ...beste.startKeuze, [dag]: id } });
+        if (r.geplaatst.length > (beter || beste).geplaatst.length) beter = r;
+      }
+    }
+    if (!beter) break;
+    beste = beter;
+  }
+  const { geplaatst, nietGepland, waarschuwingen } = beste;
   return { geplaatst, nietGepland, waarschuwingen };
 }
 
