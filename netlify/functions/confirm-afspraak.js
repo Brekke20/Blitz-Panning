@@ -13,6 +13,7 @@
 import { getStore } from '@netlify/blobs';
 import { controleerLink, datumInBrussel, bevestigingsNotitie } from '../lib/bevestigingslink.js';
 import { markeerBevestigd } from '../lib/voorstelregister.js';
+import { maakZoho } from '../lib/zoho.js';
 
 const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
@@ -28,46 +29,8 @@ function corsHeaders(req) {
   };
 }
 
-// ── Zoho Desk (letterlijk gekopieerd uit propose.js — dit project deelt geen module
-// tussen netlify/functions/*.js-bestanden, elke functie dupliceert dit patroon zelf) ──────────
-const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
-const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
-
-let cachedToken = null;
-let tokenExpiry  = 0;
-
-async function getAccessToken() {
-  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-  const params = new URLSearchParams({
-    refresh_token: process.env.ZOHO_REFRESH_TOKEN,
-    client_id:     process.env.ZOHO_CLIENT_ID,
-    client_secret: process.env.ZOHO_CLIENT_SECRET,
-    grant_type:    'refresh_token',
-  });
-  const res  = await fetch(ZOHO_ACCOUNTS, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params,
-  });
-  const data = await res.json();
-  if (!data.access_token) throw new Error('Token refresh mislukt: ' + JSON.stringify(data));
-  cachedToken = data.access_token;
-  tokenExpiry = Date.now() + 55 * 60 * 1000;
-  return cachedToken;
-}
-
-async function getOrgId(accessToken) {
-  // propose.js haalt de org-id inline op (geen aparte functienaam in dat bestand, zie
-  // regels 185-190) -- hier als kleine lokale helper met dezelfde exacte fetch/headers,
-  // zodat de aanroep in het POST-pad hieronder leesbaar blijft.
-  const orgRes  = await fetch(`${ZOHO_DESK}/organizations`, {
-    headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-  });
-  const orgData = await orgRes.json();
-  const orgId   = orgData.data?.[0]?.id;
-  if (!orgId) throw new Error('Zoho org ID niet gevonden');
-  return orgId;
-}
+// ── Zoho Desk (gedeelde onderdelen in ../lib/zoho.js; tokencache per module-instantie) ─────────
+const zoho = maakZoho();
 
 // ── HMAC-token ────────────────────────────────────────────────────────────────────────────────
 // Ondertekenen en controleren gebeuren in de gedeelde module bevestigingslink.js (dezelfde als
@@ -123,14 +86,8 @@ async function addZohoComment(ticketId, accessToken, orgId, content) {
   // timeout) -- mag de klant nooit een "Er ging iets mis"-pagina tonen voor iets dat in
   // werkelijkheid wel gelukt is. Deze functie mag dus nooit méér doen dan loggen.
   try {
-    const res = await fetch(`${ZOHO_DESK}/tickets/${ticketId}/comments`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Zoho-oauthtoken ${accessToken}`,
-        orgId,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ content, isPublic: false }),
+    const res = await zoho.verzoek(`/tickets/${ticketId}/comments`, {
+      token: accessToken, orgId, methode: 'POST', json: { content, isPublic: false },
     });
     if (!res.ok) {
       const errBody = await res.text().catch(() => '');
@@ -211,8 +168,7 @@ export default async (req) => {
 
   // Vanaf hier: enkel bereikbaar via de POST die de "Ja, ik bevestig"-knop verstuurt.
   try {
-    const accessToken = await getAccessToken();
-    const orgId = await getOrgId(accessToken);
+    const { token: accessToken, orgId } = await zoho.haalToegang();
 
     // Fix 4, deel B (finale review): status van het ticket controleren vóór de PATCH. Een
     // ondertekende link blijft 14 dagen geldig, ongeacht wat er intussen met het ticket gebeurd
@@ -226,9 +182,7 @@ export default async (req) => {
     let ticketData = null;
     let statusCheckFailed = false;
     try {
-      const statusRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
-        headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
-      });
+      const statusRes = await zoho.verzoek(`/tickets/${ticketId}`, { token: accessToken, orgId });
       if (statusRes.ok) {
         const statusData = await statusRes.json();
         ticketData = statusData;
@@ -257,14 +211,8 @@ export default async (req) => {
       }), { status: 409, headers });
     }
 
-    const patchRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Zoho-oauthtoken ${accessToken}`,
-        orgId,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ status: 'Geplande support' }),
+    const patchRes = await zoho.verzoek(`/tickets/${ticketId}`, {
+      token: accessToken, orgId, methode: 'PATCH', json: { status: 'Geplande support' },
     });
     if (!patchRes.ok) {
       const errBody = await patchRes.text().catch(() => '');

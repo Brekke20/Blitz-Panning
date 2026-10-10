@@ -1,0 +1,154 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+process.env.TZ = 'Europe/Brussels';
+import { bouwKalenderItems, maandChips, tintVan, eersteWerkdag } from '../public/js/schermen/sales-kalender-logica.js';
+import { bepaalLanes } from '../public/js/schermen/kalender-logica.js';
+
+// Verzonnen leads en blokken.
+const lead = (id, status, datum, start, extra = {}) => ({
+  id, voornaam: 'Marie', naam: 'Janssens ' + id, postcode: '3500', gemeente: 'Hasselt', status,
+  ...(datum ? { planning: { datum, start, vast: status === 'bevestigd' } } : {}), ...extra,
+});
+const DAG = '2026-10-12';
+
+test('tintVan: bevestigd bij isVast, anders voorgesteld', () => {
+  assert.equal(tintVan(lead('a', 'voorgesteld', DAG, '09:00')), 'voorgesteld');
+  assert.equal(tintVan(lead('b', 'bevestigd', DAG, '09:00')), 'bevestigd');
+  assert.equal(tintVan(lead('c', 'voorgesteld', DAG, '09:00', { planning: { datum: DAG, start: '09:00', vast: true } })), 'bevestigd');
+});
+
+test('bouwKalenderItems: enkel voorgesteld en bevestigd van die dag, plus blokken van die dag', () => {
+  const leads = [
+    lead('v', 'voorgesteld', DAG, '09:00'),
+    lead('b', 'bevestigd', DAG, '14:00'),
+    lead('tp', 'te-plannen'),
+    lead('af', 'afgewerkt', null, null, { resultaat: { soort: 'offerte', op: '2026-10-01T10:00:00.000Z' } }),
+    lead('anders', 'voorgesteld', '2026-10-13', '09:00'),
+  ];
+  const blokken = [
+    { id: 'k', datum: DAG, start: '11:00', eind: '12:00', soort: 'kantoor', omschrijving: 'Teamoverleg' },
+    { id: 'x', datum: '2026-10-14', start: '11:00', eind: '12:00', soort: 'kantoor' },
+  ];
+  const items = bouwKalenderItems({ leads, blokken, datum: DAG, standaardDuurMin: 60 });
+  assert.deepEqual(items.map((i) => i.id), ['v', 'k', 'b']);
+  assert.deepEqual(items.map((i) => i.type), ['bezoek', 'blok', 'bezoek']);
+});
+
+test('bouwKalenderItems: tint, titel en eindtijd uit duurMin of standaard', () => {
+  const leads = [lead('v', 'voorgesteld', DAG, '09:00'), lead('b', 'bevestigd', DAG, '14:00', { duurMin: 90 })];
+  const [v, b] = bouwKalenderItems({ leads, blokken: [], datum: DAG, standaardDuurMin: 45 });
+  assert.equal(v.tint, 'voorgesteld');
+  assert.equal(v.titel, 'Marie Janssens v');
+  assert.equal(v.startMin, 540);
+  assert.equal(v.endMin, 585);       // standaard 45
+  assert.equal(b.tint, 'bevestigd');
+  assert.equal(b.startMin, 840);
+  assert.equal(b.endMin, 930);       // duurMin 90
+});
+
+test('bouwKalenderItems: een hele-dag blok loopt van 0 tot 1440', () => {
+  const blokken = [{ id: 'v', datum: DAG, start: '00:00', eind: '23:59', soort: 'verlof' }];
+  const [item] = bouwKalenderItems({ leads: [], blokken, datum: DAG, standaardDuurMin: 60 });
+  assert.equal(item.startMin, 0);
+  assert.equal(item.endMin, 1440);
+  assert.equal(item.heleDag, true);
+  assert.equal(item.titel, 'Verlof');
+});
+
+test('bouwKalenderItems: gewone blokken, titel uit omschrijving of soort', () => {
+  const blokken = [
+    { id: 'a', datum: DAG, start: '10:00', eind: '11:30', soort: 'afspraak', omschrijving: 'Tandarts' },
+    { id: 'b', datum: DAG, start: '13:00', eind: '14:00', soort: 'kantoor' },
+  ];
+  const items = bouwKalenderItems({ leads: [], blokken, datum: DAG, standaardDuurMin: 60 });
+  assert.deepEqual(items.map((i) => [i.titel, i.startMin, i.endMin, i.heleDag]), [['Tandarts', 600, 690, false], ['Kantoor', 780, 840, false]]);
+  assert.ok(items.every((i) => i.tint === 'blok'));
+});
+
+test('bouwKalenderItems: de uitvoer gaat ongewijzigd door bepaalLanes', () => {
+  const leads = [lead('a', 'voorgesteld', DAG, '09:00'), lead('b', 'bevestigd', DAG, '09:30')];
+  const items = bepaalLanes(bouwKalenderItems({ leads, blokken: [], datum: DAG, standaardDuurMin: 60 }));
+  assert.equal(items.length, 2);
+  assert.ok(items.every((i) => i.laneCount === 2));
+  assert.deepEqual(items.map((i) => i.lane).sort(), [0, 1]);
+});
+
+test('bouwKalenderItems: lead zonder planning of uur wordt overgeslagen, ontbrekende lijsten zijn leeg', () => {
+  const kapot = lead('k', 'voorgesteld', null, null);
+  assert.deepEqual(bouwKalenderItems({ leads: [kapot], blokken: undefined, datum: DAG, standaardDuurMin: 60 }), []);
+  assert.deepEqual(bouwKalenderItems({ datum: DAG, standaardDuurMin: 60 }), []);
+});
+
+test('maandChips: groepeert per datum, op uur gesorteerd, enkel binnen het maandraster', () => {
+  const leads = [
+    lead('b', 'bevestigd', '2026-10-12', '14:00'),
+    lead('v', 'voorgesteld', '2026-10-12', '09:00'),
+    lead('o', 'voorgesteld', '2026-10-20', '10:00'),
+    lead('ver', 'voorgesteld', '2027-03-01', '10:00'),   // buiten het raster van oktober
+    lead('tp', 'te-plannen'),
+  ];
+  const blokken = [
+    { id: 'h', datum: '2026-10-12', start: '00:00', eind: '23:59', soort: 'verlof' },
+    { id: 'k', datum: '2026-10-12', start: '11:00', eind: '12:00', soort: 'kantoor', omschrijving: 'Overleg' },
+  ];
+  const chips = maandChips({ leads, blokken, datum: '2026-10-08' });
+  assert.deepEqual(Object.keys(chips).sort(), ['2026-10-12', '2026-10-20']);
+  assert.deepEqual(chips['2026-10-12'], [
+    { label: 'Verlof', tint: 'blok' },
+    { label: '09:00 Marie Janssens v', tint: 'voorgesteld' },
+    { label: '11:00 Overleg', tint: 'blok' },
+    { label: '14:00 Marie Janssens b', tint: 'bevestigd' },
+  ]);
+  assert.deepEqual(chips['2026-10-20'], [{ label: '10:00 Marie Janssens o', tint: 'voorgesteld' }]);
+});
+
+test('maandChips: leeg zonder leads en blokken', () => {
+  assert.deepEqual(maandChips({ datum: '2026-10-08' }), {});
+});
+
+// ---- Task 16: weekdagen en navigatie ----
+import { weekDagen, navigatieAdres, navigatieLink } from '../public/js/schermen/sales-kalender-logica.js';
+
+test('weekDagen: de werkdagen van de week van de gekozen dag, ma tot zo gesorteerd', () => {
+  assert.deepEqual(weekDagen({ gekozen: '2026-10-08', werkdagen: [1, 2, 3, 4, 5] }),
+    ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09']);
+  assert.deepEqual(weekDagen({ gekozen: '2026-10-11', werkdagen: [1, 3] }), ['2026-10-05', '2026-10-07']); // zondag hoort bij de week van maandag
+});
+
+test('weekDagen: een dag buiten de werkdagen met een bezoek of blok verschijnt toch', () => {
+  const leads = [lead('z', 'bevestigd', '2026-10-10', '10:00')];
+  const blokken = [{ id: 'b', datum: '2026-10-11', start: '00:00', eind: '23:59', soort: 'verlof' }];
+  assert.deepEqual(weekDagen({ gekozen: '2026-10-05', werkdagen: [1, 2, 3, 4, 5], leads, blokken }),
+    ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11']);
+});
+
+test('weekDagen: zonder werkdagen valt hij terug op ma-vr', () => {
+  assert.equal(weekDagen({ gekozen: '2026-10-05', werkdagen: [] }).length, 5);
+  assert.equal(weekDagen({ gekozen: '2026-10-05' }).length, 5);
+});
+
+test('navigatieAdres: volledig adres, anders postcode + gemeente, anders de vrije tekst, anders null', () => {
+  assert.equal(navigatieAdres({ straat: 'Teststraat', huisnr: '5', postcode: '2830', gemeente: 'Willebroek' }), 'Teststraat 5, 2830 Willebroek');
+  assert.equal(navigatieAdres({ postcode: '3500', gemeente: 'Hasselt' }), '3500 Hasselt');
+  assert.equal(navigatieAdres({ postcode: '3640' }), '3640');
+  assert.equal(navigatieAdres({ adresTekst: 'bij de oude molen' }), 'bij de oude molen');
+  assert.equal(navigatieAdres({ locatie: { lat: 50.9, lon: 5.3 } }), '50.9,5.3');
+  assert.equal(navigatieAdres({}), null);
+  assert.equal(navigatieAdres(null), null);
+});
+
+test('navigatieLink: geo: op Android, anders Google Maps (zoals navigate() in app.js)', () => {
+  assert.equal(navigatieLink('Teststraat 5, 2830 Willebroek', true), 'geo:0,0?q=Teststraat%205%2C%202830%20Willebroek');
+  assert.equal(navigatieLink('Teststraat 5, 2830 Willebroek', false),
+    'https://www.google.com/maps/dir/?api=1&destination=Teststraat%205%2C%202830%20Willebroek&travelmode=driving');
+  assert.equal(navigatieLink(null, true), null);
+});
+
+test('eersteWerkdag: een werkdag blijft, een weekenddag schuift naar maandag; eigen werkdagen en terugval ma-vr', () => {
+  assert.equal(eersteWerkdag('2026-10-09', [1, 2, 3, 4, 5]), '2026-10-09'); // vrijdag
+  assert.equal(eersteWerkdag('2026-10-10', [1, 2, 3, 4, 5]), '2026-10-12'); // zaterdag
+  assert.equal(eersteWerkdag('2026-10-11', [1, 2, 3, 4, 5]), '2026-10-12'); // zondag
+  assert.equal(eersteWerkdag('2026-10-10', [1, 2, 3, 4, 5, 6]), '2026-10-10'); // zaterdag is werkdag
+  assert.equal(eersteWerkdag('2026-10-10', undefined), '2026-10-12');
+  assert.equal(eersteWerkdag('2026-10-10', []), '2026-10-12');
+});

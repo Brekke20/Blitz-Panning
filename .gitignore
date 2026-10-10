@@ -8,3 +8,5 @@ tickets-response.json
 # Lokale verificatie-tooling (Netlify Blobs-emulatie), geen onderdeel van de app
 blobs-local-bootstrap.mjs
 .blobs-local-test/
+test-results/
+playwright-report/

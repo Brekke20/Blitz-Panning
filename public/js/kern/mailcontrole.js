@@ -1,0 +1,103 @@
+// kern/mailcontrole.js — na een onzeker resultaat (time-out, netwerkfout, 502/503/504) van een verzending naar de klant
+// nagaan of de mail al weg is (etappe 7, Q1). Puur: geen toast, geen DOM. De schermen tonen de tekst.
+// ENKEL LEZEN: één GET naar /api/mail-check (de server leest de uitgaande threads van het ticket in Zoho). Deze module
+// verstuurt niets en start nooit zelf een nieuwe verzending; wat de gebruiker daarna doet, blijft zijn keuze.
+// Elke uitkomst die niet zeker is (controle faalt, antwoord onleesbaar of onvolledig, mail maar deels weg) is 'onbekend'.
+import { apiVerzoek } from './api.js';
+
+export const TEKST_NIET_VERZONDEN = 'Mail is niet verzonden — je kan veilig opnieuw versturen';
+export const TEKST_ONZEKER = 'De klant kan al gemaild zijn — kijk dit na in Zoho voor je opnieuw verstuurt';
+
+const GELDIG_UUR = (iso) => typeof iso === 'string' && !Number.isNaN(Date.parse(iso));
+
+// hh:mm in Brusselse tijd (de tijd die de gebruiker ook in Zoho ziet).
+export function uurBrussel(iso) {
+  return new Intl.DateTimeFormat('nl-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit', hour12: false })
+    .format(new Date(iso)).replace(/^24:/, '00:');
+}
+
+// Zet het antwoord van /api/mail-check om in { uitkomst: 'verzonden' | 'niet-verzonden' | 'onbekend', verzonden: [{ aan, tijdstip }] }.
+// Enkel bij een gedeeltelijk resultaat (minstens één, niet alle verwachte adressen gevonden) komt er een extra veld `gevonden: [{ aan, tijdstip }]` bij.
+// `verwacht` = de adressen waarvan de oproeper weet dat ze de mail moesten krijgen (kan leeg zijn).
+export function beoordeelAntwoord(data, verwacht = []) {
+  const onbekend = { uitkomst: 'onbekend', verzonden: [] };
+  if (!data || typeof data !== 'object' || data.ok !== true || typeof data.verzonden !== 'boolean' || typeof data.twijfel !== 'boolean') return onbekend;
+  // twijfel: er is een uitgaande mail die niet te plaatsen was (onleesbaar adres, draft- of mislukte status): nooit "niet verzonden" melden.
+  const adressen = verwacht.map(a => String(a).toLowerCase());
+  if (adressen.length) {
+    const o = data.ontvangers;
+    if (!o || typeof o !== 'object') return onbekend;
+    const vonden = [];
+    for (const a of adressen) {
+      const e = o[a];
+      if (!e || typeof e.verzonden !== 'boolean') return onbekend;
+      if (e.verzonden) {
+        if (!GELDIG_UUR(e.tijdstip)) return onbekend;
+        vonden.push({ aan: a, tijdstip: e.tijdstip });
+      }
+    }
+    if (vonden.length === adressen.length) return { uitkomst: 'verzonden', verzonden: vonden };
+    if (vonden.length === 0) return data.twijfel ? onbekend : { uitkomst: 'niet-verzonden', verzonden: [] };
+    // maar een deel van de ontvangers kreeg de mail: geen zekere uitspraak, wel de gevonden ontvangers (B4: die worden aangevinkt)
+    return { uitkomst: 'onbekend', verzonden: [], gevonden: vonden };
+  }
+  if (!data.verzonden) return data.twijfel ? onbekend : { uitkomst: 'niet-verzonden', verzonden: [] };
+  const lijst = (Array.isArray(data.uitgaand) ? data.uitgaand : [])
+    .filter(u => u && GELDIG_UUR(u.tijdstip))
+    .map(u => ({ aan: typeof u.aan === 'string' ? u.aan : '', tijdstip: u.tijdstip }));
+  if (lijst.length) return { uitkomst: 'verzonden', verzonden: lijst };
+  return GELDIG_UUR(data.tijdstip) ? { uitkomst: 'verzonden', verzonden: [{ aan: '', tijdstip: data.tijdstip }] } : onbekend;
+}
+
+// Hoe lang de serverfunctie na het versturen nog kan doorwerken: propose, send-rapport en annuleer hebben `timeout = 26` (netlify.toml),
+// plus 4 s marge. Een snelle fout (TypeError na 1 s) bewijst dus niets: de mail kan nog tot ~26 s na de start vertrekken.
+export const SERVER_MAX_MS = 30000;
+export const TEKST_CONTROLEREN = 'Controleren of de mail al vertrokken is…';
+const ONBEKEND = () => ({ uitkomst: 'onbekend', verzonden: [] });
+const NU = () => performance.now();
+const WAND = () => Date.now();
+const WACHT = (ms) => new Promise(r => setTimeout(r, ms));
+
+// `start`: tijdstip (performance.now) vlak vóór de verzending (`startWand`: idem met Date.now); de client stuurt enkel de verstreken tijd (`verlopenMs`), nooit zijn eigen klok.
+// De server rekent met zijn eigen klok (I2). Gooit nooit: elke fout (netwerk, time-out, 4xx/5xx, onleesbaar antwoord) is 'onbekend'.
+// I1: "niet verzonden" geldt pas als de serverfunctie zeker klaar is (SERVER_MAX_MS na de start). Eerder: een tweede, enige controle na
+// die tijd. Ruling: eerst meteen controleren (een gevonden mail meldt je direct), pas bij "niet verzonden" wachten en één keer herhalen.
+// Een controle die zelf faalt blijft 'onbekend' (geen nieuwe poging). `nu`/`wacht` zijn injecteerbaar voor tests.
+// I1 (eindreview): performance.now() staat stil terwijl het toestel slaapt; Date.now() loopt door. `startWand` (Date.now vlak vóór de
+// verzending) vult hem aan: verlopen = max(beide verschillen), nooit negatief. Een kloksprong kan het venster enkel groter maken.
+export async function controleerMail({ ticketId, start, startWand, verwacht = [], nu = NU, wand = WAND, wacht = WACHT }) {
+  const verlopen = () => Math.max(0, nu() - start, typeof startWand === 'number' ? wand() - startWand : 0);
+  const eenmaal = async () => {
+    try {
+      const verlopenMs = Math.round(verlopen());
+      const params = new URLSearchParams({ ticketId: String(ticketId), verlopenMs: String(verlopenMs) });
+      if (verwacht.length) params.set('ontvangers', verwacht.join(','));
+      const r = await apiVerzoek('/api/mail-check?' + params);
+      return r.ok ? beoordeelAntwoord(r.data, verwacht) : ONBEKEND();
+    } catch {
+      return ONBEKEND();
+    }
+  };
+  let r = await eenmaal();
+  if (r.uitkomst !== 'niet-verzonden') return r;
+  const rest = SERVER_MAX_MS - verlopen();
+  if (rest <= 0) return r;
+  try { await wacht(rest); } catch { return ONBEKEND(); }
+  return eenmaal();
+}
+
+// De tekst die de gebruiker ziet bij een uitkomst (de drie teksten die Brent goedkeurde).
+export function mailControleTekst({ uitkomst, verzonden }) {
+  if (uitkomst === 'verzonden') {
+    return verzonden.map(v => `Mail is verzonden om ${uurBrussel(v.tijdstip)}${v.aan ? ` (${v.aan})` : ''}`).join('; ');
+  }
+  return uitkomst === 'niet-verzonden' ? TEKST_NIET_VERZONDEN : TEKST_ONZEKER;
+}
+
+// Staartje bij de melding als de oproeper de gevonden mail ook als "verzonden" probeert aan te vinken (B4).
+// soort: 'rapport' | 'voorstel'; stand: 'alles' (alles aangevinkt) | 'deel' (enkel wie de mail kreeg) | 'mislukt' (aanvinken lukte niet).
+export function mailControleAfsluiting(soort, stand) {
+  if (stand === 'alles') return ` — ${soort} als verzonden aangevinkt`;
+  if (stand === 'deel') return ' — voor wie de mail al kreeg is "verzonden" aangevinkt';
+  return ' — maar kon niet als verzonden aangevinkt worden (herlaad de pagina)';
+}

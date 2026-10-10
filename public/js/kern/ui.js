@@ -1,0 +1,125 @@
+// kern/ui.js — UI-hulpen (puur, geen globale toestand)
+// Bevat: escHtml, toast, toastDuur, registreerActies, registreerWijzigActies, registreerBackdrop, maakActiveerbaar, metBehoudScroll
+
+import { sjLog } from './verklikker.js';
+
+let toastTimer;
+
+export function escHtml(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+export function toastDuur(msg, ms) {
+  // Standaard 4 s; foutmeldingen minstens 7 s. Een meegegeven duur mag enkel verlengen.
+  const tekst = String(msg ?? '');
+  const isFout = /^\s*(⚠|✕)/.test(tekst) || /mislukt|fout/i.test(tekst);
+  const standaard = isFout ? 7000 : 4000;
+  return Math.max(ms || 0, standaard);
+}
+
+export function toast(msg, ms) {
+  const el = document.getElementById('toast');
+  const duur = toastDuur(msg, ms);
+  el.textContent = String(msg ?? '');
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), duur);
+}
+
+// Verpakt de afhankelijkheden van een scherm (`initX(afh)`): een ontbrekende sleutel gooit een duidelijke fout met
+// de naam van de sleutel, zoals vóór de init (een vergeten of onvolledige init faalt luid in plaats van undefined).
+export function strengeAfh(scherm, afhankelijkheden) {
+  return new Proxy(afhankelijkheden, {
+    get(doel, sleutel, ontvanger) {
+      if (typeof sleutel === 'string' && !(sleutel in doel)) throw new Error(`${scherm}: afhankelijkheid '${sleutel}' ontbreekt in init`);
+      return Reflect.get(doel, sleutel, ontvanger);
+    },
+  });
+}
+
+export function registreerActies(wortel, handlers) {
+  const listener = (e) => {
+    const el = e.target?.closest?.('[data-actie]');
+    if (el) {
+      const handler = handlers[el.dataset.actie];
+      if (handler) {
+        handler(el, e, el.dataset.arg);
+      }
+    }
+  };
+
+  wortel.addEventListener('click', listener);
+
+  // Retourneer afmeld-functie
+  return () => {
+    wortel.removeEventListener('click', listener);
+  };
+}
+
+// Delegatie voor invoervelden: `change` met [data-wijzig] en `input` met [data-invoer] op de wortel.
+// Handler krijgt (el, e, el.dataset.arg). Geeft een afmeld-functie terug.
+export function registreerWijzigActies(wortel, handlers) {
+  const maak = (attribuut, sleutel) => (e) => {
+    const el = e.target?.closest?.(`[${attribuut}]`);
+    if (!el) return;
+    const handler = handlers[el.dataset[sleutel]];
+    if (handler) handler(el, e, el.dataset.arg);
+  };
+  const opWijzig = maak('data-wijzig', 'wijzig');
+  const opInvoer = maak('data-invoer', 'invoer');
+  wortel.addEventListener('change', opWijzig);
+  wortel.addEventListener('input', opInvoer);
+  return () => {
+    wortel.removeEventListener('change', opWijzig);
+    wortel.removeEventListener('input', opInvoer);
+  };
+}
+
+// Sluit een overlay enkel bij een klik op de overlay zelf (niet op de inhoud).
+export function registreerBackdrop(overlay, sluit) {
+  const listener = (e) => { if (e.target === overlay) sluit(e); };
+  overlay.addEventListener('click', listener);
+  return () => overlay.removeEventListener('click', listener);
+}
+
+// aria-pressed bijwerken waar de 'active'-klasse gezet wordt (één helper, geen aparte state)
+export function zetPressed(el, aan) {
+  if (el) el.setAttribute('aria-pressed', aan ? 'true' : 'false');
+}
+
+// Maakt een niet-<button> element toetsenbord-bedienbaar (Enter/Space); toetsen uit binnenste
+// knoppen/links/velden worden genegeerd zodat die hun eigen gedrag houden.
+export function maakActiveerbaar(el, handler, label) {
+  el.tabIndex = 0;
+  el.setAttribute('role', 'button');
+  if (label) el.setAttribute('aria-label', label);
+  el.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.target !== el && e.target.closest('button, a, input, select, textarea')) return;
+    e.preventDefault();
+    handler(e);
+  });
+}
+
+// Scrollpositie behouden bij verversen door synchronisatie (cache-eerst, ticket-poll, inventaris-poll,
+// afspraken/beschikbaarheid): een her-render maakt containers leeg en bouwt ze opnieuw op; als daartussen
+// een layout gebeurt klapt de pagina in en zet de browser de scroll op 0 (of lager). Bewaar daarom het
+// venster + de actieve .view vóór het renderen en zet ze erna terug. NIET gebruiken bij een tabwissel of
+// navigatie door de gebruiker -- die start bewust bovenaan. Wisselde de actieve view tijdens fn, dan blijft
+// de scroll ongemoeid.
+export function metBehoudScroll(fn) {
+  const view = document.querySelector('.view.active');
+  const winY = window.scrollY, winX = window.scrollX;
+  const viewTop = view ? view.scrollTop : 0;
+  try {
+    return fn();
+  } finally {
+    if (document.querySelector('.view.active') === view) {
+      if ((view && view.scrollTop !== viewTop) || window.scrollY !== winY || window.scrollX !== winX) { // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
+        sjLog('metBehoudScroll:herstel'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
+      } // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
+      if (view && view.scrollTop !== viewTop) view.scrollTop = viewTop;
+      if (window.scrollY !== winY || window.scrollX !== winX) window.scrollTo(winX, winY);
+    }
+  }
+}

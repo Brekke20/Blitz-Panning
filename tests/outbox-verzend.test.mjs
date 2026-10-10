@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import verzend from '../public/js/outbox-verzend.js';
+// Refactor-tak: public/js is "type": "module", dus het klassieke script laadt als ES-module zonder module.exports;
+// het zet dan enkel globalThis.outboxVerzend (zoals in de pagina en de service worker).
+import '../public/js/outbox-verzend.js';
+const verzend = globalThis.outboxVerzend;
 
 const { nextAction, bouwOntvangenBody, vertaalFout, verzendItem, metSlot, verzendAlles, magVerzenden } = verzend;
 
@@ -58,6 +61,29 @@ test('vertaalFout: 413, 400, overige, timeout, netwerkfout', () => {
   assert.equal(vertaalFout({ status: 500 }), 'Server (500)');
   assert.equal(vertaalFout({ status: 0, timeout: true }), 'Geen antwoord van de server (time-out)');
   assert.equal(vertaalFout({ status: 0, netwerkFout: true }), 'Geen verbinding');
+});
+
+test('vertaalFout: een 403 buiten de sessie toont de serverreden, zegt dat het rapport bewaard blijft en is geen stille dood', () => {
+  const t = vertaalFout({ status: 403, data: { error: 'Je hebt hier geen toegang toe.', code: 'geen-recht' } });
+  assert.match(t, /^Geweigerd door de server: Je hebt hier geen toegang toe\./);
+  assert.match(t, /Het rapport blijft bewaard/);
+  assert.match(vertaalFout({ status: 403, data: {} }), /geen toegang/);
+});
+
+test('verzendAlles: een 403 laat het item in de outbox staan met de reden (lastError) en telt als mislukt', async () => {
+  const item = maakItem();
+  const items = [item];
+  const opslag = {
+    getAll: async () => items.map(i => ({ ...i })),
+    remove: async id => { const i = items.findIndex(x => x.id === id); if (i >= 0) items.splice(i, 1); },
+    put: async it => { const i = items.findIndex(x => x.id === it.id); if (i >= 0) items[i] = it; else items.push(it); },
+  };
+  const fetch = async () => nepResponse(403, { error: 'Verzoek geweigerd.', code: 'csrf' });
+  const r = await verzendAlles({ fetch, opslag, slot: async (id, fn) => ({ uitgevoerd: true, waarde: await fn() }) });
+  assert.deepEqual(r, { verstuurd: 0, mislukt: 1 });
+  assert.equal(items.length, 1);
+  assert.match(items[0].lastError, /Geweigerd door de server: Verzoek geweigerd\./);
+  assert.equal(items[0].attempts, 1);
 });
 
 test('verzendItem: 200 {ok:true} → ok; juiste URL, methode POST, body = bouwOntvangenBody; geen test-header; testModus-item → X-Blitz-Test: 1; X-Blitz: 1 altijd', async () => {

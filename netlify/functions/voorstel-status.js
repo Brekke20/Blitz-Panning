@@ -9,55 +9,77 @@
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
 import { leesRegister, schrijfVoorstel, wisVoorstel } from '../lib/voorstelregister.js';
+import { beveiligV2 } from '../lib/beveiligd.js';
+import { maakZoho } from '../lib/zoho.js';
+import { eisEigenTicket } from '../lib/eigen-ticket.js';
 
 const DOELGROEPEN = ['contact', 'klant', 'installateur'];
 
-export default async (req, context) => {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-    'Content-Type': 'application/json',
+// `getStore` en `zoho` zijn testnaden; `auth` vervangt de standaardcontrole van de wrapper.
+export function maakHandler({ getStore: haalStore = getStore, zoho = maakZoho({ tokenFoutMetData: false }), auth } = {}) {
+  const kern = async (req, context, gebruiker) => {
+    const headers = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+      'Content-Type': 'application/json',
+    };
+    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers });
+
+    const store = haalStore({ name: winkelNaam(req), consistency: 'strong' });
+
+    if (isTestVerzoek(req)) await zorgVoorTestkopie(haalStore);
+
+    // Een technieker met "Mag zelf plannen" registreert en wist voorstellen enkel voor zijn eigen tickets (een testverzoek raakt enkel de testopslag).
+    const eigenTicket = async (ticketId) => {
+      if (isTestVerzoek(req)) return null;
+      if (!/^\d+$/.test(String(ticketId))) return new Response(JSON.stringify({ error: 'ticketId (numeriek) is verplicht' }), { status: 400, headers });
+      const eis = await eisEigenTicket({ gebruiker, ticketId: String(ticketId), zoho });
+      return eis.ok ? null : new Response(JSON.stringify(eis.body), { status: eis.status, headers });
+    };
+
+    if (req.method === 'GET') {
+      return new Response(JSON.stringify(await leesRegister(store)), { status: 200, headers });
+    }
+
+    if (req.method === 'POST') {
+      let body;
+      try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers }); }
+      const { ticketId, tijdstip } = body;
+      const doelgroepen = [...new Set(Array.isArray(body.doelgroepen) ? body.doelgroepen : [body.doelgroep])];
+      if (!ticketId || !tijdstip || !doelgroepen.length || !doelgroepen.every(d => DOELGROEPEN.includes(d))) {
+        return new Response(JSON.stringify({ error: 'ticketId, doelgroep(en) (contact|klant|installateur) en tijdstip zijn verplicht' }), { status: 400, headers });
+      }
+      const geweigerd = gebruiker?.rol === 'technieker' ? await eigenTicket(ticketId) : null;
+      if (geweigerd) return geweigerd;
+      const r = await schrijfVoorstel(store, {
+        ticketId, doelgroepen, tijdstip,
+        tijdslot: body.tijdslot, tijdslotDatum: body.tijdslotDatum,
+        reset: body.reset === true,
+        versie: typeof body.versie === 'number' ? body.versie : undefined,
+      });
+      if (r.conflict) {
+        return new Response(JSON.stringify({ error: 'Register ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: r.serverVersie }), { status: 409, headers });
+      }
+      return new Response(JSON.stringify({ ok: true, versie: r.versie }), { status: 200, headers });
+    }
+
+    if (req.method === 'DELETE') {
+      const ticketId = new URL(req.url).searchParams.get('ticketId') || '';
+      if (!/^\d+$/.test(ticketId)) {
+        return new Response(JSON.stringify({ error: 'ticketId (numeriek) is verplicht' }), { status: 400, headers });
+      }
+      const geweigerd = gebruiker?.rol === 'technieker' ? await eigenTicket(ticketId) : null;
+      if (geweigerd) return geweigerd;
+      const r = await wisVoorstel(store, ticketId);
+      return new Response(JSON.stringify({ ok: true, versie: r.versie }), { status: 200, headers });
+    }
+
+    return new Response('Method Not Allowed', { status: 405, headers });
   };
-  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
-  const store = getStore({ name: winkelNaam(req), consistency: 'strong' });
+return beveiligV2('voorstel-status', kern, auth ? { auth } : undefined);
+}
 
-  if (isTestVerzoek(req)) await zorgVoorTestkopie(getStore);
-
-  if (req.method === 'GET') {
-    return new Response(JSON.stringify(await leesRegister(store)), { status: 200, headers });
-  }
-
-  if (req.method === 'POST') {
-    let body;
-    try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers }); }
-    const { ticketId, tijdstip } = body;
-    const doelgroepen = [...new Set(Array.isArray(body.doelgroepen) ? body.doelgroepen : [body.doelgroep])];
-    if (!ticketId || !tijdstip || !doelgroepen.length || !doelgroepen.every(d => DOELGROEPEN.includes(d))) {
-      return new Response(JSON.stringify({ error: 'ticketId, doelgroep(en) (contact|klant|installateur) en tijdstip zijn verplicht' }), { status: 400, headers });
-    }
-    const r = await schrijfVoorstel(store, {
-      ticketId, doelgroepen, tijdstip,
-      tijdslot: body.tijdslot, tijdslotDatum: body.tijdslotDatum,
-      reset: body.reset === true,
-      versie: typeof body.versie === 'number' ? body.versie : undefined,
-    });
-    if (r.conflict) {
-      return new Response(JSON.stringify({ error: 'Register ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: r.serverVersie }), { status: 409, headers });
-    }
-    return new Response(JSON.stringify({ ok: true, versie: r.versie }), { status: 200, headers });
-  }
-
-  if (req.method === 'DELETE') {
-    const ticketId = new URL(req.url).searchParams.get('ticketId') || '';
-    if (!/^\d+$/.test(ticketId)) {
-      return new Response(JSON.stringify({ error: 'ticketId (numeriek) is verplicht' }), { status: 400, headers });
-    }
-    const r = await wisVoorstel(store, ticketId);
-    return new Response(JSON.stringify({ ok: true, versie: r.versie }), { status: 200, headers });
-  }
-
-  return new Response('Method Not Allowed', { status: 405, headers });
-};
+export default maakHandler();
 
 export const config = { path: '/api/voorstel-status' };

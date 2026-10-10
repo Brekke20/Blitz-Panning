@@ -4,6 +4,10 @@
 // departAt (optioneel, ISO-8601 UTC, moet in de toekomst liggen): laat TomTom rekenen met
 // historische verkeerspatronen voor die dag/dat uur i.p.v. het verkeer van "nu".
 
+import { CORS_V1, v1Json, v1Opties } from '../lib/http.js';
+import { beveiligV1 } from '../lib/beveiligd.js';
+import { alsV2 } from '../lib/v2-adapter.js';
+
 const TOMTOM_BASE = 'https://api.tomtom.com';
 const API_KEY = () => process.env.TOMTOM_API_KEY;
 
@@ -22,24 +26,22 @@ async function fetchTomTomRoute(url, attempt = 1) {
   return res;
 }
 
-export async function handler(event) {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-  };
+// TomTom: HTTP 400 met detailedError.code NO_ROUTE_FOUND (of dat woord in de tekst) = geen route voor dit tijdstip.
+function geenRouteGevonden(status, data) {
+  if (status !== 400 && status !== 404) return false;
+  const tekst = JSON.stringify(data ?? {});
+  return /NO_ROUTE_FOUND/.test(tekst);
+}
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers };
-  }
+async function kern(event, context, gebruiker) {
+  const headers = CORS_V1;
+
+  if (event.httpMethod === 'OPTIONS') return v1Opties(headers);
 
   try {
     const { waypoints, departAt } = JSON.parse(event.body || '{}');
     if (!waypoints?.length || waypoints.length < 2) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Need at least 2 waypoints' }),
-      };
+      return v1Json(400, { error: 'Need at least 2 waypoints' }, headers);
     }
 
     // departAt moet een geldige ISO-8601 UTC-string in de toekomst zijn — TomTom weigert
@@ -65,8 +67,19 @@ export async function handler(event) {
     const res = await fetchTomTomRoute(url);
     const data = await res.json();
 
-    const route = data.routes?.[0];
+    let route = data.routes?.[0];
+    // Geplande afsluiting op het gevraagde tijdstip: TomTom antwoordt dan 400 NO_ROUTE_FOUND met een departAt, terwijl
+    // dezelfde route zonder departAt wel lukt. Eén keer opnieuw zonder vertrektijd (live verkeer); het antwoord meldt
+    // dat via `verkeerNietBeschikbaar` zodat de UI dat kan zeggen. Alle andere fouten blijven zoals ze waren.
+    let verkeerNietBeschikbaar = false;
+    if (!route && departAtUsed && geenRouteGevonden(res.status, data)) {
+      const res2 = await fetchTomTomRoute(url.replace(/&departAt=[^&]*/, ''));
+      const data2 = await res2.json();
+      route = data2.routes?.[0];
+      if (route) verkeerNietBeschikbaar = true;
+    }
     if (!route) throw new Error('No route returned from TomTom');
+    const departAtGebruikt = verkeerNietBeschikbaar ? null : departAtUsed;
 
     const summary = route.summary;
     const legs = route.legs?.map(leg => ({
@@ -99,10 +112,7 @@ export async function handler(event) {
         effectiveSpeedInKmh: s.effectiveSpeedInKmh ?? null,
       })) || [];
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
+    return v1Json(200, {
         totalTravelTimeSeconds: summary.travelTimeInSeconds,
         totalDistanceMeters: summary.lengthInMeters,
         totalTrafficDelaySeconds: summary.trafficDelayInSeconds,
@@ -112,17 +122,15 @@ export async function handler(event) {
         departureTime: summary.departureTime,
         legs,
         sections,
-        departAtUsed,
+        departAtUsed: departAtGebruikt,
+        ...(verkeerNietBeschikbaar ? { verkeerNietBeschikbaar: true } : {}),
         polyline: route.legs?.flatMap(leg =>
           leg.points?.map(p => [p.latitude, p.longitude]) || []
         ) || [],
-      }),
-    };
+      }, headers);
   } catch (err) {
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: err.message }),
-    };
+    return v1Json(500, { error: err.message }, headers);
   }
 }
+
+export default alsV2(beveiligV1('route', kern));

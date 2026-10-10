@@ -1,7 +1,11 @@
 // public/js/prijzen.js
 // Prijzencatalogus (onderdelen + tarieven) en het admin-beheerscherm. `PRIJZEN` is de geladen
 // server-state (via /api/prijzen, met localStorage-fallback); `zoekOnderdelen`/`getAlleTags`/
-// `getPrijsVoorId` worden door de rapport-wizard gebruikt (via window, zie onderaan).
+// `getPrijsVoorId` worden door de rapport-wizard als window-naam gelezen (zie onderaan).
+import { foutTekst } from './kern/api.js';
+import { TEST_MODE } from './kern/omgeving.js';
+import { escHtml, toast, registreerActies, registreerWijzigActies } from './kern/ui.js';
+import { closeSettings } from './schermen/instellingen.js';
 
 // ══════════════════════════════════════════════
 // PRIJSBEHEER
@@ -149,23 +153,23 @@ export function renderPrijsEditor() {
       const o = items[i];
       const globalIdx = data.onderdelen.indexOf(o);
       const tagsHtml = (o.tags || []).map((t, ti) =>
-        `<span class="prijs-tag">${escHtml(t)}<button type="button" class="prijs-tag-del" aria-label="Verwijder label ${escHtml(t || '(leeg)')}" onclick="prijsVerwijderTag(${globalIdx},${ti})">✕</button></span>`
+        `<span class="prijs-tag">${escHtml(t)}<button type="button" class="prijs-tag-del" aria-label="Verwijder label ${escHtml(t || '(leeg)')}" data-actie="prijs-verwijder-tag" data-arg="${globalIdx}" data-tag="${ti}">✕</button></span>`
       ).join('') +
-      `<button class="prijs-tag-add" onclick="prijsVoegTagToe(${globalIdx})">+ tag</button>`;
+      `<button class="prijs-tag-add" data-actie="prijs-tag-toevoegen" data-arg="${globalIdx}">+ tag</button>`;
       html += `<div class="prijs-row">
         <div class="prijs-row-main">
           <input class="prijs-naam-input" aria-label="Naam onderdeel" value="${escHtml(o.naam)}"
-            oninput="prijsUpdateNaam(${globalIdx},this.value)" placeholder="Naam" />
+            data-invoer="prijs-naam" data-arg="${globalIdx}" placeholder="Naam" />
           <div class="prijs-tags-wrap">${tagsHtml}</div>
         </div>
         <div class="prijs-row-right">
           <div class="prijs-input-wrap">
             <span class="prijs-euro">€</span>
             <input class="prijs-prijs-input" type="number" min="0" step="0.01" aria-label="Prijs ${escHtml(o.naam || 'naamloos item')}"
-              value="${o.prijs}" oninput="prijsUpdatePrijs(${globalIdx},this.value)" />
+              value="${o.prijs}" data-invoer="prijs-prijs" data-arg="${globalIdx}" />
           </div>
           <span class="prijs-eenheid">/ ${o.eenheid}</span>
-          <button class="prijs-del-btn" onclick="prijsVerwijderOnderdeel(${globalIdx})" title="Verwijder" aria-label="Verwijder ${escHtml(o.naam || 'naamloos item')}">🗑</button>
+          <button class="prijs-del-btn" data-actie="prijs-verwijder-onderdeel" data-arg="${globalIdx}" title="Verwijder" aria-label="Verwijder ${escHtml(o.naam || 'naamloos item')}">🗑</button>
         </div>
       </div>`;
     }
@@ -183,7 +187,7 @@ export function renderPrijsEditor() {
       <div class="prijs-input-wrap">
         <span class="prijs-euro">€</span>
         <input class="prijs-prijs-input" type="number" min="0" step="0.01" aria-label="Tarief ${escHtml(t.naam || 'naamloos tarief')}"
-          value="${t.prijs}" oninput="prijsTariefUpdate(${i},this.value)" />
+          value="${t.prijs}" data-invoer="prijs-tarief" data-arg="${i}" />
       </div>
       <span class="prijs-eenheid">/ ${t.eenheid}</span>
     </div>`;
@@ -233,11 +237,10 @@ export function prijsVoegOnderdeel(categorie) {
   const id = 'nieuw-' + Date.now();
   PRIJZEN_DIRTY.onderdelen.push({ id, naam:'', categorie, tags:[], prijs:0, eenheid:'stuk' });
   renderPrijsEditor();
-  // Scroll naar het nieuwe item
-  setTimeout(() => {
-    const inputs = document.querySelectorAll('.prijs-naam-input');
-    inputs[inputs.length - 1]?.focus();
-  }, 50);
+  // B13: focus (en zichtbaar maken) op het naamveld van het nieuwe onderdeel zelf, niet op het laatste naamveld van de pagina.
+  const nieuw = document.querySelector(`#prijs-body .prijs-naam-input[data-arg="${PRIJZEN_DIRTY.onderdelen.length - 1}"]`);
+  nieuw?.focus();
+  nieuw?.scrollIntoView({ block: 'nearest' });
 }
 
 // ── Opslaan ───────────────────────────────────────────────────────────────────
@@ -293,7 +296,7 @@ export async function prijsOpslaan() {
     toast('✓ Prijzen opgeslagen');
     renderPrijsEditor();
   } catch (err) {
-    toast('Verbindingsfout: ' + err.message);
+    toast('Verbindingsfout: ' + foutTekst(err));
     btn.disabled = false;
     btn.textContent = 'Opslaan';
   }
@@ -326,29 +329,27 @@ export function getPrijsVoorId(id) {
   return o ? o.prijs : null;
 }
 
+// ── Delegatie voor de sjabloonknoppen en -velden van de editor (etappe 5b) ───────────────────────────────
+// renderPrijsEditor zet de knoppen en velden met data-actie/data-invoer in #prijs-body; de wortel blijft bestaan, dus
+// één keer registreren volstaat. De knoppen van het venster zelf (sluiten, ongedaan maken, opslaan) staan in
+// schermen/instellingen.js.
+registreerActies(document.body, {
+  'prijs-verwijder-tag':      (el) => prijsVerwijderTag(Number(el.dataset.arg), Number(el.dataset.tag)),
+  'prijs-tag-toevoegen':      (el) => prijsVoegTagToe(Number(el.dataset.arg)),
+  'prijs-verwijder-onderdeel': (el) => prijsVerwijderOnderdeel(Number(el.dataset.arg)),
+});
+registreerWijzigActies(document.body, {
+  'prijs-naam':   (el) => prijsUpdateNaam(Number(el.dataset.arg), el.value),
+  'prijs-prijs':  (el) => prijsUpdatePrijs(Number(el.dataset.arg), el.value),
+  'prijs-tarief': (el) => prijsTariefUpdate(Number(el.dataset.arg), el.value),
+});
+
 // ── Window-bridges ────────────────────────────────────────────────────────────
-// Alles hieronder wordt van BUITEN dit bestand aangeroepen: ofwel via HTML
-// onclick/oninput-attributen (renderPrijsEditor genereert HTML met inline handlers, die
-// altijd in global/window-scope worden opgezocht — module-scoped functies zijn daar
-// onzichtbaar), ofwel als bare functie-aanroep vanuit index.html's classic <script>
-// (loadPrijzen() bij startup; zoekOnderdelen/getAlleTags in de rapport-wizard-stap
-// "Status & onderdelen"). showPrijsEditor/getPrijzen/markDirty/renderPrijsEditor/
-// prijsVoegOnderdeel worden enkel intern (binnen dit bestand, via gewone functie-scope of
-// addEventListener-closures) aangeroepen en hoeven daarom niet gebridged te worden.
-window.loadPrijzen             = loadPrijzen;
-window.openPrijsBeheer         = openPrijsBeheer;
-window.closePrijsBeheer        = closePrijsBeheer;
-window.prijsReset              = prijsReset;
-window.prijsOpslaan            = prijsOpslaan;
-window.prijsUpdateNaam         = prijsUpdateNaam;
-window.prijsUpdatePrijs        = prijsUpdatePrijs;
-window.prijsTariefUpdate       = prijsTariefUpdate;
-window.prijsVerwijderOnderdeel = prijsVerwijderOnderdeel;
-window.prijsVerwijderTag       = prijsVerwijderTag;
-window.prijsVoegTagToe         = prijsVoegTagToe;
+// Wat nog van BUITEN dit bestand als kale naam wordt gelezen:
+// zoekOnderdelen/getAlleTags (rapport-wizard, stap "Status & onderdelen"). De knoppen van het venster
+// lopen via kern.prijzen (brug.js) en de delegatie hierboven; er zijn geen inline handlers meer.
 window.zoekOnderdelen          = zoekOnderdelen;
 window.getAlleTags             = getAlleTags;
-window.getPrijsVoorId          = getPrijsVoorId;
 
 // PRIJZEN_DEFAULTS is een `const` (object wordt nooit herwezen, enkel als fallback
 // gelezen) — een statische window-toewijzing is hier veilig, in tegenstelling tot PRIJZEN.

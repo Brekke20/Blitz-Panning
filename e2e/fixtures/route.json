@@ -1,0 +1,11 @@
+{
+  "_opmerking": "Vorm van netlify/functions/route.js. `been` geldt per paar opeenvolgende waypoints; helpers.mjs telt ze op tot de totalen en gebruikt de waypoints zelf als polyline.",
+  "been": {
+    "travelTimeSeconds": 1200,
+    "noTrafficTravelTimeSeconds": 1200,
+    "travelTimeWithTrafficSeconds": 1200,
+    "distanceMeters": 20000,
+    "trafficDelaySeconds": 0,
+    "historicTrafficTravelTimeSeconds": 1200
+  }
+}

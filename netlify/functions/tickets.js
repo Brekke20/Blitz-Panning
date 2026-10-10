@@ -6,53 +6,27 @@
 //   Wachten op bevestiging planning → op kalender gezet, wacht op klantbevestiging
 //   Geplande service                → klant bevestigd, definitief
 
-const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
-const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
+import { maakZoho, leesJsonVeilig } from '../lib/zoho.js';
+import { agentNaam } from '../lib/zoho-agenten.js';
+import { CORS_V1 } from '../lib/http.js';
+import { beveiligV1 } from '../lib/beveiligd.js';
+import { alsV2 } from '../lib/v2-adapter.js';
 
-let cachedToken = null;
-let tokenExpiry  = 0;
+// Instantie op moduleniveau: de tokencache (55 min) leeft zolang de functie warm is.
+const zoho = maakZoho({ orgFoutTekst: 'Zoho Desk org ID niet gevonden' });
 
-async function getAccessToken() {
-  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-  const params = new URLSearchParams({
-    refresh_token: process.env.ZOHO_REFRESH_TOKEN,
-    client_id:     process.env.ZOHO_CLIENT_ID,
-    client_secret: process.env.ZOHO_CLIENT_SECRET,
-    grant_type:    'refresh_token',
-  });
-  const res  = await fetch(ZOHO_ACCOUNTS, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params,
-  });
-  const data = await res.json();
-  if (!data.access_token) throw new Error('Token refresh mislukt: ' + JSON.stringify(data));
-  cachedToken = data.access_token;
-  tokenExpiry = Date.now() + 55 * 60 * 1000;
-  return cachedToken;
-}
-
-export async function handler(event) {
-  const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
+async function kern(event, context, gebruiker) {
+  const headers = { ...CORS_V1 };
 
   try {
-    const accessToken = await getAccessToken();
-
-    const orgRes  = await fetch(`${ZOHO_DESK}/organizations`, {
-      headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-    });
-    const orgData = await orgRes.json();
-    const orgId   = orgData.data?.[0]?.id;
-    if (!orgId) throw new Error('Zoho Desk org ID niet gevonden');
+    const { token, orgId } = await zoho.haalToegang();
 
     // Agents ophalen voor naam-lookup (parallel met tickets)
-    const agentsRes = await fetch(`${ZOHO_DESK}/agents?limit=50`, {
-      headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
-    });
+    const agentsRes = await zoho.verzoek('/agents?limit=50', { token, orgId });
     const agentsData = await agentsRes.json();
     const agentMap = {};
     for (const a of agentsData.data || []) {
-      agentMap[a.id] = a.name || `${a.firstName || ''} ${a.lastName || ''}`.trim();
+      agentMap[a.id] = agentNaam(a);
     }
 
     // Beide naamsets ondersteunen (Zoho gebruikt soms oude, soms nieuwe namen)
@@ -62,25 +36,17 @@ export async function handler(event) {
     const RELEVANT = [...STATUS_TE_PLANNEN, ...STATUS_PENDING, ...STATUS_GEPLAND];
 
     // Stap 1: alle tickets ophalen via paginering (max 6 pagina's = 600 tickets)
-    const safeJson = async (res) => {
-      const text = await res.text();
-      if (!text) return {};
-      try { return JSON.parse(text); } catch { return {}; }
-    };
-
     // Paginering zonder statusType filter (Zoho filtert custom statuses er anders uit)
     // Zodra een pagina 0 relevante tickets oplevert EN de vorige pagina ook 0 had, stoppen we vroeg.
     let allRaw = [];
     let emptyRelevantPages = 0;
     for (let from = 0; from < 600; from += 100) {
-      const res  = await fetch(`${ZOHO_DESK}/tickets?limit=100&from=${from}`, {
-        headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
-      });
+      const res  = await zoho.verzoek(`/tickets?limit=100&from=${from}`, { token, orgId });
       if (!res.ok) {
-        const errBody = await safeJson(res);
+        const errBody = await leesJsonVeilig(res);
         throw new Error(`Zoho tickets-ophalen mislukt (${res.status}): ${JSON.stringify(errBody)}`);
       }
-      const data = await safeJson(res);
+      const data = await leesJsonVeilig(res);
       const page = data.data || [];
       const relevantOnPage = page.filter(t => RELEVANT.includes(t.status)).length;
       allRaw = allRaw.concat(page);
@@ -105,14 +71,12 @@ export async function handler(event) {
       const batch = relevantIds.slice(i, i + 5);
       const results = await Promise.all(
         batch.map(async id => {
-          const res = await fetch(`${ZOHO_DESK}/tickets/${id}`, {
-            headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId },
-          });
+          const res = await zoho.verzoek(`/tickets/${id}`, { token, orgId });
           if (!res.ok) {
-            const errBody = await safeJson(res);
+            const errBody = await leesJsonVeilig(res);
             throw new Error(`Zoho ticketdetail ${id} mislukt (${res.status}): ${JSON.stringify(errBody)}`);
           }
-          return safeJson(res);
+          return leesJsonVeilig(res);
         })
       );
       detailed.push(...results);
@@ -171,3 +135,5 @@ export async function handler(event) {
     };
   }
 }
+
+export default alsV2(beveiligV1('tickets', kern));

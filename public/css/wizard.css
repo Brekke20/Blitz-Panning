@@ -151,8 +151,9 @@
     .wiz-sig-status { font-size: 0.77rem; color: var(--muted); }
     .wiz-sig-status.signed { color: var(--accent-ink); font-weight: 700; }
     /* Radio cards — horizontale rij variant */
-    .wiz-radio-cards.row { flex-direction: row; }
-    .wiz-radio-cards.row .wiz-radio-card { flex: 1; justify-content: center; text-align: center; }
+    /* wrap: op een smalle gsm vallen anders de laatste keuzes (Dual 2, Andere...) buiten beeld */
+    .wiz-radio-cards.row { flex-direction: row; flex-wrap: wrap; }
+    .wiz-radio-cards.row .wiz-radio-card { flex: 1 1 140px; min-width: 0; justify-content: center; text-align: center; }
     /* Add part button */
     .wiz-add-part {
       background: transparent; border: 1px dashed var(--border); color: var(--muted);
@@ -241,3 +242,5 @@
     .wiz-sam-val { color: var(--text); flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
     .wiz-sam-ok { color: var(--accent-ink); font-weight: 600; }
     .wiz-sam-waarschuw { color: var(--red); font-weight: 600; }
+
+    .wiz-aanrijtijd-waarschuwing { background: var(--red-dim); border: 1px solid var(--red-line); color: var(--text); border-radius: var(--r); padding: 10px 12px; margin-bottom: 10px; font-size: 0.85rem; font-weight: 600; }

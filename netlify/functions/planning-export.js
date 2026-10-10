@@ -6,6 +6,8 @@
 // API-sleutel via de Authorization-header.
 // Zie docs/superpowers/specs/2026-07-27-planning-export-integratie-design.md
 
+import { CORS_V1, v1Json, v1Opties } from '../lib/http.js';
+
 const DEFAULT_DUUR_MIN = 120; // zelfde standaardwaarde als DEFAULT_SETTINGS.duurMinuten in index.html
 
 // Zet een Date (die intern altijd UTC/epoch is) om naar Brussel-lokale
@@ -51,21 +53,21 @@ function checkAuth(event) {
   return header === `Bearer ${expected}`;
 }
 
-export async function handler(event) {
-  const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
+// De interne aanroepen lopen door de wrapper van tickets/klantbeschikbaarheid/afspraken: die aanvaarden de
+// service-sleutel (rechten.js: service: true, enkel GET). Zonder deze header krijgen ze 401.
+const metSleutel = () => ({ headers: { Authorization: `Bearer ${process.env.PLANNING_EXPORT_API_KEY}` } });
 
-  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers };
-  if (event.httpMethod !== 'GET') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
-  }
-  if (!checkAuth(event)) {
-    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
-  }
+export async function handler(event) {
+  const headers = CORS_V1;
+
+  if (event.httpMethod === 'OPTIONS') return v1Opties(headers);
+  if (event.httpMethod !== 'GET') return v1Json(405, { error: 'Method not allowed' }, headers);
+  if (!checkAuth(event)) return v1Json(401, { error: 'Unauthorized' }, headers);
 
   try {
     const url = baseUrl(event);
 
-    const ticketsRes = await fetch(`${url}/api/tickets`);
+    const ticketsRes = await fetch(`${url}/api/tickets`, metSleutel());
     if (!ticketsRes.ok) {
       const errBody = await ticketsRes.json().catch(() => ({}));
       throw new Error(`Tickets ophalen mislukt (${ticketsRes.status}): ${JSON.stringify(errBody)}`);
@@ -83,7 +85,7 @@ export async function handler(event) {
     // hele export niet laten falen -- valt terug op DEFAULT_DUUR_MIN.
     // Sinds v1.4.0 persisteert klantbeschikbaarheid.js's PUT-handler ook
     // duurOverride, dus deze opzoeking levert nu effectief afwijkende duren op.
-    const kbRes = await fetch(`${url}/api/klantbeschikbaarheid`);
+    const kbRes = await fetch(`${url}/api/klantbeschikbaarheid`, metSleutel());
     const kbData = kbRes.ok ? await kbRes.json().catch(() => ({})) : {};
     const kbPerTicket = kbData.items || {};
 
@@ -141,7 +143,7 @@ export async function handler(event) {
     // `ev.notitie`, exact zoals elke consument in index.html dat ook al doet
     // (:2339, :3027, :3905, :4012) -- `notitie` is in de praktijk hét
     // adresveld van dit datamodel totdat afspraken.js `adres` ook bewaart.
-    const afsprakenRes = await fetch(`${url}/api/afspraken`);
+    const afsprakenRes = await fetch(`${url}/api/afspraken`, metSleutel());
     if (!afsprakenRes.ok) {
       const errBody = await afsprakenRes.json().catch(() => ({}));
       throw new Error(`Afspraken ophalen mislukt (${afsprakenRes.status}): ${JSON.stringify(errBody)}`);
@@ -169,8 +171,8 @@ export async function handler(event) {
     const alleItems = [...items, ...lokaleItems];
     alleItems.sort((a, b) => (a.datum + (a.starttijd || '')).localeCompare(b.datum + (b.starttijd || '')));
 
-    return { statusCode: 200, headers, body: JSON.stringify(alleItems) };
+    return v1Json(200, alleItems, headers);
   } catch (err) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+    return v1Json(500, { error: err.message }, headers);
   }
 }

@@ -32,9 +32,3 @@ export async function haalRapportHtml(r, { fetch = globalThis.fetch } = {}) {
     return null;
   }
 }
-
-// Bridge voor de klassieke script in index.html (voorbeeldRapport/verstuurRapport).
-if (typeof window !== 'undefined') {
-  window.haalRapportHtml = haalRapportHtml;
-  window.heeftRapportInhoud = heeftRapportInhoud;
-}

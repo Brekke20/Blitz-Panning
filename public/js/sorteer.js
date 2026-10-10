@@ -179,4 +179,3 @@ export function maakSorteerbaar(lijstEl, opts) {
   };
 }
 
-window.maakSorteerbaar = maakSorteerbaar;

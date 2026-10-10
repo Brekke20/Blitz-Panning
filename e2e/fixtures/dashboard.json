@@ -1,0 +1,739 @@
+{
+  "versie": 1,
+  "gegenereerd": "2026-10-08T10:00:00+02:00",
+  "periode": {
+    "van": "2026-10-01",
+    "tot": "2026-10-08"
+  },
+  "vorige": {
+    "van": "2026-09-23",
+    "tot": "2026-09-30"
+  },
+  "filters": {
+    "van": "2026-10-01",
+    "tot": "2026-10-08",
+    "technieker": "",
+    "type": "",
+    "herhaalDagen": 30
+  },
+  "opties": {
+    "techniekers": [
+      "Roel",
+      "Sam <img src=x>",
+      "Tim"
+    ],
+    "types": [
+      "Dual 1",
+      "Onbekend",
+      "Single"
+    ]
+  },
+  "kern": {
+    "huidig": {
+      "interventies": {
+        "n": 10
+      },
+      "gemDuurMin": {
+        "waarde": 93.3,
+        "n": 9
+      },
+      "opTijd": {
+        "pct": 70,
+        "n": 10,
+        "teVroeg": 2,
+        "opTijd": 7,
+        "teLaat": 1
+      },
+      "firstTimeFix": {
+        "pct": 60,
+        "n": 10,
+        "ftf": 6
+      },
+      "herhaalbezoeken": {
+        "aantal": 4
+      },
+      "onderdelenWaarde": {
+        "waarde": 545.63
+      }
+    },
+    "vorige": {
+      "interventies": {
+        "n": 7
+      },
+      "gemDuurMin": {
+        "waarde": 62.5,
+        "n": 6
+      },
+      "opTijd": {
+        "pct": 71.4,
+        "n": 7,
+        "teVroeg": 1,
+        "opTijd": 5,
+        "teLaat": 1
+      },
+      "firstTimeFix": {
+        "pct": 85.7,
+        "n": 7,
+        "ftf": 6
+      },
+      "herhaalbezoeken": {
+        "aantal": 2
+      },
+      "onderdelenWaarde": {
+        "waarde": 52
+      }
+    }
+  },
+  "tijd": {
+    "duurPer": {
+      "laadpaal": [
+        {
+          "sleutel": "Dual 1",
+          "label": "Dual 1",
+          "n": 5,
+          "gemMin": 84
+        },
+        {
+          "sleutel": "Single",
+          "label": "Single",
+          "n": 5,
+          "gemMin": 126
+        },
+        {
+          "sleutel": "Onbekend",
+          "label": "Onbekend",
+          "n": 1,
+          "gemMin": 60
+        }
+      ],
+      "oorzaak": [
+        {
+          "sleutel": "Firmware",
+          "label": "Firmware",
+          "n": 4,
+          "gemMin": 67.5
+        },
+        {
+          "sleutel": "Bekabeling",
+          "label": "Bekabeling",
+          "n": 3,
+          "gemMin": 100
+        },
+        {
+          "sleutel": "Controller",
+          "label": "Controller",
+          "n": 2,
+          "gemMin": 67.5
+        },
+        {
+          "sleutel": "Stroomuitval",
+          "label": "Stroomuitval",
+          "n": 1,
+          "gemMin": 240
+        }
+      ],
+      "technieker": [
+        {
+          "sleutel": "Tim",
+          "label": "Tim",
+          "n": 6,
+          "gemMin": 125
+        },
+        {
+          "sleutel": "Roel",
+          "label": "Roel",
+          "n": 3,
+          "gemMin": 85
+        },
+        {
+          "sleutel": "Sam <img src=x>",
+          "label": "Sam <img src=x>",
+          "n": 2,
+          "gemMin": 52.5
+        }
+      ],
+      "bezoektype": [
+        {
+          "sleutel": "Interventie",
+          "label": "Interventie",
+          "n": 9,
+          "gemMin": 93.3
+        },
+        {
+          "sleutel": "Installatie",
+          "label": "Installatie",
+          "n": 2,
+          "gemMin": 135
+        }
+      ]
+    },
+    "opTijdPerTechnieker": [
+      {
+        "technieker": "Tim",
+        "n": 5,
+        "teVroeg": 1,
+        "opTijd": 4,
+        "teLaat": 0,
+        "pct": 80
+      },
+      {
+        "technieker": "Roel",
+        "n": 4,
+        "teVroeg": 0,
+        "opTijd": 3,
+        "teLaat": 1,
+        "pct": 75
+      },
+      {
+        "technieker": "Sam <img src=x>",
+        "n": 1,
+        "teVroeg": 1,
+        "opTijd": 0,
+        "teLaat": 0,
+        "pct": 0
+      }
+    ],
+    "opTijdTotaal": {
+      "n": 10,
+      "teVroeg": 2,
+      "opTijd": 7,
+      "teLaat": 1,
+      "pct": 70
+    },
+    "rijtijdPerDag": [
+      {
+        "datum": "2026-10-01",
+        "aanrijtijdMin": 50,
+        "werktijdMin": 150,
+        "n": 2
+      },
+      {
+        "datum": "2026-10-02",
+        "aanrijtijdMin": 45,
+        "werktijdMin": 180,
+        "n": 2
+      },
+      {
+        "datum": "2026-10-03",
+        "aanrijtijdMin": 15,
+        "werktijdMin": 60,
+        "n": 1
+      },
+      {
+        "datum": "2026-10-05",
+        "aanrijtijdMin": 35,
+        "werktijdMin": 390,
+        "n": 2
+      },
+      {
+        "datum": "2026-10-06",
+        "aanrijtijdMin": 55,
+        "werktijdMin": 75,
+        "n": 2
+      },
+      {
+        "datum": "2026-10-07",
+        "aanrijtijdMin": 40,
+        "werktijdMin": 90,
+        "n": 1
+      },
+      {
+        "datum": "2026-10-08",
+        "aanrijtijdMin": 72,
+        "werktijdMin": 165,
+        "n": 2
+      }
+    ],
+    "perDagPerTechnieker": {
+      "datums": [
+        "2026-10-01",
+        "2026-10-02",
+        "2026-10-03",
+        "2026-10-05",
+        "2026-10-06",
+        "2026-10-07",
+        "2026-10-08"
+      ],
+      "techniekers": [
+        "Tim",
+        "Roel",
+        "Sam <img src=x>"
+      ],
+      "waarden": {
+        "Tim": {
+          "2026-10-01": 2,
+          "2026-10-05": 2,
+          "2026-10-07": 1,
+          "2026-10-08": 1
+        },
+        "Roel": {
+          "2026-10-02": 2,
+          "2026-10-06": 2
+        },
+        "Sam <img src=x>": {
+          "2026-10-03": 1,
+          "2026-10-08": 1
+        }
+      }
+    },
+    "dekking": {
+      "rapporten": 12,
+      "metDuur": 11,
+      "duurOnbetrouwbaar": 1,
+      "metSlot": 10,
+      "zonderSlot": 2,
+      "metAanrijtijd": 11
+    }
+  },
+  "kwaliteit": {
+    "ftfTotaal": {
+      "n": 10,
+      "ftf": 6,
+      "pct": 60
+    },
+    "ftfPerTechnieker": [
+      {
+        "sleutel": "Tim",
+        "label": "Tim",
+        "n": 4,
+        "ftf": 3,
+        "pct": 75
+      },
+      {
+        "sleutel": "Roel",
+        "label": "Roel",
+        "n": 4,
+        "ftf": 1,
+        "pct": 25
+      },
+      {
+        "sleutel": "Sam <img src=x>",
+        "label": "Sam <img src=x>",
+        "n": 2,
+        "ftf": 2,
+        "pct": 100
+      }
+    ],
+    "ftfPerType": [
+      {
+        "sleutel": "Single",
+        "label": "Single",
+        "n": 5,
+        "ftf": 3,
+        "pct": 60
+      },
+      {
+        "sleutel": "Dual 1",
+        "label": "Dual 1",
+        "n": 4,
+        "ftf": 2,
+        "pct": 50
+      },
+      {
+        "sleutel": "Onbekend",
+        "label": "Onbekend",
+        "n": 1,
+        "ftf": 1,
+        "pct": 100
+      }
+    ],
+    "herhaal": {
+      "dagen": 30,
+      "aantal": 4,
+      "lijst": [
+        {
+          "id": "h10",
+          "ticketNumber": "#h10",
+          "datum": "2026-10-07",
+          "vorigeId": "h5",
+          "vorigeDatum": "2026-10-03",
+          "dagen": 4,
+          "technieker": "Tim",
+          "klant": "Klant h10",
+          "sleutel": "adres:dorpsstraat123500hasselt",
+          "serienummer": "",
+          "adres": "Dorpsstraat 12, 3500 Hasselt"
+        },
+        {
+          "id": "h8",
+          "ticketNumber": "#h8",
+          "datum": "2026-10-06",
+          "vorigeId": "h2",
+          "vorigeDatum": "2026-10-01",
+          "dagen": 5,
+          "technieker": "Roel",
+          "klant": "Klant h8",
+          "sleutel": "serie:CHARX-1002",
+          "serienummer": "CHARX-1002",
+          "adres": ""
+        },
+        {
+          "id": "h7",
+          "ticketNumber": "#h7",
+          "datum": "2026-10-05",
+          "vorigeId": "h1",
+          "vorigeDatum": "2026-10-01",
+          "dagen": 4,
+          "technieker": "Tim",
+          "klant": "Klant h7",
+          "sleutel": "serie:CHARX-1001",
+          "serienummer": "CHARX-1001",
+          "adres": ""
+        },
+        {
+          "id": "h3",
+          "ticketNumber": "#h3",
+          "datum": "2026-10-02",
+          "vorigeId": "p4",
+          "vorigeDatum": "2026-09-28",
+          "dagen": 4,
+          "technieker": "Roel",
+          "klant": "Klant h3",
+          "sleutel": "serie:CHARX-1003",
+          "serienummer": "CHARX-1003",
+          "adres": ""
+        }
+      ]
+    },
+    "topOorzaken": [
+      {
+        "oorzaak": "Firmware",
+        "n": 5,
+        "perType": {
+          "Single": 3,
+          "Dual 1": 2
+        }
+      },
+      {
+        "oorzaak": "Bekabeling",
+        "n": 3,
+        "perType": {
+          "Single": 2,
+          "Dual 1": 1
+        }
+      },
+      {
+        "oorzaak": "Controller",
+        "n": 2,
+        "perType": {
+          "Dual 1": 2
+        }
+      },
+      {
+        "oorzaak": "Stroomuitval",
+        "n": 1,
+        "perType": {
+          "Single": 1
+        }
+      }
+    ],
+    "dekking": {
+      "interventies": 10,
+      "herhaalZonderSleutel": 0
+    }
+  },
+  "onderdelen": {
+    "top10": [
+      {
+        "sleutel": "led",
+        "naam": "LED",
+        "aantal": 7,
+        "waarde": 56,
+        "rapporten": 4
+      },
+      {
+        "sleutel": "zekering",
+        "naam": "Zekering",
+        "aantal": 3,
+        "waarde": 37.5,
+        "rapporten": 2
+      },
+      {
+        "sleutel": "charx-3000",
+        "naam": "Controller - CHARX 3000",
+        "aantal": 1,
+        "waarde": 442.13,
+        "rapporten": 1
+      },
+      {
+        "sleutel": "ct-80a",
+        "naam": "CT-klem 80A/1A",
+        "aantal": 1,
+        "waarde": 10,
+        "rapporten": 1
+      },
+      {
+        "sleutel": "onbekend-deel",
+        "naam": "Onbekend deel",
+        "aantal": 1,
+        "waarde": 0,
+        "rapporten": 1
+      }
+    ],
+    "perMaand": {
+      "maanden": [
+        "2026-10"
+      ],
+      "perTechnieker": {
+        "Tim": {
+          "2026-10": {
+            "aantal": 6,
+            "waarde": 59
+          }
+        },
+        "Roel": {
+          "2026-10": {
+            "aantal": 4,
+            "waarde": 462.63
+          }
+        },
+        "Sam <img src=x>": {
+          "2026-10": {
+            "aantal": 3,
+            "waarde": 24
+          }
+        }
+      },
+      "perType": {
+        "Single": {
+          "2026-10": {
+            "aantal": 7,
+            "waarde": 67
+          }
+        },
+        "Dual 1": {
+          "2026-10": {
+            "aantal": 6,
+            "waarde": 478.63
+          }
+        }
+      },
+      "totaal": {
+        "2026-10": {
+          "aantal": 13,
+          "waarde": 545.63
+        }
+      }
+    },
+    "dekking": {
+      "rapporten": 12,
+      "metOnderdelen": 9,
+      "zonderPrijs": 1
+    }
+  },
+  "klant": {
+    "bevestiging": {
+      "n": 3,
+      "mediaanMin": 75,
+      "gemiddeldeMin": 75,
+      "nMetSnelheid": 2,
+      "buckets": [
+        {
+          "label": "<1u",
+          "n": 1
+        },
+        {
+          "label": "1–4u",
+          "n": 1
+        },
+        {
+          "label": "4–24u",
+          "n": 0
+        },
+        {
+          "label": "1–3d",
+          "n": 0
+        },
+        {
+          "label": ">3d",
+          "n": 0
+        }
+      ]
+    },
+    "bevestigdViaKnop": {
+      "n": 3,
+      "bevestigd": 3,
+      "pct": 100
+    },
+    "annulaties": {
+      "aantal": 2,
+      "vorige": 1,
+      "beschikbaar": true,
+      "vanaf": "2026-09-01"
+    },
+    "garantie": {
+      "n": 10,
+      "garantie": 4,
+      "pct": 40,
+      "onderdelenWaarde": {
+        "garantie": 48,
+        "overig": 489.63
+      },
+      "loon": {
+        "garantie": 690,
+        "overig": 1365
+      },
+      "zonderWerktijd": 1
+    },
+    "installateurAlLangs": {
+      "n": 10,
+      "ja": 7,
+      "nee": 3,
+      "onbekend": 2,
+      "pct": 70,
+      "perPartner": [
+        {
+          "label": "Proxes",
+          "n": 6,
+          "ja": 5
+        },
+        {
+          "label": "Elektro Bos",
+          "n": 3,
+          "ja": 2
+        }
+      ],
+      "perRegio": [
+        {
+          "label": "Kempen",
+          "n": 5,
+          "ja": 4
+        },
+        {
+          "label": "Limburg",
+          "n": 3,
+          "ja": 2
+        },
+        {
+          "label": "Antwerpen",
+          "n": 1,
+          "ja": 1
+        }
+      ]
+    },
+    "dekking": {
+      "voorstellen": 4,
+      "lopend": 1,
+      "annulatiesVanaf": "2026-09-01",
+      "alLangsOnbekend": 2,
+      "partnerRegioMetVeld": 9,
+      "partnerRegioTotaal": 10
+    }
+  },
+  "sales": {
+    "perWeek": {
+      "weken": [
+        "2026-09-28",
+        "2026-10-05"
+      ],
+      "verkopers": [
+        "An Janssens",
+        "Bart <b>Verhaegen"
+      ],
+      "waarden": {
+        "An Janssens": {
+          "2026-09-28": 1,
+          "2026-10-05": 1
+        },
+        "Bart <b>Verhaegen": {
+          "2026-09-28": 1,
+          "2026-10-05": 1
+        }
+      }
+    },
+    "resultaten": {
+      "totaal": 4,
+      "perSoort": [
+        {
+          "soort": "offerte",
+          "n": 1,
+          "pct": 25
+        },
+        {
+          "soort": "verkocht",
+          "n": 1,
+          "pct": 25
+        },
+        {
+          "soort": "geen-interesse",
+          "n": 1,
+          "pct": 25
+        },
+        {
+          "soort": "opnieuw",
+          "n": 1,
+          "pct": 25
+        }
+      ]
+    },
+    "wachtend": {
+      "n": 2,
+      "zonderDatum": 0,
+      "gemDagen": 5,
+      "oudsteDagen": 10,
+      "buckets": [
+        {
+          "label": "<7d",
+          "n": 1
+        },
+        {
+          "label": "7–14d",
+          "n": 1
+        },
+        {
+          "label": "14–30d",
+          "n": 0
+        },
+        {
+          "label": ">30d",
+          "n": 0
+        }
+      ],
+      "perVerkoper": [
+        {
+          "verkoper": "An Janssens",
+          "n": 1
+        },
+        {
+          "verkoper": "Bart <b>Verhaegen",
+          "n": 1
+        }
+      ]
+    },
+    "dekking": {
+      "verkopers": 2,
+      "bezoeken": 4
+    }
+  },
+  "dekking": {
+    "tijd": {
+      "rapporten": 12,
+      "metDuur": 11,
+      "duurOnbetrouwbaar": 1,
+      "metSlot": 10,
+      "zonderSlot": 2,
+      "metAanrijtijd": 11
+    },
+    "kwaliteit": {
+      "interventies": 10,
+      "herhaalZonderSleutel": 0
+    },
+    "onderdelen": {
+      "rapporten": 12,
+      "metOnderdelen": 9,
+      "zonderPrijs": 1
+    },
+    "klant": {
+      "voorstellen": 4,
+      "lopend": 1,
+      "annulatiesVanaf": "2026-09-01",
+      "alLangsOnbekend": 2,
+      "partnerRegioMetVeld": 9,
+      "partnerRegioTotaal": 10
+    },
+    "sales": {
+      "verkopers": 2,
+      "bezoeken": 4
+    }
+  }
+}

@@ -32,6 +32,10 @@
       box-shadow: 0 2px 8px rgba(0,223,163,0.2);
     }
     .logo-text { font-size: 0.88rem; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+    /* Smalle kop (375 px, ook met de TEST-badge en de gebruikersknop): het logo mag krimpen i.p.v. de pagina breder te maken. */
+    .logo > div:not(.logo-icon) { min-width: 0; }
+    .logo { min-width: 0; }
+    .logo-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .hbtn {
       background: transparent;
       border: 1px solid var(--border);
@@ -57,13 +61,9 @@
       transition: background 0.15s, border-color 0.15s;
     }
     .person-btn:hover { background: var(--surface3); border-color: var(--accent); }
-    .person-avatar {
-      width: 24px; height: 24px; border-radius: 50%;
-      background: var(--accent-dim); color: var(--accent-ink);
-      font-size: var(--fs-2xs); font-weight: 700;
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-      letter-spacing: -0.5px;
-    }
+    /* De persoonskiezer is een benoemde knop ("👤 Planning: Tim ▾"), geen rondje met initialen: dat is voorbehouden aan het gebruikersmenu (account). */
+    .person-icoon { font-size: 0.9rem; line-height: 1; flex-shrink: 0; }
+    .person-voor { color: var(--muted); font-weight: 400; flex-shrink: 0; }
     .person-chevron { color: var(--muted); font-size: var(--fs-2xs); }
     .person-menu {
       position: absolute; top: calc(100% + 8px); right: 0;
@@ -404,6 +404,7 @@
     html[data-indeling="smal"] .logo-text { display: none; }
     html[data-indeling="smal"] .logo { flex: 1 1 0; min-width: 0; }
     html[data-indeling="smal"] .person-btn { max-width: 108px; padding: 5px 6px; gap: 4px; }
+    html[data-indeling="smal"] .person-voor { display: none; } /* op een gsm enkel het icoon en de naam */
     html[data-indeling="smal"] #person-name-hdr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     html[data-indeling="smal"] .hbtn { min-width: 40px; width: 40px; }
     html[data-indeling="smal"][data-aanraak="ja"] .hbtn { min-width: 44px; width: 44px; }
@@ -539,6 +540,9 @@
     .cal-local-event:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); background: var(--surface2); }
     .cal-local-event:active { transform: none; }
     .cal-local-del:hover { color: var(--red); }
+    /* P1-2: op aanraakschermen een echt 44px-doel (geen 15px-✕), met ruimte in de kaart zodat de titel er niet onder loopt */
+    html[data-aanraak="ja"] .cal-local-del { top: 0; right: 0; min-width: 44px; min-height: 44px; padding: 0; font-size: 1rem; }
+    html[data-aanraak="ja"] .cal-local-event:has(.cal-local-del) { padding-right: 46px; }
 
     /* ── Import modal ── */
     #import-overlay { align-items: flex-start; padding: 24px; }
@@ -940,12 +944,26 @@
     .set-subtab.active { color:var(--accent-ink); border-bottom-color:var(--accent); }
     .set-subtab:hover { color:var(--text); }
     .set-field { margin-bottom: 15px; }
+    .set-hint { margin-bottom: 15px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface2); font-size: 0.83rem; color: var(--text2); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+    .set-hint[hidden] { display: none; }
+    .set-input:disabled, .day-btn:disabled { opacity: 0.65; cursor: not-allowed; }
     .set-label { font-size: var(--fs-2xs); font-weight: 500; color: var(--muted); margin-bottom: 6px; display: block; }
     .set-input {
       width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text);
       padding: 8px 11px; border-radius: var(--r); font-size: 0.85rem; font-family: inherit;
       transition: border-color 0.15s, box-shadow 0.15s;
     }
+    /* Oogje bij een wachtwoordveld (kern/wachtwoord-oog.js): knop met raakvlak 44×44 px in het veld, rechts. */
+    .ww-wrap { position: relative; display: block; }
+    .ww-wrap > .set-input { padding-right: 48px; }
+    .ww-oog {
+      position: absolute; top: 50%; right: 0; transform: translateY(-50%); width: 44px; height: 44px; min-width: 44px; min-height: 44px;
+      display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; background: transparent;
+      color: var(--text2); cursor: pointer; border-radius: var(--r);
+    }
+    .ww-oog:hover { color: var(--text); }
+    .ww-oog:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+    .ww-oog[aria-pressed="true"] { color: var(--accent-ink); }
     .set-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
     .set-input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
     .set-row { display: flex; gap: 8px; align-items: center; }
@@ -954,11 +972,17 @@
     html[data-aanraak="ja"] .set-row { min-height: 44px; }
     html[data-aanraak="ja"] .set-row input[type="radio"] { width: 22px; height: 22px; flex-shrink: 0; }
     html[data-aanraak="ja"] .set-subtab { min-height: 44px; }
-    .set-color-swatch {
-      width: 44px; height: 32px; padding: 2px; border: 1px solid var(--border); border-radius: var(--r);
-      background: var(--surface2); cursor: pointer; flex-shrink: 0;
+    /* Kleurkeuze routelijn (kern/kleur-keuze.js): rij vaste kleuren, raakvlak ruim 40x40, gekozen = dikke rand + vinkje */
+    .kleur-keuze { display: flex; flex-wrap: wrap; gap: 10px; }
+    .kleur-staal {
+      width: 42px; height: 42px; min-width: 42px; padding: 0; border-radius: 50%; cursor: pointer; flex-shrink: 0;
+      border: 3px solid transparent; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+      color: #fff; font-size: 1.15rem; font-weight: 700; line-height: 1; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+      display: inline-flex; align-items: center; justify-content: center; font-family: inherit;
     }
-    .set-color-hex { font-size: 0.82rem; font-family: 'SF Mono', 'Consolas', monospace; color: var(--text); text-transform: uppercase; }
+    .kleur-staal.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface), inset 0 0 0 1px rgba(0, 0, 0, 0.25); }
+    .kleur-staal:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+    html[data-aanraak="ja"] .kleur-staal { width: 44px; height: 44px; min-width: 44px; }
     .days-grid { display: flex; gap: 5px; flex-wrap: wrap; }
     .day-btn {
       padding: 5px 11px; border-radius: 20px; font-size: 0.76rem; font-weight: 500;
@@ -1032,6 +1056,11 @@
       color: var(--accent-ink); margin-top: 2px;
       font-variant-numeric: tabular-nums;
     }
+    /* Waarschuwing: aankomst na het laatste startuur (planner-tijdlijn.js, proefperiode-bugfix) */
+    .stop-laat {
+      font-size: var(--fs-2xs); font-weight: 600; color: var(--red); background: var(--red-dim);
+      padding: 2px 6px; border-radius: 6px; margin-top: 3px;
+    }
     .stop-proposal-sent {
       font-size: var(--fs-2xs); color: var(--accent-ink); margin-top: 3px; font-weight: 600;
     }
@@ -1087,6 +1116,12 @@
       border-radius: 10px; letter-spacing: 0.05em; flex-shrink: 0;
     }
 
+    /* Rolwisselaar van de lokale testmodus (naast #test-badge; bestaat enkel op een lokale dev-server) */
+    .test-rol-wissel {
+      flex-shrink: 0; font: inherit; font-size: var(--fs-2xs); font-weight: 700; padding: 1px 4px;
+      border-radius: 8px; border: 1px solid var(--orange); background: var(--surface2); color: var(--text);
+    }
+
     /* ── Focus ring globaal ── */
     :focus-visible {
       outline: 2px solid var(--focus-ring);
@@ -1128,8 +1163,18 @@
     html[data-indeling="smal"] .day-col { min-width: unset; border-right: none; border-bottom: 1px solid var(--border); }
 
     /* Beperkte technieker-weergave: de rol (niet de schermbreedte) verbergt coördinatorfuncties */
-    html[data-rol="technieker"] .coord-only { display: none !important; }
-    html[data-rol="technieker"] .kal-actions { display: none; } /* geen lege tweede rij */
+    /* De rolgebonden schil (tabs, persoonkeuze, vernieuw/instellingen, hoofdinhoud) blijft onzichtbaar tot de rol bekend en toegepast is
+       (rol-schil.js haalt data-schil weg): anders flitst de planner-schil kort op voor een verkoper. Het logo, het thema en het loginscherm blijven. */
+    html[data-schil="laden"] .tabs, html[data-schil="laden"] #person-sel, html[data-schil="laden"] #hoofdinhoud,
+    html[data-schil="laden"] [data-actie="vernieuw"], html[data-schil="laden"] [data-actie="instellingen"] { visibility: hidden; }
+    /* Sales (data-rol="sales", sales-planner) is net zo beperkt: de ticketfuncties blijven weg; de sales-schermen gebruiken eigen sales-klassen. */
+    html[data-rol="technieker"] .coord-only:not(.plan-eigen), html[data-rol="sales"] .coord-only { display: none !important; }
+    /* Een technieker met "Mag zelf plannen" houdt de plan-onderdelen (.plan-eigen) voor zijn eigen tickets; zonder het vinkje blijven ze verborgen. */
+    html[data-rol="technieker"]:not([data-plan-eigen="ja"]) .coord-only.plan-eigen { display: none !important; }
+    /* Hij bekijkt een collega: geen "Plan deze week", "Optimaliseer" of "Leeg" (hij mag enkel zijn eigen week plannen).
+    /* "Bereken tijden" blijft: dat toont enkel de rijtijden van de route, zonder iets te bewaren. */
+    html[data-rol="technieker"][data-plan-ander="ja"] :is(#btn-autoplan, #btn-optimize, [data-actie="route-leeg"]) { display: none !important; }
+    html[data-rol="technieker"]:not([data-plan-eigen="ja"]) .kal-actions, html[data-rol="sales"] .kal-actions { display: none; } /* geen lege tweede rij */
     /* × (uit planning halen): nooit op gsm (per ongeluk tikken); voor technieker via .coord-only */
     html[data-indeling="smal"] .cal-unplan-x { display: none; }
 
@@ -1213,6 +1258,33 @@
     html[data-aanraak="ja"] .ann-optie { min-height: 44px; }
     html[data-aanraak="ja"] .ann-optie input[type="radio"] { width: 22px; height: 22px; }
     html[data-aanraak="ja"] .ann-details summary { min-height: 44px; display: flex; align-items: center; }
+
+    /* ── Gebruikersmenu (logins T15): knop in de kop na ⚙, menu zoals het persoonsmenu ── */
+    .gebruiker-sel { position: relative; }
+    .gebruiker-btn { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: -0.5px; color: var(--accent-ink); background: var(--accent-dim); }
+    .gebruiker-menu {
+      position: absolute; top: calc(100% + 8px); right: 0;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--r-lg); box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+      min-width: 220px; z-index: 200; display: none; overflow: hidden;
+    }
+    .gebruiker-menu.open { display: block; animation: slideUp 0.18s var(--ease-spring); }
+    .gm-kop { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+    .gm-naam { font-size: 0.85rem; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+    .gm-rol { font-size: var(--fs-2xs); color: var(--muted); }
+    /* Een tab die de rol niet toestaat (hidden): .tab zet display:flex en zou het attribuut anders overrulen. */
+    .tabs-inner .tab[hidden] { display: none !important; }
+    /* UI/UX P2-10 (gsm): smallere tabs, zodat de technieker zijn 4 tabs volledig ziet (alle tabs delen de ruimte); past een rol met veel tabs
+       (beheerder: 8) niet, dan scrollt de balk en tonen "scrollschaduwen" aan de kant waar nog meer staat (alleen zichtbaar bij overloop). */
+    html[data-indeling="smal"] .tab { padding: 0 8px; flex: 1 0 auto; justify-content: center; }
+    html[data-indeling="smal"] .tabs-inner { padding: 0 4px; }
+    html[data-indeling="smal"] .tabs-inner {
+      background:
+        linear-gradient(to right, var(--surface) 30%, transparent) left center / 28px 100% no-repeat local,
+        linear-gradient(to left, var(--surface) 30%, transparent) right center / 28px 100% no-repeat local,
+        linear-gradient(to right, rgba(0, 0, 0, 0.38), transparent) left center / 12px 100% no-repeat scroll,
+        linear-gradient(to left, rgba(0, 0, 0, 0.38), transparent) right center / 12px 100% no-repeat scroll;
+    }
 
 /* v1.10.3: de sticky filterbalk van Rapporten plakt vlak onder de kop en onder de zichtbare melding-
    balken (offline/outbox). De oude vaste top:92px liet een kier of verdween onder de balken. */

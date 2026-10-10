@@ -3,10 +3,16 @@
 // (een kopie van 'blitz-data') en schrijft nooit naar Zoho.
 
 const ECHTE_WINKEL = 'blitz-data';
-const TEST_WINKEL  = 'blitz-data-test';
+export const TEST_WINKEL = 'blitz-data-test';
 const MARKER_KEY   = '_testkopie';
-// Sleutels die niet naar de testopslag gekopieerd worden
-const NIET_KOPIEREN = [/^client-log/, /^foutenlog$/, /^rapport-verzend-status/, /^foto-/, /^rapport-inhoud\//];
+// Sleutels die niet naar de testopslag gekopieerd worden.
+// Authenticatiegegevens (gebruikers, pogingen, laatste logins, noodroute, activiteit) leven altijd
+// enkel in de echte opslag, ook bij een testverzoek.
+const NIET_KOPIEREN = [
+  /^client-log/, /^foutenlog$/, /^rapport-verzend-status/, /^foto-/, /^rapport-inhoud\//,
+  /^gebruikers$/, /^login-pogingen$/, /^login-laatst$/, /^herstel-noodroute$/, /^activiteit\//,
+  /^sales\//, // verkopersleads (persoonsgegevens van klanten): nooit naar de testopslag kopiëren
+];
 
 let kopieKlaar = false;   // geheugenvlag per koude start
 let kopieBezig = null;    // lopende kopie (voorkomt gelijktijdige kopieën)

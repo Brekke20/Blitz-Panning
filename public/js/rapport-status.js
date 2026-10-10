@@ -1,7 +1,12 @@
 // public/js/rapport-status.js
 // Verwerkingsstatus van rapporten in het Rapporten-tabblad: badges, "Opnieuw versturen" en
 // de eenmalige melding aan de technieker als een rapport definitief niet naar Zoho kon.
-// Gebruikt de globale escHtml (index.html) voor alle vrije tekst, ook in attributen.
+// escHtml (kern/ui.js) op alle vrije tekst, ook in attributen.
+import { escHtml, toast } from './kern/ui.js';
+import { TEST_MODE } from './kern/omgeving.js';
+import { toestand } from './kern/toestand.js';
+import { eigenZohoNaam } from './kern/sessie.js';
+import { TEST_UPLOAD } from './test-upload.js';
 
 const GEZIEN_KEY = 'blitz_mislukt_gezien';
 
@@ -81,19 +86,25 @@ function bewaarGezien(set) {
   try { localStorage.setItem(GEZIEN_KEY, JSON.stringify([...set])); } catch { /* geen opslag */ }
 }
 
+// Van wie de mislukte rapporten gemeld worden: een account met een Zoho-naam (ook een beheerder of planner die zelf interventies
+// uitvoert) meldt zijn eigen rapporten; anders enkel op een toestel met de rol technieker, voor de gekozen persoon. null = geen melding.
+export function meldingsPersoon(toestelRol, eigenNaam, gekozenPersoon) {
+  const eigen = typeof eigenNaam === 'string' ? eigenNaam.trim() : '';
+  if (eigen) return eigen;
+  if (toestelRol !== 'technieker') return null;
+  return gekozenPersoon && gekozenPersoon !== 'all' ? gekozenPersoon : null;
+}
+
 let _gemeld = false; // één melding per paginasessie
 
 // Toont (hoogstens) één toast per paginasessie voor mislukte rapporten van de technieker die
-// op dit toestel is ingesteld. Enkel voor rol technieker met een persoon gekozen.
+// op dit toestel is ingesteld (of van het account zelf als dat een Zoho-naam heeft). Enkel voor rol technieker met een persoon gekozen.
 export function toonMisluktMeldingen(rapporten) {
   try {
     if (_gemeld) return;
-    if (window.apparaat?.rol !== 'technieker') return;
-    const persoon = typeof activeAssigneeFilter !== 'undefined' ? activeAssigneeFilter : 'all';
-    if (!persoon || persoon === 'all') return;
-    const testModus = typeof TEST_MODE !== 'undefined' && TEST_MODE;
-    const testUpload = new URLSearchParams(location.search).has('upload');
-    if (testModus && !testUpload) return; // gewone testmodus: demodata, geen echte meldingen
+    const persoon = meldingsPersoon(window.apparaat?.rol, eigenZohoNaam(), toestand.get('activeAssigneeFilter'));
+    if (!persoon) return;
+    if (TEST_MODE && !TEST_UPLOAD) return; // gewone testmodus: demodata, geen echte meldingen
     _gemeld = true;
     const gezien = leesGezien();
     const nieuw = teMeldenMislukt(rapporten, { technieker: persoon, gezien });

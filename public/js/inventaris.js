@@ -1,10 +1,17 @@
 // public/js/inventaris.js
 // Wagenvoorraad per technieker (Fase 2) + supervisor-neemlog. Weergave hangt af van de
-// bestaande persoon-kiezer (activeAssigneeFilter in index.html), die als parameter
-// doorgegeven wordt door renderInventaris()/updateInventarisBadge() -- deze module leest
-// activeAssigneeFilter niet rechtstreeks (het is een `let` in een classic script, dus geen
-// impliciete window-global, in tegenstelling tot function-declarations zoals toast/escHtml).
+// bestaande persoon-kiezer (activeAssigneeFilter in kern.toestand), die als parameter
+// doorgegeven wordt door renderInventaris()/updateInventarisBadge() (app.js) -- deze module leest
+// activeAssigneeFilter niet rechtstreeks.
 // Zie docs/superpowers/plans/2026-08-21-inventaris-edit-en-supervisorlog.md.
+import { foutTekst } from './kern/api.js';
+import { TEST_MODE } from './kern/omgeving.js';
+import { loadFromCache, saveToCache } from './kern/opslag.js';
+import { heeftRol, huidigeGebruiker } from './kern/sessie.js';
+import { escHtml, toast } from './kern/ui.js';
+import { laadExcelJs } from './kern/exceljs.js';
+import { PRIJZEN, PRIJZEN_DEFAULTS } from './prijzen.js';
+import { maakVerbruikWachtrij, WACHTRIJ_SLEUTEL } from './kern/verbruik-wachtrij.js';
 
 export let _invData = { versie: 0, wagenvoorraad: {}, log: [] };
 
@@ -34,6 +41,7 @@ export async function loadInventaris() {
     const data = await res.json();
     _invData = data;
     saveToCache(INV_CACHE_KEY, data);
+    verwerkVerbruikWachtrij();
   } catch (err) {
     console.warn('Inventaris laden mislukt, laatst gekende stand blijft staan:', err);
   }
@@ -250,7 +258,7 @@ async function invSaveEdit() {
     updateInventarisBadge(persoon);
     toast('✓ Wagenvoorraad opgeslagen', 2500);
   } catch (err) {
-    toast('✕ Opslaan is niet gelukt. Controleer je verbinding en probeer opnieuw. (Detail: ' + err.message + ')', 4000);
+    toast('✕ Opslaan is niet gelukt. Controleer je verbinding en probeer opnieuw. (Detail: ' + foutTekst(err) + ')', 4000);
   }
 }
 
@@ -364,7 +372,7 @@ async function markVerwerkt(logId) {
     updateInventarisBadge('all');
     toast('✓ Gemarkeerd als verwerkt', 2500);
   } catch (err) {
-    toast('✕ Verwerkt-markering mislukt: ' + err.message, 4000);
+    toast('✕ Verwerkt-markering mislukt: ' + foutTekst(err), 4000);
   }
 }
 
@@ -408,6 +416,7 @@ export async function exportInventarisLog() {
   });
 
   try {
+    const ExcelJS = await laadExcelJs();
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Blitz Planning';
     const ws = wb.addWorksheet('Inventaris');
@@ -491,37 +500,50 @@ export async function registreerVerbruik(technieker, onderdelen) {
     .map(p => ({ materiaalId: p.id, materiaalNaam: p.naam, aantal: parseInt(p.aantal) || 1 }));
   if (!items.length) return;
 
-  try {
-    const res = await fetch(INV_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ versie: _invData.versie, technieker, actie: 'verbruik', items }),
-    });
-    if (!res.ok) { console.warn('Inventaris-aftrek (verbruik) niet gelukt, HTTP', res.status); return; }
-    _invData = await res.json();
-    saveToCache(INV_CACHE_KEY, _invData);
-  } catch (err) {
-    console.warn('Inventaris-aftrek (verbruik) niet gelukt:', err);
-  }
+  // Mislukt de aftrek, dan meldt de wachtrij het en probeert ze zekere mislukkingen later opnieuw (Q4, kern/verbruik-wachtrij.js).
+  await verbruikWachtrij().meld(technieker, items);
 }
 
+// Wachtrij met aftrekken die zeker niet gelukt zijn: opnieuw proberen bij opstart, bij weer online en bij elke lading (poll).
+let _wachtrij = null;
+function verbruikWachtrij() {
+  if (_wachtrij) return _wachtrij;
+  _wachtrij = maakVerbruikWachtrij({
+    opslag: {
+      lees: () => loadFromCache(WACHTRIJ_SLEUTEL) || [],
+      schrijf: lijst => {
+        if (lijst.length) saveToCache(WACHTRIJ_SLEUTEL, lijst);
+        else { try { localStorage.removeItem(WACHTRIJ_SLEUTEL); } catch { /* best-effort */ } }
+      },
+    },
+    post: async body => {
+      const res = await fetch(INV_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      let data = null;
+      try { data = await res.json(); } catch { /* geen JSON (bv. HTML van een gateway) */ }
+      return { status: res.status, data };
+    },
+    versie: () => _invData.versie,
+    gebruikerId: () => huidigeGebruiker()?.id ?? null, // logins T16: een item hoort bij de gebruiker die het aanmaakte
+    naSucces: data => { _invData = data; saveToCache(INV_CACHE_KEY, _invData); },
+    naConflict: data => { if (data && typeof data.versie === 'number') { _invData = data; saveToCache(INV_CACHE_KEY, _invData); } },
+    toon: (tekst, ms) => toast(tekst, ms),
+    online: () => globalThis.navigator?.onLine !== false,
+    // Eén verwerker over alle tabs (Web Locks); een bezet slot = deze ronde overslaan. Zonder Web Locks geldt de lease in de wachtrij.
+    slot: globalThis.navigator?.locks?.request
+      ? fn => navigator.locks.request('blitz-verbruik', { ifAvailable: true }, lock => (lock ? fn() : undefined))
+      : null,
+  });
+  return _wachtrij;
+}
+export function verwerkVerbruikWachtrij() {
+  if (TEST_MODE) return Promise.resolve();
+  return verbruikWachtrij().verwerk();
+}
+// Enkel met een sessie van een rol die de voorraad gebruikt: geen verzoeken vóór de login en geen voor sales.
+if (typeof window !== 'undefined') window.addEventListener('online', () => { if (heeftRol('beheerder', 'planner', 'technieker')) verwerkVerbruikWachtrij(); });
+
 // ── Window-bridge ──
-// Zelfde patroon als prijzen.js/rapport-wizard.js: functies die vanuit index.html (setTab/
-// selectPerson/DOMContentLoaded/rapport-wizard.js) aangeroepen worden, moeten expliciet op
-// window staan (modules maken geen impliciete globals). Functies die enkel via addEventListener
-// vanuit dit bestand zelf aangeroepen worden (invStartEdit, invSaveEdit, invCancelEdit,
-// markVerwerkt, exportInventarisLog, ...) hebben GEEN bridge nodig.
-// Live getter (net als PRIJZEN in prijzen.js): _invData wordt bij elke lading/mutatie volledig
-// vervangen, dus een statische window-toewijzing zou een verouderd versienummer vastzetten.
-// Gebruikt door index.html's poll om een overbodige re-render over te slaan als er niets
-// gewijzigd is (zie eindreview 2026-08-21).
-Object.defineProperty(window, '_invVersie', {
-  get: () => _invData.versie,
-  configurable: true,
-});
-window.loadInventaris        = loadInventaris;
-window.renderInventaris      = renderInventaris;
-window.updateInventarisBadge = updateInventarisBadge;
+// Enkel wat de rapport-wizard nog als kale naam leest: registreerVerbruik (na het versturen van een rapport).
+// De rest (loadInventaris, renderInventaris, updateInventarisBadge, resetInvSeenLog) importeert app.js rechtstreeks.
 window.registreerVerbruik    = registreerVerbruik;
-window.resetInvSeenLog       = resetInvSeenLog;
 

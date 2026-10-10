@@ -30,9 +30,27 @@
 [functions.annuleer]
   timeout = 26
 
+[functions.planning-sinds]
+  timeout = 26
+
+[functions.mail-check]
+  timeout = 26
+
 [functions.rapport-ontvangen]
+  timeout = 26
+
+[functions.sales]
+  timeout = 26
+
+[functions.postcode]
+  timeout = 26
+
+[functions.sales-import]
   timeout = 26
 
 [functions.rapport-vangnet]
   schedule = "*/5 * * * *"
   timeout = 30
+
+[functions.dashboard]
+  timeout = 26

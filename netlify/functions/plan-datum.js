@@ -4,87 +4,68 @@
 // Schrijft naar het cf_interventie_datm custom field (niet Zoho's dueDate).
 
 import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
+import { maakZoho } from '../lib/zoho.js';
+import { maakCors, v2Json, v2Methode } from '../lib/http.js';
+import { getStore } from '@netlify/blobs';
+import { beveiligV2 } from '../lib/beveiligd.js';
+import { logVoorVerzoek } from '../lib/activiteit.js';
+import { eisEigenTicket, STATUS_TE_PLANNEN, STATUS_PENDING, STATUS_GEPLAND } from '../lib/eigen-ticket.js';
+import { datumInBrussel } from '../lib/bevestigingslink.js';
 
-const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
-const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
+// Instantie op moduleniveau: de tokencache (55 min) leeft zolang de functie warm is.
+const zoho = maakZoho();
 
-let cachedToken = null;
-let tokenExpiry  = 0;
+const CORS = maakCors({ methoden: 'POST, OPTIONS', headers: 'Content-Type' });
 
-async function getAccessToken() {
-  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-  const params = new URLSearchParams({
-    refresh_token: process.env.ZOHO_REFRESH_TOKEN,
-    client_id:     process.env.ZOHO_CLIENT_ID,
-    client_secret: process.env.ZOHO_CLIENT_SECRET,
-    grant_type:    'refresh_token',
-  });
-  const res  = await fetch(ZOHO_ACCOUNTS, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params });
-  const data = await res.json();
-  if (!data.access_token) throw new Error('Token refresh mislukt: ' + JSON.stringify(data));
-  cachedToken = data.access_token;
-  tokenExpiry = Date.now() + 55 * 60 * 1000;
-  return cachedToken;
-}
-
-export default async (req, context) => {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin':  '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
-
-  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders });
-  if (req.method !== 'POST')   return new Response('Method Not Allowed', { status: 405, headers: corsHeaders });
+const kern = async (req, context, gebruiker, haalStore = getStore) => {
+  const methode = v2Methode(req, ['POST'], CORS);
+  if (methode) return methode;
 
   let body;
   try { body = await req.json(); }
-  catch { return new Response(JSON.stringify({ error: 'Ongeldige JSON' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }); }
+  catch { return v2Json(400, { error: 'Ongeldige JSON' }, CORS); }
 
   const { ticketId, utcInterventieDatum } = body;
   if (!ticketId || !utcInterventieDatum) {
-    return new Response(JSON.stringify({ error: 'ticketId en utcInterventieDatum zijn verplicht' }), {
-      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return v2Json(400, { error: 'ticketId en utcInterventieDatum zijn verplicht' }, CORS);
   }
   if (!/^\d+$/.test(String(ticketId))) {
-    return new Response(JSON.stringify({ error: 'Ongeldig ticketId' }), {
-      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return v2Json(400, { error: 'Ongeldig ticketId' }, CORS);
   }
 
   // Testmodus: nooit naar Zoho schrijven, meteen nep-succes
   if (isTestVerzoek(req)) {
-    return new Response(JSON.stringify(nepZohoAntwoord({ interventieDatum: utcInterventieDatum })), {
-      status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return v2Json(200, nepZohoAntwoord({ interventieDatum: utcInterventieDatum }), CORS);
   }
 
   try {
-    const accessToken = await getAccessToken();
-    const orgRes  = await fetch(`${ZOHO_DESK}/organizations`, { headers: { Authorization: `Zoho-oauthtoken ${accessToken}` } });
-    const orgData = await orgRes.json();
-    const orgId   = orgData.data?.[0]?.id;
-    if (!orgId) throw new Error('Zoho org ID niet gevonden');
+    const { token, orgId } = await zoho.haalToegang();
 
-    const patchRes = await fetch(`${ZOHO_DESK}/tickets/${ticketId}`, {
-      method:  'PATCH',
-      headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, orgId, 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ cf: { cf_interventie_datm: utcInterventieDatum } }),
+    // Een technieker met "Mag zelf plannen" wijzigt enkel de datum/tijd van zijn eigen tickets.
+    const eis = await eisEigenTicket({ gebruiker, ticketId, zoho, toegang: { token, orgId }, statussen: [...STATUS_TE_PLANNEN, ...STATUS_PENDING, ...STATUS_GEPLAND] });
+    if (!eis.ok) return v2Json(eis.status, eis.body, CORS);
+
+    const patchRes = await zoho.verzoek(`/tickets/${ticketId}`, {
+      token, orgId, methode: 'PATCH', json: { cf: { cf_interventie_datm: utcInterventieDatum } },
     });
     if (!patchRes.ok) {
       const txt = await patchRes.text();
       throw new Error(`Zoho PATCH fout (${patchRes.status}): ${txt}`);
     }
 
-    return new Response(JSON.stringify({ ok: true, interventieDatum: utcInterventieDatum }), {
-      status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    await logVoorVerzoek(req, gebruiker, {
+      actie: 'plannen', onderwerp: String(ticketId), details: datumInBrussel(utcInterventieDatum) ?? String(utcInterventieDatum).slice(0, 10),
+    }, { getStore: haalStore });
+    return v2Json(200, { ok: true, interventieDatum: utcInterventieDatum }, CORS);
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return v2Json(500, { error: err.message }, CORS);
   }
 };
+
+// getStore is een testnaad (enkel voor de activiteitenlog).
+export const maakHandler = ({ getStore: haalStore } = {}) =>
+  beveiligV2('plan-datum', (req, context, gebruiker) => kern(req, context, gebruiker, haalStore));
+
+export default maakHandler();
 
 export const config = { path: '/api/plan-datum' };

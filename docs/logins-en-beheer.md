@@ -1,0 +1,202 @@
+# Inloggen en beheer: wat je moet doen
+
+Dit document is voor Brent. Het legt in gewone taal uit wat je moet instellen en doen om het inloggen live te zetten. Je hoeft geen code te lezen of te schrijven. Alles gebeurt in Netlify en in de app zelf.
+
+## Wat is er nieuw
+
+- Iedereen logt in met een e-mailadres en een wachtwoord.
+- Er zijn vier rollen: beheerder, planner, technieker en sales.
+- De beheerder ziet de volledige tab Beheer. Daar maak je gebruikers aan, pas je instellingen aan en bekijk je wat er gebeurd is.
+- Een planner en een sales manager zien ook de tab Beheer, maar enkel met de onderdelen **Instellingen** en **Performance**. De rest is voor hen onzichtbaar en de server weigert hun verzoeken (zie "Wie ziet wat in Beheer" hieronder).
+- Een sessie blijft 30 dagen geldig. Daarna moet je opnieuw inloggen.
+- Na vijf foute pogingen wordt het account tijdelijk vergrendeld.
+
+## Wie mag wat (kort)
+
+De knop ⚙ (Instellingen) opent altijd je **eigen** instellingen, ook als je bovenaan de week van een collega bekijkt. De titel van het venster noemt jouw naam. Heb je een Zoho-naam (technieker, of een planner/beheerder die zelf interventies doet), dan zijn dat de instellingen onder die naam. Heb je er geen, dan zie je enkel de persoonlijke keuzes (routekleur, drukte op de route); de werkinstellingen van techniekers pas je aan in Beheer, Instellingen. De beheerder ziet zijn eigen werkinstellingen in ⚙ alleen-lezen en past ze aan in Beheer. Elke wijziging in Beheer staat in het activiteitenlog.
+
+Een planner past de werkinstellingen van techniekers aan in Beheer, Instellingen; een sales manager doet hetzelfde voor verkopers. De beheerder past alle instellingen aan. Een gewone verkoper en een technieker passen enkel hun eigen instellingen aan.
+
+Een technieker ziet de tickets en afspraken van collega's, maar alleen om te lezen. De knoppen Aankomst, Foto's en Rapport staan enkel bij eigen werk. Planners en beheerders zien die knoppen overal.
+
+## Een beheerder of planner die zelf interventies uitvoert (Zoho-naam)
+
+Doet iemand met een beheerders- of plannersaccount ook zelf interventies (bijvoorbeeld jij), dan vul je bij die persoon in Beheer, Gebruikers het veld **Zoho-naam** in: de naam zoals die in Zoho bij de tickets staat. Je kan dit voor elk account doen, behalve voor sales.
+
+- Zo'n account houdt al zijn eigen rechten (een planner blijft plannen, een beheerder blijft beheren) en is er **bovenop** ook technieker voor zijn eigen werk.
+- Zijn eigen naam staat altijd in de keuzelijst bovenaan (naast "Alle technici"), ook als er op dat moment geen ticket op zijn naam staat. Bij de allereerste keer inloggen op een toestel start de app op die eigen naam; wie zelf "Alle technici" koos, blijft daarop staan.
+- Bij zijn eigen tickets staan de knoppen Aankomst, Foto's en Rapport. In de tab Rapporten staat er een extra knop **Mijn rapporten**: de rapporten die hij zelf indiende of waar zijn naam op staat.
+- Faalt een van zijn eigen rapporten definitief naar Zoho, dan krijgt hij daarvan één melding, net als een technieker.
+- De Zoho-naam kies je uit een lijst met de actieve gebruikers van Zoho (de app vraagt die lijst enkel aan Zoho als jij het formulier opent en onthoudt ze 10 minuten; ze wijzigt niets in Zoho). Namen die al bij een ander account horen, staan er grijs bij met "(al gekoppeld aan ...)" en zijn niet te kiezen. Met "— geen —" ontkoppel je de naam. Staat iemand niet in de lijst (uitzondering), kies dan "Andere naam…" en typ de naam zoals in Zoho. Is Zoho even niet bereikbaar, dan zie je een gewoon tekstveld met uitleg; typ de naam dan zelf in.
+- Eén Zoho-naam hoort bij één account. Geef je dezelfde naam aan twee accounts (ook met andere hoofdletters of spaties), dan weigert de app dat met de melding bij welk account de naam al staat. Wil je de naam toch verhuizen, ontkoppel hem dan eerst bij het andere account (veld leeggemaken).
+- Een techniekersaccount blijft altijd een Zoho-naam nodig hebben.
+- Zijn persoonlijke instellingen voor die eigen naam (startadres, werkdagen, enzovoort) blijven op het toestel zelf bewaard; ze worden niet naar de server gesynchroniseerd, zoals bij elke technieker zonder eigen account.
+
+## Een technieker die zijn eigen tickets zelf mag plannen (Mag zelf plannen)
+
+Bij een technieker kan je in Beheer, Gebruikers het vinkje **Mag zelf plannen** aanzetten. Enkel de beheerder kan dat doen; elke wijziging staat in het activiteitenlog als "gebruiker gewijzigd".
+
+- Zo'n technieker ziet er de tabs **Wachtrij** en **Route** bij en kan zijn **eigen** tickets inplannen (ook met "Plan deze week"), verzetten, uit de planning halen, een voorstel naar de klant sturen en een afspraak annuleren.
+- Tickets van collega's blijven voor hem alleen-lezen: de knoppen staan er niet, en de app (de server) weigert het ook als iemand het toch probeert. Of een ticket van hem is, vraagt de app aan Zoho (aan wie het ticket is toegewezen). Is Zoho even niet bereikbaar, dan lukt plannen even niet (er staat dan een melding).
+- Hij ziet "Alle technici" niet in de kiezer bovenaan en kan dus ook niet voor iedereen tegelijk plannen. Zijn eigen instellingen (startadres, werkuren, enzovoort) stelt hij zelf in bij Instellingen (⚙), tab Algemeen. Dat venster toont altijd zijn eigen instellingen, ook als hij de week van een collega bekijkt.
+- De wijziging geldt zodra hij de app opnieuw opent of herlaadt. Zonder het vinkje verandert er niets: een technieker ziet dan de vier gewone tabs en kan niet plannen.
+- Een planner of beheerder heeft dit vinkje niet nodig: die plannen sowieso alles.
+
+## Stap 1: drie instellingen in Netlify
+
+Een omgevingsvariabele is een instelling die de app uit Netlify haalt. Zo zet je ze:
+
+1. Ga naar Netlify en open de site van Blitz Planning.
+2. Kies Site configuration, daarna Environment variables.
+3. Klik op Add a variable en voeg de variabelen hieronder toe.
+4. Na het toevoegen moet je de site opnieuw laten publiceren (Deploys, dan Trigger deploy). Pas dan zijn de nieuwe waarden actief.
+
+### SESSIE_GEHEIM (verplicht)
+
+- Dit is een lange, willekeurige tekst van minstens 32 tekens.
+- Zonder deze variabele kan niemand inloggen.
+- Verzin zelf iets lang met letters en cijfers door elkaar, of laat een wachtwoordbeheerder er een maken.
+- Bewaar hem op een veilige plek en deel hem met niemand.
+- Wijzig je hem later, dan worden alle ingelogde mensen meteen uitgelogd en werkt de beveiliging van de achtergrondverwerking van rapporten met de nieuwe waarde. Doe dat dus alleen met een reden.
+
+### BEHEER_SETUP_CODE (tijdelijk, voor de eerste keer)
+
+- Dit is een tijdelijke code. Je gebruikt ze maar één keer, om het allereerste beheerdersaccount te maken.
+- Kies een code die je kunt onthouden maar niemand kan raden.
+- Als je eigen account bestaat, mag je deze variabele uit Netlify verwijderen.
+
+### BEHEER_HERSTELSLEUTEL (optioneel, enkel voor noodgevallen)
+
+- Dit is een noodsleutel van minstens 32 tekens.
+- Je hoeft hem nu niet in te stellen. Je zet hem alleen in Netlify als je hem echt nodig hebt (zie "Als alles misgaat" verderop).
+
+### Wat je NOOIT in Netlify instelt
+
+Zet **BLITZ_LOKALE_DEV** nooit in Netlify. Zet ook **NETLIFY_DEV** niet. Die staan alleen op je eigen computer voor het testen. Staan ze op Netlify, dan valt de bescherming van de testrol weg en kan iedereen zich als beheerder voordoen. Staan ze er per ongeluk, verwijder ze dan meteen.
+
+## Stap 2: live zetten, in deze volgorde
+
+1. Zet de variabelen uit stap 1 in Netlify en publiceer de site.
+2. Open de app in je browser. Je ziet een scherm om het eerste beheerdersaccount aan te maken.
+3. Vul je naam, je e-mailadres, een wachtwoord (minstens 10 tekens) en de setupcode in.
+4. De app toont nu **tien herstelcodes**. Dit scherm zie je maar één keer. Bewaar ze voor je verdergaat (zie "Herstelcodes bewaren").
+5. Log in en open de tab Beheer, dan Gebruikers.
+6. Maak de andere accounts aan met de knop Nieuwe gebruiker: eerst de planners, dan de techniekers, dan sales. Kies voor elke persoon de juiste rol. Bij een technieker vul je de naam in zoals die in Zoho staat. Zo weet de app welke tickets van hem zijn. Ook een planner of beheerder die zelf interventies doet, krijgt zo'n naam (zie hierboven).
+7. De app toont bij elke nieuwe gebruiker een startwachtwoord. Dat zie je maar één keer. Geef het persoonlijk door (mondeling of op papier, niet per mail of chat). De gebruiker moet het bij de eerste keer inloggen veranderen.
+8. Verwijder BEHEER_SETUP_CODE uit Netlify.
+9. Vraag een planner en een technieker om in te loggen en te kijken of ze de juiste tabs en knoppen zien.
+
+Weet iemand zijn wachtwoord niet meer, dan klik je in Beheer, Gebruikers op Startwachtwoord opnieuw instellen. Je krijgt een nieuw startwachtwoord dat je weer persoonlijk doorgeeft. Met Overal uitloggen zet je iemand op alle toestellen buiten. Met Blokkeren kan iemand niet meer inloggen (bijvoorbeeld als hij het bedrijf verlaat).
+
+## Een gebruiker verwijderen
+
+Blokkeren is meestal genoeg: de gebruiker kan niet meer inloggen en alles blijft bewaard. Wil je iemand echt definitief verwijderen, dan kan dat in twee stappen.
+
+1. Blokkeer de gebruiker eerst. Pas daarna verschijnt bij die persoon de knop Verwijderen. Bij een actieve gebruiker en bij jezelf zie je die knop nooit.
+2. Klik op Verwijderen. De app legt in gewone taal uit wat er gebeurt en vraagt je de naam van de gebruiker over te typen. Pas dan wordt de knop Definitief verwijderen actief.
+
+Wat verdwijnt: het account (en dus elke sessie) en de persoonlijke instellingen van die gebruiker. Bij een verkoper gaan ook zijn leads, planningsblokken en bezoeken weg. De app zegt dat uitdrukkelijk in het venster. Wil je zijn leads bewaren, laat hem dan geblokkeerd.
+
+Wat blijft: de rapporten en het archief, de tickets in Zoho en het activiteitenlog. De bestaande regels in het log blijven staan en de verwijdering komt er als nieuwe regel bij (met de naam en de rol, zonder wachtwoordgegevens). Verwijderen kan niet ongedaan gemaakt worden. De laatste actieve beheerder kan nooit verwijderd worden.
+
+## Inloggen: Onthoud mij en het oogje
+
+Op het inlogscherm staat onder het wachtwoord een vinkje Onthoud mij. Vink je het aan en log je in, dan bewaart de browser alleen je e-mailadres (nooit je wachtwoord). De volgende keer staat je adres al ingevuld en kun je meteen je wachtwoord typen. Haal je het vinkje weg bij een volgende login, dan wordt het bewaarde adres gewist. Uitloggen laat het adres staan. Op een gedeeld toestel laat je het vinkje dus beter uit.
+
+Naast elk wachtwoordveld staat een oogje. Daarmee zie je even wat je typt, handig op een gsm. Nog eens klikken verbergt het weer.
+
+## Herstelcodes bewaren
+
+- Je hebt er tien. Elke code werkt één keer.
+- Druk het scherm af met de knop in het scherm en leg het papier in een kluis of een afgesloten kast.
+- Bewaar ze niet in je mailbox, niet in een gedeelde map en niet in een foto op je gsm.
+- Zijn er bijna geen codes meer, dan kun je in Beheer, Gebruikers nieuwe codes voor jezelf laten maken (de app vraagt dan je wachtwoord ter bevestiging). De oude codes werken dan niet meer.
+
+## Als je je wachtwoord vergeten bent
+
+Alleen beheerders kunnen zelf hun wachtwoord herstellen:
+
+1. Klik op het inlogscherm op Wachtwoord vergeten (beheerder).
+2. Vul je e-mailadres in en één van je herstelcodes.
+3. Kies een nieuw wachtwoord.
+
+Planners, techniekers en sales vragen aan de beheerder om een nieuw startwachtwoord.
+
+## Als alles misgaat (de noodroute)
+
+Dit is voor het geval je geen werkend wachtwoord meer hebt en ook geen herstelcodes meer. Dan gebruik je Netlify als noodingang:
+
+1. Verzin een noodsleutel van minstens 32 tekens.
+2. Zet hem in Netlify als variabele **BEHEER_HERSTELSLEUTEL** en publiceer de site opnieuw.
+3. Open de app, kies Wachtwoord vergeten (beheerder) en vul je e-mailadres in. Plak de noodsleutel in het veld voor de herstelcode. Kies een nieuw wachtwoord.
+4. De sleutel werkt maar één keer. Wil je hem opnieuw gebruiken, dan moet je een nieuwe verzinnen.
+5. **Verwijder de variabele daarna weer uit Netlify** en publiceer opnieuw. Een noodsleutel die blijft staan is een open deur.
+
+## Beveiliging van je eigen Netlify-login
+
+Wie in Netlify kan, kan alles instellen. Zet daarom tweestapsverificatie aan op je eigen Netlify-account (in je Netlify-profiel onder Security). Dat is dringend aan te raden.
+
+## Wie ziet wat in Beheer
+
+| Onderdeel van Beheer | Beheerder | Planner | Sales manager | Gewone verkoper, technieker |
+|---|---|---|---|---|
+| Gebruikers, Activiteitenlog, Systeemstatus | ja | nee | nee | geen Beheer |
+| Instellingen | van iedereen | van techniekers (en de eigen) | van verkopers (en de eigen) | geen Beheer |
+| Performance | alles | enkel het techniekers-deel (geen sales) | enkel het sales-deel (geen techniekercijfers of kosten) | geen Beheer |
+| Kleurgrenzen van de ringen aanpassen | ja | nee | nee | nee |
+
+- De lijst met gebruikers in Instellingen is voor een planner beperkt tot techniekers en hemzelf, voor een sales manager tot verkopers: enkel naam, rol en of het account actief is. Nooit een e-mailadres.
+- Wijzigt een planner of sales manager de instellingen van een ander, dan staat dat (enkel de veldnamen, niet de waarden) in het activiteitenlog.
+- Een planner of sales manager die bij een vorig bezoek op een onderdeel stond dat hij niet (meer) mag zien, komt op Instellingen terecht.
+
+## Wat de beheerpagina toont
+
+- **Gebruikers:** wie een account heeft, met rol en laatste login, en de knoppen hierboven.
+- **Instellingen:** de instellingen van de gebruikers (planner: techniekers; sales manager: verkopers).
+- **Performance:** het dashboard met cijfers over tijd, kwaliteit, onderdelen, klant en sales. De planner en de sales manager zien elk hun eigen deel.
+- **Activiteitenlog:** wie wat deed en wanneer: inloggen, foute pogingen, wijzigingen van gebruikers en instellingen, foto's, notities en rapporten. Het log wordt 12 maanden bewaard.
+- **Systeemstatus:** of de verbinding met Zoho werkt, de laatste fouten van de app en rapporten die niet verwerkt raakten.
+
+## Sales: verkopers aanmaken en hoe zij werken
+
+De sales-planner is het deel van de app waarmee een verkoper zijn eigen bezoeken plant. De handleiding hieronder gaat over het inloggen en de rollen; de werking staat in de CHANGELOG.
+
+**Een verkoper aanmaken (jij, de beheerder)**
+
+1. Open Beheer, dan Gebruikers, en klik op Nieuwe gebruiker. Kies de rol Sales.
+2. Vul het veld **Naam in export** in: precies de naam die als verantwoordelijke in het exportbestand van zijn leadlijst staat. De app gebruikt die naam om te waarschuwen als iemand per vergissing de export van een collega inlaadt (dat kan nog, na een bevestiging). Zonder die naam kan je geen verkoper aanmaken.
+3. Vink **Sales manager** enkel aan voor wie de leads van collega's moet kunnen bekijken (bijvoorbeeld een verkoopsverantwoordelijke). Hij kan dan een collega uit een lijst kiezen en ziet diens leads, maar alleen om te lezen: hij kan niets verwijderen, plannen of inladen voor een ander. Daarnaast krijgt hij de tab Beheer met Instellingen (de instellingen van verkopers aanpassen) en Performance (enkel het sales-deel). Zonder het vinkje ziet een verkoper uitsluitend zijn eigen leads en heeft hij geen Beheer.
+4. Geef het startwachtwoord persoonlijk door, zoals bij elke gebruiker.
+
+Een verkoper ziet enkel de vier tabs Leads, Kalender, Route en Afgewerkt. Planners en techniekers zien niets van sales, en de server weigert hun verzoeken. Jij ziet als beheerder één tab **Sales** met dezelfde vier onderdelen en een lijst om een verkoper te kiezen. Je mag er iets wijzigen en met **+ Lead** een lead toevoegen voor de gekozen verkoper (dat staat in het activiteitenlog), maar je kan geen export inladen: dat doet de verkoper zelf.
+
+**Hoe een verkoper een export inlaadt (de verkoper zelf)**
+
+1. Exporteer de leadlijst uit het bronsysteem als bestand (.json).
+2. Open de tab Leads en klik op **Export laden**. Kies het bestand.
+3. De app meldt hoeveel leads nieuw zijn, hoeveel er al waren en voor hoeveel het adres nagekeken moet worden. Laad je dezelfde of een nieuwere export nog eens in, dan komt niemand dubbel in de lijst en blijft wat je zelf bijschreef staan. Een lead die je eerder wegklikte en die opnieuw in de export staat, komt terug met het label "eerder verwijderd"; jij beslist.
+4. Is de export van een andere verantwoordelijke, dan vraagt de app eerst of je hem toch wilt inladen.
+
+**Hoe een verkoper zelf een lead toevoegt**
+
+Klik op **+ Lead** in de tab Leads en vul minstens de naam, een gsm of e-mailadres en de postcode in. Een notitie kan er altijd bij. Komt de klant later ook in een export voor, dan wordt hij samengevoegd met deze lead.
+
+**Hoe een verkoper zijn week plant**
+
+1. In **Leads** staan alle leads die nog niet afgewerkt zijn, in drie kolommen naast elkaar: **Nog in te plannen** (de langst wachtende bovenaan, ook een voorstel waarvan de dag voorbij is), **Ingepland** (voorgestelde bezoeken, met een knop **Bevestigen**) en **Bevestigd** (vaste bezoeken). Elke kolom toont hoeveel leads erin staan; op een telefoon zijn het drie tabbladen. Op een lead kan je **bellen** (tik op het nummer), een notitie bijschrijven of het adres aanpassen.
+2. Wil je een bezoek op een vast uur, zet dan een **vast uur** op die lead. Het planningsprogramma schuift er dan niets meer aan.
+3. Klik op **Plan deze week**. De app maakt een voorstel voor de bezoeken van de week, rekening houdend met je werkuren, rittijden en vaste uren. Een bezoek staat eerst als **voorgesteld**; bevestig het om het vast te leggen.
+4. De tab **Kalender** toont de week, **Route** toont de rit van een dag op de kaart met de rijtijden.
+5. Na een bezoek noteer je het **resultaat**: Offerte, Verkocht, Geen interesse of Opnieuw langsgaan (dan komt de lead terug bij Nog in te plannen). Bij de eerste drie is de lead **Afgewerkt**; hij verdwijnt uit Leads en staat in de tab Afgewerkt. Leads, blokken en bezoeken worden 12 maanden na de laatste activiteit bewaard en daarna vanzelf gewist (ook niet afgewerkte leads; ook bij een geblokkeerde verkoper).
+
+**Eigen instellingen**
+
+Een verkoper stelt zijn startadres, werkuren, laatste start en bezoekduur zelf in met de knop Instellingen. Als beheerder (of sales manager) doe je dat voor een verkoper via Beheer, Instellingen.
+
+## Een paar dingen om te weten
+
+- Verstuurt een technieker een rapport onder de naam van een collega, dan wordt dat aanvaard. Het staat wel met zijn naam in het activiteitenlog.
+- Botst het rapport met een rapport van iemand anders (zelfde id), dan wordt het geweigerd. Het blijft in de outbox van het toestel staan met de melding dat de planner verwittigd moet worden. Er gaat dus niets verloren.
+- Deelt een tablet met meerdere mensen, log dan telkens uit. Onverzonden rapporten blijven altijd bewaard op het toestel.
+- Op een tablet waar de app al draaide, krijgt de eerste persoon die inlogt de bestaande lokale instellingen van dat toestel. Laat dus op zo'n gedeelde tablet eerst de persoon inloggen die de instellingen hoort te hebben.
+- De knop Opnieuw versturen op de tab Systeemstatus bestaat nog niet. Dat is een open punt waarover jij beslist.
