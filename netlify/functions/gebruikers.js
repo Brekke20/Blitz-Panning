@@ -2,7 +2,7 @@
 //   GET                    beheerder -> { gebruikers: BeheerGebruiker[] } (met laatsteLogin uit blob `login-laatst`)
 //   GET                    sales manager (magAlleSales) -> { gebruikers: [{ id, naam, rol, actief }] }: enkel verkopers, nooit e-mail
 //   GET                    planner -> { gebruikers: [{ id, naam, rol, zohoNaam?, actief }] }: enkel techniekers en de planner zelf, nooit e-mail
-//   GET ?rol=sales         beheerder, of sales met magAlleSales -> { gebruikers: PubliekeGebruiker[] } (actieve verkopers)
+//   GET ?rol=sales         beheerder -> { gebruikers: PubliekeGebruiker[] } (actieve verkopers); sales met magAlleSales -> enkel { id, naam, rol, salesNaam }, geen e-mail
 //   GET ?rol=sales&geblokkeerd=1   enkel beheerder: ook de geblokkeerde verkopers (met `actief`), om hun leads te kunnen inzien
 //   POST { actie:'maak', email, naam, rol, zohoNaam? (elke rol behalve sales, uniek over alle accounts: 409), salesNaam?, magAlleSales?, startWachtwoord? }
 //        -> 201 { gebruiker, startWachtwoord, herstelcodes? } (herstelcodes enkel bij rol beheerder, enkel nu getoond)
@@ -89,7 +89,10 @@ export function maakHandler({ getStore: haalStore, nu = () => Date.now(), auth }
     const alle = await leesGebruikers(store);
     const metGeblokkeerd = rechten.beheer === true && new URL(req.url).searchParams.get('geblokkeerd') === '1';
     if (metGeblokkeerd) return json(200, { gebruikers: alle.filter(g => g.rol === 'sales').map(g => ({ ...publiek(g), actief: g.actief === true })) });
-    return json(200, { gebruikers: alle.filter(g => g.rol === 'sales' && g.actief === true).map(publiek) });
+    // Een sales manager krijgt geen e-mailadressen (enkel de beheerder): enkel wat de sales-schermen nodig hebben.
+    const actieve = alle.filter(g => g.rol === 'sales' && g.actief === true);
+    if (rechten.beheer === true) return json(200, { gebruikers: actieve.map(publiek) });
+    return json(200, { gebruikers: actieve.map(g => ({ id: g.id, naam: g.naam, rol: 'sales', salesNaam: g.salesNaam })) });
   }
 
   // ---------------- POST: maak ----------------

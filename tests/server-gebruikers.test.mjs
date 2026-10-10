@@ -154,6 +154,12 @@ test('I3: GET ?rol=sales&geblokkeerd=1: enkel de beheerder krijgt ook de geblokk
   const alsSales = JSON.parse(await (await o.gebruikers(get(als('u-sam', 1), '?rol=sales&geblokkeerd=1'))).text()).gebruikers;
   assert.deepEqual(alsSales.map(g => g.id).sort(), ['u-sal', 'u-sam']);
   assert.ok(alsSales.every(g => !('actief' in g)));
+  // M3: een sales manager krijgt geen e-mailadressen of vinkjes; de beheerder wel het volledige record
+  const tekstSales = JSON.stringify(alsSales);
+  for (const v of ['@blitz.test', 'email', 'magAlleSales']) assert.ok(!tekstSales.includes(v), v);
+  assert.deepEqual(alsSales.find(g => g.id === 'u-sal'), { id: 'u-sal', naam: 'Sal', rol: 'sales', salesNaam: 'Sal V' });
+  const alsBeheerder = JSON.parse(await (await o.gebruikers(get(BEA(), '?rol=sales'))).text()).gebruikers;
+  assert.equal(alsBeheerder.find(g => g.id === 'u-sal').email, 'sal@blitz.test');
 });
 
 test('GET: sales zonder magAlleSales (ook zonder ?rol) en andere rol-waarden krijgen 403', async () => {

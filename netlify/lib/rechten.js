@@ -122,7 +122,8 @@ export function rechtenVoor(gebruiker) {
   return {
     beheer,
     plannen: beheer || rol === 'planner',
-    alleSales: beheer || gebruiker?.magAlleSales === true,
+    // Enkel een verkoper met het vinkje (Sales manager); een planner of technieker met een achtergebleven vinkje krijgt het niet.
+    alleSales: beheer || (rol === 'sales' && gebruiker?.magAlleSales === true),
     // Een technieker met "Mag zelf plannen": plannen mag, maar enkel voor zijn eigen tickets. Beheerder en planner hebben dit niet nodig.
     planEigen: rol === 'technieker' && gebruiker?.magZelfPlannen === true,
   };

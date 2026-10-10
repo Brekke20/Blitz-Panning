@@ -178,12 +178,15 @@ test('een PUT voor een ander zonder inhoudelijke wijziging schrijft wel maar log
   assert.equal((await activiteit(echt)).length, 1);
 });
 
-test('planner PUT voor een andere planner, een beheerder of een sales: 403; onbekend id: 404', async () => {
+test('planner PUT voor een andere planner, een beheerder of een sales: 403; onbekend id: dezelfde 403 (geen lek)', async () => {
   const { h, echt } = opzet();
   for (const doel of ['u-pia', 'u-bea', 'u-sal']) {
     assert.equal((await metRol('planner', () => h(put({ gebruiker: doel, instellingen: geldig() })))).status, 403, doel);
   }
-  assert.equal((await metRol('planner', () => h(put({ gebruiker: 'u-bestaatniet', instellingen: geldig() })))).status, 404);
+  const onbekend = await metRol('planner', () => h(put({ gebruiker: 'u-bestaatniet', instellingen: geldig() })));
+  const bestaand = await metRol('planner', () => h(put({ gebruiker: 'u-bea', instellingen: geldig() })));
+  assert.equal(onbekend.status, 403);
+  assert.deepEqual(await onbekend.json(), await bestaand.json()); // zelfde antwoord en tekst
   assert.equal(await blob(echt), null);
   assert.deepEqual(await activiteit(echt), []);
 });
@@ -250,7 +253,7 @@ test('GET ?gebruiker=: technieker voor een collega 403, eigen id mag; beheerder 
   assert.equal((await (await metRol('beheerder', () => h(get('?gebruiker=u-jan')))).json()).instellingen, null);
 });
 
-test('GET ?gebruiker= door een planner: een technieker (ook geblokkeerd) en het eigen id mogen; planner, beheerder, sales 403; onbekend 404', async () => {
+test('GET ?gebruiker= door een planner: een technieker (ook geblokkeerd) en het eigen id mogen; planner, beheerder, sales 403; onbekend id dezelfde 403', async () => {
   const { h } = opzet({ begin: { instellingen: { versie: 3, perGebruiker: { 'u-tim': { duurMinuten: 77 }, 'u-weg': { duurMinuten: 66 } } } } });
   const rt = await metRol('planner', () => h(get('?gebruiker=u-tim')));
   assert.equal(rt.status, 200);
@@ -260,7 +263,9 @@ test('GET ?gebruiker= door een planner: een technieker (ook geblokkeerd) en het 
   for (const doel of ['u-pia', 'u-jan', 'u-bea', 'u-sal', 'u-sam']) {
     assert.equal((await metRol('planner', () => h(get(`?gebruiker=${doel}`)))).status, 403, doel);
   }
-  assert.equal((await metRol('planner', () => h(get('?gebruiker=u-bestaatniet')))).status, 404);
+  const onbekend = await metRol('planner', () => h(get('?gebruiker=u-bestaatniet')));
+  assert.equal(onbekend.status, 403);
+  assert.deepEqual(await onbekend.json(), await (await metRol('planner', () => h(get('?gebruiker=u-bea')))).json()); // zelfde tekst
 });
 
 test('sales manager: bewaart de instellingen van een verkoper (gelogd, zonder waarden), nooit van technieker, planner of beheerder; onbekend id 403', async () => {

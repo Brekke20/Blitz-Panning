@@ -1,7 +1,7 @@
 // /api/instellingen — instellingen per gebruiker (blob `instellingen`, store van het verzoek).
 //   GET                    eigen instellingen -> { versie, instellingen: Instellingen | null }
-//   GET ?gebruiker=<id>    beheerder: iedereen (404 bij onbekend id); planner: enkel een technieker (404 bij onbekend id, 403 voor
-//                          beheerder/planner/sales); sales met magAlleSales: enkel een sales-gebruiker; eigen id: altijd; anders 403
+//   GET ?gebruiker=<id>    beheerder: iedereen (404 bij onbekend id); planner: enkel een technieker (403 voor onbekend id én voor
+//                          beheerder/planner/sales, zonder onderscheid); sales met magAlleSales: enkel een sales-gebruiker; eigen id: altijd; anders 403
 //   GET ?overzicht=1       -> { eigen, techniekers } (sales: enkel { eigen }), techniekers per zohoNaam
 //   PUT { gebruiker?, instellingen, versie? } -> 200 { versie }; schrijft de eigen instellingen of die van `gebruiker`:
 //        beheerder voor iedereen, planner enkel voor een technieker, sales manager (magAlleSales) enkel voor een verkoper;
@@ -45,9 +45,9 @@ export function maakHandler({ getStore: haalStore, nu = () => Date.now(), auth }
         if (!(await zoekDoel(aStore, doelId))) return json(404, NIET_GEVONDEN);
       } else if (gebruiker.rol === 'planner') {
         // Gelijk aan schrijven: een planner leest en bewaart enkel de instellingen van techniekers (en zijn eigen).
+        // Onbekend id en niet-technieker geven dezelfde 403 (het bestaan en de rol van een id lekken niet).
         const doel = await zoekDoel(aStore, doelId);
-        if (!doel) return json(404, NIET_GEVONDEN);
-        if (doel.rol !== 'technieker') return json(403, GEEN_RECHT);
+        if (!doel || doel.rol !== 'technieker') return json(403, GEEN_RECHT);
       } else if (gebruiker.rol === 'sales' && gebruiker.magAlleSales === true) {
         const doel = await zoekDoel(aStore, doelId);
         if (!doel || doel.rol !== 'sales') return json(403, GEEN_RECHT);
@@ -75,9 +75,10 @@ export function maakHandler({ getStore: haalStore, nu = () => Date.now(), auth }
       if (salesManager) {
         // Een sales manager bewaart enkel de instellingen van verkopers; ook een onbekend id geeft 403 (geen lek, gelijk aan lezen).
         if (!doel || doel.rol !== 'sales') return json(403, GEEN_RECHT);
-      } else {
-        if (!doel) return json(404, NIET_GEVONDEN);
-        if (gebruiker.rol === 'planner' && doel.rol !== 'technieker') return json(403, GEEN_RECHT);
+      } else if (gebruiker.rol === 'planner') {
+        if (!doel || doel.rol !== 'technieker') return json(403, GEEN_RECHT); // zelfde 403 voor onbekend en niet-technieker
+      } else if (!doel) {
+        return json(404, NIET_GEVONDEN); // beheerder
       }
     }
 

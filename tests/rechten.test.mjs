@@ -156,6 +156,10 @@ test('rechtenVoor', () => {
   assert.deepEqual(rechtenVoor({ rol: S }), { beheer: false, plannen: false, alleSales: false, planEigen: false });
   assert.deepEqual(rechtenVoor({ rol: S, magAlleSales: true }), { beheer: false, plannen: false, alleSales: true, planEigen: false });
   assert.deepEqual(rechtenVoor({ rol: P, magAlleSales: 'ja' }), { beheer: false, plannen: true, alleSales: false, planEigen: false });
+  // M2: alleSales enkel voor beheerder of een verkoper met het vinkje; een planner of technieker met een achtergebleven vinkje niet
+  assert.equal(rechtenVoor({ rol: T, magAlleSales: true }).alleSales, false);
+  assert.equal(rechtenVoor({ rol: P, magAlleSales: true }).alleSales, false);
+  assert.equal(rechtenVoor({ rol: B, magAlleSales: false }).alleSales, true);
   assert.deepEqual(rechtenVoor(null), { beheer: false, plannen: false, alleSales: false, planEigen: false });
   // planEigen: enkel een technieker met het vinkje (letterlijk true); een planner of beheerder heeft het niet nodig.
   assert.deepEqual(rechtenVoor({ rol: T, magZelfPlannen: true }), { beheer: false, plannen: false, alleSales: false, planEigen: true });
