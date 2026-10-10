@@ -94,11 +94,7 @@ export function maakAuth({ getStore = standaardGetStore, env = process.env, nu =
       } catch (e) {
         // Alleen het fouttype loggen: een Blobs-fout kan details bevatten.
         console.error('auth: opslag niet bereikbaar (' + (e?.name || 'Error') + ')');
-        // TIJDELIJK (diagnose Deploy Preview, 2026-10-10): oorzaak in het antwoord; wordt weer verwijderd.
-        const w = weiger('opslag-storing');
-        const ev = reqOfEvent && typeof reqOfEvent === 'object' ? reqOfEvent : {};
-        return { ...w, fout: w.fout + ' [diag ' + (e?.name || 'Error') + ': ' + String(e?.message || '').slice(0, 160)
-          + ' | blobs=' + typeof ev.blobs + ' | ctx=' + (process.env.NETLIFY_BLOBS_CONTEXT ? 'ja' : 'nee') + ']' };
+        return weiger('opslag-storing');
       }
       const record = gebruikers.find(g => g && g.id === claims.uid);
       if (!record || record.actief !== true || record.sessieVersie !== claims.sv) return weiger('niet-ingelogd');
