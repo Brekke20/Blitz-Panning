@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   valideerInlog, valideerNieuwWachtwoord, valideerSetup, valideerHerstel, loginFoutTekst, formatHerstelcodes,
+  leesOnthoudEmail, bewaarOnthoudEmail, ONTHOUD_SLEUTEL,
 } from '../public/js/schermen/inloggen-logica.js';
 
 const wachtwoord = (n) => 'a'.repeat(n);
@@ -76,4 +77,59 @@ test('formatHerstelcodes: 10 regels, elke code zichtbaar', () => {
   assert.equal(regels.length, 10);
   codes.forEach((c, i) => assert.ok(regels[i].includes(c)));
   assert.equal(formatHerstelcodes(undefined), '');
+});
+
+// ---- Onthoud mij: enkel het e-mailadres, nooit het wachtwoord; elke opslagfout wordt stil genegeerd ----
+const nepOpslag = () => { const m = new Map(); return { m, getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const kapotteOpslag = () => ({ getItem() { throw new Error('geblokkeerd'); }, setItem() { throw new Error('vol'); }, removeItem() { throw new Error('geblokkeerd'); } });
+
+test('onthoud: niets bewaard -> null', () => {
+  assert.equal(leesOnthoudEmail(nepOpslag()), null);
+});
+
+test('onthoud: vinkje aan bewaart het (getrimde) adres, en het is terug te lezen', () => {
+  const o = nepOpslag();
+  assert.equal(bewaarOnthoudEmail('  a@b.be ', true, o), true);
+  assert.equal(o.m.get(ONTHOUD_SLEUTEL), 'a@b.be');
+  assert.equal(leesOnthoudEmail(o), 'a@b.be');
+});
+
+test('onthoud: vinkje uit wist het bewaarde adres', () => {
+  const o = nepOpslag();
+  bewaarOnthoudEmail('a@b.be', true, o);
+  assert.equal(bewaarOnthoudEmail('a@b.be', false, o), false);
+  assert.equal(leesOnthoudEmail(o), null);
+  assert.equal(o.m.size, 0);
+});
+
+test('onthoud: alleen een echt true bewaart, en enkel een geldig adres', () => {
+  const o = nepOpslag();
+  assert.equal(bewaarOnthoudEmail('a@b.be', 'ja', o), false);
+  assert.equal(bewaarOnthoudEmail('geen-adres', true, o), false);
+  assert.equal(o.m.size, 0);
+});
+
+test('onthoud: het wachtwoord komt nergens in de opslag (de functie krijgt het niet eens)', () => {
+  const o = nepOpslag();
+  bewaarOnthoudEmail('a@b.be', true, o);
+  assert.deepEqual([...o.m.entries()], [[ONTHOUD_SLEUTEL, 'a@b.be']]);
+  assert.equal(bewaarOnthoudEmail.length >= 2, true);
+});
+
+test('onthoud: een localStorage die gooit wordt stil genegeerd (lezen, bewaren en wissen)', () => {
+  const k = kapotteOpslag();
+  assert.equal(leesOnthoudEmail(k), null);
+  assert.equal(bewaarOnthoudEmail('a@b.be', true, k), false);
+  assert.equal(bewaarOnthoudEmail('a@b.be', false, k), false);
+});
+
+test('onthoud: geen opslag aanwezig (null/undefined) gooit niet', () => {
+  assert.equal(leesOnthoudEmail(null), null);
+  assert.equal(bewaarOnthoudEmail('a@b.be', true, null), false);
+});
+
+test('onthoud: een bewaarde waarde zonder @ (kapotte data) wordt genegeerd', () => {
+  const o = nepOpslag();
+  o.m.set(ONTHOUD_SLEUTEL, 'rommel');
+  assert.equal(leesOnthoudEmail(o), null);
 });

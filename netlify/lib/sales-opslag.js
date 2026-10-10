@@ -40,6 +40,12 @@ function serieelVoor(sleutel) {
   return s;
 }
 
+/** Wist het hele verkoperblob (leads, blokken, grafstenen) van een verwijderde gebruiker, binnen het serieel van die sleutel. Gooit bij een Blobs-fout. */
+export function verwijderSales(store, gebruikerId) {
+  const sleutel = salesSleutel(gebruikerId);
+  return serieelVoor(sleutel)(async () => { await store.delete(sleutel); });
+}
+
 /**
  * Lees-wijzig-schrijf op het verkoperblob.
  * wijzig(data /* verse kopie van de huidige blob *\/) -> { data, extra? } | { fouten: string[] } | null (niets doen)

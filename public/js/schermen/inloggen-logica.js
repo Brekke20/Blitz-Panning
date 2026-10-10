@@ -86,3 +86,27 @@ export function formatHerstelcodes(codes) {
   if (!Array.isArray(codes)) return '';
   return codes.map((c, i) => `${String(i + 1).padStart(2, ' ')}.  ${String(c)}`).join('\n');
 }
+
+// ── "Onthoud mij" ───────────────────────────────────────────────────────────────────────────────────────────────
+// Enkel het e-mailadres wordt bewaard (nooit het wachtwoord), enkel na een geslaagde login met het vinkje aan. Uitloggen laat
+// het staan (dat is de bedoeling van onthouden). Elke opslagfout (geen localStorage, vol, geblokkeerd) wordt stil genegeerd.
+export const ONTHOUD_SLEUTEL = 'blitz_onthoud_email';
+const standaardOpslag = () => { try { return globalThis.localStorage ?? null; } catch { return null; } };
+
+// -> het bewaarde e-mailadres, of null.
+export function leesOnthoudEmail(opslag = standaardOpslag()) {
+  try {
+    const e = opslag?.getItem(ONTHOUD_SLEUTEL);
+    return typeof e === 'string' && heeftEmail(e.trim()) ? e.trim() : null;
+  } catch { return null; }
+}
+
+// Vinkje aan + geldig adres: bewaren; vinkje uit: wissen. Geeft true als er na afloop een adres bewaard staat.
+export function bewaarOnthoudEmail(email, onthoud, opslag = standaardOpslag()) {
+  try {
+    const e = emailVan(email);
+    if (onthoud === true && heeftEmail(e)) { opslag.setItem(ONTHOUD_SLEUTEL, e); return true; }
+    opslag.removeItem(ONTHOUD_SLEUTEL);
+  } catch { /* geen opslag: stil negeren */ }
+  return false;
+}

@@ -2,12 +2,15 @@
 // wachtwoord wijzigen, wachtwoord vergeten (herstelcode of noodsleutel) en "geen verbinding". Eén overlay #login-overlay
 // bovenop de app: ondoorzichtig, focusval, Enter verstuurt, Escape sluit niets. Registreert zichzelf via zetInlogUi.
 // Veiligheid: vrije tekst komt enkel via escHtml of textContent in de DOM; wachtwoorden en herstelcodes blijven in
-// closures/formuliervelden en gaan nooit naar localStorage of de URL.
+// closures/formuliervelden en gaan nooit naar localStorage of de URL. Enige uitzondering: "Onthoud mij" bewaart het e-mailadres
+// (nooit het wachtwoord) in localStorage. Elk wachtwoordveld krijgt een oogje (kern/wachtwoord-oog.js).
 import { escHtml, registreerActies } from '../kern/ui.js';
 import { apiVerzoek } from '../kern/api.js';
 import { zetInlogUi } from '../kern/sessie.js';
+import { voegWachtwoordOogjesToe } from '../kern/wachtwoord-oog.js';
 import {
   valideerInlog, valideerNieuwWachtwoord, valideerSetup, valideerHerstel, loginFoutTekst, formatHerstelcodes,
+  leesOnthoudEmail, bewaarOnthoudEmail,
 } from './inloggen-logica.js';
 
 const OVERLAY_ID = 'login-overlay';
@@ -84,18 +87,25 @@ function veldHtml({ naam, label, type = 'text', autocomplete = 'off', geheim = f
     + `autocomplete="${escHtml(ac)}" autocapitalize="none" spellcheck="false"${extra}></div>`;
 }
 
-function kaartHtml({ titel, intro, velden = [], verstuurTekst, extraKnoppen = [] }) {
+// Een vinkje (bv. "Onthoud mij"); `aan` is de beginstand.
+function vinkHtml({ naam, label, aan = false }) {
+  const id = `login-${naam}`;
+  return `<div class="login-vink-rij"><label class="login-vink" for="${escHtml(id)}"><input type="checkbox" id="${escHtml(id)}" name="${escHtml(naam)}"${aan ? ' checked' : ''}>`
+    + `<span>${escHtml(label)}</span></label></div>`;
+}
+
+function kaartHtml({ titel, intro, velden = [], vinkjes = [], verstuurTekst, extraKnoppen = [] }) {
   const knoppen = extraKnoppen.map(k => `<button type="button" class="btn ${escHtml(k.stijl || 'btn--secondary')}" data-actie="${escHtml(k.actie)}">${escHtml(k.tekst)}</button>`).join('');
   return `<div class="login-kaart"><div class="login-merk">Blitz Planning</div><h2>${escHtml(titel)}</h2>`
     + (intro ? `<p class="login-intro">${escHtml(intro)}</p>` : '')
-    + `<form class="login-formulier" novalidate>${velden.map(veldHtml).join('')}`
+    + `<form class="login-formulier" novalidate>${velden.map(veldHtml).join('')}${vinkjes.map(vinkHtml).join('')}`
     + `<p class="login-fout" role="alert" data-fout></p>`
     + `<div class="login-acties">${verstuurTekst ? `<button type="submit" class="btn btn--primary">${escHtml(verstuurTekst)}</button>` : ''}${knoppen}</div></form></div>`;
 }
 
 function leesWaarden(form) {
   const uit = {};
-  for (const el of form.querySelectorAll('input[name]')) uit[el.name] = el.value; // niet trimmen: de validatie beslist
+  for (const el of form.querySelectorAll('input[name]')) uit[el.name] = el.type === 'checkbox' ? el.checked : el.value; // niet trimmen: de validatie beslist
   return uit;
 }
 
@@ -105,7 +115,9 @@ function formScherm(kaart, verwerk, acties = {}) {
   return new Promise((resolve) => {
     const wortel = openOverlay();
     vulKaart(wortel, kaartHtml(kaart));
+    voegWachtwoordOogjesToe(wortel);
     const form = wortel.querySelector('form');
+    for (const [naam, waarde] of Object.entries(kaart.beginwaarden || {})) { const el = form.elements[naam]; if (el) el.value = waarde; }
     const foutEl = wortel.querySelector('[data-fout]');
     // Tijdens een lopend verzoek staan alle knoppen uit (ook de knoppen naar andere schermen): geen dubbel verzenden en
     // geen schermwissel midden in een POST.
@@ -135,7 +147,7 @@ function formScherm(kaart, verwerk, acties = {}) {
         zetKnoppen(false);
       }
     });
-    (form.querySelector('input') || wortel.querySelector(FOCUSBAAR))?.focus();
+    (form.elements[kaart.focusNaam] || form.querySelector('input') || wortel.querySelector(FOCUSBAAR))?.focus();
   });
 }
 
@@ -148,12 +160,16 @@ const serverFout = (r, standaard) => (r.status === 429 ? loginFoutTekst(429, r.d
 
 // ── Schermen ───────────────────────────────────────────────────────────────────────────────────────────────────
 function schermInloggen() {
+  const onthouden = leesOnthoudEmail(); // bewaard adres: ingevuld, vinkje aan en de focus meteen op het wachtwoord
   return formScherm({
     titel: 'Inloggen',
     velden: [
       { naam: 'email', label: 'E-mailadres', type: 'email', autocomplete: 'username' },
       { naam: 'wachtwoord', label: 'Wachtwoord', type: 'password', autocomplete: 'current-password' },
     ],
+    vinkjes: [{ naam: 'onthoud', label: 'Onthoud mij', aan: onthouden !== null }],
+    beginwaarden: onthouden !== null ? { email: onthouden } : {},
+    focusNaam: onthouden !== null ? 'wachtwoord' : 'email',
     verstuurTekst: 'Inloggen',
     extraKnoppen: [{ tekst: 'Wachtwoord vergeten (beheerder)', actie: 'herstel', stijl: 'btn--ghost login-link' }],
   }, async (w) => {
@@ -161,6 +177,7 @@ function schermInloggen() {
     if (v.fout) return { fout: v.fout };
     const r = await post('/api/auth-login', v.waarden);
     if (!r.ok) return { fout: r.status === 401 ? loginFoutTekst(401) : serverFout(r, loginFoutTekst(r.status, r.data)) };
+    bewaarOnthoudEmail(v.waarden.email, w.onthoud === true); // enkel na een geslaagde login: aan = bewaren, uit = wissen
     // Moet het wachtwoord nog gewijzigd worden: meteen in dezelfde overlay (de cookie staat al).
     return { volgende: r.data?.moetWachtwoordWijzigen === true ? { naar: 'wijzigen', verplicht: true } : klaar };
   }, { herstel: { naar: 'herstel' } });

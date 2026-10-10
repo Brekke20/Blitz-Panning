@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   sorteerGebruikers, valideerGebruikerFormulier, zohoNaamOpties, zohoNaamBezetDoor, zohoNaamKeuzes, ZOHO_ANDERE, rolLabel, kanBlokkeren, formatLaatsteLogin,
+  kanVerwijderen, verwijderUitleg, naamKomtOver,
 } from '../public/js/schermen/beheer-gebruikers-logica.js';
 
 const g = (id, naam, rol, actief = true) => ({ id, naam, rol, actief, email: `${id}@test.be` });
@@ -127,4 +128,39 @@ test('valideerGebruikerFormulier: magZelfPlannen enkel bij een technieker en enk
   assert.equal(valideerGebruikerFormulier(basis, 'technieker').waarden.magZelfPlannen, false);
   for (const rol of ['planner', 'beheerder']) assert.equal('magZelfPlannen' in valideerGebruikerFormulier({ ...basis, magZelfPlannen: true }, rol).waarden, false, rol);
   assert.equal('magZelfPlannen' in valideerGebruikerFormulier({ ...basis, salesNaam: 'T', magZelfPlannen: true }, 'sales').waarden, false);
+});
+
+
+// ---- verwijderen: knop-regel, uitleg en naam overtikken ----
+test('kanVerwijderen (client): enkel geblokkeerd, nooit jezelf, een actieve beheerder blijft over', () => {
+  const l = [
+    { id: 'a', rol: 'beheerder', actief: true }, { id: 'b', rol: 'planner', actief: true }, { id: 'c', rol: 'planner', actief: false },
+    { id: 'd', rol: 'beheerder', actief: false },
+  ];
+  assert.equal(kanVerwijderen(l, 'c', 'a'), true);
+  assert.equal(kanVerwijderen(l, 'd', 'a'), true);
+  assert.equal(kanVerwijderen(l, 'b', 'a'), false, 'actief');
+  assert.equal(kanVerwijderen(l, 'a', 'a'), false, 'jezelf');
+  assert.equal(kanVerwijderen(l, 'x', 'a'), false, 'onbekend');
+  assert.equal(kanVerwijderen([{ id: 'd', rol: 'beheerder', actief: false }, { id: 'b', rol: 'planner', actief: true }], 'd', 'b'), false, 'geen actieve beheerder over');
+  assert.equal(kanVerwijderen(null, 'c', 'a'), false);
+});
+
+test('verwijderUitleg: gewone taal met de gevolgen; enkel een verkoper krijgt de waarschuwing over leads en planning', () => {
+  const gewoon = verwijderUitleg({ naam: 'Piet', rol: 'planner' }).join(' ');
+  assert.match(gewoon, /Piet wordt definitief verwijderd/);
+  assert.match(gewoon, /Rapporten en tickets blijven bewaard/);
+  assert.match(gewoon, /activiteitenlogboek/);
+  assert.ok(!/leads/.test(gewoon));
+  const verkoper = verwijderUitleg({ naam: 'Sara', rol: 'sales' });
+  assert.equal(verkoper.at(-1), 'Zijn leads en planning worden ook verwijderd. Wil je die bewaren, laat hem dan geblokkeerd.');
+});
+
+test('naamKomtOver: exacte naam, hoofdletters en spaties aan de rand of dubbele spaties tellen niet; leeg of anders niet', () => {
+  assert.equal(naamKomtOver('Piet Planner', 'Piet Planner'), true);
+  assert.equal(naamKomtOver('  piet   planner ', 'Piet Planner'), true);
+  assert.equal(naamKomtOver('Piet', 'Piet Planner'), false);
+  assert.equal(naamKomtOver('', ''), false);
+  assert.equal(naamKomtOver('x', undefined), false);
+  assert.equal(naamKomtOver(undefined, 'Piet'), false);
 });
