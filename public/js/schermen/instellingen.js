@@ -107,6 +107,19 @@ export function savePersonSettings(person, opties = {}, instellingen = toestand.
   }).catch(() => { /* bewaarOpServer gooit niet; vangnet */ });
 }
 
+// De kaartstijl is een persoonlijke instelling: ze hoort bij de EIGEN set van de ingelogde gebruiker (zelfde doel als ⚙), ook als hij de
+// week van een collega bekijkt. De kaart toont dus altijd de eigen stijl; een keuze op de kaart bewaart nooit bij de collega.
+export function eigenKaartStijl() { return loadPersonSettings(eigenPersoon()).kaartStijl; }
+export function bewaarEigenKaartStijl(sleutel) {
+  const persoon = eigenPersoon();
+  const eigen = loadPersonSettings(persoon);
+  eigen.kaartStijl = sleutel;
+  savePersonSettings(persoon, {}, eigen);
+  const gebruiker = huidigeGebruiker();
+  // Bekijkt hij zijn eigen set (of "Alle", hetzelfde eigen record), dan volgt de getoonde set; een collega blijft ongemoeid.
+  if (toontEigenSet(gebruiker)) toestand.set('settings', loadPersonSettings(toestand.get('activeAssigneeFilter')));
+}
+
 export const DAGEN = ['Zo','Ma','Di','Wo','Do','Vr','Za'];
 
 let _settingsActiveTab = 'algemeen';

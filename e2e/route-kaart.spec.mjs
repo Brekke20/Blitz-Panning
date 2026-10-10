@@ -200,8 +200,10 @@ test.describe('route-kaart', () => {
 
     await expect(osm).toBeChecked();
     await expect(standaard).not.toBeChecked();
-    // Gemeten: de testmodus bewaart de keuze per persoon in de instellingen (sleutel 'osm').
-    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('blitz_settings_Tim')).kaartStijl)).toBe('osm');
+    // De kaartstijl is persoonlijk: ze wordt bewaard op de EIGEN instellingen van de ingelogde gebruiker (hier de beheerder, sleutel 'Alle'),
+    // niet op Tim, die hier enkel bekeken wordt.
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('blitz_settings')).kaartStijl)).toBe('osm');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_settings_Tim')).kaartStijl)).toBeUndefined();
     // De route blijft getekend.
     await expect.poll(async () => (await meetKaart(page)).markers).toEqual(['1', '2']);
   });

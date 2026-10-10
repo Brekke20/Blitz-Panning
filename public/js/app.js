@@ -276,7 +276,8 @@ function opstart() {
   });
   routeKaart.initKaart({
     instellingen: () => get('settings'),
-    bewaarKaartStijl: () => instellingen.savePersonSettings(get('activeAssigneeFilter')),
+    bewaarKaartStijl: (sleutel) => instellingen.bewaarEigenKaartStijl(sleutel), // persoonlijk: altijd de eigen instellingen, nooit die van de getoonde persoon
+    eigenKaartStijl: () => instellingen.eigenKaartStijl(),
     standaardRouteKleur: instellingen.DEFAULT_SETTINGS.routeKleur,
   });
   try {
