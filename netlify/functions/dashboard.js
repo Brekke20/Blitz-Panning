@@ -1,4 +1,7 @@
-// /api/dashboard — performance-dashboard (enkel beheerder; de rechtentabel doet de controle in de wrapper).
+// /api/dashboard — performance-dashboard. De rechtentabel laat beheerder, planner en sales toe; de rol bepaalt het deel:
+//   beheerder -> alles; planner -> enkel het techniekers-deel (geen `sales`); sales met magAlleSales (sales manager) -> enkel het
+//   sales-deel (geen techniekerdata of kosten; filters technieker/type/herhaal doen er niet toe); gewone sales -> 403.
+//   Bij planner en sales manager staat `deel` ('techniekers' | 'sales') in het antwoord.
 //   GET ?van=<YYYY-MM-DD>&tot=<YYYY-MM-DD>&technieker=<naam>&type=<type>&herhaal=<dagen>
 //     -> berekenDashboard(...) JSON, aangevuld met `dekking.fouten` (bronnen die faalden) en `bronnen`
 //        ({ actief, archief, archiefJaren, activiteitAfgekapt }).
@@ -32,9 +35,19 @@ const echteDatum = t => DATUM_RE.test(t) && !Number.isNaN(Date.parse(`${t}T00:00
 const dagMin = (datum, n) => new Date(Date.parse(`${datum}T00:00:00Z`) - n * 86400000).toISOString().slice(0, 10);
 const leesTekst = (params, naam) => (params.get(naam) ?? '').slice(0, MAX_TEKST);
 
+// Welk deel van het dashboard deze gebruiker mag zien (null = niets).
+function deelVoor(gebruiker) {
+  if (gebruiker?.rol === 'beheerder') return 'alles';
+  if (gebruiker?.rol === 'planner') return 'techniekers';
+  if (gebruiker?.rol === 'sales' && gebruiker.magAlleSales === true) return 'sales';
+  return null;
+}
+
 export function maakHandler({ getStore: haalStore, auth, nu } = {}) {
-  const kern = async (req) => {
+  const kern = async (req, _context, gebruiker) => {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+    const deel = deelVoor(gebruiker);
+    if (!deel) return json(403, { error: 'Je hebt hier geen toegang toe.', code: 'geen-recht' });
     const params = new URL(req.url).searchParams;
     const nuMs = nu ? nu() : Date.now();
     const vandaag = datumInBrussel(new Date(nuMs).toISOString());
@@ -55,14 +68,15 @@ export function maakHandler({ getStore: haalStore, auth, nu } = {}) {
     try {
       if (testModus) await zorgVoorTestkopie(haalStore);
       const store = haalStore({ name: winkelNaam(req), consistency: 'strong' });
-      bronnen = await leesBronnen({ store, echteStore: authStore(haalStore), testModus }, { van, tot, vorigeVan: vorigePeriode(van, tot).van });
+      bronnen = await leesBronnen({ store, echteStore: authStore(haalStore), testModus }, { van, tot, vorigeVan: vorigePeriode(van, tot).van, deel });
     } catch (e) {
       console.error('dashboard: lezen mislukt (' + (e?.name || 'Error') + ': ' + String(e?.message || '').slice(0, 120) + ')');
       return json(503, OPSLAG_STORING);
     }
     try {
       const { fouten, rapportBronnen, activiteitAfgekapt, ...invoer } = bronnen;
-      const d = berekenDashboard({ ...invoer, filters, nu: new Date(nuMs).toISOString() });
+      const d = berekenDashboard({ ...invoer, filters, nu: new Date(nuMs).toISOString(), deel });
+      if (deel === 'sales') return json(200, { ...d, dekking: { ...d.dekking, fouten } });
       return json(200, {
         ...d,
         // activiteitAfgekapt ook bij klant: de annulatievergelijking is dan onderteld (de oudste items vallen weg).

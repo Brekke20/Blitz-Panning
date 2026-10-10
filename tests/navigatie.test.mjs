@@ -77,3 +77,19 @@ test('laadTab gooit niet bij een onbekende id, zonder actieve rol of bij een fal
   try { await laadTab('stuk'); await laadTab('sync-stuk'); } finally { console.error = oud; }
   assert.equal(fouten.length, 2);
 });
+
+test('zetActieveRol met extra: laadTab laadt ook de tabs van die extra sleutel (sales manager: Beheer); zonder extra niet', async () => {
+  const geladen = [];
+  registreerTabs('sales', [tab('sales-lijst', async () => { geladen.push('lijst'); })]);
+  registreerTabs('sales-manager', [tab('beheer', async () => { geladen.push('beheer'); })]);
+  zetActieveRol('sales');
+  await laadTab('beheer');
+  assert.deepEqual(geladen, []);
+  zetActieveRol('sales', ['sales-manager']);
+  await laadTab('beheer');
+  await laadTab('sales-lijst');
+  assert.deepEqual(geladen, ['beheer', 'lijst']);
+  zetActieveRol('sales'); // terug zonder extra
+  await laadTab('beheer');
+  assert.deepEqual(geladen, ['beheer', 'lijst']);
+});

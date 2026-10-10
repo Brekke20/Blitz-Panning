@@ -163,7 +163,8 @@ function toonGebruikerFormulier({ gebruiker = null, lijst, naSucces }) {
     h('p', { class: 'bg-uitleg bg-hulp', text: 'Deze technieker ziet dan ook de Wachtrij en de Route en kan zijn eigen tickets inplannen, verzetten en voorstellen sturen. Tickets van collega’s blijven alleen-lezen. Geldt vanaf de volgende keer dat hij de app opent of herlaadt.' }));
   const groepSales = h('div', { class: 'bg-groep' },
     veld('Naam in export', salesNaam),
-    h('label', { class: 'bg-vink', for: 'bg-alle-sales' }, alleSales, h('span', { text: 'Mag alle sales zien' })));
+    h('label', { class: 'bg-vink', for: 'bg-alle-sales' }, alleSales, h('span', { text: 'Sales manager' })),
+    h('p', { class: 'bg-uitleg bg-hulp', text: 'Een sales manager ziet de leads van collega-verkopers (enkel lezen), past hun instellingen aan en ziet het sales-deel van Performance, in de tab Beheer. Geldt vanaf de volgende keer dat hij de app opent of herlaadt.' }));
   const toonRolVelden = () => {
     groepTechnieker.hidden = rol.value === 'sales';
     groepSales.hidden = rol.value !== 'sales';
@@ -389,7 +390,7 @@ async function render(container) {
     const actief = g.actief === true;
     const eigen = g.id === eigenId();
     const cel = (label, ...inhoud) => h('td', { 'data-label': label }, h('div', { class: 'bg-cel' }, inhoud));
-    const details = [g.zohoNaam ? `Zoho: ${g.zohoNaam}` : null, g.salesNaam ? `Export: ${g.salesNaam}` : null, g.magAlleSales ? 'Mag alle sales zien' : null, g.rol === 'technieker' && g.magZelfPlannen ? 'Mag zelf plannen' : null].filter(Boolean);
+    const details = [g.zohoNaam ? `Zoho: ${g.zohoNaam}` : null, g.salesNaam ? `Export: ${g.salesNaam}` : null, g.magAlleSales ? 'Sales manager' : null, g.rol === 'technieker' && g.magZelfPlannen ? 'Mag zelf plannen' : null].filter(Boolean);
     const knop = (tekst, naamActie, handler, extra = {}) => {
       const k = h('button', {
         type: 'button', class: `btn btn--secondary btn--sm${extra.klasse ? ' ' + extra.klasse : ''}`, text: tekst,
