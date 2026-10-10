@@ -10,14 +10,16 @@ import { drukteMagnitude } from './route-tijden.js';
 const nietGeinitialiseerd = () => { throw new Error('route-kaart: initKaart() is niet aangeroepen'); };
 let instellingen = nietGeinitialiseerd;
 let bewaarKaartStijl = nietGeinitialiseerd;
+let eigenKaartStijl = nietGeinitialiseerd;
 let standaardRouteKleur = '#f59e0b';
 export function initKaart(afh) {
   instellingen = afh.instellingen;
   bewaarKaartStijl = afh.bewaarKaartStijl;
+  eigenKaartStijl = afh.eigenKaartStijl;
   standaardRouteKleur = afh.standaardRouteKleur;
 }
 
-// Kaartlagen — 5 gratis basiskaarten, keuze wordt per persoon onthouden in instellingen().kaartStijl.
+// Kaartlagen — 5 gratis basiskaarten, keuze is persoonlijk: ze hoort bij de EIGEN instellingen van de ingelogde gebruiker (afh.eigenKaartStijl/bewaarKaartStijl), niet bij de getoonde persoon.
 // Esri als 'standaard' (kaart-snelheid-onderzoek 2026-09-22): commerciële CDN zonder OSM's
 // "fair use"-beleid/throttling-risico. OpenStreetMap blijft gewoon kiesbaar (sleutel 'osm').
 // Migratie: een eerder opgeslagen instellingen().kaartStijl === 'standaard' wijst voortaan automatisch
@@ -315,17 +317,17 @@ export function initMap() {
   // vastgezette tijd (setFixedTime) eindigt die lus nooit en elke page.clock.runFor kost dan echte tijd (zie eindreview-fix-report.md).
   leafletMap  = L.map('map', { zoomControl: true, fadeAnimation: false }).setView([51.0, 4.5], 8);
   kaartLagenKeuze = voegKaartLagenToe(leafletMap, {
-    startSleutel: instellingen().kaartStijl,
-    bijKeuze: (sleutel) => { instellingen().kaartStijl = sleutel; bewaarKaartStijl(sleutel); },
+    startSleutel: eigenKaartStijl(),
+    bijKeuze: (sleutel) => bewaarKaartStijl(sleutel), // enkel een keuze van de GEBRUIKER; bewaart op zijn eigen instellingen
   });
   routeLayer  = L.layerGroup().addTo(leafletMap);
 }
 
-// Schakelt de actieve basislaag om naar instellingen().kaartStijl — gebruikt na een persoonswissel
-// zodat de kaart meteen de eigen kaartstijl van die persoon toont.
+// Schakelt de actieve basislaag om naar de eigen kaartstijl van de ingelogde gebruiker — gebruikt na een persoonswissel (de kaartstijl
+// blijft bij het bekijken van een collega de eigen stijl) en bewaart nooit iets.
 export function applyKaartStijl() {
   if (!leafletMap || !kaartLagenKeuze) return;
-  kaartLagenKeuze.zet(instellingen().kaartStijl);
+  kaartLagenKeuze.zet(eigenKaartStijl());
 }
 
 export function updateKaart({ date, allStops, routeData, currentRouteDate }) {

@@ -56,7 +56,7 @@ test.describe('tijdveld: een tik op het veld opent de klok (Android)', () => {
 
   test('ook een tijdveld buiten de wizard (Instellingen: werkuren van) krijgt de picker', async ({ page }) => {
     await spioneerShowPicker(page);
-    await startApp(page, { loginRol: 'planner' }); // werkuren zijn voor de beheerder alleen-lezen in dit venster (UI/UX P1-3)
+    await startApp(page, { loginRol: 'planner', loginGebruiker: { zohoNaam: 'Brent' } }); // eigen werkuren: planner met Zoho-naam (beheerder: alleen-lezen; zonder naam: verborgen)
     await page.getByRole('button', { name: 'Instellingen', exact: true }).click();
     const van = page.locator('#set-van');
     await expect(van).toBeVisible();

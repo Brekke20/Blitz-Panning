@@ -479,7 +479,8 @@ function describe_opnieuw() {
 
 // UI/UX-review P1-3: twee schermen voor dezelfde werkinstellingen per persoon. Voor de beheerder is Beheer → Instellingen de enige
 // plek om ze te bewerken; het ⚙-venster toont ze alleen-lezen met een link. Persoonlijke/toestelkeuzes (routekleur) blijven bewerkbaar.
-// De planner heeft geen Beheer-tab en bewerkt de werkinstellingen van de technici nog in het ⚙-venster.
+// ⚙ opent altijd de EIGEN instellingen (eigen Zoho-naam), los van de persoonskiezer. Zonder Zoho-naam: enkel de persoonlijke velden.
+// De planner heeft geen Beheer-tab en bewerkt in ⚙ zijn eigen werkinstellingen (die van techniekers kan enkel de beheerder in Beheer).
 test.describe('⚙-venster en Beheer → Instellingen: één plek om de werkinstellingen te bewerken', () => {
   const WERKVELDEN = ['#set-start', '#set-duration', '#set-max', '#set-maxreistijd', '#set-laatste-start', '#set-van', '#set-tot', '#set-tijdslot'];
   const stubs = () => ({ gebruikers: gebruikersStub(), instellingen: instellingenStub(), activiteit: activiteitStub(), systeemstatus: () => json(200, STATUS_GOED()) });
@@ -489,12 +490,12 @@ test.describe('⚙-venster en Beheer → Instellingen: één plek om de werkinst
     await expect(venster(page)).toBeVisible();
   };
 
-  test('beheerder: werkvelden en werkdagen alleen-lezen, routekleur bewerkbaar, met de link naar Beheer', async ({ page }) => {
-    await startApp(page, { overschrijf: stubs() });
+  test('beheerder met Zoho-naam: werkvelden en werkdagen alleen-lezen, routekleur bewerkbaar, met de link naar Beheer', async ({ page }) => {
+    await startApp(page, { loginGebruiker: { zohoNaam: 'Brent' }, overschrijf: stubs() });
     await openSettings(page);
     for (const sel of WERKVELDEN) await expect(venster(page).locator(sel), sel).toBeDisabled();
     await expect(venster(page).locator('#days-grid .day-btn').first()).toBeDisabled();
-    await expect(venster(page).locator('#set-routekleur')).toBeEnabled();
+    await expect(venster(page).getByRole('button', { name: 'Blauw' })).toBeEnabled();
     await expect(venster(page).locator('#set-drukte')).toBeEnabled();
     await expect(venster(page).locator('#set-beheer-hint')).toBeVisible();
     // Het label van "Laatste start" is in beide schermen waar: een waarde van de gebruiker zelf, niet "voor iedereen".
@@ -502,8 +503,19 @@ test.describe('⚙-venster en Beheer → Instellingen: één plek om de werkinst
     await expect(venster(page).locator('label[for="set-laatste-start"]')).toContainText('al je planning');
   });
 
-  test('de link "Aanpassen in Beheer → Instellingen" sluit het venster en opent dat tabblad; het label daar is ook waar', async ({ page }) => {
+  test('beheerder zonder Zoho-naam: de werkvelden zijn verborgen, enkel persoonlijke velden en een verwijzing naar Beheer', async ({ page }) => {
     await startApp(page, { overschrijf: stubs() });
+    await openSettings(page);
+    for (const sel of WERKVELDEN) await expect(venster(page).locator(sel), sel).toBeHidden();
+    await expect(venster(page).locator('#days-grid')).toBeHidden();
+    await expect(venster(page).locator('#set-routekleur')).toBeVisible();
+    await expect(venster(page).locator('#set-drukte')).toBeVisible();
+    await expect(venster(page).locator('#set-geen-werk-hint')).toContainText('Werkinstellingen van techniekers pas je aan in Beheer → Instellingen.');
+    await expect(venster(page).locator('#set-beheer-hint')).toBeHidden();
+  });
+
+  test('de link "Aanpassen in Beheer → Instellingen" sluit het venster en opent dat tabblad; het label daar is ook waar', async ({ page }) => {
+    await startApp(page, { loginGebruiker: { zohoNaam: 'Brent' }, overschrijf: stubs() });
     await openSettings(page);
     await venster(page).getByRole('button', { name: 'Aanpassen in Beheer → Instellingen' }).click();
     await expect(venster(page)).toBeHidden();
@@ -514,23 +526,37 @@ test.describe('⚙-venster en Beheer → Instellingen: één plek om de werkinst
   });
 
   test('beheerder: Opslaan in het ⚙-venster bewaart enkel de persoonlijke keuze (routekleur); de werkwaarden blijven gelijk', async ({ page, verzoeken }) => {
-    await startApp(page, { overschrijf: stubs() });
+    await startApp(page, { loginGebruiker: { zohoNaam: 'Brent' }, overschrijf: stubs() });
     await openSettings(page);
     const duur = await venster(page).locator('#set-duration').inputValue();
-    await venster(page).locator('#set-routekleur').fill('#336699');
+    await venster(page).getByRole('button', { name: 'Blauw' }).click();
     await venster(page).getByRole('button', { name: 'Opslaan', exact: true }).click();
     await expect(page.locator('#toast')).toContainText('Instellingen opgeslagen');
     await expect.poll(() => verzoeken.van('/api/instellingen', 'PUT').length).toBe(1);
     const put = verzoeken.van('/api/instellingen', 'PUT')[0].body.instellingen;
-    expect(put.routeKleur).toBe('#336699');
+    expect(put.routeKleur).toBe('#2563eb');
     expect(String(put.duurMinuten)).toBe(duur);
   });
 
-  test('planner (geen Beheer-tab): de werkvelden blijven bewerkbaar en er is geen link naar Beheer', async ({ page }) => {
-    await startApp(page, { loginRol: 'planner', overschrijf: stubs() });
+  test('planner met Zoho-naam (geen Beheer-tab): de eigen werkvelden blijven bewerkbaar en er is geen link naar Beheer', async ({ page }) => {
+    await startApp(page, { loginRol: 'planner', loginGebruiker: { zohoNaam: 'Brent' }, overschrijf: stubs() });
     await openSettings(page);
     for (const sel of WERKVELDEN) await expect(venster(page).locator(sel), sel).toBeEnabled();
     await expect(venster(page).locator('#set-beheer-hint')).toBeHidden();
+    await expect(venster(page).locator('#set-geen-werk-hint')).toBeHidden();
+  });
+
+  test('planner zonder Zoho-naam: enkel persoonlijke velden, zonder verwijzing naar Beheer', async ({ page }) => {
+    await startApp(page, { loginRol: 'planner', overschrijf: stubs() });
+    await openSettings(page);
+    for (const sel of WERKVELDEN) await expect(venster(page).locator(sel), sel).toBeHidden();
+    await expect(venster(page).locator('#days-grid')).toBeHidden();
+    await expect(venster(page).locator('#set-routekleur')).toBeVisible();
+    await expect(venster(page).locator('#set-drukte')).toBeVisible();
+    await expect(venster(page).locator('#set-geen-werk-hint')).toBeHidden();
+    await expect(venster(page).locator('#set-beheer-hint')).toBeHidden();
+    await venster(page).getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page.locator('#toast')).toHaveText('✓ Instellingen opgeslagen voor Test');
   });
 
   // Merge-review I1: een beheerder met een Zoho-naam leest zijn eigen planning onder die naam; Beheer → Instellingen voor zichzelf schrijft
@@ -548,40 +574,37 @@ test.describe('⚙-venster en Beheer → Instellingen: één plek om de werkinst
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_settings_Brent')).startlocatie)).toBe('Brentstraat 1, 2000 Antwerpen');
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_settings')).startlocatie)).toBe('Brentstraat 1, 2000 Antwerpen');
     await openSettings(page);
-    await expect(venster(page).locator('#set-person-label')).toHaveText('Instellingen voor: Brent');
+    await expect(venster(page).getByRole('heading', { name: '⚙️ Instellingen — Brent' })).toBeVisible();
     await expect(venster(page).locator('#set-start')).toHaveValue('Brentstraat 1, 2000 Antwerpen');
     await expect(venster(page).locator('#set-start')).toBeDisabled();
     await expect(venster(page).getByRole('button', { name: 'Aanpassen in Beheer → Instellingen' })).toBeVisible();
   });
 
-  // M5: de link opent Beheer bij de persoon die in ⚙ gekozen was.
-  test('de link "Aanpassen in Beheer" opent Beheer bij de persoon die in ⚙ gekozen was (technieker Tim)', async ({ page }) => {
-    await startApp(page, { technieker: 'Tim', overschrijf: stubs() });
+  // ⚙ is altijd je EIGEN venster: ook als je de week van Tim bekijkt, opent de link naar Beheer bij jezelf, niet bij Tim.
+  test('beheerder bekijkt Tim: ⚙ toont de eigen naam en de link naar Beheer opent bij de beheerder zelf', async ({ page }) => {
+    await startApp(page, { technieker: 'Tim', loginGebruiker: { zohoNaam: 'Brent' }, overschrijf: stubs() });
     await openSettings(page);
-    await expect(venster(page).locator('#set-person-label')).toHaveText('Instellingen voor: Tim');
+    await expect(venster(page).getByRole('heading', { name: '⚙️ Instellingen — Brent' })).toBeVisible();
     await venster(page).getByRole('button', { name: 'Aanpassen in Beheer → Instellingen' }).click();
-    await expect(paneel(page).getByLabel('Gebruiker', { exact: true })).toHaveValue('u-t1');
-    await expect(paneel(page).getByLabel('Startlocatie')).toHaveValue(TIM.startlocatie);
+    await expect(paneel(page).getByLabel('Gebruiker', { exact: true })).toHaveValue('u-test');
   });
 
-  // M4: de beheerder bewaart in ⚙ voor een technieker enkel de persoonlijke velden; werkwaarden blijven zoals de server ze heeft.
-  test('beheerder bewaart in ⚙ voor Tim enkel de persoonlijke velden: de PUT bevat de serverwaarden voor de rest, niet de oude lokale kopie', async ({ page, verzoeken }) => {
+  // De beheerder bekijkt Tim en bewaart in ⚙: dat is zijn eigen record; Tim's serverrecord wordt niet aangeraakt.
+  test('beheerder bekijkt Tim en bewaart in ⚙: de PUT is voor de eigen set, nooit voor Tim', async ({ page, verzoeken }) => {
     const basis = instellingenStub();
     const metTim = (a) => (a.methode === 'GET' && a.query.get('overzicht') === '1'
       ? json(200, { eigen: { gebruikerId: 'u-test', versie: 1, instellingen: null }, techniekers: { Tim: { gebruikerId: 'u-t1', instellingen: TIM } } })
       : basis(a));
-    await startApp(page, { technieker: 'Tim', overschrijf: { ...stubs(), instellingen: metTim } });
-    // Een verouderde lokale kopie van Tim (bv. ouder dan wat een andere beheerder intussen in Beheer zette).
-    await page.evaluate(() => { const s = kern.toestand.get('settings'); s.startlocatie = 'Oude lokale kopie'; s.duurMinuten = 15; });
+    await startApp(page, { technieker: 'Tim', loginGebruiker: { zohoNaam: 'Brent' }, overschrijf: { ...stubs(), instellingen: metTim } });
     await openSettings(page);
-    await venster(page).locator('#set-routekleur').fill('#336699');
+    await venster(page).getByRole('button', { name: 'Blauw' }).click();
     await venster(page).getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page.locator('#toast')).toHaveText('✓ Instellingen opgeslagen voor Brent');
     await expect.poll(() => verzoeken.van('/api/instellingen', 'PUT').length).toBeGreaterThan(0);
-    const put = verzoeken.van('/api/instellingen', 'PUT').at(-1).body;
-    expect(put.gebruiker).toBe('u-t1');
-    expect(put.instellingen.routeKleur).toBe('#336699');
-    expect(put.instellingen.startlocatie).toBe(TIM.startlocatie);
-    expect(put.instellingen.duurMinuten).toBe(TIM.duurMinuten);
-    expect(put.instellingen.laatsteStart).toBe(TIM.laatsteStart);
+    for (const put of verzoeken.van('/api/instellingen', 'PUT')) {
+      expect(put.body.gebruiker).toBeUndefined();
+      expect(put.body.instellingen.routeKleur).toBe('#2563eb');
+    }
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_settings_Tim')).routeKleur)).toBe(TIM.routeKleur); // Tim ongewijzigd
   });
 });
