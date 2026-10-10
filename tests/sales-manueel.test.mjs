@@ -36,7 +36,8 @@ test('een ingevuld maar onbruikbaar nummer of e-mailadres wordt niet stilzwijgen
 });
 
 test('postcode: precies 4 cijfers', () => {
-  for (const p of ['', '35', '35000', 'abcd', '3 500']) assert.equal(valideerManueleLead(geldig({ postcode: p })).fouten.postcode, 'Postcode bestaat uit 4 cijfers', p);
+  for (const p of ['35', '35000', 'abcd', '3 500']) assert.equal(valideerManueleLead(geldig({ postcode: p })).fouten.postcode, 'Postcode bestaat uit 4 cijfers', p);
+  assert.equal(valideerManueleLead(geldig({ postcode: '' })).fouten.postcode, 'Vul een postcode in');
   assert.equal(valideerManueleLead(geldig({ postcode: ' 3500 ' })).lead.postcode, '3500');
 });
 
