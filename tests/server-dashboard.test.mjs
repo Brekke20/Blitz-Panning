@@ -12,6 +12,8 @@ import { ondertekenToken } from '../netlify/lib/sessie-token.js';
 import { metRol, metGeenSessie } from './auth-hulp.mjs';
 
 const NU = Date.parse('2026-10-08T10:00:00.000Z');
+// Nooit echt Zoho: de agentenlijst van het dashboard is hier een stub (een lege lijst = geen agenten, de koppeling valt terug op de accounts).
+const GEEN_AGENTEN = async () => [];
 
 const entry = (id, datum, extra = {}) => ({
   id, datum, aangemaakt: `${datum}T12:00:00.000Z`, technieker: 'Tim', ticketId: `T-${id}`, interventieType: 'Interventie',
@@ -37,7 +39,7 @@ function opzet(begin = {}, { echtOmhul = s => s } = {}) {
   const getStore = o => (o.name === 'blitz-data' ? echtOmhul(echt) : test);
   return {
     echt, test, getStore,
-    h: maakHandler({ getStore, nu: () => NU }),
+    h: maakHandler({ getStore, nu: () => NU, agenten: GEEN_AGENTEN }),
     hi: maakInstellingenHandler({ getStore }),
   };
 }
@@ -78,7 +80,7 @@ test('planner: 200 op het techniekers-deel (kern, tijd, klant) en NOOIT sales; s
   });
   const echt = { ...basis, get: async (k, o) => { gelezen.push(k); return basis.get(k, o); } };
   const getStore = () => echt;
-  const h = maakHandler({ getStore, nu: () => NU });
+  const h = maakHandler({ getStore, nu: () => NU, agenten: GEEN_AGENTEN });
   const hi = maakInstellingenHandler({ getStore });
   const { status, body } = await lees(h, GOED, 'planner');
   assert.equal(status, 200);
@@ -108,7 +110,7 @@ test('sales manager (sales + magAlleSales): 200 met enkel het sales-deel; geen r
   });
   const echt = { ...basis, get: async (k, o) => { gelezen.push(k); return basis.get(k, o); } };
   const getStore = () => echt;
-  const h = maakHandler({ getStore, nu: () => NU });
+  const h = maakHandler({ getStore, nu: () => NU, agenten: GEEN_AGENTEN });
   const hi = maakInstellingenHandler({ getStore });
   const res = await metRol('sales', () => h(get(GOED)), { magAlleSales: true });
   assert.equal(res.status, 200);
@@ -445,4 +447,86 @@ test('instellingen: falende opslag geeft 503 opslag-storing', async () => {
   const res = await geefI(hi, { headers: { 'x-blitz': '1' } });
   assert.equal(res.status, 503);
   assert.equal((await res.json()).code, 'opslag-storing');
+});
+
+// ---------------- technieker = Zoho-naam ----------------
+const ZOHO_AGENTEN = ['Brent Calaerts', 'Kursat Deniz', 'Tim Janssens'];
+const techOpzet = ({ agenten, rapports, gebruikers = [], echtOmhul } = {}) => {
+  const o = opzet({ rapportlijst: lijst(rapports), gebruikers: { versie: 1, gebruikers } }, { echtOmhul });
+  return { ...o, h: maakHandler({ getStore: o.getStore, nu: () => NU, agenten }) };
+};
+const RAPPORTEN = [
+  entry('a1', '2026-10-05', { technieker: 'brent' }), entry('a2', '2026-10-05', { technieker: 'Brent + Deniz' }),
+  entry('a3', '2026-10-06', { technieker: 'K.Deniz' }), entry('a4', '2026-10-06', { technieker: 'Bernt', ingediendDoor: 'u-tim' }),
+  entry('a5', '2026-10-07', { technieker: 'Onbekende' }),
+];
+const GEBRUIKERS = [{ id: 'u-tim', naam: 'Tim J', rol: 'technieker', zohoNaam: 'Tim Janssens', actief: true, email: 'tim@geheim.test' }];
+
+test('dashboard: de keuzelijst bevat enkel Zoho-namen uit de agentenlijst (en "Niet gekoppeld"); ingediendDoor wint van de tekst', async () => {
+  const { h } = techOpzet({ agenten: async () => ZOHO_AGENTEN, rapports: RAPPORTEN, gebruikers: GEBRUIKERS });
+  const { status, body } = await lees(h, GOED);
+  assert.equal(status, 200);
+  assert.deepEqual(body.opties.techniekers, ['Brent Calaerts', 'Kursat Deniz', 'Tim Janssens', 'Niet gekoppeld']);
+  assert.deepEqual(body.opties.nietGekoppeld, ['Onbekende']);
+  assert.equal(body.kern.huidig.interventies.n, 5);
+  assert.deepEqual(body.dekking.fouten, []);
+  const tekst = JSON.stringify(body);
+  assert.equal(tekst.includes('geheim.test'), false); // geen e-mailadressen naar de client
+  assert.equal(tekst.includes('u-tim'), false);
+  const deniz = await lees(h, `${GOED}&technieker=${encodeURIComponent('Kursat Deniz')}`);
+  assert.equal(deniz.body.kern.huidig.interventies.n, 2); // a2 (Brent + Deniz) en a3 (K.Deniz)
+});
+
+test('dashboard: Zoho-agenten falen -> terugval op de zohoNaam van de accounts, 200 en een melding in dekking.fouten', async () => {
+  const { h } = techOpzet({ agenten: async () => { throw new Error('Zoho stuk'); }, rapports: RAPPORTEN, gebruikers: GEBRUIKERS });
+  const { status, body } = await lees(h, GOED);
+  assert.equal(status, 200);
+  assert.deepEqual(body.opties.techniekers, ['Tim Janssens', 'Niet gekoppeld']);
+  assert.deepEqual(body.dekking.fouten, ['zoho-agenten']);
+});
+
+test('dashboard: Zoho-agenten én accounts onbruikbaar -> het dashboard breekt niet en toont de ruwe teksten zoals vroeger', async () => {
+  const { h } = techOpzet({
+    agenten: async () => { throw new Error('Zoho stuk'); }, rapports: [entry('a1', '2026-10-05', { technieker: 'brent' })],
+    echtOmhul: s => kapot(s, /^gebruikers$/),
+  });
+  const { status, body } = await lees(h, GOED);
+  assert.equal(status, 200);
+  assert.deepEqual(body.opties.techniekers, ['brent']);
+  assert.deepEqual(body.dekking.fouten.sort(), ['gebruikers', 'sales', 'zoho-agenten']); // sales leest dezelfde (kapotte) gebruikerslijst
+});
+
+test('dashboard: een trage Zoho houdt het dashboard niet op (terugval na de tijdslimiet)', async () => {
+  const { h } = techOpzet({ agenten: () => new Promise(() => {}), rapports: RAPPORTEN, gebruikers: GEBRUIKERS });
+  const t0 = Date.now();
+  const { status, body } = await lees(h, GOED);
+  assert.equal(status, 200);
+  assert.ok(Date.now() - t0 < 6000);
+  assert.deepEqual(body.dekking.fouten, ['zoho-agenten']);
+  assert.ok(body.opties.techniekers.includes('Tim Janssens'));
+});
+
+test('dashboard: testverzoek (X-Blitz-Test) roept Zoho nooit aan; de nep-lijst en de testgebruikers koppelen', async () => {
+  let aangeroepen = 0;
+  const o = opzet();
+  const h = maakHandler({ getStore: o.getStore, nu: () => NU, agenten: async () => { aangeroepen++; return ZOHO_AGENTEN; } });
+  await o.test.set('rapportlijst', JSON.stringify(lijst([entry('t1', '2026-10-05', { technieker: 'tim' }), entry('t2', '2026-10-05', { technieker: 'Sven' })])));
+  const { status, body } = await lees(h, GOED, 'beheerder', { 'x-blitz-test': '1' });
+  assert.equal(status, 200);
+  assert.equal(aangeroepen, 0);
+  assert.ok(body.opties.techniekers.every(t => ['Roel', 'Sven Peeters', 'Tim', 'Niet gekoppeld'].includes(t)), JSON.stringify(body.opties));
+});
+
+test('dashboard: de planner ziet de technieker-namen (Zoho) en het sales-deel haalt geen agenten op', async () => {
+  let aangeroepen = 0;
+  const { h } = techOpzet({ agenten: async () => { aangeroepen++; return ZOHO_AGENTEN; }, rapports: RAPPORTEN, gebruikers: GEBRUIKERS });
+  const planner = await lees(h, GOED, 'planner');
+  assert.equal(planner.status, 200);
+  assert.equal(planner.body.deel, 'techniekers');
+  assert.deepEqual(planner.body.opties.techniekers.slice(0, 3), ['Brent Calaerts', 'Kursat Deniz', 'Tim Janssens']);
+  assert.equal(aangeroepen, 1);
+  const sales = await metRol('sales', () => h(get(GOED)), { magAlleSales: true });
+  assert.equal(sales.status, 200);
+  assert.equal(aangeroepen, 1);
+  assert.equal('opties' in (await sales.json()), false);
 });

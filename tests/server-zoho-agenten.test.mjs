@@ -114,3 +114,20 @@ test('rechten: planner, technieker en sales krijgen 403 en Zoho wordt niet aange
   }
   assert.equal(o.calls.length, 0);
 });
+
+test('maakAgentenCache (gedeeld met het dashboard): 10 minuten bewaard, een fout wordt nooit onthouden en gooit door', async () => {
+  const { maakAgentenCache } = await import('../netlify/lib/zoho-agenten.js');
+  let nu = 0, aanroepen = 0, stuk = true;
+  const cache = maakAgentenCache({ zoho: {}, nu: () => nu, haal: async () => { aanroepen++; if (stuk) throw new Error('boem'); return ['Tim']; } });
+  await assert.rejects(cache(), /boem/);
+  await assert.rejects(cache(), /boem/);
+  assert.equal(aanroepen, 2); // geen cache van de fout
+  stuk = false;
+  assert.deepEqual(await cache(), ['Tim']);
+  nu = 9 * 60 * 1000;
+  assert.deepEqual(await cache(), ['Tim']);
+  assert.equal(aanroepen, 3);
+  nu = 10 * 60 * 1000;
+  await cache();
+  assert.equal(aanroepen, 4);
+});

@@ -171,14 +171,21 @@ export function tegelHtml(tegel, huidig, vorige, grenzen) {
 
 // ---- Filterrij ----
 
-const optie = (waarde, tekst, gekozen) => `<option value="${escHtml(waarde)}"${waarde === gekozen ? ' selected' : ''}>${escHtml(tekst)}</option>`;
+const optie = (waarde, tekst, gekozen, uitleg = '') => `<option value="${escHtml(waarde)}"${waarde === gekozen ? ' selected' : ''}${uitleg ? ` title="${escHtml(uitleg)}"` : ''}>${escHtml(tekst)}</option>`;
+export const NIET_GEKOPPELD = 'Niet gekoppeld';
+// De originele teksten achter 'Niet gekoppeld' (namen in rapporten die niet eenduidig op één Zoho-naam passen), als één zin; '' als er geen zijn.
+export function nietGekoppeldUitleg(opties) {
+  const teksten = (Array.isArray(opties?.nietGekoppeld) ? opties.nietGekoppeld : []).filter(t => typeof t === 'string' && t.trim());
+  if (!teksten.length) return '';
+  return `Niet gekoppeld: rapporten waarvan de naam niet eenduidig op één Zoho-naam past. Originele teksten: ${teksten.map(t => `"${t}"`).join(', ')}.`;
+}
 // Een gekozen waarde die (nog) niet in de opties staat blijft zichtbaar als extra keuze, zodat het menu niet "Alle" toont
 // terwijl het filter actief is.
-function kies(veld, label, alles, lijst, gekozen) {
+function kies(veld, label, alles, lijst, gekozen, uitleg = {}) {
   const opties = [...(lijst || [])];
   if (gekozen && !opties.includes(gekozen)) opties.push(gekozen);
   return `<label class="filter-veld">${escHtml(label)}<select data-wijzig="dashboard-filter" data-arg="${escHtml(veld)}">`
-    + `${optie('', alles, gekozen ?? '')}${opties.map(w => optie(w, w, gekozen)).join('')}</select></label>`;
+    + `${optie('', alles, gekozen ?? '')}${opties.map(w => optie(w, w, gekozen, uitleg[w])).join('')}</select></label>`;
 }
 
 // Eén rij: periode-presets, zelf-kiezen-datums, technieker, type en herhaalbezoek (30/90 dagen).
@@ -202,7 +209,7 @@ export function filterRijHtml({ filters = {}, opties = {}, deel = 'alles' } = {}
   const herhaal = [30, 90].map(n => `<option value="${n}"${n === Number(filters.herhaalDagen ?? 30) ? ' selected' : ''}>${n} dagen</option>`).join('');
   return `<div class="filterrij" role="group" aria-label="Filters"><div class="filter-presets">${knoppen}</div>`
     + `${datum('van', 'Van', filters.van)}${datum('tot', 'Tot', filters.tot)}`
-    + (deel === 'sales' ? '' : `${kies('technieker', 'Technieker', 'Alle techniekers', opties.techniekers, filters.technieker)}`
+    + (deel === 'sales' ? '' : `${kies('technieker', 'Technieker', 'Alle techniekers', opties.techniekers, filters.technieker, { [NIET_GEKOPPELD]: nietGekoppeldUitleg(opties) })}`
     + `${kies('type', 'Type', 'Alle types', opties.types, filters.type)}`
     + `<label class="filter-veld">Herhaalbezoek binnen<select data-wijzig="dashboard-filter" data-arg="herhaalDagen">${herhaal}</select></label>`)
     + '</div>';

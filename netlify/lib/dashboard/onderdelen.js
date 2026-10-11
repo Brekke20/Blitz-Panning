@@ -1,5 +1,7 @@
 // Onderdelen van het performance-dashboard: top 10, waarde en verbruik per maand/technieker/type.
 // Pure functies op genormaliseerde Rapport[] (geen I/O). Waarde = aantal x prijs zoals in het rapport.
+import { techniekerGroepen } from './techniekers.js';
+
 const MAX_TOP = 10;
 
 const cent = n => Math.round(n * 100) / 100;
@@ -64,11 +66,14 @@ function perMaand(rapporten) {
   const tel = (cel, o) => { cel.aantal += o.aantal || 0; cel.waarde = cent(cel.waarde + regelWaarde(o)); };
   for (const r of rapporten) {
     const maand = r.datum.slice(0, 7);
-    const technieker = r.technieker || 'Onbekend';
+    const groepen = techniekerGroepen(r);
+    const technieker = new Set(groepen.length ? groepen : ['Onbekend']); // twee techniekers: het verbruik telt voor elk, het totaal één keer
     for (const o of r.onderdelen || []) {
-      uit.perTechnieker[technieker] = uit.perTechnieker[technieker] || leeg();
+      for (const t of technieker) {
+        uit.perTechnieker[t] = uit.perTechnieker[t] || leeg();
+        tel(uit.perTechnieker[t][maand], o);
+      }
       uit.perType[r.type] = uit.perType[r.type] || leeg();
-      tel(uit.perTechnieker[technieker][maand], o);
       tel(uit.perType[r.type][maand], o);
       tel(uit.totaal[maand], o);
     }

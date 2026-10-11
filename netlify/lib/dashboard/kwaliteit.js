@@ -1,6 +1,7 @@
 // Kwaliteit van het performance-dashboard: first-time-fix, herhaalbezoeken en top-oorzaken.
 // Pure functies op genormaliseerde Rapport[] (geen I/O).
 import { dagenTussen, normaliseerAdres, pct } from './gemeenschappelijk.js';
+import { techniekerGroepen } from './techniekers.js';
 
 const MAX_HERHAAL_LIJST = 200;
 const MAX_OORZAKEN = 8;
@@ -56,15 +57,17 @@ export function herhaalbezoeken(alle, geselecteerd, dagen) {
   return uit.sort((x, y) => y.datum.localeCompare(x.datum) || x.id.localeCompare(y.id));
 }
 
-// First-time-fix per groep (technieker of type), aflopend op n.
-function ftfPer(interventies, sleutelVan) {
+// First-time-fix per groep (technieker of type), aflopend op n. `sleutelsVan` geeft de groepen van een rapport: een bezoek met twee
+// techniekers telt voor elk van de twee (het totaal, ftfTotaal, blijft per rapport).
+function ftfPer(interventies, sleutelsVan) {
   const groepen = new Map();
   for (const r of interventies) {
-    const sleutel = sleutelVan(r) || 'Onbekend';
-    const g = groepen.get(sleutel) || { sleutel, label: sleutel, n: 0, ftf: 0 };
-    g.n++;
-    if (isFtf(r)) g.ftf++;
-    groepen.set(sleutel, g);
+    for (const sleutel of new Set(sleutelsVan(r))) {
+      const g = groepen.get(sleutel) || { sleutel, label: sleutel, n: 0, ftf: 0 };
+      g.n++;
+      if (isFtf(r)) g.ftf++;
+      groepen.set(sleutel, g);
+    }
   }
   return [...groepen.values()].map(g => ({ ...g, pct: pct(g.ftf, g.n) })).sort((a, b) => b.n - a.n);
 }
@@ -88,8 +91,8 @@ export function berekenKwaliteit({ rapporten, alle = rapporten, herhaalDagen = 3
   const herhaal = herhaalbezoeken(alle, rapporten, herhaalDagen);
   return {
     ftfTotaal: firstTimeFix(rapporten),
-    ftfPerTechnieker: ftfPer(interventies, r => r.technieker),
-    ftfPerType: ftfPer(interventies, r => r.type),
+    ftfPerTechnieker: ftfPer(interventies, r => { const g = techniekerGroepen(r); return g.length ? g : ['Onbekend']; }),
+    ftfPerType: ftfPer(interventies, r => [r.type || 'Onbekend']),
     herhaal: { dagen: herhaalDagen, aantal: herhaal.length, lijst: herhaal.slice(0, MAX_HERHAAL_LIJST) },
     topOorzaken: topOorzaken(rapporten),
     dekking: { interventies: interventies.length, herhaalZonderSleutel: interventies.filter(r => !herhaalSleutel(r)).length },
