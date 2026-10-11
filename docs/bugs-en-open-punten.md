@@ -229,3 +229,10 @@ Bron: `.superpowers/sdd/2026-10-08-sales-planner/progress.md` en de taakrapporte
 | C1 | De grijze band in de agenda vanaf 08:30: **bewust zo, bevestigd door Brent 2026-10-10.** Niets aangepast. |
 | C11 | Kortste bezoekduur is overal 15 minuten: **opgelost.** `MIN_BEZOEKDUUR` (kern/instellingen-regels.js, client en server) is 15; het veld in Sales, Instellingen heeft `min=15` (type nummer) en het veld in Beheer, Instellingen ook. Al bewaarde waarden onder 15 blijven gelezen, maar worden bij de volgende opslag in dat veld geweigerd tot de beheerder of verkoper ze naar 15 of meer zet. |
 | K1 | "+ Lead" voor de beheerder: **opgelost.** De beheerder ziet "+ Lead" in Sales, Leads zodra een actieve verkoper gekozen is (niet bij een geblokkeerde verkoper) en voegt de lead toe aan het blob van die verkoper (`POST /api/sales-import?gebruiker=<id>`, enkel een manuele lead; het activiteitenlog toont wie via de gebruiker en voor welke verkoper via het onderwerp). "Export laden" blijft enkel voor de verkoper zelf (ruling). Een verkoper die een ander id meegeeft krijgt nu 403 (voorheen werd de parameter genegeerd). |
+
+## L. Na de release 2.0.0 (beslissingen Brent 2026-10-11)
+
+- **L1 Beschikbaarheden voor iedereen** (eerste update na 2.0.0): "Voor wie" toont alle actieve accounts met hun rol (niet enkel
+  wie een Zoho-naam heeft). Verlof voor een verkoper wordt ook een hele-dag-blok in zijn sales-agenda, zodat "Plan deze week"
+  die dag overslaat. "Geplande uitzonderingen" toont het verlof van iedereen. Techniekers blijven via hun Zoho-naam werken.
+- **L2 Evaluatie reismarge sales** (+10 % en +2 min): na een week navragen bij Brent.
