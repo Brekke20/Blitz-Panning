@@ -2,6 +2,7 @@
 // per dag gegroepeerd (Brusselse kalenderdag, nieuwste eerst). API: GET /api/activiteit (enkel beheerder, max. 1000 items).
 // Veiligheid: naam, onderwerp en details komen uit de log en kunnen vrije tekst bevatten: alles gaat via textContent (h() uit beheer.js).
 import { registreerBeheerTab, beheerVerzoek, beheerFoutTekst, h } from './beheer.js';
+import { toonSkelet } from '../kern/skelet.js';
 import {
   ACTIES, actieLabel, bouwActiviteitUrl, groepeerPerDag, standaardPeriode, formatDagKop, formatUur,
 } from './beheer-activiteit-logica.js';
@@ -56,9 +57,14 @@ async function render(container) {
 
   async function laad() {
     const mijn = ++volgnummer;
-    melding.textContent = 'Laden…';
+    const eerste = lijst.childElementCount === 0; // eerste lading: tabelrijen als skelet; een verversing houdt de oude lijst staan met de status "Laden…"
+    if (!eerste) melding.textContent = 'Laden…';
     lijst.setAttribute('aria-busy', 'true');
-    const r = await beheerVerzoek(bouwActiviteitUrl({ van: veldVan.value, tot: veldTot.value, gebruiker: persoon.value, actie: actie.value }));
+    const skelet = toonSkelet(lijst, { vorm: 'rijen' });
+    let r;
+    try {
+      r = await beheerVerzoek(bouwActiviteitUrl({ van: veldVan.value, tot: veldTot.value, gebruiker: persoon.value, actie: actie.value }));
+    } finally { skelet.stop(); }
     if (mijn !== volgnummer) return; // een nieuwere filterkeuze is onderweg
     lijst.removeAttribute('aria-busy');
     melding.textContent = '';

@@ -9,6 +9,7 @@ import { registreerBeheerTab, openBeheerVenster, h, beheerVerzoek } from './behe
 import { apiVerzoek } from '../kern/api.js';
 import { toast } from '../kern/ui.js';
 import { toestand } from '../kern/toestand.js';
+import { toonSkelet } from '../kern/skelet.js';
 import { huidigeGebruiker } from '../kern/sessie.js';
 import { voegWachtwoordOogToe } from '../kern/wachtwoord-oog.js';
 import { appConfirm } from '../app-dialog.js';
@@ -324,7 +325,6 @@ async function render(container) {
       h('button', { type: 'button', class: 'btn btn--primary', text: 'Nieuwe gebruiker', onclick: () => toonGebruikerFormulier({ lijst, naSucces: laad }) }),
       h('button', { type: 'button', class: 'btn btn--secondary', text: 'Nieuwe herstelcodes maken', onclick: toonNieuweHerstelcodes })));
   container.replaceChildren(kop, lijstWortel);
-  lijstWortel.append(h('p', { class: 'bg-uitleg', role: 'status', text: 'Gebruikers laden…' }));
 
   // Een rij-actie: bevestiging (indien nodig), verzoek, toast, lijst verversen. De knop blijft uit tot het klaar is.
   // Na afloop (lijst hertekend) krijgt de knop van die actie weer de focus, tenzij er een venster openstaat of de focus elders is.
@@ -453,7 +453,8 @@ async function render(container) {
     teken();
   }
 
-  await laad();
+  const skelet = toonSkelet(lijstWortel, { vorm: 'rijen' }); // eerste lading: tabelrijen i.p.v. een lege lijst (latere verversingen houden de oude lijst staan)
+  try { await laad(); } finally { skelet.stop(); }
 }
 
 registreerBeheerTab({ id: 'gebruikers', label: 'Gebruikers', render });
