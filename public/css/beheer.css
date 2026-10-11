@@ -145,3 +145,16 @@
 .bav .av-item { font-size: var(--fs-sm); padding: var(--sp-2) 0; }
 .bav .av-item-del { min-width: 44px; min-height: 44px; font-size: 1.1rem; }
 .bav-leeg { font-size: var(--fs-sm); color: var(--text2); line-height: 1.5; margin-top: var(--sp-2); }
+
+/* Activiteitenlog: elke dag is een eigen tabel; met vaste kolombreedtes (table-layout: fixed + colgroup) staan de kolommen in alle dagen exact
+   onder elkaar. Details krijgt de resterende breedte; lange tekst breekt af. Een te smalle weergave scrolt binnen .bg-lijst, nooit de pagina. */
+.ba-tabel { table-layout: fixed; min-width: 860px; }
+.ba-kol-tijd { width: 72px; }
+.ba-kol-persoon { width: 170px; }
+.ba-kol-actie { width: 200px; }
+.ba-kol-onderwerp { width: 180px; }
+.ba-tabel th, .ba-tabel td { overflow-wrap: anywhere; }
+@media (max-width: 899px) { /* kaartenlijst (zie .bg-tabel hierboven): geen kolommen meer, dus ook geen vaste breedtes */
+  .ba-tabel { min-width: 0; table-layout: auto; }
+  .ba-tabel colgroup { display: none; }
+}

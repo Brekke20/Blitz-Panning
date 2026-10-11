@@ -103,3 +103,11 @@ export function formatDatumTijd(iso) {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Brussels',
   }).format(d).replace(',', '');
 }
+
+// Onderwerp van een logregel: staat er een gebruikers-id in die in `namen` (Map id -> naam) voorkomt, dan { tekst: naam, id }; anders
+// { tekst: onderwerp, id: null } (onbekend id blijft staan); geen tekst -> { tekst: '—', id: null }.
+export function onderwerpWeergave(onderwerp, namen) {
+  if (typeof onderwerp !== 'string' || onderwerp === '') return { tekst: '—', id: null };
+  const naam = namen instanceof Map ? namen.get(onderwerp) : undefined;
+  return typeof naam === 'string' && naam ? { tekst: naam, id: onderwerp } : { tekst: onderwerp, id: null };
+}

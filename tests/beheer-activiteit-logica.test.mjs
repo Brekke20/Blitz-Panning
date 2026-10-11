@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { actieLabel, ACTIES, bouwActiviteitUrl, groepeerPerDag, standaardPeriode, formatDagKop, formatUur, formatDatumTijd } from '../public/js/schermen/beheer-activiteit-logica.js';
+import { actieLabel, ACTIES, bouwActiviteitUrl, groepeerPerDag, standaardPeriode, formatDagKop, formatUur, formatDatumTijd, onderwerpWeergave } from '../public/js/schermen/beheer-activiteit-logica.js';
 
 const TWINTIG = [
   'login', 'login-mislukt-reeks', 'uitloggen', 'wachtwoord-gewijzigd', 'herstel', 'gebruiker-aangemaakt', 'gebruiker-gewijzigd',
@@ -112,4 +112,14 @@ test('elke actienaam die de server logt staat in ACTIES en heeft een label', () 
     assert.notEqual(actieLabel(naam), naam, `'${naam}' heeft geen label`);
   }
   assert.ok(gelogd.has('rapport-geweigerd') && gelogd.has('herstel-mislukt-reeks'));
+});
+
+test('onderwerpWeergave: bekend gebruikers-id wordt de naam (id bewaard), onbekend id en ander onderwerp blijven, leeg wordt een streepje', () => {
+  const namen = new Map([['u-aedf655ae232', 'Tim Techniek']]);
+  assert.deepEqual(onderwerpWeergave('u-aedf655ae232', namen), { tekst: 'Tim Techniek', id: 'u-aedf655ae232' });
+  assert.deepEqual(onderwerpWeergave('u-onbekend', namen), { tekst: 'u-onbekend', id: null });
+  assert.deepEqual(onderwerpWeergave('1042', namen), { tekst: '1042', id: null });
+  assert.deepEqual(onderwerpWeergave('u-aedf655ae232', undefined), { tekst: 'u-aedf655ae232', id: null });
+  assert.deepEqual(onderwerpWeergave(null, namen), { tekst: '—', id: null });
+  assert.deepEqual(onderwerpWeergave('', namen), { tekst: '—', id: null });
 });
