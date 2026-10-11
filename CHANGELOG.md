@@ -35,7 +35,11 @@ Grote release: logins en beheer, de sales-planner, het performance-dashboard, ee
 ### Added
 - **Inloggen** met e-mailadres en wachtwoord voor vier rollen: beheerder, planner, technieker en sales. Het eerste beheerdersaccount maak je met een tijdelijke setupcode (`BEHEER_SETUP_CODE`); de beheerder krijgt daarbij tien eenmalige herstelcodes. Een sessie duurt 30 dagen; na vijf foute pogingen volgt een tijdelijke vergrendeling. Een beheerder die zijn wachtwoord vergeet herstelt het met een herstelcode, of met de noodsleutel `BEHEER_HERSTELSLEUTEL` (eenmalig, instelbaar in Netlify).
 - **Beheer voor planner en sales manager**: een planner ziet in Beheer enkel Instellingen (techniekers) en Performance (techniekers-deel); een sales manager (vroeger "Mag alle sales zien") enkel Instellingen (verkopers) en Performance (sales-deel). De server geeft elke rol enkel zijn deel; e-mailadressen ziet enkel de beheerder.
+- **Beschikbaarheden**: één keuzelijst "Voor wie" (Iedereen of een technieker) met enkel actieve accounts met een Zoho-naam.
 - **Beschikbaarheden** (afwezigheden van techniekers) staan voortaan in Beheer, voor beheerder en planner, met een eigen keuze van technieker; ze zijn uit het ⚙-venster gehaald.
+- **Laadschermen**: bij trage schermen (Wachtrij, Beheer, sales) verschijnt een skelet in de vorm van de inhoud in plaats van een leeg vlak of "Laden…".
+- **Sales-route zoals bij de techniekers**: dezelfde werkbalk met ⚡ Optimaliseer (kortste volgorde; vaste en bevestigde bezoeken blijven op hun uur), Bereken tijden en ✕ Leeg (niet-bevestigde bezoeken terug naar Nog in te plannen), compacte stopkaarten en een grotere kaart.
+- **Route (technieker en sales)**: de lijst links scrollt los van de kaart; de kaart heeft afgeronde hoeken.
 - **Routekleur** kies je uit acht vaste kleuren in plaats van met de kleurkiezer van de browser.
 - **Gebruiker verwijderen**: de beheerder kan een geblokkeerde gebruiker definitief verwijderen (naam overtikken ter bevestiging; nooit jezelf of de laatste beheerder). Zijn instellingen verdwijnen mee, bij een verkoper ook zijn leads en planning; rapporten, archief, Zoho en het activiteitenlog blijven. De verwijdering staat in het log.
 - **Inloggen**: vinkje "Onthoud mij" (bewaart enkel het e-mailadres op dit toestel, nooit het wachtwoord) en een oogje om het wachtwoord te tonen, op elk wachtwoordveld.
