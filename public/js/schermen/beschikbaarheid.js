@@ -15,7 +15,8 @@ import { apiJson, apiVerzoek, leesFout } from '../kern/api.js';
 import { localISO } from '../kern/tijd.js';
 import { persoonOfNull } from '../kern/selecties.js';
 import { registreerVenster } from '../venster.js';
-import { groupExceptionsForDisplay, valideerNieuweBlokkering, bouwPersonenlijst } from './beschikbaarheid-logica.js';
+import { groupExceptionsForDisplay, valideerNieuweBlokkering, bouwPersonenlijst, bouwVoorWieGroepen, verkoperIdUitWaarde, maakVerkoperBlokken, verkoperBlokkenNaarUitzonderingen } from './beschikbaarheid-logica.js';
+import { verkoperBlokken, laadVerkoperBlokken, voegVerkoperBlokkenToe, verwijderVerkoperBlokken } from './beschikbaarheid-verkoper.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initBeschikbaarheid); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('beschikbaarheid: initBeschikbaarheid() is niet aangeroepen'); } });
@@ -391,6 +392,32 @@ let _bavFilterPerson = 'all';
 function bavSetFilterPerson(person) {
   _bavFilterPerson = person;
   renderBeschikbaarhedenTab();
+  bavLaadVerkopers();
+}
+
+// De gekozen verkoper(s) in "Voor wie": hun sales-blokken worden bij het kiezen (en bij het openen van de tab) opgehaald; één verkoper bij een
+// gekozen verkoper, alle verkopers bij "Iedereen" (Beheer is enkel voor de beheerder; bij weinig verkopers volstaat één GET per verkoper).
+// Een mislukte lading komt in _bavVerkoperFout (de lijst meldt dat) en wist niets. Hertekent met behoud van wat al ingevuld is.
+let _bavVerkopers = [];     // de groep Sales van de keuzelijst: [{ id, naam, ... }]
+const _bavVerkoperFout = new Set();
+async function bavLaadVerkopers() {
+  const gekozen = verkoperIdUitWaarde(_bavFilterPerson);
+  const ids = gekozen ? [gekozen] : (_bavFilterPerson === 'all' ? _bavVerkopers.map(v => v.id) : []);
+  if (!ids.length) return;
+  const resultaten = await Promise.all(ids.map(async id => ({ id, r: await laadVerkoperBlokken(id) })));
+  for (const { id, r } of resultaten) { if (r.ok) _bavVerkoperFout.delete(id); else _bavVerkoperFout.add(id); }
+  if (_bavContainer?.isConnected) hertekenMetBehoudVanInvoer(_bavContainer, renderBeschikbaarhedenTab);
+}
+
+function bavVerkoperFoutToast(r) {
+  const eigen = (r.status === 403 || r.status === 404) && r.fout ? r.fout : null; // bv. een geblokkeerde verkoper: de server zegt waarom
+  toast(eigen ? `✕ ${eigen}` : r.reden === 'conflict' ? '⚠ Iemand anders wijzigde deze agenda net. Controleer de lijst en probeer opnieuw.' : '✕ Opslaan is niet gelukt. Controleer je verbinding en probeer opnieuw.', 3000);
+}
+
+async function avRemoveVerkoperGroup(verkoperId, ids) {
+  const r = await verwijderVerkoperBlokken(verkoperId, ids);
+  if (!r.ok) bavVerkoperFoutToast(r);
+  renderBeschikbaarhedenTab();
 }
 
 async function avRemoveExceptionGroup(ids) {
@@ -413,45 +440,65 @@ async function avRemoveExceptionGroup(ids) {
 let _bavContainer = null;
 // De gebruikerslijst van /api/gebruikers (door beheer-beschikbaarheden.js bij het openen van de tab geladen); null = niet beschikbaar -> terugval.
 let _bavGebruikers = null;
+let _bavKijkerRol = 'beheerder'; // de beheerrol van wie de tab bekijkt: enkel de beheerder ziet (en plant voor) verkopers
 export function renderBeschikbaarhedenTab(container, opties) {
   if (container instanceof Element) _bavContainer = container;
-  if (opties && 'gebruikers' in opties) _bavGebruikers = Array.isArray(opties.gebruikers) ? opties.gebruikers : null;
+  const nieuweLijst = Boolean(opties && 'gebruikers' in opties);
+  if (nieuweLijst) _bavGebruikers = Array.isArray(opties.gebruikers) ? opties.gebruikers : null;
+  if (opties && opties.kijkerRol) _bavKijkerRol = opties.kijkerRol;
   const body = _bavContainer;
   if (!body?.isConnected) return;
 
   // Keuzelijst: de actieve accounts met een Zoho-naam (_bavGebruikers, geladen door Beheer); lukte het laden niet, dan het oude
   // gedrag: iedereen die al eens een ticket toegewezen kreeg, aangevuld met personen uit avExceptions (zie bouwPersonenlijst).
-  const knownAgents = bouwPersonenlijst({
+  const groepen = bouwVoorWieGroepen({ gebruikers: _bavGebruikers, kijkerRol: _bavKijkerRol });
+  const knownAgents = groepen ? [] : bouwPersonenlijst({
     gebruikers: _bavGebruikers,
     ticketLijsten: [toestand.get('allTickets'), toestand.get('allGepland'), toestand.get('allPending')],
     exceptions: toestand.get('avExceptions'),
   });
+  _bavVerkopers = groepen ? groepen.sales : [];
+  let gekozenVerkoper = verkoperIdUitWaarde(_bavFilterPerson);
+  if (gekozenVerkoper && !_bavVerkopers.some(v => v.id === gekozenVerkoper)) { _bavFilterPerson = 'all'; gekozenVerkoper = null; } // geen lijst of verkoper niet (meer) actief
 
   const today = localISO(new Date()); // Fix 6 (finale review): lokale datum, niet UTC (zie boven)
   const upcoming = toestand.get('avExceptions')
     .filter(e => e.date >= today)
-    .filter(e => _bavFilterPerson === 'all' || e.scope === 'global' || e.person === _bavFilterPerson)
+    .filter(e => !gekozenVerkoper && (_bavFilterPerson === 'all' || e.scope === 'global' || e.person === _bavFilterPerson))
     .sort((a, b) => a.date.localeCompare(b.date) || (a.person || '').localeCompare(b.person || ''));
 
-  const groups = groupExceptionsForDisplay(upcoming, toestand.get('settings').werkdagen);
+  const werkdagen = toestand.get('settings').werkdagen;
+  const groups = groupExceptionsForDisplay(upcoming, werkdagen);
+  // Afwezigheden van verkopers (sales-blokken): bij een gekozen verkoper enkel de zijne, bij "Iedereen" alle verkopers, bij een technieker geen.
+  const toonVerkopers = _bavVerkopers.filter(v => (gekozenVerkoper ? v.id === gekozenVerkoper : _bavFilterPerson === 'all'));
+  for (const v of toonVerkopers) {
+    const blokken = verkoperBlokken(v.id);
+    if (!blokken) continue;
+    for (const g of groupExceptionsForDisplay(verkoperBlokkenNaarUitzonderingen(blokken, { naam: v.naam, vandaag: today }), werkdagen)) groups.push({ ...g, verkoperId: v.id });
+  }
+  groups.sort((a, b) => a.startDate.localeCompare(b.startDate) || (a.person || '').localeCompare(b.person || ''));
+  const verkoperLaadFout = toonVerkopers.some(v => _bavVerkoperFout.has(v.id));
   const fmtShort = d => new Date(d + 'T12:00:00').toLocaleDateString('nl-BE', { day:'numeric', month:'short', year:'numeric' });
 
-  const existingHtml = groups.length === 0
-    ? `<div class="av-empty">Geen geplande beschikbaarheids-uitzonderingen${_bavFilterPerson === 'all' ? '' : ` voor ${escHtml(_bavFilterPerson)}`}.</div>`
+  const filterNaam = gekozenVerkoper ? (_bavVerkopers.find(v => v.id === gekozenVerkoper)?.naam ?? '') : _bavFilterPerson;
+  const foutHtml = verkoperLaadFout ? `<div class="av-empty" role="alert">De afwezigheden van een verkoper konden niet geladen worden.</div>` : '';
+  const existingHtml = foutHtml + (groups.length === 0
+    ? `<div class="av-empty">Geen geplande beschikbaarheids-uitzonderingen${_bavFilterPerson === 'all' ? '' : ` voor ${escHtml(filterNaam)}`}.</div>`
     : groups.map(g => {
         const whoLabel = g.scope === 'global' ? 'Iedereen' : (g.person || '?');
         const kindLabel = g.kind === 'fullday' ? '🔒 Hele dag' : `⏱ ${g.items[0].from}–${g.items[0].to}`;
         const dateLabel = g.items.length > 1 ? `${fmtShort(g.startDate)} – ${fmtShort(g.endDate)}` : fmtShort(g.startDate);
         const reasonPart = g.reason ? ` — ${escHtml(g.reason)}` : '';
         const idsAttr = escHtml(g.items.map(e => e.id).join(','));
+        const verkoperAttr = g.verkoperId ? ` data-verkoper-id="${escHtml(g.verkoperId)}"` : ''; // een sales-blok: verwijderen gaat via de sales-agenda
         return `<div class="av-item">
           <span class="av-item-label">${escHtml(dateLabel)} · ${kindLabel}${reasonPart} <span class="av-item-who">(${escHtml(whoLabel)})</span></span>
-          <button class="av-item-del" data-exception-ids="${idsAttr}" title="Verwijderen" aria-label="Blokkering verwijderen">✕</button>
+          <button class="av-item-del" data-exception-ids="${idsAttr}"${verkoperAttr} title="Verwijderen" aria-label="Blokkering verwijderen">✕</button>
         </div>`;
-      }).join('');
+      }).join(''));
 
-  // Gebruikerslijst geladen maar zonder één actief account met Zoho-naam: uitleg onder de keuzelijst ("Iedereen" blijft kiesbaar).
-  const geenTechniekers = _bavGebruikers !== null && knownAgents.length === 0;
+  // Gebruikerslijst geladen maar zonder één actief account in Techniek én Sales: uitleg onder de keuzelijst ("Iedereen" blijft kiesbaar).
+  const geenAccounts = groepen !== null && groepen.techniek.length === 0 && groepen.sales.length === 0;
   const myPerson = _bavFilterPerson === 'all' ? null : _bavFilterPerson;
   const defaultVan = toestand.get('settings').vanTijd || '08:00';
   const defaultTot = toestand.get('settings').totTijd || '17:00';
@@ -461,9 +508,13 @@ export function renderBeschikbaarhedenTab(container, opties) {
       <div class="av-section-title" role="heading" aria-level="3">Voor wie</div>
       <select class="av-time-input" id="bav-filter-person" aria-label="Voor wie" data-wijzig="bav-filter-persoon">
         <option value="all" ${_bavFilterPerson === 'all' ? 'selected' : ''}>Iedereen</option>
-        ${knownAgents.map(a => `<option value="${escHtml(a)}" ${_bavFilterPerson === a ? 'selected' : ''}>${escHtml(a)}</option>`).join('')}
+        ${groepen
+          ? [['Techniek', groepen.techniek], ['Sales', groepen.sales]].filter(([, lijst]) => lijst.length)
+              .map(([titel, lijst]) => `<optgroup label="${titel}">${lijst.map(o => `<option value="${escHtml(o.waarde)}" ${_bavFilterPerson === o.waarde ? 'selected' : ''}>${escHtml(o.label)}</option>`).join('')}</optgroup>`).join('')
+          : knownAgents.map(a => `<option value="${escHtml(a)}" ${_bavFilterPerson === a ? 'selected' : ''}>${escHtml(a)}</option>`).join('')}
       </select>
-      ${geenTechniekers ? `<p class="bav-leeg" id="bav-geen-techniekers">Nog geen techniekers met een Zoho-naam. Maak ze aan in Beheer → Gebruikers en kies daar hun Zoho-naam.</p>` : ''}
+      <div class="bav-hulp" id="bav-hulp">Iedereen = alle techniekers${_bavVerkopers.length ? '. Een verkoper kies je apart: zijn afwezigheid komt in zijn eigen sales-agenda.' : '.'}</div>
+      ${geenAccounts ? `<p class="bav-leeg" id="bav-geen-techniekers">Nog geen techniekers met een Zoho-naam. Maak ze aan in Beheer → Gebruikers en kies daar hun Zoho-naam.</p>` : ''}
     </div>
     <div class="av-form" style="margin-top:10px">
       <div>
@@ -510,9 +561,12 @@ export function renderBeschikbaarhedenTab(container, opties) {
   body.querySelectorAll('.av-item-del').forEach(btn => {
     btn.addEventListener('click', async () => {
       const ids = (btn.dataset.exceptionIds || '').split(',').filter(Boolean);
-      if (ids.length) await avRemoveExceptionGroup(ids);
+      if (!ids.length) return;
+      if (btn.dataset.verkoperId) await avRemoveVerkoperGroup(btn.dataset.verkoperId, ids);
+      else await avRemoveExceptionGroup(ids);
     });
   });
+  if (nieuweLijst) bavLaadVerkopers(); // de tab opent op "Iedereen": ook de afwezigheden van de verkopers ophalen
 }
 
 function bavSetKind(kind) {
@@ -527,7 +581,25 @@ function bavSetMultiDay(checked) {
   renderBeschikbaarhedenTab();
 }
 
+// Een verkoper gekozen in "Voor wie": de afwezigheid wordt een blok (verlof) in zijn sales-agenda i.p.v. een record in /api/availability.
+async function avAddVerkoperAfwezigheid(verkoperId) {
+  const from   = _bavFormKind === 'range' ? (document.getElementById('bav-van')?.value || toestand.get('settings').vanTijd) : null;
+  const to     = _bavFormKind === 'range' ? (document.getElementById('bav-tot')?.value || toestand.get('settings').totTijd) : null;
+  const reason = document.getElementById('bav-reden')?.value?.trim() || '';
+  const check = valideerNieuweBlokkering({ kind: _bavFormKind, meerdaags: _bavFormMultiDay, datum: _bavFormDate, datumTot: _bavFormDateTot, van: from, tot: to });
+  if (!check.ok) { toast(check.melding, 2500); return; }
+  const r = maakVerkoperBlokken({ kind: _bavFormKind, meerdaags: _bavFormMultiDay, datum: _bavFormDate, datumTot: _bavFormDateTot, van: from, tot: to, reden: reason, werkdagen: toestand.get('settings').werkdagen });
+  if (r.fout) { toast(r.fout, 2500); return; }
+  const res = await voegVerkoperBlokkenToe(verkoperId, r.blokken);
+  if (!res.ok) { bavVerkoperFoutToast(res); return; } // het formulier blijft zoals het was
+  _bavFormMultiDay = false;
+  _bavFormDateTot  = null;
+  renderBeschikbaarhedenTab();
+}
+
 async function avAddExceptionFromSettings() {
+  const verkoperId = verkoperIdUitWaarde(_bavFilterPerson);
+  if (verkoperId) return avAddVerkoperAfwezigheid(verkoperId);
   const myPerson = _bavFilterPerson === 'all' ? null : _bavFilterPerson;
   const scope    = myPerson ? 'person' : 'global'; // de keuzelijst "Voor wie" bepaalt voor wie de afwezigheid geldt
   const from     = _bavFormKind === 'range' ? (document.getElementById('bav-van')?.value || toestand.get('settings').vanTijd) : null;
