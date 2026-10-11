@@ -259,4 +259,4 @@ function teken(inhoud) {
   w.vul();
 }
 
-export const toon = (view) => startScherm(view, teken);
+export const toon = (view) => startScherm(view, teken, { skelet: 'kaarten' });

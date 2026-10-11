@@ -349,4 +349,4 @@ async function rekenRoute(inhoud, s, { sig, sleutel, stops, depot, datum, vanTij
   if (!resultaat.geschat && resultaat.data) laadDrukte(inhoud, s, s.route);
 }
 
-export const toon = (view) => startScherm(view, teken);
+export const toon = (view) => startScherm(view, teken, { skelet: 'route' });
