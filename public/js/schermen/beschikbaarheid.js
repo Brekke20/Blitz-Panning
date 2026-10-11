@@ -15,7 +15,7 @@ import { apiJson, apiVerzoek, leesFout } from '../kern/api.js';
 import { localISO } from '../kern/tijd.js';
 import { persoonOfNull } from '../kern/selecties.js';
 import { registreerVenster } from '../venster.js';
-import { groupExceptionsForDisplay, valideerNieuweBlokkering } from './beschikbaarheid-logica.js';
+import { groupExceptionsForDisplay, valideerNieuweBlokkering, bouwPersonenlijst } from './beschikbaarheid-logica.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initBeschikbaarheid); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('beschikbaarheid: initBeschikbaarheid() is niet aangeroepen'); } });
@@ -28,7 +28,6 @@ export function initBeschikbaarheid(afhankelijkheden) {
     'av-scope':          (el) => avSetScope(el.dataset.arg),
     'av-kind':           (el) => avSetKind(el.dataset.arg),
     'av-toevoegen':      () => avAddException(),
-    'bav-scope':         (el) => bavSetScope(el.dataset.arg),
     'bav-kind':          (el) => bavSetKind(el.dataset.arg),
     'bav-toevoegen':     () => avAddExceptionFromSettings(),
   });
@@ -380,19 +379,17 @@ let _bavFormDate  = null; // gezet in initBeschikbaarheid (vroeger in DOMContent
 let _bavFormDateTot = null;
 let _bavFormMultiDay = false;
 let _bavFormKind  = 'fullday';
-let _bavFormScope = 'global';
 // Post-launch feedback (2026-08-17): een platte lijst die iedereens uitzonderingen door elkaar
 // toont was onoverzichtelijk. _bavFilterPerson is een EIGEN, tab-lokale "welke persoon bekijk ik"
 // -- losstaand van de globale activeAssigneeFilter (dat bepaalt wiens PERSOONLIJKE app-weergave
 // actief is; dit bepaalt enkel wat deze tab toont/voor wie je toevoegt). Filteren op een persoon
-// bepaalt ook meteen voor wie een nieuwe uitzondering wordt aangemaakt (zie scopeOptions/
+// bepaalt ook meteen voor wie een nieuwe uitzondering wordt aangemaakt (zie
 // avAddExceptionFromSettings hieronder) -- kiezen "Kursat Deniz" en dan toevoegen hoeft dus niet
 // meer via de globale technieker-wissel.
 let _bavFilterPerson = 'all';
 
 function bavSetFilterPerson(person) {
   _bavFilterPerson = person;
-  _bavFormScope = person === 'all' ? 'global' : 'person';
   renderBeschikbaarhedenTab();
 }
 
@@ -414,19 +411,21 @@ async function avRemoveExceptionGroup(ids) {
 // De tab staat in Beheer → Beschikbaarheden (beheer-beschikbaarheden.js geeft de container mee). Eigen techniekerkeuze (_bavFilterPerson),
 // los van de persoonskiezer bovenaan. Elke volgende hertekening (acties, resync) gebruikt dezelfde container zolang die in de pagina hangt.
 let _bavContainer = null;
-export function renderBeschikbaarhedenTab(container) {
+// De gebruikerslijst van /api/gebruikers (door beheer-beschikbaarheden.js bij het openen van de tab geladen); null = niet beschikbaar -> terugval.
+let _bavGebruikers = null;
+export function renderBeschikbaarhedenTab(container, opties) {
   if (container instanceof Element) _bavContainer = container;
+  if (opties && 'gebruikers' in opties) _bavGebruikers = Array.isArray(opties.gebruikers) ? opties.gebruikers : null;
   const body = _bavContainer;
   if (!body?.isConnected) return;
 
-  // Bekende personen: iedereen die al eens een ticket toegewezen kreeg, aangevuld met elke
-  // persoon die al in avExceptions voorkomt (dekt ook namen die (nog) geen ticket hebben).
-  const knownAgents = [...new Set([
-    ...toestand.get('allTickets').map(t => t.assignee),
-    ...toestand.get('allGepland').map(t => t.assignee),
-    ...toestand.get('allPending').map(t => t.assignee),
-    ...toestand.get('avExceptions').map(e => e.person),
-  ])].filter(Boolean).sort();
+  // Keuzelijst: de actieve accounts met een Zoho-naam (_bavGebruikers, geladen door Beheer); lukte het laden niet, dan het oude
+  // gedrag: iedereen die al eens een ticket toegewezen kreeg, aangevuld met personen uit avExceptions (zie bouwPersonenlijst).
+  const knownAgents = bouwPersonenlijst({
+    gebruikers: _bavGebruikers,
+    ticketLijsten: [toestand.get('allTickets'), toestand.get('allGepland'), toestand.get('allPending')],
+    exceptions: toestand.get('avExceptions'),
+  });
 
   const today = localISO(new Date()); // Fix 6 (finale review): lokale datum, niet UTC (zie boven)
   const upcoming = toestand.get('avExceptions')
@@ -454,16 +453,12 @@ export function renderBeschikbaarhedenTab(container) {
   const myPerson = _bavFilterPerson === 'all' ? null : _bavFilterPerson;
   const defaultVan = toestand.get('settings').vanTijd || '08:00';
   const defaultTot = toestand.get('settings').totTijd || '17:00';
-  const scopeOptions = myPerson
-    ? `<button class="av-radio-btn ${_bavFormScope === 'person' ? 'active' : ''}" aria-pressed="${_bavFormScope === 'person'}" data-actie="bav-scope" data-arg="person">👤 ${escHtml(myPerson.split(' ')[0])}</button>
-       <button class="av-radio-btn ${_bavFormScope === 'global' ? 'active' : ''}" aria-pressed="${_bavFormScope === 'global'}" data-actie="bav-scope" data-arg="global">👥 Iedereen</button>`
-    : `<button class="av-radio-btn active" aria-pressed="true" disabled>👥 Iedereen</button>`;
 
   body.innerHTML = `
     <div>
-      <div class="av-section-title" role="heading" aria-level="3">Filter op persoon</div>
-      <select class="av-time-input" id="bav-filter-person" aria-label="Filter op persoon" data-wijzig="bav-filter-persoon" style="width:100%">
-        <option value="all" ${_bavFilterPerson === 'all' ? 'selected' : ''}>Alle personen</option>
+      <div class="av-section-title" role="heading" aria-level="3">Voor wie</div>
+      <select class="av-time-input" id="bav-filter-person" aria-label="Voor wie" data-wijzig="bav-filter-persoon" style="width:100%">
+        <option value="all" ${_bavFilterPerson === 'all' ? 'selected' : ''}>Iedereen</option>
         ${knownAgents.map(a => `<option value="${escHtml(a)}" ${_bavFilterPerson === a ? 'selected' : ''}>${escHtml(a)}</option>`).join('')}
       </select>
     </div>
@@ -501,10 +496,6 @@ export function renderBeschikbaarhedenTab(container) {
         </div>
       </div>`}
       <div>
-        <div class="av-section-title" role="heading" aria-level="3">Voor</div>
-        <div class="av-radio-group">${scopeOptions}</div>
-      </div>
-      <div>
         <div class="av-section-title" role="heading" aria-level="3">Reden <span style="font-weight:400;text-transform:none;letter-spacing:0">(optioneel)</span></div>
         <input class="av-reden-input" id="bav-reden" aria-label="Reden" type="text" placeholder="bv. Verlof, dokter, opleiding…" />
       </div>
@@ -527,11 +518,6 @@ function bavSetKind(kind) {
   renderBeschikbaarhedenTab();
 }
 
-function bavSetScope(scope) {
-  _bavFormScope = scope;
-  renderBeschikbaarhedenTab();
-}
-
 function bavSetMultiDay(checked) {
   _bavFormMultiDay = checked;
   if (!checked) _bavFormDateTot = null;
@@ -540,7 +526,7 @@ function bavSetMultiDay(checked) {
 
 async function avAddExceptionFromSettings() {
   const myPerson = _bavFilterPerson === 'all' ? null : _bavFilterPerson;
-  const scope    = (myPerson && _bavFormScope === 'person') ? 'person' : 'global';
+  const scope    = myPerson ? 'person' : 'global'; // de keuzelijst "Voor wie" bepaalt voor wie de afwezigheid geldt
   const from     = _bavFormKind === 'range' ? (document.getElementById('bav-van')?.value || toestand.get('settings').vanTijd) : null;
   const to       = _bavFormKind === 'range' ? (document.getElementById('bav-tot')?.value || toestand.get('settings').totTijd) : null;
   const reason   = document.getElementById('bav-reden')?.value?.trim() || '';
