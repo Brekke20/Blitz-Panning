@@ -11,6 +11,7 @@ import { TEST_MODE } from './kern/omgeving.js';
 import { localISO, extractLocalHour, openingsDatum } from './kern/tijd.js';
 import { startTicketLogExport } from './kern/exceljs.js';
 import { toast, registreerActies, metBehoudScroll } from './kern/ui.js';
+import { toonSkelet } from './kern/skelet.js';
 import { ticketsVanTechnieker } from './kern/selecties.js';
 import { maakDummyData } from './kern/testdata.js';
 import { sjLog, sjZetTab, startVerklikker } from './kern/verklikker.js';
@@ -564,6 +565,8 @@ async function loadTickets({ stilleToast = false, stil = false, zonderCache = fa
     const cached = loadFromCache('blitz_tickets_cache');
     if (cached) applyTicketsData(cached);
   }
+  // Eerste lading zonder iets te tonen (geen bewaarde kopie): wachtrij-kaarten als skelet i.p.v. enkel "Laden..."; pas na 150 ms, en nooit als er al tickets staan.
+  const skelet = stil ? null : toonSkelet(document.getElementById('ticket-list'), { vorm: 'kaarten', aantal: 4, isLeeg: () => get('allTickets').length === 0, verberg: [legeTekstEl] });
   try {
     let data;
     if (TEST_MODE) {
@@ -608,6 +611,8 @@ async function loadTickets({ stilleToast = false, stil = false, zonderCache = fa
       toast('✕ ' + msg, 4000);
       document.getElementById('empty-tickets').textContent = 'Kon tickets niet laden: ' + msg;
     }
+  } finally {
+    skelet?.stop(); // na de (her)tekening van de wachtrij of de foutmelding: het skelet maakt altijd plaats
   }
 }
 
