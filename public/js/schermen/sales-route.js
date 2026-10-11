@@ -79,29 +79,31 @@ export async function zoekDepot(startlocatie) {
 function bouwSkelet(inhoud) {
   // UI/UX-review P1-4: één navigatie, zoals bij de technieker: het datumveld en de weekstrook (met haar eigen ‹ › voor de week).
   // De dag-‹ › en het dag-label van vroeger zijn weg; de gekozen dag staat in de strook (actief) en in het datumveld.
-  const kiezer = el('input', { type: 'date', class: 'sales-route-datumveld', 'aria-label': 'Kies een dag' });
-  const dagkiezer = el('div', { class: 'sales-route-dagkiezer' }, kiezer);
+  // Dezelfde indeling als de route van de technieker (index.html #view-planning): .plan-header (datum + knoppen), .week-strip, .plan-body met
+  // links de lijstkolom en rechts de kaart, en onderaan .plan-summary. De opmaak komt uit app.css; sales.css voegt enkel de ketting van hoogtes toe.
+  const kiezer = el('input', { type: 'date', class: 'plan-date-compact sales-route-datumveld', 'aria-label': 'Kies een dag', title: 'Andere datum kiezen' });
+  const kop = el('div', { class: 'plan-header sales-route-kop-balk' }, kiezer);
   // De weekstrook van de technieker (week-strook.js): per werkdag het aantal bezoeken en of ze bevestigd zijn; een klik kiest die dag.
   const weekstrook = el('div', { class: 'week-strip sales-route-weekstrook', role: 'group', 'aria-label': 'Week van de gekozen datum' });
-  const samenvatting = el('div', { class: 'sales-route-samenvatting' });
+  const samenvatting = el('div', { class: 'plan-summary sales-route-samenvatting' });
   const melding = el('div', { class: 'sales-route-melding', role: 'status', hidden: true });
   const wegafsluiting = el('div', { class: 'sales-route-wegafsluiting', role: 'alert', hidden: true, text: WEGAFSLUITING_TEKST });
   const nota = el('p', { class: 'sales-route-nota', hidden: true });
   const lijst = el('ol', { class: 'sales-route-lijst' });
   const leeg = el('p', { class: 'sales-leeg sales-route-leeg', hidden: true, text: LEEG_TEKST });
   const kaartEl = el('div', { id: 'sales-kaart', class: 'sales-route-kaart', role: 'region', 'aria-label': 'Kaart van de route' });
-  const kaartNoot = el('p', { class: 'sales-route-nota', hidden: true, text: 'De kaart kon niet geladen worden (geen verbinding met de kaartdienst). De lijst klopt wel.' });
+  const kaartNoot = el('p', { class: 'sales-route-kaartnoot', hidden: true, text: 'De kaart kon niet geladen worden (geen verbinding met de kaartdienst). De lijst klopt wel.' });
   const kaartVak = el('div', { class: 'sales-route-kaartvak' }, kaartEl, kaartNoot);
   const lijstVak = el('div', { class: 'sales-route-lijstvak' }, nota, lijst);
-  const inhoudVak = el('div', { class: 'sales-route-inhoud' }, lijstVak, kaartVak);
-  const wortel = el('div', { class: 'sales-route-wortel' }, dagkiezer, weekstrook, samenvatting, wegafsluiting, melding, leeg, inhoudVak);
+  const inhoudVak = el('div', { class: 'plan-body sales-route-inhoud' }, lijstVak, kaartVak);
+  const wortel = el('div', { class: 'sales-route-wortel' }, kop, weekstrook, wegafsluiting, melding, leeg, inhoudVak, samenvatting);
   inhoud.replaceChildren(wortel);
 
   const naarDatum = (iso) => { if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) zetGekozenDatum(iso); };
   kiezer.addEventListener('change', () => naarDatum(kiezer.value));
 
   return {
-    wortel, kiezer, weekstrook, samenvatting, wegafsluiting, melding, nota, lijst, leeg, kaartEl, kaartNoot, inhoudVak,
+    wortel, kop, kiezer, weekstrook, samenvatting, wegafsluiting, melding, nota, lijst, leeg, kaartEl, kaartNoot, inhoudVak,
     kaart: null, laatste: null, route: null, bezigSig: null, aanvraag: 0, depot: null, depotVoor: null, depotBezig: false,
     toonde: false, kaartHerstel: false, wegToastSig: null, stijlSig: null, stijlGekozen: false,
   };
@@ -109,7 +111,19 @@ function bouwSkelet(inhoud) {
 
 const staatVan = (inhoud) => {
   let s = staten.get(inhoud);
-  if (!s) { s = bouwSkelet(inhoud); staten.set(inhoud, s); }
+  if (!s) {
+    s = bouwSkelet(inhoud);
+    staten.set(inhoud, s);
+    // De kaart volgt een groottewijziging van haar vak (venster, draaien van het toestel); een verborgen vak (0x0) wordt overgeslagen.
+    if (typeof ResizeObserver === 'function') {
+      let wacht = false;
+      new ResizeObserver(() => {
+        if (wacht) return;
+        wacht = true;
+        requestAnimationFrame(() => { wacht = false; if (s.kaartEl.clientWidth > 0 && s.kaartEl.clientHeight > 0) s.kaart?.invalideer(); });
+      }).observe(s.kaartEl.parentElement);
+    }
+  }
   return s;
 };
 
@@ -124,40 +138,43 @@ function ritTekst(rit, geschat) {
 }
 
 function maakRij(stop, rit, geschat, laatMin, kanResultaat) {
+  // Dezelfde stopkaart als bij de technieker (.stop > .stop-top > .stop-num + .stop-info), met het bezoektint van de verkoper.
   const li = el('li', {
-    class: `sales-route-rij ${stop.vast ? 'sales-bevestigd' : 'sales-voorgesteld'}${laatMin ? ' sales-route-laat' : ''}`,
+    class: `stop sales-route-rij ${stop.vast ? 'sales-bevestigd' : 'sales-voorgesteld'}${laatMin ? ' sales-route-laat' : ''}`,
     'data-lead-id': stop.leadId,
   });
   maakActiveerbaar(li, () => openLeadDetail(stop.leadId), `Open ${stop.naam}`);
   li.addEventListener('click', (e) => { if (!e.target.closest('button, a')) openLeadDetail(stop.leadId); });
-  li.append(el('div', { class: 'sales-route-kop' },
-    el('span', { class: 'sales-route-nr', text: stop.nr }),
-    el('span', { class: 'sales-route-naam', text: stop.naam }),
-    el('span', { class: 'sales-route-uur', text: `${stop.start} · ${stop.duurMin} min` })));
-  if (stop.plaats) li.append(el('div', { class: 'sales-route-plaats', text: stop.plaats }));
-  const chips = el('div', { class: 'sales-kaart-chips' });
-  if (stop.vast) chips.append(el('span', { class: 'sales-chip sales-chip-vast', text: 'vast uur' }));
-  if (stop.ongeveer) chips.append(el('span', { class: 'sales-chip sales-route-ongeveer', title: ONGEVEER_TEKST, text: `ongeveer — enkel postcode` }));
-  if (!stop.locatie) chips.append(el('span', { class: 'sales-chip sales-route-geenloc', text: 'geen locatie — niet op de kaart' }));
-  if (chips.childNodes.length) li.append(chips);
+  const meta = el('div', { class: 'sales-route-meta' }, el('span', { class: 'stop-time sales-route-uur', text: `${stop.start} · ${stop.duurMin} min` }));
+  if (stop.vast) meta.append(el('span', { class: 'sales-chip sales-chip-vast', text: 'vast uur' }));
+  if (stop.ongeveer) meta.append(el('span', { class: 'sales-chip sales-route-ongeveer', title: ONGEVEER_TEKST, text: `ongeveer — enkel postcode` }));
+  if (!stop.locatie) meta.append(el('span', { class: 'sales-chip sales-route-geenloc', text: 'geen locatie — niet op de kaart' }));
   const tekst = ritTekst(rit, geschat);
-  if (tekst) li.append(el('div', { class: 'sales-route-rit', text: tekst }));
+  if (tekst) meta.append(el('span', { class: 'sales-route-rit', text: tekst }));
+  li.append(el('div', { class: 'stop-top' },
+    el('div', { class: 'stop-num sales-route-nr', text: stop.nr }),
+    el('div', { class: 'stop-info' },
+      el('div', { class: 'stop-sub sales-route-naam', text: stop.naam }),
+      stop.plaats ? el('div', { class: 'stop-addr sales-route-plaats', text: stop.plaats }) : null,
+      meta)));
   if (kanResultaat) {
-    const knop = el('button', { type: 'button', class: 'btn btn--secondary sales-route-resultaat', text: 'Resultaat', 'aria-label': `Resultaat ingeven voor ${stop.naam}` });
+    const knop = el('button', { type: 'button', class: 'sico sales-route-resultaat', text: '📋 Resultaat', 'aria-label': `Resultaat ingeven voor ${stop.naam}` });
     knop.addEventListener('click', (e) => { e.stopPropagation(); openResultaat(stop.leadId); });
-    li.append(knop);
+    li.append(el('div', { class: 'stop-actions' }, knop));
   }
   return li;
 }
 
-const waarschuwing = (laatMin) => el('div', { class: 'sales-route-waarschuwing', role: 'alert', text: WAARSCHUWING_TEKST(laatMin) });
+const waarschuwing = (laatMin) => el('div', { class: 'stop-laat sales-route-waarschuwing', role: 'alert', text: WAARSCHUWING_TEKST(laatMin) });
 
 function tekenLijst(s, stops, depot, route, startTekst, laat, geschat, kanResultaat) {
   const rijen = [];
   if (startTekst) {
-    const li = el('li', { class: 'sales-route-rij sales-route-depot' },
-      el('div', { class: 'sales-route-kop' }, el('span', { class: 'sales-route-nr', 'aria-hidden': 'true', text: 'S' }), el('span', { class: 'sales-route-naam', text: `Vertrek: ${startTekst}` })));
-    if (depot?.ongeveer) li.append(el('div', { class: 'sales-chip sales-route-ongeveer', text: ONGEVEER_TEKST }));
+    const li = el('li', { class: 'stop sales-route-rij sales-route-depot' },
+      el('div', { class: 'stop-top' },
+        el('div', { class: 'stop-num sales-route-nr', 'aria-hidden': 'true', text: 'S' }),
+        el('div', { class: 'stop-info' }, el('div', { class: 'stop-sub sales-route-naam', text: `Vertrek: ${startTekst}` }),
+          depot?.ongeveer ? el('div', { class: 'sales-route-meta' }, el('span', { class: 'sales-chip sales-route-ongeveer', text: ONGEVEER_TEKST })) : null)));
     const eerste = laat.find((l) => l.leadId === stops[0]?.leadId);
     if (eerste) li.append(waarschuwing(eerste.laatMin));
     rijen.push(li);

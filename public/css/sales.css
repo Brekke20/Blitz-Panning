@@ -229,50 +229,39 @@ html[data-indeling="smal"] .sales-kal-grid .day-hdr { height: auto; }
 }
 html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
 
-/* ---- Route (sales-route.js, sales-kaart.js) ---- */
-.sales-route-wortel { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+/* ---- Route (sales-route.js, sales-kaart.js) ----
+   De indeling is die van de technieker (app.css): .plan-header, .week-strip, .plan-body met een smalle lijstkolom links (.sales-route-lijstvak)
+   en de kaart rechts (.sales-route-kaartvak), .plan-summary onderaan, en de stopkaarten als .stop. Hier staat enkel wat de verkoper extra heeft. */
+.sales-route-wortel { display: flex; flex-direction: column; min-width: 0; }
 .sales-route-wortel [hidden] { display: none !important; }
-.sales-route-dagkiezer { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
-.sales-route-weekstrook { border: 1px solid var(--border); border-radius: var(--r); padding: var(--sp-2); }
-/* "2 bezoeken" is langer dan "2 stops": een dag iets breder, zodat het niet afbreekt (op een telefoon scrollen de dagen binnen de strook). */
-.sales-route-weekstrook .ws-dag { flex-basis: 96px; min-width: 96px; }
+.sales-route-weekstrook .ws-dag { flex-basis: 96px; min-width: 96px; } /* "2 bezoeken" is langer dan "2 stops" */
 .sales-route-weekstrook .ws-aantal { white-space: nowrap; }
-.sales-route-datumveld {
-  background: var(--surface2); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--r);
-  padding: 6px 10px; font: inherit; font-size: var(--fs-sm); min-height: 40px; max-width: 100%;
-}
 .sales-route-datumveld:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-.sales-route-samenvatting { color: var(--text2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
-.sales-route-melding { background: var(--accent-dim); border: 1px solid var(--border); border-radius: var(--r); padding: var(--sp-2) var(--sp-3); font-size: var(--fs-sm); }
-.sales-route-nota { color: var(--text2); font-size: var(--fs-sm); margin-bottom: var(--sp-3); overflow-wrap: anywhere; }
-.sales-route-inhoud { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); }
-.sales-route-lijstvak, .sales-route-kaartvak { min-width: 0; }
-.sales-route-kaart { width: 100%; height: 320px; border-radius: var(--r-lg); border: 1px solid var(--border); z-index: 0; }
-@media (min-width: 900px) {
-  .sales-route-inhoud { grid-template-columns: minmax(280px, 2fr) minmax(0, 3fr); align-items: start; }
-  .sales-route-kaart { height: min(560px, 70vh); position: sticky; top: var(--sp-4); }
-}
-.sales-route-lijst { list-style: none; display: flex; flex-direction: column; gap: var(--sp-3); margin: 0; padding: 0; }
-.sales-route-rij {
-  display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; padding: var(--sp-3) var(--sp-4); cursor: pointer;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
-}
-.sales-route-rij:hover { background: var(--surface2); }
+.sales-route-samenvatting { overflow-wrap: anywhere; }
+.sales-route-melding, .sales-route-nota, .sales-route-wegafsluiting { flex: none; margin: 0; padding: 6px 14px; font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.sales-route-melding { background: var(--accent-dim); border-bottom: 1px solid var(--border); }
+.sales-route-nota { color: var(--text2); background: var(--surface); border-bottom: 1px solid var(--border); }
+.sales-route-wegafsluiting { color: var(--red-ink); background: var(--red-dim); font-weight: 600; }
+.sales-route-leeg { margin: 0; }
+.sales-route-inhoud { min-width: 0; }
+.sales-route-kaartnoot { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 500; margin: 0; padding: 4px 8px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--border); font-size: var(--fs-2xs); color: var(--text2); }
+.sales-route-lijst { list-style: none; display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; }
+/* De stopkaart: zelfde opbouw als bij de technieker (.stop, .stop-top, .stop-num, .stop-info), met het bezoektint van de verkoper. */
+.sales-route-rij { cursor: pointer; min-width: 0; }
 .sales-route-rij:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .sales-route-depot { cursor: default; background: var(--surface2); }
+.sales-route-depot:hover { transform: none; }
 .sales-route-laat { border-color: var(--red-line); }
-.sales-route-kop { display: flex; align-items: flex-start; gap: var(--sp-2); min-width: 0; }
-.sales-route-nr {
-  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%;
-  background: var(--accent); color: var(--on-accent); font-size: var(--fs-xs); font-weight: 700;
-}
-.sales-route-naam { font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; min-width: 0; flex: 1 1 auto; }
-.sales-route-uur { color: var(--text2); font-size: var(--fs-sm); white-space: nowrap; }
-.sales-route-plaats, .sales-route-rit { color: var(--text2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.sales-route-naam { overflow-wrap: anywhere; }
+.sales-route-plaats { overflow-wrap: anywhere; }
+.sales-route-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin-top: 2px; }
+.sales-route-meta .stop-time { margin-top: 0; white-space: nowrap; }
+.sales-route-meta .sales-chip { padding: 1px 6px; }
+.sales-route-rit { color: var(--muted); font-size: var(--fs-2xs); overflow-wrap: anywhere; }
 .sales-route-ongeveer { background: var(--orange-dim); color: var(--orange); }
 .sales-route-geenloc { background: var(--red-dim); color: var(--red-ink); }
-.sales-route-waarschuwing, .sales-route-wegafsluiting { color: var(--red-ink); background: var(--red-dim); border-radius: var(--r); padding: var(--sp-1) var(--sp-2); font-size: var(--fs-sm); font-weight: 600; overflow-wrap: anywhere; }
-.sales-route-resultaat { align-self: flex-start; min-height: 36px; padding: 6px 12px; font-size: var(--fs-sm); }
+.sales-route-waarschuwing { overflow-wrap: anywhere; margin-top: 4px; padding: 1px 6px; line-height: 1.35; }
+.sales-route-rij .stop-actions { margin-top: 6px; }
 /* Nummermarkers op de kaart: een bezoek dat enkel op de postcode staat (ongeveer) krijgt een gestippelde rand en een lichte vulling. */
 .sales-marker {
   display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%;
@@ -283,3 +272,19 @@ html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
 .sales-marker-vast { box-shadow: 0 0 0 3px var(--accent-glow), 0 1px 4px rgba(0, 0, 0, 0.4); }
 .sales-popup { font-size: var(--fs-sm); line-height: 1.4; overflow-wrap: anywhere; color: #1a2433; }
 .sales-popup-ongeveer { font-style: italic; color: #a94a08; }
+
+#view-sales-route > .sales-inhoud { padding: 0; } /* de route vult zijn eigen vak; de balken hebben hun eigen opvulling */
+
+/* Route op een brede indeling: het scherm vult de beschikbare hoogte; de lijst scrollt in zijn eigen kolom, de kaart blijft staan en de
+   pagina scrolt niet. Op de smalle indeling (telefoon, tablet rechtop) staan kaart en lijst onder elkaar en scrolt de pagina mee. */
+@media (min-width: 681px) {
+  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route:is(.active, .sales-subpaneel:not([hidden])) { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales.active:has(#view-sales-route:not([hidden])) { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales.active:has(#view-sales-route:not([hidden])) > .sales-beheer { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route > .sales-balk { flex: none; }
+  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route > .sales-inhoud { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-wortel { flex: 1; min-height: 0; }
+  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-wortel > :is(.plan-header, .week-strip, .plan-summary) { flex: none; }
+  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-inhoud { flex: 1; min-height: 0; }
+  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-leeg { flex: 1; }
+}

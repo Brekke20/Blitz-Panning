@@ -315,6 +315,7 @@ function opstart() {
     const active = document.querySelector('.tab.active');
     if (active) updateTabIndicator(active.id);
     zetTopbarHoogte();
+    routeKaart.invalideerKaartGrootte(); // de kaart van de Route-tab volgt een nieuwe venstergrootte (Leaflet meet zichzelf niet opnieuw)
   });
   zetTopbarHoogte();
   try {
