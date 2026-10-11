@@ -3,6 +3,7 @@
 // Enkel interventies: `gemiddeldeDuur`. Alle bezoeken (Interventie en Installatie): `duurPer.*` (bezoektype is
 // daar zelf een groep), `opTijd*`, `rijtijdPerDag`, `perDagPerTechnieker` en de dekking.
 import { gemiddelde, pct } from './gemeenschappelijk.js';
+import { techniekerGroepen } from './techniekers.js';
 
 const TIJD_RE = /^(\d{1,2}):(\d{2})$/;
 const afgerond = n => Math.round(n * 10) / 10;
@@ -15,7 +16,8 @@ function minuten(t) {
 }
 
 const heeftDuur = r => typeof r.werktijdMin === 'number';
-const naam = v => v || 'Onbekend';
+// Een rapport telt voor elke technieker (groep) die erbij hoort; zonder technieker 'Onbekend'. Totalen blijven per rapport.
+const groepen = r => { const g = techniekerGroepen(r); return g.length ? g : ['Onbekend']; };
 
 // Gemiddelde duur (minuten) over interventies met een betrouwbare werktijd; null als er geen zijn.
 export function gemiddeldeDuur(rapporten) {
@@ -55,9 +57,9 @@ function duurPerGroep(rapporten, sleutelsVan) {
 
 function opTijdPerTechnieker(rapporten) {
   const volgorde = [];
-  for (const r of rapporten) if (!volgorde.includes(naam(r.technieker))) volgorde.push(naam(r.technieker));
+  for (const r of rapporten) for (const t of groepen(r)) if (!volgorde.includes(t)) volgorde.push(t);
   return volgorde
-    .map(technieker => ({ technieker, ...opTijd(rapporten.filter(r => naam(r.technieker) === technieker)) }))
+    .map(technieker => ({ technieker, ...opTijd(rapporten.filter(r => groepen(r).includes(technieker))) }))
     .filter(r => r.n > 0)
     .sort((a, b) => b.n - a.n);
 }
@@ -78,11 +80,12 @@ function rijtijdPerDag(rapporten) {
 function perDagPerTechnieker(rapporten) {
   const techniekers = [], datums = new Set(), waarden = Object.create(null);
   for (const r of rapporten) {
-    const t = naam(r.technieker);
-    if (!techniekers.includes(t)) techniekers.push(t);
     datums.add(r.datum);
-    waarden[t] = waarden[t] || Object.create(null);
-    waarden[t][r.datum] = (waarden[t][r.datum] || 0) + 1;
+    for (const t of new Set(groepen(r))) {
+      if (!techniekers.includes(t)) techniekers.push(t);
+      waarden[t] = waarden[t] || Object.create(null);
+      waarden[t][r.datum] = (waarden[t][r.datum] || 0) + 1;
+    }
   }
   return { datums: [...datums].sort(), techniekers, waarden: Object.fromEntries(Object.entries(waarden).map(([t, w]) => [t, { ...w }])) };
 }
@@ -93,7 +96,7 @@ export function berekenTijd(rapporten) {
     duurPer: {
       laadpaal: duurPerGroep(rapporten, r => [r.type]),
       oorzaak: duurPerGroep(rapporten, r => r.oorzaken),
-      technieker: duurPerGroep(rapporten, r => [naam(r.technieker)]),
+      technieker: duurPerGroep(rapporten, groepen),
       bezoektype: duurPerGroep(rapporten, r => [r.interventieType]),
     },
     opTijdPerTechnieker: opTijdPerTechnieker(rapporten),

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PRESETS, TEGELS, periodeVoorPreset, maakQuery, verschil, formatDuur, formatEuro,
-  kleurSlotVoor, opTijdVerdeling, tegelHtml, filterRijHtml,
+  kleurSlotVoor, opTijdVerdeling, tegelHtml, filterRijHtml, nietGekoppeldUitleg,
 } from '../public/js/schermen/beheer-performance-logica.js';
 import { STANDAARD_GRENZEN } from '../public/js/kern/dashboard-grenzen.js';
 
@@ -267,4 +267,17 @@ test('filterRijHtml: deel "sales" (sales manager) toont enkel presets en periode
   assert.ok(!h.includes('Alle techniekers'));
   assert.equal((h.match(/<div class="filterrij"/g) || []).length, 1);
   assert.ok(h.endsWith('</div>'));
+});
+
+test('"Niet gekoppeld": de originele teksten staan (ge-escaped) als uitleg bij die keuze en in de zin; zonder teksten geen uitleg', () => {
+  const opties = { techniekers: ['Tim Janssens', 'Niet gekoppeld'], types: [], nietGekoppeld: ['Bernt', '<b>x</b>'] };
+  const zin = nietGekoppeldUitleg(opties);
+  assert.match(zin, /Originele teksten: "Bernt", "<b>x<\/b>"/);
+  const h = filterRijHtml({ filters: {}, opties });
+  assert.match(h, /<option value="Niet gekoppeld" title="[^"]*Bernt[^"]*">Niet gekoppeld<\/option>/);
+  assert.ok(!h.includes('<b>x</b>'));
+  assert.match(h, /<option value="Tim Janssens">Tim Janssens<\/option>/); // gewone keuzes hebben geen title
+  assert.equal(nietGekoppeldUitleg({ nietGekoppeld: [] }), '');
+  assert.equal(nietGekoppeldUitleg(undefined), '');
+  assert.ok(!/title=/.test(filterRijHtml({ filters: {}, opties: { techniekers: ['Niet gekoppeld'], types: [] } })));
 });

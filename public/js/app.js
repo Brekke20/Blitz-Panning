@@ -5,6 +5,7 @@
 // `afh`. Cyclusregel: schermmodules importeren dit bestand nooit; dit bestand importeert uit hen.
 // Een module draait na het parsen en vóór DOMContentLoaded, in documentvolgorde (zoals het `defer`-script); de
 // voormalige DOMContentLoaded-handler heet nu `opstart()` en wordt onderaan dit bestand geregistreerd (zie daar).
+import { zetStickyOffsets } from './sticky-offset.js';
 import { foutTekst } from './kern/api.js';
 import { toestand } from './kern/toestand.js';
 import { TEST_MODE } from './kern/omgeving.js';
@@ -333,14 +334,10 @@ function opstart() {
   window.addEventListener('resize', () => {
     const active = document.querySelector('.tab.active');
     if (active) updateTabIndicator(active.id);
-    zetTopbarHoogte();
+    zetStickyOffsets();
     routeKaart.invalideerKaartGrootte(); // de kaart van de Route-tab volgt een nieuwe venstergrootte (Leaflet meet zichzelf niet opnieuw)
   });
-  zetTopbarHoogte();
-  try {
-    const tb = document.querySelector('.topbar-sticky');
-    if (tb && window.ResizeObserver) new ResizeObserver(zetTopbarHoogte).observe(tb);
-  } catch { /* best-effort */ }
+  zetStickyOffsets(); // verder houdt sticky-offset.js de variabelen bij (ResizeObserver op kop, tabbalk en meldingsbalken)
   pasRolBeperkingToe();
   // Een beheerder die in de werkruimte Sales werkt (bewaard op dit toestel) start op Leads: de lijst met verkopers voor de knop in de kop laadt mee.
   if (huidigeWerkruimte() === 'sales') {
@@ -362,7 +359,7 @@ function opstart() {
       });
       // Tabs kunnen verschijnen/verdwijnen (rol) en de kop kan van hoogte wisselen (aanraak): onderstreping
       // en sticky-offset volgen.
-      zetTopbarHoogte();
+      zetStickyOffsets();
       const actief = document.querySelector('.tab.active');
       if (actief) updateTabIndicator(actief.id);
     });
@@ -378,15 +375,6 @@ function opstart() {
     if (document.readyState === 'complete') registreer(); else window.addEventListener('load', registreer, { once: true });
   }
   planHerstelSchermStaat();
-}
-
-// De sticky kopjes (filterbalk, kalenderkop, ...) plakken onder de topbar; die is 96.8px op aanraak
-// (tabs 44px) en 92px op muis -> volg de echte hoogte via --topbar-h.
-function zetTopbarHoogte() {
-  const tb = document.querySelector('.topbar-sticky');
-  if (!tb) return;
-  const h = Math.round(tb.getBoundingClientRect().height * 10) / 10;
-  if (h > 0) document.documentElement.style.setProperty('--topbar-h', h + 'px');
 }
 
 // ── Tab + scrollpositie herstellen na een volledige herlaad (cache eerst, dan verse data; of het OS

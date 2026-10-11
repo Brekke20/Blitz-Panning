@@ -7,6 +7,7 @@ import path from 'node:path';
 import url from 'node:url';
 import { test, expect, startApp, opslagStub } from './helpers.mjs';
 import { STANDAARD_GRENZEN } from '../public/js/kern/dashboard-grenzen.js';
+import { berekenDashboard } from '../netlify/lib/dashboard-metrics.js';
 import { salesStubs, authIkVoor, SALES_GEBRUIKER } from './sales-hulp.mjs';
 
 const MAP = path.dirname(url.fileURLToPath(import.meta.url));
@@ -140,6 +141,46 @@ test.describe('Performance: filters', () => {
     expect(queries[1]).toContain('technieker=Roel');
     await expect(page.locator('.dash-filters select[data-arg="technieker"]')).toHaveValue('Roel'); // de keuze blijft staan na het hertekenen
     expect(verzoeken.van('/api/dashboard', 'GET')).toHaveLength(2);
+  });
+});
+
+// De technieker is een Zoho-naam: de stub rekent met de ECHTE serverberekening op ruwe rapporten (zoals in de schermafbeelding van de bug:
+// brent, Brent, Brent + Deniz, Brent Calaerts, Deniz, K. Deniz, K.Deniz) en een vaste lijst Zoho-agenten. Nooit echt Zoho.
+const ZOHO_AGENTEN = ['Brent Calaerts', 'Kursat Deniz', 'Tim Janssens'];
+const ruwRapport = (id, technieker) => ({
+  id, datum: '2026-10-02', technieker, ticketId: `T-${id}`, interventieType: 'Interventie', hersteld: 'ja', nieuwInter: 'nee',
+  rapportData: { type: 'CHARX', start: '09:00', stop: '10:00', onderdelen: [], oorzaakStoring: [] },
+});
+const SCHERMAFBEELDING = ['brent', 'Brent', 'Brent + Deniz', 'Brent Calaerts', 'Deniz', 'K. Deniz', 'K.Deniz', 'Bernt'].map((t, i) => ruwRapport(`z${i}`, t));
+const zohoDashboardStub = (queries) => ({ query }) => {
+  queries.push(query.toString());
+  return json(200, berekenDashboard({
+    rapporten: SCHERMAFBEELDING, register: { versie: 0, status: {} }, activiteit: [], salesBlobs: [], prijslijst: null,
+    techniekerBron: { agenten: ZOHO_AGENTEN, accounts: [] }, nu: '2026-10-05T10:00:00.000Z',
+    filters: { van: '2026-10-01', tot: '2026-10-05', technieker: query.get('technieker') ?? '', type: '', herhaalDagen: 30 },
+  }));
+};
+
+test.describe('Performance: technieker = Zoho-naam', () => {
+  test('de keuzelijst toont enkel Zoho-namen en "Niet gekoppeld", nooit de ruwe tekst uit de rapporten', async ({ page }) => {
+    await openPerformance(page, { dashboard: zohoDashboardStub([]) });
+    const select = page.locator('.dash-filters select[data-arg="technieker"]');
+    await expect(select).toBeVisible();
+    expect(await select.locator('option').allTextContents()).toEqual(['Alle techniekers', 'Brent Calaerts', 'Kursat Deniz', 'Niet gekoppeld']);
+    await expect(select.locator('option[value="Niet gekoppeld"]')).toHaveAttribute('title', /Bernt/);
+    await expect(page.locator('.dash-voetnoten')).toContainText('Originele teksten: "Bernt"');
+    await expect(tegel(page, 'interventies').locator('.tegel-waarde')).toHaveText('8'); // het totaal telt elk rapport één keer
+  });
+
+  test('filteren op "Kursat Deniz" toont ook de rapporten met "K.Deniz" en "Brent + Deniz"', async ({ page }) => {
+    const queries = [];
+    await openPerformance(page, { dashboard: zohoDashboardStub(queries) });
+    await page.locator('.dash-filters select[data-arg="technieker"]').selectOption('Kursat Deniz');
+    await expect(tegel(page, 'interventies').locator('.tegel-waarde')).toHaveText('4'); // Deniz, K. Deniz, K.Deniz en Brent + Deniz
+    expect(queries.at(-1)).toContain('technieker=Kursat+Deniz');
+    await expect(page.locator('.dash-filters select[data-arg="technieker"]')).toHaveValue('Kursat Deniz');
+    await page.locator('.dash-filters select[data-arg="technieker"]').selectOption('Brent Calaerts');
+    await expect(tegel(page, 'interventies').locator('.tegel-waarde')).toHaveText('4'); // brent, Brent, Brent Calaerts en Brent + Deniz
   });
 });
 

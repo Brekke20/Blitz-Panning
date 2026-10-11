@@ -267,7 +267,7 @@ html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
 /* Route op een brede indeling: het scherm vult de beschikbare hoogte; de lijst scrollt in zijn eigen kolom, de kaart blijft staan en de
    pagina scrolt niet. Op de smalle indeling (telefoon, tablet rechtop) staan kaart en lijst onder elkaar en scrolt de pagina mee. */
 @media (min-width: 681px) {
-  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route.active { display: flex; flex-direction: column; flex: none; height: calc(100vh - var(--sticky-top, 93px)); height: calc(100dvh - var(--sticky-top, 93px)); min-height: 0; } /* exact het scherm onder kop en balken (de body heeft geen vaste hoogte, v2.0.1) */
   html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route > .sales-inhoud { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-wortel { flex: 1; min-height: 0; }
   html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-wortel > :is(.route-balk, .plan-summary) { flex: none; }

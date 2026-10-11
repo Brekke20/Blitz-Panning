@@ -17,6 +17,8 @@ import { datumInBrussel } from '../lib/bevestigingslink.js';
 import { berekenDashboard } from '../lib/dashboard-metrics.js';
 import { leesBronnen } from '../lib/dashboard-bronnen.js';
 import { dagenTussen, vorigePeriode } from '../lib/dashboard/gemeenschappelijk.js';
+import { maakZoho } from '../lib/zoho.js';
+import { maakAgentenCache, NEP_AGENT_NAMEN } from '../lib/zoho-agenten.js';
 
 const CORS = Object.freeze(maakCors({
   methoden: 'GET, OPTIONS', headers: 'Content-Type, X-Blitz, X-Blitz-Test', inhoudType: 'application/json',
@@ -43,7 +45,11 @@ function deelVoor(gebruiker) {
   return null;
 }
 
-export function maakHandler({ getStore: haalStore, auth, nu } = {}) {
+// De technieker in het dashboard is een Zoho-naam: de lijst actieve Zoho-agenten komt uit dezelfde 10-minutencache als /api/zoho-agenten
+// (maakAgentenCache). Een testverzoek roept Zoho nooit aan (vaste nep-lijst). Faalt Zoho, dan valt de koppeling terug op de accounts.
+const standaardAgenten = maakAgentenCache({ zoho: maakZoho({ tokenFoutMetData: false }) });
+
+export function maakHandler({ getStore: haalStore, auth, nu, agenten = standaardAgenten } = {}) {
   const kern = async (req, _context, gebruiker) => {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     const deel = deelVoor(gebruiker);
@@ -68,7 +74,7 @@ export function maakHandler({ getStore: haalStore, auth, nu } = {}) {
     try {
       if (testModus) await zorgVoorTestkopie(haalStore);
       const store = haalStore({ name: winkelNaam(req), consistency: 'strong' });
-      bronnen = await leesBronnen({ store, echteStore: authStore(haalStore), testModus }, { van, tot, vorigeVan: vorigePeriode(van, tot).van, deel });
+      bronnen = await leesBronnen({ store, echteStore: authStore(haalStore), testModus, agenten: testModus ? async () => [...NEP_AGENT_NAMEN] : agenten }, { van, tot, vorigeVan: vorigePeriode(van, tot).van, deel });
     } catch (e) {
       console.error('dashboard: lezen mislukt (' + (e?.name || 'Error') + ': ' + String(e?.message || '').slice(0, 120) + ')');
       return json(503, OPSLAG_STORING);

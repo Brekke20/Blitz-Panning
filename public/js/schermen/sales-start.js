@@ -2,6 +2,7 @@
 // sales 403 geven). Doet enkel wat de tabbalk en de kop nodig hebben: tabklik, thema, testbadge, ⚙ en ↺ in de kop, de persoonskiezer (enkel een sales manager;
 // een gewone verkoper heeft niets te kiezen), de streep onder de actieve tab, en de eerste tab activeren. De DOM-afspraken zijn die van `setTab` in app.js.
 // `startNaInlog` roept `start()` zonder await/catch aan: fouten vangen we hier zelf op (toast), anders een onafgehandelde rejection.
+import { zetStickyOffsets } from '../sticky-offset.js';
 import { registreerActies, toast } from '../kern/ui.js';
 import { tabsVoorRol, laadTab } from '../kern/navigatie.js';
 import { TEST_MODE } from '../kern/omgeving.js';
@@ -18,13 +19,6 @@ function zetStreep(tabId) {
   const pr = tabs.getBoundingClientRect();
   tabs.style.setProperty('--ind-left', (tr.left - pr.left) + 'px');
   tabs.style.setProperty('--ind-width', tr.width + 'px');
-}
-
-function zetTopbarHoogte() {
-  const tb = document.querySelector('.topbar-sticky');
-  if (!tb) return;
-  const h = Math.round(tb.getBoundingClientRect().height * 10) / 10;
-  if (h > 0) document.documentElement.style.setProperty('--topbar-h', h + 'px');
 }
 
 function activeerTab(id) {
@@ -96,7 +90,7 @@ export async function start() {
     window.addEventListener('resize', () => {
       const actief = document.querySelector('.tab.active');
       if (actief) zetStreep(actief.id);
-      zetTopbarHoogte();
+      zetStickyOffsets();
     });
     document.querySelector('.tabs-inner')?.addEventListener('scroll', () => {
       const actief = document.querySelector('.tab.active');
@@ -106,11 +100,11 @@ export async function start() {
     window.addEventListener('apparaatwijziging', () => {
       const actief = document.querySelector('.tab.active');
       if (window.apparaat?.indeling === 'smal' && actief?.classList.contains('alleen-groot')) activeerTab('sales-kalender');
-      zetTopbarHoogte();
+      zetStickyOffsets();
       const nu = document.querySelector('.tab.active');
       if (nu) zetStreep(nu.id);
     });
-    zetTopbarHoogte();
+    zetStickyOffsets();
     const eerste = tabsVoorRol('sales')[0];
     if (eerste) activeerTab(eerste.id);
   } catch (fout) {
