@@ -95,10 +95,31 @@ async function leesSales(store, echteStore, testModus) {
   return uit;
 }
 
+// De accounts voor de koppeling van ingediendDoor aan een Zoho-naam: enkel { id, zohoNaam, rol } (nooit e-mail of andere velden).
+// Testmodus: de vaste testgebruikers (de echte gebruikerslijst hoort daar niet bij).
+async function leesAccounts(echteStore, testModus) {
+  const lijst = testModus ? Object.values(TESTGEBRUIKERS) : await leesGebruikers(echteStore);
+  return lijst.filter(g => g?.id && typeof g.zohoNaam === 'string' && g.zohoNaam.trim()).map(g => ({ id: g.id, zohoNaam: g.zohoNaam, rol: g.rol }));
+}
+
+const AGENTEN_MAX_MS = 4000; // een trage Zoho mag het dashboard niet ophouden: daarna valt de koppeling terug op de accounts
+
+// agenten (optioneel) = async () => agent-namen. Geeft { agenten, accounts }; een mislukte bron wordt null en komt in `fouten`.
+async function leesTechniekerBron({ agenten, echteStore, testModus }, probeer) {
+  const metLimiet = () => new Promise((ok, fout) => {
+    const t = setTimeout(() => fout(new Error('zoho-agenten te traag')), AGENTEN_MAX_MS);
+    agenten().then(v => { clearTimeout(t); ok(v); }, e => { clearTimeout(t); fout(e); });
+  });
+  return {
+    agenten: agenten ? await probeer('zoho-agenten', metLimiet, null) : null,
+    accounts: await probeer('gebruikers', () => leesAccounts(echteStore, testModus), null),
+  };
+}
+
 // store = de store van het verzoek (rapportlijst, register, prijslijst, sales); echteStore = altijd de echte opslag
 // (gebruikers en activiteitenlog).
 // deel: 'alles' | 'techniekers' (geen sales-blobs lezen) | 'sales' (enkel de sales-blobs; geen rapporten, register, log of prijslijst).
-export async function leesBronnen({ store, echteStore, testModus }, { tot, vorigeVan, deel = 'alles' }) {
+export async function leesBronnen({ store, echteStore, testModus, agenten }, { tot, vorigeVan, deel = 'alles' }) {
   const fouten = [];
   const probeer = async (naam, werk, terugval) => {
     try { return await werk(); } catch (e) {
@@ -111,7 +132,7 @@ export async function leesBronnen({ store, echteStore, testModus }, { tot, vorig
     return {
       rapporten: [], register: null, activiteit: [], activiteitVanaf: null, activiteitAfgekapt: false,
       salesBlobs: await probeer('sales', () => leesSales(store, echteStore, testModus), []),
-      prijslijst: null, fouten, rapportBronnen: {},
+      prijslijst: null, techniekerBron: null, fouten, rapportBronnen: {},
     };
   }
   const lijst = await leesRapportenVoorDashboard(store, { vanDatum: dagPlus(vorigeVan, -TERUGBLIK_DAGEN), totDatum: tot });
@@ -124,6 +145,7 @@ export async function leesBronnen({ store, echteStore, testModus }, { tot, vorig
     ...log,
     salesBlobs: deel === 'techniekers' ? [] : await probeer('sales', () => leesSales(store, echteStore, testModus), []),
     prijslijst: await probeer('prijslijst', () => store.get('prijslijst', { type: 'json' }), null),
+    techniekerBron: await leesTechniekerBron({ agenten, echteStore, testModus }, probeer),
     fouten,
     rapportBronnen: lijst.bronnen,
   };
