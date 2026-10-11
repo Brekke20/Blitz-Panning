@@ -15,6 +15,14 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [2.0.1] — 2026-10-11
+
+### Fixed
+- De balken onder de tabbladen (zoeken en sorteren in de Wachtrij, de balk van Leads, de kalenderkop, de Route-werkbalk, de weekkop van Ingepland en de filterbalk van Rapporten) plakken bij het scrollen weer vlak onder de tabbalk. Bij een lange lijst schoof de kop van de app na een tijdje weg, waardoor er een strook ontstond waarin de kaarten doorschoven. Oorzaak: de pagina had een vaste hoogte ter grootte van het scherm, waardoor de kop alleen binnen die ene schermhoogte kon blijven plakken.
+- Eén gedeelde regel voor alle balken: ze plakken onder kop, tabbalk en eventuele meldingsbalken (offline, verzendwachtrij), berekend uit wat echt op het scherm staat in plaats van een vaste waarde. Ook als de offline- of verzendbalk zichtbaar is, bedekt de balk ze niet meer (Wachtrij, Leads, Kalender, Route en Ingepland deden dat wel).
+- Performance: de keuzelijst "Technieker" toont enkel echte Zoho-namen in plaats van wat er in het rapport getypt werd ("brent", "K.Deniz", "Brent + Deniz"…). Elk rapport hangt aan de Zoho-naam van wie het indiende, of aan de Zoho-naam die in de tekst herkend wordt; een rapport met twee techniekers telt voor beiden (in het totaal één keer); wat niet eenduidig te koppelen is, staat onder "Niet gekoppeld".
+- Nieuwe controles: een test die voor elk tabblad met zo'n balk (alle rollen, computer en gsm) nagaat dat hij na scrollen vlak onder de tabbalk staat, en een bronscan die vaste top-waarden voor sticky balken weigert.
+
 ## [2.0.0] — 2026-10-11
 
 Grote release: logins en beheer, de sales-planner, het performance-dashboard, een herschreven planner ("Plan deze week"), controle van verzonden mails, en een onderhoudbaardere interne structuur. De opgeslagen gegevens (rapporten, afspraken, instellingen) blijven gewoon bruikbaar. Techniekers openen de app na de update één keer op wifi; de service worker (`CACHE_NAME` `blitz-planning-v28`) haalt dan de nieuwe versie op.

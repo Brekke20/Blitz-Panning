@@ -189,7 +189,9 @@
     .view.active { display: block; }
     /* Route tab: fill remaining viewport height */
     #view-planning { flex-direction: column; }
-    #view-planning.active { display: flex; flex: 1; min-height: 0; }
+    /* De Route-tab vult exact het scherm onder kop, tabbalk en meldingsbalken (lijstkolom en kaart scrollen/vullen zelf). De body heeft sinds v2.0.1
+       geen vaste hoogte meer (zie base.css), dus die hoogte staat hier expliciet: 100dvh min de gedeelde --sticky-top. */
+    #view-planning.active { display: flex; flex: none; height: calc(100vh - var(--sticky-top, 93px)); height: calc(100dvh - var(--sticky-top, 93px)); min-height: 0; }
 
     /* ── Filter bar ── */
     .filter-bar {
@@ -197,7 +199,7 @@
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
-      position: sticky; top: var(--topbar-h, 92px); z-index: 28;
+      position: sticky; top: var(--sticky-top, 93px); z-index: 28;
     }
     .filter-label { font-size: var(--fs-2xs); color: var(--muted); font-weight: 500; margin-right: 4px; }
     .filter-pill {
@@ -219,7 +221,7 @@
     .ticket-list { padding: 12px 14px; max-width: 740px; margin: 0 auto; }
     /* Lijstbalk (kop B): één vaste balk onder de tabs voor Wachtrij (technieker) en Leads (sales): links zoeken en sorteren of filteren, rechts de teller
        of knoppen. Plakt onder de kop van de app, over de volle breedte; de inhoud van de Wachtrij blijft op de breedte van de lijst eronder. */
-    .lijst-balk { position: sticky; top: var(--topbar-h, 0px); z-index: 28; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; padding: 6px 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .lijst-balk { position: sticky; top: var(--sticky-top, 93px); z-index: 28; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; padding: 6px 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
     .wq-toolbar { padding-left: max(14px, calc((100% - 740px) / 2 + 14px)); padding-right: max(14px, calc((100% - 740px) / 2 + 14px)); }
     .wq-zoek { flex: 1 1 220px; min-width: 0; min-height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface2); color: var(--text); font-family: inherit; font-size: var(--fs-sm); }
     .wq-sorteer { min-height: 36px; max-width: 100%; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface2); color: var(--text); font-family: inherit; font-size: var(--fs-sm); }
@@ -355,7 +357,7 @@
       border-bottom: 1px solid var(--border);
       padding: 4px 14px;
       display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-      position: sticky; top: var(--topbar-h, 92px); z-index: 28;
+      position: sticky; top: var(--sticky-top, 93px); z-index: 28;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
     .kal-week-label { font-size: 0.84rem; font-weight: 600; text-align: center; color: var(--text2); white-space: nowrap; background: transparent; border: none; font-family: inherit; cursor: pointer; padding: 2px 2px; line-height: 1.2; border-radius: var(--r); max-width: 100%; min-width: 0; overflow: hidden; }
@@ -655,7 +657,7 @@
     #view-planning.active { display: flex; flex-direction: column; }
     /* Route-werkbalk (kop B): ÉÉN balk onder de tabs, voor technieker en verkoper gelijk: links 📅 en de weekstrook, rechts de knoppen.
        Plakt onder de kop. Het datumveld (#plan-date) blijft in de pagina maar ligt onzichtbaar onder de 📅-knop (week-strook.js koppelDatumKnop). */
-    .route-balk { position: sticky; top: var(--topbar-h, 0px); z-index: 20; flex: none; display: flex; align-items: center; gap: 10px; padding: 4px 14px; min-width: 0; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .route-balk { position: sticky; top: var(--sticky-top, 93px); z-index: 20; flex: none; display: flex; align-items: center; gap: 10px; padding: 4px 14px; min-width: 0; background: var(--surface); border-bottom: 1px solid var(--border); }
     .route-balk-links { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
     .route-balk-acties { flex: none; display: flex; align-items: center; gap: 7px; }
     .route-datum-wrap { position: relative; flex: none; width: 44px; height: 44px; }
@@ -764,7 +766,7 @@
     .gep-week {
       background: var(--surface); border-bottom: 1px solid var(--border);
       padding: 8px 14px; display: flex; align-items: center; gap: 8px;
-      position: sticky; top: var(--topbar-h, 92px); z-index: 28;
+      position: sticky; top: var(--sticky-top, 93px); z-index: 28;
     }
     .gep-week span { font-size: 0.84rem; font-weight: 600; flex: 1; color: var(--text2); }
     .gep-week button {
@@ -1333,9 +1335,8 @@
         linear-gradient(to left, rgba(0, 0, 0, 0.38), transparent) right center / 12px 100% no-repeat scroll;
     }
 
-/* v1.10.3: de sticky filterbalk van Rapporten plakt vlak onder de kop en onder de zichtbare melding-
-   balken (offline/outbox). De oude vaste top:92px liet een kier of verdween onder de balken. */
-#view-rapporten > div:first-child { top: calc(var(--topbar-h, 92px) + var(--banners-h, 0px)) !important; }
+/* De filterbalk van Rapporten (class .rapp-balk, was een inline vaste top:92px; v1.10.3 gaf hem de meldingsbalken erbij, v2.0.1 de gedeelde --sticky-top). */
+.rapp-balk { position: sticky; top: var(--sticky-top, 93px); z-index: 28; padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--surface); }
 /* De meldingsbalken hadden een doorzichtige tint: rapportkaarten schemerden erdoor. Eerst een dichte
    ondergrond, de tint er bovenop. */
 #offline-banner { background-image: linear-gradient(var(--orange-dim), var(--orange-dim)); background-color: var(--bg); }

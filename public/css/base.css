@@ -104,11 +104,14 @@
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       background: var(--bg);
       color: var(--text);
-      height: 100%;
       -webkit-font-smoothing: antialiased;
       /* overflow-x op html/body vermeden: breekt position:sticky op .tabs */
     }
-    body { display: flex; flex-direction: column; }
+    html { height: 100%; }
+    /* min-height, NIET height: een vaste body-hoogte (100%) maakt van de body een sticky-bakje ter grootte van het scherm; zodra de inhoud
+       langer is, schuift de sticky kop (.topbar-sticky) samen met de body-onderrand weg terwijl de balken in de tabbladen blijven plakken
+       (v2.0.1: strook tussen tabbalk en balk). Met min-height groeit de body mee met de inhoud en blijft de kop altijd staan. */
+    body { display: flex; flex-direction: column; min-height: 100%; }
     /* Geen overflow-x op html of body: verstoort position:sticky op .tabs.
        Horizontale overflow wordt per element afgehandeld (.tabs en .week-grid hebben overflow-x:auto). */
 

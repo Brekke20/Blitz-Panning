@@ -2,6 +2,7 @@
 // vlak, betrouwbaar `Rapport`, plus datum- en rekenhulpen. Geen I/O; datums via Date.UTC
 // (zomertijd-veilig). De enige import is de read-only statusregel van de rapportlijst.
 import { effectieveStatus } from '../rapportlijst.js';
+import { techniekerGroepen } from './techniekers.js';
 
 export const TYPE_ONBEKEND = 'Onbekend';
 export const MAX_WERKTIJD_MIN = 720;
@@ -96,8 +97,9 @@ export function weekStart(datum) {
   return naarDatum(utc(datum) - ((dag + 6) % 7) * DAG_MS);
 }
 
+// Een rapport met twee techniekers hoort bij elk van de twee (techniekerGroepen); de lijst zelf blijft ontdubbeld.
 export function filterRapporten(rapporten, { technieker = '', type = '' } = {}) {
-  return rapporten.filter(r => (!technieker || r.technieker === technieker) && (!type || r.type === type));
+  return rapporten.filter(r => (!technieker || techniekerGroepen(r).includes(technieker)) && (!type || r.type === type));
 }
 
 // Percentage met 1 decimaal; null bij noemer 0.
@@ -144,7 +146,10 @@ function leesTijdslot(t) {
 
 // Lijst-entry -> Rapport, of null (geannuleerd, of geen geldige datum). Zware velden van oude
 // entries (_html, foto's, handtekeningen) worden nooit overgenomen.
-export function normaliseerRapport(entry, { prijzen = new Map() } = {}) {
+// koppel (optioneel, uit maakKoppelaar): hangt het rapport aan Zoho-namen. `techniekers` = de groepen voor het dashboard (Zoho-namen,
+// of 'Niet gekoppeld'), `technieker` = de weergave (Zoho-namen met " + ", of de ruwe tekst als er niets past) en `techniekerOnbekend` =
+// de ruwe stukken zonder eenduidige match. Zonder koppel: de ruwe tekst, zoals vroeger.
+export function normaliseerRapport(entry, { prijzen = new Map(), koppel = null } = {}) {
   if (!entry || typeof entry !== 'object') return null;
   if (entry.geannuleerd === true || effectieveStatus(entry) === 'geannuleerd') return null;
   const datum = tekst(entry.datum);
@@ -153,10 +158,14 @@ export function normaliseerRapport(entry, { prijzen = new Map() } = {}) {
   const werk = leesWerktijd(rd);
   const aanrit = getal(rd.aanrijtijdMin);
   const alLangs = tekst(rd.installateurAlLangsGeweest).toLowerCase();
+  const ruwe = tekst(entry.technieker);
+  const k = koppel ? koppel(entry) : null;
   return {
     id: tekst(entry.id),
     datum,
-    technieker: tekst(entry.technieker),
+    technieker: k && k.namen.length ? k.namen.join(' + ') : ruwe,
+    techniekers: k ? k.groepen : ruwe ? [ruwe] : [],
+    ...(k && k.onbekend.length ? { techniekerOnbekend: k.onbekend } : {}),
     ticketId: tekst(entry.ticketId),
     ticketNumber: tekst(entry.ticketNumber),
     klant: tekst(entry.klant),

@@ -24,3 +24,20 @@ export async function haalActieveAgentNamen(zoho) {
   }
   return [...namen].sort((a, b) => a.localeCompare(b, 'nl', { sensitivity: 'base' }));
 }
+
+// Vaste nep-lijst voor testverzoeken (X-Blitz-Test): Zoho wordt dan NOOIT aangeroepen. Zelfde lijst voor Beheer en het dashboard.
+export const NEP_AGENT_NAMEN = Object.freeze(['Roel', 'Sven Peeters', 'Tim']);
+
+const BEWAAR_MS = 10 * 60 * 1000;
+
+// De lijst actieve agent-namen met een geheugencache (standaard 10 minuten) per instantie; een fout wordt nooit onthouden en gooit
+// door. Gedeeld door /api/zoho-agenten en het dashboard, zodat het dashboard geen extra Zoho-aanroepen per verzoek doet.
+export function maakAgentenCache({ zoho, nu = () => Date.now(), bewaarMs = BEWAAR_MS, haal = haalActieveAgentNamen } = {}) {
+  let bewaard = null; // { tot, namen }
+  return async function agentNamen() {
+    if (!bewaard || nu() >= bewaard.tot) {
+      try { bewaard = { tot: nu() + bewaarMs, namen: await haal(zoho) }; } catch (e) { bewaard = null; throw e; }
+    }
+    return bewaard.namen;
+  };
+}

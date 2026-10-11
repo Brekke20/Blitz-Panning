@@ -1,7 +1,7 @@
 // public/js/versie.js
 // Het versienummer van de app, getoond onderaan Instellingen. Moet gelijk zijn aan "version" in
 // package.json (tests/versie.test.mjs bewaakt dat, zodat een release dit niet kan vergeten).
-export const APP_VERSIE = '2.0.0';
+export const APP_VERSIE = '2.0.1';
 
 if (typeof document !== 'undefined') {
   const toon = () => {

@@ -8,10 +8,10 @@ import { registreerBeheerTab, beheerVerzoek, beheerFoutTekst, h } from './beheer
 import { huidigeGebruiker, huidigeRechten } from '../kern/sessie.js';
 import { bewaarMetVersie } from '../kern/api.js';
 import { toonSkelet } from '../kern/skelet.js';
-import { registreerActies, registreerWijzigActies, toast } from '../kern/ui.js';
+import { registreerActies, registreerWijzigActies, toast, escHtml } from '../kern/ui.js';
 import { STANDAARD_GRENZEN } from '../kern/dashboard-grenzen.js';
 import { openRapportOpId } from '../rapport-archief.js';
-import { TEGELS, periodeVoorPreset, maakQuery, tegelHtml, filterRijHtml, dekkingVoetnoten, isGeldigeFilterDatum } from './beheer-performance-logica.js';
+import { TEGELS, periodeVoorPreset, maakQuery, tegelHtml, filterRijHtml, dekkingVoetnoten, nietGekoppeldUitleg, isGeldigeFilterDatum } from './beheer-performance-logica.js';
 import { grenzenPaneelHtml, leesGrenzenUitRijen, voegGrenzenSamen, bewaarUitkomst } from './beheer-performance-grenzen.js';
 import { renderTijd } from './beheer-performance-tijd.js';
 import { renderKwaliteit } from './beheer-performance-kwaliteit.js';
@@ -113,6 +113,8 @@ async function render(container) {
     const dekking = { ...lees(d.dekking), klant: { ...lees(lees(d.dekking).klant) } };
     if (lees(d.bronnen).activiteitAfgekapt === true) dekking.klant.activiteitAfgekapt = true;
     const noten = dekkingVoetnoten(dekking);
+    const koppeling = nietGekoppeldUitleg(lees(d.opties));
+    if (koppeling && deel !== 'sales') noten.push(escHtml(koppeling));
     const voet = noten.length ? `<ul class="dash-voetnoten" aria-label="Dekking en beperkingen">${noten.map(n => `<li>${n}</li>`).join('')}</ul>` : '';
     inhoud.innerHTML = `${tegels}${blokken}${voet}`;
   }

@@ -8,29 +8,23 @@ import { beveiligV2 } from '../lib/beveiligd.js';
 import { maakCors } from '../lib/http.js';
 import { isTestVerzoek } from '../lib/testmodus.js';
 import { maakZoho } from '../lib/zoho.js';
-import { haalActieveAgentNamen } from '../lib/zoho-agenten.js';
+import { maakAgentenCache, NEP_AGENT_NAMEN } from '../lib/zoho-agenten.js';
 
 const CORS = Object.freeze(maakCors({
   methoden: 'GET, OPTIONS', headers: 'Content-Type, X-Blitz, X-Blitz-Test', inhoudType: 'application/json',
 }));
-const BEWAAR_MS = 10 * 60 * 1000;
-const NEP_NAMEN = ['Roel', 'Sven Peeters', 'Tim'];
 const ZOHO_STORING = { error: 'Zoho is tijdelijk niet bereikbaar.', code: 'zoho-storing' };
 
 const json = (status, obj) => new Response(JSON.stringify(obj), { status, headers: { ...CORS, 'Cache-Control': 'no-store' } });
 
 export function maakHandler({ zoho = maakZoho({ tokenFoutMetData: false }), nu = () => Date.now(), auth } = {}) {
-  let bewaard = null; // { tot, namen }
+  const agentNamen = maakAgentenCache({ zoho, nu });
   const kern = async (req) => {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
-    if (isTestVerzoek(req)) return json(200, { agenten: NEP_NAMEN.map(naam => ({ naam })) });
+    if (isTestVerzoek(req)) return json(200, { agenten: NEP_AGENT_NAMEN.map(naam => ({ naam })) });
     try {
-      if (!bewaard || nu() >= bewaard.tot) {
-        bewaard = { tot: nu() + BEWAAR_MS, namen: await haalActieveAgentNamen(zoho) };
-      }
-      return json(200, { agenten: bewaard.namen.map(naam => ({ naam })) });
+      return json(200, { agenten: (await agentNamen()).map(naam => ({ naam })) });
     } catch (e) {
-      bewaard = null;
       console.error('zoho-agenten: ophalen mislukt (' + (e?.name || 'Error') + ')'); // geen Zoho-details in het log of antwoord
       return json(503, ZOHO_STORING);
     }
