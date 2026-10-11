@@ -377,6 +377,39 @@ test.describe('Beheer: tab Beschikbaarheden', () => {
     expect(puts(verzoeken)[1].body.exceptions.map(e => e.date)).toEqual(['2026-10-09', '2026-10-08']);
     await verwachtMeldingen(consoleFouten, ['/api/availability']);
   });
+
+  const UITLEG = 'Nog geen techniekers met een Zoho-naam. Maak ze aan in Beheer → Gebruikers en kies daar hun Zoho-naam.';
+
+  test('lege personenlijst: uitleg onder "Voor wie", "Iedereen" blijft kiesbaar', async ({ page }) => {
+    const zonderNamen = [{ id: 'u-b1', naam: 'Test Beheerder', rol: 'beheerder', actief: true }, { id: 'u-t3', naam: 'Kursat', rol: 'technieker', actief: false, zohoNaam: 'Kursat' }];
+    await startApp(page, { overschrijf: { gebruikers: gebruikersStub(zonderNamen) } });
+    const modal = await openTab(page);
+    await expect(modal.locator('#bav-geen-techniekers')).toHaveText(UITLEG);
+    expect(await modal.locator('#bav-filter-person option').allInnerTexts()).toEqual(['Iedereen']);
+  });
+
+  test('met een technieker is de uitleg er niet', async ({ page }) => {
+    await startApp(page);
+    const modal = await openTab(page);
+    await expect(modal.locator('#bav-geen-techniekers')).toHaveCount(0);
+  });
+
+  test('opmaak in lijn met Beheer-tabs: keuzelijst niet over de volle breedte, velden en knop 44 px hoog, lettergrootte 16 px', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await startApp(page);
+    const modal = await openTab(page);
+    const keuze = await modal.locator('#bav-filter-person').boundingBox();
+    const inhoud = await modal.locator('#beheer-beschikbaarheden-inhoud').boundingBox();
+    expect(keuze.width).toBeLessThanOrEqual(561); // zelfde max. breedte als de velden in Beheer → Instellingen (.bi)
+    expect(keuze.width).toBeLessThan((await modal.boundingBox()).width - 100);
+    expect(inhoud.width).toBeLessThanOrEqual(561);
+    for (const veld of [modal.locator('#bav-filter-person'), modal.locator('#bav-date'), modal.locator('#bav-reden')]) {
+      expect((await veld.boundingBox()).height).toBeGreaterThanOrEqual(44);
+      expect(await veld.evaluate(e => getComputedStyle(e).fontSize)).toBe('16px');
+    }
+    expect((await modal.getByRole('button', { name: '➕ Toevoegen' }).boundingBox()).height).toBeGreaterThanOrEqual(44);
+  });
+
 });
 
 test.describe('Beheer → Beschikbaarheden per rol', () => {
