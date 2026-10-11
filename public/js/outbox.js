@@ -3,11 +3,16 @@
 // server archiveert en stuurt daarna zelf op de achtergrond naar Zoho), met retry-logica
 // bij offline/mislukte pogingen. Zie docs/superpowers/specs/2026-08-11-rapport-verzend-betrouwbaarheid-design.md
 // voor de achtergrond van dit ontwerp.
-
+import { TEST_MODE } from './kern/omgeving.js';
+import { meervoud } from './schermen/ticketdetail-logica.js';
+import { escHtml } from './kern/ui.js';
 import { TEST_UPLOAD } from './test-upload.js';
+import { registreerAchtergrondVerzending } from './outbox-sync.js';
+// Opslag en verzending zitten in het gedeelde klassieke script public/js/outbox-verzend.js (ook gebruikt door de
+// service worker via importScripts). Het heeft geen import/export en zet bij het laden globalThis.outboxVerzend; als
+// side-effect-import hier staat het vast in de modulegraaf (geen afhankelijkheid van de volgorde van script-tags).
+import './outbox-verzend.js';
 
-// Opslag en verzending zitten in het gedeelde klassieke script public/js/outbox-verzend.js
-// (ook gebruikt door de service worker). Het wordt in index.html vóór de module-scripts geladen.
 const V = globalThis.outboxVerzend;
 
 export const OUTBOX_DB_NAME    = V.OUTBOX_DB_NAME;
@@ -134,7 +139,7 @@ export async function outboxRetryNow(id) {
   if (!item) return;
   _outboxNextAttempt.delete(id);
   // Ook als de app sluit tijdens deze poging (niet afgewacht); niet in pure testmodus (die verstuurt niets).
-  if (!TEST_MODE || TEST_UPLOAD) window.registreerAchtergrondVerzending?.();
+  if (!TEST_MODE || TEST_UPLOAD) registreerAchtergrondVerzending();
   await runOutboxItem(item);
   await refreshOutboxCache();
   renderRapportArchief();
@@ -268,12 +273,8 @@ export async function flushOutbox() {
   renderRapportArchief();
 }
 
-// ── Window-bridge (zie Global Constraints) ──
-window.flushOutbox         = flushOutbox;
-window.renderOutboxBanner  = renderOutboxBanner;
+// ── Window-bridge: enkel wat de rapport-wizard nog als kale naam leest ──
 window.outboxAdd           = outboxAdd;
 window.runOutboxItem       = runOutboxItem;
 window.nextOutboxAction    = nextOutboxAction;
 window.refreshOutboxCache  = refreshOutboxCache;
-window.outboxCancelItem    = outboxCancelItem; // (T20) knop "Annuleren" in de per-item banner
-window.outboxRetryNow      = outboxRetryNow;   // (T20) knop "Opnieuw proberen" in de per-item banner

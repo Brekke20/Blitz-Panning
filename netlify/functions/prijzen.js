@@ -4,6 +4,7 @@
 
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
+import { beveiligV2 } from '../lib/beveiligd.js';
 
 const BLOB_KEY = 'prijslijst';
 const ALLOWED_ORIGINS = [
@@ -79,7 +80,7 @@ function validate(body) {
   return null;
 }
 
-export default async (req) => {
+const kern = async (req, context, gebruiker) => {
   const hdrs = corsHeaders(req);
 
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: hdrs });
@@ -173,5 +174,7 @@ export default async (req) => {
     status: 405, headers: { ...hdrs, 'Content-Type': 'application/json' },
   });
 };
+
+export default beveiligV2('prijzen', kern);
 
 export const config = { path: '/api/prijzen' };

@@ -15,5 +15,3 @@ export async function registreerAchtergrondVerzending() {
     return false;
   }
 }
-
-window.registreerAchtergrondVerzending = registreerAchtergrondVerzending;

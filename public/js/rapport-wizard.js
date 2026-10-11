@@ -2,8 +2,17 @@
 // De rapport-wizard (service rapport voor interventies + installaties): stappen-state (`R`),
 // alle wizRender*/wizSave*-stapfuncties, PDF-opbouw (buildRapportHtml) en verzending
 // (printRapport, via de outbox-module). Zie CLAUDE.md "Rapport wizard — R object key fields".
-
+import { TEST_MODE } from './kern/omgeving.js';
+import { arrivalData, getPlanningTicket, sluitDetailStil } from './schermen/ticketdetail.js';
+import { geplandTijdslotVoor, rapportTicketVelden } from './schermen/ticketdetail-logica.js';
+import { closeLocalDet } from './schermen/afspraken.js';
+import { loadFotos, renderFotoGridInto, handleFotoFiles } from './schermen/fotos.js';
+import { syncOplossingNaarZoho } from './schermen/rapport-verzenden.js';
+import { escHtml, toast } from './kern/ui.js';
+import { berekenLoonkost } from './kern/loonkost.js';
 import { TEST_UPLOAD } from './test-upload.js';
+import { registreerAchtergrondVerzending } from './outbox-sync.js';
+import { berekenAanrijtijd } from './rapport-aanrijtijd.js';
 
 export let _wizTicket = null;
 export let _wizDate   = null;
@@ -11,6 +20,7 @@ export let _wizStep   = 0;
 export let _sigTech   = null;
 export let _sigKlant  = null;
 export let _fotoState = { ticketId: null, versie: 0, fotos: [] };
+export function zetFotoState(v) { _fotoState = v; }
 
 // Rapport data object — gevuld doorheen wizard
 export const R = {
@@ -18,6 +28,7 @@ export const R = {
   facturatie: 'klant', facturatieVrij: '',
   servicetype: '2e-lijn',
   aanrijtijdMin: 0,
+  aanrijtijdBron: '', // '' | 'tomtom' | 'onbekend' | 'handmatig' (B7: nooit stil 0)
   interventieType: 'Interventie',
   installateur: '', serienummer: '', aantalLaadpalen: 1, type: '', uitvoering: '', kabel: '', kabellengte: '',
   probleem: '', acties: '',
@@ -44,7 +55,8 @@ export const WIZ_STEPS = [
 // Bewaart de ingevulde velden zodat een rapport niet verloren gaat bij herladen of sluiten.
 // Foto's en handtekeningen (zwaar, en de handtekening is bewijs) worden bewust NIET bewaard.
 const CONCEPT_MAX_DAGEN = 7;
-const CONCEPT_UIT = ['fotos', 'handtekeningTech', 'handtekeningKlant'];
+// Ook uit het concept: velden die bij het openen vers uit het ticket/de planning komen (dashboard, Taak 16); een concept mag ze nooit overschrijven.
+const CONCEPT_UIT = ['fotos', 'handtekeningTech', 'handtekeningKlant', 'geplandTijdslot', 'partner', 'regio', 'installateurAlLangsGeweest'];
 let _wizTicketId = null;
 let _wizVanOverzicht = false;
 let _conceptTimer = null;
@@ -147,7 +159,7 @@ async function openRapportIntern(ticketId, date) {
   // Technieker: de persoon op dit toestel, anders de toegewezen technieker van het ticket.
   // Een teruggezet concept (Taak 5) zet R.technieker daarna opnieuw en wint dus.
   // Altijd vers berekend: R blijft tussen tickets bestaan, een oude waarde mag niet blijven hangen.
-  const actief = window.getActiveAssignee ? window.getActiveAssignee() : 'all';
+  const actief = kern.toestand.get('activeAssigneeFilter');
   R.technieker = (actief && actief !== 'all') ? actief : (ticket.assignee || '');
   R.facturatie     = 'klant';
   R.facturatieVrij = '';
@@ -158,30 +170,14 @@ async function openRapportIntern(ticketId, date) {
   // de vorige stop van de dag. Geldt voor elk ticket (Zoho én lokale afspraken).
   // De routeplanning zelf (calculateRoute/autoPlan/optimizeRoute) gebruikt deze
   // berekening niet en blijft ongewijzigd.
+  // B7/C4: lukt de berekening niet (geen adres, geen startlocatie, geocoderen of route mislukt, netwerk), dan blijft de
+  // bron 'onbekend' en moet de technieker de aanrijtijd in de stap Facturatie zelf invullen (0 mag): nooit stil 0.
   R.aanrijtijdMin = 0;
-  if (ticket.hasAddress && settings.startlocatie) {
-    try {
-      toast('📡 Aanrijtijd wordt berekend…', 5000);
-      const gRes  = await fetch('/api/optimize', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ origin: settings.startlocatie, stops: [ticket.address] }),
-      });
-      const gData = await gRes.json();
-      const origin = gData.locations?.[0];
-      const dest   = gData.locations?.[1];
-      if (origin && dest) {
-        const rRes  = await fetch('/api/route', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ waypoints: [origin, dest] }),
-        });
-        const rData = await rRes.json();
-        if (rData.legs?.[0]?.travelTimeSeconds) {
-          R.aanrijtijdMin = Math.round(rData.legs[0].travelTimeSeconds / 60);
-        }
-      }
-    } catch { /* niet fataal, aanrijtijd blijft 0 */ }
+  R.aanrijtijdBron = 'onbekend';
+  if (ticket.hasAddress && kern.toestand.get('settings').startlocatie) {
+    toast('📡 Aanrijtijd wordt berekend…', 5000);
+    const aanrijtijd = await berekenAanrijtijd({ adres: ticket.address, startlocatie: kern.toestand.get('settings').startlocatie });
+    if (aanrijtijd.minuten !== null) { R.aanrijtijdMin = aanrijtijd.minuten; R.aanrijtijdBron = 'tomtom'; }
   }
   R.type = ''; R.uitvoering = ''; R.kabel = ''; R.kabellengte = ''; R.aantalLaadpalen = 1;
   R.hersteld = 'nee'; R.nieuwInter = 'nee';
@@ -194,6 +190,14 @@ async function openRapportIntern(ticketId, date) {
   _rapportUploaded = false; // reset guard bij nieuwe wizard-sessie
 
   _wizStep = 0;
+
+  // Dashboard-velden (Taak 16): het geplande tijdslot en de ticketvelden partner/regio/installateurAlLangsGeweest.
+  // Altijd vers (R blijft tussen tickets bestaan) en vóór het concept; CONCEPT_UIT houdt ze buiten elk concept.
+  const planUur = (kern.toestand.get('planning')[date] || []).find(s => s.ticket?.id === ticketId)?.uur;
+  R.geplandTijdslot = geplandTijdslotVoor({
+    voorstel: kern.toestand.get('voorstelStatus')[ticketId], datum: date, planUur, isLocal: !!ticket.isLocal, settings: kern.toestand.get('settings'),
+  });
+  Object.assign(R, rapportTicketVelden(ticket));
 
   // Concept hervatten? (na het resetten van R; foto's/handtekeningen blijven vers)
   const concept = leesConcept(ticketId, date);
@@ -211,10 +215,21 @@ async function openRapportIntern(ticketId, date) {
       for (const k of Object.keys(concept.R)) {
         if (CONCEPT_UIT.includes(k)) continue;
         if ((k === 'onderdelen' || k === 'oorzaakStoring') && !Array.isArray(concept.R[k])) continue;
+        // Een concept van vóór de bronmarkering kan een stille 0 bevatten: dan blijft de verse berekening (of 'onbekend') staan.
+        // Een echte (> 0) waarde uit zo'n concept blijft behouden als handmatig ingevuld (eindreview M4).
+        if (k === 'aanrijtijdMin' && !('aanrijtijdBron' in concept.R)) {
+          if (concept.R[k] > 0) { R.aanrijtijdMin = concept.R[k]; R.aanrijtijdBron = 'handmatig'; }
+          continue;
+        }
         R[k] = concept.R[k];
       }
       const i = WIZ_STEPS.findIndex(st => st.id === concept.stap);
       if (i >= 0) _wizStep = i;
+      // Eindreview I2: een hervat concept voorbij de stap Facturatie met een onbekende aanrijtijd begint opnieuw bij Facturatie.
+      if (aanrijtijdOntbreekt() && _wizStep > WIZ_STEPS.findIndex(st => st.id === 'facturatie')) {
+        _wizStep = WIZ_STEPS.findIndex(st => st.id === 'facturatie');
+        toast(AANRIJTIJD_VERPLICHT, 4000);
+      }
     }
     // false (Opnieuw beginnen, Escape, achtergrond): concept NIET wissen; leeg formulier, het oude
     // concept wordt pas overschreven zodra de gebruiker iets wijzigt, of verloopt na 7 dagen.
@@ -281,6 +296,7 @@ export function wizNext() {
     wizRenderStep();
   } else if (_wizVanOverzicht) {
     // "Wijzig" vanuit het overzicht: na de aanpassing terug naar het overzicht
+    if (aanrijtijdOntbreekt()) return naarFacturatieVoorAanrijtijd(); // bv. Installatie gewijzigd naar Interventie
     _wizVanOverzicht = false;
     _wizStep = WIZ_STEPS.findIndex(st => st.id === 'samenvatting');
     bewaarConcept();
@@ -290,6 +306,7 @@ export function wizNext() {
     bewaarConcept();
     wizRenderStep();
   } else {
+    if (aanrijtijdOntbreekt()) return naarFacturatieVoorAanrijtijd();
     // Bevestiging vóór versturen; printRapport enkel via onBevestig (binnen de klik-gesture, voor window.open)
     const isLokaal = !!_wizTicket?.isLocal;
     const nr = _wizTicket?.number || _wizTicket?.id || '';
@@ -368,7 +385,7 @@ export function wizRenderSamenvatting(el) {
     ${kaart('Algemeen', 'algemeen',
       rij('Datum', R.datum ? new Date(R.datum + 'T12:00:00').toLocaleDateString('nl-BE', { day:'2-digit', month:'2-digit', year:'numeric' }) : '') + rij('Technieker', R.technieker) + rij('Adres', R.adres) +
       rij('Start – stop', `${R.start || '?'} – ${R.stop || '?'}`) + rij('Werktijd', R.werktijd) + rij('Type bezoek', R.interventieType))}
-    ${inst ? '' : kaart('Facturatie', 'facturatie', rij('Facturatie aan', fact) + rij('Type interventie', stype) + rij('Aanrijtijd', R.aanrijtijdMin ? `${R.aanrijtijdMin} min` : ''))}
+    ${inst ? '' : kaart('Facturatie', 'facturatie', rij('Facturatie aan', fact) + rij('Type interventie', stype) + rij('Aanrijtijd', R.aanrijtijdMin || R.aanrijtijdBron === 'handmatig' || R.aanrijtijdBron === 'tomtom' ? `${R.aanrijtijdMin} min` : ''))}
     ${kaart('Product', 'product',
       rij('Installateur', R.installateur) + rij('Serienummer', R.serienummer) + rij('Aantal laadpalen', R.aantalLaadpalen) +
       rij('Type', R.type) + rij('Uitvoering', R.uitvoering) + rij('Kabel', [R.kabel, R.kabellengte].filter(Boolean).join(' ')))}
@@ -484,24 +501,6 @@ export function fmtDuur(min) {
 }
 
 // ── Stap 2: Facturatie & Servicetype ──
-export function berekenLoonkost(servicetype, werktijdMin, aanrijtijdMin) {
-  if (servicetype === '2e-lijn') {
-    const totMin    = (werktijdMin || 0) + (aanrijtijdMin || 0);
-    const totUren   = totMin / 60;
-    const extraUren = totUren > 3 ? Math.ceil(totUren - 3) : 0;
-    return { bruto: 175 + extraUren * 75, totMin, extraUren };
-  }
-  if (servicetype === '1e-lijn') {
-    const totMin = (werktijdMin || 0) + (aanrijtijdMin || 0);
-    const gestartUren = Math.ceil(totMin / 60);
-    return { bruto: gestartUren * 115, gestartUren, totMin, extraUren: 0 };
-  }
-  // garantie: zelfde berekening als 1e lijn maar netto = 0
-  const totMin = (werktijdMin || 0) + (aanrijtijdMin || 0);
-  const gestartUren = Math.ceil(totMin / 60);
-  return { bruto: gestartUren * 115, gestartUren, netto: 0, totMin, extraUren: 0 };
-}
-
 export function wizLoonkostPreview() {
   const st       = wizChecked('f-servicetype') || R.servicetype;
   const wMin     = calcWerktijdMin(R.start, R.stop);
@@ -557,6 +556,12 @@ export function wizAutoServicetype() {
   return null; // onduidelijk -- geen auto-selectie, huidige/handmatige waarde van R.servicetype blijft staan
 }
 
+const AANRIJTIJD_ONBEKEND = '⚠ Aanrijtijd kon niet berekend worden — vul ze hieronder zelf in (minuten, enkel heen). Typ 0 als er geen aanrijtijd is.';
+const AANRIJTIJD_VERPLICHT = '⚠ Vul de aanrijtijd in (minuten, enkel heen). Typ 0 als er geen aanrijtijd is.';
+// Eindreview I2: een Interventie met een onbekende aanrijtijd mag nooit ingediend worden (ook niet via een omweg: Installatie -> Interventie
+// in het Overzicht, of een hervat concept na de stap Facturatie). Dan terug naar de stap Facturatie met de melding.
+function aanrijtijdOntbreekt() { return R.interventieType !== 'Installatie' && R.aanrijtijdBron === 'onbekend'; }
+function naarFacturatieVoorAanrijtijd() { toast(AANRIJTIJD_VERPLICHT, 4000); wizGaNaar('facturatie'); }
 export function wizRenderFacturatie(el) {
   if (!R._servicetypeAutoApplied) {
     const auto = wizAutoServicetype();
@@ -614,12 +619,13 @@ export function wizRenderFacturatie(el) {
       </div>
     </div>
     <div id="aanrijtijd-wrap" style="margin-top:6px">
+      ${R.aanrijtijdBron === 'onbekend' ? `<div class="wiz-aanrijtijd-waarschuwing" role="alert">${AANRIJTIJD_ONBEKEND}</div>` : ''}
       <div class="wiz-field">
         <label class="wiz-field-label" for="f-aanrijtijd">Aanrijtijd (minuten, enkel heen)
-          ${R.aanrijtijdMin > 0 ? '<span style="font-size:0.72rem;color:var(--accent-ink);margin-left:6px">📡 TomTom</span>' : ''}
+          ${R.aanrijtijdBron === 'tomtom' ? '<span style="font-size:0.72rem;color:var(--accent-ink);margin-left:6px">📡 TomTom</span>' : ''}
         </label>
-        <input class="wiz-input" id="f-aanrijtijd" type="number" min="0" step="1"
-          value="${R.aanrijtijdMin || ''}" placeholder="bijv. 35"
+        <input class="wiz-input" id="f-aanrijtijd" type="number" min="0" step="1"${R.aanrijtijdBron === 'onbekend' ? ' aria-invalid="true"' : ''}
+          value="${R.aanrijtijdBron === 'tomtom' || R.aanrijtijdBron === 'handmatig' ? R.aanrijtijdMin : (R.aanrijtijdMin || '')}" placeholder="bijv. 35"
           oninput="wizLoonkostPreview()" style="max-width:120px" />
       </div>
     </div>
@@ -638,7 +644,15 @@ export function wizSaveFacturatie() {
   R.facturatie     = wizChecked('f-facturatie') || 'klant';
   R.facturatieVrij = wizV('f-facturatie-vrij');
   R.servicetype    = wizChecked('f-servicetype') || '2e-lijn';
-  R.aanrijtijdMin  = parseInt(document.getElementById('f-aanrijtijd')?.value) || 0;
+  const aanrijtijdRuw = String(document.getElementById('f-aanrijtijd')?.value ?? '').trim();
+  R.aanrijtijdMin  = parseInt(aanrijtijdRuw) || 0;
+  // B7: een lege waarde is nooit toegelaten (0 wel). De bron gaat bij een leeg veld terug naar 'onbekend', zodat ook Vorige, een
+  // autosave of een teruggezet concept (die de foutwaarde negeren) later nooit een stille 0 doorlaten: het veld blijft leeg en gemarkeerd.
+  if (aanrijtijdRuw === '') {
+    R.aanrijtijdBron = 'onbekend';
+    return AANRIJTIJD_VERPLICHT;
+  }
+  if (R.aanrijtijdBron === 'onbekend') R.aanrijtijdBron = 'handmatig';
 }
 
 // ── Stap 3: Productinfo ──
@@ -1329,6 +1343,7 @@ ${isInstallatie ? '' : `<tr><td>Loonkosten (excl. btw)${isGarantieTotaal ? ' <sp
 }
 
 export async function printRapport() {
+  if (aanrijtijdOntbreekt()) return naarFacturatieVoorAanrijtijd(); // vangnet (eindreview I2), vóór window.open
   // Venster synchroon openen, vóór elke await. Browsers laten window.open() enkel toe
   // binnen de korte "transient user activation" na de klik (Chrome: ~5s). Wachten we
   // eerst de outbox-poging af (tot 5s), dan is die activation op het trage/offline-pad
@@ -1411,7 +1426,7 @@ export async function printRapport() {
       };
 
       await outboxAdd(item);
-      window.registreerAchtergrondVerzending?.(); // Background Sync (Android), niet afgewacht
+      registreerAchtergrondVerzending(); // Background Sync (Android), niet afgewacht
       wisConcept(_wizTicketId, _wizDate); // rapport staat veilig in de outbox
       await refreshOutboxCache();
 
@@ -1421,7 +1436,7 @@ export async function printRapport() {
       // manueel toegevoegde afspraak) en enkel als er effectief iets ingevuld is. Best-effort,
       // niet afgewacht: mag de rapport-verzending zelf niet vertragen of laten falen.
       if (!item.isLocal && R.acties?.trim()) {
-        window.syncOplossingNaarZoho?.(item.ticket.id, R.acties);
+        syncOplossingNaarZoho(item.ticket.id, R.acties);
       }
 
       // Zelfde best-effort-aanpak als hierboven: wagenvoorraad-aftrek voor gebruikt materiaal
@@ -1502,6 +1517,8 @@ window.printRapport          = printRapport;
 // Dat blijft een kale aanroep in een classic <script> — die lost een onbekende identifier op
 // via de globale scope-chain (window), dus enkel deze bridge is nodig, geen wijziging daar.
 window.calcWerktijdMin = calcWerktijdMin;
+
+export { berekenLoonkost };
 
 // berekenLoonkost wordt ook aangeroepen vanuit rapport-archief.js (renderRapportArchief,
 // voor de prijsweergave op archiefkaarten) — zonder deze bridge gooit dat een

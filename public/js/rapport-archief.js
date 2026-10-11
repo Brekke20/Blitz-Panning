@@ -1,7 +1,15 @@
 // public/js/rapport-archief.js
 // Overzicht van gearchiveerde rapporten (interventie + installatie), met filter op type en
 // Excel-export-aanroep (zie excel-export.js). Leest `R`/rapport-records uit de outbox-archivering.
-
+import { foutTekst } from './kern/api.js';
+import { TEST_MODE } from './kern/omgeving.js';
+import { registreerActies, metBehoudScroll } from './kern/ui.js';
+import { sjLog } from './kern/verklikker.js';
+import { isEigenRapport } from './kern/sessie.js';
+import { renderKalender } from './schermen/kalender.js';
+import { voorbeeldRapport } from './schermen/rapport-verzenden.js';
+import { fmtDate } from './kern/tijd.js';
+import { escHtml, toast } from './kern/ui.js';
 import { heeftRapportInhoud, haalRapportHtml } from './rapport-inhoud.js';
 import { statusBadgeHtml, opnieuwKnopHtml, opnieuwVersturen, toonMisluktMeldingen } from './rapport-status.js';
 
@@ -10,10 +18,12 @@ export let _rapportArchief = [];
 // Rapporten-tabblad te openen) → server-check slaat de versie-vergelijking dan over
 // (typeof null !== 'number'), net als bij een niet-herladen oud tabblad.
 export let _archiefVersie = null;
+// Een geïmporteerde let kan niet buiten zijn module worden toegewezen (voorheen deed het klassieke script dat via de window-accessor).
+export function zetArchiefVersie(v) { _archiefVersie = v; }
 
 // _rapportFilter is enkel intern gebruikt door setRapportFilter/renderRapportArchief hieronder —
 // geen andere plek in de app leest of schrijft dit, dus geen window-bridge nodig.
-let _rapportFilter = 'alle'; // 'alle' | 'Interventie' | 'Installatie'
+let _rapportFilter = 'alle'; // 'alle' | 'Interventie' | 'Installatie' | 'mijn'
 
 export async function laadRapportArchief() {
   const body = document.getElementById('rapp-archief-body');
@@ -26,13 +36,13 @@ export async function laadRapportArchief() {
     const data = await res.json();
     _rapportArchief = data.rapports || [];
     _archiefVersie = data.versie || 0;
-    window.sjLog?.('laadRapportArchief:render'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
+    sjLog('laadRapportArchief:render'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
     const render = () => { renderRapportArchief(); renderKalender(); };
-    // Scrollpositie behouden (her-render tijdens sync); metBehoudScroll is een klassiek-script-global.
-    if (typeof metBehoudScroll === 'function') metBehoudScroll(render); else render();
+    // Scrollpositie behouden (her-render tijdens sync); metBehoudScroll komt uit kern/ui.js.
+    metBehoudScroll(render);
     toonMisluktMeldingen(_rapportArchief); // eenmalig per paginasessie, enkel technieker met persoon gekozen
   } catch (err) {
-    body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">✕ Laden mislukt: ${err.message}</div>`;
+    body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">✕ Laden mislukt: ${foutTekst(err)}</div>`;
   }
 }
 
@@ -52,11 +62,16 @@ export function renderRapportArchief() {
     body.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:20px 0">Nog geen rapporten gearchiveerd.</div>';
     return;
   }
+  // 'mijn' (enkel voor een beheerder/planner met een Zoho-naam): de rapporten die ik zelf indiende of waar mijn naam op staat.
   const gefilterd = _rapportFilter === 'alle'
     ? _rapportArchief
-    : _rapportArchief.filter(r => (r.interventieType || 'Interventie') === _rapportFilter);
+    : _rapportFilter === 'mijn'
+      ? _rapportArchief.filter(isEigenRapport)
+      : _rapportArchief.filter(r => (r.interventieType || 'Interventie') === _rapportFilter);
   if (!gefilterd.length) {
-    body.innerHTML = `<div style="color:var(--muted);font-size:0.82rem;padding:20px 0">Geen rapporten van het type "${escHtml(_rapportFilter)}" gevonden.</div>`;
+    body.innerHTML = _rapportFilter === 'mijn'
+      ? '<div style="color:var(--muted);font-size:0.82rem;padding:20px 0">Je hebt nog geen eigen rapporten.</div>'
+      : `<div style="color:var(--muted);font-size:0.82rem;padding:20px 0">Geen rapporten van het type "${escHtml(_rapportFilter)}" gevonden.</div>`;
     return;
   }
   body.innerHTML = gefilterd.map((r, i) => {
@@ -133,7 +148,7 @@ export function renderRapportArchief() {
         ${r.klant ? `<div class="tsub">${escHtml(r.klant)}</div>` : ''}
         ${r.adres ? `<div class="taddr ok">${escHtml(r.adres)}</div>` : ''}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center">
-          ${heeftRapportInhoud(r) ? `<button class="cal-btn" onclick="herOpenRapport(${origIdx})">📄 Openen</button>` : ''}
+          ${heeftRapportInhoud(r) ? `<button class="cal-btn" data-actie="rapport-open" data-arg="${origIdx}">📄 Openen</button>` : ''}
           ${opnieuwKnopHtml(r)}
           ${(rapportId && heeftRapportInhoud(r) && r.ticketId) ? `<button class="cal-btn btn-verstuur-rapport" data-rapport-id="${escHtml(rapportId)}" title="${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? 'Al verzonden op ' + escHtml(fmtDate(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur)) + ' — opnieuw versturen?' : ''}">${(r.verzondenContact || r.verzondenKlant || r.verzondenInstallateur) ? '✓ Verzonden' : '✉️ Verstuur rapport'}</button>` : ''}
           ${rapportId ? `<button class="cal-btn btn-verwijder-rapport" style="color:var(--red);border-color:var(--red)" data-rapport-id="${escHtml(rapportId)}" data-ticket-ref="${escHtml(r.ticketNumber||r.ticketId||'?')}" data-datum="${escHtml(datumStr)}">🗑 Verwijderen</button>` : ''}
@@ -189,7 +204,7 @@ export async function verwijderRapport(id, ticketRef, datumStr) {
     toast('✓ Rapport verwijderd');
     await laadRapportArchief();
   } catch (err) {
-    toast('✕ Verwijderen mislukt: ' + err.message);
+    toast('✕ Verwijderen mislukt: ' + foutTekst(err));
   }
 }
 
@@ -212,6 +227,26 @@ export async function herOpenRapport(idx) {
     win.close();
     return toast('Geen opgeslagen HTML beschikbaar');
   }
+  toonInVenster(win, html);
+}
+
+// Rapport openen op id (doorklik uit het dashboard-herhaalbezoek). De archieflijst toont enkel de
+// nieuwste 500, dus een oud rapport staat er mogelijk niet in: dan geen heeftRapportInhoud-
+// voorcontrole, de GET ?inhoud=<id> beslist. window.open blijft synchroon eerst (pop-upblokkering).
+export async function openRapportOpId(id) {
+  const win = window.open('', '_blank');
+  if (!win) return toast('Het PDF-venster werd geblokkeerd. Sta pop-ups toe om de PDF te zien.');
+  const entry = _rapportArchief.find(r => r.id === id);
+  const html = await haalRapportHtml(entry ?? { id });
+  if (html === null) {
+    win.close();
+    return toast('Geen opgeslagen HTML beschikbaar');
+  }
+  toonInVenster(win, html);
+}
+
+// Rendert de rapport-HTML in een sandboxed iframe (zonder allow-scripts) in het net geopende venster.
+function toonInVenster(win, html) {
   win.document.write(
     '<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8">' +
     '<title>Service rapport</title>' +
@@ -233,32 +268,10 @@ export async function herOpenRapport(idx) {
   frame.srcdoc = html;
 }
 
+// "Openen"-knop op de archiefkaarten: één delegatie op de pagina (data-actie); de knoppen worden bij elke render opnieuw opgebouwd.
+registreerActies(document.body, {
+  'rapport-open': (el) => herOpenRapport(Number(el.dataset.arg)),
+});
+
 window.renderRapportArchief = renderRapportArchief;
-window.laadRapportArchief   = laadRapportArchief;
-window.setRapportFilter     = setRapportFilter;
-window.verwijderRapport     = verwijderRapport;
-window.herOpenRapport       = herOpenRapport;
-
-// _rapportArchief wordt van BUITEN dit bestand rechtstreeks gelezen (niet enkel via de functies
-// hierboven): de kalenderweergave in index.html (herOpenRapport(_rapportArchief.indexOf(entry)),
-// _rapportArchief.filter(...) voor dagoverzichten) en exportTicketLog (Excel-export, zit in
-// public/js/excel-export.js) lezen dit array rechtstreeks. laadRapportArchief() vervangt het array bovendien
-// telkens door een NIEUW array (geen in-place mutatie), dus een statische
-// `window._rapportArchief = _rapportArchief`-toewijzing zou na de eerste herlaad alweer verouderd
-// zijn — vandaar een live getter, net als bij _outboxItems in outbox.js (Task 1). Niets buiten dit
-// bestand herschrijft het array zelf (enkel lezen), dus enkel een getter is nodig.
-Object.defineProperty(window, '_rapportArchief', {
-  get: () => _rapportArchief,
-  configurable: true,
-});
-
-// _archiefVersie wordt van BUITEN dit bestand gebruikt (o.a. door de rapport-wizard-module bij het
-// versturen/archiveren, en door outbox.js's attemptOutboxItem) — net als bij PRIJZEN in Task 4 is
-// dit een `let`, dus een statische `window._archiefVersie = _archiefVersie` zou een momentopname
-// vastzetten. Gebruik in plaats daarvan dezelfde live-accessor die Task 1 al gebruikte:
-Object.defineProperty(window, '_archiefVersie', {
-  get: () => _archiefVersie,
-  set: (v) => { _archiefVersie = v; },
-  configurable: true,
-});
 

@@ -1,0 +1,6 @@
+{
+  "_opmerking": "Vorm van netlify/functions/optimize.js: { locations: [origin, ...stops], optimizedOrder }. Vaste coordinaten: vertrekpunt + elke stop een stukje verder; volgorde = invoervolgorde.",
+  "vertrek": { "lat": 51.1, "lon": 4.9 },
+  "stapLat": 0.02,
+  "stapLon": 0.03
+}

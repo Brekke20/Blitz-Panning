@@ -1,6 +1,9 @@
 // public/js/excel-export.js
 // Genereert het TicketLog Excel-exportbestand (ExcelJS, zie CLAUDE.md — nooit SheetJS
 // gebruiken, silent style-bug). Leest gearchiveerde rapport-data, schrijft niets terug.
+import { toast } from './kern/ui.js';
+import { laadExcelJs } from './kern/exceljs.js';
+import { _rapportArchief } from './rapport-archief.js';
 
 export async function exportTicketLog() {
   if (!_rapportArchief.length) return toast('Geen rapporten beschikbaar om te exporteren', 2500);
@@ -97,6 +100,7 @@ export async function exportTicketLog() {
   });
 
   try {
+    const ExcelJS = await laadExcelJs();
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Blitz Planning';
     const ws = wb.addWorksheet('TicketLog');
@@ -195,5 +199,4 @@ export async function exportTicketLog() {
   }
 }
 
-window.exportTicketLog = exportTicketLog;
 

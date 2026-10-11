@@ -5,7 +5,7 @@
 // Alle lijst-wijzigingen lopen via wijzigLijst (read-back-controle); de upload zelf (met het
 // idempotentie-register) wordt als `upload` geïnjecteerd.
 
-import { LIJST_KEY, MAX_RAPPORTEN, wijzigLijst } from './rapportlijst.js';
+import { LIJST_KEY, wijzigLijst } from './rapportlijst.js';
 import { leesInhoud } from './rapport-inhoud.js';
 
 export const HERHAALSCHEMA_MIN = [5, 15, 30, 60, 120];
@@ -90,7 +90,9 @@ async function herstelEntry(store, id) {
     if (rapports.some(r => r.id === id)) return null;
     if (bewaard.ticketId && rapports.some(r => r.ticketId === bewaard.ticketId && r.datum === bewaard.datum)) return null;
     return {
-      rapports: [bewaard, ...rapports].slice(0, MAX_RAPPORTEN),
+      // Bewust niet afkappen: de lijst is dan hoogstens tijdelijk 501; de eerstvolgende voegToeOfWerkBij kapt
+      // af en archiveert de overschot (rapport-jaararchief.js), zodat het archief een enkele schrijver heeft.
+      rapports: [bewaard, ...rapports],
       controle: terug => terug.some(r => r.id === id),
     };
   });

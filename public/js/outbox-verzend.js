@@ -98,6 +98,9 @@
     r = r || {};
     if (r.timeout) return 'Geen antwoord van de server (time-out)';
     if (r.netwerkFout) return 'Geen verbinding';
+    // 403 buiten de sessie (geen-recht, csrf, wachtwoord wijzigen): niet stil blijven hangen, de reden tonen. De melding
+    // gaat via logOutboxFailure ook naar /api/client-log (zichtbaar voor de beheerder) en het item blijft bewaard.
+    if (r.status === 403) return 'Geweigerd door de server: ' + ((r.data && r.data.error) || 'geen toegang') + ' Het rapport blijft bewaard; meld dit aan de planner.';
     if (r.status === 413) return "Rapport is te groot om te versturen (te veel foto's). Meld dit aan de planner.";
     return (r.data && r.data.error) || ('Server (' + r.status + ')');
   }
@@ -125,6 +128,9 @@
       var res = await doFetch('/api/rapport-ontvangen', {
         method: 'POST',
         headers: headers,
+        // De service worker draait zonder pagina: de sessiecookie moet expliciet mee (zelfde oorsprong), anders is het
+        // verzoek voor de server anoniem en komt het rapport in de outbox te staan met "Niet ingelogd".
+        credentials: 'same-origin',
         body: JSON.stringify(bouwOntvangenBody(item)),
         signal: ctrl.signal,
       });

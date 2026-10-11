@@ -16,21 +16,23 @@ import { isTestVerzoek, winkelNaam, nepZohoAntwoord } from '../lib/testmodus.js'
 import { normaliseerVerzendId } from '../lib/rapport-register.js';
 import { maakPdf, uploadPdfNaarZoho } from '../lib/rapport-zoho.js';
 import { maakUploader, markeerLijstUpgeload } from '../lib/rapport-upload.js';
+import { beveiligV1 } from '../lib/beveiligd.js';
+import { alsV2 } from '../lib/v2-adapter.js';
+import { logVoorVerzoek } from '../lib/activiteit.js';
 
-const uploadRapport = maakUploader({ maakPdf, uploadPdfNaarZoho });
+const standaardUploader = maakUploader({ maakPdf, uploadPdfNaarZoho });
 
-// (C1) getStore() zit in een EIGEN try: faalt het (deze functie is een v1-handler(event) en de
-// blobs-context in de Lambda-compat-runtime is onbewezen), dan gaat de upload gewoon door zonder
+// (C1) getStore() zit in een EIGEN try: faalt het (de Blobs-omgeving kan ontbreken of haperen), dan gaat de upload gewoon door zonder
 // register -- een geslaagde Zoho-upload mag nooit als 500 eindigen door een store-probleem.
-function haalStore(event) {
+function haalStore(event, geef = getStore) {
   try {
-    return getStore({ name: winkelNaam(event), consistency: 'strong' });
+    return geef({ name: winkelNaam(event), consistency: 'strong' });
   } catch {
     return null;
   }
 }
 
-export async function handler(event) {
+async function kern(event, context, gebruiker, { geefStore = getStore, uploadRapport = standaardUploader } = {}) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',
@@ -59,7 +61,7 @@ export async function handler(event) {
       return { statusCode: 200, headers, body: JSON.stringify(nepZohoAntwoord({ success: true, attachmentId: 'test-bijlage' })) };
     }
 
-    const store = haalStore(event);
+    const store = haalStore(event, geefStore);
     const res = await uploadRapport({ html, ticketId, filename, verzendId, store });
 
     if (res.inProgress) {
@@ -84,6 +86,9 @@ export async function handler(event) {
       await markeerLijstUpgeload(store, verzendId, res.attachmentId);
     } catch { /* de respons hieronder blijft altijd 200 na een geslaagde upload */ }
 
+    // Eén regel per geslaagde PDF-bijlage (de idempotente herhaling hierboven logt niets).
+    await logVoorVerzoek(event, gebruiker, { actie: 'rapport-verstuurd', onderwerp: String(ticketId), details: 'pdf-bijlage' }, { getStore: geefStore });
+
     return {
       statusCode: 200,
       headers,
@@ -97,3 +102,11 @@ export async function handler(event) {
     };
   }
 }
+
+// getStore en maakPdf zijn testnaden (opslag/activiteitenlog en de PDF-generatie).
+export const maakHandler = ({ getStore: geefStore, maakPdf: pdf } = {}) => {
+  const uploadRapport = pdf ? maakUploader({ maakPdf: pdf, uploadPdfNaarZoho }) : undefined;
+  return beveiligV1('rapport', (event, context, gebruiker) => kern(event, context, gebruiker, { geefStore, uploadRapport }));
+};
+
+export default alsV2(maakHandler());

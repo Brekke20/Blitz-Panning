@@ -35,6 +35,10 @@
 // vangt eventuele afwijkende geometrie sowieso op (niet inkleuren i.p.v. fout inkleuren),
 // ongeacht welke aanvraag gebruikt werd.
 
+import { CORS_V1, v1Json, v1Opties } from '../lib/http.js';
+import { beveiligV1 } from '../lib/beveiligd.js';
+import { alsV2 } from '../lib/v2-adapter.js';
+
 const TOMTOM_BASE = 'https://api.tomtom.com';
 const API_KEY = () => process.env.TOMTOM_API_KEY;
 
@@ -170,15 +174,10 @@ function bouwSupportingPoints(polyline, chunk) {
   return indices.map(i => ({ latitude: polyline[i][0], longitude: polyline[i][1] }));
 }
 
-export async function handler(event) {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-  };
+async function kern(event, context, gebruiker) {
+  const headers = CORS_V1;
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers };
-  }
+  if (event.httpMethod === 'OPTIONS') return v1Opties(headers);
 
   try {
     const { polyline, departAt, segmentMeters } = JSON.parse(event.body || '{}');
@@ -187,11 +186,7 @@ export async function handler(event) {
         !polyline.every(p => Array.isArray(p) && p.length === 2 &&
           typeof p[0] === 'number' && typeof p[1] === 'number' &&
           p[0] >= -90 && p[0] <= 90 && p[1] >= -180 && p[1] <= 180)) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'polyline moet een array van [lat, lon]-punten zijn (2-5000 stuks)' }),
-      };
+      return v1Json(400, { error: 'polyline moet een array van [lat, lon]-punten zijn (2-5000 stuks)' }, headers);
     }
 
     // departAt is hier verplicht (i.t.t. route.js) — dit endpoint is enkel zinvol voor
@@ -201,11 +196,7 @@ export async function handler(event) {
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(departAt) &&
       Date.parse(departAt) > Date.now() + 60_000;
     if (!departAtGeldig) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'departAt moet in de toekomst liggen' }),
-      };
+      return v1Json(400, { error: 'departAt moet in de toekomst liggen' }, headers);
     }
 
     const segMeters = Math.min(MAX_SEGMENT_METERS, Math.max(MIN_SEGMENT_METERS, Number(segmentMeters) || 1500));
@@ -304,23 +295,17 @@ export async function handler(event) {
 
     const onbetrouwbaar = segmenten.filter(s => !s.betrouwbaar).length;
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
+    return v1Json(200, {
         segmenten,
         departAtUsed: departAt,
         aantalAanvragen: teller.n,
         aantalWaypoints: tussenpunten.length,
         reconstructie: alleChunksReconstructie,
         onbetrouwbaar,
-      }),
-    };
+      }, headers);
   } catch (err) {
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: err.message }),
-    };
+    return v1Json(500, { error: err.message }, headers);
   }
 }
+
+export default alsV2(beveiligV1('drukte', kern));

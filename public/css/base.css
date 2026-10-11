@@ -179,3 +179,42 @@
       z-index: var(--z-toast);
     }
 
+
+    /* ── Skeleton-laadschermen (kern/skelet.js) ──
+       Grijze blokken in de vorm van de echte inhoud zolang een scherm op zijn gegevens wacht. Enkel bestaande tokens (licht en donker). */
+    .skelet-weg { display: none !important; }
+    .skelet { display: block; min-width: 0; pointer-events: none; user-select: none; }
+    .skelet-blok {
+      background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%);
+      background-size: 200% 100%;
+      border-radius: var(--r-sm);
+      animation: skelet-shimmer 1.4s ease-in-out infinite;
+    }
+    @keyframes skelet-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+    .skelet-regel { height: 12px; max-width: 100%; }
+    .skelet-regel--titel { height: 16px; }
+    .skelet-regel--kort { height: 10px; }
+    .skelet-rijen, .skelet-formulier, .skelet-route-lijst { display: flex; flex-direction: column; gap: var(--sp-3); }
+    .skelet-rij { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-3) var(--sp-2); border-bottom: 1px solid var(--border); }
+    .skelet-rij .skelet-blok:nth-child(2) { flex: 1; }
+    .skelet-kaarten { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--sp-3); }
+    .skelet-kaart { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); }
+    .skelet-dash { display: flex; flex-direction: column; gap: var(--sp-4); }
+    .skelet-tegels { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-3); }
+    .skelet-tegel { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); }
+    .skelet-cijfer { height: 28px; }
+    .skelet-vlak { height: 180px; border-radius: var(--r-lg); }
+    .skelet-route { display: flex; gap: var(--sp-4); align-items: stretch; }
+    .skelet-route-lijst { flex: 0 0 min(340px, 40%); }
+    .skelet-kaartvlak { flex: 1; min-height: 260px; border-radius: var(--r-lg); }
+    .skelet-veld { display: flex; flex-direction: column; gap: var(--sp-2); max-width: 420px; }
+    .skelet-invoer { height: 40px; width: 100%; border-radius: var(--r-sm); }
+    @media (max-width: 700px) {
+      .skelet-route { flex-direction: column; }
+      .skelet-route-lijst { flex: none; }
+      .skelet-kaartvlak { min-height: 180px; }
+    }
+    /* Reduced motion: geen shimmer, enkel stille grijze blokken (de algemene regel hierboven zou hem anders eenmalig laten flitsen). */
+    @media (prefers-reduced-motion: reduce) {
+      .skelet-blok { animation: none !important; background: var(--surface3); }
+    }

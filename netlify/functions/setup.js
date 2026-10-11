@@ -1,8 +1,10 @@
 // /api/setup?code=GRANT_CODE
 // Exchanges a Zoho Self Client grant code for a refresh token.
 // Run this ONCE after deploying. Store the returned refresh_token as ZOHO_REFRESH_TOKEN env var.
+import { beveiligV1 } from '../lib/beveiligd.js';
+import { alsV2 } from '../lib/v2-adapter.js';
 
-export async function handler(event) {
+async function kern(event, context, gebruiker) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',
@@ -64,3 +66,5 @@ export async function handler(event) {
     }),
   };
 }
+
+export default alsV2(beveiligV1('setup', kern));

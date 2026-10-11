@@ -1,0 +1,4 @@
+{
+  "_opmerking": "Vorm van netlify/functions/matrix.js: { results: [{ travelTimeSeconds, distanceMeters }] }, één cel per bestemming. Overal 20 min.",
+  "cel": { "travelTimeSeconds": 1200, "distanceMeters": 20000 }
+}

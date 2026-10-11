@@ -5,6 +5,7 @@ import { startAchtergrondtaak } from '../netlify/lib/rapport-achtergrond.js';
 import { MAX_HTML_TEKENS } from '../netlify/lib/rapport-inhoud.js';
 import { haalRapportInhoud, verwerkOpnieuw } from '../netlify/lib/rapport-archief-acties.js';
 import { maakHandler } from '../netlify/functions/rapport-ontvangen.js';
+import { metRol } from './auth-hulp.mjs';
 
 // ---- nep-store -------------------------------------------------------------
 function maakWinkels() {
@@ -252,7 +253,7 @@ test('startAchtergrondtaak: false (zonder te gooien) bij fetch-fout of niet-2xx'
 
 // ---- maakHandler -----------------------------------------------------------
 function postReq(b, { test = false, methode = 'POST' } = {}) {
-  const headers = { 'Content-Type': 'application/json' };
+  const headers = { 'Content-Type': 'application/json', 'X-Blitz': '1' };
   if (test) headers['X-Blitz-Test'] = '1';
   return new Request('https://blitz.example/api/rapport-ontvangen', {
     method: methode, headers, body: methode === 'POST' ? JSON.stringify(b) : undefined,
@@ -264,7 +265,7 @@ test('maakHandler: POST geeft 200 en één aanroep naar de achtergrondtaak; na i
   const calls = [];
   const fetch = async (url, opts) => { calls.push({ url, opts }); return new Response(null, { status: 202 }); };
   const handler = maakHandler({ getStore: w.getStore, fetch });
-  const res = await handler(postReq(body()));
+  const res = await metRol('planner', () => handler(postReq(body())));
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { ok: true, id: ID_A });
   assert.equal(calls.length, 1);
@@ -276,7 +277,7 @@ test('maakHandler: POST geeft 200 en één aanroep naar de achtergrondtaak; na i
   const l = JSON.parse(m.get('rapportlijst'));
   l.rapports[0].verwerking.status = 'in-zoho';
   m.set('rapportlijst', JSON.stringify(l));
-  const res2 = await handler(postReq(body()));
+  const res2 = await metRol('planner', () => handler(postReq(body())));
   assert.equal(res2.status, 200);
   assert.equal(calls.length, 1);
 });
@@ -286,7 +287,7 @@ test('maakHandler: testverzoek gebruikt de testopslag en geeft X-Blitz-Test door
   const calls = [];
   const fetch = async (url, opts) => { calls.push(opts); return new Response(null, { status: 202 }); };
   const handler = maakHandler({ getStore: w.getStore, fetch });
-  const res = await handler(postReq(body({ ticketId: 'g1' }), { test: true }));
+  const res = await metRol('planner', () => handler(postReq(body({ ticketId: 'g1' }), { test: true })));
   assert.equal(res.status, 200);
   assert.equal(calls.length, 1);
   assert.equal(new Headers(calls[0].headers).get('x-blitz-test'), '1');
@@ -297,11 +298,11 @@ test('maakHandler: testverzoek gebruikt de testopslag en geeft X-Blitz-Test door
 test('maakHandler: fout bij starten achtergrondtaak blijft 200 (vangnet); OPTIONS 204; GET 405; ongeldige JSON 400', async () => {
   const w = maakWinkels();
   const handler = maakHandler({ getStore: w.getStore, fetch: async () => { throw new Error('weg'); } });
-  assert.equal((await handler(postReq(body()))).status, 200);
+  assert.equal((await metRol('planner', () => handler(postReq(body())))).status, 200);
   assert.equal((await handler(postReq(null, { methode: 'OPTIONS' }))).status, 204);
   assert.equal((await handler(new Request('https://blitz.example/api/rapport-ontvangen'))).status, 405);
-  const kapot = new Request('https://blitz.example/api/rapport-ontvangen', { method: 'POST', body: '{nee' });
-  assert.equal((await handler(kapot)).status, 400);
+  const kapot = new Request('https://blitz.example/api/rapport-ontvangen', { method: 'POST', headers: { 'X-Blitz': '1' }, body: '{nee' });
+  assert.equal((await metRol('planner', () => handler(kapot))).status, 400);
 });
 
 // ---- archief-acties: inhoud ophalen + opnieuw versturen --------------------

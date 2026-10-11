@@ -3,6 +3,7 @@
 
 import { getStore } from '@netlify/blobs';
 import { isTestVerzoek, wisTestopslag, zorgVoorTestkopie } from '../lib/testmodus.js';
+import { beveiligV2 } from '../lib/beveiligd.js';
 
 const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
@@ -20,7 +21,7 @@ function corsHeaders(req) {
   };
 }
 
-export default async (req) => {
+const kern = async (req, context, gebruiker) => {
   const hdrs = { ...corsHeaders(req), 'Content-Type': 'application/json' };
 
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: hdrs });
@@ -40,5 +41,7 @@ export default async (req) => {
     return new Response(JSON.stringify({ error: 'Kopiëren mislukt' }), { status: 500, headers: hdrs });
   }
 };
+
+export default beveiligV2('testdata', kern);
 
 export const config = { path: '/api/testdata' };
