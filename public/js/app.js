@@ -45,6 +45,7 @@ import { _invData, loadInventaris, renderInventaris, updateInventarisBadge, rese
 import { appConfirm } from './app-dialog.js';
 import { registreerVenster } from './venster.js';
 import { startNaInlog } from './schermen/rol-schil.js';
+import * as persoonskiezer from './schermen/persoonskiezer.js';
 import { laadTab } from './kern/navigatie.js';
 import { eigenZohoNaam, huidigeRechten, magPlannenVoor } from './kern/sessie.js';
 import { installeerTijdPicker } from './kern/tijd-picker.js';
@@ -230,7 +231,7 @@ function opstart() {
   toestand.set('settings', instellingen.loadPersonSettings(localStorage.getItem('blitz_active_person') || 'all'));
   // Delegatie voor pilot-knoppen (kern-ui)
   registreerActies(document.body, {
-    'persoon-menu': () => togglePersonMenu(),
+    'persoon-menu': (el, e) => persoonskiezer.toggleMenu({ focus: e?.detail === 0 }), // detail 0: via het toetsenbord geopend, dan gaat de focus het menu in
     'vernieuw': () => loadTickets(),
     'thema': () => toggleTheme(),
     'instellingen': () => instellingen.openSettings(),
@@ -254,6 +255,14 @@ function opstart() {
   document.getElementById('plan-date').value = openingsdag;
   set('gekozenDatum', openingsdag); // gedeelde datum van Kalender, Route en Ingepland (niet bewaard over herladen)
   set('activeAssigneeFilter', localStorage.getItem('blitz_active_person') || 'all');
+  // De persoonskiezer (schermen/persoonskiezer.js): de lijst en de knop volgen de toestand; keuzes lopen via selectPerson.
+  persoonskiezer.initPersoonskiezer({
+    ticketNamen: personenUitTickets, gekozenTechnieker: () => get('activeAssigneeFilter'), gekozenVerkoper: () => null,
+    werkruimte: () => 'techniek', metSales: () => false,
+    laadVerkopers: async () => ({ ok: true, lijst: [] }),
+    kies: (item) => selectPerson(item.sleutel), terug: (sleutel) => selectPerson(sleutel),
+  });
+  persoonskiezer.koppelLuisteraars();
   koppelRenders(); // vanaf hier volgen de schermen de toestand (K6/K7)
   updatePersonHeader();
   buildPersonSelector(); // meteen vullen (eigen naam / "Alle technici"): faalt de ticketlading, dan blijft de kiezer niet leeg
@@ -267,11 +276,6 @@ function opstart() {
   window.addEventListener('offline', updateOnlineState);
   window.addEventListener('online',  updateOnlineState);
   updateOnlineState();
-  // Sluit persoon-menu bij klik buiten
-  document.addEventListener('click', (e) => {
-    if (!document.getElementById('person-sel')?.contains(e.target))
-      zetPersonMenuOpen(false);
-  });
   document.querySelectorAll('.rapp-filter-btn').forEach(btn => {
     btn.addEventListener('click', () => setRapportFilter(btn.dataset.filter));
   });
@@ -621,11 +625,6 @@ async function loadTickets({ stilleToast = false, stil = false, zonderCache = fa
 // ══════════════════════════════════════════════
 // PERSOON SELECTOR
 // ══════════════════════════════════════════════
-function initials(name) {
-  if (!name || name === 'all') return 'A';
-  return name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2);
-}
-
 // Wie zelf interventies uitvoert (een account met een Zoho-naam) kan zichzelf altijd kiezen, ook als er op dat moment geen ticket
 // op zijn naam staat.
 function personenUitTickets() {
@@ -641,7 +640,7 @@ function personenUitTickets() {
 // (activeAssigneeFilter, settings); het koptekst-abonnement in koppelRenders werkt de kop bij.
 // Wordt enkel in _applyTicketsData binnen de transactie aangeroepen (niet in de render-/abonneepad), zodat
 // er geen extra renderronde ontstaat en de filter tot de volgende dataload blijft staan.
-function valideerActievePersoon(agents = personenUitTickets()) {
+function valideerActievePersoon(agents = [...personenUitTickets(), ...persoonskiezer.bekendeZohoNamen()]) {
   if (get('activeAssigneeFilter') !== 'all' && !agents.includes(get('activeAssigneeFilter'))) {
     set('activeAssigneeFilter', 'all');
     localStorage.setItem('blitz_active_person', 'all');
@@ -650,53 +649,9 @@ function valideerActievePersoon(agents = personenUitTickets()) {
   }
 }
 
-function buildPersonSelector() {
-  const agents = personenUitTickets();
-  // Geen validatie hier: dit is een abonnee. Enkel _applyTicketsData (dataload) valideert; anders reset
-  // het inplannen van het laatste wachtrij-ticket van een technieker diens filter naar 'all'.
-
-  const menu = document.getElementById('person-menu');
-  menu.innerHTML = '';
-
-  // "Alle" optie
-  const allItem = document.createElement('button');
-  // Wie mag plannen (beheerder, planner) kiest altijd "Alle technici", ook op een gsm of tablet waar de toestelrol "technieker" is
-  // (.coord-only verbergt anders dit item, en de rol van het account beslist, niet het toestel).
-  allItem.className = `pm-item${huidigeRechten().plannen ? '' : ' coord-only'}${get('activeAssigneeFilter') === 'all' ? ' active' : ''}`;
-  allItem.innerHTML = `<div class="pm-avatar">A</div><div class="pm-item-info"><div class="pm-item-name">Alle technici</div><div class="pm-item-sub">Gecombineerde weergave</div></div>`;
-  allItem.onclick = () => selectPerson('all');
-  menu.appendChild(allItem);
-
-  agents.forEach(agent => {
-    const item = document.createElement('button');
-    item.className = `pm-item${get('activeAssigneeFilter') === agent ? ' active' : ''}`;
-    item.innerHTML = `<div class="pm-avatar">${initials(agent)}</div><div class="pm-item-info"><div class="pm-item-name">${agent}</div><div class="pm-item-sub">Persoonlijke planning</div></div>`;
-    item.onclick = () => selectPerson(agent);
-    menu.appendChild(item);
-  });
-}
-
-function updatePersonHeader() {
-  const nm = document.getElementById('person-name-hdr');
-  if (nm) nm.textContent = get('activeAssigneeFilter') === 'all' ? 'Alle' : get('activeAssigneeFilter').split(' ')[0];
-  // Onderscheid met het gebruikersmenu (account): deze knop kiest WIE je planning je bekijkt.
-  const knop = document.getElementById('person-btn');
-  if (knop) {
-    const wie = get('activeAssigneeFilter') === 'all' ? 'alle technici' : get('activeAssigneeFilter');
-    knop.title = 'Kies technieker (nu: ' + wie + ')';
-    knop.setAttribute('aria-label', 'Kies technieker, nu ' + wie);
-  }
-}
-
-
-function zetPersonMenuOpen(open) {
-  document.getElementById('person-menu')?.classList.toggle('open', open);
-  document.getElementById('person-btn')?.setAttribute('aria-expanded', open ? 'true' : 'false');
-}
-
-function togglePersonMenu() {
-  zetPersonMenuOpen(!document.getElementById('person-menu')?.classList.contains('open'));
-}
+// De lijst en de knop tekent schermen/persoonskiezer.js (namen enkel via textContent); hier blijven de dunne aanroepen voor de abonnees.
+function buildPersonSelector() { persoonskiezer.bouwMenu(); }
+function updatePersonHeader() { persoonskiezer.werkKnopBij(); }
 
 function selectPerson(name) {
   // De schermen volgen via koppelRenders: kop, selector, wachtrij, kalender, ingepland, route, inventaris.
@@ -705,7 +660,7 @@ function selectPerson(name) {
     set('settings', instellingen.loadPersonSettings(name));
     applyKaartStijl();
     localStorage.setItem('blitz_active_person', name);
-    zetPersonMenuOpen(false);
+    persoonskiezer.zetMenuOpen(false);
   });
 }
 
