@@ -18,7 +18,9 @@ export const INSTELLINGEN_NIET_GELADEN = 'Je instellingen konden niet geladen wo
  * -> belofte van { sluit() }
  */
 export async function openSalesInstellingen() {
-  if (!eigenInstellingen().geladen) await laadEigenInstellingen(); // faalt het, dan toont het venster de melding met "Opnieuw proberen"
+  // Altijd vers laden (één kleine GET): anders kan een sales manager die uren bij een collega kijkt, verouderde eigen instellingen terugschrijven.
+  // Faalt het en is er een eerder geladen kopie, dan geldt die; anders toont het venster de melding met "Opnieuw proberen".
+  await laadEigenInstellingen();
   const e = eigenInstellingen();
   const geladen = e.geladen;
   const w = formulierWaarden(e.instellingen);

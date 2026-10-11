@@ -229,6 +229,38 @@ test.describe('kop B: persoonskiezer met de rol achter de naam (beheerder)', () 
   });
 });
 
+test.describe('kop B: lijsten van de beheerder na een mislukte lading', () => {
+  test('eerste lading faalt (503), de volgende opening probeert opnieuw: de groep Sales en de rol-labels verschijnen', async ({ page, consoleFouten }) => {
+    let stuk = true;
+    const echt = gebruikersLijst();
+    await startApp(page, { loginRol: 'beheerder', technieker: 'Tim', overschrijf: { gebruikers: (z) => (stuk ? { status: 503, json: { error: 'opslag', code: 'opslag-storing' } } : echt(z)) } });
+    await page.locator('#person-btn').click();
+    await expect(menu(page).locator('.pm-melding')).toHaveText('De lijst met verkopers kon niet geladen worden');
+    await expect(menu(page).locator('.pm-groep-titel')).toHaveText(['Techniek']);
+    stuk = false;
+    await page.locator('#person-btn').click(); // sluiten
+    await page.locator('#person-btn').click(); // opnieuw openen: laadt opnieuw
+    await expect(menu(page).locator('.pm-groep-titel')).toHaveText(['Techniek', 'Sales']);
+    await expect(menu(page).locator('.pm-melding')).toHaveCount(0);
+    await expect(menu(page).locator('.pm-item[data-sleutel="u-an"] .pm-item-name')).toHaveText('An Maes');
+    consoleFouten.length = 0; // de 503's zijn hier de bedoelde fout
+  });
+
+  test('↺ ververst de lijsten van de kiezer na een mislukte lading', async ({ page, consoleFouten }) => {
+    let stuk = true;
+    const echt = gebruikersLijst();
+    await startApp(page, { loginRol: 'beheerder', technieker: 'Tim', overschrijf: { gebruikers: (z) => (stuk ? { status: 503, json: { error: 'opslag', code: 'opslag-storing' } } : echt(z)) } });
+    await page.locator('#person-btn').click();
+    await expect(menu(page).locator('.pm-melding')).toBeVisible();
+    await page.locator('#person-btn').click();
+    stuk = false;
+    await page.locator('[data-actie="vernieuw"]').click();
+    await page.locator('#person-btn').click();
+    await expect(menu(page).locator('.pm-groep-titel')).toHaveText(['Techniek', 'Sales']);
+    consoleFouten.length = 0;
+  });
+});
+
 test.describe('kop B: namen komen enkel als tekst in het menu', () => {
   test('een Zoho-naam met HTML wordt niet uitgevoerd en staat letterlijk in het menu en in de kop', async ({ page }) => {
     const gevaarlijk = '<img src=x onerror="window.__xss=1">Tim';

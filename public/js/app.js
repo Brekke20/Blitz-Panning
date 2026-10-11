@@ -237,6 +237,7 @@ function opstart() {
       loadTickets();
       // De beheerder in de werkruimte Sales: ook het open sales-scherm opnieuw laden.
       if (huidigeWerkruimte() === 'sales') import('./schermen/sales-schil.js').then(m => m.herlaadActief()).catch(() => {});
+      if (huidigeRechten().beheer) persoonskiezer.laadLijsten({ ververs: true }).catch(() => {}); // ook de lijsten van de kiezer (na een mislukte lading)
     },
     'thema': () => toggleTheme(),
     'instellingen': () => instellingen.openSettings(),
@@ -328,7 +329,7 @@ function opstart() {
     if (document.visibilityState === 'visible') flushOutbox();
   });
   // Initialiseer tab indicator op de actieve tab
-  setTimeout(() => updateTabIndicator('tab-tickets'), 0);
+  setTimeout(() => updateTabIndicator(document.querySelector('.tab.active')?.id || 'tab-tickets'), 0); // onder de actieve (zichtbare) tab, ook in de werkruimte Sales
   window.addEventListener('resize', () => {
     const active = document.querySelector('.tab.active');
     if (active) updateTabIndicator(active.id);

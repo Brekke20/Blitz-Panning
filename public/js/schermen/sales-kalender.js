@@ -59,6 +59,12 @@ function stap(richting) {
 }
 
 // "Vandaag" = de openingsdatum: in het weekend de eerste werkdag van de komende week.
+// De werkuren van de getoonde verkoper (sales-instellingen vanTijd/totTijd) in minuten; onleesbaar = de standaard 08:00-17:00.
+function verkoperWerkuren() {
+  const { vanTijd, totTijd } = salesToestand().instellingen;
+  const naarMin = (t, standaard) => { const m = /^(\d{1,2}):(\d{2})$/.exec(t || ''); return m ? Number(m[1]) * 60 + Number(m[2]) : standaard; };
+  return { start: naarMin(vanTijd, 8 * 60), eind: naarMin(totTijd, 17 * 60) };
+}
 const openingsdag = () => openingsDatum(new Date(), salesToestand().instellingen.werkdagen);
 
 function naarVandaag() {
@@ -238,7 +244,7 @@ function kaartjesDag(items, iso, vandaag) {
         kaart.append(acties);
       }
       maakKlikbaar(kaart, item, `${item.titel}, ${tijdTekst(item)}`);
-      voegBuitenUrenBadgeToe(kaart, uurSleutel(item), '.sales-kal-tijd');
+      voegBuitenUrenBadgeToe(kaart, uurSleutel(item), '.sales-kal-tijd', verkoperWerkuren()); // de werkuren van de getoonde verkoper, niet die van de techniekers
     }
     kaart.dataset.sortkey = uurSleutel(item);
     lijst.push(kaart);

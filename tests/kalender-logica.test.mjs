@@ -290,3 +290,15 @@ test('DST: bepaalLanes rekent in minuten en is dus onafhankelijk van de 25-uur-d
   bepaalLanes(items);
   assert.deepEqual(items.map(i => [i.lane, i.laneCount]), [[0, 2], [1, 2], [0, 1]]);
 });
+
+test('isBuitenWerkuren met een eigen bereik (de werkuren van een verkoper): 08:00-18:00 telt 08:00 en 17:30 als binnen, 18:00 als buiten', async () => {
+  const { isBuitenWerkuren } = await import('../public/js/schermen/kalender-logica.js');
+  const bereik = { start: 8 * 60, eind: 18 * 60 };
+  assert.equal(isBuitenWerkuren('08:00', bereik), false);
+  assert.equal(isBuitenWerkuren('17:30', bereik), false);
+  assert.equal(isBuitenWerkuren('18:00', bereik), true);
+  assert.equal(isBuitenWerkuren('07:59', bereik), true);
+  // zonder bereik blijven de werkuren van de techniekers (08:30-17:00) gelden
+  assert.equal(isBuitenWerkuren('08:00'), true);
+  assert.equal(isBuitenWerkuren('17:30'), true);
+});

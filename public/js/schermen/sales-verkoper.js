@@ -97,8 +97,5 @@ export function kiesVerkoper(id) {
   for (const fn of [...luisteraars]) { try { fn(id); } catch { /* een luisteraar mag de keuze niet breken */ } }
 }
 
-/** Is deze verkoper te wijzigen (rol toegestaan en niet geblokkeerd)? Voor de knop in de kop ("Alleen lezen"). */
-export function isSchrijfbaarVoor(id) { return schrijfbaarVoor(id); }
-
 /** Enkel voor tests en het afmelden: de lijst vergeten. */
 export function vergeetVerkopers() { lijstBelofte = null; verkopers = []; }

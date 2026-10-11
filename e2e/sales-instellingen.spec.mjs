@@ -224,6 +224,18 @@ test.describe('sales: instellingenvenster', () => {
     await expect(knop(page)).toBeVisible();
   });
 
+  test('⚙ laadt de eigen instellingen bij elke opening opnieuw (geen verouderde kopie terugschrijven)', async ({ page, verzoeken }) => {
+    await startSalesApp(page, { leads: [lead('l1', 'Verhaegen')] });
+    await expect(lijst(page).locator('.sales-kaart')).toHaveCount(1);
+    const n0 = verzoeken.van('/api/instellingen', 'GET').length;
+    for (let i = 1; i <= 2; i++) {
+      await knop(page).click();
+      await expect(venster(page).getByLabel('Startadres')).toBeVisible();
+      await venster(page).getByRole('button', { name: 'Annuleren' }).click();
+      expect(verzoeken.van('/api/instellingen', 'GET').length).toBe(n0 + i);
+    }
+  });
+
   test('een sales manager bij de leads van een collega: ⚙ opent zijn EIGEN instellingen; bewaren gaat naar zijn eigen record en de getoonde leads veranderen niet', async ({ page, verzoeken }) => {
     const ik = { ...SALES_GEBRUIKER, magAlleSales: true };
     const bea = ANDERE_VERKOPERS[0];

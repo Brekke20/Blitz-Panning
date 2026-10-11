@@ -22,9 +22,12 @@ export function updateNuMarker(grid, nu = new Date()) {
   if (volgende) body.insertBefore(marker, volgende); else body.appendChild(marker);
 }
 
-/** Voegt de badge "buiten werkuren" toe aan `kaart` (na `ankerSelector`, anders vooraan) als `sortKey` buiten de werkuren valt. */
-export function voegBuitenUrenBadgeToe(kaart, sortKey, ankerSelector) {
-  if (!isBuitenWerkuren(sortKey)) return null;
+/**
+ * Voegt de badge "buiten werkuren" toe aan `kaart` (na `ankerSelector`, anders vooraan) als `sortKey` buiten de werkuren valt.
+ * `bereik` ({ start, eind } in minuten): eigen werkuren (de verkoper); zonder bereik gelden die van de techniekers.
+ */
+export function voegBuitenUrenBadgeToe(kaart, sortKey, ankerSelector, bereik) {
+  if (!isBuitenWerkuren(sortKey, bereik)) return null;
   const badge = document.createElement('span');
   badge.className = 'badge-buitenuren';
   badge.textContent = 'buiten werkuren';
