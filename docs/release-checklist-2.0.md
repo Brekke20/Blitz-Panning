@@ -1,30 +1,41 @@
-# Release-checklist refactor-tak (2.0.0 of 1.11.0)
+# Release-checklist 2.0.0 (refactor-tak)
 
 Voor het moment dat Brent de refactor vrijgeeft (zie "Branchbeleid" in `CLAUDE.md`). Bron: spec etappe 7 (N5) en de ledgers in `.superpowers/sdd/*/progress.md`. Vink af wat gedaan is.
 
+**Stand 2026-10-11 (voorbereiding op de tak `release-2.0.0`, vanaf `refactor` 3336a5f):** versie 2.0.0, `CACHE_NAME` `blitz-planning-v28` en de CHANGELOG-sectie `[2.0.0]` staan klaar; `node --test` (2688 tests) en `npx playwright test --project=sw` zijn groen; de Deploy Preview van `refactor` werkt; Brent heeft de omgevingsvariabelen in Netlify gezet. Niets is gepusht, samengevoegd of getagd. Wat nog live gecontroleerd moet worden, staat open.
+
+## 0. Volgorde op zondag
+
+- [ ] **(a)** Brents proef op de Deploy Preview is klaar.
+- [ ] **(b)** `refactor` (of de releasetak `release-2.0.0`) naar `main` samenvoegen, enkel na Brents uitdrukkelijke "ja". De pre-push-hook blokkeert dit; de opzichter regelt dat (nooit `--no-verify`). Eerst `git fetch` en `origin/main` nakijken op hotfixes (zie 5b).
+- [ ] **(c)** `git tag v2.0.0` op de deploy-commit (de merge-commit op `main`).
+- [ ] **(d)** Na de deploy, in deze volgorde: het eerste beheerdersaccount aanmaken met `BEHEER_SETUP_CODE`; de herstelcodes afdrukken en veilig bewaren; accounts maken voor planners, techniekers en sales (plus `zohoNaam` per technieker, en laat de planner eerst inloggen op het coördinatortoestel, zie 1b); daarna `BEHEER_SETUP_CODE` uit Netlify verwijderen.
+- [ ] **(e)** Live controles (zie ook 1b en 1c): een rapport versturen op het Zoho-testticket #3731 met meteen vergrendeld scherm, en nakijken dat het in Zoho aankomt (inclusief de achtergrondverwerking met `X-Blitz-Intern`); het dashboard als beheerder; een salesimport; het tijdveld op Android.
+
 ## 1. CACHE_NAME-bump en updatepad van de service worker (spec etappe 7, N5)
 
-- [ ] `CACHE_NAME` in `public/sw.js` ophogen (nu `blitz-planning-v27`, naar het eerstvolgende nummer). `EXTERN_CACHE` (`blitz-extern-v1`) NIET ophogen.
-- [ ] De test "N19 (refactor-tak vóór release): CACHE_NAME staat op de live waarde blitz-planning-v27 ..." in `tests/sw-schil.test.mjs` bewust aanpassen aan het nieuwe nummer; daarna `node --test` groen (SHELL-test, N16).
-- [ ] `NAV_TIMEOUT_MS` staat op 4000 (Brent, 2026-10-02: een trage verbinding start na 4 s uit de bewaarde kopie, die één release oud mag zijn). Controleren dat dit nog zo is.
-- [ ] `npx playwright test --project=sw` groen, ook `e2e/sw/update.spec.mjs` na de bump (de oude cachenaam is weg uit `caches.keys()`).
-- [ ] Handmatig in een echte browser met een v27-installatie: één herlading toont de nieuwe versie; `skipWaiting` en `clients.claim` werken.
+- [x] `CACHE_NAME` in `public/sw.js` opgehoogd van `blitz-planning-v27` (live op `main` en `refactor`) naar `blitz-planning-v28`. `EXTERN_CACHE` (`blitz-extern-v1`) NIET ophogen.
+- [x] De test N19 in `tests/sw-schil.test.mjs` is bewust aangepast aan `blitz-planning-v28`; `node --test` groen (SHELL-test, N16).
+- [x] `NAV_TIMEOUT_MS` staat op 4000 (Brent, 2026-10-02: een trage verbinding start na 4 s uit de bewaarde kopie, die één release oud mag zijn). Nagekeken op 2026-10-11.
+- [x] `npx playwright test --project=sw` groen (15 geslaagd), ook `e2e/sw/update.spec.mjs`: die start nu vanaf een bevroren kopie van de live service worker van `main` (v27, `e2e/fixtures/sw-v27-main.js`) en controleert dat de oude cachenaam weg is na de overname.
+- [ ] Handmatig in een echte browser met een v27-installatie (live app): één herlading toont de nieuwe versie; `skipWaiting` en `clients.claim` werken.
 - [ ] Netlify cachet `sw.js` en `sw-strategie.js` niet lang: de standaard `max-age=0, must-revalidate` volstaat; controleren op de live site.
 - [ ] Geen hotfix op `main` die JS wijzigt zonder ook de SHELL-test (`tests/sw-schil.test.mjs`) te draaien.
 - [ ] `EXTERN_CACHE` (`blitz-extern-v1`): heeft `CDN_VAST` in `public/sw.js` sinds deze release een andere bibliotheekversie of -URL gekregen, dan blijven de oude sleutels eeuwig in de externe cache staan (`activeer` bewaart de naam). Verhoog dan `EXTERN_CACHE` (en pas de N19-test aan), of ruim de oude sleutels op in `activeer`. Is `CDN_VAST` ongewijzigd, dan niets doen.
-- [ ] Versienummer in `package.json`, `CHANGELOG.md` (sectie "Refactor-tak — nog niet uitgebracht" hernoemen naar de versie), git-tag.
+- [x] Versienummer 2.0.0 in `package.json`, `package-lock.json` en `public/js/versie.js`; `CHANGELOG.md` heeft de sectie `[2.0.0] — 2026-10-11` (de test `tests/versie.test.mjs` bewaakt de gelijkheid).
+- [ ] Git-tag `v2.0.0` op de deploy-commit (zie 0c).
 
 ## 1b. Logins (logins + beheer, `refactor-logins`)
 
 Handleiding voor Brent: `docs/logins-en-beheer.md`. Ledger: `.superpowers/sdd/2026-10-08-logins-beheer/progress.md`.
 
 **Netlify-instellingen**
-- [ ] `SESSIE_GEHEIM` ingesteld (lange willekeurige tekst, minstens 32 tekens). Dezelfde waarde voedt de interne sleutel van de achtergrondfunctie.
-- [ ] `BEHEER_SETUP_CODE` ingesteld voor het eerste beheerdersaccount; na het aanmaken van de eerste beheerder weer verwijderd.
+- [x] `SESSIE_GEHEIM` ingesteld (lange willekeurige tekst, minstens 32 tekens). Dezelfde waarde voedt de interne sleutel van de achtergrondfunctie.
+- [x] `BEHEER_SETUP_CODE` ingesteld (door Brent) voor het eerste beheerdersaccount; na het aanmaken van de eerste beheerder weer verwijderd.
 - [ ] `BEHEER_HERSTELSLEUTEL` staat er NIET (enkel tijdelijk bij een noodgeval, minstens 32 tekens, daarna weer weg).
 - [ ] `BLITZ_LOKALE_DEV` en `NETLIFY_DEV` zijn NIET gezet in Netlify (anders valt de bescherming van de testrol weg).
 - [ ] Netlify-functietime-outs: `auth-login` (scrypt) heeft ruim genoeg tijd, ook bij een koude start.
-- [ ] `CACHE_NAME` staat op `blitz-planning-v27` (komt van `refactor`, niet door de logins-tak gewijzigd) en wordt bij de release bewust opgehoogd (zie sectie 1).
+- [x] `CACHE_NAME` is bij deze release bewust opgehoogd naar `blitz-planning-v28` (zie sectie 1).
 - [ ] Tweestapsverificatie aangezet op Brents Netlify-login (aanbeveling).
 
 **Live-proeven (één keer, kort)**
@@ -106,7 +117,7 @@ Handleiding voor Brent: `docs/logins-en-beheer.md` (sectie "Sales"). Ledger: `.s
 
 - [ ] **(a) Pre-push-hook.** `.git/hooks/pre-push` blokkeert elke push naar `main` die `ea28f2f` bevat. De release-push heeft dus een bewuste stap nodig die Brent goedkeurt: de hook aanpassen of verwijderen. NOOIT `--no-verify`. In dezelfde stap: de sectie "Branchbeleid" in `CLAUDE.md` bijwerken (refactor is nu de hoofdlijn) en de memory-notitie `feedback_branchbeleid_refactor.md`.
 - [ ] **(b) Hotfixes.** `git fetch`, daarna `origin/main` nakijken op nieuwe commits (hotfixes) en `git merge main` in `refactor` vóór de release. Lokale `main` is een voorouder van `refactor`, maar `origin/main` is nog niet opgehaald. Draai na de merge opnieuw `node --test` en de sw-tests.
-- [ ] **(c) Versiekeuze.** BESLIST (Brent, 2026-10-08): **2.0.0** — de release met de sales-planner is een grote release. (Vroeger: 2.0.0 of 1.11.0 beslist Brent (strikt volgens semver is 1.11.0 verdedigbaar: niets breekt data of verwijdert een functie; "Plan deze week" met "Iedereen" toont nu een melding). Zet `package.json`, geef de CHANGELOG-sectie de versie én een datum, en zet de git-tag op de deploy-commit.
+- [x] **(c) Versiekeuze.** BESLIST (Brent, 2026-10-08): **2.0.0** — de release met de sales-planner is een grote release. (Vroeger: 2.0.0 of 1.11.0 beslist Brent (strikt volgens semver is 1.11.0 verdedigbaar: niets breekt data of verwijdert een functie; "Plan deze week" met "Iedereen" toont nu een melding). Zet `package.json`, geef de CHANGELOG-sectie de versie én een datum, en zet de git-tag op de deploy-commit.
 - [ ] **(d) Netlify-UI.**
   - [ ] Controleer de functietime-outs (`timeout = 26`) van alle functies waar `netlify.toml` er een instelt (`propose`, `send-rapport`, `annuleer`, `mail-check`, enz.), niet enkel `mail-check`. De clientlogica (`SERVER_MAX_MS = 30000`) gaat ervan uit dat ze uiterlijk na 26 s stoppen.
   - [ ] Controleer dat de nieuwe functies `mail-check` en `planning-sinds` in de deploy staan, en dat de `ZOHO_*`-variabelen site-breed zijn.

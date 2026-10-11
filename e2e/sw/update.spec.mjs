@@ -1,15 +1,16 @@
-// Updatepad (etappe 7, N4): een bestaande bezoeker heeft de service worker van main (v25, bevroren kopie in e2e/fixtures/sw-v25-main.js).
+// Updatepad (etappe 7, N4): een bestaande bezoeker heeft de service worker van main (v27, bevroren kopie in e2e/fixtures/sw-v27-main.js).
 // Na het uitrollen van de nieuwe SW neemt die het over, vult de nieuwe schil en de externe cache, ruimt oude caches op en werkt offline.
-// (Na de CACHE_NAME-bump van etappe 9 leest deze test de nieuwe naam uit public/sw.js en de oude cache verdwijnt.)
+// De nieuwe naam (v28) wordt uit public/sw.js gelezen; de oude cache (v27) verdwijnt na de overname.
 import { test, expect, SHELL, CACHE_NAME, EXTERN_CACHE } from '../sw-hulp.mjs';
 
-test('Update van de v25-SW van main naar de nieuwe SW: overname, nieuwe schil, externe cache, offline', async ({ page, sw }) => {
+test('Update van de v27-SW van main naar de nieuwe SW: overname, nieuwe schil, externe cache, offline', async ({ page, sw }) => {
   // 1. Oude SW (main): enkel de oude schil in de cache, geen externe cache.
   sw.serveerOudeSw();
   await sw.start();
   const voor = await sw.cacheUrls();
-  expect(Object.keys(voor)).toEqual(['blitz-planning-v25']);
-  const hoofdVoor = voor['blitz-planning-v25'].map(u => new URL(u).pathname);
+  expect(Object.keys(voor)).toEqual(['blitz-planning-v27']);
+  const hoofdVoor = voor['blitz-planning-v27'].map(u => new URL(u).pathname);
+  expect(CACHE_NAME, 'de nieuwe SW gebruikt een andere cachenaam dan de live SW van main').not.toBe('blitz-planning-v27');
   expect(hoofdVoor).toContain('/js/outbox.js');
   expect(hoofdVoor, 'de oude SW kent /js/kern/netwerk.js nog niet').not.toContain('/js/kern/netwerk.js');
   await page.evaluate(() => { window.__controllerwissels = 0; navigator.serviceWorker.addEventListener('controllerchange', () => { window.__controllerwissels++; }); });
