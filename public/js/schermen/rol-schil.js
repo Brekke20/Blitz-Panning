@@ -10,7 +10,8 @@ import { laadSessie, huidigeGebruiker, huidigeRechten, registreerAfmeldHaak, laa
 import { claimToestel, geefToestelVrij } from '../kern/eigenaar.js';
 import { synchroniseerInstellingen, wisInstellingenCache, resterendSyncBudget } from '../kern/instellingen-sync.js';
 import { toast } from '../kern/ui.js';
-import { registreerSalesRol } from './sales-registratie.js';
+import { registreerSalesRol, BEHEERDER_SALES } from './sales-registratie.js';
+import { leesWerkruimte } from './werkruimte-logica.js';
 
 // De zes bestaande tabs van index.html (de knoppen `tab-<id>`): setTab laadt de inhoud zelf, dus er valt hier niets te laden.
 const nietsTeLaden = async () => {};
@@ -24,7 +25,7 @@ const COORDINATOR_TABS = [
 // (beheerder: alles; planner en sales manager: enkel Instellingen en Performance); de server beslist wat echt mag.
 const BEHEER_TAB = { id: 'beheer', label: 'Beheer', laad: () => import('./beheer.js').then(m => m.openBeheer(document.getElementById('view-beheer'))) };
 registreerTabs('planner', [...COORDINATOR_TABS, BEHEER_TAB]);
-registreerTabs('beheerder', [...COORDINATOR_TABS, BEHEER_TAB]);
+registreerTabs('beheerder', [...COORDINATOR_TABS, BEHEER_TAB]); // de sales-tabs van de beheerder staan onder BEHEERDER_SALES (werkruimte Sales, sales-registratie.js)
 // Een sales manager (sales + "Sales manager"-vinkje, magAlleSales) krijgt de tab Beheer bovenop zijn vier sales-tabs.
 registreerTabs('sales-manager', [BEHEER_TAB]);
 // Technieker: zijn eigen rapporten (de server filtert) en collega's enkel lezen; geen wachtrij en geen route.
@@ -73,18 +74,39 @@ function zetTabZichtbaar(knop, zichtbaar) {
   knop.tabIndex = zichtbaar && knop.classList.contains('active') ? 0 : -1;
 }
 
+// De hoofdtabs van de beheerder in de werkruimte Techniek of Sales (kop B): de coördinatortabs of de vier sales-tabs, telkens met Beheer als laatste.
+function beheerderTabs(werkruimte) {
+  const beheer = tabsVoorRol('beheerder').filter(t => t.id === 'beheer');
+  return werkruimte === 'sales' ? [...tabsVoorRol(BEHEERDER_SALES), ...beheer] : tabsVoorRol('beheerder');
+}
+
+// Toont de tabs van de werkruimte en verbergt de rest; de zichtbare tabs staan in de volgorde van de werkruimte.
+function zetZichtbareTabs(zichtbaar, alle, { orden = false } = {}) {
+  for (const t of alle) if (!document.getElementById(`tab-${t.id}`)) maakTab(t);
+  const toegestaan = new Set(zichtbaar.map(t => t.id));
+  for (const knop of document.querySelectorAll('.tabs-inner .tab')) zetTabZichtbaar(knop, toegestaan.has(knop.id.replace(/^tab-/, '')));
+  if (!orden) return; // enkel de beheerder: zijn twee werkruimtes delen één tabbalk
+  const balk = document.querySelector('.tabs-inner');
+  const huidig = [...balk.querySelectorAll('.tab')].filter(k => !k.hidden).map(k => k.id);
+  const gewenst = zichtbaar.map(t => `tab-${t.id}`);
+  if (huidig.join() !== gewenst.join()) for (const id of gewenst) balk.appendChild(document.getElementById(id));
+}
+
 // Past de pagina aan de rol aan: toestelrol, zichtbare tabs, rapporten voor de technieker, eigen persoon, gebruikersmenu.
 export function pasRolToe(gebruiker) {
   const rol = gebruiker?.rol;
   const salesManager = rol === 'sales' && gebruiker?.magAlleSales === true;
-  zetActieveRol(rol, salesManager ? ['sales-manager'] : []);
+  const beheerder = rol === 'beheerder';
+  zetActieveRol(rol, salesManager ? ['sales-manager'] : (beheerder ? [BEHEERDER_SALES] : []));
   const planEigen = huidigeRechten().planEigen === true;
   window.zetLoginRol?.(rol, { planEigen }); // technieker en sales forceren het toestel-rolgedrag (apparaat.js)
 
-  const tabs = [...tabsVoorRol(rol), ...(planEigen ? tabsVoorRol('technieker-plan-eigen') : []), ...(salesManager ? tabsVoorRol('sales-manager') : [])];
-  const toegestaan = new Set(tabs.map(t => t.id));
-  for (const t of tabs) if (!document.getElementById(`tab-${t.id}`)) maakTab(t);
-  for (const knop of document.querySelectorAll('.tabs-inner .tab')) zetTabZichtbaar(knop, toegestaan.has(knop.id.replace(/^tab-/, '')));
+  const tabs = beheerder
+    ? beheerderTabs(leesWerkruimte(globalThis.localStorage))
+    : [...tabsVoorRol(rol), ...(planEigen ? tabsVoorRol('technieker-plan-eigen') : []), ...(salesManager ? tabsVoorRol('sales-manager') : [])];
+  // De beheerder heeft de tabs van beide werkruimtes in de pagina (verborgen of getoond); de views van de sales-schermen bestaan dan altijd.
+  zetZichtbareTabs(tabs, beheerder ? [...beheerderTabs('techniek'), ...beheerderTabs('sales')] : tabs, { orden: beheerder });
+  if (beheerder) { try { globalThis.sessionStorage?.removeItem('blitz_sales_subtab'); } catch { /* geen opslag */ } } // de subtabs van de vroegere tab Sales bestaan niet meer
 
   // Een technieker ziet Rapporten (enkel zijn eigen: de server filtert) op elk toestel; de rest van .coord-only blijft verborgen.
   document.getElementById('tab-rapporten')?.classList.toggle('coord-only', rol !== 'technieker');
@@ -134,4 +156,10 @@ export async function startNaInlog(opstart) {
   // Een rol met een eigen start (sales) houdt de schil verborgen tot die start de tabs, de kop en de eerste tab gezet heeft; de gewone opstart
   // toont de schil meteen (de tabs staan dan al op de rol).
   if (start) { try { await start(); } finally { geefSchilVrij(); } } else { geefSchilVrij(); opstart(); }
+}
+
+// De beheerder wisselde van werkruimte (persoonskiezer): de tabs van de nieuwe werkruimte tonen. De oproeper activeert daarna een tab.
+export function pasWerkruimteToe(gebruiker) {
+  if (gebruiker?.rol !== 'beheerder') return;
+  zetZichtbareTabs(beheerderTabs(leesWerkruimte(globalThis.localStorage)), [...beheerderTabs('techniek'), ...beheerderTabs('sales')], { orden: true });
 }

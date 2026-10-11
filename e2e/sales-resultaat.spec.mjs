@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.mjs';
-import { startSalesApp, salesStubs, verwachtFout, SALES_GEBRUIKER } from './sales-hulp.mjs';
+import { startSalesApp, salesStubs, verwachtFout, SALES_GEBRUIKER, kiesVerkoper } from './sales-hulp.mjs';
 
 // Resultaat van een bezoek en het scherm Afgewerkt (Task 15). De stubs zijn de echte server-handlers (VASTE_NU = ma 5 okt 2026).
 // Het venster Resultaat wordt in Task 16 vanuit de kalender geopend; hier openen we het rechtstreeks via de module (zelfde module-instantie).
@@ -176,7 +176,7 @@ test.describe('sales: resultaat ingeven', () => {
   test('alleen-lezen weergave (verkoper met "alle sales" bekijkt een collega): geen venster', async ({ page, verzoeken }) => {
     const ik = { ...SALES_GEBRUIKER, magAlleSales: true };
     await startSalesApp(page, { gebruiker: ik, blobs: { 'sales/u-bea': { versie: 1, leads: [bevestigd('l1', 'Verhaegen')], blokken: [], grafstenen: [] } } });
-    await lijst(page).locator('.sales-verkoper-keuze').selectOption('u-bea');
+    await kiesVerkoper(page, 'u-bea');
     await expect(lijst(page).locator('.sales-kaart', { hasText: 'Verhaegen' })).toBeVisible();
     expect(await openResultaat(page, 'l1')).toBeNull();
     await expect(venster(page)).toHaveCount(0);

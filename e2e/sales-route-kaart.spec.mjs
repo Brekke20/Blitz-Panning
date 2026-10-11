@@ -1,5 +1,5 @@
 import { test, expect, standaardStub } from './helpers.mjs';
-import { startSalesApp, verwachtFout, BEHEERDER, SALES_GEBRUIKER } from './sales-hulp.mjs';
+import { startSalesApp, verwachtFout, BEHEERDER, SALES_GEBRUIKER, kiesVerkoper } from './sales-hulp.mjs';
 
 // De route van de verkoper met dezelfde kaart als de technieker (Brent, proefperiode): de TomTom-lijn in de routekleur met de drukte-kleuring
 // (per wegvak voor een toekomstige dag), wegenwerken, wegafsluiting met waarschuwing en de legende. Gemeten tegen de route-kaart-spec van de technieker
@@ -256,9 +256,7 @@ test.describe('sales: kaart met drukte in het scherm van de beheerder', () => {
       overschrijf: { route: routeMetDrukkeRitten },
     });
     await page.goto('/');
-    await expect(tab(page, 'Sales')).toBeVisible();
-    await tab(page, 'Sales').click();
-    await page.locator('#sales-subtab-sales-route').click();
+    await tab(page, 'Route').click();
     await route(page).getByLabel('Kies een dag').fill('2026-10-06'); // volgende dag (via het datumveld)
     await expect(rijen(page)).toHaveCount(2);
     await expect.poll(async () => metStroke(await meetKaart(page), ZWAAR)).toBe(2);
@@ -342,10 +340,8 @@ test.describe('sales: kaartvarianten (zoals de technieker)', () => {
 
   test('de beheerder bekijkt een verkoper: diens bewaarde variant staat aan; een andere kiezen bewaart NIETS (geen PUT); een andere verkoper toont diens eigen variant', async ({ page, verzoeken }) => {
     await bouwMetCollegas(page, { gebruiker: BEHEERDER, instellingenPerGebruiker: { 'u-bea': { ...INSTELLING, kaartStijl: 'donker' }, 'u-carl': { ...INSTELLING, kaartStijl: 'satelliet' } } });
-    await expect(tab(page, 'Sales')).toBeVisible();
-    await tab(page, 'Sales').click();
-    await page.locator('#sales-subtab-sales-route').click();
-    await route(page).getByLabel('Verkoper').selectOption('u-bea');
+    await tab(page, 'Route').click();
+    await kiesVerkoper(page, 'u-bea');
     await route(page).getByLabel('Kies een dag').fill('2026-10-06');
     await expect(rijen(page)).toHaveCount(2);
     await expect.poll(() => actieveKaart(page)).toEqual(['Donker']);
@@ -355,11 +351,11 @@ test.describe('sales: kaartvarianten (zoals de technieker)', () => {
     expect(await actieveKaart(page)).toEqual(['Licht']);
     expect(instellingenPuts(verzoeken)).toEqual([]);
 
-    await route(page).getByLabel('Verkoper').selectOption('u-carl');
+    await kiesVerkoper(page, 'u-carl');
     await expect(route(page).locator('.sales-route-lijst')).toContainText('Carlklant');
     await expect.poll(() => actieveKaart(page)).toEqual(['Satelliet']); // Carls eigen bewaarde variant, niet de weergavekeuze van Bea
     expect(instellingenPuts(verzoeken)).toEqual([]);
-    await route(page).getByLabel('Verkoper').selectOption('u-bea');
+    await kiesVerkoper(page, 'u-bea');
     await expect(route(page).locator('.sales-route-lijst')).toContainText('Beaklant');
     await expect.poll(() => actieveKaart(page)).toEqual(['Donker']); // Bea is niet veranderd
     expect(instellingenPuts(verzoeken)).toEqual([]);
@@ -371,14 +367,14 @@ test.describe('sales: kaartvarianten (zoals de technieker)', () => {
     await expect(tab(page, 'Leads')).toBeVisible();
     await tab(page, 'Route').click();
     await route(page).getByLabel('Kies een dag').fill('2026-10-06');
-    await route(page).getByLabel('Verkoper').selectOption('u-bea');
+    await kiesVerkoper(page, 'u-bea');
     await expect(route(page).locator('.sales-route-lijst')).toContainText('Beaklant');
     await expect.poll(() => actieveKaart(page)).toEqual(['Donker']);
     await kaartKeuze(page, 'Satelliet').check();
     await rust(page);
     expect(instellingenPuts(verzoeken)).toEqual([]); // niets bewaard, noch voor Bea noch voor mezelf
 
-    await route(page).getByLabel('Verkoper').selectOption('u-test');
+    await kiesVerkoper(page, 'u-test');
     await expect(route(page).locator('.sales-route-lijst')).toContainText('Test Verhaegen');
     await expect.poll(() => actieveKaart(page)).toEqual(['OpenStreetMap']);
     expect(instellingenPuts(verzoeken)).toEqual([]);

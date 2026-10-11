@@ -1,6 +1,6 @@
 // De persoonskiezer in de kop (wie zijn planning bekijk je) voor beheerder en planner: kiezen werkt op elk toestel, en het
 // gebruikersmenu (account) blijft een aparte knop (proefperiode: "de dropdown met mijn naam doet niets meer").
-import { test, expect, startApp } from './helpers.mjs';
+import { test, expect, startApp, TICKETS_STUB } from './helpers.mjs';
 
 const menu = page => page.locator('#person-menu');
 const kies = (page, naam) => menu(page).getByRole('button', { name: naam });
@@ -168,4 +168,142 @@ test.describe('persoonskiezer als de tickets niet laden', () => {
       consoleFouten.length = 0;
     });
   }
+});
+
+// Kop B, taak 1: één kiezer voor alle rollen (schermen/persoonskiezer.js). De rol achter de naam staat enkel in het menu van de beheerder.
+const GEBRUIKERS = [
+  { id: 'u-b', naam: 'Brent Calaerts', email: 'brent@blitz.be', rol: 'beheerder', zohoNaam: 'Brent Calaerts', actief: true },
+  { id: 'u-j', naam: 'Jens Vermeulen', email: 'jens@blitz.be', rol: 'technieker', zohoNaam: 'Jens Vermeulen', actief: true },
+  { id: 'u-k', naam: 'Kris Dons', email: 'kris@blitz.be', rol: 'planner', zohoNaam: 'Kris Dons', actief: true },
+  { id: 'u-t', naam: 'Tim P.', email: 'tim@blitz.be', rol: 'technieker', zohoNaam: ' tim ', actief: true },
+  { id: 'u-an', naam: 'An Maes', email: 'an@blitz.be', rol: 'sales', salesNaam: 'An Maes', magAlleSales: false, actief: true },
+  { id: 'u-sofie', naam: 'Sofie Maes', email: 'sofie@blitz.be', rol: 'sales', salesNaam: 'Sofie Maes', magAlleSales: true, actief: true },
+  { id: 'u-tom', naam: 'Tom Peeters', email: 'tom@blitz.be', rol: 'sales', salesNaam: 'Tom P.', magAlleSales: false, actief: false },
+];
+// Zoals de server: zonder rol alle gebruikers, met ?rol=sales enkel de verkopers (de beheerder krijgt met geblokkeerd=1 ook de geblokkeerde).
+const gebruikersLijst = (lijst = GEBRUIKERS) => ({ methode, query }) => {
+  if (methode !== 'GET') return { status: 405, json: { error: 'x' } };
+  const alleen = query?.get('rol') === 'sales';
+  const rijen = structuredClone(lijst).filter(g => !alleen || (g.rol === 'sales' && (g.actief || query.get('geblokkeerd') === '1')));
+  return { status: 200, json: { gebruikers: rijen } };
+};
+
+test.describe('kop B: persoonskiezer met de rol achter de naam (beheerder)', () => {
+  test('beheerder: groepen Techniek en Sales met de rol achter elke naam, "(jij)" bij de eigen naam, "geen login" zonder account, geblokkeerd, geen e-mailadres', async ({ page, verzoeken }) => {
+    await startApp(page, { loginRol: 'beheerder', loginGebruiker: { zohoNaam: 'Brent Calaerts' }, technieker: 'Tim', overschrijf: { gebruikers: gebruikersLijst() } });
+    await page.locator('#person-btn').click();
+    await expect(menu(page)).toHaveClass(/open/);
+    await expect(menu(page).locator('.pm-groep-titel')).toHaveText(['Techniek', 'Sales']);
+    // de lijst kwam na het eerste openen binnen
+    await expect(menu(page).locator('.pm-item-name')).toHaveText(['Alle technici', 'Brent Calaerts (jij)', 'Jens Vermeulen', 'Kris Dons', 'Roel', 'Tim', 'An Maes', 'Sofie Maes', 'Tom Peeters']);
+    await expect(menu(page).locator('.pm-item-rol')).toHaveText(['beheerder', 'technieker', 'planner', 'technieker · geen login', 'technieker', 'verkoper', 'sales manager', 'verkoper · geblokkeerd (alleen lezen)']);
+    expect(verzoeken.van('/api/gebruikers', 'GET')).toHaveLength(2); // alle gebruikers (rol en Zoho-naam) en de verkopers (?rol=sales&geblokkeerd=1)
+    const tekst = await menu(page).evaluate(el => el.textContent);
+    expect(tekst).not.toContain('@');
+    // opnieuw openen vraagt de lijst niet opnieuw op
+    await page.locator('#person-btn').click();
+    await page.locator('#person-btn').click();
+    expect(verzoeken.van('/api/gebruikers', 'GET')).toHaveLength(2);
+  });
+
+  test('een account met een Zoho-naam maar zonder ticket is te kiezen en blijft gekozen na een nieuwe lading', async ({ page }) => {
+    await startApp(page, { loginRol: 'beheerder', technieker: 'Tim', overschrijf: { gebruikers: gebruikersLijst() } });
+    await page.locator('#person-btn').click();
+    await kies(page, /Jens Vermeulen technieker/).click();
+    await expect(page.locator('#person-name-hdr')).toHaveText('Jens');
+    await page.locator('[data-actie="vernieuw"]').click();
+    await page.clock.runFor(2000);
+    await expect(page.locator('#person-name-hdr')).toHaveText('Jens');
+    expect(await page.evaluate(() => localStorage.getItem('blitz_active_person'))).toBe('Jens Vermeulen');
+  });
+
+  test('de gebruikerslijst mislukt: de namen uit de tickets zonder rol-labels; kiezen werkt', async ({ page, consoleFouten }) => {
+    await startApp(page, { loginRol: 'beheerder', technieker: 'all', overschrijf: { gebruikers: () => ({ status: 503, json: { error: 'opslag', code: 'opslag-storing' } }) } });
+    await page.locator('#person-btn').click();
+    await expect(menu(page).locator('.pm-item-name')).toHaveText(['Alle technici', 'Roel', 'Tim']);
+    await expect(menu(page).locator('.pm-item-rol')).toHaveCount(0);
+    await expect(menu(page).locator('.pm-melding')).toHaveText('De lijst met verkopers kon niet geladen worden');
+    await kies(page, /Roel/).click();
+    await expect(page.locator('#person-name-hdr')).toHaveText('Roel');
+    consoleFouten.length = 0; // de 503 op /api/gebruikers is hier de bedoelde fout
+  });
+});
+
+test.describe('kop B: namen komen enkel als tekst in het menu', () => {
+  test('een Zoho-naam met HTML wordt niet uitgevoerd en staat letterlijk in het menu en in de kop', async ({ page }) => {
+    const gevaarlijk = '<img src=x onerror="window.__xss=1">Tim';
+    // de eigen Zoho-naam van een planner en een account in de lijst van de beheerder: beide komen als tekst in het menu
+    await startApp(page, { loginRol: 'planner', loginGebruiker: { zohoNaam: gevaarlijk }, technieker: gevaarlijk });
+    await expect(page.locator('#person-name-hdr')).toHaveText('<img');
+    await page.locator('#person-btn').click();
+    await expect(menu(page).locator('.pm-item-name', { hasText: 'onerror' })).toHaveText(gevaarlijk + ' (jij)');
+    await expect(menu(page).locator('img')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+  });
+
+  test('beheerder: een gebruikersnaam of Zoho-naam met HTML in de lijst blijft tekst', async ({ page }) => {
+    const gevaarlijk = '<img src=x onerror="window.__xss=2">';
+    const lijst = [
+      { id: 'u-x', naam: gevaarlijk, email: 'x@blitz.be', rol: 'technieker', zohoNaam: gevaarlijk + 'Jan', actief: true },
+      { id: 'u-y', naam: gevaarlijk + 'Verkoper', email: 'y@blitz.be', rol: 'sales', salesNaam: 'Y', magAlleSales: false, actief: true },
+    ];
+    await startApp(page, { loginRol: 'beheerder', technieker: 'all', overschrijf: { gebruikers: gebruikersLijst(lijst) } });
+    await page.locator('#person-btn').click();
+    await expect(menu(page).locator('.pm-item-name', { hasText: 'onerror' })).toHaveText([gevaarlijk + 'Jan', gevaarlijk + 'Verkoper']);
+    await expect(menu(page).locator('img')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+  });
+});
+
+test.describe('kop B: toetsenbord en gsm', () => {
+  test('Enter opent het menu met de focus op de gekozen persoon, pijltjes verplaatsen de focus, Escape sluit en geeft de focus terug', async ({ page }) => {
+    await startApp(page, { loginRol: 'planner', technieker: 'Roel' });
+    await page.locator('#person-btn').focus();
+    await page.keyboard.press('Enter');
+    await expect(menu(page)).toHaveClass(/open/);
+    await expect(menu(page).locator('.pm-item.active')).toBeFocused(); // Roel
+    await page.keyboard.press('ArrowDown');
+    await expect(kies(page, /Tim/)).toBeFocused();
+    await page.keyboard.press('ArrowDown'); // laatste -> terug naar het begin
+    await expect(kies(page, /Alle technici/)).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(kies(page, /Tim/)).toBeFocused();
+    await page.keyboard.press('Home');
+    await expect(kies(page, /Alle technici/)).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(kies(page, /Tim/)).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#person-name-hdr')).toHaveText('Tim');
+    await expect(menu(page)).not.toHaveClass(/open/);
+    await page.locator('#person-btn').focus();
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Escape');
+    await expect(menu(page)).not.toHaveClass(/open/);
+    await expect(page.locator('#person-btn')).toBeFocused();
+  });
+
+  test('gsm 375 px (beheerder): het menu past in het scherm, scrolt bij een lange lijst en heeft aanraakmaten', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 375, height: 600 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'nl-BE', timezoneId: 'Europe/Brussels', serviceWorkers: 'block' });
+    const page = await context.newPage();
+    try {
+      const veel = Array.from({ length: 14 }, (_, i) => ({ id: 'u' + i, naam: 'Technieker ' + String.fromCharCode(65 + i), email: 'x' + i + '@blitz.be', rol: 'technieker', zohoNaam: 'Technieker ' + String.fromCharCode(65 + i), actief: true }));
+      await startApp(page, { loginRol: 'beheerder', technieker: 'Tim', overschrijf: { gebruikers: gebruikersLijst(veel) } });
+      await page.locator('#person-btn').click();
+      await expect(menu(page).locator('.pm-item')).toHaveCount(1 + 14 + 2 + 0); // Alle technici + 14 accounts + Roel en Tim uit de tickets (geen verkopers in deze lijst)
+      const m = await page.evaluate(() => {
+        const el = document.getElementById('person-menu');
+        const r = el.getBoundingClientRect();
+        return { rechts: r.right, links: r.left, onder: r.bottom, scherm: window.innerWidth, hoog: window.innerHeight, scrollbaar: el.scrollHeight > el.clientHeight, item: el.querySelector('.pm-item').getBoundingClientRect().height, breed: r.width };
+      });
+      expect(m.rechts).toBeLessThanOrEqual(m.scherm);
+      expect(m.links).toBeGreaterThanOrEqual(0);
+      expect(m.breed).toBeLessThanOrEqual(300);
+      expect(m.onder).toBeLessThanOrEqual(m.hoog);
+      expect(m.scrollbaar).toBe(true);
+      expect(m.item).toBeGreaterThanOrEqual(44);
+      // op een gsm staat de rol onder de naam, niet ernaast
+      await expect(menu(page).locator('.pm-item-rol').first()).toBeHidden();
+      await expect(menu(page).locator('.pm-sub-rol').first()).toBeVisible();
+    } finally { await context.close(); }
+  });
 });

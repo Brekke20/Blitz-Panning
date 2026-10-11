@@ -65,13 +65,17 @@
     .person-icoon { font-size: 0.9rem; line-height: 1; flex-shrink: 0; }
     .person-voor { color: var(--muted); font-weight: 400; flex-shrink: 0; }
     .person-chevron { color: var(--muted); font-size: var(--fs-2xs); }
+    /* Sales-werkruimte (beheerder en sales manager): groene rand en achtergrond, en "Alleen lezen" in de knop zelf. */
+    .person-btn[data-werkruimte="sales"] { border-color: var(--accent); background: var(--accent-dim); }
+    .person-lezen { font-size: var(--fs-2xs); font-weight: 600; padding: 1px 6px; border-radius: var(--r-pill); background: var(--surface3); color: var(--muted); flex-shrink: 0; }
     .person-menu {
       position: absolute; top: calc(100% + 8px); right: 0;
       background: var(--surface2); border: 1px solid var(--border);
       border-radius: var(--r-lg);
       box-shadow: 0 12px 32px rgba(0,0,0,0.5);
-      min-width: 200px; z-index: 200;
-      display: none; overflow: hidden;
+      width: max-content; min-width: 220px; max-width: min(340px, calc(100vw - 16px)); z-index: 200;
+      max-height: calc(100dvh - 80px); overflow-y: auto; overscroll-behavior: contain;
+      display: none;
     }
     .person-menu.open { display: block; animation: slideUp 0.18s var(--ease-spring); }
     .pm-item {
@@ -95,6 +99,18 @@
     .pm-item-info { display: flex; flex-direction: column; gap: 1px; }
     .pm-item-name { font-weight: 500; }
     .pm-item-sub  { font-size: var(--fs-2xs); color: var(--muted); }
+    .pm-item-info { flex: 1; min-width: 0; }
+    .pm-item-name { overflow-wrap: anywhere; }
+    /* Beheerder: de rol staat als klein grijs label rechts van de naam; op een gsm onder de naam (daar is naast de naam geen plaats). */
+    .pm-item-rol { font-size: var(--fs-2xs); color: var(--muted); margin-left: auto; text-align: right; flex-shrink: 0; white-space: nowrap; padding-left: 12px; }
+    .pm-sub-rol { display: none; }
+    .pm-groep-titel { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 10px 14px 4px; border-top: 1px solid var(--border); background: var(--surface2); }
+    .person-menu > .pm-groep-titel:first-child { border-top: none; }
+    .pm-groep-titel + .pm-item { border-top: none; }
+    .pm-terug { color: var(--accent-ink); font-weight: 600; }
+    .pm-melding { font-size: var(--fs-xs); color: var(--muted); padding: 8px 14px 10px; border-top: 1px solid var(--border); }
+    .pm-item:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+    html[data-aanraak="ja"] .pm-item { min-height: 44px; }
 
     /* ── Tabs ── */
     /* .tabs zit nu binnen .topbar-sticky (zie hierboven) i.p.v. zelf te stickyen -- position:
@@ -417,6 +433,13 @@
     html[data-indeling="smal"] .logo { flex: 1 1 0; min-width: 0; }
     html[data-indeling="smal"] .person-btn { max-width: 108px; padding: 5px 6px; gap: 4px; }
     html[data-indeling="smal"] .person-voor { display: none; } /* op een gsm enkel het icoon en de naam */
+    html[data-indeling="smal"] .person-lezen { font-size: 0; padding: 0; background: none; } /* "Alleen lezen" past niet in de gsm-knop: enkel een slotje */
+    html[data-indeling="smal"] .person-lezen::before { content: "🔒"; font-size: var(--fs-2xs); }
+    html[data-indeling="smal"] .pm-item-rol { display: none; }
+    html[data-indeling="smal"] .pm-sub-rol { display: block; }
+    /* Het menu hangt aan de kop (niet aan de knop): zo blijft het binnen het scherm, hoe breed de lijst ook is. */
+    html[data-indeling="smal"] .person-sel { position: static; }
+    html[data-indeling="smal"] .person-menu { top: 58px; right: 8px; width: min(300px, calc(100vw - 16px)); max-width: none; }
     html[data-indeling="smal"] #person-name-hdr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     html[data-indeling="smal"] .hbtn { min-width: 40px; width: 40px; }
     html[data-indeling="smal"][data-aanraak="ja"] .hbtn { min-width: 44px; width: 44px; }

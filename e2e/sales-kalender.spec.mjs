@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.mjs';
-import { startSalesApp, BEHEERDER, SALES_GEBRUIKER } from './sales-hulp.mjs';
+import { startSalesApp, BEHEERDER, SALES_GEBRUIKER, kiesVerkoper } from './sales-hulp.mjs';
 
 // De agenda van de verkoper (Task 16): week en maand, tinten, blokken en de acties op een bezoek.
 // Klok: maandag 5 okt 2026 09:00. Alle namen en nummers zijn verzonnen; de stubs zijn de echte server-handlers (testmodus).
@@ -271,7 +271,7 @@ test.describe('sales: kalender — gsm en alleen-lezen', () => {
     const gebruiker = { ...SALES_GEBRUIKER, magAlleSales: true };
     await startSalesApp(page, { gebruiker, blobs: { 'sales/u-bea': { versie: 1, leads: [voorgesteld('b1', 'Beaklant', '2026-10-06', '09:00', { gsm: '32470112233' })], blokken: [KANTOOR], grafstenen: [] } } });
     await tab(page, 'Kalender').click();
-    await kal(page).getByLabel('Verkoper').selectOption('u-bea');
+    await kiesVerkoper(page, 'u-bea');
     await expect(dag(page, '2026-10-06').locator('.tl-block.sales-voorgesteld')).toContainText('Test Beaklant');
     await expect(kal(page).getByRole('button', { name: '➕ Blok', exact: true })).toHaveCount(0);
     await expect(kal(page).getByRole('button', { name: /Plan deze week/ })).toHaveCount(0);
@@ -284,11 +284,10 @@ test.describe('sales: kalender — gsm en alleen-lezen', () => {
     await expect(venster(page).getByRole('button', { name: 'Verwijderen' })).toHaveCount(0);
   });
 
-  test('de beheerder ziet de kalender in het subtab Kalender van de tab Sales', async ({ page }) => {
+  test('de beheerder ziet de kalender in de werkruimte Sales', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER, leads: [], blobs: { 'sales/u-bea': { versie: 1, leads: [bevestigd('b1', 'Beaklant', '2026-10-06', '09:00')], blokken: [], grafstenen: [] } } });
-    await tab(page, 'Sales').click();
-    await page.locator('#sales-subtab-sales-kalender').click();
-    await expect(kal(page).getByLabel('Verkoper')).toBeVisible();
+    await tab(page, 'Kalender').click();
+    await expect(page.locator('#person-btn')).toBeVisible();
     await expect(dag(page, '2026-10-06').locator('.sales-bevestigd')).toContainText('Test Beaklant');
     await expect(kal(page).getByRole('button', { name: '➕ Blok', exact: true })).toBeVisible(); // de beheerder schrijft ook
   });

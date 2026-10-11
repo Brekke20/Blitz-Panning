@@ -70,3 +70,17 @@ test('claimToestel met een andere eigenaar wist ook de gekozen verkoper van de s
   assert.equal(claimToestel(ls2, maakOpslag(), 'sam'), false);
   assert.equal(ls2.getItem('blitz_sales_verkoper'), 'u-sal');
 });
+
+test('de werkruimte van de beheerder (kop B) wordt gewist bij een andere gebruiker en bij het afmelden, en blijft bij dezelfde eigenaar', () => {
+  assert.ok(PERSOONLIJKE_SLEUTELS.includes('blitz_werkruimte'));
+  const ls = maakOpslag({ [EIGENAAR_SLEUTEL]: 'sam', blitz_werkruimte: 'sales' });
+  assert.equal(claimToestel(ls, maakOpslag(), 'bea'), true);
+  assert.equal(ls.getItem('blitz_werkruimte'), null);
+  const zelfde = maakOpslag({ [EIGENAAR_SLEUTEL]: 'sam', blitz_werkruimte: 'sales' });
+  assert.equal(claimToestel(zelfde, maakOpslag(), 'sam'), false);
+  assert.equal(zelfde.getItem('blitz_werkruimte'), 'sales');
+  const uit = maakOpslag({ [EIGENAAR_SLEUTEL]: 'sam', blitz_werkruimte: 'sales', blitz_active_person: 'Tim' });
+  geefToestelVrij(uit, maakOpslag());
+  assert.equal(uit.getItem('blitz_werkruimte'), null);
+  assert.equal(uit.getItem('blitz_active_person'), null);
+});

@@ -1,5 +1,5 @@
 import { test, expect, startApp } from './helpers.mjs';
-import { startSalesApp, SALES_GEBRUIKER } from './sales-hulp.mjs';
+import { startSalesApp, SALES_GEBRUIKER, kiesVerkoper } from './sales-hulp.mjs';
 
 // Kop B, taak 5: kalender- en lijstbalken in dezelfde vorm (technieker en sales) en het gsm-dagoverzicht van de verkoper (Bellen, Navigeer,
 // Resultaat, nu-lijn, afgewerkt, buiten werkuren). Klok: maandag 5 okt 2026 09:00 (Europe/Brussels).
@@ -81,7 +81,7 @@ test.describe('gsm-dagoverzicht van de verkoper (Kalender)', () => {
       const gebruiker = { ...SALES_GEBRUIKER, magAlleSales: true };
       await startSalesApp(page, { gebruiker, blobs: { 'sales/u-bea': { versie: 1, leads: [bevestigd('b1', 'Beaklant', DAG, '10:00', { gsm: '32470112233' })], blokken: [], grafstenen: [] } } });
       await tab(page, 'Kalender').click();
-      await kal(page).getByLabel('Verkoper').selectOption('u-bea');
+      await kiesVerkoper(page, 'u-bea');
       const kaart = dag(page, DAG).locator('.sales-kal-kaart', { hasText: 'Test Beaklant' });
       await expect(kaart.locator('a[href="tel:+32470112233"]')).toBeVisible();
       await expect(kaart.getByRole('button', { name: /Resultaat/ })).toHaveCount(0);

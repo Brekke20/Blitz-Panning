@@ -156,10 +156,11 @@ test.describe('rechten per rol (Rechtentabel): tabs en knoppen', () => {
   const COORD_KNOPPEN = ['d-btn-proposal', 'd-btn-reschedule'];
   const SCHRIJF = ['d-btn-arrival', 'd-btn-fotos', 'd-btn-rapport'];
 
-  test('beheerder: 8 tabs (met Beheer en Sales); alle knoppen in het detail', async ({ page }) => {
+  test('beheerder: 7 tabs in de werkruimte Techniek (met Beheer, de hoofdtab Sales bestaat niet meer); alle knoppen in het detail', async ({ page }) => {
     await startApp(page, { loginRol: 'beheerder' });
-    await expect(zichtbareTabs(page)).toHaveCount(8);
+    await expect(zichtbareTabs(page)).toHaveCount(7);
     await expect(tab(page, 'Beheer')).toBeVisible();
+    await expect(tab(page, 'Sales')).toHaveCount(0);
     await openPlanningDetail(page);
     for (const id of [...SCHRIJF, ...COORD_KNOPPEN, 'd-plan-btn']) await expect(knop(page, id), id).toBeVisible();
   });

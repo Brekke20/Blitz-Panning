@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.mjs';
-import { startSalesApp, SALES_GEBRUIKER } from './sales-hulp.mjs';
+import { startSalesApp, SALES_GEBRUIKER, kiesVerkoper } from './sales-hulp.mjs';
 
 // De werkbalk van de Route-tab van de verkoper: dezelfde als bij de technieker (datum, ⚡ Optimaliseer, Bereken tijden, ✕ Leeg), met de weekstrook eronder.
 // Klok: maandag 5 okt 2026 09:00. De matrix is hier afstandsgebonden (0,01 graad = 7 min) zodat de beste volgorde duidelijk is. Alle namen zijn verzonnen.
@@ -171,7 +171,7 @@ test.describe('sales: werkbalk van de Route-tab', () => {
     });
     await naarRoute(page);
     await expect(optimaliseer(page)).toBeVisible(); // de eigen agenda: wel (ook zonder bezoeken staat de werkbalk er)
-    await route(page).getByLabel('Verkoper').selectOption('u-bea');
+    await kiesVerkoper(page, 'u-bea');
     await expect(rijen(page)).toHaveCount(4);
     await expect(optimaliseer(page)).toBeHidden();
     await expect(leeg(page)).toBeHidden();

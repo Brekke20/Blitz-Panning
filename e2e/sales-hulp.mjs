@@ -90,18 +90,30 @@ export function authIkVoor(gebruiker) {
 
 /**
  * Start de app als sales-gebruiker (of als beheerder met `gebruiker: BEHEERDER`) tegen de echte sales-handlers en wacht op de eerste sales-tab.
- * Geeft de backend terug ({ stubs, echt, test }) voor tests die de opgeslagen blobs willen nalezen.
+ * Een beheerder start (kop B) in de werkruimte Sales (blitz_werkruimte = sales vooraf bewaard, tenzij `werkruimte: 'techniek'`): de tab "Sales" bestaat
+ * niet meer, de verkoper kies je in de persoonskiezer (`kiesVerkoper`). Geeft de backend terug ({ stubs, echt, test }) voor tests die de blobs willen nalezen.
  */
-export async function startSalesApp(page, { gebruiker = SALES_GEBRUIKER, overschrijf = {}, leads, blokken, instellingen, verkopers, blobs, ...rest } = {}) {
+export async function startSalesApp(page, { gebruiker = SALES_GEBRUIKER, overschrijf = {}, leads, blokken, instellingen, verkopers, blobs, werkruimte = 'sales', ...rest } = {}) {
   const backend = maakSalesBackend({ gebruiker, leads, blokken, instellingen, verkopers, blobs });
+  if (gebruiker.rol === 'beheerder' && werkruimte === 'sales') {
+    await page.addInitScript(() => { if (window === window.top && localStorage.getItem('blitz_werkruimte') === null) localStorage.setItem('blitz_werkruimte', 'sales'); });
+  }
   await startApp(page, {
     loginRol: gebruiker.rol,
     overschrijf: { 'auth-ik': authIkVoor(gebruiker), ...backend.stubs, ...overschrijf },
+    wachtOpApp: gebruiker.rol === 'beheerder' && werkruimte === 'techniek' ? undefined : false,
     ...rest,
   });
-  const eersteTab = gebruiker.rol === 'beheerder' ? 'Sales' : 'Leads';
-  await expect(page.getByRole('tab', { name: eersteTab, exact: true })).toBeVisible();
+  const eersteTab = gebruiker.rol === 'beheerder' && werkruimte === 'techniek' ? /^Wachtrij/ : 'Leads'; // de tab Wachtrij heeft een teller
+  await expect(page.getByRole('tab', typeof eersteTab === 'string' ? { name: eersteTab, exact: true } : { name: eersteTab })).toBeVisible();
   return backend;
+}
+
+/** Kiest een verkoper in de persoonskiezer van de kop (beheerder en sales manager): opent het menu en klikt de verkoper met dit id. */
+export async function kiesVerkoper(page, id) {
+  const menu = page.locator('#person-menu');
+  if (!(await menu.evaluate(el => el.classList.contains('open')))) await page.locator('#person-btn').click();
+  await menu.locator(`.pm-item[data-sleutel="${id}"]`).click();
 }
 
 // Een bewust uitgelokte HTTP-fout (503/403/409) staat in de vangnetlijst als "HTTP n: url" en als "Failed to load resource": haal beide weg.

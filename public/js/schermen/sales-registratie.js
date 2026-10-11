@@ -14,13 +14,11 @@ export const SALES_TABS = [
 ];
 
 // Sales: de vier tabs en een eigen start (de gewone opstart roept ~15 endpoints aan die voor sales 403 geven).
-// Beheerder: ÉÉN extra tab "Sales" (de beheerder heeft al zeven tabs); daarbinnen een eigen subtabbalk met dezelfde vier schermen en de
-// verkoperkeuze (sales-beheer.js). De subtabs bestaan enkel binnen die view, dus de tabnamen Kalender/Route blijven eenduidig.
+// Beheerder (kop B): de tab "Sales" is weg. De vier tabs staan onder een eigen sleutel ('beheerder-sales') en rol-schil.js toont ze in de
+// werkruimte Sales: de beheerder kiest in de persoonskiezer een verkoper, en dan wisselen de hoofdtabs (Leads, Kalender, Route, Afgewerkt, Beheer).
+export const BEHEERDER_SALES = 'beheerder-sales';
 export function registreerSalesRol({ registreerTabs, registreerStart }) {
   registreerTabs('sales', SALES_TABS);
-  registreerTabs('beheerder', [{
-    id: 'sales', label: 'Sales',
-    laad: () => import('./sales-beheer.js').then(m => m.openSalesBeheer(document.getElementById('view-sales'), SALES_TABS)),
-  }]);
+  registreerTabs(BEHEERDER_SALES, SALES_TABS);
   registreerStart('sales', () => import('./sales-start.js').then(m => m.start()));
 }
