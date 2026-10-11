@@ -50,3 +50,18 @@ export function valideerNieuweBlokkering({ kind, meerdaags, datum, datumTot, van
   }
   return { ok: true };
 }
+
+// De keuzelijst "Voor wie" in Beheer → Beschikbaarheden. `gebruikers` = de lijst van GET /api/gebruikers (id/naam/rol/zohoNaam/actief)
+// of null/geen array als die niet geladen kon worden. Geladen: enkel actieve accounts met een Zoho-naam, op die Zoho-naam (de waarde die in de
+// afwezigheden als `person` bewaard wordt). Niet geladen: terugval op het oude gedrag (assignees van tickets + personen uit bestaande afwezigheden).
+// `ticketLijsten` = lijsten tickets (allTickets/allGepland/allPending), `exceptions` = avExceptions.
+export function bouwPersonenlijst({ gebruikers, ticketLijsten = [], exceptions = [] } = {}) {
+  const uniek = (namen) => [...new Set(namen.map(n => (typeof n === 'string' ? n.trim() : '')).filter(Boolean))].sort();
+  if (Array.isArray(gebruikers)) {
+    return uniek(gebruikers.filter(g => g && g.actief === true).map(g => g.zohoNaam));
+  }
+  return uniek([
+    ...ticketLijsten.flatMap(lijst => (Array.isArray(lijst) ? lijst : []).map(t => t?.assignee)),
+    ...(Array.isArray(exceptions) ? exceptions : []).map(e => e?.person),
+  ]);
+}

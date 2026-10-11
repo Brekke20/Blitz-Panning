@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Brussels';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nextWorkday, groupExceptionsForDisplay, valideerNieuweBlokkering } from '../public/js/schermen/beschikbaarheid-logica.js';
+import { nextWorkday, groupExceptionsForDisplay, valideerNieuweBlokkering, bouwPersonenlijst } from '../public/js/schermen/beschikbaarheid-logica.js';
 
 const MA_VR = [1, 2, 3, 4, 5];
 
@@ -144,4 +144,36 @@ test('valideerNieuweBlokkering: lege datum bij een tijdvak wordt ook geweigerd',
 
 test('valideerNieuweBlokkering: meerdaags uitgevinkt met lege datumTot is geldig', () => {
   assert.deepEqual(valideerNieuweBlokkering({ kind: 'fullday', meerdaags: false, datum: '2026-10-13', datumTot: '', van: null, tot: null }), { ok: true });
+});
+
+const ACCOUNTS = [
+  { id: 'a', naam: 'Tim Techniek', rol: 'technieker', zohoNaam: 'Tim', actief: true },
+  { id: 'b', naam: 'Roel Techniek', rol: 'technieker', zohoNaam: ' Roel ', actief: true },
+  { id: 'c', naam: 'Kursat Deniz', rol: 'technieker', zohoNaam: 'Kursat Deniz', actief: false }, // vertrokken (geblokkeerd)
+  { id: 'd', naam: 'Test Beheerder', rol: 'beheerder', actief: true }, // geen Zoho-naam
+  { id: 'e', naam: 'Plan Ner', rol: 'planner', zohoNaam: 'Tim', actief: true }, // dubbele naam telt één keer
+  { id: 'f', naam: 'Leeg', rol: 'technieker', zohoNaam: '  ', actief: true },
+  null,
+];
+const TICKETS = [{ assignee: 'Kursat Deniz' }, { assignee: 'Tim' }, { assignee: null }];
+
+test('bouwPersonenlijst: met gebruikerslijst enkel actieve accounts met een Zoho-naam, op die naam, gesorteerd', () => {
+  assert.deepEqual(bouwPersonenlijst({ gebruikers: ACCOUNTS, ticketLijsten: [TICKETS], exceptions: [{ person: 'Kursat Deniz' }] }), ['Roel', 'Tim']);
+});
+
+test('bouwPersonenlijst: gebruikerslijst geladen maar zonder geschikte accounts geeft een lege lijst (geen terugval)', () => {
+  assert.deepEqual(bouwPersonenlijst({ gebruikers: [{ naam: 'Beheer', rol: 'beheerder', actief: true }], ticketLijsten: [TICKETS] }), []);
+  assert.deepEqual(bouwPersonenlijst({ gebruikers: [], ticketLijsten: [TICKETS] }), []);
+});
+
+test('bouwPersonenlijst: zonder gebruikerslijst (null/geen array) terugval op tickets en afwezigheden', () => {
+  const verwacht = ['Kursat Deniz', 'Roel', 'Tim'];
+  const exceptions = [{ person: 'Roel' }, { person: null }, { scope: 'global', person: null }];
+  assert.deepEqual(bouwPersonenlijst({ gebruikers: null, ticketLijsten: [TICKETS, [], undefined], exceptions }), verwacht);
+  assert.deepEqual(bouwPersonenlijst({ ticketLijsten: [TICKETS], exceptions }), verwacht);
+  assert.deepEqual(bouwPersonenlijst({ gebruikers: 'kapot', ticketLijsten: [TICKETS], exceptions }), verwacht);
+});
+
+test('bouwPersonenlijst: zonder enige invoer een lege lijst', () => {
+  assert.deepEqual(bouwPersonenlijst(), []);
 });

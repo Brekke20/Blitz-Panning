@@ -1,10 +1,25 @@
-import { test, expect, startApp as startAppBasis, opslagStub } from './helpers.mjs';
+import { test, expect, startApp as startAppBasis, opslagStub, TICKETS_STUB } from './helpers.mjs';
 
 // Beheer opent meteen op Beschikbaarheden (de gekozen subtab blijft staan in de sessie): zo vraagt de test niet ook /api/gebruikers van
 // de tab Instellingen op. Alleen in het hoofdvenster (een sandboxed iframe heeft geen sessionStorage).
-const startApp = async (page, opties) => {
+// De keuzelijst "Voor wie" komt uit /api/gebruikers (actieve accounts met een Zoho-naam): standaard Tim en Roel, plus een vertrokken technieker
+// (geblokkeerd) en een account zonder Zoho-naam die er niet in horen. Een test kan `gebruikers` in `overschrijf` vervangen.
+const GEBRUIKERS = () => [
+  { id: 'u-t1', naam: 'Tim Techniek', rol: 'technieker', zohoNaam: 'Tim', actief: true },
+  { id: 'u-t2', naam: 'Roel Techniek', rol: 'technieker', zohoNaam: 'Roel', actief: true },
+  { id: 'u-t3', naam: 'Kursat Deniz', rol: 'technieker', zohoNaam: 'Kursat Deniz', actief: false },
+  { id: 'u-b1', naam: 'Test Beheerder', rol: 'beheerder', actief: true },
+];
+const gebruikersStub = (lijst = GEBRUIKERS()) => ({ methode }) => (methode === 'GET' ? { status: 200, json: { gebruikers: structuredClone(lijst) } } : { status: 400, json: { error: 'x' } });
+const startApp = async (page, opties = {}) => {
   await page.addInitScript(() => { if (window === window.top) sessionStorage.setItem('blitz_beheer_tab', 'beschikbaarheden'); });
-  return startAppBasis(page, opties);
+  return startAppBasis(page, { ...opties, overschrijf: { gebruikers: gebruikersStub(), ...opties.overschrijf } });
+};
+// Een ticketstand waarop de eerste ticket nog op een vertrokken technieker staat (geen actief account meer).
+const ticketsMetVertrokkene = () => {
+  const t = structuredClone(TICKETS_STUB);
+  t.tickets[0].assignee = 'Kursat Deniz';
+  return () => ({ status: 200, json: t });
 };
 
 // Etappe 5b, taak 1: karakterisering van de blokkeringen (beschikbaarheid) buiten wat al gedekt is.
@@ -63,11 +78,11 @@ test.describe('Beheer: tab Beschikbaarheden', () => {
     await expect(modal.locator('#beheer-beschikbaarheden-inhoud .av-empty')).toHaveText('Geen geplande beschikbaarheids-uitzonderingen.');
     await expect(modal.locator('#bav-date')).toHaveValue('2026-10-05');
     await expect(modal.locator('#bav-filter-person')).toHaveValue('all');
-    // Enkel "Iedereen" (uitgeschakeld) zolang er geen persoon gekozen is.
-    const scope = modal.locator('#beheer-beschikbaarheden-inhoud .av-radio-group').nth(1).getByRole('button');
-    await expect(scope).toHaveCount(1);
-    await expect(scope).toHaveText('👥 Iedereen');
-    await expect(scope).toBeDisabled();
+    // De keuzelijst "Voor wie" is de enige personenkeuze: geen aparte "Voor"-knoppen meer in het formulier.
+    await expect(modal.getByRole('combobox', { name: 'Voor wie' })).toBeVisible();
+    await expect(modal.getByRole('heading', { name: 'Voor wie' })).toBeVisible();
+    await expect(modal.getByRole('heading', { name: 'Voor', exact: true })).toHaveCount(0);
+    await expect(modal.getByRole('button', { name: '👥 Iedereen' })).toHaveCount(0);
     // Meerdere werkdagen: het einddatumveld verschijnt leeg (HUIDIG GEDRAG: geen volgende werkdag als standaard).
     await modal.locator('#bav-multiday').check();
     await expect(modal.locator('#bav-date-tot')).toBeVisible();
@@ -219,8 +234,8 @@ test.describe('Beheer: tab Beschikbaarheden', () => {
       '7 okt 2026 · 🔒 Hele dag — Verlof (Tim)',
       '8 okt 2026 · 🔒 Hele dag — Tandarts (Roel)',
     ]);
-    // De keuzelijst: alle personen, plus wie een ticket of blokkade heeft (Roel, Tim).
-    expect(await modal.locator('#bav-filter-person option').allInnerTexts()).toEqual(['Alle personen', 'Roel', 'Tim']);
+    // De keuzelijst: "Iedereen", plus de actieve accounts met een Zoho-naam (Roel, Tim).
+    expect(await modal.locator('#bav-filter-person option').allInnerTexts()).toEqual(['Iedereen', 'Roel', 'Tim']);
 
     await modal.locator('#bav-filter-person').selectOption('Tim');
     expect(await lijstTekst(modal)).toEqual([
@@ -228,24 +243,23 @@ test.describe('Beheer: tab Beschikbaarheden', () => {
       '7 okt 2026 · 🔒 Hele dag — Verlof (Tim)',
     ]);
     await expect(modal.locator('#bav-filter-person')).toHaveValue('Tim');
-    // Het formulier staat nu op "👤 Tim" (aria-pressed) met "👥 Iedereen" als alternatief.
-    await expect(modal.getByRole('button', { name: '👤 Tim' })).toHaveAttribute('aria-pressed', 'true');
-    await expect(modal.getByRole('button', { name: '👥 Iedereen' })).toHaveAttribute('aria-pressed', 'false');
+    // Geen aparte scope-knoppen: de keuzelijst bepaalt voor wie de afwezigheid geldt.
+    await expect(modal.getByRole('button', { name: '👤 Tim' })).toHaveCount(0);
+    await expect(modal.getByRole('button', { name: '👥 Iedereen' })).toHaveCount(0);
     await modal.locator('#bav-date').fill('2026-10-09');
     await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
     await expect.poll(() => puts(verzoeken).length).toBe(1);
     expect(puts(verzoeken)[0].body.exceptions.at(-1)).toEqual({ id: expect.any(String), scope: 'person', person: 'Tim', date: '2026-10-09', kind: 'fullday', from: null, to: null, reason: '' });
     expect(await lijstTekst(modal)).toContain('9 okt 2026 · 🔒 Hele dag (Tim)');
 
-    // "Iedereen" kiezen: de nieuwe blokkade is algemeen, ook al staat de filter op Tim.
-    await modal.getByRole('button', { name: '👥 Iedereen' }).click();
-    await expect(modal.getByRole('button', { name: '👥 Iedereen' })).toHaveAttribute('aria-pressed', 'true');
+    // "Iedereen" kiezen in de keuzelijst: de nieuwe blokkade is algemeen.
+    await modal.locator('#bav-filter-person').selectOption('all');
     await modal.locator('#bav-date').fill('2026-10-13');
     await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
     await expect.poll(() => puts(verzoeken).length).toBe(2);
     expect(puts(verzoeken)[1].body.exceptions.at(-1)).toMatchObject({ scope: 'global', person: null, date: '2026-10-13' });
 
-    // Een andere persoon: zijn blokkades plus de algemene. Terug naar "Alle personen" zet het formulier op iedereen.
+    // Een andere persoon: zijn blokkades plus de algemene. Bij "Iedereen" staan alle afwezigheden in de lijst.
     await modal.locator('#bav-filter-person').selectOption('Roel');
     expect(await lijstTekst(modal)).toEqual([
       '6 okt 2026 · 🔒 Hele dag — Bedrijfsuitstap (Iedereen)',
@@ -253,7 +267,40 @@ test.describe('Beheer: tab Beschikbaarheden', () => {
       '13 okt 2026 · 🔒 Hele dag (Iedereen)',
     ]);
     await modal.locator('#bav-filter-person').selectOption('all');
-    await expect(modal.getByRole('button', { name: '👥 Iedereen' })).toBeDisabled();
+    expect(await lijstTekst(modal)).toEqual([
+      '6 okt 2026 · 🔒 Hele dag — Bedrijfsuitstap (Iedereen)',
+      '7 okt 2026 · 🔒 Hele dag — Verlof (Tim)',
+      '8 okt 2026 · 🔒 Hele dag — Tandarts (Roel)',
+      '9 okt 2026 · 🔒 Hele dag (Tim)',
+      '13 okt 2026 · 🔒 Hele dag (Iedereen)',
+    ]);
+  });
+
+  test('keuzelijst "Voor wie": enkel actieve accounts met een Zoho-naam; een vertrokken persoon staat er niet in maar zijn afwezigheid blijft verwijderbaar', async ({ page, verzoeken }) => {
+    const seed = [
+      BLOK({ id: 'k1', date: '2026-10-08', reason: 'Oud verlof', scope: 'person', person: 'Kursat Deniz' }),
+      BLOK({ id: 't1', date: '2026-10-07', reason: 'Verlof', scope: 'person', person: 'Tim' }),
+    ];
+    // Kursat Deniz heeft nog een ticket en een afwezigheid, maar geen actief account (geblokkeerd) meer; Tim en Roel wel.
+    await startApp(page, { overschrijf: { ...metSeed(seed), tickets: ticketsMetVertrokkene() } });
+    const modal = await openTab(page);
+    expect(await modal.locator('#bav-filter-person option').allInnerTexts()).toEqual(['Iedereen', 'Roel', 'Tim']);
+    // Zijn afwezigheid staat nog in de lijst van komende afwezigheden, zodat ze verwijderd kan worden.
+    expect(await lijstTekst(modal)).toEqual([
+      '7 okt 2026 · 🔒 Hele dag — Verlof (Tim)',
+      '8 okt 2026 · 🔒 Hele dag — Oud verlof (Kursat Deniz)',
+    ]);
+    await modal.locator('.av-item-del').nth(1).click();
+    await expect.poll(() => puts(verzoeken).length).toBe(1);
+    expect(puts(verzoeken)[0].body.exceptions.map(e => e.id)).toEqual(['t1']);
+  });
+
+  test('keuzelijst "Voor wie": lukt /api/gebruikers niet, dan terugval op de personen uit tickets en afwezigheden', async ({ page, consoleFouten }) => {
+    const seed = [BLOK({ id: 'k1', date: '2026-10-08', reason: 'Oud verlof', scope: 'person', person: 'Kursat Deniz' })];
+    await startApp(page, { overschrijf: { ...metSeed(seed), tickets: ticketsMetVertrokkene(), gebruikers: () => ({ status: 500, json: { error: 'kapot' } }) } });
+    const modal = await openTab(page);
+    await verwachtMeldingen(consoleFouten, ['/api/gebruikers']);
+    expect(await modal.locator('#bav-filter-person option').allInnerTexts()).toEqual(['Iedereen', 'Kursat Deniz', 'Roel', 'Tim']);
   });
 
   test('datumvelden van de tab (data-wijzig): een echte change-gebeurtenis bubbelt tot het private veld en overleeft het hertekenen', async ({ page }) => {
