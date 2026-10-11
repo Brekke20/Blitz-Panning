@@ -693,7 +693,7 @@ test.describe('verbinding: resync is betrouwbaar (fix-ronde 1)', () => {
     expect(await modal.locator('#av-reden').evaluate(el => [el.selectionStart, el.selectionEnd])).toEqual([3, 3]);
   });
 
-  test('beschikbaarheid: de herlading wist een half getypte reden in het tabblad Beschikbaarheden niet en laat de cursor staan', async ({ page, verzoeken }) => {
+  test('beschikbaarheid: de herlading wist een half getypte reden in Beheer → Beschikbaarheden niet en laat de cursor staan', async ({ page, verzoeken }) => {
     verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/availability']);
     verwachtNetwerkFout(verzoeken, [{ pad: '/api/availability', methode: 'PUT' }]);
     verwachtConsoleFout(verzoeken, [{ tekst: /^Beschikbaarheid opslaan mislukt: TypeError\b/ }]);
@@ -704,20 +704,21 @@ test.describe('verbinding: resync is betrouwbaar (fix-ronde 1)', () => {
       return { afbreken: 'failed' };
     };
     const z = zohoStubs();
+    await page.addInitScript(() => { if (window === window.top) sessionStorage.setItem('blitz_beheer_tab', 'beschikbaarheden'); }); // Beheer opent meteen hier (geen /api/gebruikers van de tab Instellingen)
     await startAppProductie(page, { technieker: 'Tim', overschrijf: { ...z.overschrijf, availability } });
     await openKalender(page);
     await pauzeerKlok(page);
-    await page.getByRole('button', { name: 'Instellingen', exact: true }).click();
-    const modal = page.getByRole('dialog', { name: '⚙️ Instellingen' });
-    await modal.getByRole('button', { name: 'Beschikbaarheden', exact: true }).click();
-    await expect(modal.locator('#set-tab-beschikbaarheden')).toBeVisible();
+    await page.getByRole('tab', { name: 'Beheer', exact: true }).click();
+    await page.getByRole('tab', { name: 'Beschikbaarheden', exact: true }).click();
+    const modal = page.locator('#beheer-paneel');
+    await expect(modal.locator('#beheer-beschikbaarheden-inhoud')).toBeVisible();
     await modal.getByLabel('Reden').fill('Verlof');
     await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
     await expect(toastTekst(page)).toContainText('Opslaan is niet gelukt');
     await modal.getByLabel('Reden').fill('Half getypt'); // de gebruiker typt al verder
     await modal.locator('#bav-reden').evaluate(el => el.setSelectionRange(3, 3)); // cursor midden in het woord
     await page.clock.runFor(1);
-    await expect(modal.locator('#set-tab-beschikbaarheden .av-item', { hasText: 'Verlof' })).toBeVisible(); // de herlading is gebeurd
+    await expect(modal.locator('#beheer-beschikbaarheden-inhoud .av-item', { hasText: 'Verlof' })).toBeVisible(); // de herlading is gebeurd
     await expect(modal.getByLabel('Reden')).toHaveValue('Half getypt');
     // B14: de herlading zet de focus en de cursor terug.
     await expect(modal.getByLabel('Reden')).toBeFocused();

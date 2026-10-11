@@ -1,5 +1,5 @@
-// Beheer per rol: de beheerder ziet alle subtabs; de planner en de sales manager (sales + "Sales manager"-vinkje) zien enkel
-// Instellingen en Performance. De planner ziet in Performance enkel het techniekers-deel, de sales manager enkel het sales-deel.
+// Beheer per rol: de beheerder ziet alle subtabs; de planner ziet Instellingen, Beschikbaarheden en Performance; de sales manager
+// (sales + "Sales manager"-vinkje) enkel Instellingen en Performance. De planner ziet in Performance enkel het techniekers-deel, de sales manager enkel het sales-deel.
 // Instellingen en gebruikers draaien tegen de ECHTE server-handlers (e2e/sales-hulp.mjs: een 403 komt van de echte rechtenregels);
 // het dashboard is een stub op basis van e2e/fixtures/dashboard.json, in de vorm die de server per rol teruggeeft
 // (de server-tests in tests/server-dashboard.test.mjs controleren die vorm). Alle gegevens zijn verzonnen.
@@ -52,10 +52,10 @@ async function startPlanner(page, extra = {}) {
 }
 
 test.describe('Beheer: planner', () => {
-  test('ziet Beheer met precies twee subtabs, Instellingen en Performance; de rest is er niet', async ({ page, verzoeken }) => {
+  test('ziet Beheer met precies drie subtabs, Instellingen, Beschikbaarheden en Performance; de rest is er niet', async ({ page, verzoeken }) => {
     await startPlanner(page);
     await openBeheer(page);
-    await expect(subtabs(page)).toHaveText(['Instellingen', 'Performance']);
+    await expect(subtabs(page)).toHaveText(['Instellingen', 'Beschikbaarheden', 'Performance']);
     for (const naam of ['Gebruikers', 'Activiteitenlog', 'Systeemstatus']) await expect(page.getByRole('tab', { name: naam, exact: true })).toHaveCount(0);
     // geen enkel verzoek naar de beheerdersonderdelen
     for (const pad of ['/api/activiteit', '/api/systeemstatus', '/api/zoho-agenten', '/api/client-log']) expect(verzoeken.van(pad), pad).toEqual([]);
@@ -217,7 +217,7 @@ test.describe('Beheer: sales manager', () => {
 });
 
 test.describe('Beheer: beheerder (ongewijzigd)', () => {
-  test('ziet alle vijf de subtabs en in Performance alle vijf de blokken, de tegels en het kleurgrenzen-paneel', async ({ page }) => {
+  test('ziet alle zes de subtabs en in Performance alle vijf de blokken, de tegels en het kleurgrenzen-paneel', async ({ page }) => {
     const backend = maakSalesBackend({ gebruiker: BEHEERDER, verkopers: ANDERE });
     await startApp(page, {
       loginRol: 'beheerder',
@@ -227,7 +227,7 @@ test.describe('Beheer: beheerder (ongewijzigd)', () => {
       },
     });
     await openBeheer(page);
-    await expect(subtabs(page)).toHaveText(['Gebruikers', 'Instellingen', 'Activiteitenlog', 'Systeemstatus', 'Performance']);
+    await expect(subtabs(page)).toHaveText(['Gebruikers', 'Instellingen', 'Beschikbaarheden', 'Activiteitenlog', 'Systeemstatus', 'Performance']);
     await page.getByRole('tab', { name: 'Performance', exact: true }).click();
     await expect(page.locator('.dash')).toBeVisible();
     await expect(page.locator('.tegels > .tegel')).toHaveCount(6);

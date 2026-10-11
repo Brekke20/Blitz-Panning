@@ -1,5 +1,5 @@
 // schermen/beschikbaarheid.js — blokkeringen (beschikbaarheid van technici en uitzonderingen) (etappe 5b): laden, bewaren,
-// het blokkeringsvenster vanuit de kalender en de tab "Beschikbaarheden" in de instellingen.
+// het blokkeringsvenster vanuit de kalender en de tab "Beschikbaarheden" in Beheer.
 // De code is letterlijk uit index.html verhuisd (D12: ook saveAvailability en elke schrijfactie op avExceptions, die naar de
 // backend schrijven met 409 -> server-stand overnemen, zonder retry). Enkel de voorvoegsels zijn nieuw: `afh.` voor het
 // klassieke script, `toestand.get/set/raak` voor avExceptions, settings, tickets en de actieve technieker, en imports.
@@ -149,8 +149,7 @@ async function resyncNaOnzeker() {
   if (toegepast === false) return; // achterhaald antwoord weggegooid: de lokale stand blijft
   // Live lezen na de await: de open formulieren tonen de nieuwe stand.
   if (document.getElementById('block-overlay')?.classList.contains('open')) hertekenMetBehoudVanInvoer(document.getElementById('block-modal-body'), renderBlockModal);
-  const tab = document.getElementById('set-tab-beschikbaarheden');
-  if (tab) hertekenMetBehoudVanInvoer(tab, renderBeschikbaarhedenTab);
+  if (_bavContainer?.isConnected) hertekenMetBehoudVanInvoer(_bavContainer, renderBeschikbaarhedenTab);
 }
 
 // Status: welke knop actief is in het formulier
@@ -412,9 +411,13 @@ async function avRemoveExceptionGroup(ids) {
   }
 }
 
-export function renderBeschikbaarhedenTab() {
-  const body = document.getElementById('set-tab-beschikbaarheden');
-  if (!body) return;
+// De tab staat in Beheer → Beschikbaarheden (beheer-beschikbaarheden.js geeft de container mee). Eigen techniekerkeuze (_bavFilterPerson),
+// los van de persoonskiezer bovenaan. Elke volgende hertekening (acties, resync) gebruikt dezelfde container zolang die in de pagina hangt.
+let _bavContainer = null;
+export function renderBeschikbaarhedenTab(container) {
+  if (container instanceof Element) _bavContainer = container;
+  const body = _bavContainer;
+  if (!body?.isConnected) return;
 
   // Bekende personen: iedereen die al eens een ticket toegewezen kreeg, aangevuld met elke
   // persoon die al in avExceptions voorkomt (dekt ook namen die (nog) geen ticket hebben).

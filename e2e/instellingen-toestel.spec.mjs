@@ -65,7 +65,7 @@ test.describe('instellingen: tab Dit toestel', () => {
     await expect(modal.locator('#set-tab-toestel')).toBeVisible();
     await expect(modal.locator('#set-tab-algemeen')).toBeHidden();
     await expect(modal.locator('#set-subtab-algemeen')).toBeHidden();
-    await expect(modal.locator('#set-subtab-beschikbaarheden')).toBeHidden();
+    await expect(modal.locator('#set-subtab-beschikbaarheden')).toHaveCount(0);
     await expect(modal.getByText('Rol op dit toestel')).toHaveCount(0); // de dode rolkeuze van de technieker is weg (P1-5)
     // Ook een expliciete klik op een andere tab laat de technieker op "Dit toestel" (setSettingsTab forceert het).
     await page.evaluate(() => kern.instellingen.setSettingsTab('algemeen'));
