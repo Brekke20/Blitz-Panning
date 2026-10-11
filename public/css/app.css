@@ -201,11 +201,16 @@
 
     /* ── Ticket cards ── */
     .ticket-list { padding: 12px 14px; max-width: 740px; margin: 0 auto; }
-    .wq-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
-    .wq-zoek { flex: 1 1 220px; min-width: 0; min-height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); color: var(--text); font-family: inherit; font-size: var(--fs-sm); }
-    .wq-sorteer { min-height: 36px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); color: var(--text); font-family: inherit; font-size: var(--fs-sm); }
+    /* Lijstbalk (kop B): één vaste balk onder de tabs voor Wachtrij (technieker) en Leads (sales): links zoeken en sorteren of filteren, rechts de teller
+       of knoppen. Plakt onder de kop van de app, over de volle breedte; de inhoud van de Wachtrij blijft op de breedte van de lijst eronder. */
+    .lijst-balk { position: sticky; top: var(--topbar-h, 0px); z-index: 28; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; padding: 6px 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .wq-toolbar { padding-left: max(14px, calc((100% - 740px) / 2 + 14px)); padding-right: max(14px, calc((100% - 740px) / 2 + 14px)); }
+    .wq-zoek { flex: 1 1 220px; min-width: 0; min-height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface2); color: var(--text); font-family: inherit; font-size: var(--fs-sm); }
+    .wq-sorteer { min-height: 36px; max-width: 100%; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface2); color: var(--text); font-family: inherit; font-size: var(--fs-sm); }
     .wq-zoek:focus-visible, .wq-sorteer:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-    .wq-teller { flex: 1 0 100%; font-size: var(--fs-xs); color: var(--muted); }
+    .wq-teller { margin-left: auto; flex: none; font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
+    html[data-indeling="smal"] .wq-zoek { flex-basis: 120px; }
+    html[data-indeling="smal"] .wq-sorteer { max-width: 132px; }
     html[data-aanraak="ja"] .wq-zoek, html[data-aanraak="ja"] .wq-sorteer { min-height: 44px; font-size: 16px; }
     .ticket {
       position: relative;
@@ -372,6 +377,8 @@
     .btn-autoplan:hover  { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,223,163,0.38); }
     .btn-autoplan:active { transform: translateY(0); box-shadow: 0 1px 3px rgba(0,223,163,0.2); }
     .btn-autoplan:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+    /* Op een gsm "⚡ Plan": de kalenderkop blijft één regel (kop B). De volledige naam blijft de toegankelijke naam en de hulptekst. */
+    html[data-indeling="smal"] .plan-lang { display: none; }
     /* ── View toggle (week / maand) ── */
     .kal-view-toggle { display: flex; flex-shrink: 0; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
     .kal-view-btn { background: transparent; border: none; color: var(--muted); padding: 5px 11px; font-size: 0.75rem; font-weight: 500; cursor: pointer; font-family: inherit; transition: background 0.1s, color 0.1s; }
@@ -386,6 +393,11 @@
     html[data-aanraak="ja"] .kal-view-btn, html[data-aanraak="ja"] .hbtn, html[data-aanraak="ja"] .zu-chip,
     html[data-aanraak="ja"] .kal-week-label { min-height: 44px; }
     html[data-aanraak="ja"] .kal-view-btn { min-width: 56px; padding: 5px 6px; }
+    /* Kalenderkop op een gsm (kop B): ‹ periode › · Week|Maand · ⚡ Plan passen op één regel van 375 px (44 px hoog blijft, de breedte van de knoppen krimpt wat). */
+    html[data-indeling="smal"] .kal-header { padding: 4px 8px; gap: 4px; }
+    html[data-indeling="smal"] .kal-nav-group { min-width: 172px; }
+    html[data-aanraak="ja"][data-indeling="smal"] .kal-nav { min-width: 40px; }
+    html[data-aanraak="ja"][data-indeling="smal"] .kal-view-btn { min-width: 48px; }
     html[data-aanraak="ja"] .kal-nav, html[data-aanraak="ja"] .hbtn, html[data-aanraak="ja"] .mhdr-close,
     html[data-aanraak="ja"] .prijs-hdr-close { min-width: 44px; }
     /* Kleine pictogramknoppen (✕ op foto/chip/onderdeel) blijven visueel klein: geen 44px-hoogte

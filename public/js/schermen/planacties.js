@@ -420,7 +420,7 @@ export async function autoPlan() {
     toast('✕ ' + foutTekst(err), 4000);
   } finally {
     btn.disabled    = false;
-    btn.textContent = '⚡ Plan deze week';
+    btn.innerHTML = '⚡ Plan<span class="plan-lang"> deze week</span>'; // vaste eigen tekst; op een gsm blijft enkel "⚡ Plan" zichtbaar
   }
 }
 

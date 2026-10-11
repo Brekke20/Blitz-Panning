@@ -88,6 +88,7 @@
   <link rel="modulepreload" href="/js/schermen/capaciteit.js">
   <link rel="modulepreload" href="/js/schermen/wachtrij.js">
   <link rel="modulepreload" href="/js/schermen/kalender.js">
+  <link rel="modulepreload" href="/js/schermen/dag-lijst.js">
   <link rel="modulepreload" href="/js/schermen/ingepland.js">
   <link rel="modulepreload" href="/js/schermen/ticketdetail-logica.js">
   <link rel="modulepreload" href="/js/schermen/ticketdetail.js">
@@ -187,17 +188,17 @@
 
 <!-- ══ TICKETS TAB ══ -->
 <div class="view active" id="view-tickets" role="tabpanel" aria-labelledby="tab-tickets">
+  <div class="lijst-balk wq-toolbar">
+    <input type="search" id="wq-zoek" class="wq-zoek" placeholder="Zoek op nummer, klant, adres of onderwerp…" aria-label="Zoek in de wachtrij" autocomplete="off">
+    <select id="wq-sorteer" class="wq-sorteer" aria-label="Sorteren">
+      <option value="standaard">Prioriteit (standaard)</option>
+      <option value="oudst">Oudste eerst</option>
+      <option value="nieuwst">Nieuwste eerst</option>
+      <option value="interventie">Interventiedatum</option>
+    </select>
+    <span id="wq-teller" class="wq-teller" aria-live="polite"></span>
+  </div>
   <div class="ticket-list" id="ticket-list">
-    <div class="wq-toolbar">
-      <input type="search" id="wq-zoek" class="wq-zoek" placeholder="Zoek op nummer, klant, adres of onderwerp…" aria-label="Zoek in de wachtrij" autocomplete="off">
-      <select id="wq-sorteer" class="wq-sorteer" aria-label="Sorteren">
-        <option value="standaard">Prioriteit (standaard)</option>
-        <option value="oudst">Oudste eerst</option>
-        <option value="nieuwst">Nieuwste eerst</option>
-        <option value="interventie">Interventiedatum</option>
-      </select>
-      <span id="wq-teller" class="wq-teller" aria-live="polite"></span>
-    </div>
     <div class="empty" id="empty-tickets">Laden...</div>
   </div>
 </div>
@@ -220,7 +221,7 @@
       <button class="kal-pending-pill coord-only plan-eigen" id="kal-pending-pill" aria-expanded="false" data-actie="kal-pending" style="display:none">
         ⚠ <span class="pill-count" id="kal-pending-count">0</span> zonder datum
       </button>
-      <button class="btn-autoplan coord-only plan-eigen" id="btn-autoplan" data-actie="plan-week">⚡ Plan deze week</button>
+      <button class="btn-autoplan coord-only plan-eigen" id="btn-autoplan" data-actie="plan-week" aria-label="⚡ Plan deze week" title="Plan deze week">⚡ Plan<span class="plan-lang"> deze week</span></button>
       <button class="btn-sec coord-only" data-actie="import-kies" title="Importeer installaties JSON" style="padding:5px 10px;font-size:0.75rem">📥 Import</button>
       <input type="file" id="import-file-input" accept=".json" style="display:none" data-wijzig="import-bestand" />
       <button class="btn-sec coord-only" data-actie="afspraak-nieuw" title="Manuele afspraak toevoegen" style="padding:5px 10px;font-size:0.75rem">➕ Afspraak</button>

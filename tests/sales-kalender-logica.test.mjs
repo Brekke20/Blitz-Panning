@@ -152,3 +152,37 @@ test('eersteWerkdag: een werkdag blijft, een weekenddag schuift naar maandag; ei
   assert.equal(eersteWerkdag('2026-10-10', undefined), '2026-10-12');
   assert.equal(eersteWerkdag('2026-10-10', []), '2026-10-12');
 });
+
+// ---- kop B, taak 5: afgewerkte bezoeken blijven in de dag (gsm-dagoverzicht) ----
+const afgewerkt = (id, datum, op, extra = {}) => lead(id, 'afgewerkt', null, null, {
+  resultaat: { soort: 'offerte', op }, bezoeken: [{ datum, resultaat: 'offerte', op }], ...extra,
+});
+
+test('bouwKalenderItems: afgewerkt telt enkel mee met metAfgewerkt, op de dag van het laatste bezoek, met resultaat en uur van het resultaat', () => {
+  const leads = [
+    lead('v', 'voorgesteld', DAG, '09:00'),
+    afgewerkt('af', DAG, `${DAG}T11:42:00`),
+    afgewerkt('elders', '2026-10-13', '2026-10-13T10:00:00'),
+  ];
+  // standaard (tijdlijn, maand): zoals vroeger, afgewerkt blijft weg
+  assert.deepEqual(bouwKalenderItems({ leads, blokken: [], datum: DAG }).map((i) => i.id), ['v']);
+  const items = bouwKalenderItems({ leads, blokken: [], datum: DAG, metAfgewerkt: true });
+  assert.deepEqual(items.map((i) => i.id), ['v', 'af']);
+  const af = items[1];
+  assert.equal(af.type, 'afgewerkt');
+  assert.equal(af.resultaat, 'offerte');
+  assert.equal(af.uur, '11:42');
+  assert.equal(af.startMin, 11 * 60 + 42);
+});
+
+test('bouwKalenderItems: een afgewerkte lead zonder datum van een bezoek of resultaat komt er niet in', () => {
+  const zonder = lead('z', 'afgewerkt', null, null, { resultaat: { soort: 'verkocht', op: 'geen-datum' } });
+  assert.deepEqual(bouwKalenderItems({ leads: [zonder], blokken: [], datum: DAG, metAfgewerkt: true }), []);
+});
+
+test('bouwKalenderItems: resultaat op een andere dag dan het bezoek: geen uur (achteraan), wel in de dag van het bezoek', () => {
+  const laat = afgewerkt('laat', DAG, '2026-10-14T16:00:00');
+  const [af] = bouwKalenderItems({ leads: [laat], blokken: [], datum: DAG, metAfgewerkt: true });
+  assert.equal(af.id, 'laat');
+  assert.equal(af.uur, null);
+});
