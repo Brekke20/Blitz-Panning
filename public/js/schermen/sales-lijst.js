@@ -97,7 +97,9 @@ function bouwWortel(inhoud) {
   const filterbalk = el('div', { class: 'sales-filter' }, zoek, gebied);
   const ongedaan = el('div', { class: 'sales-ongedaan' });
   const kaarten = el('div', { class: 'sales-kaarten' });
-  const wortel = el('div', { class: 'sales-lijst-wortel' }, acties, melding, filterbalk, ongedaan, kaarten);
+  // Eén werkbalk (kop B): + Lead, Export laden, zoeken en gebied; de melding, de ongedaan-rijen en de kaarten staan eronder met de gewone marge.
+  const balk = el('div', { class: 'lijst-balk sales-lijst-balk' }, acties, filterbalk);
+  const wortel = el('div', { class: 'sales-lijst-wortel' }, balk, el('div', { class: 'sales-lijst-inhoud' }, melding, ongedaan, kaarten));
   const kolomKnoppen = new Map(); // sleutel -> tabknop (smal scherm)
 
   const zetMelding = (regels, { fout = false } = {}) => {
@@ -148,6 +150,7 @@ function bouwWortel(inhoud) {
     gebied.replaceChildren(el('option', { value: '', text: 'Alle gebieden' }), ...gebieden.map(g => el('option', { value: g.gebied, text: `${g.gebied}xx (${g.aantal})` })));
     gebied.value = filter.gebied;
     filterbalk.hidden = open.length === 0;
+    balk.hidden = !modus && open.length === 0; // niets te tonen: ook de balk weg
     tekenKaarten();
   }
 

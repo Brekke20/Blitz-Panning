@@ -47,7 +47,7 @@ function maakTab(tab) {
   if (!balk || !main) return;
   const knop = document.createElement('button');
   knop.type = 'button';
-  knop.className = 'tab';
+  knop.className = tab.alleenGroot ? 'tab alleen-groot' : 'tab'; // Route: niet op een gsm (css/app.css .alleen-groot)
   knop.id = `tab-${tab.id}`;
   knop.setAttribute('role', 'tab');
   knop.setAttribute('aria-selected', 'false');

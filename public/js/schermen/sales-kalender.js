@@ -13,6 +13,10 @@ import { schrijfbaarNu } from './sales-verkoper.js';
 import { bouwKalenderItems, maandChips, weekDagen, navigatieAdres, eersteWerkdag } from './sales-kalender-logica.js';
 import { kaartInfo } from './sales-lijst-logica.js';
 import { openBezoekActies, navigeer } from './sales-bezoek.js';
+import { openResultaat } from './sales-resultaat.js';
+import { openLeadDetail } from './sales-detail.js';
+import { updateNuMarker, voegBuitenUrenBadgeToe } from './dag-lijst.js';
+import { RESULTAAT_LABEL } from '../sales/lead-regels.js';
 import { openBlokVenster } from './sales-blok.js';
 import { plaatsLabel } from '../sales/adres.js';
 import { dagLabel } from './sales-tekst.js';
@@ -31,6 +35,13 @@ let laatsteInhoud = null;
 let luistert = false;
 
 const herteken = () => { if (laatsteInhoud?.isConnected) teken(laatsteInhoud); };
+
+// De nu-regel van het gsm-dagoverzicht schuift elke minuut mee (zonder te hertekenen).
+let nuTimer = null;
+function startNuTimer() {
+  if (nuTimer) return;
+  nuTimer = setInterval(() => { const grid = laatsteInhoud?.isConnected ? laatsteInhoud.querySelector('.sales-kal-grid') : null; if (grid) updateNuMarker(grid); }, 60000);
+}
 
 // ---- navigatie ----
 
@@ -94,7 +105,9 @@ function maakKop(schrijfbaar) {
   const label = el('button', { type: 'button', class: `kal-week-label${elders ? ' niet-vandaag' : ''}`, 'aria-label': elders ? `${tekst}, naar vandaag` : null },
     el('span', { class: 'kal-lbl-tekst', text: tekst }), el('span', { class: 'kal-lbl-vandaag', text: '↺ Vandaag' }));
   label.addEventListener('click', naarVandaag);
-  const nav = el('div', { class: 'sales-kal-nav' }, knop('‹', 'Vorige periode', () => stap(-1)), el('div', { class: 'kal-label-wrap' }, label), knop('›', 'Volgende periode', () => stap(1)));
+  // Dezelfde kop als de techniekerkalender (.kal-header, index.html): ‹ periode › · Week|Maand · rechts de knoppen. Wat niet past, loopt naar een
+  // tweede regel. (.kal-actions zelf niet: die verbergt de rol "sales" met CSS; .sales-kal-acties heeft dezelfde opmaak.)
+  const nav = el('div', { class: 'kal-nav-group' }, knop('‹', 'Vorige periode', () => stap(-1)), el('div', { class: 'kal-label-wrap' }, label), knop('›', 'Volgende periode', () => stap(1)));
 
   const toggle = el('div', { class: 'kal-view-toggle' });
   for (const [id, naam] of [['week', 'Week'], ['maand', 'Maand']]) {
@@ -103,15 +116,18 @@ function maakKop(schrijfbaar) {
     toggle.append(k);
   }
 
-  const kop = el('div', { class: 'sales-kal-kop' }, nav, toggle);
+  const kop = el('div', { class: 'kal-header sales-kal-kop' }, nav, toggle);
   if (schrijfbaar) {
-    const plan = el('button', { type: 'button', class: 'btn-autoplan', text: '⚡ Plan deze week' });
+    // Op een gsm "⚡ Plan" (de span met de rest verbergt de CSS); de volledige naam blijft de toegankelijke naam en de hulptekst.
+    const planTekst = () => { plan.replaceChildren('⚡ Plan', el('span', { class: 'plan-lang', text: ' deze week' })); };
+    const plan = el('button', { type: 'button', class: 'btn-autoplan', 'aria-label': '⚡ Plan deze week', title: 'Plan deze week' });
+    planTekst();
     plan.addEventListener('click', async () => {
       plan.disabled = true;
       plan.textContent = 'Bezig...';
       try { await (await import('./sales-plan.js')).planDezeWeek({ maandweergave: weergave === 'maand' }); }
       catch (e) { console.error('Plan deze week mislukt:', e); toast('✕ Plannen is mislukt. Probeer het opnieuw.'); }
-      finally { plan.disabled = false; plan.textContent = '⚡ Plan deze week'; }
+      finally { plan.disabled = false; planTekst(); }
     });
     const blok = el('button', { type: 'button', class: 'btn-sec', text: '➕ Blok' });
     blok.addEventListener('click', () => openBlokVenster({ datum: eersteWerkdag(gekozenDatum(), salesToestand().instellingen.werkdagen) })); // nooit een weekenddag vooraf invullen
@@ -173,29 +189,59 @@ function tijdlijnDag(iso, items, hoogte) {
   return wrap;
 }
 
-function kaartjesDag(items) {
+const uurSleutel = (item) => (item.type === 'afgewerkt' ? item.uur : minToTimeStr(item.startMin)) ?? '99:99'; // 99:99 = zonder uur: telt als later
+
+function afgewerktKaart(item, lead) {
+  const label = RESULTAAT_LABEL[item.resultaat] ?? '';
+  const kaart = el('div', { class: 'sales-kal-kaart sales-afgewerkt-kaart' },
+    item.uur ? el('div', { class: 'sales-kal-tijd', text: item.uur }) : null,
+    el('div', { class: 'sales-kal-naam', text: item.titel }),
+    lead ? el('div', { class: 'sales-kal-plaats', text: plaatsLabel(lead) }) : null,
+    el('div', { class: 'sales-kal-status', text: label ? `✓ Afgewerkt · ${label}` : '✓ Afgewerkt' }));
+  const open = () => openLeadDetail(item.id);
+  kaart.dataset.id = item.id;
+  kaart.addEventListener('click', (e) => { if (e.target.closest('a, button')) return; open(); });
+  maakActiveerbaar(kaart, open, `${item.titel}, afgewerkt`);
+  return kaart;
+}
+
+/** De kaartjes van één dag (gsm): bezoeken met 📞 Bellen, 🧭 Navigeer en (vandaag of eerder, als er geschreven mag worden) 📋 Resultaat; afgewerkt als grijs kaartje. */
+function kaartjesDag(items, iso, vandaag) {
   const leads = new Map(salesToestand().leads.map((l) => [l.id, l]));
+  const kanSchrijven = schrijfbaarNu();
   const lijst = [];
   for (const item of items) {
+    let kaart;
     if (item.type === 'blok') {
-      lijst.push(maakKlikbaar(el('div', { class: 'sales-kal-kaart sales-kal-blokkaart' }, el('div', { class: 'sales-kal-naam', text: blokTekst(item) })), item, item.titel));
-      continue;
-    }
-    const lead = leads.get(item.id);
-    const kaart = el('div', { class: `sales-kal-kaart sales-${item.tint}` }, ...bezoekInhoud(item, lead));
-    const info = kaartInfo(lead);
-    const adres = navigatieAdres(lead);
-    if (info.telHref || adres) {
-      const acties = el('div', { class: 'sales-kal-kaart-acties' });
-      if (info.telHref) acties.append(el('a', { class: 'btn btn--secondary', href: info.telHref, text: '📞 Bellen' }));
-      if (adres) {
-        const nav = el('button', { type: 'button', class: 'btn btn--secondary', text: '🧭 Navigeer' });
-        nav.addEventListener('click', () => navigeer(adres));
-        acties.append(nav);
+      kaart = maakKlikbaar(el('div', { class: 'sales-kal-kaart sales-kal-blokkaart' }, el('div', { class: 'sales-kal-naam', text: blokTekst(item) })), item, item.titel);
+    } else if (item.type === 'afgewerkt') {
+      kaart = afgewerktKaart(item, leads.get(item.id));
+    } else {
+      const lead = leads.get(item.id);
+      kaart = el('div', { class: `sales-kal-kaart sales-${item.tint}` }, ...bezoekInhoud(item, lead));
+      const info = kaartInfo(lead);
+      const adres = navigatieAdres(lead);
+      const metResultaat = kanSchrijven && iso <= vandaag;
+      if (info.telHref || adres || metResultaat) {
+        const acties = el('div', { class: 'sales-kal-kaart-acties' });
+        if (info.telHref) acties.append(el('a', { class: 'btn btn--secondary', href: info.telHref, text: '📞 Bellen' }));
+        if (adres) {
+          const nav = el('button', { type: 'button', class: 'btn btn--secondary', text: '🧭 Navigeer' });
+          nav.addEventListener('click', () => navigeer(adres));
+          acties.append(nav);
+        }
+        if (metResultaat) {
+          const res = el('button', { type: 'button', class: 'btn btn--secondary sales-kal-resultaat', text: '📋 Resultaat', 'aria-label': `Resultaat ingeven voor ${item.titel}` });
+          res.addEventListener('click', () => { openResultaat(item.id); });
+          acties.append(res);
+        }
+        kaart.append(acties);
       }
-      kaart.append(acties);
+      maakKlikbaar(kaart, item, `${item.titel}, ${tijdTekst(item)}`);
+      voegBuitenUrenBadgeToe(kaart, uurSleutel(item), '.sales-kal-tijd');
     }
-    lijst.push(maakKlikbaar(kaart, item, `${item.titel}, ${tijdTekst(item)}`));
+    kaart.dataset.sortkey = uurSleutel(item);
+    lijst.push(kaart);
   }
   return lijst;
 }
@@ -204,7 +250,7 @@ function dagKolom(iso, { smal, hoogte, vandaag }) {
   const st = salesToestand();
   const dag = new Date(`${iso}T12:00:00`);
   const feest = getHolidayName(iso);
-  const items = bouwKalenderItems({ leads: st.leads, blokken: st.blokken, datum: iso, standaardDuurMin: st.instellingen.bezoekDuurMin });
+  const items = bouwKalenderItems({ leads: st.leads, blokken: st.blokken, datum: iso, standaardDuurMin: st.instellingen.bezoekDuurMin, metAfgewerkt: smal }); // gsm: afgewerkt blijft in de dag staan
   const heleDagen = items.filter((i) => i.heleDag);
   const nota = el('div', { class: 'sales-kal-nota' });
   if (feest) nota.append(el('span', { class: 'sales-kal-feest', text: `🎌 ${feest}` }));
@@ -222,7 +268,7 @@ function dagKolom(iso, { smal, hoogte, vandaag }) {
   const hdr = el('div', { class: 'day-hdr' }, top, nota);
   const body = el('div', { class: `day-body${feest ? ' holiday-day' : heleDagen.length ? ' blocked-day' : ''}` });
   if (smal) {
-    const kaartjes = kaartjesDag(items);
+    const kaartjes = kaartjesDag(items, iso, vandaag);
     if (kaartjes.length) body.append(...kaartjes); else body.append(el('div', { class: 'day-empty', text: '—' }));
   } else {
     body.append(tijdlijnDag(iso, items, hoogte));
@@ -297,10 +343,12 @@ function teken(inhoud) {
   const schrijfbaar = schrijfbaarNu();
   const oud = inhoud.querySelector('.sales-kal-grid');
   const bewaard = oud ? { top: oud.scrollTop, links: oud.scrollLeft } : null;
-  const wortel = el('div', { class: 'sales-kal' }, maakKop(schrijfbaar));
   const grid = weergave === 'maand' ? maandWeergave() : weekWeergave({ smal });
-  wortel.append(grid);
+  // De kop (.kal-header) staat over de volle breedte en plakt onder de kop van de app; het raster eronder heeft zijn eigen marge.
+  const wortel = el('div', { class: 'sales-kal' }, maakKop(schrijfbaar), el('div', { class: 'sales-kal-inhoud' }, grid));
   inhoud.replaceChildren(wortel);
+  startNuTimer();
+  updateNuMarker(grid); // gsm-dagoverzicht: de rode regel "nu 10:42" in de dag van vandaag
   if (weergave === 'week' && !smal) {
     if (bewaard) { grid.scrollTop = bewaard.top; grid.scrollLeft = bewaard.links; }
     scrollNaarWerkdag(grid);
