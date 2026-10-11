@@ -52,7 +52,11 @@ export function laadLijsten({ ververs = false } = {}) {
   if ((rechten.beheer && bron.metSales?.()) || salesManager) nodig.push(laadVerkopers());
   if (!nodig.length) return Promise.resolve();
   lijstenGevraagd = true;
-  lijstenBelofte = Promise.all(nodig).then(() => { bouwMenu(); werkKnopBij(); });
+  lijstenBelofte = Promise.all(nodig).then(() => {
+    // Mislukte lading: de volgende opening (of ↺) probeert opnieuw, anders blijft de beheerder zonder Sales-groep tot een herlaadbeurt.
+    if (verkopersFout || (rechten.beheer && gebruikers === null)) { lijstenGevraagd = false; lijstenBelofte = null; }
+    bouwMenu(); werkKnopBij();
+  });
   return lijstenBelofte;
 }
 
