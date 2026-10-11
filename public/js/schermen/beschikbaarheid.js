@@ -497,6 +497,8 @@ export function renderBeschikbaarhedenTab(container, opties) {
         </div>`;
       }).join(''));
 
+  // Gebruikerslijst geladen maar zonder één actief account in Techniek én Sales: uitleg onder de keuzelijst ("Iedereen" blijft kiesbaar).
+  const geenAccounts = groepen !== null && groepen.techniek.length === 0 && groepen.sales.length === 0;
   const myPerson = _bavFilterPerson === 'all' ? null : _bavFilterPerson;
   const defaultVan = toestand.get('settings').vanTijd || '08:00';
   const defaultTot = toestand.get('settings').totTijd || '17:00';
@@ -504,14 +506,15 @@ export function renderBeschikbaarhedenTab(container, opties) {
   body.innerHTML = `
     <div>
       <div class="av-section-title" role="heading" aria-level="3">Voor wie</div>
-      <select class="av-time-input" id="bav-filter-person" aria-label="Voor wie" data-wijzig="bav-filter-persoon" style="width:100%">
+      <select class="av-time-input" id="bav-filter-person" aria-label="Voor wie" data-wijzig="bav-filter-persoon">
         <option value="all" ${_bavFilterPerson === 'all' ? 'selected' : ''}>Iedereen</option>
         ${groepen
           ? [['Techniek', groepen.techniek], ['Sales', groepen.sales]].filter(([, lijst]) => lijst.length)
               .map(([titel, lijst]) => `<optgroup label="${titel}">${lijst.map(o => `<option value="${escHtml(o.waarde)}" ${_bavFilterPerson === o.waarde ? 'selected' : ''}>${escHtml(o.label)}</option>`).join('')}</optgroup>`).join('')
           : knownAgents.map(a => `<option value="${escHtml(a)}" ${_bavFilterPerson === a ? 'selected' : ''}>${escHtml(a)}</option>`).join('')}
       </select>
-      <div class="av-hint" id="bav-hulp" style="font-size:0.78rem;color:var(--muted);margin-top:4px">Iedereen = alle techniekers${_bavVerkopers.length ? '. Een verkoper kies je apart: zijn afwezigheid komt in zijn eigen sales-agenda.' : '.'}</div>
+      <div class="bav-hulp" id="bav-hulp">Iedereen = alle techniekers${_bavVerkopers.length ? '. Een verkoper kies je apart: zijn afwezigheid komt in zijn eigen sales-agenda.' : '.'}</div>
+      ${geenAccounts ? `<p class="bav-leeg" id="bav-geen-techniekers">Nog geen techniekers met een Zoho-naam. Maak ze aan in Beheer → Gebruikers en kies daar hun Zoho-naam.</p>` : ''}
     </div>
     <div class="av-form" style="margin-top:10px">
       <div>
