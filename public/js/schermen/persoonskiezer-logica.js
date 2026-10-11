@@ -93,14 +93,18 @@ export function kiezerLijst({
   if (rol === 'sales' && !salesManager) return leeg; // een gewone verkoper heeft niets te kiezen
 
   const gesorteerdVerkopers = [...verkopers].filter(v => v && typeof v.id === 'string').sort((a, b) => vergelijk(a.naam ?? '', b.naam ?? ''));
+  // Wie wordt getoond? De bewaarde keuze als die in de lijst staat; anders (zoals getoondeVerkoper in sales-verkoper.js) een sales manager zichzelf,
+  // een beheerder de eerste actieve verkoper.
+  const gekozenId = gesorteerdVerkopers.some(v => v.id === gekozenVerkoper) ? gekozenVerkoper
+    : (salesManager ? (gesorteerdVerkopers.find(v => v.id === ikId)?.id ?? null) : (gesorteerdVerkopers.find(v => v.actief !== false) ?? gesorteerdVerkopers[0])?.id ?? null);
   const eigenNaam = String(eigen ?? '').trim();
 
   // Sales manager: één groep met enkel verkopers; er is altijd één verkoper getoond.
   if (salesManager) {
-    const items = gesorteerdVerkopers.map(v => verkoper(v, { ikId, gekozenId: gekozenVerkoper, metRol: false }));
+    const items = gesorteerdVerkopers.map(v => verkoper(v, { ikId, gekozenId, metRol: false }));
     const gekozen = items.find(i => i.huidig) || null;
     return {
-      zichtbaar: true, werkruimte: 'sales', knop: salesKnop(gekozen), terug: null,
+      zichtbaar: true, werkruimte: 'sales', knop: salesKnop(gekozen, { lees: Boolean(gekozen) && (gekozen.actief === false || gekozen.sleutel !== ikId) }), terug: null,
       groepen: [{ titel: null, items }], melding: verkopersFout ? VERKOPERS_FOUT : null,
     };
   }
@@ -136,14 +140,14 @@ export function kiezerLijst({
   const groepen = [{ titel: 'Techniek', items: techniekItems }];
   let melding = null;
   if (metSales) {
-    const salesItems = gesorteerdVerkopers.map(v => verkoper(v, { ikId, gekozenId: inSales ? gekozenVerkoper : null, metRol: true }));
+    const salesItems = gesorteerdVerkopers.map(v => verkoper(v, { ikId, gekozenId: inSales ? gekozenId : null, metRol: true }));
     if (salesItems.length) groepen.push({ titel: 'Sales', items: salesItems });
     if (verkopersFout) melding = VERKOPERS_FOUT;
   }
   if (inSales) {
     const gekozen = groepen.find(g => g.titel === 'Sales')?.items.find(i => i.huidig) || null;
     return {
-      zichtbaar: true, werkruimte: 'sales', knop: salesKnop(gekozen), groepen, melding,
+      zichtbaar: true, werkruimte: 'sales', knop: salesKnop(gekozen, { lees: Boolean(gekozen) && gekozen.actief === false }), groepen, melding,
       terug: { tekst: `↩ Terug naar techniekers (${gekozenTechnieker === 'all' ? 'alle technici' : voornaam(gekozenTechnieker)})`, sleutel: gekozenTechnieker },
     };
   }
@@ -160,8 +164,9 @@ function techniekTitel(gekozen) {
   return { titel: `Kies technieker (nu: ${wie})`, aria: `Kies technieker, nu ${wie}` };
 }
 
-function salesKnop(gekozen) {
-  const leesalleen = Boolean(gekozen) && gekozen.actief === false;
+// `lees`: de getoonde leads zijn enkel te lezen (een geblokkeerde verkoper bij de beheerder; een collega bij een sales manager).
+function salesKnop(gekozen, { lees = false } = {}) {
+  const leesalleen = lees;
   const wie = gekozen ? gekozen.naam : '';
   return {
     icoon: '👥', voor: 'Sales:', naam: gekozen ? voornaam(gekozen.naam) : '…', werkruimte: 'sales', leesalleen,

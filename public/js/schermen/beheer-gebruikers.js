@@ -29,6 +29,8 @@ const ENIGE_BEHEERDER = 'Dit is de enige actieve beheerder: die kan niet geblokk
 async function roep(methode, body) {
   try {
     const r = await apiVerzoek(PAD, methode === 'GET' ? {} : { methode, body, headers: KOP });
+    // De persoonskiezer in de kop (beheerder) toont de rol achter elke naam en de verkopers: na een wijziging vraagt hij ze opnieuw op.
+    if (r.ok && methode !== 'GET') { try { globalThis.document?.dispatchEvent(new CustomEvent('blitz:gebruikers-gewijzigd')); } catch { /* geen document */ } }
     return { ok: r.ok, status: r.status, data: r.data, netwerk: false };
   } catch {
     return { ok: false, status: 0, data: null, netwerk: true };

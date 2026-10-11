@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { registreerSalesRol, SALES_TABS } from '../public/js/schermen/sales-registratie.js';
+import { registreerSalesRol, SALES_TABS, BEHEERDER_SALES } from '../public/js/schermen/sales-registratie.js';
 
 const SCHERMEN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'js', 'schermen');
 
@@ -24,13 +24,15 @@ test('sales: de vier tabs in de volgorde Leads, Kalender, Route, Afgewerkt, elk 
   for (const t of sales.lijst) assert.equal(typeof t.laad, 'function', t.id);
 });
 
-test('beheerder: één tab "Sales" met een laad-functie (de vier schermen zitten in subtabs, niet in de hoofdbalk)', () => {
+test('beheerder (kop B): geen tab "Sales" meer; dezelfde vier schermen staan onder de sleutel beheerder-sales (de werkruimte Sales)', () => {
   const s = spionen();
   registreerSalesRol(s);
-  const beheer = s.tabs.filter(t => t.rol === 'beheerder').flatMap(t => t.lijst);
-  assert.deepEqual(beheer.map(t => [t.id, t.label]), [['sales', 'Sales']]);
-  assert.equal(typeof beheer[0].laad, 'function');
-  assert.equal('beheerLabel' in beheer[0], false);
+  assert.equal(s.tabs.filter(t => t.rol === 'beheerder').length, 0, 'de hoofdtab Sales is weg');
+  const werkruimte = s.tabs.find(t => t.rol === BEHEERDER_SALES);
+  assert.ok(werkruimte);
+  assert.deepEqual(werkruimte.lijst.map(t => [t.id, t.label]), [['sales-lijst', 'Leads'], ['sales-kalender', 'Kalender'], ['sales-route', 'Route'], ['sales-afgewerkt', 'Afgewerkt']]);
+  for (const t of werkruimte.lijst) assert.equal(typeof t.laad, 'function', t.id);
+  assert.equal(BEHEERDER_SALES, 'beheerder-sales');
 });
 
 test('de start voor rol sales is een functie', () => {
@@ -48,8 +50,12 @@ test('sales-registratie.js heeft geen statische import-regel (de modulepreload-g
   assert.deepEqual(zonderCommentaar.match(/^\s*import\s+['"].*$/gm) ?? [], []);
 });
 
+test('de subtabbalk van de vroegere tab Sales (sales-beheer.js) is verwijderd', () => {
+  assert.equal(fs.existsSync(path.join(SCHERMEN, 'sales-beheer.js')), false);
+});
+
 test('elk lazy scherm bestaat als bestand (geen 404 bij de eerste tabwissel)', () => {
-  for (const naam of ['sales-schil', 'sales-beheer', 'sales-venster', 'sales-verkoper', 'sales-start', 'sales-lijst', 'sales-kalender', 'sales-route', 'sales-afgewerkt']) {
+  for (const naam of ['sales-schil', 'sales-venster', 'sales-verkoper', 'sales-start', 'sales-lijst', 'sales-kalender', 'sales-route', 'sales-afgewerkt']) {
     assert.ok(fs.existsSync(path.join(SCHERMEN, naam + '.js')), naam + '.js');
   }
 });

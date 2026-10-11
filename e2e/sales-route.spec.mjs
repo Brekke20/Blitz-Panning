@@ -320,21 +320,20 @@ test.describe('sales: route buiten de testmodus', () => {
 
 // De beheerder ziet het scherm als subtab van de ene tab "Sales" (de kaart is dan een eigen instantie naast de technieker-kaart).
 test.describe('sales: route in het scherm van de beheerder', () => {
-  test('subtab Route: lijst en kaart voor de gekozen verkoper, één sales-kaart, de technieker-kaart blijft ongemoeid', async ({ page }) => {
+  test('werkruimte Sales, tab Route: lijst en kaart voor de gekozen verkoper, één sales-kaart, de technieker-kaart blijft ongemoeid', async ({ page }) => {
     await startSalesApp(page, {
       gebruiker: BEHEERDER,
       blobs: { 'sales/u-bea': { versie: 1, gebruikerId: 'u-bea', leads: DRIE(), blokken: [], grafstenen: [] } },
     });
-    await tab(page, 'Sales').click();
-    await page.locator('#sales-subtab-sales-route').click();
+    await tab(page, 'Route').click();
     await expect(route(page)).toBeVisible();
     await expect(rijen(page)).toHaveCount(3);
     await expect(markers(page)).toHaveCount(3);
     await expect(page.locator('#sales-kaart.leaflet-container')).toHaveCount(1);
     await expect(page.locator('#map .sales-marker')).toHaveCount(0);
-    // heen en weer tussen subtabs: nog steeds één kaart, geen dubbele lijst
-    await page.locator('#sales-subtab-sales-lijst').click();
-    await page.locator('#sales-subtab-sales-route').click();
+    // heen en weer tussen tabs: nog steeds één kaart, geen dubbele lijst
+    await tab(page, 'Leads').click();
+    await tab(page, 'Route').click();
     await expect(rijen(page)).toHaveCount(3);
     await expect(markers(page)).toHaveCount(3);
     await expect(page.locator('#sales-kaart.leaflet-container')).toHaveCount(1);
@@ -461,10 +460,9 @@ test.describe('sales: weekstrook bovenaan de Route-tab', () => {
     expect(m.dagen).toBeGreaterThanOrEqual(m.dagenZichtbaar); // scrollt eventueel binnen de strook
   });
 
-  test('de beheerder ziet de strook ook in de subtab Route van "Sales"', async ({ page }) => {
+  test('de beheerder ziet de strook ook op de tab Route van de werkruimte Sales', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER, blobs: { 'sales/u-bea': { versie: 1, gebruikerId: 'u-bea', leads: week(), blokken: [], grafstenen: [] } } });
-    await tab(page, 'Sales').click();
-    await page.locator('#sales-subtab-sales-route').click();
+    await tab(page, 'Route').click();
     await expect(dagen(page)).toHaveCount(5);
     await expect(dagen(page).nth(0).locator('.ws-aantal')).toHaveText('3 bezoeken');
     await dagen(page).nth(2).click();

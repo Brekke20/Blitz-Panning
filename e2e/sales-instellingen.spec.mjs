@@ -1,12 +1,13 @@
 import { test, expect } from './helpers.mjs';
-import { startSalesApp, salesStubs, verwachtFout, BEHEERDER, SALES_GEBRUIKER, ANDERE_VERKOPERS } from './sales-hulp.mjs';
+import { startSalesApp, salesStubs, verwachtFout, BEHEERDER, SALES_GEBRUIKER, ANDERE_VERKOPERS, kiesVerkoper } from './sales-hulp.mjs';
 
 // Het instellingenvenster van de verkoper (Task 13b). De stubs zijn de echte server-handlers (instellingen, sales) met een in-memory store.
 // Verzonnen waarden; geen echte adressen van personen.
 const OPSLAG_TEKST = 'De opslag is tijdelijk niet bereikbaar. Probeer het zo meteen opnieuw.';
 const venster = (page) => page.locator('.sales-overlay.open');
 const lijst = (page) => page.locator('#view-sales-lijst');
-const knop = (page) => lijst(page).getByRole('button', { name: '⚙ Instellingen' });
+// Kop B: ⚙ staat in de kop (voor sales net als bij de techniekers), niet meer in een balk van het scherm.
+const knop = (page) => page.locator('header [data-actie="instellingen"]');
 
 const lead = (id, naam) => ({
   id, voornaam: 'Test', naam, gsm: null, email: null, postcode: '3500', gemeente: 'Hasselt', straat: null, huisnr: null, adresTekst: null,
@@ -198,22 +199,27 @@ test.describe('sales: instellingenvenster', () => {
     expect(verzoeken.van('/api/instellingen', 'PUT')).toHaveLength(1);
   });
 
-  test('de knop staat in elk sales-scherm van de verkoper (balk)', async ({ page }) => {
+  test('⚙ staat in de kop en blijft bij elk sales-scherm van de verkoper', async ({ page }) => {
     await startSalesApp(page, { leads: [lead('l1', 'Verhaegen')] });
     await expect(knop(page)).toBeVisible();
+    await expect(knop(page)).toHaveAttribute('aria-label', 'Instellingen');
     await page.getByRole('tab', { name: 'Afgewerkt', exact: true }).click();
-    await expect(page.locator('#view-sales-afgewerkt').getByRole('button', { name: '⚙ Instellingen' })).toBeVisible();
+    await expect(knop(page)).toBeVisible();
+    await expect(page.locator('#view-sales-afgewerkt').getByRole('button', { name: '⚙ Instellingen' })).toHaveCount(0); // niet meer in het scherm zelf
   });
 
-  test('een verkoper met "alle sales" ziet de knop bij de eigen leads, niet bij de weergave van een collega', async ({ page }) => {
+  test('een verkoper met "alle sales": ⚙ opent bij de eigen leads het instellingenvenster', async ({ page }) => {
     const ik = { ...SALES_GEBRUIKER, magAlleSales: true };
     await startSalesApp(page, { gebruiker: ik, leads: [lead('l1', 'Verhaegen')],
       blobs: { [`sales/${ANDERE_VERKOPERS[0].id}`]: { versie: 1, leads: [lead('l2', 'Maes')], blokken: [], grafstenen: [] } } });
     await expect(knop(page)).toBeVisible();
-    await lijst(page).locator('.sales-verkoper-keuze').selectOption(ANDERE_VERKOPERS[0].id);
+    await knop(page).click();
+    await expect(venster(page).getByLabel('Startadres')).toBeVisible();
+    await venster(page).getByRole('button', { name: 'Annuleren' }).click();
+    await kiesVerkoper(page, ANDERE_VERKOPERS[0].id);
     await expect(lijst(page).locator('.sales-kaart', { hasText: 'Maes' })).toBeVisible();
-    await expect(knop(page)).toBeHidden();
-    await lijst(page).locator('.sales-verkoper-keuze').selectOption(ik.id);
+    await expect(knop(page)).toBeVisible(); // de knop blijft in de kop
+    await kiesVerkoper(page, ik.id);
     await expect(lijst(page).locator('.sales-kaart', { hasText: 'Verhaegen' })).toBeVisible();
     await expect(knop(page)).toBeVisible();
   });
@@ -232,10 +238,12 @@ test.describe('sales: instellingenvenster', () => {
 
 // De beheerder gebruikt de volledige app (met kaart): daar blijft de CDN-stub weg.
 test.describe('sales: instellingenvenster voor de beheerder', () => {
-  test('als beheerder is er geen knop (Beheer > Instellingen)', async ({ page }) => {
+  test('als beheerder opent ⚙ in de kop zijn eigen instellingen van de app (zoals altijd), nooit het sales-instellingenvenster', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER });
-    await page.getByRole('tab', { name: 'Sales', exact: true }).click();
-    await expect(page.locator('#view-sales .sales-verkoper-keuze')).toBeVisible();
-    await expect(page.getByRole('button', { name: '⚙ Instellingen' })).toHaveCount(0);
+    await expect(page.locator('#person-btn')).toContainText('Sales:');
+    await expect(knop(page)).toBeVisible();
+    await knop(page).click();
+    await expect(page.locator('.sales-overlay')).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: '⚙️ Instellingen' })).toBeVisible();
   });
 });

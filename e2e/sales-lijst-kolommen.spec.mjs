@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.mjs';
-import { startSalesApp, BEHEERDER, SALES_GEBRUIKER } from './sales-hulp.mjs';
+import { startSalesApp, BEHEERDER, SALES_GEBRUIKER, kiesVerkoper } from './sales-hulp.mjs';
 
 // Het scherm "Leads" in drie kolommen: Nog in te plannen | Ingepland | Bevestigd. Klok: maandag 5 okt 2026 09:00. Alle namen zijn verzonnen.
 const lijst = (page) => page.locator('#view-sales-lijst');
@@ -149,9 +149,8 @@ test.describe('sales: Leads in drie kolommen', () => {
     expect(await page.evaluate(() => window.__gehackt)).toBeUndefined();
   });
 
-  test('de beheerder ziet dezelfde drie kolommen in zijn tab Sales', async ({ page }) => {
+  test('de beheerder ziet dezelfde drie kolommen in de werkruimte Sales', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER, leads: [], blobs: { 'sales/u-bea': { versie: 1, leads: MIX(), blokken: [], grafstenen: [] } } });
-    await tab(page, 'Sales').click();
     await expect(lijst(page).getByRole('heading', { name: 'Nog in te plannen (3)' })).toBeVisible();
     await expect(lijst(page).getByRole('heading', { name: 'Ingepland (2)' })).toBeVisible();
     await expect(lijst(page).getByRole('heading', { name: 'Bevestigd (2)' })).toBeVisible();
@@ -272,7 +271,6 @@ test.describe('sales: ✕ terug naar Nog in te plannen (Ingepland en Bevestigd)'
 
   test('de beheerder (mag schrijven) heeft het ✕', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER, leads: [], blobs: { 'sales/u-bea': { versie: 1, leads: [voorgesteld('b1', 'Beaklant', '2026-10-06', '09:00'), bevestigd('b2', 'Beabevestigd', '2026-10-07', '10:00')], blokken: [], grafstenen: [] } } });
-    await page.getByRole('tab', { name: 'Sales', exact: true }).click();
     await expect(kaartIn(page, 'ingepland', 'Test Beaklant')).toHaveCount(1);
     await expect(terugKnop(page, 'ingepland', 'Test Beaklant')).toHaveCount(1);
     await expect(terugKnop(page, 'bevestigd', 'Test Beabevestigd')).toHaveCount(1);
@@ -281,7 +279,7 @@ test.describe('sales: ✕ terug naar Nog in te plannen (Ingepland en Bevestigd)'
   test('alleen-lezen weergave (verkoper met "mag alle sales zien" bij een collega): geen ✕ in Ingepland en Bevestigd', async ({ page }) => {
     const gebruiker = { ...SALES_GEBRUIKER, magAlleSales: true };
     await startSalesApp(page, { gebruiker, blobs: { 'sales/u-bea': { versie: 1, leads: [voorgesteld('b1', 'Beaklant', '2026-10-06', '09:00'), bevestigd('b2', 'Beabevestigd', '2026-10-07', '10:00')], blokken: [], grafstenen: [] } } });
-    await lijst(page).getByLabel('Verkoper').selectOption('u-bea');
+    await kiesVerkoper(page, 'u-bea');
     await expect(kaartIn(page, 'ingepland', 'Test Beaklant')).toHaveCount(1);
     await expect(kaartIn(page, 'bevestigd', 'Test Beabevestigd')).toHaveCount(1);
     await expect(lijst(page).getByRole('button', { name: TERUG })).toHaveCount(0);

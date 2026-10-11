@@ -1,7 +1,8 @@
 // schermen/sales-verkoper.js — wiens leads toont het scherm? De verkoper zelf zijn eigen leads; de beheerder en een sales-gebruiker met
-// "mag alle sales zien" kiezen een verkoper uit een lijst (actieve verkopers, GET /api/gebruikers?rol=sales; de beheerder ziet ook de
-// geblokkeerde verkopers, enkel om te lezen). De keuze blijft in
-// localStorage 'blitz_sales_verkoper' (per toestel; kern/eigenaar.js en het afmelden wissen ze bij een andere gebruiker).
+// "mag alle sales zien" kiezen een verkoper in de persoonskiezer van de kop (schermen/persoonskiezer.js; kop B): de lijst komt uit
+// GET /api/gebruikers?rol=sales (de beheerder ziet ook de geblokkeerde verkopers, enkel om te lezen). De keuze blijft in
+// localStorage 'blitz_sales_verkoper' (per toestel; kern/eigenaar.js en het afmelden wissen ze bij een andere gebruiker);
+// `kiesVerkoper(id)` bewaart ze en meldt ze aan de schermen (`onVerkoperWijziging`), die dan de leads van die verkoper laden.
 // Veiligheid: namen komen enkel via textContent in de DOM; de server beslist wie wat mag (sales-toegang), dit is enkel de weergave.
 import { apiVerzoek } from '../kern/api.js';
 import { huidigeGebruiker, heeftRol, huidigeRechten } from '../kern/sessie.js';
@@ -16,9 +17,9 @@ let verkopers = [];       // [{ id, naam, salesNaam, actief }] gesorteerd op naa
 const bewaardeKeuze = () => { try { return globalThis.localStorage.getItem(VERKOPER_SLEUTEL); } catch { return null; } };
 function bewaarKeuze(id) { try { globalThis.localStorage.setItem(VERKOPER_SLEUTEL, id); } catch { /* geen opslag */ } }
 
-const naarVerkoper = (g) => ({ id: g.id, naam: g.naam ?? '', salesNaam: g.salesNaam || g.naam || '', actief: g.actief !== false });
+const naarVerkoper = (g) => ({ id: g.id, naam: g.naam ?? '', salesNaam: g.salesNaam || g.naam || '', actief: g.actief !== false, salesManager: g.magAlleSales === true });
 
-// De lijst wordt hergebruikt tot de verkoperbalk opnieuw getekend wordt (renderVerkoperBalk vraagt ze dan opnieuw); bij een fout probeert de volgende aanroep opnieuw.
+// De lijst wordt hergebruikt tot een sales-scherm opent (startScherm vraagt ze dan opnieuw, `ververs`); bij een fout probeert de volgende aanroep opnieuw.
 function laadVerkopers() {
   if (!lijstBelofte) {
     lijstBelofte = (async () => {
@@ -27,6 +28,7 @@ function laadVerkopers() {
       if (!r.ok || !Array.isArray(r.data?.gebruikers)) return false;
       verkopers = r.data.gebruikers.filter(g => g && typeof g.id === 'string').map(naarVerkoper)
         .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+      try { globalThis.document?.dispatchEvent(new CustomEvent('blitz:verkopers-geladen')); } catch { /* geen document */ } // de persoonskiezer in de kop tekent zich opnieuw
       return true;
     })().then(ok => { if (!ok) lijstBelofte = null; return ok; });
   }
@@ -66,75 +68,37 @@ export function kanLeadToevoegen() {
 }
 
 /**
- * Tekent de verkoperbalk in `container` (leeg voor een gewone verkoper). De keuzelijst staat er enkel voor beheerder of sales met magAlleSales.
- * `onWijzig(gebruikerId, schrijfbaar)` na een keuze van de gebruiker. Wacht op de lijst, zodat `getoondeVerkoper()` daarna klopt.
+ * Zorgt dat de lijst verkopers geladen is (enkel nodig voor wie een verkoper kiest: beheerder en sales manager) en geeft terug of dat gelukt is.
+ * `ververs`: de lijst opnieuw vragen (elke keer dat een sales-scherm opent: de beheerder kan intussen in Beheer > Gebruikers een verkoper hebben
+ * aangemaakt of geblokkeerd, acceptatietest S7). Eén kleine GET; de oude lijst blijft staan tot het antwoord er is.
  */
-export async function renderVerkoperBalk(container, { onWijzig } = {}) {
-  container.replaceChildren();
-  const instellingen = maakInstellingenKnop();
-  if (!huidigeRechten().alleSales) {
-    if (kanImporteren()) container.appendChild(instellingen); // een gewone verkoper: enkel de instellingenknop
-    return;
-  }
-  // Elke keer dat een sales-view (opnieuw) opent de lijst opnieuw vragen: de beheerder kan intussen in Beheer > Gebruikers een verkoper
-  // hebben aangemaakt of geblokkeerd (acceptatietest S7). Eén kleine GET; de oude lijst blijft staan tot het antwoord er is.
-  lijstBelofte = null;
-  const ok = await laadVerkopers();
-  container.replaceChildren();
-  const ik = huidigeGebruiker();
-  const getoond = getoondeVerkoper();
-
-  const wrap = document.createElement('label');
-  wrap.className = 'sales-verkoper';
-  const tekst = document.createElement('span');
-  tekst.className = 'sales-verkoper-label';
-  tekst.textContent = 'Verkoper';
-  const keuze = document.createElement('select');
-  keuze.className = 'sales-verkoper-keuze';
-  for (const v of verkopers) {
-    const o = document.createElement('option');
-    o.value = v.id;
-    o.textContent = v.naam + (ik && v.id === ik.id ? ' (jij)' : '') + (v.actief ? '' : ' (geblokkeerd)');
-    keuze.appendChild(o);
-  }
-  if (getoond.id) keuze.value = getoond.id;
-  wrap.append(tekst, keuze);
-  container.appendChild(wrap);
-
-  if (!ok) {
-    const melding = document.createElement('span');
-    melding.className = 'sales-verkoper-fout';
-    melding.textContent = 'De lijst met verkopers kon niet geladen worden.';
-    container.appendChild(melding);
-  }
-  const leesMelding = document.createElement('span');
-  leesMelding.className = 'sales-alleen-lezen';
-  leesMelding.textContent = 'Alleen lezen';
-  leesMelding.hidden = !getoond.id || schrijfbaarVoor(getoond.id);
-  container.appendChild(leesMelding);
-  instellingen.hidden = !kanImporteren(); // enkel bij de eigen leads: niet bij de weergave van een collega
-  container.appendChild(instellingen);
-
-  keuze.addEventListener('change', () => {
-    const id = keuze.value;
-    bewaarKeuze(id);
-    const schrijfbaar = schrijfbaarVoor(id);
-    leesMelding.hidden = schrijfbaar;
-    instellingen.hidden = !kanImporteren();
-    onWijzig?.(id, schrijfbaar);
-  });
+export async function zorgVoorVerkopers({ ververs = false } = {}) {
+  if (!huidigeRechten().alleSales) return true;
+  if (ververs) lijstBelofte = null;
+  return laadVerkopers();
 }
 
-// De knop ⚙ Instellingen (enkel voor de verkoper die zijn eigen leads toont; de beheerder gebruikt Beheer > Instellingen).
-// Het venster laadt lazy: sales-instellingen.js importeert zelf uit dit bestand.
-function maakInstellingenKnop() {
-  const knop = document.createElement('button');
-  knop.type = 'button';
-  knop.className = 'btn-sec sales-instellingen-knop';
-  knop.textContent = '⚙ Instellingen';
-  knop.addEventListener('click', () => { import('./sales-instellingen.js').then(m => m.openSalesInstellingen()); });
-  return knop;
+/** De geladen verkopers (kopie): [{ id, naam, salesNaam, actief, salesManager }] op naam. Leeg zolang niet geladen. */
+export function lijstVerkopers() { return verkopers.map(v => ({ ...v })); }
+
+// ---- de keuze ----
+const luisteraars = new Set();
+
+/** Meldt `fn(id)` aan voor elke keuze van een verkoper (de persoonskiezer); geeft de afmeldfunctie terug. */
+export function onVerkoperWijziging(fn) {
+  luisteraars.add(fn);
+  return () => { luisteraars.delete(fn); };
 }
+
+/** Bewaart de gekozen verkoper en laat de sales-schermen die verkoper laden. */
+export function kiesVerkoper(id) {
+  if (typeof id !== 'string' || id === '') return;
+  bewaarKeuze(id);
+  for (const fn of [...luisteraars]) { try { fn(id); } catch { /* een luisteraar mag de keuze niet breken */ } }
+}
+
+/** Is deze verkoper te wijzigen (rol toegestaan en niet geblokkeerd)? Voor de knop in de kop ("Alleen lezen"). */
+export function isSchrijfbaarVoor(id) { return schrijfbaarVoor(id); }
 
 /** Enkel voor tests en het afmelden: de lijst vergeten. */
 export function vergeetVerkopers() { lijstBelofte = null; verkopers = []; }

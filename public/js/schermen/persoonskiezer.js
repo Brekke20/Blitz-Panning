@@ -31,6 +31,7 @@ function el(tag, klasse, tekst) {
  *   ticketNamen: () => string[], gekozenTechnieker: () => string, gekozenVerkoper: () => string|null,
  *   werkruimte: () => 'techniek'|'sales', metSales: () => boolean,
  *   laadVerkopers: () => Promise<{ ok:boolean, lijst:{ id, naam, actief, salesManager }[] }>,   (beheerder en sales manager)
+ *   verkopersNu?: () => lijst|null,  de huidige lijst verkopers (sales-schermen verversen ze bij het openen); anders de lijst van laadVerkopers
  *   kies: (item) => void,            een persoon of "Alle technici" of een verkoper gekozen
  *   terug: (sleutel) => void,        "↩ Terug naar techniekers"
  * }
@@ -84,7 +85,7 @@ function huidigeLijst() {
   const g = huidigeGebruiker();
   return kiezerLijst({
     rol: g?.rol, rechten: huidigeRechten(), ticketNamen: bron.ticketNamen(), eigen: eigenZohoNaam(),
-    gebruikers, verkopers, verkopersFout,
+    gebruikers, verkopers: bron.verkopersNu?.() ?? verkopers, verkopersFout,
     werkruimte: bron.werkruimte(), gekozenTechnieker: bron.gekozenTechnieker(), gekozenVerkoper: bron.gekozenVerkoper(),
     ikId: g?.id ?? null, metSales: bron.metSales?.() ?? false,
   });
@@ -95,6 +96,7 @@ function maakItem(item) {
   knop.type = 'button';
   if (item.huidig) knop.setAttribute('aria-current', 'true');
   knop.dataset.soort = item.soort;
+  knop.dataset.sleutel = item.sleutel;
   const info = el('div', 'pm-item-info');
   const naam = el('div', 'pm-item-name', item.naam + (item.jij ? ' (jij)' : ''));
   info.append(naam);
@@ -169,6 +171,10 @@ export function koppelLuisteraars() {
   if (gekoppeld) return;
   gekoppeld = true;
   document.addEventListener('click', (e) => { if (!wortel()?.contains(e.target)) zetMenuOpen(false); });
+  // Beheer > Gebruikers wijzigde een account (aangemaakt, geblokkeerd, van rol veranderd): de lijsten bij het volgende openen opnieuw vragen.
+  document.addEventListener('blitz:gebruikers-gewijzigd', () => { vergeetLijsten(); });
+  // Een sales-scherm laadde de lijst verkopers (opnieuw): menu en knop tonen die lijst.
+  document.addEventListener('blitz:verkopers-geladen', () => { verkopersFout = false; bouwMenu(); werkKnopBij(); });
   document.addEventListener('keydown', (e) => {
     const menu = menuEl();
     if (!menu || !menuIsOpen()) return;

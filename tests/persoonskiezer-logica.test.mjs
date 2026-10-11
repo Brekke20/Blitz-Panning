@@ -76,7 +76,14 @@ test('sales manager: enkel verkopers (ook de geblokkeerde als de server ze stuur
   assert.deepEqual(namen(l), ['An Maes', 'Sofie Maes']);
   assert.equal(alleItems(l).every(i => i.soort === 'verkoper'), true);
   assert.deepEqual(alleItems(l).filter(i => i.jij).map(i => i.naam), ['Sofie Maes']);
-  assert.deepEqual({ icoon: l.knop.icoon, voor: l.knop.voor, naam: l.knop.naam, werkruimte: l.knop.werkruimte, leesalleen: l.knop.leesalleen }, { icoon: '👥', voor: 'Sales:', naam: 'An', werkruimte: 'sales', leesalleen: false });
+  assert.deepEqual({ icoon: l.knop.icoon, voor: l.knop.voor, naam: l.knop.naam, werkruimte: l.knop.werkruimte, leesalleen: l.knop.leesalleen }, { icoon: '👥', voor: 'Sales:', naam: 'An', werkruimte: 'sales', leesalleen: true }); // de leads van een collega zijn voor een sales manager enkel te lezen
+  const eigen = kiezerLijst({ rol: 'sales', rechten: { alleSales: true }, verkopers: VERKOPERS.slice(0, 2), ikId: 'u-sofie', gekozenVerkoper: 'u-sofie' });
+  assert.equal(eigen.knop.leesalleen, false);
+  assert.equal(eigen.knop.naam, 'Sofie');
+  // zonder bewaarde keuze toont een sales manager zijn eigen leads
+  const standaard = kiezerLijst({ rol: 'sales', rechten: { alleSales: true }, verkopers: VERKOPERS.slice(0, 2), ikId: 'u-sofie', gekozenVerkoper: null });
+  assert.equal(standaard.knop.naam, 'Sofie');
+  assert.equal(alleItems(standaard).filter(i => i.huidig).map(i => i.sleutel).join(), 'u-sofie');
   assert.equal(l.terug, null);
   // geen rol-labels in zijn lijst (zijn lijst bevat niets over rollen)
   assert.equal(alleItems(l).every(i => i.rolLabel === ''), true);
@@ -175,4 +182,14 @@ test('geen e-mailadres (of enig ander veld van de gebruikerslijst) in de uitvoer
 test('rechten.plannen bepaalt "Alle technici" voor een niet-beheerder; een technieker met "Mag zelf plannen" krijgt het niet', () => {
   const plan = kiezerLijst({ rol: 'technieker', rechten: { plannen: false, planEigen: true }, ticketNamen: TICKETS, eigen: 'Tim Peeters' });
   assert.equal(alleItems(plan).some(i => i.soort === 'alle'), false);
+});
+
+test('beheerder in de werkruimte Sales zonder bewaarde keuze: de eerste actieve verkoper (op naam) is de getoonde; een onbekende keuze valt daarop terug', () => {
+  const geblokkeerdEerst = [{ id: 'u-aad', naam: 'Aad Verkoper', actief: false }, ...VERKOPERS];
+  for (const keuze of [null, 'bestaat-niet']) {
+    const l = kiezerLijst({ rol: 'beheerder', rechten: { beheer: true, plannen: true, alleSales: true }, gebruikers: GEBRUIKERS, verkopers: geblokkeerdEerst, werkruimte: 'sales', gekozenVerkoper: keuze, metSales: true });
+    assert.equal(l.knop.naam, 'An');
+    assert.equal(l.knop.leesalleen, false);
+    assert.equal(l.groepen[1].items.filter(i => i.huidig).map(i => i.sleutel).join(), 'u-an');
+  }
 });

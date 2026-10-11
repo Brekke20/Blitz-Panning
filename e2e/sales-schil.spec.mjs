@@ -1,5 +1,5 @@
 import { test, expect, VERBODEN_PADEN } from './helpers.mjs';
-import { startSalesApp, salesStubs, verwachtFout, SALES_GEBRUIKER, BEHEERDER, VERBODEN_PADEN_SALES } from './sales-hulp.mjs';
+import { startSalesApp, salesStubs, verwachtFout, kiesVerkoper, SALES_GEBRUIKER, BEHEERDER, VERBODEN_PADEN_SALES } from './sales-hulp.mjs';
 
 // De schil van de sales-planner (Task 13): tabs per rol, start, verkoperkeuze en de foutmelding bij een opslagstoring.
 const zichtbareTabs = (page) => page.locator('.tabs-inner .tab:visible');
@@ -14,9 +14,9 @@ test.describe('sales: schil en start', () => {
     for (const naam of ['Wachtrij', 'Ingepland', 'Inventaris', 'Rapporten', 'Beheer']) await expect(tab(page, naam)).toHaveCount(0);
     await expect(page.locator('html')).toHaveAttribute('data-rol', 'sales');
     await expect(page.locator('nav[aria-label="Hoofdmenu"]')).toBeVisible();
-    // De koptknoppen die enkel na de gewone opstart werken zijn weg; thema en het gebruikersmenu blijven.
+    // De koptknop die enkel na de gewone opstart werkt (↺) is weg; ⚙, thema en het gebruikersmenu blijven.
     await expect(page.locator('[data-actie="vernieuw"]')).toBeHidden();
-    await expect(page.locator('[data-actie="instellingen"]')).toBeHidden();
+    await expect(page.locator('[data-actie="instellingen"]')).toBeVisible(); // ⚙ staat voor sales net als bij de techniekers in de kop (kop B)
     await expect(page.locator('#person-sel')).toBeHidden();
     await expect(page.locator('[data-actie="thema"]')).toBeVisible();
     await expect(page.locator('#gebruiker-sel .gebruiker-btn')).toBeVisible();
@@ -100,105 +100,87 @@ test.describe('sales: opslagstoring', () => {
 });
 
 test.describe('sales: verkoperkeuze', () => {
-  test('een gewone verkoper ziet geen keuzelijst en vraagt geen verkopers op', async ({ page, verzoeken }) => {
+  test('een gewone verkoper ziet geen kiezer en vraagt geen verkopers op', async ({ page, verzoeken }) => {
     await startSalesApp(page);
+    await expect(page.locator('#person-sel')).toBeHidden();
     await expect(page.locator('#view-sales-lijst .sales-verkoper')).toHaveCount(0);
     await expect(page.locator('#view-sales-lijst')).toContainText('Nog geen leads');
     expect(verzoeken.van('/api/gebruikers')).toEqual([]);
     await expect.poll(() => verzoeken.van('/api/sales', 'GET').length).toBeGreaterThan(0);
   });
 
-  test('een verkoper met "mag alle sales zien" kiest een verkoper; de keuze blijft en de andere blob wordt gelezen', async ({ page, verzoeken }) => {
+  test('een verkoper met "mag alle sales zien" kiest een verkoper in de kop; de keuze blijft en de andere blob wordt gelezen', async ({ page, verzoeken }) => {
     const echte = salesStubs({ gebruiker: MET_ALLES });
     const gevraagd = [];
     const sales = (z) => { if (z.methode === 'GET') gevraagd.push(z.query.get('gebruiker')); return echte.sales(z); };
     await startSalesApp(page, { gebruiker: MET_ALLES, overschrijf: { sales } });
-    const keuze = page.locator('#view-sales-lijst').getByLabel('Verkoper');
-    await expect(keuze).toBeVisible();
-    await expect(keuze).toHaveValue('u-test'); // standaard: de eigen leads
-    await expect(page.locator('#view-sales-lijst .sales-alleen-lezen')).toBeHidden();
-    await keuze.selectOption('u-bea');
-    await expect(page.locator('#view-sales-lijst .sales-alleen-lezen')).toBeVisible();
+    const knop = page.locator('#person-btn');
+    await expect(knop).toBeVisible();
+    await expect(knop).toContainText('Sales:');
+    await expect(knop).toHaveAttribute('aria-label', /Kies verkoper, nu Test Verkoper$/); // standaard: de eigen leads
+    await expect(page.locator('.person-lezen')).toHaveCount(0);
+    await kiesVerkoper(page, 'u-bea');
+    await expect(knop).toHaveAttribute('aria-label', /nu Bea Verkoper, alleen lezen/);
+    await expect(page.locator('.person-lezen')).toHaveText('Alleen lezen');
     await expect.poll(() => page.evaluate(() => localStorage.getItem('blitz_sales_verkoper'))).toBe('u-bea');
     await tab(page, 'Kalender').click();
-    await expect(page.locator('#view-sales-kalender').getByLabel('Verkoper')).toHaveValue('u-bea');
+    await expect(knop).toHaveAttribute('aria-label', /nu Bea Verkoper/);
     // De blob van Bea werd aangevraagd (niet de eigen).
     await expect.poll(() => gevraagd.includes('u-bea')).toBe(true);
     expect(gevraagd[0]).toBeNull(); // de eigen blob: geen ?gebruiker=
     expect(verzoeken.van('/api/gebruikers', 'GET').length).toBeGreaterThan(0);
   });
 
-  test('de beheerder krijgt één tab "Sales" met subtabs en een verkoperkeuze; de hoofdtabnamen blijven eenduidig', async ({ page }) => {
+  test('de beheerder in de werkruimte Sales: precies de tabs Leads, Kalender, Route, Afgewerkt en Beheer; geen tab "Sales", geen subtabs', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER });
-    await expect(zichtbareTabs(page)).toHaveCount(8);
-    await expect(tab(page, 'Sales')).toBeVisible();
-    // De subtabs bestaan enkel binnen de Sales-view: zolang die niet open is, blijven Kalender en Route eenduidig.
-    await expect(page.getByRole('tab', { name: 'Kalender' })).toHaveCount(1);
-    await expect(page.getByRole('tab', { name: 'Route' })).toHaveCount(1);
-    await tab(page, 'Sales').click();
-    const subs = page.getByRole('tablist', { name: 'Sales-onderdelen' });
-    await expect(subs.getByRole('tab')).toHaveText(['Leads', 'Kalender', 'Route', 'Afgewerkt']);
-    await expect(subs.getByRole('tab', { name: 'Leads' })).toHaveAttribute('aria-selected', 'true');
+    await expect(zichtbareTabs(page)).toHaveText(['Leads', 'Kalender', 'Route', 'Afgewerkt', 'Beheer']);
+    for (const naam of ['Sales', 'Wachtrij', 'Ingepland', 'Inventaris', 'Rapporten']) await expect(tab(page, naam)).toHaveCount(0);
+    await expect(page.getByRole('tablist', { name: 'Sales-onderdelen' })).toHaveCount(0);
+    await expect(page.locator('#view-sales')).toHaveCount(0);
+    await expect(tab(page, 'Leads')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('#view-sales-lijst')).toBeVisible();
-    await expect(page.locator('#view-sales-kalender')).toBeHidden();
-    await expect(page.locator('#view-sales-lijst').getByLabel('Verkoper')).toHaveValue('u-bea'); // de eerste verkoper (op naam)
-
-    await subs.getByRole('tab', { name: 'Kalender' }).click();
+    await expect(page.locator('#person-btn')).toContainText('Sales:');
+    await expect(page.locator('#person-btn')).toHaveAttribute('aria-label', /nu Bea Verkoper/); // de eerste actieve verkoper (op naam)
+    await tab(page, 'Kalender').click();
     await expect(page.locator('#view-sales-kalender')).toBeVisible();
     await expect(page.locator('#view-sales-lijst')).toBeHidden();
     await expect(page.locator('#view-sales-kalender .sales-kal')).toBeVisible(); // de echte kalender (Task 16)
-    await expect(page.locator('#view-sales-kalender .sales-alleen-lezen')).toBeHidden(); // de beheerder mag schrijven
-    await expect(page.locator('#view-sales-kalender').getByLabel('Verkoper')).toBeVisible();
-    expect(await page.evaluate(() => sessionStorage.getItem('blitz_sales_subtab'))).toBe('sales-kalender');
+    await expect(page.locator('.person-lezen')).toHaveCount(0); // de beheerder mag schrijven
   });
 
-  test('S7: een verkoper die intussen is aangemaakt staat in de keuzelijst zodra de beheerder de Sales-tab opnieuw opent', async ({ page }) => {
+  test('S7: een verkoper die intussen is aangemaakt staat in de kiezer zodra de beheerder een sales-scherm opnieuw opent', async ({ page }) => {
     const NIEUW = { id: 'u-nieuw', email: 'nieuw@test.be', naam: 'Nieuwe Verkoper', rol: 'sales', salesNaam: 'Nieuwe V.', magAlleSales: false, actief: true };
     const echte = salesStubs({ gebruiker: BEHEERDER, verkopers: [NIEUW] }); // de gebruiker bestaat in de opslag; de lijst "verschijnt" pas later
     let lijst = [];
     const gebruikers = (z) => (z.methode === 'GET' && z.query?.get('rol') === 'sales' ? { status: 200, json: { gebruikers: lijst } } : echte.gebruikers(z));
     await startSalesApp(page, { gebruiker: BEHEERDER, overschrijf: { ...echte, gebruikers } });
-    await tab(page, 'Sales').click();
     await expect(page.locator('#view-sales-lijst')).toContainText('Geen actieve verkopers gevonden.');
     // In Beheer > Gebruikers wordt een verkoper aangemaakt (hier: de stub geeft hem nu terug).
     lijst = [NIEUW];
-    await page.locator('.tabs-inner').getByRole('tab', { name: 'Beheer', exact: true }).click();
-    await tab(page, 'Sales').click();
-    const keuze = page.locator('#view-sales-lijst').getByLabel('Verkoper');
-    await expect(keuze).toBeVisible();
-    await expect(keuze.locator('option')).toHaveText(['Nieuwe Verkoper']);
+    await tab(page, 'Beheer').click();
+    await tab(page, 'Leads').click();
     await expect(page.locator('#view-sales-lijst')).not.toContainText('Geen actieve verkopers gevonden.');
-  });
-
-  test('subtabs: pijltjestoetsen en Home/End, en het gekozen subtab wordt onthouden', async ({ page }) => {
-    await startSalesApp(page, { gebruiker: BEHEERDER });
-    await tab(page, 'Sales').click();
-    const subs = page.getByRole('tablist', { name: 'Sales-onderdelen' });
-    await subs.getByRole('tab', { name: 'Leads' }).focus();
-    await page.keyboard.press('ArrowRight');
-    await expect(subs.getByRole('tab', { name: 'Kalender' })).toHaveAttribute('aria-selected', 'true');
-    await expect(subs.getByRole('tab', { name: 'Kalender' })).toBeFocused();
-    await page.keyboard.press('End');
-    await expect(subs.getByRole('tab', { name: 'Afgewerkt' })).toHaveAttribute('aria-selected', 'true');
-    await expect(page.locator('#view-sales-afgewerkt')).toBeVisible();
-    await page.keyboard.press('ArrowRight'); // omwikkelen
-    await expect(subs.getByRole('tab', { name: 'Leads' })).toHaveAttribute('aria-selected', 'true');
-    await page.keyboard.press('ArrowLeft');
-    await expect(subs.getByRole('tab', { name: 'Afgewerkt' })).toHaveAttribute('aria-selected', 'true');
-    // Wegnavigeren en terug, en na een herlaad: hetzelfde subtab.
-    // Met de Sales-view open bestaat "Kalender" twee keer (hoofdtab en subtab): de hoofdbalk wordt expliciet bevraagd.
-    await page.locator('.tabs-inner').getByRole('tab', { name: 'Kalender', exact: true }).click();
-    await tab(page, 'Sales').click();
-    await expect(subs.getByRole('tab', { name: 'Afgewerkt' })).toHaveAttribute('aria-selected', 'true');
-    await page.reload();
-    await tab(page, 'Sales').click();
-    await expect(subs.getByRole('tab', { name: 'Afgewerkt' })).toHaveAttribute('aria-selected', 'true');
-    await expect(page.locator('#view-sales-afgewerkt')).toBeVisible();
+    await expect(page.locator('#person-btn')).toHaveAttribute('aria-label', /nu Nieuwe Verkoper/);
+    await page.locator('#person-btn').click();
+    await expect(page.locator('#person-menu .pm-item[data-sleutel="u-nieuw"] .pm-item-name')).toHaveText('Nieuwe Verkoper');
   });
 
   test('de beheerder zonder actieve verkopers ziet een duidelijke melding', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER, verkopers: [] });
-    await tab(page, 'Sales').click();
     await expect(page.locator('#view-sales-lijst')).toContainText('Geen actieve verkopers gevonden.');
+  });
+
+  test('de lijst met verkopers kan niet geladen worden (beheerder): foutmelding met Opnieuw, en daarna staat de verkoper er', async ({ page, consoleFouten }) => {
+    const echte = salesStubs({ gebruiker: BEHEERDER });
+    let stuk = true;
+    const gebruikers = (z) => (stuk && z.methode === 'GET' && z.query?.get('rol') === 'sales' ? { status: 503, json: { error: 'opslag', code: 'opslag-storing' } } : echte.gebruikers(z));
+    await startSalesApp(page, { gebruiker: BEHEERDER, overschrijf: { ...echte, gebruikers } });
+    const view = page.locator('#view-sales-lijst');
+    await expect(view).toContainText('De lijst met verkopers kon niet geladen worden.');
+    stuk = false;
+    await view.getByRole('button', { name: 'Opnieuw' }).click();
+    await expect(view).not.toContainText('De lijst met verkopers kon niet geladen worden.');
+    await expect(page.locator('#person-btn')).toHaveAttribute('aria-label', /nu Bea Verkoper/);
+    consoleFouten.length = 0; // de 503 op /api/gebruikers is hier de bedoelde fout
   });
 });

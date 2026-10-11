@@ -5,6 +5,9 @@
 import { registreerActies, toast } from '../kern/ui.js';
 import { tabsVoorRol, laadTab } from '../kern/navigatie.js';
 import { TEST_MODE } from '../kern/omgeving.js';
+import { huidigeRechten } from '../kern/sessie.js';
+import { initPersoonskiezer, koppelLuisteraars, bouwMenu, werkKnopBij, toggleMenu, laadLijsten } from './persoonskiezer.js';
+import { kiesVerkoper, zorgVoorVerkopers, lijstVerkopers, VERKOPER_SLEUTEL } from './sales-verkoper.js';
 
 function zetStreep(tabId) {
   const tab = document.getElementById(tabId);
@@ -36,8 +39,26 @@ function activeerTab(id) {
   window.scrollTo(0, 0); // een tabwissel start bovenaan
 }
 
+// De persoonskiezer van een sales manager (kop B): "👥 Sales: An ▾", enkel verkopers. Een gewone verkoper heeft niets te kiezen en geen kiezer.
+function startKiezer() {
+  initPersoonskiezer({
+    ticketNamen: () => [], gekozenTechnieker: () => 'all', gekozenVerkoper: () => { try { return localStorage.getItem(VERKOPER_SLEUTEL); } catch { return null; } },
+    werkruimte: () => 'sales', metSales: () => true,
+    laadVerkopers: async () => { const ok = await zorgVoorVerkopers(); return { ok, lijst: lijstVerkopers() }; },
+    verkopersNu: () => lijstVerkopers(),
+    kies: (item) => { kiesVerkoper(item.sleutel); bouwMenu(); werkKnopBij(); },
+    terug: () => {},
+  });
+  koppelLuisteraars();
+  registreerActies(document.body, { 'persoon-menu': (el, e) => toggleMenu({ focus: e?.detail === 0 }) });
+  bouwMenu();
+  werkKnopBij();
+  laadLijsten().catch(() => {}); // de knop toont de naam van de getoonde verkoper zodra de lijst er is
+}
+
 function verbergKopKnoppen() {
-  for (const sel of ['[data-actie="vernieuw"]', '[data-actie="instellingen"]', '#person-sel']) {
+  const kiezer = huidigeRechten().alleSales ? [] : ['#person-sel'];
+  for (const sel of ['[data-actie="vernieuw"]', ...kiezer]) {
     const el = document.querySelector(sel);
     if (!el) continue;
     el.style.display = 'none';
@@ -61,9 +82,11 @@ export async function start() {
       document.documentElement.setAttribute('data-theme', thema);
     }
     registreerActies(document.querySelector('.tabs-inner'), { hoofdtab: (el, e, tab) => { e.stopPropagation(); activeerTab(tab); } });
-    registreerActies(document.body, { thema: () => toggleThema() });
+    // ⚙ in de kop (kop B): de eigen sales-instellingen, zoals bij de techniekers; vroeger "⚙ Instellingen" in de verkoperbalk.
+    registreerActies(document.body, { thema: () => toggleThema(), instellingen: () => { import('./sales-instellingen.js').then(m => m.openSalesInstellingen()); } });
     if (TEST_MODE) { const badge = document.getElementById('test-badge'); if (badge) badge.style.display = 'inline-block'; }
     verbergKopKnoppen();
+    if (huidigeRechten().alleSales) startKiezer();
     window.addEventListener('resize', () => {
       const actief = document.querySelector('.tab.active');
       if (actief) zetStreep(actief.id);

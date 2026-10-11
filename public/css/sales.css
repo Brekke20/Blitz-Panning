@@ -1,7 +1,5 @@
 /* sales.css — de schermen van de sales-planner (voorvoegsel `sales-`; tokens uit base.css, geen eigen kleuren). */
 
-.sales-balk { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); }
-.sales-balk:empty { display: none; }
 .sales-inhoud { padding: var(--sp-4); min-width: 0; }
 
 .sales-verkoper { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--text2); font-size: var(--fs-sm); }
@@ -9,8 +7,6 @@
   background: var(--surface2); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--r);
   padding: 6px 10px; font: inherit; font-size: var(--fs-sm); min-height: 36px;
 }
-.sales-verkoper-fout { color: var(--red-ink); font-size: var(--fs-xs); }
-.sales-alleen-lezen { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 8px; border-radius: var(--r-pill); background: var(--surface3); color: var(--muted); }
 
 .sales-leeg { color: var(--muted); text-align: center; padding: var(--sp-6) var(--sp-4); }
 .sales-fout {
@@ -30,23 +26,8 @@
 
 .sales-leeg + .sales-leeg { padding-top: 0; }
 @media (max-width: 599px) {
-  .sales-balk, .sales-inhoud { padding-left: var(--sp-3); padding-right: var(--sp-3); }
+  .sales-inhoud { padding-left: var(--sp-3); padding-right: var(--sp-3); }
 }
-
-/* Tab "Sales" van de beheerder: eigen subtabbalk (zelfde look als de Beheer-pagina); de panelen verbergen met [hidden]. */
-.sales-beheer { min-width: 0; }
-.sales-titel { font-size: var(--fs-xl); font-weight: 700; line-height: 1.25; padding: var(--sp-4) var(--sp-4) 0; }
-.sales-subtabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; margin: var(--sp-3) var(--sp-4) 0; }
-.sales-subtabs::-webkit-scrollbar { display: none; }
-.sales-subtab {
-  background: none; border: none; border-bottom: 2px solid transparent; padding: 0 var(--sp-4); min-height: 44px;
-  font: inherit; font-size: var(--fs-sm); font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap;
-}
-.sales-subtab:hover { color: var(--text); }
-.sales-subtab[aria-selected="true"] { color: var(--accent-ink); border-bottom-color: var(--accent); }
-.sales-subtab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
-.sales-subpaneel { min-width: 0; }
-.sales-subpaneel[hidden] { display: none; }
 
 /* ---- Leads (sales-lijst.js): drie kolommen ---- */
 .sales-lijst-wortel [hidden], .sales-detail [hidden], .sales-form [hidden] { display: none !important; }
@@ -183,8 +164,6 @@
 .sales-resultaat-chip-offerte { background: var(--blue-dim); color: var(--blue); }
 
 /* ---- Instellingen van de verkoper (sales-instellingen.js, knop in de verkoperbalk) ---- */
-.sales-instellingen-knop { margin-left: auto; min-height: 36px; padding: 6px 12px; font-size: var(--fs-sm); white-space: nowrap; }
-.sales-instellingen-knop[hidden] { display: none; }
 
 /* ---- Kalender (sales-kalender.js, sales-bezoek.js, sales-blok.js) ---- */
 .sales-kal { min-width: 0; }
@@ -279,9 +258,6 @@ html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
    pagina scrolt niet. Op de smalle indeling (telefoon, tablet rechtop) staan kaart en lijst onder elkaar en scrolt de pagina mee. */
 @media (min-width: 681px) {
   html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route:is(.active, .sales-subpaneel:not([hidden])) { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales.active:has(#view-sales-route:not([hidden])) { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales.active:has(#view-sales-route:not([hidden])) > .sales-beheer { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route > .sales-balk { flex: none; }
   html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route > .sales-inhoud { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-wortel { flex: 1; min-height: 0; }
   html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-wortel > :is(.plan-header, .week-strip, .plan-summary) { flex: none; }
