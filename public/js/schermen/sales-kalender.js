@@ -307,4 +307,4 @@ function teken(inhoud) {
   }
 }
 
-export const toon = (view) => startScherm(view, teken);
+export const toon = (view) => startScherm(view, teken, { skelet: 'rijen' });

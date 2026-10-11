@@ -159,6 +159,7 @@
 .dash-melding .dash-knop { margin-left: var(--sp-2); }
 .dash-inhoud { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; transition: opacity .15s; }
 .dash-inhoud[aria-busy="true"] { opacity: .6; }
+.dash-inhoud[aria-busy="true"]:has(> .skelet) { opacity: 1; } /* eerste lading: het skelet staat er al, niet nog eens dempen */
 .dash-voetnoten { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-xs); color: var(--text2); }
 .dash-voetnoten li { overflow-wrap: anywhere; }
 .dash-instellingen { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: var(--sp-3) var(--sp-4); min-width: 0; }
