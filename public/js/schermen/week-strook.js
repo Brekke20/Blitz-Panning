@@ -2,6 +2,7 @@
 // met ‹ › voor de vorige en volgende week. Gedeeld door de route van de technieker (route.js, #week-strip) en die van de verkoper
 // (sales-route.js); de markup en de klassen (.week-strip, .ws-dag, ...) zijn gelijk, dus ook het uiterlijk (css/app.css).
 // De luisteraars (klik, pijltjestoetsen) komen één keer op de strook; elke tekening ververst de toestand die ze lezen.
+// Compacte dagknop (kop B): links twee regels (dag en status), rechts het aantal; de strook staat samen met 📅 en de knoppen op één werkbalk (.route-balk).
 // Alle tekst die erin komt is eigen of een telwoord; er staat nooit gebruikersinvoer in (de verkoper toont aantallen, geen namen).
 import { escHtml } from '../kern/ui.js';
 import { localISO } from '../kern/tijd.js';
@@ -57,10 +58,26 @@ export function renderWeekstrook(el, { datum, werkdagen, vandaag, dagInfo, kies 
     const naam = `${WEEKSTROOK_DAG[d.getDay()]} ${d.getDate()}`;
     html += `<button type="button" class="ws-dag ${info.klasse}${sel ? ' actief' : ''}${iso === vandaag ? ' vandaag' : ''}" data-ws="${iso}" tabindex="${tab}" aria-pressed="${sel}"${sel ? ' aria-current="date"' : ''}` +
       ` aria-label="${escHtml(`${naam}: ${info.aria}`)}">` +
-      `<span class="ws-naam">${naam}</span><span class="ws-aantal">${escHtml(info.aantal)}</span><span class="ws-status">${escHtml(info.status)}</span></button>`;
+      `<span class="ws-links"><span class="ws-naam">${naam}</span><span class="ws-status">${escHtml(info.status)}</span></span><span class="ws-aantal">${escHtml(info.aantal)}</span></button>`;
   });
   html += '</div><button type="button" class="ws-nav" data-ws="volgende" aria-label="Volgende week" title="Volgende week">›</button>';
   el.innerHTML = html;
   if (hadFocus) (el.querySelector('.ws-dag.actief') || el.querySelector('.ws-dag'))?.focus();
   el.querySelector('.ws-dag.actief')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+}
+
+/**
+ * Koppelt de 📅-knop van de Route-werkbalk aan het (onzichtbare) datumveld ernaast: een tik opent de datumkiezer.
+ * `showPicker()` waar het bestaat; anders krijgt het veld focus en een klik (oudere toestellen openen dan hun gewone kiezer).
+ * Het veld zelf blijft de bron van de datum (waarde, 'change'-gebeurtenis), dus alles wat het leest of zet blijft werken.
+ */
+export function koppelDatumKnop(knop, veld) {
+  if (!knop || !veld || knop._datumGekoppeld) return;
+  knop._datumGekoppeld = true;
+  knop.addEventListener('click', () => {
+    try {
+      if (typeof veld.showPicker === 'function') { veld.showPicker(); return; }
+    } catch { /* NotAllowedError of niet ondersteund: val terug op focus + klik */ }
+    try { veld.focus({ preventScroll: true }); veld.click(); } catch { /* geen kiezer beschikbaar */ }
+  });
 }

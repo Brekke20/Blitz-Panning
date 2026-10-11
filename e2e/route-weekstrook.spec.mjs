@@ -67,4 +67,47 @@ test.describe('route: weekstrook van de technieker', () => {
     await maakRouteMetStops(page);
     await expect(dagen(page).locator('.ws-naam')).toHaveText(['MA 5', 'DI 6', 'WO 7']);
   });
+
+  test('één werkbalk: 📅, de weekstrook en de knoppen staan op één regel (computer), geen aparte kop meer', async ({ page }) => {
+    await naarRoute(page);
+    await expect(page.locator('.plan-header')).toHaveCount(0);
+    const balk = await page.locator('#route-balk').boundingBox();
+    const knop = await page.getByTestId('route-datum-knop').boundingBox();
+    const stroken = await strook(page).boundingBox();
+    const optimaliseer = await page.locator('#btn-optimize').boundingBox();
+    expect(balk.height).toBeLessThanOrEqual(60);
+    for (const doos of [knop, stroken, optimaliseer]) {
+      expect(doos.y).toBeGreaterThanOrEqual(balk.y);
+      expect(doos.y + doos.height).toBeLessThanOrEqual(balk.y + balk.height + 1);
+    }
+    expect(stroken.x).toBeGreaterThanOrEqual(knop.x + knop.width - 1);
+    expect(optimaliseer.x).toBeGreaterThanOrEqual(stroken.x + stroken.width - 1);
+    // De dagknop is 44 px hoog, met links dag en status en rechts het aantal.
+    const dag = await dagen(page).first().boundingBox();
+    expect(dag.height).toBe(44);
+    const naam = await dagen(page).first().locator('.ws-naam').boundingBox();
+    const aantal = await dagen(page).first().locator('.ws-aantal').boundingBox();
+    expect(aantal.x).toBeGreaterThan(naam.x + naam.width);
+  });
+
+  test('📅 opent de datumkiezer (showPicker) en een gekozen datum zet de route op die dag', async ({ page }) => {
+    await naarRoute(page);
+    await page.evaluate(() => { window.__picker = 0; HTMLInputElement.prototype.showPicker = function () { window.__picker++; }; });
+    await page.getByTestId('route-datum-knop').click();
+    expect(await page.evaluate(() => window.__picker)).toBe(1);
+    await datum(page).fill('2026-10-08');
+    await expect(dagen(page).nth(3)).toHaveClass(/actief/);
+    await expect(page.getByTestId('route-aantal-stops')).toHaveText('0');
+  });
+
+  test('zonder showPicker valt 📅 terug op het veld zelf (focus en klik)', async ({ page }) => {
+    await naarRoute(page);
+    await page.evaluate(() => {
+      window.__klik = 0;
+      HTMLInputElement.prototype.showPicker = undefined;
+      document.getElementById('plan-date').addEventListener('click', () => { window.__klik++; });
+    });
+    await page.getByTestId('route-datum-knop').click();
+    expect(await page.evaluate(() => window.__klik)).toBe(1);
+  });
 });

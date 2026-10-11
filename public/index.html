@@ -167,7 +167,7 @@
   <div class="tabs-inner" role="tablist">
     <button type="button" class="tab active coord-only plan-eigen" role="tab" aria-selected="true" aria-controls="view-tickets" tabindex="0" id="tab-tickets"  data-actie="hoofdtab" data-arg="tickets">Wachtrij <span class="badge" id="cnt-tickets">0</span></button>
     <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="view-kalender" tabindex="-1"        id="tab-kalender" data-actie="hoofdtab" data-arg="kalender">Kalender</button>
-    <button type="button" class="tab coord-only plan-eigen" role="tab" aria-selected="false" aria-controls="view-planning" tabindex="-1" id="tab-planning" data-actie="hoofdtab" data-arg="planning">Route</button>
+    <button type="button" class="tab coord-only plan-eigen alleen-groot" role="tab" aria-selected="false" aria-controls="view-planning" tabindex="-1" id="tab-planning" data-actie="hoofdtab" data-arg="planning">Route</button>
     <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="view-gepland" tabindex="-1"        id="tab-gepland"  data-actie="hoofdtab" data-arg="gepland">Ingepland <span class="badge" id="cnt-gepland">0</span></button>
     <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="view-inventaris" tabindex="-1"        id="tab-inventaris" data-actie="hoofdtab" data-arg="inventaris">Inventaris <span class="badge" id="cnt-inventaris" style="display:none">0</span></button>
     <button type="button" class="tab coord-only" role="tab" aria-selected="false" aria-controls="view-rapporten" tabindex="-1" id="tab-rapporten" data-actie="hoofdtab" data-arg="rapporten">Rapporten</button>
@@ -232,13 +232,20 @@
 
 <!-- ══ ROUTE TAB ══ -->
 <div class="view" id="view-planning" role="tabpanel" aria-labelledby="tab-planning">
-  <div class="plan-header">
-    <input type="date" id="plan-date" data-testid="route-datum" class="plan-date-compact" aria-label="Datum voor de route (verre datum kiezen)" title="Andere datum kiezen" />
-    <button class="btn-primary" id="btn-optimize" data-actie="route-optimaliseer" disabled title="Herorden stops voor kortste reistijd, daarna rijtijden berekenen">⚡ Optimaliseer</button>
-    <button class="btn-sec"     id="btn-route"    data-actie="route-bereken" disabled title="Bereken rijtijden in huidige volgorde">Bereken tijden</button>
-    <button class="btn-sec"     data-actie="route-leeg">✕ Leeg</button>
+  <div class="route-balk" id="route-balk">
+    <div class="route-balk-links">
+      <span class="route-datum-wrap">
+        <button type="button" class="route-datum-knop" id="plan-date-knop" data-testid="route-datum-knop" aria-label="Andere datum kiezen" title="Andere datum kiezen">📅</button>
+        <input type="date" id="plan-date" data-testid="route-datum" class="route-datum-veld" tabindex="-1" aria-label="Datum voor de route" />
+      </span>
+      <div class="week-strip" id="week-strip" role="group" aria-label="Week van de gekozen datum"></div>
+    </div>
+    <div class="route-balk-acties">
+      <button class="btn-primary" id="btn-optimize" data-actie="route-optimaliseer" disabled title="Herorden stops voor kortste reistijd, daarna rijtijden berekenen">⚡ Optimaliseer</button>
+      <button class="btn-sec"     id="btn-route"    data-actie="route-bereken" disabled title="Bereken rijtijden in huidige volgorde">Bereken tijden</button>
+      <button class="btn-sec"     data-actie="route-leeg">✕ Leeg</button>
+    </div>
   </div>
-  <div class="week-strip" id="week-strip" role="group" aria-label="Week van de gekozen datum"></div>
   <div class="plan-body">
     <div id="route-list"><div class="route-empty">Voeg tickets toe via de Wachtrij of Kalender</div></div>
     <div id="map-wrap"><div id="map"></div></div>

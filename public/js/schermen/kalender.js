@@ -647,7 +647,7 @@ export function renderKalender() {
     // op — dat is exact de bug die dit oploste).
     if (dayStops.length > 0 || dayEvents.some(e => e.adres || e.notitie)) {
       const rb = document.createElement('button');
-      rb.className = 'cal-btn coord-only';
+      rb.className = 'cal-btn coord-only alleen-groot'; // Route bestaat niet op een gsm
       rb.style.cssText = 'flex:none;width:100%;margin-bottom:4px;background:var(--accent-dim);border:1px solid rgba(245,158,11,0.2);color:var(--accent-ink);padding:4px;border-radius:4px;cursor:pointer;font-size:0.7rem;font-weight:600;font-family:inherit;';
       rb.textContent = 'Route bekijken'; // opent de tab Route; het berekenen gebeurt daar ("Bereken tijden") (UI/UX P2-1)
       rb.onclick = () => {

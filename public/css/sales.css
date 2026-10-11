@@ -230,12 +230,11 @@ html[data-indeling="smal"] .sales-kal-grid .day-hdr { height: auto; }
 html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
 
 /* ---- Route (sales-route.js, sales-kaart.js) ----
-   De indeling is die van de technieker (app.css): .plan-header, .week-strip, .plan-body met een smalle lijstkolom links (.sales-route-lijstvak)
+   De indeling is die van de technieker (app.css): .route-balk (📅, .week-strip en knoppen), .plan-body met een smalle lijstkolom links (.sales-route-lijstvak)
    en de kaart rechts (.sales-route-kaartvak), .plan-summary onderaan, en de stopkaarten als .stop. Hier staat enkel wat de verkoper extra heeft. */
 .sales-route-wortel { display: flex; flex-direction: column; min-width: 0; }
 .sales-route-wortel [hidden] { display: none !important; }
-.sales-route-weekstrook .ws-dag { flex-basis: 96px; min-width: 96px; } /* "2 bezoeken" is langer dan "2 stops" */
-.sales-route-weekstrook .ws-aantal { white-space: nowrap; }
+.sales-route-weekstrook .ws-dag { min-width: 112px; } /* "2 bezoeken" is langer dan "2 stops" */
 .sales-route-datumveld:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .sales-route-samenvatting { overflow-wrap: anywhere; }
 .sales-route-melding, .sales-route-nota, .sales-route-wegafsluiting { flex: none; margin: 0; padding: 6px 14px; font-size: var(--fs-xs); overflow-wrap: anywhere; }
@@ -284,7 +283,7 @@ html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
   html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route > .sales-balk { flex: none; }
   html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route > .sales-inhoud { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-wortel { flex: 1; min-height: 0; }
-  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-wortel > :is(.plan-header, .week-strip, .plan-summary) { flex: none; }
+  html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-wortel > :is(.route-balk, .plan-summary) { flex: none; }
   html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-inhoud { flex: 1; min-height: 0; }
   html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-leeg { flex: 1; }
 }

@@ -74,14 +74,15 @@ test.describe('instellingen: tab Dit toestel', () => {
   });
 
   // UI/UX P1-5: een toestelweergave (gsm/tablet) verandert de indeling, nooit de rol: het account beslist.
-  test('weergave "Gsm" kiezen laat een beheerder coördinator: alle tabs blijven, enkel de indeling wordt smal', async ({ page }) => {
+  test('weergave "Gsm" kiezen laat een beheerder coördinator: alle tabs blijven behalve Route (kop B), de indeling wordt smal', async ({ page }) => {
     await startApp(page);
     const modal = await openToestel(page);
     for (const naam of ['Wachtrij', 'Route', 'Rapporten']) await expect(page.getByRole('tab', { name: naam })).toBeVisible();
     await modal.getByRole('radio', { name: 'Gsm' }).check();
     await expect(page.locator('html')).toHaveAttribute('data-indeling', 'smal');
     await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
-    for (const naam of ['Wachtrij', 'Route', 'Rapporten']) await expect(page.getByRole('tab', { name: naam })).toBeVisible();
+    for (const naam of ['Wachtrij', 'Rapporten']) await expect(page.getByRole('tab', { name: naam })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Route' })).toBeHidden(); // Route alleen op tablet en computer
     await expect(modal.locator('#set-subtab-algemeen')).toBeVisible();
   });
 

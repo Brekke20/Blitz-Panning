@@ -371,8 +371,10 @@ function zetTopbarHoogte() {
 // herstellen we als het jonger is dan 10 minuten. Nooit een coord-only tab voor een technieker.
 const SCHERMSTAAT_KEY = 'blitz_schermstaat';
 // Een coördinatortab die de beperkte (technieker-)weergave niet toont; een technieker met "Mag zelf plannen" houdt de plan-tabs (.plan-eigen).
-const tabVerborgenVoorToestel = (tabEl) => window.apparaat?.rol === 'technieker' && tabEl.classList.contains('coord-only')
-  && !(tabEl.classList.contains('plan-eigen') && window.apparaat.planEigen === true);
+// Route (.alleen-groot) bestaat op een gsm (indeling 'smal') voor niemand: ook die tab is dan verborgen (kop B).
+const tabVerborgenVoorToestel = (tabEl) => (window.apparaat?.indeling === 'smal' && tabEl.classList.contains('alleen-groot'))
+  || (window.apparaat?.rol === 'technieker' && tabEl.classList.contains('coord-only')
+    && !(tabEl.classList.contains('plan-eigen') && window.apparaat.planEigen === true));
 let _schermStaatBewaarOk = false, _herstelGebruikerActie = false;
 function bewaarSchermStaat() {
   if (!_schermStaatBewaarOk) return; // nog niet hersteld: bewaar de oude staat niet met een lege
@@ -871,7 +873,6 @@ function setTab(tab) {
 let _apparaatListener = false; // de 'apparaatwijziging'-luisteraar is maar één keer gekoppeld
 // NOTE: 'kalender' is de vaste terugvaltab voor de technieker en mag nooit de klasse coord-only dragen.
 function pasRolBeperkingToe() {
-  if (window.apparaat?.rol !== 'technieker') return;
   const active = document.querySelector('.tab.active');
   if (active && tabVerborgenVoorToestel(active)) setTab('kalender');
 }
