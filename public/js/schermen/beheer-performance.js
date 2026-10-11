@@ -7,6 +7,7 @@
 import { registreerBeheerTab, beheerVerzoek, beheerFoutTekst, h } from './beheer.js';
 import { huidigeGebruiker, huidigeRechten } from '../kern/sessie.js';
 import { bewaarMetVersie } from '../kern/api.js';
+import { toonSkelet } from '../kern/skelet.js';
 import { registreerActies, registreerWijzigActies, toast } from '../kern/ui.js';
 import { STANDAARD_GRENZEN } from '../kern/dashboard-grenzen.js';
 import { openRapportOpId } from '../rapport-archief.js';
@@ -135,7 +136,10 @@ async function render(container) {
   async function laadDashboard() {
     const mijn = ++t.volgnummer;
     inhoud.setAttribute('aria-busy', 'true'); // de vorige render blijft staan, op opaciteit 0,6 (geen skeleton)
-    const r = await beheerVerzoek(`/api/dashboard${maakQuery(t.filters)}`);
+    // Enkel de eerste lading (nog niets te tonen): tegels en blokken als skelet. Bij een verversing staat er al inhoud en blijft die staan.
+    const skelet = toonSkelet(inhoud, deel === 'sales' ? { vorm: 'kaarten', aantal: 3 } : { vorm: 'tegels' });
+    let r;
+    try { r = await beheerVerzoek(`/api/dashboard${maakQuery(t.filters)}`); } finally { skelet.stop(); }
     if (mijn !== t.volgnummer || !levend()) return; // een nieuwere keuze is onderweg
     inhoud.removeAttribute('aria-busy');
     if (!r.ok || !r.data || typeof r.data !== 'object') {

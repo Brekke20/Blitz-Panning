@@ -7,10 +7,13 @@
 
 import { apiVerzoek } from '../kern/api.js';
 import { huidigeGebruiker } from '../kern/sessie.js';
+import { toonSkelet } from '../kern/skelet.js';
 
 const KEUZE_SLEUTEL = 'blitz_beheer_tab'; // sessionStorage: het gekozen tabblad blijft staan binnen deze sessie
 const tabs = []; // { id, label, render, rollen }
 const BEHEERDER_ENKEL = ['beheerder'];
+// De vorm van het skelet per tab voor het geval een tab pas iets tekent nadat zijn eerste gegevens binnen zijn (anders staat er al een kader).
+const SKELET_VORM = { instellingen: 'formulier', performance: 'tegels' };
 
 // De beheerrol van een gebruiker: 'beheerder', 'planner', 'sales-manager' (sales met magAlleSales) of null (geen Beheer).
 export function beheerRolVan(gebruiker) {
@@ -112,12 +115,14 @@ export async function openBeheer(container) {
     const nieuw = h('div', { class: 'beheer-paneel', role: 'tabpanel', tabindex: '0', id: 'beheer-paneel', 'aria-labelledby': `beheer-tab-${tab.id}`, 'aria-busy': 'true' });
     paneel.replaceWith(nieuw);
     paneel = nieuw;
+    const skelet = toonSkelet(nieuw, { vorm: SKELET_VORM[tab.id] ?? 'rijen' }); // enkel zolang het paneel leeg is en de tab na 150 ms nog niets tekende
     try {
       await tab.render(nieuw);
     } catch (fout) {
       console.error('Beheer-tab laden mislukt:', tab.id, fout);
       if (mijn === volgnummer) nieuw.replaceChildren(h('p', { class: 'beheer-fout', role: 'alert', text: 'Laden is mislukt. Probeer het opnieuw.' }));
     } finally {
+      skelet.stop();
       nieuw.removeAttribute('aria-busy');
     }
   }

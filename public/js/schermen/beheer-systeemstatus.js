@@ -8,6 +8,7 @@ import { formatDatumTijd } from './beheer-activiteit-logica.js';
 import { opnieuwUitkomst, OPNIEUW_BEVESTIGING } from './beheer-systeemstatus-logica.js';
 import { appConfirm } from '../app-dialog.js';
 import { toast } from '../kern/ui.js';
+import { toonSkelet } from '../kern/skelet.js';
 
 const HERLAAD_NA_MS = 10000; // na een geslaagd "Opnieuw versturen" herlaadt de lijst vanzelf (de verwerking loopt op de achtergrond)
 
@@ -109,8 +110,11 @@ async function render(container) {
     opnieuw.clear(); // een verse lijst van de server is leidend: staat het rapport er nog als mislukt in, dan mag het opnieuw
     clearTimeout(herlaadTimer);
     vernieuw.disabled = true;
-    status.textContent = 'Laden…';
-    const r = await beheerVerzoek('/api/systeemstatus');
+    const eerste = inhoud.childElementCount === 0; // eerste lading: skelet; een verversing houdt de oude blokken staan met de status "Laden…"
+    if (!eerste) status.textContent = 'Laden…';
+    const skelet = toonSkelet(inhoud, { vorm: 'rijen', aantal: 4 });
+    let r;
+    try { r = await beheerVerzoek('/api/systeemstatus'); } finally { skelet.stop(); }
     if (mijn !== volgnummer) return;
     vernieuw.disabled = false;
     status.textContent = '';
