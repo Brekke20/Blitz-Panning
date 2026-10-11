@@ -264,19 +264,24 @@ test('maakVerkoperBlokken: periode zonder werkdagen en een te lange reden geven 
   assert.match(maakVerkoperBlokken({ ...FORM, reden: 'x'.repeat(201) }).fout, /te lang/);
 });
 
-test('verkoperBlokkenNaarUitzonderingen: enkel komende blokken, gesorteerd, soort zichtbaar als het geen verlof is, hele dag/tijdvak herkend', () => {
+test('verkoperBlokkenNaarUitzonderingen: enkel komende verlofblokken (en hele dag zonder soort), gesorteerd; kantoor en afspraak nooit', () => {
   const blokken = [
     { id: 'z', datum: '2026-10-04', start: '00:00', eind: '23:59', soort: 'verlof' }, // verleden
     { id: 'k', datum: '2026-10-08', start: '09:00', eind: '12:00', soort: 'kantoor', omschrijving: 'Papierwerk' },
+    { id: 'a', datum: '2026-10-08', start: '14:00', eind: '15:00', soort: 'afspraak', omschrijving: 'Klant' },
+    { id: 'ka', datum: '2026-10-09', start: '00:00', eind: '23:59', soort: 'kantoor' }, // hele dag, maar geen verlof
     { id: 'v', datum: '2026-10-07', start: '00:00', eind: '23:59', soort: 'verlof', omschrijving: 'Verlof' },
     { id: 'w', datum: '2026-10-09', start: '00:00', eind: '24:00', soort: 'verlof' },
+    { id: 't', datum: '2026-10-09', start: '13:00', eind: '15:00', soort: 'verlof', omschrijving: ' Dokter ' },
+    { id: 'zs', datum: '2026-10-10', start: '00:00', eind: '23:59' }, // hele dag zonder soort
+    { id: 'zs2', datum: '2026-10-10', start: '10:00', eind: '11:00' }, // tijdvak zonder soort: geen afwezigheid
   ];
   const r = verkoperBlokkenNaarUitzonderingen(blokken, { naam: 'Bea V.', vandaag: '2026-10-05' });
-  assert.deepEqual(r.map(e => e.id), ['v', 'k', 'w']);
-  assert.deepEqual(r.map(e => e.kind), ['fullday', 'range', 'fullday']);
+  assert.deepEqual(r.map(e => e.id), ['v', 'w', 't', 'zs']);
+  assert.deepEqual(r.map(e => e.kind), ['fullday', 'fullday', 'range', 'fullday']);
   assert.equal(r[0].reason, 'Verlof');
-  assert.equal(r[1].reason, 'Kantoor — Papierwerk');
-  assert.deepEqual([r[1].from, r[1].to, r[1].person, r[1].scope], ['09:00', '12:00', 'Bea V.', 'person']);
+  assert.equal(r[2].reason, 'Dokter');
+  assert.deepEqual([r[2].from, r[2].to, r[2].person, r[2].scope], ['13:00', '15:00', 'Bea V.', 'person']);
   assert.deepEqual(verkoperBlokkenNaarUitzonderingen(null, { naam: 'x', vandaag: '2026-10-05' }), []);
 });
 

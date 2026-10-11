@@ -130,18 +130,16 @@ export function maakVerkoperBlokken({ kind, meerdaags, datum, datumTot, van, tot
   return blokken.length ? { blokken } : { fout: '⚠ In deze periode zijn er geen werkdagen. Kies andere data.' };
 }
 
-const SOORT_LABEL = { verlof: 'Verlof', kantoor: 'Kantoor', afspraak: 'Afspraak' };
-
-// De komende sales-blokken van een verkoper (vanaf `vandaag`) in dezelfde vorm als een afwezigheid, zodat groupExceptionsForDisplay ze kan
-// samenvoegen: { id, scope:'person', person: naam, date, kind:'fullday'|'range', from, to, reason }. Een blok dat geen verlof is toont de soort
-// ("Kantoor — reden") zodat het niet voor verlof doorgaat. Gesorteerd op datum en begin.
+// De komende afwezigheden van een verkoper (vanaf `vandaag`) uit zijn sales-blokken, in dezelfde vorm als een afwezigheid, zodat
+// groupExceptionsForDisplay ze kan samenvoegen: { id, scope:'person', person: naam, date, kind:'fullday'|'range', from, to, reason }.
+// ENKEL soort 'verlof' (en een hele-dag-blok zonder soort): kantoor, afspraak en andere blokken zijn geen afwezigheid en worden hier niet getoond,
+// dus ook niet verwijderbaar vanuit Beheer. Gesorteerd op datum en begin.
 export function verkoperBlokkenNaarUitzonderingen(blokken, { naam, vandaag }) {
   return (Array.isArray(blokken) ? blokken : [])
-    .filter(b => b && typeof b.datum === 'string' && b.datum >= vandaag)
-    .map(b => {
-      const tekst = typeof b.omschrijving === 'string' ? b.omschrijving.trim() : '';
-      const reason = b.soort === 'verlof' || !SOORT_LABEL[b.soort] ? tekst : (tekst ? `${SOORT_LABEL[b.soort]} — ${tekst}` : SOORT_LABEL[b.soort]);
-      return { id: b.id, scope: 'person', person: naam, date: b.datum, kind: isHeleDag(b) ? 'fullday' : 'range', from: b.start, to: b.eind, reason };
-    })
+    .filter(b => b && typeof b.datum === 'string' && b.datum >= vandaag && (b.soort === 'verlof' || (!b.soort && isHeleDag(b))))
+    .map(b => ({
+      id: b.id, scope: 'person', person: naam, date: b.datum, kind: isHeleDag(b) ? 'fullday' : 'range', from: b.start, to: b.eind,
+      reason: typeof b.omschrijving === 'string' ? b.omschrijving.trim() : '',
+    }))
     .sort((a, b) => a.date.localeCompare(b.date) || String(a.from).localeCompare(String(b.from)));
 }

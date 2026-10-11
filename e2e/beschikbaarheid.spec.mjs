@@ -623,6 +623,22 @@ test.describe('Beheer → Beschikbaarheden: verkopers (L1)', () => {
     expect(puts(verzoeken)).toEqual([]);
   });
 
+  test('van een verkoper staan enkel verlofblokken in de lijst: kantoor en afspraak blijven weg (en zijn dus niet te verwijderen)', async ({ page, verzoeken }) => {
+    const gewoon = [
+      { id: 'k1', datum: '2026-10-08', start: '00:00', eind: '23:59', soort: 'kantoor', omschrijving: 'Kantoordag' },
+      { id: 'a1', datum: '2026-10-08', start: '14:00', eind: '15:00', soort: 'afspraak', omschrijving: 'Klantbezoek' },
+    ];
+    const { backend, modal } = await startVerkoperTab(page, { blokken: { 'u-bea': [VERLOF('bl1', '2026-10-09', 'Dokter'), ...gewoon] } });
+    for (const keuze of ['verkoper:u-bea', 'all']) {
+      await modal.locator('#bav-filter-person').selectOption(keuze);
+      await expect.poll(() => lijstTekst(modal)).toEqual(['9 okt 2026 · 🔒 Hele dag — Dokter (Bea V.)']);
+    }
+    await modal.locator('.av-item-del').click();
+    await expect.poll(() => lijstTekst(modal)).toEqual([]);
+    expect(salesPatches(verzoeken).map(r => r.body.blokken)).toEqual([{ verwijder: ['bl1'] }]);
+    expect((await blobVan(backend, 'u-bea')).blokken.map(b => b.id)).toEqual(['k1', 'a1']); // de gewone blokken blijven staan
+  });
+
   test('meerdere werkdagen: één blok per werkdag in één PATCH en één gegroepeerde regel; verwijderen haalt alle blokken weg', async ({ page, verzoeken }) => {
     const { modal } = await startVerkoperTab(page);
     await modal.locator('#bav-filter-person').selectOption('verkoper:u-carl');
