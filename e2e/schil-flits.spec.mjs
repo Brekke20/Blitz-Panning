@@ -6,7 +6,8 @@ import { startSalesApp, SALES_GEBRUIKER } from './sales-hulp.mjs';
 // en elk beeldframe vanaf de eerste parse welke van die elementen zichtbaar zijn (visibility:hidden en display:none tellen als onzichtbaar).
 const ELEMENTEN = {
   Wachtrij: '#tab-tickets', Route: '#tab-planning', Ingepland: '#tab-gepland', Inventaris: '#tab-inventaris', Rapporten: '#tab-rapporten',
-  'Planning: Alle': '#person-sel', Vernieuwen: '[data-actie="vernieuw"]', Instellingen: '[data-actie="instellingen"]', 'Laden...': '#empty-tickets',
+  'Planning: Alle': '#person-sel', 'Laden...': '#empty-tickets',
+  // ↺ en ⚙ staan voor sales net als bij de andere rollen in de kop (kop B): ze zijn dus geen "flits van een andere rol" meer.
 };
 
 async function zetWaarnemer(page) {

@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.mjs';
-import { startSalesApp, salesStubs, maakSalesBackend, verwachtFout, BEHEERDER, SALES_GEBRUIKER, ANDERE_VERKOPERS } from './sales-hulp.mjs';
+import { startSalesApp, salesStubs, maakSalesBackend, verwachtFout, BEHEERDER, SALES_GEBRUIKER, ANDERE_VERKOPERS, kiesVerkoper } from './sales-hulp.mjs';
 // Het export-object van "+ Lead" (zelfde vorm als bouwManueelExport in public/js/sales/manueel.js).
 const bouwManueelExport = ({ voornaam, naam, gsm, email, postcode, gemeente, straat, huisnr, notitie }) => ({
   bron: 'manueel', verantwoordelijke: null, geexporteerdOp: null, aantal: 1, statussen: [], leads: [{ voornaam, naam, gsm, email, postcode, gemeente, straat, huisnr, notitie }],
@@ -186,7 +186,7 @@ test.describe('sales: lead manueel toevoegen', () => {
   test('de weergave van een andere verkoper (sales met "mag alle sales zien") krijgt geen knop "+ Lead"', async ({ page }) => {
     await startSalesApp(page, { gebruiker: { ...SALES_GEBRUIKER, magAlleSales: true }, blobs: { 'sales/u-bea': { versie: 1, leads: [lead('b1', 'Beaklant')], blokken: [], grafstenen: [] } } });
     await expect(plusLead(page)).toBeVisible(); // eerst de eigen leads
-    await lijst(page).getByLabel('Verkoper').selectOption('u-bea');
+    await kiesVerkoper(page, 'u-bea');
     await expect(lijst(page).locator('.sales-kaart')).toHaveCount(1);
     await expect(plusLead(page)).toHaveCount(0);
   });
@@ -194,21 +194,19 @@ test.describe('sales: lead manueel toevoegen', () => {
   test('de beheerder krijgt "+ Lead" (niet "Export laden") voor de gekozen verkoper; niet bij een geblokkeerde verkoper', async ({ page }) => {
     const geblokkeerd = { id: 'u-aad', email: 'aad@test.be', naam: 'Aad Verkoper', rol: 'sales', salesNaam: 'Aad V.', magAlleSales: false, actief: false };
     await startSalesApp(page, { gebruiker: BEHEERDER, verkopers: [geblokkeerd, ...ANDERE_VERKOPERS], blobs: { 'sales/u-bea': { versie: 1, leads: [lead('b1', 'Beaklant')], blokken: [], grafstenen: [] } } });
-    await page.getByRole('tab', { name: 'Sales', exact: true }).click();
     await expect(lijst(page).locator('.sales-kaart')).toHaveCount(1);
     await expect(plusLead(page)).toBeVisible();
     await expect(lijst(page).getByRole('button', { name: 'Export laden' })).toHaveCount(0);
-    await lijst(page).getByLabel('Verkoper').selectOption('u-aad');
-    await expect(lijst(page).locator('.sales-alleen-lezen')).toBeVisible();
+    await kiesVerkoper(page, 'u-aad');
+    await expect(page.locator('#person-btn .person-lezen')).toBeVisible();
     await expect(plusLead(page)).toHaveCount(0);
-    await lijst(page).getByLabel('Verkoper').selectOption('u-carl');
+    await kiesVerkoper(page, 'u-carl');
     await expect(plusLead(page)).toBeVisible();
   });
 
   test('de beheerder voegt een lead toe voor de gekozen verkoper: de kaart verschijnt, het blob van die verkoper bevat hem, dat van de beheerder niet', async ({ page, verzoeken }) => {
     const backend = await startSalesApp(page, { gebruiker: BEHEERDER });
-    await page.getByRole('tab', { name: 'Sales', exact: true }).click();
-    await lijst(page).getByLabel('Verkoper').selectOption('u-carl');
+    await kiesVerkoper(page, 'u-carl');
     await expect(plusLead(page)).toBeVisible();
     await plusLead(page).click();
     await venster(page).getByLabel('Voornaam').fill('Greet');
@@ -225,7 +223,7 @@ test.describe('sales: lead manueel toevoegen', () => {
     expect(blobCarl.leads[0].voornaam).toBe('Greet');
     expect(backend.test._data.get('sales/u-test')).toBeUndefined(); // de beheerder zelf heeft geen blob
     // een andere verkoper blijft leeg
-    await lijst(page).getByLabel('Verkoper').selectOption('u-bea');
+    await kiesVerkoper(page, 'u-bea');
     await expect(lijst(page).locator('.sales-kaart')).toHaveCount(0);
   });
 

@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.mjs';
-import { startSalesApp, SALES_GEBRUIKER } from './sales-hulp.mjs';
+import { startSalesApp, SALES_GEBRUIKER, kiesVerkoper } from './sales-hulp.mjs';
 
 // De werkbalk van de Route-tab van de verkoper: dezelfde als bij de technieker (datum, ⚡ Optimaliseer, Bereken tijden, ✕ Leeg), met de weekstrook eronder.
 // Klok: maandag 5 okt 2026 09:00. De matrix is hier afstandsgebonden (0,01 graad = 7 min) zodat de beste volgorde duidelijk is. Alle namen zijn verzonnen.
@@ -55,18 +55,36 @@ const uren = async (page) => Object.fromEntries(await rijen(page).evaluateAll((e
 const volgorde = async (page) => (await rijen(page).locator('.sales-route-naam').allTextContents()).map((t) => t.replace('Test ', ''));
 
 test.describe('sales: werkbalk van de Route-tab', () => {
-  test('dezelfde werkbalk als de technieker: datum, ⚡ Optimaliseer, Bereken tijden, ✕ Leeg, met de weekstrook eronder', async ({ page }) => {
+  test('dezelfde werkbalk als de technieker: één balk met 📅, de weekstrook en ⚡ Optimaliseer, Bereken tijden, ✕ Leeg', async ({ page }) => {
     await start(page);
-    const balk = route(page).locator('.plan-header');
-    await expect(balk.locator('input[type="date"]')).toBeVisible();
-    await expect(balk.locator('button')).toHaveText(['⚡ Optimaliseer', 'Bereken tijden', '✕ Leeg']);
+    const balk = route(page).locator('.route-balk');
+    await expect(balk).toHaveCount(1);
+    await expect(route(page).locator('.plan-header')).toHaveCount(0);
+    await expect(balk.locator('input[type="date"]')).toHaveCount(1);
+    await expect(balk.getByRole('button', { name: 'Andere datum kiezen' })).toBeVisible();
+    await expect(balk.locator('.route-balk-acties button')).toHaveText(['⚡ Optimaliseer', 'Bereken tijden', '✕ Leeg']);
     await expect(optimaliseer(page)).toHaveClass(/btn-primary/);
     await expect(bereken(page)).toHaveClass(/btn-sec/);
     await expect(leeg(page)).toHaveClass(/btn-sec/);
+    // Eén regel: de weekstrook staat IN de balk, naast de knoppen (niet eronder), en de balk is één rij hoog.
     const b = await balk.boundingBox();
-    const strook = await route(page).locator('.week-strip').boundingBox();
-    expect(strook.y).toBeGreaterThanOrEqual(b.y + b.height - 1); // de strook staat onder de werkbalk
+    const strook = await balk.locator('.week-strip').boundingBox();
+    const knop = await optimaliseer(page).boundingBox();
+    expect(strook.y).toBeGreaterThanOrEqual(b.y);
+    expect(strook.y + strook.height).toBeLessThanOrEqual(b.y + b.height + 1);
+    expect(knop.x).toBeGreaterThan(strook.x + strook.width - 1); // de knoppen staan rechts van de strook
+    expect(b.height).toBeLessThanOrEqual(60);
     await expect(route(page).locator('.plan-summary')).toContainText('4 bezoeken');
+  });
+
+  test('📅 opent de datumkiezer van het onzichtbare datumveld; een andere datum kiezen zet de dag', async ({ page }) => {
+    await start(page);
+    await page.evaluate(() => { window.__picker = 0; HTMLInputElement.prototype.showPicker = function () { window.__picker++; }; });
+    await route(page).getByRole('button', { name: 'Andere datum kiezen' }).click();
+    expect(await page.evaluate(() => window.__picker)).toBe(1);
+    const veld = route(page).locator('.route-datum-veld');
+    await veld.fill('2026-10-07');
+    await expect(route(page).locator('.week-strip .ws-dag.actief .ws-naam')).toHaveText('WO 7');
   });
 
   test('Bereken tijden: de route en de rijtijden worden opnieuw berekend (extra /api/route-aanvraag), er wordt niets bewaard', async ({ page, verzoeken }) => {
@@ -153,7 +171,7 @@ test.describe('sales: werkbalk van de Route-tab', () => {
     });
     await naarRoute(page);
     await expect(optimaliseer(page)).toBeVisible(); // de eigen agenda: wel (ook zonder bezoeken staat de werkbalk er)
-    await route(page).getByLabel('Verkoper').selectOption('u-bea');
+    await kiesVerkoper(page, 'u-bea');
     await expect(rijen(page)).toHaveCount(4);
     await expect(optimaliseer(page)).toBeHidden();
     await expect(leeg(page)).toBeHidden();

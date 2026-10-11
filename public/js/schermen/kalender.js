@@ -10,7 +10,7 @@ import { escHtml, zetPressed, registreerActies, registreerWijzigActies, maakActi
 import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, volgendeWerkdagVan, openingsDatum } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
 import {
-  TIMELINE_PX_PER_MIN, WERKUUR_START, WERKUUR_EIND, isBuitenWerkuren, timelineTopHeight,
+  TIMELINE_PX_PER_MIN, WERKUUR_START, WERKUUR_EIND, timelineTopHeight,
   bepaalLanes, bouwTijdlijnItems, zichtbareDagen, maandRaster, autoScrollSleutel,
 } from './kalender-logica.js';
 import { capaciteitsKop, capacityForDay } from './capaciteit.js';
@@ -19,6 +19,7 @@ import { getHolidayName } from '../kern/feestdagen.js';
 import { zichtbaarAdres, navigatieAdres } from './afspraken-logica.js';
 import { magSchrijvenVoor } from '../kern/sessie.js';
 import { appConfirm } from '../app-dialog.js';
+import { updateNuMarker as updateNuMarkerLijst, voegBuitenUrenBadgeToe } from './dag-lijst.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initKalender); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('kalender: initKalender() is niet aangeroepen'); } });
@@ -407,19 +408,7 @@ function kalStartHoogteObserver() {
 // Nu-markering in de gsm-lijst (gestapelde kaartjes): één dunne rode regel vóór de eerste kaart
 // van vandaag met sortKey > nu (kaarten zonder uur = '99:99' tellen als later).
 function updateNuMarker() {
-  const grid = document.getElementById('week-grid');
-  if (!grid) return;
-  const nu = new Date();
-  const hhmm = `${String(nu.getHours()).padStart(2,'0')}:${String(nu.getMinutes()).padStart(2,'0')}`;
-  const body = grid.querySelector(`.day-col[data-date="${localISO(nu)}"] .day-body`);
-  grid.querySelectorAll('.kal-nu-marker').forEach(el => { if (!body || el.parentNode !== body) el.remove(); });
-  if (!body || body.querySelector('.tl-wrap')) return;   // geen lijstweergave van vandaag
-  let marker = body.querySelector(':scope > .kal-nu-marker');
-  if (!marker) { marker = document.createElement('div'); marker.className = 'kal-nu-marker'; }
-  marker.textContent = `nu ${hhmm}`;
-  const kaarten = Array.from(body.querySelectorAll(':scope > [data-sortkey]'));
-  const volgende = kaarten.find(k => k.dataset.sortkey > hhmm);
-  if (volgende) body.insertBefore(marker, volgende); else body.appendChild(marker);
+  updateNuMarkerLijst(document.getElementById('week-grid')); // gedeeld met de verkoperkalender (dag-lijst.js)
 }
 function updateNuLijn() {
   updateNuMarker();
@@ -625,13 +614,7 @@ export function renderKalender() {
           : buildReportCard(item.report);
         card.dataset.sortkey = item.sortKey;
         // Badge "buiten werkuren" (enkel gsm-lijst; op de tijdlijn tonen de donkere banden dit al)
-        if (item.kind !== 'report' && isBuitenWerkuren(item.sortKey)) {
-          const badge = document.createElement('span');
-          badge.className = 'badge-buitenuren';
-          badge.textContent = 'buiten werkuren';
-          const anker = card.querySelector('.cal-badge, .cal-local-type');
-          if (anker) anker.after(badge); else card.prepend(badge);
-        }
+        if (item.kind !== 'report') voegBuitenUrenBadgeToe(card, item.sortKey, '.cal-badge, .cal-local-type');
         dayBodyEl.appendChild(card);
       });
     }
@@ -647,7 +630,7 @@ export function renderKalender() {
     // op — dat is exact de bug die dit oploste).
     if (dayStops.length > 0 || dayEvents.some(e => e.adres || e.notitie)) {
       const rb = document.createElement('button');
-      rb.className = 'cal-btn coord-only';
+      rb.className = 'cal-btn coord-only alleen-groot'; // Route bestaat niet op een gsm
       rb.style.cssText = 'flex:none;width:100%;margin-bottom:4px;background:var(--accent-dim);border:1px solid rgba(245,158,11,0.2);color:var(--accent-ink);padding:4px;border-radius:4px;cursor:pointer;font-size:0.7rem;font-weight:600;font-family:inherit;';
       rb.textContent = 'Route bekijken'; // opent de tab Route; het berekenen gebeurt daar ("Bereken tijden") (UI/UX P2-1)
       rb.onclick = () => {

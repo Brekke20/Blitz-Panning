@@ -65,7 +65,8 @@ test.describe('hoofdtabs', () => {
 
 test.describe('persoonkiezer', () => {
   test('het menu toont de exacte teksten en selectPerson zet de filter en de kop', async ({ page }) => {
-    await startApp(page, { rol: 'coordinator' });
+    // Een planner: de beheerder krijgt in dit menu de rol achter elke naam (zie persoon-menu.spec.mjs).
+    await startApp(page, { rol: 'coordinator', loginRol: 'planner' });
     await page.locator('#person-btn').click();
     const items = page.locator('#person-menu .pm-item');
     await expect(items).toHaveCount(3); // Alle technici, Roel, Tim (alfabetisch)

@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.mjs';
-import { startSalesApp, salesStubs, verwachtFout, BEHEERDER, SALES_GEBRUIKER } from './sales-hulp.mjs';
+import { startSalesApp, salesStubs, verwachtFout, BEHEERDER, SALES_GEBRUIKER, kiesVerkoper } from './sales-hulp.mjs';
 
 // "Plan deze week" voor de verkoper (Task 17). Klok: maandag 5 okt 2026 09:00. Geen echte TomTom, geen Zoho: de stubs van helpers.mjs antwoorden (matrix overal 20 min). Zonder bestaande bezoeken of depot vraagt het brein geen reistijd; de
 // reistijd-tests staan onderaan (buiten de testmodus). Alle namen zijn verzonnen.
@@ -174,7 +174,7 @@ test.describe('sales: Plan deze week', () => {
     await startSalesApp(page, { gebruiker, blobs: { 'sales/u-bea': { versie: 1, leads: achtLeads(), blokken: [], grafstenen: [] } } });
     await tab(page, 'Kalender').click();
     await expect(plan(page)).toBeVisible(); // zijn eigen agenda: wel
-    await kal(page).getByLabel('Verkoper').selectOption('u-bea');
+    await kiesVerkoper(page, 'u-bea');
     await expect(kal(page).locator('.day-col[data-date]').first()).toBeVisible();
     await expect(plan(page)).toHaveCount(0);
   });
@@ -202,10 +202,9 @@ test.describe('sales: Plan deze week', () => {
     const echte = salesStubs({ gebruiker: BEHEERDER, blobs });
     const instellingen = async (z) => (z.query?.get('gebruiker') === 'u-carl' ? { status: 503, json: { error: 'Opslag stuk', code: 'opslag-storing' } } : echte.instellingen(z));
     await startSalesApp(page, { gebruiker: BEHEERDER, blobs, overschrijf: { instellingen } });
-    await tab(page, 'Sales').click();
-    await page.getByRole('tablist', { name: 'Sales-onderdelen' }).getByRole('tab', { name: 'Kalender' }).click();
-    await expect(kal(page).getByLabel('Verkoper')).toHaveValue('u-bea');
-    await kal(page).getByLabel('Verkoper').selectOption('u-carl');
+    await tab(page, 'Kalender').click();
+    await expect(page.locator('#person-btn')).toHaveAttribute('aria-label', /nu Bea Verkoper/);
+    await kiesVerkoper(page, 'u-carl');
     await expect(kal(page).locator('.day-col[data-date]').first()).toBeVisible();
     await plan(page).click();
     await expect(toast(page)).toContainText('instellingen van deze verkoper konden niet geladen worden');
@@ -347,10 +346,9 @@ test.describe('sales: resultaatvenster van Plan deze week (zelfde als technieker
     expect(m.binnen).toBeLessThanOrEqual(0);
   });
 
-  test('de beheerder (subtab Kalender van "Sales") krijgt hetzelfde venster, en het sluit netjes', async ({ page }) => {
+  test('de beheerder (werkruimte Sales, tab Kalender) krijgt hetzelfde venster, en het sluit netjes', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER, blobs: { 'sales/u-bea': { versie: 1, leads: achtLeads().slice(0, 3), blokken: [], grafstenen: [] } } });
-    await tab(page, 'Sales').click();
-    await page.getByRole('tablist', { name: 'Sales-onderdelen' }).getByRole('tab', { name: 'Kalender' }).click();
+    await tab(page, 'Kalender').click();
     await expect(kal(page).locator('.day-col[data-date]').first()).toBeVisible();
     await plan(page).click();
     await expect(resultaat(page).getByText('Ingepland (3)', { exact: true })).toBeVisible();

@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.mjs';
-import { startSalesApp, salesStubs, verwachtFout, BEHEERDER, SALES_GEBRUIKER } from './sales-hulp.mjs';
+import { startSalesApp, salesStubs, verwachtFout, BEHEERDER, SALES_GEBRUIKER, kiesVerkoper } from './sales-hulp.mjs';
 
 // Het scherm "Te plannen" (Task 14): export laden, kaartjes, verwijderen met ongedaan maken en het leaddetail.
 // Alle namen, e-mails en nummers zijn verzonnen. De stubs zijn de echte server-handlers met een in-memory store (testmodus: nepcoordinaten).
@@ -105,7 +105,6 @@ test.describe('sales: Te plannen — export laden', () => {
 
   test('(i) de beheerder krijgt geen knop Export laden (wel "+ Lead")', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER, leads: [], blobs: { 'sales/u-bea': { versie: 1, leads: [lead('b1', 'Beheerdersklant')], blokken: [], grafstenen: [] } } });
-    await page.getByRole('tab', { name: 'Sales', exact: true }).click();
     await expect(lijst(page).locator('.sales-kaart')).toHaveCount(1);
     await expect(lijst(page).getByRole('button', { name: 'Export laden' })).toHaveCount(0);
     await expect(lijst(page).locator('input[type=file]')).toHaveCount(0);
@@ -117,7 +116,7 @@ test.describe('sales: Te plannen — export laden', () => {
   test('alleen-lezen weergave van een andere verkoper: geen ✕, geen Export laden, het detail zonder invoer of knoppen', async ({ page }) => {
     const gebruiker = { ...SALES_GEBRUIKER, magAlleSales: true };
     await startSalesApp(page, { gebruiker, blobs: { 'sales/u-bea': { versie: 1, leads: [lead('b1', 'Beaklant', { notitie: 'Bel na vijf uur' })], blokken: [], grafstenen: [] } } });
-    await lijst(page).getByLabel('Verkoper').selectOption('u-bea');
+    await kiesVerkoper(page, 'u-bea');
     await expect(kaart(page, 'Beaklant')).toBeVisible();
     await expect(lijst(page).getByRole('button', { name: 'Export laden' })).toHaveCount(0);
     await expect(lijst(page).getByRole('button', { name: /Verwijder/ })).toHaveCount(0);

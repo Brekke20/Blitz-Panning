@@ -5,6 +5,7 @@ import { isHeleDag } from '../sales/blok-regels.js';
 import { timeStrToMin, minToTimeStr, localISO, getWeekStart, verschuifDatum } from '../kern/tijd.js';
 import { maandRaster } from './kalender-logica.js';
 import { naamVan, blokTitel } from './sales-tekst.js';
+import { laatsteBezoek } from './sales-lijst-logica.js';
 
 const STANDAARD_DUUR_MIN = 60;
 
@@ -14,12 +15,36 @@ export function tintVan(lead) {
 }
 
 /**
+ * Het afgewerkte bezoek van een lead op `datum` als kalenderitem, of null. Een afgewerkte lead heeft geen `planning` meer (die vervalt bij het
+ * resultaat); de dag van het bezoek staat in `bezoeken` (laatste bezoek) en het uur is dat waarop het resultaat is ingegeven, mits op diezelfde
+ * dag (anders `uur: null`: zonder uur, achteraan in de dag). Een lead zonder datum van een bezoek komt er niet in.
+ */
+function afgewerktItem(lead, datum) {
+  if (lead.status !== 'afgewerkt') return null;
+  const b = laatsteBezoek(lead);
+  if (!b?.datum || b.datum !== datum) return null;
+  const op = new Date(lead.resultaat?.op ?? '');
+  const zelfdeDag = !isNaN(op) && localISO(op) === datum;
+  const startMin = zelfdeDag ? op.getHours() * 60 + op.getMinutes() : 1439;
+  return {
+    id: lead.id, type: 'afgewerkt', titel: naamVan(lead), tint: 'afgewerkt', resultaat: b.soort ?? null,
+    startMin, endMin: startMin, heleDag: false, uur: zelfdeDag ? minToTimeStr(startMin) : null,
+  };
+}
+
+/**
  * Items van één dag: voorgestelde en bevestigde bezoeken met die datum, plus de blokken van die dag, op beginuur gesorteerd.
  * -> [{ id, type: 'bezoek'|'blok', titel, tint, startMin, endMin, heleDag }]; een hele-dag blok loopt van 0 tot 1440.
+ * Met `metAfgewerkt` (het gsm-dagoverzicht) komen ook de afgewerkte bezoeken van die dag erbij als `type: 'afgewerkt'` (zie `afgewerktItem`).
  */
-export function bouwKalenderItems({ leads = [], blokken = [], datum, standaardDuurMin = STANDAARD_DUUR_MIN }) {
+export function bouwKalenderItems({ leads = [], blokken = [], datum, standaardDuurMin = STANDAARD_DUUR_MIN, metAfgewerkt = false }) {
   const items = [];
   for (const l of leads ?? []) {
+    if (metAfgewerkt && l.status === 'afgewerkt') {
+      const af = afgewerktItem(l, datum);
+      if (af) items.push(af);
+      continue;
+    }
     if ((l.status !== 'voorgesteld' && l.status !== 'bevestigd') || l.planning?.datum !== datum || !l.planning.start) continue;
     const startMin = timeStrToMin(l.planning.start);
     items.push({

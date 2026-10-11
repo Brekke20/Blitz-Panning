@@ -1,11 +1,10 @@
-// schermen/sales-instellingen.js — het instellingenvenster van de verkoper (⚙ Instellingen in de verkoperbalk): startadres, werkuren,
+// schermen/sales-instellingen.js — het instellingenvenster van de verkoper (⚙ in de kop): startadres, werkuren,
 // laatste start en standaard bezoekduur van de verkoper zelf. Bewaart via PUT /api/instellingen (zonder `gebruiker` = de eigen instellingen);
 // de server vervangt het hele object, daarom vertrekt het bewaarde object van de ruwe instellingen (bouwBewaardObject).
 // Een gewijzigd startadres wist niets in de leads: "Plan deze week" geocodeert het nieuwe adres bij de volgende planning.
 // Alle invoer gaat via .value/textContent (sales-dom.js).
 import { toast } from '../kern/ui.js';
-import { salesToestand, bewaarInstellingen, laadInstellingen, instellingenGeladenVoor } from './sales-data.js';
-import { kanImporteren } from './sales-verkoper.js';
+import { eigenInstellingen, bewaarInstellingen, laadEigenInstellingen } from './sales-data.js';
 import { openSalesVenster } from './sales-venster.js';
 import { formulierWaarden, valideerSalesInstellingen, bouwBewaardObject } from './sales-instellingen-logica.js';
 import { foutTekst } from './sales-tekst.js';
@@ -13,11 +12,18 @@ import { el, veld } from './sales-dom.js';
 
 export const INSTELLINGEN_NIET_GELADEN = 'Je instellingen konden niet geladen worden, dus je kunt ze nu niet wijzigen. Probeer het opnieuw.';
 
-/** Opent het venster. -> { sluit() } of null als dit niet de eigen leads van de verkoper zijn (beheerder, weergave van een collega). */
-export function openSalesInstellingen() {
-  if (!kanImporteren()) return null;
-  const geladen = instellingenGeladenVoor(); // eigen instellingen (de knop bestaat enkel bij de eigen leads)
-  const w = formulierWaarden(salesToestand().instellingen);
+/**
+ * Opent het venster met de EIGEN instellingen van de ingelogde gebruiker (⚙ in de kop). Werkt ook als een sales manager de leads van een collega
+ * bekijkt: de eigen instellingen staan in een eigen kopie (sales-data.js) en bewaren gaat naar het eigen record (PUT zonder `gebruiker`).
+ * -> belofte van { sluit() }
+ */
+export async function openSalesInstellingen() {
+  // Altijd vers laden (één kleine GET): anders kan een sales manager die uren bij een collega kijkt, verouderde eigen instellingen terugschrijven.
+  // Faalt het en is er een eerder geladen kopie, dan geldt die; anders toont het venster de melding met "Opnieuw proberen".
+  await laadEigenInstellingen();
+  const e = eigenInstellingen();
+  const geladen = e.geladen;
+  const w = formulierWaarden(e.instellingen);
 
   return openSalesVenster({
     titel: 'Instellingen',
@@ -30,7 +36,7 @@ export function openSalesInstellingen() {
         dicht.addEventListener('click', () => sluit());
         opnieuw.addEventListener('click', async () => {
           opnieuw.disabled = true;
-          const r = await laadInstellingen();
+          const r = await laadEigenInstellingen();
           if (r.ok) { sluit(); openSalesInstellingen(); return; }
           opnieuw.disabled = false;
           toonFoutTekst(INSTELLINGEN_NIET_GELADEN);
@@ -64,7 +70,7 @@ export function openSalesInstellingen() {
         e.preventDefault();
         if (bezig) return;
         toonFout('');
-        if (!instellingenGeladenVoor()) { toonFout(INSTELLINGEN_NIET_GELADEN); return; } // nooit bewaren zonder de geladen serverinstellingen
+        if (!eigenInstellingen().geladen) { toonFout(INSTELLINGEN_NIET_GELADEN); return; } // nooit bewaren zonder de geladen serverinstellingen
         const ingevoerd = {
           startlocatie: startadres.invoer.value, vanTijd: van.invoer.value, totTijd: tot.invoer.value,
           laatsteStart: laatste.invoer.value, bezoekDuurMin: duur.invoer.value,
@@ -73,7 +79,7 @@ export function openSalesInstellingen() {
         if (r.fout) { toonFout(r.fout); return; }
         bezig = true;
         bewaar.disabled = true;
-        const res = await bewaarInstellingen(bouwBewaardObject(salesToestand().instellingenRuw, r.waarden, ingevoerd));
+        const res = await bewaarInstellingen(bouwBewaardObject(eigenInstellingen().ruw, r.waarden, ingevoerd));
         if (!res.ok) { // 400-tekst van de server, 403 of opslagstoring: in het venster, dat open blijft met wat er stond
           toonFout(foutTekst(res));
           bezig = false;
@@ -82,7 +88,7 @@ export function openSalesInstellingen() {
         }
         toast('Instellingen bewaard');
         sluit();
-        laadInstellingen().catch(() => {}); // de server bewaart een opgeschoond object: de toestand volgt de serverstand
+        laadEigenInstellingen().catch(() => {}); // de server bewaart een opgeschoond object: de toestand volgt de serverstand
       });
       body.append(fout, form);
     },

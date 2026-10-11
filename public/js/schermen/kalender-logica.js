@@ -17,11 +17,12 @@ export const SALES_MIN_BLOCK_PX = 40;
 // donkere band. Start vóór 08:30 of op/na 17:00 = "buiten werkuren".
 export const WERKUUR_START = 8 * 60 + 30;
 export const WERKUUR_EIND  = 17 * 60;
-export function isBuitenWerkuren(hhmm) {
+// `bereik` ({ start, eind } in minuten): andere werkuren dan die van de techniekers (de sales-kalender gebruikt die van de verkoper).
+export function isBuitenWerkuren(hhmm, bereik = { start: WERKUUR_START, eind: WERKUUR_EIND }) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
   if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return false;
   const min = Number(m[1]) * 60 + Number(m[2]);
-  return min < WERKUUR_START || min >= WERKUUR_EIND;
+  return min < bereik.start || min >= bereik.eind;
 }
 
 export function timelineTopHeight(startMin, endMin, dagStartMin, totalHeight, minHoogtePx = TIMELINE_MIN_BLOCK_PX) {

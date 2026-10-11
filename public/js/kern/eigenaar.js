@@ -8,11 +8,13 @@
 
 export const EIGENAAR_SLEUTEL = 'blitz_eigenaar';
 const PERSOON_SLEUTEL = 'blitz_active_person';
+const WERKRUIMTE_SLEUTEL = 'blitz_werkruimte';
 // localStorage: alles wat opstart/loadFromCache van de vorige gebruiker zou terugzetten.
 export const PERSOONLIJKE_SLEUTELS = [
   PERSOON_SLEUTEL, 'blitz_tickets_cache', 'blitz_afspraken_cache', 'blitz_availability_cache', 'blitz_klantbeschikbaarheid_cache',
   'blitz_inventaris_cache', 'blitz_inventaris_cache_test',
   'blitz_sales_verkoper', // sales-planner: de gekozen verkoper van een beheerder/sales-verantwoordelijke (sales-verkoper.js)
+  'blitz_werkruimte',     // kop B: de werkruimte van de beheerder (techniek | sales, schermen/werkruimte-logica.js)
 ];
 // sessionStorage: de bewaarde tab en scrollpositie (zou een tab openen die deze rol niet heeft).
 export const SESSIE_SLEUTELS = ['blitz_schermstaat'];
@@ -39,8 +41,8 @@ export function claimToestel(opslag, sessieOpslag, gebruikerId) {
   return wissen;
 }
 
-// Bij het uitloggen: de gekozen persoon, de schermstaat en de eigenaarsmarkering weg (de caches volgen bij de volgende login).
+// Bij het uitloggen: de gekozen persoon, de werkruimte, de schermstaat en de eigenaarsmarkering weg (de caches volgen bij de volgende login).
 export function geefToestelVrij(opslag, sessieOpslag) {
-  verwijder(opslag, [PERSOON_SLEUTEL, EIGENAAR_SLEUTEL]);
+  verwijder(opslag, [PERSOON_SLEUTEL, WERKRUIMTE_SLEUTEL, EIGENAAR_SLEUTEL]);
   verwijder(sessieOpslag, SESSIE_SLEUTELS);
 }

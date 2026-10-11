@@ -44,9 +44,11 @@ import { refreshOutboxCache, flushOutbox } from './outbox.js';
 import { _invData, loadInventaris, renderInventaris, updateInventarisBadge, resetInvSeenLog } from './inventaris.js';
 import { appConfirm } from './app-dialog.js';
 import { registreerVenster } from './venster.js';
-import { startNaInlog } from './schermen/rol-schil.js';
+import { startNaInlog, pasWerkruimteToe } from './schermen/rol-schil.js';
+import { leesWerkruimte, bewaarWerkruimte, omzetTab, tabHoortBij } from './schermen/werkruimte-logica.js';
+import * as persoonskiezer from './schermen/persoonskiezer.js';
 import { laadTab } from './kern/navigatie.js';
-import { eigenZohoNaam, huidigeRechten, magPlannenVoor } from './kern/sessie.js';
+import { eigenZohoNaam, huidigeRechten, huidigeGebruiker, magPlannenVoor } from './kern/sessie.js';
 import { installeerTijdPicker } from './kern/tijd-picker.js';
 
 
@@ -230,8 +232,13 @@ function opstart() {
   toestand.set('settings', instellingen.loadPersonSettings(localStorage.getItem('blitz_active_person') || 'all'));
   // Delegatie voor pilot-knoppen (kern-ui)
   registreerActies(document.body, {
-    'persoon-menu': () => togglePersonMenu(),
-    'vernieuw': () => loadTickets(),
+    'persoon-menu': (el, e) => persoonskiezer.toggleMenu({ focus: e?.detail === 0 }), // detail 0: via het toetsenbord geopend, dan gaat de focus het menu in
+    'vernieuw': () => {
+      loadTickets();
+      // De beheerder in de werkruimte Sales: ook het open sales-scherm opnieuw laden.
+      if (huidigeWerkruimte() === 'sales') import('./schermen/sales-schil.js').then(m => m.herlaadActief()).catch(() => {});
+      if (huidigeRechten().beheer) persoonskiezer.laadLijsten({ ververs: true }).catch(() => {}); // ook de lijsten van de kiezer (na een mislukte lading)
+    },
     'thema': () => toggleTheme(),
     'instellingen': () => instellingen.openSettings(),
     'rapport-export': () => startTicketLogExport(() => import('./excel-export.js'), toast),
@@ -254,6 +261,22 @@ function opstart() {
   document.getElementById('plan-date').value = openingsdag;
   set('gekozenDatum', openingsdag); // gedeelde datum van Kalender, Route en Ingepland (niet bewaard over herladen)
   set('activeAssigneeFilter', localStorage.getItem('blitz_active_person') || 'all');
+  // De persoonskiezer (schermen/persoonskiezer.js): de lijst en de knop volgen de toestand; een technieker kiezen loopt via selectPerson, een
+  // verkoper kiezen (enkel de beheerder) wisselt van werkruimte (hieronder).
+  persoonskiezer.initPersoonskiezer({
+    ticketNamen: personenUitTickets, gekozenTechnieker: () => get('activeAssigneeFilter'),
+    gekozenVerkoper: () => { try { return localStorage.getItem('blitz_sales_verkoper'); } catch { return null; } },
+    werkruimte: huidigeWerkruimte, metSales: () => huidigeRechten().beheer === true,
+    laadVerkopers: async () => { // lazy: de sales-modules horen niet bij de eerste lading
+      _salesVerkoper = await import('./schermen/sales-verkoper.js');
+      const ok = await _salesVerkoper.zorgVoorVerkopers({ ververs: true });
+      return { ok, lijst: _salesVerkoper.lijstVerkopers() };
+    },
+    verkopersNu: () => (_salesVerkoper ? _salesVerkoper.lijstVerkopers() : null),
+    kies: (item) => { if (item.soort === 'verkoper') kiesVerkoper(item.sleutel); else kiesTechnieker(item.sleutel); },
+    terug: (sleutel) => kiesTechnieker(sleutel),
+  });
+  persoonskiezer.koppelLuisteraars();
   koppelRenders(); // vanaf hier volgen de schermen de toestand (K6/K7)
   updatePersonHeader();
   buildPersonSelector(); // meteen vullen (eigen naam / "Alle technici"): faalt de ticketlading, dan blijft de kiezer niet leeg
@@ -267,11 +290,6 @@ function opstart() {
   window.addEventListener('offline', updateOnlineState);
   window.addEventListener('online',  updateOnlineState);
   updateOnlineState();
-  // Sluit persoon-menu bij klik buiten
-  document.addEventListener('click', (e) => {
-    if (!document.getElementById('person-sel')?.contains(e.target))
-      zetPersonMenuOpen(false);
-  });
   document.querySelectorAll('.rapp-filter-btn').forEach(btn => {
     btn.addEventListener('click', () => setRapportFilter(btn.dataset.filter));
   });
@@ -311,7 +329,7 @@ function opstart() {
     if (document.visibilityState === 'visible') flushOutbox();
   });
   // Initialiseer tab indicator op de actieve tab
-  setTimeout(() => updateTabIndicator('tab-tickets'), 0);
+  setTimeout(() => updateTabIndicator(document.querySelector('.tab.active')?.id || 'tab-tickets'), 0); // onder de actieve (zichtbare) tab, ook in de werkruimte Sales
   window.addEventListener('resize', () => {
     const active = document.querySelector('.tab.active');
     if (active) updateTabIndicator(active.id);
@@ -324,6 +342,11 @@ function opstart() {
     if (tb && window.ResizeObserver) new ResizeObserver(zetTopbarHoogte).observe(tb);
   } catch { /* best-effort */ }
   pasRolBeperkingToe();
+  // Een beheerder die in de werkruimte Sales werkt (bewaard op dit toestel) start op Leads: de lijst met verkopers voor de knop in de kop laadt mee.
+  if (huidigeWerkruimte() === 'sales') {
+    setTab(omzetTab('tickets', 'sales'));
+    persoonskiezer.laadLijsten().catch(() => {});
+  }
   // De rol/indeling op het toestel bepaalt de coördinatorfuncties en de kalenderweergave:
   // bij een wijziging (rol, roteren, weergave) de tab-restrictie en de schermen herberekenen.
   if (!_apparaatListener) {
@@ -371,8 +394,10 @@ function zetTopbarHoogte() {
 // herstellen we als het jonger is dan 10 minuten. Nooit een coord-only tab voor een technieker.
 const SCHERMSTAAT_KEY = 'blitz_schermstaat';
 // Een coördinatortab die de beperkte (technieker-)weergave niet toont; een technieker met "Mag zelf plannen" houdt de plan-tabs (.plan-eigen).
-const tabVerborgenVoorToestel = (tabEl) => window.apparaat?.rol === 'technieker' && tabEl.classList.contains('coord-only')
-  && !(tabEl.classList.contains('plan-eigen') && window.apparaat.planEigen === true);
+// Route (.alleen-groot) bestaat op een gsm (indeling 'smal') voor niemand: ook die tab is dan verborgen (kop B).
+const tabVerborgenVoorToestel = (tabEl) => (window.apparaat?.indeling === 'smal' && tabEl.classList.contains('alleen-groot'))
+  || (window.apparaat?.rol === 'technieker' && tabEl.classList.contains('coord-only')
+    && !(tabEl.classList.contains('plan-eigen') && window.apparaat.planEigen === true));
 let _schermStaatBewaarOk = false, _herstelGebruikerActie = false;
 function bewaarSchermStaat() {
   if (!_schermStaatBewaarOk) return; // nog niet hersteld: bewaar de oude staat niet met een lege
@@ -382,7 +407,7 @@ function bewaarSchermStaat() {
     const view = document.querySelector('.view.active');
     const grid = document.getElementById('week-grid');
     sessionStorage.setItem(SCHERMSTAAT_KEY, JSON.stringify({
-      tab, scrollY: window.scrollY, viewScrollTop: view ? view.scrollTop : 0,
+      tab, werkruimte: huidigeWerkruimte(), scrollY: window.scrollY, viewScrollTop: view ? view.scrollTop : 0,
       gridScrollTop: grid ? grid.scrollTop : 0, t: Date.now(),
     }));
   } catch { /* sessionStorage kan ontbreken */ }
@@ -401,19 +426,24 @@ function planHerstelSchermStaat() {
   if (!st || typeof st.t !== 'number' || Date.now() - st.t > 10 * 60 * 1000 || typeof st.tab !== 'string') {
     klaar(); return;
   }
-  const tabEl = document.getElementById('tab-' + st.tab);
-  const toegestaan = tabEl && !tabVerborgenVoorToestel(tabEl)
-    && st.tab !== 'planning'; // Route rekent bij openen (TomTom): niet automatisch herstellen
+  // De beheerder heeft twee werkruimtes (kop B): een bewaarde tab die niet bij de huidige werkruimte past (bv. de vroegere tab "Sales" of een tab
+  // van de andere werkruimte) wordt omgezet naar het gelijkaardige scherm; Route rekent bij openen (TomTom) en wordt nooit automatisch hersteld.
+  let tab = st.tab;
+  if (huidigeRechten().beheer && (st.werkruimte !== huidigeWerkruimte() || !tabHoortBij(tab, huidigeWerkruimte()))) tab = omzetTab(tab, huidigeWerkruimte(), { smal: document.documentElement.dataset.indeling === 'smal' });
+  const tabEl = document.getElementById('tab-' + tab);
+  const toegestaan = tabEl && !tabEl.hidden && !tabVerborgenVoorToestel(tabEl)
+    && tab !== 'planning' && tab !== 'sales-route' && st.tab !== 'planning' && st.tab !== 'sales-route';
   if (!toegestaan) { klaar(); return; }
-  if (document.querySelector('.tab.active')?.id !== 'tab-' + st.tab) setTab(st.tab);
+  if (document.querySelector('.tab.active')?.id !== 'tab-' + tab) setTab(tab);
+  if (tab !== st.tab) { klaar(); return; } // een omgezette tab (andere werkruimte): de bewaarde scrollstand hoort bij een ander scherm
   const num = (v) => (typeof v === 'number' && isFinite(v) && v > 0 ? v : 0);
   const zet = () => {
     if (_herstelGebruikerActie) return; // de gebruiker is zelf al gaan scrollen
-    if (document.querySelector('.tab.active')?.id !== 'tab-' + st.tab) return;
+    if (document.querySelector('.tab.active')?.id !== 'tab-' + tab) return;
     const view = document.querySelector('.view.active');
     if (view && num(st.viewScrollTop)) view.scrollTop = num(st.viewScrollTop);
     const grid = document.getElementById('week-grid');
-    if (st.tab === 'kalender' && grid && num(st.gridScrollTop)) grid.scrollTop = num(st.gridScrollTop);
+    if (tab === 'kalender' && grid && num(st.gridScrollTop)) grid.scrollTop = num(st.gridScrollTop);
     if (num(st.scrollY)) window.scrollTo(0, num(st.scrollY));
   };
   // setTab('kalender') plant zelf een render + scroll (activeerKalender) in een timeout(0): herstel erná.
@@ -621,11 +651,6 @@ async function loadTickets({ stilleToast = false, stil = false, zonderCache = fa
 // ══════════════════════════════════════════════
 // PERSOON SELECTOR
 // ══════════════════════════════════════════════
-function initials(name) {
-  if (!name || name === 'all') return 'A';
-  return name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2);
-}
-
 // Wie zelf interventies uitvoert (een account met een Zoho-naam) kan zichzelf altijd kiezen, ook als er op dat moment geen ticket
 // op zijn naam staat.
 function personenUitTickets() {
@@ -641,7 +666,7 @@ function personenUitTickets() {
 // (activeAssigneeFilter, settings); het koptekst-abonnement in koppelRenders werkt de kop bij.
 // Wordt enkel in _applyTicketsData binnen de transactie aangeroepen (niet in de render-/abonneepad), zodat
 // er geen extra renderronde ontstaat en de filter tot de volgende dataload blijft staan.
-function valideerActievePersoon(agents = personenUitTickets()) {
+function valideerActievePersoon(agents = [...personenUitTickets(), ...persoonskiezer.bekendeZohoNamen()]) {
   if (get('activeAssigneeFilter') !== 'all' && !agents.includes(get('activeAssigneeFilter'))) {
     set('activeAssigneeFilter', 'all');
     localStorage.setItem('blitz_active_person', 'all');
@@ -650,53 +675,9 @@ function valideerActievePersoon(agents = personenUitTickets()) {
   }
 }
 
-function buildPersonSelector() {
-  const agents = personenUitTickets();
-  // Geen validatie hier: dit is een abonnee. Enkel _applyTicketsData (dataload) valideert; anders reset
-  // het inplannen van het laatste wachtrij-ticket van een technieker diens filter naar 'all'.
-
-  const menu = document.getElementById('person-menu');
-  menu.innerHTML = '';
-
-  // "Alle" optie
-  const allItem = document.createElement('button');
-  // Wie mag plannen (beheerder, planner) kiest altijd "Alle technici", ook op een gsm of tablet waar de toestelrol "technieker" is
-  // (.coord-only verbergt anders dit item, en de rol van het account beslist, niet het toestel).
-  allItem.className = `pm-item${huidigeRechten().plannen ? '' : ' coord-only'}${get('activeAssigneeFilter') === 'all' ? ' active' : ''}`;
-  allItem.innerHTML = `<div class="pm-avatar">A</div><div class="pm-item-info"><div class="pm-item-name">Alle technici</div><div class="pm-item-sub">Gecombineerde weergave</div></div>`;
-  allItem.onclick = () => selectPerson('all');
-  menu.appendChild(allItem);
-
-  agents.forEach(agent => {
-    const item = document.createElement('button');
-    item.className = `pm-item${get('activeAssigneeFilter') === agent ? ' active' : ''}`;
-    item.innerHTML = `<div class="pm-avatar">${initials(agent)}</div><div class="pm-item-info"><div class="pm-item-name">${agent}</div><div class="pm-item-sub">Persoonlijke planning</div></div>`;
-    item.onclick = () => selectPerson(agent);
-    menu.appendChild(item);
-  });
-}
-
-function updatePersonHeader() {
-  const nm = document.getElementById('person-name-hdr');
-  if (nm) nm.textContent = get('activeAssigneeFilter') === 'all' ? 'Alle' : get('activeAssigneeFilter').split(' ')[0];
-  // Onderscheid met het gebruikersmenu (account): deze knop kiest WIE je planning je bekijkt.
-  const knop = document.getElementById('person-btn');
-  if (knop) {
-    const wie = get('activeAssigneeFilter') === 'all' ? 'alle technici' : get('activeAssigneeFilter');
-    knop.title = 'Kies technieker (nu: ' + wie + ')';
-    knop.setAttribute('aria-label', 'Kies technieker, nu ' + wie);
-  }
-}
-
-
-function zetPersonMenuOpen(open) {
-  document.getElementById('person-menu')?.classList.toggle('open', open);
-  document.getElementById('person-btn')?.setAttribute('aria-expanded', open ? 'true' : 'false');
-}
-
-function togglePersonMenu() {
-  zetPersonMenuOpen(!document.getElementById('person-menu')?.classList.contains('open'));
-}
+// De lijst en de knop tekent schermen/persoonskiezer.js (namen enkel via textContent); hier blijven de dunne aanroepen voor de abonnees.
+function buildPersonSelector() { persoonskiezer.bouwMenu(); }
+function updatePersonHeader() { persoonskiezer.werkKnopBij(); }
 
 function selectPerson(name) {
   // De schermen volgen via koppelRenders: kop, selector, wachtrij, kalender, ingepland, route, inventaris.
@@ -705,8 +686,50 @@ function selectPerson(name) {
     set('settings', instellingen.loadPersonSettings(name));
     applyKaartStijl();
     localStorage.setItem('blitz_active_person', name);
-    zetPersonMenuOpen(false);
+    persoonskiezer.zetMenuOpen(false);
   });
+}
+
+// ── Werkruimtes van de beheerder (kop B) ─────────────────────────────────────────────────────────────────────────
+// De beheerder werkt in Techniek of Sales; de persoonskiezer wisselt ervan: een technieker of "Alle technici" = Techniek, een verkoper = Sales.
+// De keuze staat in localStorage `blitz_werkruimte` (schermen/werkruimte-logica.js). Alle anderen werken altijd in Techniek (sales heeft zijn eigen start).
+let _salesVerkoper = null; // de lazy geladen module sales-verkoper.js (na de eerste lijst van de persoonskiezer)
+function huidigeWerkruimte() { return huidigeRechten().beheer ? leesWerkruimte(globalThis.localStorage) : 'techniek'; }
+
+// Een technieker (of "Alle technici") gekozen: in Sales betekent dat terug naar Techniek, op hetzelfde soort scherm.
+function kiesTechnieker(naam) {
+  selectPerson(naam);
+  if (huidigeWerkruimte() === 'sales') wisselWerkruimte('techniek');
+}
+
+// Een verkoper gekozen (enkel de beheerder): de keuze bewaren, en uit Techniek wisselen naar Sales.
+async function kiesVerkoper(id) {
+  _salesVerkoper = await import('./schermen/sales-verkoper.js');
+  const verkoper = _salesVerkoper.lijstVerkopers().find(v => v.id === id);
+  const wasSales = huidigeWerkruimte() === 'sales';
+  _salesVerkoper.kiesVerkoper(id); // bewaart en laat het open sales-scherm de leads van deze verkoper laden
+  if (wasSales) { persoonskiezer.bouwMenu(); persoonskiezer.werkKnopBij(); } else await wisselWerkruimte('sales', { verkoper });
+}
+
+// Wisselt van werkruimte: de tabs van de nieuwe werkruimte tonen, op het gelijkaardige scherm blijven (en in dezelfde week), de kop en het menu
+// bijwerken en het melden. De pagina springt naar boven zoals bij elke tabwissel (setTab).
+async function wisselWerkruimte(naar, { verkoper } = {}) {
+  if (huidigeWerkruimte() === naar) return;
+  const actief = document.querySelector('.tab.active')?.id.replace(/^tab-/, '') || '';
+  bewaarWerkruimte(globalThis.localStorage, naar);
+  pasWerkruimteToe(huidigeGebruiker());
+  try { // dezelfde week: de gedeelde datum van Kalender en Route gaat mee naar de andere werkruimte
+    const sd = await import('./schermen/sales-data.js');
+    if (naar === 'sales') sd.zetGekozenDatum(get('gekozenDatum'));
+    else if (sd.salesToestand().datumGekozen) set('gekozenDatum', sd.gekozenDatum());
+  } catch { /* de datum is een gemak, geen voorwaarde */ }
+  setTab(omzetTab(actief, naar, { smal: document.documentElement.dataset.indeling === 'smal' }));
+  persoonskiezer.bouwMenu();
+  persoonskiezer.werkKnopBij();
+  const filter = get('activeAssigneeFilter');
+  toast(naar === 'sales'
+    ? `Je bekijkt nu de sales-planning van ${verkoper?.naam || 'de gekozen verkoper'}.`
+    : `Je bekijkt nu de planning van ${filter === 'all' ? 'alle technici' : filter}.`);
 }
 
 // Eén plek met alle abonnementen van de schermen op de toestand (K6). Elk scherm één abonnement met de
@@ -871,9 +894,8 @@ function setTab(tab) {
 let _apparaatListener = false; // de 'apparaatwijziging'-luisteraar is maar één keer gekoppeld
 // NOTE: 'kalender' is de vaste terugvaltab voor de technieker en mag nooit de klasse coord-only dragen.
 function pasRolBeperkingToe() {
-  if (window.apparaat?.rol !== 'technieker') return;
   const active = document.querySelector('.tab.active');
-  if (active && tabVerborgenVoorToestel(active)) setTab('kalender');
+  if (active && tabVerborgenVoorToestel(active)) setTab(huidigeWerkruimte() === 'sales' ? 'sales-kalender' : 'kalender'); // de beheerder in Sales valt terug op de Kalender van Sales
 }
 
 // ══════════════════════════════════════════════

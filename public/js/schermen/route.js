@@ -15,7 +15,7 @@ import {
   mergeMetAnkers, buitenDagklok as buitenDagklokTijd, isTeLaat, routeVertraging, haalDrukteDetail,
 } from './route-tijden.js';
 import { updateKaart, wisKaart, herstelWegafsluitingToast, zoomOpGekendeStops } from './route-kaart.js';
-import { renderWeekstrook as renderWeekstrookGedeeld } from './week-strook.js';
+import { renderWeekstrook as renderWeekstrookGedeeld, koppelDatumKnop } from './week-strook.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initRoute); een vergeten initRoute faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('route: initRoute() is niet aangeroepen'); } });
@@ -34,6 +34,7 @@ export function initRoute(afhankelijkheden) {
     'route-uitplannen': el => { const s = kaart(el); afh.bevestigUitplannen(s.ticketId, s.datum); },
   });
   document.getElementById('plan-date').addEventListener('change', e => onDateChange(e.target.value));
+  koppelDatumKnop(document.getElementById('plan-date-knop'), document.getElementById('plan-date')); // 📅 opent de datumkiezer
 }
 
 const get = k => toestand.get(k);

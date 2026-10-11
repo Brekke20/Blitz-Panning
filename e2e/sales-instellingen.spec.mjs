@@ -1,12 +1,13 @@
 import { test, expect } from './helpers.mjs';
-import { startSalesApp, salesStubs, verwachtFout, BEHEERDER, SALES_GEBRUIKER, ANDERE_VERKOPERS } from './sales-hulp.mjs';
+import { startSalesApp, salesStubs, verwachtFout, BEHEERDER, SALES_GEBRUIKER, ANDERE_VERKOPERS, kiesVerkoper } from './sales-hulp.mjs';
 
 // Het instellingenvenster van de verkoper (Task 13b). De stubs zijn de echte server-handlers (instellingen, sales) met een in-memory store.
 // Verzonnen waarden; geen echte adressen van personen.
 const OPSLAG_TEKST = 'De opslag is tijdelijk niet bereikbaar. Probeer het zo meteen opnieuw.';
 const venster = (page) => page.locator('.sales-overlay.open');
 const lijst = (page) => page.locator('#view-sales-lijst');
-const knop = (page) => lijst(page).getByRole('button', { name: '⚙ Instellingen' });
+// Kop B: ⚙ staat in de kop (voor sales net als bij de techniekers), niet meer in een balk van het scherm.
+const knop = (page) => page.locator('header [data-actie="instellingen"]');
 
 const lead = (id, naam) => ({
   id, voornaam: 'Test', naam, gsm: null, email: null, postcode: '3500', gemeente: 'Hasselt', straat: null, huisnr: null, adresTekst: null,
@@ -198,24 +199,72 @@ test.describe('sales: instellingenvenster', () => {
     expect(verzoeken.van('/api/instellingen', 'PUT')).toHaveLength(1);
   });
 
-  test('de knop staat in elk sales-scherm van de verkoper (balk)', async ({ page }) => {
+  test('⚙ staat in de kop en blijft bij elk sales-scherm van de verkoper', async ({ page }) => {
     await startSalesApp(page, { leads: [lead('l1', 'Verhaegen')] });
     await expect(knop(page)).toBeVisible();
+    await expect(knop(page)).toHaveAttribute('aria-label', 'Instellingen');
     await page.getByRole('tab', { name: 'Afgewerkt', exact: true }).click();
-    await expect(page.locator('#view-sales-afgewerkt').getByRole('button', { name: '⚙ Instellingen' })).toBeVisible();
+    await expect(knop(page)).toBeVisible();
+    await expect(page.locator('#view-sales-afgewerkt').getByRole('button', { name: '⚙ Instellingen' })).toHaveCount(0); // niet meer in het scherm zelf
   });
 
-  test('een verkoper met "alle sales" ziet de knop bij de eigen leads, niet bij de weergave van een collega', async ({ page }) => {
+  test('een verkoper met "alle sales": ⚙ blijft zichtbaar bij de eigen leads en bij die van een collega', async ({ page }) => {
     const ik = { ...SALES_GEBRUIKER, magAlleSales: true };
     await startSalesApp(page, { gebruiker: ik, leads: [lead('l1', 'Verhaegen')],
       blobs: { [`sales/${ANDERE_VERKOPERS[0].id}`]: { versie: 1, leads: [lead('l2', 'Maes')], blokken: [], grafstenen: [] } } });
     await expect(knop(page)).toBeVisible();
-    await lijst(page).locator('.sales-verkoper-keuze').selectOption(ANDERE_VERKOPERS[0].id);
+    await knop(page).click();
+    await expect(venster(page).getByLabel('Startadres')).toBeVisible();
+    await venster(page).getByRole('button', { name: 'Annuleren' }).click();
+    await kiesVerkoper(page, ANDERE_VERKOPERS[0].id);
     await expect(lijst(page).locator('.sales-kaart', { hasText: 'Maes' })).toBeVisible();
-    await expect(knop(page)).toBeHidden();
-    await lijst(page).locator('.sales-verkoper-keuze').selectOption(ik.id);
+    await expect(knop(page)).toBeVisible(); // de knop blijft in de kop, ook bij een collega (zie de test hieronder)
+    await kiesVerkoper(page, ik.id);
     await expect(lijst(page).locator('.sales-kaart', { hasText: 'Verhaegen' })).toBeVisible();
     await expect(knop(page)).toBeVisible();
+  });
+
+  test('⚙ laadt de eigen instellingen bij elke opening opnieuw (geen verouderde kopie terugschrijven)', async ({ page, verzoeken }) => {
+    await startSalesApp(page, { leads: [lead('l1', 'Verhaegen')] });
+    await expect(lijst(page).locator('.sales-kaart')).toHaveCount(1);
+    const n0 = verzoeken.van('/api/instellingen', 'GET').length;
+    for (let i = 1; i <= 2; i++) {
+      await knop(page).click();
+      await expect(venster(page).getByLabel('Startadres')).toBeVisible();
+      await venster(page).getByRole('button', { name: 'Annuleren' }).click();
+      expect(verzoeken.van('/api/instellingen', 'GET').length).toBe(n0 + i);
+    }
+  });
+
+  test('een sales manager bij de leads van een collega: ⚙ opent zijn EIGEN instellingen; bewaren gaat naar zijn eigen record en de getoonde leads veranderen niet', async ({ page, verzoeken }) => {
+    const ik = { ...SALES_GEBRUIKER, magAlleSales: true };
+    const bea = ANDERE_VERKOPERS[0];
+    const backend = await startSalesApp(page, { gebruiker: ik, leads: [lead('l1', 'Verhaegen')], instellingen: { startlocatie: '3500', vanTijd: '08:30' },
+      blobs: { [`sales/${bea.id}`]: { versie: 1, leads: [lead('l2', 'Maes')], blokken: [], grafstenen: [] } } });
+    await kiesVerkoper(page, bea.id);
+    await expect(lijst(page).locator('.sales-kaart', { hasText: 'Maes' })).toBeVisible();
+    await knop(page).click();
+    await expect(venster(page).getByLabel('Startadres')).toHaveValue('3500'); // zijn eigen instellingen, niet die van Bea
+    await expect(venster(page).getByLabel('Werkuren van')).toHaveValue('08:30');
+    await vul(page, { startadres: '3640', van: '09:15' });
+    await venster(page).getByRole('button', { name: 'Bewaren' }).click();
+    await expect(venster(page)).toHaveCount(0);
+    await expect(page.locator('#toast')).toHaveText('Instellingen bewaard');
+    const puts = verzoeken.van('/api/instellingen', 'PUT');
+    expect(puts).toHaveLength(1);
+    expect(Object.keys(puts[0].body)).toEqual(['instellingen']); // geen `gebruiker`: het eigen record
+    const opgeslagen = await backend.test.get('instellingen', { type: 'json' });
+    expect(opgeslagen.perGebruiker[ik.id]).toMatchObject({ startlocatie: '3640', vanTijd: '09:15' });
+    expect(opgeslagen.perGebruiker[bea.id]).toBeUndefined();
+    // de getoonde leads en de getoonde sales-toestand (die van Bea) zijn ongewijzigd
+    await expect(lijst(page).locator('.sales-kaart', { hasText: 'Maes' })).toBeVisible();
+    await expect(lijst(page).locator('.sales-kaart')).toHaveCount(1);
+    const getoond = await page.evaluate(() => import('/js/schermen/sales-data.js').then(m => ({ id: m.salesToestand().gebruikerId, start: m.salesToestand().instellingen.startlocatie })));
+    expect(getoond.start).not.toBe('3640');
+    // terug bij de eigen leads: de nieuwe waarden gelden
+    await kiesVerkoper(page, ik.id);
+    await expect(lijst(page).locator('.sales-kaart', { hasText: 'Verhaegen' })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => import('/js/schermen/sales-data.js').then(m => m.salesToestand().instellingen.startlocatie))).toBe('3640');
   });
 
   test('telefoonbreedte: geen horizontale scroll in het venster en op de pagina', async ({ page }) => {
@@ -232,10 +281,12 @@ test.describe('sales: instellingenvenster', () => {
 
 // De beheerder gebruikt de volledige app (met kaart): daar blijft de CDN-stub weg.
 test.describe('sales: instellingenvenster voor de beheerder', () => {
-  test('als beheerder is er geen knop (Beheer > Instellingen)', async ({ page }) => {
+  test('als beheerder opent ⚙ in de kop zijn eigen instellingen van de app (zoals altijd), nooit het sales-instellingenvenster', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER });
-    await page.getByRole('tab', { name: 'Sales', exact: true }).click();
-    await expect(page.locator('#view-sales .sales-verkoper-keuze')).toBeVisible();
-    await expect(page.getByRole('button', { name: '⚙ Instellingen' })).toHaveCount(0);
+    await expect(page.locator('#person-btn')).toContainText('Sales:');
+    await expect(knop(page)).toBeVisible();
+    await knop(page).click();
+    await expect(page.locator('.sales-overlay')).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: '⚙️ Instellingen' })).toBeVisible();
   });
 });

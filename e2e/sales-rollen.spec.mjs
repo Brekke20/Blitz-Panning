@@ -1,5 +1,5 @@
 import { test, expect, startApp, VERBODEN_PADEN } from './helpers.mjs';
-import { startSalesApp, maakSalesBackend, verwachtFout, BEHEERDER, SALES_GEBRUIKER, ANDERE_VERKOPERS, VERBODEN_PADEN_SALES } from './sales-hulp.mjs';
+import { startSalesApp, maakSalesBackend, verwachtFout, kiesVerkoper, BEHEERDER, SALES_GEBRUIKER, ANDERE_VERKOPERS, VERBODEN_PADEN_SALES } from './sales-hulp.mjs';
 
 // Rollen en isolatie van de sales-planner (Task 19): wie ziet en doet wat. De stubs zijn de ECHTE server-handlers (geen eigen rechtenlogica
 // in de test): een 403 komt dus van de echte rechtenrijen en `bepaalDoel`.
@@ -41,7 +41,7 @@ test.describe('sales: rollen en isolatie', () => {
 
   test('(b) verkoper A zonder "mag alle sales zien": geen keuzelijst; een andere verkoper opvragen geeft 403 van de echte handler', async ({ page, consoleFouten }) => {
     await startSalesApp(page, { blobs: BEA_BLOB });
-    await expect(lijst(page).getByLabel('Verkoper')).toHaveCount(0);
+    await expect(page.locator('#person-sel')).toBeHidden(); // een gewone verkoper heeft geen kiezer
     await expect(lijst(page).locator('.sales-verkoper')).toHaveCount(0);
     const ander = await apiGet(page, '/api/sales?gebruiker=u-bea');
     expect(ander.status).toBe(403);
@@ -54,32 +54,31 @@ test.describe('sales: rollen en isolatie', () => {
 
   test('(c) met "mag alle sales zien": de keuzelijst toont B en diens leads zijn alleen-lezen (geen ✕, Export laden, Plan deze week of Instellingen)', async ({ page }) => {
     await startSalesApp(page, { gebruiker: MET_ALLES, blobs: BEA_BLOB, leads: [lead('e1', 'Eigenaar')] });
-    const keuze = lijst(page).getByLabel('Verkoper');
-    await expect(keuze).toBeVisible();
-    await expect(keuze.locator('option')).toContainText(['Bea Verkoper', 'Carl Verkoper', 'Test Verkoper (jij)']);
+    await expect(page.locator('#person-btn')).toBeVisible();
+    await page.locator('#person-btn').click();
+    await expect(page.locator('#person-menu .pm-item-name')).toHaveText(['Bea Verkoper', 'Carl Verkoper', 'Test Verkoper (jij)']); // enkel verkopers, nooit "Alle"
+    await page.locator('#person-btn').click();
 
     // Eigen leads: alles beschikbaar (controle dat de verborgen knoppen hieronder echt door de rol verdwijnen).
     await expect(lijst(page).locator('.sales-kaart')).toHaveCount(1);
     await expect(lijst(page).getByRole('button', { name: 'Export laden' })).toBeVisible();
     await expect(lijst(page).getByRole('button', { name: /Verwijder/ })).toHaveCount(1);
-    await expect(lijst(page).getByRole('button', { name: '⚙ Instellingen' })).toBeVisible();
+    await expect(page.locator('header [data-actie="instellingen"]')).toBeVisible(); // ⚙ staat in de kop
 
     // De leads van Bea: zichtbaar, maar alleen-lezen.
-    await keuze.selectOption('u-bea');
+    await kiesVerkoper(page, 'u-bea');
     await expect(lijst(page).locator('.sales-kaart')).toHaveCount(2);
     await expect(lijst(page)).toContainText('Test Peeters');
-    await expect(lijst(page).locator('.sales-alleen-lezen')).toBeVisible();
+    await expect(page.locator('#person-btn .person-lezen')).toBeVisible(); // "Alleen lezen" staat in de knop van de kop
     await expect(lijst(page).locator('.sales-kaart-wis')).toHaveCount(0);
     await expect(lijst(page).getByRole('button', { name: 'Export laden' })).toHaveCount(0);
     await expect(lijst(page).getByRole('button', { name: '+ Lead' })).toHaveCount(0);
-    await expect(lijst(page).getByRole('button', { name: '⚙ Instellingen' })).toBeHidden();
 
     await tab(page, 'Kalender').click();
     await expect(page.locator('#view-sales-kalender .sales-kal')).toBeVisible();
-    await expect(page.locator('#view-sales-kalender .sales-alleen-lezen')).toBeVisible();
+    await expect(page.locator('#person-btn .person-lezen')).toBeVisible();
     await expect(page.locator('#view-sales-kalender').getByRole('button', { name: /Plan deze week/ })).toHaveCount(0);
     await expect(page.locator('#view-sales-kalender').getByRole('button', { name: /Blok/ })).toHaveCount(0);
-    await expect(page.locator('#view-sales-kalender').getByRole('button', { name: '⚙ Instellingen' })).toBeHidden();
   });
 
   test('(c2) een verkoper met "mag alle sales zien" kan bij een collega niets schrijven (de server weigert met 403)', async ({ page, consoleFouten }) => {
@@ -100,21 +99,17 @@ test.describe('sales: rollen en isolatie', () => {
     expect(JSON.stringify(nu.body)).not.toContain('binnengeglipt');
   });
 
-  test('(d) beheerder: één tab "Sales" met subtabs en verkoperkeuze; mag schrijven (✕, Plan deze week, + Lead) maar heeft geen Export laden', async ({ page }) => {
+  test('(d) beheerder in de werkruimte Sales: de tabs Leads, Kalender, Route, Afgewerkt, Beheer; mag schrijven (✕, Plan deze week, + Lead) maar heeft geen Export laden', async ({ page }) => {
     await startSalesApp(page, { gebruiker: BEHEERDER, blobs: BEA_BLOB });
-    await tab(page, 'Sales').click();
-    const subs = page.getByRole('tablist', { name: 'Sales-onderdelen' });
-    await expect(subs.getByRole('tab')).toHaveText(['Leads', 'Kalender', 'Route', 'Afgewerkt']);
-    const keuze = lijst(page).getByLabel('Verkoper');
-    await expect(keuze).toBeVisible();
-    await expect(keuze).toHaveValue('u-bea');
+    await expect(zichtbareTabs(page)).toHaveText(['Leads', 'Kalender', 'Route', 'Afgewerkt', 'Beheer']);
+    await expect(page.locator('#person-btn')).toHaveAttribute('aria-label', /nu Bea Verkoper/);
     await expect(lijst(page).locator('.sales-kaart')).toHaveCount(2);
-    await expect(lijst(page).locator('.sales-alleen-lezen')).toBeHidden(); // schrijfbaar
+    await expect(page.locator('#person-btn .person-lezen')).toHaveCount(0); // schrijfbaar
     await expect(lijst(page).locator('.sales-kaart-wis')).toHaveCount(2);
     await expect(lijst(page).getByRole('button', { name: 'Export laden' })).toHaveCount(0);
     await expect(lijst(page).getByRole('button', { name: '+ Lead' })).toHaveCount(1);
 
-    await subs.getByRole('tab', { name: 'Kalender' }).click();
+    await tab(page, 'Kalender').click();
     await expect(page.locator('#view-sales-kalender .sales-kal')).toBeVisible();
     await expect(page.locator('#view-sales-kalender').getByRole('button', { name: /Plan deze week/ })).toBeVisible();
   });
@@ -124,18 +119,17 @@ test.describe('sales: rollen en isolatie', () => {
     const verkopers = [geblokkeerd, ...ANDERE_VERKOPERS];
     const blobs = { ...BEA_BLOB, 'sales/u-aad': { versie: 2, leads: [lead('a1', 'Smeets'), lead('a2', 'Vermeer')], blokken: [], grafstenen: [] } };
     await startSalesApp(page, { gebruiker: BEHEERDER, verkopers, blobs });
-    await tab(page, 'Sales').click();
-    const keuze = lijst(page).getByLabel('Verkoper');
-    await expect(keuze).toHaveValue('u-bea'); // 'Aad' staat alfabetisch eerst maar is geblokkeerd
-    await expect(keuze.locator('option[value="u-aad"]')).toHaveText('Aad Verkoper (geblokkeerd)');
-    await expect(lijst(page).locator('.sales-alleen-lezen')).toBeHidden();
-    await keuze.selectOption('u-aad');
+    await expect(page.locator('#person-btn')).toHaveAttribute('aria-label', /nu Bea Verkoper/); // 'Aad' staat alfabetisch eerst maar is geblokkeerd
+    await page.locator('#person-btn').click();
+    await expect(page.locator('#person-menu .pm-item[data-sleutel="u-aad"] .pm-item-rol')).toHaveText('verkoper · geblokkeerd (alleen lezen)');
+    await expect(page.locator('.person-lezen')).toHaveCount(0);
+    await kiesVerkoper(page, 'u-aad');
     await expect(lijst(page).locator('.sales-kaart')).toHaveCount(2);
     await expect(lijst(page).locator('.sales-kaart', { hasText: 'Smeets' })).toBeVisible();
-    await expect(lijst(page).locator('.sales-alleen-lezen')).toBeVisible();   // alleen lezen
+    await expect(page.locator('#person-btn .person-lezen')).toBeVisible();   // alleen lezen, in de knop van de kop
     await expect(lijst(page).locator('.sales-kaart-wis')).toHaveCount(0);      // geen ✕
     await expect(lijst(page).getByRole('button', { name: '+ Lead' })).toHaveCount(0); // en geen "+ Lead"
-    await page.getByRole('tablist', { name: 'Sales-onderdelen' }).getByRole('tab', { name: 'Kalender' }).click();
+    await tab(page, 'Kalender').click();
     await expect(page.locator('#view-sales-kalender .sales-kal')).toBeVisible();
     await expect(page.locator('#view-sales-kalender').getByRole('button', { name: /Plan deze week/ })).toHaveCount(0); // geen ⚡ bij alleen lezen
     expect(verzoeken.van('/api/sales', 'PATCH')).toEqual([]);

@@ -6,7 +6,9 @@ import { maakRouteMetStops, zetStartTijd } from './route-hulp.mjs';
 // scroll, de kaart rechts die blijft staan, afgeronde hoeken, en op een telefoon alles onder elkaar zonder horizontaal scrollen.
 // VASTE_NU = ma 5 okt 2026, 09:00.
 const DAG = '2026-10-05';
-const SCHERM = { breed: { width: 1280, height: 800 }, telefoon: { width: 375, height: 812 } };
+// Route bestaat niet op een gsm (kop B); de gestapelde indeling (kaart en lijst onder elkaar) is die van een tablet rechtop (apparaat.js: blitz_weergave 'tablet' en h >= b).
+const SCHERM = { breed: { width: 1280, height: 800 }, tabletStaand: { width: 800, height: 1280 } };
+const alsTablet = (page) => page.addInitScript(() => { if (window === window.top) localStorage.setItem('blitz_weergave', 'tablet'); });
 
 const bezoek = (i) => ({
   id: `l${i}`, voornaam: 'Test', naam: `Klant${i}`, gsm: null, email: null, postcode: '3500', gemeente: 'Hasselt', straat: null, huisnr: null, adresTekst: null,
@@ -106,10 +108,12 @@ test.describe('route-indeling: brede indeling (1280x800)', () => {
   });
 });
 
-test.describe('route-indeling: telefoon (375x812)', () => {
+test.describe('route-indeling: tablet rechtop (800x1280)', () => {
   for (const sch of SCHERMEN) {
     test(`${sch.naam}: kaart en lijst staan onder elkaar en er is geen horizontaal scrollen`, async ({ page }) => {
-      await sch.open(page, SCHERM.telefoon);
+      await alsTablet(page);
+      await sch.open(page, SCHERM.tabletStaand);
+      await expect(page.locator('html')).toHaveAttribute('data-indeling', 'tablet-staand');
       const lijst = await doos(page, sch.lijst);
       const kaart = await doos(page, sch.kaart);
       // gestapeld: dezelfde linkerrand (± de marge van de kaart) en geen naast-elkaar-indeling
