@@ -12,7 +12,6 @@ import { TEST_MODE } from '../kern/omgeving.js';
 import { toast, zetPressed, registreerActies, registreerWijzigActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
 import { registreerVenster } from '../venster.js';
 import { appConfirm } from '../app-dialog.js';
-import { renderBeschikbaarhedenTab } from './beschikbaarheid.js';
 import { valideerInstellingen, settingsKey } from './instellingen-logica.js';
 import { isKleur } from '../kern/instellingen-regels.js';
 import { bouwKleurKeuze, leesKleurKeuze } from '../kern/kleur-keuze.js';
@@ -169,20 +168,16 @@ const beperktToestel = () => window.apparaat?.rol === 'technieker' && !huidigeRe
 
 export function setSettingsTab(tab) {
   if (beperktToestel()) tab = 'toestel';
-  else if (window.apparaat?.rol === 'technieker' && tab === 'beschikbaarheden') tab = 'algemeen';
   _settingsActiveTab = tab;
   document.getElementById('set-subtab-toestel').classList.toggle('active', tab === 'toestel');
   document.getElementById('set-tab-toestel').style.display = tab === 'toestel' ? '' : 'none';
   if (tab === 'toestel') vulToestelTab();
   document.getElementById('set-subtab-algemeen').classList.toggle('active', tab === 'algemeen');
-  document.getElementById('set-subtab-beschikbaarheden').classList.toggle('active', tab === 'beschikbaarheden');
   document.getElementById('set-tab-algemeen').style.display = tab === 'algemeen' ? '' : 'none';
-  document.getElementById('set-tab-beschikbaarheden').style.display = tab === 'beschikbaarheden' ? '' : 'none';
   document.getElementById('set-save-btn').style.display = tab === 'algemeen' ? '' : 'none';
-  // Op de tabs zonder iets om op te slaan (toestel, beschikbaarheden) is "Annuleren" misleidend: dan enkel "Sluiten".
+  // Op de tabs zonder iets om op te slaan (toestel) is "Annuleren" misleidend: dan enkel "Sluiten".
   const sluitKnop = document.getElementById('set-sluit-btn');
   if (sluitKnop) sluitKnop.textContent = tab === 'algemeen' ? 'Annuleren' : 'Sluiten';
-  if (tab === 'beschikbaarheden') renderBeschikbaarhedenTab();
 }
 
 // B12: de weekdagknoppen werken op een concept; pas Opslaan schrijft het naar de instellingen (Annuleren/Esc/achtergrond laat ze ongemoeid).

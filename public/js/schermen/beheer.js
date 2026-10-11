@@ -1,7 +1,7 @@
 // schermen/beheer.js — de beheerpagina: tabbalk (role=tablist, pijltjestoetsen) en een kleine venster-hulp (logins T17).
 // Wordt lazy geladen door rol-schil.js (tab Beheer: beheerder, planner en sales manager); de server beslist wie /api/gebruikers e.d. mag gebruiken.
 // Welke subtabs iemand ziet, hangt van de rol af (rollen per tab, zie registreerBeheerTab): de beheerder ziet alles, de planner en de
-// sales manager (sales + magAlleSales) enkel Instellingen en Performance. Een tab zonder `rollen` is enkel voor de beheerder (fail-closed).
+// planner ook Beschikbaarheden; de sales manager (sales + magAlleSales) enkel Instellingen en Performance. Een tab zonder `rollen` is enkel voor de beheerder (fail-closed).
 // De tabbladen registreren zichzelf via registreerBeheerTab; welke bestanden dat doen staat in beheer-tabs.js (één importregel per tab).
 // Veiligheid: vrije tekst (namen, e-mails) komt uitsluitend via textContent/attributen in de DOM (h() gebruikt nooit innerHTML).
 

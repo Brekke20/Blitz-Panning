@@ -7,6 +7,7 @@ const render = async () => {};
 const ALLE = [
   { id: 'gebruikers', label: 'Gebruikers', render, rollen: ['beheerder'] },
   { id: 'instellingen', label: 'Instellingen', render, rollen: ['beheerder', 'planner', 'sales-manager'] },
+  { id: 'beschikbaarheden', label: 'Beschikbaarheden', render, rollen: ['beheerder', 'planner'] },
   { id: 'activiteit', label: 'Activiteitenlog', render, rollen: ['beheerder'] },
   { id: 'systeemstatus', label: 'Systeemstatus', render, rollen: ['beheerder'] },
   { id: 'performance', label: 'Performance', render, rollen: ['beheerder', 'planner', 'sales-manager'] },
@@ -24,10 +25,10 @@ test('beheerRolVan: beheerder, planner en sales met magAlleSales (true) hebben B
   assert.equal(beheerRolVan(null), null);
 });
 
-test('zichtbareTabs: beheerder alles in volgorde; planner en sales manager enkel Instellingen en Performance; geen rol niets', () => {
+test('zichtbareTabs: beheerder alles in volgorde; planner Instellingen, Beschikbaarheden en Performance; sales manager enkel Instellingen en Performance; geen rol niets', () => {
   const namen = r => zichtbareTabs(r, ALLE).map(t => t.label);
-  assert.deepEqual(namen('beheerder'), ['Gebruikers', 'Instellingen', 'Activiteitenlog', 'Systeemstatus', 'Performance']);
-  assert.deepEqual(namen('planner'), ['Instellingen', 'Performance']);
+  assert.deepEqual(namen('beheerder'), ['Gebruikers', 'Instellingen', 'Beschikbaarheden', 'Activiteitenlog', 'Systeemstatus', 'Performance']);
+  assert.deepEqual(namen('planner'), ['Instellingen', 'Beschikbaarheden', 'Performance']);
   assert.deepEqual(namen('sales-manager'), ['Instellingen', 'Performance']);
   assert.deepEqual(namen(null), []);
   assert.deepEqual(namen('onbekend'), []);

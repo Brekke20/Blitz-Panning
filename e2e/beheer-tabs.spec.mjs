@@ -95,8 +95,8 @@ const geenPaginaScroll = (page) => page.evaluate(() => ({
 test.describe('beheer: tabbalk', () => {
   test('de tabs staan in de vaste volgorde en elke tab registreert zichzelf', async ({ page }) => {
     await openTab(page, 'Instellingen');
-    const namen = await page.getByRole('tab').evaluateAll(els => els.map(e => e.textContent.trim()).filter(t => ['Gebruikers', 'Instellingen', 'Activiteitenlog', 'Systeemstatus'].includes(t)));
-    expect(namen).toEqual(['Gebruikers', 'Instellingen', 'Activiteitenlog', 'Systeemstatus']);
+    const namen = await page.getByRole('tab').evaluateAll(els => els.map(e => e.textContent.trim()).filter(t => ['Gebruikers', 'Instellingen', 'Beschikbaarheden', 'Activiteitenlog', 'Systeemstatus'].includes(t)));
+    expect(namen).toEqual(['Gebruikers', 'Instellingen', 'Beschikbaarheden', 'Activiteitenlog', 'Systeemstatus']);
   });
 
   test('pijltjestoetsen gaan één stap vooruit en terug zonder te wikkelen', async ({ page }) => {
@@ -104,13 +104,13 @@ test.describe('beheer: tabbalk', () => {
     const tab = n => page.getByRole('tab', { name: n, exact: true });
     await tab('Gebruikers').click();
     await tab('Gebruikers').focus();
-    for (const volgende of ['Instellingen', 'Activiteitenlog', 'Systeemstatus']) {
+    for (const volgende of ['Instellingen', 'Beschikbaarheden', 'Activiteitenlog', 'Systeemstatus']) {
       await page.keyboard.press('ArrowRight');
       await expect(tab(volgende)).toBeFocused();
       await expect(tab(volgende)).toHaveAttribute('aria-selected', 'true');
       await expect(tab(volgende)).toHaveAttribute('tabindex', '0');
     }
-    for (const vorige of ['Activiteitenlog', 'Instellingen', 'Gebruikers']) {
+    for (const vorige of ['Activiteitenlog', 'Beschikbaarheden', 'Instellingen', 'Gebruikers']) {
       await page.keyboard.press('ArrowLeft');
       await expect(tab(vorige)).toBeFocused();
       await expect(tab(vorige)).toHaveAttribute('aria-selected', 'true');

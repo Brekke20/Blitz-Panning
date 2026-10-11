@@ -1,23 +1,29 @@
-import { test, expect, startApp, opslagStub } from './helpers.mjs';
+import { test, expect, startApp as startAppBasis, opslagStub } from './helpers.mjs';
+
+// Beheer opent meteen op Beschikbaarheden (de gekozen subtab blijft staan in de sessie): zo vraagt de test niet ook /api/gebruikers van
+// de tab Instellingen op. Alleen in het hoofdvenster (een sandboxed iframe heeft geen sessionStorage).
+const startApp = async (page, opties) => {
+  await page.addInitScript(() => { if (window === window.top) sessionStorage.setItem('blitz_beheer_tab', 'beschikbaarheden'); });
+  return startAppBasis(page, opties);
+};
 
 // Etappe 5b, taak 1: karakterisering van de blokkeringen (beschikbaarheid) buiten wat al gedekt is.
 // Bestaand (niet dupliceren): hele dag en tijdvak vanuit de kalender, de payloads van PUT /api/availability
 // en de persoonsfilter in de kalender (voorstel-afspraak-blokkering.spec.mjs), Escape en achtergrondklik
-// (vensters.spec.mjs), 409 bij afspraken (conflict-409.spec.mjs). Hier: de tab "Beschikbaarheden" van het
-// instellingenvenster (renderBeschikbaarhedenTab, groupExceptionsForDisplay, nextWorkday) en de keuzeknoppen
+// (vensters.spec.mjs), 409 bij afspraken (conflict-409.spec.mjs). Hier: de tab Beheer → Beschikbaarheden (renderBeschikbaarhedenTab, groupExceptionsForDisplay, nextWorkday) en de keuzeknoppen
 // van het blokkeringsvenster (avSetKind, avSetScope, datumvelden). Testklok: maandag 5 okt 2026.
 
 const BLOK = (o) => ({ id: 'x', scope: 'global', person: null, kind: 'fullday', from: null, to: null, reason: '', ...o });
 
 async function openTab(page) {
-  await page.getByRole('button', { name: 'Instellingen', exact: true }).click();
-  const modal = page.getByRole('dialog', { name: '⚙️ Instellingen' });
-  await expect(modal).toBeVisible();
-  await modal.getByRole('button', { name: 'Beschikbaarheden', exact: true }).click();
-  await expect(modal.locator('#set-tab-beschikbaarheden')).toBeVisible();
-  return modal;
+  await page.getByRole('tab', { name: 'Beheer', exact: true }).click();
+  await page.getByRole('tab', { name: 'Beschikbaarheden', exact: true }).click();
+  const paneel = page.locator('#beheer-paneel');
+  await expect(paneel.locator('#beheer-beschikbaarheden-inhoud')).toBeVisible();
+  await expect(paneel.locator('#bav-filter-person')).toBeVisible();
+  return paneel;
 }
-const lijst = (modal) => modal.locator('#set-tab-beschikbaarheden .av-existing .av-item .av-item-label');
+const lijst = (modal) => modal.locator('#beheer-beschikbaarheden-inhoud .av-existing .av-item .av-item-label');
 const lijstTekst = async (modal) => (await lijst(modal).allInnerTexts()).map(t => t.replace(/\s+/g, ' ').trim());
 const puts = (verzoeken) => verzoeken.van('/api/availability', 'PUT');
 const metSeed = (exceptions, versie = 1) => ({ availability: opslagStub({ versie, exceptions }, 'exceptions') });
@@ -50,15 +56,15 @@ async function verwachtMeldingen(consoleFouten, delen) {
   }
 }
 
-test.describe('instellingen: tab Beschikbaarheden', () => {
+test.describe('Beheer: tab Beschikbaarheden', () => {
   test('lege staat, standaarddatum is vandaag en nextWorkday is geen standaard-einddatum', async ({ page }) => {
     await startApp(page);
     const modal = await openTab(page);
-    await expect(modal.locator('#set-tab-beschikbaarheden .av-empty')).toHaveText('Geen geplande beschikbaarheids-uitzonderingen.');
+    await expect(modal.locator('#beheer-beschikbaarheden-inhoud .av-empty')).toHaveText('Geen geplande beschikbaarheids-uitzonderingen.');
     await expect(modal.locator('#bav-date')).toHaveValue('2026-10-05');
     await expect(modal.locator('#bav-filter-person')).toHaveValue('all');
     // Enkel "Iedereen" (uitgeschakeld) zolang er geen persoon gekozen is.
-    const scope = modal.locator('#set-tab-beschikbaarheden .av-radio-group').nth(1).getByRole('button');
+    const scope = modal.locator('#beheer-beschikbaarheden-inhoud .av-radio-group').nth(1).getByRole('button');
     await expect(scope).toHaveCount(1);
     await expect(scope).toHaveText('👥 Iedereen');
     await expect(scope).toBeDisabled();
@@ -66,8 +72,6 @@ test.describe('instellingen: tab Beschikbaarheden', () => {
     await modal.locator('#bav-multiday').check();
     await expect(modal.locator('#bav-date-tot')).toBeVisible();
     await expect(modal.locator('#bav-date-tot')).toHaveValue('');
-    // Opslaan-knop van het algemene tabblad is hier verborgen.
-    await expect(modal.locator('#set-save-btn')).toBeHidden();
   });
 
   test('hele dag voor iedereen: verschijnt in de lijst met label en datum', async ({ page, verzoeken }) => {
@@ -269,7 +273,7 @@ test.describe('instellingen: tab Beschikbaarheden', () => {
     await startApp(page);
     const modal = await openTab(page);
     await modal.locator('#bav-filter-person').selectOption('Tim');
-    await expect(modal.locator('#set-tab-beschikbaarheden .av-empty')).toHaveText('Geen geplande beschikbaarheids-uitzonderingen voor Tim.');
+    await expect(modal.locator('#beheer-beschikbaarheden-inhoud .av-empty')).toHaveText('Geen geplande beschikbaarheids-uitzonderingen voor Tim.');
   });
 
   test('verwijderen van een groep: alle ids in één PUT', async ({ page, verzoeken }) => {
@@ -284,8 +288,7 @@ test.describe('instellingen: tab Beschikbaarheden', () => {
     await expect.poll(() => puts(verzoeken).length).toBe(1);
     expect(puts(verzoeken)[0].body).toEqual({ versie: 3, exceptions: [BLOK({ id: 'z1', date: '2026-10-20', reason: 'Blijft' })] });
     expect(await lijstTekst(modal)).toEqual(['20 okt 2026 · 🔒 Hele dag — Blijft (Iedereen)']);
-    // Ook de kalender kent de verwijderde dagen niet meer. (Op de tab Beschikbaarheden is er niets op te slaan: de knop heet "Sluiten", UI/UX P1-5.)
-    await modal.getByRole('button', { name: 'Sluiten', exact: true }).last().click();
+    // Ook de kalender kent de verwijderde dagen niet meer.
     await page.getByRole('tab', { name: 'Kalender' }).click();
     await expect(page.locator('.day-col[data-date="2026-10-07"]').getByText('🔒 Geblokkeerd')).toHaveCount(0);
   });
@@ -296,7 +299,6 @@ test.describe('instellingen: tab Beschikbaarheden', () => {
     await modal.locator('#bav-date').fill('2026-10-07');
     await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
     await expect(lijst(modal)).toHaveCount(1);
-    await modal.getByRole('button', { name: 'Sluiten', exact: true }).last().click();
     await page.getByRole('tab', { name: 'Kalender' }).click();
     await expect(page.locator('.day-col[data-date="2026-10-07"]').getByText('🔒 Geblokkeerd')).toBeVisible();
   });
@@ -327,6 +329,62 @@ test.describe('instellingen: tab Beschikbaarheden', () => {
     expect(puts(verzoeken)[1].body.versie).toBe(5);
     expect(puts(verzoeken)[1].body.exceptions.map(e => e.date)).toEqual(['2026-10-09', '2026-10-08']);
     await verwachtMeldingen(consoleFouten, ['/api/availability']);
+  });
+});
+
+test.describe('Beheer → Beschikbaarheden per rol', () => {
+  const beheerTabs = (page) => page.locator('.beheer-tabs [role="tab"]');
+
+  test('beheerder: de subtab staat na Instellingen en ⚙ heeft geen Beschikbaarheden meer', async ({ page }) => {
+    await startApp(page);
+    await page.getByRole('tab', { name: 'Beheer', exact: true }).click();
+    await expect(beheerTabs(page).filter({ hasText: /^(Instellingen|Beschikbaarheden)$/ })).toHaveText(['Instellingen', 'Beschikbaarheden']);
+    await page.getByRole('tab', { name: 'Kalender', exact: true }).click();
+    await page.getByRole('button', { name: 'Instellingen', exact: true }).click();
+    const venster = page.getByRole('dialog', { name: /⚙️ Instellingen/ });
+    await expect(venster).toBeVisible();
+    await expect(venster.locator('#set-subtab-beschikbaarheden')).toHaveCount(0);
+    await expect(venster.locator('#set-tab-beschikbaarheden')).toHaveCount(0);
+    await expect(venster.getByRole('button', { name: 'Beschikbaarheden', exact: true })).toHaveCount(0);
+  });
+
+  test('planner: ziet de subtab en een afwezigheid voor Tim verschijnt als blokkering in de kalender van Tim (niet in die van Roel)', async ({ page, verzoeken }) => {
+    await startApp(page, { loginRol: 'planner', technieker: 'Tim' });
+    const paneel = await openTab(page);
+    await expect(beheerTabs(page)).toContainText(['Beschikbaarheden']);
+    await paneel.locator('#bav-filter-person').selectOption('Tim');
+    await paneel.locator('#bav-date').fill('2026-10-07');
+    await paneel.locator('#bav-reden').fill('Verlof');
+    await paneel.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect(lijst(paneel)).toHaveCount(1);
+    await expect.poll(() => puts(verzoeken).length).toBe(1);
+    expect(puts(verzoeken)[0].body.exceptions).toMatchObject([{ scope: 'person', person: 'Tim', date: '2026-10-07', kind: 'fullday', reason: 'Verlof' }]);
+    await page.getByRole('tab', { name: 'Kalender', exact: true }).click();
+    await expect(page.locator('.day-col[data-date="2026-10-07"]').getByText('🔒 Geblokkeerd')).toBeVisible();
+    // Roel ziet de afwezigheid van Tim niet.
+    await page.locator('#person-btn').click();
+    await page.locator('#person-menu').getByRole('button', { name: /Roel/ }).click();
+    await expect(page.locator('.day-col[data-date="2026-10-07"]').getByText('🔒 Geblokkeerd')).toHaveCount(0);
+  });
+
+  test('planner: een afwezigheid voor iedereen toevoegen en weer verwijderen', async ({ page, verzoeken }) => {
+    await startApp(page, { loginRol: 'planner' });
+    const paneel = await openTab(page);
+    await paneel.locator('#bav-date').fill('2026-10-08');
+    await paneel.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect(lijst(paneel)).toHaveCount(1);
+    await paneel.locator('.av-item-del').click();
+    await expect(lijst(paneel)).toHaveCount(0);
+    await expect.poll(() => puts(verzoeken).length).toBe(2);
+    expect(puts(verzoeken)[1].body.exceptions).toEqual([]);
+  });
+
+  test('technieker (ook met "Mag zelf plannen"): geen Beheer, geen Beschikbaarheden in ⚙', async ({ page }) => {
+    await startApp(page, { loginRol: 'technieker', loginGebruiker: { zohoNaam: 'Tim', magZelfPlannen: true }, technieker: 'Tim' });
+    await expect(page.getByRole('tab', { name: 'Beheer', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Instellingen', exact: true }).click();
+    await expect(page.locator('#set-subtab-beschikbaarheden')).toHaveCount(0);
+    await expect(page.locator('#set-tab-beschikbaarheden')).toHaveCount(0);
   });
 });
 
