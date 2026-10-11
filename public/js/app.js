@@ -233,7 +233,11 @@ function opstart() {
   // Delegatie voor pilot-knoppen (kern-ui)
   registreerActies(document.body, {
     'persoon-menu': (el, e) => persoonskiezer.toggleMenu({ focus: e?.detail === 0 }), // detail 0: via het toetsenbord geopend, dan gaat de focus het menu in
-    'vernieuw': () => loadTickets(),
+    'vernieuw': () => {
+      loadTickets();
+      // De beheerder in de werkruimte Sales: ook het open sales-scherm opnieuw laden.
+      if (huidigeWerkruimte() === 'sales') import('./schermen/sales-schil.js').then(m => m.herlaadActief()).catch(() => {});
+    },
     'thema': () => toggleTheme(),
     'instellingen': () => instellingen.openSettings(),
     'rapport-export': () => startTicketLogExport(() => import('./excel-export.js'), toast),

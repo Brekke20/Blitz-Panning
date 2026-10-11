@@ -14,8 +14,8 @@ test.describe('sales: schil en start', () => {
     for (const naam of ['Wachtrij', 'Ingepland', 'Inventaris', 'Rapporten', 'Beheer']) await expect(tab(page, naam)).toHaveCount(0);
     await expect(page.locator('html')).toHaveAttribute('data-rol', 'sales');
     await expect(page.locator('nav[aria-label="Hoofdmenu"]')).toBeVisible();
-    // De koptknop die enkel na de gewone opstart werkt (↺) is weg; ⚙, thema en het gebruikersmenu blijven.
-    await expect(page.locator('[data-actie="vernieuw"]')).toBeHidden();
+    // ↺, ⚙, thema en het gebruikersmenu staan in de kop; de persoonskiezer niet.
+    await expect(page.locator('[data-actie="vernieuw"]')).toBeVisible(); // ↺ staat voor sales net als bij de techniekers in de kop (kop B)
     await expect(page.locator('[data-actie="instellingen"]')).toBeVisible(); // ⚙ staat voor sales net als bij de techniekers in de kop (kop B)
     await expect(page.locator('#person-sel')).toBeHidden();
     await expect(page.locator('[data-actie="thema"]')).toBeVisible();
@@ -96,6 +96,21 @@ test.describe('sales: opslagstoring', () => {
     await view.getByRole('button', { name: 'Opnieuw' }).click();
     await expect(view).toContainText('Nog geen leads. Laad een export of voeg zelf een lead toe.');
     await expect(view.getByRole('button', { name: 'Opnieuw' })).toHaveCount(0);
+  });
+});
+
+test.describe('sales: ↺ in de kop', () => {
+  test('↺ laadt de leads en de instellingen van het open scherm opnieuw (en enkel dat scherm)', async ({ page, verzoeken }) => {
+    await startSalesApp(page, { leads: [{ id: 'l1', voornaam: 'Test', naam: 'Verhaegen', gsm: null, email: null, postcode: '3500', gemeente: 'Hasselt', straat: null, huisnr: null, adresTekst: null, locatie: { lat: 50.93, lon: 5.34, bron: 'postcode' }, status: 'te-plannen', bezoeken: [], geimporteerdOp: '2026-10-01T08:00:00.000Z', bronExport: { verantwoordelijke: 'Test Verkoper', geexporteerdOp: null } }] });
+    await expect(page.locator('#view-sales-lijst .sales-kaart')).toHaveCount(1);
+    const sales = () => verzoeken.van('/api/sales', 'GET').length;
+    const instellingen = () => verzoeken.van('/api/instellingen', 'GET').length;
+    const [s0, i0] = [sales(), instellingen()];
+    await page.locator('[data-actie="vernieuw"]').click();
+    await expect.poll(sales).toBe(s0 + 1);
+    await expect.poll(instellingen).toBe(i0 + 1);
+    await expect(page.locator('#view-sales-lijst .sales-kaart')).toHaveCount(1);
+    await expect(page.locator('[data-actie="vernieuw"]')).toHaveAttribute('aria-label', 'Vernieuwen');
   });
 });
 

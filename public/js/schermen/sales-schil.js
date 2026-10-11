@@ -152,3 +152,10 @@ export async function startScherm(view, teken, { skelet: skeletVorm = 'rijen' } 
     await herlaad();
   } finally { stopSkelet(); } // ook als het laden of tekenen faalt: nooit een skelet laten staan
 }
+
+/** ↺ in de kop: laadt de leads en de instellingen van het sales-scherm dat nu open staat opnieuw. -> belofte van die lading (of undefined zonder open scherm). */
+export function herlaadActief() {
+  const view = document.querySelector('.view.active');
+  const s = view ? staten.get(view) : null;
+  return s?.herlaad ? s.herlaad() : undefined;
+}

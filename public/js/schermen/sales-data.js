@@ -35,6 +35,10 @@ const nieuweToestand = () => ({
   gekozenDatum: openingsDatum(new Date()), datumGekozen: false, uitgesteld: new Set(), // weekend: de komende week
 });
 let staat = nieuweToestand();
+// De EIGEN instellingen van de ingelogde gebruiker, los van de getoonde leads: ⚙ in de kop opent altijd de eigen instellingen, ook als een sales
+// manager de leads van een collega bekijkt (kop B). `staat.instellingen*` blijft de instellingen van de getoonde verkoper (voor "Plan deze week").
+const nieuweEigen = () => ({ geladen: false, ruw: {}, instellingen: voegSamen({}) });
+let eigen = nieuweEigen();
 let doel = null;                    // het `gebruikerId` dat laadSales kreeg (enkel dan gaat `?gebruiker=` mee); null = eigen blob
 const abonnees = new Set();
 const uitstel = new Map();          // leadId -> { timer, wis, doel }
@@ -42,6 +46,9 @@ let wijzigKeten = Promise.resolve(); // wijzig() loopt serieel: elke aanroep geb
 
 /** De live toestand (niet muteren; wijzigen kan enkel via de functies hieronder). */
 export function salesToestand() { return staat; }
+
+/** De eigen instellingen van de ingelogde gebruiker: { geladen, ruw, instellingen } (niet muteren). Onafhankelijk van de getoonde verkoper. */
+export function eigenInstellingen() { return eigen; }
 
 /** Meldt `fn` aan; geeft de afmeldfunctie terug. Een falende abonnee houdt de andere niet tegen. */
 export function onSalesWijziging(fn) {
@@ -61,6 +68,7 @@ export function resetSales({ abonnees: wisAbonnees = false } = {}) {
   for (const e of uitstel.values()) e.wis();
   uitstel.clear();
   staat = nieuweToestand();
+  eigen = nieuweEigen();
   doel = null;
   wijzigKeten = Promise.resolve();
   if (wisAbonnees) abonnees.clear(); else meld();
@@ -84,6 +92,11 @@ function neemOver(d, { enkelHuidige = false } = {}) {
   staat.leads = d.leads;
   staat.blokken = d.blokken;
   return true;
+}
+
+function zetEigen(ruw) {
+  const o = ruw && typeof ruw === 'object' && !Array.isArray(ruw) ? ruw : {};
+  eigen = { geladen: true, ruw: o, instellingen: voegSamen(o) };
 }
 
 function zetInstellingen(ruw, doelId = null) {
@@ -143,7 +156,24 @@ export async function laadInstellingen({ gebruikerId } = {}) {
   const ins = r.data?.instellingen;
   if (r.data === null || typeof r.data !== 'object' || (ins != null && (typeof ins !== 'object' || Array.isArray(ins)))) return mislukt(wie, r.status);
   zetInstellingen(ins, wie);
+  if (!wie) zetEigen(ins); // zonder `gebruiker` is dit het eigen record
   meld();
+  return { ok: true, status: r.status };
+}
+
+/**
+ * Laadt de eigen instellingen (GET /api/instellingen zonder `gebruiker`) in de eigen kopie. Bekijkt de gebruiker zijn eigen leads, dan volgt de
+ * getoonde sales-toestand mee; bij de leads van een collega blijft die ongemoeid. -> { ok, status }
+ */
+export async function laadEigenInstellingen() {
+  let r;
+  try { r = await apiVerzoek('/api/instellingen'); } catch { return { ok: false, status: 0 }; }
+  const ins = r.ok ? r.data?.instellingen : undefined;
+  if (!r.ok || r.data === null || typeof r.data !== 'object' || (ins != null && (typeof ins !== 'object' || Array.isArray(ins)))) {
+    return isOpslag(r) ? { ok: false, status: r.status, opslag: true } : { ok: false, status: r.status };
+  }
+  zetEigen(ins);
+  if (doel === null) { zetInstellingen(ins, null); meld(); }
   return { ok: true, status: r.status };
 }
 
@@ -155,8 +185,9 @@ export async function bewaarInstellingen(instellingen /* volledig object */) {
   try { r = await apiVerzoek('/api/instellingen', { methode: 'PUT', body: { instellingen } }); }
   catch { return { ok: false, reden: 'netwerk' }; }
   if (!r.ok) return fout(r);
-  zetInstellingen(r.data?.instellingen && typeof r.data.instellingen === 'object' ? r.data.instellingen : instellingen, null);
-  meld();
+  const bewaard = r.data?.instellingen && typeof r.data.instellingen === 'object' ? r.data.instellingen : instellingen;
+  zetEigen(bewaard);
+  if (doel === null) { zetInstellingen(bewaard, null); meld(); } // bij de leads van een collega blijft de getoonde sales-toestand ongemoeid
   return { ok: true };
 }
 

@@ -1,6 +1,6 @@
 // schermen/sales-start.js — de start van rol sales; vervangt voor sales de gewone `opstart()` van app.js (die ~15 endpoints aanroept die voor
-// sales 403 geven). Doet enkel wat de tabbalk en de kop nodig hebben: tabklik, thema, testbadge, de koptknoppen die enkel na `opstart()` werken
-// verbergen, de streep onder de actieve tab, en de eerste tab activeren. De DOM-afspraken zijn die van `setTab` in app.js.
+// sales 403 geven). Doet enkel wat de tabbalk en de kop nodig hebben: tabklik, thema, testbadge, ⚙ en ↺ in de kop, de persoonskiezer (enkel een sales manager;
+// een gewone verkoper heeft niets te kiezen), de streep onder de actieve tab, en de eerste tab activeren. De DOM-afspraken zijn die van `setTab` in app.js.
 // `startNaInlog` roept `start()` zonder await/catch aan: fouten vangen we hier zelf op (toast), anders een onafgehandelde rejection.
 import { registreerActies, toast } from '../kern/ui.js';
 import { tabsVoorRol, laadTab } from '../kern/navigatie.js';
@@ -8,6 +8,7 @@ import { TEST_MODE } from '../kern/omgeving.js';
 import { huidigeRechten } from '../kern/sessie.js';
 import { initPersoonskiezer, koppelLuisteraars, bouwMenu, werkKnopBij, toggleMenu, laadLijsten } from './persoonskiezer.js';
 import { kiesVerkoper, zorgVoorVerkopers, lijstVerkopers, VERKOPER_SLEUTEL } from './sales-verkoper.js';
+import { herlaadActief } from './sales-schil.js';
 
 function zetStreep(tabId) {
   const tab = document.getElementById(tabId);
@@ -58,7 +59,7 @@ function startKiezer() {
 
 function verbergKopKnoppen() {
   const kiezer = huidigeRechten().alleSales ? [] : ['#person-sel'];
-  for (const sel of ['[data-actie="vernieuw"]', ...kiezer]) {
+  for (const sel of kiezer) {
     const el = document.querySelector(sel);
     if (!el) continue;
     el.style.display = 'none';
@@ -82,8 +83,13 @@ export async function start() {
       document.documentElement.setAttribute('data-theme', thema);
     }
     registreerActies(document.querySelector('.tabs-inner'), { hoofdtab: (el, e, tab) => { e.stopPropagation(); activeerTab(tab); } });
-    // ⚙ in de kop (kop B): de eigen sales-instellingen, zoals bij de techniekers; vroeger "⚙ Instellingen" in de verkoperbalk.
-    registreerActies(document.body, { thema: () => toggleThema(), instellingen: () => { import('./sales-instellingen.js').then(m => m.openSalesInstellingen()); } });
+    // ⚙ en ↺ in de kop (kop B), zoals bij de techniekers: ⚙ = de eigen sales-instellingen (ook bij de leads van een collega; vroeger "⚙ Instellingen"
+    // in de verkoperbalk), ↺ = de leads en instellingen van het open scherm opnieuw laden (dezelfde lading als "Opnieuw").
+    registreerActies(document.body, {
+      thema: () => toggleThema(),
+      instellingen: () => { import('./sales-instellingen.js').then(m => m.openSalesInstellingen()); },
+      vernieuw: () => { herlaadActief(); },
+    });
     if (TEST_MODE) { const badge = document.getElementById('test-badge'); if (badge) badge.style.display = 'inline-block'; }
     verbergKopKnoppen();
     if (huidigeRechten().alleSales) startKiezer();
