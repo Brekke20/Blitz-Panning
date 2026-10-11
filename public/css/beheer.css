@@ -144,6 +144,7 @@
 .bav .av-empty { font-size: var(--fs-sm); color: var(--text2); padding: var(--sp-1) 0; }
 .bav .av-item { font-size: var(--fs-sm); padding: var(--sp-2) 0; }
 .bav .av-item-del { min-width: 44px; min-height: 44px; font-size: 1.1rem; }
+.bav-hulp { font-size: var(--fs-sm); color: var(--text2); line-height: 1.5; margin-top: var(--sp-2); }
 .bav-leeg { font-size: var(--fs-sm); color: var(--text2); line-height: 1.5; margin-top: var(--sp-2); }
 
 /* Activiteitenlog: elke dag is een eigen tabel; met vaste kolombreedtes (table-layout: fixed + colgroup) staan de kolommen in alle dagen exact
