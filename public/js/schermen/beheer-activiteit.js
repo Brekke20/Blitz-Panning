@@ -4,7 +4,7 @@
 import { registreerBeheerTab, beheerVerzoek, beheerFoutTekst, h } from './beheer.js';
 import { toonSkelet } from '../kern/skelet.js';
 import {
-  ACTIES, actieLabel, bouwActiviteitUrl, groepeerPerDag, standaardPeriode, formatDagKop, formatUur,
+  ACTIES, actieLabel, bouwActiviteitUrl, groepeerPerDag, standaardPeriode, formatDagKop, formatUur, onderwerpWeergave,
 } from './beheer-activiteit-logica.js';
 
 const SERVER_MAX = 1000;
@@ -21,6 +21,13 @@ async function render(container) {
   const melding = h('p', { class: 'bg-status', role: 'status' });
   const filterVeld = (label, invoer) => h('div', { class: 'ba-filter' }, h('label', { class: 'set-label', for: invoer.id, text: label }), invoer);
   let volgnummer = 0;
+  // id -> naam van alle gebruikers die Beheer kent (/api/gebruikers, aangevuld met de namen uit de log zelf): een gebruikers-id in "Onderwerp" wordt een naam.
+  const namen = new Map();
+  const gebruikersGeladen = beheerVerzoek('/api/gebruikers').then(r => {
+    if (r.ok && Array.isArray(r.data?.gebruikers)) {
+      for (const g of r.data.gebruikers) if (g && typeof g.id === 'string' && typeof g.naam === 'string' && g.naam) namen.set(g.id, g.naam);
+    }
+  });
 
   // Houdt de gekozen persoon staan, ook als die in het nieuwe resultaat niet (meer) voorkomt.
   function vulPersonen(gebruikers) {
@@ -33,6 +40,11 @@ async function render(container) {
     persoon.value = gekozen;
   }
 
+  function onderwerpCel(onderwerp) {
+    const w = onderwerpWeergave(onderwerp, namen);
+    return h('td', { 'data-label': 'Onderwerp', ...(w.id ? { title: w.id } : {}), text: w.tekst });
+  }
+
   function tekenItems(items) {
     if (items.length === 0) {
       lijst.replaceChildren(h('p', { class: 'bg-uitleg', text: 'Geen activiteit gevonden voor deze filters.' }));
@@ -41,12 +53,13 @@ async function render(container) {
     const groepen = groepeerPerDag(items).map(g => h('section', { class: 'ba-dag' },
       h('h3', { class: 'ba-dagkop', text: formatDagKop(g.dag) }),
       h('div', { class: 'bg-lijst' }, h('table', { class: 'bg-tabel ba-tabel' },
+        h('colgroup', {}, ['tijd', 'persoon', 'actie', 'onderwerp', 'details'].map(k => h('col', { class: `ba-kol-${k}` }))),
         h('thead', {}, h('tr', {}, ['Tijd', 'Persoon', 'Actie', 'Onderwerp', 'Details'].map(k => h('th', { scope: 'col', text: k })))),
         h('tbody', {}, g.items.map(it => h('tr', { class: 'ba-rij' },
           h('td', { 'data-label': 'Tijd', class: 'ba-tijd', text: formatUur(it.op) }),
           h('td', { 'data-label': 'Persoon', text: typeof it.naam === 'string' && it.naam ? it.naam : '—' }),
           h('td', { 'data-label': 'Actie' }, h('span', { class: 'ba-actie', text: actieLabel(it.actie) })),
-          h('td', { 'data-label': 'Onderwerp', text: typeof it.onderwerp === 'string' && it.onderwerp ? it.onderwerp : '—' }),
+          onderwerpCel(it.onderwerp),
           h('td', { 'data-label': 'Details', class: 'ba-details', text: typeof it.details === 'string' && it.details ? it.details : '—' }),
         )))))));
     if (items.length >= SERVER_MAX) {
@@ -71,6 +84,11 @@ async function render(container) {
     if (!r.ok) {
       lijst.replaceChildren(h('p', { class: 'beheer-fout', role: 'alert', text: beheerFoutTekst(r) }));
       return;
+    }
+    await gebruikersGeladen;
+    if (mijn !== volgnummer) return;
+    for (const g of Array.isArray(r.data?.gebruikers) ? r.data.gebruikers : []) {
+      if (g && typeof g.id === 'string' && typeof g.naam === 'string' && g.naam && !namen.has(g.id)) namen.set(g.id, g.naam);
     }
     vulPersonen(r.data?.gebruikers);
     tekenItems(Array.isArray(r.data?.items) ? r.data.items : []);

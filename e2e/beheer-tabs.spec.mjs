@@ -318,6 +318,28 @@ test.describe('tab Activiteitenlog', () => {
     await verwachtFout(consoleFouten, '/api/activiteit', 503);
   });
 
+  test('twee dagen met verschillende inhoud: de kolommen staan in beide tabellen exact onder elkaar; een gebruikers-id bij Onderwerp wordt de naam', async ({ page }) => {
+    const items = [
+      { op: '2026-10-08T09:15:00.000Z', gebruikerId: 'u-test', naam: 'Test Beheerder', actie: 'gebruiker-gewijzigd', onderwerp: 'u-t1', details: 'kort' },
+      { op: '2026-10-08T08:00:00.000Z', gebruikerId: 'u-test', naam: 'Test Beheerder', actie: 'gebruiker-gewijzigd', onderwerp: 'u-onbekend123', details: null },
+      { op: '2026-10-07T08:00:00.000Z', gebruikerId: 'u-t1', naam: 'Tim met een bijzonder lange naam van wel vijftig tekens', actie: 'rapport-verstuurd', onderwerp: 'a-heel-lang-onderwerp-zonder-spaties-1234567890', details: 'Een erg lange details-tekst die uitgebreid beschrijft wat er precies gebeurd is, met veel woorden zodat de cel meerdere regels nodig heeft.' },
+    ];
+    await openTab(page, 'Activiteitenlog', { activiteit: activiteitStub({ items }) }, { viewport: { width: 1280, height: 900 } });
+    await expect(page.locator('.ba-dag')).toHaveCount(2);
+    const randen = async (dag) => page.locator('.ba-dag').nth(dag).locator('thead th').evaluateAll(ths => ths.map(t => t.getBoundingClientRect().left));
+    const [a, b] = [await randen(0), await randen(1)];
+    expect(a).toHaveLength(5);
+    a.forEach((x, i) => expect(Math.abs(x - b[i])).toBeLessThanOrEqual(1));
+    // Ook de cellen in de rijen liggen onder hun kop.
+    const cellen = await page.locator('.ba-rij').evaluateAll(rijen => rijen.map(r => [...r.children].map(c => c.getBoundingClientRect().left)));
+    for (const rij of cellen) rij.forEach((x, i) => expect(Math.abs(x - a[i])).toBeLessThanOrEqual(1));
+    // Id -> naam (id als tooltip); onbekend id blijft staan.
+    const naamCel = page.locator('.ba-rij td[data-label="Onderwerp"]').filter({ hasText: 'Tim Techniek' });
+    await expect(naamCel).toHaveAttribute('title', 'u-t1');
+    await expect(page.locator('.ba-rij td[data-label="Onderwerp"]').filter({ hasText: 'u-onbekend123' })).not.toHaveAttribute('title', /.+/);
+    expect(await geenPaginaScroll(page)).toEqual({ doc: true, view: true, balk: true });
+  });
+
   test('375 px: geen horizontale paginascroll', async ({ page }) => {
     await openTab(page, 'Activiteitenlog', {}, { viewport: { width: 375, height: 812 } });
     await expect(page.locator('.ba-rij')).toHaveCount(4);

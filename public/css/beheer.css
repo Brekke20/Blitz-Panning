@@ -119,3 +119,42 @@
 .bs-zoho-regel { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); }
 .bs-sub { font-size: var(--fs-xs); color: var(--muted); }
 .bs .btn { min-height: 44px; }
+
+/* Tab Beschikbaarheden: de inhoud komt uit schermen/beschikbaarheid.js en gebruikt de .av-*-klassen van het blokkeringsvenster. Hier (enkel binnen
+   .bav, het venster uit de kalender blijft ongewijzigd) in dezelfde maat en stijl als de tab Instellingen (.bi): zelfde max. breedte, labels,
+   veldhoogte en lettergrootte, knopmaat en afstanden. */
+.bav { max-width: 560px; }
+.bav .av-section-title { font-size: var(--fs-2xs); font-weight: 500; color: var(--muted); text-transform: none; letter-spacing: 0; margin-bottom: 6px; }
+.bav .av-form { gap: var(--sp-4); margin-top: var(--sp-4) !important; }
+.bav .av-time-input, .bav .av-reden-input {
+  box-sizing: border-box; width: 100%; padding: 8px 11px; font-size: 16px; min-height: 44px; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.bav input[type="date"].av-time-input { width: 100%; }
+.bav .av-time-input:focus, .bav .av-reden-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.bav .av-time-row { gap: 8px; align-items: center; }
+.bav .av-time-row .av-time-input { flex: 1; min-width: 0; width: auto; }
+.bav .av-time-row span { font-size: var(--fs-sm); }
+.bav .av-radio-btn { min-height: 44px; padding: 0 var(--sp-4); font-size: var(--fs-sm); }
+.bav label { font-size: var(--fs-sm) !important; min-height: 44px; } /* wint van de inline-stijl uit de gedeelde opmaak */
+.bav label input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; }
+.bav .av-add-btn {
+  align-self: flex-end; min-height: 44px; padding: 0 var(--sp-4); font-size: var(--fs-sm); line-height: 1.2; border-radius: var(--r); font-weight: 600;
+}
+.bav .av-existing { margin-bottom: var(--sp-4); }
+.bav .av-empty { font-size: var(--fs-sm); color: var(--text2); padding: var(--sp-1) 0; }
+.bav .av-item { font-size: var(--fs-sm); padding: var(--sp-2) 0; }
+.bav .av-item-del { min-width: 44px; min-height: 44px; font-size: 1.1rem; }
+.bav-leeg { font-size: var(--fs-sm); color: var(--text2); line-height: 1.5; margin-top: var(--sp-2); }
+
+/* Activiteitenlog: elke dag is een eigen tabel; met vaste kolombreedtes (table-layout: fixed + colgroup) staan de kolommen in alle dagen exact
+   onder elkaar. Details krijgt de resterende breedte; lange tekst breekt af. Een te smalle weergave scrolt binnen .bg-lijst, nooit de pagina. */
+.ba-tabel { table-layout: fixed; min-width: 860px; }
+.ba-kol-tijd { width: 72px; }
+.ba-kol-persoon { width: 170px; }
+.ba-kol-actie { width: 200px; }
+.ba-kol-onderwerp { width: 180px; }
+.ba-tabel th, .ba-tabel td { overflow-wrap: anywhere; }
+@media (max-width: 899px) { /* kaartenlijst (zie .bg-tabel hierboven): geen kolommen meer, dus ook geen vaste breedtes */
+  .ba-tabel { min-width: 0; table-layout: auto; }
+  .ba-tabel colgroup { display: none; }
+}
