@@ -236,3 +236,7 @@ Bron: `.superpowers/sdd/2026-10-08-sales-planner/progress.md` en de taakrapporte
   wie een Zoho-naam heeft). Verlof voor een verkoper wordt ook een hele-dag-blok in zijn sales-agenda, zodat "Plan deze week"
   die dag overslaat. "Geplande uitzonderingen" toont het verlof van iedereen. Techniekers blijven via hun Zoho-naam werken.
 - **L2 Evaluatie reismarge sales** (+10 % en +2 min): na een week navragen bij Brent.
+- **L3 Afwezigheden koppelen aan accounts i.p.v. Zoho-naam** (Brent 2026-10-11, na de release): `person` in `/api/availability`
+  wordt het account-id; de server zet per technieker de afwezigheden klaar (technieker leest geen gebruikerslijst); migratie
+  van bestaande naam-gebaseerde uitzonderingen; verkopers ook in dezelfde opslag (dan kan het sales-blok uit L1 vervallen).
+  Voordelen: werkt voor iedereen, overleeft naamswijzigingen in Zoho, één plek. ±1–1,5 u + review.
