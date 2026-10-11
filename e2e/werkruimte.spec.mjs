@@ -160,6 +160,7 @@ test.describe('kop B: werkruimte-wissel van de beheerder', () => {
       await kiesVerkoper(page, 'u-bea');
       await expect(zichtbareTabs(page).filter({ hasText: 'Leads' })).toHaveCount(1);
       await expect(knop(page)).toHaveAttribute('data-werkruimte', 'sales');
+      await expect(zichtbareTabs(page)).toHaveText(['Leads', 'Kalender', 'Afgewerkt', 'Beheer']); // op een gsm bestaat Route voor niemand (ook niet in Sales)
       const m = await page.evaluate(() => ({ pagina: document.documentElement.scrollWidth, scherm: window.innerWidth, rechts: Math.max(...[...document.querySelectorAll('header button')].map(b => b.getBoundingClientRect().right)) }));
       expect(m.pagina).toBeLessThanOrEqual(m.scherm);
       expect(m.rechts).toBeLessThanOrEqual(m.scherm);
