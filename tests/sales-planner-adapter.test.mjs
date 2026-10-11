@@ -5,6 +5,7 @@ import { planWeek, haversine } from '../public/js/planner.js';
 import { zetVastUur, isVast } from '../public/js/sales/lead-regels.js';
 import { bouwRouteStops, controleerKeten } from '../public/js/schermen/sales-route-logica.js';
 import { timeStrToMin } from '../public/js/kern/tijd.js';
+import { maakVerkoperBlokken } from '../public/js/schermen/beschikbaarheid-logica.js';
 import {
   STANDAARD_BEZOEKDUUR_MIN, ritMetMarge, leadNaarKandidaat, bouwPlanInvoer, verwerkUitkomst, maakReistijdenAdapter,
 } from '../public/js/sales/planner-adapter.js';
@@ -166,6 +167,14 @@ test('bouwPlanInvoer: blokken en feestdagen', () => {
   assert.deepEqual(invoer.dagen, ['2026-10-06']); // 07 en 09 verlof, 08 feestdag
   assert.deepEqual(invoer.blokkeringen['2026-10-06'], [{ van: '13:00', tot: '14:00' }]);
   assert.deepEqual(invoer.eigenAfspraken['2026-10-08'], [{ uur: '15:00', duurMin: 90, lat: 51.2, lon: 4.4 }]);
+  assert.equal(invoer.blokkeringen['2026-10-07'], undefined);
+});
+
+test('afwezigheid uit Beheer → Beschikbaarheden (maakVerkoperBlokken, hele dag): "Plan deze week" slaat die dagen over (L1)', () => {
+  const { blokken } = maakVerkoperBlokken({ kind: 'fullday', meerdaags: true, datum: '2026-10-07', datumTot: '2026-10-08', reden: 'Verlof', werkdagen: [1, 2, 3, 4, 5] });
+  const { invoer } = invoerVan([lead('A')], { blokken: blokken.map((b, i) => ({ id: 'b' + i, ...b })) });
+  assert.ok(!invoer.dagen.includes('2026-10-07') && !invoer.dagen.includes('2026-10-08'));
+  assert.ok(invoer.dagen.includes('2026-10-06') && invoer.dagen.includes('2026-10-09'));
   assert.equal(invoer.blokkeringen['2026-10-07'], undefined);
 });
 

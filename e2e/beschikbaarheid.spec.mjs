@@ -1,4 +1,5 @@
 import { test, expect, startApp as startAppBasis, opslagStub, TICKETS_STUB } from './helpers.mjs';
+import { maakSalesBackend, verwachtFout, BEHEERDER, ANDERE_VERKOPERS } from './sales-hulp.mjs';
 
 // Beheer opent meteen op Beschikbaarheden (de gekozen subtab blijft staan in de sessie): zo vraagt de test niet ook /api/gebruikers van
 // de tab Instellingen op. Alleen in het hoofdvenster (een sandboxed iframe heeft geen sessionStorage).
@@ -235,7 +236,7 @@ test.describe('Beheer: tab Beschikbaarheden', () => {
       '8 okt 2026 · 🔒 Hele dag — Tandarts (Roel)',
     ]);
     // De keuzelijst: "Iedereen", plus de actieve accounts met een Zoho-naam (Roel, Tim).
-    expect(await modal.locator('#bav-filter-person option').allInnerTexts()).toEqual(['Iedereen', 'Roel', 'Tim']);
+    expect(await modal.locator('#bav-filter-person option').allInnerTexts()).toEqual(['Iedereen', 'Roel (technieker)', 'Tim (technieker)']);
 
     await modal.locator('#bav-filter-person').selectOption('Tim');
     expect(await lijstTekst(modal)).toEqual([
@@ -284,7 +285,7 @@ test.describe('Beheer: tab Beschikbaarheden', () => {
     // Kursat Deniz heeft nog een ticket en een afwezigheid, maar geen actief account (geblokkeerd) meer; Tim en Roel wel.
     await startApp(page, { overschrijf: { ...metSeed(seed), tickets: ticketsMetVertrokkene() } });
     const modal = await openTab(page);
-    expect(await modal.locator('#bav-filter-person option').allInnerTexts()).toEqual(['Iedereen', 'Roel', 'Tim']);
+    expect(await modal.locator('#bav-filter-person option').allInnerTexts()).toEqual(['Iedereen', 'Roel (technieker)', 'Tim (technieker)']);
     // Zijn afwezigheid staat nog in de lijst van komende afwezigheden, zodat ze verwijderd kan worden.
     expect(await lijstTekst(modal)).toEqual([
       '7 okt 2026 · 🔒 Hele dag — Verlof (Tim)',
@@ -561,5 +562,140 @@ test.describe('blokkeringsvenster vanuit de kalender: keuzeknoppen en datumvelde
     expect(puts(verzoeken)[0].body).toEqual({ versie: 2, exceptions: [seed[1]] });
     await expect(modal.locator('.av-item')).toHaveCount(1);
     await expect(modal.getByText('— Tweede')).toBeVisible();
+  });
+});
+
+// ── Voor wie = alle accounts (L1): verkopers staan in de keuzelijst; hun afwezigheid wordt een blok in hun sales-agenda ─────────────────
+test.describe('Beheer → Beschikbaarheden: verkopers (L1)', () => {
+  const TECHNIEKERS = [
+    { id: 'u-t1', email: 't1@test.be', naam: 'Tim Techniek', rol: 'technieker', zohoNaam: 'Tim', actief: true },
+    { id: 'u-t2', email: 't2@test.be', naam: 'Roel Techniek', rol: 'technieker', zohoNaam: 'Roel', actief: true },
+    { id: 'u-p0', email: 'p0@test.be', naam: 'Plan Zonder Zoho', rol: 'planner', actief: true }, // plant niet: niet in de lijst
+  ];
+  const VERLOF = (id, datum, omschrijving) => ({ id, datum, start: '00:00', eind: '23:59', soort: 'verlof', ...(omschrijving ? { omschrijving } : {}) });
+  const salesPatches = (verzoeken) => verzoeken.van('/api/sales', 'PATCH');
+
+  // De echte sales- en gebruikers-handlers (met in-memory blobs) naast de gewone availability-stub van de tab.
+  async function startVerkoperTab(page, { blokken = {}, seed = [], vervangSales } = {}) {
+    const blobs = Object.fromEntries(Object.entries(blokken).map(([id, lijst]) => [`sales/${id}`, { versie: 1, leads: [], blokken: lijst, grafstenen: [] }]));
+    const backend = maakSalesBackend({ gebruiker: BEHEERDER, verkopers: [...TECHNIEKERS, ...ANDERE_VERKOPERS], blobs });
+    const sales = vervangSales ? vervangSales(backend.stubs.sales) : backend.stubs.sales;
+    await startApp(page, { overschrijf: { ...backend.stubs, sales, ...metSeed(seed) } });
+    return { backend, modal: await openTab(page) };
+  }
+  const blobVan = (backend, id) => backend.test.get(`sales/${id}`, { type: 'json' });
+
+  test('keuzelijst: Iedereen, daarna groepen Techniek en Sales met de rol achter de naam; hulptekst "Iedereen = alle techniekers"', async ({ page }) => {
+    const { modal } = await startVerkoperTab(page);
+    const keuze = modal.locator('#bav-filter-person');
+    expect(await keuze.locator('option').allInnerTexts()).toEqual(['Iedereen', 'Roel (technieker)', 'Tim (technieker)', 'Bea V. (verkoper)', 'Carl V. (verkoper)']);
+    expect(await keuze.locator('optgroup').evaluateAll(g => g.map(x => [x.label, x.querySelectorAll('option').length]))).toEqual([['Techniek', 2], ['Sales', 2]]);
+    await expect(modal.locator('#bav-hulp')).toContainText('Iedereen = alle techniekers');
+  });
+
+  test('verkoper kiezen en een hele dag toevoegen: PATCH op zijn sales-agenda (hele dag, soort verlof, reden), niets in /api/availability; verschijnt in de lijst', async ({ page, verzoeken }) => {
+    const { backend, modal } = await startVerkoperTab(page);
+    await modal.locator('#bav-filter-person').selectOption('verkoper:u-bea');
+    await expect(modal.locator('.av-empty')).toHaveText('Geen geplande beschikbaarheids-uitzonderingen voor Bea V..');
+    await modal.locator('#bav-date').fill('2026-10-07');
+    await modal.locator('#bav-reden').fill('Verlof');
+    await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect(lijst(modal)).toHaveCount(1);
+    expect(await lijstTekst(modal)).toEqual(['7 okt 2026 · 🔒 Hele dag — Verlof (Bea V.)']);
+    const p = salesPatches(verzoeken);
+    expect(p).toHaveLength(1);
+    expect(p[0].body).toEqual({ versie: 0, blokken: { toevoegen: [{ datum: '2026-10-07', start: '00:00', eind: '23:59', soort: 'verlof', omschrijving: 'Verlof' }] } });
+    expect(puts(verzoeken)).toEqual([]);
+    // Echt bewaard in het blob van Bea, en alleen daar.
+    expect((await blobVan(backend, 'u-bea')).blokken).toMatchObject([{ datum: '2026-10-07', start: '00:00', eind: '23:59', soort: 'verlof', omschrijving: 'Verlof' }]);
+    expect(await blobVan(backend, 'u-carl')).toBeNull();
+    await expect(modal.locator('#bav-reden')).toHaveValue('');
+  });
+
+  test('de afwezigheid van een verkoper is verwijderbaar met ✕ (verwijdert het sales-blok)', async ({ page, verzoeken }) => {
+    const { backend, modal } = await startVerkoperTab(page, { blokken: { 'u-bea': [VERLOF('bl1', '2026-10-08', 'Dokter'), VERLOF('bl2', '2026-10-20', 'Blijft')] } });
+    await modal.locator('#bav-filter-person').selectOption('verkoper:u-bea');
+    await expect.poll(() => lijstTekst(modal)).toEqual(['8 okt 2026 · 🔒 Hele dag — Dokter (Bea V.)', '20 okt 2026 · 🔒 Hele dag — Blijft (Bea V.)']);
+    await modal.locator('.av-item', { hasText: 'Dokter' }).getByRole('button', { name: 'Blokkering verwijderen' }).click();
+    await expect.poll(() => lijstTekst(modal)).toEqual(['20 okt 2026 · 🔒 Hele dag — Blijft (Bea V.)']);
+    expect(salesPatches(verzoeken).map(r => r.body.blokken)).toEqual([{ verwijder: ['bl1'] }]);
+    expect((await blobVan(backend, 'u-bea')).blokken.map(b => b.id)).toEqual(['bl2']);
+    expect(puts(verzoeken)).toEqual([]);
+  });
+
+  test('meerdere werkdagen: één blok per werkdag in één PATCH en één gegroepeerde regel; verwijderen haalt alle blokken weg', async ({ page, verzoeken }) => {
+    const { modal } = await startVerkoperTab(page);
+    await modal.locator('#bav-filter-person').selectOption('verkoper:u-carl');
+    await modal.locator('#bav-date').fill('2026-10-09'); // vrijdag
+    await modal.locator('#bav-multiday').check();
+    await modal.locator('#bav-date-tot').fill('2026-10-13'); // dinsdag
+    await modal.locator('#bav-reden').fill('Verlof');
+    await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect.poll(() => lijstTekst(modal)).toEqual(['9 okt 2026 – 13 okt 2026 · 🔒 Hele dag — Verlof (Carl V.)']);
+    const p = salesPatches(verzoeken);
+    expect(p).toHaveLength(1);
+    expect(p[0].body.blokken.toevoegen.map(b => b.datum)).toEqual(['2026-10-09', '2026-10-12', '2026-10-13']); // za en zo overgeslagen
+    expect(p[0].body.blokken.toevoegen.every(b => b.start === '00:00' && b.eind === '23:59' && b.soort === 'verlof')).toBe(true);
+    await modal.locator('.av-item-del').click();
+    await expect.poll(() => lijstTekst(modal)).toEqual([]);
+    expect(salesPatches(verzoeken)[1].body.blokken.verwijder).toHaveLength(3);
+  });
+
+  test('tijdvak voor een verkoper: blok met van en tot', async ({ page, verzoeken }) => {
+    const { modal } = await startVerkoperTab(page);
+    await modal.locator('#bav-filter-person').selectOption('verkoper:u-bea');
+    await modal.getByRole('button', { name: '⏱ Tijdvak' }).click();
+    await modal.locator('#bav-van').fill('13:00');
+    await modal.locator('#bav-tot').fill('15:30');
+    await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect.poll(() => lijstTekst(modal)).toEqual(['5 okt 2026 · ⏱ 13:00–15:30 (Bea V.)']);
+    expect(salesPatches(verzoeken)[0].body.blokken.toevoegen).toEqual([{ datum: '2026-10-05', start: '13:00', eind: '15:30', soort: 'verlof' }]);
+  });
+
+  test('"Iedereen" blijft enkel de techniek-kalender (PUT /api/availability, geen sales-PATCH) maar toont ook de komende afwezigheden van verkopers', async ({ page, verzoeken }) => {
+    const seed = [BLOK({ id: 'g1', date: '2026-10-06', reason: 'Teamdag' })];
+    const { modal } = await startVerkoperTab(page, { seed, blokken: { 'u-bea': [VERLOF('bl1', '2026-10-08', 'Dokter')] } });
+    await expect.poll(() => lijstTekst(modal)).toEqual(['6 okt 2026 · 🔒 Hele dag — Teamdag (Iedereen)', '8 okt 2026 · 🔒 Hele dag — Dokter (Bea V.)']);
+    await modal.locator('#bav-date').fill('2026-10-12');
+    await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect.poll(() => puts(verzoeken).length).toBe(1);
+    expect(puts(verzoeken)[0].body.exceptions.at(-1)).toMatchObject({ scope: 'global', person: null, date: '2026-10-12' });
+    expect(salesPatches(verzoeken)).toEqual([]);
+    // Een verkoper-afwezigheid verwijderen vanuit "Iedereen" gaat via zijn sales-agenda.
+    await modal.locator('.av-item', { hasText: 'Dokter' }).getByRole('button', { name: 'Blokkering verwijderen' }).click();
+    await expect.poll(() => salesPatches(verzoeken).length).toBe(1);
+    expect(salesPatches(verzoeken)[0].body.blokken).toEqual({ verwijder: ['bl1'] });
+  });
+
+  test('technieker kiezen: ongewijzigd (PUT /api/availability met zijn Zoho-naam), geen verkoperblokken in de lijst', async ({ page, verzoeken }) => {
+    const { modal } = await startVerkoperTab(page, { blokken: { 'u-bea': [VERLOF('bl1', '2026-10-08', 'Dokter')] } });
+    await modal.locator('#bav-filter-person').selectOption('Tim');
+    await expect(modal.locator('.av-empty')).toHaveText('Geen geplande beschikbaarheids-uitzonderingen voor Tim.');
+    await modal.locator('#bav-date').fill('2026-10-09');
+    await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect.poll(() => puts(verzoeken).length).toBe(1);
+    expect(puts(verzoeken)[0].body.exceptions).toEqual([{ id: expect.any(String), scope: 'person', person: 'Tim', date: '2026-10-09', kind: 'fullday', from: null, to: null, reason: '' }]);
+    expect(salesPatches(verzoeken)).toEqual([]);
+  });
+
+  test('mislukt opslaan (500): bestaande foutmelding, de lijst blijft ongewijzigd', async ({ page, verzoeken, consoleFouten }) => {
+    const { modal } = await startVerkoperTab(page, { vervangSales: (echt) => (req) => (req.methode === 'PATCH' ? { status: 500, json: { error: 'kapot' } } : echt(req)) });
+    await modal.locator('#bav-filter-person').selectOption('verkoper:u-bea');
+    await modal.locator('#bav-date').fill('2026-10-07');
+    await modal.getByRole('button', { name: '➕ Toevoegen' }).click();
+    await expect(toastTekst(page)).toHaveText('✕ Opslaan is niet gelukt. Controleer je verbinding en probeer opnieuw.');
+    expect(await lijstTekst(modal)).toEqual([]);
+    expect(salesPatches(verzoeken)).toHaveLength(1);
+    await verwachtFout(consoleFouten, '/api/sales', 500);
+  });
+
+  test('planner: ziet enkel de groep Techniek, geen verkopers (ook niet als de server ze zou meesturen) en roept /api/sales nooit aan', async ({ page, verzoeken }) => {
+    const lijstMetVerkoper = [...GEBRUIKERS(), { id: 'u-s1', naam: 'Bea Verkoper', rol: 'sales', salesNaam: 'Bea V.', actief: true }];
+    await startApp(page, { loginRol: 'planner', overschrijf: { gebruikers: gebruikersStub(lijstMetVerkoper) } });
+    const paneel = await openTab(page);
+    expect(await paneel.locator('#bav-filter-person option').allInnerTexts()).toEqual(['Iedereen', 'Roel (technieker)', 'Tim (technieker)']);
+    await expect(paneel.locator('#bav-filter-person optgroup')).toHaveCount(1);
+    await expect(paneel.locator('#bav-hulp')).toHaveText('Iedereen = alle techniekers.');
+    expect(verzoeken.van('/api/sales')).toEqual([]);
   });
 });

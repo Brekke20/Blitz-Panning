@@ -1,7 +1,9 @@
 process.env.TZ = 'Europe/Brussels';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nextWorkday, groupExceptionsForDisplay, valideerNieuweBlokkering, bouwPersonenlijst } from '../public/js/schermen/beschikbaarheid-logica.js';
+import { nextWorkday, groupExceptionsForDisplay, valideerNieuweBlokkering, bouwPersonenlijst,
+  bouwVoorWieGroepen, verkoperWaarde, verkoperIdUitWaarde, maakVerkoperBlokken, verkoperBlokkenNaarUitzonderingen } from '../public/js/schermen/beschikbaarheid-logica.js';
+import { isHeleDag } from '../public/js/sales/blok-regels.js';
 
 const MA_VR = [1, 2, 3, 4, 5];
 
@@ -176,4 +178,111 @@ test('bouwPersonenlijst: zonder gebruikerslijst (null/geen array) terugval op ti
 
 test('bouwPersonenlijst: zonder enige invoer een lege lijst', () => {
   assert.deepEqual(bouwPersonenlijst(), []);
+});
+
+// ---- "Voor wie": alle accounts, gegroepeerd (L1) ----
+const ALLE = [
+  { id: 'a', naam: 'Tim Techniek', rol: 'technieker', zohoNaam: 'Tim', actief: true },
+  { id: 'b', naam: 'Roel Techniek', rol: 'technieker', zohoNaam: ' Roel ', actief: true },
+  { id: 'c', naam: 'Kursat Deniz', rol: 'technieker', zohoNaam: 'Kursat Deniz', actief: false }, // vertrokken
+  { id: 'd', naam: 'Test Beheerder', rol: 'beheerder', actief: true },                           // plant niet: geen Zoho-naam
+  { id: 'e', naam: 'Plan Ner', rol: 'planner', zohoNaam: 'Plan', actief: true },
+  { id: 'f', naam: 'Beheer Plan', rol: 'beheerder', zohoNaam: 'Bart', actief: true },           // beheerder die wel plant
+  { id: 'g', naam: 'Bea Verkoper', rol: 'sales', salesNaam: 'Bea V.', actief: true },
+  { id: 'h', naam: 'Carl Verkoper', rol: 'sales', actief: true },                                // geen salesNaam: de naam
+  { id: 'i', naam: 'Oud Verkoper', rol: 'sales', salesNaam: 'Oud', actief: false },
+  { id: 'j', naam: 'Dubbel', rol: 'planner', zohoNaam: 'Tim', actief: true },                    // dubbele Zoho-naam: één keer
+  null,
+];
+
+test('bouwVoorWieGroepen: beheerder ziet Techniek (met Zoho-naam) en Sales, elk met de rol achter de naam', () => {
+  const g = bouwVoorWieGroepen({ gebruikers: ALLE, kijkerRol: 'beheerder' });
+  assert.deepEqual(g.techniek.map(o => [o.waarde, o.label]), [
+    ['Bart', 'Bart (beheerder)'], ['Plan', 'Plan (planner)'], ['Roel', 'Roel (technieker)'], ['Tim', 'Tim (technieker)'],
+  ]);
+  assert.deepEqual(g.sales.map(o => [o.waarde, o.label, o.id]), [
+    ['verkoper:g', 'Bea V. (verkoper)', 'g'], ['verkoper:h', 'Carl Verkoper (verkoper)', 'h'],
+  ]);
+});
+
+test('bouwVoorWieGroepen: planners/beheerders zonder Zoho-naam en vertrokken accounts staan er niet in', () => {
+  const g = bouwVoorWieGroepen({ gebruikers: ALLE });
+  const labels = [...g.techniek, ...g.sales].map(o => o.label).join('|');
+  assert.ok(!labels.includes('Kursat') && !labels.includes('Test Beheerder') && !labels.includes('Oud'));
+});
+
+test('bouwVoorWieGroepen: de planner ziet enkel de groep Techniek', () => {
+  const g = bouwVoorWieGroepen({ gebruikers: ALLE, kijkerRol: 'planner' });
+  assert.deepEqual(g.sales, []);
+  assert.equal(g.techniek.length, 4);
+});
+
+test('bouwVoorWieGroepen: niet geladen (geen array) geeft null; een lege lijst twee lege groepen', () => {
+  assert.equal(bouwVoorWieGroepen(), null);
+  assert.equal(bouwVoorWieGroepen({ gebruikers: null }), null);
+  assert.equal(bouwVoorWieGroepen({ gebruikers: 'kapot' }), null);
+  assert.deepEqual(bouwVoorWieGroepen({ gebruikers: [] }), { techniek: [], sales: [] });
+});
+
+test('verkoperWaarde en verkoperIdUitWaarde: heen en terug; Zoho-namen en "all" zijn geen verkoper', () => {
+  assert.equal(verkoperWaarde('u-bea'), 'verkoper:u-bea');
+  assert.equal(verkoperIdUitWaarde('verkoper:u-bea'), 'u-bea');
+  assert.equal(verkoperIdUitWaarde('Tim'), null);
+  assert.equal(verkoperIdUitWaarde('all'), null);
+  assert.equal(verkoperIdUitWaarde('verkoper:'), null);
+  assert.equal(verkoperIdUitWaarde(null), null);
+});
+
+// ---- afwezigheid -> sales-blok ----
+const FORM = { kind: 'fullday', meerdaags: false, datum: '2026-10-07', datumTot: null, van: null, tot: null, reden: 'Verlof', werkdagen: MA_VR };
+
+test('maakVerkoperBlokken: één hele dag = 00:00-23:59, soort verlof, reden als omschrijving (en zo een hele dag voor de planner)', () => {
+  const r = maakVerkoperBlokken(FORM);
+  assert.deepEqual(r, { blokken: [{ datum: '2026-10-07', start: '00:00', eind: '23:59', soort: 'verlof', omschrijving: 'Verlof' }] });
+  assert.equal(isHeleDag(r.blokken[0]), true); // planner-adapter.js slaat zo'n dag over (zie bouwPlanInvoer in tests/sales-planner-adapter.test.mjs)
+});
+
+test('maakVerkoperBlokken: zonder reden geen omschrijving; reden wordt getrimd', () => {
+  assert.deepEqual(maakVerkoperBlokken({ ...FORM, reden: '  ' }).blokken[0], { datum: '2026-10-07', start: '00:00', eind: '23:59', soort: 'verlof' });
+  assert.equal(maakVerkoperBlokken({ ...FORM, reden: '  Dokter ' }).blokken[0].omschrijving, 'Dokter');
+});
+
+test('maakVerkoperBlokken: meerdere werkdagen = één blok per werkdag, weekend overgeslagen', () => {
+  const r = maakVerkoperBlokken({ ...FORM, meerdaags: true, datum: '2026-10-09', datumTot: '2026-10-13' });
+  assert.deepEqual(r.blokken.map(b => b.datum), ['2026-10-09', '2026-10-12', '2026-10-13']);
+  assert.ok(r.blokken.every(b => isHeleDag(b) && b.soort === 'verlof' && b.omschrijving === 'Verlof'));
+});
+
+test('maakVerkoperBlokken: tijdvak', () => {
+  const r = maakVerkoperBlokken({ ...FORM, kind: 'range', van: '13:00', tot: '15:30', reden: '' });
+  assert.deepEqual(r, { blokken: [{ datum: '2026-10-07', start: '13:00', eind: '15:30', soort: 'verlof' }] });
+  assert.equal(isHeleDag(r.blokken[0]), false);
+});
+
+test('maakVerkoperBlokken: periode zonder werkdagen en een te lange reden geven een melding', () => {
+  assert.match(maakVerkoperBlokken({ ...FORM, meerdaags: true, datum: '2026-10-10', datumTot: '2026-10-11' }).fout, /geen werkdagen/);
+  assert.match(maakVerkoperBlokken({ ...FORM, reden: 'x'.repeat(201) }).fout, /te lang/);
+});
+
+test('verkoperBlokkenNaarUitzonderingen: enkel komende blokken, gesorteerd, soort zichtbaar als het geen verlof is, hele dag/tijdvak herkend', () => {
+  const blokken = [
+    { id: 'z', datum: '2026-10-04', start: '00:00', eind: '23:59', soort: 'verlof' }, // verleden
+    { id: 'k', datum: '2026-10-08', start: '09:00', eind: '12:00', soort: 'kantoor', omschrijving: 'Papierwerk' },
+    { id: 'v', datum: '2026-10-07', start: '00:00', eind: '23:59', soort: 'verlof', omschrijving: 'Verlof' },
+    { id: 'w', datum: '2026-10-09', start: '00:00', eind: '24:00', soort: 'verlof' },
+  ];
+  const r = verkoperBlokkenNaarUitzonderingen(blokken, { naam: 'Bea V.', vandaag: '2026-10-05' });
+  assert.deepEqual(r.map(e => e.id), ['v', 'k', 'w']);
+  assert.deepEqual(r.map(e => e.kind), ['fullday', 'range', 'fullday']);
+  assert.equal(r[0].reason, 'Verlof');
+  assert.equal(r[1].reason, 'Kantoor — Papierwerk');
+  assert.deepEqual([r[1].from, r[1].to, r[1].person, r[1].scope], ['09:00', '12:00', 'Bea V.', 'person']);
+  assert.deepEqual(verkoperBlokkenNaarUitzonderingen(null, { naam: 'x', vandaag: '2026-10-05' }), []);
+});
+
+test('verkoperBlokkenNaarUitzonderingen + groupExceptionsForDisplay: opeenvolgende verlofdagen worden één regel', () => {
+  const blokken = ['2026-10-09', '2026-10-12', '2026-10-13'].map((datum, i) => ({ id: 'b' + i, datum, start: '00:00', eind: '23:59', soort: 'verlof', omschrijving: 'Verlof' }));
+  const groepen = groupExceptionsForDisplay(verkoperBlokkenNaarUitzonderingen(blokken, { naam: 'Bea V.', vandaag: '2026-10-05' }), MA_VR);
+  assert.equal(groepen.length, 1);
+  assert.deepEqual(groepen[0].items.map(e => e.id), ['b0', 'b1', 'b2']);
 });

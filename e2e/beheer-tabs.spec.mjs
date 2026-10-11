@@ -72,7 +72,9 @@ const STATUS_SLECHT = () => ({
 });
 
 async function openTab(page, naam, overschrijf = {}, app = {}) {
-  await startApp(page, { ...app, overschrijf: { gebruikers: gebruikersStub(), instellingen: instellingenStub(), activiteit: activiteitStub(), systeemstatus: () => json(200, STATUS_GOED()), ...overschrijf } });
+  await startApp(page, { ...app, overschrijf: { gebruikers: gebruikersStub(), instellingen: instellingenStub(), activiteit: activiteitStub(), systeemstatus: () => json(200, STATUS_GOED()),
+    sales: () => json(200, { gebruikerId: 'u-s1', versie: 0, leads: [], blokken: [], open: 0 }), // Beschikbaarheden leest de sales-agenda van elke verkoper
+    ...overschrijf } });
   await page.getByRole('tab', { name: 'Beheer', exact: true }).click();
   await page.getByRole('tab', { name: naam, exact: true }).click();
   await expect(page.getByRole('tab', { name: naam, exact: true })).toHaveAttribute('aria-selected', 'true');
