@@ -7,6 +7,8 @@
 // bv. nadat een adres van postcode naar volledig adres ging (melding "Route herberekend").
 // De kaart toont de route zoals bij de technieker: de TomTom-lijn met de drukte-kleuring (voor een toekomstige dag het verwachte verkeer per
 // wegvak via /api/drukte, daarna ingekleurd), wegenwerken, wegafsluitingen met waarschuwing, de legende en de vertraging in de samenvatting.
+// De werkbalk is die van de technieker (datum, ⚡ Optimaliseer, Bereken tijden, ✕ Leeg): Bereken tijden rekent de route van de dag opnieuw, Optimaliseer en Leeg
+// (sales-route-acties.js) wijzigen de planning en zijn verborgen in een alleen-lezen weergave. De indeling (lijstkolom links, kaart rechts) staat in css/app.css.
 // Bovenaan staat de weekstrook van de technieker: de werkdagen van de gekozen week met het aantal bezoeken en of ze bevestigd zijn; een klik kiest die dag.
 // De routekleur en de drukte-kleuring komen uit de instellingen van de verkoper (standaard amber en aan, zoals bij de technieker).
 // Een lead die enkel op de postcode staat ("ongeveer") is zo te zien in de lijst en op de kaart. Alle leadgegevens via textContent.
@@ -25,6 +27,7 @@ import { openLeadDetail } from './sales-detail.js';
 import { openResultaat } from './sales-resultaat.js';
 import { bouwRouteStops, controleerKeten, routeHandtekening, berekenRoute, weekDagInfo, afgewerktOpDag } from './sales-route-logica.js';
 import { maakSalesKaart, ONGEVEER_TEKST } from './sales-kaart.js';
+import { optimaliseerRoute, maakDagLeeg } from './sales-route-acties.js';
 import { el } from './sales-dom.js';
 
 export const LEEG_TEKST = 'Geen bezoeken op deze dag';
@@ -82,7 +85,11 @@ function bouwSkelet(inhoud) {
   // Dezelfde indeling als de route van de technieker (index.html #view-planning): .plan-header (datum + knoppen), .week-strip, .plan-body met
   // links de lijstkolom en rechts de kaart, en onderaan .plan-summary. De opmaak komt uit app.css; sales.css voegt enkel de ketting van hoogtes toe.
   const kiezer = el('input', { type: 'date', class: 'plan-date-compact sales-route-datumveld', 'aria-label': 'Kies een dag', title: 'Andere datum kiezen' });
-  const kop = el('div', { class: 'plan-header sales-route-kop-balk' }, kiezer);
+  // De knoppen zijn die van de technieker (zelfde klassen, volgorde en teksten): ⚡ Optimaliseer, Bereken tijden, ✕ Leeg.
+  const optimaliseerKnop = el('button', { type: 'button', class: 'btn-primary sales-route-optimaliseer', text: '⚡ Optimaliseer', title: 'Herorden de bezoeken voor de kortste route; bevestigde bezoeken blijven op hun uur' });
+  const berekenKnop = el('button', { type: 'button', class: 'btn-sec sales-route-bereken', text: 'Bereken tijden', title: 'Bereken de route en de rijtijden opnieuw' });
+  const leegKnop = el('button', { type: 'button', class: 'btn-sec sales-route-leegmaken', text: '✕ Leeg', title: 'Zet de bezoeken van deze dag terug naar Nog in te plannen (bevestigde bezoeken blijven staan)' });
+  const kop = el('div', { class: 'plan-header sales-route-kop-balk' }, kiezer, optimaliseerKnop, berekenKnop, leegKnop);
   // De weekstrook van de technieker (week-strook.js): per werkdag het aantal bezoeken en of ze bevestigd zijn; een klik kiest die dag.
   const weekstrook = el('div', { class: 'week-strip sales-route-weekstrook', role: 'group', 'aria-label': 'Week van de gekozen datum' });
   const samenvatting = el('div', { class: 'plan-summary sales-route-samenvatting' });
@@ -103,9 +110,9 @@ function bouwSkelet(inhoud) {
   kiezer.addEventListener('change', () => naarDatum(kiezer.value));
 
   return {
-    wortel, kop, kiezer, weekstrook, samenvatting, wegafsluiting, melding, nota, lijst, leeg, kaartEl, kaartNoot, inhoudVak,
+    wortel, kop, kiezer, optimaliseerKnop, berekenKnop, leegKnop, weekstrook, samenvatting, wegafsluiting, melding, nota, lijst, leeg, kaartEl, kaartNoot, inhoudVak,
     kaart: null, laatste: null, route: null, bezigSig: null, aanvraag: 0, depot: null, depotVoor: null, depotBezig: false,
-    toonde: false, kaartHerstel: false, wegToastSig: null, stijlSig: null, stijlGekozen: false,
+    toonde: false, kaartHerstel: false, wegToastSig: null, stijlSig: null, stijlGekozen: false, meldKlaar: false,
   };
 }
 
@@ -114,6 +121,9 @@ const staatVan = (inhoud) => {
   if (!s) {
     s = bouwSkelet(inhoud);
     staten.set(inhoud, s);
+    s.optimaliseerKnop.addEventListener('click', () => optimaliseerRoute({ datum: gekozenDatum(), depot: s.depot }));
+    s.berekenKnop.addEventListener('click', () => herbereken(inhoud, s));
+    s.leegKnop.addEventListener('click', () => maakDagLeeg({ datum: gekozenDatum() }));
     // De kaart volgt een groottewijziging van haar vak (venster, draaien van het toestel); een verborgen vak (0x0) wordt overgeslagen.
     if (typeof ResizeObserver === 'function') {
       let wacht = false;
@@ -212,6 +222,14 @@ function teken(inhoud) {
   const stops = bouwRouteStops(toestand.leads, datum, { standaardDuurMin: toestand.instellingen.bezoekDuurMin });
   const sleutel = `${toestand.gebruikerId ?? ''}|${datum}`;
   const start = String(toestand.instellingen.startlocatie ?? '').trim();
+
+  // De knoppen: Optimaliseer en Leeg wijzigen de planning en verdwijnen in een alleen-lezen weergave (een collega bekijken); Bereken tijden blijft.
+  const magWijzigen = schrijfbaarNu();
+  s.optimaliseerKnop.hidden = !magWijzigen;
+  s.leegKnop.hidden = !magWijzigen;
+  s.optimaliseerKnop.disabled = stops.filter((x) => !x.vast).length < 2;
+  s.leegKnop.disabled = stops.length < 1;
+  s.berekenKnop.disabled = stops.length < 1;
 
   if (!zichtbaar(inhoud)) { s.toonde = false; return; } // een verborgen tab tekent niet (geen kaart op 0x0, geen overbodige route-aanvraag); toon() tekent opnieuw
 
@@ -332,6 +350,19 @@ async function laadDrukte(inhoud, s, route) {
   }
 }
 
+// "Bereken tijden": de route en de rijtijden van de dag opnieuw berekenen (het startadres opnieuw opgezocht), ook als er niets veranderd is.
+// Bewaart niets; handig na "route herberekend"-twijfel of een verouderde route.
+function herbereken(inhoud, s) {
+  if (!staten.has(inhoud)) return;
+  s.route = null;
+  s.bezigSig = null;
+  s.aanvraag++; // een nog lopende aanvraag voor deze dag vervalt
+  s.depotVoor = null;
+  s.meldKlaar = true;
+  toast('Route berekenen...', 8000);
+  teken(inhoud);
+}
+
 async function rekenRoute(inhoud, s, { sig, sleutel, stops, depot, datum, vanTijd }) {
   s.bezigSig = sig;
   const mijn = ++s.aanvraag;
@@ -343,6 +374,7 @@ async function rekenRoute(inhoud, s, { sig, sleutel, stops, depot, datum, vanTij
   } catch (fout) {
     console.error('Sales-route berekenen mislukt:', fout);
     s.bezigSig = null;
+    s.meldKlaar = false;
     return;
   }
   if (mijn !== s.aanvraag || staten.get(inhoud) !== s) return; // een nieuwere aanvraag of een ander scherm
@@ -361,6 +393,10 @@ async function rekenRoute(inhoud, s, { sig, sleutel, stops, depot, datum, vanTij
     toast('Route herberekend');
   } else if (!vorige || vorige.sleutel !== sleutel || vorige.ids !== ids) {
     s.melding.hidden = true;
+  }
+  if (s.meldKlaar) {
+    s.meldKlaar = false;
+    if (!resultaat.geschat && !resultaat.verkeerNietBeschikbaar) toast('Route berekend ✓');
   }
   teken(inhoud);
   if (!resultaat.geschat && resultaat.data) laadDrukte(inhoud, s, s.route);
