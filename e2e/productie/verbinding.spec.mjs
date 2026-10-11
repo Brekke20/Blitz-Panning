@@ -705,7 +705,11 @@ test.describe('verbinding: resync is betrouwbaar (fix-ronde 1)', () => {
     };
     const z = zohoStubs();
     await page.addInitScript(() => { if (window === window.top) sessionStorage.setItem('blitz_beheer_tab', 'beschikbaarheden'); }); // Beheer opent meteen hier (geen /api/gebruikers van de tab Instellingen)
-    await startAppProductie(page, { technieker: 'Tim', overschrijf: { ...z.overschrijf, availability } });
+    // De keuzelijst "Voor wie" laadt de actieve accounts (/api/gebruikers).
+    const gebruikers = ({ methode }) => (methode === 'GET'
+      ? { status: 200, json: { gebruikers: [{ id: 'u-tim', naam: 'Tim', rol: 'technieker', zohoNaam: 'Tim', actief: true }] } }
+      : { status: 400, json: { error: 'x' } });
+    await startAppProductie(page, { technieker: 'Tim', overschrijf: { ...z.overschrijf, availability, gebruikers } });
     await openKalender(page);
     await pauzeerKlok(page);
     await page.getByRole('tab', { name: 'Beheer', exact: true }).click();
