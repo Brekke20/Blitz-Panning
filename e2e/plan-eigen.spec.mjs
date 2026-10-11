@@ -125,7 +125,7 @@ test.describe('technieker met "Mag zelf plannen"', () => {
     await startApp(page, { loginRol: 'technieker', loginGebruiker: TIM, technieker: 'Tim' });
     await page.getByRole('button', { name: 'Instellingen' }).click();
     await expect(page.locator('#set-subtab-algemeen')).toBeVisible();
-    await expect(page.locator('#set-subtab-beschikbaarheden')).toBeHidden();
+    await expect(page.locator('#set-subtab-beschikbaarheden')).toHaveCount(0);
     await expect(page.locator('#set-tab-algemeen')).toBeVisible();
     await expect(page.locator('#set-titel')).toContainText('Instellingen — Tim');
   });

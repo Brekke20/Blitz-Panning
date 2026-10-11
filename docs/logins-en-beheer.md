@@ -7,7 +7,7 @@ Dit document is voor Brent. Het legt in gewone taal uit wat je moet instellen en
 - Iedereen logt in met een e-mailadres en een wachtwoord.
 - Er zijn vier rollen: beheerder, planner, technieker en sales.
 - De beheerder ziet de volledige tab Beheer. Daar maak je gebruikers aan, pas je instellingen aan en bekijk je wat er gebeurd is.
-- Een planner en een sales manager zien ook de tab Beheer, maar enkel met de onderdelen **Instellingen** en **Performance**. De rest is voor hen onzichtbaar en de server weigert hun verzoeken (zie "Wie ziet wat in Beheer" hieronder).
+- Een planner ziet ook de tab Beheer, met de onderdelen **Instellingen**, **Beschikbaarheden** en **Performance**. Een sales manager ziet enkel **Instellingen** en **Performance**. De rest is voor hen onzichtbaar en de server weigert hun verzoeken (zie "Wie ziet wat in Beheer" hieronder).
 - Een sessie blijft 30 dagen geldig. Daarna moet je opnieuw inloggen.
 - Na vijf foute pogingen wordt het account tijdelijk vergrendeld.
 
@@ -142,9 +142,12 @@ Wie in Netlify kan, kan alles instellen. Zet daarom tweestapsverificatie aan op 
 |---|---|---|---|---|
 | Gebruikers, Activiteitenlog, Systeemstatus | ja | nee | nee | geen Beheer |
 | Instellingen | van iedereen | van techniekers (en de eigen) | van verkopers (en de eigen) | geen Beheer |
+| Beschikbaarheden | ja | ja | nee | geen Beheer |
 | Performance | alles | enkel het techniekers-deel (geen sales) | enkel het sales-deel (geen techniekercijfers of kosten) | geen Beheer |
 | Kleurgrenzen van de ringen aanpassen | ja | nee | nee | nee |
 
+- **Afwezigheden invullen** (verlof, dokter, opleiding) doe je in Beheer, Beschikbaarheden, voor een technieker of voor iedereen. In het ⚙-venster staat dat niet meer. Vanuit de kalender kan je nog steeds een dag of tijdvak blokkeren met de knop Beschikbaarheid.
+- Een technieker (ook met "Mag zelf plannen") heeft geen Beheer. Hij blokkeert zijn eigen dagen vanuit de kalender; de server weigert hem elke wijziging aan afwezigheden van collega's of van iedereen.
 - De lijst met gebruikers in Instellingen is voor een planner beperkt tot techniekers en hemzelf, voor een sales manager tot verkopers: enkel naam, rol en of het account actief is. Nooit een e-mailadres.
 - Wijzigt een planner of sales manager de instellingen van een ander, dan staat dat (enkel de veldnamen, niet de waarden) in het activiteitenlog.
 - Een planner of sales manager die bij een vorig bezoek op een onderdeel stond dat hij niet (meer) mag zien, komt op Instellingen terecht.
