@@ -102,6 +102,14 @@ export async function start() {
       const actief = document.querySelector('.tab.active');
       if (actief) zetStreep(actief.id);
     });
+    // Route bestaat niet op een gsm (kop B): staat iemand op Route en wordt het venster een gsm (draaien, smaller), dan gaat hij naar Kalender.
+    window.addEventListener('apparaatwijziging', () => {
+      const actief = document.querySelector('.tab.active');
+      if (window.apparaat?.indeling === 'smal' && actief?.classList.contains('alleen-groot')) activeerTab('sales-kalender');
+      zetTopbarHoogte();
+      const nu = document.querySelector('.tab.active');
+      if (nu) zetStreep(nu.id);
+    });
     zetTopbarHoogte();
     const eerste = tabsVoorRol('sales')[0];
     if (eerste) activeerTab(eerste.id);

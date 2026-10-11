@@ -77,7 +77,7 @@ export function kaartInfo(lead, vandaag = localISO(new Date())) {
 }
 
 // Laatste bezoek (op `op`); zonder bezoeken het resultaat van de lead zelf (oudere leads).
-function laatsteBezoek(lead) {
+export function laatsteBezoek(lead) {
   const bezoeken = Array.isArray(lead.bezoeken) ? lead.bezoeken : [];
   const laatste = [...bezoeken].sort((a, b) => tekstVolgorde(a.op, b.op)).at(-1);
   if (laatste) return { datum: laatste.datum, soort: lead.resultaat?.soort ?? laatste.resultaat, notitie: laatste.notitie ?? lead.resultaat?.notitie };

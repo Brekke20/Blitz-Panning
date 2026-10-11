@@ -18,7 +18,7 @@ import { TEST_MODE } from '../kern/omgeving.js';
 import { geocacheLookup, geocacheStore } from '../kern/opslag.js';
 import { fmtSec, timeStrToMin, localISO } from '../kern/tijd.js';
 import { routeVertraging, haalDrukteDetail } from './route-tijden.js';
-import { renderWeekstrook } from './week-strook.js';
+import { renderWeekstrook, koppelDatumKnop } from './week-strook.js';
 import { ontleedAdres } from '../sales/adres.js';
 import { startScherm } from './sales-schil.js';
 import { salesToestand, gekozenDatum, zetGekozenDatum, bewaarInstellingen, instellingenGeladenVoor } from './sales-data.js';
@@ -82,16 +82,21 @@ export async function zoekDepot(startlocatie) {
 function bouwSkelet(inhoud) {
   // UI/UX-review P1-4: één navigatie, zoals bij de technieker: het datumveld en de weekstrook (met haar eigen ‹ › voor de week).
   // De dag-‹ › en het dag-label van vroeger zijn weg; de gekozen dag staat in de strook (actief) en in het datumveld.
-  // Dezelfde indeling als de route van de technieker (index.html #view-planning): .plan-header (datum + knoppen), .week-strip, .plan-body met
-  // links de lijstkolom en rechts de kaart, en onderaan .plan-summary. De opmaak komt uit app.css; sales.css voegt enkel de ketting van hoogtes toe.
-  const kiezer = el('input', { type: 'date', class: 'plan-date-compact sales-route-datumveld', 'aria-label': 'Kies een dag', title: 'Andere datum kiezen' });
+  // Dezelfde indeling als de route van de technieker (index.html #view-planning): ÉÉN werkbalk .route-balk (📅, weekstrook en knoppen),
+  // .plan-body met links de lijstkolom en rechts de kaart, en onderaan .plan-summary. De opmaak komt uit app.css; sales.css voegt enkel de ketting van hoogtes toe.
+  // Het datumveld ligt onzichtbaar onder de 📅-knop (zelfde opbouw als de technieker); de knop opent de kiezer, het veld blijft de bron.
+  const kiezer = el('input', { type: 'date', class: 'route-datum-veld sales-route-datumveld', tabindex: '-1', 'aria-label': 'Kies een dag' });
+  const datumKnop = el('button', { type: 'button', class: 'route-datum-knop', text: '📅', 'aria-label': 'Andere datum kiezen', title: 'Andere datum kiezen' });
+  koppelDatumKnop(datumKnop, kiezer);
   // De knoppen zijn die van de technieker (zelfde klassen, volgorde en teksten): ⚡ Optimaliseer, Bereken tijden, ✕ Leeg.
   const optimaliseerKnop = el('button', { type: 'button', class: 'btn-primary sales-route-optimaliseer', text: '⚡ Optimaliseer', title: 'Herorden de bezoeken voor de kortste route; bevestigde bezoeken blijven op hun uur' });
   const berekenKnop = el('button', { type: 'button', class: 'btn-sec sales-route-bereken', text: 'Bereken tijden', title: 'Bereken de route en de rijtijden opnieuw' });
   const leegKnop = el('button', { type: 'button', class: 'btn-sec sales-route-leegmaken', text: '✕ Leeg', title: 'Zet de bezoeken van deze dag terug naar Nog in te plannen (bevestigde bezoeken blijven staan)' });
-  const kop = el('div', { class: 'plan-header sales-route-kop-balk' }, kiezer, optimaliseerKnop, berekenKnop, leegKnop);
   // De weekstrook van de technieker (week-strook.js): per werkdag het aantal bezoeken en of ze bevestigd zijn; een klik kiest die dag.
   const weekstrook = el('div', { class: 'week-strip sales-route-weekstrook', role: 'group', 'aria-label': 'Week van de gekozen datum' });
+  const kop = el('div', { class: 'route-balk sales-route-kop-balk' },
+    el('div', { class: 'route-balk-links' }, el('span', { class: 'route-datum-wrap' }, datumKnop, kiezer), weekstrook),
+    el('div', { class: 'route-balk-acties' }, optimaliseerKnop, berekenKnop, leegKnop));
   const samenvatting = el('div', { class: 'plan-summary sales-route-samenvatting' });
   const melding = el('div', { class: 'sales-route-melding', role: 'status', hidden: true });
   const wegafsluiting = el('div', { class: 'sales-route-wegafsluiting', role: 'alert', hidden: true, text: WEGAFSLUITING_TEKST });
@@ -103,7 +108,7 @@ function bouwSkelet(inhoud) {
   const kaartVak = el('div', { class: 'sales-route-kaartvak' }, kaartEl, kaartNoot);
   const lijstVak = el('div', { class: 'sales-route-lijstvak' }, nota, lijst);
   const inhoudVak = el('div', { class: 'plan-body sales-route-inhoud' }, lijstVak, kaartVak);
-  const wortel = el('div', { class: 'sales-route-wortel' }, kop, weekstrook, wegafsluiting, melding, leeg, inhoudVak, samenvatting);
+  const wortel = el('div', { class: 'sales-route-wortel' }, kop, wegafsluiting, melding, leeg, inhoudVak, samenvatting);
   inhoud.replaceChildren(wortel);
 
   const naarDatum = (iso) => { if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) zetGekozenDatum(iso); };

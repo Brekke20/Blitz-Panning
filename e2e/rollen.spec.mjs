@@ -39,7 +39,7 @@ test.describe('tabs per rol', () => {
 
   // UI/UX P1-5: een beheerder of planner op een gsm (zonder eigen toestelkeuze) krijgt de volledige rol, niet stil de techniekerweergave.
   for (const loginRol of ['beheerder', 'planner']) {
-    test(`${loginRol} op een gsm zonder toestelkeuze: rol coördinator, Wachtrij, Route en Rapporten zichtbaar`, async ({ browser }) => {
+    test(`${loginRol} op een gsm zonder toestelkeuze: rol coördinator, Wachtrij en Rapporten zichtbaar, Route bestaat er niet (kop B)`, async ({ browser }) => {
       const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'nl-BE', timezoneId: 'Europe/Brussels', serviceWorkers: 'block' });
       const page = await context.newPage();
       try {
@@ -47,7 +47,8 @@ test.describe('tabs per rol', () => {
         await expect(page.locator('html')).toHaveAttribute('data-apparaat', 'gsm');
         await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
         expect(await page.evaluate(() => localStorage.getItem('blitz_rol'))).toBeNull();
-        for (const naam of ['Wachtrij', 'Route', 'Rapporten']) await expect(tab(page, naam)).toBeVisible();
+        for (const naam of ['Wachtrij', 'Rapporten']) await expect(tab(page, naam)).toBeVisible();
+        await expect(tab(page, 'Route')).toBeHidden(); // Route alleen op tablet en computer
       } finally { await context.close(); }
     });
   }
