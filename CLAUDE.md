@@ -169,6 +169,18 @@ Schermonderdelen die hun eigen toestand beheren (niet in `kern.toestand`), maar 
 - Lokale afspraakkaarten in de kalender zijn met het toetsenbord te openen (`maakActiveerbaar`).
 - Gedocumenteerd restant (N12): een route-volgorde slepen tijdens een render kan af en toe geannuleerd worden (`applyRouteOrder` werkt op verouderde objecten; vastgelegd in `e2e/route-slepen-render.spec.mjs`, bewust niet gewijzigd: W11). Ook `negeerSchrijfstand` in `loadTickets` (aangeroepen door `route.js`) slaat de hele schrijfstand-controle over in plaats van enkel het routedeel; zeldzaam, bewust gelaten.
 
+## Blitz Run (`public/js/spel/`, `/api/spel`) — verborgen spel
+
+Een geheim minispel (dino-stijl: een laadpaal springt over jerrycans en bukt onder bliksems). 5× binnen 2 s tikken op de titel (`.logo`) opent het overlay; 5× tikken, ✕ of Escape sluit. Geen geluid, raakt de planning nooit aan, schrijft enkel naar `/api/spel`.
+
+- `spel-opening.js`: het enige eager deel (in de modulepreload-graaf en SHELL): de tikdetector en de dynamische `import('./spel-ui.js')`. `spel-ui.js` en wat het laadt (`spel.js`, `spel-voortgang.js`, `spel-regels.js`, `skins.js`) zijn lazy (niet in `index.html`, wel in SHELL).
+- `spel-logica.js`: pure spelregels (natuurkunde, hitboxen staan/bukken, snelheid, score, `maakTikDetector`); `spel.js`: canvas, `requestAnimationFrame`, toetsen en aanraking (boven = springen, onderaan ingehouden = bukken); `spel-ui.js`: overlay (`registreerVenster`), startscherm, skinkeuze; test-haken: `data-status` en `data-score` op `#spel-overlay`.
+- `skins.js`: `SKINS`, `tekenPaal`, `standaardSkin()` (komt uit de tak `feat/spel-skins`; de stub in deze tak is tijdelijk). Tests mogen enkel van `standaardSkin()` afhangen.
+- Voortgang (beste score, ontgrendelde skins, gekozen skin) hoort bij het ACCOUNT: `netlify/functions/spel.js` + `netlify/lib/spel.js`, blob `spel/<gebruikers-id>` (enkel het eigen record, id uit de sessie). GET geeft de stand; POST `{ score, gekozenSkin? }` bewaart de hoogste score en ontgrendelt score-skins server-side. `spel-regels.js` is de gedeelde bron van de regels voor client en server (geen kopie, dus geen pariteitsrisico); `MAX_SCORE` begrenst één inzending. Offline werkt het spel met de lokale kopie (`blitz_spel_<id>`); een mislukte inzending wordt één keer later herhaald (`spel-voortgang.js`), nooit blokkerend.
+- Event-skins: `actieveEvenementen(datum)` -> `[{ id, spelSkin? }]` is injecteerbaar (client: `installeerSpelOpening({ actieveEvenementen })` in `app.js`; server: `maakHandler({ actieveEvenementen })` in `spel.js`); standaard `[]`. Na het samenvoegen met `feat/event-ui-halloween` komt hier `kern/evenementen.js` binnen.
+- Rechten: rij `spel` (`GET`/`POST`: alle rollen). E2E: `e2e/spel.spec.mjs`; de `/api/spel`-stub staat in `e2e/helpers.mjs`.
+- Het startlocatie-icoon op de routekaart (`route-kaart.js`: `startEindPunten`, `startIcoonHtml`, klasse `route-start-marker`, groen #1D9E75) staat los van het spel.
+
 ## Service worker (`public/sw.js`, `public/sw-strategie.js`)
 
 - `sw-strategie.js` bevat alle beslislogica (UMD: `self.SwStrategie` in de SW, `module.exports` in `node --test`; `tests/sw-strategie.test.mjs`). `sw.js` is een dun omhulsel met `CACHE_NAME`, `EXTERN_CACHE`, `SHELL`, `CDN_VAST` en `FONT_HOSTS`.

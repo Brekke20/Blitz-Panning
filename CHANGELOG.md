@@ -15,6 +15,15 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [2.2.0] — nog niet uitgebracht
+
+### Added
+- Een verborgen extraatje voor wie het vindt: een klein spelletje in de app. Het doet niets met de planning en het staat nergens aangekondigd; de score en wat je ermee verdient horen bij je eigen account, dus ze volgen je van toestel naar toestel. Zoek maar eens goed rond.
+- Op de kaart van de Route-tab staat de startlocatie nu aangeduid met een groen vierkantje met de Blitz-bliksem, groter dan de gewone stops en erboven getekend. Keert de route terug naar de startlocatie, dan krijgt ook dat eindpunt dit icoon.
+
+### Changed
+- Nieuwe functie `/api/spel` (bewaart enkel de eigen voortgang van het spelletje; elke ingelogde rol, geen Zoho, geen mail). Het spel zelf wordt pas geladen als iemand het opent, dus de opstart van de app verandert niet.
+
 ## [2.0.2] — 2026-10-12
 
 ### Fixed
