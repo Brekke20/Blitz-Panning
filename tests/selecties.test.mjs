@@ -144,3 +144,14 @@ test('blokkeringenVoor: lege of ontbrekende invoer geeft een lege array', () => 
   assert.deepEqual(blokkeringenVoor(undefined, '2026-10-05', 'Tim'), []);
   assert.deepEqual(blokkeringenVoor(blokken, '2030-01-01', 'Tim'), []);
 });
+
+// Kapotte records (null in planning, afspraken, blokkeringen of tickets) mogen een scherm nooit laten falen op `.id` (v2.0.2).
+test('null-records vallen weg in alle selecties (bij een persoon én bij all)', () => {
+  const planning = [null, { uur: '09:00' }, { ticket: null }, ...items];
+  assert.deepEqual(planItemsVanTechnieker(planning, 'all'), items);
+  assert.deepEqual(planItemsVanTechnieker(planning, 'Tim'), [items[0], items[2]]);
+  assert.deepEqual(ticketsVanTechnieker([null, ...tickets], 'all'), tickets);
+  assert.deepEqual(ticketsVanTechnieker([null, ...tickets], 'Tim').map(t => t.id), [1, 3]);
+  assert.deepEqual(eigenAfsprakenVoor([null, ...events], '2026-10-05', 'all').map(e => e.id), ['a', 'b', 'c', 'd']);
+  assert.equal(blokkeringenVoor([null, { date: '2026-10-05', kind: 'fullday', scope: 'global' }], '2026-10-05', 'all').length, 1);
+});

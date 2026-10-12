@@ -4,7 +4,7 @@
 import { foutTekst } from './kern/api.js';
 import { TEST_MODE } from './kern/omgeving.js';
 import { registreerActies, metBehoudScroll } from './kern/ui.js';
-import { sjLog } from './kern/verklikker.js';
+import { sjLog, meldRenderFout } from './kern/verklikker.js';
 import { isEigenRapport } from './kern/sessie.js';
 import { renderKalender } from './schermen/kalender.js';
 import { voorbeeldRapport } from './schermen/rapport-verzenden.js';
@@ -34,7 +34,8 @@ export async function laadRapportArchief() {
   try {
     const res  = await fetch('/api/rapport-archief');
     const data = await res.json();
-    _rapportArchief = data.rapports || [];
+    // Een leeg of kapot record in de lijst (null) mag het hele overzicht niet laten mislukken.
+    _rapportArchief = (Array.isArray(data.rapports) ? data.rapports : []).filter(r => r && typeof r === 'object');
     _archiefVersie = data.versie || 0;
     sjLog('laadRapportArchief:render'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
     const render = () => { renderRapportArchief(); renderKalender(); };
@@ -42,6 +43,7 @@ export async function laadRapportArchief() {
     metBehoudScroll(render);
     toonMisluktMeldingen(_rapportArchief); // eenmalig per paginasessie, enkel technieker met persoon gekozen
   } catch (err) {
+    meldRenderFout('rapport-archief', err); // eenmalig naar /api/client-log (niet in testmodus): de echte bron van zo'n fout achterhalen
     body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">✕ Laden mislukt: ${foutTekst(err)}</div>`;
   }
 }
@@ -92,7 +94,7 @@ export function renderRapportArchief() {
     // wachtrij"-tag bij annuleren spoorloos, zonder enig teken dat dit bewust was.
     const inWachtrij = r.geannuleerd
       ? '<span style="color:var(--red)">✕ Niet verzonden (geannuleerd)</span>'
-      : _outboxItems.some(o => o.id === r.id)
+      : _outboxItems.some(o => o?.id === r.id)
         ? '<span style="color:var(--accent-ink);font-weight:600">⏳ In wachtrij</span>'
         : '';
     const st       = rd.servicetype || r.servicetype || '';

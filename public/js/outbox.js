@@ -51,7 +51,8 @@ const OUTBOX_BACKOFF_MS = [10000, 30000, 90000];
 const _outboxNextAttempt = new Map(); // id -> timestamp vanaf wanneer een automatische poging weer mag
 
 export async function refreshOutboxCache() {
-  _outboxItems = await outboxGetAll();
+  // Enkel echte records: een null in de lijst liet het Rapporten-tabblad en de banner falen op `.id`.
+  _outboxItems = (await outboxGetAll()).filter(i => i && typeof i === 'object');
   renderOutboxBanner();
 }
 

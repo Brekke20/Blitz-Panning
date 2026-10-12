@@ -592,8 +592,8 @@ export function renderKalender() {
     const dayReports = afh.rapportArchief().filter(r =>
       r.datum === dateStr &&
       (toestand.get('activeAssigneeFilter') === 'all' || afh.matchRespToPerson(r.technieker, [toestand.get('activeAssigneeFilter')]) === toestand.get('activeAssigneeFilter')) &&
-      !dayStops.some(s => s.ticket.id === r.ticketId) &&
-      !dayEvents.some(e => e.id === r.ticketId)
+      !dayStops.some(s => s.ticket?.id === r.ticketId) &&
+      !dayEvents.some(e => e?.id === r.ticketId)
     );
 
     const dayBodyEl = col.querySelector('.day-body');

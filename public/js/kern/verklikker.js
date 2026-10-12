@@ -48,3 +48,39 @@ export function startVerklikker() { // TIJDELIJK scrollsprong-verklikker (v1.8.0
     } catch { /* diagnostisch */ }
   }, { capture: true, passive: true });
 }
+
+// ── Render-foutverklikker (v2.0.2) ──
+// Het tabblad Rapporten toonde bij een beheerder "Laden mislukt: Cannot read properties of null (reading 'id')" zonder dat
+// de bron bekend was. Een catch rond een render stuurt nu één keer per paginalading de foutmelding en de bestands-/regelnummers
+// uit de stack naar /api/client-log (POST staat open voor alle rollen). Geen persoonsgegevens: enkel de melding (ingekort),
+// functienamen en regelnummers. In testmodus (?test) gaat er niets weg.
+const MAX_STACKREGELS = 8;
+export function stackSamenvatting(stack) {
+  const uit = [];
+  for (const regel of String(stack || '').split('\n')) {
+    const plek = /([\w-]+\.js)(?:\?[^:)\s]*)?:(\d+)/.exec(regel);
+    if (!plek) continue;
+    const naam = /^\s*at\s+(?:async\s+)?([^\s(]+)\s+\(/.exec(regel)?.[1] || /^\s*([^\s@]+)@/.exec(regel)?.[1] || '?';
+    uit.push(`${naam}@${plek[1]}:${plek[2]}`);
+    if (uit.length >= MAX_STACKREGELS) break;
+  }
+  return uit.join(' < ');
+}
+export function renderFoutPayload(plaats, err) {
+  const melding = String(err?.message ?? err ?? '').slice(0, 150);
+  const stack = stackSamenvatting(err?.stack);
+  return { soort: 'render-fout', stap: 'render-fout:' + String(plaats).slice(0, 40), fout: `${melding} | ${stack}`.slice(0, 480), poging: 1 };
+}
+const _gemeldPlaatsen = new Set();
+export function wisRenderFoutMeldingen() { _gemeldPlaatsen.clear(); }
+// Geeft de verstuurde payload terug (of null als er niets gestuurd werd): handig voor tests.
+export function meldRenderFout(plaats, err, { testmodus = TEST_MODE, verstuur } = {}) {
+  try {
+    if (testmodus || _gemeldPlaatsen.has(plaats)) return null;
+    _gemeldPlaatsen.add(plaats);
+    const payload = renderFoutPayload(plaats, err);
+    const stuur = verstuur || ((p) => fetch('/api/client-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p), keepalive: true }).catch(() => {}));
+    stuur(payload);
+    return payload;
+  } catch { return null; /* diagnostisch: nooit zelf een fout veroorzaken */ }
+}

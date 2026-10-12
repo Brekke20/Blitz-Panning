@@ -12,19 +12,20 @@ export function persoonOfNull(filter) {
 
 // Tickets (allTickets, allGepland, ...) van één technieker; 'all' = iedereen. Geeft altijd een nieuwe array.
 export function ticketsVanTechnieker(tickets, filter) {
-  return (tickets || []).filter(t => filter === 'all' || t.assignee === filter);
+  return (tickets || []).filter(t => t && (filter === 'all' || t.assignee === filter));
 }
 
 // Plan-items ({ ticket, uur, ... }, bv. planning[datum]) van één technieker. Nieuwe array, zelfde items.
 export function planItemsVanTechnieker(items, filter) {
-  return (items || []).filter(p => filter === 'all' || p.ticket.assignee === filter);
+  // Een leeg item of een item zonder ticket (kapotte planning) valt weg: elke lezer gaat uit van een ticket (`s.ticket.id`), ook bij 'all'.
+  return (items || []).filter(p => p && p.ticket && (filter === 'all' || p.ticket.assignee === filter));
 }
 
 // Eigen (lokale) afspraken van een datum voor een technieker: afspraken zonder persoon blijven altijd staan.
 // `alleenMetLocatie`: enkel afspraken met adres of notitie (zoals de Route-tab).
 export function eigenAfsprakenVoor(events, datum, filter, { alleenMetLocatie = false } = {}) {
   return (events || []).filter(e =>
-    e.datum === datum &&
+    e && e.datum === datum &&
     (!alleenMetLocatie || (e.adres || e.notitie)) &&
     (filter === 'all' || !e.persoon || e.persoon === filter)
   );
@@ -35,7 +36,7 @@ export function eigenAfsprakenVoor(events, datum, filter, { alleenMetLocatie = f
 export function blokkeringenVoor(avExceptions, datum, filter, soort) {
   const persoon = persoonOfNull(filter);
   return (avExceptions || []).filter(e =>
-    e.date === datum &&
+    e && e.date === datum &&
     (soort === undefined || e.kind === soort) &&
     (e.scope === 'global' || (persoon && e.person === persoon))
   );
