@@ -15,7 +15,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
-## [2.0.2] — nog niet uitgebracht
+## [2.0.2] — 2026-10-12
 
 ### Fixed
 - Het tabblad Rapporten kon "✕ Laden mislukt: Cannot read properties of null (reading 'id')" tonen (gemeld bij een beheerder met een gekozen technieker). Het archief tekent het overzicht én de kalender in één stap; één leeg (null) record in de wachtrij-lijst van het toestel, in de planning, in de afspraken, in de blokkeringen of in het archief zelf liet die stap falen. Alle lezers negeren nu zo'n record en tonen de rest gewoon: `planItemsVanTechnieker`, `ticketsVanTechnieker`, `eigenAfsprakenVoor` en `blokkeringenVoor` (`kern/selecties.js`), de rapportcontrole in de kalender, de "In wachtrij"-tag, het laden van het archief en `refreshOutboxCache`. Gedrag bij geldige gegevens ongewijzigd.
