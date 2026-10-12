@@ -11,6 +11,7 @@ function opnemer() {
     fillRect(x, y, w, h) { pts.push([x, y], [x + w, y + h]); },
     moveTo(x, y) { pts.push([x, y]); },
     lineTo(x, y) { pts.push([x, y]); },
+    quadraticCurveTo(cx, cy, x, y) { pts.push([cx, cy], [x, y]); },
     arc(x, y, r) { pts.push([x - r, y - r], [x + r, y + r]); },
   };
   for (const m of ['save', 'restore', 'beginPath', 'closePath', 'fill', 'stroke']) ctx[m] = () => {};

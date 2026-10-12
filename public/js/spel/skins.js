@@ -55,20 +55,29 @@ function heksenhoed(ctx, g, t) {
 
 function kerstmuts(ctx, g, t) {
   const cx = g.x + g.bw * 0.5;
-  const hoogte = g.bh * (g.bukken ? 0.4 : 0.3);
-  const wiebel = Math.sin(t / 300) * g.bw * 0.05;
-  const basis = g.top;
+  const hoogte = g.bh * (g.bukken ? 0.42 : 0.32);
+  const zwiep = Math.sin(t / 300) * g.bw * 0.04;
+  const rand = g.bh * 0.06;
+  const basis = g.top - rand * 0.5;
+  const l = cx - g.bw * 0.45;
+  const r = cx + g.bw * 0.45;
+  // Gebogen, naar rechts afhangende rode kegel.
+  const tipX = cx + g.bw * 0.62 + zwiep;
+  const tipY = basis - hoogte * 0.55;
   ctx.fillStyle = '#d3162f';
   ctx.beginPath();
-  ctx.moveTo(cx - g.bw * 0.4, basis);
-  ctx.lineTo(cx + g.bw * 0.4, basis);
-  ctx.lineTo(cx + wiebel + g.bw * 0.45, basis - hoogte);
+  ctx.moveTo(l, basis);
+  ctx.quadraticCurveTo(l + g.bw * 0.05, basis - hoogte * 1.15, cx + g.bw * 0.2, basis - hoogte);
+  ctx.quadraticCurveTo(tipX - g.bw * 0.05, basis - hoogte * 0.95, tipX, tipY);
+  ctx.quadraticCurveTo(cx + g.bw * 0.4, basis - hoogte * 0.5, r, basis);
   ctx.closePath();
   ctx.fill();
+  // Witte pelsrand.
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(cx - g.bw * 0.45, basis - g.bh * 0.05, g.bw * 0.9, g.bh * 0.05);
+  ctx.fillRect(l - g.bw * 0.05, basis - rand * 0.5, r - l + g.bw * 0.1, rand * 1.3);
+  // Pompon.
   ctx.beginPath();
-  ctx.arc(cx + wiebel + g.bw * 0.45, basis - hoogte, Math.max(1.5, g.bw * 0.1), 0, Math.PI * 2);
+  ctx.arc(tipX, tipY, Math.max(1.5, g.bw * 0.11), 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -111,12 +120,18 @@ export function tekenPaal(ctx, skin, { x, y, breedte, hoogte, bukken = false, t 
   // Faceplate linksboven: ca. 1/5 van de breedte, 1/4 van de hoogte.
   const fw = Math.max(2, bw * 0.2);
   const fh = bh * 0.25;
-  const fx = x + bw * 0.1;
-  const fy = top + bh * 0.08;
+  const fx = x + bw * 0.08;
+  const fy = top + bh * 0.06;
   ctx.fillStyle = skin.faceplate;
   ctx.fillRect(fx, fy, fw, fh);
   ctx.fillStyle = skin.bliksem;
   bliksemPad(ctx, fx, fy, fw, fh);
+
+  // Subtiele lichte rand rechts: leest als 3D-kolom.
+  ctx.globalAlpha = 0.14;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x + bw - Math.max(1, bw * 0.07), top, Math.max(1, bw * 0.07), bh);
+  ctx.globalAlpha = 1;
 
   if (skin.soort === 'goud') {
     // Zachte glans die over de behuizing schuift.
