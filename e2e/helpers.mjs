@@ -151,6 +151,7 @@ function maakStandaardStubs() {
   let inventaris = { versie: 0, wagenvoorraad: {}, log: [] };
   let prijzen = { versie: 1, bijgewerkt: '2026-10-05T07:00:00.000Z', onderdelen: [], tarieven: [] };
   const fotos = {};
+  let spelVoortgang = { besteScore: 0, ontgrendeld: ['basis'], gekozenSkin: 'basis' };
 
   const ok = () => json(200, { ok: true });
 
@@ -187,6 +188,17 @@ function maakStandaardStubs() {
       });
     },
     drukte: () => json(200, structuredClone(FIX.drukte)),
+    // Blitz Run (verborgen spel): de voortgang van het account. Stateful: hoogste score, en één score-skin vanaf 1500 punten (genoeg voor de tests).
+    spel: ({ methode, body }) => {
+      if (methode === 'POST') {
+        spelVoortgang = {
+          ...spelVoortgang,
+          besteScore: Math.max(spelVoortgang.besteScore, Number.isFinite(body?.score) ? body.score : 0),
+          gekozenSkin: typeof body?.gekozenSkin === 'string' ? body.gekozenSkin : spelVoortgang.gekozenSkin,
+        };
+      }
+      return json(200, spelVoortgang);
+    },
     'planning-sinds': () => json(200, structuredClone(FIX.planningSinds)),
     // Enkel in de productiemodus (zonder ?test) aangeroepen; in ?test komen de tickets uit kern/testdata.js (zelfde bron).
     tickets: () => json(200, structuredClone(TICKETS_STUB)),
