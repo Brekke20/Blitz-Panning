@@ -1,5 +1,5 @@
 // kern/versiering-logica.js — de beslissingen achter de feestelijke versiering (puur: geen DOM, geen window; opslag en klok
-// worden meegegeven). De DOM-kant staat in kern/evenement-laag.js.
+// worden meegegeven). De DOM-kant staat in schermen/evenement-laag.js.
 //
 // Regels (besluit Brent):
 //  - De voorkeur is PER TOESTEL (localStorage 'blitz_versiering'): 'uit' of afwezig (= automatisch). Standaard AAN tijdens een

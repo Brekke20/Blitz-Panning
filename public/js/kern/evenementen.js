@@ -1,5 +1,5 @@
 // kern/evenementen.js — de ENIGE kalender van feestelijke evenementen (puur: geen DOM, geen window, geen opslag).
-// Twee afnemers: de app-versiering (kern/evenement-laag.js) en later het dino-spel (`spelSkin`: de skin die in het venster
+// Twee afnemers: de app-versiering (schermen/evenement-laag.js) en later het dino-spel (`spelSkin`: de skin die in het venster
 // van het evenement beschikbaar is; nu nog ongebruikt, dus altijd null).
 //
 // Een evenement is een JAARLIJKS terugkerend venster in Belgische kalenderdagen (Europe/Brussels), grenzen inclusief:
@@ -15,7 +15,7 @@
 export const MAX_SPINNEN = 3; // harde bovengrens op bewegende spinnen, in de thema-definitie en getest
 
 export const EVENEMENTEN = [
-  { id: 'halloween', naam: 'Halloween', van: { maand: 10, dag: 1 }, tot: { maand: 10, dag: 31 }, thema: 'halloween', spelSkin: null },
+  { id: 'halloween', naam: 'Halloween', van: { maand: 10, dag: 1 }, tot: { maand: 10, dag: 31 }, thema: 'halloween', spelSkin: 'spookpaal' },
   // Kerst: nog geen thema (thema: null), maar dit venster over de jaarwissel houdt de kalender eerlijk en getest.
   { id: 'kerst', naam: 'Kerst', van: { maand: 12, dag: 1 }, tot: { maand: 1, dag: 6 }, thema: null, spelSkin: null },
 ];
@@ -43,6 +43,12 @@ export function isActief(evenement, datum = new Date()) {
 // Het eerste evenement (in lijstvolgorde) dat op deze dag loopt, of null.
 export function actiefEvenement(datum = new Date(), lijst = EVENEMENTEN) {
   return lijst.find(ev => isActief(ev, datum)) ?? null;
+}
+
+// Alle evenementen die op deze dag lopen (lijstvolgorde), als [{ id, naam, spelSkin }]. Voor het spel (skin-beschikbaarheid);
+// `spelSkin` is null voor een evenement zonder skin.
+export function actieveEvenementen(datum = new Date(), lijst = EVENEMENTEN) {
+  return lijst.filter(ev => isActief(ev, datum)).map(ev => ({ id: ev.id, naam: ev.naam, spelSkin: ev.spelSkin ?? null }));
 }
 
 // Het eerstvolgende evenement MET thema dat nog moet beginnen (voor de uitleg in de instellingen), of null.

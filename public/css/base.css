@@ -25,6 +25,7 @@
       --r-pill: 999px;
 
       /* ── Z-index stacking ── */
+      --z-event:    15; /* feestelijke versiering: boven de inhoud, onder alle sticky balken (20-30) */
       --z-sticky:   30;
       --z-dropdown: 200;
       --z-wizard:   1000;

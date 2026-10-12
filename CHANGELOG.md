@@ -18,11 +18,11 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ## [2.1.0] — nog niet uitgebracht
 
 ### Added
-- Feestelijke versiering. In oktober krijgt de app een Halloween-sfeer: pompoenoranje accentkleur, spinnenwebben in de hoeken, Halloween-teksten bij een lege wachtrij of een lege week bij Ingepland, twee spinnen die aan een draadje hangen, één spin die langs de tabbalk kruipt (en wegloopt voor de muis), af en toe een vleermuis en een heel lichte mist onderaan. De versiering ligt als doorzichtig laagje over de app: je kan er niet op klikken, ze staat onder alle vensters en meldingen, en schermlezers slaan ze over. Er wordt niets extra gedownload.
-- Nieuwe instelling "Feestelijke versiering" in Instellingen, tabblad "Dit toestel". De keuze geldt per toestel en blijft bewaard. Standaard staat ze aan tijdens een feestperiode; je kan ze uitzetten.
-- Op gsm, tablet en aanraakschermen blijft de versiering sober: enkel de stilstaande webben en de kleur, niets dat beweegt. Ook bij "beweging verminderen" in het toestel beweegt er niets, en de animaties pauzeren als het tabblad verborgen is.
-- De versiering verschijnt nooit op papier, in PDF-rapporten, in Excel-exports of in het rapportvoorbeeld, en nooit in testmodus (?test).
-- Eén gedeelde kalender van evenementen (`kern/evenementen.js`): Halloween (1 tot 31 oktober) heeft een thema; Kerst (1 december tot 6 januari) staat er al in zonder thema. Pasen komt erbij zodra er een thema is. Het dino-spel kan later dezelfde kalender gebruiken.
+- Halloween-sfeer in oktober: pompoenoranje accentkleur, spinnenwebben in de hoeken, spinnen die aan een draadje hangen of langs de tabbalk kruipen (ze lopen weg voor de muis), af en toe een vleermuis en een lichte mist onderaan. Bij een lege wachtrij of een lege week bij Ingepland staat een Halloween-tekst. De versiering ligt als doorzichtig laagje over de app: je kan er niet op klikken, ze staat onder de vensters en meldingen en onder de vaste balken bovenaan, en schermlezers slaan ze over.
+- Nieuwe instelling "Feestelijke versiering" bij Instellingen, tabblad "Dit toestel". De keuze geldt per toestel en blijft bewaard. Standaard staat ze aan tijdens een feestperiode; je kan ze uitzetten, en de teksten wisselen meteen mee.
+- Op gsm, tablet en aanraakschermen blijft de versiering sober: enkel stilstaande webben en de kleur. Staat "beweging verminderen" aan op het toestel, dan beweegt er ook niets. De animaties pauzeren als het tabblad verborgen is.
+- De versiering verschijnt nooit op papier, in PDF-rapporten, in Excel-bestanden of in het rapportvoorbeeld, en niet in de testversie van de app.
+- Een app die dagen openstaat, volgt de datum: na middernacht op 31 oktober verdwijnt de versiering vanzelf (en verschijnt ze op 1 oktober).
 
 ## [2.0.2] — 2026-10-12
 

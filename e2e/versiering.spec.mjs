@@ -42,9 +42,12 @@ test.describe('versiering op de computer', () => {
 
   test('de laag staat onder vensters, is verborgen in print en raakt de rapportvoorbeeld-iframe niet', async ({ page }) => {
     await startApp(page, { query: AAN });
+    // Boven de inhoud, onder de topbalk en onder elke sticky balk (z 20 tot 30), en onder vensters
     const z = await laag(page).evaluate(el => Number(getComputedStyle(el).zIndex));
-    expect(z).toBeGreaterThan(30);
-    expect(z).toBeLessThan(200);
+    const topbar = await page.locator('.topbar-sticky').evaluate(el => Number(getComputedStyle(el).zIndex));
+    expect(z).toBeGreaterThan(5);
+    expect(z).toBeLessThan(20);
+    expect(z).toBeLessThan(topbar);
     await page.emulateMedia({ media: 'print' });
     await expect(laag(page)).toBeHidden();
     await page.emulateMedia({ media: 'screen' });
@@ -80,6 +83,8 @@ test.describe('versiering op de computer', () => {
     await modal2.getByLabel('Versiering tonen tijdens feestperiodes').check();
     await expect(laag(page)).toHaveCount(1);
     expect(await page.evaluate(() => localStorage.getItem('blitz_versiering'))).toBeNull();
+    // De lege-tekst volgt het thema meteen (geen nieuwe render door de gebruiker nodig)
+    await expect(page.locator('html')).toHaveAttribute('data-event', 'halloween');
   });
 
   test('met prefers-reduced-motion bestaan er geen bewegende delen', async ({ page }) => {
@@ -102,6 +107,17 @@ test.describe('versiering op de computer', () => {
 });
 
 test.describe('geen versiering', () => {
+  test('na middernacht op 31 oktober verdwijnt de versiering vanzelf (minuutcontrole)', async ({ page }) => {
+    await startApp(page, { query: AAN, nu: '2026-10-31T23:58:30+01:00' });
+    await expect(laag(page)).toHaveCount(1);
+    await page.clock.fastForward(60000); // 23:59:30: nog binnen het venster
+    await expect(laag(page)).toHaveCount(1);
+    await page.clock.fastForward(90000); // 00:01:00 op 1 november (springt; elke timer vuurt hoogstens eenmaal)
+    await expect(laag(page)).toHaveCount(0);
+    await expect(page.locator('html')).not.toHaveAttribute('data-event', /.+/);
+  });
+
+
   test('buiten het evenementvenster (15 september) is er niets, ook met de vlag', async ({ page }) => {
     await startApp(page, { query: AAN, nu: '2026-09-15T09:00:00+02:00' });
     await expect(laag(page)).toHaveCount(0);

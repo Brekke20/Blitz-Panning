@@ -3,7 +3,7 @@
 // `kern/toestand`, de afhankelijkheden van andere schermen via `initIngepland(afh)` (aan het begin van
 // DOMContentLoaded). Raakt `document` enkel binnen functies, nooit op moduleniveau. Alleen `kern/brug.js` wijst
 // `window`-namen toe.
-import { eventTekst } from '../kern/evenement-laag.js';
+import { eventTekst } from './evenement-laag.js';
 import { toestand } from '../kern/toestand.js';
 import { escHtml, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
 import { localISO, getWeekStart, fmtDateShort, verschuifDatum } from '../kern/tijd.js';

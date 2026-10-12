@@ -1,13 +1,16 @@
-// kern/evenement-laag.js — de DOM-kant van de feestelijke versiering (thema Halloween).
+// schermen/evenement-laag.js — de DOM-kant van de feestelijke versiering (thema Halloween).
 // De beslissing (wanneer, voor wie, hoe sober) staat puur in kern/versiering-logica.js; de kalender in kern/evenementen.js.
 // Wat dit bestand doet:
 //  - zet `data-event="halloween"` op <html> (css/evenement.css overschrijft dan enkel kleurvariabelen; enkel in `@media screen`);
 //  - bouwt één decoratielaag `#event-laag` (inline SVG, aria-hidden, pointer-events: none, geen netwerk, niet in print);
 //  - laat één spin langs de tabbalk kruipen met een rAF-lus (enkel met beweging; stopt bij een verborgen tab).
 // Op aanraak/gsm/tablet en bij prefers-reduced-motion bevat de laag GEEN bewegende elementen (ze worden niet eens gebouwd).
-// Raakt `document`/`window` enkel binnen functies. Wijst geen `window`-namen toe.
-import { TEST_MODE } from './omgeving.js';
-import { beslis, leesVoorkeur, bewaarVoorkeur, legeTekst } from './versiering-logica.js';
+// Raakt `document`/`window` enkel binnen functies (daarom een scherm-module en geen kern). Wijst geen `window`-namen toe.
+// De beslissing wordt herberekend bij de start, bij een wijziging van toestel/beweging/voorkeur, bij terugkeer naar de pagina en elke minuut
+// (een toestel dat dagen openstaat, volgt zo de datum: 31 okt 23:59 -> 1 nov 00:00). Verandert het thema, dan komt de gebeurtenis
+// 'versiering-gewijzigd' op window, zodat lege-tekst-lijsten zich hertekenen.
+import { TEST_MODE } from '../kern/omgeving.js';
+import { beslis, leesVoorkeur, bewaarVoorkeur, legeTekst } from '../kern/versiering-logica.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const WEB = '<path d="M0 0H100M0 0L90 40M0 0L70 70M0 0L40 90M0 0V100"/><path d="M22 0Q20 18 0 22M45 0Q40 40 0 45M70 0Q60 60 0 70M95 0Q80 80 0 95"/>';
@@ -18,7 +21,9 @@ let laag = null;          // het element #event-laag (of null)
 let laagSleutel = '';     // 'thema|beweging|sober': bij wijziging wordt de laag opnieuw gebouwd
 let raf = 0;
 let kruiper = null;
-let kruipState = { x: 40, dir: 1, last: 0 };
+let kruipState = { x: 40, dir: 1, last: 0, top: 0, breedte: 0, wacht: 0 };
+let minuutTimer = 0;
+let vorigThema; // undefined = nog niet bepaald (de eerste bepaling meldt niets)
 const muis = { x: -999, y: -999 };
 let luisteraars = false;
 
@@ -104,26 +109,35 @@ function bouwLaag(b) {
 
 function stopKruiper() { if (raf) cancelAnimationFrame(raf); raf = 0; kruipState.last = 0; }
 
+// De hoogte van de kruiper staat vast (alleen x verandert): één meting bij het starten en bij een formaatwijziging, niet per frame.
+function meetKruiper() {
+  if (!kruiper) return;
+  kruipState.top = kruiper.getBoundingClientRect().top;
+  kruipState.breedte = window.innerWidth - 40;
+}
+
 function stapKruiper(t) {
   if (!kruiper || !kruiper.isConnected) { raf = 0; return; }
+  raf = requestAnimationFrame(stapKruiper);
   const s = kruipState;
   if (!s.last) s.last = t;
-  const dt = Math.min(50, t - s.last); s.last = t;
-  const breedte = window.innerWidth - 40;
-  const rect = kruiper.getBoundingClientRect();
-  const dx = (s.x + 11) - muis.x, dy = (rect.top + 11) - muis.y, d = Math.hypot(dx, dy);
+  const dt = t - s.last;
+  if (dt < 33) return; // ongeveer 30 beelden per seconde volstaat voor 22 px/s
+  s.last = t;
+  const stap = Math.min(100, dt);
+  const dx = (s.x + 11) - muis.x, dy = (s.top + 11) - muis.y, d = Math.hypot(dx, dy);
   let v = 22; // px per seconde: langzaam
   if (d < 90) { s.dir = dx >= 0 ? 1 : -1; v = 110; } // ontwijkt de muis
-  s.x += s.dir * v * dt / 1000;
-  if (s.x > breedte) { s.x = breedte; s.dir = -1; }
+  s.x += s.dir * v * stap / 1000;
+  if (s.x > s.breedte) { s.x = s.breedte; s.dir = -1; }
   if (s.x < 10) { s.x = 10; s.dir = 1; }
   kruiper.style.transform = `translateX(${s.x}px) scaleX(${s.dir})`;
-  raf = requestAnimationFrame(stapKruiper);
 }
 
 function startKruiper() {
   if (raf || !kruiper || document.hidden) return;
   kruipState.last = 0;
+  meetKruiper();
   raf = requestAnimationFrame(stapKruiper);
 }
 
@@ -138,6 +152,16 @@ function verwijderLaag() {
 export function herbereken() {
   if (typeof document === 'undefined') return;
   const b = beslis(invoer());
+  const thema = b.actief ? b.thema : null;
+  pasToe(b);
+  if (thema !== vorigThema) {
+    const eerste = vorigThema === undefined;
+    vorigThema = thema;
+    if (!eerste) window.dispatchEvent(new CustomEvent('versiering-gewijzigd', { detail: { thema } }));
+  }
+}
+
+function pasToe(b) {
   if (!b.actief) { verwijderLaag(); return; }
   const sleutel = `${b.thema}|${b.beweging}`;
   document.documentElement.dataset.event = b.thema;
@@ -171,6 +195,9 @@ export function startVersiering() {
   w.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') { muis.x = e.clientX; muis.y = e.clientY; } }, { passive: true });
   document.addEventListener('visibilitychange', () => {
     laag?.classList.toggle('ev-gepauzeerd', document.hidden);
-    if (document.hidden) stopKruiper(); else startKruiper();
+    if (document.hidden) stopKruiper();
+    else { herbereken(); startKruiper(); } // na een tijd op de achtergrond kan de datum veranderd zijn
   });
+  w.addEventListener('resize', meetKruiper);
+  if (!minuutTimer) minuutTimer = setInterval(() => { if (!document.hidden) herbereken(); }, 60000);
 }

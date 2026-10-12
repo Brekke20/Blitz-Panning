@@ -2,7 +2,7 @@
 process.env.TZ = 'Europe/Brussels';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { EVENEMENTEN, MAX_SPINNEN, belgischeDag, isActief, actiefEvenement, volgendEvenement, vensterTekst } from '../public/js/kern/evenementen.js';
+import { EVENEMENTEN, MAX_SPINNEN, belgischeDag, isActief, actiefEvenement, volgendEvenement, vensterTekst, actieveEvenementen } from '../public/js/kern/evenementen.js';
 
 const hal = EVENEMENTEN.find(e => e.id === 'halloween');
 const kerst = EVENEMENTEN.find(e => e.id === 'kerst');
@@ -69,4 +69,12 @@ test('de lijst is geldig: unieke ids, geldige data, spelSkin voorbereid, spinnen
 test('vensterTekst', () => {
   assert.equal(vensterTekst(hal), '1 tot 31 oktober');
   assert.equal(vensterTekst(kerst), '1 december tot 6 januari');
+});
+
+test('actieveEvenementen: alle lopende evenementen met spelSkin, in lijstvolgorde', () => {
+  assert.deepEqual(actieveEvenementen(new Date('2026-10-12T10:00:00+02:00')), [{ id: 'halloween', naam: 'Halloween', spelSkin: 'spookpaal' }]);
+  assert.deepEqual(actieveEvenementen(new Date('2026-12-24T10:00:00+01:00')), [{ id: 'kerst', naam: 'Kerst', spelSkin: null }]);
+  assert.deepEqual(actieveEvenementen(new Date('2026-05-05T10:00:00+02:00')), []);
+  const lijst = [{ id: 'a', naam: 'A', van: { maand: 5, dag: 1 }, tot: { maand: 5, dag: 31 } }, { id: 'b', naam: 'B', van: { maand: 5, dag: 10 }, tot: { maand: 5, dag: 20 }, spelSkin: 's' }];
+  assert.deepEqual(actieveEvenementen(new Date('2026-05-15T12:00:00+02:00'), lijst).map(e => [e.id, e.spelSkin]), [['a', null], ['b', 's']]);
 });

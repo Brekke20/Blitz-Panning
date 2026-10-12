@@ -1,12 +1,11 @@
 /* evenement.css — feestelijke versiering (thema Halloween). Gebouwd door kern/evenement-laag.js.
-   Regels: de laag is nooit klikbaar (pointer-events: none), staat onder vensters en meldingen (z 60 < dropdown 200 < modal 9999),
+   Regels: de laag is nooit klikbaar (pointer-events: none), staat onder vensters en meldingen ,
    verschijnt NOOIT in print, beweegt niet bij prefers-reduced-motion en niet op aanraak/gsm/tablet (daar bouwt de JS de bewegende
    delen niet eens), en pauzeert bij een verborgen tab (.ev-gepauzeerd). Kleur: enkel variabelen overschrijven, enkel op het scherm. */
 
 #event-laag {
   --ev-web: rgba(220, 225, 230, 0.4);
   --ev-spin: #aab3bd;
-  --z-event: 60;
   position: fixed; inset: 0; z-index: var(--z-event);
   pointer-events: none; overflow: hidden;
 }

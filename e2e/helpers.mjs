@@ -319,6 +319,7 @@ export const TE_PLANNEN = { all: 3, Tim: 2, Roel: 1 };
 // planning (zohoNaam, bij blitz_active_person 'all'); voor sales (geen wachtrij) of met wachtOpApp: false (een test die zelf
 // de login afwerkt) wacht startApp niet op de tickets.
 export async function startApp(page, { rol = 'coordinator', technieker = 'all', viewport, overschrijf, loginRol = 'beheerder', loginGebruiker = {}, wachtOpApp = true, nu = VASTE_NU, query = '?test' } = {}) {
+  if (!query.startsWith('?test')) throw new Error(`startApp: query moet met '?test' beginnen (kreeg '${query}')`);
   if (viewport) await page.setViewportSize(viewport);
   // Alleen zetten als er nog niets staat: een test die in de app van persoon wisselt en herlaadt,
   // behoudt zo zijn keuze.

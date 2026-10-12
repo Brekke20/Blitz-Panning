@@ -16,8 +16,8 @@ import { valideerInstellingen, settingsKey } from './instellingen-logica.js';
 import { isKleur } from '../kern/instellingen-regels.js';
 import { bouwKleurKeuze, leesKleurKeuze } from '../kern/kleur-keuze.js';
 import { huidigeGebruiker, huidigeRechten, eigenZohoNaam } from '../kern/sessie.js';
-import { versieringAanVoorkeur, zetVersieringAan, huidigeBeslissing } from '../kern/evenement-laag.js';
-import { volgendEvenement, vensterTekst } from '../kern/evenementen.js';
+import { versieringAanVoorkeur, zetVersieringAan, huidigeBeslissing } from './evenement-laag.js';
+import { volgendEvenement, vensterTekst, actiefEvenement } from '../kern/evenementen.js';
 import { bewaarOpServer, spiegelEigen, eigenSleutels } from '../kern/instellingen-sync.js';
 
 // Afhankelijkheden uit app.js en prijzen.js (ingevuld door initInstellingen); een vergeten init faalt luid.
@@ -160,6 +160,7 @@ function vulVersieringBlok() {
   let tekst;
   if (!vink.checked) tekst = 'Staat uit op dit toestel.';
   else if (b.actief) tekst = `Nu: ${b.evenement.naam} (${vensterTekst(b.evenement)}).${b.sober ? ' Op dit toestel enkel statische versiering.' : ''}`;
+  else if (TEST_MODE && actiefEvenement(nu)?.thema) tekst = `Er loopt een feestperiode (${actiefEvenement(nu).naam}), maar in testmodus staat de versiering uit.`;
   else {
     const volgend = volgendEvenement(nu);
     tekst = volgend ? `Er loopt nu geen feestperiode. Volgende: ${volgend.naam} (${vensterTekst(volgend)}).` : 'Er loopt nu geen feestperiode.';

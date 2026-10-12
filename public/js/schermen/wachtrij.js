@@ -3,7 +3,7 @@
 // uit `kern/toestand`, de afhankelijkheden van andere schermen via `initWachtrij(afh)` (aan het begin van
 // DOMContentLoaded). Raakt `document` enkel binnen functies, nooit op moduleniveau. Alleen `kern/brug.js` wijst
 // `window`-namen toe. `quickAdd` zoekt de eerste dag met echte vrije tijd (planner-tijdlijn.js, proefperiode-bugfix).
-import { eventTekst } from '../kern/evenement-laag.js';
+import { eventTekst } from './evenement-laag.js';
 import { toestand } from '../kern/toestand.js';
 import { magPlannenVoor } from '../kern/sessie.js';
 import { toast, escHtml, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';

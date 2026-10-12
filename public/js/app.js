@@ -51,7 +51,7 @@ import * as persoonskiezer from './schermen/persoonskiezer.js';
 import { laadTab } from './kern/navigatie.js';
 import { eigenZohoNaam, huidigeRechten, huidigeGebruiker, magPlannenVoor } from './kern/sessie.js';
 import { installeerTijdPicker } from './kern/tijd-picker.js';
-import { startVersiering } from './kern/evenement-laag.js';
+import { startVersiering } from './schermen/evenement-laag.js';
 
 
 // Leesbare toegang tot de toestand: de plaats van de vroegere window-accessors (kern/brug.js) voor allTickets, planning, settings, ...
@@ -921,5 +921,8 @@ function toggleTheme() {
 // Escape/focusval per venster: zie public/js/venster.js
 
 installeerTijdPicker(document, window); // tik op een tijd-/datumveld opent de klok/kalender (Android)
-startVersiering(); // feestelijke versiering tijdens een evenement (kern/evenement-laag.js); uit in ?test en op aanraak enkel statisch
+window.addEventListener('versiering-gewijzigd', () => { // thema aan/uit: lege-tekst-lijsten direct hertekenen
+  try { wachtrij.renderTickets(); ingepland.renderGepland(); } catch (e) { /* app nog niet opgestart: de eerste render pakt het thema vanzelf */ }
+});
+startVersiering(); // feestelijke versiering tijdens een evenement (schermen/evenement-laag.js); uit in ?test en op aanraak enkel statisch
 document.addEventListener('DOMContentLoaded', () => startNaInlog(opstart));
