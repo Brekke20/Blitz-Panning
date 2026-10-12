@@ -14,10 +14,11 @@ const WEGSLUITING_KLEUR = '#7f1d1d';
 const ZWAAR = '#ef4444'; // drukte-magnitude 3 (verhouding >= 1,25)
 
 const meetKaart = (page) => page.evaluate(() => ({
-  markers: [...document.querySelectorAll('#map .leaflet-marker-icon')].map(m => m.textContent.trim()),
+  markers: [...document.querySelectorAll('#map .leaflet-marker-icon:not(.route-start-marker)')].map(m => m.textContent.trim()),
   paden: [...document.querySelectorAll('#map .leaflet-overlay-pane path')].map(p => ({
     stroke: p.getAttribute('stroke'), lineCap: p.getAttribute('stroke-linecap'),
   })),
+  startMarkers: document.querySelectorAll('#map .leaflet-marker-icon.route-start-marker').length,
   legendes: document.querySelectorAll('.route-legende').length,
   waarschuwing: document.getElementById('s-warn').textContent,
 }));
@@ -86,6 +87,39 @@ test.describe('route-kaart', () => {
     // Geen wegafsluiting-waarschuwing.
     expect(kaart.waarschuwing).toBe('');
     expect(verzoeken.van('/api/drukte', 'POST')).toHaveLength(1);
+  });
+
+  // Start-icoon (optie F): de Blitz-bliksem in een groen afgerond vierkant op de startlocatie, groter dan een gewone stop en erboven.
+  test('startlocatie: één groen Blitz-icoon (afgerond vierkant, wit randje, bliksem), groter dan een stop en boven de stops', async ({ page }) => {
+    await bouwRoute(page);
+    const kaart = await meetKaart(page);
+    expect(kaart.startMarkers).toBe(1);
+    expect(kaart.markers).toEqual(['1', '2']); // de genummerde stops blijven zoals ze waren
+    const m = await page.evaluate(() => {
+      const start = document.querySelector('#map .leaflet-marker-icon.route-start-marker');
+      const stop = document.querySelector('#map .leaflet-marker-icon:not(.route-start-marker)');
+      const binnen = start.firstElementChild;
+      const cs = getComputedStyle(binnen);
+      return {
+        breedte: start.getBoundingClientRect().width, stopBreedte: stop.getBoundingClientRect().width,
+        achtergrond: cs.backgroundColor, rand: cs.borderTopColor, radius: cs.borderTopLeftRadius,
+        bliksem: start.querySelectorAll('svg line').length,
+        z: Number(start.style.zIndex), stopZ: Number(stop.style.zIndex), titel: start.getAttribute('title'),
+      };
+    });
+    expect(m.breedte).toBeGreaterThan(m.stopBreedte);
+    expect(m.achtergrond).toBe('rgb(29, 158, 117)'); // #1D9E75
+    expect(m.rand).toBe('rgb(255, 255, 255)');
+    expect(parseFloat(m.radius)).toBeGreaterThan(4);
+    expect(m.bliksem).toBe(2);
+    expect(m.z).toBeGreaterThan(m.stopZ);
+    expect(m.titel).toBe('Startlocatie');
+  });
+
+  test('een route die naar de startlocatie terugkeert: ook het eindpunt krijgt het icoon', async ({ page }) => {
+    const terug = routeMet((json) => { json.polyline = [[51.1, 4.9], [51.12, 4.93], [51.1, 4.9]]; });
+    await bouwRoute(page, { overschrijf: { route: terug } });
+    expect((await meetKaart(page)).startMarkers).toBe(2);
   });
 
   test('drukteKleuring uit: geen legende en geen drukte-aanvraag', async ({ page, verzoeken }) => {

@@ -330,6 +330,47 @@ export function applyKaartStijl() {
   kaartLagenKeuze.zet(eigenKaartStijl());
 }
 
+// ── Startlocatie-icoon (Blitz Run-ronde 2026-10): de Blitz-bliksem in een groen afgerond vierkant markeert het vertrekpunt ──
+// (optie F van Brent). De route vertrekt in het eerste punt van de polyline (het geocodeerde `settings.startlocatie`); keert ze terug naar
+// dat punt (laatste punt binnen `drempelM` meter van het eerste), dan krijgt ook het eindpunt hetzelfde icoon. Pure hulpen: unit-getest.
+export const START_ICOON_KLASSE = 'route-start-marker';
+export const START_ICOON_KLEUR = '#1D9E75';
+export const START_ICOON_FORMAAT = 34; // groter dan een gewone stop (24)
+
+const metersTussen = (a, b) => {
+  const R = 6371000, rad = (g) => g * Math.PI / 180;
+  const dLat = rad(b[0] - a[0]), dLon = rad(b[1] - a[1]);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a[0])) * Math.cos(rad(b[0])) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+};
+
+// Geeft { start, eind } ([lat, lon] of null) voor een polyline; `eind` enkel als de route naar het startpunt terugkeert.
+export function startEindPunten(polyline, drempelM = 150) {
+  if (!Array.isArray(polyline) || polyline.length === 0) return { start: null, eind: null };
+  const geldig = (p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]);
+  const start = geldig(polyline[0]) ? polyline[0] : null;
+  const laatste = polyline[polyline.length - 1];
+  const eind = start && polyline.length > 1 && geldig(laatste) && metersTussen(start, laatste) <= drempelM ? laatste : null;
+  return { start, eind };
+}
+
+export function startIcoonHtml() {
+  const f = START_ICOON_FORMAAT;
+  return `<div style="width:${f}px;height:${f}px;background:${START_ICOON_KLEUR};border:2px solid #fff;border-radius:9px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.45)">` +
+    '<svg width="16" height="22" viewBox="0 0 14 22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+    '<line x1="9" y1="5" x2="6" y2="11" stroke="#fff" stroke-width="3" stroke-linecap="round"/>' +
+    '<line x1="8" y1="12" x2="5" y2="18" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg></div>';
+}
+
+function voegStartMarkerToe(laag, punt, titel) {
+  const f = START_ICOON_FORMAAT;
+  return L.marker(punt, {
+    icon: L.divIcon({ html: startIcoonHtml(), iconSize: [f, f], iconAnchor: [f / 2, f / 2], className: START_ICOON_KLASSE }),
+    zIndexOffset: 1000, // boven de genummerde stops
+    title: titel, alt: titel, keyboard: false,
+  }).bindPopup(escHtml(titel)).addTo(laag);
+}
+
 export function updateKaart({ date, allStops, routeData, currentRouteDate }) {
   // Fix (bugronde 2026-09-22, item G): geen kaart (Leaflet-CDN faalde) -- niets te tekenen.
   if (!leafletMap || !routeLayer) return;
@@ -370,6 +411,12 @@ export function updateKaart({ date, allStops, routeData, currentRouteDate }) {
     })}).bindPopup(`<b>#${i+1}</b> ${label}<br>${escHtml(addr || '')}`).addTo(routeLayer);
     pts.push([item._lat, item._lon]);
   });
+  // Startlocatie (en de terugkeer, als de route daarheen terugkeert) met het Blitz-icoon, boven de stops.
+  if (routeData?.polyline?.length && currentRouteDate === date) {
+    const { start, eind } = startEindPunten(routeData.polyline);
+    if (start) voegStartMarkerToe(routeLayer, start, 'Startlocatie');
+    if (eind) voegStartMarkerToe(routeLayer, eind, 'Terug naar de startlocatie');
+  }
   if (pts.length && !(routeData?.polyline?.length && currentRouteDate === date))
     leafletMap.fitBounds(L.latLngBounds(pts), { padding:[40,40] });
 }

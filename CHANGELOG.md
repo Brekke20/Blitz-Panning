@@ -23,6 +23,8 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Op gsm, tablet en aanraakschermen blijft de versiering sober: enkel stilstaande webben en de kleur. Staat "beweging verminderen" aan op het toestel, dan beweegt er ook niets. De animaties pauzeren als het tabblad verborgen is.
 - De versiering verschijnt nooit op papier, in PDF-rapporten, in Excel-bestanden of in het rapportvoorbeeld, en niet in de testversie van de app.
 - Een app die dagen openstaat, volgt de datum: na middernacht op 31 oktober verdwijnt de versiering vanzelf (en verschijnt ze op 1 oktober).
+- Op de kaart van de Route-tab staat de startlocatie nu aangeduid met een groen vierkantje met de Blitz-bliksem, groter dan de gewone stops en erboven getekend. Keert de route terug naar de startlocatie, dan krijgt ook dat eindpunt dit icoon.
+- Er zit iets verborgens voor het team in de app. Het doet niets met de planning en staat nergens aangekondigd; wie goed zoekt, vindt het misschien.
 
 ## [2.0.2] — 2026-10-12
 

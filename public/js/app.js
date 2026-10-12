@@ -52,6 +52,8 @@ import { laadTab } from './kern/navigatie.js';
 import { eigenZohoNaam, huidigeRechten, huidigeGebruiker, magPlannenVoor } from './kern/sessie.js';
 import { installeerTijdPicker } from './kern/tijd-picker.js';
 import { startVersiering } from './schermen/evenement-laag.js';
+import { actieveEvenementen } from './kern/evenementen.js';
+import { installeerSpelOpening } from './spel/spel-opening.js';
 
 
 // Leesbare toegang tot de toestand: de plaats van de vroegere window-accessors (kern/brug.js) voor allTickets, planning, settings, ...
@@ -144,6 +146,9 @@ if (!localStorage.getItem('blitz_mig_startloc_v1')) {
 // (readyState is dan 'interactive'), dus de handler wordt, net als vroeger, pas na het parsen en na alle modules uitgevoerd.
 // Het registreren gebeurt onderaan dit bestand, nadat alle `const`/`let` van deze module bestaan.
 function opstart() {
+  // Verborgen spel (spel/): 5× snel tikken op de titel opent het; de spelmodule wordt pas dan geladen. Raakt de planning niet aan.
+  // De evenementenkalender (kern/evenementen.js) bepaalt welke event-skins (Halloween, Kerst) nu open zijn.
+  installeerSpelOpening({ doel: document.querySelector('.logo'), actieveEvenementen });
   // De rapport-wizard sluit via Escape/achtergrond met closeWizard (vraagt zelf een bevestiging); de andere vensters registreren zichzelf in hun init.
   registreerVenster({ el: document.getElementById('rapport-wizard'), sluit: closeWizard });
   // Klantbeschikbaarheid (schermen/klantbeschikbaarheid.js): laden, bewaren en de sectie in het detail; vóór de schermen die ze lezen.
