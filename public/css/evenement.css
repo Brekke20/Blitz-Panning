@@ -53,7 +53,7 @@ html[data-event-sober="ja"] .ev-web-bl, html[data-event-sober="ja"] .ev-web-br {
     --accent: #f97316; --accent-hover: #fb8a3c; --accent-dim: rgba(249, 115, 22, 0.12); --accent-glow: rgba(249, 115, 22, 0.24);
     --on-accent: #1f0d00;
   }
-  :root[data-event="halloween"][data-theme="light"] { --accent: #f97316; --accent-dim: rgba(194, 87, 12, 0.12); --accent-glow: rgba(194, 87, 12, 0.22); }
+  :root[data-event="halloween"][data-theme="light"] { --accent: #c2570c; --accent-dim: rgba(194, 87, 12, 0.12); --accent-glow: rgba(194, 87, 12, 0.22); }
 }
 
 /* Nooit in print of in een PDF */

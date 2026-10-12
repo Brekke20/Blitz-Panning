@@ -51,32 +51,36 @@ export function valideerInzending(body) {
   if (!isObject(body)) return { fout: 'Ongeldige invoer.' };
   const score = geldigeScore(body.score);
   if (score === null) return { fout: `Ongeldige score (een getal van 0 tot ${MAX_SCORE}).` };
+  // Een onbekende skin weigert de inzending niet: de score telt altijd; de skin-keuze wordt genegeerd (`skinGeweigerd`).
   if (body.gekozenSkin !== undefined && (typeof body.gekozenSkin !== 'string' || !SKINS.some(s => s.id === body.gekozenSkin))) {
-    return { fout: 'Onbekende skin.' };
+    return { score, gekozenSkin: undefined, skinGeweigerd: true };
   }
   return { score, gekozenSkin: body.gekozenSkin };
 }
 
 // Verwerkt een inzending: beste score = max, score-skins volgens de drempel, event-skins enkel als het event nu actief is.
-// Een gekozen skin moet ontgrendeld zijn (ná deze inzending). Geeft { ok: true, voortgang } of { ok: false, fout }.
-export async function bewaarSpel(store, gebruikerId, { score, gekozenSkin }, { evenementen = [], nu = () => Date.now() } = {}) {
+// Een gekozen skin moet ontgrendeld zijn (ná deze inzending), anders wordt enkel de skin genegeerd en meldt het antwoord `skinGeweigerd: true`.
+// Geeft { ok: true, voortgang }.
+export async function bewaarSpel(store, gebruikerId, { score, gekozenSkin, skinGeweigerd: skinAlGeweigerd = false }, { evenementen = [], nu = () => Date.now() } = {}) {
   if (!geldigId(gebruikerId)) throw new Error('spel: ongeldig gebruikers-id');
-  let weigering = null;
+  let skinGeweigerd = skinAlGeweigerd;
   let uitkomst = null;
   const r = await wijzigBlob(store, spelSleutel(gebruikerId), {
     leeg: {},
     wijzig: (blob) => {
-      weigering = null;
+      skinGeweigerd = skinAlGeweigerd;
       const huidig = schoonVoortgang(isObject(blob) && Object.keys(blob).length ? blob : null, SKINS);
       const besteScore = Math.max(huidig.besteScore, score);
       const ontgrendeld = ontgrendeldeSkins({ besteScore, bewaard: huidig.ontgrendeld, evenementen, skins: SKINS });
-      if (gekozenSkin !== undefined && !ontgrendeld.includes(gekozenSkin)) { weigering = 'Deze skin is nog niet ontgrendeld.'; return null; }
-      const nieuw = { besteScore, ontgrendeld, gekozenSkin: gekozenSkin ?? huidig.gekozenSkin, bijgewerkt: new Date(nu()).toISOString() };
+      // Een vergrendelde skin weigert de inzending NIET (de score gaat nooit verloren): de keuze wordt genegeerd en de vorige skin blijft.
+      const toegestaan = gekozenSkin !== undefined && ontgrendeld.includes(gekozenSkin);
+      if (gekozenSkin !== undefined && !toegestaan) skinGeweigerd = true;
+      const nieuw = { besteScore, ontgrendeld, gekozenSkin: toegestaan ? gekozenSkin : huidig.gekozenSkin, bijgewerkt: new Date(nu()).toISOString() };
       uitkomst = nieuw;
       return nieuw;
     },
   });
-  if (weigering) return { ok: false, fout: weigering };
   if (!r.ok) throw new Error('spel: schrijven mislukt na herhaling');
-  return { ok: true, voortgang: voortgangVan(uitkomst ?? r.waarde, evenementen) };
+  const voortgang = voortgangVan(uitkomst ?? r.waarde, evenementen);
+  return { ok: true, voortgang: skinGeweigerd ? { ...voortgang, skinGeweigerd: true } : voortgang };
 }

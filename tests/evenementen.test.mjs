@@ -72,7 +72,7 @@ test('vensterTekst', () => {
 });
 
 test('actieveEvenementen: alle lopende evenementen met spelSkin, in lijstvolgorde', () => {
-  assert.deepEqual(actieveEvenementen(new Date('2026-10-12T10:00:00+02:00')), [{ id: 'halloween', naam: 'Halloween', spelSkin: 'spookpaal' }]);
+  assert.deepEqual(actieveEvenementen(new Date('2026-10-12T10:00:00+02:00')), [{ id: 'halloween', naam: 'Halloween', spelSkin: 'halloween' }]);
   assert.deepEqual(actieveEvenementen(new Date('2026-12-24T10:00:00+01:00')), [{ id: 'kerst', naam: 'Kerst', spelSkin: null }]);
   assert.deepEqual(actieveEvenementen(new Date('2026-05-05T10:00:00+02:00')), []);
   const lijst = [{ id: 'a', naam: 'A', van: { maand: 5, dag: 1 }, tot: { maand: 5, dag: 31 } }, { id: 'b', naam: 'B', van: { maand: 5, dag: 10 }, tot: { maand: 5, dag: 20 }, spelSkin: 's' }];

@@ -152,3 +152,49 @@ test('events: een event-skin die op de datum actief is telt als ontgrendeld; de 
 test('een actieveEvenementen die gooit stoort niets', () => {
   assert.doesNotThrow(() => maak({ opties: { actieveEvenementen: () => { throw new Error('x'); } } }));
 });
+
+// ---- I3: een geweigerde inzending mag de score nooit meer wegnemen; event-skins komen van de server ----
+test('een 4xx op een inzending met skin: de score wordt nog eens enkel als score verstuurd (nooit verloren)', async () => {
+  const oproepen = [];
+  let st = { besteScore: 0 };
+  const api = async (pad, o = {}) => {
+    oproepen.push(o);
+    if (o.methode !== 'POST') return { ok: true, status: 200, data: { besteScore: st.besteScore, ontgrendeld: [standaardSkin()], gekozenSkin: standaardSkin() } };
+    if (o.body.gekozenSkin) return { ok: false, status: 400, data: { error: 'Deze skin is nog niet ontgrendeld.' } };
+    st = { besteScore: Math.max(st.besteScore, o.body.score) };
+    return { ok: true, status: 200, data: { besteScore: st.besteScore, ontgrendeld: [standaardSkin()], gekozenSkin: standaardSkin() } };
+  };
+  const v = maakVoortgang({ api, opslag: geheugen(), gebruikerId: 'u1', nu: () => NU, uitstel: () => {} });
+  await v.meld(80).verzonden;
+  assert.equal(st.besteScore, 80, 'de score bereikte de server');
+  assert.equal(v.heeftWachtend(), false);
+  assert.equal(v.huidig().gekozenSkin, standaardSkin());
+});
+
+test('skinGeweigerd in het antwoord: de gekozen skin valt terug op die van de server', async () => {
+  const ev = SKINS.find(s => s.soort === 'event');
+  const ops = geheugen();
+  const api = async (pad, o = {}) => ({ ok: true, status: 200, data: { besteScore: 10, ontgrendeld: [standaardSkin()], gekozenSkin: standaardSkin(), ...(o.methode === 'POST' ? { skinGeweigerd: true } : {}) } });
+  // lokale datum zegt: event actief; de server zegt van niet
+  const v = maakVoortgang({ api, opslag: ops, gebruikerId: 'u1', nu: () => NU, uitstel: () => {}, actieveEvenementen: () => [{ id: ev.eventId }] });
+  assert.ok(v.huidig().ontgrendeld.includes(ev.id), 'voorlopig: lokale schatting');
+  assert.equal(v.kiesSkin(ev.id), true);
+  await v.ververs();
+  await new Promise(r => setTimeout(r, 0));
+  assert.equal(v.huidig().gekozenSkin, standaardSkin());
+});
+
+test('event-skins komen na een serverantwoord van de server: een lokale datum ontgrendelt niets meer (ook niet na herladen)', async () => {
+  const ev = SKINS.find(s => s.soort === 'event');
+  const ops = geheugen();
+  const api = async () => ({ ok: true, status: 200, data: { besteScore: 0, ontgrendeld: [standaardSkin()], gekozenSkin: standaardSkin() } });
+  const opties = { api, opslag: ops, gebruikerId: 'u1', nu: () => NU, uitstel: () => {}, actieveEvenementen: () => [{ id: ev.eventId }] };
+  const v = maakVoortgang(opties);
+  assert.ok(v.huidig().ontgrendeld.includes(ev.id));
+  await v.ververs();
+  assert.ok(!v.huidig().ontgrendeld.includes(ev.id), 'de server kent de event-skin niet');
+  v.meld(0);
+  assert.ok(!v.huidig().ontgrendeld.includes(ev.id), 'ook na een volgende melding niet');
+  const opnieuw = maakVoortgang(opties);
+  assert.ok(!opnieuw.huidig().ontgrendeld.includes(ev.id), 'ook na herladen uit de lokale kopie niet');
+});

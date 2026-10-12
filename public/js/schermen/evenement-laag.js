@@ -18,7 +18,7 @@ const SPIN = '<ellipse cx="12" cy="13" rx="4" ry="5"/><circle cx="12" cy="7.5" r
 const VLEERMUIS = '<path d="M16 17c-2-3-4-6-9-7 1 2 1 4 0 6-2-1-5 0-7 2 3 0 5 1 6 3 1-1 3-1 4 1 1-2 3-3 6-3 3 0 5 1 6 3 1-2 3-2 4-1 1-2 3-3 6-3-2-2-5-3-7-2-1-2-1-4 0-6-5 1-7 4-9 7z" transform="translate(4 3)"/>';
 
 let laag = null;          // het element #event-laag (of null)
-let laagSleutel = '';     // 'thema|beweging|sober': bij wijziging wordt de laag opnieuw gebouwd
+let laagSleutel = '';     // 'thema|beweging': bij wijziging wordt de laag opnieuw gebouwd
 let raf = 0;
 let kruiper = null;
 let kruipState = { x: 40, dir: 1, last: 0, top: 0, breedte: 0, wacht: 0 };

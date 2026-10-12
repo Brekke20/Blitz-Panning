@@ -5,7 +5,7 @@ import { registreerActies } from '../kern/ui.js';
 import { apiVerzoek } from '../kern/api.js';
 import { huidigeGebruiker } from '../kern/sessie.js';
 import { registreerVenster } from '../venster.js';
-import { SKINS, standaardSkin } from './skins.js';
+import { SKINS, standaardSkin, HEMEL, RAND_KLEUR } from './skins.js';
 import { ontgrendelVoorwaarde } from './spel-regels.js';
 import { maakVoortgang } from './spel-voortgang.js';
 import { maakSpel } from './spel.js';
@@ -19,7 +19,7 @@ const CSS = `
 .spel-kaart { width: 100%; max-width: 720px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
 .spel-kop { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .spel-kop h2 { margin: 0; font-size: 1rem; }
-.spel-veld canvas { display: block; width: 100%; aspect-ratio: 3 / 1; border-radius: 8px; touch-action: none; user-select: none; -webkit-user-select: none; background: #0f1720; }
+.spel-veld canvas { display: block; width: 100%; aspect-ratio: 3 / 1; border-radius: 8px; touch-action: none; user-select: none; -webkit-user-select: none; background: linear-gradient(${HEMEL.boven}, ${HEMEL.onder}); }
 .spel-info { margin-top: 10px; text-align: center; }
 .spel-info[hidden] { display: block; visibility: hidden; }
 .spel-beste { font-weight: 600; margin-bottom: 6px; }
@@ -29,7 +29,7 @@ const CSS = `
 .spel-skin[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .spel-skin[disabled] { opacity: .55; cursor: not-allowed; }
 .spel-skin small { color: var(--muted); }
-.spel-skin i { display: block; width: 14px; height: 24px; border-radius: 2px; }
+.spel-skin i { display: block; width: 14px; height: 24px; border-radius: 2px; border: 1.5px solid ${RAND_KLEUR}; box-shadow: 0 0 0 1px rgba(0,0,0,.45); }
 .spel-skin i b { display: block; width: 8px; height: 7px; margin: 2px 0 0 2px; }
 .spel-hint { color: var(--muted); font-size: .78rem; margin-top: 6px; }
 `;
@@ -187,7 +187,13 @@ function zetBovenkant() {
 
 export function openSpel(afh) {
   if (afh?.actieveEvenementen) afhHuidig = afh;
-  if (!overlay) bouw();
+  if (!overlay) {
+    try { bouw(); } catch (e) { // halfgebouwd: opruimen zodat een volgende poging schoon begint
+      overlay?.remove(); document.getElementById('spel-stijl')?.remove();
+      overlay = spel = voortgang = null;
+      throw e;
+    }
+  }
   if (isOpen()) return;
   zetBovenkant();
   melding = '';

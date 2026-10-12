@@ -2,6 +2,7 @@
 // GET/POST /api/spel is de bron; een lokale kopie (per gebruiker) laat het spel offline met de laatst bekende stand werken.
 // Een inzending die mislukt wordt bewaard en één keer later opnieuw geprobeerd (ook bij het eerstvolgende openen), nooit blokkerend.
 // Puur in de zin van "alle afhankelijkheden worden meegegeven": geen window, geen globale fetch (tests geven nepjes mee).
+import { standaardSkin } from './skins.js';
 import { ontgrendeldeSkins, schoonVoortgang, voegWachtendSamen, geldigeScore, datumBrussel } from './spel-regels.js';
 
 export const HERPOGING_MS = 20000;
@@ -18,7 +19,10 @@ export function maakVoortgang({
   const evenementen = () => {
     try { const lijst = actieveEvenementen(datumBrussel(nu())); return Array.isArray(lijst) ? lijst : []; } catch { return []; }
   };
-  const aanvullen = (v) => ({ ...v, ontgrendeld: ontgrendeldeSkins({ besteScore: v.besteScore, bewaard: v.ontgrendeld, evenementen: evenementen() }) });
+  // Zolang de server nog niet antwoordde (offline eerste keer), telt de lokale datum voor event-skins als voorlopige schatting.
+  // Na het eerste antwoord komen de event-skins enkel nog van de server (`vanServer`): een verkeerde toestelklok ontgrendelt niets.
+  let vanServer = false;
+  const aanvullen = (v) => ({ ...v, ontgrendeld: ontgrendeldeSkins({ besteScore: v.besteScore, bewaard: v.ontgrendeld, evenementen: vanServer ? [] : evenementen() }) });
 
   let voortgang = aanvullen(schoonVoortgang(null));
   let wachtend = null; // { score, gekozenSkin? } nog niet bij de server
@@ -27,31 +31,47 @@ export function maakVoortgang({
   try {
     const bewaard = JSON.parse(opslag.lees(sleutel));
     if (bewaard && typeof bewaard === 'object') {
+      vanServer = bewaard.vanServer === true;
       voortgang = aanvullen(schoonVoortgang(bewaard.voortgang));
       wachtend = bewaard.wachtend && typeof bewaard.wachtend === 'object' ? voegWachtendSamen(null, bewaard.wachtend) : null;
     }
   } catch { /* geen of onleesbare kopie: begin leeg */ }
 
-  const bewaar = () => { try { opslag.schrijf(sleutel, JSON.stringify({ voortgang, wachtend })); } catch { /* geen opslag */ } };
+  const bewaar = () => { try { opslag.schrijf(sleutel, JSON.stringify({ voortgang, wachtend, vanServer })); } catch { /* geen opslag */ } };
   const zet = (v) => { voortgang = aanvullen(v); bewaar(); bijWijziging(voortgang); };
+  // Voegt een serverantwoord in: de ontgrendelde skins (ook de event-skins) komen van de server, de score-skins volgen de
+  // hoogste score. Een gekozen skin die de server weigerde (`skinGeweigerd`) of die niet open is, valt terug op die van de server.
   const samenvoegen = (server) => {
     const s = schoonVoortgang(server);
-    const gekozen = wachtend?.gekozenSkin ?? s.gekozenSkin;
-    return { besteScore: Math.max(s.besteScore, voortgang.besteScore), ontgrendeld: [...new Set([...s.ontgrendeld, ...voortgang.ontgrendeld])], gekozenSkin: gekozen };
+    const besteScore = Math.max(s.besteScore, voortgang.besteScore);
+    const ontgrendeld = ontgrendeldeSkins({ besteScore, bewaard: s.ontgrendeld, evenementen: [] });
+    const gewenst = server?.skinGeweigerd ? undefined : wachtend?.gekozenSkin;
+    const gekozen = gewenst !== undefined && ontgrendeld.includes(gewenst) ? gewenst : (ontgrendeld.includes(s.gekozenSkin) ? s.gekozenSkin : standaardSkin());
+    vanServer = true;
+    return { besteScore, ontgrendeld, gekozenSkin: gekozen };
   };
+
+  const isDefinitief = (status) => status >= 400 && status < 500 && status !== 408 && status !== 429;
 
   // Verstuurt `wachtend`. true = gelukt (of niet meer te redden: een 4xx-antwoord) ; false = tijdelijk mislukt (blijft wachten).
   async function verstuur() {
     if (!wachtend) return true;
     const inzending = { ...wachtend };
     try {
-      const r = await api('/api/spel', { methode: 'POST', body: inzending });
+      let r = await api('/api/spel', { methode: 'POST', body: inzending });
+      // Een score mag nooit verloren gaan door een skin-keuze: weigert de server (4xx) een inzending met skin, probeer nog eens enkel de score.
+      if (!r.ok && isDefinitief(r.status) && inzending.gekozenSkin !== undefined) {
+        r = await api('/api/spel', { methode: 'POST', body: { score: inzending.score } });
+        if (r.ok && r.data && typeof r.data === 'object') r = { ...r, data: { ...r.data, skinGeweigerd: true } };
+      }
       if (r.ok) {
-        if (JSON.stringify(wachtend) === JSON.stringify(inzending)) wachtend = null;
-        zet(samenvoegen(r.data));
+        const zelfde = JSON.stringify(wachtend) === JSON.stringify(inzending);
+        const stand = samenvoegen(r.data);
+        if (zelfde) wachtend = null;
+        zet(stand);
         return true;
       }
-      if (r.status >= 400 && r.status < 500 && r.status !== 408 && r.status !== 429) { // de server weigert dit definitief: niet blijven proberen
+      if (isDefinitief(r.status)) { // de server weigert dit definitief (bv. een ongeldige score): niet blijven proberen
         if (JSON.stringify(wachtend) === JSON.stringify(inzending)) wachtend = null;
         bewaar();
         return true;

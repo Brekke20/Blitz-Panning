@@ -1,6 +1,6 @@
 // kern/evenementen.js — de ENIGE kalender van feestelijke evenementen (puur: geen DOM, geen window, geen opslag).
-// Twee afnemers: de app-versiering (schermen/evenement-laag.js) en later het dino-spel (`spelSkin`: de skin die in het venster
-// van het evenement beschikbaar is; nu nog ongebruikt, dus altijd null).
+// Twee afnemers: de app-versiering (schermen/evenement-laag.js) en later het dino-spel (`spelSkin`: de skin-id die in het venster
+// van het evenement beschikbaar is; ontgrendeld in Blitz Run).
 //
 // Een evenement is een JAARLIJKS terugkerend venster in Belgische kalenderdagen (Europe/Brussels), grenzen inclusief:
 //   { id, naam, van: { maand, dag }, tot: { maand, dag }, thema, spelSkin }
@@ -15,7 +15,7 @@
 export const MAX_SPINNEN = 3; // harde bovengrens op bewegende spinnen, in de thema-definitie en getest
 
 export const EVENEMENTEN = [
-  { id: 'halloween', naam: 'Halloween', van: { maand: 10, dag: 1 }, tot: { maand: 10, dag: 31 }, thema: 'halloween', spelSkin: 'spookpaal' },
+  { id: 'halloween', naam: 'Halloween', van: { maand: 10, dag: 1 }, tot: { maand: 10, dag: 31 }, thema: 'halloween', spelSkin: 'halloween' },
   // Kerst: nog geen thema (thema: null), maar dit venster over de jaarwissel houdt de kalender eerlijk en getest.
   { id: 'kerst', naam: 'Kerst', van: { maand: 12, dag: 1 }, tot: { maand: 1, dag: 6 }, thema: null, spelSkin: null },
 ];

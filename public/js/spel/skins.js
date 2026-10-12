@@ -21,6 +21,11 @@ export const SKINS = [
   { id: 'kerst', naam: 'Kerstpaal', soort: 'event', eventId: 'kerst', faceplate: '#c8102e', behuizing: '#0f3d22', bliksem: '#ffffff', extra: 'kerstmuts' },
 ];
 
+// Nachthemel van het spel (verloop boven -> onder) en de lichte contour van de paal: de paal moet bij elke skin duidelijk
+// afsteken, ook als de behuizing zelf donker is. `tests/spel-skins.test.mjs` bewaakt een contrast van minstens 3:1.
+export const HEMEL = Object.freeze({ boven: '#2f4358', onder: '#1b2836' });
+export const RAND_KLEUR = '#e9f2f8';
+
 export function standaardSkin() {
   return 'blitz';
 }
@@ -41,7 +46,10 @@ function heksenhoed(ctx, g, t) {
   const wiebel = Math.sin(t / 250) * g.bw * 0.04;
   const basis = g.top;
   ctx.fillStyle = '#2a1840';
+  ctx.strokeStyle = RAND_KLEUR;
+  ctx.lineWidth = 1.2;
   ctx.fillRect(cx - rand, basis - g.bh * 0.05, rand * 2, g.bh * 0.05);
+  ctx.strokeRect(cx - rand, basis - g.bh * 0.05, rand * 2, g.bh * 0.05);
   ctx.beginPath();
   ctx.moveTo(cx - g.bw * 0.4, basis - g.bh * 0.05);
   ctx.lineTo(cx + g.bw * 0.4, basis - g.bh * 0.05);
@@ -49,6 +57,7 @@ function heksenhoed(ctx, g, t) {
   ctx.lineTo(cx + wiebel, basis - hoogte - g.bh * 0.04);
   ctx.closePath();
   ctx.fill();
+  ctx.stroke();
   ctx.fillStyle = '#ff7a00';
   ctx.fillRect(cx - g.bw * 0.4, basis - g.bh * 0.12, g.bw * 0.8, g.bh * 0.05);
 }
@@ -81,15 +90,7 @@ function kerstmuts(ctx, g, t) {
   ctx.fill();
 }
 
-function pompoenlogo(ctx, g) {
-  const r = Math.max(2, g.bw * 0.14);
-  ctx.fillStyle = '#ff7a00';
-  ctx.beginPath();
-  ctx.arc(g.x + g.bw * 0.62, g.y - g.bh * 0.35, r, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-export const EXTRAS = { heksenhoed, kerstmuts, pompoenlogo };
+export const EXTRAS = { heksenhoed, kerstmuts };
 
 // ---- Tekenen ----
 
@@ -116,6 +117,15 @@ export function tekenPaal(ctx, skin, { x, y, breedte, hoogte, bukken = false, t 
   ctx.save();
   ctx.fillStyle = skin.behuizing;
   ctx.fillRect(x, top, bw, bh);
+  // Lichte contour + subtiele bovenglans: de paal steekt zo bij elke skin af tegen de nachthemel.
+  const rand = skin.rand ?? RAND_KLEUR;
+  ctx.globalAlpha = 0.16;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x, top, bw, Math.max(1, bh * 0.12));
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = rand;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x + 0.75, top + 0.75, bw - 1.5, bh - 1.5);
 
   // Faceplate linksboven: ca. 1/5 van de breedte, 1/4 van de hoogte.
   const fw = Math.max(2, bw * 0.2);

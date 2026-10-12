@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SKINS, tekenPaal, standaardSkin, vrijgespeeld } from '../public/js/spel/skins.js';
+import { SKINS, tekenPaal, standaardSkin, vrijgespeeld, HEMEL, RAND_KLEUR } from '../public/js/spel/skins.js';
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
@@ -9,6 +9,7 @@ function opnemer() {
   const ctx = {
     punten: pts,
     fillRect(x, y, w, h) { pts.push([x, y], [x + w, y + h]); },
+    strokeRect() {},
     moveTo(x, y) { pts.push([x, y]); },
     lineTo(x, y) { pts.push([x, y]); },
     quadraticCurveTo(cx, cy, x, y) { pts.push([cx, cy], [x, y]); },
@@ -75,5 +76,31 @@ test('tekenPaal: elke skin, beide houdingen; bukken is breder en lager', () => {
       assert.ok(B.y0 > A.y0, `${s.id} lager`);
       assert.ok(B.y1 <= 200.001 && A.y1 <= 200.001, `${s.id} blijft op de grond`);
     }
+  }
+});
+
+// ---- Contrast (I2): de paal moet bij élke skin duidelijk zichtbaar zijn tegen de nachthemel ----
+const lum = (hex) => {
+  const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+};
+const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+
+test('de contour van elke skin heeft minstens 3:1 contrast met beide uiteinden van de hemel', () => {
+  for (const s of SKINS) {
+    const rand = s.rand ?? RAND_KLEUR;
+    for (const hemel of [HEMEL.boven, HEMEL.onder]) {
+      assert.ok(contrast(rand, hemel) >= 3, `${s.id}: contour ${rand} tegen ${hemel} = ${contrast(rand, hemel).toFixed(2)}`);
+    }
+  }
+});
+
+test('tekenPaal tekent een contour rond de behuizing met de randkleur (elke skin)', () => {
+  for (const s of SKINS) {
+    const ctx = opnemer();
+    const gezien = [];
+    ctx.strokeRect = () => gezien.push(ctx.strokeStyle);
+    tekenPaal(ctx, s, { x: 50, y: 150, breedte: 24, hoogte: 44, t: 0 });
+    assert.ok(gezien.includes(s.rand ?? RAND_KLEUR), s.id);
   }
 });

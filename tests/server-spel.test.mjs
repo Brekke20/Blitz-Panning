@@ -92,15 +92,24 @@ test('score-skins worden server-side ontgrendeld op de drempel (en niet eerder)'
   assert.ok(op.ontgrendeld.includes(goud.id));
 });
 
-test('een gekozen skin moet ontgrendeld zijn: vergrendeld geeft 400 en verandert niets; ontgrendeld wordt bewaard', { skip: !goud }, async () => {
+// Bewust gewijzigd (final-review I3): een vergrendelde skin weigerde vroeger de HELE inzending (400, score verloren).
+// Nu telt de score altijd; enkel de skin-keuze wordt genegeerd en het antwoord meldt `skinGeweigerd`.
+test('een vergrendelde gekozen skin weigert de score niet: score bewaard, skin genegeerd, skinGeweigerd; ontgrendeld wordt bewaard', { skip: !goud }, async () => {
   const { h } = opzet();
   const nee = await metRol('planner', () => h(post({ score: 5, gekozenSkin: goud.id })));
-  assert.equal(nee.status, 400);
-  assert.match((await nee.json()).error, /ontgrendeld/);
-  assert.equal((await (await metRol('planner', () => h(get()))).json()).besteScore, 0, 'een geweigerde inzending schrijft niets');
+  assert.equal(nee.status, 200);
+  const dat = await nee.json();
+  assert.equal(dat.skinGeweigerd, true);
+  assert.equal(dat.besteScore, 5);
+  assert.notEqual(dat.gekozenSkin, goud.id);
+  const stand = await (await metRol('planner', () => h(get()))).json();
+  assert.equal(stand.besteScore, 5, 'de score is bewaard');
+  assert.ok(!('skinGeweigerd' in stand));
   const ja = await metRol('planner', () => h(post({ score: goud.drempel, gekozenSkin: goud.id })));
   assert.equal(ja.status, 200);
-  assert.equal((await ja.json()).gekozenSkin, goud.id);
+  const jaDat = await ja.json();
+  assert.equal(jaDat.gekozenSkin, goud.id);
+  assert.ok(!('skinGeweigerd' in jaDat));
   assert.equal((await (await metRol('planner', () => h(get()))).json()).gekozenSkin, goud.id);
 });
 
@@ -111,10 +120,14 @@ test('een ontgrendelde skin blijft ontgrendeld en blijft kiesbaar, ook met een l
   assert.equal(r.status, 200);
 });
 
-test('een onbekende skin-id: 400', async () => {
+test('een onbekende skin-id weigert de score niet: 200, score bewaard, skin genegeerd (skinGeweigerd)', async () => {
   const { h } = opzet();
   for (const gekozenSkin of ['bestaat-niet', 5, null, {}]) {
-    assert.equal((await metRol('planner', () => h(post({ score: 1, gekozenSkin })))).status, 400, JSON.stringify(gekozenSkin));
+    const r = await metRol('planner', () => h(post({ score: 7, gekozenSkin })));
+    assert.equal(r.status, 200, JSON.stringify(gekozenSkin));
+    const dat = await r.json();
+    assert.equal(dat.skinGeweigerd, true);
+    assert.equal(dat.besteScore, 7);
   }
 });
 
@@ -175,7 +188,12 @@ test('een event-skin is enkel ontgrendeld als het event op de serverdatum actief
   const zonder = opzet();
   const r0 = await (await metRol('planner', () => zonder.h(get()))).json();
   assert.ok(!r0.ontgrendeld.includes(eventSkin.id));
-  assert.equal((await metRol('planner', () => zonder.h(post({ score: 1, gekozenSkin: eventSkin.id })))).status, 400);
+  const geweigerd = await metRol('planner', () => zonder.h(post({ score: 1, gekozenSkin: eventSkin.id })));
+  assert.equal(geweigerd.status, 200, 'de score telt altijd');
+  const gw = await geweigerd.json();
+  assert.equal(gw.skinGeweigerd, true);
+  assert.equal(gw.besteScore, 1);
+  assert.ok(!gw.ontgrendeld.includes(eventSkin.id));
 
   const echt = maakNepStore({});
   const nepStore = () => echt;
@@ -244,7 +262,8 @@ test('lib: valideerInzending', () => {
   assert.deepEqual(valideerInzending({ score: 10 }), { score: 10, gekozenSkin: undefined });
   assert.ok(valideerInzending({ score: -1 }).fout);
   assert.ok(valideerInzending(null).fout);
-  assert.ok(valideerInzending({ score: 1, gekozenSkin: 'nietbestaand' }).fout);
+  // Onbekende skin: geen fout (de score telt), de skin wordt genegeerd (I3).
+  assert.deepEqual(valideerInzending({ score: 1, gekozenSkin: 'nietbestaand' }), { score: 1, gekozenSkin: undefined, skinGeweigerd: true });
 });
 
 test('lib: een beschadigd record geeft de beginstand in plaats van een fout', async () => {

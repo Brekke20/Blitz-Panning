@@ -4,14 +4,14 @@
 import {
   WERELD, SPELER, maakStaat, stap, scoreBij, aanraakActie, SPRING_TOETSEN, BUK_TOETSEN,
 } from './spel-logica.js';
-import { tekenPaal } from './skins.js';
+import { tekenPaal, HEMEL } from './skins.js';
 
 const STAP_MAX = 1 / 60;       // één rekenstap; een groter tijdverschil wordt in stappen verdeeld
 const DT_MAX = 0.1;            // na een lange pauze (tab verborgen) geen sprong vooruit
 const SPRING_BUFFER_S = 0.12;  // een sprong die net te vroeg ingedrukt wordt, telt nog even mee
 
 const KLEUR = Object.freeze({
-  lucht: '#0f1720', grond: '#2e3a46', ster: '#3b4a5a', tekst: '#d9d9d6',
+  lucht: HEMEL.onder, grond: '#4a5d70', ster: '#6b8197', tekst: '#d9d9d6',
   jerrycan: '#e5483b', jerrycanDonker: '#a9302a', bliksem: '#ffd23f', flits: 'rgba(255,255,255,0.55)',
 });
 
@@ -38,7 +38,10 @@ export function maakSpel({
     const g = WERELD.grondY;
     ctx.save();
     if (!verminderdeBeweging && ts < schudTot) ctx.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
-    ctx.fillStyle = KLEUR.lucht;
+    const verloop = ctx.createLinearGradient(0, 0, 0, WERELD.hoogte);
+    verloop.addColorStop(0, HEMEL.boven);
+    verloop.addColorStop(1, HEMEL.onder);
+    ctx.fillStyle = verloop;
     ctx.fillRect(-10, -10, WERELD.breedte + 20, WERELD.hoogte + 20);
     // sterren die langzaam meeschuiven (parallax)
     ctx.fillStyle = KLEUR.ster;

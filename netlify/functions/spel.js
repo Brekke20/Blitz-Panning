@@ -2,7 +2,8 @@
 //   GET                         -> 200 { besteScore, ontgrendeld: string[], gekozenSkin }  (het eigen record, aangevuld met wat nu ontgrendeld is)
 //   POST { score, gekozenSkin? } -> 200 { besteScore, ontgrendeld, gekozenSkin }; de server bewaart de hoogste score, ontgrendelt score-skins
 //        volgens dezelfde drempels als de client en event-skins enkel als dat event op de serverdatum actief is.
-//        400: onleesbare JSON, een score buiten 0..MAX_SCORE, een onbekende of nog vergrendelde skin.
+//        400: onleesbare JSON of een score buiten 0..MAX_SCORE. Een onbekende of vergrendelde skin weigert de score NOOIT: de skin-keuze wordt genegeerd
+//        en het antwoord bevat dan `skinGeweigerd: true`.
 // Enkel het EIGEN record: de sleutel komt altijd uit de sessie (gebruiker.id), nooit uit het verzoek. Geen Zoho, geen TomTom, geen mail.
 // `actieveEvenementen(datum)` -> [{ id, spelSkin? }] is injecteerbaar; de standaard is die uit public/js/kern/evenementen.js
 // (serverdatum in Europe/Brussels). Een event-skin die bij een GET nieuw open is, wordt meteen bewaard (best-effort).
