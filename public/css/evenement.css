@@ -1,0 +1,61 @@
+/* evenement.css — feestelijke versiering (thema Halloween). Gebouwd door kern/evenement-laag.js.
+   Regels: de laag is nooit klikbaar (pointer-events: none), staat onder vensters en meldingen (z 60 < dropdown 200 < modal 9999),
+   verschijnt NOOIT in print, beweegt niet bij prefers-reduced-motion en niet op aanraak/gsm/tablet (daar bouwt de JS de bewegende
+   delen niet eens), en pauzeert bij een verborgen tab (.ev-gepauzeerd). Kleur: enkel variabelen overschrijven, enkel op het scherm. */
+
+#event-laag {
+  --ev-web: rgba(220, 225, 230, 0.4);
+  --ev-spin: #aab3bd;
+  --z-event: 60;
+  position: fixed; inset: 0; z-index: var(--z-event);
+  pointer-events: none; overflow: hidden;
+}
+:root[data-theme="light"] #event-laag { --ev-web: rgba(40, 50, 65, 0.4); --ev-spin: #2b2b2b; }
+#event-laag, #event-laag * { pointer-events: none !important; user-select: none; }
+
+.ev-web { position: absolute; width: 96px; height: 96px; color: var(--ev-web); }
+.ev-web-tl { top: var(--topbar-h, 96px); left: 0; }
+.ev-web-tr { top: var(--topbar-h, 96px); right: 0; transform: scaleX(-1); width: 72px; height: 72px; }
+.ev-web-bl { bottom: 0; left: 0; transform: scaleY(-1); width: 120px; height: 120px; }
+.ev-web-br { bottom: 0; right: 0; transform: scale(-1, -1); width: 90px; height: 90px; }
+
+.ev-spin { display: block; width: 22px; height: 22px; color: var(--ev-spin); fill: currentColor; }
+.ev-hang { position: absolute; top: var(--topbar-h, 96px); width: 22px; animation: ev-zak 10s ease-in-out infinite; will-change: transform; }
+.ev-draad { display: block; width: 1px; height: var(--l, 70px); margin: 0 auto; background: var(--ev-web); }
+.ev-kruiper { position: absolute; top: calc(var(--topbar-h, 96px) - 12px); left: 0; opacity: 0.9; will-change: transform; }
+.ev-vleermuis { position: absolute; top: calc(var(--topbar-h, 96px) + 40px); left: -60px; width: 34px; height: 22px; color: var(--ev-spin);
+  fill: currentColor; opacity: 0; animation: ev-vlieg 70s linear infinite; animation-delay: 6s; }
+.ev-mist { position: absolute; left: -10%; right: -10%; bottom: 0; height: 80px;
+  background: radial-gradient(ellipse at 20% 100%, rgba(249, 115, 22, 0.08), transparent 60%),
+              radial-gradient(ellipse at 75% 100%, rgba(170, 180, 190, 0.08), transparent 60%);
+  animation: ev-drift 45s ease-in-out infinite alternate; }
+
+@keyframes ev-zak { 0%, 100% { transform: translateY(-36px); } 50% { transform: translateY(0); } }
+@keyframes ev-vlieg {
+  0% { opacity: 0; transform: translate(0, 0); }
+  2% { opacity: 0.85; }
+  18% { opacity: 0.85; transform: translate(calc(100vw + 120px), 40px); }
+  19%, 100% { opacity: 0; transform: translate(calc(100vw + 120px), 40px); }
+}
+@keyframes ev-drift { from { transform: translateX(-4%); } to { transform: translateX(4%); } }
+
+#event-laag.ev-gepauzeerd .ev-beweeg { animation-play-state: paused; }
+
+/* Geen beweging bij reduced-motion (de JS bouwt de bewegende delen dan niet; dit is de tweede lijn) */
+@media (prefers-reduced-motion: reduce) { .ev-beweeg { display: none !important; } }
+/* Sober op aanraak, gsm en tablet: enkel statische webben, kleiner en ver van de inhoud */
+html[data-aanraak="ja"] .ev-beweeg, html[data-apparaat="gsm"] .ev-beweeg, html[data-apparaat="tablet"] .ev-beweeg { display: none !important; }
+html[data-event-sober="ja"] .ev-web-tl, html[data-event-sober="ja"] .ev-web-tr { width: 56px; height: 56px; }
+html[data-event-sober="ja"] .ev-web-bl, html[data-event-sober="ja"] .ev-web-br { display: none; }
+
+/* Pompoenoranje accent: enkel op het scherm; kleuren van prioriteit en status (--red, --blue, ...) blijven ongemoeid */
+@media screen {
+  :root[data-event="halloween"] {
+    --accent: #f97316; --accent-hover: #fb8a3c; --accent-dim: rgba(249, 115, 22, 0.12); --accent-glow: rgba(249, 115, 22, 0.24);
+    --on-accent: #1f0d00;
+  }
+  :root[data-event="halloween"][data-theme="light"] { --accent: #f97316; --accent-dim: rgba(194, 87, 12, 0.12); --accent-glow: rgba(194, 87, 12, 0.22); }
+}
+
+/* Nooit in print of in een PDF */
+@media print { #event-laag { display: none !important; } }

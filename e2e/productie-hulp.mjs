@@ -149,8 +149,8 @@ export function ongemeldeSchrijfverzoeken(alle, paden) {
 
 // Opent de app zonder ?test. `technieker`: 'all' | 'Tim' | 'Roel' (bepaalt de verwachte wachtrijtelling).
 // `klok: false` laat de echte klok lopen (enkel voor tests die geen page.clock nodig hebben); standaard staat de nepklok aan.
-export async function startAppProductie(page, { rol = 'coordinator', technieker = 'all', overschrijf, vasteKlok = false, klok = true, voorNavigatie, loginRol = 'beheerder' } = {}) {
-  await page.addInitScript(({ rol, technieker }) => {
+export async function startAppProductie(page, { rol = 'coordinator', technieker = 'all', overschrijf, vasteKlok = false, klok = true, voorNavigatie, loginRol = 'beheerder', versiering = false } = {}) {
+  await page.addInitScript(({ rol, technieker, versiering }) => {
     if (window !== window.top) return; // sandbox-iframes hebben geen localStorage
     const zet = (k, v) => { if (localStorage.getItem(k) === null) localStorage.setItem(k, v); };
     if (rol !== null) zet('blitz_rol', rol);
@@ -159,7 +159,9 @@ export async function startAppProductie(page, { rol = 'coordinator', technieker 
     // uitlog (die de markering weghaalt) na een herlaad niet meteen weer ongedaan wordt gemaakt.
     if (!sessionStorage.getItem('__test_eigenaar')) { sessionStorage.setItem('__test_eigenaar', '1'); zet('blitz_eigenaar', 'u-test'); }
     zet('blitz_theme', 'dark');
-  }, { rol, technieker });
+    // Feestelijke versiering (oktober: Halloween) staat in productietests standaard UIT, zodat de rest van de suite niet van de datum afhangt.
+    if (!versiering) zet('blitz_versiering', 'uit');
+  }, { rol, technieker, versiering });
   if (klok) await page.clock.install({ time: new Date(VASTE_NU) });
   const verzoeken = await stubExtern(page, { overschrijf: { 'auth-ik': authIkStub(loginRol), ...overschrijf } });
   // Strenge route NA stubExtern: voorrang boven diens host-vangnet (dat o.a. POST naar een CDN doorlaat).

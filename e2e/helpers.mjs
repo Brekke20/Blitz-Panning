@@ -318,7 +318,7 @@ export const TE_PLANNEN = { all: 3, Tim: 2, Roel: 1 };
 // `loginGebruiker`: velden van de ingelogde gebruiker in de auth-ik-stub (zie authIkStub). Een ingelogde technieker start op zijn eigen
 // planning (zohoNaam, bij blitz_active_person 'all'); voor sales (geen wachtrij) of met wachtOpApp: false (een test die zelf
 // de login afwerkt) wacht startApp niet op de tickets.
-export async function startApp(page, { rol = 'coordinator', technieker = 'all', viewport, overschrijf, loginRol = 'beheerder', loginGebruiker = {}, wachtOpApp = true, nu = VASTE_NU } = {}) {
+export async function startApp(page, { rol = 'coordinator', technieker = 'all', viewport, overschrijf, loginRol = 'beheerder', loginGebruiker = {}, wachtOpApp = true, nu = VASTE_NU, query = '?test' } = {}) {
   if (viewport) await page.setViewportSize(viewport);
   // Alleen zetten als er nog niets staat: een test die in de app van persoon wisselt en herlaadt,
   // behoudt zo zijn keuze.
@@ -337,7 +337,7 @@ export async function startApp(page, { rol = 'coordinator', technieker = 'all', 
   // test ooit op de minuut nauwkeurig moet zijn.
   await page.clock.install({ time: new Date(nu) }); // `nu`: een andere vaste starttijd (bv. een zaterdag)
   await stubExtern(page, { overschrijf: { 'auth-ik': authIkStub(loginRol, loginGebruiker), ...overschrijf } });
-  await page.goto('/?test');
+  await page.goto('/' + query); // `query`: bv. '?test&versiering=aan' (enkel e2e/versiering.spec.mjs)
   if (loginRol === 'sales' || wachtOpApp === false) return;
   const eigen = loginRol === 'technieker' && technieker === 'all' ? (loginGebruiker.zohoNaam ?? 'Tim') : technieker;
   await expect(page.locator('#cnt-tickets')).toHaveText(String(TE_PLANNEN[eigen] ?? 0));

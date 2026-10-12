@@ -15,6 +15,15 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [2.1.0] — nog niet uitgebracht
+
+### Added
+- Feestelijke versiering. In oktober krijgt de app een Halloween-sfeer: pompoenoranje accentkleur, spinnenwebben in de hoeken, Halloween-teksten bij een lege wachtrij of een lege week bij Ingepland, twee spinnen die aan een draadje hangen, één spin die langs de tabbalk kruipt (en wegloopt voor de muis), af en toe een vleermuis en een heel lichte mist onderaan. De versiering ligt als doorzichtig laagje over de app: je kan er niet op klikken, ze staat onder alle vensters en meldingen, en schermlezers slaan ze over. Er wordt niets extra gedownload.
+- Nieuwe instelling "Feestelijke versiering" in Instellingen, tabblad "Dit toestel". De keuze geldt per toestel en blijft bewaard. Standaard staat ze aan tijdens een feestperiode; je kan ze uitzetten.
+- Op gsm, tablet en aanraakschermen blijft de versiering sober: enkel de stilstaande webben en de kleur, niets dat beweegt. Ook bij "beweging verminderen" in het toestel beweegt er niets, en de animaties pauzeren als het tabblad verborgen is.
+- De versiering verschijnt nooit op papier, in PDF-rapporten, in Excel-exports of in het rapportvoorbeeld, en nooit in testmodus (?test).
+- Eén gedeelde kalender van evenementen (`kern/evenementen.js`): Halloween (1 tot 31 oktober) heeft een thema; Kerst (1 december tot 6 januari) staat er al in zonder thema. Pasen komt erbij zodra er een thema is. Het dino-spel kan later dezelfde kalender gebruiken.
+
 ## [2.0.2] — 2026-10-12
 
 ### Fixed

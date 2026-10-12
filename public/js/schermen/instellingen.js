@@ -16,6 +16,8 @@ import { valideerInstellingen, settingsKey } from './instellingen-logica.js';
 import { isKleur } from '../kern/instellingen-regels.js';
 import { bouwKleurKeuze, leesKleurKeuze } from '../kern/kleur-keuze.js';
 import { huidigeGebruiker, huidigeRechten, eigenZohoNaam } from '../kern/sessie.js';
+import { versieringAanVoorkeur, zetVersieringAan, huidigeBeslissing } from '../kern/evenement-laag.js';
+import { volgendEvenement, vensterTekst } from '../kern/evenementen.js';
 import { bewaarOpServer, spiegelEigen, eigenSleutels } from '../kern/instellingen-sync.js';
 
 // Afhankelijkheden uit app.js en prijzen.js (ingevuld door initInstellingen); een vergeten init faalt luid.
@@ -36,6 +38,7 @@ export function initInstellingen(afhankelijkheden) {
   });
   registreerWijzigActies(document.body, {
     'set-toestel-weergave': (el) => kiesToestelWeergave(el.dataset.arg),
+    'set-toestel-versiering': (el) => { zetVersieringAan(el.checked); vulVersieringBlok(); },
   });
   const setOverlay = document.getElementById('set-overlay');
   registreerBackdrop(setOverlay, closeSettings);
@@ -146,7 +149,25 @@ async function resetTestdata() {
     toast('Testgegevens kopiëren mislukt — probeer opnieuw', 4000);
   }
 }
+// Feestelijke versiering (per toestel): de schakelaar en de uitleg erbij.
+function vulVersieringBlok() {
+  const vink = document.getElementById('set-versiering');
+  const uitleg = document.getElementById('set-versiering-uitleg');
+  if (!vink || !uitleg) return;
+  vink.checked = versieringAanVoorkeur();
+  const nu = new Date();
+  const b = huidigeBeslissing();
+  let tekst;
+  if (!vink.checked) tekst = 'Staat uit op dit toestel.';
+  else if (b.actief) tekst = `Nu: ${b.evenement.naam} (${vensterTekst(b.evenement)}).${b.sober ? ' Op dit toestel enkel statische versiering.' : ''}`;
+  else {
+    const volgend = volgendEvenement(nu);
+    tekst = volgend ? `Er loopt nu geen feestperiode. Volgende: ${volgend.naam} (${vensterTekst(volgend)}).` : 'Er loopt nu geen feestperiode.';
+  }
+  uitleg.textContent = tekst + ' Geldt enkel voor dit toestel.';
+}
 function vulToestelTab() {
+  vulVersieringBlok();
   const blok = document.getElementById('set-testdata-blok');
   if (blok) blok.style.display = TEST_MODE ? '' : 'none';
   const a = window.apparaat;

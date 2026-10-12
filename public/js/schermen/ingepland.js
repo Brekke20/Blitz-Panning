@@ -3,6 +3,7 @@
 // `kern/toestand`, de afhankelijkheden van andere schermen via `initIngepland(afh)` (aan het begin van
 // DOMContentLoaded). Raakt `document` enkel binnen functies, nooit op moduleniveau. Alleen `kern/brug.js` wijst
 // `window`-namen toe.
+import { eventTekst } from '../kern/evenement-laag.js';
 import { toestand } from '../kern/toestand.js';
 import { escHtml, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
 import { localISO, getWeekStart, fmtDateShort, verschuifDatum } from '../kern/tijd.js';
@@ -92,7 +93,7 @@ export function renderGepland() {
   // Badge toont gefilterd gepland-aantal (alle weken); een lege getoonde week legt dat uit en biedt de sprong naar de dichtstbijzijnde week met service.
   const filteredGepland = ticketsVanTechnieker(allGepland, activeAssigneeFilter);
   if (!any) {
-    body.innerHTML = '<div class="empty">Geen geplande service deze week</div>';
+    body.innerHTML = `<div class="empty">${escHtml(eventTekst('ingepland', 'Geen geplande service deze week'))}</div>`;
     const datums = filteredGepland.filter(t => t.interventieDatum).map(t => localISO(new Date(t.interventieDatum))).sort();
     if (datums.length) {
       const ws = localISO(weekStart);
