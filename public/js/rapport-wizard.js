@@ -13,6 +13,7 @@ import { berekenLoonkost } from './kern/loonkost.js';
 import { TEST_UPLOAD } from './test-upload.js';
 import { registreerAchtergrondVerzending } from './outbox-sync.js';
 import { berekenAanrijtijd } from './rapport-aanrijtijd.js';
+import { OORZAAK_GROEPEN, schoneLijst, oudeWaarden, wisselOorzaak, verwijderOud, groepSamenvatting, standaardOpenGroep, valideerOorzaak } from './rapport-oorzaak.js';
 
 export let _wizTicket = null;
 export let _wizDate   = null;
@@ -720,15 +721,9 @@ export function wizSaveProduct() {
 }
 
 // ── Stap 4: Omschrijving & acties ──
-export const OORZAAK_STORING_MAP = {
-  'f-oorzaak-product':      'Productfout',
-  'f-oorzaak-installatie':  'Installatiefout',
-  'f-oorzaak-configuratie': 'Configuratiefout',
-  'f-oorzaak-andere':       'Andere',
-};
-
 export function wizRenderOmschrijving(el) {
   const isInstallatie = R.interventieType === 'Installatie';
+  _oorzaakOpen = null; // bij elk openen van de stap: de eerste groep met een keuze, anders de eerste
   el.innerHTML = `
     <div class="wiz-step-title" role="heading" aria-level="3">Omschrijving &amp; acties</div>
     <div class="wiz-field">
@@ -741,23 +736,66 @@ export function wizRenderOmschrijving(el) {
     </div>
     ${isInstallatie ? '' : `
     <div class="wiz-field">
-      <label class="wiz-field-label">Oorzaak storing</label>
-      <div class="wiz-radio-cards row">
-        <label class="wiz-radio-card"><input type="checkbox" id="f-oorzaak-product" ${R.oorzaakStoring.includes('Productfout')?'checked':''}><div><div class="wiz-radio-card-label">Productfout</div></div></label>
-        <label class="wiz-radio-card"><input type="checkbox" id="f-oorzaak-installatie" ${R.oorzaakStoring.includes('Installatiefout')?'checked':''}><div><div class="wiz-radio-card-label">Installatiefout</div></div></label>
-        <label class="wiz-radio-card"><input type="checkbox" id="f-oorzaak-configuratie" ${R.oorzaakStoring.includes('Configuratiefout')?'checked':''}><div><div class="wiz-radio-card-label">Configuratiefout</div></div></label>
-        <label class="wiz-radio-card"><input type="checkbox" id="f-oorzaak-andere" ${R.oorzaakStoring.includes('Andere')?'checked':''}><div><div class="wiz-radio-card-label">Andere</div></div></label>
-      </div>
+      <div class="wiz-field-label" id="oorzaak-label">Oorzaak storing</div>
+      <div id="oorzaak-wrap" class="wiz-oorz" role="group" aria-labelledby="oorzaak-label">${oorzaakHtml()}</div>
     </div>`}`;
+}
+
+// Accordion met chips: één groep tegelijk open. R.oorzaakStoring is de toestand; elke klik tekent het blok opnieuw.
+let _oorzaakOpen = null;
+function oorzaakHtml() {
+  const gekozen = schoneLijst(R.oorzaakStoring);
+  if (!_oorzaakOpen) _oorzaakOpen = standaardOpenGroep(gekozen);
+  const groepen = OORZAAK_GROEPEN.map(g => {
+    const open = g.id === _oorzaakOpen;
+    const sam = groepSamenvatting(gekozen, g);
+    const chips = g.opties.map(o => {
+      const aan = gekozen.includes(o);
+      return `<button type="button" class="wiz-oorz-chip${aan ? ' on' : ''}" aria-pressed="${aan}" data-oorzaak="${escHtml(o)}" onclick="wizOorzaakToggle(this)"><span class="wiz-oorz-vink" aria-hidden="true">✓</span>${escHtml(o)}</button>`;
+    }).join('');
+    return `<div class="wiz-oorz-groep${open ? ' open' : ''}">
+      <button type="button" class="wiz-oorz-kop" id="oorz-kop-${g.id}" aria-expanded="${open}" aria-controls="oorz-pnl-${g.id}" data-groep="${g.id}" onclick="wizOorzaakGroep(this)">
+        <span class="wiz-oorz-naam">${escHtml(g.naam)}</span>
+        <span class="wiz-oorz-sam"><span class="wiz-oorz-aantal">${sam.tekst}</span>${sam.labels ? `<span class="wiz-oorz-labels">${escHtml(sam.labels)}</span>` : ''}</span>
+        <span class="wiz-oorz-chev" aria-hidden="true">›</span>
+      </button>
+      <div class="wiz-oorz-paneel" id="oorz-pnl-${g.id}" role="group" aria-labelledby="oorz-kop-${g.id}"${open ? '' : ' hidden'}>${chips}</div>
+    </div>`;
+  }).join('');
+  const oud = oudeWaarden(gekozen).map(o =>
+    `<button type="button" class="wiz-oorz-chip on oud" aria-pressed="true" data-oud="${escHtml(o)}" title="Waarde uit een ouder rapport; tik om te verwijderen" onclick="wizOorzaakOud(this)"><span class="wiz-oorz-vink" aria-hidden="true">✓</span>(oud) ${escHtml(o)}</button>`).join('');
+  return groepen + (oud ? `<div class="wiz-oorz-oud">${oud}</div>` : '');
+}
+function oorzaakHertekenen(focusSelector) {
+  const wrap = document.getElementById('oorzaak-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = oorzaakHtml();
+  if (focusSelector) wrap.querySelector(focusSelector)?.focus();
+}
+export function wizOorzaakGroep(knop) {
+  const id = knop?.dataset?.groep;
+  if (!id) return;
+  _oorzaakOpen = id;
+  oorzaakHertekenen(`[data-groep="${id}"]`);
+}
+export function wizOorzaakToggle(knop) {
+  const label = knop?.dataset?.oorzaak;
+  if (!label) return;
+  R.oorzaakStoring = wisselOorzaak(R.oorzaakStoring, label);
+  oorzaakHertekenen(`[data-oorzaak="${CSS.escape(label)}"]`);
+}
+export function wizOorzaakOud(knop) {
+  const w = knop?.dataset?.oud;
+  if (!w) return;
+  R.oorzaakStoring = verwijderOud(R.oorzaakStoring, w);
+  oorzaakHertekenen();
 }
 export function wizSaveOmschrijving() {
   R.probleem = wizV('f-probleem');
   R.acties   = wizV('f-acties');
   if (R.interventieType === 'Installatie') { R.oorzaakStoring = []; return; }
-  R.oorzaakStoring = Object.entries(OORZAAK_STORING_MAP)
-    .filter(([id]) => document.getElementById(id)?.checked)
-    .map(([, label]) => label);
-  if (!R.oorzaakStoring.length) return '⚠ Kies minstens één oorzaak.';
+  R.oorzaakStoring = schoneLijst(R.oorzaakStoring);
+  return valideerOorzaak(R.oorzaakStoring);
 }
 
 // ── Stap 4b: Foto's ──
@@ -1512,6 +1550,9 @@ window.wizFacturatieChange   = wizFacturatieChange;
 window.wizServicetypeChange  = wizServicetypeChange;
 window.wizLoonkostPreview    = wizLoonkostPreview;
 window.wizKabelChange        = wizKabelChange;
+window.wizOorzaakGroep       = wizOorzaakGroep;
+window.wizOorzaakToggle      = wizOorzaakToggle;
+window.wizOorzaakOud         = wizOorzaakOud;
 window.handleWizFotoFiles    = handleWizFotoFiles;
 window.wizCatFilter          = wizCatFilter;
 window.wizToggleTagFilter    = wizToggleTagFilter;

@@ -12,24 +12,27 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [2.1.3] — nog niet uitgebracht
 
+### Added
+- Nog niets zonder meer; zie Changed en Fixed.
+
+### Changed
+- Rapportwizard, stap Omschrijving: "Oorzaak storing" heeft nu 14 keuzes in 4 groepen (Toestel, Communicatie en instellingen, Plaatsing en omgeving, Overig) in plaats van de vroegere vier. De groepen klappen open en dicht, er staat telkens maar één groep open, en in de kop van elke groep zie je hoeveel en welke keuzes je al aangeduid hebt. De keuzes zijn grote knoppen die groen worden met een vinkje. Meerdere keuzes blijven mogelijk en er blijft minstens één oorzaak verplicht.
+- Oude rapporten en concepten blijven kloppen: "Productfout" en "Configuratiefout" worden nergens herschreven en blijven in het archief, het voorbeeld, de pdf en de Excel staan zoals ze waren. Opent een oud concept opnieuw, dan staat zo'n oude waarde als "(oud) Productfout" bij de keuzes; ze blijft behouden tot de technieker ze zelf weghaalt.
+
 ### Fixed
 - Het spel (Blitz Run) wordt niet meer afgesneden onder de bovenbalk en het tabbladenbalkje: de kaart staat nu altijd volledig in beeld, ook na scrollen, het venster aanpassen of het toestel draaien.
 - Het spel op een gsm vult nu bijna het hele scherm onder de balken. Het hele scherm is tikbaar: tik in de bovenste helft om te springen, houd in de onderste helft om te bukken (met een zachte aanduiding). Tijdens het spelen verdwijnen de keuze van de laadpaal en de uitleg, het beeld is scherper en liggend gebruikt het spel de volle breedte. Op een staande gsm staat een tip om het toestel te draaien.
 - De ronde plus-knoppen in de wachtrij zijn op de tablet weer echte cirkels (en blijven minstens 44 px groot om aan te raken).
 - Rapport op de tablet: het rapportvoorbeeld en het handtekeningvlak vullen nu de beschikbare hoogte van het scherm, de handtekening is veel groter en wordt scherp en op de juiste plek getekend.
+- Halloween-versiering op de computer: de app rekende en tekende de hele dag door, 60 keer per seconde, ook als er niets te zien veranderde (de kruipende spin, de vleermuis die stond te wachten, de hangende spinnen en de mist). Nu bewegen ze in korte periodes van ongeveer 10 seconden met daartussen een rustpauze van een halve minuut of meer waarin niets beweegt en de app niets tekent; tijdens het bewegen rekent ze nog maar 30 keer per seconde. Dat spaart de processor en de grafische kaart van de pc.
+- Zolang het spelletje Blitz Run open staat, staat de versiering stil, zodat het spel en de versiering niet tegelijk de computer bezighouden.
+- De mist onderaan het scherm drijft niet meer heen en weer (dat was nauwelijks te zien, maar hield de pc voortdurend bezig).
+- De achtergrondscène staat nu als een losse, vaste laag achter de app, zodat wijzigingen elders op het scherm ze niet opnieuw laten tekenen.
 
 ## [Unreleased]
 
 ### Added
 - (nog niets sinds de laatste release)
-
-## [2.1.3] — nog niet uitgebracht
-
-### Fixed
-- Halloween-versiering op de computer: de app rekende en tekende de hele dag door, 60 keer per seconde, ook als er niets te zien veranderde (de kruipende spin, de vleermuis die stond te wachten, de hangende spinnen en de mist). Nu bewegen ze in korte periodes van ongeveer 10 seconden met daartussen een rustpauze van een halve minuut of meer waarin niets beweegt en de app niets tekent; tijdens het bewegen rekent ze nog maar 30 keer per seconde. Dat spaart de processor en de grafische kaart van de pc.
-- Zolang het spelletje Blitz Run open staat, staat de versiering stil, zodat het spel en de versiering niet tegelijk de computer bezighouden.
-- De mist onderaan het scherm drijft niet meer heen en weer (dat was nauwelijks te zien, maar hield de pc voortdurend bezig).
-- De achtergrondscène staat nu als een losse, vaste laag achter de app, zodat wijzigingen elders op het scherm ze niet opnieuw laten tekenen.
 
 ## [2.1.2] — 2026-10-13
 

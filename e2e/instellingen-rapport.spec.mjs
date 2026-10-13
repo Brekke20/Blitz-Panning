@@ -114,7 +114,7 @@ test.describe('instellingen en rapport', () => {
     await volgende.click();
     await expect(page.getByText('⚠ Kies minstens één oorzaak.')).toBeVisible();
     await expect(stap).toHaveText('4 / 9 — Omschrijving');
-    await wizard.getByText('Productfout', { exact: true }).click();
+    await wizard.getByRole('button', { name: 'Component defect', exact: true }).click();
     await volgende.click();
 
     // 5. Foto's, 6. Status (geen foto's, geen onderdelen)
@@ -135,7 +135,7 @@ test.describe('instellingen en rapport', () => {
     await expect(wizard.getByRole('heading', { name: 'Overzicht' })).toBeVisible();
     await expect(wizard).toContainText('Paal start niet op na stroomuitval');
     await expect(wizard).toContainText('Voeding gecontroleerd en controller herstart');
-    await expect(wizard).toContainText('Productfout');
+    await expect(wizard).toContainText('Component defect');
     await expect(wizard).toContainText('Interventie');
     await expect(wizard).toContainText('Tim');
     await expect(wizard.getByText('⚠ Handtekening technieker ontbreekt')).toBeVisible();
@@ -231,7 +231,7 @@ test.describe('instellingen en rapport', () => {
     await volgende.click();
     await wizard.getByLabel('Omschrijving probleem').fill('Paal start niet op');
     await wizard.getByLabel('Ondernomen acties').fill('Controller herstart');
-    await wizard.getByText('Productfout', { exact: true }).click();
+    await wizard.getByRole('button', { name: 'Component defect', exact: true }).click();
     await volgende.click();
     await volgende.click(); // foto's
     await volgende.click(); // status
