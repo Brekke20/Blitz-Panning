@@ -10,7 +10,12 @@ Vóór v1.0.0 (2026-08-13) werd geen versiegeschiedenis bijgehouden — de volle
 ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 `docs/superpowers/specs/`/`docs/superpowers/plans/`.
 
-## [2.1.3] — nog niet uitgebracht
+## [Unreleased]
+
+### Added
+- (nog niets sinds de laatste release)
+
+## [2.1.3] — 2026-10-14
 
 ### Added
 - Rapportwizard: de keuzes bij "Oorzaak storing" staan nu in een uitklapbaar overzicht met keuzeknoppen (zie ook Changed).
@@ -27,11 +32,6 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Halloween-versiering op de computer: de spin, de vleermuis, de hangende spinnen en de mist bewegen nog altijd doorlopend, maar de app tekent ze nu ongeveer 30 keer per seconde in plaats van 60 (de bewegingen blijven vloeiend). Dat spaart de processor en de grafische kaart van de pc.
 - Zolang het spelletje Blitz Run open staat of de pagina op de achtergrond staat, staat de versiering stil, zodat het spel en de versiering niet tegelijk de computer bezighouden.
 - De achtergrondscène staat nu als een losse, vaste laag achter de app, zodat wijzigingen elders op het scherm ze niet opnieuw laten tekenen.
-
-## [Unreleased]
-
-### Added
-- (nog niets sinds de laatste release)
 
 ## [2.1.2] — 2026-10-13
 
