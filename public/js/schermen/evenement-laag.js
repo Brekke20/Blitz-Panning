@@ -21,6 +21,10 @@ let laag = null;          // het element #event-laag (of null)
 let laagSleutel = '';     // 'thema|beweging': bij wijziging wordt de laag opnieuw gebouwd
 let raf = 0;
 let kruiper = null;
+let vleermuis = null;
+// Vleermuis: wacht een willekeurige tijd, vliegt dan een golvende baan van links naar rechts of omgekeerd, op een willekeurige
+// hoogte, en schiet weg van de muiswijzer. Alles in de rAF-lus van de kruiper (geen extra lus).
+const vlucht = { actief: false, wachtTot: 0, x: 0, y: 0, basisY: 0, dir: 1, v: 160, amp: 30, freq: 1.2, fase: 0, vy: 0, t: 0 };
 let kruipState = { x: 40, dir: 1, last: 0, top: 0, breedte: 0, wacht: 0 };
 let minuutTimer = 0;
 let vorigThema; // undefined = nog niet bepaald (de eerste bepaling meldt niets)
@@ -93,12 +97,13 @@ function bouwLaag(b) {
       h.appendChild(svg('ev-spin', '0 0 24 24', SPIN));
       return h;
     };
-    el.appendChild(hang(4, 60, 10, -2)); // aan de zijkanten: weg van de inhoud
+    el.appendChild(hang(1.2, 60, 10, -2)); // helemaal aan de zijkanten (in de kalender boven de urenkolom): weg van de inhoud
     el.appendChild(hang(95, 44, 13, -6));
     const kr = svg('ev-spin ev-kruiper ev-beweeg', '0 0 24 24', SPIN);
     kr.id = 'ev-kruiper';
     el.appendChild(kr);
     const vl = svg('ev-vleermuis ev-beweeg', '0 0 40 26', VLEERMUIS);
+    vl.id = 'ev-vleermuis';
     el.appendChild(vl);
     const mist = document.createElement('div');
     mist.className = 'ev-mist ev-beweeg';
@@ -124,6 +129,9 @@ export function meetEvTop() {
     while (el && el !== document.body && getComputedStyle(el).position !== 'sticky') el = el.parentElement;
     if (!el || el === document.body || el.classList.contains('topbar-sticky')) break;
     const r = el.getBoundingClientRect();
+    // Enkel balken over (bijna) de volle breedte tellen: de dagkoppen van de kalender zijn kolommen, geen balk. Anders
+    // zou de versiering pas onder die hoge koppen beginnen, midden in het uurrooster.
+    if (r.width < window.innerWidth * 0.8) break;
     if (r.bottom <= onder + 1) break;
     onder = r.bottom;
   }
@@ -161,6 +169,48 @@ function stapKruiper(t) {
   if (s.x > s.breedte) { s.x = s.breedte; s.dir = -1; }
   if (s.x < 10) { s.x = 10; s.dir = 1; }
   kruiper.style.transform = `translateX(${s.x}px) scaleX(${s.dir})`;
+  stapVleermuis(t, stap);
+}
+
+function startVlucht(t) {
+  const w = window.innerWidth, h = window.innerHeight;
+  const top = kruipState.top + 30;
+  const r = Math.random;
+  Object.assign(vlucht, {
+    actief: true, dir: r() < 0.5 ? 1 : -1, v: 120 + r() * 120, amp: 10 + r() * 50, freq: 0.6 + r() * 1.6, fase: r() * 6.28,
+    basisY: top + r() * Math.max(40, h * 0.5 - top), vy: 0, t: 0,
+  });
+  vlucht.x = vlucht.dir > 0 ? -50 : w + 50;
+  vlucht.y = vlucht.basisY;
+}
+
+function stapVleermuis(t, stapMs) {
+  if (!vleermuis) return;
+  const dt = stapMs / 1000;
+  if (!vlucht.actief) {
+    if (!vlucht.wachtTot) vlucht.wachtTot = t + 4000 + Math.random() * 8000; // eerste vlucht na 4 tot 12 s
+    if (t < vlucht.wachtTot) { vleermuis.style.opacity = '0'; return; }
+    startVlucht(t);
+  }
+  const f = vlucht;
+  f.t += dt;
+  // Weg van de muis: duw de basislijn weg en vlieg sneller zolang de muis dichtbij is.
+  const dx = f.x + 17 - muis.x, dy = f.y + 11 - muis.y, d = Math.hypot(dx, dy);
+  let v = f.v;
+  if (d < 140) {
+    const kracht = (140 - d) / 140;
+    f.vy += (dy >= 0 ? 1 : -1) * 900 * kracht * dt;
+    v *= 1 + 1.5 * kracht;
+    if ((dx >= 0) !== (f.dir > 0) && d < 70) f.dir = dx >= 0 ? 1 : -1; // muis recht voor: draai om
+  }
+  f.vy *= 0.92;
+  f.basisY = Math.min(window.innerHeight - 60, Math.max(kruipState.top + 10, f.basisY + f.vy * dt));
+  f.x += f.dir * v * dt;
+  f.y = f.basisY + Math.sin(f.t * f.freq * 6.28 + f.fase) * f.amp;
+  const klap = 1 - 0.4 * Math.abs(Math.sin(f.t * 14));
+  vleermuis.style.opacity = '0.85';
+  vleermuis.style.transform = `translate(${f.x}px, ${f.y}px) scale(${f.dir}, ${klap})`;
+  if (f.x > window.innerWidth + 60 || f.x < -60) { f.actief = false; f.wachtTot = t + 15000 + Math.random() * 30000; vleermuis.style.opacity = '0'; }
 }
 
 function startKruiper() {
@@ -173,7 +223,7 @@ function startKruiper() {
 function verwijderLaag() {
   stopKruiper();
   laag?.remove();
-  laag = null; kruiper = null; laagSleutel = '';
+  laag = null; kruiper = null; vleermuis = null; laagSleutel = '';
   document.documentElement.removeAttribute('data-event');
 }
 
@@ -202,6 +252,8 @@ function pasToe(b) {
   laagSleutel = sleutel;
   document.body.appendChild(laag);
   kruiper = b.beweging ? laag.querySelector('#ev-kruiper') : null;
+  vleermuis = b.beweging ? laag.querySelector('#ev-vleermuis') : null;
+  vlucht.actief = false; vlucht.wachtTot = 0;
   if (document.hidden) laag.classList.add('ev-gepauzeerd');
   meetEvTop();
   if (kruiper) startKruiper();

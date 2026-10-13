@@ -55,6 +55,36 @@ test.describe('versiering op de computer', () => {
     await check('#view-planning .route-balk');
   });
 
+  test('v2.1.2: in de kalender begint de versiering onder de werkbalk, niet onder de hoge dagkoppen (midden in het rooster)', async ({ page }) => {
+    await startApp(page, { query: AAN });
+    await page.locator('#tab-kalender').click();
+    await expect.poll(() => page.evaluate(() => {
+      const balk = document.querySelector('#view-kalender .kal-header').getBoundingClientRect().bottom;
+      const web = document.querySelector('#event-laag .ev-web-tl').getBoundingClientRect().top;
+      return Math.abs(web - balk) <= 2;
+    })).toBe(true);
+  });
+
+  test('v2.1.2: de vleermuis vliegt telkens een andere golvende baan en vlucht weg van de muis', async ({ page }) => {
+    await startApp(page, { query: AAN });
+    const vl = page.locator('#ev-vleermuis');
+    await expect(vl).toHaveCount(1);
+    const pos = () => vl.evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, o: Number(getComputedStyle(el).opacity) }; });
+    // De eerste vlucht start na 4 tot 12 s: stap tot ze in beeld is (en niet al voorbij)
+    for (let i = 0; i < 60 && !((await pos()).o > 0 && (await pos()).x > 50); i++) await page.clock.runFor(250);
+    expect((await pos()).o).toBeGreaterThan(0);
+    const ys = [];
+    for (let i = 0; i < 6; i++) { await page.clock.runFor(300); ys.push((await pos()).y); }
+    expect(new Set(ys.map(Math.round)).size).toBeGreaterThan(2); // geen rechte lijn
+    // Muis vlak bij de vleermuis: ze wijkt uit (de afstand groeit)
+    const p = await pos();
+    await page.mouse.move(p.x + 17, p.y + 30);
+    const d0 = Math.hypot(p.x + 17 - (p.x + 17), p.y + 11 - (p.y + 30));
+    await page.clock.runFor(400);
+    const q = await pos();
+    expect(Math.hypot(q.x + 17 - (p.x + 17), q.y + 11 - (p.y + 30))).toBeGreaterThan(d0);
+  });
+
   test('de laag staat onder vensters, is verborgen in print en raakt de rapportvoorbeeld-iframe niet', async ({ page }) => {
     await startApp(page, { query: AAN });
     // Boven de inhoud, onder de topbalk en onder elke sticky balk (z 20 tot 30), en onder vensters

@@ -22,20 +22,14 @@
 .ev-hang { position: absolute; top: var(--ev-top, var(--topbar-h, 96px)); width: 22px; animation: ev-zak 10s ease-in-out infinite; will-change: transform; }
 .ev-draad { display: block; width: 1px; height: var(--l, 70px); margin: 0 auto; background: var(--ev-web); }
 .ev-kruiper { position: absolute; top: calc(var(--ev-top, var(--topbar-h, 96px)) - 12px); left: 0; opacity: 0.9; will-change: transform; }
-.ev-vleermuis { position: absolute; top: calc(var(--ev-top, var(--topbar-h, 96px)) + 40px); left: -60px; width: 34px; height: 22px; color: var(--ev-spin);
-  fill: currentColor; opacity: 0; animation: ev-vlieg 70s linear infinite; animation-delay: 6s; }
+.ev-vleermuis { position: absolute; top: 0; left: 0; width: 34px; height: 22px; color: var(--ev-spin);
+  fill: currentColor; opacity: 0; will-change: transform, opacity; } /* baan en vleugelslag: JS (evenement-laag.js) */
 .ev-mist { position: absolute; left: -10%; right: -10%; bottom: 0; height: 80px;
   background: radial-gradient(ellipse at 20% 100%, rgba(249, 115, 22, 0.08), transparent 60%),
               radial-gradient(ellipse at 75% 100%, rgba(170, 180, 190, 0.08), transparent 60%);
   animation: ev-drift 45s ease-in-out infinite alternate; }
 
 @keyframes ev-zak { 0%, 100% { transform: translateY(-36px); } 50% { transform: translateY(0); } }
-@keyframes ev-vlieg {
-  0% { opacity: 0; transform: translate(0, 0); }
-  2% { opacity: 0.85; }
-  18% { opacity: 0.85; transform: translate(calc(100vw + 120px), 40px); }
-  19%, 100% { opacity: 0; transform: translate(calc(100vw + 120px), 40px); }
-}
 @keyframes ev-drift { from { transform: translateX(-4%); } to { transform: translateX(4%); } }
 
 #event-laag.ev-gepauzeerd .ev-beweeg { animation-play-state: paused; }
