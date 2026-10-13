@@ -237,7 +237,7 @@ test.describe("foto's: wizardstap Foto's deelt de toestand", () => {
     await expect(stap).toHaveText('4 / 9 — Omschrijving');
     await wizard.getByLabel('Omschrijving probleem').fill('Test');
     await wizard.getByLabel('Ondernomen acties').fill('Test');
-    await wizard.getByText('Component defect', { exact: true }).click();
+    await wizard.getByRole('button', { name: 'Component defect', exact: true }).click();
     await volgende.click();
     await expect(stap).toHaveText("5 / 9 — Foto's");
     return wizard;

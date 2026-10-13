@@ -111,7 +111,7 @@ test.describe('syncOplossingNaarZoho: via de echte wizard', () => {
     await expect(stap).toHaveText('4 / 9 — Omschrijving');
     await wizard.getByLabel('Omschrijving probleem').fill('Paal start niet op');
     await wizard.getByLabel('Ondernomen acties').fill('  Voeding gecontroleerd  ');
-    await wizard.getByText('Component defect', { exact: true }).click();
+    await wizard.getByRole('button', { name: 'Component defect', exact: true }).click();
     for (let i = 0; i < 5; i++) await volgende.click();
     await expect(stap).toHaveText('9 / 9 — Overzicht');
     expect(c.opnames).toEqual([]); // niets vóór de verzendknop
