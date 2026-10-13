@@ -107,6 +107,35 @@ function bouwLaag(b) {
   return el;
 }
 
+// Onderkant van alles wat bovenaan vast blijft staan: kop + tabbalk + meldingsbalken (--sticky-top) én de vaste balk van het
+// actieve tabblad (zoekbalk, weekbalk, routebalk, ...). De versiering begint daar, anders verdwijnt ze achter die balk.
+// Gemeten bij de start, bij een formaatwijziging, na een klik (tabwissel) en bij terugkeer naar de pagina; nooit per beeld.
+export function meetEvTop() {
+  if (!laag || typeof document === 'undefined') return;
+  const kop = document.querySelector('.topbar-sticky');
+  let onder = kop ? kop.getBoundingClientRect().bottom : 0;
+  for (const id of ['offline-banner', 'outbox-banner']) {
+    const b = document.getElementById(id);
+    if (b && getComputedStyle(b).display !== 'none') onder = Math.max(onder, b.getBoundingClientRect().bottom);
+  }
+  // Wat staat er net onder die rand? Is dat (of een ouder) een vaste balk, dan schuift de rand naar de onderkant ervan (max. 3 lagen).
+  for (let i = 0; i < 3 && document.elementFromPoint; i++) {
+    let el = document.elementFromPoint(Math.round(window.innerWidth / 2), Math.round(onder) + 2);
+    while (el && el !== document.body && getComputedStyle(el).position !== 'sticky') el = el.parentElement;
+    if (!el || el === document.body || el.classList.contains('topbar-sticky')) break;
+    const r = el.getBoundingClientRect();
+    if (r.bottom <= onder + 1) break;
+    onder = r.bottom;
+  }
+  if (onder > 0) laag.style.setProperty('--ev-top', Math.round(onder) + 'px');
+  meetKruiper();
+}
+let meetGepland = 0;
+function planMeting() {
+  if (meetGepland || typeof requestAnimationFrame === 'undefined') return;
+  meetGepland = requestAnimationFrame(() => { meetGepland = 0; meetEvTop(); });
+}
+
 function stopKruiper() { if (raf) cancelAnimationFrame(raf); raf = 0; kruipState.last = 0; }
 
 // De hoogte van de kruiper staat vast (alleen x verandert): één meting bij het starten en bij een formaatwijziging, niet per frame.
@@ -174,6 +203,7 @@ function pasToe(b) {
   document.body.appendChild(laag);
   kruiper = b.beweging ? laag.querySelector('#ev-kruiper') : null;
   if (document.hidden) laag.classList.add('ev-gepauzeerd');
+  meetEvTop();
   if (kruiper) startKruiper();
 }
 
@@ -196,8 +226,13 @@ export function startVersiering() {
   document.addEventListener('visibilitychange', () => {
     laag?.classList.toggle('ev-gepauzeerd', document.hidden);
     if (document.hidden) stopKruiper();
-    else { herbereken(); startKruiper(); } // na een tijd op de achtergrond kan de datum veranderd zijn
+    else { herbereken(); planMeting(); startKruiper(); } // na een tijd op de achtergrond kan de datum veranderd zijn
   });
-  w.addEventListener('resize', meetKruiper);
-  if (!minuutTimer) minuutTimer = setInterval(() => { if (!document.hidden) herbereken(); }, 60000);
+  w.addEventListener('resize', planMeting);
+  document.addEventListener('click', planMeting, true); // een tabwissel verandert de vaste balk van het scherm
+  if (!minuutTimer) minuutTimer = setInterval(() => { if (!document.hidden) { herbereken(); planMeting(); } }, 60000);
+  w.addEventListener('keyup', planMeting, true); // tabwissel met het toetsenbord
+  // Bij de start staan de balken van het scherm er soms nog niet: meet opnieuw na het laden en kort daarna.
+  w.addEventListener('load', planMeting);
+  for (const ms of [300, 1500]) setTimeout(planMeting, ms);
 }

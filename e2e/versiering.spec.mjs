@@ -40,6 +40,21 @@ test.describe('versiering op de computer', () => {
     expect(wortel).toBe(false);
   });
 
+  test('v2.1.1: de webben en spinnen beginnen onder de vaste balk van elk tabblad, niet erachter', async ({ page }) => {
+    await startApp(page, { query: AAN });
+    const check = async (balk) => {
+      await expect.poll(async () => page.evaluate((sel) => {
+        const b = document.querySelector(sel).getBoundingClientRect().bottom;
+        const web = document.querySelector('#event-laag .ev-web-tl').getBoundingClientRect().top;
+        const hang = document.querySelector('#event-laag .ev-hang')?.getBoundingClientRect().top ?? b;
+        return web >= b - 1 && hang >= b - 40; // de hangende spin zakt op en neer (tot 36 px omhoog)
+      }, balk)).toBe(true);
+    };
+    await check('#view-tickets .lijst-balk');
+    await page.locator('#tab-planning').click();
+    await check('#view-planning .route-balk');
+  });
+
   test('de laag staat onder vensters, is verborgen in print en raakt de rapportvoorbeeld-iframe niet', async ({ page }) => {
     await startApp(page, { query: AAN });
     // Boven de inhoud, onder de topbalk en onder elke sticky balk (z 20 tot 30), en onder vensters
