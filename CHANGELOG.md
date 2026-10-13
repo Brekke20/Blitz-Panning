@@ -15,7 +15,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
-## [2.1.2] — nog niet uitgebracht
+## [2.1.2] — 2026-10-13
 
 ### Added
 - Halloween: een spookachtige achtergrond met een boerderij en een schuur op een heuvel, een volle maan, sterren, een dode boom, een hek, vleermuizen en vogelverschrikkers in het veld, 's nachts. Ze staat vast achter alles, verdwijnt met het thema (schakelaar uit of einde van het evenement) en wordt nooit afgedrukt. Kaarten, balken en vensters blijven gewoon leesbaar; in het lichte thema is de scène slechts vaag zichtbaar.
@@ -24,6 +24,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Fixed
 - Kalender: de versiering begint nu onder de werkbalk in plaats van midden in het uurrooster.
 - De vleermuis vliegt wisselende, golvende banen en vlucht weg van de muis.
+- De kaart van een verlopen ticket was licht doorschijnend; nu is ze ondoorzichtig, zodat de achtergrond er niet door schijnt.
 
 ## [2.1.1] — 2026-10-13
 
