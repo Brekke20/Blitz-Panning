@@ -43,6 +43,35 @@ export function beslis({ nu, voorkeur = 'auto', testMode = false, testForceer = 
   return { actief: true, evenement, thema: evenement.thema, sober, beweging, spinnen: beweging ? MAX_SPINNEN : 0 };
 }
 
+// v2.1.3 (prestaties): de bewegende delen lopen in korte actieve periodes met lange rustpauzes ertussen. Tijdens een rustpauze draait
+// er GEEN requestAnimationFrame-lus en staan de CSS-animaties stil (klasse .ev-rust), zodat de pagina geen beelden meer aanmaakt.
+// Tijdens een actieve periode rekent de lus ongeveer 30 keer per seconde (STAP_MS), niet 60.
+export const FASE = Object.freeze({
+  EERSTE_ACTIEF_MS: 20000,            // de eerste periode na de start: lang genoeg voor de eerste vlucht van de vleermuis
+  ACTIEF_MS: Object.freeze([8000, 14000]),
+  RUST_MS: Object.freeze([25000, 45000]),
+  EERSTE_VLEERMUIS_MS: Object.freeze([4000, 12000]),
+  VLEERMUIS_MS: Object.freeze([1000, 5000]),
+  VLEERMUIS_KANS: 0.5,                // kans op een vlucht in een latere actieve periode (hoogstens één vlucht per periode)
+  STAP_MS: 33,
+});
+
+// Plant één actieve periode en de rust erna. `vleermuisNaMs`: wanneer de vleermuis in deze periode vertrekt (null = niet).
+export function planFase({ eerste = false, rng = Math.random } = {}) {
+  const tussen = ([a, b]) => Math.round(a + rng() * (b - a));
+  if (eerste) return { actiefMs: FASE.EERSTE_ACTIEF_MS, rustMs: tussen(FASE.RUST_MS), vleermuisNaMs: tussen(FASE.EERSTE_VLEERMUIS_MS) };
+  const actiefMs = tussen(FASE.ACTIEF_MS);
+  const rustMs = tussen(FASE.RUST_MS);
+  const vleermuisNaMs = rng() < FASE.VLEERMUIS_KANS ? tussen(FASE.VLEERMUIS_MS) : null;
+  return { actiefMs, rustMs, vleermuisNaMs };
+}
+
+// Mag de lus stoppen (rustpauze)? Nooit midden in een vlucht van de vleermuis; meteen als het spel open staat; anders na de actieve periode.
+export function magRusten({ t, actiefTot, vliegt = false, spelOpen = false }) {
+  if (vliegt) return false;
+  return !!spelOpen || t >= actiefTot;
+}
+
 // Teksten voor lege toestanden per thema. Enkel voor "er is niets", nooit voor foutmeldingen of statussen.
 export const LEGE_TEKSTEN = {
   halloween: {

@@ -2,7 +2,7 @@
 process.env.TZ = 'Europe/Brussels';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { VOORKEUR_SLEUTEL, leesVoorkeur, bewaarVoorkeur, isSober, beslis, legeTekst } from '../public/js/kern/versiering-logica.js';
+import { VOORKEUR_SLEUTEL, leesVoorkeur, bewaarVoorkeur, isSober, beslis, legeTekst, planFase, magRusten, FASE } from '../public/js/kern/versiering-logica.js';
 import { MAX_SPINNEN } from '../public/js/kern/evenementen.js';
 
 const OKT = new Date('2026-10-12T10:00:00+02:00');
@@ -132,4 +132,45 @@ test('scène: een staand scherm toont het rechterdeel, een liggend scherm alles'
   assert.equal(kijkvenster(375, 812).uitlijning, 'xMaxYMax slice');
   assert.equal(kijkvenster(1920, 1080).viewBox, '0 0 1600 900');
   assert.equal(kijkvenster(0, 0).viewBox, '0 0 1600 900');
+});
+
+// v2.1.3 (prestaties): actieve periodes en rustpauzes van de bewegende versiering
+const vast = (...waarden) => { let i = 0; return () => waarden[i++ % waarden.length]; };
+
+test('planFase: de eerste periode is lang genoeg voor de eerste vlucht van de vleermuis (4 tot 12 s)', () => {
+  for (const r of [0, 0.5, 0.999]) {
+    const f = planFase({ eerste: true, rng: vast(r) });
+    assert.equal(f.actiefMs, FASE.EERSTE_ACTIEF_MS);
+    assert.ok(f.vleermuisNaMs >= 4000 && f.vleermuisNaMs <= 12000);
+    assert.ok(f.vleermuisNaMs < f.actiefMs);
+    assert.ok(f.rustMs >= FASE.RUST_MS[0] && f.rustMs <= FASE.RUST_MS[1]);
+  }
+});
+
+test('planFase: latere periodes zijn kort, de rust lang (de lus draait hoogstens ongeveer een derde van de tijd)', () => {
+  for (const r of [0, 0.3, 0.7, 0.999]) {
+    const f = planFase({ rng: vast(r) });
+    assert.ok(f.actiefMs >= 8000 && f.actiefMs <= 14000);
+    assert.ok(f.rustMs >= 25000 && f.rustMs <= 45000);
+    assert.ok(f.actiefMs / (f.actiefMs + f.rustMs) < 0.36);
+  }
+});
+
+test('planFase: de vleermuis vliegt in een latere periode met kans VLEERMUIS_KANS, vroeg genoeg', () => {
+  assert.equal(planFase({ rng: vast(0.5, 0.5, 0.9) }).vleermuisNaMs, null);
+  const f = planFase({ rng: vast(0.5, 0.5, 0.1, 0.5) });
+  assert.ok(f.vleermuisNaMs >= 1000 && f.vleermuisNaMs <= 5000);
+});
+
+test('magRusten: nooit midden in een vlucht, meteen als het spel open staat, anders na de actieve periode', () => {
+  assert.equal(magRusten({ t: 100, actiefTot: 200 }), false);
+  assert.equal(magRusten({ t: 200, actiefTot: 200 }), true);
+  assert.equal(magRusten({ t: 900, actiefTot: 200, vliegt: true }), false);
+  assert.equal(magRusten({ t: 100, actiefTot: 200, spelOpen: true }), true);
+  assert.equal(magRusten({ t: 100, actiefTot: 200, spelOpen: true, vliegt: true }), false);
+});
+
+test('FASE: de lus rekent hoogstens ongeveer 30 keer per seconde', () => {
+  assert.ok(FASE.STAP_MS >= 30);
+  assert.ok(Object.isFrozen(FASE));
 });
