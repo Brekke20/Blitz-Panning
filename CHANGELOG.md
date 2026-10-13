@@ -15,7 +15,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
-## [2.1.4] — nog niet uitgebracht
+## [2.1.4] — 2026-10-14
 
 ### Changed
 - Het verborgen spel staat nu netjes in het midden van het scherm, is groter en toont altijd zijn titelbalk.
