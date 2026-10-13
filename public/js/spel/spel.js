@@ -2,7 +2,7 @@
 // Raakt geen overlay, netwerk of opslag aan: de overlay (spel-ui.js) geeft een canvas en terugroepers mee. Geen geluid.
 // Alle regels (hitboxen, snelheid, score) staan puur in spel-logica.js.
 import {
-  WERELD, SPELER, maakStaat, stap, scoreBij, aanraakActie, SPRING_TOETSEN, BUK_TOETSEN,
+  WERELD, SPELER, maakStaat, stap, scoreBij, SPRING_TOETSEN, BUK_TOETSEN,
 } from './spel-logica.js';
 import { tekenPaal, tekenLogoBliksem, HEMEL } from './skins.js';
 
@@ -163,12 +163,6 @@ export function maakSpel({
       if (SPRING_TOETSEN.includes(e.key)) { if (omlaag && !e.repeat) api.spring(); return true; }
       if (BUK_TOETSEN.includes(e.key)) { api.bukken(omlaag); return true; }
       return false;
-    },
-    /** Aanraking op het canvas: boven = springen, onder = bukken (ingehouden tot loslaten). */
-    aanraak(y, hoogte, omlaag) {
-      const actie = aanraakActie(y, hoogte);
-      if (!omlaag) { api.bukken(false); return; }
-      if (actie === 'spring') api.spring(); else api.bukken(true);
     },
     teken: () => teken(klok),
   };

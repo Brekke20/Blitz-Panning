@@ -1,6 +1,6 @@
 // spel/spel-ui.js — de overlay van "Blitz Run": startscherm (beste score, skinkeuze), het canvas en het eindscherm.
-// Wordt pas geladen bij de eerste 5× tik op de titel (spel-opening.js). Schrijft nooit iets naar de planning: enkel /api/spel.
-// Sluiten: 5× tikken op de titel, ✕ of Escape (registreerVenster). Het overlay laat de kop (met de titel) vrij, zodat 5× tikken ook sluit.
+// Wordt pas geladen bij de eerste 5× snelle tik op het logo-icoon (spel-opening.js). Schrijft nooit iets naar de planning: enkel /api/spel.
+// Sluiten: 5× snel tikken op het logo-icoon, ✕ of Escape (registreerVenster). Het overlay laat de kop (met het logo) vrij, zodat 5× tikken ook sluit.
 import { registreerActies } from '../kern/ui.js';
 import { apiVerzoek } from '../kern/api.js';
 import { huidigeGebruiker } from '../kern/sessie.js';
@@ -11,23 +11,24 @@ import { maakVoortgang } from './spel-voortgang.js';
 import { maakSpel } from './spel.js';
 import { WERELD } from './spel-logica.js';
 
-const SMAL = '(max-width: 820px), (pointer: coarse)';
 const CSS = `
 #spel-overlay { display: none; box-sizing: border-box; overscroll-behavior: contain; position: fixed; left: 0; right: 0; bottom: 0; top: var(--spel-top, 52px); z-index: 9000;
-  background: rgba(0,0,0,.72); padding: 12px; overflow: auto; }
-#spel-overlay.open { display: flex; }
-.spel-kaart { margin: auto; }
+  background: rgba(0,0,0,.72); padding: 12px 3%; overflow: hidden; }
+#spel-overlay.open { display: flex; align-items: center; justify-content: center; }
 #spel-overlay:focus { outline: none; }
-.spel-kaart { width: 100%; max-width: 720px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
-.spel-kop { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+/* Gecentreerd in het gebied onder de balken: breed (tot 1280 px), de kop altijd zichtbaar, enkel het gedeelte met de skinkeuze scrolt. */
+.spel-kaart { box-sizing: border-box; display: flex; flex-direction: column; width: min(1280px, 100%); max-height: 100%; min-height: 0;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
+.spel-kop { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .spel-kop h2 { margin: 0; font-size: 1rem; }
-.spel-veld canvas { display: block; width: 100%; aspect-ratio: 3 / 1; border-radius: 8px; touch-action: none; user-select: none; -webkit-user-select: none; background: linear-gradient(${HEMEL.boven}, ${HEMEL.onder}); }
-.spel-info { margin-top: 10px; text-align: center; }
+.spel-veld { flex: none; display: flex; justify-content: center; }
+.spel-veld canvas { display: block; flex: none; width: min(100%, max(300px, calc((100vh - var(--spel-top, 52px) - 24px - 24px - 52px - 190px) * 3))); aspect-ratio: 3 / 1; border-radius: 8px; touch-action: none; user-select: none; -webkit-user-select: none; background: linear-gradient(${HEMEL.boven}, ${HEMEL.onder}); }
+.spel-info { flex: 0 1 auto; min-height: 0; overflow-y: auto; touch-action: pan-y; margin-top: 10px; text-align: center; }
 .spel-info[hidden] { display: block; visibility: hidden; }
 .spel-beste { font-weight: 600; margin-bottom: 6px; }
 .spel-melding { min-height: 1.3em; color: var(--accent-ink, var(--accent)); font-weight: 600; margin-bottom: 4px; }
 .spel-skins { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 8px 0; }
-.spel-skin { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 84px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; font-size: .8rem; cursor: pointer; }
+.spel-skin { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 76px; padding: 5px 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; font-size: .76rem; cursor: pointer; }
 .spel-skin[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .spel-skin[disabled] { opacity: .55; cursor: not-allowed; }
 .spel-skin small { color: var(--muted); }
@@ -35,33 +36,44 @@ const CSS = `
 .spel-skin i b { display: block; width: 8px; height: 7px; margin: 2px 0 0 2px; }
 .spel-hint { color: var(--muted); font-size: .78rem; margin-top: 6px; }
 .spel-uitleg summary { cursor: pointer; color: var(--muted); font-size: .78rem; margin-top: 6px; }
-.spel-draai { display: none; }
-/* Smal scherm of aanraking: bijna schermvullend onder de balken, kleine marges, info compact eronder. */
+.spel-draai, .spel-aanraakhint, .spel-knop { display: none; }
+/* Aanraakknoppen (enkel op een aanraakscherm, enkel tijdens het spel): Bukken (ingehouden) linksonder, Springen rechtsonder, binnen duimbereik. */
+.spel-knop { position: fixed; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); width: 84px; height: 84px; min-width: 72px; min-height: 72px; box-sizing: border-box;
+  flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 0; border-radius: 50%;
+  background: var(--surface3, #2a3340); color: var(--text); border: 2px solid var(--accent); font: inherit; font-size: .78rem; font-weight: 700; line-height: 1.1;
+  box-shadow: 0 4px 16px rgba(0,0,0,.5); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; cursor: pointer; }
+.spel-knop span[aria-hidden] { font-size: 1.5rem; line-height: 1; }
+.spel-knop--bukken { left: calc(14px + env(safe-area-inset-left, 0px)); }
+.spel-knop--springen { right: calc(14px + env(safe-area-inset-right, 0px)); }
+.spel-knop.is-ingedrukt { background: var(--accent); color: #0b1a14; transform: scale(.94); }
+/* Smal scherm (telefoon, klein venster): bijna schermvullend onder de balken, kleine marges, info compact eronder, de overlay scrolt. */
+@media (max-width: 820px) {
+  #spel-overlay { padding: 4px; overflow: auto; }
+  #spel-overlay.open { align-items: flex-start; }
+  .spel-kaart { width: 100%; max-height: none; padding: 6px; border-radius: 10px; margin-bottom: auto; }
+  .spel-info { overflow: visible; }
+}
 @media (max-width: 820px), (pointer: coarse) {
-  #spel-overlay { padding: 4px; }
-  .spel-kaart { max-width: none; padding: 6px; border-radius: 10px; margin: 0 auto auto; }
   .spel-kop { margin-bottom: 4px; }
   .spel-kop h2 { font-size: .9rem; }
   .spel-info { margin-top: 6px; }
   .spel-beste { margin-bottom: 2px; }
   .spel-skins { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; margin: 4px 0; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
   .spel-skin { flex: 0 0 auto; min-width: 72px; padding: 4px 6px; }
-  #spel-overlay { touch-action: none; }
-  #spel-overlay[data-status="bezig"] { overflow: hidden; }
+}
+@media (pointer: coarse) {
+  #spel-overlay { padding: 4px 3%; touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
   #spel-overlay[data-status="bezig"] .spel-info { display: none; }
-  #spel-overlay[data-status="bezig"] .spel-kaart { background: transparent; border-color: transparent; }
-  .spel-zone { display: none; position: fixed; left: 0; right: 0; height: calc((100vh - var(--spel-top, 52px)) / 2); pointer-events: none;
-    flex-direction: column; align-items: center; justify-content: flex-end; color: rgba(255,255,255,.4); font-size: .95rem; letter-spacing: .04em; padding: 14px 0; box-sizing: border-box; }
-  .spel-zone--boven { top: var(--spel-top, 52px); border-bottom: 1px dashed rgba(255,255,255,.18); }
-  .spel-zone--onder { bottom: 0; }
-  #spel-overlay[data-status="bezig"] .spel-zone { display: flex; }
+  #spel-overlay[data-status="bezig"] .spel-knop { display: flex; }
+  .spel-aanraakhint { display: block; color: var(--muted); font-size: .8rem; margin-top: 6px; }
 }
 @media (max-width: 820px) and (orientation: portrait), (pointer: coarse) and (orientation: portrait) {
   .spel-draai { display: block; text-align: center; color: var(--muted); font-size: .8rem; margin: 4px 0 0; }
 }
-/* Liggend op een telefoon: het canvas past in de hoogte onder de balken (3 : 1) en vult zo veel mogelijk van de breedte. */
+/* Liggend op een telefoon: het canvas past in de hoogte onder de balken (3 : 1); tijdens het spel laat het ruimte voor de knoppen links en rechts. */
 @media (max-width: 820px) and (orientation: landscape) and (max-height: 560px), (pointer: coarse) and (orientation: landscape) and (max-height: 560px) {
   .spel-veld canvas { width: min(100%, calc((100vh - var(--spel-top, 52px) - 46px) * 3)); margin: 0 auto; }
+  #spel-overlay[data-status="bezig"] .spel-veld canvas { width: min(calc(100% - 192px), calc((100vh - var(--spel-top, 52px) - 46px) * 3)); }
   .spel-kop { margin-bottom: 2px; }
 }
 `;
@@ -142,10 +154,10 @@ function bouw() {
   document.head.append(stijl);
 
   const canvas = el('canvas', { width: String(WERELD.breedte), height: String(WERELD.hoogte), 'aria-label': 'Blitz Run: een spelletje met een laadpaal die over jerrycans springt en onder bliksems bukt' });
-  hint = el('div', { class: 'spel-hint', tekst: 'Pijl omhoog of spatie: springen. Pijl omlaag: bukken (ingedrukt houden). Op een scherm: tik boven om te springen, houd onderaan om te bukken.' });
+  hint = el('div', { class: 'spel-hint', tekst: 'Pijl omhoog of spatie: springen. Pijl omlaag: bukken (ingedrukt houden). Op een aanraakscherm: knop Springen rechtsonder, knop Bukken (ingedrukt houden) linksonder.' });
   overlay = el('div', { id: 'spel-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Blitz Run', tabindex: '-1' },
-    el('div', { class: 'spel-zone spel-zone--boven', 'aria-hidden': 'true', tekst: 'tik = springen' }),
-    el('div', { class: 'spel-zone spel-zone--onder', 'aria-hidden': 'true', tekst: 'houd = bukken' }),
+    el('button', { type: 'button', class: 'spel-knop spel-knop--bukken', 'aria-label': 'Bukken (ingedrukt houden)' }, el('span', { 'aria-hidden': 'true', tekst: '▼' }), el('span', { tekst: 'Bukken' })),
+    el('button', { type: 'button', class: 'spel-knop spel-knop--springen', 'aria-label': 'Springen' }, el('span', { 'aria-hidden': 'true', tekst: '▲' }), el('span', { tekst: 'Springen' })),
     el('div', { class: 'spel-kaart' },
       el('div', { class: 'spel-kop' },
         el('h2', { tekst: '⚡ Blitz Run' }),
@@ -156,6 +168,7 @@ function bouw() {
         el('div', { class: 'spel-beste' }),
         el('div', { class: 'spel-skins', role: 'group', 'aria-label': 'Kies je laadpaal' }),
         el('button', { type: 'button', class: 'btn btn--primary', tekst: 'Start', dataset: { actie: 'spel-start' } }),
+        el('div', { class: 'spel-aanraakhint', tekst: 'Rechtsonder: Springen. Linksonder: Bukken (ingedrukt houden).' }),
         el('div', { class: 'spel-draai', tekst: 'Draai je toestel voor een groter spel.' }),
         el('details', { class: 'spel-uitleg' }, el('summary', { tekst: 'Uitleg' }), hint))));
   document.body.append(overlay);
@@ -185,22 +198,31 @@ function bouw() {
   });
   registreerVenster({ el: overlay, isOpen, sluit: () => sluit() });
 
-  // Aanraking: boven springen, onderen bukken (ingehouden). Op een smal scherm of met aanraking is het hele overlay het tikvlak
-  // (bovenste helft springt, onderste bukt); op een groot scherm enkel het canvas.
-  const smal = () => { try { return globalThis.matchMedia(SMAL).matches; } catch { return false; } };
-  const wijzer = (omlaag) => (e) => {
-    if (modus !== 'bezig') return;
-    const heelScherm = smal();
-    if (!heelScherm && e.target !== canvas) return;
-    if (e.target.closest('button, a, summary')) return; // ✕ en knoppen blijven gewone knoppen
-    const r = (heelScherm ? overlay : canvas).getBoundingClientRect();
-    spel.aanraak(e.clientY - r.top, r.height, omlaag);
-    if (omlaag) { try { (heelScherm ? overlay : canvas).setPointerCapture(e.pointerId); } catch { /* geen capture */ } }
-    e.preventDefault();
+  // Aanraking: twee knoppen (Bukken links, ingehouden; Springen rechts) met pointer capture, dus meerdere vingers tegelijk. Een tik op het canvas
+  // springt als extraatje; ergens anders tikken doet niets en bukt NOOIT.
+  const knopBukken = overlay.querySelector('.spel-knop--bukken');
+  const knopSpringen = overlay.querySelector('.spel-knop--springen');
+  const houd = (knop, aan, uit) => {
+    const los = () => { knop.classList.remove('is-ingedrukt'); uit?.(); };
+    knop.addEventListener('pointerdown', (e) => {
+      if (modus !== 'bezig') return;
+      try { knop.setPointerCapture(e.pointerId); } catch { /* geen capture */ }
+      knop.classList.add('is-ingedrukt');
+      aan();
+      e.preventDefault();
+    });
+    for (const naam of ['pointerup', 'pointercancel', 'lostpointercapture']) knop.addEventListener(naam, los);
+    knop.addEventListener('contextmenu', (e) => e.preventDefault());
+    knop.addEventListener('click', (e) => e.preventDefault());
   };
-  overlay.addEventListener('pointerdown', wijzer(true));
-  overlay.addEventListener('pointerup', wijzer(false));
-  overlay.addEventListener('pointercancel', wijzer(false));
+  houd(knopBukken, () => spel.bukken(true), () => spel.bukken(false));
+  houd(knopSpringen, () => spel.spring());
+  canvas.addEventListener('pointerdown', (e) => {
+    if (modus !== 'bezig') return;
+    spel.spring();
+    e.preventDefault();
+  });
+  overlay.addEventListener('contextmenu', (e) => { if (e.target.closest('canvas, .spel-knop')) e.preventDefault(); });
 }
 
 // Toetsen: enkel zolang het overlay open is; Escape blijft voor venster.js (sluit).

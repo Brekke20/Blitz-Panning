@@ -113,19 +113,18 @@ export function stap(staat, dt, invoer = {}) {
 export const SPRING_TOETSEN = Object.freeze(['ArrowUp', ' ', 'Spacebar']);
 export const BUK_TOETSEN = Object.freeze(['ArrowDown']);
 
-// Aanraking: bovenste helft = springen, onderste helft = bukken (ingehouden). `y` en `hoogte` in dezelfde eenheid.
-export function aanraakActie(y, hoogte) {
-  return y < hoogte / 2 ? 'spring' : 'bukken';
-}
-
-// ---- 5× snel tikken op de titel (openen en sluiten) ----
-// Geeft een functie `tik(nuMs) -> boolean`: waar bij de `aantal`-ste tik binnen `venster` ms (schuivend venster); daarna begint het opnieuw.
-export function maakTikDetector({ aantal = 5, venster = 2000 } = {}) {
-  let tikken = [];
+// ---- 5× snel tikken op het logo (openen en sluiten) ----
+// Geeft een functie `tik(nuMs) -> { aantal, bereikt }`: `aantal` = hoeveel snelle tikken er nu op een rij zijn (1 tot `aantal`);
+// elke tik moet binnen `maxTussenMs` na de vorige komen, anders begint de teller opnieuw bij 1 (`reset` = waar als een eerdere reeks afbrak).
+// `bereikt` is waar bij de `aantal`-ste snelle tik; daarna begint de teller opnieuw.
+export function maakSnelleTikTeller({ aantal = 5, maxTussenMs = 600 } = {}) {
+  let n = 0;
+  let vorige = null;
   return function tik(nuMs) {
-    tikken.push(nuMs);
-    tikken = tikken.filter(t => nuMs - t <= venster).slice(-aantal);
-    if (tikken.length >= aantal) { tikken = []; return true; }
-    return false;
+    const reset = n > 0 && (vorige === null || nuMs - vorige > maxTussenMs);
+    n = (n === 0 || reset) ? 1 : n + 1;
+    vorige = nuMs;
+    if (n >= aantal) { n = 0; vorige = null; return { aantal, bereikt: true, reset }; }
+    return { aantal: n, bereikt: false, reset };
   };
 }

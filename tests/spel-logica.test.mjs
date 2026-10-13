@@ -4,7 +4,7 @@ import { strict as assert } from 'node:assert';
 import {
   SPELER, FYSICA, HINDERNIS, SNELHEID, WERELD, HITBOX_MARGE, BLIKSEM_VANAF_AFSTAND,
   snelheidBij, scoreBij, spelerBox, botst, maakStaat, stap, maakHindernis, volgendeAfstand,
-  aanraakActie, maakTikDetector,
+  maakSnelleTikTeller,
 } from '../public/js/spel/spel-logica.js';
 
 const vast = (...w) => { let i = 0; return () => w[i++ % w.length]; };
@@ -177,29 +177,35 @@ test('spel speelt volledig door met een eenvoudige "bot": hindernissen verschijn
   assert.ok(s.afstand > 2000, `de bot haalde ${s.afstand}`);
 });
 
-test('aanraakActie: bovenste helft springt, onderste helft bukt', () => {
-  assert.equal(aanraakActie(10, 100), 'spring');
-  assert.equal(aanraakActie(49.9, 100), 'spring');
-  assert.equal(aanraakActie(50, 100), 'bukken');
-  assert.equal(aanraakActie(99, 100), 'bukken');
+test('snelle tikteller: vijf tikken met elk hoogstens 600 ms ertussen slaan aan, daarna begint het opnieuw', () => {
+  const tik = maakSnelleTikTeller({ aantal: 5, maxTussenMs: 600 });
+  assert.deepEqual([0, 300, 600, 900].map((t) => tik(t).aantal), [1, 2, 3, 4]);
+  assert.equal(tik(1200).bereikt, true);
+  const na = tik(1300);
+  assert.equal(na.bereikt, false);
+  assert.equal(na.aantal, 1, 'de teller begint opnieuw');
 });
 
-test('tikdetector: vijf tikken binnen het venster slaan aan, daarna begint het opnieuw', () => {
-  const tik = maakTikDetector({ aantal: 5, venster: 2000 });
-  assert.deepEqual([0, 300, 600, 900].map(tik), [false, false, false, false]);
-  assert.equal(tik(1200), true);
-  assert.equal(tik(1300), false, 'de teller begint opnieuw');
+test('snelle tikteller: precies 600 ms telt nog mee, 601 ms zet de teller terug op 1', () => {
+  const a = maakSnelleTikTeller({ aantal: 5, maxTussenMs: 600 });
+  assert.equal([0, 600, 1200, 1800, 2400].map(a).pop().bereikt, true);
+  const b = maakSnelleTikTeller({ aantal: 5, maxTussenMs: 600 });
+  b(0); b(100); b(200);
+  const traag = b(801);
+  assert.deepEqual([traag.aantal, traag.reset, traag.bereikt], [1, true, false]);
+  assert.equal(b(900).aantal, 2);
 });
 
-test('tikdetector: te traag tikken slaat niet aan (schuivend venster)', () => {
-  const tik = maakTikDetector({ aantal: 5, venster: 2000 });
-  assert.deepEqual([0, 600, 1200, 1800, 2400].map(tik), [false, false, false, false, false]);
-  assert.equal(tik(2500), true, 'de laatste vijf liggen wel binnen 2 s');
+test('snelle tikteller: vijf trage tikken (700 ms) slaan nooit aan', () => {
+  const tik = maakSnelleTikTeller({ aantal: 5, maxTussenMs: 600 });
+  const uitslag = [0, 700, 1400, 2100, 2800, 3500].map(tik);
+  assert.ok(uitslag.every((r) => !r.bereikt && r.aantal === 1));
 });
 
-test('tikdetector: precies op de vensterrand telt nog mee; erbuiten niet', () => {
-  const a = maakTikDetector({ aantal: 5, venster: 2000 });
-  assert.equal([0, 500, 1000, 1500, 2000].map(a).pop(), true);
-  const b = maakTikDetector({ aantal: 5, venster: 2000 });
-  assert.equal([0, 500, 1000, 1500, 2001].map(b).pop(), false);
+test('snelle tikteller: de eerste tik is geen reset; de 3e en 4e tik geven de tellerstand voor de melding', () => {
+  const tik = maakSnelleTikTeller();
+  assert.equal(tik(0).reset, false);
+  assert.equal(tik(100).reset, false);
+  assert.equal(tik(200).aantal, 3);
+  assert.equal(tik(300).aantal, 4);
 });

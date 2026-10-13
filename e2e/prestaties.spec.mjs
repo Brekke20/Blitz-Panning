@@ -38,7 +38,7 @@ const volgLuisteraars = (page) => page.addInitScript(() => {
   window.__toetsLuisteraars = () => [...sets.values()].reduce((s, v) => s + v.size, 0);
 });
 
-const titel = (page) => page.locator('.logo');
+const titel = (page) => page.locator('.logo-icon');
 const overlay = (page) => page.locator('#spel-overlay');
 const tikVijf = async (page) => { for (let i = 0; i < 5; i++) await titel(page).click(); };
 

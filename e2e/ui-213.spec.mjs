@@ -13,7 +13,7 @@ const GSM = { viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMob
 
 const overlay = (page) => page.locator('#spel-overlay');
 async function openSpel(page) {
-  for (let i = 0; i < 5; i++) await page.locator('.logo').click();
+  for (let i = 0; i < 5; i++) await page.locator('.logo-icon').click();
   await expect(overlay(page)).toHaveClass(/open/);
   await expect(overlay(page)).toHaveAttribute('data-status', 'start');
 }
@@ -85,38 +85,19 @@ test.describe('v2.1.3 spel op een gsm', () => {
     return som;
   }, [y0, y1]);
 
-  test('tik in het bovenste deel buiten het canvas springt; ingehouden onderaan bukt; tijdens het spel zijn info en keuze weg', async ({ page }) => {
+  // v2.1.4: de halve-scherm-tikvlakken zijn vervangen door twee grote knoppen (zie ook e2e/spel-214.spec.mjs).
+  test('tijdens het spel zijn info en keuze weg en staan de knoppen Bukken en Springen onderaan', async ({ page }) => {
     await startApp(page);
     await openSpel(page);
     await overlay(page).locator('[data-actie="spel-start"]').click();
     await expect(overlay(page)).toHaveAttribute('data-status', 'bezig');
     await expect(overlay(page).locator('.spel-skins')).toBeHidden();
     await expect(overlay(page).locator('.spel-hint')).toBeHidden();
-    await expect(overlay(page).locator('.spel-zone--boven')).toBeVisible();
-    await expect(overlay(page).locator('.spel-zone--onder')).toBeVisible();
-    const canvas = await page.locator('#spel-overlay canvas').boundingBox();
+    await expect(overlay(page).locator('.spel-knop--bukken')).toBeVisible();
+    await expect(overlay(page).locator('.spel-knop--springen')).toBeVisible();
     const o = await overlay(page).boundingBox();
     expect(o.height).toBeGreaterThan(812 * 0.7); // schermvullend onder de balken
-    await page.clock.runFor(100);
-    const staand = await paalHandtekening(page, 120, 166);
-    // Tik onder het canvas maar nog in de bovenste helft van het overlay.
-    const yBoven = o.y + o.height * 0.45;
-    expect(yBoven).toBeGreaterThan(canvas.y + canvas.height);
-    await page.touchscreen.tap(canvas.x + canvas.width / 2, yBoven);
-    await page.clock.runFor(130);
-    expect(await paalHandtekening(page, 120, 166)).not.toBe(staand);
     await foto(page, 'v213-spel-gsm-bezig');
-    // Bukken: ingehouden in de onderste helft, buiten het canvas.
-    await page.clock.runFor(1500);
-    if (await overlay(page).getAttribute('data-status') !== 'bezig') return; // botsing tijdens het wachten: de sprong is al bewezen
-    const stond = await paalHandtekening(page, 120, 134);
-    const yOnder = o.y + o.height * 0.9;
-    const opties = { clientX: 187, clientY: yOnder, pointerId: 7, pointerType: 'touch', isPrimary: true };
-    await overlay(page).dispatchEvent('pointerdown', opties);
-    await page.clock.runFor(100);
-    const bukte = await paalHandtekening(page, 120, 134);
-    await overlay(page).dispatchEvent('pointerup', opties);
-    if (await overlay(page).getAttribute('data-status') === 'bezig') expect(bukte).not.toBe(stond);
   });
 });
 

@@ -1,9 +1,9 @@
 import { test, expect, startApp } from './helpers.mjs';
 
-// Blitz Run (verborgen spel): 5× snel tikken op de titel opent het overlay, 5× tikken / ✕ / Escape sluit het, het toetsenbord
+// Blitz Run (verborgen spel): 5× snel tikken op het logo-icoon opent het overlay, 5× tikken / ✕ / Escape sluit het, het toetsenbord
 // speelt, en het spel verstuurt nooit iets buiten /api/spel. In ?test; de klok is een nepklok (page.clock).
 
-const titel = (page) => page.locator('.logo');
+const titel = (page) => page.locator('.logo-icon');
 const overlay = (page) => page.locator('#spel-overlay');
 const tikVijf = async (page) => { for (let i = 0; i < 5; i++) await titel(page).click(); };
 const status = (page) => overlay(page).getAttribute('data-status');
@@ -17,7 +17,7 @@ async function openSpel(page) {
 }
 
 test.describe('Blitz Run', () => {
-  test('vier tikken openen niets, vijf wel; de titel doet verder niets en het spel wordt pas dan geladen', async ({ page, verzoeken }) => {
+  test('vier tikken openen niets, vijf wel; het logo doet verder niets en het spel wordt pas dan geladen', async ({ page, verzoeken }) => {
     await startApp(page);
     const modules = [];
     page.on('request', (r) => { if (r.url().includes('/js/spel/spel-ui.js')) modules.push(r.url()); });
@@ -32,14 +32,14 @@ test.describe('Blitz Run', () => {
 
   test('niet snel genoeg tikken opent niets', async ({ page }) => {
     await startApp(page);
-    for (let i = 0; i < 5; i++) { await titel(page).click(); await page.clock.runFor(1000); }
+    for (let i = 0; i < 5; i++) { await titel(page).click(); await page.clock.runFor(700); }
     await expect(overlay(page)).toHaveCount(0);
   });
 
-  test('sluiten kan met vijf tikken op de titel, met ✕ en met Escape; opnieuw openen werkt telkens', async ({ page }) => {
+  test('sluiten kan met vijf tikken op het logo, met ✕ en met Escape; opnieuw openen werkt telkens', async ({ page }) => {
     await startApp(page);
     await openSpel(page);
-    await tikVijf(page); // de kop met de titel blijft boven het overlay bereikbaar
+    await tikVijf(page); // de kop met het logo blijft boven het overlay bereikbaar
     await expect(overlay(page)).not.toHaveClass(/open/);
     await openSpel(page);
     await page.getByRole('button', { name: 'Sluiten' }).filter({ has: page.locator(':scope') }).first().click({ trial: true }).catch(() => {});
@@ -144,7 +144,7 @@ test.describe('Blitz Run', () => {
     expect(await score(page)).toBeGreaterThan(s);
   });
 
-  test('aanraking: tik op de bovenste helft springt, ingehouden onderste helft bukt (geen fout, spel loopt door)', async ({ page }) => {
+  test('muis op het canvas: een klik springt; ingedrukt houden onderaan bukt niet (geen fout, spel loopt door)', async ({ page }) => {
     await startApp(page);
     await openSpel(page);
     await page.keyboard.press('Space');

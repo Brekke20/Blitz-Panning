@@ -15,6 +15,16 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [2.1.4] — nog niet uitgebracht
+
+### Changed
+- Het verborgen spel staat nu netjes in het midden van het scherm, is groter en toont altijd zijn titelbalk.
+- Het spel op telefoon en tablet heeft twee duidelijke knoppen onderaan in plaats van tikvlakken, zodat je niet per ongeluk bukt.
+- Het verborgen spel reageert voortaan enkel op het bliksem-icoon en vraagt een vlotte reeks tikken; een kleine melding helpt onderweg.
+
+### Fixed
+- Het spelvenster stond te ver naar rechts door twee onzichtbare hulpvlakken die op een computer ruimte innamen.
+
 ## [2.1.3] — 2026-10-14
 
 ### Added

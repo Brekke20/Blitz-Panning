@@ -1,9 +1,9 @@
-// tests/spel-opening.test.mjs — 5× tikken op de titel laadt het spel pas bij de eerste activatie en schakelt het om.
+// tests/spel-opening.test.mjs — 5× snel tikken op het logo laadt het spel pas bij de eerste activatie en schakelt het om.
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
-import { installeerSpelOpening, TIK_AANTAL, TIK_VENSTER_MS } from '../public/js/spel/spel-opening.js';
+import { installeerSpelOpening, TIK_AANTAL, TIK_TUSSEN_MS, MELDING_MS, tikMelding } from '../public/js/spel/spel-opening.js';
 
 const nepDoel = () => {
   const luisteraars = new Set();
@@ -14,11 +14,19 @@ const nepDoel = () => {
     aantal: () => luisteraars.size,
   };
 };
+const nepMelding = () => { const m = { teksten: [], verbergen: 0, toon: (t) => m.teksten.push(t), verberg: () => { m.verbergen++; } }; return m; };
 const wacht = () => new Promise(r => setImmediate(r));
 
-test('de drempels: vijf tikken binnen twee seconden', () => {
+test('de drempels: vijf tikken, elk binnen 600 ms na de vorige; melding 1,5 s', () => {
   assert.equal(TIK_AANTAL, 5);
-  assert.equal(TIK_VENSTER_MS, 2000);
+  assert.equal(TIK_TUSSEN_MS, 600);
+  assert.equal(MELDING_MS, 1500);
+});
+
+test('de meldingstekst: enkel na de 3e en 4e tik', () => {
+  assert.equal(tikMelding(2), '');
+  assert.equal(tikMelding(3), 'Nog 2 keer tikken om Blitz Run te openen');
+  assert.equal(tikMelding(4), 'Nog 1 keer tikken om Blitz Run te openen');
 });
 
 test('de module wordt pas geladen bij de vijfde tik; elke volgende vijf tikken wisselen om', async () => {
@@ -27,7 +35,7 @@ test('de module wordt pas geladen bij de vijfde tik; elke volgende vijf tikken w
   const wissels = [];
   let t = 0;
   installeerSpelOpening({
-    doel, nu: () => (t += 100),
+    doel, nu: () => (t += 100), melding: nepMelding(), isOpen: () => false,
     laad: async () => { geladen++; return { wisselSpel: (afh) => wissels.push(afh) }; },
     actieveEvenementen: () => ['ev'],
   });
@@ -49,7 +57,7 @@ test('te traag tikken opent niets; zonder doel of na afmelden gebeurt er niets',
   const doel = nepDoel();
   let geladen = 0;
   let t = 0;
-  const af = installeerSpelOpening({ doel, nu: () => (t += 1000), laad: async () => { geladen++; return { wisselSpel() {} }; } });
+  const af = installeerSpelOpening({ doel, melding: nepMelding(), nu: () => (t += 1000), laad: async () => { geladen++; return { wisselSpel() {} }; } });
   for (let i = 0; i < 10; i++) doel.klik();
   await wacht();
   assert.equal(geladen, 0);
@@ -62,7 +70,7 @@ test('een mislukte lading is stil en wordt de volgende keer opnieuw geprobeerd',
   const doel = nepDoel();
   let pogingen = 0;
   installeerSpelOpening({
-    doel, nu: () => 0,
+    doel, nu: () => 0, melding: nepMelding(),
     laad: () => { pogingen++; return pogingen === 1 ? Promise.reject(new Error('offline')) : Promise.resolve({ wisselSpel() {} }); },
   });
   for (let i = 0; i < 5; i++) doel.klik();
@@ -88,4 +96,34 @@ test('alle spelbestanden staan in SHELL van de service worker (offline beschikba
   for (const f of fs.readdirSync(path.join(pub, 'js', 'spel')).filter(x => x.endsWith('.js'))) {
     assert.ok(sw.includes(`'/js/spel/${f}'`), f);
   }
+});
+
+test('meldingen: na de 3e en 4e snelle tik; een trage tik verbergt ze; bij de 5e tik verdwijnt de melding en opent het spel; niets bij sluiten', async () => {
+  const doel = nepDoel();
+  const m = nepMelding();
+  let open = false;
+  let t = 0;
+  let stap = 100;
+  const wissels = [];
+  installeerSpelOpening({ doel, melding: m, isOpen: () => open, nu: () => (t += stap), laad: async () => ({ wisselSpel: () => wissels.push(1) }) });
+  doel.klik(); doel.klik();
+  assert.deepEqual(m.teksten, []);
+  doel.klik();
+  assert.deepEqual(m.teksten, ['Nog 2 keer tikken om Blitz Run te openen']);
+  doel.klik();
+  assert.equal(m.teksten[1], 'Nog 1 keer tikken om Blitz Run te openen');
+  stap = 700; doel.klik(); // te traag: reset
+  assert.equal(m.verbergen, 1);
+  stap = 100; doel.klik(); doel.klik(); doel.klik(); // 2,3,4 na de reset
+  assert.equal(m.teksten.length, 4);
+  doel.klik(); // 5e
+  await wacht();
+  assert.equal(wissels.length, 1);
+  assert.ok(m.verbergen >= 2);
+  open = true; // sluiten: geen meldingen
+  const voor = m.teksten.length;
+  for (let i = 0; i < 5; i++) doel.klik();
+  await wacht();
+  assert.equal(m.teksten.length, voor);
+  assert.equal(wissels.length, 2);
 });
