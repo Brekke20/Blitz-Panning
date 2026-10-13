@@ -2,7 +2,7 @@ import { test, expect, startApp } from './helpers.mjs';
 import { seed } from './kalender-hulp.mjs';
 
 // UI/UX-review P1-1: de keuzerijen van de rapportwizard (.wiz-radio-cards.row) liepen op 375 px rechts buiten beeld
-// (geen flex-wrap): "Dual 2", "Configuratiefout" en "Andere" waren onzichtbaar terwijl stap 4 een oorzaak verplicht.
+// (geen flex-wrap): "Dual 2", "Configuratiefout" en "Andere" (nu de chips van Oorzaak storing) waren onzichtbaar terwijl stap 4 een oorzaak verplicht.
 test.use({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 
 async function openWizard(page) {
@@ -35,12 +35,20 @@ test('wizard op gsm: alle keuzes van Type (stap Product) en Oorzaak storing zijn
   }
   await expect(page.locator('input[name="f-type"]')).toHaveCount(3);
   await binnenBeeld(page, ['input[name="f-type"][value="Single"]', 'input[name="f-type"][value="Dual 1"]', 'input[name="f-type"][value="Dual 2"]']);
-  for (let i = 0; i < 8 && !(await page.locator('#f-oorzaak-andere').count()); i++) {
+  for (let i = 0; i < 8 && !(await page.locator('#oorzaak-wrap').count()); i++) {
     await volgende.click();
   }
-  await expect(page.locator('#f-oorzaak-andere')).toHaveCount(1);
-  await binnenBeeld(page, ['#f-oorzaak-product', '#f-oorzaak-installatie', '#f-oorzaak-configuratie', '#f-oorzaak-andere']);
-  // De verplichte keuze is echt te bedienen: "Andere" aantikken.
-  await page.locator('#f-oorzaak-andere').locator('xpath=ancestor::label[1]').click();
-  await expect(page.locator('#f-oorzaak-andere')).toBeChecked();
+  await expect(page.locator('#oorzaak-wrap')).toBeVisible();
+  // De 4 groepen en de chips van de open groep (Toestel) liggen binnen het scherm, ook op 375 px.
+  const breedte = page.viewportSize().width;
+  const knoppen = page.locator('#oorzaak-wrap .wiz-oorz-kop, #oorzaak-wrap .wiz-oorz-paneel:not([hidden]) .wiz-oorz-chip');
+  expect(await knoppen.count()).toBe(8);
+  for (const k of await knoppen.all()) {
+    const box = await k.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(breedte);
+  }
+  // De verplichte keuze is echt te bedienen: een chip aantikken.
+  await page.getByRole('button', { name: 'Component defect', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Component defect', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });

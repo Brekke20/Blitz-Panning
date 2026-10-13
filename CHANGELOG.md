@@ -15,6 +15,12 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [2.1.3] — nog niet uitgebracht
+
+### Changed
+- Rapportwizard, stap Omschrijving: "Oorzaak storing" heeft nu 14 keuzes in 4 groepen (Toestel, Communicatie en instellingen, Plaatsing en omgeving, Overig) in plaats van de vroegere vier. De groepen klappen open en dicht, er staat telkens maar één groep open, en in de kop van elke groep zie je hoeveel en welke keuzes je al aangeduid hebt. De keuzes zijn grote knoppen die groen worden met een vinkje. Meerdere keuzes blijven mogelijk en er blijft minstens één oorzaak verplicht.
+- Oude rapporten en concepten blijven kloppen: "Productfout" en "Configuratiefout" worden nergens herschreven en blijven in het archief, het voorbeeld, de pdf en de Excel staan zoals ze waren. Opent een oud concept opnieuw, dan staat zo'n oude waarde als "(oud) Productfout" bij de keuzes; ze blijft behouden tot de technieker ze zelf weghaalt.
+
 ## [2.1.2] — 2026-10-13
 
 ### Added
