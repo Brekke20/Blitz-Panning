@@ -1007,9 +1007,32 @@ export function wizSaveSigKlant() {
   R.handtekeningKlant = (_sigKlant && !_sigKlant.isEmpty()) ? _sigKlant.toDataURL() : null;
 }
 
+// Handtekeningvlak: het tekenvlak krijgt de weergegeven grootte in apparaatpixels (devicePixelRatio, max. 2) en blijft meeschalen
+// met zijn omlijsting (draaien, venster). De getekende lijnen blijven bij een herschaling bewaard (toData/fromData).
+function maakHandtekeningPad(canvas, wrap, bijEinde) {
+  const pad = new SignaturePad(canvas, { penColor: '#181e24', backgroundColor: '#ffffff' });
+  let breed = 0, hoog = 0;
+  const pas = () => {
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    if (!w || !h || (w === breed && h === hoog)) return;
+    const data = pad.toData();
+    const ratio = Math.min(2, Math.max(1, devicePixelRatio || 1));
+    canvas.width = Math.round(w * ratio); canvas.height = Math.round(h * ratio);
+    canvas.getContext('2d').scale(ratio, ratio);
+    breed = w; hoog = h;
+    pad.clear();
+    if (data.length) pad.fromData(data);
+  };
+  pas();
+  if (typeof ResizeObserver === 'function') new ResizeObserver(pas).observe(wrap);
+  else window.addEventListener('resize', pas);
+  pad.addEventListener('endStroke', bijEinde);
+  return pad;
+}
+
 // ── Stap 6: Handtekening technieker ──
 export function wizRenderSigTech(el) {
-  el.innerHTML = `
+  el.innerHTML = `<div class="wiz-sigstap">
     <div class="wiz-step-title" role="heading" aria-level="3">✍️ Handtekening technieker</div>
     <p style="font-size:0.85rem;color:var(--muted);margin-bottom:14px;line-height:1.5">
       Teken hieronder ter bevestiging van de uitgevoerde werkzaamheden.
@@ -1021,15 +1044,12 @@ export function wizRenderSigTech(el) {
     <div class="wiz-sig-actions">
       <button class="wiz-sig-clear" onclick="wizClearSigTech()">Wissen</button>
       <div class="wiz-sig-status" id="sig-tech-status">Nog niet getekend</div>
-    </div>`;
+    </div></div>`;
   requestAnimationFrame(() => {
     const canvas = document.getElementById('sig-tech-canvas');
     const wrap   = document.getElementById('sig-tech-wrap');
-    canvas.width  = wrap.offsetWidth;
-    canvas.height = wrap.offsetHeight || Math.max(260, window.innerHeight * 0.38);
     if (window.SignaturePad) {
-      _sigTech = new SignaturePad(canvas, { penColor: '#181e24', backgroundColor: '#ffffff' });
-      _sigTech.addEventListener('endStroke', () => {
+      _sigTech = maakHandtekeningPad(canvas, wrap, () => {
         document.getElementById('sig-tech-hint').style.display = 'none';
         const st = document.getElementById('sig-tech-status');
         if (st) { st.textContent = '✓ Getekend'; st.style.color = 'var(--accent-ink)'; }
@@ -1062,14 +1082,14 @@ export function wizClearSigTech() {
 export function wizRenderSigKlant(el) {
   // Bouw rapport-preview (klant kan scrollen en lezen voor te tekenen)
   const previewHtml = buildRapportHtml();
-  el.innerHTML = `
+  el.innerHTML = `<div class="wiz-sigstap wiz-sigstap--klant">
     <div class="wiz-step-title" role="heading" aria-level="3">✍️ Handtekening klant</div>
     <p style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;line-height:1.5">
       Geef het apparaat aan de klant. Klant leest het rapport en tekent onderaan.
     </p>
     <iframe id="rapport-preview-frame"
       srcdoc=""
-      style="width:100%;height:420px;border:1px solid var(--border);border-radius:6px;margin-bottom:14px;background:#fff"
+      class="wiz-preview-frame"
       sandbox="allow-same-origin">
     </iframe>
     <div class="wiz-sig-container" id="sig-klant-wrap">
@@ -1079,7 +1099,7 @@ export function wizRenderSigKlant(el) {
     <div class="wiz-sig-actions">
       <button class="wiz-sig-clear" onclick="wizClearSigKlant()">Wissen</button>
       <div class="wiz-sig-status" id="sig-klant-status">Nog niet getekend</div>
-    </div>`;
+    </div></div>`;
   requestAnimationFrame(() => {
     // Vul de rapport-preview iframe (na render zodat het DOM beschikbaar is)
     const frame = document.getElementById('rapport-preview-frame');
@@ -1087,11 +1107,8 @@ export function wizRenderSigKlant(el) {
 
     const canvas = document.getElementById('sig-klant-canvas');
     const wrap   = document.getElementById('sig-klant-wrap');
-    canvas.width  = wrap.offsetWidth;
-    canvas.height = wrap.offsetHeight || Math.max(260, window.innerHeight * 0.38);
     if (window.SignaturePad) {
-      _sigKlant = new SignaturePad(canvas, { penColor: '#181e24', backgroundColor: '#ffffff' });
-      _sigKlant.addEventListener('endStroke', () => {
+      _sigKlant = maakHandtekeningPad(canvas, wrap, () => {
         document.getElementById('sig-klant-hint').style.display = 'none';
         const st = document.getElementById('sig-klant-status');
         if (st) { st.textContent = '✓ Getekend'; st.style.color = 'var(--accent-ink)'; }

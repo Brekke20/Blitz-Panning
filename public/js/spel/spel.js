@@ -37,6 +37,8 @@ export function maakSpel({
   function teken(ts = 0) {
     const g = WERELD.grondY;
     ctx.save();
+    // Het tekenvlak mag groter zijn dan de wereld (scherpte op hoge-dpi- en telefoonschermen): schaal naar de logische wereld.
+    ctx.setTransform(canvas.width / WERELD.breedte, 0, 0, canvas.height / WERELD.hoogte, 0, 0);
     if (!verminderdeBeweging && ts < schudTot) ctx.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
     const verloop = ctx.createLinearGradient(0, 0, 0, WERELD.hoogte);
     verloop.addColorStop(0, HEMEL.boven);

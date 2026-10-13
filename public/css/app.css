@@ -416,6 +416,9 @@
     html[data-indeling="smal"] .kal-nav-group { min-width: 172px; }
     html[data-aanraak="ja"][data-indeling="smal"] .kal-nav { min-width: 40px; }
     html[data-aanraak="ja"][data-indeling="smal"] .kal-view-btn { min-width: 48px; }
+    /* Ronde knoppen blijven echte cirkels: de 44px-minimumhoogte hierboven mag de breedte niet achterlaten (anders ovalen op tablet). */
+    .btn-add, .btn-rem { aspect-ratio: 1 / 1; flex: none; padding: 0; }
+    html[data-aanraak="ja"] .btn-add, html[data-aanraak="ja"] .btn-rem { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
     html[data-aanraak="ja"] .kal-nav, html[data-aanraak="ja"] .hbtn, html[data-aanraak="ja"] .mhdr-close,
     html[data-aanraak="ja"] .prijs-hdr-close { min-width: 44px; }
     /* Kleine pictogramknoppen (✕ op foto/chip/onderdeel) blijven visueel klein: geen 44px-hoogte

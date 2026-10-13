@@ -10,6 +10,14 @@ Vóór v1.0.0 (2026-08-13) werd geen versiegeschiedenis bijgehouden — de volle
 ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 `docs/superpowers/specs/`/`docs/superpowers/plans/`.
 
+## [2.1.3] — nog niet uitgebracht
+
+### Fixed
+- Het spel (Blitz Run) wordt niet meer afgesneden onder de bovenbalk en het tabbladenbalkje: de kaart staat nu altijd volledig in beeld, ook na scrollen, het venster aanpassen of het toestel draaien.
+- Het spel op een gsm vult nu bijna het hele scherm onder de balken. Het hele scherm is tikbaar: tik in de bovenste helft om te springen, houd in de onderste helft om te bukken (met een zachte aanduiding). Tijdens het spelen verdwijnen de keuze van de laadpaal en de uitleg, het beeld is scherper en liggend gebruikt het spel de volle breedte. Op een staande gsm staat een tip om het toestel te draaien.
+- De ronde plus-knoppen in de wachtrij zijn op de tablet weer echte cirkels (en blijven minstens 44 px groot om aan te raken).
+- Rapport op de tablet: het rapportvoorbeeld en het handtekeningvlak vullen nu de beschikbare hoogte van het scherm, de handtekening is veel groter en wordt scherp en op de juiste plek getekend.
+
 ## [Unreleased]
 
 ### Added
