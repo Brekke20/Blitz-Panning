@@ -15,7 +15,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
-## [2.1.0] — nog niet uitgebracht
+## [2.1.0] — 2026-10-13
 
 ### Added
 - Halloween-sfeer in oktober: pompoenoranje accentkleur, spinnenwebben in de hoeken, spinnen die aan een draadje hangen of langs de tabbalk kruipen (ze lopen weg voor de muis), af en toe een vleermuis en een lichte mist onderaan. Bij een lege wachtrij of een lege week bij Ingepland staat een Halloween-tekst. De versiering ligt als doorzichtig laagje over de app: je kan er niet op klikken, ze staat onder de vensters en meldingen en onder de vaste balken bovenaan, en schermlezers slaan ze over.
