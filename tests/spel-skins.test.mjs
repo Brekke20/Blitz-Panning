@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { snelheidBij, SNELHEID, SCORE_PER_EENHEID } from '../public/js/spel/spel-logica.js';
 import { SKINS, tekenPaal, standaardSkin, vrijgespeeld, HEMEL, RAND_KLEUR } from '../public/js/spel/skins.js';
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -52,8 +53,8 @@ test('standaardSkin is vrij bij score 0', () => {
 
 test('vrijgespeeld-regels', () => {
   const o = SKINS.find((s) => s.id === 'olijf');
-  assert.equal(vrijgespeeld(o, { besteScore: 249, eventSkins: [] }), false);
-  assert.equal(vrijgespeeld(o, { besteScore: 250, eventSkins: [] }), true);
+  assert.equal(vrijgespeeld(o, { besteScore: 499, eventSkins: [] }), false);
+  assert.equal(vrijgespeeld(o, { besteScore: 500, eventSkins: [] }), true);
   const g = SKINS.find((s) => s.soort === 'goud');
   assert.equal(vrijgespeeld(g, { besteScore: g.drempel - 1, eventSkins: [] }), false);
   assert.equal(vrijgespeeld(g, { besteScore: g.drempel, eventSkins: [] }), true);
@@ -102,5 +103,43 @@ test('tekenPaal tekent een contour rond de behuizing met de randkleur (elke skin
     ctx.strokeRect = () => gezien.push(ctx.strokeStyle);
     tekenPaal(ctx, s, { x: 50, y: 150, breedte: 24, hoogte: 44, t: 0 });
     assert.ok(gezien.includes(s.rand ?? RAND_KLEUR), s.id);
+  }
+});
+
+// ---- Tempo van de ontgrendelingen (v2.1.1): verdiend, niet cadeau ----
+// Seconden overleven om `score` te halen volgens de snelheidscurve (numeriek, stapjes van 10 ms).
+function secondenVoor(score) {
+  let afstand = 0; let t = 0;
+  while (afstand * SCORE_PER_EENHEID < score) { afstand += snelheidBij(afstand) * 0.01; t += 0.01; }
+  return t;
+}
+
+test('de drempels van alle skins met drempel stijgen strikt', () => {
+  const lijst = SKINS.filter((s) => typeof s.drempel === 'number').map((s) => s.drempel);
+  for (let i = 1; i < lijst.length; i++) assert.ok(lijst[i] > lijst[i - 1], `${lijst[i - 1]} < ${lijst[i]}`);
+});
+
+test('Klassiek Olijf vraagt minstens 40 s in één run; Gouden Paal ruim 4 minuten', () => {
+  assert.ok(SNELHEID.max > SNELHEID.start);
+  const olijf = SKINS.find((s) => s.id === 'olijf');
+  const goud = SKINS.find((s) => s.soort === 'goud');
+  assert.ok(secondenVoor(olijf.drempel) >= 40, `olijf ${secondenVoor(olijf.drempel)} s`);
+  assert.ok(secondenVoor(goud.drempel) >= 240 && secondenVoor(goud.drempel) <= 330, `goud ${secondenVoor(goud.drempel)} s`);
+});
+
+test('tekenPaal: faceplate smal en staand in beide houdingen, de paal staat op de grond', () => {
+  for (const bukken of [false, true]) {
+    const ctx = opnemer();
+    const rects = [];
+    ctx.fillRect = (x, y, w, h) => rects.push({ x, y, w, h, kleur: ctx.fillStyle });
+    tekenPaal(ctx, SKINS[0], { x: 56, y: 170, breedte: 18, hoogte: 52, bukken, t: 0 });
+    const plaat = rects.find((r) => r.kleur === SKINS[0].faceplate);
+    assert.ok(plaat.h > plaat.w * 2, `faceplate staand (bukken=${bukken})`);
+    const behuizing = rects[0];
+    assert.equal(Math.round(behuizing.y + behuizing.h), 170);
+    assert.ok(plaat.x >= behuizing.x && plaat.x + plaat.w <= behuizing.x + behuizing.w, 'faceplate binnen de paal');
+    assert.ok(plaat.y >= behuizing.y && plaat.y + plaat.h <= behuizing.y + behuizing.h, 'faceplate binnen de paal');
+    assert.equal(Math.round(behuizing.w), bukken ? 32 : 18);
+    assert.equal(Math.round(behuizing.h), bukken ? 30 : 52);
   }
 });

@@ -3,7 +3,7 @@
 // komen uit public/js/spel/spel-regels.js en skins.js: dezelfde bestanden als de client, dus nooit uit elkaar gelopen.
 import { wijzigBlob } from './blob-wijzig.js';
 import { SKINS, standaardSkin } from '../../public/js/spel/skins.js';
-import { MAX_SCORE, geldigeScore, ontgrendeldeSkins, schoonVoortgang } from '../../public/js/spel/spel-regels.js';
+import { MAX_SCORE, SCORE_SCHAAL, naNieuweSchaal, geldigeScore, ontgrendeldeSkins, schoonVoortgang } from '../../public/js/spel/spel-regels.js';
 
 export { MAX_SCORE };
 
@@ -15,7 +15,7 @@ const isObject = (b) => Boolean(b) && typeof b === 'object' && !Array.isArray(b)
 // Het record van een gebruiker zoals de speler het ziet: wat bewaard is, aangevuld met wat nú ontgrendeld is
 // (score-skins volgens de drempel, event-skins van de op `evenementen` actieve events). Schrijft niets.
 export function voortgangVan(record, evenementen = []) {
-  const basis = schoonVoortgang(isObject(record) ? record : null, SKINS);
+  const basis = schoonVoortgang(isObject(record) ? naNieuweSchaal(record) : null, SKINS); // oude records: score omgerekend naar schaal 2
   const ontgrendeld = ontgrendeldeSkins({ besteScore: basis.besteScore, bewaard: basis.ontgrendeld, evenementen, skins: SKINS });
   return { besteScore: basis.besteScore, ontgrendeld, gekozenSkin: ontgrendeld.includes(basis.gekozenSkin) ? basis.gekozenSkin : standaardSkin() };
 }
@@ -26,17 +26,17 @@ export async function leesSpel(store, gebruikerId, evenementen = []) {
   const voortgang = voortgangVan(record, evenementen);
   // Een event-skin die nu voor het eerst open is, meteen bewaren: wie het spel enkel tijdens het event opent, houdt hem.
   // Best-effort: een schrijffout mag de GET nooit breken.
-  const eerder = new Set(schoonVoortgang(isObject(record) ? record : null, SKINS).ontgrendeld);
+  const eerder = new Set(schoonVoortgang(isObject(record) ? naNieuweSchaal(record) : null, SKINS).ontgrendeld);
   const nieuwEvent = voortgang.ontgrendeld.filter(id => !eerder.has(id) && SKINS.some(s => s.id === id && s.soort === 'event'));
   if (nieuwEvent.length) {
     try {
       await wijzigBlob(store, spelSleutel(gebruikerId), {
         leeg: {},
         wijzig: (blob) => {
-          const huidig = schoonVoortgang(isObject(blob) && Object.keys(blob).length ? blob : null, SKINS);
+          const huidig = schoonVoortgang(isObject(blob) && Object.keys(blob).length ? naNieuweSchaal(blob) : null, SKINS);
           const ontgrendeld = ontgrendeldeSkins({ besteScore: huidig.besteScore, bewaard: [...huidig.ontgrendeld, ...nieuwEvent], evenementen, skins: SKINS });
           if (ontgrendeld.length === huidig.ontgrendeld.length) return null;
-          return { besteScore: huidig.besteScore, ontgrendeld, gekozenSkin: huidig.gekozenSkin };
+          return { besteScore: huidig.besteScore, ontgrendeld, gekozenSkin: huidig.gekozenSkin, schaal: SCORE_SCHAAL };
         },
       });
     } catch (e) {
@@ -69,13 +69,13 @@ export async function bewaarSpel(store, gebruikerId, { score, gekozenSkin, skinG
     leeg: {},
     wijzig: (blob) => {
       skinGeweigerd = skinAlGeweigerd;
-      const huidig = schoonVoortgang(isObject(blob) && Object.keys(blob).length ? blob : null, SKINS);
+      const huidig = schoonVoortgang(isObject(blob) && Object.keys(blob).length ? naNieuweSchaal(blob) : null, SKINS);
       const besteScore = Math.max(huidig.besteScore, score);
       const ontgrendeld = ontgrendeldeSkins({ besteScore, bewaard: huidig.ontgrendeld, evenementen, skins: SKINS });
       // Een vergrendelde skin weigert de inzending NIET (de score gaat nooit verloren): de keuze wordt genegeerd en de vorige skin blijft.
       const toegestaan = gekozenSkin !== undefined && ontgrendeld.includes(gekozenSkin);
       if (gekozenSkin !== undefined && !toegestaan) skinGeweigerd = true;
-      const nieuw = { besteScore, ontgrendeld, gekozenSkin: toegestaan ? gekozenSkin : huidig.gekozenSkin, bijgewerkt: new Date(nu()).toISOString() };
+      const nieuw = { besteScore, ontgrendeld, gekozenSkin: toegestaan ? gekozenSkin : huidig.gekozenSkin, schaal: SCORE_SCHAAL, bijgewerkt: new Date(nu()).toISOString() };
       uitkomst = nieuw;
       return nieuw;
     },

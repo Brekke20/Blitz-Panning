@@ -2,7 +2,18 @@
 // zodat de ontgrendelregels nooit uit elkaar lopen. Puur: geen DOM, geen window, geen opslag.
 import { SKINS, standaardSkin, vrijgespeeld } from './skins.js';
 
-export const MAX_SCORE = 100000; // hoogste score die in één inzending geaccepteerd wordt (ruim 20 minuten non-stop op topsnelheid)
+export const MAX_SCORE = 25000; // hoogste score die in één inzending geaccepteerd wordt (ruim 20 minuten non-stop op topsnelheid)
+
+// Scoreschaal: v2.1.0 gaf 0,1 punt per eenheid afstand, v2.1.1 geeft er 0,025 (4x trager). Een record zonder `schaal: 2` is op de
+// oude schaal bewaard; `naNieuweSchaal` rekent zijn beste score om (gedeeld door 4). Bewaarde skins blijven altijd open.
+export const SCORE_SCHAAL = 2;
+export const SCORE_DELER = 4;
+export function naNieuweSchaal(record) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return record;
+  if (record.schaal === SCORE_SCHAAL) return record;
+  const oud = Number(record.besteScore);
+  return { ...record, besteScore: Number.isFinite(oud) && oud > 0 ? Math.floor(oud / SCORE_DELER) : 0, schaal: SCORE_SCHAAL };
+}
 
 const isId = (x) => typeof x === 'string' && x !== '';
 

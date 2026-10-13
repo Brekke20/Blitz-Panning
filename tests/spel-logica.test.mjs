@@ -54,10 +54,12 @@ test('snelheid: begint op de startsnelheid, stijgt geleidelijk en stopt bij het 
   assert.equal(snelheidBij(-50), SNELHEID.start);
 });
 
-test('score: afstand gedeeld door 10, naar beneden afgerond en nooit negatief', () => {
+test('score: afstand gedeeld door 40, naar beneden afgerond en nooit negatief', () => {
   assert.equal(scoreBij(0), 0);
-  assert.equal(scoreBij(99), 9);
-  assert.equal(scoreBij(100), 10);
+  assert.equal(scoreBij(39), 0);
+  assert.equal(scoreBij(40), 1);
+  assert.equal(scoreBij(399), 9);
+  assert.equal(scoreBij(400), 10);
   assert.equal(scoreBij(-5), 0);
 });
 

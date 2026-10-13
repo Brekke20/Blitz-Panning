@@ -15,6 +15,15 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [2.1.1] — nog niet uitgebracht
+
+### Changed
+- Het verborgen spel telt punten vier keer trager, en de skins gaan pas open na echt overleven: de eerste na ongeveer een minuut in één run, de gouden paal na zo'n vijf minuten. Wat al ontgrendeld was, blijft ontgrendeld; een eerder behaalde beste score wordt omgerekend naar de nieuwe telling.
+- De bliksems in het spel zijn nu het Blitz-logo (twee schuine streken), en ook de plaat op de laadpaal toont dat logo.
+
+### Fixed
+- Bukken: de paal werd te plat en te breed getekend. Nu is het dezelfde paal, lager en breder, precies zo groot als waar hij tegen botst, met het logo-plaatje en de eventhoed mee.
+
 ## [2.1.0] — 2026-10-13
 
 ### Added

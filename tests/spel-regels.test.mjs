@@ -91,7 +91,7 @@ test('datumBrussel: de datum in Brusselse tijd, ook rond middernacht en de zomer
 
 // ---- Pariteit client <-> server: dezelfde regels, dezelfde uitkomst ----
 test('pariteit: de server ontgrendelt precies wat de client-regel zegt, voor een reeks scores en events', async () => {
-  const scores = [0, 1, 99, 1499, 1500, 2999, 3000, 4000, 9999, MAX_SCORE];
+  const scores = [0, 1, 99, 1499, 1500, 2999, 3000, 4000, 4499, 4500, MAX_SCORE];
   const events = [[], [{ id: 'halloween' }], [{ id: 'kerst', spelSkin: 'x' }], SKINS.filter(s => s.eventId).map(s => ({ id: s.eventId }))];
   for (const score of scores) {
     for (const evenementen of events) {
@@ -112,10 +112,10 @@ test('pariteit: voortgangVan van een leeg record is de beginstand van de client'
 test('de echte skins: een basis-skin met drempel is vergrendeld onder die drempel (nooit "basis = altijd open")', () => {
   const open = (besteScore, evenementen = []) => ontgrendeldeSkins({ besteScore, evenementen });
   assert.deepEqual(open(0), ['blitz']);
-  assert.ok(!open(249).includes('olijf'));
-  assert.ok(open(250).includes('olijf'));
-  assert.ok(!open(6499).includes('poolijs') && open(6500).includes('poolijs'));
-  assert.ok(!open(9999).includes('goud') && open(10000).includes('goud'));
+  assert.ok(!open(499).includes('olijf'));
+  assert.ok(open(500).includes('olijf'));
+  assert.ok(!open(3799).includes('poolijs') && open(3800).includes('poolijs'));
+  assert.ok(!open(4499).includes('goud') && open(4500).includes('goud'));
   assert.deepEqual(open(0, [{ id: 'halloween', spelSkin: 'spookpaal' }]), ['blitz', 'halloween']);
   assert.deepEqual(open(0, [{ id: 'kerst', spelSkin: null }]), ['blitz', 'kerst']);
 });
@@ -126,7 +126,7 @@ test('de echte skins: de voorwaardetekst voor elke skin met drempel > 0 en voor 
     else if (s.drempel > 0) assert.equal(ontgrendelVoorwaarde(s), `vanaf ${s.drempel} punten`, s.id);
     else assert.equal(ontgrendelVoorwaarde(s), '', s.id);
   }
-  assert.equal(ontgrendelVoorwaarde(SKINS.find(s => s.id === 'olijf')), 'vanaf 250 punten');
+  assert.equal(ontgrendelVoorwaarde(SKINS.find(s => s.id === 'olijf')), 'vanaf 500 punten');
   assert.equal(ontgrendelVoorwaarde(SKINS.find(s => s.eventId === 'halloween')), 'Halloween-event');
   assert.equal(ontgrendelVoorwaarde(SKINS.find(s => s.eventId === 'kerst')), 'Kerst-event');
 });

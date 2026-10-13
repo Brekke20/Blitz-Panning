@@ -3,7 +3,7 @@
 // Een inzending die mislukt wordt bewaard en één keer later opnieuw geprobeerd (ook bij het eerstvolgende openen), nooit blokkerend.
 // Puur in de zin van "alle afhankelijkheden worden meegegeven": geen window, geen globale fetch (tests geven nepjes mee).
 import { standaardSkin } from './skins.js';
-import { ontgrendeldeSkins, schoonVoortgang, voegWachtendSamen, geldigeScore, datumBrussel } from './spel-regels.js';
+import { ontgrendeldeSkins, schoonVoortgang, voegWachtendSamen, geldigeScore, datumBrussel, naNieuweSchaal, SCORE_SCHAAL, SCORE_DELER } from './spel-regels.js';
 
 export const HERPOGING_MS = 20000;
 export const OPSLAG_VOORVOEGSEL = 'blitz_spel_';
@@ -32,12 +32,15 @@ export function maakVoortgang({
     const bewaard = JSON.parse(opslag.lees(sleutel));
     if (bewaard && typeof bewaard === 'object') {
       vanServer = bewaard.vanServer === true;
-      voortgang = aanvullen(schoonVoortgang(bewaard.voortgang));
+      // Een lokale kopie zonder `schaal: 2` komt uit v2.1.0 (oude, 4x snellere scoretelling): omrekenen, anders blijft ze de serverscore overschaduwen.
+      const nieuweSchaal = bewaard.schaal === SCORE_SCHAAL;
+      voortgang = aanvullen(schoonVoortgang(nieuweSchaal ? bewaard.voortgang : naNieuweSchaal(bewaard.voortgang)));
       wachtend = bewaard.wachtend && typeof bewaard.wachtend === 'object' ? voegWachtendSamen(null, bewaard.wachtend) : null;
+      if (wachtend && !nieuweSchaal) wachtend = { ...wachtend, score: Math.floor((Number(wachtend.score) || 0) / SCORE_DELER) };
     }
   } catch { /* geen of onleesbare kopie: begin leeg */ }
 
-  const bewaar = () => { try { opslag.schrijf(sleutel, JSON.stringify({ voortgang, wachtend, vanServer })); } catch { /* geen opslag */ } };
+  const bewaar = () => { try { opslag.schrijf(sleutel, JSON.stringify({ voortgang, wachtend, vanServer, schaal: SCORE_SCHAAL })); } catch { /* geen opslag */ } };
   const zet = (v) => { voortgang = aanvullen(v); bewaar(); bijWijziging(voortgang); };
   // Voegt een serverantwoord in: de ontgrendelde skins (ook de event-skins) komen van de server, de score-skins volgen de
   // hoogste score. Een gekozen skin die de server weigerde (`skinGeweigerd`) of die niet open is, valt terug op die van de server.

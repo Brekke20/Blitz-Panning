@@ -16,11 +16,11 @@ export const HITBOX_MARGE = 3; // vergevingsgezind: de hitbox is aan elke kant 3
 export const HINDERNIS = Object.freeze({
   jerrycan: Object.freeze({ b: 18, h: 26, bodem: 0 }),    // komt van onderen: springen
   // komt van boven en hangt tot aan het plafond (bodem 36 > bukhoogte 30, < staanhoogte 52): enkel bukken helpt, over springen kan niet
-  bliksem: Object.freeze({ b: 22, h: 128, bodem: 36 }),
+  bliksem: Object.freeze({ b: 30, h: 128, bodem: 36 }),
 });
 
 export const SNELHEID = Object.freeze({ start: 260, groei: 0.012, max: 720 });
-export const SCORE_PER_EENHEID = 0.1;         // 10 eenheden afstand = 1 punt
+export const SCORE_PER_EENHEID = 0.025;       // 40 eenheden afstand = 1 punt (v2.1.1: 4x trager dan de eerste versie, schaal 2)
 export const BLIKSEM_VANAF_AFSTAND = 1200;    // de eerste hindernissen zijn enkel jerrycans
 
 export function snelheidBij(afstand) {

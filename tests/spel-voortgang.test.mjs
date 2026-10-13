@@ -198,3 +198,20 @@ test('event-skins komen na een serverantwoord van de server: een lokale datum on
   const opnieuw = maakVoortgang(opties);
   assert.ok(!opnieuw.huidig().ontgrendeld.includes(ev.id), 'ook na herladen uit de lokale kopie niet');
 });
+
+test('een lokale kopie van v2.1.0 (zonder schaal) wordt omgerekend: beste score en wachtende inzending gedeeld door 4', () => {
+  const ops = geheugen();
+  ops.schrijf(OPSLAG_VOORVOEGSEL + 'u1', JSON.stringify({
+    voortgang: { besteScore: 2000, ontgrendeld: [standaardSkin(), 'olijf'], gekozenSkin: 'olijf' },
+    wachtend: { score: 400 }, vanServer: true,
+  }));
+  const server = nepServer();
+  const v = maakVoortgang({ api: server.api, opslag: ops, gebruikerId: 'u1', nu: () => NU, uitstel: () => {} });
+  assert.equal(v.huidig().besteScore, 500);
+  assert.ok(v.huidig().ontgrendeld.includes('olijf'), 'bewaarde skin blijft');
+  assert.equal(JSON.parse(ops.lees(OPSLAG_VOORVOEGSEL + 'u1')).schaal, undefined, 'nog niet herschreven: pas bij de volgende wijziging');
+  v.meld(0);
+  const kopie = JSON.parse(ops.lees(OPSLAG_VOORVOEGSEL + 'u1'));
+  assert.equal(kopie.schaal, 2);
+  assert.equal(kopie.voortgang.besteScore, 500);
+});

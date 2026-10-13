@@ -1,22 +1,22 @@
 // Blitz Run: skins van de Blitz-laadpaal (puur tekenwerk, enkel canvas-paden).
 //
-// Drempelladder (beste score) voor de basisskins, een vlakke curve die naar boven toe
-// steiler wordt: 0, 250, 500, 1000, 1500, 2000, 3000, 4000, 5000, 6500.
-// Goud: 10000. Eventskins hebben geen drempel; ze gaan open via `eventSkins`.
+// Drempelladder (beste score, schaal 2 = 0,025 punt per eenheid afstand) voor de basisskins:
+// 0, 500, 750, 1000, 1400, 1800, 2300, 2800, 3300, 3800 (Olijf na ca. 54 s in één run).
+// Goud: 4500 (ca. 4 min 40 s in één run). Eventskins hebben geen drempel; ze gaan open via `eventSkins`.
 // De server spiegelt `vrijgespeeld`.
 
 export const SKINS = [
   { id: 'blitz', naam: 'Blitz Standaard', soort: 'basis', drempel: 0, faceplate: '#00dfa3', behuizing: '#121212', bliksem: '#0b3d2f' },
-  { id: 'olijf', naam: 'Klassiek Olijf', soort: 'basis', drempel: 250, faceplate: '#6b7a2f', behuizing: '#141414', bliksem: '#e6edc2' },
-  { id: 'nachtblauw', naam: 'Nachtblauw', soort: 'basis', drempel: 500, faceplate: '#4a6fa5', behuizing: '#121212', bliksem: '#e3edfb' },
+  { id: 'olijf', naam: 'Klassiek Olijf', soort: 'basis', drempel: 500, faceplate: '#6b7a2f', behuizing: '#141414', bliksem: '#e6edc2' },
+  { id: 'nachtblauw', naam: 'Nachtblauw', soort: 'basis', drempel: 750, faceplate: '#4a6fa5', behuizing: '#121212', bliksem: '#e3edfb' },
   { id: 'bordeaux', naam: 'Bordeaux', soort: 'basis', drempel: 1000, faceplate: '#7a1f3d', behuizing: '#141414', bliksem: '#f6d7e1' },
-  { id: 'snellader', naam: 'Snellader', soort: 'basis', drempel: 1500, faceplate: '#ffd400', behuizing: '#1c1c1c', bliksem: '#111111' },
-  { id: 'stroomstoot', naam: 'Stroomstoot', soort: 'basis', drempel: 2000, faceplate: '#ff5a1f', behuizing: '#1f1f24', bliksem: '#fff1e8' },
-  { id: 'turbo', naam: 'Turbo', soort: 'basis', drempel: 3000, faceplate: '#e11d2e', behuizing: '#0b0b0b', bliksem: '#ffffff' },
-  { id: 'oceaan', naam: 'Oceaanstroom', soort: 'basis', drempel: 4000, faceplate: '#00c2ff', behuizing: '#0a2a43', bliksem: '#04283a' },
-  { id: 'ultraviolet', naam: 'Ultraviolet', soort: 'basis', drempel: 5000, faceplate: '#b26bff', behuizing: '#2a1458', bliksem: '#ffffff' },
-  { id: 'poolijs', naam: 'Poolijs', soort: 'basis', drempel: 6500, faceplate: '#1a1a1a', behuizing: '#e8eef2', bliksem: '#00dfa3' },
-  { id: 'goud', naam: 'Gouden Paal', soort: 'goud', drempel: 10000, faceplate: '#ffe27a', behuizing: '#c9962a', bliksem: '#5a3d00' },
+  { id: 'snellader', naam: 'Snellader', soort: 'basis', drempel: 1400, faceplate: '#ffd400', behuizing: '#1c1c1c', bliksem: '#111111' },
+  { id: 'stroomstoot', naam: 'Stroomstoot', soort: 'basis', drempel: 1800, faceplate: '#ff5a1f', behuizing: '#1f1f24', bliksem: '#fff1e8' },
+  { id: 'turbo', naam: 'Turbo', soort: 'basis', drempel: 2300, faceplate: '#e11d2e', behuizing: '#0b0b0b', bliksem: '#ffffff' },
+  { id: 'oceaan', naam: 'Oceaanstroom', soort: 'basis', drempel: 2800, faceplate: '#00c2ff', behuizing: '#0a2a43', bliksem: '#04283a' },
+  { id: 'ultraviolet', naam: 'Ultraviolet', soort: 'basis', drempel: 3300, faceplate: '#b26bff', behuizing: '#2a1458', bliksem: '#ffffff' },
+  { id: 'poolijs', naam: 'Poolijs', soort: 'basis', drempel: 3800, faceplate: '#1a1a1a', behuizing: '#e8eef2', bliksem: '#00dfa3' },
+  { id: 'goud', naam: 'Gouden Paal', soort: 'goud', drempel: 4500, faceplate: '#ffe27a', behuizing: '#c9962a', bliksem: '#5a3d00' },
   { id: 'halloween', naam: 'Spookpaal', soort: 'event', eventId: 'halloween', faceplate: '#ff7a00', behuizing: '#1b0f26', bliksem: '#1b0f26', extra: 'heksenhoed' },
   { id: 'kerst', naam: 'Kerstpaal', soort: 'event', eventId: 'kerst', faceplate: '#c8102e', behuizing: '#0f3d22', bliksem: '#ffffff', extra: 'kerstmuts' },
 ];
@@ -41,7 +41,7 @@ export function vrijgespeeld(skin, { besteScore = 0, eventSkins = [] } = {}) {
 
 function heksenhoed(ctx, g, t) {
   const cx = g.x + g.bw * 0.5;
-  const rand = g.bw * 0.7;
+  const rand = g.bw * 0.6;
   const hoogte = g.bh * (g.bukken ? 0.5 : 0.38);
   const wiebel = Math.sin(t / 250) * g.bw * 0.04;
   const basis = g.top;
@@ -94,19 +94,30 @@ export const EXTRAS = { heksenhoed, kerstmuts };
 
 // ---- Tekenen ----
 
-const BUK_H = 0.55;
-const BUK_B = 1.7;
+// Bukken = dezelfde paal, platgedrukt: precies de hitbox van spel-logica.js (staan 18x52, bukken 32x30), zodat wat je ziet
+// ook is wat botst. De aanroeper geeft altijd de STAANDE afmetingen mee; `bukken` schaalt ze.
+const BUK_H = 30 / 52;
+const BUK_B = 32 / 18;
 
-function bliksemPad(ctx, fx, fy, fw, fh) {
+// Het Blitz-logo (public/icons/icon.svg): twee schuine, afgeronde streken. Middenlijnen in logo-eenheden (viewBox 512).
+const LOGO = Object.freeze({ x0: 174, x1: 332, y0: 119, y1: 417, streken: [[[332, 119], [208, 255]], [[298, 281], [174, 417]]] });
+
+// Tekent het logo in het vak (x, y, b, h): de middenlijnen schalen mee met het vak, de streekdikte `dikte` blijft rond.
+export function tekenLogoBliksem(ctx, x, y, b, h, dikte, kleur) {
+  const r = dikte / 2;
+  const sx = (v) => x + r + ((v - LOGO.x0) / (LOGO.x1 - LOGO.x0)) * Math.max(0, b - dikte);
+  const sy = (v) => y + r + ((v - LOGO.y0) / (LOGO.y1 - LOGO.y0)) * Math.max(0, h - dikte);
+  ctx.save();
+  ctx.strokeStyle = kleur;
+  ctx.lineWidth = dikte;
+  ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(fx + fw * 0.62, fy + fh * 0.12);
-  ctx.lineTo(fx + fw * 0.22, fy + fh * 0.55);
-  ctx.lineTo(fx + fw * 0.48, fy + fh * 0.55);
-  ctx.lineTo(fx + fw * 0.36, fy + fh * 0.88);
-  ctx.lineTo(fx + fw * 0.8, fy + fh * 0.42);
-  ctx.lineTo(fx + fw * 0.54, fy + fh * 0.42);
-  ctx.closePath();
-  ctx.fill();
+  for (const [[ax, ay], [bx, by]] of LOGO.streken) {
+    ctx.moveTo(sx(ax), sy(ay));
+    ctx.lineTo(sx(bx), sy(by));
+  }
+  ctx.stroke();
+  ctx.restore();
 }
 
 export function tekenPaal(ctx, skin, { x, y, breedte, hoogte, bukken = false, t = 0 }) {
@@ -127,15 +138,14 @@ export function tekenPaal(ctx, skin, { x, y, breedte, hoogte, bukken = false, t 
   ctx.lineWidth = 1.5;
   ctx.strokeRect(x + 0.75, top + 0.75, bw - 1.5, bh - 1.5);
 
-  // Faceplate linksboven: ca. 1/5 van de breedte, 1/4 van de hoogte.
-  const fw = Math.max(2, bw * 0.2);
-  const fh = bh * 0.25;
-  const fx = x + bw * 0.08;
-  const fy = top + bh * 0.06;
+  // Faceplate linksboven: smal en staand, de grootte volgt de hoogte van de paal (bukken = dezelfde plaat, evenredig kleiner).
+  const fh = bh * (bukken ? 0.4 : 0.36);
+  const fw = Math.max(2, fh * 0.32);
+  const fx = x + bh * (bukken ? 0.2 : 0.12);
+  const fy = top + bh * 0.1;
   ctx.fillStyle = skin.faceplate;
   ctx.fillRect(fx, fy, fw, fh);
-  ctx.fillStyle = skin.bliksem;
-  bliksemPad(ctx, fx, fy, fw, fh);
+  tekenLogoBliksem(ctx, fx + fw * 0.12, fy + fh * 0.1, fw * 0.76, fh * 0.8, Math.max(0.8, fw * 0.3), skin.bliksem);
 
   // Subtiele lichte rand rechts: leest als 3D-kolom.
   ctx.globalAlpha = 0.14;

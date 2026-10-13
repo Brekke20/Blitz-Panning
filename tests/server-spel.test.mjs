@@ -285,3 +285,27 @@ test('lib: gelijktijdige inzendingen van één gebruiker verliezen de hoogste sc
   await Promise.all([10, 90, 40, 70].map(score => bewaarSpel(store, 'u1', { score })));
   assert.equal((await leesSpel(store, 'u1')).besteScore, 90);
 });
+
+test('schaal 2: een record van v2.1.0 (zonder schaal) wordt gedeeld door 4, de skins blijven, en het nieuwe record draagt schaal 2', async () => {
+  const { echt, h } = opzet();
+  echt._data.set(spelSleutel('test-planner'), JSON.stringify({ besteScore: 2001, ontgrendeld: [standaardSkin(), 'olijf', 'nachtblauw', 'bordeaux'], gekozenSkin: 'bordeaux' }));
+  const gelezen = await (await metRol('planner', () => h(get()))).json();
+  assert.equal(gelezen.besteScore, 500);
+  assert.ok(gelezen.ontgrendeld.includes('bordeaux') && gelezen.ontgrendeld.includes('nachtblauw'), 'eerder ontgrendeld blijft');
+  assert.equal(gelezen.gekozenSkin, 'bordeaux');
+  const na = await (await metRol('planner', () => h(post({ score: 100 })))).json();
+  assert.equal(na.besteScore, 500, 'omgerekend, niet het oude getal');
+  const opgeslagen = JSON.parse(echt._data.get(spelSleutel('test-planner')));
+  assert.equal(opgeslagen.schaal, 2);
+  assert.equal(opgeslagen.besteScore, 500);
+  // Een tweede lezing deelt NIET nogmaals.
+  assert.equal((await (await metRol('planner', () => h(get()))).json()).besteScore, 500);
+});
+
+test('schaal 2: een nieuw record zonder eerdere data krijgt schaal 2 en de score blijft zoals ingezonden', async () => {
+  const { echt, h } = opzet();
+  await metRol('planner', () => h(post({ score: 777 })));
+  const opgeslagen = JSON.parse(echt._data.get(spelSleutel('test-planner')));
+  assert.equal(opgeslagen.schaal, 2);
+  assert.equal(opgeslagen.besteScore, 777);
+});

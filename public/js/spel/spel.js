@@ -4,7 +4,7 @@
 import {
   WERELD, SPELER, maakStaat, stap, scoreBij, aanraakActie, SPRING_TOETSEN, BUK_TOETSEN,
 } from './spel-logica.js';
-import { tekenPaal, HEMEL } from './skins.js';
+import { tekenPaal, tekenLogoBliksem, HEMEL } from './skins.js';
 
 const STAP_MAX = 1 / 60;       // één rekenstap; een groter tijdverschil wordt in stappen verdeeld
 const DT_MAX = 0.1;            // na een lange pauze (tab verborgen) geen sprong vooruit
@@ -12,7 +12,7 @@ const SPRING_BUFFER_S = 0.12;  // een sprong die net te vroeg ingedrukt wordt, t
 
 const KLEUR = Object.freeze({
   lucht: HEMEL.onder, grond: '#4a5d70', ster: '#6b8197', tekst: '#d9d9d6',
-  jerrycan: '#e5483b', jerrycanDonker: '#a9302a', bliksem: '#ffd23f', flits: 'rgba(255,255,255,0.55)',
+  jerrycan: '#e5483b', jerrycanDonker: '#a9302a', bliksem: '#00dfa3', bliksemGloed: 'rgba(0,223,163,0.55)', flits: 'rgba(255,255,255,0.55)',
 });
 
 // `canvas`: het tekenvlak (600 x 200 logische eenheden). `skin()`: het huidige skinobject. `bijScore(score)` bij elke gewijzigde score,
@@ -56,8 +56,8 @@ export function maakSpel({
       ctx.fillRect(x, g + 8 + (i % 3) * 7, 10, 2);
     }
     for (const h of staat.hindernissen) h.soort === 'bliksem' ? tekenBliksem(h) : tekenJerrycan(h);
-    const m = staat.speler.bukken ? SPELER.bukken : SPELER.staan;
-    tekenPaal(ctx, skin(), { x: SPELER.x, y: g - staat.speler.y, breedte: m.b, hoogte: m.h, bukken: staat.speler.bukken, t: ts });
+    // Altijd de staande afmetingen: tekenPaal drukt ze bij `bukken` plat tot precies de bukhitbox.
+    tekenPaal(ctx, skin(), { x: SPELER.x, y: g - staat.speler.y, breedte: SPELER.staan.b, hoogte: SPELER.staan.h, bukken: staat.speler.bukken, t: ts });
     ctx.fillStyle = KLEUR.tekst;
     ctx.font = '600 14px Inter, system-ui, sans-serif';
     ctx.textAlign = 'right';
@@ -82,21 +82,13 @@ export function maakSpel({
   }
 
   function tekenBliksem(h) {
-    // Een zigzag van het plafond tot aan de punt (h.bodem boven de grond).
+    // Het Blitz-logo (twee schuine streken) van het plafond tot aan de punt (h.bodem boven de grond), met een lichte gloed.
     const top = WERELD.grondY - h.bodem - h.h;
-    const bodem = WERELD.grondY - h.bodem;
-    const x = h.x, b = h.b;
-    ctx.fillStyle = KLEUR.bliksem;
-    ctx.beginPath();
-    ctx.moveTo(x + b * 0.6, top);
-    ctx.lineTo(x + b * 0.1, top + (bodem - top) * 0.45);
-    ctx.lineTo(x + b * 0.5, top + (bodem - top) * 0.45);
-    ctx.lineTo(x + b * 0.2, bodem);
-    ctx.lineTo(x + b * 0.95, top + (bodem - top) * 0.55);
-    ctx.lineTo(x + b * 0.55, top + (bodem - top) * 0.55);
-    ctx.lineTo(x + b * 1.0, top);
-    ctx.closePath();
-    ctx.fill();
+    ctx.save();
+    ctx.shadowColor = KLEUR.bliksemGloed;
+    ctx.shadowBlur = 8;
+    tekenLogoBliksem(ctx, h.x, top, h.b, h.h, h.b * 0.36, KLEUR.bliksem);
+    ctx.restore();
   }
 
   function lus(ts) {
