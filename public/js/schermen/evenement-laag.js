@@ -5,14 +5,16 @@
 //  - bouwt één decoratielaag `#event-laag` (inline SVG, aria-hidden, pointer-events: none, geen netwerk, niet in print);
 //  - bouwt de achtergrondscène `#event-achtergrond` (inline SVG uit evenement-scene.js, onder alle inhoud, zelfde levensduur als de laag);
 //  - zet tijdens het evenement het donkere thema (eigen keuze apart bewaard; `blitz_theme` blijft onaangeroerd);
-//  - laat één spin langs de tabbalk kruipen met een rAF-lus (enkel met beweging; stopt bij een verborgen tab).
+//  - laat één spin langs de tabbalk kruipen met een rAF-lus (enkel met beweging; stopt bij een verborgen tab). Sinds v2.1.3 loopt die lus
+//    enkel in korte actieve periodes (~30 beelden/s) met lange rustpauzes zonder lus en met stilstaande CSS-animaties (.ev-rust),
+//    en rust ze zolang het spel Blitz Run open staat (zie planFase/magRusten in kern/versiering-logica.js).
 // Op aanraak/gsm/tablet en bij prefers-reduced-motion bevat de laag GEEN bewegende elementen (ze worden niet eens gebouwd).
 // Raakt `document`/`window` enkel binnen functies (daarom een scherm-module en geen kern). Wijst geen `window`-namen toe.
 // De beslissing wordt herberekend bij de start, bij een wijziging van toestel/beweging/voorkeur, bij terugkeer naar de pagina en elke minuut
 // (een toestel dat dagen openstaat, volgt zo de datum: 31 okt 23:59 -> 1 nov 00:00). Verandert het thema, dan komt de gebeurtenis
 // 'versiering-gewijzigd' op window, zodat lege-tekst-lijsten zich hertekenen.
 import { TEST_MODE } from '../kern/omgeving.js';
-import { beslis, leesVoorkeur, bewaarVoorkeur, legeTekst } from '../kern/versiering-logica.js';
+import { beslis, leesVoorkeur, bewaarVoorkeur, legeTekst, planFase, magRusten, FASE } from '../kern/versiering-logica.js';
 import { belgischeDag } from '../kern/evenementen.js';
 import { kiesThema, bewaarThemaKeuze } from '../kern/versiering-thema.js';
 import { sceneSvg, kijkvenster } from './evenement-scene.js';
@@ -25,7 +27,11 @@ const VLEERMUIS = '<path d="M16 17c-2-3-4-6-9-7 1 2 1 4 0 6-2-1-5 0-7 2 3 0 5 1 
 let laag = null;          // het element #event-laag (of null)
 let achtergrond = null;   // het element #event-achtergrond (de scène onder de inhoud), leeft en sterft samen met `laag`
 let laagSleutel = '';     // 'thema|beweging': bij wijziging wordt de laag opnieuw gebouwd
-let raf = 0;
+let raf = 0;        // het geplande beeld (requestAnimationFrame)
+let lusTimer = 0;   // de korte wachttijd tot het volgende beeld (~30 per seconde)
+let rustTimer = 0;  // het einde van een rustpauze
+// De huidige actieve periode (zie planFase in kern/versiering-logica.js). `gehad`: de eerste (lange) periode is al geweest.
+const fase = { actiefMs: 0, rustMs: 0, vleermuisNaMs: null, actiefTot: 0, gehad: false };
 let kruiper = null;
 let vleermuis = null;
 // Vleermuis: wacht een willekeurige tijd, vliegt dan een golvende baan van links naar rechts of omgekeerd, op een willekeurige
@@ -150,7 +156,33 @@ function planMeting() {
   meetGepland = requestAnimationFrame(() => { meetGepland = 0; meetEvTop(); });
 }
 
-function stopKruiper() { if (raf) cancelAnimationFrame(raf); raf = 0; kruipState.last = 0; }
+// Stopt de lus volledig: het beeld, de wachttijd tot het volgende beeld en een geplande rustpauze.
+function stopKruiper() {
+  if (raf) cancelAnimationFrame(raf);
+  if (lusTimer) clearTimeout(lusTimer);
+  if (rustTimer) clearTimeout(rustTimer);
+  raf = 0; lusTimer = 0; rustTimer = 0; kruipState.last = 0;
+}
+
+const spelOpen = () => !!document.getElementById('spel-overlay')?.classList.contains('open');
+
+// Volgend beeld: eerst ~25 ms wachten en dan op het volgende scherm-beeld, zodat de lus ongeveer 30 keer per seconde rekent (niet 60).
+function planStap() {
+  lusTimer = setTimeout(() => { lusTimer = 0; raf = requestAnimationFrame(stapKruiper); }, FASE.STAP_MS - 8);
+}
+
+// Rustpauze: geen lus, CSS-animaties stil (.ev-rust); na de pauze begint een nieuwe actieve periode.
+function rust(ms) {
+  stopKruiper();
+  laag?.classList.add('ev-rust');
+  rustTimer = setTimeout(wekKruiper, ms);
+}
+function wekKruiper() {
+  rustTimer = 0;
+  if (!kruiper || !kruiper.isConnected || document.hidden) return;
+  if (spelOpen()) { rust(fase.rustMs); return; } // het spel tekent zelf: de versiering blijft stil tot het dicht is
+  startKruiper();
+}
 
 // De hoogte van de kruiper staat vast (alleen x verandert): één meting bij het starten en bij een formaatwijziging, niet per frame.
 function meetKruiper() {
@@ -160,12 +192,20 @@ function meetKruiper() {
 }
 
 function stapKruiper(t) {
-  if (!kruiper || !kruiper.isConnected) { raf = 0; return; }
-  raf = requestAnimationFrame(stapKruiper);
+  raf = 0;
+  if (!kruiper || !kruiper.isConnected) return;
   const s = kruipState;
-  if (!s.last) s.last = t;
+  if (!s.last) {
+    // Eerste beeld van een actieve periode: de periode en de vlucht van de vleermuis starten nu (in de klok van rAF).
+    s.last = t;
+    fase.actiefTot = t + fase.actiefMs;
+    vlucht.actief = false; // een vlucht die door een verborgen tab werd onderbroken, begint niet halverwege opnieuw
+    if (vleermuis) vleermuis.style.opacity = '0';
+    vlucht.wachtTot = fase.vleermuisNaMs == null ? Infinity : t + fase.vleermuisNaMs;
+    planStap();
+    return;
+  }
   const dt = t - s.last;
-  if (dt < 33) return; // ongeveer 30 beelden per seconde volstaat voor 22 px/s
   s.last = t;
   const stap = Math.min(100, dt);
   const dx = (s.x + 11) - muis.x, dy = (s.top + 11) - muis.y, d = Math.hypot(dx, dy);
@@ -176,6 +216,8 @@ function stapKruiper(t) {
   if (s.x < 10) { s.x = 10; s.dir = 1; }
   kruiper.style.transform = `translateX(${s.x}px) scaleX(${s.dir})`;
   stapVleermuis(t, stap);
+  if (magRusten({ t, actiefTot: fase.actiefTot, vliegt: vlucht.actief, spelOpen: spelOpen() })) rust(fase.rustMs);
+  else planStap();
 }
 
 function startVlucht(t) {
@@ -194,8 +236,7 @@ function stapVleermuis(t, stapMs) {
   if (!vleermuis) return;
   const dt = stapMs / 1000;
   if (!vlucht.actief) {
-    if (!vlucht.wachtTot) vlucht.wachtTot = t + 4000 + Math.random() * 8000; // eerste vlucht na 4 tot 12 s
-    if (t < vlucht.wachtTot) { vleermuis.style.opacity = '0'; return; }
+    if (t < vlucht.wachtTot) return; // wachten (onzichtbaar); hoogstens één vlucht per actieve periode (planFase)
     startVlucht(t);
   }
   const f = vlucht;
@@ -216,11 +257,16 @@ function stapVleermuis(t, stapMs) {
   const klap = 1 - 0.4 * Math.abs(Math.sin(f.t * 14));
   vleermuis.style.opacity = '0.85';
   vleermuis.style.transform = `translate(${f.x}px, ${f.y}px) scale(${f.dir}, ${klap})`;
-  if (f.x > window.innerWidth + 60 || f.x < -60) { f.actief = false; f.wachtTot = t + 15000 + Math.random() * 30000; vleermuis.style.opacity = '0'; }
+  if (f.x > window.innerWidth + 60 || f.x < -60) { f.actief = false; f.wachtTot = Infinity; vleermuis.style.opacity = '0'; }
 }
 
+// Start een actieve periode (de eerste na het bouwen van de laag is langer, zodat de vleermuis zeker één keer vliegt).
+// Doet niets als de lus al loopt of als er een rustpauze gepland staat.
 function startKruiper() {
-  if (raf || !kruiper || document.hidden) return;
+  if (raf || lusTimer || rustTimer || !kruiper || document.hidden) return;
+  Object.assign(fase, planFase({ eerste: !fase.gehad }));
+  fase.gehad = true;
+  laag?.classList.remove('ev-rust');
   kruipState.last = 0;
   meetKruiper();
   raf = requestAnimationFrame(stapKruiper);
@@ -298,7 +344,7 @@ function pasToe(b) {
   pasKijkvenster();
   kruiper = b.beweging ? laag.querySelector('#ev-kruiper') : null;
   vleermuis = b.beweging ? laag.querySelector('#ev-vleermuis') : null;
-  vlucht.actief = false; vlucht.wachtTot = 0;
+  vlucht.actief = false; vlucht.wachtTot = Infinity; fase.gehad = false; // nieuwe laag: weer een lange eerste periode
   if (document.hidden) laag.classList.add('ev-gepauzeerd');
   meetEvTop();
   if (kruiper) startKruiper();
