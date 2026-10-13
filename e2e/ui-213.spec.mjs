@@ -144,8 +144,8 @@ test.describe('v2.1.3 rapport: voorbeeld en handtekening op tablet', () => {
         await foto(page, naam === 'tablet liggend' ? 'v213-rapport-tablet' : 'v213-rapport-tablet-staand');
         const frame = await page.locator('#rapport-preview-frame').boundingBox();
         const sig = await page.locator('#sig-klant-wrap').boundingBox();
-        expect(frame.height).toBeGreaterThanOrEqual(minFrame);
-        expect(sig.height).toBeGreaterThanOrEqual(minSig);
+        expect(frame.height).toBeGreaterThanOrEqual(minFrame - 1); // marge voor afronding (259.99998 bij 260)
+        expect(sig.height).toBeGreaterThanOrEqual(minSig - 1);
         expect(sig.width).toBeGreaterThanOrEqual(viewport.width - 60);
         const px = await page.locator('#sig-klant-canvas').evaluate((c) => ({ b: c.width, cb: c.clientWidth }));
         expect(px.b).toBeGreaterThanOrEqual(px.cb * 2 - 2); // dpr 2

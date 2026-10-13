@@ -1080,6 +1080,7 @@
       box-shadow: 0 6px 24px rgba(0,0,0,0.5);
     }
     #spel-tik-toast { bottom: 72px; } /* boven de gewone meldingen, zodat ze elkaar niet overlappen */
+    #spel-tik-toast:not(.show) { transition: none; } /* bij openen van het spel meteen weg, niet uitfaden over de Start-knop */
     #toast.show, #spel-tik-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     /* Rapport-wizard open: toast boven de wizard-footer (±81px hoog) i.p.v. erover */
     body:has(#rapport-wizard.open) #toast { bottom: calc(84px + 16px + env(safe-area-inset-bottom, 0px)); }
