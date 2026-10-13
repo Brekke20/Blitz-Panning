@@ -13,7 +13,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ## [2.1.3] — nog niet uitgebracht
 
 ### Added
-- Nog niets zonder meer; zie Changed en Fixed.
+- Rapportwizard: de keuzes bij "Oorzaak storing" staan nu in een uitklapbaar overzicht met keuzeknoppen (zie ook Changed).
 
 ### Changed
 - Rapportwizard, stap Omschrijving: "Oorzaak storing" heeft nu 14 keuzes in 4 groepen (Toestel, Communicatie en instellingen, Plaatsing en omgeving, Overig) in plaats van de vroegere vier. De groepen klappen open en dicht, er staat telkens maar één groep open, en in de kop van elke groep zie je hoeveel en welke keuzes je al aangeduid hebt. De keuzes zijn grote knoppen die groen worden met een vinkje. Meerdere keuzes blijven mogelijk en er blijft minstens één oorzaak verplicht.
