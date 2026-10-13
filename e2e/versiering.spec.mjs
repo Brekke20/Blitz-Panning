@@ -85,6 +85,14 @@ test.describe('versiering op de computer', () => {
     expect(Math.hypot(q.x + 17 - (p.x + 17), q.y + 11 - (p.y + 30))).toBeGreaterThan(d0);
   });
 
+  test('v2.1.2: een verlopen ticketkaart is ondoorzichtig, zodat de achtergrondscène er niet door schijnt', async ({ page }) => {
+    await startApp(page, { query: AAN });
+    const kaart = page.locator('.ticket.overdue').first();
+    await expect(kaart).toBeVisible();
+    const kleur = await kaart.evaluate(el => getComputedStyle(el).backgroundColor);
+    expect(kleur.startsWith('rgba') ? Number(kleur.split(',')[3].replace(')', '')) : 1).toBe(1);
+  });
+
   test('de laag staat onder vensters, is verborgen in print en raakt de rapportvoorbeeld-iframe niet', async ({ page }) => {
     await startApp(page, { query: AAN });
     // Boven de inhoud, onder de topbalk en onder elke sticky balk (z 20 tot 30), en onder vensters

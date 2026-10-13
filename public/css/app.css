@@ -262,8 +262,8 @@
     .ticket:hover::before { background: var(--accent); }
     .ticket:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
     .ticket.overdue::before { background: var(--red); }
-    .ticket.overdue { background: color-mix(in srgb, var(--red) 3%, transparent); }
-    .ticket.overdue:hover { background: color-mix(in srgb, var(--red) 6%, transparent); }
+    .ticket.overdue { background: color-mix(in srgb, var(--red) 3%, var(--bg)); }
+    .ticket.overdue:hover { background: color-mix(in srgb, var(--red) 6%, var(--bg)); }
     .ticket.overdue:hover::before { background: var(--red); }
 
     .t-body { flex: 1; min-width: 0; padding-left: 6px; }
