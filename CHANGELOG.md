@@ -15,6 +15,14 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [2.1.3] — nog niet uitgebracht
+
+### Fixed
+- Halloween-versiering op de computer: de app rekende en tekende de hele dag door, 60 keer per seconde, ook als er niets te zien veranderde (de kruipende spin, de vleermuis die stond te wachten, de hangende spinnen en de mist). Nu bewegen ze in korte periodes van ongeveer 10 seconden met daartussen een rustpauze van een halve minuut of meer waarin niets beweegt en de app niets tekent; tijdens het bewegen rekent ze nog maar 30 keer per seconde. Dat spaart de processor en de grafische kaart van de pc.
+- Zolang het spelletje Blitz Run open staat, staat de versiering stil, zodat het spel en de versiering niet tegelijk de computer bezighouden.
+- De mist onderaan het scherm drijft niet meer heen en weer (dat was nauwelijks te zien, maar hield de pc voortdurend bezig).
+- De achtergrondscène staat nu als een losse, vaste laag achter de app, zodat wijzigingen elders op het scherm ze niet opnieuw laten tekenen.
+
 ## [2.1.2] — 2026-10-13
 
 ### Added
