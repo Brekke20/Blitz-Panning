@@ -24,9 +24,8 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Het spel op een gsm vult nu bijna het hele scherm onder de balken. Het hele scherm is tikbaar: tik in de bovenste helft om te springen, houd in de onderste helft om te bukken (met een zachte aanduiding). Tijdens het spelen verdwijnen de keuze van de laadpaal en de uitleg, het beeld is scherper en liggend gebruikt het spel de volle breedte. Op een staande gsm staat een tip om het toestel te draaien.
 - De ronde plus-knoppen in de wachtrij zijn op de tablet weer echte cirkels (en blijven minstens 44 px groot om aan te raken).
 - Rapport op de tablet: het rapportvoorbeeld en het handtekeningvlak vullen nu de beschikbare hoogte van het scherm, de handtekening is veel groter en wordt scherp en op de juiste plek getekend.
-- Halloween-versiering op de computer: de app rekende en tekende de hele dag door, 60 keer per seconde, ook als er niets te zien veranderde (de kruipende spin, de vleermuis die stond te wachten, de hangende spinnen en de mist). Nu bewegen ze in korte periodes van ongeveer 10 seconden met daartussen een rustpauze van een halve minuut of meer waarin niets beweegt en de app niets tekent; tijdens het bewegen rekent ze nog maar 30 keer per seconde. Dat spaart de processor en de grafische kaart van de pc.
-- Zolang het spelletje Blitz Run open staat, staat de versiering stil, zodat het spel en de versiering niet tegelijk de computer bezighouden.
-- De mist onderaan het scherm drijft niet meer heen en weer (dat was nauwelijks te zien, maar hield de pc voortdurend bezig).
+- Halloween-versiering op de computer: de spin, de vleermuis, de hangende spinnen en de mist bewegen nog altijd doorlopend, maar de app tekent ze nu ongeveer 30 keer per seconde in plaats van 60 (de bewegingen blijven vloeiend). Dat spaart de processor en de grafische kaart van de pc.
+- Zolang het spelletje Blitz Run open staat of de pagina op de achtergrond staat, staat de versiering stil, zodat het spel en de versiering niet tegelijk de computer bezighouden.
 - De achtergrondscène staat nu als een losse, vaste laag achter de app, zodat wijzigingen elders op het scherm ze niet opnieuw laten tekenen.
 
 ## [Unreleased]

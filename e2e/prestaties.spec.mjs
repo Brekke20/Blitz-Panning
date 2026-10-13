@@ -3,7 +3,7 @@ import { test, expect, startApp } from './helpers.mjs';
 // v2.1.3 (prestaties): geen requestAnimationFrame-lus die blijft draaien als er niets beweegt.
 // - Blitz Run: na het sluiten draait er geen lus meer en blijven er geen toetsluisteraars achter (ook na 5 keer openen en sluiten).
 // - Versiering op aanraak/tablet: geen enkele lus.
-// - Versiering op de computer: ~30 beelden per seconde in een actieve periode, daarna een rustpauze zonder lus en met stilstaande animaties.
+// - Versiering op de computer: doorlopend, een timer-lus van ~30 beelden per seconde (geen rAF-lus); rust bij een open spel of verborgen tab.
 // De klok is de nepklok van startApp (page.clock): die vervangt ook requestAnimationFrame, dus tellen we op de nepversie,
 // die we na het laden omwikkelen (een kale `requestAnimationFrame(...)` in de app zoekt de naam bij elke oproep opnieuw op).
 
@@ -104,40 +104,66 @@ test.describe('versiering op een tablet (aanraak)', () => {
 });
 
 test.describe('versiering op de computer', () => {
-  test('een actieve periode rekent ~30 beelden per seconde, daarna volgt een rustpauze zonder lus en met stilstaande spinnen', async ({ page }) => {
+  // De timer-lus (setTimeout ~33 ms) vraagt geen requestAnimationFrame: hoogstens ~35 beelden-oproepen per seconde, zonder rustpauzes.
+  const telTimers = (page) => page.evaluate(() => {
+    if (window.__timerTeller) { window.__timerTeller.n = 0; return; }
+    const teller = { n: 0 };
+    window.__timerTeller = teller;
+    const origineel = window.setTimeout;
+    window.setTimeout = (f, ms, ...a) => { teller.n++; return origineel.call(window, f, ms, ...a); };
+  });
+  const timerAantal = (page) => page.evaluate(() => window.__timerTeller.n);
+  const kruiperX = (page) => page.locator('#ev-kruiper').evaluate((el) => el.style.transform);
+
+  test('beweegt doorlopend, hoogstens ~35 beeld-oproepen per seconde, zonder rustpauze', async ({ page }) => {
     await startApp(page, { query: '?test&versiering=aan' });
     await expect(page.locator('#ev-kruiper')).toHaveCount(1);
-    await telRaf(page);
-    await page.clock.runFor(2000);
-    const perSeconde = (await rafAantal(page)) / 2;
-    expect(perSeconde).toBeGreaterThan(20);
-    expect(perSeconde).toBeLessThan(36); // vroeger 60
-    // De eerste periode duurt 20 s (plus een eventuele vlucht van de vleermuis): daarna rust
-    const laag = page.locator('#event-laag');
-    for (let i = 0; i < 40 && !(await laag.evaluate(el => el.classList.contains('ev-rust'))); i++) await page.clock.runFor(1000);
-    await expect(laag).toHaveClass(/ev-rust/);
-    await expect(laag.locator('.ev-hang').first()).toHaveCSS('animation-play-state', 'paused');
-    await telRaf(page);
-    await page.clock.runFor(20000); // de rust duurt minstens 25 s
-    expect(await rafAantal(page)).toBe(0);
-    expect(await page.evaluate(() => document.getAnimations().filter(a => a.playState === 'running' && a.effect?.target?.closest?.('#event-laag, #event-achtergrond')).length)).toBe(0);
-    // Na de rust (hoogstens 45 s) beweegt alles weer
-    for (let i = 0; i < 30 && (await laag.evaluate(el => el.classList.contains('ev-rust'))); i++) await page.clock.runFor(1000);
-    await expect(laag).not.toHaveClass(/ev-rust/);
-    await telRaf(page);
     await page.clock.runFor(1000);
-    expect(await rafAantal(page)).toBeGreaterThan(20);
+    await telRaf(page);
+    await telTimers(page);
+    await page.clock.runFor(5000);
+    expect(await rafAantal(page)).toBe(0); // geen rAF-lus meer
+    const perSeconde = (await timerAantal(page)) / 5;
+    expect(perSeconde).toBeGreaterThan(20);
+    expect(perSeconde).toBeLessThanOrEqual(35);
+    // Doorlopend: ook na 45 seconden (de oude rustpauze begon na 20 s) beweegt de spin nog
+    await page.clock.runFor(45000);
+    const voor = await kruiperX(page);
+    await page.clock.runFor(2000);
+    expect(await kruiperX(page)).not.toBe(voor);
+    await expect(page.locator('#event-laag')).not.toHaveClass(/ev-gepauzeerd/);
+    // De CSS-animaties lopen in stappen
+    await expect(page.locator('#event-laag .ev-hang').first()).toHaveCSS('animation-timing-function', /steps/);
+    await expect(page.locator('#event-laag .ev-mist')).toHaveCSS('animation-timing-function', /steps/);
   });
 
-  test('zolang Blitz Run open staat, rust de versiering', async ({ page }) => {
+  test('zolang Blitz Run open staat, rust de versiering; daarna beweegt ze weer', async ({ page }) => {
     await startApp(page, { query: '?test&versiering=aan' });
     await page.clock.runFor(1000);
-    await expect(page.locator('#event-laag')).not.toHaveClass(/ev-rust/);
     await tikVijf(page);
     await expect(overlay(page)).toHaveClass(/open/);
     await page.clock.runFor(1000);
-    // Midden in een vlucht van de vleermuis wacht de rust tot ze weg is (hoogstens enkele seconden)
-    for (let i = 0; i < 20 && !(await page.locator('#event-laag.ev-rust').count()); i++) await page.clock.runFor(1000);
-    await expect(page.locator('#event-laag')).toHaveClass(/ev-rust/);
+    await expect(page.locator('#event-laag')).toHaveClass(/ev-gepauzeerd/);
+    const stil = await kruiperX(page);
+    await page.clock.runFor(3000);
+    expect(await kruiperX(page)).toBe(stil);
+    await page.keyboard.press('Escape');
+    await expect(overlay(page)).not.toHaveClass(/open/);
+    await page.clock.runFor(2000);
+    await expect(page.locator('#event-laag')).not.toHaveClass(/ev-gepauzeerd/);
+    expect(await kruiperX(page)).not.toBe(stil);
+  });
+
+  test('een verborgen tab laat de versiering rusten', async ({ page }) => {
+    await startApp(page, { query: '?test&versiering=aan' });
+    await page.clock.runFor(1000);
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(page.locator('#event-laag')).toHaveClass(/ev-gepauzeerd/);
+    const stil = await kruiperX(page);
+    await page.clock.runFor(3000);
+    expect(await kruiperX(page)).toBe(stil);
   });
 });

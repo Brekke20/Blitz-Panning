@@ -19,22 +19,22 @@
 .ev-web-br { bottom: 0; right: 0; transform: scale(-1, -1); width: 90px; height: 90px; }
 
 .ev-spin { display: block; width: 22px; height: 22px; color: var(--ev-spin); fill: currentColor; }
-.ev-hang { position: absolute; top: var(--ev-top, var(--topbar-h, 96px)); width: 22px; animation: ev-zak 10s ease-in-out infinite; will-change: transform; }
+.ev-hang { position: absolute; top: var(--ev-top, var(--topbar-h, 96px)); width: 22px; animation: ev-zak 10s steps(var(--st, 150)) infinite; will-change: transform; }
 .ev-draad { display: block; width: 1px; height: var(--l, 70px); margin: 0 auto; background: var(--ev-web); }
 .ev-kruiper { position: absolute; top: calc(var(--ev-top, var(--topbar-h, 96px)) - 12px); left: 0; opacity: 0.9; will-change: transform; }
 .ev-vleermuis { position: absolute; top: 0; left: 0; width: 34px; height: 22px; color: var(--ev-spin);
   fill: currentColor; opacity: 0; will-change: transform, opacity; } /* baan en vleugelslag: JS (evenement-laag.js) */
 .ev-mist { position: absolute; left: -10%; right: -10%; bottom: 0; height: 80px;
   background: radial-gradient(ellipse at 20% 100%, rgba(249, 115, 22, 0.08), transparent 60%),
-              radial-gradient(ellipse at 75% 100%, rgba(170, 180, 190, 0.08), transparent 60%); }
-/* v2.1.3: de mist drijft niet meer (een eindeloze animatie over de volle breedte hield de pagina 60 beelden per seconde bezig,
-   voor een verschuiving van enkele procenten die nauwelijks te zien was). */
+              radial-gradient(ellipse at 75% 100%, rgba(170, 180, 190, 0.08), transparent 60%);
+  animation: ev-drift 45s steps(90) infinite alternate; }
+/* v2.1.3: CSS-animaties in stappen (steps): de spinnen ~30 per seconde, de mist 2 per seconde (een trage drift), zodat de browser
+   niet 60 beelden per seconde aanmaakt. Stilstaan doen ze via .ev-gepauzeerd (verborgen tab of spel open). */
 
+@keyframes ev-drift { from { transform: translateX(-4%); } to { transform: translateX(4%); } }
 @keyframes ev-zak { 0%, 100% { transform: translateY(-36px); } 50% { transform: translateY(0); } }
 
 #event-laag.ev-gepauzeerd .ev-beweeg { animation-play-state: paused; }
-/* Rustpauze (evenement-laag.js, v2.1.3): de hangende spinnen staan stil zodat de pagina geen beelden aanmaakt */
-#event-laag.ev-rust .ev-beweeg { animation-play-state: paused; }
 
 /* Geen beweging bij reduced-motion (de JS bouwt de bewegende delen dan niet; dit is de tweede lijn) */
 @media (prefers-reduced-motion: reduce) { .ev-beweeg { display: none !important; } }
