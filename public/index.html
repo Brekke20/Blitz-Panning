@@ -16,7 +16,16 @@
   <script>
     // Thema toepassen voor eerste render (voorkomt flash)
     (function(){
-      const t = localStorage.getItem('blitz_theme') || 'dark';
+      let t = localStorage.getItem('blitz_theme') || 'dark';
+      // Halloween (1 tot 31 oktober, Belgische dag): standaard donker, tenzij het toestel tijdens het evenement zelf iets koos
+      // (blitz_theme_halloween_<jaar>). Spiegel van kern/versiering-thema.js; enkel als de versiering aan staat (en in ?test enkel met versiering=aan).
+      try {
+        const q = new URLSearchParams(location.search);
+        if ((!q.has('test') || q.get('versiering') === 'aan') && localStorage.getItem('blitz_versiering') !== 'uit') {
+          const d = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels', year: 'numeric', month: '2-digit' }).formatToParts(new Date()).map(p => [p.type, p.value]));
+          if (d.month === '10') t = localStorage.getItem('blitz_theme_halloween_' + d.year) === 'light' ? 'light' : 'dark';
+        }
+      } catch (e) {}
       document.documentElement.setAttribute('data-theme', t);
       document.getElementById('meta-theme-color')?.setAttribute('content', t === 'light' ? '#f5f6f7' : '#181e24');
     })();
@@ -83,6 +92,8 @@
   <link rel="modulepreload" href="/js/kern/instellingen-sync.js">
   <link rel="modulepreload" href="/js/kern/mailcontrole.js">
   <link rel="modulepreload" href="/js/schermen/evenement-laag.js">
+  <link rel="modulepreload" href="/js/schermen/evenement-scene.js">
+  <link rel="modulepreload" href="/js/kern/versiering-thema.js">
   <link rel="modulepreload" href="/js/kern/versiering-logica.js">
   <link rel="modulepreload" href="/js/kern/evenementen.js">
   <link rel="modulepreload" href="/js/kern/toestand.js">

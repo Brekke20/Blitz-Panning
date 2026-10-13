@@ -50,5 +50,18 @@ html[data-event-sober="ja"] .ev-web-bl, html[data-event-sober="ja"] .ev-web-br {
   :root[data-event="halloween"][data-theme="light"] { --accent: #c2570c; --accent-dim: rgba(194, 87, 12, 0.12); --accent-glow: rgba(194, 87, 12, 0.22); }
 }
 
+/* Achtergrondscène (boerderij, maan, vogelverschrikkers): vast, onder alle inhoud, nooit klikbaar. De html behoudt de themakleur;
+   enkel de body wordt doorzichtig zodat de scène in de lege vlakken zichtbaar is (kaarten, balken en vensters houden hun eigen vlak). */
+#event-achtergrond { display: none; }
+@media screen {
+  :root[data-event="halloween"] body { background: transparent; }
+  :root[data-event="halloween"] #event-achtergrond {
+    display: block; position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; user-select: none;
+  }
+  #event-achtergrond svg { display: block; width: 100%; height: 100%; }
+  /* Licht thema: dezelfde scène als vage schemering, zodat tekst leesbaar blijft */
+  :root[data-theme="light"] #event-achtergrond { opacity: 0.2; }
+}
+
 /* Nooit in print of in een PDF */
-@media print { #event-laag { display: none !important; } }
+@media print { #event-laag, #event-achtergrond { display: none !important; } }

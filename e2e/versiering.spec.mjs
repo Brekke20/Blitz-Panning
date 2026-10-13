@@ -193,3 +193,122 @@ test.describe('versiering op een telefoon (aanraak, smal)', () => {
     expect(await page.evaluate(() => document.getAnimations().filter(a => a.effect?.target?.closest?.('#event-laag')).length)).toBe(0);
   });
 });
+
+// v2.1.2: achtergrondscène (#event-achtergrond) en donker thema als standaard tijdens het evenement
+const achter = (page) => page.locator('#event-achtergrond');
+const themaVan = (page) => page.locator('html').getAttribute('data-theme');
+const zetLicht = (page) => page.addInitScript(() => { if (window === window.top && localStorage.getItem('blitz_theme') === null) localStorage.setItem('blitz_theme', 'light'); });
+const wissel = (page) => page.getByRole('button', { name: 'Wissel licht/donker' });
+
+test.describe('achtergrondscène en thema tijdens het evenement', () => {
+  test('de scène bestaat: aria-hidden, niet klikbaar, vast achter alles, één inline SVG zonder netwerk', async ({ page }) => {
+    await startApp(page, { query: AAN });
+    await expect(achter(page)).toHaveCount(1);
+    await expect(achter(page)).toHaveAttribute('aria-hidden', 'true');
+    await expect(achter(page)).toHaveCSS('pointer-events', 'none');
+    await expect(achter(page)).toHaveCSS('position', 'fixed');
+    await expect(achter(page)).toHaveCSS('z-index', '-1');
+    await expect(achter(page).locator('svg')).toHaveCount(1);
+    expect(await achter(page).locator('image, [src]').count()).toBe(0);
+    // De body is doorzichtig zodat de scène zichtbaar is
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+    expect(await achter(page).locator('use').count()).toBeGreaterThanOrEqual(2); // vogelverschrikkers
+  });
+
+  test('de scène ligt achter de inhoud: een kaart is het element op zijn plek', async ({ page }) => {
+    await startApp(page, { query: AAN });
+    const kaart = page.locator('#view-tickets .ticket').first();
+    await expect(kaart).toBeVisible();
+    const box = await kaart.boundingBox();
+    const geraakt = await page.evaluate(({ x, y }) => { const el = document.elementFromPoint(x, y); return { inScene: !!el?.closest('#event-achtergrond'), inKaart: !!el?.closest('.ticket') }; }, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+    expect(geraakt).toEqual({ inScene: false, inKaart: true });
+    expect(await kaart.evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+  });
+
+  test('in print is de scène verborgen', async ({ page }) => {
+    await startApp(page, { query: AAN });
+    await expect(achter(page)).toBeVisible();
+    await page.emulateMedia({ media: 'print' });
+    await expect(achter(page)).toBeHidden();
+    await page.emulateMedia({ media: 'screen' });
+    await expect(achter(page)).toBeVisible();
+  });
+
+  test('met de schakelaar uit is de scène weg en is de body weer gewoon gevuld', async ({ page }) => {
+    await startApp(page, { query: AAN });
+    const modal = await openToestel(page);
+    await modal.getByLabel('Versiering tonen tijdens feestperiodes').uncheck();
+    await expect(achter(page)).toHaveCount(0);
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+  });
+
+  test('na het einde van het evenement verdwijnt de scène (minuutcontrole)', async ({ page }) => {
+    await startApp(page, { query: AAN, nu: '2026-10-31T23:58:30+01:00' });
+    await expect(achter(page)).toHaveCount(1);
+    await page.clock.fastForward(150000);
+    await expect(achter(page)).toHaveCount(0);
+  });
+
+  test('een toestel dat licht bewaard heeft, ziet tijdens het evenement donker, en blitz_theme blijft onaangeroerd', async ({ page }) => {
+    await zetLicht(page);
+    await startApp(page, { query: AAN });
+    expect(await themaVan(page)).toBe('dark');
+    expect(await page.evaluate(() => localStorage.getItem('blitz_theme'))).toBe('light');
+  });
+
+  test('wisselen tijdens het evenement bewaart in blitz_theme_halloween_<jaar>, niet in blitz_theme; blijft na herladen', async ({ page }) => {
+    await zetLicht(page);
+    await startApp(page, { query: AAN });
+    await wissel(page).click();
+    expect(await themaVan(page)).toBe('light');
+    expect(await page.evaluate(() => localStorage.getItem('blitz_theme_halloween_2026'))).toBe('light');
+    await page.reload();
+    await expect(page.locator('#cnt-tickets')).toBeVisible();
+    expect(await themaVan(page)).toBe('light');
+    await wissel(page).click();
+    expect(await themaVan(page)).toBe('dark');
+    expect(await page.evaluate(() => localStorage.getItem('blitz_theme_halloween_2026'))).toBe('dark');
+    expect(await page.evaluate(() => localStorage.getItem('blitz_theme'))).toBe('light');
+  });
+
+  test('een donker toestel dat tijdens het evenement licht kiest, wijzigt blitz_theme niet', async ({ page }) => {
+    await startApp(page, { query: AAN });
+    await wissel(page).click();
+    expect(await themaVan(page)).toBe('light');
+    expect(await page.evaluate(() => localStorage.getItem('blitz_theme'))).toBe('dark');
+  });
+
+  test('met de versiering uit geldt het eigen opgeslagen (lichte) thema weer', async ({ page }) => {
+    await zetLicht(page);
+    await startApp(page, { query: AAN });
+    expect(await themaVan(page)).toBe('dark');
+    const modal = await openToestel(page);
+    await modal.getByLabel('Versiering tonen tijdens feestperiodes').uncheck();
+    await expect.poll(() => themaVan(page)).toBe('light');
+    await modal.getByLabel('Versiering tonen tijdens feestperiodes').check();
+    await expect.poll(() => themaVan(page)).toBe('dark');
+  });
+
+  test('buiten het evenement geldt het opgeslagen lichte thema, ook met de vlag', async ({ page }) => {
+    await zetLicht(page);
+    await startApp(page, { query: AAN, nu: '2026-09-15T09:00:00+02:00' });
+    expect(await themaVan(page)).toBe('light');
+    await expect(achter(page)).toHaveCount(0);
+  });
+
+  test('in ?test zonder de vlag geldt het opgeslagen lichte thema, ook in oktober', async ({ page }) => {
+    await zetLicht(page);
+    await startApp(page);
+    expect(await themaVan(page)).toBe('light');
+  });
+});
+
+test.describe('achtergrondscène op een telefoon', () => {
+  test.use({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true });
+  test('de scène staat er ook, toont het rechterdeel en blokkeert niets', async ({ page }) => {
+    await startApp(page, { query: AAN, viewport: { width: 375, height: 812 } });
+    await expect(achter(page)).toHaveCount(1);
+    await expect(achter(page).locator('svg')).toHaveAttribute('preserveAspectRatio', 'xMaxYMax slice');
+    await expect(achter(page)).toHaveCSS('pointer-events', 'none');
+  });
+});

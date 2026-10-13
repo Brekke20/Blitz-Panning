@@ -15,6 +15,16 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [2.1.2] — nog niet uitgebracht
+
+### Added
+- Halloween: een spookachtige achtergrond met een boerderij en een schuur op een heuvel, een volle maan, sterren, een dode boom, een hek, vleermuizen en vogelverschrikkers in het veld, 's nachts. Ze staat vast achter alles, verdwijnt met het thema (schakelaar uit of einde van het evenement) en wordt nooit afgedrukt. Kaarten, balken en vensters blijven gewoon leesbaar; in het lichte thema is de scène slechts vaag zichtbaar.
+- Tijdens Halloween staat de app standaard in het donkere thema, ook als je toestel op licht stond. Kies je tijdens het evenement zelf een thema, dan blijft die keuze tot het einde gelden; je gewone themakeuze blijft onaangeroerd en geldt weer na het evenement of met de versiering uit.
+
+### Fixed
+- Kalender: de versiering begint nu onder de werkbalk in plaats van midden in het uurrooster.
+- De vleermuis vliegt wisselende, golvende banen en vlucht weg van de muis.
+
 ## [2.1.1] — 2026-10-13
 
 ### Changed

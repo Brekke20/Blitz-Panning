@@ -82,3 +82,54 @@ test('lege teksten: themateksten enkel waar gedefinieerd', () => {
   assert.equal(legeTekst('halloween', 'onbekend', 'standaard'), 'standaard');
   assert.equal(legeTekst('kerst', 'wachtrij', 'standaard'), 'standaard');
 });
+
+// v2.1.2: kern/versiering-thema.js en schermen/evenement-scene.js
+import { kiesThema, bewaarThemaKeuze, eventThemaSleutel } from '../public/js/kern/versiering-thema.js';
+import { sceneSvg, sterren, kijkvenster } from '../public/js/schermen/evenement-scene.js';
+
+const themaOpslag = (init = {}) => { const m = new Map(Object.entries(init)); return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, v), m }; };
+
+test('thema: tijdens het evenement standaard donker, ook bij opgeslagen licht', () => {
+  const opslag = themaOpslag({ blitz_theme: 'light' });
+  assert.equal(kiesThema({ actief: true, thema: 'halloween', jaar: 2026, opslag }), 'dark');
+});
+test('thema: een eigen keuze tijdens het evenement geldt, per jaar', () => {
+  const opslag = themaOpslag({ blitz_theme: 'dark', blitz_theme_halloween_2026: 'light' });
+  assert.equal(kiesThema({ actief: true, thema: 'halloween', jaar: 2026, opslag }), 'light');
+  assert.equal(kiesThema({ actief: true, thema: 'halloween', jaar: 2027, opslag }), 'dark');
+});
+test('thema: buiten het evenement geldt blitz_theme; kapotte of ontbrekende opslag geeft donker', () => {
+  assert.equal(kiesThema({ actief: false, jaar: 2026, opslag: themaOpslag({ blitz_theme: 'light' }) }), 'light');
+  assert.equal(kiesThema({ actief: false, jaar: 2026, opslag: themaOpslag() }), 'dark');
+  assert.equal(kiesThema({ actief: false, jaar: 2026, opslag: themaOpslag({ blitz_theme: 'rommel' }) }), 'dark');
+  assert.equal(kiesThema({ actief: true, thema: 'halloween', jaar: 2026, opslag: { getItem() { throw new Error('x'); } } }), 'dark');
+  assert.equal(kiesThema({ actief: false, jaar: 2026, opslag: null }), 'dark');
+});
+test('thema: een wissel tijdens het evenement gaat naar de eigen sleutel en laat blitz_theme staan', () => {
+  const opslag = themaOpslag({ blitz_theme: 'light' });
+  assert.equal(bewaarThemaKeuze({ actief: true, thema: 'halloween', jaar: 2026, opslag, keuze: 'dark' }), eventThemaSleutel('halloween', 2026));
+  assert.equal(opslag.m.get('blitz_theme_halloween_2026'), 'dark');
+  assert.equal(opslag.m.get('blitz_theme'), 'light');
+  const o2 = themaOpslag({ blitz_theme: 'dark' });
+  assert.equal(bewaarThemaKeuze({ actief: false, jaar: 2026, opslag: o2, keuze: 'light' }), 'blitz_theme');
+  assert.equal(o2.m.get('blitz_theme'), 'light');
+  assert.equal(bewaarThemaKeuze({ actief: false, jaar: 2026, opslag: { setItem() { throw new Error('x'); } }, keuze: 'light' }), null);
+});
+test('scène: sterren zijn vast en liggen in de bovenste helft, buiten de gloed van de maan', () => {
+  const a = sterren(), b = sterren();
+  assert.deepEqual(a, b);
+  assert.equal(a.length, 46);
+  for (const s of a) { assert.ok(s.y <= 430 && s.x >= 0 && s.x <= 1600); assert.ok(Math.hypot(s.x - 1380, s.y - 170) >= 150); }
+});
+test('scène: één svg, zonder netwerkverwijzingen of scripts, met verlicht raam en vier vogelverschrikkers', () => {
+  const s = sceneSvg();
+  assert.equal((s.match(/<svg/g) || []).length, 1);
+  assert.ok(!/https?:\/\/(?!www\.w3\.org)/.test(s) && !/<script|<image|onload|xlink/.test(s));
+  assert.ok(s.includes('#f97316'));
+  assert.equal((s.match(/<use href="#ev-vv"/g) || []).length, 4);
+});
+test('scène: een staand scherm toont het rechterdeel, een liggend scherm alles', () => {
+  assert.equal(kijkvenster(375, 812).uitlijning, 'xMaxYMax slice');
+  assert.equal(kijkvenster(1920, 1080).viewBox, '0 0 1600 900');
+  assert.equal(kijkvenster(0, 0).viewBox, '0 0 1600 900');
+});

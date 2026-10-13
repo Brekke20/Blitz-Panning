@@ -3,6 +3,8 @@
 // Wat dit bestand doet:
 //  - zet `data-event="halloween"` op <html> (css/evenement.css overschrijft dan enkel kleurvariabelen; enkel in `@media screen`);
 //  - bouwt één decoratielaag `#event-laag` (inline SVG, aria-hidden, pointer-events: none, geen netwerk, niet in print);
+//  - bouwt de achtergrondscène `#event-achtergrond` (inline SVG uit evenement-scene.js, onder alle inhoud, zelfde levensduur als de laag);
+//  - zet tijdens het evenement het donkere thema (eigen keuze apart bewaard; `blitz_theme` blijft onaangeroerd);
 //  - laat één spin langs de tabbalk kruipen met een rAF-lus (enkel met beweging; stopt bij een verborgen tab).
 // Op aanraak/gsm/tablet en bij prefers-reduced-motion bevat de laag GEEN bewegende elementen (ze worden niet eens gebouwd).
 // Raakt `document`/`window` enkel binnen functies (daarom een scherm-module en geen kern). Wijst geen `window`-namen toe.
@@ -11,6 +13,9 @@
 // 'versiering-gewijzigd' op window, zodat lege-tekst-lijsten zich hertekenen.
 import { TEST_MODE } from '../kern/omgeving.js';
 import { beslis, leesVoorkeur, bewaarVoorkeur, legeTekst } from '../kern/versiering-logica.js';
+import { belgischeDag } from '../kern/evenementen.js';
+import { kiesThema, bewaarThemaKeuze } from '../kern/versiering-thema.js';
+import { sceneSvg, kijkvenster } from './evenement-scene.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const WEB = '<path d="M0 0H100M0 0L90 40M0 0L70 70M0 0L40 90M0 0V100"/><path d="M22 0Q20 18 0 22M45 0Q40 40 0 45M70 0Q60 60 0 70M95 0Q80 80 0 95"/>';
@@ -18,6 +23,7 @@ const SPIN = '<ellipse cx="12" cy="13" rx="4" ry="5"/><circle cx="12" cy="7.5" r
 const VLEERMUIS = '<path d="M16 17c-2-3-4-6-9-7 1 2 1 4 0 6-2-1-5 0-7 2 3 0 5 1 6 3 1-1 3-1 4 1 1-2 3-3 6-3 3 0 5 1 6 3 1-2 3-2 4-1 1-2 3-3 6-3-2-2-5-3-7-2-1-2-1-4 0-6-5 1-7 4-9 7z" transform="translate(4 3)"/>';
 
 let laag = null;          // het element #event-laag (of null)
+let achtergrond = null;   // het element #event-achtergrond (de scène onder de inhoud), leeft en sterft samen met `laag`
 let laagSleutel = '';     // 'thema|beweging': bij wijziging wordt de laag opnieuw gebouwd
 let raf = 0;
 let kruiper = null;
@@ -220,9 +226,43 @@ function startKruiper() {
   raf = requestAnimationFrame(stapKruiper);
 }
 
+// De achtergrondscène (boerderij, maan, vogelverschrikkers): één inline SVG onder alle inhoud (css/evenement.css: z-index -1).
+function bouwAchtergrond() {
+  const el = document.createElement('div');
+  el.id = 'event-achtergrond';
+  el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = sceneSvg();
+  return el;
+}
+// Smal (staand) scherm: toon het rechterdeel van de scène (maan en boerderij); breed: alles. Bij het bouwen en bij een formaatwijziging.
+function pasKijkvenster() {
+  const s = achtergrond?.querySelector('svg');
+  if (!s) return;
+  const k = kijkvenster(window.innerWidth, window.innerHeight);
+  s.setAttribute('viewBox', k.viewBox);
+  s.setAttribute('preserveAspectRatio', k.uitlijning);
+}
+
+// Het thema (donker/licht) tijdens het evenement: zie kern/versiering-thema.js. Raakt `blitz_theme` nooit aan.
+function themaContext(b) {
+  return { actief: !!b.actief, thema: b.thema, jaar: belgischeDag(new Date()).jaar, opslag: opslag() };
+}
+function pasThemaToe(b) {
+  const t = kiesThema(themaContext(b));
+  const el = document.documentElement;
+  if (el.getAttribute('data-theme') !== t) el.setAttribute('data-theme', t);
+  document.getElementById('meta-theme-color')?.setAttribute('content', t === 'light' ? '#f5f6f7' : '#181e24');
+}
+// Een themawissel van de gebruiker (knop in de kop): tijdens het evenement in de eigen sleutel, anders in `blitz_theme`.
+export function bewaarThemaWissel(keuze) {
+  return bewaarThemaKeuze({ ...themaContext(beslis(invoer())), keuze });
+}
+
 function verwijderLaag() {
   stopKruiper();
   laag?.remove();
+  achtergrond?.remove();
+  achtergrond = null;
   laag = null; kruiper = null; vleermuis = null; laagSleutel = '';
   document.documentElement.removeAttribute('data-event');
 }
@@ -233,6 +273,7 @@ export function herbereken() {
   const b = beslis(invoer());
   const thema = b.actief ? b.thema : null;
   pasToe(b);
+  pasThemaToe(b);
   if (thema !== vorigThema) {
     const eerste = vorigThema === undefined;
     vorigThema = thema;
@@ -251,6 +292,10 @@ function pasToe(b) {
   laag = bouwLaag(b);
   laagSleutel = sleutel;
   document.body.appendChild(laag);
+  achtergrond?.remove();
+  achtergrond = bouwAchtergrond();
+  document.body.insertBefore(achtergrond, document.body.firstChild);
+  pasKijkvenster();
   kruiper = b.beweging ? laag.querySelector('#ev-kruiper') : null;
   vleermuis = b.beweging ? laag.querySelector('#ev-vleermuis') : null;
   vlucht.actief = false; vlucht.wachtTot = 0;
@@ -280,7 +325,7 @@ export function startVersiering() {
     if (document.hidden) stopKruiper();
     else { herbereken(); planMeting(); startKruiper(); } // na een tijd op de achtergrond kan de datum veranderd zijn
   });
-  w.addEventListener('resize', planMeting);
+  w.addEventListener('resize', () => { planMeting(); pasKijkvenster(); });
   document.addEventListener('click', planMeting, true); // een tabwissel verandert de vaste balk van het scherm
   if (!minuutTimer) minuutTimer = setInterval(() => { if (!document.hidden) { herbereken(); planMeting(); } }, 60000);
   w.addEventListener('keyup', planMeting, true); // tabwissel met het toetsenbord

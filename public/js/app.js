@@ -51,7 +51,7 @@ import * as persoonskiezer from './schermen/persoonskiezer.js';
 import { laadTab } from './kern/navigatie.js';
 import { eigenZohoNaam, huidigeRechten, huidigeGebruiker, magPlannenVoor } from './kern/sessie.js';
 import { installeerTijdPicker } from './kern/tijd-picker.js';
-import { startVersiering } from './schermen/evenement-laag.js';
+import { startVersiering, bewaarThemaWissel } from './schermen/evenement-laag.js';
 import { actieveEvenementen } from './kern/evenementen.js';
 import { installeerSpelOpening } from './spel/spel-opening.js';
 
@@ -918,7 +918,7 @@ function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
   const next    = current === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('blitz_theme', next);
+  bewaarThemaWissel(next); // tijdens een evenement in de eigen sleutel, anders blitz_theme
   document.getElementById('meta-theme-color')
     ?.setAttribute('content', next === 'light' ? '#f5f6f7' : '#181e24');
 }
