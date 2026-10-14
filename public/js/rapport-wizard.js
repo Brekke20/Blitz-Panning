@@ -1263,10 +1263,10 @@ export function buildRapportHtml() {
   table.parts tr{break-inside:avoid;page-break-inside:avoid}
   table.parts th{background:#f5f5f5;border:1px solid #ddd;padding:4px 7px;font-size:7.5pt;text-transform:uppercase;letter-spacing:.05em;text-align:left}
   table.parts td{border:1px solid #ddd;padding:4px 7px}
-  .status-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px}
+  .status-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;break-inside:avoid;page-break-inside:avoid}
   .status-cell{background:#f7f8f9;border:1px solid #e8e8e8;border-radius:4px;padding:6px 9px;font-size:9pt}
-  .sig-row{display:flex;gap:20px;margin-top:7px}
-  .sig-box{flex:1;border:1px solid #ccc;border-radius:3px;padding:7px 9px;min-height:105px}
+  .sig-row{display:flex;gap:20px;margin-top:7px;break-inside:avoid;page-break-inside:avoid}
+  .sig-box{flex:1;break-inside:avoid;page-break-inside:avoid;border:1px solid #ccc;border-radius:3px;padding:7px 9px;min-height:105px}
   .sig-box-title{font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;margin-bottom:7px}
   .foto-report-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px}
   .foto-report-item{border:1px solid #e0e0e0;border-radius:4px;padding:4px;background:#fafafa;break-inside:avoid;page-break-inside:avoid}

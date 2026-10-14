@@ -252,7 +252,10 @@ function toonInVenster(win, html) {
   win.document.write(
     '<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8">' +
     '<title>Service rapport</title>' +
-    '<style>html,body{margin:0;padding:0;background:#fff}iframe{display:block;width:100%;border:0}</style>' +
+    '<style>html,body{margin:0;padding:0;background:#fff}iframe{display:block;width:100%;border:0}' +
+    // Afdrukken: de iframe (één hoog, ondeelbaar vlak) wordt door de browser willekeurig op de paginagrens doorgesneden, ook midden in
+    // het handtekeningenblok. Bij het afdrukken staat daarom een inerte kopie van het rapport in het venster zelf (zie bouwDrukKopie).
+    '#druk-kopie{display:none}@media print{iframe{display:none!important}#druk-kopie{display:block}}</style>' +
     '</head><body></body></html>'
   );
   win.document.close();
@@ -268,6 +271,37 @@ function toonInVenster(win, html) {
   });
   win.document.body.appendChild(frame);
   frame.srcdoc = html;
+  try {
+    const kopie = bouwDrukKopie(win, html);
+    if (kopie) win.document.body.appendChild(kopie);
+  } catch { /* geen drukkopie: het afdrukken valt terug op de iframe */ }
+}
+
+// Inerte kopie van de rapport-HTML voor het afdrukken, in een shadow-root van het venster zelf zodat de pagina-einderegels
+// (break-inside: avoid) gelden. De HTML komt uit niet-geauthenticeerde opslag: eerst door DOMParser (inert, geen scripts), dan
+// zonder script, iframe, formulier, link en alle on*-attributen en javascript:-adressen. Geeft null zonder DOMParser/shadow-DOM.
+export function bouwDrukKopie(win, html) {
+  if (typeof win.DOMParser !== 'function') return null;
+  const doc = new win.DOMParser().parseFromString(html, 'text/html');
+  const stijl = [...doc.querySelectorAll('style')].map(s => s.textContent).join(' ')
+    .replace(/@import[^;]*;/gi, '')
+    .replace(/(^|[}\s,])(?:html|body)(?=\s*[{,])/gi, '$1:host');
+  doc.querySelectorAll('script,style,iframe,frame,object,embed,form,base,meta,link,noscript,template').forEach(n => n.remove());
+  for (const el of doc.body.querySelectorAll('*')) {
+    for (const a of [...el.attributes]) {
+      const naam = a.name.toLowerCase();
+      if (naam.startsWith('on') || /^\s*javascript:/i.test(a.value)) el.removeAttribute(a.name);
+    }
+  }
+  const host = win.document.createElement('div');
+  host.id = 'druk-kopie';
+  if (typeof host.attachShadow !== 'function') return null;
+  const wortel = host.attachShadow({ mode: 'closed' });
+  const st = win.document.createElement('style');
+  st.textContent = ':host{display:block} ' + stijl;
+  wortel.appendChild(st);
+  for (const k of [...doc.body.childNodes]) wortel.appendChild(win.document.importNode(k, true));
+  return host;
 }
 
 // "Openen"-knop op de archiefkaarten: één delegatie op de pagina (data-actie); de knoppen worden bij elke render opnieuw opgebouwd.

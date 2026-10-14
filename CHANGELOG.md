@@ -15,6 +15,11 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [2.1.5] — nog niet uitgebracht
+
+### Fixed
+- Bij het openen en afdrukken van een rapport uit het archief werden de vakken voor de handtekeningen soms in twee gesneden over twee pagina's; het hele blok Handtekeningen blijft nu bij elkaar op één pagina.
+
 ## [2.1.4] — 2026-10-14
 
 ### Changed
