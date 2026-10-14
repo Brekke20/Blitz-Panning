@@ -36,8 +36,12 @@ export function bouwDagItems({ tickets, eigen, blokkeringen, werktijdMin }) {
 // Eerstvolgende werkdag vanaf `van` ('YYYY-MM-DD') waar `heeftPlaats(dag)` waar is; null als er binnen 60 dagen geen is.
 // `nu`: Date (enkel de dag telt). De zoektocht loopt gewoon door naar volgende weken: zit de week vol, dan wordt het de eerste dag
 // van een volgende week met echte vrije tijd (Brent-besluit, proefperiode).
-export function volgendeBeschikbareDag(van, { nu, werkdagen, heeftPlaats }) {
+// `voorkeur` ('YYYY-MM-DD', optioneel): de voorkeursdatum van de klant. Ligt die later dan `van` (en niet in het verleden), dan
+// begint de zoektocht op die dag: het ticket komt op de voorkeursdag, of (is die vol of geen werkdag) op de eerste dag erna met
+// plaats, nooit vroeger dan de klant vroeg (v2.1.5, ticket #3964: "+" negeerde de voorkeursdatum en koos vandaag).
+export function volgendeBeschikbareDag(van, { nu, werkdagen, heeftPlaats, voorkeur = null }) {
   const today = new Date(nu); today.setHours(0,0,0,0);
+  if (voorkeur && /^\d{4}-\d{2}-\d{2}$/.test(voorkeur) && voorkeur > van && voorkeur >= localISO(today)) van = voorkeur;
   const d = new Date(van + 'T12:00:00');
   for (let i = 0; i < 60; i++) {
     if (d >= today) {
@@ -63,7 +67,7 @@ export function capaciteitsKop({ aantal, cap, duurMinuten, travelMin }) {
 // Afhankelijkheden uit app.js (ingevuld door initCapaciteit); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('capaciteit: initCapaciteit() is niet aangeroepen'); } });
 export function initCapaciteit(afhankelijkheden) {
-  afh = strengeAfh('capaciteit', afhankelijkheden); // { duurVoor, werktijdMin, kbPreferredTime }
+  afh = strengeAfh('capaciteit', afhankelijkheden); // { duurVoor, werktijdMin, kbPreferredTime, kbPreferred }
 }
 
 // De items van een dag uit de toestand (gefilterd op de gekozen technieker): bestaande stops, eigen afspraken en tijdvak-blokkeringen.
@@ -107,7 +111,8 @@ export function capacityForDay(datum) {
   });
 }
 
-// Eerstvolgende dag vanaf `van` waar een ticket echt past. `ticketId` (optioneel): duur van dat ticket en zijn voorkeursuur van de klant.
+// Eerstvolgende dag vanaf `van` waar een ticket echt past. `ticketId` (optioneel): duur van dat ticket, zijn voorkeursuur én zijn
+// voorkeursdatum van de klant (een latere voorkeursdatum is het vertrekpunt, zie volgendeBeschikbareDag).
 export function nextAvailableDay(van, ticketId = null) {
   const settings = toestand.get('settings');
   const nieuw = {
@@ -119,6 +124,7 @@ export function nextAvailableDay(van, ticketId = null) {
     nu: new Date(),
     werkdagen: settings.werkdagen,
     heeftPlaats: dag => !!plekOpDag(dag, nieuw),
+    voorkeur: ticketId != null ? afh.kbPreferred(ticketId) : null,
   });
 }
 

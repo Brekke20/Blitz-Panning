@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Brussels';
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { bouwDagItems, volgendeBeschikbareDag, capaciteitsKop, initCapaciteit, eersteVrijUur } from '../public/js/schermen/capaciteit.js';
+import { bouwDagItems, volgendeBeschikbareDag, capaciteitsKop, initCapaciteit, eersteVrijUur, nextAvailableDay } from '../public/js/schermen/capaciteit.js';
 import { plaatsNieuw, extraPlaatsen } from '../public/js/planner-tijdlijn.js';
 import { toestand } from '../public/js/kern/toestand.js';
 
@@ -60,6 +60,16 @@ test('volgendeBeschikbareDag: een volle week schuift door naar de eerste dag met
   assert.equal(volgendeBeschikbareDag('2026-10-05', { nu, werkdagen, heeftPlaats }), '2026-10-13');
 });
 
+// v2.1.5 (ticket #3964): "+" en "+ Voeg toe aan planning" lazen enkel het voorkeursUUR, niet de voorkeursDATUM.
+test('volgendeBeschikbareDag: een latere voorkeursdatum is het vertrekpunt van de zoektocht', () => {
+  assert.equal(volgendeBeschikbareDag('2026-10-05', { nu, werkdagen, heeftPlaats: () => true, voorkeur: '2026-10-16' }), '2026-10-16');
+  // Voorkeursdag vol: de eerste dag ná de voorkeur met plaats (nooit vroeger dan de klant vroeg).
+  assert.equal(volgendeBeschikbareDag('2026-10-05', { nu, werkdagen, heeftPlaats: d => d !== '2026-10-16', voorkeur: '2026-10-16' }), '2026-10-19');
+  // Voorkeur in het verleden, vóór `van` of leeg: genegeerd.
+  assert.equal(volgendeBeschikbareDag('2026-10-05', { nu, werkdagen, heeftPlaats: () => true, voorkeur: '2026-10-01' }), '2026-10-05');
+  assert.equal(volgendeBeschikbareDag('2026-10-05', { nu, werkdagen, heeftPlaats: () => true, voorkeur: null }), '2026-10-05');
+});
+
 test('volgendeBeschikbareDag: geen vrije dag in 60 dagen = null', () => {
   assert.equal(volgendeBeschikbareDag('2026-10-05', { nu, werkdagen, heeftPlaats: () => false }), null);
 });
@@ -109,8 +119,30 @@ function zaaiToestand({ planning = {}, avExceptions = [], localEvents = [] } = {
   toestand.set('planning', planning);
   toestand.set('avExceptions', avExceptions);
   toestand.set('localEvents', localEvents);
-  initCapaciteit({ duurVoor: () => 120, werktijdMin: werk, kbPreferredTime: () => null });
+  initCapaciteit({ duurVoor: () => 120, werktijdMin: werk, kbPreferredTime: () => null, kbPreferred: () => null });
 }
+
+// v2.1.5: de live gegevens van ticket #3964 (gelezen wo 14 okt 2026).
+test('nextAvailableDay: ticket #3964 met voorkeur vr 30 okt 14:00 komt op 30 okt, niet op vandaag', () => {
+  mock.timers.enable({ apis: ['Date'], now: new Date(2026, 9, 14, 9, 0).getTime() });
+  try {
+    const ID = '157486000012242020';
+    toestand.set('settings', { startlocatie: 'x', duurMinuten: 120, maxPerDag: 4, vanTijd: '08:00', totTijd: '17:00', laatsteStart: '16:00', werkdagen: [1, 2, 3, 4, 5], maxReistijdMin: 45, tijdslotMinuten: 180 });
+    toestand.set('activeAssigneeFilter', 'Brent Calaerts');
+    toestand.set('planning', {});
+    toestand.set('localEvents', []);
+    toestand.set('avExceptions', [
+      { id: 'g', scope: 'global', person: null, date: '2026-10-27', kind: 'fullday', from: null, to: null, reason: '' },
+      { id: 'b1', scope: 'person', person: 'Brent Calaerts', date: '2026-10-21', kind: 'range', from: '12:00', to: '17:00', reason: '' },
+      { id: 'b2', scope: 'person', person: 'Brent Calaerts', date: '2026-10-22', kind: 'fullday', from: null, to: null, reason: '' },
+    ]);
+    const kb = { [ID]: { voorkeur: '2026-10-30', voorkeurTijd: '14:00', geblokkeerd: [], notitie: '' } };
+    initCapaciteit({ duurVoor: () => 120, werktijdMin: werk, kbPreferredTime: id => kb[id]?.voorkeurTijd || null, kbPreferred: id => kb[id]?.voorkeur || null });
+    assert.equal(nextAvailableDay('2026-10-14', ID), '2026-10-30');
+    // Een ticket zonder voorkeur blijft op de eerstvolgende vrije dag.
+    assert.equal(nextAvailableDay('2026-10-14', 'ander'), '2026-10-14');
+  } finally { mock.timers.reset(); }
+});
 const stop = (id, uur) => ({ ticket: { id, assignee: 'Tim' }, address: 'x', uur });
 
 test('eersteVrijUur(datum): lege dag geeft vanTijd + reistijd', () => {
