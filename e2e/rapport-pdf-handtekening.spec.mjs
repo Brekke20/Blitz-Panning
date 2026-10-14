@@ -6,8 +6,9 @@ import { spawnSync } from 'node:child_process';
 
 // v2.1.5: het handtekeningenblok van het rapport mocht nooit over twee pagina's gesneden worden.
 // Oorzaak: "Openen" in het rapportarchief toonde het rapport in één hoge iframe; de browser sneed die willekeurig op de paginagrens
-// door en negeerde break-inside binnenin. Nu staat bij het afdrukken een inerte kopie in het venster zelf (rapport-archief.js,
-// bouwDrukKopie) en heeft ook het blok zelf break-inside: avoid (rapport-wizard.js, buildRapportHtml).
+// door en negeerde break-inside binnenin. Nu hangt enkel tussen beforeprint en afterprint een gefilterde kopie in het venster zelf
+// (rapport-archief.js, bouwDrukKopie; veiligheid: e2e/rapport-drukkopie-veilig.spec.mjs) en heeft ook het blok zelf break-inside: avoid
+// (rapport-wizard.js, buildRapportHtml). page.pdf() vuurt geen beforeprint af; de test doet dat zelf, zoals de browser bij Ctrl+P.
 // De test opent het rapport via het echte archiefvenster (echte window.open), drukt het af naar PDF in Chromium (page.pdf) en leest per
 // pagina de tekst en de afbeeldingen met PyMuPDF; ontbreekt python of PyMuPDF, dan slaat enkel dat deel over.
 
@@ -26,8 +27,8 @@ function leesPdf(bestand) {
   try { return JSON.parse(r.stdout.trim().split('\n').pop()); } catch { return null; }
 }
 
-// Bouwt het echte rapport (buildRapportHtml) met twee echte PNG-handtekeningen en een afstandhouder bovenaan die het blok
-// naar de paginagrens schuift.
+// Bouwt het echte rapport (buildRapportHtml) met twee echte PNG-handtekeningen. De afstandhouder bovenaan (lege regels: een style-
+// attribuut valt in de afdrukkopie weg) schuift het blok naar de paginagrens.
 async function bouwRapportHtml(page) {
   return page.evaluate(async () => {
     const m = await import('/js/rapport-wizard.js');
@@ -81,12 +82,17 @@ test.describe('rapport afdrukken: handtekeningenblok blijft heel', () => {
       await expect(knop).toHaveCount(1);
       let gecontroleerd = 0;
       for (let afstand = 0; afstand <= 450; afstand += 30) {
-        const metAfstand = html.replace('<div class="accent-bar"></div>', `<div class="accent-bar"></div><div style="height:${afstand}px"></div>`);
+        const metAfstand = html.replace('<div class="accent-bar"></div>', `<div class="accent-bar"></div><div>${'<br>'.repeat(afstand / 15)}</div>`);
         await page.evaluate((h) => { window.kern.rapportArchief.lijst()[0].rapportData._html = h; }, metAfstand);
         const [popup] = await Promise.all([page.waitForEvent('popup'), knop.click()]);
         await popup.waitForLoadState('load');
         await expect.poll(() => popup.evaluate(() => !!document.querySelector('iframe')?.contentDocument?.querySelector('.sig-row'))).toBe(true);
         await popup.emulateMedia({ media: 'print' });
+        await popup.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+        await expect.poll(() => popup.evaluate(() => {
+          const imgs = [...(document.getElementById('druk-kopie')?.shadowRoot?.querySelectorAll('img') ?? [])];
+          return imgs.length === 2 && imgs.every(i => i.complete && i.naturalWidth > 0);
+        })).toBe(true);
         const bestand = path.join(map, `r-${afstand}.pdf`);
         await popup.pdf({ path: bestand, format: 'A4', printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '0mm', right: '0mm' } });
         if (process.env.RAPPORT_PDF_UIT && afstand === Number(process.env.RAPPORT_PDF_AFSTAND ?? 150)) fs.copyFileSync(bestand, process.env.RAPPORT_PDF_UIT);

@@ -11,6 +11,8 @@ import { voorbeeldRapport } from './schermen/rapport-verzenden.js';
 import { fmtDate } from './kern/tijd.js';
 import { escHtml, toast } from './kern/ui.js';
 import { heeftRapportInhoud, haalRapportHtml } from './rapport-inhoud.js';
+import { schoonRapportHtml } from './kern/veilige-html.js';
+import { RAPPORT_CSS } from './rapport-stijl.js';
 import { statusBadgeHtml, opnieuwKnopHtml, opnieuwVersturen, toonMisluktMeldingen } from './rapport-status.js';
 
 export let _rapportArchief = [];
@@ -254,8 +256,8 @@ function toonInVenster(win, html) {
     '<title>Service rapport</title>' +
     '<style>html,body{margin:0;padding:0;background:#fff}iframe{display:block;width:100%;border:0}' +
     // Afdrukken: de iframe (één hoog, ondeelbaar vlak) wordt door de browser willekeurig op de paginagrens doorgesneden, ook midden in
-    // het handtekeningenblok. Bij het afdrukken staat daarom een inerte kopie van het rapport in het venster zelf (zie bouwDrukKopie).
-    '#druk-kopie{display:none}@media print{iframe{display:none!important}#druk-kopie{display:block}}</style>' +
+    // het handtekeningenblok. Daarom staat enkel tijdens het afdrukken een gefilterde kopie in het venster zelf (zie bouwDrukKopie).
+    '#druk-kopie{display:none}@media print{.met-drukkopie iframe{display:none!important}#druk-kopie{display:block}}</style>' +
     '</head><body></body></html>'
   );
   win.document.close();
@@ -271,36 +273,44 @@ function toonInVenster(win, html) {
   });
   win.document.body.appendChild(frame);
   frame.srcdoc = html;
-  try {
-    const kopie = bouwDrukKopie(win, html);
-    if (kopie) win.document.body.appendChild(kopie);
-  } catch { /* geen drukkopie: het afdrukken valt terug op de iframe */ }
+  let kopie = null;
+  try { kopie = bouwDrukKopie(win, html); } catch { kopie = null; /* geen drukkopie: het afdrukken valt terug op de iframe */ }
+  if (!kopie) return;
+  // De kopie wordt hier al opgebouwd (los van het document, zodat de handtekeningen al ingeladen zijn) maar hangt enkel tussen
+  // beforeprint en afterprint in het venster; op het scherm bestaat ze dus niet.
+  win.addEventListener('beforeprint', () => {
+    if (!kopie.isConnected) win.document.body.appendChild(kopie);
+    win.document.documentElement.classList.add('met-drukkopie');
+  });
+  win.addEventListener('afterprint', () => {
+    kopie.remove();
+    win.document.documentElement.classList.remove('met-drukkopie');
+  });
 }
 
-// Inerte kopie van de rapport-HTML voor het afdrukken, in een shadow-root van het venster zelf zodat de pagina-einderegels
-// (break-inside: avoid) gelden. De HTML komt uit niet-geauthenticeerde opslag: eerst door DOMParser (inert, geen scripts), dan
-// zonder script, iframe, formulier, link en alle on*-attributen en javascript:-adressen. Geeft null zonder DOMParser/shadow-DOM.
+// Afdrukstijl van de kopie: enkel de vertrouwde rapportstijl uit de code (rapport-stijl.js), nooit de stijl uit de opgeslagen HTML.
+// De kopie verliest de style-attributen van het rapport; de regels hieronder zetten het belangrijkste daarvan terug.
+export const DRUKKOPIE_CSS = RAPPORT_CSS.replace(/\bbody\{/, ':host{display:block;') +
+  '.sig-box img{display:block;max-width:220px;max-height:90px}' +
+  '.foto-report-item img{max-width:100%;border-radius:3px}' +
+  'table.parts td:last-child,table.parts th:last-child{text-align:right}' +
+  'table.parts:not(:has(thead)) tr:last-child{background:#111;color:#fff;font-weight:700}';
+
+// Afdrukkopie van de rapport-HTML in een shadow-root, zodat de pagina-einderegels (break-inside: avoid) gelden. De HTML komt uit
+// opslag die niet te vertrouwen is: kern/veilige-html.js bouwt er een nieuwe boom van met een strenge toelatingslijst (geen
+// scripts, links, stijl of externe bronnen; afbeeldingen enkel als data:image of /api/fotos). Geeft null zonder DOMParser of
+// shadow-DOM; het element is nog niet in het document gehangen.
 export function bouwDrukKopie(win, html) {
-  if (typeof win.DOMParser !== 'function') return null;
-  const doc = new win.DOMParser().parseFromString(html, 'text/html');
-  const stijl = [...doc.querySelectorAll('style')].map(s => s.textContent).join(' ')
-    .replace(/@import[^;]*;/gi, '')
-    .replace(/(^|[}\s,])(?:html|body)(?=\s*[{,])/gi, '$1:host');
-  doc.querySelectorAll('script,style,iframe,frame,object,embed,form,base,meta,link,noscript,template').forEach(n => n.remove());
-  for (const el of doc.body.querySelectorAll('*')) {
-    for (const a of [...el.attributes]) {
-      const naam = a.name.toLowerCase();
-      if (naam.startsWith('on') || /^\s*javascript:/i.test(a.value)) el.removeAttribute(a.name);
-    }
-  }
   const host = win.document.createElement('div');
-  host.id = 'druk-kopie';
   if (typeof host.attachShadow !== 'function') return null;
-  const wortel = host.attachShadow({ mode: 'closed' });
+  const inhoud = schoonRapportHtml(html, win);
+  if (!inhoud) return null;
+  host.id = 'druk-kopie';
+  const wortel = host.attachShadow({ mode: 'open' });
   const st = win.document.createElement('style');
-  st.textContent = ':host{display:block} ' + stijl;
+  st.textContent = DRUKKOPIE_CSS;
   wortel.appendChild(st);
-  for (const k of [...doc.body.childNodes]) wortel.appendChild(win.document.importNode(k, true));
+  wortel.appendChild(inhoud);
   return host;
 }
 
