@@ -20,6 +20,7 @@ body{background:url(https://evil.test/body.png)}</style>
 <svg onload="opener.__pwned=1"><a xlink:href="javascript:opener.__pwned=1"><text>s</text></a><animate attributeName="href" values="javascript:opener.__pwned=1"/><image href="https://evil.test/svg.png"/></svg>
 <math><mtext><table><mglyph><style><img src=x onerror="opener.__pwned=1"></style></mglyph></table></mtext></math>
 <div style="background:url(https://evil.test/bg.png)">achtergrond</div>
+<div style="position:fixed;inset:0;z-index:99;color:red">vast</div><div style="color:red;display:block">rood</div>
 <iframe srcdoc="&lt;script&gt;parent.opener.__pwned=1&lt;/script&gt;"></iframe>
 <form action="https://evil.test/f"><button formaction="javascript:opener.__pwned=1">f</button><input type="image" src="https://evil.test/in.png"></form>
 <img src="https://evil.test/a.png"><img src="https://evil.test/x" onerror="opener.__pwned=1"><img src="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=">
@@ -35,7 +36,7 @@ const SANDBOX_MELDINGEN = [
   /^console\.error: Blocked script execution in '(about:srcdoc|https:\/\/evil\.test\/[^']*)' because the document's frame is sandboxed and the 'allow-scripts' permission is not set\./,
   /^console\.error: Refused to refresh about:srcdoc to a javascript: URL \(about:srcdoc\)$/,
 ];
-const TOEGELATEN_ATTR = new Set(['class', 'colspan', 'rowspan', 'src', 'alt', 'width', 'height']);
+const TOEGELATEN_ATTR = new Set(['class', 'colspan', 'rowspan', 'style', 'src', 'alt', 'width', 'height']);
 
 test.describe('rapport afdrukken uit het archief: kopie is veilig', () => {
   test('kwaadaardige rapport-HTML: geen script, geen extern verzoek, kopie enkel tijdens het afdrukken', async ({ page, consoleFouten }) => {
@@ -80,6 +81,7 @@ test.describe('rapport afdrukken uit het archief: kopie is veilig', () => {
         namespaces: [...new Set(els.map(e => e.namespaceURI))],
         attrs: [...new Set(els.flatMap(e => [...e.attributes].map(a => a.name)))].sort(),
         srcs: [...wortel.querySelectorAll('img')].map(i => i.getAttribute('src')),
+        stijlen2: els.map(e => e.getAttribute('style')).filter(Boolean),
         tekst: wortel.textContent,
       };
     });
@@ -88,6 +90,7 @@ test.describe('rapport afdrukken uit het archief: kopie is veilig', () => {
     expect(inhoud.namespaces).toEqual(['http://www.w3.org/1999/xhtml']);
     expect(inhoud.attrs.every(a => TOEGELATEN_ATTR.has(a)), inhoud.attrs.join(',')).toBe(true);
     expect(inhoud.srcs).toEqual([`data:image/png;base64,${PNG}`]);
+    expect(inhoud.stijlen2.filter(st => /position|display|inset|z-index|url|background:/i.test(st))).toEqual([]);
     expect(inhoud.tekst).toContain('Handtekeningen');
     expect(inhoud.tekst).toContain('<script>opener.__pwned=1</script>'); // als tekst, niet als element
 
@@ -165,7 +168,12 @@ const GEVALLEN = [
   ['<template><img src=x onerror="window.__pwned=1"></template>t', 't'],
   ['<img src="https://evil.test/a.png" alt="a">', ''],
   ['<img srcset="https://evil.test/a.png 1x">', ''],
-  [`<img src="data:image/png;base64,${PNG}" onerror="window.__pwned=1" style="width:1px" alt="h">`, `<img alt="h" src="data:image/png;base64,${PNG}">`],
+  [`<img src="data:image/png;base64,${PNG}" onerror="window.__pwned=1" style="width:1px" alt="h">`, `<img style="width:1px" alt="h" src="data:image/png;base64,${PNG}">`],
+  ['<span style="text-decoration:line-through;color:#aaa;font-size:8pt">€ 345.00</span>', '<span style="text-decoration:line-through;color:#aaa;font-size:8pt">€ 345.00</span>'],
+  ['<span style="color:red;position:fixed;top:0">t</span>', '<span style="color:red">t</span>'],
+  ['<span style="color:u\\72l(https://evil.test/x)">t</span>', '<span>t</span>'],
+  ['<span style="color:red/**/;display:block">t</span>', '<span>t</span>'],
+  ['<span style="color:&quot;red&quot;">t</span>', '<span>t</span>'],
   ['<img src="/api/fotos?id=1&amp;n=a.jpg">', '<img src="/api/fotos?id=1&amp;n=a.jpg">'],
   ['<table><tr><td colspan="2" onclick="window.__pwned=1" style="x">a</td></tr></table>', '<table><tbody><tr><td colspan="2">a</td></tr></tbody></table>'],
   ['<div id="opener" name="x" is="y" tabindex="0" popover="">t</div>', '<div>t</div>'],

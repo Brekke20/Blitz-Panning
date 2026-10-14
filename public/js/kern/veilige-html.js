@@ -7,7 +7,8 @@
 // met enkel toegelaten elementen en attributen; er wordt nooit een bestaand element of een stuk HTML-tekst overgenomen.
 // - Elementen: enkel TAGS (HTML-namespace). SVG, MathML en alles in WEG_MET_INHOUD verdwijnt met inhoud; een ander onbekend
 //   element verdwijnt, maar zijn kinderen worden (zelf weer gefilterd) behouden.
-// - Attributen: enkel class, colspan en rowspan, plus bij img src/alt/width/height. Geen style, geen href, geen on*.
+// - Attributen: enkel class, colspan, rowspan en style (gefilterd per declaratie, zie veiligeStijl), plus bij img src/alt/width/
+//   height. Geen href, geen on*.
 // - img src: enkel data:image/(png|jpeg|webp|gif);base64,... of een pad onder /api/fotos van de eigen origin; anders weg.
 // - Tekst wordt als tekstknoop gemaakt (createTextNode), nooit als HTML.
 // De beslisregels (tagActie, veiligeImgSrc, veiligAttribuut) zijn puur en worden in node --test getest; schoonBoom werkt op
@@ -52,10 +53,76 @@ export function veiligeImgSrc(src) {
 const GETAL = /^\d{1,4}$/;
 const KLASSE = /^[A-Za-z0-9_\- ]{0,200}$/;
 
+// ── style-attribuut: strenge toelatingslijst per declaratie ──
+// De rapportopmaak die inhoud draagt (doorgestreept bedrag bij garantie, kleine/cursieve labels, uitlijning) moet blijven; alles
+// wat kan positioneren, verbergen, laden of uitvoeren valt weg. De uitvoer wordt opnieuw opgebouwd uit de geldige delen
+// (eigenschap in kleine letters, waarde als gecontroleerde tokens), nooit als de ruwe tekst overgenomen.
+const GETAL_EENHEID = /^(?:\d+(?:\.\d+)?|\.\d+)(?:px|em|rem|%|pt)?$/; // geen negatieve waarden
+const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/;
+const RGB = /^rgba?\(\s*(?:\d+(?:\.\d+)?|\.\d+)%?\s*(?:,\s*(?:\d+(?:\.\d+)?|\.\d+)%?\s*){2,3}\)$/;
+const SLEUTELWOORD = /^[a-z]+(?:-[a-z]+)*$/;
+// Wordt een van deze stukken in het hele attribuut gevonden, dan valt het volledige style-attribuut weg (geen poging tot herstel).
+const VERBODEN_IN_STIJL = /url|expression|var\(|attr\(|image|\\|\/\*|\*\/|@|<|>|["'`]|!|&|\{|\}/i;
+
+const SOORT = {
+  sleutel: (t) => SLEUTELWOORD.test(t),
+  getal: (t) => GETAL_EENHEID.test(t),
+  kleur: (t) => HEX.test(t) || RGB.test(t) || SLEUTELWOORD.test(t),
+};
+const DECORATIE = new Set(['line-through', 'underline', 'none']);
+// eigenschap -> { toegelaten tokens, max aantal tokens, tags (optioneel) }
+const STIJL_REGELS = new Map([
+  ['text-decoration', { ok: (t) => DECORATIE.has(t), max: 2 }],
+  ['text-decoration-line', { ok: (t) => DECORATIE.has(t), max: 2 }],
+  ['font-style', { ok: (t) => ['normal', 'italic', 'oblique'].includes(t), max: 1 }],
+  ['font-weight', { ok: (t) => ['normal', 'bold', 'bolder', 'lighter'].includes(t) || /^[1-9]00$/.test(t), max: 1 }],
+  ['font-size', { ok: (t) => SOORT.getal(t) || ['xx-small', 'x-small', 'small', 'medium', 'large', 'x-large', 'smaller', 'larger'].includes(t), max: 1 }],
+  ['color', { ok: SOORT.kleur, max: 1 }],
+  ['background-color', { ok: SOORT.kleur, max: 1 }],
+  ['text-align', { ok: (t) => ['left', 'right', 'center', 'justify', 'start', 'end'].includes(t), max: 1 }],
+  ['vertical-align', { ok: (t) => ['baseline', 'top', 'middle', 'bottom', 'sub', 'super', 'text-top', 'text-bottom'].includes(t) || SOORT.getal(t), max: 1 }],
+  ['white-space', { ok: (t) => ['normal', 'nowrap', 'pre', 'pre-wrap', 'pre-line'].includes(t), max: 1 }],
+  ['width', { ok: SOORT.getal, max: 1, tags: ['img', 'td', 'th'] }],
+  ['max-width', { ok: SOORT.getal, max: 1, tags: ['img', 'td', 'th'] }],
+]);
+const RANDSTIJLEN = ['none', 'solid', 'dashed', 'dotted', 'double', 'hidden'];
+function regelVoor(prop) {
+  if (STIJL_REGELS.has(prop)) return STIJL_REGELS.get(prop);
+  if (/^(?:padding|margin)(?:-(?:top|right|bottom|left))?$/.test(prop)) return { ok: SOORT.getal, max: 4 };
+  if (/^border(?:-(?:top|right|bottom|left))?$/.test(prop)) return { ok: (t) => SOORT.getal(t) || RANDSTIJLEN.includes(t) || SOORT.kleur(t), max: 3 };
+  if (/^border(?:-(?:top|right|bottom|left))?-width$/.test(prop)) return { ok: SOORT.getal, max: 4 };
+  if (/^border(?:-(?:top|right|bottom|left))?-style$/.test(prop)) return { ok: (t) => RANDSTIJLEN.includes(t), max: 4 };
+  if (/^border(?:-(?:top|right|bottom|left))?-color$/.test(prop)) return { ok: SOORT.kleur, max: 4 };
+  if (prop === 'border-radius') return { ok: SOORT.getal, max: 4 };
+  return null;
+}
+
+// Geeft de opnieuw opgebouwde style-waarde terug (enkel toegelaten declaraties), of null als er niets overblijft.
+export function veiligeStijl(tag, stijl) {
+  const s = String(stijl ?? '');
+  if (s.length > 2000 || VERBODEN_IN_STIJL.test(s)) return null;
+  const uit = [];
+  for (const decl of s.split(';')) {
+    if (!decl.trim()) continue;
+    const i = decl.indexOf(':');
+    if (i < 0) continue;
+    const prop = decl.slice(0, i).trim().toLowerCase();
+    if (!/^[a-z]+(?:-[a-z]+)*$/.test(prop)) continue;
+    const regel = regelVoor(prop);
+    if (!regel || (regel.tags && !regel.tags.includes(tag))) continue;
+    const waarde = decl.slice(i + 1).trim().toLowerCase();
+    const tokens = waarde.match(/rgba?\([^()]*\)|[^\s]+/g) || [];
+    if (!tokens.length || tokens.length > regel.max || !tokens.every(regel.ok)) continue;
+    uit.push(`${prop}:${tokens.join(' ')}`);
+  }
+  return uit.length ? uit.join(';') : null;
+}
+
 // Geeft de te zetten waarde terug, of null als het attribuut wegvalt. naam en tag in kleine letters.
 export function veiligAttribuut(tag, naam, waarde) {
   const v = String(waarde ?? '');
   switch (naam) {
+    case 'style': return veiligeStijl(tag, v);
     case 'class': return KLASSE.test(v) ? v : null;
     case 'colspan':
     case 'rowspan': return (tag === 'td' || tag === 'th') && GETAL.test(v) ? v : null;

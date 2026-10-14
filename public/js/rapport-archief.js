@@ -289,7 +289,8 @@ function toonInVenster(win, html) {
 }
 
 // Afdrukstijl van de kopie: enkel de vertrouwde rapportstijl uit de code (rapport-stijl.js), nooit de stijl uit de opgeslagen HTML.
-// De kopie verliest de style-attributen van het rapport; de regels hieronder zetten het belangrijkste daarvan terug.
+// Van de style-attributen blijft enkel de opmaak die kern/veilige-html.js toelaat (o.a. doorstrepen, lettergrootte, kleur); de
+// regels hieronder vervangen wat wegvalt (max-height en display van de handtekening, de achtergrond van de totaalrij).
 export const DRUKKOPIE_CSS = RAPPORT_CSS.replace(/\bbody\{/, ':host{display:block;') +
   '.sig-box img{display:block;max-width:220px;max-height:90px}' +
   '.foto-report-item img{max-width:100%;border-radius:3px}' +

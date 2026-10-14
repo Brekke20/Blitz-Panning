@@ -3,7 +3,7 @@
 // e2e/rapport-drukkopie-veilig.spec.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tagActie, veiligeImgSrc, veiligAttribuut, schoonBoom, TAGS } from '../public/js/kern/veilige-html.js';
+import { tagActie, veiligeImgSrc, veiligAttribuut, veiligeStijl, schoonBoom, TAGS } from '../public/js/kern/veilige-html.js';
 
 const HTML = 'http://www.w3.org/1999/xhtml';
 const SVG = 'http://www.w3.org/2000/svg';
@@ -38,7 +38,7 @@ test('veiligeImgSrc: enkel data:image (png/jpeg/webp/gif, base64) of /api/fotos'
   ]) assert.equal(veiligeImgSrc(slecht), null, String(slecht));
 });
 
-test('veiligAttribuut: enkel class/colspan/rowspan en bij img src/alt/width/height', () => {
+test('veiligAttribuut: enkel class/colspan/rowspan/style en bij img src/alt/width/height', () => {
   assert.equal(veiligAttribuut('div', 'class', 'sig-box'), 'sig-box');
   assert.equal(veiligAttribuut('div', 'class', 'a"b'), null);
   assert.equal(veiligAttribuut('td', 'colspan', '2'), '2');
@@ -49,7 +49,7 @@ test('veiligAttribuut: enkel class/colspan/rowspan en bij img src/alt/width/heig
   assert.equal(veiligAttribuut('img', 'width', '100%'), null);
   assert.equal(veiligAttribuut('img', 'src', PNG), PNG);
   assert.equal(veiligAttribuut('div', 'src', PNG), null);
-  for (const naam of ['style', 'href', 'xlink:href', 'onload', 'onerror', 'srcdoc', 'srcset', 'formaction', 'action', 'id', 'name',
+  for (const naam of ['href', 'xlink:href', 'onload', 'onerror', 'srcdoc', 'srcset', 'formaction', 'action', 'id', 'name',
     'background', 'poster', 'data', 'http-equiv', 'content', 'target', 'ping', 'is', 'slot', 'part', 'popover', 'tabindex']) {
     assert.equal(veiligAttribuut('div', naam, 'x'), null, naam);
     assert.equal(veiligAttribuut('img', naam, 'x'), null, 'img ' + naam);
@@ -84,7 +84,7 @@ test('schoonBoom: bouwt nieuwe knopen met enkel toegelaten tags en attributen', 
   const uit = bouw(el('div', { class: 'sig-box', style: 'position:fixed', onclick: 'x()', id: 'a' }, [
     tekst('Technieker'), el('img', { src: PNG, style: 'max-width:220px', onerror: 'x()' }),
   ]));
-  assert.equal(alsHtml(uit), `<div class=sig-box>#Technieker<img src=${PNG}></img></div>`);
+  assert.equal(alsHtml(uit), `<div class=sig-box>#Technieker<img style=max-width:220px src=${PNG}></img></div>`);
 });
 
 test('schoonBoom: script, style, svg, math, iframe en commentaar verdwijnen met inhoud', () => {
@@ -129,4 +129,42 @@ test('schoonBoom: tagnaam komt uit de eigen lijst (hoofdletters in de bron) en d
   let n = 0; let k = uit[0];
   while (k && k.kinderen) { n++; k = k.kinderen[0]; }
   assert.ok(n <= 66, `diepte ${n}`);
+});
+
+test('veiligeStijl: de rapportopmaak blijft (doorgestreept bedrag, kleine en cursieve labels, uitlijning)', () => {
+  assert.equal(veiligeStijl('span', 'text-decoration:line-through;color:#aaa;font-size:8pt'), 'text-decoration:line-through;color:#aaa;font-size:8pt');
+  assert.equal(veiligeStijl('span', 'font-size:7.5pt;color:#888;font-style:italic'), 'font-size:7.5pt;color:#888;font-style:italic');
+  assert.equal(veiligeStijl('td', 'text-align:right;font-size:11pt'), 'text-align:right;font-size:11pt');
+  assert.equal(veiligeStijl('strong', 'color:#00b87a'), 'color:#00b87a');
+  assert.equal(veiligeStijl('div', 'font-size:7.5pt;color:#777;margin-top:2px'), 'font-size:7.5pt;color:#777;margin-top:2px');
+  assert.equal(veiligeStijl('img', 'max-width:100%;border-radius:3px'), 'max-width:100%;border-radius:3px');
+  assert.equal(veiligeStijl('img', 'max-width:220px;max-height:90px;display:block'), 'max-width:220px');
+  assert.equal(veiligeStijl('td', 'text-transform:uppercase;letter-spacing:.05em;font-size:8pt'), 'font-size:8pt');
+  assert.equal(veiligeStijl('tr', 'background:#111;color:#fff;font-weight:700'), 'color:#fff;font-weight:700');
+  // Opnieuw opgebouwd: kleine letters, witruimte genormaliseerd.
+  assert.equal(veiligeStijl('span', '  COLOR : RGB( 1, 2, 3 ) ;  Text-Decoration :  Line-Through  '), 'color:rgb( 1, 2, 3 );text-decoration:line-through');
+  assert.equal(veiligeStijl('td', 'border:1px solid #ddd;padding:4px 7px;background-color:rgba(0,0,0,.5)'), 'border:1px solid #ddd;padding:4px 7px;background-color:rgba(0,0,0,.5)');
+  assert.equal(veiligeStijl('td', 'width:50%;vertical-align:middle;white-space:nowrap'), 'width:50%;vertical-align:middle;white-space:nowrap');
+});
+
+test('veiligeStijl: positioneren, verbergen, laden en uitvoeren vallen weg', () => {
+  for (const [stijl, verwacht] of [
+    ['position:fixed;inset:0;z-index:99', null],
+    ['display:block', null], ['display:none', null], ['top:0;left:0', null], ['transform:scale(9)', null], ['filter:blur(1px)', null],
+    ['content:"x"', null], ['behavior:url(x.htc)', null], ['visibility:hidden', null], ['opacity:0', null],
+    ['background-image:url(https://evil.test/a.png)', null], ['background:url(https://evil.test/a.png)', null],
+    ['color:red;background:url(https://evil.test/a.png)', null], // url ergens: hele attribuut weg
+    ['background-color:url(https://evil.test/a.png)', null], ['color:u\\72l(https://evil.test/a.png)', null],
+    ['color:\\72 ed', null], ['color:red/*x*/;position:fixed', null], ['color:/**/red', null],
+    ['width:expression(alert(1))', null], ['color:var(--x)', null], ['width:attr(data-w)', null], ['width:calc(100% - 1px)', null],
+    ['color:red!important', null], ['color:red !important', null], ['@import url(x);color:red', null], ['color:<b>', null],
+    ['font-size:10pt;font-family:"x"', null], ["font-family:'x'", null], ['color:red;}body{position:fixed', null],
+    ['color:image-set("x" 1x)', null], ['margin-top:-500px', null], ['margin:-1em', null], ['width:100px', null],
+    ['color:rgb(1,2,var(--x))', null], ['color:rgb(1,2)', null], ['color:#12', null], ['text-decoration:blink', null],
+    ['text-decoration:underline url(x)', null], ['font-weight:950', null], ['border:1px solid #ddd #eee red', null],
+    ['color', null], [':red', null], ['col or:red', null], ['', null],
+    ['color:red;position:fixed', 'color:red'],
+  ]) assert.equal(veiligeStijl('div', stijl), verwacht, stijl);
+  assert.equal(veiligeStijl('span', 'x'.repeat(2001)), null);
+  assert.equal(veiligAttribuut('div', 'style', 'position:fixed'), null);
 });

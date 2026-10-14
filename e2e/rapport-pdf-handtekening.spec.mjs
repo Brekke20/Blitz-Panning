@@ -27,10 +27,10 @@ function leesPdf(bestand) {
   try { return JSON.parse(r.stdout.trim().split('\n').pop()); } catch { return null; }
 }
 
-// Bouwt het echte rapport (buildRapportHtml) met twee echte PNG-handtekeningen. De afstandhouder bovenaan (lege regels: een style-
+// Bouwt het echte rapport (buildRapportHtml) met twee echte PNG-handtekeningen. De afstandhouder bovenaan (lege regels: een height in een style-
 // attribuut valt in de afdrukkopie weg) schuift het blok naar de paginagrens.
-async function bouwRapportHtml(page) {
-  return page.evaluate(async () => {
+async function bouwRapportHtml(page, extra = {}) {
+  return page.evaluate(async (extra) => {
     const m = await import('/js/rapport-wizard.js');
     await m.openRapport('t1', '2026-10-05');
     const c = document.createElement('canvas'); c.width = 220; c.height = 90;
@@ -39,10 +39,11 @@ async function bouwRapportHtml(page) {
     g.beginPath(); g.moveTo(10, 20); g.lineTo(200, 70); g.stroke(); // andere tekening: PyMuPDF telt identieke afbeeldingen als één
     m.R.handtekeningKlant = c.toDataURL();
     m.R.probleem = 'Laadpaal offline na stroomuitval'; m.R.acties = 'Controller herstart en firmware nagekeken';
+    Object.assign(m.R, extra);
     const html = m.buildRapportHtml();
     document.getElementById('rapport-wizard').classList.remove('open'); // closeWizard() vraagt een bevestiging
     return html;
-  });
+  }, extra);
 }
 
 test.describe('rapport afdrukken: handtekeningenblok blijft heel', () => {
@@ -68,6 +69,31 @@ test.describe('rapport afdrukken: handtekeningenblok blijft heel', () => {
     expect(stijlen.rijenTabel.length).toBeGreaterThan(0);
     expect(new Set(stijlen.rijenTabel)).toEqual(new Set(['avoid']));
     await ander.close();
+  });
+
+  test('afdrukkopie behoudt de opmaak die inhoud draagt: doorgestreept garantiebedrag, cursief label', async ({ page }) => {
+    await startApp(page, { overschrijf: { 'rapport-archief': opslagStub({ versie: 1, rapports: [RAPPORT] }, 'rapports') } });
+    const html = await bouwRapportHtml(page, { servicetype: 'garantie', start: '09:00', stop: '10:00' });
+    await page.getByRole('tab', { name: 'Rapporten' }).click();
+    await page.evaluate((h) => { window.kern.rapportArchief.lijst()[0].rapportData._html = h; }, html);
+    const [popup] = await Promise.all([page.waitForEvent('popup'), page.getByRole('button', { name: '📄 Openen' }).click()]);
+    await popup.waitForLoadState('load');
+    await expect.poll(() => popup.evaluate(() => !!document.querySelector('iframe')?.contentDocument?.querySelector('.sig-row'))).toBe(true);
+    await popup.emulateMedia({ media: 'print' });
+    await popup.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+    const opmaak = await popup.evaluate(() => {
+      const spans = [...document.getElementById('druk-kopie').shadowRoot.querySelectorAll('span')];
+      const bedrag = spans.find(s => /^€ \d+\.\d\d$/.test(s.textContent.trim()));
+      const label = spans.find(s => s.textContent.trim() === '(100% korting)');
+      return {
+        bedrag: bedrag?.textContent.trim(), lijn: bedrag && getComputedStyle(bedrag).textDecorationLine,
+        labelStijl: label && getComputedStyle(label).fontStyle,
+      };
+    });
+    expect(opmaak.bedrag).toMatch(/^€ [1-9]\d*\.\d\d$/);
+    expect(opmaak.lijn).toContain('line-through');
+    expect(opmaak.labelStijl).toBe('italic');
+    await popup.close();
   });
 
   test('echt archiefvenster naar PDF: bij elke positie rond de paginagrens staat het hele blok op één pagina', async ({ page }) => {
