@@ -759,3 +759,22 @@ test('reisMarge: de klok loopt met marge, de maxReistijd-grens blijft op de reis
   const u = await planWeek(maakInvoer({ kandidaten: [stopA, stopB], reistijden: vast, reisMarge: min => min + 10 }));
   assert.equal(u.geplaatst.length, 2);
 });
+
+// v2.1.5 (klantmelding #3964): de live gegevens van wo 14 okt 2026. "Plan deze week" vanuit de huidige week (extra dag) en vanuit
+// de week van de voorkeur zetten het ticket op vr 30 okt 14:00, ook naast andere tickets van dezelfde technieker.
+for (const [naam, weekStart] of [['huidige week 12-16 okt', '2026-10-12'], ['week van de voorkeur 26-30 okt', '2026-10-26']]) {
+  test(`#3964: voorkeur vr 30 okt 14:00 wordt gehonoreerd (${naam})`, async () => {
+    const ID = '157486000012242020';
+    const uitgesloten = d => d === '2026-10-27' || d === '2026-10-22'; // globale en persoonlijke hele-dag-blokkering
+    const { dagen, extraVoor } = bouwDagen({ weekStart, vandaag: '2026-10-14', werkdagen: [1, 2, 3, 4, 5], uitgesloten, voorkeuren: [{ ticketId: ID, datum: '2026-10-30' }] });
+    assert.ok(dagen.includes('2026-10-30'));
+    const u = await planWeek(maakInvoer({
+      kandidaten: [{ id: ID, number: '3964', priority: 'Medium', interventieDatum: null, lat: 51.0, lon: 4.5, duurMin: 120 }, ...KANDIDATEN.map(k => ({ ...k }))],
+      dagen, extraVoor, vandaag: '2026-10-14',
+      blokkeringen: { '2026-10-21': [{ van: '12:00', tot: '17:00' }] },
+      klant: { [ID]: { voorkeur: '2026-10-30', voorkeurTijd: '14:00', geblokkeerd: [], notitie: '' } },
+      instellingen: { vanTijd: '08:00', laatsteStart: '16:00', maxPerDag: 4, maxReistijdMin: 45 },
+    }));
+    assert.deepEqual(u.geplaatst.filter(g => g.ticketId === ID), [{ ticketId: ID, datum: '2026-10-30', verwachteAankomst: '14:00' }]);
+  });
+}
