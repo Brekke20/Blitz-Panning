@@ -1180,11 +1180,14 @@ export function wizClearSigKlant() {
 // Guard: voorkomt dubbele upload/archivering per wizard-sessie
 export let _rapportUploaded = false;
 
+// Enkel een echte afbeelding als data-URL mag in een src van het rapport (handtekeningen); al het andere wordt een lege tekenreeks.
+const SIG_DATA_URL = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+
 // Bouwt de rapport-HTML-string zonder side effects (herbruikbaar voor preview + afdrukken).
 export function buildRapportHtml() {
   const isInstallatie = R.interventieType === 'Installatie';
   const facturatieLabel = R.facturatie === 'vrij'
-    ? (R.facturatieVrij || '—')
+    ? (escHtml(R.facturatieVrij) || '—')
     : R.facturatie === 'klant' ? 'Klant' : 'Partner / installateur';
   const stLabel = {
     '2e-lijn': '2e lijns interventie',
@@ -1194,7 +1197,7 @@ export function buildRapportHtml() {
   const kabelStr = R.kabel === 'kabel'
     ? ('Vaste kabel' + (R.kabellengte ? ' ' + R.kabellengte : ''))
     : R.kabel === 'socket' ? 'Socket' : '';
-  const productInfo = [R.type, R.uitvoering, kabelStr].filter(Boolean).join(' · ') || '—';
+  const productInfo = [R.type, R.uitvoering, kabelStr].filter(Boolean).map(escHtml).join(' · ') || '—';
   const zohoRef     = _wizTicket.number ? `#${_wizTicket.number}` : (_wizTicket.isLocal ? '' : (_wizTicket.id || ''));
   const datumStr    = R.datum
     ? new Date(R.datum + 'T12:00:00').toLocaleDateString('nl-BE', { day:'numeric', month:'long', year:'numeric' })
@@ -1222,11 +1225,14 @@ export function buildRapportHtml() {
         <td style="text-align:right">${factureren ? `€ ${subtotaal.toFixed(2)}` : '—'}</td>
       </tr>`;
     }).join('');
-  const sigTechImg  = R.handtekeningTech
-    ? `<img src="${R.handtekeningTech}" style="max-width:220px;max-height:90px;display:block">`
+  const veiligeSig = (v) => (typeof v === 'string' && SIG_DATA_URL.test(v) ? v : '');
+  const sigTechSrc  = veiligeSig(R.handtekeningTech);
+  const sigKlantSrc = veiligeSig(R.handtekeningKlant);
+  const sigTechImg  = sigTechSrc
+    ? `<img src="${sigTechSrc}" style="max-width:220px;max-height:90px;display:block">`
     : '<span style="color:#aaa;font-style:italic;font-size:9pt">(niet getekend)</span>';
-  const sigKlantImg = R.handtekeningKlant
-    ? `<img src="${R.handtekeningKlant}" style="max-width:220px;max-height:90px;display:block">`
+  const sigKlantImg = sigKlantSrc
+    ? `<img src="${sigKlantSrc}" style="max-width:220px;max-height:90px;display:block">`
     : '<span style="color:#aaa;font-style:italic;font-size:9pt">(niet getekend)</span>';
 
   const bolt = `<svg width="12" height="20" viewBox="0 0 14 22" xmlns="http://www.w3.org/2000/svg" style="display:inline-block;vertical-align:middle;margin-right:5px">
@@ -1237,7 +1243,7 @@ export function buildRapportHtml() {
   const html = `<!DOCTYPE html>
 <html lang="nl"><head>
 <meta charset="utf-8">
-<title>Service Rapport Blitz Power — ${R.datum}</title>
+<title>Service Rapport Blitz Power — ${escHtml(R.datum)}</title>
 <style>${RAPPORT_CSS}</style>
 </head><body>
 <div class="header">${bolt}<div><div class="logo-text">BLITZ POWER</div><div class="logo-sub">SERVICE RAPPORT</div></div></div>
@@ -1245,7 +1251,7 @@ export function buildRapportHtml() {
 <div class="rapport-section info-grid">
   <div class="info-row cols-3">
     <div class="info-cell"><div class="info-lbl">Datum</div><div class="info-val">${datumStr}</div></div>
-    <div class="info-cell"><div class="info-lbl">Technieker</div><div class="info-val">${R.technieker||'—'}</div></div>
+    <div class="info-cell"><div class="info-lbl">Technieker</div><div class="info-val">${escHtml(R.technieker)||'—'}</div></div>
     <div class="info-cell"><div class="info-lbl">#Zoho</div><div class="info-val">${escHtml(zohoRef)||'—'}</div></div>
   </div>
   <div class="info-row cols-1">
@@ -1278,7 +1284,7 @@ export function buildRapportHtml() {
 ${isInstallatie ? '' : `
 <div class="rapport-section">
 <div class="sec">Oorzaak storing</div>
-<div class="block">${R.oorzaakStoring.join(', ') || '&nbsp;'}</div>
+<div class="block">${escHtml(R.oorzaakStoring.join(', ')) || '&nbsp;'}</div>
 </div>`}
 ${R.fotos.length ? `<div class="sec">Foto's</div>
 <div class="foto-report-grid">${R.fotos.map(f => `<div class="foto-report-item"><img src="${escHtml(f.dataUrl)}" style="max-width:100%;border-radius:3px"><div style="font-size:7.5pt;color:#777;margin-top:2px">${escHtml(new Date(f.tijdstip).toLocaleString('nl-BE'))}${f.caption ? ' — ' + escHtml(f.caption) : ''}</div></div>`).join('')}</div>` : ''}
