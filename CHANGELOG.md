@@ -19,6 +19,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ### Fixed
 - Voorkeursdatum van de klant: de knop "+" in de wachtrij en "+ Voeg toe aan planning" in het ticket keken enkel naar het voorkeursuur en zetten het ticket daarom op de eerstvolgende vrije dag (bv. vandaag om 14:00) in plaats van op de gevraagde dag. Nu komt het ticket op de voorkeursdag van de klant, of als die dag vol is op de eerste vrije dag daarna. "⚡ Plan deze week" deed dit al goed; dat is nu ook met tests vastgelegd.
+- Bij het openen en afdrukken van een rapport uit het archief werden de vakken voor de handtekeningen soms in twee gesneden over twee pagina's; het hele blok Handtekeningen blijft nu bij elkaar op één pagina.
 
 ## [2.1.4] — 2026-10-14
 
