@@ -13,7 +13,7 @@ import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from
 import { localISO, fmtDate, fmtDateShort, extractLocalHour, timeStrToMin } from '../kern/tijd.js';
 import { registreerVenster } from '../venster.js';
 import { appConfirm } from '../app-dialog.js';
-import { nextAvailableDay } from './capaciteit.js';
+import { plusInplannen } from './wachtrij.js';
 import { renderKalender } from './kalender.js';
 import { tijdslotVoor, telNummer } from './ticketdetail-logica.js';
 import { getHolidayName } from '../kern/feestdagen.js';
@@ -305,11 +305,8 @@ export async function saveReschedule() {
 export async function togglePlanFromDetail() {
   if (!activeTicket) return;
   if (['Service in te plannen','Wachten op planning'].includes(activeTicket.status)) {
-    const date = nextAvailableDay(localISO(new Date()), activeTicket.id);
-    if (!date) return toast('Geen beschikbare dag gevonden');
-    sluitDetailStil();
-    if (!(await afh.addTicketToDate(activeTicket.id, date))) return;
-    toast('✓ Toegevoegd aan ' + fmtDateShort(date));
+    // v2.1.6: zelfde zoektocht als "+" in de wachtrij (vrije plek + reistijdregels van het brein), met bezig-knop en zonder dubbele klik.
+    await plusInplannen(activeTicket.id, { knop: document.getElementById('d-plan-btn'), voorPlannen: sluitDetailStil });
   } else if (activeTicket.status === 'Wachten op bevestiging planning') {
     const planning = toestand.get('planning');
     const date = Object.keys(planning).find(d => planning[d].find(p => p.ticket.id === activeTicket.id));

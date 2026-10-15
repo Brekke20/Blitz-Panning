@@ -15,6 +15,11 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [2.1.6] — nog niet uitgebracht
+
+### Fixed
+- "+" in de wachtrij en "+ Voeg toe aan planning" kiezen enkel nog een dag die echt haalbaar is: maximaal de ingestelde rijtijd (45 min) van de andere afspraken (behalve op een lege dag) en elke latere afspraak met een vast uur blijft op tijd haalbaar, zoals bij "⚡ Plan deze week". Past er de komende weken geen dag, dan zegt een melding waarom en blijft het ticket in de wachtrij; kunnen de reistijden niet opgevraagd worden, dan vraagt de app eerst bevestiging. Tijdens het zoeken toont de knop dat hij bezig is en een tweede klik plant niet dubbel (klantmelding: #3979 Oostduinkerke kwam naast #3894 Meise).
+
 ## [2.1.5] — 2026-10-14
 
 ### Fixed

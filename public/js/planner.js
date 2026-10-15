@@ -84,7 +84,7 @@ export function bouwDagen({ weekStart, vandaag, werkdagen, uitgesloten, voorkeur
 async function planRonde(invoer, { startKeuze = {}, geheugen = new Map() } = {}) {
   const {
     kandidaten, dagen, extraVoor = {}, bestaandPerDag = {}, eigenAfspraken = {}, klant = {},
-    instellingen, depot, vandaag, reistijden, blokkeringen = {}, reisMarge = null,
+    instellingen, depot, vandaag, reistijden, blokkeringen = {}, reisMarge = null, vroegst = {},
   } = invoer;
   const maxReistijdMin = instellingen.maxReistijdMin;
   const vanTijdMin = timeStrToMin(instellingen.vanTijd || '08:00');
@@ -363,7 +363,8 @@ async function planRonde(invoer, { startKeuze = {}, geheugen = new Map() } = {})
             gekozen = { c, aank: p.s, opUur: true, geschat: p.geschat };
             break;
           }
-          const aank = klok + (r?.plan ?? 0);
+          // `vroegst[dag]` (minuten, optioneel): geen aankomst vóór dit tijdstip, bv. de klok van nu voor vandaag ("+", v2.1.6).
+          const aank = Math.max(klok + (r?.plan ?? 0), vroegst[dag] ?? 0);
           if (aank > laatsteStartMin) continue;
           const b = overlapt(blokken, aank, aank + c.duurMin)[0];
           if (b) { if (!sprong || b.e < sprong.e) sprong = b; continue; }
@@ -465,6 +466,62 @@ export async function planWeek(invoer) {
   }
   const { geplaatst, nietGepland, waarschuwingen } = beste;
   return { geplaatst, nietGepland, waarschuwingen };
+}
+
+// ── "+" en "Voeg toe aan planning" (v2.1.6) ─────────────────────────────────────────────────────────────────────────────
+// Klantmelding: "+" zette #3979 (Oostduinkerke) op een dag met #3894 (Meise, vast 14:45), 90 min rijden uit elkaar. De vrije-plek-regel
+// van planner-tijdlijn.js rekent met 30 min per rit; het brein heeft de echte regels. Daarom toetst "+" elke dag met het brein zelf:
+// planRonde met één kandidaat op één dag (echte reistijden, de maxReistijd-regel behalve op een lege dag, de vooruitcontrole naar een
+// later vast uur, voorkeursuur en klantblokkeringen). Geen tweede kopie van de regels.
+
+// Geen auto rijdt gemiddeld sneller dan dit in vogelvlucht: ligt elke stop met locatie van de dag verder dan maxReistijdMin aan deze
+// snelheid, dan kan de dag nooit passen en vraagt de toets geen reistijden op (spaart TomTom). Ruim gekozen, zodat de voorfilter een
+// dag die het brein zou aanvaarden niet weigert.
+export const VOGELVLUCHT_MAX_KMU = 120;
+
+// De stops met gekende locatie van één dag (bestaande stops en eigen afspraken met locatie), zoals het brein ze ziet.
+function stopsMetLocatie(invoer, dag) {
+  const ok = x => !!(x && x.lat && x.lon);
+  return [...(invoer.bestaandPerDag?.[dag] || []), ...(invoer.eigenAfspraken?.[dag] || []).filter(e => e.uur)].filter(ok);
+}
+
+// Past `invoer.kandidaat` op `dag` volgens de regels van het brein? Puur (reistijden komen via `invoer.reistijden`, zoals bij planWeek).
+// invoer: zoals planWeek, maar met `kandidaat` ({ id, lat, lon, duurMin, ... }) in plaats van `kandidaten`, en optioneel `vroegst`
+// ({ dag: minuten }). `geheugen`: het reistijdgeheugen van het brein (Map), te delen over meerdere dagen en aanroepen.
+// Geeft { ok: true, verwachteAankomst, geschat } of { ok: false, reden } (reden zoals in het brein, plus 'te-ver' van de voorfilter).
+export async function toetsDag(invoer, dag, { geheugen = new Map() } = {}) {
+  const { kandidaat: t, instellingen, klant = {} } = invoer;
+  if (!(t && t.lat && t.lon)) return { ok: false, reden: 'adres-niet-gevonden' };
+  if (klant[t.id]?.geblokkeerd?.includes(dag)) return { ok: false, reden: 'klant-geblokkeerd' };
+  const max = instellingen.maxPerDag > 0 ? instellingen.maxPerDag : Infinity;
+  if ((invoer.bestaandPerDag?.[dag] || []).length >= max) return { ok: false, reden: 'geen-plaats' };
+  const stops = stopsMetLocatie(invoer, dag);
+  if (stops.length && instellingen.maxReistijdMin != null) {
+    const dichtste = Math.min(...stops.map(s => haversine(t.lat, t.lon, s.lat, s.lon)));
+    if (dichtste / VOGELVLUCHT_MAX_KMU * 60 > instellingen.maxReistijdMin) return { ok: false, reden: 'te-ver' };
+  }
+  const r = await planRonde({ ...invoer, kandidaten: [t], dagen: [dag], extraVoor: {} }, { geheugen });
+  const g = r.geplaatst[0];
+  if (g) {
+    const geschat = r.waarschuwingen.some(w => w.soort === 'reistijd-geschat' && w.ticketIds.includes(t.id));
+    return { ok: true, verwachteAankomst: g.verwachteAankomst, geschat };
+  }
+  return { ok: false, reden: r.nietGepland[0]?.reden || 'geen-plaats' };
+}
+
+// De eerste dag uit `dagen` (oplopend, al gefilterd op werkdag, feestdag en vrije plek) waarop toetsDag slaagt; stopt bij de eerste.
+// `moetStoppen()` (optioneel) wordt na elke dag gevraagd: waar = de zoektocht breekt af (bv. de reistijden konden niet opgevraagd
+// worden, of de rekenlimiet is bereikt) en geeft { datum: null, afgebroken: true }. Anders { datum, verwachteAankomst } of
+// { datum: null, redenen: [{ dag, reden }] }.
+export async function eersteHaalbareDag(invoer, { dagen, geheugen = new Map(), moetStoppen = () => false }) {
+  const redenen = [];
+  for (const dag of dagen) {
+    const uit = await toetsDag(invoer, dag, { geheugen });
+    if (moetStoppen()) return { datum: null, afgebroken: true, redenen };
+    if (uit.ok) return { datum: dag, verwachteAankomst: uit.verwachteAankomst };
+    redenen.push({ dag, reden: uit.reden });
+  }
+  return { datum: null, redenen };
 }
 
 if (typeof window !== 'undefined') { window.planWeek = planWeek; window.bouwDagen = bouwDagen; }

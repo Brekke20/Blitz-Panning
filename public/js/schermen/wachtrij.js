@@ -2,14 +2,16 @@
 // De code is letterlijk uit index.html verhuisd. De zoektekst en de sorteerkeuze zijn module-privé; gegevens komen
 // uit `kern/toestand`, de afhankelijkheden van andere schermen via `initWachtrij(afh)` (aan het begin van
 // DOMContentLoaded). Raakt `document` enkel binnen functies, nooit op moduleniveau. Alleen `kern/brug.js` wijst
-// `window`-namen toe. `quickAdd` zoekt de eerste dag met echte vrije tijd (planner-tijdlijn.js, proefperiode-bugfix).
+// `window`-namen toe. `quickAdd` zoekt de eerste dag met vrije tijd én haalbare reistijden (capaciteit.js zoekHaalbareDag, v2.1.6).
 import { eventTekst } from './evenement-laag.js';
 import { toestand } from '../kern/toestand.js';
 import { magPlannenVoor } from '../kern/sessie.js';
 import { toast, escHtml, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
 import { localISO, todayISO, fmtDateShort } from '../kern/tijd.js';
 import { ticketsVanTechnieker } from '../kern/selecties.js';
-import { nextAvailableDay } from './capaciteit.js';
+import { nextAvailableDay, zoekHaalbareDag } from './capaciteit.js';
+import { foutTekst } from '../kern/api.js';
+import { appConfirm } from '../app-dialog.js';
 import { zoekWoorden, filterOpZoek, isOverdue, sorteerWachtrij } from './wachtrij-logica.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initWachtrij); een vergeten init faalt luid.
@@ -112,7 +114,7 @@ export function renderTickets() {
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
       </div>
       <div class="t-action">
-        ${magPlannenVoor(t.assignee) ? `<button class="btn-add" data-actie="wq-inplannen" data-ticket-id="${escHtml(t.id)}" title="Inplannen op eerstvolgende vrije dag" aria-label="Inplannen op eerstvolgende vrije dag" ${afh.inFlight(t.id) ? 'disabled' : ''}>+</button>` : ''}
+        ${magPlannenVoor(t.assignee) ? `<button class="btn-add" data-actie="wq-inplannen" data-ticket-id="${escHtml(t.id)}" title="Inplannen op eerstvolgende vrije dag" aria-label="Inplannen op eerstvolgende vrije dag" ${afh.inFlight(t.id) || _plusBezig.has(t.id) ? 'disabled' : ''} ${_plusBezig.has(t.id) ? 'aria-busy="true"' : ''}>${_plusBezig.has(t.id) ? '…' : '+'}</button>` : ''}
       </div>`;
     // Bubbel-guard (C8): een klik op een data-actie-knop opent het detail niet.
     card.addEventListener('click', e => { if (e.target.closest('[data-actie]')) return; afh.openDetail(t); });
@@ -122,9 +124,59 @@ export function renderTickets() {
 }
 
 export async function quickAdd(ticketId) {
-  const today = localISO(new Date());
-  const date  = nextAvailableDay(today, ticketId);
-  if (!date) return toast('Geen beschikbare werkdag gevonden');
-  if (!(await afh.addTicketToDate(ticketId, date))) return;
-  toast('✓ Toegevoegd aan ' + fmtDateShort(date));
+  return plusInplannen(ticketId);
+}
+
+// "+" (wachtrij) en "+ Voeg toe aan planning" (ticketdetail), v2.1.6: de dag komt uit zoekHaalbareDag (capaciteit.js: vrije plek EN
+// de reistijdregels van het brein). Tijdens het rekenen staat de knop op bezig; een tweede klik op hetzelfde ticket doet niets
+// (geen dubbele planning). `knop`: de knop die bezig moet tonen naast de wachtrijknop; `voorPlannen`: vlak vóór het plannen (detail sluiten).
+const _plusBezig = new Set();
+function zetPlusBezig(ticketId, bezig, knop) {
+  if (bezig) _plusBezig.add(ticketId); else _plusBezig.delete(ticketId);
+  const knoppen = [...document.querySelectorAll('[data-actie="wq-inplannen"]')].filter(b => b.dataset.ticketId === String(ticketId));
+  for (const b of knoppen) {
+    b.disabled = bezig || afh.inFlight(ticketId);
+    b.textContent = bezig ? '…' : '+';
+    if (bezig) b.setAttribute('aria-busy', 'true'); else b.removeAttribute('aria-busy');
+  }
+  if (knop) {
+    if (bezig) { knop.dataset.tekst = knop.textContent; knop.textContent = 'Bezig…'; knop.setAttribute('aria-busy', 'true'); }
+    else { if (knop.dataset.tekst !== undefined) knop.textContent = knop.dataset.tekst; delete knop.dataset.tekst; knop.removeAttribute('aria-busy'); }
+    knop.disabled = bezig;
+  }
+}
+
+// De dag voor "+", of null (de melding is dan al getoond). Onzeker (adres of reistijden niet beschikbaar): eerst een melding en een
+// bevestiging, pas dan de oude vrije-plek-regel (ontwerpbesluit: zeggen in plaats van stil doorplannen).
+async function kiesPlusDag(ticketId) {
+  const uit = await zoekHaalbareDag(ticketId);
+  if (uit.status === 'ok') return uit.datum;
+  if (uit.status === 'geen') { toast(uit.tekst, 6000); return null; }
+  const oud = nextAvailableDay(localISO(new Date()), ticketId);
+  if (!oud) { toast('Geen beschikbare werkdag gevonden'); return null; }
+  toast(uit.tekst, 6000);
+  const ok = await appConfirm({
+    titel: 'Reistijd niet gecontroleerd',
+    tekst: `${uit.tekst} Toch inplannen op ${fmtDateShort(oud)} (eerste vrije plek, zonder reistijdcontrole)?`,
+    bevestigLabel: 'Toch inplannen', annuleerLabel: 'Niet inplannen',
+  });
+  return ok ? oud : null;
+}
+
+export async function plusInplannen(ticketId, { knop = null, voorPlannen = null } = {}) {
+  if (_plusBezig.has(ticketId) || afh.inFlight(ticketId)) return false;
+  zetPlusBezig(ticketId, true, knop);
+  try {
+    const date = await kiesPlusDag(ticketId);
+    if (!date) return false;
+    if (voorPlannen) voorPlannen();
+    if (!(await afh.addTicketToDate(ticketId, date))) return false;
+    toast('✓ Toegevoegd aan ' + fmtDateShort(date));
+    return true;
+  } catch (err) {
+    toast('✕ Inplannen mislukt: ' + foutTekst(err), 4000);
+    return false;
+  } finally {
+    zetPlusBezig(ticketId, false, knop);
+  }
 }
