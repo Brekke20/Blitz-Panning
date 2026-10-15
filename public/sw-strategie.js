@@ -35,12 +35,33 @@
     const bewaarbaar = (r) => !!r && r.status === 200;
     const isNetlify = (u) => u.pathname === '/.netlify' || u.pathname.startsWith('/.netlify/');
 
-    const inCacheModus = (request) => (request.clientId && cacheClients.has(request.clientId)) || nu() < cacheModusTot;
+    // Netwerkpagina's (v2.1.6): een client wiens document van het NETWERK kwam, krijgt zijn modules nooit uit een cache van een andere
+    // versie (anders draait een tablet met een haperende verbinding de nieuwe index.html en versie.js met een oude rapport-wizard.js).
+    // Per client: een belofte die zegt of de bewaarde index.html gelijk is aan zijn document. Begrensd zoals cacheClients.
+    // De client-id's staan op het FetchEvent (e.clientId, e.resultingClientId), niet op e.request: sw.js geeft ze mee in `opties` van
+    // behandel() (v2.1.6; vóór v2.1.6 las deze code ze van het Request, waar ze altijd ontbreken, en werkte enkel de globale cache-modus).
+    const netwerkClients = new Map();
+    function zetNetwerkClient(ids, antw) {
+      const id = ids.resultingClientId;
+      if (!id) return;
+      const gelijk = (async () => {
+        try {
+          const [net, kopie] = await Promise.all([antw.clone().text(), uitCache(cacheNaam, eigenOrigin + '/index.html')]);
+          return !!kopie && (await kopie.text()) === net;
+        } catch { return false; }
+      })();
+      netwerkClients.delete(id);
+      netwerkClients.set(id, gelijk);
+      if (netwerkClients.size > MAX_CLIENTS) netwerkClients.delete(netwerkClients.keys().next().value);
+    }
+    const netwerkClient = (ids) => (ids.clientId && netwerkClients.has(ids.clientId) ? netwerkClients.get(ids.clientId) : null);
+
+    const inCacheModus = (ids) => (ids.clientId && cacheClients.has(ids.clientId)) || (nu() < cacheModusTot && !netwerkClient(ids));
     // Zet de cache-modus aan voor deze load: voor de client van de navigatie (resultingClientId) of van de submodule (clientId), en globaal
     // voor `cacheModusMs` (terugval voor verzoeken zonder clientId).
-    function zetCacheModus(request) {
+    function zetCacheModus(request, ids) {
       cacheModusTot = nu() + cacheModusMs;
-      const id = request.mode === 'navigate' ? request.resultingClientId : request.clientId;
+      const id = request.mode === 'navigate' ? ids.resultingClientId : ids.clientId;
       if (!id) return;
       cacheClients.delete(id);
       cacheClients.add(id);
@@ -53,15 +74,26 @@
     }
 
     // Shell: netwerk-eerst met cache als terugval; optioneel een time-out waarna de cache voorrang krijgt.
-    async function shellAntwoord(request, url) {
+    async function shellAntwoord(request, url, ids) {
       const isNav = request.mode === 'navigate';
       const pad = eigenOrigin + url.pathname;
       const zoekCache = async () => (await uitCache(cacheNaam, pad)) || (isNav ? uitCache(cacheNaam, eigenOrigin + '/index.html') : undefined);
 
-      if (inCacheModus(request)) {
+      if (inCacheModus(ids)) {
         const kopie = await zoekCache();
         if (kopie) return kopie;
       }
+
+      // Een submodule van een netwerkpagina valt enkel terug op de cache als die cache dezelfde versie is als het document (v2.1.6);
+      // dan is ook geen cache-modus nodig. Een onbekende client (bv. na een SW-herstart) volgt de oude regel.
+      const netClient = isNav ? null : netwerkClient(ids);
+      async function terugval() {
+        if (netClient && !(await netClient)) return undefined; // andere versie in de cache: liever een fout dan een mengeling
+        const kopie = await zoekCache();
+        if (kopie && !netClient) zetCacheModus(request, ids);
+        return kopie;
+      }
+      const netwerkOk = (r) => { if (isNav && r) zetNetwerkClient(ids, r); return r; };
 
       const netwerk = Promise.resolve().then(() => fetchFn(request));
       const limiet = isNav ? navTimeoutMs : subTimeoutMs;
@@ -71,24 +103,23 @@
           ? await Promise.race([netwerk.then((r) => ({ r })), wacht(limiet).then(() => null)])
           : { r: await netwerk };
       } catch (err) {
-        const kopie = await zoekCache();
-        if (kopie) { zetCacheModus(request); return kopie; }
+        const kopie = await terugval();
+        if (kopie) return kopie;
         throw err;
       }
-      if (eerste) return eerste.r;
+      if (eerste) return netwerkOk(eerste.r);
 
       // Time-out: heeft de cache een kopie, geef die en zet de cache-modus aan; anders blijven we op het netwerk wachten.
-      const kopie = await zoekCache();
+      const kopie = await terugval();
       if (kopie) {
-        zetCacheModus(request);
         netwerk.catch(() => {}); // het lopende verzoek mag stil mislukken
         return kopie;
       }
       try {
-        return await netwerk;
+        return netwerkOk(await netwerk);
       } catch (err) {
-        const laat = await zoekCache();
-        if (laat) { zetCacheModus(request); return laat; }
+        const laat = await terugval();
+        if (laat) return laat;
         throw err;
       }
     }
@@ -129,7 +160,14 @@
       try { url = new URL(request.url); } catch { return null; }
       if (url.origin === eigenOrigin) {
         if (isApi(url) || isNetlify(url)) return null;
-        if (request.mode === 'navigate' || shellPaden.has(url.pathname)) return shellAntwoord(request, url);
+        if (request.mode === 'navigate' || shellPaden.has(url.pathname)) {
+          // `opties.clientId`/`opties.resultingClientId` komen van het FetchEvent (sw.js); de unit-tests zetten ze ook op het verzoek.
+          const ids = {
+            clientId: (opties && opties.clientId) || request.clientId || '',
+            resultingClientId: (opties && opties.resultingClientId) || request.resultingClientId || '',
+          };
+          return shellAntwoord(request, url, ids);
+        }
         return null;
       }
       if (cdnSet.has(request.url)) return cdnAntwoord(request);

@@ -3,7 +3,8 @@
 // de oude planning. Productiemodus: de nep-backend (/api/tickets) verandert zoals Zoho na "Uit planning halen" op de pc.
 import { test, expect, startAppProductie, verwachtSchrijven, verwachtNetwerkFout, OPSTART_SCHRIJVEN, TICKETS_STUB } from '../productie-hulp.mjs';
 
-test.use({ viewport: { width: 1024, height: 768 }, hasTouch: true });
+// Tabletformaat (liggend); test.use is in productiespecs niet toegelaten, dus per test via setViewportSize.
+const TABLET = { width: 1024, height: 768 };
 
 const planningVan = (page) => page.evaluate(() => Object.fromEntries(
   Object.entries(kern.toestand.get('planning')).map(([d, s]) => [d, s.map(p => p.ticket.id)])));
@@ -34,6 +35,7 @@ async function zetZichtbaar(page, zichtbaar) {
 test('tablet op de achtergrond: bij terugkeer naar de app verdwijnt het op de pc uitgeplande ticket meteen', async ({ page, verzoeken }) => {
   verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
   const b = ticketsBackend();
+  await page.setViewportSize(TABLET);
   await startAppProductie(page, { overschrijf: { tickets: b.tickets } });
   expect((await planningVan(page))['2026-10-09']).toEqual(['g1']);
 
@@ -51,6 +53,7 @@ test('tablet was offline: na het herstel van de verbinding verdwijnt het uitgepl
   verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
   verwachtNetwerkFout(verzoeken, [{ pad: '/api/tickets', methode: 'GET' }]);
   const b = ticketsBackend();
+  await page.setViewportSize(TABLET);
   await startAppProductie(page, { overschrijf: { tickets: b.tickets } });
 
   await zetZichtbaar(page, false);

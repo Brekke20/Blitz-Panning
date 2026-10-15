@@ -360,3 +360,77 @@ test('I5: cdnLui (ExcelJS) wordt niet bij de installatie opgehaald, wel bij het 
   await tekst(s.behandel(req(EXCEL)));
   assert.equal(opgehaald.length, n, 'tweede keer uit de cache');
 });
+
+// v2.1.6 (tablet): een pagina die van het NETWERK kwam (nieuwe release) mag nooit modules uit een OUDERE cache krijgen. Een tablet met een
+// haperende verbinding kreeg zo de nieuwe index.html en versie.js (label 2.1.5) maar rapport-wizard.js uit de cache van de vorige SW
+// (zonder de chips van Oorzaak storing). Terugvallen mag enkel als de bewaarde index.html dezelfde is als het document van die client.
+const padVan = (r) => new URL(typeof r === 'string' ? r : r.url).pathname;
+
+test('2.1.6: netwerkpagina + submodule faalt + cache van een andere versie: geen terugval (geen mengeling), de fout gaat door', async () => {
+  let net = true;
+  const { s } = bouw({
+    begin: { hoofd: { [ORIGIN + '/index.html']: 'index-2.1.2', [ORIGIN + '/js/app.js']: 'app-2.1.2' } },
+    fetchFn: async (r) => {
+      if (!net) throw new TypeError('netwerk hapert');
+      return new Response(padVan(r) === '/' ? 'index-2.1.5' : 'app-2.1.5');
+    },
+  });
+  assert.equal(await tekst(s.behandel(nav('/', { resultingClientId: 'T' }))), 'index-2.1.5');
+  net = false;
+  await assert.rejects(s.behandel(req('/js/app.js', { clientId: 'T' })), /hapert/);
+  net = true;
+  assert.equal(await tekst(s.behandel(req('/js/app.js', { clientId: 'T' }))), 'app-2.1.5', 'en daarna geen cache-modus voor die client');
+});
+
+test('2.1.6: de client-id\'s komen van het FetchEvent (opties), niet van het Request (daar ontbreken ze in de browser)', async () => {
+  let net = true;
+  const { s } = bouw({
+    begin: { hoofd: { [ORIGIN + '/index.html']: 'index-2.1.2', [ORIGIN + '/js/app.js']: 'app-2.1.2' } },
+    fetchFn: async (r) => {
+      if (!net) throw new TypeError('netwerk hapert');
+      return new Response(padVan(r) === '/' ? 'index-2.1.5' : 'app-2.1.5');
+    },
+  });
+  assert.equal(await tekst(s.behandel(nav('/'), { resultingClientId: 'T' })), 'index-2.1.5');
+  net = false;
+  await assert.rejects(s.behandel(req('/js/app.js'), { clientId: 'T' }), /hapert/);
+});
+
+test('2.1.6: sw.js geeft e.clientId en e.resultingClientId door aan behandel()', async () => {
+  const { readFileSync } = await import('node:fs');
+  const bron = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
+  assert.match(bron, /behandel\(e\.request, \{[^}]*clientId: e\.clientId[^}]*resultingClientId: e\.resultingClientId/);
+});
+
+test('2.1.6: netwerkpagina + submodule faalt + cache van dezelfde versie: terugval op de cache blijft (offline late import)', async () => {
+  let net = true;
+  const { s } = bouw({
+    begin: { hoofd: { [ORIGIN + '/index.html']: 'index-2.1.5', [ORIGIN + '/js/app.js']: 'app-2.1.5-cache' } },
+    fetchFn: async () => { if (!net) throw new TypeError('offline'); return new Response('index-2.1.5'); },
+  });
+  assert.equal(await tekst(s.behandel(nav('/', { resultingClientId: 'T' }))), 'index-2.1.5');
+  net = false;
+  assert.equal(await tekst(s.behandel(req('/js/app.js', { clientId: 'T' }))), 'app-2.1.5-cache');
+});
+
+test('2.1.6: de globale cache-modus van een ander tabblad geldt niet voor een netwerkpagina met een andere versie', async () => {
+  const wachters = [];
+  let hang = false;
+  const { s } = bouw({
+    navTimeoutMs: 4000, wachters,
+    begin: { hoofd: { [ORIGIN + '/index.html']: 'index-2.1.2', [ORIGIN + '/js/app.js']: 'app-2.1.2' } },
+    fetchFn: async (r) => {
+      if (hang) return new Promise(() => {});
+      return new Response(padVan(r) === '/' ? 'index-2.1.5' : 'app-2.1.5');
+    },
+  });
+  assert.equal(await tekst(s.behandel(nav('/', { resultingClientId: 'A' }))), 'index-2.1.5');
+  hang = true;
+  const b = s.behandel(nav('/', { resultingClientId: 'B' }));
+  await tick();
+  wachters.pop().res(); // de timer van B (die van A liep al af zonder gevolg)
+  assert.equal(await tekst(b), 'index-2.1.2', 'tabblad B start uit de cache (time-out)');
+  hang = false;
+  assert.equal(await tekst(s.behandel(req('/js/app.js', { clientId: 'A' }))), 'app-2.1.5', 'tabblad A blijft op het netwerk');
+  assert.equal(await tekst(s.behandel(req('/js/app.js', { clientId: 'B' }))), 'app-2.1.2', 'tabblad B blijft op de cache');
+});

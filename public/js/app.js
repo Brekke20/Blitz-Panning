@@ -379,6 +379,7 @@ function opstart() {
   if ('serviceWorker' in navigator) {
     const registreer = () => navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
     if (document.readyState === 'complete') registreer(); else window.addEventListener('load', registreer, { once: true });
+    volgSwUpdates();
   }
   planHerstelSchermStaat();
 }
@@ -824,6 +825,41 @@ function startTicketPolling() {
 // tot de volgende poll een planning met items die intussen op de pc verwijderd waren. De afspraken (Blobs, licht) altijd; de tickets
 // (Zoho, zwaar) als de laatste geslaagde lading meer dan een minuut oud is. Nooit tijdens het vastleggen van een routevolgorde (I4);
 // eigen wijzigingen die nog onderweg zijn, beschermen loadTickets (schrijfstand) en verversAfspraken zelf.
+// Nieuwe release terwijl de app openstaat (v2.1.6). Een tablet laat de PWA dagen openstaan: de pagina draait dan de code van de dag
+// waarop ze geladen werd, en een nieuwe service worker neemt de pagina over (skipWaiting + clients.claim) zonder dat haar modules
+// veranderen; late imports zouden daarna wel van de nieuwe release komen. Daarom: bij terugkeer naar de app hoogstens elk half uur naar
+// een nieuwe SW vragen, en zodra een nieuwe SW een pagina overneemt die al een SW had, het versielabel eerlijk maken en de pagina één
+// keer herladen op het eerstvolgende veilige moment: wanneer de gebruiker de app wegzet (onzichtbaar), zonder open rapport of venster
+// en zonder lopende planwijziging. De eerste installatie (nog geen SW) herlaadt niet: die pagina kwam al van het netwerk.
+const SW_UPDATE_INTERVAL_MS = 30 * 60 * 1000;
+let _swUpdateGevraagd = Date.now();
+let _nieuweVersieKlaar = false;
+function veiligOmTeHerladen() {
+  if (document.getElementById('rapport-wizard')?.classList.contains('open')) return false;
+  if (document.querySelector('.overlay.open')) return false;
+  if (planacties.schrijfStand().bezig) return false;
+  return true;
+}
+function volgSwUpdates() {
+  const sw = navigator.serviceWorker;
+  const hadSw = !!sw.controller;
+  sw.addEventListener('controllerchange', () => {
+    if (!hadSw || _nieuweVersieKlaar) return;
+    _nieuweVersieKlaar = true;
+    const label = document.getElementById('app-versie');
+    if (label && !label.textContent.includes('nieuwe versie')) label.textContent += ' · nieuwe versie klaar, wordt geladen bij het wegzetten van de app';
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      if (_nieuweVersieKlaar && veiligOmTeHerladen()) location.reload();
+      return;
+    }
+    if (Date.now() - _swUpdateGevraagd < SW_UPDATE_INTERVAL_MS) return;
+    _swUpdateGevraagd = Date.now();
+    sw.getRegistration().then(reg => reg?.update()).catch(() => {});
+  });
+}
+
 const TERUGKEER_TICKETS_MS = 60 * 1000;
 function verversNaTerugkeer() {
   if (document.visibilityState !== 'visible') return;

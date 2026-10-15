@@ -67,6 +67,7 @@ self.addEventListener('sync', e => {
 
 self.addEventListener('fetch', e => {
   // behandel() geeft null voor /api, niet-GET en onbekende hosts: dan doet de browser het verzoek zelf.
-  const r = strategie.behandel(e.request, { waitUntil: (p) => e.waitUntil(p) });
+  // De client-id's staan op het event, niet op het verzoek (v2.1.6): zonder deze twee werkt de cache-modus per client niet.
+  const r = strategie.behandel(e.request, { waitUntil: (p) => e.waitUntil(p), clientId: e.clientId, resultingClientId: e.resultingClientId });
   if (r) e.respondWith(r);
 });

@@ -34,3 +34,29 @@ test('Update van de v27-SW van main naar de nieuwe SW: overname, nieuwe schil, e
   expect(await page.evaluate(() => typeof L)).toBe('object');
   await sw.zetOffline(false);
 });
+
+// v2.1.6: een tablet laat de app dagen openstaan. Neemt een nieuwe SW de pagina over (een nieuwe release), dan zegt het versielabel dat
+// eerlijk en herlaadt de pagina één keer zodra de gebruiker de app wegzet (onzichtbaar); zo draait ze nooit lang oude code naast een
+// nieuwe SW (en nooit een gemengde versie via late imports).
+test('Nieuwe SW neemt een open pagina over: eerlijk label en één herlading bij het wegzetten van de app', async ({ page, sw }) => {
+  sw.serveerOudeSw();
+  await sw.start();
+  let ladingen = 0;
+  page.on('load', () => { ladingen++; });
+  await page.evaluate(() => { window.__oudePagina = true; });
+  await expect(page.locator('#app-versie')).toHaveText(/^Versie \d+\.\d+\.\d+$/);
+
+  sw.serveerNieuweSw();
+  await sw.updateSw();
+  await expect(page.locator('#app-versie')).toContainText('nieuwe versie klaar', { timeout: 20000 });
+  expect(ladingen, 'geen herlading terwijl de gebruiker de app gebruikt').toBe(0);
+
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect.poll(() => ladingen, { timeout: 15000 }).toBe(1);
+  await expect(page.locator('#cnt-tickets')).toHaveText(/\d+/);
+  expect(await page.evaluate(() => window.__oudePagina === true)).toBe(false);
+  await expect(page.locator('#app-versie')).toHaveText(/^Versie \d+\.\d+\.\d+$/);
+});
