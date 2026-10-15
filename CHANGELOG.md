@@ -15,6 +15,13 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [2.1.6] — nog niet uitgebracht
+
+### Fixed
+- Tablet: de keuzes van "Oorzaak storing" ontbraken in het rapport, terwijl de app "Versie 2.1.5" toonde. Bij een haperende verbinding kon de app een stuk oude code (de rapportwizard van vóór 2.1.3) uit de bewaarde kopie van een vorige versie halen en die mengen met de nieuwe versie. Dat kan niet meer: een pagina van de nieuwe versie krijgt nooit nog onderdelen van een oudere versie. Lukt het laden van een onderdeel niet, dan laadt de app zichzelf één keer opnieuw.
+- Een app die lang openstaat (zoals op de tablet) kijkt bij het terugkeren naar de app geregeld of er een nieuwe versie is. Is die er, dan meldt Instellingen dat eerlijk naast het versienummer en laadt de app de nieuwe versie zodra je de app wegzet (nooit midden in een rapport of een open venster).
+- Een item dat op de pc uit de planning gehaald of verwijderd werd, bleef op de tablet staan. Eigen afspraken werden enkel bij het opstarten opgehaald; nu ververst de app ze elke 5 minuten, bij het terugkeren naar de app en zodra de verbinding terug is. De Zoho-planning wordt bij het terugkeren naar de app ook meteen opnieuw opgehaald in plaats van pas bij de volgende ronde. Een eigen wijziging die nog wordt opgeslagen, gaat daarbij niet verloren.
+
 ## [2.1.5] — 2026-10-14
 
 ### Fixed
