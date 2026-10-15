@@ -7,6 +7,7 @@
 // voormalige DOMContentLoaded-handler heet nu `opstart()` en wordt onderaan dit bestand geregistreerd (zie daar).
 import { zetStickyOffsets } from './sticky-offset.js';
 import { foutTekst } from './kern/api.js';
+import { lopendeSchrijfverzoeken } from './kern/netwerk.js';
 import { toestand } from './kern/toestand.js';
 import { TEST_MODE } from './kern/omgeving.js';
 import { localISO, extractLocalHour, openingsDatum } from './kern/tijd.js';
@@ -41,7 +42,7 @@ import { meervoud } from './schermen/ticketdetail-logica.js';
 import { openPrijsBeheer, closePrijsBeheer, prijsReset, prijsOpslaan, loadPrijzen } from './prijzen.js';
 import { openRapport, calcWerktijdMin, closeWizard, wizBack, wizNext } from './rapport-wizard.js';
 import { _rapportArchief, _archiefVersie, zetArchiefVersie, laadRapportArchief, setRapportFilter, renderRapportArchief, herOpenRapport } from './rapport-archief.js';
-import { refreshOutboxCache, flushOutbox } from './outbox.js';
+import { refreshOutboxCache, flushOutbox, _outboxInFlight } from './outbox.js';
 import { _invData, loadInventaris, renderInventaris, updateInventarisBadge, resetInvSeenLog } from './inventaris.js';
 import { appConfirm } from './app-dialog.js';
 import { registreerVenster } from './venster.js';
@@ -834,9 +835,16 @@ function startTicketPolling() {
 const SW_UPDATE_INTERVAL_MS = 30 * 60 * 1000;
 let _swUpdateGevraagd = Date.now();
 let _nieuweVersieKlaar = false;
+// Niet herladen met een open rapport, venster, dialoog of het spel (role=dialog), met een invoerveld in gebruik (bv. een zoekterm of een
+// tabel buiten een venster), zolang een schrijfactie naar de server onderweg is (opslaan, voorstel, rapport, foto, outbox: een herlading
+// breekt die af en maakt het resultaat onzeker) of tijdens een planwijziging. Lukt het niet, dan volgt een nieuwe kans bij het volgende
+// wegzetten.
 function veiligOmTeHerladen() {
   if (document.getElementById('rapport-wizard')?.classList.contains('open')) return false;
-  if (document.querySelector('.overlay.open')) return false;
+  if (document.querySelector('.overlay.open, .open[role="dialog"], .open[role="alertdialog"]')) return false;
+  const actief = document.activeElement;
+  if (actief && actief !== document.body && (actief.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(actief.tagName))) return false;
+  if (lopendeSchrijfverzoeken() > 0 || _outboxInFlight.size > 0) return false;
   if (planacties.schrijfStand().bezig) return false;
   return true;
 }

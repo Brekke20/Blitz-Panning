@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TIJDLIMIETEN, limietVoor, installeerFetchTimeout } from '../public/js/kern/netwerk.js';
+import { TIJDLIMIETEN, limietVoor, installeerFetchTimeout, lopendeSchrijfverzoeken } from '../public/js/kern/netwerk.js';
 
 test('limietVoor: standaard, lang en fotoUpload per pad en methode (ook query en trailing slash)', () => {
   assert.equal(limietVoor('/api/tickets'), 20000);
@@ -137,4 +137,24 @@ test('een TypeError uit fetch wordt getagd met vanFetch; andere fouten blijven o
   }
   const r = await doel.fetch('/api/boem').catch((x) => x);
   assert.equal(r.vanFetch, undefined);
+});
+
+// v2.1.6: de herlading bij het wegzetten van de app (nieuwe release) wacht tot geen schrijvend /api-verzoek meer onderweg is.
+test('lopendeSchrijfverzoeken: telt schrijvende /api-verzoeken (ook met eigen signal) tot het antwoord of de fout, geen GET of CDN', async () => {
+  const { doel, aanroepen } = opstellen();
+  const basis = lopendeSchrijfverzoeken();
+  const get = doel.fetch('/api/tickets');
+  doel.fetch('https://cdn.jsdelivr.net/x.js', { method: 'POST' });
+  assert.equal(lopendeSchrijfverzoeken(), basis, 'GET en andere host tellen niet');
+  const put = doel.fetch('/api/afspraken', { method: 'PUT', body: '{}' });
+  const outbox = doel.fetch('/api/rapport-ontvangen', { method: 'POST', signal: new AbortController().signal });
+  assert.equal(lopendeSchrijfverzoeken(), basis + 2);
+  aanroepen[2].los(new Response('ok'));
+  await put;
+  assert.equal(lopendeSchrijfverzoeken(), basis + 1);
+  aanroepen[3].los(Promise.reject(new TypeError('Failed to fetch')));
+  await assert.rejects(outbox);
+  assert.equal(lopendeSchrijfverzoeken(), basis, 'ook een mislukt verzoek telt af');
+  aanroepen[0].los(new Response('[]'));
+  await get;
 });

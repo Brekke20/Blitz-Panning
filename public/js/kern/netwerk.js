@@ -19,16 +19,35 @@ function merk(belofte) {
   return belofte.then(undefined, (e) => { if (e instanceof TypeError) { try { e.vanFetch = true; } catch { /* bevroren */ } } throw e; });
 }
 
+// Lopende schrijvende /api-verzoeken (v2.1.6): de herlading bij het wegzetten van de app (nieuwe release) wacht tot er geen schrijfactie
+// (opslaan, voorstel, annuleren, rapport, foto, outbox) meer onderweg is; een herlading zou die afbreken met een onzeker resultaat.
+// Telt tot het antwoord (de kop) er is of het verzoek faalt, ook voor aanroepers met een eigen `signal` (de outbox).
+const LEZEND = new Set(['GET', 'HEAD', 'OPTIONS']);
+let _lopendeSchrijf = 0;
+export const lopendeSchrijfverzoeken = () => _lopendeSchrijf;
+function telSchrijf(belofte) {
+  _lopendeSchrijf++;
+  let af = false;
+  const klaar = () => { if (!af) { af = true; _lopendeSchrijf--; } };
+  if (!belofte || typeof belofte.then !== 'function') { klaar(); return belofte; }
+  return belofte.then((r) => { klaar(); return r; }, (e) => { klaar(); throw e; });
+}
+
 export function installeerFetchTimeout(doel, { limieten = TIJDLIMIETEN, setTimeoutFn = (f, ms) => setTimeout(f, ms), clearTimeoutFn = (t) => clearTimeout(t) } = {}) {
   const oorspronkelijk = doel.fetch;
   const basis = doel.location?.href || 'http://localhost/';
   const urlVan = (invoer) => { try { return new URL(typeof invoer === 'string' ? invoer : (invoer.url ?? String(invoer)), basis); } catch { return null; } };
   doel.fetch = function (invoer, init) {
     const url = urlVan(invoer);
+    const isApi = !!url && url.origin === new URL(basis).origin && url.pathname.startsWith('/api/');
+    const methode = init?.method || invoer?.method || 'GET';
+    if (isApi && !LEZEND.has(String(methode).toUpperCase())) return telSchrijf(verzend(url, invoer, init, methode));
+    return verzend(url, invoer, init, methode);
+  };
+  function verzend(url, invoer, init, methode) {
     if (!url || url.origin !== new URL(basis).origin || !url.pathname.startsWith('/api/') || init?.signal) {
       return merk(oorspronkelijk.call(doel, invoer, init));
     }
-    const methode = init?.method || invoer?.method || 'GET';
     const ms = limieten[klasseVoor(url.pathname, methode)];
     const controller = new AbortController();
     const timer = setTimeoutFn(() => controller.abort(new DOMException('Time-out na ' + Math.round(ms / 1000) + ' s', 'TimeoutError')), ms);
@@ -36,6 +55,6 @@ export function installeerFetchTimeout(doel, { limieten = TIJDLIMIETEN, setTimeo
     let belofte;
     try { belofte = oorspronkelijk.call(doel, invoer, { ...init, signal: controller.signal }); } catch (e) { klaar(); throw e; }
     return merk(belofte).then((r) => { klaar(); return r; }, (e) => { klaar(); throw e; });
-  };
+  }
   return () => { doel.fetch = oorspronkelijk; };
 }
