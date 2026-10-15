@@ -329,7 +329,7 @@ test.describe('kop B: toetsenbord en gsm', () => {
       });
       expect(m.rechts).toBeLessThanOrEqual(m.scherm);
       expect(m.links).toBeGreaterThanOrEqual(0);
-      expect(m.breed).toBeLessThanOrEqual(300);
+      expect(m.breed).toBeLessThanOrEqual(300.5); // marge voor afronding (300.0096 px)
       expect(m.onder).toBeLessThanOrEqual(m.hoog);
       expect(m.scrollbaar).toBe(true);
       expect(m.item).toBeGreaterThanOrEqual(44);
