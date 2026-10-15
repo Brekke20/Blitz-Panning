@@ -15,7 +15,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
-## [2.1.6] — nog niet uitgebracht
+## [2.1.6] — 2026-10-15
 
 ### Fixed
 - Tablet: de keuzes van "Oorzaak storing" ontbraken in het rapport, terwijl de app "Versie 2.1.5" toonde. Bij een haperende verbinding kon de app een stuk oude code (de rapportwizard van vóór 2.1.3) uit de bewaarde kopie van een vorige versie halen en die mengen met de nieuwe versie. Dat kan niet meer: een pagina van de nieuwe versie krijgt nooit nog onderdelen van een oudere versie. Lukt het laden van een onderdeel niet, dan laadt de app zichzelf één keer opnieuw.
