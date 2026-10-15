@@ -94,6 +94,7 @@ export const test = basis.extend({
     const gehangen = []; // routes die door hangVoor vastgehouden worden
     const regels = []; // { patroon, soort: 'hang' | 'vertraag' | 'breek', ms }
     let swModus = 'echt'; // 'echt' | 'oud' (de bevroren main-SW wordt als /sw.js geleverd)
+    let serverVersie = null; // v2.1.6: null = de echte /js/versie.js; anders levert de server versie.js met dit nummer (een nieuwe release)
 
     // Eén route, geregistreerd na de sloten (via de haak van startAppProductie). Geeft nooit zelf iets door naar buiten.
     async function installeerRoute(ctx) {
@@ -103,6 +104,11 @@ export const test = basis.extend({
         const eigen = EIGEN_HOSTS.includes(u.host);
         if (eigen && req.method() === 'GET' && u.pathname === '/sw.js' && swModus === 'oud') {
           return route.fulfill({ status: 200, contentType: 'application/javascript', body: OUDE_SW });
+        }
+        if (eigen && req.method() === 'GET' && u.pathname === '/js/versie.js' && serverVersie) {
+          const echt = fs.readFileSync(path.join(PUBLIC, 'js', 'versie.js'), 'utf8');
+          const body = echt.replace(/export const APP_VERSIE = '[^']+';/, `export const APP_VERSIE = '${serverVersie}';`);
+          return route.fulfill({ status: 200, contentType: 'application/javascript', body });
         }
         if (eigen && req.method() === 'GET' && u.pathname === MEET_PAD) {
           return route.fulfill({ status: 200, contentType: 'application/javascript', body: MEET_SCRIPT });
@@ -190,6 +196,8 @@ export const test = basis.extend({
       // Updatepad (N4): /sw.js levert de bevroren main-SW (oud) of weer de echte (nieuw).
       serveerOudeSw() { swModus = 'oud'; toestaOudeSw(context); },
       serveerNieuweSw() { swModus = 'echt'; },
+      // v2.1.6: de server levert vanaf nu een andere release (enkel het nummer in /js/versie.js verschilt).
+      zetServerVersie(v) { serverVersie = v; },
       async updateSw() {
         await page.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration(); await r.update(); });
       },

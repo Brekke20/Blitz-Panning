@@ -45,6 +45,7 @@ import { _rapportArchief, _archiefVersie, zetArchiefVersie, laadRapportArchief, 
 import { refreshOutboxCache, flushOutbox, _outboxInFlight } from './outbox.js';
 import { _invData, loadInventaris, renderInventaris, updateInventarisBadge, resetInvSeenLog } from './inventaris.js';
 import { appConfirm } from './app-dialog.js';
+import { APP_VERSIE, leesVersie } from './versie.js';
 import { registreerVenster } from './venster.js';
 import { startNaInlog, pasWerkruimteToe } from './schermen/rol-schil.js';
 import { leesWerkruimte, bewaarWerkruimte, omzetTab, tabHoortBij } from './schermen/werkruimte-logica.js';
@@ -851,8 +852,15 @@ function veiligOmTeHerladen() {
 function volgSwUpdates() {
   const sw = navigator.serviceWorker;
   const hadSw = !!sw.controller;
-  sw.addEventListener('controllerchange', () => {
+  sw.addEventListener('controllerchange', async () => {
     if (!hadSw || _nieuweVersieKlaar) return;
+    // Kwam deze pagina al van het netwerk met de nieuwe release (eerste start na een update), dan neemt de nieuwe SW enkel over:
+    // geen melding en geen herlading. Lukt de controle niet, dan liever één herlading te veel dan een mengeling van versies.
+    try {
+      const r = await fetch('/js/versie.js', { cache: 'no-store' });
+      if (r.ok && leesVersie(await r.text()) === APP_VERSIE) return;
+    } catch { /* onbekend: als nieuwe versie behandelen */ }
+    if (_nieuweVersieKlaar) return;
     _nieuweVersieKlaar = true;
     const label = document.getElementById('app-versie');
     if (label && !label.textContent.includes('nieuwe versie')) label.textContent += ' · nieuwe versie klaar, wordt geladen bij het wegzetten van de app';

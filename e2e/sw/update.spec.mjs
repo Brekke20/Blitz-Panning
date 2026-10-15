@@ -47,6 +47,7 @@ test('Nieuwe SW neemt een open pagina over: eerlijk label en één herlading bij
   await expect(page.locator('#app-versie')).toHaveText(/^Versie \d+\.\d+\.\d+$/);
 
   sw.serveerNieuweSw();
+  sw.zetServerVersie('99.0.0'); // de server heeft echt een andere release
   await sw.updateSw();
   await expect(page.locator('#app-versie')).toContainText('nieuwe versie klaar', { timeout: 20000 });
   expect(ladingen, 'geen herlading terwijl de gebruiker de app gebruikt').toBe(0);
@@ -59,4 +60,27 @@ test('Nieuwe SW neemt een open pagina over: eerlijk label en één herlading bij
   await expect(page.locator('#cnt-tickets')).toHaveText(/\d+/);
   expect(await page.evaluate(() => window.__oudePagina === true)).toBe(false);
   await expect(page.locator('#app-versie')).toHaveText(/^Versie \d+\.\d+\.\d+$/);
+});
+
+// v2.1.6 (M1): kwam de pagina al van het netwerk met dezelfde release als de nieuwe SW (eerste start na een update), dan neemt de nieuwe SW
+// enkel over: geen melding "nieuwe versie klaar" en geen herlading bij het wegzetten.
+test('Nieuwe SW neemt een pagina over die al dezelfde release draait: geen melding en geen herlading', async ({ page, sw }) => {
+  sw.serveerOudeSw();
+  await sw.start();
+  let ladingen = 0;
+  page.on('load', () => { ladingen++; });
+  await page.evaluate(() => { window.__wissels = 0; navigator.serviceWorker.addEventListener('controllerchange', () => { window.__wissels++; }); });
+
+  sw.serveerNieuweSw(); // zelfde app-bestanden, dus dezelfde versie
+  await sw.updateSw();
+  await expect.poll(() => page.evaluate(() => window.__wissels), { timeout: 20000 }).toBeGreaterThanOrEqual(1);
+  await page.evaluate(() => new Promise(r => setTimeout(r, 1500))); // de versiecontrole van de app is dan zeker klaar
+  await expect(page.locator('#app-versie')).toHaveText(/^Versie \d+\.\d+\.\d+$/);
+
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.evaluate(() => new Promise(r => setTimeout(r, 1500)));
+  expect(ladingen, 'geen herlading: de pagina draait de nieuwe release al').toBe(0);
 });
