@@ -331,9 +331,9 @@ function opstart() {
   startTicketPolling();
   refreshOutboxCache();
   flushOutbox();
-  window.addEventListener('online', flushOutbox);
+  window.addEventListener('online', () => { flushOutbox(); verversNaTerugkeer(); });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') flushOutbox();
+    if (document.visibilityState === 'visible') { flushOutbox(); verversNaTerugkeer(); }
   });
   // Initialiseer tab indicator op de actieve tab
   setTimeout(() => updateTabIndicator(document.querySelector('.tab.active')?.id || 'tab-tickets'), 0); // onder de actieve (zichtbare) tab, ook in de werkruimte Sales
@@ -816,7 +816,22 @@ function startTicketPolling() {
     // I3: ✉️/🔒-badges (isStopLocked/isStopAnchored) vers houden -- fire-and-forget, eigen
     // error-handling in loadVoorstelStatus() zelf.
     voorstel.loadVoorstelStatus();
+    afspraken.verversAfspraken(); // v2.1.6: ook de eigen afspraken (vroeger enkel bij de start geladen)
   }, 30 * 1000); // check elke 30s, laad pas als 5min verstreken
+}
+
+// Terug naar de app (visibilitychange) of de verbinding is terug (online), v2.1.6: een tablet die de app op de achtergrond had, toonde
+// tot de volgende poll een planning met items die intussen op de pc verwijderd waren. De afspraken (Blobs, licht) altijd; de tickets
+// (Zoho, zwaar) als de laatste geslaagde lading meer dan een minuut oud is. Nooit tijdens het vastleggen van een routevolgorde (I4);
+// eigen wijzigingen die nog onderweg zijn, beschermen loadTickets (schrijfstand) en verversAfspraken zelf.
+const TERUGKEER_TICKETS_MS = 60 * 1000;
+function verversNaTerugkeer() {
+  if (document.visibilityState !== 'visible') return;
+  afspraken.verversAfspraken();
+  if (route.routeOrderBezig()) return;
+  if (Date.now() - _lastTicketLoad < TERUGKEER_TICKETS_MS) return;
+  loadTickets({ stilleToast: true, stil: true });
+  voorstel.loadVoorstelStatus();
 }
 
 // ══════════════════════════════════════════════

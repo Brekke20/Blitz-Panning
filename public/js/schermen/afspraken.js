@@ -85,7 +85,42 @@ export async function loadAfspraken({ zonderCache = false } = {}) {
 // Bij een 409 (collega schreef net) wordt de eigen wijziging over de server-stand gelegd en één keer
 // opnieuw bewaard (kern.api.bewaarMetVersie). Lukt ook dat niet (tweede 409): waarschuwing + server-stand.
 // Geeft 'ok', 'conflict' (localEvents is door de server-stand vervangen) of 'fout' (andere mislukking).
-export async function saveAfspraken({ toegevoegd = [], gewijzigd = [], verwijderd = [] } = {}) {
+export async function saveAfspraken(wijzigingen = {}) {
+  _schrijfBezig++;
+  _schrijfTeller++;
+  try {
+    return await _saveAfspraken(wijzigingen);
+  } finally {
+    _schrijfBezig--;
+  }
+}
+
+// Verversing (v2.1.6): de 5-minutenpoll, de terugkeer naar de app en het herstel van de verbinding halen de afspraken opnieuw op, zodat
+// een afspraak die op een ander toestel verwijderd (of gewijzigd) werd, ook hier verdwijnt. Vroeger gebeurde dat enkel bij de start.
+// Een eigen wijziging gaat voor: loopt er een opslag, of begon er een tijdens het ophalen, dan blijft de lokale stand staan (de opslag
+// voegt bij een 409 zelf de server-stand samen). Een mislukte verversing laat de huidige stand ongemoeid.
+let _schrijfBezig = 0;
+let _schrijfTeller = 0;
+export async function verversAfspraken() {
+  if (_schrijfBezig) return false;
+  const start = _schrijfTeller;
+  let data;
+  try {
+    data = await apiJson(AFG_API);
+  } catch (err) {
+    console.warn('Afspraken verversen mislukt:', err);
+    return false;
+  }
+  if (_schrijfBezig || _schrijfTeller !== start) return false;
+  const versie = data.versie || 0;
+  if (versie === localEventsVersie) return false; // niets veranderd: geen hertekening
+  toestand.set('localEvents', data.afspraken || []);
+  localEventsVersie = versie;
+  if (!TEST_MODE) afh.saveToCache('blitz_afspraken_cache', { afspraken: toestand.get('localEvents'), versie: localEventsVersie });
+  return true;
+}
+
+async function _saveAfspraken({ toegevoegd = [], gewijzigd = [], verwijderd = [] } = {}) {
   try {
     const result = await bewaarMetVersie({
       pad: AFG_API, veld: 'afspraken', versie: localEventsVersie, waarde: toestand.get('localEvents'),
