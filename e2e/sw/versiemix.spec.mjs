@@ -20,20 +20,22 @@ test('Een netwerkpagina krijgt nooit een module uit een cache van een andere rel
     await c.put('/js/rapport-wizard.js', new Response((await w.text()) + '\nwindow.__wizardUitOudeCache = true;\n', { headers: w.headers }));
   }, CACHE_NAME);
 
-  // Per lading faalt rapport-wizard.js twee keer (het verzoek van de SW en dat van de pagina); de pagina laadt twee keer (opstartherstel).
-  verwachtNetwerkFout(verzoeken, Array.from({ length: 4 }, () => ({ pad: WIZARD, methode: 'GET' })));
+  // De eerste lading (een netwerkpagina) krijgt rapport-wizard.js niet: twee netwerkfouten (het verzoek van de SW en dat van de pagina).
+  // De herlading van het opstartherstel komt daarna volledig uit de cache en haalt de module dus niet meer van het netwerk.
+  verwachtNetwerkFout(verzoeken, Array.from({ length: 2 }, () => ({ pad: WIZARD, methode: 'GET' })));
   let ladingen = 0;
   page.on('load', () => { ladingen++; });
   sw.breekAf(WIZARD);
   await page.reload();
-  await expect(page.locator('#app-versie')).toHaveText(/^Versie \d+\.\d+\.\d+/);
-  // Zonder de fix start de app met de oude wizard (de vlag staat dan op true). Met de fix faalt de module en herlaadt de pagina één keer
-  // (opstartherstel); daarna blijft ze staan tot het netwerk terug is: nooit een gemengde app.
-  await expect.poll(() => page.evaluate(() => window.__wizardUitOudeCache === true || !!sessionStorage.getItem('blitz_opstartherstel')).catch(() => false), { timeout: 15000 }).toBe(true);
-  expect(await page.evaluate(() => window.__wizardUitOudeCache === true).catch(() => false), 'oude rapport-wizard.js in een netwerkpagina').toBe(false);
-  await expect.poll(() => ladingen, { timeout: 15000 }).toBe(2); // de herlading van het opstartherstel
-  await expect(page.locator('#app-versie')).toHaveText(/^Versie /);
-  expect(await page.evaluate(() => window.__wizardUitOudeCache === true)).toBe(false);
+  // Zonder de fix start de netwerkpagina met de oude wizard (geen fout, dus geen herlading). Met de fix faalt de module en herlaadt de
+  // pagina één keer (opstartherstel); die tweede lading is in haar geheel de vorige release uit de cache: nooit een gemengde app.
+  await expect.poll(() => ladingen, { timeout: 15000 }).toBe(2);
+  await expect(page.locator('#cnt-tickets')).toHaveText(/\d+/);
+  expect(await page.evaluate(() => [
+    [...document.childNodes].some((n) => n.nodeType === 8 && n.data.includes('vorige release')),
+    window.__wizardUitOudeCache === true,
+    !!sessionStorage.getItem('blitz_opstartherstel'),
+  ]), 'de herstelstart: index.html en rapport-wizard.js allebei uit de cache').toEqual([true, true, true]);
 
   // Het netwerk is terug: de volgende start is volledig de nieuwe release.
   await sw.herstel();

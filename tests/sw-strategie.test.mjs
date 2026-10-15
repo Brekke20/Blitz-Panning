@@ -434,3 +434,42 @@ test('2.1.6: de globale cache-modus van een ander tabblad geldt niet voor een ne
   assert.equal(await tekst(s.behandel(req('/js/app.js', { clientId: 'A' }))), 'app-2.1.5', 'tabblad A blijft op het netwerk');
   assert.equal(await tekst(s.behandel(req('/js/app.js', { clientId: 'B' }))), 'app-2.1.2', 'tabblad B blijft op de cache');
 });
+
+// v2.1.6 (review): na een geweigerde terugval (andere versie in de cache) herlaadt de pagina (opstartherstel). Zonder meer zou die
+// herlading opnieuw van het netwerk komen en op dezelfde haperende module vastlopen; nu start ze eenmalig volledig uit de cache.
+test('2.1.6: na een geweigerde terugval start de volgende navigatie eenmalig volledig uit de cache (consistente vorige release)', async () => {
+  let netFaalt = false;
+  const { s } = bouw({
+    begin: { hoofd: { [ORIGIN + '/index.html']: 'index-2.1.2', [ORIGIN + '/js/app.js']: 'app-2.1.2' } },
+    fetchFn: async (r) => {
+      if (netFaalt && padVan(r) === '/js/app.js') throw new TypeError('netwerk hapert');
+      return new Response(padVan(r) === '/' ? 'index-2.1.5' : 'app-2.1.5');
+    },
+  });
+  assert.equal(await tekst(s.behandel(nav('/'), { resultingClientId: 'T' })), 'index-2.1.5');
+  netFaalt = true;
+  await assert.rejects(s.behandel(req('/js/app.js'), { clientId: 'T' }), /hapert/);
+  netFaalt = false;
+  assert.equal(await tekst(s.behandel(nav('/'), { resultingClientId: 'U' })), 'index-2.1.2', 'de herlading start uit de cache');
+  assert.equal(await tekst(s.behandel(req('/js/app.js'), { clientId: 'U' })), 'app-2.1.2', 'met al haar modules uit de cache');
+  assert.equal(await tekst(s.behandel(req('/js/app.js'), { clientId: 'T' })), 'app-2.1.5', 'de netwerkpagina blijft op het netwerk');
+  assert.equal(await tekst(s.behandel(nav('/'), { resultingClientId: 'V' })), 'index-2.1.5', 'eenmalig: de volgende start is weer van het netwerk');
+});
+
+test('2.1.6: de herstelstart uit de cache vervalt na cacheModusMs', async () => {
+  const klok = { t: 0 };
+  let netFaalt = false;
+  const { s } = bouw({
+    klok,
+    begin: { hoofd: { [ORIGIN + '/index.html']: 'index-2.1.2', [ORIGIN + '/js/app.js']: 'app-2.1.2' } },
+    fetchFn: async (r) => {
+      if (netFaalt && padVan(r) === '/js/app.js') throw new TypeError('netwerk hapert');
+      return new Response(padVan(r) === '/' ? 'index-2.1.5' : 'app-2.1.5');
+    },
+  });
+  await tekst(s.behandel(nav('/'), { resultingClientId: 'T' }));
+  netFaalt = true;
+  await assert.rejects(s.behandel(req('/js/app.js'), { clientId: 'T' }));
+  klok.t += 60001;
+  assert.equal(await tekst(s.behandel(nav('/'), { resultingClientId: 'U' })), 'index-2.1.5');
+});

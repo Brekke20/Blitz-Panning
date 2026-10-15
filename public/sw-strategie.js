@@ -61,12 +61,18 @@
     // voor `cacheModusMs` (terugval voor verzoeken zonder clientId).
     function zetCacheModus(request, ids) {
       cacheModusTot = nu() + cacheModusMs;
-      const id = request.mode === 'navigate' ? ids.resultingClientId : ids.clientId;
+      zetCacheClient(request.mode === 'navigate' ? ids.resultingClientId : ids.clientId);
+    }
+    function zetCacheClient(id) {
       if (!id) return;
       cacheClients.delete(id);
       cacheClients.add(id);
       if (cacheClients.size > MAX_CLIENTS) cacheClients.delete(cacheClients.values().next().value);
     }
+    // Herstelstart (v2.1.6, review): faalde een module van een netwerkpagina terwijl de cache een andere versie is, dan herlaadt de pagina
+    // (opstartherstel in index.html). Die volgende navigatie (eenmalig, binnen `cacheModusMs`) start uit de cache, met al haar modules:
+    // een volledige, consistente vorige release in plaats van opnieuw een netwerkpagina die op dezelfde haperende module vastloopt.
+    let herstelUitCacheTot = 0;
 
     async function uitCache(naam, sleutel) {
       const c = await caches.open(naam);
@@ -79,6 +85,12 @@
       const pad = eigenOrigin + url.pathname;
       const zoekCache = async () => (await uitCache(cacheNaam, pad)) || (isNav ? uitCache(cacheNaam, eigenOrigin + '/index.html') : undefined);
 
+      if (isNav && herstelUitCacheTot && nu() < herstelUitCacheTot) {
+        herstelUitCacheTot = 0;
+        const kopie = await zoekCache();
+        if (kopie) { zetCacheClient(ids.resultingClientId); return kopie; }
+      }
+
       if (inCacheModus(ids)) {
         const kopie = await zoekCache();
         if (kopie) return kopie;
@@ -88,7 +100,10 @@
       // dan is ook geen cache-modus nodig. Een onbekende client (bv. na een SW-herstart) volgt de oude regel.
       const netClient = isNav ? null : netwerkClient(ids);
       async function terugval() {
-        if (netClient && !(await netClient)) return undefined; // andere versie in de cache: liever een fout dan een mengeling
+        if (netClient && !(await netClient)) { // andere versie in de cache: liever een fout dan een mengeling
+          herstelUitCacheTot = nu() + cacheModusMs; // de herlading van het opstartherstel start dan uit de cache
+          return undefined;
+        }
         const kopie = await zoekCache();
         if (kopie && !netClient) zetCacheModus(request, ids);
         return kopie;
