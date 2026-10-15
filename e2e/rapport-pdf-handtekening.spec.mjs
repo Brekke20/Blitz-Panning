@@ -46,6 +46,18 @@ async function bouwRapportHtml(page, extra = {}) {
   }, extra);
 }
 
+// Opent het rapport via de echte knop in het archief en wacht tot de rapportinhoud in de iframe van het nieuwe venster staat. Ruime,
+// expliciete wachttijden (onder belasting duurde het venster soms langer dan de standaard 5 s van expect.poll): het nieuwe venster via de
+// context (ook een venster dat opent vóór de luisteraar klaar is, mist zo niet) en daarna het deterministische signaal `.sig-row`.
+const VENSTER_MS = 20000;
+async function openArchiefVenster(page, knop) {
+  const [popup] = await Promise.all([page.context().waitForEvent('page', { timeout: VENSTER_MS }), knop.click()]);
+  await popup.waitForLoadState('load', { timeout: VENSTER_MS });
+  await expect.poll(() => popup.evaluate(() => !!document.querySelector('iframe')?.contentDocument?.querySelector('.sig-row')),
+    { timeout: VENSTER_MS }).toBe(true);
+  return popup;
+}
+
 test.describe('rapport afdrukken: handtekeningenblok blijft heel', () => {
   test('stijlregels: titel blijft bij de vakken en blok en vakken breken niet', async ({ page }) => {
     await startApp(page, { overschrijf: { 'rapport-archief': opslagStub({ versie: 1, rapports: [RAPPORT] }, 'rapports') } });
@@ -76,9 +88,7 @@ test.describe('rapport afdrukken: handtekeningenblok blijft heel', () => {
     const html = await bouwRapportHtml(page, { servicetype: 'garantie', start: '09:00', stop: '10:00' });
     await page.getByRole('tab', { name: 'Rapporten' }).click();
     await page.evaluate((h) => { window.kern.rapportArchief.lijst()[0].rapportData._html = h; }, html);
-    const [popup] = await Promise.all([page.waitForEvent('popup'), page.getByRole('button', { name: '📄 Openen' }).click()]);
-    await popup.waitForLoadState('load');
-    await expect.poll(() => popup.evaluate(() => !!document.querySelector('iframe')?.contentDocument?.querySelector('.sig-row'))).toBe(true);
+    const popup = await openArchiefVenster(page, page.getByRole('button', { name: '📄 Openen' }));
     await popup.emulateMedia({ media: 'print' });
     await popup.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
     const opmaak = await popup.evaluate(() => {
@@ -110,15 +120,13 @@ test.describe('rapport afdrukken: handtekeningenblok blijft heel', () => {
       for (let afstand = 0; afstand <= 450; afstand += 30) {
         const metAfstand = html.replace('<div class="accent-bar"></div>', `<div class="accent-bar"></div><div>${'<br>'.repeat(afstand / 15)}</div>`);
         await page.evaluate((h) => { window.kern.rapportArchief.lijst()[0].rapportData._html = h; }, metAfstand);
-        const [popup] = await Promise.all([page.waitForEvent('popup'), knop.click()]);
-        await popup.waitForLoadState('load');
-        await expect.poll(() => popup.evaluate(() => !!document.querySelector('iframe')?.contentDocument?.querySelector('.sig-row'))).toBe(true);
+        const popup = await openArchiefVenster(page, knop);
         await popup.emulateMedia({ media: 'print' });
         await popup.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
         await expect.poll(() => popup.evaluate(() => {
           const imgs = [...(document.getElementById('druk-kopie')?.shadowRoot?.querySelectorAll('img') ?? [])];
           return imgs.length === 2 && imgs.every(i => i.complete && i.naturalWidth > 0);
-        })).toBe(true);
+        }), { timeout: VENSTER_MS }).toBe(true);
         const bestand = path.join(map, `r-${afstand}.pdf`);
         await popup.pdf({ path: bestand, format: 'A4', printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '0mm', right: '0mm' } });
         if (process.env.RAPPORT_PDF_UIT && afstand === Number(process.env.RAPPORT_PDF_AFSTAND ?? 150)) fs.copyFileSync(bestand, process.env.RAPPORT_PDF_UIT);
