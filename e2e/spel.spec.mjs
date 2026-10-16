@@ -1,11 +1,11 @@
-import { test, expect, startApp } from './helpers.mjs';
+import { test, expect, startApp, snelTikken, metStilstaandeKlok } from './helpers.mjs';
 
 // Blitz Run (verborgen spel): 5× snel tikken op het logo-icoon opent het overlay, 5× tikken / ✕ / Escape sluit het, het toetsenbord
 // speelt, en het spel verstuurt nooit iets buiten /api/spel. In ?test; de klok is een nepklok (page.clock).
 
 const titel = (page) => page.locator('.logo-icon');
 const overlay = (page) => page.locator('#spel-overlay');
-const tikVijf = async (page) => { for (let i = 0; i < 5; i++) await titel(page).click(); };
+const tikVijf = (page) => snelTikken(page, titel(page)); // stilstaande nepklok tijdens het tikken (zie helpers.mjs)
 const status = (page) => overlay(page).getAttribute('data-status');
 const score = async (page) => Number((await overlay(page).getAttribute('data-score')) ?? 0);
 const canvasBeeld = (page) => page.locator('#spel-overlay canvas').evaluate((c) => c.toDataURL());
@@ -21,11 +21,13 @@ test.describe('Blitz Run', () => {
     await startApp(page);
     const modules = [];
     page.on('request', (r) => { if (r.url().includes('/js/spel/spel-ui.js')) modules.push(r.url()); });
-    for (let i = 0; i < 4; i++) await titel(page).click();
-    await expect(overlay(page)).toHaveCount(0);
-    expect(modules).toEqual([]);
-    await titel(page).click();
-    await expect(overlay(page)).toHaveClass(/open/);
+    await metStilstaandeKlok(page, async () => { // de vijfde tik telt mee, ook al kijken we tussendoor
+      for (let i = 0; i < 4; i++) await titel(page).click();
+      await expect(overlay(page)).toHaveCount(0);
+      expect(modules).toEqual([]);
+      await titel(page).click();
+      await expect(overlay(page)).toHaveClass(/open/);
+    });
     expect(modules).toHaveLength(1);
     expect(verzoeken.onverwacht).toEqual([]);
   });

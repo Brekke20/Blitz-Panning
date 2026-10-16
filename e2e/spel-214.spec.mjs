@@ -1,4 +1,4 @@
-import { test, expect, startApp } from './helpers.mjs';
+import { test, expect, startApp, snelTikken, metStilstaandeKlok } from './helpers.mjs';
 
 // v2.1.4 Blitz Run: (1) de kaart staat gecentreerd en groot, (2) enkel het logo-icoon opent het spel, 5 snelle tikken (elk binnen 600 ms),
 // met een telmelding na de 3e en 4e tik, (3) op aanraking twee grote knoppen (Bukken links, ingehouden; Springen rechts).
@@ -10,7 +10,8 @@ const foto = async (page, naam) => { if (MAP) await page.screenshot({ path: `${M
 const logo = (page) => page.locator('.logo-icon');
 const overlay = (page) => page.locator('#spel-overlay');
 const toast = (page) => page.locator('#spel-tik-toast');
-const tikken = async (page, n) => { for (let i = 0; i < n; i++) await logo(page).click(); };
+// Stilstaande nepklok tijdens het tikken (zie helpers.mjs); reeksen met controles ertussen staan in metStilstaandeKlok.
+const tikken = (page, n) => snelTikken(page, logo(page), n);
 const AAN = '?test&versiering=aan';
 
 async function openSpel(page) {
@@ -97,24 +98,28 @@ test.describe('v2.1.4 activatie via het logo', () => {
     await expect(overlay(page)).toHaveCount(0);
     await expect(toast(page)).toHaveCount(0);
     // Een gemengde reeks (3 op het logo, 2 op de tekst) telt ook niet.
-    await tikken(page, 3);
-    for (let i = 0; i < 2; i++) await page.locator('.logo-text').click();
-    await expect(overlay(page)).toHaveCount(0);
+    await metStilstaandeKlok(page, async () => {
+      await tikken(page, 3);
+      for (let i = 0; i < 2; i++) await page.locator('.logo-text').click();
+      await expect(overlay(page)).toHaveCount(0);
+    });
   });
 
   test('melding na de 3e en 4e tik, weg bij de 5e; ze verdwijnt na ongeveer 1,5 s', async ({ page }) => {
     await startApp(page);
-    await tikken(page, 2);
-    await expect(toast(page)).toHaveCount(0);
-    await logo(page).click();
-    await expect(toast(page)).toHaveClass(/show/);
-    await expect(toast(page)).toHaveText('Nog 2 keer tikken om Blitz Run te openen');
-    await foto(page, 'v214-toast');
-    await logo(page).click();
-    await expect(toast(page)).toHaveText('Nog 1 keer tikken om Blitz Run te openen');
-    await logo(page).click();
-    await expect(overlay(page)).toHaveClass(/open/);
-    await expect(toast(page)).not.toHaveClass(/show/);
+    await metStilstaandeKlok(page, async () => {
+      await tikken(page, 2);
+      await expect(toast(page)).toHaveCount(0);
+      await logo(page).click();
+      await expect(toast(page)).toHaveClass(/show/);
+      await expect(toast(page)).toHaveText('Nog 2 keer tikken om Blitz Run te openen');
+      await foto(page, 'v214-toast');
+      await logo(page).click();
+      await expect(toast(page)).toHaveText('Nog 1 keer tikken om Blitz Run te openen');
+      await logo(page).click();
+      await expect(overlay(page)).toHaveClass(/open/);
+      await expect(toast(page)).not.toHaveClass(/show/);
+    });
     // Los van het openen: de melding verdwijnt vanzelf.
     await page.keyboard.press('Escape');
     await expect(overlay(page)).not.toHaveClass(/open/);
@@ -126,25 +131,29 @@ test.describe('v2.1.4 activatie via het logo', () => {
 
   test('een trage tik zet de teller terug en verbergt de melding', async ({ page }) => {
     await startApp(page);
-    await tikken(page, 3);
-    await expect(toast(page)).toHaveClass(/show/);
-    await page.clock.runFor(700);
-    await logo(page).click();
-    await expect(toast(page)).not.toHaveClass(/show/);
-    await logo(page).click();
-    await logo(page).click(); // pas de 3e na de reset
-    await expect(toast(page)).toHaveClass(/show/);
-    await expect(overlay(page)).toHaveCount(0);
+    await metStilstaandeKlok(page, async () => { // enkel de bewuste 700 ms telt als traag
+      await tikken(page, 3);
+      await expect(toast(page)).toHaveClass(/show/);
+      await page.clock.runFor(700);
+      await logo(page).click();
+      await expect(toast(page)).not.toHaveClass(/show/);
+      await logo(page).click();
+      await logo(page).click(); // pas de 3e na de reset
+      await expect(toast(page)).toHaveClass(/show/);
+      await expect(overlay(page)).toHaveCount(0);
+    });
   });
 
   test('vijf snelle tikken terwijl het spel open staat sluiten het, zonder melding', async ({ page }) => {
     await startApp(page);
     await openSpel(page);
     await page.clock.runFor(700);
-    await tikken(page, 3);
-    await expect(toast(page)).not.toHaveClass(/show/);
-    await tikken(page, 2);
-    await expect(overlay(page)).not.toHaveClass(/open/);
+    await metStilstaandeKlok(page, async () => {
+      await tikken(page, 3);
+      await expect(toast(page)).not.toHaveClass(/show/);
+      await tikken(page, 2);
+      await expect(overlay(page)).not.toHaveClass(/open/);
+    });
   });
 });
 

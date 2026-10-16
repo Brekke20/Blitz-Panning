@@ -356,6 +356,39 @@ export async function startApp(page, { rol = 'coordinator', technieker = 'all', 
   await expect(page.locator('#cnt-tickets')).toHaveText(String(TE_PLANNEN[eigen] ?? 0));
 }
 
+// ── Blitz Run: snel tikken ──────────────────────────────────────────────────────
+// Het spel opent na 5 tikken op het logo die elk binnen 600 ms (Date.now) na de vorige komen. Date.now is de nepklok van startApp,
+// die met de echte tijd meeloopt: losse Playwright-klikken (elk met hun eigen wachten) halen dat op een belaste machine niet altijd,
+// en dan begint de teller opnieuw. Daarom staat de nepklok stil tijdens het tikken: echte klikken, maar voor de app 0 ms ertussen.
+// `page.clock.runFor` werkt ook bij een stilstaande klok (zo test je een trage tik). Mag genest worden; daarna loopt de klok weer.
+const stilDiepte = new WeakMap();
+// pauseAt(t) loopt over ALLE frames (de app en bv. het iframe #annuleer-frame), elk met zijn eigen nepklok, en zet ze één voor één
+// stil op t. Loopt één van die klokken al voorbij t (een belaste machine doet er langer dan de marge over), dan gooit hij
+// "Cannot fast-forward to the past". Daarom: t = de verste klok van alle frames plus een marge, en bij die fout opnieuw met een
+// grotere marge (een frame dat al stilstaat, loopt niet meer verder). Doorspoelen tot t is gewoon de tijd die verstrijkt.
+async function zetKlokStil(page) {
+  let laatste;
+  for (const marge of [50, 250, 1000]) {
+    const frames = page.context().pages().flatMap((p) => p.frames());
+    const tijden = await Promise.all(frames.map((f) => f.evaluate(() => Date.now()).catch(() => 0)));
+    try { await page.clock.pauseAt(Math.max(...tijden) + marge); return; } catch (fout) {
+      if (!/fast-forward to the past/.test(String(fout?.message))) throw fout;
+      laatste = fout;
+    }
+  }
+  throw laatste;
+}
+export async function metStilstaandeKlok(page, fn) {
+  const diepte = stilDiepte.get(page) ?? 0;
+  if (diepte === 0) await zetKlokStil(page);
+  stilDiepte.set(page, diepte + 1);
+  try { return await fn(); } finally {
+    stilDiepte.set(page, diepte);
+    if (diepte === 0) await page.clock.resume();
+  }
+}
+export const snelTikken = (page, doel, n = 5) => metStilstaandeKlok(page, async () => { for (let i = 0; i < n; i++) await doel.click(); });
+
 // ── test met automatische controles ───────────────────────────────────────────
 export const test = basis.extend({
   verzoeken: async ({ page }, use) => {
