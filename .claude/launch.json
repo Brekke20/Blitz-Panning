@@ -2,9 +2,35 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "blitz-fase1-worktree",
+      "name": "blitz-planning-dev",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["blobs-local-bootstrap.mjs"],
+      "runtimeArgs": [
+        "dev-server.mjs"
+      ],
+      "port": 3333
+    },
+    {
+      "name": "blitz-planning-blobs",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "blobs-local-bootstrap.mjs"
+      ],
+      "port": 3333
+    },
+    {
+      "name": "blitz-refactor-proef",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:/Users/BRENT/OneDrive - Hertsens Transport (Walding)/Claude-Projects/blitz-planning/.claude/worktrees/planner-brein/blobs-local-bootstrap.mjs"
+      ],
+      "port": 3333
+    },
+    {
+      "name": "blitz-dashboard-proef",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:/Users/BRENT/OneDrive - Hertsens Transport (Walding)/Claude-Projects/blitz-planning/.claude/worktrees/refactor-dashboard/blobs-local-bootstrap.mjs"
+      ],
       "port": 3333
     }
   ]

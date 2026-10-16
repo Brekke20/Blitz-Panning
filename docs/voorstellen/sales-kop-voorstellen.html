@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compactere sales-kop</title>
+<style>
+  :root{
+    --bg:#181e24;--surface:#1d252d;--surface2:#232d37;--surface3:#2b3542;--border:#2e3a46;--border-strong:#7a8694;
+    --accent:#00dfa3;--accent-dim:rgba(0,223,163,.1);--accent-hover:#00f5b5;--on-accent:#0b1f18;
+    --text:#d9d9d6;--text2:#a8b0ba;--muted:#8b97a5;--orange:#f59e0b;--orange-dim:rgba(245,158,11,.1);--red:#ff5a52;
+    --mark:#ff5ea8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#11161b;color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5;font-size:15px}
+  .doc{max-width:1180px;margin:0 auto;padding:32px 16px 80px}
+  h1{font-size:28px;line-height:1.2;margin-bottom:6px}
+  h2{font-size:22px;margin:56px 0 8px;padding-top:24px;border-top:1px solid var(--border)}
+  h3{font-size:16px;margin:20px 0 6px}
+  p,li{color:var(--text2)} p+p{margin-top:8px}
+  .lead{font-size:16px;color:var(--text2);max-width:820px}
+  b,strong{color:var(--text)}
+  ul{padding-left:20px} li{margin:3px 0}
+  .tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 10px;border-radius:999px;background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent);vertical-align:middle;margin-left:8px}
+  .tw{overflow-x:auto;margin:16px 0}
+  table.cmp{min-width:640px;width:100%;border-collapse:collapse;font-size:14px}
+  .cmp th,.cmp td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+  .cmp th{background:var(--surface);color:var(--text)}
+  .cmp td{color:var(--text2);background:#151b21}
+  .cmp td.num{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--text)}
+  .cmp tr.best td{background:#13231f}
+  .win{color:var(--accent);font-weight:700}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px 28px;margin-top:12px}
+  @media (max-width:820px){.grid2{grid-template-columns:1fr}}
+  .box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+  .box h3{margin-top:0}
+  .pro li::marker{content:"+  ";color:var(--accent)} .con li::marker{content:"−  ";color:var(--red)}
+  .advice{background:#13231f;border:1px solid var(--accent);border-radius:12px;padding:16px 18px;margin-top:16px}
+  .advice h3{margin-top:0;color:var(--accent)}
+  .note{font-size:13px;color:var(--muted)}
+
+  /* tabs per voorstel */
+  .sw{display:flex;flex-wrap:wrap;gap:6px;margin:18px 0 10px}
+  .sw button{font:inherit;font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer}
+  .sw button[aria-selected=true]{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+  .stage{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+  .deskwrap{flex:1 1 640px;min-width:0}
+  .phonewrap{flex:0 0 auto}
+  .cap{font-size:13px;color:var(--muted);margin:6px 0 0}
+  .frame{position:relative;width:100%;border-radius:10px;overflow:hidden;border:1px solid #39444f;box-shadow:0 10px 30px rgba(0,0,0,.45);background:#000}
+  .frame>.scr{transform-origin:0 0;position:absolute;left:0;top:0}
+  .phone{border:8px solid #2a3139;border-radius:28px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.45);position:relative;width:331px;height:620px;background:#000}
+  .phone>.scr{transform:scale(.84);transform-origin:0 0;position:absolute;left:0;top:0}
+
+  /* ===== mockup-scherm (zelfde maten als de app) ===== */
+  .scr{width:1280px;height:800px;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.35;display:flex;flex-direction:column;position:relative;overflow:hidden}
+  .scr.ph{width:375px;height:738px}
+  .bar{flex:none;display:flex;align-items:center;gap:7px;padding:0 14px;background:var(--surface);border-bottom:1px solid var(--border);white-space:nowrap;min-width:0}
+  .hdr{height:52px;padding:0 16px;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.3);position:relative;z-index:3}
+  .logo{display:flex;align-items:center;gap:8px;flex:1;min-width:0;font-weight:700;font-size:14px}
+  .logo i{width:30px;height:30px;border-radius:8px;background:var(--surface3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,223,163,.2);flex:none}
+  .pbtn{display:flex;align-items:center;gap:7px;padding:5px 10px 5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px}
+  .pbtn.verk{border-color:var(--accent);background:var(--accent-dim)}
+  .pbtn small{color:var(--muted);font-size:12px}
+  .hb{width:32px;height:32px;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;flex:none}
+  .tabs{height:41px;padding:0 8px;gap:0;align-items:stretch}
+  .tab{padding:0 14px;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab.on{color:var(--text);font-weight:600;border-bottom-color:var(--accent)}
+  .badge{background:var(--surface3);color:var(--muted);font-size:11px;font-weight:600;border-radius:999px;padding:1px 7px}
+  .sep{width:1px;background:var(--border);margin:9px 8px}
+  .pills{display:flex;align-items:center;gap:4px}
+  .pill{height:28px;padding:0 12px;border-radius:999px;font-size:13px;font-weight:600;color:var(--text2);display:flex;align-items:center;border:1px solid transparent}
+  .pill.on{background:var(--accent-dim);color:var(--accent);border-color:var(--accent)}
+  .titel{height:44px;background:var(--bg);border:0;font-size:22px;font-weight:700;padding:0 16px;align-items:flex-end}
+  .subtabs{height:57px;background:var(--bg);border:0;padding:12px 16px 0;align-items:stretch}
+  .subtabs .in{display:flex;flex:1;border-bottom:1px solid var(--border);align-items:stretch}
+  .subtabs.compact{height:44px;padding:0 16px 0 12px;border-bottom:1px solid var(--border);background:var(--surface)}
+  .subtabs.compact .in{border:0}
+  .st{padding:0 16px;display:flex;align-items:center;font-weight:600;font-size:14px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+  .st.on{color:var(--accent);border-bottom-color:var(--accent)}
+  .rechts{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .vbalk{height:61px;padding:0 16px;gap:12px;background:var(--bg)}
+  .vbalk.kort{height:59px}
+  .lbl{color:var(--text2);font-size:14px}
+  .sel{background:var(--surface2);border:1px solid var(--border-strong);border-radius:8px;padding:0 10px;height:36px;display:inline-flex;align-items:center;gap:10px;font-size:14px;color:var(--text)}
+  .sel.sm{height:32px;font-size:13px}
+  .sel:after{content:"▾";color:var(--muted);font-size:12px}
+  .werk{height:49px}
+  .werk.c48{height:48px}
+  .date{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:12px;display:inline-flex;gap:10px;align-items:center}
+  .bp{background:var(--accent);color:var(--on-accent);font-weight:700;border-radius:8px;padding:7px 14px;font-size:12.8px;box-shadow:0 2px 6px rgba(0,223,163,.2);display:inline-flex;align-items:center;gap:4px}
+  .bs{border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:7px 12px;font-size:12.8px;display:inline-flex;align-items:center;gap:4px;background:transparent}
+  .bs.ic{padding:7px 10px}
+  .bs.more{font-weight:800;letter-spacing:1px;padding:5px 11px;font-size:15px}
+  .chipv{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-strong);border-radius:999px;padding:4px 10px 4px 5px;font-size:13px;background:var(--surface2)}
+  .chipv .av{width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .chipv:after{content:"▾";color:var(--muted);font-size:11px}
+  .ws{height:67px;padding:6px 14px;gap:6px;align-items:stretch}
+  .wsn{min-width:36px;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:19px}
+  .wsd{flex:0 0 96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:var(--surface2);border:1px solid var(--border);border-radius:8px}
+  .wsd.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+  .wsd .n{font-size:11.5px;font-weight:700}.wsd .a{font-size:13.5px;font-weight:700}.wsd .s{font-size:11px;font-weight:600}
+  .k{color:var(--accent)}.o{color:var(--orange)}.m{color:var(--muted)}
+  /* B: werkbalk + weekstrook samen */
+  .combi{height:60px;gap:6px;padding:0 14px}
+  .combi .wsn{height:44px}
+  .combi .wsd{flex:0 0 112px;height:44px;flex-direction:row;gap:7px;padding:0 8px;justify-content:flex-start}
+  .combi .wsd .col{display:flex;flex-direction:column;line-height:1.2}
+  /* C: mini-weekstrook */
+  .mini{height:34px;gap:6px;padding:0 14px;background:var(--bg)}
+  .mini .md{display:flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;border:1px solid var(--border);font-size:12px;color:var(--text2);height:24px}
+  .mini .md.on{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+  .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+  .mini .mn{color:var(--muted);font-size:15px;padding:0 4px}
+  /* inhoud route */
+  .rb{flex:1;display:flex;min-height:0}
+  .lst{width:300px;flex:none;padding:6px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;gap:4px;overflow:hidden}
+  .stop{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 11px}
+  .stop.vg{background:var(--accent-dim);border-left:3px dashed var(--accent)}
+  .stop.vast{background:color-mix(in srgb,var(--accent) 28%,var(--surface));border-left:3px solid var(--accent)}
+  .stop .t{display:flex;gap:9px;align-items:flex-start}
+  .num{width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
+  .num.s{background:var(--surface3);color:var(--text)}
+  .nm{font-weight:600;font-size:13px}.ad{font-size:11.5px;color:var(--muted)}
+  .meta{display:flex;flex-wrap:wrap;gap:2px 6px;margin-top:3px;font-size:11.5px;align-items:center}
+  .tm{color:var(--accent);font-weight:600}
+  .ch{font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:999px;background:var(--surface3);color:var(--text2)}
+  .rit{color:var(--muted);font-size:11px}
+  .sico{display:inline-block;margin:7px 0 0 31px;border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:11px;color:var(--muted);font-weight:600}
+  .kv{flex:1;margin:8px;border:1px solid var(--border);border-radius:12px;overflow:hidden;min-width:0;position:relative}
+  .kv svg{width:100%;height:100%;display:block}
+  .sum{height:29px;flex:none;border-top:1px solid var(--border);background:var(--surface);display:flex;gap:16px;align-items:center;padding:0 14px;font-size:12px;color:var(--muted)}
+  .sum b{color:var(--text2);font-weight:600}
+  /* leads */
+  .inh{flex:1;min-height:0;padding:16px;overflow:hidden}
+  .acts{display:flex;gap:12px;margin-bottom:16px}
+  .btnp{background:var(--accent);color:var(--on-accent);font-weight:700;border-radius:8px;padding:0 16px;height:36px;display:inline-flex;align-items:center;font-size:14px}
+  .btns{border:1px solid var(--border-strong);color:var(--text);border-radius:8px;padding:0 14px;height:36px;display:inline-flex;align-items:center;font-size:14px}
+  .filt{display:flex;gap:12px;margin-bottom:16px}
+  .zoek{flex:1;height:40px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface2);display:flex;align-items:center;padding:0 12px;color:var(--muted);font-size:14px;min-width:0}
+  .zoek.f{flex:1 1 auto}
+  .geb{height:40px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface2);display:flex;align-items:center;gap:10px;padding:0 12px;font-size:14px}
+  .geb:after{content:"▾";color:var(--muted);font-size:12px}
+  .lbar{height:57px;padding:0 16px;gap:12px}
+  .kols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
+  .kol{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px}
+  .kol h4{font-size:16px;margin-bottom:12px}
+  .kaart{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;flex-direction:column;gap:6px}
+  .kaart .kt{font-weight:700;display:flex;justify-content:space-between}.kaart .kt span{color:var(--muted);font-weight:400}
+  .kaart .pl{font-size:13px;color:var(--text2)}
+  .kaart .chs{display:flex;gap:6px;flex-wrap:wrap}
+  /* menu's */
+  .pop{position:absolute;z-index:20;background:var(--surface2);border:1px solid var(--border-strong);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.55);padding:6px;min-width:230px;font-size:13.5px}
+  .pop div{padding:8px 10px;border-radius:6px;display:flex;gap:8px;align-items:center}
+  .pop .on{background:var(--accent-dim);color:var(--accent)}
+  .pop hr{border:0;border-top:1px solid var(--border);margin:4px 2px}
+  .pop .k2{color:var(--muted);font-size:11.5px;padding:4px 10px 2px;text-transform:uppercase;letter-spacing:.04em}
+  .ro{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--surface3);color:var(--muted)}
+  /* meetlijn */
+  .kopband{position:absolute;left:0;top:0;width:6px;background:var(--mark);z-index:30;opacity:.9}
+  .kopm{position:absolute;left:0;right:0;border-top:2px dashed var(--mark);z-index:30;pointer-events:none}
+  .kopl{position:absolute;right:22px;top:6px;background:var(--mark);color:#2a0016;font-weight:800;font-size:14px;padding:2px 10px;border-radius:999px;white-space:nowrap}
+  .ph .kopl{font-size:13px}
+  /* telefoon */
+  .ph .hdr{padding:0 10px;gap:6px}
+  .ph .lst{width:auto;border-right:0;flex:none}
+  .ph .rb{flex-direction:column}
+  .ph .kv{flex:1;min-height:160px;margin:8px}
+  .ph .bar{flex-wrap:wrap}
+  .ph .tabs{flex-wrap:nowrap}
+  .ph .tab{padding:0 11px}
+  .wrap2{height:auto;padding:8px 12px;row-gap:7px;flex-wrap:wrap}
+  .ph .ws .wsd{flex:0 0 96px}
+</style>
+</head>
+<body>
+<div class="doc">
+
+<h1>De kop van de sales-schermen compacter maken</h1>
+<p class="lead">Brent: <em>"dit neemt veel van het scherm in."</em> Hieronder drie manieren om de balken boven de lijst en de kaart samen te persen, zonder dat er een knop of keuze verdwijnt. Alles hieronder is een tekening (geen werkende app), op ware grootte van een scherm van 1280 × 800 pixels en een telefoon van 375 pixels breed.</p>
+
+<h3>Wat staat er nu boven de inhoud?</h3>
+<p>Gemeten uit de opmaak van de app (en nagekeken op de twee schermafbeeldingen, die op 125 % zoom genomen zijn):</p>
+<div class="tw"><table class="cmp">
+  <tr><th>Balk</th><th>Hoogte</th><th>Wie ziet hem</th></tr>
+  <tr><td>App-kop (logo, persoonskiezer, ↺, thema, ⚙)</td><td class="num">52 px</td><td>iedereen</td></tr>
+  <tr><td>Hoofdtabs</td><td class="num">41 px</td><td>iedereen</td></tr>
+  <tr><td>Titel "Sales"</td><td class="num">44 px</td><td>enkel beheerder</td></tr>
+  <tr><td>Subtabs Leads · Kalender · Route · Afgewerkt</td><td class="num">57 px</td><td>enkel beheerder</td></tr>
+  <tr><td>Verkoperbalk (keuzelijst + ⚙ Instellingen)</td><td class="num">61 px</td><td>iedereen (een gewone verkoper ziet er enkel ⚙ Instellingen in)</td></tr>
+  <tr><td>Route-werkbalk (datum, ⚡ Optimaliseer, Bereken tijden, ✕ Leeg)</td><td class="num">49 px</td><td>Route</td></tr>
+  <tr><td>Weekstrook (ma–vr met aantal bezoeken)</td><td class="num">67 px</td><td>Route</td></tr>
+  <tr><td><b>Totaal tot de lijst/kaart begint — Route</b></td><td class="num"><b>beheerder 371 px · verkoper 270 px</b></td><td>op een scherm van 800 px hoog is dat 46 % resp. 34 %</td></tr>
+  <tr><td><b>Totaal tot de drie kolommen — Leads</b></td><td class="num"><b>beheerder 379 px</b></td><td>(kop 255 + knoppenrij + zoekrij)</td></tr>
+</table></div>
+
+<h3>De drie voorstellen naast elkaar</h3>
+<div class="tw"><table class="cmp">
+  <tr><th></th><th>A. Eén werkbalk</th><th>B. Alles naar boven</th><th>C. Minder knoppen in zicht</th></tr>
+  <tr><td>Kort gezegd</td><td>Titel "Sales" weg; verkoperkeuze en ⚙ schuiven rechts in de bestaande werkbalk.</td><td>Verkoperkeuze gaat naar de app-kop, subtabs in de hoofdtabregel, weekstrook en knoppen op één regel.</td><td>Enkel de hoofdactie blijft zichtbaar; de rest zit achter "⋯". Weekstrook wordt één dunne regel.</td></tr>
+  <tr><td>Route beheerder (nu 371)</td><td class="num">253 px <span class="win">−118</span></td><td class="num">153 px <span class="win">−218</span></td><td class="num">219 px <span class="win">−152</span></td></tr>
+  <tr><td>Route verkoper (nu 270)</td><td class="num">209 px <span class="win">−61</span></td><td class="num">153 px <span class="win">−117</span></td><td class="num">175 px <span class="win">−95</span></td></tr>
+  <tr><td>Leads beheerder (nu 379)</td><td class="num">210 px <span class="win">−169</span></td><td class="num">166 px <span class="win">−213</span></td><td class="num">210 px <span class="win">−169</span></td></tr>
+  <tr><td>Telefoon Route (nu ±357)</td><td class="num">±248 px</td><td class="num">±189 px</td><td class="num">±175 px</td></tr>
+  <tr><td>Voordelen</td><td>Alles blijft zichtbaar en op dezelfde plek; niemand moet iets opnieuw leren; weinig risico.</td><td>Grootste winst; de kaart krijgt bijna het hele scherm.</td><td>Rustigste beeld; goede winst ook op telefoon.</td></tr>
+  <tr><td>Nadelen</td><td>Kleinste winst voor de verkoper; weekstrook blijft even hoog.</td><td>Raakt de app-kop en hoofdtabs die ook techniekers gebruiken; meeste bouwwerk; datumveld wordt een icoontje.</td><td>Bereken tijden en ✕ Leeg kosten één klik extra; weekstrook toont minder uitleg ("✓ tijden").</td></tr>
+  <tr><td>Bouwtijd (schatting)</td><td class="num">±25–35 min (1 taak)</td><td class="num">±75–105 min (3 taken)</td><td class="num">±50–70 min (2 taken)</td></tr>
+</table></div>
+
+<div class="advice">
+  <h3>Aanbeveling: begin met A</h3>
+  <p>A haalt bij de beheerder al bijna een derde van de kop weg (118 px op Route, 169 px op Leads), er verdwijnt geen enkele knop uit het zicht en niemand moet iets opnieuw leren. Het raakt enkel de sales-schermen, niet de app-kop of de tabs van de techniekers, dus het kan weinig stukmaken. Is het daarna nog te krap, dan kan de dunne weekstrook uit C er later los bij (nog eens −33 px), zonder de rest opnieuw te doen. B wint het meest, maar verandert de app-kop die iedereen gebruikt; dat is een grotere ingreep voor de winst die overblijft na A.</p>
+</div>
+
+<p class="note" style="margin-top:12px">Overal blijft hetzelfde werken: de verkoperkeuze staat er enkel voor de beheerder en de sales manager (een gewone verkoper ziet enkel zichzelf en dus geen keuzelijst), het label "Alleen lezen" blijft naast de keuze staan, ⚙ Instellingen verschijnt enkel als je je eigen leads bekijkt, en elk scherm houdt zijn eigen knoppen (Leads: Export laden, + Lead, zoeken, gebied; Kalender: week/maand, ‹ ›, Plan deze week, ➕ Blok; Route: datum, ⚡ Optimaliseer, Bereken tijden, ✕ Leeg, weekstrook, samenvatting). De roze stippellijn in elke tekening toont waar de inhoud begint.</p>
+
+<!-- ================= HUIDIG ================= -->
+<h2>Huidige situatie (referentie)</h2>
+<p>Zo ziet het er vandaag uit. Bij de beheerder staan er vijf balken boven elkaar voor je bij de lijst en de kaart komt; bijna de helft van het scherm is kop.</p>
+<div class="sw" data-grp="nu"></div>
+<div class="stage"><div class="deskwrap" id="nu-desk"></div><div class="phonewrap"><div class="phone" id="nu-ph"></div><p class="cap">Telefoon, sales manager, Route</p></div></div>
+
+<!-- ================= A ================= -->
+<h2>Voorstel A — Eén werkbalk <span class="tag">aanbevolen</span></h2>
+<p>De titel "Sales" verdwijnt (de groene onderlijn onder de tab "Sales" zegt al waar je bent). De subtabs worden een gewone smalle tabregel. De aparte balk met "Verkoper" bestaat niet meer: de keuzelijst en ⚙ Instellingen schuiven naar de rechterkant van de werkbalk die er toch al staat. Op Leads komen "+ Lead", zoeken en het gebied op diezelfde ene regel.</p>
+<div class="grid2">
+  <div class="box pro"><h3>Voordelen</h3><ul><li>Geen enkele knop verdwijnt uit het zicht.</li><li>Knoppen blijven in dezelfde volgorde; enkel de verkoperkeuze verhuist naar rechts.</li><li>Raakt alleen de sales-schermen, niet de app-kop of de techniekerschermen.</li><li>Snelst te bouwen, kleinste kans op nieuwe fouten.</li></ul></div>
+  <div class="box con"><h3>Nadelen</h3><ul><li>Voor een verkoper is de winst kleiner (61 px).</li><li>De weekstrook blijft even hoog.</li><li>Op een smal scherm loopt de werkbalk over twee regels (wel nog steeds korter dan nu).</li></ul></div>
+</div>
+<p style="margin-top:12px"><b>Wat verandert er voor de gebruiker?</b> De verkoperkeuze staat voortaan rechts op dezelfde regel als de knoppen, in plaats van op een eigen regel erboven. Op Kalender komen ‹ ›, week/maand, Plan deze week en ➕ Blok op dezelfde manier op één regel met de verkoperkeuze. <b>Bouwtijd:</b> ±25–35 minuten.</p>
+<div class="sw" data-grp="a"></div>
+<div class="stage"><div class="deskwrap" id="a-desk"></div><div class="phonewrap"><div class="phone" id="a-ph"></div><p class="cap">Telefoon, sales manager, Route</p></div></div>
+
+<!-- ================= B ================= -->
+<h2>Voorstel B — Alles naar boven</h2>
+<p>De verkoperkeuze wordt een knop in de app-kop, naast de andere knoppen bovenaan ("Verkoper: Brent T. ▾"). Daarin zit ook ⚙ Sales-instellingen. Bij de beheerder komen de vier sales-onderdelen als kleine knopjes in de hoofdtabregel, rechts naast "Sales". Op Route smelten de werkbalk en de weekstrook samen tot één regel: de dagen links, de knoppen rechts, en het datumveld wordt een kalendericoontje 📅.</p>
+<div class="grid2">
+  <div class="box pro"><h3>Voordelen</h3><ul><li>Grootste winst: de kop is overal ongeveer even klein als bij een technieker.</li><li>Beheerder en verkoper krijgen exact dezelfde indeling.</li><li>Kaart en lijst krijgen 80 % van het scherm.</li></ul></div>
+  <div class="box con"><h3>Nadelen</h3><ul><li>Verandert de app-kop en de hoofdtabregel, die ook de techniekers gebruiken: meer te testen.</li><li>Een datum kiezen gaat via het icoontje in plaats van een zichtbaar datumveld.</li><li>De hoofdtabregel wordt voller; op telefoon moet je ze zijwaarts schuiven.</li><li>Langst te bouwen.</li></ul></div>
+</div>
+<p style="margin-top:12px"><b>Wat verandert er voor de gebruiker?</b> Wisselen van verkoper gebeurt bovenaan in de kop (klik op de knop, kies een naam). De datum zie je in de weekstrook; voor een andere week gebruik je ‹ › of 📅. Een gewone verkoper ziet in de kop enkel zijn eigen naam; een klik daarop opent ⚙ Instellingen. <b>Bouwtijd:</b> ±75–105 minuten (drie taken: kopknop, subtabs in de tabregel, werkbalk met weekstrook samen).</p>
+<div class="sw" data-grp="b"></div>
+<div class="stage"><div class="deskwrap" id="b-desk"></div><div class="phonewrap"><div class="phone" id="b-ph"></div><p class="cap">Telefoon, sales manager, Route</p></div></div>
+
+<!-- ================= C ================= -->
+<h2>Voorstel C — Minder knoppen in zicht</h2>
+<p>Per scherm blijft enkel de knop die je het vaakst gebruikt zichtbaar (op Route: ⚡ Optimaliseer; op Leads: zoeken, gebied en + Lead). Wat minder vaak nodig is (Bereken tijden, ✕ Leeg, Export laden, ⚙ Instellingen) zit in een menuknop "⋯". De verkoperkeuze wordt een klein bolletje met initialen. De weekstrook wordt één dunne regel met per dag een gekleurd puntje (groen = tijden klaar, oranje = tijden nodig, grijs = leeg).</p>
+<div class="grid2">
+  <div class="box pro"><h3>Voordelen</h3><ul><li>Rustigste beeld, vooral op telefoon en tablet.</li><li>Goede winst, ook voor de verkoper (95 px).</li><li>Raakt de app-kop niet.</li></ul></div>
+  <div class="box con"><h3>Nadelen</h3><ul><li>Bereken tijden, ✕ Leeg en Export laden vragen één klik extra en zijn minder "vindbaar".</li><li>De dunne weekstrook toont minder uitleg dan nu (enkel een puntje in plaats van "✓ tijden").</li><li>Op Leads geen winst tegenover A.</li></ul></div>
+</div>
+<p style="margin-top:12px"><b>Wat verandert er voor de gebruiker?</b> Wie Bereken tijden of ✕ Leeg nodig heeft, klikt eerst op "⋯". De verkoper wissel je via het bolletje rechts. <b>Bouwtijd:</b> ±50–70 minuten (twee taken: ⋯-menu op de drie schermen, dunne weekstrook).</p>
+<div class="sw" data-grp="c"></div>
+<div class="stage"><div class="deskwrap" id="c-desk"></div><div class="phonewrap"><div class="phone" id="c-ph"></div><p class="cap">Telefoon, sales manager, Route (⋯-menu open)</p></div></div>
+
+<h2>Waar staat elke knop?</h2>
+<div class="tw"><table class="cmp">
+  <tr><th>Functie</th><th>Nu</th><th>A</th><th>B</th><th>C</th></tr>
+  <tr><td>Verkoperkeuze (beheerder, sales manager)</td><td>eigen balk</td><td>rechts in de werkbalk</td><td>knop in de app-kop</td><td>bolletje rechts (subtabregel of werkbalk)</td></tr>
+  <tr><td>"Alleen lezen"-label</td><td>naast de keuze</td><td>naast de keuze</td><td>in de kopknop</td><td>naast het bolletje</td></tr>
+  <tr><td>⚙ Instellingen (eigen leads)</td><td>verkoperbalk rechts</td><td>werkbalk, helemaal rechts</td><td>in het menu van de kopknop</td><td>in het ⋯-menu</td></tr>
+  <tr><td>Subtabs (beheerder)</td><td>titel + eigen tabregel</td><td>smalle tabregel</td><td>knopjes in de hoofdtabregel</td><td>smalle tabregel</td></tr>
+  <tr><td>Route: datum</td><td>datumveld</td><td>datumveld</td><td>📅 + weekstrook</td><td>datumveld</td></tr>
+  <tr><td>Route: ⚡ Optimaliseer</td><td>zichtbaar</td><td>zichtbaar</td><td>zichtbaar</td><td>zichtbaar</td></tr>
+  <tr><td>Route: Bereken tijden, ✕ Leeg</td><td>zichtbaar</td><td>zichtbaar</td><td>zichtbaar</td><td>in ⋯</td></tr>
+  <tr><td>Route: weekstrook</td><td>eigen balk, 67 px</td><td>eigen balk, 67 px</td><td>in de werkbalk</td><td>dunne regel, 34 px</td></tr>
+  <tr><td>Leads: + Lead, zoeken, gebied</td><td>twee regels</td><td>één regel</td><td>één regel</td><td>één regel</td></tr>
+  <tr><td>Leads: Export laden (enkel verkoper)</td><td>zichtbaar</td><td>zichtbaar</td><td>zichtbaar</td><td>in ⋯</td></tr>
+  <tr><td>Kalender: ‹ ›, week/maand, Plan deze week, ➕ Blok</td><td>eigen regel</td><td>één regel met de verkoperkeuze</td><td>één regel</td><td>‹ › en Plan deze week zichtbaar, ➕ Blok in ⋯</td></tr>
+</table></div>
+
+</div>
+
+<script>
+(function(){
+const BOLT='<svg width="13" height="20" viewBox="0 0 14 22"><line x1="9" y1="5" x2="6" y2="11" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/><line x1="8" y1="12" x2="5" y2="18" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/></svg>';
+
+/* ---------- bouwstenen ---------- */
+function hdr(o){o=o||{};
+  const verk = o.verkKop ? `<span class="pbtn verk">👥 <small>Verkoper:</small> <b>Brent T.</b> ▾</span>` : '';
+  const pers = o.rol==='beheer' ? `<span class="pbtn">👤 <small>Planning:</small> Alle ▾</span>` : `<span class="pbtn">👤 Brent ▾</span>`;
+  const logo = o.ph ? `<div class="logo"><i>${BOLT}</i>${o.verkKop?'':'<span>Blitz Planning</span>'}</div>` : `<div class="logo"><i>${BOLT}</i><span>Blitz Planning</span></div>`;
+  return `<div class="bar hdr">${logo}${verk}${o.ph&&o.verkKop?'':pers}<span class="hb">↺</span><span class="hb">🌙</span><span class="hb">⚙</span></div>`;
+}
+const BEHEER_TABS=[['Wachtrij','4'],['Kalender'],['Route'],['Ingepland','8'],['Inventaris','24'],['Rapporten'],['Beheer'],['Sales']];
+const SALES_TABS=[['Leads'],['Kalender'],['Route'],['Afgewerkt']];
+function tabs(rol,actief,extra){
+  const lijst = rol==='beheer'?BEHEER_TABS:SALES_TABS;
+  return `<div class="bar tabs">${lijst.map(t=>`<span class="tab${t[0]===actief?' on':''}">${t[0]}${t[1]?` <span class="badge">${t[1]}</span>`:''}</span>`).join('')}${extra||''}</div>`;
+}
+function pills(actief){return `<span class="sep"></span><span class="pills">${SALES_TABS.map(t=>`<span class="pill${t[0]===actief?' on':''}">${t[0]}</span>`).join('')}</span>`;}
+const titel=()=>`<div class="bar titel">Sales</div>`;
+function subtabs(actief,compact,rechts){
+  return `<div class="bar subtabs${compact?' compact':''}"><div class="in">${SALES_TABS.map(t=>`<span class="st${t[0]===actief?' on':''}">${t[0]}</span>`).join('')}${rechts?`<span class="rechts">${rechts}</span>`:''}</div></div>`;
+}
+function vbalk(o){ // o.select, o.inst
+  return `<div class="bar vbalk">${o.select?`<span class="lbl">Verkoper</span><span class="sel">${o.naam||'Brent Technieker (jij)'}</span>`:''}${o.inst?`<span class="rechts"><span class="bs" style="font-size:14px;padding:8px 14px">⚙ Instellingen</span></span>`:''}</div>`;
+}
+const DATE=`<span class="date">12/10/2026 <span class="m">▦</span></span>`;
+const OPT=`<span class="bp">⚡ Optimaliseer</span>`, BER=`<span class="bs">Bereken tijden</span>`, LEEG=`<span class="bs">✕ Leeg</span>`, MORE=`<span class="bs more">⋯</span>`;
+const VSEL=(naam)=>`<span class="lbl" style="font-size:13px">Verkoper</span><span class="sel sm">${naam||'Brent Technieker (jij)'}</span>`;
+const INST=`<span class="bs">⚙ Instellingen</span>`;
+const CHIPV=`<span class="chipv"><span class="av">BT</span>Brent T.</span>`;
+function werk(rechts,cls){return `<div class="bar werk ${cls||''}">${DATE}${OPT}${BER}${LEEG}${rechts?`<span class="rechts">${rechts}</span>`:''}</div>`;}
+function werkC(rechts){return `<div class="bar werk c48">${DATE}${OPT}${MORE}${rechts?`<span class="rechts">${rechts}</span>`:''}</div>`;}
+const DAGEN=[['ma 12','3 bezoeken','✓ tijden','k',1],['di 13','2 bezoeken','tijden nodig','o'],['wo 14','4 bezoeken','✓ tijden','k'],['do 15','—','leeg','m'],['vr 16','1 bezoek','tijden nodig','o']];
+function ws(){return `<div class="bar ws"><span class="wsn">‹</span>${DAGEN.map(d=>`<span class="wsd${d[4]?' on':''}"><span class="n" style="${d[4]?'text-decoration:underline;text-underline-offset:3px':''}">${d[0]}</span><span class="a ${d[3]==='m'?'m':''}">${d[1]}</span><span class="s ${d[3]}">${d[2]}</span></span>`).join('')}<span class="wsn">›</span></div>`;}
+function wsCombi(n){const dd=DAGEN.slice(0,n||5);return `<span class="hb" style="width:40px;height:44px;font-size:16px">📅</span><span class="wsn">‹</span>${dd.map(d=>`<span class="wsd${d[4]?' on':''}"><span class="col"><span class="n">${d[0]}</span><span class="s ${d[3]}">${d[2]}</span></span><span class="a ${d[3]==='m'?'m':''}" style="margin-left:auto">${d[1].split(' ')[0]}</span></span>`).join('')}<span class="wsn">›</span>`;}
+function mini(){return `<div class="bar mini"><span class="mn">‹</span>${DAGEN.map(d=>`<span class="md${d[4]?' on':''}"><span class="dot" style="background:var(--${d[3]==='k'?'accent':d[3]==='o'?'orange':'muted'})"></span>${d[0]} · ${d[1]==='—'?'0':d[1].split(' ')[0]}</span>`).join('')}<span class="mn">›</span><span class="rechts" style="font-size:11.5px;color:var(--muted)"><span class="dot" style="background:var(--accent)"></span> tijden klaar <span class="dot" style="background:var(--orange);margin-left:8px"></span> tijden nodig</span></div>`;}
+
+const STOPS=[
+  ['1','Janssens Elektro','Bautersemstraat 4, Mechelen','09:00 · 60 min','vast',true,'22 min rijden'],
+  ['2','Bakkerij Peeters','Kerkstraat 18, Lier','10:25 · 45 min','',false,'25 min rijden'],
+  ['3','Garage De Smet','Liersesteenweg 210, Heist-op-den-Berg','11:40 · 60 min','',false,'30 min rijden'],
+  ['4','Van Dyck BV','Industrieweg 7, Aarschot','14:00 · 45 min','vast',true,'28 min rijden'],
+];
+function lijst(n){
+  let h=`<div class="stop" style="background:var(--surface2)"><div class="t"><span class="num s">S</span><div><div class="nm">Vertrek: 08:30 · Walding</div></div></div></div>`;
+  STOPS.slice(0,n||4).forEach(s=>{h+=`<div class="stop ${s[5]?'vast':'vg'}"><div class="t"><span class="num">${s[0]}</span><div style="min-width:0"><div class="nm">${s[1]}</div><div class="ad">${s[2]}</div><div class="meta"><span class="tm">${s[3]}</span>${s[4]?'<span class="ch">vast uur</span>':''}<span class="rit">${s[6]}</span></div></div></div><span class="sico">📋 Resultaat</span></div>`;});
+  return `<div class="lst">${h}</div>`;
+}
+function kaart(){
+  return `<div class="kv"><svg viewBox="0 0 900 600" preserveAspectRatio="xMidYMid slice">
+  <rect width="900" height="600" fill="#1a232b"/>
+  <path d="M0 120 C200 140 300 60 520 90 S800 160 900 130" stroke="#26313b" stroke-width="10" fill="none"/>
+  <path d="M60 600 C120 420 240 360 380 330 S640 260 900 300" stroke="#26313b" stroke-width="12" fill="none"/>
+  <path d="M300 0 C320 160 280 300 340 600" stroke="#26313b" stroke-width="8" fill="none"/>
+  <path d="M640 0 C600 200 700 380 660 600" stroke="#26313b" stroke-width="8" fill="none"/>
+  <path d="M0 470 L900 440" stroke="#222c35" stroke-width="5"/><path d="M120 0 L180 600" stroke="#222c35" stroke-width="5"/>
+  <circle cx="470" cy="230" r="70" fill="#1f2a33"/><circle cx="760" cy="420" r="55" fill="#1f2a33"/>
+  <path d="M150 470 C230 400 260 300 330 250 S470 200 520 150 S650 170 700 260 S760 380 760 420" stroke="#00dfa3" stroke-width="5" fill="none" stroke-linecap="round" opacity=".9"/>
+  <g font-family="Inter,system-ui,sans-serif" font-size="15" font-weight="800" text-anchor="middle">
+   <circle cx="150" cy="470" r="15" fill="#2b3542" stroke="#d9d9d6" stroke-width="2"/><text x="150" y="475" fill="#d9d9d6">S</text>
+   <circle cx="330" cy="250" r="15" fill="#00dfa3"/><text x="330" y="255" fill="#0b1f18">1</text>
+   <circle cx="520" cy="150" r="15" fill="#00dfa3"/><text x="520" y="155" fill="#0b1f18">2</text>
+   <circle cx="700" cy="260" r="15" fill="#00dfa3"/><text x="700" y="265" fill="#0b1f18">3</text>
+   <circle cx="760" cy="420" r="15" fill="#00dfa3"/><text x="760" y="425" fill="#0b1f18">4</text>
+  </g>
+  <g font-family="Inter,system-ui,sans-serif" font-size="13" fill="#6f7c89"><text x="345" y="235">Mechelen</text><text x="535" y="140">Lier</text><text x="715" y="250">Heist-op-den-Berg</text><text x="775" y="445">Aarschot</text></g>
+  <rect x="840" y="16" width="40" height="72" rx="6" fill="#1d252d" stroke="#2e3a46"/><text x="860" y="44" text-anchor="middle" fill="#a8b0ba" font-size="20">+</text><text x="860" y="76" text-anchor="middle" fill="#a8b0ba" font-size="20">−</text>
+  </svg></div>`;
+}
+const SUM=`<div class="sum"><span><b>4</b> bezoeken</span><span><b>105 km</b> rijden</span><span>rijtijd <b>1 u 45</b></span><span>terug om <b>15:20</b></span></div>`;
+const route=(n)=>`<div class="rb">${lijst(n)}${kaart()}</div>${SUM}`;
+
+const KOLS=[['Nog in te plannen',12,[['Lambrechts NV','2800 Mechelen',['adres']],['Fam. Verstraeten','2500 Lier',['enkel postcode']],['Hoeve De Linde','3200 Aarschot',['adres','zelf toegevoegd']],['Brouwerij Het Anker','2800 Mechelen',['adres']]]],
+  ['Ingepland',5,[['Bakkerij Peeters','Lier',['adres','voorstel di 13 · 10:25']],['Garage De Smet','Heist-op-den-Berg',['adres','voorstel di 13 · 11:40']],['Apotheek Wouters','Duffel',['adres','voorstel wo 14 · 09:00']]]],
+  ['Bevestigd',3,[['Janssens Elektro','Mechelen',['adres','ma 12 · 09:00']],['Van Dyck BV','Aarschot',['adres','ma 12 · 14:00']],['Sporthal Ter Elst','Duffel',['adres','wo 14 · 15:30']]]]];
+function kolommen(){return `<div class="kols">${KOLS.map(k=>`<div class="kol"><h4>${k[0]} (${k[1]})</h4>${k[2].map(c=>`<div class="kaart"><div class="kt">${c[0]}<span>✕</span></div><div class="pl">${c[1]}</div><div class="chs">${c[2].map(x=>`<span class="ch" style="${/voorstel/.test(x)?'border:1px dashed var(--accent)':/^(ma|wo) /.test(x)?'background:var(--accent-dim);color:var(--accent)':''}">${x}</span>`).join('')}</div></div>`).join('')}</div>`).join('')}</div>`;}
+
+function marker(y,tekst){return `<div class="kopband" style="height:${y}px"></div><div class="kopm" style="top:${y}px"><span class="kopl">${tekst||('inhoud begint op '+y+' px')}</span></div>`;}
+const scr=(inh,y,ph,lbl)=>`<div class="scr${ph?' ph':''}">${inh}${marker(y,lbl)}</div>`;
+
+/* ---------- schermen ---------- */
+const S={
+ nu:{
+  'Verkoper · Route':scr(hdr()+tabs('sales','Route')+vbalk({select:true,inst:true})+werk()+ws()+route(),270),
+  'Beheerder · Route':scr(hdr({rol:'beheer'})+tabs('beheer','Sales')+titel()+subtabs('Route')+vbalk({select:true,naam:'Brent Technieker'})+werk()+ws()+route(),371),
+  'Beheerder · Leads':scr(hdr({rol:'beheer'})+tabs('beheer','Sales')+titel()+subtabs('Leads')+vbalk({select:true,naam:'Brent Technieker'})+`<div class="inh"><div class="acts"><span class="btns">+ Lead</span></div><div class="filt"><span class="zoek">Zoek op naam of gemeente</span><span class="geb">Alle gebieden</span></div>${kolommen()}</div>`+'',379),
+  ph:scr(hdr({ph:true})+tabs('sales','Route')+`<div class="bar vbalk wrap2" style="height:109px;background:var(--bg)"><span class="lbl">Verkoper</span><span class="sel">Brent Technieker (jij)</span><span class="bs" style="font-size:14px;padding:8px 14px">⚙ Instellingen</span></div><div class="bar wrap2" style="height:88px">${DATE}${OPT}${BER}${LEEG}</div>`+ws()+route(2),357,true,'inhoud op ±357 px'),
+ },
+ a:{
+  'Verkoper · Route':scr(hdr()+tabs('sales','Route')+werk(VSEL()+INST)+ws()+route(),209),
+  'Beheerder · Route':scr(hdr({rol:'beheer'})+tabs('beheer','Sales')+subtabs('Route',true)+werk(VSEL('Brent Technieker'))+ws()+route(),253),
+  'Beheerder · Leads':scr(hdr({rol:'beheer'})+tabs('beheer','Sales')+subtabs('Leads',true)+`<div class="bar lbar"><span class="btns">+ Lead</span><span class="zoek f">Zoek op naam of gemeente</span><span class="geb">Alle gebieden</span><span class="rechts">${VSEL('Brent Technieker')}</span></div><div class="inh">${kolommen()}</div>`,210),
+  ph:scr(hdr({ph:true})+tabs('sales','Route')+`<div class="bar wrap2" style="height:88px">${DATE}${OPT}${LEEG}${BER}<span class="sel sm">Brent T. (jij)</span><span class="bs ic">⚙</span></div>`+ws()+route(3),248,true,'inhoud op ±248 px'),
+ },
+ b:{
+  'Verkoper · Route':scr(hdr({verkKop:true})+tabs('sales','Route')+`<div class="bar combi">${wsCombi()}<span class="rechts">${OPT}${BER}${LEEG}</span></div>`+route()+`<div class="pop" style="left:868px;top:46px"><div class="k2">Toon de leads van</div><div class="on">✓ Brent Technieker (jij)</div><div>Sofie Maes</div><div>Tom Peeters <span class="ro">Alleen lezen</span></div><hr><div>⚙ Sales-instellingen</div></div>`,153),
+  'Beheerder · Route':scr(hdr({rol:'beheer',verkKop:true})+tabs('beheer','Sales',pills('Route'))+`<div class="bar combi">${wsCombi()}<span class="rechts">${OPT}${BER}${LEEG}</span></div>`+route(),153),
+  'Beheerder · Leads':scr(hdr({rol:'beheer',verkKop:true})+tabs('beheer','Sales',pills('Leads'))+`<div class="bar lbar"><span class="btns">+ Lead</span><span class="zoek f">Zoek op naam of gemeente</span><span class="geb">Alle gebieden</span></div><div class="inh">${kolommen()}</div>`,166),
+  ph:scr(hdr({ph:true,verkKop:true})+tabs('sales','Route')+`<div class="bar" style="height:52px;gap:5px;padding:0 8px"><span class="wsn" style="height:40px;min-width:30px">‹</span>${DAGEN.slice(0,3).map(d=>`<span class="wsd${d[4]?' on':''}" style="flex:1 1 0;height:40px;min-width:0"><span class="n">${d[0]}</span><span class="s ${d[3]}">${d[1].split(' ')[0]} · ${d[3]==='k'?'✓':'!'}</span></span>`).join('')}<span class="wsn" style="height:40px;min-width:30px">›</span><span class="hb" style="height:40px">📅</span></div><div class="bar" style="height:44px">${OPT}<span class="bs">Bereken tijden</span><span class="bs ic">✕ Leeg</span></div>`+route(3),189,true,'inhoud op ±189 px'),
+ },
+ c:{
+  'Verkoper · Route':scr(hdr()+tabs('sales','Route')+werkC(CHIPV)+mini()+route()+`<div class="pop" style="left:248px;top:136px"><div>⟳ Bereken tijden</div><div>✕ Leeg (dag terug naar "in te plannen")</div><hr><div>⚙ Instellingen</div></div>`,175),
+  'Beheerder · Route':scr(hdr({rol:'beheer'})+tabs('beheer','Sales')+subtabs('Route',true,CHIPV)+werkC()+mini()+route(),219),
+  'Beheerder · Leads':scr(hdr({rol:'beheer'})+tabs('beheer','Sales')+subtabs('Leads',true,CHIPV)+`<div class="bar lbar"><span class="zoek f">Zoek op naam of gemeente</span><span class="geb">Alle gebieden</span><span class="btns">+ Lead</span>${MORE}</div><div class="inh">${kolommen()}</div>`,210),
+  ph:scr(hdr({ph:true})+tabs('sales','Route')+`<div class="bar werk c48" style="padding:0 10px;gap:6px"><span class="date">12/10</span>${OPT}<span class="rechts"><span class="chipv" style="padding-right:8px"><span class="av">BT</span></span>${MORE}</span></div><div class="bar mini" style="overflow:hidden;padding:0 8px">${DAGEN.slice(0,4).map(d=>`<span class="md${d[4]?' on':''}" style="padding:2px 7px"><span class="dot" style="background:var(--${d[3]==='k'?'accent':d[3]==='o'?'orange':'muted'})"></span>${d[0].slice(0,2)} ${d[1]==='—'?'0':d[1].split(' ')[0]}</span>`).join('')}<span class="mn">›</span></div>`+route(3)+`<div class="pop" style="right:8px;top:138px;min-width:210px"><div>⟳ Bereken tijden</div><div>✕ Leeg</div><hr><div>👥 Andere verkoper…</div><div>⚙ Instellingen</div></div>`,175,true,'inhoud op ±175 px'),
+ }
+};
+
+/* ---------- schalen en wisselen ---------- */
+function fit(frame){const s=frame.querySelector('.scr');const w=frame.clientWidth;const k=w/1280;s.style.transform=`scale(${k})`;frame.style.height=(800*k)+'px';}
+for(const g of ['nu','a','b','c']){
+  const sw=document.querySelector(`.sw[data-grp="${g}"]`), desk=document.getElementById(g+'-desk');
+  const namen=Object.keys(S[g]).filter(n=>n!=='ph');
+  desk.innerHTML=`<div class="frame"></div><p class="cap"></p>`;
+  const frame=desk.querySelector('.frame'), cap=desk.querySelector('.cap');
+  const toon=(n)=>{frame.innerHTML=S[g][n];cap.textContent='Scherm 1280 × 800 — '+n;sw.querySelectorAll('button').forEach(b=>b.setAttribute('aria-selected',b.textContent===n));fit(frame);};
+  namen.forEach((n,i)=>{const b=document.createElement('button');b.type='button';b.textContent=n;b.addEventListener('click',()=>toon(n));sw.appendChild(b);});
+  toon(namen[g==='nu'?1:0]);
+  document.getElementById(g+'-ph').innerHTML=S[g].ph;
+}
+addEventListener('resize',()=>document.querySelectorAll('.frame').forEach(fit));
+})();
+</script>
+</body>
+</html>
