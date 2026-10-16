@@ -4,6 +4,8 @@ import { startSalesApp, SALES_GEBRUIKER } from './sales-hulp.mjs';
 // De rolgebonden schil mag niet kort zichtbaar zijn voor een rol die hem niet krijgt (acceptatietest: een verkoper zag even de tabs
 // Wachtrij/Kalender/Route/Ingepland/Inventaris/Rapporten, "Planning: Alle" en "Laden..."). Een waarnemer in de pagina bemonstert bij elke DOM-wijziging
 // en elk beeldframe vanaf de eerste parse welke van die elementen zichtbaar zijn (visibility:hidden en display:none tellen als onzichtbaar).
+// Zolang een stijlblad uit de <head> nog laadt, tekent de browser niets (render-blocking): dan staan de tabs wel "zichtbaar" in de DOM
+// (app.css met de regel voor data-schil="laden" is er nog niet), maar ziet de gebruiker ze niet. Die momenten tellen dus niet mee.
 const ELEMENTEN = {
   Wachtrij: '#tab-tickets', Route: '#tab-planning', Ingepland: '#tab-gepland', Inventaris: '#tab-inventaris', Rapporten: '#tab-rapporten',
   'Planning: Alle': '#person-sel', 'Laden...': '#empty-tickets',
@@ -14,7 +16,11 @@ async function zetWaarnemer(page) {
   await page.addInitScript((elementen) => {
     if (window !== window.top) return;
     window.__gezien = [];
+    const mislukt = new Set(); // stijlbladen die niet laadden blokkeren het tekenen niet langer
+    document.addEventListener('error', (e) => { if (e.target instanceof HTMLLinkElement) mislukt.add(e.target); }, true);
+    const tekentNog = () => [...document.querySelectorAll('head link[rel="stylesheet"]')].some(l => !l.sheet && !mislukt.has(l));
     const meet = () => {
+      if (tekentNog()) return;
       for (const [naam, sel] of Object.entries(elementen)) {
         const el = document.querySelector(sel);
         if (el && el.checkVisibility({ visibilityProperty: true, checkVisibilityCSS: true }) && !window.__gezien.includes(naam)) window.__gezien.push(naam);

@@ -72,12 +72,18 @@ test.describe('Blitz Run laat niets achter', () => {
     page.on('requestfinished', (r) => { if (isSpel(r)) open--; });
     page.on('requestfailed', (r) => { if (isSpel(r)) open--; });
     await startApp(page);
+    // De app breekt elk /api-verzoek na 20 s af (kern/netwerk.js), gemeten op de nepklok. Verspringt die klok terwijl een verzoek
+    // nog onderweg is, dan breekt de app het zelf af (ERR_ABORTED) en plant ze een herpoging. Dus: de klok nooit ver laten verspringen
+    // terwijl een /api/spel-verzoek loopt.
+    const ververst = page.waitForResponse((r) => isSpel(r) && r.request().method() === 'GET');
     await tikVijf(page);
     await expect(overlay(page)).toHaveAttribute('data-status', 'start');
+    await ververst; // de stand van de server (bij het openen) is binnen
     const bewaard = page.waitForResponse((r) => isSpel(r) && r.request().method() === 'POST');
     await page.keyboard.press('Space');
     await expect(overlay(page)).toHaveAttribute('data-status', 'bezig');
-    await page.clock.runFor(30000); // zonder springen botst de paal vroeg of laat
+    // Zonder springen botst de paal vroeg of laat; in kleine stappen, zodat de klok hoogstens 250 ms verder staat als de score vertrekt.
+    for (let t = 0; t < 30000 && (await overlay(page).getAttribute('data-status')) !== 'af'; t += 250) await page.clock.runFor(250);
     await expect(overlay(page)).toHaveAttribute('data-status', 'af');
     await bewaard; // de score is bewaard (anders breekt het einde van de test dat verzoek af)
     await telRaf(page);
