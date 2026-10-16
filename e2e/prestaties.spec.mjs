@@ -40,7 +40,9 @@ const volgLuisteraars = (page) => page.addInitScript(() => {
 
 const titel = (page) => page.locator('.logo-icon');
 const overlay = (page) => page.locator('#spel-overlay');
-const tikVijf = async (page) => { for (let i = 0; i < 5; i++) await titel(page).click(); };
+// De 5 tikken in één keer in de pagina: elke tik moet binnen 600 ms (echte tijd) na de vorige komen, en vijf losse Playwright-klikken
+// halen dat op een belaste machine niet altijd (dan begint de teller opnieuw en opent het spel niet). Het echte tikken test spel.spec.mjs.
+const tikVijf = (page) => titel(page).evaluate((el) => { for (let i = 0; i < 5; i++) el.click(); });
 
 test.describe('Blitz Run laat niets achter', () => {
   test('na 5 keer openen, spelen en sluiten draait er geen lus meer en zijn de toetsluisteraars weg', async ({ page }) => {
