@@ -13,7 +13,11 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ## [Unreleased]
 
 ### Added
-- (nog niets sinds de laatste release)
+- Inventaris: een onderdeel dat na een rapport van de wagenvoorraad wordt afgeboekt, draagt nu het ticketnummer van dat rapport (bv. "#3979"). Je ziet het in het logboek onder "Iedereen" en in de Excel-export (nieuwe kolom "Ticket", achteraan).
+- Inventaris: knop "🕘 Historiek" naast Bewerken. Die toont wat er de laatste 3 maanden met de wagenvoorraad van de gekozen persoon gebeurde (aanvullingen, correcties en verbruik met ticketnummer), zoals het logboek onder "Iedereen" maar enkel voor die persoon.
+
+### Changed
+- Inventaris: de wagenvoorraad staat per soort, in dezelfde groepen als in Prijzen (Controllers, Energiemeters, CT-klemmen, Overige componenten, Laadkabels & aansluitingen). Binnen een groep staan de onderdelen in een raster: naam en aantal staan naast elkaar en een breed scherm toont meerdere kolommen, in plaats van één brede rij met het aantal helemaal rechts.
 
 ## [2.1.6] — 2026-10-15
 

@@ -88,7 +88,8 @@ export function maakVerbruikWachtrij(deps) {
       if (!neemLease(opId)) return { uitkomst: 'weg' };
       let r;
       try {
-        const res = await post({ versie: v, technieker: entry.technieker, actie: 'verbruik', items: entry.items });
+        const res = await post({ versie: v, technieker: entry.technieker, actie: 'verbruik', items: entry.items,
+          ...(entry.ticketNummer ? { ticketNummer: entry.ticketNummer } : {}) });
         r = classificeer({ res });
         if (r.uitkomst === 'gelukt') naSucces(res.data);
         if (r.uitkomst === 'conflict') naConflict(res.data?.data);
@@ -117,9 +118,12 @@ export function maakVerbruikWachtrij(deps) {
   }
 
   // Eerste poging, direct na het verzenden van het rapport. Het item staat met lease in de opslag vóór de POST.
-  async function meld(technieker, items) {
+  // `ticketNummer` (optioneel): het ticket van het rapport, enkel ter info in de inventarislog.
+  async function meld(technieker, items, { ticketNummer } = {}) {
     const eigenaarId = gebruikerId();
-    const e = { id: maakId(), technieker, items, aangemaakt: nu(), pogingen: 0, bezigTot: null, eigenaar: null, ...(typeof eigenaarId === 'string' && eigenaarId ? { gebruikerId: eigenaarId } : {}) };
+    const e = { id: maakId(), technieker, items, aangemaakt: nu(), pogingen: 0, bezigTot: null, eigenaar: null,
+      ...(ticketNummer ? { ticketNummer: String(ticketNummer) } : {}),
+      ...(typeof eigenaarId === 'string' && eigenaarId ? { gebruikerId: eigenaarId } : {}) };
     if (!online()) { schrijf([...lees(), e]); toon(TEKSTEN.wachtrij, 5000); return; }
     schrijf([...lees(), { ...e, bezigTot: nu() + LEASE_MS, eigenaar: ik }]);
     const r = await verzend(e, e.id);

@@ -15,6 +15,15 @@ import { closeSettings } from './schermen/instellingen.js';
 export let PRIJZEN = null;          // { versie, bijgewerkt, onderdelen, tarieven }
 export let PRIJZEN_DIRTY = null;    // werkkopie tijdens bewerking (null = niet gewijzigd)
 
+// Soorten onderdelen, in de volgorde waarin Prijzen en Inventaris ze tonen (veld `categorie` van een onderdeel)
+export const ONDERDEEL_CATEGORIEEN = [
+  { id:'controller',   label:'Controllers' },
+  { id:'energiemeter', label:'Energiemeters' },
+  { id:'ct-klem',      label:'CT-klemmen' },
+  { id:'overig',       label:'Overige componenten' },
+  { id:'kabel',        label:'Laadkabels & aansluitingen' },
+];
+
 export const PRIJZEN_LS_CACHE = 'blitz_prijzen_cache';
 export const PRIJZEN_API_URL  = '/api/prijzen';
 
@@ -136,15 +145,7 @@ export function renderPrijsEditor() {
     html += `<div class="prijs-cache-banner">⚠ Offline — prijzen uit lokale cache</div>`;
   }
 
-  // Categorieën
-  const cats = [
-    { id:'controller',   label:'Controllers' },
-    { id:'energiemeter', label:'Energiemeters' },
-    { id:'ct-klem',      label:'CT-klemmen' },
-    { id:'overig',       label:'Overige componenten' },
-    { id:'kabel',        label:'Laadkabels & aansluitingen' },
-  ];
-  for (const cat of cats) {
+  for (const cat of ONDERDEEL_CATEGORIEEN) {
     const items = data.onderdelen.filter(o => o.categorie === cat.id);
     if (!items.length) continue;
     html += `<div class="prijs-cat">
