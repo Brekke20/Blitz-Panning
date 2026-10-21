@@ -144,12 +144,12 @@ test('N16c: FONT_HOSTS dekt de Google Fonts-verwijzing van index.html', () => {
   assert.ok(html.includes('https://fonts.googleapis.com/css2'));
 });
 
-// Release 2.1.6: CACHE_NAME opgehoogd van v35 (live 2.1.5) naar v36, zodat elk toestel de nieuwe schil ophaalt
+// Release 2.2.0: CACHE_NAME opgehoogd van v36 (live 2.1.6) naar v37, zodat elk toestel de nieuwe schil ophaalt
 // (CACHE_NAME-regel in CLAUDE.md: elke release die iets onder public/ wijzigt, verhoogt de naam).
-test('N19 (release 2.1.6): CACHE_NAME staat op blitz-planning-v36 (verschilt van de vorige release v35)', () => {
-  assert.match(swBron, /const CACHE_NAME = 'blitz-planning-v36';/);
+test('N19 (release 2.2.0): CACHE_NAME staat op blitz-planning-v37 (verschilt van de vorige release v36)', () => {
+  assert.match(swBron, /const CACHE_NAME = 'blitz-planning-v37';/);
+  assert.doesNotMatch(swBron, /blitz-planning-v36/);
   assert.doesNotMatch(swBron, /blitz-planning-v35/);
-  assert.doesNotMatch(swBron, /blitz-planning-v34/);
   assert.match(swBron, /const EXTERN_CACHE = 'blitz-extern-v1';/);
 });
 

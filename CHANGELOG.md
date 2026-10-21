@@ -13,6 +13,11 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ## [Unreleased]
 
 ### Added
+- (nog niets sinds de laatste release)
+
+## [2.2.0] — 2026-10-21
+
+### Added
 - Inventaris: een onderdeel dat na een rapport van de wagenvoorraad wordt afgeboekt, draagt nu het ticketnummer van dat rapport (bv. "#3979"). Je ziet het in het logboek onder "Iedereen" en in de Excel-export (nieuwe kolom "Ticket", achteraan).
 - Inventaris: knop "🕘 Historiek" naast Bewerken. Die toont wat er de laatste 3 maanden met de wagenvoorraad van de gekozen persoon gebeurde (aanvullingen, correcties en verbruik met ticketnummer), zoals het logboek onder "Iedereen" maar enkel voor die persoon.
 
