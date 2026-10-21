@@ -37,6 +37,34 @@
 }
 
 .inv-row[hidden] { display: none; }
+
+/* Voorraad als raster: naam en aantal dicht bij elkaar, op een breed scherm meerdere kolommen naast elkaar */
+.inv-list.inv-raster {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+  gap: 6px;
+}
+.inv-list.inv-raster--bewerk { grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr)); }
+.inv-raster .inv-row { gap: 10px; padding: 8px 12px; min-width: 0; }
+.inv-raster .inv-row-naam { min-width: 0; overflow-wrap: anywhere; }
+/* Groepen per soort (zelfde indeling als Prijzen) */
+.inv-groepen { padding-bottom: 16px; }
+.inv-groep[hidden] { display: none; }
+.inv-groep-titel {
+  padding: 10px 16px 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.inv-groep .inv-list { padding-bottom: 4px; }
+
+/* Historiek-knop aan: zelfde accent als een gekozen filter */
+#inv-hist-btn.is-actief { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-dim); }
+.inv-hist-uitleg { padding: 0 16px 8px; color: var(--muted); font-size: 0.78rem; }
+/* Historiek: een smalle kolom, zodat aantal en uur niet aan de andere kant van een breed scherm staan */
+.inv-hist-lijst { max-width: 760px; }
 .inv-zoek-wrap { padding: 0 16px 8px; }
 .inv-zoek {
   width: 100%;
@@ -152,6 +180,7 @@ html[data-aanraak="ja"] .inv-qty-input { min-height: 44px; box-sizing: border-bo
 .inv-log-type.inv-log-verbruik   { background: var(--surface3); color: var(--muted); }
 
 .inv-log-materiaal { flex: 1; min-width: 140px; }
+.inv-log-ticket { color: var(--muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
 .inv-log-tijd { color: var(--muted); font-size: 0.75rem; }
 .inv-log-status-done { color: var(--muted); font-size: 0.75rem; }
 

@@ -283,3 +283,16 @@ test('verwerk zonder bekende gebruiker: enkel legacy items', async () => {
   assert.deepEqual(posts, ['L']);
   assert.deepEqual(lijst.map(e => e.id), ['a']);
 });
+
+test('ticketnummer: gaat mee in de POST, ook bij een herpoging uit de wachtrij; zonder nummer geen veld', async () => {
+  const t = bouw({ antwoorden: [{ status: 503, data: { error: 'Inventaris-opslag tijdelijk niet bereikbaar, probeer opnieuw.' } }, ok(6)] });
+  await t.w.meld('Jan', ITEMS, { ticketNummer: '3979' });
+  assert.equal(t.lijst()[0].ticketNummer, '3979');
+  await t.w.verwerk();
+  assert.deepEqual(t.posts.map(p => p.ticketNummer), ['3979', '3979']);
+  assert.equal(t.lijst().length, 0);
+
+  const zonder = bouw({ antwoorden: [ok(6)] });
+  await zonder.w.meld('Jan', ITEMS);
+  assert.ok(!('ticketNummer' in zonder.posts[0]));
+});

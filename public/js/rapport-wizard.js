@@ -1471,7 +1471,8 @@ export async function printRapport() {
       // Zelfde best-effort-aanpak als hierboven: wagenvoorraad-aftrek voor gebruikt materiaal
       // mag het afronden van het rapport nooit vertragen of laten falen (zie
       // docs/superpowers/specs/2026-08-20-inventarissysteem-design.md, "Randgevallen").
-      window.registreerVerbruik?.(_wizTicket.assignee, R.onderdelen)?.catch(err =>
+      // Ticketnummer enkel bij een echt Zoho-ticket (een lokale afspraak heeft er geen).
+      window.registreerVerbruik?.(_wizTicket.assignee, R.onderdelen, item.isLocal ? '' : (_wizTicket.number || ''))?.catch(err =>
         console.warn('Inventaris-aftrek mislukt (niet blokkerend):', err));
 
       const TIMEOUT_MS = 5000;

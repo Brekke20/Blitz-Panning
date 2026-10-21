@@ -10,7 +10,7 @@ import { loadFromCache, saveToCache } from './kern/opslag.js';
 import { heeftRol, huidigeGebruiker } from './kern/sessie.js';
 import { escHtml, toast } from './kern/ui.js';
 import { laadExcelJs } from './kern/exceljs.js';
-import { PRIJZEN, PRIJZEN_DEFAULTS } from './prijzen.js';
+import { PRIJZEN, PRIJZEN_DEFAULTS, ONDERDEEL_CATEGORIEEN } from './prijzen.js';
 import { maakVerbruikWachtrij, WACHTRIJ_SLEUTEL } from './kern/verbruik-wachtrij.js';
 
 export let _invData = { versie: 0, wagenvoorraad: {}, log: [] };
@@ -24,6 +24,7 @@ let _invExportVan    = '';
 let _invExportTot    = '';
 let _invZoekPersoon  = null;   // voor wie de zoektekst gold; wisselen van technieker leegt ze
 let _invZoek         = '';     // zoektekst in de onderdelenlijst; blijft over herrenders heen
+let _invHistoriek    = false;  // toont de technieker-weergave de historiek (log van deze persoon) i.p.v. de voorraad?
 
 const INV_API       = '/api/inventaris';
 // Testmodus heeft een aparte cache, zodat een testmomentopname nooit in echte modus verschijnt
@@ -55,7 +56,7 @@ export async function loadInventaris() {
 // state-overgangen (invStartEdit/invCancelEdit/invSaveEdit) roepen doRenderInventaris()
 // rechtstreeks aan en omzeilen deze bewuste bescherming.
 export function renderInventaris(persoon) {
-  if (_invZoekPersoon !== persoon) { _invZoek = ''; _invZoekPersoon = persoon; }
+  if (_invZoekPersoon !== persoon) { _invZoek = ''; _invHistoriek = false; _invZoekPersoon = persoon; }
   if (_invEditActive && _invEditPersoon === persoon) return;
   if (_invEditActive && _invEditPersoon !== persoon) {
     // Actieve edit-sessie voor een ANDERE technieker dan wie nu getoond wordt -- die sessie is
@@ -88,10 +89,9 @@ function doRenderInventaris(persoon) {
 function renderEigenVoorraad(persoon) {
   const stock = _invData.wagenvoorraad[persoon] || {};
   const src = PRIJZEN || PRIJZEN_DEFAULTS;
-  const materialen = [...src.onderdelen].sort((a, b) => a.naam.localeCompare(b.naam));
   const editing = _invEditActive && _invEditPersoon === persoon;
 
-  const rijen = materialen.map(o => {
+  const rij = o => {
     const entry  = stock[o.id] || { aantal: 0, gedempt: false };
     const aantal = entry.aantal || 0;
     const gedempt = !!entry.gedempt;
@@ -112,20 +112,40 @@ function renderEigenVoorraad(persoon) {
         <button class="inv-bell-btn${gedempt ? ' inv-bell-muted' : ''}" type="button" aria-label="${gedempt ? 'Lage-voorraadmelding inschakelen' : 'Lage-voorraadmelding uitschakelen'}" title="Lage-voorraadmelding voor dit item ${gedempt ? 'inschakelen' : 'uitschakelen'}">${gedempt ? '🔕' : '🔔'}</button>
       </div>
     </div>`;
-  }).join('');
+  };
 
   const zoek = `<div class="inv-zoek-wrap"><input type="search" class="inv-zoek" id="inv-zoek" placeholder="Zoek onderdeel…" aria-label="Zoek onderdeel" enterkeyhint="search" autocomplete="off" value="${escHtml(_invZoek)}"></div>`;
   const leeg = `<div class="inv-empty inv-zoek-leeg" role="status" hidden></div>`;
-  const lijst = `<div class="inv-list">${rijen}${leeg}</div>`;
+  // Per soort (zelfde groepen als Prijzen), binnen een soort alfabetisch; elke groep is een raster: naam en aantal staan dicht
+  // bij elkaar en een breed scherm toont meerdere kolommen.
+  const groepen = groepeerPerSoort(src.onderdelen).map(g => `<section class="inv-groep" aria-label="${escHtml(g.label)}">
+      <div class="inv-groep-titel" role="heading" aria-level="3">${escHtml(g.label)}</div>
+      <div class="inv-list inv-raster${editing ? ' inv-raster--bewerk' : ''}">${g.items.map(rij).join('')}</div>
+    </section>`).join('');
+  const lijst = `<div class="inv-groepen">${groepen}${leeg}</div>`;
 
   if (!editing) {
-    return `<div class="inv-toolbar"><button class="btn btn--primary" id="inv-edit-btn">✏️ Bewerken</button></div>` + zoek + lijst;
+    const toolbar = `<div class="inv-toolbar">
+      <button class="btn btn--secondary${_invHistoriek ? ' is-actief' : ''}" id="inv-hist-btn" aria-pressed="${_invHistoriek}">🕘 Historiek</button>
+      <button class="btn btn--primary" id="inv-edit-btn">✏️ Bewerken</button>
+    </div>`;
+    return toolbar + (_invHistoriek ? renderHistoriek(persoon) : zoek + lijst);
   }
   // Bewerkmodus: werkbalk NA de lijst en vastgeplakt onderaan, zodat Opslaan altijd bereikbaar blijft
   return zoek + lijst + `<div class="inv-toolbar inv-toolbar-vast">
          <button class="btn btn--secondary" id="inv-cancel-btn">Annuleren</button>
          <button class="btn btn--primary" id="inv-save-btn">✓ Opslaan</button>
        </div>`;
+}
+
+// Onderdelen per soort in de volgorde van ONDERDEEL_CATEGORIEEN, binnen een soort alfabetisch. Een onderdeel zonder (bekende) soort
+// komt in "Andere" achteraan: de voorraad toont altijd de hele catalogus.
+function groepeerPerSoort(onderdelen) {
+  const bekend = new Set(ONDERDEEL_CATEGORIEEN.map(c => c.id));
+  const opNaam = (a, b) => a.naam.localeCompare(b.naam);
+  const groepen = ONDERDEEL_CATEGORIEEN.map(c => ({ label: c.label, items: onderdelen.filter(o => o.categorie === c.id).sort(opNaam) }));
+  groepen.push({ label: 'Andere', items: onderdelen.filter(o => !bekend.has(o.categorie)).sort(opNaam) });
+  return groepen.filter(g => g.items.length);
 }
 
 // Normaliseer voor zoeken: kleine letters, zonder accenten
@@ -136,7 +156,7 @@ function invNorm(t) {
 // Verbergt (niet verwijderen!) rijen die niet passen bij _invZoek, zodat ingetikte aantallen blijven staan
 function invPasZoekToe(body) {
   const q = invNorm(_invZoek);
-  const rijen = body.querySelectorAll('.inv-list .inv-row');
+  const rijen = body.querySelectorAll('.inv-raster .inv-row');
   let zichtbaar = 0;
   rijen.forEach(r => {
     const naam = invNorm(r.dataset.matNaam || r.querySelector('.inv-row-naam')?.textContent);
@@ -144,6 +164,8 @@ function invPasZoekToe(body) {
     r.hidden = !toon;
     if (toon) zichtbaar++;
   });
+  // Een soort zonder passende onderdelen verdwijnt mee, titel inbegrepen
+  body.querySelectorAll('.inv-groep').forEach(g => { g.hidden = !g.querySelector('.inv-row:not([hidden])'); });
   const leeg = body.querySelector('.inv-zoek-leeg');
   if (leeg) {
     const geen = q && rijen.length && !zichtbaar;
@@ -156,7 +178,8 @@ function wireEigenVoorraad(body, persoon) {
   const zoekEl = body.querySelector('#inv-zoek');
   zoekEl?.addEventListener('input', () => { _invZoek = zoekEl.value; invPasZoekToe(body); });
   invPasZoekToe(body);
-  body.querySelector('#inv-edit-btn')?.addEventListener('click', () => invStartEdit(persoon));
+  body.querySelector('#inv-hist-btn')?.addEventListener('click', () => { _invHistoriek = !_invHistoriek; doRenderInventaris(persoon); });
+  body.querySelector('#inv-edit-btn')?.addEventListener('click', () => { _invHistoriek = false; invStartEdit(persoon); });
   body.querySelector('#inv-cancel-btn')?.addEventListener('click', () => invCancelEdit());
   body.querySelector('#inv-save-btn')?.addEventListener('click', () => invSaveEdit());
   body.querySelectorAll('.inv-cat-row').forEach(row => {
@@ -284,6 +307,21 @@ function renderSupervisorLog() {
 
   if (!entries.length) return toolbar + '<div class="inv-empty">Nog geen bewegingen.</div>';
 
+  return toolbar + `<div class="inv-list">${renderLogRegels(entries, { nieuweIds, metTechnieker: true, verwerktKnop: true })}</div>`;
+}
+
+// Historiek van één persoon (knop "Historiek" in de technieker-weergave): dezelfde log als de supervisor ziet, enkel voor deze
+// persoon. Alleen lezen: een aanvulling toont haar status, de knop "Verwerkt" blijft in de supervisor-weergave.
+function renderHistoriek(persoon) {
+  const entries = (_invData.log || []).filter(e => e.technieker === persoon)
+    .sort((a, b) => new Date(b.datum) - new Date(a.datum));
+  const uitleg = '<div class="inv-hist-uitleg">Wat er de laatste 3 maanden met deze wagenvoorraad gebeurde.</div>';
+  if (!entries.length) return uitleg + '<div class="inv-empty">Nog geen bewegingen.</div>';
+  return uitleg + `<div class="inv-list inv-hist-lijst">${renderLogRegels(entries, { nieuweIds: new Set(), metTechnieker: false, verwerktKnop: false })}</div>`;
+}
+
+// Logregels per dag (nieuwste eerst aangeleverd). `verwerktKnop`: knop "Verwerkt" bij een nieuwe aanvulling (supervisor).
+function renderLogRegels(entries, { nieuweIds, metTechnieker, verwerktKnop }) {
   let html = '';
   let huidigeDag = null;
   entries.forEach(e => {
@@ -296,21 +334,23 @@ function renderSupervisorLog() {
       html += `<div class="inv-day-sep">${label}</div>`;
     }
     const tijd = new Date(e.datum).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' });
+    let status = '';
+    if (e.type === 'aanvulling') {
+      if (e.status !== 'nieuw') status = '<span class="inv-log-status-done">✓ verwerkt</span>';
+      else if (verwerktKnop) status = `<button class="btn-sec inv-log-verwerkt-btn" data-log-id="${e.id}">Verwerkt</button>`;
+      else status = '<span class="inv-log-status-done">nog niet verwerkt</span>';
+    }
     html += `<div class="inv-log-row${nieuweIds.has(e.id) ? ' inv-day-new' : ''}">
       <span class="inv-log-type inv-log-${e.type}">${TYPE_LABEL[e.type] || e.type}</span>
-      <span class="inv-log-technieker">${escHtml(e.technieker)}</span>
+      ${metTechnieker ? `<span class="inv-log-technieker">${escHtml(e.technieker)}</span>` : ''}
       <span class="inv-log-materiaal">${escHtml(e.materiaalNaam)}</span>
+      ${e.ticketNummer ? `<span class="inv-log-ticket" title="Ticket van het rapport">#${escHtml(e.ticketNummer)}</span>` : ''}
       <span class="inv-log-aantal">${e.aantal > 0 ? '+' : ''}${e.aantal}</span>
       <span class="inv-log-tijd">${tijd}</span>
-      ${e.type === 'aanvulling'
-        ? (e.status === 'nieuw'
-            ? `<button class="btn-sec inv-log-verwerkt-btn" data-log-id="${e.id}">Verwerkt</button>`
-            : '<span class="inv-log-status-done">✓ verwerkt</span>')
-        : ''}
+      ${status}
     </div>`;
   });
-
-  return toolbar + `<div class="inv-list">${html}</div>`;
+  return html;
 }
 
 function wireSupervisorLog(body) {
@@ -393,7 +433,8 @@ export async function exportInventarisLog() {
   const vanLabel = vanVal || 'begin';
   const totLabel = totVal || 'huidig';
 
-  const headers = ['Datum', 'Tijd', 'Technieker', 'Type', 'Materiaal', 'Aantal', 'Status'];
+  // 'Ticket' staat achteraan, zodat de bestaande kolommen op hun plaats blijven.
+  const headers = ['Datum', 'Tijd', 'Technieker', 'Type', 'Materiaal', 'Aantal', 'Status', 'Ticket'];
   const ncols = headers.length;
 
   const data = rows.map(e => {
@@ -406,6 +447,7 @@ export async function exportInventarisLog() {
       e.materiaalNaam,
       e.aantal,
       e.type === 'aanvulling' ? (e.status === 'verwerkt' ? 'Verwerkt' : 'Nieuw') : '',
+      e.ticketNummer ? `#${e.ticketNummer}` : '',
     ];
   });
 
@@ -490,7 +532,8 @@ export async function exportInventarisLog() {
 // 'vrije regel'-onderdelen (id begint met 'vrij-') zijn handmatig ingevoerde tekst zonder
 // koppeling aan de prijzencatalogus -- die hebben geen materiaalId om tegen af te boeken, en
 // worden dus bewust overgeslagen (geen fout, gewoon genegeerd).
-export async function registreerVerbruik(technieker, onderdelen) {
+// `ticketNummer` (optioneel) komt bij elke verbruiksregel in de log, zodat de supervisor ziet bij welk rapport de aftrek hoort.
+export async function registreerVerbruik(technieker, onderdelen, ticketNummer) {
   // Testmodus (?test) wordt ook op de live site gebruikt: zonder deze guard zou een testrapport
   // de echte wagenvoorraad wijzigen.
   if (TEST_MODE) return;
@@ -501,7 +544,7 @@ export async function registreerVerbruik(technieker, onderdelen) {
   if (!items.length) return;
 
   // Mislukt de aftrek, dan meldt de wachtrij het en probeert ze zekere mislukkingen later opnieuw (Q4, kern/verbruik-wachtrij.js).
-  await verbruikWachtrij().meld(technieker, items);
+  await verbruikWachtrij().meld(technieker, items, { ticketNummer });
 }
 
 // Wachtrij met aftrekken die zeker niet gelukt zijn: opnieuw proberen bij opstart, bij weer online en bij elke lading (poll).

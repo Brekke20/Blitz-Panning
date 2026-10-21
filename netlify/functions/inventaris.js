@@ -87,6 +87,14 @@ async function pruneAndGet(store) {
 
 const GEEN_RECHT = { error: 'Je kan enkel je eigen wagenvoorraad wijzigen.', code: 'geen-recht' };
 
+// Ticketnummer van het rapport bij een verbruik (enkel ter info in de log). Een onbruikbare waarde wordt genegeerd in plaats van
+// geweigerd: een 400 zou de aftrek zelf laten verloren gaan (de verbruik-wachtrij beschouwt een 4xx als definitief).
+function leesTicketNummer(waarde) {
+  if (typeof waarde !== 'string' && !(typeof waarde === 'number' && Number.isFinite(waarde))) return null;
+  const nr = String(waarde).trim().replace(/^#/, '').trim();
+  return nr && nr.length <= 40 ? nr : null;
+}
+
 export function maakHandler({ getStore: haalStore = getStore } = {}) {
   const kern = async (req, context, gebruiker) => {
     const hdrs = corsHeaders(req);
@@ -145,6 +153,7 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
       const stock = { ...(wagenvoorraad[technieker] || {}) };
       const nieuweLogRegels = [];
       const nu = new Date().toISOString();
+      const ticketNummer = actie === 'verbruik' ? leesTicketNummer(body.ticketNummer) : null;
 
       for (const it of items) {
         const bestaand = normStock(stock[it.materiaalId]);
@@ -173,6 +182,7 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
               datum: nu,
               type,
               status,
+              ...(ticketNummer ? { ticketNummer } : {}),
             });
           }
         }
