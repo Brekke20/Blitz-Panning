@@ -2,7 +2,7 @@
 // Twee soorten blobs in de store van het verzoek:
 //   themas/index          { versie, themas: [{ id, naam, aan, periode, periodeOverride|null, pakketHash, geuploadOp, geuploadDoor }], gezaaid: [id…] }
 //   themas/pakket/<id>    de (gevalideerde) pakket-JSON
-// De index gaat via `wijzigBlob` (versie loopt op bij elke wijziging); de pakketten zijn onveranderlijk per upload.
+// De index gaat via `wijzigBlob` (versie loopt op bij elke wijziging); een upload schrijft het pakket van dat id EERST (overschrijft het vorige) en daarna de indexregel; mislukt de indexschrijf, dan wordt het nieuwe pakket onder de oude indexregel (oude hash) geserveerd tot de volgende geslaagde upload.
 // De regels voor "wat is nu actief" komen uit public/js/kern/themapakket.js (zelfde bron als de client).
 import { createHash } from 'node:crypto';
 import { wijzigBlob } from './blob-wijzig.js';
@@ -101,21 +101,33 @@ export async function openbareLijst(index, datum, store) {
   const jaar = d.jaar;
   const vandaag = dagTekst(Date.UTC(d.jaar, d.maand - 1, d.dag));
   const grens = dagTekst(Date.UTC(d.jaar, d.maand - 1, d.dag) + NABIJ_DAGEN * DAG_MS);
-  const nabij = (t) => {
-    if (isActief({ ...t, aan: true }, datum)) return true;
-    const periode = effectievePeriode(t);
-    return [jaar, jaar + 1].some((j) => {
-      const { start } = periodeVoorJaar(periode, j);
-      return start > vandaag && start <= grens;
-    });
+  // Een indexregel waarvan de periode niet te berekenen is (kapotte blob), verstoort de lijst voor niemand: overslaan en melden.
+  const beoordeel = (t) => {
+    try {
+      if (isActief({ ...t, aan: true }, datum)) return { ok: true, nabij: true };
+      const periode = effectievePeriode(t);
+      const nabij = [jaar, jaar + 1].some((j) => {
+        const { start } = periodeVoorJaar(periode, j);
+        if (typeof start !== 'string') throw new TypeError('periode');
+        return start > vandaag && start <= grens;
+      });
+      return { ok: true, nabij };
+    } catch (e) {
+      console.error('themas: indexregel overgeslagen (' + (e?.name || 'Error') + ', id ' + String(t.id).slice(0, 30) + ')');
+      return { ok: false };
+    }
   };
+  const gezond = [];
   const pakketten = {};
   for (const t of index.themas) {
-    if (!nabij(t)) continue;
+    const b = beoordeel(t);
+    if (!b.ok) continue;
+    gezond.push(t);
+    if (!b.nabij) continue;
     const pakket = await store.get(pakketSleutel(t.id), { type: 'json' });
     if (pakket) pakketten[t.id] = pakket;
   }
-  return { versie: index.versie, themas: publiekeThemas(index), pakketten };
+  return { versie: index.versie, themas: publiekeThemas({ themas: gezond }), pakketten };
 }
 
 // Bewaart een GEVALIDEERD pakket (nieuw of een nieuwe versie op id). Een bestaand thema houdt `aan` en `periodeOverride`.

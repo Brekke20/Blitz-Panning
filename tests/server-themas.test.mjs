@@ -9,6 +9,7 @@ import { VOORGELADEN } from '../netlify/themas/pakketten.js';
 import { RECHTEN } from '../netlify/lib/rechten.js';
 import { maakAuth } from '../netlify/lib/auth.js';
 import { metRol, metGeenSessie } from './auth-hulp.mjs';
+import { wisTestopslag } from '../netlify/lib/testmodus.js';
 
 const echteWinkel = 'blitz-data';
 const NU_15_OKT = Date.parse('2026-10-15T10:00:00.000Z');
@@ -419,4 +420,60 @@ test('openbareLijst: de lijst toont de effectieve gegevens zonder uploadvelden e
   assert.deepEqual(Object.keys(lijst).sort(), ['pakketten', 'themas', 'versie']);
   assert.deepEqual(Object.keys(lijst.themas[0]).sort(), ['aan', 'id', 'naam', 'pakketHash', 'periode', 'periodeOverride']);
   assert.deepEqual(Object.keys(lijst.pakketten), ['kerst']);
+});
+
+// ---- fix ronde 1 ----
+
+test('testmodus: een upload in de echte store is zichtbaar in een GET in testmodus op een verse teststore (de kopie loopt vóór het zaaien)', async () => {
+  const echt = maakNepStore({});
+  const test = maakNepStore({});
+  const getStore = (o) => (o.name === echteWinkel ? echt : test);
+  await wisTestopslag(getStore); // de kopievlag is per proces: terug naar "nog niet gekopieerd"
+  const h = maakHandler({ getStore, nu: () => NU_15_OKT });
+  const j0 = await (await als('planner', h, get())).json();
+  await beheer(h, post(nieuwPakket()));
+  await beheer(h, patch({ id: 'halloween', aan: false, versie: j0.versie + 1 }));
+  await wisTestopslag(getStore); // verse teststore
+  assert.equal(test._data.size, 0);
+  const r = await als('planner', h, get('', { headers: { 'x-blitz-test': '1' } }));
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.ok(j.themas.some((t) => t.id === 'lente'), 'de upload staat in de testmodus');
+  assert.equal(j.themas.find((t) => t.id === 'halloween').aan, false, 'ook de aan/uit-stand is mee');
+  assert.deepEqual(index(test).gezaaid.sort(), ['halloween', 'kerst']);
+  assert.ok(test._data.has(pakketSleutel('lente')));
+});
+
+test('één kapotte indexregel haalt de lijst niet neer: de gezonde thema’s blijven, de kapotte wordt overgeslagen en enkel het type gemeld', async () => {
+  const { h, echt } = opzet();
+  await als('planner', h, get()); // zaaien
+  const i = index(echt);
+  i.themas.push({ id: 'kapot', naam: 'Kapot', aan: true, pakketHash: 'x' }); // geen periode
+  i.themas.push({ id: 'kapot2', naam: 'Kapot 2', aan: true, periode: { van: { maand: 'x', dag: 1 }, tot: { maand: 3, dag: 1 } }, pakketHash: 'y' });
+  i.themas.push({ id: 'kapot3', naam: 'Kapot 3', aan: true, periode: 5, pakketHash: 'z' });
+  echt._data.set(INDEX_SLEUTEL, JSON.stringify(i));
+  const fouten = [];
+  const orig = console.error;
+  console.error = (...a) => fouten.push(a.join(' '));
+  let r;
+  try { r = await als('technieker', h, get()); } finally { console.error = orig; }
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.deepEqual(j.themas.map((t) => t.id), ['halloween', 'kerst']);
+  assert.ok(j.pakketten.halloween);
+  assert.ok(fouten.length >= 3 && fouten.every((f) => /overgeslagen/.test(f) && !f.includes('Kapot')), fouten.join('|'));
+});
+
+test('422: een pakket met 30.000 onbekende sleutels geeft hoogstens 50 + 1 foutregels, met veldnamen van hoogstens 120 tekens', async () => {
+  const { h } = opzet();
+  const p = nieuwPakket();
+  for (let n = 0; n < 30000; n++) p['o' + n + 'x'.repeat(n % 100 === 0 ? 200 : 0)] = 1;
+  assert.ok(Buffer.byteLength(JSON.stringify(p)) < 524288, 'onder de 512 kB, zodat de validator de sleutels zelf telt');
+  const r = await beheer(h, post(p));
+  assert.equal(r.status, 422);
+  const { fouten } = await r.json();
+  assert.equal(fouten.length, 51);
+  assert.ok(fouten.every((f) => f.veld.length <= 120));
+  assert.match(fouten[50].fout, /^en 29950 andere fouten$/);
+  assert.equal(fouten[50].veld, 'pakket');
 });

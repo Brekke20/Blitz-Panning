@@ -11,7 +11,7 @@
 import { getStore } from '@netlify/blobs';
 import { beveiligV2 } from '../lib/beveiligd.js';
 import { maakCors } from '../lib/http.js';
-import { winkelNaam } from '../lib/testmodus.js';
+import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
 import { OPSLAG_STORING } from '../lib/auth-antwoord.js';
 import { logVoorVerzoek } from '../lib/activiteit.js';
 import { zaai, openbareLijst, publiekeThemas, bewaarPakket, wijzigThema, pakketSleutel } from '../lib/themas.js';
@@ -22,6 +22,16 @@ const CORS = Object.freeze(maakCors({
   methoden: 'GET, POST, PATCH, OPTIONS', headers: 'Content-Type, X-Blitz, X-Blitz-Test', inhoudType: 'application/json',
 }));
 const json = (status, obj) => new Response(JSON.stringify(obj), { status, headers: { ...CORS, 'Cache-Control': 'no-store' } });
+
+// Een 422 draagt hoogstens 50 foutregels (+ één samenvattende) en korte `veld`-namen: een pakket met duizenden onbekende sleutels
+// mag het antwoord niet opblazen.
+export const MAX_FOUTEN = 50;
+export const MAX_VELD = 120;
+export function kapFouten(fouten) {
+  const kort = (fouten ?? []).map((f) => ({ veld: String(f.veld).slice(0, MAX_VELD), fout: f.fout }));
+  if (kort.length <= MAX_FOUTEN) return kort;
+  return [...kort.slice(0, MAX_FOUTEN), { veld: 'pakket', fout: `en ${kort.length - MAX_FOUTEN} andere fouten` }];
+}
 
 export const MAX_BODY = 614400; // 600 kB: een pakket is hoogstens 512 kB (validator), de rest is marge voor de verpakking
 
@@ -41,6 +51,7 @@ export function maakHandler({ getStore: haalStore, nu = () => Date.now(), auth, 
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     try {
       const store = await haalStore({ name: winkelNaam(req), consistency: 'strong' });
+      if (isTestVerzoek(req)) await zorgVoorTestkopie(haalStore); // de teststore krijgt eerst een kopie van de echte (themas/ wordt mee gekopieerd)
       const logOpties = { getStore: haalStore, nu };
 
       if (req.method === 'GET') {
@@ -60,7 +71,7 @@ export function maakHandler({ getStore: haalStore, nu = () => Date.now(), auth, 
       if (req.method === 'POST') {
         // De validator krijgt de echte bytes van de ontvangen tekst, nooit een waarde van de client.
         const v = valideerPakket(gelezen.body, { tekstLengte: gelezen.bytes });
-        if (!v.ok) return json(422, { error: 'Het themapakket is ongeldig.', fouten: v.fouten });
+        if (!v.ok) return json(422, { error: 'Het themapakket is ongeldig.', fouten: kapFouten(v.fouten) });
         const r = await bewaarPakket(store, v.pakket, gebruiker, { nu, voorgeladen });
         await logVoorVerzoek(req, gebruiker, { actie: 'thema-upload', onderwerp: v.pakket.id, details: { id: v.pakket.id, nieuw: r.nieuw } }, logOpties);
         return json(200, { ok: true, nieuw: r.nieuw, versie: r.index.versie, themas: publiekeThemas(r.index) });
@@ -72,7 +83,7 @@ export function maakHandler({ getStore: haalStore, nu = () => Date.now(), auth, 
       const r = await wijzigThema(store, { id: b.id, aan: b.aan, periode: b.periode, versie: b.versie }, gebruiker);
       if (!r.ok) {
         const { ok: _ok, status, ...rest } = r;
-        return json(status, rest.fouten ? { error: 'De wijziging is ongeldig.', ...rest } : rest);
+        return json(status, rest.fouten ? { error: 'De wijziging is ongeldig.', fouten: kapFouten(rest.fouten) } : rest);
       }
       const details = { id: b.id };
       if (b.aan !== undefined) details.aan = b.aan;
