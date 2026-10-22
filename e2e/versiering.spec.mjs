@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { test, expect, startApp } from './helpers.mjs';
 import { startSalesApp } from './sales-hulp.mjs';
 
@@ -152,60 +153,6 @@ test.describe('versiering op de computer', () => {
     expect(await bovenaanOpDoel(page, '#event-laag .ev-kruip', '#view-tickets .ticket .tsub')).toBe('deco');
   });
 
-  // Fix-ronde 1: ELKE tekstkleur op een kaart (gewone en secundaire tekst, de rode "Geen adres bekend") haalt 4,5:1 over elke kleur
-  // die achter het glas kan liggen: de paginakleur en de lichtste en donkerste kleur van de actieve achtergrond (Halloween: de maan
-  // #f3ead0 en de silhouetten), in het lichte thema aan de dekking van de achtergrond (0,2) over de paginakleur. Chips met een eigen
-  // achtergrond (labels) tellen niet mee: hun tekst staat op hun eigen vlak.
-  test('ticketkaarten zijn mat glas en elke tekst houdt een contrast van minstens 4,5:1, ook over de maan, in donker en licht', async ({ page }) => {
-    await startApp(page, { query: AAN });
-    await expect(page.locator('html')).toHaveAttribute('data-event-achtergrond', 'ja');
-    // Geen overgangen tijdens het meten (een kaart kleurt anders 0,15 s lang van donker naar licht, in echte tijd)
-    await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; }' });
-    await expect(page.locator('#view-tickets .taddr.miss')).toHaveCount(1);
-    for (const thema of ['dark', 'light']) {
-      await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), thema);
-      const kaarten = await page.locator('#view-tickets .ticket').evaluateAll((lijst) => {
-        // Kleur lezen als [r, g, b, a] (0-255, a 0-1) via een canvas: werkt voor rgb(), rgba(), #hex en color(srgb ...).
-        const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
-        const rgba = (kleur) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = '#000'; ctx.fillStyle = kleur; ctx.fillRect(0, 0, 1, 1); const d = ctx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255]; };
-        const root = getComputedStyle(document.documentElement);
-        // Alle kleuren van de achtergrondtekening (vullingen, lijnen, verloopstops), zonder hun eigen dekking: het slechtste geval.
-        const scene = [...document.querySelectorAll('#event-achtergrond svg *')]
-          .flatMap((el) => ['fill', 'stroke', 'stop-color'].map((a) => el.getAttribute(a)))
-          .filter((k) => k && k.startsWith('#')).map(rgba);
-        const dekking = Number(getComputedStyle(document.getElementById('event-achtergrond')).opacity);
-        return lijst.map((el) => {
-          const cs = getComputedStyle(el);
-          const teksten = [...el.querySelectorAll('*')]
-            .filter((t) => [...t.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()))
-            .filter((t) => { let x = t; while (x && x !== el) { if (rgba(getComputedStyle(x).backgroundColor)[3] > 0) return false; x = x.parentElement; } return true; })
-            .map((t) => ({ sel: t.className, kleur: rgba(getComputedStyle(t).color) }));
-          return { naam: el.querySelector('.tnum')?.textContent, kaart: rgba(cs.backgroundColor), blur: cs.backdropFilter, teksten, scene, dekking, bg: rgba(root.getPropertyValue('--bg').trim()) };
-        });
-      });
-      const meng = (boven, onder) => [0, 1, 2].map((i) => boven[i] * boven[3] + onder[i] * (1 - boven[3]));
-      const lum = (c) => { const k = c.slice(0, 3).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * k[0] + 0.7152 * k[1] + 0.0722 * k[2]; };
-      const contrast = (a, b) => { const [h, d] = [lum(a), lum(b)].sort((x, y) => y - x); return (h + 0.05) / (d + 0.05); };
-      for (const k of kaarten) {
-        // half doorschijnend (glas), met vervaging
-        expect(k.kaart[3], `${thema} ${k.naam}`).toBeGreaterThan(0.6);
-        expect(k.kaart[3]).toBeLessThan(0.97);
-        expect(k.blur).toContain('blur(12px)');
-        expect(k.teksten.length).toBeGreaterThanOrEqual(3);
-        const sceneOpBg = k.scene.map((c) => meng([c[0], c[1], c[2], k.dekking], k.bg));
-        const helder = sceneOpBg.reduce((a, b) => (lum(b) > lum(a) ? b : a));
-        const donker = sceneOpBg.reduce((a, b) => (lum(b) < lum(a) ? b : a));
-        if (thema === 'dark') expect(lum(helder)).toBeGreaterThan(0.7); // de maan zit in de toets
-        for (const onder of [k.bg, helder, donker]) {
-          const vlak = meng(k.kaart, onder);
-          for (const t of k.teksten) {
-            expect(contrast(t.kleur, vlak), `${thema} ${k.naam} .${t.sel} over rgb(${onder.map(Math.round)})`).toBeGreaterThanOrEqual(4.5);
-          }
-        }
-      }
-    }
-  });
-
   test('toestandskleuren blijven onder het glas: lage voorraad en vandaag in de maandweergave', async ({ page }) => {
     await startApp(page, { query: AAN });
     await expect(page.locator('html')).toHaveAttribute('data-event-achtergrond', 'ja');
@@ -310,6 +257,110 @@ test.describe('versiering op de computer', () => {
     await expect(achterLaag(page)).toHaveClass(/ev-gepauzeerd/);
     await expect(achterLaag(page).locator('.ev-hang').first()).toHaveCSS('animation-play-state', 'paused');
   });
+});
+
+// Mat glas en contrast, voor ELK voorgeladen thema (taak 9c, keuze opdrachtgever 2026-10-22: duidelijk mat glas, 80 % kaartkleur, en
+// een eigen lichte achtergrond aan 0,5 tot 0,8). ELKE tekstkleur op een kaart (gewone en secundaire tekst, de rode "Geen adres
+// bekend", de tijd en de naam op een kalenderkaart) haalt 4,5:1 over elke kleur die achter het glas kan liggen: de paginakleur en de
+// lichtste en donkerste kleur die de achtergrond IN DAT THEMA tekent (in het lichte thema de lichte versie: vulLicht/lijnLicht, aan
+// de dekking van de achtergrond over de paginakleur). Het slechtste geval: de eigen dekking van een deel telt niet mee. Chips met een
+// eigen achtergrond (labels) tellen niet mee: hun tekst staat op hun eigen vlak. Gemeten op de ticketkaarten (wachtrij) en de
+// kalenderkaarten (.cal-ticket, weekweergave). Het pakket komt uit netlify/themas met een periode over de testklok (5 okt 2026).
+const PAKKET_IDS = ['halloween', 'kerst', 'nieuwjaar', 'valentijn', 'carnaval', 'pasen', 'zomer', 'nationale-feestdag', 'sinterklaas'];
+const leesPakket = (id) => JSON.parse(fs.readFileSync(new URL(`../netlify/themas/${id}.blitzthema.json`, import.meta.url), 'utf8'));
+function themaStub(p) {
+  const periodeOverride = { van: { maand: 10, dag: 1 }, tot: { maand: 10, dag: 31 } };
+  return ({ query }) => {
+    if (query.get('id') !== null) return { status: 200, json: structuredClone(p) };
+    return {
+      status: 200,
+      json: { versie: 1, themas: [{ id: p.id, naam: p.naam, aan: true, periode: p.periode, periodeOverride, pakketHash: `e2e-${p.id}` }], pakketten: { [p.id]: structuredClone(p) } },
+    };
+  };
+}
+
+// Meet per kaart: de kaartkleur (rgba), de vervaging, de teksten (zonder eigen achtergrond) en de kleuren die de achtergrond in het
+// HUIDIGE thema tekent (berekende fill/stroke per deel; een verloop via zijn stops), plus de dekking van de achtergrond en --bg.
+async function meetKaarten(page, sel) {
+  return page.locator(sel).evaluateAll((lijst) => {
+    // Kleur lezen als [r, g, b, a] (0-255, a 0-1) via een canvas: werkt voor rgb(), rgba(), #hex en color(srgb ...).
+    const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+    const rgba = (kleur) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = '#000'; ctx.fillStyle = kleur; ctx.fillRect(0, 0, 1, 1); const d = ctx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255]; };
+    const root = getComputedStyle(document.documentElement);
+    const svg = document.querySelector('#event-achtergrond svg');
+    const kleurenVan = (waarde) => {
+      if (!waarde || waarde === 'none') return [];
+      const url = waarde.match(/url\("?#([^")]+)"?\)/);
+      if (url) return [...svg.querySelectorAll(`[id="${url[1]}"] stop`)].map((s) => getComputedStyle(s).stopColor);
+      return [waarde];
+    };
+    const scene = [...svg.querySelectorAll('path, circle, ellipse, rect, polygon, line')]
+      .flatMap((el) => { const cs = getComputedStyle(el); return [...kleurenVan(cs.fill), ...kleurenVan(cs.stroke)]; })
+      .map(rgba).filter((c) => c[3] > 0);
+    const dekking = Number(getComputedStyle(document.getElementById('event-achtergrond')).opacity);
+    return lijst.map((el) => {
+      const cs = getComputedStyle(el);
+      const teksten = [...el.querySelectorAll('*')]
+        .filter((t) => [...t.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()))
+        .filter((t) => { let x = t; while (x && x !== el) { if (rgba(getComputedStyle(x).backgroundColor)[3] > 0) return false; x = x.parentElement; } return true; })
+        .map((t) => ({ sel: t.className, kleur: rgba(getComputedStyle(t).color) }));
+      return { naam: el.textContent.trim().slice(0, 30), kaart: rgba(cs.backgroundColor), blur: cs.backdropFilter, teksten, scene, dekking, bg: rgba(root.getPropertyValue('--bg').trim()) };
+    });
+  });
+}
+const meng = (boven, onder) => [0, 1, 2].map((i) => boven[i] * boven[3] + onder[i] * (1 - boven[3]));
+const lum = (c) => { const k = c.slice(0, 3).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * k[0] + 0.7152 * k[1] + 0.0722 * k[2]; };
+const contrast = (a, b) => { const [h, d] = [lum(a), lum(b)].sort((x, y) => y - x); return (h + 0.05) / (d + 0.05); };
+
+function controleerKaarten(kaarten, label, thema, slechtste) {
+  expect(kaarten.length, `${label}: kaarten`).toBeGreaterThan(0);
+  for (const k of kaarten) {
+    // duidelijk mat glas: 80 % kaartkleur, met vervaging
+    expect(k.kaart[3], `${label} ${k.naam}`).toBeCloseTo(0.8, 2);
+    expect(k.blur).toContain('blur(12px)');
+    expect(k.teksten.length).toBeGreaterThanOrEqual(2);
+    const sceneOpBg = k.scene.map((c) => meng([c[0], c[1], c[2], k.dekking], k.bg));
+    const helder = sceneOpBg.reduce((a, b) => (lum(b) > lum(a) ? b : a));
+    const donker = sceneOpBg.reduce((a, b) => (lum(b) < lum(a) ? b : a));
+    if (thema === 'dark') expect(lum(helder), `${label}: de lichtste kleur (maan, sterren) zit in de toets`).toBeGreaterThan(0.5);
+    for (const onder of [k.bg, helder, donker]) {
+      const vlak = meng(k.kaart, onder);
+      for (const t of k.teksten) {
+        const c = contrast(t.kleur, vlak);
+        if (c < slechtste.waarde) Object.assign(slechtste, { waarde: c, waar: `${label} .${t.sel} over rgb(${onder.map(Math.round)})` });
+        expect(c, `${label} ${k.naam} .${t.sel} over rgb(${onder.map(Math.round)})`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  }
+}
+
+test.describe('mat glas en contrast per thema', () => {
+  for (const id of PAKKET_IDS) {
+    test(`${id}: ticket- en kalenderkaarten zijn mat glas en elke tekst houdt 4,5:1 over de lichtste en donkerste kleur, in donker en licht`, async ({ page }) => {
+      const p = leesPakket(id);
+      await startApp(page, { query: AAN, overschrijf: { themas: themaStub(p) } });
+      await expect(page.locator('html')).toHaveAttribute('data-event', id);
+      await expect(page.locator('html')).toHaveAttribute('data-event-achtergrond', 'ja');
+      // Geen overgangen tijdens het meten (een kaart kleurt anders 0,15 s lang van donker naar licht, in echte tijd)
+      await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; }' });
+      await expect(page.locator('#view-tickets .taddr.miss')).toHaveCount(1);
+      const slechtste = { waarde: Infinity, waar: '' };
+      for (const thema of ['dark', 'light']) {
+        await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), thema);
+        // de lichte achtergrond staat aan de dekking van het pakket
+        if (thema === 'light') await expect(page.locator('#event-achtergrond')).toHaveCSS('opacity', String(p.achtergrond.dekkingLicht));
+        controleerKaarten(await meetKaarten(page, '#view-tickets .ticket'), `${id} ${thema} ticket`, thema, slechtste);
+      }
+      await page.locator('#tab-kalender').click();
+      await expect(page.locator('#view-kalender .cal-ticket').first()).toBeVisible();
+      for (const thema of ['dark', 'light']) {
+        await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), thema);
+        controleerKaarten(await meetKaarten(page, '#view-kalender .cal-ticket'), `${id} ${thema} kalender`, thema, slechtste);
+      }
+      test.info().annotations.push({ type: 'slechtste contrast', description: `${slechtste.waarde.toFixed(2)}:1 (${slechtste.waar})` });
+      console.log(`slechtste contrast ${id}: ${slechtste.waarde.toFixed(2)}:1 (${slechtste.waar})`);
+    });
+  }
 });
 
 test.describe('geen versiering', () => {

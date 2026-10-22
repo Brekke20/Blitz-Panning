@@ -123,7 +123,8 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
   }
   #event-achtergrond > .ev-achtergrond-beeld { display: block; width: 100%; height: 100%; }
   #event-achtergrond > img.ev-achtergrond-beeld { object-fit: cover; object-position: center bottom; }
-  /* Licht thema: dezelfde achtergrond als vage schemering (dekkingLicht van het pakket, standaard 0,2), zodat tekst leesbaar blijft */
+  /* Licht thema: de eigen lichte versie van de achtergrond (vulLicht/lijnLicht in het pakket) aan de dekking `dekkingLicht` van het
+     pakket (keuze opdrachtgever 2026-10-22: een bewust pastellandschap, de voorgeladen thema's 0,75; zonder waarde 0,2) */
   :root[data-theme="light"] #event-achtergrond { opacity: var(--ev-dekking-licht, 0.2); }
 }
 
@@ -134,14 +135,16 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
    Kaarten in de lijsten: half doorschijnend in hun eigen kleur (--ev-kaart) met vervaging; een toestandstint (--ev-tint, bv. lage
    voorraad) ligt er doorschijnend bovenop. Sober (gsm, tablet, aanraak) minder vervaging; zonder backdrop-filter of met verminderde
    transparantie bijna effen (--ev-glas-vast).
-   Contrast (fix-ronde 1): elke tekstkleur op een kaart haalt 4,5:1, ook over de lichtste kleur van de tekening (de maan). Daarom in
-   het donkere thema dikker glas (90 %) en op de kaarten een lichtere grijze en rode tekst; e2e/versiering.spec.mjs meet het. */
+   Contrast: elke tekstkleur op een kaart haalt 4,5:1 over de lichtste en de donkerste kleur van elke achtergrond in dat thema.
+   Taak 9c (keuze opdrachtgever 2026-10-22: duidelijk mat glas): 80 % kaartkleur in beide thema's (zonder backdrop-filter of met
+   verminderde transparantie 94 %); daarom op de kaarten in het donkere thema lichtere grijze en rode tekst (ook over wit) en in het
+   lichte thema donkerdere (ook over de donkerste kleur van een lichte achtergrond); e2e/versiering.spec.mjs meet het voor de negen
+   thema's. */
 @media screen {
   :root[data-event][data-event-achtergrond="ja"] {
-    --ev-glas-normaal: 84%; --ev-glas-vast: 94%; --ev-glas-blur: 12px;
+    --ev-glas-normaal: 80%; --ev-glas-vast: 94%; --ev-glas-blur: 12px;
     --ev-glas-alpha: var(--ev-glas-normaal);
   }
-  :root[data-event][data-event-achtergrond="ja"]:not([data-theme="light"]) { --ev-glas-normaal: 90%; --ev-glas-vast: 97%; }
   :root[data-event][data-event-achtergrond="ja"][data-event-sober="ja"] { --ev-glas-blur: 6px; }
   /* Inhoudsvlakken die de achtergrond anders (deels) verbergen; toestanden behouden een doorschijnende tint */
   /* (de id staat apart: in :is() zou ze de specificiteit van alle klassen optillen en de toestandstinten hieronder wissen) */
@@ -164,9 +167,14 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
   :root[data-event][data-event-achtergrond="ja"] .ticket.overdue { --ev-kaart: color-mix(in srgb, var(--red) 3%, var(--bg)); }
   :root[data-event][data-event-achtergrond="ja"] .ticket.overdue:hover { --ev-kaart: color-mix(in srgb, var(--red) 6%, var(--bg)); }
   :root[data-event][data-event-achtergrond="ja"] .inv-row.inv-low { --ev-tint: var(--red-dim); }
-  /* Donker thema: lichtere secundaire en rode tekst op de kaarten (4,5:1 ook boven de maan) */
+  /* Donker thema: lichtere secundaire en rode tekst op de kaarten (4,5:1 ook boven wit achter het glas) */
   :root[data-event][data-event-achtergrond="ja"]:not([data-theme="light"]) :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
-    --muted: #a7b1bd; --red: #ff8f89;
+    --text2: #c3cbd4; --muted: #c3cbd4; --red: #ffb0aa;
+  }
+  /* Licht thema: donkerdere secundaire en rode tekst op de kaarten (4,5:1 ook boven de donkerste kleur van een lichte achtergrond,
+     ook op de iets grijzere kaart van een verlopen ticket) */
+  :root[data-event][data-event-achtergrond="ja"][data-theme="light"] :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
+    --muted: #48525f; --red: #a81616;
   }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     :root[data-event][data-event-achtergrond="ja"] { --ev-glas-alpha: var(--ev-glas-vast); }
