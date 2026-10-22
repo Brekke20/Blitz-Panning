@@ -117,6 +117,28 @@ test('Halloween: periode, kleuren en voorkeurthema zoals nu', () => {
   assert.equal(p.kleuren.voorkeurThema, 'donker');
 });
 
+// karakterisering van v2.2.0 (bron wordt in een latere taak geschrapt): css/evenement.css:48-52
+//   [data-event="halloween"] (beide thema's): --accent #f97316, --accent-hover #fb8a3c, --accent-dim rgba(249,115,22,0.12),
+//     --accent-glow rgba(249,115,22,0.24), --on-accent #1f0d00
+//   [data-event="halloween"][data-theme="light"] overschrijft enkel: --accent #c2570c, --accent-dim rgba(194,87,12,0.12),
+//     --accent-glow rgba(194,87,12,0.22); hover en on-accent blijven dus die van het donkere blok.
+// (rgba-alpha naar hex: 0,12 = 1f, 0,24 = 3d, 0,22 = 38)
+const HALLOWEEN_KLEUREN = {
+  donker: { accent: '#f97316', accentHover: '#fb8a3c', accentDim: '#f973161f', accentGlow: '#f973163d', opAccent: '#1f0d00' },
+  licht: { accent: '#c2570c', accentHover: '#fb8a3c', accentDim: '#c2570c1f', accentGlow: '#c2570c38', opAccent: '#1f0d00' },
+  voorkeurThema: 'donker',
+};
+
+test('Halloween: de volledige donkere en lichte kleurenset is die van v2.2.0 (ook hover en tekst op accent in licht)', () => {
+  assert.deepEqual(halloween().kleuren, HALLOWEEN_KLEUREN);
+});
+
+test('elk voorgeladen pakket geeft het lichte thema evenveel kleursleutels als het donkere', () => {
+  for (const p of VOORGELADEN) {
+    if (p.kleuren.licht) assert.deepEqual(Object.keys(p.kleuren.licht).sort(), Object.keys(p.kleuren.donker).sort(), p.id);
+  }
+});
+
 test('Halloween: de versiering is hoek (web, 4 hoeken), hangen, kruipen, vliegen en mist', () => {
   assert.deepEqual(halloween().versiering, [
     { beweging: 'hoek', beeld: 'web', hoeken: ['lb', 'rb', 'lo', 'ro'] },

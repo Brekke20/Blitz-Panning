@@ -9,7 +9,7 @@
   },
   "kleuren": {
     "donker": { "accent": "#f97316", "accentHover": "#fb8a3c", "accentDim": "#f973161f", "accentGlow": "#f973163d", "opAccent": "#1f0d00" },
-    "licht": { "accent": "#c2570c", "accentDim": "#c2570c1f", "accentGlow": "#c2570c38" },
+    "licht": { "accent": "#c2570c", "accentHover": "#fb8a3c", "accentDim": "#c2570c1f", "accentGlow": "#c2570c38", "opAccent": "#1f0d00" },
     "voorkeurThema": "donker"
   },
   "vormen": {
