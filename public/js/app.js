@@ -149,6 +149,8 @@ if (!localStorage.getItem('blitz_mig_startloc_v1')) {
 // (readyState is dan 'interactive'), dus de handler wordt, net als vroeger, pas na het parsen en na alle modules uitgevoerd.
 // Het registreren gebeurt onderaan dit bestand, nadat alle `const`/`let` van deze module bestaan.
 function opstart() {
+  // De verse themas (/api/themas) pas na het inloggen: vóór de login gebruikt de app geen gegevens van de server.
+  vernieuwThemas();
   // Verborgen spel (spel/): 5× snel tikken op het bliksem-icoon (.logo-icon) opent het; de spelmodule wordt pas dan geladen. Raakt de planning niet aan.
   // De evenementenkalender (kern/evenementen.js) bepaalt welke event-skins (Halloween, Kerst) nu open zijn.
   installeerSpelOpening({ doel: document.querySelector('.logo-icon'), actieveEvenementen });
@@ -997,17 +999,17 @@ installeerTijdPicker(document, window); // tik op een tijd-/datumveld opent de k
 window.addEventListener('versiering-gewijzigd', () => { // thema aan/uit: lege-tekst-lijsten direct hertekenen
   try { wachtrij.renderTickets(); ingepland.renderGepland(); } catch (e) { /* app nog niet opgestart: de eerste render pakt het thema vanzelf */ }
 });
-// Feestelijke versiering (schermen/evenement-laag.js): eerst meteen het thema uit de cache (themasNu), dan de verse themas van
-// /api/themas (schermen/themas-bron.js) en opnieuw berekenen; ook bij terugkeer naar de pagina (hoogstens één keer per minuut).
-// Uit in ?test (tenzij ?versiering=aan) en op aanraak enkel statisch. Een mislukte lading laat de cache staan (nooit een fout).
-let themasGeladenOm = 0;
+// Feestelijke versiering (schermen/evenement-laag.js): meteen het thema uit de cache (themasNu, geen netwerk); na het inloggen
+// (opstart) de verse themas van /api/themas (schermen/themas-bron.js) en opnieuw berekenen; ook bij terugkeer naar de pagina
+// (hoogstens één keer per minuut). Uit in ?test (tenzij ?versiering=aan) en op aanraak enkel statisch. Een mislukte lading laat de
+// cache staan (nooit een fout).
+let themasGeladenOm = 0; // 0 = nog niet ingelogd/opgestart: geen lading bij terugkeer naar de pagina
 function vernieuwThemas() {
   themasGeladenOm = Date.now();
   laadThemas().then(herberekenVersiering, () => {});
 }
 startVersiering();
-vernieuwThemas();
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && Date.now() - themasGeladenOm > 60000) vernieuwThemas();
+  if (!document.hidden && themasGeladenOm && Date.now() - themasGeladenOm > 60000) vernieuwThemas();
 });
 document.addEventListener('DOMContentLoaded', () => startNaInlog(opstart));
