@@ -200,3 +200,28 @@ test.describe('versiering per beweging op een gsm (sober)', () => {
     await geenCode(page);
   });
 });
+
+// Fix-ronde 1: een toestel dat de app dagen vooraan houdt, haalt de themas opnieuw op zodra de laatste lading meer dan 30 minuten
+// oud is (in de minuutcontrole), zodat een thema dat de beheerder uitzet ook daar verdwijnt.
+test('de minuutcontrole haalt de themas opnieuw op na 30 minuten, niet eerder', async ({ page }) => {
+  let aan = true;
+  let opgehaald = 0;
+  const p = pakket('proef-minuut', [{ beweging: 'hoek', beeld: 'bol', hoeken: ['lb'] }]);
+  const stub = ({ query }) => {
+    if (query.get('id') !== null) return { status: 200, json: p };
+    opgehaald += 1;
+    return { status: 200, json: { versie: opgehaald, themas: [{ id: p.id, naam: p.naam, aan, periode: p.periode, periodeOverride: null, pakketHash: 'e2e' }], pakketten: aan ? { [p.id]: p } : {} } };
+  };
+  await startApp(page, { query: AAN, overschrijf: { themas: stub } });
+  await expect(page.locator('html')).toHaveAttribute('data-event', 'proef-minuut');
+  expect(opgehaald).toBe(1);
+  aan = false; // de beheerder zet het thema uit
+  await page.clock.fastForward(20 * 60000);
+  await page.clock.runFor(61000);
+  expect(opgehaald).toBe(1); // na ruim 21 minuten nog geen nieuwe lading
+  await page.clock.fastForward(10 * 60000);
+  await page.clock.runFor(61000);
+  await expect.poll(() => opgehaald).toBe(2);
+  await expect(page.locator('html')).not.toHaveAttribute('data-event', /.+/);
+  await expect(page.locator('#event-achter-laag')).toHaveCount(0);
+});

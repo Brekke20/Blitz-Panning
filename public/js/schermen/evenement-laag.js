@@ -368,7 +368,11 @@ export function zetVersieringAan(aan) {
 }
 export function versieringAanVoorkeur() { return leesVoorkeur(opslag()) !== 'uit'; }
 
-export function startVersiering() {
+// `elkeMinuut` (optioneel): wordt mee aangeroepen in de minuutcontrole (enkel met een zichtbare tab); app.js ververst er de
+// themas mee als de laatste lading te lang geleden is.
+let elkeMinuutHaak = null;
+export function startVersiering({ elkeMinuut } = {}) {
+  if (typeof elkeMinuut === 'function') elkeMinuutHaak = elkeMinuut;
   const w = venster();
   if (!w || typeof document === 'undefined') return;
   herbereken();
@@ -384,7 +388,13 @@ export function startVersiering() {
   });
   w.addEventListener('resize', () => { planMeting(); pasKijkvenster(); });
   document.addEventListener('click', planMeting, true); // een tabwissel verandert de vaste balk van het scherm
-  if (!minuutTimer) minuutTimer = setInterval(() => { if (!document.hidden) { herbereken(); planMeting(); } }, 60000);
+  if (!minuutTimer) {
+    minuutTimer = setInterval(() => {
+      if (document.hidden) return;
+      herbereken(); planMeting();
+      try { elkeMinuutHaak?.(); } catch { /* een haak die faalt, breekt de minuutcontrole niet */ }
+    }, 60000);
+  }
   w.addEventListener('keyup', planMeting, true); // tabwissel met het toetsenbord
   // Bij de start staan de balken van het scherm er soms nog niet: meet opnieuw na het laden en kort daarna.
   w.addEventListener('load', planMeting);

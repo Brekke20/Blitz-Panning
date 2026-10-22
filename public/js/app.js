@@ -1001,14 +1001,19 @@ window.addEventListener('versiering-gewijzigd', () => { // thema aan/uit: lege-t
 });
 // Feestelijke versiering (schermen/evenement-laag.js): meteen het thema uit de cache (themasNu, geen netwerk); na het inloggen
 // (opstart) de verse themas van /api/themas (schermen/themas-bron.js) en opnieuw berekenen; ook bij terugkeer naar de pagina
-// (hoogstens één keer per minuut). Uit in ?test (tenzij ?versiering=aan) en op aanraak enkel statisch. Een mislukte lading laat de
-// cache staan (nooit een fout).
-let themasGeladenOm = 0; // 0 = nog niet ingelogd/opgestart: geen lading bij terugkeer naar de pagina
+// (hoogstens één keer per minuut) en, voor een toestel dat dagen vooraan blijft staan, in de minuutcontrole zodra de laatste lading
+// meer dan 30 minuten oud is (fix-ronde 1: een thema dat de beheerder uitzet, bereikt zo ook de planner-pc). Uit in ?test (tenzij
+// ?versiering=aan) en op aanraak enkel statisch. Een mislukte lading laat de cache staan (nooit een fout); de 30 minuten tellen
+// vanaf de laatste poging, zodat een toestel zonder netwerk niet elke minuut opnieuw probeert.
+const THEMAS_MAX_OUDERDOM_MS = 30 * 60000;
+let themasGeladenOm = 0; // 0 = nog niet ingelogd/opgestart: geen lading bij terugkeer naar de pagina of in de minuutcontrole
 function vernieuwThemas() {
   themasGeladenOm = Date.now();
   laadThemas().then(herberekenVersiering, () => {});
 }
-startVersiering();
+startVersiering({
+  elkeMinuut: () => { if (themasGeladenOm && Date.now() - themasGeladenOm > THEMAS_MAX_OUDERDOM_MS) vernieuwThemas(); },
+});
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && themasGeladenOm && Date.now() - themasGeladenOm > 60000) vernieuwThemas();
 });
