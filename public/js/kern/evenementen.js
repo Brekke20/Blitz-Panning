@@ -12,6 +12,8 @@
 // Bewust weggelaten: Pasen. Pasen is beweeglijk (datum hangt van het jaar af) en heeft nog geen thema; het komt erbij zodra
 // het thema er is, met `van`/`tot` als functie van het jaar (feestdagen.js heeft de paasberekening).
 
+import { belgischeDag } from './themapakket.js';
+
 export const MAX_SPINNEN = 3; // harde bovengrens op bewegende spinnen, in de thema-definitie en getest
 
 export const EVENEMENTEN = [
@@ -22,15 +24,8 @@ export const EVENEMENTEN = [
 
 const MAANDEN = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
 
-const dagFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels', year: 'numeric', month: '2-digit', day: '2-digit' });
-
-// De Belgische kalenderdag van een moment: { jaar, maand (1-12), dag }.
-export function belgischeDag(datum) {
-  const d = datum instanceof Date ? datum : new Date(datum);
-  if (Number.isNaN(d.getTime())) throw new RangeError('evenementen: ongeldige datum');
-  const delen = Object.fromEntries(dagFormatter.formatToParts(d).map(p => [p.type, p.value]));
-  return { jaar: Number(delen.year), maand: Number(delen.month), dag: Number(delen.day) };
-}
+// De Belgische kalenderdag van een moment staat nu in kern/themapakket.js; hier voorlopig her-geëxporteerd.
+export { belgischeDag };
 
 const sleutel = (md) => md.maand * 100 + md.dag;
 
