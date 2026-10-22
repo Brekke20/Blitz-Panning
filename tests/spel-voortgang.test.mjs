@@ -226,3 +226,61 @@ test('themaskins komen na een serverantwoord van de server: een lokale datum ont
   const opnieuw = maakVoortgang(opties);
   assert.ok(!opnieuw.huidig().ontgrendeld.includes(halloween.id), 'ook na herladen uit de lokale kopie niet');
 });
+
+// ---- Fix ronde 1: een gemigreerde themakeuze (halloween) mag nooit stil terugvallen op blitz en zo de keuze op de server overschrijven ----
+// In november zit het pakket van halloween niet in de cache (enkel actieve themas en die binnen 14 dagen): de skinlijst kent hem dan niet.
+test('themakeuze zonder pakket: lokale kopie, spel offline, terug online: de keuze blijft halloween en de inzending bevat geen skin', async () => {
+  const ops = geheugen();
+  ops.schrijf(OPSLAG_VOORVOEGSEL + 'u1', JSON.stringify({
+    voortgang: { besteScore: 10, ontgrendeld: [standaardSkin(), 'halloween'], gekozenSkin: 'halloween' }, wachtend: null, vanServer: true, schaal: 2,
+  }));
+  const server = { besteScore: 10, ontgrendeld: [standaardSkin(), 'halloween'], gekozenSkin: 'halloween', posts: [], online: false };
+  const api = async (pad, o = {}) => {
+    if (!server.online) throw new TypeError('Failed to fetch');
+    if (o.methode === 'POST') {
+      server.posts.push(o.body);
+      server.besteScore = Math.max(server.besteScore, o.body.score);
+      if (o.body.gekozenSkin) server.gekozenSkin = o.body.gekozenSkin;
+    }
+    return { ok: true, status: 200, data: { besteScore: server.besteScore, ontgrendeld: server.ontgrendeld, gekozenSkin: server.gekozenSkin } };
+  };
+  const geplande = [];
+  // de skinlijst kent halloween NIET (pakket niet in de cache)
+  const v = maakVoortgang({ api, opslag: ops, gebruikerId: 'u1', nu: () => Date.parse('2026-11-15T10:00:00Z'), uitstel: (fn, ms) => geplande.push({ fn, ms }), skins: () => SKINS });
+  assert.equal(v.huidig().gekozenSkin, 'halloween', 'na het laden uit de kopie');
+  assert.ok(v.huidig().ontgrendeld.includes('halloween'));
+  const r = v.meld(50);
+  assert.equal(await r.verzonden, false, 'offline');
+  assert.equal(v.huidig().gekozenSkin, 'halloween', 'na het spelletje');
+  assert.equal(JSON.parse(ops.m.get(OPSLAG_VOORVOEGSEL + 'u1')).wachtend.gekozenSkin, undefined, 'de wachtende inzending bevat geen skin');
+  server.online = true;
+  await geplande[0].fn();
+  assert.equal(server.posts.length, 1);
+  assert.equal(server.posts[0].score, 50);
+  assert.ok(server.posts[0].gekozenSkin === undefined || server.posts[0].gekozenSkin === 'halloween', 'geen terugval naar blitz in de POST');
+  assert.equal(server.gekozenSkin, 'halloween', 'de keuze op de server blijft');
+  assert.equal(v.huidig().gekozenSkin, 'halloween');
+  await v.ververs();
+  assert.equal(v.huidig().gekozenSkin, 'halloween', 'ook na een verversing zonder pakket');
+});
+
+test('themakeuze zonder pakket: een serverantwoord met halloween gekozen blijft halloween in de stand; zodra het pakket er is, is hij kiesbaar en getekend', async () => {
+  let lijst = SKINS;
+  const api = async () => ({ ok: true, status: 200, data: { besteScore: 5, ontgrendeld: [standaardSkin(), 'halloween'], gekozenSkin: 'halloween' } });
+  const v = maakVoortgang({ api, opslag: geheugen(), gebruikerId: 'u1', nu: () => NU, uitstel: () => {}, skins: () => lijst });
+  await v.ververs();
+  assert.equal(v.huidig().gekozenSkin, 'halloween');
+  lijst = ALLE;
+  await v.ververs();
+  assert.equal(v.huidig().gekozenSkin, 'halloween');
+});
+
+test('een keuze die de gebruiker zelf maakt (kiesSkin) gaat nog steeds mee naar de server; een onbekende of niet ontgrendelde themakeuze in de kopie wordt niet bewaard', async () => {
+  const { v, server } = maak({ opties: { skins: () => ALLE } });
+  assert.equal(v.kiesSkin('halloween'), false);
+  const ops = geheugen();
+  ops.schrijf(OPSLAG_VOORVOEGSEL + 'u2', JSON.stringify({ voortgang: { besteScore: 0, ontgrendeld: [standaardSkin()], gekozenSkin: 'halloween' }, wachtend: null, vanServer: true, schaal: 2 }));
+  const w = maakVoortgang({ api: async () => { throw new Error('x'); }, opslag: ops, gebruikerId: 'u2', nu: () => NU, uitstel: () => {}, skins: () => SKINS });
+  assert.equal(w.huidig().gekozenSkin, standaardSkin(), 'halloween staat niet in ontgrendeld: geen geldige keuze');
+  void server;
+});

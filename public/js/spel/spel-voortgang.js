@@ -3,7 +3,7 @@
 // Een inzending die mislukt wordt bewaard en één keer later opnieuw geprobeerd (ook bij het eerstvolgende openen), nooit blokkerend.
 // Puur in de zin van "alle afhankelijkheden worden meegegeven": geen window, geen globale fetch (tests geven nepjes mee).
 import { SKINS, standaardSkin } from './skins.js';
-import { ontgrendeldeSkins, schoonVoortgang, voegWachtendSamen, geldigeScore, naNieuweSchaal, onbekendeThemaIds, SCORE_SCHAAL, SCORE_DELER } from './spel-regels.js';
+import { ontgrendeldeSkins, schoonVoortgang, voegWachtendSamen, geldigeScore, naNieuweSchaal, onbekendeThemaIds, isThemaSkinId, SCORE_SCHAAL, SCORE_DELER } from './spel-regels.js';
 
 export const HERPOGING_MS = 20000;
 export const OPSLAG_VOORVOEGSEL = 'blitz_spel_';
@@ -34,6 +34,14 @@ export function maakVoortgang({
     return { ...v, ontgrendeld: [...open, ...onbekendeThemaIds(rauw, skinLijst)] };
   };
 
+  // Een gekozen themaskin waarvan het pakket nu niet in de skinlijst zit (normaal: in november de Halloween-skin, want de cache bewaart enkel
+  // actieve themas en die binnen 14 dagen) blijft de keuze van de speler: `schoonVoortgang` zou ze naar de standaardskin terugzetten en die
+  // terugval zou dan met de volgende inzending de keuze op de server overschrijven. Het tekenen valt zelf terug (`skinVan` in spel-ui.js).
+  // Enkel een geldig thema-id dat ook in de (rauwe) ontgrendelde lijst staat telt.
+  const behoudKeuze = (gekozen, rauwGekozen, rauwOntgrendeld, skinLijst) => (
+    isThemaSkinId(rauwGekozen) && !skinLijst.some(k => k.id === rauwGekozen) && Array.isArray(rauwOntgrendeld) && rauwOntgrendeld.includes(rauwGekozen)
+      ? rauwGekozen : gekozen);
+
   let voortgang = aanvullen(schoonVoortgang(null, lijst()));
   let wachtend = null; // { score, gekozenSkin? } nog niet bij de server
   let herpogingGepland = false;
@@ -45,7 +53,9 @@ export function maakVoortgang({
       // Een lokale kopie zonder `schaal: 2` komt uit v2.1.0 (oude, 4x snellere scoretelling): omrekenen, anders blijft ze de serverscore overschaduwen.
       const nieuweSchaal = bewaard.schaal === SCORE_SCHAAL;
       const rauw = Array.isArray(bewaard.voortgang?.ontgrendeld) ? bewaard.voortgang.ontgrendeld : [];
-      voortgang = aanvullen(schoonVoortgang(nieuweSchaal ? bewaard.voortgang : naNieuweSchaal(bewaard.voortgang), lijst()), rauw);
+      const skinLijst = lijst();
+      voortgang = aanvullen(schoonVoortgang(nieuweSchaal ? bewaard.voortgang : naNieuweSchaal(bewaard.voortgang), skinLijst), rauw);
+      voortgang = { ...voortgang, gekozenSkin: behoudKeuze(voortgang.gekozenSkin, bewaard.voortgang?.gekozenSkin, rauw, skinLijst) };
       wachtend = bewaard.wachtend && typeof bewaard.wachtend === 'object' ? voegWachtendSamen(null, bewaard.wachtend) : null;
       if (wachtend && !nieuweSchaal) wachtend = { ...wachtend, score: Math.floor((Number(wachtend.score) || 0) / SCORE_DELER) };
     }
@@ -63,7 +73,9 @@ export function maakVoortgang({
     const ontgrendeld = [...ontgrendeldeSkins({ besteScore, bewaard: s.ontgrendeld, actieveThemaIds: [], skins: skinLijst }), ...onbekendeThemaIds(rauw, skinLijst)];
     const gewenst = server?.skinGeweigerd ? undefined : wachtend?.gekozenSkin;
     const kiesbaar = (id) => skinLijst.some(k => k.id === id) && ontgrendeld.includes(id);
-    const gekozen = gewenst !== undefined && kiesbaar(gewenst) ? gewenst : (kiesbaar(s.gekozenSkin) ? s.gekozenSkin : standaardSkin());
+    // De keuze van de server: een bewaarde themakeuze zonder pakket (`behoudKeuze`) blijft staan, anders enkel een kiesbare skin.
+    const serverKeuze = behoudKeuze(s.gekozenSkin, server?.gekozenSkin, rauw, skinLijst);
+    const gekozen = gewenst !== undefined && kiesbaar(gewenst) ? gewenst : (serverKeuze !== s.gekozenSkin || kiesbaar(serverKeuze) ? serverKeuze : standaardSkin());
     vanServer = true;
     return { besteScore, ontgrendeld, gekozenSkin: gekozen };
   };
@@ -122,7 +134,10 @@ export function maakVoortgang({
       const nieuweBeste = s > voortgang.besteScore;
       zet({ ...voortgang, besteScore: Math.max(voortgang.besteScore, s) });
       const nieuweSkins = voortgang.ontgrendeld.filter(id => !vorigeSkins.includes(id));
-      wachtend = voegWachtendSamen(wachtend, { score: s, gekozenSkin: voortgang.gekozenSkin });
+      // De skin gaat enkel mee als de client hem kent (kan tekenen): een bewaarde themakeuze zonder pakket blijft op de server staan en wordt
+      // nooit door een terugval overschreven. Een keuze van de speler zelf (`kiesSkin`) is altijd een bekende skin en gaat dus gewoon mee.
+      const bekend = lijst().some(k => k.id === voortgang.gekozenSkin);
+      wachtend = voegWachtendSamen(wachtend, bekend ? { score: s, gekozenSkin: voortgang.gekozenSkin } : { score: s });
       bewaar();
       const verzonden = verstuur().then((ok) => { if (!ok) planHerpoging(); return ok; });
       return { nieuweBeste, nieuweSkins, verzonden };
