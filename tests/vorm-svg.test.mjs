@@ -110,8 +110,9 @@ test('vormNaarSvg: de scène (verlopen, groepen) krijgt per laag unieke verloop-
     for (const n of el.attrs.keys()) assert.ok(!/^on|href|^style$/i.test(n), `${el.naam}.${n}`);
   }
   const ids = (s) => alle(s).filter((e) => /Gradient$/.test(e.naam)).map((e) => e.getAttribute('id'));
-  assert.equal(ids(a).length, 3); // lucht, maanglans, raamglans
-  assert.equal(new Set([...ids(a), ...ids(b)]).size, 6);
+  // lucht, maanglans, raamglans, elk ook in een lichte versie (taak 9c: eigen lichte versie, keuze opdrachtgever 2026-10-22)
+  assert.equal(ids(a).length, 6);
+  assert.equal(new Set([...ids(a), ...ids(b)]).size, 12);
   // elke url(#…) verwijst naar een verloop in hetzelfde svg
   for (const s of [a, b]) {
     const eigen = new Set(ids(s));

@@ -32,7 +32,10 @@
     },
     "driehoek": {
       "viewBox": "0 0 16 16",
-      "delen": [{ "soort": "path", "d": "M8 1.5L14.5 13.5H1.5Z", "vul": "#2f9be0" }, { "soort": "path", "d": "M8 6.5L11 12H5Z", "vul": "#f28c28" }]
+      "delen": [
+        { "soort": "path", "d": "M8 1.5L14.5 13.5H1.5Z", "vul": "#2f9be0" },
+        { "soort": "path", "d": "M8 6.5L11 12H5Z", "vul": "#f28c28" }
+      ]
     },
     "slinger": {
       "viewBox": "0 0 140 70",
@@ -52,13 +55,7 @@
       "delen": [
         { "soort": "path", "d": "M90 -14C102 -28 100 -46 88 -58C83 -46 82 -30 90 -14Z", "vul": "#2fbfa4" },
         { "soort": "path", "d": "M84 -12C92 -24 92 -38 84 -48C80 -38 80 -26 84 -12Z", "vul": "#e8458c" },
-        {
-          "soort": "path",
-          "d": "M3 -4C3 -16 20 -25 50 -21C80 -25 97 -16 97 -4C87 -2 72 -6 64 -12C58 -9 42 -9 36 -12C28 -6 13 -2 3 -4Z",
-          "vul": "#8e5ccf",
-          "lijn": "#f5c518",
-          "lijnDikte": 1.2
-        },
+        { "soort": "path", "d": "M3 -4C3 -16 20 -25 50 -21C80 -25 97 -16 97 -4C87 -2 72 -6 64 -12C58 -9 42 -9 36 -12C28 -6 13 -2 3 -4Z", "vul": "#8e5ccf", "lijn": "#f5c518", "lijnDikte": 1.2 },
         { "soort": "path", "d": "M14 -11A11 3.6 0 1 0 36 -11A11 3.6 0 1 0 14 -11Z", "vul": "#1a1030" },
         { "soort": "path", "d": "M64 -11A11 3.6 0 1 0 86 -11A11 3.6 0 1 0 64 -11Z", "vul": "#1a1030" },
         { "soort": "path", "d": "M46 -19A4 1.6 0 1 0 54 -19A4 1.6 0 1 0 46 -19Z", "vul": "#f5c518" },
@@ -69,21 +66,21 @@
     "straat": {
       "viewBox": "0 0 1600 900",
       "delen": [
-        { "soort": "rect", "x": 0, "y": 0, "width": 1600, "height": 900, "vul": { "verloop": "lineair", "x1": 0, "y1": 0, "x2": 0, "y2": 1, "stops": [{ "op": 0, "kleur": "#0c0a1a" }, { "op": 0.55, "kleur": "#1a1430" }, { "op": 1, "kleur": "#2a1f3e" }] }, "vulLicht": "#ece2f5" },
-        { "soort": "circle", "cx": 1076, "cy": 329, "r": 1.4, "vul": "#efe6ff", "dekking": 0.16 },
-        { "soort": "circle", "cx": 667, "cy": 177, "r": 0.8, "vul": "#efe6ff", "dekking": 0.34 },
-        { "soort": "circle", "cx": 1300, "cy": 276, "r": 1, "vul": "#efe6ff", "dekking": 0.3 },
-        { "soort": "circle", "cx": 916, "cy": 201, "r": 1.3, "vul": "#efe6ff", "dekking": 0.16 },
-        { "soort": "circle", "cx": 1142, "cy": 306, "r": 1.5, "vul": "#efe6ff", "dekking": 0.21 },
-        { "soort": "circle", "cx": 1408, "cy": 328, "r": 1.4, "vul": "#efe6ff", "dekking": 0.31 },
-        { "soort": "circle", "cx": 1531, "cy": 273, "r": 1.3, "vul": "#efe6ff", "dekking": 0.16 },
-        { "soort": "circle", "cx": 277, "cy": 126, "r": 1.3, "vul": "#efe6ff", "dekking": 0.21 },
-        { "soort": "circle", "cx": 444, "cy": 279, "r": 1.3, "vul": "#efe6ff", "dekking": 0.35 },
-        { "soort": "circle", "cx": 1310, "cy": 329, "r": 1.5, "vul": "#efe6ff", "dekking": 0.22 },
-        { "soort": "circle", "cx": 800, "cy": 860, "r": 640, "vul": { "verloop": "radiaal", "cx": 0.5, "cy": 0.5, "r": 0.5, "stops": [{ "op": 0, "kleur": "#f0a8602b" }, { "op": 0.5, "kleur": "#f0a8600e" }, { "op": 1, "kleur": "#f0a86000" }] } },
-        { "soort": "path", "d": "M0 900V690V665H20V640H40V615H60V590H80V615H100V640H120V665H140V690V700L195 650L250 700V662H370V690C389.8 688.6 395.2 665.5 395.2 641V632.6L415 620L434.8 632.6V641C434.8 665.5 440.2 688.6 460 690V690V665H478.6V640H497.1V615H515.7V590H534.3V615H552.9V640H571.4V665H590V690V682L640 627L690 682V670H810V690C832 688.5 838 663.8 838 637.5V628.5L860 615L882 628.5V637.5C882 663.8 888 688.5 910 690V700V676.3H928.6V652.5H947.1V628.8H965.7V605H984.3V628.8H1002.9V652.5H1021.4V676.3H1040V700V690L1095 640L1150 690V662H1330V690C1352 688.5 1358 663.8 1358 637.5V628.5L1380 615L1402 628.5V637.5C1402 663.8 1408 688.5 1430 690V690V663.8H1454.3V637.5H1478.6V611.3H1502.9V585H1527.1V611.3H1551.4V637.5H1575.7V663.8H1600V690V900Z", "vul": "#130f22" },
-        { "soort": "path", "d": "M30 715H40V729H30ZM96 715H106V729H96ZM30 760H40V774H30ZM180 728H190V742H180ZM280 690H290V704H280ZM330 690H340V704H330ZM400 728H410V742H400ZM500 716H510V730H500ZM560 760H570V774H560ZM630 712H640V726H630ZM720 700H730V714H720ZM780 742H790V756H780ZM850 726H860V740H850ZM946 724H956V738H946ZM1006 766H1016V780H1006ZM1080 720H1090V734H1080ZM1460 716H1470V730H1460ZM1540 716H1550V730H1540ZM1500 762H1510V776H1500ZM1366 726H1376V740H1366Z", "vul": "#f0b870", "dekking": 0.26 },
-        { "soort": "path", "d": "M70 590Q297.5 682 525 590", "vul": "geen", "lijn": "#8a8298", "lijnDikte": 1.5 },
+        { "soort": "rect", "x": 0, "y": 0, "width": 1600, "height": 900, "vul": { "verloop": "lineair", "x1": 0, "y1": 0, "x2": 0, "y2": 1, "stops": [{ "op": 0, "kleur": "#0c0a1a" }, { "op": 0.55, "kleur": "#1a1430" }, { "op": 1, "kleur": "#2a1f3e" }] }, "vulLicht": { "verloop": "lineair", "x1": 0, "y1": 0, "x2": 0, "y2": 1, "stops": [{ "op": 0, "kleur": "#cdd6f4" }, { "op": 0.55, "kleur": "#e9daf2" }, { "op": 1, "kleur": "#f8dbe6" }] } },
+        { "soort": "circle", "cx": 1076, "cy": 329, "r": 1.4, "vul": "#efe6ff", "vulLicht": "geen", "dekking": 0.16 },
+        { "soort": "circle", "cx": 667, "cy": 177, "r": 0.8, "vul": "#efe6ff", "vulLicht": "geen", "dekking": 0.34 },
+        { "soort": "circle", "cx": 1300, "cy": 276, "r": 1, "vul": "#efe6ff", "vulLicht": "geen", "dekking": 0.3 },
+        { "soort": "circle", "cx": 916, "cy": 201, "r": 1.3, "vul": "#efe6ff", "vulLicht": "geen", "dekking": 0.16 },
+        { "soort": "circle", "cx": 1142, "cy": 306, "r": 1.5, "vul": "#efe6ff", "vulLicht": "geen", "dekking": 0.21 },
+        { "soort": "circle", "cx": 1408, "cy": 328, "r": 1.4, "vul": "#efe6ff", "vulLicht": "geen", "dekking": 0.31 },
+        { "soort": "circle", "cx": 1531, "cy": 273, "r": 1.3, "vul": "#efe6ff", "vulLicht": "geen", "dekking": 0.16 },
+        { "soort": "circle", "cx": 277, "cy": 126, "r": 1.3, "vul": "#efe6ff", "vulLicht": "geen", "dekking": 0.21 },
+        { "soort": "circle", "cx": 444, "cy": 279, "r": 1.3, "vul": "#efe6ff", "vulLicht": "geen", "dekking": 0.35 },
+        { "soort": "circle", "cx": 1310, "cy": 329, "r": 1.5, "vul": "#efe6ff", "vulLicht": "geen", "dekking": 0.22 },
+        { "soort": "circle", "cx": 800, "cy": 860, "r": 640, "vul": { "verloop": "radiaal", "cx": 0.5, "cy": 0.5, "r": 0.5, "stops": [{ "op": 0, "kleur": "#f0a8602b" }, { "op": 0.5, "kleur": "#f0a8600e" }, { "op": 1, "kleur": "#f0a86000" }] }, "vulLicht": { "verloop": "radiaal", "cx": 0.5, "cy": 0.5, "r": 0.5, "stops": [{ "op": 0, "kleur": "#ffb86b4d" }, { "op": 0.5, "kleur": "#ffb86b1a" }, { "op": 1, "kleur": "#ffb86b00" }] } },
+        { "soort": "path", "d": "M0 900V690V665H20V640H40V615H60V590H80V615H100V640H120V665H140V690V700L195 650L250 700V662H370V690C389.8 688.6 395.2 665.5 395.2 641V632.6L415 620L434.8 632.6V641C434.8 665.5 440.2 688.6 460 690V690V665H478.6V640H497.1V615H515.7V590H534.3V615H552.9V640H571.4V665H590V690V682L640 627L690 682V670H810V690C832 688.5 838 663.8 838 637.5V628.5L860 615L882 628.5V637.5C882 663.8 888 688.5 910 690V700V676.3H928.6V652.5H947.1V628.8H965.7V605H984.3V628.8H1002.9V652.5H1021.4V676.3H1040V700V690L1095 640L1150 690V662H1330V690C1352 688.5 1358 663.8 1358 637.5V628.5L1380 615L1402 628.5V637.5C1402 663.8 1408 688.5 1430 690V690V663.8H1454.3V637.5H1478.6V611.3H1502.9V585H1527.1V611.3H1551.4V637.5H1575.7V663.8H1600V690V900Z", "vul": "#130f22", "vulLicht": "#c4b0e2" },
+        { "soort": "path", "d": "M30 715H40V729H30ZM96 715H106V729H96ZM30 760H40V774H30ZM180 728H190V742H180ZM280 690H290V704H280ZM330 690H340V704H330ZM400 728H410V742H400ZM500 716H510V730H500ZM560 760H570V774H560ZM630 712H640V726H630ZM720 700H730V714H720ZM780 742H790V756H780ZM850 726H860V740H850ZM946 724H956V738H946ZM1006 766H1016V780H1006ZM1080 720H1090V734H1080ZM1460 716H1470V730H1460ZM1540 716H1550V730H1540ZM1500 762H1510V776H1500ZM1366 726H1376V740H1366Z", "vul": "#f0b870", "vulLicht": "#fff4dc", "dekking": 0.26 },
+        { "soort": "path", "d": "M70 590Q297.5 682 525 590", "vul": "geen", "lijn": "#8a8298", "lijnLicht": "#9d92b4", "lijnDikte": 1.5 },
         { "soort": "polygon", "points": "98,603.1 112,603.1 105,617.1", "vul": "#e8458c", "dekking": 0.32 },
         { "soort": "polygon", "points": "133,614 147,614 140,628", "vul": "#f5c518", "dekking": 0.32 },
         { "soort": "polygon", "points": "168,622.7 182,622.7 175,636.7", "vul": "#2f9be0", "dekking": 0.32 },
@@ -96,7 +93,7 @@
         { "soort": "polygon", "points": "413,622.7 427,622.7 420,636.7", "vul": "#3cb371", "dekking": 0.32 },
         { "soort": "polygon", "points": "448,614 462,614 455,628", "vul": "#8e5ccf", "dekking": 0.32 },
         { "soort": "polygon", "points": "483,603.1 497,603.1 490,617.1", "vul": "#f28c28", "dekking": 0.32 },
-        { "soort": "path", "d": "M525 590Q750 681.5 975 605", "vul": "geen", "lijn": "#8a8298", "lijnDikte": 1.5 },
+        { "soort": "path", "d": "M525 590Q750 681.5 975 605", "vul": "geen", "lijn": "#8a8298", "lijnLicht": "#9d92b4", "lijnDikte": 1.5 },
         { "soort": "polygon", "points": "552.6,603.1 566.6,603.1 559.6,617.1", "vul": "#2f9be0", "dekking": 0.32 },
         { "soort": "polygon", "points": "587.2,614.2 601.2,614.2 594.2,628.2", "vul": "#3cb371", "dekking": 0.32 },
         { "soort": "polygon", "points": "621.8,623.3 635.8,623.3 628.8,637.3", "vul": "#8e5ccf", "dekking": 0.32 },
@@ -109,7 +106,7 @@
         { "soort": "polygon", "points": "864.2,631.4 878.2,631.4 871.2,645.4", "vul": "#f28c28", "dekking": 0.32 },
         { "soort": "polygon", "points": "898.8,624.6 912.8,624.6 905.8,638.6", "vul": "#e8458c", "dekking": 0.32 },
         { "soort": "polygon", "points": "933.4,615.8 947.4,615.8 940.4,629.8", "vul": "#f5c518", "dekking": 0.32 },
-        { "soort": "path", "d": "M975 605Q1245 703 1515 585", "vul": "geen", "lijn": "#8a8298", "lijnDikte": 1.5 },
+        { "soort": "path", "d": "M975 605Q1245 703 1515 585", "vul": "geen", "lijn": "#8a8298", "lijnLicht": "#9d92b4", "lijnDikte": 1.5 },
         { "soort": "polygon", "points": "1001.8,616.4 1015.8,616.4 1008.8,630.4", "vul": "#8e5ccf", "dekking": 0.32 },
         { "soort": "polygon", "points": "1035.5,626.1 1049.5,626.1 1042.5,640.1", "vul": "#f28c28", "dekking": 0.32 },
         { "soort": "polygon", "points": "1069.3,634.2 1083.3,634.2 1076.3,648.2", "vul": "#e8458c", "dekking": 0.32 },
@@ -141,39 +138,39 @@
         { "soort": "circle", "cx": 367, "cy": 612, "r": 3, "vul": "#f5c518", "dekking": 0.3 },
         { "soort": "rect", "x": 722, "y": 565, "width": 4, "height": 10, "vul": "#2f9be0", "dekking": 0.3, "transform": "rotate(23 724 570)" },
         { "soort": "circle", "cx": 702, "cy": 590, "r": 3, "vul": "#3cb371", "dekking": 0.3 },
-        { "soort": "path", "d": "M1196 684H1262M1240 684V722", "vul": "geen", "lijn": "#3f2d5c", "lijnDikte": 3, "lijnEinde": "rond" },
+        { "soort": "path", "d": "M1196 684H1262M1240 684V722", "vul": "geen", "lijn": "#3f2d5c", "lijnLicht": "#a68ed0", "lijnDikte": 3, "lijnEinde": "rond" },
         {
           "soort": "groep",
           "transform": "translate(1240 744) scale(0.6)",
           "delen": [
-            { "soort": "path", "d": "M40 -26C52 -58 72 -70 92 -80M30 -28C34 -62 48 -80 62 -98", "vul": "geen", "lijn": "#5a4280", "lijnDikte": 6.666666666666667, "lijnEinde": "rond", "dekking": 0.7 },
-            { "soort": "path", "d": "M-60 -10C-60 -30 -30 -32 0 -20C30 -32 60 -30 60 -10C60 15 35 22 18 10C10 4 -10 4 -18 10C-35 22 -60 15 -60 -10Z", "vul": "#3f2d5c" },
-            { "soort": "ellipse", "cx": -28, "cy": -6, "rx": 13, "ry": 8, "vul": "#130f22" },
-            { "soort": "ellipse", "cx": 28, "cy": -6, "rx": 13, "ry": 8, "vul": "#130f22" }
+            { "soort": "path", "d": "M40 -26C52 -58 72 -70 92 -80M30 -28C34 -62 48 -80 62 -98", "vul": "geen", "lijn": "#5a4280", "lijnLicht": "#8e74c4", "lijnDikte": 6.666666666666667, "lijnEinde": "rond", "dekking": 0.7 },
+            { "soort": "path", "d": "M-60 -10C-60 -30 -30 -32 0 -20C30 -32 60 -30 60 -10C60 15 35 22 18 10C10 4 -10 4 -18 10C-35 22 -60 15 -60 -10Z", "vul": "#3f2d5c", "vulLicht": "#a68ed0" },
+            { "soort": "ellipse", "cx": -28, "cy": -6, "rx": 13, "ry": 8, "vul": "#130f22", "vulLicht": "#c4b0e2" },
+            { "soort": "ellipse", "cx": 28, "cy": -6, "rx": 13, "ry": 8, "vul": "#130f22", "vulLicht": "#c4b0e2" }
           ]
         },
-        { "soort": "path", "d": "M300 634V650", "vul": "geen", "lijn": "#8a8298", "lijnDikte": 1.5 },
+        { "soort": "path", "d": "M300 634V650", "vul": "geen", "lijn": "#8a8298", "lijnLicht": "#9d92b4", "lijnDikte": 1.5 },
         {
           "soort": "groep",
           "transform": "translate(300 664) rotate(-8) scale(0.34)",
           "delen": [
-            { "soort": "path", "d": "M40 -26C52 -58 72 -70 92 -80M30 -28C34 -62 48 -80 62 -98", "vul": "geen", "lijn": "#5a4280", "lijnDikte": 11.76470588235294, "lijnEinde": "rond", "dekking": 0.7 },
-            { "soort": "path", "d": "M-60 -10C-60 -30 -30 -32 0 -20C30 -32 60 -30 60 -10C60 15 35 22 18 10C10 4 -10 4 -18 10C-35 22 -60 15 -60 -10Z", "vul": "#3f2d5c" },
-            { "soort": "ellipse", "cx": -28, "cy": -6, "rx": 13, "ry": 8, "vul": "#130f22" },
-            { "soort": "ellipse", "cx": 28, "cy": -6, "rx": 13, "ry": 8, "vul": "#130f22" },
-            { "soort": "path", "d": "M55 8L72 70", "vul": "geen", "lijn": "#3f2d5c", "lijnDikte": 14.705882352941176, "lijnEinde": "rond" }
+            { "soort": "path", "d": "M40 -26C52 -58 72 -70 92 -80M30 -28C34 -62 48 -80 62 -98", "vul": "geen", "lijn": "#5a4280", "lijnLicht": "#8e74c4", "lijnDikte": 11.76470588235294, "lijnEinde": "rond", "dekking": 0.7 },
+            { "soort": "path", "d": "M-60 -10C-60 -30 -30 -32 0 -20C30 -32 60 -30 60 -10C60 15 35 22 18 10C10 4 -10 4 -18 10C-35 22 -60 15 -60 -10Z", "vul": "#3f2d5c", "vulLicht": "#a68ed0" },
+            { "soort": "ellipse", "cx": -28, "cy": -6, "rx": 13, "ry": 8, "vul": "#130f22", "vulLicht": "#c4b0e2" },
+            { "soort": "ellipse", "cx": 28, "cy": -6, "rx": 13, "ry": 8, "vul": "#130f22", "vulLicht": "#c4b0e2" },
+            { "soort": "path", "d": "M55 8L72 70", "vul": "geen", "lijn": "#3f2d5c", "lijnLicht": "#a68ed0", "lijnDikte": 14.705882352941176, "lijnEinde": "rond" }
           ]
         },
-        { "soort": "path", "d": "M0 812Q400 800 800 810T1600 806V900H0Z", "vul": "#0d0b17" }
+        { "soort": "path", "d": "M0 812Q400 800 800 810T1600 806V900H0Z", "vul": "#0d0b17", "vulLicht": "#b7a1dc" }
       ]
     }
   },
-  "achtergrond": { "vorm": "straat", "kijkvensterStaand": "760 0 780 900", "dekkingLicht": 0.14 },
+  "achtergrond": { "vorm": "straat", "kijkvensterStaand": "760 0 780 900", "dekkingLicht": 0.75 },
   "versiering": [
     { "beweging": "vallen", "beeld": "lint", "aantal": 4, "wiebel": 0.7 },
     { "beweging": "vallen", "beeld": "bol", "aantal": 4, "wiebel": 0.5 },
     { "beweging": "vallen", "beeld": "driehoek", "aantal": 4, "wiebel": 0.7 },
-    { "beweging": "hoek", "beeld": "slinger", "hoeken": ["lb", "rb"] }
+    { "beweging": "hoek", "beeld": "slinger", "hoeken": ["lb", "rb"], "richting": "naarHoek" }
   ],
   "teksten": { "wachtrijLeeg": "Geen confetti in de wachtrij.", "ingeplandLeeg": "Geen bezoeken gepland deze week" },
   "spelskin": { "naam": "Carnavalspaal", "behuizing": "#2a1458", "faceplate": "#f5c518", "bliksem": "#2a1458", "extra": "masker" }

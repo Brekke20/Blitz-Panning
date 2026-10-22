@@ -227,7 +227,10 @@ test('Halloween: de scène heeft de lucht en twee gloeden als verloop, en de ach
   const p = halloween();
   const verlopen = alleDelen(p.vormen.scene.delen).filter((d) => d.vul && typeof d.vul === 'object');
   assert.deepEqual(verlopen.map((d) => d.vul.verloop), ['lineair', 'radiaal', 'radiaal']);
-  assert.deepEqual(p.achtergrond, { vorm: 'scene', kijkvensterStaand: '820 0 780 900', dekkingLicht: 0.2 });
+  // keuze opdrachtgever 2026-10-22: eigen lichte versie (een lichte schemering met eigen verlopen) aan 0,75 in plaats van de
+  // verbleekte nachtscène aan 0,2
+  assert.deepEqual(verlopen.map((d) => d.vulLicht?.verloop), ['lineair', 'radiaal', 'radiaal']);
+  assert.deepEqual(p.achtergrond, { vorm: 'scene', kijkvensterStaand: '820 0 780 900', dekkingLicht: 0.75 });
 });
 
 test('Halloween: de heksenhoed is opgebouwd uit paden met de kleuren van de canvascode', () => {
@@ -374,19 +377,47 @@ test('Sinterklaas toont enkel mijter, staf, lekkers en daken met een paard (geen
 
 // ---- Achtergronden en de mijter (keuze opdrachtgever 2026-10-22) ----
 
-// Gedempte achtergronden: tickets en tekst moeten leesbaar blijven, dus in het lichte thema hooguit 20 % dekking.
+// keuze opdrachtgever 2026-10-22: eigen lichte versie. In het lichte thema tekent elke achtergrond een eigen pastelversie (vulLicht en
+// lijnLicht, de lucht als licht verloop) aan 50 tot 80 % dekking: een bewust pastellandschap in plaats van de verbleekte nachtscène.
+// De leesbaarheid van de kaarten bewaakt e2e/versiering.spec.mjs (4,5:1 over de lichtste en donkerste kleur, per thema).
 const NIEUWE_ACHTERGRONDEN = {
   kerst: 'dorp', valentijn: 'schemering', carnaval: 'straat', pasen: 'weide', zomer: 'strand', 'nationale-feestdag': 'brussel', sinterklaas: 'daken',
 };
 const vierGetallen = (t) => t.trim().split(/\s+/).map(Number);
 
-test('elk voorgeladen pakket heeft een achtergrond met een bestaande vorm en hooguit 20 % dekking in het lichte thema', () => {
+test('elk voorgeladen pakket heeft een achtergrond met een bestaande vorm en 50 tot 80 % dekking in het lichte thema', () => {
   for (const p of VOORGELADEN) {
     const a = p.achtergrond;
     assert.ok(a, `${p.id}: achtergrond ontbreekt`);
     assert.ok(Object.hasOwn(p.vormen, a.vorm), `${p.id}: vorm ${a.vorm} bestaat niet`);
     assert.equal(typeof a.dekkingLicht, 'number', `${p.id}: dekkingLicht ontbreekt`);
-    assert.ok(a.dekkingLicht > 0 && a.dekkingLicht <= 0.2, `${p.id}: dekkingLicht ${a.dekkingLicht}`);
+    // keuze opdrachtgever 2026-10-22: eigen lichte versie (vroeger hooguit 0,2: de nachtscène als grijze waas)
+    assert.ok(a.dekkingLicht >= 0.5 && a.dekkingLicht <= 0.8, `${p.id}: dekkingLicht ${a.dekkingLicht}`);
+  }
+});
+
+// Helderheid (WCAG) van #rrggbb(aa), alpha genegeerd.
+const lum = (hex) => {
+  const k = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * k[0] + 0.7152 * k[1] + 0.0722 * k[2];
+};
+// De kleuren die een deel in het lichte thema tekent: vulLicht/lijnLicht als ze er zijn, anders vul/lijn (verlopen: hun stops).
+const lichteKleuren = (d) => [d.vulLicht ?? d.vul, d.lijnLicht ?? d.lijn]
+  .flatMap((w) => (w && typeof w === 'object' ? w.stops.map((s) => s.kleur) : [w]))
+  .filter((w) => typeof w === 'string' && w.startsWith('#'));
+
+test('elke achtergrond heeft een eigen lichte versie: een lichte lucht en geen donkere silhouetten in het lichte thema', () => {
+  for (const p of VOORGELADEN) {
+    const delen = p.vormen[p.achtergrond.vorm].delen;
+    const lucht = delen[0];
+    assert.equal(lucht.vulLicht?.verloop, 'lineair', `${p.id}: de lichte lucht is een verloop`);
+    for (const s of lucht.vulLicht.stops) assert.ok(lum(s.kleur) >= 0.55, `${p.id}: lichte luchtkleur ${s.kleur} is te donker`);
+    // Elk deel dat goed zichtbaar is (dekking boven 0,5): in het lichte thema minstens een middentoon. Kleine, doorschijnende accenten
+    // (de zwarte vlaggetjes van de driekleur aan 0,45) tellen niet mee.
+    for (const d of alleDelen(delen)) {
+      if ((d.dekking ?? 1) <= 0.5) continue;
+      for (const k of lichteKleuren(d)) assert.ok(lum(k) >= 0.15, `${p.id}: ${d.soort} tekent ${k} in het lichte thema (te donker)`);
+    }
   }
 });
 
@@ -400,19 +431,49 @@ test('elke achtergrond is een scène van 1600 x 900 met een staand kijkvenster b
   }
 });
 
-test('de zeven nieuwe achtergronden hebben de afgesproken naam, een dekking van 0,12 tot 0,18 en een donkere lucht', () => {
+test('de zeven nieuwe achtergronden hebben de afgesproken naam, een dekking van 0,5 tot 0,8, een donkere en een lichte lucht', () => {
   for (const [id, naam] of Object.entries(NIEUWE_ACHTERGRONDEN)) {
     const p = pakket(id);
     assert.equal(p.achtergrond.vorm, naam, id);
-    assert.ok(p.achtergrond.dekkingLicht >= 0.12 && p.achtergrond.dekkingLicht <= 0.18, `${id}: ${p.achtergrond.dekkingLicht}`);
+    // keuze opdrachtgever 2026-10-22: eigen lichte versie (vroeger 0,12 tot 0,18 en een effen lichte luchtkleur)
+    assert.ok(p.achtergrond.dekkingLicht >= 0.5 && p.achtergrond.dekkingLicht <= 0.8, `${id}: ${p.achtergrond.dekkingLicht}`);
     // De lucht is het eerste deel: een rechthoek over de hele scène met een lineair verloop van gedempte, donkere kleuren
-    // (luminantie hooguit 0,05, dus contrast met zwart hooguit 2:1), en een zachte effen kleur voor het lichte thema.
+    // (luminantie hooguit 0,05, dus contrast met zwart hooguit 2:1), en een eigen licht verloop voor het lichte thema.
     const lucht = p.vormen[naam].delen[0];
     assert.deepEqual([lucht.soort, lucht.x, lucht.y, lucht.width, lucht.height], ['rect', 0, 0, 1600, 900], `${id}: lucht`);
     assert.equal(lucht.vul.verloop, 'lineair', id);
     for (const s of lucht.vul.stops) assert.ok(contrastVerhouding(s.kleur, '#000000') <= 2, `${id}: luchtkleur ${s.kleur} is te fel`);
-    assert.match(lucht.vulLicht, /^#[0-9a-f]{6}$/, `${id}: lichte luchtkleur`);
+    assert.equal(lucht.vulLicht.verloop, 'lineair', `${id}: lichte lucht`);
+    for (const s of lucht.vulLicht.stops) assert.match(s.kleur, /^#[0-9a-f]{6}$/, `${id}: lichte luchtkleur`);
   }
+});
+
+// Vaste herstelling taak 9c (schermafdrukken 2026-10-22): de slingers bovenaan zijn een gespiegeld paar (de rechtse was niet
+// gespiegeld) en blijven binnen hun vak.
+test('Carnaval en Nationale feestdag: de slinger bovenaan wordt naar beide hoeken gespiegeld en past in zijn vak', () => {
+  for (const [id, beeld] of [['carnaval', 'slinger'], ['nationale-feestdag', 'driekleurslinger']]) {
+    const p = pakket(id);
+    assert.deepEqual(p.versiering.find((e) => e.beweging === 'hoek'), { beweging: 'hoek', beeld, hoeken: ['lb', 'rb'], richting: 'naarHoek' });
+    const [x, y, b, h] = vierGetallen(p.vormen[beeld].viewBox);
+    for (const d of p.vormen[beeld].delen) {
+      const getallen = d.d.match(/-?\d+(?:\.\d+)?/g).map(Number);
+      const xs = getallen.filter((_, i) => i % 2 === 0);
+      const ys = getallen.filter((_, i) => i % 2 === 1);
+      assert.ok(Math.min(...xs) >= x && Math.max(...xs) <= x + b, `${id}: ${d.d} valt horizontaal buiten het vak`);
+      assert.ok(Math.min(...ys) >= y && Math.max(...ys) <= y + h, `${id}: ${d.d} valt verticaal buiten het vak`);
+    }
+  }
+});
+
+// Vaste herstelling taak 9c: het Atomium zakt (het verdween bovenaan achter de kaarten) en de grond vult de onderkant (geen lege band).
+test('Nationale feestdag: de skyline staat lager, het Atomium kleiner en de grond is een smalle strook onderaan', () => {
+  const delen = pakket('nationale-feestdag').vormen.brussel.delen;
+  const atomium = delen.find((d) => d.soort === 'groep');
+  const [, ty, s] = atomium.transform.match(/^translate\(1250 (\d+)\) scale\(([\d.]+)\)$/).map(Number);
+  assert.ok(ty - 140 * s >= 580, `de top van het Atomium ligt op ${ty - 140 * s}`);
+  const grond = delen.at(-1);
+  assert.match(grond.d, /^M0 (\d+)H1600V900H0Z$/);
+  assert.ok(Number(grond.d.match(/^M0 (\d+)/)[1]) >= 850, 'de grond begint laag');
 });
 
 test('Sinterklaas: de mijter staat rechtsonder (ro), kleiner en tegen de hoek, los van de spelskin', () => {
@@ -422,9 +483,11 @@ test('Sinterklaas: de mijter staat rechtsonder (ro), kleiner en tegen de hoek, l
   assert.notEqual(p.spelskin.extra, 'mijter');
   // De tekening zelf (staf en mijter) reikt tot x = 76 en y = 76; een groter, vierkant kijkvenster met lege marge links en boven
   // maakt ze kleiner in het vaste hoekvak (de mijter vult zo ongeveer 55 tot 60 % van het vak) en duwt ze naar rechtsonder.
+  // Taak 9c (schermafdrukken 2026-10-22: de linten lagen tegen de schermrand en leken afgesneden): rechts en onder minstens 8
+  // eenheden marge (ongeveer 6 px), zodat de hele mijter met linten in het vak staat.
   const [x, y, b, h] = vierGetallen(p.vormen.mijter.viewBox);
   assert.equal(b, h, 'vierkant kijkvenster');
   assert.ok(73 / b >= 0.5 && 73 / b <= 0.62, `de mijter vult ${(73 / b * 100).toFixed(0)} % van het vak`);
-  assert.ok(x + b >= 76 && x + b <= 82, `rechterrand ${x + b}`);
-  assert.ok(y + h >= 76 && y + h <= 82, `onderrand ${y + h}`);
+  assert.ok(x + b >= 84 && x + b <= 92, `rechterrand ${x + b}`);
+  assert.ok(y + h >= 84 && y + h <= 92, `onderrand ${y + h}`);
 });
