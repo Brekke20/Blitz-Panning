@@ -3,7 +3,9 @@
 //
 // BOUWERS[beweging](element, pakket, ctx) -> { stap?(t, dtMs), meet?(), hervat?(), stop() }
 //   element: één gevalideerd element van `pakket.versiering`; pakket: het gevalideerde themapakket;
-//   ctx: { laag, sober, muis: { x, y }, evTop: () => px, max: hoeveel elementen van deze beweging er nog bij mogen (plafond) }.
+//   ctx: { laag, sober, muis: { x, y }, evTop: () => px, max: hoeveel elementen van deze beweging er nog bij mogen (plafond),
+//          plaatsen: gedeeld over alle elementen van één opbouw (maakPlaatsen): bezette hoeken en de volgende hangplaats, zodat twee
+//          `hangen`-elementen of twee keer dezelfde hoek nooit op elkaar komen te liggen }.
 //   - `stap` loopt in de gedeelde timer-lus van evenement-laag.js (~30 per seconde, STAP_MS); die pauzeert tijdens het spel en in
 //     een verborgen tab. `meet` volgt een formaatwijziging, `hervat` een terugkeer naar de pagina, `stop` ruimt op (geen timers hier).
 //   - CSS-animaties (hangen, vallen, opstijgen, mist, vonken) lopen in stappen (steps()) van ongeveer 30 per seconde; ze staan stil
@@ -27,6 +29,9 @@ const HANG_PLAATSEN = [
 ];
 
 const r = () => Math.random();
+// De gedeelde plaatsen van één opbouw van de lagen (evenement-laag.js maakt er één per opbouw).
+export const maakPlaatsen = () => ({ hoeken: new Set(), hang: 0 });
+const plaatsenVan = (ctx) => ctx.plaatsen ?? maakPlaatsen();
 const aantalVan = (element, ctx, beweging) => {
   const gevraagd = Number.isInteger(element.aantal) ? element.aantal : 1;
   return Math.max(0, Math.min(gevraagd, PLAFONDS[beweging], ctx.max ?? PLAFONDS[beweging]));
@@ -58,12 +63,14 @@ export function tekenBeeld(pakket, naam, klasse) {
 // tekening in elke hoek in die hoek ligt (de webben van v2.2.0); 'rechtop' (standaard) tekent het overal zoals het is.
 function hoek(element, pakket, ctx) {
   const naarHoek = element.richting === 'naarHoek';
+  const plaatsen = plaatsenVan(ctx);
   let over = Math.min(PLAFONDS.hoek, ctx.max ?? PLAFONDS.hoek);
   for (const h of Array.isArray(element.hoeken) ? element.hoeken : []) {
-    if (!HOEKEN.includes(h) || over <= 0) continue;
+    if (!HOEKEN.includes(h) || over <= 0 || plaatsen.hoeken.has(h)) continue; // een hoek die al bezet is, blijft van het eerste element
     const b = tekenBeeld(pakket, element.beeld, `ev-hoek ev-hoek-${h}${naarHoek ? ' ev-naar-hoek' : ''}`);
     if (!b) continue;
     ctx.laag.appendChild(b);
+    plaatsen.hoeken.add(h);
     over -= 1;
   }
   return { stop() {} };
@@ -71,9 +78,10 @@ function hoek(element, pakket, ctx) {
 
 // Beeld aan een draad dat zacht op en neer gaat (CSS-animatie ev-zak in stappen).
 function hangen(element, pakket, ctx) {
+  const plaatsen = plaatsenVan(ctx);
   const n = aantalVan(element, ctx, 'hangen');
-  for (let i = 0; i < n; i++) {
-    const p = HANG_PLAATSEN[i];
+  for (let i = 0; i < n && plaatsen.hang < HANG_PLAATSEN.length; i++) {
+    const p = HANG_PLAATSEN[plaatsen.hang];
     const beeld = tekenBeeld(pakket, element.beeld, '');
     if (!beeld) break;
     const h = stijl(div('ev-hang ev-beweeg'), {
@@ -83,6 +91,7 @@ function hangen(element, pakket, ctx) {
     h.appendChild(div('ev-draad'));
     h.appendChild(beeld);
     ctx.laag.appendChild(h);
+    plaatsen.hang += 1;
   }
   return { stop() {} };
 }

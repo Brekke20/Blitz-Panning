@@ -25,7 +25,7 @@ import { belgischeDag } from '../kern/themapakket.js';
 import { valideerPakket, PLAFONDS, MAX_BEWEGEND } from '../kern/themapakket-validatie.js';
 import { kiesThema, bewaarThemaKeuze } from '../kern/versiering-thema.js';
 import { themasNu, voorbeeld } from './themas-bron.js';
-import { BOUWERS, tekenBeeld } from './versiering-bewegingen.js';
+import { BOUWERS, tekenBeeld, maakPlaatsen } from './versiering-bewegingen.js';
 
 const KLEUR = /^#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$/;
 // Sleutel in het pakket -> naam van de app-variabele (base.css); de laag zet `--ev-<naam>` (donker) en `--ev-<naam>-licht`.
@@ -141,6 +141,7 @@ function bouwLagen(b) {
   const voor = maakLaagElement('event-laag', b.thema.id);
   const achter = maakLaagElement('event-achter-laag', b.thema.id);
   const budget = maakBudget();
+  const plaatsen = maakPlaatsen(); // gedeeld: twee hangen-elementen of twee keer dezelfde hoek liggen nooit op elkaar
   const uit = [];
   for (const element of Array.isArray(b.thema.versiering) ? b.thema.versiering : []) {
     const beweging = element?.beweging;
@@ -150,7 +151,7 @@ function bouwLagen(b) {
       : Number.isInteger(element.aantal) ? element.aantal : 1;
     const max = budget(beweging, gevraagd);
     if (max < 1) continue;
-    const ctx = { laag: ACHTER.has(beweging) ? achter : voor, sober: b.sober, muis, evTop: () => evTopPx, max };
+    const ctx = { laag: ACHTER.has(beweging) ? achter : voor, sober: b.sober, muis, evTop: () => evTopPx, max, plaatsen };
     uit.push(BOUWERS[beweging](element, b.thema, ctx));
   }
   return { voor, achter, delen: uit };
