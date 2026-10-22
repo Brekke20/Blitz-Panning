@@ -65,9 +65,10 @@ test('beslis: buiten elke periode, zonder themas of zonder pakket is er niets', 
   assert.equal(beslis(met({ themas: { index: { themas: [rij({ ...HALLOWEEN, id: 'constructor' })] }, pakketten: {} } })).actief, false);
 });
 
-test('beslis: voorkeur uit geeft niets, ook met een voorbeeld', () => {
+test('beslis: voorkeur uit geeft niets, behalve met een voorbeeld', () => {
   assert.equal(beslis(met({ voorkeur: 'uit' })).actief, false);
-  assert.equal(beslis(met({ voorkeur: 'uit', voorbeeld: KERST })).actief, false);
+  // keuze controller 2026-10-22: een voorbeeld (de beheerder vroeg er zelf om) gaat ook voor de schakelaar per toestel
+  assert.equal(beslis(met({ voorkeur: 'uit', voorbeeld: KERST })).thema.id, 'kerst');
 });
 
 test('beslis: testmodus zonder testForceer geeft niets; met de vlag wel; de vlag telt enkel in testmodus', () => {
@@ -118,12 +119,16 @@ test('beslis: bewegingUit (instelling van het account) geeft enkel de stilstaand
   assert.equal(beslis(met({ bewegingUit: 'ja' })).beweging, true);
 });
 
-test('beslis: de schakelaar per toestel (voorkeur uit) gaat voor bewegingUit; een voorbeeld volgt bewegingUit ook', () => {
+test('beslis: de schakelaar per toestel (voorkeur uit) gaat voor bewegingUit; een voorbeeld toont beweging', () => {
   assert.equal(beslis(met({ voorkeur: 'uit', bewegingUit: true })).actief, false);
   assert.equal(beslis(met({ voorkeur: 'uit', bewegingUit: false })).actief, false);
+  // keuze controller 2026-10-22: voorbeeld toont beweging (een voorbeeld laat zien wat de anderen zien), ook met bewegingUit van de beheerder
   const v = beslis(met({ voorbeeld: KERST, bewegingUit: true }));
   assert.equal(v.thema.id, 'kerst');
-  assert.equal(v.beweging, false);
+  assert.equal(v.beweging, true);
+  // reduced-motion en een sober toestel gelden wel nog voor een voorbeeld
+  assert.equal(beslis(met({ voorbeeld: KERST, bewegingUit: true, reducedMotion: true })).beweging, false);
+  assert.equal(beslis(met({ voorbeeld: KERST, soort: 'gsm', aanraak: true })).beweging, false);
   // zonder thema blijft het "niets", met of zonder bewegingUit
   assert.equal(beslis(met({ nu: MEI, bewegingUit: true })).actief, false);
 });

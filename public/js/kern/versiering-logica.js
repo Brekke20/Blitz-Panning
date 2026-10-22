@@ -5,7 +5,9 @@
 //  - Het thema komt uit de themapakketten (`themas: { index, pakketten }` van schermen/themas-bron.js): het actieve thema volgens
 //    kern/themapakket.js (`actiefThema`: aan, binnen de periode, kortste periode wint). Zonder pakket in de cache: niets.
 //  - De voorkeur is PER TOESTEL (localStorage 'blitz_versiering'): 'uit' of afwezig (= automatisch). 'uit' gaat voor alles.
-//  - Een voorbeeld (Beheer → Thema's, enkel in het geheugen) gaat voor alles behalve 'uit', ook voor de testmodus.
+//  - Een voorbeeld (Beheer → Thema's, enkel in het geheugen) gaat voor de testmodus, voor de schakelaar per toestel ('uit') en voor
+//    `bewegingUit` (keuze controller 2026-10-22: de beheerder vroeg het zelf te zien, met de beweging die anderen zien); sober en
+//    prefers-reduced-motion gelden ook voor een voorbeeld.
 //  - In testmodus (?test) staat de versiering uit, tenzij de test `?versiering=aan` meegeeft (die vlag telt ENKEL in testmodus).
 //  - Op een aanraakscherm, gsm of tablet is de versiering sober: enkel hoekbeelden en achtergrond, niets dat beweegt.
 //  - prefers-reduced-motion: niets beweegt.
@@ -51,15 +53,18 @@ function actiefPakket(nu, themas) {
 export function beslis({ nu, voorkeur = 'auto', testMode = false, testForceer = false, soort, aanraak, reducedMotion = false, themas, voorbeeld = null, bewegingUit = false } = {}) {
   const sober = isSober({ soort, aanraak });
   const geen = { actief: false, thema: null, sober, beweging: false };
-  if (voorkeur === 'uit') return geen;
-  let pakket = isObject(voorbeeld) ? voorbeeld : null;
+  const isVoorbeeld = isObject(voorbeeld);
+  // Een voorbeeld (de beheerder vroeg er zelf om; keuze controller 2026-10-22) gaat ook voor de schakelaar per toestel en voor zijn
+  // eigen "Bewegende beelden uit": een voorbeeld toont wat de anderen zien. Sober en reduced-motion gelden wel nog.
+  if (voorkeur === 'uit' && !isVoorbeeld) return geen;
+  let pakket = isVoorbeeld ? voorbeeld : null;
   if (!pakket) {
     if (testMode && !testForceer) return geen;
     pakket = actiefPakket(nu, themas);
   }
   if (!pakket) return geen;
   // bewegingUit (instelling van het account, enkel `true` telt): dezelfde stilstaande versiering als op een sober toestel.
-  return { actief: true, thema: pakket, sober, beweging: !sober && !reducedMotion && bewegingUit !== true };
+  return { actief: true, thema: pakket, sober, beweging: !sober && !reducedMotion && (isVoorbeeld || bewegingUit !== true) };
 }
 
 // v2.1.3 (prestaties): de bewegende delen lopen met een timer-lus van ~30 beelden per seconde (niet 60).
