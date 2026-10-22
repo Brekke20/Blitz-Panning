@@ -155,6 +155,12 @@ Een pakket is één JSON-bestand (`<id>.blitzthema.json`). Het bevat enkel gegev
 - De lege teksten (`legeTekst`) komen uit `teksten` van het actieve pakket.
 - De bestaande gedragsregels blijven: minuutcontrole, herberekening bij terugkeer naar de pagina, pauze tijdens het spel, klikken gaan door de laag heen.
 
+**Achtergrond altijd zichtbaar, ticketkaarten als mat glas** (Brent, 2026-10-22)
+- Tijdens een thema met `achtergrond` mag geen effen schermvlak de tekening verbergen: de inhoudsvlakken van de tabbladen (wachtrij, kalender, route, ingepland, beschikbaarheden, rapporten …) zijn doorzichtig. De bovenbalk, de tabbalk en vensters (modals) blijven effen.
+- Ticketkaarten (en vergelijkbare kaarten in de lijsten) worden mat glas: half doorschijnende achtergrond in de kleur van de kaart met `backdrop-filter: blur(…)`, zodat de achtergrond wazig doorschemert en de tekst leesbaar blijft (contrast ≥ 4,5:1 voor gewone tekst).
+- Op gsm, tablet en aanraakschermen (sober) is het glas lichter (minder vervaging) zodat scrollen vlot blijft. Zonder ondersteuning voor `backdrop-filter`, of met `prefers-reduced-transparency`, krijgt de kaart een bijna-effen achtergrond.
+- Zonder actief thema of zonder `achtergrond` verandert er niets aan het huidige uitzicht.
+
 **Beheer → Thema's** (`schermen/beheer-themas.js`, enkel beheerder, `registreerBeheerTab`)
 - Bovenaan: knop **Thema uploaden** (bestandskiezer, `.json`). De client valideert al met dezelfde module en toont de fouten in het Nederlands, nog vóór het verzenden. Bij een bestaande id vraagt hij "Nieuwe versie van <naam> uploaden?".
 - Een kaart per thema met:
