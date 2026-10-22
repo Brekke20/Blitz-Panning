@@ -1,4 +1,4 @@
-import { test, expect, startApp } from './helpers.mjs';
+import { test, expect, startApp, snelTikken } from './helpers.mjs';
 import { valideerPakket, PLAFONDS } from '../public/js/kern/themapakket-validatie.js';
 
 // Versiering per beweging (taak 6, spec thema's als pakket §3.3): één stubpakket per soort beweging via /api/themas.
@@ -135,6 +135,24 @@ test.describe('versiering per beweging (computer)', () => {
     expect(await img.getAttribute('src')).toBe(PNG);
     expect(await img.getAttribute('alt')).toBe('');
     await geenCode(page);
+  });
+
+  // Fix-ronde 1: een thema met enkel CSS-animaties (geen rekenende delen) rust ook tijdens Blitz Run, en beweegt daarna weer.
+  test('enkel vallen (CSS): staat stil zolang Blitz Run open staat', async ({ page }) => {
+    await start(page, pakket('proef-spel', [{ beweging: 'vallen', beeld: 'bol', aantal: 4 }]));
+    await expect(voor(page, '.ev-val')).toHaveCount(4);
+    await page.clock.runFor(1000);
+    await snelTikken(page, page.locator('.logo-icon'));
+    await expect(page.locator('#spel-overlay')).toHaveClass(/open/);
+    await page.clock.runFor(1000);
+    await expect(page.locator('#event-laag')).toHaveClass(/ev-gepauzeerd/);
+    await expect(page.locator('#event-achter-laag')).toHaveClass(/ev-gepauzeerd/);
+    await expect(voor(page, '.ev-val').first()).toHaveCSS('animation-play-state', 'paused');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#spel-overlay')).not.toHaveClass(/open/);
+    await page.clock.runFor(1000);
+    await expect(page.locator('#event-laag')).not.toHaveClass(/ev-gepauzeerd/);
+    await expect(voor(page, '.ev-val').first()).toHaveCSS('animation-play-state', 'running');
   });
 
   test('een thema dat de beheerder uitzette, toont niets', async ({ page }) => {

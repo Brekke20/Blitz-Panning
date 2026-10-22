@@ -243,6 +243,8 @@ function stap() {
     return;
   }
   if (!document.hidden) zetGepauzeerd(false);
+  // Enkel CSS-animaties (vallen, opstijgen, hangen, mist): niets te rekenen, enkel elke halve seconde kijken of het spel open is.
+  if (!delen.some((d) => d.stap)) { planStap(500); return; }
   const t = nuMs();
   if (!laatsteT) { laatsteT = t; planStap(); return; }
   const dt = Math.min(100, t - laatsteT);
@@ -256,9 +258,13 @@ function zetGepauzeerd(aan) {
   for (const l of [laag, achterLaag]) l?.classList.toggle('ev-gepauzeerd', aan);
 }
 
-// Start de lus (doet niets als ze al loopt, niets beweegt of de tab verborgen is).
+// Is er iets dat beweegt (rekenend of enkel CSS)? Dan moet het tijdens het spel stil kunnen staan.
+const beweegtIets = () => delen.some((d) => d.stap) || !!(laag?.querySelector('.ev-beweeg') || achterLaag?.querySelector('.ev-beweeg'));
+
+// Start de lus (doet niets als ze al loopt, niets beweegt of de tab verborgen is). Zonder rekenende delen loopt ze traag (500 ms)
+// en kijkt ze enkel of het spel open staat (fix-ronde 1: een thema met enkel CSS-animaties rust ook tijdens Blitz Run).
 function startLus() {
-  if (lusTimer || !laag || document.hidden || !delen.some((d) => d.stap)) return;
+  if (lusTimer || !laag || document.hidden || !beweegtIets()) return;
   laatsteT = 0;
   for (const d of delen) d.hervat?.();
   for (const d of delen) d.meet?.();
