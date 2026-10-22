@@ -16,6 +16,7 @@ test('Laden: exact de verwachte opstartverzoeken, geen testmodus', async ({ page
     'GET /api/klantbeschikbaarheid',
     'GET /api/prijzen',
     'GET /api/rapport-archief',
+    'GET /api/themas', // de themapakketten voor de versiering (taak 6), pas na de login; enkel lezen
     'GET /api/tickets',
     'GET /api/voorstel-status',
     'POST /api/planning-sinds',
