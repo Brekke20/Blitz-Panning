@@ -427,3 +427,27 @@ test('schaal 2: een nieuw record zonder eerdere data krijgt schaal 2 en de score
   assert.equal(opgeslagen.schaal, 2);
   assert.equal(opgeslagen.besteScore, 777);
 });
+
+// ---- Fix ronde 1: het antwoord meldt de bewaarde themakeuze, ook als de server het thema nu niet kent ----
+test('een bewaarde themakeuze die de bron (even) niet kent: GET en POST melden ze als gekozenSkin, het record behoudt ze', async () => {
+  const echt = maakNepStore({ [spelSleutel('test-planner')]: { besteScore: 10, schaal: 2, ontgrendeld: ['blitz', 'halloween'], gekozenSkin: 'halloween' } });
+  for (const themaBron of [async () => { throw new Error('themas onleesbaar'); }, bronMet([], [])]) {
+    const h = maakHandler({ getStore: () => echt, nu: () => NU_15_NOV, themaBron });
+    const stand = await (await metRol('planner', () => h(get()))).json();
+    assert.equal(stand.gekozenSkin, 'halloween', 'GET meldt de bewaarde keuze (de client tekent zelf een terugval)');
+    assert.ok(stand.ontgrendeld.includes('halloween'));
+    const na = await (await metRol('planner', () => h(post({ score: 20 })))).json();
+    assert.equal(na.gekozenSkin, 'halloween', 'POST zonder skin: dezelfde keuze');
+    assert.equal(na.besteScore, 20);
+    assert.equal(JSON.parse(echt._data.get(spelSleutel('test-planner'))).gekozenSkin, 'halloween');
+  }
+});
+
+test('een themakeuze die niet (meer) in ontgrendeld staat, of geen thema-id is, wordt nooit gemeld', async () => {
+  const echt = maakNepStore({ [spelSleutel('test-planner')]: { besteScore: 10, schaal: 2, ontgrendeld: ['blitz'], gekozenSkin: 'halloween' } });
+  const h = maakHandler({ getStore: () => echt, nu: () => NU_15_NOV, themaBron: bronMet([], []) });
+  assert.equal((await (await metRol('planner', () => h(get()))).json()).gekozenSkin, standaardSkin());
+  const echt2 = maakNepStore({ [spelSleutel('test-planner')]: { besteScore: 10, schaal: 2, ontgrendeld: ['blitz'], gekozenSkin: 'goud' } });
+  const h2 = maakHandler({ getStore: () => echt2, nu: () => NU_15_NOV, themaBron: bronMet([], []) });
+  assert.equal((await (await metRol('planner', () => h2(get()))).json()).gekozenSkin, standaardSkin(), 'een score-skin is geen themakeuze: vergrendeld blijft vergrendeld');
+});

@@ -80,7 +80,11 @@ export function voortgangVan(record, bron = LEGE_BRON) {
   const b = normaliseerBron(bron);
   const basis = schoonVoortgang(isObject(record) ? naNieuweSchaal(record) : null, b.skins); // oude records: score omgerekend naar schaal 2
   const ontgrendeld = ontgrendeldVan({ besteScore: basis.besteScore, bewaard: basis.ontgrendeld, rauw: rauweLijst(record), bron: b });
-  return { besteScore: basis.besteScore, ontgrendeld, gekozenSkin: ontgrendeld.includes(basis.gekozenSkin) ? basis.gekozenSkin : standaardSkin() };
+  // Een bewaarde themakeuze die de bron nu niet kent (themas onleesbaar of niet in de index) wordt gewoon gemeld: ze staat nog in het record,
+  // en de client tekent zelf een terugval. Zo ziet de speler zijn keuze niet verdwijnen en schrijft zijn volgende inzending hem niet over.
+  const bewaard = bewaardeKeuze(record, basis, b);
+  const gekozenSkin = ontgrendeld.includes(bewaard) ? bewaard : standaardSkin();
+  return { besteScore: basis.besteScore, ontgrendeld, gekozenSkin };
 }
 
 export async function leesSpel(store, gebruikerId, bron = LEGE_BRON) {
