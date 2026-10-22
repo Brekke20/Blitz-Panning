@@ -274,6 +274,20 @@ test.describe("Beheer: tab Thema's", () => {
     expect(stub.lezingen).toEqual(['kerst', 'sinterklaas']);
   });
 
+  test('Voorbeeld toont ook de beweging, ook met "bewegende beelden uit" van de beheerder en de schakelaar per toestel op uit', async ({ page }) => {
+    // keuze controller 2026-10-22: een voorbeeld laat zien wat de anderen zien
+    await page.addInitScript(() => { if (window === window.top) localStorage.setItem('blitz_versiering', 'uit'); });
+    const eigen = ({ methode }) => (methode === 'PUT'
+      ? json(200, { versie: 2 })
+      : json(200, { eigen: { gebruikerId: 'u-test', versie: 1, instellingen: { bewegingUit: true } }, techniekers: {} }));
+    await openThemas(page, themasStub(), { overschrijf: { instellingen: eigen } });
+    await kaart(page, 'Halloween').getByRole('button', { name: 'Voorbeeld' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-event', 'halloween');
+    await expect(page.locator('#event-laag .ev-kruip, #event-laag .ev-vlieg').first()).toBeAttached();
+    await page.getByRole('button', { name: 'Stop voorbeeld' }).click();
+    await expect(page.locator('html')).not.toHaveAttribute('data-event', /.+/);
+  });
+
   test('Downloaden: een bestand <id>.blitzthema.json met het pakket', async ({ page }) => {
     await openThemas(page);
     const [download] = await Promise.all([

@@ -177,8 +177,9 @@
 .bt-periode { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--text2); }
 .bt-aangepast, .bt-bekijk { color: var(--text); background: var(--surface3); }
 .bt-schakel-rij { display: flex; align-items: center; gap: var(--sp-2); min-height: 44px; font-size: var(--fs-sm); font-weight: 600; cursor: pointer; }
-.bt-schakel { width: 20px; height: 20px; flex-shrink: 0; cursor: pointer; }
+.bt-schakel { width: 20px; height: 20px; flex-shrink: 0; cursor: pointer; accent-color: var(--accent); }
 .bt-acties .btn { flex: 1 1 auto; }
+.bt-acties .bt-bekijk { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 4px var(--sp-3); border-radius: var(--r); font-size: var(--fs-sm); text-align: center; }
 .bt-uploadfout:empty { display: none; }
 .bt-uploadfout { background: var(--red-dim); border: 1px solid var(--red); border-radius: var(--r); padding: var(--sp-3); margin-bottom: var(--sp-3); }
 .bt-fout-kop { font-size: var(--fs-sm); font-weight: 700; color: var(--red-ink); margin-bottom: var(--sp-1); }
