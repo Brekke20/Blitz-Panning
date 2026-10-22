@@ -25,6 +25,8 @@ const basis = () => ({
 });
 const met = (wijzig) => { const p = basis(); wijzig(p); return p; };
 
+// De kaarten `vormen` en `beelden` hebben geen prototype; voor een vergelijking met gewone objecten eerst door JSON.
+const gewoon = (x) => JSON.parse(JSON.stringify(x));
 const velden = (r) => r.fouten.map((f) => f.veld);
 function weiger(pakket, veld, opties) {
   const r = valideerPakket(pakket, opties);
@@ -49,7 +51,7 @@ test('het minimale geldige pakket is ok en komt als diepe kopie terug', () => {
   const invoer = basis();
   const r = valideerPakket(invoer);
   assert.equal(r.ok, true);
-  assert.deepEqual(r.pakket, invoer);
+  assert.deepEqual(gewoon(r.pakket), invoer);
   assert.notEqual(r.pakket, invoer);
   assert.notEqual(r.pakket.vormen.spin.delen[0], invoer.vormen.spin.delen[0]);
 });
@@ -90,7 +92,7 @@ test('een rijk pakket (beelden, achtergrond, teksten, verlopen, groepen, alle be
   const r = valideerPakket(p);
   assert.deepEqual(r.fouten, undefined, JSON.stringify(r.fouten));
   assert.equal(r.ok, true);
-  assert.deepEqual(r.pakket, p);
+  assert.deepEqual(gewoon(r.pakket), p);
 });
 
 test('geen object: pakket is geen JSON-object', () => {
@@ -156,6 +158,55 @@ test('__proto__ als eigen sleutel (uit JSON.parse) wordt geweigerd en vervuilt n
   const r = basis();
   r.beelden = JSON.parse('{"constructor":"x"}');
   weiger(r, 'beelden.constructor');
+});
+
+test('namen van vormen en beelden zijn nooit een eigenschap van Object.prototype (ook niet met een geldige inhoud)', () => {
+  for (const naam of ['constructor', 'prototype', '__proto__']) {
+    // een GELDIGE vorm onder een verboden naam
+    const vorm = met((p) => { p.vormen = JSON.parse(JSON.stringify({ spin: basis().vormen.spin })); });
+    vorm.vormen = JSON.parse(`{"${naam}":${JSON.stringify(basis().vormen.spin)}}`);
+    vorm.versiering = [];
+    delete vorm.spelskin.extra;
+    weiger(vorm, `vormen.${naam}`);
+    // een GELDIG png-beeld onder een verboden naam
+    const beeld = basis();
+    beeld.beelden = JSON.parse(`{"${naam}":"${PNG}"}`);
+    weiger(beeld, `beelden.${naam}`);
+    // verwijzen naar zo'n naam helpt niet
+    for (const doel of [(p) => { p.versiering[0].beeld = naam; }, (p) => { p.spelskin.extra = naam; }, (p) => { p.achtergrond = { vorm: naam }; }]) {
+      const r = valideerPakket(met(doel));
+      assert.equal(r.ok, false, naam);
+    }
+  }
+});
+
+test('de uitvoer heeft kaarten zonder prototype: een onbekende naam geeft nooit iets overgeërfd', () => {
+  const p = basis();
+  p.beelden = { pompoen: PNG };
+  const r = valideerPakket(p);
+  assert.equal(r.ok, true);
+  for (const kaart of [r.pakket.vormen, r.pakket.beelden]) {
+    assert.equal(Object.getPrototypeOf(kaart), null);
+    for (const naam of ['constructor', 'toString', '__proto__', 'hasOwnProperty', 'prototype']) assert.equal(kaart[naam], undefined, naam);
+  }
+  assert.equal(r.pakket.beelden?.['constructor'] ?? r.pakket.vormen['constructor'], undefined);
+});
+
+test('id: de ingebouwde skins van Blitz Run (basis en goud) zijn gereserveerd, halloween en kerst niet', () => {
+  for (const id of ['blitz', 'goud', 'olijf', 'poolijs', 'ultraviolet']) weiger(met((p) => { p.id = id; }), 'id');
+  for (const id of ['halloween', 'kerst', 'blitz2']) assert.equal(valideerPakket(met((p) => { p.id = id; })).ok, true, id);
+});
+
+test('opties: null of rommel laat de validator niet gooien; tekstLengte telt enkel als niet-negatief geheel getal', () => {
+  for (const opties of [null, undefined, 5, 'x', []]) assert.equal(valideerPakket(basis(), opties).ok, true);
+  const groot = basis();
+  groot.vormen.b = { viewBox: '0 0 1 1', delen: Array.from({ length: 400 }, () => ({ soort: 'path', d: 'M' + '1 '.repeat(5000) })) };
+  groot.vormen.c = { viewBox: '0 0 1 1', delen: groot.vormen.b.delen };
+  // een onbetrouwbare tekstLengte wordt genegeerd: de validator telt zelf en weigert het grote pakket
+  for (const tekstLengte of [-1, 1.5, NaN, Infinity, '5', null, undefined]) weiger(groot, 'pakket', { tekstLengte });
+  // een betrouwbare tekstLengte wordt wel gebruikt
+  assert.equal(valideerPakket(basis(), { tekstLengte: 0 }).ok, true);
+  weiger(basis(), 'pakket', { tekstLengte: MAX_PAKKET_BYTES + 1 });
 });
 
 test('periode: vast en beweeglijk, met bestaande dagen', () => {
@@ -250,6 +301,24 @@ test('transform: enkel translate, rotate en scale met getallen', () => {
   weiger(tr('translate(' + '1'.repeat(300) + ')'), 'vormen.spin.delen[0].transform');
   weiger(tr(''), 'vormen.spin.delen[0].transform');
   assert.equal(valideerPakket(tr('translate(1.5, -2) rotate(45) scale(0.5)')).ok, true);
+  assert.equal(valideerPakket(tr('translate(1 2) rotate(45 12 12) scale(0.5)')).ok, true);
+  assert.equal(valideerPakket(tr('translate(1e2) scale(2,3)')).ok, true);
+});
+
+test('transform: de getallen zijn echt (eindig, begrensd) en het aantal argumenten klopt', () => {
+  const tr = (t) => met((p) => { p.vormen.spin.delen[0].transform = t; });
+  const veld = 'vormen.spin.delen[0].transform';
+  for (const slecht of [
+    'translate(eee)', 'translate(e)', 'translate(.)', 'translate(1..2)', 'translate(1-2)', 'translate(--1)', 'translate(1e)',
+    'scale(9e999)', 'scale(1e6)', 'translate(100001 0)', 'rotate(-100001)', 'scale(-1e999)',
+    'rotate(1 2)', 'rotate(1 2 3 4)', 'translate()', 'scale()', 'rotate()', 'translate(1 2 3)', 'scale(1 2 3)', 'translate(,1)', 'translate(1,,2)',
+    'translate(1 2) scale(eee)', 'rotate(45) translate()',
+  ]) weiger(tr(slecht), veld);
+  for (const goed of ['translate(100000 -100000)', 'rotate(45)', 'rotate(45 0 0)', 'scale(1)', 'scale(-1 1)', 'translate( 1 , 2 )', 'scale(.5)', 'scale(5.)']) {
+    assert.equal(valideerPakket(tr(goed)).ok, true, goed);
+  }
+  // ook in een groep
+  weiger(met((p) => { p.vormen.spin.delen = [{ soort: 'groep', transform: 'scale(9e999)', delen: [{ soort: 'path', d: 'M0 0L1 1' }] }]; }), 'vormen.spin.delen[0].transform');
 });
 
 test('groep: één niveau diep, met delen en optionele transform', () => {

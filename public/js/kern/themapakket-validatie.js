@@ -9,7 +9,7 @@
 //  - elke regex is verankerd en krijgt pas een tekst te zien na een lengtecontrole;
 //  - de grootte wordt eerst gecontroleerd, dan pas de structuur; lijsten worden begrensd vóór ze doorlopen worden;
 //  - van een rasterbeeld wordt enkel het begin gedecodeerd (magic bytes), nooit het hele beeld.
-import { HEMEL, RAND_KLEUR } from '../spel/skins.js';
+import { HEMEL, RAND_KLEUR, SKINS } from '../spel/skins.js';
 
 export const MAX_PAKKET_BYTES = 524288; // 512 kB (JSON-tekst)
 export const MAX_BEELD_BYTES = 204800; // 200 kB per rasterbeeld
@@ -33,6 +33,14 @@ const KLEUR = /^#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$/;
 const KLEUR_ZONDER_ALPHA = /^#[0-9a-fA-F]{6}$/;
 const ID = /^[a-z0-9-]{2,30}$/;
 const NAAMRUIMTE = /^[a-z][a-z0-9-]{0,29}$/;
+// Namen van vormen en beelden zijn sleutels van een kaart: nooit een naam die ook op Object.prototype zit (`constructor`, ...).
+const VERBODEN_NAMEN = new Set(['__proto__', 'constructor', 'prototype']);
+const isNaam = (naam) => NAAMRUIMTE.test(naam) && !VERBODEN_NAMEN.has(naam) && !Object.hasOwn(Object.prototype, naam);
+// Het pakket-id is ook het skin-id van Blitz Run: de ingebouwde skins (basis en goud) zijn gereserveerd.
+// De event-skins `halloween` en `kerst` worden zelf pakketten en blijven dus toegelaten.
+const GERESERVEERDE_IDS = new Set(SKINS.filter((s) => s.soort === 'basis' || s.soort === 'goud').map((s) => s.id));
+const GETAL_TOKEN = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
+const AANTAL_ARGUMENTEN = { translate: [1, 2], rotate: [1, 3], scale: [1, 2] }; // toegelaten aantallen argumenten
 const PAD = /^[MmLlHhVvCcSsQqTtAaZz0-9eE.,\s+-]{1,20000}$/;
 const PUNTEN = /^[-0-9.,\s]{1,2000}$/;
 const TRANSFORM = /^(?:(?:translate|rotate|scale)\([-0-9.eE\s,]+\)\s*)+$/;
@@ -258,9 +266,21 @@ function valideerPunten(ctx, punten, veld) {
   return punten;
 }
 
+// Elke transformatie wordt ontleed: echte getallen (eindig, |n| <= 100000) en het juiste aantal argumenten.
+function transformOk(t) {
+  if (typeof t !== 'string' || t.length < 1 || t.length > 200 || !TRANSFORM.test(t)) return false;
+  for (const m of t.matchAll(/(translate|rotate|scale)\(([^)]*)\)/g)) {
+    // Argumenten worden gescheiden door één komma (met optionele spaties) of door spaties; "1,,2" of ",1" geeft een leeg argument.
+    const args = m[2].trim().split(/\s*,\s*|\s+/);
+    if (!AANTAL_ARGUMENTEN[m[1]].includes(args.length)) return false;
+    if (!args.every((a) => GETAL_TOKEN.test(a) && isGetal(Number(a)))) return false;
+  }
+  return true;
+}
+
 function valideerTransform(ctx, t, veld) {
-  if (typeof t === 'string' && t.length >= 1 && t.length <= 200 && TRANSFORM.test(t)) return t;
-  ctx.fout(veld, 'Ongeldige transformatie (enkel translate, rotate en scale met getallen).');
+  if (transformOk(t)) return t;
+  ctx.fout(veld, 'Ongeldige transformatie (translate met 1 of 2, rotate met 1 of 3 en scale met 1 of 2 getallen).');
   return undefined;
 }
 
@@ -372,9 +392,9 @@ function valideerVormen(ctx, vormen, veld) {
   if (!isObject(vormen)) { ctx.fout(veld, 'Moet een lijst van vormen zijn.'); return {}; }
   const namen = Object.keys(vormen);
   if (namen.length > MAX_VORMEN) { ctx.fout(veld, `Maximaal ${MAX_VORMEN} vormen.`); return {}; }
-  const uit = {};
+  const uit = Object.create(null); // zonder prototype: een opzoeking van een onbekende naam geeft nooit iets overgeërfd
   for (const naam of namen) {
-    if (!NAAMRUIMTE.test(naam)) { ctx.fout(veldPad(veld, naam), "Ongeldige naam (enkel kleine letters, cijfers en '-', beginnend met een letter, max 30)."); continue; }
+    if (!isNaam(naam)) { ctx.fout(veldPad(veld, naam), "Ongeldige naam (enkel kleine letters, cijfers en '-', beginnend met een letter, max 30)."); continue; }
     const vorm = valideerVorm(ctx, vormen[naam], veldPad(veld, naam));
     if (vorm !== undefined) uit[naam] = vorm;
   }
@@ -415,10 +435,10 @@ function valideerBeelden(ctx, beelden, veld, vormNamen) {
   if (!isObject(beelden)) { ctx.fout(veld, 'Moet een lijst van beelden zijn.'); return undefined; }
   const namen = Object.keys(beelden);
   if (namen.length > MAX_BEELDEN) { ctx.fout(veld, `Maximaal ${MAX_BEELDEN} beelden.`); return undefined; }
-  const uit = {};
+  const uit = Object.create(null);
   for (const naam of namen) {
     const v = veldPad(veld, naam);
-    if (!NAAMRUIMTE.test(naam)) { ctx.fout(v, "Ongeldige naam (enkel kleine letters, cijfers en '-', beginnend met een letter, max 30)."); continue; }
+    if (!isNaam(naam)) { ctx.fout(v, "Ongeldige naam (enkel kleine letters, cijfers en '-', beginnend met een letter, max 30)."); continue; }
     if (vormNamen.has(naam)) { ctx.fout(v, 'Deze naam bestaat al bij de vormen; kies een andere naam.'); continue; }
     const b = valideerBeeld(ctx, beelden[naam], v);
     if (b !== undefined) uit[naam] = b;
@@ -565,14 +585,15 @@ function jsonBytes(pakket) {
 
 // Valideert een themapakket. `tekstLengte` is de grootte in bytes van de ontvangen JSON-tekst (als de aanroeper ze kent);
 // anders rekent de validator zelf. Geeft { ok: true, pakket } (diepe kopie) of { ok: false, fouten: [{ veld, fout }] }.
-export function valideerPakket(pakket, { tekstLengte } = {}) {
+export function valideerPakket(pakket, opties) {
+  const { tekstLengte } = isObject(opties) ? opties : {};
   const ctx = maakContext();
   if (!isObject(pakket)) {
     ctx.fout('pakket', 'Een themapakket moet een JSON-object zijn.');
     return { ok: false, fouten: ctx.fouten };
   }
   let bytes = tekstLengte;
-  if (!Number.isFinite(bytes)) {
+  if (!Number.isInteger(bytes) || bytes < 0) { // enkel een niet-negatief geheel getal wordt vertrouwd; anders zelf tellen
     try { bytes = jsonBytes(pakket); } catch { ctx.fout('pakket', 'Het pakket is geen geldige JSON.'); return { ok: false, fouten: ctx.fouten }; }
   }
   if (bytes > MAX_PAKKET_BYTES) {
@@ -589,7 +610,8 @@ export function valideerPakket(pakket, { tekstLengte } = {}) {
     else ctx.fout('formaat', 'Onbekend formaat (enkel formaat 1).');
   }
   if (Object.hasOwn(pakket, 'id')) {
-    if (typeof pakket.id === 'string' && ID.test(pakket.id)) uit.id = pakket.id;
+    if (typeof pakket.id === 'string' && GERESERVEERDE_IDS.has(pakket.id)) ctx.fout('id', 'Deze id is gereserveerd voor een ingebouwde skin van Blitz Run; kies een andere id.');
+    else if (typeof pakket.id === 'string' && ID.test(pakket.id)) uit.id = pakket.id;
     else ctx.fout('id', "Ongeldige id (enkel kleine letters, cijfers en '-', 2 tot 30 tekens).");
   }
   if (Object.hasOwn(pakket, 'naam')) uit.naam = tekstVeld(ctx, pakket.naam, 'naam', 1, 40, 'De naam');
@@ -602,13 +624,13 @@ export function valideerPakket(pakket, { tekstLengte } = {}) {
   let vormen;
   if (Object.hasOwn(pakket, 'vormen')) {
     vormen = valideerVormen(ctx, pakket.vormen, 'vormen');
-    if (isObject(pakket.vormen)) for (const n of Object.keys(pakket.vormen)) if (NAAMRUIMTE.test(n)) vormNamen.add(n);
+    if (isObject(pakket.vormen)) for (const n of Object.keys(pakket.vormen)) if (isNaam(n)) vormNamen.add(n);
     uit.vormen = vormen;
   }
   const beeldNamen = new Set();
   if (Object.hasOwn(pakket, 'beelden')) {
     uit.beelden = valideerBeelden(ctx, pakket.beelden, 'beelden', vormNamen);
-    if (isObject(pakket.beelden)) for (const n of Object.keys(pakket.beelden)) if (NAAMRUIMTE.test(n)) beeldNamen.add(n);
+    if (isObject(pakket.beelden)) for (const n of Object.keys(pakket.beelden)) if (isNaam(n)) beeldNamen.add(n);
   }
   const bekend = new Set([...vormNamen, ...beeldNamen]);
 
