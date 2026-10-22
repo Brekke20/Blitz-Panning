@@ -372,7 +372,7 @@ export function versieringAanVoorkeur() { return leesVoorkeur(opslag()) !== 'uit
 // themas mee als de laatste lading te lang geleden is.
 let elkeMinuutHaak = null;
 export function startVersiering({ elkeMinuut } = {}) {
-  if (typeof elkeMinuut === 'function') elkeMinuutHaak = elkeMinuut;
+  if (elkeMinuut instanceof Function) elkeMinuutHaak = elkeMinuut;
   const w = venster();
   if (!w || typeof document === 'undefined') return;
   herbereken();
