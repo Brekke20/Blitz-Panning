@@ -174,6 +174,8 @@ Een pakket is één JSON-bestand (`<id>.blitzthema.json`). Het bevat enkel gegev
 
 **Instellingen → Dit toestel:** de schakelaar blijft. De uitleg leest het actieve of volgende thema uit de nieuwe module.
 
+**Bewegende beelden uit, per gebruiker** (Brent, 2026-10-22): een nieuwe persoonlijke instelling `bewegingUit` (aan/uit, standaard uit = beweging toegelaten), bewaard bij het account zoals de andere instellingen (`kern/instellingen-regels.js`, `netlify/lib/instellingen.js`), dus geldig op al zijn toestellen. Staat ze aan, dan toont de app enkel de stilstaande versiering (achtergrond, hoeken, hangende figuren en mist, zonder animatie) en geen vallende, opstijgende, vliegende of kruipende figuren en geen vuurwerk; hetzelfde als de sobere stand. De schakelaar "Feestelijke versiering" per toestel (alles uit) blijft bestaan en gaat voor. De nieuwe schakelaar staat bij de persoonlijke instellingen, met als label "Bewegende beelden tijdens een thema".
+
 ## 6. Blitz Run
 
 - `skins.js` houdt de tien basisskins en goud. De twee event-skins (`halloween`, `kerst`) en hun `EXTRAS` verdwijnen uit de code en komen in de pakketten. **De id's blijven `halloween` en `kerst`**, zodat bewaarde ontgrendelingen geldig blijven.
