@@ -280,3 +280,151 @@ test('beide skins gebruiken enkel paden in hun extra (zo kan het spel ze met Pat
     assert.ok(delen.every((d) => d.soort === 'path'), `${extra}: enkel paden`);
   }
 });
+
+// ---- De zeven nieuwe pakketten (spec §7) ----
+
+const NIEUWE_IDS = ['nieuwjaar', 'valentijn', 'carnaval', 'pasen', 'zomer', 'nationale-feestdag', 'sinterklaas'];
+const periodeVast = (vm, vd, tm, td) => ({ van: { maand: vm, dag: vd }, tot: { maand: tm, dag: td } });
+// Tabel van spec §7: periode, skin (naam en extra) en de telling per beweging.
+const VERWACHT = {
+  nieuwjaar: { periode: periodeVast(1, 1, 1, 6), skin: ['Feestpaal', 'feesthoedje'], tel: { vuurwerk: 1, vallen: 10 } },
+  valentijn: { periode: periodeVast(2, 10, 2, 14), skin: ['Liefdespaal', 'paalhartje'], tel: { opstijgen: 8, hoek: 2 } },
+  carnaval: { periode: { basis: 'pasen', van: -52, tot: -46 }, skin: ['Carnavalspaal', 'masker'], tel: { vallen: 12, hoek: 2 } },
+  pasen: { periode: { basis: 'pasen', van: -7, tot: 1 }, skin: ['Paaspaal', 'konijnenoren'], tel: { hoek: 2, opstijgen: 6 } },
+  zomer: { periode: periodeVast(7, 1, 8, 31), skin: ['Zomerpaal', 'zonnebril'], tel: { hoek: 1, opstijgen: 6 } },
+  'nationale-feestdag': { periode: periodeVast(7, 19, 7, 21), skin: ['Driekleurpaal', 'vlaggetje'], tel: { hoek: 2, vuurwerk: 1 } },
+  sinterklaas: { periode: periodeVast(12, 1, 12, 6), skin: ['Sintpaal', 'sintmijter'], tel: { vallen: 10, hoek: 1 } },
+};
+// Telt per beweging hoeveel exemplaren de versiering levert (een `hoek` telt per hoek, `vuurwerk` als 1).
+function telVersiering(versiering) {
+  const uit = {};
+  for (const e of versiering) uit[e.beweging] = (uit[e.beweging] ?? 0) + (e.beweging === 'hoek' ? e.hoeken.length : (e.aantal ?? 1));
+  return uit;
+}
+
+test('VOORGELADEN bevat precies de negen id\'s uit de spec', () => {
+  assert.deepEqual(VOORGELADEN.map((p) => p.id).sort(), ['halloween', 'kerst', ...NIEUWE_IDS].sort());
+});
+
+test('de zeven nieuwe pakketten hebben de periode uit de tabel van de spec', () => {
+  for (const id of NIEUWE_IDS) assert.deepEqual(pakket(id)?.periode, VERWACHT[id].periode, id);
+});
+
+test('de zeven nieuwe pakketten hebben de skin (naam en extra) uit de tabel, met een extra die enkel uit paden bestaat', () => {
+  for (const id of NIEUWE_IDS) {
+    const p = pakket(id);
+    assert.deepEqual([p.spelskin.naam, p.spelskin.extra], VERWACHT[id].skin, id);
+    const delen = p.vormen[p.spelskin.extra].delen;
+    assert.ok(delen.length > 0 && delen.every((d) => d.soort === 'path'), `${id}: de extra bestaat enkel uit paden`);
+  }
+});
+
+test('de zeven nieuwe pakketten hebben precies de aantallen per beweging uit de tabel', () => {
+  for (const id of NIEUWE_IDS) assert.deepEqual(telVersiering(pakket(id).versiering), VERWACHT[id].tel, id);
+});
+
+test('het accent van elk van de zeven nieuwe pakketten (en van Kerst) steekt in licht en donker af op beide achtergronden (3:1)', () => {
+  for (const id of [...NIEUWE_IDS, 'kerst']) {
+    const { kleuren } = pakket(id);
+    for (const modus of ['donker', 'licht']) {
+      for (const bg of ['#181e24', '#f5f6f7']) {
+        const verhouding = contrastVerhouding(kleuren[modus].accent, bg);
+        assert.ok(verhouding >= 3, `${id}.${modus}.accent ${kleuren[modus].accent} tegen ${bg}: ${verhouding.toFixed(2)}`);
+      }
+    }
+  }
+});
+
+test('de zeven nieuwe pakketten hebben vormen en beelden zonder rasterbeelden, en de opgegeven versie', () => {
+  for (const id of NIEUWE_IDS) {
+    const p = pakket(id);
+    assert.equal(p.beelden, undefined, `${id}: vectorvormen, geen rasterbeelden`);
+    assert.equal(p.versie, '2026-10-22', id);
+    assert.equal(p.formaat, 1, id);
+  }
+});
+
+test('de zeven nieuwe pakketten hebben vriendelijke lege teksten (max 80 tekens)', () => {
+  for (const id of NIEUWE_IDS) {
+    const { teksten } = pakket(id);
+    assert.ok(teksten, `${id}: teksten ontbreken`);
+    for (const t of Object.values(teksten)) assert.ok(t.length > 0 && t.length <= 80, `${id}: ${t}`);
+  }
+});
+
+test('Nieuwjaar heeft een nachtlucht als achtergrond en een donkere voorkeur', () => {
+  const p = pakket('nieuwjaar');
+  assert.equal(p.achtergrond.vorm, 'nachtlucht');
+  assert.equal(p.kleuren.voorkeurThema, 'donker');
+  // keuze opdrachtgever 2026-10-22: elk thema krijgt een eigen achtergrond, ook Valentijn (vroeger: geen achtergrond).
+  assert.equal(pakket('valentijn').achtergrond.vorm, 'schemering');
+});
+
+test('de driekleur van 21 juli is de Belgische (zwart, geel, rood) en niet de Nederlandse', () => {
+  const kleuren = JSON.stringify(pakket('nationale-feestdag').vormen).toLowerCase();
+  for (const k of ['#111111', '#fdda24', '#ed2939']) assert.ok(kleuren.includes(k), `ontbrekende kleur ${k}`);
+  for (const k of ['#ae1c28', '#21468b']) assert.ok(!kleuren.includes(k), `Nederlandse kleur ${k}`);
+});
+
+test('Sinterklaas toont enkel mijter, staf, lekkers en daken met een paard (geen figuren)', () => {
+  const p = pakket('sinterklaas');
+  // keuze opdrachtgever 2026-10-22: de achtergrond `daken` (daken, schoorstenen, maan en een paard, geen mensen) komt erbij.
+  assert.deepEqual(Object.keys(p.vormen).sort(), ['daken', 'mijter', 'pepernoot', 'sintmijter', 'speculaas']);
+});
+
+// ---- Achtergronden en de mijter (keuze opdrachtgever 2026-10-22) ----
+
+// Gedempte achtergronden: tickets en tekst moeten leesbaar blijven, dus in het lichte thema hooguit 20 % dekking.
+const NIEUWE_ACHTERGRONDEN = {
+  kerst: 'dorp', valentijn: 'schemering', carnaval: 'straat', pasen: 'weide', zomer: 'strand', 'nationale-feestdag': 'brussel', sinterklaas: 'daken',
+};
+const vierGetallen = (t) => t.trim().split(/\s+/).map(Number);
+
+test('elk voorgeladen pakket heeft een achtergrond met een bestaande vorm en hooguit 20 % dekking in het lichte thema', () => {
+  for (const p of VOORGELADEN) {
+    const a = p.achtergrond;
+    assert.ok(a, `${p.id}: achtergrond ontbreekt`);
+    assert.ok(Object.hasOwn(p.vormen, a.vorm), `${p.id}: vorm ${a.vorm} bestaat niet`);
+    assert.equal(typeof a.dekkingLicht, 'number', `${p.id}: dekkingLicht ontbreekt`);
+    assert.ok(a.dekkingLicht > 0 && a.dekkingLicht <= 0.2, `${p.id}: dekkingLicht ${a.dekkingLicht}`);
+  }
+});
+
+test('elke achtergrond is een scène van 1600 x 900 met een staand kijkvenster binnen de scène, en blijft onder 25 kB', () => {
+  for (const p of VOORGELADEN) {
+    const vorm = p.vormen[p.achtergrond.vorm];
+    assert.equal(vorm.viewBox, '0 0 1600 900', p.id);
+    const [x, y, b, h] = vierGetallen(p.achtergrond.kijkvensterStaand);
+    assert.ok(x >= 0 && y >= 0 && x + b <= 1600 && y + h <= 900 && b < h, `${p.id}: kijkvenster ${p.achtergrond.kijkvensterStaand}`);
+    assert.ok(JSON.stringify(vorm).length <= 25600, `${p.id}: achtergrond is ${JSON.stringify(vorm).length} bytes`);
+  }
+});
+
+test('de zeven nieuwe achtergronden hebben de afgesproken naam, een dekking van 0,12 tot 0,18 en een donkere lucht', () => {
+  for (const [id, naam] of Object.entries(NIEUWE_ACHTERGRONDEN)) {
+    const p = pakket(id);
+    assert.equal(p.achtergrond.vorm, naam, id);
+    assert.ok(p.achtergrond.dekkingLicht >= 0.12 && p.achtergrond.dekkingLicht <= 0.18, `${id}: ${p.achtergrond.dekkingLicht}`);
+    // De lucht is het eerste deel: een rechthoek over de hele scène met een lineair verloop van gedempte, donkere kleuren
+    // (luminantie hooguit 0,05, dus contrast met zwart hooguit 2:1), en een zachte effen kleur voor het lichte thema.
+    const lucht = p.vormen[naam].delen[0];
+    assert.deepEqual([lucht.soort, lucht.x, lucht.y, lucht.width, lucht.height], ['rect', 0, 0, 1600, 900], `${id}: lucht`);
+    assert.equal(lucht.vul.verloop, 'lineair', id);
+    for (const s of lucht.vul.stops) assert.ok(contrastVerhouding(s.kleur, '#000000') <= 2, `${id}: luchtkleur ${s.kleur} is te fel`);
+    assert.match(lucht.vulLicht, /^#[0-9a-f]{6}$/, `${id}: lichte luchtkleur`);
+  }
+});
+
+test('Sinterklaas: de mijter staat rechtsonder (ro), kleiner en tegen de hoek, los van de spelskin', () => {
+  const p = pakket('sinterklaas');
+  const hoek = p.versiering.find((e) => e.beweging === 'hoek');
+  assert.deepEqual(hoek, { beweging: 'hoek', beeld: 'mijter', hoeken: ['ro'] });
+  assert.notEqual(p.spelskin.extra, 'mijter');
+  // De tekening zelf (staf en mijter) reikt tot x = 76 en y = 76; een groter, vierkant kijkvenster met lege marge links en boven
+  // maakt ze kleiner in het vaste hoekvak (de mijter vult zo ongeveer 55 tot 60 % van het vak) en duwt ze naar rechtsonder.
+  const [x, y, b, h] = vierGetallen(p.vormen.mijter.viewBox);
+  assert.equal(b, h, 'vierkant kijkvenster');
+  assert.ok(73 / b >= 0.5 && 73 / b <= 0.62, `de mijter vult ${(73 / b * 100).toFixed(0)} % van het vak`);
+  assert.ok(x + b >= 76 && x + b <= 82, `rechterrand ${x + b}`);
+  assert.ok(y + h >= 76 && y + h <= 82, `onderrand ${y + h}`);
+});
