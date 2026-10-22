@@ -199,6 +199,25 @@ test.describe('versiering per beweging op een gsm (sober)', () => {
     await expect(voor(page, '.ev-pluim')).toHaveCount(0);
     await geenCode(page);
   });
+
+  test('onderste hoeken: een rechtop beeld blijft zichtbaar, een naar de hoek gespiegeld beeld (webben) valt weg', async ({ page }) => {
+    await start(page, pakket('proef-hoeken-gsm', [
+      { beweging: 'hoek', beeld: 'bol', hoeken: ['lo', 'ro'] },
+      { beweging: 'hoek', beeld: 'web', hoeken: ['lb', 'rb'], richting: 'naarHoek' },
+    ], { vormen: { bol: BOL, web: BOL } }), { app: { viewport: { width: 375, height: 812 } } });
+    await expect(page.locator('html')).toHaveAttribute('data-event-sober', 'ja');
+    await expect(achter(page, '.ev-hoek-lo')).toBeVisible();
+    await expect(achter(page, '.ev-hoek-ro')).toBeVisible();
+    await expect(achter(page, '.ev-hoek-lb')).toBeVisible();
+  });
+
+  test('Halloween op een gsm: de webben onderaan vallen nog altijd weg (v2.2.0)', async ({ page }) => {
+    await startApp(page, { query: AAN, viewport: { width: 375, height: 812 } });
+    await expect(achter(page, '.ev-hoek')).toHaveCount(4);
+    await expect(achter(page, '.ev-hoek-lo')).toBeHidden();
+    await expect(achter(page, '.ev-hoek-ro')).toBeHidden();
+    await expect(achter(page, '.ev-hoek-lb')).toBeVisible();
+  });
 });
 
 // Fix-ronde 1: een toestel dat de app dagen vooraan houdt, haalt de themas opnieuw op zodra de laatste lading meer dan 30 minuten

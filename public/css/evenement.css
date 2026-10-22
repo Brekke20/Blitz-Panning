@@ -88,10 +88,12 @@ img.ev-beeld { object-fit: contain; }
 
 /* Geen beweging bij reduced-motion (de JS bouwt de bewegende delen dan niet; dit is de tweede lijn) */
 @media (prefers-reduced-motion: reduce) { .ev-beweeg { display: none !important; } }
-/* Sober op aanraak, gsm en tablet: enkel statische hoekbeelden, kleiner en ver van de inhoud (onderste hoeken weg, zoals v2.2.0) */
+/* Sober op aanraak, gsm en tablet: enkel statische hoekbeelden, kleiner en ver van de inhoud. De onderste hoeken vallen enkel weg
+   voor hoekbeelden die naar de hoek gespiegeld worden (de webben van Halloween, zoals v2.2.0); een rechtop beeld onderaan (mijter,
+   paaseieren) blijft staan (fix-ronde 1, keuze Brent: tablets). */
 html[data-aanraak="ja"] .ev-beweeg, html[data-apparaat="gsm"] .ev-beweeg, html[data-apparaat="tablet"] .ev-beweeg { display: none !important; }
 html[data-event-sober="ja"] .ev-hoek-lb, html[data-event-sober="ja"] .ev-hoek-rb { width: 56px; }
-html[data-event-sober="ja"] .ev-hoek-lo, html[data-event-sober="ja"] .ev-hoek-ro { display: none; }
+html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display: none; }
 
 /* Accentkleuren van het thema: enkel op het scherm. De laag (en het inline script in index.html) zet --ev-<naam> (donker) en
    --ev-<naam>-licht en noemt in data-ev-kleuren(-licht) welke er zijn; een ontbrekende kleur laat die van de app staan.
