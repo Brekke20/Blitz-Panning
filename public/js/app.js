@@ -53,7 +53,8 @@ import * as persoonskiezer from './schermen/persoonskiezer.js';
 import { laadTab } from './kern/navigatie.js';
 import { eigenZohoNaam, huidigeRechten, huidigeGebruiker, magPlannenVoor } from './kern/sessie.js';
 import { installeerTijdPicker } from './kern/tijd-picker.js';
-import { startVersiering, bewaarThemaWissel } from './schermen/evenement-laag.js';
+import { startVersiering, bewaarThemaWissel, herbereken as herberekenVersiering } from './schermen/evenement-laag.js';
+import { laadThemas } from './schermen/themas-bron.js';
 import { actieveEvenementen } from './kern/evenementen.js';
 import { installeerSpelOpening } from './spel/spel-opening.js';
 
@@ -996,5 +997,17 @@ installeerTijdPicker(document, window); // tik op een tijd-/datumveld opent de k
 window.addEventListener('versiering-gewijzigd', () => { // thema aan/uit: lege-tekst-lijsten direct hertekenen
   try { wachtrij.renderTickets(); ingepland.renderGepland(); } catch (e) { /* app nog niet opgestart: de eerste render pakt het thema vanzelf */ }
 });
-startVersiering(); // feestelijke versiering tijdens een evenement (schermen/evenement-laag.js); uit in ?test en op aanraak enkel statisch
+// Feestelijke versiering (schermen/evenement-laag.js): eerst meteen het thema uit de cache (themasNu), dan de verse themas van
+// /api/themas (schermen/themas-bron.js) en opnieuw berekenen; ook bij terugkeer naar de pagina (hoogstens één keer per minuut).
+// Uit in ?test (tenzij ?versiering=aan) en op aanraak enkel statisch. Een mislukte lading laat de cache staan (nooit een fout).
+let themasGeladenOm = 0;
+function vernieuwThemas() {
+  themasGeladenOm = Date.now();
+  laadThemas().then(herberekenVersiering, () => {});
+}
+startVersiering();
+vernieuwThemas();
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && Date.now() - themasGeladenOm > 60000) vernieuwThemas();
+});
 document.addEventListener('DOMContentLoaded', () => startNaInlog(opstart));

@@ -1,13 +1,25 @@
-// tests/versiering-logica.test.mjs — kern/versiering-logica.js: voorkeur per toestel, standaard aan in het venster, sober op aanraak.
+// tests/versiering-logica.test.mjs — kern/versiering-logica.js: voorkeur per toestel, standaard aan tijdens het actieve themapakket,
+// sober op aanraak. Sinds taak 6 (thema's als pakket) komt het thema uit de themas-cache (`themas: { index, pakketten }`) in plaats
+// van uit de vaste kalender kern/evenementen.js; de verwachtingen van v2.2.0 (aan in oktober, uit erbuiten, testmodus, sober) blijven.
 process.env.TZ = 'Europe/Brussels';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { VOORKEUR_SLEUTEL, leesVoorkeur, bewaarVoorkeur, isSober, beslis, legeTekst, STAP_MS } from '../public/js/kern/versiering-logica.js';
-import { MAX_SPINNEN } from '../public/js/kern/evenementen.js';
+import fs from 'node:fs';
+import {
+  VOORKEUR_SLEUTEL, leesVoorkeur, bewaarVoorkeur, isSober, beslis, legeTekst, kijkvenster, STAP_MS,
+} from '../public/js/kern/versiering-logica.js';
+import { valideerPakket } from '../public/js/kern/themapakket-validatie.js';
 
-const OKT = new Date('2026-10-12T10:00:00+02:00');
+const lees = (id) => valideerPakket(JSON.parse(fs.readFileSync(new URL(`../netlify/themas/${id}.blitzthema.json`, import.meta.url), 'utf8'))).pakket;
+const HALLOWEEN = lees('halloween');
+const KERST = lees('kerst');
+const rij = (p, extra = {}) => ({ id: p.id, naam: p.naam, aan: true, periode: p.periode, periodeOverride: null, pakketHash: 'h', ...extra });
+const THEMAS = { index: { versie: 1, themas: [rij(HALLOWEEN), rij(KERST)] }, pakketten: { halloween: HALLOWEEN, kerst: KERST } };
+
+const OKT = new Date('2026-10-05T10:00:00+02:00');
 const MEI = new Date('2026-05-12T10:00:00+02:00');
 const desktop = { soort: 'computer', aanraak: false };
+const met = (extra) => ({ nu: OKT, themas: THEMAS, ...desktop, ...extra });
 
 function nepOpslag(begin = {}) {
   const d = { ...begin };
@@ -33,79 +45,129 @@ test('voorkeur: een kapotte of ontbrekende opslag gooit niet', () => {
   assert.equal(leesVoorkeur(nepOpslag({ [VOORKEUR_SLEUTEL]: 'rommel' })), 'auto');
 });
 
-test('standaard AAN binnen het venster, uit erbuiten', () => {
-  assert.equal(beslis({ nu: OKT, ...desktop }).actief, true);
-  assert.equal(beslis({ nu: OKT, ...desktop }).thema, 'halloween');
-  assert.equal(beslis({ nu: MEI, ...desktop }).actief, false);
+test('beslis: halloween in de themas op 5 oktober geeft het halloween-pakket, met beweging', () => {
+  const b = beslis(met());
+  assert.equal(b.actief, true);
+  assert.equal(b.thema.id, 'halloween');
+  assert.equal(b.thema, HALLOWEEN);
+  assert.equal(b.beweging, true);
+  assert.equal(b.sober, false);
 });
 
-test('de gebruiker kan het uitzetten, ook binnen het venster', () => {
-  assert.equal(beslis({ nu: OKT, voorkeur: 'uit', ...desktop }).actief, false);
+test('beslis: buiten elke periode, zonder themas of zonder pakket is er niets', () => {
+  assert.equal(beslis(met({ nu: MEI })).actief, false);
+  assert.equal(beslis(met({ nu: MEI })).thema, null);
+  assert.equal(beslis(met({ themas: undefined })).actief, false);
+  assert.equal(beslis(met({ themas: { index: null, pakketten: {} } })).actief, false);
+  // index zegt actief, maar het pakket ontbreekt (nog niet opgehaald): niets (nooit een fout)
+  assert.equal(beslis(met({ themas: { index: THEMAS.index, pakketten: {} } })).actief, false);
+  // een geërfde sleutel telt niet als pakket
+  assert.equal(beslis(met({ themas: { index: { themas: [rij({ ...HALLOWEEN, id: 'constructor' })] }, pakketten: {} } })).actief, false);
 });
 
-test('evenement zonder thema (Kerst) toont niets', () => {
-  assert.equal(beslis({ nu: new Date('2026-12-24T10:00:00+01:00'), ...desktop }).actief, false);
+test('beslis: voorkeur uit geeft niets, ook met een voorbeeld', () => {
+  assert.equal(beslis(met({ voorkeur: 'uit' })).actief, false);
+  assert.equal(beslis(met({ voorkeur: 'uit', voorbeeld: KERST })).actief, false);
 });
 
-test('testmodus: uit, tenzij de test het afdwingt; buiten het venster ook dan niets', () => {
-  assert.equal(beslis({ nu: OKT, testMode: true, ...desktop }).actief, false);
-  assert.equal(beslis({ nu: OKT, testMode: true, testForceer: true, ...desktop }).actief, true);
-  assert.equal(beslis({ nu: MEI, testMode: true, testForceer: true, ...desktop }).actief, false);
-  // de vlag telt enkel in testmodus: in productie verandert hij niets
-  assert.equal(beslis({ nu: MEI, testMode: false, testForceer: true, ...desktop }).actief, false);
+test('beslis: testmodus zonder testForceer geeft niets; met de vlag wel; de vlag telt enkel in testmodus', () => {
+  assert.equal(beslis(met({ testMode: true })).actief, false);
+  assert.equal(beslis(met({ testMode: true, testForceer: true })).thema.id, 'halloween');
+  assert.equal(beslis(met({ nu: MEI, testMode: true, testForceer: true })).actief, false);
+  assert.equal(beslis(met({ nu: MEI, testMode: false, testForceer: true })).actief, false);
 });
 
-test('sober op aanraak, gsm en tablet: wel versierd, geen beweging', () => {
+test('beslis: een thema dat de beheerder uitzette (aan: false) geeft niets', () => {
+  const uit = { ...THEMAS, index: { versie: 2, themas: [rij(HALLOWEEN, { aan: false }), rij(KERST)] } };
+  assert.equal(beslis(met({ themas: uit })).actief, false);
+});
+
+test('beslis: een periode-override van de beheerder telt', () => {
+  const verschoven = { ...THEMAS, index: { versie: 2, themas: [rij(HALLOWEEN, { periodeOverride: { van: { maand: 5, dag: 1 }, tot: { maand: 5, dag: 20 } } })] } };
+  assert.equal(beslis(met({ themas: verschoven, nu: MEI })).thema.id, 'halloween');
+  assert.equal(beslis(met({ themas: verschoven })).actief, false);
+});
+
+test('beslis: een voorbeeld gaat voor (kerst in oktober), ook in testmodus en buiten elke periode', () => {
+  assert.equal(beslis(met({ voorbeeld: KERST })).thema.id, 'kerst');
+  assert.equal(beslis(met({ voorbeeld: KERST, testMode: true })).thema.id, 'kerst');
+  assert.equal(beslis(met({ voorbeeld: KERST, nu: MEI })).thema.id, 'kerst');
+  assert.equal(beslis(met({ voorbeeld: null })).thema.id, 'halloween');
+});
+
+test('beslis: sober op aanraak, gsm en tablet: wel versierd, geen beweging', () => {
   for (const toestel of [{ soort: 'gsm', aanraak: true }, { soort: 'tablet', aanraak: true }, { soort: 'tablet', aanraak: false }, { soort: 'computer', aanraak: true }, { soort: 'gsm', aanraak: false }]) {
     assert.equal(isSober(toestel), true, JSON.stringify(toestel));
-    const b = beslis({ nu: OKT, ...toestel });
+    const b = beslis(met(toestel));
     assert.equal(b.actief, true);
     assert.equal(b.sober, true);
     assert.equal(b.beweging, false);
-    assert.equal(b.spinnen, 0);
   }
 });
 
-test('desktop met muis: beweging, hoogstens MAX_SPINNEN spinnen; reduced-motion zet de beweging uit', () => {
+test('beslis: desktop met muis beweegt; reduced-motion zet de beweging uit', () => {
   assert.equal(isSober(desktop), false);
-  const b = beslis({ nu: OKT, ...desktop });
-  assert.equal(b.beweging, true);
-  assert.ok(b.spinnen > 0 && b.spinnen <= MAX_SPINNEN);
-  const rm = beslis({ nu: OKT, reducedMotion: true, ...desktop });
+  assert.equal(beslis(met()).beweging, true);
+  const rm = beslis(met({ reducedMotion: true }));
   assert.equal(rm.actief, true);
   assert.equal(rm.beweging, false);
-  assert.equal(rm.spinnen, 0);
 });
 
-test('lege teksten: themateksten enkel waar gedefinieerd', () => {
-  assert.equal(legeTekst('halloween', 'wachtrij', 'x'), 'Geen spoken in de wachtrij.');
-  assert.equal(legeTekst('halloween', 'onbekend', 'standaard'), 'standaard');
-  assert.equal(legeTekst('kerst', 'wachtrij', 'standaard'), 'standaard');
+test('legeTekst: de tekst van het pakket, anders de standaard', () => {
+  assert.equal(legeTekst(HALLOWEEN, 'wachtrijLeeg', 'x'), 'Geen spoken in de wachtrij.');
+  assert.equal(legeTekst(HALLOWEEN, 'ingeplandLeeg', 'x'), 'Geen spookbezoeken gepland deze week');
+  assert.equal(legeTekst(HALLOWEEN, 'onbekend', 'standaard'), 'standaard');
+  assert.equal(legeTekst(KERST, 'wachtrijLeeg', 'standaard'), 'standaard'); // kerst heeft geen teksten
+  assert.equal(legeTekst(null, 'wachtrijLeeg', 'standaard'), 'standaard');
+  assert.equal(legeTekst({ teksten: Object.create({ wachtrijLeeg: 'geërfd' }) }, 'wachtrijLeeg', 'standaard'), 'standaard');
+  assert.equal(legeTekst({ teksten: { wachtrijLeeg: 5 } }, 'wachtrijLeeg', 'standaard'), 'standaard');
 });
 
-// v2.1.2: kern/versiering-thema.js en schermen/evenement-scene.js
+test('kijkvenster: een staand scherm toont het staande deel, een liggend scherm alles (v2.2.0)', () => {
+  const a = HALLOWEEN.achtergrond;
+  const vb = HALLOWEEN.vormen.scene.viewBox;
+  assert.deepEqual(kijkvenster(375, 812, a, vb), { viewBox: '820 0 780 900', uitlijning: 'xMaxYMax slice' });
+  assert.deepEqual(kijkvenster(1920, 1080, a, vb), { viewBox: '0 0 1600 900', uitlijning: 'xMidYMax slice' });
+  assert.deepEqual(kijkvenster(0, 0, a, vb), { viewBox: '0 0 1600 900', uitlijning: 'xMidYMax slice' });
+  // zonder staand kijkvenster: altijd het geheel, ook op een staand scherm (centraal uitgelijnd)
+  assert.deepEqual(kijkvenster(375, 812, { vorm: 'scene' }, vb), { viewBox: '0 0 1600 900', uitlijning: 'xMidYMax slice' });
+});
+
+// v2.1.3 (prestaties): de lus rekent hoogstens ongeveer 30 keer per seconde (een timer, geen rAF-lus)
+test('STAP_MS: de lus rekent hoogstens ongeveer 30 keer per seconde', () => {
+  assert.equal(STAP_MS, 33);
+});
+
+// v2.1.2: kern/versiering-thema.js. Sinds taak 6 bepaalt `voorkeurThema` van het pakket het standaardthema tijdens het thema
+// (vroeger altijd donker: Halloween heeft 'donker' en houdt dus hetzelfde gedrag).
 import { kiesThema, bewaarThemaKeuze, eventThemaSleutel } from '../public/js/kern/versiering-thema.js';
-import { sceneSvg, sterren, kijkvenster } from '../public/js/schermen/evenement-scene.js';
 
 const themaOpslag = (init = {}) => { const m = new Map(Object.entries(init)); return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, v), m }; };
 
-test('thema: tijdens het evenement standaard donker, ook bij opgeslagen licht', () => {
+test('thema: tijdens het thema met voorkeur donker standaard donker, ook bij opgeslagen licht', () => {
   const opslag = themaOpslag({ blitz_theme: 'light' });
-  assert.equal(kiesThema({ actief: true, thema: 'halloween', jaar: 2026, opslag }), 'dark');
+  assert.equal(kiesThema({ actief: true, thema: 'halloween', voorkeurThema: 'donker', jaar: 2026, opslag }), 'dark');
 });
-test('thema: een eigen keuze tijdens het evenement geldt, per jaar', () => {
+test('thema: voorkeur licht geeft licht; zonder voorkeur geldt blitz_theme (of donker)', () => {
+  assert.equal(kiesThema({ actief: true, thema: 'pasen', voorkeurThema: 'licht', jaar: 2026, opslag: themaOpslag({ blitz_theme: 'dark' }) }), 'light');
+  assert.equal(kiesThema({ actief: true, thema: 'pasen', voorkeurThema: null, jaar: 2026, opslag: themaOpslag({ blitz_theme: 'light' }) }), 'light');
+  assert.equal(kiesThema({ actief: true, thema: 'pasen', voorkeurThema: null, jaar: 2026, opslag: themaOpslag() }), 'dark');
+  assert.equal(kiesThema({ actief: true, thema: 'pasen', voorkeurThema: 'rommel', jaar: 2026, opslag: themaOpslag({ blitz_theme: 'light' }) }), 'light');
+});
+test('thema: een eigen keuze tijdens het thema geldt, per jaar en per thema-id', () => {
   const opslag = themaOpslag({ blitz_theme: 'dark', blitz_theme_halloween_2026: 'light' });
-  assert.equal(kiesThema({ actief: true, thema: 'halloween', jaar: 2026, opslag }), 'light');
-  assert.equal(kiesThema({ actief: true, thema: 'halloween', jaar: 2027, opslag }), 'dark');
+  assert.equal(kiesThema({ actief: true, thema: 'halloween', voorkeurThema: 'donker', jaar: 2026, opslag }), 'light');
+  assert.equal(kiesThema({ actief: true, thema: 'halloween', voorkeurThema: 'donker', jaar: 2027, opslag }), 'dark');
+  assert.equal(kiesThema({ actief: true, thema: 'kerst', voorkeurThema: 'donker', jaar: 2026, opslag }), 'dark');
 });
-test('thema: buiten het evenement geldt blitz_theme; kapotte of ontbrekende opslag geeft donker', () => {
+test('thema: buiten het thema geldt blitz_theme; kapotte of ontbrekende opslag geeft donker', () => {
   assert.equal(kiesThema({ actief: false, jaar: 2026, opslag: themaOpslag({ blitz_theme: 'light' }) }), 'light');
   assert.equal(kiesThema({ actief: false, jaar: 2026, opslag: themaOpslag() }), 'dark');
   assert.equal(kiesThema({ actief: false, jaar: 2026, opslag: themaOpslag({ blitz_theme: 'rommel' }) }), 'dark');
-  assert.equal(kiesThema({ actief: true, thema: 'halloween', jaar: 2026, opslag: { getItem() { throw new Error('x'); } } }), 'dark');
+  assert.equal(kiesThema({ actief: true, thema: 'halloween', voorkeurThema: 'donker', jaar: 2026, opslag: { getItem() { throw new Error('x'); } } }), 'dark');
   assert.equal(kiesThema({ actief: false, jaar: 2026, opslag: null }), 'dark');
 });
-test('thema: een wissel tijdens het evenement gaat naar de eigen sleutel en laat blitz_theme staan', () => {
+test('thema: een wissel tijdens het thema gaat naar de eigen sleutel en laat blitz_theme staan', () => {
   const opslag = themaOpslag({ blitz_theme: 'light' });
   assert.equal(bewaarThemaKeuze({ actief: true, thema: 'halloween', jaar: 2026, opslag, keuze: 'dark' }), eventThemaSleutel('halloween', 2026));
   assert.equal(opslag.m.get('blitz_theme_halloween_2026'), 'dark');
@@ -114,27 +176,4 @@ test('thema: een wissel tijdens het evenement gaat naar de eigen sleutel en laat
   assert.equal(bewaarThemaKeuze({ actief: false, jaar: 2026, opslag: o2, keuze: 'light' }), 'blitz_theme');
   assert.equal(o2.m.get('blitz_theme'), 'light');
   assert.equal(bewaarThemaKeuze({ actief: false, jaar: 2026, opslag: { setItem() { throw new Error('x'); } }, keuze: 'light' }), null);
-});
-test('scène: sterren zijn vast en liggen in de bovenste helft, buiten de gloed van de maan', () => {
-  const a = sterren(), b = sterren();
-  assert.deepEqual(a, b);
-  assert.equal(a.length, 46);
-  for (const s of a) { assert.ok(s.y <= 430 && s.x >= 0 && s.x <= 1600); assert.ok(Math.hypot(s.x - 1380, s.y - 170) >= 150); }
-});
-test('scène: één svg, zonder netwerkverwijzingen of scripts, met verlicht raam en vier vogelverschrikkers', () => {
-  const s = sceneSvg();
-  assert.equal((s.match(/<svg/g) || []).length, 1);
-  assert.ok(!/https?:\/\/(?!www\.w3\.org)/.test(s) && !/<script|<image|onload|xlink/.test(s));
-  assert.ok(s.includes('#f97316'));
-  assert.equal((s.match(/<use href="#ev-vv"/g) || []).length, 4);
-});
-test('scène: een staand scherm toont het rechterdeel, een liggend scherm alles', () => {
-  assert.equal(kijkvenster(375, 812).uitlijning, 'xMaxYMax slice');
-  assert.equal(kijkvenster(1920, 1080).viewBox, '0 0 1600 900');
-  assert.equal(kijkvenster(0, 0).viewBox, '0 0 1600 900');
-});
-
-// v2.1.3 (prestaties): de lus rekent hoogstens ongeveer 30 keer per seconde (een timer, geen rAF-lus), zonder rustpauzes
-test('STAP_MS: de lus rekent hoogstens ongeveer 30 keer per seconde', () => {
-  assert.ok(STAP_MS >= 30 && STAP_MS <= 40);
 });

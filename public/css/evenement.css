@@ -1,70 +1,162 @@
-/* evenement.css — feestelijke versiering (thema Halloween). Gebouwd door kern/evenement-laag.js.
-   Regels: de laag is nooit klikbaar (pointer-events: none), staat onder vensters en meldingen ,
-   verschijnt NOOIT in print, beweegt niet bij prefers-reduced-motion en niet op aanraak/gsm/tablet (daar bouwt de JS de bewegende
-   delen niet eens), en pauzeert bij een verborgen tab (.ev-gepauzeerd). Kleur: enkel variabelen overschrijven, enkel op het scherm. */
+/* evenement.css — feestelijke versiering, gestuurd door het actieve themapakket. Gebouwd door schermen/evenement-laag.js en
+   schermen/versiering-bewegingen.js; de tekeningen komen als SVG uit schermen/vorm-svg.js.
+   Regels: de laag is nooit klikbaar (pointer-events: none), staat onder vensters en meldingen, verschijnt NOOIT in print, beweegt
+   niet bij prefers-reduced-motion en niet op aanraak/gsm/tablet (daar bouwt de JS de bewegende delen niet eens), en pauzeert bij een
+   verborgen tab of tijdens het spel (.ev-gepauzeerd). Kleur: enkel variabelen overschrijven, enkel op het scherm.
+   De maten en plaatsen hieronder (hoeken, draden, kruiper, vlieger, mist) zijn die van Halloween v2.2.0 en gelden voor elk thema. */
 
-#event-laag {
-  --ev-web: rgba(220, 225, 230, 0.4);
-  --ev-spin: #aab3bd;
-  position: fixed; inset: 0; z-index: var(--z-event);
+/* Twee lagen (besluit Brent 2026-10-22: versiering hangt nooit vóór een knop):
+   #event-achter-laag = de STILSTAANDE delen (hoek, hangen, mist), achter de inhoud: tussen de achtergrond en de app (z-index -1,
+     na #event-achtergrond in de body). Knoppen, balken en kaarten bedekken ze; ze schemeren door de glazen kaarten.
+   #event-laag = de BEWEGENDE delen (vallen, opstijgen, vliegen, kruipen, vuurwerk), vóór de inhoud maar onder de balken en vensters. */
+#event-laag, #event-achter-laag {
+  --ev-web: rgba(220, 225, 230, 0.4); /* kleur van de draad van een hangend beeld (de lijnkleur van de webben van v2.2.0) */
+  position: fixed; inset: 0;
   pointer-events: none; overflow: hidden;
 }
-:root[data-theme="light"] #event-laag { --ev-web: rgba(40, 50, 65, 0.4); --ev-spin: #2b2b2b; }
-#event-laag, #event-laag * { pointer-events: none !important; user-select: none; }
+#event-laag { z-index: var(--z-event); }
+#event-achter-laag { z-index: -1; }
+:root[data-theme="light"] :is(#event-laag, #event-achter-laag) { --ev-web: rgba(40, 50, 65, 0.4); }
+#event-laag, #event-laag *, #event-achter-laag, #event-achter-laag * { pointer-events: none !important; user-select: none; }
 
-.ev-web { position: absolute; width: 96px; height: 96px; color: var(--ev-web); }
-.ev-web-tl { top: var(--ev-top, var(--topbar-h, 96px)); left: 0; }
-.ev-web-tr { top: var(--ev-top, var(--topbar-h, 96px)); right: 0; transform: scaleX(-1); width: 72px; height: 72px; }
-.ev-web-bl { bottom: 0; left: 0; transform: scaleY(-1); width: 120px; height: 120px; }
-.ev-web-br { bottom: 0; right: 0; transform: scale(-1, -1); width: 90px; height: 90px; }
+/* Een tekening of beeld uit het pakket; lichte varianten van een deel (vorm-svg.js: klasse ev-vl/ev-ll + --ev-vl/--ev-ll) */
+.ev-beeld { display: block; height: auto; }
+img.ev-beeld { object-fit: contain; }
+:root[data-theme="light"] .ev-vl { fill: var(--ev-vl); }
+:root[data-theme="light"] .ev-ll { stroke: var(--ev-ll); }
 
-.ev-spin { display: block; width: 22px; height: 22px; color: var(--ev-spin); fill: currentColor; }
+/* hoek: statisch beeld in de schermhoeken. lb = links boven, rb = rechts boven, lo = links onder, ro = rechts onder.
+   naarHoek: gespiegeld zodat de oorsprong van de tekening in de hoek ligt (de webben van v2.2.0). */
+.ev-hoek { position: absolute; width: 96px; }
+.ev-hoek-lb { top: var(--ev-top, var(--topbar-h, 96px)); left: 0; }
+.ev-hoek-rb { top: var(--ev-top, var(--topbar-h, 96px)); right: 0; width: 72px; }
+.ev-hoek-lo { bottom: 0; left: 0; width: 120px; }
+.ev-hoek-ro { bottom: 0; right: 0; width: 90px; }
+.ev-naar-hoek.ev-hoek-rb { transform: scaleX(-1); }
+.ev-naar-hoek.ev-hoek-lo { transform: scaleY(-1); }
+.ev-naar-hoek.ev-hoek-ro { transform: scale(-1, -1); }
+
+/* hangen: beeld aan een draad dat zacht op en neer gaat */
 .ev-hang { position: absolute; top: var(--ev-top, var(--topbar-h, 96px)); width: 22px; animation: ev-zak 10s steps(var(--st, 150)) infinite; will-change: transform; }
+.ev-hang > .ev-beeld { width: 22px; }
 .ev-draad { display: block; width: 1px; height: var(--l, 70px); margin: 0 auto; background: var(--ev-web); }
-.ev-kruiper { position: absolute; top: calc(var(--ev-top, var(--topbar-h, 96px)) - 12px); left: 0; opacity: 0.9; will-change: transform; }
-.ev-vleermuis { position: absolute; top: 0; left: 0; width: 34px; height: 22px; color: var(--ev-spin);
-  fill: currentColor; opacity: 0; will-change: transform, opacity; } /* baan en vleugelslag: JS (evenement-laag.js) */
+
+/* kruipen: langs de onderrand van de vaste balken; de baan rekent de JS */
+.ev-kruip { position: absolute; top: calc(var(--ev-top, var(--topbar-h, 96px)) - 12px); left: 0; width: 22px; opacity: 0.9; will-change: transform; }
+
+/* vliegen: baan en vleugelslag rekent de JS */
+.ev-vlieg { position: absolute; top: 0; left: 0; width: 34px; opacity: 0; will-change: transform, opacity; }
+
+/* vallen: van onder de balken tot onder het scherm, met een zwiep (CSS, in stappen) */
+.ev-val { position: absolute; top: calc(var(--ev-top, var(--topbar-h, 96px)) - 40px); width: var(--g, 18px); opacity: 0.85;
+  animation: ev-val 18s steps(var(--st, 540)) infinite; will-change: transform; }
+.ev-val > .ev-beeld, .ev-stijg > .ev-beeld { width: 100%; animation: ev-wiebel var(--wduur, 3s) steps(var(--wst, 90)) infinite alternate; }
+/* opstijgen: van onder het scherm tot achter de balken bovenaan */
+.ev-stijg { position: absolute; bottom: -60px; width: var(--g, 22px); opacity: 0;
+  animation: ev-stijg 20s steps(var(--st, 600)) infinite; will-change: transform, opacity; }
+
+/* vuurwerk: één pluim tegelijk, vonken in de themakleuren */
+.ev-pluim { position: absolute; width: 0; height: 0; }
+.ev-vonk { position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%; background: var(--vk, var(--accent));
+  box-shadow: 0 0 6px var(--vk, var(--accent)); animation: ev-vonk 1.4s steps(42) forwards; }
+
+/* mist: lichte nevel onderaan (kleuren van v2.2.0) */
 .ev-mist { position: absolute; left: -10%; right: -10%; bottom: 0; height: 80px;
   background: radial-gradient(ellipse at 20% 100%, rgba(249, 115, 22, 0.08), transparent 60%),
               radial-gradient(ellipse at 75% 100%, rgba(170, 180, 190, 0.08), transparent 60%);
   animation: ev-drift 45s steps(90) infinite alternate; }
-/* v2.1.3: CSS-animaties in stappen (steps): de spinnen ~30 per seconde, de mist 2 per seconde (een trage drift), zodat de browser
+/* v2.1.3: CSS-animaties in stappen (steps): ongeveer 30 per seconde (de mist 2 per seconde, een trage drift), zodat de browser
    niet 60 beelden per seconde aanmaakt. Stilstaan doen ze via .ev-gepauzeerd (verborgen tab of spel open). */
 
 @keyframes ev-drift { from { transform: translateX(-4%); } to { transform: translateX(4%); } }
 @keyframes ev-zak { 0%, 100% { transform: translateY(-36px); } 50% { transform: translateY(0); } }
+@keyframes ev-val { from { transform: translateY(0); } to { transform: translateY(calc(100vh - var(--ev-top, 96px) + 80px)); } }
+@keyframes ev-stijg {
+  0% { transform: translateY(0); opacity: 0; }
+  8% { opacity: 0.85; }
+  85% { opacity: 0.85; }
+  100% { transform: translateY(calc(-100vh - 60px)); opacity: 0; }
+}
+@keyframes ev-wiebel { from { transform: translateX(calc(var(--w, 12px) * -1)) rotate(-12deg); } to { transform: translateX(var(--w, 12px)) rotate(12deg); } }
+@keyframes ev-vonk {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  70% { opacity: 0.9; }
+  100% { transform: translate(var(--dx, 40px), calc(var(--dy, 0px) + 24px)) scale(0.4); opacity: 0; }
+}
 
-#event-laag.ev-gepauzeerd .ev-beweeg { animation-play-state: paused; }
+.ev-gepauzeerd .ev-beweeg, .ev-gepauzeerd .ev-beweeg * { animation-play-state: paused; }
 
 /* Geen beweging bij reduced-motion (de JS bouwt de bewegende delen dan niet; dit is de tweede lijn) */
 @media (prefers-reduced-motion: reduce) { .ev-beweeg { display: none !important; } }
-/* Sober op aanraak, gsm en tablet: enkel statische webben, kleiner en ver van de inhoud */
+/* Sober op aanraak, gsm en tablet: enkel statische hoekbeelden, kleiner en ver van de inhoud (onderste hoeken weg, zoals v2.2.0) */
 html[data-aanraak="ja"] .ev-beweeg, html[data-apparaat="gsm"] .ev-beweeg, html[data-apparaat="tablet"] .ev-beweeg { display: none !important; }
-html[data-event-sober="ja"] .ev-web-tl, html[data-event-sober="ja"] .ev-web-tr { width: 56px; height: 56px; }
-html[data-event-sober="ja"] .ev-web-bl, html[data-event-sober="ja"] .ev-web-br { display: none; }
+html[data-event-sober="ja"] .ev-hoek-lb, html[data-event-sober="ja"] .ev-hoek-rb { width: 56px; }
+html[data-event-sober="ja"] .ev-hoek-lo, html[data-event-sober="ja"] .ev-hoek-ro { display: none; }
 
-/* Pompoenoranje accent: enkel op het scherm; kleuren van prioriteit en status (--red, --blue, ...) blijven ongemoeid */
+/* Accentkleuren van het thema: enkel op het scherm. De laag (en het inline script in index.html) zet --ev-<naam> (donker) en
+   --ev-<naam>-licht en noemt in data-ev-kleuren(-licht) welke er zijn; een ontbrekende kleur laat die van de app staan.
+   Kleuren van prioriteit en status (--red, --blue, ...) blijven ongemoeid. */
 @media screen {
-  :root[data-event="halloween"] {
-    --accent: #f97316; --accent-hover: #fb8a3c; --accent-dim: rgba(249, 115, 22, 0.12); --accent-glow: rgba(249, 115, 22, 0.24);
-    --on-accent: #1f0d00;
-  }
-  :root[data-event="halloween"][data-theme="light"] { --accent: #c2570c; --accent-dim: rgba(194, 87, 12, 0.12); --accent-glow: rgba(194, 87, 12, 0.22); }
+  :root[data-event][data-ev-kleuren~="accent"] { --accent: var(--ev-accent); }
+  :root[data-event][data-ev-kleuren~="accentHover"] { --accent-hover: var(--ev-accent-hover); }
+  :root[data-event][data-ev-kleuren~="accentDim"] { --accent-dim: var(--ev-accent-dim); }
+  :root[data-event][data-ev-kleuren~="accentGlow"] { --accent-glow: var(--ev-accent-glow); }
+  :root[data-event][data-ev-kleuren~="opAccent"] { --on-accent: var(--ev-on-accent); }
+  :root[data-event][data-theme="light"][data-ev-kleuren-licht~="accent"] { --accent: var(--ev-accent-licht); }
+  :root[data-event][data-theme="light"][data-ev-kleuren-licht~="accentHover"] { --accent-hover: var(--ev-accent-hover-licht); }
+  :root[data-event][data-theme="light"][data-ev-kleuren-licht~="accentDim"] { --accent-dim: var(--ev-accent-dim-licht); }
+  :root[data-event][data-theme="light"][data-ev-kleuren-licht~="accentGlow"] { --accent-glow: var(--ev-accent-glow-licht); }
+  :root[data-event][data-theme="light"][data-ev-kleuren-licht~="opAccent"] { --on-accent: var(--ev-on-accent-licht); }
 }
 
-/* Achtergrondscène (boerderij, maan, vogelverschrikkers): vast, onder alle inhoud, nooit klikbaar. De html behoudt de themakleur;
-   enkel de body wordt doorzichtig zodat de scène in de lege vlakken zichtbaar is (kaarten, balken en vensters houden hun eigen vlak). */
+/* Achtergrond (Halloween: boerderij, maan, vogelverschrikkers): vast, onder alle inhoud, nooit klikbaar. */
 #event-achtergrond { display: none; }
 @media screen {
-  :root[data-event="halloween"] body { background: transparent; }
-  :root[data-event="halloween"] #event-achtergrond {
+  /* De html behoudt de themakleur; de body wordt doorzichtig zodat de achtergrond en de achter-laag in de lege vlakken zichtbaar
+     zijn (zonder achtergrond verandert dat niets aan het uitzicht: de html heeft dezelfde kleur). */
+  :root[data-event] body { background: transparent; }
+  :root[data-event] #event-achtergrond {
     display: block; position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; user-select: none;
-    contain: strict; /* v2.1.3: een vaste, losstaande laag; wijzigingen elders tekenen de scène niet opnieuw */
+    contain: strict; /* v2.1.3: een vaste, losstaande laag; wijzigingen elders tekenen de achtergrond niet opnieuw */
   }
-  #event-achtergrond svg { display: block; width: 100%; height: 100%; }
-  /* Licht thema: dezelfde scène als vage schemering, zodat tekst leesbaar blijft */
-  :root[data-theme="light"] #event-achtergrond { opacity: 0.2; }
+  #event-achtergrond > .ev-achtergrond-beeld { display: block; width: 100%; height: 100%; }
+  #event-achtergrond > img.ev-achtergrond-beeld { object-fit: cover; object-position: center bottom; }
+  /* Licht thema: dezelfde achtergrond als vage schemering (dekkingLicht van het pakket, standaard 0,2), zodat tekst leesbaar blijft */
+  :root[data-theme="light"] #event-achtergrond { opacity: var(--ev-dekking-licht, 0.2); }
+}
+
+/* Achtergrond altijd zichtbaar, ticketkaarten als mat glas (Brent, 2026-10-22). Enkel met een thema MET achtergrond
+   (data-event-achtergrond="ja", gezet door de laag); zonder thema of zonder achtergrond verandert er niets. De inhoudsvlakken van de
+   tabbladen (wachtrij, kalender, route, ingepland, inventaris, rapporten, beschikbaarheden) worden doorzichtig; de bovenbalk, de
+   tabbalk, de vaste balken van de schermen en vensters (modals) blijven effen. Kaarten in de lijsten (tickets, kalenderkaarten,
+   afspraken, routestops, inventarisrijen): half doorschijnend in hun eigen kleur (--ev-kaart) met vervaging; sober (gsm, tablet,
+   aanraak) minder vervaging; zonder backdrop-filter of met verminderde transparantie bijna effen (94 %). Het contrast van de tekst
+   op een kaart blijft minstens 4,5:1 (e2e/versiering.spec.mjs meet het). */
+@media screen {
+  :root[data-event][data-event-achtergrond="ja"] { --ev-glas-alpha: 84%; --ev-glas-blur: 12px; }
+  :root[data-event][data-event-achtergrond="ja"][data-event-sober="ja"] { --ev-glas-blur: 6px; }
+  /* Inhoudsvlakken die de achtergrond anders (deels) verbergen */
+  :root[data-event][data-event-achtergrond="ja"] :is(.view, .day-body, .month-cell, #route-list) { background: transparent; }
+  :root[data-event][data-event-achtergrond="ja"] .day-body.blocked-day { background: repeating-linear-gradient(135deg, transparent, transparent 8px, color-mix(in srgb, var(--red) 6%, transparent) 8px, color-mix(in srgb, var(--red) 6%, transparent) 16px); }
+  :root[data-event][data-event-achtergrond="ja"] .day-body.holiday-day { background: repeating-linear-gradient(135deg, transparent, transparent 8px, rgba(251, 191, 36, 0.08) 8px, rgba(251, 191, 36, 0.08) 16px); }
+  /* Kaarten: mat glas in hun eigen kleur */
+  :root[data-event][data-event-achtergrond="ja"] :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row) {
+    --ev-kaart: var(--surface);
+    background: color-mix(in srgb, var(--ev-kaart) var(--ev-glas-alpha), transparent);
+    -webkit-backdrop-filter: blur(var(--ev-glas-blur));
+    backdrop-filter: blur(var(--ev-glas-blur));
+  }
+  :root[data-event][data-event-achtergrond="ja"] :is(.ticket:hover, .cal-ticket:hover, .cal-local-event:hover, .stop) { --ev-kaart: var(--surface2); }
+  :root[data-event][data-event-achtergrond="ja"] .stop:hover { --ev-kaart: var(--surface3); }
+  :root[data-event][data-event-achtergrond="ja"] .ticket.overdue { --ev-kaart: color-mix(in srgb, var(--red) 3%, var(--bg)); }
+  :root[data-event][data-event-achtergrond="ja"] .ticket.overdue:hover { --ev-kaart: color-mix(in srgb, var(--red) 6%, var(--bg)); }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :root[data-event][data-event-achtergrond="ja"] { --ev-glas-alpha: 94%; }
+  }
+}
+@media screen and (prefers-reduced-transparency: reduce) {
+  :root[data-event][data-event-achtergrond="ja"] { --ev-glas-alpha: 94%; }
 }
 
 /* Nooit in print of in een PDF */
-@media print { #event-laag, #event-achtergrond { display: none !important; } }
+@media print { #event-laag, #event-achter-laag, #event-achtergrond { display: none !important; } }

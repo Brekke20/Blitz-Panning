@@ -17,7 +17,8 @@ import { isKleur } from '../kern/instellingen-regels.js';
 import { bouwKleurKeuze, leesKleurKeuze } from '../kern/kleur-keuze.js';
 import { huidigeGebruiker, huidigeRechten, eigenZohoNaam } from '../kern/sessie.js';
 import { versieringAanVoorkeur, zetVersieringAan, huidigeBeslissing } from './evenement-laag.js';
-import { volgendEvenement, vensterTekst, actiefEvenement } from '../kern/evenementen.js';
+import { actiefThema, volgendThema, vensterTekst, effectievePeriode, belgischeDag } from '../kern/themapakket.js';
+import { themasNu } from './themas-bron.js';
 import { bewaarOpServer, spiegelEigen, eigenSleutels } from '../kern/instellingen-sync.js';
 
 // Afhankelijkheden uit app.js en prijzen.js (ingevuld door initInstellingen); een vergeten init faalt luid.
@@ -149,7 +150,11 @@ async function resetTestdata() {
     toast('Testgegevens kopiëren mislukt — probeer opnieuw', 4000);
   }
 }
-// Feestelijke versiering (per toestel): de schakelaar en de uitleg erbij.
+// Feestelijke versiering (per toestel): de schakelaar en de uitleg erbij. Het thema en zijn periode komen uit de themapakketten
+// (kern/themapakket.js op de index van schermen/themas-bron.js); een voorbeeld uit Beheer heeft geen periode in de index.
+function periodeTekst(thema, nu) {
+  try { return vensterTekst(effectievePeriode(thema), belgischeDag(nu).jaar); } catch { return ''; }
+}
 function vulVersieringBlok() {
   const vink = document.getElementById('set-versiering');
   const uitleg = document.getElementById('set-versiering-uitleg');
@@ -157,13 +162,17 @@ function vulVersieringBlok() {
   vink.checked = versieringAanVoorkeur();
   const nu = new Date();
   const b = huidigeBeslissing();
+  const lijst = themasNu()?.index?.themas || [];
+  const metPeriode = (thema) => { const p = periodeTekst(thema, nu); return p ? `${thema.naam} (${p})` : thema.naam; };
   let tekst;
   if (!vink.checked) tekst = 'Staat uit op dit toestel.';
-  else if (b.actief) tekst = `Nu: ${b.evenement.naam} (${vensterTekst(b.evenement)}).${b.sober ? ' Op dit toestel enkel statische versiering.' : ''}`;
-  else if (TEST_MODE && actiefEvenement(nu)?.thema) tekst = `Er loopt een feestperiode (${actiefEvenement(nu).naam}), maar in testmodus staat de versiering uit.`;
+  else if (b.actief) {
+    const rij = lijst.find((t) => t.id === b.thema.id && actiefThema(nu, [t]));
+    tekst = `Nu: ${rij ? metPeriode({ ...rij, naam: b.thema.naam }) : b.thema.naam}.${b.sober ? ' Op dit toestel enkel statische versiering.' : ''}`;
+  } else if (TEST_MODE && actiefThema(nu, lijst)) tekst = `Er loopt een feestperiode (${actiefThema(nu, lijst).naam}), maar in testmodus staat de versiering uit.`;
   else {
-    const volgend = volgendEvenement(nu);
-    tekst = volgend ? `Er loopt nu geen feestperiode. Volgende: ${volgend.naam} (${vensterTekst(volgend)}).` : 'Er loopt nu geen feestperiode.';
+    const volgend = volgendThema(nu, lijst)?.thema;
+    tekst = volgend ? `Er loopt nu geen feestperiode. Volgende: ${metPeriode(volgend)}.` : 'Er loopt nu geen feestperiode.';
   }
   uitleg.textContent = tekst + ' Geldt enkel voor dit toestel.';
 }

@@ -85,7 +85,10 @@ test('opstartgedrag: spel-ui.js wordt enkel dynamisch geïmporteerd en staat nie
   const html = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
   assert.ok(!html.includes('spel-ui.js'));
   assert.ok(!html.includes('spel/spel.js'));
-  assert.ok(!html.includes('skins.js'));
+  // Bewust gewijzigd (taak 6, thema's als pakket): skins.js is nu eager, want de validator van themapakketten
+  // (kern/themapakket-validatie.js) gebruikt bij de opstart HEMEL, RAND_KLEUR en de ingebouwde skin-id's om een pakket uit de cache
+  // te keuren. spel-ui.js en spel.js blijven lazy.
+  assert.ok(html.includes('/js/spel/skins.js'));
   assert.match(fs.readFileSync(path.join(pub, 'js/spel/spel-opening.js'), 'utf8'), /import\('\.\/spel-ui\.js'\)/);
   assert.ok(html.includes('/js/spel/spel-opening.js'));
 });

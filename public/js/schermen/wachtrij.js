@@ -72,7 +72,7 @@ export function renderTickets() {
     empty.textContent = `Geen tickets gevonden voor '${wqZoek.trim()}'`;
   } else if (!woorden.length && !totaal) {
     // Lege wachtrij zonder zoekopdracht: de bestaande tekst uit autoPlan i.p.v. de beginwaarde 'Laden...'.
-    empty.textContent = eventTekst('wachtrij', 'Geen tickets om in te plannen');
+    empty.textContent = eventTekst('wachtrijLeeg', 'Geen tickets om in te plannen');
     delete empty.dataset.orig;
   } else if (empty.dataset.orig !== undefined) {
     empty.textContent = empty.dataset.orig;
