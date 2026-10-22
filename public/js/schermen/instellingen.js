@@ -16,7 +16,7 @@ import { valideerInstellingen, settingsKey } from './instellingen-logica.js';
 import { isKleur } from '../kern/instellingen-regels.js';
 import { bouwKleurKeuze, leesKleurKeuze } from '../kern/kleur-keuze.js';
 import { huidigeGebruiker, huidigeRechten, eigenZohoNaam } from '../kern/sessie.js';
-import { versieringAanVoorkeur, zetVersieringAan, huidigeBeslissing } from './evenement-laag.js';
+import { versieringAanVoorkeur, zetVersieringAan, huidigeBeslissing, herbereken as herberekenVersiering } from './evenement-laag.js';
 import { actiefThema, volgendThema, vensterTekst, effectievePeriode, belgischeDag } from '../kern/themapakket.js';
 import { themasNu } from './themas-bron.js';
 import { bewaarOpServer, spiegelEigen, eigenSleutels } from '../kern/instellingen-sync.js';
@@ -121,6 +121,13 @@ export function bewaarEigenKaartStijl(sleutel) {
   const gebruiker = huidigeGebruiker();
   // Bekijkt hij zijn eigen set (of "Alle", hetzelfde eigen record), dan volgt de getoonde set; een collega blijft ongemoeid.
   if (toontEigenSet(gebruiker)) toestand.set('settings', loadPersonSettings(toestand.get('activeAssigneeFilter')));
+}
+
+// "Bewegende beelden tijdens een thema" is een instelling van het ACCOUNT (op al zijn toestellen), dus van de EIGEN set van de
+// ingelogde gebruiker (zelfde doel als ⚙), niet van de getoonde persoon in `toestand.settings`. Afwezig of niet `true` = de beelden
+// bewegen (standaard). Gelezen door de versiering (app.js geeft deze functie aan startVersiering); gooit nooit.
+export function eigenBewegingUit() {
+  try { return loadPersonSettings(eigenPersoon()).bewegingUit === true; } catch { return false; }
 }
 
 export const DAGEN = ['Zo','Ma','Di','Wo','Do','Vr','Za'];
@@ -272,6 +279,7 @@ export function openSettings() {
   document.getElementById('set-tijdslot').value = settings.tijdslotMinuten;
   bouwKleurKeuze(document.getElementById('set-routekleur'), settings.routeKleur || DEFAULT_SETTINGS.routeKleur); // rij vaste kleuren; de keuze wordt pas bij Opslaan bewaard
   document.getElementById('set-drukte').checked   = settings.drukteKleuring !== false;
+  document.getElementById('set-beweging').checked = settings.bewegingUit !== true; // aan = de beelden bewegen
   _werkdagenConcept = [...settings.werkdagen];
   const grid = document.getElementById('days-grid');
   grid.innerHTML = '';
@@ -337,10 +345,13 @@ export function saveSettings() {
     settings.routeKleur = isKleur(kleur) ? kleur : DEFAULT_SETTINGS.routeKleur;
   }
   settings.drukteKleuring = document.getElementById('set-drukte').checked;
+  // Enkel de uitzondering wordt bewaard (bewegingUit: true); aan = het veld weg (de standaard blijft de standaard).
+  if (document.getElementById('set-beweging').checked) delete settings.bewegingUit; else settings.bewegingUit = true;
   savePersonSettings(_doelPersoon, {}, settings);
   // Bekijkt de gebruiker zijn eigen set (of "Alle", hetzelfde eigen record), dan volgt de getoonde set; een collega blijft ongemoeid.
   if (toontEigenSet(gebruiker)) toestand.set('settings', loadPersonSettings(toestand.get('activeAssigneeFilter')));
   document.getElementById('set-overlay').classList.remove('open');
+  herberekenVersiering(); // de versiering volgt de keuze meteen, zonder herladen
   afh.renderTickets();
   afh.renderKalender();
   // Kleur/drukte meteen zichtbaar wisselen als er al een berekende route staat

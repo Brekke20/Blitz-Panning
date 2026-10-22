@@ -14,7 +14,7 @@
 //  - zet tijdens het thema het standaardthema van het pakket (eigen keuze apart bewaard; `blitz_theme` blijft onaangeroerd);
 //  - laat de bewegende delen lopen met één timer-lus (setTimeout, ~30 beelden per seconde, geen requestAnimationFrame-lus). Ze rust
 //    zolang het spel Blitz Run open staat of de tab verborgen is; de CSS-animaties lopen in stappen (steps()).
-// Op aanraak/gsm/tablet en bij prefers-reduced-motion bevat de laag enkel hoekbeelden (niets bewegends wordt gebouwd).
+// Op aanraak/gsm/tablet, bij prefers-reduced-motion en met de persoonlijke instelling "Bewegende beelden uit" bevat de laag enkel hoekbeelden (niets bewegends wordt gebouwd).
 // Raakt `document`/`window` enkel binnen functies (daarom een scherm-module en geen kern). Wijst geen `window`-namen toe.
 // De beslissing wordt herberekend bij de start, bij een wijziging van toestel/beweging/voorkeur, bij terugkeer naar de pagina, na het
 // laden van de themas (app.js) en elke minuut (een toestel dat dagen openstaat, volgt zo de datum: 31 okt 23:59 -> 1 nov 00:00).
@@ -46,6 +46,7 @@ let minuutTimer = 0;
 let vorigeSleutel;        // undefined = nog niet bepaald (de eerste bepaling meldt niets)
 const muis = { x: -999, y: -999 };
 let luisteraars = false;
+let bewegingUitBron = null; // () => boolean: de persoonlijke instelling "Bewegende beelden" (van het account), aangereikt door app.js
 
 const venster = () => (typeof window !== 'undefined' ? window : null);
 
@@ -70,6 +71,11 @@ function geldigVoorbeeld() {
   return voorbeeldCache.get(v);
 }
 
+// De instelling van het account; een bron die gooit of ontbreekt telt als "beweging toegelaten".
+function leesBewegingUit() {
+  try { return bewegingUitBron ? bewegingUitBron() === true : false; } catch { return false; }
+}
+
 function invoer() {
   const w = venster();
   const a = w?.apparaat || {};
@@ -80,6 +86,7 @@ function invoer() {
   return {
     nu: new Date(), voorkeur: leesVoorkeur(opslag()), testMode: TEST_MODE, testForceer,
     soort: a.soort, aanraak: a.aanraak, reducedMotion: reducedMotion(), themas, voorbeeld: geldigVoorbeeld(),
+    bewegingUit: leesBewegingUit(),
   };
 }
 
@@ -368,11 +375,14 @@ export function zetVersieringAan(aan) {
 }
 export function versieringAanVoorkeur() { return leesVoorkeur(opslag()) !== 'uit'; }
 
+// `bewegingUit` (optioneel): () => boolean, de persoonlijke instelling "Bewegende beelden tijdens een thema" (per account); true = enkel
+// de stilstaande versiering. De aanroeper roept `herbereken` aan na een wijziging ervan.
 // `elkeMinuut` (optioneel): wordt mee aangeroepen in de minuutcontrole (enkel met een zichtbare tab); app.js ververst er de
 // themas mee als de laatste lading te lang geleden is.
 let elkeMinuutHaak = null;
-export function startVersiering({ elkeMinuut } = {}) {
+export function startVersiering({ elkeMinuut, bewegingUit } = {}) {
   if (elkeMinuut instanceof Function) elkeMinuutHaak = elkeMinuut;
+  if (bewegingUit instanceof Function) bewegingUitBron = bewegingUit;
   const w = venster();
   if (!w || typeof document === 'undefined') return;
   herbereken();

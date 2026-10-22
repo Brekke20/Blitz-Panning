@@ -1010,6 +1010,7 @@ function vernieuwThemas() {
   laadThemas().then(herberekenVersiering, () => {});
 }
 startVersiering({
+  bewegingUit: () => instellingen.eigenBewegingUit(), // persoonlijke instelling van het account (schermen/instellingen.js)
   elkeMinuut: () => { if (themasGeladenOm && Date.now() - themasGeladenOm > THEMAS_MAX_OUDERDOM_MS) vernieuwThemas(); },
 });
 document.addEventListener('visibilitychange', () => {
@@ -1017,4 +1018,8 @@ document.addEventListener('visibilitychange', () => {
 });
 // De verse themas (/api/themas) pas na het inloggen (vóór de login gebruikt de app geen gegevens van de server), voor elke rol: ook
 // sales, dat een eigen start heeft en `opstart` niet doorloopt (fix-ronde 1).
-document.addEventListener('DOMContentLoaded', () => startNaInlog(opstart).then(() => { if (huidigeGebruiker()) vernieuwThemas(); }));
+document.addEventListener('DOMContentLoaded', () => startNaInlog(opstart).then(() => {
+  if (!huidigeGebruiker()) return;
+  herberekenVersiering(); // de instellingen zijn gesynchroniseerd (ook `bewegingUit`): niet wachten op de themas
+  vernieuwThemas();
+}));

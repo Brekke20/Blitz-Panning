@@ -560,3 +560,74 @@ test.describe('sales tijdens een thema met achtergrond', () => {
     expect(await achtergrondVan()).not.toBe('rgba(0, 0, 0, 0)');
   });
 });
+
+// Taak 6b: "Bewegende beelden tijdens een thema" (persoonlijke instelling `bewegingUit`, bewaard bij het account).
+// Staat ze aan (bewegingUit: true), dan blijven achtergrond en hoeken staan, maar er is niets dat beweegt.
+test.describe('bewegende beelden uit (per gebruiker)', () => {
+  const eigenStub = (instellingen) => ({ methode }) => (methode === 'PUT'
+    ? { status: 200, json: { versie: 2 } }
+    : { status: 200, json: { eigen: { gebruikerId: 'u-test', versie: 1, instellingen }, techniekers: {} } });
+  const venster = (page) => page.getByRole('dialog', { name: /⚙️ Instellingen/ });
+  const SCHAKELAAR = 'Bewegende beelden tijdens een thema';
+
+  test('met bewegingUit in het serverrecord: geen bewegende figuren, wel de achtergrond en de hoeken', async ({ page }) => {
+    await startApp(page, { query: AAN, overschrijf: { instellingen: eigenStub({ bewegingUit: true }) } });
+    await expect(page.locator('html')).toHaveAttribute('data-event', 'halloween');
+    await expect(achterLaag(page).locator('.ev-hoek')).toHaveCount(4);
+    await expect(page.locator('#event-achtergrond')).toHaveCount(1);
+    await expect(beide(page, '.ev-beweeg')).toHaveCount(0);
+    expect(await laag(page).locator('.ev-kruip, .ev-vlieg, .ev-val, .ev-stijg, .ev-pluim').count()).toBe(0);
+    // geen enkele animatie in de lagen
+    expect(await page.evaluate(() => document.getAnimations().filter(a => a.effect?.target?.closest?.('#event-laag, #event-achter-laag')).length)).toBe(0);
+  });
+
+  test('zonder de instelling beweegt het wel (standaard)', async ({ page }) => {
+    await startApp(page, { query: AAN, overschrijf: { instellingen: eigenStub({ duurMinuten: 90 }) } });
+    await expect(laag(page).locator('.ev-kruip, .ev-vlieg').first()).toBeAttached();
+  });
+
+  test('de schakelaar in de instellingen zet het veld en de versiering past zich meteen aan, zonder herladen', async ({ page, verzoeken }) => {
+    await startApp(page, { query: AAN });
+    await expect(laag(page).locator('.ev-kruip, .ev-vlieg').first()).toBeAttached();
+    await page.getByRole('button', { name: 'Instellingen', exact: true }).click();
+    const modal = venster(page);
+    await expect(modal).toBeVisible();
+    const schakelaar = modal.getByLabel(SCHAKELAAR);
+    await expect(schakelaar).toBeChecked(); // standaard bewegen de beelden
+    await expect(modal).toContainText('Zet uit als de bewegende figuren je storen; de achtergrond blijft.');
+    await schakelaar.uncheck();
+    await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(beide(page, '.ev-beweeg')).toHaveCount(0);
+    await expect(achterLaag(page).locator('.ev-hoek')).toHaveCount(4);
+    await expect(page.locator('#event-achtergrond')).toHaveCount(1);
+    await expect.poll(() => verzoeken.van('/api/instellingen', 'PUT').length).toBe(1);
+    expect(verzoeken.van('/api/instellingen', 'PUT')[0].body.instellingen.bewegingUit).toBe(true);
+    // Heropenen: de keuze staat er nog; weer aan zet de beweging terug
+    await page.getByRole('button', { name: 'Instellingen', exact: true }).click();
+    await expect(venster(page).getByLabel(SCHAKELAAR)).not.toBeChecked();
+    await venster(page).getByLabel(SCHAKELAAR).check();
+    await venster(page).getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(laag(page).locator('.ev-kruip, .ev-vlieg').first()).toBeAttached();
+    await expect.poll(() => verzoeken.van('/api/instellingen', 'PUT').length).toBe(2);
+    expect(verzoeken.van('/api/instellingen', 'PUT')[1].body.instellingen.bewegingUit ?? false).toBe(false);
+  });
+
+  test('annuleren bewaart de schakelaar niet', async ({ page }) => {
+    await startApp(page, { query: AAN });
+    await page.getByRole('button', { name: 'Instellingen', exact: true }).click();
+    await venster(page).getByLabel(SCHAKELAAR).uncheck();
+    await venster(page).getByRole('button', { name: 'Annuleren', exact: true }).click();
+    await expect(laag(page).locator('.ev-kruip, .ev-vlieg').first()).toBeAttached();
+  });
+
+  test('de schakelaar "Feestelijke versiering" (uit, per toestel) gaat voor bewegingUit', async ({ page }) => {
+    await startApp(page, { query: AAN, overschrijf: { instellingen: eigenStub({ bewegingUit: true }) } });
+    await expect(achterLaag(page).locator('.ev-hoek')).toHaveCount(4);
+    await page.evaluate(() => localStorage.setItem('blitz_versiering', 'uit'));
+    await page.reload();
+    await expect(page.locator('#cnt-tickets')).toBeVisible();
+    await expect(laag(page)).toHaveCount(0);
+    await expect(achterLaag(page)).toHaveCount(0);
+    await expect(page.locator('html')).not.toHaveAttribute('data-event', /.+/);
+  });
+});
