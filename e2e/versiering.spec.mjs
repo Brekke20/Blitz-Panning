@@ -577,6 +577,10 @@ test.describe('bewegende beelden uit (per gebruiker)', () => {
     await expect(page.locator('#event-achtergrond')).toHaveCount(1);
     await expect(beide(page, '.ev-beweeg')).toHaveCount(0);
     expect(await laag(page).locator('.ev-kruip, .ev-vlieg, .ev-val, .ev-stijg, .ev-pluim').count()).toBe(0);
+    // Precies wat een sober toestel toont: de achtergrond en de hoekbeelden, geen hangende figuren en geen mist (ruling 1)
+    expect(await beide(page, '.ev-hang, .ev-mist, .ev-beeld-spin').count()).toBe(0);
+    expect(await achterLaag(page).locator('*').evaluateAll((els) => els.filter((e) => !e.closest('.ev-hoek')).length)).toBe(0);
+    expect(await laag(page).locator('*').count()).toBe(0);
     // geen enkele animatie in de lagen
     expect(await page.evaluate(() => document.getAnimations().filter(a => a.effect?.target?.closest?.('#event-laag, #event-achter-laag')).length)).toBe(0);
   });
@@ -629,5 +633,31 @@ test.describe('bewegende beelden uit (per gebruiker)', () => {
     await expect(laag(page)).toHaveCount(0);
     await expect(achterLaag(page)).toHaveCount(0);
     await expect(page.locator('html')).not.toHaveAttribute('data-event', /.+/);
+  });
+
+  // Ruling 2: een technieker in de beperkte weergave (enkel "Dit toestel") schakelt de beweging ook uit, in zijn EIGEN account.
+  test('technieker in de beperkte weergave: dezelfde schakelaar onder "Dit toestel", bewaard bij zijn eigen account', async ({ page, verzoeken }) => {
+    await startApp(page, { query: AAN, loginRol: 'technieker', loginGebruiker: { zohoNaam: 'Tim' }, technieker: 'Tim' });
+    await expect(laag(page).locator('.ev-kruip, .ev-vlieg').first()).toBeAttached();
+    await page.getByRole('button', { name: 'Instellingen', exact: true }).click();
+    const modal = venster(page);
+    await expect(modal.locator('#set-tab-toestel')).toBeVisible();
+    await expect(modal.locator('#set-tab-algemeen')).toBeHidden();
+    const schakelaar = modal.getByLabel(SCHAKELAAR);
+    await expect(schakelaar).toBeVisible();
+    await expect(schakelaar).toBeChecked();
+    await expect(modal).toContainText('Zet uit als de bewegende figuren je storen; de achtergrond blijft.');
+    await schakelaar.uncheck(); // geen Opslaan op dit tabblad: de keuze wordt meteen bewaard
+    await expect(beide(page, '.ev-beweeg')).toHaveCount(0);
+    await expect(achterLaag(page).locator('.ev-hoek')).toHaveCount(4);
+    await expect.poll(() => verzoeken.van('/api/instellingen', 'PUT').length).toBe(1);
+    const put = verzoeken.van('/api/instellingen', 'PUT')[0].body;
+    expect(put.gebruiker).toBeUndefined(); // het eigen record, geen id van iemand anders
+    expect(put.instellingen.bewegingUit).toBe(true);
+    // Weer aan: het veld verdwijnt (standaard) en de beelden bewegen opnieuw
+    await schakelaar.check();
+    await expect(laag(page).locator('.ev-kruip, .ev-vlieg').first()).toBeAttached();
+    await expect.poll(() => verzoeken.van('/api/instellingen', 'PUT').length).toBe(2);
+    expect(verzoeken.van('/api/instellingen', 'PUT')[1].body.instellingen.bewegingUit).toBeUndefined();
   });
 });

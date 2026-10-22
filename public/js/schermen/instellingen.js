@@ -40,6 +40,7 @@ export function initInstellingen(afhankelijkheden) {
   registreerWijzigActies(document.body, {
     'set-toestel-weergave': (el) => kiesToestelWeergave(el.dataset.arg),
     'set-toestel-versiering': (el) => { zetVersieringAan(el.checked); vulVersieringBlok(); },
+    'set-beweging-account': (el) => bewaarBewegingMeteen(el.checked),
   });
   const setOverlay = document.getElementById('set-overlay');
   registreerBackdrop(setOverlay, closeSettings);
@@ -130,6 +131,33 @@ export function eigenBewegingUit() {
   try { return loadPersonSettings(eigenPersoon()).bewegingUit === true; } catch { return false; }
 }
 
+// De beperkte technieker-weergave toont enkel "Dit toestel", zonder Opslaan: daar komt de schakelaar "Bewegende beelden tijdens een
+// thema" ook (hetzelfde element wordt verplaatst) en wordt de keuze meteen bewaard, in het EIGEN account (eigen record, nooit een ander).
+// In de gewone weergave (tab Algemeen) bewaart Opslaan hem samen met de rest; dan doet een klik hier niets.
+function bewaarBewegingMeteen(aan) {
+  if (!beperktToestel()) return;
+  const persoon = eigenPersoon();
+  const eigen = loadPersonSettings(persoon);
+  if (aan) delete eigen.bewegingUit; else eigen.bewegingUit = true;
+  if (_doelSettings) { if (aan) delete _doelSettings.bewegingUit; else _doelSettings.bewegingUit = true; }
+  savePersonSettings(persoon, {}, eigen);
+  if (toontEigenSet(huidigeGebruiker())) toestand.set('settings', loadPersonSettings(toestand.get('activeAssigneeFilter')));
+  herberekenVersiering();
+}
+// Zet de schakelaar op de juiste plek: onder "Dit toestel" in de beperkte weergave, anders in Algemeen (na "Drukte").
+function plaatsBewegingBlok() {
+  const blok = document.getElementById('set-beweging-blok');
+  const toestelTab = document.getElementById('set-tab-toestel');
+  const dagen = document.getElementById('set-werkdagen-label')?.closest('.set-field');
+  if (!blok || !toestelTab || !dagen) return;
+  if (beperktToestel()) {
+    const na = document.getElementById('set-versiering-blok');
+    if (blok.parentElement !== toestelTab && na) na.after(blok);
+  } else if (blok.parentElement === toestelTab) {
+    dagen.before(blok);
+  }
+}
+
 export const DAGEN = ['Zo','Ma','Di','Wo','Do','Vr','Za'];
 
 let _settingsActiveTab = 'algemeen';
@@ -206,6 +234,7 @@ const beperktToestel = () => window.apparaat?.rol === 'technieker' && !huidigeRe
 
 export function setSettingsTab(tab) {
   if (beperktToestel()) tab = 'toestel';
+  plaatsBewegingBlok();
   _settingsActiveTab = tab;
   document.getElementById('set-subtab-toestel').classList.toggle('active', tab === 'toestel');
   document.getElementById('set-tab-toestel').style.display = tab === 'toestel' ? '' : 'none';
