@@ -37,7 +37,7 @@ test('de module wordt pas geladen bij de vijfde tik; elke volgende vijf tikken w
   installeerSpelOpening({
     doel, nu: () => (t += 100), melding: nepMelding(), isOpen: () => false,
     laad: async () => { geladen++; return { wisselSpel: (afh) => wissels.push(afh) }; },
-    actieveEvenementen: () => ['ev'],
+    actieveThemas: () => ['th'], pakketten: () => ['pk'], haalPakketten: () => 'haal',
   });
   for (let i = 0; i < 4; i++) doel.klik();
   await wacht();
@@ -46,7 +46,10 @@ test('de module wordt pas geladen bij de vijfde tik; elke volgende vijf tikken w
   await wacht();
   assert.equal(geladen, 1);
   assert.equal(wissels.length, 1);
-  assert.equal(wissels[0].actieveEvenementen()[0], 'ev', 'de event-functie wordt doorgegeven');
+  // Bewust gewijzigd (taak 8): geen `actieveEvenementen` meer; de thema-afhankelijkheden van app.js worden doorgegeven.
+  assert.equal(wissels[0].actieveThemas()[0], 'th', 'de actieve-themafunctie wordt doorgegeven');
+  assert.equal(wissels[0].pakketten()[0], 'pk');
+  assert.equal(wissels[0].haalPakketten(), 'haal');
   for (let i = 0; i < 5; i++) doel.klik();
   await wacht();
   assert.equal(geladen, 1, 'de module wordt maar één keer geladen');
@@ -85,10 +88,10 @@ test('opstartgedrag: spel-ui.js wordt enkel dynamisch geïmporteerd en staat nie
   const html = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
   assert.ok(!html.includes('spel-ui.js'));
   assert.ok(!html.includes('spel/spel.js'));
-  // Bewust gewijzigd (taak 6, thema's als pakket): skins.js is nu eager, want de validator van themapakketten
-  // (kern/themapakket-validatie.js) gebruikt bij de opstart HEMEL, RAND_KLEUR en de ingebouwde skin-id's om een pakket uit de cache
-  // te keuren. spel-ui.js en spel.js blijven lazy.
-  assert.ok(html.includes('/js/spel/skins.js'));
+  // Taak 6 maakte skins.js tijdelijk eager (de validator gebruikte HEMEL, RAND_KLEUR en de skin-id's eruit). Taak 8 herstelt de oude
+  // verwachting: de validator leest enkel nog het pure skin-kleuren.js (eager), en skins.js (met het tekenwerk) is weer lazy.
+  assert.ok(!html.includes('/js/spel/skins.js'));
+  assert.ok(html.includes('/js/spel/skin-kleuren.js'));
   assert.match(fs.readFileSync(path.join(pub, 'js/spel/spel-opening.js'), 'utf8'), /import\('\.\/spel-ui\.js'\)/);
   assert.ok(html.includes('/js/spel/spel-opening.js'));
 });

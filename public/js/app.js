@@ -54,8 +54,8 @@ import { laadTab } from './kern/navigatie.js';
 import { eigenZohoNaam, huidigeRechten, huidigeGebruiker, magPlannenVoor } from './kern/sessie.js';
 import { installeerTijdPicker } from './kern/tijd-picker.js';
 import { startVersiering, bewaarThemaWissel, herbereken as herberekenVersiering } from './schermen/evenement-laag.js';
-import { laadThemas } from './schermen/themas-bron.js';
-import { actieveEvenementen } from './kern/evenementen.js';
+import { laadThemas, themasNu, pakkettenVoorSpel, haalOntbrekendePakketten } from './schermen/themas-bron.js';
+import { actieveThemas } from './kern/themapakket.js';
 import { installeerSpelOpening } from './spel/spel-opening.js';
 
 
@@ -150,8 +150,14 @@ if (!localStorage.getItem('blitz_mig_startloc_v1')) {
 // Het registreren gebeurt onderaan dit bestand, nadat alle `const`/`let` van deze module bestaan.
 function opstart() {
   // Verborgen spel (spel/): 5× snel tikken op het bliksem-icoon (.logo-icon) opent het; de spelmodule wordt pas dan geladen. Raakt de planning niet aan.
-  // De evenementenkalender (kern/evenementen.js) bepaalt welke event-skins (Halloween, Kerst) nu open zijn.
-  installeerSpelOpening({ doel: document.querySelector('.logo-icon'), actieveEvenementen });
+  // De themas (schermen/themas-bron.js) bepalen de themaskins: welke thema's nu actief zijn (lokale schatting tot de server antwoordt), welke pakketten bekend
+  // zijn (voor de skinlijst en de extra's) en het eenmalig ophalen van pakketten die nog niet in de cache zitten. Het spel zelf (skins) blijft lazy.
+  installeerSpelOpening({
+    doel: document.querySelector('.logo-icon'),
+    actieveThemas: (datum) => actieveThemas(datum, themasNu().index?.themas ?? []),
+    pakketten: pakkettenVoorSpel,
+    haalPakketten: haalOntbrekendePakketten,
+  });
   // De rapport-wizard sluit via Escape/achtergrond met closeWizard (vraagt zelf een bevestiging); de andere vensters registreren zichzelf in hun init.
   registreerVenster({ el: document.getElementById('rapport-wizard'), sluit: closeWizard });
   // Klantbeschikbaarheid (schermen/klantbeschikbaarheid.js): laden, bewaren en de sectie in het detail; vóór de schermen die ze lezen.

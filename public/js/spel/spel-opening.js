@@ -35,9 +35,11 @@ function maakDomMelding() {
 const spelIsOpen = () => typeof document !== 'undefined' && Boolean(document.getElementById('spel-overlay')?.classList.contains('open'));
 
 // `doel`: het logo-icoon (.logo-icon). `laad`: geeft de belofte van de spel-module (standaard de dynamische import).
-// `actieveEvenementen(datum)` -> [{ id, spelSkin? }]: app.js geeft die van kern/evenementen.js mee; standaard geen enkel event.
+// De thema-afhankelijkheden komen van app.js en gaan ongewijzigd naar het spel (`wisselSpel(afh)`); dit bestand zelf kent geen skins (die zijn lazy):
+// `actieveThemas(datum: Date)` -> [{ id }] (de nu actieve themas), `pakketten()` -> de bekende themapakketten (voor de themaskins) en
+// `haalPakketten()` -> belofte (haalt de pakketten van themas die nog niet in de cache zitten; true als er iets nieuw binnenkwam).
 // `melding` ({ toon(tekst), verberg() }) en `isOpen()` zijn injecteerbaar voor tests.
-export function installeerSpelOpening({ doel, laad = () => import('./spel-ui.js'), nu = () => Date.now(), actieveEvenementen = () => [], melding = maakDomMelding(), isOpen = spelIsOpen } = {}) {
+export function installeerSpelOpening({ doel, laad = () => import('./spel-ui.js'), nu = () => Date.now(), actieveThemas = () => [], pakketten = () => [], haalPakketten = async () => false, melding = maakDomMelding(), isOpen = spelIsOpen } = {}) {
   if (!doel) return null;
   const tik = maakSnelleTikTeller({ aantal: TIK_AANTAL, maxTussenMs: TIK_TUSSEN_MS });
   let module = null; // de gedeelde belofte van de spel-module
@@ -53,7 +55,7 @@ export function installeerSpelOpening({ doel, laad = () => import('./spel-ui.js'
     melding.verberg();
     // Een mislukte lading (offline zonder kopie) is stil en wordt niet onthouden: het spel is een extraatje en mag nooit iets storen.
     module = module ?? laad();
-    module.then((m) => m.wisselSpel({ actieveEvenementen })).catch(() => { module = null; });
+    module.then((m) => m.wisselSpel({ actieveThemas, pakketten, haalPakketten })).catch(() => { module = null; });
   };
   doel.addEventListener('click', bijKlik);
   return () => { doel.removeEventListener('click', bijKlik); melding.verberg(); };

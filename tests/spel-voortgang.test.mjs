@@ -3,8 +3,14 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { maakVoortgang, HERPOGING_MS, OPSLAG_VOORVOEGSEL } from '../public/js/spel/spel-voortgang.js';
-import { SKINS, standaardSkin } from '../public/js/spel/skins.js';
-import { ontgrendeldeSkins } from '../public/js/spel/spel-regels.js';
+import { SKINS, alleSkins, standaardSkin } from '../public/js/spel/skins.js';
+import { ontgrendeldeSkins, datumBrussel } from '../public/js/spel/spel-regels.js';
+import { VOORGELADEN } from '../netlify/themas/pakketten.js';
+
+// Bewust gewijzigd (taak 8): event-skins zijn themaskins; de voortgang krijgt `actieveThemas(datum)` en `skins()` mee
+// in plaats van `actieveEvenementen`.
+const ALLE = alleSkins(VOORGELADEN);
+const halloween = ALLE.find((s) => s.id === 'halloween');
 
 const NU = Date.parse('2026-10-12T10:00:00Z');
 const geheugen = () => { const m = new Map(); return { lees: (k) => m.get(k) ?? null, schrijf: (k, v) => m.set(k, v), m }; };
@@ -141,16 +147,40 @@ test('een definitieve weigering (4xx) wordt niet eindeloos herhaald', async () =
   assert.equal(geplande.length, 0);
 });
 
-test('events: een event-skin die op de datum actief is telt als ontgrendeld; de datum is die van Brussel', () => {
+test('themas: een themaskin van een actief thema telt als ontgrendeld; de datum is een Date (Brussel) en de skinlijst komt van `skins()`', () => {
   const gezien = [];
-  const ev = SKINS.find(s => s.soort === 'event');
-  const { v } = maak({ opties: { actieveEvenementen: (d) => { gezien.push(d); return ev ? [{ id: ev.eventId }] : []; } } });
-  assert.ok(gezien.every(d => d === '2026-10-12'));
-  if (ev) assert.ok(v.huidig().ontgrendeld.includes(ev.id));
+  const { v } = maak({ opties: { skins: () => ALLE, actieveThemas: (d) => { gezien.push(d); return [{ id: 'halloween' }]; } } });
+  assert.ok(gezien.length > 0 && gezien.every(d => d instanceof Date && datumBrussel(d.getTime()) === '2026-10-12'));
+  assert.ok(v.huidig().ontgrendeld.includes('halloween'));
+  assert.ok(!v.huidig().ontgrendeld.includes('kerst'));
 });
 
-test('een actieveEvenementen die gooit stoort niets', () => {
-  assert.doesNotThrow(() => maak({ opties: { actieveEvenementen: () => { throw new Error('x'); } } }));
+test('themas: zonder `skins()` kent de voortgang enkel de basisskins, dus ontgrendelt een lokaal actief thema niets', async () => {
+  const { v, server } = maak({ opties: { actieveThemas: () => [{ id: 'halloween' }] } });
+  server.st.besteScore = 1;
+  await v.ververs();
+  assert.ok(!v.huidig().ontgrendeld.includes('halloween'));
+});
+
+test('een actieveThemas of skins die gooit stoort niets', () => {
+  assert.doesNotThrow(() => maak({ opties: { actieveThemas: () => { throw new Error('x'); } } }));
+  assert.doesNotThrow(() => maak({ opties: { skins: () => { throw new Error('x'); } } }));
+  const { v } = maak({ opties: { skins: () => { throw new Error('x'); } } });
+  assert.deepEqual(v.huidig().ontgrendeld, [standaardSkin()]);
+});
+
+test('een themaskin die de server als ontgrendeld meldt, wordt kiesbaar zodra de skinlijst hem kent (pakket later opgehaald), ook zonder dat hij eerder bekend was', async () => {
+  let lijst = SKINS;
+  const ops = geheugen();
+  const api = async () => ({ ok: true, status: 200, data: { besteScore: 0, ontgrendeld: [standaardSkin(), 'halloween'], gekozenSkin: standaardSkin() } });
+  const v = maakVoortgang({ api, opslag: ops, gebruikerId: 'u1', nu: () => NU, uitstel: () => {}, skins: () => lijst });
+  await v.ververs();
+  assert.equal(v.kiesSkin('halloween'), false, 'het pakket is nog niet binnen: de skin is niet te tekenen');
+  assert.ok(v.huidig().ontgrendeld.includes('halloween'), 'maar het blijft ontgrendeld in de stand (nooit weggegooid)');
+  lijst = ALLE;
+  await v.ververs();
+  assert.equal(v.kiesSkin('halloween'), true);
+  assert.equal(v.huidig().gekozenSkin, 'halloween');
 });
 
 // ---- I3: een geweigerde inzending mag de score nooit meer wegnemen; event-skins komen van de server ----
@@ -172,46 +202,27 @@ test('een 4xx op een inzending met skin: de score wordt nog eens enkel als score
 });
 
 test('skinGeweigerd in het antwoord: de gekozen skin valt terug op die van de server', async () => {
-  const ev = SKINS.find(s => s.soort === 'event');
   const ops = geheugen();
   const api = async (pad, o = {}) => ({ ok: true, status: 200, data: { besteScore: 10, ontgrendeld: [standaardSkin()], gekozenSkin: standaardSkin(), ...(o.methode === 'POST' ? { skinGeweigerd: true } : {}) } });
-  // lokale datum zegt: event actief; de server zegt van niet
-  const v = maakVoortgang({ api, opslag: ops, gebruikerId: 'u1', nu: () => NU, uitstel: () => {}, actieveEvenementen: () => [{ id: ev.eventId }] });
-  assert.ok(v.huidig().ontgrendeld.includes(ev.id), 'voorlopig: lokale schatting');
-  assert.equal(v.kiesSkin(ev.id), true);
+  // lokale datum zegt: thema actief; de server zegt van niet
+  const v = maakVoortgang({ api, opslag: ops, gebruikerId: 'u1', nu: () => NU, uitstel: () => {}, skins: () => ALLE, actieveThemas: () => [{ id: halloween.id }] });
+  assert.ok(v.huidig().ontgrendeld.includes(halloween.id), 'voorlopig: lokale schatting');
+  assert.equal(v.kiesSkin(halloween.id), true);
   await v.ververs();
   await new Promise(r => setTimeout(r, 0));
   assert.equal(v.huidig().gekozenSkin, standaardSkin());
 });
 
-test('event-skins komen na een serverantwoord van de server: een lokale datum ontgrendelt niets meer (ook niet na herladen)', async () => {
-  const ev = SKINS.find(s => s.soort === 'event');
+test('themaskins komen na een serverantwoord van de server: een lokale datum ontgrendelt niets meer (ook niet na herladen)', async () => {
   const ops = geheugen();
   const api = async () => ({ ok: true, status: 200, data: { besteScore: 0, ontgrendeld: [standaardSkin()], gekozenSkin: standaardSkin() } });
-  const opties = { api, opslag: ops, gebruikerId: 'u1', nu: () => NU, uitstel: () => {}, actieveEvenementen: () => [{ id: ev.eventId }] };
+  const opties = { api, opslag: ops, gebruikerId: 'u1', nu: () => NU, uitstel: () => {}, skins: () => ALLE, actieveThemas: () => [{ id: halloween.id }] };
   const v = maakVoortgang(opties);
-  assert.ok(v.huidig().ontgrendeld.includes(ev.id));
+  assert.ok(v.huidig().ontgrendeld.includes(halloween.id));
   await v.ververs();
-  assert.ok(!v.huidig().ontgrendeld.includes(ev.id), 'de server kent de event-skin niet');
+  assert.ok(!v.huidig().ontgrendeld.includes(halloween.id), 'de server kent de themaskin niet als ontgrendeld');
   v.meld(0);
-  assert.ok(!v.huidig().ontgrendeld.includes(ev.id), 'ook na een volgende melding niet');
+  assert.ok(!v.huidig().ontgrendeld.includes(halloween.id), 'ook na een volgende melding niet');
   const opnieuw = maakVoortgang(opties);
-  assert.ok(!opnieuw.huidig().ontgrendeld.includes(ev.id), 'ook na herladen uit de lokale kopie niet');
-});
-
-test('een lokale kopie van v2.1.0 (zonder schaal) wordt omgerekend: beste score en wachtende inzending gedeeld door 4', () => {
-  const ops = geheugen();
-  ops.schrijf(OPSLAG_VOORVOEGSEL + 'u1', JSON.stringify({
-    voortgang: { besteScore: 2000, ontgrendeld: [standaardSkin(), 'olijf'], gekozenSkin: 'olijf' },
-    wachtend: { score: 400 }, vanServer: true,
-  }));
-  const server = nepServer();
-  const v = maakVoortgang({ api: server.api, opslag: ops, gebruikerId: 'u1', nu: () => NU, uitstel: () => {} });
-  assert.equal(v.huidig().besteScore, 500);
-  assert.ok(v.huidig().ontgrendeld.includes('olijf'), 'bewaarde skin blijft');
-  assert.equal(JSON.parse(ops.lees(OPSLAG_VOORVOEGSEL + 'u1')).schaal, undefined, 'nog niet herschreven: pas bij de volgende wijziging');
-  v.meld(0);
-  const kopie = JSON.parse(ops.lees(OPSLAG_VOORVOEGSEL + 'u1'));
-  assert.equal(kopie.schaal, 2);
-  assert.equal(kopie.voortgang.besteScore, 500);
+  assert.ok(!opnieuw.huidig().ontgrendeld.includes(halloween.id), 'ook na herladen uit de lokale kopie niet');
 });

@@ -6,7 +6,6 @@ import {
   belgischeDag, periodeVoorJaar, effectievePeriode, isActief, periodeLengte,
   actiefThema, actieveThemas, volgendThema, vensterTekst,
 } from '../public/js/kern/themapakket.js';
-import * as evenementen from '../public/js/kern/evenementen.js';
 
 const P_HALLOWEEN = { van: { maand: 10, dag: 1 }, tot: { maand: 10, dag: 31 } };
 const P_KERST = { van: { maand: 12, dag: 1 }, tot: { maand: 1, dag: 6 } };
@@ -23,8 +22,29 @@ test('belgischeDag: de Belgische kalenderdag, ook als de UTC-dag verschilt', () 
   assert.throws(() => belgischeDag(new Date('nope')), RangeError);
 });
 
-test('evenementen.js her-exporteert dezelfde belgischeDag', () => {
-  assert.equal(evenementen.belgischeDag, belgischeDag);
+// Opgegaan uit tests/evenementen.test.mjs (taak 8: kern/evenementen.js is vervallen, de kalender is nu themapakket.js).
+test('tijdzone: de Belgische dag telt, niet de UTC-dag (zomertijd en wintertijd), ook in de nacht van de klokwissel', () => {
+  const t = th('halloween', P_HALLOWEEN);
+  // 1 oktober 00:00 Brussel = 30 sept 22:00 UTC (CEST)
+  assert.equal(isActief(t, new Date('2026-09-30T21:59:59Z')), false);
+  assert.equal(isActief(t, new Date('2026-09-30T22:00:00Z')), true);
+  // De klok gaat op 25 oktober terug: 31 oktober 23:59:59 Brussel = 22:59:59 UTC (CET), 1 november 00:00 = 23:00 UTC
+  assert.equal(isActief(t, new Date('2026-10-31T22:59:59Z')), true);
+  assert.equal(isActief(t, new Date('2026-10-31T23:00:00Z')), false);
+  assert.equal(isActief(t, new Date('2026-10-25T00:30:00Z')), true);
+});
+
+test('de proces-tijdzone speelt geen rol en een schrikkeldag werkt', () => {
+  assert.deepEqual(belgischeDag(new Date('2026-07-01T22:30:00Z')), { jaar: 2026, maand: 7, dag: 2 });
+  const feb = th('x', { van: { maand: 2, dag: 28 }, tot: { maand: 3, dag: 1 } });
+  assert.equal(isActief(feb, new Date('2028-02-29T12:00:00+01:00')), true);
+  assert.equal(isActief(feb, new Date('2026-03-02T12:00:00+01:00')), false);
+});
+
+test('Kerst (1 december tot 6 januari) werkt over de jaarwissel', () => {
+  const t = th('kerst', P_KERST);
+  for (const d of ['2026-12-01T12:00:00+01:00', '2026-12-31T23:59:00+01:00', '2027-01-01T00:00:00+01:00', '2027-01-06T23:59:59+01:00']) assert.equal(isActief(t, new Date(d)), true, d);
+  for (const d of ['2026-11-30T23:59:59+01:00', '2027-01-07T00:00:00+01:00', '2026-06-15T12:00:00+02:00']) assert.equal(isActief(t, new Date(d)), false, d);
 });
 
 test('isActief: vaste periode, randen inclusief (Belgische dag)', () => {

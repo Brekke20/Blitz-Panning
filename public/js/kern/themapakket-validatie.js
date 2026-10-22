@@ -16,7 +16,7 @@
 //  - elke regex is verankerd en krijgt pas een tekst te zien na een lengtecontrole;
 //  - de grootte wordt eerst gecontroleerd, dan pas de structuur; lijsten worden begrensd vóór ze doorlopen worden;
 //  - van een rasterbeeld wordt enkel het begin gedecodeerd (magic bytes), nooit het hele beeld.
-import { HEMEL, RAND_KLEUR, SKINS } from '../spel/skins.js';
+import { HEMEL, RAND_KLEUR, BASIS_SKIN_IDS } from '../spel/skin-kleuren.js';
 
 export const MAX_PAKKET_BYTES = 524288; // 512 kB (JSON-tekst)
 export const MAX_BEELD_BYTES = 204800; // 200 kB per rasterbeeld
@@ -44,8 +44,9 @@ const NAAMRUIMTE = /^[a-z][a-z0-9-]{0,29}$/;
 const VERBODEN_NAMEN = new Set(['__proto__', 'constructor', 'prototype']);
 const isNaam = (naam) => NAAMRUIMTE.test(naam) && !VERBODEN_NAMEN.has(naam) && !Object.hasOwn(Object.prototype, naam);
 // Het pakket-id is ook het skin-id van Blitz Run: de ingebouwde skins (basis en goud) zijn gereserveerd.
-// De event-skins `halloween` en `kerst` worden zelf pakketten en blijven dus toegelaten.
-const GERESERVEERDE_IDS = new Set(SKINS.filter((s) => s.soort === 'basis' || s.soort === 'goud').map((s) => s.id));
+// De skins `halloween` en `kerst` (voorheen event-skins) zijn zelf pakketten en blijven dus toegelaten.
+// De lijst komt uit skin-kleuren.js (puur); skins.js zelf wordt bij de opstart niet geladen.
+const GERESERVEERDE_IDS = new Set(BASIS_SKIN_IDS);
 const GETAL_TOKEN = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
 const AANTAL_ARGUMENTEN = { translate: [1, 2], rotate: [1, 3], scale: [1, 2] }; // toegelaten aantallen argumenten
 const PAD = /^[MmLlHhVvCcSsQqTtAaZz0-9eE.,\s+-]{1,20000}$/;

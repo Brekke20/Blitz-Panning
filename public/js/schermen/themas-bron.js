@@ -91,3 +91,36 @@ export async function laadThemas({ datum = new Date() } = {}) {
     return vorig;
   }
 }
+
+// ---- Blitz Run: de pakketten voor de themaskins ----
+// De gewone cache bevat enkel pakketten van themas die nu actief zijn of binnen 14 dagen beginnen. Voor de skinlijst van het spel wil je alle
+// themas uit de index kennen: `haalOntbrekendePakketten` haalt wat in de index staat maar nergens in de cache zit apart op (?id=, geen nieuw
+// eindpunt) en houdt dat enkel in het GEHEUGEN (nooit in localStorage, nooit in `themasNu()`): de versiering en de cache blijven zoals ze zijn.
+// Gooit nooit en wacht nergens op: bij een fout of een ongeldig pakket gebeurt er niets en probeert een volgende opening opnieuw.
+const spelPakketten = new Map(); // id -> pakket (enkel geheugen)
+
+// De bekende pakketten in de volgorde van de index: de gecachte en de voor het spel opgehaalde (de gecachte gaan voor).
+export function pakkettenVoorSpel() {
+  const { index, pakketten } = themasNu();
+  const uit = [];
+  for (const t of index?.themas ?? []) {
+    const p = Object.hasOwn(pakketten, t.id) ? pakketten[t.id] : spelPakketten.get(t.id);
+    if (p) uit.push(p);
+  }
+  return uit;
+}
+
+// true als er minstens één pakket nieuw binnenkwam.
+export async function haalOntbrekendePakketten() {
+  try {
+    const { index, pakketten } = themasNu();
+    const ontbreekt = (index?.themas ?? []).map((t) => t.id).filter((id) => !Object.hasOwn(pakketten, id) && !spelPakketten.has(id));
+    if (!ontbreekt.length) return false;
+    const opgehaald = await Promise.all(ontbreekt.map(haalPakket));
+    let nieuw = false;
+    ontbreekt.forEach((id, i) => { if (opgehaald[i]) { spelPakketten.set(id, opgehaald[i]); nieuw = true; } });
+    return nieuw;
+  } catch {
+    return false;
+  }
+}

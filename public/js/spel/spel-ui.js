@@ -5,7 +5,7 @@ import { registreerActies } from '../kern/ui.js';
 import { apiVerzoek } from '../kern/api.js';
 import { huidigeGebruiker } from '../kern/sessie.js';
 import { registreerVenster } from '../venster.js';
-import { SKINS, standaardSkin, HEMEL, RAND_KLEUR } from './skins.js';
+import { BASIS_SKINS, alleSkins, standaardSkin, HEMEL, RAND_KLEUR } from './skins.js';
 import { ontgrendelVoorwaarde } from './spel-regels.js';
 import { maakVoortgang } from './spel-voortgang.js';
 import { maakSpel } from './spel.js';
@@ -81,7 +81,15 @@ const CSS = `
 let overlay = null;
 let spel = null;
 let voortgang = null;
-let afhHuidig = { actieveEvenementen: () => [] };
+// De thema-afhankelijkheden van app.js (zie spel-opening.js): actieve themas, de bekende pakketten en het ophalen van ontbrekende pakketten.
+const GEEN_AFH = { actieveThemas: () => [], pakketten: () => [], haalPakketten: async () => false };
+let afhHuidig = GEEN_AFH;
+// De skinlijst: de basis plus de themaskins van de nu bekende pakketten. Eenmalig opgebouwd (en na het binnenkomen van pakketten vernieuwd),
+// niet bij elk beeld: de extra's van de themaskins worden zo per vorm maar één keer tot Path2D gebouwd.
+let skinLijst = BASIS_SKINS;
+function ververSkins() {
+  try { skinLijst = alleSkins(afhHuidig.pakketten()); } catch { skinLijst = BASIS_SKINS; }
+}
 let afmeld = null;
 let modus = 'start'; // 'start' | 'bezig' | 'pauze' | 'af'
 let melding = '';
@@ -98,7 +106,7 @@ const el = (tag, eigenschappen = {}, ...kinderen) => {
   return e;
 };
 
-const skinVan = (id) => SKINS.find(s => s.id === id) ?? SKINS.find(s => s.id === standaardSkin()) ?? SKINS[0];
+const skinVan = (id) => skinLijst.find(s => s.id === id) ?? skinLijst.find(s => s.id === standaardSkin()) ?? skinLijst[0];
 const isOpen = () => Boolean(overlay) && overlay.classList.contains('open');
 const verminderd = () => { try { return globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
 
@@ -116,7 +124,7 @@ function tekenInfo() {
   const v = voortgang.huidig();
   overlay.querySelector('.spel-beste').textContent = `Beste score: ${v.besteScore}`;
   const rij = overlay.querySelector('.spel-skins');
-  rij.replaceChildren(...SKINS.map((s) => {
+  rij.replaceChildren(...skinLijst.map((s) => {
     const open = v.ontgrendeld.includes(s.id);
     const knop = el('button', {
       type: 'button', class: 'spel-skin', 'aria-pressed': String(v.gekozenSkin === s.id), dataset: { actie: 'spel-skin', arg: s.id },
@@ -126,6 +134,7 @@ function tekenInfo() {
     el('small', { tekst: open ? (v.gekozenSkin === s.id ? 'gekozen' : 'ontgrendeld') : ontgrendelVoorwaarde(s) }));
     if (!open) knop.disabled = true;
     knop.dataset.skin = s.id;
+    knop.dataset.soort = s.soort;
     return knop;
   }));
 }
@@ -148,6 +157,7 @@ function bijEinde(score) {
 }
 
 function bouw() {
+  ververSkins();
   const stijl = document.createElement('style');
   stijl.id = 'spel-stijl';
   stijl.textContent = CSS;
@@ -180,7 +190,8 @@ function bouw() {
     api: apiVerzoek,
     opslag: { lees: (k) => globalThis.localStorage.getItem(k), schrijf: (k, v) => globalThis.localStorage.setItem(k, v) },
     gebruikerId: gebruiker?.id ?? 'anoniem',
-    actieveEvenementen: (datum) => afhHuidig.actieveEvenementen(datum),
+    skins: () => skinLijst,
+    actieveThemas: (datum) => afhHuidig.actieveThemas(datum),
     bijWijziging: () => { if (overlay && modus !== 'bezig') tekenInfo(); },
   });
   spel = maakSpel({
@@ -265,14 +276,14 @@ function zetBovenkant() {
 }
 
 export function openSpel(afh) {
-  if (afh?.actieveEvenementen) afhHuidig = afh;
+  if (afh?.actieveThemas) afhHuidig = { ...GEEN_AFH, ...afh };
   if (!overlay) {
     try { bouw(); } catch (e) { // halfgebouwd: opruimen zodat een volgende poging schoon begint
       overlay?.remove(); document.getElementById('spel-stijl')?.remove();
       overlay = spel = voortgang = null;
       throw e;
     }
-  }
+  } else if (!isOpen()) ververSkins(); // opnieuw openen: de pakketten kunnen intussen vernieuwd zijn
   if (isOpen()) return;
   melding = '';
   overlay.classList.add('open');
@@ -298,7 +309,14 @@ export function openSpel(afh) {
   spel.toonStil();
   // venster.js zet de focus op de eerste knop (✕); Spatie moet het spel starten, geen knop activeren.
   setTimeout(() => { if (isOpen()) overlay.focus({ preventScroll: true }); }, 0);
-  voortgang.ververs().then(() => { if (isOpen() && modus !== 'bezig') { tekenInfo(); spel.toonStil(); } });
+  const toon = () => { if (isOpen() && modus !== 'bezig') { tekenInfo(); spel.toonStil(); } };
+  voortgang.ververs().then(toon);
+  // Pakketten van themas die nog niet in de cache zitten, eenmalig ophalen; het spel wacht er nooit op. Komt er iets binnen, dan wordt de
+  // lijst vernieuwd en de stand van de server nog eens gelezen (die kan een themaskin als ontgrendeld melden die we nu pas kunnen tonen).
+  Promise.resolve().then(() => afhHuidig.haalPakketten())
+    .then((nieuw) => { if (nieuw && overlay) { ververSkins(); return voortgang.ververs(); } return undefined; })
+    .then(toon)
+    .catch(() => {});
 }
 
 export function sluit() {

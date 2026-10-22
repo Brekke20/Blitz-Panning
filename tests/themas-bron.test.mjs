@@ -217,3 +217,63 @@ test('laadThemas: een ongeldig pakket uit ?id= wordt weggelaten', async () => {
   const r = await laadThemas({ datum: DATUM });
   assert.deepEqual(Object.keys(r.pakketten), []);
 });
+
+// ---- Blitz Run (taak 8): pakketten voor de themaskins, ook van thema's die ver weg liggen ----
+
+test('pakkettenVoorSpel: de gecachte pakketten in de volgorde van de index; haalOntbrekendePakketten haalt wat in de index staat maar niet in de cache zit (één keer, ?id=)', async () => {
+  const kaart = zetOpslag();
+  const h = halloween();
+  const k = kerst();
+  zetOpslag({ [CACHE_SLEUTEL]: JSON.stringify({ index: { versie: 1, themas: [rij(k, 'k1'), rij(h, 'h1')] }, pakketten: { halloween: h } }) });
+  const aanroepen = nepFetch((url) => (url.includes('?id=kerst') ? json(k) : json({ error: 'nee' }, 404)));
+  const { pakkettenVoorSpel, haalOntbrekendePakketten, themasNu } = await laadVers();
+  assert.deepEqual(pakkettenVoorSpel().map((p) => p.id), ['halloween']);
+  assert.equal(await haalOntbrekendePakketten(), true);
+  assert.deepEqual(aanroepen, ['/api/themas?id=kerst']);
+  assert.deepEqual(pakkettenVoorSpel().map((p) => p.id), ['kerst', 'halloween'], 'in de volgorde van de index');
+  // niets meer te halen: geen nieuw verzoek en geen nieuwe wijziging
+  assert.equal(await haalOntbrekendePakketten(), false);
+  assert.deepEqual(aanroepen, ['/api/themas?id=kerst']);
+  // de gewone stand en de cache in localStorage blijven onaangeroerd
+  assert.deepEqual(Object.keys(themasNu().pakketten), ['halloween']);
+  assert.ok(!('kerst' in JSON.parse(globalThis.localStorage.getItem(CACHE_SLEUTEL)).pakketten));
+  assert.equal(kaart.size, 0, 'de eerste, losse opslag blijft leeg');
+});
+
+test('haalOntbrekendePakketten: zonder index, bij een fout of bij een ongeldig pakket gebeurt er niets (gooit nooit) en een volgende poging probeert opnieuw', async () => {
+  const k = kerst();
+  const h = halloween();
+  // geen index
+  let aanroepen = nepFetch(() => json(k));
+  let bron = await laadVers();
+  assert.equal(await bron.haalOntbrekendePakketten(), false);
+  assert.deepEqual(aanroepen, []);
+  assert.deepEqual(bron.pakkettenVoorSpel(), []);
+  // index met kerst; eerst een storing, dan een ongeldig pakket, dan een geldig
+  zetOpslag({ [CACHE_SLEUTEL]: JSON.stringify({ index: { versie: 1, themas: [rij(k, 'k1')] }, pakketten: {} }) });
+  let stap = 0;
+  aanroepen = nepFetch(() => {
+    stap++;
+    if (stap === 1) throw new TypeError('offline');
+    if (stap === 2) { const kapot = kerst(); kapot.vormen.kerstmuts.delen[0].d = '<script>'; return json(kapot); }
+    return json(k);
+  });
+  bron = await laadVers();
+  assert.equal(await bron.haalOntbrekendePakketten(), false);
+  assert.equal(await bron.haalOntbrekendePakketten(), false);
+  assert.deepEqual(bron.pakkettenVoorSpel(), []);
+  assert.equal(await bron.haalOntbrekendePakketten(), true);
+  assert.deepEqual(bron.pakkettenVoorSpel().map((p) => p.id), ['kerst']);
+  assert.equal(aanroepen.length, 3);
+  void h;
+});
+
+test('haalOntbrekendePakketten: een pakket dat bij een latere laadThemas in de gewone cache komt, telt maar één keer (geen dubbele)', async () => {
+  const k = kerst();
+  zetOpslag({ [CACHE_SLEUTEL]: JSON.stringify({ index: { versie: 1, themas: [rij(k, 'k1')] }, pakketten: {} }) });
+  nepFetch((url) => (url.includes('?id=kerst') ? json(k) : json({ versie: 2, themas: [rij(k, 'k1')], pakketten: { kerst: k } })));
+  const { pakkettenVoorSpel, haalOntbrekendePakketten, laadThemas } = await laadVers();
+  await haalOntbrekendePakketten();
+  await laadThemas({ datum: new Date('2026-12-10T10:00:00+01:00') });
+  assert.deepEqual(pakkettenVoorSpel().map((p) => p.id), ['kerst']);
+});

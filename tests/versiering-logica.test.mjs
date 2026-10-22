@@ -1,6 +1,6 @@
 // tests/versiering-logica.test.mjs — kern/versiering-logica.js: voorkeur per toestel, standaard aan tijdens het actieve themapakket,
 // sober op aanraak. Sinds taak 6 (thema's als pakket) komt het thema uit de themas-cache (`themas: { index, pakketten }`) in plaats
-// van uit de vaste kalender kern/evenementen.js; de verwachtingen van v2.2.0 (aan in oktober, uit erbuiten, testmodus, sober) blijven.
+// van uit de (in taak 8 verwijderde) vaste kalender kern/evenementen.js; de verwachtingen van v2.2.0 (aan in oktober, uit erbuiten, testmodus, sober) blijven.
 process.env.TZ = 'Europe/Brussels';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
