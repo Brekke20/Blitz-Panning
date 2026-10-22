@@ -263,7 +263,7 @@
   },
   "achtergrond": { "vorm": "scene", "kijkvensterStaand": "820 0 780 900", "dekkingLicht": 0.2 },
   "versiering": [
-    { "beweging": "hoek", "beeld": "web", "hoeken": ["lb", "rb", "lo", "ro"] },
+    { "beweging": "hoek", "beeld": "web", "hoeken": ["lb", "rb", "lo", "ro"], "richting": "naarHoek" },
     { "beweging": "hangen", "beeld": "spin", "aantal": 2 },
     { "beweging": "kruipen", "beeld": "spin", "aantal": 1, "langs": "tabbalk" },
     { "beweging": "vliegen", "beeld": "vleermuis", "aantal": 1 },

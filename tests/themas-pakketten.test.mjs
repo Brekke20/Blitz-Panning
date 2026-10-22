@@ -18,8 +18,8 @@ const WEB = '<path d="M0 0H100M0 0L90 40M0 0L70 70M0 0L40 90M0 0V100"/><path d="
 const SPIN = '<ellipse cx="12" cy="13" rx="4" ry="5"/><circle cx="12" cy="7.5" r="2.6"/><path d="M8 11L2 7M8 13L1 13M8 15L2 20M9 17L5 23M16 11L22 7M16 13L23 13M16 15L22 20M15 17L19 23" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round"/>';
 const VLEERMUIS = '<path d="M16 17c-2-3-4-6-9-7 1 2 1 4 0 6-2-1-5 0-7 2 3 0 5 1 6 3 1-1 3-1 4 1 1-2 3-3 6-3 3 0 5 1 6 3 1-2 3-2 4-1 1-2 3-3 6-3-2-2-5-3-7-2-1-2-1-4 0-6-5 1-7 4-9 7z" transform="translate(4 3)"/>';
 
-// karakterisering van v2.2.0 (bron wordt in een latere taak geschrapt): aantal tekenelementen van sceneSvg() in evenement-scene.js,
-// met de vier `<use href="#ev-vv">` uitgeschreven (per vogelverschrikker 1 cirkel, 3 paden en 2 rechthoeken).
+// karakterisering van de Halloween-vormen van v2.2.0 (evenement-scene.js is in taak 6 geschrapt; vastgelegde getallen):
+// aantal tekenelementen van sceneSvg() in evenement-scene.js, met de vier `<use href="#ev-vv">` uitgeschreven (per vogelverschrikker 1 cirkel, 3 paden en 2 rechthoeken).
 const SCENE_AANTALLEN = { circle: 57, path: 25, rect: 28, ellipse: 0, polygon: 0, line: 0 };
 
 // karakterisering van v2.2.0 (bron wordt in een latere taak geschrapt): LEGE_TEKSTEN.halloween in kern/versiering-logica.js
@@ -141,7 +141,8 @@ test('elk voorgeladen pakket geeft het lichte thema evenveel kleursleutels als h
 
 test('Halloween: de versiering is hoek (web, 4 hoeken), hangen, kruipen, vliegen en mist', () => {
   assert.deepEqual(halloween().versiering, [
-    { beweging: 'hoek', beeld: 'web', hoeken: ['lb', 'rb', 'lo', 'ro'] },
+    // richting 'naarHoek' (taak 6): de webben wijzen in elke hoek naar de hoek, zoals .ev-web-tl/tr/bl/br van v2.2.0 (scaleX/scaleY -1)
+    { beweging: 'hoek', beeld: 'web', hoeken: ['lb', 'rb', 'lo', 'ro'], richting: 'naarHoek' },
     { beweging: 'hangen', beeld: 'spin', aantal: 2 },
     { beweging: 'kruipen', beeld: 'spin', aantal: 1, langs: 'tabbalk' },
     { beweging: 'vliegen', beeld: 'vleermuis', aantal: 1 },

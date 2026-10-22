@@ -70,6 +70,9 @@ const LIJN_EINDE = ['rond', 'recht', 'vierkant']; // = stroke-linecap round | bu
 const LIJN_HOEK = ['rond', 'scherp', 'schuin']; // = stroke-linejoin round | miter | bevel
 const NIET_NEGATIEF = new Set(['r', 'rx', 'ry', 'width', 'height']);
 const HOEKEN = ['lb', 'rb', 'lo', 'ro'];
+// Richting van een hoekbeeld: 'rechtop' (standaard) = in elke hoek zoals getekend; 'naarHoek' = gespiegeld zodat de oorsprong (0,0)
+// van de tekening in elke hoek in die hoek ligt (zoals de webben van Halloween v2.2.0).
+const RICHTINGEN = ['rechtop', 'naarHoek'];
 const KLEUR_SLEUTELS = ['accent', 'accentHover', 'accentDim', 'accentGlow', 'opAccent'];
 const MET_BEELD = ['hoek', 'hangen', 'kruipen', 'vliegen', 'vallen', 'opstijgen'];
 const TOP_SLEUTELS = ['formaat', 'id', 'naam', 'versie', 'periode', 'kleuren', 'vormen', 'beelden', 'achtergrond', 'versiering', 'teksten', 'spelskin'];
@@ -488,7 +491,7 @@ function valideerElement(ctx, el, veld, bekend) {
     return undefined;
   }
   const opties = {
-    hoek: ['hoeken'], hangen: ['aantal'], kruipen: ['aantal', 'langs'], vliegen: ['aantal'],
+    hoek: ['hoeken', 'richting'], hangen: ['aantal'], kruipen: ['aantal', 'langs'], vliegen: ['aantal'],
     vallen: ['aantal', 'wiebel'], opstijgen: ['aantal'], vuurwerk: ['frequentie'], mist: [],
   }[beweging];
   const metBeeld = MET_BEELD.includes(beweging);
@@ -515,6 +518,10 @@ function valideerElement(ctx, el, veld, bekend) {
         else uit.hoeken.push(h);
       });
       aantal = uit.hoeken.length;
+    }
+    if (Object.hasOwn(el, 'richting')) {
+      if (typeof el.richting === 'string' && RICHTINGEN.includes(el.richting)) uit.richting = el.richting;
+      else ctx.fout(veldPad(veld, 'richting'), `Onbekende richting (toegelaten: ${RICHTINGEN.join(', ')}).`);
     }
   } else if (opties.includes('aantal')) {
     const av = veldPad(veld, 'aantal');

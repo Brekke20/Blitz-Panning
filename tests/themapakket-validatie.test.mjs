@@ -425,6 +425,23 @@ test('versiering: elementen volgen hun bewegingsschema', () => {
   assert.equal(valideerPakket(zet({ beweging: 'vallen', beeld: 'spin', aantal: 12 })).ok, true);
 });
 
+test('versiering: hoek mag een richting hebben (rechtop of naarHoek), andere bewegingen niet', () => {
+  const zet = (el) => met((p) => { p.versiering = [el]; });
+  for (const richting of ['rechtop', 'naarHoek']) {
+    const r = valideerPakket(zet({ beweging: 'hoek', beeld: 'spin', hoeken: ['lb', 'ro'], richting }));
+    assert.equal(r.ok, true, richting);
+    assert.equal(r.pakket.versiering[0].richting, richting);
+  }
+  // zonder richting: geen sleutel in de kopie (de renderer neemt dan 'rechtop')
+  assert.equal(Object.hasOwn(valideerPakket(zet({ beweging: 'hoek', beeld: 'spin', hoeken: ['lb'] })).pakket.versiering[0], 'richting'), false);
+  for (const fout of ['schuin', 'NAARHOEK', '', 1, null, ['naarHoek']]) {
+    weiger(zet({ beweging: 'hoek', beeld: 'spin', hoeken: ['lb'], richting: fout }), 'versiering[0].richting');
+  }
+  weiger(zet({ beweging: 'hangen', beeld: 'spin', aantal: 1, richting: 'naarHoek' }), 'versiering[0].richting');
+  weiger(zet({ beweging: 'vallen', beeld: 'spin', aantal: 1, richting: 'rechtop' }), 'versiering[0].richting');
+  weiger(zet({ beweging: 'mist', richting: 'rechtop' }), 'versiering[0].richting');
+});
+
 test('versiering: een beeld moet bestaan in vormen of beelden', () => {
   weiger(met((p) => { p.versiering[0].beeld = 'bestaatniet'; }), 'versiering[0].beeld');
   weiger(met((p) => { p.versiering[0].beeld = '__proto__'; }), 'versiering[0].beeld');
