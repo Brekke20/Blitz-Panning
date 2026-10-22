@@ -149,8 +149,6 @@ if (!localStorage.getItem('blitz_mig_startloc_v1')) {
 // (readyState is dan 'interactive'), dus de handler wordt, net als vroeger, pas na het parsen en na alle modules uitgevoerd.
 // Het registreren gebeurt onderaan dit bestand, nadat alle `const`/`let` van deze module bestaan.
 function opstart() {
-  // De verse themas (/api/themas) pas na het inloggen: vóór de login gebruikt de app geen gegevens van de server.
-  vernieuwThemas();
   // Verborgen spel (spel/): 5× snel tikken op het bliksem-icoon (.logo-icon) opent het; de spelmodule wordt pas dan geladen. Raakt de planning niet aan.
   // De evenementenkalender (kern/evenementen.js) bepaalt welke event-skins (Halloween, Kerst) nu open zijn.
   installeerSpelOpening({ doel: document.querySelector('.logo-icon'), actieveEvenementen });
@@ -1017,4 +1015,6 @@ startVersiering({
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && themasGeladenOm && Date.now() - themasGeladenOm > 60000) vernieuwThemas();
 });
-document.addEventListener('DOMContentLoaded', () => startNaInlog(opstart));
+// De verse themas (/api/themas) pas na het inloggen (vóór de login gebruikt de app geen gegevens van de server), voor elke rol: ook
+// sales, dat een eigen start heeft en `opstart` niet doorloopt (fix-ronde 1).
+document.addEventListener('DOMContentLoaded', () => startNaInlog(opstart).then(() => { if (huidigeGebruiker()) vernieuwThemas(); }));
