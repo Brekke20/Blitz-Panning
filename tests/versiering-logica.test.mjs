@@ -105,6 +105,29 @@ test('beslis: sober op aanraak, gsm en tablet: wel versierd, geen beweging', () 
   }
 });
 
+test('beslis: bewegingUit (instelling van het account) geeft enkel de stilstaande versiering: actief, geen beweging', () => {
+  const b = beslis(met({ bewegingUit: true }));
+  assert.equal(b.actief, true);
+  assert.equal(b.thema.id, 'halloween');
+  assert.equal(b.beweging, false);
+  assert.equal(b.sober, false); // het toestel is een gewone computer: de koppeling met de glasvervaging blijft ongemoeid
+  // false of afwezig laat de beweging toe
+  assert.equal(beslis(met({ bewegingUit: false })).beweging, true);
+  assert.equal(beslis(met()).beweging, true);
+  // enkel `true` telt (een tekst of getal uit een kapotte opslag zet niets uit)
+  assert.equal(beslis(met({ bewegingUit: 'ja' })).beweging, true);
+});
+
+test('beslis: de schakelaar per toestel (voorkeur uit) gaat voor bewegingUit; een voorbeeld volgt bewegingUit ook', () => {
+  assert.equal(beslis(met({ voorkeur: 'uit', bewegingUit: true })).actief, false);
+  assert.equal(beslis(met({ voorkeur: 'uit', bewegingUit: false })).actief, false);
+  const v = beslis(met({ voorbeeld: KERST, bewegingUit: true }));
+  assert.equal(v.thema.id, 'kerst');
+  assert.equal(v.beweging, false);
+  // zonder thema blijft het "niets", met of zonder bewegingUit
+  assert.equal(beslis(met({ nu: MEI, bewegingUit: true })).actief, false);
+});
+
 test('beslis: desktop met muis beweegt; reduced-motion zet de beweging uit', () => {
   assert.equal(isSober(desktop), false);
   assert.equal(beslis(met()).beweging, true);

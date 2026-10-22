@@ -9,6 +9,8 @@
 //  - In testmodus (?test) staat de versiering uit, tenzij de test `?versiering=aan` meegeeft (die vlag telt ENKEL in testmodus).
 //  - Op een aanraakscherm, gsm of tablet is de versiering sober: enkel hoekbeelden en achtergrond, niets dat beweegt.
 //  - prefers-reduced-motion: niets beweegt.
+//  - `bewegingUit` (persoonlijke instelling "Bewegende beelden tijdens een thema", per account): niets beweegt, de rest blijft; de schakelaar
+//    per toestel (voorkeur 'uit') gaat nog steeds voor alles.
 import { actiefThema } from './themapakket.js';
 
 export const VOORKEUR_SLEUTEL = 'blitz_versiering';
@@ -45,8 +47,8 @@ function actiefPakket(nu, themas) {
 }
 
 // Wat er getoond wordt. Invoer: { nu: Date, voorkeur: 'uit'|'auto', testMode, testForceer, soort, aanraak, reducedMotion,
-// themas: { index, pakketten }, voorbeeld: pakket|null }. Antwoord: { actief, thema: pakket|null, sober, beweging }.
-export function beslis({ nu, voorkeur = 'auto', testMode = false, testForceer = false, soort, aanraak, reducedMotion = false, themas, voorbeeld = null } = {}) {
+// themas: { index, pakketten }, voorbeeld: pakket|null, bewegingUit: boolean }. Antwoord: { actief, thema: pakket|null, sober, beweging }.
+export function beslis({ nu, voorkeur = 'auto', testMode = false, testForceer = false, soort, aanraak, reducedMotion = false, themas, voorbeeld = null, bewegingUit = false } = {}) {
   const sober = isSober({ soort, aanraak });
   const geen = { actief: false, thema: null, sober, beweging: false };
   if (voorkeur === 'uit') return geen;
@@ -56,7 +58,8 @@ export function beslis({ nu, voorkeur = 'auto', testMode = false, testForceer = 
     pakket = actiefPakket(nu, themas);
   }
   if (!pakket) return geen;
-  return { actief: true, thema: pakket, sober, beweging: !sober && !reducedMotion };
+  // bewegingUit (instelling van het account, enkel `true` telt): dezelfde stilstaande versiering als op een sober toestel.
+  return { actief: true, thema: pakket, sober, beweging: !sober && !reducedMotion && bewegingUit !== true };
 }
 
 // v2.1.3 (prestaties): de bewegende delen lopen met een timer-lus van ~30 beelden per seconde (niet 60).

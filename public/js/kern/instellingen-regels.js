@@ -90,6 +90,11 @@ export function valideerVelden(invoer, fallback = WERKUREN_STANDAARD) {
     if (typeof i.drukteKleuring !== 'boolean') return { fout: '⚠ Drukte-kleuring moet aan of uit zijn' };
     w.drukteKleuring = i.drukteKleuring;
   }
+  // Bewegende beelden tijdens een thema (per account, op al zijn toestellen): true = enkel de stilstaande versiering.
+  if (aanwezig(i.bewegingUit)) {
+    if (typeof i.bewegingUit !== 'boolean') return { fout: 'Ongeldige waarde voor bewegende beelden.' };
+    w.bewegingUit = i.bewegingUit;
+  }
   if (aanwezig(i.bezoekDuurMin)) {
     if (!isGetal(i.bezoekDuurMin) || i.bezoekDuurMin < MIN_BEZOEKDUUR || i.bezoekDuurMin > MAX_BEZOEKDUUR) {
       return { fout: `⚠ Bezoekduur moet tussen ${MIN_BEZOEKDUUR} en ${MAX_BEZOEKDUUR} minuten liggen` };

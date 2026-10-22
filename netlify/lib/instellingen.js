@@ -12,7 +12,7 @@ const serieelInstellingen = maakSerieel();
 
 export const INSTELLING_VELDEN = Object.freeze([
   'startlocatie', 'duurMinuten', 'maxPerDag', 'vanTijd', 'totTijd', 'laatsteStart', 'werkdagen',
-  'maxReistijdMin', 'tijdslotMinuten', 'kaartStijl', 'routeKleur', 'drukteKleuring', 'bezoekDuurMin',
+  'maxReistijdMin', 'tijdslotMinuten', 'kaartStijl', 'routeKleur', 'drukteKleuring', 'bezoekDuurMin', 'bewegingUit',
 ]);
 
 const isObject = b => Boolean(b) && typeof b === 'object' && !Array.isArray(b);
