@@ -1,0 +1,75 @@
+{
+  "formaat": 1,
+  "id": "sinterklaas",
+  "naam": "Sinterklaas",
+  "versie": "2026-10-22",
+  "periode": { "van": { "maand": 12, "dag": 1 }, "tot": { "maand": 12, "dag": 6 } },
+  "kleuren": {
+    "donker": { "accent": "#d5392f", "accentHover": "#dd5d54", "accentDim": "#d5392f1f", "accentGlow": "#d5392f3d", "opAccent": "#ffffff" },
+    "licht": { "accent": "#cc3a2b", "accentHover": "#af3225", "accentDim": "#cc3a2b1f", "accentGlow": "#cc3a2b38", "opAccent": "#ffffff" },
+    "voorkeurThema": null
+  },
+  "vormen": {
+    "pepernoot": {
+      "viewBox": "0 0 16 16",
+      "delen": [
+        { "soort": "circle", "cx": 8, "cy": 8, "r": 5.6, "vul": "#a8662a", "lijn": "#6e3f12", "lijnDikte": 0.7 },
+        { "soort": "circle", "cx": 6, "cy": 6.2, "r": 1.1, "vul": "#d89a54" },
+        { "soort": "circle", "cx": 10.2, "cy": 7.4, "r": 0.9, "vul": "#d89a54" },
+        { "soort": "circle", "cx": 7.4, "cy": 10.4, "r": 1, "vul": "#d89a54" }
+      ]
+    },
+    "speculaas": {
+      "viewBox": "0 0 16 16",
+      "delen": [
+        { "soort": "rect", "x": 2.5, "y": 2, "width": 11, "height": 12, "vul": "#b9722f", "lijn": "#6e3f12", "lijnDikte": 0.7, "rx": 2.4 },
+        { "soort": "path", "d": "M8 4.4L9 7L11.6 8L9 9L8 11.6L7 9L4.4 8L7 7Z", "vul": "#e3b078" }
+      ]
+    },
+    "mijter": {
+      "viewBox": "0 0 84 76",
+      "delen": [
+        { "soort": "path", "d": "M14 74V16", "vul": "geen", "lijn": "#e0b030", "lijnDikte": 3, "lijnEinde": "rond" },
+        { "soort": "path", "d": "M14 16C14 4 30 3 30 12C30 18 22 18 22 13", "vul": "geen", "lijn": "#e0b030", "lijnDikte": 3, "lijnEinde": "rond" },
+        { "soort": "path", "d": "M64 62L70 76L76 66Z", "vul": "#e0b030" },
+        { "soort": "path", "d": "M58 62L52 74L64 68Z", "vul": "#c8102e" },
+        {
+          "soort": "path",
+          "d": "M36 60C36 40 42 22 55 4C68 22 74 40 74 60Z",
+          "vul": "#c8102e",
+          "lijn": "#e0b030",
+          "lijnDikte": 1.6,
+          "lijnHoek": "rond"
+        },
+        { "soort": "path", "d": "M36 52H74V60H36Z", "vul": "#e0b030" },
+        { "soort": "path", "d": "M52 18H58V44H52Z", "vul": "#e0b030" },
+        { "soort": "path", "d": "M46 26H64V32H46Z", "vul": "#e0b030" }
+      ]
+    },
+    "sintmijter": {
+      "viewBox": "0 -56 100 66",
+      "delen": [
+        { "soort": "path", "d": "M70 -4L78 9L86 -2Z", "vul": "#e0b030" },
+        { "soort": "path", "d": "M62 -4L56 7L70 2Z", "vul": "#c8102e" },
+        {
+          "soort": "path",
+          "d": "M8 -2C8 -24 24 -42 50 -54C76 -42 92 -24 92 -2Z",
+          "vul": "#c8102e",
+          "lijn": "#e0b030",
+          "lijnDikte": 1.2,
+          "lijnHoek": "rond"
+        },
+        { "soort": "path", "d": "M7.5 -10H92.5V-1H7.5Z", "vul": "#e0b030" },
+        { "soort": "path", "d": "M44 -42H56V-18H44Z", "vul": "#e0b030" },
+        { "soort": "path", "d": "M34 -35H66V-28H34Z", "vul": "#e0b030" }
+      ]
+    }
+  },
+  "versiering": [
+    { "beweging": "vallen", "beeld": "pepernoot", "aantal": 6, "wiebel": 0.3 },
+    { "beweging": "vallen", "beeld": "speculaas", "aantal": 4, "wiebel": 0.3 },
+    { "beweging": "hoek", "beeld": "mijter", "hoeken": ["lb"] }
+  ],
+  "teksten": { "wachtrijLeeg": "De Sint is tevreden: de wachtrij is leeg.", "ingeplandLeeg": "Geen bezoeken gepland deze week" },
+  "spelskin": { "naam": "Sintpaal", "behuizing": "#5a0f1c", "faceplate": "#c8102e", "bliksem": "#e0b030", "extra": "sintmijter" }
+}

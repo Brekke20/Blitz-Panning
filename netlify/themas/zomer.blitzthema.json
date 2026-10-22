@@ -1,0 +1,107 @@
+{
+  "formaat": 1,
+  "id": "zomer",
+  "naam": "Zomer",
+  "versie": "2026-10-22",
+  "periode": { "van": { "maand": 7, "dag": 1 }, "tot": { "maand": 8, "dag": 31 } },
+  "kleuren": {
+    "donker": { "accent": "#1a8fa8", "accentHover": "#43a3b8", "accentDim": "#1a8fa81f", "accentGlow": "#1a8fa83d", "opAccent": "#030e11" },
+    "licht": { "accent": "#16849c", "accentHover": "#137286", "accentDim": "#16849c1f", "accentGlow": "#16849c38", "opAccent": "#020d10" },
+    "voorkeurThema": null
+  },
+  "vormen": {
+    "zon": {
+      "viewBox": "0 0 100 80",
+      "delen": [
+        {
+          "soort": "circle",
+          "cx": 50,
+          "cy": 40,
+          "r": 46,
+          "vul": {
+            "verloop": "radiaal",
+            "cx": 0.5,
+            "cy": 0.5,
+            "r": 0.5,
+            "stops": [{ "op": 0, "kleur": "#ffd54a66" }, { "op": 0.6, "kleur": "#ffd54a22" }, { "op": 1, "kleur": "#ffd54a00" }]
+          }
+        },
+        {
+          "soort": "path",
+          "d": "M80 40L89 40M75.98 55L83.77 59.5M65 65.98L69.5 73.77M50 70L50 79M35 65.98L30.5 73.77M24.02 55L16.23 59.5M20 40L11 40M24.02 25L16.23 20.5M35 14.02L30.5 6.23M50 10L50 1M65 14.02L69.5 6.23M75.98 25L83.77 20.5",
+          "vul": "geen",
+          "lijn": "#ffb703",
+          "lijnDikte": 3.4,
+          "lijnEinde": "rond"
+        },
+        {
+          "soort": "circle",
+          "cx": 50,
+          "cy": 40,
+          "r": 22,
+          "vul": {
+            "verloop": "radiaal",
+            "cx": 0.5,
+            "cy": 0.5,
+            "r": 0.5,
+            "stops": [{ "op": 0, "kleur": "#fff2a8" }, { "op": 0.6, "kleur": "#ffc933" }, { "op": 1, "kleur": "#ffa31a" }]
+          },
+          "lijn": "#f59a0c",
+          "lijnDikte": 0.8
+        }
+      ]
+    },
+    "bel": {
+      "viewBox": "0 0 24 24",
+      "delen": [
+        { "soort": "circle", "cx": 12, "cy": 12, "r": 10, "vul": "#8fd8f0", "dekking": 0.22 },
+        { "soort": "circle", "cx": 12, "cy": 12, "r": 10, "vul": "geen", "lijn": "#6fcdee", "lijnLicht": "#2f9fc7", "lijnDikte": 1.2 },
+        {
+          "soort": "path",
+          "d": "M6.2 9.6A6.6 6.6 0 0 1 10.4 5.4",
+          "vul": "geen",
+          "lijn": "#ffffff",
+          "lijnDikte": 1.5,
+          "lijnEinde": "rond",
+          "dekking": 0.85
+        },
+        { "soort": "circle", "cx": 16.6, "cy": 16.4, "r": 1, "vul": "#ffffff", "dekking": 0.6 }
+      ]
+    },
+    "zonnebril": {
+      "viewBox": "-2 -22 104 22",
+      "delen": [
+        {
+          "soort": "path",
+          "d": "M4 -14C4 -19 8 -20 25 -20C42 -20 46 -19 46 -12C46 -6 40 -3 25 -3C10 -3 4 -8 4 -14Z",
+          "vul": { "verloop": "lineair", "x1": 0, "y1": 0, "x2": 0, "y2": 1, "stops": [{ "op": 0, "kleur": "#1d6f8a" }, { "op": 1, "kleur": "#0b2a38" }] },
+          "lijn": "#ffb800",
+          "lijnDikte": 1.4
+        },
+        {
+          "soort": "path",
+          "d": "M96 -14C96 -19 92 -20 75 -20C58 -20 54 -19 54 -12C54 -6 60 -3 75 -3C90 -3 96 -8 96 -14Z",
+          "vul": { "verloop": "lineair", "x1": 0, "y1": 0, "x2": 0, "y2": 1, "stops": [{ "op": 0, "kleur": "#1d6f8a" }, { "op": 1, "kleur": "#0b2a38" }] },
+          "lijn": "#ffb800",
+          "lijnDikte": 1.4
+        },
+        { "soort": "path", "d": "M46 -14Q50 -17 54 -14", "vul": "geen", "lijn": "#ffb800", "lijnDikte": 1.8, "lijnEinde": "rond" },
+        {
+          "soort": "path",
+          "d": "M12 -16L22 -19M62 -16L72 -19",
+          "vul": "geen",
+          "lijn": "#ffffff",
+          "lijnDikte": 1.6,
+          "lijnEinde": "rond",
+          "dekking": 0.5
+        }
+      ]
+    }
+  },
+  "versiering": [
+    { "beweging": "hoek", "beeld": "zon", "hoeken": ["rb"] },
+    { "beweging": "opstijgen", "beeld": "bel", "aantal": 6 }
+  ],
+  "teksten": { "wachtrijLeeg": "Geen tickets in de wachtrij: tijd voor een ijsje.", "ingeplandLeeg": "Geen bezoeken gepland deze week" },
+  "spelskin": { "naam": "Zomerpaal", "behuizing": "#0d6f8c", "faceplate": "#ffb800", "bliksem": "#0b2a38", "extra": "zonnebril" }
+}

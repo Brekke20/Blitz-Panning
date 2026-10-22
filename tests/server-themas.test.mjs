@@ -108,14 +108,15 @@ test('een testverzoek (X-Blitz-Test) gebruikt de teststore voor de thema\'s, noo
 
 // ---- zaaien en lezen ----
 
-test('eerste GET op een lege store zaait halloween en kerst met aan: true', async () => {
+// Aangepast bij de zeven nieuwe pakketten (taak 9): de zaai levert nu alle voorgeladen pakketten (negen) in plaats van enkel halloween en kerst.
+test('eerste GET op een lege store zaait alle voorgeladen pakketten met aan: true', async () => {
   const { h, echt } = opzet();
   const r = await als('planner', h, get());
   assert.equal(r.status, 200);
   const j = await r.json();
-  assert.deepEqual(j.themas.map((t) => [t.id, t.aan]), [['halloween', true], ['kerst', true]]);
+  assert.deepEqual(j.themas.map((t) => [t.id, t.aan]), VOORGELADEN.map((p) => [p.id, true]));
   assert.equal(typeof j.versie, 'number');
-  assert.deepEqual(index(echt).gezaaid.sort(), ['halloween', 'kerst']);
+  assert.deepEqual(index(echt).gezaaid.sort(), VOORGELADEN.map((p) => p.id).sort());
   assert.deepEqual(JSON.parse(echt._data.get(pakketSleutel('kerst'))), pakketVan('kerst'));
   const t = j.themas.find((x) => x.id === 'halloween');
   assert.equal(t.naam, 'Halloween');
@@ -196,14 +197,14 @@ test('zaai: enkel id\'s die nog niet in gezaaid staan; een tweede aanroep doet n
   await zaai(store);
   assert.equal(store._schrijfacties.length, na1);
   const i = await leesIndex(store);
-  assert.deepEqual(i.gezaaid.sort(), ['halloween', 'kerst']);
+  assert.deepEqual(i.gezaaid.sort(), VOORGELADEN.map((p) => p.id).sort());
   assert.equal(i.versie, 1);
   // een nieuw voorgeladen pakket komt er later bij, de bestaande blijven zoals ze zijn
-  const extra = nieuwPakket('zomer');
+  const extra = nieuwPakket('oogstfeest'); // 'zomer' is nu zelf een voorgeladen pakket
   await zaai(store, [...VOORGELADEN, extra]);
   const i2 = await leesIndex(store);
-  assert.deepEqual(i2.themas.map((t) => t.id), ['halloween', 'kerst', 'zomer']);
-  assert.equal(i2.themas.find((t) => t.id === 'zomer').aan, true);
+  assert.deepEqual(i2.themas.map((t) => t.id), [...VOORGELADEN.map((p) => p.id), 'oogstfeest']);
+  assert.equal(i2.themas.find((t) => t.id === 'oogstfeest').aan, true);
 });
 
 test('een zaaifout (schrijven mislukt) breekt de GET niet: lege lijst, 200', async () => {
@@ -419,7 +420,8 @@ test('openbareLijst: de lijst toont de effectieve gegevens zonder uploadvelden e
   const lijst = await openbareLijst(idx, new Date(NU_25_NOV), store);
   assert.deepEqual(Object.keys(lijst).sort(), ['pakketten', 'themas', 'versie']);
   assert.deepEqual(Object.keys(lijst.themas[0]).sort(), ['aan', 'id', 'naam', 'pakketHash', 'periode', 'periodeOverride']);
-  assert.deepEqual(Object.keys(lijst.pakketten), ['kerst']);
+  // Op 25 november zijn Kerst (begint 7/12) en Sinterklaas (1/12) nabij (binnen 14 dagen); sinds taak 9 bestaat dat pakket.
+  assert.deepEqual(Object.keys(lijst.pakketten), ['kerst', 'sinterklaas']);
 });
 
 // ---- fix ronde 1 ----
@@ -440,7 +442,7 @@ test('testmodus: een upload in de echte store is zichtbaar in een GET in testmod
   const j = await r.json();
   assert.ok(j.themas.some((t) => t.id === 'lente'), 'de upload staat in de testmodus');
   assert.equal(j.themas.find((t) => t.id === 'halloween').aan, false, 'ook de aan/uit-stand is mee');
-  assert.deepEqual(index(test).gezaaid.sort(), ['halloween', 'kerst']);
+  assert.deepEqual(index(test).gezaaid.sort(), VOORGELADEN.map((p) => p.id).sort());
   assert.ok(test._data.has(pakketSleutel('lente')));
 });
 
@@ -459,7 +461,7 @@ test('één kapotte indexregel haalt de lijst niet neer: de gezonde thema’s bl
   try { r = await als('technieker', h, get()); } finally { console.error = orig; }
   assert.equal(r.status, 200);
   const j = await r.json();
-  assert.deepEqual(j.themas.map((t) => t.id), ['halloween', 'kerst']);
+  assert.deepEqual(j.themas.map((t) => t.id), VOORGELADEN.map((p) => p.id));
   assert.ok(j.pakketten.halloween);
   assert.ok(fouten.length >= 3 && fouten.every((f) => /overgeslagen/.test(f) && !f.includes('Kapot')), fouten.join('|'));
 });

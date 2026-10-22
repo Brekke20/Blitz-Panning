@@ -20,5 +20,12 @@
 // de pompon van de kerstmuts, is hier een ellips met rx = 11 en ry = 3,8 eenheden: een cirkel voor de staande paal (18 breed, 52 hoog).
 import halloween from './halloween.blitzthema.json' with { type: 'json' };
 import kerst from './kerst.blitzthema.json' with { type: 'json' };
+import nieuwjaar from './nieuwjaar.blitzthema.json' with { type: 'json' };
+import valentijn from './valentijn.blitzthema.json' with { type: 'json' };
+import carnaval from './carnaval.blitzthema.json' with { type: 'json' };
+import pasen from './pasen.blitzthema.json' with { type: 'json' };
+import zomer from './zomer.blitzthema.json' with { type: 'json' };
+import nationaleFeestdag from './nationale-feestdag.blitzthema.json' with { type: 'json' };
+import sinterklaas from './sinterklaas.blitzthema.json' with { type: 'json' };
 
-export const VOORGELADEN = Object.freeze([halloween, kerst]);
+export const VOORGELADEN = Object.freeze([halloween, kerst, nieuwjaar, valentijn, carnaval, pasen, zomer, nationaleFeestdag, sinterklaas]);

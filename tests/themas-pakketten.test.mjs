@@ -279,3 +279,92 @@ test('beide skins gebruiken enkel paden in hun extra (zo kan het spel ze met Pat
     assert.ok(delen.every((d) => d.soort === 'path'), `${extra}: enkel paden`);
   }
 });
+
+// ---- De zeven nieuwe pakketten (spec §7) ----
+
+const NIEUWE_IDS = ['nieuwjaar', 'valentijn', 'carnaval', 'pasen', 'zomer', 'nationale-feestdag', 'sinterklaas'];
+const periodeVast = (vm, vd, tm, td) => ({ van: { maand: vm, dag: vd }, tot: { maand: tm, dag: td } });
+// Tabel van spec §7: periode, skin (naam en extra) en de telling per beweging.
+const VERWACHT = {
+  nieuwjaar: { periode: periodeVast(1, 1, 1, 6), skin: ['Feestpaal', 'feesthoedje'], tel: { vuurwerk: 1, vallen: 10 } },
+  valentijn: { periode: periodeVast(2, 10, 2, 14), skin: ['Liefdespaal', 'paalhartje'], tel: { opstijgen: 8, hoek: 2 } },
+  carnaval: { periode: { basis: 'pasen', van: -52, tot: -46 }, skin: ['Carnavalspaal', 'masker'], tel: { vallen: 12, hoek: 2 } },
+  pasen: { periode: { basis: 'pasen', van: -7, tot: 1 }, skin: ['Paaspaal', 'konijnenoren'], tel: { hoek: 2, opstijgen: 6 } },
+  zomer: { periode: periodeVast(7, 1, 8, 31), skin: ['Zomerpaal', 'zonnebril'], tel: { hoek: 1, opstijgen: 6 } },
+  'nationale-feestdag': { periode: periodeVast(7, 19, 7, 21), skin: ['Driekleurpaal', 'vlaggetje'], tel: { hoek: 2, vuurwerk: 1 } },
+  sinterklaas: { periode: periodeVast(12, 1, 12, 6), skin: ['Sintpaal', 'sintmijter'], tel: { vallen: 10, hoek: 1 } },
+};
+// Telt per beweging hoeveel exemplaren de versiering levert (een `hoek` telt per hoek, `vuurwerk` als 1).
+function telVersiering(versiering) {
+  const uit = {};
+  for (const e of versiering) uit[e.beweging] = (uit[e.beweging] ?? 0) + (e.beweging === 'hoek' ? e.hoeken.length : (e.aantal ?? 1));
+  return uit;
+}
+
+test('VOORGELADEN bevat precies de negen id\'s uit de spec', () => {
+  assert.deepEqual(VOORGELADEN.map((p) => p.id).sort(), ['halloween', 'kerst', ...NIEUWE_IDS].sort());
+});
+
+test('de zeven nieuwe pakketten hebben de periode uit de tabel van de spec', () => {
+  for (const id of NIEUWE_IDS) assert.deepEqual(pakket(id)?.periode, VERWACHT[id].periode, id);
+});
+
+test('de zeven nieuwe pakketten hebben de skin (naam en extra) uit de tabel, met een extra die enkel uit paden bestaat', () => {
+  for (const id of NIEUWE_IDS) {
+    const p = pakket(id);
+    assert.deepEqual([p.spelskin.naam, p.spelskin.extra], VERWACHT[id].skin, id);
+    const delen = p.vormen[p.spelskin.extra].delen;
+    assert.ok(delen.length > 0 && delen.every((d) => d.soort === 'path'), `${id}: de extra bestaat enkel uit paden`);
+  }
+});
+
+test('de zeven nieuwe pakketten hebben precies de aantallen per beweging uit de tabel', () => {
+  for (const id of NIEUWE_IDS) assert.deepEqual(telVersiering(pakket(id).versiering), VERWACHT[id].tel, id);
+});
+
+test('het accent van elk van de zeven nieuwe pakketten (en van Kerst) steekt in licht en donker af op beide achtergronden (3:1)', () => {
+  for (const id of [...NIEUWE_IDS, 'kerst']) {
+    const { kleuren } = pakket(id);
+    for (const modus of ['donker', 'licht']) {
+      for (const bg of ['#181e24', '#f5f6f7']) {
+        const verhouding = contrastVerhouding(kleuren[modus].accent, bg);
+        assert.ok(verhouding >= 3, `${id}.${modus}.accent ${kleuren[modus].accent} tegen ${bg}: ${verhouding.toFixed(2)}`);
+      }
+    }
+  }
+});
+
+test('de zeven nieuwe pakketten hebben vormen en beelden zonder rasterbeelden, en de opgegeven versie', () => {
+  for (const id of NIEUWE_IDS) {
+    const p = pakket(id);
+    assert.equal(p.beelden, undefined, `${id}: vectorvormen, geen rasterbeelden`);
+    assert.equal(p.versie, '2026-10-22', id);
+    assert.equal(p.formaat, 1, id);
+  }
+});
+
+test('de zeven nieuwe pakketten hebben vriendelijke lege teksten (max 80 tekens)', () => {
+  for (const id of NIEUWE_IDS) {
+    const { teksten } = pakket(id);
+    assert.ok(teksten, `${id}: teksten ontbreken`);
+    for (const t of Object.values(teksten)) assert.ok(t.length > 0 && t.length <= 80, `${id}: ${t}`);
+  }
+});
+
+test('Nieuwjaar heeft een nachtlucht als achtergrond en een donkere voorkeur', () => {
+  const p = pakket('nieuwjaar');
+  assert.equal(p.achtergrond.vorm, 'nachtlucht');
+  assert.equal(p.kleuren.voorkeurThema, 'donker');
+  assert.equal(pakket('valentijn').achtergrond, undefined);
+});
+
+test('de driekleur van 21 juli is de Belgische (zwart, geel, rood) en niet de Nederlandse', () => {
+  const kleuren = JSON.stringify(pakket('nationale-feestdag').vormen).toLowerCase();
+  for (const k of ['#111111', '#fdda24', '#ed2939']) assert.ok(kleuren.includes(k), `ontbrekende kleur ${k}`);
+  for (const k of ['#ae1c28', '#21468b']) assert.ok(!kleuren.includes(k), `Nederlandse kleur ${k}`);
+});
+
+test('Sinterklaas toont enkel mijter, staf en lekkers (geen figuren)', () => {
+  const p = pakket('sinterklaas');
+  assert.deepEqual(Object.keys(p.vormen).sort(), ['mijter', 'pepernoot', 'sintmijter', 'speculaas']);
+});

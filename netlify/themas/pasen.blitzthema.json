@@ -1,0 +1,110 @@
+{
+  "formaat": 1,
+  "id": "pasen",
+  "naam": "Pasen",
+  "versie": "2026-10-22",
+  "periode": { "basis": "pasen", "van": -7, "tot": 1 },
+  "kleuren": {
+    "donker": { "accent": "#3f9f4d", "accentHover": "#62b06d", "accentDim": "#3f9f4d1f", "accentGlow": "#3f9f4d3d", "opAccent": "#061008" },
+    "licht": { "accent": "#2f8f43", "accentHover": "#287b3a", "accentDim": "#2f8f431f", "accentGlow": "#2f8f4338", "opAccent": "#050e07" },
+    "voorkeurThema": null
+  },
+  "vormen": {
+    "ei": {
+      "viewBox": "0 0 64 56",
+      "delen": [
+        {
+          "soort": "path",
+          "d": "M0 56L3 41L6.4 56ZM6.4 56L10.4 38.5L12.8 56ZM12.8 56L17.8 36L19.2 56ZM19.2 56L22.2 33.5L25.6 56ZM25.6 56L29.6 41L32 56ZM32 56L37 38.5L38.4 56ZM38.4 56L41.4 36L44.8 56ZM44.8 56L48.8 33.5L51.2 56ZM51.2 56L56.2 41L57.6 56ZM57.6 56L60.6 38.5L64 56Z",
+          "vul": "#5fb56a",
+          "vulLicht": "#3f9f4d"
+        },
+        {
+          "soort": "groep",
+          "transform": "translate(21 29) rotate(-8)",
+          "delen": [
+            {
+              "soort": "path",
+              "d": "M0 -22C10 -22 15 -4 15 7C15 18 8 24 0 24C-8 24 -15 18 -15 7C-15 -4 -10 -22 0 -22Z",
+              "vul": "#f6a6c1",
+              "lijn": "#d98aa6",
+              "lijnDikte": 0.8
+            },
+            {
+              "soort": "path",
+              "d": "M-13 4L-8.5 -1L-4 4L0.5 -1L5 4L9.5 -1L13 3",
+              "vul": "geen",
+              "lijn": "#ffffff",
+              "lijnDikte": 1.6,
+              "lijnEinde": "rond",
+              "lijnHoek": "rond"
+            },
+            { "soort": "circle", "cx": -4, "cy": 14, "r": 1.6, "vul": "#ffffff" },
+            { "soort": "circle", "cx": 4, "cy": 14, "r": 1.6, "vul": "#ffffff" }
+          ]
+        },
+        {
+          "soort": "groep",
+          "transform": "translate(46 33) rotate(10) scale(0.85)",
+          "delen": [
+            {
+              "soort": "path",
+              "d": "M0 -22C10 -22 15 -4 15 7C15 18 8 24 0 24C-8 24 -15 18 -15 7C-15 -4 -10 -22 0 -22Z",
+              "vul": "#8fd3c8",
+              "lijn": "#5fb0a4",
+              "lijnDikte": 0.9
+            },
+            { "soort": "path", "d": "M-14.5 6Q0 12 14.5 6L13.5 -1Q0 5 -13.5 -1Z", "vul": "#f6d860" },
+            { "soort": "circle", "cx": 0, "cy": -9, "r": 2, "vul": "#ffffff" }
+          ]
+        }
+      ]
+    },
+    "bloesem": {
+      "viewBox": "0 0 24 24",
+      "delen": [
+        {
+          "soort": "groep",
+          "transform": "rotate(0 12 12)",
+          "delen": [{ "soort": "ellipse", "cx": 12, "cy": 6.2, "rx": 3.4, "ry": 5, "vul": "#f9c9d8", "lijn": "#e58aa8", "lijnDikte": 0.6 }]
+        },
+        {
+          "soort": "groep",
+          "transform": "rotate(72 12 12)",
+          "delen": [{ "soort": "ellipse", "cx": 12, "cy": 6.2, "rx": 3.4, "ry": 5, "vul": "#f9c9d8", "lijn": "#e58aa8", "lijnDikte": 0.6 }]
+        },
+        {
+          "soort": "groep",
+          "transform": "rotate(144 12 12)",
+          "delen": [{ "soort": "ellipse", "cx": 12, "cy": 6.2, "rx": 3.4, "ry": 5, "vul": "#f9c9d8", "lijn": "#e58aa8", "lijnDikte": 0.6 }]
+        },
+        {
+          "soort": "groep",
+          "transform": "rotate(216 12 12)",
+          "delen": [{ "soort": "ellipse", "cx": 12, "cy": 6.2, "rx": 3.4, "ry": 5, "vul": "#f9c9d8", "lijn": "#e58aa8", "lijnDikte": 0.6 }]
+        },
+        {
+          "soort": "groep",
+          "transform": "rotate(288 12 12)",
+          "delen": [{ "soort": "ellipse", "cx": 12, "cy": 6.2, "rx": 3.4, "ry": 5, "vul": "#f9c9d8", "lijn": "#e58aa8", "lijnDikte": 0.6 }]
+        },
+        { "soort": "circle", "cx": 12, "cy": 12, "r": 2.4, "vul": "#f2c230", "lijn": "#d99a10", "lijnDikte": 0.5 }
+      ]
+    },
+    "konijnenoren": {
+      "viewBox": "0 -48 100 50",
+      "delen": [
+        { "soort": "path", "d": "M16 -2C14 -25 20 -46 30 -46C40 -46 44 -25 40 -2Z", "vul": "#f4f1ea", "lijn": "#b9b3a4", "lijnDikte": 0.8 },
+        { "soort": "path", "d": "M23 -4C22 -20 25 -38 30 -38C35 -38 37 -20 35 -4Z", "vul": "#f6a6c1" },
+        { "soort": "path", "d": "M84 -2C86 -25 80 -46 70 -46C60 -46 56 -25 60 -2Z", "vul": "#f4f1ea", "lijn": "#b9b3a4", "lijnDikte": 0.8 },
+        { "soort": "path", "d": "M77 -4C78 -20 75 -38 70 -38C65 -38 63 -20 65 -4Z", "vul": "#f6a6c1" }
+      ]
+    }
+  },
+  "versiering": [
+    { "beweging": "hoek", "beeld": "ei", "hoeken": ["lo", "ro"] },
+    { "beweging": "opstijgen", "beeld": "bloesem", "aantal": 6 }
+  ],
+  "teksten": { "wachtrijLeeg": "Geen eitjes in de wachtrij.", "ingeplandLeeg": "Geen paasbezoeken gepland deze week" },
+  "spelskin": { "naam": "Paaspaal", "behuizing": "#1f4d2b", "faceplate": "#f6a6c1", "bliksem": "#1f4d2b", "extra": "konijnenoren" }
+}

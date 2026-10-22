@@ -1,0 +1,78 @@
+{
+  "formaat": 1,
+  "id": "carnaval",
+  "naam": "Carnaval",
+  "versie": "2026-10-22",
+  "periode": { "basis": "pasen", "van": -52, "tot": -46 },
+  "kleuren": {
+    "donker": { "accent": "#9b59d0", "accentHover": "#ad77d8", "accentDim": "#9b59d01f", "accentGlow": "#9b59d03d", "opAccent": "#ffffff" },
+    "licht": { "accent": "#8a4ac2", "accentHover": "#7740a7", "accentDim": "#8a4ac21f", "accentGlow": "#8a4ac238", "opAccent": "#ffffff" },
+    "voorkeurThema": null
+  },
+  "vormen": {
+    "lint": {
+      "viewBox": "0 0 16 16",
+      "delen": [
+        {
+          "soort": "groep",
+          "transform": "rotate(30 8 8)",
+          "delen": [
+            { "soort": "rect", "x": 5, "y": 1, "width": 3, "height": 14, "vul": "#e8458c" },
+            { "soort": "rect", "x": 8, "y": 1, "width": 3, "height": 14, "vul": "#2fbfd0" }
+          ]
+        }
+      ]
+    },
+    "bol": {
+      "viewBox": "0 0 16 16",
+      "delen": [
+        { "soort": "circle", "cx": 8, "cy": 8, "r": 5.5, "vul": "#f5c518", "vulLicht": "#d9a400" },
+        { "soort": "circle", "cx": 8, "cy": 8, "r": 2.2, "vul": "#3cb371" }
+      ]
+    },
+    "driehoek": {
+      "viewBox": "0 0 16 16",
+      "delen": [{ "soort": "path", "d": "M8 1.5L14.5 13.5H1.5Z", "vul": "#2f9be0" }, { "soort": "path", "d": "M8 6.5L11 12H5Z", "vul": "#f28c28" }]
+    },
+    "slinger": {
+      "viewBox": "0 0 140 70",
+      "delen": [
+        { "soort": "path", "d": "M0 6Q70 54 140 10", "vul": "geen", "lijn": "#c8ced6", "lijnLicht": "#5b6470", "lijnDikte": 1.1, "lijnEinde": "rond" },
+        { "soort": "path", "d": "M6.94 10.53L19.54 17.61L6.88 25.59Z", "vul": "#e8458c" },
+        { "soort": "path", "d": "M25.86 20.59L38.46 25.43L27.5 35.34Z", "vul": "#f5c518", "vulLicht": "#d9a400" },
+        { "soort": "path", "d": "M44.78 27.29L57.38 29.89L48.46 41.51Z", "vul": "#2f9be0" },
+        { "soort": "path", "d": "M63.7 30.63L76.3 30.99L69.63 43.99Z", "vul": "#3cb371" },
+        { "soort": "path", "d": "M82.62 30.61L95.22 28.74L90.84 42.72Z", "vul": "#8e5ccf" },
+        { "soort": "path", "d": "M101.54 27.23L114.14 23.12L111.87 37.72Z", "vul": "#f28c28" },
+        { "soort": "path", "d": "M120.46 20.49L133.06 14.14L132.61 29.11Z", "vul": "#e8458c" }
+      ]
+    },
+    "masker": {
+      "viewBox": "0 -60 105 62",
+      "delen": [
+        { "soort": "path", "d": "M90 -14C102 -28 100 -46 88 -58C83 -46 82 -30 90 -14Z", "vul": "#2fbfa4" },
+        { "soort": "path", "d": "M84 -12C92 -24 92 -38 84 -48C80 -38 80 -26 84 -12Z", "vul": "#e8458c" },
+        {
+          "soort": "path",
+          "d": "M3 -4C3 -16 20 -25 50 -21C80 -25 97 -16 97 -4C87 -2 72 -6 64 -12C58 -9 42 -9 36 -12C28 -6 13 -2 3 -4Z",
+          "vul": "#8e5ccf",
+          "lijn": "#f5c518",
+          "lijnDikte": 1.2
+        },
+        { "soort": "path", "d": "M14 -11A11 3.6 0 1 0 36 -11A11 3.6 0 1 0 14 -11Z", "vul": "#1a1030" },
+        { "soort": "path", "d": "M64 -11A11 3.6 0 1 0 86 -11A11 3.6 0 1 0 64 -11Z", "vul": "#1a1030" },
+        { "soort": "path", "d": "M46 -19A4 1.6 0 1 0 54 -19A4 1.6 0 1 0 46 -19Z", "vul": "#f5c518" },
+        { "soort": "path", "d": "M11.4 -16A2.6 1 0 1 0 16.6 -16A2.6 1 0 1 0 11.4 -16Z", "vul": "#f5c518" },
+        { "soort": "path", "d": "M83.4 -16A2.6 1 0 1 0 88.6 -16A2.6 1 0 1 0 83.4 -16Z", "vul": "#f5c518" }
+      ]
+    }
+  },
+  "versiering": [
+    { "beweging": "vallen", "beeld": "lint", "aantal": 4, "wiebel": 0.7 },
+    { "beweging": "vallen", "beeld": "bol", "aantal": 4, "wiebel": 0.5 },
+    { "beweging": "vallen", "beeld": "driehoek", "aantal": 4, "wiebel": 0.7 },
+    { "beweging": "hoek", "beeld": "slinger", "hoeken": ["lb", "rb"] }
+  ],
+  "teksten": { "wachtrijLeeg": "Geen confetti in de wachtrij.", "ingeplandLeeg": "Geen bezoeken gepland deze week" },
+  "spelskin": { "naam": "Carnavalspaal", "behuizing": "#2a1458", "faceplate": "#f5c518", "bliksem": "#2a1458", "extra": "masker" }
+}

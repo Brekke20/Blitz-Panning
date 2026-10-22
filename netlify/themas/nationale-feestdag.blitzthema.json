@@ -1,0 +1,60 @@
+{
+  "formaat": 1,
+  "id": "nationale-feestdag",
+  "naam": "21 juli",
+  "versie": "2026-10-22",
+  "periode": { "van": { "maand": 7, "dag": 19 }, "tot": { "maand": 7, "dag": 21 } },
+  "kleuren": {
+    "donker": { "accent": "#e0303f", "accentHover": "#e65562", "accentDim": "#e0303f1f", "accentGlow": "#e0303f3d", "opAccent": "#ffffff" },
+    "licht": { "accent": "#d6283f", "accentHover": "#b82236", "accentDim": "#d6283f1f", "accentGlow": "#d6283f38", "opAccent": "#ffffff" },
+    "voorkeurThema": null
+  },
+  "vormen": {
+    "driekleurslinger": {
+      "viewBox": "0 0 140 70",
+      "delen": [
+        { "soort": "path", "d": "M0 6Q70 54 140 10", "vul": "geen", "lijn": "#c8ced6", "lijnLicht": "#5b6470", "lijnDikte": 1.1, "lijnEinde": "rond" },
+        { "soort": "path", "d": "M4.83 9.2L16.03 15.78L4.34 22.98Z", "vul": "#111111", "lijn": "#9aa5b1", "lijnLicht": "#111111", "lijnDikte": 0.7 },
+        { "soort": "path", "d": "M19.72 17.7L30.92 22.71L20.41 31.3Z", "vul": "#fdda24", "vulLicht": "#f0c800" },
+        { "soort": "path", "d": "M34.61 24.11L45.81 27.56L36.68 37.45Z", "vul": "#ed2939" },
+        {
+          "soort": "path",
+          "d": "M49.51 28.44L60.71 30.33L53.11 41.37Z",
+          "vul": "#111111",
+          "lijn": "#9aa5b1",
+          "lijnLicht": "#111111",
+          "lijnDikte": 0.7
+        },
+        { "soort": "path", "d": "M64.4 30.69L75.6 31.01L69.66 43Z", "vul": "#fdda24", "vulLicht": "#f0c800" },
+        { "soort": "path", "d": "M79.29 30.86L90.49 29.61L86.22 42.31Z", "vul": "#ed2939" },
+        {
+          "soort": "path",
+          "d": "M94.19 28.95L105.39 26.13L102.71 39.33Z",
+          "vul": "#111111",
+          "lijn": "#9aa5b1",
+          "lijnLicht": "#111111",
+          "lijnDikte": 0.7
+        },
+        { "soort": "path", "d": "M109.08 24.95L120.28 20.57L119.05 34.08Z", "vul": "#fdda24", "vulLicht": "#f0c800" },
+        { "soort": "path", "d": "M123.97 18.87L135.17 12.92L135.2 26.64Z", "vul": "#ed2939" }
+      ]
+    },
+    "vlaggetje": {
+      "viewBox": "0 -64 100 66",
+      "delen": [
+        { "soort": "path", "d": "M8 0V-58H14V0Z", "vul": "#c9ced6", "lijn": "#6b7482", "lijnDikte": 0.5 },
+        { "soort": "path", "d": "M5 -59A6 2.1 0 1 0 17 -59A6 2.1 0 1 0 5 -59Z", "vul": "#e0b030" },
+        { "soort": "path", "d": "M14 -56Q27.5 -59 41 -56L41 -41Q27.5 -44 14 -41Z", "vul": "#111111" },
+        { "soort": "path", "d": "M41 -56Q54.5 -59 68 -56L68 -41Q54.5 -44 41 -41Z", "vul": "#fdda24", "vulLicht": "#f0c800" },
+        { "soort": "path", "d": "M68 -56Q81.5 -59 95 -56L95 -41Q81.5 -44 68 -41Z", "vul": "#ed2939" },
+        { "soort": "path", "d": "M14 -56Q54.5 -59 95 -56L95 -41Q54.5 -44 14 -41Z", "vul": "geen", "lijn": "#e9f2f8", "lijnDikte": 0.7 }
+      ]
+    }
+  },
+  "versiering": [
+    { "beweging": "hoek", "beeld": "driekleurslinger", "hoeken": ["lb", "rb"] },
+    { "beweging": "vuurwerk" }
+  ],
+  "teksten": { "wachtrijLeeg": "Leve België: geen tickets in de wachtrij.", "ingeplandLeeg": "Geen bezoeken gepland deze week" },
+  "spelskin": { "naam": "Driekleurpaal", "behuizing": "#1c1c20", "faceplate": "#fdda24", "bliksem": "#111111", "extra": "vlaggetje" }
+}

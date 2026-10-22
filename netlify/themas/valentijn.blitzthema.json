@@ -1,0 +1,89 @@
+{
+  "formaat": 1,
+  "id": "valentijn",
+  "naam": "Valentijn",
+  "versie": "2026-10-22",
+  "periode": { "van": { "maand": 2, "dag": 10 }, "tot": { "maand": 2, "dag": 14 } },
+  "kleuren": {
+    "donker": { "accent": "#e0507a", "accentHover": "#e67092", "accentDim": "#e0507a1f", "accentGlow": "#e0507a3d", "opAccent": "#16080c" },
+    "licht": { "accent": "#c43d64", "accentHover": "#a93456", "accentDim": "#c43d641f", "accentGlow": "#c43d6438", "opAccent": "#ffffff" },
+    "voorkeurThema": null
+  },
+  "vormen": {
+    "hartje": {
+      "viewBox": "0 0 24 22",
+      "delen": [
+        {
+          "soort": "path",
+          "d": "M12 21C5 15 1 11.5 1 7.2C1 3.8 3.6 1.5 6.6 1.5C8.9 1.5 11 2.8 12 5C13 2.8 15.1 1.5 17.4 1.5C20.4 1.5 23 3.8 23 7.2C23 11.5 19 15 12 21Z",
+          "vul": "#ec5b82",
+          "vulLicht": "#d9436d"
+        },
+        { "soort": "ellipse", "cx": 7, "cy": 6, "rx": 2.4, "ry": 1.4, "vul": "#ffffff", "dekking": 0.4, "transform": "rotate(-35 7 6)" }
+      ]
+    },
+    "hartjes": {
+      "viewBox": "0 0 76 64",
+      "delen": [
+        {
+          "soort": "groep",
+          "transform": "translate(4 22) rotate(-12) scale(1.4)",
+          "delen": [
+            {
+              "soort": "path",
+              "d": "M12 21C5 15 1 11.5 1 7.2C1 3.8 3.6 1.5 6.6 1.5C8.9 1.5 11 2.8 12 5C13 2.8 15.1 1.5 17.4 1.5C20.4 1.5 23 3.8 23 7.2C23 11.5 19 15 12 21Z",
+              "vul": "#e8466f",
+              "vulLicht": "#d63a62"
+            },
+            { "soort": "ellipse", "cx": 7, "cy": 6, "rx": 2.4, "ry": 1.4, "vul": "#ffffff", "dekking": 0.4, "transform": "rotate(-35 7 6)" }
+          ]
+        },
+        {
+          "soort": "groep",
+          "transform": "translate(40 4) rotate(14) scale(1.05)",
+          "delen": [
+            {
+              "soort": "path",
+              "d": "M12 21C5 15 1 11.5 1 7.2C1 3.8 3.6 1.5 6.6 1.5C8.9 1.5 11 2.8 12 5C13 2.8 15.1 1.5 17.4 1.5C20.4 1.5 23 3.8 23 7.2C23 11.5 19 15 12 21Z",
+              "vul": "#ff8fab",
+              "vulLicht": "#f0698c"
+            },
+            { "soort": "ellipse", "cx": 7, "cy": 6, "rx": 2.4, "ry": 1.4, "vul": "#ffffff", "dekking": 0.4, "transform": "rotate(-35 7 6)" }
+          ]
+        },
+        {
+          "soort": "groep",
+          "transform": "translate(50 40) rotate(-8) scale(0.8)",
+          "delen": [
+            {
+              "soort": "path",
+              "d": "M12 21C5 15 1 11.5 1 7.2C1 3.8 3.6 1.5 6.6 1.5C8.9 1.5 11 2.8 12 5C13 2.8 15.1 1.5 17.4 1.5C20.4 1.5 23 3.8 23 7.2C23 11.5 19 15 12 21Z",
+              "vul": "#c9184a",
+              "vulLicht": "#b3123f"
+            },
+            { "soort": "ellipse", "cx": 7, "cy": 6, "rx": 2.4, "ry": 1.4, "vul": "#ffffff", "dekking": 0.4, "transform": "rotate(-35 7 6)" }
+          ]
+        }
+      ]
+    },
+    "paalhartje": {
+      "viewBox": "0 -34 100 36",
+      "delen": [
+        {
+          "soort": "path",
+          "d": "M50 -3C20 -9 8 -18 12 -24C16 -31 40 -31 50 -22C60 -31 84 -31 88 -24C92 -18 80 -9 50 -3Z",
+          "vul": "#ec5b82",
+          "lijn": "#ffffff",
+          "lijnDikte": 0.9
+        },
+        { "soort": "path", "d": "M21 -23A7 3 0 1 0 35 -23A7 3 0 1 0 21 -23Z", "vul": "#ffffff", "dekking": 0.45, "transform": "rotate(-20 28 -23)" }
+      ]
+    }
+  },
+  "versiering": [
+    { "beweging": "opstijgen", "beeld": "hartje", "aantal": 8 },
+    { "beweging": "hoek", "beeld": "hartjes", "hoeken": ["lo", "ro"] }
+  ],
+  "teksten": { "wachtrijLeeg": "Geen hartjes in de wachtrij.", "ingeplandLeeg": "Geen bezoeken gepland deze week" },
+  "spelskin": { "naam": "Liefdespaal", "behuizing": "#3a0f22", "faceplate": "#ec5b82", "bliksem": "#ffffff", "extra": "paalhartje" }
+}
