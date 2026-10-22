@@ -5,6 +5,8 @@
 // al gedaan: een fout in de cache of een voorbeeldpakket kan zo nooit iets anders dan een tekening opleveren.
 // Lichte varianten (`vulLicht`/`lijnLicht`): een vaste klasse (`ev-vl`/`ev-ll`) en een CSS-variabele (`--ev-vl`/`--ev-ll`) met de
 // kleur op het deel; css/evenement.css gebruikt ze in het lichte thema. Zo wisselt een tekening mee zonder opnieuw te bouwen.
+// Een licht verloop (`vulLicht` als verloop) wordt een tweede <linearGradient>/<radialGradient> met een eigen id; de variabele is dan
+// `url(#ev-verloop-<n>)` (een id die deze module zelf maakt, nooit een waarde uit het pakket).
 // Raakt `document` enkel binnen `vormNaarSvg` (te vervangen via de optie `document`, voor de unit-test).
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -67,12 +69,17 @@ export function svgAttributen(deel) {
   if (typeof t === 'string' && t.length <= 200 && TRANSFORM.test(t)) uit.push(['transform', t]);
   if (soort !== 'groep') {
     const klassen = lichtVariabelen(deel).map(([naam]) => naam.slice(2)); // '--ev-vl' -> 'ev-vl'
+    // Een licht verloop (taak 9c): ook de klasse ev-vl; de variabele (url naar het eigen verloop) zet vormNaarSvg.
+    if (isVerloop(eigen(deel, 'vulLicht'))) klassen.unshift('ev-vl');
     if (klassen.length) uit.push(['class', klassen.join(' ')]);
   }
   return uit;
 }
 
-// De lichte varianten van een deel als [CSS-variabele, waarde]: '--ev-vl' (vulling) en '--ev-ll' (lijn). Enkel kleur of 'none'.
+const isVerloop = (w) => w !== null && typeof w === 'object' && (eigen(w, 'verloop') === 'lineair' || eigen(w, 'verloop') === 'radiaal');
+
+// De lichte varianten van een deel als [CSS-variabele, waarde]: '--ev-vl' (vulling) en '--ev-ll' (lijn). Enkel kleur of 'none'
+// (een licht verloop staat hier niet in: vormNaarSvg maakt er een eigen verloop van en zet '--ev-vl' op url(#id)).
 export function lichtVariabelen(deel) {
   const uit = [];
   const vl = kleurWaarde(eigen(deel, 'vulLicht'));
@@ -120,6 +127,12 @@ function bouwDeel(doc, deel, ouder, verlopen, diepte) {
   if (soort !== 'groep' && vul !== null && typeof vul === 'object') {
     const id = maakVerloop(doc, verlopen(), vul);
     if (id) el.setAttribute('fill', `url(#${id})`);
+  }
+  // Licht verloop: een tweede verloop in hetzelfde svg; css/evenement.css zet in het lichte thema `fill: var(--ev-vl)`.
+  const vulLicht = eigen(deel, 'vulLicht');
+  if (soort !== 'groep' && isVerloop(vulLicht)) {
+    const id = maakVerloop(doc, verlopen(), vulLicht);
+    if (id) el.style.setProperty('--ev-vl', `url(#${id})`);
   }
   if (soort === 'groep') {
     const kinderen = eigen(deel, 'delen');

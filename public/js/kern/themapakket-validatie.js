@@ -4,8 +4,9 @@
 // Bij `ok: true` komt een DIEPE KOPIE terug met enkel de toegelaten sleutels; de invoer wordt nooit gewijzigd.
 //
 // Stijl van een tekendeel (voor de renderer):
-//  - `vul`/`lijn`: kleur, 'geen' of (enkel `vul`) een verloop. `vulLicht`/`lijnLicht`: dezelfde regel maar zonder verloop; in het LICHTE
-//    thema gebruikt de renderer `vulLicht`/`lijnLicht` als ze er zijn, anders `vul`/`lijn` (in het donkere thema altijd `vul`/`lijn`);
+//  - `vul`/`lijn`: kleur, 'geen' of (enkel `vul`) een verloop. `vulLicht`/`lijnLicht`: dezelfde regel (dus ook `vulLicht` mag een
+//    verloop zijn, `lijnLicht` niet; taak 9c: een eigen lichte lucht); in het LICHTE thema gebruikt de renderer `vulLicht`/`lijnLicht`
+//    als ze er zijn, anders `vul`/`lijn` (in het donkere thema altijd `vul`/`lijn`);
 //  - `lijnEinde` ('rond' | 'recht' | 'vierkant') = stroke-linecap round | butt | square; `lijnHoek` ('rond' | 'scherp' | 'schuin')
 //    = stroke-linejoin round | miter | bevel; zonder waarde geldt de standaard van SVG/canvas (recht en scherp);
 //  - `rect` mag `rx`/`ry` hebben (afgeronde hoeken, 0 tot 100000); zonder `ry` geldt `rx` ook voor de hoogte, zoals in SVG.
@@ -368,9 +369,10 @@ function valideerDeel(ctx, deel, veld, niveau, lijstVeld) {
     const v = valideerVulling(ctx, deel.vul, veldPad(veld, 'vul'));
     if (v !== undefined) uit.vul = v;
   }
-  // Lichte variant: enkel een kleur of 'geen' (nooit een verloop). Zonder `vulLicht`/`lijnLicht` geldt `vul`/`lijn` ook in het lichte thema.
+  // Lichte variant: `vulLicht` zoals `vul` (kleur, 'geen' of een verloop), `lijnLicht` enkel een kleur of 'geen'.
+  // Zonder `vulLicht`/`lijnLicht` geldt `vul`/`lijn` ook in het lichte thema.
   if (Object.hasOwn(deel, 'vulLicht')) {
-    const v = deel.vulLicht === 'geen' ? 'geen' : kleurVeld(ctx, deel.vulLicht, veldPad(veld, 'vulLicht'));
+    const v = valideerVulling(ctx, deel.vulLicht, veldPad(veld, 'vulLicht'));
     if (v !== undefined) uit.vulLicht = v;
   }
   if (Object.hasOwn(deel, 'lijn')) {

@@ -564,15 +564,40 @@ test('vulLicht en lijnLicht: een kleur of "geen" komt ongewijzigd terug', () => 
   assert.equal(r2.ok, true, JSON.stringify(r2.fouten));
 });
 
-test('vulLicht en lijnLicht: een ongeldige kleur of een verloop wordt geweigerd', () => {
+test('vulLicht en lijnLicht: een ongeldige kleur wordt geweigerd, een verloop enkel bij lijnLicht', () => {
   const basisDeel = { soort: 'circle', cx: 1, cy: 1, r: 1, vul: '#112233' };
   for (const waarde of ['red', 'javascript:alert(1)', '#fff', 5, null]) {
     weiger(metDeel({ ...basisDeel, vulLicht: waarde }), deelVeld('vulLicht'));
     weiger(metDeel({ ...basisDeel, lijnLicht: waarde }), deelVeld('lijnLicht'));
   }
   const verloop = { verloop: 'lineair', x1: 0, y1: 0, x2: 0, y2: 1, stops: [{ op: 0, kleur: '#112233' }] };
-  weiger(metDeel({ ...basisDeel, vulLicht: verloop }), deelVeld('vulLicht'));
   weiger(metDeel({ ...basisDeel, lijnLicht: verloop }), deelVeld('lijnLicht'));
+});
+
+// Taak 9c (keuze opdrachtgever 2026-10-22: elk thema een eigen lichte versie): `vulLicht` mag een verloop zijn, met dezelfde regels
+// als een verloop in `vul` (soort, coördinaten, 1 tot 8 stops met geldige kleuren, geen vreemde sleutels).
+test('vulLicht: een verloop (lineair of radiaal) komt als schone kopie terug', () => {
+  const lineair = { verloop: 'lineair', x1: 0, y1: 0, x2: 0, y2: 1, stops: [{ op: 0, kleur: '#cfe3f5' }, { op: 1, kleur: '#f7e3d0' }] };
+  const radiaal = { verloop: 'radiaal', cx: 0.5, cy: 0.5, r: 0.5, stops: [{ op: 0, kleur: '#fff3cf8c' }, { op: 1, kleur: '#fff3cf00' }] };
+  for (const vl of [lineair, radiaal]) {
+    const deel = { soort: 'rect', x: 0, y: 0, width: 10, height: 10, vul: '#112233', vulLicht: vl };
+    const r = valideerPakket(metDeel(deel));
+    assert.equal(r.ok, true, JSON.stringify(r.fouten));
+    assert.deepEqual(gewoon(r.pakket.vormen.spin.delen[0].vulLicht), vl);
+    assert.notEqual(r.pakket.vormen.spin.delen[0].vulLicht, vl, 'een kopie, niet de invoer');
+  }
+});
+
+test('vulLicht: een ongeldig verloop wordt geweigerd zoals in vul', () => {
+  const basisDeel = { soort: 'rect', x: 0, y: 0, width: 10, height: 10, vul: '#112233' };
+  const stop = { op: 0, kleur: '#112233' };
+  weiger(metDeel({ ...basisDeel, vulLicht: { verloop: 'conisch', stops: [stop] } }), `${deelVeld('vulLicht')}.verloop`);
+  weiger(metDeel({ ...basisDeel, vulLicht: { verloop: 'lineair', stops: [] } }), `${deelVeld('vulLicht')}.stops`);
+  weiger(metDeel({ ...basisDeel, vulLicht: { verloop: 'lineair', stops: Array(9).fill(stop) } }), `${deelVeld('vulLicht')}.stops`);
+  weiger(metDeel({ ...basisDeel, vulLicht: { verloop: 'lineair', stops: [{ op: 2, kleur: '#112233' }] } }), `${deelVeld('vulLicht')}.stops[0].op`);
+  weiger(metDeel({ ...basisDeel, vulLicht: { verloop: 'lineair', stops: [{ op: 0, kleur: 'url(#x)' }] } }), `${deelVeld('vulLicht')}.stops[0].kleur`);
+  weiger(metDeel({ ...basisDeel, vulLicht: { verloop: 'lineair', href: '#x', stops: [stop] } }), `${deelVeld('vulLicht')}.href`);
+  weiger(metDeel({ ...basisDeel, vulLicht: { verloop: 'radiaal', x1: 0, stops: [stop] } }), `${deelVeld('vulLicht')}.x1`);
 });
 
 test('lijnEinde en lijnHoek: enkel de toegelaten woorden', () => {

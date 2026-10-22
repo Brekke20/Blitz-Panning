@@ -125,6 +125,31 @@ test('vormNaarSvg: de scène (verlopen, groepen) krijgt per laag unieke verloop-
   assert.deepEqual([tel(a, 'circle'), tel(a, 'path'), tel(a, 'rect')], [57, 25, 28]);
 });
 
+// Taak 9c: een licht verloop (vulLicht als verloop) wordt een tweede verloop in hetzelfde svg; het deel krijgt de klasse ev-vl en
+// --ev-vl = url(#<eigen id>). Het donkere verloop blijft het fill-attribuut.
+test('vormNaarSvg: een licht verloop wordt een eigen verloop, met de klasse ev-vl en --ev-vl als url naar dat verloop', () => {
+  const dom = maakDom();
+  const deel = {
+    soort: 'rect', x: 0, y: 0, width: 10, height: 10,
+    vul: { verloop: 'lineair', x1: 0, y1: 0, x2: 0, y2: 1, stops: [{ op: 0, kleur: '#070a1c' }, { op: 1, kleur: '#352552' }] },
+    vulLicht: { verloop: 'lineair', x1: 0, y1: 0, x2: 0, y2: 1, stops: [{ op: 0, kleur: '#cfd8f2' }, { op: 1, kleur: '#f6dcc4' }] },
+  };
+  assert.deepEqual(svgAttributen(deel).find(([n]) => n === 'class'), ['class', 'ev-vl']);
+  assert.deepEqual(lichtVariabelen(deel), []);
+  const svg = vormNaarSvg({ viewBox: '0 0 10 10', delen: [deel] }, { klasse: 'x', document: dom });
+  const grads = alle(svg).filter((e) => e.naam === 'linearGradient');
+  assert.equal(grads.length, 2);
+  const rect = alle(svg).find((e) => e.naam === 'rect');
+  assert.equal(rect.getAttribute('fill'), `url(#${grads[0].getAttribute('id')})`);
+  assert.equal(rect.stijl.get('--ev-vl'), `url(#${grads[1].getAttribute('id')})`);
+  assert.deepEqual(grads[1].kinderen.map((s) => s.getAttribute('stop-color')), ['#cfd8f2', '#f6dcc4']);
+  // een licht verloop met een effen donkere vulling kan ook; een ongeldig verloop geeft geen variabele en geen klasse
+  const effen = vormNaarSvg({ viewBox: '0 0 1 1', delen: [{ soort: 'circle', cx: 0, cy: 0, r: 1, vul: '#000000', vulLicht: { verloop: 'radiaal', stops: [{ op: 0, kleur: '#ffffff' }] } }] }, { document: dom });
+  assert.match(alle(effen).find((e) => e.naam === 'circle').stijl.get('--ev-vl'), /^url\(#ev-verloop-\d+\)$/);
+  const fout = { soort: 'circle', cx: 0, cy: 0, r: 1, vulLicht: { verloop: 'conisch', stops: [] } };
+  assert.equal(svgAttributen(fout).find(([n]) => n === 'class'), undefined);
+});
+
 test('vormNaarSvg: een verloop krijgt zijn coördinaten en stops', () => {
   const dom = maakDom();
   const svg = vormNaarSvg({ viewBox: '0 0 10 10', delen: [{ soort: 'circle', cx: 5, cy: 5, r: 5, vul: { verloop: 'radiaal', cx: 0.5, cy: 0.5, r: 0.5, stops: [{ op: 0, kleur: '#fff3cf8c' }, { op: 1, kleur: '#8f86e800' }] } }] }, { klasse: 'x', document: dom });
