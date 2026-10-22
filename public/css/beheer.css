@@ -159,3 +159,41 @@
   .ba-tabel { min-width: 0; table-layout: auto; }
   .ba-tabel colgroup { display: none; }
 }
+
+/* Tab Thema's: kaarten per thema, uploadmelding, voorbeeldbalk en het periodevenster. */
+.bt { min-width: 0; }
+.bt .btn { min-height: 44px; }
+.bt-bestand { display: none; }
+.bt-kaarten { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-3); align-items: start; }
+.bt-kaarten > .bg-uitleg, .bt-kaarten > .beheer-fout { grid-column: 1 / -1; }
+.bt-kaart { min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: var(--sp-3) var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-2); }
+.bt-kaart[data-status="uit"] { opacity: 0.8; }
+.bt-kaart-kop { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.bt-naam { font-size: var(--fs-md); font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.bt-status { color: var(--text); background: var(--surface3); white-space: normal; }
+.bt-status[data-status="actief"] { background: var(--green-dim); color: var(--accent-ink); }
+.bt-status[data-status="binnenkort"] { background: var(--blue-dim); }
+.bt-status[data-status="overschaduwd"] { background: var(--orange-dim); }
+.bt-periode { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--text2); }
+.bt-aangepast, .bt-bekijk { color: var(--text); background: var(--surface3); }
+.bt-schakel-rij { display: flex; align-items: center; gap: var(--sp-2); min-height: 44px; font-size: var(--fs-sm); font-weight: 600; cursor: pointer; }
+.bt-schakel { width: 20px; height: 20px; flex-shrink: 0; cursor: pointer; }
+.bt-acties .btn { flex: 1 1 auto; }
+.bt-uploadfout:empty { display: none; }
+.bt-uploadfout { background: var(--red-dim); border: 1px solid var(--red); border-radius: var(--r); padding: var(--sp-3); margin-bottom: var(--sp-3); }
+.bt-fout-kop { font-size: var(--fs-sm); font-weight: 700; color: var(--red-ink); margin-bottom: var(--sp-1); }
+.bt-fout-lijst { margin: 0; padding-left: var(--sp-5); font-size: var(--fs-sm); color: var(--text); line-height: 1.5; }
+.bt-fout-lijst li { overflow-wrap: anywhere; }
+.bt-voorbeeld { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3); background: var(--blue-dim); border: 1px solid var(--border); border-radius: var(--r); padding: var(--sp-3); margin-bottom: var(--sp-3); font-size: var(--fs-sm); line-height: 1.5; }
+.bt-voorbeeld[hidden] { display: none; }
+.bt-voorbeeld-tekst { flex: 1 1 260px; min-width: 0; }
+.bt-form { display: block; }
+.bt-datum { border: none; padding: 0; margin: 0 0 var(--sp-3); min-width: 0; }
+.bt-datum legend { padding: 0; }
+.bt-datum-rij { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: var(--sp-3); }
+.bt-datum-rij .set-field { margin-bottom: 0; }
+.bt-resultaat { margin: 0 0 var(--sp-2); min-height: 1.5em; font-weight: 600; }
+@media (max-width: 599px) {
+  .bt-kaarten { grid-template-columns: minmax(0, 1fr); }
+  .bt-acties .btn { flex: 1 1 100%; }
+}

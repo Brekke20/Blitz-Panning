@@ -13,7 +13,7 @@ const KEUZE_SLEUTEL = 'blitz_beheer_tab'; // sessionStorage: het gekozen tabblad
 const tabs = []; // { id, label, render, rollen }
 const BEHEERDER_ENKEL = ['beheerder'];
 // De vorm van het skelet per tab voor het geval een tab pas iets tekent nadat zijn eerste gegevens binnen zijn (anders staat er al een kader).
-const SKELET_VORM = { instellingen: 'formulier', performance: 'tegels' };
+const SKELET_VORM = { instellingen: 'formulier', performance: 'tegels', themas: 'tegels' };
 
 // De beheerrol van een gebruiker: 'beheerder', 'planner', 'sales-manager' (sales met magAlleSales) of null (geen Beheer).
 export function beheerRolVan(gebruiker) {

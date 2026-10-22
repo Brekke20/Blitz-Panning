@@ -5,4 +5,5 @@ import './beheer-instellingen.js';
 import './beheer-beschikbaarheden.js';
 import './beheer-activiteit.js';
 import './beheer-systeemstatus.js';
+import './beheer-themas.js';
 import './beheer-performance.js';
