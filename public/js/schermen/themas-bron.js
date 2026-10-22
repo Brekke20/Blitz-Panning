@@ -20,6 +20,7 @@ const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x)
 
 let laatste = null; // { index, pakketten }: het laatst gekende antwoord (uit de server of de cache)
 let voorbeeldPakket = null;
+let volgnr = 0; // teller van de lopende ladingen: enkel de laatst gestarte lading mag de stand en de opslag bijwerken
 
 // localStorage kan ontbreken of bij het openen gooien (privévenster, geblokkeerde sitegegevens).
 function opslag() {
@@ -49,6 +50,7 @@ async function haalPakket(id) {
 export async function laadThemas({ datum = new Date() } = {}) {
   let vorig = LEEG();
   try { vorig = themasNu(); } catch { /* cache onleesbaar: begin leeg */ }
+  const mijn = ++volgnr;
   try {
     const r = await apiVerzoek(PAD);
     if (!r.ok || !isObject(r.data)) return vorig;
@@ -68,12 +70,22 @@ export async function laadThemas({ datum = new Date() } = {}) {
       if (bewaard || rij.id === actief) opTeHalen.push(rij.id);
     }
     const opgehaald = await Promise.all(opTeHalen.map(haalPakket));
-    opTeHalen.forEach((id, i) => { if (opgehaald[i]) pakketten[id] = opgehaald[i]; });
+    const themas = index.themas.map((t) => ({ ...t }));
+    opTeHalen.forEach((id, i) => {
+      if (opgehaald[i]) { pakketten[id] = opgehaald[i]; return; }
+      // Het ophalen mislukte: een nog bruikbaar cachepakket blijft staan, met de OUDE hash in de index, zodat de volgende lading
+      // opnieuw probeert (een tijdelijke storing laat een werkend thema niet verdwijnen).
+      if (Object.hasOwn(vorig.pakketten, id)) {
+        pakketten[id] = vorig.pakketten[id];
+        themas.find((t) => t.id === id).pakketHash = vorigeHash.get(id) ?? '';
+      }
+    });
 
-    laatste = { index, pakketten };
+    if (mijn !== volgnr) return laatste ?? vorig; // een nieuwere lading is al gestart (en klaar of onderweg): niets overschrijven
+    laatste = { index: { ...index, themas }, pakketten };
     const o = opslag();
     bewaarCache(o, laatste, { datum });
-    bewaarActiefRecord(o, actiefRecord(index, pakketten, datum));
+    bewaarActiefRecord(o, actiefRecord(laatste.index, pakketten, datum));
     return laatste;
   } catch {
     return vorig;

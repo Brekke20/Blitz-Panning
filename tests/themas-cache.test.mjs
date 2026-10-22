@@ -78,17 +78,34 @@ test('bewaarCache en leesCache: rondreis', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(c.pakketten.halloween)), h); // de gevalideerde kopie is inhoudelijk gelijk (de volgorde van de sleutels mag verschillen)
 });
 
-test('bewaarCache: bij 2 MB aan pakketten blijft enkel het actieve pakket', () => {
+test('bewaarCache: bij meer dan 1,5 MB (in bytes, met meerbyte-tekens) blijft enkel het actieve pakket', () => {
   const o = nepOpslag();
   const h = halloween();
   const k = kerst();
-  const groot = { ...k, id: 'groot', opvulling: 'x'.repeat(2 * 1024 * 1024) };
+  // 600000 tekens van 3 bytes = 1,8 MB aan bytes, maar maar 600000 tekens: enkel een bytetelling ziet dat het te groot is
+  const groot = { ...k, id: 'groot', opvulling: '€'.repeat(600000) };
   const index = { versie: 4, themas: [rij(h), rij(k), rij(groot, { periode: k.periode })] };
   assert.equal(bewaarCache(o, { index, pakketten: { halloween: h, kerst: k, groot } }, { datum: DATUM }), true);
-  const ruw = JSON.parse(o.getItem(CACHE_SLEUTEL));
+  const tekst = o.getItem(CACHE_SLEUTEL);
+  const ruw = JSON.parse(tekst);
   assert.deepEqual(Object.keys(ruw.pakketten), ['halloween']);
-  assert.ok(o.getItem(CACHE_SLEUTEL).length <= MAX_CACHE_BYTES);
+  assert.ok(new TextEncoder().encode(tekst).length <= MAX_CACHE_BYTES);
   assert.equal(ruw.index.themas.length, 3, 'de index blijft volledig');
+});
+
+test('bewaarCache: een vol geheugen (setItem gooit bij de grote schrijfbeurt) bewaart bij een tweede poging enkel het actieve pakket', () => {
+  const kaart = new Map();
+  const o = {
+    getItem: (k) => (kaart.has(k) ? kaart.get(k) : null),
+    setItem(k, v) { if (String(v).length > 100000) throw new DOMException('quota', 'QuotaExceededError'); kaart.set(k, String(v)); },
+    removeItem: (k) => { kaart.delete(k); },
+  };
+  const h = halloween();
+  const k = kerst();
+  const vol = { ...k, id: 'vol', opvulling: 'x'.repeat(300000) }; // ruim onder 1,5 MB, maar boven wat deze opslag aanvaardt
+  const index = { versie: 5, themas: [rij(h), rij(vol, { periode: k.periode })] };
+  assert.equal(bewaarCache(o, { index, pakketten: { halloween: h, vol } }, { datum: DATUM }), true);
+  assert.deepEqual(Object.keys(JSON.parse(kaart.get(CACHE_SLEUTEL)).pakketten), ['halloween']);
 });
 
 test('bewaarCache: een opslag die gooit geeft false zonder uitzondering', () => {

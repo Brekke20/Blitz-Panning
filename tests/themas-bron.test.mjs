@@ -149,3 +149,71 @@ test('zetVoorbeeld en voorbeeld: enkel in het geheugen', async () => {
   zetVoorbeeld(null);
   assert.equal(voorbeeld(), null);
 });
+
+// ---- Fix ronde 1 ----
+
+test('laadThemas: een oudere lading die later antwoordt overschrijft de nieuwere niet (geheugen en opslag)', async () => {
+  const kaart = zetOpslag();
+  const h = halloween();
+  let laatsteLoslaten;
+  const eerste = new Promise((klaar) => { laatsteLoslaten = klaar; });
+  let nr = 0;
+  zetFetch(async () => {
+    nr += 1;
+    if (nr === 1) { await eerste; return json({ versie: 1, themas: [rij(h, 'oud')], pakketten: { halloween: h } }); }
+    return json({ versie: 2, themas: [rij(h, 'nieuw')], pakketten: { halloween: h } });
+  });
+  const { laadThemas, themasNu } = await laadVers();
+  const a = laadThemas({ datum: DATUM }); // begint eerst, antwoordt laatst
+  const b = await laadThemas({ datum: DATUM });
+  assert.equal(b.index.versie, 2);
+  laatsteLoslaten();
+  const a2 = await a;
+  assert.equal(a2.index.versie, 2, 'de oudere lading geeft de nieuwere stand terug');
+  assert.equal(themasNu().index.versie, 2);
+  assert.equal(JSON.parse(kaart.get(CACHE_SLEUTEL)).index.versie, 2);
+  assert.equal(JSON.parse(kaart.get(CACHE_SLEUTEL)).index.themas[0].pakketHash, 'nieuw');
+});
+
+test('laadThemas: mislukt ?id= bij een actief thema, dan blijft het cachepakket en de oude hash (volgende keer opnieuw proberen)', async () => {
+  const oud = halloween();
+  const h = halloween();
+  nepFetch((url) => (url.includes('?id=') ? json({ error: 'stuk' }, 503) : json({ versie: 2, themas: [rij(h, 'nieuw')], pakketten: {} })));
+  const bewaard = zetOpslag({ [CACHE_SLEUTEL]: JSON.stringify({ index: { versie: 1, themas: [rij(oud, 'oud')] }, pakketten: { halloween: oud } }) });
+  const { laadThemas } = await laadVers();
+  const r = await laadThemas({ datum: DATUM });
+  assert.deepEqual(Object.keys(r.pakketten), ['halloween']);
+  assert.equal(r.index.versie, 2);
+  assert.equal(r.index.themas[0].pakketHash, 'oud', 'de oude hash blijft staan zodat de volgende lading opnieuw ophaalt');
+  assert.equal(JSON.parse(bewaard.get(CACHE_SLEUTEL)).index.themas[0].pakketHash, 'oud');
+  assert.equal(JSON.parse(bewaard.get(ACTIEF_SLEUTEL)).id, 'halloween', 'het actieve record blijft');
+});
+
+test('laadThemas: een thema van over maanden zonder cache en zonder pakket in het antwoord wordt niet via ?id= opgehaald', async () => {
+  const h = halloween();
+  const k = kerst(); // 7 tot 31 december: op 15 oktober nog ver weg (meer dan 14 dagen)
+  const aanroepen = nepFetch(() => json({ versie: 1, themas: [rij(h, 'h'), rij(k, 'k')], pakketten: { halloween: h } }));
+  const { laadThemas } = await laadVers();
+  const r = await laadThemas({ datum: DATUM });
+  assert.deepEqual(aanroepen, ['/api/themas']);
+  assert.deepEqual(Object.keys(r.pakketten), ['halloween']);
+});
+
+test('laadThemas: een actief thema zonder pakket in het antwoord en zonder cache wordt wel via ?id= opgehaald', async () => {
+  const h = halloween();
+  const aanroepen = nepFetch((url) => (url.includes('?id=halloween') ? json(h) : json({ versie: 1, themas: [rij(h, 'h')], pakketten: {} })));
+  const { laadThemas } = await laadVers();
+  const r = await laadThemas({ datum: DATUM });
+  assert.deepEqual(aanroepen, ['/api/themas', '/api/themas?id=halloween']);
+  assert.deepEqual(Object.keys(r.pakketten), ['halloween']);
+});
+
+test('laadThemas: een ongeldig pakket uit ?id= wordt weggelaten', async () => {
+  const h = halloween();
+  const slecht = halloween();
+  slecht.vormen.web.delen[0].d = '<script>alert(1)</script>';
+  nepFetch((url) => (url.includes('?id=halloween') ? json(slecht) : json({ versie: 1, themas: [rij(h, 'h')], pakketten: {} })));
+  const { laadThemas } = await laadVers();
+  const r = await laadThemas({ datum: DATUM });
+  assert.deepEqual(Object.keys(r.pakketten), []);
+});

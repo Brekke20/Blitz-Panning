@@ -78,21 +78,25 @@ export function leesCache(opslag) {
   }
 }
 
-// Bewaart de cache. Past ze niet in MAX_CACHE_BYTES, dan blijft enkel het pakket van het thema dat op `datum` actief is.
-// Geeft true als er geschreven werd, false bij een opslagfout (vol, geen toegang) of als er niets te bewaren valt.
+// Bewaart de cache. Past ze niet in MAX_CACHE_BYTES, of weigert de opslag de schrijfbeurt (vol), dan blijft enkel het pakket van
+// het thema dat op `datum` actief is (één tweede poging). Geeft true als er geschreven werd, false bij een opslagfout of als
+// er niets te bewaren valt.
 export function bewaarCache(opslag, { index, pakketten }, { datum = new Date() } = {}) {
   try {
     if (!opslag || !isObject(index)) return false;
-    let tekst = JSON.stringify({ index, pakketten: pakketten || {} });
-    if (bytes(tekst) > MAX_CACHE_BYTES) {
-      const actief = actiefThema(datum, schoonIndex(index)?.themas || []);
-      const enkelActief = {};
-      if (actief && pakketten && Object.hasOwn(pakketten, actief.id)) enkelActief[actief.id] = pakketten[actief.id];
-      tekst = JSON.stringify({ index, pakketten: enkelActief });
+    const schrijf = (kaart) => {
+      const tekst = JSON.stringify({ index, pakketten: kaart });
       if (bytes(tekst) > MAX_CACHE_BYTES) return false;
-    }
-    opslag.setItem(CACHE_SLEUTEL, tekst);
-    return true;
+      opslag.setItem(CACHE_SLEUTEL, tekst);
+      return true;
+    };
+    try {
+      if (schrijf(pakketten || {})) return true;
+    } catch { /* vol: probeer het met enkel het actieve pakket */ }
+    const actief = actiefThema(datum, schoonIndex(index)?.themas || []);
+    const enkelActief = {};
+    if (actief && pakketten && Object.hasOwn(pakketten, actief.id)) enkelActief[actief.id] = pakketten[actief.id];
+    return schrijf(enkelActief);
   } catch {
     return false;
   }
