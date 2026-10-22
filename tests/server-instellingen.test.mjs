@@ -413,3 +413,16 @@ test('bewegingUit: een beheerder die de andere instellingen van een gebruiker be
   assert.equal(na.duurMinuten, 75);
   assert.equal(na.bewegingUit, true);
 });
+
+test('bewegingUit: een technieker bewaart het veld in zijn EIGEN record (rechten bestonden al), nooit dat van een ander (403)', async () => {
+  const { h, echt } = opzet();
+  const eigen = await metRol('technieker', () => h(put({ instellingen: geldig({ bewegingUit: true }) })));
+  assert.equal(eigen.status, 200);
+  assert.equal((await (await metRol('technieker', () => h(get()))).json()).instellingen.bewegingUit, true);
+  const ander = await metRol('technieker', () => h(put({ gebruiker: 'u-tom', instellingen: geldig({ bewegingUit: true }) })));
+  assert.equal(ander.status, 403);
+  assert.deepEqual(Object.keys((await blob(echt)).perGebruiker), ['test-technieker']);
+  // andere rollen blijven zoals ze waren: een planner schrijft het veld voor een technieker, een sales enkel voor zichzelf
+  assert.equal((await metRol('planner', () => h(put({ gebruiker: 'u-tim', instellingen: geldig({ bewegingUit: true }) })))).status, 200);
+  assert.equal((await metRol('sales', () => h(put({ gebruiker: 'u-tim', instellingen: geldig({ bewegingUit: true }) })))).status, 403);
+});
