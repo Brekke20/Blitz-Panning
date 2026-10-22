@@ -91,6 +91,7 @@ Een pakket is één JSON-bestand (`<id>.blitzthema.json`). Het bevat enkel gegev
 
 ### 3.1 Vormen (veilige vectortekeningen)
 - Een vorm heeft een `viewBox` en `delen`. Een deel heeft als `soort` één van `path`, `circle`, `ellipse`, `rect`, `polygon` of `line`, met enkel de geometrische attributen van die soort (`d`, `cx`, `cy`, `r`, `rx`, `ry`, `x`, `y`, `width`, `height`, `points`, `x1`, `y1`, `x2`, `y2`) en de stijl `vul`, `lijn`, `lijnDikte`, `dekking`.
+- Aanvulling (taak 3): een deel mag `vulLicht` en `lijnLicht` hebben (kleur of `geen`, geen verloop): in het lichte thema gebruikt de renderer die, anders `vul`/`lijn`. Verder `lijnEinde` (`rond`, `recht`, `vierkant`), `lijnHoek` (`rond`, `scherp`, `schuin`) en, enkel op `rect`, `rx`/`ry` (afgeronde hoeken).
 - Verlopen (`verloop: { soort: 'lineair'|'radiaal', stops: [{ op, kleur }] }`) mogen, als eigenschap van `vul`.
 - `d` voldoet aan `/^[MmLlHhVvCcSsQqTtAaZz0-9eE.,\s+-]{1,20000}$/`. Getallen zijn begrensd. Elke vorm heeft maximaal 400 delen, het hele pakket maximaal 3000.
 - De app bouwt het SVG zelf op met `createElementNS` en een vaste lijst attributen. Er komt nooit een `innerHTML`, `href`, `style`, `on*`, `<script>` of `<foreignObject>` aan te pas. Een vorm is dus veilig door de manier waarop hij gebouwd wordt.

@@ -77,6 +77,7 @@ function vergelijkMetOudeSvg(vorm, html) {
     }
     if (attrs['stroke-width']) assert.equal(deel.lijnDikte, Number(attrs['stroke-width']), `deel ${i}: lijnDikte`);
     if (attrs.transform) assert.equal(deel.transform, attrs.transform, `deel ${i}: transform`);
+    if (attrs['stroke-linecap'] === 'round') assert.equal(deel.lijnEinde, 'rond', `deel ${i}: lijnEinde`);
   });
 }
 
@@ -145,12 +146,40 @@ test('Halloween: de vormen web, spin en vleermuis hebben exact de padstrings van
   assert.equal(vormen.vleermuis.viewBox, '0 0 40 26');
 });
 
-test('Halloween: de web is een lijntekening zonder vulling, de spin heeft pootjes als lijn', () => {
+test('Halloween: de web is een lijntekening zonder vulling, de spin heeft pootjes als ronde lijn', () => {
   const { web, spin } = halloween().vormen;
   for (const d of web.delen) { assert.equal(d.vul, 'geen'); assert.equal(d.lijnDikte, 1); assert.ok(d.lijn); }
   const poten = spin.delen.find((d) => d.soort === 'path');
   assert.equal(poten.vul, 'geen');
   assert.ok(poten.lijn);
+  assert.equal(poten.lijnEinde, 'rond');
+});
+
+// karakterisering van v2.2.0 (bron wordt in een latere taak geschrapt): css/evenement.css:7-12
+//   --ev-web: rgba(220, 225, 230, 0.4) (donker) en rgba(40, 50, 65, 0.4) (licht); --ev-spin: #aab3bd (donker) en #2b2b2b (licht)
+test('Halloween: web, spin en vleermuis hebben dezelfde donkere en lichte kleuren als de CSS-variabelen van v2.2.0', () => {
+  const { web, spin, vleermuis } = halloween().vormen;
+  for (const d of web.delen) {
+    assert.equal(d.lijn, '#dce1e6'); // 220,225,230
+    assert.equal(d.lijnLicht, '#283241'); // 40,50,65
+    assert.equal(d.dekking, 0.4);
+  }
+  for (const d of spin.delen) {
+    if (d.vul === 'geen') { assert.equal(d.lijn, '#aab3bd'); assert.equal(d.lijnLicht, '#2b2b2b'); } else { assert.equal(d.vul, '#aab3bd'); assert.equal(d.vulLicht, '#2b2b2b'); }
+  }
+  assert.equal(vleermuis.delen[0].vul, '#aab3bd');
+  assert.equal(vleermuis.delen[0].vulLicht, '#2b2b2b');
+});
+
+test('Halloween: de vogelverschrikker heeft een afgeronde balk (rx 2) en ronde armen, de takken van de boom een ronde lijn', () => {
+  const alle = alleDelen(halloween().vormen.scene.delen);
+  const balken = alle.filter((d) => d.soort === 'rect' && d.width === 76);
+  assert.equal(balken.length, 4);
+  for (const b of balken) assert.equal(b.rx, 2);
+  const rond = alle.filter((d) => d.lijnEinde === 'rond');
+  assert.deepEqual(rond.map((d) => d.lijnDikte), [2.2, 2.2, 2.2, 2.2, 5]);
+  // Elke andere rechthoek in de scène is scherp.
+  assert.equal(alle.filter((d) => d.soort === 'rect' && d.rx !== undefined).length, 4);
 });
 
 test('Halloween: de vorm scene telt evenveel cirkels, paden en rechthoeken als sceneSvg() van v2.2.0', () => {

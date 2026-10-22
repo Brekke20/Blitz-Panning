@@ -532,3 +532,65 @@ test('contrastVerhouding: wit-zwart is 21, gelijke kleuren 1, symmetrisch, alpha
   assert.ok(contrastVerhouding('#2f4358', '#2f4358') < 3);
   assert.ok(Math.abs(contrastVerhouding('#ffffff80', '#000000') - 21) < 0.01);
 });
+
+// ---- Themagevoelige kleuren, lijneinde en -hoek, afgeronde hoeken (rulings A en B van taak 3) ----
+
+const metDeel = (deel) => met((p) => { p.vormen.spin.delen = [deel]; });
+const deelVeld = (sleutel) => `vormen.spin.delen[0].${sleutel}`;
+
+test('vulLicht en lijnLicht: een kleur of "geen" komt ongewijzigd terug', () => {
+  const deel = { soort: 'path', d: 'M0 0L5 5', vul: '#aab3bd', vulLicht: '#2b2b2b', lijn: '#dce1e6', lijnLicht: 'geen', lijnDikte: 1 };
+  const r = valideerPakket(metDeel(deel));
+  assert.equal(r.ok, true, JSON.stringify(r.fouten));
+  assert.deepEqual(gewoon(r.pakket.vormen.spin.delen[0]), deel);
+  const r2 = valideerPakket(metDeel({ soort: 'circle', cx: 1, cy: 1, r: 1, vul: 'geen', vulLicht: '#2b2b2b80' }));
+  assert.equal(r2.ok, true, JSON.stringify(r2.fouten));
+});
+
+test('vulLicht en lijnLicht: een ongeldige kleur of een verloop wordt geweigerd', () => {
+  const basisDeel = { soort: 'circle', cx: 1, cy: 1, r: 1, vul: '#112233' };
+  for (const waarde of ['red', 'javascript:alert(1)', '#fff', 5, null]) {
+    weiger(metDeel({ ...basisDeel, vulLicht: waarde }), deelVeld('vulLicht'));
+    weiger(metDeel({ ...basisDeel, lijnLicht: waarde }), deelVeld('lijnLicht'));
+  }
+  const verloop = { verloop: 'lineair', x1: 0, y1: 0, x2: 0, y2: 1, stops: [{ op: 0, kleur: '#112233' }] };
+  weiger(metDeel({ ...basisDeel, vulLicht: verloop }), deelVeld('vulLicht'));
+  weiger(metDeel({ ...basisDeel, lijnLicht: verloop }), deelVeld('lijnLicht'));
+});
+
+test('lijnEinde en lijnHoek: enkel de toegelaten woorden', () => {
+  for (const einde of ['rond', 'recht', 'vierkant']) {
+    for (const hoek of ['rond', 'scherp', 'schuin']) {
+      const r = valideerPakket(metDeel({ soort: 'path', d: 'M0 0L5 5', lijn: '#112233', lijnEinde: einde, lijnHoek: hoek }));
+      assert.equal(r.ok, true, JSON.stringify(r.fouten));
+      assert.equal(r.pakket.vormen.spin.delen[0].lijnEinde, einde);
+      assert.equal(r.pakket.vormen.spin.delen[0].lijnHoek, hoek);
+    }
+  }
+  for (const waarde of ['butt', 'round', 'miter', '', 3, null, ['rond']]) {
+    weiger(metDeel({ soort: 'path', d: 'M0 0L5 5', lijn: '#112233', lijnEinde: waarde }), deelVeld('lijnEinde'));
+    weiger(metDeel({ soort: 'path', d: 'M0 0L5 5', lijn: '#112233', lijnHoek: waarde }), deelVeld('lijnHoek'));
+  }
+});
+
+test('rect: rx en ry (niet negatief, begrensd) zijn toegelaten, op andere soorten niet', () => {
+  const rect = { soort: 'rect', x: 0, y: 0, width: 10, height: 4, vul: '#112233' };
+  const r = valideerPakket(metDeel({ ...rect, rx: 2, ry: 1.5 }));
+  assert.equal(r.ok, true, JSON.stringify(r.fouten));
+  assert.equal(r.pakket.vormen.spin.delen[0].rx, 2);
+  assert.equal(r.pakket.vormen.spin.delen[0].ry, 1.5);
+  assert.equal(valideerPakket(metDeel({ ...rect, rx: 0 })).ok, true);
+  weiger(metDeel({ ...rect, rx: -1 }), deelVeld('rx'));
+  weiger(metDeel({ ...rect, ry: -0.5 }), deelVeld('ry'));
+  weiger(metDeel({ ...rect, rx: 100001 }), deelVeld('rx'));
+  weiger(metDeel({ ...rect, rx: '2' }), deelVeld('rx'));
+  weiger(metDeel({ ...rect, rx: Infinity }), deelVeld('rx'));
+  weiger(metDeel({ soort: 'circle', cx: 1, cy: 1, r: 1, rx: 2 }), deelVeld('rx'));
+  weiger(metDeel({ soort: 'path', d: 'M0 0L5 5', rx: 2 }), deelVeld('rx'));
+  weiger(metDeel({ soort: 'polygon', points: '0,0 1,1 2,0', ry: 2 }), deelVeld('ry'));
+});
+
+test('de nieuwe sleutels mogen niet op een groep staan (die heeft enkel delen en transform)', () => {
+  weiger(metDeel({ soort: 'groep', vulLicht: '#112233', delen: [{ soort: 'path', d: 'M0 0L5 5' }] }), deelVeld('vulLicht'));
+  weiger(metDeel({ soort: 'groep', lijnEinde: 'rond', delen: [{ soort: 'path', d: 'M0 0L5 5' }] }), deelVeld('lijnEinde'));
+});

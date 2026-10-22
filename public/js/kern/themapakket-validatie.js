@@ -3,6 +3,13 @@
 // Een pakket bevat enkel gegevens met een vaste lijst sleutels (spec §3): elke onbekende sleutel, op elk niveau, wordt geweigerd.
 // Bij `ok: true` komt een DIEPE KOPIE terug met enkel de toegelaten sleutels; de invoer wordt nooit gewijzigd.
 //
+// Stijl van een tekendeel (voor de renderer):
+//  - `vul`/`lijn`: kleur, 'geen' of (enkel `vul`) een verloop. `vulLicht`/`lijnLicht`: dezelfde regel maar zonder verloop; in het LICHTE
+//    thema gebruikt de renderer `vulLicht`/`lijnLicht` als ze er zijn, anders `vul`/`lijn` (in het donkere thema altijd `vul`/`lijn`);
+//  - `lijnEinde` ('rond' | 'recht' | 'vierkant') = stroke-linecap round | butt | square; `lijnHoek` ('rond' | 'scherp' | 'schuin')
+//    = stroke-linejoin round | miter | bevel; zonder waarde geldt de standaard van SVG/canvas (recht en scherp);
+//  - `rect` mag `rx`/`ry` hebben (afgeronde hoeken, 0 tot 100000); zonder `ry` geldt `rx` ook voor de hoogte, zoals in SVG.
+//
 // Veiligheidsregels in deze module:
 //  - nooit `in` of overgeërfde eigenschappen lezen: enkel eigen sleutels (`Object.hasOwn`), zodat `__proto__` en `constructor`
 //    nooit iets doen; namen van vormen/beelden volgen een strikt patroon (dus ook geen `__proto__` als sleutel);
@@ -49,7 +56,7 @@ const BEELD = /^data:image\/(png|webp|jpeg);base64,([A-Za-z0-9+/]+={0,2})$/;
 const STUURTEKEN = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
 const DAGEN_IN_MAAND = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]; // 29 februari bestaat niet elk jaar
 
-const STIJL = ['vul', 'lijn', 'lijnDikte', 'dekking', 'transform'];
+const STIJL = ['vul', 'vulLicht', 'lijn', 'lijnLicht', 'lijnDikte', 'lijnEinde', 'lijnHoek', 'dekking', 'transform'];
 const GEOMETRIE = {
   path: ['d'],
   circle: ['cx', 'cy', 'r'],
@@ -58,6 +65,9 @@ const GEOMETRIE = {
   polygon: ['points'],
   line: ['x1', 'y1', 'x2', 'y2'],
 };
+const OPTIONELE_GEOMETRIE = { rect: ['rx', 'ry'] }; // afgeronde hoeken (niet verplicht)
+const LIJN_EINDE = ['rond', 'recht', 'vierkant']; // = stroke-linecap round | butt | square
+const LIJN_HOEK = ['rond', 'scherp', 'schuin']; // = stroke-linejoin round | miter | bevel
 const NIET_NEGATIEF = new Set(['r', 'rx', 'ry', 'width', 'height']);
 const HOEKEN = ['lb', 'rb', 'lo', 'ro'];
 const KLEUR_SLEUTELS = ['accent', 'accentHover', 'accentDim', 'accentGlow', 'opAccent'];
@@ -329,10 +339,11 @@ function valideerDeel(ctx, deel, veld, niveau, lijstVeld) {
     return uit;
   }
   const geo = GEOMETRIE[soort];
-  controleerObject(ctx, deel, veld, ['soort', ...geo, ...STIJL]);
+  const optioneel = OPTIONELE_GEOMETRIE[soort] ?? [];
+  controleerObject(ctx, deel, veld, ['soort', ...geo, ...optioneel, ...STIJL]);
   eisVerplicht(ctx, deel, veld, geo);
   const uit = { soort };
-  for (const sleutel of geo) {
+  for (const sleutel of [...geo, ...optioneel]) {
     if (!Object.hasOwn(deel, sleutel)) continue;
     const v = veldPad(veld, sleutel);
     let waarde;
@@ -345,9 +356,23 @@ function valideerDeel(ctx, deel, veld, niveau, lijstVeld) {
     const v = valideerVulling(ctx, deel.vul, veldPad(veld, 'vul'));
     if (v !== undefined) uit.vul = v;
   }
+  // Lichte variant: enkel een kleur of 'geen' (nooit een verloop). Zonder `vulLicht`/`lijnLicht` geldt `vul`/`lijn` ook in het lichte thema.
+  if (Object.hasOwn(deel, 'vulLicht')) {
+    const v = deel.vulLicht === 'geen' ? 'geen' : kleurVeld(ctx, deel.vulLicht, veldPad(veld, 'vulLicht'));
+    if (v !== undefined) uit.vulLicht = v;
+  }
   if (Object.hasOwn(deel, 'lijn')) {
     const lijn = deel.lijn === 'geen' ? 'geen' : kleurVeld(ctx, deel.lijn, veldPad(veld, 'lijn'));
     if (lijn !== undefined) uit.lijn = lijn;
+  }
+  if (Object.hasOwn(deel, 'lijnLicht')) {
+    const lijn = deel.lijnLicht === 'geen' ? 'geen' : kleurVeld(ctx, deel.lijnLicht, veldPad(veld, 'lijnLicht'));
+    if (lijn !== undefined) uit.lijnLicht = lijn;
+  }
+  for (const [sleutel, toegelaten] of [['lijnEinde', LIJN_EINDE], ['lijnHoek', LIJN_HOEK]]) {
+    if (!Object.hasOwn(deel, sleutel)) continue;
+    if (typeof deel[sleutel] === 'string' && toegelaten.includes(deel[sleutel])) uit[sleutel] = deel[sleutel];
+    else ctx.fout(veldPad(veld, sleutel), `Onbekende waarde (toegelaten: ${toegelaten.join(', ')}).`);
   }
   if (Object.hasOwn(deel, 'lijnDikte')) {
     const g = getalVeld(ctx, deel.lijnDikte, veldPad(veld, 'lijnDikte'), 0, 1000);
