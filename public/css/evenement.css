@@ -129,35 +129,51 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
 
 /* Achtergrond altijd zichtbaar, ticketkaarten als mat glas (Brent, 2026-10-22). Enkel met een thema MET achtergrond
    (data-event-achtergrond="ja", gezet door de laag); zonder thema of zonder achtergrond verandert er niets. De inhoudsvlakken van de
-   tabbladen (wachtrij, kalender, route, ingepland, inventaris, rapporten, beschikbaarheden) worden doorzichtig; de bovenbalk, de
-   tabbalk, de vaste balken van de schermen en vensters (modals) blijven effen. Kaarten in de lijsten (tickets, kalenderkaarten,
-   afspraken, routestops, inventarisrijen): half doorschijnend in hun eigen kleur (--ev-kaart) met vervaging; sober (gsm, tablet,
-   aanraak) minder vervaging; zonder backdrop-filter of met verminderde transparantie bijna effen (94 %). Het contrast van de tekst
-   op een kaart blijft minstens 4,5:1 (e2e/versiering.spec.mjs meet het). */
+   tabbladen (wachtrij, kalender, route, ingepland, inventaris, rapporten, beschikbaarheden, en bij sales de kolommen en de
+   routelijst) worden doorzichtig; de bovenbalk, de tabbalk, de vaste balken van de schermen en vensters (modals) blijven effen.
+   Kaarten in de lijsten: half doorschijnend in hun eigen kleur (--ev-kaart) met vervaging; een toestandstint (--ev-tint, bv. lage
+   voorraad) ligt er doorschijnend bovenop. Sober (gsm, tablet, aanraak) minder vervaging; zonder backdrop-filter of met verminderde
+   transparantie bijna effen (--ev-glas-vast).
+   Contrast (fix-ronde 1): elke tekstkleur op een kaart haalt 4,5:1, ook over de lichtste kleur van de tekening (de maan). Daarom in
+   het donkere thema dikker glas (90 %) en op de kaarten een lichtere grijze en rode tekst; e2e/versiering.spec.mjs meet het. */
 @media screen {
-  :root[data-event][data-event-achtergrond="ja"] { --ev-glas-alpha: 84%; --ev-glas-blur: 12px; }
+  :root[data-event][data-event-achtergrond="ja"] {
+    --ev-glas-normaal: 84%; --ev-glas-vast: 94%; --ev-glas-blur: 12px;
+    --ev-glas-alpha: var(--ev-glas-normaal);
+  }
+  :root[data-event][data-event-achtergrond="ja"]:not([data-theme="light"]) { --ev-glas-normaal: 90%; --ev-glas-vast: 97%; }
   :root[data-event][data-event-achtergrond="ja"][data-event-sober="ja"] { --ev-glas-blur: 6px; }
-  /* Inhoudsvlakken die de achtergrond anders (deels) verbergen */
-  :root[data-event][data-event-achtergrond="ja"] :is(.view, .day-body, .month-cell, #route-list) { background: transparent; }
+  /* Inhoudsvlakken die de achtergrond anders (deels) verbergen; toestanden behouden een doorschijnende tint */
+  /* (de id staat apart: in :is() zou ze de specificiteit van alle klassen optillen en de toestandstinten hieronder wissen) */
+  :root[data-event][data-event-achtergrond="ja"] :is(.view, .day-body, .month-cell, .sales-route-lijstvak, .sales-kolom) { background: transparent; }
+  :root[data-event][data-event-achtergrond="ja"] #route-list { background: transparent; }
+  :root[data-event][data-event-achtergrond="ja"] .month-cell.today-cell { background: rgba(0, 223, 163, 0.04); }
+  :root[data-event][data-event-achtergrond="ja"] .month-cell.other-month { background: color-mix(in srgb, var(--bg) 50%, transparent); }
   :root[data-event][data-event-achtergrond="ja"] .day-body.blocked-day { background: repeating-linear-gradient(135deg, transparent, transparent 8px, color-mix(in srgb, var(--red) 6%, transparent) 8px, color-mix(in srgb, var(--red) 6%, transparent) 16px); }
   :root[data-event][data-event-achtergrond="ja"] .day-body.holiday-day { background: repeating-linear-gradient(135deg, transparent, transparent 8px, rgba(251, 191, 36, 0.08) 8px, rgba(251, 191, 36, 0.08) 16px); }
-  /* Kaarten: mat glas in hun eigen kleur */
-  :root[data-event][data-event-achtergrond="ja"] :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row) {
+  /* Kaarten: mat glas in hun eigen kleur, met de toestandstint erboven */
+  :root[data-event][data-event-achtergrond="ja"] :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
     --ev-kaart: var(--surface);
-    background: color-mix(in srgb, var(--ev-kaart) var(--ev-glas-alpha), transparent);
+    --ev-tint: transparent;
+    background: linear-gradient(var(--ev-tint), var(--ev-tint)), color-mix(in srgb, var(--ev-kaart) var(--ev-glas-alpha), transparent);
     -webkit-backdrop-filter: blur(var(--ev-glas-blur));
     backdrop-filter: blur(var(--ev-glas-blur));
   }
-  :root[data-event][data-event-achtergrond="ja"] :is(.ticket:hover, .cal-ticket:hover, .cal-local-event:hover, .stop) { --ev-kaart: var(--surface2); }
+  :root[data-event][data-event-achtergrond="ja"] :is(.ticket:hover, .cal-ticket:hover, .cal-local-event:hover, .stop, .sales-kaart:hover, .sales-afgewerkt-rij:hover, .sales-afgewerkt-kaart) { --ev-kaart: var(--surface2); }
   :root[data-event][data-event-achtergrond="ja"] .stop:hover { --ev-kaart: var(--surface3); }
   :root[data-event][data-event-achtergrond="ja"] .ticket.overdue { --ev-kaart: color-mix(in srgb, var(--red) 3%, var(--bg)); }
   :root[data-event][data-event-achtergrond="ja"] .ticket.overdue:hover { --ev-kaart: color-mix(in srgb, var(--red) 6%, var(--bg)); }
+  :root[data-event][data-event-achtergrond="ja"] .inv-row.inv-low { --ev-tint: var(--red-dim); }
+  /* Donker thema: lichtere secundaire en rode tekst op de kaarten (4,5:1 ook boven de maan) */
+  :root[data-event][data-event-achtergrond="ja"]:not([data-theme="light"]) :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
+    --muted: #a7b1bd; --red: #ff8f89;
+  }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    :root[data-event][data-event-achtergrond="ja"] { --ev-glas-alpha: 94%; }
+    :root[data-event][data-event-achtergrond="ja"] { --ev-glas-alpha: var(--ev-glas-vast); }
   }
 }
 @media screen and (prefers-reduced-transparency: reduce) {
-  :root[data-event][data-event-achtergrond="ja"] { --ev-glas-alpha: 94%; }
+  :root[data-event][data-event-achtergrond="ja"] { --ev-glas-alpha: var(--ev-glas-vast); }
 }
 
 /* Nooit in print of in een PDF */
