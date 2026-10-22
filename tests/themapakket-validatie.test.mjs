@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  valideerPakket, contrastVerhouding,
+  valideerPakket, valideerPeriode, contrastVerhouding,
   MAX_PAKKET_BYTES, MAX_BEELD_BYTES, MAX_ELEMENTEN, MAX_BEWEGEND, PLAFONDS, BEWEGINGEN, DEEL_SOORTEN,
 } from '../public/js/kern/themapakket-validatie.js';
 
@@ -593,4 +593,18 @@ test('rect: rx en ry (niet negatief, begrensd) zijn toegelaten, op andere soorte
 test('de nieuwe sleutels mogen niet op een groep staan (die heeft enkel delen en transform)', () => {
   weiger(metDeel({ soort: 'groep', vulLicht: '#112233', delen: [{ soort: 'path', d: 'M0 0L5 5' }] }), deelVeld('vulLicht'));
   weiger(metDeel({ soort: 'groep', lijnEinde: 'rond', delen: [{ soort: 'path', d: 'M0 0L5 5' }] }), deelVeld('lijnEinde'));
+});
+
+test('valideerPeriode: een losse periode volgt dezelfde regels als `periode` in een pakket', () => {
+  const ok = valideerPeriode({ van: { maand: 12, dag: 1 }, tot: { maand: 1, dag: 6 } });
+  assert.equal(ok.ok, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(ok.periode)), { van: { maand: 12, dag: 1 }, tot: { maand: 1, dag: 6 } });
+  assert.equal(valideerPeriode({ basis: 'pasen', van: -7, tot: 1 }).ok, true);
+  for (const slecht of [null, undefined, 5, 'x', [], {}, { van: { maand: 2, dag: 29 }, tot: { maand: 3, dag: 1 } },
+    { van: { maand: 13, dag: 1 }, tot: { maand: 3, dag: 1 } }, { basis: 'kerst', van: 0, tot: 1 }, { basis: 'pasen', van: 5, tot: 1 },
+    { van: { maand: 1, dag: 1 }, tot: { maand: 2, dag: 1 }, extra: 1 }]) {
+    const r = valideerPeriode(slecht);
+    assert.equal(r.ok, false, JSON.stringify(slecht));
+    assert.ok(r.fouten.length > 0 && r.fouten.every((f) => typeof f.veld === 'string' && typeof f.fout === 'string'));
+  }
 });

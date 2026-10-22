@@ -26,6 +26,8 @@ const LABELS = Object.freeze({
   'wachtwoord-gereset': 'Wachtwoord gereset',
   'foto-toegevoegd': 'Foto toegevoegd',
   'notitie-toegevoegd': 'Notitie toegevoegd',
+  'thema-upload': 'Thema geüpload',
+  'thema-wijzig': 'Thema gewijzigd',
 });
 
 // Alle bekende actienamen (voor de keuzelijst), in de volgorde van de labels.

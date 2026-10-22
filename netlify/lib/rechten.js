@@ -77,6 +77,8 @@ export const RECHTEN = {
   'instellingen':         { GET: ALLE, PUT: ALLE },
   // Blitz Run (verborgen spel): elke ingelogde rol, enkel het EIGEN record (de functie gebruikt altijd gebruiker.id, nooit een id uit het verzoek).
   'spel':                 { GET: ALLE, POST: ALLE },
+  // Thema's (versiering, kleuren, Blitz Run-skins als pakket): elke ingelogde rol leest de lijst; uploaden en aan/uit zetten enkel de beheerder.
+  'themas':               { GET: ALLE, POST: BEHEER, PATCH: BEHEER },
   // Sales-planner: beheerder en sales. Wie welk verkoperblob mag lezen/schrijven staat in netlify/lib/sales-toegang.js.
   'sales':                { GET: BEHEER_SALES, PATCH: BEHEER_SALES, DELETE: BEHEER_SALES },
   'postcode':             { GET: BEHEER_SALES },

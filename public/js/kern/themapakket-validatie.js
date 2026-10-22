@@ -157,7 +157,7 @@ function kijkvenster(ctx, waarde, veld) {
 
 // ---- Onderdelen ----
 
-function valideerPeriode(ctx, periode, veld) {
+function controleerPeriode(ctx, periode, veld) {
   if (!isObject(periode)) { ctx.fout(veld, 'Moet een periode zijn (vast of beweeglijk).'); return undefined; }
   if (Object.hasOwn(periode, 'basis')) {
     if (!controleerObject(ctx, periode, veld, ['basis', 'van', 'tot'])) return undefined;
@@ -194,6 +194,14 @@ function valideerPeriode(ctx, periode, veld) {
     }
   }
   return uit.van && uit.tot ? uit : undefined;
+}
+
+// Valideert een losse periode (bv. de override van de beheerder) met dezelfde regels als `periode` in een pakket.
+// Geeft { ok: true, periode } (schone kopie) of { ok: false, fouten: [{ veld, fout }] }; `veld` is 'periode' of 'periode.van...'.
+export function valideerPeriode(periode) {
+  const ctx = maakContext();
+  const uit = controleerPeriode(ctx, periode, 'periode');
+  return ctx.fouten.length === 0 && uit ? { ok: true, periode: uit } : { ok: false, fouten: ctx.fouten.length ? ctx.fouten : [{ veld: 'periode', fout: 'Moet een periode zijn (vast of beweeglijk).' }] };
 }
 
 function valideerKleurenSet(ctx, set, veld) {
@@ -641,7 +649,7 @@ export function valideerPakket(pakket, opties) {
   }
   if (Object.hasOwn(pakket, 'naam')) uit.naam = tekstVeld(ctx, pakket.naam, 'naam', 1, 40, 'De naam');
   if (Object.hasOwn(pakket, 'versie')) uit.versie = tekstVeld(ctx, pakket.versie, 'versie', 1, 20, 'De versie');
-  if (Object.hasOwn(pakket, 'periode')) uit.periode = valideerPeriode(ctx, pakket.periode, 'periode');
+  if (Object.hasOwn(pakket, 'periode')) uit.periode = controleerPeriode(ctx, pakket.periode, 'periode');
   if (Object.hasOwn(pakket, 'kleuren')) uit.kleuren = valideerKleuren(ctx, pakket.kleuren, 'kleuren');
 
   // Eerst de vormen, dan de beelden (de naamruimte is gedeeld), dan al wat ernaar verwijst.
