@@ -1013,7 +1013,7 @@ const THEMAS_MAX_OUDERDOM_MS = 30 * 60000;
 let themasGeladenOm = 0; // 0 = nog niet ingelogd/opgestart: geen lading bij terugkeer naar de pagina of in de minuutcontrole
 function vernieuwThemas() {
   themasGeladenOm = Date.now();
-  laadThemas().then(herberekenVersiering, () => {});
+  laadThemas().then(herberekenVersiering, () => {}).catch((e) => console.warn('themas herberekenen mislukt:', e?.message || e));
 }
 startVersiering({
   bewegingUit: () => instellingen.eigenBewegingUit(), // persoonlijke instelling van het account (schermen/instellingen.js)
@@ -1028,4 +1028,4 @@ document.addEventListener('DOMContentLoaded', () => startNaInlog(opstart).then((
   if (!huidigeGebruiker()) return;
   herberekenVersiering(); // de instellingen zijn gesynchroniseerd (ook `bewegingUit`): niet wachten op de themas
   vernieuwThemas();
-}));
+}).catch((e) => console.warn('start na inloggen mislukt:', e?.message || e)));
