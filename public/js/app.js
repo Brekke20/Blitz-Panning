@@ -53,8 +53,9 @@ import * as persoonskiezer from './schermen/persoonskiezer.js';
 import { laadTab } from './kern/navigatie.js';
 import { eigenZohoNaam, huidigeRechten, huidigeGebruiker, magPlannenVoor } from './kern/sessie.js';
 import { installeerTijdPicker } from './kern/tijd-picker.js';
-import { startVersiering, bewaarThemaWissel } from './schermen/evenement-laag.js';
-import { actieveEvenementen } from './kern/evenementen.js';
+import { startVersiering, bewaarThemaWissel, herbereken as herberekenVersiering } from './schermen/evenement-laag.js';
+import { laadThemas, themasNu, pakkettenVoorSpel, haalOntbrekendePakketten } from './schermen/themas-bron.js';
+import { actieveThemas } from './kern/themapakket.js';
 import { installeerSpelOpening } from './spel/spel-opening.js';
 
 
@@ -149,8 +150,14 @@ if (!localStorage.getItem('blitz_mig_startloc_v1')) {
 // Het registreren gebeurt onderaan dit bestand, nadat alle `const`/`let` van deze module bestaan.
 function opstart() {
   // Verborgen spel (spel/): 5× snel tikken op het bliksem-icoon (.logo-icon) opent het; de spelmodule wordt pas dan geladen. Raakt de planning niet aan.
-  // De evenementenkalender (kern/evenementen.js) bepaalt welke event-skins (Halloween, Kerst) nu open zijn.
-  installeerSpelOpening({ doel: document.querySelector('.logo-icon'), actieveEvenementen });
+  // De themas (schermen/themas-bron.js) bepalen de themaskins: welke thema's nu actief zijn (lokale schatting tot de server antwoordt), welke pakketten bekend
+  // zijn (voor de skinlijst en de extra's) en het eenmalig ophalen van pakketten die nog niet in de cache zitten. Het spel zelf (skins) blijft lazy.
+  installeerSpelOpening({
+    doel: document.querySelector('.logo-icon'),
+    actieveThemas: (datum) => actieveThemas(datum, themasNu().index?.themas ?? []),
+    pakketten: pakkettenVoorSpel,
+    haalPakketten: haalOntbrekendePakketten,
+  });
   // De rapport-wizard sluit via Escape/achtergrond met closeWizard (vraagt zelf een bevestiging); de andere vensters registreren zichzelf in hun init.
   registreerVenster({ el: document.getElementById('rapport-wizard'), sluit: closeWizard });
   // Klantbeschikbaarheid (schermen/klantbeschikbaarheid.js): laden, bewaren en de sectie in het detail; vóór de schermen die ze lezen.
@@ -996,5 +1003,29 @@ installeerTijdPicker(document, window); // tik op een tijd-/datumveld opent de k
 window.addEventListener('versiering-gewijzigd', () => { // thema aan/uit: lege-tekst-lijsten direct hertekenen
   try { wachtrij.renderTickets(); ingepland.renderGepland(); } catch (e) { /* app nog niet opgestart: de eerste render pakt het thema vanzelf */ }
 });
-startVersiering(); // feestelijke versiering tijdens een evenement (schermen/evenement-laag.js); uit in ?test en op aanraak enkel statisch
-document.addEventListener('DOMContentLoaded', () => startNaInlog(opstart));
+// Feestelijke versiering (schermen/evenement-laag.js): meteen het thema uit de cache (themasNu, geen netwerk); na het inloggen
+// (opstart) de verse themas van /api/themas (schermen/themas-bron.js) en opnieuw berekenen; ook bij terugkeer naar de pagina
+// (hoogstens één keer per minuut) en, voor een toestel dat dagen vooraan blijft staan, in de minuutcontrole zodra de laatste lading
+// meer dan 30 minuten oud is (fix-ronde 1: een thema dat de beheerder uitzet, bereikt zo ook de planner-pc). Uit in ?test (tenzij
+// ?versiering=aan) en op aanraak enkel statisch. Een mislukte lading laat de cache staan (nooit een fout); de 30 minuten tellen
+// vanaf de laatste poging, zodat een toestel zonder netwerk niet elke minuut opnieuw probeert.
+const THEMAS_MAX_OUDERDOM_MS = 30 * 60000;
+let themasGeladenOm = 0; // 0 = nog niet ingelogd/opgestart: geen lading bij terugkeer naar de pagina of in de minuutcontrole
+function vernieuwThemas() {
+  themasGeladenOm = Date.now();
+  laadThemas().then(herberekenVersiering, () => {}).catch((e) => console.warn('themas herberekenen mislukt:', e?.message || e));
+}
+startVersiering({
+  bewegingUit: () => instellingen.eigenBewegingUit(), // persoonlijke instelling van het account (schermen/instellingen.js)
+  elkeMinuut: () => { if (themasGeladenOm && Date.now() - themasGeladenOm > THEMAS_MAX_OUDERDOM_MS) vernieuwThemas(); },
+});
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && themasGeladenOm && Date.now() - themasGeladenOm > 60000) vernieuwThemas();
+});
+// De verse themas (/api/themas) pas na het inloggen (vóór de login gebruikt de app geen gegevens van de server), voor elke rol: ook
+// sales, dat een eigen start heeft en `opstart` niet doorloopt (fix-ronde 1).
+document.addEventListener('DOMContentLoaded', () => startNaInlog(opstart).then(() => {
+  if (!huidigeGebruiker()) return;
+  herberekenVersiering(); // de instellingen zijn gesynchroniseerd (ook `bewegingUit`): niet wachten op de themas
+  vernieuwThemas();
+}).catch((e) => console.warn('start na inloggen mislukt:', e?.message || e)));

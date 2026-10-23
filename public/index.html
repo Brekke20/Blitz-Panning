@@ -14,16 +14,35 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <script>
-    // Thema toepassen voor eerste render (voorkomt flash)
+    // Thema toepassen voor eerste render (voorkomt flash). Loopt een feestelijk thema (record blitz_thema_actief, bijgehouden door
+    // schermen/themas-bron.js), dan ook meteen data-event en de accentkleuren van dat thema (als --ev-*-variabelen; css/evenement.css)
+    // en het standaardthema van het pakket, tenzij het toestel tijdens het thema zelf iets koos (blitz_theme_<id>_<jaar>).
+    // Spiegel van kern/versiering-thema.js en evenement-laag.js (zetKleuren); enkel als de versiering aan staat (en in ?test enkel met
+    // versiering=aan). Niets uit de opslag wordt vertrouwd: een ontbrekend, verlopen of kapot record doet gewoon niets.
     (function(){
       let t = localStorage.getItem('blitz_theme') || 'dark';
-      // Halloween (1 tot 31 oktober, Belgische dag): standaard donker, tenzij het toestel tijdens het evenement zelf iets koos
-      // (blitz_theme_halloween_<jaar>). Spiegel van kern/versiering-thema.js; enkel als de versiering aan staat (en in ?test enkel met versiering=aan).
       try {
         const q = new URLSearchParams(location.search);
         if ((!q.has('test') || q.get('versiering') === 'aan') && localStorage.getItem('blitz_versiering') !== 'uit') {
-          const d = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels', year: 'numeric', month: '2-digit' }).formatToParts(new Date()).map(p => [p.type, p.value]));
-          if (d.month === '10') t = localStorage.getItem('blitz_theme_halloween_' + d.year) === 'light' ? 'light' : 'dark';
+          const r = JSON.parse(localStorage.getItem('blitz_thema_actief') || 'null');
+          const d = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()).map(p => [p.type, p.value]));
+          const vandaag = d.year + '-' + d.month + '-' + d.day;
+          if (r && typeof r === 'object' && typeof r.id === 'string' && /^[a-z0-9-]{2,30}$/.test(r.id)
+            && typeof r.tot === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.tot) && vandaag <= r.tot) {
+            const eigen = localStorage.getItem('blitz_theme_' + r.id + '_' + d.year);
+            t = eigen === 'light' || eigen === 'dark' ? eigen : r.voorkeurThema === 'licht' ? 'light' : r.voorkeurThema === 'donker' ? 'dark' : t;
+            const html = document.documentElement;
+            const namen = { accent: 'accent', accentHover: 'accent-hover', accentDim: 'accent-dim', accentGlow: 'accent-glow', opAccent: 'on-accent' };
+            const kleur = /^#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$/;
+            const k = r.kleuren && typeof r.kleuren === 'object' ? r.kleuren : {};
+            [['donker', '', 'data-ev-kleuren'], ['licht', '-licht', 'data-ev-kleuren-licht']].forEach(([modus, achter, attr]) => {
+              const set = k[modus] && typeof k[modus] === 'object' ? k[modus] : {};
+              const gezet = Object.keys(namen).filter(s => Object.prototype.hasOwnProperty.call(set, s) && typeof set[s] === 'string' && kleur.test(set[s]));
+              gezet.forEach(s => html.style.setProperty('--ev-' + namen[s] + achter, set[s]));
+              if (gezet.length) html.setAttribute(attr, gezet.join(' '));
+            });
+            html.setAttribute('data-event', r.id);
+          }
         }
       } catch (e) {}
       document.documentElement.setAttribute('data-theme', t);
@@ -111,10 +130,14 @@
   <link rel="modulepreload" href="/js/kern/instellingen-sync.js">
   <link rel="modulepreload" href="/js/kern/mailcontrole.js">
   <link rel="modulepreload" href="/js/schermen/evenement-laag.js">
-  <link rel="modulepreload" href="/js/schermen/evenement-scene.js">
+  <link rel="modulepreload" href="/js/schermen/vorm-svg.js">
+  <link rel="modulepreload" href="/js/schermen/versiering-bewegingen.js">
+  <link rel="modulepreload" href="/js/schermen/themas-bron.js">
+  <link rel="modulepreload" href="/js/kern/themas-cache.js">
+  <link rel="modulepreload" href="/js/kern/themapakket-validatie.js">
   <link rel="modulepreload" href="/js/kern/versiering-thema.js">
   <link rel="modulepreload" href="/js/kern/versiering-logica.js">
-  <link rel="modulepreload" href="/js/kern/evenementen.js">
+  <link rel="modulepreload" href="/js/kern/themapakket.js">
   <link rel="modulepreload" href="/js/kern/toestand.js">
   <link rel="modulepreload" href="/js/schermen/route-tijden.js">
   <link rel="modulepreload" href="/js/schermen/route-kaart.js">
@@ -173,6 +196,7 @@
   <link rel="modulepreload" href="/js/schermen/instellingen-logica.js">
   <link rel="modulepreload" href="/js/spel/spel-logica.js">
   <link rel="modulepreload" href="/js/spel/spel-opening.js">
+  <link rel="modulepreload" href="/js/spel/skin-kleuren.js">
 </head>
 <body>
 
@@ -447,6 +471,11 @@
       <div class="set-field">
         <div class="set-label" id="set-drukte-kop">Drukte tonen op de route (verwachte vertraging per wegstuk)</div>
         <label class="set-row"><input type="checkbox" id="set-drukte" aria-describedby="set-drukte-kop"> <span>Aan</span></label>
+      </div>
+      <div class="set-field" id="set-beweging-blok">
+        <div class="set-label" id="set-beweging-kop">Bewegende beelden tijdens een thema</div>
+        <label class="set-row"><input type="checkbox" id="set-beweging" aria-labelledby="set-beweging-kop" aria-describedby="set-beweging-uitleg" data-wijzig="set-beweging-account"> <span>Aan</span></label>
+        <div id="set-beweging-uitleg" style="font-size:0.78rem;color:var(--muted)">Zet uit als de bewegende figuren je storen; de achtergrond blijft. Geldt op al je toestellen.</div>
       </div>
       <div class="set-field">
         <label class="set-label" id="set-werkdagen-label">Werkdagen</label>

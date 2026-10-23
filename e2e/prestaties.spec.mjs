@@ -105,7 +105,7 @@ test.describe('versiering op een tablet (aanraak)', () => {
     await page.clock.runFor(60000);
     // Hoogstens de losse meting van de minuutklok (planMeting, één beeld per minuut), geen lus
     expect(await rafAantal(page)).toBeLessThanOrEqual(2);
-    expect(await page.evaluate(() => document.getAnimations().filter(a => a.playState === 'running' && a.effect?.target?.closest?.('#event-laag, #event-achtergrond')).length)).toBe(0);
+    expect(await page.evaluate(() => document.getAnimations().filter(a => a.playState === 'running' && a.effect?.target?.closest?.('#event-laag, #event-achter-laag, #event-achtergrond')).length)).toBe(0);
   });
 });
 
@@ -119,11 +119,12 @@ test.describe('versiering op de computer', () => {
     window.setTimeout = (f, ms, ...a) => { teller.n++; return origineel.call(window, f, ms, ...a); };
   });
   const timerAantal = (page) => page.evaluate(() => window.__timerTeller.n);
-  const kruiperX = (page) => page.locator('#ev-kruiper').evaluate((el) => el.style.transform);
+  // Taak 6 (thema's als pakket): de kruiper heet nu generiek .ev-kruip; hangende beelden en mist staan in #event-achter-laag.
+  const kruiperX = (page) => page.locator('#event-laag .ev-kruip').evaluate((el) => el.style.transform);
 
   test('beweegt doorlopend, hoogstens ~35 beeld-oproepen per seconde, zonder rustpauze', async ({ page }) => {
     await startApp(page, { query: '?test&versiering=aan' });
-    await expect(page.locator('#ev-kruiper')).toHaveCount(1);
+    await expect(page.locator('#event-laag .ev-kruip')).toHaveCount(1);
     await page.clock.runFor(1000);
     await telRaf(page);
     await telTimers(page);
@@ -139,8 +140,8 @@ test.describe('versiering op de computer', () => {
     expect(await kruiperX(page)).not.toBe(voor);
     await expect(page.locator('#event-laag')).not.toHaveClass(/ev-gepauzeerd/);
     // De CSS-animaties lopen in stappen
-    await expect(page.locator('#event-laag .ev-hang').first()).toHaveCSS('animation-timing-function', /steps/);
-    await expect(page.locator('#event-laag .ev-mist')).toHaveCSS('animation-timing-function', /steps/);
+    await expect(page.locator('#event-achter-laag .ev-hang').first()).toHaveCSS('animation-timing-function', /steps/);
+    await expect(page.locator('#event-achter-laag .ev-mist')).toHaveCSS('animation-timing-function', /steps/);
   });
 
   test('zolang Blitz Run open staat, rust de versiering; daarna beweegt ze weer', async ({ page }) => {
@@ -150,6 +151,7 @@ test.describe('versiering op de computer', () => {
     await expect(overlay(page)).toHaveClass(/open/);
     await page.clock.runFor(1000);
     await expect(page.locator('#event-laag')).toHaveClass(/ev-gepauzeerd/);
+    await expect(page.locator('#event-achter-laag')).toHaveClass(/ev-gepauzeerd/);
     const stil = await kruiperX(page);
     await page.clock.runFor(3000);
     expect(await kruiperX(page)).toBe(stil);
@@ -168,6 +170,7 @@ test.describe('versiering op de computer', () => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
     await expect(page.locator('#event-laag')).toHaveClass(/ev-gepauzeerd/);
+    await expect(page.locator('#event-achter-laag')).toHaveClass(/ev-gepauzeerd/);
     const stil = await kruiperX(page);
     await page.clock.runFor(3000);
     expect(await kruiperX(page)).toBe(stil);

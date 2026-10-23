@@ -1,4 +1,30 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import url from 'node:url';
 import { test, expect, startApp, snelTikken, metStilstaandeKlok } from './helpers.mjs';
+import { WERELD, SPELER } from '../public/js/spel/spel-logica.js';
+
+const THEMAS_MAP = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..', 'netlify', 'themas');
+const pakket = (id) => JSON.parse(fs.readFileSync(path.join(THEMAS_MAP, `${id}.blitzthema.json`), 'utf8'));
+
+// Een /api/themas-stub met Halloween (loopt: de app-klok staat op 5 oktober) en Kerst (ver weg: niet in `pakketten`, enkel via ?id=).
+// `opgehaald` onthoudt elke ?id=-aanvraag.
+function themasMetKerst() {
+  const h = pakket('halloween');
+  const k = pakket('kerst');
+  const opgehaald = [];
+  const rij = (p) => ({ id: p.id, naam: p.naam, aan: true, periode: p.periode, periodeOverride: null, pakketHash: `e2e-${p.id}` });
+  const stub = ({ query }) => {
+    const id = query.get('id');
+    if (id !== null) {
+      opgehaald.push(id);
+      return { status: 200, json: structuredClone(id === 'kerst' ? k : id === 'halloween' ? h : {}) };
+    }
+    return { status: 200, json: { versie: 1, themas: [rij(h), rij(k)], pakketten: { halloween: structuredClone(h) } } };
+  };
+  stub.opgehaald = opgehaald;
+  return stub;
+}
 
 // Blitz Run (verborgen spel): 5× snel tikken op het logo-icoon opent het overlay, 5× tikken / ✕ / Escape sluit het, het toetsenbord
 // speelt, en het spel verstuurt nooit iets buiten /api/spel. In ?test; de klok is een nepklok (page.clock).
@@ -61,7 +87,51 @@ test.describe('Blitz Run', () => {
     await expect(overlay(page).locator('.spel-skin[aria-pressed="true"]')).toHaveCount(1);
     const vergrendeld = overlay(page).locator('.spel-skin[disabled]');
     expect(await vergrendeld.count()).toBeGreaterThan(0);
-    await expect(vergrendeld.first().locator('small')).toHaveText(/^(vanaf \d+ punten|.+-event)$/);
+    await expect(vergrendeld.first().locator('small')).toHaveText(/^(vanaf \d+ punten|.+-thema)$/);
+  });
+
+  test('themaskins uit de pakketten: elk thema uit de index staat vergrendeld in de keuzerij als "<Naam>-thema"; het pakket van een ver thema wordt eenmalig opgehaald', async ({ page, verzoeken }) => {
+    const themas = themasMetKerst();
+    await startApp(page, { overschrijf: { themas } });
+    await openSpel(page);
+    const kerst = overlay(page).locator('.spel-skin[data-skin="kerst"]');
+    await expect(kerst).toBeDisabled();
+    await expect(kerst.locator('small')).toHaveText('Kerst-thema');
+    await expect(kerst).toHaveAttribute('data-soort', 'thema');
+    const halloween = overlay(page).locator('.spel-skin[data-skin="halloween"]');
+    await expect(halloween).toBeDisabled(); // de stub ontgrendelt niets: ook een lopend thema is vergrendeld
+    await expect(halloween.locator('small')).toHaveText('Halloween-thema');
+    await expect(kerst.locator('span')).toHaveText('Kerstpaal');
+    expect(themas.opgehaald).toEqual(['kerst']);
+    // Het spel sluiten en opnieuw openen haalt niets opnieuw op, en het spel schreef niets buiten /api/spel.
+    await page.keyboard.press('Escape');
+    await openSpel(page);
+    expect(themas.opgehaald).toEqual(['kerst']);
+    expect(verzoeken.alle.filter(r => r.methode !== 'GET' && r.pad !== '/api/spel')).toEqual([]);
+  });
+
+  test('een ontgrendelde themaskin is kiesbaar en tekent zijn extra (de heksenhoed staat boven de paal)', async ({ page }) => {
+    let voortgang = { besteScore: 0, ontgrendeld: ['blitz', 'halloween'], gekozenSkin: 'halloween' };
+    const spel = ({ methode, body }) => {
+      if (methode === 'POST') voortgang = { ...voortgang, besteScore: Math.max(voortgang.besteScore, body?.score ?? 0), gekozenSkin: body?.gekozenSkin ?? voortgang.gekozenSkin };
+      return { status: 200, json: voortgang };
+    };
+    await startApp(page, { overschrijf: { themas: themasMetKerst(), spel } });
+    await openSpel(page);
+    const halloween = overlay(page).locator('.spel-skin[data-skin="halloween"]');
+    await expect(halloween).toBeEnabled();
+    await expect(halloween).toHaveAttribute('aria-pressed', 'true');
+    await expect(halloween.locator('small')).toHaveText('gekozen');
+    // Midden boven de paal: de oranje band van de hoed (#ff7a00). In de beginstand staat de paal stil op de grond.
+    const pixel = (px, py) => overlay(page).locator('canvas').evaluate((c, [x, y]) => {
+      const schaal = c.width / 600;
+      return Array.from(c.getContext('2d').getImageData(Math.round(x * schaal), Math.round(y * schaal), 1, 1).data);
+    }, [px, py]);
+    const top = WERELD.grondY - SPELER.staan.h;
+    await expect.poll(() => pixel(SPELER.x + SPELER.staan.b / 2, top - 0.09 * SPELER.staan.h)).toEqual([255, 122, 0, 255]);
+    // Met de standaardskin staat daar enkel nachthemel.
+    await overlay(page).locator('.spel-skin[data-skin="blitz"]').click();
+    await expect.poll(async () => (await pixel(SPELER.x + SPELER.staan.b / 2, top - 0.09 * SPELER.staan.h)).join(',')).not.toBe('255,122,0,255');
   });
 
   test('het toetsenbord speelt: spatie start, de score loopt en het canvas verandert; zonder te springen is het spel uit', async ({ page }) => {

@@ -1,0 +1,279 @@
+// tests/themas-bron.test.mjs — schermen/themas-bron.js: ophalen, cache en terugval (nep-fetch en nep-localStorage, nooit netwerk).
+import { test, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { VOORGELADEN } from '../netlify/themas/pakketten.js';
+import { zetFetch } from '../public/js/kern/api.js';
+import { CACHE_SLEUTEL, ACTIEF_SLEUTEL } from '../public/js/kern/themas-cache.js';
+
+const halloween = () => structuredClone(VOORGELADEN.find((p) => p.id === 'halloween'));
+const kerst = () => structuredClone(VOORGELADEN.find((p) => p.id === 'kerst'));
+const rij = (p, hash, extra = {}) => ({ id: p.id, naam: p.naam, aan: true, periode: p.periode, periodeOverride: null, pakketHash: hash, ...extra });
+const DATUM = new Date('2026-10-15T10:00:00+02:00');
+const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
+
+let teller = 0;
+const laadVers = () => import(`../public/js/schermen/themas-bron.js?v=${++teller}`);
+
+function zetOpslag(begin = {}) {
+  const kaart = new Map(Object.entries(begin));
+  globalThis.localStorage = {
+    getItem: (k) => (kaart.has(k) ? kaart.get(k) : null),
+    setItem: (k, v) => { kaart.set(k, String(v)); },
+    removeItem: (k) => { kaart.delete(k); },
+  };
+  return kaart;
+}
+
+// Een nep-fetch met een router; neemt de aanroepen op.
+function nepFetch(router) {
+  const aanroepen = [];
+  zetFetch(async (url) => { aanroepen.push(String(url)); return router(String(url)); });
+  return aanroepen;
+}
+
+beforeEach(() => { zetOpslag(); });
+afterEach(() => { zetFetch(null); delete globalThis.localStorage; });
+
+test('laadThemas: bewaart de index, het pakket en het actieve record', async () => {
+  const kaart = zetOpslag();
+  const h = halloween();
+  nepFetch(() => json({ versie: 2, themas: [rij(h, 'h1')], pakketten: { halloween: h } }));
+  const { laadThemas, themasNu } = await laadVers();
+  const r = await laadThemas({ datum: DATUM });
+  assert.equal(r.index.versie, 2);
+  assert.deepEqual(Object.keys(r.pakketten), ['halloween']);
+  assert.equal(themasNu(), r);
+  assert.equal(JSON.parse(kaart.get(CACHE_SLEUTEL)).index.themas[0].pakketHash, 'h1');
+  assert.equal(JSON.parse(kaart.get(ACTIEF_SLEUTEL)).tot, '2026-10-31');
+});
+
+test('laadThemas: haalt een pakket met een gewijzigde hash apart op (?id=)', async () => {
+  const h = halloween();
+  const oud = halloween();
+  oud.versie = 'oud';
+  zetOpslag({ [CACHE_SLEUTEL]: JSON.stringify({ index: { versie: 1, themas: [rij(oud, 'oud')] }, pakketten: { halloween: oud } }) });
+  const aanroepen = nepFetch((url) => (url.includes('?id=halloween') ? json(h) : json({ versie: 2, themas: [rij(h, 'nieuw')], pakketten: {} })));
+  const { laadThemas } = await laadVers();
+  const r = await laadThemas({ datum: DATUM });
+  assert.deepEqual(aanroepen, ['/api/themas', '/api/themas?id=halloween']);
+  assert.equal(r.pakketten.halloween.versie, h.versie);
+});
+
+test('laadThemas: een pakket met dezelfde hash als in de cache wordt niet opnieuw opgehaald', async () => {
+  const h = halloween();
+  zetOpslag({ [CACHE_SLEUTEL]: JSON.stringify({ index: { versie: 1, themas: [rij(h, 'zelfde')] }, pakketten: { halloween: h } }) });
+  const aanroepen = nepFetch(() => json({ versie: 2, themas: [rij(h, 'zelfde')], pakketten: {} }));
+  const { laadThemas } = await laadVers();
+  const r = await laadThemas({ datum: DATUM });
+  assert.deepEqual(aanroepen, ['/api/themas']);
+  assert.deepEqual(Object.keys(r.pakketten), ['halloween']);
+});
+
+test('laadThemas: een ongeldig pakket uit het antwoord wordt weggelaten', async () => {
+  const h = halloween();
+  h.vormen.web.delen[0].d = '<script>alert(1)</script>';
+  nepFetch((url) => (url.includes('?id=') ? json({ error: 'nee' }, 404) : json({ versie: 1, themas: [rij(h, 'x')], pakketten: { halloween: h } })));
+  const { laadThemas } = await laadVers();
+  const r = await laadThemas({ datum: DATUM });
+  assert.deepEqual(Object.keys(r.pakketten), []);
+});
+
+test('laadThemas: bij een netwerkfout komt de cache terug', async () => {
+  const h = halloween();
+  zetOpslag({ [CACHE_SLEUTEL]: JSON.stringify({ index: { versie: 7, themas: [rij(h, 'h')] }, pakketten: { halloween: h } }) });
+  nepFetch(() => { throw new TypeError('Failed to fetch'); });
+  const { laadThemas } = await laadVers();
+  const r = await laadThemas({ datum: DATUM });
+  assert.equal(r.index.versie, 7);
+  assert.deepEqual(Object.keys(r.pakketten), ['halloween']);
+});
+
+test('laadThemas: bij een foutstatus komt de cache terug en wordt niets overschreven', async () => {
+  const h = halloween();
+  const kaart = zetOpslag({ [CACHE_SLEUTEL]: JSON.stringify({ index: { versie: 7, themas: [rij(h, 'h')] }, pakketten: { halloween: h } }) });
+  const voor = kaart.get(CACHE_SLEUTEL);
+  nepFetch(() => json({ error: 'stuk' }, 503));
+  const { laadThemas } = await laadVers();
+  const r = await laadThemas({ datum: DATUM });
+  assert.equal(r.index.versie, 7);
+  assert.equal(kaart.get(CACHE_SLEUTEL), voor);
+});
+
+test('laadThemas: zonder cache en zonder netwerk geeft { index: null, pakketten: {} }', async () => {
+  nepFetch(() => { throw new TypeError('Failed to fetch'); });
+  const { laadThemas } = await laadVers();
+  assert.deepEqual(await laadThemas({ datum: DATUM }), { index: null, pakketten: {} });
+});
+
+test('laadThemas: een onleesbaar antwoord gooit niet', async () => {
+  nepFetch(() => new Response('geen json', { status: 200 }));
+  const { laadThemas } = await laadVers();
+  assert.deepEqual(await laadThemas({ datum: DATUM }), { index: null, pakketten: {} });
+});
+
+test('laadThemas: een opslag die gooit breekt de lading niet', async () => {
+  globalThis.localStorage = { getItem() { throw new Error('geen toegang'); }, setItem() { throw new Error('vol'); }, removeItem() { throw new Error('geen'); } };
+  const h = halloween();
+  nepFetch(() => json({ versie: 1, themas: [rij(h, 'h')], pakketten: { halloween: h } }));
+  const { laadThemas } = await laadVers();
+  const r = await laadThemas({ datum: DATUM });
+  assert.deepEqual(Object.keys(r.pakketten), ['halloween']);
+});
+
+test('laadThemas: een thema dat niet meer actief is wist het actieve record', async () => {
+  const h = halloween();
+  const kaart = zetOpslag({ [ACTIEF_SLEUTEL]: JSON.stringify({ id: 'halloween', tot: '2026-10-31' }) });
+  nepFetch(() => json({ versie: 3, themas: [rij(h, 'h', { aan: false })], pakketten: { halloween: h } }));
+  const { laadThemas } = await laadVers();
+  await laadThemas({ datum: DATUM });
+  assert.equal(kaart.get(ACTIEF_SLEUTEL), undefined);
+});
+
+test('themasNu: zonder lading komt het uit de cache, zonder cache leeg', async () => {
+  const { themasNu } = await laadVers();
+  assert.deepEqual(themasNu(), { index: null, pakketten: {} });
+  const h = halloween();
+  zetOpslag({ [CACHE_SLEUTEL]: JSON.stringify({ index: { versie: 1, themas: [rij(h, 'h')] }, pakketten: { halloween: h } }) });
+  const vers = await laadVers();
+  assert.deepEqual(Object.keys(vers.themasNu().pakketten), ['halloween']);
+});
+
+test('zetVoorbeeld en voorbeeld: enkel in het geheugen', async () => {
+  const kaart = zetOpslag();
+  const { zetVoorbeeld, voorbeeld } = await laadVers();
+  assert.equal(voorbeeld(), null);
+  const h = halloween();
+  zetVoorbeeld(h);
+  assert.equal(voorbeeld(), h);
+  assert.equal(kaart.size, 0);
+  zetVoorbeeld(null);
+  assert.equal(voorbeeld(), null);
+});
+
+// ---- Fix ronde 1 ----
+
+test('laadThemas: een oudere lading die later antwoordt overschrijft de nieuwere niet (geheugen en opslag)', async () => {
+  const kaart = zetOpslag();
+  const h = halloween();
+  let laatsteLoslaten;
+  const eerste = new Promise((klaar) => { laatsteLoslaten = klaar; });
+  let nr = 0;
+  zetFetch(async () => {
+    nr += 1;
+    if (nr === 1) { await eerste; return json({ versie: 1, themas: [rij(h, 'oud')], pakketten: { halloween: h } }); }
+    return json({ versie: 2, themas: [rij(h, 'nieuw')], pakketten: { halloween: h } });
+  });
+  const { laadThemas, themasNu } = await laadVers();
+  const a = laadThemas({ datum: DATUM }); // begint eerst, antwoordt laatst
+  const b = await laadThemas({ datum: DATUM });
+  assert.equal(b.index.versie, 2);
+  laatsteLoslaten();
+  const a2 = await a;
+  assert.equal(a2.index.versie, 2, 'de oudere lading geeft de nieuwere stand terug');
+  assert.equal(themasNu().index.versie, 2);
+  assert.equal(JSON.parse(kaart.get(CACHE_SLEUTEL)).index.versie, 2);
+  assert.equal(JSON.parse(kaart.get(CACHE_SLEUTEL)).index.themas[0].pakketHash, 'nieuw');
+});
+
+test('laadThemas: mislukt ?id= bij een actief thema, dan blijft het cachepakket en de oude hash (volgende keer opnieuw proberen)', async () => {
+  const oud = halloween();
+  const h = halloween();
+  nepFetch((url) => (url.includes('?id=') ? json({ error: 'stuk' }, 503) : json({ versie: 2, themas: [rij(h, 'nieuw')], pakketten: {} })));
+  const bewaard = zetOpslag({ [CACHE_SLEUTEL]: JSON.stringify({ index: { versie: 1, themas: [rij(oud, 'oud')] }, pakketten: { halloween: oud } }) });
+  const { laadThemas } = await laadVers();
+  const r = await laadThemas({ datum: DATUM });
+  assert.deepEqual(Object.keys(r.pakketten), ['halloween']);
+  assert.equal(r.index.versie, 2);
+  assert.equal(r.index.themas[0].pakketHash, 'oud', 'de oude hash blijft staan zodat de volgende lading opnieuw ophaalt');
+  assert.equal(JSON.parse(bewaard.get(CACHE_SLEUTEL)).index.themas[0].pakketHash, 'oud');
+  assert.equal(JSON.parse(bewaard.get(ACTIEF_SLEUTEL)).id, 'halloween', 'het actieve record blijft');
+});
+
+test('laadThemas: een thema van over maanden zonder cache en zonder pakket in het antwoord wordt niet via ?id= opgehaald', async () => {
+  const h = halloween();
+  const k = kerst(); // 7 tot 31 december: op 15 oktober nog ver weg (meer dan 14 dagen)
+  const aanroepen = nepFetch(() => json({ versie: 1, themas: [rij(h, 'h'), rij(k, 'k')], pakketten: { halloween: h } }));
+  const { laadThemas } = await laadVers();
+  const r = await laadThemas({ datum: DATUM });
+  assert.deepEqual(aanroepen, ['/api/themas']);
+  assert.deepEqual(Object.keys(r.pakketten), ['halloween']);
+});
+
+test('laadThemas: een actief thema zonder pakket in het antwoord en zonder cache wordt wel via ?id= opgehaald', async () => {
+  const h = halloween();
+  const aanroepen = nepFetch((url) => (url.includes('?id=halloween') ? json(h) : json({ versie: 1, themas: [rij(h, 'h')], pakketten: {} })));
+  const { laadThemas } = await laadVers();
+  const r = await laadThemas({ datum: DATUM });
+  assert.deepEqual(aanroepen, ['/api/themas', '/api/themas?id=halloween']);
+  assert.deepEqual(Object.keys(r.pakketten), ['halloween']);
+});
+
+test('laadThemas: een ongeldig pakket uit ?id= wordt weggelaten', async () => {
+  const h = halloween();
+  const slecht = halloween();
+  slecht.vormen.web.delen[0].d = '<script>alert(1)</script>';
+  nepFetch((url) => (url.includes('?id=halloween') ? json(slecht) : json({ versie: 1, themas: [rij(h, 'h')], pakketten: {} })));
+  const { laadThemas } = await laadVers();
+  const r = await laadThemas({ datum: DATUM });
+  assert.deepEqual(Object.keys(r.pakketten), []);
+});
+
+// ---- Blitz Run (taak 8): pakketten voor de themaskins, ook van thema's die ver weg liggen ----
+
+test('pakkettenVoorSpel: de gecachte pakketten in de volgorde van de index; haalOntbrekendePakketten haalt wat in de index staat maar niet in de cache zit (één keer, ?id=)', async () => {
+  const kaart = zetOpslag();
+  const h = halloween();
+  const k = kerst();
+  zetOpslag({ [CACHE_SLEUTEL]: JSON.stringify({ index: { versie: 1, themas: [rij(k, 'k1'), rij(h, 'h1')] }, pakketten: { halloween: h } }) });
+  const aanroepen = nepFetch((url) => (url.includes('?id=kerst') ? json(k) : json({ error: 'nee' }, 404)));
+  const { pakkettenVoorSpel, haalOntbrekendePakketten, themasNu } = await laadVers();
+  assert.deepEqual(pakkettenVoorSpel().map((p) => p.id), ['halloween']);
+  assert.equal(await haalOntbrekendePakketten(), true);
+  assert.deepEqual(aanroepen, ['/api/themas?id=kerst']);
+  assert.deepEqual(pakkettenVoorSpel().map((p) => p.id), ['kerst', 'halloween'], 'in de volgorde van de index');
+  // niets meer te halen: geen nieuw verzoek en geen nieuwe wijziging
+  assert.equal(await haalOntbrekendePakketten(), false);
+  assert.deepEqual(aanroepen, ['/api/themas?id=kerst']);
+  // de gewone stand en de cache in localStorage blijven onaangeroerd
+  assert.deepEqual(Object.keys(themasNu().pakketten), ['halloween']);
+  assert.ok(!('kerst' in JSON.parse(globalThis.localStorage.getItem(CACHE_SLEUTEL)).pakketten));
+  assert.equal(kaart.size, 0, 'de eerste, losse opslag blijft leeg');
+});
+
+test('haalOntbrekendePakketten: zonder index, bij een fout of bij een ongeldig pakket gebeurt er niets (gooit nooit) en een volgende poging probeert opnieuw', async () => {
+  const k = kerst();
+  const h = halloween();
+  // geen index
+  let aanroepen = nepFetch(() => json(k));
+  let bron = await laadVers();
+  assert.equal(await bron.haalOntbrekendePakketten(), false);
+  assert.deepEqual(aanroepen, []);
+  assert.deepEqual(bron.pakkettenVoorSpel(), []);
+  // index met kerst; eerst een storing, dan een ongeldig pakket, dan een geldig
+  zetOpslag({ [CACHE_SLEUTEL]: JSON.stringify({ index: { versie: 1, themas: [rij(k, 'k1')] }, pakketten: {} }) });
+  let stap = 0;
+  aanroepen = nepFetch(() => {
+    stap++;
+    if (stap === 1) throw new TypeError('offline');
+    if (stap === 2) { const kapot = kerst(); kapot.vormen.kerstmuts.delen[0].d = '<script>'; return json(kapot); }
+    return json(k);
+  });
+  bron = await laadVers();
+  assert.equal(await bron.haalOntbrekendePakketten(), false);
+  assert.equal(await bron.haalOntbrekendePakketten(), false);
+  assert.deepEqual(bron.pakkettenVoorSpel(), []);
+  assert.equal(await bron.haalOntbrekendePakketten(), true);
+  assert.deepEqual(bron.pakkettenVoorSpel().map((p) => p.id), ['kerst']);
+  assert.equal(aanroepen.length, 3);
+  void h;
+});
+
+test('haalOntbrekendePakketten: een pakket dat bij een latere laadThemas in de gewone cache komt, telt maar één keer (geen dubbele)', async () => {
+  const k = kerst();
+  zetOpslag({ [CACHE_SLEUTEL]: JSON.stringify({ index: { versie: 1, themas: [rij(k, 'k1')] }, pakketten: {} }) });
+  nepFetch((url) => (url.includes('?id=kerst') ? json(k) : json({ versie: 2, themas: [rij(k, 'k1')], pakketten: { kerst: k } })));
+  const { pakkettenVoorSpel, haalOntbrekendePakketten, laadThemas } = await laadVers();
+  await haalOntbrekendePakketten();
+  await laadThemas({ datum: new Date('2026-12-10T10:00:00+01:00') });
+  assert.deepEqual(pakkettenVoorSpel().map((p) => p.id), ['kerst']);
+});

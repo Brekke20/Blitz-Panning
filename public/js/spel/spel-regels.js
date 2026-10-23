@@ -1,6 +1,7 @@
 // spel/spel-regels.js — de gedeelde regels van "Blitz Run": client én server (netlify/lib/spel.js) importeren dit bestand,
 // zodat de ontgrendelregels nooit uit elkaar lopen. Puur: geen DOM, geen window, geen opslag.
 import { SKINS, standaardSkin, vrijgespeeld } from './skins.js';
+import { BASIS_SKIN_IDS } from './skin-kleuren.js';
 
 export const MAX_SCORE = 25000; // hoogste score die in één inzending geaccepteerd wordt (ruim 20 minuten non-stop op topsnelheid)
 
@@ -28,28 +29,39 @@ export function geldigeScore(x) {
   return Math.floor(x);
 }
 
-// Welke skins zijn ontgrendeld. `evenementen` = de actieve evenementen { id, spelSkin? } (injecteerbaar, zie evenementen.js).
-// - basis en goud: besteScore >= drempel (vrijgespeeld in skins.js; blitz heeft drempel 0); event: het event van de skin is actief (eventId, of de skin staat als spelSkin bij een actief event)
-// - `bewaard`: eerder ontgrendelde ids (een event-skin blijft na afloop van het event van de speler)
-export function ontgrendeldeSkins({ besteScore = 0, bewaard = [], evenementen = [], skins = SKINS } = {}) {
-  const actief = Array.isArray(evenementen) ? evenementen.filter(e => e && typeof e === 'object') : [];
-  const eventIds = new Set(actief.map(e => e.id).filter(isId));
-  const eventSkins = new Set(actief.map(e => e.spelSkin).filter(isId));
+// Welke skins zijn ontgrendeld. `actieveThemaIds` = de ids van de thema's die nu actief zijn (aan en binnen hun periode, op de serverdatum).
+// - basis en goud: besteScore >= drempel (vrijgespeeld in skins.js; blitz heeft drempel 0); thema: het thema van de skin is actief (skin-id = thema-id)
+// - `bewaard`: eerder ontgrendelde ids (een themaskin blijft na afloop van het thema van de speler)
+// Ids in `bewaard` die niet in `skins` staan, worden hier weggelaten; wie ze toch wil bewaren (de server) gebruikt `onbekendeThemaIds`.
+export function ontgrendeldeSkins({ besteScore = 0, bewaard = [], actieveThemaIds = [], skins = SKINS } = {}) {
+  const actief = Array.isArray(actieveThemaIds) ? actieveThemaIds.filter(isId) : [];
   const eerder = new Set(Array.isArray(bewaard) ? bewaard.filter(isId) : []);
-  // De ids van de event-skins die nu open zijn, voor `vrijgespeeld` uit skins.js (de enige ontgrendelregel).
-  const openEventSkins = skins.filter(s => s.soort === 'event' && (eventIds.has(s.eventId) || eventSkins.has(s.id))).map(s => s.id);
   const uit = [];
   for (const s of skins) {
-    if (vrijgespeeld(s, { besteScore, eventSkins: openEventSkins }) || eerder.has(s.id)) uit.push(s.id);
+    if (vrijgespeeld(s, { besteScore, actieveThemaIds: actief }) || eerder.has(s.id)) uit.push(s.id);
   }
   return uit;
 }
 
-// De tekst bij een vergrendelde skin: "vanaf 250 punten" of "Halloween-event".
+// Is dit een geldig thema-id (en dus een mogelijke skin-id van een thema)? Hetzelfde formaat als `id` in een themapakket;
+// de ingebouwde skin-id's (basis en goud) en gevaarlijke sleutelnamen zijn uitgesloten.
+const THEMA_ID = /^[a-z0-9-]{2,30}$/;
+const GERESERVEERD = new Set(['__proto__', 'constructor', 'prototype', ...BASIS_SKIN_IDS]);
+export const isThemaSkinId = (x) => typeof x === 'string' && THEMA_ID.test(x) && !GERESERVEERD.has(x);
+
+// De geldige thema-id's in `lijst` (een bewaarde `ontgrendeld`) die `skins` niet kent: themas worden nooit verwijderd, maar een
+// server met een lege of onleesbare themas-opslag mag een eerder ontgrendelde themaskin toch niet vergeten. Ontdubbeld.
+export function onbekendeThemaIds(lijst, skins = SKINS) {
+  if (!Array.isArray(lijst)) return [];
+  const bekend = new Set(skins.map(s => s.id));
+  return [...new Set(lijst.filter(i => isThemaSkinId(i) && !bekend.has(i)))];
+}
+
+// De tekst bij een vergrendelde skin: "vanaf 250 punten" of "Halloween-thema".
 export function ontgrendelVoorwaarde(skin) {
-  if (skin?.soort === 'event') {
-    const naam = String(skin.eventId ?? 'Speciaal');
-    return `${naam.charAt(0).toUpperCase()}${naam.slice(1)}-event`;
+  if (skin?.soort === 'thema') {
+    const naam = String(skin.themaNaam || skin.id || 'Speciaal');
+    return `${naam.charAt(0).toUpperCase()}${naam.slice(1)}-thema`;
   }
   if (typeof skin?.drempel === 'number' && skin.drempel > 0) return `vanaf ${skin.drempel} punten`;
   return '';

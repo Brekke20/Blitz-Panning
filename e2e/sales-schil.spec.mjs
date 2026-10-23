@@ -24,7 +24,8 @@ test.describe('sales: schil en start', () => {
     await page.clock.runFor(10000);
     const paden = verzoeken.alle.map(r => r.pad);
     for (const verboden of [...VERBODEN_PADEN, ...VERBODEN_PADEN_SALES]) expect(paden, verboden).not.toContain(verboden);
-    expect([...new Set(paden)].sort()).toEqual(['/api/auth-ik', '/api/instellingen', '/api/sales']);
+    // Plus de themapakketten (/api/themas, enkel lezen, alle rollen: de versiering geldt ook voor sales).
+    expect([...new Set(paden)].sort()).toEqual(['/api/auth-ik', '/api/instellingen', '/api/sales', '/api/themas']);
     expect(verzoeken.verboden).toEqual([]);
   });
 

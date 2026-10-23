@@ -227,7 +227,7 @@ test.describe('Beheer: beheerder (ongewijzigd)', () => {
       },
     });
     await openBeheer(page);
-    await expect(subtabs(page)).toHaveText(['Gebruikers', 'Instellingen', 'Beschikbaarheden', 'Activiteitenlog', 'Systeemstatus', 'Performance']);
+    await expect(subtabs(page)).toHaveText(['Gebruikers', 'Instellingen', 'Beschikbaarheden', 'Activiteitenlog', 'Systeemstatus', "Thema's", 'Performance']);
     await page.getByRole('tab', { name: 'Performance', exact: true }).click();
     await expect(page.locator('.dash')).toBeVisible();
     await expect(page.locator('.tegels > .tegel')).toHaveCount(6);

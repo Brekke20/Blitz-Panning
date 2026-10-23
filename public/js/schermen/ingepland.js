@@ -93,7 +93,7 @@ export function renderGepland() {
   // Badge toont gefilterd gepland-aantal (alle weken); een lege getoonde week legt dat uit en biedt de sprong naar de dichtstbijzijnde week met service.
   const filteredGepland = ticketsVanTechnieker(allGepland, activeAssigneeFilter);
   if (!any) {
-    body.innerHTML = `<div class="empty">${escHtml(eventTekst('ingepland', 'Geen geplande service deze week'))}</div>`;
+    body.innerHTML = `<div class="empty">${escHtml(eventTekst('ingeplandLeeg', 'Geen geplande service deze week'))}</div>`;
     const datums = filteredGepland.filter(t => t.interventieDatum).map(t => localISO(new Date(t.interventieDatum))).sort();
     if (datums.length) {
       const ws = localISO(weekStart);

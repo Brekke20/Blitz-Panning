@@ -16,8 +16,9 @@ import { valideerInstellingen, settingsKey } from './instellingen-logica.js';
 import { isKleur } from '../kern/instellingen-regels.js';
 import { bouwKleurKeuze, leesKleurKeuze } from '../kern/kleur-keuze.js';
 import { huidigeGebruiker, huidigeRechten, eigenZohoNaam } from '../kern/sessie.js';
-import { versieringAanVoorkeur, zetVersieringAan, huidigeBeslissing } from './evenement-laag.js';
-import { volgendEvenement, vensterTekst, actiefEvenement } from '../kern/evenementen.js';
+import { versieringAanVoorkeur, zetVersieringAan, huidigeBeslissing, herbereken as herberekenVersiering } from './evenement-laag.js';
+import { actiefThema, volgendThema, vensterTekst, effectievePeriode, belgischeDag } from '../kern/themapakket.js';
+import { themasNu } from './themas-bron.js';
 import { bewaarOpServer, spiegelEigen, eigenSleutels } from '../kern/instellingen-sync.js';
 
 // Afhankelijkheden uit app.js en prijzen.js (ingevuld door initInstellingen); een vergeten init faalt luid.
@@ -39,6 +40,7 @@ export function initInstellingen(afhankelijkheden) {
   registreerWijzigActies(document.body, {
     'set-toestel-weergave': (el) => kiesToestelWeergave(el.dataset.arg),
     'set-toestel-versiering': (el) => { zetVersieringAan(el.checked); vulVersieringBlok(); },
+    'set-beweging-account': (el) => bewaarBewegingMeteen(el.checked),
   });
   const setOverlay = document.getElementById('set-overlay');
   registreerBackdrop(setOverlay, closeSettings);
@@ -122,6 +124,40 @@ export function bewaarEigenKaartStijl(sleutel) {
   if (toontEigenSet(gebruiker)) toestand.set('settings', loadPersonSettings(toestand.get('activeAssigneeFilter')));
 }
 
+// "Bewegende beelden tijdens een thema" is een instelling van het ACCOUNT (op al zijn toestellen), dus van de EIGEN set van de
+// ingelogde gebruiker (zelfde doel als ⚙), niet van de getoonde persoon in `toestand.settings`. Afwezig of niet `true` = de beelden
+// bewegen (standaard). Gelezen door de versiering (app.js geeft deze functie aan startVersiering); gooit nooit.
+export function eigenBewegingUit() {
+  try { return loadPersonSettings(eigenPersoon()).bewegingUit === true; } catch { return false; }
+}
+
+// De beperkte technieker-weergave toont enkel "Dit toestel", zonder Opslaan: daar komt de schakelaar "Bewegende beelden tijdens een
+// thema" ook (hetzelfde element wordt verplaatst) en wordt de keuze meteen bewaard, in het EIGEN account (eigen record, nooit een ander).
+// In de gewone weergave (tab Algemeen) bewaart Opslaan hem samen met de rest; dan doet een klik hier niets.
+function bewaarBewegingMeteen(aan) {
+  if (!beperktToestel()) return;
+  const persoon = eigenPersoon();
+  const eigen = loadPersonSettings(persoon);
+  if (aan) delete eigen.bewegingUit; else eigen.bewegingUit = true;
+  if (_doelSettings) { if (aan) delete _doelSettings.bewegingUit; else _doelSettings.bewegingUit = true; }
+  savePersonSettings(persoon, {}, eigen);
+  if (toontEigenSet(huidigeGebruiker())) toestand.set('settings', loadPersonSettings(toestand.get('activeAssigneeFilter')));
+  herberekenVersiering();
+}
+// Zet de schakelaar op de juiste plek: onder "Dit toestel" in de beperkte weergave, anders in Algemeen (na "Drukte").
+function plaatsBewegingBlok() {
+  const blok = document.getElementById('set-beweging-blok');
+  const toestelTab = document.getElementById('set-tab-toestel');
+  const dagen = document.getElementById('set-werkdagen-label')?.closest('.set-field');
+  if (!blok || !toestelTab || !dagen) return;
+  if (beperktToestel()) {
+    const na = document.getElementById('set-versiering-blok');
+    if (blok.parentElement !== toestelTab && na) na.after(blok);
+  } else if (blok.parentElement === toestelTab) {
+    dagen.before(blok);
+  }
+}
+
 export const DAGEN = ['Zo','Ma','Di','Wo','Do','Vr','Za'];
 
 let _settingsActiveTab = 'algemeen';
@@ -149,7 +185,11 @@ async function resetTestdata() {
     toast('Testgegevens kopiëren mislukt — probeer opnieuw', 4000);
   }
 }
-// Feestelijke versiering (per toestel): de schakelaar en de uitleg erbij.
+// Feestelijke versiering (per toestel): de schakelaar en de uitleg erbij. Het thema en zijn periode komen uit de themapakketten
+// (kern/themapakket.js op de index van schermen/themas-bron.js); een voorbeeld uit Beheer heeft geen periode in de index.
+function periodeTekst(thema, nu) {
+  try { return vensterTekst(effectievePeriode(thema), belgischeDag(nu).jaar); } catch { return ''; }
+}
 function vulVersieringBlok() {
   const vink = document.getElementById('set-versiering');
   const uitleg = document.getElementById('set-versiering-uitleg');
@@ -157,13 +197,17 @@ function vulVersieringBlok() {
   vink.checked = versieringAanVoorkeur();
   const nu = new Date();
   const b = huidigeBeslissing();
+  const lijst = themasNu()?.index?.themas || [];
+  const metPeriode = (thema) => { const p = periodeTekst(thema, nu); return p ? `${thema.naam} (${p})` : thema.naam; };
   let tekst;
   if (!vink.checked) tekst = 'Staat uit op dit toestel.';
-  else if (b.actief) tekst = `Nu: ${b.evenement.naam} (${vensterTekst(b.evenement)}).${b.sober ? ' Op dit toestel enkel statische versiering.' : ''}`;
-  else if (TEST_MODE && actiefEvenement(nu)?.thema) tekst = `Er loopt een feestperiode (${actiefEvenement(nu).naam}), maar in testmodus staat de versiering uit.`;
+  else if (b.actief) {
+    const rij = lijst.find((t) => t.id === b.thema.id && actiefThema(nu, [t]));
+    tekst = `Nu: ${rij ? metPeriode({ ...rij, naam: b.thema.naam }) : b.thema.naam}.${b.sober ? ' Op dit toestel enkel statische versiering.' : ''}`;
+  } else if (TEST_MODE && actiefThema(nu, lijst)) tekst = `Er loopt een feestperiode (${actiefThema(nu, lijst).naam}), maar in testmodus staat de versiering uit.`;
   else {
-    const volgend = volgendEvenement(nu);
-    tekst = volgend ? `Er loopt nu geen feestperiode. Volgende: ${volgend.naam} (${vensterTekst(volgend)}).` : 'Er loopt nu geen feestperiode.';
+    const volgend = volgendThema(nu, lijst)?.thema;
+    tekst = volgend ? `Er loopt nu geen feestperiode. Volgende: ${metPeriode(volgend)}.` : 'Er loopt nu geen feestperiode.';
   }
   uitleg.textContent = tekst + ' Geldt enkel voor dit toestel.';
 }
@@ -190,6 +234,7 @@ const beperktToestel = () => window.apparaat?.rol === 'technieker' && !huidigeRe
 
 export function setSettingsTab(tab) {
   if (beperktToestel()) tab = 'toestel';
+  plaatsBewegingBlok();
   _settingsActiveTab = tab;
   document.getElementById('set-subtab-toestel').classList.toggle('active', tab === 'toestel');
   document.getElementById('set-tab-toestel').style.display = tab === 'toestel' ? '' : 'none';
@@ -263,6 +308,7 @@ export function openSettings() {
   document.getElementById('set-tijdslot').value = settings.tijdslotMinuten;
   bouwKleurKeuze(document.getElementById('set-routekleur'), settings.routeKleur || DEFAULT_SETTINGS.routeKleur); // rij vaste kleuren; de keuze wordt pas bij Opslaan bewaard
   document.getElementById('set-drukte').checked   = settings.drukteKleuring !== false;
+  document.getElementById('set-beweging').checked = settings.bewegingUit !== true; // aan = de beelden bewegen
   _werkdagenConcept = [...settings.werkdagen];
   const grid = document.getElementById('days-grid');
   grid.innerHTML = '';
@@ -328,10 +374,13 @@ export function saveSettings() {
     settings.routeKleur = isKleur(kleur) ? kleur : DEFAULT_SETTINGS.routeKleur;
   }
   settings.drukteKleuring = document.getElementById('set-drukte').checked;
+  // Enkel de uitzondering wordt bewaard (bewegingUit: true); aan = het veld weg (de standaard blijft de standaard).
+  if (document.getElementById('set-beweging').checked) delete settings.bewegingUit; else settings.bewegingUit = true;
   savePersonSettings(_doelPersoon, {}, settings);
   // Bekijkt de gebruiker zijn eigen set (of "Alle", hetzelfde eigen record), dan volgt de getoonde set; een collega blijft ongemoeid.
   if (toontEigenSet(gebruiker)) toestand.set('settings', loadPersonSettings(toestand.get('activeAssigneeFilter')));
   document.getElementById('set-overlay').classList.remove('open');
+  herberekenVersiering(); // de versiering volgt de keuze meteen, zonder herladen
   afh.renderTickets();
   afh.renderKalender();
   // Kleur/drukte meteen zichtbaar wisselen als er al een berekende route staat

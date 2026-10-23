@@ -206,6 +206,16 @@ test.describe('tab Instellingen', () => {
     expect(verzoeken.van('/api/instellingen', 'PUT')[0].body.instellingen).toMatchObject({ duurMinuten: 100, routeKleur: '#abcdef', drukteKleuring: true, kaartStijl: 'satelliet' });
   });
 
+  test('de persoonlijke keuze "bewegende beelden uit" van een gebruiker blijft bewaard als de beheerder zijn andere instellingen opslaat', async ({ page, verzoeken }) => {
+    await openTab(page, 'Instellingen', { instellingen: instellingenStub({ begin: { 'u-t1': { ...TIM, bewegingUit: true } } }) });
+    await paneel(page).getByLabel('Gebruiker', { exact: true }).selectOption('u-t1');
+    await expect(paneel(page).getByLabel('Startlocatie')).toHaveValue(TIM.startlocatie);
+    await paneel(page).getByLabel('Tijd per interventie (minuten)').fill('95');
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.locator('#toast')).toContainText('Instellingen opgeslagen');
+    expect(verzoeken.van('/api/instellingen', 'PUT')[0].body.instellingen).toMatchObject({ duurMinuten: 95, bewegingUit: true });
+  });
+
   test('de eigen instellingen opslaan ververst de lokale kopie en de actieve instellingen; een latere opslag in het gewone scherm draait niets terug', async ({ page, verzoeken }) => {
     await openTab(page, 'Instellingen');
     await expect(paneel(page).getByLabel('Gebruiker', { exact: true })).toHaveValue('u-test');

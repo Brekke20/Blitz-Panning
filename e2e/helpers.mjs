@@ -15,6 +15,7 @@ const FIX = {
   optimize: fixture('optimize.json'),
   drukte: fixture('drukte.json'),
   planningSinds: fixture('planning-sinds.json'),
+  halloween: JSON.parse(fs.readFileSync(path.join(MAP, '..', 'netlify', 'themas', 'halloween.blitzthema.json'), 'utf8')),
 };
 
 export const VASTE_NU = '2026-10-05T09:00:00+02:00'; // maandag, Europe/Brussels
@@ -198,6 +199,18 @@ function maakStandaardStubs() {
         };
       }
       return json(200, spelVoortgang);
+    },
+    // Thema-pakketten (/api/themas): de lijst met het Halloween-pakket (hetzelfde bestand dat de server zaait) en `?id=` voor één pakket.
+    // De app roept dit pas aan zodra de themabron bedraad is; overschrijfbaar zoals elke stub.
+    themas: ({ query }) => {
+      const id = query.get('id');
+      if (id !== null) return id === 'halloween' ? json(200, structuredClone(FIX.halloween)) : json(404, { error: 'onbekend thema' });
+      const h = FIX.halloween;
+      return json(200, {
+        versie: 1,
+        themas: [{ id: h.id, naam: h.naam, aan: true, periode: h.periode, periodeOverride: null, pakketHash: 'e2e-halloween' }],
+        pakketten: { halloween: structuredClone(h) },
+      });
     },
     'planning-sinds': () => json(200, structuredClone(FIX.planningSinds)),
     // Enkel in de productiemodus (zonder ?test) aangeroepen; in ?test komen de tickets uit kern/testdata.js (zelfde bron).

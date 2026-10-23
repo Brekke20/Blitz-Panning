@@ -192,7 +192,8 @@ test.describe('rechten per rol (Rechtentabel): tabs en knoppen', () => {
     await expect(page.locator('#view-tickets')).toBeHidden();
     // Enkel de sessie, de eigen instellingen en de eigen leads (de opstart van rol sales); geen tickets, planning, afspraken of route.
     const paden = [...new Set(verzoeken.alle.map(r => r.pad))].sort();
-    expect(paden).toEqual(['/api/auth-ik', '/api/instellingen', '/api/sales']);
+    // Plus de themapakketten (/api/themas, enkel lezen, alle rollen: de versiering geldt ook voor sales).
+    expect(paden).toEqual(['/api/auth-ik', '/api/instellingen', '/api/sales', '/api/themas']);
     for (const verboden of VERBODEN_PADEN_SALES) expect(paden).not.toContain(verboden);
   });
 });

@@ -197,6 +197,22 @@
 - [ ] **Step 4: Run** `node --test` en de volledige `npx playwright test` → PASS (`tests/sw-schil.test.mjs` controleert SHELL en preloads).
 - [ ] **Step 5: Commit** `feat(themas): versiering gestuurd door het actieve themapakket`
 
+### Task 6b: Instelling "Bewegende beelden" per gebruiker
+
+**Files:**
+- Modify: `public/js/kern/instellingen-regels.js` (veld `bewegingUit`: boolean; onbekend type → weigering "Ongeldige waarde voor bewegende beelden."), `netlify/lib/instellingen.js` (`INSTELLING_VELDEN` + `'bewegingUit'`), `public/js/schermen/instellingen.js` + `public/index.html` (schakelaar bij de persoonlijke instellingen, label "Bewegende beelden tijdens een thema", `data-wijzig`), `public/js/kern/versiering-logica.js` (`beslis` krijgt `bewegingUit`; dan `beweging: false`, stilstaande versiering blijft), `public/js/schermen/evenement-laag.js` (leest de instelling uit `kern.toestand` `settings`, herberekent bij een wijziging)
+- Test: `tests/instellingen-regels.test.mjs` (of het bestaande testbestand van de regels), `tests/server-instellingen*.test.mjs`, `tests/versiering-logica.test.mjs`, `e2e/versiering.spec.mjs`
+
+**Interfaces:**
+- Consumes: `beslis` (taak 6), `settings` uit `kern.toestand`, instellingen-sync.
+- Produces: instellingsveld `bewegingUit: boolean` (standaard `false`).
+
+- [ ] **Step 1: Write the failing tests:** `valideerVelden({ bewegingUit: true })` → `{ waarden: { bewegingUit: true } }`; `'ja'` → fout; de server bewaart en geeft het veld terug; `beslis({ …, bewegingUit: true })` → `actief: true, beweging: false`; e2e: met `bewegingUit: true` in de instellingen-stub geen `.ev-beweeg`-elementen in de voorste laag, wel de achtergrond en de hoeken; de schakelaar zet het veld en de versiering past zich meteen aan zonder herladen; "Feestelijke versiering" uit gaat voor.
+- [ ] **Step 2: Run** → FAIL.
+- [ ] **Step 3: Implement** volgens het bestaande patroon van de persoonlijke instellingen (bewaren via de bestaande instellingenroute; geen nieuwe serverfunctie).
+- [ ] **Step 4: Run** `node --test` en `npx playwright test --project=chromium --workers=2 e2e/versiering.spec.mjs e2e/instellingen*.spec.mjs` → PASS.
+- [ ] **Step 5: Commit** `feat(themas): bewegende beelden uit per gebruiker`
+
 ### Task 7: Beheer → Thema's
 
 **Files:**

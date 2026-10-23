@@ -379,3 +379,50 @@ test('opslagstoring: PUT geeft 503 en logt niet; methode zonder regel geeft 405'
   const del = await metRol('beheerder', () => h(req('DELETE')));
   assert.equal(del.status, 405);
 });
+
+// ---------------- bewegingUit (taak 6b: "Bewegende beelden tijdens een thema", per account) ----------------
+test('bewegingUit: een boolean wordt bewaard; een ander type wordt geweigerd met de Nederlandse tekst', () => {
+  assert.deepEqual(schoonInstellingen({ bewegingUit: true }), { waarden: { bewegingUit: true } });
+  assert.deepEqual(schoonInstellingen({ bewegingUit: false }), { waarden: { bewegingUit: false } });
+  for (const waarde of ['ja', 1, 0, [], {}]) {
+    assert.deepEqual(schoonInstellingen({ bewegingUit: waarde }), { fout: 'Ongeldige waarde voor bewegende beelden.' }, JSON.stringify(waarde));
+  }
+  assert.deepEqual(schoonInstellingen({ bewegingUit: null }), { waarden: {} }); // null = ontbrekend, zoals bij de andere velden
+});
+
+test('bewegingUit: PUT eigen bewaart het veld en GET geeft het terug; de lijst INSTELLING_VELDEN kent het', async () => {
+  const { h } = opzet();
+  const rp = await metRol('planner', () => h(put({ instellingen: { ...geldig(), bewegingUit: true } })));
+  assert.equal(rp.status, 200);
+  const j = await (await metRol('planner', () => h(get()))).json();
+  assert.equal(j.instellingen.bewegingUit, true);
+  const { INSTELLING_VELDEN } = await import('../netlify/lib/instellingen.js');
+  assert.ok(INSTELLING_VELDEN.includes('bewegingUit'));
+});
+
+test('bewegingUit: een beheerder die de andere instellingen van een gebruiker bewaart (record van de server + formulier) laat het veld staan', async () => {
+  const { h } = opzet();
+  // De technieker zet de beweging uit (via een planner die zijn record schrijft staat het veld er gewoon in).
+  assert.equal((await metRol('planner', () => h(put({ gebruiker: 'u-tim', instellingen: geldig({ bewegingUit: true }) })))).status, 200);
+  // De beheerder leest het record (zoals beheer-instellingen.js) en legt er een wijziging bovenop.
+  const huidig = (await (await metRol('beheerder', () => h(get('?gebruiker=u-tim')))).json()).instellingen;
+  assert.equal(huidig.bewegingUit, true);
+  const r = await metRol('beheerder', () => h(put({ gebruiker: 'u-tim', instellingen: { ...huidig, duurMinuten: 75 } })));
+  assert.equal(r.status, 200);
+  const na = (await (await metRol('beheerder', () => h(get('?gebruiker=u-tim')))).json()).instellingen;
+  assert.equal(na.duurMinuten, 75);
+  assert.equal(na.bewegingUit, true);
+});
+
+test('bewegingUit: een technieker bewaart het veld in zijn EIGEN record (rechten bestonden al), nooit dat van een ander (403)', async () => {
+  const { h, echt } = opzet();
+  const eigen = await metRol('technieker', () => h(put({ instellingen: geldig({ bewegingUit: true }) })));
+  assert.equal(eigen.status, 200);
+  assert.equal((await (await metRol('technieker', () => h(get()))).json()).instellingen.bewegingUit, true);
+  const ander = await metRol('technieker', () => h(put({ gebruiker: 'u-tom', instellingen: geldig({ bewegingUit: true }) })));
+  assert.equal(ander.status, 403);
+  assert.deepEqual(Object.keys((await blob(echt)).perGebruiker), ['test-technieker']);
+  // andere rollen blijven zoals ze waren: een planner schrijft het veld voor een technieker, een sales enkel voor zichzelf
+  assert.equal((await metRol('planner', () => h(put({ gebruiker: 'u-tim', instellingen: geldig({ bewegingUit: true }) })))).status, 200);
+  assert.equal((await metRol('sales', () => h(put({ gebruiker: 'u-tim', instellingen: geldig({ bewegingUit: true }) })))).status, 403);
+});

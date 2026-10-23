@@ -17,7 +17,7 @@ const BROWSER = new Set([
   'location', 'localStorage', 'sessionStorage', 'matchMedia', 'open', 'close', 'print', 'innerWidth', 'innerHeight', 'scrollTo', 'scrollBy',
   'scrollX', 'scrollY', 'addEventListener', 'removeEventListener', 'dispatchEvent', 'fetch', 'confirm', 'alert', 'screen',
   'navigator', 'document', 'history', 'requestAnimationFrame', 'getComputedStyle', 'setTimeout', 'clearTimeout',
-  'SignaturePad', 'L', 'ExcelJS', 'indexedDB', 'Notification', 'ResizeObserver',
+  'SignaturePad', 'L', 'ExcelJS', 'indexedDB', 'Notification', 'ResizeObserver', 'atob',
 ]);
 
 // Lokale namen (parameter of variabele binnen één bestand) waarop een typeof-controle terecht is: geen window-naam.
