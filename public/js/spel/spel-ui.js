@@ -126,10 +126,15 @@ function tekenInfo() {
   const rij = overlay.querySelector('.spel-skins');
   rij.replaceChildren(...skinLijst.map((s) => {
     const open = v.ontgrendeld.includes(s.id);
+    // Kleuren enkel via style-eigenschappen (nooit als tekenreeks in een style-attribuut)
+    const faceplate = el('b');
+    faceplate.style.background = s.faceplate;
+    const behuizing = el('i', {}, faceplate);
+    behuizing.style.background = s.behuizing;
     const knop = el('button', {
       type: 'button', class: 'spel-skin', 'aria-pressed': String(v.gekozenSkin === s.id), dataset: { actie: 'spel-skin', arg: s.id },
     },
-    el('i', { style: `background:${s.behuizing}` }, el('b', { style: `background:${s.faceplate}` })),
+    behuizing,
     el('span', { tekst: s.naam }),
     el('small', { tekst: open ? (v.gekozenSkin === s.id ? 'gekozen' : 'ontgrendeld') : ontgrendelVoorwaarde(s) }));
     if (!open) knop.disabled = true;
