@@ -15,6 +15,24 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [2.3.0] — 2026-10-23
+
+### Added
+- Feestthema's zijn nu pakketten die je zelf kunt beheren, zonder nieuwe release. Onder Beheer → Thema's kun je een thema uploaden, aan- of uitzetten, de periode aanpassen, een voorbeeld bekijken en het pakket downloaden.
+- Negen thema's staan klaar: Nieuwjaar, Valentijn, Carnaval, Pasen, Zomer, 21 juli, Halloween, Sinterklaas en Kerst. Elk heeft een eigen achtergrond en een eigen laadpaal in Blitz Run.
+- Nieuwe persoonlijke instelling "Bewegende beelden tijdens een thema": zet je ze uit, dan zie je enkel de achtergrond en de hoekbeelden.
+- Tijdens een thema is de achtergrond altijd zichtbaar en zijn de ticketkaarten van glas: je ziet de achtergrond zacht doorschemeren en de tekst blijft goed leesbaar.
+
+### Changed
+- Kerst loopt nu van 7 tot 31 december; Sinterklaas loopt van 1 tot 6 december en Nieuwjaar van 1 tot 6 januari.
+- Stilstaande versiering staat achter de inhoud, bewegende versiering ervoor.
+- De Halloween-maan is in het donkere thema iets gedempt.
+- De feesthoedjes in Blitz Run wiebelen niet meer.
+- De tekstkleuren op de kaarten passen zich aan tijdens een thema, zodat alles leesbaar blijft; de kleuren van status en prioriteit (rood voor "Verlopen" en "Hoog") blijven gewoon.
+
+### Notes
+- Op een nieuw toestel verschijnt het thema pas na het inloggen.
+
 ## [2.2.0] — 2026-10-21
 
 ### Added
