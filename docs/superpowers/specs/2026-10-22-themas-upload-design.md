@@ -92,7 +92,7 @@ Een pakket is één JSON-bestand (`<id>.blitzthema.json`). Het bevat enkel gegev
 ### 3.1 Vormen (veilige vectortekeningen)
 - Een vorm heeft een `viewBox` en `delen`. Een deel heeft als `soort` één van `path`, `circle`, `ellipse`, `rect`, `polygon` of `line`, met enkel de geometrische attributen van die soort (`d`, `cx`, `cy`, `r`, `rx`, `ry`, `x`, `y`, `width`, `height`, `points`, `x1`, `y1`, `x2`, `y2`) en de stijl `vul`, `lijn`, `lijnDikte`, `dekking`.
 - Aanvulling (taak 3, taak 9c): een deel mag `vulLicht` en `lijnLicht` hebben (kleur of `geen`; `vulLicht` sinds taak 9c ook een verloop, voor een eigen lichte lucht): in het lichte thema gebruikt de renderer die, anders `vul`/`lijn`. Verder `lijnEinde` (`rond`, `recht`, `vierkant`), `lijnHoek` (`rond`, `scherp`, `schuin`) en, enkel op `rect`, `rx`/`ry` (afgeronde hoeken).
-- Verlopen (`verloop: { soort: 'lineair'|'radiaal', stops: [{ op, kleur }] }`) mogen, als eigenschap van `vul`.
+- Verlopen staan in `vul`: `vul: { verloop: 'lineair'|'radiaal', …, stops: [{ op, kleur }] }` (lineair met `x1`, `y1`, `x2`, `y2`; radiaal met `cx`, `cy`, `r`). Ook `vulLicht` mag zo'n verloop zijn (een eigen lichte lucht); `lijn` en `lijnLicht` zijn enkel een kleur of `geen`.
 - `d` voldoet aan `/^[MmLlHhVvCcSsQqTtAaZz0-9eE.,\s+-]{1,20000}$/`. Getallen zijn begrensd. Elke vorm heeft maximaal 400 delen, het hele pakket maximaal 3000.
 - De app bouwt het SVG zelf op met `createElementNS` en een vaste lijst attributen. Er komt nooit een `innerHTML`, `href`, `style`, `on*`, `<script>` of `<foreignObject>` aan te pas. Een vorm is dus veilig door de manier waarop hij gebouwd wordt.
 - In het spel wordt dezelfde vorm getekend met `Path2D` (enkel paden; andere soorten worden omgezet), wat even veilig is.
@@ -131,7 +131,7 @@ Een pakket is één JSON-bestand (`<id>.blitzthema.json`). Het bevat enkel gegev
 
 | Methode | Rol | Wat |
 |---|---|---|
-| `GET /api/themas` | alle rollen | De index zonder uploadgegevens, plus per thema de effectieve periode en `pakketHash`. Daarnaast de volledige pakketten van de thema's die vandaag actief zijn of binnen 14 dagen beginnen. |
+| `GET /api/themas` | alle rollen | De index zonder uploadgegevens, plus per thema de effectieve periode en `pakketHash`. Daarnaast de volledige pakketten van de thema's die vandaag actief zijn of binnen 14 dagen beginnen (de client houdt in zijn cache elk pakket dat hij ooit zag, zie "Cache en eerste schermopbouw"). |
 | `GET /api/themas?id=<id>` | alle rollen | Eén pakket (voor voorbeeld, download en beheer). |
 | `POST /api/themas` | beheerder | Upload van een pakket (nieuw of nieuwe versie, op id), met header `X-Blitz: 1`. Body maximaal 600 kB, anders 413. Ongeldig geeft 422 met een lijst Nederlandse foutmeldingen per veld. |
 | `PATCH /api/themas` | beheerder | `{ id, aan?, periode? }` (periode `null` = terug naar die van het pakket). Optimistic locking op `versie` (409 + `serverVersie`), zoals bij `fotos`. |
@@ -144,7 +144,8 @@ Een pakket is één JSON-bestand (`<id>.blitzthema.json`). Het bevat enkel gegev
 ## 5. Client
 
 **Cache en eerste schermopbouw**
-- `localStorage` `blitz_themas` = `{ index, pakketten: { <id>: pakket } }`, enkel de pakketten die actief zijn of binnen 14 dagen beginnen. Een pakket wordt opnieuw opgehaald als `pakketHash` verandert. Er is een plafond van 1,5 MB; bij een volle opslag houdt de cache enkel het actieve pakket.
+- `localStorage` `blitz_themas` = `{ index, pakketten: { <id>: pakket } }`: alle pakketten die de client ooit ontving blijven bewaard (ongeveer 90 kB voor de negen voorgeladen thema's), zodat ook de skins van thema's buiten hun periode offline beschikbaar zijn. Een pakket wordt opnieuw opgehaald als `pakketHash` verandert. Er is een plafond van 1,5 MB; bij een volle opslag houdt de cache enkel het actieve pakket.
+- Halloween-maan en Zomer-zon zijn in het donkere thema gedempt (de maan x0,76, de zon x0,8); in het lichte thema blijven ze ongewijzigd (via `vulLicht`/`lijnLicht`).
 - `blitz_thema_actief` = `{ id, tot, kleuren, voorkeurThema }`: een klein record voor het inline script in `index.html`. Dat script vervangt de hardcode `d.month === '10'` door dit record. Het zet `data-event`, de kleurvariabelen (via `style.setProperty`, met waarden die al gevalideerd zijn) en het standaard licht/donker vóór de eerste schermopbouw.
 - Offline start: de app gebruikt wat in de cache staat. Zonder cache is er geen thema; dat is nooit een fout.
 - De sleutel `blitz_theme_<thema>_<jaar>` (eigen keuze licht/donker tijdens het thema) blijft, nu generiek op id.
@@ -158,7 +159,7 @@ Een pakket is één JSON-bestand (`<id>.blitzthema.json`). Het bevat enkel gegev
 **Achtergrond altijd zichtbaar, ticketkaarten als mat glas** (Brent, 2026-10-22)
 - Tijdens een thema met `achtergrond` mag geen effen schermvlak de tekening verbergen: de inhoudsvlakken van de tabbladen (wachtrij, kalender, route, ingepland, beschikbaarheden, rapporten …) zijn doorzichtig. De bovenbalk, de tabbalk en vensters (modals) blijven effen.
 - Ticketkaarten (en vergelijkbare kaarten in de lijsten) worden mat glas: half doorschijnende achtergrond in de kleur van de kaart met `backdrop-filter: blur(…)`, zodat de achtergrond wazig doorschemert en de tekst leesbaar blijft (contrast ≥ 4,5:1 voor gewone tekst).
-- Op gsm, tablet en aanraakschermen (sober) is het glas lichter (minder vervaging) zodat scrollen vlot blijft. Zonder ondersteuning voor `backdrop-filter`, of met `prefers-reduced-transparency`, krijgt de kaart een bijna-effen achtergrond.
+- Het glas is op alle toestellen gelijk: 60 % kaartkleur en 6 px vervaging (keuze Brent 2026-10-23, variant B; geen lichtere variant voor gsm, tablet of aanraak). Zonder ondersteuning voor `backdrop-filter`, of met `prefers-reduced-transparency`, krijgt de kaart een bijna-effen achtergrond.
 - Zonder actief thema of zonder `achtergrond` verandert er niets aan het huidige uitzicht.
 
 **Beheer → Thema's** (`schermen/beheer-themas.js`, enkel beheerder, `registreerBeheerTab`)
