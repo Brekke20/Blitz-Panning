@@ -292,18 +292,20 @@ test.describe('versiering op de computer', () => {
 
 // Glas en contrast, voor ELK voorgeladen thema (taak 9d, keuze opdrachtgever 2026-10-23: variant B, helder glas: 60 % kaartkleur,
 // 6 px vervaging). ELKE tekstkleur op een kaart (gewone en secundaire tekst, de rode "Geen adres bekend", de tijd en de naam op een
-// kalenderkaart) haalt 4,5:1 over wat ECHT achter het glas ligt. Zo gemeten (beslissing controller 2026-10-23; de vroegere
-// formule "kaart over de lichtste kleur van de hele scène" faalt bij 60 % op de maan of de zon, terwijl daar nooit tekst over ligt):
+// kalenderkaart) haalt 4,5:1 over wat ECHT achter het glas ligt. Zo gemeten (beslissingen controller 2026-10-23; de vroegere
+// formule "kaart over de lichtste kleur van de hele scène" faalt bij 60 % op de maan of de zon, ook waar er nooit een kaart ligt):
 //   1. de kaarten en de voorste laag (#event-laag, die ligt VOOR de kaarten) worden verborgen (visibility: hidden, de opmaak blijft)
 //      en de pagina wordt gefotografeerd: wat overblijft is precies de achtergrond achter elke kaart (scène, achterste laag,
 //      paginakleur en tinten van de dagvakken);
 //   2. per kaart het gemiddelde van die foto in het kaartvlak (de vervaging middelt), met de kaartkleur aan de glas-alpha erover;
-//   3. per tekst de helderste EN de donkerste 6x6-blok in het vak van die tekst, na een vervaging zoals blur(6px) (gaussisch,
-//      sigma 6 px, in sRGB): een felle (of in het lichte thema een donkere) vlek vlak onder de tekst, met de kaartkleur erover.
+//   3. per kaart de helderste EN de donkerste 6x6-blok ERGENS in het kaartvak, na een vervaging zoals blur(6px) (gaussisch,
+//      sigma 6 px, in sRGB), met de kaartkleur erover: niet enkel onder de tekst van vandaag, want een afspraak op een ander uur of
+//      een lange titel kan tekst op elke plek van de kaart leggen (Halloween: een kalenderkaart op 1024 breed ligt deels over de maan).
 // Elke tekstkleur moet 4,5:1 halen tegen alle drie. Chips met een eigen achtergrond (labels) tellen niet mee: hun tekst staat op hun
 // eigen vlak. De tekstschaduw telt niet mee (extra marge). Gemeten op de ticketkaarten (wachtrij) en de kalenderkaarten
 // (.cal-ticket, weekweergave), in donker en licht, op 1366x768 en 1024x768. Het pakket komt uit netlify/themas met een periode over
-// de testklok (5 okt 2026). Faalt een thema: kleur of plaats in de scène aanpassen, nooit de drempel of een alpha per thema.
+// de testklok (5 okt 2026). Faalt een thema: de tekstkleuren op de kaarten aanpassen (de scène blijft), nooit de drempel of een
+// alpha per thema.
 const PAKKET_IDS = ['halloween', 'kerst', 'nieuwjaar', 'valentijn', 'carnaval', 'pasen', 'zomer', 'nationale-feestdag', 'sinterklaas'];
 const VENSTERS = [{ width: 1366, height: 768 }, { width: 1024, height: 768 }];
 const leesPakket = (id) => JSON.parse(fs.readFileSync(new URL(`../netlify/themas/${id}.blitzthema.json`, import.meta.url), 'utf8'));
@@ -384,8 +386,8 @@ function uitersteBlokken(lees, vak) {
   return { helder, donker };
 }
 
-// Meet per kaart in het huidige venster: de kaartkleur (rgba), de vervaging, het kaartvak en de teksten (zonder eigen achtergrond)
-// met het vak van hun tekst, en of de kaart volledig zichtbaar is (de hoeken en het midden raken de kaart zelf, niet een vaste balk).
+// Meet per kaart in het huidige venster: de kaartkleur (rgba), de vervaging, het kaartvak, de teksten (zonder eigen achtergrond)
+// en of de kaart volledig zichtbaar is (de hoeken en het midden raken de kaart zelf, niet een vaste balk).
 async function meetKaarten(page, sel) {
   return page.locator(sel).evaluateAll((lijst) => {
     const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
@@ -399,13 +401,7 @@ async function meetKaarten(page, sel) {
       const teksten = [...el.querySelectorAll('*')]
         .filter((t) => [...t.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()))
         .filter((t) => { let x = t; while (x && x !== el) { if (rgba(getComputedStyle(x).backgroundColor)[3] > 0) return false; x = x.parentElement; } return true; })
-        .map((t) => {
-          const bereik = document.createRange();
-          const vakken = [...t.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim()).map((n) => { bereik.selectNodeContents(n); return bereik.getBoundingClientRect(); });
-          const x = Math.max(r.left, Math.min(...vakken.map((v) => v.left))), y = Math.max(r.top, Math.min(...vakken.map((v) => v.top)));
-          const x2 = Math.min(r.right, Math.max(...vakken.map((v) => v.right))), y2 = Math.min(r.bottom, Math.max(...vakken.map((v) => v.bottom)));
-          return { sel: t.className, kleur: rgba(getComputedStyle(t).color), vak: { x, y, w: Math.max(6, x2 - x), h: Math.max(6, y2 - y) } };
-        });
+        .map((t) => ({ sel: t.className, kleur: rgba(getComputedStyle(t).color) }));
       return { nr, naam: el.textContent.replace(/\s+/g, ' ').trim().slice(0, 30), kaart: rgba(cs.backgroundColor), blur: cs.backdropFilter, vak: vakVan(r), zichtbaar, teksten };
     });
   });
@@ -452,19 +448,14 @@ async function controleerKaarten(page, sel, label, slechtste) {
       }
       const gemiddeld = t0.map((v) => v / n);
       const lees = vervaag(beeld, k.vak);
-      const kaartBreed = uitersteBlokken(lees, k.vak);
+      // de uiterste vlek ERGENS in de kaart: een andere afspraak of een lange titel kan tekst op elke plek van de kaart leggen
+      const vlek = uitersteBlokken(lees, k.vak);
       for (const t of k.teksten) {
-        const vlek = uitersteBlokken(lees, t.vak);
         for (const [soort, onder] of [['gemiddelde', gemiddeld], ['helderste vlek', vlek.helder], ['donkerste vlek', vlek.donker]]) {
           const c = contrast(t.kleur, meng(k.kaart, onder));
-          const waar = `${label} ${k.naam} .${t.sel} over ${soort} rgb(${onder.map(Math.round)})`;
+          const waar = `${label} ${k.naam} .${t.sel} rgb(${t.kleur.slice(0, 3)}) over ${soort} rgb(${onder.map(Math.round)})`;
           if (c < slechtste.waarde) Object.assign(slechtste, { waarde: c, waar });
           expect(c, waar).toBeGreaterThanOrEqual(4.5);
-        }
-        // ter info (niet de eis): de uiterste vlek ergens in de kaart, ook waar geen tekst ligt
-        for (const onder of [kaartBreed.helder, kaartBreed.donker]) {
-          const c = contrast(t.kleur, meng(k.kaart, onder));
-          if (c < (slechtste.kaartBreed ?? Infinity)) Object.assign(slechtste, { kaartBreed: c, kaartBreedWaar: `${label} ${k.naam} .${t.sel} over rgb(${onder.map(Math.round)})` });
         }
       }
     }
@@ -498,7 +489,7 @@ test.describe('helder glas en contrast per thema', () => {
           }
         }
       }
-      const tekst = `${slechtste.waarde.toFixed(2)}:1 (${slechtste.waar}); kaartbreed uiterste vlek ${slechtste.kaartBreed.toFixed(2)}:1 (${slechtste.kaartBreedWaar})`;
+      const tekst = `${slechtste.waarde.toFixed(2)}:1 (${slechtste.waar})`;
       test.info().annotations.push({ type: 'slechtste contrast', description: tekst });
       console.log(`slechtste contrast ${id}: ${tekst}`);
     });
