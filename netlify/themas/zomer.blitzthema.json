@@ -13,9 +13,9 @@
     "zon": {
       "viewBox": "0 0 100 80",
       "delen": [
-        { "soort": "circle", "cx": 50, "cy": 40, "r": 46, "vul": { "verloop": "radiaal", "cx": 0.5, "cy": 0.5, "r": 0.5, "stops": [{ "op": 0, "kleur": "#ffd54a66" }, { "op": 0.6, "kleur": "#ffd54a22" }, { "op": 1, "kleur": "#ffd54a00" }] } },
-        { "soort": "path", "d": "M80 40L89 40M75.98 55L83.77 59.5M65 65.98L69.5 73.77M50 70L50 79M35 65.98L30.5 73.77M24.02 55L16.23 59.5M20 40L11 40M24.02 25L16.23 20.5M35 14.02L30.5 6.23M50 10L50 1M65 14.02L69.5 6.23M75.98 25L83.77 20.5", "vul": "geen", "lijn": "#ffb703", "lijnDikte": 3.4, "lijnEinde": "rond" },
-        { "soort": "circle", "cx": 50, "cy": 40, "r": 22, "vul": { "verloop": "radiaal", "cx": 0.5, "cy": 0.5, "r": 0.5, "stops": [{ "op": 0, "kleur": "#fff2a8" }, { "op": 0.6, "kleur": "#ffc933" }, { "op": 1, "kleur": "#ffa31a" }] }, "lijn": "#f59a0c", "lijnDikte": 0.8 }
+        { "soort": "circle", "cx": 50, "cy": 40, "r": 46, "vul": { "verloop": "radiaal", "cx": 0.5, "cy": 0.5, "r": 0.5, "stops": [{ "op": 0, "kleur": "#ccaa3b66" }, { "op": 0.6, "kleur": "#ccaa3b22" }, { "op": 1, "kleur": "#ccaa3b00" }] }, "vulLicht": { "verloop": "radiaal", "cx": 0.5, "cy": 0.5, "r": 0.5, "stops": [{ "op": 0, "kleur": "#ffd54a66" }, { "op": 0.6, "kleur": "#ffd54a22" }, { "op": 1, "kleur": "#ffd54a00" }] } },
+        { "soort": "path", "d": "M80 40L89 40M75.98 55L83.77 59.5M65 65.98L69.5 73.77M50 70L50 79M35 65.98L30.5 73.77M24.02 55L16.23 59.5M20 40L11 40M24.02 25L16.23 20.5M35 14.02L30.5 6.23M50 10L50 1M65 14.02L69.5 6.23M75.98 25L83.77 20.5", "vul": "geen", "lijn": "#cc9202", "lijnLicht": "#ffb703", "lijnDikte": 3.4, "lijnEinde": "rond" },
+        { "soort": "circle", "cx": 50, "cy": 40, "r": 22, "vul": { "verloop": "radiaal", "cx": 0.5, "cy": 0.5, "r": 0.5, "stops": [{ "op": 0, "kleur": "#ccc286" }, { "op": 0.6, "kleur": "#cca129" }, { "op": 1, "kleur": "#cc8215" }] }, "vulLicht": { "verloop": "radiaal", "cx": 0.5, "cy": 0.5, "r": 0.5, "stops": [{ "op": 0, "kleur": "#fff2a8" }, { "op": 0.6, "kleur": "#ffc933" }, { "op": 1, "kleur": "#ffa31a" }] }, "lijn": "#c47b0a", "lijnLicht": "#f59a0c", "lijnDikte": 0.8 }
       ]
     },
     "bel": {
