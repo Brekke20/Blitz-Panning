@@ -118,7 +118,8 @@ test.describe('sales', () => {
     await page.clock.runFor(10000);
     await page.evaluate(() => Promise.resolve());
     // Enkel de sessie, de eigen instellingen (voor sales enkel het eigen blok) en de eigen leads.
-    expect([...new Set(verzoeken.alle.map(r => r.pad))].sort()).toEqual(['/api/auth-ik', '/api/instellingen', '/api/sales']);
+    // Plus de themapakketten (/api/themas, enkel lezen, alle rollen: de versiering geldt ook voor sales).
+    expect([...new Set(verzoeken.alle.map(r => r.pad))].sort()).toEqual(['/api/auth-ik', '/api/instellingen', '/api/sales', '/api/themas']);
     // Instellingen: enkel lezen (de opstartsynchronisatie en het laden van de sales-schil), nooit schrijven.
     const instellingen = verzoeken.alle.filter(r => r.pad === '/api/instellingen').map(r => r.methode);
     expect(instellingen.length).toBeGreaterThan(0);
