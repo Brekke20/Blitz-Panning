@@ -135,17 +135,20 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
    Kaarten in de lijsten: half doorschijnend in hun eigen kleur (--ev-kaart) met vervaging; een toestandstint (--ev-tint, bv. lage
    voorraad) ligt er doorschijnend bovenop. Sober (gsm, tablet, aanraak) minder vervaging; zonder backdrop-filter of met verminderde
    transparantie bijna effen (--ev-glas-vast).
-   Contrast: elke tekstkleur op een kaart haalt 4,5:1 over de lichtste en de donkerste kleur van elke achtergrond in dat thema.
-   Taak 9c (keuze opdrachtgever 2026-10-22: duidelijk mat glas): 80 % kaartkleur in beide thema's (zonder backdrop-filter of met
-   verminderde transparantie 94 %); daarom op de kaarten in het donkere thema lichtere grijze en rode tekst (ook over wit) en in het
-   lichte thema donkerdere (ook over de donkerste kleur van een lichte achtergrond); e2e/versiering.spec.mjs meet het voor de negen
-   thema's. */
+   Taak 9d (keuze opdrachtgever 2026-10-23: variant B, helder glas): 60 % kaartkleur in beide thema's, 6 px vervaging (computer en
+   sober gelijk), een fijne glasrand (wit aan 18 % in donker, aan 60 % in licht) met een lichtrand bovenaan (inset), en een zachte
+   tekstschaduw in de kaartkleur (60 %, 6 px) als extra marge voor de leesbaarheid. Zonder backdrop-filter of met verminderde
+   transparantie ongewijzigd 94 %. Op de kaarten in het donkere thema lichtere grijze en rode tekst, in het lichte thema donkerdere.
+   Contrast: elke tekstkleur op een kaart haalt 4,5:1 over wat ECHT achter de kaart ligt: e2e/versiering.spec.mjs meet voor de negen
+   thema's, in donker en licht, op 1366x768 en 1024x768, het gemiddelde van de achtergrond in het kaartvlak en de helderste vlek
+   na vervaging, met de kaartkleur aan 60 % erover. */
 @media screen {
   :root[data-event][data-event-achtergrond="ja"] {
-    --ev-glas-normaal: 80%; --ev-glas-vast: 94%; --ev-glas-blur: 12px;
+    --ev-glas-normaal: 60%; --ev-glas-vast: 94%; --ev-glas-blur: 6px;
     --ev-glas-alpha: var(--ev-glas-normaal);
+    --ev-glas-rand: rgba(255, 255, 255, 0.18);
   }
-  :root[data-event][data-event-achtergrond="ja"][data-event-sober="ja"] { --ev-glas-blur: 6px; }
+  :root[data-event][data-event-achtergrond="ja"][data-theme="light"] { --ev-glas-rand: rgba(255, 255, 255, 0.6); }
   /* Inhoudsvlakken die de achtergrond anders (deels) verbergen; toestanden behouden een doorschijnende tint */
   /* (de id staat apart: in :is() zou ze de specificiteit van alle klassen optillen en de toestandstinten hieronder wissen) */
   :root[data-event][data-event-achtergrond="ja"] :is(.view, .day-body, .month-cell, .sales-route-lijstvak, .sales-kolom) { background: transparent; }
@@ -161,6 +164,14 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
     background: linear-gradient(var(--ev-tint), var(--ev-tint)), color-mix(in srgb, var(--ev-kaart) var(--ev-glas-alpha), transparent);
     -webkit-backdrop-filter: blur(var(--ev-glas-blur));
     backdrop-filter: blur(var(--ev-glas-blur));
+    text-shadow: 0 0 6px color-mix(in srgb, var(--ev-kaart) 60%, transparent);
+  }
+  /* Glasrand en lichtrand bovenaan, met de lage specificiteit van de kaartklasse zelf (:where rond de root): de gewone regel
+     (.ticket, .inv-row ...) verliest door de volgorde, maar elke toestand wint nog (hover, .inv-row.inv-low rood,
+     .stop.sorteer-actief, de linkerranden uit sales.css dat later laadt). De gekleurde balken (verlopen, status) zijn ::before. */
+  :where(:root[data-event][data-event-achtergrond="ja"]) :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
+    border-color: var(--ev-glas-rand);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
   :root[data-event][data-event-achtergrond="ja"] :is(.ticket:hover, .cal-ticket:hover, .cal-local-event:hover, .stop, .sales-kaart:hover, .sales-afgewerkt-rij:hover, .sales-afgewerkt-kaart) { --ev-kaart: var(--surface2); }
   :root[data-event][data-event-achtergrond="ja"] .stop:hover { --ev-kaart: var(--surface3); }
