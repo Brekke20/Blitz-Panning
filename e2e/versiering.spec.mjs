@@ -303,11 +303,13 @@ test.describe('versiering op de computer', () => {
 //      een lange titel kan tekst op elke plek van de kaart leggen (Halloween: een kalenderkaart op 1024 breed ligt deels over de maan).
 // Elke tekstkleur moet 4,5:1 halen tegen alle drie. Chips met een eigen achtergrond (labels) tellen niet mee: hun tekst staat op hun
 // eigen vlak. De tekstschaduw telt niet mee (extra marge). Gemeten op de ticketkaarten (wachtrij) en de kalenderkaarten
-// (.cal-ticket, weekweergave), in donker en licht, op 1366x768 en 1024x768. Het pakket komt uit netlify/themas met een periode over
+// (.cal-ticket, weekweergave), in donker en licht, op 1366x768, 1024x768, 375x812 en 768x1024, en voor elke kaart ook met de
+// muis erboven (hover-kaartkleur). Het pakket komt uit netlify/themas met een periode over
 // de testklok (5 okt 2026). Faalt een thema: de tekstkleuren op de kaarten aanpassen (de scène blijft), nooit de drempel of een
 // alpha per thema.
 const PAKKET_IDS = ['halloween', 'kerst', 'nieuwjaar', 'valentijn', 'carnaval', 'pasen', 'zomer', 'nationale-feestdag', 'sinterklaas'];
-const VENSTERS = [{ width: 1366, height: 768 }, { width: 1024, height: 768 }];
+// liggend (computer, tablet) en staand (gsm, tablet): staand snijdt de scène tot kijkvensterStaand, waar de maan achter de kaarten valt
+const VENSTERS = [{ width: 1366, height: 768 }, { width: 1024, height: 768 }, { width: 375, height: 812 }, { width: 768, height: 1024 }];
 const leesPakket = (id) => JSON.parse(fs.readFileSync(new URL(`../netlify/themas/${id}.blitzthema.json`, import.meta.url), 'utf8'));
 function themaStub(p) {
   const periodeOverride = { van: { maand: 10, dag: 1 }, tot: { maand: 10, dag: 31 } };
@@ -398,11 +400,12 @@ async function meetKaarten(page, sel) {
       const punten = [[r.left + 3, r.top + 3], [r.right - 3, r.top + 3], [r.left + 3, r.bottom - 3], [r.right - 3, r.bottom - 3], [r.left + r.width / 2, r.top + r.height / 2]];
       const zichtbaar = r.width > 0 && r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth
         && punten.every(([x, y]) => el.contains(document.elementFromPoint(x, y)));
+      const geraakt = punten.map(([x, y]) => document.elementFromPoint(x, y)).filter((g) => !el.contains(g)).map((g) => `${g?.tagName}.${g?.className}`);
       const teksten = [...el.querySelectorAll('*')]
         .filter((t) => [...t.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()))
         .filter((t) => { let x = t; while (x && x !== el) { if (rgba(getComputedStyle(x).backgroundColor)[3] > 0) return false; x = x.parentElement; } return true; })
         .map((t) => ({ sel: t.className, kleur: rgba(getComputedStyle(t).color) }));
-      return { nr, naam: el.textContent.replace(/\s+/g, ' ').trim().slice(0, 30), kaart: rgba(cs.backgroundColor), blur: cs.backdropFilter, vak: vakVan(r), zichtbaar, teksten };
+      return { nr, naam: el.textContent.replace(/\s+/g, ' ').trim().slice(0, 30), kaart: rgba(cs.backgroundColor), blur: cs.backdropFilter, vak: vakVan(r), zichtbaar, geraakt, teksten };
     });
   });
 }
@@ -433,7 +436,7 @@ async function controleerKaarten(page, sel, label, slechtste) {
       kaarten = await meetKaarten(page, sel);
     }
     const nu = kaarten.filter((k) => !gedaan.has(k.nr) && k.zichtbaar);
-    expect(nu.length, `${label}: kaart ${open[0].naam} komt volledig in beeld`).toBeGreaterThan(0);
+    expect(nu.length, `${label}: kaart ${open[0].naam} komt volledig in beeld (vak ${JSON.stringify(kaarten[open[0].nr].vak)}, geraakt ${kaarten[open[0].nr].geraakt})`).toBeGreaterThan(0);
     const beeld = await fotoAchtergrond(page, sel);
     for (const k of nu) {
       gedaan.add(k.nr);
@@ -450,12 +453,21 @@ async function controleerKaarten(page, sel, label, slechtste) {
       const lees = vervaag(beeld, k.vak);
       // de uiterste vlek ERGENS in de kaart: een andere afspraak of een lange titel kan tekst op elke plek van de kaart leggen
       const vlek = uitersteBlokken(lees, k.vak);
-      for (const t of k.teksten) {
-        for (const [soort, onder] of [['gemiddelde', gemiddeld], ['helderste vlek', vlek.helder], ['donkerste vlek', vlek.donker]]) {
-          const c = contrast(t.kleur, meng(k.kaart, onder));
-          const waar = `${label} ${k.naam} .${t.sel} rgb(${t.kleur.slice(0, 3)}) over ${soort} rgb(${onder.map(Math.round)})`;
-          if (c < slechtste.waarde) Object.assign(slechtste, { waarde: c, waar });
-          expect(c, waar).toBeGreaterThanOrEqual(4.5);
+      // Ook met de muis erboven (hover: bv. --surface2, of de rodere kaart van een verlopen ticket): elke kaart, dezelfde vlekken
+      await page.mouse.move(k.vak.x + k.vak.w / 2, k.vak.y + k.vak.h / 2);
+      const zweef = (await meetKaarten(page, sel))[k.nr];
+      await page.mouse.move(0, 0);
+      expect(zweef.kaart[3], `${label} ${k.naam} (hover)`).toBeCloseTo(0.6, 2);
+      for (const [stand, kaart, teksten] of [['', k.kaart, k.teksten], [' (hover)', zweef.kaart, zweef.teksten]]) {
+        for (const t of teksten) {
+          for (const [soort, onder] of [['gemiddelde', gemiddeld], ['helderste vlek', vlek.helder], ['donkerste vlek', vlek.donker]]) {
+            const c = contrast(t.kleur, meng(kaart, onder));
+            const waar = `${label}${stand} ${k.naam} .${t.sel} rgb(${t.kleur.slice(0, 3)}) over ${soort} rgb(${onder.map(Math.round)})`;
+            if (c < slechtste.waarde) Object.assign(slechtste, { waarde: c, waar });
+            const v = label.split(' ')[2];
+            slechtste.perVenster[v] = Math.min(slechtste.perVenster[v] ?? Infinity, c);
+            expect(c, waar).toBeGreaterThanOrEqual(4.5);
+          }
         }
       }
     }
@@ -465,8 +477,8 @@ async function controleerKaarten(page, sel, label, slechtste) {
 
 test.describe('helder glas en contrast per thema', () => {
   for (const id of PAKKET_IDS) {
-    test(`${id}: ticket- en kalenderkaarten zijn glas en elke tekst houdt 4,5:1 over de echte achtergrond, in donker en licht, op 1366 en 1024 breed`, async ({ page }) => {
-      test.setTimeout(120000);
+    test(`${id}: ticket- en kalenderkaarten zijn glas en elke tekst houdt 4,5:1 over de echte achtergrond, in donker en licht, liggend en staand, ook bij hover`, async ({ page }) => {
+      test.setTimeout(300000);
       const p = leesPakket(id);
       await startApp(page, { query: AAN, overschrijf: { themas: themaStub(p) } });
       await expect(page.locator('html')).toHaveAttribute('data-event', id);
@@ -474,7 +486,7 @@ test.describe('helder glas en contrast per thema', () => {
       // Geen overgangen tijdens het meten (een kaart kleurt anders 0,15 s lang van donker naar licht, in echte tijd)
       await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; }' });
       await expect(page.locator('#view-tickets .taddr.miss')).toHaveCount(1);
-      const slechtste = { waarde: Infinity, waar: '' };
+      const slechtste = { waarde: Infinity, waar: '', perVenster: {} };
       for (const [tab, sel] of [['#tab-tickets', '#view-tickets .ticket'], ['#tab-kalender', '#view-kalender .cal-ticket']]) {
         await page.locator(tab).click();
         await page.mouse.move(0, 0); // geen hover op een kaart
@@ -485,11 +497,11 @@ test.describe('helder glas en contrast per thema', () => {
             await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), thema);
             // de lichte achtergrond staat aan de dekking van het pakket
             if (thema === 'light') await expect(page.locator('#event-achtergrond')).toHaveCSS('opacity', String(p.achtergrond.dekkingLicht));
-            await controleerKaarten(page, sel, `${id} ${thema} ${venster.width} ${tab.slice(5)}`, slechtste);
+            await controleerKaarten(page, sel, `${id} ${thema} ${venster.width}x${venster.height} ${tab.slice(5)}`, slechtste);
           }
         }
       }
-      const tekst = `${slechtste.waarde.toFixed(2)}:1 (${slechtste.waar})`;
+      const tekst = `${slechtste.waarde.toFixed(2)}:1 (${slechtste.waar}); per venster ${Object.entries(slechtste.perVenster).map(([v, c]) => `${v} ${c.toFixed(2)}`).join(', ')}`;
       test.info().annotations.push({ type: 'slechtste contrast', description: tekst });
       console.log(`slechtste contrast ${id}: ${tekst}`);
     });
