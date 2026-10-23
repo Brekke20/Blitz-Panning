@@ -189,9 +189,10 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
   }
   :root[data-event][data-event-achtergrond="ja"]:not([data-theme="light"]) :is(.taddr.miss, .cal-addr.miss, .inv-row.inv-low .inv-row-aantal) { color: #ffdcd7; }
   /* Licht thema: donkerdere secundaire en rode tekst op de kaarten (4,5:1 ook boven de donkerste kleur van een lichte achtergrond,
-     ook op de iets grijzere kaart van een verlopen ticket) */
+     ook op de iets grijzere kaart van een verlopen ticket, ook bij hover, en boven een rode kerstbal die op een gsm achter de eerste
+     kaart hangt: #3d4652 en #8c1111, nog steeds rood) */
   :root[data-event][data-event-achtergrond="ja"][data-theme="light"] :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
-    --muted: #48525f; --red: #a81616;
+    --text2: #3d4652; --muted: #3d4652; --red: #8c1111;
   }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     :root[data-event][data-event-achtergrond="ja"] { --ev-glas-alpha: var(--ev-glas-vast); }
