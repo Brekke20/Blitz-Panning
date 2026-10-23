@@ -133,15 +133,15 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
    tabbladen (wachtrij, kalender, route, ingepland, inventaris, rapporten, beschikbaarheden, en bij sales de kolommen en de
    routelijst) worden doorzichtig; de bovenbalk, de tabbalk, de vaste balken van de schermen en vensters (modals) blijven effen.
    Kaarten in de lijsten: half doorschijnend in hun eigen kleur (--ev-kaart) met vervaging; een toestandstint (--ev-tint, bv. lage
-   voorraad) ligt er doorschijnend bovenop. Sober (gsm, tablet, aanraak) minder vervaging; zonder backdrop-filter of met verminderde
+   voorraad) ligt er doorschijnend bovenop. Het glas is op alle toestellen gelijk (60 %, 6 px); zonder backdrop-filter of met verminderde
    transparantie bijna effen (--ev-glas-vast).
-   Taak 9d (keuze opdrachtgever 2026-10-23: variant B, helder glas): 60 % kaartkleur in beide thema's, 6 px vervaging (computer en
-   sober gelijk), een fijne glasrand (wit aan 18 % in donker, aan 60 % in licht) met een lichtrand bovenaan (inset), en een zachte
+   Taak 9d (keuze opdrachtgever 2026-10-23: variant B, helder glas): 60 % kaartkleur in beide thema's, 6 px vervaging (op alle toestellen
+   gelijk), een fijne glasrand (wit aan 18 % in donker, aan 60 % in licht) met een lichtrand bovenaan (inset), en een zachte
    tekstschaduw in de kaartkleur (60 %, 6 px) als extra marge voor de leesbaarheid. Zonder backdrop-filter of met verminderde
-   transparantie ongewijzigd 94 %. Op de kaarten in het donkere thema lichtere grijze en rode tekst, in het lichte thema donkerdere.
+   transparantie ongewijzigd 94 %. Op de kaarten in het donkere thema lichtere grijze tekst en lichter losse rode tekst, in het lichte thema donkerdere; de statuskleuren (--red) blijven.
    Contrast: elke tekstkleur op een kaart haalt 4,5:1 over wat ECHT achter de kaart ligt: e2e/versiering.spec.mjs meet voor de negen
-   thema's, in donker en licht, op 1366x768 en 1024x768, het gemiddelde van de achtergrond in het kaartvlak en de helderste vlek
-   na vervaging, met de kaartkleur aan 60 % erover. */
+   thema's, in donker en licht, op 1366x768, 1024x768, 375x812 en 768x1024, het gemiddelde van de achtergrond in het kaartvlak, de
+   helderste en de donkerste vlek na vervaging, met de kaartkleur aan 60 % erover. */
 @media screen {
   :root[data-event][data-event-achtergrond="ja"] {
     --ev-glas-normaal: 60%; --ev-glas-vast: 94%; --ev-glas-blur: 6px;
@@ -181,19 +181,21 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
   /* Donker thema: lichtere tekst op de kaarten. Bij 60 % glas kan een kaart over de maan liggen (Halloween, kalender op 1024 breed:
      vervaagd rgb(205,198,184)); beslissing controller 2026-10-23: de scène blijft, de tekst wordt lichter, zodat elke tekstkleur
      4,5:1 haalt boven de helderste vlek ERGENS in de kaart. Hoofdtekst bijna wit, secundaire tekst net iets grijzer (hiërarchie).
-     --red blijft voor balken, randen en labels (die hebben een eigen vlak); de losse rode tekst (geen adres, lage voorraad) krijgt
-     een licht rozerood (#ffdcd7), het lichtste rood dat nog als rood leest en 4,5:1 haalt. */
+     --red blijft ongemoeid (de verlopen-balk, de randen, de labels "Verlopen" en "Hoog" houden de gewone statuskleur, ook tijdens een
+     thema); enkel de losse rode tekst (geen adres, lage voorraad) krijgt een eigen licht rozerood (#ffdcd7), het lichtste rood dat
+     nog als rood leest en 4,5:1 haalt. */
   :root[data-event][data-event-achtergrond="ja"]:not([data-theme="light"]) :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
-    --text: #f5f7f9; --text2: #e6eaef; --muted: #e6eaef; --red: #ffb0aa;
+    --text: #f5f7f9; --text2: #e6eaef; --muted: #e6eaef;
     color: var(--text); /* tekst zonder eigen kleur erft anders de --text van body */
   }
   :root[data-event][data-event-achtergrond="ja"]:not([data-theme="light"]) :is(.taddr.miss, .cal-addr.miss, .inv-row.inv-low .inv-row-aantal) { color: #ffdcd7; }
-  /* Licht thema: donkerdere secundaire en rode tekst op de kaarten (4,5:1 ook boven de donkerste kleur van een lichte achtergrond,
-     ook op de iets grijzere kaart van een verlopen ticket, ook bij hover, en boven een rode kerstbal die op een gsm achter de eerste
-     kaart hangt: #3d4652 en #8c1111, nog steeds rood) */
+  /* Licht thema: donkerdere secundaire tekst op de kaarten (4,5:1 ook boven de donkerste kleur van een lichte achtergrond, ook op de
+     iets grijzere kaart van een verlopen ticket, ook bij hover, en boven een rode kerstbal die op een gsm achter de eerste kaart
+     hangt: #3d4652). Ook hier blijft --red ongemoeid; enkel de losse rode tekst krijgt een donkerder rood (#8c1111, nog steeds rood). */
   :root[data-event][data-event-achtergrond="ja"][data-theme="light"] :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
-    --text2: #3d4652; --muted: #3d4652; --red: #8c1111;
+    --text2: #3d4652; --muted: #3d4652;
   }
+  :root[data-event][data-event-achtergrond="ja"][data-theme="light"] :is(.taddr.miss, .cal-addr.miss, .inv-row.inv-low .inv-row-aantal) { color: #8c1111; }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     :root[data-event][data-event-achtergrond="ja"] { --ev-glas-alpha: var(--ev-glas-vast); }
   }

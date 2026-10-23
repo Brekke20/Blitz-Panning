@@ -168,7 +168,7 @@ test.describe('versiering op de computer', () => {
     expect(donker.breedte).toBe('1px');
     expect(donker.schaduw).toBe('rgba(255, 255, 255, 0.12) 0px 1px 0px 0px inset');
     expect(donker.tekst).toMatch(/0px 0px 6px$/);
-    expect(donker.balk).toBe('rgb(255, 176, 170)'); // de verlopen-balk (::before) blijft rood
+    expect(donker.balk).toBe('rgb(255, 90, 82)'); // de verlopen-balk (::before) houdt de gewone --red
     await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
     const licht = await lees();
     expect(licht.rand).toBe('rgba(255, 255, 255, 0.6)');
@@ -179,6 +179,31 @@ test.describe('versiering op de computer', () => {
     expect(zonder.rand).not.toContain('255, 255, 255');
     expect(zonder.schaduw).toBe('none');
     expect(zonder.tekst).toBe('none');
+  });
+
+  test('statuskleuren blijven tijdens een thema: de verlopen-balk en de labels "Verlopen" en "Hoog" houden de gewone --red, in donker en licht', async ({ page }) => {
+    await startApp(page, { query: AAN });
+    await expect(page.locator('html')).toHaveAttribute('data-event-achtergrond', 'ja');
+    await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; }' });
+    const verlopen = page.locator('#view-tickets .ticket.overdue').first();
+    await expect(verlopen).toBeVisible();
+    await expect(page.locator('#view-tickets .prtag.high').first()).toBeVisible();
+    const lees = () => page.evaluate(() => {
+      const kaart = document.querySelector('#view-tickets .ticket.overdue');
+      const stag = kaart.querySelector('.stag:not(.pending):not(.confirmed)');
+      const hoog = document.querySelector('#view-tickets .prtag.high');
+      const kleur = (el, pseudo) => getComputedStyle(el, pseudo).color;
+      return { balk: getComputedStyle(kaart, '::before').backgroundColor, verlopen: kleur(stag), hoog: kleur(hoog) };
+    });
+    for (const [thema, rood] of [['dark', 'rgb(255, 90, 82)'], ['light', 'rgb(200, 30, 30)']]) {
+      await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), thema);
+      const metThema = await lees();
+      expect(metThema, `${thema}: gewone --red`).toEqual({ balk: rood, verlopen: rood, hoog: rood });
+      // Zonder het thema met achtergrond precies dezelfde kleuren
+      await page.evaluate(() => document.documentElement.removeAttribute('data-event-achtergrond'));
+      expect(await lees(), `${thema}: zelfde kleuren zonder thema`).toEqual(metThema);
+      await page.evaluate(() => document.documentElement.setAttribute('data-event-achtergrond', 'ja'));
+    }
   });
 
   test('toestandskleuren blijven onder het glas: lage voorraad en vandaag in de maandweergave', async ({ page }) => {
@@ -199,7 +224,7 @@ test.describe('versiering op de computer', () => {
     expect(rij.blur).toContain('blur(');
     // De glasrand (taak 9d) wint niet van de rode rand van lage voorraad
     expect(rij.randGewoon).toBe('rgba(255, 255, 255, 0.18)');
-    expect(rij.randLaag).toBe('rgb(255, 176, 170)'); // --red van de kaart in het donkere thema (lichter rood op glas)
+    expect(rij.randLaag).toBe('rgb(255, 90, 82)'); // de rand van lage voorraad houdt de gewone --red
     // Vandaag in de maandweergave behoudt zijn tint; de andere maand blijft gedimd
     await page.locator('#tab-kalender').click();
     await page.getByRole('button', { name: 'Maand', exact: true }).click();
@@ -420,6 +445,21 @@ async function fotoAchtergrond(page, sel) {
   return beeld;
 }
 
+// Wacht tot het kaartvak (getBoundingClientRect) over twee opeenvolgende animatieframes gelijk blijft (scrollen en lay-out zijn dan klaar).
+async function wachtOpStilstand(page, locator) {
+  await locator.evaluate((el) => new Promise((klaar) => {
+    const vorm = () => { const r = el.getBoundingClientRect(); return `${r.left},${r.top},${r.width},${r.height}`; };
+    let vorige = vorm(), gelijk = 0, frames = 0;
+    const stap = () => {
+      const nu = vorm();
+      gelijk = nu === vorige ? gelijk + 1 : 0;
+      vorige = nu;
+      if (gelijk >= 2 || ++frames > 120) klaar(); else requestAnimationFrame(stap);
+    };
+    requestAnimationFrame(stap);
+  }));
+}
+
 // Alle kaarten van `sel` meten: één foto voor de kaarten die al volledig zichtbaar zijn, daarna de rest één voor één in beeld
 // geschoven. Per kaart en tekst: het slechtste contrast tegen het gemiddelde en tegen de helderste en donkerste vlek.
 async function controleerKaarten(page, sel, label, slechtste) {
@@ -432,8 +472,13 @@ async function controleerKaarten(page, sel, label, slechtste) {
     const open = kaarten.filter((k) => !gedaan.has(k.nr));
     if (!open.length) break;
     if (!open.some((k) => k.zichtbaar)) {
-      await page.locator(sel).nth(open[0].nr).evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'center' }));
-      kaarten = await meetKaarten(page, sel);
+      // Na het scrollen wachten tot het kaartvak over twee animatieframes niet meer verschuift, daarna meten; zichtbaar? Eén keer opnieuw
+      for (let poging = 0; poging < 2; poging++) {
+        await page.locator(sel).nth(open[0].nr).evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'center' }));
+        await wachtOpStilstand(page, page.locator(sel).nth(open[0].nr));
+        kaarten = await meetKaarten(page, sel);
+        if (kaarten.some((k) => !gedaan.has(k.nr) && k.zichtbaar)) break;
+      }
     }
     const nu = kaarten.filter((k) => !gedaan.has(k.nr) && k.zichtbaar);
     expect(nu.length, `${label}: kaart ${open[0].naam} komt volledig in beeld (vak ${JSON.stringify(kaarten[open[0].nr].vak)}, geraakt ${kaarten[open[0].nr].geraakt})`).toBeGreaterThan(0);
@@ -477,7 +522,7 @@ async function controleerKaarten(page, sel, label, slechtste) {
 
 test.describe('helder glas en contrast per thema', () => {
   for (const id of PAKKET_IDS) {
-    test(`${id}: ticket- en kalenderkaarten zijn glas en elke tekst houdt 4,5:1 over de echte achtergrond, in donker en licht, liggend en staand, ook bij hover`, async ({ page }) => {
+    test(`@contrast ${id}: ticket- en kalenderkaarten zijn glas en elke tekst houdt 4,5:1 over de echte achtergrond, in donker en licht, liggend en staand, ook bij hover`, async ({ page }) => {
       test.setTimeout(300000);
       const p = leesPakket(id);
       await startApp(page, { query: AAN, overschrijf: { themas: themaStub(p) } });
