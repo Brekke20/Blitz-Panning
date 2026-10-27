@@ -61,3 +61,35 @@ test('mutatie (aanvulling/correctie) bewaart nooit een ticketNummer', async () =
   assert.equal(d.log[0].type, 'aanvulling');
   assert.ok(!('ticketNummer' in d.log[0]));
 });
+
+// ── Karakterisering (2026-10-27, vóór de meldgrens): normalisatie en het belletje (gedempt) ──
+const get = () => new Request('http://localhost/api/inventaris', { method: 'GET', headers: { 'x-blitz': '1' } });
+
+test('GET normaliseert een oud getal naar een voorraadregel', async () => {
+  const { h } = opzet();
+  const r = await tim(() => h(get()));
+  const d = await r.json();
+  assert.equal(d.wagenvoorraad.Tim.zekering.aantal, 1);
+  assert.equal(d.wagenvoorraad.Tim.zekering.gedempt, false);
+});
+
+test('gedempt: enkel een boolean, enkel bij mutatie', async () => {
+  const { h } = opzet();
+  const fout = await tim(() => h(req({ versie: 4, technieker: 'Tim', actie: 'mutatie', items: [{ materiaalId: 'kabel', materiaalNaam: 'Kabel', gedempt: 'ja' }] })));
+  assert.equal(fout.status, 400);
+  const verbruik = await tim(() => h(req({ versie: 4, technieker: 'Tim', actie: 'verbruik', items: [{ materiaalId: 'kabel', materiaalNaam: 'Kabel', aantal: 1, gedempt: true }] })));
+  assert.equal(verbruik.status, 400);
+  const leeg = await tim(() => h(req({ versie: 4, technieker: 'Tim', actie: 'mutatie', items: [{ materiaalId: 'kabel', materiaalNaam: 'Kabel' }] })));
+  assert.equal(leeg.status, 400);
+});
+
+test('een zuivere demp-wijziging logt niets maar verhoogt de versie', async () => {
+  const { store, h } = opzet();
+  const r = await tim(() => h(req({ versie: 4, technieker: 'Tim', actie: 'mutatie', items: [{ materiaalId: 'kabel', materiaalNaam: 'Kabel', gedempt: true }] })));
+  assert.equal(r.status, 200);
+  const d = await bewaard(store);
+  assert.equal(d.versie, 5);
+  assert.equal(d.log.length, 0);
+  assert.equal(d.wagenvoorraad.Tim.kabel.gedempt, true);
+  assert.equal(d.wagenvoorraad.Tim.kabel.aantal, 5);
+});
