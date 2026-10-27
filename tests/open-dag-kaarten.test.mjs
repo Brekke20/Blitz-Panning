@@ -68,3 +68,20 @@ test('urgentieVan: verlopen of hoog = rood, middel = oranje, laag = groen, ander
   assert.equal(urgentieVan({ overdue: false, priority: undefined }), null);
   assert.equal(urgentieVan({ overdue: false, priority: 'onbekend' }), null);
 });
+
+// Taak 8a (Task 3-resten): de sales-stops in de route. De hover-transform van de depotrij is dode code; voorgesteld krijgt naast de
+// oranje gloed weer een tweede, niet-kleur-cue. De tintregels .sales-voorgesteld/.sales-bevestigd:not(.stop) zijn NIET dood: de
+// kalender (sales-kalender.js: .tl-block en .sales-kal-kaart met sales-<tint>) gebruikt ze; ze blijven.
+test('sales-stops: geen depot-hoverregel, voorgesteld gestippeld, bevestigd doorlopend; de kalendertinten blijven', () => {
+  const sales = lees('../public/css/sales.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(sales, /\.sales-voorgesteld:not\(\.stop\)\s*\{[^}]*dashed/);
+  assert.match(sales, /\.sales-bevestigd:not\(\.stop\)\s*\{[^}]*solid/);
+  assert.doesNotMatch(sales, /\.sales-route-depot:hover/);
+  const regel = (sel) => {
+    const m = sales.match(new RegExp(sel.replace(/\./g, '\\.') + String.raw`\s*\{([^}]*)\}`));
+    assert.ok(m, `${sel} ontbreekt`);
+    return m[1];
+  };
+  assert.match(regel('.stop.sales-voorgesteld'), /border-style:\s*dashed/);
+  assert.match(regel('.stop.sales-bevestigd'), /border-style:\s*solid/);
+});

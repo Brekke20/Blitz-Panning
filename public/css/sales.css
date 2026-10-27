@@ -14,10 +14,14 @@
 /* Vensters (sales-venster.js): .overlay/.modal komen uit app.css */
 .sales-modal-breed { max-width: 760px; }
 
-/* Bezoektinten op kalender en route: een voorgesteld bezoek is lichter dan een bevestigd (vast) bezoek. */
+/* Bezoektinten op de kalender (.tl-block en .sales-kal-kaart, sales-kalender.js): een voorgesteld bezoek is lichter dan een bevestigd
+   (vast) bezoek. Geen dode code (taak 8a nagekeken): de stopkaarten in de route (.stop) vallen erbuiten. */
 .sales-voorgesteld:not(.stop) { background: var(--accent-dim); border-left: 3px dashed var(--accent); }
 .sales-bevestigd:not(.stop) { background: color-mix(in srgb, var(--accent) 28%, var(--surface)); border-left: 3px solid var(--accent); }
-/* (de stopkaarten in de route zijn glas: voorgesteld gloeit oranje, bevestigd groen; zie de gedeelde kaartregel in app.css) */
+/* De stopkaarten in de route zijn glas: voorgesteld gloeit oranje, bevestigd groen (gedeelde kaartregel in app.css). Naast de kleur een
+   tweede cue (taak 8a): een voorgesteld bezoek heeft een gestippelde rand, een bevestigd (vast) bezoek een doorlopende. */
+.stop.sales-voorgesteld { border-style: dashed; border-width: 2px; }
+.stop.sales-bevestigd { border-style: solid; border-width: 2px; }
 /* Een lead met enkel een postcode staat ongeveer op de kaart: gestippelde rand. */
 .sales-marker-ongeveer { border: 2px dotted var(--accent); }
 
@@ -236,7 +240,6 @@ html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
 .sales-route-rij { cursor: pointer; min-width: 0; }
 .sales-route-rij:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .sales-route-depot { cursor: default; background-color: var(--glas-sterk); }
-.sales-route-depot:hover { transform: none; }
 .sales-route-laat { border-color: var(--red-line); }
 .sales-route-naam { overflow-wrap: anywhere; }
 .sales-route-plaats { overflow-wrap: anywhere; }
