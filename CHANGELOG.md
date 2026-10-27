@@ -22,6 +22,11 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Het cijfer op het tabblad Inventaris telt enkel nog producten onder hun grens: oranje als iets bijna op is, rood als iets op is.
 - Een product meldt standaard niets meer: enkel als het belletje aanstaat. Wat je al in je wagen had, blijft zoals vroeger melden op 0; producten die je nooit meenam tellen niet meer mee.
 
+## [2.3.1] — 2026-10-27
+
+### Changed
+- Instellingen: de schakelaar "Bewegende beelden tijdens een thema" staat nu onder "Dit toestel", vlak onder "Feestelijke versiering", zodat beide keuzes over de versiering samen staan. De keuze wordt meteen bewaard (dat tabblad heeft geen Opslaan) en blijft gelden op al je toestellen.
+
 ## [2.3.0] — 2026-10-23
 
 ### Added
