@@ -60,6 +60,40 @@ test.describe('knoppen met glans', () => {
     expect(na.width).toBe(doos.width);
   });
 
+  // Taak 8a (Ruling 8): ook chips en de oudere knoppen (.btn-autoplan, .btn-save, ...) krijgen de glans; de oudere primaire knoppen
+  // hebben het groene verloop van .btn--primary.
+  test('een chip (dagknop in Instellingen): glans bij hover, geen transform', async ({ page }) => {
+    // een planner bewerkt zijn werkdagen in zijn eigen instellingen (de beheerder doet dat in Beheer; zie instellingen-toestel.spec.mjs)
+    await startApp(page, { viewport: { width: 1366, height: 768 }, loginRol: 'planner', loginGebruiker: { naam: 'Test Planner', zohoNaam: 'Brent' } });
+    await page.locator('.hbtn[data-actie="instellingen"]').click();
+    const knop = page.locator('#days-grid .day-btn').first();
+    await expect(knop).toBeVisible();
+    await page.mouse.move(0, 0);
+    expect(await glansOpacity(knop)).toBe('0');
+    const stijl = await knop.evaluate((el) => { const cs = getComputedStyle(el); return { pos: cs.position, overflow: cs.overflow }; });
+    expect(stijl).toEqual({ pos: 'relative', overflow: 'hidden' });
+    await knop.hover();
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('#days-grid .day-btn'), '::before').opacity === '1');
+    expect(await transform(knop)).toBe('none');
+  });
+
+  test('een oudere primaire knop (⚡ Plan deze week): groen verloop, donkere tekst, glans bij hover', async ({ page }) => {
+    await startApp(page, { viewport: { width: 1366, height: 768 } });
+    await page.locator('#tab-kalender').click();
+    const knop = page.locator('#btn-autoplan');
+    await expect(knop).toBeVisible();
+    await page.mouse.move(0, 0);
+    const stijl = await knop.evaluate((el) => { const cs = getComputedStyle(el); return { beeld: cs.backgroundImage, kleur: cs.color, radius: cs.borderTopLeftRadius }; });
+    expect(stijl.beeld).toContain('linear-gradient');
+    const [r, g, b] = stijl.kleur.match(/\d+/g).map(Number);
+    expect(r + g + b).toBeLessThan(200); // donkere tekst op het groen
+    expect(parseFloat(stijl.radius)).toBeGreaterThan(50); // pil
+    await knop.hover();
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('#btn-autoplan'), '::before').opacity === '1');
+    expect(await knop.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain('linear-gradient'); // hover vervangt het verloop niet
+    expect(await transform(knop)).toBe('none');
+  });
+
   test('een uitgeschakelde knop krijgt geen glans', async ({ page }) => {
     await startApp(page, { viewport: { width: 1366, height: 768 } });
     await page.evaluate(() => {

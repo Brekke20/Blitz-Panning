@@ -36,3 +36,39 @@ test('de glans: één gedeelde regel met radial-gradient, opacity 0 naar 1 bij h
   assert.match(app, /transition:\s*opacity var\(--duur-glans\) ease/);
   assert.match(app, /:hover::before[^{]*\{\s*opacity:\s*1/);
 });
+
+// Taak 8a (Ruling 9): de glans bij hover enkel met een echte muis; op aanraking blijft hij anders na een tik hangen.
+// Geeft per voorkomen van `needle` de omhullende @media-voorwaarden (buiten naar binnen).
+function omhullendeMedia(css, needle) {
+  const schoon = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const uit = [];
+  const stapel = [];
+  let start = 0;
+  for (let i = 0; i < schoon.length; i++) {
+    const c = schoon[i];
+    if (c === '{') { stapel.push(schoon.slice(start, i).trim()); start = i + 1; }
+    else if (c === '}') { stapel.pop(); start = i + 1; }
+    else if (c === ';') start = i + 1;
+    if (schoon.startsWith(needle, i)) uit.push(stapel.filter((s) => s.startsWith('@media')));
+  }
+  return uit;
+}
+
+test('de glans-hoverregel (:hover::before) staat enkel binnen @media (hover: hover)', () => {
+  const app = readFileSync(new URL('app.css', MAP), 'utf8');
+  const voorkomens = omhullendeMedia(app, ':hover::before');
+  assert.ok(voorkomens.length >= 1, 'geen :hover::before gevonden');
+  for (const media of voorkomens) {
+    assert.ok(media.some((m) => /\(hover:\s*hover\)/.test(m)), ':hover::before buiten @media (hover: hover): ' + JSON.stringify(media));
+  }
+});
+
+test('Ruling 8: ook chips en legacy knoppen krijgen de glans', () => {
+  const app = readFileSync(new URL('app.css', MAP), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const m = app.match(/:where\(([^)]*)\)::before\s*\{[^}]*radial-gradient/);
+  assert.ok(m, 'gedeelde glansregel niet gevonden');
+  const lijst = m[1].split(',').map((s) => s.trim());
+  for (const sel of ['.filter-pill', '.sico', '.gep-week button', '.kal-pending-pill', '.day-btn', '.btn-primary', '.btn-save', '.btn-autoplan', '.btn-add', '.btn-sec', '.btn-cancel']) {
+    assert.ok(lijst.includes(sel), `${sel} ontbreekt in de glansregel`);
+  }
+});

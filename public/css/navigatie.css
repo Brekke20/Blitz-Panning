@@ -45,7 +45,7 @@
   white-space: nowrap; cursor: pointer; user-select: none;
   transition: color var(--duur) ease, background-color var(--duur) ease, box-shadow var(--duur) ease;
 }
-.tab:hover { color: var(--text); background: var(--knop2); }
+@media (hover: hover) { .tab:hover { color: var(--text); background: var(--knop2); } } /* Ruling 9: niet blijven hangen na een tik in het dok */
 .tab.active {
   color: var(--text); font-weight: 600;
   background: var(--knop2-hover);
@@ -116,7 +116,7 @@ html[data-nav="kolom"] #person-btn {
   border-radius: 16px; justify-content: flex-start;
   background: var(--knop2); border-color: var(--glas-rand);
 }
-html[data-nav="kolom"] #person-btn:hover { background: var(--knop2-hover); }
+@media (hover: hover) { html[data-nav="kolom"] #person-btn:hover { background: var(--knop2-hover); } }
 html[data-nav="kolom"] #person-btn[data-werkruimte="sales"] { border-color: var(--accent); background: var(--accent-dim); }
 html[data-nav="kolom"] #person-name-hdr { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 html[data-nav="kolom"] .person-chevron { margin-left: auto; }
@@ -154,7 +154,7 @@ html[data-nav="dok"] .dok-meer:not([hidden]) {
   white-space: nowrap; cursor: pointer; user-select: none;
   transition: color var(--duur) ease, background-color var(--duur) ease, box-shadow var(--duur) ease;
 }
-.dok-meer:hover { color: var(--text); background: var(--knop2); }
+@media (hover: hover) { .dok-meer:hover { color: var(--text); background: var(--knop2); } }
 .dok-meer.actief {
   color: var(--text); font-weight: 600;
   background: var(--knop2-hover);
@@ -195,7 +195,7 @@ html[data-nav="dok"] .dok-meer:not([hidden]) {
   color: var(--text2); cursor: pointer;
   transition: color var(--duur) ease, background-color var(--duur) ease;
 }
-.dok-meer-item:hover { color: var(--text); background: var(--knop2); }
+@media (hover: hover) { .dok-meer-item:hover { color: var(--text); background: var(--knop2); } }
 .dok-meer-item.actief {
   color: var(--text); font-weight: 600; background: var(--knop2-hover);
   box-shadow: inset 0 1px 0 var(--glas-licht);

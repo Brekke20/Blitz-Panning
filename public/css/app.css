@@ -168,7 +168,7 @@
       white-space: nowrap;
       transition: color 0.15s, background 0.15s, border-color 0.15s;
     }
-    .filter-pill:hover  { color: var(--text2); background: var(--surface2); }
+    @media (hover: hover) { .filter-pill:hover { color: var(--text2); background: var(--surface2); } } /* Ruling 9: niet blijven hangen na een tik */
     .filter-pill.active { background: var(--accent-dim); color: var(--accent-ink); border-color: var(--accent-glow); font-weight: 600; }
 
     /* ── Ticket cards ── */
@@ -263,7 +263,7 @@
 
     .t-action { flex-shrink: 0; display: flex; align-items: flex-start; padding-top: 2px; }
     .btn-add {
-      background: var(--accent);
+      background: linear-gradient(180deg, #2df0bb, #00d49b); /* Open dag (taak 8a, Ruling 8): het verloop van .btn--primary */
       border: none; color: var(--on-accent);
       width: 30px; height: 30px;
       border-radius: 50%;
@@ -274,7 +274,7 @@
       flex-shrink: 0;
       box-shadow: 0 2px 6px rgba(0,223,163,0.3);
     }
-    .btn-add:hover  { background: var(--accent-hover); box-shadow: 0 3px 10px rgba(0,223,163,0.4); }
+    @media (hover: hover) { .btn-add:hover { box-shadow: 0 3px 10px rgba(0,223,163,0.4); } } /* de glans doet de rest; het verloop blijft */
     .btn-add:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; }
     .btn-rem {
       background: var(--red); border: none; color: #fff;
@@ -297,7 +297,7 @@
       transition: background 0.15s;
       white-space: nowrap; flex-shrink: 0;
     }
-    .kal-pending-pill:hover { background: rgba(245,158,11,0.2); }
+    @media (hover: hover) { .kal-pending-pill:hover { background: rgba(245,158,11,0.2); } }
     .kal-pending-pill .pill-count {
       background: var(--orange); color: var(--on-accent);
       border-radius: 10px; padding: 0 6px; font-size: 0.7rem; font-weight: 700;
@@ -360,14 +360,14 @@
     .kal-lbl-vandaag { display: block; font-size: 0.75rem; font-weight: 600; color: var(--accent-ink); visibility: hidden; }
     .kal-week-label.niet-vandaag .kal-lbl-vandaag { visibility: visible; }
     .btn-autoplan {
-      background: var(--accent); border: none; color: var(--on-accent);
-      padding: 6px 13px; border-radius: var(--r);
+      background: linear-gradient(180deg, #2df0bb, #00d49b); border: none; color: var(--on-accent); /* Open dag: verloop + pil (Ruling 8) */
+      padding: 6px 13px; border-radius: var(--r-pil);
       font-size: 0.79rem; font-weight: 700; cursor: pointer;
       transition: background 0.12s, box-shadow 0.12s;
       box-shadow: 0 2px 6px rgba(0,223,163,0.25);
       font-family: inherit;
     }
-    .btn-autoplan:hover  { background: var(--accent-hover); box-shadow: 0 4px 12px rgba(0,223,163,0.38); }
+    @media (hover: hover) { .btn-autoplan:hover { box-shadow: 0 4px 12px rgba(0,223,163,0.38); } }
     .btn-autoplan:active { box-shadow: 0 1px 3px rgba(0,223,163,0.2); }
     .btn-autoplan:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
     /* Op een gsm "⚡ Plan": de kalenderkop blijft één regel (kop B). De volledige naam blijft de toegankelijke naam en de hulptekst. */
@@ -621,21 +621,21 @@
       .route-balk-acties { flex: 1 1 100%; }
     }
     .btn-primary {
-      background: var(--accent); border: none; color: var(--on-accent);
-      padding: 7px 14px; border-radius: var(--r);
+      background: linear-gradient(180deg, #2df0bb, #00d49b); border: none; color: var(--on-accent); /* Open dag: verloop + pil (Ruling 8) */
+      padding: 7px 14px; border-radius: var(--r-pil);
       font-size: 0.8rem; font-weight: 700; cursor: pointer; font-family: inherit;
       transition: background 0.12s, box-shadow 0.12s;
       box-shadow: 0 2px 6px rgba(0,223,163,0.2);
     }
-    .btn-primary:hover  { background: var(--accent-hover); box-shadow: 0 4px 12px rgba(0,223,163,0.35); }
+    @media (hover: hover) { .btn-primary:hover { box-shadow: 0 4px 12px rgba(0,223,163,0.35); } }
     .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
     .btn-sec {
-      background: transparent; border: 1px solid var(--border); color: var(--text2);
-      padding: 7px 12px; border-radius: var(--r);
+      background: var(--knop2); border: 1px solid var(--border-strong); color: var(--text2); /* Open dag: glazen pil zoals .btn--secondary (Ruling 8) */
+      padding: 7px 12px; border-radius: var(--r-pil);
       font-size: 0.8rem; font-weight: 500; cursor: pointer; font-family: inherit;
       transition: background 0.12s, color 0.12s;
     }
-    .btn-sec:hover  { background: var(--surface2); color: var(--text); }
+    @media (hover: hover) { .btn-sec:hover { background: var(--knop2-hover); color: var(--text); } }
     .rapp-filter-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
     /* Weekstrook (v1.9.5), compact in de Route-werkbalk (kop B): per dag één knop van 44 px, links dag en status, rechts het aantal. */
     .week-strip { display: flex; align-items: stretch; gap: 6px; flex: 1; min-width: 0; }
@@ -688,7 +688,7 @@
       display: inline-flex; align-items: center; gap: 3px; white-space: nowrap;
       transition: background 0.1s, color 0.1s;
     }
-    .sico:hover  { background: var(--surface); color: var(--text2); }
+    @media (hover: hover) { .sico:hover { background: var(--surface); color: var(--text2); } }
     .route-empty { color: var(--muted); font-size: 0.82rem; text-align: center; padding: 40px 14px; line-height: 1.6; }
     /* Eigen stapelcontext: Leaflet gebruikt z-index 400-1000 intern; dat mag nooit boven app-UI (personenmenu, modals, toasts) uitkomen. */
     #map-wrap, .sales-route-kaartvak { flex: 1; min-width: 0; min-height: 0; position: relative; isolation: isolate; z-index: 0; margin: 8px; border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
@@ -716,7 +716,7 @@
       font-size: 0.8rem;
       transition: background 0.12s;
     }
-    .gep-week button:hover  { background: var(--surface3); }
+    @media (hover: hover) { .gep-week button:hover { background: var(--surface3); } }
     .cal-day-hdr {
       font-size: var(--fs-2xs); font-weight: 600; color: var(--muted);
       text-transform: uppercase; letter-spacing: 0.06em;
@@ -780,18 +780,18 @@
 
     /* ── Gedeelde knoppen ── */
     .btn-cancel {
-      background: transparent; border: 1px solid var(--border); color: var(--text2);
-      padding: 7px 14px; border-radius: var(--r); font-size: 0.82rem; cursor: pointer; font-family: inherit;
+      background: var(--knop2); border: 1px solid var(--border-strong); color: var(--text2); /* Open dag: glazen pil zoals .btn--secondary (Ruling 8) */
+      padding: 7px 14px; border-radius: var(--r-pil); font-size: 0.82rem; cursor: pointer; font-family: inherit;
       transition: background 0.12s, color 0.12s;
     }
-    .btn-cancel:hover  { background: var(--surface2); color: var(--text); }
+    @media (hover: hover) { .btn-cancel:hover { background: var(--knop2-hover); color: var(--text); } }
     .btn-save {
-      background: var(--accent); border: none; color: var(--on-accent);
-      padding: 7px 16px; border-radius: var(--r); font-size: 0.82rem; font-weight: 700; cursor: pointer; font-family: inherit;
+      background: linear-gradient(180deg, #2df0bb, #00d49b); border: none; color: var(--on-accent); /* Open dag: verloop + pil (Ruling 8) */
+      padding: 7px 16px; border-radius: var(--r-pil); font-size: 0.82rem; font-weight: 700; cursor: pointer; font-family: inherit;
       transition: background 0.12s, box-shadow 0.12s;
       box-shadow: 0 2px 6px rgba(0,223,163,0.2);
     }
-    .btn-save:hover  { background: var(--accent-hover); box-shadow: 0 4px 12px rgba(0,223,163,0.35); }
+    @media (hover: hover) { .btn-save:hover { box-shadow: 0 4px 12px rgba(0,223,163,0.35); } }
     .btn-save:active { box-shadow: 0 1px 3px rgba(245,158,11,0.2); }
 
     /* ── Knoppen (.btn) ── */
@@ -880,24 +880,28 @@
       min-width: 36px;
       min-height: 36px;
       padding: 0;
-      border-radius: var(--r);
+      border-radius: var(--r-pil); /* Open dag: rond (Ruling 8) */
     }
 
     /* ── Glans (Open dag-stijl): bij hover vervaagt een zachte witte lichtvlek bovenaan in de knop; niets beweegt of schaalt.
        :where() houdt de specificiteit op nul, zodat een eigen position (absolute, sticky) van een knop altijd wint. ::before is
-       op deze knoppen vrij; .tab gebruikt geen pseudo-element (de onderlijn staat op .tabs::after). */
-    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer) {
+       op deze knoppen vrij; .tab gebruikt geen pseudo-element (de onderlijn staat op .tabs::after). Taak 8a (Ruling 8): ook de chips
+       (.filter-pill, .sico, .gep-week button, .kal-pending-pill, .day-btn) en de oudere knoppen, die de Open dag-vorm kregen. */
+    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer, .filter-pill, .sico, .gep-week button, .kal-pending-pill, .day-btn) {
       position: relative; isolation: isolate; overflow: hidden;
     }
-    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer)::before {
+    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer, .filter-pill, .sico, .gep-week button, .kal-pending-pill, .day-btn)::before {
       content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
       opacity: 0; transition: opacity var(--duur-glans) ease;
       background: radial-gradient(120% 140% at 50% -20%, rgba(255,255,255,.45), transparent 60%);
     }
-    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer):hover::before { opacity: 1; }
-    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer):is(:disabled, [aria-disabled="true"]):hover::before { opacity: 0; }
+    /* Enkel met een echte muis (Ruling 9): op aanraking blijft :hover na een tik hangen. */
+    @media (hover: hover) {
+      :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer, .filter-pill, .sico, .gep-week button, .kal-pending-pill, .day-btn):hover::before { opacity: 1; }
+      :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer, .filter-pill, .sico, .gep-week button, .kal-pending-pill, .day-btn):is(:disabled, [aria-disabled="true"]):hover::before { opacity: 0; }
+    }
     /* Een korte indruk bij klikken: een kleurwijziging, nooit een beweging. */
-    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer):active:not(:disabled):not([aria-disabled="true"]) { filter: brightness(.94); }
+    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer, .filter-pill, .sico, .gep-week button, .kal-pending-pill, .day-btn):active:not(:disabled):not([aria-disabled="true"]) { filter: brightness(.94); }
 
     /* Touch targets */
     html[data-aanraak="ja"] .btn {
@@ -978,7 +982,7 @@
       cursor: pointer; font-family: inherit;
       transition: all 0.12s var(--ease-spring);
     }
-    .day-btn:hover { background: var(--surface2); color: var(--text2); }
+    @media (hover: hover) { .day-btn:hover { background: var(--surface2); color: var(--text2); } }
     .day-btn.on { background: var(--accent-dim); color: var(--accent-ink); border-color: var(--accent-glow); font-weight: 600; }
 
     /* ── Blokkering modal ── */
@@ -1313,7 +1317,7 @@ html[data-nav="kolom"] header .hbtn {
   width: 40px; height: 40px; border-radius: 50%;
   background: var(--knop2); border: 1px solid var(--glas-rand); color: var(--text2);
 }
-html[data-nav="kolom"] header .hbtn:hover { background: var(--knop2-hover); color: var(--text); }
+@media (hover: hover) { html[data-nav="kolom"] header .hbtn:hover { background: var(--knop2-hover); color: var(--text); } }
 html[data-nav="kolom"][data-aanraak="ja"] header .hbtn { width: 44px; height: 44px; }
 html[data-nav="kolom"] header .gebruiker-btn {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
