@@ -221,8 +221,8 @@
     }
 
     /* ── Reduced motion: dempen, niet verbergen ──
-       Animaties/overgangen worden vrijwel instant (toestandswissels blijven zichtbaar), hover-/
-       active-transforms vervallen. Functionele transforms (slepen, kalenderblokpositie, toast-
+       Animaties/overgangen worden vrijwel instant (toestandswissels blijven zichtbaar); de glans van
+       knoppen is dan meteen aan of uit. Hover-/active-transforms bestaan niet meer. Functionele transforms (slepen, kalenderblokpositie, toast-
        positie) blijven onaangeroerd. */
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
@@ -231,11 +231,6 @@
         transition-duration: .01ms !important;
         scroll-behavior: auto !important;
       }
-      .sico:hover, .sico:active,
-      .filter-pill:hover, .filter-pill:active,
-      .mhdr-close:hover, .mhdr-close:active,
-      .btn:hover, .btn:active,
-      .btn-icon:hover, .btn-icon:active { transform: none !important; }
       .inv-log-row.inv-day-new { animation: none !important; }
     }
 

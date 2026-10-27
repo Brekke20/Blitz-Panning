@@ -46,10 +46,9 @@
       font-size: 0.9rem;
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: color 0.15s var(--ease), background 0.15s var(--ease), transform 0.12s var(--ease-spring);
+      transition: color 0.15s var(--ease), background 0.15s var(--ease);
     }
-    .hbtn:hover  { color: var(--text); background: var(--surface2); transform: scale(1.08); }
-    .hbtn:active { transform: scale(0.94); }
+    .hbtn:hover  { color: var(--text); background: var(--surface2); }
 
     /* ── Persoon selector ── */
     .person-sel { position: relative; }
@@ -215,10 +214,9 @@
       color: var(--muted);
       cursor: pointer;
       white-space: nowrap;
-      transition: color 0.15s, background 0.15s, border-color 0.15s, transform 0.12s var(--ease-spring);
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
     }
-    .filter-pill:hover  { color: var(--text2); background: var(--surface2); transform: translateY(-1px); }
-    .filter-pill:active { transform: translateY(0); }
+    .filter-pill:hover  { color: var(--text2); background: var(--surface2); }
     .filter-pill.active { background: var(--accent-dim); color: var(--accent-ink); border-color: var(--accent-glow); font-weight: 600; }
 
     /* ── Ticket cards ── */
@@ -320,22 +318,19 @@
       font-size: 1.1rem;
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: background 0.15s, transform 0.15s var(--ease-spring), box-shadow 0.15s;
+      transition: background 0.15s, box-shadow 0.15s;
       flex-shrink: 0;
       box-shadow: 0 2px 6px rgba(0,223,163,0.3);
     }
-    .btn-add:hover  { background: var(--accent-hover); transform: scale(1.12); box-shadow: 0 3px 10px rgba(0,223,163,0.4); }
-    .btn-add:active { transform: scale(0.95); }
+    .btn-add:hover  { background: var(--accent-hover); box-shadow: 0 3px 10px rgba(0,223,163,0.4); }
     .btn-add:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; }
     .btn-rem {
       background: var(--red); border: none; color: #fff;
       width: 30px; height: 30px; border-radius: 50%;
       font-size: 0.9rem; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: transform 0.12s var(--ease-spring);
+      transition: background-color var(--duur) ease;
     }
-    .btn-rem:hover  { transform: scale(1.1); }
-    .btn-rem:active { transform: scale(0.93); }
     .btn-rem:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
 
     .empty { text-align: center; color: var(--muted); padding: 64px 20px; font-size: 0.875rem; line-height: 1.6; }
@@ -347,10 +342,10 @@
       background: var(--orange-dim); border: 1px solid rgba(245,158,11,0.3);
       border-radius: 20px; padding: 4px 10px; cursor: pointer;
       font-size: 0.75rem; font-weight: 600; color: var(--orange);
-      transition: background 0.15s, transform 0.12s;
+      transition: background 0.15s;
       white-space: nowrap; flex-shrink: 0;
     }
-    .kal-pending-pill:hover { background: rgba(245,158,11,0.2); transform: scale(1.03); }
+    .kal-pending-pill:hover { background: rgba(245,158,11,0.2); }
     .kal-pending-pill .pill-count {
       background: var(--orange); color: var(--on-accent);
       border-radius: 10px; padding: 0 6px; font-size: 0.7rem; font-weight: 700;
@@ -405,10 +400,9 @@
       width: 30px; height: 30px; border-radius: var(--r); flex-shrink: 0;
       cursor: pointer; font-size: 1rem;
       display: flex; align-items: center; justify-content: center;
-      transition: background 0.12s, transform 0.12s var(--ease-spring);
+      transition: background 0.12s;
     }
-    .kal-nav:hover  { background: var(--surface3); transform: scale(1.05); }
-    .kal-nav:active { transform: scale(0.94); }
+    .kal-nav:hover  { background: var(--surface3); }
     /* Tweede regel "↺ Vandaag" in de labelknop: hoogte altijd gereserveerd (kop verandert nooit van hoogte) */
     .kal-lbl-tekst { display: block; overflow: hidden; text-overflow: ellipsis; }
     .kal-lbl-vandaag { display: block; font-size: 0.75rem; font-weight: 600; color: var(--accent-ink); visibility: hidden; }
@@ -417,12 +411,12 @@
       background: var(--accent); border: none; color: var(--on-accent);
       padding: 6px 13px; border-radius: var(--r);
       font-size: 0.79rem; font-weight: 700; cursor: pointer;
-      transition: background 0.12s, transform 0.12s var(--ease-spring), box-shadow 0.12s;
+      transition: background 0.12s, box-shadow 0.12s;
       box-shadow: 0 2px 6px rgba(0,223,163,0.25);
       font-family: inherit;
     }
-    .btn-autoplan:hover  { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,223,163,0.38); }
-    .btn-autoplan:active { transform: translateY(0); box-shadow: 0 1px 3px rgba(0,223,163,0.2); }
+    .btn-autoplan:hover  { background: var(--accent-hover); box-shadow: 0 4px 12px rgba(0,223,163,0.38); }
+    .btn-autoplan:active { box-shadow: 0 1px 3px rgba(0,223,163,0.2); }
     .btn-autoplan:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
     /* Op een gsm "⚡ Plan": de kalenderkop blijft één regel (kop B). De volledige naam blijft de toegankelijke naam en de hulptekst. */
     html[data-indeling="smal"] .plan-lang { display: none; }
@@ -678,20 +672,18 @@
       background: var(--accent); border: none; color: var(--on-accent);
       padding: 7px 14px; border-radius: var(--r);
       font-size: 0.8rem; font-weight: 700; cursor: pointer; font-family: inherit;
-      transition: background 0.12s, transform 0.12s var(--ease-spring), box-shadow 0.12s;
+      transition: background 0.12s, box-shadow 0.12s;
       box-shadow: 0 2px 6px rgba(0,223,163,0.2);
     }
-    .btn-primary:hover  { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,223,163,0.35); }
-    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:hover  { background: var(--accent-hover); box-shadow: 0 4px 12px rgba(0,223,163,0.35); }
     .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
     .btn-sec {
       background: transparent; border: 1px solid var(--border); color: var(--text2);
       padding: 7px 12px; border-radius: var(--r);
       font-size: 0.8rem; font-weight: 500; cursor: pointer; font-family: inherit;
-      transition: background 0.12s, color 0.12s, transform 0.12s var(--ease-spring);
+      transition: background 0.12s, color 0.12s;
     }
-    .btn-sec:hover  { background: var(--surface2); color: var(--text); transform: translateY(-1px); }
-    .btn-sec:active { transform: translateY(0); }
+    .btn-sec:hover  { background: var(--surface2); color: var(--text); }
     .rapp-filter-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
     /* Weekstrook (v1.9.5), compact in de Route-werkbalk (kop B): per dag één knop van 44 px, links dag en status, rechts het aantal. */
     .week-strip { display: flex; align-items: stretch; gap: 6px; flex: 1; min-width: 0; }
@@ -742,10 +734,9 @@
       background: transparent; border: 1px solid var(--border); color: var(--muted);
       padding: 4px 8px; border-radius: 5px; cursor: pointer; font-size: var(--fs-2xs); font-weight: 600;
       display: inline-flex; align-items: center; gap: 3px; white-space: nowrap;
-      transition: background 0.1s, color 0.1s, transform 0.1s var(--ease-spring);
+      transition: background 0.1s, color 0.1s;
     }
-    .sico:hover  { background: var(--surface); color: var(--text2); transform: scale(1.07); }
-    .sico:active { transform: scale(0.94); }
+    .sico:hover  { background: var(--surface); color: var(--text2); }
     .route-empty { color: var(--muted); font-size: 0.82rem; text-align: center; padding: 40px 14px; line-height: 1.6; }
     /* Eigen stapelcontext: Leaflet gebruikt z-index 400-1000 intern; dat mag nooit boven app-UI (personenmenu, modals, toasts) uitkomen. */
     #map-wrap, .sales-route-kaartvak { flex: 1; min-width: 0; min-height: 0; position: relative; isolation: isolate; z-index: 0; margin: 8px; border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
@@ -771,10 +762,9 @@
       background: var(--surface2); border: 1px solid var(--border); color: var(--text);
       padding: 4px 12px; border-radius: var(--r); cursor: pointer; font-family: inherit;
       font-size: 0.8rem;
-      transition: background 0.12s, transform 0.12s var(--ease-spring);
+      transition: background 0.12s;
     }
-    .gep-week button:hover  { background: var(--surface3); transform: scale(1.04); }
-    .gep-week button:active { transform: scale(0.96); }
+    .gep-week button:hover  { background: var(--surface3); }
     .cal-day-hdr {
       font-size: var(--fs-2xs); font-weight: 600; color: var(--muted);
       text-transform: uppercase; letter-spacing: 0.06em;
@@ -809,10 +799,9 @@
       background: transparent; border: 1px solid transparent; color: var(--muted);
       font-size: 0.95rem; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: background 0.12s, color 0.12s, transform 0.12s var(--ease-spring);
+      transition: background 0.12s, color 0.12s;
     }
-    .mhdr-close:hover  { background: var(--surface2); color: var(--text); border-color: var(--border); transform: scale(1.08); }
-    .mhdr-close:active { transform: scale(0.94); }
+    .mhdr-close:hover  { background: var(--surface2); color: var(--text); border-color: var(--border); }
     .mhdr-num { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); font-family: monospace; margin-bottom: 4px; letter-spacing: 0.04em; }
     #d-num { font-size: 1rem; font-weight: 700; color: var(--text); }
     .stop-numtag { font-family: 'SF Mono', 'Consolas', monospace; font-weight: 700; color: var(--text); margin-right: 5px; }
@@ -841,18 +830,17 @@
     .btn-cancel {
       background: transparent; border: 1px solid var(--border); color: var(--text2);
       padding: 7px 14px; border-radius: var(--r); font-size: 0.82rem; cursor: pointer; font-family: inherit;
-      transition: background 0.12s, color 0.12s, transform 0.12s var(--ease-spring);
+      transition: background 0.12s, color 0.12s;
     }
-    .btn-cancel:hover  { background: var(--surface2); color: var(--text); transform: translateY(-1px); }
-    .btn-cancel:active { transform: translateY(0); }
+    .btn-cancel:hover  { background: var(--surface2); color: var(--text); }
     .btn-save {
       background: var(--accent); border: none; color: var(--on-accent);
       padding: 7px 16px; border-radius: var(--r); font-size: 0.82rem; font-weight: 700; cursor: pointer; font-family: inherit;
-      transition: background 0.12s, transform 0.12s var(--ease-spring), box-shadow 0.12s;
+      transition: background 0.12s, box-shadow 0.12s;
       box-shadow: 0 2px 6px rgba(0,223,163,0.2);
     }
-    .btn-save:hover  { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,223,163,0.35); }
-    .btn-save:active { transform: translateY(0); box-shadow: 0 1px 3px rgba(245,158,11,0.2); }
+    .btn-save:hover  { background: var(--accent-hover); box-shadow: 0 4px 12px rgba(0,223,163,0.35); }
+    .btn-save:active { box-shadow: 0 1px 3px rgba(245,158,11,0.2); }
 
     /* ── Knoppen (.btn) ── */
     .btn {
@@ -862,26 +850,19 @@
       gap: var(--sp-2);
       min-height: 36px;
       padding: 0 var(--sp-4);
-      border-radius: var(--r);
+      border-radius: var(--r-pil);
       font-family: inherit;
       font-weight: 600;
       font-size: var(--fs-sm);
       line-height: 1.2;
       cursor: pointer;
       border: 1px solid transparent;
-      transition: background 0.12s, color 0.12s, transform 0.12s var(--ease-spring), border-color 0.12s;
-    }
-    .btn:hover:not(:disabled):not([aria-disabled="true"]) {
-      transform: translateY(-1px);
-    }
-    .btn:active {
-      transform: translateY(0);
+      transition: background-color var(--duur) ease, color var(--duur) ease, border-color var(--duur) ease, box-shadow var(--duur) ease;
     }
     .btn:disabled,
     .btn[aria-disabled="true"] {
       opacity: 0.45;
       cursor: not-allowed;
-      transform: none;
     }
     .btn:focus-visible {
       outline: 2px solid var(--focus-ring);
@@ -890,20 +871,17 @@
 
     /* Variants */
     .btn--primary {
-      background: var(--accent);
+      background: linear-gradient(180deg, #2df0bb, #00d49b);
       color: var(--on-accent);
-    }
-    .btn--primary:hover:not(:disabled):not([aria-disabled="true"]) {
-      background: var(--accent-hover);
     }
 
     .btn--secondary {
-      background: transparent;
+      background: var(--knop2);
       border-color: var(--border-strong);
       color: var(--text);
     }
     .btn--secondary:hover:not(:disabled):not([aria-disabled="true"]) {
-      background: var(--surface2);
+      background: var(--knop2-hover);
     }
 
     .btn--danger {
@@ -912,7 +890,7 @@
       color: var(--red);
     }
     .btn--danger:hover:not(:disabled):not([aria-disabled="true"]) {
-      background: transparent;
+      background: color-mix(in srgb, var(--red) 14%, transparent);
     }
     .btn--danger.btn--solid {
       background: var(--red);
@@ -952,6 +930,22 @@
       padding: 0;
       border-radius: var(--r);
     }
+
+    /* ── Glans (Open dag-stijl): bij hover vervaagt een zachte witte lichtvlek bovenaan in de knop; niets beweegt of schaalt.
+       :where() houdt de specificiteit op nul, zodat een eigen position (absolute, sticky) van een knop altijd wint. ::before is
+       op deze knoppen vrij; .tab gebruikt geen pseudo-element (de onderlijn staat op .tabs::after). */
+    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer) {
+      position: relative; isolation: isolate; overflow: hidden;
+    }
+    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer)::before {
+      content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+      opacity: 0; transition: opacity var(--duur-glans) ease;
+      background: radial-gradient(120% 140% at 50% -20%, rgba(255,255,255,.45), transparent 60%);
+    }
+    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer):hover::before { opacity: 1; }
+    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer):is(:disabled, [aria-disabled="true"]):hover::before { opacity: 0; }
+    /* Een korte indruk bij klikken: een kleurwijziging, nooit een beweging. */
+    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer):active:not(:disabled):not([aria-disabled="true"]) { filter: brightness(.94); }
 
     /* Touch targets */
     html[data-aanraak="ja"] .btn {
@@ -1032,7 +1026,7 @@
       cursor: pointer; font-family: inherit;
       transition: all 0.12s var(--ease-spring);
     }
-    .day-btn:hover { background: var(--surface2); color: var(--text2); transform: scale(1.04); }
+    .day-btn:hover { background: var(--surface2); color: var(--text2); }
     .day-btn.on { background: var(--accent-dim); color: var(--accent-ink); border-color: var(--accent-glow); font-weight: 600; }
 
     /* ── Blokkering modal ── */
