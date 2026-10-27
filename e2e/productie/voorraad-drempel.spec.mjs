@@ -4,6 +4,12 @@
 import { test, expect, startAppProductie, verwachtSchrijven, zohoStubs, OPSTART_SCHRIJVEN } from '../productie-hulp.mjs';
 
 const STAND = (versie, tim) => ({ versie, wagenvoorraad: { Tim: tim }, log: [] });
+// De prijzen-stub van de fixture heeft een lege catalogus: geef de twee energiemeters mee (zoals in PRIJZEN_DEFAULTS).
+const CATALOGUS = [
+  { id: 'meter-sdm54-m', naam: 'Energiemeter - Eastron SDM54-M', categorie: 'energiemeter', tags: [], prijs: 160, eenheid: 'stuk' },
+  { id: 'meter-sdm72d-m', naam: 'Energiemeter - Eastron SDM72D-M', categorie: 'energiemeter', tags: [], prijs: 160, eenheid: 'stuk' },
+];
+const prijzen = () => ({ status: 200, json: { versie: 1, bijgewerkt: '2026-10-05T07:00:00.000Z', onderdelen: CATALOGUS, tarieven: [] } });
 const BEGIN = { 'meter-sdm54-m': { aantal: 3, gedempt: false, drempel: 0 }, 'meter-sdm72d-m': { aantal: 2, gedempt: false, drempel: 0 } };
 
 function inventarisStub(naPost) {
@@ -19,7 +25,7 @@ function inventarisStub(naPost) {
 async function start(page, verzoeken, i) {
   verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, '/api/inventaris']);
   const z = zohoStubs();
-  await startAppProductie(page, { technieker: 'Tim', overschrijf: { ...z.overschrijf, inventaris: i.stub } });
+  await startAppProductie(page, { technieker: 'Tim', overschrijf: { ...z.overschrijf, inventaris: i.stub, prijzen } });
 }
 
 test.describe('meldgrens wagenvoorraad', () => {
