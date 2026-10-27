@@ -59,6 +59,10 @@
     root.setAttribute('data-aanraak', a.aanraak ? 'ja' : 'nee');
     root.setAttribute('data-rol', a.rol);
     root.setAttribute('data-plan-eigen', a.planEigen ? 'ja' : 'nee');
+    // data-nav (zijkolom of dok, Open dag): enkel de EERSTE keer hier gezet, zodat het attribuut er al is bij de eerste verf (de CSS hangt
+    // eraan). Daarna is kern/navigatievorm.js de enige bron. Dezelfde regel (NAV_MIN_BREEDTE = 768): tests/navigatievorm.test.mjs
+    // laat dit bestand draaien en pint de twee aan elkaar.
+    if (!root.hasAttribute('data-nav')) root.setAttribute('data-nav', (a.indeling !== 'breed' || window.innerWidth < 768) ? 'dok' : 'kolom');
   }
 
   function evalueer() {

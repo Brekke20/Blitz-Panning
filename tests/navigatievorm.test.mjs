@@ -71,3 +71,43 @@ test('de starter zet data-nav meteen en volgt resize en apparaatwijziging', () =
   attrs['data-indeling'] = 'breed'; vuur('apparaatwijziging');
   assert.equal(attrs['data-nav'], 'dok'); // gestopt: luistert niet meer
 });
+
+// Taak 8b: data-nav staat al bij de eerste verf. apparaat.js (klassiek script in <head>, kan de module niet importeren) zet het
+// attribuut de eerste keer met dezelfde regel; deze test laat het script echt draaien en pint de twee aan elkaar.
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+
+function draaiApparaat({ weergave, breedte, hoogte = 800 }) {
+  const attrs = {};
+  const sandbox = {
+    innerWidth: breedte, innerHeight: hoogte, screen: { width: breedte, height: hoogte },
+    document: {
+      documentElement: {
+        setAttribute: (n, v) => { attrs[n] = String(v); },
+        getAttribute: (n) => (n in attrs ? attrs[n] : null),
+        hasAttribute: (n) => n in attrs,
+      },
+      addEventListener() {}, visibilityState: 'visible',
+    },
+    localStorage: { getItem: (k) => (k === 'blitz_weergave' ? weergave : null), setItem() {} },
+    matchMedia: () => ({ matches: false, addEventListener() {} }),
+    requestAnimationFrame: (f) => f(),
+    CustomEvent: class {},
+    dispatchEvent() {},
+    addEventListener() {},
+  };
+  sandbox.window = sandbox;
+  vm.runInNewContext(readFileSync(new URL('../public/js/apparaat.js', import.meta.url), 'utf8'), sandbox);
+  return attrs;
+}
+
+test('apparaat.js zet data-nav bij de eerste verf met dezelfde regel als kern/navigatievorm.js', () => {
+  for (const weergave of ['gsm', 'tablet', 'computer', null]) {
+    for (const breedte of [320, 375, 767, 768, 800, 1024, 1366]) {
+      const attrs = draaiApparaat({ weergave, breedte, hoogte: weergave === 'tablet' ? breedte + 100 : 700 });
+      assert.ok(attrs['data-nav'], `data-nav ontbreekt (${weergave}, ${breedte})`);
+      const verwacht = navigatieVorm({ indeling: attrs['data-indeling'], breedte });
+      assert.equal(attrs['data-nav'], verwacht, `${weergave} ${breedte}: ${attrs['data-indeling']}`);
+    }
+  }
+});
