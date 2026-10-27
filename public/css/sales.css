@@ -41,15 +41,15 @@
 .sales-lijst-balk .sales-zoek { flex-basis: 140px; } /* gsm: zoeken en gebied naast elkaar op regel 2, de knoppen op regel 1 */
 @media (max-width: 599px) { .sales-lijst-balk { padding-left: var(--sp-3); padding-right: var(--sp-3); } }
 .sales-melding {
-  margin-bottom: var(--sp-4); padding: var(--sp-3) var(--sp-4); border-radius: var(--r); background: var(--surface2);
-  border: 1px solid var(--border); font-size: var(--fs-sm); line-height: 1.45; overflow-wrap: anywhere;
+  margin-bottom: var(--sp-4); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-ev); background: var(--veld);
+  border: 1px solid var(--glas-rand); font-size: var(--fs-sm); line-height: 1.45; overflow-wrap: anywhere;
 }
 .sales-melding p + p { margin-top: var(--sp-1); color: var(--text2); }
 .sales-melding-fout { background: var(--red-dim); border-color: var(--red-line); }
 .sales-filter { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-bottom: var(--sp-4); }
 .sales-zoek, .sales-gebied, .sales-form input, .sales-form textarea, .sales-venster-body input, .sales-venster-body textarea {
-  background: var(--surface2); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--r);
-  padding: 8px 10px; font: inherit; font-size: var(--fs-sm); min-height: 40px; min-width: 0; max-width: 100%;
+  background: var(--veld); color: var(--text); border: 1px solid var(--veld-rand); border-radius: var(--r-pil);
+  padding: 8px 16px; font: inherit; font-size: var(--fs-sm); min-height: 40px; min-width: 0; max-width: 100%;
 }
 .sales-zoek { flex: 1 1 220px; }
 .sales-gebied { flex: 0 1 auto; }
@@ -59,7 +59,7 @@
 .sales-ongedaan:empty { display: none; }
 .sales-ongedaan-rij {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4); border-radius: var(--r); background: var(--surface3); border: 1px solid var(--border-strong); font-size: var(--fs-sm); overflow-wrap: anywhere;
+  padding: var(--sp-3) var(--sp-4); border-radius: var(--r-ev); background: var(--glas-sterk); border: 1px solid var(--glas-rand); font-size: var(--fs-sm); overflow-wrap: anywhere;
 }
 
 .sales-groep { margin-bottom: var(--sp-5); }
@@ -67,12 +67,12 @@
 .sales-kaartlijst { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-3); }
 /* Drie kolommen naast elkaar: nog in te plannen, ingepland, bevestigd. Elke kolom heeft zijn eigen kaartenlijst (één kaart breed). */
 .sales-kolommen { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-4); align-items: start; }
-.sales-kolom { min-width: 0; margin-bottom: 0; padding: var(--sp-3); background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r-lg); }
+.sales-kolom { min-width: 0; margin-bottom: 0; padding: var(--sp-3); background-color: var(--glas); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); border: 1px solid var(--glas-rand); border-radius: var(--r-kaart); }
 .sales-kolom .sales-kaartlijst { grid-template-columns: minmax(0, 1fr); }
 .sales-kolom .sales-groep-kop { display: flex; align-items: baseline; gap: var(--sp-2); margin-bottom: var(--sp-3); }
 .sales-kolom-leeg { color: var(--muted); font-size: var(--fs-sm); padding: var(--sp-3) var(--sp-1); }
 .sales-kaart-acties { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
-.sales-chip-voorstel { background: var(--surface3); color: var(--text2); border: 1px dashed var(--accent); }
+.sales-chip-voorstel { background: var(--knop2); color: var(--text2); border: 1px dashed var(--accent); }
 /* De tabbalk (enkel op een smal scherm): titel en aantal van elke kolom. */
 .sales-kolomtabs { display: none; }
 @media (max-width: 759px) {
@@ -86,7 +86,7 @@
   .sales-kolomtab {
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; min-height: 52px; padding: 6px 4px;
     font: inherit; font-size: var(--fs-xs); font-weight: 600; text-align: center; line-height: 1.2; cursor: pointer;
-    background: var(--surface2); color: var(--text2); border: 1px solid var(--border); border-radius: var(--r);
+    background: var(--knop2); color: var(--text2); border: 1px solid var(--glas-rand); border-radius: var(--r-pil);
   }
   .sales-kolomtab[aria-selected="true"] { background: var(--accent-dim); color: var(--accent-ink); border-color: var(--accent); }
   .sales-kolomtab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
@@ -103,12 +103,12 @@
   flex: 0 0 auto; width: 36px; height: 36px; margin: -6px -8px 0 0; border-radius: var(--r); cursor: pointer;
   background: transparent; border: 1px solid transparent; color: var(--muted); font-size: var(--fs-md);
 }
-.sales-kaart-wis:hover { background: var(--red-dim); color: var(--red-ink); border-color: var(--red-line); }
+@media (hover: hover) { .sales-kaart-wis:hover { background: var(--red-dim); color: var(--red-ink); border-color: var(--red-line); } }
 .sales-kaart-wis:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-.sales-kaart-terug:hover { background: var(--surface3); color: var(--text); border-color: var(--border); } /* niet rood: dit verwijdert niets */
+@media (hover: hover) { .sales-kaart-terug:hover { background: var(--knop2-hover); color: var(--text); border-color: var(--glas-rand); } } /* niet rood: dit verwijdert niets */
 .sales-kaart-plaats { color: var(--text2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
 .sales-kaart-chips { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
-.sales-chip { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 8px; border-radius: var(--r-pill); background: var(--surface3); color: var(--text2); }
+.sales-chip { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 8px; border-radius: var(--r-pil); background: var(--knop2); color: var(--text2); }
 .sales-chip-vast { background: var(--accent-dim); color: var(--accent-ink); }
 .sales-chip-eerder { background: var(--orange-dim); color: var(--orange); }
 .sales-chip-verlopen { background: var(--orange-dim); color: var(--orange); }
@@ -132,13 +132,14 @@
 .sales-veld { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .sales-veld label { font-size: var(--fs-xs); font-weight: 600; color: var(--text2); }
 .sales-veld input, .sales-veld textarea { width: 100%; }
-.sales-veld textarea { resize: vertical; }
+.sales-veld textarea { resize: vertical; border-radius: 18px; }
+.sales-form textarea, .sales-venster-body textarea { border-radius: 18px; }
 .sales-verplicht { color: var(--red-ink); }
 .sales-veld-fout { color: var(--red-ink); font-size: var(--fs-xs); }
 .sales-veld input[aria-invalid="true"], .sales-veld textarea[aria-invalid="true"] { border-color: var(--red); }
 .sales-acties { display: flex; flex-wrap: wrap; gap: var(--sp-3); justify-content: flex-end; }
 .sales-acties-terug { margin-top: var(--sp-5); justify-content: flex-start; }
-.sales-sectie { margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: var(--sp-3); }
+.sales-sectie { margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--lijn); display: flex; flex-direction: column; gap: var(--sp-3); }
 .sales-sectie-kop { font-size: var(--fs-md); font-weight: 700; }
 .sales-uitleg, .sales-leeg-klein { color: var(--text2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
 .sales-historiek-lijst { list-style: none; display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
@@ -215,8 +216,8 @@ html[data-indeling="smal"] .sales-kal-grid .day-hdr { height: auto; }
 .sales-veld-vink { flex-direction: row; align-items: center; gap: var(--sp-2); }
 .sales-veld-vink input { width: auto; min-height: 0; }
 .sales-veld select, #sales-blok-soort {
-  background: var(--surface2); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--r);
-  padding: 8px 10px; font: inherit; font-size: var(--fs-sm); min-height: 40px; max-width: 100%;
+  background: var(--veld); color: var(--text); border: 1px solid var(--veld-rand); border-radius: var(--r-pil);
+  padding: 8px 16px; font: inherit; font-size: var(--fs-sm); min-height: 40px; max-width: 100%;
 }
 html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
 
@@ -229,12 +230,12 @@ html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
 .sales-route-datumveld:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .sales-route-samenvatting { overflow-wrap: anywhere; }
 .sales-route-melding, .sales-route-nota, .sales-route-wegafsluiting { flex: none; margin: 0; padding: 6px 14px; font-size: var(--fs-xs); overflow-wrap: anywhere; }
-.sales-route-melding { background: var(--accent-dim); border-bottom: 1px solid var(--border); }
-.sales-route-nota { color: var(--text2); background: var(--surface); border-bottom: 1px solid var(--border); }
+.sales-route-melding { background: var(--accent-dim); border-bottom: 1px solid var(--lijn); }
+.sales-route-nota { color: var(--text2); background-color: var(--glas-sterk); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); border-bottom: 1px solid var(--glas-rand); }
 .sales-route-wegafsluiting { color: var(--red-ink); background: var(--red-dim); font-weight: 600; }
 .sales-route-leeg { margin: 0; }
 .sales-route-inhoud { min-width: 0; }
-.sales-route-kaartnoot { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 500; margin: 0; padding: 4px 8px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--border); font-size: var(--fs-2xs); color: var(--text2); }
+.sales-route-kaartnoot { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 500; margin: 0; padding: 4px 8px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--glas-rand); font-size: var(--fs-2xs); color: var(--text2); }
 .sales-route-lijst { list-style: none; display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; }
 /* De stopkaart: zelfde opbouw als bij de technieker (.stop, .stop-top, .stop-num, .stop-info), met het bezoektint van de verkoper. */
 .sales-route-rij { cursor: pointer; min-width: 0; }
@@ -273,4 +274,12 @@ html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
   html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-wortel > :is(.route-balk, .plan-summary) { flex: none; }
   html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-inhoud { flex: 1; min-height: 0; }
   html:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route .sales-route-leeg { flex: 1; }
+}
+/* Taak 8b: een smal computervenster (indeling breed, maar data-nav="dok", 681 tot 767 px) heeft het dok onderaan; de route vult dan het scherm
+   boven het dok (hoogte dok + 24 px, zoals #view-planning in navigatie.css), anders ligt de onderkant onder het dok. */
+@media (min-width: 681px) {
+  html[data-nav="dok"]:not([data-indeling="smal"]):not([data-indeling="tablet-staand"]) #view-sales-route.active {
+    height: calc(100vh - var(--sticky-top, 93px) - var(--dok-h) - 24px);
+    height: calc(100dvh - var(--sticky-top, 93px) - var(--dok-h) - 24px);
+  }
 }

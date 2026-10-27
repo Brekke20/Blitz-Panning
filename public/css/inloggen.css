@@ -19,7 +19,7 @@ body:has(> #login-overlay) :is(.skip-link, .topbar-sticky, #offline-banner, #out
   padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-3);
 }
 .login-merk { font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-ink); }
-.login-kaart h2 { font-size: var(--fs-xl); font-weight: 700; line-height: 1.25; }
+.login-kaart h2 { font-family: var(--font-kop); font-size: var(--fs-xl); font-weight: 700; line-height: 1.25; }
 .login-intro { font-size: var(--fs-sm); color: var(--text2); line-height: 1.5; }
 .login-formulier { display: flex; flex-direction: column; gap: var(--sp-3); }
 .login-formulier .set-field { margin-bottom: 0; }
@@ -37,7 +37,7 @@ body:has(> #login-overlay) :is(.skip-link, .topbar-sticky, #offline-banner, #out
 #login-overlay .btn { min-height: 44px; }
 .login-link { align-self: flex-start; }
 .login-codes {
-  margin: 0; padding: var(--sp-3); background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r);
+  margin: 0; padding: var(--sp-3); background: var(--veld); border: 1px solid var(--veld-rand); border-radius: var(--r-ev);
   font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace; font-size: var(--fs-md); line-height: 1.7; white-space: pre;
   overflow-x: auto; user-select: all;
 }

@@ -47,7 +47,8 @@ html[data-apparaat="gsm"] .inv-list.inv-raster--bewerk { grid-template-columns: 
 .inv-groep[hidden] { display: none; }
 .inv-groep-titel {
   padding: 10px 16px 6px;
-  font-size: 0.78rem;
+  font-family: var(--font-kop);
+  font-size: 0.85rem;
   font-weight: 700;
   color: var(--muted);
   text-transform: uppercase;
@@ -66,10 +67,10 @@ html[data-apparaat="gsm"] .inv-list.inv-raster--bewerk { grid-template-columns: 
   box-sizing: border-box;
   font-size: 16px;
   font-family: inherit;
-  padding: 8px 12px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  padding: 8px 16px;
+  background: var(--veld);
+  border: 1px solid var(--glas-rand);
+  border-radius: var(--r-pil);
   color: var(--text);
 }
 html[data-aanraak="ja"] .inv-zoek { min-height: 44px; }
@@ -79,8 +80,8 @@ html[data-aanraak="ja"] .inv-zoek { min-height: 44px; }
   position: sticky;
   bottom: 0;
   z-index: var(--z-sticky);
-  background: var(--surface);
-  border-top: 1px solid var(--border);
+  background-color: var(--glas-sterk); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%);
+  border-top: 1px solid var(--glas-rand);
   padding-bottom: calc(var(--sp-2) + env(safe-area-inset-bottom));
 }
 .inv-list { padding-bottom: 24px; }
@@ -107,9 +108,9 @@ html[data-aanraak="ja"] .inv-qty-input { min-height: 44px; box-sizing: border-bo
 .inv-qty-btn {
   width: 28px;
   height: 28px;
-  border-radius: var(--r);
-  border: 1px solid var(--border);
-  background: var(--surface2);
+  border-radius: var(--r-pil);
+  border: 1px solid var(--glas-rand);
+  background: var(--knop2);
   color: var(--text);
   font-size: 1rem;
   font-weight: 700;
@@ -118,14 +119,14 @@ html[data-aanraak="ja"] .inv-qty-input { min-height: 44px; box-sizing: border-bo
   align-items: center;
   justify-content: center;
 }
-.inv-qty-btn:hover { background: var(--surface3); }
+@media (hover: hover) { .inv-qty-btn:hover { background: var(--knop2-hover); } }
 
 .inv-qty-input {
   width: 52px;
   text-align: center;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  background: var(--veld);
+  border: 1px solid var(--veld-rand);
+  border-radius: var(--r-pil);
   color: var(--text);
   padding: 4px 2px;
   font-family: inherit;
@@ -134,9 +135,9 @@ html[data-aanraak="ja"] .inv-qty-input { min-height: 44px; box-sizing: border-bo
 .inv-bell-btn {
   width: 28px;
   height: 28px;
-  border-radius: var(--r);
-  border: 1px solid var(--border);
-  background: var(--surface2);
+  border-radius: var(--r-pil);
+  border: 1px solid var(--glas-rand);
+  background: var(--knop2);
   cursor: pointer;
   font-size: 0.9rem;
   display: flex;
@@ -158,9 +159,9 @@ html[data-aanraak="ja"] .inv-qty-input { min-height: 44px; box-sizing: border-bo
 .inv-drempel-input {
   width: 44px;
   text-align: center;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  background: var(--veld);
+  border: 1px solid var(--veld-rand);
+  border-radius: var(--r-pil);
   color: var(--text);
   padding: 4px 2px;
   font-family: inherit;
@@ -182,9 +183,9 @@ html[data-apparaat="gsm"] :is(.inv-bell-btn, .inv-melding) { display: none; }
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  background: var(--surface);
+  border: 1px solid var(--glas-rand);
+  border-radius: var(--r-ev);
+  background-color: var(--glas); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%);
   flex-wrap: wrap;
   font-size: 0.82rem;
 }
@@ -198,7 +199,7 @@ html[data-apparaat="gsm"] :is(.inv-bell-btn, .inv-melding) { display: none; }
 }
 .inv-log-type.inv-log-aanvulling { background: var(--accent-dim); color: var(--accent-ink); }
 .inv-log-type.inv-log-correctie  { background: var(--red-dim); color: var(--red); }
-.inv-log-type.inv-log-verbruik   { background: var(--surface3); color: var(--muted); }
+.inv-log-type.inv-log-verbruik   { background: var(--knop2); color: var(--muted); }
 
 .inv-log-materiaal { flex: 1; min-width: 140px; }
 .inv-log-ticket { color: var(--muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
@@ -222,11 +223,11 @@ html[data-apparaat="gsm"] :is(.inv-bell-btn, .inv-melding) { display: none; }
   flex-wrap: wrap;
 }
 .inv-export-toolbar input[type="date"] {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  background: var(--veld);
+  border: 1px solid var(--veld-rand);
+  border-radius: var(--r-pil);
   color: var(--text);
-  padding: 4px 7px;
+  padding: 4px 12px;
   font-family: inherit;
 }
 
