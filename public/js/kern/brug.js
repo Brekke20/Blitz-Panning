@@ -8,6 +8,7 @@ import * as api from './api.js';
 import { installeerFetchTimeout } from './netwerk.js';
 import { laadSessie, testRolVoorHeader, meldOpslagStoring } from './sessie.js';
 import { toestand } from './toestand.js';
+import { startNavigatievorm } from './navigatievorm.js';
 import * as routeTijden from '../schermen/route-tijden.js';
 import * as routeKaart from '../schermen/route-kaart.js';
 import * as route from '../schermen/route.js';
@@ -29,6 +30,7 @@ import * as planacties from '../schermen/planacties.js';
 import { _rapportArchief, _archiefVersie } from '../rapport-archief.js';
 import { openPrijsBeheer, closePrijsBeheer, prijsReset, prijsOpslaan } from '../prijzen.js';
 
+startNavigatievorm(window); // taak 8a (Ruling 12): data-nav="kolom|dok" op <html>, zo vroeg mogelijk (vóór sticky-offset, dok-meer en app.js)
 installeerFetchTimeout(window); // N6: time-outs op /api, buitenste laag boven de ?test-header-patch
 api.installeerApiBeveiliging(window, { herlogin: () => laadSessie(), testRol: testRolVoorHeader, bijStoring: meldOpslagStoring }); // logins T13: X-Blitz, herinloggen bij 401
 window.kern = { tijd, ui, selecties, toestand, api };

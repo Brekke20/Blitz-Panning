@@ -1282,9 +1282,9 @@
      op .topbar-sticky, header of nav zelf: dan zitten de vaste zijkolom, het dok en de persoonkiezer aan hun ouder vast (css/navigatie.css).
      De laag ligt in de stapelcontext van .topbar-sticky (z-index 30) onder de inhoud van de kop; op `breed` begint ze na de zijkolom
      (de body schuift --zijkolom-b op), op gsm vult ze de kop. Content die onder de sticky kop doorschuift, wordt vervaagd.
-   - `breed`: de kop is een paginakop. Het logo staat in de zijkolom (.zijkolom-logo; het verborgen spel luistert daar ook, app.js), de kop
+   - data-nav="kolom" (zijkolom, kern/navigatievorm.js): de kop is een paginakop. Het logo staat in de zijkolom (.zijkolom-logo; het verborgen spel luistert daar ook, app.js), de kop
      toont de titel van het actieve tabblad + een samenvatting (schermen/paginakop.js) en rechts ronde glazen knoppen.
-   - `smal`/`tablet-staand`: geen paginakop; logo + alle knoppen op één regel. Op een smalle gsm wijkt, in deze volgorde: de tekst
+   - data-nav="dok": geen paginakop; logo + alle knoppen op één regel. Op een smalle gsm wijkt, in deze volgorde: de tekst
      "Blitz Planning" (al weg op `smal`, zie boven), de randen van de icoonknoppen (<= 430 px), de TEST-badge als klein label boven het logo
      (<= 400 px). Nooit een tweede regel, nooit iets verbergen, nooit horizontaal scrollen (e2e/paginakop.spec.mjs). */
 .topbar-sticky::before {
@@ -1302,25 +1302,25 @@
 }
 #paginasub { margin: 0; font-size: 13px; line-height: 1.35; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-html[data-indeling="breed"] header { height: 84px; padding: 0 26px; gap: 10px; }
-html[data-indeling="breed"] header .logo { display: none; }
-html[data-indeling="breed"] .paginakop {
+html[data-nav="kolom"] header { height: 84px; padding: 0 26px; gap: 10px; }
+html[data-nav="kolom"] header .logo { display: none; }
+html[data-nav="kolom"] .paginakop {
   display: flex; flex-direction: column; justify-content: center; gap: 3px;
   flex: 1 1 auto; min-width: 0;
 }
 /* Ronde glazen knoppen rechts (vernieuwen, thema, instellingen, avatar) */
-html[data-indeling="breed"] header .hbtn {
+html[data-nav="kolom"] header .hbtn {
   width: 40px; height: 40px; border-radius: 50%;
   background: var(--knop2); border: 1px solid var(--glas-rand); color: var(--text2);
 }
-html[data-indeling="breed"] header .hbtn:hover { background: var(--knop2-hover); color: var(--text); }
-html[data-indeling="breed"][data-aanraak="ja"] header .hbtn { width: 44px; height: 44px; }
-html[data-indeling="breed"] header .gebruiker-btn {
+html[data-nav="kolom"] header .hbtn:hover { background: var(--knop2-hover); color: var(--text); }
+html[data-nav="kolom"][data-aanraak="ja"] header .hbtn { width: 44px; height: 44px; }
+html[data-nav="kolom"] header .gebruiker-btn {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
   color: var(--accent-ink);
 }
-html[data-indeling="breed"] #test-badge { padding: 3px 10px; border-radius: var(--r-pil); }
+html[data-nav="kolom"] #test-badge { padding: 3px 10px; border-radius: var(--r-pil); }
 
 /* Gsm: wijken op een smalle kop (zie boven). Enkel randen en vulling verdwijnen; de knoppen zelf blijven (aanraken: 44 px). */
 @media (max-width: 430px) {

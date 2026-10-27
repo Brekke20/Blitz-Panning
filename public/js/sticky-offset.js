@@ -6,7 +6,7 @@
 //   --sticky-top: onderkant van kop + tabbalk + zichtbare meldingsbalken = de `top` van elke sticky balk onder de tabbladen
 //                 (.lijst-balk, .kal-header, .route-balk, .gep-week, de filterbalk van Rapporten, ...).
 //   --dok-h     : de ruimte die het dok onderaan inneemt (Open dag, taak 5): van de bovenkant van het dok (.tabs in het vaste kader nav, onderaan op
-//                 `smal` en `tablet-staand`) tot de onderkant van het scherm, dus met de marge en de veilige zone; 0 op `breed`
+//                 data-nav="dok") tot de onderkant van het scherm, dus met de marge en de veilige zone; 0 bij de zijkolom
 //                 (daar is .tabs de zijkolom). css/navigatie.css geeft de inhoud, het meldingsvak en de Route-tab die ruimte onderaan.
 //                 De tabbalk is op elk toestel `position: fixed` en telt dus niet meer mee in --topbar-h (die is nu enkel de kop).
 // Nooit een vaste top-waarde in CSS: altijd `top: var(--sticky-top, <terugval>)`. Verandert er iets aan kop, tabbalk of meldingsbalken
@@ -18,10 +18,9 @@ function hoogteVan(el) {
 
 const rond = (px) => Math.round(px * 10) / 10;
 
-// Het dok bestaat enkel op de indelingen van gsm en staande tablet (apparaat.js zet data-indeling); verborgen = 0.
+// Het dok bestaat enkel als data-nav="dok" (kern/navigatievorm.js: gsm, staande tablet en een computervenster < 768 px); verborgen = 0.
 function dokRuimte() {
-  const indeling = document.documentElement.getAttribute('data-indeling');
-  if (indeling !== 'smal' && indeling !== 'tablet-staand') return 0;
+  if (document.documentElement.getAttribute('data-nav') !== 'dok') return 0;
   const dok = document.querySelector('.tabs');
   if (!dok || getComputedStyle(dok).display === 'none') return 0;
   const r = dok.getBoundingClientRect();
@@ -57,6 +56,7 @@ function start() {
   });
   window.addEventListener('resize', zetStickyOffsets);
   window.addEventListener('apparaatwijziging', zetStickyOffsets); // rol/indeling/aanraak: tabs verschijnen of verdwijnen, de kop wisselt van hoogte
+  window.addEventListener('navigatievormwijziging', zetStickyOffsets); // zijkolom <-> dok (kern/navigatievorm.js), ook zonder indelingswissel
   window.addEventListener('load', zetStickyOffsets); // na het laden van lettertypen
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);

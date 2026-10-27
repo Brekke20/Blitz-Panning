@@ -1,10 +1,10 @@
 /* ── Navigatie (Open dag, taak 5) ──
    Eén tabbalk in de pagina: nav > .tabs > .tabs-inner[role=tablist] > .tab (dezelfde knoppen, id's, data-actie en ARIA als vroeger), in
-   twee gedaanten, enkel met CSS:
-   - `breed` (pc, liggende tablet): een zwevende glazen ZIJKOLOM links (228 px, 14 px van de randen, hoeken 30 px), bovenaan logo +
+   twee gedaanten, enkel met CSS, gekozen door `data-nav` op <html> (kern/navigatievorm.js, taak 8a / Ruling 12; los van data-indeling):
+   - `kolom` (pc en liggende tablet in een venster van minstens 768 px breed): een zwevende glazen ZIJKOLOM links (228 px, 14 px van de randen, hoeken 30 px), bovenaan logo +
      "Blitz Planning" (.zijkolom-logo), de tabs onder elkaar (icoon + naam + teller rechts), onderaan de persoonkiezer (#person-sel, die
      in de DOM in de kop blijft staan en hier enkel `position: fixed` krijgt). De pagina schuift `--zijkolom-b` naar rechts.
-   - `smal` (gsm) en `tablet-staand`: een zwevend glazen DOK onderaan (12 px van de zijkanten, boven de veilige zone), elk tabblad als
+   - `dok` (gsm, staande tablet en een computervenster smaller dan 768 px): een zwevend glazen DOK onderaan (12 px van de zijkanten, boven de veilige zone), elk tabblad als
      icoon boven een kleine naam. De inhoud krijgt onderaan --dok-h (gemeten door js/sticky-offset.js) + 24 px ruimte.
    Vast aan het scherm: `nav` (het landmark "Hoofdmenu") is het vaste kader met de maten van de kolom of het dok, .tabs is het glazen
    paneel dat het kader vult. Zo heeft het landmark zelf een echte doos (met een vaste .tabs in een lege nav was die 0 × 0 en gold het
@@ -16,7 +16,7 @@
 
 :root {
   --zijkolom-b: 256px; /* 228 px kolom + 2 × 14 px marge */
-  --dok-h: 0px;        /* js/sticky-offset.js zet de echte waarde; 0 op `breed` */
+  --dok-h: 0px;        /* js/sticky-offset.js zet de echte waarde; 0 bij de zijkolom */
 }
 
 /* ── Gemeenschappelijk ── */
@@ -57,10 +57,10 @@
 .tab.active .tab-icoon { color: var(--accent-ink); }
 
 /* Het vaste kader (nav) en het glazen paneel (.tabs). Glas enkel op .tabs, nooit op een ouder (zie boven). */
-html:is([data-indeling="breed"], [data-indeling="smal"], [data-indeling="tablet-staand"]) .topbar-sticky > nav {
+html[data-nav] .topbar-sticky > nav {
   position: fixed; z-index: 1;
 }
-html:is([data-indeling="breed"], [data-indeling="smal"], [data-indeling="tablet-staand"]) .tabs {
+html[data-nav] .tabs {
   background-color: var(--glas);
   -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
   backdrop-filter: blur(var(--blur)) saturate(180%);
@@ -69,23 +69,23 @@ html:is([data-indeling="breed"], [data-indeling="smal"], [data-indeling="tablet-
   box-shadow: inset 0 1px 0 var(--glas-licht), var(--glas-schaduw);
 }
 
-/* ── Zijkolom (breed) ── */
-html[data-indeling="breed"] body { padding-left: var(--zijkolom-b); }
-html[data-indeling="breed"] .topbar-sticky > nav { top: 14px; bottom: 14px; left: 14px; width: 228px; }
-html[data-indeling="breed"] .tabs {
+/* ── Zijkolom (data-nav="kolom") ── */
+html[data-nav="kolom"] body { padding-left: var(--zijkolom-b); }
+html[data-nav="kolom"] .topbar-sticky > nav { top: 14px; bottom: 14px; left: 14px; width: 228px; }
+html[data-nav="kolom"] .tabs {
   position: absolute; inset: 0; /* vult het kader: 228 px breed, 14 px van boven, onder en links */
   display: flex; flex-direction: column; gap: 6px;
   /* onderaan plaats voor de persoonkiezer (44 px + 12 px rand + 16 px lucht) */
   padding: 16px 12px 72px;
 }
-html[data-indeling="breed"] .zijkolom-logo {
+html[data-nav="kolom"] .zijkolom-logo {
   display: flex; align-items: center; gap: 10px; flex: none;
   padding: 0 6px 14px;
 }
-/* Eigen klassen (geen .logo-icon/.logo-text): die van de kop blijven het doel op gsm en in tests; op `breed` is het kop-logo verborgen
+/* Eigen klassen (geen .logo-icon/.logo-text): die van de kop blijven het doel op gsm en in tests; bij de zijkolom is het kop-logo verborgen
    (taak 7) en luistert het spel ook naar .zijkolom-logo-icoon. */
 .zijkolom-logo-icoon {
-  /* Ook het doel van het verborgen spel op `breed` (taak 7, app.js): snel tikken zonder dubbeltik-zoom of selectie */
+  /* Ook het doel van het verborgen spel bij de zijkolom (taak 7, app.js): snel tikken zonder dubbeltik-zoom of selectie */
   touch-action: manipulation; user-select: none; -webkit-user-select: none;
   width: 34px; height: 34px; flex: none;
   display: grid; place-items: center;
@@ -96,55 +96,55 @@ html[data-indeling="breed"] .zijkolom-logo {
   font-family: var(--font-kop); font-size: 1.125rem; font-weight: 700;
   color: var(--text); letter-spacing: -0.01em; white-space: nowrap;
 }
-html[data-indeling="breed"] .tabs-inner {
+html[data-nav="kolom"] .tabs-inner {
   flex-direction: column; gap: 3px;
   flex: 1 1 auto; min-height: 0;
   overflow-x: hidden; overflow-y: auto; /* veel tabs op een laag scherm: de kolom scrolt, de pagina niet */
 }
-html[data-indeling="breed"] .tab { flex: none; }
-html[data-indeling="breed"] .tab .badge { margin-left: auto; }
+html[data-nav="kolom"] .tab { flex: none; }
+html[data-nav="kolom"] .tab .badge { margin-left: auto; }
 
 /* De persoonkiezer onderaan in de kolom, over de volle breedte (zonder hem in de DOM te verplaatsen: hij blijft in de kop). Een inline
    display:none (verkoper zonder kiezer, sales-start.js) blijft gelden. Het menu opent rechts naast de kolom, met de onderkant gelijk:
    zo blijft het volledig zichtbaar en bedekt het geen tabbladen. */
-html[data-indeling="breed"] #person-sel {
+html[data-nav="kolom"] #person-sel {
   position: fixed; z-index: 2;
   left: 26px; bottom: 26px; width: 204px; /* 14 + 12 px van de rand, kolom 228 - 2 × 12 px binnenrand */
 }
-html[data-indeling="breed"] #person-btn {
+html[data-nav="kolom"] #person-btn {
   width: 100%; height: 44px; padding: 0 12px;
   border-radius: 16px; justify-content: flex-start;
   background: var(--knop2); border-color: var(--glas-rand);
 }
-html[data-indeling="breed"] #person-btn:hover { background: var(--knop2-hover); }
-html[data-indeling="breed"] #person-btn[data-werkruimte="sales"] { border-color: var(--accent); background: var(--accent-dim); }
-html[data-indeling="breed"] #person-name-hdr { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-html[data-indeling="breed"] .person-chevron { margin-left: auto; }
-html[data-indeling="breed"] #person-menu {
+html[data-nav="kolom"] #person-btn:hover { background: var(--knop2-hover); }
+html[data-nav="kolom"] #person-btn[data-werkruimte="sales"] { border-color: var(--accent); background: var(--accent-dim); }
+html[data-nav="kolom"] #person-name-hdr { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-nav="kolom"] .person-chevron { margin-left: auto; }
+html[data-nav="kolom"] #person-menu {
   top: auto; right: auto; bottom: 0; left: calc(100% + 26px); /* 12 px binnenrand + 14 px lucht naast de kolom */
   max-height: calc(100dvh - 28px);
 }
 
-/* ── Dok (gsm en staande tablet) ── */
-html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .topbar-sticky > nav {
+/* ── Dok (data-nav="dok": gsm, staande tablet, smal computervenster) ── */
+html[data-nav="dok"] .topbar-sticky > nav {
   left: 12px; right: 12px; bottom: calc(14px + env(safe-area-inset-bottom, 0px));
 }
-html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .tabs {
+html[data-nav="dok"] .tabs {
   display: flex; align-items: stretch; gap: 2px;
   padding: 6px; /* in de stroom van het kader: het dok is zo hoog als zijn tabs */
 }
 /* Meer dan 5 tabs: de eerste 4 + "Meer" (schermen/dok-meer.js). De overtollige tabs blijven in de DOM (klasse tab--in-meer) en staan in het blad. */
-html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .tab--in-meer { display: none; }
+html[data-nav="dok"] .tab--in-meer { display: none; }
 /* Het dok scrolt niet meer: er passen hoogstens 5 plekken. Enkel op een heel smal scherm (< 340 px) blijft een schuifbalk-loos scrollen als vangnet. */
-html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .tabs-inner {
+html[data-nav="dok"] .tabs-inner {
   flex: 1 1 0; min-width: 0;
   gap: 2px; overflow-x: auto; overflow-y: hidden;
 }
 /* Met "Meer" zijn de 4 tabs en Meer even breed (4 : 1). */
-html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .tabs:has(.dok-meer:not([hidden])) .tabs-inner { flex-grow: 4; }
-/* "Meer": opgemaakt als een dok-tab (icoon boven de naam), maar geen .tab. Verborgen zolang er niets achter zit en altijd op `breed`. */
+html[data-nav="dok"] .tabs:has(.dok-meer:not([hidden])) .tabs-inner { flex-grow: 4; }
+/* "Meer": opgemaakt als een dok-tab (icoon boven de naam), maar geen .tab. Verborgen zolang er niets achter zit en altijd bij de zijkolom. */
 .dok-meer { display: none; }
-html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .dok-meer:not([hidden]) {
+html[data-nav="dok"] .dok-meer:not([hidden]) {
   display: flex; flex: 1 1 0; min-width: 60px;
   flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   height: 56px; padding: 0 6px;
@@ -204,40 +204,40 @@ html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .dok-meer:not([
 .dok-meer-item .tab-icoon { width: 20px; height: 20px; flex: none; }
 .dok-meer-item.actief .tab-icoon { color: var(--accent-ink); }
 .dok-meer-item .badge { margin-left: auto; }
-html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .tab {
+html[data-nav="dok"] .tab {
   flex: 1 0 auto; min-width: 60px;
   flex-direction: column; justify-content: center; gap: 3px;
   height: 56px; padding: 0 6px;
   border-radius: 24px;
   font-size: 0.6875rem; /* 11 px */
 }
-html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .tab-icoon { width: 20px; height: 20px; }
+html[data-nav="dok"] .tab-icoon { width: 20px; height: 20px; }
 /* De teller hangt rechtsboven aan het icoon */
-html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .tab .badge {
+html[data-nav="dok"] .tab .badge {
   position: absolute; top: 4px; right: calc(50% - 26px);
   min-width: 18px; padding: 0 5px;
   font-size: 0.625rem; line-height: 16px;
 }
 /* Ruimte onderaan voor het dok: de inhoud, de Route-tab (die het scherm vult) en het meldingsvak blijven erboven. */
-html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) {
+html[data-nav="dok"] {
   scroll-padding-bottom: calc(var(--dok-h) + 24px); /* focus en scrollIntoView zetten niets onder het dok */
 }
-html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) main {
+html[data-nav="dok"] main {
   padding-bottom: calc(var(--dok-h) + 24px);
 }
-html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) #view-planning.active {
+html[data-nav="dok"] #view-planning.active {
   height: calc(100vh - var(--sticky-top, 93px) - var(--dok-h) - 24px);
   height: calc(100dvh - var(--sticky-top, 93px) - var(--dok-h) - 24px);
 }
-html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) #toast {
+html[data-nav="dok"] #toast {
   bottom: calc(var(--dok-h) + 12px);
 }
-html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) #spel-tik-toast {
+html[data-nav="dok"] #spel-tik-toast {
   bottom: calc(var(--dok-h) + 60px);
 }
 
 @media print {
-  html[data-indeling] .topbar-sticky > nav, html[data-indeling] #person-sel { display: none !important; }
-  html[data-indeling] body { padding-left: 0; }
-  html[data-indeling] main { padding-bottom: 0; }
+  html[data-nav] .topbar-sticky > nav, html[data-nav] #person-sel { display: none !important; }
+  html[data-nav] body { padding-left: 0; }
+  html[data-nav] main { padding-bottom: 0; }
 }

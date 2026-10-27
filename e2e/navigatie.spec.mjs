@@ -158,6 +158,42 @@ test('wisselen zonder herladen (Review Focus 2)', async ({ page }) => {
   await verwachtZijkolom(page, { hoogte: PC.height });
 });
 
+// Taak 8a (Ruling 12): de navigatievorm hangt niet enkel aan het toestel. Een computervenster smaller dan 768 px krijgt het dok
+// (data-nav="dok"), terwijl de indeling `breed` blijft (Route en de andere schermen hangen daaraan).
+test('smal computervenster: dok onderaan, geen zijkolom (Ruling 12)', async ({ page }) => {
+  await zetWeergave(page, 'computer');
+  await startApp(page, { viewport: GSM });
+  await expect(page.locator('html')).toHaveAttribute('data-indeling', 'breed');
+  await expect(page.locator('html')).toHaveAttribute('data-nav', 'dok');
+  await verwachtDok(page, { hoogte: GSM.height });
+  await expect.poll(() => dokH(page)).toBeGreaterThan(40);
+  expect(await page.evaluate(() => parseFloat(getComputedStyle(document.body).paddingLeft))).toBe(0);
+  expect((await page.locator('.view.active').boundingBox()).x).toBeLessThan(20);
+  // de kop is die van het dok: logo zichtbaar, geen paginakop; de tabbalk is horizontaal
+  await expect(page.locator('header .logo-icon')).toBeVisible();
+  await expect(page.locator('.paginakop')).toBeHidden();
+  await expect(page.locator('.tabs-inner')).not.toHaveAttribute('aria-orientation', 'vertical');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+});
+
+test('breder en smaller venster wisselt kolom en dok zonder weergavewissel (Ruling 12)', async ({ page }) => {
+  await zetWeergave(page, 'computer');
+  await startApp(page, { viewport: PC });
+  await expect(page.locator('html')).toHaveAttribute('data-nav', 'kolom');
+  await expect(page.locator('.tabs-inner')).toHaveAttribute('aria-orientation', 'vertical');
+  await page.setViewportSize({ width: 700, height: 768 });
+  await expect(page.locator('html')).toHaveAttribute('data-nav', 'dok');
+  await expect(page.locator('html')).toHaveAttribute('data-indeling', 'breed');
+  await expect.poll(() => dokH(page)).toBeGreaterThan(40);
+  await verwachtDok(page, { hoogte: 768 });
+  await expect(page.locator('.tabs-inner')).not.toHaveAttribute('aria-orientation', 'vertical');
+  await page.setViewportSize(PC);
+  await expect(page.locator('html')).toHaveAttribute('data-nav', 'kolom');
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--dok-h').trim())).toBe('0px');
+  await verwachtZijkolom(page, { hoogte: PC.height });
+  await expect(page.locator('.tabs-inner')).toHaveAttribute('aria-orientation', 'vertical');
+});
+
 test.describe('elke rol ziet dezelfde tabbladen als voorheen', () => {
   // De lijsten uit schermen/rol-schil.js (registreerTabs) en sales-registratie.js (SALES_TABS), in die volgorde; een computer toont ze allemaal.
   const TECHNIEK = ['tab-tickets', 'tab-kalender', 'tab-planning', 'tab-gepland', 'tab-inventaris', 'tab-rapporten', 'tab-beheer'];

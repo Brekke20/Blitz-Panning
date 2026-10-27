@@ -1,10 +1,10 @@
 // schermen/dok-meer.js — "Meer" in het dok (Open dag, taak 6).
-// Op `smal` (gsm) en `tablet-staand` staat de tabbalk als dok onderaan. Zijn er meer dan 5 zichtbare tabs, dan blijven de eerste 4 in het
+// Op data-nav="dok" (gsm, staande tablet, smal computervenster; kern/navigatievorm.js) staat de tabbalk als dok onderaan. Zijn er meer dan 5 zichtbare tabs, dan blijven de eerste 4 in het
 // dok en gaat de rest achter "Meer" (.dok-meer): een knop die een glazen blad (#dok-meer-overlay) opent met een knop per overig tabblad.
 // - De echte .tab-knoppen blijven in .tabs-inner staan (geen verplaatsing, geen kopie met dezelfde id): de overtollige krijgen enkel de
 //   klasse `tab--in-meer` (css/navigatie.css verbergt ze in het dok); de bladknoppen klikken `#tab-<id>` door.
 // - .dok-meer is geen .tab en staat buiten .tabs-inner: de app-schil telt `.tab.active` en loopt met de pijltjestoetsen over de .tab-knoppen.
-// - Op `breed` (zijkolom) gebeurt er niets: geen klasse, Meer blijft verborgen.
+// - Bij de zijkolom (data-nav="kolom") gebeurt er niets: geen klasse, Meer blijft verborgen.
 // De verdeling zelf is puur (dok-meer-logica.js). Herberekend bij elke wijziging van de tabs (hidden, class: ook een rolwissel of de
 // werkruimtewissel van de beheerder in rol-schil.js), van de indeling/rol op <html> en bij `apparaatwijziging`.
 // De labels komen uit de DOM (textContent) en worden met textContent gezet; het icoon is een vaste constante uit kern/tab-iconen.js.
@@ -13,7 +13,6 @@ import { registreerVenster } from '../venster.js';
 import { registreerBackdrop } from '../kern/ui.js';
 import { tabIcoonSvg } from '../kern/tab-iconen.js';
 
-const DOK_INDELINGEN = new Set(['smal', 'tablet-staand']);
 const MAX_IN_DOK = 5;
 
 let balk = null;     // .tabs-inner
@@ -83,7 +82,7 @@ function herbereken() {
   if (!balk || !meerKnop) return;
   const alle = [...balk.querySelectorAll('.tab')];
   for (const t of alle) t.classList.remove('tab--in-meer');
-  const dok = DOK_INDELINGEN.has(document.documentElement.getAttribute('data-indeling'));
+  const dok = document.documentElement.getAttribute('data-nav') === 'dok';
   const zichtbaar = dok ? alle.filter(t => !t.hidden && t.offsetParent !== null) : [];
   const actief = zichtbaar.find(t => t.classList.contains('active'));
   const { inMeer, meerActief } = dokVerdeling(zichtbaar.map(t => t.id), actief ? actief.id : null, MAX_IN_DOK);
@@ -134,9 +133,9 @@ export function initDokMeer() {
 
   waarnemer = new MutationObserver(plan);
   waarnemer.observe(balk, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] });
-  // Indeling, rol en schil staan op <html>: een rolwissel of het vrijgeven van de schil verandert wat zichtbaar is zonder dat een tab wijzigt.
+  // Navigatievorm, indeling, rol en schil staan op <html>: een rolwissel of het vrijgeven van de schil verandert wat zichtbaar is zonder dat een tab wijzigt.
   new MutationObserver(plan).observe(document.documentElement, {
-    attributes: true, attributeFilter: ['data-indeling', 'data-rol', 'data-plan-eigen', 'data-schil'],
+    attributes: true, attributeFilter: ['data-nav', 'data-indeling', 'data-rol', 'data-plan-eigen', 'data-schil'],
   });
   window.addEventListener('apparaatwijziging', plan);
   window.addEventListener('resize', plan); // de zichtbaarheid (offsetParent) kan met de breedte wisselen

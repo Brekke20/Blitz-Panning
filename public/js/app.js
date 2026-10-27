@@ -908,15 +908,16 @@ function verversNaTerugkeer() {
 // TABS
 // ══════════════════════════════════════════════
 // Pijltjestoetsen in de tabbalk (roving tabindex): alleen zichtbare tabs tellen (coord-only kan verborgen zijn).
-// Op `breed` staan de tabs onder elkaar in de zijkolom (Open dag): aria-orientation="vertical" en ook pijl omhoog/omlaag; links/rechts blijven werken.
+// In de zijkolom (data-nav="kolom", kern/navigatievorm.js) staan de tabs onder elkaar (Open dag): aria-orientation="vertical" en ook pijl
+// omhoog/omlaag; links/rechts blijven werken.
 function zetTabOrientatie() {
   const balk = document.querySelector('.tabs-inner');
   if (!balk) return;
-  if (document.documentElement.getAttribute('data-indeling') === 'breed') balk.setAttribute('aria-orientation', 'vertical');
+  if (document.documentElement.getAttribute('data-nav') === 'kolom') balk.setAttribute('aria-orientation', 'vertical');
   else balk.removeAttribute('aria-orientation');
 }
 zetTabOrientatie();
-window.addEventListener('apparaatwijziging', zetTabOrientatie); // apparaat.js: ook bij een handmatige weergavewissel
+window.addEventListener('navigatievormwijziging', zetTabOrientatie); // zijkolom <-> dok: weergavewissel of een breder/smaller venster
 document.querySelector('.tabs-inner')?.addEventListener('keydown', e => {
   const verticaal = e.currentTarget.getAttribute('aria-orientation') === 'vertical';
   const vooruit = e.key === 'ArrowRight' || (verticaal && e.key === 'ArrowDown');
