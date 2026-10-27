@@ -154,34 +154,37 @@ test.describe('versiering op de computer', () => {
     expect(await bovenaanOpDoel(page, '#event-laag .ev-kruip', '#view-tickets .ticket .tsub')).toBe('deco');
   });
 
-  test('helder glas (variant B): glasrand, lichtrand bovenaan en zachte tekstschaduw; de rode balk van een verlopen ticket blijft', async ({ page }) => {
+  test('glas is algemeen: glasrand en lichtrand uit de tokens, een verlopen ticket gloeit rood, geen tekstschaduw en geen linkerbalk meer', async ({ page }) => {
+    // Open dag (v2.5.0): glas is algemeen, waarden uit base.css (was: themaglas variant B met een eigen rand, lichtrand en tekstschaduw)
     await startApp(page, { query: AAN });
     await expect(page.locator('html')).toHaveAttribute('data-event-achtergrond', 'ja');
     await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; }' });
-    const lees = () => page.locator('#view-tickets .ticket.overdue').first().evaluate((el) => {
-      const cs = getComputedStyle(el);
-      return { rand: cs.borderTopColor, randLinks: cs.borderLeftColor, breedte: cs.borderTopWidth, schaduw: cs.boxShadow, tekst: cs.textShadow, balk: getComputedStyle(el, '::before').backgroundColor };
+    // Een gewone rij zonder urgentie toont de glasrand zelf; het verlopen ticket de gloed
+    await page.evaluate(() => { const n = document.createElement('div'); n.className = 'inv-row'; n.id = 'proef-rij'; n.textContent = 'gewoon'; document.getElementById('view-inventaris').appendChild(n); });
+    const lees = () => page.evaluate(() => {
+      const kaart = document.querySelector('#view-tickets .ticket.overdue');
+      const cs = getComputedStyle(kaart);
+      const gewoon = getComputedStyle(document.getElementById('proef-rij'));
+      return { gloedRand: cs.borderTopColor, breedte: cs.borderTopWidth, tekst: cs.textShadow, balk: getComputedStyle(kaart, '::before').content, rand: gewoon.borderTopColor, randLinks: gewoon.borderLeftColor, lichtrand: gewoon.boxShadow };
     });
     const donker = await lees();
-    expect(donker.rand).toBe('rgba(255, 255, 255, 0.18)');
-    expect(donker.randLinks).toBe('rgba(255, 255, 255, 0.18)');
+    expect(donker.rand).toBe('rgba(255, 255, 255, 0.14)'); // --glas-rand (donker)
+    expect(donker.randLinks).toBe('rgba(255, 255, 255, 0.14)');
     expect(donker.breedte).toBe('1px');
-    expect(donker.schaduw).toBe('rgba(255, 255, 255, 0.12) 0px 1px 0px 0px inset');
-    expect(donker.tekst).toMatch(/0px 0px 6px$/);
-    expect(donker.balk).toBe('rgb(255, 90, 82)'); // de verlopen-balk (::before) houdt de gewone --red
+    expect(donker.lichtrand).toContain('rgba(255, 255, 255, 0.16) 0px 1px 0px 0px inset'); // --glas-licht (donker)
+    expect(donker.gloedRand).toMatch(/^color\(srgb 1 0\.35\d* 0\.32\d* \/ 0\.55\)$/); // --red aan 55 %: de gloed langs de omtrek
+    expect(donker.tekst).toBe('none');
+    expect(donker.balk).toBe('none');
     await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
     const licht = await lees();
-    expect(licht.rand).toBe('rgba(255, 255, 255, 0.6)');
-    expect(licht.schaduw).toBe('rgba(255, 255, 255, 0.12) 0px 1px 0px 0px inset');
-    // Zonder thema met achtergrond verandert er niets: de gewone rand en geen schaduw
+    expect(licht.rand).toBe('rgba(255, 255, 255, 0.85)'); // --glas-rand (licht)
+    expect(licht.lichtrand).toContain('rgba(255, 255, 255, 0.95) 0px 1px 0px 0px inset');
+    // Zonder thema met achtergrond precies hetzelfde glas (het is niet meer themaspecifiek)
     await page.evaluate(() => document.documentElement.removeAttribute('data-event-achtergrond'));
-    const zonder = await lees();
-    expect(zonder.rand).not.toContain('255, 255, 255');
-    expect(zonder.schaduw).toBe('none');
-    expect(zonder.tekst).toBe('none');
+    expect(await lees()).toEqual(licht);
   });
 
-  test('statuskleuren blijven tijdens een thema: de verlopen-balk en de labels "Verlopen" en "Hoog" houden de gewone --red, in donker en licht', async ({ page }) => {
+  test('statuskleuren blijven tijdens een thema: de gloed van een verlopen ticket en de labels "Verlopen" en "Hoog" houden de gewone --red, in donker en licht', async ({ page }) => {
     await startApp(page, { query: AAN });
     await expect(page.locator('html')).toHaveAttribute('data-event-achtergrond', 'ja');
     await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; }' });
@@ -193,12 +196,13 @@ test.describe('versiering op de computer', () => {
       const stag = kaart.querySelector('.stag:not(.pending):not(.confirmed)');
       const hoog = document.querySelector('#view-tickets .prtag.high');
       const kleur = (el, pseudo) => getComputedStyle(el, pseudo).color;
-      return { balk: getComputedStyle(kaart, '::before').backgroundColor, verlopen: kleur(stag), hoog: kleur(hoog) };
+      // Open dag (v2.5.0): de rode balk is een gloed geworden; --gloed-kleur van de kaart is de gewone --red
+      return { gloed: getComputedStyle(kaart).getPropertyValue('--gloed-kleur').trim(), verlopen: kleur(stag), hoog: kleur(hoog) };
     });
-    for (const [thema, rood] of [['dark', 'rgb(255, 90, 82)'], ['light', 'rgb(200, 30, 30)']]) {
+    for (const [thema, rood, hex] of [['dark', 'rgb(255, 90, 82)', '#ff5a52'], ['light', 'rgb(200, 30, 30)', '#c81e1e']]) {
       await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), thema);
       const metThema = await lees();
-      expect(metThema, `${thema}: gewone --red`).toEqual({ balk: rood, verlopen: rood, hoog: rood });
+      expect(metThema, `${thema}: gewone --red`).toEqual({ gloed: hex, verlopen: rood, hoog: rood });
       // Zonder het thema met achtergrond precies dezelfde kleuren
       await page.evaluate(() => document.documentElement.removeAttribute('data-event-achtergrond'));
       expect(await lees(), `${thema}: zelfde kleuren zonder thema`).toEqual(metThema);
@@ -219,12 +223,13 @@ test.describe('versiering op de computer', () => {
       const cs = (el) => getComputedStyle(el);
       return { laag: cs(r).backgroundImage, gewoon: cs(n).backgroundImage, blur: cs(r).backdropFilter, randLaag: cs(r).borderTopColor, randGewoon: cs(n).borderTopColor };
     });
-    expect(rij.laag).toMatch(/linear-gradient\(rgba\(255, 90, 82, 0\.1\)/); // --red-dim blijft als tint over het glas
-    expect(rij.gewoon).not.toMatch(/255, 90, 82/);
+    // Open dag (v2.5.0): lage voorraad gloeit rood (een tint van --red linksboven en een rode rand aan 55 %); een gewone rij blijft glas
+    expect(rij.laag).toMatch(/^linear-gradient\(135deg, color\(srgb 1 0\.35\d* 0\.32\d* \/ 0\.1\)/);
+    expect(rij.gewoon).toBe('none');
     expect(rij.blur).toContain('blur(');
-    // De glasrand (taak 9d) wint niet van de rode rand van lage voorraad
-    expect(rij.randGewoon).toBe('rgba(255, 255, 255, 0.18)');
-    expect(rij.randLaag).toBe('rgb(255, 90, 82)'); // de rand van lage voorraad houdt de gewone --red
+    // De glasrand wint niet van de rode rand van lage voorraad
+    expect(rij.randGewoon).toBe('rgba(255, 255, 255, 0.14)');
+    expect(rij.randLaag).toMatch(/^color\(srgb 1 0\.35\d* 0\.32\d* \/ 0\.55\)$/);
     // Vandaag in de maandweergave behoudt zijn tint; de andere maand blijft gedimd
     await page.locator('#tab-kalender').click();
     await page.getByRole('button', { name: 'Maand', exact: true }).click();
@@ -462,7 +467,17 @@ async function wachtOpStilstand(page, locator) {
 
 // Alle kaarten van `sel` meten: één foto voor de kaarten die al volledig zichtbaar zijn, daarna de rest één voor één in beeld
 // geschoven. Per kaart en tekst: het slechtste contrast tegen het gemiddelde en tegen de helderste en donkerste vlek.
+// De glaswaarden zoals base.css ze nu voor dit toestel en thema geeft (--glas, --glas-hover, --blur op <html>).
+async function leesGlasTokens(page) {
+  return page.evaluate(() => {
+    const cs = getComputedStyle(document.documentElement);
+    const alpha = (v) => { const m = v.match(/rgba?\(([^)]*)\)/)[1].split(',').map((x) => parseFloat(x)); return m.length > 3 ? m[3] : 1; };
+    return { alpha: alpha(cs.getPropertyValue('--glas')), alphaHover: alpha(cs.getPropertyValue('--glas-hover')), blur: cs.getPropertyValue('--blur').trim() };
+  });
+}
+
 async function controleerKaarten(page, sel, label, slechtste) {
+  const glas = await leesGlasTokens(page);
   const gedaan = new Set();
   let aantal = 0;
   for (let ronde = 0; ronde < 40; ronde++) {
@@ -485,9 +500,10 @@ async function controleerKaarten(page, sel, label, slechtste) {
     const beeld = await fotoAchtergrond(page, sel);
     for (const k of nu) {
       gedaan.add(k.nr);
-      // helder glas: 60 % kaartkleur, met 6 px vervaging
-      expect(k.kaart[3], `${label} ${k.naam}`).toBeCloseTo(0.6, 2);
-      expect(k.blur).toBe('blur(6px)');
+      // Open dag (v2.5.0): glas is algemeen, waarden uit base.css (--glas en --blur van dit toestel en thema; de kaart zelf is
+      // --glas, bij hover --glas-hover)
+      expect(k.kaart[3], `${label} ${k.naam}`).toBeCloseTo(glas.alpha, 2);
+      expect(k.blur).toContain(`blur(${glas.blur})`);
       expect(k.teksten.length).toBeGreaterThanOrEqual(2);
       const t0 = [0, 0, 0];
       let n = 0;
@@ -502,7 +518,7 @@ async function controleerKaarten(page, sel, label, slechtste) {
       await page.mouse.move(k.vak.x + k.vak.w / 2, k.vak.y + k.vak.h / 2);
       const zweef = (await meetKaarten(page, sel))[k.nr];
       await page.mouse.move(0, 0);
-      expect(zweef.kaart[3], `${label} ${k.naam} (hover)`).toBeCloseTo(0.6, 2);
+      expect(zweef.kaart[3], `${label} ${k.naam} (hover)`).toBeCloseTo(glas.alphaHover, 2);
       for (const [stand, kaart, teksten] of [['', k.kaart, k.teksten], [' (hover)', zweef.kaart, zweef.teksten]]) {
         for (const t of teksten) {
           for (const [soort, onder] of [['gemiddelde', gemiddeld], ['helderste vlek', vlek.helder], ['donkerste vlek', vlek.donker]]) {
@@ -594,8 +610,8 @@ test.describe('versiering op een telefoon (aanraak, smal)', () => {
     await expect(page.locator('html')).toHaveAttribute('data-event-sober', 'ja');
     // Alle animaties in de lagen: geen enkele loopt
     expect(await page.evaluate(() => document.getAnimations().filter(a => a.effect?.target?.closest?.('#event-laag, #event-achter-laag')).length)).toBe(0);
-    // Sober: dezelfde 6 px vervaging als op de computer (variant B, taak 9d: nooit meer dan 6 px)
-    await expect(page.locator('#view-tickets .ticket').first()).toHaveCSS('backdrop-filter', 'blur(6px)');
+    // Open dag (v2.5.0): glas is algemeen; op een telefoon minder vervaging (10 px, --blur in base.css; taak 10 mag dit terugnemen)
+    expect(await page.locator('#view-tickets .ticket').first().evaluate((el) => getComputedStyle(el).backdropFilter)).toContain('blur(10px)');
   });
 });
 
@@ -646,7 +662,10 @@ test.describe('achtergrondscène en thema tijdens het evenement', () => {
     const modal = await openToestel(page);
     await modal.getByLabel('Versiering tonen tijdens feestperiodes').uncheck();
     await expect(achter(page)).toHaveCount(0);
-    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+    // Open dag (v2.5.0): de body is altijd doorzichtig (de hemel erachter); "weer gewoon gevuld" is nu: de hemel staat terug
+    // (#hemel zichtbaar) en <html> heeft de effen achtergrondkleur
+    await expect(page.locator('#hemel')).not.toHaveCSS('display', 'none');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
   });
 
   test('na het einde van het evenement verdwijnt de scène (minuutcontrole)', async ({ page }) => {

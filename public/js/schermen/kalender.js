@@ -492,6 +492,7 @@ export function renderKalender() {
     noInterventieDatum.forEach(t => {
       const card = document.createElement('div');
       card.className = 'ticket';
+      card.dataset.urgentie = 'oranje'; // wacht op bevestiging: oranje gloed (Open dag-stijl)
       card.style.cssText = 'cursor:pointer';
       card.innerHTML = `<div class="t-body">
         <div class="t-top"><span class="tnum">#${escHtml(t.number)}</span><span class="stag pending">Wacht bevestiging</span>${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}</div>

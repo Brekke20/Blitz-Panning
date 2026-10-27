@@ -128,27 +128,14 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
   :root[data-theme="light"] #event-achtergrond { opacity: var(--ev-dekking-licht, 0.2); }
 }
 
-/* Achtergrond altijd zichtbaar, ticketkaarten als mat glas (Brent, 2026-10-22). Enkel met een thema MET achtergrond
-   (data-event-achtergrond="ja", gezet door de laag); zonder thema of zonder achtergrond verandert er niets. De inhoudsvlakken van de
-   tabbladen (wachtrij, kalender, route, ingepland, inventaris, rapporten, beschikbaarheden, en bij sales de kolommen en de
-   routelijst) worden doorzichtig; de bovenbalk, de tabbalk, de vaste balken van de schermen en vensters (modals) blijven effen.
-   Kaarten in de lijsten: half doorschijnend in hun eigen kleur (--ev-kaart) met vervaging; een toestandstint (--ev-tint, bv. lage
-   voorraad) ligt er doorschijnend bovenop. Het glas is op alle toestellen gelijk (60 %, 6 px); zonder backdrop-filter of met verminderde
-   transparantie bijna effen (--ev-glas-vast).
-   Taak 9d (keuze opdrachtgever 2026-10-23: variant B, helder glas): 60 % kaartkleur in beide thema's, 6 px vervaging (op alle toestellen
-   gelijk), een fijne glasrand (wit aan 18 % in donker, aan 60 % in licht) met een lichtrand bovenaan (inset), en een zachte
-   tekstschaduw in de kaartkleur (60 %, 6 px) als extra marge voor de leesbaarheid. Zonder backdrop-filter of met verminderde
-   transparantie ongewijzigd 94 %. Op de kaarten in het donkere thema lichtere grijze tekst en lichter losse rode tekst, in het lichte thema donkerdere; de statuskleuren (--red) blijven.
-   Contrast: elke tekstkleur op een kaart haalt 4,5:1 over wat ECHT achter de kaart ligt: e2e/versiering.spec.mjs meet voor de negen
-   thema's, in donker en licht, op 1366x768, 1024x768, 375x812 en 768x1024, het gemiddelde van de achtergrond in het kaartvlak, de
-   helderste en de donkerste vlek na vervaging, met de kaartkleur aan 60 % erover. */
+/* Achtergrond altijd zichtbaar (Brent, 2026-10-22). Enkel met een thema MET achtergrond (data-event-achtergrond="ja", gezet door de
+   laag); zonder thema of zonder achtergrond verandert er niets. De inhoudsvlakken van de tabbladen (wachtrij, kalender, route,
+   ingepland, inventaris, rapporten, beschikbaarheden, en bij sales de kolommen en de routelijst) worden doorzichtig; de bovenbalk,
+   de tabbalk, de vaste balken van de schermen en vensters (modals) blijven effen.
+   Open dag (v2.5.0): het glas van de kaarten en rijen (.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-*) is niet
+   meer themaspecifiek maar algemeen: één regel in app.css met de tokens uit base.css (kaartkleur, vervaging, rand, gloed, en de
+   lichtere of donkerdere tekst op de kaarten). Hier blijft enkel wat bij een thema met achtergrond hoort: de doorzichtige vlakken. */
 @media screen {
-  :root[data-event][data-event-achtergrond="ja"] {
-    --ev-glas-normaal: 60%; --ev-glas-vast: 94%; --ev-glas-blur: 6px;
-    --ev-glas-alpha: var(--ev-glas-normaal);
-    --ev-glas-rand: rgba(255, 255, 255, 0.18);
-  }
-  :root[data-event][data-event-achtergrond="ja"][data-theme="light"] { --ev-glas-rand: rgba(255, 255, 255, 0.6); }
   /* Inhoudsvlakken die de achtergrond anders (deels) verbergen; toestanden behouden een doorschijnende tint */
   /* (de id staat apart: in :is() zou ze de specificiteit van alle klassen optillen en de toestandstinten hieronder wissen) */
   :root[data-event][data-event-achtergrond="ja"] :is(.view, .day-body, .month-cell, .sales-route-lijstvak, .sales-kolom) { background: transparent; }
@@ -157,55 +144,6 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
   :root[data-event][data-event-achtergrond="ja"] .month-cell.other-month { background: color-mix(in srgb, var(--bg) 50%, transparent); }
   :root[data-event][data-event-achtergrond="ja"] .day-body.blocked-day { background: repeating-linear-gradient(135deg, transparent, transparent 8px, color-mix(in srgb, var(--red) 6%, transparent) 8px, color-mix(in srgb, var(--red) 6%, transparent) 16px); }
   :root[data-event][data-event-achtergrond="ja"] .day-body.holiday-day { background: repeating-linear-gradient(135deg, transparent, transparent 8px, rgba(251, 191, 36, 0.08) 8px, rgba(251, 191, 36, 0.08) 16px); }
-  /* Kaarten: mat glas in hun eigen kleur, met de toestandstint erboven */
-  :root[data-event][data-event-achtergrond="ja"] :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
-    --ev-kaart: var(--surface);
-    --ev-tint: transparent;
-    background: linear-gradient(var(--ev-tint), var(--ev-tint)), color-mix(in srgb, var(--ev-kaart) var(--ev-glas-alpha), transparent);
-    -webkit-backdrop-filter: blur(var(--ev-glas-blur));
-    backdrop-filter: blur(var(--ev-glas-blur));
-    text-shadow: 0 0 6px color-mix(in srgb, var(--ev-kaart) 60%, transparent);
-  }
-  /* Glasrand en lichtrand bovenaan, met de lage specificiteit van de kaartklasse zelf (:where rond de root): de gewone regel
-     (.ticket, .inv-row ...) verliest door de volgorde, maar elke toestand wint nog (hover, .inv-row.inv-low rood,
-     .stop.sorteer-actief, de linkerranden uit sales.css dat later laadt). De gekleurde balken (verlopen, status) zijn ::before. */
-  :where(:root[data-event][data-event-achtergrond="ja"]) :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
-    border-color: var(--ev-glas-rand);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  }
-  :root[data-event][data-event-achtergrond="ja"] :is(.ticket:hover, .cal-ticket:hover, .cal-local-event:hover, .stop, .sales-kaart:hover, .sales-afgewerkt-rij:hover, .sales-afgewerkt-kaart) { --ev-kaart: var(--surface2); }
-  :root[data-event][data-event-achtergrond="ja"] .stop:hover { --ev-kaart: var(--surface3); }
-  :root[data-event][data-event-achtergrond="ja"] .ticket.overdue { --ev-kaart: color-mix(in srgb, var(--red) 3%, var(--bg)); }
-  :root[data-event][data-event-achtergrond="ja"] .ticket.overdue:hover { --ev-kaart: color-mix(in srgb, var(--red) 6%, var(--bg)); }
-  :root[data-event][data-event-achtergrond="ja"] .inv-row.inv-low { --ev-tint: var(--red-dim); }
-  :root[data-event][data-event-achtergrond="ja"] .inv-row.inv-bijna { --ev-tint: var(--orange-dim); }
-  /* Donker thema: lichtere tekst op de kaarten. Bij 60 % glas kan een kaart over de maan liggen (Halloween, kalender op 1024 breed:
-     vervaagd rgb(205,198,184)); beslissing controller 2026-10-23: de scène blijft, de tekst wordt lichter, zodat elke tekstkleur
-     4,5:1 haalt boven de helderste vlek ERGENS in de kaart. Hoofdtekst bijna wit, secundaire tekst net iets grijzer (hiërarchie).
-     --red blijft ongemoeid (de verlopen-balk, de randen, de labels "Verlopen" en "Hoog" houden de gewone statuskleur, ook tijdens een
-     thema); enkel de losse rode tekst (geen adres, lage voorraad) krijgt een eigen licht rozerood (#ffdcd7), het lichtste rood dat
-     nog als rood leest en 4,5:1 haalt. */
-  :root[data-event][data-event-achtergrond="ja"]:not([data-theme="light"]) :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
-    --text: #f5f7f9; --text2: #e6eaef; --muted: #e6eaef;
-    color: var(--text); /* tekst zonder eigen kleur erft anders de --text van body */
-  }
-  :root[data-event][data-event-achtergrond="ja"]:not([data-theme="light"]) :is(.taddr.miss, .cal-addr.miss, .inv-row.inv-low .inv-row-aantal) { color: #ffdcd7; }
-  /* Idem voor het oranje van "bijna op" (meldgrens, v2.4.0): licht amber in donker, donker oranje in licht. */
-  :root[data-event][data-event-achtergrond="ja"]:not([data-theme="light"]) .inv-row.inv-bijna .inv-row-aantal { color: #ffe3b3; }
-  /* Licht thema: donkerdere secundaire tekst op de kaarten (4,5:1 ook boven de donkerste kleur van een lichte achtergrond, ook op de
-     iets grijzere kaart van een verlopen ticket, ook bij hover, en boven een rode kerstbal die op een gsm achter de eerste kaart
-     hangt: #3d4652). Ook hier blijft --red ongemoeid; enkel de losse rode tekst krijgt een donkerder rood (#8c1111, nog steeds rood). */
-  :root[data-event][data-event-achtergrond="ja"][data-theme="light"] :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
-    --text2: #3d4652; --muted: #3d4652;
-  }
-  :root[data-event][data-event-achtergrond="ja"][data-theme="light"] :is(.taddr.miss, .cal-addr.miss, .inv-row.inv-low .inv-row-aantal) { color: #8c1111; }
-  :root[data-event][data-event-achtergrond="ja"][data-theme="light"] .inv-row.inv-bijna .inv-row-aantal { color: #6e3400; }
-  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    :root[data-event][data-event-achtergrond="ja"] { --ev-glas-alpha: var(--ev-glas-vast); }
-  }
-}
-@media screen and (prefers-reduced-transparency: reduce) {
-  :root[data-event][data-event-achtergrond="ja"] { --ev-glas-alpha: var(--ev-glas-vast); }
 }
 
 /* Nooit in print of in een PDF */

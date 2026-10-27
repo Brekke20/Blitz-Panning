@@ -21,24 +21,12 @@
   gap: 6px;
 }
 
+/* Glas, rand en gloed (rood onder de meldgrens, oranje bijna op) komen uit de gedeelde kaartregel in app.css */
 .inv-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  background: var(--surface);
-}
-
-.inv-row.inv-low {
-  border-color: var(--red);
-  background: var(--red-dim);
-}
-/* Onder de meldgrens maar nog niet op (v2.4.0) */
-.inv-row.inv-bijna {
-  border-color: var(--orange);
-  background: var(--orange-dim);
 }
 
 .inv-row[hidden] { display: none; }

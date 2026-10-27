@@ -63,6 +63,7 @@ export function renderGepland() {
     byDate[key].forEach(t => {
       const card = document.createElement('div');
       card.className = 'ticket';
+      card.dataset.urgentie = 'groen'; // ingepland = bevestigd: groene gloed (Open dag-stijl)
       card.style.cursor = 'pointer';
       const meta = [escHtml(t.account || t.naamEindklant), escHtml(t.assignee)].filter(Boolean).join(' · ');
       // Fix (UX-ronde 2026-09-22, snelle winst): tijdstip toevoegen, zelfde weergave als de

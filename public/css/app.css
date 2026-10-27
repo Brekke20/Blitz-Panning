@@ -234,41 +234,66 @@
     html[data-indeling="smal"] .wq-zoek { flex-basis: 120px; }
     html[data-indeling="smal"] .wq-sorteer { max-width: 132px; }
     html[data-aanraak="ja"] .wq-zoek, html[data-aanraak="ja"] .wq-sorteer { min-height: 44px; font-size: 16px; }
-    .ticket {
+    /* ── Open dag-stijl: glazen kaarten met gloeiende omtrek ──
+       ÉÉN regel voor alle kaarten en rijen in lijsten (wachtrij, kalender, route, inventaris, sales; ook tijdens een thema, zie
+       evenement.css): halfdoorschijnende kaartkleur + vervaging (tokens uit base.css), fijne lichte rand, lichtrand bovenaan.
+       Urgentie = een gloed langs de omtrek in de kleur van de status: --gloed-kleur (vol) en --gloed (doorschijnend), gezet per
+       urgentie hieronder. Rood = verlopen of hoog, oranje = middel of wacht op bevestiging, groen = laag of bevestigd, paars = eigen
+       afspraak. De statuskleuren (--red, ...) worden nergens overschreven. Geen linkerbalk meer, geen hover-sprong: enkel de kleur vervaagt. */
+    :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
       position: relative;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--r);
-      padding: 13px 15px;
-      margin-bottom: 6px;
+      background-color: var(--glas);
+      background-image: var(--gloed-beeld, none);
+      -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
+      backdrop-filter: blur(var(--blur)) saturate(180%);
+      border: 1px solid var(--rand-kleur, var(--glas-rand));
+      border-radius: var(--r-kaart);
+      box-shadow: inset 0 1px 0 var(--glas-licht), var(--gloed-schaduw, 0 0 0 transparent), var(--glas-schaduw);
+      transition: background-color var(--duur) ease, border-color var(--duur) ease, box-shadow calc(var(--duur) * 1.5) ease;
+    }
+    /* Compacte kaarten (kalenderafspraken, voorraadrijen): kleinere hoek, zonder de brede schaduw van een lijstkaart */
+    :is(.cal-ticket, .cal-local-event, .inv-row) { border-radius: var(--r-ev); box-shadow: inset 0 1px 0 var(--glas-licht), var(--gloed-schaduw, 0 0 0 transparent); }
+    :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart):hover {
+      background-color: var(--glas-hover); --rand-kleur: var(--glas-rand-hover);
+    }
+    /* Urgentie: de kleur komt van data-urgentie (gezet bij het renderen) of van een klasse die de status al draagt */
+    :is([data-urgentie="rood"], .ticket.overdue, .inv-row.inv-low)               { --gloed-kleur: var(--red);    --gloed: var(--gloed-rood); }
+    :is([data-urgentie="oranje"], .cal-ticket.pending, .inv-row.inv-bijna, .stop.sales-voorgesteld) { --gloed-kleur: var(--orange); --gloed: var(--gloed-oranje); }
+    :is([data-urgentie="groen"], .cal-ticket.confirmed, .stop.sales-bevestigd)   { --gloed-kleur: var(--green);  --gloed: var(--gloed-groen); }
+    :is([data-urgentie="paars"], .cal-local-event)                               { --gloed-kleur: var(--purple); --gloed: var(--gloed-paars); }
+    /* Het omtrekrecept (mockup: [data-gloed="omtrek"] .gloeit): lichte tint linksboven, schijn naar binnen en buiten, gloeiende rand */
+    :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row):is([data-urgentie], .ticket.overdue, .cal-ticket.pending, .cal-ticket.confirmed, .cal-local-event, .inv-row.inv-low, .inv-row.inv-bijna, .stop.sales-voorgesteld, .stop.sales-bevestigd) {
+      --gloed-beeld: linear-gradient(135deg, color-mix(in srgb, var(--gloed-kleur) 10%, transparent), transparent 55%);
+      --gloed-schaduw: 0 0 24px -6px var(--gloed), inset 0 0 20px -8px var(--gloed);
+      --rand-kleur: color-mix(in srgb, var(--gloed-kleur) 55%, transparent);
+    }
+    :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row):is([data-urgentie], .ticket.overdue, .cal-ticket.pending, .cal-ticket.confirmed, .cal-local-event, .inv-row.inv-low, .inv-row.inv-bijna, .stop.sales-voorgesteld, .stop.sales-bevestigd):hover {
+      --rand-kleur: color-mix(in srgb, var(--gloed-kleur) 80%, transparent);
+    }
+    /* Tekst op de kaarten (was enkel tijdens een thema, nu overal): lichter in donker, donkerder in licht, zodat 4,5:1 haalbaar blijft
+       over de hemel en over een thema-achtergrond. --red blijft ongemoeid (labels "Verlopen" en "Hoog" houden de statuskleur); enkel
+       losse rode of oranje tekst (geen adres, lage voorraad) krijgt een eigen licht (donker) of donker (licht) rood. */
+    :root:not([data-theme="light"]) :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
+      --text: #f5f7f9; --text2: #e6eaef; --muted: #e6eaef;
+      color: var(--text); /* tekst zonder eigen kleur erft anders de --text van body */
+    }
+    :root:not([data-theme="light"]) :is(.taddr.miss, .cal-addr.miss, .inv-row.inv-low .inv-row-aantal) { color: #ffdcd7; }
+    :root:not([data-theme="light"]) .inv-row.inv-bijna .inv-row-aantal { color: #ffe3b3; }
+    :root[data-theme="light"] :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
+      --text2: #3d4652; --muted: #3d4652;
+    }
+    :root[data-theme="light"] :is(.taddr.miss, .cal-addr.miss, .inv-row.inv-low .inv-row-aantal) { color: #8c1111; }
+    :root[data-theme="light"] .inv-row.inv-bijna .inv-row-aantal { color: #6e3400; }
+
+    .ticket {
+      padding: 15px 18px;
+      margin-bottom: 10px;
       cursor: pointer;
       display: flex; gap: 12px;
       overflow: hidden;
-      /* Lift + shadow transition */
-      transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease), background 0.15s, border-color 0.15s;
-      will-change: transform;
     }
-    /* Accent bar via ::before — animateert soepel zonder layout shift */
-    .ticket::before {
-      content: '';
-      position: absolute;
-      left: 0; top: 0; bottom: 0;
-      width: 3px;
-      background: transparent;
-      transition: background 0.18s var(--ease);
-    }
-    .ticket:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 24px rgba(0,0,0,0.4), 0 1px 4px rgba(0,0,0,0.3);
-      background: var(--surface2);
-      border-color: var(--surface3);
-    }
-    .ticket:hover::before { background: var(--accent); }
-    .ticket:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
-    .ticket.overdue::before { background: var(--red); }
-    .ticket.overdue { background: color-mix(in srgb, var(--red) 3%, var(--bg)); }
-    .ticket.overdue:hover { background: color-mix(in srgb, var(--red) 6%, var(--bg)); }
-    .ticket.overdue:hover::before { background: var(--red); }
+    /* Dichtheid per toestel: breed 15/18 en 10 px ertussen, smal ruimer met een ronder hoekje */
+    html[data-indeling="smal"] .ticket { padding: 18px 20px; margin-bottom: 12px; border-radius: 26px; }
 
     .t-body { flex: 1; min-width: 0; padding-left: 6px; }
     .t-top { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; margin-bottom: 5px; }
@@ -518,27 +543,11 @@
 
     /* Kalender ticket */
     .cal-ticket {
-      position: relative;
-      border: 1px solid var(--border);
-      border-radius: var(--r);
       padding: 8px 9px;
       cursor: pointer;
-      background: var(--surface);
       overflow: hidden;
-      transition: transform 0.15s var(--ease), box-shadow 0.15s, background 0.12s;
     }
-    .cal-ticket::before {
-      content: '';
-      position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-      background: var(--border);
-      transition: background 0.15s;
-    }
-    .cal-ticket.pending::before  { background: var(--orange); }
-    .cal-ticket.confirmed::before { background: var(--green); }
-    .cal-ticket.afgerond::before { background: var(--muted); }
     .cal-ticket.afgerond { opacity: 0.7; }
-    .cal-ticket:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); background: var(--surface2); }
-    .cal-ticket:active { transform: none; }
     .cal-num { font-size: 0.78rem; font-weight: 700; color: var(--text); font-family: monospace; margin: 0 0 3px 4px; }
     .cal-sub { font-size: var(--fs-2xs); font-weight: 600; line-height: 1.3; margin: 0 0 4px 4px; }
     .cal-badge { font-size: var(--fs-2xs); font-weight: 600; padding: 1px 6px; border-radius: 20px; display: inline-block; margin: 0 0 4px 4px; }
@@ -563,26 +572,14 @@
 
     /* ── Lokale afspraken (import / manueel) ── */
     .cal-local-event {
-      position: relative;
-      border: 1px solid var(--border);
-      border-radius: var(--r);
       cursor: pointer;
-      transition: transform 0.15s var(--ease), box-shadow 0.15s, background 0.12s;
       padding: 7px 9px;
-      background: var(--surface);
       overflow: hidden;
-    }
-    .cal-local-event::before {
-      content: '';
-      position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-      background: #7c5cfc;
     }
     .cal-local-event .cal-sub { margin-bottom: 2px; }
     .cal-local-type { font-size: var(--fs-2xs); font-weight: 600; padding: 1px 6px; border-radius: 20px; display: inline-block; margin: 0 0 3px 4px; background: rgba(124,92,252,0.15); color: #7c5cfc; }
     .cal-local-time { font-size: 0.8rem; color: var(--text); font-weight: 600; margin-left: 4px; }
     .cal-local-del { position: absolute; top: 5px; right: 6px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem; padding: 0 2px; }
-    .cal-local-event:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); background: var(--surface2); }
-    .cal-local-event:active { transform: none; }
     .cal-local-del:hover { color: var(--red); }
     /* P1-2: op aanraakschermen een echt 44px-doel (geen 15px-✕), met ruimte in de kaart zodat de titel er niet onder loopt */
     html[data-aanraak="ja"] .cal-local-del { top: 0; right: 0; min-width: 44px; min-height: 44px; padding: 0; font-size: 1rem; }
@@ -721,17 +718,11 @@
        De verkoper gebruikt dezelfde regels via .sales-route-lijstvak / .sales-route-kaartvak (sales.css voegt enkel de ketting van hoogtes toe). */
     :root { --route-lijst-breedte: 300px; }
     #route-list, .sales-route-lijstvak { width: var(--route-lijst-breedte); flex-shrink: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 6px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
-    .stop {
-      background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r);
-      padding: 10px 12px;
-      transition: background 0.12s, transform 0.12s;
-    }
-    .stop:hover { background: var(--surface3); transform: translateX(2px); }
+    .stop { padding: 10px 12px; }
     /* Sorteren (tablet-fase Taak 5): vasthouden en verschuiven */
     .stop[data-sleepbaar] { -webkit-user-select: none; user-select: none; }
     html[data-aanraak="nee"] .stop[data-sleepbaar] { cursor: grab; }
-    .stop.sorteer-actief { opacity: .92; box-shadow: 0 8px 24px rgba(0,0,0,.35); border-color: var(--accent); cursor: grabbing; transition: none; }
-    .stop.sorteer-actief:hover { transform: none; }
+    .stop.sorteer-actief { opacity: .92; box-shadow: 0 8px 24px rgba(0,0,0,.35); --rand-kleur: var(--accent); cursor: grabbing; transition: none; }
     .sorteer-placeholder { border: 2px dashed var(--accent); border-radius: var(--r); background: transparent; flex-shrink: 0; }
     /* Taak 4: vergrendelde stop (voorstel verstuurd / bevestigde afspraak) — niet versleepbaar. */
     .stop.locked { opacity: .85; }
@@ -1257,7 +1248,7 @@
     .kal-nu-marker { flex: none; border-top: 2px solid var(--red); margin: 6px 0; padding-top: 2px; font-size: 0.7rem; font-weight: 700; line-height: 1.2; color: var(--red); text-align: right; }
     .tl-now-label { position: absolute; right: 0; top: -9px; font-size: 0.7rem; font-weight: 700; line-height: 1; padding: 2px 4px; border-radius: 3px; color: #fff; background: #c81e1e; }
     .tl-block {
-      position: absolute; left: 6px; right: 6px; overflow: hidden; border-radius: var(--r);
+      position: absolute; left: 6px; right: 6px; overflow: hidden; border-radius: var(--r-ev);
     }
     /* Gedeelde uren-kolom vóór maandag (zie renderTimelineGutter() in index.html) */
     .day-col.tl-gutter { flex: 0 0 40px; min-width: 40px; }

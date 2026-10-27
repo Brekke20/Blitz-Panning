@@ -23,6 +23,8 @@ html[data-theme="light"][data-hemel="nacht"] #hemel   { --h1: #d3d9ee; --h2: #df
 /* de body laat de hemel zien; de effen --bg op <html> is de terugval */
 @media screen { body { background: transparent; } }
 
+/* nog voor de module draait (geen data-hemel): geen laag, dus geen donkere flits voor wie het lichte thema gebruikt */
+html:not([data-hemel]) #hemel { display: none; }
 /* een thema met een eigen achtergrond (schermen/evenement-laag.js) vervangt de hemel */
 html[data-event-achtergrond="ja"] #hemel { display: none; }
 @media print { #hemel { display: none; } }

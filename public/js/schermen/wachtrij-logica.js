@@ -72,3 +72,11 @@ export function sorteerWachtrij(tickets, modus, { vandaag, nu }) {
   }
   return lijst;
 }
+
+// Open dag-stijl: de kleur van de gloed langs de omtrek van een wachtrijkaart. Verlopen of hoog = rood, middel = oranje, laag = groen;
+// zonder prioriteit (en niet verlopen) geen gloed (null). Wordt als data-urgentie op de kaart gezet; enkel een attribuut, geen gedrag.
+const URGENTIE_VAN_PRIORITEIT = { high: 'rood', medium: 'oranje', low: 'groen' };
+export function urgentieVan({ overdue, priority }) {
+  if (overdue) return 'rood';
+  return URGENTIE_VAN_PRIORITEIT[String(priority || '').toLowerCase()] || null;
+}
