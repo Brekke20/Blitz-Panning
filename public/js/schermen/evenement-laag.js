@@ -290,7 +290,7 @@ function pasThemaToe(b) {
   const t = kiesThema(themaContext(b));
   const el = document.documentElement;
   if (el.getAttribute('data-theme') !== t) el.setAttribute('data-theme', t);
-  document.getElementById('meta-theme-color')?.setAttribute('content', t === 'light' ? '#f5f6f7' : '#181e24');
+  document.getElementById('meta-theme-color')?.setAttribute('content', t === 'light' ? '#e5eefa' : '#0d1530');
 }
 // Een themawissel van de gebruiker (knop in de kop): tijdens het thema in de eigen sleutel, anders in `blitz_theme`.
 export function bewaarThemaWissel(keuze) {

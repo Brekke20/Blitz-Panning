@@ -66,7 +66,7 @@ function toggleThema() {
   const volgende = nu === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', volgende);
   try { localStorage.setItem('blitz_theme', volgende); } catch { /* geen opslag */ }
-  document.getElementById('meta-theme-color')?.setAttribute('content', volgende === 'light' ? '#f5f6f7' : '#181e24');
+  document.getElementById('meta-theme-color')?.setAttribute('content', volgende === 'light' ? '#e5eefa' : '#0d1530');
 }
 
 export async function start() {

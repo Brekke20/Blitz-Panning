@@ -155,7 +155,7 @@ test.describe('opstart: offline-banner en schermstaat', () => {
     const na = await page.locator('html').getAttribute('data-theme');
     expect(na).not.toBe(voor);
     expect(await page.evaluate(() => localStorage.getItem('blitz_theme'))).toBe(na);
-    await expect(page.locator('#meta-theme-color')).toHaveAttribute('content', na === 'light' ? '#f5f6f7' : '#181e24');
+    await expect(page.locator('#meta-theme-color')).toHaveAttribute('content', na === 'light' ? '#e5eefa' : '#0d1530');
   });
 
   test('de actieve tab wordt bij het verlaten bewaard en na een herlaad hersteld', async ({ page }) => {

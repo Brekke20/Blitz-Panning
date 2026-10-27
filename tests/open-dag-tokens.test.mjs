@@ -26,7 +26,7 @@ function blok(begin) {
 test('base.css definieert alle Open dag-tokens in donker', () => {
   const root = blok(':root {');
   for (const naam of TOKENS) {
-    assert.match(root, new RegExp('--' + naam + '\s*:'), `--${naam} ontbreekt in :root`);
+    assert.match(root, new RegExp('--' + naam + '\\s*:'), `--${naam} ontbreekt in :root`);
   }
 });
 

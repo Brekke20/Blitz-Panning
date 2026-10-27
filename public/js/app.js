@@ -54,6 +54,7 @@ import { laadTab } from './kern/navigatie.js';
 import { eigenZohoNaam, huidigeRechten, huidigeGebruiker, magPlannenVoor } from './kern/sessie.js';
 import { installeerTijdPicker } from './kern/tijd-picker.js';
 import { startVersiering, bewaarThemaWissel, herbereken as herberekenVersiering } from './schermen/evenement-laag.js';
+import { startHemel } from './schermen/hemel-laag.js';
 import { laadThemas, themasNu, pakkettenVoorSpel, haalOntbrekendePakketten } from './schermen/themas-bron.js';
 import { actieveThemas } from './kern/themapakket.js';
 import { installeerSpelOpening } from './spel/spel-opening.js';
@@ -997,7 +998,7 @@ function toggleTheme() {
   document.documentElement.setAttribute('data-theme', next);
   bewaarThemaWissel(next); // tijdens een evenement in de eigen sleutel, anders blitz_theme
   document.getElementById('meta-theme-color')
-    ?.setAttribute('content', next === 'light' ? '#f5f6f7' : '#181e24');
+    ?.setAttribute('content', next === 'light' ? '#e5eefa' : '#0d1530');
 }
 
 // Escape/focusval per venster: zie public/js/venster.js
@@ -1027,8 +1028,11 @@ document.addEventListener('visibilitychange', () => {
 });
 // De verse themas (/api/themas) pas na het inloggen (vóór de login gebruikt de app geen gegevens van de server), voor elke rol: ook
 // sales, dat een eigen start heeft en `opstart` niet doorloopt (fix-ronde 1).
-document.addEventListener('DOMContentLoaded', () => startNaInlog(opstart).then(() => {
-  if (!huidigeGebruiker()) return;
-  herberekenVersiering(); // de instellingen zijn gesynchroniseerd (ook `bewegingUit`): niet wachten op de themas
-  vernieuwThemas();
-}).catch((e) => console.warn('start na inloggen mislukt:', e?.message || e)));
+document.addEventListener('DOMContentLoaded', () => {
+  startHemel(); // de hemel (css/hemel.css) meteen, vóór het inloggen: ook het inlogscherm staat op de hemel van het uur
+  return startNaInlog(opstart).then(() => {
+    if (!huidigeGebruiker()) return;
+    herberekenVersiering(); // de instellingen zijn gesynchroniseerd (ook `bewegingUit`): niet wachten op de themas
+    vernieuwThemas();
+  }).catch((e) => console.warn('start na inloggen mislukt:', e?.message || e));
+});
