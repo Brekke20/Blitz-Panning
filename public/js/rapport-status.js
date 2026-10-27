@@ -23,7 +23,7 @@ export function statusBadgeHtml(r) {
   switch (status) {
     case 'wacht':
     case 'bezig':
-      return `<span class="rapport-status rapport-status-bezig" style="${BADGE_STIJL}background:var(--surface3);color:var(--muted)">⏳ In verwerking</span>`;
+      return `<span class="rapport-status rapport-status-bezig" style="${BADGE_STIJL}background:var(--knop2);color:var(--muted)">⏳ In verwerking</span>`;
     case 'in-zoho':
       return `<span class="rapport-status rapport-status-zoho" style="${BADGE_STIJL}background:var(--accent-dim);color:var(--accent-ink)">✓ In Zoho</span>`;
     case 'mislukt': {
@@ -32,7 +32,7 @@ export function statusBadgeHtml(r) {
       return `<span class="rapport-status rapport-status-mislukt" style="${BADGE_STIJL}border:1px solid var(--red);color:var(--red)"${title}>✕ Mislukt</span>`;
     }
     case 'lokaal':
-      return `<span class="rapport-status rapport-status-lokaal" style="${BADGE_STIJL}background:var(--surface3);color:var(--muted)">Lokaal</span>`;
+      return `<span class="rapport-status rapport-status-lokaal" style="${BADGE_STIJL}background:var(--knop2);color:var(--muted)">Lokaal</span>`;
     default: // 'geannuleerd' (toont al "Niet verzonden") en 'onbekend'
       return '';
   }

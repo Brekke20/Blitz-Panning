@@ -510,13 +510,13 @@ export function renderKalender() {
         <div class="tsub">${escHtml(t.subject) || '—'}</div>
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
         ${magPlannenVoor(t.assignee) ? `<div class="t-assign-row" id="assign-row-${t.id}" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
-          <input type="date" id="assign-date-${t.id}" aria-label="Datum toewijzen" data-wijzig="kal-toewijzen-datum" data-ticket-id="${escHtml(t.id)}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
-          <input type="time" id="assign-time-${t.id}" aria-label="Tijd toewijzen" data-invoer="kal-toewijzen-tijd" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)" value="09:00">
-          <button data-actie="kal-toewijzen-opslaan" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 8px;background:var(--accent);color:var(--on-accent);border:none;border-radius:4px;cursor:pointer;font-weight:600">✓ Opslaan</button>
-          <button aria-label="Sluiten" data-actie="kal-toewijzen-sluit" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 6px;background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--muted)">✕</button>
+          <input type="date" id="assign-date-${t.id}" aria-label="Datum toewijzen" data-wijzig="kal-toewijzen-datum" data-ticket-id="${escHtml(t.id)}" style="font-size:0.8rem;padding:3px 10px;border:1px solid var(--veld-rand);border-radius:var(--r-pil);background:var(--veld);color:var(--text)">
+          <input type="time" id="assign-time-${t.id}" aria-label="Tijd toewijzen" data-invoer="kal-toewijzen-tijd" style="font-size:0.8rem;padding:3px 10px;border:1px solid var(--veld-rand);border-radius:var(--r-pil);background:var(--veld);color:var(--text)" value="09:00">
+          <button data-actie="kal-toewijzen-opslaan" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 12px;background:var(--accent);color:var(--on-accent);border:none;border-radius:var(--r-pil);cursor:pointer;font-weight:600">✓ Opslaan</button>
+          <button aria-label="Sluiten" data-actie="kal-toewijzen-sluit" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 10px;background:none;border:1px solid var(--veld-rand);border-radius:var(--r-pil);cursor:pointer;color:var(--muted)">✕</button>
         </div>
         <div style="margin-top:6px">
-          <button data-actie="kal-toewijzen-open" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 8px;background:var(--accent-dim,rgba(0,223,163,.15));color:var(--accent-ink);border:1px solid var(--accent);border-radius:4px;cursor:pointer;font-weight:600">📅 Toewijzen</button>
+          <button data-actie="kal-toewijzen-open" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 8px;background:var(--accent-dim,rgba(0,223,163,.15));color:var(--accent-ink);border:1px solid var(--accent);border-radius:var(--r-pil);cursor:pointer;font-weight:600">📅 Toewijzen</button>
         </div>` : ''}
       </div>`;
       // Bubbel-guard (C8): een klik op een data-actie-knop opent het detail niet.

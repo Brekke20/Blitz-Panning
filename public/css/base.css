@@ -84,6 +84,10 @@
       --knop2:           rgba(255,255,255,0.08);
       --knop2-hover:     rgba(255,255,255,0.16);
       --veld:            rgba(255,255,255,0.08);
+      /* Taak 8b: rand van invoervelden, scheidingslijnen binnen glas (kalenderraster, tabellen) en de dimming achter een venster */
+      --veld-rand:       rgba(255,255,255,0.22);
+      --lijn:            rgba(255,255,255,0.10);
+      --scrim:           rgba(6,12,28,0.5);
       --font-tekst: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
       --font-kop:   'Bricolage Grotesque', 'Figtree', system-ui, -apple-system, sans-serif;
       /* Gloed: afgeleid van de statuskleuren (die blijven ongemoeid), sterkte per thema */
@@ -140,6 +144,9 @@
       --knop2:           rgba(255,255,255,0.55);
       --knop2-hover:     rgba(255,255,255,0.92);
       --veld:            rgba(255,255,255,0.6);
+      --veld-rand:       rgba(26,36,51,0.30);
+      --lijn:            rgba(30,50,90,0.12);
+      --scrim:           rgba(40,60,100,0.30);
       --gloed-sterk:     34%;
     }
 
@@ -270,11 +277,12 @@
 
 
     /* ── Skeleton-laadschermen (kern/skelet.js) ──
-       Grijze blokken in de vorm van de echte inhoud zolang een scherm op zijn gegevens wacht. Enkel bestaande tokens (licht en donker). */
+       Open dag (taak 8b): blokken in de vorm van de echte inhoud: een doorschijnende tint van de tekstkleur (donker: lichtvlak, licht: schaduwvlak)
+       op glazen kaarten, zodat ze op de hemel liggen in plaats van als grijze vlakken. Enkel bestaande tokens (licht en donker). */
     .skelet-weg { display: none !important; }
     .skelet { display: block; min-width: 0; pointer-events: none; user-select: none; }
     .skelet-blok {
-      background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%);
+      background: linear-gradient(90deg, color-mix(in srgb, var(--text) 9%, transparent) 25%, color-mix(in srgb, var(--text) 18%, transparent) 50%, color-mix(in srgb, var(--text) 9%, transparent) 75%);
       background-size: 200% 100%;
       border-radius: var(--r-sm);
       animation: skelet-shimmer 1.4s ease-in-out infinite;
@@ -284,18 +292,18 @@
     .skelet-regel--titel { height: 16px; }
     .skelet-regel--kort { height: 10px; }
     .skelet-rijen, .skelet-formulier, .skelet-route-lijst { display: flex; flex-direction: column; gap: var(--sp-3); }
-    .skelet-rij { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-3) var(--sp-2); border-bottom: 1px solid var(--border); }
+    .skelet-rij { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-3) var(--sp-2); border-bottom: 1px solid var(--lijn); }
     .skelet-rij .skelet-blok:nth-child(2) { flex: 1; }
     .skelet-kaarten { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--sp-3); }
-    .skelet-kaart { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); }
+    .skelet-kaart { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); background: var(--glas); border: 1px solid var(--glas-rand); border-radius: var(--r-kaart); }
     .skelet-dash { display: flex; flex-direction: column; gap: var(--sp-4); }
     .skelet-tegels { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-3); }
-    .skelet-tegel { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); }
+    .skelet-tegel { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); background: var(--glas); border: 1px solid var(--glas-rand); border-radius: var(--r-kaart); }
     .skelet-cijfer { height: 28px; }
-    .skelet-vlak { height: 180px; border-radius: var(--r-lg); }
+    .skelet-vlak { height: 180px; border-radius: var(--r-kaart); }
     .skelet-route { display: flex; gap: var(--sp-4); align-items: stretch; }
     .skelet-route-lijst { flex: 0 0 min(340px, 40%); }
-    .skelet-kaartvlak { flex: 1; min-height: 260px; border-radius: var(--r-lg); }
+    .skelet-kaartvlak { flex: 1; min-height: 260px; border-radius: var(--r-kaart); }
     .skelet-veld { display: flex; flex-direction: column; gap: var(--sp-2); max-width: 420px; }
     .skelet-invoer { height: 40px; width: 100%; border-radius: var(--r-sm); }
     @media (max-width: 700px) {
@@ -305,5 +313,5 @@
     }
     /* Reduced motion: geen shimmer, enkel stille grijze blokken (de algemene regel hierboven zou hem anders eenmalig laten flitsen). */
     @media (prefers-reduced-motion: reduce) {
-      .skelet-blok { animation: none !important; background: var(--surface3); }
+      .skelet-blok { animation: none !important; background: color-mix(in srgb, var(--text) 13%, transparent); }
     }

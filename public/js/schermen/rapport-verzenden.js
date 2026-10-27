@@ -93,7 +93,7 @@ export async function voorbeeldRapport(rapportId, btn) {
         Aan ${escHtml(DOELGROEP_LABEL[o.doelgroep] || o.doelgroep)} — ${escHtml(o.email)}
       </div>
       <iframe srcdoc="${escHtml(o.html)}" sandbox=""
-        style="width:100%;height:260px;border:1px solid var(--border);border-radius:6px"></iframe>
+        style="width:100%;height:260px;border:1px solid var(--lijn);border-radius:12px"></iframe>
     `).join('');
 
     const sendBtn = document.getElementById('rapport-preview-send-btn');

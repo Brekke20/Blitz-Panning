@@ -633,7 +633,7 @@ export function wizRenderFacturatie(el) {
       </div>
     </div>
     <div class="wiz-sep"></div>
-    <div style="background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:12px 14px" id="wiz-loonkost-preview"></div>`;
+    <div style="background:var(--veld);border:1px solid var(--lijn);border-radius:var(--r-ev);padding:12px 14px" id="wiz-loonkost-preview"></div>`;
   wizLoonkostPreview();
 }
 export function wizFacturatieChange() {

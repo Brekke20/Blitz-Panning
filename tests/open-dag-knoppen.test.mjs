@@ -68,7 +68,32 @@ test('Ruling 8: ook chips en legacy knoppen krijgen de glans', () => {
   const m = app.match(/:where\(([^)]*)\)::before\s*\{[^}]*radial-gradient/);
   assert.ok(m, 'gedeelde glansregel niet gevonden');
   const lijst = m[1].split(',').map((s) => s.trim());
-  for (const sel of ['.filter-pill', '.sico', '.gep-week button', '.kal-pending-pill', '.day-btn', '.btn-primary', '.btn-save', '.btn-autoplan', '.btn-add', '.btn-sec', '.btn-cancel']) {
+  // Open dag (v2.5.0, taak 8b): '.filter-pill' is weg; de klasse stond nergens in public/ in gebruik (enkel in de stijl).
+  for (const sel of ['.sico', '.gep-week button', '.kal-pending-pill', '.day-btn', '.btn-primary', '.btn-save', '.btn-autoplan', '.btn-add', '.btn-sec', '.btn-cancel']) {
     assert.ok(lijst.includes(sel), `${sel} ontbreekt in de glansregel`);
   }
+});
+
+// Taak 8b: elke zuivere hover-kleurregel staat in @media (hover: hover); op een aanraaktoestel blijft :hover na een tik hangen (Ruling 9).
+// Gemengde selectorlijsten (hover én focus, zoals de grafiekpunten in dashboard.css) tellen niet mee: die zijn ook voor het toetsenbord.
+test('elke zuivere :hover-regel in public/css/*.css staat in @media (hover: hover)', () => {
+  const overtreders = [];
+  for (const f of readdirSync(MAP).filter((n) => n.endsWith('.css'))) {
+    const css = readFileSync(new URL(f, MAP), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const media = []; // de lopende @-regels bij elke open accolade
+    let start = 0;
+    for (let i = 0; i < css.length; i++) {
+      const c = css[i];
+      if (c === '{') {
+        const kop = css.slice(start, i).trim();
+        if (!kop.startsWith('@') && /:hover/.test(kop)
+          && kop.split(/,(?![^(]*\))/).every((d) => /:hover/.test(d))
+          && !media.some((m) => /\(hover:\s*hover\)/.test(m))) overtreders.push(`${f}: ${kop.replace(/\s+/g, ' ').slice(0, 90)}`);
+        media.push(kop);
+        start = i + 1;
+      } else if (c === '}') { media.pop(); start = i + 1; }
+      else if (c === ';' ) { if (!media.length) start = i + 1; }
+    }
+  }
+  assert.deepEqual(overtreders, [], 'hover-regel buiten @media (hover: hover):\n' + overtreders.join('\n'));
 });
