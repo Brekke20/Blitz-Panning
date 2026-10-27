@@ -1,10 +1,10 @@
 // /api/inventaris
 // GET   → volledige inventarisstaat (wagenvoorraad per technieker + volledige log, altijd
 //         genormaliseerd + max. 3 maanden log-historiek)
-// POST  → mutatie (technieker vult wagenvoorraad bij, corrigeert, en/of dempt de
-//         lage-voorraadmelding voor een materiaal) of verbruik (automatische aftrek bij een
-//         afgerond rapport) — beide muteren wagenvoorraad + loggen een regel (behalve een
-//         zuivere demp-wijziging, die niet gelogd wordt)
+// POST  → mutatie (technieker vult wagenvoorraad bij, corrigeert, en/of zet de meldgrens
+//         (drempel, null = geen melding; oudere clients: gedempt) voor een materiaal) of verbruik
+//         (automatische aftrek bij een afgerond rapport) — beide muteren wagenvoorraad + loggen een
+//         regel (behalve een zuivere grens- of demp-wijziging, die niet gelogd wordt)
 // PATCH → een 'aanvulling'-logregel op status 'verwerkt' zetten (supervisor heeft ze in AFAS geboekt)
 import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
@@ -35,15 +35,21 @@ function json(data, status, hdrs) {
   return new Response(JSON.stringify(data), { status, headers: { ...hdrs, 'Content-Type': 'application/json' } });
 }
 
-// Oude opslag had per materiaal enkel een getal (aantal); nieuwe opslag heeft {aantal, gedempt}.
+// Oude opslag had per materiaal enkel een getal (aantal), daarna {aantal, gedempt}; sinds v2.4.0 {aantal, gedempt, drempel}.
 // Bestaande, nog niet aangeraakte data blijft in de oude vorm tot ze opnieuw geschreven wordt --
 // elk antwoord aan de frontend normaliseert daarom altijd naar de nieuwe vorm, zodat de
 // frontend nooit met de oude vorm rekening moet houden.
+// drempel = meldgrens (melden bij aantal <= drempel), null = geen melding. Zonder drempel-veld: wat ooit in de wagen zat (er is
+// een regel) meldt op 0 tenzij gedempt; een product zonder regel meldt niet. `gedempt` loopt altijd gelijk (= drempel === null),
+// zodat een oudere client en een terugrol naar 2.3.0 blijven werken.
+export const MAX_DREMPEL = 999;
 function normStock(val) {
-  if (val == null) return { aantal: 0, gedempt: false };
-  if (typeof val === 'number') return { aantal: val, gedempt: false };
-  return { aantal: val.aantal || 0, gedempt: !!val.gedempt };
+  if (val == null) return { aantal: 0, gedempt: true, drempel: null };
+  if (typeof val === 'number') return { aantal: val, gedempt: false, drempel: 0 };
+  const drempel = val.drempel !== undefined ? val.drempel : (val.gedempt ? null : 0);
+  return { aantal: val.aantal || 0, gedempt: drempel === null, drempel };
 }
+const isDrempel = d => d === null || (Number.isInteger(d) && d >= 0 && d <= MAX_DREMPEL);
 
 function normalizeWagenvoorraad(wv) {
   const out = {};
@@ -134,12 +140,15 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
         if (!it.materiaalNaam || typeof it.materiaalNaam !== 'string') return json({ error: 'elk item heeft een materiaalNaam nodig' }, 400, hdrs);
         const heeftAantal  = it.aantal  !== undefined;
         const heeftGedempt = it.gedempt !== undefined;
-        if (!heeftAantal && !heeftGedempt) return json({ error: `item voor ${it.materiaalId} heeft aantal of gedempt nodig` }, 400, hdrs);
+        const heeftDrempel = it.drempel !== undefined;
+        if (!heeftAantal && !heeftGedempt && !heeftDrempel) return json({ error: `item voor ${it.materiaalId} heeft aantal, gedempt of drempel nodig` }, 400, hdrs);
         if (heeftAantal && (typeof it.aantal !== 'number' || !Number.isFinite(it.aantal) || it.aantal === 0)) {
           return json({ error: `ongeldig aantal voor ${it.materiaalId}` }, 400, hdrs);
         }
         if (heeftGedempt && typeof it.gedempt !== 'boolean') return json({ error: `ongeldige gedempt-waarde voor ${it.materiaalId}` }, 400, hdrs);
         if (heeftGedempt && actie !== 'mutatie') return json({ error: 'gedempt kan enkel bij actie mutatie' }, 400, hdrs);
+        if (heeftDrempel && !isDrempel(it.drempel)) return json({ error: `ongeldige drempel voor ${it.materiaalId} (geheel getal 0 tot ${MAX_DREMPEL}, of null)` }, 400, hdrs);
+        if (heeftDrempel && actie !== 'mutatie') return json({ error: 'drempel kan enkel bij actie mutatie' }, 400, hdrs);
       }
 
       const { current, error } = await pruneAndGet(store);
@@ -158,7 +167,7 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
       for (const it of items) {
         const bestaand = normStock(stock[it.materiaalId]);
         let nieuweAantal  = bestaand.aantal;
-        let nieuweGedempt = bestaand.gedempt;
+        let nieuweDrempel = bestaand.drempel;
 
         if (it.aantal !== undefined) {
           // verbruik: 'aantal' is de gebruikte hoeveelheid (positief) -> wagenvoorraad daalt.
@@ -186,9 +195,11 @@ export function maakHandler({ getStore: haalStore = getStore } = {}) {
             });
           }
         }
-        if (it.gedempt !== undefined) nieuweGedempt = it.gedempt;
+        // drempel gaat voor; een oudere client (2.3.0) stuurt enkel gedempt: uit = geen melding, aan = de bestaande grens of 0.
+        if (it.drempel !== undefined) nieuweDrempel = it.drempel;
+        else if (it.gedempt !== undefined) nieuweDrempel = it.gedempt ? null : (bestaand.drempel ?? 0);
 
-        stock[it.materiaalId] = { aantal: nieuweAantal, gedempt: nieuweGedempt };
+        stock[it.materiaalId] = { aantal: nieuweAantal, gedempt: nieuweDrempel === null, drempel: nieuweDrempel };
       }
 
       wagenvoorraad[technieker] = stock;

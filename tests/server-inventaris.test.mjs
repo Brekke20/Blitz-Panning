@@ -93,3 +93,66 @@ test('een zuivere demp-wijziging logt niets maar verhoogt de versie', async () =
   assert.equal(d.wagenvoorraad.Tim.kabel.gedempt, true);
   assert.equal(d.wagenvoorraad.Tim.kabel.aantal, 5);
 });
+
+// ── Meldgrens (drempel, v2.4.0) ──
+const mut = items => req({ versie: 4, technieker: 'Tim', actie: 'mutatie', items });
+
+test('GET: drempel uit oude vormen (getal en gedempt) en een product zonder regel meldt niet', async () => {
+  const store = maakNepStore({ inventaris: { versie: 1, wagenvoorraad: { Tim: { a: 3, b: { aantal: 0, gedempt: false }, c: { aantal: 2, gedempt: true }, d: { aantal: 4, gedempt: false, drempel: 2 } } }, log: [] } });
+  const h = maakHandler({ getStore: () => store });
+  const d = await (await tim(() => h(get()))).json();
+  assert.deepEqual(d.wagenvoorraad.Tim, {
+    a: { aantal: 3, gedempt: false, drempel: 0 },
+    b: { aantal: 0, gedempt: false, drempel: 0 },
+    c: { aantal: 2, gedempt: true, drempel: null },
+    d: { aantal: 4, gedempt: false, drempel: 2 },
+  });
+});
+
+test('drempel zetten: bewaard, gedempt loopt gelijk, geen logregel', async () => {
+  const { store, h } = opzet();
+  const r = await tim(() => h(mut([{ materiaalId: 'kabel', materiaalNaam: 'Kabel', drempel: 2 }, { materiaalId: 'nieuw', materiaalNaam: 'Nieuw', drempel: 0 }])));
+  assert.equal(r.status, 200);
+  const d = await bewaard(store);
+  assert.deepEqual(d.wagenvoorraad.Tim.kabel, { aantal: 5, gedempt: false, drempel: 2 });
+  assert.deepEqual(d.wagenvoorraad.Tim.nieuw, { aantal: 0, gedempt: false, drempel: 0 });
+  assert.equal(d.log.length, 0);
+  const uit = await tim(() => h(req({ versie: 5, technieker: 'Tim', actie: 'mutatie', items: [{ materiaalId: 'kabel', materiaalNaam: 'Kabel', drempel: null }] })));
+  assert.equal(uit.status, 200);
+  assert.deepEqual((await bewaard(store)).wagenvoorraad.Tim.kabel, { aantal: 5, gedempt: true, drempel: null });
+});
+
+test('drempel samen met een aantal: allebei toegepast', async () => {
+  const { store, h } = opzet();
+  await tim(() => h(mut([{ materiaalId: 'kabel', materiaalNaam: 'Kabel', aantal: -3, drempel: 1 }])));
+  const d = await bewaard(store);
+  assert.deepEqual(d.wagenvoorraad.Tim.kabel, { aantal: 2, gedempt: false, drempel: 1 });
+  assert.equal(d.log[0].type, 'correctie');
+});
+
+test('ongeldige drempel en drempel bij verbruik geven 400', async () => {
+  for (const drempel of [-1, 1.5, 1000, '2', true]) {
+    const { h } = opzet();
+    const r = await tim(() => h(mut([{ materiaalId: 'kabel', materiaalNaam: 'Kabel', drempel }])));
+    assert.equal(r.status, 400, `drempel ${JSON.stringify(drempel)}`);
+  }
+  const { h } = opzet();
+  const r = await tim(() => h(req({ versie: 4, technieker: 'Tim', actie: 'verbruik', items: [{ materiaalId: 'kabel', materiaalNaam: 'Kabel', aantal: 1, drempel: 1 }] })));
+  assert.equal(r.status, 400);
+});
+
+test('oudere client (enkel gedempt): uit = geen melding, aan = bestaande grens behouden', async () => {
+  const store = maakNepStore({ inventaris: { versie: 4, wagenvoorraad: { Tim: { kabel: { aantal: 5, gedempt: false, drempel: 3 } } }, log: [] } });
+  const h = maakHandler({ getStore: () => store });
+  await tim(() => h(mut([{ materiaalId: 'kabel', materiaalNaam: 'Kabel', gedempt: true }])));
+  assert.deepEqual((await bewaard(store)).wagenvoorraad.Tim.kabel, { aantal: 5, gedempt: true, drempel: null });
+  await tim(() => h(req({ versie: 5, technieker: 'Tim', actie: 'mutatie', items: [{ materiaalId: 'kabel', materiaalNaam: 'Kabel', gedempt: false }] })));
+  assert.deepEqual((await bewaard(store)).wagenvoorraad.Tim.kabel, { aantal: 5, gedempt: false, drempel: 0 });
+});
+
+test('verbruik behoudt de drempel', async () => {
+  const store = maakNepStore({ inventaris: { versie: 4, wagenvoorraad: { Tim: { kabel: { aantal: 5, gedempt: false, drempel: 3 } } }, log: [] } });
+  const h = maakHandler({ getStore: () => store });
+  await tim(() => h(req({ versie: 4, technieker: 'Tim', actie: 'verbruik', items: [{ materiaalId: 'kabel', materiaalNaam: 'Kabel', aantal: 2 }] })));
+  assert.deepEqual((await bewaard(store)).wagenvoorraad.Tim.kabel, { aantal: 3, gedempt: false, drempel: 3 });
+});
