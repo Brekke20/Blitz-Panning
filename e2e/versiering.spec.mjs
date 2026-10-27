@@ -831,38 +831,71 @@ test.describe('bewegende beelden uit (per gebruiker)', () => {
     await expect(laag(page).locator('.ev-kruip, .ev-vlieg').first()).toBeAttached();
   });
 
-  test('de schakelaar in de instellingen zet het veld en de versiering past zich meteen aan, zonder herladen', async ({ page, verzoeken }) => {
-    await startApp(page, { query: AAN });
-    await expect(laag(page).locator('.ev-kruip, .ev-vlieg').first()).toBeAttached();
+  // Brent 2026-10-27: de schakelaar staat voor iedereen onder "Dit toestel", naast "Feestelijke versiering", en bewaart meteen.
+  const naarDitToestel = async (page) => {
     await page.getByRole('button', { name: 'Instellingen', exact: true }).click();
     const modal = venster(page);
     await expect(modal).toBeVisible();
+    await modal.getByRole('button', { name: 'Dit toestel', exact: true }).click();
+    await expect(modal.locator('#set-tab-toestel')).toBeVisible();
+    return modal;
+  };
+
+  test('de schakelaar staat onder "Dit toestel" (niet in Algemeen), naast de versiering', async ({ page }) => {
+    await startApp(page, { query: AAN });
+    await page.getByRole('button', { name: 'Instellingen', exact: true }).click();
+    const modal = venster(page);
+    await expect(modal.locator('#set-tab-algemeen')).toBeVisible();
+    await expect(modal.getByLabel(SCHAKELAAR)).toBeHidden();
+    await expect(modal.locator('#set-tab-algemeen #set-beweging')).toHaveCount(0);
+    await modal.getByRole('button', { name: 'Dit toestel', exact: true }).click();
+    await expect(modal.getByLabel(SCHAKELAAR)).toBeVisible();
+    await expect(modal.getByLabel('Versiering tonen tijdens feestperiodes')).toBeVisible();
+    // volgorde: eerst de versiering (per toestel), dan de beweging (per account)
+    expect(await page.evaluate(() => {
+      const v = document.getElementById('set-versiering-blok'), b = document.getElementById('set-beweging-blok');
+      return v.parentElement.id === 'set-tab-toestel' && v.nextElementSibling === b;
+    })).toBe(true);
+  });
+
+  test('de schakelaar bewaart meteen (geen Opslaan) en de versiering past zich aan, zonder herladen', async ({ page, verzoeken }) => {
+    await startApp(page, { query: AAN });
+    await expect(laag(page).locator('.ev-kruip, .ev-vlieg').first()).toBeAttached();
+    const modal = await naarDitToestel(page);
     const schakelaar = modal.getByLabel(SCHAKELAAR);
     await expect(schakelaar).toBeChecked(); // standaard bewegen de beelden
     await expect(modal).toContainText('Zet uit als de bewegende figuren je storen; de achtergrond blijft.');
+    await expect(modal.getByRole('button', { name: 'Opslaan', exact: true })).toBeHidden();
     await schakelaar.uncheck();
-    await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
     await expect(beide(page, '.ev-beweeg')).toHaveCount(0);
     await expect(achterLaag(page).locator('.ev-hoek')).toHaveCount(4);
     await expect(page.locator('#event-achtergrond')).toHaveCount(1);
     await expect.poll(() => verzoeken.van('/api/instellingen', 'PUT').length).toBe(1);
-    expect(verzoeken.van('/api/instellingen', 'PUT')[0].body.instellingen.bewegingUit).toBe(true);
-    // Heropenen: de keuze staat er nog; weer aan zet de beweging terug
-    await page.getByRole('button', { name: 'Instellingen', exact: true }).click();
-    await expect(venster(page).getByLabel(SCHAKELAAR)).not.toBeChecked();
-    await venster(page).getByLabel(SCHAKELAAR).check();
-    await venster(page).getByRole('button', { name: 'Opslaan', exact: true }).click();
+    const put = verzoeken.van('/api/instellingen', 'PUT')[0].body;
+    expect(put.gebruiker).toBeUndefined(); // het eigen record
+    expect(put.instellingen.bewegingUit).toBe(true);
+    // Sluiten en heropenen: de keuze staat er nog; weer aan zet de beweging meteen terug
+    await expect(modal.locator('#set-sluit-btn')).toHaveText('Sluiten');
+    await modal.locator('#set-sluit-btn').click();
+    await expect(modal).toBeHidden();
+    const opnieuw = await naarDitToestel(page);
+    await expect(opnieuw.getByLabel(SCHAKELAAR)).not.toBeChecked();
+    await opnieuw.getByLabel(SCHAKELAAR).check();
     await expect(laag(page).locator('.ev-kruip, .ev-vlieg').first()).toBeAttached();
     await expect.poll(() => verzoeken.van('/api/instellingen', 'PUT').length).toBe(2);
-    expect(verzoeken.van('/api/instellingen', 'PUT')[1].body.instellingen.bewegingUit ?? false).toBe(false);
+    expect(verzoeken.van('/api/instellingen', 'PUT')[1].body.instellingen.bewegingUit).toBeUndefined();
   });
 
-  test('annuleren bewaart de schakelaar niet', async ({ page }) => {
+  test('Opslaan in Algemeen na de schakelaar houdt de keuze (overschrijft ze niet)', async ({ page, verzoeken }) => {
     await startApp(page, { query: AAN });
-    await page.getByRole('button', { name: 'Instellingen', exact: true }).click();
-    await venster(page).getByLabel(SCHAKELAAR).uncheck();
-    await venster(page).getByRole('button', { name: 'Annuleren', exact: true }).click();
-    await expect(laag(page).locator('.ev-kruip, .ev-vlieg').first()).toBeAttached();
+    const modal = await naarDitToestel(page);
+    await modal.getByLabel(SCHAKELAAR).uncheck();
+    await expect.poll(() => verzoeken.van('/api/instellingen', 'PUT').length).toBe(1);
+    await modal.getByRole('button', { name: 'Algemeen', exact: true }).click();
+    await modal.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect.poll(() => verzoeken.van('/api/instellingen', 'PUT').length).toBe(2);
+    expect(verzoeken.van('/api/instellingen', 'PUT')[1].body.instellingen.bewegingUit).toBe(true);
+    await expect(beide(page, '.ev-beweeg')).toHaveCount(0);
   });
 
   test('de schakelaar "Feestelijke versiering" (uit, per toestel) gaat voor bewegingUit', async ({ page }) => {

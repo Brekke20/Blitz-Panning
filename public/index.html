@@ -472,11 +472,6 @@
         <div class="set-label" id="set-drukte-kop">Drukte tonen op de route (verwachte vertraging per wegstuk)</div>
         <label class="set-row"><input type="checkbox" id="set-drukte" aria-describedby="set-drukte-kop"> <span>Aan</span></label>
       </div>
-      <div class="set-field" id="set-beweging-blok">
-        <div class="set-label" id="set-beweging-kop">Bewegende beelden tijdens een thema</div>
-        <label class="set-row"><input type="checkbox" id="set-beweging" aria-labelledby="set-beweging-kop" aria-describedby="set-beweging-uitleg" data-wijzig="set-beweging-account"> <span>Aan</span></label>
-        <div id="set-beweging-uitleg" style="font-size:0.78rem;color:var(--muted)">Zet uit als de bewegende figuren je storen; de achtergrond blijft. Geldt op al je toestellen.</div>
-      </div>
       <div class="set-field">
         <label class="set-label" id="set-werkdagen-label">Werkdagen</label>
         <div class="days-grid" id="days-grid" role="group" aria-labelledby="set-werkdagen-label"></div>
@@ -498,7 +493,12 @@
         <label class="set-row"><input type="checkbox" id="set-versiering" aria-describedby="set-versiering-uitleg" data-wijzig="set-toestel-versiering"> <span>Versiering tonen tijdens feestperiodes</span></label>
         <div id="set-versiering-uitleg" style="font-size:0.78rem;color:var(--muted)"></div>
       </div>
-      <div style="font-size:0.78rem;color:var(--muted)">Deze keuzes gelden enkel voor dit toestel. Wat je ziet en mag doen, hangt af van je account.</div>
+      <div class="set-field" id="set-beweging-blok">
+        <div class="set-label" id="set-beweging-kop">Bewegende beelden tijdens een thema</div>
+        <label class="set-row"><input type="checkbox" id="set-beweging" aria-labelledby="set-beweging-kop" aria-describedby="set-beweging-uitleg" data-wijzig="set-beweging-account"> <span>Aan</span></label>
+        <div id="set-beweging-uitleg" style="font-size:0.78rem;color:var(--muted)">Zet uit als de bewegende figuren je storen; de achtergrond blijft. Geldt op al je toestellen.</div>
+      </div>
+      <div style="font-size:0.78rem;color:var(--muted)">Weergave en versiering gelden enkel voor dit toestel. Wat je ziet en mag doen, hangt af van je account.</div>
       <div class="set-field" id="set-testdata-blok" style="display:none;margin-top:16px">
         <label class="set-label">Testgegevens</label>
         <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">Je werkt in testmodus met een kopie van de echte gegevens.</div>
