@@ -43,7 +43,7 @@ import { openPrijsBeheer, closePrijsBeheer, prijsReset, prijsOpslaan, loadPrijze
 import { openRapport, calcWerktijdMin, closeWizard, wizBack, wizNext } from './rapport-wizard.js';
 import { _rapportArchief, _archiefVersie, zetArchiefVersie, laadRapportArchief, setRapportFilter, renderRapportArchief, herOpenRapport } from './rapport-archief.js';
 import { refreshOutboxCache, flushOutbox, _outboxInFlight } from './outbox.js';
-import { _invData, loadInventaris, renderInventaris, updateInventarisBadge, resetInvSeenLog } from './inventaris.js';
+import { _invData, loadInventaris, renderInventaris, updateInventarisBadge, resetInvSeenLog, meldLageVoorraadBijStart } from './inventaris.js';
 import { appConfirm } from './app-dialog.js';
 import { APP_VERSIE, leesVersie } from './versie.js';
 import { registreerVenster } from './venster.js';
@@ -328,14 +328,17 @@ function opstart() {
   }
   loadPrijzen();
   beschikbaarheid.loadAvailability();
-  loadInventaris().then(() => metBehoudScroll(() => {
+  const inventarisGeladen = loadInventaris().then(() => metBehoudScroll(() => {
     renderInventaris(get('activeAssigneeFilter'));
     updateInventarisBadge(get('activeAssigneeFilter'));
   }));
   afspraken.loadAfspraken();
   klantbeschikbaarheid.loadKlantBeschikbaarheid();
   voorstel.loadVoorstelStatus();
-  loadTickets();
+  const ticketsGeladen = loadTickets();
+  // Eenmalig "Check je voorraad" als er iets onder de meldgrens zit (v2.4.0). Er is maar één meldingsvak: pas na de opstartmelding
+  // van de tickets (4 s), anders duwt die de voorraadmelding meteen weg.
+  Promise.allSettled([inventarisGeladen, ticketsGeladen]).then(() => setTimeout(meldLageVoorraadBijStart, 4500));
   laadRapportArchief();
   startTicketPolling();
   refreshOutboxCache();

@@ -7,17 +7,18 @@
 import { foutTekst } from './kern/api.js';
 import { TEST_MODE } from './kern/omgeving.js';
 import { loadFromCache, saveToCache } from './kern/opslag.js';
-import { heeftRol, huidigeGebruiker } from './kern/sessie.js';
+import { heeftRol, huidigeGebruiker, eigenZohoNaam } from './kern/sessie.js';
 import { escHtml, toast } from './kern/ui.js';
 import { laadExcelJs } from './kern/exceljs.js';
 import { PRIJZEN, PRIJZEN_DEFAULTS, ONDERDEEL_CATEGORIEEN } from './prijzen.js';
 import { maakVerbruikWachtrij, WACHTRIJ_SLEUTEL } from './kern/verbruik-wachtrij.js';
+import { voorraadRegel, voorraadStatus, lageItems, startTekst, MAX_DREMPEL } from './kern/voorraad-drempel.js';
 
 export let _invData = { versie: 0, wagenvoorraad: {}, log: [] };
 
 let _invEditActive   = false;  // is de technieker-weergave momenteel in Edit-modus?
 let _invEditPersoon  = null;   // voor welke technieker die Edit-modus loopt
-let _invEditSnapshot = null;   // Map<materiaalId, {aantal, gedempt}> -- stand bij het openen van Edit
+let _invEditSnapshot = null;   // Map<materiaalId, {aantal, drempel}> -- stand bij het openen van Edit
 let _invEditVersie   = null;   // versie op het moment dat Edit geopend werd (voor Opslaan)
 let _invSeenLogIds   = null;   // Set<id> -- null = nog niet ge-baseline'd deze weergave-sessie
 let _invExportVan    = '';
@@ -25,6 +26,7 @@ let _invExportTot    = '';
 let _invZoekPersoon  = null;   // voor wie de zoektekst gold; wisselen van technieker leegt ze
 let _invZoek         = '';     // zoektekst in de onderdelenlijst; blijft over herrenders heen
 let _invHistoriek    = false;  // toont de technieker-weergave de historiek (log van deze persoon) i.p.v. de voorraad?
+let _invStartGemeld  = false;  // opstartmelding "Check je voorraad" al getoond deze pagina-lading?
 
 const INV_API       = '/api/inventaris';
 // Testmodus heeft een aparte cache, zodat een testmomentopname nooit in echte modus verschijnt
@@ -91,16 +93,21 @@ function renderEigenVoorraad(persoon) {
   const src = PRIJZEN || PRIJZEN_DEFAULTS;
   const editing = _invEditActive && _invEditPersoon === persoon;
 
+  // Meldgrens (v2.4.0): 'op' = rode rij (inv-low), 'bijna' = oranje rij (inv-bijna); een grens boven 0 staat als "≤ n" naast het aantal.
+  // Het belletje en de grens zijn enkel op pc en tablet te zien en te wijzigen (CSS op data-apparaat="gsm").
   const rij = o => {
-    const entry  = stock[o.id] || { aantal: 0, gedempt: false };
-    const aantal = entry.aantal || 0;
-    const gedempt = !!entry.gedempt;
-    const laag = aantal <= 0 && !gedempt;
+    const entry   = voorraadRegel(stock[o.id]);
+    const aantal  = entry.aantal;
+    const drempel = entry.drempel;
+    const gedempt = drempel === null;
+    const status  = voorraadStatus(entry);
 
     if (!editing) {
-      return `<div class="inv-row${laag ? ' inv-low' : ''}">
+      const klasse = status === 'op' ? ' inv-low' : status === 'bijna' ? ' inv-bijna' : '';
+      const grens = drempel > 0 ? `<span class="inv-row-grens" title="Melding bij ${drempel} of minder">≤ ${drempel}</span>` : '';
+      return `<div class="inv-row${klasse}">
         <span class="inv-row-naam">${escHtml(o.naam)}</span>
-        <span class="inv-row-aantal">${aantal}</span>
+        <span class="inv-row-rechts"><span class="inv-row-aantal">${aantal}</span>${grens}</span>
       </div>`;
     }
     return `<div class="inv-row inv-cat-row" data-mat-id="${escHtml(o.id)}" data-mat-naam="${escHtml(o.naam)}">
@@ -110,6 +117,10 @@ function renderEigenVoorraad(persoon) {
         <input class="inv-qty-input" type="number" aria-label="Aantal ${escHtml(o.naam || 'naamloos item')}" min="0" step="1" inputmode="numeric" value="${aantal}" />
         <button class="inv-qty-btn inv-qty-plus" type="button" title="Vermeerder" aria-label="Vermeerder ${escHtml(o.naam || 'naamloos item')}">+</button>
         <button class="inv-bell-btn${gedempt ? ' inv-bell-muted' : ''}" type="button" aria-label="${gedempt ? 'Lage-voorraadmelding inschakelen' : 'Lage-voorraadmelding uitschakelen'}" title="Lage-voorraadmelding voor dit item ${gedempt ? 'inschakelen' : 'uitschakelen'}">${gedempt ? '🔕' : '🔔'}</button>
+        <label class="inv-melding"${gedempt ? ' hidden' : ''} title="Melding als er nog dit aantal of minder in de wagen ligt">
+          <span class="inv-melding-tekst">meld bij ≤</span>
+          <input class="inv-drempel-input" type="number" aria-label="Meldgrens ${escHtml(o.naam || 'naamloos item')}" min="0" max="${MAX_DREMPEL}" step="1" inputmode="numeric" value="${gedempt ? 0 : drempel}" />
+        </label>
       </div>
     </div>`;
   };
@@ -196,6 +207,8 @@ function wireEigenVoorraad(body, persoon) {
       btn.classList.toggle('inv-bell-muted', nowMuted);
       btn.textContent = nowMuted ? '🔕' : '🔔';
       btn.setAttribute('aria-label', nowMuted ? 'Lage-voorraadmelding inschakelen' : 'Lage-voorraadmelding uitschakelen');
+      const melding = row.querySelector('.inv-melding');
+      if (melding) melding.hidden = nowMuted;
     });
   });
 }
@@ -205,8 +218,8 @@ function invStartEdit(persoon) {
   const src = PRIJZEN || PRIJZEN_DEFAULTS;
   _invEditSnapshot = new Map();
   src.onderdelen.forEach(o => {
-    const entry = stock[o.id] || { aantal: 0, gedempt: false };
-    _invEditSnapshot.set(o.id, { aantal: entry.aantal || 0, gedempt: !!entry.gedempt });
+    const { aantal, drempel } = voorraadRegel(stock[o.id]);
+    _invEditSnapshot.set(o.id, { aantal, drempel });
   });
   _invEditActive  = true;
   _invEditPersoon = persoon;
@@ -234,15 +247,18 @@ async function invSaveEdit() {
     const naam  = row.dataset.matNaam;
     const input = row.querySelector('.inv-qty-input');
     const bel   = row.querySelector('.inv-bell-btn');
+    const grens = row.querySelector('.inv-drempel-input');
 
     const nieuweAantal  = Math.max(0, parseInt(input.value, 10) || 0);
-    const nieuweGedempt = bel.classList.contains('inv-bell-muted');
-    const oud = _invEditSnapshot.get(id) || { aantal: 0, gedempt: false };
+    const nieuweDrempel = bel.classList.contains('inv-bell-muted')
+      ? null
+      : Math.min(MAX_DREMPEL, Math.max(0, parseInt(grens?.value, 10) || 0));
+    const oud = _invEditSnapshot.get(id) || { aantal: 0, drempel: null };
 
     const item = { materiaalId: id, materiaalNaam: naam };
     let gewijzigd = false;
     if (nieuweAantal !== oud.aantal)   { item.aantal  = nieuweAantal - oud.aantal; gewijzigd = true; }
-    if (nieuweGedempt !== oud.gedempt) { item.gedempt = nieuweGedempt;             gewijzigd = true; }
+    if (nieuweDrempel !== oud.drempel) { item.drempel = nieuweDrempel;             gewijzigd = true; }
     if (gewijzigd) items.push(item);
   });
 
@@ -370,22 +386,36 @@ export function resetInvSeenLog() {
   _invSeenLogIds = null;
 }
 
+// Technieker: het aantal producten onder hun meldgrens, rood (badge--op) als er iets op is, anders oranje (badge--bijna).
+// Alle technici: de openstaande aanvullingen (zonder statuskleur).
 export function updateInventarisBadge(persoon) {
   const el = document.getElementById('cnt-inventaris');
   if (!el) return;
   let count;
+  let kleur = null;
   if (persoon === 'all') {
     count = (_invData.log || []).filter(e => e.type === 'aanvulling' && e.status === 'nieuw').length;
   } else {
-    const stock = _invData.wagenvoorraad[persoon] || {};
-    const src = PRIJZEN || PRIJZEN_DEFAULTS;
-    count = src.onderdelen.filter(o => {
-      const entry = stock[o.id] || { aantal: 0, gedempt: false };
-      return entry.aantal <= 0 && !entry.gedempt;
-    }).length;
+    const laag = lageItems(_invData.wagenvoorraad[persoon], (PRIJZEN || PRIJZEN_DEFAULTS).onderdelen);
+    count = laag.length;
+    if (count) kleur = laag.some(i => i.status === 'op') ? 'op' : 'bijna';
   }
   el.textContent = String(count);
   el.style.display = count > 0 ? '' : 'none';
+  el.classList.toggle('badge--op', kleur === 'op');
+  el.classList.toggle('badge--bijna', kleur === 'bijna');
+}
+
+// Opstartmelding (één keer per pagina-lading): wie zelf een wagen heeft (eigen Zoho-naam) en producten onder hun grens heeft,
+// krijgt een korte melding. Aangeroepen door app.js na de eerste lading van de inventaris (ook als die uit de cache kwam).
+export function meldLageVoorraadBijStart() {
+  if (_invStartGemeld) return;
+  if (!heeftRol('beheerder', 'planner', 'technieker')) return;
+  const eigen = eigenZohoNaam();
+  if (!eigen) return;
+  _invStartGemeld = true;
+  const tekst = startTekst(lageItems(_invData.wagenvoorraad[eigen], (PRIJZEN || PRIJZEN_DEFAULTS).onderdelen));
+  if (tekst) toast(tekst, 6000);
 }
 
 // ── Verwerkt-actie (supervisor) ──
@@ -533,18 +563,22 @@ export async function exportInventarisLog() {
 // koppeling aan de prijzencatalogus -- die hebben geen materiaalId om tegen af te boeken, en
 // worden dus bewust overgeslagen (geen fout, gewoon genegeerd).
 // `ticketNummer` (optioneel) komt bij elke verbruiksregel in de log, zodat de supervisor ziet bij welk rapport de aftrek hoort.
+// Geeft de producten uit DIT rapport terug die na een geslaagde aftrek onder hun meldgrens zitten (lageItems), anders [];
+// de rapport-wizard toont ze als "Bijna op".
 export async function registreerVerbruik(technieker, onderdelen, ticketNummer) {
   // Testmodus (?test) wordt ook op de live site gebruikt: zonder deze guard zou een testrapport
   // de echte wagenvoorraad wijzigen.
-  if (TEST_MODE) return;
-  if (!technieker) return;
+  if (TEST_MODE) return [];
+  if (!technieker) return [];
   const items = (onderdelen || [])
     .filter(p => p.naam && !String(p.id || '').startsWith('vrij-') && (parseInt(p.aantal) || 0) > 0)
     .map(p => ({ materiaalId: p.id, materiaalNaam: p.naam, aantal: parseInt(p.aantal) || 1 }));
-  if (!items.length) return;
+  if (!items.length) return [];
 
   // Mislukt de aftrek, dan meldt de wachtrij het en probeert ze zekere mislukkingen later opnieuw (Q4, kern/verbruik-wachtrij.js).
-  await verbruikWachtrij().meld(technieker, items, { ticketNummer });
+  const { uitkomst } = await verbruikWachtrij().meld(technieker, items, { ticketNummer });
+  if (uitkomst !== 'gelukt') return [];
+  return lageItems(_invData.wagenvoorraad[technieker], (PRIJZEN || PRIJZEN_DEFAULTS).onderdelen, items.map(i => i.materiaalId));
 }
 
 // Wachtrij met aftrekken die zeker niet gelukt zijn: opnieuw proberen bij opstart, bij weer online en bij elke lading (poll).
@@ -587,6 +621,6 @@ if (typeof window !== 'undefined') window.addEventListener('online', () => { if 
 
 // ── Window-bridge ──
 // Enkel wat de rapport-wizard nog als kale naam leest: registreerVerbruik (na het versturen van een rapport).
-// De rest (loadInventaris, renderInventaris, updateInventarisBadge, resetInvSeenLog) importeert app.js rechtstreeks.
+// De rest (loadInventaris, renderInventaris, updateInventarisBadge, resetInvSeenLog, meldLageVoorraadBijStart) importeert app.js rechtstreeks.
 window.registreerVerbruik    = registreerVerbruik;
 

@@ -119,16 +119,19 @@ export function maakVerbruikWachtrij(deps) {
 
   // Eerste poging, direct na het verzenden van het rapport. Het item staat met lease in de opslag vóór de POST.
   // `ticketNummer` (optioneel): het ticket van het rapport, enkel ter info in de inventarislog.
+  // Geeft { uitkomst } terug ('gelukt', 'offline', 'conflict', 'tijdelijk', 'definitief', 'onzeker' of 'weg'): bij 'gelukt' staat de
+  // nieuwe stand al via naSucces klaar (de meldgrens-melding na een rapport leest ze).
   async function meld(technieker, items, { ticketNummer } = {}) {
     const eigenaarId = gebruikerId();
     const e = { id: maakId(), technieker, items, aangemaakt: nu(), pogingen: 0, bezigTot: null, eigenaar: null,
       ...(ticketNummer ? { ticketNummer: String(ticketNummer) } : {}),
       ...(typeof eigenaarId === 'string' && eigenaarId ? { gebruikerId: eigenaarId } : {}) };
-    if (!online()) { schrijf([...lees(), e]); toon(TEKSTEN.wachtrij, 5000); return; }
+    if (!online()) { schrijf([...lees(), e]); toon(TEKSTEN.wachtrij, 5000); return { uitkomst: 'offline' }; }
     schrijf([...lees(), { ...e, bezigTot: nu() + LEASE_MS, eigenaar: ik }]);
     const r = await verzend(e, e.id);
     const uit = afronden(e, r, { uitWachtrij: false });
     if (uit === 'conflict' || uit === 'tijdelijk') toon(TEKSTEN.wachtrij, 5000);
+    return { uitkomst: r.uitkomst };
   }
 
   async function verwerkRonde() {

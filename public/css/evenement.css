@@ -178,6 +178,7 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
   :root[data-event][data-event-achtergrond="ja"] .ticket.overdue { --ev-kaart: color-mix(in srgb, var(--red) 3%, var(--bg)); }
   :root[data-event][data-event-achtergrond="ja"] .ticket.overdue:hover { --ev-kaart: color-mix(in srgb, var(--red) 6%, var(--bg)); }
   :root[data-event][data-event-achtergrond="ja"] .inv-row.inv-low { --ev-tint: var(--red-dim); }
+  :root[data-event][data-event-achtergrond="ja"] .inv-row.inv-bijna { --ev-tint: var(--orange-dim); }
   /* Donker thema: lichtere tekst op de kaarten. Bij 60 % glas kan een kaart over de maan liggen (Halloween, kalender op 1024 breed:
      vervaagd rgb(205,198,184)); beslissing controller 2026-10-23: de scène blijft, de tekst wordt lichter, zodat elke tekstkleur
      4,5:1 haalt boven de helderste vlek ERGENS in de kaart. Hoofdtekst bijna wit, secundaire tekst net iets grijzer (hiërarchie).
@@ -189,6 +190,8 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
     color: var(--text); /* tekst zonder eigen kleur erft anders de --text van body */
   }
   :root[data-event][data-event-achtergrond="ja"]:not([data-theme="light"]) :is(.taddr.miss, .cal-addr.miss, .inv-row.inv-low .inv-row-aantal) { color: #ffdcd7; }
+  /* Idem voor het oranje van "bijna op" (meldgrens, v2.4.0): licht amber in donker, donker oranje in licht. */
+  :root[data-event][data-event-achtergrond="ja"]:not([data-theme="light"]) .inv-row.inv-bijna .inv-row-aantal { color: #ffe3b3; }
   /* Licht thema: donkerdere secundaire tekst op de kaarten (4,5:1 ook boven de donkerste kleur van een lichte achtergrond, ook op de
      iets grijzere kaart van een verlopen ticket, ook bij hover, en boven een rode kerstbal die op een gsm achter de eerste kaart
      hangt: #3d4652). Ook hier blijft --red ongemoeid; enkel de losse rode tekst krijgt een donkerder rood (#8c1111, nog steeds rood). */
@@ -196,6 +199,7 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
     --text2: #3d4652; --muted: #3d4652;
   }
   :root[data-event][data-event-achtergrond="ja"][data-theme="light"] :is(.taddr.miss, .cal-addr.miss, .inv-row.inv-low .inv-row-aantal) { color: #8c1111; }
+  :root[data-event][data-event-achtergrond="ja"][data-theme="light"] .inv-row.inv-bijna .inv-row-aantal { color: #6e3400; }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     :root[data-event][data-event-achtergrond="ja"] { --ev-glas-alpha: var(--ev-glas-vast); }
   }
