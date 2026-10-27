@@ -10,12 +10,13 @@ import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { magSchrijvenVoor, magPlannenVoor } from '../kern/sessie.js';
 import { toast, escHtml, registreerActies, registreerBackdrop, strengeAfh } from '../kern/ui.js';
-import { localISO, fmtDate, fmtDateShort, extractLocalHour, timeStrToMin } from '../kern/tijd.js';
+import { localISO, todayISO, fmtDate, fmtDateShort, extractLocalHour, timeStrToMin } from '../kern/tijd.js';
 import { registreerVenster } from '../venster.js';
 import { appConfirm } from '../app-dialog.js';
 import { plusInplannen } from './wachtrij.js';
 import { renderKalender } from './kalender.js';
-import { tijdslotVoor, telNummer } from './ticketdetail-logica.js';
+import { tijdslotVoor, telNummer, detailUrgentie } from './ticketdetail-logica.js';
+import { isOverdue } from './wachtrij-logica.js';
 import { getHolidayName } from '../kern/feestdagen.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initTicketdetail); een vergeten init faalt luid.
@@ -198,6 +199,11 @@ export function openDetail(t) {
 
   // Afspraak annuleren vervangt "Uit planning halen" zodra er een voorstel uitstaat.
   document.getElementById('d-btn-annuleer').style.display = magPlannen && afh.heeftLopendVoorstel(t) ? '' : 'none';
+
+  // Gloed langs de rand van het venster in de kleur van het ticket (Open dag-stijl; enkel een attribuut voor de opmaak)
+  const modal = document.querySelector('#det-overlay .modal');
+  const urgentie = detailUrgentie({ status: t.status, ingepland: showPlanBtns, overdue: !!isOverdue(t, todayISO()), priority: t.priority });
+  if (urgentie) modal.dataset.urgentie = urgentie; else delete modal.dataset.urgentie;
 
   document.getElementById('det-overlay').classList.add('open');
 }
