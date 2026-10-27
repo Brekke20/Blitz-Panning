@@ -10,6 +10,7 @@ import { getStore } from '@netlify/blobs';
 import { winkelNaam, isTestVerzoek, zorgVoorTestkopie } from '../lib/testmodus.js';
 import { beveiligV2 } from '../lib/beveiligd.js';
 import { isEigenNaam } from '../lib/eigen.js';
+import { voorraadRegel, MAX_DREMPEL } from '../../public/js/kern/voorraad-drempel.js';
 
 const BLOB_KEY = 'inventaris';
 const ALLOWED_ORIGINS = [
@@ -41,14 +42,8 @@ function json(data, status, hdrs) {
 // frontend nooit met de oude vorm rekening moet houden.
 // drempel = meldgrens (melden bij aantal <= drempel), null = geen melding. Zonder drempel-veld: wat ooit in de wagen zat (er is
 // een regel) meldt op 0 tenzij gedempt; een product zonder regel meldt niet. `gedempt` loopt altijd gelijk (= drempel === null),
-// zodat een oudere client en een terugrol naar 2.3.0 blijven werken.
-export const MAX_DREMPEL = 999;
-function normStock(val) {
-  if (val == null) return { aantal: 0, gedempt: true, drempel: null };
-  if (typeof val === 'number') return { aantal: val, gedempt: false, drempel: 0 };
-  const drempel = val.drempel !== undefined ? val.drempel : (val.gedempt ? null : 0);
-  return { aantal: val.aantal || 0, gedempt: drempel === null, drempel };
-}
+// zodat een oudere client en een terugrol naar 2.3.0 blijven werken. Gedeeld met de client (public/js/kern/voorraad-drempel.js).
+const normStock = voorraadRegel;
 const isDrempel = d => d === null || (Number.isInteger(d) && d >= 0 && d <= MAX_DREMPEL);
 
 function normalizeWagenvoorraad(wv) {

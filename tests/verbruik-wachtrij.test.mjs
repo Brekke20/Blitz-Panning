@@ -296,3 +296,11 @@ test('ticketnummer: gaat mee in de POST, ook bij een herpoging uit de wachtrij; 
   await zonder.w.meld('Jan', ITEMS);
   assert.ok(!('ticketNummer' in zonder.posts[0]));
 });
+
+test('meld geeft de uitkomst terug (de meldgrens-melding na een rapport toont enkel iets bij "gelukt")', async () => {
+  assert.deepEqual(await bouw({ antwoorden: [ok(6)] }).w.meld('Jan', ITEMS), { uitkomst: 'gelukt' });
+  assert.deepEqual(await bouw({ antwoorden: [conflict(7), ok(8)] }).w.meld('Jan', ITEMS), { uitkomst: 'gelukt' });
+  assert.deepEqual(await bouw({ online: false }).w.meld('Jan', ITEMS), { uitkomst: 'offline' });
+  assert.deepEqual(await bouw({ antwoorden: [{ status: 400, data: { error: 'x' } }] }).w.meld('Jan', ITEMS), { uitkomst: 'definitief' });
+  assert.equal((await bouw({ antwoorden: [{ status: 502, data: null }] }).w.meld('Jan', ITEMS)).uitkomst, 'onzeker');
+});

@@ -9,6 +9,7 @@ import { closeLocalDet } from './schermen/afspraken.js';
 import { loadFotos, renderFotoGridInto, handleFotoFiles } from './schermen/fotos.js';
 import { syncOplossingNaarZoho } from './schermen/rapport-verzenden.js';
 import { escHtml, toast } from './kern/ui.js';
+import { meldTekst } from './kern/voorraad-drempel.js';
 import { berekenLoonkost } from './kern/loonkost.js';
 import { RAPPORT_CSS } from './rapport-stijl.js';
 import { TEST_UPLOAD } from './test-upload.js';
@@ -1472,21 +1473,36 @@ export async function printRapport() {
       // mag het afronden van het rapport nooit vertragen of laten falen (zie
       // docs/superpowers/specs/2026-08-20-inventarissysteem-design.md, "Randgevallen").
       // Ticketnummer enkel bij een echt Zoho-ticket (een lokale afspraak heeft er geen).
-      window.registreerVerbruik?.(_wizTicket.assignee, R.onderdelen, item.isLocal ? '' : (_wizTicket.number || ''))?.catch(err =>
-        console.warn('Inventaris-aftrek mislukt (niet blokkerend):', err));
+      // De belofte geeft de producten uit dit rapport die na de aftrek onder hun meldgrens zitten (v2.4.0, "Bijna op").
+      const laagBelofte = Promise.resolve(window.registreerVerbruik?.(_wizTicket.assignee, R.onderdelen, item.isLocal ? '' : (_wizTicket.number || '')))
+        .then(laag => (Array.isArray(laag) ? laag : []))
+        .catch(err => { console.warn('Inventaris-aftrek mislukt (niet blokkerend):', err); return []; });
 
       const TIMEOUT_MS = 5000;
       const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), TIMEOUT_MS));
       const result  = await Promise.race([runOutboxItem(item), timeout]);
 
+      let melding, meldingMs;
       if (result === 'timeout') {
-        toast('⏳ Rapport wordt verstuurd — je kan gewoon verder, dit gebeurt op de achtergrond', 5000);
+        melding = '⏳ Rapport wordt verstuurd — je kan gewoon verder, dit gebeurt op de achtergrond'; meldingMs = 5000;
       } else if (result?.ontvangen === true || nextOutboxAction(result) === 'done') {
-        toast(item.isLocal
+        melding = item.isLocal
           ? '✓ Rapport opgeslagen in archief — geen Zoho-ticket gekoppeld'
-          : '✓ Rapport verstuurd — het wordt op de achtergrond naar Zoho gestuurd', 4500);
+          : '✓ Rapport verstuurd — het wordt op de achtergrond naar Zoho gestuurd';
+        meldingMs = 4500;
       } else {
-        toast('⏳ Rapport staat klaar om te versturen. We proberen opnieuw zodra je verbinding hebt. Je hoeft niets te doen.', 5000);
+        melding = '⏳ Rapport staat klaar om te versturen. We proberen opnieuw zodra je verbinding hebt. Je hoeft niets te doen.'; meldingMs = 5000;
+      }
+      // Eén toast-element: is de aftrek al klaar, dan komt "Bijna op" in dezelfde melding; anders een eigen melding zodra ze klaar is.
+      const NOG_BEZIG = Symbol('bezig');
+      const laag = await Promise.race([laagBelofte, Promise.resolve(NOG_BEZIG)]);
+      if (laag === NOG_BEZIG) {
+        toast(melding, meldingMs);
+        laagBelofte.then(l => { if (l.length) toast(`⚠ Bijna op in je wagen: ${meldTekst(l)}`, 7000); });
+      } else if (laag.length) {
+        toast(`${melding} · ⚠ Bijna op in je wagen: ${meldTekst(laag)}`, 9000);
+      } else {
+        toast(melding, meldingMs);
       }
 
       await refreshOutboxCache();
