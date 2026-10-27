@@ -13,6 +13,11 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ## [Unreleased]
 
 ### Added
+- (nog niets sinds de laatste release)
+
+## [2.4.0] — 2026-10-27
+
+### Added
 - Inventaris: per product een meldgrens in je wagenvoorraad. Onder Bewerken staat naast het belletje "meld bij ≤ …": zet je bv. 1 bij een energiemeter, dan waarschuwt de app als er nog 1 of minder in je wagen ligt. Instellen kan op pc en tablet (op de gsm zie je het belletje en de grens niet).
 - Bij het opstarten van de app een korte melding "⚠ Check je voorraad" als er iets onder de grens zit.
 - Na het versturen van een rapport: "⚠ Bijna op in je wagen: …" voor de gebruikte producten die onder hun grens zakten.
