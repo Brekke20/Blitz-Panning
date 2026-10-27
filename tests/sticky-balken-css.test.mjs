@@ -62,5 +62,6 @@ test('de body heeft min-height in plaats van een vaste hoogte (sticky-bakje van 
 
 test('sticky-offset.js bewaakt kop, tabbalk en meldingsbalken en zet --sticky-top', () => {
   const js = lees('js/sticky-offset.js');
-  for (const s of ['--topbar-h', '--banners-h', '--sticky-top', 'ResizeObserver', '.topbar-sticky', 'offline-banner', 'outbox-banner']) assert.ok(js.includes(s), s + ' ontbreekt');
+  // Open dag (taak 5): ook --dok-h, de ruimte die het dok onderaan inneemt (gsm en staande tablet; 0 op breed), gemeten op .tabs.
+  for (const s of ['--topbar-h', '--banners-h', '--sticky-top', '--dok-h', 'ResizeObserver', '.topbar-sticky', '.tabs', 'offline-banner', 'outbox-banner']) assert.ok(js.includes(s), s + ' ontbreekt');
 });

@@ -113,54 +113,8 @@
     html[data-aanraak="ja"] .pm-item { min-height: 44px; }
 
     /* ── Tabs ── */
-    /* .tabs zit nu binnen .topbar-sticky (zie hierboven) i.p.v. zelf te stickyen -- position:
-       relative blijft nodig zodat de ::after-indicator (position:absolute) hieraan verankerd
-       blijft i.p.v. aan een verdere/verkeerde positioned ancestor. */
-    .tabs {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      position: relative;
-      /* Indicator via CSS var (JS vult in) — ::after is relatief aan .tabs, buiten de scroll-zone */
-      --ind-left: 0px;
-      --ind-width: 0px;
-    }
-    /* .tabs-inner = de scrollbare flex-rij met de tab-knoppen */
-    .tabs-inner {
-      display: flex;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-      padding: 0 8px;
-    }
-    .tabs-inner::-webkit-scrollbar { display: none; }
-    /* Animated sliding underline — op .tabs zodat het BUITEN de scroll-clip valt */
-    .tabs::after {
-      content: '';
-      position: absolute;
-      bottom: -1px;
-      left: var(--ind-left);
-      width: var(--ind-width);
-      height: 2px;
-      background: var(--accent);
-      transition: left 0.28s var(--ease), width 0.28s var(--ease);
-      pointer-events: none;
-    }
-    .tab {
-      padding: 0 14px;
-      height: 40px;
-      display: flex; align-items: center; gap: 6px;
-      font-size: 0.81rem;
-      font-weight: 500;
-      color: var(--muted);
-      cursor: pointer;
-      border-bottom: 2px solid transparent; /* spacer — actual line is via ::after */
-      white-space: nowrap;
-      user-select: none;
-      transition: color 0.15s var(--ease);
-      position: relative;
-    }
-    .tab:hover { color: var(--text2); }
-    .tab.active { color: var(--text); font-weight: 600; }
+    /* De tabbalk (.tabs > .tabs-inner > .tab), de zijkolom op `breed` en het dok op gsm/staande tablet staan in css/navigatie.css (Open dag,
+       taak 5). Hier blijven enkel de tellers (.badge), die ook buiten de tabs voorkomen. */
     .badge {
       background: var(--surface3);
       color: var(--muted);
@@ -1166,10 +1120,7 @@
       outline-offset: 2px;
     }
     button:focus:not(:focus-visible) { outline: none; }
-    /* Tab als <button>: de bestaande .tab-regels blijven, enkel de knop-standaarden weg */
-    button.tab { background: none; border: 0; font: inherit; font-size: 0.81rem; font-weight: 500; color: var(--muted); }
-    button.tab.active { font-weight: 600; color: var(--text); }
-    .tab:focus-visible { outline-offset: -2px; }
+    /* Tab als <button>: de knop-standaarden en de focusring staan bij de tabs in css/navigatie.css */
 
     /* ── Arrival badge per stop ── */
     .stop-arrival {
@@ -1317,17 +1268,7 @@
     .gm-rol { font-size: var(--fs-2xs); color: var(--muted); }
     /* Een tab die de rol niet toestaat (hidden): .tab zet display:flex en zou het attribuut anders overrulen. */
     .tabs-inner .tab[hidden] { display: none !important; }
-    /* UI/UX P2-10 (gsm): smallere tabs, zodat de technieker zijn 4 tabs volledig ziet (alle tabs delen de ruimte); past een rol met veel tabs
-       (beheerder: 8) niet, dan scrollt de balk en tonen "scrollschaduwen" aan de kant waar nog meer staat (alleen zichtbaar bij overloop). */
-    html[data-indeling="smal"] .tab { padding: 0 8px; flex: 1 0 auto; justify-content: center; }
-    html[data-indeling="smal"] .tabs-inner { padding: 0 4px; }
-    html[data-indeling="smal"] .tabs-inner {
-      background:
-        linear-gradient(to right, var(--surface) 30%, transparent) left center / 28px 100% no-repeat local,
-        linear-gradient(to left, var(--surface) 30%, transparent) right center / 28px 100% no-repeat local,
-        linear-gradient(to right, rgba(0, 0, 0, 0.38), transparent) left center / 12px 100% no-repeat scroll,
-        linear-gradient(to left, rgba(0, 0, 0, 0.38), transparent) right center / 12px 100% no-repeat scroll;
-    }
+    /* UI/UX P2-10 (smallere tabs en scrollschaduwen op de gsm) is vervangen door het dok van css/navigatie.css (Open dag, taak 5). */
 
 /* De filterbalk van Rapporten (class .rapp-balk, was een inline vaste top:92px; v1.10.3 gaf hem de meldingsbalken erbij, v2.0.1 de gedeelde --sticky-top). */
 .rapp-balk { position: sticky; top: var(--sticky-top, 93px); z-index: 28; padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--surface); }

@@ -239,7 +239,7 @@ test.describe('kalender: wissel van apparaat bij een open kalender', () => {
 });
 
 // UI/UX-review P2-10: op een gsm passen de 4 tabs van de technieker volledig; bij een rol met veel tabs (beheerder) scrolt de balk
-// en tonen scrollschaduwen (achtergrondverlopen) dat er meer staat.
+// (Open dag, taak 5: het dok; de scrollschaduwen zijn vervangen, zie de tweede test).
 test.describe('tabbalk op een gsm', () => {
   test('technieker: alle 4 tabs passen zonder horizontaal scrollen en geen tab is afgeknipt', async ({ page }) => {
     await zetWeergave(page, 'gsm');
@@ -255,15 +255,21 @@ test.describe('tabbalk op een gsm', () => {
     expect(m.rechts).toBeLessThanOrEqual(m.breedte + 0.5);
   });
 
-  test('beheerder: de tabbalk scrolt en heeft scrollschaduwen (verlopen) als teken dat er meer staat', async ({ page }) => {
+  // Open dag (taak 5): de tabbalk is op de gsm een glazen dok; de scrollschaduwen (verlopen in de oude effen kleur van de balk) zijn weg.
+  // Tot "Meer" (taak 6) de overtollige tabs opvangt, scrolt het dok horizontaal zonder zichtbare schuifbalk en blijft de pagina zelf staan.
+  test('beheerder: het dok scrolt horizontaal (zonder schuifbalk) als niet alle tabs passen, de pagina niet', async ({ page }) => {
     await zetWeergave(page, 'gsm');
     await startApp(page, { viewport: { width: 375, height: 812 } });
     await expect(page.locator('html')).toHaveAttribute('data-indeling', 'smal');
     const m = await page.evaluate(() => {
       const balk = document.querySelector('.tabs-inner');
-      return { scrolt: balk.scrollWidth > balk.clientWidth, achtergrond: getComputedStyle(balk).backgroundImage };
+      const stijl = getComputedStyle(balk);
+      return { scrolt: balk.scrollWidth > balk.clientWidth, overflowX: stijl.overflowX, schuifbalk: stijl.scrollbarWidth,
+        pagina: document.documentElement.scrollWidth - document.documentElement.clientWidth };
     });
     expect(m.scrolt).toBe(true);
-    expect(m.achtergrond).toContain('linear-gradient');
+    expect(m.overflowX).toBe('auto');
+    expect(m.schuifbalk).toBe('none');
+    expect(m.pagina).toBeLessThanOrEqual(0);
   });
 });

@@ -89,6 +89,7 @@
   <script src="/js/apparaat.js"></script>
   <link rel="stylesheet" href="/css/base.css">
   <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/navigatie.css">
   <link rel="stylesheet" href="/css/wizard.css">
   <link rel="stylesheet" href="/css/prijzen.css">
   <link rel="stylesheet" href="/css/inventaris.css">
@@ -107,6 +108,7 @@
   <link rel="modulepreload" href="/js/rapport-archief.js">
   <link rel="modulepreload" href="/js/rapport-stijl.js">
   <link rel="modulepreload" href="/js/kern/veilige-html.js">
+  <link rel="modulepreload" href="/js/kern/tab-iconen.js">
   <link rel="modulepreload" href="/js/rapport-inhoud.js">
   <link rel="modulepreload" href="/js/rapport-status.js">
   <link rel="modulepreload" href="/js/prijzen.js">
@@ -236,6 +238,11 @@
 
 <nav aria-label="Hoofdmenu">
 <div class="tabs">
+  <!-- Open dag (taak 5): logo bovenaan de zijkolom, enkel op `breed` (css/navigatie.css); decoratief, de naam staat al in de h1 -->
+  <div class="zijkolom-logo" aria-hidden="true">
+    <div class="zijkolom-logo-icoon"><svg width="16" height="24" viewBox="0 0 14 22" xmlns="http://www.w3.org/2000/svg" focusable="false"><line x1="9" y1="5" x2="6" y2="11" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/><line x1="8" y1="12" x2="5" y2="18" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/></svg></div>
+    <span class="zijkolom-logo-tekst">Blitz Planning</span>
+  </div>
   <div class="tabs-inner" role="tablist">
     <button type="button" class="tab active coord-only plan-eigen" role="tab" aria-selected="true" aria-controls="view-tickets" tabindex="0" id="tab-tickets"  data-actie="hoofdtab" data-arg="tickets">Wachtrij <span class="badge" id="cnt-tickets">0</span></button>
     <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="view-kalender" tabindex="-1"        id="tab-kalender" data-actie="hoofdtab" data-arg="kalender">Kalender</button>
