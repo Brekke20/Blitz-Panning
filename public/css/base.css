@@ -23,6 +23,11 @@
       --r:      8px;
       --r-lg:   12px;
       --r-pill: 999px;
+      /* Open dag-stijl: stralen van kaarten, vensters, evenementen en pillen */
+      --r-kaart:   22px;
+      --r-venster: 28px;
+      --r-ev:      16px;
+      --r-pil:     999px;
 
       /* ── Z-index stacking ── */
       --z-event:    15; /* feestelijke versiering: boven de inhoud, onder alle sticky balken (20-30) */
@@ -33,7 +38,7 @@
       --z-toast:    10000;
 
       /* ── Blitz Power brand kleuren ── */
-      --bg:       #181e24;
+      --bg:       #0d1530; /* dicht bij de nachthemel (--h1/--h2 van de hemel) */
       --surface:  #1d252d;
       --surface2: #232d37;
       --surface3: #2b3542;
@@ -65,13 +70,37 @@
       --text2: #a8b0ba;
       --muted: #8b97a5;
       --focus-ring: var(--accent);
+      /* ── Open dag-stijl: glas (donker), letters, gloed en duur ──
+         Glas ligt boven de hemel; de vervaging en de dekking worden verderop per toestel/voorkeur bijgesteld. */
+      --glas:            rgba(255,255,255,0.075);
+      --glas-hover:      rgba(255,255,255,0.12);
+      --glas-sterk:      rgba(255,255,255,0.09);
+      --glas-venster:    rgba(24,36,62,0.84);
+      --glas-rand:       rgba(255,255,255,0.14);
+      --glas-rand-hover: rgba(255,255,255,0.26);
+      --glas-licht:      rgba(255,255,255,0.16);
+      --blur:            28px;
+      --glas-schaduw:    0 20px 50px rgba(0,0,0,0.18);
+      --knop2:           rgba(255,255,255,0.08);
+      --knop2-hover:     rgba(255,255,255,0.16);
+      --veld:            rgba(255,255,255,0.08);
+      --font-tekst: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      --font-kop:   'Bricolage Grotesque', 'Figtree', system-ui, -apple-system, sans-serif;
+      /* Gloed: afgeleid van de statuskleuren (die blijven ongemoeid), sterkte per thema */
+      --gloed-sterk:  40%;
+      --gloed-rood:   color-mix(in srgb, var(--red) var(--gloed-sterk), transparent);
+      --gloed-oranje: color-mix(in srgb, var(--orange) var(--gloed-sterk), transparent);
+      --gloed-groen:  color-mix(in srgb, var(--green) var(--gloed-sterk), transparent);
+      --gloed-paars:  color-mix(in srgb, var(--purple) var(--gloed-sterk), transparent);
+      --duur:       .28s;
+      --duur-glans: .4s;
       --ease:        cubic-bezier(0.4, 0, 0.2, 1);
       --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     }
 
     /* ── Light theme ── */
     :root[data-theme="light"] {
-      --bg:       #f0f2f5;
+      --bg:       #e5eefa; /* dicht bij de middaghemel */
       --surface:  #ffffff;
       --surface2: #f5f6f8;
       --surface3: #eaecef;
@@ -99,10 +128,71 @@
       --orange-dim:  rgba(217,119,6,0.10);
       --blue-dim:    rgba(59,130,246,0.10);
       --green-dim:   rgba(0,180,130,0.10);
+      /* Open dag-stijl: glas (licht) */
+      --glas:            rgba(255,255,255,0.52);
+      --glas-hover:      rgba(255,255,255,0.72);
+      --glas-sterk:      rgba(255,255,255,0.58);
+      --glas-venster:    rgba(255,255,255,0.88);
+      --glas-rand:       rgba(255,255,255,0.85);
+      --glas-rand-hover: rgba(255,255,255,1);
+      --glas-licht:      rgba(255,255,255,0.95);
+      --glas-schaduw:    0 20px 50px rgba(40,70,120,0.1);
+      --knop2:           rgba(255,255,255,0.55);
+      --knop2-hover:     rgba(255,255,255,0.92);
+      --veld:            rgba(255,255,255,0.6);
+      --gloed-sterk:     34%;
+    }
+
+    /* ── Open dag-stijl: minder vervaging en meer dekking waar glas te zwaar of niet mogelijk is ──
+       Volgorde en specificiteit zijn bewust: gsm eerst; "verminderde transparantie" en "geen backdrop-filter" winnen daarna. */
+    html[data-apparaat="gsm"] {
+      --blur:         10px;
+      --glas:         rgba(255,255,255,0.12);
+      --glas-hover:   rgba(255,255,255,0.17);
+      --glas-sterk:   rgba(255,255,255,0.14);
+      --glas-venster: rgba(24,36,62,0.92);
+    }
+    html[data-apparaat="gsm"][data-theme="light"] {
+      --glas:         rgba(255,255,255,0.72);
+      --glas-hover:   rgba(255,255,255,0.84);
+      --glas-sterk:   rgba(255,255,255,0.76);
+      --glas-venster: rgba(255,255,255,0.94);
+    }
+    @media (prefers-reduced-transparency: reduce) {
+      html:root:not([data-theme="light"]) {
+        --blur:         0px;
+        --glas:         rgba(32,44,74,0.94);
+        --glas-hover:   rgba(42,55,88,0.96);
+        --glas-sterk:   rgba(36,49,80,0.95);
+        --glas-venster: rgba(24,36,62,0.97);
+      }
+      html:root[data-theme="light"] {
+        --blur:         0px;
+        --glas:         rgba(255,255,255,0.94);
+        --glas-hover:   rgba(255,255,255,0.97);
+        --glas-sterk:   rgba(255,255,255,0.95);
+        --glas-venster: rgba(255,255,255,0.98);
+      }
+    }
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      html:root:not([data-theme="light"]) {
+        --blur:         0px;
+        --glas:         rgba(32,44,74,0.94);
+        --glas-hover:   rgba(42,55,88,0.96);
+        --glas-sterk:   rgba(36,49,80,0.95);
+        --glas-venster: rgba(24,36,62,0.97);
+      }
+      html:root[data-theme="light"] {
+        --blur:         0px;
+        --glas:         rgba(255,255,255,0.94);
+        --glas-hover:   rgba(255,255,255,0.97);
+        --glas-sterk:   rgba(255,255,255,0.95);
+        --glas-venster: rgba(255,255,255,0.98);
+      }
     }
 
     html, body {
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-family: var(--font-tekst);
       background: var(--bg);
       color: var(--text);
       -webkit-font-smoothing: antialiased;
