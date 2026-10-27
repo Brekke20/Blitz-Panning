@@ -15,6 +15,11 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [2.3.1] — 2026-10-27
+
+### Changed
+- Instellingen: de schakelaar "Bewegende beelden tijdens een thema" staat nu onder "Dit toestel", vlak onder "Feestelijke versiering", zodat beide keuzes over de versiering samen staan. De keuze wordt meteen bewaard (dat tabblad heeft geen Opslaan) en blijft gelden op al je toestellen.
+
 ## [2.3.0] — 2026-10-23
 
 ### Added

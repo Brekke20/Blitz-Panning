@@ -131,11 +131,10 @@ export function eigenBewegingUit() {
   try { return loadPersonSettings(eigenPersoon()).bewegingUit === true; } catch { return false; }
 }
 
-// De beperkte technieker-weergave toont enkel "Dit toestel", zonder Opslaan: daar komt de schakelaar "Bewegende beelden tijdens een
-// thema" ook (hetzelfde element wordt verplaatst) en wordt de keuze meteen bewaard, in het EIGEN account (eigen record, nooit een ander).
-// In de gewone weergave (tab Algemeen) bewaart Opslaan hem samen met de rest; dan doet een klik hier niets.
+// De schakelaar "Bewegende beelden tijdens een thema" staat onder "Dit toestel", naast de versiering (Brent, 2026-10-27), voor iedereen.
+// Die tab heeft geen Opslaan: de keuze wordt meteen bewaard, in het EIGEN account (eigen record, nooit een ander). Ze blijft een
+// instelling van het account (op al zijn toestellen), ook al staat ze bij de toestelkeuzes.
 function bewaarBewegingMeteen(aan) {
-  if (!beperktToestel()) return;
   const persoon = eigenPersoon();
   const eigen = loadPersonSettings(persoon);
   if (aan) delete eigen.bewegingUit; else eigen.bewegingUit = true;
@@ -143,19 +142,6 @@ function bewaarBewegingMeteen(aan) {
   savePersonSettings(persoon, {}, eigen);
   if (toontEigenSet(huidigeGebruiker())) toestand.set('settings', loadPersonSettings(toestand.get('activeAssigneeFilter')));
   herberekenVersiering();
-}
-// Zet de schakelaar op de juiste plek: onder "Dit toestel" in de beperkte weergave, anders in Algemeen (na "Drukte").
-function plaatsBewegingBlok() {
-  const blok = document.getElementById('set-beweging-blok');
-  const toestelTab = document.getElementById('set-tab-toestel');
-  const dagen = document.getElementById('set-werkdagen-label')?.closest('.set-field');
-  if (!blok || !toestelTab || !dagen) return;
-  if (beperktToestel()) {
-    const na = document.getElementById('set-versiering-blok');
-    if (blok.parentElement !== toestelTab && na) na.after(blok);
-  } else if (blok.parentElement === toestelTab) {
-    dagen.before(blok);
-  }
 }
 
 export const DAGEN = ['Zo','Ma','Di','Wo','Do','Vr','Za'];
@@ -234,7 +220,6 @@ const beperktToestel = () => window.apparaat?.rol === 'technieker' && !huidigeRe
 
 export function setSettingsTab(tab) {
   if (beperktToestel()) tab = 'toestel';
-  plaatsBewegingBlok();
   _settingsActiveTab = tab;
   document.getElementById('set-subtab-toestel').classList.toggle('active', tab === 'toestel');
   document.getElementById('set-tab-toestel').style.display = tab === 'toestel' ? '' : 'none';
@@ -374,8 +359,7 @@ export function saveSettings() {
     settings.routeKleur = isKleur(kleur) ? kleur : DEFAULT_SETTINGS.routeKleur;
   }
   settings.drukteKleuring = document.getElementById('set-drukte').checked;
-  // Enkel de uitzondering wordt bewaard (bewegingUit: true); aan = het veld weg (de standaard blijft de standaard).
-  if (document.getElementById('set-beweging').checked) delete settings.bewegingUit; else settings.bewegingUit = true;
+  // `bewegingUit` niet hier: die schakelaar (Dit toestel) bewaart meteen en houdt `_doelSettings` zelf bij (bewaarBewegingMeteen).
   savePersonSettings(_doelPersoon, {}, settings);
   // Bekijkt de gebruiker zijn eigen set (of "Alle", hetzelfde eigen record), dan volgt de getoonde set; een collega blijft ongemoeid.
   if (toontEigenSet(gebruiker)) toestand.set('settings', loadPersonSettings(toestand.get('activeAssigneeFilter')));
