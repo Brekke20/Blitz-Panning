@@ -17,6 +17,8 @@ const PADEN = {
   // Afgewerkt: een vinkje in een cirkel
   'sales-afgewerkt': '<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.7 2.7L16 9.8"/>',
 };
+// Meer (drie puntjes): geen tab maar de knop van het dok (schermen/dok-meer.js); daarom niet in ICOON_IDS.
+PADEN.meer = '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>';
 PADEN['sales-kalender'] = PADEN.kalender;
 PADEN['sales-route'] = PADEN.planning;
 

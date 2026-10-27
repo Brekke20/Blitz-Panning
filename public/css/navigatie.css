@@ -127,12 +127,80 @@ html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .topbar-sticky 
   left: 12px; right: 12px; bottom: calc(14px + env(safe-area-inset-bottom, 0px));
 }
 html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .tabs {
+  display: flex; align-items: stretch; gap: 2px;
   padding: 6px; /* in de stroom van het kader: het dok is zo hoog als zijn tabs */
 }
-/* Tijdelijk (tot "Meer", taak 6): passen niet alle tabs, dan scrolt het dok horizontaal, zonder zichtbare schuifbalk. */
+/* Meer dan 5 tabs: de eerste 4 + "Meer" (schermen/dok-meer.js). De overtollige tabs blijven in de DOM (klasse tab--in-meer) en staan in het blad. */
+html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .tab--in-meer { display: none; }
+/* Het dok scrolt niet meer: er passen hoogstens 5 plekken. Enkel op een heel smal scherm (< 340 px) blijft een schuifbalk-loos scrollen als vangnet. */
 html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .tabs-inner {
+  flex: 1 1 0; min-width: 0;
   gap: 2px; overflow-x: auto; overflow-y: hidden;
 }
+/* Met "Meer" zijn de 4 tabs en Meer even breed (4 : 1). */
+html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .tabs:has(.dok-meer:not([hidden])) .tabs-inner { flex-grow: 4; }
+/* "Meer": opgemaakt als een dok-tab (icoon boven de naam), maar geen .tab. Verborgen zolang er niets achter zit en altijd op `breed`. */
+.dok-meer { display: none; }
+html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .dok-meer:not([hidden]) {
+  display: flex; flex: 1 1 0; min-width: 60px;
+  flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  height: 56px; padding: 0 6px;
+  background: transparent; border: 0; border-radius: 24px;
+  font: inherit; font-size: 0.6875rem; font-weight: 500; /* 11 px, zoals de dok-tabs */
+  color: var(--text2);
+  white-space: nowrap; cursor: pointer; user-select: none;
+  transition: color var(--duur) ease, background-color var(--duur) ease, box-shadow var(--duur) ease;
+}
+.dok-meer:hover { color: var(--text); background: var(--knop2); }
+.dok-meer.actief {
+  color: var(--text); font-weight: 600;
+  background: var(--knop2-hover);
+  box-shadow: inset 0 1px 0 var(--glas-licht), 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+.dok-meer.actief:hover { background: var(--knop2-hover); }
+.dok-meer:focus-visible { outline-offset: -2px; }
+.dok-meer .tab-icoon { width: 20px; height: 20px; flex: none; }
+.dok-meer.actief .tab-icoon { color: var(--accent-ink); }
+
+/* Het blad: een glazen paneel onderaan, boven het dok (het overlay ligt boven alles; --dok-h houdt het blad vrij van het dok zelf).
+   Geen vervaging op het overlay zelf: een backdrop-filter in een ouder met backdrop-filter ziet de pagina niet meer, dus het glas van het
+   blad (.dok-meer-blad) zou niet vervagen. Het overlay dimt enkel. */
+.overlay.dok-meer-overlay {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.4);
+  align-items: flex-end; justify-content: center;
+  padding: 0 12px calc(var(--dok-h) + 10px);
+}
+.dok-meer-blad {
+  width: min(100%, 420px);
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px;
+  max-height: calc(100dvh - var(--dok-h) - 40px); overflow-y: auto;
+  background-color: var(--glas);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
+  backdrop-filter: blur(var(--blur)) saturate(180%);
+  border: 1px solid var(--glas-rand);
+  border-radius: 30px;
+  box-shadow: inset 0 1px 0 var(--glas-licht), var(--glas-schaduw);
+  outline: none;
+}
+.dok-meer-item {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; min-height: 52px; padding: 0 16px;
+  background: transparent; border: 0; border-radius: 22px;
+  font: inherit; font-size: 0.9375rem; font-weight: 500; text-align: left;
+  color: var(--text2); cursor: pointer;
+  transition: color var(--duur) ease, background-color var(--duur) ease;
+}
+.dok-meer-item:hover { color: var(--text); background: var(--knop2); }
+.dok-meer-item.actief {
+  color: var(--text); font-weight: 600; background: var(--knop2-hover);
+  box-shadow: inset 0 1px 0 var(--glas-licht);
+}
+.dok-meer-item:focus-visible { outline-offset: -2px; }
+.dok-meer-item .tab-icoon { width: 20px; height: 20px; flex: none; }
+.dok-meer-item.actief .tab-icoon { color: var(--accent-ink); }
+.dok-meer-item .badge { margin-left: auto; }
 html:is([data-indeling="smal"], [data-indeling="tablet-staand"]) .tab {
   flex: 1 0 auto; min-width: 60px;
   flex-direction: column; justify-content: center; gap: 3px;
