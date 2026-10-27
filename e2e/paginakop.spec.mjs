@@ -36,7 +36,10 @@ test.describe('paginakop', () => {
     await expect(sub(page)).toHaveText(/^(\d+ afspraak|\d+ afspraken|Geen afspraken) deze week/);
     await page.locator('#tab-inventaris').click();
     await expect(titel(page)).toHaveText('Inventaris');
-    await expect(sub(page)).toHaveText(/(onder (hun|zijn) meldgrens|^Alles boven de meldgrens)$/);
+    // Taak 8a, Ruling 13: met persoon "Alle" (de standaard van startApp) toont Inventaris de aanvullingen, niet de voorraad per
+    // wagen: geen samenvatting. Was: een telling over alle wagens. Het geval met één technieker staat in "Inventaris" hieronder.
+    await expect(sub(page)).toHaveText('');
+    await expect(sub(page)).toBeHidden();
     // de knoppen staan rechts in de kop, als ronde knoppen
     const kop = await page.locator('header').boundingBox();
     const instel = await page.locator('header [data-actie="instellingen"]').boundingBox();
@@ -121,6 +124,48 @@ test.describe('paginakop', () => {
       expect(await page.evaluate(() => document.scrollingElement.scrollWidth)).toBeLessThanOrEqual(360);
       expect((await page.locator('header').boundingBox()).height).toBeLessThan(70);
     } finally { await context.close(); }
+  });
+
+  // Taak 8a: de Inventaris-samenvatting liegt niet. Met één technieker: de telling onder de meldgrens; met "Alle" (Ruling 13) en zolang de
+  // wagenvoorraad niet geladen is (laden mislukt zonder cache): geen samenvatting.
+  test('Inventaris: één technieker krijgt een samenvatting', async ({ page }) => {
+    await startApp(page, { viewport: PC, technieker: 'Tim' });
+    await page.locator('#tab-inventaris').click();
+    await expect(titel(page)).toHaveText('Inventaris');
+    await expect(sub(page)).toHaveText(/(onder (hun|zijn) meldgrens|^Alles boven de meldgrens)$/);
+  });
+
+  test('Inventaris: laden mislukt zonder cache: geen samenvatting', async ({ page, consoleFouten }) => {
+    await startApp(page, { viewport: PC, technieker: 'Tim', overschrijf: { inventaris: () => ({ status: 503, json: { error: 'storing' } }) } });
+    await page.locator('#tab-inventaris').click();
+    await expect(titel(page)).toHaveText('Inventaris');
+    await expect(sub(page)).toHaveText('');
+    await expect(sub(page)).toBeHidden();
+    // de verwachte meldingen van het mislukte verzoek (en enkel die) weghalen
+    await expect.poll(() => consoleFouten.filter(f => f.includes('/api/inventaris')).length).toBeGreaterThan(0);
+    for (const f of consoleFouten.filter(f => f.includes('/api/inventaris'))) consoleFouten.splice(consoleFouten.indexOf(f), 1);
+  });
+
+  // Taak 8a (Task 7-review): de kop had onderaan twee lijnen (border-bottom én een inset box-shadow op de glaslaag); nu één.
+  test('de kop heeft onderaan één lijn', async ({ page }) => {
+    await startApp(page, { viewport: PC });
+    const laag = await page.locator('.topbar-sticky').evaluate((el) => {
+      const cs = getComputedStyle(el, '::before');
+      return { rand: cs.borderBottomWidth, schaduw: cs.boxShadow };
+    });
+    expect(laag.rand).toBe('1px');
+    expect(laag.schaduw).toBe('none');
+  });
+
+  // Taak 8a: renderGepland is ook op allPending geabonneerd (koppelRenders), dus "wacht op bevestiging" volgt zonder tabwissel.
+  test('Ingepland: de samenvatting volgt een gewijzigde allPending zonder tabwissel', async ({ page }) => {
+    await startApp(page, { viewport: PC });
+    await page.locator('#tab-gepland').click();
+    await expect(titel(page)).toHaveText('Ingepland');
+    await expect(sub(page)).toHaveText(/1 wacht op bevestiging$/); // testdata p1: Tim, overmorgen, "Wachten op bevestiging planning"
+    await page.evaluate(() => window.kern.toestand.set('allPending', []));
+    await expect(sub(page)).not.toHaveText(/op bevestiging/);
+    await expect(sub(page)).toHaveText(/deze week$/);
   });
 
   // Review Focus 3. De chromium-fixture laat setOffline toe (Ruling 2), maar de app volgt `navigator.onLine` pas bij een online/offline-gebeurtenis

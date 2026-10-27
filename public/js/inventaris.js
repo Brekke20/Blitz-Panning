@@ -29,6 +29,7 @@ let _invZoekPersoon  = null;   // voor wie de zoektekst gold; wisselen van techn
 let _invZoek         = '';     // zoektekst in de onderdelenlijst; blijft over herrenders heen
 let _invHistoriek    = false;  // toont de technieker-weergave de historiek (log van deze persoon) i.p.v. de voorraad?
 let _invStartGemeld  = false;  // opstartmelding "Check je voorraad" al getoond deze pagina-lading?
+let _invGeladen      = false;  // wagenvoorraad gekend (cache of server)? Zo niet: geen paginakop-samenvatting (taak 8a)
 
 const INV_API       = '/api/inventaris';
 // Testmodus heeft een aparte cache, zodat een testmomentopname nooit in echte modus verschijnt
@@ -39,12 +40,13 @@ const TYPE_LABEL = { aanvulling: 'Aanvulling', correctie: 'Correctie', verbruik:
 // ── Laden ──
 export async function loadInventaris() {
   const cached = loadFromCache(INV_CACHE_KEY);
-  if (cached) _invData = cached;
+  if (cached) { _invData = cached; _invGeladen = true; }
   try {
     const res = await fetch(INV_API);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     _invData = data;
+    _invGeladen = true;
     saveToCache(INV_CACHE_KEY, data);
     verwerkVerbruikWachtrij();
   } catch (err) {
@@ -395,18 +397,17 @@ export function updateInventarisBadge(persoon) {
   if (!el) return;
   let count;
   let kleur = null;
-  let onderGrens; // paginakop (breed): producten onder hun meldgrens (lageItems), voor "Alle" over alle wagens samen
+  let onderGrens = 0; // paginakop (zijkolom): producten onder hun meldgrens (lageItems) van deze technieker; "Alle" krijgt geen samenvatting
   const onderdelen = (PRIJZEN || PRIJZEN_DEFAULTS).onderdelen;
   if (persoon === 'all') {
     count = (_invData.log || []).filter(e => e.type === 'aanvulling' && e.status === 'nieuw').length;
-    onderGrens = Object.values(_invData.wagenvoorraad || {}).reduce((n, wagen) => n + lageItems(wagen, onderdelen).length, 0);
   } else {
     const laag = lageItems(_invData.wagenvoorraad[persoon], onderdelen);
     count = laag.length;
     onderGrens = count;
     if (count) kleur = laag.some(i => i.status === 'op') ? 'op' : 'bijna';
   }
-  zetSamenvatting('inventaris', samenvattingVoor('inventaris', { onderGrens }));
+  zetSamenvatting('inventaris', samenvattingVoor('inventaris', { onderGrens, geladen: _invGeladen, alle: persoon === 'all' }));
   el.textContent = String(count);
   el.style.display = count > 0 ? '' : 'none';
   el.classList.toggle('badge--op', kleur === 'op');

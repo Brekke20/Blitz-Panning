@@ -1296,8 +1296,7 @@
   background-color: var(--glas-sterk);
   -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
   backdrop-filter: blur(var(--blur)) saturate(180%);
-  border-bottom: 1px solid var(--glas-rand);
-  box-shadow: inset 0 -1px 0 var(--glas-licht);
+  border-bottom: 1px solid var(--glas-rand); /* één lijn onderaan (taak 8a: de extra inset-schaduw gaf er twee) */
 }
 .paginakop { display: none; }
 #paginatitel {

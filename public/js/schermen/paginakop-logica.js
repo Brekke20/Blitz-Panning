@@ -27,8 +27,11 @@ const TEKSTEN = {
     const eerste = n ? `${meervoud(n, 'afspraak', 'afspraken')} deze week` : 'Geen afspraken deze week';
     return w ? `${eerste}, ${meervoud(w, 'wacht', 'wachten')} op bevestiging` : eerste;
   },
-  // Inventaris: producten onder hun meldgrens (lageItems).
-  inventaris: ({ onderGrens }) => {
+  // Inventaris: producten onder hun meldgrens (lageItems). Geen samenvatting (taak 8a) zolang de wagenvoorraad niet geladen is
+  // (geladen: false; "Alles boven de meldgrens" zou dan niets betekenen) en voor "Alle" (alle: true, Ruling 13: dat scherm toont de
+  // aanvullingen, niet de voorraad per wagen).
+  inventaris: ({ onderGrens, geladen, alle }) => {
+    if (geladen === false || alle === true) return '';
     const n = aantal(onderGrens);
     return n ? `${meervoud(n, 'product onder zijn', 'producten onder hun')} meldgrens` : 'Alles boven de meldgrens';
   },

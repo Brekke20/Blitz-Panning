@@ -766,7 +766,7 @@ function koppelRenders() {
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => buildPersonSelector());
   st.abonneer(['allTickets', 'activeAssigneeFilter'], () => wachtrij.renderTickets());
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'localEvents', 'avExceptions', 'activeAssigneeFilter', 'gekozenDatum'], () => kalender.renderKalender());
-  st.abonneer(['allGepland', 'activeAssigneeFilter', 'gekozenDatum'], () => ingepland.renderGepland());
+  st.abonneer(['allGepland', 'allPending', 'activeAssigneeFilter', 'gekozenDatum'], () => ingepland.renderGepland()); // allPending: de paginakop telt "wacht op bevestiging" (taak 8a)
   st.abonneer(['gekozenDatum'], () => route.volgGekozenDatum()); // de datumkiezer en de weekstrook van de Route-tab volgen de gedeelde datum
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => {
     renderInventaris(get('activeAssigneeFilter'));

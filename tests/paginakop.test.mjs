@@ -56,6 +56,17 @@ test('inventaris: enkelvoud', () => {
 test('inventaris: alles boven de grens', () => {
   assert.equal(samenvattingVoor('inventaris', { onderGrens: 0 }), 'Alles boven de meldgrens');
 });
+// Taak 8a: zonder geladen wagenvoorraad weten we niets ("Alles boven de meldgrens" zou dan liegen).
+test('inventaris: wagenvoorraad nog niet geladen: geen samenvatting', () => {
+  assert.equal(samenvattingVoor('inventaris', { onderGrens: 0, geladen: false }), '');
+  assert.equal(samenvattingVoor('inventaris', { onderGrens: 2, geladen: false }), '');
+  assert.equal(samenvattingVoor('inventaris', { onderGrens: 2, geladen: true }), '2 producten onder hun meldgrens');
+});
+// Ruling 13: "Alle" toont de aanvullingen, niet de voorraad per wagen.
+test('inventaris: persoon "Alle": geen samenvatting', () => {
+  assert.equal(samenvattingVoor('inventaris', { onderGrens: 4, geladen: true, alle: true }), '');
+  assert.equal(samenvattingVoor('inventaris', { onderGrens: 0, alle: true }), '');
+});
 
 // ── Leads (sales) ──
 test('leads: meervoud', () => {
