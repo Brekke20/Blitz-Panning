@@ -22,6 +22,8 @@ let overlay = null;  // #dok-meer-overlay
 let blad = null;     // .dok-meer-blad
 let waarnemer = null;
 let gepland = false;
+let meerSleutel = null; // de tabs in Meer bij de laatste opbouw van het blad (id's, met komma's)
+let instap = null;      // de dok-tab die tabindex 0 kreeg omdat de actieve tab in Meer zit
 
 const isOpen = () => !!overlay && overlay.classList.contains('open');
 
@@ -45,7 +47,8 @@ function labelVan(knop) {
   return kloon.textContent.replace(/\s+/g, ' ').trim();
 }
 
-// Eén knop per tab achter "Meer"; leest de actuele staat (klasse, teller) van de echte tab. Gevuld bij elke herberekening en bij het openen.
+// Eén knop per tab achter "Meer"; leest de actuele staat (klasse, teller) van de echte tab. Gebouwd bij het openen en als de set tabs in Meer
+// wijzigt, niet bij elke teller- of tekstwijziging in de tabbalk (die zou het blad anders bij elke render opnieuw opbouwen).
 function vulBlad() {
   if (!blad || !balk) return;
   const items = [...balk.querySelectorAll('.tab.tab--in-meer')];
@@ -89,8 +92,19 @@ function herbereken() {
   meerKnop.classList.toggle('actief', meerActief);
   if (meerActief) meerKnop.setAttribute('aria-current', 'true'); else meerKnop.removeAttribute('aria-current');
   if (!inMeer.length && isOpen()) sluit();
-  vulBlad();
+  const sleutel = inMeer.join(',');
+  if (sleutel !== meerSleutel) { meerSleutel = sleutel; vulBlad(); }
+  zetInstap(meerActief ? zichtbaar.find(t => !inMeer.includes(t.id)) : null);
   waarnemer?.takeRecords(); // de eigen klassewijzigingen hierboven zijn geen aanleiding voor een nieuwe ronde
+}
+
+// Toetsenbord (roving tabindex): de actieve tab heeft tabindex 0 (setTab), maar zit hij in Meer, dan is hij verborgen en zou Tab over het
+// hele dok springen. Dan krijgt de eerste zichtbare dok-tab ook tabindex 0, als instappunt; zodra dat niet meer nodig is, terug op -1
+// (tenzij hij intussen zelf actief is). setTab zet alle tabs op -1 en de actieve op 0; de klassewijziging laat deze functie daarna opnieuw lopen.
+function zetInstap(tab) {
+  if (instap && instap !== tab && !instap.classList.contains('active')) instap.tabIndex = -1;
+  instap = tab || null;
+  if (instap) instap.tabIndex = 0;
 }
 
 // Meerdere wijzigingen in één keer (rol-schil.js zet alle tabs na elkaar) leveren één herberekening op.

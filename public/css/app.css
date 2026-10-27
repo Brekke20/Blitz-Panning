@@ -9,15 +9,13 @@
       z-index: 30;
     }
     header {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
+      /* Open dag (taak 7): geen eigen achtergrond meer; het glas ligt op .topbar-sticky::before (zie "Kop en paginakop" onderaan). */
+      background: transparent;
       padding: 0 16px;
       height: 52px;
       display: flex;
       align-items: center;
       gap: 8px;
-      /* Subtiele schaduw zodat content er onder doorscrollt */
-      box-shadow: 0 1px 0 var(--border), 0 4px 16px rgba(0,0,0,0.3);
     }
     .logo { display: flex; align-items: center; gap: 8px; flex: 1; }
     .logo-icon {
@@ -1278,3 +1276,65 @@
 #outbox-banner  { background-image: linear-gradient(var(--accent-dim), var(--accent-dim)); background-color: var(--bg); }
 /* Versienummer onderaan Instellingen */
 .set-versie { order: 1; flex: 1 1 100%; text-align: center; font-size: var(--fs-2xs); color: var(--muted); }
+
+/* ── Kop en paginakop (Open dag, taak 7) ──
+   - Glas achter de kop: een laag .topbar-sticky::before (halfdoorschijnend + vervaging). Nooit backdrop-filter, filter, transform of contain
+     op .topbar-sticky, header of nav zelf: dan zitten de vaste zijkolom, het dok en de persoonkiezer aan hun ouder vast (css/navigatie.css).
+     De laag ligt in de stapelcontext van .topbar-sticky (z-index 30) onder de inhoud van de kop; op `breed` begint ze na de zijkolom
+     (de body schuift --zijkolom-b op), op gsm vult ze de kop. Content die onder de sticky kop doorschuift, wordt vervaagd.
+   - `breed`: de kop is een paginakop. Het logo staat in de zijkolom (.zijkolom-logo; het verborgen spel luistert daar ook, app.js), de kop
+     toont de titel van het actieve tabblad + een samenvatting (schermen/paginakop.js) en rechts ronde glazen knoppen.
+   - `smal`/`tablet-staand`: geen paginakop; logo + alle knoppen op één regel. Op een smalle gsm wijkt, in deze volgorde: de tekst
+     "Blitz Planning" (al weg op `smal`, zie boven), de randen van de icoonknoppen (<= 430 px), de TEST-badge als klein label boven het logo
+     (<= 400 px). Nooit een tweede regel, nooit iets verbergen, nooit horizontaal scrollen (e2e/paginakop.spec.mjs). */
+.topbar-sticky::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-color: var(--glas-sterk);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
+  backdrop-filter: blur(var(--blur)) saturate(180%);
+  border-bottom: 1px solid var(--glas-rand);
+  box-shadow: inset 0 -1px 0 var(--glas-licht);
+}
+.paginakop { display: none; }
+#paginatitel {
+  margin: 0; font-family: var(--font-kop); font-size: 26px; line-height: 1.1; font-weight: 700; letter-spacing: -0.01em;
+  color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#paginasub { margin: 0; font-size: 13px; line-height: 1.35; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+html[data-indeling="breed"] header { height: 84px; padding: 0 26px; gap: 10px; }
+html[data-indeling="breed"] header .logo { display: none; }
+html[data-indeling="breed"] .paginakop {
+  display: flex; flex-direction: column; justify-content: center; gap: 3px;
+  flex: 1 1 auto; min-width: 0;
+}
+/* Ronde glazen knoppen rechts (vernieuwen, thema, instellingen, avatar) */
+html[data-indeling="breed"] header .hbtn {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--knop2); border: 1px solid var(--glas-rand); color: var(--text2);
+}
+html[data-indeling="breed"] header .hbtn:hover { background: var(--knop2-hover); color: var(--text); }
+html[data-indeling="breed"][data-aanraak="ja"] header .hbtn { width: 44px; height: 44px; }
+html[data-indeling="breed"] header .gebruiker-btn {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent-ink);
+}
+html[data-indeling="breed"] #test-badge { padding: 3px 10px; border-radius: var(--r-pil); }
+
+/* Gsm: wijken op een smalle kop (zie boven). Enkel randen en vulling verdwijnen; de knoppen zelf blijven (aanraken: 44 px). */
+@media (max-width: 430px) {
+  html[data-indeling="smal"] header .hbtn { border-color: transparent; }
+  html[data-indeling="smal"] header .hbtn:not(.gebruiker-btn) { background: transparent; }
+  html[data-indeling="smal"][data-aanraak="nee"] header .hbtn { width: 36px; min-width: 36px; }
+}
+@media (max-width: 400px) {
+  /* .topbar-sticky (sticky) is het bevattende blok: linksboven, over de bovenrand van het logo-icoon */
+  html[data-indeling="smal"] #test-badge {
+    position: absolute; top: 3px; left: 4px; z-index: 1;
+    font-size: 0.5rem; line-height: 1.3; padding: 0 4px; letter-spacing: 0.04em;
+  }
+}
+@media print {
+  .topbar-sticky::before { display: none; }
+}

@@ -19,6 +19,8 @@ import { getHolidayName } from '../kern/feestdagen.js';
 import { zichtbaarAdres, navigatieAdres } from './afspraken-logica.js';
 import { magSchrijvenVoor } from '../kern/sessie.js';
 import { appConfirm } from '../app-dialog.js';
+import { zetSamenvatting } from './paginakop.js';
+import { samenvattingVoor, isoWeekNummer } from './paginakop-logica.js';
 import { updateNuMarker as updateNuMarkerLijst, voegBuitenUrenBadgeToe } from './dag-lijst.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initKalender); een vergeten init faalt luid.
@@ -456,6 +458,15 @@ function kalZichtbareDagen() {
   });
 }
 
+// Paginakop (breed): de week van de gekozen datum, de stops van de werkdagen die de weekweergave toont (dezelfde selectie als de dagkolommen)
+// en het aantal van de pil "zonder datum". Ook in de maandweergave: de samenvatting gaat over de week van de gekozen datum.
+function zetKalenderSamenvatting(zonderDatum) {
+  const filter = toestand.get('activeAssigneeFilter');
+  const dagen = zichtbareDagen(gekozenDatum(), { werkdagen: toestand.get('settings').werkdagen, tabletStaand: false, weekOffset: 0, dagOffset: 0 });
+  const gepland = dagen.reduce((n, d) => n + planItemsVanTechnieker(toestand.get('planning')[localISO(d)], filter).length, 0);
+  zetSamenvatting('kalender', samenvattingVoor('kalender', { week: isoWeekNummer(gekozenDatum()), gepland, zonderDatum }));
+}
+
 function kalZetVandaagKnop() {
   // "↺ Vandaag" enkel tonen als de getoonde periode niet de huidige is
   const dagModus = window.apparaat.indeling === 'tablet-staand' && kalView !== 'month';
@@ -521,6 +532,8 @@ export function renderKalender() {
     noDateSec.innerHTML = '';
     noDateSec.classList.remove('open');
   }
+
+  zetKalenderSamenvatting(noInterventieDatum.length);
 
   // Branch: week of maand
   if (kalView === 'month') {

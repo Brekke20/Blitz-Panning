@@ -82,8 +82,11 @@ html[data-indeling="breed"] .zijkolom-logo {
   display: flex; align-items: center; gap: 10px; flex: none;
   padding: 0 6px 14px;
 }
-/* Eigen klassen (geen .logo-icon/.logo-text): die van de kop zijn het doel van het verborgen spel en van tests. */
+/* Eigen klassen (geen .logo-icon/.logo-text): die van de kop blijven het doel op gsm en in tests; op `breed` is het kop-logo verborgen
+   (taak 7) en luistert het spel ook naar .zijkolom-logo-icoon. */
 .zijkolom-logo-icoon {
+  /* Ook het doel van het verborgen spel op `breed` (taak 7, app.js): snel tikken zonder dubbeltik-zoom of selectie */
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
   width: 34px; height: 34px; flex: none;
   display: grid; place-items: center;
   border-radius: 12px;

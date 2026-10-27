@@ -57,6 +57,7 @@ import { startVersiering, bewaarThemaWissel, herbereken as herberekenVersiering 
 import { startHemel } from './schermen/hemel-laag.js';
 import { zetTabIconen } from './kern/tab-iconen.js';
 import { initDokMeer } from './schermen/dok-meer.js';
+import { initPaginakop } from './schermen/paginakop.js';
 import { laadThemas, themasNu, pakkettenVoorSpel, haalOntbrekendePakketten } from './schermen/themas-bron.js';
 import { actieveThemas } from './kern/themapakket.js';
 import { installeerSpelOpening } from './spel/spel-opening.js';
@@ -153,10 +154,11 @@ if (!localStorage.getItem('blitz_mig_startloc_v1')) {
 // Het registreren gebeurt onderaan dit bestand, nadat alle `const`/`let` van deze module bestaan.
 function opstart() {
   // Verborgen spel (spel/): 5× snel tikken op het bliksem-icoon (.logo-icon) opent het; de spelmodule wordt pas dan geladen. Raakt de planning niet aan.
+  // Op `breed` staat het logo in de zijkolom (.zijkolom-logo-icoon) en is dat van de kop verborgen (Open dag, taak 7): beide tellen, met één teller.
   // De themas (schermen/themas-bron.js) bepalen de themaskins: welke thema's nu actief zijn (lokale schatting tot de server antwoordt), welke pakketten bekend
   // zijn (voor de skinlijst en de extra's) en het eenmalig ophalen van pakketten die nog niet in de cache zitten. Het spel zelf (skins) blijft lazy.
   installeerSpelOpening({
-    doel: document.querySelector('.logo-icon'),
+    doel: [document.querySelector('.logo-icon'), document.querySelector('.zijkolom-logo-icoon')],
     actieveThemas: (datum) => actieveThemas(datum, themasNu().index?.themas ?? []),
     pakketten: pakkettenVoorSpel,
     haalPakketten: haalOntbrekendePakketten,
@@ -906,14 +908,26 @@ function verversNaTerugkeer() {
 // TABS
 // ══════════════════════════════════════════════
 // Pijltjestoetsen in de tabbalk (roving tabindex): alleen zichtbare tabs tellen (coord-only kan verborgen zijn).
+// Op `breed` staan de tabs onder elkaar in de zijkolom (Open dag): aria-orientation="vertical" en ook pijl omhoog/omlaag; links/rechts blijven werken.
+function zetTabOrientatie() {
+  const balk = document.querySelector('.tabs-inner');
+  if (!balk) return;
+  if (document.documentElement.getAttribute('data-indeling') === 'breed') balk.setAttribute('aria-orientation', 'vertical');
+  else balk.removeAttribute('aria-orientation');
+}
+zetTabOrientatie();
+window.addEventListener('apparaatwijziging', zetTabOrientatie); // apparaat.js: ook bij een handmatige weergavewissel
 document.querySelector('.tabs-inner')?.addEventListener('keydown', e => {
-  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+  const verticaal = e.currentTarget.getAttribute('aria-orientation') === 'vertical';
+  const vooruit = e.key === 'ArrowRight' || (verticaal && e.key === 'ArrowDown');
+  const achteruit = e.key === 'ArrowLeft' || (verticaal && e.key === 'ArrowUp');
+  if (!vooruit && !achteruit && e.key !== 'Home' && e.key !== 'End') return;
   const tabs = [...document.querySelectorAll('.tabs-inner .tab')].filter(t => t.offsetParent !== null);
   const i = tabs.indexOf(document.activeElement);
   if (i < 0) return;
   e.preventDefault();
   const n = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1
-    : (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    : (i + (vooruit ? 1 : -1) + tabs.length) % tabs.length;
   tabs[n].focus();
 });
 
@@ -1033,6 +1047,7 @@ document.addEventListener('visibilitychange', () => {
 document.addEventListener('DOMContentLoaded', () => {
   startHemel(); // de hemel (css/hemel.css) meteen, vóór het inloggen: ook het inlogscherm staat op de hemel van het uur
   initDokMeer(); // "Meer" in het dok (schermen/dok-meer.js): meteen, vóór de login en voor elke rol (ook sales, dat `opstart` niet doorloopt); abonneert zich niet op de toestand
+  initPaginakop(); // titel + samenvatting van de paginakop op `breed` (schermen/paginakop.js): ook voor sales; volgt de actieve tab, geen abonnement op de toestand
   zetTabIconen(document); // de iconen van de vaste tabs (index.html); rol-schil.js zet ze voor de tabs die het zelf aanmaakt
   return startNaInlog(opstart).then(() => {
     if (!huidigeGebruiker()) return;

@@ -66,6 +66,39 @@ test.describe('"Meer" in het dok', () => {
     await expect(meer(page)).toBeFocused();
   });
 
+  // Uit de review van taak 6 (gedaan in taak 7): het blad is modaal, en zit de actieve tab in Meer, dan is de eerste dok-tab het
+  // instappunt voor het toetsenbord (anders heeft geen enkele zichtbare tab tabindex 0 en springt Tab over het hele dok).
+  test('blad is modaal; met de actieve tab in Meer is de eerste dok-tab bereikbaar met Tab', async ({ page }) => {
+    await zetWeergave(page, 'gsm');
+    await startApp(page, { loginRol: 'planner', viewport: GSM });
+    await expect(page.locator('.dok-meer-blad')).toHaveAttribute('aria-modal', 'true');
+    await meer(page).click();
+    await page.getByRole('dialog', { name: 'Meer tabbladen' }).getByRole('button', { name: 'Rapporten' }).click();
+    await expect(page.locator('#tab-rapporten')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#tab-rapporten')).toHaveAttribute('tabindex', '0'); // de echte (verborgen) actieve tab blijft de rovende tab
+    await expect(page.locator('#tab-tickets')).toHaveAttribute('tabindex', '0');
+    expect(await page.locator('.tabs-inner .tab:visible[tabindex="0"]').count()).toBe(1);
+    // terug naar een tab in het dok: enkel die heeft weer tabindex 0
+    await page.locator('#tab-kalender').click();
+    await expect(page.locator('#tab-kalender')).toHaveAttribute('tabindex', '0');
+    await expect(page.locator('#tab-tickets')).toHaveAttribute('tabindex', '-1');
+    await expect(page.locator('#tab-rapporten')).toHaveAttribute('tabindex', '-1');
+  });
+
+  test('het blad wordt niet bij elke tellerwijziging opnieuw gebouwd, wel bij het openen', async ({ page }) => {
+    await zetWeergave(page, 'gsm');
+    await startApp(page, { loginRol: 'planner', viewport: GSM });
+    await meer(page).click();
+    await page.keyboard.press('Escape');
+    const knop = await page.locator('.dok-meer-blad button').first().elementHandle();
+    await page.evaluate(() => { document.getElementById('cnt-tickets').textContent = '99'; document.getElementById('cnt-gepland').textContent = '98'; });
+    await page.evaluate(() => new Promise(r => queueMicrotask(() => queueMicrotask(r)))); // de waarnemer en de herberekening lopen in microtaken (de klok is een nepklok)
+    expect(await page.locator('.dok-meer').isVisible()).toBe(true);
+    expect(await knop.evaluate(el => el.isConnected), 'een teller in het dok herbouwt het blad niet').toBe(true);
+    await meer(page).click();
+    expect(await knop.evaluate(el => el.isConnected), 'openen bouwt het blad opnieuw (verse tellers)').toBe(false);
+  });
+
   test('een tik naast het blad (achtergrond) sluit het blad zonder tab te wisselen', async ({ page }) => {
     await zetWeergave(page, 'gsm');
     await startApp(page, { loginRol: 'planner', viewport: GSM });

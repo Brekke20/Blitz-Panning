@@ -13,6 +13,8 @@ import { laadExcelJs } from './kern/exceljs.js';
 import { PRIJZEN, PRIJZEN_DEFAULTS, ONDERDEEL_CATEGORIEEN } from './prijzen.js';
 import { maakVerbruikWachtrij, WACHTRIJ_SLEUTEL } from './kern/verbruik-wachtrij.js';
 import { voorraadRegel, voorraadStatus, lageItems, startTekst, MAX_DREMPEL } from './kern/voorraad-drempel.js';
+import { zetSamenvatting } from './schermen/paginakop.js';
+import { samenvattingVoor } from './schermen/paginakop-logica.js';
 
 export let _invData = { versie: 0, wagenvoorraad: {}, log: [] };
 
@@ -393,13 +395,18 @@ export function updateInventarisBadge(persoon) {
   if (!el) return;
   let count;
   let kleur = null;
+  let onderGrens; // paginakop (breed): producten onder hun meldgrens (lageItems), voor "Alle" over alle wagens samen
+  const onderdelen = (PRIJZEN || PRIJZEN_DEFAULTS).onderdelen;
   if (persoon === 'all') {
     count = (_invData.log || []).filter(e => e.type === 'aanvulling' && e.status === 'nieuw').length;
+    onderGrens = Object.values(_invData.wagenvoorraad || {}).reduce((n, wagen) => n + lageItems(wagen, onderdelen).length, 0);
   } else {
-    const laag = lageItems(_invData.wagenvoorraad[persoon], (PRIJZEN || PRIJZEN_DEFAULTS).onderdelen);
+    const laag = lageItems(_invData.wagenvoorraad[persoon], onderdelen);
     count = laag.length;
+    onderGrens = count;
     if (count) kleur = laag.some(i => i.status === 'op') ? 'op' : 'bijna';
   }
+  zetSamenvatting('inventaris', samenvattingVoor('inventaris', { onderGrens }));
   el.textContent = String(count);
   el.style.display = count > 0 ? '' : 'none';
   el.classList.toggle('badge--op', kleur === 'op');

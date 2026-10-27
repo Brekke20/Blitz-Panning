@@ -8,6 +8,8 @@ import { toestand } from '../kern/toestand.js';
 import { escHtml, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
 import { localISO, getWeekStart, fmtDateShort, verschuifDatum } from '../kern/tijd.js';
 import { ticketsVanTechnieker } from '../kern/selecties.js';
+import { zetSamenvatting } from './paginakop.js';
+import { samenvattingVoor } from './paginakop-logica.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initIngepland); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('ingepland: initIngepland() is niet aangeroepen'); } });
@@ -52,11 +54,15 @@ export function renderGepland() {
     });
 
   let any = false;
+  let dezeWeek = 0; // paginakop: de afspraken die deze week getoond worden
+  const weekSleutels = new Set();
   for (let i = 0; i < 7; i++) {
     const day = new Date(weekStart); day.setDate(weekStart.getDate() + i);
     const key = localISO(day);
+    weekSleutels.add(key);
     if (!byDate[key]?.length) continue;
     any = true;
+    dezeWeek += byDate[key].length;
     const isToday = day.getTime() === today.getTime();
     const wrapper = document.createElement('div');
     wrapper.innerHTML = `<div class="cal-day-hdr ${isToday ? 'today' : ''}">${isToday ? '⬤ ' : ''}${day.toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long' })}</div>`;
@@ -107,4 +113,9 @@ export function renderGepland() {
     }
   }
   document.getElementById('cnt-gepland').textContent = filteredGepland.length;
+  // Paginakop (breed): wacht op bevestiging = dezelfde test als het label "Wacht bevestiging" (kalender.js buildTicketCard), voor de
+  // voorgestelde tickets van dezelfde persoon met een datum in de getoonde week.
+  const wachtBevestiging = ticketsVanTechnieker(toestand.get('allPending'), activeAssigneeFilter)
+    .filter(t => t.status === 'Wachten op bevestiging planning' && t.interventieDatum && weekSleutels.has(localISO(new Date(t.interventieDatum)))).length;
+  zetSamenvatting('gepland', samenvattingVoor('gepland', { dezeWeek, wachtBevestiging }));
 }

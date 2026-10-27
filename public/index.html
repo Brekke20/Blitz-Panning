@@ -172,6 +172,8 @@
   <link rel="modulepreload" href="/js/schermen/rol-schil.js">
   <link rel="modulepreload" href="/js/schermen/dok-meer.js">
   <link rel="modulepreload" href="/js/schermen/dok-meer-logica.js">
+  <link rel="modulepreload" href="/js/schermen/paginakop.js">
+  <link rel="modulepreload" href="/js/schermen/paginakop-logica.js">
   <link rel="modulepreload" href="/js/schermen/persoonskiezer.js">
   <link rel="modulepreload" href="/js/schermen/persoonskiezer-logica.js">
   <link rel="modulepreload" href="/js/schermen/werkruimte-logica.js">
@@ -220,6 +222,8 @@
       <div class="logo-text">Blitz Planning</div>
     </div>
   </div>
+  <!-- Open dag (taak 7): paginakop, enkel op `breed` (css/app.css): titel van het actieve tabblad + samenvatting (schermen/paginakop.js) -->
+  <div class="paginakop"><h2 id="paginatitel"></h2><p id="paginasub" hidden></p></div>
   <div id="test-badge">TEST</div>
   <div class="person-sel" id="person-sel">
     <button class="person-btn" id="person-btn" data-actie="persoon-menu" aria-haspopup="menu" aria-expanded="false">
@@ -813,7 +817,7 @@
 </div>
 
 <!-- Open dag (taak 6): het "Meer"-blad van het dok; buiten <nav> (dat is een vast kader met eigen stapelcontext). Gevuld door schermen/dok-meer.js. -->
-<div class="overlay dok-meer-overlay" id="dok-meer-overlay"><div class="dok-meer-blad" role="dialog" aria-label="Meer tabbladen"></div></div>
+<div class="overlay dok-meer-overlay" id="dok-meer-overlay"><div class="dok-meer-blad" role="dialog" aria-modal="true" aria-label="Meer tabbladen"></div></div>
 
 <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 

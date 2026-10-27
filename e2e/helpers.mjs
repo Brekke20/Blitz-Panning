@@ -401,6 +401,10 @@ export async function metStilstaandeKlok(page, fn) {
   }
 }
 export const snelTikken = (page, doel, n = 5) => metStilstaandeKlok(page, async () => { for (let i = 0; i < n; i++) await doel.click(); });
+// Het bliksem-icoon dat het verborgen spel opent, zoals het op dit toestel zichtbaar is: in de kop (.logo-icon) op gsm en staande tablet, in de
+// zijkolom (.zijkolom-logo-icoon) op `breed` (Open dag, taak 7: daar is het kop-logo verborgen). Hetzelfde voor de tekst "Blitz Planning".
+export const spelLogo = (page) => page.locator('.logo-icon, .zijkolom-logo-icoon').filter({ visible: true });
+export const logoTekst = (page) => page.locator('.logo-text, .zijkolom-logo-tekst').filter({ visible: true });
 
 // ── test met automatische controles ───────────────────────────────────────────
 export const test = basis.extend({

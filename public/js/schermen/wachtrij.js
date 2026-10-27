@@ -13,6 +13,8 @@ import { nextAvailableDay, zoekHaalbareDag } from './capaciteit.js';
 import { foutTekst } from '../kern/api.js';
 import { appConfirm } from '../app-dialog.js';
 import { zoekWoorden, filterOpZoek, isOverdue, sorteerWachtrij, urgentieVan } from './wachtrij-logica.js';
+import { zetSamenvatting } from './paginakop.js';
+import { samenvattingVoor } from './paginakop-logica.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initWachtrij); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('wachtrij: initWachtrij() is niet aangeroepen'); } });
@@ -80,6 +82,9 @@ export function renderTickets() {
   }
   // Badge toont het totaal (na assignee-filter, vóór zoeken)
   document.getElementById('cnt-tickets').textContent = totaal;
+  // Paginakop (breed): hetzelfde totaal, plus de verlopen tickets (dezelfde test als het label "Verlopen" op de kaart).
+  const vandaagIso = todayISO();
+  zetSamenvatting('tickets', samenvattingVoor('tickets', { wachtend: totaal, verlopen: filtered.filter(t => isOverdue(t, vandaagIso)).length }));
 
   if (!gevonden.length) { empty.style.display = ''; return; }
   empty.style.display = 'none';

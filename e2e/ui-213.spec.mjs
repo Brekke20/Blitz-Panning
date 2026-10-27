@@ -1,4 +1,4 @@
-import { test, expect, startApp, snelTikken } from './helpers.mjs';
+import { test, expect, startApp, snelTikken, spelLogo } from './helpers.mjs';
 import { seed } from './kalender-hulp.mjs';
 
 // v2.1.3: vier gemelde UI-problemen. (1) het spelkaartje onder de balken, (2) het spel op een gsm schermvullend en overal tikbaar,
@@ -13,7 +13,7 @@ const GSM = { viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMob
 
 const overlay = (page) => page.locator('#spel-overlay');
 async function openSpel(page) {
-  await snelTikken(page, page.locator('.logo-icon')); // stilstaande nepklok tijdens het tikken (zie helpers.mjs)
+  await snelTikken(page, spelLogo(page)); // stilstaande nepklok tijdens het tikken (zie helpers.mjs); Open dag (taak 7): op `breed` het logo in de zijkolom (kop-logo verborgen), zie helpers.mjs
   await expect(overlay(page)).toHaveClass(/open/);
   await expect(overlay(page)).toHaveAttribute('data-status', 'start');
 }
