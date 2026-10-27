@@ -9,7 +9,7 @@ import { closeLocalDet } from './schermen/afspraken.js';
 import { loadFotos, renderFotoGridInto, handleFotoFiles } from './schermen/fotos.js';
 import { syncOplossingNaarZoho } from './schermen/rapport-verzenden.js';
 import { escHtml, toast } from './kern/ui.js';
-import { meldTekst } from './kern/voorraad-drempel.js';
+import { bijnaOpTekst, naRapportTekst } from './kern/voorraad-drempel.js';
 import { berekenLoonkost } from './kern/loonkost.js';
 import { RAPPORT_CSS } from './rapport-stijl.js';
 import { TEST_UPLOAD } from './test-upload.js';
@@ -1498,11 +1498,9 @@ export async function printRapport() {
       const laag = await Promise.race([laagBelofte, Promise.resolve(NOG_BEZIG)]);
       if (laag === NOG_BEZIG) {
         toast(melding, meldingMs);
-        laagBelofte.then(l => { if (l.length) toast(`⚠ Bijna op in je wagen: ${meldTekst(l)}`, 7000); });
-      } else if (laag.length) {
-        toast(`${melding} · ⚠ Bijna op in je wagen: ${meldTekst(laag)}`, 9000);
+        laagBelofte.then(l => { if (l.length) toast(bijnaOpTekst(l), 7000); });
       } else {
-        toast(melding, meldingMs);
+        toast(naRapportTekst(melding, laag), laag.length ? 9000 : meldingMs);
       }
 
       await refreshOutboxCache();

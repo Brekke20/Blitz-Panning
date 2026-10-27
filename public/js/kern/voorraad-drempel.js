@@ -42,6 +42,15 @@ export function meldTekst(items) {
   return `${getoond.slice(0, -1).join(', ')} en ${getoond[getoond.length - 1]}`;
 }
 
+// Na een rapport: de producten uit het rapport die nu onder hun grens zitten. `bijnaOpTekst` is een eigen melding,
+// `naRapportTekst` voegt ze aan de rapportmelding toe (er is maar één meldingsvak).
+export function bijnaOpTekst(items) {
+  return items.length ? `⚠ Bijna op in je wagen: ${meldTekst(items)}` : null;
+}
+export function naRapportTekst(melding, items) {
+  return items.length ? `${melding} · ${bijnaOpTekst(items)}` : melding;
+}
+
 // Opstartmelding: "⚠ Check je voorraad: 2 producten bijna op of op" (null als er niets meldt).
 export function startTekst(items) {
   if (!items.length) return null;

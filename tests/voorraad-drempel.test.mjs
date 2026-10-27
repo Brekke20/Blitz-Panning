@@ -1,7 +1,7 @@
 // tests/voorraad-drempel.test.mjs — meldgrens van de wagenvoorraad (public/js/kern/voorraad-drempel.js)
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { voorraadRegel, voorraadStatus, lageItems, meldTekst, startTekst } from '../public/js/kern/voorraad-drempel.js';
+import { voorraadRegel, voorraadStatus, lageItems, meldTekst, startTekst, bijnaOpTekst, naRapportTekst } from '../public/js/kern/voorraad-drempel.js';
 
 test('voorraadRegel: zelfde migratie als de server', () => {
   assert.deepEqual(voorraadRegel(undefined), { aantal: 0, gedempt: true, drempel: null });
@@ -40,4 +40,12 @@ test('meldTekst en startTekst', () => {
   assert.equal(startTekst([i('A', 'bijna', 1)]), '⚠ Check je voorraad: 1 product bijna op');
   assert.equal(startTekst([i('A', 'op'), i('B', 'op')]), '⚠ Check je voorraad: 2 producten op');
   assert.equal(startTekst([i('A', 'op'), i('B', 'bijna', 1)]), '⚠ Check je voorraad: 2 producten bijna op of op');
+});
+
+test('na een rapport: eigen melding of toegevoegd aan de rapportmelding', () => {
+  const laag = [{ naam: 'Energiemeter - Eastron SDM54-M', status: 'bijna', aantal: 1 }];
+  assert.equal(bijnaOpTekst([]), null);
+  assert.equal(bijnaOpTekst(laag), '⚠ Bijna op in je wagen: Energiemeter - Eastron SDM54-M (nog 1)');
+  assert.equal(naRapportTekst('✓ Rapport verstuurd', []), '✓ Rapport verstuurd');
+  assert.equal(naRapportTekst('✓ Rapport verstuurd', laag), '✓ Rapport verstuurd · ⚠ Bijna op in je wagen: Energiemeter - Eastron SDM54-M (nog 1)');
 });

@@ -328,17 +328,17 @@ function opstart() {
   }
   loadPrijzen();
   beschikbaarheid.loadAvailability();
-  loadInventaris().then(() => {
-    metBehoudScroll(() => {
-      renderInventaris(get('activeAssigneeFilter'));
-      updateInventarisBadge(get('activeAssigneeFilter'));
-    });
-    meldLageVoorraadBijStart(); // eenmalig "Check je voorraad" als er iets onder de meldgrens zit (v2.4.0)
-  });
+  const inventarisGeladen = loadInventaris().then(() => metBehoudScroll(() => {
+    renderInventaris(get('activeAssigneeFilter'));
+    updateInventarisBadge(get('activeAssigneeFilter'));
+  }));
   afspraken.loadAfspraken();
   klantbeschikbaarheid.loadKlantBeschikbaarheid();
   voorstel.loadVoorstelStatus();
-  loadTickets();
+  const ticketsGeladen = loadTickets();
+  // Eenmalig "Check je voorraad" als er iets onder de meldgrens zit (v2.4.0). Er is maar één meldingsvak: pas na de opstartmelding
+  // van de tickets (4 s), anders duwt die de voorraadmelding meteen weg.
+  Promise.allSettled([inventarisGeladen, ticketsGeladen]).then(() => setTimeout(meldLageVoorraadBijStart, 4500));
   laadRapportArchief();
   startTicketPolling();
   refreshOutboxCache();
