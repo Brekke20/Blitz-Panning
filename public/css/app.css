@@ -1073,6 +1073,8 @@
       padding: 7px 14px; font-size: 0.78rem; font-weight: 600; color: #1d1300; /* Open dag: effen en meteen opvallend, geen glas */
       position: sticky; top: var(--topbar-h, 92px); z-index: 27;
     }
+    /* Fix ronde 1: in het lichte thema is --orange donker (#a94a08); daar witte tekst (5,7:1) in plaats van de donkere tekst die op het lichte oranje van het donkere thema staat. --orange zelf blijft ongemoeid. */
+    :root[data-theme="light"] #offline-banner { color: #fff; }
 
     /* ── Outbox banner (rapport nog niet bevestigd verzonden) ──
        (T20) Verticale lijst i.p.v. één platte tekstregel -- per item ticketnummer, stap,

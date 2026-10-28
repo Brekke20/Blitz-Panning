@@ -105,17 +105,62 @@ test.describe('overige schermen en vensters (Open dag)', () => {
     expect(kaart.radius).toBe('28px');
   });
 
-  test('de offline-balk blijft een effen opvallende kleur (geen glas)', async ({ page }) => {
-    await startApp(page, { viewport: PC });
-    await page.evaluate(() => { document.getElementById('offline-banner').style.display = 'flex'; });
-    const stijl = await page.locator('#offline-banner').evaluate((el) => {
-      const cs = getComputedStyle(el);
-      return { filter: cs.backdropFilter, bg: cs.backgroundColor };
+  // WCAG-contrast uit twee berekende kleuren; een doorzichtige voorgrond/achtergrond wordt over `onder` gelegd.
+  const CONTRAST = `(() => {
+    const lees = (c) => { const m = c.match(/rgba?\\(([^)]+)\\)/)[1].split(',').map(Number); return { r: m[0], g: m[1], b: m[2], a: m[3] ?? 1 }; };
+    const meng = (v, o) => ({ r: v.r * v.a + o.r * (1 - v.a), g: v.g * v.a + o.g * (1 - v.a), b: v.b * v.a + o.b * (1 - v.a), a: 1 });
+    const lum = ({ r, g, b }) => { const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+    return (tekst, achtergrond, onder) => { const bg = meng(lees(achtergrond), onder); const fg = meng(lees(tekst), bg); const [a, b] = [lum(fg), lum(bg)].sort((x, y) => y - x); return (a + 0.05) / (b + 0.05); };
+  })()`;
+  for (const thema of ['dark', 'light']) {
+    test(`de offline- en outbox-balk blijven effen en leesbaar (${thema}): geen glas, contrast >= 4,5:1`, async ({ page }) => {
+      await page.addInitScript((t) => { if (window === window.top) localStorage.setItem('blitz_theme', t); }, thema);
+      await startApp(page, { viewport: PC });
+      await expect(page.locator('html')).toHaveAttribute('data-theme', thema);
+      const meting = await page.evaluate((src) => {
+        const contrast = eval(src);
+        const offline = document.getElementById('offline-banner'); offline.style.display = 'flex';
+        offline.textContent = 'Geen verbinding';
+        const outbox = document.getElementById('outbox-banner'); outbox.style.display = 'flex';
+        outbox.innerHTML = '<div class="outbox-item"><span class="outbox-item-tnum">#1001</span><span class="outbox-item-step">Verzenden</span><span class="outbox-item-attempts">poging 2</span>'
+          + '<span class="outbox-item-error">Geen verbinding met de server</span><button class="outbox-item-btn">Opnieuw proberen</button><button class="outbox-item-btn outbox-item-btn-cancel">Annuleren</button></div>';
+        const kleur = (el, eigenschap) => getComputedStyle(el)[eigenschap];
+        const zwart = { r: 0, g: 0, b: 0, a: 1 };
+        const rij = (balk, el) => {
+          const bg = kleur(balk, 'backgroundColor');
+          // een knop ligt (halfdoorschijnend) over de balk: eerst de balk effen, dan de knop erover
+          const knop = el.matches('button') ? kleur(el, 'backgroundColor') : null;
+          const grondRgb = bg;
+          let ratio;
+          if (knop) {
+            const m = (c) => c.match(/rgba?\(([^)]+)\)/)[1].split(',').map(Number);
+            const [br, bgc, bb] = m(grondRgb); const [kr, kg, kb, ka = 1] = m(knop);
+            const eff = `rgb(${kr * ka + br * (1 - ka)}, ${kg * ka + bgc * (1 - ka)}, ${kb * ka + bb * (1 - ka)})`;
+            ratio = contrast(kleur(el, 'color'), eff, zwart);
+          } else ratio = contrast(kleur(el, 'color'), grondRgb, zwart);
+          return { ratio, bg };
+        };
+        return {
+          offline: { ...rij(offline, offline), filter: kleur(offline, 'backdropFilter') },
+          outbox: {
+            filter: kleur(outbox, 'backdropFilter'), bg: kleur(outbox, 'backgroundColor'),
+            tekst: rij(outbox, outbox.querySelector('.outbox-item-tnum')).ratio,
+            stap: rij(outbox, outbox.querySelector('.outbox-item-step')).ratio,
+            fout: rij(outbox, outbox.querySelector('.outbox-item-error')).ratio,
+            knop: rij(outbox, outbox.querySelector('.outbox-item-btn:not(.outbox-item-btn-cancel)')).ratio,
+            annuleer: rij(outbox, outbox.querySelector('.outbox-item-btn-cancel')).ratio,
+          },
+        };
+      }, CONTRAST);
+      for (const balk of [meting.offline, meting.outbox]) {
+        expect(balk.filter === 'none' || balk.filter === '').toBe(true); // geen glas
+        expect(balk.bg).toMatch(/^rgb\(/); // effen: geen alfakanaal
+      }
+      console.log(thema, JSON.stringify({ offline: meting.offline.ratio.toFixed(2), outbox: Object.fromEntries(Object.entries(meting.outbox).filter(([k]) => !['filter', 'bg'].includes(k)).map(([k, v]) => [k, v.toFixed(2)])) }));
+      expect(meting.offline.ratio).toBeGreaterThanOrEqual(4.5);
+      for (const k of ['tekst', 'stap', 'fout', 'knop', 'annuleer']) expect(meting.outbox[k], `outbox ${k}`).toBeGreaterThanOrEqual(4.5);
     });
-    expect(stijl.filter === 'none' || stijl.filter === '').toBe(true);
-    // effen: geen alfakanaal
-    expect(stijl.bg).toMatch(/^rgb\(/);
-  });
+  }
 
   test('de Leaflet-kaart blijft ondoorzichtig', async ({ page }) => {
     await startApp(page, { viewport: PC });
