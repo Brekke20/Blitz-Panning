@@ -316,12 +316,11 @@ test.describe('losse tekst op de hemel: Beheer en Sales', () => {
           await expect(page.locator('.beheer-paneel:not([aria-busy])')).toBeVisible();
           await wachtOpFrames(page, 3);
           await page.mouse.move(0, 0);
-          // De kop en het dok (.topbar-sticky) zijn al gemeten in de proeven hierboven, met de inhoud van de wachtrij en de kalender eronder; wat
-          // een paneel er toevallig onder schuift (een felgroene knop onderaan) is geen eigenschap van de balk zelf.
+          // Kop en dok (.topbar-sticky) horen hier ook bij (taak 9c): een felgroene knop die onderaan onder het dok doorschuift telt mee.
           const scherm = { naam: `beheer ${naam}`, minimum: 3 };
           for (const hemel of HEMELS) {
             await metHemel(page, hemel, modus, async () => {
-              const { aantal } = await controleerLosseTekst(page, `${hemel} ${modus} ${toestel.naam} ${scherm.naam}`, verzamel, { minimum: 3, uitsluiten: ['.topbar-sticky'] });
+              const { aantal } = await controleerLosseTekst(page, `${hemel} ${modus} ${toestel.naam} ${scherm.naam}`, verzamel, { minimum: 3 });
               tellers.aantal += aantal; tellers.perScherm[scherm.naam] = aantal;
             });
           }
@@ -406,5 +405,122 @@ test.describe('losse tekst op de scène van een thema', () => {
         rapporteer(`los thema ${id} ${toestel.naam}`, verzamel);
       });
     }
+  }
+});
+
+// ── Taak 9c (Ruling 17): knoppen met het vaste groene verloop (.btn-add, .btn-autoplan), de teller .pill-count, en de kop en het dok met een
+// felgroene knop eronder. De tekst van de knop wordt gemeten tegen de eigen achtergrond van de knop (echte pixels, het verloop zit in de
+// foto); het groene verloop is vast, dus de tekst ook (--on-groen), nooit de --on-accent van een thema (Sinterklaas: wit). ──
+const ACCENT_KNOPPEN = [
+  { naam: 'wachtrij', open: async (page) => { await kiesHoofdtab(page, /^Wachtrij/); await expect(page.locator('#view-tickets .btn-add').first()).toBeVisible(); }, sels: ['#view-tickets .btn-add'], minimum: 3 },
+  {
+    naam: 'kalender',
+    open: async (page) => { await kiesHoofdtab(page, 'Kalender'); await expect(page.locator('#btn-autoplan')).toBeVisible(); await expect(page.locator('#kal-pending-pill')).toBeVisible(); },
+    sels: ['#btn-autoplan', '#kal-pending-pill .pill-count'], minimum: 2,
+  },
+];
+
+async function meetAccentKnoppen(page, label, verzamel, tellers) {
+  for (const scherm of ACCENT_KNOPPEN) {
+    await scherm.open(page);
+    await page.mouse.move(0, 0);
+    tellers[scherm.naam] = (tellers[scherm.naam] ?? 0) + await controleerVlakken(page, scherm.sels, `${label} ${scherm.naam} accentknoppen`, verzamel, { minimum: scherm.minimum });
+  }
+}
+
+test.describe('accentknoppen en pill-count', () => {
+  for (const toestel of TOESTELLEN) {
+    for (const modus of MODI) {
+      test(`@contrast accent hemel ${modus} ${toestel.naam}: .btn-add, .btn-autoplan en .pill-count houden 4,5:1`, async ({ page }) => {
+        test.setTimeout(300000);
+        await zetToestel(page, toestel, modus);
+        await startApp(page, { viewport: toestel.viewport });
+        await stil(page);
+        await wachtOpNavigatie(page);
+        const verzamel = nieuweVerzamelaar();
+        const tellers = {};
+        for (const hemel of ['middag', 'nacht']) await metHemel(page, hemel, modus, () => meetAccentKnoppen(page, `${hemel} ${modus} ${toestel.naam}`, verzamel, tellers));
+        console.log(`accentknoppen hemel ${toestel.naam} ${modus}: ${JSON.stringify(tellers)}`);
+        rapporteer(`accent hemel ${toestel.naam} ${modus}`, verzamel);
+      });
+    }
+    for (const id of THEMAS) {
+      for (const modus of MODI) {
+        test(`@contrast accent thema ${id} ${modus} ${toestel.naam}: .btn-add, .btn-autoplan en .pill-count houden 4,5:1 op de scène`, async ({ page }) => {
+          test.setTimeout(300000);
+          await zetToestel(page, toestel, modus);
+          await startApp(page, { viewport: toestel.viewport, query: '?test&versiering=aan', overschrijf: { themas: themaStub(leesPakket(id)) } });
+          await expect(page.locator('html')).toHaveAttribute('data-event', id);
+          await expect(page.locator('html')).toHaveAttribute('data-event-achtergrond', 'ja');
+          await stil(page);
+          await wachtOpNavigatie(page);
+          await page.evaluate((m) => document.documentElement.setAttribute('data-theme', m), modus);
+          await wachtOpFrames(page, 3);
+          const verzamel = nieuweVerzamelaar();
+          const tellers = {};
+          await meetAccentKnoppen(page, `${id} ${modus} ${toestel.naam}`, verzamel, tellers);
+          console.log(`accentknoppen thema ${id} ${toestel.naam} ${modus}: ${JSON.stringify(tellers)}`);
+          rapporteer(`accent thema ${id} ${toestel.naam} ${modus}`, verzamel);
+        });
+      }
+    }
+  }
+});
+
+// Het dok op een gsm: een felgroene knop die er onderdoor schuift mag de tekst van het dok niet onder 4,5:1 duwen. Een echte brede knop
+// (Beheer > Beschikbaarheden) bewijst dat in de Beheer-proef hierboven (kop en dok zijn daar niet meer uitgesloten); hier de ergste vorm: een
+// volle balk met het vaste groene verloop van de knoppen (.btn--primary, #2df0bb naar #00d49b) vlak achter het dok (z-index onder de kop,
+// boven de pagina), zodat het hele dok erop rust. De kop is niet in deze proef: de accentkleur van de eigen knoppen in de kop (de avatar)
+// staat op elke volle groene achtergrond onleesbaar, welk glas ook; de kop wordt gemeten in de Beheer-proef met een echte knop eronder.
+async function zetGroeneBalkAchter(page, balkSel) {
+  await page.evaluate((sel) => {
+    document.getElementById('groene-balk')?.remove();
+    const r = document.querySelector(sel).getBoundingClientRect(), d = document.createElement('div');
+    d.id = 'groene-balk'; d.className = 'btn--primary'; d.setAttribute('aria-hidden', 'true');
+    d.style.cssText = `position:fixed;z-index:0;pointer-events:none;left:0;width:100vw;top:${r.top}px;height:${r.height}px;border-radius:0;`;
+    document.body.appendChild(d);
+  }, balkSel);
+  await wachtOpFrames(page, 3);
+}
+
+async function meetDokMetGroeneBalk(page, label, verzamel) {
+  await kiesHoofdtab(page, /^Wachtrij/);
+  await expect(page.locator('#view-tickets .btn-add').first()).toBeVisible();
+  await page.mouse.move(0, 0);
+  try {
+    await zetGroeneBalkAchter(page, '.topbar-sticky > nav .tabs');
+    return await controleerVlakken(page, ['.topbar-sticky > nav'], `${label} dok met een groene balk eronder`, verzamel, { minimum: 3 });
+  } finally { await page.evaluate(() => document.getElementById('groene-balk')?.remove()); }
+}
+
+test.describe('dok met een felle knop eronder (gsm)', () => {
+  const gsm = TOESTELLEN[1];
+  for (const modus of MODI) {
+    test(`@contrast dok gsm ${modus}: tekst houdt 4,5:1 met een groene balk eronder, over elk tijdstip`, async ({ page }) => {
+      test.setTimeout(300000);
+      await zetToestel(page, gsm, modus);
+      await startApp(page, { viewport: gsm.viewport });
+      await stil(page);
+      await wachtOpNavigatie(page);
+      const verzamel = nieuweVerzamelaar();
+      let aantal = 0;
+      for (const hemel of HEMELS) await metHemel(page, hemel, modus, async () => { aantal += await meetDokMetGroeneBalk(page, `${hemel} ${modus} gsm`, verzamel); });
+      expect(aantal, 'teksten van het dok gemeten').toBeGreaterThan(12);
+      rapporteer(`dok gsm ${modus}`, verzamel);
+    });
+  }
+  for (const id of THEMAS) {
+    test(`@contrast dok thema ${id} gsm donker: tekst houdt 4,5:1 met een groene balk eronder`, async ({ page }) => {
+      test.setTimeout(300000);
+      await zetToestel(page, gsm, 'dark');
+      await startApp(page, { viewport: gsm.viewport, query: '?test&versiering=aan', overschrijf: { themas: themaStub(leesPakket(id)) } });
+      await expect(page.locator('html')).toHaveAttribute('data-event-achtergrond', 'ja');
+      await stil(page);
+      await wachtOpNavigatie(page);
+      const verzamel = nieuweVerzamelaar();
+      const aantal = await meetDokMetGroeneBalk(page, `${id} dark gsm`, verzamel);
+      expect(aantal, 'teksten van het dok gemeten').toBeGreaterThan(3);
+      rapporteer(`dok thema ${id}`, verzamel);
+    });
   }
 });
