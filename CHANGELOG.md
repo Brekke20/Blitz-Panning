@@ -15,6 +15,25 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [2.5.0] — 2026-10-28
+
+### Added
+- Nieuwe stijl "Open dag": een hemel achter de hele app die het uur van de dag volgt (ochtend, middag, avond, nacht; in licht en donker), met een groene gloed onderaan. Een thema met achtergrond vervangt de hemel zoals voorheen.
+- Alle kaarten en rijen zijn nu altijd van glas (niet enkel tijdens een thema), met een gloeiende rand in de kleur van de urgentie: rood voor verlopen of hoog, oranje voor middel of wacht op bevestiging, groen voor laag of bevestigd, paars voor een eigen afspraak. Ook het ticketvenster krijgt die gloed.
+- Op pc en liggende tablet staat de navigatie in een zwevende zijkolom links, met een icoon per tabblad en de persoonkiezer onderaan. Op gsm en staande tablet staat ze in een glazen dok onderaan; zijn er meer dan vijf tabbladen, dan staan de eerste vier in het dok en de rest achter "Meer".
+- Op pc staat bovenaan elk scherm een paginakop met de titel en een korte samenvatting (bv. "5 tickets wachten op een datum, 2 verlopen"). Je ziet ze bij Wachtrij, Kalender, Ingepland, Inventaris en Leads.
+- Knoppen en tabbladen krijgen bij hover een zachte glans die invervaagt (enkel met een muis).
+
+### Changed
+- Nieuwe letters: Bricolage Grotesque voor titels en Figtree voor de rest, in plaats van Inter.
+- Knoppen en kaarten springen of vergroten niet meer bij hover; ze vervagen naar een andere kleur.
+- Tekst op de hemel en op de scène van een thema blijft overal leesbaar: donkerblauw glas in het donkere thema, een eigen tekstkleur voor losse tekst op de hemel, en donkere tekst op de groene (en oranje) knoppen in elk thema. Het dok is in het donkere thema dichter, zodat de tabbladen goed te lezen blijven.
+- Alle vensters, de rapport-wizard, Beheer, Dashboard, Sales en het inlogscherm hebben de nieuwe vormen en kleuren. De werking, de knoppen en de teksten in de knoppen blijven dezelfde.
+
+### Notes
+- Snelheid gemeten op een gesimuleerd traag toestel (gsm, CPU 4× trager) tegen v2.4.0: geen enkel cijfer is 10 % of meer slechter, dus er is geen terugval nodig. Op gsm is het glas lichter (minder vervaging, hogere dekking) dan op pc en tablet.
+- De rapport-PDF, de mails naar klanten en de Excel-exports zijn ongewijzigd.
+
 ## [2.4.0] — 2026-10-27
 
 ### Added
