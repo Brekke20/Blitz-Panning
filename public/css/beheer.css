@@ -39,6 +39,8 @@ html[data-nav="kolom"] .beheer-titel { display: none; }
   padding: var(--sp-2) 10px; border-bottom: 1px solid var(--lijn); background: var(--veld);
 }
 .bg-tabel td { padding: 10px; border-bottom: 1px solid var(--lijn); vertical-align: top; overflow-wrap: break-word; }
+/* Taak 16: de laatste rij heeft geen onderlijn; die zou bij de ronde onderhoeken van .bg-lijst schuin worden afgeknipt. */
+@media (min-width: 900px) { .bg-tabel tbody tr:last-child td { border-bottom: none; } }
 .bg-tabel td[data-label="Rol"], .bg-tabel td[data-label="Laatste login"], .bg-tabel td[data-label="Status"] { white-space: nowrap; }
 .bg-tabel td[data-label="Status"] .bg-sub { white-space: normal; min-width: 130px; }
 .bg-cel { min-width: 0; }
