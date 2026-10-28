@@ -655,7 +655,7 @@
     /* Route-indeling (technieker én verkoper): vaste smalle lijstkolom links met eigen scroll, de kaart rechts vult de rest en blijft staan.
        De verkoper gebruikt dezelfde regels via .sales-route-lijstvak / .sales-route-kaartvak (sales.css voegt enkel de ketting van hoogtes toe). */
     :root { --route-lijst-breedte: 300px; }
-    #route-list, .sales-route-lijstvak { width: var(--route-lijst-breedte); flex-shrink: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 6px; background: transparent; border-right: 1px solid var(--glas-rand); display: flex; flex-direction: column; gap: 6px; }
+    #route-list, .sales-route-lijstvak { width: var(--route-lijst-breedte); flex-shrink: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 6px; background: var(--glas); border-right: 1px solid var(--glas-rand); display: flex; flex-direction: column; gap: 6px; }
     .stop { padding: 10px 12px; }
     /* Sorteren (tablet-fase Taak 5): vasthouden en verschuiven */
     .stop[data-sleepbaar] { -webkit-user-select: none; user-select: none; }
