@@ -236,6 +236,9 @@
       color: var(--text);
       -webkit-font-smoothing: antialiased;
       /* overflow-x op html/body vermeden: breekt position:sticky op .tabs */
+      /* Bugfix v2.5.1: geen elastische overscroll van de pagina. Trek je voorbij de bovenkant, dan veert de hele pagina mee (ook de vaste en sticky delen:
+         de bovenbalk "scrolt even mee"). De vensters en de Route-lijst houden hun eigen `overscroll-behavior: contain`. */
+      overscroll-behavior-y: none;
     }
     html { height: 100%; }
     /* min-height, NIET height: een vaste body-hoogte (100%) maakt van de body een sticky-bakje ter grootte van het scherm; zodra de inhoud

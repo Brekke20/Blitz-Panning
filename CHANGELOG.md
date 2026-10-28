@@ -13,6 +13,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ## [Unreleased]
 
 ### Fixed
+- De bovenbalk staat nu echt vast bij scrollen.
 - Op de gsm licht een knop in de onderste balk niet meer eerst vierkant op bij een tik.
 
 ## [2.5.0] — 2026-10-28
