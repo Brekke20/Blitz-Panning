@@ -39,6 +39,7 @@ let kalView = 'week'; // 'week' | 'month'
 let _kalAutoScrollKey = null;
 // Lijstweergave (gsm): de pagina zelf scrolt; `true` zodra de gebruiker na onze sprong zelf scrolde (wiel, aanraking, toets).
 let _kalGebruikerScrolde = false;
+let _kalEigenY = null; // scrollstand vlak na onze eigen sprong: staat de pagina later ergens anders, dan scrolde iemand anders (ook zonder wiel of aanraking)
 let _kalLijstTimer = null;
 let _maandAnkerDag = null, _maandStapDatum = null; // oorspronkelijke dag bij opeenvolgende maandstappen
 let renderTeller = 0; // e2e telt hertekeningen hiermee, ook interne oproepen
@@ -729,6 +730,7 @@ function kalLijstScroll(force) {
   const doel = kol(iso) || kol(vandaag) || grid.querySelector('.day-col');
   if (!doel) return;
   const key = autoScrollSleutel(getWeekStart(gekozenDatum(), 0), kalView, 'lijst|' + iso);
+  if (_kalEigenY !== null && Math.abs(window.scrollY - _kalEigenY) > 1) _kalGebruikerScrolde = true;
   if (!force && key === _kalAutoScrollKey && _kalGebruikerScrolde) return;
   _kalAutoScrollKey = key;
   const kop = document.querySelector('#view-kalender .kal-header');
@@ -742,6 +744,7 @@ function kalLijstScroll(force) {
     boven: kop ? (parseFloat(getComputedStyle(kop).top) || 0) + kop.offsetHeight : 0, // de kalenderkop blijft bovenaan vastzitten
     onder: window.innerHeight - dok,                                                    // het dok onderaan bedekt de pagina
   }));
+  _kalEigenY = window.scrollY;
   _kalGebruikerScrolde = false;
 }
 
