@@ -1,5 +1,5 @@
 // Snelheidsmeting van de Open dag-stijl (glas = backdrop-filter): is de app op een gsm trager geworden? Buiten de suites; draai met
-//   node scripts/meet-snelheid.mjs [--voor=<map met public/ van de basis>] [--na=<map met public/>] [--runs=5] [--thema] [--url=<adres>]
+//   node scripts/meet-snelheid.mjs [--voor=<map met public/ van de basis>] [--na=<map met public/>] [--runs=5] [--thema] [--url=<adres>] [--json=<bestand>]
 // Zonder --voor wordt enkel de huidige public/ (of --na) gemeten. Met --voor draaien de runs AFWISSELEND (voor, na, na, voor, ...) in
 // dezelfde sessie, zodat een trend in de belasting van de machine beide varianten raakt; de tabel toont de MEDIAAN en de spreiding.
 //
@@ -20,6 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import crypto from 'node:crypto';
+import os from 'node:os';
 import { chromium } from 'playwright-core';
 import { maakDummyData } from '../public/js/kern/testdata.js';
 
@@ -31,6 +32,8 @@ const NA = waarde('na') ? path.resolve(waarde('na')) : path.join(HIER, '..', 'pu
 const VOOR = waarde('voor') ? path.resolve(waarde('voor')) : null;
 const EIGEN_URL = waarde('url') || null;
 const THEMA = !!arg('thema');
+const JSON_UIT = waarde('json') ? path.resolve(waarde('json')) : null; // schrijft ook de tabel en de ruwe runs als JSON
+const START = Date.now();
 const ALLEEN_LADEN = !!arg('laden'); // enkel de laadtijd (geen scrolmeting): voor veel runs achter elkaar
 
 const EXTRA_CSS = waarde('css') || ''; // enkel voor proeven (bv. --css=":root{--blur:60px !important}"): extra stijl bovenop de pagina, in elke variant
@@ -232,6 +235,18 @@ try {
   console.log(`modus: ${THEMA ? 'thema-scene (halloween)' : 'hemel'}, ${RUNS} runs per variant, gsm 375x812 @2x, CPU 4x trager, ${JSON.stringify(runs[varianten[0]][0].info)}`);
   console.log(`weergave eerste run: ${JSON.stringify(runs[varianten[0]][0].apparaat)}`);
   console.table(rijen);
+  if (JSON_UIT) {
+    fs.mkdirSync(path.dirname(JSON_UIT), { recursive: true });
+    fs.writeFileSync(JSON_UIT, JSON.stringify({
+      meta: {
+        script: 'scripts/meet-snelheid.mjs', na: EIGEN_URL || NA, voor: VOOR, runs: RUNS, modus: THEMA ? 'thema' : 'hemel', alleenLaden: ALLEEN_LADEN,
+        telefoon: '375x812 @2x, aanraking, CPU 4x trager, ?test', gestart: new Date(START).toISOString(), duurMs: Date.now() - START,
+        node: process.version, cpu: os.cpus()[0]?.model, kernen: os.cpus().length, geheugenGB: Math.round(os.totalmem() / 2 ** 30), os: `${os.platform()} ${os.release()}`,
+      },
+      rijen, runs, eersteRunApparaat: runs[varianten[0]][0].apparaat, eersteRunData: runs[varianten[0]][0].info,
+    }, null, 2));
+    console.log('JSON geschreven: ' + JSON_UIT);
+  }
 } finally {
   await browser.close();
   for (const srv of Object.values(servers)) srv.close();
