@@ -352,11 +352,7 @@ function opstart() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') { flushOutbox(); verversNaTerugkeer(); }
   });
-  // Initialiseer tab indicator op de actieve tab
-  setTimeout(() => updateTabIndicator(document.querySelector('.tab.active')?.id || 'tab-tickets'), 0); // onder de actieve (zichtbare) tab, ook in de werkruimte Sales
   window.addEventListener('resize', () => {
-    const active = document.querySelector('.tab.active');
-    if (active) updateTabIndicator(active.id);
     zetStickyOffsets();
     routeKaart.invalideerKaartGrootte(); // de kaart van de Route-tab volgt een nieuwe venstergrootte (Leaflet meet zichzelf niet opnieuw)
   });
@@ -380,18 +376,10 @@ function opstart() {
           renderRouteList(document.getElementById('plan-date').value);
         }
       });
-      // Tabs kunnen verschijnen/verdwijnen (rol) en de kop kan van hoogte wisselen (aanraak): onderstreping
-      // en sticky-offset volgen.
+      // Tabs kunnen verschijnen/verdwijnen (rol) en de kop kan van hoogte wisselen (aanraak): de sticky-offset volgt.
       zetStickyOffsets();
-      const actief = document.querySelector('.tab.active');
-      if (actief) updateTabIndicator(actief.id);
     });
   }
-  // Herbereken indicator als gebruiker de tabbalk horizontaal scrollt
-  document.querySelector('.tabs-inner')?.addEventListener('scroll', () => {
-    const active = document.querySelector('.tab.active');
-    if (active) updateTabIndicator(active.id);
-  });
   // Registratie pas na de load-gebeurtenis (I5): de installatie (prefetch van de CDN-bestanden) mag niet met de eerste laad concurreren.
   if ('serviceWorker' in navigator) {
     const registreer = () => navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
@@ -932,18 +920,6 @@ document.querySelector('.tabs-inner')?.addEventListener('keydown', e => {
   tabs[n].focus();
 });
 
-function updateTabIndicator(tabId) {
-  const tab  = document.getElementById(tabId);
-  const tabs = document.querySelector('.tabs');
-  if (!tab || !tabs) return;
-  const tr = tab.getBoundingClientRect();
-  const pr = tabs.getBoundingClientRect();
-  // tr.left - pr.left geeft de huidige visuele positie van de tab t.o.v. .tabs,
-  // ook na horizontaal scrollen van .tabs-inner — geen scrollLeft nodig.
-  tabs.style.setProperty('--ind-left',  (tr.left - pr.left) + 'px');
-  tabs.style.setProperty('--ind-width', tr.width + 'px');
-}
-
 function setTab(tab) {
   sjZetTab(); sjLog('setTab:' + tab); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
   document.querySelectorAll('.tab').forEach(el => { el.classList.remove('active'); el.setAttribute('aria-selected', 'false'); el.tabIndex = -1; });
@@ -951,7 +927,6 @@ function setTab(tab) {
   const _tabEl = document.getElementById('tab-' + tab);
   _tabEl.classList.add('active'); _tabEl.setAttribute('aria-selected', 'true'); _tabEl.tabIndex = 0;
   document.getElementById('view-' + tab).classList.add('active');
-  updateTabIndicator('tab-' + tab);
   laadTab(tab);
   if (tab === 'planning') {
     setTimeout(() => routeKaart.invalideerKaartGrootte(), 50);

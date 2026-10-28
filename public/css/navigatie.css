@@ -11,7 +11,7 @@
    menu voor hulpmiddelen en tests als onzichtbaar).
    Containing block: .topbar-sticky, header en nav krijgen GEEN backdrop-filter, filter, transform, will-change of contain, anders zitten
    de vaste kolom, het dok en de persoonkiezer aan hun ouder vast in plaats van aan het scherm. De vervaging staat op .tabs zelf.
-   De glijdende onderlijn (.tabs::after) is weg; --ind-left/--ind-width worden nog gezet (updateTabIndicator in app.js), zonder gevolg.
+   De glijdende onderlijn (.tabs::after) en haar variabelen (--ind-left/--ind-width, vroeger gezet door updateTabIndicator) zijn weg.
    Het actieve tabblad = een lichtere glazen pil (--knop2-hover) met groen icoon en groene teller (.tab.active .badge in app.css). */
 
 :root {
@@ -22,9 +22,6 @@
 /* ── Gemeenschappelijk ── */
 .tabs {
   position: relative;
-  /* Indicator via CSS var (JS vult in); de onderlijn zelf is weg in de Open dag-stijl. */
-  --ind-left: 0px;
-  --ind-width: 0px;
 }
 .tabs::after { display: none; }
 .tabs-inner {

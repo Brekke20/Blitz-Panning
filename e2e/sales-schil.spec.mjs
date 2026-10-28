@@ -38,15 +38,14 @@ test.describe('sales: schil en start', () => {
     expect(consoleFouten).toEqual([]);
   });
 
-  test('een klik op "Kalender" activeert #view-sales-kalender (de start koppelt de tabklik) en de streep volgt', async ({ page }) => {
+  test('een klik op "Kalender" activeert #view-sales-kalender (de start koppelt de tabklik)', async ({ page }) => {
     await startSalesApp(page);
     await tab(page, 'Kalender').click();
     await expect(page.locator('#view-sales-kalender')).toHaveClass(/active/);
     await expect(page.locator('#view-sales-lijst')).not.toHaveClass(/active/);
     await expect(tab(page, 'Kalender')).toHaveAttribute('aria-selected', 'true');
     await expect(tab(page, 'Leads')).toHaveAttribute('aria-selected', 'false');
-    const streep = await page.locator('.tabs').evaluate(el => ({ links: el.style.getPropertyValue('--ind-left'), breed: el.style.getPropertyValue('--ind-width') }));
-    expect(parseFloat(streep.breed)).toBeGreaterThan(0);
+    // (de streep onder de actieve tab en haar variabelen bestaan niet meer: eindreview F5)
     await tab(page, 'Afgewerkt').click();
     await expect(page.locator('#view-sales-afgewerkt')).toHaveClass(/active/);
     await tab(page, 'Route').click();

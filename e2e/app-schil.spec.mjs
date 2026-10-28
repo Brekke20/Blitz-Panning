@@ -48,19 +48,8 @@ test.describe('hoofdtabs', () => {
     await expect(page.locator('#tab-tickets')).toBeFocused();
   });
 
-  test('de tabindicator staat onder de actieve tab', async ({ page }) => {
-    await startApp(page, { rol: 'coordinator' });
-    await page.getByRole('tab', { name: 'Kalender' }).click();
-    await expect.poll(() => page.locator('.tabs').evaluate(el => el.style.getPropertyValue('--ind-width'))).not.toBe('');
-    const [links, breedte] = await page.evaluate(() => {
-      const t = document.querySelector('.tabs');
-      return [parseFloat(t.style.getPropertyValue('--ind-left')), parseFloat(t.style.getPropertyValue('--ind-width'))];
-    });
-    const tab = await page.locator('#tab-kalender').boundingBox();
-    const balk = await page.locator('.tabs').boundingBox();
-    expect(Math.abs(links - (tab.x - balk.x))).toBeLessThan(1.5);
-    expect(Math.abs(breedte - tab.width)).toBeLessThan(1.5);
-  });
+  // Eindreview F5: de test 'de tabindicator staat onder de actieve tab' is vervallen; de glijdende onderlijn is sinds Open dag weg en
+  // updateTabIndicator (die --ind-left/--ind-width zette zonder CSS-gevolg) ook.
 });
 
 test.describe('persoonkiezer', () => {
