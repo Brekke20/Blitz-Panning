@@ -1337,8 +1337,8 @@
   border-bottom: 1px solid var(--glas-rand); /* één lijn onderaan (taak 8a: de extra inset-schaduw gaf er twee) */
 }
 /* Pc (zijkolom): het glas van de kop zweeft als de zijkolom: dezelfde straal en 14 px van de boven- en rechterrand; links sluit het aan op de
-   14 px marge naast de zijkolom (body-padding). Onderaan blijft 8 px lucht tot de balk eronder; de kop zelf behoudt zijn 84 px, dus de
-   sticky-afstanden (--sticky-top, js/sticky-offset.js) veranderen niet. De balken eronder worden ronde glazen balken met 14 px rechts. */
+   14 px marge naast de zijkolom (body-padding). Onderaan blijft 8 px lucht tot de balk eronder; de kop is 92 px (taak 16); de sticky-afstanden (--sticky-top, js/sticky-offset.js)
+   volgen vanzelf. De balken eronder worden ronde glazen balken met 14 px rechts. */
 html[data-nav="kolom"] .topbar-sticky::before {
   inset: 14px 14px 8px 0;
   border: 1px solid var(--glas-rand);
@@ -1359,7 +1359,9 @@ html[data-nav="kolom"] #kal-no-date-section.open { margin-top: 8px; border-width
 }
 #paginasub { margin: 0; font-size: 13px; line-height: 1.35; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-html[data-nav="kolom"] header { height: 84px; padding: 0 26px; gap: 10px; }
+/* Taak 16: de inhoud van de kop staat in het midden van het ZICHTBARE glas (inset 14 px boven, 8 px onder), niet van het element: de opvulling boven en
+   onder is dezelfde 14 en 8 px als de inset. 92 px (was 84) geeft ook titel plus ondertitel ruim 10 px lucht boven en onder; --sticky-top volgt vanzelf. */
+html[data-nav="kolom"] header { height: 92px; padding: 14px 26px 8px; gap: 10px; }
 html[data-nav="kolom"] header .logo { display: none; }
 html[data-nav="kolom"] .paginakop {
   display: flex; flex-direction: column; justify-content: center; gap: 3px;
