@@ -194,6 +194,26 @@ async function maakSet(set, vp) {
   } finally { await context.close(); }
 }
 
+// Taak 18: het bolletje op "Meer". Achter Meer staat een teller enkel als Route in het dok meedoet (een smal computervenster, of een met de hand
+// gekozen tablet): op een echte gsm staat Inventaris zelf in het dok, met de eigen teller. Dus: de beheerder in een computervenster van 375 px.
+async function maakBolletjeAfdruk() {
+  const bestand = path.join(uitmap, 'beheerder-gsm-meer-bolletje.png');
+  if (filter && !path.basename(bestand).includes(filter)) return;
+  const context = await browser.newContext({ baseURL: 'http://localhost:3338', viewport: kh.GSM, timezoneId: 'Europe/Brussels', locale: 'nl-BE', serviceWorkers: 'block' });
+  const page = await context.newPage();
+  try {
+    await lettertypen(page);
+    await page.addInitScript(() => { if (window !== window.top) return; localStorage.setItem('blitz_theme', 'light'); localStorage.setItem('blitz_weergave', 'computer'); });
+    await rolVan('beheerder-planning').start(page, kh.GSM, { technieker: 'Tim', overschrijf: { ...kh.beheerStubs(), ...inventarisStub }, nu: VRIJDAG });
+    await wacht(600);
+    await page.waitForSelector('.dok-meer .dok-meer-bolletje:not([hidden])');
+    await page.evaluate(() => document.getElementById('toast')?.classList.remove('show'));
+    await wacht(450);
+    await page.screenshot({ path: bestand });
+    console.log('ok', path.basename(bestand), fs.statSync(bestand).size);
+  } finally { await context.close(); }
+}
+
 // ── README: een tabel rol x tabblad in gewone taal ───────────────────────────────────────────────────────────────────────────────────────
 const TITELS = {
   wachtrij: 'Wachtrij', kalender: 'Kalender', route: 'Route', ingepland: 'Ingepland', inventaris: 'Inventaris', rapporten: 'Rapporten',
@@ -228,6 +248,7 @@ try {
   await wachtOpPoort(POORT, 10000);
   browser = await chromium.launch();
   for (const vp of ['pc', 'gsm', 'tablet']) for (const set of SETS) await maakSet(set, vp);
+  await maakBolletjeAfdruk();
   schrijfReadme();
 } finally {
   if (browser) await browser.close();

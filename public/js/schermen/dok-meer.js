@@ -8,7 +8,7 @@
 // De verdeling zelf is puur (dok-meer-logica.js). Herberekend bij elke wijziging van de tabs (hidden, class: ook een rolwissel of de
 // werkruimtewissel van de beheerder in rol-schil.js), van de indeling/rol op <html> en bij `apparaatwijziging`.
 // De labels komen uit de DOM (textContent) en worden met textContent gezet; het icoon is een vaste constante uit kern/tab-iconen.js.
-import { dokVerdeling } from './dok-meer-logica.js';
+import { dokVerdeling, meerBolletje, meerBolletjeLabel } from './dok-meer-logica.js';
 import { registreerVenster } from '../venster.js';
 import { registreerBackdrop } from '../kern/ui.js';
 import { tabIcoonSvg } from '../kern/tab-iconen.js';
@@ -17,6 +17,7 @@ const MAX_IN_DOK = 5;
 
 let balk = null;     // .tabs-inner
 let meerKnop = null; // .dok-meer
+let bolletje = null; // .dok-meer-bolletje: het puntje op Meer als een tab achter Meer een zichtbare teller heeft (taak 18)
 let overlay = null;  // #dok-meer-overlay
 let blad = null;     // .dok-meer-blad
 let waarnemer = null;
@@ -77,6 +78,27 @@ function vulBlad() {
   }
 }
 
+// Taak 18: het bolletje op "Meer" (zonder cijfer) volgt de tellers van de tabs achter Meer: rood (badge--op), anders oranje (badge--bijna),
+// anders de gewone tellerkleur. De aria-label van de knop zegt hetzelfde in woorden; het bolletje zelf is voor hulpmiddelen verborgen.
+function werkBolletje(inMeerIds) {
+  if (!bolletje || !meerKnop) return;
+  const tellers = inMeerIds.map((id) => {
+    const el = document.getElementById(id)?.querySelector('.badge');
+    if (!el) return null;
+    return {
+      tekst: el.textContent,
+      verborgen: getComputedStyle(el).display === 'none',
+      op: el.classList.contains('badge--op'),
+      bijna: el.classList.contains('badge--bijna'),
+    };
+  });
+  const kleur = meerBolletje(tellers);
+  const label = meerBolletjeLabel(kleur);
+  bolletje.hidden = kleur === null;
+  if (kleur) bolletje.dataset.kleur = kleur; else delete bolletje.dataset.kleur;
+  if (label) meerKnop.setAttribute('aria-label', label); else meerKnop.removeAttribute('aria-label');
+}
+
 function herbereken() {
   gepland = false;
   if (!balk || !meerKnop) return;
@@ -91,6 +113,7 @@ function herbereken() {
   meerKnop.classList.toggle('actief', meerActief);
   if (meerActief) meerKnop.setAttribute('aria-current', 'true'); else meerKnop.removeAttribute('aria-current');
   if (!inMeer.length && isOpen()) sluit();
+  werkBolletje(inMeer);
   const sleutel = inMeer.join(',');
   if (sleutel !== meerSleutel) { meerSleutel = sleutel; vulBlad(); }
   zetInstap(meerActief ? zichtbaar.find(t => !inMeer.includes(t.id)) : null);
@@ -121,6 +144,13 @@ export function initDokMeer() {
   if (!balk || !meerKnop || !overlay || !blad) return;
 
   if (!meerKnop.querySelector('.tab-icoon')) meerKnop.insertAdjacentHTML('afterbegin', tabIcoonSvg('meer'));
+  if (!meerKnop.querySelector('.dok-meer-bolletje')) {
+    bolletje = document.createElement('span');
+    bolletje.className = 'dok-meer-bolletje';
+    bolletje.hidden = true;
+    bolletje.setAttribute('aria-hidden', 'true');
+    meerKnop.append(bolletje);
+  } else bolletje = meerKnop.querySelector('.dok-meer-bolletje');
   meerKnop.addEventListener('click', () => (isOpen() ? sluit() : open()));
   blad.addEventListener('click', (e) => {
     const knop = e.target.closest('.dok-meer-item');
@@ -132,7 +162,7 @@ export function initDokMeer() {
   registreerVenster({ el: overlay, sluit, terugFocus: () => meerKnop });
 
   waarnemer = new MutationObserver(plan);
-  waarnemer.observe(balk, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] });
+  waarnemer.observe(balk, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class', 'style'], characterData: true }); // style + tekst: een teller verschijnt/verdwijnt (display) of wisselt van cijfer
   // Navigatievorm, indeling, rol en schil staan op <html>: een rolwissel of het vrijgeven van de schil verandert wat zichtbaar is zonder dat een tab wijzigt.
   new MutationObserver(plan).observe(document.documentElement, {
     attributes: true, attributeFilter: ['data-nav', 'data-indeling', 'data-rol', 'data-plan-eigen', 'data-schil'],
