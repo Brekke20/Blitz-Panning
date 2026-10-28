@@ -4,6 +4,7 @@
 // Het script start zelf de statische server (e2e/statische-server.mjs, poort 3338) en stopt die weer.
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import net from 'node:net';
 import path from 'node:path';
 import fs from 'node:fs';
 
@@ -16,11 +17,21 @@ const { chromium } = await imp('node_modules/playwright/index.mjs');
 const h = await imp('e2e/helpers.mjs');
 const sh = await imp('e2e/sales-hulp.mjs');
 
+const POORT = 3338;
 const server = spawn(process.execPath, ['e2e/statische-server.mjs'], { cwd: WT, stdio: 'ignore' });
+let browser; // gestart in de try hieronder: een mislukte start of een fout laat nooit een server op de poort achter
 const wacht = (ms) => new Promise((r) => setTimeout(r, ms));
-await wacht(1200);
+// Wacht tot de server op de poort luistert (kort interval, korte time-out) in plaats van een vaste pauze.
+async function wachtOpPoort(poort, maxMs) {
+  const einde = Date.now() + maxMs;
+  while (Date.now() < einde) {
+    const open = await new Promise((r) => { const sok = net.connect(poort, '127.0.0.1'); sok.once('connect', () => { sok.destroy(); r(true); }); sok.once('error', () => { sok.destroy(); r(false); }); });
+    if (open) return;
+    await wacht(50);
+  }
+  throw new Error(`de server luistert niet op poort ${poort} na ${maxMs} ms`);
+}
 
-const browser = await chromium.launch();
 const VP = { pc: { width: 1366, height: 768 }, gsm: { width: 375, height: 812 } };
 
 // Echte lettertypen (de testfixture stubt Google Fonts leeg): enkel voor deze afdrukken.
@@ -109,8 +120,10 @@ async function maak(vp, thema, naam) {
 }
 
 try {
+  await wachtOpPoort(POORT, 10000);
+  browser = await chromium.launch();
   for (const vp of ['pc', 'gsm']) for (const thema of ['dark', 'light']) for (const [naam] of SCHERMEN) { if (naam.startsWith('halloween') && thema === 'light') continue; if (naam === 'route' && vp === 'gsm') continue; /* Route bestaat niet op een gsm */ await maak(vp, thema, naam); }
 } finally {
-  await browser.close();
+  if (browser) await browser.close();
   server.kill();
 }
