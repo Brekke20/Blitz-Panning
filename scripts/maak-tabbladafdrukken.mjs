@@ -2,7 +2,10 @@
 // Gebruik, vanuit de root van de repo: node scripts/maak-tabbladafdrukken.mjs [filter] [uitmap]
 //   filter = deel van de bestandsnaam (bv. "gsm-"); uitmap = standaard docs/superpowers/specs/assets/open-dag-tabbladen
 // Het script start zelf de statische server (e2e/statische-server.mjs, poort 3338), stopt die weer en schrijft ook de README.md met de tabel rol x tabblad.
-// Alles draait tegen de stubs van de e2e-suite (verzonnen gegevens, niets gaat naar Zoho, TomTom of de mail). Enkel licht thema, op pc en gsm.
+// Alles draait tegen de stubs van de e2e-suite (verzonnen gegevens, niets gaat naar Zoho, TomTom of de mail). Enkel licht thema, op pc, gsm en tablet rechtop.
+// De klok staat op VRIJDAG 9 okt 2026, 10:30: zo springt de gsm-kalender (en dus ook een tablet rechtop) zichtbaar naar vandaag en de nu-regel.
+// De tablet (768x1024, isMobile + aanraking, zoals e2e/tablet-rechtop.spec.mjs) is rechtop een gsm in de hele app (apparaat.js): de afdrukken
+// `<rol>-tablet-<tab>.png` tonen dus de gsm-indeling op 768 px breed; de tab Route bestaat er niet. Enkel de beheerder (alle tabs) en de kalender van sales.
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import net from 'node:net';
@@ -20,6 +23,7 @@ const h = await imp('e2e/helpers.mjs');
 const kh = await imp('e2e/kliktest-hulp.mjs');
 
 const POORT = 3338;
+const VRIJDAG = '2026-10-09T10:30:00+02:00';
 const server = spawn(process.execPath, ['e2e/statische-server.mjs'], { cwd: WT, stdio: 'ignore' });
 let browser; // gestart in de try hieronder: een mislukte start of een fout laat nooit een server op de poort achter
 const wacht = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -95,7 +99,8 @@ async function openBeheerSub(page, sub) {
   await wacht(900);
 }
 
-const VP = { pc: kh.PC, gsm: kh.GSM };
+const TABLET_STAAND = { width: 768, height: 1024 };
+const VP = { pc: kh.PC, gsm: kh.GSM, tablet: TABLET_STAAND };
 
 // ── de sets: per rol de tabbladen die hij ziet (de slug staat in de bestandsnaam) ─────────────────────────────────────────────────────────
 const PLANNING_TABS = [
@@ -136,7 +141,9 @@ const SETS = [
 ];
 
 async function nieuwePagina(vp) {
-  const context = await browser.newContext({ baseURL: 'http://localhost:3338', viewport: VP[vp], timezoneId: 'Europe/Brussels', locale: 'nl-BE', serviceWorkers: 'block' });
+  // Een tablet is een echte tabletemulatie (aanraking), zodat apparaat.js hem zelf herkent; zonder blitz_weergave.
+  const aanraking = vp === 'tablet' ? { isMobile: true, hasTouch: true, deviceScaleFactor: 1 } : {};
+  const context = await browser.newContext({ baseURL: 'http://localhost:3338', viewport: VP[vp], timezoneId: 'Europe/Brussels', locale: 'nl-BE', serviceWorkers: 'block', ...aanraking });
   const page = await context.newPage();
   await lettertypen(page);
   await rustigeTegels(page);
@@ -150,13 +157,15 @@ async function nieuwePagina(vp) {
 
 const gemaakt = []; // { rol, vp, slug, bestand }
 async function maakSet(set, vp) {
-  const tabs = set.tabs.filter((t) => !(vp === 'gsm' && t.alleenPc));
+  // Route bestaat niet op een gsm en dus ook niet op een tablet rechtop; van de tablet enkel de beheerder en de kalender van sales.
+  const tabs = set.tabs.filter((t) => !(vp !== 'pc' && t.alleenPc)).filter((t) => vp !== 'tablet' || set.rol === 'beheerder' || (set.rol === 'sales' && t.slug === 'kalender'));
+  if (vp === 'tablet' && set.rol !== 'beheerder' && set.rol !== 'sales') return;
   const wanted = tabs.filter((t) => !filter || `${set.rol}-${vp}-${t.slug}.png`.includes(filter));
   if (!wanted.length) return;
   const { page, context } = await nieuwePagina(vp);
   try {
     // De rol start zoals in de kliktest (e2e/kliktest-hulp.mjs); de stubs van de e2e-suite blijven het vangnet.
-    await set.bron.start(page, VP[vp], set.extra());
+    await set.bron.start(page, VP[vp], { ...set.extra(), nu: VRIJDAG });
     await wacht(600);
     for (const tab of wanted) {
       const bestand = path.join(uitmap, `${set.rol}-${vp}-${tab.slug}.png`);
@@ -173,13 +182,13 @@ async function maakSet(set, vp) {
         try { await page.screenshot({ path: bestand.replace('.png', '-FOUT.png') }); } catch { /* geen beeld */ }
       }
     }
-    // Op een gsm staan Rapporten en Beheer achter "Meer": één afdruk van dat blad.
-    if (vp === 'gsm' && set.rol === 'beheerder' && set.tabs === PLANNING_TABS && (!filter || 'beheerder-gsm-meer-blad.png'.includes(filter))) {
+    // Op een gsm (en een tablet rechtop) staan Rapporten en Beheer achter "Meer": één afdruk van dat blad.
+    if (vp !== 'pc' && set.rol === 'beheerder' && set.tabs === PLANNING_TABS && (!filter || `beheerder-${vp}-meer-blad.png`.includes(filter))) {
       await page.locator('.dok-meer').click();
       await wacht(500);
-      const bestand = path.join(uitmap, 'beheerder-gsm-meer-blad.png');
+      const bestand = path.join(uitmap, `beheerder-${vp}-meer-blad.png`);
       await page.screenshot({ path: bestand });
-      gemaakt.push({ rol: 'beheerder', vp: 'gsm', slug: 'meer-blad', bestand: path.basename(bestand) });
+      gemaakt.push({ rol: 'beheerder', vp, slug: 'meer-blad', bestand: path.basename(bestand) });
       console.log('ok', path.basename(bestand));
     }
   } finally { await context.close(); }
@@ -193,14 +202,15 @@ const TITELS = {
   leads: 'Leads', afgewerkt: 'Afgewerkt', 'meer-blad': 'Het blad "Meer" op een gsm',
 };
 function schrijfReadme() {
-  const bestandVan = (rol, vp, slug) => gemaakt.find((g) => g.rol === rol && g.vp === vp && g.slug === slug)?.bestand;
-  const cel = (rol, slug) => ['pc', 'gsm'].map((vp) => { const b = bestandVan(rol, vp, slug); return b ? `[${vp}](${b})` : '–'; }).join(' · ');
+  // Het bestand telt als het op schijf staat (ook uit een vorige of gefilterde run): zo houdt de tabel alle afdrukken.
+  const bestandVan = (rol, vp, slug) => { const b = `${rol}-${vp}-${slug}.png`; return fs.existsSync(path.join(uitmap, b)) ? b : undefined; };
+  const cel = (rol, slug) => ['pc', 'gsm', 'tablet'].map((vp) => { const b = bestandVan(rol, vp, slug); return b ? `[${vp}](${b})` : '–'; }).join(' · ');
   const rij = (rol, slug) => `| ${TITELS[slug]} | ${cel(rol, slug)} |`;
   const blok = (kop, rol, slugs, uitleg) => [`## ${kop}`, '', uitleg, '', '| Tabblad | Schermafdruk |', '|---|---|', ...slugs.map((s) => rij(rol, s)), ''].join('\n');
   const tekst = [
     '# Schermafdrukken van elk tabblad (Open dag)',
     '',
-    'Per rol een afdruk van elk tabblad dat die rol in de app ziet, in het lichte thema, op een computer (`pc`) en op een gsm (`gsm`).',
+    'Per rol een afdruk van elk tabblad dat die rol in de app ziet, in het lichte thema, op een computer (`pc`) en op een gsm (`gsm`). Van de beheerder en van de kalender van sales staan er ook afdrukken van een tablet rechtop (`tablet`, 768 x 1024): rechtop is een tablet een gsm in de hele app, dus die afdrukken tonen de gsm-indeling op 768 px breed. De gsm-kalender en de tabletafdrukken zijn gemaakt op vrijdag 9 oktober 10:30, zodat de kalender zichtbaar naar vandaag en de nu-regel springt.',
     'De afdrukken komen uit de testversie van de app met verzonnen gegevens; er is niets echts aan geraakt. Op een gsm bestaat het tabblad Route niet.',
     'Het script `scripts/maak-tabbladafdrukken.mjs` maakt ze opnieuw als de stijl verandert.',
     '',
@@ -217,8 +227,8 @@ function schrijfReadme() {
 try {
   await wachtOpPoort(POORT, 10000);
   browser = await chromium.launch();
-  for (const vp of ['pc', 'gsm']) for (const set of SETS) await maakSet(set, vp);
-  if (!filter) schrijfReadme();
+  for (const vp of ['pc', 'gsm', 'tablet']) for (const set of SETS) await maakSet(set, vp);
+  schrijfReadme();
 } finally {
   if (browser) await browser.close();
   server.kill();

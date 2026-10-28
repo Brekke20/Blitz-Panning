@@ -113,7 +113,7 @@ export const ROLLEN = [
   },
   {
     sleutel: 'sales', naam: 'sales', tabs: [...SALES], beheer: [], eersteTab: 'Leads',
-    start: (page, viewport) => startSalesApp(page, { gebruiker: SALES_GEBRUIKER, viewport, leads: SALES_LEADS() }),
+    start: (page, viewport, extra = {}) => startSalesApp(page, { gebruiker: SALES_GEBRUIKER, viewport, leads: SALES_LEADS(), ...extra }),
   },
   {
     sleutel: 'sales-manager', naam: 'sales manager', tabs: [...SALES, 'Beheer'], beheer: BEHEER_MANAGER, eersteTab: 'Leads',

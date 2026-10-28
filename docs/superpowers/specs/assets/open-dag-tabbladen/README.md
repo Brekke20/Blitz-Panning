@@ -1,6 +1,6 @@
 # Schermafdrukken van elk tabblad (Open dag)
 
-Per rol een afdruk van elk tabblad dat die rol in de app ziet, in het lichte thema, op een computer (`pc`) en op een gsm (`gsm`).
+Per rol een afdruk van elk tabblad dat die rol in de app ziet, in het lichte thema, op een computer (`pc`) en op een gsm (`gsm`). Van de beheerder en van de kalender van sales staan er ook afdrukken van een tablet rechtop (`tablet`, 768 x 1024): rechtop is een tablet een gsm in de hele app, dus die afdrukken tonen de gsm-indeling op 768 px breed. De gsm-kalender en de tabletafdrukken zijn gemaakt op vrijdag 9 oktober 10:30, zodat de kalender zichtbaar naar vandaag en de nu-regel springt.
 De afdrukken komen uit de testversie van de app met verzonnen gegevens; er is niets echts aan geraakt. Op een gsm bestaat het tabblad Route niet.
 Het script `scripts/maak-tabbladafdrukken.mjs` maakt ze opnieuw als de stijl verandert.
 
@@ -10,20 +10,20 @@ De beheerder ziet alle tabbladen en elk onderdeel van Beheer. **Dezelfde scherme
 
 | Tabblad | Schermafdruk |
 |---|---|
-| Wachtrij | [pc](beheerder-pc-wachtrij.png) · [gsm](beheerder-gsm-wachtrij.png) |
-| Kalender | [pc](beheerder-pc-kalender.png) · [gsm](beheerder-gsm-kalender.png) |
-| Route | [pc](beheerder-pc-route.png) · – |
-| Ingepland | [pc](beheerder-pc-ingepland.png) · [gsm](beheerder-gsm-ingepland.png) |
-| Inventaris | [pc](beheerder-pc-inventaris.png) · [gsm](beheerder-gsm-inventaris.png) |
-| Rapporten | [pc](beheerder-pc-rapporten.png) · [gsm](beheerder-gsm-rapporten.png) |
-| Beheer: Gebruikers | [pc](beheerder-pc-beheer-gebruikers.png) · [gsm](beheerder-gsm-beheer-gebruikers.png) |
-| Beheer: Instellingen | [pc](beheerder-pc-beheer-instellingen.png) · [gsm](beheerder-gsm-beheer-instellingen.png) |
-| Beheer: Beschikbaarheden | [pc](beheerder-pc-beheer-beschikbaarheden.png) · [gsm](beheerder-gsm-beheer-beschikbaarheden.png) |
-| Beheer: Activiteitenlog | [pc](beheerder-pc-beheer-activiteitenlog.png) · [gsm](beheerder-gsm-beheer-activiteitenlog.png) |
-| Beheer: Systeemstatus | [pc](beheerder-pc-beheer-systeemstatus.png) · [gsm](beheerder-gsm-beheer-systeemstatus.png) |
-| Beheer: Thema's | [pc](beheerder-pc-beheer-themas.png) · [gsm](beheerder-gsm-beheer-themas.png) |
-| Beheer: Performance | [pc](beheerder-pc-beheer-performance.png) · [gsm](beheerder-gsm-beheer-performance.png) |
-| Het blad "Meer" op een gsm | – · [gsm](beheerder-gsm-meer-blad.png) |
+| Wachtrij | [pc](beheerder-pc-wachtrij.png) · [gsm](beheerder-gsm-wachtrij.png) · [tablet](beheerder-tablet-wachtrij.png) |
+| Kalender | [pc](beheerder-pc-kalender.png) · [gsm](beheerder-gsm-kalender.png) · [tablet](beheerder-tablet-kalender.png) |
+| Route | [pc](beheerder-pc-route.png) · – · – |
+| Ingepland | [pc](beheerder-pc-ingepland.png) · [gsm](beheerder-gsm-ingepland.png) · [tablet](beheerder-tablet-ingepland.png) |
+| Inventaris | [pc](beheerder-pc-inventaris.png) · [gsm](beheerder-gsm-inventaris.png) · [tablet](beheerder-tablet-inventaris.png) |
+| Rapporten | [pc](beheerder-pc-rapporten.png) · [gsm](beheerder-gsm-rapporten.png) · [tablet](beheerder-tablet-rapporten.png) |
+| Beheer: Gebruikers | [pc](beheerder-pc-beheer-gebruikers.png) · [gsm](beheerder-gsm-beheer-gebruikers.png) · [tablet](beheerder-tablet-beheer-gebruikers.png) |
+| Beheer: Instellingen | [pc](beheerder-pc-beheer-instellingen.png) · [gsm](beheerder-gsm-beheer-instellingen.png) · [tablet](beheerder-tablet-beheer-instellingen.png) |
+| Beheer: Beschikbaarheden | [pc](beheerder-pc-beheer-beschikbaarheden.png) · [gsm](beheerder-gsm-beheer-beschikbaarheden.png) · [tablet](beheerder-tablet-beheer-beschikbaarheden.png) |
+| Beheer: Activiteitenlog | [pc](beheerder-pc-beheer-activiteitenlog.png) · [gsm](beheerder-gsm-beheer-activiteitenlog.png) · [tablet](beheerder-tablet-beheer-activiteitenlog.png) |
+| Beheer: Systeemstatus | [pc](beheerder-pc-beheer-systeemstatus.png) · [gsm](beheerder-gsm-beheer-systeemstatus.png) · [tablet](beheerder-tablet-beheer-systeemstatus.png) |
+| Beheer: Thema's | [pc](beheerder-pc-beheer-themas.png) · [gsm](beheerder-gsm-beheer-themas.png) · [tablet](beheerder-tablet-beheer-themas.png) |
+| Beheer: Performance | [pc](beheerder-pc-beheer-performance.png) · [gsm](beheerder-gsm-beheer-performance.png) · [tablet](beheerder-tablet-beheer-performance.png) |
+| Het blad "Meer" op een gsm | – · [gsm](beheerder-gsm-meer-blad.png) · [tablet](beheerder-tablet-meer-blad.png) |
 
 ## Technieker
 
@@ -31,10 +31,10 @@ Een technieker ziet vier tabbladen, gefilterd op zijn eigen werk (hier: Tim). He
 
 | Tabblad | Schermafdruk |
 |---|---|
-| Kalender | [pc](technieker-pc-kalender.png) · [gsm](technieker-gsm-kalender.png) |
-| Ingepland | [pc](technieker-pc-ingepland.png) · [gsm](technieker-gsm-ingepland.png) |
-| Inventaris | [pc](technieker-pc-inventaris.png) · [gsm](technieker-gsm-inventaris.png) |
-| Rapporten | [pc](technieker-pc-rapporten.png) · [gsm](technieker-gsm-rapporten.png) |
+| Kalender | [pc](technieker-pc-kalender.png) · [gsm](technieker-gsm-kalender.png) · – |
+| Ingepland | [pc](technieker-pc-ingepland.png) · [gsm](technieker-gsm-ingepland.png) · – |
+| Inventaris | [pc](technieker-pc-inventaris.png) · [gsm](technieker-gsm-inventaris.png) · – |
+| Rapporten | [pc](technieker-pc-rapporten.png) · [gsm](technieker-gsm-rapporten.png) · – |
 
 ## Sales (verkoper)
 
@@ -42,7 +42,7 @@ Een verkoper ziet vier tabbladen. **Dezelfde schermen zien ook:** de beheerder i
 
 | Tabblad | Schermafdruk |
 |---|---|
-| Leads | [pc](sales-pc-leads.png) · [gsm](sales-gsm-leads.png) |
-| Kalender | [pc](sales-pc-kalender.png) · [gsm](sales-gsm-kalender.png) |
-| Route | [pc](sales-pc-route.png) · – |
-| Afgewerkt | [pc](sales-pc-afgewerkt.png) · [gsm](sales-gsm-afgewerkt.png) |
+| Leads | [pc](sales-pc-leads.png) · [gsm](sales-gsm-leads.png) · – |
+| Kalender | [pc](sales-pc-kalender.png) · [gsm](sales-gsm-kalender.png) · [tablet](sales-tablet-kalender.png) |
+| Route | [pc](sales-pc-route.png) · – · – |
+| Afgewerkt | [pc](sales-pc-afgewerkt.png) · [gsm](sales-gsm-afgewerkt.png) · – |
