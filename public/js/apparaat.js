@@ -30,8 +30,14 @@
     var sb = window.screen && window.screen.width, sh = window.screen && window.screen.height;
     var kortsteZijde = (sb > 0 && sh > 0) ? Math.min(sb, sh) : Math.min(b, h);
     var staand = h >= b;
+    // Een tablet RECHTOP is een gsm in de hele app (Brent, 2026-10-28: het verschil was vooral de voorraadbel; dok, gsm-kalender en gsm-glas horen erbij);
+    // liggend blijft hij een tablet (indeling 'breed', zoals de computer). Rechtop of liggend volgt hier het SCHERM (screen.width/height) en niet het
+    // venster: een schermtoetsenbord maakt een rechtop gehouden venster lager dan breed en zou de hele app anders midden in het typen laten omschakelen.
+    // Zonder schermmaten val je terug op het venster. Een handmatige keuze (blitz_weergave, Instellingen) gaat voor en laat dit onaangeroerd.
+    var schermStaand = (sb > 0 && sh > 0) ? sb < sh : staand;
+    var tabletRechtop = staand || schermStaand;
 
-    var auto = !grof ? 'computer' : (kortsteZijde < 600 ? 'gsm' : 'tablet');
+    var auto = !grof ? 'computer' : (kortsteZijde < 600 || tabletRechtop ? 'gsm' : 'tablet');
     var w = lees('blitz_weergave');
     var soort = (w === 'gsm' || w === 'tablet' || w === 'computer') ? w : auto;
 
