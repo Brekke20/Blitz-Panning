@@ -169,8 +169,8 @@ export async function wachtOpStilstand(page, locator) {
 // kaart met de muis erboven, `sterk` = kop en dok, `venster` = vensters en dashboardkaarten (allemaal alpha van de kleur).
 export const VERWACHT_GLAS = {
   hemel: {
-    pc:  { donker: { blur: '28px', glas: 0.075, hover: 0.12, sterk: 0.09, venster: 0.84 }, licht: { blur: '28px', glas: 0.52, hover: 0.72, sterk: 0.58, venster: 0.88 } },
-    gsm: { donker: { blur: '10px', glas: 0.12, hover: 0.17, sterk: 0.14, venster: 0.92 },  licht: { blur: '10px', glas: 0.72, hover: 0.84, sterk: 0.76, venster: 0.94 } },
+    pc:  { donker: { blur: '28px', glas: 0.40, hover: 0.52, sterk: 0.50, venster: 0.84 }, licht: { blur: '28px', glas: 0.52, hover: 0.72, sterk: 0.58, venster: 0.88 } },
+    gsm: { donker: { blur: '10px', glas: 0.50, hover: 0.60, sterk: 0.56, venster: 0.92 }, licht: { blur: '10px', glas: 0.72, hover: 0.84, sterk: 0.76, venster: 0.94 } },
   },
   // Een thema met achtergrond (data-event-achtergrond="ja") vervangt de hemel door een scène; zie evenement.css
   // en krijgt in donker dichter, donkerblauw glas (base.css, taak 9); in licht is het gewone glas genoeg
@@ -275,4 +275,146 @@ export async function controleerKaarten(page, sel, label, slechtste) {
     }
   }
   expect(gedaan.size, `${label}: alle kaarten gemeten`).toBe(aantal);
+}
+
+// ── Vaste vlakken (zijkolom, dok, kop en paginakop, vensters, dashboardkaarten, afgewerkte sales-kaart) ──
+// Hier geen model van het glas, maar de echte pixels: de tekst van de vlakken wordt doorzichtig gemaakt en de pagina gefotografeerd
+// (de foto bevat dus de echte vervaging, de saturate, de glaskleur, de gloed en de eigen vlakken van chips en knoppen); daarna haalt elk
+// tekstelement tegen ELKE pixel binnen zijn eigen vak 4,5:1 (de slechtste telt). Staat er een doorzichtigheid (opacity) op de tekst of een
+// ouder, dan komt er een tweede foto bij met het vlak verborgen (de achtergrond zonder glas) om de menging exact te rekenen.
+// De inhoud onder een kleverige kop (kaarten die onder het glas doorschuiven) zit er enkel in voor zover de pagina ze toont.
+const DOORZICHTIG = (sels) => `${sels.flatMap((s) => [s, `${s} *`, `${s} ::placeholder`]).join(', ')} { color: transparent !important; -webkit-text-fill-color: transparent !important; text-shadow: none !important; caret-color: transparent !important; }
+  ${sels.flatMap((s) => [`${s} text`, `${s} tspan`]).join(', ')} { fill: transparent !important; }`;
+
+// De tekstelementen van de vlakken: vak, kleur, doorzichtigheid, korte naam. Enkel wat zichtbaar is en echt in het vlak ligt.
+async function meetTeksten(page, wortelSels) {
+  return page.evaluate((sels) => {
+    const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+    const rgba = (kleur) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = '#000'; ctx.fillStyle = kleur; ctx.fillRect(0, 0, 1, 1); const d = ctx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255]; };
+    const wortels = sels.flatMap((s) => [...document.querySelectorAll(s)]);
+    const uit = [], gezien = new Set();
+    const knip = (a, b) => ({ l: Math.max(a.l, b.l), t: Math.max(a.t, b.t), r: Math.min(a.r, b.r), b: Math.min(a.b, b.b) });
+    for (const w of wortels) for (const el of [w, ...w.querySelectorAll('*')]) {
+      if (gezien.has(el)) continue;
+      gezien.add(el);
+      const eigenTekst = [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim());
+      const isVeld = (el.matches('input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]), textarea') && el.value) || (el.tagName === 'SELECT' && el.selectedOptions.length);
+      if (!eigenTekst.length && !isVeld) continue;
+      const cs = getComputedStyle(el);
+      if (cs.visibility !== 'visible' || cs.display === 'none') continue;
+      // vak van de tekst zelf (alle regels), geknipt op het element en op wat zijn ouders afknippen
+      // Emoji (⚠, 📅, 👤) zijn kleurenglyphs: de doorzichtige tekstkleur raakt ze niet, dus hun pixels zeggen niets over de achtergrond.
+      // Enkel de runs zonder emoji tellen mee; een element met alleen emoji slaan we over.
+      let vak = null;
+      for (const n of eigenTekst) {
+        for (const run of n.textContent.matchAll(/[^\p{Extended_Pictographic}\uFE0F\u200D\s]+/gu)) {
+          const r = document.createRange();
+          r.setStart(n, run.index);
+          r.setEnd(n, run.index + run[0].length);
+          for (const q of r.getClientRects()) vak = vak ? { l: Math.min(vak.l, q.left), t: Math.min(vak.t, q.top), r: Math.max(vak.r, q.right), b: Math.max(vak.b, q.bottom) } : { l: q.left, t: q.top, r: q.right, b: q.bottom };
+        }
+      }
+      const eigen = el.getBoundingClientRect();
+      if (isVeld) vak = { l: eigen.left, t: eigen.top, r: eigen.right, b: eigen.bottom };
+      if (!vak) continue;
+      vak = knip(vak, { l: eigen.left, t: eigen.top, r: eigen.right, b: eigen.bottom });
+      const voll = { b: vak.b - vak.t, r: vak.r - vak.l }; // vak zoals de tekst echt ligt, vóór het afknippen
+      for (let x = el.parentElement; x; x = x.parentElement) {
+        const o = getComputedStyle(x);
+        if (/(hidden|clip|auto|scroll)/.test(o.overflowX + o.overflowY)) { const r = x.getBoundingClientRect(); vak = knip(vak, { l: r.left, t: r.top, r: r.right, b: r.bottom }); }
+      }
+      vak = knip(vak, { l: 0, t: 0, r: innerWidth, b: innerHeight });
+      // het tekstvak is de regelhoogte, de inkt ligt er 10 % vanaf boven en onder en niet tot aan de zijrand (een pil heeft ronde einden)
+      const dy = Math.max(1, 0.1 * (vak.b - vak.t));
+      vak = { l: vak.l + 1, t: vak.t + dy, r: vak.r - 1, b: vak.b - dy };
+      if (vak.r - vak.l < 2 || vak.b - vak.t < 2) continue;
+      if (vak.b - vak.t < 0.6 * voll.b || vak.r - vak.l < 0.6 * voll.r) continue; // grotendeels afgeknipt (weggescrold): geen leesbare tekst
+      // Ligt er iets anders overheen (een kleverige voet, een menu, een venster), dan is dit niet de zichtbare tekst
+      const geraakt = document.elementFromPoint((vak.l + vak.r) / 2, (vak.t + vak.b) / 2);
+      if (!geraakt || !(geraakt === el || el.contains(geraakt) || geraakt.contains(el)) || !wortels.some((w) => w.contains(geraakt))) continue;
+      let o = 1;
+      for (let x = el; x; x = x.parentElement) o *= parseFloat(getComputedStyle(x).opacity);
+      const svg = el instanceof SVGElement;
+      uit.push({
+        sel: `${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : ''}`,
+        tekst: (el.textContent || el.value || '').replace(/\s+/g, ' ').trim().slice(0, 24),
+        kleur: rgba(svg ? cs.fill : (cs.webkitTextFillColor && cs.webkitTextFillColor !== 'currentcolor' ? cs.webkitTextFillColor : cs.color)),
+        opacity: o,
+        vak: { x: Math.floor(vak.l), y: Math.floor(vak.t), w: Math.ceil(vak.r) - Math.floor(vak.l), h: Math.ceil(vak.b) - Math.floor(vak.t) },
+      });
+    }
+    return uit;
+  }, wortelSels);
+}
+
+export async function neemFoto(page) {
+  const png = await page.screenshot({ animations: 'disabled', caret: 'hide' });
+  const beeld = leesPng(png);
+  if (beeld.breed !== await page.evaluate(() => innerWidth)) throw new Error('de foto is niet op schaal 1');
+  return beeld;
+}
+
+const LUM = Array.from({ length: 256 }, (_, i) => { const v = i / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+export const lumRgb = (r, g, b) => 0.2126 * LUM[Math.round(r)] + 0.7152 * LUM[Math.round(g)] + 0.0722 * LUM[Math.round(b)];
+
+// Meet de tekst van de vlakken `wortelSels` (selectoren van het glas zelf; de tekst ligt er binnen) in het huidige beeld. `slechtste` is
+// dezelfde verzamelaar als bij controleerKaarten ({ waarde, waar, perVenster }); `perVenster` is hier per eerste woord van het label.
+// Geeft het aantal gemeten teksten terug (een lege meting is een fout van de test, geen succes).
+export async function controleerVlakken(page, wortelSels, label, slechtste, { minimum = 1 } = {}) {
+  await wachtOpFrames(page, 2);
+  const teksten = await meetTeksten(page, wortelSels);
+  expect(teksten.length, `${label}: tekst gevonden in ${wortelSels.join(', ')}`).toBeGreaterThanOrEqual(minimum);
+  const alle = wortelSels.join(', ');
+  const stijlB = await page.addStyleTag({ content: `${DOORZICHTIG(wortelSels)} #event-laag, #toast, #spel-tik-toast { visibility: hidden !important; }` });
+  let B, S = null;
+  try {
+    await wachtOpFrames(page, 2);
+    B = await neemFoto(page);
+    if (teksten.some((t) => t.opacity < 0.999)) {
+      const stijlS = await page.addStyleTag({ content: `${alle} { visibility: hidden !important; }` });
+      try { await wachtOpFrames(page, 2); S = await neemFoto(page); } finally { await stijlS.evaluate((el) => el.remove()); }
+    }
+  } finally { await stijlB.evaluate((el) => el.remove()); }
+  for (const t of teksten) {
+    const [tr, tg, tb, ta] = t.kleur, o = t.opacity;
+    let min = Infinity, waar = null;
+    for (let y = t.vak.y; y < t.vak.y + t.vak.h; y++) for (let x = t.vak.x; x < t.vak.x + t.vak.w; x++) {
+      const b = B.kleur(x, y);
+      let tekst = [tr * ta + b[0] * (1 - ta), tg * ta + b[1] * (1 - ta), tb * ta + b[2] * (1 - ta)], grond = b;
+      if (o < 0.999) {
+        const s = S.kleur(x, y);
+        tekst = tekst.map((v, i) => o * v + (1 - o) * s[i]);
+        grond = b.map((v, i) => o * v + (1 - o) * s[i]);
+      }
+      const l1 = lumRgb(...tekst), l2 = lumRgb(...grond), c = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+      if (c < min) { min = c; waar = { x, y, tekst: tekst.map(Math.round), grond: grond.map(Math.round) }; }
+    }
+    const kleurTekst = t.kleur.map((v, i) => (i < 3 ? Math.round(v) : +v.toFixed(2)));
+    const beschrijving = `${label} <${t.sel}> "${t.tekst}" tekst rgb(${waar.tekst}) op rgb(${waar.grond}) bij ${waar.x},${waar.y} (kleur ${kleurTekst}, opacity ${+t.opacity.toFixed(2)})`;
+    if (min < slechtste.waarde) Object.assign(slechtste, { waarde: min, waar: beschrijving });
+    const v = label.split(' ')[0];
+    slechtste.perVenster[v] = Math.min(slechtste.perVenster[v] ?? Infinity, min);
+    toets(min, beschrijving).toBeGreaterThanOrEqual(4.5);
+  }
+  return teksten.length;
+}
+
+// De kleuren van de reeksen in de legenda's (.swatch) tegen de kaart waarop ze liggen (de pixel vlak naast het blokje): geeft per kleur het
+// contrast (niet-tekst, WCAG 1.4.11 vraagt 3:1). De grafiekkleuren zijn afgestemd op een effen ondergrond; dit is een meting, geen drempel.
+export async function meetReeksen(page) {
+  const blokjes = await page.evaluate(() => {
+    const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+    return [...document.querySelectorAll('.dash-kaart .swatch')].map((el) => {
+      const r = el.getBoundingClientRect();
+      ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = '#000'; ctx.fillStyle = getComputedStyle(el).backgroundColor; ctx.fillRect(0, 0, 1, 1);
+      const d = ctx.getImageData(0, 0, 1, 1).data;
+      return { naam: el.className.replace('swatch', '').trim(), kleur: [d[0], d[1], d[2]], x: Math.floor(r.left) - 4, y: Math.floor(r.top + r.height / 2), zichtbaar: r.top >= 0 && r.bottom <= innerHeight && r.left > 4 };
+    }).filter((b) => b.zichtbaar);
+  });
+  if (!blokjes.length) return [];
+  const beeld = await neemFoto(page);
+  return blokjes.map((b) => {
+    const g = beeld.kleur(b.x, b.y), l1 = lumRgb(...b.kleur), l2 = lumRgb(...g);
+    return { naam: b.naam, kleur: b.kleur, grond: g, contrast: (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05) };
+  });
 }
