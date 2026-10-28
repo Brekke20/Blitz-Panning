@@ -209,6 +209,8 @@
         --glas-sterk:   rgba(255,255,255,0.95);
         --glas-venster: rgba(255,255,255,0.98);
       }
+      /* Eindreview F8: geen vervaging meer (niet enkel blur(0px)): het glas is hier bijna effen, de filter kost dan enkel rekenwerk. */
+      *, *::before, *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
     }
     @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
       html:root:not([data-theme="light"]) {

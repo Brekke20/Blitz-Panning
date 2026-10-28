@@ -76,6 +76,28 @@ test.describe('glazen kaarten', () => {
     for (const x of f) expect(x).toContain('blur(');
   });
 
+  // Eindreview F8: "verminderde transparantie" (prefers-reduced-transparency: reduce) geeft effen kaarten zonder backdrop-filter.
+  // Playwright kent deze mediafunctie niet; ze wordt via het DevTools-protocol (Emulation.setEmulatedMedia) aangezet.
+  for (const modus of ['dark', 'light']) {
+    test(`verminderde transparantie (${modus}): kaarten zijn bijna effen en hebben geen backdrop-filter`, async ({ page }) => {
+      await page.addInitScript((t) => { if (window === window.top) localStorage.setItem('blitz_theme', t); }, modus);
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-transparency', value: 'reduce' }] });
+      await startApp(page, { viewport: { width: 1366, height: 768 } });
+      await expect(page.locator('html')).toHaveAttribute('data-theme', modus);
+      expect(await page.evaluate(() => matchMedia('(prefers-reduced-transparency: reduce)').matches), 'mediafunctie actief').toBe(true);
+      const kaart = page.locator('#view-tickets .ticket').first();
+      await expect(kaart).toBeVisible();
+      const m = await kaart.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        const d = cs.backgroundColor.match(/rgba?\(([^)]*)\)/)[1].split(',').map(parseFloat);
+        return { filter: cs.backdropFilter || cs.webkitBackdropFilter || 'none', alpha: d.length > 3 ? d[3] : 1 };
+      });
+      expect(m.filter).toBe('none');
+      expect(m.alpha).toBeGreaterThanOrEqual(0.94);
+    });
+  }
+
   const maat = (loc) => loc.evaluate((el) => { const cs = getComputedStyle(el); return [cs.paddingTop, cs.paddingLeft, cs.marginBottom, cs.borderTopLeftRadius]; });
 
   test('dichtheid op breed: 15/18 en 10 px ertussen', async ({ page }) => {
