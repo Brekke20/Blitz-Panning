@@ -210,13 +210,13 @@
     /* Tekst op de kaarten (was enkel tijdens een thema, nu overal): lichter in donker, donkerder in licht, zodat 4,5:1 haalbaar blijft
        over de hemel en over een thema-achtergrond. --red blijft ongemoeid (labels "Verlopen" en "Hoog" houden de statuskleur); enkel
        losse rode of oranje tekst (geen adres, lage voorraad) krijgt een eigen licht (donker) of donker (licht) rood. */
-    :root:not([data-theme="light"]) :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
+    :root:not([data-theme="light"]) :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart, .sales-kal-kaart, .topbar-sticky) {
       --text: #f5f7f9; --text2: #e6eaef; --muted: #e6eaef;
       color: var(--text); /* tekst zonder eigen kleur erft anders de --text van body */
     }
     :root:not([data-theme="light"]) :is(.taddr.miss, .cal-addr.miss, .inv-row.inv-low .inv-row-aantal) { color: #ffdcd7; }
     :root:not([data-theme="light"]) .inv-row.inv-bijna .inv-row-aantal { color: #ffe3b3; }
-    :root[data-theme="light"] :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
+    :root[data-theme="light"] :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart, .sales-kal-kaart, .topbar-sticky) {
       --text2: #3d4652; --muted: #3d4652;
     }
     :root[data-theme="light"] :is(.taddr.miss, .cal-addr.miss, .inv-row.inv-low .inv-row-aantal) { color: #8c1111; }
@@ -235,14 +235,19 @@
     .t-body { flex: 1; min-width: 0; padding-left: 6px; }
     .t-top { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; margin-bottom: 5px; }
     .tnum { font-size: 0.82rem; font-weight: 700; color: var(--text); font-family: 'SF Mono', 'Consolas', monospace; letter-spacing: 0.03em; }
-    .stag  { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 7px; border-radius: 20px; background: var(--red-dim);    color: var(--red); }
-    .stag.pending   { background: var(--orange-dim); color: var(--orange); }
-    .stag.confirmed { background: var(--green-dim);  color: var(--accent-ink); }
-    .atag  { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 7px; border-radius: 20px; background: var(--blue-dim); color: var(--blue); }
+    /* Chips (status, technieker, prioriteit) op een glazen kaart: de statuskleur blijft de tekstkleur (--red, --blue, ... ongemoeid), het vlak
+       erachter is een dichtere tint van diezelfde kleur over --chip-onder, zodat de tekst niet van de hemel achter het glas afhangt
+       (taak 9: de doorschijnende --*-dim haalde 3,6 tot 4,4:1). */
+    :root { --chip-onder: rgba(10,16,34,0.80); --chip-tint: 12%; }
+    :root[data-theme="light"] { --chip-onder: rgba(255,255,255,0.88); --chip-tint: 6%; }
+    .stag  { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 7px; border-radius: 20px; background: color-mix(in srgb, var(--red) var(--chip-tint), var(--chip-onder));    color: var(--red); }
+    .stag.pending   { background: color-mix(in srgb, var(--orange) var(--chip-tint), var(--chip-onder)); color: var(--orange); }
+    .stag.confirmed { background: color-mix(in srgb, var(--green) var(--chip-tint), var(--chip-onder));  color: var(--accent-ink); }
+    .atag  { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 7px; border-radius: 20px; background: color-mix(in srgb, var(--blue) var(--chip-tint), var(--chip-onder)); color: var(--blue); }
     .prtag { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 7px; border-radius: 20px; }
-    .prtag.high   { background: var(--red-dim);    color: var(--red); }
-    .prtag.medium { background: var(--orange-dim); color: var(--orange); }
-    .prtag.low    { background: var(--green-dim);  color: var(--accent-ink); }
+    .prtag.high   { background: color-mix(in srgb, var(--red) var(--chip-tint), var(--chip-onder));    color: var(--red); }
+    .prtag.medium { background: color-mix(in srgb, var(--orange) var(--chip-tint), var(--chip-onder)); color: var(--orange); }
+    .prtag.low    { background: color-mix(in srgb, var(--green) var(--chip-tint), var(--chip-onder));  color: var(--accent-ink); }
     .tsub { font-weight: 600; font-size: 0.88rem; line-height: 1.4; margin-bottom: 4px; color: var(--text); }
     .tmeta { font-size: var(--fs-2xs); color: var(--muted); margin-bottom: 3px; }
     .taddr { font-size: var(--fs-2xs); color: var(--muted); }
@@ -742,6 +747,8 @@
       box-shadow: inset 0 1px 0 var(--glas-licht), var(--gloed-schaduw, 0 0 0 transparent), 0 -8px 40px rgba(0,0,0,0.35);
       animation: slideUp 0.28s var(--ease-spring);
     }
+    /* Taak 9: de gedempte tekst (--muted #8b97a5) haalde op het venster over de hemel 3,9:1; iets lichter in donker (licht haalt het wel) */
+    :root:not([data-theme="light"]) .modal { --muted: #adb6c1; }
     @media (min-width: 600px) {
       .modal { border-radius: var(--r-venster); box-shadow: inset 0 1px 0 var(--glas-licht), var(--gloed-schaduw, 0 0 0 transparent), 0 30px 80px rgba(0,0,0,0.35); }
     }
@@ -1110,10 +1117,12 @@
 
     /* ── Test mode badge ── */
     #test-badge {
-      display: none; background: var(--orange); color: #000;
+      display: none; background: var(--orange); color: #000; /* in licht is --orange donker: zie de regel eronder */
       font-size: var(--fs-2xs); font-weight: 800; padding: 2px 7px;
       border-radius: 10px; letter-spacing: 0.05em; flex-shrink: 0;
     }
+
+    :root[data-theme="light"] #test-badge { color: #fff; } /* taak 9: zwart op het donkere oranje van licht haalde 3,7:1, wit 5,7:1 */
 
     /* Rolwisselaar van de lokale testmodus (naast #test-badge; bestaat enkel op een lokale dev-server) */
     .test-rol-wissel {
@@ -1340,7 +1349,7 @@ html[data-nav="kolom"] #test-badge { padding: 3px 10px; border-radius: var(--r-p
   /* .topbar-sticky (sticky) is het bevattende blok: linksboven, over de bovenrand van het logo-icoon */
   html[data-nav="dok"] #test-badge {
     position: absolute; top: 3px; left: 4px; z-index: 1;
-    font-size: 0.5rem; line-height: 1.3; padding: 0 4px; letter-spacing: 0.04em;
+    font-size: 0.5rem; line-height: 1.3; padding: 0 5px; letter-spacing: 0.04em; /* 5 px: de tekst blijft binnen de ronde einden van het label */
   }
 }
 @media print {

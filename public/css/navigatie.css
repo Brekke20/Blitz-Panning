@@ -218,6 +218,9 @@ html[data-nav="dok"] .tab .badge {
   min-width: 18px; padding: 0 5px;
   font-size: 0.625rem; line-height: 16px;
 }
+/* Taak 9: de groene teller van het actieve tabblad (zijkolom en dok) op een donker, doorschijnend chipje (de hemel erachter, vooral de horizonglans, liet de
+   groene tekst op 3,3:1) */
+html[data-nav]:not([data-theme="light"]) .tab.active .badge { background: rgba(8, 16, 36, 0.6); }
 /* Ruimte onderaan voor het dok: de inhoud, de Route-tab (die het scherm vult) en het meldingsvak blijven erboven. */
 html[data-nav="dok"] {
   scroll-padding-bottom: calc(var(--dok-h) + 24px); /* focus en scrollIntoView zetten niets onder het dok */

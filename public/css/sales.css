@@ -207,6 +207,9 @@ html[data-indeling="smal"] .sales-kal-grid .day-hdr { height: auto; }
 .sales-afgewerkt-kaart { color: var(--text2); opacity: .85; } /* een afgewerkt bezoek: gedempt glas (de gloed en de linkerbalk zijn weg) */
 .sales-afgewerkt-kaart .sales-kal-status { color: var(--text2); font-weight: 600; }
 .sales-kal-kaart .badge-buitenuren { align-self: flex-start; margin: 0; }
+/* Taak 9: "buiten werkuren" (oranje tekst op een doorschijnend oranje chipje) haalde 3,4:1 (donker) en 4,3:1 (licht) op de groene bezoekkaart */
+:root:not([data-theme="light"]) .sales-kal-kaart .badge-buitenuren { background: rgba(8, 16, 36, 0.6); }
+:root[data-theme="light"] .sales-kal-kaart .badge-buitenuren { color: #7a3606; }
 .month-chip.sales-tint-voorgesteld { background: var(--accent-dim); color: var(--accent-ink); border-left: 2px dashed var(--accent); }
 .month-chip.sales-tint-bevestigd { background: color-mix(in srgb, var(--accent) 28%, var(--surface)); color: var(--text); border-left: 2px solid var(--accent); }
 .month-chip.sales-tint-blok { background: var(--red-dim); color: var(--red); }

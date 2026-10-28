@@ -72,9 +72,9 @@
       --focus-ring: var(--accent);
       /* ── Open dag-stijl: glas (donker), letters, gloed en duur ──
          Glas ligt boven de hemel; de vervaging en de dekking worden verderop per toestel/voorkeur bijgesteld. */
-      --glas:            rgba(255,255,255,0.075);
-      --glas-hover:      rgba(255,255,255,0.12);
-      --glas-sterk:      rgba(255,255,255,0.09);
+      --glas:            rgba(12,20,44,0.40);
+      --glas-hover:      rgba(26,38,70,0.52);
+      --glas-sterk:      rgba(12,20,44,0.50);
       --glas-venster:    rgba(24,36,62,0.84);
       --glas-rand:       rgba(255,255,255,0.14);
       --glas-rand-hover: rgba(255,255,255,0.26);
@@ -166,9 +166,9 @@
        Volgorde en specificiteit zijn bewust: gsm eerst; "verminderde transparantie" en "geen backdrop-filter" winnen daarna. */
     html[data-apparaat="gsm"] {
       --blur:         10px;
-      --glas:         rgba(255,255,255,0.12);
-      --glas-hover:   rgba(255,255,255,0.17);
-      --glas-sterk:   rgba(255,255,255,0.14);
+      --glas:         rgba(12,20,44,0.50);
+      --glas-hover:   rgba(26,38,70,0.60);
+      --glas-sterk:   rgba(12,20,44,0.56);
       --glas-venster: rgba(24,36,62,0.92);
     }
     html[data-apparaat="gsm"][data-theme="light"] {

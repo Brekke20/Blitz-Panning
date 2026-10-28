@@ -179,3 +179,11 @@
   .filter-veld { flex: 1 1 140px; }
   .filter-veld select, .filter-veld input { width: 100%; font-size: 16px; }
 }
+
+/* ── Open dag, taak 9: leesbaar over de hemel (e2e/hemel-contrast.spec.mjs) ──
+   De kaarten en tegels staan op --glas-venster (bijna effen), de koppen en noten van de blokken staan los op de hemel, ook over de
+   horizonglans onderaan. In donker: de gedempte grafiektekst (assen) iets lichter (--viz-muted en --viz-ink2 worden op :root berekend, dus hier
+   direct gezet), de blokkoppen en noten lichter. Licht haalt het zonder. De reeks- en statuskleuren blijven ongemoeid. */
+:root:not([data-theme="light"]) :is(.dash-kaart, .tegel) { --viz-muted: #a3adb9; --viz-ink2: #c2cad3; }
+:root:not([data-theme="light"]) .dash-blok-kop { color: #f5f7f9; }
+:root:not([data-theme="light"]) :is(.dash-noot, .dash-leeg) { color: #e6eaef; }
