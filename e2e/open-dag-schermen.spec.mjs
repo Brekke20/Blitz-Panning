@@ -259,4 +259,67 @@ test.describe('overige schermen en vensters (Open dag)', () => {
     ]);
     expect(route).toBeLessThanOrEqual(dok + 1);
   });
+  // Taak 14 (vraag van Brent, 2026-10-28): op een gsm kapte de bovenste balk van de Wachtrij de hulptekst van het zoekvak en het
+  // sorteerlabel af. Nu staat het zoekvak op een eigen rij; de sorteerkeuze en het aantal staan daaronder.
+  for (const [breedte, hoogte] of [[375, 812], [360, 780]]) {
+    for (const modus of ['gsm-weergave', 'smal-venster']) {
+      test(`wachtrij-balk leesbaar op ${breedte} px (${modus})`, async ({ page }) => {
+        if (modus === 'gsm-weergave') await zetWeergave(page, 'gsm');
+        await startApp(page, { viewport: { width: breedte, height: hoogte } });
+        await expect(page.locator('html')).toHaveAttribute('data-nav', 'dok');
+        if (modus === 'gsm-weergave') await expect(page.locator('html')).toHaveAttribute('data-apparaat', 'gsm');
+        const m = await page.evaluate(() => {
+          const meet = (tekst, cs) => {
+            const c = document.createElement('canvas').getContext('2d');
+            c.font = cs.font || `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+            return c.measureText(tekst).width;
+          };
+          const inhoud = (el, cs) => el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+          const zoek = document.getElementById('wq-zoek');
+          const zcs = getComputedStyle(zoek);
+          const sel = document.getElementById('wq-sorteer');
+          const scs = getComputedStyle(sel);
+          const opties = [...sel.options].map((o) => ({ tekst: o.textContent, breedte: meet(o.textContent, scs) }));
+          const teller = document.getElementById('wq-teller');
+          const tr = teller.getBoundingClientRect();
+          const zr = zoek.getBoundingClientRect(), sr = sel.getBoundingClientRect();
+          return {
+            hulp: { tekst: zoek.placeholder, breedte: meet(zoek.placeholder, zcs), ruimte: inhoud(zoek, zcs), fs: parseFloat(zcs.fontSize) },
+            sel: { opties, ruimte: inhoud(sel, scs), fs: parseFloat(scs.fontSize), padR: parseFloat(scs.paddingRight) },
+            tellerTekst: teller.textContent.trim(), tellerZichtbaar: tr.width > 0 && tr.height > 0 && tr.right <= window.innerWidth && tr.left >= 0,
+            zoekBoven: zr.bottom <= sr.top + 1, zoekVol: zr.width,
+            tellerOpRijVanSelect: Math.abs((tr.top + tr.height / 2) - (sr.top + sr.height / 2)) < 6,
+            doc: document.documentElement.scrollWidth, venster: window.innerWidth,
+          };
+        });
+        // hulptekst volledig, en het woord "onderwerp" blijft erin
+        expect(m.hulp.tekst).toContain('onderwerp');
+        expect(m.hulp.fs).toBeGreaterThanOrEqual(16);
+        expect(m.hulp.breedte, `hulptekst "${m.hulp.tekst}" past niet in het zoekvak`).toBeLessThanOrEqual(m.hulp.ruimte);
+        // elke sorteeroptie past volledig wanneer ze gekozen is (in de ruimte naast de pijl)
+        expect(m.sel.fs).toBeGreaterThanOrEqual(16);
+        for (const o of m.sel.opties) expect(o.breedte, `sorteerlabel "${o.tekst}" past niet`).toBeLessThanOrEqual(m.sel.ruimte);
+        // zoekvak op een eigen rij boven de sorteerkeuze; aantal blijft zichtbaar, naast de sorteerkeuze
+        expect(m.zoekBoven).toBe(true);
+        expect(m.zoekVol).toBeGreaterThan(breedte * 0.8);
+        expect(m.tellerTekst).toMatch(/\d/);
+        expect(m.tellerZichtbaar).toBe(true);
+        expect(m.tellerOpRijVanSelect).toBe(true);
+        expect(m.doc).toBeLessThanOrEqual(m.venster);
+      });
+    }
+  }
+
+  test('wachtrij-balk op pc 1366x768: zoeken, sorteren en aantal blijven op één rij', async ({ page }) => {
+    await startApp(page, { viewport: PC });
+    await expect(page.locator('html')).toHaveAttribute('data-nav', 'kolom');
+    const [z, s, t] = await Promise.all([page.locator('#wq-zoek').boundingBox(), page.locator('#wq-sorteer').boundingBox(), page.locator('#wq-teller').boundingBox()]);
+    for (const d of [s, t]) expect(Math.abs((d.y + d.height / 2) - (z.y + z.height / 2))).toBeLessThan(6);
+    expect(s.x).toBeGreaterThan(z.x + z.width - 1);
+    expect(t.x).toBeGreaterThan(s.x + s.width - 1);
+    // het zoekvak behoudt zijn pc-hoogte en lettergrootte
+    const cs = await page.locator('#wq-zoek').evaluate((el) => { const c = getComputedStyle(el); return { h: el.getBoundingClientRect().height, fs: c.fontSize }; });
+    expect(cs.h).toBe(36);
+    expect(cs.fs).toBe('14px');
+  });
 });

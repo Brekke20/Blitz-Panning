@@ -171,6 +171,16 @@
     html[data-indeling="smal"] .wq-zoek { flex-basis: 120px; }
     html[data-indeling="smal"] .wq-sorteer { max-width: 132px; }
     html[data-aanraak="ja"] .wq-zoek, html[data-aanraak="ja"] .wq-sorteer { min-height: 44px; font-size: 16px; }
+    /* Op gsm (en in een venster smaller dan 600 px) twee rijen: het zoekvak over de volle breedte, daaronder de sorteerkeuze met het aantal.
+       Zo passen de hulptekst en het langste sorteerlabel volledig; 16 px voorkomt dat iOS inzoomt bij focus. */
+    html[data-apparaat="gsm"] .wq-toolbar { padding-left: 10px; padding-right: 10px; }
+    html[data-apparaat="gsm"] .wq-zoek { flex: 1 1 100%; padding: 0 12px; font-size: 16px; }
+    html[data-apparaat="gsm"] .wq-sorteer { flex: 1 1 0; min-width: 0; max-width: none; font-size: 16px; padding-right: 28px; text-overflow: ellipsis; }
+    @media (max-width: 599px) {
+      .wq-toolbar { padding-left: 10px; padding-right: 10px; }
+      .wq-zoek { flex: 1 1 100%; padding: 0 12px; font-size: 16px; }
+      .wq-sorteer { flex: 1 1 0; min-width: 0; max-width: none; font-size: 16px; padding-right: 28px; text-overflow: ellipsis; }
+    }
     /* ── Open dag-stijl: glazen kaarten met gloeiende omtrek ──
        ÉÉN regel voor alle kaarten en rijen in lijsten (wachtrij, kalender, route, inventaris, sales; ook tijdens een thema, zie
        evenement.css): halfdoorschijnende kaartkleur + vervaging (tokens uit base.css), fijne lichte rand, lichtrand bovenaan.

@@ -30,6 +30,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Tekst op de hemel en op de scène van een thema blijft overal leesbaar: donkerblauw glas in het donkere thema, een eigen tekstkleur voor losse tekst op de hemel, en donkere tekst op de groene (en oranje) knoppen in elk thema. Het dok is in het donkere thema dichter, zodat de tabbladen goed te lezen blijven.
 - De balk met rapporten die nog niet verzonden zijn is altijd Blitz-groen met donkere tekst, ook tijdens een feestthema; fout en knoppen blijven overal leesbaar.
 - Alle vensters, de rapport-wizard, Beheer, Dashboard, Sales en het inlogscherm hebben de nieuwe vormen en kleuren. De werking, de knoppen en de teksten in de knoppen blijven dezelfde.
+- Op een gsm staat het zoekvak van de wachtrij op een eigen rij, zodat de hulptekst en de sorteerkeuze volledig leesbaar zijn.
 
 ### Notes
 - Snelheid gemeten op een gesimuleerd traag toestel (gsm, CPU 4× trager) tegen v2.4.0: geen enkel cijfer is 10 % of meer slechter, dus er is geen terugval nodig. Op gsm is het glas lichter (minder vervaging, hogere dekking) dan op pc en tablet.
