@@ -45,7 +45,8 @@ test.describe('laden en rol', () => {
   });
 
   test.describe('tablet', () => {
-    test.use({ hasTouch: true });
+    // isMobile: een echte tabletemulatie (het scherm zelf staat rechtop, screen.orientation = portrait); apparaat.js leest de oriëntatie van het scherm.
+    test.use({ hasTouch: true, isMobile: true });
 
     // UI/UX P1-5: de eenmalige tablet-rolvraag bestaat niet meer; het account bepaalt de weergave (een beheerder is coördinator).
     test('tablet vraagt de rol niet meer: een beheerder blijft coördinator, ook zonder bewaarde toestelrol', async ({ page }) => {

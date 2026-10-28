@@ -21,6 +21,23 @@
   // (CSS: .coord-only.plan-eigen); de server en de knoppen per ticket beperken hem tot zijn eigen tickets.
   var planEigen = false;
 
+  // Rechtop of liggend voor de gsm-regel: screen.orientation.type ('portrait-*' / 'landscape-*') als het toestel die geeft. NIET screen.width/height (WebKit
+  // op iOS/iPadOS wisselt die bij het draaien niet om) en NIET het venster alleen: Android-splitscreen op een liggende tablet geeft een smal, hoog venster en
+  // blijft dus een tablet (de oriëntatie van het scherm is liggend). Zonder screen.orientation geldt het venster (innerHeight >= innerWidth), met een
+  // toetsenbordslot: een schermtoetsenbord verkleint enkel de hoogte, dus bij een ongewijzigde breedte blijft het vorige oordeel staan en schakelt de app nooit
+  // midden in het typen om (een draai verandert de breedte altijd).
+  var laatsteBreedte = null, laatsteVensterStaand = null;
+  function staandVoorGsm(b, vensterStaand) {
+    var o = window.screen && window.screen.orientation && window.screen.orientation.type;
+    if (typeof o === 'string') {
+      if (o.indexOf('portrait') === 0) return true;
+      if (o.indexOf('landscape') === 0) return false;
+    }
+    if (laatsteVensterStaand !== null && laatsteBreedte === b) return laatsteVensterStaand;
+    laatsteBreedte = b; laatsteVensterStaand = vensterStaand;
+    return vensterStaand;
+  }
+
   function bepaal() {
     var grof = !!(grofMQ && grofMQ.matches);
     var b = window.innerWidth, h = window.innerHeight;
@@ -31,13 +48,8 @@
     var kortsteZijde = (sb > 0 && sh > 0) ? Math.min(sb, sh) : Math.min(b, h);
     var staand = h >= b;
     // Een tablet RECHTOP is een gsm in de hele app (Brent, 2026-10-28: het verschil was vooral de voorraadbel; dok, gsm-kalender en gsm-glas horen erbij);
-    // liggend blijft hij een tablet (indeling 'breed', zoals de computer). Rechtop of liggend volgt hier het SCHERM (screen.width/height) en niet het
-    // venster: een schermtoetsenbord maakt een rechtop gehouden venster lager dan breed en zou de hele app anders midden in het typen laten omschakelen.
-    // Zonder schermmaten val je terug op het venster. Een handmatige keuze (blitz_weergave, Instellingen) gaat voor en laat dit onaangeroerd.
-    var schermStaand = (sb > 0 && sh > 0) ? sb < sh : staand;
-    var tabletRechtop = staand || schermStaand;
-
-    var auto = !grof ? 'computer' : (kortsteZijde < 600 || tabletRechtop ? 'gsm' : 'tablet');
+    // liggend blijft hij een tablet (indeling 'breed', zoals de computer). Een handmatige keuze (blitz_weergave, Instellingen) gaat voor en laat dit onaangeroerd.
+    var auto = !grof ? 'computer' : (kortsteZijde < 600 || staandVoorGsm(b, staand) ? 'gsm' : 'tablet');
     var w = lees('blitz_weergave');
     var soort = (w === 'gsm' || w === 'tablet' || w === 'computer') ? w : auto;
 
@@ -110,6 +122,7 @@
   }
   window.addEventListener('resize', gedebounced);
   window.addEventListener('orientationchange', gedebounced);
+  try { if (window.screen && window.screen.orientation && window.screen.orientation.addEventListener) window.screen.orientation.addEventListener('change', gedebounced); } catch (e) {}
   if (grofMQ) {
     if (grofMQ.addEventListener) grofMQ.addEventListener('change', evalueer);
     else if (grofMQ.addListener) grofMQ.addListener(evalueer);
