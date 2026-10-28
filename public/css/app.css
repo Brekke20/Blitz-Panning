@@ -442,7 +442,10 @@
     /* Tijdlijnweergave: #week-grid is de enige verticale scrollcontainer (hoogte via JS);
        kolommen krijgen hun inhoudshoogte zodat de sticky kop over de volle scroll blijft staan */
     .week-grid.tl-mode { overflow: auto; align-items: flex-start; flex: none; }
-    .week-grid.tl-mode .day-hdr { position: sticky; top: 0; z-index: 5; }
+    /* v2.5.1: de vastgeplakte dagkop (en de hoekcel, de lege kop van de uurkolom) is doorzichtiger glas; zonder vervaging waren de uurlabels die erachter
+       wegschuiven ("08:00", "09:00") er leesbaar doorheen te zien. --blur-balk geldt op het dok; op de computer het gewone --blur (28 px). Bij verminderde
+       transparantie of zonder backdrop-filter (base.css) is het glas bijna effen en de vervaging niet nodig. */
+    .week-grid.tl-mode .day-hdr { position: sticky; top: 0; z-index: 5; background-color: var(--glas-venster); -webkit-backdrop-filter: blur(var(--blur-balk, var(--blur))) saturate(180%); backdrop-filter: blur(var(--blur-balk, var(--blur))) saturate(180%); }
     .day-hdr { padding: 12px 10px 8px; background-color: var(--glas-sterk); border-bottom: 1px solid var(--lijn); }
     .day-hdr-top { display: block; }
     .day-hdr-name { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }

@@ -115,6 +115,12 @@ for (const [thema, grensMax, grensScherp] of [['dark', 30, 26], ['light', 22, 20
     await expect(page.locator('#kal-pending-pill')).toBeVisible(); // de gegevens zijn binnen: de kalenderbalk groeit nog met de pil "zonder datum"
     await verwachtVandaagInBeeld(page);
     await rustigeScroll(page);
+    // --blur-balk vastgepind (de pixelmeting hieronder onderscheidt 10 en 18 px niet): op het dok hebben de kop (::before) en de sticky kalenderbalk een
+    // berekende backdrop-filter met een vervaging van minstens 18 px.
+    const blurs = await page.evaluate(() => [getComputedStyle(document.querySelector('.topbar-sticky'), '::before').backdropFilter, getComputedStyle(document.querySelector('#view-kalender .kal-header')).backdropFilter]
+      .map((f) => parseFloat((f.match(/blur\(([\d.]+)px\)/) || [])[1])));
+    expect(blurs[0], 'vervaging van de kop (.topbar-sticky::before) op het dok').toBeGreaterThanOrEqual(18);
+    expect(blurs[1], 'vervaging van de sticky kalenderbalk op het dok').toBeGreaterThanOrEqual(18);
     const kop = await page.evaluate(() => Math.round(document.querySelector('#view-kalender .kal-header').getBoundingClientRect().bottom));
     const clip = { x: 0, y: 0, width: GSM.width, height: kop };
     const met = (await page.screenshot({ clip })).toString('base64');

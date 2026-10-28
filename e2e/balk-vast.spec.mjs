@@ -3,20 +3,23 @@ import { test, expect, startApp } from './helpers.mjs';
 // Bugfix v2.5.1 (Brent, 2026-10-28): "de balk bovenaan staat niet vast, als je naar boven scrolt dan scrolt deze even mee."
 // Gemeten in Chromium (Playwright): met muiswiel staat de top van .topbar-sticky en van de sticky werkbalk op elk frame op dezelfde plek, ook bij een scroll
 // ver voorbij de bovenrand; de bug is dus niet te zien aan getBoundingClientRect. Het enige dat een vaste balk laat meebewegen is het elastische overscroll-effect van de
-// browser (de hele pagina veert mee als je voorbij de bovenkant trekt; vaste en sticky delen veren dan mee). Dat staat nu uit: overscroll-behavior-y: none op html en body.
-// Twee soorten controle: (1) het mechanisme (de berekende overscroll-behavior-y), zodat het niet ongemerkt terugkomt; (2) per animatieframe over een scroll
-// naar beneden, naar boven en over de top heen: de top van de kop en van de werkbalk blijft binnen 0,5 px gelijk. Een echte iOS-bounce of een precisietouchpad
-// is in Playwright niet na te bootsen; (1) dekt dat.
+// browser (de hele pagina veert mee als je voorbij de bovenkant trekt; vaste en sticky delen veren dan mee). Dat staat uit op de COMPUTER: overscroll-behavior-y: none
+// op html en body bij data-apparaat="computer".
+// BESLUIT VAN DE OPDRACHTGEVER (2026-10-28): de balk is enkel op de computer vastgezet. Op een gsm en een tablet (ook een tablet rechtop, dat een gsm is) blijft de
+// standaard (`auto`), zodat "trek om te verversen" daar blijft werken. Dat is hier vastgelegd: computer `none`, gsm en tablet `auto`.
+// Twee soorten controle: (1) het mechanisme (de berekende overscroll-behavior-y), zodat het niet ongemerkt terugkomt of terugschuift; (2) per animatieframe over een scroll
+// naar beneden, naar boven en over de top heen: de top van de kop en van de werkbalk blijft binnen 0,5 px gelijk. Let op: (2) slaagt ook zonder de fix (het is een
+// vangnet voor de sticky positie, geen bewijs van de oorzaak). Een echte iOS-bounce of een precisietouchpad is in Playwright niet na te bootsen; (1) dekt dat.
 
 const MATEN = [
-  { naam: 'pc 1366×768', viewport: { width: 1366, height: 768 } },
-  { naam: 'tablet rechtop 768×1024', viewport: { width: 768, height: 1024 } },
-  { naam: 'tablet liggend 1024×768', viewport: { width: 1024, height: 768 } },
-  { naam: 'gsm 375×812', viewport: { width: 375, height: 812 }, gsm: true },
+  { naam: 'pc 1366×768', viewport: { width: 1366, height: 768 }, overscroll: 'none', apparaat: 'computer' },
+  { naam: 'tablet rechtop 768×1024 (is een gsm)', viewport: { width: 768, height: 1024 }, aanraking: true, overscroll: 'auto', apparaat: 'gsm' },
+  { naam: 'tablet liggend 1024×768', viewport: { width: 1024, height: 768 }, aanraking: true, overscroll: 'auto', apparaat: 'tablet' },
+  { naam: 'gsm 375×812', viewport: { width: 375, height: 812 }, aanraking: true, overscroll: 'auto', apparaat: 'gsm' },
 ];
 
 async function open(browser, page, m) {
-  if (!m.gsm) { await startApp(page, { viewport: m.viewport }); return { page, sluit: async () => {} }; }
+  if (!m.aanraking) { await startApp(page, { viewport: m.viewport }); return { page, sluit: async () => {} }; }
   const context = await browser.newContext({ viewport: m.viewport, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'nl-BE', timezoneId: 'Europe/Brussels', serviceWorkers: 'block' });
   const p = await context.newPage();
   await startApp(p, {});
@@ -27,9 +30,10 @@ for (const m of MATEN) {
   test(`bovenbalk en werkbalk staan vast bij scrollen, ${m.naam}`, async ({ browser, page }) => {
     const { page: p, sluit } = await open(browser, page, m);
     try {
-      // Het mechanisme: geen elastische overscroll op de pagina zelf.
+      // Het mechanisme: enkel op de computer geen elastische overscroll op de pagina zelf; gsm en tablet houden de standaard (trek om te verversen).
+      await expect(p.locator('html')).toHaveAttribute('data-apparaat', m.apparaat);
       const os = await p.evaluate(() => ({ html: getComputedStyle(document.documentElement).overscrollBehaviorY, body: getComputedStyle(document.body).overscrollBehaviorY }));
-      expect(os, 'overscroll-behavior-y op html en body').toEqual({ html: 'none', body: 'none' });
+      expect(os, 'overscroll-behavior-y op html en body').toEqual({ html: m.overscroll, body: m.overscroll });
 
       await p.getByRole('tab', { name: /^Wachtrij/ }).click();
       await p.evaluate(() => {
