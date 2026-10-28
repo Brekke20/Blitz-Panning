@@ -354,6 +354,21 @@ test.describe('kalender: tijdlijn', () => {
 });
 
 test.describe('kalender: zonder-datum-paneel', () => {
+  // Open dag, taak 12 (fix ronde 1): op pc is .kal-header een ronde glazen balk met 14 px lucht rechts; het paneel dat eronder opent sluit daarop aan.
+  test('pc: het paneel onder de kalenderbalk heeft dezelfde rechterrand en afgeronde onderhoeken', async ({ page }) => {
+    await startApp(page, { overschrijf: seed(), viewport: { width: 1280, height: 800 } });
+    await expect(page.locator('html')).toHaveAttribute('data-nav', 'kolom');
+    await page.getByRole('tab', { name: 'Kalender' }).click();
+    await page.locator('#kal-pending-pill').click();
+    const paneel = page.locator('#kal-no-date-section');
+    await expect(paneel).toHaveClass(/open/);
+    const [b, p] = await Promise.all([page.locator('.kal-header').boundingBox(), paneel.boundingBox()]);
+    expect(Math.round(p.x + p.width)).toBe(Math.round(b.x + b.width)); // zelfde rechterrand als de balk
+    const hoeken = await paneel.evaluate((el) => { const cs = getComputedStyle(el); return { bl: cs.borderBottomLeftRadius, br: cs.borderBottomRightRadius }; });
+    expect(parseFloat(hoeken.bl)).toBeGreaterThan(0);
+    expect(parseFloat(hoeken.br)).toBeGreaterThan(0);
+  });
+
   test('pil met aantal, paneel openen en sluiten, kaart opent het detail', async ({ page }) => {
     await startApp(page, { overschrijf: seed() });
     await page.getByRole('tab', { name: 'Kalender' }).click();

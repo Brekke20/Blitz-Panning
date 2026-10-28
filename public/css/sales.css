@@ -236,6 +236,8 @@ html[data-indeling="smal"] .sales-kal-nota:empty { display: none; }
 .sales-route-melding, .sales-route-nota, .sales-route-wegafsluiting { flex: none; margin: 0; padding: 6px 14px; font-size: var(--fs-xs); overflow-wrap: anywhere; }
 .sales-route-melding { background: var(--accent-dim); border-bottom: 1px solid var(--lijn); }
 .sales-route-nota { color: var(--text2); background-color: var(--glas-sterk); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); border-bottom: 1px solid var(--glas-rand); }
+/* Pc (zijkolom): de nota volgt de ronde glazen balken (css/app.css: 14 px lucht rechts, --r-kaart) */
+html[data-nav="kolom"] .sales-route-nota { margin-right: 14px; border: 1px solid var(--glas-rand); border-radius: var(--r-kaart); }
 .sales-route-wegafsluiting { color: var(--red-ink); background: var(--red-dim); font-weight: 600; }
 .sales-route-leeg { margin: 0; }
 .sales-route-inhoud { min-width: 0; }

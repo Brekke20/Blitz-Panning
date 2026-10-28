@@ -1339,6 +1339,9 @@ html[data-nav="kolom"] :is(.lijst-balk, .kal-header, .gep-week, .route-balk, .ra
   border: 1px solid var(--glas-rand);
   border-radius: var(--r-kaart);
 }
+/* Het uitklappaneel "zonder datum" (opent onder .kal-header) volgt dezelfde rechterrand en straal; dicht blijft het een vlak van 0 hoogte zonder rand of lucht. */
+html[data-nav="kolom"] #kal-no-date-section { margin-right: 14px; border-radius: var(--r-kaart); border-width: 0; }
+html[data-nav="kolom"] #kal-no-date-section.open { margin-top: 8px; border-width: 1px; border-style: solid; border-color: var(--glas-rand); }
 .paginakop { display: none; }
 #paginatitel {
   margin: 0; font-family: var(--font-kop); font-size: 26px; line-height: 1.1; font-weight: 700; letter-spacing: -0.01em;
