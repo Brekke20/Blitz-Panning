@@ -180,6 +180,28 @@ test.describe('overige schermen en vensters (Open dag)', () => {
     }
   }
 
+  // Eindreview F3: een 401 midden in de sessie legt het loginscherm over een open venster; dat venster (en de wizard, een dialoog, het spel)
+  // mag niet door de doorzichtige loginlaag heen te zien zijn.
+  test('loginlaag over een open venster: venster, wizard, dialoog en spel zijn verborgen', async ({ page }) => {
+    await startApp(page, { viewport: PC });
+    await page.locator('#view-tickets .ticket').first().click();
+    await expect(page.locator('#det-overlay')).toHaveClass(/open/);
+    await page.evaluate(() => {
+      // een open wizard, dialoog en spel nabootsen: enkel de zichtbaarheid telt
+      for (const [id, klasse] of [['rapport-wizard', 'open'], ['spel-overlay', 'open']]) {
+        const el = document.getElementById(id) || Object.assign(document.createElement('div'), { id });
+        el.classList.add(klasse); el.style.display = 'flex'; if (!el.parentNode) document.body.appendChild(el);
+      }
+      const d = document.createElement('div'); d.className = 'overlay open app-dialog-overlay'; d.id = 'proef-dialoog'; document.body.appendChild(d);
+      import('/js/schermen/inloggen.js').then((m) => { m.toonInloggen(); });
+    });
+    await expect(page.locator('#login-overlay')).toBeVisible();
+    for (const sel of ['#det-overlay', '#rapport-wizard', '#spel-overlay', '#proef-dialoog']) {
+      expect(await page.locator(sel).evaluate((el) => getComputedStyle(el).visibility), sel).toBe('hidden');
+    }
+    await expect(page.locator('#login-overlay .login-kaart')).toBeVisible();
+  });
+
   test('de Leaflet-kaart blijft ondoorzichtig', async ({ page }) => {
     await startApp(page, { viewport: PC });
     await page.locator('#tab-planning').click();

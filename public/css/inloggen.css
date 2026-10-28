@@ -7,7 +7,8 @@
   padding: var(--sp-5) var(--sp-4); overflow-y: auto;
   background: transparent; color: var(--text);
 }
-body:has(> #login-overlay) :is(.skip-link, .topbar-sticky, #offline-banner, #outbox-banner, #hoofdinhoud) { visibility: hidden; }
+/* Eindreview F3: ook een venster, de wizard, een dialoog of het spel dat bij een 401 midden in de sessie nog openstond. */
+body:has(> #login-overlay) :is(.skip-link, .topbar-sticky, #offline-banner, #outbox-banner, #hoofdinhoud, .overlay, #rapport-wizard, .app-dialog-overlay, #spel-overlay) { visibility: hidden; }
 @media (min-width: 600px) { #login-overlay { align-items: center; } }
 .login-kaart {
   width: 100%; max-width: 420px; margin: auto 0;
