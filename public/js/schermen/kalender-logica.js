@@ -155,7 +155,20 @@ export function maandRaster(ref) {
   return dagen;
 }
 
-// Sleutel waarmee de automatische scroll weet dat week of weergave gewisseld is.
-export function autoScrollSleutel(weekStart, weergave) {
-  return `${localISO(weekStart)}|${weergave}`;
+// Sleutel waarmee de automatische scroll weet dat week of weergave gewisseld is. `extra` (optioneel): de lijstweergave zet er de weergavevorm
+// en de gekozen datum in, zodat een wissel van tijdlijn naar lijst of van gekozen dag opnieuw springt.
+export function autoScrollSleutel(weekStart, weergave, extra) {
+  return `${localISO(weekStart)}|${weergave}${extra ? '|' + extra : ''}`;
+}
+
+// Waarheen de pagina scrolt in de lijstweergave (gsm; alle waarden in documentcoördinaten, behalve `boven` en `onder`).
+// `kolomTop`: bovenkant van de dagkolom die in beeld moet; `boven`: onderkant van wat bovenaan vastzit (kalenderkop) in px vanaf de bovenkant van
+// het scherm; `onder`: onderkant van het zichtbare stuk (venster min het dok). Standaard komt de dagkop net onder de kalenderkop. Valt de
+// nu-regel (`markerTop`/`markerBottom`, enkel in de kolom van vandaag) dan buiten beeld, dan gaat de nu-regel voor: ze komt op een derde van
+// het zichtbare stuk. Nooit boven de pagina uit.
+export function lijstScrollDoel({ kolomTop, markerTop = null, markerBottom = null, boven, onder, marge = 8 }) {
+  let y = kolomTop - boven - marge;
+  const zicht = onder - boven;
+  if (markerTop != null && markerBottom != null && markerBottom > y + zicht - 24) y = markerTop - boven - zicht / 3;
+  return Math.max(0, Math.round(y));
 }
