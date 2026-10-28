@@ -141,7 +141,8 @@ test.describe('vensters: focus en Escape per dialoog', () => {
       }
       const overlay = page.locator('#' + v.id);
       // Klik in de inhoud (linksboven in het venster zelf): sluit niet.
-      await overlay.locator('[role="dialog"]').first().click({ position: { x: 6, y: 6 } });
+      // Open dag (v2.5.0): de hoeken van een venster zijn 28 px rond; (6, 6) ligt buiten de ronding en raakt de overlay. Daarom 40 px van de hoek.
+      await overlay.locator('[role="dialog"]').first().click({ position: { x: 40, y: 40 } });
       expect(await isOpen(page, v.id)).toBe(true);
       // Klik op de achtergrond (de overlay zelf): sluit.
       await overlay.click({ position: { x: 4, y: 4 } });

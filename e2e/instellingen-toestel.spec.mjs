@@ -81,7 +81,9 @@ test.describe('instellingen: tab Dit toestel', () => {
     await modal.getByRole('radio', { name: 'Gsm' }).check();
     await expect(page.locator('html')).toHaveAttribute('data-indeling', 'smal');
     await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
-    for (const naam of ['Wachtrij', 'Rapporten']) await expect(page.getByRole('tab', { name: naam })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Wachtrij' })).toBeVisible();
+    // Open dag (v2.5.0): op een gsm staan na de vierde tab de overige in "Meer"; Rapporten blijft een tab van de beheerder, maar niet meer in het dok.
+    await expect(page.locator('#tab-rapporten')).toHaveClass(/tab--in-meer/);
     await expect(page.getByRole('tab', { name: 'Route' })).toBeHidden(); // Route alleen op tablet en computer
     await expect(modal.locator('#set-subtab-algemeen')).toBeVisible();
   });

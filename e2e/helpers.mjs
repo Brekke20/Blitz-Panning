@@ -400,6 +400,14 @@ export async function metStilstaandeKlok(page, fn) {
     if (diepte === 0) await page.clock.resume();
   }
 }
+// Open dag (taak 6): op een gsm, een staande tablet en in een smal computervenster (data-nav="dok") staan de tabbladen na de vierde in "Meer"
+// (.dok-meer). Klikt het tabblad; staat het niet in het dok, dan via het blad van Meer (zoals een gebruiker). `naam`: tekst of RegExp.
+export async function kiesHoofdtab(page, naam) {
+  const tab = page.getByRole('tab', typeof naam === 'string' ? { name: naam, exact: true } : { name: naam });
+  if (await tab.count() > 0) { await tab.click(); return; }
+  await page.locator('.dok-meer').click();
+  await page.locator('.dok-meer-blad').getByRole('button', { name: naam }).click();
+}
 export const snelTikken = (page, doel, n = 5) => metStilstaandeKlok(page, async () => { for (let i = 0; i < n; i++) await doel.click(); });
 // Het bliksem-icoon dat het verborgen spel opent, zoals het op dit toestel zichtbaar is: in de kop (.logo-icon) op gsm en staande tablet, in de
 // zijkolom (.zijkolom-logo-icoon) op `breed` (Open dag, taak 7: daar is het kop-logo verborgen). Hetzelfde voor de tekst "Blitz Planning".

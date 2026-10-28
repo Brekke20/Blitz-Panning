@@ -47,7 +47,9 @@ test.describe('tabs per rol', () => {
         await expect(page.locator('html')).toHaveAttribute('data-apparaat', 'gsm');
         await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
         expect(await page.evaluate(() => localStorage.getItem('blitz_rol'))).toBeNull();
-        for (const naam of ['Wachtrij', 'Rapporten']) await expect(tab(page, naam)).toBeVisible();
+        await expect(tab(page, 'Wachtrij')).toBeVisible();
+        // Open dag (v2.5.0): op een gsm staan Rapporten en Beheer in "Meer" (het dok toont er vier); de tab blijft bestaan.
+        await expect(page.locator('#tab-rapporten')).toHaveClass(/tab--in-meer/);
         await expect(tab(page, 'Route')).toBeHidden(); // Route alleen op tablet en computer
       } finally { await context.close(); }
     });

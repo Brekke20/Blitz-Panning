@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
-import { test, expect, startApp } from './helpers.mjs';
+import { test, expect, startApp, kiesHoofdtab } from './helpers.mjs';
 import { valideerPakket } from '../public/js/kern/themapakket-validatie.js';
 
 const MAP = path.dirname(url.fileURLToPath(import.meta.url));
@@ -64,7 +64,7 @@ function themasStub({ weigerId = null } = {}) {
 
 async function openThemas(page, stub = themasStub(), app = {}) {
   await startApp(page, { ...app, overschrijf: { themas: stub, ...(app.overschrijf ?? {}) } });
-  await page.getByRole('tab', { name: 'Beheer', exact: true }).click();
+  await kiesHoofdtab(page, 'Beheer'); // Open dag: op een smal scherm staat Beheer in "Meer"
   await page.getByRole('tab', { name: "Thema's", exact: true }).click();
   await expect(page.getByRole('tab', { name: "Thema's", exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('.bt-kaart').first()).toBeVisible();

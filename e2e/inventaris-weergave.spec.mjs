@@ -1,4 +1,4 @@
-import { test, expect, startApp } from './helpers.mjs';
+import { test, expect, startApp, kiesHoofdtab } from './helpers.mjs';
 
 // Inventaris, technieker-weergave: de voorraad staat in een raster (naam en aantal dicht bij elkaar, meerdere kolommen op een breed
 // scherm) en de knop "Historiek" toont de log van enkel de gekozen persoon, met het ticketnummer bij een verbruik na een rapport.
@@ -12,7 +12,7 @@ const inventaris = () => ({ status: 200, json: { versie: 3, wagenvoorraad: {}, l
 
 async function openInventaris(page, opties = {}) {
   await startApp(page, { technieker: 'Tim', overschrijf: { inventaris }, ...opties });
-  await page.getByRole('tab', { name: /Inventaris/ }).click();
+  await kiesHoofdtab(page, /Inventaris/); // Open dag: in een smal venster staat Inventaris in "Meer"
   await expect(page.locator('#inv-edit-btn')).toBeVisible();
 }
 
@@ -80,7 +80,7 @@ test('Bewerken vanuit de historiek gaat naar de bewerkmodus van de voorraad', as
 
 test('supervisor-weergave (Iedereen) toont het ticketnummer bij een verbruik', async ({ page }) => {
   await startApp(page, { overschrijf: { inventaris } });
-  await page.getByRole('tab', { name: /Inventaris/ }).click();
+  await kiesHoofdtab(page, /Inventaris/); // Open dag: in een smal venster staat Inventaris in "Meer"
   const kabel = page.locator('#inventaris-body .inv-log-row', { hasText: 'Kabel' });
   await expect(kabel).toContainText('#3979');
   await expect(kabel).toContainText('Tim');

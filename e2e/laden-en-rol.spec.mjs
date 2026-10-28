@@ -53,7 +53,9 @@ test.describe('laden en rol', () => {
       await expect(page.getByRole('alertdialog', { name: 'Wie gebruikt deze tablet?' })).toHaveCount(0);
       await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
       expect(await page.evaluate(() => localStorage.getItem('blitz_rol'))).toBeNull();
-      for (const naam of ['Wachtrij', 'Route', 'Rapporten']) await expect(tab(page, naam)).toBeVisible();
+      for (const naam of ['Wachtrij', 'Route']) await expect(tab(page, naam)).toBeVisible();
+      // Open dag (v2.5.0): een staande tablet heeft het dok met "Meer": na de vierde tab staat Rapporten in het blad.
+      await expect(page.locator('#tab-rapporten')).toHaveClass(/tab--in-meer/);
     });
   });
 });

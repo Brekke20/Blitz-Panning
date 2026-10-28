@@ -256,8 +256,8 @@ test.describe('tabbalk op een gsm', () => {
   });
 
   // Open dag (taak 5): de tabbalk is op de gsm een glazen dok; de scrollschaduwen (verlopen in de oude effen kleur van de balk) zijn weg.
-  // Tot "Meer" (taak 6) de overtollige tabs opvangt, scrolt het dok horizontaal zonder zichtbare schuifbalk en blijft de pagina zelf staan.
-  test('beheerder: het dok scrolt horizontaal (zonder schuifbalk) als niet alle tabs passen, de pagina niet', async ({ page }) => {
+  // Open dag (taak 6): "Meer" vangt de overtollige tabs op, dus het dok past nu en scrolt niet meer; zonder zichtbare schuifbalk blijft het vangnet en de pagina staat stil.
+  test('beheerder: het dok past dankzij "Meer" (geen scroll, geen schuifbalk) en de pagina scrolt niet', async ({ page }) => {
     await zetWeergave(page, 'gsm');
     await startApp(page, { viewport: { width: 375, height: 812 } });
     await expect(page.locator('html')).toHaveAttribute('data-indeling', 'smal');
@@ -267,7 +267,7 @@ test.describe('tabbalk op een gsm', () => {
       return { scrolt: balk.scrollWidth > balk.clientWidth, overflowX: stijl.overflowX, schuifbalk: stijl.scrollbarWidth,
         pagina: document.documentElement.scrollWidth - document.documentElement.clientWidth };
     });
-    expect(m.scrolt).toBe(true);
+    expect(m.scrolt).toBe(false);
     expect(m.overflowX).toBe('auto');
     expect(m.schuifbalk).toBe('none');
     expect(m.pagina).toBeLessThanOrEqual(0);
