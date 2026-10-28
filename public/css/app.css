@@ -1336,6 +1336,11 @@
   backdrop-filter: blur(var(--blur)) saturate(180%);
   border-bottom: 1px solid var(--glas-rand); /* één lijn onderaan (taak 8a: de extra inset-schaduw gaf er twee) */
 }
+/* Taak 17: op het dok (gsm, staande tablet) schuift na een scroll of de sprong van de kalender tekst onder de kop en de balken door; één laag glas liet die als
+   vage schim doorschijnen ("Kalender" onder het logo, de rand van de kaart onder de werkbalk). Een tweede laag van DEZELFDE kleur (het token, dus in elk thema en
+   in elke themakleur) maakt de balken bijna dicht; de vervaging blijft. Enkel een achtergrondlaag: nooit backdrop-filter, filter, transform of contain op de kop. */
+html[data-nav="dok"] .topbar-sticky::before,
+html[data-nav="dok"] :is(.lijst-balk, .kal-header, .gep-week, .route-balk, .rapp-balk) { background-image: linear-gradient(var(--glas-sterk), var(--glas-sterk)); }
 /* Pc (zijkolom): het glas van de kop zweeft als de zijkolom: dezelfde straal en 14 px van de boven- en rechterrand; links sluit het aan op de
    14 px marge naast de zijkolom (body-padding). Onderaan blijft 8 px lucht tot de balk eronder; de kop is 92 px (taak 16); de sticky-afstanden (--sticky-top, js/sticky-offset.js)
    volgen vanzelf. De balken eronder worden ronde glazen balken met 14 px rechts. */

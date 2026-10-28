@@ -27,6 +27,8 @@ const zichtbaarGebied = (page) => page.evaluate(() => {
 });
 // Een tik van de event loop: de sprong van de lijstweergave volgt één tik na de render (na de scrollherstelling van metBehoudScroll).
 const eenTik = (page) => page.evaluate(() => new Promise((klaar) => setTimeout(klaar, 50)));
+// Wacht tot de pagina stilstaat (de sprong en de herhaalsprong na late gegevens zijn klaar): twee metingen na elkaar gelijk.
+const rustigeScroll = (page) => expect.poll(async () => { const a = await page.evaluate(() => window.scrollY); await eenTik(page); return a === await page.evaluate(() => window.scrollY); }).toBe(true);
 const rect = (loc) => loc.evaluate((el) => { const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; });
 
 async function verwachtVandaagInBeeld(page) {
@@ -96,3 +98,30 @@ test.describe('kalender op een gsm: spring naar vandaag en het huidige uur', () 
     await verwachtVandaagInBeeld(page);
   });
 });
+
+// Na de sprong schuift tekst van de dagen erboven onder de kop en de kalenderbalk door. Eén laag glas liet die als vage schim doorschijnen (de titel onder het
+// logo, de rand van de kaart onder de werkbalk). Meting: de beeldpunten van kop plus kalenderbalk met en zonder de inhoud van de week (die onzichtbaar gezet).
+// Voor de tweede glaslaag (dok) was het grootste verschil 22 (donker) en 11 (licht) op 255; daarna 10 en 3.
+for (const [thema, grens] of [['dark', 14], ['light', 6]]) {
+  test(`na de sprong schemert de inhoud niet door de kop en de kalenderbalk (${thema})`, async ({ page }) => {
+    await page.addInitScript((t) => { if (window === window.top) localStorage.setItem('blitz_theme', t); }, thema);
+    await open(page, GSM, 'gsm');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', thema);
+    await expect(page.locator('#kal-pending-pill')).toBeVisible(); // de gegevens zijn binnen: de kalenderbalk groeit nog met de pil "zonder datum"
+    await verwachtVandaagInBeeld(page);
+    await rustigeScroll(page);
+    const kop = await page.evaluate(() => Math.round(document.querySelector('#view-kalender .kal-header').getBoundingClientRect().bottom));
+    const clip = { x: 0, y: 0, width: GSM.width, height: kop };
+    const met = (await page.screenshot({ clip })).toString('base64');
+    await page.addStyleTag({ content: '#week-grid, #week-grid * { visibility: hidden !important; }' });
+    const zonder = (await page.screenshot({ clip })).toString('base64');
+    const max = await page.evaluate(async ([a, b]) => {
+      const lees = async (s) => { const bm = await createImageBitmap(await (await fetch('data:image/png;base64,' + s)).blob()); const c = new OffscreenCanvas(bm.width, bm.height); c.getContext('2d').drawImage(bm, 0, 0); return c.getContext('2d').getImageData(0, 0, bm.width, bm.height).data; };
+      const [p, q] = [await lees(a), await lees(b)];
+      let m = 0;
+      for (let i = 0; i < p.length; i += 4) m = Math.max(m, Math.abs(p[i] - q[i]), Math.abs(p[i + 1] - q[i + 1]), Math.abs(p[i + 2] - q[i + 2]));
+      return m;
+    }, [met, zonder]);
+    expect(max).toBeLessThanOrEqual(grens);
+  });
+}

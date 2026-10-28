@@ -96,6 +96,8 @@ test('gsm: dok onderaan', async ({ page }) => {
   // Kalender helemaal naar beneden: het laatste item staat boven het dok, niet eronder
   await page.locator('#tab-kalender').click();
   await expect(page.locator('#view-kalender')).toHaveClass(/active/);
+  // De dagen worden een tik na de tabwissel getekend (en de gsm-kalender springt dan naar vandaag): pas daarna naar beneden scrollen, anders scrolt de test op een lege pagina.
+  await expect(page.locator('#view-kalender .day-col').first()).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
   const onderkant = await page.evaluate(() => {
