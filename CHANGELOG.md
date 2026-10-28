@@ -31,6 +31,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - De balk met rapporten die nog niet verzonden zijn is altijd Blitz-groen met donkere tekst, ook tijdens een feestthema; fout en knoppen blijven overal leesbaar.
 - Alle vensters, de rapport-wizard, Beheer, Dashboard, Sales en het inlogscherm hebben de nieuwe vormen en kleuren. De werking, de knoppen en de teksten in de knoppen blijven dezelfde.
 - Op een gsm staat het zoekvak van de wachtrij op een eigen rij, zodat de hulptekst en de sorteerkeuze volledig leesbaar zijn.
+- Op de computer staat de paginatitel mooi in het midden van de bovenbalk en hebben alle panelen ronde hoeken.
 
 ### Fixed
 - Op de pc begonnen de spinnen en webben van een feestthema (Halloween) achter de zwevende balk van het tabblad in plaats van eronder. Ze beginnen weer onder de balk, ook bij de ronde balken met marge van de nieuwe stijl.

@@ -1352,6 +1352,13 @@ html[data-nav="kolom"] :is(.lijst-balk, .kal-header, .gep-week, .route-balk, .ra
 /* Het uitklappaneel "zonder datum" (opent onder .kal-header) volgt dezelfde rechterrand en straal; dicht blijft het een vlak van 0 hoogte zonder rand of lucht. */
 html[data-nav="kolom"] #kal-no-date-section { margin-right: 14px; border-radius: var(--r-kaart); border-width: 0; }
 html[data-nav="kolom"] #kal-no-date-section.open { margin-top: 8px; border-width: 1px; border-style: solid; border-color: var(--glas-rand); }
+/* Taak 16: ook de route-indeling is ronde glazen vlakken zonder rechte hoeken: de lijstkolom en de kaart staan als twee afgeronde panelen naast elkaar (8 px lucht
+   ertussen en eronder, rechts dezelfde 14 px als de balken) en de samenvatting (Stops, Afstand, Rijtijd) is een ronde glazen balk eronder. Geldt voor de
+   technieker (#route-list, #map-wrap) en de verkoper (.sales-route-lijstvak, .sales-route-kaartvak). Op gsm en staande tablet (dok) blijft alles vlak. */
+html[data-nav="kolom"] .plan-body { gap: 8px; padding: 8px 14px 8px 0; }
+html[data-nav="kolom"] :is(#route-list, .sales-route-lijstvak) { border: 1px solid var(--glas-rand); border-radius: var(--r-kaart); }
+html[data-nav="kolom"] :is(#map-wrap, .sales-route-kaartvak) { margin: 0; }
+html[data-nav="kolom"] .plan-summary { margin: 0 14px 8px 0; border: 1px solid var(--glas-rand); border-radius: var(--r-kaart); }
 .paginakop { display: none; }
 #paginatitel {
   margin: 0; font-family: var(--font-kop); font-size: 26px; line-height: 1.1; font-weight: 700; letter-spacing: -0.01em;

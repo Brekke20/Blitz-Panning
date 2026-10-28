@@ -28,7 +28,7 @@ html[data-nav="kolom"] .beheer-titel { display: none; }
 .bg-kop { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3); margin-bottom: var(--sp-3); }
 .bg-titel { font-size: var(--fs-lg); font-weight: 700; }
 .bg-toolbar { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
-.bg-lijst { min-width: 0; overflow-x: auto; } /* een smalle tablet scrolt de tabel binnen zichzelf, nooit de pagina */
+.bg-lijst { min-width: 0; overflow-x: auto; border-radius: var(--r-kaart); } /* een smalle tablet scrolt de tabel binnen zichzelf, nooit de pagina */
 .bg-lijst:focus { outline: none; }
 .bg-uitleg { font-size: var(--fs-sm); color: var(--text2); line-height: 1.5; margin-bottom: var(--sp-3); }
 .bg-sub { display: block; font-size: var(--fs-2xs); color: var(--muted); margin-top: 2px; }
