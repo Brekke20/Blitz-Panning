@@ -9,21 +9,19 @@
       z-index: 30;
     }
     header {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
+      /* Open dag (taak 7): geen eigen achtergrond meer; het glas ligt op .topbar-sticky::before (zie "Kop en paginakop" onderaan). */
+      background: transparent;
       padding: 0 16px;
       height: 52px;
       display: flex;
       align-items: center;
       gap: 8px;
-      /* Subtiele schaduw zodat content er onder doorscrollt */
-      box-shadow: 0 1px 0 var(--border), 0 4px 16px rgba(0,0,0,0.3);
     }
     .logo { display: flex; align-items: center; gap: 8px; flex: 1; }
     .logo-icon {
       width: 30px; height: 30px;
-      background: var(--surface3);
-      border: 1px solid var(--border);
+      background: var(--knop2);
+      border: 1px solid var(--lijn);
       border-radius: 8px;
       display: flex; align-items: center; justify-content: center;
       font-size: 15px;
@@ -39,41 +37,40 @@
     .logo-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .hbtn {
       background: transparent;
-      border: 1px solid var(--border);
+      border: 1px solid var(--lijn);
       color: var(--muted);
       width: 32px; height: 32px;
       border-radius: var(--r);
       font-size: 0.9rem;
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: color 0.15s var(--ease), background 0.15s var(--ease), transform 0.12s var(--ease-spring);
+      transition: color 0.15s var(--ease), background 0.15s var(--ease);
     }
-    .hbtn:hover  { color: var(--text); background: var(--surface2); transform: scale(1.08); }
-    .hbtn:active { transform: scale(0.94); }
+    @media (hover: hover) { .hbtn:hover  { color: var(--text); background: var(--knop2); } }
 
     /* ── Persoon selector ── */
     .person-sel { position: relative; }
     .person-btn {
       display: flex; align-items: center; gap: 7px;
       padding: 5px 10px 5px 6px;
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: var(--r); color: var(--text); cursor: pointer;
+      background: var(--knop2); border: 1px solid var(--glas-rand);
+      border-radius: var(--r-pil); color: var(--text); cursor: pointer;
       font-size: 0.82rem; font-weight: 500; font-family: inherit;
       transition: background 0.15s, border-color 0.15s;
     }
-    .person-btn:hover { background: var(--surface3); border-color: var(--accent); }
+    @media (hover: hover) { .person-btn:hover { background: var(--knop2-hover); border-color: var(--accent); } }
     /* De persoonskiezer is een benoemde knop ("👤 Planning: Tim ▾"), geen rondje met initialen: dat is voorbehouden aan het gebruikersmenu (account). */
     .person-icoon { font-size: 0.9rem; line-height: 1; flex-shrink: 0; }
     .person-voor { color: var(--muted); font-weight: 400; flex-shrink: 0; }
     .person-chevron { color: var(--muted); font-size: var(--fs-2xs); }
     /* Sales-werkruimte (beheerder en sales manager): groene rand en achtergrond, en "Alleen lezen" in de knop zelf. */
     .person-btn[data-werkruimte="sales"] { border-color: var(--accent); background: var(--accent-dim); }
-    .person-lezen { font-size: var(--fs-2xs); font-weight: 600; padding: 1px 6px; border-radius: var(--r-pill); background: var(--surface3); color: var(--muted); flex-shrink: 0; }
+    .person-lezen { font-size: var(--fs-2xs); font-weight: 600; padding: 1px 6px; border-radius: var(--r-pill); background: var(--knop2); color: var(--muted); flex-shrink: 0; }
     .person-menu {
       position: absolute; top: calc(100% + 8px); right: 0;
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: var(--r-lg);
-      box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+      background-color: var(--glas-venster); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); border: 1px solid var(--glas-rand);
+      border-radius: var(--r-kaart);
+      box-shadow: inset 0 1px 0 var(--glas-licht), 0 18px 44px rgba(0,0,0,0.35);
       width: max-content; min-width: 220px; max-width: min(340px, calc(100vw - 16px)); z-index: 200;
       max-height: calc(100dvh - 80px); overflow-y: auto; overscroll-behavior: contain;
       display: none;
@@ -86,12 +83,12 @@
       transition: background 0.1s, color 0.1s; border: none; width: 100%;
       background: none; font-family: inherit; text-align: left;
     }
-    .pm-item:hover { background: var(--surface3); color: var(--text); }
+    @media (hover: hover) { .pm-item:hover { background: var(--knop2); color: var(--text); } }
     .pm-item.active { color: var(--accent-ink); }
-    .pm-item + .pm-item { border-top: 1px solid var(--border); }
+    .pm-item + .pm-item { border-top: 1px solid var(--lijn); }
     .pm-avatar {
       width: 30px; height: 30px; border-radius: 50%;
-      background: var(--surface3); color: var(--text2);
+      background: var(--knop2); color: var(--text2);
       font-size: var(--fs-2xs); font-weight: 700;
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
       letter-spacing: -0.5px; transition: background 0.15s, color 0.15s;
@@ -105,78 +102,18 @@
     /* Beheerder: de rol staat als klein grijs label rechts van de naam; op een gsm onder de naam (daar is naast de naam geen plaats). */
     .pm-item-rol { font-size: var(--fs-2xs); color: var(--muted); margin-left: auto; text-align: right; flex-shrink: 0; white-space: nowrap; padding-left: 12px; }
     .pm-sub-rol { display: none; }
-    .pm-groep-titel { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 10px 14px 4px; border-top: 1px solid var(--border); background: var(--surface2); }
+    .pm-groep-titel { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 10px 14px 4px; border-top: 1px solid var(--lijn); background: transparent; }
     .person-menu > .pm-groep-titel:first-child { border-top: none; }
     .pm-groep-titel + .pm-item { border-top: none; }
     .pm-terug { color: var(--accent-ink); font-weight: 600; }
-    .pm-melding { font-size: var(--fs-xs); color: var(--muted); padding: 8px 14px 10px; border-top: 1px solid var(--border); }
+    .pm-melding { font-size: var(--fs-xs); color: var(--muted); padding: 8px 14px 10px; border-top: 1px solid var(--lijn); }
     .pm-item:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
     html[data-aanraak="ja"] .pm-item { min-height: 44px; }
 
     /* ── Tabs ── */
-    /* .tabs zit nu binnen .topbar-sticky (zie hierboven) i.p.v. zelf te stickyen -- position:
-       relative blijft nodig zodat de ::after-indicator (position:absolute) hieraan verankerd
-       blijft i.p.v. aan een verdere/verkeerde positioned ancestor. */
-    .tabs {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      position: relative;
-      /* Indicator via CSS var (JS vult in) — ::after is relatief aan .tabs, buiten de scroll-zone */
-      --ind-left: 0px;
-      --ind-width: 0px;
-    }
-    /* .tabs-inner = de scrollbare flex-rij met de tab-knoppen */
-    .tabs-inner {
-      display: flex;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-      padding: 0 8px;
-    }
-    .tabs-inner::-webkit-scrollbar { display: none; }
-    /* Animated sliding underline — op .tabs zodat het BUITEN de scroll-clip valt */
-    .tabs::after {
-      content: '';
-      position: absolute;
-      bottom: -1px;
-      left: var(--ind-left);
-      width: var(--ind-width);
-      height: 2px;
-      background: var(--accent);
-      transition: left 0.28s var(--ease), width 0.28s var(--ease);
-      pointer-events: none;
-    }
-    .tab {
-      padding: 0 14px;
-      height: 40px;
-      display: flex; align-items: center; gap: 6px;
-      font-size: 0.81rem;
-      font-weight: 500;
-      color: var(--muted);
-      cursor: pointer;
-      border-bottom: 2px solid transparent; /* spacer — actual line is via ::after */
-      white-space: nowrap;
-      user-select: none;
-      transition: color 0.15s var(--ease);
-      position: relative;
-    }
-    .tab:hover { color: var(--text2); }
-    .tab.active { color: var(--text); font-weight: 600; }
-    .badge {
-      background: var(--surface3);
-      color: var(--muted);
-      font-size: var(--fs-2xs);
-      font-weight: 700;
-      padding: 1px 6px;
-      border-radius: 20px;
-      min-width: 20px;
-      text-align: center;
-      transition: background 0.2s, color 0.2s;
-    }
-    .tab.active .badge { background: var(--accent-dim); color: var(--accent-ink); }
-    /* Inventaris: producten onder hun meldgrens (v2.4.0) -- oranje = bijna op, rood = iets is op; ook op het actieve tabblad */
-    .badge.badge--bijna, .tab.active .badge.badge--bijna { background: var(--orange-dim); color: var(--orange); }
-    .badge.badge--op, .tab.active .badge.badge--op { background: var(--red-dim); color: var(--red); }
+    /* De tabbalk (.tabs > .tabs-inner > .tab), de zijkolom op `breed` en het dok op gsm/staande tablet staan in css/navigatie.css (Open dag,
+       taak 5). De tellers (.badge) staan er ook. */
+    /* De tellers (.badge) zijn bolletjes zonder cijfer: de stijl staat op één plek, in css/navigatie.css (taak 19). */
 
     /* ── Main content ── */
     #hoofdinhoud {
@@ -201,86 +138,113 @@
     .filter-bar {
       padding: 8px 14px;
       background: var(--surface);
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--lijn);
       display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
       position: sticky; top: var(--sticky-top, 93px); z-index: 28;
     }
     .filter-label { font-size: var(--fs-2xs); color: var(--muted); font-weight: 500; margin-right: 4px; }
-    .filter-pill {
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: var(--fs-2xs); font-weight: 500;
-      border: 1px solid var(--border);
-      background: transparent;
-      color: var(--muted);
-      cursor: pointer;
-      white-space: nowrap;
-      transition: color 0.15s, background 0.15s, border-color 0.15s, transform 0.12s var(--ease-spring);
-    }
-    .filter-pill:hover  { color: var(--text2); background: var(--surface2); transform: translateY(-1px); }
-    .filter-pill:active { transform: translateY(0); }
-    .filter-pill.active { background: var(--accent-dim); color: var(--accent-ink); border-color: var(--accent-glow); font-weight: 600; }
 
     /* ── Ticket cards ── */
     .ticket-list { padding: 12px 14px; max-width: 740px; margin: 0 auto; }
     /* Lijstbalk (kop B): één vaste balk onder de tabs voor Wachtrij (technieker) en Leads (sales): links zoeken en sorteren of filteren, rechts de teller
        of knoppen. Plakt onder de kop van de app, over de volle breedte; de inhoud van de Wachtrij blijft op de breedte van de lijst eronder. */
-    .lijst-balk { position: sticky; top: var(--sticky-top, 93px); z-index: 28; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; padding: 6px 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .lijst-balk { position: sticky; top: var(--sticky-top, 93px); z-index: 28; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; padding: 6px 14px; background-color: var(--glas-sterk); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); border-bottom: 1px solid var(--glas-rand); }
     .wq-toolbar { padding-left: max(14px, calc((100% - 740px) / 2 + 14px)); padding-right: max(14px, calc((100% - 740px) / 2 + 14px)); }
-    .wq-zoek { flex: 1 1 220px; min-width: 0; min-height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface2); color: var(--text); font-family: inherit; font-size: var(--fs-sm); }
-    .wq-sorteer { min-height: 36px; max-width: 100%; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface2); color: var(--text); font-family: inherit; font-size: var(--fs-sm); }
+    .wq-zoek { flex: 1 1 220px; min-width: 0; min-height: 36px; padding: 0 16px; border: 1px solid var(--glas-rand); border-radius: var(--r-pil); background: var(--veld); color: var(--text); font-family: inherit; font-size: var(--fs-sm); }
+    .wq-sorteer { min-height: 36px; max-width: 100%; padding: 0 12px; border: 1px solid var(--glas-rand); border-radius: var(--r-pil); background: var(--veld); color: var(--text); font-family: inherit; font-size: var(--fs-sm); }
     .wq-zoek:focus-visible, .wq-sorteer:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
     .wq-teller { margin-left: auto; flex: none; font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
     html[data-indeling="smal"] .wq-zoek { flex-basis: 120px; }
     html[data-indeling="smal"] .wq-sorteer { max-width: 132px; }
     html[data-aanraak="ja"] .wq-zoek, html[data-aanraak="ja"] .wq-sorteer { min-height: 44px; font-size: 16px; }
-    .ticket {
+    /* Op gsm (en in een venster smaller dan 600 px) twee rijen: het zoekvak over de volle breedte, daaronder de sorteerkeuze met het aantal.
+       Zo passen de hulptekst en het langste sorteerlabel volledig; 16 px voorkomt dat iOS inzoomt bij focus. */
+    html[data-apparaat="gsm"] .wq-toolbar { padding-left: 8px; padding-right: 8px; }
+    html[data-apparaat="gsm"] .wq-zoek { flex: 1 1 100%; padding: 0 12px; font-size: 16px; }
+    html[data-apparaat="gsm"] .wq-sorteer { flex: 1 1 0; min-width: 0; max-width: none; font-size: 16px; padding-right: 28px; text-overflow: ellipsis; }
+    @media (max-width: 599px) {
+      .wq-toolbar { padding-left: 8px; padding-right: 8px; }
+      .wq-zoek { flex: 1 1 100%; padding: 0 12px; font-size: 16px; }
+      .wq-sorteer { flex: 1 1 0; min-width: 0; max-width: none; font-size: 16px; padding-right: 28px; text-overflow: ellipsis; }
+    }
+    /* ── Open dag-stijl: glazen kaarten met gloeiende omtrek ──
+       ÉÉN regel voor alle kaarten en rijen in lijsten (wachtrij, kalender, route, inventaris, sales; ook tijdens een thema, zie
+       evenement.css): halfdoorschijnende kaartkleur + vervaging (tokens uit base.css), fijne lichte rand, lichtrand bovenaan.
+       Urgentie = een gloed langs de omtrek in de kleur van de status: --gloed-kleur (vol) en --gloed (doorschijnend), gezet per
+       urgentie hieronder. Rood = verlopen of hoog, oranje = middel of wacht op bevestiging, groen = laag of bevestigd, paars = eigen
+       afspraak. De statuskleuren (--red, ...) worden nergens overschreven. Geen linkerbalk meer, geen hover-sprong: enkel de kleur vervaagt. */
+    :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
       position: relative;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--r);
-      padding: 13px 15px;
-      margin-bottom: 6px;
+      background-color: var(--glas);
+      background-image: var(--gloed-beeld, none);
+      -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
+      backdrop-filter: blur(var(--blur)) saturate(180%);
+      border: 1px solid var(--rand-kleur, var(--glas-rand));
+      border-radius: var(--r-kaart);
+      box-shadow: inset 0 1px 0 var(--glas-licht), var(--gloed-schaduw, 0 0 0 transparent), var(--glas-schaduw);
+      transition: background-color var(--duur) ease, border-color var(--duur) ease, box-shadow calc(var(--duur) * 1.5) ease;
+    }
+    /* Compacte kaarten (kalenderafspraken, voorraadrijen): kleinere hoek, zonder de brede schaduw van een lijstkaart */
+    :is(.cal-ticket, .cal-local-event, .inv-row) { border-radius: var(--r-ev); box-shadow: inset 0 1px 0 var(--glas-licht), var(--gloed-schaduw, 0 0 0 transparent); }
+    @media (hover: hover) { :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart):hover {
+      background-color: var(--glas-hover); --rand-kleur: var(--glas-rand-hover);
+    } }
+    /* Urgentie: de kleur komt van data-urgentie (gezet bij het renderen) of van een klasse die de status al draagt */
+    :is([data-urgentie="rood"], .ticket.overdue, .inv-row.inv-low)               { --gloed-kleur: var(--red);    --gloed: var(--gloed-rood); }
+    :is([data-urgentie="oranje"], .cal-ticket.pending, .inv-row.inv-bijna, .stop.sales-voorgesteld) { --gloed-kleur: var(--orange); --gloed: var(--gloed-oranje); }
+    :is([data-urgentie="groen"], .cal-ticket.confirmed, .stop.sales-bevestigd)   { --gloed-kleur: var(--green);  --gloed: var(--gloed-groen); }
+    :is([data-urgentie="paars"], .cal-local-event)                               { --gloed-kleur: var(--purple); --gloed: var(--gloed-paars); }
+    /* Het omtrekrecept (mockup: [data-gloed="omtrek"] .gloeit): lichte tint linksboven, schijn naar binnen en buiten, gloeiende rand */
+    :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .modal):is([data-urgentie], .ticket.overdue, .cal-ticket.pending, .cal-ticket.confirmed, .cal-local-event, .inv-row.inv-low, .inv-row.inv-bijna, .stop.sales-voorgesteld, .stop.sales-bevestigd) {
+      --gloed-beeld: linear-gradient(135deg, color-mix(in srgb, var(--gloed-kleur) 10%, transparent), transparent 55%);
+      --gloed-schaduw: 0 0 24px -6px var(--gloed), inset 0 0 20px -8px var(--gloed);
+      --rand-kleur: color-mix(in srgb, var(--gloed-kleur) 55%, transparent);
+    }
+    @media (hover: hover) { :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row):is([data-urgentie], .ticket.overdue, .cal-ticket.pending, .cal-ticket.confirmed, .cal-local-event, .inv-row.inv-low, .inv-row.inv-bijna, .stop.sales-voorgesteld, .stop.sales-bevestigd):hover {
+      --rand-kleur: color-mix(in srgb, var(--gloed-kleur) 80%, transparent);
+    } }
+    /* Tekst op de kaarten en op de hemel zelf (#hoofdinhoud, taak 9b: lege staten, uurlabels, dagkoppen, subtabs, samenvattingen; was enkel
+       tijdens een thema, nu overal): lichter in donker, donkerder in licht, zodat 4,5:1 haalbaar blijft
+       over de hemel en over een thema-achtergrond. --red blijft ongemoeid (labels "Verlopen" en "Hoog" houden de statuskleur); enkel
+       losse rode of oranje tekst (geen adres, lage voorraad) krijgt een eigen licht (donker) of donker (licht) rood. */
+    :root:not([data-theme="light"]) :is(#hoofdinhoud, .ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart, .sales-kal-kaart, .topbar-sticky) {
+      --text: var(--tekst-op-hemel); --text2: var(--tekst2-op-hemel); --muted: var(--tekst2-op-hemel);
+      color: var(--text); /* tekst zonder eigen kleur erft anders de --text van body */
+    }
+    :root:not([data-theme="light"]) :is(.taddr.miss, .cal-addr.miss, .inv-row.inv-low .inv-row-aantal) { color: #ffdcd7; }
+    :root:not([data-theme="light"]) .inv-row.inv-bijna .inv-row-aantal { color: #ffe3b3; }
+    :root[data-theme="light"] :is(#hoofdinhoud, .ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart, .sales-kal-kaart, .topbar-sticky) {
+      --text2: var(--tekst2-op-hemel); --muted: var(--tekst2-op-hemel);
+    }
+    :root[data-theme="light"] :is(.taddr.miss, .cal-addr.miss, .inv-row.inv-low .inv-row-aantal) { color: #8c1111; }
+    :root[data-theme="light"] .inv-row.inv-bijna .inv-row-aantal { color: #6e3400; }
+
+    .ticket {
+      padding: 15px 18px;
+      margin-bottom: 10px;
       cursor: pointer;
       display: flex; gap: 12px;
       overflow: hidden;
-      /* Lift + shadow transition */
-      transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease), background 0.15s, border-color 0.15s;
-      will-change: transform;
     }
-    /* Accent bar via ::before — animateert soepel zonder layout shift */
-    .ticket::before {
-      content: '';
-      position: absolute;
-      left: 0; top: 0; bottom: 0;
-      width: 3px;
-      background: transparent;
-      transition: background 0.18s var(--ease);
-    }
-    .ticket:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 24px rgba(0,0,0,0.4), 0 1px 4px rgba(0,0,0,0.3);
-      background: var(--surface2);
-      border-color: var(--surface3);
-    }
-    .ticket:hover::before { background: var(--accent); }
-    .ticket:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
-    .ticket.overdue::before { background: var(--red); }
-    .ticket.overdue { background: color-mix(in srgb, var(--red) 3%, var(--bg)); }
-    .ticket.overdue:hover { background: color-mix(in srgb, var(--red) 6%, var(--bg)); }
-    .ticket.overdue:hover::before { background: var(--red); }
+    /* Dichtheid per toestel: breed 15/18 en 10 px ertussen, smal ruimer met een ronder hoekje */
+    html[data-indeling="smal"] .ticket { padding: 18px 20px; margin-bottom: 12px; border-radius: 26px; }
 
     .t-body { flex: 1; min-width: 0; padding-left: 6px; }
     .t-top { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; margin-bottom: 5px; }
     .tnum { font-size: 0.82rem; font-weight: 700; color: var(--text); font-family: 'SF Mono', 'Consolas', monospace; letter-spacing: 0.03em; }
-    .stag  { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 7px; border-radius: 20px; background: var(--red-dim);    color: var(--red); }
-    .stag.pending   { background: var(--orange-dim); color: var(--orange); }
-    .stag.confirmed { background: var(--green-dim);  color: var(--accent-ink); }
-    .atag  { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 7px; border-radius: 20px; background: var(--blue-dim); color: var(--blue); }
+    /* Chips (status, technieker, prioriteit) op een glazen kaart: de statuskleur blijft de tekstkleur (--red, --blue, ... ongemoeid), het vlak
+       erachter is een dichtere tint van diezelfde kleur over --chip-onder, zodat de tekst niet van de hemel achter het glas afhangt
+       (taak 9: de doorschijnende --*-dim haalde 3,6 tot 4,4:1). */
+    :root { --chip-onder: rgba(10,16,34,0.80); --chip-tint: 12%; }
+    :root[data-theme="light"] { --chip-onder: rgba(255,255,255,0.88); --chip-tint: 6%; }
+    .stag  { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 7px; border-radius: 20px; background: color-mix(in srgb, var(--red) var(--chip-tint), var(--chip-onder));    color: var(--red); }
+    .stag.pending   { background: color-mix(in srgb, var(--orange) var(--chip-tint), var(--chip-onder)); color: var(--orange); }
+    .stag.confirmed { background: color-mix(in srgb, var(--green) var(--chip-tint), var(--chip-onder));  color: var(--accent-ink); }
+    .atag  { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 7px; border-radius: 20px; background: color-mix(in srgb, var(--blue) var(--chip-tint), var(--chip-onder)); color: var(--blue); }
     .prtag { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 7px; border-radius: 20px; }
-    .prtag.high   { background: var(--red-dim);    color: var(--red); }
-    .prtag.medium { background: var(--orange-dim); color: var(--orange); }
-    .prtag.low    { background: var(--green-dim);  color: var(--accent-ink); }
+    .prtag.high   { background: color-mix(in srgb, var(--red) var(--chip-tint), var(--chip-onder));    color: var(--red); }
+    .prtag.medium { background: color-mix(in srgb, var(--orange) var(--chip-tint), var(--chip-onder)); color: var(--orange); }
+    .prtag.low    { background: color-mix(in srgb, var(--green) var(--chip-tint), var(--chip-onder));  color: var(--accent-ink); }
     .tsub { font-weight: 600; font-size: 0.88rem; line-height: 1.4; margin-bottom: 4px; color: var(--text); }
     .tmeta { font-size: var(--fs-2xs); color: var(--muted); margin-bottom: 3px; }
     .taddr { font-size: var(--fs-2xs); color: var(--muted); }
@@ -288,29 +252,26 @@
 
     .t-action { flex-shrink: 0; display: flex; align-items: flex-start; padding-top: 2px; }
     .btn-add {
-      background: var(--accent);
-      border: none; color: var(--on-accent);
+      background: linear-gradient(180deg, #2df0bb, #00d49b); /* Open dag (taak 8a, Ruling 8): het verloop van .btn--primary */
+      border: none; color: var(--on-groen);
       width: 30px; height: 30px;
       border-radius: 50%;
       font-size: 1.1rem;
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: background 0.15s, transform 0.15s var(--ease-spring), box-shadow 0.15s;
+      transition: background 0.15s, box-shadow 0.15s;
       flex-shrink: 0;
       box-shadow: 0 2px 6px rgba(0,223,163,0.3);
     }
-    .btn-add:hover  { background: var(--accent-hover); transform: scale(1.12); box-shadow: 0 3px 10px rgba(0,223,163,0.4); }
-    .btn-add:active { transform: scale(0.95); }
+    @media (hover: hover) { .btn-add:hover { box-shadow: 0 3px 10px rgba(0,223,163,0.4); } } /* de glans doet de rest; het verloop blijft */
     .btn-add:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; }
     .btn-rem {
       background: var(--red); border: none; color: #fff;
       width: 30px; height: 30px; border-radius: 50%;
       font-size: 0.9rem; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: transform 0.12s var(--ease-spring);
+      transition: background-color var(--duur) ease;
     }
-    .btn-rem:hover  { transform: scale(1.1); }
-    .btn-rem:active { transform: scale(0.93); }
     .btn-rem:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
 
     .empty { text-align: center; color: var(--muted); padding: 64px 20px; font-size: 0.875rem; line-height: 1.6; }
@@ -319,22 +280,22 @@
     /* Compacte "nog in te plannen" pill */
     .kal-pending-pill {
       display: flex; align-items: center; gap: 5px;
-      background: var(--orange-dim); border: 1px solid rgba(245,158,11,0.3);
+      background: color-mix(in srgb, var(--orange) var(--chip-tint), var(--chip-onder)); border: 1px solid rgba(245,158,11,0.3);
       border-radius: 20px; padding: 4px 10px; cursor: pointer;
       font-size: 0.75rem; font-weight: 600; color: var(--orange);
-      transition: background 0.15s, transform 0.12s;
+      transition: background 0.15s;
       white-space: nowrap; flex-shrink: 0;
     }
-    .kal-pending-pill:hover { background: rgba(245,158,11,0.2); transform: scale(1.03); }
+    @media (hover: hover) { .kal-pending-pill:hover { background: color-mix(in srgb, var(--orange) 20%, var(--chip-onder)); } }
     .kal-pending-pill .pill-count {
-      background: var(--orange); color: var(--on-accent);
+      background: var(--orange); color: var(--on-oranje);
       border-radius: 10px; padding: 0 6px; font-size: 0.7rem; font-weight: 700;
     }
     :root[data-theme="light"] .kal-pending-pill .pill-count { color: #fff; }
     /* Uitklap-lijst pending tickets */
     #kal-no-date-section {
       position: relative; z-index: 27;
-      background: var(--surface); border-bottom: 1px solid var(--border);
+      background-color: var(--glas-sterk); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); border-bottom: 1px solid var(--glas-rand);
       overflow: hidden; transition: max-height 0.3s var(--ease);
       max-height: 0;
     }
@@ -357,15 +318,13 @@
     /* ── Kalender ── */
     #view-kalender.active { display: flex; flex-direction: column; }
     .kal-header {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
+      background-color: var(--glas-sterk); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); border-bottom: 1px solid var(--glas-rand);
       padding: 4px 14px;
       display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
       position: sticky; top: var(--sticky-top, 93px); z-index: 28;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
     .kal-week-label { font-size: 0.84rem; font-weight: 600; text-align: center; color: var(--text2); white-space: nowrap; background: transparent; border: none; font-family: inherit; cursor: pointer; padding: 2px 2px; line-height: 1.2; border-radius: var(--r); max-width: 100%; min-width: 0; overflow: hidden; }
-    .kal-week-label:hover { background: var(--surface2); color: var(--text); }
+    @media (hover: hover) { .kal-week-label:hover { background: var(--knop2); color: var(--text); } }
     .kal-nav-group  { display: flex; align-items: center; gap: 2px; flex: 1 1 0; min-width: 150px; }
     .kal-label-wrap { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; }
     /* Computer/tablet: ‹ periode › als compact blok i.p.v. over de volle breedte (Brent, 2026-09-30) */
@@ -376,39 +335,41 @@
     html:not([data-indeling="smal"]) .kal-label-wrap { flex: 0 0 auto; width: 190px; }
     .kal-actions    { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
     .kal-nav {
-      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      width: 30px; height: 30px; border-radius: var(--r); flex-shrink: 0;
+      background: var(--knop2); border: 1px solid var(--glas-rand); color: var(--text);
+      width: 30px; height: 30px; border-radius: var(--r-pil); flex-shrink: 0;
       cursor: pointer; font-size: 1rem;
       display: flex; align-items: center; justify-content: center;
-      transition: background 0.12s, transform 0.12s var(--ease-spring);
+      transition: background 0.12s;
     }
-    .kal-nav:hover  { background: var(--surface3); transform: scale(1.05); }
-    .kal-nav:active { transform: scale(0.94); }
+    @media (hover: hover) { .kal-nav:hover  { background: var(--knop2-hover); } }
     /* Tweede regel "↺ Vandaag" in de labelknop: hoogte altijd gereserveerd (kop verandert nooit van hoogte) */
     .kal-lbl-tekst { display: block; overflow: hidden; text-overflow: ellipsis; }
     .kal-lbl-vandaag { display: block; font-size: 0.75rem; font-weight: 600; color: var(--accent-ink); visibility: hidden; }
     .kal-week-label.niet-vandaag .kal-lbl-vandaag { visibility: visible; }
+    /* Taak 8b: de app achter het inlogscherm is onzichtbaar (inloggen.css zet visibility: hidden op #hoofdinhoud); dit kind zet zichzelf expliciet op visible en schemerde daar dwars doorheen. */
+    body:has(> #login-overlay) .kal-week-label.niet-vandaag .kal-lbl-vandaag { visibility: hidden; }
     .btn-autoplan {
-      background: var(--accent); border: none; color: var(--on-accent);
-      padding: 6px 13px; border-radius: var(--r);
+      background: linear-gradient(180deg, #2df0bb, #00d49b); border: none; color: var(--on-groen); /* Open dag: verloop + pil (Ruling 8) */
+      padding: 6px 13px; border-radius: var(--r-pil);
       font-size: 0.79rem; font-weight: 700; cursor: pointer;
-      transition: background 0.12s, transform 0.12s var(--ease-spring), box-shadow 0.12s;
+      transition: background 0.12s, box-shadow 0.12s;
       box-shadow: 0 2px 6px rgba(0,223,163,0.25);
       font-family: inherit;
     }
-    .btn-autoplan:hover  { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,223,163,0.38); }
-    .btn-autoplan:active { transform: translateY(0); box-shadow: 0 1px 3px rgba(0,223,163,0.2); }
+    @media (hover: hover) { .btn-autoplan:hover { box-shadow: 0 4px 12px rgba(0,223,163,0.38); } }
+    .btn-autoplan:active { box-shadow: 0 1px 3px rgba(0,223,163,0.2); }
     .btn-autoplan:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
     /* Op een gsm "⚡ Plan": de kalenderkop blijft één regel (kop B). De volledige naam blijft de toegankelijke naam en de hulptekst. */
     html[data-indeling="smal"] .plan-lang { display: none; }
     /* ── View toggle (week / maand) ── */
-    .kal-view-toggle { display: flex; flex-shrink: 0; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .kal-view-toggle { display: flex; flex-shrink: 0; border: 1px solid var(--glas-rand); border-radius: var(--r-pil); background: var(--veld); overflow: hidden; }
     .kal-view-btn { background: transparent; border: none; color: var(--muted); padding: 5px 11px; font-size: 0.75rem; font-weight: 500; cursor: pointer; font-family: inherit; transition: background 0.1s, color 0.1s; }
-    .kal-view-btn.active { background: var(--surface3); color: var(--text); font-weight: 700; }
+    .kal-view-btn.active { background: var(--knop2-hover); color: var(--text); font-weight: 700; }
 
     /* Kalenderkop: op smalle en tablet-staande indelingen mag de kop over meerdere regels lopen
        (anders loopt .kal-actions voor een coördinator over de paginabreedte). */
-    html[data-indeling="smal"] .kal-actions, html[data-indeling="tablet-staand"] .kal-actions { flex-wrap: wrap; flex-shrink: 1; margin-left: 0; }
+    /* Taak 8b: ook een smal computervenster (data-nav="dok": indeling breed, maar minder dan 768 px): de knoppen lopen naar een tweede regel in plaats van de pagina breder te maken. */
+    html[data-indeling="smal"] .kal-actions, html[data-indeling="tablet-staand"] .kal-actions, html[data-nav="dok"] .kal-actions { flex-wrap: wrap; flex-shrink: 1; margin-left: 0; }
 
     /* Aanraken: alle tikbare bedieningselementen minstens 44px hoog (pictogramknoppen ook 44px breed) */
     html[data-aanraak="ja"] button, html[data-aanraak="ja"] .tab, html[data-aanraak="ja"] .kal-nav,
@@ -453,14 +414,20 @@
     html[data-indeling="smal"] .hbtn { min-width: 40px; width: 40px; }
     html[data-indeling="smal"][data-aanraak="ja"] .hbtn { min-width: 44px; width: 44px; }
     /* ── Maand-view ── */
-    .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); border-left: 1px solid var(--border); border-top: 1px solid var(--border); }
-    .month-dow-hdr { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 5px 6px; text-align: center; background: var(--surface); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-    .month-cell { min-height: 88px; padding: 4px 5px; background: var(--surface); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
-    .month-cell.other-month { background: var(--bg); opacity: 0.5; }
+    /* Open dag (taak 8b): de kalender is één glazen vlak (mockup .kal): week en maand delen de kaart; de cellen zijn doorzichtig met haarlijnen. */
+    .week-grid, .month-grid {
+      margin: 10px 14px 14px; border: 1px solid var(--glas-rand); border-radius: var(--r-kaart);
+      background-color: var(--glas); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%);
+      box-shadow: inset 0 1px 0 var(--glas-licht), var(--glas-schaduw);
+    }
+    .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); overflow: hidden; }
+    .month-dow-hdr { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 5px 6px; text-align: center; background: transparent; border-right: 1px solid var(--lijn); border-bottom: 1px solid var(--lijn); }
+    .month-cell { min-height: 88px; padding: 4px 5px; background: transparent; border-right: 1px solid var(--lijn); border-bottom: 1px solid var(--lijn); display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+    .month-cell.other-month { background: color-mix(in srgb, var(--text) 5%, transparent); opacity: 0.5; }
     .month-cell.today-cell { background: rgba(0,223,163,0.04); }
     .month-cell-num { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); margin-bottom: 2px; }
     .month-cell-num.today-num { color: var(--accent-ink); font-size: 0.78rem; }
-    .month-chip { font-size: var(--fs-2xs); padding: 2px 5px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; line-height: 1.3; }
+    .month-chip { font-size: var(--fs-2xs); padding: 2px 6px; border-radius: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; line-height: 1.3; }
     .month-chip.pending  { background: var(--orange-dim); color: var(--orange); }
     .month-chip.confirmed { background: var(--green-dim); color: var(--accent-ink); }
     .month-chip.local    { background: rgba(124,92,252,0.15); color: #7c5cfc; }
@@ -470,13 +437,13 @@
 
     /* Week grid */
     .week-grid { display: flex; flex: 1; overflow-x: auto; min-height: 400px; }
-    .day-col { flex: 1; min-width: 155px; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .day-col { flex: 1; min-width: 155px; border-right: 1px solid var(--lijn); display: flex; flex-direction: column; }
     .day-col:last-child { border-right: none; }
     /* Tijdlijnweergave: #week-grid is de enige verticale scrollcontainer (hoogte via JS);
        kolommen krijgen hun inhoudshoogte zodat de sticky kop over de volle scroll blijft staan */
     .week-grid.tl-mode { overflow: auto; align-items: flex-start; flex: none; }
     .week-grid.tl-mode .day-hdr { position: sticky; top: 0; z-index: 5; }
-    .day-hdr { padding: 12px 10px 8px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .day-hdr { padding: 12px 10px 8px; background-color: var(--glas-sterk); border-bottom: 1px solid var(--lijn); }
     .day-hdr-top { display: block; }
     .day-hdr-name { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
     .day-hdr-name.today { color: var(--accent-ink); }
@@ -502,120 +469,101 @@
     .day-cap.full { color: var(--orange); font-weight: 600; }
     .day-block-btn {
       font-size: var(--fs-2xs); font-weight: 500;
-      padding: 3px 7px; border-radius: 4px;
+      padding: 3px 7px; border-radius: 8px;
       border: 1px solid transparent;
       background: transparent; color: var(--muted);
       cursor: pointer; display: block; width: 100%; text-align: center;
       transition: background 0.12s, color 0.12s;
     }
-    .day-block-btn:hover { background: var(--surface2); color: var(--text2); border-color: var(--border); }
+    @media (hover: hover) { .day-block-btn:hover { background: var(--knop2); color: var(--text2); border-color: var(--glas-rand); } }
     .day-block-btn.blocked  { background: var(--red-dim); color: var(--red); border-color: var(--red-line); }
     .day-block-btn.holiday  { background: rgba(251,191,36,0.15); color: #d97706; border-color: rgba(251,191,36,0.3); }
-    .day-body { flex: 1; padding: 6px; background: var(--bg); display: flex; flex-direction: column; gap: 5px; }
-    .day-body.blocked-day  { background: repeating-linear-gradient(135deg, var(--bg), var(--bg) 8px, color-mix(in srgb, var(--red) 2.5%, transparent)  8px, color-mix(in srgb, var(--red) 2.5%, transparent)  16px); }
-    .day-body.holiday-day  { background: repeating-linear-gradient(135deg, var(--bg), var(--bg) 8px, rgba(251,191,36,0.04)  8px, rgba(251,191,36,0.04)  16px); }
-    .day-empty { font-size: var(--fs-2xs); color: var(--muted); text-align: center; padding: 20px 4px; opacity: 0.35; }
+    .day-body { flex: 1; padding: 6px; background: transparent; display: flex; flex-direction: column; gap: 5px; }
+    .day-body.blocked-day  { background: repeating-linear-gradient(135deg, transparent, transparent 8px, color-mix(in srgb, var(--red) 5%, transparent)  8px, color-mix(in srgb, var(--red) 5%, transparent)  16px); }
+    .day-body.holiday-day  { background: repeating-linear-gradient(135deg, transparent, transparent 8px, rgba(251,191,36,0.07)  8px, rgba(251,191,36,0.07)  16px); }
+    /* Lege staten en dagkoppen staan los op de hemel. Op de scène van een thema ligt daar toevallig een heldere maan of sneeuw achter
+       (Halloween, Sinterklaas: 2:1); daar krijgen ze hetzelfde glas als een kaart (taak 9b). Op de gewone hemel is de tekstkleur genoeg. */
+    html[data-event-achtergrond="ja"] :is(.empty, .route-empty, .inv-empty, .rapporten-leeg, .cal-day-hdr) {
+      background-color: var(--glas); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%);
+      border-radius: var(--r-ev);
+    }
+    html[data-event-achtergrond="ja"] :is(.rapporten-leeg, .inv-empty) { padding-left: 16px; padding-right: 16px; }
+    /* "(gepland 09:00)" naast het tijdslot: kleiner en niet vet; geen doorzichtigheid meer (die haalde 3,3:1 in licht, taak 9b) */
+    .meta-gepland { font-size: 0.85em; font-weight: 400; color: var(--muted); }
+    .day-empty { font-size: var(--fs-2xs); color: var(--muted); text-align: center; padding: 20px 4px; }
 
     /* Kalender ticket */
     .cal-ticket {
-      position: relative;
-      border: 1px solid var(--border);
-      border-radius: var(--r);
       padding: 8px 9px;
       cursor: pointer;
-      background: var(--surface);
       overflow: hidden;
-      transition: transform 0.15s var(--ease), box-shadow 0.15s, background 0.12s;
     }
-    .cal-ticket::before {
-      content: '';
-      position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-      background: var(--border);
-      transition: background 0.15s;
-    }
-    .cal-ticket.pending::before  { background: var(--orange); }
-    .cal-ticket.confirmed::before { background: var(--green); }
-    .cal-ticket.afgerond::before { background: var(--muted); }
     .cal-ticket.afgerond { opacity: 0.7; }
-    .cal-ticket:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); background: var(--surface2); }
-    .cal-ticket:active { transform: none; }
     .cal-num { font-size: 0.78rem; font-weight: 700; color: var(--text); font-family: monospace; margin: 0 0 3px 4px; }
     .cal-sub { font-size: var(--fs-2xs); font-weight: 600; line-height: 1.3; margin: 0 0 4px 4px; }
     .cal-badge { font-size: var(--fs-2xs); font-weight: 600; padding: 1px 6px; border-radius: 20px; display: inline-block; margin: 0 0 4px 4px; }
     .cal-badge.pending  { background: var(--orange-dim); color: var(--orange); }
     .cal-badge.confirmed { background: var(--green-dim);  color: var(--accent-ink); }
-    .cal-badge.afgerond { background: var(--surface3); color: var(--muted); }
+    .cal-badge.afgerond { background: var(--knop2); color: var(--muted); }
     .cal-meta { font-size: 0.8rem; color: var(--text); margin-left: 4px; }
     .cal-addr { font-size: var(--fs-2xs); color: var(--muted); margin: 2px 0 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .cal-addr.miss { color: var(--red); }
     .cal-actions { display: flex; gap: 6px; margin: 8px 4px 0 4px; }
     .cal-btn {
       flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-      background: var(--surface2); border: 1px solid var(--border); color: var(--text2);
-      padding: 7px 6px; border-radius: 6px; font-size: var(--fs-2xs); font-weight: 600;
+      background: var(--knop2); border: 1px solid var(--glas-rand); color: var(--text2);
+      padding: 7px 6px; border-radius: var(--r-pil); font-size: var(--fs-2xs); font-weight: 600;
       cursor: pointer; font-family: inherit; text-decoration: none;
       transition: background 0.1s, color 0.1s, border-color 0.1s;
     }
-    .cal-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border); }
+    @media (hover: hover) { .cal-btn:hover { background: var(--knop2-hover); color: var(--text); } }
 
     /* 44px tikbare knoppen bij aanraken (apparaatherkenning: data-aanraak) */
     html[data-aanraak="ja"] .cal-btn { min-height: 44px; padding: 10px 6px; }
 
     /* ── Lokale afspraken (import / manueel) ── */
     .cal-local-event {
-      position: relative;
-      border: 1px solid var(--border);
-      border-radius: var(--r);
       cursor: pointer;
-      transition: transform 0.15s var(--ease), box-shadow 0.15s, background 0.12s;
       padding: 7px 9px;
-      background: var(--surface);
       overflow: hidden;
-    }
-    .cal-local-event::before {
-      content: '';
-      position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-      background: #7c5cfc;
     }
     .cal-local-event .cal-sub { margin-bottom: 2px; }
     .cal-local-type { font-size: var(--fs-2xs); font-weight: 600; padding: 1px 6px; border-radius: 20px; display: inline-block; margin: 0 0 3px 4px; background: rgba(124,92,252,0.15); color: #7c5cfc; }
     .cal-local-time { font-size: 0.8rem; color: var(--text); font-weight: 600; margin-left: 4px; }
     .cal-local-del { position: absolute; top: 5px; right: 6px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem; padding: 0 2px; }
-    .cal-local-event:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); background: var(--surface2); }
-    .cal-local-event:active { transform: none; }
-    .cal-local-del:hover { color: var(--red); }
+    @media (hover: hover) { .cal-local-del:hover { color: var(--red); } }
     /* P1-2: op aanraakschermen een echt 44px-doel (geen 15px-✕), met ruimte in de kaart zodat de titel er niet onder loopt */
     html[data-aanraak="ja"] .cal-local-del { top: 0; right: 0; min-width: 44px; min-height: 44px; padding: 0; font-size: 1rem; }
     html[data-aanraak="ja"] .cal-local-event:has(.cal-local-del) { padding-right: 46px; }
 
     /* ── Import modal ── */
     #import-overlay { align-items: flex-start; padding: 24px; }
-    #import-modal { border-radius: var(--r-lg); max-width: 520px; max-height: calc(100vh - 48px); display: flex; flex-direction: column; }
+    #import-modal { border-radius: var(--r-venster); max-width: 520px; max-height: calc(100vh - 48px); display: flex; flex-direction: column; }
     .imp-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 0; }
-    .imp-item { border: 1px solid var(--border); border-radius: var(--r); padding: 10px 12px; background: var(--surface2); }
+    .imp-item { border: 1px solid var(--lijn); border-radius: var(--r); padding: 10px 12px; background: var(--veld); }
     .imp-item-title { font-size: 0.84rem; font-weight: 600; margin-bottom: 4px; }
     .imp-item-meta  { font-size: var(--fs-2xs); color: var(--muted); margin-bottom: 6px; }
     .imp-person-row { display: flex; gap: 6px; align-items: center; }
     .imp-person-label { font-size: var(--fs-2xs); color: var(--muted); white-space: nowrap; }
-    .imp-person-sel { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 4px 7px; font-size: 0.78rem; font-family: inherit; }
+    .imp-person-sel { flex: 1; background: var(--veld); border: 1px solid var(--veld-rand); border-radius: var(--r-pil); color: var(--text); padding: 4px 12px; font-size: 0.78rem; font-family: inherit; }
     .imp-match-tag { font-size: var(--fs-2xs); padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
     .imp-match-tag.ok  { background: var(--green-dim); color: var(--accent-ink); }
     .imp-match-tag.mis { background: var(--orange-dim); color: var(--orange); }
 
     /* ── Manuele afspraak modal ── */
     #manueel-overlay { align-items: center; padding: 24px; }
-    #manueel-modal { border-radius: var(--r-lg); max-width: 400px; }
+    #manueel-modal { border-radius: var(--r-venster); max-width: 400px; }
     .man-form { display: flex; flex-direction: column; gap: 10px; }
     .man-label { display: block; font-size: var(--fs-2xs); color: var(--muted); margin-bottom: 3px; }
     .man-hint { font-size: var(--fs-xs); color: var(--muted); margin-top: 12px; }
-    .man-input, .man-select { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 6px 9px; font-size: 0.82rem; font-family: inherit; }
+    .man-input, .man-select { width: 100%; background: var(--veld); border: 1px solid var(--veld-rand); border-radius: var(--r-pil); color: var(--text); padding: 6px 14px; font-size: 0.82rem; font-family: inherit; }
     .man-input:focus, .man-select:focus { border-color: var(--accent); }
     .man-input:focus-visible, .man-select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
     .man-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
     /* ── Beschikbaarheid / Blokkering modal ── */
     /* ── Klantbeschikbaarheid in detail-overlay ──────────────────────────── */
-    .kb-section { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+    .kb-section { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--lijn); }
     .kb-section-title { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
     .kb-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
     .kb-label { font-size: 0.78rem; color: var(--muted); min-width: 90px; }
@@ -624,52 +572,52 @@
     .kb-chip-del { background: none; border: none; cursor: pointer; color: inherit; padding: 0; font-size: 0.8rem; line-height: 1; }
     .kb-fields { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     .kb-row--col { flex-direction: column; align-items: flex-start; gap: 6px; }
-    .kb-input { font-size: 0.8rem; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); font-family: inherit; }
+    .kb-input { font-size: 0.8rem; padding: 3px 10px; border: 1px solid var(--veld-rand); border-radius: var(--r-pil); background: var(--veld); color: var(--text); font-family: inherit; }
     .kb-input--duur { width: 70px; }
     .kb-unit { font-size: 0.78rem; color: var(--muted); }
     .kb-save-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
     .kb-dirty-hint { font-size: var(--fs-xs); color: var(--muted); }
     .foto-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; margin: 8px 0; }
-    .foto-thumb { position: relative; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; background: var(--surface2); }
+    .foto-thumb { position: relative; border: 1px solid var(--lijn); border-radius: var(--r); overflow: hidden; background: var(--veld); }
     .foto-thumb img { width: 100%; height: 90px; object-fit: cover; display: block; }
     .foto-thumb-del { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,.55); color: #fff; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 0.75rem; line-height: 1; }
-    .foto-caption { width: 100%; box-sizing: border-box; font-size: var(--fs-2xs); padding: 3px 5px; border: none; border-top: 1px solid var(--border); background: var(--surface); color: var(--text); font-family: inherit; }
+    .foto-caption { width: 100%; box-sizing: border-box; font-size: var(--fs-2xs); padding: 3px 8px; border: none; border-top: 1px solid var(--lijn); background: var(--veld); color: var(--text); font-family: inherit; }
     .foto-add-btn { padding: 8px 14px; background: var(--accent-dim); color: var(--accent-ink); border: 1px solid var(--accent); border-radius: var(--r); font-weight: 600; cursor: pointer; font-family: inherit; }
-    .kb-notitie { width: 100%; font-size: 0.8rem; padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); resize: vertical; min-height: 40px; }
+    .kb-notitie { width: 100%; font-size: 0.8rem; padding: 8px 12px; border: 1px solid var(--veld-rand); border-radius: 16px; background: var(--veld); color: var(--text); resize: vertical; min-height: 40px; }
     .av-section-title { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
     .av-existing { margin-bottom: 14px; min-height: 0; }
     .av-empty { font-size: 0.8rem; color: var(--muted); padding: 4px 0; }
-    .av-item { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; padding: 6px 0; border-bottom: 1px solid var(--border); }
+    .av-item { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; padding: 6px 0; border-bottom: 1px solid var(--lijn); }
     .av-item:last-child { border-bottom: none; }
     .av-item-label { flex: 1; }
     .av-item-who { font-size: var(--fs-2xs); color: var(--muted); margin-left: 4px; }
     .av-item-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: 0 4px; line-height: 1; }
-    .av-item-del:hover { color: var(--red); }
-    .av-form { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border); padding-top: 12px; }
+    @media (hover: hover) { .av-item-del:hover { color: var(--red); } }
+    .av-form { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--lijn); padding-top: 12px; }
     .av-radio-group { display: flex; gap: 6px; flex-wrap: wrap; }
-    .av-radio-btn { padding: 5px 14px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text2); font-size: 0.78rem; cursor: pointer; font-family: inherit; transition: all 0.12s; }
-    .av-radio-btn.active { background: var(--accent-dim); color: var(--accent-ink); border-color: var(--accent-glow); font-weight: 600; }
+    .av-radio-btn { padding: 5px 14px; border-radius: 20px; border: 1px solid var(--glas-rand); background: transparent; color: var(--text2); font-size: 0.78rem; cursor: pointer; font-family: inherit; transition: all 0.12s; }
+    .av-radio-btn.active { background: color-mix(in srgb, var(--accent) var(--chip-tint), var(--chip-onder)); color: var(--accent-ink); border-color: var(--accent-glow); font-weight: 600; }
     .av-time-row { display: flex; gap: 8px; align-items: center; }
-    .av-time-input { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 5px 8px; font-size: 0.82rem; font-family: inherit; width: 90px; }
+    .av-time-input { background: var(--veld); border: 1px solid var(--veld-rand); border-radius: var(--r-pil); color: var(--text); padding: 5px 12px; font-size: 0.82rem; font-family: inherit; width: 90px; }
     input[type="date"].av-time-input { width: 136px; }
     .av-time-input:focus { border-color: var(--accent); }
     .av-time-input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-    .av-reden-input { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 5px 8px; font-size: 0.82rem; font-family: inherit; width: 100%; }
+    .av-reden-input { background: var(--veld); border: 1px solid var(--veld-rand); border-radius: var(--r-pil); color: var(--text); padding: 5px 12px; font-size: 0.82rem; font-family: inherit; width: 100%; }
     .av-reden-input:focus { border-color: var(--accent); }
     .av-reden-input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
     .av-add-btn { align-self: flex-end; padding: 6px 18px; background: var(--accent); border: none; border-radius: var(--r); color: var(--on-accent); font-size: 0.82rem; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.15s; }
-    .av-add-btn:hover { opacity: 0.85; }
+    @media (hover: hover) { .av-add-btn:hover { opacity: 0.85; } }
 
     /* ── Route tab ── */
     #view-planning.active { display: flex; flex-direction: column; }
     /* Route-werkbalk (kop B): ÉÉN balk onder de tabs, voor technieker en verkoper gelijk: links 📅 en de weekstrook, rechts de knoppen.
        Plakt onder de kop. Het datumveld (#plan-date) blijft in de pagina maar ligt onzichtbaar onder de 📅-knop (week-strook.js koppelDatumKnop). */
-    .route-balk { position: sticky; top: var(--sticky-top, 93px); z-index: 20; flex: none; display: flex; align-items: center; gap: 10px; padding: 4px 14px; min-width: 0; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .route-balk { position: sticky; top: var(--sticky-top, 93px); z-index: 20; flex: none; display: flex; align-items: center; gap: 10px; padding: 4px 14px; min-width: 0; background-color: var(--glas-sterk); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); border-bottom: 1px solid var(--glas-rand); }
     .route-balk-links { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
     .route-balk-acties { flex: none; display: flex; align-items: center; gap: 7px; }
     .route-datum-wrap { position: relative; flex: none; width: 44px; height: 44px; }
-    .route-datum-knop { width: 100%; height: 100%; padding: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); font-size: 1.15rem; line-height: 1; cursor: pointer; font-family: inherit; }
-    .route-datum-knop:hover { border-color: var(--muted); }
+    .route-datum-knop { width: 100%; height: 100%; padding: 0; background: var(--knop2); border: 1px solid var(--glas-rand); border-radius: var(--r-pil); font-size: 1.15rem; line-height: 1; cursor: pointer; font-family: inherit; }
+    @media (hover: hover) { .route-datum-knop:hover { border-color: var(--glas-rand-hover); } }
     .route-datum-knop:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
     .route-datum-veld { position: absolute; left: 0; top: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; pointer-events: none; }
     @media (max-width: 820px) {
@@ -678,31 +626,29 @@
       .route-balk-acties { flex: 1 1 100%; }
     }
     .btn-primary {
-      background: var(--accent); border: none; color: var(--on-accent);
-      padding: 7px 14px; border-radius: var(--r);
+      background: linear-gradient(180deg, #2df0bb, #00d49b); border: none; color: var(--on-groen); /* Open dag: verloop + pil (Ruling 8) */
+      padding: 7px 14px; border-radius: var(--r-pil);
       font-size: 0.8rem; font-weight: 700; cursor: pointer; font-family: inherit;
-      transition: background 0.12s, transform 0.12s var(--ease-spring), box-shadow 0.12s;
+      transition: background 0.12s, box-shadow 0.12s;
       box-shadow: 0 2px 6px rgba(0,223,163,0.2);
     }
-    .btn-primary:hover  { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,223,163,0.35); }
-    .btn-primary:active { transform: translateY(0); }
+    @media (hover: hover) { .btn-primary:hover { box-shadow: 0 4px 12px rgba(0,223,163,0.35); } }
     .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
     .btn-sec {
-      background: transparent; border: 1px solid var(--border); color: var(--text2);
-      padding: 7px 12px; border-radius: var(--r);
+      background: var(--knop2); border: 1px solid var(--border-strong); color: var(--text2); /* Open dag: glazen pil zoals .btn--secondary (Ruling 8) */
+      padding: 7px 12px; border-radius: var(--r-pil);
       font-size: 0.8rem; font-weight: 500; cursor: pointer; font-family: inherit;
-      transition: background 0.12s, color 0.12s, transform 0.12s var(--ease-spring);
+      transition: background 0.12s, color 0.12s;
     }
-    .btn-sec:hover  { background: var(--surface2); color: var(--text); transform: translateY(-1px); }
-    .btn-sec:active { transform: translateY(0); }
+    @media (hover: hover) { .btn-sec:hover { background: var(--knop2-hover); color: var(--text); } }
     .rapp-filter-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
     /* Weekstrook (v1.9.5), compact in de Route-werkbalk (kop B): per dag één knop van 44 px, links dag en status, rechts het aantal. */
     .week-strip { display: flex; align-items: stretch; gap: 6px; flex: 1; min-width: 0; }
     .week-strip .ws-dagen { display: flex; gap: 6px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
-    .ws-nav { flex: none; min-width: 36px; background: transparent; border: 1px solid var(--border); color: var(--text2); border-radius: var(--r); font-size: 1.2rem; line-height: 1; cursor: pointer; font-family: inherit; }
-    .ws-nav:hover { background: var(--surface2); color: var(--text); }
-    .ws-dag { flex: 1 0 auto; height: 44px; display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; padding: 0 9px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); cursor: pointer; font-family: inherit; min-width: 96px; }
-    .ws-dag:hover { border-color: var(--muted); }
+    .ws-nav { flex: none; min-width: 36px; background: var(--knop2); border: 1px solid var(--glas-rand); color: var(--text2); border-radius: var(--r-pil); font-size: 1.2rem; line-height: 1; cursor: pointer; font-family: inherit; }
+    @media (hover: hover) { .ws-nav:hover { background: var(--knop2-hover); color: var(--text); } }
+    .ws-dag { flex: 1 0 auto; height: 44px; display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; padding: 0 14px; background: var(--knop2); border: 1px solid var(--glas-rand); border-radius: var(--r-pil); color: var(--text); cursor: pointer; font-family: inherit; min-width: 96px; }
+    @media (hover: hover) { .ws-dag:hover { border-color: var(--glas-rand-hover); } }
     .ws-dag.actief { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
     .ws-dag.vandaag .ws-naam { text-decoration: underline; text-underline-offset: 3px; }
     .ws-links { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
@@ -720,19 +666,13 @@
     /* Route-indeling (technieker én verkoper): vaste smalle lijstkolom links met eigen scroll, de kaart rechts vult de rest en blijft staan.
        De verkoper gebruikt dezelfde regels via .sales-route-lijstvak / .sales-route-kaartvak (sales.css voegt enkel de ketting van hoogtes toe). */
     :root { --route-lijst-breedte: 300px; }
-    #route-list, .sales-route-lijstvak { width: var(--route-lijst-breedte); flex-shrink: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 6px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
-    .stop {
-      background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r);
-      padding: 10px 12px;
-      transition: background 0.12s, transform 0.12s;
-    }
-    .stop:hover { background: var(--surface3); transform: translateX(2px); }
+    #route-list, .sales-route-lijstvak { width: var(--route-lijst-breedte); flex-shrink: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 6px; background: var(--glas); border-right: 1px solid var(--glas-rand); display: flex; flex-direction: column; gap: 6px; }
+    .stop { padding: 10px 12px; }
     /* Sorteren (tablet-fase Taak 5): vasthouden en verschuiven */
     .stop[data-sleepbaar] { -webkit-user-select: none; user-select: none; }
     html[data-aanraak="nee"] .stop[data-sleepbaar] { cursor: grab; }
-    .stop.sorteer-actief { opacity: .92; box-shadow: 0 8px 24px rgba(0,0,0,.35); border-color: var(--accent); cursor: grabbing; transition: none; }
-    .stop.sorteer-actief:hover { transform: none; }
-    .sorteer-placeholder { border: 2px dashed var(--accent); border-radius: var(--r); background: transparent; flex-shrink: 0; }
+    .stop.sorteer-actief { opacity: .92; box-shadow: 0 8px 24px rgba(0,0,0,.35); --rand-kleur: var(--accent); cursor: grabbing; transition: none; }
+    .sorteer-placeholder { border: 2px dashed var(--accent); border-radius: var(--r-kaart); background: transparent; flex-shrink: 0; }
     /* Taak 4: vergrendelde stop (voorstel verstuurd / bevestigde afspraak) — niet versleepbaar. */
     .stop.locked { opacity: .85; }
     .stop.locked .stop-num { background: var(--muted); }
@@ -741,93 +681,100 @@
     /* C1 (eindreview v1.4.0): kleine indicator op de stop-num-cirkel voor tickets met een
        voorkeursuur van de klant -- absoluut gepositioneerd zodat het cijfer/slotje in de cirkel
        zelf niet moet inkrimpen. */
-    .stop-preftime { position: absolute; right: -5px; bottom: -5px; font-size: var(--fs-2xs); line-height: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 50%; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; }
+    .stop-preftime { position: absolute; right: -5px; bottom: -5px; font-size: var(--fs-2xs); line-height: 1; background: var(--veld); border: 1px solid var(--lijn); border-radius: 50%; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; }
     .stop-info { flex: 1; min-width: 0; }
     .stop-sub  { font-weight: 600; font-size: 0.82rem; margin-bottom: 2px; }
     .stop-addr { font-size: var(--fs-2xs); color: var(--muted); }
     .stop-leg  { font-size: var(--fs-2xs); color: var(--muted); padding: 2px 0 3px 31px; }
     .stop-actions { display: flex; gap: 4px; flex-wrap: wrap; margin: 8px 0 0 31px; }
     .sico {
-      background: transparent; border: 1px solid var(--border); color: var(--muted);
-      padding: 4px 8px; border-radius: 5px; cursor: pointer; font-size: var(--fs-2xs); font-weight: 600;
+      background: var(--knop2); border: 1px solid var(--glas-rand); color: var(--text2);
+      padding: 4px 10px; border-radius: var(--r-pil); cursor: pointer; font-size: var(--fs-2xs); font-weight: 600;
       display: inline-flex; align-items: center; gap: 3px; white-space: nowrap;
-      transition: background 0.1s, color 0.1s, transform 0.1s var(--ease-spring);
+      transition: background 0.1s, color 0.1s;
     }
-    .sico:hover  { background: var(--surface); color: var(--text2); transform: scale(1.07); }
-    .sico:active { transform: scale(0.94); }
+    @media (hover: hover) { .sico:hover { background: var(--knop2-hover); color: var(--text); } }
     .route-empty { color: var(--muted); font-size: 0.82rem; text-align: center; padding: 40px 14px; line-height: 1.6; }
     /* Eigen stapelcontext: Leaflet gebruikt z-index 400-1000 intern; dat mag nooit boven app-UI (personenmenu, modals, toasts) uitkomen. */
-    #map-wrap, .sales-route-kaartvak { flex: 1; min-width: 0; min-height: 0; position: relative; isolation: isolate; z-index: 0; margin: 8px; border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+    #map-wrap, .sales-route-kaartvak { flex: 1; min-width: 0; min-height: 0; position: relative; isolation: isolate; z-index: 0; margin: 8px; border: 1px solid var(--glas-rand); border-radius: var(--r-kaart); overflow: hidden; background: var(--surface); }
     #map, .sales-route-kaart { width: 100%; height: 100%; min-height: 300px; }
     .route-legende {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+      background: var(--surface); border: 1px solid var(--lijn); border-radius: 6px;
       font-size: 0.7rem; padding: 6px 8px; line-height: 1.6; color: var(--text2);
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     }
     .route-legende .rl-item { display: flex; align-items: center; gap: 6px; }
     .route-legende .rl-streep { display: inline-block; width: 14px; height: 4px; border-radius: 2px; flex-shrink: 0; }
-    .plan-summary { background: var(--surface); border-top: 1px solid var(--border); padding: 7px 14px; display: flex; gap: 16px; flex-wrap: wrap; font-size: var(--fs-2xs); color: var(--muted); }
+    .plan-summary { background-color: var(--glas-sterk); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); border-top: 1px solid var(--glas-rand); padding: 7px 14px; display: flex; gap: 16px; flex-wrap: wrap; font-size: var(--fs-2xs); color: var(--muted); }
     .plan-summary b { color: var(--text2); font-weight: 600; }
 
     /* ── Gepland tab ── */
     .gep-week {
-      background: var(--surface); border-bottom: 1px solid var(--border);
+      background-color: var(--glas-sterk); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); border-bottom: 1px solid var(--glas-rand);
       padding: 8px 14px; display: flex; align-items: center; gap: 8px;
       position: sticky; top: var(--sticky-top, 93px); z-index: 28;
     }
     .gep-week span { font-size: 0.84rem; font-weight: 600; flex: 1; color: var(--text2); }
     .gep-week button {
-      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      padding: 4px 12px; border-radius: var(--r); cursor: pointer; font-family: inherit;
+      background: var(--knop2); border: 1px solid var(--glas-rand); color: var(--text);
+      padding: 4px 12px; border-radius: var(--r-pil); cursor: pointer; font-family: inherit;
       font-size: 0.8rem;
-      transition: background 0.12s, transform 0.12s var(--ease-spring);
+      transition: background 0.12s;
     }
-    .gep-week button:hover  { background: var(--surface3); transform: scale(1.04); }
-    .gep-week button:active { transform: scale(0.96); }
+    @media (hover: hover) { .gep-week button:hover { background: var(--knop2-hover); } }
     .cal-day-hdr {
       font-size: var(--fs-2xs); font-weight: 600; color: var(--muted);
       text-transform: uppercase; letter-spacing: 0.06em;
-      padding: 10px 15px 6px; border-bottom: 1px solid var(--border);
+      padding: 10px 15px 6px; border-bottom: 1px solid var(--lijn);
     }
     .cal-day-hdr.today { color: var(--accent-ink); }
 
     /* ── Modals ── */
+    /* Open dag (taak 8b): enkel een dimming, geen vervaging. Het glas van het venster (.modal) vervaagt de pagina zelf; een backdrop-filter in
+       een ouder met backdrop-filter ziet de pagina niet meer (zie ook .dok-meer-overlay). z-index 9999: boven het dok (30). */
     .overlay {
       display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
+      background: var(--scrim);
       z-index: 9999; align-items: flex-end; justify-content: center;
     }
     .overlay.open { display: flex; animation: fadeIn 0.2s var(--ease); }
     @media (min-width: 600px) { .overlay { align-items: center; padding: 24px; } }
 
+    /* Vensters (de .modal-familie): sterker gedekt glas (--glas-venster), 28 px, een gloed langs de rand in de kleur van het ticket (ticketdetail:
+       data-urgentie, zie de omtrekregel bij de kaarten) en een grote schaduw. Op een gsm klapt het venster onderaan open met afgeronde bovenhoeken. */
     .modal {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px 16px 0 0;
+      background-color: var(--glas-venster);
+      background-image: var(--gloed-beeld, none);
+      -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
+      backdrop-filter: blur(var(--blur)) saturate(180%);
+      border: 1px solid var(--rand-kleur, var(--glas-rand));
+      border-radius: var(--r-venster) var(--r-venster) 0 0;
       width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto;
-      box-shadow: 0 -8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
+      box-shadow: inset 0 1px 0 var(--glas-licht), var(--gloed-schaduw, 0 0 0 transparent), 0 -8px 40px rgba(0,0,0,0.35);
       animation: slideUp 0.28s var(--ease-spring);
     }
+    /* Taak 9: de gedempte tekst (--muted #8b97a5) haalde op het venster over de hemel 3,9:1; iets lichter in donker (licht haalt het wel) */
+    :root:not([data-theme="light"]) .modal { --muted: #adb6c1; }
     @media (min-width: 600px) {
-      .modal { border-radius: var(--r-lg); box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04); }
+      .modal { border-radius: var(--r-venster); box-shadow: inset 0 1px 0 var(--glas-licht), var(--gloed-schaduw, 0 0 0 transparent), 0 30px 80px rgba(0,0,0,0.35); }
     }
-    .mhdr { padding: 18px 20px 13px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 1; }
+    /* Kop en voet blijven plakken: eigen glaslaag (de inhoud schuift eronder door) */
+    .mhdr { padding: 18px 20px 13px; border-bottom: 1px solid var(--lijn); position: sticky; top: 0; background-color: var(--glas-venster); -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur)); z-index: 1; }
     .mhdr-close {
       position: absolute; top: 14px; right: 14px;
       width: 28px; height: 28px; border-radius: 50%;
-      background: transparent; border: 1px solid transparent; color: var(--muted);
+      background: var(--knop2); border: 1px solid var(--glas-rand); color: var(--muted);
       font-size: 0.95rem; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: background 0.12s, color 0.12s, transform 0.12s var(--ease-spring);
+      transition: background 0.12s, color 0.12s;
     }
-    .mhdr-close:hover  { background: var(--surface2); color: var(--text); border-color: var(--border); transform: scale(1.08); }
-    .mhdr-close:active { transform: scale(0.94); }
+    @media (hover: hover) { .mhdr-close:hover  { background: var(--knop2-hover); color: var(--text); } }
     .mhdr-num { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); font-family: monospace; margin-bottom: 4px; letter-spacing: 0.04em; }
     #d-num { font-size: 1rem; font-weight: 700; color: var(--text); }
     .stop-numtag { font-family: 'SF Mono', 'Consolas', monospace; font-weight: 700; color: var(--text); margin-right: 5px; }
-    .mhdr-title { font-size: 0.97rem; font-weight: 700; line-height: 1.35; color: var(--text); }
+    .mhdr-title { font-family: var(--font-kop); font-size: 1.05rem; font-weight: 700; line-height: 1.3; color: var(--text); }
     .mhdr-tags { display: flex; gap: 5px; margin-top: 9px; flex-wrap: wrap; }
-    .mtag { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 8px; border-radius: 20px; background: var(--surface2); color: var(--muted); }
+    .mtag { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 8px; border-radius: 20px; background: var(--veld); color: var(--muted); }
     .mtag.status   { background: var(--orange-dim); color: var(--orange); }
     .mtag.assignee { background: var(--blue-dim);   color: var(--blue); }
     .mtag.confirmed-by { background: var(--accent-dim); color: var(--accent-ink); }
@@ -839,29 +786,34 @@
     .mval { font-size: 0.83rem; flex: 1; word-break: break-word; color: var(--text2); line-height: 1.4; }
     .mval.miss { color: var(--red); }
     .mval a { color: var(--accent-ink); text-decoration: none; transition: color 0.1s; }
-    .mval a:hover { color: var(--accent-ink); text-decoration: underline; }
+    @media (hover: hover) { .mval a:hover { color: var(--accent-ink); text-decoration: underline; } }
     .mftr {
-      padding: 13px 20px; border-top: 1px solid var(--border);
+      padding: 13px 20px calc(13px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--lijn);
       display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
-      position: sticky; bottom: 0; background: var(--surface);
+      position: sticky; bottom: 0; background-color: var(--glas-venster); -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur));
+    }
+
+    /* Eindreview F2: op gsm geen schermbrede vervaging op de wizard en geen geneste vervaging op de vaste kop/voet van een venster (de zwaarste
+       lagen op een telefoon); de achtergrond is dan bijna effen (--venster-effen), zodat de pagina eronder niet doorschemert. */
+    html[data-apparaat="gsm"] :is(#rapport-wizard, .mhdr, .mftr) {
+      -webkit-backdrop-filter: none; backdrop-filter: none; background-color: var(--venster-effen);
     }
 
     /* ── Gedeelde knoppen ── */
     .btn-cancel {
-      background: transparent; border: 1px solid var(--border); color: var(--text2);
-      padding: 7px 14px; border-radius: var(--r); font-size: 0.82rem; cursor: pointer; font-family: inherit;
-      transition: background 0.12s, color 0.12s, transform 0.12s var(--ease-spring);
+      background: var(--knop2); border: 1px solid var(--border-strong); color: var(--text2); /* Open dag: glazen pil zoals .btn--secondary (Ruling 8) */
+      padding: 7px 14px; border-radius: var(--r-pil); font-size: 0.82rem; cursor: pointer; font-family: inherit;
+      transition: background 0.12s, color 0.12s;
     }
-    .btn-cancel:hover  { background: var(--surface2); color: var(--text); transform: translateY(-1px); }
-    .btn-cancel:active { transform: translateY(0); }
+    @media (hover: hover) { .btn-cancel:hover { background: var(--knop2-hover); color: var(--text); } }
     .btn-save {
-      background: var(--accent); border: none; color: var(--on-accent);
-      padding: 7px 16px; border-radius: var(--r); font-size: 0.82rem; font-weight: 700; cursor: pointer; font-family: inherit;
-      transition: background 0.12s, transform 0.12s var(--ease-spring), box-shadow 0.12s;
+      background: linear-gradient(180deg, #2df0bb, #00d49b); border: none; color: var(--on-groen); /* Open dag: verloop + pil (Ruling 8) */
+      padding: 7px 16px; border-radius: var(--r-pil); font-size: 0.82rem; font-weight: 700; cursor: pointer; font-family: inherit;
+      transition: background 0.12s, box-shadow 0.12s;
       box-shadow: 0 2px 6px rgba(0,223,163,0.2);
     }
-    .btn-save:hover  { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,223,163,0.35); }
-    .btn-save:active { transform: translateY(0); box-shadow: 0 1px 3px rgba(245,158,11,0.2); }
+    @media (hover: hover) { .btn-save:hover { box-shadow: 0 4px 12px rgba(0,223,163,0.35); } }
+    .btn-save:active { box-shadow: 0 1px 3px rgba(245,158,11,0.2); }
 
     /* ── Knoppen (.btn) ── */
     .btn {
@@ -871,26 +823,19 @@
       gap: var(--sp-2);
       min-height: 36px;
       padding: 0 var(--sp-4);
-      border-radius: var(--r);
+      border-radius: var(--r-pil);
       font-family: inherit;
       font-weight: 600;
       font-size: var(--fs-sm);
       line-height: 1.2;
       cursor: pointer;
       border: 1px solid transparent;
-      transition: background 0.12s, color 0.12s, transform 0.12s var(--ease-spring), border-color 0.12s;
-    }
-    .btn:hover:not(:disabled):not([aria-disabled="true"]) {
-      transform: translateY(-1px);
-    }
-    .btn:active {
-      transform: translateY(0);
+      transition: background-color var(--duur) ease, color var(--duur) ease, border-color var(--duur) ease, box-shadow var(--duur) ease;
     }
     .btn:disabled,
     .btn[aria-disabled="true"] {
       opacity: 0.45;
       cursor: not-allowed;
-      transform: none;
     }
     .btn:focus-visible {
       outline: 2px solid var(--focus-ring);
@@ -899,47 +844,44 @@
 
     /* Variants */
     .btn--primary {
-      background: var(--accent);
-      color: var(--on-accent);
-    }
-    .btn--primary:hover:not(:disabled):not([aria-disabled="true"]) {
-      background: var(--accent-hover);
+      background: linear-gradient(180deg, #2df0bb, #00d49b);
+      color: var(--on-groen);
     }
 
     .btn--secondary {
-      background: transparent;
+      background: var(--knop2);
       border-color: var(--border-strong);
       color: var(--text);
     }
-    .btn--secondary:hover:not(:disabled):not([aria-disabled="true"]) {
-      background: var(--surface2);
-    }
+    @media (hover: hover) { .btn--secondary:hover:not(:disabled):not([aria-disabled="true"]) {
+      background: var(--knop2-hover);
+    } }
 
     .btn--danger {
       background: transparent;
       border-color: var(--red);
       color: var(--red);
     }
-    .btn--danger:hover:not(:disabled):not([aria-disabled="true"]) {
-      background: transparent;
-    }
+    @media (hover: hover) { .btn--danger:hover:not(:disabled):not([aria-disabled="true"]) {
+      background: color-mix(in srgb, var(--red) 14%, transparent);
+    } }
     .btn--danger.btn--solid {
       background: var(--red);
       color: var(--on-red);
       border-color: var(--red);
     }
-    .btn--danger.btn--solid:hover:not(:disabled):not([aria-disabled="true"]) {
+    @media (hover: hover) { .btn--danger.btn--solid:hover:not(:disabled):not([aria-disabled="true"]) {
       background: var(--red);
-    }
+    } }
 
     .btn--ghost {
       background: transparent;
       border: none;
       color: var(--text2);
     }
-    .btn--ghost:hover:not(:disabled):not([aria-disabled="true"]) {
+    @media (hover: hover) { .btn--ghost:hover:not(:disabled):not([aria-disabled="true"]) {
       background: transparent;
-    }
+    } }
 
     /* Sizes */
     .btn--sm {
@@ -959,8 +901,28 @@
       min-width: 36px;
       min-height: 36px;
       padding: 0;
-      border-radius: var(--r);
+      border-radius: var(--r-pil); /* Open dag: rond (Ruling 8) */
     }
+
+    /* ── Glans (Open dag-stijl): bij hover vervaagt een zachte witte lichtvlek bovenaan in de knop; niets beweegt of schaalt.
+       :where() houdt de specificiteit op nul, zodat een eigen position (absolute, sticky) van een knop altijd wint. ::before is
+       op deze knoppen vrij; .tab gebruikt geen pseudo-element (de onderlijn staat op .tabs::after). Taak 8a (Ruling 8): ook de chips
+       (.sico, .gep-week button, .kal-pending-pill, .day-btn) en de oudere knoppen, die de Open dag-vorm kregen. */
+    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer, .sico, .gep-week button, .kal-pending-pill, .day-btn) {
+      position: relative; isolation: isolate; overflow: hidden;
+    }
+    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer, .sico, .gep-week button, .kal-pending-pill, .day-btn)::before {
+      content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+      opacity: 0; transition: opacity var(--duur-glans) ease;
+      background: radial-gradient(120% 140% at 50% -20%, rgba(255,255,255,.45), transparent 60%);
+    }
+    /* Enkel met een echte muis (Ruling 9): op aanraking blijft :hover na een tik hangen. */
+    @media (hover: hover) {
+      :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer, .sico, .gep-week button, .kal-pending-pill, .day-btn):hover::before { opacity: 1; }
+      :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .tab, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer, .sico, .gep-week button, .kal-pending-pill, .day-btn):is(:disabled, [aria-disabled="true"]):hover::before { opacity: 0; }
+    }
+    /* Een korte indruk bij klikken: een kleurwijziging, nooit een beweging. */
+    :where(.btn, .hbtn, .btn-add, .btn-rem, .btn-autoplan, .btn-primary, .btn-sec, .btn-cancel, .btn-save, .person-btn, .gebruiker-btn, .kal-nav, .mhdr-close, .prijs-hdr-close, .dok-meer, .sico, .gep-week button, .kal-pending-pill, .day-btn):active:not(:disabled):not([aria-disabled="true"]) { filter: brightness(.94); }
 
     /* Touch targets */
     html[data-aanraak="ja"] .btn {
@@ -986,22 +948,22 @@
 
     /* ── Instellingen ── */
     #set-overlay { align-items: center; padding: 24px; }
-    #set-modal { border-radius: var(--r-lg); max-width: 460px; }
-    .set-subtabs { display:flex; gap:4px; padding:0 16px; border-bottom:1px solid var(--border); }
+    #set-modal { border-radius: var(--r-venster); max-width: 460px; }
+    .set-subtabs { display:flex; gap:4px; padding:0 16px; border-bottom:1px solid var(--lijn); }
     .set-subtab {
       background:none; border:none; padding:10px 14px; font-size:0.85rem; color:var(--muted);
       cursor:pointer; border-bottom:2px solid transparent; font-weight:600;
     }
     .set-subtab.active { color:var(--accent-ink); border-bottom-color:var(--accent); }
-    .set-subtab:hover { color:var(--text); }
+    @media (hover: hover) { .set-subtab:hover { color:var(--text); } }
     .set-field { margin-bottom: 15px; }
-    .set-hint { margin-bottom: 15px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface2); font-size: 0.83rem; color: var(--text2); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+    .set-hint { margin-bottom: 15px; padding: 10px 12px; border: 1px solid var(--lijn); border-radius: var(--r); background: var(--veld); font-size: 0.83rem; color: var(--text2); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
     .set-hint[hidden] { display: none; }
     .set-input:disabled, .day-btn:disabled { opacity: 0.65; cursor: not-allowed; }
     .set-label { font-size: var(--fs-2xs); font-weight: 500; color: var(--muted); margin-bottom: 6px; display: block; }
     .set-input {
-      width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      padding: 8px 11px; border-radius: var(--r); font-size: 0.85rem; font-family: inherit;
+      width: 100%; background: var(--veld); border: 1px solid var(--veld-rand); color: var(--text);
+      padding: 8px 16px; border-radius: var(--r-pil); font-size: 0.85rem; font-family: inherit;
       transition: border-color 0.15s, box-shadow 0.15s;
     }
     /* Oogje bij een wachtwoordveld (kern/wachtwoord-oog.js): knop met raakvlak 44×44 px in het veld, rechts. */
@@ -1012,9 +974,10 @@
       display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; background: transparent;
       color: var(--text2); cursor: pointer; border-radius: var(--r);
     }
-    .ww-oog:hover { color: var(--text); }
+    @media (hover: hover) { .ww-oog:hover { color: var(--text); } }
     .ww-oog:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
     .ww-oog[aria-pressed="true"] { color: var(--accent-ink); }
+    textarea.set-input { border-radius: 18px; }
     .set-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
     .set-input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
     .set-row { display: flex; gap: 8px; align-items: center; }
@@ -1037,30 +1000,30 @@
     .days-grid { display: flex; gap: 5px; flex-wrap: wrap; }
     .day-btn {
       padding: 5px 11px; border-radius: 20px; font-size: 0.76rem; font-weight: 500;
-      border: 1px solid var(--border); background: transparent; color: var(--muted);
+      border: 1px solid var(--glas-rand); background: transparent; color: var(--muted);
       cursor: pointer; font-family: inherit;
       transition: all 0.12s var(--ease-spring);
     }
-    .day-btn:hover { background: var(--surface2); color: var(--text2); transform: scale(1.04); }
+    @media (hover: hover) { .day-btn:hover { background: var(--knop2); color: var(--text2); } }
     .day-btn.on { background: var(--accent-dim); color: var(--accent-ink); border-color: var(--accent-glow); font-weight: 600; }
 
     /* ── Blokkering modal ── */
     #block-overlay { align-items: center; padding: 24px; }
-    #block-modal { border-radius: var(--r-lg); max-width: 360px; }
+    #block-modal { border-radius: var(--r-venster); max-width: 360px; }
 
     .row-btns { display: flex; gap: 8px; justify-content: flex-end; }
     #foto-modal { position: relative; }
 
     /* ── Auto-plan resultaat ── */
     #result-overlay { align-items: center; padding: 24px; }
-    #result-modal { border-radius: var(--r-lg); max-width: 480px; padding: 22px; position: relative; }
+    #result-modal { border-radius: var(--r-venster); max-width: 480px; padding: 22px; position: relative; }
     #result-modal h3 { font-size: 0.95rem; font-weight: 700; margin: 0; padding-right: 40px; }
-    #result-modal .mhdr { margin: -22px -22px 14px; top: -22px; border-radius: var(--r-lg) var(--r-lg) 0 0; }
+    #result-modal .mhdr { margin: -22px -22px 14px; top: -22px; border-radius: var(--r-venster) var(--r-venster) 0 0; }
     #result-modal .mhdr, #foto-modal .mhdr { min-height: 58px; display: flex; align-items: center; }
     #foto-modal .mhdr h3 { padding-right: 40px; }
     .result-section { margin-bottom: 14px; }
     .result-section-title { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
-    .result-item { font-size: 0.8rem; padding: 5px 0; border-bottom: 1px solid var(--border); display: flex; gap: 9px; }
+    .result-item { font-size: 0.8rem; padding: 5px 0; border-bottom: 1px solid var(--lijn); display: flex; gap: 9px; }
     .result-item:last-child { border-bottom: none; }
     .result-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
     .result-dot.ok   { background: var(--green); }
@@ -1070,17 +1033,17 @@
     #toast, #spel-tik-toast {
       position: fixed; bottom: 24px; left: 50%;
       transform: translateX(-50%) translateY(12px);
-      background: var(--surface3);
-      border: 1px solid var(--border);
+      background-color: var(--glas-venster); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%);
+      border: 1px solid var(--glas-rand);
       color: var(--text);
-      padding: 9px 18px; border-radius: 14px; line-height: 1.4;
+      padding: 10px 20px; border-radius: var(--r-kaart); line-height: 1.4;
       font-size: 0.8rem; font-weight: 500;
       /* Boven .overlay (z-index 9999) -- anders vuurt bv. de "Aankomst geregistreerd"-melding
          wel, maar rendert ze onzichtbaar achter een openstaande modal (2026-08-17). */
       z-index: 10000; opacity: 0;
       transition: opacity 0.2s var(--ease), transform 0.2s var(--ease-spring);
       pointer-events: none; white-space: normal; max-width: min(90vw, 480px); text-align: center;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+      box-shadow: inset 0 1px 0 var(--glas-licht), 0 10px 30px rgba(0,0,0,0.35);
     }
     #spel-tik-toast { bottom: 72px; } /* boven de gewone meldingen, zodat ze elkaar niet overlappen */
     #spel-tik-toast:not(.show) { transition: none; } /* bij openen van het spel meteen weg, niet uitfaden over de Start-knop */
@@ -1093,8 +1056,8 @@
     .app-dialog-overlay { align-items: center; padding: 16px; }
     /* Alleen fade (geen scale/slideUp uit .modal): een scale-transform maakt de knoppen tijdens/bij
        bevroren animatie <44px hoog in getBoundingClientRect. */
-    .app-dialog { border-radius: var(--r-lg); padding: 20px; max-width: 440px; animation: fadeIn 0.2s var(--ease); }
-    .app-dialog-titel { font-size: 1.05rem; font-weight: 700; color: var(--text); line-height: 1.35; margin-bottom: 10px; }
+    .app-dialog { border-radius: var(--r-venster); padding: 22px; max-width: 440px; animation: fadeIn 0.2s var(--ease); }
+    .app-dialog-titel { font-family: var(--font-kop); font-size: 1.1rem; font-weight: 700; color: var(--text); line-height: 1.35; margin-bottom: 10px; }
     .app-dialog-tekst { font-size: 0.9rem; line-height: 1.5; color: var(--text2); margin-bottom: 18px; }
     ul.app-dialog-tekst { padding-left: 20px; }
     ul.app-dialog-tekst li { margin-bottom: 4px; }
@@ -1125,54 +1088,58 @@
     /* ── Offline banner ── */
     #offline-banner {
       display: none; align-items: center; gap: 8px;
-      background: var(--orange-dim); border-bottom: 1px solid rgba(245,158,11,0.3);
-      padding: 7px 14px; font-size: 0.78rem; color: var(--orange);
+      background: var(--orange); border-bottom: 1px solid rgba(0,0,0,0.25);
+      padding: 7px 14px; font-size: 0.78rem; font-weight: 600; color: #1d1300; /* Open dag: effen en meteen opvallend, geen glas */
       position: sticky; top: var(--topbar-h, 92px); z-index: 27;
     }
+    /* Fix ronde 1: in het lichte thema is --orange donker (#a94a08); daar witte tekst (5,7:1) in plaats van de donkere tekst die op het lichte oranje van het donkere thema staat. --orange zelf blijft ongemoeid. */
+    :root[data-theme="light"] #offline-banner { color: #fff; }
 
     /* ── Outbox banner (rapport nog niet bevestigd verzonden) ──
        (T20) Verticale lijst i.p.v. één platte tekstregel -- per item ticketnummer, stap,
        pogingen, laatste fout en twee knoppen (Opnieuw proberen / Annuleren). */
     #outbox-banner {
       display: none; flex-direction: column; gap: 2px;
-      background: var(--accent-dim); border-bottom: 1px solid rgba(0,223,163,0.3);
-      padding: 4px 14px; font-size: 0.78rem; color: var(--accent-ink);
+      background: #00dfa3; border-bottom: 1px solid rgba(0,0,0,0.25);
+      padding: 4px 14px; font-size: 0.78rem; font-weight: 600; color: var(--on-groen); /* Open dag: effen en meteen opvallend, geen glas; vast Blitz-groen los van het themaaccent (eindreview F1: --accent en --on-accent worden door een themapakket overschreven) */
       position: sticky; top: calc(var(--topbar-h, 92px) + var(--offline-h, 0px)); z-index: 27;
     }
     .outbox-item {
       display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
       padding: 4px 0;
     }
-    .outbox-item + .outbox-item { border-top: 1px solid rgba(0,223,163,0.2); }
+    .outbox-item + .outbox-item { border-top: 1px solid rgba(11,31,24,0.25); }
     .outbox-item-tnum  { font-weight: 700; }
-    .outbox-item-step  { color: var(--accent-ink); }
-    .outbox-item-attempts { font-size: var(--fs-2xs); color: var(--muted); }
+    .outbox-item-step  { color: inherit; }
+    .outbox-item-attempts { font-size: var(--fs-2xs); color: inherit; opacity: 0.8; }
     .outbox-item-error {
-      flex-basis: 100%; font-size: var(--fs-2xs); color: var(--orange);
-      opacity: 0.85; white-space: normal;
+      flex-basis: 100%; font-size: var(--fs-2xs); color: #4a1700;
+      white-space: normal;
     }
     .outbox-item-btn {
-      margin-left: auto; background: var(--surface2); border: 1px solid var(--border);
-      color: var(--text2); padding: 4px 10px; border-radius: 6px; font-size: var(--fs-2xs);
+      margin-left: auto; background: rgba(255,255,255,0.35); border: 1px solid rgba(11,31,24,0.45);
+      color: var(--on-groen); padding: 4px 12px; border-radius: var(--r-pil); font-size: var(--fs-2xs);
       font-weight: 600; cursor: pointer; font-family: inherit;
       transition: background 0.1s, color 0.1s, border-color 0.1s;
     }
-    .outbox-item-btn:hover { background: var(--surface3); color: var(--text); }
+    @media (hover: hover) { .outbox-item-btn:hover { background: rgba(255,255,255,0.6); } }
     .outbox-item-btn + .outbox-item-btn { margin-left: 0; }
-    .outbox-item-btn-cancel { color: var(--red); border-color: var(--red-line); }
-    .outbox-item-btn-cancel:hover { background: var(--red-dim); border-color: var(--red); }
+    .outbox-item-btn-cancel { color: #7a0f0a; border-color: rgba(122,15,10,0.6); }
+    @media (hover: hover) { .outbox-item-btn-cancel:hover { background: rgba(255,255,255,0.6); border-color: #7a0f0a; } }
 
     /* ── Test mode badge ── */
     #test-badge {
-      display: none; background: var(--orange); color: #000;
+      display: none; background: var(--orange); color: #000; /* in licht is --orange donker: zie de regel eronder */
       font-size: var(--fs-2xs); font-weight: 800; padding: 2px 7px;
       border-radius: 10px; letter-spacing: 0.05em; flex-shrink: 0;
     }
 
+    :root[data-theme="light"] #test-badge { color: #fff; } /* taak 9: zwart op het donkere oranje van licht haalde 3,7:1, wit 5,7:1 */
+
     /* Rolwisselaar van de lokale testmodus (naast #test-badge; bestaat enkel op een lokale dev-server) */
     .test-rol-wissel {
       flex-shrink: 0; font: inherit; font-size: var(--fs-2xs); font-weight: 700; padding: 1px 4px;
-      border-radius: 8px; border: 1px solid var(--orange); background: var(--surface2); color: var(--text);
+      border-radius: 8px; border: 1px solid var(--orange); background: var(--veld); color: var(--text);
     }
 
     /* ── Focus ring globaal ── */
@@ -1181,10 +1148,7 @@
       outline-offset: 2px;
     }
     button:focus:not(:focus-visible) { outline: none; }
-    /* Tab als <button>: de bestaande .tab-regels blijven, enkel de knop-standaarden weg */
-    button.tab { background: none; border: 0; font: inherit; font-size: 0.81rem; font-weight: 500; color: var(--muted); }
-    button.tab.active { font-weight: 600; color: var(--text); }
-    .tab:focus-visible { outline-offset: -2px; }
+    /* Tab als <button>: de knop-standaarden en de focusring staan bij de tabs in css/navigatie.css */
 
     /* ── Arrival badge per stop ── */
     .stop-arrival {
@@ -1197,26 +1161,27 @@
     /* Route onder elkaar: smalle indeling en tablet rechtop; de 680px-regel blijft voor smalle computervensters */
     html[data-indeling="smal"] .plan-body, html[data-indeling="tablet-staand"] .plan-body { flex-direction: column; }
     html[data-indeling="smal"] #route-list, html[data-indeling="tablet-staand"] #route-list,
-    html[data-indeling="smal"] .sales-route-lijstvak, html[data-indeling="tablet-staand"] .sales-route-lijstvak { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+    html[data-indeling="smal"] .sales-route-lijstvak, html[data-indeling="tablet-staand"] .sales-route-lijstvak { width: 100%; border-right: none; border-bottom: 1px solid var(--lijn); }
     html[data-indeling="smal"] #map-wrap, html[data-indeling="tablet-staand"] #map-wrap,
     html[data-indeling="smal"] .sales-route-kaartvak, html[data-indeling="tablet-staand"] .sales-route-kaartvak { height: 260px; flex: none; min-height: 0; }
     html[data-indeling="smal"] #map, html[data-indeling="tablet-staand"] #map,
     html[data-indeling="smal"] .sales-route-kaart, html[data-indeling="tablet-staand"] .sales-route-kaart { height: 100%; min-height: 0; }
     @media (max-width: 680px) {
       .plan-body { flex-direction: column; }
-      #route-list, .sales-route-lijstvak { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+      #route-list, .sales-route-lijstvak { width: 100%; border-right: none; border-bottom: 1px solid var(--lijn); }
       #map-wrap, .sales-route-kaartvak { height: 260px; flex: none; min-height: 0; } #map, .sales-route-kaart { height: 100%; min-height: 0; }
     }
 
     /* Tablet rechtop (bv. Galaxy Tab S7 FE: 800px breed) kreeg 5 samengedrukte dagkolommen naast
        elkaar -- onder 1024px (geen tijdlijn) nu dagen onder elkaar, zoals op de gsm (2026-09-29). */
-    html[data-indeling="smal"] .week-grid { flex-direction: column; }
+    html[data-indeling="smal"] .week-grid { flex-direction: column; margin: 8px 10px 12px; }
+    html[data-indeling="smal"] .month-grid { margin: 8px 10px 12px; }
     /* Lijstweergave: dagnaam en datum op één regel ("MA 28") */
     html[data-indeling="smal"] .day-hdr { padding: 8px 10px 6px; }
     html[data-indeling="smal"] .day-hdr-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
     html[data-indeling="smal"] .day-hdr-name { margin-bottom: 0; }
     html[data-indeling="smal"] .day-hdr-num { margin: 0; }
-    html[data-indeling="smal"] .day-col { min-width: unset; border-right: none; border-bottom: 1px solid var(--border); }
+    html[data-indeling="smal"] .day-col { min-width: unset; border-right: none; border-bottom: 1px solid var(--lijn); }
 
     /* Beperkte technieker-weergave: de rol (niet de schermbreedte) verbergt coördinatorfuncties */
     /* De rolgebonden schil (tabs, persoonkeuze, vernieuw/instellingen, hoofdinhoud) blijft onzichtbaar tot de rol bekend en toegepast is
@@ -1246,7 +1211,7 @@
        alle dag-kolommen (incl. maandag) zijn hierdoor weer identiek qua afmetingen. */
     .tl-wrap { position: relative; margin: 0 -6px; }
     .tl-hour-line {
-      position: absolute; left: 0; right: 0; border-top: 1px dashed var(--border); height: 0;
+      position: absolute; left: 0; right: 0; border-top: 1px dashed var(--lijn); height: 0;
     }
     /* Donkere banden buiten de werkuren (voor 08:30 en vanaf 17:00) */
     .tl-offhours { position: absolute; left: 0; right: 0; background: var(--tl-offhours); pointer-events: none; }
@@ -1254,10 +1219,10 @@
     .tl-now { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--red); z-index: 4; pointer-events: none; }
     .tl-now::before { content: ''; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
     .badge-buitenuren { font-size: 0.7rem; font-weight: 600; padding: 1px 6px; border-radius: 20px; display: inline-block; margin: 0 0 4px 4px; background: var(--orange-dim); color: var(--orange); }
-    .kal-nu-marker { flex: none; border-top: 2px solid var(--red); margin: 6px 0; padding-top: 2px; font-size: 0.7rem; font-weight: 700; line-height: 1.2; color: var(--red); text-align: right; }
+    .kal-nu-marker { flex: none; border-top: 2px solid var(--red); margin: 6px 0; padding: 2px 6px 3px; background: var(--chip-onder); font-size: 0.7rem; font-weight: 700; line-height: 1.2; color: var(--red); text-align: right; }
     .tl-now-label { position: absolute; right: 0; top: -9px; font-size: 0.7rem; font-weight: 700; line-height: 1; padding: 2px 4px; border-radius: 3px; color: #fff; background: #c81e1e; }
     .tl-block {
-      position: absolute; left: 6px; right: 6px; overflow: hidden; border-radius: var(--r);
+      position: absolute; left: 6px; right: 6px; overflow: hidden; border-radius: var(--r-ev);
     }
     /* Gedeelde uren-kolom vóór maandag (zie renderTimelineGutter() in index.html) */
     .day-col.tl-gutter { flex: 0 0 40px; min-width: 40px; }
@@ -1311,7 +1276,7 @@
     .ann-hint { font-size: var(--fs-xs); color: var(--muted); margin-top: 6px; }
     .ann-details { margin-bottom: 4px; }
     .ann-details summary { cursor: pointer; font-size: var(--fs-sm); font-weight: 600; color: var(--accent-ink); padding: 6px 0; }
-    .ann-frame { display: block; width: 100%; height: 320px; max-height: 320px; margin-top: 8px; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
+    .ann-frame { display: block; width: 100%; height: 320px; max-height: 320px; margin-top: 8px; border: 1px solid var(--lijn); border-radius: 6px; background: #fff; }
     #annuleer-overlay:focus { outline: none; }
     html[data-aanraak="ja"] .ann-optie { min-height: 44px; }
     html[data-aanraak="ja"] .ann-optie input[type="radio"] { width: 22px; height: 22px; }
@@ -1322,33 +1287,113 @@
     .gebruiker-btn { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: -0.5px; color: var(--accent-ink); background: var(--accent-dim); }
     .gebruiker-menu {
       position: absolute; top: calc(100% + 8px); right: 0;
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: var(--r-lg); box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+      background-color: var(--glas-venster); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); border: 1px solid var(--glas-rand);
+      border-radius: var(--r-kaart); box-shadow: inset 0 1px 0 var(--glas-licht), 0 18px 44px rgba(0,0,0,0.35);
       min-width: 220px; z-index: 200; display: none; overflow: hidden;
     }
     .gebruiker-menu.open { display: block; animation: slideUp 0.18s var(--ease-spring); }
-    .gm-kop { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+    .gm-kop { padding: 10px 14px; border-bottom: 1px solid var(--lijn); }
     .gm-naam { font-size: 0.85rem; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
     .gm-rol { font-size: var(--fs-2xs); color: var(--muted); }
     /* Een tab die de rol niet toestaat (hidden): .tab zet display:flex en zou het attribuut anders overrulen. */
     .tabs-inner .tab[hidden] { display: none !important; }
-    /* UI/UX P2-10 (gsm): smallere tabs, zodat de technieker zijn 4 tabs volledig ziet (alle tabs delen de ruimte); past een rol met veel tabs
-       (beheerder: 8) niet, dan scrollt de balk en tonen "scrollschaduwen" aan de kant waar nog meer staat (alleen zichtbaar bij overloop). */
-    html[data-indeling="smal"] .tab { padding: 0 8px; flex: 1 0 auto; justify-content: center; }
-    html[data-indeling="smal"] .tabs-inner { padding: 0 4px; }
-    html[data-indeling="smal"] .tabs-inner {
-      background:
-        linear-gradient(to right, var(--surface) 30%, transparent) left center / 28px 100% no-repeat local,
-        linear-gradient(to left, var(--surface) 30%, transparent) right center / 28px 100% no-repeat local,
-        linear-gradient(to right, rgba(0, 0, 0, 0.38), transparent) left center / 12px 100% no-repeat scroll,
-        linear-gradient(to left, rgba(0, 0, 0, 0.38), transparent) right center / 12px 100% no-repeat scroll;
-    }
+    /* UI/UX P2-10 (smallere tabs en scrollschaduwen op de gsm) is vervangen door het dok van css/navigatie.css (Open dag, taak 5). */
 
 /* De filterbalk van Rapporten (class .rapp-balk, was een inline vaste top:92px; v1.10.3 gaf hem de meldingsbalken erbij, v2.0.1 de gedeelde --sticky-top). */
-.rapp-balk { position: sticky; top: var(--sticky-top, 93px); z-index: 28; padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--surface); }
-/* De meldingsbalken hadden een doorzichtige tint: rapportkaarten schemerden erdoor. Eerst een dichte
-   ondergrond, de tint er bovenop. */
-#offline-banner { background-image: linear-gradient(var(--orange-dim), var(--orange-dim)); background-color: var(--bg); }
-#outbox-banner  { background-image: linear-gradient(var(--accent-dim), var(--accent-dim)); background-color: var(--bg); }
+.rapp-balk { position: sticky; top: var(--sticky-top, 93px); z-index: 28; padding: 14px 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background-color: var(--glas-sterk); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); border-bottom: 1px solid var(--glas-rand); }
+/* Offline- en outbox-balk: een effen kleur (geen glas), zodat ze meteen opvallen en er niets doorheen schemert (zie de regels bij de banners). */
 /* Versienummer onderaan Instellingen */
 .set-versie { order: 1; flex: 1 1 100%; text-align: center; font-size: var(--fs-2xs); color: var(--muted); }
+
+/* ── Kop en paginakop (Open dag, taak 7) ──
+   - Glas achter de kop: een laag .topbar-sticky::before (halfdoorschijnend + vervaging). Nooit backdrop-filter, filter, transform of contain
+     op .topbar-sticky, header of nav zelf: dan zitten de vaste zijkolom, het dok en de persoonkiezer aan hun ouder vast (css/navigatie.css).
+     De laag ligt in de stapelcontext van .topbar-sticky (z-index 30) onder de inhoud van de kop; op `breed` begint ze na de zijkolom
+     (de body schuift --zijkolom-b op), op gsm vult ze de kop. Content die onder de sticky kop doorschuift, wordt vervaagd.
+   - data-nav="kolom" (zijkolom, kern/navigatievorm.js): de kop is een paginakop. Het logo staat in de zijkolom (.zijkolom-logo; het verborgen spel luistert daar ook, app.js), de kop
+     toont de titel van het actieve tabblad + een samenvatting (schermen/paginakop.js) en rechts ronde glazen knoppen.
+   - data-nav="dok": geen paginakop; logo + alle knoppen op één regel. Op een smalle gsm wijkt, in deze volgorde: de tekst
+     "Blitz Planning" (al weg op `smal`, zie boven), de randen van de icoonknoppen (<= 430 px), de TEST-badge als klein label boven het logo
+     (<= 400 px). Nooit een tweede regel, nooit iets verbergen, nooit horizontaal scrollen (e2e/paginakop.spec.mjs). */
+.topbar-sticky::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-color: var(--glas-sterk);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
+  backdrop-filter: blur(var(--blur)) saturate(180%);
+  border-bottom: 1px solid var(--glas-rand); /* één lijn onderaan (taak 8a: de extra inset-schaduw gaf er twee) */
+}
+/* Taak 17: op het dok (gsm, staande tablet) schuift na een scroll of de sprong van de kalender tekst onder de kop en de balken door; één laag glas liet die als
+   vage schim doorschijnen ("Kalender" onder het logo, de rand van de kaart onder de werkbalk). Een tweede laag van DEZELFDE kleur (het token, dus in elk thema en
+   in elke themakleur) maakt de balken bijna dicht; de vervaging blijft. Enkel een achtergrondlaag: nooit backdrop-filter, filter, transform of contain op de kop. */
+html[data-nav="dok"] .topbar-sticky::before,
+html[data-nav="dok"] :is(.lijst-balk, .kal-header, .gep-week, .route-balk, .rapp-balk) { background-image: linear-gradient(var(--glas-sterk), var(--glas-sterk)); }
+/* Pc (zijkolom): het glas van de kop zweeft als de zijkolom: dezelfde straal en 14 px van de boven- en rechterrand; links sluit het aan op de
+   14 px marge naast de zijkolom (body-padding). Onderaan blijft 8 px lucht tot de balk eronder; de kop is 92 px (taak 16); de sticky-afstanden (--sticky-top, js/sticky-offset.js)
+   volgen vanzelf. De balken eronder worden ronde glazen balken met 14 px rechts. */
+html[data-nav="kolom"] .topbar-sticky::before {
+  inset: 14px 14px 8px 0;
+  border: 1px solid var(--glas-rand);
+  border-radius: var(--r-zijkolom);
+}
+html[data-nav="kolom"] :is(.lijst-balk, .kal-header, .gep-week, .route-balk, .rapp-balk) {
+  margin-right: 14px;
+  border: 1px solid var(--glas-rand);
+  border-radius: var(--r-kaart);
+}
+/* Het uitklappaneel "zonder datum" (opent onder .kal-header) volgt dezelfde rechterrand en straal; dicht blijft het een vlak van 0 hoogte zonder rand of lucht. */
+html[data-nav="kolom"] #kal-no-date-section { margin-right: 14px; border-radius: var(--r-kaart); border-width: 0; }
+html[data-nav="kolom"] #kal-no-date-section.open { margin-top: 8px; border-width: 1px; border-style: solid; border-color: var(--glas-rand); }
+/* Taak 16: ook de route-indeling is ronde glazen vlakken zonder rechte hoeken: de lijstkolom en de kaart staan als twee afgeronde panelen naast elkaar (8 px lucht
+   ertussen en eronder, rechts dezelfde 14 px als de balken) en de samenvatting (Stops, Afstand, Rijtijd) is een ronde glazen balk eronder. Geldt voor de
+   technieker (#route-list, #map-wrap) en de verkoper (.sales-route-lijstvak, .sales-route-kaartvak). Op gsm en staande tablet (dok) blijft alles vlak. */
+html[data-nav="kolom"] .plan-body { gap: 8px; padding: 8px 14px 8px 0; }
+html[data-nav="kolom"] :is(#route-list, .sales-route-lijstvak) { border: 1px solid var(--glas-rand); border-radius: var(--r-kaart); }
+html[data-nav="kolom"] :is(#map-wrap, .sales-route-kaartvak) { margin: 0; }
+html[data-nav="kolom"] .plan-summary { margin: 0 14px 8px 0; border: 1px solid var(--glas-rand); border-radius: var(--r-kaart); }
+.paginakop { display: none; }
+#paginatitel {
+  margin: 0; font-family: var(--font-kop); font-size: 26px; line-height: 1.1; font-weight: 700; letter-spacing: -0.01em;
+  color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#paginasub { margin: 0; font-size: 13px; line-height: 1.35; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Taak 16: de inhoud van de kop staat in het midden van het ZICHTBARE glas (inset 14 px boven, 8 px onder), niet van het element: de opvulling boven en
+   onder is dezelfde 14 en 8 px als de inset. 92 px (was 84) geeft ook titel plus ondertitel ruim 10 px lucht boven en onder; --sticky-top volgt vanzelf. */
+html[data-nav="kolom"] header { height: 92px; padding: 14px 26px 8px; gap: 10px; }
+html[data-nav="kolom"] header .logo { display: none; }
+html[data-nav="kolom"] .paginakop {
+  display: flex; flex-direction: column; justify-content: center; gap: 3px;
+  flex: 1 1 auto; min-width: 0;
+}
+/* Ronde glazen knoppen rechts (vernieuwen, thema, instellingen, avatar) */
+html[data-nav="kolom"] header .hbtn {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--knop2); border: 1px solid var(--glas-rand); color: var(--text2);
+}
+@media (hover: hover) { html[data-nav="kolom"] header .hbtn:hover { background: var(--knop2-hover); color: var(--text); } }
+html[data-nav="kolom"][data-aanraak="ja"] header .hbtn { width: 44px; height: 44px; }
+html[data-nav="kolom"] header .gebruiker-btn {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent-ink);
+}
+html[data-nav="kolom"] #test-badge { padding: 3px 10px; border-radius: var(--r-pil); }
+
+/* Gsm: wijken op een smalle kop (zie boven). Enkel randen en vulling verdwijnen; de knoppen zelf blijven (aanraken: 44 px). */
+/* Taak 8a: op data-nav="dok" (ook een smal computervenster, indeling `breed`) in plaats van enkel `smal`: het wijken hangt aan de breedte. */
+@media (max-width: 430px) {
+  html[data-nav="dok"] .logo-text { display: none; } /* op `smal` al altijd weg; een smal computervenster volgt */
+  html[data-nav="dok"] header .hbtn { border-color: transparent; }
+  html[data-nav="dok"] header .hbtn:not(.gebruiker-btn) { background: transparent; }
+  html[data-nav="dok"][data-aanraak="nee"] header .hbtn { width: 36px; min-width: 36px; }
+}
+@media (max-width: 400px) {
+  /* .topbar-sticky (sticky) is het bevattende blok: linksboven, over de bovenrand van het logo-icoon */
+  html[data-nav="dok"] #test-badge {
+    position: absolute; top: 3px; left: 4px; z-index: 1;
+    font-size: 0.5rem; line-height: 1.3; padding: 0 5px; letter-spacing: 0.04em; /* 5 px: de tekst blijft binnen de ronde einden van het label */
+  }
+}
+@media print {
+  .topbar-sticky::before { display: none; }
+}

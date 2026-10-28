@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
-import { test, expect, startApp, snelTikken, metStilstaandeKlok } from './helpers.mjs';
+import { test, expect, startApp, snelTikken, metStilstaandeKlok, spelLogo } from './helpers.mjs';
 import { WERELD, SPELER } from '../public/js/spel/spel-logica.js';
 
 const THEMAS_MAP = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..', 'netlify', 'themas');
@@ -29,7 +29,7 @@ function themasMetKerst() {
 // Blitz Run (verborgen spel): 5× snel tikken op het logo-icoon opent het overlay, 5× tikken / ✕ / Escape sluit het, het toetsenbord
 // speelt, en het spel verstuurt nooit iets buiten /api/spel. In ?test; de klok is een nepklok (page.clock).
 
-const titel = (page) => page.locator('.logo-icon');
+const titel = (page) => spelLogo(page); // Open dag (taak 7): op `breed` het logo in de zijkolom (kop-logo verborgen), zie helpers.mjs
 const overlay = (page) => page.locator('#spel-overlay');
 const tikVijf = (page) => snelTikken(page, titel(page)); // stilstaande nepklok tijdens het tikken (zie helpers.mjs)
 const status = (page) => overlay(page).getAttribute('data-status');

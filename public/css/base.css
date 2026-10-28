@@ -23,6 +23,11 @@
       --r:      8px;
       --r-lg:   12px;
       --r-pill: 999px;
+      /* Open dag-stijl: stralen van kaarten, vensters, evenementen en pillen */
+      --r-kaart:   22px;
+      --r-venster: 28px;
+      --r-ev:      16px;
+      --r-pil:     999px;
 
       /* ── Z-index stacking ── */
       --z-event:    15; /* feestelijke versiering: boven de inhoud, onder alle sticky balken (20-30) */
@@ -33,7 +38,7 @@
       --z-toast:    10000;
 
       /* ── Blitz Power brand kleuren ── */
-      --bg:       #181e24;
+      --bg:       #0d1530; /* dicht bij de nachthemel (--h1/--h2 van de hemel) */
       --surface:  #1d252d;
       --surface2: #232d37;
       --surface3: #2b3542;
@@ -44,6 +49,10 @@
       --accent-glow:  rgba(0,223,163,0.22);
       --accent-hover: #00f5b5;
       --on-accent:    #0b1f18;
+      /* Tekst op vaste vlakken die NIET met het thema meekleuren (Open dag, taak 9c): het groene verloop van de knoppen (#2df0bb naar #00d49b)
+         en het oranje van de teller. Een themapakket zet --on-accent op wit (Sinterklaas: rood accent); dat is dan wit op felgroen (1,55:1). */
+      --on-groen:     #0b1f18;
+      --on-oranje:    #1f1300;
       --accent-ink:   var(--accent);
       --tl-offhours:  rgba(0,0,0,0.28);
       --green:      #00dfa3;
@@ -64,14 +73,49 @@
       --text:  #d9d9d6;
       --text2: #a8b0ba;
       --muted: #8b97a5;
+      /* Tekst die op de hemel of op een dun glasvlak staat (taak 9b): lichter dan --text/--muted, zodat 4,5:1 haalbaar blijft over de
+         horizonglans (de gedempte grijstint haalde daar 2,2 tot 4,3). Gelden binnen #hoofdinhoud en op de kaarten (app.css). */
+      --tekst-op-hemel:  #f5f7f9;
+      --tekst2-op-hemel: #e6eaef;
       --focus-ring: var(--accent);
+      /* ── Open dag-stijl: glas (donker), letters, gloed en duur ──
+         Glas ligt boven de hemel; de vervaging en de dekking worden verderop per toestel/voorkeur bijgesteld. */
+      --glas:            rgba(12,20,44,0.40);
+      --glas-hover:      rgba(26,38,70,0.52);
+      --glas-sterk:      rgba(12,20,44,0.50);
+      /* enkel het dok (data-nav="dok", navigatie.css) en enkel in donker: een felgroene knop die er onderdoor schuift haalde er 3,6:1 (taak 9c) */
+      --glas-dok:        rgba(12,20,44,0.68);
+      --glas-venster:    rgba(24,36,62,0.84);
+      --venster-effen:   rgba(24,36,62,0.97); /* gsm: wizard en vensterkop/-voet zonder vervaging (eindreview F2), dus bijna effen */
+      --glas-rand:       rgba(255,255,255,0.14);
+      --glas-rand-hover: rgba(255,255,255,0.26);
+      --glas-licht:      rgba(255,255,255,0.16);
+      --blur:            28px;
+      --glas-schaduw:    0 20px 50px rgba(0,0,0,0.18);
+      --knop2:           rgba(255,255,255,0.08);
+      --knop2-hover:     rgba(255,255,255,0.16);
+      --veld:            rgba(255,255,255,0.08);
+      /* Taak 8b: rand van invoervelden, scheidingslijnen binnen glas (kalenderraster, tabellen) en de dimming achter een venster */
+      --veld-rand:       rgba(255,255,255,0.22);
+      --lijn:            rgba(255,255,255,0.10);
+      --scrim:           rgba(6,12,28,0.5);
+      --font-tekst: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      --font-kop:   'Bricolage Grotesque', 'Figtree', system-ui, -apple-system, sans-serif;
+      /* Gloed: afgeleid van de statuskleuren (die blijven ongemoeid), sterkte per thema */
+      --gloed-sterk:  40%;
+      --gloed-rood:   color-mix(in srgb, var(--red) var(--gloed-sterk), transparent);
+      --gloed-oranje: color-mix(in srgb, var(--orange) var(--gloed-sterk), transparent);
+      --gloed-groen:  color-mix(in srgb, var(--green) var(--gloed-sterk), transparent);
+      --gloed-paars:  color-mix(in srgb, var(--purple) var(--gloed-sterk), transparent);
+      --duur:       .28s;
+      --duur-glans: .4s;
       --ease:        cubic-bezier(0.4, 0, 0.2, 1);
       --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     }
 
     /* ── Light theme ── */
     :root[data-theme="light"] {
-      --bg:       #f0f2f5;
+      --bg:       #e5eefa; /* dicht bij de middaghemel */
       --surface:  #ffffff;
       --surface2: #f5f6f8;
       --surface3: #eaecef;
@@ -80,6 +124,8 @@
       --text:     #1a2433;
       --text2:    #4a5568;
       --muted:    #5b6778;
+      --tekst-op-hemel:  #1a2433;
+      --tekst2-op-hemel: #3d4652;
       --accent-ink:  var(--text);
       --tl-offhours: rgba(26,36,51,0.07);
       --orange: #a94a08;
@@ -99,10 +145,93 @@
       --orange-dim:  rgba(217,119,6,0.10);
       --blue-dim:    rgba(59,130,246,0.10);
       --green-dim:   rgba(0,180,130,0.10);
+      /* Open dag-stijl: glas (licht) */
+      --glas:            rgba(255,255,255,0.52);
+      --glas-hover:      rgba(255,255,255,0.72);
+      --glas-sterk:      rgba(255,255,255,0.58);
+      --glas-dok:        var(--glas);
+      --glas-venster:    rgba(255,255,255,0.88);
+      --venster-effen:   rgba(255,255,255,0.98);
+      --glas-rand:       rgba(255,255,255,0.85);
+      --glas-rand-hover: rgba(255,255,255,1);
+      --glas-licht:      rgba(255,255,255,0.95);
+      --glas-schaduw:    0 20px 50px rgba(40,70,120,0.1);
+      --knop2:           rgba(255,255,255,0.55);
+      --knop2-hover:     rgba(255,255,255,0.92);
+      --veld:            rgba(255,255,255,0.6);
+      --veld-rand:       rgba(26,36,51,0.30);
+      --lijn:            rgba(30,50,90,0.12);
+      --scrim:           rgba(40,60,100,0.30);
+      --gloed-sterk:     34%;
+    }
+
+    /* ── Open dag-stijl, taak 9: donker glas op de scène van een thema ──
+       Een thema met achtergrond (data-event-achtergrond="ja", gezet door schermen/evenement-laag.js) vervangt de hemel door een scène met
+       een heldere maan, zon of sneeuwvlakte. Wit glas van 7,5 % laat daar geen 4,5:1 over (gemeten: Halloween 1,5:1, Sinterklaas 2,5:1);
+       eerst is de tekst al bijna wit, dus de dekking gaat omhoog en het glas wordt donkerblauw. Eén regel voor alle thema's (nooit een alpha
+       per thema). Enkel in donker (licht haalt het met het gewone glas); de gsm-regel hieronder verliest op specificiteit, de regels voor
+       verminderde transparantie en zonder backdrop-filter komen later en winnen op volgorde (zelfde specificiteit). */
+    html[data-event-achtergrond="ja"]:not([data-theme="light"]) {
+      --glas:        rgba(14,22,42,0.56);
+      --glas-hover:  rgba(30,44,76,0.66);
+      --glas-sterk:  rgba(14,22,42,0.62);
+      --glas-dok:    rgba(14,22,42,0.70);
+    }
+
+    /* ── Open dag-stijl: minder vervaging en meer dekking waar glas te zwaar of niet mogelijk is ──
+       Volgorde en specificiteit zijn bewust: gsm eerst; "verminderde transparantie" en "geen backdrop-filter" winnen daarna. */
+    html[data-apparaat="gsm"] {
+      --blur:         10px;
+      --glas:         rgba(12,20,44,0.50);
+      --glas-hover:   rgba(26,38,70,0.60);
+      --glas-sterk:   rgba(12,20,44,0.56);
+      --glas-venster: rgba(24,36,62,0.92);
+    }
+    html[data-apparaat="gsm"][data-theme="light"] {
+      --glas:         rgba(255,255,255,0.72);
+      --glas-hover:   rgba(255,255,255,0.84);
+      --glas-sterk:   rgba(255,255,255,0.76);
+      --glas-venster: rgba(255,255,255,0.94);
+    }
+    @media (prefers-reduced-transparency: reduce) {
+      html:root:not([data-theme="light"]) {
+        --blur:         0px;
+        --glas:         rgba(32,44,74,0.94);
+        --glas-hover:   rgba(42,55,88,0.96);
+        --glas-sterk:   rgba(36,49,80,0.95);
+        --glas-dok:     rgba(36,49,80,0.95);
+        --glas-venster: rgba(24,36,62,0.97);
+      }
+      html:root[data-theme="light"] {
+        --blur:         0px;
+        --glas:         rgba(255,255,255,0.94);
+        --glas-hover:   rgba(255,255,255,0.97);
+        --glas-sterk:   rgba(255,255,255,0.95);
+        --glas-venster: rgba(255,255,255,0.98);
+      }
+      /* Eindreview F8: geen vervaging meer (niet enkel blur(0px)): het glas is hier bijna effen, de filter kost dan enkel rekenwerk. */
+      *, *::before, *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+    }
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      html:root:not([data-theme="light"]) {
+        --blur:         0px;
+        --glas:         rgba(32,44,74,0.94);
+        --glas-hover:   rgba(42,55,88,0.96);
+        --glas-sterk:   rgba(36,49,80,0.95);
+        --glas-dok:     rgba(36,49,80,0.95);
+        --glas-venster: rgba(24,36,62,0.97);
+      }
+      html:root[data-theme="light"] {
+        --blur:         0px;
+        --glas:         rgba(255,255,255,0.94);
+        --glas-hover:   rgba(255,255,255,0.97);
+        --glas-sterk:   rgba(255,255,255,0.95);
+        --glas-venster: rgba(255,255,255,0.98);
+      }
     }
 
     html, body {
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-family: var(--font-tekst);
       background: var(--bg);
       color: var(--text);
       -webkit-font-smoothing: antialiased;
@@ -131,8 +260,8 @@
     }
 
     /* ── Reduced motion: dempen, niet verbergen ──
-       Animaties/overgangen worden vrijwel instant (toestandswissels blijven zichtbaar), hover-/
-       active-transforms vervallen. Functionele transforms (slepen, kalenderblokpositie, toast-
+       Animaties/overgangen worden vrijwel instant (toestandswissels blijven zichtbaar); de glans van
+       knoppen is dan meteen aan of uit. Hover-/active-transforms bestaan niet meer. Functionele transforms (slepen, kalenderblokpositie, toast-
        positie) blijven onaangeroerd. */
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
@@ -141,11 +270,6 @@
         transition-duration: .01ms !important;
         scroll-behavior: auto !important;
       }
-      .sico:hover, .sico:active,
-      .filter-pill:hover, .filter-pill:active,
-      .mhdr-close:hover, .mhdr-close:active,
-      .btn:hover, .btn:active,
-      .btn-icon:hover, .btn-icon:active { transform: none !important; }
       .inv-log-row.inv-day-new { animation: none !important; }
     }
 
@@ -185,11 +309,12 @@
 
 
     /* ── Skeleton-laadschermen (kern/skelet.js) ──
-       Grijze blokken in de vorm van de echte inhoud zolang een scherm op zijn gegevens wacht. Enkel bestaande tokens (licht en donker). */
+       Open dag (taak 8b): blokken in de vorm van de echte inhoud: een doorschijnende tint van de tekstkleur (donker: lichtvlak, licht: schaduwvlak)
+       op glazen kaarten, zodat ze op de hemel liggen in plaats van als grijze vlakken. Enkel bestaande tokens (licht en donker). */
     .skelet-weg { display: none !important; }
     .skelet { display: block; min-width: 0; pointer-events: none; user-select: none; }
     .skelet-blok {
-      background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%);
+      background: linear-gradient(90deg, color-mix(in srgb, var(--text) 9%, transparent) 25%, color-mix(in srgb, var(--text) 18%, transparent) 50%, color-mix(in srgb, var(--text) 9%, transparent) 75%);
       background-size: 200% 100%;
       border-radius: var(--r-sm);
       animation: skelet-shimmer 1.4s ease-in-out infinite;
@@ -199,18 +324,18 @@
     .skelet-regel--titel { height: 16px; }
     .skelet-regel--kort { height: 10px; }
     .skelet-rijen, .skelet-formulier, .skelet-route-lijst { display: flex; flex-direction: column; gap: var(--sp-3); }
-    .skelet-rij { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-3) var(--sp-2); border-bottom: 1px solid var(--border); }
+    .skelet-rij { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-3) var(--sp-2); border-bottom: 1px solid var(--lijn); }
     .skelet-rij .skelet-blok:nth-child(2) { flex: 1; }
     .skelet-kaarten { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--sp-3); }
-    .skelet-kaart { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); }
+    .skelet-kaart { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); background: var(--glas); border: 1px solid var(--glas-rand); border-radius: var(--r-kaart); }
     .skelet-dash { display: flex; flex-direction: column; gap: var(--sp-4); }
     .skelet-tegels { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-3); }
-    .skelet-tegel { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); }
+    .skelet-tegel { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); background: var(--glas); border: 1px solid var(--glas-rand); border-radius: var(--r-kaart); }
     .skelet-cijfer { height: 28px; }
-    .skelet-vlak { height: 180px; border-radius: var(--r-lg); }
+    .skelet-vlak { height: 180px; border-radius: var(--r-kaart); }
     .skelet-route { display: flex; gap: var(--sp-4); align-items: stretch; }
     .skelet-route-lijst { flex: 0 0 min(340px, 40%); }
-    .skelet-kaartvlak { flex: 1; min-height: 260px; border-radius: var(--r-lg); }
+    .skelet-kaartvlak { flex: 1; min-height: 260px; border-radius: var(--r-kaart); }
     .skelet-veld { display: flex; flex-direction: column; gap: var(--sp-2); max-width: 420px; }
     .skelet-invoer { height: 40px; width: 100%; border-radius: var(--r-sm); }
     @media (max-width: 700px) {
@@ -220,5 +345,5 @@
     }
     /* Reduced motion: geen shimmer, enkel stille grijze blokken (de algemene regel hierboven zou hem anders eenmalig laten flitsen). */
     @media (prefers-reduced-motion: reduce) {
-      .skelet-blok { animation: none !important; background: var(--surface3); }
+      .skelet-blok { animation: none !important; background: color-mix(in srgb, var(--text) 13%, transparent); }
     }

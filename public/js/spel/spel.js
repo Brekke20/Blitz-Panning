@@ -61,7 +61,7 @@ export function maakSpel({
     // Altijd de staande afmetingen: tekenPaal drukt ze bij `bukken` plat tot precies de bukhitbox.
     tekenPaal(ctx, skin(), { x: SPELER.x, y: g - staat.speler.y, breedte: SPELER.staan.b, hoogte: SPELER.staan.h, bukken: staat.speler.bukken, t: ts });
     ctx.fillStyle = KLEUR.tekst;
-    ctx.font = '600 14px Inter, system-ui, sans-serif';
+    ctx.font = '600 14px Figtree, system-ui, sans-serif';
     ctx.textAlign = 'right';
     ctx.fillText(String(scoreBij(staat.afstand)).padStart(5, '0'), WERELD.breedte - 12, 22);
     if (status === 'af' && !verminderdeBeweging && ts < schudTot) {

@@ -1,4 +1,4 @@
-import { test, expect, startApp } from './helpers.mjs';
+import { test, expect, startApp, kiesHoofdtab } from './helpers.mjs';
 
 // Meldgrens per product (v2.4.0): een product onder zijn grens kleurt oranje, een leeg product rood; het tabcijfer telt enkel die
 // producten (oranje of rood). De grens staat in Bewerken naast het belletje, enkel op pc en tablet. Bij de opstart krijgt wie zelf
@@ -17,7 +17,7 @@ const rij = (page, naam) => page.locator('.inv-raster .inv-row', { hasText: naam
 
 async function openInventaris(page, opties = {}) {
   await startApp(page, { technieker: 'Tim', overschrijf: { inventaris: inventaris(opties.wagenvoorraad) }, ...opties });
-  await page.getByRole('tab', { name: /Inventaris/ }).click();
+  await kiesHoofdtab(page, /Inventaris/); // Open dag: in een smal venster staat Inventaris in "Meer"
   await expect(page.locator('#inv-edit-btn')).toBeVisible();
 }
 
@@ -101,13 +101,13 @@ test('opstartmelding: wie zelf een wagen heeft met producten onder de grens krij
 
 test('geen opstartmelding zonder eigen wagen of zonder iets onder de grens', async ({ page }) => {
   await startApp(page, { technieker: 'Tim', overschrijf: { inventaris: inventaris() } }); // beheerder zonder Zoho-naam
-  await page.getByRole('tab', { name: /Inventaris/ }).click();
+  await kiesHoofdtab(page, /Inventaris/); // Open dag: in een smal venster staat Inventaris in "Meer"
   await expect(page.locator('#cnt-inventaris')).toHaveText('2'); // inventaris geladen
   await page.clock.runFor(5000);
   await expect(page.locator('#toast')).not.toContainText('Check je voorraad');
 
   await startApp(page, { technieker: 'Tim', loginGebruiker: { zohoNaam: 'Tim' }, overschrijf: { inventaris: inventaris({ Tim: { 'meter-sdm54-m': { aantal: 5, gedempt: false, drempel: 2 } } }) } });
-  await page.getByRole('tab', { name: /Inventaris/ }).click();
+  await kiesHoofdtab(page, /Inventaris/); // Open dag: in een smal venster staat Inventaris in "Meer"
   await expect(rij(page, 'SDM54-M')).toBeVisible();
   await page.clock.runFor(5000);
   await expect(page.locator('#toast')).not.toContainText('Check je voorraad');

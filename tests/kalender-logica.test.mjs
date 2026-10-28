@@ -5,7 +5,7 @@ import { localISO } from '../public/js/kern/tijd.js';
 import {
   TIMELINE_PX_PER_MIN, TIMELINE_MIN_BLOCK_PX, WERKUUR_START, WERKUUR_EIND,
   isBuitenWerkuren, timelineTopHeight, bepaalLanes, bouwTijdlijnItems,
-  zichtbareDagen, maandRaster, autoScrollSleutel,
+  zichtbareDagen, maandRaster, autoScrollSleutel, lijstScrollDoel,
 } from '../public/js/schermen/kalender-logica.js';
 
 const isos = dagen => dagen.map(localISO);
@@ -228,6 +228,34 @@ test('maandRaster: elke datum staat op middernacht', () => {
 test('autoScrollSleutel: weekstart en weergave', () => {
   assert.equal(autoScrollSleutel(new Date(2026, 9, 5), 'week'), '2026-10-05|week');
   assert.equal(autoScrollSleutel(new Date(2026, 9, 5), 'month'), '2026-10-05|month');
+});
+
+test('autoScrollSleutel: extra onderdeel voor de lijstweergave', () => {
+  assert.equal(autoScrollSleutel(new Date(2026, 9, 5), 'week', 'lijst|2026-10-09'), '2026-10-05|week|lijst|2026-10-09');
+});
+
+// ── lijstScrollDoel (gsm: de pagina scrolt naar de dag van vandaag en de nu-regel) ──
+test('lijstScrollDoel: zonder nu-regel komt de dagkop net onder de kalenderkop', () => {
+  assert.equal(lijstScrollDoel({ kolomTop: 1500, boven: 150, onder: 740 }), 1500 - 150 - 8);
+});
+
+test('lijstScrollDoel: een nu-regel die al in beeld valt, verandert niets', () => {
+  // zichtbaar stuk 150..740 (590 px); kolom op 1500, regel op 1620..1650: ruim binnen de 590 px
+  assert.equal(lijstScrollDoel({ kolomTop: 1500, markerTop: 1620, markerBottom: 1650, boven: 150, onder: 740 }), 1342);
+});
+
+test('lijstScrollDoel: een nu-regel buiten beeld krijgt voorrang: ze komt op een derde van het zichtbare stuk', () => {
+  assert.equal(lijstScrollDoel({ kolomTop: 1500, markerTop: 2400, markerBottom: 2430, boven: 150, onder: 740 }), Math.round(2400 - 150 - 590 / 3));
+});
+
+test('lijstScrollDoel: een regel net onder de rand telt als buiten beeld (24 px marge)', () => {
+  assert.equal(lijstScrollDoel({ kolomTop: 1500, markerTop: 1900, markerBottom: 1925, boven: 150, onder: 740 }), Math.round(1900 - 150 - 590 / 3));
+  assert.equal(lijstScrollDoel({ kolomTop: 1500, markerTop: 1880, markerBottom: 1905, boven: 150, onder: 740 }), 1342);
+});
+
+test('lijstScrollDoel: nooit negatief (eerste dag bovenaan)', () => {
+  assert.equal(lijstScrollDoel({ kolomTop: 160, boven: 150, onder: 740 }), 2);
+  assert.equal(lijstScrollDoel({ kolomTop: 100, boven: 150, onder: 740 }), 0);
 });
 
 // ── Zomertijd-einde: zondag 25 oktober 2026 (03:00 → 02:00, Europe/Brussels) ──

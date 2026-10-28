@@ -1,5 +1,5 @@
 // Beheerpagina, tabs Instellingen, Activiteitenlog en Systeemstatus (logins T18). Alle stubs bevatten enkel verzonnen gegevens.
-import { test, expect, startApp, standaardStub } from './helpers.mjs';
+import { test, expect, startApp, standaardStub, kiesHoofdtab } from './helpers.mjs';
 
 const json = (status, obj) => ({ status, json: obj });
 
@@ -75,7 +75,7 @@ async function openTab(page, naam, overschrijf = {}, app = {}) {
   await startApp(page, { ...app, overschrijf: { gebruikers: gebruikersStub(), instellingen: instellingenStub(), activiteit: activiteitStub(), systeemstatus: () => json(200, STATUS_GOED()),
     sales: () => json(200, { gebruikerId: 'u-s1', versie: 0, leads: [], blokken: [], open: 0 }), // Beschikbaarheden leest de sales-agenda van elke verkoper
     ...overschrijf } });
-  await page.getByRole('tab', { name: 'Beheer', exact: true }).click();
+  await kiesHoofdtab(page, 'Beheer'); // Open dag: op een smal scherm staat Beheer in "Meer"
   await page.getByRole('tab', { name: naam, exact: true }).click();
   await expect(page.getByRole('tab', { name: naam, exact: true })).toHaveAttribute('aria-selected', 'true');
 }

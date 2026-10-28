@@ -1,6 +1,7 @@
 // schermen/ticketdetail-logica.js — pure logica voor ticketdetail en voorstel (geen window/document).
 // Letterlijk overgenomen uit index.html; globals zijn parameters geworden.
 import { timeStrToMin, minToTimeStr } from '../kern/tijd.js';
+import { urgentieVan } from './wachtrij-logica.js';
 
 // Tijdslot rond een schatting. `settings` is een parameter (vroeger de global `settings`), zonder standaardwaarde: een vergeten argument faalt luid.
 export function tijdslotVoor(minuten, slotMinuten, settings) {
@@ -99,4 +100,13 @@ export function heeftLopendVoorstel(t, voorstelStatus) {
   const GEPLAND = ['Wachten op bevestiging planning', 'Geplande service', 'Geplande support'];
   if (vs && (vs.contact || vs.klant || vs.installateur || vs.bevestigd) && GEPLAND.includes(t.status)) return true;
   return ['Geplande service', 'Geplande support'].includes(t.status);
+}
+
+// Open dag-stijl: de kleur van de gloed langs de rand van het detailvenster = die van de kaart van het ticket (zelfde regels als de kaarten:
+// wacht op bevestiging = oranje, ingepland (bevestigd) = groen, anders verlopen of de prioriteit via urgentieVan; geen prioriteit = geen gloed).
+// Enkel een attribuut (data-urgentie) voor de opmaak, geen gedrag. `null` = geen gloed.
+export function detailUrgentie({ status, ingepland, overdue, priority }) {
+  if (status === 'Wachten op bevestiging planning') return 'oranje';
+  if (ingepland) return 'groen';
+  return urgentieVan({ overdue, priority });
 }

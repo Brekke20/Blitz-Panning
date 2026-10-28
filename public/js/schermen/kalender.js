@@ -11,7 +11,7 @@ import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, vol
 import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
 import {
   TIMELINE_PX_PER_MIN, WERKUUR_START, WERKUUR_EIND, timelineTopHeight,
-  bepaalLanes, bouwTijdlijnItems, zichtbareDagen, maandRaster, autoScrollSleutel,
+  bepaalLanes, bouwTijdlijnItems, zichtbareDagen, maandRaster, autoScrollSleutel, lijstScrollDoel,
 } from './kalender-logica.js';
 import { capaciteitsKop, capacityForDay } from './capaciteit.js';
 import { renderRouteList } from './route.js';
@@ -19,6 +19,8 @@ import { getHolidayName } from '../kern/feestdagen.js';
 import { zichtbaarAdres, navigatieAdres } from './afspraken-logica.js';
 import { magSchrijvenVoor } from '../kern/sessie.js';
 import { appConfirm } from '../app-dialog.js';
+import { zetSamenvatting } from './paginakop.js';
+import { samenvattingVoor, isoWeekNummer } from './paginakop-logica.js';
 import { updateNuMarker as updateNuMarkerLijst, voegBuitenUrenBadgeToe } from './dag-lijst.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initKalender); een vergeten init faalt luid.
@@ -35,6 +37,10 @@ const gekozenIso = () => toestand.get('gekozenDatum') || localISO(new Date());
 const gekozenDatum = () => { const [y, m, d] = gekozenIso().split('-').map(Number); return new Date(y, m - 1, d); };
 let kalView = 'week'; // 'week' | 'month'
 let _kalAutoScrollKey = null;
+// Lijstweergave (gsm): de pagina zelf scrolt; `true` zodra de gebruiker na onze sprong zelf scrolde (wiel, aanraking, toets).
+let _kalGebruikerScrolde = false;
+let _kalEigenY = null; // scrollstand vlak na onze eigen sprong: staat de pagina later ergens anders, dan scrolde iemand anders (ook zonder wiel of aanraking)
+let _kalLijstTimer = null;
 let _maandAnkerDag = null, _maandStapDatum = null; // oorspronkelijke dag bij opeenvolgende maandstappen
 let renderTeller = 0; // e2e telt hertekeningen hiermee, ook interne oproepen
 
@@ -55,6 +61,8 @@ export function rolloverGekozenDatum() {
 
 export function initKalender(afhankelijkheden) {
   afh = strengeAfh('kalender', afhankelijkheden);
+  // Een scroll van de gebruiker zelf (wiel, aanraking, toets) wordt bij een her-render niet teruggezet door de sprong van de lijstweergave.
+  for (const soort of ['wheel', 'touchstart', 'pointerdown', 'keydown']) window.addEventListener(soort, () => { _kalGebruikerScrolde = true; }, { passive: true, capture: true });
   // Alle knoppen van dit scherm via data-actie-delegatie (de kaartluisteraars slaan zulke klikken over, C8).
   registreerActies(document.body, {
     'kal-uitplannen': el => afh.bevestigUitplannen(el.dataset.ticketId, el.dataset.datum),
@@ -105,7 +113,7 @@ function buildTicketCard(stop, dateStr, { showActions = true } = {}) {
           // planning-efficiëntie. buildTicketCard() wordt gedeeld door de desktop-tijdlijn en
           // de mobiele gestapelde lijst, dus dit geldt voor beide (geen mobiel/desktop-verschil).
           const win = afh.tijdslotLabelVoor(stop, dateStr);
-          return `<div class="cal-meta" style="font-weight:600">🕐 ${escHtml(win)} <span style="opacity:0.65;font-size:0.85em">(gepland ${stop.uur})</span></div>`;
+          return `<div class="cal-meta" style="font-weight:600">🕐 ${escHtml(win)} <span class="meta-gepland">(gepland ${stop.uur})</span></div>`;
         })() : ''}
         <div class="cal-sub">${escHtml(stop.ticket.subject) || '—'}</div>
         ${stop.ticket.assignee ? `<div class="cal-meta">${escHtml(stop.ticket.assignee)}</div>` : ''}
@@ -456,6 +464,15 @@ function kalZichtbareDagen() {
   });
 }
 
+// Paginakop (breed): de week van de gekozen datum, de stops van de werkdagen die de weekweergave toont (dezelfde selectie als de dagkolommen)
+// en het aantal van de pil "zonder datum". Ook in de maandweergave: de samenvatting gaat over de week van de gekozen datum.
+function zetKalenderSamenvatting(zonderDatum) {
+  const filter = toestand.get('activeAssigneeFilter');
+  const dagen = zichtbareDagen(gekozenDatum(), { werkdagen: toestand.get('settings').werkdagen, tabletStaand: false, weekOffset: 0, dagOffset: 0 });
+  const gepland = dagen.reduce((n, d) => n + planItemsVanTechnieker(toestand.get('planning')[localISO(d)], filter).length, 0);
+  zetSamenvatting('kalender', samenvattingVoor('kalender', { week: isoWeekNummer(gekozenDatum()), gepland, zonderDatum }));
+}
+
 function kalZetVandaagKnop() {
   // "↺ Vandaag" enkel tonen als de getoonde periode niet de huidige is
   const dagModus = window.apparaat.indeling === 'tablet-staand' && kalView !== 'month';
@@ -492,19 +509,20 @@ export function renderKalender() {
     noInterventieDatum.forEach(t => {
       const card = document.createElement('div');
       card.className = 'ticket';
+      card.dataset.urgentie = 'oranje'; // wacht op bevestiging: oranje gloed (Open dag-stijl)
       card.style.cssText = 'cursor:pointer';
       card.innerHTML = `<div class="t-body">
         <div class="t-top"><span class="tnum">#${escHtml(t.number)}</span><span class="stag pending">Wacht bevestiging</span>${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}</div>
         <div class="tsub">${escHtml(t.subject) || '—'}</div>
         <div class="taddr ${t.hasAddress ? 'ok' : 'miss'}">${t.hasAddress ? escHtml(t.address) : 'Geen adres bekend'}</div>
         ${magPlannenVoor(t.assignee) ? `<div class="t-assign-row" id="assign-row-${t.id}" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
-          <input type="date" id="assign-date-${t.id}" aria-label="Datum toewijzen" data-wijzig="kal-toewijzen-datum" data-ticket-id="${escHtml(t.id)}" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">
-          <input type="time" id="assign-time-${t.id}" aria-label="Tijd toewijzen" data-invoer="kal-toewijzen-tijd" style="font-size:0.8rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)" value="09:00">
-          <button data-actie="kal-toewijzen-opslaan" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 8px;background:var(--accent);color:var(--on-accent);border:none;border-radius:4px;cursor:pointer;font-weight:600">✓ Opslaan</button>
-          <button aria-label="Sluiten" data-actie="kal-toewijzen-sluit" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 6px;background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--muted)">✕</button>
+          <input type="date" id="assign-date-${t.id}" aria-label="Datum toewijzen" data-wijzig="kal-toewijzen-datum" data-ticket-id="${escHtml(t.id)}" style="font-size:0.8rem;padding:3px 10px;border:1px solid var(--veld-rand);border-radius:var(--r-pil);background:var(--veld);color:var(--text)">
+          <input type="time" id="assign-time-${t.id}" aria-label="Tijd toewijzen" data-invoer="kal-toewijzen-tijd" style="font-size:0.8rem;padding:3px 10px;border:1px solid var(--veld-rand);border-radius:var(--r-pil);background:var(--veld);color:var(--text)" value="09:00">
+          <button data-actie="kal-toewijzen-opslaan" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 12px;background:var(--accent);color:var(--on-accent);border:none;border-radius:var(--r-pil);cursor:pointer;font-weight:600">✓ Opslaan</button>
+          <button aria-label="Sluiten" data-actie="kal-toewijzen-sluit" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 10px;background:none;border:1px solid var(--veld-rand);border-radius:var(--r-pil);cursor:pointer;color:var(--muted)">✕</button>
         </div>
         <div style="margin-top:6px">
-          <button data-actie="kal-toewijzen-open" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 8px;background:var(--accent-dim,rgba(0,223,163,.15));color:var(--accent-ink);border:1px solid var(--accent);border-radius:4px;cursor:pointer;font-weight:600">📅 Toewijzen</button>
+          <button data-actie="kal-toewijzen-open" data-ticket-id="${escHtml(t.id)}" style="font-size:0.75rem;padding:3px 8px;background:var(--accent-dim,rgba(0,223,163,.15));color:var(--accent-ink);border:1px solid var(--accent);border-radius:var(--r-pil);cursor:pointer;font-weight:600">📅 Toewijzen</button>
         </div>` : ''}
       </div>`;
       // Bubbel-guard (C8): een klik op een data-actie-knop opent het detail niet.
@@ -520,6 +538,8 @@ export function renderKalender() {
     noDateSec.innerHTML = '';
     noDateSec.classList.remove('open');
   }
+
+  zetKalenderSamenvatting(noInterventieDatum.length);
 
   // Branch: week of maand
   if (kalView === 'month') {
@@ -546,7 +566,7 @@ export function renderKalender() {
   const bewaardTop = grid.scrollTop, bewaardLeft = grid.scrollLeft;
   grid.className = isDesktopTijdlijnWeek ? 'week-grid tl-mode' : 'week-grid';
   grid.innerHTML = '';
-  if (isDesktopTijdlijnWeek) kalPasGridHoogteAan(); else { grid.style.height = ''; _kalAutoScrollKey = null; }
+  if (isDesktopTijdlijnWeek) kalPasGridHoogteAan(); else grid.style.height = '';
 
   // Post-launch feedback (2026-08-17): de uren staan vóór maandag in een eigen smalle kolom (zie
   // renderTimelineGutter()) i.p.v. IN de eerste dag-kolom -- zo hebben alle dag-kolommen exact
@@ -689,13 +709,51 @@ export function renderKalender() {
     // Scrollpositie terugzetten, tenzij de week/weergave gewisseld is (dan scrolt kalAutoScroll)
     grid.scrollTop = bewaardTop; grid.scrollLeft = bewaardLeft;
     kalAutoScroll(false);
+  } else if (!_kalLijstTimer) {
+    // Lijstweergave: de render loopt bijna altijd binnen metBehoudScroll (toestandsabonnement, apparaatwijziging, poll), dat daarna de oude scrollstand
+    // terugzet en een sprong van hier dus ongedaan maakt. Daarom één tik later, als die omhulling klaar is.
+    _kalLijstTimer = setTimeout(() => { _kalLijstTimer = null; kalAutoScroll(false); }, 0);
   }
+}
+
+// Lijstweergave (gsm, ook een tablet rechtop: apparaat.js): de dagen staan onder elkaar en de PAGINA scrolt (geen scrollhouder). De sprong gaat naar de
+// kolom van de gekozen datum (standaard vandaag) en, is dat vandaag, tot de nu-regel in beeld staat; staat de gekozen datum in een andere week, dan
+// naar die dag (valt ze op geen werkdag: vandaag, anders de eerste dag). Zoals bij de tijdlijn: enkel bij het openen van de tab, bij een wissel
+// van week of datum en bij de start (sleutel of force). Daarnaast herhaalt de sprong zich bij een her-render zolang de gebruiker nog niet zelf
+// gescrold heeft: de eerste render komt vaak vóór de gegevens, en dan schuiven de kaartjes van de dagen erboven de kolom van vandaag weg.
+// (Daarvoor deed de lijstweergave helemaal geen automatische scroll: kalAutoScroll stopte bij "geen tijdlijn".)
+function kalLijstScroll(force) {
+  if (!document.getElementById('view-kalender')?.classList.contains('active')) return; // een andere tab scrolt zelf: raak de pagina niet aan
+  const grid = document.getElementById('week-grid');
+  const iso = gekozenIso(), vandaag = localISO(new Date());
+  const kol = (d) => grid.querySelector(`.day-col[data-date="${d}"]`);
+  const doel = kol(iso) || kol(vandaag) || grid.querySelector('.day-col');
+  if (!doel) return;
+  const key = autoScrollSleutel(getWeekStart(gekozenDatum(), 0), kalView, 'lijst|' + iso);
+  if (_kalEigenY !== null && Math.abs(window.scrollY - _kalEigenY) > 1) _kalGebruikerScrolde = true;
+  if (!force && key === _kalAutoScrollKey && _kalGebruikerScrolde) return;
+  _kalAutoScrollKey = key;
+  const kop = document.querySelector('#view-kalender .kal-header');
+  const dok = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dok-h')) || 0;
+  const y0 = window.scrollY;
+  const marker = doel.dataset.date === vandaag ? doel.querySelector('.kal-nu-marker') : null;
+  const m = marker?.getBoundingClientRect();
+  window.scrollTo(0, lijstScrollDoel({
+    kolomTop: doel.getBoundingClientRect().top + y0,
+    markerTop: m ? m.top + y0 : null, markerBottom: m ? m.bottom + y0 : null,
+    boven: kop ? (parseFloat(getComputedStyle(kop).top) || 0) + kop.offsetHeight : 0, // de kalenderkop blijft bovenaan vastzitten
+    onder: window.innerHeight - dok,                                                    // het dok onderaan bedekt de pagina
+  }));
+  _kalEigenY = window.scrollY;
+  _kalGebruikerScrolde = false;
 }
 
 // Automatisch naar de werkdag scrollen: enkel bij wissel van week/weergave (sleutel) of force.
 function kalAutoScroll(force) {
   const grid = document.getElementById('week-grid');
-  if (!grid || !grid.classList.contains('tl-mode')) return;
+  if (!grid) return;
+  if (kalView === 'week' && window.apparaat.indeling === 'smal') { kalLijstScroll(force); return; }
+  if (!grid.classList.contains('tl-mode')) return;
   const today = new Date(); today.setHours(0,0,0,0);
   let weekStart = getWeekStart(gekozenDatum(), 0);
   let weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 7);

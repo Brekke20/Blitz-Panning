@@ -12,6 +12,7 @@ import { synchroniseerInstellingen, wisInstellingenCache, resterendSyncBudget } 
 import { toast } from '../kern/ui.js';
 import { registreerSalesRol, BEHEERDER_SALES } from './sales-registratie.js';
 import { leesWerkruimte } from './werkruimte-logica.js';
+import { zetTabIconen } from '../kern/tab-iconen.js';
 
 // De zes bestaande tabs van index.html (de knoppen `tab-<id>`): setTab laadt de inhoud zelf, dus er valt hier niets te laden.
 const nietsTeLaden = async () => {};
@@ -58,6 +59,7 @@ function maakTab(tab) {
   knop.dataset.arg = tab.id;
   knop.textContent = tab.label;
   balk.appendChild(knop);
+  zetTabIconen(balk); // het icoon vóór het label (kern/tab-iconen.js); idempotent: enkel de nieuwe knop krijgt er een
   if (!document.getElementById(`view-${tab.id}`)) {
     const view = document.createElement('div');
     view.className = 'view';

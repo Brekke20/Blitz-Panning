@@ -54,6 +54,11 @@ import { laadTab } from './kern/navigatie.js';
 import { eigenZohoNaam, huidigeRechten, huidigeGebruiker, magPlannenVoor } from './kern/sessie.js';
 import { installeerTijdPicker } from './kern/tijd-picker.js';
 import { startVersiering, bewaarThemaWissel, herbereken as herberekenVersiering } from './schermen/evenement-laag.js';
+import { startHemel } from './schermen/hemel-laag.js';
+import { zetTabIconen } from './kern/tab-iconen.js';
+import { initDokMeer } from './schermen/dok-meer.js';
+import { initTabBolletjes } from './schermen/tab-bolletjes.js';
+import { initPaginakop } from './schermen/paginakop.js';
 import { laadThemas, themasNu, pakkettenVoorSpel, haalOntbrekendePakketten } from './schermen/themas-bron.js';
 import { actieveThemas } from './kern/themapakket.js';
 import { installeerSpelOpening } from './spel/spel-opening.js';
@@ -150,10 +155,11 @@ if (!localStorage.getItem('blitz_mig_startloc_v1')) {
 // Het registreren gebeurt onderaan dit bestand, nadat alle `const`/`let` van deze module bestaan.
 function opstart() {
   // Verborgen spel (spel/): 5× snel tikken op het bliksem-icoon (.logo-icon) opent het; de spelmodule wordt pas dan geladen. Raakt de planning niet aan.
+  // Op `breed` staat het logo in de zijkolom (.zijkolom-logo-icoon) en is dat van de kop verborgen (Open dag, taak 7): beide tellen, met één teller.
   // De themas (schermen/themas-bron.js) bepalen de themaskins: welke thema's nu actief zijn (lokale schatting tot de server antwoordt), welke pakketten bekend
   // zijn (voor de skinlijst en de extra's) en het eenmalig ophalen van pakketten die nog niet in de cache zitten. Het spel zelf (skins) blijft lazy.
   installeerSpelOpening({
-    doel: document.querySelector('.logo-icon'),
+    doel: [document.querySelector('.logo-icon'), document.querySelector('.zijkolom-logo-icoon')],
     actieveThemas: (datum) => actieveThemas(datum, themasNu().index?.themas ?? []),
     pakketten: pakkettenVoorSpel,
     haalPakketten: haalOntbrekendePakketten,
@@ -347,11 +353,7 @@ function opstart() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') { flushOutbox(); verversNaTerugkeer(); }
   });
-  // Initialiseer tab indicator op de actieve tab
-  setTimeout(() => updateTabIndicator(document.querySelector('.tab.active')?.id || 'tab-tickets'), 0); // onder de actieve (zichtbare) tab, ook in de werkruimte Sales
   window.addEventListener('resize', () => {
-    const active = document.querySelector('.tab.active');
-    if (active) updateTabIndicator(active.id);
     zetStickyOffsets();
     routeKaart.invalideerKaartGrootte(); // de kaart van de Route-tab volgt een nieuwe venstergrootte (Leaflet meet zichzelf niet opnieuw)
   });
@@ -375,18 +377,10 @@ function opstart() {
           renderRouteList(document.getElementById('plan-date').value);
         }
       });
-      // Tabs kunnen verschijnen/verdwijnen (rol) en de kop kan van hoogte wisselen (aanraak): onderstreping
-      // en sticky-offset volgen.
+      // Tabs kunnen verschijnen/verdwijnen (rol) en de kop kan van hoogte wisselen (aanraak): de sticky-offset volgt.
       zetStickyOffsets();
-      const actief = document.querySelector('.tab.active');
-      if (actief) updateTabIndicator(actief.id);
     });
   }
-  // Herbereken indicator als gebruiker de tabbalk horizontaal scrollt
-  document.querySelector('.tabs-inner')?.addEventListener('scroll', () => {
-    const active = document.querySelector('.tab.active');
-    if (active) updateTabIndicator(active.id);
-  });
   // Registratie pas na de load-gebeurtenis (I5): de installatie (prefetch van de CDN-bestanden) mag niet met de eerste laad concurreren.
   if ('serviceWorker' in navigator) {
     const registreer = () => navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
@@ -761,7 +755,7 @@ function koppelRenders() {
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => buildPersonSelector());
   st.abonneer(['allTickets', 'activeAssigneeFilter'], () => wachtrij.renderTickets());
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'localEvents', 'avExceptions', 'activeAssigneeFilter', 'gekozenDatum'], () => kalender.renderKalender());
-  st.abonneer(['allGepland', 'activeAssigneeFilter', 'gekozenDatum'], () => ingepland.renderGepland());
+  st.abonneer(['allGepland', 'allPending', 'activeAssigneeFilter', 'gekozenDatum'], () => ingepland.renderGepland()); // allPending: de paginakop telt "wacht op bevestiging" (taak 8a)
   st.abonneer(['gekozenDatum'], () => route.volgGekozenDatum()); // de datumkiezer en de weekstrook van de Route-tab volgen de gedeelde datum
   st.abonneer(['allTickets', 'allPending', 'allGepland', 'activeAssigneeFilter'], () => {
     renderInventaris(get('activeAssigneeFilter'));
@@ -903,28 +897,29 @@ function verversNaTerugkeer() {
 // TABS
 // ══════════════════════════════════════════════
 // Pijltjestoetsen in de tabbalk (roving tabindex): alleen zichtbare tabs tellen (coord-only kan verborgen zijn).
+// In de zijkolom (data-nav="kolom", kern/navigatievorm.js) staan de tabs onder elkaar (Open dag): aria-orientation="vertical" en ook pijl
+// omhoog/omlaag; links/rechts blijven werken.
+function zetTabOrientatie() {
+  const balk = document.querySelector('.tabs-inner');
+  if (!balk) return;
+  if (document.documentElement.getAttribute('data-nav') === 'kolom') balk.setAttribute('aria-orientation', 'vertical');
+  else balk.removeAttribute('aria-orientation');
+}
+zetTabOrientatie();
+window.addEventListener('navigatievormwijziging', zetTabOrientatie); // zijkolom <-> dok: weergavewissel of een breder/smaller venster
 document.querySelector('.tabs-inner')?.addEventListener('keydown', e => {
-  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+  const verticaal = e.currentTarget.getAttribute('aria-orientation') === 'vertical';
+  const vooruit = e.key === 'ArrowRight' || (verticaal && e.key === 'ArrowDown');
+  const achteruit = e.key === 'ArrowLeft' || (verticaal && e.key === 'ArrowUp');
+  if (!vooruit && !achteruit && e.key !== 'Home' && e.key !== 'End') return;
   const tabs = [...document.querySelectorAll('.tabs-inner .tab')].filter(t => t.offsetParent !== null);
   const i = tabs.indexOf(document.activeElement);
   if (i < 0) return;
   e.preventDefault();
   const n = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1
-    : (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    : (i + (vooruit ? 1 : -1) + tabs.length) % tabs.length;
   tabs[n].focus();
 });
-
-function updateTabIndicator(tabId) {
-  const tab  = document.getElementById(tabId);
-  const tabs = document.querySelector('.tabs');
-  if (!tab || !tabs) return;
-  const tr = tab.getBoundingClientRect();
-  const pr = tabs.getBoundingClientRect();
-  // tr.left - pr.left geeft de huidige visuele positie van de tab t.o.v. .tabs,
-  // ook na horizontaal scrollen van .tabs-inner — geen scrollLeft nodig.
-  tabs.style.setProperty('--ind-left',  (tr.left - pr.left) + 'px');
-  tabs.style.setProperty('--ind-width', tr.width + 'px');
-}
 
 function setTab(tab) {
   sjZetTab(); sjLog('setTab:' + tab); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
@@ -933,7 +928,6 @@ function setTab(tab) {
   const _tabEl = document.getElementById('tab-' + tab);
   _tabEl.classList.add('active'); _tabEl.setAttribute('aria-selected', 'true'); _tabEl.tabIndex = 0;
   document.getElementById('view-' + tab).classList.add('active');
-  updateTabIndicator('tab-' + tab);
   laadTab(tab);
   if (tab === 'planning') {
     setTimeout(() => routeKaart.invalideerKaartGrootte(), 50);
@@ -997,7 +991,7 @@ function toggleTheme() {
   document.documentElement.setAttribute('data-theme', next);
   bewaarThemaWissel(next); // tijdens een evenement in de eigen sleutel, anders blitz_theme
   document.getElementById('meta-theme-color')
-    ?.setAttribute('content', next === 'light' ? '#f5f6f7' : '#181e24');
+    ?.setAttribute('content', next === 'light' ? '#e5eefa' : '#0d1530');
 }
 
 // Escape/focusval per venster: zie public/js/venster.js
@@ -1027,8 +1021,15 @@ document.addEventListener('visibilitychange', () => {
 });
 // De verse themas (/api/themas) pas na het inloggen (vóór de login gebruikt de app geen gegevens van de server), voor elke rol: ook
 // sales, dat een eigen start heeft en `opstart` niet doorloopt (fix-ronde 1).
-document.addEventListener('DOMContentLoaded', () => startNaInlog(opstart).then(() => {
-  if (!huidigeGebruiker()) return;
-  herberekenVersiering(); // de instellingen zijn gesynchroniseerd (ook `bewegingUit`): niet wachten op de themas
-  vernieuwThemas();
-}).catch((e) => console.warn('start na inloggen mislukt:', e?.message || e)));
+document.addEventListener('DOMContentLoaded', () => {
+  startHemel(); // de hemel (css/hemel.css) meteen, vóór het inloggen: ook het inlogscherm staat op de hemel van het uur
+  initDokMeer(); // "Meer" in het dok (schermen/dok-meer.js): meteen, vóór de login en voor elke rol (ook sales, dat `opstart` niet doorloopt); abonneert zich niet op de toestand
+  initTabBolletjes(); // de tellers van de tabs als bolletje zonder cijfer (schermen/tab-bolletjes.js, taak 19): data-nul bij 0 en de aria-label van de tab
+  initPaginakop(); // titel + samenvatting van de paginakop op `breed` (schermen/paginakop.js): ook voor sales; volgt de actieve tab, geen abonnement op de toestand
+  zetTabIconen(document); // de iconen van de vaste tabs (index.html); rol-schil.js zet ze voor de tabs die het zelf aanmaakt
+  return startNaInlog(opstart).then(() => {
+    if (!huidigeGebruiker()) return;
+    herberekenVersiering(); // de instellingen zijn gesynchroniseerd (ook `bewegingUit`): niet wachten op de themas
+    vernieuwThemas();
+  }).catch((e) => console.warn('start na inloggen mislukt:', e?.message || e));
+});

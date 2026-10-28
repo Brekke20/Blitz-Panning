@@ -1,4 +1,4 @@
-import { test, expect, startApp, snelTikken } from './helpers.mjs';
+import { test, expect, startApp, snelTikken, spelLogo } from './helpers.mjs';
 
 // v2.1.3 (prestaties): geen requestAnimationFrame-lus die blijft draaien als er niets beweegt.
 // - Blitz Run: na het sluiten draait er geen lus meer en blijven er geen toetsluisteraars achter (ook na 5 keer openen en sluiten).
@@ -38,7 +38,7 @@ const volgLuisteraars = (page) => page.addInitScript(() => {
   window.__toetsLuisteraars = () => [...sets.values()].reduce((s, v) => s + v.size, 0);
 });
 
-const titel = (page) => page.locator('.logo-icon');
+const titel = (page) => spelLogo(page); // Open dag (taak 7): op `breed` het logo in de zijkolom (kop-logo verborgen), zie helpers.mjs
 const overlay = (page) => page.locator('#spel-overlay');
 const tikVijf = (page) => snelTikken(page, titel(page)); // stilstaande nepklok: de 600 ms-regel hangt niet af van de snelheid van de machine
 

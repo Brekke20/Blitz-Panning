@@ -4,13 +4,14 @@ import { seed } from './kalender-hulp.mjs';
 // v2.1.6: "de chips van Oorzaak storing zijn niet zichtbaar op de tablet". Echte tablet-emulatie (isMobile + touch: data-apparaat
 // tablet, data-aanraak ja), liggend en staand, een nieuw rapport en een hervat concept met een oude waarde. De indeling bleek in orde
 // (de oorzaak was de service worker die versies mengde, zie tests/sw-strategie.test.mjs); deze test houdt de tabletweergave vast.
+// Taak 17 (Brent, 2026-10-28): een tablet rechtop is een gsm in de hele app; liggend blijft hij een tablet.
 for (const vp of [{ width: 1024, height: 768 }, { width: 768, height: 1024 }]) {
   test.describe(`tablet ${vp.width}x${vp.height}`, () => {
     test.use({ viewport: vp, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
     for (const concept of [false, true]) {
       test(`Oorzaak storing toont de groepen en chips (${concept ? 'hervat concept' : 'nieuw rapport'})`, async ({ page }) => {
         await startApp(page, { overschrijf: seed() });
-        expect(await page.evaluate(() => [document.documentElement.dataset.apparaat, document.documentElement.dataset.aanraak])).toEqual(['tablet', 'ja']);
+        expect(await page.evaluate(() => [document.documentElement.dataset.apparaat, document.documentElement.dataset.aanraak])).toEqual([vp.width > vp.height ? 'tablet' : 'gsm', 'ja']);
         await page.getByRole('tab', { name: 'Kalender' }).click();
         await page.locator('.day-col[data-date="2026-10-07"]').getByRole('button', { name: 'Open ticket #1004' }).click();
         if (concept) {

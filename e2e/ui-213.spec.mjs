@@ -1,4 +1,4 @@
-import { test, expect, startApp, snelTikken } from './helpers.mjs';
+import { test, expect, startApp, snelTikken, spelLogo } from './helpers.mjs';
 import { seed } from './kalender-hulp.mjs';
 
 // v2.1.3: vier gemelde UI-problemen. (1) het spelkaartje onder de balken, (2) het spel op een gsm schermvullend en overal tikbaar,
@@ -13,7 +13,7 @@ const GSM = { viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMob
 
 const overlay = (page) => page.locator('#spel-overlay');
 async function openSpel(page) {
-  await snelTikken(page, page.locator('.logo-icon')); // stilstaande nepklok tijdens het tikken (zie helpers.mjs)
+  await snelTikken(page, spelLogo(page)); // stilstaande nepklok tijdens het tikken (zie helpers.mjs); Open dag (taak 7): op `breed` het logo in de zijkolom (kop-logo verborgen), zie helpers.mjs
   await expect(overlay(page)).toHaveClass(/open/);
   await expect(overlay(page)).toHaveAttribute('data-status', 'start');
 }
@@ -132,6 +132,9 @@ test.describe('v2.1.3 rapport: voorbeeld en handtekening op tablet', () => {
     await page.evaluate(() => window.wizGaNaar('sig-klant'));
     await expect(page.locator('#sig-klant-canvas')).toBeVisible();
     await page.waitForFunction(() => document.getElementById('sig-klant-canvas').width > 300);
+    // Open dag (v2.5.0): de wizard is nu glas met vervaging en zijn intrede-animatie (wizIn, translateY) loopt dan soms nog tijdens het meten; een
+    // vak dat nog 14 px verschuift, laat de streek op een andere plek landen. Eerst de animatie laten uitlopen.
+    await page.waitForFunction(() => !document.getAnimations().some((a) => a.playState === 'running' && a.effect?.target?.id === 'rapport-wizard'));
   }
   for (const [naam, viewport, minFrame, minSig] of [
     ['tablet liggend', { width: 1024, height: 768 }, 260, 280],

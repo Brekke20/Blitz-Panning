@@ -1,23 +1,25 @@
-    /* ── Rapport wizard (full-screen) ── */
+    /* ── Rapport wizard (full-screen) ──
+       Open dag (taak 8b): sterk gedekt glas (--glas-venster) over de pagina, kop en voet een lichtere glaslaag, velden en keuzekaarten
+       met --veld; de inline handlers van de wizard blijven (gedocumenteerd restant). */
     #rapport-wizard {
       display: none; position: fixed; inset: 0;
-      background: var(--bg); z-index: 1000; flex-direction: column;
+      background-color: var(--glas-venster); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); z-index: 1000; flex-direction: column;
     }
     #rapport-wizard.open { display: flex; animation: wizIn 0.2s var(--ease); }
     @keyframes wizIn { from { opacity:0; transform:translateY(14px) } to { opacity:1; transform:translateY(0) } }
 
     .wiz-hdr {
-      background: var(--surface); border-bottom: 1px solid var(--border);
+      background-color: var(--glas); border-bottom: 1px solid var(--lijn);
       padding: 13px 18px 11px; flex-shrink: 0;
       display: flex; flex-direction: column; gap: 9px;
     }
     .wiz-hdr-top { display: flex; align-items: center; justify-content: space-between; }
-    .wiz-title  { font-size: 0.95rem; font-weight: 800; }
+    .wiz-title  { font-family: var(--font-kop); font-size: 1.05rem; font-weight: 700; }
     .wiz-close  { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.3rem; padding: 0 4px; transition: color 0.1s; }
-    .wiz-close:hover { color: var(--text); }
+    @media (hover: hover) { .wiz-close:hover { color: var(--text); } }
     .wiz-step-dot {
       width: 7px; height: 7px; border-radius: 50%; display: inline-block;
-      background: var(--surface3); border: 1px solid var(--border);
+      background: var(--knop2); border: 1px solid var(--veld-rand);
       transition: background 0.2s, transform 0.2s var(--ease-spring); flex-shrink: 0;
     }
     .wiz-step-dot.active { background: var(--accent); border-color: var(--accent); transform: scale(1.35); }
@@ -25,10 +27,10 @@
     .wiz-step-label { font-size: 0.7rem; color: var(--muted); }
 
     .wiz-body { flex: 1; overflow-y: auto; padding: 18px; -webkit-overflow-scrolling: touch; }
-    .wiz-step-title { font-size: 1rem; font-weight: 800; margin-bottom: 16px; }
+    .wiz-step-title { font-family: var(--font-kop); font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; }
 
     .wiz-ftr {
-      background: var(--surface); border-top: 1px solid var(--border);
+      background-color: var(--glas); border-top: 1px solid var(--lijn);
       padding: 11px 18px; flex-shrink: 0;
       display: flex; gap: 10px; justify-content: space-between; align-items: center;
     }
@@ -44,8 +46,8 @@
     .wiz-field-row .wiz-field { flex: 1; margin-bottom: 0; }
     .wiz-field-label { display: block; font-size: var(--fs-2xs); font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
     .wiz-input {
-      width: 100%; background: var(--surface2); border: 1px solid var(--border);
-      color: var(--text); padding: 11px 13px; border-radius: var(--r);
+      width: 100%; background: var(--veld); border: 1px solid var(--veld-rand);
+      color: var(--text); padding: 11px 20px; border-radius: var(--r-pil);
       font-size: 16px; font-family: inherit; min-height: 48px;
       transition: border-color 0.15s, box-shadow 0.15s; -webkit-appearance: none;
     }
@@ -53,8 +55,8 @@
     .wiz-input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
     .wiz-input[readonly] { opacity: 0.55; }
     .wiz-textarea {
-      width: 100%; background: var(--surface2); border: 1px solid var(--border);
-      color: var(--text); padding: 11px 13px; border-radius: var(--r);
+      width: 100%; background: var(--veld); border: 1px solid var(--veld-rand);
+      color: var(--text); padding: 12px 18px; border-radius: 20px;
       font-size: 16px; font-family: inherit; resize: vertical; min-height: 110px;
       transition: border-color 0.15s; -webkit-appearance: none;
     }
@@ -64,8 +66,8 @@
     .wiz-radio-cards { display: flex; flex-direction: column; gap: 7px; }
     .wiz-radio-card {
       display: flex; align-items: center; gap: 12px;
-      background: var(--surface2); border: 1.5px solid var(--border);
-      border-radius: var(--r); padding: 12px 15px; cursor: pointer; min-height: 50px;
+      background: var(--veld); border: 1.5px solid var(--veld-rand);
+      border-radius: var(--r-ev); padding: 12px 15px; cursor: pointer; min-height: 50px;
       transition: border-color 0.15s, background 0.15s;
     }
     .wiz-radio-card input[type=radio], .wiz-radio-card input[type=checkbox] { accent-color: var(--accent); width: 20px; height: 20px; flex-shrink: 0; cursor: pointer; }
@@ -75,7 +77,7 @@
 
     /* Oorzaak storing: accordion met chips (v2.1.3) */
     .wiz-oorz { display: flex; flex-direction: column; gap: 7px; }
-    .wiz-oorz-groep { background: var(--surface2); border: 1.5px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .wiz-oorz-groep { background: var(--veld); border: 1.5px solid var(--veld-rand); border-radius: var(--r-ev); overflow: hidden; }
     .wiz-oorz-groep.open { border-color: var(--accent); }
     .wiz-oorz-kop {
       display: flex; align-items: center; gap: 10px; width: 100%; min-height: 50px;
@@ -95,8 +97,8 @@
     .wiz-oorz-oud { display: flex; flex-wrap: wrap; gap: 8px; }
     .wiz-oorz-chip {
       display: inline-flex; align-items: center; gap: 6px; min-height: 40px;
-      padding: 8px 14px; border-radius: 999px; border: 1.5px solid var(--border);
-      background: var(--surface); color: var(--text); font: inherit; font-size: 0.85rem; font-weight: 500;
+      padding: 8px 14px; border-radius: 999px; border: 1.5px solid var(--veld-rand);
+      background: var(--knop2); color: var(--text); font: inherit; font-size: 0.85rem; font-weight: 500;
       cursor: pointer; transition: border-color 0.15s, background 0.15s;
     }
     .wiz-oorz-chip .wiz-oorz-vink { display: none; font-weight: 700; }
@@ -108,8 +110,8 @@
     .wiz-radio-row { display: flex; gap: 8px; }
     .wiz-radio-btn {
       flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
-      background: var(--surface2); border: 1.5px solid var(--border);
-      border-radius: var(--r); padding: 11px; cursor: pointer; min-height: 48px;
+      background: var(--veld); border: 1.5px solid var(--veld-rand);
+      border-radius: var(--r-pil); padding: 11px; cursor: pointer; min-height: 48px;
       transition: border-color 0.15s, background 0.15s;
     }
     .wiz-radio-btn input[type=radio] { accent-color: var(--accent); width: 18px; height: 18px; cursor: pointer; }
@@ -130,22 +132,22 @@
     #wiz-kabel-lengte { display: none; margin-top: 10px; }
     #wiz-kabel-lengte.visible { display: block; }
 
-    .wiz-sep { height: 1px; background: var(--border); margin: 18px 0; }
+    .wiz-sep { height: 1px; background: var(--lijn); margin: 18px 0; }
 
     /* Onderdelen */
     .wiz-parts-list { display: flex; flex-direction: column; gap: 9px; margin-bottom: 9px; }
-    .wiz-part-item  { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); padding: 11px 13px; }
+    .wiz-part-item  { background: var(--veld); border: 1px solid var(--lijn); border-radius: var(--r-ev); padding: 11px 13px; }
     .wiz-part-omschr {
-      width: 100%; background: var(--surface3); border: 1px solid var(--border);
-      color: var(--text); padding: 10px 11px; border-radius: 7px;
+      width: 100%; background: var(--veld); border: 1px solid var(--veld-rand);
+      color: var(--text); padding: 10px 14px; border-radius: var(--r-pil);
       font-size: 16px; font-family: inherit; min-height: 44px; margin-bottom: 8px;
     }
     .wiz-part-omschr:focus { border-color: var(--accent); }
     .wiz-part-omschr:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
     .wiz-part-bottom { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
     .wiz-part-prijs {
-      flex: 1; background: var(--surface3); border: 1px solid var(--border);
-      color: var(--text); padding: 10px 11px; border-radius: 7px;
+      flex: 1; background: var(--veld); border: 1px solid var(--veld-rand);
+      color: var(--text); padding: 10px 14px; border-radius: var(--r-pil);
       font-size: 16px; font-family: inherit; min-height: 44px;
     }
     .wiz-part-prijs:focus { border-color: var(--accent); }
@@ -153,14 +155,14 @@
     .wiz-part-factureer { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--text2); flex-shrink: 0; }
     .wiz-part-factureer input { accent-color: var(--accent); width: 18px; height: 18px; cursor: pointer; }
     .wiz-part-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.2rem; padding: 4px; flex-shrink: 0; }
-    .wiz-part-del:hover { color: var(--red); }
+    @media (hover: hover) { .wiz-part-del:hover { color: var(--red); } }
     .wiz-btn-add-part {
-      width: 100%; background: none; border: 1.5px dashed var(--border);
-      color: var(--accent-ink); border-radius: var(--r); padding: 13px;
+      width: 100%; background: none; border: 1.5px dashed var(--veld-rand);
+      color: var(--accent-ink); border-radius: var(--r-pil); padding: 13px;
       font-size: 0.87rem; font-weight: 600; cursor: pointer; min-height: 48px;
       transition: border-color 0.15s, background 0.15s;
     }
-    .wiz-btn-add-part:hover { border-color: var(--accent); background: var(--accent-dim); }
+    @media (hover: hover) { .wiz-btn-add-part:hover { border-color: var(--accent); background: var(--accent-dim); } }
 
     /* Signatures */
     .wiz-sig-container {
@@ -186,8 +188,8 @@
     .wiz-sig-hint.hidden { opacity: 0; }
     .wiz-sig-hint-icon { font-size: 2.2rem; opacity: 0.35; }
     .wiz-sig-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
-    .wiz-sig-clear  { background: none; border: 1px solid var(--border); color: var(--muted); padding: 8px 14px; border-radius: var(--r); cursor: pointer; font-size: 0.82rem; min-height: 40px; }
-    .wiz-sig-clear:hover { border-color: var(--muted); color: var(--text); }
+    .wiz-sig-clear  { background: var(--knop2); border: 1px solid var(--veld-rand); color: var(--text2); padding: 8px 16px; border-radius: var(--r-pil); cursor: pointer; font-size: 0.82rem; min-height: 40px; }
+    @media (hover: hover) { .wiz-sig-clear:hover { border-color: var(--muted); color: var(--text); } }
     .wiz-sig-status { font-size: 0.77rem; color: var(--muted); }
     .wiz-sig-status.signed { color: var(--accent-ink); font-weight: 700; }
     /* Radio cards — horizontale rij variant */
@@ -196,17 +198,17 @@
     .wiz-radio-cards.row .wiz-radio-card { flex: 1 1 140px; min-width: 0; justify-content: center; text-align: center; }
     /* Add part button */
     .wiz-add-part {
-      background: transparent; border: 1px dashed var(--border); color: var(--muted);
-      padding: 10px 14px; border-radius: var(--r); cursor: pointer; font-size: 0.84rem;
+      background: transparent; border: 1px dashed var(--veld-rand); color: var(--muted);
+      padding: 10px 14px; border-radius: var(--r-pil); cursor: pointer; font-size: 0.84rem;
       width: 100%; margin-top: 4px; transition: border-color 0.12s, color 0.12s;
     }
-    .wiz-add-part:hover { border-color: var(--accent); color: var(--accent-ink); }
+    @media (hover: hover) { .wiz-add-part:hover { border-color: var(--accent); color: var(--accent-ink); } }
     /* Part item sub-fields */
-    .wiz-part-omschr { background: var(--surface3); border: 1px solid var(--border); color: var(--text); border-radius: var(--r); padding: 9px 12px; width: 100%; margin-bottom: 7px; }
+    .wiz-part-omschr { background: var(--veld); border: 1px solid var(--veld-rand); color: var(--text); border-radius: var(--r-pil); padding: 9px 14px; width: 100%; margin-bottom: 7px; }
     .wiz-part-del    { float: right; background: none; border: none; color: var(--muted); font-size: 1rem; cursor: pointer; padding: 0 2px; margin-top: -2px; }
-    .wiz-part-del:hover { color: var(--red); }
+    @media (hover: hover) { .wiz-part-del:hover { color: var(--red); } }
     .wiz-part-bottom { display: flex; align-items: center; gap: 12px; clear: both; }
-    .wiz-part-prijs  { background: var(--surface3); border: 1px solid var(--border); color: var(--text); border-radius: var(--r); padding: 7px 10px; width: 120px; }
+    .wiz-part-prijs  { background: var(--veld); border: 1px solid var(--veld-rand); color: var(--text); border-radius: var(--r-pil); padding: 7px 12px; width: 120px; }
     .wiz-part-factureer { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--text2); cursor: pointer; }
     /* Vrije regel (custom/free item) sizes: moved from inline styles to CSS */
     .wiz-sel-item .wiz-part-omschr { font-size: 0.85rem; }
@@ -216,51 +218,51 @@
     /* ── Wizard onderdelen (catalogus-modus) ────────────────────────────────── */
     .wiz-cat-search-wrap { position: relative; margin-bottom: 8px; }
     .wiz-cat-search {
-      width: 100%; background: var(--surface3); border: 1px solid var(--border); color: var(--text);
-      border-radius: var(--r); padding: 10px 12px 10px 36px; font-size: 0.9rem; font-family: inherit;
+      width: 100%; background: var(--veld); border: 1px solid var(--veld-rand); color: var(--text);
+      border-radius: var(--r-pil); padding: 10px 14px 10px 36px; font-size: 0.9rem; font-family: inherit;
     }
     .wiz-cat-search:focus { border-color: var(--accent); }
     .wiz-cat-search:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
     .wiz-cat-search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 0.9rem; pointer-events: none; }
     .wiz-tag-filters { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
     .wiz-tag-filter {
-      background: var(--surface3); border: 1px solid var(--border); border-radius: 12px;
+      background: var(--knop2); border: 1px solid var(--veld-rand); border-radius: 12px;
       padding: 3px 10px; font-size: var(--fs-2xs); cursor: pointer; color: var(--text2);
       transition: all 0.12s;
     }
     .wiz-tag-filter.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
-    .wiz-cat-results { max-height: 200px; overflow-y: auto; margin-bottom: 8px; border: 1px solid var(--border); border-radius: var(--r); }
+    .wiz-cat-results { max-height: 200px; overflow-y: auto; margin-bottom: 8px; border: 1px solid var(--lijn); border-radius: var(--r-ev); }
     .wiz-cat-item {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 9px 12px; border-bottom: 1px solid var(--border); cursor: pointer;
+      padding: 9px 12px; border-bottom: 1px solid var(--lijn); cursor: pointer;
       transition: background 0.1s;
     }
     .wiz-cat-item:last-child { border-bottom: none; }
-    .wiz-cat-item:hover { background: var(--surface2); }
+    @media (hover: hover) { .wiz-cat-item:hover { background: var(--knop2); } }
     .wiz-cat-item-naam { font-size: 0.85rem; color: var(--text); }
     .wiz-cat-item-prijs { font-size: 0.8rem; color: var(--accent-ink); font-weight: 600; flex-shrink: 0; margin-left: 8px; }
     .wiz-cat-empty { padding: 14px; text-align: center; color: var(--muted); font-size: 0.82rem; }
     /* Geselecteerde onderdelen */
     .wiz-sel-item {
-      background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r);
+      background: var(--veld); border: 1px solid var(--lijn); border-radius: var(--r-ev);
       padding: 9px 11px; margin-bottom: 6px;
     }
     .wiz-sel-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
     .wiz-sel-naam { font-size: 0.85rem; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .wiz-sel-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.9rem; flex-shrink: 0; }
-    .wiz-sel-del:hover { color: var(--red); }
+    @media (hover: hover) { .wiz-sel-del:hover { color: var(--red); } }
     .wiz-sel-bottom { display: flex; align-items: center; gap: 10px; }
     .wiz-sel-aantal-wrap { display: flex; align-items: center; gap: 5px; }
     .wiz-sel-aantal-lbl { font-size: 0.75rem; color: var(--muted); }
     .wiz-sel-aantal {
-      background: var(--surface3); border: 1px solid var(--border); color: var(--text);
-      border-radius: 6px; padding: 5px 8px; font-size: 0.88rem; width: 64px; text-align: center; font-family: inherit;
+      background: var(--veld); border: 1px solid var(--veld-rand); color: var(--text);
+      border-radius: var(--r-pil); padding: 5px 8px; font-size: 0.88rem; width: 64px; text-align: center; font-family: inherit;
     }
     .wiz-sel-stukprijs { font-size: 0.75rem; color: var(--muted); flex: 1; }
     .wiz-sel-subtotaal { font-size: 0.85rem; color: var(--accent-ink); font-weight: 600; flex-shrink: 0; }
     .wiz-sel-factureer { display: flex; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--text2); cursor: pointer; }
     .wiz-sel-factureer input { accent-color: var(--accent); width: 15px; height: 15px; }
-    .wiz-totaal-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); margin-top: 4px; font-size: 0.85rem; }
+    .wiz-totaal-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid var(--lijn); margin-top: 4px; font-size: 0.85rem; }
     .wiz-totaal-lbl { color: var(--muted); }
     .wiz-totaal-val { color: var(--accent-ink); font-weight: 700; font-size: 0.95rem; }
 
@@ -274,7 +276,7 @@
 
     /* Overzichtsstap */
     .wiz-sam-intro { font-size: 0.85rem; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
-    .wiz-sam-kaart { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); padding: 10px 12px; margin-bottom: 10px; }
+    .wiz-sam-kaart { background: var(--veld); border: 1px solid var(--lijn); border-radius: var(--r-ev); padding: 10px 12px; margin-bottom: 10px; }
     .wiz-sam-kop { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
     .wiz-sam-titel { font-size: 0.9rem; font-weight: 700; margin: 0; }
     .wiz-sam-rij { display: flex; gap: 10px; padding: 3px 0; font-size: 0.85rem; }

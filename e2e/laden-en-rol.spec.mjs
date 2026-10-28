@@ -45,7 +45,8 @@ test.describe('laden en rol', () => {
   });
 
   test.describe('tablet', () => {
-    test.use({ hasTouch: true });
+    // isMobile: een echte tabletemulatie (het scherm zelf staat rechtop, screen.orientation = portrait); apparaat.js leest de oriëntatie van het scherm.
+    test.use({ hasTouch: true, isMobile: true });
 
     // UI/UX P1-5: de eenmalige tablet-rolvraag bestaat niet meer; het account bepaalt de weergave (een beheerder is coördinator).
     test('tablet vraagt de rol niet meer: een beheerder blijft coördinator, ook zonder bewaarde toestelrol', async ({ page }) => {
@@ -53,7 +54,12 @@ test.describe('laden en rol', () => {
       await expect(page.getByRole('alertdialog', { name: 'Wie gebruikt deze tablet?' })).toHaveCount(0);
       await expect(page.locator('html')).toHaveAttribute('data-rol', 'coordinator');
       expect(await page.evaluate(() => localStorage.getItem('blitz_rol'))).toBeNull();
-      for (const naam of ['Wachtrij', 'Route', 'Rapporten']) await expect(tab(page, naam)).toBeVisible();
+      // Taak 17 (Brent, 2026-10-28): een staande tablet is een gsm in de hele app (apparaat.js): Route bestaat er niet, wel het dok met "Meer".
+      await expect(page.locator('html')).toHaveAttribute('data-apparaat', 'gsm');
+      await expect(tab(page, 'Wachtrij')).toBeVisible();
+      await expect(tab(page, 'Route')).toBeHidden();
+      // Open dag (v2.5.0): een staande tablet heeft het dok met "Meer": na de vierde tab staat Rapporten in het blad.
+      await expect(page.locator('#tab-rapporten')).toHaveClass(/tab--in-meer/);
     });
   });
 });

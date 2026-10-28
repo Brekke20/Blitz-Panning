@@ -63,7 +63,7 @@ export function renderRapportArchief() {
   const body = document.getElementById('rapp-archief-body');
   if (!body) return;
   if (!_rapportArchief.length) {
-    body.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:20px 0">Nog geen rapporten gearchiveerd.</div>';
+    body.innerHTML = '<div class="rapporten-leeg" style="color:var(--muted);font-size:0.82rem;padding:20px 0">Nog geen rapporten gearchiveerd.</div>';
     return;
   }
   // 'mijn' (enkel voor een beheerder/planner met een Zoho-naam): de rapporten die ik zelf indiende of waar mijn naam op staat.
@@ -112,7 +112,7 @@ export function renderRapportArchief() {
 
     // Labels voor servicetype
     const stLabels = { '2e-lijn': '2e lijns', '1e-lijn': '1e lijns', 'garantie': 'Garantie' };
-    const stBadge = (st && !isInstallatieRapport) ? `<span style="font-size:0.68rem;padding:1px 6px;border-radius:20px;font-weight:600;background:${isGarantie ? 'var(--surface3)' : 'var(--accent-dim)'};color:${isGarantie ? 'var(--muted)' : 'var(--accent)'}">${stLabels[st] || st}</span>` : '';
+    const stBadge = (st && !isInstallatieRapport) ? `<span style="font-size:0.68rem;padding:1px 6px;border-radius:20px;font-weight:600;background:${isGarantie ? 'var(--knop2)' : 'var(--accent-dim)'};color:${isGarantie ? 'var(--muted)' : 'var(--accent)'}">${stLabels[st] || st}</span>` : '';
 
     // Prijsweergave
     let prijsHtml = '';

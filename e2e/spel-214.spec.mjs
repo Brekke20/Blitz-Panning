@@ -1,4 +1,4 @@
-import { test, expect, startApp, snelTikken, metStilstaandeKlok } from './helpers.mjs';
+import { test, expect, startApp, snelTikken, metStilstaandeKlok, spelLogo, logoTekst } from './helpers.mjs';
 
 // v2.1.4 Blitz Run: (1) de kaart staat gecentreerd en groot, (2) enkel het logo-icoon opent het spel, 5 snelle tikken (elk binnen 600 ms),
 // met een telmelding na de 3e en 4e tik, (3) op aanraking twee grote knoppen (Bukken links, ingehouden; Springen rechts).
@@ -7,7 +7,7 @@ import { test, expect, startApp, snelTikken, metStilstaandeKlok } from './helper
 const MAP = process.env.SCHERM_MAP;
 const foto = async (page, naam) => { if (MAP) await page.screenshot({ path: `${MAP}/${naam}.png` }); };
 
-const logo = (page) => page.locator('.logo-icon');
+const logo = (page) => spelLogo(page); // Open dag (taak 7): op `breed` het logo in de zijkolom (kop-logo verborgen), zie helpers.mjs
 const overlay = (page) => page.locator('#spel-overlay');
 const toast = (page) => page.locator('#spel-tik-toast');
 // Stilstaande nepklok tijdens het tikken (zie helpers.mjs); reeksen met controles ertussen staan in metStilstaandeKlok.
@@ -94,13 +94,13 @@ test.describe('v2.1.4 activatie via het logo', () => {
 
   test('tikken op de tekst "Blitz Planning" telt niet mee', async ({ page }) => {
     await startApp(page);
-    for (let i = 0; i < 6; i++) await page.locator('.logo-text').click();
+    for (let i = 0; i < 6; i++) await logoTekst(page).click();
     await expect(overlay(page)).toHaveCount(0);
     await expect(toast(page)).toHaveCount(0);
     // Een gemengde reeks (3 op het logo, 2 op de tekst) telt ook niet.
     await metStilstaandeKlok(page, async () => {
       await tikken(page, 3);
-      for (let i = 0; i < 2; i++) await page.locator('.logo-text').click();
+      for (let i = 0; i < 2; i++) await logoTekst(page).click();
       await expect(overlay(page)).toHaveCount(0);
     });
   });

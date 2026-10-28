@@ -69,6 +69,24 @@ test('te traag tikken opent niets; zonder doel of na afmelden gebeurt er niets',
   assert.equal(installeerSpelOpening({ doel: null }), null);
 });
 
+// Open dag, taak 7 (Ruling 10): op `breed` staat het logo in de zijkolom en is dat van de kop verborgen; beide doelen tellen met één teller.
+test('meerdere doelen (kop- en zijkolomlogo): één gedeelde teller; ontbrekende doelen tellen niet; afmelden haalt alle luisteraars weg', async () => {
+  const kop = nepDoel();
+  const kolom = nepDoel();
+  let geladen = 0;
+  let t = 0;
+  const af = installeerSpelOpening({ doel: [kop, null, kolom], nu: () => (t += 100), melding: nepMelding(), isOpen: () => false, laad: async () => { geladen++; return { wisselSpel() {} }; } });
+  for (let i = 0; i < 4; i++) kolom.klik();
+  await wacht();
+  assert.equal(geladen, 0);
+  kop.klik(); // vijfde tik, op het andere logo: telt mee
+  await wacht();
+  assert.equal(geladen, 1);
+  af();
+  assert.equal(kop.aantal() + kolom.aantal(), 0);
+  assert.equal(installeerSpelOpening({ doel: [null, undefined] }), null);
+});
+
 test('een mislukte lading is stil en wordt de volgende keer opnieuw geprobeerd', async () => {
   const doel = nepDoel();
   let pogingen = 0;

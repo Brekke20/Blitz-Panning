@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import {
   tijdslotVoor, roundToNextQuarterStr, cleanTicketSubject, joinNL, meervoud,
-  telNummer, bevestigdLabel, DOELGROEP_LABEL, heeftLopendVoorstel,
+  telNummer, bevestigdLabel, DOELGROEP_LABEL, heeftLopendVoorstel, detailUrgentie,
 } from '../public/js/schermen/ticketdetail-logica.js';
 
 const inst = { vanTijd: '08:00', totTijd: '17:00', tijdslotMinuten: 180 };
@@ -97,4 +97,15 @@ test('heeftLopendVoorstel', () => {
 
 test('DOELGROEP_LABEL: de drie ontvangersgroepen', () => {
   assert.deepEqual(DOELGROEP_LABEL, { contact: 'contactpersoon', klant: 'klant', installateur: 'installateur' });
+});
+
+// Open dag (taak 8b): de gloed van het detailvenster volgt de kleur van de kaart van het ticket.
+test('detailUrgentie: wacht op bevestiging = oranje, ingepland = groen, anders verlopen/prioriteit, anders geen gloed', () => {
+  assert.equal(detailUrgentie({ status: 'Wachten op bevestiging planning', ingepland: true, overdue: true, priority: 'High' }), 'oranje');
+  assert.equal(detailUrgentie({ status: 'Service gepland', ingepland: true, overdue: false, priority: 'High' }), 'groen');
+  assert.equal(detailUrgentie({ status: 'Service in te plannen', ingepland: false, overdue: true, priority: 'Low' }), 'rood');
+  assert.equal(detailUrgentie({ status: 'Service in te plannen', ingepland: false, overdue: false, priority: 'High' }), 'rood');
+  assert.equal(detailUrgentie({ status: 'Service in te plannen', ingepland: false, overdue: false, priority: 'Medium' }), 'oranje');
+  assert.equal(detailUrgentie({ status: 'Service in te plannen', ingepland: false, overdue: false, priority: 'Low' }), 'groen');
+  assert.equal(detailUrgentie({ status: 'Service in te plannen', ingepland: false, overdue: false, priority: null }), null);
 });

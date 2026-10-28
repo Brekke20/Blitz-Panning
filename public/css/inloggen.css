@@ -1,18 +1,26 @@
-/* Inlog-overlay (logins T14): ondoorzichtig scherm bovenop de app, met de bestaande kleurvariabelen. */
+/* Inlog-overlay (logins T14). Open dag (taak 8a): doorzichtig, zodat de hemel (#hemel, schermen/hemel-laag.js; startHemel() loopt vóór
+   de login) de achtergrond is, met één glazen kaart. De app achter de overlay (kop, tabs, inhoud: inert zolang de overlay open is) is
+   onzichtbaar, zodat enkel de hemel en de kaart te zien zijn. Een thema met eigen achtergrond (#event-achtergrond) blijft zichtbaar. */
 #login-overlay {
   position: fixed; inset: 0; z-index: var(--z-modal);
   display: flex; align-items: flex-start; justify-content: center;
   padding: var(--sp-5) var(--sp-4); overflow-y: auto;
-  background: var(--bg); color: var(--text);
+  background: transparent; color: var(--text);
 }
+/* Eindreview F3: ook een venster, de wizard, een dialoog of het spel dat bij een 401 midden in de sessie nog openstond. */
+body:has(> #login-overlay) :is(.skip-link, .topbar-sticky, #offline-banner, #outbox-banner, #hoofdinhoud, .overlay, #rapport-wizard, .app-dialog-overlay, #spel-overlay) { visibility: hidden; }
 @media (min-width: 600px) { #login-overlay { align-items: center; } }
 .login-kaart {
   width: 100%; max-width: 420px; margin: auto 0;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+  background-color: var(--glas-venster);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
+  backdrop-filter: blur(var(--blur)) saturate(180%);
+  border: 1px solid var(--glas-rand); border-radius: var(--r-venster);
+  box-shadow: inset 0 1px 0 var(--glas-licht), var(--glas-schaduw);
   padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-3);
 }
 .login-merk { font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-ink); }
-.login-kaart h2 { font-size: var(--fs-xl); font-weight: 700; line-height: 1.25; }
+.login-kaart h2 { font-family: var(--font-kop); font-size: var(--fs-xl); font-weight: 700; line-height: 1.25; }
 .login-intro { font-size: var(--fs-sm); color: var(--text2); line-height: 1.5; }
 .login-formulier { display: flex; flex-direction: column; gap: var(--sp-3); }
 .login-formulier .set-field { margin-bottom: 0; }
@@ -30,7 +38,7 @@
 #login-overlay .btn { min-height: 44px; }
 .login-link { align-self: flex-start; }
 .login-codes {
-  margin: 0; padding: var(--sp-3); background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r);
+  margin: 0; padding: var(--sp-3); background: var(--veld); border: 1px solid var(--veld-rand); border-radius: var(--r-ev);
   font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace; font-size: var(--fs-md); line-height: 1.7; white-space: pre;
   overflow-x: auto; user-select: all;
 }

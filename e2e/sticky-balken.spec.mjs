@@ -83,7 +83,14 @@ const bannersH = (page) => page.evaluate(() => parseFloat(getComputedStyle(docum
 
 async function doeTabs(page, rol, { gsm }) {
   for (const { tab, balk, vast } of rol.tabs) {
-    const tabKnop = page.getByRole('tab', { name: tab });
+    let tabKnop = page.getByRole('tab', { name: tab });
+    // Open dag (taak 6, aangepast in taak 7): op een gsm met meer dan 5 tabs staan de overige achter "Meer" (de echte tab is dan verborgen
+    // en het blad klikt hem door). Enkel de weg naar de tab verandert; wat er gemeten wordt, blijft gelijk.
+    if (gsm && !(await tabKnop.isVisible()) && (await page.locator('.dok-meer').isVisible())) {
+      await page.locator('.dok-meer').click();
+      const inMeer = page.locator('.dok-meer-blad .dok-meer-item', { hasText: tab });
+      if (await inMeer.count()) tabKnop = inMeer; else await page.keyboard.press('Escape');
+    }
     if (!(await tabKnop.isVisible())) { expect(vast && gsm, `de tab ${tab} ontbreekt onverwacht`).toBe(true); continue; } // Route bestaat niet op een gsm
     const label = `${rol.naam}, ${tab}, ${gsm ? 'gsm 375' : 'computer 1280'}`;
     await tabKnop.click();

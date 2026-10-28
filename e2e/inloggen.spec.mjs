@@ -58,6 +58,38 @@ test.describe('inloggen', () => {
     expect(login[0].body).toEqual({ email: 'b@test.be', wachtwoord: WW });
   });
 
+  // Open dag (taak 8a): het inlogscherm staat op de hemel (de overlay is doorzichtig) met één glazen kaart; de kop en de inhoud van
+  // de app (nog leeg, inert) zijn zolang onzichtbaar, zodat enkel de hemel en de kaart te zien zijn.
+  test('de hemel als achtergrond en een glazen kaart', async ({ page }) => {
+    await openUitgelogd(page);
+    await expect(kop(page, 'Inloggen')).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-hemel', /^(ochtend|middag|avond|nacht)$/);
+    await expect(page.locator('#hemel')).not.toHaveCSS('display', 'none');
+    await expect(overlay(page)).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(overlay(page)).toHaveCSS('background-image', 'none');
+    const kaart = overlay(page).locator('.login-kaart');
+    const stijl = await kaart.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      const proef = document.createElement('div');
+      proef.style.backgroundColor = 'var(--glas-venster)';
+      el.appendChild(proef);
+      const glas = getComputedStyle(proef).backgroundColor;
+      proef.remove();
+      return { kleur: cs.backgroundColor, glas, vervaging: cs.backdropFilter, hoek: cs.borderTopLeftRadius };
+    });
+    expect(stijl.kleur).toBe(stijl.glas);
+    expect(stijl.vervaging).toContain('blur(');
+    expect(stijl.hoek).toBe('28px'); // --r-venster
+    await expect(page.locator('.topbar-sticky')).toBeHidden();
+    await expect(page.locator('#hoofdinhoud')).toBeHidden();
+    // na het inloggen is de app er gewoon weer
+    await vulInlog(page);
+    await overlay(page).getByRole('button', { name: 'Inloggen', exact: true }).click();
+    await expect(overlay(page)).toHaveCount(0);
+    await appGestart(page);
+    await expect(page.locator('.topbar-sticky')).toBeVisible();
+  });
+
   test('toegankelijkheid: de overlay is genoemd naar de kop van het huidige scherm (aria-labelledby)', async ({ page }) => {
     await openUitgelogd(page);
     const id = await overlay(page).getAttribute('aria-labelledby');

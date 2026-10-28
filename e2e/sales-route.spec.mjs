@@ -153,6 +153,19 @@ test.describe('sales: route en kaart', () => {
     await expect(route(page).locator('.sales-route-samenvatting')).not.toContainText('geschat');
   });
 
+  // Open dag, taak 12 (fix ronde 1): op pc is .route-balk rond met 14 px lucht rechts; de nota in de lijstkolom volgt dezelfde vorm.
+  test('pc: de nota onder de routebalk is een ronde glazen balk met 14 px lucht rechts', async ({ page }) => {
+    await startSalesApp(page, { leads: DRIE(), viewport: { width: 1280, height: 800 } });
+    await expect(page.locator('html')).toHaveAttribute('data-nav', 'kolom');
+    await naarRoute(page);
+    const nota = route(page).locator('.sales-route-lijstvak .sales-route-nota');
+    await expect(nota).toBeVisible();
+    const cs = await nota.evaluate((el) => { const c = getComputedStyle(el); return { mr: c.marginRight, tl: c.borderTopLeftRadius, br: c.borderBottomRightRadius }; });
+    expect(cs.mr).toBe('14px');
+    expect(parseFloat(cs.tl)).toBeGreaterThan(0);
+    expect(parseFloat(cs.br)).toBeGreaterThan(0);
+  });
+
   test('zonder startadres: geen vertrekrij, een melding en geen valse waarschuwing', async ({ page }) => {
     await startSalesApp(page, { leads: DRIE() });
     await naarRoute(page);

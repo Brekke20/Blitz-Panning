@@ -1,0 +1,30 @@
+/* Open dag-stijl, taak 2: de hemel volgt het uur (schermen/hemel-laag.js zet html[data-hemel]). Eén vaste laag achter de hele app:
+   zon of maan (--zon, --zon-x, --zon-y), de horizon in Blitz-groen (--horizon), een verloop van boven naar onder (--h1 tot --h3) en
+   's nachts sterren (--sterren). Kleuren uit het goedgekeurde ontwerp (docs/superpowers/specs/assets/2026-10-27-open-dag-mockup.html).
+   De effen --bg op <html> blijft de terugval (ook zolang de module nog laadt). Een thema met achtergrond vervangt de hemel; print toont ze niet. */
+#hemel {
+  position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  --sterren: none;
+  /* de kleuren staan per hemel hieronder (ochtend is de eerste); zonder data-hemel is de laag verborgen */
+  background: var(--sterren), radial-gradient(70% 38% at 50% 106%, var(--horizon), transparent 70%),
+    radial-gradient(42% 46% at var(--zon-x) var(--zon-y), var(--zon), transparent 70%), linear-gradient(180deg, var(--h1) 0%, var(--h2) 48%, var(--h3) 100%);
+}
+html[data-hemel="ochtend"] #hemel { --h1: #18203f; --h2: #2c3363; --h3: #3c4566; --horizon: rgba(0, 223, 163, .34); --zon: rgba(255, 162, 120, .42); --zon-x: 8%; --zon-y: 96%; }
+html[data-hemel="middag"] #hemel  { --h1: #0f2242; --h2: #18426c; --h3: #135a62; --horizon: rgba(0, 223, 163, .5); --zon: rgba(140, 210, 255, .22); --zon-x: 82%; --zon-y: 6%; }
+html[data-hemel="avond"] #hemel   { --h1: #1b1534; --h2: #3a2150; --h3: #4c2d40; --horizon: rgba(0, 223, 163, .3); --zon: rgba(255, 128, 80, .42); --zon-x: 94%; --zon-y: 96%; }
+html[data-hemel="nacht"] #hemel   { --h1: #090e21; --h2: #0f1937; --h3: #0d2a36; --horizon: rgba(0, 223, 163, .3); --zon: rgba(120, 140, 255, .14); --zon-x: 80%; --zon-y: 12%;
+  --sterren: radial-gradient(1.5px 1.5px at 12% 14%, rgba(255,255,255,.8), transparent), radial-gradient(1px 1px at 28% 32%, rgba(255,255,255,.6), transparent), radial-gradient(1.5px 1.5px at 46% 9%, rgba(255,255,255,.7), transparent), radial-gradient(1px 1px at 63% 26%, rgba(255,255,255,.55), transparent), radial-gradient(1.5px 1.5px at 74% 6%, rgba(255,255,255,.8), transparent), radial-gradient(1px 1px at 88% 30%, rgba(255,255,255,.6), transparent), radial-gradient(1px 1px at 6% 42%, rgba(255,255,255,.5), transparent), radial-gradient(1px 1px at 93% 48%, rgba(255,255,255,.5), transparent); }
+
+html[data-theme="light"][data-hemel="ochtend"] #hemel { --h1: #f5e2db; --h2: #e8e4f3; --h3: #dcf1e8; --horizon: rgba(0, 223, 163, .34); --zon: rgba(255, 170, 130, .45); }
+html[data-theme="light"][data-hemel="middag"] #hemel  { --h1: #d4e7fb; --h2: #e5eefa; --h3: #d5f2e5; --horizon: rgba(0, 223, 163, .42); --zon: rgba(255, 255, 255, .7); }
+html[data-theme="light"][data-hemel="avond"] #hemel   { --h1: #eed6e6; --h2: #f3e0d8; --h3: #e0eee4; --horizon: rgba(0, 223, 163, .3); --zon: rgba(255, 150, 100, .4); }
+html[data-theme="light"][data-hemel="nacht"] #hemel   { --h1: #d3d9ee; --h2: #dfe3f1; --h3: #d8e9e6; --horizon: rgba(0, 223, 163, .26); --zon: rgba(150, 160, 255, .25); --sterren: none; }
+
+/* de body laat de hemel zien; de effen --bg op <html> is de terugval */
+@media screen { body { background: transparent; } }
+
+/* nog voor de module draait (geen data-hemel): geen laag, dus geen donkere flits voor wie het lichte thema gebruikt */
+html:not([data-hemel]) #hemel { display: none; }
+/* een thema met een eigen achtergrond (schermen/evenement-laag.js) vervangt de hemel */
+html[data-event-achtergrond="ja"] #hemel { display: none; }
+@media print { #hemel { display: none; } }

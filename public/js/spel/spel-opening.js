@@ -34,13 +34,15 @@ function maakDomMelding() {
 }
 const spelIsOpen = () => typeof document !== 'undefined' && Boolean(document.getElementById('spel-overlay')?.classList.contains('open'));
 
-// `doel`: het logo-icoon (.logo-icon). `laad`: geeft de belofte van de spel-module (standaard de dynamische import).
+// `doel`: het logo-icoon (.logo-icon), of een lijst doelen (Open dag: ook het logo in de zijkolom, .zijkolom-logo-icoon); ontbrekende doelen
+// tellen niet en alle doelen delen één teller (enkel één is tegelijk zichtbaar). `laad`: geeft de belofte van de spel-module (standaard de dynamische import).
 // De thema-afhankelijkheden komen van app.js en gaan ongewijzigd naar het spel (`wisselSpel(afh)`); dit bestand zelf kent geen skins (die zijn lazy):
 // `actieveThemas(datum: Date)` -> [{ id }] (de nu actieve themas), `pakketten()` -> de bekende themapakketten (voor de themaskins) en
 // `haalPakketten()` -> belofte (haalt de pakketten van themas die nog niet in de cache zitten; true als er iets nieuw binnenkwam).
 // `melding` ({ toon(tekst), verberg() }) en `isOpen()` zijn injecteerbaar voor tests.
 export function installeerSpelOpening({ doel, laad = () => import('./spel-ui.js'), nu = () => Date.now(), actieveThemas = () => [], pakketten = () => [], haalPakketten = async () => false, melding = maakDomMelding(), isOpen = spelIsOpen } = {}) {
-  if (!doel) return null;
+  const doelen = (Array.isArray(doel) ? doel : [doel]).filter(Boolean);
+  if (!doelen.length) return null;
   const tik = maakSnelleTikTeller({ aantal: TIK_AANTAL, maxTussenMs: TIK_TUSSEN_MS });
   let module = null; // de gedeelde belofte van de spel-module
   const bijKlik = () => {
@@ -57,6 +59,6 @@ export function installeerSpelOpening({ doel, laad = () => import('./spel-ui.js'
     module = module ?? laad();
     module.then((m) => m.wisselSpel({ actieveThemas, pakketten, haalPakketten })).catch(() => { module = null; });
   };
-  doel.addEventListener('click', bijKlik);
-  return () => { doel.removeEventListener('click', bijKlik); melding.verberg(); };
+  for (const d of doelen) d.addEventListener('click', bijKlik);
+  return () => { for (const d of doelen) d.removeEventListener('click', bijKlik); melding.verberg(); };
 }

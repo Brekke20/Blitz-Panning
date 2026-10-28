@@ -1,0 +1,269 @@
+/* ── Navigatie (Open dag, taak 5) ──
+   Eén tabbalk in de pagina: nav > .tabs > .tabs-inner[role=tablist] > .tab (dezelfde knoppen, id's, data-actie en ARIA als vroeger), in
+   twee gedaanten, enkel met CSS, gekozen door `data-nav` op <html> (kern/navigatievorm.js, taak 8a / Ruling 12; los van data-indeling):
+   - `kolom` (pc en liggende tablet in een venster van minstens 768 px breed): een zwevende glazen ZIJKOLOM links (228 px, 14 px van de randen, hoeken 30 px), bovenaan logo +
+     "Blitz Planning" (.zijkolom-logo), de tabs onder elkaar (icoon + naam + teller rechts), onderaan de persoonkiezer (#person-sel, die
+     in de DOM in de kop blijft staan en hier enkel `position: fixed` krijgt). De pagina schuift `--zijkolom-b` naar rechts.
+   - `dok` (gsm, staande tablet en een computervenster smaller dan 768 px): een zwevend glazen DOK onderaan (12 px van de zijkanten, boven de veilige zone), elk tabblad als
+     icoon boven een kleine naam. De inhoud krijgt onderaan --dok-h (gemeten door js/sticky-offset.js) + 24 px ruimte.
+   Vast aan het scherm: `nav` (het landmark "Hoofdmenu") is het vaste kader met de maten van de kolom of het dok, .tabs is het glazen
+   paneel dat het kader vult. Zo heeft het landmark zelf een echte doos (met een vaste .tabs in een lege nav was die 0 × 0 en gold het
+   menu voor hulpmiddelen en tests als onzichtbaar).
+   Containing block: .topbar-sticky, header en nav krijgen GEEN backdrop-filter, filter, transform, will-change of contain, anders zitten
+   de vaste kolom, het dok en de persoonkiezer aan hun ouder vast in plaats van aan het scherm. De vervaging staat op .tabs zelf.
+   De glijdende onderlijn (.tabs::after) en haar variabelen (--ind-left/--ind-width, vroeger gezet door updateTabIndicator) zijn weg.
+   Het actieve tabblad = een lichtere glazen pil (--knop2-hover) met groen icoon; de teller is een bolletje (.badge hieronder). */
+
+:root {
+  --zijkolom-b: 256px; /* 228 px kolom + 2 × 14 px marge */
+  --r-zijkolom: 30px;  /* straal van de zijkolom en van het zwevende glas van de kop (css/app.css, Kop en paginakop) */
+  --dok-h: 0px;        /* js/sticky-offset.js zet de echte waarde; 0 bij de zijkolom */
+}
+
+/* ── Gemeenschappelijk ── */
+.tabs {
+  position: relative;
+}
+.tabs::after { display: none; }
+.tabs-inner {
+  display: flex;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.tabs-inner::-webkit-scrollbar { display: none; }
+.zijkolom-logo { display: none; }
+
+.tab {
+  position: relative;
+  display: flex; align-items: center; gap: 10px;
+  height: 44px; padding: 0 12px;
+  background: transparent; border: 0; border-radius: 16px;
+  font: inherit; font-size: 0.875rem; font-weight: 500;
+  color: var(--text2);
+  white-space: nowrap; cursor: pointer; user-select: none;
+  transition: color var(--duur) ease, background-color var(--duur) ease, box-shadow var(--duur) ease;
+}
+@media (hover: hover) { .tab:hover { color: var(--text); background: var(--knop2); } } /* Ruling 9: niet blijven hangen na een tik in het dok */
+.tab.active {
+  color: var(--text); font-weight: 600;
+  background: var(--knop2-hover);
+  box-shadow: inset 0 1px 0 var(--glas-licht), 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+@media (hover: hover) { .tab.active:hover { background: var(--knop2-hover); } }
+.tab:focus-visible { outline-offset: -2px; }
+.tab-icoon { width: 18px; height: 18px; flex: none; }
+.tab.active .tab-icoon { color: var(--accent-ink); }
+
+/* Het vaste kader (nav) en het glazen paneel (.tabs). Glas enkel op .tabs, nooit op een ouder (zie boven). */
+html[data-nav] .topbar-sticky > nav {
+  position: fixed; z-index: 1;
+}
+html[data-nav] .tabs {
+  background-color: var(--glas);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
+  backdrop-filter: blur(var(--blur)) saturate(180%);
+  border: 1px solid var(--glas-rand);
+  border-radius: var(--r-zijkolom);
+  box-shadow: inset 0 1px 0 var(--glas-licht), var(--glas-schaduw);
+}
+
+/* Het dok in donker is dichter dan een gewone kaart (--glas-dok, base.css): een felle knop die er onderdoor schuift mag de tabnamen niet onder 4,5:1 duwen. */
+html[data-nav="dok"]:not([data-theme="light"]) .tabs { background-color: var(--glas-dok); }
+
+/* ── Zijkolom (data-nav="kolom") ── */
+html[data-nav="kolom"] body { padding-left: var(--zijkolom-b); }
+html[data-nav="kolom"] .topbar-sticky > nav { top: 14px; bottom: 14px; left: 14px; width: 228px; }
+html[data-nav="kolom"] .tabs {
+  position: absolute; inset: 0; /* vult het kader: 228 px breed, 14 px van boven, onder en links */
+  display: flex; flex-direction: column; gap: 6px;
+  /* onderaan plaats voor de persoonkiezer (44 px + 12 px rand + 16 px lucht) */
+  padding: 16px 12px 72px;
+}
+html[data-nav="kolom"] .zijkolom-logo {
+  display: flex; align-items: center; gap: 10px; flex: none;
+  padding: 0 6px 14px;
+}
+/* Eigen klassen (geen .logo-icon/.logo-text): die van de kop blijven het doel op gsm en in tests; bij de zijkolom is het kop-logo verborgen
+   (taak 7) en luistert het spel ook naar .zijkolom-logo-icoon. */
+.zijkolom-logo-icoon {
+  /* Ook het doel van het verborgen spel bij de zijkolom (taak 7, app.js): snel tikken zonder dubbeltik-zoom of selectie */
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  width: 34px; height: 34px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 12px;
+  background: var(--knop2); border: 1px solid var(--glas-rand);
+}
+.zijkolom-logo-tekst {
+  font-family: var(--font-kop); font-size: 1.125rem; font-weight: 700;
+  color: var(--text); letter-spacing: -0.01em; white-space: nowrap;
+}
+html[data-nav="kolom"] .tabs-inner {
+  flex-direction: column; gap: 3px;
+  flex: 1 1 auto; min-height: 0;
+  overflow-x: hidden; overflow-y: auto; /* veel tabs op een laag scherm: de kolom scrolt, de pagina niet */
+}
+html[data-nav="kolom"] .tab { flex: none; }
+html[data-nav="kolom"] .tab .badge { margin-left: auto; }
+
+/* De persoonkiezer onderaan in de kolom, over de volle breedte (zonder hem in de DOM te verplaatsen: hij blijft in de kop). Een inline
+   display:none (verkoper zonder kiezer, sales-start.js) blijft gelden. Het menu opent rechts naast de kolom, met de onderkant gelijk:
+   zo blijft het volledig zichtbaar en bedekt het geen tabbladen. */
+html[data-nav="kolom"] #person-sel {
+  position: fixed; z-index: 2;
+  left: 26px; bottom: 26px; width: 204px; /* 14 + 12 px van de rand, kolom 228 - 2 × 12 px binnenrand */
+}
+html[data-nav="kolom"] #person-btn {
+  width: 100%; height: 44px; padding: 0 12px;
+  border-radius: 16px; justify-content: flex-start;
+  background: var(--knop2); border-color: var(--glas-rand);
+}
+@media (hover: hover) { html[data-nav="kolom"] #person-btn:hover { background: var(--knop2-hover); } }
+html[data-nav="kolom"] #person-btn[data-werkruimte="sales"] { border-color: var(--accent); background: var(--accent-dim); }
+html[data-nav="kolom"] #person-name-hdr { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-nav="kolom"] .person-chevron { margin-left: auto; }
+html[data-nav="kolom"] #person-menu {
+  top: auto; right: auto; bottom: 0; left: calc(100% + 26px); /* 12 px binnenrand + 14 px lucht naast de kolom */
+  max-height: calc(100dvh - 28px);
+}
+
+/* ── Dok (data-nav="dok": gsm, staande tablet, smal computervenster) ── */
+html[data-nav="dok"] .topbar-sticky > nav {
+  left: 12px; right: 12px; bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+}
+html[data-nav="dok"] .tabs {
+  display: flex; align-items: stretch; gap: 2px;
+  padding: 6px; /* in de stroom van het kader: het dok is zo hoog als zijn tabs */
+}
+/* Meer dan 5 tabs: de eerste 4 + "Meer" (schermen/dok-meer.js). De overtollige tabs blijven in de DOM (klasse tab--in-meer) en staan in het blad. */
+html[data-nav="dok"] .tab--in-meer { display: none; }
+/* Het dok scrolt niet meer: er passen hoogstens 5 plekken. Enkel op een heel smal scherm (< 340 px) blijft een schuifbalk-loos scrollen als vangnet. */
+html[data-nav="dok"] .tabs-inner {
+  flex: 1 1 0; min-width: 0;
+  gap: 2px; overflow-x: auto; overflow-y: hidden;
+}
+/* Met "Meer" zijn de 4 tabs en Meer even breed (4 : 1). */
+html[data-nav="dok"] .tabs:has(.dok-meer:not([hidden])) .tabs-inner { flex-grow: 4; }
+/* "Meer": opgemaakt als een dok-tab (icoon boven de naam), maar geen .tab. Verborgen zolang er niets achter zit en altijd bij de zijkolom. */
+.dok-meer { display: none; }
+html[data-nav="dok"] .dok-meer:not([hidden]) {
+  position: relative; display: flex; flex: 1 1 0; min-width: 60px;
+  flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  height: 56px; padding: 0 6px;
+  background: transparent; border: 0; border-radius: 24px;
+  font: inherit; font-size: 0.6875rem; font-weight: 500; /* 11 px, zoals de dok-tabs */
+  color: var(--text2);
+  white-space: nowrap; cursor: pointer; user-select: none;
+  transition: color var(--duur) ease, background-color var(--duur) ease, box-shadow var(--duur) ease;
+}
+@media (hover: hover) { .dok-meer:hover { color: var(--text); background: var(--knop2); } }
+.dok-meer.actief {
+  color: var(--text); font-weight: 600;
+  background: var(--knop2-hover);
+  box-shadow: inset 0 1px 0 var(--glas-licht), 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+@media (hover: hover) { .dok-meer.actief:hover { background: var(--knop2-hover); } }
+.dok-meer:focus-visible { outline-offset: -2px; }
+.dok-meer .tab-icoon { width: 20px; height: 20px; flex: none; }
+.dok-meer.actief .tab-icoon { color: var(--accent-ink); }
+/* De gewone kleur van het bolletje is het groen van het accent (--green, #00dfa3 in donker) en niet --accent zelf: een themapakket zet --accent op zijn
+   eigen kleur (Halloween oranje, Sinterklaas rood) en dan leek een gewoon bolletje op "bijna op" of "op". --green is een statuskleur en blijft in elk
+   thema gelijk. In licht is dat groen te licht op het witte glas en op de lichte pil van het actieve tabblad (1,6:1): een diepere variant (3,9:1 op wit). */
+:root { --bolletje-accent: var(--green); }
+:root[data-theme="light"] { --bolletje-accent: #00946b; }
+
+/* Taak 19: het bolletje van elke tabteller, op ÉÉN plek (Brent, 2026-10-28: "alles aangeven met een bolletje zonder cijfer", overal). Het cijfer van
+   .badge blijft in de DOM (code en tests lezen het) maar is onzichtbaar (font-size 0, transparante kleur); de tab zegt het in zijn aria-label
+   (schermen/tab-bolletjes.js). Hetzelfde bolletje staat op de tabs (zijkolom, dok), in het blad "Meer" en op de knop "Meer" (.dok-meer-bolletje).
+   Kleur: groen (--bolletje-accent), oranje bij badge--bijna, rood bij badge--op (de statuskleuren --orange en --red blijven in elk thema); de rand in de kleur van het
+   glas houdt het bolletje los van het icoon of de pil, ook op het actieve tabblad. Een teller van 0 krijgt data-nul (tab-bolletjes.js): geen bolletje. */
+.badge, .dok-meer-bolletje {
+  flex: none; box-sizing: border-box;
+  width: 10px; height: 10px; min-width: 0; padding: 0;
+  border-radius: var(--r-pil);
+  font-size: 0; line-height: 0; color: transparent; overflow: hidden;
+  background: var(--bolletje-accent);
+  box-shadow: 0 0 0 2px var(--glas-sterk);
+}
+.dok-meer-bolletje { pointer-events: none; }
+/* Hoog contrast (forced-colors): achtergrond en schaduw verdwijnen; het bolletje houdt zijn eigen kleur, met een rand in de tekstkleur. */
+@media (forced-colors: active) {
+  .badge, .dok-meer-bolletje { forced-color-adjust: none; border: 1px solid CanvasText; }
+}
+.badge[data-nul], .dok-meer-bolletje[hidden] { display: none; }
+.badge.badge--bijna, .dok-meer-bolletje[data-kleur="bijna"] { background: var(--orange); }
+.badge.badge--op, .dok-meer-bolletje[data-kleur="op"] { background: var(--red); }
+/* Op het dok hangt het bolletje rechtsboven aan het icoon, op een dok-tab en op Meer op dezelfde plek (beide 56 px hoog, icoon van 20 px). */
+html[data-nav="dok"] .tab .badge, .dok-meer-bolletje {
+  position: absolute; top: 9px; right: calc(50% - 17px);
+}
+
+/* Het blad: een glazen paneel onderaan, boven het dok (het overlay ligt boven alles; --dok-h houdt het blad vrij van het dok zelf).
+   Geen vervaging op het overlay zelf: een backdrop-filter in een ouder met backdrop-filter ziet de pagina niet meer, dus het glas van het
+   blad (.dok-meer-blad) zou niet vervagen. Het overlay dimt enkel. */
+.overlay.dok-meer-overlay {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.4);
+  align-items: flex-end; justify-content: center;
+  padding: 0 12px calc(var(--dok-h) + 10px);
+}
+.dok-meer-blad {
+  width: min(100%, 420px);
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px;
+  max-height: calc(100dvh - var(--dok-h) - 40px); overflow-y: auto;
+  background-color: var(--glas);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
+  backdrop-filter: blur(var(--blur)) saturate(180%);
+  border: 1px solid var(--glas-rand);
+  border-radius: 30px;
+  box-shadow: inset 0 1px 0 var(--glas-licht), var(--glas-schaduw);
+  outline: none;
+}
+.dok-meer-item {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; min-height: 52px; padding: 0 16px;
+  background: transparent; border: 0; border-radius: 22px;
+  font: inherit; font-size: 0.9375rem; font-weight: 500; text-align: left;
+  color: var(--text2); cursor: pointer;
+  transition: color var(--duur) ease, background-color var(--duur) ease;
+}
+@media (hover: hover) { .dok-meer-item:hover { color: var(--text); background: var(--knop2); } }
+.dok-meer-item.actief {
+  color: var(--text); font-weight: 600; background: var(--knop2-hover);
+  box-shadow: inset 0 1px 0 var(--glas-licht);
+}
+.dok-meer-item:focus-visible { outline-offset: -2px; }
+.dok-meer-item .tab-icoon { width: 20px; height: 20px; flex: none; }
+.dok-meer-item.actief .tab-icoon { color: var(--accent-ink); }
+.dok-meer-item .badge { margin-left: auto; }
+html[data-nav="dok"] .tab {
+  flex: 1 0 auto; min-width: 60px;
+  flex-direction: column; justify-content: center; gap: 3px;
+  height: 56px; padding: 0 6px;
+  border-radius: 24px;
+  font-size: 0.6875rem; /* 11 px */
+}
+html[data-nav="dok"] .tab-icoon { width: 20px; height: 20px; }
+/* Ruimte onderaan voor het dok: de inhoud, de Route-tab (die het scherm vult) en het meldingsvak blijven erboven. */
+html[data-nav="dok"] {
+  scroll-padding-bottom: calc(var(--dok-h) + 24px); /* focus en scrollIntoView zetten niets onder het dok */
+}
+html[data-nav="dok"] main {
+  padding-bottom: calc(var(--dok-h) + 24px);
+}
+html[data-nav="dok"] #view-planning.active {
+  height: calc(100vh - var(--sticky-top, 93px) - var(--dok-h) - 24px);
+  height: calc(100dvh - var(--sticky-top, 93px) - var(--dok-h) - 24px);
+}
+html[data-nav="dok"] #toast {
+  bottom: calc(var(--dok-h) + 12px);
+}
+html[data-nav="dok"] #spel-tik-toast {
+  bottom: calc(var(--dok-h) + 60px);
+}
+
+@media print {
+  html[data-nav] .topbar-sticky > nav, html[data-nav] #person-sel { display: none !important; }
+  html[data-nav] body { padding-left: 0; }
+  html[data-nav] main { padding-bottom: 0; }
+}

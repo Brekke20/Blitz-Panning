@@ -11,16 +11,6 @@ import { initPersoonskiezer, koppelLuisteraars, bouwMenu, werkKnopBij, toggleMen
 import { kiesVerkoper, zorgVoorVerkopers, lijstVerkopers, VERKOPER_SLEUTEL } from './sales-verkoper.js';
 import { herlaadActief } from './sales-schil.js';
 
-function zetStreep(tabId) {
-  const tab = document.getElementById(tabId);
-  const tabs = document.querySelector('.tabs');
-  if (!tab || !tabs) return;
-  const tr = tab.getBoundingClientRect();
-  const pr = tabs.getBoundingClientRect();
-  tabs.style.setProperty('--ind-left', (tr.left - pr.left) + 'px');
-  tabs.style.setProperty('--ind-width', tr.width + 'px');
-}
-
 function activeerTab(id) {
   const knop = document.getElementById('tab-' + id);
   const view = document.getElementById('view-' + id);
@@ -29,7 +19,6 @@ function activeerTab(id) {
   document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
   knop.classList.add('active'); knop.setAttribute('aria-selected', 'true'); knop.tabIndex = 0;
   view.classList.add('active');
-  zetStreep(knop.id);
   laadTab(id);
   window.scrollTo(0, 0); // een tabwissel start bovenaan
 }
@@ -66,7 +55,7 @@ function toggleThema() {
   const volgende = nu === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', volgende);
   try { localStorage.setItem('blitz_theme', volgende); } catch { /* geen opslag */ }
-  document.getElementById('meta-theme-color')?.setAttribute('content', volgende === 'light' ? '#f5f6f7' : '#181e24');
+  document.getElementById('meta-theme-color')?.setAttribute('content', volgende === 'light' ? '#e5eefa' : '#0d1530');
 }
 
 export async function start() {
@@ -87,22 +76,12 @@ export async function start() {
     if (TEST_MODE) { const badge = document.getElementById('test-badge'); if (badge) badge.style.display = 'inline-block'; }
     verbergKopKnoppen();
     if (huidigeRechten().alleSales) startKiezer();
-    window.addEventListener('resize', () => {
-      const actief = document.querySelector('.tab.active');
-      if (actief) zetStreep(actief.id);
-      zetStickyOffsets();
-    });
-    document.querySelector('.tabs-inner')?.addEventListener('scroll', () => {
-      const actief = document.querySelector('.tab.active');
-      if (actief) zetStreep(actief.id);
-    });
+    window.addEventListener('resize', () => { zetStickyOffsets(); });
     // Route bestaat niet op een gsm (kop B): staat iemand op Route en wordt het venster een gsm (draaien, smaller), dan gaat hij naar Kalender.
     window.addEventListener('apparaatwijziging', () => {
       const actief = document.querySelector('.tab.active');
       if (window.apparaat?.indeling === 'smal' && actief?.classList.contains('alleen-groot')) activeerTab('sales-kalender');
       zetStickyOffsets();
-      const nu = document.querySelector('.tab.active');
-      if (nu) zetStreep(nu.id);
     });
     zetStickyOffsets();
     const eerste = tabsVoorRol('sales')[0];

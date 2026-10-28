@@ -21,6 +21,23 @@
   // (CSS: .coord-only.plan-eigen); de server en de knoppen per ticket beperken hem tot zijn eigen tickets.
   var planEigen = false;
 
+  // Rechtop of liggend voor de gsm-regel: screen.orientation.type ('portrait-*' / 'landscape-*') als het toestel die geeft. NIET screen.width/height (WebKit
+  // op iOS/iPadOS wisselt die bij het draaien niet om) en NIET het venster alleen: Android-splitscreen op een liggende tablet geeft een smal, hoog venster en
+  // blijft dus een tablet (de oriëntatie van het scherm is liggend). Zonder screen.orientation geldt het venster (innerHeight >= innerWidth), met een
+  // toetsenbordslot: een schermtoetsenbord verkleint enkel de hoogte, dus bij een ongewijzigde breedte blijft het vorige oordeel staan en schakelt de app nooit
+  // midden in het typen om (een draai verandert de breedte altijd).
+  var laatsteBreedte = null, laatsteVensterStaand = null;
+  function staandVoorGsm(b, vensterStaand) {
+    var o = window.screen && window.screen.orientation && window.screen.orientation.type;
+    if (typeof o === 'string') {
+      if (o.indexOf('portrait') === 0) return true;
+      if (o.indexOf('landscape') === 0) return false;
+    }
+    if (laatsteVensterStaand !== null && laatsteBreedte === b) return laatsteVensterStaand;
+    laatsteBreedte = b; laatsteVensterStaand = vensterStaand;
+    return vensterStaand;
+  }
+
   function bepaal() {
     var grof = !!(grofMQ && grofMQ.matches);
     var b = window.innerWidth, h = window.innerHeight;
@@ -30,8 +47,9 @@
     var sb = window.screen && window.screen.width, sh = window.screen && window.screen.height;
     var kortsteZijde = (sb > 0 && sh > 0) ? Math.min(sb, sh) : Math.min(b, h);
     var staand = h >= b;
-
-    var auto = !grof ? 'computer' : (kortsteZijde < 600 ? 'gsm' : 'tablet');
+    // Een tablet RECHTOP is een gsm in de hele app (Brent, 2026-10-28: het verschil was vooral de voorraadbel; dok, gsm-kalender en gsm-glas horen erbij);
+    // liggend blijft hij een tablet (indeling 'breed', zoals de computer). Een handmatige keuze (blitz_weergave, Instellingen) gaat voor en laat dit onaangeroerd.
+    var auto = !grof ? 'computer' : (kortsteZijde < 600 || staandVoorGsm(b, staand) ? 'gsm' : 'tablet');
     var w = lees('blitz_weergave');
     var soort = (w === 'gsm' || w === 'tablet' || w === 'computer') ? w : auto;
 
@@ -59,6 +77,10 @@
     root.setAttribute('data-aanraak', a.aanraak ? 'ja' : 'nee');
     root.setAttribute('data-rol', a.rol);
     root.setAttribute('data-plan-eigen', a.planEigen ? 'ja' : 'nee');
+    // data-nav (zijkolom of dok, Open dag): enkel de EERSTE keer hier gezet, zodat het attribuut er al is bij de eerste verf (de CSS hangt
+    // eraan). Daarna is kern/navigatievorm.js de enige bron. Dezelfde regel (NAV_MIN_BREEDTE = 768): tests/navigatievorm.test.mjs
+    // laat dit bestand draaien en pint de twee aan elkaar.
+    if (!root.hasAttribute('data-nav')) root.setAttribute('data-nav', (a.indeling !== 'breed' || window.innerWidth < 768) ? 'dok' : 'kolom');
   }
 
   function evalueer() {
@@ -100,6 +122,7 @@
   }
   window.addEventListener('resize', gedebounced);
   window.addEventListener('orientationchange', gedebounced);
+  try { if (window.screen && window.screen.orientation && window.screen.orientation.addEventListener) window.screen.orientation.addEventListener('change', gedebounced); } catch (e) {}
   if (grofMQ) {
     if (grofMQ.addEventListener) grofMQ.addEventListener('change', evalueer);
     else if (grofMQ.addListener) grofMQ.addListener(evalueer);

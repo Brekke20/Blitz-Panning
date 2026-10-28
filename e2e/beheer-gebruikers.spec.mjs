@@ -1,7 +1,7 @@
 // Beheerpagina en tab Gebruikers (logins T17): lijst, nieuwe gebruiker met eenmalig startwachtwoord/herstelcodes, bewerken,
 // blokkeren (bevestiging, 409 van de server), wachtwoord resetten, overal uitloggen, eigen herstelcodes, XSS en gsm-weergave.
 // De stub `gebruikers` is stateful en bevat enkel verzonnen gegevens.
-import { test, expect, startApp, authIkStub } from './helpers.mjs';
+import { test, expect, startApp, authIkStub, kiesHoofdtab } from './helpers.mjs';
 
 const json = (status, obj) => ({ status, json: obj });
 const START_WW = 'Start-Qx7-uniek-4821';
@@ -63,7 +63,7 @@ async function verwachtFout(consoleFouten, status, pad = '/api/gebruikers') {
 async function openGebruikers(page, opties = {}) {
   const { overschrijf, ...app } = opties.app ?? {};
   await startApp(page, { ...app, overschrijf: { gebruikers: gebruikersStub(opties.stub), ...overschrijf } });
-  await page.getByRole('tab', { name: 'Beheer', exact: true }).click();
+  await kiesHoofdtab(page, 'Beheer'); // Open dag: op een smal scherm staat Beheer in "Meer"
   await expect(page.getByRole('tab', { name: 'Gebruikers', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('.bg-tabel')).toBeVisible();
 }
@@ -604,7 +604,7 @@ test.describe('tab Gebruikers: gsm', () => {
     const breedte = () => page.evaluate(() => ({ breedte: document.documentElement.scrollWidth, venster: window.innerWidth }));
     const hoofd = await breedte();
     expect(hoofd.breedte).toBeLessThanOrEqual(hoofd.venster);
-    await page.getByRole('tab', { name: 'Beheer', exact: true }).click();
+    await kiesHoofdtab(page, 'Beheer'); // Open dag: op een smal scherm staat Beheer in "Meer"
     await expect(page.locator('.bg-tabel')).toBeVisible();
     const beheer = await breedte();
     expect(beheer.breedte).toBeLessThanOrEqual(beheer.venster);

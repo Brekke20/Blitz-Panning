@@ -1,4 +1,4 @@
-import { test, expect, startApp, snelTikken } from './helpers.mjs';
+import { test, expect, startApp, snelTikken, spelLogo } from './helpers.mjs';
 import { valideerPakket, PLAFONDS } from '../public/js/kern/themapakket-validatie.js';
 
 // Versiering per beweging (taak 6, spec thema's als pakket §3.3): één stubpakket per soort beweging via /api/themas.
@@ -142,7 +142,7 @@ test.describe('versiering per beweging (computer)', () => {
     await start(page, pakket('proef-spel', [{ beweging: 'vallen', beeld: 'bol', aantal: 4 }]));
     await expect(voor(page, '.ev-val')).toHaveCount(4);
     await page.clock.runFor(1000);
-    await snelTikken(page, page.locator('.logo-icon'));
+    await snelTikken(page, spelLogo(page)); // Open dag (taak 7): op `breed` het logo in de zijkolom (kop-logo verborgen), zie helpers.mjs
     await expect(page.locator('#spel-overlay')).toHaveClass(/open/);
     await page.clock.runFor(1000);
     await expect(page.locator('#event-laag')).toHaveClass(/ev-gepauzeerd/);

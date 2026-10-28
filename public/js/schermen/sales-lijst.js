@@ -14,6 +14,8 @@ import { openLeadToevoegen } from './sales-lead-toevoegen.js';
 import { filterLeads, postcodegebieden, groepeerLijst, kaartInfo, KOLOMMEN, samenvattingTekst, exportTekst, andereVerantwoordelijke } from './sales-lijst-logica.js';
 import { naamVan, foutTekst } from './sales-tekst.js';
 import { el } from './sales-dom.js';
+import { zetSamenvatting } from './paginakop.js';
+import { samenvattingVoor } from './paginakop-logica.js';
 
 const MAX_AANVUL_RONDES = 10;
 const TERUG_TEKST = 'Terug naar nog in te plannen';
@@ -151,6 +153,7 @@ function bouwWortel(inhoud) {
     gebied.value = filter.gebied;
     filterbalk.hidden = open.length === 0;
     balk.hidden = !modus && open.length === 0; // niets te tonen: ook de balk weg
+    zetSamenvatting('sales-lijst', samenvattingVoor('sales-lijst', { open: open.length })); // paginakop (breed)
     tekenKaarten();
   }
 

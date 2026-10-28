@@ -1,0 +1,706 @@
+<title>Blitz Open dag</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Opzet: bedieningsstrook bovenaan (versie, scherm, modus, tijdstip, gloed), daaronder de app op ware grootte, geschaald. */
+:root {
+  --p-bg: #10172a; --p-vlak: #18213a; --p-lijn: #2b3654; --p-tekst: #e3e8f2; --p-zacht: #9fabc2;
+  --p-accent: #00dfa3; --p-accent-ink: #00dfa3; --p-op-accent: #06261c;
+  --p-font: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --p-bg: #eef2f8; --p-vlak: #ffffff; --p-lijn: #d4dbe8; --p-tekst: #15203a; --p-zacht: #55617a; --p-accent-ink: #007a59; color-scheme: light; }
+}
+:root[data-theme="light"] { --p-bg: #eef2f8; --p-vlak: #ffffff; --p-lijn: #d4dbe8; --p-tekst: #15203a; --p-zacht: #55617a; --p-accent-ink: #007a59; color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--p-bg); color: var(--p-tekst); font-family: var(--p-font); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px;
+}
+.pagina { max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.intro h1 { font-family: 'Bricolage Grotesque', var(--p-font); font-size: 1.75rem; line-height: 1.15; margin: 0 0 4px; text-wrap: balance; }
+.intro p { margin: 0; color: var(--p-zacht); max-width: 72ch; }
+.versies { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1100px) { .versies { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.versiekaart {
+  text-align: left; font: inherit; color: var(--p-tekst); background: var(--p-vlak); border: 1px solid var(--p-lijn); border-radius: 16px;
+  padding: 14px 16px; cursor: pointer; display: flex; flex-direction: column; gap: 3px; min-width: 0; transition: border-color .25s ease, background-color .25s ease;
+}
+.versiekaart:hover { border-color: color-mix(in srgb, var(--p-accent) 50%, var(--p-lijn)); }
+.versiekaart[aria-pressed="true"] { border-color: var(--p-accent); background: color-mix(in srgb, var(--p-accent) 8%, var(--p-vlak)); }
+.versiekaart b { font-family: 'Bricolage Grotesque', var(--p-font); font-size: 1.1rem; }
+.versiekaart span { color: var(--p-zacht); font-size: .88rem; }
+.versiekaart .code { color: var(--p-accent-ink); font-weight: 700; font-size: .8rem; }
+.bediening { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; }
+.groep { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.groep-naam { font-size: .8rem; color: var(--p-zacht); font-weight: 600; }
+.segment { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: var(--p-vlak); border: 1px solid var(--p-lijn); border-radius: 999px; }
+.segment button { font: inherit; font-size: .88rem; font-weight: 600; color: var(--p-zacht); background: transparent; border: 0; border-radius: 999px; padding: 6px 13px; cursor: pointer; transition: background-color .25s ease, color .25s ease; }
+.segment button:hover { color: var(--p-tekst); background: color-mix(in srgb, var(--p-tekst) 8%, transparent); }
+.segment button[aria-pressed="true"] { background: var(--p-accent); color: var(--p-op-accent); }
+.segment button:focus-visible, .versiekaart:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
+.uitleg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 20px; padding: 14px 0; margin: 0; border-top: 1px solid var(--p-lijn); border-bottom: 1px solid var(--p-lijn); }
+.uitleg div { min-width: 0; }
+.uitleg dt { font-size: .8rem; font-weight: 700; color: var(--p-accent-ink); margin-bottom: 2px; }
+.uitleg dd { margin: 0; font-size: .9rem; }
+.tip { font-size: .85rem; color: var(--p-zacht); margin: 0; }
+.podium { width: 100%; overflow: hidden; border-radius: 18px; }
+.podium-binnen { transform-origin: top left; }
+.telefoon-podium { display: flex; justify-content: center; overflow: hidden; }
+.telefoon-schaal { transform-origin: top center; }
+@media (max-width: 860px) { .versies { grid-template-columns: minmax(0, 1fr); } .uitleg { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .uitleg { grid-template-columns: minmax(0, 1fr); } }
+
+/* ════════════════ DE APP: stijl C "Open dag" ════════════════ */
+.app {
+  position: relative; overflow: hidden; isolation: isolate; width: 1280px; height: 800px; display: flex;
+  font-family: 'Figtree', system-ui, sans-serif; color: var(--tekst); font-size: 14px; line-height: 1.4; -webkit-font-smoothing: antialiased;
+  --kop-font: 'Bricolage Grotesque', 'Figtree', system-ui, sans-serif;
+  --accent: #00dfa3; --accent-hover: #3cf0be; --op-accent: #06261c;
+  --rood: #ff6b62; --oranje: #f8a53a; --blauw: #6cb0ff; --paars: #ab97ff;
+  --duur: .28s; --blur: 28px;
+  /* donker: glas en tekst */
+  --glas: rgba(255, 255, 255, .075); --glas-hover: rgba(255, 255, 255, .12); --glas-sterk: rgba(255, 255, 255, .09); --glas-venster: rgba(24, 36, 62, .84);
+  --glas-rand: rgba(255, 255, 255, .14); --glas-rand-hover: rgba(255, 255, 255, .26); --glas-licht: rgba(255, 255, 255, .16);
+  --schaduw: 0 20px 50px rgba(0, 0, 0, .18);
+  --knop2: rgba(255, 255, 255, .08); --knop2-hover: rgba(255, 255, 255, .16); --veld: rgba(255, 255, 255, .08);
+  --lijn: rgba(255, 255, 255, .09); --scrim: rgba(10, 18, 36, .4);
+  --tekst: #f4f7fb; --tekst2: #d3dbe8; --muted: #aebacd;
+  --accent-ink: #4ff3c4; --rood-ink: #ffa39c; --oranje-ink: #ffc777; --blauw-ink: #a6d0ff; --paars-ink: #cdc2ff;
+  --gloed-sterk: 40%;
+  /* hemel (wordt per tijdstip overschreven) */
+  --h1: #101a35; --h2: #15284c; --h3: #0e3d3c; --horizon: rgba(0, 223, 163, .5); --zon: transparent; --zon-x: 50%; --zon-y: 100%; --sterren: none;
+  background: var(--h1);
+}
+.app[data-modus="licht"] {
+  --glas: rgba(255, 255, 255, .52); --glas-hover: rgba(255, 255, 255, .72); --glas-sterk: rgba(255, 255, 255, .58); --glas-venster: rgba(255, 255, 255, .88);
+  --glas-rand: rgba(255, 255, 255, .85); --glas-rand-hover: rgba(255, 255, 255, 1); --glas-licht: rgba(255, 255, 255, .95);
+  --schaduw: 0 20px 50px rgba(40, 70, 120, .1);
+  --knop2: rgba(255, 255, 255, .55); --knop2-hover: rgba(255, 255, 255, .92); --veld: rgba(255, 255, 255, .6);
+  --lijn: rgba(30, 50, 90, .09); --scrim: rgba(210, 222, 240, .4);
+  --tekst: #13203a; --tekst2: #33415a; --muted: #4f5d75;
+  --accent-ink: #006b4f; --rood-ink: #b3201a; --oranje-ink: #8f4a00; --blauw-ink: #1f55b8; --paars-ink: #5a3cb0;
+  --gloed-sterk: 34%;
+}
+/* ── de hemel volgt het uur: ochtend (zon links), middag, avond (zon rechts), nacht (sterren) ── */
+.app[data-tijd="ochtend"] { --h1: #18203f; --h2: #2c3363; --h3: #3c4566; --horizon: rgba(0, 223, 163, .34); --zon: rgba(255, 162, 120, .42); --zon-x: 8%; --zon-y: 96%; }
+.app[data-tijd="middag"]  { --h1: #0f2242; --h2: #18426c; --h3: #135a62; --horizon: rgba(0, 223, 163, .5); --zon: rgba(140, 210, 255, .22); --zon-x: 82%; --zon-y: 6%; }
+.app[data-tijd="avond"]   { --h1: #1b1534; --h2: #3a2150; --h3: #4c2d40; --horizon: rgba(0, 223, 163, .3); --zon: rgba(255, 128, 80, .42); --zon-x: 94%; --zon-y: 96%; }
+.app[data-tijd="nacht"]   { --h1: #090e21; --h2: #0f1937; --h3: #0d2a36; --horizon: rgba(0, 223, 163, .3); --zon: rgba(120, 140, 255, .14); --zon-x: 80%; --zon-y: 12%;
+  --sterren: radial-gradient(1.5px 1.5px at 12% 14%, rgba(255,255,255,.8), transparent), radial-gradient(1px 1px at 28% 32%, rgba(255,255,255,.6), transparent), radial-gradient(1.5px 1.5px at 46% 9%, rgba(255,255,255,.7), transparent), radial-gradient(1px 1px at 63% 26%, rgba(255,255,255,.55), transparent), radial-gradient(1.5px 1.5px at 74% 6%, rgba(255,255,255,.8), transparent), radial-gradient(1px 1px at 88% 30%, rgba(255,255,255,.6), transparent), radial-gradient(1px 1px at 6% 42%, rgba(255,255,255,.5), transparent), radial-gradient(1px 1px at 93% 48%, rgba(255,255,255,.5), transparent); }
+.app[data-modus="licht"][data-tijd="ochtend"] { --h1: #f5e2db; --h2: #e8e4f3; --h3: #dcf1e8; --horizon: rgba(0, 223, 163, .34); --zon: rgba(255, 170, 130, .45); }
+.app[data-modus="licht"][data-tijd="middag"]  { --h1: #d4e7fb; --h2: #e5eefa; --h3: #d5f2e5; --horizon: rgba(0, 223, 163, .42); --zon: rgba(255, 255, 255, .7); }
+.app[data-modus="licht"][data-tijd="avond"]   { --h1: #eed6e6; --h2: #f3e0d8; --h3: #e0eee4; --horizon: rgba(0, 223, 163, .3); --zon: rgba(255, 150, 100, .4); }
+.app[data-modus="licht"][data-tijd="nacht"]   { --h1: #d3d9ee; --h2: #dfe3f1; --h3: #d8e9e6; --horizon: rgba(0, 223, 163, .26); --zon: rgba(150, 160, 255, .25); --sterren: none; }
+
+.app * { box-sizing: border-box; }
+.app button { font-family: inherit; }
+.app svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.app :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.achter { position: absolute; inset: 0; z-index: -1;
+  background: var(--sterren), radial-gradient(70% 38% at 50% 106%, var(--horizon), transparent 70%), radial-gradient(42% 46% at var(--zon-x) var(--zon-y), var(--zon), transparent 70%), linear-gradient(180deg, var(--h1) 0%, var(--h2) 48%, var(--h3) 100%); }
+.glas { background-color: var(--glas); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); border: 1px solid var(--glas-rand); box-shadow: inset 0 1px 0 var(--glas-licht), var(--schaduw); }
+
+/* ── bouwstenen ── */
+.zijdok { display: none; }
+.hoofd { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
+.kop { flex: none; display: flex; align-items: center; gap: 10px; height: 64px; padding: 0 22px; position: relative; z-index: 3; }
+.logo { display: flex; align-items: center; gap: 10px; min-width: 0; flex: none; }
+.logo-icoon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 12px; color: var(--op-accent); background: var(--accent); flex: none; }
+.logo-icoon svg.i { width: 18px; height: 18px; fill: currentColor; stroke: none; }
+.logo-tekst { font-family: var(--kop-font); font-weight: 700; font-size: 18px; white-space: nowrap; }
+.paginakop { display: none; flex-direction: column; min-width: 0; }
+.paginakop h2 { margin: 0; font-family: var(--kop-font); font-size: 26px; line-height: 1.1; font-weight: 700; }
+.paginakop p { margin: 0; color: var(--tekst2); font-size: 13px; }
+.ruimte { flex: 1; }
+.rolbadge { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; color: var(--tekst2); border: 1px solid var(--glas-rand); white-space: nowrap; }
+.persoon { display: flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border-radius: 999px; color: var(--tekst); font-size: 13px; font-weight: 500; cursor: pointer; background: var(--knop2); border: 1px solid var(--glas-rand); white-space: nowrap; }
+.persoon .zacht { color: var(--muted); }
+.persoon svg.i { width: 16px; height: 16px; }
+.ikoon { position: relative; isolation: isolate; overflow: hidden; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; cursor: pointer; color: var(--tekst2); background: var(--knop2); border: 1px solid var(--glas-rand); flex: none; }
+.ikoon svg.i { width: 17px; height: 17px; }
+.avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent-ink); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); cursor: pointer; flex: none; }
+
+/* navigatie-items (één opmaak, vier plaatsen) */
+.nav { display: flex; gap: 2px; }
+.nav-item { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; white-space: nowrap; cursor: pointer; font-size: 14px; font-weight: 500; color: var(--tekst2); background: transparent; border: 0; border-radius: 999px; }
+.nav-item .tel { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--knop2); color: var(--tekst2); }
+.nav-item[aria-current="page"] { color: var(--tekst); font-weight: 600; background: var(--knop2-hover); box-shadow: inset 0 1px 0 var(--glas-licht), 0 4px 14px rgba(0, 0, 0, .12); }
+.nav-item[aria-current="page"] svg.i { color: var(--accent-ink); }
+.nav-item[aria-current="page"] .tel { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent-ink); }
+.nav-item:hover { color: var(--tekst); background: var(--knop2); }
+.nav-item[aria-current="page"]:hover { background: var(--knop2-hover); }
+
+/* knoppen */
+.knop { position: relative; isolation: isolate; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 38px; padding: 0 18px; cursor: pointer; font-size: 13.5px; font-weight: 600; border-radius: 999px; white-space: nowrap; color: var(--tekst); background: var(--knop2); border: 1px solid var(--glas-rand); }
+.knop svg.i { width: 16px; height: 16px; }
+.knop--klein { height: 34px; padding: 0 14px; font-size: 13px; }
+.knop--primair { background: linear-gradient(180deg, #2df0bb, #00d49b); color: var(--op-accent); border-color: transparent; }
+.knop--gevaar { background: transparent; color: var(--rood-ink); border-color: color-mix(in srgb, var(--rood) 45%, transparent); }
+.plus { position: relative; isolation: isolate; overflow: hidden; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; flex: none; background: linear-gradient(180deg, #2df0bb, #00d49b); color: var(--op-accent); border: 0; }
+.plus svg.i { width: 18px; height: 18px; stroke-width: 2.5; }
+.knop, .ikoon, .persoon, .avatar, .plus, .nav-item, .seg button, .chip-knop, .lipje {
+  transition: background-color var(--duur) ease, color var(--duur) ease, border-color var(--duur) ease, box-shadow calc(var(--duur) * 1.5) ease;
+}
+.knop:hover, .ikoon:hover, .persoon:hover, .avatar:hover { background-color: var(--knop2-hover); color: var(--tekst); }
+.knop--primair:hover, .plus:hover { background-color: transparent; color: var(--op-accent); }
+.knop--gevaar:hover { background: color-mix(in srgb, var(--rood) 14%, transparent); border-color: var(--rood); color: var(--rood-ink); }
+
+/* inhoud */
+.paneel { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.lipjes { display: none; }
+.paneel-inhoud { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.scherm { display: none; flex: 1; min-height: 0; flex-direction: column; }
+.app[data-scherm="wachtrij"] .s-wachtrij, .app[data-scherm="detail"] .s-wachtrij, .app[data-scherm="kalender"] .s-kalender { display: flex; }
+.balk { display: flex; align-items: center; gap: 8px; padding: 6px 22px 8px; }
+.balk-binnen { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 780px; margin: 0 auto; min-width: 0; }
+.zoek, .sorteer { display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 16px; border-radius: 999px; background: var(--glas); -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur)); border: 1px solid var(--glas-rand); font-size: 13.5px; white-space: nowrap; }
+.zoek { flex: 1; min-width: 0; color: var(--muted); }
+.zoek span { overflow: hidden; text-overflow: ellipsis; }
+.sorteer { color: var(--tekst); }
+.sorteer svg.i, .zoek svg.i { width: 16px; height: 16px; }
+.teller { font-size: 13px; color: var(--tekst2); white-space: nowrap; }
+.lijst { flex: 1; overflow: auto; padding: 8px 22px 28px; scrollbar-width: none; }
+.lijst-binnen { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+
+/* kaarten: glas als achtergrondkleur, de gloed als achtergrondbeeld (zo blijft de gloed ook bij hover) */
+.kaart { position: relative; display: flex; gap: 14px; padding: 15px 18px; border-radius: 22px; cursor: pointer; overflow: hidden;
+  background-image: var(--gloed-beeld, none); box-shadow: inset 0 1px 0 var(--glas-licht), var(--gloed-schaduw, 0 0 0 transparent), var(--schaduw);
+  transition: background-color var(--duur) ease, border-color var(--duur) ease, box-shadow calc(var(--duur) * 1.5) ease; }
+.kaart:hover { background-color: var(--glas-hover); border-color: var(--glas-rand-hover); }
+.k-body { flex: 1; min-width: 0; }
+.k-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }
+.nr { font-weight: 700; font-size: 13px; color: var(--tekst); font-variant-numeric: tabular-nums; }
+.k-titel { font-family: var(--kop-font); font-weight: 700; font-size: 16.5px; line-height: 1.25; margin-bottom: 4px; }
+.k-meta { font-size: 12.5px; color: var(--tekst2); }
+.k-adres { font-size: 12.5px; color: var(--muted); }
+.k-adres.mis { color: var(--rood-ink); }
+.tag { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
+.c-rood { --c: var(--rood-ink); } .c-oranje { --c: var(--oranje-ink); } .c-groen { --c: var(--accent-ink); } .c-blauw { --c: var(--blauw-ink); } .c-paars { --c: var(--paars-ink); }
+
+/* gloedkleur per ticket (sterkte volgt de urgentie) */
+.g-rood { --g: var(--rood); --gk: color-mix(in srgb, var(--rood) var(--gloed-sterk), transparent); }
+.g-oranje { --g: var(--oranje); --gk: color-mix(in srgb, var(--oranje) calc(var(--gloed-sterk) - 6%), transparent); }
+.g-groen { --g: var(--accent); --gk: color-mix(in srgb, var(--accent) calc(var(--gloed-sterk) - 18%), transparent); }
+.g-paars { --g: var(--paars); --gk: color-mix(in srgb, var(--paars) calc(var(--gloed-sterk) - 6%), transparent); }
+/* vijf lichtbronnen */
+.app[data-gloed="links"] .gloeit { --gloed-beeld: radial-gradient(110% 210% at -18% 50%, var(--gk), transparent 78%); --gloed-schaduw: inset 18px 0 22px -18px var(--g); }
+.app[data-gloed="onder"] .gloeit { --gloed-beeld: radial-gradient(85% 75% at 50% 135%, var(--gk), transparent 72%); --gloed-schaduw: inset 0 -16px 22px -18px var(--g); }
+.app[data-gloed="omtrek"] .gloeit { --gloed-beeld: linear-gradient(135deg, color-mix(in srgb, var(--g) 10%, transparent), transparent 55%); --gloed-schaduw: 0 0 24px -6px var(--gk), inset 0 0 20px -8px var(--gk); border-color: color-mix(in srgb, var(--g) 55%, transparent); }
+.app[data-gloed="hoek"] .gloeit { --gloed-beeld: radial-gradient(70% 120% at 0% 0%, var(--gk), transparent 62%); }
+.app[data-gloed="boven"] .gloeit { --gloed-beeld: radial-gradient(70% 90% at 50% -40%, var(--gk), transparent 72%); --gloed-schaduw: inset 0 1px 0 color-mix(in srgb, var(--g) 70%, transparent); }
+
+/* kalender */
+.kal-balk { display: flex; align-items: center; gap: 8px; padding: 6px 22px 10px; }
+.week-label { font-family: var(--kop-font); font-weight: 700; font-size: 17px; padding: 0 6px; white-space: nowrap; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--veld); border: 1px solid var(--glas-rand); }
+.seg button { border: 0; background: transparent; color: var(--tekst2); font-size: 13px; font-weight: 600; padding: 5px 13px; border-radius: 999px; cursor: pointer; }
+.seg button:hover { color: var(--tekst); }
+.seg button[aria-pressed="true"] { background: var(--knop2-hover); color: var(--tekst); }
+.chip-knop { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 13px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--oranje-ink); background: color-mix(in srgb, var(--oranje) 14%, transparent); border: 1px solid color-mix(in srgb, var(--oranje) 35%, transparent); cursor: pointer; }
+.chip-knop:hover { background: color-mix(in srgb, var(--oranje) 24%, transparent); }
+.chip-knop svg.i { width: 15px; height: 15px; }
+.kal { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 0 22px 22px; border-radius: 24px; overflow: hidden; }
+.kal-kop { display: grid; grid-template-columns: 56px repeat(5, minmax(0, 1fr)); flex: none; border-bottom: 1px solid var(--lijn); }
+.dagkop { padding: 10px 12px; border-left: 1px solid var(--lijn); }
+.dagkop .dn { font-size: 12px; font-weight: 700; color: var(--muted); }
+.dagkop .dg { font-family: var(--kop-font); font-size: 24px; font-weight: 700; line-height: 1; display: inline-grid; place-items: center; min-width: 36px; height: 36px; border-radius: 999px; margin: 2px 0 2px -5px; padding: 0 5px; }
+.dagkop.vandaag .dn { color: var(--accent-ink); }
+.dagkop.vandaag .dg { background: var(--accent); color: var(--op-accent); }
+.dagkop .cap { font-size: 12px; color: var(--tekst2); font-variant-numeric: tabular-nums; }
+.dagkop .cap b { color: var(--tekst); font-weight: 600; }
+.kal-raster { flex: 1; min-height: 0; overflow: auto; scrollbar-width: none; }
+.kal-raster-binnen { position: relative; display: grid; grid-template-columns: 56px repeat(5, minmax(0, 1fr)); height: calc(10 * var(--uur)); --uur: 54px; }
+.uren { position: relative; }
+.uren span { position: absolute; right: 8px; font-size: 11.5px; color: var(--muted); transform: translateY(-50%); font-variant-numeric: tabular-nums; }
+.dag { position: relative; border-left: 1px solid var(--lijn); background-image: linear-gradient(var(--lijn) 1px, transparent 1px); background-size: 100% var(--uur); }
+.blok { position: absolute; left: 6px; right: 6px; border-radius: 14px; padding: 8px 10px; font-size: 12px; color: var(--rood-ink); font-weight: 600; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--rood) 12%, transparent) 0 8px, transparent 8px 16px); border: 1px dashed color-mix(in srgb, var(--rood) 45%, transparent); }
+.ev { position: absolute; left: 6px; right: 6px; border-radius: 16px; padding: 8px 10px; overflow: hidden; cursor: pointer; display: flex; flex-direction: column; gap: 2px; font-size: 12px;
+  background-color: var(--glas); background-image: linear-gradient(160deg, color-mix(in srgb, var(--g) 22%, transparent), transparent 80%), var(--gloed-beeld, none);
+  box-shadow: inset 0 1px 0 var(--glas-licht), var(--gloed-schaduw, 0 0 0 transparent);
+  transition: background-color var(--duur) ease, border-color var(--duur) ease; }
+.ev:hover { background-color: var(--glas-hover); border-color: var(--glas-rand-hover); }
+.ev .ev-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ev .ev-tijd { font-weight: 700; font-size: 12px; font-variant-numeric: tabular-nums; }
+.ev .ev-titel { font-weight: 600; font-size: 12.5px; line-height: 1.3; }
+.ev .ev-sub { color: var(--tekst2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev .tag { font-size: 11px; padding: 1px 8px; }
+.nu { position: absolute; left: 0; right: 0; height: 2px; background: var(--rood); z-index: 2; }
+.nu::before { content: ''; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--rood); }
+
+/* ticketdetail */
+.scrim { display: none; position: absolute; inset: 0; z-index: 20; background: var(--scrim); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); align-items: center; justify-content: center; padding: 24px; }
+.app[data-scherm="detail"] .scrim { display: flex; }
+.venster { --glas: var(--glas-venster); width: 660px; max-width: 100%; max-height: 100%; overflow: auto; border-radius: 28px; display: flex; flex-direction: column; background-image: var(--gloed-beeld, none); box-shadow: inset 0 1px 0 var(--glas-licht), var(--gloed-schaduw, 0 0 0 transparent), 0 30px 80px rgba(0, 0, 0, .3); }
+.v-kop { display: flex; align-items: flex-start; gap: 12px; padding: 20px 22px 14px; border-bottom: 1px solid var(--lijn); }
+.v-titel { font-family: var(--kop-font); font-size: 24px; font-weight: 700; line-height: 1.2; margin-top: 6px; }
+.v-inhoud { padding: 16px 22px; display: flex; flex-direction: column; gap: 14px; }
+.velden { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 8px 12px; font-size: 13.5px; margin: 0; }
+.velden dt { color: var(--muted); }
+.velden dd { margin: 0; }
+.taken { display: flex; flex-direction: column; gap: 6px; }
+.taak { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 14px; background: var(--veld); border: 1px solid var(--glas-rand); font-size: 13.5px; }
+.vinkje { width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid var(--muted); flex: none; }
+.taak.af .vinkje { background: var(--accent); border-color: var(--accent); }
+.taak.af span { color: var(--muted); text-decoration: line-through; }
+.sectie-naam { font-size: 12.5px; font-weight: 600; color: var(--tekst2); }
+.v-voet { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 22px 20px; border-top: 1px solid var(--lijn); }
+
+/* gsm */
+.statusbalk { display: none; height: 44px; align-items: flex-end; justify-content: space-between; padding: 0 28px 6px; font-size: 13px; font-weight: 600; flex: none; }
+.gsm-dok { display: none; }
+
+/* ════════ C1 · HORIZONBALK: één zwevende glazen balk, tabbladen in het midden ════════ */
+.app[data-versie="1"] .kop { margin: 12px 16px 6px; height: 62px; padding: 0 10px 0 14px; border-radius: 26px; background-color: var(--glas-sterk); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); border: 1px solid var(--glas-rand); box-shadow: inset 0 1px 0 var(--glas-licht), var(--schaduw); }
+.app[data-versie="1"] .kop .nav { flex: 1; justify-content: center; }
+.app[data-versie="1"] .kop .rolbadge { display: none; }
+.app[data-versie="1"] .kop { gap: 6px; }
+.app[data-versie="1"] .kop .nav-item { padding: 0 10px; gap: 6px; font-size: 13.5px; }
+.app[data-versie="1"] .kop .logo-tekst { font-size: 17px; }
+.app[data-versie="1"] .kop .persoon .lang { display: none; }
+
+/* ════════ C2 · ZIJDOK: zwevende glazen kolom links, grote paginatitel ════════ */
+.app[data-versie="2"] .zijdok { display: flex; flex-direction: column; gap: 6px; width: 228px; flex: none; margin: 14px 0 14px 14px; padding: 16px 12px 12px; border-radius: 30px; position: relative; z-index: 3; }
+.app[data-versie="2"] .zijdok .logo { padding: 0 6px 14px; }
+.app[data-versie="2"] .zijdok .nav { flex-direction: column; gap: 3px; }
+.app[data-versie="2"] .zijdok .nav-item { height: 44px; border-radius: 16px; padding: 0 12px; }
+.app[data-versie="2"] .zijdok .nav-item .tel { margin-left: auto; }
+.app[data-versie="2"] .zijdok .ruimte { flex: 1; }
+.app[data-versie="2"] .zijdok .persoon { justify-content: flex-start; height: 44px; border-radius: 16px; }
+.app[data-versie="2"] .zijdok .persoon .pijl { margin-left: auto; }
+.app[data-versie="2"] .kop { height: 84px; padding: 0 26px; }
+.app[data-versie="2"] .kop .logo, .app[data-versie="2"] .kop .nav, .app[data-versie="2"] .kop .persoon { display: none; }
+.app[data-versie="2"] .kop .paginakop { display: flex; }
+.app[data-versie="2"] .balk, .app[data-versie="2"] .lijst, .app[data-versie="2"] .kal-balk { padding-left: 26px; padding-right: 26px; }
+.app[data-versie="2"] .kal { margin: 0 26px 18px; }
+
+/* ════════ C3 · TABBLADMAP: de inhoud ligt in één groot glazen paneel met lipjes bovenaan ════════ */
+.app[data-versie="3"] .kop .nav { display: none; }
+.app[data-versie="3"] .kop { height: 66px; }
+.app[data-versie="3"] .paneel { margin: 0 22px 22px; }
+.app[data-versie="3"] .lipjes { display: flex; gap: 4px; padding: 0 18px; position: relative; z-index: 2; }
+.app[data-versie="3"] .lipje { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: 18px 18px 0 0; border: 1px solid transparent; border-bottom: 0; background: transparent; color: var(--tekst2); font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.app[data-versie="3"] .lipje .tel { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--knop2); color: var(--tekst2); }
+.app[data-versie="3"] .lipje:hover { background-color: var(--glas); color: var(--tekst); }
+.app[data-versie="3"] .lipje[aria-current="page"] { background-color: var(--glas-sterk); border-color: var(--glas-rand); color: var(--tekst); font-weight: 600; box-shadow: inset 0 1px 0 var(--glas-licht); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); }
+.app[data-versie="3"] .lipje[aria-current="page"] svg.i { color: var(--accent-ink); }
+.app[data-versie="3"] .lipje[aria-current="page"] .tel { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent-ink); }
+.app[data-versie="3"] .paneel-inhoud { background-color: var(--glas-sterk); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%); border: 1px solid var(--glas-rand); border-radius: 30px; box-shadow: inset 0 1px 0 var(--glas-licht), var(--schaduw); padding-top: 12px; margin-top: -1px; }
+.app[data-versie="3"] .kal { background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; margin: 0 16px 16px; border-radius: 18px; border: 1px solid var(--lijn); }
+.app[data-versie="3"] .kaart { background-color: var(--knop2); }
+.app[data-versie="3"] .kaart:hover { background-color: var(--knop2-hover); }
+
+/* ── hover per versie ── */
+/* C1: glans: een zachte lichtvlek vervaagt in de knop */
+.app .persoon { position: relative; isolation: isolate; overflow: hidden; }
+.app[data-hover="glans"] :is(.knop, .plus, .ikoon, .nav-item, .persoon)::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; opacity: 0; transition: opacity calc(var(--duur) * 1.5) ease; background: radial-gradient(120% 140% at 50% -20%, rgba(255, 255, 255, .45), transparent 60%); }
+.app[data-hover="glans"] :is(.knop, .plus, .ikoon, .nav-item, .persoon):hover::before { opacity: 1; }
+/* C2: gloed: een groene gloed vervaagt rond de knop */
+.app[data-hover="gloed"] :is(.knop--primair, .plus):hover { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent), 0 8px 30px color-mix(in srgb, var(--accent) 50%, transparent); }
+.app[data-hover="gloed"] :is(.knop:not(.knop--primair):not(.knop--gevaar), .ikoon, .persoon, .avatar):hover { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent), 0 6px 22px color-mix(in srgb, var(--accent) 22%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.app[data-hover="gloed"] .nav-item:hover { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent), 0 4px 18px color-mix(in srgb, var(--accent) 16%, transparent); }
+/* C3: invloeien: licht vloeit van links naar rechts in de knop en vervaagt weer */
+.app[data-hover="invloeien"] :is(.knop, .plus, .ikoon, .lipje, .nav-item)::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; opacity: 0; transform: translateX(-45%); transition: opacity .45s ease, transform .55s cubic-bezier(.2, .7, .2, 1); background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 30%, transparent), rgba(255, 255, 255, .18) 45%, transparent 80%); }
+.app[data-hover="invloeien"] :is(.knop--primair, .plus)::before { background: linear-gradient(90deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, .15) 50%, transparent 85%); }
+.app[data-hover="invloeien"] :is(.knop, .plus, .ikoon, .lipje, .nav-item):hover::before { opacity: 1; transform: translateX(0); }
+
+/* ── gsm: altijd het dok onderaan; ruimere kaarten ── */
+.app.smal { width: 390px; height: 800px; border-radius: 40px; flex-direction: column; box-shadow: 0 0 0 10px #050708, 0 0 0 11px #2b3238, 0 30px 60px rgba(0, 0, 0, .35); margin: 12px 0 24px; }
+.app.smal .statusbalk { display: flex; }
+.app.smal .zijdok, .app.smal .lipjes, .app.smal .kop .nav, .app.smal .kop .paginakop, .app.smal .rolbadge, .app.smal .ikoon.alleen-breed, .app.smal .persoon .lang { display: none !important; }
+.app.smal .kop { margin: 0; height: 58px; padding: 0 16px; border: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0; }
+.app.smal .kop .logo { display: flex !important; }
+.app.smal .kop .persoon { display: flex !important; padding: 0 12px; }
+.app.smal .paneel { margin: 0; }
+.app.smal .paneel-inhoud { background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; padding: 0; }
+.app.smal .balk, .app.smal .lijst { padding-left: 12px; padding-right: 12px; }
+.app.smal .balk .teller { display: none; }
+.app.smal .lijst { padding-bottom: 110px; }
+.app.smal .lijst-binnen { gap: 12px; }
+.app.smal .kaart { padding: 18px 20px; border-radius: 26px; }
+.app.smal .k-titel { font-size: 17px; }
+.app.smal .gsm-dok { display: flex; position: absolute; z-index: 5; left: 12px; right: 12px; bottom: 18px; justify-content: space-between; padding: 6px; border-radius: 30px; }
+.app.smal .gsm-dok .nav-item { flex: 1; flex-direction: column; justify-content: center; gap: 3px; height: 56px; padding: 0 4px; border-radius: 24px; font-size: 11px; }
+.app.smal .gsm-dok .nav-item .tel { position: absolute; top: 5px; right: calc(50% - 22px); font-size: 10px; padding: 0 5px; }
+
+@media (prefers-reduced-motion: reduce) { .app { --duur: .01s; } .app *::before { transition-duration: .01s !important; } }
+@media (prefers-reduced-transparency: reduce) { .app .glas, .app .kop, .app .paneel-inhoud { -webkit-backdrop-filter: none; backdrop-filter: none; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-bliksem" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+  <symbol id="i-wachtrij" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+  <symbol id="i-kalender" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H16a3.5 3.5 0 0 0 0-7H8a3.5 3.5 0 0 1 0-7h7.5"/></symbol>
+  <symbol id="i-ingepland" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18M9 15.5l2 2 4-4"/></symbol>
+  <symbol id="i-inventaris" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/></symbol>
+  <symbol id="i-rapporten" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4"/></symbol>
+  <symbol id="i-beheer" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
+  <symbol id="i-meer" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></symbol>
+  <symbol id="i-ververs" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></symbol>
+  <symbol id="i-maan" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-tandwiel" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-pijl" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-links" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-rechts" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-zoek" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-kruis" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-persoon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-post" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
+  <symbol id="i-foto" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-let" viewBox="0 0 24 24"><path d="M12 3 2 20h20zM12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-toverstaf" viewBox="0 0 24 24"><path d="m4 20 10-10M15 4v3M18 6h-3M19 11v2M20 12h-2M10 3v2M11 4H9"/></symbol>
+  <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></symbol>
+</svg>
+
+<template id="app-sjabloon">
+  <div class="achter" aria-hidden="true"></div>
+  <aside class="zijdok glas">
+    <div class="logo"><div class="logo-icoon"><svg class="i"><use href="#i-bliksem"/></svg></div><span class="logo-tekst">Blitz Planning</span></div>
+    <nav class="nav" data-nav="zij"></nav>
+    <span class="ruimte"></span>
+    <button class="persoon" type="button"><svg class="i"><use href="#i-persoon"/></svg><span class="zacht">Planning:</span> Alle <svg class="i pijl"><use href="#i-pijl"/></svg></button>
+  </aside>
+  <div class="hoofd">
+    <div class="statusbalk" aria-hidden="true"><span>9:41</span><span>5G</span></div>
+    <header class="kop">
+      <div class="logo"><div class="logo-icoon"><svg class="i"><use href="#i-bliksem"/></svg></div><span class="logo-tekst">Blitz Planning</span></div>
+      <div class="paginakop"><h2 data-titel>Wachtrij</h2><p data-sub>4 tickets wachten op een datum</p></div>
+      <nav class="nav" data-nav="kop"></nav>
+      <span class="ruimte"></span>
+      <span class="rolbadge">Beheerder</span>
+      <button class="persoon" type="button"><svg class="i"><use href="#i-persoon"/></svg><span class="lang zacht">Planning:</span> Alle <svg class="i"><use href="#i-pijl"/></svg></button>
+      <button class="ikoon alleen-breed" type="button" aria-label="Vernieuwen"><svg class="i"><use href="#i-ververs"/></svg></button>
+      <button class="ikoon alleen-breed" type="button" aria-label="Thema wisselen"><svg class="i"><use href="#i-maan"/></svg></button>
+      <button class="ikoon alleen-breed" type="button" aria-label="Instellingen"><svg class="i"><use href="#i-tandwiel"/></svg></button>
+      <button class="avatar" type="button" aria-label="Account">TB</button>
+    </header>
+    <div class="paneel">
+      <nav class="lipjes" data-nav="lip"></nav>
+      <div class="paneel-inhoud">
+        <section class="scherm s-wachtrij">
+          <div class="balk"><div class="balk-binnen">
+            <div class="zoek"><svg class="i"><use href="#i-zoek"/></svg><span>Zoek op nummer, klant, adres of onderwerp</span></div>
+            <div class="sorteer">Prioriteit <svg class="i"><use href="#i-pijl"/></svg></div>
+            <span class="teller">4 tickets</span>
+          </div></div>
+          <div class="lijst"><div class="lijst-binnen">
+            <article class="kaart glas gloeit g-rood" data-open-detail>
+              <div class="k-body">
+                <div class="k-top"><span class="nr">#1001</span><span class="tag c-rood">Verlopen</span><span class="tag c-rood">Hoog</span><span class="tag c-blauw">Tim</span></div>
+                <div class="k-titel">Laadpaal offline na stroomuitval</div>
+                <div class="k-meta">EV Park Geel · Kempen</div>
+                <div class="k-adres">Antwerpseweg 50, 2440 Geel</div>
+              </div>
+              <button class="plus" type="button" aria-label="Inplannen"><svg class="i"><use href="#i-plus"/></svg></button>
+            </article>
+            <article class="kaart glas gloeit g-oranje" data-open-detail>
+              <div class="k-body">
+                <div class="k-top"><span class="nr">#1002</span><span class="tag c-oranje">Middel</span><span class="tag c-blauw">Tim</span></div>
+                <div class="k-titel">Controller reageert niet op OCPP-commando</div>
+                <div class="k-meta">Parking Hasselt · Limburg</div>
+                <div class="k-adres">Kuringersteenweg 12, 3500 Hasselt</div>
+              </div>
+              <button class="plus" type="button" aria-label="Inplannen"><svg class="i"><use href="#i-plus"/></svg></button>
+            </article>
+            <article class="kaart glas gloeit g-groen" data-open-detail>
+              <div class="k-body">
+                <div class="k-top"><span class="nr">#1003</span><span class="tag c-groen">Laag</span><span class="tag c-paars">Roel</span></div>
+                <div class="k-titel">Laadstation geeft foutcode E05</div>
+                <div class="k-meta">Residentie Turnhout</div>
+                <div class="k-adres mis">Geen adres bekend</div>
+              </div>
+              <button class="plus" type="button" aria-label="Inplannen"><svg class="i"><use href="#i-plus"/></svg></button>
+            </article>
+            <article class="kaart glas gloeit g-groen" data-open-detail>
+              <div class="k-body">
+                <div class="k-top"><span class="nr">#1007</span><span class="tag c-groen">Laag</span><span class="tag c-groen">Installatie</span></div>
+                <div class="k-titel">Wallbox 11 kW plaatsen in carport</div>
+                <div class="k-meta">Familie Janssens · Kempen</div>
+                <div class="k-adres">Kerkstraat 14, 2400 Mol</div>
+              </div>
+              <button class="plus" type="button" aria-label="Inplannen"><svg class="i"><use href="#i-plus"/></svg></button>
+            </article>
+          </div></div>
+        </section>
+
+        <section class="scherm s-kalender">
+          <div class="kal-balk">
+            <button class="ikoon" type="button" aria-label="Vorige week"><svg class="i"><use href="#i-links"/></svg></button>
+            <span class="week-label">26 okt – 1 nov</span>
+            <button class="ikoon" type="button" aria-label="Volgende week"><svg class="i"><use href="#i-rechts"/></svg></button>
+            <div class="seg"><button type="button" aria-pressed="true">Week</button><button type="button" aria-pressed="false">Maand</button></div>
+            <span class="ruimte"></span>
+            <button class="chip-knop" type="button"><svg class="i"><use href="#i-let"/></svg>1 zonder datum</button>
+            <button class="knop knop--klein" type="button"><svg class="i"><use href="#i-import"/></svg>Import</button>
+            <button class="knop knop--klein" type="button"><svg class="i"><use href="#i-plus"/></svg>Afspraak</button>
+            <button class="knop knop--primair knop--klein" type="button"><svg class="i"><use href="#i-toverstaf"/></svg>Plan deze week</button>
+          </div>
+          <div class="kal glas">
+            <div class="kal-kop">
+              <div></div>
+              <div class="dagkop"><div class="dn">MA</div><div class="dg">26</div><div class="cap"><b>1</b>/4 stops · ±1,5u</div></div>
+              <div class="dagkop vandaag"><div class="dn">DI</div><div class="dg">27</div><div class="cap"><b>1</b>/4 stops · ±2u</div></div>
+              <div class="dagkop"><div class="dn">WO</div><div class="dg">28</div><div class="cap"><b>0</b>/4 stops · ±0u</div></div>
+              <div class="dagkop"><div class="dn">DO</div><div class="dg">29</div><div class="cap"><b>1</b>/4 stops · ±3u</div></div>
+              <div class="dagkop"><div class="dn">VR</div><div class="dg">30</div><div class="cap"><b>1</b>/4 stops · ±1,5u</div></div>
+            </div>
+            <div class="kal-raster"><div class="kal-raster-binnen">
+              <div class="uren"><span style="top:calc(1*var(--uur))">09:00</span><span style="top:calc(2*var(--uur))">10:00</span><span style="top:calc(3*var(--uur))">11:00</span><span style="top:calc(4*var(--uur))">12:00</span><span style="top:calc(5*var(--uur))">13:00</span><span style="top:calc(6*var(--uur))">14:00</span><span style="top:calc(7*var(--uur))">15:00</span><span style="top:calc(8*var(--uur))">16:00</span><span style="top:calc(9*var(--uur))">17:00</span></div>
+              <div class="dag">
+                <div class="ev glas gloeit g-groen" style="top:calc(0.5*var(--uur) + 2px);height:calc(1.5*var(--uur) - 4px)"><div class="ev-top"><span class="ev-tijd">08:30–10:00</span></div><div class="ev-titel">#0998 Kabel vervangen</div><div class="ev-sub">Roel · Lommel</div></div>
+                <div class="blok" style="top:calc(5*var(--uur) + 2px);height:calc(4*var(--uur) - 4px)">Roel afwezig</div>
+              </div>
+              <div class="dag">
+                <div class="ev glas gloeit g-groen" style="top:calc(1*var(--uur) + 2px);height:calc(2*var(--uur) - 4px)"><div class="ev-top"><span class="ev-tijd">09:00–11:00</span><span class="tag c-groen">Bevestigd</span></div><div class="ev-titel">#1002 Controller reageert niet</div><div class="ev-sub">Tim · Kuringersteenweg 12, Hasselt</div></div>
+                <div class="nu" style="top:calc(3.33*var(--uur))"></div>
+              </div>
+              <div class="dag">
+                <div class="ev glas gloeit g-paars" style="top:calc(5*var(--uur) + 2px);height:calc(1*var(--uur) - 4px)"><div class="ev-top"><span class="ev-tijd">13:00–14:00</span></div><div class="ev-titel">Teamoverleg</div></div>
+              </div>
+              <div class="dag">
+                <div class="ev glas gloeit g-oranje" data-open-detail style="top:calc(2*var(--uur) + 2px);height:calc(3*var(--uur) - 4px)"><div class="ev-top"><span class="ev-tijd">10:00–13:00</span><span class="tag c-oranje">Wacht</span></div><div class="ev-titel">#1004 Energiemeting klopt niet</div><div class="ev-sub">Tim · Koerselsesteenweg 88, Beringen</div></div>
+              </div>
+              <div class="dag">
+                <div class="ev glas gloeit g-groen" style="top:calc(0.5*var(--uur) + 2px);height:calc(1.5*var(--uur) - 4px)"><div class="ev-top"><span class="ev-tijd">08:30–10:00</span></div><div class="ev-titel">#1006 Installatie 22 kW</div><div class="ev-sub">Roel · Mol</div></div>
+              </div>
+            </div></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+  <nav class="gsm-dok glas" data-nav="gsm"></nav>
+  <div class="scrim" data-sluit-detail>
+    <div class="venster glas gloeit g-oranje" role="dialog" aria-label="Ticket #1004">
+      <div class="v-kop">
+        <div class="k-body">
+          <div class="k-top"><span class="nr">#1004</span><span class="tag c-oranje">Wacht op bevestiging</span><span class="tag c-oranje">Middel</span><span class="tag c-blauw">Tim</span></div>
+          <div class="v-titel">Energiemeting klopt niet</div>
+        </div>
+        <button class="ikoon" type="button" aria-label="Sluiten" data-sluit-detail><svg class="i"><use href="#i-kruis"/></svg></button>
+      </div>
+      <div class="v-inhoud">
+        <dl class="velden">
+          <dt>Klant</dt><dd>Familie Peeters</dd>
+          <dt>Adres</dt><dd>Koerselsesteenweg 88, 3580 Beringen</dd>
+          <dt>Gepland</dt><dd>do 29 okt, 10:00–13:00</dd>
+          <dt>Voorkeur klant</dt><dd>Voormiddag, niet op vrijdag</dd>
+        </dl>
+        <div class="sectie-naam">Taken</div>
+        <div class="taken">
+          <div class="taak af"><i class="vinkje"></i><span>Meterstanden opvragen bij klant</span></div>
+          <div class="taak"><i class="vinkje"></i><span>Kalibratie kWh-meter controleren</span></div>
+          <div class="taak"><i class="vinkje"></i><span>Firmware van de controller bijwerken</span></div>
+        </div>
+      </div>
+      <div class="v-voet">
+        <button class="knop knop--gevaar" type="button">Afspraak annuleren</button>
+        <span class="ruimte"></span>
+        <button class="knop" type="button"><svg class="i"><use href="#i-foto"/></svg>Foto's</button>
+        <button class="knop" type="button"><svg class="i"><use href="#i-kalender"/></svg>Datum/tijd</button>
+        <button class="knop knop--primair" type="button"><svg class="i"><use href="#i-post"/></svg>Voorstel sturen</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<main class="pagina">
+  <div class="intro">
+    <h1>Open dag</h1>
+    <p>De eerste kaart is je keuze: de zijkolom van C2, de glans van C1 op de knoppen en de gloeiende omtrek van C3. De drie versies waaruit hij komt staan ernaast om te vergelijken. Beweeg over knoppen en kaarten; een klik op een ticket opent het detail.</p>
+  </div>
+
+  <div class="versies" role="group" aria-label="Versie">
+    <button class="versiekaart" type="button" data-versie="k" id="kies-k"><span class="code">Keuze</span><b>Zijdok met glans</b><span>Zijkolom links en grote paginatitel (C2), glans in de knop (C1), gloeiende omtrek rond tickets (C3).</span></button>
+    <button class="versiekaart" type="button" data-versie="1" id="kies-1"><span class="code">C1</span><b>Horizonbalk</b><span>Eén zwevende glazen balk: logo, tabbladen in het midden, knoppen rechts. Gloed vanuit de hele linkerzijde.</span></button>
+    <button class="versiekaart" type="button" data-versie="2" id="kies-2"><span class="code">C2</span><b>Zijdok</b><span>Zwevende glazen kolom links met de tabbladen onder elkaar en een grote paginatitel. Gloed die opkomt vanuit de onderrand.</span></button>
+    <button class="versiekaart" type="button" data-versie="3" id="kies-3"><span class="code">C3</span><b>Tabbladmap</b><span>De inhoud ligt in één groot glazen paneel; de tabbladen zijn lipjes aan de bovenrand. Gloeiende omtrek.</span></button>
+  </div>
+
+  <div class="bediening">
+    <div class="groep"><span class="groep-naam">Scherm</span>
+      <div class="segment" role="group" aria-label="Scherm">
+        <button type="button" data-scherm="wachtrij" id="sch-wachtrij">Wachtrij</button>
+        <button type="button" data-scherm="kalender" id="sch-kalender">Kalender</button>
+        <button type="button" data-scherm="detail" id="sch-detail">Ticketdetail</button>
+        <button type="button" data-scherm="gsm" id="sch-gsm">Gsm</button>
+      </div>
+    </div>
+    <div class="groep"><span class="groep-naam">Modus</span>
+      <div class="segment" role="group" aria-label="Modus">
+        <button type="button" data-modus="donker" id="mod-donker">Donker</button>
+        <button type="button" data-modus="licht" id="mod-licht">Licht</button>
+      </div>
+    </div>
+    <div class="groep"><span class="groep-naam">Tijdstip van de hemel</span>
+      <div class="segment" role="group" aria-label="Tijdstip">
+        <button type="button" data-tijd="nu" id="tijd-nu">Nu</button>
+        <button type="button" data-tijd="ochtend" id="tijd-ochtend">Ochtend</button>
+        <button type="button" data-tijd="middag" id="tijd-middag">Middag</button>
+        <button type="button" data-tijd="avond" id="tijd-avond">Avond</button>
+        <button type="button" data-tijd="nacht" id="tijd-nacht">Nacht</button>
+      </div>
+    </div>
+    <div class="groep"><span class="groep-naam">Waar de gloed vandaan komt</span>
+      <div class="segment" role="group" aria-label="Gloed">
+        <button type="button" data-gloed="standaard" id="gl-standaard">Zoals de versie</button>
+        <button type="button" data-gloed="links" id="gl-links">Linkerzijde</button>
+        <button type="button" data-gloed="onder" id="gl-onder">Onderrand</button>
+        <button type="button" data-gloed="omtrek" id="gl-omtrek">Omtrek</button>
+        <button type="button" data-gloed="boven" id="gl-boven">Bovenlicht</button>
+        <button type="button" data-gloed="hoek" id="gl-hoek">Hoek</button>
+      </div>
+    </div>
+  </div>
+
+  <dl class="uitleg" id="uitleg"></dl>
+
+  <div class="podium" id="podium"><div class="podium-binnen" id="podium-binnen"><div class="app" id="app-breed"></div></div></div>
+  <div class="telefoon-podium" id="telefoon-podium" hidden><div class="telefoon-schaal" id="telefoon-schaal"><div class="app smal" id="app-smal"></div></div></div>
+  <p class="tip">Ontwerpvoorstellen met voorbeeldgegevens uit de testmodus. Op de gsm staan in het dok de vier meest gebruikte tabbladen en "Meer" voor de rest.</p>
+</main>
+
+<script>
+(function () {
+  var TABS = [
+    ['wachtrij', 'Wachtrij', '4'], ['kalender', 'Kalender', ''], ['route', 'Route', ''], ['ingepland', 'Ingepland', '2'],
+    ['inventaris', 'Inventaris', ''], ['rapporten', 'Rapporten', ''], ['beheer', 'Beheer', '']
+  ];
+  var GSM = [['wachtrij', 'Wachtrij', '4'], ['kalender', 'Kalender', ''], ['route', 'Route', ''], ['ingepland', 'Ingepland', '2'], ['meer', 'Meer', '']];
+  var VERSIES = {
+    k: { opbouw: '2', hover: 'glans', gloed: 'omtrek' },
+    1: { opbouw: '1', hover: 'glans', gloed: 'links' },
+    2: { opbouw: '2', hover: 'gloed', gloed: 'onder' },
+    3: { opbouw: '3', hover: 'invloeien', gloed: 'omtrek' }
+  };
+  var UITLEG = {
+    k: [
+      ['Tabbladen op pc', 'Zwevende glazen kolom links: logo bovenaan, tabbladen met icoon onder elkaar, de persoonkiezer onderaan. Bovenaan de inhoud een grote titel met de stand van zaken.'],
+      ['Gloed', 'De omtrek van het ticket licht op in de kleur van de prioriteit: rood bij verlopen of hoog, oranje bij middel, groen bij laag. Ook op de afspraken in de kalender en op het detailvenster.'],
+      ['Knoppen', 'Glans: een zachte lichtvlek vervaagt in de knop bij hover, ook op de tabbladen in de zijkolom.'],
+      ['Gsm', 'Dok onderaan met icoon boven de naam; de zijkolom verdwijnt; kaarten ruimer dan op pc.']
+    ],
+    1: [
+      ['Tabbladen op pc', 'In één zwevende glazen balk met het logo links en de knoppen rechts. Kost maar één regel hoogte; de rol staat in het accountmenu.'],
+      ['Gloed', 'De hele linkerzijde is de lichtbron: de kleur van de prioriteit straalt van links over het ticket uit.'],
+      ['Knoppen', 'Glans: een zachte lichtvlek vervaagt in de knop, zoals in stijl C.'],
+      ['Gsm', 'Dok onderaan met icoon boven de naam; kaarten ruimer dan op pc.']
+    ],
+    2: [
+      ['Tabbladen op pc', 'Een zwevende glazen kolom links met de tabbladen onder elkaar, het logo bovenaan en de persoonkiezer onderaan. Bovenaan de inhoud een grote titel met een korte stand van zaken.'],
+      ['Gloed', 'Komt op vanuit de onderrand, als de horizon van de achtergrond die in het ticket terugkeert.'],
+      ['Knoppen', 'Gloed: een groene gloed vervaagt rond de knop.'],
+      ['Gsm', 'Dok onderaan; de zijkolom verdwijnt op de gsm.']
+    ],
+    3: [
+      ['Tabbladen op pc', 'De inhoud ligt in één groot glazen paneel; de tabbladen zijn lipjes aan de bovenrand en het actieve lipje loopt over in het paneel, zoals een map.'],
+      ['Gloed', 'De omtrek van het ticket licht op in de kleur van de prioriteit, met een zachte schijn naar binnen en buiten.'],
+      ['Knoppen', 'Invloeien: licht vloeit van links naar rechts in de knop en vervaagt weer bij het verlaten.'],
+      ['Gsm', 'Dok onderaan; het paneel valt weg en de kaarten liggen rechtstreeks op de hemel.']
+    ]
+  };
+
+  var staat = { versie: 'k', modus: null, scherm: 'wachtrij', tijd: 'nu', gloed: 'standaard' };
+  try { var b = JSON.parse(localStorage.getItem('blitz-open-dag-2') || 'null'); if (b) Object.assign(staat, b); } catch (e) {}
+  if (!VERSIES[staat.versie]) staat.versie = 'k';
+  if (staat.modus !== 'donker' && staat.modus !== 'licht') {
+    var r = document.documentElement.getAttribute('data-theme');
+    staat.modus = r === 'light' ? 'licht' : r === 'dark' ? 'donker' : (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'licht' : 'donker');
+  }
+
+  var breed = document.getElementById('app-breed');
+  var smal = document.getElementById('app-smal');
+  var sjabloon = document.getElementById('app-sjabloon');
+  [breed, smal].forEach(function (app) {
+    app.appendChild(sjabloon.content.cloneNode(true));
+    app.querySelectorAll('[data-nav]').forEach(function (nav) {
+      var soort = nav.getAttribute('data-nav');
+      var lijst = soort === 'gsm' ? GSM : TABS;
+      lijst.forEach(function (t) {
+        var knop = document.createElement('button');
+        knop.type = 'button';
+        knop.className = soort === 'lip' ? 'lipje' : 'nav-item';
+        knop.setAttribute('data-naar', t[0]);
+        knop.innerHTML = '<svg class="i"><use href="#i-' + t[0] + '"/></svg><span>' + t[1] + '</span>' + (t[2] ? '<span class="tel">' + t[2] + '</span>' : '');
+        nav.appendChild(knop);
+      });
+    });
+  });
+
+  function tijdNu() {
+    var u = new Date().getHours();
+    return u >= 5 && u < 10 ? 'ochtend' : u >= 10 && u < 17 ? 'middag' : u >= 17 && u < 21 ? 'avond' : 'nacht';
+  }
+  function bewaar() { try { localStorage.setItem('blitz-open-dag-2', JSON.stringify(staat)); } catch (e) {} }
+
+  function teken() {
+    var gsm = staat.scherm === 'gsm';
+    var tijd = staat.tijd === 'nu' ? tijdNu() : staat.tijd;
+    var v = VERSIES[staat.versie];
+    var gloed = staat.gloed === 'standaard' ? v.gloed : staat.gloed;
+    [breed, smal].forEach(function (app) {
+      app.setAttribute('data-versie', v.opbouw);
+      app.setAttribute('data-hover', v.hover);
+      app.setAttribute('data-modus', staat.modus);
+      app.setAttribute('data-tijd', tijd);
+      app.setAttribute('data-gloed', gloed);
+    });
+    breed.setAttribute('data-scherm', gsm ? 'wachtrij' : staat.scherm);
+    smal.setAttribute('data-scherm', 'wachtrij');
+    [breed, smal].forEach(function (app) {
+      var actief = app.getAttribute('data-scherm') === 'kalender' ? 'kalender' : 'wachtrij';
+      app.querySelectorAll('[data-naar]').forEach(function (t) {
+        if (t.getAttribute('data-naar') === actief) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
+      });
+      app.querySelector('[data-titel]').textContent = actief === 'kalender' ? 'Kalender' : 'Wachtrij';
+      app.querySelector('[data-sub]').textContent = actief === 'kalender' ? 'Week 44 · 4 stops gepland, 1 ticket zonder datum' : '4 tickets wachten op een datum, 1 is verlopen';
+    });
+    document.documentElement.setAttribute('data-theme', staat.modus === 'licht' ? 'light' : 'dark');
+    document.getElementById('podium').hidden = gsm;
+    document.getElementById('telefoon-podium').hidden = !gsm;
+    document.querySelectorAll('.versiekaart').forEach(function (k) { k.setAttribute('aria-pressed', String(k.getAttribute('data-versie') === staat.versie)); });
+    ['scherm', 'modus', 'tijd', 'gloed'].forEach(function (sleutel) {
+      document.querySelectorAll('.segment [data-' + sleutel + ']').forEach(function (k) { k.setAttribute('aria-pressed', String(k.getAttribute('data-' + sleutel) === staat[sleutel])); });
+    });
+    document.getElementById('tijd-nu').textContent = 'Nu (' + tijdNu() + ')';
+    var dl = document.getElementById('uitleg');
+    dl.innerHTML = '';
+    UITLEG[staat.versie].forEach(function (rij) {
+      var d = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');
+      dt.textContent = rij[0]; dd.textContent = rij[1]; d.appendChild(dt); d.appendChild(dd); dl.appendChild(d);
+    });
+    schaal();
+    bewaar();
+  }
+
+  function schaal() {
+    var podium = document.getElementById('podium');
+    var s = Math.min(1, podium.clientWidth / 1280);
+    document.getElementById('podium-binnen').style.transform = 'scale(' + s + ')';
+    podium.style.height = (800 * s) + 'px';
+    var ts = Math.min(1, (document.querySelector('.pagina').clientWidth - 24) / 414);
+    document.getElementById('telefoon-schaal').style.transform = 'scale(' + ts + ')';
+    document.getElementById('telefoon-podium').style.height = (836 * ts) + 'px';
+  }
+
+  document.querySelectorAll('.versiekaart').forEach(function (k) { k.addEventListener('click', function () { staat.versie = k.getAttribute('data-versie'); teken(); }); });
+  ['scherm', 'modus', 'tijd', 'gloed'].forEach(function (sleutel) {
+    document.querySelectorAll('.segment [data-' + sleutel + ']').forEach(function (k) { k.addEventListener('click', function () { staat[sleutel] = k.getAttribute('data-' + sleutel); teken(); }); });
+  });
+  breed.addEventListener('click', function (e) {
+    var tab = e.target.closest('[data-naar]');
+    if (tab) { var n = tab.getAttribute('data-naar'); if (n === 'wachtrij' || n === 'kalender') { staat.scherm = n; teken(); } return; }
+    if (e.target.closest('[data-sluit-detail]') && (e.target.closest('.ikoon') || e.target.classList.contains('scrim'))) { staat.scherm = 'wachtrij'; teken(); return; }
+    if (e.target.closest('.plus')) return;
+    if (e.target.closest('[data-open-detail]')) { staat.scherm = 'detail'; teken(); }
+  });
+  if (window.ResizeObserver) new ResizeObserver(schaal).observe(document.getElementById('podium'));
+  else window.addEventListener('resize', schaal);
+  teken();
+})();
+</script>
