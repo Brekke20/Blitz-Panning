@@ -69,6 +69,10 @@
       --text:  #d9d9d6;
       --text2: #a8b0ba;
       --muted: #8b97a5;
+      /* Tekst die op de hemel of op een dun glasvlak staat (taak 9b): lichter dan --text/--muted, zodat 4,5:1 haalbaar blijft over de
+         horizonglans (de gedempte grijstint haalde daar 2,2 tot 4,3). Gelden binnen #hoofdinhoud en op de kaarten (app.css). */
+      --tekst-op-hemel:  #f5f7f9;
+      --tekst2-op-hemel: #e6eaef;
       --focus-ring: var(--accent);
       /* ── Open dag-stijl: glas (donker), letters, gloed en duur ──
          Glas ligt boven de hemel; de vervaging en de dekking worden verderop per toestel/voorkeur bijgesteld. */
@@ -113,6 +117,8 @@
       --text:     #1a2433;
       --text2:    #4a5568;
       --muted:    #5b6778;
+      --tekst-op-hemel:  #1a2433;
+      --tekst2-op-hemel: #3d4652;
       --accent-ink:  var(--text);
       --tl-offhours: rgba(26,36,51,0.07);
       --orange: #a94a08;

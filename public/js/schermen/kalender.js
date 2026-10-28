@@ -107,7 +107,7 @@ function buildTicketCard(stop, dateStr, { showActions = true } = {}) {
           // planning-efficiëntie. buildTicketCard() wordt gedeeld door de desktop-tijdlijn en
           // de mobiele gestapelde lijst, dus dit geldt voor beide (geen mobiel/desktop-verschil).
           const win = afh.tijdslotLabelVoor(stop, dateStr);
-          return `<div class="cal-meta" style="font-weight:600">🕐 ${escHtml(win)} <span style="opacity:0.65;font-size:0.85em">(gepland ${stop.uur})</span></div>`;
+          return `<div class="cal-meta" style="font-weight:600">🕐 ${escHtml(win)} <span class="meta-gepland">(gepland ${stop.uur})</span></div>`;
         })() : ''}
         <div class="cal-sub">${escHtml(stop.ticket.subject) || '—'}</div>
         ${stop.ticket.assignee ? `<div class="cal-meta">${escHtml(stop.ticket.assignee)}</div>` : ''}

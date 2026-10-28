@@ -77,7 +77,7 @@ export function renderGepland() {
       // ticket op deze datum, die (i.t.t. het platte allGepland-ticket) het .uur-veld draagt.
       const stop = (planning[key] || []).find(p => p.ticket.id === t.id);
       const tijdHtml = stop?.uur
-        ? `<div class="tmeta" style="font-weight:600">🕐 ${escHtml(afh.tijdslotLabelVoor(stop, key))} <span style="opacity:0.65;font-size:0.85em">(gepland ${escHtml(stop.uur)})</span></div>`
+        ? `<div class="tmeta" style="font-weight:600">🕐 ${escHtml(afh.tijdslotLabelVoor(stop, key))} <span class="meta-gepland">(gepland ${escHtml(stop.uur)})</span></div>`
         : '';
       card.innerHTML = `<div class="t-body">
         <div class="t-top"><span class="tnum">#${escHtml(t.number)}</span><span class="stag confirmed">Ingepland</span>${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}</div>

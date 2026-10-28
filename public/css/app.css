@@ -207,17 +207,18 @@
     @media (hover: hover) { :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row):is([data-urgentie], .ticket.overdue, .cal-ticket.pending, .cal-ticket.confirmed, .cal-local-event, .inv-row.inv-low, .inv-row.inv-bijna, .stop.sales-voorgesteld, .stop.sales-bevestigd):hover {
       --rand-kleur: color-mix(in srgb, var(--gloed-kleur) 80%, transparent);
     } }
-    /* Tekst op de kaarten (was enkel tijdens een thema, nu overal): lichter in donker, donkerder in licht, zodat 4,5:1 haalbaar blijft
+    /* Tekst op de kaarten en op de hemel zelf (#hoofdinhoud, taak 9b: lege staten, uurlabels, dagkoppen, subtabs, samenvattingen; was enkel
+       tijdens een thema, nu overal): lichter in donker, donkerder in licht, zodat 4,5:1 haalbaar blijft
        over de hemel en over een thema-achtergrond. --red blijft ongemoeid (labels "Verlopen" en "Hoog" houden de statuskleur); enkel
        losse rode of oranje tekst (geen adres, lage voorraad) krijgt een eigen licht (donker) of donker (licht) rood. */
-    :root:not([data-theme="light"]) :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart, .sales-kal-kaart, .topbar-sticky) {
-      --text: #f5f7f9; --text2: #e6eaef; --muted: #e6eaef;
+    :root:not([data-theme="light"]) :is(#hoofdinhoud, .ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart, .sales-kal-kaart, .topbar-sticky) {
+      --text: var(--tekst-op-hemel); --text2: var(--tekst2-op-hemel); --muted: var(--tekst2-op-hemel);
       color: var(--text); /* tekst zonder eigen kleur erft anders de --text van body */
     }
     :root:not([data-theme="light"]) :is(.taddr.miss, .cal-addr.miss, .inv-row.inv-low .inv-row-aantal) { color: #ffdcd7; }
     :root:not([data-theme="light"]) .inv-row.inv-bijna .inv-row-aantal { color: #ffe3b3; }
-    :root[data-theme="light"] :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart, .sales-kal-kaart, .topbar-sticky) {
-      --text2: #3d4652; --muted: #3d4652;
+    :root[data-theme="light"] :is(#hoofdinhoud, .ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart, .sales-kal-kaart, .topbar-sticky) {
+      --text2: var(--tekst2-op-hemel); --muted: var(--tekst2-op-hemel);
     }
     :root[data-theme="light"] :is(.taddr.miss, .cal-addr.miss, .inv-row.inv-low .inv-row-aantal) { color: #8c1111; }
     :root[data-theme="light"] .inv-row.inv-bijna .inv-row-aantal { color: #6e3400; }
@@ -283,13 +284,13 @@
     /* Compacte "nog in te plannen" pill */
     .kal-pending-pill {
       display: flex; align-items: center; gap: 5px;
-      background: var(--orange-dim); border: 1px solid rgba(245,158,11,0.3);
+      background: color-mix(in srgb, var(--orange) var(--chip-tint), var(--chip-onder)); border: 1px solid rgba(245,158,11,0.3);
       border-radius: 20px; padding: 4px 10px; cursor: pointer;
       font-size: 0.75rem; font-weight: 600; color: var(--orange);
       transition: background 0.15s;
       white-space: nowrap; flex-shrink: 0;
     }
-    @media (hover: hover) { .kal-pending-pill:hover { background: rgba(245,158,11,0.2); } }
+    @media (hover: hover) { .kal-pending-pill:hover { background: color-mix(in srgb, var(--orange) 20%, var(--chip-onder)); } }
     .kal-pending-pill .pill-count {
       background: var(--orange); color: var(--on-accent);
       border-radius: 10px; padding: 0 6px; font-size: 0.7rem; font-weight: 700;
@@ -484,7 +485,16 @@
     .day-body { flex: 1; padding: 6px; background: transparent; display: flex; flex-direction: column; gap: 5px; }
     .day-body.blocked-day  { background: repeating-linear-gradient(135deg, transparent, transparent 8px, color-mix(in srgb, var(--red) 5%, transparent)  8px, color-mix(in srgb, var(--red) 5%, transparent)  16px); }
     .day-body.holiday-day  { background: repeating-linear-gradient(135deg, transparent, transparent 8px, rgba(251,191,36,0.07)  8px, rgba(251,191,36,0.07)  16px); }
-    .day-empty { font-size: var(--fs-2xs); color: var(--muted); text-align: center; padding: 20px 4px; opacity: 0.35; }
+    /* Lege staten en dagkoppen staan los op de hemel. Op de scène van een thema ligt daar toevallig een heldere maan of sneeuw achter
+       (Halloween, Sinterklaas: 2:1); daar krijgen ze hetzelfde glas als een kaart (taak 9b). Op de gewone hemel is de tekstkleur genoeg. */
+    html[data-event-achtergrond="ja"] :is(.empty, .route-empty, .inv-empty, .rapporten-leeg, .cal-day-hdr) {
+      background-color: var(--glas); -webkit-backdrop-filter: blur(var(--blur)) saturate(180%); backdrop-filter: blur(var(--blur)) saturate(180%);
+      border-radius: var(--r-ev);
+    }
+    html[data-event-achtergrond="ja"] :is(.rapporten-leeg, .inv-empty) { padding-left: 16px; padding-right: 16px; }
+    /* "(gepland 09:00)" naast het tijdslot: kleiner en niet vet; geen doorzichtigheid meer (die haalde 3,3:1 in licht, taak 9b) */
+    .meta-gepland { font-size: 0.85em; font-weight: 400; color: var(--muted); }
+    .day-empty { font-size: var(--fs-2xs); color: var(--muted); text-align: center; padding: 20px 4px; }
 
     /* Kalender ticket */
     .cal-ticket {
@@ -590,7 +600,7 @@
     .av-form { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--lijn); padding-top: 12px; }
     .av-radio-group { display: flex; gap: 6px; flex-wrap: wrap; }
     .av-radio-btn { padding: 5px 14px; border-radius: 20px; border: 1px solid var(--glas-rand); background: transparent; color: var(--text2); font-size: 0.78rem; cursor: pointer; font-family: inherit; transition: all 0.12s; }
-    .av-radio-btn.active { background: var(--accent-dim); color: var(--accent-ink); border-color: var(--accent-glow); font-weight: 600; }
+    .av-radio-btn.active { background: color-mix(in srgb, var(--accent) var(--chip-tint), var(--chip-onder)); color: var(--accent-ink); border-color: var(--accent-glow); font-weight: 600; }
     .av-time-row { display: flex; gap: 8px; align-items: center; }
     .av-time-input { background: var(--veld); border: 1px solid var(--veld-rand); border-radius: var(--r-pil); color: var(--text); padding: 5px 12px; font-size: 0.82rem; font-family: inherit; width: 90px; }
     input[type="date"].av-time-input { width: 136px; }
@@ -1207,7 +1217,7 @@
     .tl-now { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--red); z-index: 4; pointer-events: none; }
     .tl-now::before { content: ''; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
     .badge-buitenuren { font-size: 0.7rem; font-weight: 600; padding: 1px 6px; border-radius: 20px; display: inline-block; margin: 0 0 4px 4px; background: var(--orange-dim); color: var(--orange); }
-    .kal-nu-marker { flex: none; border-top: 2px solid var(--red); margin: 6px 0; padding-top: 2px; font-size: 0.7rem; font-weight: 700; line-height: 1.2; color: var(--red); text-align: right; }
+    .kal-nu-marker { flex: none; border-top: 2px solid var(--red); margin: 6px 0; padding: 2px 6px 3px; background: var(--chip-onder); font-size: 0.7rem; font-weight: 700; line-height: 1.2; color: var(--red); text-align: right; }
     .tl-now-label { position: absolute; right: 0; top: -9px; font-size: 0.7rem; font-weight: 700; line-height: 1; padding: 2px 4px; border-radius: 3px; color: #fff; background: #c81e1e; }
     .tl-block {
       position: absolute; left: 6px; right: 6px; overflow: hidden; border-radius: var(--r-ev);

@@ -63,7 +63,7 @@ export function renderRapportArchief() {
   const body = document.getElementById('rapp-archief-body');
   if (!body) return;
   if (!_rapportArchief.length) {
-    body.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:20px 0">Nog geen rapporten gearchiveerd.</div>';
+    body.innerHTML = '<div class="rapporten-leeg" style="color:var(--muted);font-size:0.82rem;padding:20px 0">Nog geen rapporten gearchiveerd.</div>';
     return;
   }
   // 'mijn' (enkel voor een beheerder/planner met een Zoho-naam): de rapporten die ik zelf indiende of waar mijn naam op staat.

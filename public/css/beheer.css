@@ -20,6 +20,8 @@ html[data-nav="kolom"] .beheer-titel { display: none; }
 .beheer-paneel:focus { outline: none; }
 .beheer-paneel:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .beheer-fout, .bg-fout { font-size: var(--fs-sm); font-weight: 600; color: var(--red); line-height: 1.4; }
+/* Rode tekst is een statuskleur (blijft): op de hemel staat ze op een eigen pil, zoals de chips (taak 9b) */
+.beheer-fout { background: var(--chip-onder); border-radius: 12px; padding: var(--sp-2) var(--sp-3); }
 .bg-fout:empty { display: none; }
 
 /* Tab Gebruikers */

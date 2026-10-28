@@ -100,6 +100,9 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
    Kleuren van prioriteit en status (--red, --blue, ...) blijven ongemoeid. */
 @media screen {
   :root[data-event][data-ev-kleuren~="accent"] { --accent: var(--ev-accent); }
+  /* Accent als TEKST (--accent-ink, in donker gelijk aan --accent): een donker accent (Sinterklaas #d5392f) haalt als letter op donker glas of
+     de scène geen 4,5:1; daarom in donker tot 55 % gemengd met wit (taak 9b). In licht is --accent-ink de gewone tekstkleur. */
+  :root[data-event][data-ev-kleuren~="accent"]:not([data-theme="light"]) { --accent-ink: color-mix(in srgb, var(--ev-accent) 55%, #fff); }
   :root[data-event][data-ev-kleuren~="accentHover"] { --accent-hover: var(--ev-accent-hover); }
   :root[data-event][data-ev-kleuren~="accentDim"] { --accent-dim: var(--ev-accent-dim); }
   :root[data-event][data-ev-kleuren~="accentGlow"] { --accent-glow: var(--ev-accent-glow); }

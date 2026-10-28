@@ -108,11 +108,12 @@
 @media (hover: hover) { .sales-kaart-terug:hover { background: var(--knop2-hover); color: var(--text); border-color: var(--glas-rand); } } /* niet rood: dit verwijdert niets */
 .sales-kaart-plaats { color: var(--text2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
 .sales-kaart-chips { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+/* Chips met een statuskleur staan op een eigen tint over --chip-onder (zoals .stag in app.css), niet op de hemel erachter (taak 9b) */
 .sales-chip { font-size: var(--fs-2xs); font-weight: 600; padding: 2px 8px; border-radius: var(--r-pil); background: var(--knop2); color: var(--text2); }
-.sales-chip-vast { background: var(--accent-dim); color: var(--accent-ink); }
-.sales-chip-eerder { background: var(--orange-dim); color: var(--orange); }
-.sales-chip-verlopen { background: var(--orange-dim); color: var(--orange); }
-.sales-chip-manueel { background: var(--blue-dim); color: var(--blue); }
+.sales-chip-vast { background: color-mix(in srgb, var(--accent) var(--chip-tint), var(--chip-onder)); color: var(--accent-ink); }
+.sales-chip-eerder { background: color-mix(in srgb, var(--orange) var(--chip-tint), var(--chip-onder)); color: var(--orange); }
+.sales-chip-verlopen { background: color-mix(in srgb, var(--orange) var(--chip-tint), var(--chip-onder)); color: var(--orange); }
+.sales-chip-manueel { background: color-mix(in srgb, var(--blue) var(--chip-tint), var(--chip-onder)); color: var(--blue); }
 .sales-kaart-contact { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; font-size: var(--fs-xs); overflow-wrap: anywhere; }
 .sales-kaart-contact a { width: max-content; max-width: 100%; padding: 3px 0; } /* de klikzone is zo breed als de tekst: ernaast klikken opent de lead */
 .sales-kaart-contact a, .sales-detail-contact a { color: var(--accent-ink); text-decoration: underline; }
@@ -165,8 +166,8 @@
 .sales-afgewerkt-kop { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--sp-2); }
 .sales-afgewerkt-datum { color: var(--text2); font-size: var(--fs-sm); }
 .sales-afgewerkt-notitie { font-size: var(--fs-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
-.sales-resultaat-chip-verkocht { background: var(--accent-dim); color: var(--accent-ink); }
-.sales-resultaat-chip-offerte { background: var(--blue-dim); color: var(--blue); }
+.sales-resultaat-chip-verkocht { background: color-mix(in srgb, var(--accent) var(--chip-tint), var(--chip-onder)); color: var(--accent-ink); }
+.sales-resultaat-chip-offerte { background: color-mix(in srgb, var(--blue) var(--chip-tint), var(--chip-onder)); color: var(--blue); }
 
 /* ---- Instellingen van de verkoper (sales-instellingen.js, knop in de verkoperbalk) ---- */
 
