@@ -80,11 +80,11 @@
       --focus-ring: var(--accent);
       /* ── Open dag-stijl: glas (donker), letters, gloed en duur ──
          Glas ligt boven de hemel; de vervaging en de dekking worden verderop per toestel/voorkeur bijgesteld. */
-      --glas:            rgba(12,20,44,0.40);
+      --glas:            rgba(12,20,44,0.30); /* v2.5.1: overal 0,10 doorzichtiger (Brent) */
       --glas-hover:      rgba(26,38,70,0.52);
-      --glas-sterk:      rgba(12,20,44,0.50);
+      --glas-sterk:      rgba(12,20,44,0.40);
       /* enkel het dok (data-nav="dok", navigatie.css) en enkel in donker: een felgroene knop die er onderdoor schuift haalde er 3,6:1 (taak 9c) */
-      --glas-dok:        rgba(12,20,44,0.68);
+      --glas-dok:        rgba(12,20,44,0.66);
       --glas-venster:    rgba(24,36,62,0.84);
       --venster-effen:   rgba(24,36,62,0.97); /* gsm: wizard en vensterkop/-voet zonder vervaging (eindreview F2), dus bijna effen */
       --glas-rand:       rgba(255,255,255,0.14);
@@ -146,9 +146,9 @@
       --blue-dim:    rgba(59,130,246,0.10);
       --green-dim:   rgba(0,180,130,0.10);
       /* Open dag-stijl: glas (licht) */
-      --glas:            rgba(255,255,255,0.52);
+      --glas:            rgba(255,255,255,0.48);
       --glas-hover:      rgba(255,255,255,0.72);
-      --glas-sterk:      rgba(255,255,255,0.58);
+      --glas-sterk:      rgba(255,255,255,0.48);
       --glas-dok:        var(--glas);
       --glas-venster:    rgba(255,255,255,0.88);
       --venster-effen:   rgba(255,255,255,0.98);
@@ -172,25 +172,25 @@
        per thema). Enkel in donker (licht haalt het met het gewone glas); de gsm-regel hieronder verliest op specificiteit, de regels voor
        verminderde transparantie en zonder backdrop-filter komen later en winnen op volgorde (zelfde specificiteit). */
     html[data-event-achtergrond="ja"]:not([data-theme="light"]) {
-      --glas:        rgba(14,22,42,0.56);
+      --glas:        rgba(14,22,42,0.50);
       --glas-hover:  rgba(30,44,76,0.66);
-      --glas-sterk:  rgba(14,22,42,0.62);
-      --glas-dok:    rgba(14,22,42,0.70);
+      --glas-sterk:  rgba(14,22,42,0.52);
+      --glas-dok:    rgba(14,22,42,0.66);
     }
 
     /* ── Open dag-stijl: minder vervaging en meer dekking waar glas te zwaar of niet mogelijk is ──
        Volgorde en specificiteit zijn bewust: gsm eerst; "verminderde transparantie" en "geen backdrop-filter" winnen daarna. */
     html[data-apparaat="gsm"] {
       --blur:         10px;
-      --glas:         rgba(12,20,44,0.50);
+      --glas:         rgba(12,20,44,0.40);
       --glas-hover:   rgba(26,38,70,0.60);
-      --glas-sterk:   rgba(12,20,44,0.56);
+      --glas-sterk:   rgba(12,20,44,0.46);
       --glas-venster: rgba(24,36,62,0.92);
     }
     html[data-apparaat="gsm"][data-theme="light"] {
-      --glas:         rgba(255,255,255,0.72);
+      --glas:         rgba(255,255,255,0.64);
       --glas-hover:   rgba(255,255,255,0.84);
-      --glas-sterk:   rgba(255,255,255,0.76);
+      --glas-sterk:   rgba(255,255,255,0.66);
       --glas-venster: rgba(255,255,255,0.94);
     }
     @media (prefers-reduced-transparency: reduce) {
@@ -237,6 +237,11 @@
       -webkit-font-smoothing: antialiased;
       /* overflow-x op html/body vermeden: breekt position:sticky op .tabs */
     }
+    /* Bugfix v2.5.1: op de COMPUTER geen elastische overscroll van de pagina: trek je voorbij de bovenkant, dan veert de hele pagina mee (ook de vaste en
+       sticky delen: de bovenbalk "scrolt even mee"). Enkel `data-apparaat="computer"` (apparaat.js): op een gsm en een tablet (ook een tablet rechtop, dat een
+       gsm is) blijft de standaard, zodat "trek om te verversen" daar werkt (besluit van de opdrachtgever, 2026-10-28). De vensters en de Route-lijst houden hun
+       eigen `overscroll-behavior: contain`. */
+    html[data-apparaat="computer"], html[data-apparaat="computer"] body { overscroll-behavior-y: none; }
     html { height: 100%; }
     /* min-height, NIET height: een vaste body-hoogte (100%) maakt van de body een sticky-bakje ter grootte van het scherm; zodra de inhoud
        langer is, schuift de sticky kop (.topbar-sticky) samen met de body-onderrand weg terwijl de balken in de tabbladen blijven plakken

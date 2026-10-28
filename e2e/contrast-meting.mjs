@@ -168,16 +168,18 @@ export async function wachtOpStilstand(page, locator) {
 // of een nieuwe tuning aanpast; de metingen hieronder lezen de echte waarden uit de berekende stijl van <html> en eisen dat ze hieraan
 // gelijk zijn. Sleutels: [achtergrond: 'hemel' | 'thema'][toestel: 'pc' | 'gsm'][modus: 'donker' | 'licht']. `glas` = kaart, `hover` =
 // kaart met de muis erboven, `sterk` = kop, `dok` = het dok in donker (in licht gelijk aan `glas`), `venster` = vensters en dashboardkaarten (allemaal alpha van de kleur).
+// v2.5.1 (Brent: "overal doorzichtiger"): glas, sterk en dok overal zo veel lager als de contrastproeven (@contrast, 4,5:1) toelaten; hover, venster en blur ongewijzigd.
+// Streefwaarde -0,10; waar een proef faalde is die ene token minder verlaagd (zie het rapport .superpowers/sdd/2026-10-27-open-dag-stijl/task-20-report.md).
 export const VERWACHT_GLAS = {
   hemel: {
-    pc:  { donker: { blur: '28px', glas: 0.40, hover: 0.52, sterk: 0.50, dok: 0.68, venster: 0.84 }, licht: { blur: '28px', glas: 0.52, hover: 0.72, sterk: 0.58, dok: 0.52, venster: 0.88 } },
-    gsm: { donker: { blur: '10px', glas: 0.50, hover: 0.60, sterk: 0.56, dok: 0.68, venster: 0.92 }, licht: { blur: '10px', glas: 0.72, hover: 0.84, sterk: 0.76, dok: 0.72, venster: 0.94 } },
+    pc:  { donker: { blur: '28px', glas: 0.30, hover: 0.52, sterk: 0.40, dok: 0.66, venster: 0.84 }, licht: { blur: '28px', glas: 0.48, hover: 0.72, sterk: 0.48, dok: 0.48, venster: 0.88 } },
+    gsm: { donker: { blur: '10px', glas: 0.40, hover: 0.60, sterk: 0.46, dok: 0.66, venster: 0.92 }, licht: { blur: '10px', glas: 0.64, hover: 0.84, sterk: 0.66, dok: 0.64, venster: 0.94 } },
   },
   // Een thema met achtergrond (data-event-achtergrond="ja") vervangt de hemel door een scène; zie evenement.css
   // en krijgt in donker dichter, donkerblauw glas (base.css, taak 9); in licht is het gewone glas genoeg
   thema: {
-    pc:  { donker: { blur: '28px', glas: 0.56, hover: 0.66, sterk: 0.62, dok: 0.70, venster: 0.84 }, licht: { blur: '28px', glas: 0.52, hover: 0.72, sterk: 0.58, dok: 0.52, venster: 0.88 } },
-    gsm: { donker: { blur: '10px', glas: 0.56, hover: 0.66, sterk: 0.62, dok: 0.70, venster: 0.92 }, licht: { blur: '10px', glas: 0.72, hover: 0.84, sterk: 0.76, dok: 0.72, venster: 0.94 } },
+    pc:  { donker: { blur: '28px', glas: 0.50, hover: 0.66, sterk: 0.52, dok: 0.66, venster: 0.84 }, licht: { blur: '28px', glas: 0.48, hover: 0.72, sterk: 0.48, dok: 0.48, venster: 0.88 } },
+    gsm: { donker: { blur: '10px', glas: 0.50, hover: 0.66, sterk: 0.52, dok: 0.66, venster: 0.92 }, licht: { blur: '10px', glas: 0.64, hover: 0.84, sterk: 0.66, dok: 0.64, venster: 0.94 } },
   },
 };
 

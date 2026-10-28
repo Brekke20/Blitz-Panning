@@ -442,7 +442,13 @@
     /* Tijdlijnweergave: #week-grid is de enige verticale scrollcontainer (hoogte via JS);
        kolommen krijgen hun inhoudshoogte zodat de sticky kop over de volle scroll blijft staan */
     .week-grid.tl-mode { overflow: auto; align-items: flex-start; flex: none; }
-    .week-grid.tl-mode .day-hdr { position: sticky; top: 0; z-index: 5; }
+    /* v2.5.1: de vastgeplakte dagkop (en de hoekcel, de lege kop van de uurkolom) is doorzichtiger glas; zonder vervaging waren de uurlabels die erachter
+       wegschuiven ("08:00", "09:00") er leesbaar doorheen te zien. --blur-balk geldt op het dok; op de computer het gewone --blur (28 px). Bij verminderde
+       transparantie of zonder backdrop-filter (base.css) is het glas bijna effen en de vervaging niet nodig. */
+    .week-grid.tl-mode .day-hdr { position: sticky; top: 0; z-index: 5; background-color: var(--glas-venster); -webkit-backdrop-filter: blur(var(--blur-balk, var(--blur))) saturate(180%); backdrop-filter: blur(var(--blur-balk, var(--blur))) saturate(180%); }
+    /* De hoekcel (de kop van de smalle uurkolom): de uurlabels schuiven er direct onder weg en de vervaging van een 39 px brede cel haalt ze niet genoeg weg (de
+       rand van de cel vult de vervaging aan met zichzelf); hij staat daarom op het bijna effen --venster-effen, net als de wizard en de vensterkop op de gsm. */
+    .week-grid.tl-mode .tl-gutter .day-hdr { background-color: var(--venster-effen); }
     .day-hdr { padding: 12px 10px 8px; background-color: var(--glas-sterk); border-bottom: 1px solid var(--lijn); }
     .day-hdr-top { display: block; }
     .day-hdr-name { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
@@ -1322,11 +1328,15 @@
   backdrop-filter: blur(var(--blur)) saturate(180%);
   border-bottom: 1px solid var(--glas-rand); /* één lijn onderaan (taak 8a: de extra inset-schaduw gaf er twee) */
 }
-/* Taak 17: op het dok (gsm, staande tablet) schuift na een scroll of de sprong van de kalender tekst onder de kop en de balken door; één laag glas liet die als
-   vage schim doorschijnen ("Kalender" onder het logo, de rand van de kaart onder de werkbalk). Een tweede laag van DEZELFDE kleur (het token, dus in elk thema en
-   in elke themakleur) maakt de balken bijna dicht; de vervaging blijft. Enkel een achtergrondlaag: nooit backdrop-filter, filter, transform of contain op de kop. */
+/* Taak 17 → v2.5.1: op het dok (gsm, staande tablet) schuift na een scroll of de sprong van de kalender tekst onder de kop en de balken door. Een tweede laag glas
+   (taak 17) maakte de balken bijna dicht (0,81 donker, 0,94 licht): Brent vond het glas te dicht. In de plaats komt een sterkere vervaging van enkel deze balken
+   (--blur-balk, minstens 18 px): wat eronder schuift is wazig en niet leesbaar. Enkel een token op de bestaande backdrop-filter van de laag; nooit backdrop-filter,
+   filter, transform of contain op de kop zelf. Bij "verminderde transparantie" of zonder backdrop-filter (base.css) geldt de vervaging toch niet. */
+html[data-nav="dok"] { --blur-balk: max(var(--blur), 18px); }
 html[data-nav="dok"] .topbar-sticky::before,
-html[data-nav="dok"] :is(.lijst-balk, .kal-header, .gep-week, .route-balk, .rapp-balk) { background-image: linear-gradient(var(--glas-sterk), var(--glas-sterk)); }
+html[data-nav="dok"] :is(.lijst-balk, .kal-header, .gep-week, .route-balk, .rapp-balk) {
+  -webkit-backdrop-filter: blur(var(--blur-balk)) saturate(180%); backdrop-filter: blur(var(--blur-balk)) saturate(180%);
+}
 /* Pc (zijkolom): het glas van de kop zweeft als de zijkolom: dezelfde straal en 14 px van de boven- en rechterrand; links sluit het aan op de
    14 px marge naast de zijkolom (body-padding). Onderaan blijft 8 px lucht tot de balk eronder; de kop is 92 px (taak 16); de sticky-afstanden (--sticky-top, js/sticky-offset.js)
    volgen vanzelf. De balken eronder worden ronde glazen balken met 14 px rechts. */
