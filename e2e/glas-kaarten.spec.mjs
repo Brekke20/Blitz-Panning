@@ -43,6 +43,39 @@ test.describe('glazen kaarten', () => {
     verwachtBlurOpGsm(await kaart.evaluate((el) => getComputedStyle(el).backdropFilter));
   });
 
+  // Eindreview F2: op gsm geen schermbrede of geneste vervaging op de wizard en de vaste kop/voet van een venster (dat is de zwaarste
+  // laag op een telefoon); de laag is dan bijna effen, zodat de pagina eronder niet doorschemert. Op pc blijft het glas.
+  for (const modus of ['dark', 'light']) {
+    test(`gsm (${modus}): wizard en vensterkop/-voet zonder backdrop-filter, bijna effen`, async ({ page }) => {
+      await page.addInitScript((t) => { if (window === window.top) { localStorage.setItem('blitz_weergave', 'gsm'); localStorage.setItem('blitz_theme', t); } }, modus);
+      await startApp(page, { viewport: { width: 375, height: 812 } });
+      await expect(page.locator('html')).toHaveAttribute('data-apparaat', 'gsm');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', modus);
+      const meting = await page.evaluate(() => {
+        const lees = (el) => {
+          const cs = getComputedStyle(el);
+          const m = cs.backgroundColor.match(/rgba?\(([^)]*)\)/)[1].split(',').map(parseFloat);
+          return { filter: cs.backdropFilter || cs.webkitBackdropFilter || 'none', alpha: m.length > 3 ? m[3] : 1 };
+        };
+        return {
+          wizard: lees(document.getElementById('rapport-wizard')),
+          kop: lees(document.querySelector('#det-overlay .mhdr')),
+          voet: lees(document.querySelector('#det-overlay .mftr')),
+        };
+      });
+      for (const [naam, m] of Object.entries(meting)) {
+        expect(m.filter, `${naam} backdrop-filter`).toBe('none');
+        expect(m.alpha, `${naam} dekking`).toBeGreaterThanOrEqual(0.97);
+      }
+    });
+  }
+
+  test('pc: de wizard en de vensterkop houden hun glas', async ({ page }) => {
+    await startApp(page, { viewport: { width: 1366, height: 768 } });
+    const f = await page.evaluate(() => ['#rapport-wizard', '#det-overlay .mhdr', '#det-overlay .mftr'].map((s) => { const cs = getComputedStyle(document.querySelector(s)); return cs.backdropFilter || cs.webkitBackdropFilter; }));
+    for (const x of f) expect(x).toContain('blur(');
+  });
+
   const maat = (loc) => loc.evaluate((el) => { const cs = getComputedStyle(el); return [cs.paddingTop, cs.paddingLeft, cs.marginBottom, cs.borderTopLeftRadius]; });
 
   test('dichtheid op breed: 15/18 en 10 px ertussen', async ({ page }) => {

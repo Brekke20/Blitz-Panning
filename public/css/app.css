@@ -797,6 +797,12 @@
       position: sticky; bottom: 0; background-color: var(--glas-venster); -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur));
     }
 
+    /* Eindreview F2: op gsm geen schermbrede vervaging op de wizard en geen geneste vervaging op de vaste kop/voet van een venster (de zwaarste
+       lagen op een telefoon); de achtergrond is dan bijna effen (--venster-effen), zodat de pagina eronder niet doorschemert. */
+    html[data-apparaat="gsm"] :is(#rapport-wizard, .mhdr, .mftr) {
+      -webkit-backdrop-filter: none; backdrop-filter: none; background-color: var(--venster-effen);
+    }
+
     /* ── Gedeelde knoppen ── */
     .btn-cancel {
       background: var(--knop2); border: 1px solid var(--border-strong); color: var(--text2); /* Open dag: glazen pil zoals .btn--secondary (Ruling 8) */

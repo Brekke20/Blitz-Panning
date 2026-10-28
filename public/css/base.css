@@ -86,6 +86,7 @@
       /* enkel het dok (data-nav="dok", navigatie.css) en enkel in donker: een felgroene knop die er onderdoor schuift haalde er 3,6:1 (taak 9c) */
       --glas-dok:        rgba(12,20,44,0.68);
       --glas-venster:    rgba(24,36,62,0.84);
+      --venster-effen:   rgba(24,36,62,0.97); /* gsm: wizard en vensterkop/-voet zonder vervaging (eindreview F2), dus bijna effen */
       --glas-rand:       rgba(255,255,255,0.14);
       --glas-rand-hover: rgba(255,255,255,0.26);
       --glas-licht:      rgba(255,255,255,0.16);
@@ -150,6 +151,7 @@
       --glas-sterk:      rgba(255,255,255,0.58);
       --glas-dok:        var(--glas);
       --glas-venster:    rgba(255,255,255,0.88);
+      --venster-effen:   rgba(255,255,255,0.98);
       --glas-rand:       rgba(255,255,255,0.85);
       --glas-rand-hover: rgba(255,255,255,1);
       --glas-licht:      rgba(255,255,255,0.95);
