@@ -15,6 +15,9 @@ const MATEN = [
 // donker 136 en 136, licht 88 en 88 (de labels zijn dan goed leesbaar). De grenzen liggen er ruim tussen.
 const GRENZEN = { dark: { max: 36, scherp: 32 }, light: { max: 22, scherp: 20 } };
 
+// De hoekcel (een uurlabel van 28 px in een kop van 39 px) kreeg bij de eerste fix nog een zwak maar zichtbaar spoor mee; strengere grens (zie het rapport).
+const HOEK = { dark: { max: 10, scherp: 8 }, light: { max: 6, scherp: 5 } };
+
 for (const { naam, viewport } of MATEN) {
   for (const thema of ['dark', 'light']) {
     test(`tijdlijnweek, ${naam}, ${thema}: uurlabels onder de dagkoppen en de hoekcel zijn niet leesbaar`, async ({ page }) => {
@@ -45,19 +48,34 @@ for (const { naam, viewport } of MATEN) {
       const met = (await page.screenshot({ clip: kop })).toString('base64');
       await page.addStyleTag({ content: '#week-grid .tl-wrap, #week-grid .tl-gutter-wrap { visibility: hidden !important; }' });
       const zonder = (await page.screenshot({ clip: kop })).toString('base64');
-      const { max, scherp } = await page.evaluate(async ([a, b]) => {
+      // Drie gebieden van het verschilbeeld (de hoekcel zonder de eerste 6 px links: daar buigt de ronde hoek van het glazen vlak, en het verschil met en zonder inhoud zit daar aan de rand, niet in het label): de hele kopregel, enkel de hoekcel (de smalle kop van de uurkolom, `.tl-gutter .day-hdr`) en enkel de dagkoppen (zonder hoekcel).
+      const hoek = await page.evaluate(() => { const r = document.querySelector('.tl-gutter .day-hdr').getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }; });
+      const gebieden = { kopregel: { x: 0, y: 0, w: kop.width, h: kop.height }, hoekcel: { x: hoek.x - kop.x + 6, y: hoek.y - kop.y, w: hoek.w - 6, h: hoek.h }, dagkoppen: { x: hoek.x - kop.x + hoek.w, y: 0, w: kop.width - (hoek.x - kop.x + hoek.w), h: kop.height } };
+      const meting = await page.evaluate(async ([a, b, geb]) => {
         const lees = async (s) => { const bm = await createImageBitmap(await (await fetch('data:image/png;base64,' + s)).blob()); const c = new OffscreenCanvas(bm.width, bm.height); c.getContext('2d').drawImage(bm, 0, 0); return { d: c.getContext('2d').getImageData(0, 0, bm.width, bm.height).data, w: bm.width, h: bm.height }; };
         const [p, q] = [await lees(a), await lees(b)];
         const w = p.w, h = p.h, v = new Float32Array(w * h);
-        let m = 0;
-        for (let i = 0; i < w * h; i++) { const j = i * 4; v[i] = Math.max(Math.abs(p.d[j] - q.d[j]), Math.abs(p.d[j + 1] - q.d[j + 1]), Math.abs(p.d[j + 2] - q.d[j + 2])); m = Math.max(m, v[i]); }
-        let s = 0;
-        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x; if (x + 1 < w) s = Math.max(s, Math.abs(v[i] - v[i + 1])); if (y + 1 < h) s = Math.max(s, Math.abs(v[i] - v[i + w])); }
-        return { max: m, scherp: s };
-      }, [met, zonder]);
-      console.log(`SCHIMMETING ${naam} ${thema}: max ${max}, scherp ${scherp}`);
-      expect(max, 'sterkte van wat doorschemert').toBeLessThanOrEqual(GRENZEN[thema].max);
-      expect(scherp, 'scherpte van wat doorschemert').toBeLessThanOrEqual(GRENZEN[thema].scherp);
+        for (let i = 0; i < w * h; i++) { const j = i * 4; v[i] = Math.max(Math.abs(p.d[j] - q.d[j]), Math.abs(p.d[j + 1] - q.d[j + 1]), Math.abs(p.d[j + 2] - q.d[j + 2])); }
+        const uit = {};
+        for (const [naam, g] of Object.entries(geb)) {
+          let m = 0, s = 0;
+          // de bovenste 8 rijen en de randen (1 px) vallen weg: aan de bovenrand van de kop (rijen 0 tot 7: max 12 licht en 21 donker, gemeten per rij) verschilt de vervaging met en zonder
+          // inhoud om een andere reden dan een doorschemerend label; de uurlabels staan daaronder (eerste label vanaf rij 10)
+          for (let y = Math.max(0, g.y) + 8; y < Math.min(h, g.y + g.h) - 1; y++) for (let x = Math.max(0, g.x) + 1; x < Math.min(w, g.x + g.w) - 1; x++) {
+            const i = y * w + x; m = Math.max(m, v[i]);
+            if (x + 1 < Math.min(w, g.x + g.w) - 1) s = Math.max(s, Math.abs(v[i] - v[i + 1]));
+            if (y + 1 < Math.min(h, g.y + g.h) - 1) s = Math.max(s, Math.abs(v[i] - v[i + w]));
+          }
+          uit[naam] = { max: m, scherp: s };
+        }
+        return uit;
+      }, [met, zonder, gebieden]);
+      console.log(`SCHIMMETING ${naam} ${thema}: ` + JSON.stringify(meting));
+      for (const [gebied, { max, scherp }] of Object.entries(meting)) {
+        const grens = gebied === 'hoekcel' ? HOEK[thema] : GRENZEN[thema];
+        expect(max, `sterkte van wat doorschemert (${gebied})`).toBeLessThanOrEqual(grens.max);
+        expect(scherp, `scherpte van wat doorschemert (${gebied})`).toBeLessThanOrEqual(grens.scherp);
+      }
     });
   }
 }

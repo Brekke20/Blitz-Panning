@@ -446,6 +446,9 @@
        wegschuiven ("08:00", "09:00") er leesbaar doorheen te zien. --blur-balk geldt op het dok; op de computer het gewone --blur (28 px). Bij verminderde
        transparantie of zonder backdrop-filter (base.css) is het glas bijna effen en de vervaging niet nodig. */
     .week-grid.tl-mode .day-hdr { position: sticky; top: 0; z-index: 5; background-color: var(--glas-venster); -webkit-backdrop-filter: blur(var(--blur-balk, var(--blur))) saturate(180%); backdrop-filter: blur(var(--blur-balk, var(--blur))) saturate(180%); }
+    /* De hoekcel (de kop van de smalle uurkolom): de uurlabels schuiven er direct onder weg en de vervaging van een 39 px brede cel haalt ze niet genoeg weg (de
+       rand van de cel vult de vervaging aan met zichzelf); hij staat daarom op het bijna effen --venster-effen, net als de wizard en de vensterkop op de gsm. */
+    .week-grid.tl-mode .tl-gutter .day-hdr { background-color: var(--venster-effen); }
     .day-hdr { padding: 12px 10px 8px; background-color: var(--glas-sterk); border-bottom: 1px solid var(--lijn); }
     .day-hdr-top { display: block; }
     .day-hdr-name { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
