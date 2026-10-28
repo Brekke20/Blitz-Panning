@@ -78,7 +78,7 @@ const INVENTARIS = { versie: 3, wagenvoorraad: { Tim: VOORRAAD_TIM }, log: [
 const inventarisStub = { inventaris: () => ({ status: 200, json: structuredClone(INVENTARIS) }) };
 
 // ── tabbladen en hoe je ze toont ──────────────────────────────────────────────────────────────────────────────────────────────────────────
-const tabNaam = (naam) => new RegExp(`^${naam}(\\s|$)`);
+const tabNaam = (naam) => new RegExp(`^${naam}(\\s|,|$)`); // een tab met een bolletje heet "Wachtrij, 3 nieuw" (aria-label, taak 19)
 async function stabiel(page, sel) {
   let vorige = -1;
   for (let i = 0; i < 40; i++) {

@@ -12,6 +12,7 @@ import { dokVerdeling, meerBolletje, meerBolletjeLabel } from './dok-meer-logica
 import { registreerVenster } from '../venster.js';
 import { registreerBackdrop } from '../kern/ui.js';
 import { tabIcoonSvg } from '../kern/tab-iconen.js';
+import { tabNaam } from './tab-bolletjes.js';
 
 const MAX_IN_DOK = 5;
 
@@ -40,13 +41,6 @@ function open() {
   meerKnop.setAttribute('aria-expanded', 'true');
 }
 
-// Het label van een tab zonder de teller en het icoon.
-function labelVan(knop) {
-  const kloon = knop.cloneNode(true);
-  for (const x of kloon.querySelectorAll('.badge, svg')) x.remove();
-  return kloon.textContent.replace(/\s+/g, ' ').trim();
-}
-
 // Eén knop per tab achter "Meer"; leest de actuele staat (klasse, teller) van de echte tab. Gebouwd bij het openen en als de set tabs in Meer
 // wijzigt, niet bij elke teller- of tekstwijziging in de tabbalk (die zou het blad anders bij elke render opnieuw opbouwen).
 function vulBlad() {
@@ -64,7 +58,7 @@ function vulBlad() {
     knop.insertAdjacentHTML('afterbegin', tabIcoonSvg(tab.dataset.arg || id));
     const tekst = document.createElement('span');
     tekst.className = 'dok-meer-item-naam';
-    tekst.textContent = labelVan(tab);
+    tekst.textContent = tabNaam(tab);
     knop.append(tekst);
     // De teller van de echte tab (bv. de voorraadteller van Inventaris), als die zichtbaar is.
     const teller = tab.querySelector('.badge');
@@ -73,6 +67,9 @@ function vulBlad() {
       kopie.className = teller.className;
       kopie.textContent = teller.textContent;
       knop.append(kopie);
+      kopie.setAttribute('aria-hidden', 'true'); // het bolletje zegt niets voor een schermlezer: de aria-label van de tab doet dat
+      const uitleg = tab.getAttribute('aria-label');
+      if (uitleg) knop.setAttribute('aria-label', uitleg);
     }
     blad.append(knop);
   }

@@ -33,7 +33,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Op een gsm staat het zoekvak van de wachtrij op een eigen rij, zodat de hulptekst en de sorteerkeuze volledig leesbaar zijn.
 - Op de computer staat de paginatitel mooi in het midden van de bovenbalk en hebben alle panelen ronde hoeken.
 - De kalender springt op de gsm meteen naar vandaag en het huidige uur, en een tablet rechtop ziet eruit en werkt zoals de gsm (liggend blijft hij zoals op de computer).
-- Op de gsm krijgt de knop 'Meer' een rood of oranje bolletje als er achter die knop iets aandacht vraagt, zoals voorraad die op is.
+- Tabbladen tonen geen cijfer meer maar een bolletje: rood als er voorraad op is, oranje als ze bijna op is, groen voor iets nieuws. Op de gsm krijgt ook 'Meer' zo'n bolletje als er achter die knop iets aandacht vraagt.
 
 ### Fixed
 - Op de pc begonnen de spinnen en webben van een feestthema (Halloween) achter de zwevende balk van het tabblad in plaats van eronder. Ze beginnen weer onder de balk, ook bij de ronde balken met marge van de nieuwe stijl.

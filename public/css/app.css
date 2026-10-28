@@ -112,22 +112,8 @@
 
     /* ── Tabs ── */
     /* De tabbalk (.tabs > .tabs-inner > .tab), de zijkolom op `breed` en het dok op gsm/staande tablet staan in css/navigatie.css (Open dag,
-       taak 5). Hier blijven enkel de tellers (.badge), die ook buiten de tabs voorkomen. */
-    .badge {
-      background: var(--knop2);
-      color: var(--muted);
-      font-size: var(--fs-2xs);
-      font-weight: 700;
-      padding: 1px 6px;
-      border-radius: 20px;
-      min-width: 20px;
-      text-align: center;
-      transition: background 0.2s, color 0.2s;
-    }
-    .tab.active .badge { background: var(--accent-dim); color: var(--accent-ink); }
-    /* Inventaris: producten onder hun meldgrens (v2.4.0) -- oranje = bijna op, rood = iets is op; ook op het actieve tabblad */
-    .badge.badge--bijna, .tab.active .badge.badge--bijna { background: var(--orange-dim); color: var(--orange); }
-    .badge.badge--op, .tab.active .badge.badge--op { background: var(--red-dim); color: var(--red); }
+       taak 5). De tellers (.badge) staan er ook. */
+    /* De tellers (.badge) zijn bolletjes zonder cijfer: de stijl staat op één plek, in css/navigatie.css (taak 19). */
 
     /* ── Main content ── */
     #hoofdinhoud {

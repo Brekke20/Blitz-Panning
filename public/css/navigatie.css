@@ -12,7 +12,7 @@
    Containing block: .topbar-sticky, header en nav krijgen GEEN backdrop-filter, filter, transform, will-change of contain, anders zitten
    de vaste kolom, het dok en de persoonkiezer aan hun ouder vast in plaats van aan het scherm. De vervaging staat op .tabs zelf.
    De glijdende onderlijn (.tabs::after) en haar variabelen (--ind-left/--ind-width, vroeger gezet door updateTabIndicator) zijn weg.
-   Het actieve tabblad = een lichtere glazen pil (--knop2-hover) met groen icoon en groene teller (.tab.active .badge in app.css). */
+   Het actieve tabblad = een lichtere glazen pil (--knop2-hover) met groen icoon; de teller is een bolletje (.badge hieronder). */
 
 :root {
   --zijkolom-b: 256px; /* 228 px kolom + 2 × 14 px marge */
@@ -165,18 +165,33 @@ html[data-nav="dok"] .dok-meer:not([hidden]) {
 .dok-meer:focus-visible { outline-offset: -2px; }
 .dok-meer .tab-icoon { width: 20px; height: 20px; flex: none; }
 .dok-meer.actief .tab-icoon { color: var(--accent-ink); }
-/* Taak 18: het bolletje (zonder cijfer) rechtsboven aan het icoon als een tab achter Meer een zichtbare teller heeft. De statuskleuren zijn
-   --red en --orange (een thema overschrijft ze nooit); de rand in de kleur van het glas houdt het bolletje los van het icoon. */
-.dok-meer-bolletje {
-  position: absolute; top: 9px; right: calc(50% - 17px);
-  width: 10px; height: 10px; border-radius: var(--r-pil);
-  background: var(--accent);
+/* De gewone kleur van het bolletje is het groen van het accent (--green, #00dfa3 in donker) en niet --accent zelf: een themapakket zet --accent op zijn
+   eigen kleur (Halloween oranje, Sinterklaas rood) en dan leek een gewoon bolletje op "bijna op" of "op". --green is een statuskleur en blijft in elk
+   thema gelijk. In licht is dat groen te licht op het witte glas en op de lichte pil van het actieve tabblad (1,6:1): een diepere variant (3,9:1 op wit). */
+:root { --bolletje-accent: var(--green); }
+:root[data-theme="light"] { --bolletje-accent: #00946b; }
+
+/* Taak 19: het bolletje van elke tabteller, op ÉÉN plek (Brent, 2026-10-28: "alles aangeven met een bolletje zonder cijfer", overal). Het cijfer van
+   .badge blijft in de DOM (code en tests lezen het) maar is onzichtbaar (font-size 0, transparante kleur); de tab zegt het in zijn aria-label
+   (schermen/tab-bolletjes.js). Hetzelfde bolletje staat op de tabs (zijkolom, dok), in het blad "Meer" en op de knop "Meer" (.dok-meer-bolletje).
+   Kleur: accent, oranje bij badge--bijna, rood bij badge--op (de statuskleuren --orange en --red blijven in elk thema); de rand in de kleur van het
+   glas houdt het bolletje los van het icoon of de pil, ook op het actieve tabblad. Een teller van 0 krijgt data-nul (tab-bolletjes.js): geen bolletje. */
+.badge, .dok-meer-bolletje {
+  flex: none; box-sizing: border-box;
+  width: 10px; height: 10px; min-width: 0; padding: 0;
+  border-radius: var(--r-pil);
+  font-size: 0; line-height: 0; color: transparent; overflow: hidden;
+  background: var(--bolletje-accent);
   box-shadow: 0 0 0 2px var(--glas-sterk);
-  pointer-events: none;
 }
-.dok-meer-bolletje[hidden] { display: none; }
-.dok-meer-bolletje[data-kleur="op"] { background: var(--red); }
-.dok-meer-bolletje[data-kleur="bijna"] { background: var(--orange); }
+.dok-meer-bolletje { pointer-events: none; }
+.badge[data-nul], .dok-meer-bolletje[hidden] { display: none; }
+.badge.badge--bijna, .dok-meer-bolletje[data-kleur="bijna"] { background: var(--orange); }
+.badge.badge--op, .dok-meer-bolletje[data-kleur="op"] { background: var(--red); }
+/* Op het dok hangt het bolletje rechtsboven aan het icoon, op een dok-tab en op Meer op dezelfde plek (beide 56 px hoog, icoon van 20 px). */
+html[data-nav="dok"] .tab .badge, .dok-meer-bolletje {
+  position: absolute; top: 9px; right: calc(50% - 17px);
+}
 
 /* Het blad: een glazen paneel onderaan, boven het dok (het overlay ligt boven alles; --dok-h houdt het blad vrij van het dok zelf).
    Geen vervaging op het overlay zelf: een backdrop-filter in een ouder met backdrop-filter ziet de pagina niet meer, dus het glas van het
@@ -225,15 +240,6 @@ html[data-nav="dok"] .tab {
   font-size: 0.6875rem; /* 11 px */
 }
 html[data-nav="dok"] .tab-icoon { width: 20px; height: 20px; }
-/* De teller hangt rechtsboven aan het icoon */
-html[data-nav="dok"] .tab .badge {
-  position: absolute; top: 4px; right: calc(50% - 26px);
-  min-width: 18px; padding: 0 5px;
-  font-size: 0.625rem; line-height: 16px;
-}
-/* Taak 9: de groene teller van het actieve tabblad (zijkolom en dok) op een donker, doorschijnend chipje (de hemel erachter, vooral de horizonglans, liet de
-   groene tekst op 3,3:1) */
-html[data-nav]:not([data-theme="light"]) .tab.active .badge { background: rgba(8, 16, 36, 0.6); }
 /* Ruimte onderaan voor het dok: de inhoud, de Route-tab (die het scherm vult) en het meldingsvak blijven erboven. */
 html[data-nav="dok"] {
   scroll-padding-bottom: calc(var(--dok-h) + 24px); /* focus en scrollIntoView zetten niets onder het dok */

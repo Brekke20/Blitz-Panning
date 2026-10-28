@@ -57,6 +57,7 @@ import { startVersiering, bewaarThemaWissel, herbereken as herberekenVersiering 
 import { startHemel } from './schermen/hemel-laag.js';
 import { zetTabIconen } from './kern/tab-iconen.js';
 import { initDokMeer } from './schermen/dok-meer.js';
+import { initTabBolletjes } from './schermen/tab-bolletjes.js';
 import { initPaginakop } from './schermen/paginakop.js';
 import { laadThemas, themasNu, pakkettenVoorSpel, haalOntbrekendePakketten } from './schermen/themas-bron.js';
 import { actieveThemas } from './kern/themapakket.js';
@@ -1023,6 +1024,7 @@ document.addEventListener('visibilitychange', () => {
 document.addEventListener('DOMContentLoaded', () => {
   startHemel(); // de hemel (css/hemel.css) meteen, vóór het inloggen: ook het inlogscherm staat op de hemel van het uur
   initDokMeer(); // "Meer" in het dok (schermen/dok-meer.js): meteen, vóór de login en voor elke rol (ook sales, dat `opstart` niet doorloopt); abonneert zich niet op de toestand
+  initTabBolletjes(); // de tellers van de tabs als bolletje zonder cijfer (schermen/tab-bolletjes.js, taak 19): data-nul bij 0 en de aria-label van de tab
   initPaginakop(); // titel + samenvatting van de paginakop op `breed` (schermen/paginakop.js): ook voor sales; volgt de actieve tab, geen abonnement op de toestand
   zetTabIconen(document); // de iconen van de vaste tabs (index.html); rol-schil.js zet ze voor de tabs die het zelf aanmaakt
   return startNaInlog(opstart).then(() => {

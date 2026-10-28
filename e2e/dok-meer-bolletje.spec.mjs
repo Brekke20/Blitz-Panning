@@ -79,7 +79,7 @@ test.describe('bolletje op "Meer"', () => {
     await expect(page.locator('#cnt-inventaris')).toHaveText('1');
     await expect(page.locator('#cnt-inventaris')).not.toHaveClass(/badge--(op|bijna)/);
     await expect(bolletje(page)).toHaveAttribute('data-kleur', 'gewoon');
-    expect(await bolKleur(page)).toBe(await kleurVan(page, '--accent'));
+    expect(await bolKleur(page)).toBe(await kleurVan(page, '--green')); // taak 19: de gewone kleur is --green (een thema zet --accent op een eigen kleur)
     await expect(meer(page)).toHaveAttribute('aria-label', 'Meer, nieuwe meldingen');
   });
 
