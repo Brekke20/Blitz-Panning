@@ -13,19 +13,23 @@ export function tabNaam(knop) {
   return kloon.textContent.replace(/\s+/g, ' ').trim();
 }
 
+// Verborgen = door de app verborgen (hidden of inline display:none, zoals de teller van Inventaris). Bewust niet uit getComputedStyle: de eigen
+// `data-nul` (nul = geen bolletje) zet ook display:none, en die staat even achter als een teller van 0 naar N gaat (waarnemers lopen na elkaar).
+export const tellerVerborgen = (el) => el.hidden || el.style.display === 'none';
+
 function werk(balk) {
   for (const tab of balk.querySelectorAll('.tab')) {
     const el = tab.querySelector('.badge');
     if (!el) continue;
     const kleur = tellerKleur({
       tekst: el.textContent,
-      verborgen: el.hidden || el.style.display === 'none', // de eigen `data-nul` telt niet mee: dat is net het resultaat
+      verborgen: tellerVerborgen(el), // de eigen `data-nul` telt niet mee: dat is net het resultaat
       op: el.classList.contains('badge--op'),
       bijna: el.classList.contains('badge--bijna'),
     });
-    const nul = kleur === null && !el.hidden && el.style.display !== 'none';
+    const nul = kleur === null && !tellerVerborgen(el);
     if (el.hasAttribute('data-nul') !== nul) el.toggleAttribute('data-nul', nul);
-    const label = tellerLabel(tabNaam(tab), kleur, el.textContent);
+    const label = tellerLabel(tabNaam(tab), kleur, el.textContent, tab.id.replace(/^tab-/, ''));
     if (label) { if (tab.getAttribute('aria-label') !== label) tab.setAttribute('aria-label', label); }
     else if (tab.hasAttribute('aria-label')) tab.removeAttribute('aria-label');
   }

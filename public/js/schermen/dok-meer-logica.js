@@ -2,6 +2,8 @@
 // Passen er hoogstens `max` tabs, dan staan ze allemaal in het dok. Anders staan de eerste `max - 1` in het dok en de rest achter "Meer",
 // zodat "Meer" zelf de laatste (max-ste) plek van het dok inneemt. Is het actieve tabblad een van de overige, dan is "Meer" actief.
 
+import { isNul } from './tab-bolletjes-logica.js';
+
 /**
  * @param {string[]} ids   tab-id's in de volgorde van het dok (enkel de zichtbare)
  * @param {string|null} actiefId  id van het actieve tabblad (of null)
@@ -16,12 +18,10 @@ export function dokVerdeling(ids, actiefId, max = 5) {
   return { inDok, inMeer, meerActief: actiefId != null && inMeer.includes(actiefId) };
 }
 
-import { isNul } from './tab-bolletjes-logica.js';
-
 // Taak 18: het bolletje op de knop "Meer". Het volgt de tellers van de tabs die achter Meer zitten: één zichtbare teller is genoeg.
 // Een teller is { tekst, verborgen, op, bijna } (of null/undefined voor een tab zonder teller); `op` en `bijna` zijn de statusklassen
 // badge--op en badge--bijna. Een lege teller, een nul en een verborgen teller tellen niet mee.
-// Kleur: 'op' (rood) boven 'bijna' (oranje) boven 'gewoon' (accent); null = geen bolletje.
+// Kleur: 'op' (rood) boven 'bijna' (oranje) boven 'gewoon' (groen); null = geen bolletje.
 
 /**
  * @param {Array<{tekst: string, verborgen?: boolean, op?: boolean, bijna?: boolean}|null|undefined>} tellers
@@ -39,6 +39,6 @@ export function meerBolletje(tellers) {
 export function meerBolletjeLabel(kleur) {
   if (kleur === 'op') return 'Meer, voorraad op';
   if (kleur === 'bijna') return 'Meer, voorraad bijna op';
-  if (kleur === 'gewoon') return 'Meer, nieuwe meldingen';
+  if (kleur === 'gewoon') return 'Meer, er is iets te zien';
   return null;
 }

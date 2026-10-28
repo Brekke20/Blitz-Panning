@@ -174,7 +174,7 @@ html[data-nav="dok"] .dok-meer:not([hidden]) {
 /* Taak 19: het bolletje van elke tabteller, op ÉÉN plek (Brent, 2026-10-28: "alles aangeven met een bolletje zonder cijfer", overal). Het cijfer van
    .badge blijft in de DOM (code en tests lezen het) maar is onzichtbaar (font-size 0, transparante kleur); de tab zegt het in zijn aria-label
    (schermen/tab-bolletjes.js). Hetzelfde bolletje staat op de tabs (zijkolom, dok), in het blad "Meer" en op de knop "Meer" (.dok-meer-bolletje).
-   Kleur: accent, oranje bij badge--bijna, rood bij badge--op (de statuskleuren --orange en --red blijven in elk thema); de rand in de kleur van het
+   Kleur: groen (--bolletje-accent), oranje bij badge--bijna, rood bij badge--op (de statuskleuren --orange en --red blijven in elk thema); de rand in de kleur van het
    glas houdt het bolletje los van het icoon of de pil, ook op het actieve tabblad. Een teller van 0 krijgt data-nul (tab-bolletjes.js): geen bolletje. */
 .badge, .dok-meer-bolletje {
   flex: none; box-sizing: border-box;
@@ -185,6 +185,10 @@ html[data-nav="dok"] .dok-meer:not([hidden]) {
   box-shadow: 0 0 0 2px var(--glas-sterk);
 }
 .dok-meer-bolletje { pointer-events: none; }
+/* Hoog contrast (forced-colors): achtergrond en schaduw verdwijnen; het bolletje houdt zijn eigen kleur, met een rand in de tekstkleur. */
+@media (forced-colors: active) {
+  .badge, .dok-meer-bolletje { forced-color-adjust: none; border: 1px solid CanvasText; }
+}
 .badge[data-nul], .dok-meer-bolletje[hidden] { display: none; }
 .badge.badge--bijna, .dok-meer-bolletje[data-kleur="bijna"] { background: var(--orange); }
 .badge.badge--op, .dok-meer-bolletje[data-kleur="op"] { background: var(--red); }

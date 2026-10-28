@@ -12,7 +12,8 @@ import { dokVerdeling, meerBolletje, meerBolletjeLabel } from './dok-meer-logica
 import { registreerVenster } from '../venster.js';
 import { registreerBackdrop } from '../kern/ui.js';
 import { tabIcoonSvg } from '../kern/tab-iconen.js';
-import { tabNaam } from './tab-bolletjes.js';
+import { tabNaam, tellerVerborgen } from './tab-bolletjes.js';
+import { isNul } from './tab-bolletjes-logica.js';
 
 const MAX_IN_DOK = 5;
 
@@ -62,7 +63,7 @@ function vulBlad() {
     knop.append(tekst);
     // De teller van de echte tab (bv. de voorraadteller van Inventaris), als die zichtbaar is.
     const teller = tab.querySelector('.badge');
-    if (teller && teller.textContent.trim() && getComputedStyle(teller).display !== 'none') {
+    if (teller && !isNul(teller.textContent) && !tellerVerborgen(teller)) {
       const kopie = document.createElement('span');
       kopie.className = teller.className;
       kopie.textContent = teller.textContent;
@@ -84,7 +85,7 @@ function werkBolletje(inMeerIds) {
     if (!el) return null;
     return {
       tekst: el.textContent,
-      verborgen: getComputedStyle(el).display === 'none',
+      verborgen: tellerVerborgen(el),
       op: el.classList.contains('badge--op'),
       bijna: el.classList.contains('badge--bijna'),
     };

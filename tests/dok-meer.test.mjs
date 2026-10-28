@@ -64,5 +64,5 @@ test('bolletje: de aria-label van Meer', () => {
   assert.equal(meerBolletjeLabel(null), null);
   assert.equal(meerBolletjeLabel('op'), 'Meer, voorraad op');
   assert.equal(meerBolletjeLabel('bijna'), 'Meer, voorraad bijna op');
-  assert.equal(meerBolletjeLabel('gewoon'), 'Meer, nieuwe meldingen');
+  assert.equal(meerBolletjeLabel('gewoon'), 'Meer, er is iets te zien');
 });

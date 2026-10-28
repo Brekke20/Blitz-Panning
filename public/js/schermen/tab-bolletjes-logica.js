@@ -20,13 +20,21 @@ export function tellerKleur(teller) {
   return 'gewoon';
 }
 
+// De gewone teller is een totaal (alle tickets in de wachtrij, alle ingeplande tickets, de openstaande aanvullingen), geen "nieuw": per tab een
+// neutraal woord, enkelvoud bij 1. `soort` = het id van de tab zonder "tab-".
+const WOORDEN = { tickets: ['ticket', 'tickets'], gepland: ['gepland', 'gepland'], inventaris: ['aanvulling', 'aanvullingen'] };
+
 /**
  * De aria-label van een tab met een bolletje: de naam plus wat het bolletje zegt (null = gewone naam, dus geen label).
- * 'op' en 'bijna' zeggen hetzelfde als de label van "Meer" (dok-meer-logica.js); een gewone teller: "Wachtrij, 3 nieuw".
+ * 'op' en 'bijna' zeggen hetzelfde als de label van "Meer" (dok-meer-logica.js); een gewone teller: "Wachtrij, 3 tickets",
+ * "Ingepland, 2 gepland", "Inventaris, 1 aanvulling", voor een andere tab "<Tab>, N".
  */
-export function tellerLabel(naam, kleur, tekst) {
+export function tellerLabel(naam, kleur, tekst, soort) {
   if (!kleur || !naam) return null;
   if (kleur === 'op') return `${naam}, voorraad op`;
   if (kleur === 'bijna') return `${naam}, voorraad bijna op`;
-  return `${naam}, ${String(tekst).trim()} nieuw`;
+  const n = String(tekst).trim();
+  const woorden = WOORDEN[soort];
+  if (!woorden) return `${naam}, ${n}`;
+  return `${naam}, ${n} ${n === '1' ? woorden[0] : woorden[1]}`;
 }

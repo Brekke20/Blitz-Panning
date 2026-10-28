@@ -151,12 +151,38 @@ test.describe('tellers van de tabbladen zijn een bolletje zonder cijfer', () => 
     await startApp(page, { loginRol: 'beheerder', technieker: 'Tim', viewport: PC, overschrijf: { inventaris: voorraad(OP) } });
     await expect(page.locator('#tab-inventaris')).toHaveAttribute('aria-label', 'Inventaris, voorraad op');
     const n = await page.locator('#cnt-tickets').textContent();
-    await expect(page.locator('#tab-tickets')).toHaveAttribute('aria-label', `Wachtrij, ${n} nieuw`);
+    await expect(page.locator('#tab-tickets')).toHaveAttribute('aria-label', `Wachtrij, ${n} ${n === '1' ? 'ticket' : 'tickets'}`);
     await page.evaluate(() => {
       const e = document.getElementById('cnt-inventaris'); e.classList.remove('badge--op'); e.classList.add('badge--bijna');
       document.getElementById('cnt-tickets').textContent = '0';
     });
     await expect(page.locator('#tab-inventaris')).toHaveAttribute('aria-label', 'Inventaris, voorraad bijna op');
     await expect(page.locator('#tab-tickets')).not.toHaveAttribute('aria-label', /.+/);
+  });
+
+  test('schermlezers: een gewone teller is een totaal, geen "nieuw" (neutraal woord per tab, enkelvoud bij 1)', async ({ page }) => {
+    await startApp(page, { loginRol: 'beheerder', technieker: 'Tim', viewport: PC, overschrijf: { inventaris: voorraad({}) } });
+    await page.evaluate(() => {
+      document.getElementById('cnt-tickets').textContent = '1';
+      document.getElementById('cnt-gepland').textContent = '12';
+      const i = document.getElementById('cnt-inventaris'); i.style.display = ''; i.textContent = '2'; // gewone teller: openstaande aanvullingen
+    });
+    await expect(page.locator('#tab-tickets')).toHaveAttribute('aria-label', 'Wachtrij, 1 ticket');
+    await expect(page.locator('#tab-gepland')).toHaveAttribute('aria-label', 'Ingepland, 12 gepland');
+    await expect(page.locator('#tab-inventaris')).toHaveAttribute('aria-label', 'Inventaris, 2 aanvullingen');
+    await page.evaluate(() => { document.getElementById('cnt-inventaris').textContent = '1'; });
+    await expect(page.locator('#tab-inventaris')).toHaveAttribute('aria-label', 'Inventaris, 1 aanvulling');
+    for (const id of ['tab-tickets', 'tab-gepland', 'tab-inventaris']) expect(await page.locator('#' + id).getAttribute('aria-label')).not.toMatch(/nieuw/);
+  });
+
+  test('"Meer" met een gewoon bolletje: neutrale label, en een teller die van 0 naar N gaat achter Meer geeft het bolletje (geen race met data-nul)', async ({ page }) => {
+    await zetWeergave(page, 'computer');
+    await startApp(page, { loginRol: 'beheerder', technieker: 'Tim', viewport: SMAL_VENSTER, overschrijf: { inventaris: voorraad({}) } });
+    await expect(page.locator('#tab-inventaris')).toHaveClass(/tab--in-meer/);
+    await expect(page.locator('.dok-meer .dok-meer-bolletje')).toBeHidden();
+    // Inventaris is verborgen met inline display:none; de app maakt hem zichtbaar met een aantal (zoals updateInventarisBadge)
+    await page.evaluate(() => { const i = document.getElementById('cnt-inventaris'); i.style.display = ''; i.textContent = '3'; });
+    await expect(page.locator('.dok-meer .dok-meer-bolletje')).toBeVisible();
+    await expect(page.locator('.dok-meer')).toHaveAttribute('aria-label', 'Meer, er is iets te zien');
   });
 });
