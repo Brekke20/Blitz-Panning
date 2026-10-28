@@ -28,6 +28,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Nieuwe letters: Bricolage Grotesque voor titels en Figtree voor de rest, in plaats van Inter.
 - Knoppen en kaarten springen of vergroten niet meer bij hover; ze vervagen naar een andere kleur.
 - Tekst op de hemel en op de scène van een thema blijft overal leesbaar: donkerblauw glas in het donkere thema, een eigen tekstkleur voor losse tekst op de hemel, en donkere tekst op de groene (en oranje) knoppen in elk thema. Het dok is in het donkere thema dichter, zodat de tabbladen goed te lezen blijven.
+- De balk met rapporten die nog niet verzonden zijn is altijd Blitz-groen met donkere tekst, ook tijdens een feestthema; fout en knoppen blijven overal leesbaar.
 - Alle vensters, de rapport-wizard, Beheer, Dashboard, Sales en het inlogscherm hebben de nieuwe vormen en kleuren. De werking, de knoppen en de teksten in de knoppen blijven dezelfde.
 
 ### Notes

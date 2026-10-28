@@ -1098,8 +1098,8 @@
        pogingen, laatste fout en twee knoppen (Opnieuw proberen / Annuleren). */
     #outbox-banner {
       display: none; flex-direction: column; gap: 2px;
-      background: var(--accent); border-bottom: 1px solid rgba(0,0,0,0.25);
-      padding: 4px 14px; font-size: 0.78rem; font-weight: 600; color: var(--on-accent); /* Open dag: effen en meteen opvallend, geen glas */
+      background: #00dfa3; border-bottom: 1px solid rgba(0,0,0,0.25);
+      padding: 4px 14px; font-size: 0.78rem; font-weight: 600; color: var(--on-groen); /* Open dag: effen en meteen opvallend, geen glas; vast Blitz-groen los van het themaaccent (eindreview F1: --accent en --on-accent worden door een themapakket overschreven) */
       position: sticky; top: calc(var(--topbar-h, 92px) + var(--offline-h, 0px)); z-index: 27;
     }
     .outbox-item {
@@ -1116,7 +1116,7 @@
     }
     .outbox-item-btn {
       margin-left: auto; background: rgba(255,255,255,0.35); border: 1px solid rgba(11,31,24,0.45);
-      color: var(--on-accent); padding: 4px 12px; border-radius: var(--r-pil); font-size: var(--fs-2xs);
+      color: var(--on-groen); padding: 4px 12px; border-radius: var(--r-pil); font-size: var(--fs-2xs);
       font-weight: 600; cursor: pointer; font-family: inherit;
       transition: background 0.1s, color 0.1s, border-color 0.1s;
     }

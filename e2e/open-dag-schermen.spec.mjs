@@ -1,5 +1,6 @@
 import { test, expect, startApp, authIkStub } from './helpers.mjs';
 import { startSalesApp } from './sales-hulp.mjs';
+import { leesPakket, themaStub } from './contrast-meting.mjs';
 
 // Open dag-stijl, taak 8b: de overige schermen en vensters. Vensters zijn sterk gedekt glas (28 px), de offline- en outbox-balk blijven
 // effen, het inlogscherm is een glazen kaart op de hemel, het dok (gsm) bedekt nooit de knoppen van een venster.
@@ -112,54 +113,71 @@ test.describe('overige schermen en vensters (Open dag)', () => {
     const lum = ({ r, g, b }) => { const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
     return (tekst, achtergrond, onder) => { const bg = meng(lees(achtergrond), onder); const fg = meng(lees(tekst), bg); const [a, b] = [lum(fg), lum(bg)].sort((x, y) => y - x); return (a + 0.05) / (b + 0.05); };
   })()`;
+  // De meting zelf: offline- en outbox-balk vullen en per tekst het contrast tegen de echte achtergrond rekenen.
+  const meetBalken = (page) => page.evaluate((src) => {
+    const contrast = eval(src);
+      const offline = document.getElementById('offline-banner'); offline.style.display = 'flex';
+      offline.textContent = 'Geen verbinding';
+      const outbox = document.getElementById('outbox-banner'); outbox.style.display = 'flex';
+      outbox.innerHTML = '<div class="outbox-item"><span class="outbox-item-tnum">#1001</span><span class="outbox-item-step">Verzenden</span><span class="outbox-item-attempts">poging 2</span>'
+        + '<span class="outbox-item-error">Geen verbinding met de server</span><button class="outbox-item-btn">Opnieuw proberen</button><button class="outbox-item-btn outbox-item-btn-cancel">Annuleren</button></div>';
+      const kleur = (el, eigenschap) => getComputedStyle(el)[eigenschap];
+      const zwart = { r: 0, g: 0, b: 0, a: 1 };
+      const rij = (balk, el) => {
+        const bg = kleur(balk, 'backgroundColor');
+        // een knop ligt (halfdoorschijnend) over de balk: eerst de balk effen, dan de knop erover
+        const knop = el.matches('button') ? kleur(el, 'backgroundColor') : null;
+        const grondRgb = bg;
+        let ratio;
+        if (knop) {
+          const m = (c) => c.match(/rgba?\(([^)]+)\)/)[1].split(',').map(Number);
+          const [br, bgc, bb] = m(grondRgb); const [kr, kg, kb, ka = 1] = m(knop);
+          const eff = `rgb(${kr * ka + br * (1 - ka)}, ${kg * ka + bgc * (1 - ka)}, ${kb * ka + bb * (1 - ka)})`;
+          ratio = contrast(kleur(el, 'color'), eff, zwart);
+        } else ratio = contrast(kleur(el, 'color'), grondRgb, zwart);
+        return { ratio, bg };
+      };
+      return {
+        offline: { ...rij(offline, offline), filter: kleur(offline, 'backdropFilter') },
+        outbox: {
+          filter: kleur(outbox, 'backdropFilter'), bg: kleur(outbox, 'backgroundColor'),
+          tekst: rij(outbox, outbox.querySelector('.outbox-item-tnum')).ratio,
+          stap: rij(outbox, outbox.querySelector('.outbox-item-step')).ratio,
+          fout: rij(outbox, outbox.querySelector('.outbox-item-error')).ratio,
+          knop: rij(outbox, outbox.querySelector('.outbox-item-btn:not(.outbox-item-btn-cancel)')).ratio,
+          annuleer: rij(outbox, outbox.querySelector('.outbox-item-btn-cancel')).ratio,
+        },
+      };
+  }, CONTRAST);
+  const controleerBalken = (meting, label) => {
+    for (const balk of [meting.offline, meting.outbox]) {
+      expect(balk.filter === 'none' || balk.filter === '').toBe(true); // geen glas
+      expect(balk.bg).toMatch(/^rgb\(/); // effen: geen alfakanaal
+    }
+    console.log(label, JSON.stringify({ offline: meting.offline.ratio.toFixed(2), outbox: Object.fromEntries(Object.entries(meting.outbox).filter(([k]) => !['filter', 'bg'].includes(k)).map(([k, v]) => [k, v.toFixed(2)])) }));
+    expect(meting.offline.ratio, `offline ${label}`).toBeGreaterThanOrEqual(4.5);
+    for (const k of ['tekst', 'stap', 'fout', 'knop', 'annuleer']) expect(meting.outbox[k], `outbox ${k} ${label}`).toBeGreaterThanOrEqual(4.5);
+  };
   for (const thema of ['dark', 'light']) {
     test(`de offline- en outbox-balk blijven effen en leesbaar (${thema}): geen glas, contrast >= 4,5:1`, async ({ page }) => {
       await page.addInitScript((t) => { if (window === window.top) localStorage.setItem('blitz_theme', t); }, thema);
       await startApp(page, { viewport: PC });
       await expect(page.locator('html')).toHaveAttribute('data-theme', thema);
-      const meting = await page.evaluate((src) => {
-        const contrast = eval(src);
-        const offline = document.getElementById('offline-banner'); offline.style.display = 'flex';
-        offline.textContent = 'Geen verbinding';
-        const outbox = document.getElementById('outbox-banner'); outbox.style.display = 'flex';
-        outbox.innerHTML = '<div class="outbox-item"><span class="outbox-item-tnum">#1001</span><span class="outbox-item-step">Verzenden</span><span class="outbox-item-attempts">poging 2</span>'
-          + '<span class="outbox-item-error">Geen verbinding met de server</span><button class="outbox-item-btn">Opnieuw proberen</button><button class="outbox-item-btn outbox-item-btn-cancel">Annuleren</button></div>';
-        const kleur = (el, eigenschap) => getComputedStyle(el)[eigenschap];
-        const zwart = { r: 0, g: 0, b: 0, a: 1 };
-        const rij = (balk, el) => {
-          const bg = kleur(balk, 'backgroundColor');
-          // een knop ligt (halfdoorschijnend) over de balk: eerst de balk effen, dan de knop erover
-          const knop = el.matches('button') ? kleur(el, 'backgroundColor') : null;
-          const grondRgb = bg;
-          let ratio;
-          if (knop) {
-            const m = (c) => c.match(/rgba?\(([^)]+)\)/)[1].split(',').map(Number);
-            const [br, bgc, bb] = m(grondRgb); const [kr, kg, kb, ka = 1] = m(knop);
-            const eff = `rgb(${kr * ka + br * (1 - ka)}, ${kg * ka + bgc * (1 - ka)}, ${kb * ka + bb * (1 - ka)})`;
-            ratio = contrast(kleur(el, 'color'), eff, zwart);
-          } else ratio = contrast(kleur(el, 'color'), grondRgb, zwart);
-          return { ratio, bg };
-        };
-        return {
-          offline: { ...rij(offline, offline), filter: kleur(offline, 'backdropFilter') },
-          outbox: {
-            filter: kleur(outbox, 'backdropFilter'), bg: kleur(outbox, 'backgroundColor'),
-            tekst: rij(outbox, outbox.querySelector('.outbox-item-tnum')).ratio,
-            stap: rij(outbox, outbox.querySelector('.outbox-item-step')).ratio,
-            fout: rij(outbox, outbox.querySelector('.outbox-item-error')).ratio,
-            knop: rij(outbox, outbox.querySelector('.outbox-item-btn:not(.outbox-item-btn-cancel)')).ratio,
-            annuleer: rij(outbox, outbox.querySelector('.outbox-item-btn-cancel')).ratio,
-          },
-        };
-      }, CONTRAST);
-      for (const balk of [meting.offline, meting.outbox]) {
-        expect(balk.filter === 'none' || balk.filter === '').toBe(true); // geen glas
-        expect(balk.bg).toMatch(/^rgb\(/); // effen: geen alfakanaal
-      }
-      console.log(thema, JSON.stringify({ offline: meting.offline.ratio.toFixed(2), outbox: Object.fromEntries(Object.entries(meting.outbox).filter(([k]) => !['filter', 'bg'].includes(k)).map(([k, v]) => [k, v.toFixed(2)])) }));
-      expect(meting.offline.ratio).toBeGreaterThanOrEqual(4.5);
-      for (const k of ['tekst', 'stap', 'fout', 'knop', 'annuleer']) expect(meting.outbox[k], `outbox ${k}`).toBeGreaterThanOrEqual(4.5);
+      controleerBalken(await meetBalken(page), thema);
     });
+  }
+  // Eindreview F1: een themapakket overschrijft --accent en --on-accent; de balk staat los van het accent (vast Blitz-groen met --on-groen).
+  for (const id of ['sinterklaas', 'carnaval', 'kerst', 'nationale-feestdag', 'halloween']) {
+    for (const thema of ['dark', 'light']) {
+      test(`outbox-balk in thema ${id} (${thema}): fout en knoppen houden 4,5:1`, async ({ page }) => {
+        // tijdens een thema geldt de eigen sleutel van het thema (blitz_theme blijft onaangeroerd), zie versiering.spec.mjs
+        await page.addInitScript(([sleutel, t]) => { if (window === window.top) localStorage.setItem(sleutel, t); }, [`blitz_theme_${id}_2026`, thema]);
+        await startApp(page, { viewport: PC, query: '?test&versiering=aan', overschrijf: { themas: themaStub(leesPakket(id)) } });
+        await expect(page.locator('html')).toHaveAttribute('data-theme', thema);
+        await expect(page.locator('html')).toHaveAttribute('data-event', id);
+        controleerBalken(await meetBalken(page), `${id} ${thema}`);
+      });
+    }
   }
 
   test('de Leaflet-kaart blijft ondoorzichtig', async ({ page }) => {
