@@ -32,6 +32,9 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 - Alle vensters, de rapport-wizard, Beheer, Dashboard, Sales en het inlogscherm hebben de nieuwe vormen en kleuren. De werking, de knoppen en de teksten in de knoppen blijven dezelfde.
 - Op een gsm staat het zoekvak van de wachtrij op een eigen rij, zodat de hulptekst en de sorteerkeuze volledig leesbaar zijn.
 
+### Fixed
+- Op de pc begonnen de spinnen en webben van een feestthema (Halloween) achter de zwevende balk van het tabblad in plaats van eronder. Ze beginnen weer onder de balk, ook bij de ronde balken met marge van de nieuwe stijl.
+
 ### Notes
 - Snelheid gemeten op een gesimuleerd traag toestel (gsm, CPU 4× trager) tegen v2.4.0: geen enkel cijfer is 10 % of meer slechter, dus er is geen terugval nodig. Op gsm is het glas lichter (minder vervaging, hogere dekking) dan op pc en tablet.
 - De rapport-PDF, de mails naar klanten en de Excel-exports zijn ongewijzigd.

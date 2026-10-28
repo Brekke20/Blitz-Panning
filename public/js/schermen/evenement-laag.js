@@ -209,9 +209,12 @@ export function meetEvTop() {
     while (el && el !== document.body && getComputedStyle(el).position !== 'sticky') el = el.parentElement;
     if (!el || el === document.body || el.classList.contains('topbar-sticky')) break;
     const r = el.getBoundingClientRect();
-    // Enkel balken over (bijna) de volle breedte tellen: de dagkoppen van de kalender zijn kolommen, geen balk. Anders
-    // zou de versiering pas onder die hoge koppen beginnen, midden in het uurrooster.
-    if (r.width < window.innerWidth * 0.8) break;
+    // Enkel balken over (bijna) de volle breedte van de inhoud tellen: de dagkoppen van de kalender zijn kolommen, geen balk. Anders
+    // zou de versiering pas onder die hoge koppen beginnen, midden in het uurrooster. De maat is de breedte van de kop (de inhoudskolom),
+    // niet van het venster: op pc staat de zijkolom (256 px) links en hebben de ronde balken 14 px marge rechts (Open dag), zodat een
+    // balk dan 1010 van de 1280 px breed is, onder de oude drempel van 80 % van het venster (1024) en dus niet meer als balk telde.
+    const inhoudBreedte = kop ? kop.getBoundingClientRect().width : window.innerWidth;
+    if (r.width < inhoudBreedte * 0.8) break;
     if (r.bottom <= onder + 1) break;
     onder = r.bottom;
   }
