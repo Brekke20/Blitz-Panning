@@ -5,7 +5,7 @@
 #hemel {
   position: fixed; inset: 0; z-index: -2; pointer-events: none;
   --sterren: none;
-  --h1: #18203f; --h2: #2c3363; --h3: #3c4566; --horizon: rgba(0, 223, 163, .34); --zon: rgba(255, 162, 120, .42); --zon-x: 8%; --zon-y: 96%;
+  /* de kleuren staan per hemel hieronder (ochtend is de eerste); zonder data-hemel is de laag verborgen */
   background: var(--sterren), radial-gradient(70% 38% at 50% 106%, var(--horizon), transparent 70%),
     radial-gradient(42% 46% at var(--zon-x) var(--zon-y), var(--zon), transparent 70%), linear-gradient(180deg, var(--h1) 0%, var(--h2) 48%, var(--h3) 100%);
 }
