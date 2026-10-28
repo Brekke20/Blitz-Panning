@@ -8,8 +8,8 @@
 //    met --thema), die aan het einde stopt. Geen backend, geen Zoho/TomTom/mail. Chromium met --host-resolver-rules (enkel localhost en de
 //    twee CDN-hosts), zoals scripts/meet-laden.mjs. Met --url=<adres> wordt dat adres gemeten (geen eigen server, geen alternering).
 //  - Een gsm: 375x812, schaalfactor 2, aanraking; localStorage `blitz_weergave = 'gsm'`; CDP `Emulation.setCPUThrottlingRate` rate 4; `?test`.
-//  - De testdata (3 tickets) is te weinig om te scrollen: na de eerste lading zet het script 30 tickets in de wachtrij, 16 geplande
-//    tickets over de werkweek en 12 in Ingepland via kern.toestand (dezelfde render als bij echte data).
+//  - De testdata (3 tickets) is te weinig om te scrollen: na de eerste lading zet het script 30 tickets in de wachtrij en 28 geplande
+//    tickets over de werkweek (dezelfde 28 tonen Kalender en Ingepland) via kern.toestand (dezelfde render als bij echte data).
 //  - Per run: tijd tot de eerste `.ticket` zichtbaar is (ms sinds navigatie, performance.now) en, per scherm (Wachtrij, Kalender, Ingepland),
 //    tijdens 3 s heen-en-weer scrollen de som van de lange taken (PerformanceObserver `longtask`, ms) en het aantal beelden
 //    (requestAnimationFrame-teller; meer is beter, 180 = 60 fps).
@@ -101,7 +101,7 @@ const browser = await chromium.launch({
   args: ['--no-proxy-server', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1, EXCLUDE cdnjs.cloudflare.com, EXCLUDE cdn.jsdelivr.net'],
 });
 
-// De extra gegevens: 30 tickets in de wachtrij, 16 geplande tickets verdeeld over de werkweek (Kalender), 12 geplande tickets (Ingepland).
+// De extra gegevens: 30 tickets in de wachtrij en 28 geplande tickets verdeeld over de werkweek (dezelfde 28 voor Kalender en Ingepland).
 function vulData() {
   const { toestand } = window.kern;
   const sjabloon = toestand.get('allTickets')[0];
