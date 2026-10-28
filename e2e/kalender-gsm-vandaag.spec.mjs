@@ -101,9 +101,14 @@ test.describe('kalender op een gsm: spring naar vandaag en het huidige uur', () 
 
 // Na de sprong schuift tekst van de dagen erboven onder de kop en de kalenderbalk door. Eén laag glas liet die als vage schim doorschijnen (de titel onder het
 // logo, de rand van de kaart onder de werkbalk). Meting: de beeldpunten van kop plus kalenderbalk met en zonder de inhoud van de week (die onzichtbaar gezet).
-// Voor de tweede glaslaag (dok) was het grootste verschil 22 (donker) en 11 (licht) op 255; daarna 10 en 3.
-for (const [thema, grens] of [['dark', 14], ['light', 6]]) {
-  test(`na de sprong schemert de inhoud niet door de kop en de kalenderbalk (${thema})`, async ({ page }) => {
+// Taak 17 loste dit op met een tweede glaslaag (grootste verschil 10 donker en 3 licht op 255); v2.5.1 haalt die laag weg (het glas is te dicht, Brent) en
+// vervangt hem door een sterkere vervaging (--blur-balk). De grens is daarmee bewust veranderd van "onzichtbaar" naar "niet leesbaar": er mag een zachte
+// vlek doorschemeren, maar geen scherpe tekst of rand. Twee metingen op het verschilbeeld (met min zonder inhoud): `max` (hoe sterk, op 255) en `scherp`
+// (het grootste verschil tussen twee naburige beeldpunten: een leesbare letter of rand geeft er tientallen, een uitgesmeerde vlek enkele).
+// Gemeten (gsm 375, met de vervaging van de balken): donker max 20 en scherp 19, licht 14 en 14. Zonder vervaging (blur 0): donker 132 en 124, licht 68 en 62
+// (dan is de tekst leesbaar). De grenzen liggen er ruim tussen, dichter bij het gemeten resultaat dan bij het leesbare.
+for (const [thema, grensMax, grensScherp] of [['dark', 30, 26], ['light', 22, 20]]) {
+  test(`na de sprong is de inhoud onder de kop en de kalenderbalk niet leesbaar (${thema})`, async ({ page }) => {
     await page.addInitScript((t) => { if (window === window.top) localStorage.setItem('blitz_theme', t); }, thema);
     await open(page, GSM, 'gsm');
     await expect(page.locator('html')).toHaveAttribute('data-theme', thema);
@@ -115,13 +120,26 @@ for (const [thema, grens] of [['dark', 14], ['light', 6]]) {
     const met = (await page.screenshot({ clip })).toString('base64');
     await page.addStyleTag({ content: '#week-grid, #week-grid * { visibility: hidden !important; }' });
     const zonder = (await page.screenshot({ clip })).toString('base64');
-    const max = await page.evaluate(async ([a, b]) => {
-      const lees = async (s) => { const bm = await createImageBitmap(await (await fetch('data:image/png;base64,' + s)).blob()); const c = new OffscreenCanvas(bm.width, bm.height); c.getContext('2d').drawImage(bm, 0, 0); return c.getContext('2d').getImageData(0, 0, bm.width, bm.height).data; };
+    const { max, scherp } = await page.evaluate(async ([a, b]) => {
+      const lees = async (s) => { const bm = await createImageBitmap(await (await fetch('data:image/png;base64,' + s)).blob()); const c = new OffscreenCanvas(bm.width, bm.height); c.getContext('2d').drawImage(bm, 0, 0); const d = c.getContext('2d').getImageData(0, 0, bm.width, bm.height); return { d: d.data, w: bm.width, h: bm.height }; };
       const [p, q] = [await lees(a), await lees(b)];
+      const w = p.w, h = p.h;
+      const v = new Float32Array(w * h); // verschil per beeldpunt: het grootste van r, g en b
       let m = 0;
-      for (let i = 0; i < p.length; i += 4) m = Math.max(m, Math.abs(p[i] - q[i]), Math.abs(p[i + 1] - q[i + 1]), Math.abs(p[i + 2] - q[i + 2]));
-      return m;
+      for (let i = 0; i < w * h; i++) {
+        const j = i * 4;
+        v[i] = Math.max(Math.abs(p.d[j] - q.d[j]), Math.abs(p.d[j + 1] - q.d[j + 1]), Math.abs(p.d[j + 2] - q.d[j + 2]));
+        m = Math.max(m, v[i]);
+      }
+      let s = 0;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (x + 1 < w) s = Math.max(s, Math.abs(v[i] - v[i + 1]));
+        if (y + 1 < h) s = Math.max(s, Math.abs(v[i] - v[i + w]));
+      }
+      return { max: m, scherp: s };
     }, [met, zonder]);
-    expect(max).toBeLessThanOrEqual(grens);
+    expect(max, 'sterkte van wat doorschemert').toBeLessThanOrEqual(grensMax);
+    expect(scherp, 'scherpte van wat doorschemert (een leesbare letter of rand geeft tientallen)').toBeLessThanOrEqual(grensScherp);
   });
 }
