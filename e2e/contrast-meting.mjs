@@ -377,12 +377,12 @@ export const lumRgb = (r, g, b) => 0.2126 * LUM[Math.round(r)] + 0.7152 * LUM[Ma
 // Meet de tekst van de vlakken `wortelSels` (selectoren van het glas zelf; de tekst ligt er binnen) in het huidige beeld. `slechtste` is
 // dezelfde verzamelaar als bij controleerKaarten ({ waarde, waar, perVenster }); `perVenster` is hier per eerste woord van het label.
 // Geeft het aantal gemeten teksten terug (een lege meting is een fout van de test, geen succes).
-export async function controleerVlakken(page, wortelSels, label, slechtste, { minimum = 1, uitsluiten = [], alleenLos = false } = {}) {
+export async function controleerVlakken(page, wortelSels, label, slechtste, { minimum = 1, uitsluiten = [], alleenLos = false, extraStijl = '' } = {}) {
   await wachtOpFrames(page, 2);
   const teksten = await meetTeksten(page, wortelSels, uitsluiten, alleenLos);
   expect(teksten.length, `${label}: tekst gevonden in ${wortelSels.join(', ')}`).toBeGreaterThanOrEqual(minimum);
   const alle = wortelSels.join(', ');
-  const stijlB = await page.addStyleTag({ content: `${DOORZICHTIG(wortelSels)} #event-laag, #toast, #spel-tik-toast { visibility: hidden !important; }` });
+  const stijlB = await page.addStyleTag({ content: `${DOORZICHTIG(wortelSels)} #event-laag, #toast, #spel-tik-toast { visibility: hidden !important; } ${extraStijl}` });
   let B, S = null;
   try {
     await wachtOpFrames(page, 2);
@@ -421,9 +421,12 @@ export async function controleerVlakken(page, wortelSels, label, slechtste, { mi
 // samenvatting van de route). Zelfde echte-pixelmethode als hierboven. `alleenLos`: enkel tekst zonder enig eigen vlak (zie `los` in
 // meetTeksten; voor de scène van een thema, waar de accentkleuren van het pakket zelf op de knoppen komen). De routekaart (Leaflet, tegels en
 // attributie van derden) en uitgeschakelde bediening (WCAG-uitzondering) tellen niet mee. Geeft { aantal } terug (de gemeten teksten).
-export async function controleerLosseTekst(page, label, slechtste, { minimum = 1, alleenLos = false } = {}) {
-  const uitsluiten = ['.leaflet-container', ':disabled', '[aria-disabled="true"]'];
-  const aantal = await controleerVlakken(page, ['body'], label, slechtste, { minimum, uitsluiten, alleenLos });
+export async function controleerLosseTekst(page, label, slechtste, { minimum = 1, alleenLos = false, uitsluiten = [] } = {}) {
+  // De sterren van de nachthemel (1 tot 1,5 px, helder) tellen niet mee: een ster achter een letter haalt de verhouding van die ene pixel
+  // omlaag en is geen leesprobleem; de glans, de zon en de maan (grote vlakken) wel.
+  const extraStijl = 'html #hemel { --sterren: none !important; }';
+  const buiten = ['.leaflet-container', ':disabled', '[aria-disabled="true"]', ...uitsluiten];
+  const aantal = await controleerVlakken(page, ['body'], label, slechtste, { minimum, uitsluiten: buiten, alleenLos, extraStijl });
   return { aantal };
 }
 
