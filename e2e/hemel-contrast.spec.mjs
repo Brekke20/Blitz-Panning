@@ -236,12 +236,12 @@ test.describe('sales-kaart afgewerkt op glas', () => {
 // Eén scherm: hoe je het opent en hoeveel teksten het minstens moet geven.
 const SCHERMEN = [
   { naam: 'wachtrij', open: async (page) => { await kiesHoofdtab(page, /^Wachtrij/); await expect(page.locator('#view-tickets .ticket').first()).toBeVisible(); }, minimum: 20 },
-  { naam: 'wachtrij leeg', open: async (page) => { await kiesHoofdtab(page, /^Wachtrij/); await page.locator('#wq-zoek').fill('zzzzgeenresultaat'); await page.locator('#wq-zoek').blur(); await expect(page.locator('#view-tickets .empty')).toBeVisible(); }, minimum: 10, eind: async (page) => { await page.locator('#wq-zoek').fill(''); } },
+  { naam: 'wachtrij leeg', open: async (page) => { await kiesHoofdtab(page, /^Wachtrij/); await page.locator('#wq-zoek').fill('zzzzgeenresultaat'); await page.locator('#wq-zoek').blur(); await expect(page.locator('#view-tickets .empty')).toBeVisible(); }, minimum: 10, eind: async (page) => { await page.locator('#wq-zoek').fill(''); }, glas: '.empty' },
   { naam: 'kalender', open: async (page) => { await kiesHoofdtab(page, 'Kalender'); await expect(page.locator('#view-kalender .cal-ticket').first()).toBeVisible(); }, minimum: 30 },
-  { naam: 'route', pcOnly: true, open: async (page) => { await kiesHoofdtab(page, 'Route'); await expect(page.locator('#view-planning')).toBeVisible(); }, minimum: 20 },
-  { naam: 'ingepland', open: async (page) => { await kiesHoofdtab(page, /^Ingepland/); await expect(page.locator('#view-gepland')).toBeVisible(); }, minimum: 12 },
-  { naam: 'inventaris', open: async (page) => { await kiesHoofdtab(page, /^Inventaris/); await expect(page.locator('#view-inventaris')).toBeVisible(); }, minimum: 8 },
-  { naam: 'rapporten', open: async (page) => { await kiesHoofdtab(page, 'Rapporten'); await expect(page.locator('#view-rapporten')).toBeVisible(); }, minimum: 10 },
+  { naam: 'route', pcOnly: true, open: async (page) => { await kiesHoofdtab(page, 'Route'); await expect(page.locator('#view-planning')).toBeVisible(); }, minimum: 20, glas: '.route-empty' },
+  { naam: 'ingepland', open: async (page) => { await kiesHoofdtab(page, /^Ingepland/); await expect(page.locator('#view-gepland')).toBeVisible(); }, minimum: 12, glas: '.cal-day-hdr' },
+  { naam: 'inventaris', open: async (page) => { await kiesHoofdtab(page, /^Inventaris/); await expect(page.locator('#view-inventaris')).toBeVisible(); }, minimum: 8, glas: '.inv-empty' },
+  { naam: 'rapporten', open: async (page) => { await kiesHoofdtab(page, 'Rapporten'); await expect(page.locator('#view-rapporten')).toBeVisible(); }, minimum: 10, glas: '.rapporten-leeg' },
 ];
 
 async function meetScherm(page, scherm, toestel, modus, verzamel, tellers) {
@@ -381,7 +381,7 @@ test.describe('losse tekst op de scène van een thema', () => {
         await stil(page);
         await wachtOpNavigatie(page);
         const verzamel = nieuweVerzamelaar();
-        const tellers = { aantal: 0, perScherm: {} };
+        const tellers = { aantal: 0, glas: 0, perScherm: {} };
         for (const scherm of SCHERMEN) {
           if (scherm.pcOnly && toestel.gsm) continue;
           await scherm.open(page);
@@ -391,11 +391,18 @@ test.describe('losse tekst op de scène van een thema', () => {
             await wachtOpFrames(page, 3);
             const { aantal } = await controleerLosseTekst(page, `${id} ${modus} ${toestel.naam} ${scherm.naam}`, verzamel, { minimum: 1, alleenLos: true });
             tellers.aantal += aantal; tellers.perScherm[scherm.naam] = aantal;
+            // Het glas achter de lege staten en de dagkoppen (app.css, onder html[data-event-achtergrond="ja"]) haalt die tekst uit `alleenLos`:
+            // daarom apart, in echte pixels en met een minimum, zodat een verdwenen of verschoven glasregel hier rood geeft.
+            if (scherm.glas) {
+              const glasAantal = await controleerVlakken(page, [scherm.glas], `${id} ${modus} ${toestel.naam} ${scherm.naam} (glas)`, verzamel, { minimum: 1 });
+              tellers.glas += glasAantal;
+            }
           }
           await scherm.eind?.(page);
         }
         console.log(`losse tekst thema ${id} ${toestel.naam}: ${tellers.aantal} losse teksten; ${JSON.stringify(tellers.perScherm)}`);
         expect(tellers.aantal, 'losse teksten gemeten').toBeGreaterThan(20);
+        expect(tellers.glas, 'teksten op het glas van de lege staten en dagkoppen gemeten').toBeGreaterThanOrEqual(toestel.gsm ? 8 : 10);
         rapporteer(`los thema ${id} ${toestel.naam}`, verzamel);
       });
     }
