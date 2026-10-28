@@ -1,7 +1,6 @@
-import fs from 'node:fs';
 import zlib from 'node:zlib';
 import { test, expect, startApp } from './helpers.mjs';
-import { controleerKaarten } from './contrast-meting.mjs';
+import { controleerKaarten, leesPakket, themaStub } from './contrast-meting.mjs';
 import { startSalesApp } from './sales-hulp.mjs';
 
 // Feestelijke versiering (Halloween, v2.1.0): decoratielagen, de schakelaar in "Dit toestel" en de uitzonderingen.
@@ -342,18 +341,6 @@ test.describe('versiering op de computer', () => {
 const PAKKET_IDS = ['halloween', 'kerst', 'nieuwjaar', 'valentijn', 'carnaval', 'pasen', 'zomer', 'nationale-feestdag', 'sinterklaas'];
 // liggend (computer, tablet) en staand (gsm, tablet): staand snijdt de scène tot kijkvensterStaand, waar de maan achter de kaarten valt
 const VENSTERS = [{ width: 1366, height: 768 }, { width: 1024, height: 768 }, { width: 375, height: 812 }, { width: 768, height: 1024 }];
-const leesPakket = (id) => JSON.parse(fs.readFileSync(new URL(`../netlify/themas/${id}.blitzthema.json`, import.meta.url), 'utf8'));
-function themaStub(p) {
-  const periodeOverride = { van: { maand: 10, dag: 1 }, tot: { maand: 10, dag: 31 } };
-  return ({ query }) => {
-    if (query.get('id') !== null) return { status: 200, json: structuredClone(p) };
-    return {
-      status: 200,
-      json: { versie: 1, themas: [{ id: p.id, naam: p.naam, aan: true, periode: p.periode, periodeOverride, pakketHash: `e2e-${p.id}` }], pakketten: { [p.id]: structuredClone(p) } },
-    };
-  };
-}
-
 
 test.describe('helder glas en contrast per thema', () => {
   for (const id of PAKKET_IDS) {

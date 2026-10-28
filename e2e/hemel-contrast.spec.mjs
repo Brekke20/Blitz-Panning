@@ -4,7 +4,7 @@ import url from 'node:url';
 import { test, expect, startApp, kiesHoofdtab, opslagStub } from './helpers.mjs';
 import { startSalesApp, maakSalesBackend, authIkVoor } from './sales-hulp.mjs';
 import { STANDAARD_GRENZEN } from '../public/js/kern/dashboard-grenzen.js';
-import { controleerKaarten, controleerVlakken, controleerGlasTokens, wachtOpNavigatie, wachtOpFrames, meetReeksen } from './contrast-meting.mjs';
+import { controleerKaarten, controleerVlakken, controleerLosseTekst, controleerGlasTokens, wachtOpNavigatie, wachtOpFrames, meetReeksen, leesPakket, themaStub } from './contrast-meting.mjs';
 
 // Open dag-stijl, taak 9: elke tekst op glas haalt 4,5:1 over wat er ECHT achter ligt, voor de vier tijdstippen van de hemel (ochtend, middag,
 // avond, nacht) × donker en licht × pc (1366x768) en gsm (375x812, blitz_weergave = gsm). Zelfde drempel en zelfde meetwijze als de
@@ -222,5 +222,166 @@ test.describe('sales-kaart afgewerkt op glas', () => {
       }
       rapporteer(`sales afgewerkt ${modus}`, verzamel);
     });
+  }
+});
+
+// ── Taak 9b: losse tekst. Tekst die zonder eigen glasvlak (of op een dun glasvlak zonder eigen tint) rechtstreeks op de hemel staat:
+// kalender-uurlabels en dagkoppen, subtabs van Beheer, lege staten, samenvattingen, tellers, sectiekoppen. De meting neemt ALLE tekst van het
+// beeld (`controleerLosseTekst`: body, zonder de routekaart van derden en uitgeschakelde bediening) in de echte pixels, per scherm met een
+// minimum aan teksten zodat een leeg beeld niet stil slaagt. Op de scène van een thema enkel de tekst zonder enig eigen vlak (`alleenLos`):
+// de accentkleuren van het pakket op knoppen en chips horen bij het pakket zelf. Faalt een tekst: eerst de tekstkleur
+// (--tekst-op-hemel, --tekst2-op-hemel in base.css), dan een zachte schaduw of een pil (app.css), de hemelkleuren pas als laatste;
+// statuskleuren nooit. ──
+
+// Eén scherm: hoe je het opent en hoeveel teksten het minstens moet geven.
+const SCHERMEN = [
+  { naam: 'wachtrij', open: async (page) => { await kiesHoofdtab(page, /^Wachtrij/); await expect(page.locator('#view-tickets .ticket').first()).toBeVisible(); }, minimum: 20 },
+  { naam: 'wachtrij leeg', open: async (page) => { await kiesHoofdtab(page, /^Wachtrij/); await page.locator('#wq-zoek').fill('zzzzgeenresultaat'); await page.locator('#wq-zoek').blur(); await expect(page.locator('#view-tickets .empty')).toBeVisible(); }, minimum: 10, eind: async (page) => { await page.locator('#wq-zoek').fill(''); } },
+  { naam: 'kalender', open: async (page) => { await kiesHoofdtab(page, 'Kalender'); await expect(page.locator('#view-kalender .cal-ticket').first()).toBeVisible(); }, minimum: 30 },
+  { naam: 'route', pcOnly: true, open: async (page) => { await kiesHoofdtab(page, 'Route'); await expect(page.locator('#view-planning')).toBeVisible(); }, minimum: 20 },
+  { naam: 'ingepland', open: async (page) => { await kiesHoofdtab(page, /^Ingepland/); await expect(page.locator('#view-gepland')).toBeVisible(); }, minimum: 12 },
+  { naam: 'inventaris', open: async (page) => { await kiesHoofdtab(page, /^Inventaris/); await expect(page.locator('#view-inventaris')).toBeVisible(); }, minimum: 8 },
+  { naam: 'rapporten', open: async (page) => { await kiesHoofdtab(page, 'Rapporten'); await expect(page.locator('#view-rapporten')).toBeVisible(); }, minimum: 10 },
+];
+
+async function meetScherm(page, scherm, toestel, modus, verzamel, tellers) {
+  await scherm.open(page);
+  await page.mouse.move(0, 0);
+  for (const hemel of HEMELS) {
+    await metHemel(page, hemel, modus, async () => {
+      const { aantal } = await controleerLosseTekst(page, `${hemel} ${modus} ${toestel.naam} ${scherm.naam}`, verzamel, { minimum: scherm.minimum });
+      tellers.aantal += aantal; tellers.perScherm[scherm.naam] = aantal;
+    });
+  }
+  await scherm.eind?.(page);
+}
+
+test.describe('losse tekst op de hemel', () => {
+  for (const toestel of TOESTELLEN) {
+    for (const modus of MODI) {
+      test(`@contrast los ${modus} ${toestel.naam}: tekst zonder glasvlak (wachtrij, kalender, route, ingepland, inventaris, rapporten) houdt 4,5:1 over elk tijdstip`, async ({ page }) => {
+        test.setTimeout(600000);
+        await zetToestel(page, toestel, modus);
+        await startApp(page, { viewport: toestel.viewport });
+        await stil(page);
+        await wachtOpNavigatie(page);
+        const verzamel = nieuweVerzamelaar();
+        const tellers = { aantal: 0, perScherm: {} };
+        for (const scherm of SCHERMEN) {
+          if (scherm.pcOnly && toestel.gsm) continue;
+          await meetScherm(page, scherm, toestel, modus, verzamel, tellers);
+        }
+        console.log(`tekst ${toestel.naam} ${modus}: ${tellers.aantal} teksten; ${JSON.stringify(tellers.perScherm)}`);
+        expect(tellers.aantal, 'teksten gemeten').toBeGreaterThan(400);
+        rapporteer(`los ${toestel.naam} ${modus}`, verzamel);
+      });
+    }
+  }
+});
+
+// Beheer (alle subtabs van de beheerder, ook Performance met het dashboard) en Sales (Leads, Kalender, Route, Afgewerkt): per subtab of tab
+// dezelfde meting. De Beheer-subtabs zelf (.beheer-tab) staan los op de hemel.
+const BEHEER = (() => { const d = structuredClone(FIXTURE); return () => ({ status: 200, json: structuredClone(d) }); })();
+
+test.describe('losse tekst op de hemel: Beheer en Sales', () => {
+  for (const toestel of TOESTELLEN) {
+    for (const modus of MODI) {
+      test(`@contrast los beheer ${modus} ${toestel.naam}: subtabs en panelen van Beheer houden 4,5:1 over elk tijdstip`, async ({ page }) => {
+        test.setTimeout(600000);
+        await zetToestel(page, toestel, modus);
+        await startApp(page, { viewport: toestel.viewport, overschrijf: { dashboard: BEHEER, 'dashboard-instellingen': opslagStub({ versie: 1, grenzen: structuredClone(STANDAARD_GRENZEN) }, 'grenzen') } });
+        await stil(page);
+        await wachtOpNavigatie(page);
+        await kiesHoofdtab(page, 'Beheer');
+        const subtabs = page.locator('.beheer-tabs [role="tab"]');
+        await expect(subtabs.first()).toBeVisible();
+        const namen = await subtabs.allTextContents();
+        expect(namen.length, 'subtabs van Beheer').toBeGreaterThanOrEqual(5);
+        const verzamel = nieuweVerzamelaar();
+        const tellers = { aantal: 0, perScherm: {} };
+        for (const naam of namen) {
+          await page.getByRole('tab', { name: naam, exact: true }).click();
+          await expect(page.locator('.beheer-paneel:not([aria-busy])')).toBeVisible();
+          await wachtOpFrames(page, 3);
+          await page.mouse.move(0, 0);
+          const scherm = { naam: `beheer ${naam}`, minimum: 8 };
+          for (const hemel of HEMELS) {
+            await metHemel(page, hemel, modus, async () => {
+              const { aantal } = await controleerLosseTekst(page, `${hemel} ${modus} ${toestel.naam} ${scherm.naam}`, verzamel, { minimum: scherm.minimum });
+              tellers.aantal += aantal; tellers.perScherm[scherm.naam] = aantal;
+            });
+          }
+        }
+        console.log(`tekst beheer ${toestel.naam} ${modus}: ${tellers.aantal} teksten; ${JSON.stringify(tellers.perScherm)}`);
+        expect(tellers.aantal, 'teksten gemeten').toBeGreaterThan(400);
+        rapporteer(`los beheer ${toestel.naam} ${modus}`, verzamel);
+      });
+
+      test(`@contrast los sales ${modus} ${toestel.naam}: Leads, Kalender, Route en Afgewerkt houden 4,5:1 over elk tijdstip`, async ({ page }) => {
+        test.setTimeout(600000);
+        await zetToestel(page, toestel, modus);
+        await startSalesApp(page, {
+          viewport: toestel.viewport,
+          leads: [lead('l1', 'Eerste', {}), lead('l2', 'Tweede', {}), afgewerkt('a1', 'Klaar', '2026-10-05T08:15:00+02:00'), bevestigd('b1', 'Vroeg', '07:00')],
+          blokken: [],
+        });
+        await stil(page);
+        await wachtOpNavigatie(page);
+        const verzamel = nieuweVerzamelaar();
+        const tellers = { aantal: 0, perScherm: {} };
+        for (const naam of ['Leads', 'Kalender', 'Route', 'Afgewerkt']) {
+          // niet elke tab staat op elk toestel in het dok (Route is er niet op een gsm): enkel wat een gebruiker er ziet
+          if (await page.getByRole('tab', { name: naam, exact: true }).count() === 0 && !(await page.locator('.dok-meer').isVisible())) continue;
+          await kiesHoofdtab(page, naam);
+          await wachtOpFrames(page, 3);
+          await page.mouse.move(0, 0);
+          for (const hemel of HEMELS) {
+            await metHemel(page, hemel, modus, async () => {
+              const { aantal } = await controleerLosseTekst(page, `${hemel} ${modus} ${toestel.naam} sales ${naam}`, verzamel, { minimum: 1 });
+              tellers.aantal += aantal; tellers.perScherm[naam] = aantal;
+            });
+          }
+        }
+        console.log(`tekst sales ${toestel.naam} ${modus}: ${tellers.aantal} teksten; ${JSON.stringify(tellers.perScherm)}`);
+        expect(tellers.aantal, 'teksten gemeten').toBeGreaterThan(100);
+        rapporteer(`los sales ${toestel.naam} ${modus}`, verzamel);
+      });
+    }
+  }
+});
+
+// De scène van een thema (Halloween: heldere maan, Sinterklaas: de slechtste uit taak 9) ligt achter dezelfde losse tekst; de hemel is dan
+// vervangen door de scène (data-event-achtergrond="ja") en het glas is dichter (VERWACHT_GLAS.thema).
+const THEMAS = ['halloween', 'sinterklaas'];
+test.describe('losse tekst op de scène van een thema', () => {
+  for (const id of THEMAS) {
+    for (const toestel of TOESTELLEN) {
+      test(`@contrast los thema ${id} ${toestel.naam}: tekst zonder glasvlak houdt 4,5:1 over de scène, in donker en licht`, async ({ page }) => {
+        test.setTimeout(600000);
+        await zetToestel(page, toestel, 'dark');
+        await startApp(page, { viewport: toestel.viewport, query: '?test&versiering=aan', overschrijf: { themas: themaStub(leesPakket(id)) } });
+        await expect(page.locator('html')).toHaveAttribute('data-event', id);
+        await expect(page.locator('html')).toHaveAttribute('data-event-achtergrond', 'ja');
+        await stil(page);
+        await wachtOpNavigatie(page);
+        const verzamel = nieuweVerzamelaar();
+        const tellers = { aantal: 0, perScherm: {} };
+        for (const scherm of SCHERMEN) {
+          if (scherm.pcOnly && toestel.gsm) continue;
+          await scherm.open(page);
+          await page.mouse.move(0, 0);
+          for (const modus of MODI) {
+            await page.evaluate((m) => document.documentElement.setAttribute('data-theme', m), modus);
+            await wachtOpFrames(page, 3);
+            const { aantal } = await controleerLosseTekst(page, `${id} ${modus} ${toestel.naam} ${scherm.naam}`, verzamel, { minimum: 1, alleenLos: true });
+            tellers.aantal += aantal; tellers.perScherm[scherm.naam] = aantal;
+          }
+          await scherm.eind?.(page);
+        }
+        console.log(`losse tekst thema ${id} ${toestel.naam}: ${tellers.aantal} losse teksten; ${JSON.stringify(tellers.perScherm)}`);
+        expect(tellers.aantal, 'losse teksten gemeten').toBeGreaterThan(20);
+        rapporteer(`los thema ${id} ${toestel.naam}`, verzamel);
+      });
+    }
   }
 });

@@ -1,4 +1,5 @@
 // Contrast-meting op glas (Open dag, taak 9; verhuisd uit versiering.spec.mjs). Geen test-import: enkel hulpfuncties.
+import fs from 'node:fs';
 import zlib from 'node:zlib';
 import { expect } from './helpers.mjs';
 
@@ -284,11 +285,12 @@ export async function controleerKaarten(page, sel, label, slechtste) {
 // ouder, dan komt er een tweede foto bij met het vlak verborgen (de achtergrond zonder glas) om de menging exact te rekenen.
 // De inhoud onder een kleverige kop (kaarten die onder het glas doorschuiven) zit er enkel in voor zover de pagina ze toont.
 const DOORZICHTIG = (sels) => `${sels.flatMap((s) => [s, `${s} *`, `${s} ::placeholder`]).join(', ')} { color: transparent !important; -webkit-text-fill-color: transparent !important; text-shadow: none !important; caret-color: transparent !important; }
-  ${sels.flatMap((s) => [`${s} text`, `${s} tspan`]).join(', ')} { fill: transparent !important; }`;
+  ${sels.flatMap((s) => [`${s} text`, `${s} tspan`]).join(', ')} { fill: transparent !important; }
+  ${sels.flatMap((s) => [`${s} ::-webkit-datetime-edit`, `${s} ::-webkit-datetime-edit-fields-wrapper`, `${s} ::-webkit-datetime-edit-text`, `${s} ::-webkit-datetime-edit-day-field`, `${s} ::-webkit-datetime-edit-month-field`, `${s} ::-webkit-datetime-edit-year-field`, `${s} ::-webkit-datetime-edit-hour-field`, `${s} ::-webkit-datetime-edit-minute-field`]).join(', ')} { color: transparent !important; -webkit-text-fill-color: transparent !important; }`;
 
 // De tekstelementen van de vlakken: vak, kleur, doorzichtigheid, korte naam. Enkel wat zichtbaar is en echt in het vlak ligt.
-async function meetTeksten(page, wortelSels) {
-  return page.evaluate((sels) => {
+async function meetTeksten(page, wortelSels, uitsluiten = [], alleenLos = false) {
+  return page.evaluate(([sels, buiten, alleenLos]) => {
     const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
     const rgba = (kleur) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = '#000'; ctx.fillStyle = kleur; ctx.fillRect(0, 0, 1, 1); const d = ctx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255]; };
     const wortels = sels.flatMap((s) => [...document.querySelectorAll(s)]);
@@ -300,6 +302,7 @@ async function meetTeksten(page, wortelSels) {
       const eigenTekst = [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim());
       const isVeld = (el.matches('input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]), textarea') && el.value) || (el.tagName === 'SELECT' && el.selectedOptions.length);
       if (!eigenTekst.length && !isVeld) continue;
+      if (buiten.length && el.closest(buiten.join(', '))) continue; // bv. de kaart met tegels van een derde (geen tekst van ons)
       const cs = getComputedStyle(el);
       if (cs.visibility !== 'visible' || cs.display === 'none') continue;
       // vak van de tekst zelf (alle regels), geknipt op het element en op wat zijn ouders afknippen
@@ -315,7 +318,11 @@ async function meetTeksten(page, wortelSels) {
         }
       }
       const eigen = el.getBoundingClientRect();
-      if (isVeld) vak = { l: eigen.left, t: eigen.top, r: eigen.right, b: eigen.bottom };
+      if (isVeld) {
+        // de tekst van een veld ligt binnen rand en opvulling; de pijl van een keuzelijst en het icoon van een datumveld zijn geen tekst
+        const pijl = el.tagName === 'SELECT' || /^(date|time|datetime-local|month|week|search|number)$/.test(el.type) ? 22 : 0;
+        vak = { l: eigen.left + (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0), t: eigen.top, r: eigen.right - (parseFloat(cs.borderRightWidth) || 0) - (parseFloat(cs.paddingRight) || 0) - pijl, b: eigen.bottom };
+      }
       if (!vak) continue;
       vak = knip(vak, { l: eigen.left, t: eigen.top, r: eigen.right, b: eigen.bottom });
       const voll = { b: vak.b - vak.t, r: vak.r - vak.l }; // vak zoals de tekst echt ligt, vóór het afknippen
@@ -335,7 +342,17 @@ async function meetTeksten(page, wortelSels) {
       let o = 1;
       for (let x = el; x; x = x.parentElement) o *= parseFloat(getComputedStyle(x).opacity);
       const svg = el instanceof SVGElement;
+      // los = geen eigen vlak tussen de tekst en de hemel: geen backdrop-filter (glas), geen verloop of afbeelding en geen achtergrondkleur
+      // met een dekking vanaf 35 % (een effen vlak of een chip met een eigen kleur). Een lichte tint (--accent-dim, een dagkolom, een
+      // gestreepte rij) telt als los: daarachter blijft de hemel bepalend.
+      let los = true;
+      for (let x = el; x && x !== document.documentElement; x = x.parentElement) {
+        const xs = getComputedStyle(x);
+        if (x !== document.body && (rgba(xs.backgroundColor)[3] >= 0.35 || xs.backgroundImage !== 'none' || (xs.backdropFilter && xs.backdropFilter !== 'none'))) { los = false; break; }
+      }
+      if (alleenLos && !los) continue;
       uit.push({
+        los,
         sel: `${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : ''}`,
         tekst: (el.textContent || el.value || '').replace(/\s+/g, ' ').trim().slice(0, 24),
         kleur: rgba(svg ? cs.fill : (cs.webkitTextFillColor && cs.webkitTextFillColor !== 'currentcolor' ? cs.webkitTextFillColor : cs.color)),
@@ -344,7 +361,7 @@ async function meetTeksten(page, wortelSels) {
       });
     }
     return uit;
-  }, wortelSels);
+  }, [wortelSels, uitsluiten, alleenLos]);
 }
 
 export async function neemFoto(page) {
@@ -360,9 +377,9 @@ export const lumRgb = (r, g, b) => 0.2126 * LUM[Math.round(r)] + 0.7152 * LUM[Ma
 // Meet de tekst van de vlakken `wortelSels` (selectoren van het glas zelf; de tekst ligt er binnen) in het huidige beeld. `slechtste` is
 // dezelfde verzamelaar als bij controleerKaarten ({ waarde, waar, perVenster }); `perVenster` is hier per eerste woord van het label.
 // Geeft het aantal gemeten teksten terug (een lege meting is een fout van de test, geen succes).
-export async function controleerVlakken(page, wortelSels, label, slechtste, { minimum = 1 } = {}) {
+export async function controleerVlakken(page, wortelSels, label, slechtste, { minimum = 1, uitsluiten = [], alleenLos = false } = {}) {
   await wachtOpFrames(page, 2);
-  const teksten = await meetTeksten(page, wortelSels);
+  const teksten = await meetTeksten(page, wortelSels, uitsluiten, alleenLos);
   expect(teksten.length, `${label}: tekst gevonden in ${wortelSels.join(', ')}`).toBeGreaterThanOrEqual(minimum);
   const alle = wortelSels.join(', ');
   const stijlB = await page.addStyleTag({ content: `${DOORZICHTIG(wortelSels)} #event-laag, #toast, #spel-tik-toast { visibility: hidden !important; }` });
@@ -390,13 +407,24 @@ export async function controleerVlakken(page, wortelSels, label, slechtste, { mi
       if (c < min) { min = c; waar = { x, y, tekst: tekst.map(Math.round), grond: grond.map(Math.round) }; }
     }
     const kleurTekst = t.kleur.map((v, i) => (i < 3 ? Math.round(v) : +v.toFixed(2)));
-    const beschrijving = `${label} <${t.sel}> "${t.tekst}" tekst rgb(${waar.tekst}) op rgb(${waar.grond}) bij ${waar.x},${waar.y} (kleur ${kleurTekst}, opacity ${+t.opacity.toFixed(2)})`;
+    const beschrijving = `${label} ${t.los ? '[los]' : '[glas]'} <${t.sel}> "${t.tekst}" tekst rgb(${waar.tekst}) op rgb(${waar.grond}) bij ${waar.x},${waar.y} (kleur ${kleurTekst}, opacity ${+t.opacity.toFixed(2)})`;
     if (min < slechtste.waarde) Object.assign(slechtste, { waarde: min, waar: beschrijving });
     const v = label.split(' ')[0];
     slechtste.perVenster[v] = Math.min(slechtste.perVenster[v] ?? Infinity, min);
     toets(min, beschrijving).toBeGreaterThanOrEqual(4.5);
   }
   return teksten.length;
+}
+
+// Losse tekst (taak 9b): alle zichtbare tekst van de pagina in het huidige beeld (body): die rechtstreeks op de hemel of de scène van een
+// thema staat (kalender-uurlabels en dagkoppen, subtabs, lege staten) en die op een dun glasvlak zonder eigen tint (de kalender, de
+// samenvatting van de route). Zelfde echte-pixelmethode als hierboven. `alleenLos`: enkel tekst zonder enig eigen vlak (zie `los` in
+// meetTeksten; voor de scène van een thema, waar de accentkleuren van het pakket zelf op de knoppen komen). De routekaart (Leaflet, tegels en
+// attributie van derden) en uitgeschakelde bediening (WCAG-uitzondering) tellen niet mee. Geeft { aantal } terug (de gemeten teksten).
+export async function controleerLosseTekst(page, label, slechtste, { minimum = 1, alleenLos = false } = {}) {
+  const uitsluiten = ['.leaflet-container', ':disabled', '[aria-disabled="true"]'];
+  const aantal = await controleerVlakken(page, ['body'], label, slechtste, { minimum, uitsluiten, alleenLos });
+  return { aantal };
 }
 
 // De kleuren van de reeksen in de legenda's (.swatch) tegen de kaart waarop ze liggen (de pixel vlak naast het blokje): geeft per kleur het
@@ -417,4 +445,18 @@ export async function meetReeksen(page) {
     const g = beeld.kleur(b.x, b.y), l1 = lumRgb(...b.kleur), l2 = lumRgb(...g);
     return { naam: b.naam, kleur: b.kleur, grond: g, contrast: (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05) };
   });
+}
+
+// ── Themapakketten voor de proeven met een scène (versiering.spec.mjs en hemel-contrast.spec.mjs) ──
+// Het voorgeladen pakket uit netlify/themas en de stub van /api/themas met een periode over de testklok (5 okt 2026).
+export const leesPakket = (id) => JSON.parse(fs.readFileSync(new URL(`../netlify/themas/${id}.blitzthema.json`, import.meta.url), 'utf8'));
+export function themaStub(p) {
+  const periodeOverride = { van: { maand: 10, dag: 1 }, tot: { maand: 10, dag: 31 } };
+  return ({ query }) => {
+    if (query.get('id') !== null) return { status: 200, json: structuredClone(p) };
+    return {
+      status: 200,
+      json: { versie: 1, themas: [{ id: p.id, naam: p.naam, aan: true, periode: p.periode, periodeOverride, pakketHash: `e2e-${p.id}` }], pakketten: { [p.id]: structuredClone(p) } },
+    };
+  };
 }
