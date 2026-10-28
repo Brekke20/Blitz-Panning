@@ -140,9 +140,9 @@ html[data-event-sober="ja"] :is(.ev-hoek-lo, .ev-hoek-ro).ev-naar-hoek { display
    lichtere of donkerdere tekst op de kaarten). Hier blijft enkel wat bij een thema met achtergrond hoort: de doorzichtige vlakken. */
 @media screen {
   /* Inhoudsvlakken die de achtergrond anders (deels) verbergen; toestanden behouden een doorschijnende tint */
-  /* (de id staat apart: in :is() zou ze de specificiteit van alle klassen optillen en de toestandstinten hieronder wissen) */
-  :root[data-event][data-event-achtergrond="ja"] :is(.view, .day-body, .month-cell, .sales-route-lijstvak, .sales-kolom) { background: transparent; }
-  :root[data-event][data-event-achtergrond="ja"] #route-list { background: transparent; }
+  /* Eindreview F4 (Ruling 22: glas altijd zichtbaar): .sales-kolom, .sales-route-lijstvak en #route-list staan hier niet meer; ze houden het gewone glas
+     (--glas) van de stijl Open dag, ook tijdens een thema met achtergrond. */
+  :root[data-event][data-event-achtergrond="ja"] :is(.view, .day-body, .month-cell) { background: transparent; }
   :root[data-event][data-event-achtergrond="ja"] .month-cell.today-cell { background: rgba(0, 223, 163, 0.04); }
   :root[data-event][data-event-achtergrond="ja"] .month-cell.other-month { background: color-mix(in srgb, var(--bg) 50%, transparent); }
   :root[data-event][data-event-achtergrond="ja"] .day-body.blocked-day { background: repeating-linear-gradient(135deg, transparent, transparent 8px, color-mix(in srgb, var(--red) 6%, transparent) 8px, color-mix(in srgb, var(--red) 6%, transparent) 16px); }

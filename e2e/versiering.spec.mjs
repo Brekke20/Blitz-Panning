@@ -598,30 +598,34 @@ test.describe('eerste schermopbouw uit blitz_thema_actief', () => {
   });
 });
 
-// Fix-ronde 1: ook de sales-schermen volgen "achtergrond altijd zichtbaar": de kolommen en de routelijst zijn doorzichtig, de kaarten glas.
+// Fix-ronde 1: ook de sales-schermen volgen "achtergrond altijd zichtbaar". Eindreview F4 (Ruling 22: de glazen vlakken van Open dag blijven
+// altijd zichtbaar): de kolommen en de routelijst zijn tijdens een thema NIET meer doorzichtig; ze houden hun glas, de leadkaarten ook.
 test.describe('sales tijdens een thema met achtergrond', () => {
   const lead = (id, naam) => ({
     id, voornaam: 'Test', naam, gsm: null, email: null, postcode: '3500', gemeente: 'Hasselt', straat: null, huisnr: null, adresTekst: null,
     locatie: { lat: 50.93, lon: 5.34, bron: 'postcode' }, status: 'te-plannen', bezoeken: [],
     geimporteerdOp: '2026-10-01T08:00:00.000Z', bronExport: { verantwoordelijke: 'Test Verkoper', geexporteerdOp: null },
   });
-  test('kolommen en routelijst doorzichtig, leadkaarten mat glas', async ({ page }) => {
+  test('kolommen en routelijst houden hun glas, leadkaarten ook', async ({ page }) => {
     await startSalesApp(page, { leads: [lead('a', 'Een'), lead('b', 'Twee')], query: AAN });
     await expect(page.locator('html')).toHaveAttribute('data-event-achtergrond', 'ja');
     const kolom = page.locator('#view-sales-lijst .sales-kolom').first();
     await expect(kolom).toBeVisible();
-    expect(await kolom.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+    const kolomStijl = await kolom.evaluate((el) => { const cs = getComputedStyle(el); return { bg: cs.backgroundColor, filter: cs.backdropFilter }; });
+    expect(kolomStijl.bg).not.toBe('rgba(0, 0, 0, 0)');
+    expect(kolomStijl.filter).toContain('blur(');
     const kaart = page.locator('#view-sales-lijst .sales-kaart').first();
     await expect(kaart).toBeVisible();
     expect(await kaart.evaluate((el) => getComputedStyle(el).backdropFilter)).toContain('blur(');
-    // De routelijst (sales-route.js bouwt ze pas met een depot en een dag): dezelfde klasse, los in het scherm gezet, zonder thema
-    // effen (de regel van app.css) en met thema doorzichtig.
+    // De routelijst (sales-route.js bouwt ze pas met een depot en een dag): dezelfde klasse, los in het scherm gezet; met en zonder thema
+    // een glazen achtergrond (de regel van app.css; tijdens een thema in donker dichter, zie base.css).
     const achtergrondVan = () => page.evaluate(() => {
       const el = document.createElement('div'); el.className = 'sales-route-lijstvak';
       document.getElementById('view-sales-lijst').appendChild(el);
       const kleur = getComputedStyle(el).backgroundColor; el.remove(); return kleur;
     });
-    expect(await achtergrondVan()).toBe('rgba(0, 0, 0, 0)');
+    const metThema = await achtergrondVan();
+    expect(metThema).not.toBe('rgba(0, 0, 0, 0)');
     await page.evaluate(() => document.documentElement.removeAttribute('data-event-achtergrond'));
     expect(await achtergrondVan()).not.toBe('rgba(0, 0, 0, 0)');
   });
