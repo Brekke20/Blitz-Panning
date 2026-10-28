@@ -12,12 +12,18 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Unreleased]
 
+### Added
+- (nog niets sinds de laatste release)
+
+## [2.5.1] — 2026-10-28
+
 ### Changed
 - Het glas van balken en kaarten is doorzichtiger.
 
 ### Fixed
-- Op de computer staat de bovenbalk nu echt vast bij scrollen.
+- Op de computer staat de bovenbalk nu echt vast bij scrollen (op gsm en tablet blijft trekken-om-te-verversen werken).
 - Op de gsm licht een knop in de onderste balk niet meer eerst vierkant op bij een tik.
+- In de weekkalender op de computer schemeren de uren niet meer door de dagkoppen.
 
 ## [2.5.0] — 2026-10-28
 
