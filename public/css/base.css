@@ -150,6 +150,18 @@
       --gloed-sterk:     34%;
     }
 
+    /* ── Open dag-stijl, taak 9: donker glas op de scène van een thema ──
+       Een thema met achtergrond (data-event-achtergrond="ja", gezet door schermen/evenement-laag.js) vervangt de hemel door een scène met
+       een heldere maan, zon of sneeuwvlakte. Wit glas van 7,5 % laat daar geen 4,5:1 over (gemeten: Halloween 1,5:1, Sinterklaas 2,5:1);
+       eerst is de tekst al bijna wit, dus de dekking gaat omhoog en het glas wordt donkerblauw. Eén regel voor alle thema's (nooit een alpha
+       per thema). Enkel in donker (licht haalt het met het gewone glas); de gsm-regel hieronder verliest op specificiteit, de regels voor
+       verminderde transparantie en zonder backdrop-filter komen later en winnen op volgorde (zelfde specificiteit). */
+    html[data-event-achtergrond="ja"]:not([data-theme="light"]) {
+      --glas:        rgba(14,22,42,0.56);
+      --glas-hover:  rgba(30,44,76,0.66);
+      --glas-sterk:  rgba(14,22,42,0.62);
+    }
+
     /* ── Open dag-stijl: minder vervaging en meer dekking waar glas te zwaar of niet mogelijk is ──
        Volgorde en specificiteit zijn bewust: gsm eerst; "verminderde transparantie" en "geen backdrop-filter" winnen daarna. */
     html[data-apparaat="gsm"] {
