@@ -1,0 +1,99 @@
+{
+  "meta": {
+    "script": "scripts/meet-laden.mjs",
+    "gemetenMap": "C:\\Users\\BRENT\\blitz-baseline-2.5.1\\public",
+    "voorMap": null,
+    "runs": 5,
+    "vertragingenMs": [
+      0,
+      150
+    ],
+    "mediaan": "mediaan van de runs; bij --voor afwisselend",
+    "gestart": "2026-10-28T23:18:16.932Z",
+    "duurMs": 260082,
+    "node": "v24.18.0",
+    "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+    "kernen": 8,
+    "geheugenGB": 40,
+    "os": "win32 10.0.26200"
+  },
+  "rijen": [
+    {
+      "server (ms)": 0,
+      "profiel": "koud",
+      "variant": "-",
+      "runs": 5,
+      "verzoeken": 142,
+      "kB": 1489,
+      "mediaan klaar (ms, performance.now)": 678,
+      "mediaan klaar (ms, muurtijd)": 682,
+      "alle muurtijden": "832 631 633 682 1955"
+    },
+    {
+      "server (ms)": 0,
+      "profiel": "warm",
+      "variant": "-",
+      "runs": 5,
+      "verzoeken": 142,
+      "kB": 36,
+      "mediaan klaar (ms, performance.now)": 526,
+      "mediaan klaar (ms, muurtijd)": 533,
+      "alle muurtijden": "497 571 533 443 695"
+    },
+    {
+      "server (ms)": 0,
+      "profiel": "warm + SW",
+      "variant": "-",
+      "runs": 5,
+      "verzoeken": 155,
+      "kB": 6,
+      "mediaan klaar (ms, performance.now)": 445,
+      "mediaan klaar (ms, muurtijd)": 447,
+      "alle muurtijden": "437 477 449 447 389"
+    },
+    {
+      "server (ms)": 150,
+      "profiel": "koud",
+      "variant": "-",
+      "runs": 5,
+      "verzoeken": 142,
+      "kB": 1489,
+      "mediaan klaar (ms, performance.now)": 4295,
+      "mediaan klaar (ms, muurtijd)": 4298,
+      "alle muurtijden": "4274 4298 4268 4310 4413"
+    },
+    {
+      "server (ms)": 150,
+      "profiel": "warm",
+      "variant": "-",
+      "runs": 5,
+      "verzoeken": 142,
+      "kB": 36,
+      "mediaan klaar (ms, performance.now)": 3849,
+      "mediaan klaar (ms, muurtijd)": 3853,
+      "alle muurtijden": "3853 3859 3832 3904 3821"
+    },
+    {
+      "server (ms)": 150,
+      "profiel": "warm + SW",
+      "variant": "-",
+      "runs": 5,
+      "verzoeken": 142,
+      "kB": 6,
+      "mediaan klaar (ms, performance.now)": 3854,
+      "mediaan klaar (ms, muurtijd)": 3858,
+      "alle muurtijden": "3864 3858 3867 3849 3851"
+    }
+  ],
+  "wizard": {
+    "grootteKB": 84,
+    "mediaanMs": 9,
+    "metingen": [
+      8,
+      9,
+      9,
+      10,
+      11
+    ]
+  }
+}

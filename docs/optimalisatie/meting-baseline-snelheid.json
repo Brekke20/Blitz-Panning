@@ -1,0 +1,240 @@
+{
+  "meta": {
+    "script": "scripts/meet-snelheid.mjs",
+    "na": "C:\\Users\\BRENT\\blitz-baseline-2.5.1\\public",
+    "voor": null,
+    "runs": 5,
+    "modus": "hemel",
+    "alleenLaden": false,
+    "telefoon": "375x812 @2x, aanraking, CPU 4x trager, ?test",
+    "gestart": "2026-10-28T23:22:50.126Z",
+    "duurMs": 93179,
+    "node": "v24.18.0",
+    "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+    "kernen": 8,
+    "geheugenGB": 40,
+    "os": "win32 10.0.26200"
+  },
+  "rijen": [
+    {
+      "cijfer": "eerste ticket (ms)",
+      "na": 2956,
+      "na (min-max)": "2675-3530"
+    },
+    {
+      "cijfer": "wachtrij: lange taken (ms)",
+      "na": 0,
+      "na (min-max)": "0-0"
+    },
+    {
+      "cijfer": "wachtrij: beelden in 3 s",
+      "na": 119,
+      "na (min-max)": "111-137"
+    },
+    {
+      "cijfer": "kalender: lange taken (ms)",
+      "na": 0,
+      "na (min-max)": "0-0"
+    },
+    {
+      "cijfer": "kalender: beelden in 3 s",
+      "na": 98,
+      "na (min-max)": "86-102"
+    },
+    {
+      "cijfer": "ingepland: lange taken (ms)",
+      "na": 0,
+      "na (min-max)": "0-0"
+    },
+    {
+      "cijfer": "ingepland: beelden in 3 s",
+      "na": 165,
+      "na (min-max)": "133-167"
+    }
+  ],
+  "runs": {
+    "na": [
+      {
+        "eersteTicketMs": 2956,
+        "schermen": {
+          "wachtrij": {
+            "ltMs": 0,
+            "ltAantal": 0,
+            "beelden": 117,
+            "scrollEvents": 75
+          },
+          "kalender": {
+            "ltMs": 0,
+            "ltAantal": 0,
+            "beelden": 97,
+            "scrollEvents": 146
+          },
+          "ingepland": {
+            "ltMs": 0,
+            "ltAantal": 0,
+            "beelden": 159,
+            "scrollEvents": 267
+          }
+        },
+        "apparaat": {
+          "app": "gsm",
+          "achtergrond": "-",
+          "blur": "10px",
+          "tickets": 30,
+          "kaartFilter": "blur(10px) saturate(1.8)"
+        },
+        "info": {
+          "wachtrij": 30,
+          "gepland": 28
+        }
+      },
+      {
+        "eersteTicketMs": 2675,
+        "schermen": {
+          "wachtrij": {
+            "ltMs": 0,
+            "ltAantal": 0,
+            "beelden": 137,
+            "scrollEvents": 82
+          },
+          "kalender": {
+            "ltMs": 0,
+            "ltAantal": 0,
+            "beelden": 102,
+            "scrollEvents": 140
+          },
+          "ingepland": {
+            "ltMs": 0,
+            "ltAantal": 0,
+            "beelden": 167,
+            "scrollEvents": 270
+          }
+        },
+        "apparaat": {
+          "app": "gsm",
+          "achtergrond": "-",
+          "blur": "10px",
+          "tickets": 30,
+          "kaartFilter": "blur(10px) saturate(1.8)"
+        },
+        "info": {
+          "wachtrij": 30,
+          "gepland": 28
+        }
+      },
+      {
+        "eersteTicketMs": 3530,
+        "schermen": {
+          "wachtrij": {
+            "ltMs": 0,
+            "ltAantal": 0,
+            "beelden": 111,
+            "scrollEvents": 76
+          },
+          "kalender": {
+            "ltMs": 0,
+            "ltAantal": 0,
+            "beelden": 86,
+            "scrollEvents": 140
+          },
+          "ingepland": {
+            "ltMs": 0,
+            "ltAantal": 0,
+            "beelden": 133,
+            "scrollEvents": 237
+          }
+        },
+        "apparaat": {
+          "app": "gsm",
+          "achtergrond": "-",
+          "blur": "10px",
+          "tickets": 30,
+          "kaartFilter": "blur(10px) saturate(1.8)"
+        },
+        "info": {
+          "wachtrij": 30,
+          "gepland": 28
+        }
+      },
+      {
+        "eersteTicketMs": 2677,
+        "schermen": {
+          "wachtrij": {
+            "ltMs": 0,
+            "ltAantal": 0,
+            "beelden": 119,
+            "scrollEvents": 75
+          },
+          "kalender": {
+            "ltMs": 0,
+            "ltAantal": 0,
+            "beelden": 100,
+            "scrollEvents": 150
+          },
+          "ingepland": {
+            "ltMs": 0,
+            "ltAantal": 0,
+            "beelden": 165,
+            "scrollEvents": 264
+          }
+        },
+        "apparaat": {
+          "app": "gsm",
+          "achtergrond": "-",
+          "blur": "10px",
+          "tickets": 30,
+          "kaartFilter": "blur(10px) saturate(1.8)"
+        },
+        "info": {
+          "wachtrij": 30,
+          "gepland": 28
+        }
+      },
+      {
+        "eersteTicketMs": 3073,
+        "schermen": {
+          "wachtrij": {
+            "ltMs": 0,
+            "ltAantal": 0,
+            "beelden": 123,
+            "scrollEvents": 79
+          },
+          "kalender": {
+            "ltMs": 0,
+            "ltAantal": 0,
+            "beelden": 98,
+            "scrollEvents": 150
+          },
+          "ingepland": {
+            "ltMs": 0,
+            "ltAantal": 0,
+            "beelden": 165,
+            "scrollEvents": 270
+          }
+        },
+        "apparaat": {
+          "app": "gsm",
+          "achtergrond": "-",
+          "blur": "10px",
+          "tickets": 30,
+          "kaartFilter": "blur(10px) saturate(1.8)"
+        },
+        "info": {
+          "wachtrij": 30,
+          "gepland": 28
+        }
+      }
+    ]
+  },
+  "eersteRunApparaat": {
+    "app": "gsm",
+    "achtergrond": "-",
+    "blur": "10px",
+    "tickets": 30,
+    "kaartFilter": "blur(10px) saturate(1.8)"
+  },
+  "eersteRunData": {
+    "wachtrij": 30,
+    "gepland": 28
+  }
+}
