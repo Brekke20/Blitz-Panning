@@ -69,6 +69,9 @@ html[data-nav] .tabs {
   box-shadow: inset 0 1px 0 var(--glas-licht), var(--glas-schaduw);
 }
 
+/* Het dok in donker is dichter dan een gewone kaart (--glas-dok, base.css): een felle knop die er onderdoor schuift mag de tabnamen niet onder 4,5:1 duwen. */
+html[data-nav="dok"]:not([data-theme="light"]) .tabs { background-color: var(--glas-dok); }
+
 /* ── Zijkolom (data-nav="kolom") ── */
 html[data-nav="kolom"] body { padding-left: var(--zijkolom-b); }
 html[data-nav="kolom"] .topbar-sticky > nav { top: 14px; bottom: 14px; left: 14px; width: 228px; }

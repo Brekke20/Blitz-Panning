@@ -167,17 +167,17 @@ export async function wachtOpStilstand(page, locator) {
 // De glaswaarden die de stijl (base.css) per toestel, thema en achtergrond hoort te geven. DIT is de ene plek die taak 10 (snelheid, gsm)
 // of een nieuwe tuning aanpast; de metingen hieronder lezen de echte waarden uit de berekende stijl van <html> en eisen dat ze hieraan
 // gelijk zijn. Sleutels: [achtergrond: 'hemel' | 'thema'][toestel: 'pc' | 'gsm'][modus: 'donker' | 'licht']. `glas` = kaart, `hover` =
-// kaart met de muis erboven, `sterk` = kop en dok, `venster` = vensters en dashboardkaarten (allemaal alpha van de kleur).
+// kaart met de muis erboven, `sterk` = kop, `dok` = het dok in donker (in licht gelijk aan `glas`), `venster` = vensters en dashboardkaarten (allemaal alpha van de kleur).
 export const VERWACHT_GLAS = {
   hemel: {
-    pc:  { donker: { blur: '28px', glas: 0.40, hover: 0.52, sterk: 0.50, venster: 0.84 }, licht: { blur: '28px', glas: 0.52, hover: 0.72, sterk: 0.58, venster: 0.88 } },
-    gsm: { donker: { blur: '10px', glas: 0.50, hover: 0.60, sterk: 0.56, venster: 0.92 }, licht: { blur: '10px', glas: 0.72, hover: 0.84, sterk: 0.76, venster: 0.94 } },
+    pc:  { donker: { blur: '28px', glas: 0.40, hover: 0.52, sterk: 0.50, dok: 0.68, venster: 0.84 }, licht: { blur: '28px', glas: 0.52, hover: 0.72, sterk: 0.58, dok: 0.52, venster: 0.88 } },
+    gsm: { donker: { blur: '10px', glas: 0.50, hover: 0.60, sterk: 0.56, dok: 0.68, venster: 0.92 }, licht: { blur: '10px', glas: 0.72, hover: 0.84, sterk: 0.76, dok: 0.72, venster: 0.94 } },
   },
   // Een thema met achtergrond (data-event-achtergrond="ja") vervangt de hemel door een scène; zie evenement.css
   // en krijgt in donker dichter, donkerblauw glas (base.css, taak 9); in licht is het gewone glas genoeg
   thema: {
-    pc:  { donker: { blur: '28px', glas: 0.56, hover: 0.66, sterk: 0.62, venster: 0.84 }, licht: { blur: '28px', glas: 0.52, hover: 0.72, sterk: 0.58, venster: 0.88 } },
-    gsm: { donker: { blur: '10px', glas: 0.56, hover: 0.66, sterk: 0.62, venster: 0.92 }, licht: { blur: '10px', glas: 0.72, hover: 0.84, sterk: 0.76, venster: 0.94 } },
+    pc:  { donker: { blur: '28px', glas: 0.56, hover: 0.66, sterk: 0.62, dok: 0.70, venster: 0.84 }, licht: { blur: '28px', glas: 0.52, hover: 0.72, sterk: 0.58, dok: 0.52, venster: 0.88 } },
+    gsm: { donker: { blur: '10px', glas: 0.56, hover: 0.66, sterk: 0.62, dok: 0.70, venster: 0.92 }, licht: { blur: '10px', glas: 0.72, hover: 0.84, sterk: 0.76, dok: 0.72, venster: 0.94 } },
   },
 };
 
@@ -188,7 +188,7 @@ export async function leesGlasTokens(page) {
     const root = document.documentElement, cs = getComputedStyle(root);
     const alpha = (naam) => { const m = cs.getPropertyValue(naam).match(/rgba?\(([^)]*)\)/)[1].split(',').map((x) => parseFloat(x)); return m.length > 3 ? m[3] : 1; };
     return {
-      alpha: alpha('--glas'), alphaHover: alpha('--glas-hover'), alphaSterk: alpha('--glas-sterk'), alphaVenster: alpha('--glas-venster'), blur: cs.getPropertyValue('--blur').trim(),
+      alpha: alpha('--glas'), alphaHover: alpha('--glas-hover'), alphaSterk: alpha('--glas-sterk'), alphaDok: alpha('--glas-dok'), alphaVenster: alpha('--glas-venster'), blur: cs.getPropertyValue('--blur').trim(),
       sleutel: [root.dataset.eventAchtergrond === 'ja' ? 'thema' : 'hemel', root.dataset.apparaat === 'gsm' ? 'gsm' : 'pc', root.dataset.theme === 'light' ? 'licht' : 'donker'],
     };
   });
@@ -203,6 +203,7 @@ export async function controleerGlasTokens(page, label) {
   expect(glas.alpha, `${wat}: --glas`).toBeCloseTo(verwacht.glas, 3);
   expect(glas.alphaHover, `${wat}: --glas-hover`).toBeCloseTo(verwacht.hover, 3);
   expect(glas.alphaSterk, `${wat}: --glas-sterk`).toBeCloseTo(verwacht.sterk, 3);
+  expect(glas.alphaDok, `${wat}: --glas-dok`).toBeCloseTo(verwacht.dok, 3);
   expect(glas.alphaVenster, `${wat}: --glas-venster`).toBeCloseTo(verwacht.venster, 3);
   return glas;
 }

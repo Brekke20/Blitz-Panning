@@ -257,7 +257,7 @@
     .t-action { flex-shrink: 0; display: flex; align-items: flex-start; padding-top: 2px; }
     .btn-add {
       background: linear-gradient(180deg, #2df0bb, #00d49b); /* Open dag (taak 8a, Ruling 8): het verloop van .btn--primary */
-      border: none; color: var(--on-accent);
+      border: none; color: var(--on-groen);
       width: 30px; height: 30px;
       border-radius: 50%;
       font-size: 1.1rem;
@@ -292,7 +292,7 @@
     }
     @media (hover: hover) { .kal-pending-pill:hover { background: color-mix(in srgb, var(--orange) 20%, var(--chip-onder)); } }
     .kal-pending-pill .pill-count {
-      background: var(--orange); color: var(--on-accent);
+      background: var(--orange); color: var(--on-oranje);
       border-radius: 10px; padding: 0 6px; font-size: 0.7rem; font-weight: 700;
     }
     :root[data-theme="light"] .kal-pending-pill .pill-count { color: #fff; }
@@ -353,7 +353,7 @@
     /* Taak 8b: de app achter het inlogscherm is onzichtbaar (inloggen.css zet visibility: hidden op #hoofdinhoud); dit kind zet zichzelf expliciet op visible en schemerde daar dwars doorheen. */
     body:has(> #login-overlay) .kal-week-label.niet-vandaag .kal-lbl-vandaag { visibility: hidden; }
     .btn-autoplan {
-      background: linear-gradient(180deg, #2df0bb, #00d49b); border: none; color: var(--on-accent); /* Open dag: verloop + pil (Ruling 8) */
+      background: linear-gradient(180deg, #2df0bb, #00d49b); border: none; color: var(--on-groen); /* Open dag: verloop + pil (Ruling 8) */
       padding: 6px 13px; border-radius: var(--r-pil);
       font-size: 0.79rem; font-weight: 700; cursor: pointer;
       transition: background 0.12s, box-shadow 0.12s;
@@ -630,7 +630,7 @@
       .route-balk-acties { flex: 1 1 100%; }
     }
     .btn-primary {
-      background: linear-gradient(180deg, #2df0bb, #00d49b); border: none; color: var(--on-accent); /* Open dag: verloop + pil (Ruling 8) */
+      background: linear-gradient(180deg, #2df0bb, #00d49b); border: none; color: var(--on-groen); /* Open dag: verloop + pil (Ruling 8) */
       padding: 7px 14px; border-radius: var(--r-pil);
       font-size: 0.8rem; font-weight: 700; cursor: pointer; font-family: inherit;
       transition: background 0.12s, box-shadow 0.12s;
@@ -805,7 +805,7 @@
     }
     @media (hover: hover) { .btn-cancel:hover { background: var(--knop2-hover); color: var(--text); } }
     .btn-save {
-      background: linear-gradient(180deg, #2df0bb, #00d49b); border: none; color: var(--on-accent); /* Open dag: verloop + pil (Ruling 8) */
+      background: linear-gradient(180deg, #2df0bb, #00d49b); border: none; color: var(--on-groen); /* Open dag: verloop + pil (Ruling 8) */
       padding: 7px 16px; border-radius: var(--r-pil); font-size: 0.82rem; font-weight: 700; cursor: pointer; font-family: inherit;
       transition: background 0.12s, box-shadow 0.12s;
       box-shadow: 0 2px 6px rgba(0,223,163,0.2);
@@ -843,7 +843,7 @@
     /* Variants */
     .btn--primary {
       background: linear-gradient(180deg, #2df0bb, #00d49b);
-      color: var(--on-accent);
+      color: var(--on-groen);
     }
 
     .btn--secondary {

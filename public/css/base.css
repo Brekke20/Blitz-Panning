@@ -49,6 +49,10 @@
       --accent-glow:  rgba(0,223,163,0.22);
       --accent-hover: #00f5b5;
       --on-accent:    #0b1f18;
+      /* Tekst op vaste vlakken die NIET met het thema meekleuren (Open dag, taak 9c): het groene verloop van de knoppen (#2df0bb naar #00d49b)
+         en het oranje van de teller. Een themapakket zet --on-accent op wit (Sinterklaas: rood accent); dat is dan wit op felgroen (1,55:1). */
+      --on-groen:     #0b1f18;
+      --on-oranje:    #1f1300;
       --accent-ink:   var(--accent);
       --tl-offhours:  rgba(0,0,0,0.28);
       --green:      #00dfa3;
@@ -79,6 +83,8 @@
       --glas:            rgba(12,20,44,0.40);
       --glas-hover:      rgba(26,38,70,0.52);
       --glas-sterk:      rgba(12,20,44,0.50);
+      /* enkel het dok (data-nav="dok", navigatie.css) en enkel in donker: een felgroene knop die er onderdoor schuift haalde er 3,6:1 (taak 9c) */
+      --glas-dok:        rgba(12,20,44,0.68);
       --glas-venster:    rgba(24,36,62,0.84);
       --glas-rand:       rgba(255,255,255,0.14);
       --glas-rand-hover: rgba(255,255,255,0.26);
@@ -142,6 +148,7 @@
       --glas:            rgba(255,255,255,0.52);
       --glas-hover:      rgba(255,255,255,0.72);
       --glas-sterk:      rgba(255,255,255,0.58);
+      --glas-dok:        var(--glas);
       --glas-venster:    rgba(255,255,255,0.88);
       --glas-rand:       rgba(255,255,255,0.85);
       --glas-rand-hover: rgba(255,255,255,1);
@@ -166,6 +173,7 @@
       --glas:        rgba(14,22,42,0.56);
       --glas-hover:  rgba(30,44,76,0.66);
       --glas-sterk:  rgba(14,22,42,0.62);
+      --glas-dok:    rgba(14,22,42,0.70);
     }
 
     /* ── Open dag-stijl: minder vervaging en meer dekking waar glas te zwaar of niet mogelijk is ──
@@ -189,6 +197,7 @@
         --glas:         rgba(32,44,74,0.94);
         --glas-hover:   rgba(42,55,88,0.96);
         --glas-sterk:   rgba(36,49,80,0.95);
+        --glas-dok:     rgba(36,49,80,0.95);
         --glas-venster: rgba(24,36,62,0.97);
       }
       html:root[data-theme="light"] {
@@ -205,6 +214,7 @@
         --glas:         rgba(32,44,74,0.94);
         --glas-hover:   rgba(42,55,88,0.96);
         --glas-sterk:   rgba(36,49,80,0.95);
+        --glas-dok:     rgba(36,49,80,0.95);
         --glas-venster: rgba(24,36,62,0.97);
       }
       html:root[data-theme="light"] {

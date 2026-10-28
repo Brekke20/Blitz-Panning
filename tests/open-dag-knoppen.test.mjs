@@ -97,3 +97,34 @@ test('elke zuivere :hover-regel in public/css/*.css staat in @media (hover: hove
   }
   assert.deepEqual(overtreders, [], 'hover-regel buiten @media (hover: hover):\n' + overtreders.join('\n'));
 });
+
+// Taak 9c: het groene verloop (#2df0bb naar #00d49b) en het oranje van de teller zijn vaste kleuren; hun tekst hoort dus niet bij het thema.
+// Een themapakket zet --on-accent (Sinterklaas: wit); op felgroen is dat 1,55:1.
+test('elke regel met het vaste groene verloop gebruikt --on-groen, nooit --on-accent', () => {
+  const overtreders = [];
+  let aantal = 0;
+  for (const f of readdirSync(MAP).filter((n) => n.endsWith('.css'))) {
+    for (const { selector, blok } of regels(readFileSync(new URL(f, MAP), 'utf8'))) {
+      if (!/#2df0bb/i.test(blok)) continue;
+      aantal++;
+      if (/(^|[;\s])color:\s*var\(--on-accent\)/.test(blok) || !/(^|[;\s])color:\s*var\(--on-groen\)/.test(blok)) overtreders.push(`${f}: ${selector.replace(/\s+/g, ' ')}`);
+    }
+  }
+  assert.ok(aantal >= 5, `verloopregels gevonden: ${aantal}`);
+  assert.deepEqual(overtreders, [], 'tekst op het groene verloop:\n' + overtreders.join('\n'));
+});
+
+test('.pill-count: tekst op het oranje is --on-oranje (donker) en wit (licht), nooit --on-accent', () => {
+  const app = readFileSync(new URL('app.css', MAP), 'utf8');
+  const regel = regels(app).find((r) => r.selector.replace(/\s+/g, ' ') === '.kal-pending-pill .pill-count');
+  assert.ok(regel, 'regel .kal-pending-pill .pill-count ontbreekt');
+  assert.match(regel.blok, /color:\s*var\(--on-oranje\)/);
+  assert.doesNotMatch(regel.blok, /--on-accent/);
+});
+
+test('het dok in donker gebruikt --glas-dok (dichter dan --glas); enkel op data-nav="dok"', () => {
+  const nav = readFileSync(new URL('navigatie.css', MAP), 'utf8');
+  const regel = regels(nav).find((r) => /data-nav="dok"\]:not\(\[data-theme="light"\]\) \.tabs/.test(r.selector.replace(/\s+/g, ' ')));
+  assert.ok(regel, 'dok-regel ontbreekt');
+  assert.match(regel.blok, /background-color:\s*var\(--glas-dok\)/);
+});
