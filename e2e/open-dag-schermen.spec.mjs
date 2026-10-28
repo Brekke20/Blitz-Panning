@@ -7,6 +7,7 @@ import { leesPakket, themaStub } from './contrast-meting.mjs';
 
 const PC = { width: 1366, height: 768 };
 const GSM = { width: 375, height: 812 };
+const HULP_MARGE = 1.03, SORTEER_MARGE = 1.10; // zie de toelichting bij de meting van de wachtrij-balk
 
 const zetWeergave = (page, weergave) => page.addInitScript((w) => {
   if (window !== window.top) return; // sandbox-iframes hebben geen localStorage
@@ -268,7 +269,8 @@ test.describe('overige schermen en vensters (Open dag)', () => {
         await startApp(page, { viewport: { width: breedte, height: hoogte } });
         await expect(page.locator('html')).toHaveAttribute('data-nav', 'dok');
         if (modus === 'gsm-weergave') await expect(page.locator('html')).toHaveAttribute('data-apparaat', 'gsm');
-        const m = await page.evaluate(() => {
+        const m = await page.evaluate(async () => {
+          await document.fonts.ready; // geen meting vóór de lettertypen klaar zijn
           const meet = (tekst, cs) => {
             const c = document.createElement('canvas').getContext('2d');
             c.font = cs.font || `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
@@ -295,10 +297,14 @@ test.describe('overige schermen en vensters (Open dag)', () => {
         // hulptekst volledig, en het woord "onderwerp" blijft erin
         expect(m.hulp.tekst).toContain('onderwerp');
         expect(m.hulp.fs).toBeGreaterThanOrEqual(16);
-        expect(m.hulp.breedte, `hulptekst "${m.hulp.tekst}" past niet in het zoekvak`).toBeLessThanOrEqual(m.hulp.ruimte);
+        // Veiligheidsmarge: startApp stubt Google Fonts leeg, dus hier meet de test met het terugvallettertype (system-ui), niet met Figtree.
+        // Eenmalig gemeten met het echte Figtree (taak 14, fix 1; zie task-14-report.md): hulptekst 305,7 px tegen 306,7 px terugval (verhouding
+        // 0,997) en sorteerlabels tot 1,044 keer de terugvalbreedte. Daarom: hulptekst met 3 % marge (echte Figtree kan 3 % breder zijn dan nu
+        // gemeten en past nog), sorteerlabels met 10 % marge (ruim boven 1,044, en ze hebben veel ruimte).
+        expect(m.hulp.breedte * HULP_MARGE, `hulptekst "${m.hulp.tekst}" past niet (met ${Math.round((HULP_MARGE - 1) * 100)} % marge) in het zoekvak`).toBeLessThanOrEqual(m.hulp.ruimte);
         // elke sorteeroptie past volledig wanneer ze gekozen is (in de ruimte naast de pijl)
         expect(m.sel.fs).toBeGreaterThanOrEqual(16);
-        for (const o of m.sel.opties) expect(o.breedte, `sorteerlabel "${o.tekst}" past niet`).toBeLessThanOrEqual(m.sel.ruimte);
+        for (const o of m.sel.opties) expect(o.breedte * SORTEER_MARGE, `sorteerlabel "${o.tekst}" past niet (met ${Math.round((SORTEER_MARGE - 1) * 100)} % marge)`).toBeLessThanOrEqual(m.sel.ruimte);
         // zoekvak op een eigen rij boven de sorteerkeuze; aantal blijft zichtbaar, naast de sorteerkeuze
         expect(m.zoekBoven).toBe(true);
         expect(m.zoekVol).toBeGreaterThan(breedte * 0.8);
@@ -309,6 +315,23 @@ test.describe('overige schermen en vensters (Open dag)', () => {
       });
     }
   }
+
+  test('wachtrij-balk op tablet 768x1024: zoeken, sorteren en aantal blijven op één rij, zoals voor taak 14', async ({ page }) => {
+    await zetWeergave(page, 'tablet');
+    await startApp(page, { viewport: { width: 768, height: 1024 } });
+    await expect(page.locator('html')).toHaveAttribute('data-apparaat', 'tablet');
+    const [z, s, t] = await Promise.all([page.locator('#wq-zoek').boundingBox(), page.locator('#wq-sorteer').boundingBox(), page.locator('#wq-teller').boundingBox()]);
+    for (const d of [s, t]) expect(Math.abs((d.y + d.height / 2) - (z.y + z.height / 2))).toBeLessThan(6);
+    expect(s.x).toBeGreaterThan(z.x + z.width - 1);
+    expect(t.x).toBeGreaterThan(s.x + s.width - 1);
+    // het zoekvak is geen volle rij en behoudt hoogte, lettergrootte en de zijmarge van de balk (max(14px, (100% - 740px) / 2 + 14px) = 28px op 768 px)
+    expect(z.width).toBeLessThan(768 * 0.8);
+    const cs = await page.evaluate(() => {
+      const zc = getComputedStyle(document.getElementById('wq-zoek')), sc = getComputedStyle(document.getElementById('wq-sorteer')), bc = getComputedStyle(document.querySelector('#view-tickets .wq-toolbar'));
+      return { h: parseFloat(zc.height), fs: zc.fontSize, padZ: zc.paddingLeft, sfs: sc.fontSize, padB: bc.paddingLeft };
+    });
+    expect(cs).toEqual({ h: 36, fs: '14px', padZ: '16px', sfs: '14px', padB: '28px' });
+  });
 
   test('wachtrij-balk op pc 1366x768: zoeken, sorteren en aantal blijven op één rij', async ({ page }) => {
     await startApp(page, { viewport: PC });
