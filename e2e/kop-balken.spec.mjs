@@ -11,6 +11,7 @@ const venster = (page) => page.locator('.sales-overlay.open');
 const TIM = { zohoNaam: 'Tim', magZelfPlannen: true };
 // Open dag (taak 5): op `breed` neemt de zijkolom links --zijkolom-b in (228 px + 2 × 14 px marge, css/navigatie.css).
 const ZIJKOLOM = 256;
+const BALK_MARGE = 14; // taak 12: op pc zijn de glazen balken onder de kop ronde balken met 14 px lucht rechts (net als het zwevende glas van de kop)
 
 const lead = (id, naam, extra = {}) => ({
   id, voornaam: 'Test', naam, gsm: null, email: null, postcode: '3500', gemeente: 'Hasselt', straat: null, huisnr: null, adresTekst: null,
@@ -126,7 +127,7 @@ test.describe('kalenderbalken: technieker en sales in dezelfde vorm', () => {
     const b = await breed.boundingBox();
     // Open dag (taak 5): op een computer staat links de zijkolom (--zijkolom-b = 256 px); "over de volle breedte" = de inhoudskolom ernaast.
     expect(b.x).toBe(ZIJKOLOM);
-    expect(b.width).toBe(1280 - ZIJKOLOM);
+    expect(b.width).toBe(1280 - ZIJKOLOM - BALK_MARGE);
     expect(b.height).toBeLessThanOrEqual(60); // één regel op een computer
 
     const { context, page: gsm } = await gsmPagina(browser);
@@ -155,7 +156,7 @@ test.describe('lijstbalken: Wachtrij en Leads', () => {
     await expect(page.locator('#ticket-list .lijst-balk')).toHaveCount(0);
     const b = await balk.boundingBox();
     const [z, s, t] = await Promise.all([page.locator('#wq-zoek').boundingBox(), page.locator('#wq-sorteer').boundingBox(), page.locator('#wq-teller').boundingBox()]);
-    expect(b.width).toBe(1280 - ZIJKOLOM); // Open dag (taak 5): de volle breedte naast de zijkolom
+    expect(b.width).toBe(1280 - ZIJKOLOM - BALK_MARGE); // Open dag (taak 5): de volle breedte naast de zijkolom
     for (const d of [z, s, t]) expect(Math.abs((d.y + d.height / 2) - (b.y + b.height / 2))).toBeLessThan(6); // één regel
     expect(t.x).toBeGreaterThan(s.x + s.width - 1); // de teller rechts
     // plakt onder de kop van de app als de pagina scrolt
@@ -170,7 +171,7 @@ test.describe('lijstbalken: Wachtrij en Leads', () => {
     const balk = page.locator('#view-sales-lijst .lijst-balk');
     await expect(balk).toHaveCount(1);
     const b = await balk.boundingBox();
-    expect(b.width).toBe(1280 - ZIJKOLOM); // Open dag (taak 5): de volle breedte naast de zijkolom
+    expect(b.width).toBe(1280 - ZIJKOLOM - BALK_MARGE); // Open dag (taak 5): de volle breedte naast de zijkolom
     const delen = [balk.getByRole('button', { name: '+ Lead' }), balk.getByRole('button', { name: 'Export laden' }), balk.getByRole('searchbox', { name: 'Zoeken' }), balk.getByLabel('Postcodegebied')];
     for (const d of delen) {
       const doos = await d.boundingBox();

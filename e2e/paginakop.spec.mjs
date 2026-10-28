@@ -157,6 +157,34 @@ test.describe('paginakop', () => {
     expect(laag.schaduw).toBe('none');
   });
 
+  // Open dag, taak 12 (Brent: "de hoek van de balk bovenaan is een rechte hoek"): op pc zweeft het glas van de kop als de zijkolom
+  // (zelfde straal, zelfde 14 px afstand tot de schermrand), met vier ronde hoeken; de balk eronder (zoeken, week) is een ronde glazen balk.
+  test('pc: het glas van de kop zweeft met ronde hoeken zoals de zijkolom', async ({ page }) => {
+    await startApp(page, { viewport: PC });
+    const laag = await page.locator('.topbar-sticky').evaluate((el) => {
+      const cs = getComputedStyle(el, '::before');
+      const kolom = getComputedStyle(document.querySelector('.tabs'));
+      return { tl: cs.borderTopLeftRadius, tr: cs.borderTopRightRadius, bl: cs.borderBottomLeftRadius, br: cs.borderBottomRightRadius, top: cs.top, right: cs.right, kolomStraal: kolom.borderTopLeftRadius };
+    });
+    for (const h of [laag.tl, laag.tr, laag.bl, laag.br]) expect(parseFloat(h)).toBeGreaterThan(0);
+    expect(laag.tl).toBe(laag.kolomStraal); // dezelfde straal als de zijkolom
+    expect(laag.top).toBe('14px');          // dezelfde afstand tot de bovenrand als de zijkolom
+    expect(laag.right).toBe('14px');
+    const balk = await page.locator('#view-tickets .lijst-balk').evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { tl: cs.borderTopLeftRadius, br: cs.borderBottomRightRadius };
+    });
+    expect(parseFloat(balk.tl)).toBeGreaterThan(0);
+    expect(parseFloat(balk.br)).toBeGreaterThan(0);
+  });
+
+  test('gsm: de kop blijft een vlak over de volle breedte (dok)', async ({ page }) => {
+    await startApp(page, { viewport: { width: 375, height: 812 } });
+    await expect(page.locator('html')).toHaveAttribute('data-nav', 'dok');
+    const laag = await page.locator('.topbar-sticky').evaluate((el) => { const cs = getComputedStyle(el, '::before'); return { top: cs.top, right: cs.right, left: cs.left }; });
+    expect(laag).toEqual({ top: '0px', right: '0px', left: '0px' });
+  });
+
   // Taak 8a: renderGepland is ook op allPending geabonneerd (koppelRenders), dus "wacht op bevestiging" volgt zonder tabwissel.
   test('Ingepland: de samenvatting volgt een gewijzigde allPending zonder tabwissel', async ({ page }) => {
     await startApp(page, { viewport: PC });

@@ -16,6 +16,7 @@
 
 :root {
   --zijkolom-b: 256px; /* 228 px kolom + 2 × 14 px marge */
+  --r-zijkolom: 30px;  /* straal van de zijkolom en van het zwevende glas van de kop (css/app.css, Kop en paginakop) */
   --dok-h: 0px;        /* js/sticky-offset.js zet de echte waarde; 0 bij de zijkolom */
 }
 
@@ -62,7 +63,7 @@ html[data-nav] .tabs {
   -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
   backdrop-filter: blur(var(--blur)) saturate(180%);
   border: 1px solid var(--glas-rand);
-  border-radius: 30px;
+  border-radius: var(--r-zijkolom);
   box-shadow: inset 0 1px 0 var(--glas-licht), var(--glas-schaduw);
 }
 
