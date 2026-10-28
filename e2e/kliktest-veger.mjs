@@ -73,7 +73,7 @@ const rust = (page, ms = 120) => metHerlaad(page, () => page.evaluate((t) => new
 export function maakContext(page, { verzoeken, consoleFouten, herstel, herstart }) {
   negeerSel = null;
   const ctx = {
-    page, verzoeken, consoleFouten, herstel, herstart, herstarts: 0, nietTerug: new Set(), // sleutels die ook na een herstart niet meer te vinden waren
+    page, verzoeken, consoleFouten, herstel, herstart, herstarts: 0, openers: new Map(), nietTerug: new Set(), // sleutels die ook na een herstart niet meer te vinden waren
     geklikt: 0, overgeslagen: [], geenGevolg: [], bevindingen: [], verdwenen: 0, vensters: [], populaties: {},
     gezien: new Set(), // handtekeningen van vensters die al doorgeklikt zijn (een identiek venster wordt niet nog eens doorgelopen)
     dialogen: 0, popups: 0,
@@ -185,13 +185,30 @@ async function veegRonde(ctx, { wortelSel, etiket, pad = [], diepte = 0, maxDiep
     }
     let lijst = await lijstIn(page, wortelSel);
     let idx = nthVan(lijst, sleutel, n);
-    if (idx < 0 && diepte === 0 && ctx.herstart && ctx.herstarts < 6 && !ctx.nietTerug.has(sleutel)) {
-      // Een eerdere klik veranderde het scherm blijvend (een andere week, de maandweergave, een uitgeklapte lijst): terug naar het begin
-      // (de opslag van de pagina zoals bij de start, herladen, het tabblad opnieuw openen) en de knop opnieuw zoeken.
+    if (idx < 0 && diepte > 0) {
+      // In een venster: een eerdere klik wisselde van onderdeel (een ander subtabblad): het venster opnieuw openen en nog eens zoeken.
+      if (await openPad(page, ctx, basisSel, pad)) { lijst = await lijstIn(page, wortelSel); idx = nthVan(lijst, sleutel, n); }
+    }
+    if (idx < 0 && diepte === 0 && ctx.herstart && ctx.herstarts < 8 && !ctx.nietTerug.has(sleutel)) {
+      // Een eerdere klik veranderde het scherm blijvend (een andere week, de maandweergave, de bewerkstand van Inventaris): terug naar het begin
+      // (de opslag van de pagina zoals bij de start, herladen, het tabblad opnieuw openen) en de knop opnieuw zoeken. Hoorde de knop bij een
+      // toestand die een eerdere klik opende (bv. "Bewerken"), dan wordt die klikketen herhaald om er weer te komen.
       ctx.herstarts++;
       await ctx.herstart();
       lijst = await lijstIn(page, wortelSel);
       idx = nthVan(lijst, sleutel, n);
+      if (idx < 0) {
+        const keten = [];
+        for (let k = sleutel; ctx.openers.has(k) && keten.length < 3; k = ctx.openers.get(k).sleutel) keten.unshift(ctx.openers.get(k));
+        for (const o of keten) {
+          const i = nthVan(lijst, o.sleutel, o.n);
+          if (i < 0) break;
+          await wortelLocator(page, wortelSel).locator(KLIKBAAR).nth(i).click({ timeout: 4000 }).catch(() => {});
+          await rust(page);
+          lijst = await lijstIn(page, wortelSel);
+        }
+        idx = nthVan(lijst, sleutel, n);
+      }
       if (idx < 0) ctx.nietTerug.add(sleutel);
     }
     if (idx < 0) { ctx.verdwenen++; if (process.env.KT_LOG) console.log('VERDWENEN', naam, 'n=' + n, 'nu=' + lijst.filter((x) => sleutelVan(x) === sleutel).length); continue; } // de lijst is door een eerdere klik veranderd (bv. een verdwenen kaart)
@@ -237,6 +254,10 @@ async function veegRonde(ctx, { wortelSel, etiket, pad = [], diepte = 0, maxDiep
       || ctx.dialogen > nDialogen || ctx.popups > nPopups;
     if (!effect) ctx.geenGevolg.push({ naam, detail: 'geen verandering in de pagina, geen verzoek en geen venster' });
 
+    // Verschenen er door deze klik knoppen die er nog niet waren (Bewerken, een uitgeklapte groep)? Dan is deze klik de opener van die knoppen.
+    if (diepte === 0 && naVensters.length <= voorVensters.length) {
+      for (const x of await lijstIn(page, wortelSel)) { const k = sleutelVan(x); if (!geklikt.has(k) && !ctx.openers.has(k)) ctx.openers.set(k, { sleutel, n }); }
+    }
     // Een venster dat net openging: één niveau dieper doorlopen (elk soort venster één keer per sweep).
     const nieuw = naVensters.length > voorVensters.length ? await markeerNieuwVenster(page, voorVensters) : null;
     if (nieuw && diepte < maxDiepte) {

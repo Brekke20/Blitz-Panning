@@ -27,8 +27,23 @@ const ZONDER_GEVOLG_TOEGESTAAN = [
   { patroon: /button#oorz-kop-toestel "Toestel ›"$/, reden: 'Rapportwizard: de groep Toestel staat al open (een groep kiezen is geen wisselknop).' },
   { patroon: /button\[data-actie=(bav-kind|av-kind)\] "🔒 Hele dag"$/, reden: 'Beschikbaarheden en blokvenster: "Hele dag" is al de gekozen soort (radioknop).' },
   { patroon: /button\[data-actie=dashboard-grenzen-standaard\] "Standaard terugzetten"$/, reden: 'Performance: de grenzen staan al op de standaardwaarden.' },
+  { patroon: /set-modal\] > button "✓"$/, reden: 'Instellingen, kleurkeuze: het gekozen staaltje (✓) kiezen bouwt dezelfde rij opnieuw op; er verandert niets.' },
   { patroon: /set-tab\]#set-subtab-(algemeen|toestel) "[^"]+"$/, reden: 'Instellingen: het subtabblad is al actief.' },
 ];
+
+// Plafond voor het aantal knoppen dat tijdens een sweep "verdwijnt" (niet meer te vinden na een eerdere klik, ook niet na een herstart en het
+// herhalen van de klikketen die ze liet verschijnen) en dus niet geklikt is. Zonder plafond kan de dekking ongemerkt dalen: dan zouden dode
+// knoppen ongezien blijven. Het plafond is de gemeten waarde plus marge (het aantal wisselt per run met de timing); gaat het erboven, dan is
+// de dekking gedaald: zoek de oorzaak en herstel de sweep, verhoog het plafond niet zonder reden. Standaard 2.
+// Vroeger (voor de bewaking) waren de waarden: Inventaris (Tim) 36, Kalender 5, sales Route 7, sales Leads 4, kop 9 tot 16, wizard 7.
+const PLAFOND_VERDWENEN = [
+  { patroon: /^(beheerder-planning|planner|technieker-plan-eigen)\/Kalender$/, max: 7, reden: 'Kalender (planning): kaarten en blokken die na inplannen, uitplannen of een andere week uit de lijst vallen (de stubs bewaren die wijzigingen).' },
+  { patroon: /^(sales|sales-manager|beheerder-sales)\/Leads$/, max: 6, reden: 'Sales Leads: "Bevestigen", "Terug" en "Ongedaan maken" bestaan enkel in een leadstatus die een eerdere klik (server-stub, blijft na een herstart) al veranderde.' },
+  { patroon: /^(sales|sales-manager|beheerder-sales)\/Route$/, max: 9, reden: 'Sales Route: de stops, het resultaatvenster en de kaartknoppen verdwijnen zodra een eerdere klik een lead afwerkt of verplaatst (server-stub, blijft na een herstart).' },
+  { patroon: /\/Beheer\/Gebruikers$/, max: 5, reden: 'Beheer, Gebruikers: "Verwijderen" staat enkel bij een geblokkeerde gebruiker; die toestand ontstaat pas door een klik en blijft in de server-stub.' },
+  { patroon: /\/(kop|gsm-kop-en-dok)$/, max: 7, reden: 'Kop: items van de persoonkiezer die na het wisselen van persoon of werkruimte anders heten of weg zijn.' },
+];
+const plafondVoor = (naam) => PLAFOND_VERDWENEN.find((p) => p.patroon.test(naam))?.max ?? 2;
 
 // Wacht tot een paneel geladen is en niet meer verandert (de sales-schermen laden lazy): twee gelijke metingen na elkaar.
 async function wachtTotStabiel(page, sel) {
@@ -65,7 +80,9 @@ function rapporteer(ctx, naam) {
   for (const o of s.overgeslagen) info.annotations.push({ type: 'overgeslagen', description: o });
   for (const v of s.vensters) info.annotations.push({ type: 'venster doorgeklikt', description: v });
   console.log(`KLIKSWEEP ${JSON.stringify({ naam, geklikt: s.geklikt, vensters: s.vensters.length, verdwenen: s.verdwenen, herstarts: s.herstarts, geenGevolg: s.geenGevolg, overgeslagen: s.overgeslagen, bevindingen: [...s.bevindingen, ...onverklaard] })}`);
+  info.annotations.push({ type: 'verdwenen (niet geklikt)', description: `${s.verdwenen} (plafond ${plafondVoor(naam)})` });
   expect([...s.bevindingen, ...onverklaard], `bevindingen in ${naam}`).toEqual([]);
+  expect(s.verdwenen, `dekking van ${naam}: te veel knoppen tijdens de sweep verdwenen en dus niet geklikt (plafond ${plafondVoor(naam)})`).toBeLessThanOrEqual(plafondVoor(naam));
 }
 
 test.describe('kliksweep per tabblad (pc)', () => {
@@ -194,10 +211,34 @@ test.describe('kliksweep rapportwizard (pc)', () => {
         stappen.push(label);
         await veeg(ctx, {
           wortelSel: '#rapport-wizard', etiket: `${rol.sleutel}/wizard ${label}`, maxDiepte: 1,
-          filter: (d) => !['wizard-sluit', 'wizard-volgende', 'wizard-terug'].includes(d.actie),
+          filter: (d) => !['wizard-sluit', 'wizard-volgende', 'wizard-terug'].includes(d.actie) && d.tekst !== 'Wijzig', // "Wijzig" springt naar een andere stap: apart hieronder
         });
         const [nu, rest] = label.split(' / ');
-        if (nu === rest.split(' ')[0]) break; // de laatste stap ("9 / 9 — Overzicht"): sluiten komt hieronder
+        if (nu === rest.split(' ')[0]) {
+          // De laatste stap ("9 / 9 — Overzicht"): elke knop "Wijzig" springt naar een eerdere stap, en Volgende brengt je terug naar het overzicht.
+          const wijzig = page.locator('#rapport-wizard .wiz-sam-wijzig');
+          const aantal = await wijzig.count();
+          for (let w = 0; w < aantal; w++) {
+            await wijzig.nth(w).click();
+            await expect(page.locator('#wiz-step-label'), `"Wijzig" nr. ${w + 1} springt naar een andere stap`).not.toHaveText(label);
+            ctx.geklikt++;
+            await page.locator('#wiz-btn-next').click();
+            // Een handtekeningstap laat je pas verder als er getekend is: teken een streep op het tekenvlak en ga dan verder.
+            if (/Handtekening/.test(await page.locator('#wiz-step-label').textContent())) {
+              const vlak = await page.locator('#rapport-wizard canvas:visible').first().boundingBox();
+              if (vlak) {
+                await page.mouse.move(vlak.x + vlak.width * 0.2, vlak.y + vlak.height * 0.5);
+                await page.mouse.down();
+                await page.mouse.move(vlak.x + vlak.width * 0.8, vlak.y + vlak.height * 0.4, { steps: 5 });
+                await page.mouse.up();
+                await page.locator('#wiz-btn-next').click();
+              }
+            }
+            await expect(page.locator('#wiz-step-label'), 'Volgende brengt terug naar het overzicht').toHaveText(label);
+          }
+          stappen.push(`${aantal}x Wijzig`);
+          break; // sluiten komt hieronder
+        }
         const volgende = page.locator('#wiz-btn-next');
         const tekst = (await volgende.textContent()).trim();
         await volgende.click();
@@ -212,7 +253,7 @@ test.describe('kliksweep rapportwizard (pc)', () => {
       // Sluiten met ✕ (de browser vraagt "Rapport sluiten?"; de sweep bevestigt dat) en controleren dat de wizard dicht is.
       await page.locator('[data-actie=wizard-sluit]').click();
       await expect(wizard).not.toHaveClass(/open/);
-      expect(stappen.length, 'alle stappen van de wizard doorlopen').toBe(9);
+      expect(stappen.length, 'alle stappen van de wizard doorlopen (en de Wijzig-knoppen)').toBe(10);
       console.log(`WIZARD ${JSON.stringify(stappen)}`);
       rapporteer(ctx, `${rol.sleutel}/wizard`);
     });
