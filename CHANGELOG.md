@@ -12,8 +12,8 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Unreleased]
 
-### Added
-- (nog niets sinds de laatste release)
+### Fixed
+- Op de gsm licht een knop in de onderste balk niet meer eerst vierkant op bij een tik.
 
 ## [2.5.0] — 2026-10-28
 
