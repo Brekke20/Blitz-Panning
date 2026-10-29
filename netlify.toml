@@ -54,3 +54,6 @@
 
 [functions.dashboard]
   timeout = 26
+
+[functions.tickets]
+  timeout = 20
