@@ -46,6 +46,7 @@ const TOEGESTAAN = ['localhost', '127.0.0.1', 'cdnjs.cloudflare.com', 'cdn.jsdel
 const vreemdeHosts = [];
 const TICKETS = maakDummyData(Date.now());
 
+const GEBRUIKER = { id: 'u-test', email: 'b@test.be', naam: 'Test Beheerder', rol: 'beheerder' };
 let vertraging = 0;
 function maakServer(PUBLIC) {
 const server = http.createServer((req, res) => {
@@ -54,7 +55,12 @@ const server = http.createServer((req, res) => {
     if (pad.startsWith('/api/')) {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       // /api/auth-ik: sinds de loginlaag (v2.x) toont de app zonder ingelogde gebruiker het inlogscherm; de stub geeft een beheerder (zoals meet-snelheid.mjs).
-      if (pad === '/api/auth-ik') return res.end(JSON.stringify({ gebruiker: { id: 'u-test', email: 'b@test.be', naam: 'Test Beheerder', rol: 'beheerder' }, rechten: { beheer: true, plannen: true, alleSales: true }, moetWachtwoordWijzigen: false, lokaleDev: false }));
+      if (pad === '/api/auth-ik') return res.end(JSON.stringify({ gebruiker: GEBRUIKER, rechten: { beheer: true, plannen: true, alleSales: true }, moetWachtwoordWijzigen: false, lokaleDev: false }));
+      // /api/instellingen: een GELDIG overzicht (zelfde vorm als netlify/functions/instellingen.js en de e2e-stub `overzicht(...)`) met
+      // eigen.gebruikerId = het id van de gebruiker hierboven. Met `{}` gooit de app een vroeg overzicht (O1, enkel in de optimalisatie) weg en
+      // doet ze een tweede, seriële aanroep: de meting zou dan een kunstmatig trage warme start geven. De baseline vraagt het overzicht pas
+      // na auth-ik en negeert het vroege verzoek; ze krijgt hier dus hetzelfde antwoord. Een PUT slaagt neutraal.
+      if (pad === '/api/instellingen') return res.end(JSON.stringify(req.method === 'PUT' ? { versie: 2 } : (new URL(req.url, 'http://localhost').searchParams.get('overzicht') === '1' ? { eigen: { gebruikerId: GEBRUIKER.id, versie: 1, instellingen: {} }, techniekers: {} } : { versie: 1, instellingen: {} })));
       return res.end(JSON.stringify(pad === '/api/tickets' ? TICKETS : {}));
     }
     const bestand = path.normalize(path.join(PUBLIC, pad === '/' ? 'index.html' : pad));
@@ -109,8 +115,12 @@ async function bezoek(page) {
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Network.enable');
   const lopend = new Map();
-  let verzoeken = 0, bytes = 0;
-  cdp.on('Network.requestWillBeSent', (e) => { verzoeken++; lopend.set(e.requestId, e.request.url); });
+  let verzoeken = 0, bytes = 0, authIk = 0, instellingen = 0; // authIk/instellingen: aantal opstartverzoeken (controle van de stubs; informatief)
+  cdp.on('Network.requestWillBeSent', (e) => {
+    verzoeken++; lopend.set(e.requestId, e.request.url);
+    const p = new URL(e.request.url).pathname;
+    if (p === '/api/auth-ik') authIk++; else if (p === '/api/instellingen') instellingen++;
+  });
   cdp.on('Network.loadingFinished', (e) => { bytes += e.encodedDataLength || 0; });
   const t0 = Date.now();
   await page.goto('/', { waitUntil: 'commit' });
@@ -121,7 +131,7 @@ async function bezoek(page) {
   // Even laten uitrollen: late verzoeken (kaart, planning-sinds) horen bij het bezoek.
   await new Promise(r => setTimeout(r, 1500));
   await cdp.detach();
-  return { verzoeken, kB: Math.round(bytes / 1024), klaarMs, wandMs };
+  return { verzoeken, kB: Math.round(bytes / 1024), klaarMs, wandMs, authIk, instellingen };
 }
 
 async function meetProfiel(profiel, variant = 'na') {
@@ -190,6 +200,7 @@ try {
         rijen.push({
           'server (ms)': v, profiel, variant: VOOR ? variant : '-', runs: m.length,
           'verzoeken': mediaan(m.map(x => x.verzoeken)), 'kB': mediaan(m.map(x => x.kB)),
+          'auth-ik': mediaan(m.map(x => x.authIk)), 'instellingen': mediaan(m.map(x => x.instellingen)),
           'mediaan klaar (ms, performance.now)': mediaan(m.map(x => x.klaarMs)), 'mediaan klaar (ms, muurtijd)': mediaan(m.map(x => x.wandMs)),
           'alle muurtijden': m.map(x => x.wandMs).join(' '),
         });

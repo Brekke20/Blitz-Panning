@@ -1,6 +1,6 @@
 // Interactiemeting: hoe vlot voelt de app tijdens gebruik (tabwissels, weekwissel, ticketdetail), hoeveel geheugen houdt hij vast na
 // een korte sessie en hoeveel foutmeldingen geeft hij? Buiten de suites; draai met
-//   node scripts/meet-interactie.mjs [--na=<map met public/>] [--voor=<map met public/>] [--runs=5] [--profiel=desktop,telefoon] [--json=<bestand>]
+//   node scripts/meet-interactie.mjs [--na=<map met public/>] [--voor=<map met public/>] [--runs=5] [--profiel=desktop,telefoon] [--uur=<0-23>] [--json=<bestand>]
 // Zonder --na wordt de public/ van deze checkout gemeten; met --voor draaien de runs AFWISSELEND (voor, na, na, voor, ...) in dezelfde
 // sessie, zodat een trend in de belasting van de machine beide varianten raakt. Tabel en JSON tonen de MEDIAAN en de spreiding (min-max).
 //
@@ -9,7 +9,8 @@
 //    de antwoordvormen komen uit e2e/helpers.mjs en e2e/fixtures, zodat de app geen fouten geeft op een leeg antwoord). Chromium met
 //    --host-resolver-rules (enkel localhost en de twee CDN-hosts). `?test`, rol coordinator (de standaard planner), ingelogd als beheerder.
 //  - Twee profielen: `desktop` (1440x900) en `telefoon` (375x812 @2x, aanraking, `blitz_weergave = 'gsm'`, CPU 4x trager).
-//  - Vaste klok: een init-script verschuift enkel `Date` (maandag 5 oktober 2026, 09:00 Brussel, daarna loopt de tijd gewoon door); timers,
+//  - Vaste klok: een init-script verschuift enkel `Date` (maandag 5 oktober 2026, 09:00 Brussel, of met `--uur=<0-23>` dat uur + 5 min, zodat de
+//    hemel `data-hemel` voor beide varianten gelijk en vast is; daarna loopt de tijd gewoon door); timers,
 //    requestAnimationFrame en performance.now blijven echt (page.clock zou die ook nepper maken en de meting vervalsen).
 //  - Gegevens: na de lading zet het script 30 tickets in de wachtrij en 28 geplande tickets over de werkweek via kern.toestand (zoals
 //    meet-snelheid.mjs; dezelfde 28 tonen Kalender, Ingepland en Route).
@@ -18,8 +19,10 @@
 //      Kalender, dan 6 weekwissels (volgende week = leeg, terug = de volle week), 2x een ticket openen vanuit de Kalender (en sluiten)
 //      ronde 2: Wachtrij, 2x een ticket openen vanuit de Wachtrij, Kalender, Route*, Ingepland, Inventaris, Rapporten
 //      ronde 3: Kalender, Route*, Ingepland, Inventaris, Rapporten, Wachtrij        (* enkel desktop)
-//  - Een tabwissel / weekwissel / detail is klaar als de render van dat scherm gebeurd is (tellers `kern.<scherm>.renderTelling()` of een
-//    DOM-mutatie in de container van het scherm) en daarna het volgende beeld getekend is; de tijd loopt in de pagina zelf
+//  - Een weekwissel / detail is klaar als de render van dat scherm gebeurd is (tellers `kern.<scherm>.renderTelling()` of een DOM-mutatie in de
+//    container van het scherm) en daarna het volgende beeld getekend is. Een tabwissel is RENDER-ONAFHANKELIJK klaar (een herhaald bezoek mag
+//    bewust niet hertekenen): het doelscherm is `.active` en zichtbaar en de container is 2 animatieframes stil (een render die toch loopt telt
+//    mee); enkel het EERSTE bezoek eist ook de render (teller of DOM-mutatie). Gelijk voor beide varianten. De tijd loopt in de pagina zelf
 //    (performance.now) vanaf de klik. De tijd is "klik tot getekend" (bij 4x CPU-vertraging op de telefoon).
 //  - Lange taken: PerformanceObserver `longtask` vanaf het begin van de pagina (lading en sessie samen en enkel de sessie).
 //  - Geheugen: `HeapProfiler.collectGarbage` en dan `Runtime.getHeapUsage` (usedSize) na de lading en na de sessie.
@@ -43,7 +46,11 @@ const NA = arg('na') ? path.resolve(arg('na')) : path.join(HIER, '..', 'public')
 const VOOR = arg('voor') ? path.resolve(arg('voor')) : null;
 const JSON_UIT = arg('json') ? path.resolve(arg('json')) : null;
 const PROFIELEN = (arg('profiel') || 'desktop,telefoon').split(',');
-const VASTE_NU = '2026-10-05T09:00:00+02:00'; // maandag, Europe/Brussels (zoals e2e/helpers.mjs)
+// --uur=<0-23>: het uur van Brussel waarop de vaste klok staat (dus de hemel: ochtend 5-10, middag 10-17, avond 17-21, nacht 21-5; kern/hemel.js).
+// Zonder --uur blijft het 09:00 (zoals voorheen); mét --uur staat de klok op dat uur + 5 minuten, zodat de hemel de hele run niet over een grens loopt.
+const UUR = arg('uur');
+if (UUR !== undefined && !(/^\d{1,2}$/.test(UUR) && Number(UUR) <= 23)) throw new Error(`--uur moet een geheel getal van 0 tot 23 zijn (kreeg '${UUR}')`);
+const VASTE_NU = `2026-10-05T${UUR === undefined ? '09:00' : `${String(Number(UUR)).padStart(2, '0')}:05`}:00+02:00`; // maandag, Europe/Brussels (zoals e2e/helpers.mjs)
 const START = Date.now();
 
 const mediaan = (l) => { const t = [...l].sort((a, b) => a - b); const m = t.length >> 1; return t.length % 2 ? t[m] : (t[m - 1] + t[m]) / 2; };
@@ -165,6 +172,17 @@ function installeerMeet({ vastNu }) {
     const id = setTimeout(() => af(false), max);
     if (klaar()) af(true);
   });
+  // Wacht tot `frames` animatieframes achter elkaar voorbij zijn zonder DOM-wijziging in `wortel` (elke wijziging begint de telling opnieuw);
+  // na `max` ms stopt het wachten hoe dan ook (een container die blijft muteren houdt de meting niet eeuwig op).
+  const stil = (wortel, frames, max) => new Promise(res => {
+    let n = 0, gedaan = false;
+    const af = () => { if (gedaan) return; gedaan = true; mo.disconnect(); clearTimeout(id); res(); };
+    const mo = new MutationObserver(() => { n = 0; });
+    mo.observe(wortel, { childList: true, subtree: true, characterData: true });
+    const id = setTimeout(af, max);
+    const stap = () => requestAnimationFrame(() => { if (gedaan) return; if (++n >= frames) af(); else stap(); });
+    stap();
+  });
   const tel = {
     tickets: () => window.kern.wachtrij.renderTelling(), kalender: () => window.kern.kalender.renderTelling(),
     gepland: () => window.kern.ingepland.renderTelling(), planning: () => window.kern.route.renderTelling(),
@@ -175,22 +193,34 @@ function installeerMeet({ vastNu }) {
 
   window.__meet = {
     sessieStart: null,
-    // Tabwissel: klik op het tabblad tot het scherm getekend is.
+    // Tabwissel: klik op het tabblad tot het scherm getekend is. Het afrondingssignaal is RENDER-ONAFHANKELIJK (gelijk voor elke variant): het
+    // doelscherm is `.active` en zichtbaar en de container is stil (de volgende 2 animatieframes zonder DOM-wijziging erin; een render die
+    // intussen start of loopt telt zo vanzelf mee, een hertekening die een variant bewust overslaat blokkeert niets). Alleen bij het EERSTE
+    // bezoek eist het script daarbovenop dat het scherm ook echt getekend is (render-teller omhoog, of een DOM-wijziging in de container):
+    // dat bezoek moet altijd renderen, dus daar blijft de meting de volledige opbouw tonen.
     async tab(naam) {
       const el = document.getElementById('tab-' + naam);
       const cont = document.querySelector(container[naam]);
       const eerste = !bezocht.has(naam); bezocht.add(naam);
       const voor = tel[naam] ? tel[naam]() : 0;
-      let klaar;
-      if (naam === 'kalender' || naam === 'gepland') klaar = () => view(naam).classList.contains('active') && tel[naam]() > voor;
-      else if (naam === 'inventaris' || naam === 'rapporten') klaar = () => view(naam).classList.contains('active') && !/Laden/.test(cont.textContent) && cont.children.length > 0 && gemuteerd;
-      else if (naam === 'planning' && eerste) klaar = () => view(naam).classList.contains('active') && gemuteerd;
-      else klaar = () => view(naam).classList.contains('active');
+      const actief = () => view(naam).classList.contains('active') && zichtbaar(view(naam));
+      const inhoud = () => !/Laden/.test(cont.textContent) && cont.children.length > 0;
       let gemuteerd = false;
+      let klaar;
+      if (eerste && (naam === 'kalender' || naam === 'gepland')) klaar = () => actief() && tel[naam]() > voor;
+      else if (eerste && (naam === 'inventaris' || naam === 'rapporten')) klaar = () => actief() && inhoud() && gemuteerd;
+      else if (eerste && naam === 'planning') klaar = () => actief() && gemuteerd;
+      else if (naam === 'inventaris' || naam === 'rapporten') klaar = () => actief() && inhoud();
+      else klaar = actief;
       const mo = new MutationObserver(() => { gemuteerd = true; }); mo.observe(cont, { childList: true, subtree: true, characterData: true });
       const t0 = performance.now();
       el.click();
-      const gelukt = await wacht([view(naam)], klaar, 4000);
+      await new Promise(r => setTimeout(r, 0)); // de eigen setTimeout(0)'s van de app (bv. activeerKalender) die bij de klik werden gepland, lopen eerst
+      let gelukt = await wacht([view(naam)], klaar, 4000);
+      if (gelukt) {
+        await stil(cont, 2, 1000); // render-onafhankelijk: 2 frames zonder wijziging in de container
+        gelukt = klaar(); // een hertekening in die frames mag het scherm niet leeg (Laden...) hebben achtergelaten
+      }
       const t1 = await teken();
       mo.disconnect();
       return { ms: t1 - t0, gelukt, eerste };
@@ -302,7 +332,7 @@ async function meetRun(profielNaam, variant) {
     const info = await page.evaluate(`(${vulData.toString()})()`);
     await page.waitForFunction(() => document.getElementById('cnt-tickets')?.textContent === '30' && document.querySelectorAll('#ticket-list .ticket').length === 30, null, { timeout: 30000 });
     await pauze(1500); // de laatste verzoeken en renders laten uitrollen
-    const apparaat = await page.evaluate(() => ({ app: document.documentElement.dataset.apparaat, nav: document.documentElement.dataset.nav, route: !!document.getElementById('tab-planning')?.getClientRects().length }));
+    const apparaat = await page.evaluate(() => ({ app: document.documentElement.dataset.apparaat, hemel: document.documentElement.dataset.hemel || '-', nav: document.documentElement.dataset.nav, route: !!document.getElementById('tab-planning')?.getClientRects().length }));
     if (telefoon && apparaat.app !== 'gsm') throw new Error(`geen gsm-weergave (${apparaat.app})`);
     const heapNaLaden = await heap(cdp);
 
