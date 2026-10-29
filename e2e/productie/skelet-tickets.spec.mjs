@@ -7,7 +7,7 @@
 // loopt enkel via page.clock.runFor: "op t = 100 ms" en "op t = 160 ms" zijn dus echte, vaste tijdstippen. Een skelet is "onzichtbaar" als
 // zijn dekking 0 is (het staat dan wel in de DOM: de plaats is gereserveerd); toBeVisible telt dekking 0 als zichtbaar en is hier niet bruikbaar.
 import {
-  test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, OPSTART_SCHRIJVEN, settle, TICKETS_STUB,
+  test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, OPSTART_SCHRIJVEN, settle, TICKETS_STUB, opslagStub,
 } from '../productie-hulp.mjs';
 
 const AUTH_OK = {
@@ -18,6 +18,21 @@ const AUTH_OK = {
     moetWachtwoordWijzigen: false,
     lokaleDev: false,
   },
+};
+// Een ingelogde technieker (Tim): de echte start van het dagelijkse toestel, zonder tabklik (pasRolBeperkingToe zet de Kalender open).
+const AUTH_TECHNIEKER = {
+  status: 200,
+  json: {
+    gebruiker: { id: 'u-test', email: 'b@test.be', naam: 'Test Technieker', rol: 'technieker', zohoNaam: 'Tim' },
+    rechten: { beheer: false, plannen: false, alleSales: false },
+    moetWachtwoordWijzigen: false,
+    lokaleDev: false,
+  },
+};
+const GSM = { width: 375, height: 812 };
+const zetGsm = async (page) => {
+  await page.setViewportSize(GSM);
+  await page.addInitScript(() => { if (window === window.top) localStorage.setItem('blitz_weergave', 'gsm'); });
 };
 const TAB = {
   wachtrij: /^Wachtrij(\s|,|$)/,
@@ -36,14 +51,14 @@ function poort() {
   return { belofte, vrij };
 }
 // Een tickets-stub die de eerste `vasthouden` aanvragen laat wachten tot `geef(antwoord)` en daarna direct antwoordt.
-function ticketsStub({ vasthouden = 1 } = {}) {
+function ticketsStub({ vasthouden = 1, antwoordNa } = {}) {
   const wacht = [];
   const t = {
     aanvragen: 0,
     geef(antwoord = { status: 200, json: structuredClone(TICKETS_STUB) }) { while (wacht.length) wacht.shift()(antwoord); },
     stub: () => {
       t.aanvragen++;
-      if (t.aanvragen > vasthouden) return { status: 200, json: structuredClone(TICKETS_STUB) };
+      if (t.aanvragen > vasthouden) return antwoordNa ? antwoordNa(t.aanvragen) : { status: 200, json: structuredClone(TICKETS_STUB) };
       return new Promise((r) => wacht.push(r));
     },
   };
@@ -58,15 +73,16 @@ const pauzeerKlok = async (page) => {
 
 // Start de app met een vastgehouden ticketlading en een stilstaande nepklok. auth-ik wacht tot de klok stilstaat: de opstart (en dus de
 // ticketlading en de 150 ms-timer) begint pas daarna. Geeft de stub terug; `geef()` laat de gegevens binnenkomen.
-async function startLaden(page, verzoeken, { technieker = 'all', vasthouden = 1, voorStart } = {}) {
+async function startLaden(page, verzoeken, { technieker = 'all', vasthouden = 1, antwoordNa, voorStart, authAntwoord = AUTH_OK, rol, extra = {} } = {}) {
   verwachtSchrijven(verzoeken, OPSTART_SCHRIJVEN);
   const auth = poort();
-  const t = ticketsStub({ vasthouden });
+  const t = ticketsStub({ vasthouden, antwoordNa });
   if (voorStart) await voorStart();
   await startAppProductie(page, {
     technieker,
+    ...(rol !== undefined ? { rol } : {}),
     wachtOpApp: false,
-    overschrijf: { 'auth-ik': async () => { await auth.belofte; return AUTH_OK; }, tickets: t.stub },
+    overschrijf: { 'auth-ik': async () => { await auth.belofte; return authAntwoord; }, tickets: t.stub, ...extra },
   });
   await pauzeerKlok(page);
   auth.vrij();
@@ -105,7 +121,8 @@ test.describe('laadskelet Kalender, Ingepland en Route (L1)', () => {
     await expect(page.locator('#week-grid .day-body > .skelet--tickets').first()).toHaveAttribute('aria-hidden', 'true');
     await expect(page.locator('#week-grid > .skelet-melding--tickets')).toHaveAttribute('role', 'status');
     await expect(page.locator('#week-grid > .skelet-melding--tickets')).toHaveText('Laden…');
-    await expect(page.locator('#week-grid .day-empty')).toHaveCount(0); // geen "—" per dag
+    await expect(page.locator('#week-grid .day-empty:not(.skelet)')).toHaveCount(0); // geen "—" per dag (het skelet zit in dezelfde doos)
+    expect((await page.locator('#week-grid .day-body').allInnerTexts()).join('')).not.toContain('—');
     expect((await page.locator('#week-grid .day-cap').allInnerTexts()).join(' ')).not.toMatch(/\d\s*\/\s*\d/); // geen "0/x" in de capaciteitskop
     // De gegevens komen binnen: de echte inhoud, geen skelet, geen aria-busy, het attribuut weg.
     t.geef();
@@ -369,6 +386,115 @@ test.describe('laadskelet Kalender, Ingepland en Route (L1)', () => {
     for (const k of ['x', 'y', 'b', 'h']) dichtbij(balkVoor[k], balkNa[k]);
     for (const k of ['x', 'y', 'b', 'h']) dichtbij(dagkopVoor[k], dagkopNa[k]);
     dichtbij(rasterVoor.y, rasterNa.y);
+    await settle(page);
+  });
+
+  // ── De hoogte van de pagina en de plaats van het uurraster verspringen niet (de Kalender op een gsm en op de computer) ──
+  test('Kalender op een gsm: een lege dag en het weekraster zijn even hoog met skelet als met de echte lege staat', async ({ page, verzoeken }) => {
+    await zetGsm(page);
+    const t = await startLaden(page, verzoeken, { technieker: 'Roel' }); // geen enkele dag heeft iets
+    await tab(page, 'kalender').click();
+    await page.clock.runFor(1);
+    await expect(page.locator('html')).toHaveAttribute('data-indeling', 'smal');
+    await page.clock.runFor(160);
+    const kolom = page.locator('.day-col[data-date="2026-10-06"] .day-body');
+    await expect(kolom.locator('.skelet--tickets')).toHaveCSS('opacity', '1');
+    const hoogteVoor = await doos(kolom);
+    // De kalenderbalk groeit met de pil "zonder datum" (Roel heeft een ticket zonder datum): dat is data, geen skelet; het weekraster zelf mag niet verspringen.
+    const rasterVoor = await doos(page.locator('#week-grid'));
+    t.geef();
+    await expect(page.locator('#cnt-tickets')).toHaveText('1');
+    await expect(page.locator('#week-grid .skelet')).toHaveCount(0);
+    await expect(kolom.locator('.day-empty')).toHaveCount(1);
+    const hoogteNa = await doos(kolom);
+    const rasterNa = await doos(page.locator('#week-grid'));
+    dichtbij(hoogteVoor.h, hoogteNa.h);
+    dichtbij(rasterVoor.h, rasterNa.h);
+    await settle(page);
+  });
+
+  test('Kalender op de computer: het uurraster begint op dezelfde hoogte met skelet als zonder', async ({ page, verzoeken }) => {
+    const t = await startLaden(page, verzoeken, { technieker: 'Roel' });
+    await tab(page, 'kalender').click();
+    await page.clock.runFor(1);
+    await page.clock.runFor(160);
+    const rooster = page.locator('.day-col[data-date="2026-10-06"] .tl-wrap');
+    await expect(page.locator('.day-col[data-date="2026-10-06"] .day-body .skelet--tickets')).toHaveCSS('opacity', '1');
+    const voor = await doos(rooster);
+    t.geef();
+    await expect(page.locator('#cnt-tickets')).toHaveText('1');
+    await expect(page.locator('#week-grid .skelet')).toHaveCount(0);
+    const na = await doos(rooster);
+    dichtbij(voor.y, na.y);
+    dichtbij(voor.h, na.h);
+    await settle(page);
+  });
+
+  test('de echte start van een technieker op een gsm (geen kopie, geen tabklik): skelet na 160 ms, daarna de echte inhoud en vandaag in beeld', async ({ page, verzoeken }) => {
+    await zetGsm(page);
+    const t = await startLaden(page, verzoeken, { rol: null, authAntwoord: AUTH_TECHNIEKER, technieker: 'all' });
+    await page.clock.runFor(1);
+    await expect(page.locator('#view-kalender')).toHaveClass(/active/);
+    await expect(page.locator('html')).toHaveAttribute('data-indeling', 'smal');
+    const vandaag = page.locator('.day-col[data-date="2026-10-05"]');
+    await expect(page.locator('#week-grid .day-body > .skelet--tickets').first()).toHaveCSS('opacity', '0');
+    expect(await attribuut(page)).toBeNull();
+    await page.clock.runFor(160);
+    await expect(page.locator('#week-grid .day-body > .skelet--tickets').first()).toHaveCSS('opacity', '1');
+    await expect(page.locator('#week-grid')).toHaveAttribute('aria-busy', 'true');
+    const inBeeld = () => vandaag.locator('.day-hdr').evaluate((el) => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight; });
+    expect(await inBeeld()).toBe(true);
+    const hoogteVoor = await doos(vandaag.locator('.day-body'));
+    t.geef();
+    await expect(page.locator('#cnt-tickets')).toHaveText('2'); // Tim
+    await expect(page.locator('#week-grid .skelet')).toHaveCount(0);
+    await expect(page.locator('#week-grid')).not.toHaveAttribute('aria-busy', /.*/);
+    expect(await inBeeld()).toBe(true);
+    dichtbij(hoogteVoor.h, (await doos(vandaag.locator('.day-body'))).h);
+    await settle(page);
+  });
+
+  // ── Enkel de EERSTE lading mag de stand op 'mislukt' zetten ──
+  test('een latere lading (Vernieuwen) die faalt terwijl de eerste nog loopt, laat het skelet staan', async ({ page, verzoeken }) => {
+    verwachtHttpFout(verzoeken, [{ pad: '/api/tickets', status: 500 }]);
+    const t = await startLaden(page, verzoeken, { technieker: 'Roel', antwoordNa: () => ({ status: 500, json: { error: 'x' } }) });
+    await tab(page, 'kalender').click();
+    await page.clock.runFor(1);
+    await page.clock.runFor(160);
+    await expect(page.locator('#week-grid .day-body > .skelet--tickets').first()).toHaveCSS('opacity', '1');
+    await page.locator('[data-actie="vernieuw"]').click();
+    await expect.poll(() => t.aanvragen).toBe(2);
+    await expect(page.locator('#empty-tickets')).toContainText('Kon tickets niet laden'); // de tweede lading is mislukt
+    await page.clock.runFor(1);
+    expect(await attribuut(page)).toBe('zichtbaar');
+    await expect(page.locator('#week-grid .day-body > .skelet--tickets').first()).toHaveCSS('opacity', '1');
+    await expect(page.locator('#week-grid .day-empty:not(.skelet)')).toHaveCount(0);
+    await expect(page.locator('#week-grid')).toHaveAttribute('aria-busy', 'true');
+    t.geef(); // de eerste lading slaagt alsnog
+    await expect(page.locator('#cnt-tickets')).toHaveText('1');
+    await expect(page.locator('#week-grid .skelet')).toHaveCount(0);
+    expect(await attribuut(page)).toBeNull();
+    await settle(page);
+  });
+
+  // ── Route met enkel eigen afspraken terwijl de tickets nog onbekend zijn ──
+  test('Route: met enkel een eigen afspraak op de dag staat er toch een skelet onderaan zolang de tickets onbekend zijn', async ({ page, verzoeken }) => {
+    const afspraak = { id: 'a1', titel: 'Teamoverleg', datum: '2026-10-05', uur: '14:00', einduur: '15:00', type: 'Afspraak', persoon: null, adres: 'Kantoor Geel', notitie: '', telefoon: '', email: '', bron: 'manueel', origResp: null };
+    verwachtSchrijven(verzoeken, ['/api/optimize', '/api/route', '/api/drukte']); // de Route-tab rekent een dag met een afspraak met adres vanzelf door (nepantwoorden)
+    const t = await startLaden(page, verzoeken, { technieker: 'Roel', extra: { afspraken: opslagStub({ versie: 1, afspraken: [afspraak] }, 'afspraken') } });
+    await tab(page, 'route').click();
+    await page.clock.runFor(1);
+    const lijst = page.locator('#route-list');
+    await expect(lijst.locator('.stop')).toHaveCount(1);
+    await expect(lijst.locator('.skelet--tickets')).toHaveCount(1);
+    await expect(lijst).toHaveAttribute('aria-busy', 'true');
+    await page.clock.runFor(160);
+    await expect(lijst.locator('.skelet--tickets')).toHaveCSS('opacity', '1');
+    t.geef();
+    await expect(page.locator('#cnt-tickets')).toHaveText('1');
+    await expect(lijst.locator('.skelet')).toHaveCount(0);
+    await expect(lijst.locator('.stop')).toHaveCount(1);
+    await expect(lijst).not.toHaveAttribute('aria-busy', /.*/);
     await settle(page);
   });
 });

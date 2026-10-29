@@ -7,7 +7,7 @@
 import { toestand } from '../kern/toestand.js';
 import { magPlannenVoor, huidigeRechten, huidigeGebruiker } from '../kern/sessie.js';
 import { escHtml, zetPressed, registreerActies, registreerWijzigActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
-import { bouwTicketsSkelet, bouwTicketsMelding } from '../kern/skelet.js';
+import { bouwTicketsMelding } from '../kern/skelet.js';
 import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, volgendeWerkdagVan, openingsDatum } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
 import {
@@ -588,7 +588,9 @@ function renderKalenderInhoud() {
   const grid = document.getElementById('week-grid');
   const isDesktopTijdlijnWeek = window.apparaat.indeling !== 'smal';
   // L1: zolang de tickets onbekend zijn (geen bewaarde kopie, nog geen lading) is "—" per dag en "0/x" in de kop een lege staat die op "niets
-  // gepland" lijkt: een skeletkaartje per dagkolom (en een blokje i.p.v. de capaciteit), onzichtbaar tot app.js het attribuut zet (150 ms).
+  // gepland" lijkt: een skeletbalkje (DAG_SKELET) in precies de doos van die "—" (zelfde opvulling, één regel: de hoogte van de pagina en de
+  // plaats van de uren verspringen dus niet als de gegevens binnenkomen) en een blokje i.p.v. de capaciteit, onzichtbaar tot app.js het
+  // attribuut zet (150 ms). Een kolom met een afspraak of rapportkaart krijgt het niet: de "—" wordt daar ook weggehaald.
   const ticketsLaden = !afh.ticketsBekend();
   if (ticketsLaden) grid.setAttribute('aria-busy', 'true'); else grid.removeAttribute('aria-busy');
   // scrollpositie bewaren: innerHTML = '' zet die anders terug op 0 bij elke her-render (polling)
@@ -630,7 +632,7 @@ function renderKalenderInhoud() {
         </button>
       </div>
       <div class="day-body${holidayName ? ' holiday-day' : isDayBlocked ? ' blocked-day' : ''}" id="daybody-${dateStr}">
-        ${dayStops.length === 0 && !ticketsLaden ? '<div class="day-empty">—</div>' : ''}
+        ${dayStops.length === 0 ? (ticketsLaden ? DAG_SKELET : '<div class="day-empty">—</div>') : ''}
       </div>`;
 
     // Lokale afspraken (import / manueel)
@@ -647,8 +649,6 @@ function renderKalenderInhoud() {
     );
 
     const dayBodyEl = col.querySelector('.day-body');
-    // Ook in een kolom met een afspraak of rapportkaart: anders leest een dag met enkel een afspraak als "geen tickets" (M-L1-2).
-    if (ticketsLaden) dayBodyEl.appendChild(bouwTicketsSkelet('kaarten', { aantal: 1, variant: 'kal' }));
     const isDesktopTijdlijn = window.apparaat.indeling !== 'smal';
     if (isDesktopTijdlijn) {
       dayBodyEl.appendChild(renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, col.querySelector('.day-hdr')));
@@ -836,6 +836,9 @@ function kalToday() {
   toestand.spoel(); // eerst tekenen, daarna scrollen
   kalAutoScroll(true);
 }
+
+// Het skelet van een lege dagkolom: dezelfde doos als `.day-empty` ("—"), met een balkje i.p.v. de tekst (css/base.css, `.skelet--kal`).
+const DAG_SKELET = '<div class="day-empty skelet skelet--tickets skelet--kal" aria-hidden="true"><span class="skelet-blok"></span></div>';
 
 function renderMonthView(today) {
   // Maand = de maand van de gedeelde gekozen datum

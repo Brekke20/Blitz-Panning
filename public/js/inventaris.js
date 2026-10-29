@@ -44,14 +44,18 @@ const TYPE_LABEL = { aanvulling: 'Aanvulling', correctie: 'Correctie', verbruik:
 let _invSkelet = null;
 let _invBezig = 0; // lopende ladingen: zolang er geen gegevens zijn (geen kopie) en een lading loopt, tekent renderInventaris niets (zie daar)
 
+function stopInvSkelet() { if (_invSkelet) { _invSkelet.stop(); _invSkelet = null; } }
+/** Zijn de gegevens gekend (bewaarde kopie of een geslaagde lading)? */
+export function isInventarisGeladen() { return _invGeladen; }
+
 export async function loadInventaris() {
   const cached = loadFromCache(INV_CACHE_KEY);
   if (cached) { _invData = cached; _invGeladen = true; }
   const body = document.getElementById('inventaris-body');
   const laadEl = document.getElementById('inventaris-laden');
-  const skelet = !_invGeladen && body && laadEl && !_invSkelet
-    ? (_invSkelet = toonSkelet(body, { vorm: 'rijen', isLeeg: () => !_invGeladen && body.firstElementChild === laadEl && body.children.length === 1, verberg: [laadEl] }))
-    : null;
+  if (!_invGeladen && body && laadEl && !_invSkelet) {
+    _invSkelet = toonSkelet(body, { vorm: 'rijen', isLeeg: () => !_invGeladen && body.firstElementChild === laadEl && body.children.length === 1, verberg: [laadEl] });
+  }
   _invBezig++;
   try {
     const res = await fetch(INV_API);
@@ -59,13 +63,14 @@ export async function loadInventaris() {
     const data = await res.json();
     _invData = data;
     _invGeladen = true;
+    stopInvSkelet(); // de gegevens zijn er: het skelet maakt plaats, ook als een andere lading nog loopt
     saveToCache(INV_CACHE_KEY, data);
     verwerkVerbruikWachtrij();
   } catch (err) {
     console.warn('Inventaris laden mislukt, laatst gekende stand blijft staan:', err);
   } finally {
     _invBezig--;
-    if (skelet) { skelet.stop(); _invSkelet = null; }
+    if (_invBezig === 0) stopInvSkelet(); // mislukt: pas als geen enkele lading meer loopt (anders valt een tweede lading terug op kale "Laden...")
   }
 }
 
@@ -100,6 +105,7 @@ export function renderInventaris(persoon) {
 function doRenderInventaris(persoon) {
   const body = document.getElementById('inventaris-body');
   if (!body) return;
+  if (!_invSkelet) body.removeAttribute('aria-busy'); // er staat inhoud en geen skelet meer: het vak is niet meer bezig
 
   if (persoon === 'all') {
     body.innerHTML = renderSupervisorLog();

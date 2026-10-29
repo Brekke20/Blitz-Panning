@@ -32,7 +32,9 @@ async function volgSkeletten(page) {
 // De wachtrij (testmodus: dummy-tickets na 400 ms) toont bij de start zelf een skelet; de andere schermen worden zonder dat vak bekeken.
 // De skeletten van Kalender, Ingepland en Route (L1, `skelet--tickets`) staan zolang de tickets onbekend zijn al in de DOM (onzichtbaar tot 150 ms
 // na de start van de ticketlading; e2e/productie/skelet-tickets.spec.mjs test ze): ze horen niet bij de schermen die deze specs bekijken.
-const gezien = async (page, { metWachtrij = false } = {}) => (await page.evaluate(() => window.__skeletten)).filter(s => !s.tickets && (metWachtrij || s.vak !== 'ticket-list'));
+// Enkel de drie containers van L1 (dagkolom, Ingepland, routelijst; de capaciteitskop in de dagkop): een skelet ergens anders telt gewoon mee.
+const TICKETS_VAKKEN = /^(daybody-|gep-body$|route-list$)|day-cap/;
+const gezien = async (page, { metWachtrij = false } = {}) => (await page.evaluate(() => window.__skeletten)).filter(s => !(s.tickets && TICKETS_VAKKEN.test(s.vak)) && (metWachtrij || s.vak !== 'ticket-list'));
 
 const GEBRUIKERS = [
   { id: 'u-test', email: 'b@test.be', naam: 'Test Beheerder', rol: 'beheerder', actief: true, laatsteLogin: null, aangemaakt: '2026-09-01T08:00:00.000Z', moetWachtwoordWijzigen: false },

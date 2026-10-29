@@ -427,6 +427,11 @@ export function renderRouteList(date) {
     stop.querySelector('.btn-ev-details')?.addEventListener('click', () => afh.openLocalEventDetail(entry.item));
     list.appendChild(stop);
   });
+  // Enkel eigen afspraken op de lijst terwijl de tickets nog onbekend zijn: de ticketstops ontbreken nog, dus een skelet onderaan (en aria-busy).
+  if (!afh.ticketsBekend() && !stops.length) {
+    list.setAttribute('aria-busy', 'true');
+    list.append(bouwTicketsSkelet('kaarten', { aantal: 1, variant: 'lijst' }), bouwTicketsMelding());
+  }
 
   // Eén sorteer-instantie per render: de vorige eerst vernietigen (geen dubbele listeners).
   // De .stop-kaartjes staan in DOM-volgorde 1:1 met allStops (stop-leg-regels zijn andere

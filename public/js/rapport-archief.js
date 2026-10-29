@@ -132,6 +132,7 @@ export function renderRapportArchief() {
   // Het archief is nog nooit geladen en de eerste lading loopt (de vaste "Laden…"-regel of het skelet staat er nog): geen "Nog geen rapporten
   // gearchiveerd." eroverheen. Dat beweerde een lege staat vóór de gegevens er zijn (flushOutbox hertekent bij de start); de lading tekent zelf.
   if (!_rapportArchief.length && _archiefVersie === null && body.querySelector('#rapp-archief-laden, .skelet')) return;
+  if (!_laadSkelet) body.removeAttribute('aria-busy'); // er staat inhoud en geen skelet meer: het vak is niet meer bezig
   if (!_rapportArchief.length) {
     body.innerHTML = '<div class="rapporten-leeg" style="color:var(--muted);font-size:0.82rem;padding:20px 0">Nog geen rapporten gearchiveerd.</div>';
     return;

@@ -43,7 +43,7 @@ import { openPrijsBeheer, closePrijsBeheer, prijsReset, prijsOpslaan, loadPrijze
 import { openRapport, calcWerktijdMin, closeWizard, wizBack, wizNext } from './rapport-wizard.js';
 import { _rapportArchief, _archiefVersie, zetArchiefVersie, laadRapportArchief, setRapportFilter, renderRapportArchief, herOpenRapport } from './rapport-archief.js';
 import { refreshOutboxCache, flushOutbox, _outboxInFlight } from './outbox.js';
-import { _invData, loadInventaris, renderInventaris, updateInventarisBadge, resetInvSeenLog, meldLageVoorraadBijStart } from './inventaris.js';
+import { _invData, loadInventaris, isInventarisGeladen, renderInventaris, updateInventarisBadge, resetInvSeenLog, meldLageVoorraadBijStart } from './inventaris.js';
 import { appConfirm } from './app-dialog.js';
 import { APP_VERSIE, leesVersie } from './versie.js';
 import { registreerVenster } from './venster.js';
@@ -104,7 +104,7 @@ function startInvPoll() {
     if (get('activeAssigneeFilter') !== 'all') return;
     const versieVoor = _invData.versie;
     loadInventaris().then(() => {
-      if (_invData.versie === versieVoor) return; // niets gewijzigd -- geen onnodige re-render
+      if (_invData.versie === versieVoor && isInventarisGeladen()) return; // niets gewijzigd -- geen onnodige re-render (zonder gegevens wel: dan staat er nog niets getekend)
       metBehoudScroll(() => {
         renderInventaris(get('activeAssigneeFilter'));
         updateInventarisBadge(get('activeAssigneeFilter'));
@@ -645,7 +645,8 @@ async function loadTickets({ stilleToast = false, stil = false, zonderCache = fa
     buildPersonSelector(); // een mislukte lading verandert de toestand niet, dus geen abonnee-render: de kiezer toch (her)bouwen
     // Eerste lading mislukt zonder kopie: geen skelet meer, de lege staat en de foutmelding hieronder. Er is geen toestandswijziging, dus geen
     // abonnee-render: de schermen expliciet hertekenen (O3: Kalender en Ingepland slaan een tabwissel over als ze 'vers' zijn, dus markeren).
-    if (ticketsStand.mislukt()) hertekenNaMisluktEersteLading();
+    // Enkel de EERSTE lading telt: een latere (Vernieuwen, terugkeer, resync) die faalt terwijl de eerste nog loopt, maakt van 'onbekend' geen 'mislukt'.
+    if (eersteLading && ticketsStand.mislukt()) hertekenNaMisluktEersteLading();
     const rauw = err.message || '';
     const msg = foutTekst(err) || '';
     const isAuth = /401|403|invalid.token|expired|unauthorized/i.test(rauw);
