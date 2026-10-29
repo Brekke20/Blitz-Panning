@@ -84,6 +84,8 @@ function markeerIngelogd(b) {
   if (b.gebruiker) huidigeMeting()?.zetIngelogd();
 }
 
+// Let op: voor V1-functies (die in productie achter alsV2 draaien) meet `totaal` niet het bouwen van het event en het
+// omzetten naar een Response door alsV2; die zitten buiten de wrapper.
 export function beveiligV1(naam, handler, { auth } = {}) {
   controleerNaam(naam);
   const uitvoer = async (event, context) => {

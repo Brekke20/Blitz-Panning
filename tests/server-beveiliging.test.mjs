@@ -71,28 +71,37 @@ for (const naam of WRAPPER_FUNCTIES) {
     }
   });
 
-  test(`${naam}: per methode en rol precies de rijen uit de rechtentabel`, async () => {
-    const f = await laad(naam);
-    for (const methode of methodes) {
-      const toegelaten = regelVoor(naam, methode);
-      for (const rol of ROLLEN) {
-        const oproepen = [];
-        zetKernSpyVoorTests(spyVoor(f, oproepen));
-        const r = await metRol(rol, async () => ontleed(f, await roep(f, naam, methode)));
-        if (toegelaten.includes(rol)) {
-          assert.equal(oproepen.length, 1, `${naam} ${methode} ${rol}: kern niet precies 1x aangeroepen`);
-          assert.equal(oproepen[0].naam, naam);
-          assert.equal(oproepen[0].methode, methode);
-          assert.equal(oproepen[0].gebruiker.rol, rol);
-          assert.equal(r.status, 200);
-        } else {
-          assert.equal(oproepen.length, 0, `${naam} ${methode} ${rol}: kern aangeroepen`);
-          assert.equal(r.status, 403, `${naam} ${methode} ${rol}`);
-          assert.equal(r.body.code, 'geen-recht', `${naam} ${methode} ${rol}`);
+  for (const metMetingAan of [false, true]) {
+    test(`${naam}: per methode en rol precies de rijen uit de rechtentabel${metMetingAan ? ' (meting aan: zelfde uitkomst)' : ''}`, async () => {
+      const f = await laad(naam);
+      // De meting (S1) mag de beslissing nooit veranderen: dezelfde matrix, nu met de seam aan (logregels onderdrukt).
+      const oudLog = console.log;
+      if (metMetingAan) { zetMetingVoorTests(true); console.log = () => {}; }
+      try {
+      for (const methode of methodes) {
+        const toegelaten = regelVoor(naam, methode);
+        for (const rol of ROLLEN) {
+          const oproepen = [];
+          zetKernSpyVoorTests(spyVoor(f, oproepen));
+          const r = await metRol(rol, async () => ontleed(f, await roep(f, naam, methode)));
+          if (toegelaten.includes(rol)) {
+            assert.equal(oproepen.length, 1, `${naam} ${methode} ${rol}: kern niet precies 1x aangeroepen`);
+            assert.equal(oproepen[0].naam, naam);
+            assert.equal(oproepen[0].methode, methode);
+            assert.equal(oproepen[0].gebruiker.rol, rol);
+            assert.equal(r.status, 200);
+          } else {
+            assert.equal(oproepen.length, 0, `${naam} ${methode} ${rol}: kern aangeroepen`);
+            assert.equal(r.status, 403, `${naam} ${methode} ${rol}`);
+            assert.equal(r.body.code, 'geen-recht', `${naam} ${methode} ${rol}`);
+          }
         }
       }
-    }
-  });
+      } finally {
+        if (metMetingAan) { console.log = oudLog; zetMetingVoorTests(null); }
+      }
+    });
+  }
 
   if (zonderRegel.length && !Object.hasOwn(rij, '*')) {
     test(`${naam}: een methode zonder regel krijgt 405 van de wrapper, zonder kern`, async () => {

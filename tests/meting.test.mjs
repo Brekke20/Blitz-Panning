@@ -108,6 +108,18 @@ test('zoho(): leest de limietkoppen enkel als getal en negeert al het andere', a
   assert.equal(l.zn, 4);
 });
 
+test('zoho(): bij gelijktijdige antwoorden blijft de laagste rest staan en het hoogste gewicht', async () => {
+  const m = maakMeting({ nu: klok().nu, koud: GEEN_KOUD });
+  const met = (rest, gewicht) => ({ headers: new Headers({ 'X-Rate-Limit-Remaining-v3': rest, 'X-Rate-Limit-Request-Weight-v3': gewicht }) });
+  await m.zoho(async () => met('2990', '3'));
+  await m.zoho(async () => met('2980', '1'));
+  await m.zoho(async () => met('2995', '1'));
+  m.sluit();
+  const l = m.logObject({ f: 'tickets', m: 'GET', s: 200 });
+  assert.equal(l.zohoRest, 2980);
+  assert.equal(l.zohoGewicht, 3);
+});
+
 test('zoho(): gooit de fetch, dan telt de aanroep mee en komt dezelfde fout terug', async () => {
   const k = klok();
   const m = maakMeting({ nu: k.nu, koud: GEEN_KOUD });
@@ -225,6 +237,22 @@ test('draaiMetMeting(): v1 geeft een kopie met de kop en laat het origineel onge
     await assert.rejects(() => draaiMetMeting(m2, { f: 'prijzen', methode: 'GET' }, async () => { throw fout; }, 'v1'), e => e === fout);
     assert.equal(logs.length, 2);
     assert.match(logs[1], /"s":null/);
+  } finally {
+    console.log = oud;
+  }
+});
+
+test('draaiMetMeting(): v1 met een ongeldige statusCode wordt als 500 gelogd (zoals alsV2 het naar de client stuurt)', async () => {
+  const logs = [];
+  const oud = console.log; console.log = (...a) => logs.push(a.join(' '));
+  try {
+    for (const statusCode of [undefined, 99, 600, 200.5, 'abc']) {
+      const m = maakMeting({ nu: klok().nu, koud: GEEN_KOUD });
+      await draaiMetMeting(m, { f: 'x', methode: 'GET' }, async () => ({ statusCode, headers: {}, body: '' }), 'v1');
+    }
+    const m = maakMeting({ nu: klok().nu, koud: GEEN_KOUD });
+    await draaiMetMeting(m, { f: 'x', methode: 'GET' }, async () => ({ statusCode: 204, headers: {} }), 'v1');
+    assert.deepEqual(logs.map(l => JSON.parse(l.slice('[meting] '.length)).s), [500, 500, 500, 500, 500, 204]);
   } finally {
     console.log = oud;
   }

@@ -8,9 +8,11 @@
 //   blobs-auth  daarbinnen: getStore + leesGebruikers (auth.js)
 //   kern        de functie zelf (niet bij een weigering)
 //   zoho        som van de tijd tot de ANTWOORDKOP van elke Zoho-aanroep. Het lezen van de body telt niet mee,
-//               dus `kern - zoho` is niet enkel eigen rekenwerk. n = ALLE Zoho-aanroepen van het verzoek (token en
-//               org-id inbegrepen, dus exact het aantal fetch-aanroepen naar accounts.zoho.eu en desk.zoho.eu);
-//               max = de hoogste gelijktijdigheid binnen dat verzoek.
+//               dus `kern - zoho` is niet enkel eigen rekenwerk. n telt gestarte Zoho-aanroepen (token en org-id
+//               inbegrepen, dus exact het aantal fetch-aanroepen naar accounts.zoho.eu en desk.zoho.eu); `zoho` telt
+//               enkel de aanroepen die vóór het antwoord klaar waren. max = de hoogste gelijktijdigheid binnen dat verzoek.
+//   zohoRest    laagste X-Rate-Limit-Remaining-v3 die dit verzoek zag (bij gelijktijdige aanroepen komen antwoorden in
+//               willekeurige volgorde terug); zohoGewicht = hoogste X-Rate-Limit-Request-Weight-v3
 //   zoho-token  daarvan enkel de tokenaanvraag (0 als het token uit de cache kwam)
 //   koud        process.uptime() in ms bij de eerste meting van de instantie, daarna 0
 //   totaal      van het begin van de wrapper tot het antwoord klaar is
@@ -84,8 +86,8 @@ export function maakMeting({
       if (!h || typeof h.get !== 'function') return;
       const rest = enkelCijfers(h.get('X-Rate-Limit-Remaining-v3'));
       const gewicht = enkelCijfers(h.get('X-Rate-Limit-Request-Weight-v3'));
-      if (rest !== null) z.rest = rest;
-      if (gewicht !== null) z.gewicht = gewicht;
+      if (rest !== null) z.rest = z.rest === null ? rest : Math.min(z.rest, rest);
+      if (gewicht !== null) z.gewicht = z.gewicht === null ? gewicht : Math.max(z.gewicht, gewicht);
     } catch { /* koppen enkel lezen; nooit een fout */ }
   }
 
@@ -215,7 +217,9 @@ export async function draaiMetMeting(m, { f, methode }, werk, soort) {
   } catch {
     uit = res;
   }
-  const status = soort === 'v1' ? res?.statusCode : res?.status;
+  // V1: alsV2 stuurt de client een 500 als statusCode geen geheel getal van 200 tot 599 is; het log zegt dat ook.
+  const v1 = Number(res?.statusCode);
+  const status = soort === 'v1' ? (Number.isInteger(v1) && v1 >= 200 && v1 <= 599 ? v1 : 500) : res?.status;
   schrijfLog(m, f, methode, status);
   return uit;
 }
