@@ -57,3 +57,7 @@
 
 [functions.tickets]
   timeout = 20
+
+# Geplande voorlading van de tickets (draait elke 2 minuten, schema staat in de functie zelf): een lading duurt 4 tot 6 s.
+[functions.tickets-vooraf]
+  timeout = 26

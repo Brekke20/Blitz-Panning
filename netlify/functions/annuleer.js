@@ -16,6 +16,7 @@ import {
   REDENEN, valideerAnnulatie, valideerRedenToelichting, bouwAnnulatieMail, bouwAnnulatieNotitie, escHtml,
 } from '../lib/annulatie.js';
 import { beveiligV2 } from '../lib/beveiligd.js';
+import { metTicketsVerouderd } from '../lib/tickets-snapshot.js';
 import { logVoorVerzoek } from '../lib/activiteit.js';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -252,6 +253,7 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
   };
 }
 
-export default beveiligV2('annuleer', maakHandler({ getStore, fetch: globalThis.fetch }));
+// Na elke wijzigende aanroep (ook een mislukte: er kan al iets in Zoho staan) markeert metTicketsVerouderd de ticket-momentopname als verouderd.
+export default beveiligV2('annuleer', metTicketsVerouderd(maakHandler({ getStore, fetch: globalThis.fetch })));
 
 export const config = { path: '/api/annuleer' };

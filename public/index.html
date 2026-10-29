@@ -152,6 +152,7 @@
   <link rel="modulepreload" href="/js/kern/tijd.js">
   <link rel="modulepreload" href="/js/kern/ui.js">
   <link rel="modulepreload" href="/js/kern/skelet.js">
+  <link rel="modulepreload" href="/js/kern/gegevens-stand.js">
   <link rel="modulepreload" href="/js/kern/selecties.js">
   <link rel="modulepreload" href="/js/kern/api.js">
   <link rel="modulepreload" href="/js/kern/netwerk.js">
@@ -302,6 +303,9 @@
 <span id="outbox-live" class="sr-only" aria-live="polite" aria-atomic="true"></span>
 
 <main id="hoofdinhoud" tabindex="-1">
+
+<!-- Zoho even niet bereikbaar: de tickets komen uit de laatste goede momentopname van de server (X-Blitz-Verouderd, kern/gegevens-stand.js). Standaard verborgen; app.js (zetVerouderdBalk) toont en wist hem. -->
+<div id="tickets-verouderd" role="status" hidden></div>
 
 <!-- ══ TICKETS TAB ══ -->
 <div class="view active" id="view-tickets" role="tabpanel" aria-labelledby="tab-tickets">

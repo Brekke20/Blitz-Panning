@@ -12,6 +12,7 @@ const NIET_KOPIEREN = [
   /^client-log/, /^foutenlog$/, /^rapport-verzend-status/, /^foto-/, /^rapport-inhoud\//,
   /^gebruikers$/, /^login-pogingen$/, /^login-laatst$/, /^herstel-noodroute$/, /^activiteit\//,
   /^sales\//, // verkopersleads (persoonsgegevens van klanten): nooit naar de testopslag kopiëren
+  /^tickets-snapshot/, // momentopname van de Zoho-tickets (namen, e-mails, telefoons en adressen van klanten): nooit naar de testopslag kopiëren
 ];
 
 let kopieKlaar = false;   // geheugenvlag per koude start

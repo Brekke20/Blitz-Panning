@@ -1,7 +1,9 @@
 // Gedeelde Zoho-onderdelen: token, org-id, headers en een verzoek-helper.
 // Gedrag is byte-identiek aan de vroegere losse kopieën in de functies (etappe 6, W5/W11):
-// de tokencache leeft in de instantie (nooit in module-scope), het org-id wordt niet gecachet,
-// en env-variabelen worden bij elke aanroep gelezen.
+// de tokencache leeft in de instantie (nooit in module-scope), het org-id wordt standaard niet gecachet,
+// en env-variabelen worden bij elke aanroep gelezen. Uitzondering op eigen verzoek: `cacheOrgId: true` (enkel de ticketlading,
+// tickets.js en tickets-vooraf.js) bewaart het org-id zolang de instantie leeft: het verandert nooit en dat scheelt per lading
+// één aanroep (~0,3 s). Een mislukte opzoeking wordt nooit bewaard.
 // Meting (S1, netlify/lib/meting.js): elke fetch naar Zoho gaat door `meetZoho` (tijd tot de antwoordkop, aantal, gelijktijdigheid,
 // limietkoppen lezen). Zonder lopende meting is dat een gewone doorgave: dezelfde aanroep, hetzelfde resultaat, dezelfde fout.
 import { meetZoho } from './meting.js';
@@ -18,7 +20,9 @@ export function maakZoho({
   nu = () => Date.now(),
   tokenFoutMetData = true,
   orgFoutTekst = 'Zoho org ID niet gevonden',
+  cacheOrgId = false,
 } = {}) {
+  let cachedOrgId = null;
   let cachedToken = null;
   let tokenExpiry = 0;
 
@@ -47,12 +51,14 @@ export function maakZoho({
   }
 
   async function haalOrgId(token) {
+    if (cacheOrgId && cachedOrgId) return cachedOrgId;
     const orgRes  = await meetZoho(() => fetch(`${ZOHO_DESK}/organizations`, {
       headers: { Authorization: `Zoho-oauthtoken ${token}` },
     }));
     const orgData = await orgRes.json();
     const orgId   = orgData.data?.[0]?.id;
     if (!orgId) throw new Error(orgFoutTekst);
+    if (cacheOrgId) cachedOrgId = orgId;
     return orgId;
   }
 
