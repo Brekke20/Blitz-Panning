@@ -13,6 +13,7 @@ import { berekenKern } from './dashboard/kern.js';
 import { berekenTijd } from './dashboard/tijd.js';
 import { berekenKwaliteit } from './dashboard/kwaliteit.js';
 import { berekenOnderdelen } from './dashboard/onderdelen.js';
+import { berekenFactureerbaar } from './dashboard/factureerbaar.js';
 import { berekenKlant } from './dashboard/klant.js';
 import { berekenSales } from './dashboard/sales.js';
 import { maakKoppelaar, techniekerGroepen, NIET_GEKOPPELD } from './dashboard/techniekers.js';
@@ -74,6 +75,7 @@ export function berekenDashboard({
   const tijd = berekenTijd(huidig);
   const kwaliteit = berekenKwaliteit({ rapporten: huidig, alle, herhaalDagen });
   const onderdelen = berekenOnderdelen(huidig);
+  const factureerbaar = berekenFactureerbaar(huidig);
   const klant = berekenKlant({
     rapporten: huidig, register, activiteit, activiteitVanaf, van, tot, vorigeVan: vorige.van, vorigeTot: vorige.tot, nu: gegenereerd,
   });
@@ -99,8 +101,9 @@ export function berekenDashboard({
     tijd,
     kwaliteit,
     onderdelen,
+    factureerbaar,
     klant,
     ...(metSales ? { sales } : {}),
-    dekking: { tijd: tijd.dekking, kwaliteit: kwaliteit.dekking, onderdelen: onderdelen.dekking, klant: klant.dekking, ...(metSales ? { sales: sales.dekking } : {}) },
+    dekking: { tijd: tijd.dekking, kwaliteit: kwaliteit.dekking, onderdelen: onderdelen.dekking, factureerbaar: factureerbaar.dekking, klant: klant.dekking, ...(metSales ? { sales: sales.dekking } : {}) },
   };
 }

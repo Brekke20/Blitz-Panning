@@ -13,7 +13,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ## [Unreleased]
 
 ### Added
-- (nog niets sinds de laatste release)
+- Beheer › Performance heeft een nieuwe kaart "Factureerbaar bedrag": onderdelen plus loon (met de uren) van de gekozen periode, volgens dezelfde regels als het rapportarchief. Niet aangerekende onderdelen, garantie en installaties tellen niet mee en staan als aparte regel; een hint meldt onderdelen zonder prijs en rapporten zonder start- of stoptijd. Zichtbaar voor beheerder en planner.
 
 ### Fixed
 - Het verborgen spel Blitz Run opent nu ook voor verkopers en sales managers (5× snel tikken op het bliksem-icoon). Voorheen werd het enkel voor de andere rollen ingeschakeld.

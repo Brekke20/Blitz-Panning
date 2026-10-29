@@ -99,7 +99,7 @@ test('normaliseerRapport: alLangs komt uit installateurAlLangsGeweest, niet uit 
 test('normaliseerRapport: onderdelen en prijsbron', () => {
   const prijzen = new Map([['led', { naam: 'LED-module', prijs: 12.5 }]]);
   const r1 = normaliseerRapport(entry({}, { onderdelen: [{ id: 'led', prijs: '8', aantal: 2 }] }), { prijzen });
-  assert.deepEqual(r1.onderdelen, [{ sleutel: 'led', naam: 'LED-module', aantal: 2, prijs: 8, prijsBron: 'rapport' }]);
+  assert.deepEqual(r1.onderdelen, [{ sleutel: 'led', naam: 'LED-module', aantal: 2, prijs: 8, prijsBron: 'rapport', factureren: true }]); // factureren: sinds de kaart "Factureerbaar" mee overgenomen
   const r2 = normaliseerRapport(entry({}, { onderdelen: [{ id: 'led', prijs: '', aantal: 1 }] }), { prijzen });
   assert.equal(r2.onderdelen[0].prijs, 12.5);
   assert.equal(r2.onderdelen[0].prijsBron, 'prijslijst');

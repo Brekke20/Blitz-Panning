@@ -134,7 +134,8 @@ function leesOnderdelen(lijst, prijzen) {
     if (inRapport > 0) { prijs = inRapport; prijsBron = 'rapport'; }
     else if (uitLijst && getal(uitLijst.prijs) > 0) { prijs = getal(uitLijst.prijs); prijsBron = 'prijslijst'; }
     const sleutel = vrij ? naam.toLowerCase().replace(/\s+/g, ' ') : id;
-    uit.push({ sleutel, naam, aantal, prijs, prijsBron });
+    // factureren:false = in het rapport als "niet aangerekend" gemarkeerd (zoals het rapportarchief: enkel `false` telt als niet aangerekend).
+    uit.push({ sleutel, naam, aantal, prijs, prijsBron, factureren: p.factureren !== false });
   }
   return uit;
 }
