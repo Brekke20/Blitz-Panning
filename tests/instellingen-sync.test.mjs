@@ -758,3 +758,21 @@ test('standaard (zonder vroegToegestaan) wordt een vroeg overzicht nooit gebruik
   assert.equal(api.gets.length, 1);
   assert.equal(opslag.json('blitz_settings').startlocatie, 'Normaal');
 });
+
+// ── Gewone aanroep: het overzicht moet bij de gebruiker van de sessie horen (cache van A, cookie van B) ──
+test('gewone aanroep: overzicht van een ander gebruikerId dan de huidige gebruiker: niets toegepast of bewaard, false', async () => {
+  const opslag = maakOpslag({ [MARKER_SLEUTEL]: 'u-pl', blitz_settings: { startlocatie: 'Lokaal van A' } });
+  const api = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-b', versie: 1, instellingen: S({ startlocatie: 'Van B' }) }, {}) });
+  assert.equal(await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag }), false);
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Lokaal van A', 'de instellingen van B komen niet onder A');
+  assert.equal(opslag.getItem(MARKER_SLEUTEL), 'u-pl');
+  assert.deepEqual(api.puts, [], 'ook geen PUT (A zou anders onder B bewaard worden)');
+});
+
+test('gewone aanroep: overzicht van een ander gebruikerId zonder serverwaarde: de lokale waarde van A gaat niet omhoog onder B', async () => {
+  const opslag = maakOpslag({ blitz_settings: { startlocatie: 'Lokaal van A' } });
+  const api = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-b', versie: 0, instellingen: null }, {}) });
+  assert.equal(await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag }), false);
+  assert.deepEqual(api.puts, []);
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Lokaal van A');
+});

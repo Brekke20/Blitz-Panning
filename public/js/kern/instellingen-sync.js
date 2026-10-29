@@ -240,6 +240,9 @@ async function voerSynchronisatieUit(gebruiker, apiJson, opslag, wacht, isGestop
   }
   if (isGestopt() || !isObject(overzicht) || !isObject(overzicht.eigen)) return false;
 
+  // Het overzicht hoort bij de cookie, de gebruiker bij de sessie die de app startte (eventueel uit de cache, na een trage auth-ik): bij een
+  // ander gebruikerId wordt er niets toegepast of bewaard, zodat de instellingen van B nooit onder A terechtkomen.
+  if (typeof gebruiker?.id === 'string' && gebruiker.id && overzicht.eigen.gebruikerId !== gebruiker.id) return false;
   const mijnId = typeof gebruiker?.id === 'string' && gebruiker.id ? gebruiker.id : overzicht.eigen.gebruikerId;
   if (typeof mijnId !== 'string' || !mijnId) return false;
   neemCacheOver(opslag, mijnId);
