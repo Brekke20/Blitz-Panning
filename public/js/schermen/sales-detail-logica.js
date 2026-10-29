@@ -53,6 +53,23 @@ export function valideerVastUur({ datum, start, vandaag }) {
   return { ok: true };
 }
 
+/**
+ * De optionele Datum + Uur van het venster "+ Lead": beide leeg = geen afspraak, beide geldig = een vast uur, enkel één van de twee
+ * (of een ongeldige waarde) = een fout op dat veld; er wordt nooit een half plan bewaard.
+ * -> { geen: true } | { vast: { datum, start } } | { fouten: { datum?, uur? } }
+ */
+export function valideerLeadUur({ datum, start, vandaag } = {}) {
+  const d = tekst(datum);
+  const u = tekst(start);
+  if (d === '' && u === '') return { geen: true };
+  if (d === '') return { fouten: { datum: 'Geef ook een datum op, of wis het uur' } };
+  if (u === '') return { fouten: { uur: 'Geef ook een uur op, of wis de datum' } };
+  const fouten = {};
+  if (!isGeldigeDatum(d) || !(d >= vandaag)) fouten.datum = 'Kies een datum vanaf vandaag';
+  if (!isGeldigUur(u)) fouten.uur = 'Geef het uur als UU:MM';
+  return Object.keys(fouten).length ? { fouten } : { vast: { datum: d, start: u } };
+}
+
 const naarUur = (min) => (min >= 1440 ? '24:00' : `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`);
 const overlapt = (s1, e1, s2, e2) => s1 < e2 && s2 < e1;
 
