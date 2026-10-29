@@ -4,6 +4,7 @@
 import { foutTekst, ApiFout } from './kern/api.js';
 import { TEST_MODE } from './kern/omgeving.js';
 import { registreerActies, metBehoudScroll } from './kern/ui.js';
+import { toonSkelet } from './kern/skelet.js';
 import { sjLog, meldRenderFout } from './kern/verklikker.js';
 import { isEigenRapport } from './kern/sessie.js';
 import { renderKalender } from './schermen/kalender.js';
@@ -50,13 +51,33 @@ function herstelInPlaats(oud, nieuw) {
   });
 }
 
+// L2: het skelet van de eerste lading. Eén handvat voor de hele module: de opstart en het openen van de tab laden bijna tegelijk; een tweede
+// aanroep maakt geen tweede skelet (en begint de 150 ms niet opnieuw).
+let _laadSkelet = null;
+
 export async function laadRapportArchief() {
   const body = document.getElementById('rapp-archief-body');
   if (!body) return;
   // Bestaande inhoud blijft staan tijdens het herladen (geen inklappende pagina -> scrollsprong);
   // enkel bij een leeg overzicht tonen we "Laden…".
   const toondeLaden = !body.children.length;
-  if (toondeLaden) body.innerHTML = '<div style="color:var(--muted);font-size:0.82rem">Laden…</div>';
+  if (toondeLaden) body.innerHTML = '<div id="rapp-archief-laden" style="color:var(--muted);font-size:0.82rem">Laden…</div>';
+  // Eerste lading: er staat nog niets dan de vaste "Laden…"-regel (index.html). Dat is NIET `toondeLaden`: het vak heeft dat ene kind al, dus
+  // `toondeLaden` is bij de start onwaar (I-L2-1). Een skelet (na 150 ms, enkel zolang dat de enige inhoud is) vervangt de tekst; een
+  // verversing met een bestaande lijst of een foutregel blijft zonder skelet. `meldLaadFout` blijft op `toondeLaden` steunen (ongewijzigd).
+  const laadEl = document.getElementById('rapp-archief-laden');
+  const nogNietGetekend = () => !!laadEl && body.children.length === 1 && body.firstElementChild === laadEl;
+  const skelet = nogNietGetekend() && !_laadSkelet
+    ? (_laadSkelet = toonSkelet(body, { vorm: 'rijen', isLeeg: nogNietGetekend, verberg: [laadEl] }))
+    : null;
+  try {
+    await haalEnTeken(body, toondeLaden);
+  } finally {
+    if (skelet) { skelet.stop(); _laadSkelet = null; } // na de tekening of de foutregel: het skelet maakt altijd plaats
+  }
+}
+
+async function haalEnTeken(body, toondeLaden) {
   let tekst, data;
   try {
     const res = await fetch('/api/rapport-archief');
@@ -108,6 +129,9 @@ export function setRapportFilter(type) {
 export function renderRapportArchief() {
   const body = document.getElementById('rapp-archief-body');
   if (!body) return;
+  // Het archief is nog nooit geladen en de eerste lading loopt (de vaste "Laden…"-regel of het skelet staat er nog): geen "Nog geen rapporten
+  // gearchiveerd." eroverheen. Dat beweerde een lege staat vóór de gegevens er zijn (flushOutbox hertekent bij de start); de lading tekent zelf.
+  if (!_rapportArchief.length && _archiefVersie === null && body.querySelector('#rapp-archief-laden, .skelet')) return;
   if (!_rapportArchief.length) {
     body.innerHTML = '<div class="rapporten-leeg" style="color:var(--muted);font-size:0.82rem;padding:20px 0">Nog geen rapporten gearchiveerd.</div>';
     return;

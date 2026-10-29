@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
-import { test, expect, startApp, opslagStub, standaardStub } from './helpers.mjs';
+import { test, expect, startApp, kiesHoofdtab, opslagStub, standaardStub } from './helpers.mjs';
 import { maakSalesBackend, authIkVoor, SALES_GEBRUIKER, verwachtFout } from './sales-hulp.mjs';
 import { STANDAARD_GRENZEN } from '../public/js/kern/dashboard-grenzen.js';
 
@@ -209,6 +209,98 @@ test.describe('skelet: Wachtrij', () => {
     await expect(page.locator('#ticket-list .skelet')).toHaveCount(0);
     await expect(page.locator('#ticket-list')).not.toHaveAttribute('aria-busy', /.*/);
     await expect(page.locator('#empty-tickets')).toBeHidden(); // de "Laden..."-tekst is weer netjes weg
+  });
+});
+
+// L2: Rapporten en Inventaris tonen bij de eerste lading een rijenskelet i.p.v. de platte tekst "Laden…" (de vaste beginregels uit index.html
+// zijn dan verborgen); een verversing met een bestaande lijst of een bewaarde kopie toont nooit een skelet.
+const RAPPORT = (id, nr) => ({ id, ticketId: `t-${id}`, ticketNumber: nr, datum: '2026-10-07', technieker: 'Tim', klant: `Klant ${nr}`, rapportData: { _html: `<p>${nr}</p>`, start: '10:00', stop: '11:00' } });
+const ARCHIEF = { versie: 3, rapports: [RAPPORT('r1', '1002'), RAPPORT('r2', '1003')] };
+const archiefStub = () => json(200, structuredClone(ARCHIEF));
+const INVENTARIS = { versie: 2, wagenvoorraad: {}, log: [] };
+const inventarisStub = () => json(200, structuredClone(INVENTARIS));
+
+test.describe('skelet: Rapporten en Inventaris (L2)', () => {
+  test('Rapporten: de eerste lading toont rijenskelet (aria-busy, "Laden…" verborgen), daarna de rapporten zonder skelet', async ({ page }) => {
+    await volgSkeletten(page);
+    await startApp(page, { loginRol: 'beheerder', overschrijf: { 'rapport-archief': trager(archiefStub, 3000) } });
+    await page.getByRole('tab', { name: 'Rapporten', exact: true }).click();
+    const body = page.locator('#rapp-archief-body');
+    await expect(body.locator('.skelet[data-skelet="rijen"]')).toHaveCount(1);
+    await expect(body.locator('.skelet')).toHaveAttribute('aria-hidden', 'true');
+    await expect(body).toHaveAttribute('aria-busy', 'true');
+    await expect(body.locator('.skelet-melding')).toHaveText('Laden…'); // voor schermlezers
+    await expect(page.locator('#rapp-archief-laden')).toBeHidden(); // de vaste "Laden…"-tekst is verborgen zolang het skelet staat
+    await expect(body.locator('.ticket')).toHaveCount(2);
+    await expect(body.locator('.skelet')).toHaveCount(0);
+    await expect(body).not.toHaveAttribute('aria-busy', /.*/);
+    expect((await gezien(page)).filter(s => s.vak === 'rapp-archief-body')).toHaveLength(1); // precies één skelet (de opstart- en de tablading delen het)
+  });
+
+  test('Rapporten: een snelle lading toont nooit een skelet', async ({ page }) => {
+    await volgSkeletten(page);
+    await startApp(page, { loginRol: 'beheerder', overschrijf: { 'rapport-archief': archiefStub } });
+    await page.getByRole('tab', { name: 'Rapporten', exact: true }).click();
+    await expect(page.locator('#rapp-archief-body .ticket')).toHaveCount(2);
+    expect(await gezien(page)).toEqual([]);
+    await expect(page.locator('#rapp-archief-body')).not.toHaveAttribute('aria-busy', /.*/);
+  });
+
+  test('Rapporten: een tweede bezoek met een bestaande lijst toont geen skelet: de lijst blijft staan tijdens het verversen', async ({ page }) => {
+    await volgSkeletten(page);
+    let traag = false;
+    const stub = async (a) => { if (traag) await wacht(1500); return archiefStub(a); };
+    await startApp(page, { loginRol: 'beheerder', overschrijf: { 'rapport-archief': stub } });
+    await page.getByRole('tab', { name: 'Rapporten', exact: true }).click();
+    await expect(page.locator('#rapp-archief-body .ticket')).toHaveCount(2);
+    const voor = (await gezien(page)).length;
+    traag = true;
+    await page.getByRole('tab', { name: 'Kalender', exact: true }).click();
+    await page.getByRole('tab', { name: 'Rapporten', exact: true }).click();
+    await page.waitForTimeout(400); // ruim voorbij 150 ms met het antwoord nog onderweg
+    await expect(page.locator('#rapp-archief-body .ticket')).toHaveCount(2);
+    expect((await gezien(page)).length).toBe(voor);
+    await expect(page.locator('#rapp-archief-body .skelet')).toHaveCount(0);
+  });
+
+  test('Rapporten: een fout bij de eerste lading maakt plaats voor de bestaande foutregel (geen skelet blijven staan)', async ({ page, consoleFouten }) => {
+    await startApp(page, { loginRol: 'beheerder', overschrijf: { 'rapport-archief': trager(() => json(500, { error: 'x' }), 600) } });
+    await page.getByRole('tab', { name: 'Rapporten', exact: true }).click();
+    await expect(page.locator('#rapp-archief-body')).toContainText('Laden mislukt');
+    await expect(page.locator('#rapp-archief-body .skelet')).toHaveCount(0);
+    await expect(page.locator('#rapp-archief-body')).not.toHaveAttribute('aria-busy', /.*/);
+    await verwachtFout(consoleFouten, '/api/rapport-archief', 500);
+  });
+
+  test('Inventaris: de eerste lading zonder kopie toont rijenskelet (aria-busy, "Laden..." verborgen), daarna de voorraad zonder skelet', async ({ page }) => {
+    await volgSkeletten(page);
+    await startApp(page, { technieker: 'Tim', overschrijf: { inventaris: trager(inventarisStub, 3000) } });
+    await kiesHoofdtab(page, /Inventaris/);
+    const body = page.locator('#inventaris-body');
+    await expect(body.locator('.skelet[data-skelet="rijen"]')).toHaveCount(1);
+    await expect(body).toHaveAttribute('aria-busy', 'true');
+    await expect(body.locator('.inv-empty')).toBeHidden();
+    await expect(page.locator('#inv-edit-btn')).toBeVisible();
+    await expect(body.locator('.skelet')).toHaveCount(0);
+    await expect(body).not.toHaveAttribute('aria-busy', /.*/);
+  });
+
+  test('Inventaris: met een bewaarde kopie nooit een skelet', async ({ page }) => {
+    await volgSkeletten(page);
+    await page.addInitScript((k) => { if (window === window.top) localStorage.setItem('blitz_inventaris_cache_test', JSON.stringify(k)); }, INVENTARIS);
+    await startApp(page, { technieker: 'Tim', overschrijf: { inventaris: trager(inventarisStub, 1500) } });
+    await kiesHoofdtab(page, /Inventaris/);
+    await page.waitForTimeout(400);
+    expect((await gezien(page)).filter(s => s.vak === 'inventaris-body')).toEqual([]);
+    await expect(page.locator('#inv-edit-btn')).toBeVisible();
+  });
+
+  test('Inventaris: een snelle lading toont nooit een skelet', async ({ page }) => {
+    await volgSkeletten(page);
+    await startApp(page, { technieker: 'Tim', overschrijf: { inventaris: inventarisStub } });
+    await kiesHoofdtab(page, /Inventaris/);
+    await expect(page.locator('#inv-edit-btn')).toBeVisible();
+    expect(await gezien(page)).toEqual([]);
   });
 });
 
