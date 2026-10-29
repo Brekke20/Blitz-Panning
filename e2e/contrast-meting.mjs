@@ -220,6 +220,10 @@ const toets = (waarde, bericht) => (process.env.CONTRAST_ZACHT ? expect.soft(waa
 export async function controleerKaarten(page, sel, label, slechtste) {
   await wachtOpNavigatie(page);
   const glas = await controleerGlasTokens(page, label);
+  // Optimalisatie O2: op de gsm hebben de lijstkaarten overdag en zonder thema geen vervaging meer (enkel saturate; css/app.css). Het contrastmodel
+  // blijft met de vervaging van het token rekenen: e2e/kaarten-glas-gsm.spec.mjs bewijst met echte pixels (hoogstens 3/255) dat het beeld zonder
+  // vervaging gelijk is aan dat met; een model zonder vervaging op de losse foto van de achtergrond is strenger dan wat er echt getekend wordt.
+  const zonderBlur = await page.evaluate(() => { const d = document.documentElement.dataset; return d.apparaat === 'gsm' && d.hemel !== 'nacht' && d.event === undefined; });
   const sigma = parseFloat(glas.blur) || 0;
   const gedaan = new Set();
   let aantal = 0;
@@ -246,7 +250,8 @@ export async function controleerKaarten(page, sel, label, slechtste) {
       // Open dag (v2.5.0): glas is algemeen, waarden uit base.css (--glas en --blur van dit toestel en thema; de kaart zelf is
       // --glas, bij hover --glas-hover)
       expect(k.kaart[3], `${label} ${k.naam}`).toBeCloseTo(glas.alpha, 2);
-      expect(k.blur, `${label} ${k.naam}: vervaging`).toContain(`blur(${glas.blur})`);
+      if (zonderBlur) { expect(k.blur, `${label} ${k.naam}: geen vervaging`).not.toContain('blur('); expect(k.blur, `${label} ${k.naam}: saturate`).toContain('saturate('); }
+      else expect(k.blur, `${label} ${k.naam}: vervaging`).toContain(`blur(${glas.blur})`);
       expect(k.teksten.length).toBeGreaterThanOrEqual(2);
       const t0 = [0, 0, 0];
       let n = 0;
