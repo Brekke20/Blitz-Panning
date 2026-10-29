@@ -49,3 +49,9 @@ Steekproef tickets (laatste 8): 5,70 / 5,21 / 5,60 / 6,41 / 4,66 / 5,36 s (200),
 - De opsplitsing binnen een functie (auth vs. Blobs vs. Zoho) — daarvoor is een tijdmeting in de functie nodig (bv. een
   `Server-Timing`-kop), wat een release vraagt.
 - De ingestelde functieregio (Netlify-instelling, niet in de repo).
+
+## Aanvulling na de review (I-S1-1): statuscodes /api/tickets, zelfde 24 u
+- 200: 73, 499: 8 (browser brak af vóór het antwoord), geen 5xx, geen time-outs (502/504).
+- Het venster is beperkt tot 24 u (Netlify-plan); een langere periode is niet op te vragen.
+- Besluit: in deze 24 u mislukte geen enkele lading op de standaardlimiet, maar ±10 % van de ladingen werd door de browser afgebroken
+  (tab dicht, herladen of weggenavigeerd tijdens het wachten). Het 10 s-vermoeden (I-S2-1) blijft plausibel bij p99 10,6 s, niet bewezen.
