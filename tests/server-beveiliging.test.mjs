@@ -5,10 +5,14 @@ import { test, afterEach } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { laadVers, v1Event } from './nep-fetch.mjs';
+import { laadVers, v1Event, zetEnv } from './nep-fetch.mjs';
 import { metRol, metGeenSessie } from './auth-hulp.mjs';
 import { RECHTEN, regelVoor } from '../netlify/lib/rechten.js';
-import { zetKernSpyVoorTests } from '../netlify/lib/beveiligd.js';
+import { zetKernSpyVoorTests, beveiligV1, beveiligV2 } from '../netlify/lib/beveiligd.js';
+import { zetMetingVoorTests } from '../netlify/lib/meting.js';
+import { maakNepStore } from './nep-blobs.mjs';
+import { maakAuth } from '../netlify/lib/auth.js';
+import { ondertekenToken } from '../netlify/lib/sessie-token.js';
 
 const wortel = join(import.meta.dirname, '..');
 const ROLLEN = ['beheerder', 'planner', 'technieker', 'sales'];
@@ -140,4 +144,128 @@ test('open functies: zonder sessie geen 401 niet-ingelogd van de wrapper', async
 test('de service-sleutel- en wijzig-vlaggen staan enkel waar bedoeld', () => {
   assert.deepEqual(Object.keys(RECHTEN).filter(n => RECHTEN[n].service === true).sort(), ['afspraken', 'klantbeschikbaarheid', 'tickets']); // T12: de drie interne aanroepen van planning-export
   assert.deepEqual(Object.keys(RECHTEN).filter(n => RECHTEN[n].ookBijWijzigen === true).sort(), ['auth-ik', 'auth-wachtwoord']);
+});
+
+// ---- S1: meting (Server-Timing-kop + [meting]-logregel); enkel actief met de seam of in een Netlify-runtime ----
+const META_LOG = '[meting] ';
+async function metMeting(werk) {
+  zetMetingVoorTests(true);
+  const regels = [];
+  const oud = console.log;
+  console.log = (...a) => regels.push(a.join(' '));
+  try {
+    const r = await werk();
+    return { r, logs: regels.filter(l => l.startsWith(META_LOG)).map(l => JSON.parse(l.slice(META_LOG.length))), ruw: regels.filter(l => l.startsWith(META_LOG)) };
+  } finally {
+    console.log = oud;
+    zetMetingVoorTests(null);
+  }
+}
+const OK1 = () => ({ statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: '{}' });
+const OK2 = () => new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+const v1Req = (methode, headers = kopSet) => ({ ...v1Event(methode, undefined, headers), path: '/api/prijzen', queryStringParameters: { geheim: 'zoek@x.be' } });
+const v2Req = (methode, headers = kopSet) => new Request('http://localhost/api/prijzen?geheim=zoek@x.be', { method: methode, headers });
+const KOP = /^auth;dur=\d+, kern;dur=\d+, koud;dur=\d+, totaal;dur=\d+$/;
+
+test('meting aan: V1 en V2 ingelogd geven de Server-Timing-kop en één logregel zonder persoonsgegevens', async () => {
+  const h1 = beveiligV1('prijzen', async () => OK1());
+  const h2 = beveiligV2('prijzen', async () => OK2());
+  const { r, logs, ruw } = await metMeting(() => metRol('beheerder', async () => [await h1(v1Req('GET'), {}), await h2(v2Req('GET'), {})]));
+  assert.match(r[0].headers['Server-Timing'], KOP);
+  assert.equal(r[0].headers['Content-Type'], 'application/json');
+  assert.match(r[1].headers.get('server-timing'), KOP);
+  assert.equal(logs.length, 2);
+  for (const l of logs) {
+    assert.deepEqual(Object.keys(l).sort(), ['auth', 'blobsAuth', 'f', 'kern', 'koud', 'm', 'regio', 's', 'totaal', 'zn', 'zoho', 'zohoGewicht', 'zohoMax', 'zohoRest', 'zohoToken'].sort());
+    assert.equal(l.f, 'prijzen'); assert.equal(l.m, 'GET'); assert.equal(l.s, 200);
+  }
+  for (const verboden of ['test-beheerder', 'lokaal.test', 'Test Beheerder', 'zoek@x.be', 'geheim', 'x-blitz']) {
+    assert.ok(!ruw.join('\n').includes(verboden), `logregel bevat "${verboden}"`);
+  }
+});
+
+test('meting aan: geen kop op 401, 403, 503, 405, OPTIONS en open rijen, maar wel een logregel met de status', async () => {
+  const h1 = beveiligV1('prijzen', async () => OK1());
+  const h2 = beveiligV2('prijzen', async () => OK2());
+  const tickets = beveiligV1('tickets', async () => OK1());
+  const open = beveiligV1('confirm-afspraak', async () => OK1());
+  const open2 = beveiligV2('confirm-afspraak', async () => OK2());
+  const kopV1 = r => r.headers['Server-Timing'];
+  const kopV2 = r => r.headers.get('server-timing');
+  const geenRecht = ROLLEN.find(rol => !regelVoor('prijzen', 'PUT').includes(rol));
+  const weigerAuth = status => ({ vereisGebruiker: async () => ({ ok: false, status, fout: 'x', code: status === 503 ? 'opslag-storing' : 'niet-ingelogd' }) });
+  const w503 = beveiligV1('prijzen', async () => OK1(), { auth: weigerAuth(503) });
+  const { r, logs } = await metMeting(async () => [
+    await metGeenSessie(async () => [await h1(v1Req('GET'), {}), await h2(v2Req('GET'), {})]),         // 401
+    await metRol(geenRecht, async () => [await h1(v1Req('PUT'), {}), await h2(v2Req('PUT'), {})]),     // 403
+    await w503(v1Req('GET'), {}),                                                                       // 503
+    await metRol('beheerder', async () => [await h1(v1Req('DELETE'), {}), await h2(v2Req('DELETE'), {})]), // 405
+    await tickets(v1Req('OPTIONS', {}), {}),                                                             // 204 door de wrapper
+    await open(v1Req('GET', {}), {}),                                                                    // 'open'-rij
+    await open2(v2Req('GET', {}), {}),
+  ]);
+  const [a401, a403, a503, a405, opt, o1, o2] = r;
+  assert.deepEqual([a401[0].statusCode, a401[1].status], [401, 401]);
+  assert.deepEqual([a403[0].statusCode, a403[1].status], [403, 403]);
+  assert.equal(a503.statusCode, 503);
+  assert.deepEqual([a405[0].statusCode, a405[1].status], [405, 405]);
+  assert.equal(opt.statusCode, 204);
+  assert.deepEqual([o1.statusCode, o2.status], [200, 200]);
+  for (const x of [a401[0], a403[0], a503, a405[0], opt, o1]) assert.equal(kopV1(x), undefined);
+  for (const x of [a401[1], a403[1], a405[1], o2]) assert.equal(kopV2(x), null);
+  assert.deepEqual(logs.map(l => l.s), [401, 401, 403, 403, 503, 405, 405, 204, 200, 200]);
+  assert.deepEqual(logs.map(l => l.f), ['prijzen', 'prijzen', 'prijzen', 'prijzen', 'prijzen', 'prijzen', 'prijzen', 'tickets', 'confirm-afspraak', 'confirm-afspraak']);
+  // een weigering heeft geen kern; een 'open'-rij heeft geen auth
+  assert.ok(logs.slice(0, 7).every(l => l.kern === null));
+  assert.ok(logs.slice(8).every(l => l.auth === null && typeof l.kern === 'number'));
+});
+
+test('meting uit (standaard): geen kop, geen logregel, antwoord byte-gelijk', async () => {
+  const h1 = beveiligV1('prijzen', async () => OK1());
+  const h2 = beveiligV2('prijzen', async () => OK2());
+  const regels = [];
+  const oud = console.log; console.log = (...a) => regels.push(a.join(' '));
+  try {
+    const [r1, r2] = await metRol('beheerder', async () => [await h1(v1Req('GET'), {}), await h2(v2Req('GET'), {})]);
+    assert.deepEqual(r1, OK1());
+    assert.deepEqual([...r2.headers.entries()], [['content-type', 'application/json']]);
+    assert.deepEqual(regels, []);
+  } finally {
+    console.log = oud;
+  }
+});
+
+test('meting aan: een V2-antwoord met onveranderlijke koppen en een gooiende kern blijven zoals zonder meting', async () => {
+  const vast = Response.error();
+  const h = beveiligV2('prijzen', async () => vast);
+  const fout = new Error('kern stuk');
+  const g = beveiligV2('prijzen', async () => { throw fout; });
+  const { r, logs } = await metMeting(() => metRol('beheerder', async () => [
+    await h(v2Req('GET'), {}),
+    await g(v2Req('GET'), {}).then(() => null, e => e),
+  ]));
+  assert.equal(r[0], vast);
+  assert.equal(r[1], fout);
+  assert.equal(logs.length, 2);
+  assert.equal(logs[1].s, null);
+});
+
+test('meting aan: met de echte sessiecontrole telt blobs-auth mee in auth', async () => {
+  const GEHEIM = 'testgeheim-testgeheim';
+  const store = maakNepStore({ gebruikers: { versie: 1, gebruikers: [{ id: 'u-bea', email: 'bea@blitz.test', naam: 'Bea', rol: 'beheerder', actief: true, sessieVersie: 1 }] } });
+  const aanroepen = [];
+  const auth = maakAuth({ getStore: opties => { aanroepen.push(opties); return store; }, env: { SESSIE_GEHEIM: GEHEIM } });
+  const token = ondertekenToken({ uid: 'u-bea', sv: 1, exp: Math.floor(Date.now() / 1000) + 3600 }, GEHEIM);
+  const h = beveiligV2('prijzen', async () => OK2(), { auth });
+  const { r, logs } = await metMeting(() => h(v2Req('GET', { cookie: `blitz_sessie=${token}` }), {}));
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get('server-timing'), /^auth;dur=\d+, blobs-auth;dur=\d+, kern;dur=\d+, koud;dur=\d+, totaal;dur=\d+$/);
+  assert.equal(typeof logs[0].blobsAuth, 'number');
+  assert.ok(logs[0].blobsAuth <= logs[0].auth);
+  assert.deepEqual(aanroepen, [{ name: 'blitz-data', consistency: 'strong' }]); // dezelfde Blobs-aanroepen als zonder meting
+});
+
+test('meting: de seam gooit in een Netlify-runtime (zoals zetKernSpyVoorTests)', () => {
+  const herstel = zetEnv({ NETLIFY: 'true' });
+  try { assert.throws(() => zetMetingVoorTests(true), /Netlify-runtime/); } finally { herstel(); }
 });

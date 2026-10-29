@@ -10,6 +10,7 @@ import { vereisGebruiker, weigeringV1, weigeringV2 } from './auth.js';
 import { RECHTEN, regelVoor } from './rechten.js';
 import { heeftNetlifyRuntime } from './lokale-dev.js';
 import { v1Json, v1Opties, v2Json, v2Opties } from './http.js';
+import { draaiMetMeting, huidigeMeting, meetOptioneel, startVerzoekMeting } from './meting.js';
 
 const CORS = Object.freeze({ 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' });
 const NIET_SCHRIJVEND = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -51,12 +52,13 @@ async function beslis(naam, methodeRuw, reqOfEvent, auth) {
   let resultaat;
   try {
     const controle = auth ? auth.vereisGebruiker : vereisGebruiker;
-    resultaat = await controle(reqOfEvent, {
+    // Meting (S1): enkel de echte sessiecontrole telt als `auth`; zonder lopende meting is dit een gewone doorgave.
+    resultaat = await meetOptioneel('auth', () => controle(reqOfEvent, {
       rollen: metPlanEigen ? [...regel, 'technieker'] : regel,
       schrijven: !NIET_SCHRIJVEND.has(methode),
       service: rij.service === true,
       ookBijWijzigen: rij.ookBijWijzigen === true,
-    });
+    }));
   } catch {
     return { weiger: NIET_INGELOGD };
   }
@@ -75,26 +77,45 @@ async function beslis(naam, methodeRuw, reqOfEvent, auth) {
   return { gebruiker: resultaat.gebruiker, methode };
 }
 
+// Meting (S1, netlify/lib/meting.js): de Server-Timing-kop gaat enkel op antwoorden voor een ingelogde gebruiker (b.gebruiker gezet),
+// de logregel op elk verzoek. Staat de meting uit (buiten een Netlify-runtime, zonder testseam), dan is `start` null en loopt
+// `uitvoer` rechtstreeks, zoals voorheen.
+function markeerIngelogd(b) {
+  if (b.gebruiker) huidigeMeting()?.zetIngelogd();
+}
+
 export function beveiligV1(naam, handler, { auth } = {}) {
   controleerNaam(naam);
-  return async (event, context) => {
+  const uitvoer = async (event, context) => {
     const b = await beslis(naam, event?.httpMethod, event, auth);
     if (b.weiger) return weigeringV1(b.weiger, CORS);
     if (b.opties) return v1Opties(CORS);
     if (b.nietToegestaan) return v1Json(405, { error: 'Method not allowed' }, CORS);
-    if (kernSpy) return kernSpy({ naam, methode: b.methode, gebruiker: b.gebruiker });
-    return b.gebruiker === undefined ? handler(event, context) : handler(event, context, b.gebruiker);
+    markeerIngelogd(b);
+    if (kernSpy) return meetOptioneel('kern', () => kernSpy({ naam, methode: b.methode, gebruiker: b.gebruiker }));
+    return meetOptioneel('kern', () => (b.gebruiker === undefined ? handler(event, context) : handler(event, context, b.gebruiker)));
+  };
+  return async (event, context) => {
+    const m = startVerzoekMeting();
+    if (!m) return uitvoer(event, context);
+    return draaiMetMeting(m, { f: naam, methode: event?.httpMethod }, () => uitvoer(event, context), 'v1');
   };
 }
 
 export function beveiligV2(naam, handler, { auth } = {}) {
   controleerNaam(naam);
-  return async (req, context) => {
+  const uitvoer = async (req, context) => {
     const b = await beslis(naam, req?.method, req, auth);
     if (b.weiger) return weigeringV2(b.weiger, CORS);
     if (b.opties) return v2Opties(CORS);
     if (b.nietToegestaan) return v2Json(405, { error: 'Method not allowed' }, CORS);
-    if (kernSpy) return kernSpy({ naam, methode: b.methode, gebruiker: b.gebruiker });
-    return b.gebruiker === undefined ? handler(req, context) : handler(req, context, b.gebruiker);
+    markeerIngelogd(b);
+    if (kernSpy) return meetOptioneel('kern', () => kernSpy({ naam, methode: b.methode, gebruiker: b.gebruiker }));
+    return meetOptioneel('kern', () => (b.gebruiker === undefined ? handler(req, context) : handler(req, context, b.gebruiker)));
+  };
+  return async (req, context) => {
+    const m = startVerzoekMeting();
+    if (!m) return uitvoer(req, context);
+    return draaiMetMeting(m, { f: naam, methode: req?.method }, () => uitvoer(req, context), 'v2');
   };
 }
