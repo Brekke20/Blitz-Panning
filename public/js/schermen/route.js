@@ -768,6 +768,7 @@ export async function applyRouteOrder(date, orderedEntries) {
   renderRouteList(date);
   updateMap(date);
   afh.renderKalender();
+  toestand.raak('planning'); // de uren (item.uur) zijn hierboven in-place gewijzigd: markeert Kalender en Ingepland als verouderd (O3)
   updateRouteBtns(date);
   toast(volgordeAangepast
     ? 'ℹ️ Volgorde aangepast rond een vast tijdstip'

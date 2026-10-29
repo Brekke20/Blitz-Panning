@@ -6,8 +6,9 @@
 // - Een gewijzigd rapportarchief tekent de kalender nog (de directe renderKalender() van rapport-archief.js blijft werken, ook bij
 //   een zichtbare kalender) en een rapportkaartje opent zijn rapport.
 // Testklok: maandag 5 okt 2026 (VASTE_NU); alle verzoeken zijn gestubd.
-import { test, expect, startApp } from './helpers.mjs';
+import { test, expect, startApp, standaardStub } from './helpers.mjs';
 import { seed } from './kalender-hulp.mjs';
+import { zetStartTijd, maakRouteMetStops } from './route-hulp.mjs';
 
 const TAB = { kalender: '#tab-kalender', gepland: '#tab-gepland', wachtrij: '#tab-tickets' };
 const TELLER = { kalender: () => kern.kalender.renderTelling(), gepland: () => kern.ingepland.renderTelling() };
@@ -178,6 +179,23 @@ test.describe('O3: invoer buiten de toestand', () => {
       await hertekentBijOpenen(page, scherm, () => page.evaluate(() => window.zetLoginRol('technieker', { planEigen: true })));
     });
 
+    // Zonder 'apparaatwijziging' (die de kalender zelf direct hertekent): enkel de sleutel kan dit vangen.
+    test(`${scherm}: een toestelrol die verandert zonder apparaatwijziging hertekent bij het openen`, async ({ page }) => {
+      await startApp(page, { overschrijf: seed() });
+      await hertekentBijOpenen(page, scherm, () => page.evaluate(() => { window.apparaat = { ...window.apparaat, rol: window.apparaat.rol === 'technieker' ? 'coordinator' : 'technieker' }; }));
+    });
+
+    test(`${scherm}: huidigeRechten() die verandert (zonder toestel- of toestandswijziging) hertekent bij het openen`, async ({ page }) => {
+      await startApp(page, { overschrijf: seed() });
+      await hertekentBijOpenen(page, scherm, () => page.evaluate(async () => {
+        const { huidigeGebruiker, huidigeRechten } = await import('/js/kern/sessie.js');
+        const g = huidigeGebruiker();
+        const voor = JSON.stringify(huidigeRechten());
+        g.rol = 'technieker'; g.magZelfPlannen = true; // planEigen wordt waar
+        if (JSON.stringify(huidigeRechten()) === voor) throw new Error('huidigeRechten() veranderde niet');
+      }));
+    });
+
     test(`${scherm}: een venstermaatwissel terwijl het tabblad verborgen is hertekent`, async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 720 });
       await startApp(page, { overschrijf: seed() });
@@ -283,3 +301,39 @@ test.describe('O3: rapportarchief en kalender', () => {
     await openKaartje(page, '1004');
   });
 });
+
+// I1: applyRouteOrder (route.js) wijzigt de uren van de stops in-place; stap 5 tekent enkel de route en de Kalender. Zonder raak('planning') blijft Ingepland
+// (toont stop.uur) verouderd als het tijdens de berekening werd geopend: dat bezoek wist de markering en de verfijnde uren komen erna.
+test.describe('O3: uren van een route-herschikking in Ingepland', () => {
+  test('Ingepland geopend tijdens de routeberekening van "Tijden vastleggen" toont bij een volgend bezoek de verfijnde uren', async ({ page }) => {
+    let open; const poort = new Promise((r) => { open = r; });
+    let gewacht = false, op = false; // de poort sluit pas na het opzetten van de route
+    const route = async (a) => { if (op) { gewacht = true; await poort; } return standaardStub('route')(a); };
+    await zetStartTijd(page, '10:00');
+    await startApp(page, { technieker: 'Tim', overschrijf: { route } });
+    await maakRouteMetStops(page);
+    // De twee geplande stops (nog zonder uur) ook als "ingepland" laten zien in Ingepland.
+    await page.evaluate(() => {
+      const stops = kern.toestand.get('planning')['2026-10-05'];
+      kern.toestand.set('allGepland', stops.map(s => ({ ...s.ticket, status: 'Geplande service', interventieDatum: '2026-10-05T08:00:00.000Z' })));
+    });
+    op = true;
+    await page.getByRole('button', { name: 'Tijden vastleggen' }).click();
+    await expect.poll(() => gewacht).toBe(true);
+    await open_(page);                       // Ingepland openen terwijl de route nog wordt berekend
+    await expect(page.locator('#gep-body .ticket')).toHaveCount(2);
+    const uren = () => page.evaluate(() => kern.toestand.get('planning')['2026-10-05'].map(s => s.uur));
+    const gepland = () => page.locator('#gep-body').evaluate(el => [...el.textContent.matchAll(/\(gepland (\d\d:\d\d)\)/g)].map(m => m[1]));
+    const voorlopig = await gepland();       // stap 1 kende al voorlopige uren toe; de route verfijnt ze nog
+    expect(voorlopig).toEqual(await uren());
+    open();
+    await expect(page.locator('#toast')).toContainText(/Volgorde|tijdstippen/);
+    await rust(page);
+    await open_(page, 'wachtrij');
+    await open_(page);                       // volgend bezoek: de uren zijn nu bekend
+    const verfijnd = await uren();
+    expect(verfijnd).not.toEqual(voorlopig); // anders bewijst deze test niets
+    expect(await gepland()).toEqual(verfijnd);
+  });
+});
+async function open_(page, tab = 'gepland') { await page.locator(TAB[tab]).click(); await rust(page); }

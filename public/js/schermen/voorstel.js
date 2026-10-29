@@ -14,6 +14,7 @@ import { timeStrToMin, minToTimeStr, extractLocalHour } from '../kern/tijd.js';
 import { registreerVenster } from '../venster.js';
 import { renderTickets } from './wachtrij.js';
 import { renderKalender } from './kalender.js';
+import { renderGepland } from './ingepland.js';
 import { bewaarVoorstelRegister, registerEntry, doelgroepenVoorAdressen } from './voorstel-register.js';
 import { tijdslotVoor, roundToNextQuarterStr, cleanTicketSubject, joinNL, DOELGROEP_LABEL } from './ticketdetail-logica.js';
 
@@ -75,7 +76,7 @@ export async function loadVoorstelStatus() {
 const TEKST_REGISTER_MISLUKT = '⚠ Voorstel verstuurd, maar de status kon niet bewaard worden — NIET opnieuw versturen, herlaad eerst de pagina';
 
 function hertekenVoorstelStatus(date) {
-  try { renderTickets(); renderKalender(); afh.renderRouteList(date); } catch (e) { console.warn('Hertekenen mislukt:', e); }
+  try { renderTickets(); renderKalender(); renderGepland(); afh.renderRouteList(date); } catch (e) { console.warn('Hertekenen mislukt:', e); }
 }
 
 // Schrijft het register voor de doelgroepen die de mail kregen (B1) en zet daarna de lokale entry, ook als het bewaren mislukte
