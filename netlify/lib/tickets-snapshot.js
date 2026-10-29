@@ -3,9 +3,13 @@
 // momentopname; /api/tickets serveert ze zolang ze vers is en haalt anders live op (en schrijft ze dan opnieuw weg).
 //
 // Drie sleutels in de store:
-//   tickets-snapshot            { v:1, op, klaar, tickets, pendingTickets, plannedTickets }
-//                               `op` = het STARTMOMENT van de lading (ms): een wijziging die tijdens de lading in Zoho
-//                               gebeurt, kan dus nooit "weggemaskeerd" worden door een momentopname die ze niet bevat.
+//   tickets-snapshot            { v:1, op, dekt, klaar, tickets, pendingTickets, plannedTickets }
+//                               `op` = het STARTMOMENT van de lading (ms), enkel voor de leeftijd. `dekt` = de waarde van de
+//                               stale-marker die de lading las VOOR ze Zoho aanriep (null = er was geen). Zo is "onvers door een
+//                               schrijfactie" exact `marker.op > dekt`: een wijziging die tijdens de lading gebeurt zet de marker
+//                               hoger dan `dekt` en wordt dus nooit weggemaskeerd, terwijl een lading die na de wijziging begon
+//                               meteen vers is (geen klokvergelijking tussen instanties, dus ook geen marge die elke planning
+//                               twee Zoho-ladingen laat kosten).
 //                               De inhoud is het ONGEFILTERDE antwoord van /api/tickets: voor alle rollen en de
 //                               service-sleutel hetzelfde (de toegang zelf regelt de wrapper, rechten.js: 'tickets').
 //   tickets-snapshot-verouderd  { op }  gezet door elke functie die een ticket in Zoho wijzigt (metTicketsVerouderd).
@@ -27,7 +31,6 @@ export const VEROUDERD_SLEUTEL = 'tickets-snapshot-verouderd';
 export const BEZIG_SLEUTEL = 'tickets-snapshot-bezig';
 
 export const VERS_MS = 5 * 60 * 1000;            // jonger dan dit = geserveerd zonder Zoho
-export const MARGE_MS = 2000;                    // een lading moet MINSTENS zo lang na de marker gestart zijn (klokverschil, Zoho-vertraging)
 export const BEZIG_TTL_MS = 20 * 1000;           // een slot ouder dan dit is verlopen (een lading duurt 4 tot 6 s, time-out 20 s)
 export const WACHT_MAX_MS = 6000;                // hoe lang een aanvraag op een lopende lading wacht
 export const WACHT_STAP_MS = 400;
@@ -60,9 +63,9 @@ export function geldigeSnapshot(s) {
     && Array.isArray(s.tickets) && Array.isArray(s.pendingTickets) && Array.isArray(s.plannedTickets);
 }
 
-// true als een schrijfactie (marker) de momentopname heeft ingehaald: de lading startte niet ruim genoeg na de marker.
+// true als een schrijfactie (marker) de momentopname heeft ingehaald: de marker is hoger dan wat de lading al dekte.
 function door(snapshot, marker) {
-  return isGetal(marker?.op) && marker.op + MARGE_MS > snapshot.op;
+  return isGetal(marker?.op) && marker.op > (isGetal(snapshot.dekt) ? snapshot.dekt : -Infinity);
 }
 
 export function isVers({ snapshot, marker, nu }) {
@@ -161,13 +164,13 @@ async function geefBezigVrij(store, id) {
 }
 
 // Schrijft de lading weg, tenzij er intussen een nieuwere momentopname staat.
-async function bewaar(store, { op, klaar, lijsten }, log) {
+async function bewaar(store, { op, dekt, klaar, lijsten }, log) {
   if (!store) return false;
   try {
     const bestaand = await veiligLezen(store, SNAPSHOT_SLEUTEL);
     if (geldigeSnapshot(bestaand) && bestaand.op > op) return false;
     await store.setJSON(SNAPSHOT_SLEUTEL, {
-      v: 1, op, klaar,
+      v: 1, op, dekt, klaar,
       tickets: lijsten.tickets, pendingTickets: lijsten.pendingTickets, plannedTickets: lijsten.plannedTickets,
     });
     return true;
@@ -183,13 +186,15 @@ const uitSnapshot = (s, nu, verouderd) => ({
 });
 
 // Een gedeelde lading: slot nemen, live ophalen, bewaren, slot vrijgeven. Geeft { lijsten } of gooit de Zoho-fout.
-async function laadEnBewaar({ store, haalLive, nu, log }) {
+// `marker` = de stale-marker zoals de aanroeper hem las vóór de lading (dekt); een latere marker maakt het resultaat onvers.
+async function laadEnBewaar({ store, haalLive, nu, log, marker }) {
   const id = randomUUID();
   const op = nu();
+  const dekt = isGetal(marker?.op) ? marker.op : null;
   const heeftSlot = await neemBezig(store, id, op);
   try {
     const lijsten = await haalLive();
-    await bewaar(store, { op, klaar: nu(), lijsten }, log);
+    await bewaar(store, { op, dekt, klaar: nu(), lijsten }, log);
     return { lijsten, heeftSlot };
   } finally {
     if (heeftSlot) await geefBezigVrij(store, id);
@@ -220,7 +225,7 @@ export async function leverTickets({ haalStore, haalLive, nu = () => Date.now(),
   }
 
   try {
-    const { lijsten } = await laadEnBewaar({ store, haalLive, nu, log });
+    const { lijsten } = await laadEnBewaar({ store, haalLive, nu, log, marker: t.marker });
     return { body: lijsten, bron: 'live', leeftijdMs: 0, verouderd: false };
   } catch (e) {
     // Zoho faalt: liever de laatste goede momentopname (gemarkeerd als oud) dan geen tickets.
@@ -245,7 +250,7 @@ export async function voorlaad({ haalStore, haalLive, nu = () => Date.now(), log
   if (!moetVoorladen({ nu: moment, snapshot: t.snapshot, marker: t.marker }).ja) return { resultaat: 'overgeslagen', reden: 'vers' };
   if (bezigActief(t.bezig, moment)) return { resultaat: 'overgeslagen', reden: 'bezig' };
   try {
-    const { lijsten } = await laadEnBewaar({ store, haalLive, nu, log });
+    const { lijsten } = await laadEnBewaar({ store, haalLive, nu, log, marker: t.marker });
     return {
       resultaat: 'ververst',
       tickets: lijsten.tickets.length, wachtend: lijsten.pendingTickets.length, gepland: lijsten.plannedTickets.length,

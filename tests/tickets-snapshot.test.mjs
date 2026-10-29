@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { maakNepStore } from './nep-blobs.mjs';
 import {
-  SNAPSHOT_SLEUTEL, VEROUDERD_SLEUTEL, BEZIG_SLEUTEL, VERS_MS, BEZIG_TTL_MS, MARGE_MS,
+  SNAPSHOT_SLEUTEL, VEROUDERD_SLEUTEL, BEZIG_SLEUTEL, VERS_MS, BEZIG_TTL_MS,
   inWerkuren, isVers, moetVoorladen, markeerVerouderd, leverTickets, voorlaad,
 } from '../netlify/lib/tickets-snapshot.js';
 
@@ -14,7 +14,8 @@ const T = (id, status = 'Geplande service') => ({ id, status });
 const LIJSTEN = { tickets: [T('1', 'Service in te plannen')], pendingTickets: [], plannedTickets: [T('3')] };
 const NIEUW = { tickets: [T('9', 'Service in te plannen')], pendingTickets: [T('8', 'Wachten op bevestiging planning')], plannedTickets: [] };
 
-const snap = (op, lijsten = LIJSTEN) => ({ v: 1, op, klaar: op + 4000, ...lijsten });
+// dekt = de marker die de lading al meenam (null: er was geen marker)
+const snap = (op, lijsten = LIJSTEN, dekt = null) => ({ v: 1, op, dekt, klaar: op + 4000, ...lijsten });
 
 // Klok die enkel verspringt als de test (of een nep-wacht) dat zegt.
 function klok(begin = NU) {
@@ -86,13 +87,14 @@ test('isVers: jonger dan 5 minuten en niet gemarkeerd', () => {
   assert.equal(isVers({ snapshot: snap(NU - VERS_MS), marker: null, nu: NU }), false);
 });
 
-test('isVers: een marker van na de start van de lading maakt de momentopname onvers (met marge)', () => {
-  const s = snap(NU - 60000);
-  assert.equal(isVers({ snapshot: s, marker: { op: NU - 120000 }, nu: NU }), true);  // marker ruim vóór de start
-  assert.equal(isVers({ snapshot: s, marker: { op: NU - 60000 }, nu: NU }), false);  // marker op het startmoment
-  assert.equal(isVers({ snapshot: s, marker: { op: NU - 60000 - MARGE_MS + 1 }, nu: NU }), false); // binnen de marge
-  assert.equal(isVers({ snapshot: s, marker: { op: NU - 60000 - MARGE_MS - 1 }, nu: NU }), true);
-  assert.equal(isVers({ snapshot: s, marker: { op: NU - 1000 }, nu: NU }), false);
+test('isVers: onvers zodra de marker hoger is dan wat de lading al dekte; een lading die de marker al las blijft vers', () => {
+  const s = snap(NU - 60000); // dekt: geen marker gelezen
+  assert.equal(isVers({ snapshot: s, marker: null, nu: NU }), true);
+  assert.equal(isVers({ snapshot: s, marker: { op: NU - 120000 }, nu: NU }), false); // er is nu een marker die de lading niet kende
+  const gedekt = snap(NU - 60000, LIJSTEN, NU - 120000);
+  assert.equal(isVers({ snapshot: gedekt, marker: { op: NU - 120000 }, nu: NU }), true); // dezelfde marker: gedekt
+  assert.equal(isVers({ snapshot: gedekt, marker: { op: NU - 120000 + 1 }, nu: NU }), false); // een latere schrijfactie: niet gedekt
+  assert.equal(isVers({ snapshot: gedekt, marker: { op: NU - 1000 }, nu: NU }), false);
 });
 
 test('isVers: een kapotte of ontbrekende momentopname is nooit vers', () => {
@@ -127,11 +129,10 @@ test('moetVoorladen: buiten werkuren pas na 14 minuten (de planner tikt elke 2 m
   assert.equal(moetVoorladen({ nu: zaterdag, snapshot: snap(zaterdag - 15 * MIN), marker: null }).ja, true);
 });
 
-test('moetVoorladen: een stale-marker dwingt een verversing af, ook buiten werkuren', () => {
+test('moetVoorladen: een stale-marker die de momentopname niet dekt dwingt een verversing af, ook buiten werkuren', () => {
   const nacht = Date.parse('2026-10-28T21:00:00Z');
-  const s = snap(nacht - 2 * MIN);
-  assert.equal(moetVoorladen({ nu: nacht, snapshot: s, marker: { op: nacht - MIN } }).ja, true);
-  assert.equal(moetVoorladen({ nu: nacht, snapshot: s, marker: { op: nacht - 10 * MIN } }).ja, false);
+  assert.equal(moetVoorladen({ nu: nacht, snapshot: snap(nacht - 2 * MIN), marker: { op: nacht - MIN } }).ja, true);
+  assert.equal(moetVoorladen({ nu: nacht, snapshot: snap(nacht - 2 * MIN, LIJSTEN, nacht - MIN), marker: { op: nacht - MIN } }).ja, false);
 });
 
 // ---------------- markeerVerouderd ----------------
@@ -189,31 +190,38 @@ test('leverTickets: geen momentopname -> live ophalen en bewaren', async () => {
   assert.deepEqual(o.gelezen().tickets, NIEUW.tickets);
 });
 
-test('leverTickets: na een schrijfactie (marker) haalt de eerstvolgende aanvraag live op; de volgende gebruikt dan weer de nieuwe momentopname', async () => {
+test('leverTickets: na een schrijfactie (marker) haalt de eerstvolgende aanvraag live op en daarna is de momentopname meteen weer vers (één lading per planning)', async () => {
   const o = opstelling({ snapshot: snap(NU - 60000) });
   await markeerVerouderd({ store: o.store, nu: o.k.nu }); // marker op NU
-  o.k.t = NU + MARGE_MS + 1000; // de lading start ruim na de marker
+  o.k.t = NU + 100; // de client vraagt meteen na de planning opnieuw
   const eerste = await levering(o);
   assert.equal(eerste.bron, 'live');
-  o.k.t += 1000;
-  const tweede = await levering(o);
+  assert.equal(o.gelezen().dekt, NU);
+  o.k.t += 100;
+  const tweede = await levering(o); // een collega, kort daarna
   assert.equal(tweede.bron, 'snapshot');
   assert.deepEqual(tweede.body, NIEUW);
   assert.equal(o.aantalLive(), 1);
 });
 
-test('leverTickets: een lading die kort NA de marker start (binnen de marge) is zelf nog onvers, zodat een wijziging nooit gemist wordt', async () => {
-  const o = opstelling({ snapshot: snap(NU - 60000) });
-  await markeerVerouderd({ store: o.store, nu: o.k.nu });
-  o.k.t = NU + 100;
-  assert.equal((await levering(o)).bron, 'live');
-  o.k.t += 500;
-  assert.equal((await levering(o)).bron, 'live');
-  assert.equal(o.aantalLive(), 2);
+test('leverTickets: een schrijfactie TIJDENS een lading wordt nooit weggemaskeerd: de lading dekt de nieuwe marker niet, de volgende aanvraag laadt opnieuw', async () => {
+  const o = opstelling({ snapshot: snap(NU - 6 * MIN) });
+  const eerste = await levering(o, { haalLive: async () => {
+    o.k.t += 3000;
+    await markeerVerouderd({ store: o.store, nu: o.k.nu }); // iemand plant terwijl wij laden
+    return structuredClone(NIEUW);
+  } });
+  assert.equal(eerste.bron, 'live');
+  assert.equal(o.gelezen().dekt, null); // gelezen voor de lading: er was toen nog geen marker
+  o.k.t += 100;
+  assert.equal((await levering(o)).bron, 'live'); // de momentopname bevat de planning mogelijk niet: opnieuw laden
+  o.k.t += 100;
+  assert.equal((await levering(o)).bron, 'snapshot'); // en die lading las de marker al
+  assert.equal(o.aantalLive(), 1);
 });
 
 test('leverTickets: een momentopname geschreven NA de marker blijft vers (de planner ververste al)', async () => {
-  const o = opstelling({ snapshot: snap(NU - 10000), marker: { op: NU - 60000 } });
+  const o = opstelling({ snapshot: snap(NU - 10000, LIJSTEN, NU - 60000), marker: { op: NU - 60000 } });
   const r = await levering(o);
   assert.equal(r.bron, 'snapshot');
 });
@@ -279,11 +287,10 @@ test('leverTickets: lopende verversing en een snapshot die onvers is door een sc
   const wacht = async ms => {
     o.k.t += ms; gewacht++;
     if (gewacht === 2) { // de andere lading is klaar
-      o.store._data.set(SNAPSHOT_SLEUTEL, JSON.stringify(snap(NU - 3000 + 200 + MARGE_MS + 10, NIEUW)));
+      o.store._data.set(SNAPSHOT_SLEUTEL, JSON.stringify(snap(NU - 700, NIEUW, NU - 5000))); // de andere lading las de marker al
       o.store._data.delete(BEZIG_SLEUTEL);
     }
   };
-  o.k.t = NU + MARGE_MS; // de nieuwe snapshot startte ruim na de marker
   const r = await levering(o, { wacht });
   assert.equal(r.bron, 'snapshot');
   assert.deepEqual(r.body, NIEUW);
