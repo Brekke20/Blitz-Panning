@@ -120,16 +120,49 @@ test.describe('Performance: overzicht', () => {
 test.describe('Performance: factureerbaar bedrag', () => {
   const factureerbaarKaart = (page) => kaartMet(page, 'Factureerbaar bedrag');
 
-  test('de kaart toont totaal, onderdelen, loon met uren, de niet-aangerekende uren en de hint voor onderdelen zonder prijs', async ({ page }) => {
+  test('de kaart toont het totaal groot, de verdeelbalk met onderdelen en loon (hele euro, loonuren) en de aandachtspunten; geen "niet aangerekend"', async ({ page }) => {
     await openPerformance(page);
     const kaart = factureerbaarKaart(page);
     await expect(kaart).toBeVisible();
     await expect(page.locator('.dash-blok-kop', { hasText: 'Factureerbaar' })).toBeVisible();
-    await expect(kaart.locator('dl.dash-feiten > div', { hasText: 'Totaal' }).locator('dd')).toHaveText('€ 1.911');
-    await expect(kaart.locator('dl.dash-feiten > div', { hasText: 'Onderdelen' }).locator('dd')).toHaveText('€ 545,63');
-    await expect(kaart.locator('dl.dash-feiten > div', { hasText: 'Loon' }).locator('dd')).toHaveText('€ 1.365 · 13u30 werk- en rijtijd');
-    await expect(kaart.locator('dl.dash-feiten > div', { hasText: 'Niet aangerekend' }).locator('dd')).toHaveText('9u37 in 5 rapporten');
-    await expect(kaart.locator('.dash-uitleg')).toContainText('1 onderdeel zonder prijs tellen voor € 0 mee');
+    await expect(kaart.locator('.fact-groot .tegel-waarde')).toHaveText('€ 1.911');
+    await expect(kaart.locator('.fact-groot .fact-sub')).toHaveText('excl. btw');
+    const rijen = kaart.locator('.fact-legende li');
+    await expect(rijen).toHaveCount(2);
+    await expect(rijen.nth(0)).toContainText('Onderdelen');
+    await expect(rijen.nth(0).locator('b')).toHaveText('€ 546');
+    await expect(rijen.nth(1)).toContainText('Loon');
+    await expect(rijen.nth(1).locator('b')).toHaveText('€ 1.365');
+    await expect(rijen.nth(1).locator('small')).toHaveText('13u30 werk- en rijtijd');
+    await expect(kaart.locator('.fact-verdeel')).toHaveAttribute('aria-label', 'Onderdelen € 546 (29 %), loon € 1.365 (71 %)');
+    await expect(kaart.locator('.fact-deel-1')).toBeVisible();
+    await expect(kaart.locator('.fact-deel-2')).toBeVisible();
+    await expect(kaart.locator('.fact-let')).toHaveText('1 onderdeel zonder prijs telt als € 0');
+    await expect(kaart).not.toContainText(/niet aangerekend/i);
+    await expect(kaart).not.toContainText('9u37');
+    await expect(kaart.locator('.dash-uitleg')).toHaveCount(0);
+  });
+
+  test('de uitleg zit achter het i-knopje: dicht standaard, open na een tik', async ({ page }) => {
+    await openPerformance(page);
+    const kaart = factureerbaarKaart(page);
+    await expect(kaart.locator('.fact-bubbel')).toBeHidden();
+    await kaart.locator('.fact-info > summary').click();
+    await expect(kaart.locator('.fact-bubbel')).toBeVisible();
+    await expect(kaart.locator('.fact-bubbel')).toContainText('Loon van garantie- en installatiebezoeken telt niet mee.');
+  });
+
+  test('op gsm-breedte staat het bedrag boven de verdeling en loopt de kaart niet buiten het scherm', async ({ page }) => {
+    await openPerformance(page);
+    await page.setViewportSize({ width: 375, height: 800 }); // na het openen: op gsm zit Beheer achter "Meer" in het dok
+    const kaart = factureerbaarKaart(page);
+    await kaart.scrollIntoViewIfNeeded();
+    const groot = await kaart.locator('.fact-groot').boundingBox();
+    const verdeling = await kaart.locator('.fact-verdeling').boundingBox();
+    expect(verdeling.y).toBeGreaterThan(groot.y + groot.height - 1);
+    const kaartBox = await kaart.boundingBox();
+    expect(kaartBox.x + kaartBox.width).toBeLessThanOrEqual(375);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 
   test('de kaart volgt de periode en het techniekerfilter: elke keuze haalt nieuwe waarden op', async ({ page }) => {
@@ -143,14 +176,14 @@ test.describe('Performance: factureerbaar bedrag', () => {
         }));
       },
     });
-    const totaal = factureerbaarKaart(page).locator('dl.dash-feiten > div', { hasText: 'Totaal' }).locator('dd');
+    const totaal = factureerbaarKaart(page).locator('.fact-groot .tegel-waarde');
     await expect(totaal).toHaveText('€ 1.911');
     await page.getByRole('button', { name: 'Vorige maand', exact: true }).click();
-    await expect(totaal).toHaveText('€ 77,00');
+    await expect(totaal).toHaveText('€ 77');
     await page.getByRole('button', { name: 'Deze maand', exact: true }).click();
     await expect(totaal).toHaveText('€ 1.911');
     await page.locator('.dash-filters select[data-arg="technieker"]').selectOption('Roel');
-    await expect(totaal).toHaveText('€ 321,50');
+    await expect(totaal).toHaveText('€ 322');
     expect(queries.at(-1)).toContain('technieker=Roel');
   });
 
@@ -160,9 +193,10 @@ test.describe('Performance: factureerbaar bedrag', () => {
         Object.assign(d.factureerbaar.dekking, { zonderWerktijd: 2, nietAangerekendeOnderdelen: 3 });
       }),
     });
-    const uitleg = factureerbaarKaart(page).locator('.dash-uitleg');
-    await expect(uitleg).toContainText('2 rapporten zonder start- en stoptijd');
-    await expect(uitleg).toContainText('3 onderdelen als "niet aangerekend" gemarkeerd');
+    const punten = factureerbaarKaart(page).locator('.fact-let');
+    await expect(punten).toContainText('1 onderdeel zonder prijs telt als € 0');
+    await expect(punten).toContainText('2 rapporten zonder start- en stoptijd');
+    await expect(punten).not.toContainText('gemarkeerd');
   });
 
   test('zonder rapporten in de periode toont het blok de lege-toestand-zin', async ({ page }) => {
