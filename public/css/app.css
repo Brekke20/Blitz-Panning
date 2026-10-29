@@ -184,6 +184,15 @@
       box-shadow: inset 0 1px 0 var(--glas-licht), var(--gloed-schaduw, 0 0 0 transparent), var(--glas-schaduw);
       transition: background-color var(--duur) ease, border-color var(--duur) ease, box-shadow calc(var(--duur) * 1.5) ease;
     }
+    /* Optimalisatie O2: op de gsm (ook een tablet rechtop) geen vervaging per lijstkaart, enkel de verzadiging (de kleur blijft). Een vervaagde
+       kaart per lijstitem is de bekende scrollrem op goedkope telefoons; achter een kaart ligt overdag enkel het zachte hemelverloop, waar
+       vervaging vrijwel niets aan verandert (e2e/kaarten-glas-gsm.spec.mjs: hoogstens 3/255 verschil). Blijft WEL vervaagd: 's nachts (de sterren
+       liggen erachter) en tijdens elk thema (html[data-event]: de vormen in #event-achter-laag liggen dan scherp achter de kaart, ook zonder
+       achtergrondbeeld). pc en tablet liggend ongemoeid. Los terug te draaien: verwijder enkel deze regel. */
+    html[data-apparaat="gsm"]:not([data-hemel="nacht"]):not([data-event]) :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart) {
+      -webkit-backdrop-filter: saturate(180%);
+      backdrop-filter: saturate(180%);
+    }
     /* Compacte kaarten (kalenderafspraken, voorraadrijen): kleinere hoek, zonder de brede schaduw van een lijstkaart */
     :is(.cal-ticket, .cal-local-event, .inv-row) { border-radius: var(--r-ev); box-shadow: inset 0 1px 0 var(--glas-licht), var(--gloed-schaduw, 0 0 0 transparent); }
     @media (hover: hover) { :is(.ticket, .cal-ticket, .cal-local-event, .stop, .inv-row, .sales-kaart, .sales-afgewerkt-rij, .sales-afgewerkt-kaart):hover {

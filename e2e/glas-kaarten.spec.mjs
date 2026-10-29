@@ -34,12 +34,21 @@ test.describe('glazen kaarten', () => {
     expect(stijl.rand).toBe('1px');
   });
 
-  test('gsm: minder vervaging', async ({ page }) => {
+  // Optimalisatie O2: overdag en zonder thema geen vervaging per lijstkaart op gsm (enkel saturate; pixelproef: e2e/kaarten-glas-gsm.spec.mjs);
+  // bij nacht (sterren erachter) blijft de lichte vervaging van 10 px.
+  test('gsm: overdag zonder vervaging, bij nacht 10 px', async ({ page }) => {
     await zetGsm(page);
     await startApp(page, { viewport: { width: 375, height: 812 } });
     await expect(page.locator('html')).toHaveAttribute('data-apparaat', 'gsm');
     const kaart = page.locator('#view-tickets .ticket').first();
     await expect(kaart).toBeVisible();
+    await page.evaluate(() => document.documentElement.setAttribute('data-hemel', 'middag'));
+    await expect(page.locator('html')).toHaveAttribute('data-hemel', 'middag');
+    const overdag = await kaart.evaluate((el) => getComputedStyle(el).backdropFilter);
+    expect(overdag).not.toContain('blur(');
+    expect(overdag).toContain('saturate(');
+    await page.evaluate(() => document.documentElement.setAttribute('data-hemel', 'nacht'));
+    await expect(page.locator('html')).toHaveAttribute('data-hemel', 'nacht');
     verwachtBlurOpGsm(await kaart.evaluate((el) => getComputedStyle(el).backdropFilter));
   });
 
