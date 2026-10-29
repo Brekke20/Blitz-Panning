@@ -8,7 +8,7 @@
 import { zetStickyOffsets } from './sticky-offset.js';
 import { foutTekst } from './kern/api.js';
 import { lopendeSchrijfverzoeken } from './kern/netwerk.js';
-import { toestand } from './kern/toestand.js';
+import { toestand, SLEUTELS } from './kern/toestand.js';
 import { TEST_MODE } from './kern/omgeving.js';
 import { localISO, extractLocalHour, openingsDatum } from './kern/tijd.js';
 import { startTicketLogExport } from './kern/exceljs.js';
@@ -736,13 +736,17 @@ async function wisselWerkruimte(naar, { verkoper } = {}) {
 // Eén plek met alle abonnementen van de schermen op de toestand (K6). Elk scherm één abonnement met de
 // unie van zijn sleutels, in de volgorde van de vroegere handmatige aanroepen (_applyTicketsData/selectPerson).
 // Bewust GEEN abonnement op voorstelStatus, klantBeschikbaarheid en settings: er hangt geen
-// uniforme render-keten aan (de plaatsen die ze schrijven, hertekenen zelf wat ze nodig hebben).
+// uniforme render-keten aan (de plaatsen die ze schrijven, hertekenen zelf wat ze nodig hebben); wel markeren ze Kalender en Ingepland als verouderd (O3).
 // Het route-abonnement dekt wel planning en localEvents (etappe 3): elke in-place schrijf op planning roept raak('planning') aan.
 // De abonnees verwijzen via arrow-functies naar de renders van de schermmodules (kern.<scherm>.renderTelling() telt in de modules zelf).
 function koppelRenders() {
   const st = toestand;
   st.spoel(); // beginwaarden van vóór de koppeling mogen niets hertekenen
   st.zetOmhulling(draai => metBehoudScroll(draai));
+  // O3: Kalender en Ingepland tekenen bij het openen van hun tab enkel opnieuw als er iets veranderde. Eerste abonnement (vóór de renders hieronder, zodat
+  // een render van een zichtbaar scherm de markering weer wist); op ALLE sleutels, want de kalender is niet op planning, klantBeschikbaarheid,
+  // voorstelStatus en settings geabonneerd maar toont ze wel.
+  st.abonneer(SLEUTELS, () => { kalender.markeerVerouderd(); ingepland.markeerVerouderd(); });
   const planDatum = () => document.getElementById('plan-date')?.value || localISO(new Date());
   st.abonneer(['activeAssigneeFilter'], () => updatePersonHeader());
   // Een technieker met "Mag zelf plannen" die de week van een collega (of iedereen) bekijkt: "Plan deze week" verdwijnt (CSS
@@ -940,7 +944,7 @@ function setTab(tab) {
   // Defer kalender/gepland render één tick zodat de tab-click geen elementen in de nieuw gerenderde view raakt
   window.scrollTo(0, 0); // tabwissel door de gebruiker start altijd bovenaan (sync-herrenders behouden de scroll: metBehoudScroll)
   if (tab === 'kalender')  setTimeout(() => kalender.activeerKalender(), 0);
-  if (tab === 'gepland')   setTimeout(() => ingepland.renderGepland(), 0);
+  if (tab === 'gepland')   setTimeout(() => ingepland.activeerGepland(), 0);
   if (tab === 'rapporten') setTimeout(() => laadRapportArchief(), 0);
   if (tab === 'inventaris') {
     setTimeout(() => {
@@ -998,7 +1002,7 @@ function toggleTheme() {
 
 installeerTijdPicker(document, window); // tik op een tijd-/datumveld opent de klok/kalender (Android)
 window.addEventListener('versiering-gewijzigd', () => { // thema aan/uit: lege-tekst-lijsten direct hertekenen
-  try { wachtrij.renderTickets(); ingepland.renderGepland(); } catch (e) { /* app nog niet opgestart: de eerste render pakt het thema vanzelf */ }
+  try { wachtrij.renderTickets(); ingepland.renderGepland(); kalender.markeerVerouderd(); } catch (e) { /* app nog niet opgestart: de eerste render pakt het thema vanzelf */ }
 });
 // Feestelijke versiering (schermen/evenement-laag.js): meteen het thema uit de cache (themasNu, geen netwerk); na het inloggen
 // (opstart) de verse themas van /api/themas (schermen/themas-bron.js) en opnieuw berekenen; ook bij terugkeer naar de pagina
