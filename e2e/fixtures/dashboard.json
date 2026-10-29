@@ -521,6 +521,22 @@
       "zonderPrijs": 1
     }
   },
+  "factureerbaar": {
+    "onderdelen": 545.63,
+    "loon": 1365,
+    "totaal": 1910.63,
+    "minuten": 810,
+    "nietAangerekend": {
+      "minuten": 577,
+      "rapporten": 5
+    },
+    "dekking": {
+      "rapporten": 12,
+      "zonderPrijs": 1,
+      "zonderWerktijd": 0,
+      "nietAangerekendeOnderdelen": 0
+    }
+  },
   "klant": {
     "bevestiging": {
       "n": 3,
@@ -722,6 +738,12 @@
       "rapporten": 12,
       "metOnderdelen": 9,
       "zonderPrijs": 1
+    },
+    "factureerbaar": {
+      "rapporten": 12,
+      "zonderPrijs": 1,
+      "zonderWerktijd": 0,
+      "nietAangerekendeOnderdelen": 0
     },
     "klant": {
       "voorstellen": 4,

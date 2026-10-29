@@ -49,15 +49,15 @@ const OPTIJD_RING = '% op tijd (alle bezoeken)';
 const openInstellingen = async (page) => { await page.locator('.dash-instellingen > summary').click(); await expect(page.locator('.dash-instellingen')).toHaveAttribute('open', ''); };
 
 test.describe('Performance: overzicht', () => {
-  test('beheerder opent Beheer → Performance en ziet zes tegels en de vijf blokken in vaste volgorde', async ({ page, verzoeken }) => {
+  test('beheerder opent Beheer → Performance en ziet zes tegels en de zes blokken in vaste volgorde', async ({ page, verzoeken }) => {
     await openPerformance(page, { viaTab: true });
     await expect(page.locator('#beheer-tab-performance')).toHaveText('Performance');
     await expect(page.locator('.tegels > .tegel')).toHaveCount(6);
     expect(await page.locator('.tegels > .tegel .tegel-kop').allTextContents()).toEqual([
       'Interventies', 'Gemiddelde duur', '% op tijd (alle bezoeken)', 'First-time-fix', 'Herhaalbezoeken', 'Waarde onderdelen',
     ]);
-    await expect(page.locator('.dash-blok')).toHaveCount(5);
-    expect(await page.locator('.dash-blok-kop').allTextContents()).toEqual(['Tijd & stiptheid', 'Kwaliteit', 'Onderdelen', 'Klant & planning', 'Sales']);
+    await expect(page.locator('.dash-blok')).toHaveCount(6);
+    expect(await page.locator('.dash-blok-kop').allTextContents()).toEqual(['Tijd & stiptheid', 'Kwaliteit', 'Onderdelen', 'Factureerbaar', 'Klant & planning', 'Sales']);
     await expect(tegel(page, 'interventies').locator('.tegel-waarde')).toHaveText('10');
     expect(verzoeken.van('/api/dashboard', 'GET')).toHaveLength(1);
     // Dekking-voetnoot uit de fixture.
@@ -114,6 +114,61 @@ test.describe('Performance: overzicht', () => {
     }
     await expect(page.locator('.tegels > .tegel')).toHaveCount(6);
     expect(consoleFouten).toEqual([]); // het vangnet controleert hetzelfde nog eens na de test
+  });
+});
+
+test.describe('Performance: factureerbaar bedrag', () => {
+  const factureerbaarKaart = (page) => kaartMet(page, 'Factureerbaar bedrag');
+
+  test('de kaart toont totaal, onderdelen, loon met uren, de niet-aangerekende uren en de hint voor onderdelen zonder prijs', async ({ page }) => {
+    await openPerformance(page);
+    const kaart = factureerbaarKaart(page);
+    await expect(kaart).toBeVisible();
+    await expect(page.locator('.dash-blok-kop', { hasText: 'Factureerbaar' })).toBeVisible();
+    await expect(kaart.locator('dl.dash-feiten > div', { hasText: 'Totaal' }).locator('dd')).toHaveText('€ 1.911');
+    await expect(kaart.locator('dl.dash-feiten > div', { hasText: 'Onderdelen' }).locator('dd')).toHaveText('€ 545,63');
+    await expect(kaart.locator('dl.dash-feiten > div', { hasText: 'Loon' }).locator('dd')).toHaveText('€ 1.365 · 13u30 werk- en rijtijd');
+    await expect(kaart.locator('dl.dash-feiten > div', { hasText: 'Niet aangerekend' }).locator('dd')).toHaveText('9u37 in 5 rapporten');
+    await expect(kaart.locator('.dash-uitleg')).toContainText('1 onderdeel zonder prijs tellen voor € 0 mee');
+  });
+
+  test('de kaart volgt de periode en het techniekerfilter: elke keuze haalt nieuwe waarden op', async ({ page }) => {
+    const queries = [];
+    await openPerformance(page, {
+      dashboard: ({ query }) => {
+        queries.push(query.toString());
+        return json(200, dashboardData((d) => {
+          if (query.get('technieker') === 'Roel') { d.factureerbaar.totaal = 321.5; d.factureerbaar.dekking.rapporten = 2; }
+          else if (query.get('van') !== '2026-10-01') { d.factureerbaar.totaal = 77; }
+        }));
+      },
+    });
+    const totaal = factureerbaarKaart(page).locator('dl.dash-feiten > div', { hasText: 'Totaal' }).locator('dd');
+    await expect(totaal).toHaveText('€ 1.911');
+    await page.getByRole('button', { name: 'Vorige maand', exact: true }).click();
+    await expect(totaal).toHaveText('€ 77,00');
+    await page.getByRole('button', { name: 'Deze maand', exact: true }).click();
+    await expect(totaal).toHaveText('€ 1.911');
+    await page.locator('.dash-filters select[data-arg="technieker"]').selectOption('Roel');
+    await expect(totaal).toHaveText('€ 321,50');
+    expect(queries.at(-1)).toContain('technieker=Roel');
+  });
+
+  test('hints bij rapporten zonder start- en stoptijd en bij onderdelen die niet aangerekend zijn; zonder rapporten geen kaart', async ({ page }) => {
+    await openPerformance(page, {
+      dashboard: dashboardStub((d) => {
+        Object.assign(d.factureerbaar.dekking, { zonderWerktijd: 2, nietAangerekendeOnderdelen: 3 });
+      }),
+    });
+    const uitleg = factureerbaarKaart(page).locator('.dash-uitleg');
+    await expect(uitleg).toContainText('2 rapporten zonder start- en stoptijd');
+    await expect(uitleg).toContainText('3 onderdelen als "niet aangerekend" gemarkeerd');
+  });
+
+  test('zonder rapporten in de periode toont het blok de lege-toestand-zin', async ({ page }) => {
+    await openPerformance(page, { dashboard: dashboardStub((d) => { d.factureerbaar.dekking.rapporten = 0; }) });
+    await expect(page.locator('.dash-blok--factureerbaar')).toContainText('Geen gegevens in deze periode.');
+    await expect(factureerbaarKaart(page)).toHaveCount(0);
   });
 });
 

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { renderTijd } from '../public/js/schermen/beheer-performance-tijd.js';
 import { renderKwaliteit } from '../public/js/schermen/beheer-performance-kwaliteit.js';
 import { renderOnderdelen } from '../public/js/schermen/beheer-performance-onderdelen.js';
+import { renderFactureerbaar } from '../public/js/schermen/beheer-performance-factureerbaar.js';
 import { renderKlant } from '../public/js/schermen/beheer-performance-klant.js';
 import { renderSales } from '../public/js/schermen/beheer-performance-sales.js';
 import { LEGE_ZIN, groepeerPerWeek, weekStart } from '../public/js/schermen/beheer-performance-blokhulp.js';
@@ -12,7 +13,7 @@ import { STANDAARD_GRENZEN } from '../public/js/kern/dashboard-grenzen.js';
 
 const data = JSON.parse(fs.readFileSync(new URL('../e2e/fixtures/dashboard.json', import.meta.url), 'utf8'));
 const ctx = { grenzen: STANDAARD_GRENZEN, techniekers: data.opties.techniekers, filters: data.filters };
-const BLOKKEN = { renderTijd, renderKwaliteit, renderOnderdelen, renderKlant, renderSales };
+const BLOKKEN = { renderTijd, renderKwaliteit, renderOnderdelen, renderFactureerbaar, renderKlant, renderSales };
 const tel = (s, re) => (s.match(re) ?? []).length;
 const ringen = h => tel(h, /<svg class="ring-svg/g);
 
@@ -41,6 +42,7 @@ test('lege blokken (alle lijsten leeg) tonen de lege-toestand-zin en geen lege k
     tijd: { duurPer: { laadpaal: [], oorzaak: [], technieker: [], bezoektype: [] }, opTijdPerTechnieker: [], opTijdTotaal: { n: 0, teVroeg: 0, opTijd: 0, teLaat: 0, pct: null }, rijtijdPerDag: [], perDagPerTechnieker: { datums: [], techniekers: [], waarden: {} } },
     kwaliteit: { ftfPerTechnieker: [], ftfPerType: [], herhaal: { dagen: 30, aantal: 0, lijst: [] }, topOorzaken: [] },
     onderdelen: { top10: [], perMaand: { maanden: [], perTechnieker: {}, perType: {}, totaal: {} }, dekking: {} },
+    factureerbaar: { onderdelen: 0, loon: 0, totaal: 0, minuten: 0, nietAangerekend: { minuten: 0, rapporten: 0 }, dekking: { rapporten: 0, zonderPrijs: 0, zonderWerktijd: 0, nietAangerekendeOnderdelen: 0 } },
     klant: { bevestiging: { n: 0, buckets: [] }, bevestigdViaKnop: { n: 0, pct: null }, annulaties: null, garantie: { n: 0 }, installateurAlLangs: { n: 0, ja: 0, nee: 0, onbekend: 0, perPartner: [], perRegio: [] }, dekking: {} },
     sales: { perWeek: { weken: [], verkopers: [], waarden: {} }, resultaten: { totaal: 0, perSoort: [] }, wachtend: { n: 0, buckets: [], perVerkoper: [] } },
   };
@@ -49,6 +51,35 @@ test('lege blokken (alle lijsten leeg) tonen de lege-toestand-zin en geen lege k
     assert.ok(h.includes(LEGE_ZIN), `${naam}: lege-toestand-zin`);
     assert.ok(!h.includes('dash-kaart'), `${naam}: geen lege kaart`);
   }
+});
+
+test('Factureerbaar: één kaart met totaal, onderdelen, loon met uren en de niet-aangerekende uren, met enkel de hint die bij de fixture past', () => {
+  const h = renderFactureerbaar(data, ctx);
+  assert.equal(tel(h, /<section class="dash-kaart"/g), 1);
+  assert.ok(h.includes('Factureerbaar bedrag'));
+  assert.ok(h.includes('€ 1.911'), 'totaal');
+  assert.ok(h.includes('€ 545,63'), 'onderdelen');
+  assert.ok(h.includes('€ 1.365 · 13u30 werk- en rijtijd'), 'loon met uren (810 min)');
+  assert.ok(h.includes('9u37 in 5 rapporten'), 'niet aangerekend (577 min)');
+  assert.ok(h.includes('1 onderdeel zonder prijs'), 'de fixture heeft één onderdeel zonder prijs');
+  assert.ok(!h.includes('zonder start- en stoptijd'));
+  assert.ok(!h.includes('niet aangerekend" gemarkeerd'));
+});
+
+test('Factureerbaar: hints voor rapporten zonder tijd en voor onderdelen die niet aangerekend zijn; zonder niet-aangerekende uren geen die regel', () => {
+  const f = { onderdelen: 10, loon: 0, totaal: 10, minuten: 0, nietAangerekend: { minuten: 0, rapporten: 0 }, dekking: { rapporten: 3, zonderPrijs: 2, zonderWerktijd: 3, nietAangerekendeOnderdelen: 1 } };
+  const h = renderFactureerbaar({ factureerbaar: f }, ctx);
+  assert.ok(h.includes('3 rapporten zonder start- en stoptijd'));
+  assert.ok(h.includes('2 onderdelen zonder prijs'));
+  assert.ok(h.includes('1 onderdeel als &quot;niet aangerekend&quot; gemarkeerd'));
+  assert.ok(!h.includes('Niet aangerekend (garantie'));
+});
+
+test('Factureerbaar: zonder rapporten in de periode geen kaart maar de lege-toestand-zin', () => {
+  const leeg = { factureerbaar: { ...data.factureerbaar, dekking: { ...data.factureerbaar.dekking, rapporten: 0 } } };
+  const h = renderFactureerbaar(leeg, ctx);
+  assert.ok(h.includes(LEGE_ZIN));
+  assert.ok(!h.includes('dash-kaart'));
 });
 
 test('Tijd: vier duurkaarten, ringen per technieker met kop en verdeling, stiptheid, lijn- en kolomgrafiek', () => {
