@@ -26,7 +26,23 @@ function veld(label, invoer, id) {
   return h('div', { class: 'set-field' }, h('label', { class: 'set-label', for: id, text: label }), invoer);
 }
 
+const instellingenPad = (id) => `/api/instellingen?gebruiker=${encodeURIComponent(id)}`;
+const PERSOON_SLEUTEL = 'blitz_beheer_instellingen_persoon';
+
 async function render(container) {
+  // Eenmalige keuze uit het ⚙-venster (een Zoho-naam): nu enkel lezen; ze wordt pas na een geslaagde lijst gewist (zoals voorheen).
+  let gevraagd = null;
+  try { gevraagd = sessionStorage.getItem(PERSOON_SLEUTEL); } catch { /* geen opslag */ }
+  // C1: de instellingen van de gebruiker die straks gekozen wordt starten MEE met de lijst, niet erna. Zonder bewaarde keuze is dat de
+  // beheerder zelf (de eigen id is meteen bekend). Met een bewaarde keuze weten we pas uit de lijst wie dat is (ze bevat een Zoho-naam,
+  // geen id): dan geen voorstart, en de eerste laad() doet gewoon zijn eigen verzoek. Een voorstart die niet gebruikt wordt (eigen id
+  // staat niet in de lijst, of de lijst faalt) is een onschadelijk GET; beheerVerzoek gooit nooit, de lege catch is enkel een vangnet.
+  const eigenId = huidigeGebruiker()?.id;
+  let voorstart = null;
+  if (!gevraagd && typeof eigenId === 'string' && eigenId) {
+    voorstart = { id: eigenId, belofte: beheerVerzoek(instellingenPad(eigenId)) };
+    voorstart.belofte.catch(() => {});
+  }
   const lijst = await beheerVerzoek('/api/gebruikers');
   if (!lijst.ok) {
     container.replaceChildren(h('p', { class: 'beheer-fout', role: 'alert', text: beheerFoutTekst(lijst) }));
@@ -40,11 +56,9 @@ async function render(container) {
 
   const kies = h('select', { class: 'set-input', id: 'bi-gebruiker' },
     gebruikers.map(g => h('option', { value: g.id, text: `${g.naam} (${rolLabel(g.rol)})${g.actief === false ? ' — geblokkeerd' : ''}` })));
-  const eigenId = huidigeGebruiker()?.id;
   if (gebruikers.some(g => g.id === eigenId)) kies.value = eigenId; // begin bij de eigen instellingen
   // Kwam de beheerder via "Aanpassen in Beheer" uit het ⚙-venster, dan begint hij bij de persoon die daar gekozen was (eenmalig).
-  let gevraagd = null;
-  try { gevraagd = sessionStorage.getItem('blitz_beheer_instellingen_persoon'); sessionStorage.removeItem('blitz_beheer_instellingen_persoon'); } catch { /* geen opslag */ }
+  try { sessionStorage.removeItem(PERSOON_SLEUTEL); } catch { /* geen opslag */ }
   const norm = (t) => String(t ?? '').trim().toLowerCase();
   const gewenst = gevraagd ? gebruikers.find(g => norm(g.zohoNaam) === norm(gevraagd)) : null;
   if (gewenst) kies.value = gewenst.id;
@@ -109,7 +123,10 @@ async function render(container) {
     opslaan.disabled = true;
     fout.textContent = '';
     status.textContent = 'Laden…';
-    const r = await beheerVerzoek(`/api/instellingen?gebruiker=${encodeURIComponent(g.id)}`);
+    // Enkel de eerste lading gebruikt de voorstart, en enkel als die voor dezelfde gebruiker was; daarna altijd een vers verzoek.
+    const vooraf = voorstart;
+    voorstart = null;
+    const r = await (vooraf && vooraf.id === g.id ? vooraf.belofte : beheerVerzoek(instellingenPad(g.id)));
     if (mijn !== volgnummer) return; // intussen een andere gebruiker gekozen
     if (!r.ok) {
       status.textContent = '';
@@ -163,7 +180,7 @@ async function render(container) {
     opslaan.disabled = true;
     status.textContent = 'Opslaan…';
     // Actuele stand lezen vlak vóór het schrijven (beperkt verloren updates van de velden die dit scherm niet toont).
-    const vers = await beheerVerzoek(`/api/instellingen?gebruiker=${encodeURIComponent(doel.id)}`);
+    const vers = await beheerVerzoek(instellingenPad(doel.id));
     let r = vers;
     let instellingen = null;
     if (vers.ok) {
