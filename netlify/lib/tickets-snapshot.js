@@ -2,7 +2,7 @@
 // aanvraag de ~27 Zoho-aanroepen (4 tot 6 s) hoeft te doen. Een geplande functie (tickets-vooraf.js) ververst de
 // momentopname; /api/tickets serveert ze zolang ze vers is en haalt anders live op (en schrijft ze dan opnieuw weg).
 //
-// Drie sleutels in de store:
+// Vier sleutels in de store:
 //   tickets-snapshot            { v:1, op, dekt, klaar, tickets, pendingTickets, plannedTickets }
 //                               `op` = het STARTMOMENT van de lading (ms), enkel voor de leeftijd. `dekt` = het id van de
 //                               stale-marker die de lading las VOOR ze Zoho aanriep (null = er was geen). "Onvers door een
@@ -16,6 +16,8 @@
 //                               markering krijgt een nieuw `id` (randomUUID).
 //                               Aparte blob in plaats van een vlag in de momentopname: Blobs 8.2 heeft geen voorwaardelijke
 //                               schrijfacties, dus een vlag zou verloren gaan als de planner tegelijk de momentopname herschrijft.
+//   tickets-snapshot-geforceerd { op }  het tijdstip van de laatste geforceerde lading (Vernieuwen), zodat de rem van 30 s ook geldt
+//                               als die lading mislukte en er dus geen nieuwe momentopname kwam.
 //   tickets-snapshot-bezig      { id, op, dekt }  best-effort slot tegen dubbele volledige ladingen (geen atomaire operatie
 //                               mogelijk: schrijven en terugleggen; wie het slot verliest laadt niet, tenzij de winnaar uitblijft).
 //
@@ -29,11 +31,17 @@ import { heeftNetlifyRuntime } from './lokale-dev.js';
 export const SNAPSHOT_SLEUTEL = 'tickets-snapshot';
 export const VEROUDERD_SLEUTEL = 'tickets-snapshot-verouderd';
 export const BEZIG_SLEUTEL = 'tickets-snapshot-bezig';
+export const FORCEER_SLEUTEL = 'tickets-snapshot-geforceerd'; // { op }: tijdstip van de laatste geforceerde lading (?vers=1), voor de rem
 
 export const VERS_MS = 5 * 60 * 1000;            // jonger dan dit = geserveerd zonder Zoho
 export const BEZIG_TTL_MS = 30 * 1000;           // een slot ouder dan dit is verlopen (een lading duurt 4 tot 6 s; de planner heeft 26 s time-out)
 export const MAX_TERUGVAL_MS = 60 * 60 * 1000;   // een oude momentopname wordt bij een Zoho-fout enkel geserveerd als ze jonger is dan dit
 export const FORCEER_MIN_MS = 30 * 1000;         // "Vernieuwen" (?vers=1) forceert hoogstens één Zoho-lading per zoveel ms, voor alle gebruikers samen
+export const VEROUDERD_VANAF_MS = 20 * 60 * 1000; // een momentopname die dit oud is terwijl een andere aanvraag laadt, krijgt de balk (normaal is ≤ ~16 min)
+export const VOORLAAD_TIMEOUT_MS = 20 * 1000;    // de planner geeft zijn Zoho-lading zoveel tijd (functie: 26 s), zodat zijn slot vrijkomt als Zoho hangt
+export const DEADLINE_MS = 17 * 1000;            // totale tijd van een /api/tickets-aanvraag (wachten + laden) vóór Netlify's 20 s afbreekt
+export const MIN_LIVE_MS = 5 * 1000;             // bij het berekenen van een wachttijd blijft zoveel van de deadline voor de Zoho-lading over
+const LIVE_MINIMUM_MS = 2000;                    // en de Zoho-lading krijgt nooit minder dan dit (tenzij de gewenste tijd zelf korter is)
 export const LIVE_TIMEOUT_MS = 12 * 1000;        // een live lading in /api/tickets krijgt zoveel tijd voor de terugval (de functie heeft 20 s)
 export const WACHT_MAX_MS = 6000;                // hoe lang een aanvraag op een lopende lading wacht
 export const WACHT_STAP_MS = 400;
@@ -238,27 +246,59 @@ async function laadEnBewaar({ store, haalLive, nu, log, marker, eisSlot = false,
   }
 }
 
+// Hoeveel tijd er van de totale deadline (DEADLINE_MS vanaf het begin van de aanvraag) nog over is voor wachten op een andere lading en
+// voor de eigen Zoho-lading. De functie heeft 20 s (netlify.toml); zo komt het antwoord (of de fout) altijd vóór Netlify afbreekt,
+// ook als er na elkaar op een lopende lading en op een winnaar van het slot gewacht wordt. Zuiver, voor de tests.
+export function tijdBudget({ begin, nu, gewensteLive = LIVE_TIMEOUT_MS }) {
+  const rest = Math.max(0, begin + DEADLINE_MS - nu);
+  return {
+    wachtMs: Math.min(WACHT_MAX_MS, Math.max(0, rest - MIN_LIVE_MS)), // wachten laat altijd MIN_LIVE_MS over voor Zoho
+    liveMs: Math.min(gewensteLive, Math.max(LIVE_MINIMUM_MS, rest)),  // Zoho krijgt wat er rest, minstens LIVE_MINIMUM_MS
+  };
+}
+
 // Het antwoord voor /api/tickets: { body, bron: 'snapshot'|'live', leeftijdMs, verouderd }.
+// `verouderd` = de client toont de balk "Zoho even niet bereikbaar": Zoho faalde (terugval), of de geserveerde momentopname is
+// ouder dan VEROUDERD_VANAF_MS terwijl een andere aanvraag laadt (de planner of Zoho loopt dan achter).
 // forceer (Vernieuwen, ?vers=1): ook een nog verse momentopname wordt vervangen door een Zoho-lading, met een rem van één per
-// FORCEER_MIN_MS voor alle gebruikers samen (gemeten aan de leeftijd van de momentopname: wat net geschreven werd, wordt geserveerd).
+// FORCEER_MIN_MS voor alle gebruikers samen: gemeten aan de leeftijd van de momentopname (wat net geschreven werd, wordt geserveerd)
+// én aan het tijdstip van de laatste geforceerde poging (FORCEER_SLEUTEL), zodat de rem ook geldt als die poging mislukte.
 // Gooit als Zoho faalt EN er geen bruikbare terugval is: geen momentopname, een te oude (MAX_TERUGVAL_MS) of een authenticatiefout.
 // Dan gedraagt /api/tickets zich als voorheen: een 500 met de fouttekst, en de client toont zijn eigen foutmelding.
+// Dezelfde leeftijdsgrens geldt als er al een andere aanvraag laadt: een te oude momentopname wordt dan niet geserveerd maar vervangen.
 export async function leverTickets({
   haalStore, haalLive, nu = () => Date.now(), wacht = beloof, log = console.error,
   forceer = false, liveTimeoutMs = LIVE_TIMEOUT_MS,
 } = {}) {
   const begin = nu();
   const store = await haalStoreVeilig(haalStore, log, 'lezen');
-  let t = await leesToestand(store, { metBezig: false });
+  const [eerste, geforceerd] = await Promise.all([
+    leesToestand(store, { metBezig: false }),
+    forceer ? veiligLezen(store, FORCEER_SLEUTEL) : null,
+  ]);
+  let t = eerste;
 
-  if (isVers({ ...t, nu: begin }) && (!forceer || begin - t.snapshot.op < FORCEER_MIN_MS)) return uitSnapshot(t.snapshot, begin, false);
+  const vers = isVers({ ...t, nu: begin });
+  if (vers) {
+    const rem = !forceer
+      || begin - t.snapshot.op < FORCEER_MIN_MS
+      || (isGetal(geforceerd?.op) && begin - geforceerd.op < FORCEER_MIN_MS && begin - geforceerd.op > -FORCEER_MIN_MS);
+    if (rem) return uitSnapshot(t.snapshot, begin, false);
+    // Een echte geforceerde lading volgt: het tijdstip meteen onthouden (ook als ze mislukt), voor de rem van de volgende.
+    await schrijfGeforceerd(store, begin);
+  }
   t = { ...t, bezig: await veiligLezen(store, BEZIG_SLEUTEL) };
 
   const ingehaald = !!t.snapshot && door(t.snapshot, t.marker); // onvers door een schrijfactie, niet enkel door ouderdom
 
+  // De bestaande momentopname serveren terwijl een andere aanvraag laadt: enkel als ze niet door een schrijfactie is ingehaald én niet
+  // te oud is (MAX_TERUGVAL_MS); anders zelf laden, zodat de regels van de terugval (leeftijd, auth) gelden.
+  const kanBestaandeServeren = () => !!t.snapshot && !ingehaald && nu() - t.snapshot.op < MAX_TERUGVAL_MS;
+  const serveerBestaande = () => uitSnapshot(t.snapshot, nu(), nu() - t.snapshot.op >= VEROUDERD_VANAF_MS);
+
   // Wacht op een lopende lading die onze wijziging wel zal bevatten; geeft het antwoord, of null (dan zelf laden).
   const wachtOpAndere = async () => {
-    const einde = nu() + WACHT_MAX_MS;
+    const einde = nu() + tijdBudget({ begin, nu: nu(), gewensteLive: liveTimeoutMs }).wachtMs;
     while (nu() < einde) {
       await wacht(WACHT_STAP_MS);
       t = await leesToestand(store);
@@ -270,7 +310,7 @@ export async function leverTickets({
 
   if (bezigActief(t.bezig, nu())) {
     // Iemand (een gebruiker of de planner) is al aan het laden.
-    if (t.snapshot && !ingehaald) return uitSnapshot(t.snapshot, nu(), false); // enkel te oud: de bestaande meteen
+    if (kanBestaandeServeren()) return serveerBestaande();
     // Een lading die begon vóór onze schrijfactie (ze dekt de huidige marker niet) bevat die niet: wachten heeft geen zin.
     if ((t.bezig.dekt ?? null) === markerSleutel(t.marker)) {
       const antwoord = await wachtOpAndere();
@@ -278,12 +318,15 @@ export async function leverTickets({
     }
   }
 
-  const laad = eisSlot => laadEnBewaar({ store, haalLive, nu, log, marker: t.marker, eisSlot, liveTimeoutMs });
+  const laad = eisSlot => laadEnBewaar({
+    store, haalLive, nu, log, marker: t.marker, eisSlot,
+    liveTimeoutMs: liveTimeoutMs ? tijdBudget({ begin, nu: nu(), gewensteLive: liveTimeoutMs }).liveMs : 0,
+  });
   try {
     let res = await laad(true);
     if (res.geenSlot) {
       // Een andere aanvraag was ons net voor met het slot: niet dubbel laden.
-      if (t.snapshot && !ingehaald) return uitSnapshot(t.snapshot, nu(), false);
+      if (kanBestaandeServeren()) return serveerBestaande();
       const antwoord = await wachtOpAndere();
       if (antwoord) return antwoord;
       res = await laad(false); // de winnaar komt niet (meer): nooit zonder tickets blijven
@@ -299,13 +342,20 @@ export async function leverTickets({
   }
 }
 
+async function schrijfGeforceerd(store, moment) {
+  if (!store) return;
+  try { await store.setJSON(FORCEER_SLEUTEL, { op: moment }); } catch { /* de rem is best-effort: een storing verandert niets aan het antwoord */ }
+}
+
 async function veiligLezenSnapshot(store) {
   const s = await veiligLezen(store, SNAPSHOT_SLEUTEL);
   return geldigeSnapshot(s) ? s : null;
 }
 
 // De geplande functie. Geeft nooit ticketgegevens terug, enkel aantallen.
-export async function voorlaad({ haalStore, haalLive, nu = () => Date.now(), log = console.error } = {}) {
+// liveTimeoutMs (standaard VOORLAAD_TIMEOUT_MS, onder de 26 s van de functie): hangt Zoho, dan loopt `finally` nog en geeft het slot vrij,
+// in plaats van dat Netlify de functie afbreekt en het slot tot het verlopen van de TTL blijft hangen.
+export async function voorlaad({ haalStore, haalLive, nu = () => Date.now(), log = console.error, liveTimeoutMs = VOORLAAD_TIMEOUT_MS } = {}) {
   const store = await haalStoreVeilig(haalStore, log, 'voorladen');
   if (!store) return { resultaat: 'mislukt' }; // zonder opslag heeft voorladen geen zin: geen Zoho-krediet verspillen
   const moment = nu();
@@ -314,7 +364,7 @@ export async function voorlaad({ haalStore, haalLive, nu = () => Date.now(), log
   if (bezigActief(t.bezig, moment)) return { resultaat: 'overgeslagen', reden: 'bezig' };
   try {
     // eisSlot: de planner laadt nooit dubbel; verliest hij de race om het slot, dan laadt de andere aanvraag al.
-    const res = await laadEnBewaar({ store, haalLive, nu, log, marker: t.marker, eisSlot: true });
+    const res = await laadEnBewaar({ store, haalLive, nu, log, marker: t.marker, eisSlot: true, liveTimeoutMs });
     if (res.geenSlot) return { resultaat: 'overgeslagen', reden: 'bezig' };
     const { lijsten } = res;
     return {

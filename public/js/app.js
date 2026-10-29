@@ -632,7 +632,13 @@ async function loadTickets({ stilleToast = false, stil = false, zonderCache = fa
       data = DUMMY_DATA;
     } else {
       const res = await fetch(vers ? '/api/tickets?vers=1' : '/api/tickets');
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (!res.ok) {
+        // De server antwoordt een Zoho-fout met { error: <tekst> }: bewaar die tekst op de fout (de melding blijft 'HTTP 500'), zodat de
+        // authenticatiecontrole hieronder een verlopen Zoho-koppeling herkent ("Sessie met Zoho verlopen").
+        const fout = new Error('HTTP ' + res.status);
+        try { fout.serverTekst = String((await res.json())?.error ?? ''); } catch { fout.serverTekst = ''; }
+        throw fout;
+      }
       data = await res.json();
       if (data.error) throw new Error(data.error);
       verouderd = verouderdVanKoppen(res.headers);
@@ -667,7 +673,10 @@ async function loadTickets({ stilleToast = false, stil = false, zonderCache = fa
     if (eersteLading && ticketsStand.mislukt()) hertekenNaMisluktEersteLading();
     const rauw = err.message || '';
     const msg = foutTekst(err) || '';
-    const isAuth = /401|403|invalid.token|expired|unauthorized/i.test(rauw);
+    // De servertekst bevat ticketnummers (lange cijferreeksen met toevallig '401' of '403'): daar enkel op de statuscode tussen haakjes en op
+    // echte tokentermen toetsen, niet op losse cijfers.
+    const isAuth = /401|403|invalid.token|expired|unauthorized/i.test(rauw)
+      || /\((401|403)\)|invalid[ _.-]?token|invalid_code|invalid_client|token refresh mislukt|expired|unauthori[sz]ed/i.test(err.serverTekst || '');
     if (isAuth) {
       toast('🔑 Sessie met Zoho verlopen. Meld dit aan Brent; de koppeling moet opnieuw ingesteld worden.', 6000);
       document.getElementById('empty-tickets').textContent =

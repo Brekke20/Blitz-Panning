@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { maakNepStore } from './nep-blobs.mjs';
 import {
   SNAPSHOT_SLEUTEL, VEROUDERD_SLEUTEL, BEZIG_SLEUTEL, VERS_MS, BEZIG_TTL_MS, MAX_TERUGVAL_MS, FORCEER_MIN_MS,
+  VEROUDERD_VANAF_MS, FORCEER_SLEUTEL, DEADLINE_MS, MIN_LIVE_MS, WACHT_MAX_MS, tijdBudget,
   isAuthFout, inWerkuren, isVers, moetVoorladen, markeerVerouderd, leverTickets, voorlaad,
 } from '../netlify/lib/tickets-snapshot.js';
 
@@ -583,4 +584,126 @@ test('M5: een lopende lading die vóór onze schrijfactie begon (slot dekt de hu
   const r = await levering(o, { wacht: async ms => { gewacht++; o.k.t += ms; } });
   assert.equal(r.bron, 'live');
   assert.equal(gewacht, 0);
+});
+
+// ---------------- N1: een lopende lading mag C1 niet omzeilen ----------------
+const ZOHO_500 = async () => { throw new Error('Zoho tickets-ophalen mislukt (500): {}'); };
+
+test('N1: lopende lading (slot actief) en een momentopname ouder dan 60 min -> niet serveren; zelf laden, en faalt Zoho dan een 500 (geen stille oude data)', async () => {
+  const o = opstelling({ snapshot: snap(NU - MAX_TERUGVAL_MS - MIN), bezig: { id: 'ander', op: NU - 2000 } });
+  await assert.rejects(levering(o, { haalLive: ZOHO_500 }), /Zoho tickets-ophalen mislukt \(500\)/);
+});
+
+test('N1: lopende lading en een te oude momentopname, Zoho antwoordt wel -> de verse lading wordt geserveerd', async () => {
+  const o = opstelling({ snapshot: snap(NU - MAX_TERUGVAL_MS - MIN), bezig: { id: 'ander', op: NU - 2000 } });
+  const r = await levering(o);
+  assert.equal(r.bron, 'live');
+  assert.equal(r.verouderd, false);
+});
+
+test('N1: verloren race om het slot en een momentopname ouder dan 60 min -> ook dan niet serveren (zelf laden, 500 bij een Zoho-fout)', async () => {
+  const o = opstelling({ snapshot: snap(NU - MAX_TERUGVAL_MS - MIN) });
+  storeMetSlotVerlies(o);
+  await assert.rejects(levering(o, { haalLive: ZOHO_500 }), /mislukt/);
+});
+
+test('N1: een authenticatiefout blijft ook na een verloren race of lopende lading een fout (nooit oude data)', async () => {
+  const o = opstelling({ snapshot: snap(NU - 10 * MIN), bezig: { id: 'ander', op: NU - 2000 }, marker: M('m1', NU - 1000) });
+  // marker niet gedekt door de lading van de ander: meteen zelf laden; Zoho zegt 401
+  await assert.rejects(levering(o, { haalLive: async () => { throw new Error('Zoho tickets-ophalen mislukt (401): {}'); } }), /401/);
+});
+
+test('N1: een lopende lading en een momentopname tussen 5 en 20 min oud: geserveerd zonder "Zoho onbereikbaar"-vlag (normaal bij een rustig kwartier buiten de werkuren)', async () => {
+  const o = opstelling({ snapshot: snap(NU - 12 * MIN), bezig: { id: 'ander', op: NU - 2000 } });
+  const r = await levering(o);
+  assert.equal(r.bron, 'snapshot');
+  assert.equal(r.verouderd, false);
+});
+
+test('N1: een lopende lading en een momentopname van 20 tot 60 min oud: wel geserveerd, nu MET de vlag (de planner of Zoho loopt achter: de client toont de balk)', async () => {
+  const o = opstelling({ snapshot: snap(NU - VEROUDERD_VANAF_MS - MIN), bezig: { id: 'ander', op: NU - 2000 } });
+  const r = await levering(o);
+  assert.equal(r.bron, 'snapshot');
+  assert.equal(r.verouderd, true);
+  assert.equal(o.aantalLive(), 0);
+  // dezelfde vlag na een verloren race om het slot
+  const o2 = opstelling({ snapshot: snap(NU - VEROUDERD_VANAF_MS - MIN) });
+  storeMetSlotVerlies(o2);
+  assert.equal((await levering(o2)).verouderd, true);
+});
+
+test('N1: de planner geeft zijn lading een time-out; bij een hangende Zoho is het slot daarna vrij (finally loopt)', async () => {
+  const o = opstelling({ snapshot: snap(NU - 10 * MIN) });
+  const r = await voorlaad({ haalStore: o.haalStore, haalLive: () => new Promise(() => {}), nu: o.k.nu, log: o.log, liveTimeoutMs: 20 });
+  assert.deepEqual(r, { resultaat: 'mislukt' });
+  assert.equal(o.store._data.has(BEZIG_SLEUTEL), false);
+  assert.ok(o.logs.some(l => l.includes('reageert niet')), o.logs.join('|'));
+  assert.equal(o.gelezen().op, NU - 10 * MIN); // oude momentopname blijft staan
+});
+
+// ---------------- N2: een totale tijdsgrens ----------------
+test('N2 tijdBudget: wachttijd en live time-out passen samen binnen de deadline (17 s) en laten minstens MIN_LIVE_MS voor Zoho over', () => {
+  assert.equal(DEADLINE_MS, 17000);
+  const b0 = tijdBudget({ begin: 0, nu: 0 });
+  assert.equal(b0.wachtMs, WACHT_MAX_MS);
+  assert.equal(b0.liveMs, 12000);
+  const b1 = tijdBudget({ begin: 0, nu: 6000 }); // na de eerste wacht
+  assert.equal(b1.wachtMs, 6000);
+  assert.equal(b1.liveMs, 11000);
+  const b2 = tijdBudget({ begin: 0, nu: 12000 }); // na twee wachttijden
+  assert.equal(b2.wachtMs, 0);
+  assert.equal(b2.liveMs, 5000);
+  const b3 = tijdBudget({ begin: 0, nu: 16500 }); // bijna op: Zoho krijgt toch een minimum
+  assert.equal(b3.wachtMs, 0);
+  assert.ok(b3.liveMs >= 2000 && b3.liveMs <= 2000 + 1);
+  for (const nu of [0, 3000, 6000, 9000, 12000, 15000]) {
+    const b = tijdBudget({ begin: 0, nu });
+    assert.ok(nu + b.wachtMs + MIN_LIVE_MS <= DEADLINE_MS || b.wachtMs === 0, `wachten laat te weinig over, nu=${nu}`); // na het wachten blijft MIN_LIVE_MS over
+    assert.ok(nu + b.liveMs <= DEADLINE_MS + 2000, `live voorbij de deadline, nu=${nu}`); // de live time-out zelf valt binnen de deadline (+ de ondergrens)
+  }
+  // een kortere gewenste live time-out (tests) wordt niet opgerekt tot de ondergrens
+  assert.equal(tijdBudget({ begin: 0, nu: 0, gewensteLive: 20 }).liveMs, 20);
+  assert.ok(MIN_LIVE_MS >= 2000);
+});
+
+test('N2: twee wachtrondes (lopende lading en dan een verloren race) blijven samen onder de deadline min de live-tijd', async () => {
+  const o = opstelling({ snapshot: snap(NU - 60000), marker: M('m1', NU - 1000), bezig: { id: 'ander', op: NU, dekt: 'm1' } });
+  storeMetSlotVerlies(o);
+  const wacht = async ms => { o.k.t += ms; o.store._data.set(BEZIG_SLEUTEL, JSON.stringify({ id: 'ander', op: o.k.t, dekt: 'm1' })); };
+  const r = await levering(o, { wacht });
+  assert.equal(r.bron, 'live');
+  assert.ok(o.k.t - NU <= DEADLINE_MS - MIN_LIVE_MS, `gewacht ${o.k.t - NU} ms`);
+});
+
+// ---------------- N3: de rem van ?vers=1 geldt ook als Zoho faalt ----------------
+test('N3: een mislukte geforceerde lading telt voor de rem: de volgende Vernieuwen binnen 30 s gaat niet opnieuw naar Zoho', async () => {
+  const o = opstelling({ snapshot: snap(NU - 100000) }); // vers, 100 s oud
+  const eerste = await levering(o, { forceer: true, haalLive: ZOHO_500 });
+  assert.equal(eerste.verouderd, true); // Zoho faalde: terugval op de momentopname
+  assert.equal(JSON.parse(o.store._data.get(FORCEER_SLEUTEL)).op, NU);
+  assert.equal(o.gelezen().op, NU - 100000); // niets nieuws bewaard
+  o.k.t += 5000;
+  let live = 0;
+  const tweede = await levering(o, { forceer: true, haalLive: async () => { live++; return structuredClone(NIEUW); } });
+  assert.equal(live, 0); // de rem houdt stand, ook al is er niets geschreven
+  assert.equal(tweede.bron, 'snapshot');
+  assert.equal(tweede.verouderd, false);
+  o.k.t += FORCEER_MIN_MS; // na 30 s mag het opnieuw
+  const derde = await levering(o, { forceer: true, haalLive: async () => { live++; return structuredClone(NIEUW); } });
+  assert.equal(live, 1);
+  assert.equal(derde.bron, 'live');
+});
+
+test('N3: zonder forceer-vlag wordt de rem-blob niet gelezen of geschreven', async () => {
+  const o = opstelling({ snapshot: snap(NU - 6 * MIN) });
+  await levering(o);
+  assert.equal(o.store._data.has(FORCEER_SLEUTEL), false);
+});
+
+test('N3: een kapotte opslag voor de rem-blob verandert niets aan het antwoord', async () => {
+  const o = opstelling({ snapshot: snap(NU - 100000) });
+  const echt = o.store.setJSON.bind(o.store);
+  o.store.setJSON = async (sleutel, w) => { if (sleutel === FORCEER_SLEUTEL) throw new Error('storing'); return echt(sleutel, w); };
+  const r = await levering(o, { forceer: true });
+  assert.equal(r.bron, 'live');
 });
