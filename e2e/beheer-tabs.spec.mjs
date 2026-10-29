@@ -642,3 +642,89 @@ test.describe('⚙-venster en Beheer → Instellingen: één plek om de werkinst
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('blitz_settings_Tim')).routeKleur)).toBe(TIM.routeKleur); // Tim ongewijzigd
   });
 });
+
+// C1: Beheer → Instellingen start de gebruikerslijst en de instellingen van de te kiezen gebruiker TEGELIJK (niet na elkaar).
+// Deterministisch bewijs zonder tijdmeting: een hek houdt elk antwoord vast tot ALLE verwachte verzoeken zijn aangekomen. Gaat de code
+// weer na elkaar, dan komt het tweede verzoek pas na het eerste antwoord: het hek geeft dan na een noodtijd toch vrij en de telling
+// bij het eerste antwoord blijft lager dan het verwachte aantal.
+function maakHek(verwacht, noodMs = 4000) {
+  const aangekomen = [];
+  let teldBijEersteAntwoord = null;
+  let open;
+  const allen = new Promise((r) => { open = r; });
+  return {
+    aangekomen,
+    get bijEersteAntwoord() { return teldBijEersteAntwoord; },
+    async passeer(naam) {
+      aangekomen.push(naam);
+      if (aangekomen.length >= verwacht) open();
+      await Promise.race([allen, new Promise((r) => setTimeout(r, noodMs))]);
+      if (teldBijEersteAntwoord === null) teldBijEersteAntwoord = aangekomen.length;
+    },
+  };
+}
+
+// Opent Beheer meteen op het tabblad Instellingen (bewaarde keuze), zodat er geen ander tabblad eerst verzoeken doet.
+async function openInstellingenDirect(page, { overschrijf, persoon } = {}) {
+  await page.addInitScript((p) => {
+    if (window !== window.top) return;
+    sessionStorage.setItem('blitz_beheer_tab', 'instellingen');
+    if (p) sessionStorage.setItem('blitz_beheer_instellingen_persoon', p);
+  }, persoon ?? null);
+  await startApp(page, { overschrijf });
+  await kiesHoofdtab(page, 'Beheer');
+  await expect(page.getByRole('tab', { name: 'Instellingen', exact: true })).toHaveAttribute('aria-selected', 'true');
+}
+
+test.describe('tab Instellingen: gelijktijdige lading (C1)', () => {
+  const EIGEN = { ...TIM, startlocatie: 'Eigenstraat 5, 2000 Antwerpen' };
+
+  test('de gebruikerslijst en de eigen instellingen vertrekken allebei vóór één van beide antwoordt, en de eigen instellingen worden niet dubbel gevraagd', async ({ page }) => {
+    const hek = maakHek(2);
+    const lijst = gebruikersStub();
+    const inst = instellingenStub({ begin: { 'u-test': EIGEN, 'u-t1': TIM } });
+    await openInstellingenDirect(page, {
+      overschrijf: {
+        gebruikers: async (a) => { await hek.passeer('gebruikers'); return lijst(a); },
+        instellingen: async (a) => { if (a.methode === 'GET' && a.query.get('gebruiker')) await hek.passeer('instellingen:' + a.query.get('gebruiker')); return inst(a); },
+      },
+    });
+    await expect(paneel(page).getByLabel('Startlocatie')).toHaveValue(EIGEN.startlocatie);
+    expect(hek.bijEersteAntwoord, 'beide verzoeken waren onderweg vóór het eerste antwoord').toBe(2);
+    expect([...hek.aangekomen].sort()).toEqual(['gebruikers', 'instellingen:u-test']);
+    await expect(paneel(page).getByLabel('Gebruiker', { exact: true })).toHaveValue('u-test');
+    await expect(page.getByRole('button', { name: 'Opslaan' })).toBeEnabled();
+  });
+
+  test('een andere gekozen gebruiker (bewaarde keuze) krijgt zijn eigen instellingen, niet die van de beheerder', async ({ page }) => {
+    const inst = instellingenStub({ begin: { 'u-test': EIGEN, 'u-t1': TIM } });
+    const gevraagd = [];
+    await openInstellingenDirect(page, {
+      persoon: 'Tim',
+      overschrijf: { gebruikers: gebruikersStub(), instellingen: (a) => { if (a.methode === 'GET' && a.query.get('gebruiker')) gevraagd.push(a.query.get('gebruiker')); return inst(a); } },
+    });
+    await expect(paneel(page).getByLabel('Gebruiker', { exact: true })).toHaveValue('u-t1');
+    await expect(paneel(page).getByLabel('Startlocatie')).toHaveValue(TIM.startlocatie);
+    expect(gevraagd).toEqual(['u-t1']); // geen onnodig verzoek voor de beheerder zelf
+  });
+
+  test('een mislukte lijst toont dezelfde fout als voorheen en laat het andere antwoord geen onverwerkte fout geven', async ({ page, consoleFouten }) => {
+    const inst = instellingenStub({ begin: { 'u-test': EIGEN } });
+    await openInstellingenDirect(page, {
+      overschrijf: { gebruikers: () => json(503, { error: 'x' }), instellingen: inst },
+    });
+    await expect(page.getByRole('alert').filter({ hasText: 'tijdelijk niet bereikbaar' })).toBeVisible();
+    await expect(paneel(page).getByLabel('Startlocatie')).toHaveCount(0);
+    await verwachtFout(consoleFouten, '/api/gebruikers', 503);
+  });
+
+  test('mislukken de eigen instellingen terwijl de lijst slaagt, dan staat er dezelfde melding als bij een gewone lading', async ({ page, consoleFouten }) => {
+    const lijst = gebruikersStub();
+    await openInstellingenDirect(page, {
+      overschrijf: { gebruikers: lijst, instellingen: (a) => (a.query.get('gebruiker') ? json(503, { error: 'x' }) : standaardStub('instellingen')(a)) },
+    });
+    await expect(page.getByRole('alert').filter({ hasText: 'Instellingen laden is niet gelukt. De opslag is tijdelijk niet bereikbaar' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Opslaan' })).toBeDisabled();
+    await verwachtFout(consoleFouten, '/api/instellingen', 503);
+  });
+});

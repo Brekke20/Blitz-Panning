@@ -54,10 +54,18 @@ function foutTekstVoor(r) {
 }
 
 async function render(container) {
-  await laadCss();
   const deel = deelVoorRol(huidigeGebruiker()?.rol);
   const magGrenzenBewerken = huidigeRechten().beheer === true; // enkel de beheerder past de kleurgrenzen aan; de server weigert de rest
   const leestGrenzen = deel !== 'sales'; // de sales manager ziet geen ringen met techniekercijfers
+  // C1: het stijlblad en de gegevens starten tegelijk; getekend wordt pas als het stijlblad er is (of de wachttijd om is). De eerste
+  // lading van dashboard en grenzen gebruikt deze vroeg gestarte beloftes; beheerVerzoek gooit nooit (de lege catch is enkel een vangnet).
+  const beginFilters = startFilters();
+  const cssKlaar = laadCss();
+  const vroegDashboard = beheerVerzoek(`/api/dashboard${maakQuery(beginFilters)}`);
+  const vroegGrenzen = leestGrenzen ? beheerVerzoek('/api/dashboard-instellingen') : null;
+  vroegDashboard.catch(() => {});
+  vroegGrenzen?.catch(() => {});
+  await cssKlaar;
   const wortel = h('div', { class: 'dash' });
   const filterVak = h('div', { class: 'dash-filters' });
   const melding = h('div', { class: 'dash-meldingen', role: 'status' });
@@ -69,7 +77,7 @@ async function render(container) {
   container.replaceChildren(wortel);
   const levend = () => container.isConnected && wortel.isConnected;
 
-  const t = { filters: startFilters(), data: null, grenzen: STANDAARD_GRENZEN, grenzenBasis: STANDAARD_GRENZEN, versie: null, grenzenFout: false, volgnummer: 0 };
+  const t = { filters: beginFilters, data: null, grenzen: STANDAARD_GRENZEN, grenzenBasis: STANDAARD_GRENZEN, versie: null, grenzenFout: false, volgnummer: 0 };
 
   // ── Tekenen ──
   // De filterrij wordt na elke keuze opnieuw getekend (opties wijzigen mee); de focus keert terug naar hetzelfde veld.
@@ -135,13 +143,16 @@ async function render(container) {
   }
 
   // ── Laden ──
+  let voorDashboard = vroegDashboard; // enkel de eerste lading gebruikt het vroeg gestarte verzoek
   async function laadDashboard() {
+    const vooraf = voorDashboard;
+    voorDashboard = null;
     const mijn = ++t.volgnummer;
     inhoud.setAttribute('aria-busy', 'true'); // de vorige render blijft staan, op opaciteit 0,6 (geen skeleton)
     // Enkel de eerste lading (nog niets te tonen): tegels en blokken als skelet. Bij een verversing staat er al inhoud en blijft die staan.
     const skelet = toonSkelet(inhoud, deel === 'sales' ? { vorm: 'kaarten', aantal: 3 } : { vorm: 'tegels' });
     let r;
-    try { r = await beheerVerzoek(`/api/dashboard${maakQuery(t.filters)}`); } finally { skelet.stop(); }
+    try { r = await (vooraf ?? beheerVerzoek(`/api/dashboard${maakQuery(t.filters)}`)); } finally { skelet.stop(); }
     if (mijn !== t.volgnummer || !levend()) return; // een nieuwere keuze is onderweg
     inhoud.removeAttribute('aria-busy');
     if (!r.ok || !r.data || typeof r.data !== 'object') {
@@ -157,9 +168,12 @@ async function render(container) {
     tekenInhoud();
   }
 
+  let voorGrenzen = vroegGrenzen;
   async function laadGrenzen() {
     if (!leestGrenzen) return;
-    const r = await beheerVerzoek('/api/dashboard-instellingen');
+    const vooraf = voorGrenzen;
+    voorGrenzen = null;
+    const r = await (vooraf ?? beheerVerzoek('/api/dashboard-instellingen'));
     if (!levend()) return;
     if (r.ok && r.data?.grenzen && Number.isInteger(r.data.versie)) {
       t.grenzen = r.data.grenzen; t.grenzenBasis = r.data.grenzen; t.versie = r.data.versie; t.grenzenFout = false;
