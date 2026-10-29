@@ -153,17 +153,25 @@ if (!localStorage.getItem('blitz_mig_startloc_v1')) {
 // De opstartreeks (voorheen de DOMContentLoaded-handler van het klassieke script). Een module-script draait vóór DOMContentLoaded
 // (readyState is dan 'interactive'), dus de handler wordt, net als vroeger, pas na het parsen en na alle modules uitgevoerd.
 // Het registreren gebeurt onderaan dit bestand, nadat alle `const`/`let` van deze module bestaan.
-function opstart() {
-  // Verborgen spel (spel/): 5× snel tikken op het bliksem-icoon (.logo-icon) opent het; de spelmodule wordt pas dan geladen. Raakt de planning niet aan.
-  // Op `breed` staat het logo in de zijkolom (.zijkolom-logo-icoon) en is dat van de kop verborgen (Open dag, taak 7): beide tellen, met één teller.
-  // De themas (schermen/themas-bron.js) bepalen de themaskins: welke thema's nu actief zijn (lokale schatting tot de server antwoordt), welke pakketten bekend
-  // zijn (voor de skinlijst en de extra's) en het eenmalig ophalen van pakketten die nog niet in de cache zitten. Het spel zelf (skins) blijft lazy.
+// Verborgen spel (spel/): 5× snel tikken op het bliksem-icoon (.logo-icon) opent het; de spelmodule wordt pas dan geladen. Raakt de planning niet aan.
+// Op `breed` staat het logo in de zijkolom (.zijkolom-logo-icoon) en is dat van de kop verborgen (Open dag, taak 7): beide tellen, met één teller.
+// De themas (schermen/themas-bron.js) bepalen de themaskins: welke thema's nu actief zijn (lokale schatting tot de server antwoordt), welke pakketten bekend
+// zijn (voor de skinlijst en de extra's) en het eenmalig ophalen van pakketten die nog niet in de cache zitten. Het spel zelf (skins) blijft lazy.
+// Voor élke rol, dus niet in `opstart()`: sales heeft een eigen start (sales-start.js) en doorloopt `opstart` nooit. `startNaInlog` roept dit vóór de start
+// van de rol aan; de vlag houdt het bij één luisteraar (een tweede installatie zou elke tik dubbel tellen).
+let spelGeinstalleerd = false;
+function installeerSpel() {
+  if (spelGeinstalleerd) return;
+  spelGeinstalleerd = true;
   installeerSpelOpening({
     doel: [document.querySelector('.logo-icon'), document.querySelector('.zijkolom-logo-icoon')],
     actieveThemas: (datum) => actieveThemas(datum, themasNu().index?.themas ?? []),
     pakketten: pakkettenVoorSpel,
     haalPakketten: haalOntbrekendePakketten,
   });
+}
+
+function opstart() {
   // De rapport-wizard sluit via Escape/achtergrond met closeWizard (vraagt zelf een bevestiging); de andere vensters registreren zichzelf in hun init.
   registreerVenster({ el: document.getElementById('rapport-wizard'), sluit: closeWizard });
   // Klantbeschikbaarheid (schermen/klantbeschikbaarheid.js): laden, bewaren en de sectie in het detail; vóór de schermen die ze lezen.
@@ -1058,7 +1066,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initTabBolletjes(); // de tellers van de tabs als bolletje zonder cijfer (schermen/tab-bolletjes.js, taak 19): data-nul bij 0 en de aria-label van de tab
   initPaginakop(); // titel + samenvatting van de paginakop op `breed` (schermen/paginakop.js): ook voor sales; volgt de actieve tab, geen abonnement op de toestand
   zetTabIconen(document); // de iconen van de vaste tabs (index.html); rol-schil.js zet ze voor de tabs die het zelf aanmaakt
-  return startNaInlog(opstart).then(() => {
+  return startNaInlog(opstart, { naInlog: installeerSpel }).then(() => {
     if (!huidigeGebruiker()) return;
     herberekenVersiering(); // de instellingen zijn gesynchroniseerd (ook `bewegingUit`): niet wachten op de themas
     vernieuwThemas();

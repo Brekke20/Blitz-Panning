@@ -137,7 +137,9 @@ export function geefSchilVrij() {
 }
 
 // Wacht op de login, past de rol toe en start dan de app: de eigen start van de rol, anders de gewone opstart.
-export async function startNaInlog(opstart) {
+// `naInlog` (optioneel) is voor wat elke rol nodig heeft, ook een rol met een eigen start die `opstart` niet doorloopt (het verborgen spel):
+// het loopt eenmaal per aanroep vóór de start van de rol, en een fout erin breekt de start niet.
+export async function startNaInlog(opstart, { naInlog } = {}) {
   try {
     await laadSessie();
   } catch (fout) {
@@ -155,6 +157,7 @@ export async function startNaInlog(opstart) {
   // Instellingen van de server in de lokale cache zetten (logins T16) vóór de app ze leest (met het budget dat na een trage auth-ik overblijft, zodat de opstart ≤ ~8 s blijft); faalt nooit hard: bij een fout start de app met de lokale cache.
   // O1: het vroeg gestarte overzicht (index.html) telt enkel als er geen inlog- of wachtwoordscherm tussen zat (dezelfde cookie, dezelfde gebruiker).
   try { await synchroniseerInstellingen(gebruiker, { budgetMs: resterendSyncBudget(laatsteOpstartNetwerkMs()), vroegToegestaan: () => !inlogschermGezien() }); } catch (fout) { console.warn('Instellingen synchroniseren mislukt; de lokale cache wordt gebruikt:', fout); }
+  try { naInlog?.(gebruiker); } catch (fout) { console.warn('startNaInlog: de gedeelde stap na het inloggen faalde:', fout); }
   const start = startVoorRol(gebruiker.rol);
   // Een rol met een eigen start (sales) houdt de schil verborgen tot die start de tabs, de kop en de eerste tab gezet heeft; de gewone opstart
   // toont de schil meteen (de tabs staan dan al op de rol).
