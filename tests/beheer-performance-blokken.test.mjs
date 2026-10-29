@@ -53,26 +53,45 @@ test('lege blokken (alle lijsten leeg) tonen de lege-toestand-zin en geen lege k
   }
 });
 
-test('Factureerbaar: één kaart met totaal, onderdelen, loon met uren en de niet-aangerekende uren, met enkel de hint die bij de fixture past', () => {
+test('Factureerbaar: één brede kaart met groot totaal, verdeelbalk, bedragen in hele euro en loonuren; geen regel "niet aangerekend"', () => {
   const h = renderFactureerbaar(data, ctx);
-  assert.equal(tel(h, /<section class="dash-kaart"/g), 1);
+  assert.equal(tel(h, /<section class="dash-kaart /g), 1);
+  assert.ok(h.includes('dash-kaart--breed'));
   assert.ok(h.includes('Factureerbaar bedrag'));
-  assert.ok(h.includes('€ 1.911'), 'totaal');
-  assert.ok(h.includes('€ 545,63'), 'onderdelen');
-  assert.ok(h.includes('€ 1.365 · 13u30 werk- en rijtijd'), 'loon met uren (810 min)');
-  assert.ok(h.includes('9u37 in 5 rapporten'), 'niet aangerekend (577 min)');
-  assert.ok(h.includes('1 onderdeel zonder prijs'), 'de fixture heeft één onderdeel zonder prijs');
+  assert.ok(h.includes('<span class="tegel-waarde">€ 1.911</span>'), 'groot totaal');
+  assert.ok(h.includes('excl. btw'));
+  assert.ok(h.includes('<b>€ 546</b>'), 'onderdelen in hele euro (545,63)');
+  assert.ok(h.includes('<b>€ 1.365</b>'), 'loon');
+  assert.ok(!h.includes('545,63'), 'geen centen');
+  assert.ok(h.includes('13u30 werk- en rijtijd'), 'loonuren (810 min)');
+  assert.ok(h.includes('· 29 %') && h.includes('· 71 %'), 'aandeel onderdelen en loon samen 100 %');
+  assert.ok(h.includes('width:29%') && h.includes('width:71%'), 'verdeelbalk');
+  assert.ok(h.includes('1 onderdeel zonder prijs telt als € 0'), 'de fixture heeft één onderdeel zonder prijs');
   assert.ok(!h.includes('zonder start- en stoptijd'));
-  assert.ok(!h.includes('niet aangerekend" gemarkeerd'));
+  assert.ok(!h.includes('gemarkeerd'));
+  assert.ok(!/niet aangerekend/i.test(h), 'de regel "niet aangerekend (garantie of installatie)" en zijn uren worden niet getoond');
+  assert.ok(!h.includes('9u37'), 'de niet-aangerekende uren (577 min) worden niet getoond');
+  assert.ok(!h.includes('dash-uitleg'), 'de uitleg is geen alinea meer maar zit achter de i-knop');
+  assert.ok(h.includes('aria-label="Hoe wordt dit berekend?"'));
 });
 
-test('Factureerbaar: hints voor rapporten zonder tijd en voor onderdelen die niet aangerekend zijn; zonder niet-aangerekende uren geen die regel', () => {
+test('Factureerbaar: aandachtspunten in goed enkelvoud en meervoud; zonder aandachtspunten geen voetregel', () => {
   const f = { onderdelen: 10, loon: 0, totaal: 10, minuten: 0, nietAangerekend: { minuten: 0, rapporten: 0 }, dekking: { rapporten: 3, zonderPrijs: 2, zonderWerktijd: 3, nietAangerekendeOnderdelen: 1 } };
   const h = renderFactureerbaar({ factureerbaar: f }, ctx);
   assert.ok(h.includes('3 rapporten zonder start- en stoptijd'));
-  assert.ok(h.includes('2 onderdelen zonder prijs'));
-  assert.ok(h.includes('1 onderdeel als &quot;niet aangerekend&quot; gemarkeerd'));
-  assert.ok(!h.includes('Niet aangerekend (garantie'));
+  assert.ok(h.includes('2 onderdelen zonder prijs tellen als € 0'));
+  assert.ok(h.includes('1 onderdeel als niet aangerekend gemarkeerd'));
+  assert.ok(h.includes('width:100%') && h.includes('· 100 %') && h.includes('· 0 %'), 'alles onderdelen');
+  const schoon = renderFactureerbaar({ factureerbaar: { ...f, dekking: { rapporten: 3, zonderPrijs: 0, zonderWerktijd: 0, nietAangerekendeOnderdelen: 0 } } }, ctx);
+  assert.ok(!schoon.includes('fact-let'));
+});
+
+test('Factureerbaar: een totaal van € 0 toont geen verdeelbalk en geen percentages', () => {
+  const f = { onderdelen: 0, loon: 0, totaal: 0, minuten: 0, nietAangerekend: { minuten: 0, rapporten: 0 }, dekking: { rapporten: 2, zonderPrijs: 0, zonderWerktijd: 0, nietAangerekendeOnderdelen: 0 } };
+  const h = renderFactureerbaar({ factureerbaar: f }, ctx);
+  assert.ok(h.includes('<span class="tegel-waarde">€ 0</span>'));
+  assert.ok(!h.includes('fact-verdeel'));
+  assert.ok(!h.includes('%'));
 });
 
 test('Factureerbaar: zonder rapporten in de periode geen kaart maar de lege-toestand-zin', () => {

@@ -12,6 +12,9 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Unreleased]
 
+### Changed
+- Beheer › Performance: de kaart "Factureerbaar bedrag" is opnieuw vormgegeven en past nu bij de rest van het dashboard. Het factureerbare bedrag staat groot links, rechts een balk met het aandeel onderdelen en loon (met de bedragen en de loonuren). Alle bedragen staan in hele euro's. De lange uitleg zit achter een i-knopje en onderaan staan in kleine letters enkel de aandachtspunten (met correct enkelvoud en meervoud, bv. "1 onderdeel zonder prijs telt als € 0"). De regel "niet aangerekend (garantie of installatie)" wordt niet meer getoond.
+
 ## [2.7.0] — 2026-10-29
 
 ### Added

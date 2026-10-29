@@ -117,6 +117,37 @@
 .dash-feiten dd { margin: 0; color: var(--viz-ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .dash-knop { min-height: 36px; white-space: normal; }
 
+/* Factureerbaar (ontwerp B): groot bedrag links, verdeelbalk onderdelen | loon rechts (reeskleuren 1 en 2, net als de grafieken),
+   daaronder in kleine letters de aandachtspunten. De uitleg zit achter een i-knop (details; werkt met tikken, geen hover nodig). */
+.dash-kaart--factureerbaar { position: relative; }
+.fact-kaartkop { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.fact-info { position: relative; }
+.fact-info > summary { list-style: none; cursor: pointer; display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-pil); border: 1px solid var(--border-strong); background: var(--knop2); color: var(--viz-ink2); font: 600 13px/1 var(--font-tekst); }
+.fact-info > summary::-webkit-details-marker { display: none; }
+.fact-info > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.fact-bubbel { position: absolute; z-index: 5; top: 32px; right: -8px; width: min(320px, 80vw); padding: var(--sp-3) var(--sp-4); background: var(--venster-effen); border: 1px solid var(--glas-rand); border-radius: var(--r-kaart); box-shadow: var(--glas-schaduw); font-size: var(--fs-xs); color: var(--text); display: grid; gap: var(--sp-1); }
+.fact-bubbel ul { margin: 0; padding-left: 1.1em; display: grid; gap: 2px; }
+.fact-info:not([open]) .fact-bubbel { display: none; }
+html[data-apparaat="gsm"] .fact-info { position: static; }
+html[data-apparaat="gsm"] .fact-bubbel { left: 0; right: 0; width: auto; top: 44px; }
+.fact-hoofd { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr); gap: var(--sp-4) var(--sp-6); align-items: center; }
+.fact-groot { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.fact-groot .tegel-waarde { font-size: 2.75rem; overflow-wrap: anywhere; }
+.fact-sub { margin: 0; font-size: var(--fs-xs); color: var(--viz-ink2); }
+.fact-verdeling { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.fact-verdeel { display: flex; gap: 2px; height: 14px; border-radius: var(--r-pil); overflow: hidden; }
+.fact-verdeel > span { display: block; height: 100%; }
+.fact-deel-1 { background: var(--viz-1); }
+.fact-deel-2 { background: var(--viz-2); }
+.fact-legende { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--viz-ink); }
+.fact-legende li { display: grid; grid-template-columns: 12px 1fr auto; align-items: center; gap: var(--sp-2); }
+.fact-legende b { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.fact-legende small { grid-column: 2 / -1; font-size: var(--fs-xs); color: var(--viz-ink2); margin-top: -4px; }
+.fact-gedempt { color: var(--viz-ink2); }
+.fact-let { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); margin: 0; padding-top: var(--sp-3); border-top: 1px solid var(--viz-grid); font-size: var(--fs-xs); color: var(--viz-ink2); }
+.fact-let span::before { content: "⚠ "; }
+@media (max-width: 640px) { .fact-hoofd { grid-template-columns: 1fr; } .fact-groot .tegel-waarde { font-size: 2.25rem; } }
+
 /* Herhaalbezoeken: rij = omschrijving links, knoppen rechts (op smal scherm eronder). */
 .herhaal-lijst { list-style: none; margin: 0; padding: 0; display: grid; }
 .herhaal-rij { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); justify-content: space-between; align-items: center; padding: var(--sp-3) 0; border-top: 1px solid var(--viz-grid); }
