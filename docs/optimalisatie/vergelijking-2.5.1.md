@@ -43,7 +43,7 @@ De nummers volgen het plan van vannacht. De nummers 4, 5, 7 en 8 ontbreken hier 
 
 **2. Lijstkaarten op de gsm zonder vervaging (overdag).** De kaarten van tickets en afspraken hebben een glaseffect met een lichte vervaging van wat erachter ligt. Op de gsm, overdag, ligt daar alleen een zachte kleurverloop-hemel. Die vervaging is dus niets wat je ziet, maar ze kost de telefoon wel rekenwerk bij het scrollen. Nu is ze daar weggelaten. 's Nachts (met sterren), tijdens een themaweek, op de computer en op een liggende tablet verandert er niets. Wat je merkt: het beeld is hetzelfde (een pixelvergelijking met de oude weergave toonde hooguit 3 op 255 verschil, dat is onzichtbaar), en het scrollen kan vlotter gaan. Risico: het raakt een afspraak die jij zelf maakte over het glaslook. Daarom beslis jij hierover (zie het volgende deel). Kan los teruggedraaid worden, met één handeling, zonder de rest te raken.
 
-**3. Kalender en Ingepland niet onnodig opnieuw tekenen.** Telkens je naar het tabblad Kalender of Ingepland ging, bouwde de app dat scherm helemaal opnieuw op, ook als er niets veranderd was. Op een telefoon kostte dat ongeveer een halve seconde per bezoek. Nu wordt het scherm enkel opnieuw getekend als er echt iets veranderd is: nieuwe gegevens, een andere dag, een andere schermindeling of een andere filter. Wat je merkt: terugkeren naar die tabbladen voelt sneller. Risico: een scherm dat verouderd blijft omdat een wijziging niet als wijziging geteld wordt. Daarom telt nu elke soort wijziging mee, en de dag van vandaag en de schermindeling zitten in de controle. De onafhankelijke nakijker vond twee gaten (het aanpassen van de route-volgorde en een klein onderdeel dat de status van een voorstel toont); die zijn daarna dichtgemaakt, met 22 nieuwe tests. Kan los teruggedraaid worden. Een tweede, grotere stap (Ingepland helemaal niet tekenen zolang het verborgen is) is bewust niet gedaan.
+**3. Kalender en Ingepland niet onnodig opnieuw tekenen.** Telkens je naar het tabblad Kalender of Ingepland ging, bouwde de app dat scherm helemaal opnieuw op, ook als er niets veranderd was. Op een telefoon kostte dat ongeveer een halve seconde per bezoek. Nu wordt het scherm enkel opnieuw getekend als er echt iets veranderd is: nieuwe gegevens, een andere dag, een andere schermindeling of een andere filter. Wat je merkt: terugkeren naar die tabbladen voelt sneller. Risico: een scherm dat verouderd blijft omdat een wijziging niet als wijziging geteld wordt. Daarom telt nu elke soort wijziging mee, en de dag van vandaag en de schermindeling zitten in de controle. De onafhankelijke nakijker vond twee gaten (het aanpassen van de route-volgorde en een klein onderdeel dat de status van een voorstel toont); die zijn daarna dichtgemaakt, met 22 nieuwe tests. Kan los teruggedraaid worden. Een tweede, grotere stap (Ingepland helemaal niet tekenen zolang het verborgen is) is bewust niet gedaan. Een bijkomend, gunstig neveneffect van de herstelling rond de route-volgorde: een zeldzame wedstrijd tussen twee updates is nu dicht. Het ging om het geval waarin oude datums uit Zoho vers ingestelde uren konden overschrijven. Prijs: in dat zeldzame geval volgt één extra herlaadbeurt.
 
 **6. Rapportenarchief robuuster laden.** Als het laden van de rapportenlijst mislukte (storing, geen verbinding, of een leeg antwoord van de server tijdens een storing), kon de app de al getoonde lijst wissen en het gekende versienummer van de lijst kwijtraken. Nu blijft de bestaande lijst staan en verschijnt een melding. Is er nog niets geladen, dan zie je zoals vroeger een foutregel. Ook wordt de lijst en de kalender niet opnieuw getekend als het antwoord precies gelijk is aan het vorige. Wat je merkt: bij een storing blijft je lijst staan met een melding (zichtbaar, zie het volgende deel); verder voelt het tabblad Rapporten iets sneller. Risico: dit raakt het versienummer bij het verzenden van rapporten, daarom is het door een onafhankelijke nakijker gecontroleerd, die na een eerste ronde met aanpassingen goedkeurde. Kan los teruggedraaid worden.
 
@@ -221,6 +221,10 @@ Alle testen zijn op de samengevoegde nieuwe versie uitgevoerd, nadat elke verbet
 | Tests van de achtergrondservice van de app (service worker), die het offline opstarten en updates regelt | [[TEST]] |
 | Contrasttests (is alle tekst nog goed leesbaar, ook op de kaarten zonder vervaging) | [[TEST]] |
 
+## Eindcontrole van het geheel
+
+Na het samenvoegen van alle verbeteringen heeft een onafhankelijke nakijker de hele werkversie nog eens als geheel bekeken. Het oordeel: **klaar voor Brent**, zonder ernstige bevindingen. Er is niets veranderd aan wat er naar Zoho gaat, aan de mails, aan de rechten per rol en aan de uitgaande wachtrij (de berichten die wachten om verstuurd te worden). De kleine open punten die de nakijker wel noemde staan hieronder bij "Niet gedaan en waarom".
+
 ## Niet gedaan en waarom
 
 **Vier verbeteringen uit het plan zijn niet gebouwd:**
@@ -232,6 +236,12 @@ Alle testen zijn op de samengevoegde nieuwe versie uitgevoerd, nadat elke verbet
 
 Bij deze vier is niets verloren: de app werkt ongewijzigd zoals voorheen.
 
+**Drie kleine open punten voor de volgende ronde** (geen van drie is een probleem voor de release):
+
+- Als je "Tijden vastleggen" annuleert, kan de kalender de tijdelijke uren blijven tonen tot er een andere wijziging komt.
+- Als de server een overzicht van instellingen stilzwijgend weigert, laat dat nu geen spoor na. Voor het opsporen van problemen moet daar een korte aantekening van komen.
+- Een puur cosmetische, extra keer opnieuw tekenen die je niet merkt.
+
 **Dingen die we bewust niet nu aanpakken ("Niet nu"), met de beslissingen voor jou:**
 
 - **Beslissing voor jou: de achtergrondservice eerst uit het geheugen laten starten.** Dit zou de grootste winst geven bij een tweede start op een trage verbinding (nu is de start met de achtergrondservice niet sneller dan zonder). Maar het verandert jouw regel dat de app tot 4 seconden op het netwerk wacht voordat ze uit het geheugen start, en een correctie komt dan een start later aan. Alleen doen als jij dat wilt.
@@ -242,7 +252,7 @@ Bij deze vier is niets verloren: de app werkt ongewijzigd zoals voorheen.
 
 ## Wat je na een release zelf moet nakijken
 
-Dit zijn controles die onze testopstelling niet kan doen, omdat ze een echte verbinding, echte accounts of een echte telefoon vragen. Bij de release hoort ook dat het versienummer van de app opgehoogd wordt, anders krijgen gebruikers de nieuwe bestanden niet.
+Dit zijn controles die onze testopstelling niet kan doen, omdat ze een echte verbinding, echte accounts of een echte telefoon vragen. Bij de release **moet** de naam van de opslag van de app (de cachenaam) verhoogd worden; dat is verplicht, anders krijgen gebruikers de nieuwe bestanden niet. Het meest risicovolle onderdeel is verbetering 3, omdat de Kalender het standaardscherm van de technieker is: kijk daar dus eerst en het nauwkeurigst.
 
 **Verbetering 1 (opstarten)**
 - [ ] Open de app op een echte gsm en kijk in de ontwikkelaarshulpmiddelen van de browser: de aanvraag van de aanmelding en die van de instellingen komen elk precies één keer voor, en nog voor de onderdelen van de app binnenkomen.
