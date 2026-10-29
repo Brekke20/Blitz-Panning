@@ -2,6 +2,9 @@
 // Gedrag is byte-identiek aan de vroegere losse kopieën in de functies (etappe 6, W5/W11):
 // de tokencache leeft in de instantie (nooit in module-scope), het org-id wordt niet gecachet,
 // en env-variabelen worden bij elke aanroep gelezen.
+// Meting (S1, netlify/lib/meting.js): elke fetch naar Zoho gaat door `meetZoho` (tijd tot de antwoordkop, aantal, gelijktijdigheid,
+// limietkoppen lezen). Zonder lopende meting is dat een gewone doorgave: dezelfde aanroep, hetzelfde resultaat, dezelfde fout.
+import { meetZoho } from './meting.js';
 
 export const ZOHO_ACCOUNTS = 'https://accounts.zoho.eu/oauth/v2/token';
 export const ZOHO_DESK     = 'https://desk.zoho.eu/api/v1';
@@ -27,11 +30,11 @@ export function maakZoho({
       client_secret: env.ZOHO_CLIENT_SECRET,
       grant_type:    'refresh_token',
     });
-    const res  = await fetch(ZOHO_ACCOUNTS, {
+    const res  = await meetZoho(() => fetch(ZOHO_ACCOUNTS, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params,
-    });
+    }), { token: true });
     const data = await res.json();
     if (!data.access_token) {
       throw new Error(tokenFoutMetData
@@ -44,9 +47,9 @@ export function maakZoho({
   }
 
   async function haalOrgId(token) {
-    const orgRes  = await fetch(`${ZOHO_DESK}/organizations`, {
+    const orgRes  = await meetZoho(() => fetch(`${ZOHO_DESK}/organizations`, {
       headers: { Authorization: `Zoho-oauthtoken ${token}` },
-    });
+    }));
     const orgData = await orgRes.json();
     const orgId   = orgData.data?.[0]?.id;
     if (!orgId) throw new Error(orgFoutTekst);
@@ -75,7 +78,7 @@ export function maakZoho({
     opties.headers = { ...headers(token, orgId, { json: json !== undefined }), ...extra };
     if (json !== undefined) opties.body = JSON.stringify(json);
     else if (body !== undefined) opties.body = body;
-    return fetch(ZOHO_DESK + pad, opties);
+    return meetZoho(() => fetch(ZOHO_DESK + pad, opties));
   }
 
   return { haalToken, haalOrgId, haalToegang, headers, verzoek };
