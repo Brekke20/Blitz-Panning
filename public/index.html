@@ -71,6 +71,34 @@
     })();
   </script>
   <script>
+    // Vroege opstartverzoeken (O1): auth-ik en (enkel met een bewaarde sessie) het instellingenoverzicht starten al terwijl de modules nog laden,
+    // in plaats van pas daarna en na elkaar. kern/api.js `neemVroeg` geeft elke belofte hoogstens één keer aan kern/sessie.js (auth-ik) en
+    // kern/instellingen-sync.js (overzicht, enkel bij dezelfde gebruiker en zonder inlogscherm ertussen); zonder dit script (oude pagina) of
+    // bij een fout doen zij hun gewone verzoek. Niet in ?test. Zelfde time-out als kern/netwerk.js: 20 s, enkel tot de antwoordkop.
+    // Een GET zonder extra koppen: X-Blitz is enkel voor schrijven. Niets uit de opslag wordt vertrouwd: een kapot record start niets.
+    (function(){
+      try {
+        if (new URLSearchParams(location.search).has('test')) return;
+        var start = function (pad) {
+          var c = new AbortController();
+          var timer = setTimeout(function () { c.abort(new DOMException('Time-out na 20 s', 'TimeoutError')); }, 20000);
+          var p = fetch(pad, { signal: c.signal });
+          var klaar = function () { clearTimeout(timer); };
+          p.then(klaar, klaar).catch(function () {}); // een lopende aftakking: een mislukking (offline start) is nooit "Uncaught (in promise)"
+          return p;
+        };
+        var g = null;
+        try { g = JSON.parse(localStorage.getItem('blitz_sessie_cache')); } catch (e) {}
+        var bewaard = !!g && typeof g === 'object' && typeof g.id === 'string' && typeof g.rol === 'string'; // zelfde test als leesCache in kern/sessie.js
+        window.__blitzVroeg = {
+          authIk: start('/api/auth-ik'),
+          instellingen: bewaard ? start('/api/instellingen?overzicht=1') : null, // zonder sessie is dit altijd een zinloze 401
+          t: Date.now()
+        };
+      } catch (e) {}
+    })();
+  </script>
+  <script>
     // Opstartherstel (v2.1.6): faalt een module van de opstart (haperend netwerk; de service worker vult een netwerkpagina bewust niet
     // meer aan met modules uit een cache van een andere versie), dan herlaadt de pagina één keer. Hoogstens één keer per minuut.
     (function(){
@@ -337,7 +365,7 @@
     </div>
   </div>
   <div class="plan-body">
-    <div id="route-list"><div class="route-empty">Voeg tickets toe via de Wachtrij of Kalender</div></div>
+    <div id="route-list"></div> <!-- leeg: de eerste render tekent het laadskelet of de echte lege staat; een vaste tekst "Voeg tickets toe" zou tijdens het laden liegen (L1) -->
     <div id="map-wrap"><div id="map"></div></div>
   </div>
   <div class="plan-summary">
@@ -373,14 +401,14 @@
     <button class="btn-sec" data-actie="rapport-herlaad" style="font-size:0.75rem;padding:5px 10px">↺ Herladen</button>
   </div>
   <div id="rapp-archief-body" class="ticket-list" style="padding:12px 16px">
-    <div style="color:var(--muted);font-size:0.82rem">Laden…</div>
+    <div id="rapp-archief-laden" style="color:var(--muted);font-size:0.82rem">Laden…</div>
   </div>
 </div>
 
 <!-- ══ INVENTARIS TAB ══ -->
 <div class="view" id="view-inventaris" role="tabpanel" aria-labelledby="tab-inventaris">
   <div id="inventaris-body">
-    <div class="inv-empty">Laden...</div>
+    <div class="inv-empty" id="inventaris-laden">Laden...</div>
   </div>
 </div>
 

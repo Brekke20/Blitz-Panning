@@ -14,14 +14,18 @@ const TEKSTEN = {
     const v = aantal(verlopen);
     return `${meervoud(n, 'ticket wacht', 'tickets wachten')} op een datum${v ? `, ${v} verlopen` : ''}`;
   },
-  // Kalender: de week van de gekozen datum; zonder datum = de pil "N zonder datum".
-  kalender: ({ week, gepland, zonderDatum }) => {
+  // Kalender: de week van de gekozen datum; zonder datum = de pil "N zonder datum". Zolang de tickets nog onbekend zijn
+  // (geladen: false, L1) staat er enkel de week: "nog niets gepland" zou liegen.
+  kalender: ({ week, gepland, zonderDatum, geladen }) => {
+    if (geladen === false) return `Week ${aantal(week)}`;
     const g = aantal(gepland);
     const z = aantal(zonderDatum);
     return `Week ${aantal(week)} · ${g ? `${meervoud(g, 'stop', 'stops')} gepland` : 'nog niets gepland'}${z ? `, ${z} zonder datum` : ''}`;
   },
   // Ingepland: de afspraken van de getoonde week; wacht op bevestiging = dezelfde test als het label "Wacht bevestiging".
-  gepland: ({ dezeWeek, wachtBevestiging }) => {
+  // Zolang de tickets nog onbekend zijn (geladen: false, L1) geen samenvatting: "Geen afspraken deze week" zou liegen.
+  gepland: ({ dezeWeek, wachtBevestiging, geladen }) => {
+    if (geladen === false) return '';
     const n = aantal(dezeWeek);
     const w = aantal(wachtBevestiging);
     const eerste = n ? `${meervoud(n, 'afspraak', 'afspraken')} deze week` : 'Geen afspraken deze week';

@@ -107,6 +107,7 @@ export function gcKlantBeschikbaarheid(liveIds) {
   const klantBeschikbaarheid = toestand.get('klantBeschikbaarheid'); // synchrone functie: geen await tussen lezen en gebruik
   const ids = verouderdeKbIds(klantBeschikbaarheid, liveIds);
   for (const id of ids) delete klantBeschikbaarheid[id];
+  if (ids.length) toestand.raak('klantBeschikbaarheid'); // in-place delete; geen render hangt eraan, maar de Kalender weet zo dat hij verouderd is (O3)
   if (ids.length) saveKlantBeschikbaarheid();
 }
 
@@ -279,12 +280,14 @@ export async function saveKbAll(ticketId, draft) {
     kbLocallyDeleted.add(ticketId);
   }
 
+  toestand.raak('klantBeschikbaarheid'); // in-place wijziging (o.a. duurOverride, dat de kalender toont): markeert Kalender en Ingepland als verouderd (O3)
   renderTickets(); // badges bijwerken
   const ok = await saveKlantBeschikbaarheid();
   if (!ok) {
     // Live lezen na de await: saveKlantBeschikbaarheid kan de toestand vervangen hebben (409-merge).
     const live = toestand.get('klantBeschikbaarheid');
     if (vorige) live[ticketId] = vorige; else delete live[ticketId];
+    toestand.raak('klantBeschikbaarheid'); // in-place terugdraaien (O3)
     if (wasLokaalVerwijderd) kbLocallyDeleted.add(ticketId); else kbLocallyDeleted.delete(ticketId);
     renderTickets();
     return false; // saveKlantBeschikbaarheid toonde al de foutmelding

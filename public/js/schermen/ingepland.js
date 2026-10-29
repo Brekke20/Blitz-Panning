@@ -5,7 +5,9 @@
 // `window`-namen toe.
 import { eventTekst } from './evenement-laag.js';
 import { toestand } from '../kern/toestand.js';
+import { huidigeRechten, huidigeGebruiker } from '../kern/sessie.js';
 import { escHtml, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
+import { bouwTicketsSkelet, bouwTicketsMelding } from '../kern/skelet.js';
 import { localISO, getWeekStart, fmtDateShort, verschuifDatum } from '../kern/tijd.js';
 import { ticketsVanTechnieker } from '../kern/selecties.js';
 import { zetSamenvatting } from './paginakop.js';
@@ -31,7 +33,31 @@ export function initIngepland(afhankelijkheden) {
 // Brent-verzoek (proefperiode): Ingepland toont dezelfde week als de Kalender en de Route-tab (gedeelde `gekozenDatum`); ‹ › = één week.
 function gepNav(dir) { toestand.set('gekozenDatum', verschuifDatum(toestand.get('gekozenDatum'), { dagen: 7 * dir })); }
 
+// Tabwissel naar Ingepland: enkel hertekenen als er iets veranderd kan zijn sinds de vorige zichtbare render (O3); directe
+// renderGepland()-aanroepen tekenen altijd. Zelfde patroon als activeerKalender (schermen/kalender.js).
+let _gepStaat = null;        // { zichtbaar, sleutel } van de laatste geslaagde render; null = nog niets (of mislukt)
+let _gepVerouderd = false;   // een invoer veranderde sinds de laatste render (markeerVerouderd)
+export function markeerVerouderd() { _gepVerouderd = true; }
+const gepZichtbaar = () => { const v = document.getElementById('view-gepland'); return !!v && v.classList.contains('active') && v.getClientRects().length > 0; };
+// Wat de render leest buiten de toestand-sleutels (die markeren zelf via app.js): de dag (vandaag-kop), het venster en toestel, en de rechten.
+function gepSleutel() {
+  const a = window.apparaat || {}, g = huidigeGebruiker();
+  return JSON.stringify([localISO(new Date()), a.indeling, a.rol, a.planEigen, window.innerWidth, window.innerHeight,
+    toestand.get('gekozenDatum'), toestand.get('activeAssigneeFilter'), huidigeRechten(), g?.rol ?? null, g?.zohoNaam ?? null]);
+}
+export function activeerGepland() {
+  const s = _gepStaat;
+  if (!s || !s.zichtbaar || _gepVerouderd || s.sleutel !== gepSleutel()) renderGepland();
+}
+
 export function renderGepland() {
+  _gepStaat = null; // een render die faalt laat niets onthouden: de volgende tabwissel tekent opnieuw
+  const zichtbaar = gepZichtbaar(), sleutel = gepSleutel();
+  _gepVerouderd = false;
+  renderGeplandInhoud();
+  _gepStaat = { zichtbaar, sleutel };
+}
+function renderGeplandInhoud() {
   renderTeller++;
   afh.sjLog('renderGepland'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
   const today     = new Date(); today.setHours(0,0,0,0);
@@ -99,7 +125,14 @@ export function renderGepland() {
   }
   // Badge toont gefilterd gepland-aantal (alle weken); een lege getoonde week legt dat uit en biedt de sprong naar de dichtstbijzijnde week met service.
   const filteredGepland = ticketsVanTechnieker(allGepland, activeAssigneeFilter);
-  if (!any) {
+  // L1: zolang de tickets onbekend zijn (geen bewaarde kopie, nog geen lading) is "Geen geplande service deze week" een lege staat die
+  // liegt: een skelet (onzichtbaar tot app.js na 150 ms het attribuut zet) en geen "andere week"-hint.
+  const toonLaadSkelet = !any && !afh.ticketsBekend();
+  if (toonLaadSkelet) body.setAttribute('aria-busy', 'true'); else body.removeAttribute('aria-busy');
+  if (toonLaadSkelet) {
+    body.innerHTML = '';
+    body.append(bouwTicketsSkelet('kaarten', { aantal: 2, variant: 'lijst', metKop: true }), bouwTicketsMelding());
+  } else if (!any) {
     body.innerHTML = `<div class="empty">${escHtml(eventTekst('ingeplandLeeg', 'Geen geplande service deze week'))}</div>`;
     const datums = filteredGepland.filter(t => t.interventieDatum).map(t => localISO(new Date(t.interventieDatum))).sort();
     if (datums.length) {
@@ -117,5 +150,5 @@ export function renderGepland() {
   // voorgestelde tickets van dezelfde persoon met een datum in de getoonde week.
   const wachtBevestiging = ticketsVanTechnieker(toestand.get('allPending'), activeAssigneeFilter)
     .filter(t => t.status === 'Wachten op bevestiging planning' && t.interventieDatum && weekSleutels.has(localISO(new Date(t.interventieDatum)))).length;
-  zetSamenvatting('gepland', samenvattingVoor('gepland', { dezeWeek, wachtBevestiging }));
+  zetSamenvatting('gepland', samenvattingVoor('gepland', { dezeWeek, wachtBevestiging, geladen: afh.ticketsBekend() }));
 }

@@ -1,9 +1,10 @@
 // public/js/rapport-archief.js
 // Overzicht van gearchiveerde rapporten (interventie + installatie), met filter op type en
 // Excel-export-aanroep (zie excel-export.js). Leest `R`/rapport-records uit de outbox-archivering.
-import { foutTekst } from './kern/api.js';
+import { foutTekst, ApiFout } from './kern/api.js';
 import { TEST_MODE } from './kern/omgeving.js';
 import { registreerActies, metBehoudScroll } from './kern/ui.js';
+import { toonSkelet } from './kern/skelet.js';
 import { sjLog, meldRenderFout } from './kern/verklikker.js';
 import { isEigenRapport } from './kern/sessie.js';
 import { renderKalender } from './schermen/kalender.js';
@@ -27,22 +28,92 @@ export function zetArchiefVersie(v) { _archiefVersie = v; }
 // geen andere plek in de app leest of schrijft dit, dus geen window-bridge nodig.
 let _rapportFilter = 'alle'; // 'alle' | 'Interventie' | 'Installatie' | 'mijn'
 
+// Tekst van het laatste geslaagde antwoord (null = nog niets getekend, of de laatste tekening faalde): een byte-gelijk antwoord
+// hertekent de kalender niet (O6). De archieflijst zelf wordt altijd opnieuw getekend: de verstuurknop van het rapportmailpad
+// steunt op die hertekening (zie schermen/rapport-verzenden.js: "Een latere hertekening zet de knop weer open").
+let _laatsteTekst = null;
+
+// Een mislukte lading laat lijst en versie ongemoeid. Staat er een lijst op het scherm, dan blijft die staan met een melding. Is er nog
+// niets getekend (het scherm toont "Laden…", of er is nog nooit een lading geslaagd: dan staat er hooguit de lege-lijsttekst), dan komt de foutregel.
+function meldLaadFout(body, err, toondeLaden) {
+  if (toondeLaden || _archiefVersie === null) body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">✕ Laden mislukt: ${foutTekst(err)}</div>`;
+  else toast('✕ Rapporten vernieuwen mislukt: ' + foutTekst(err));
+}
+
+// Bij een byte-gelijk antwoord blijven de bestaande record-objecten bestaan (de kalenderkaartjes zoeken hun rapport met
+// `rapportArchief().indexOf(record)`; een nieuwe array zou ze -1 geven zolang de kalender niet hertekend wordt), maar ze krijgen wel
+// weer precies de serverstand (een lokaal gezette `verzonden*` verdwijnt zoals bij een gewone lading).
+function herstelInPlaats(oud, nieuw) {
+  nieuw.forEach((n, i) => {
+    const o = oud[i];
+    for (const k of Object.keys(o)) delete o[k];
+    Object.assign(o, n);
+  });
+}
+
+// L2: het skelet van de eerste lading. Eén handvat voor de hele module: de opstart en het openen van de tab laden bijna tegelijk; een tweede
+// aanroep maakt geen tweede skelet (en begint de 150 ms niet opnieuw).
+let _laadSkelet = null;
+
 export async function laadRapportArchief() {
   const body = document.getElementById('rapp-archief-body');
   if (!body) return;
   // Bestaande inhoud blijft staan tijdens het herladen (geen inklappende pagina -> scrollsprong);
   // enkel bij een leeg overzicht tonen we "Laden…".
-  if (!body.children.length) body.innerHTML = '<div style="color:var(--muted);font-size:0.82rem">Laden…</div>';
+  const toondeLaden = !body.children.length;
+  if (toondeLaden) body.innerHTML = '<div id="rapp-archief-laden" style="color:var(--muted);font-size:0.82rem">Laden…</div>';
+  // Eerste lading: er staat nog niets dan de vaste "Laden…"-regel (index.html). Dat is NIET `toondeLaden`: het vak heeft dat ene kind al, dus
+  // `toondeLaden` is bij de start onwaar (I-L2-1). Een skelet (na 150 ms, enkel zolang dat de enige inhoud is) vervangt de tekst; een
+  // verversing met een bestaande lijst of een foutregel blijft zonder skelet. `meldLaadFout` blijft op `toondeLaden` steunen (ongewijzigd).
+  const laadEl = document.getElementById('rapp-archief-laden');
+  const nogNietGetekend = () => !!laadEl && body.children.length === 1 && body.firstElementChild === laadEl;
+  const skelet = nogNietGetekend() && !_laadSkelet
+    ? (_laadSkelet = toonSkelet(body, { vorm: 'rijen', isLeeg: nogNietGetekend, verberg: [laadEl] }))
+    : null;
   try {
-    const res  = await fetch('/api/rapport-archief');
-    const data = await res.json();
+    await haalEnTeken(body, toondeLaden);
+  } finally {
+    if (skelet) { skelet.stop(); _laadSkelet = null; } // na de tekening of de foutregel: het skelet maakt altijd plaats
+  }
+}
+
+function stopLaadSkelet() { if (_laadSkelet) { _laadSkelet.stop(); _laadSkelet = null; } }
+
+async function haalEnTeken(body, toondeLaden) {
+  let tekst, data;
+  try {
+    const res = await fetch('/api/rapport-archief');
+    if (!res.ok) throw new ApiFout(res.status, null);
+    tekst = await res.text();
+    try { data = JSON.parse(tekst); } catch { throw new Error('Onleesbaar antwoord van de server'); }
+    if (!Array.isArray(data?.rapports)) throw new Error('Onverwacht antwoord van de server');
+  } catch (err) {
+    stopLaadSkelet(); // de foutregel komt er meteen: geen blijvende aria-busy, ook niet als een andere aanroep de eigenaar van het skelet is
+    meldLaadFout(body, err, toondeLaden);
+    return;
+  }
+  stopLaadSkelet(); // de gegevens zijn er: het skelet (en aria-busy) maakt plaats vóór het tekenen, ook als de tabLading tekent vóór de opstartlading klaar is
+  const versie = typeof data.versie === 'number' ? data.versie : 0;
+  // De versie stijgt enkel. Een lagere versie is een verouderd antwoord (een oudere GET die later binnenkomt, of de lege terugval
+  // van de server bij een opslagstoring: { versie: 0, rapports: [] }): lijst en versie blijven, zonder melding aan de gebruiker.
+  if (typeof _archiefVersie === 'number' && versie < _archiefVersie) {
+    console.warn(`Rapportarchief: antwoord met versie ${versie} genegeerd (bekend: ${_archiefVersie})`);
+    renderRapportArchief(); // uit de lokale, vertrouwde gegevens: geen blijvende "Laden…" en een vergrendelde verstuurknop gaat weer open
+    return;
+  }
+  try {
     // Een leeg of kapot record in de lijst (null) mag het hele overzicht niet laten mislukken.
-    _rapportArchief = (Array.isArray(data.rapports) ? data.rapports : []).filter(r => r && typeof r === 'object');
-    _archiefVersie = data.versie || 0;
+    const lijst = data.rapports.filter(r => r && typeof r === 'object');
+    const gelijk = _laatsteTekst !== null && tekst === _laatsteTekst && lijst.length === _rapportArchief.length;
+    if (gelijk) herstelInPlaats(_rapportArchief, lijst);
+    else _rapportArchief = lijst;
+    _archiefVersie = versie;
     sjLog('laadRapportArchief:render'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
-    const render = () => { renderRapportArchief(); renderKalender(); };
+    const render = () => { renderRapportArchief(); if (!gelijk) renderKalender(); };
     // Scrollpositie behouden (her-render tijdens sync); metBehoudScroll komt uit kern/ui.js.
+    _laatsteTekst = null; // pas onthouden als de tekening lukte
     metBehoudScroll(render);
+    _laatsteTekst = tekst;
     toonMisluktMeldingen(_rapportArchief); // eenmalig per paginasessie, enkel technieker met persoon gekozen
   } catch (err) {
     meldRenderFout('rapport-archief', err); // eenmalig naar /api/client-log (niet in testmodus): de echte bron van zo'n fout achterhalen
@@ -62,6 +133,10 @@ export function setRapportFilter(type) {
 export function renderRapportArchief() {
   const body = document.getElementById('rapp-archief-body');
   if (!body) return;
+  // Het archief is nog nooit geladen en de eerste lading loopt (de vaste "Laden…"-regel of het skelet staat er nog): geen "Nog geen rapporten
+  // gearchiveerd." eroverheen. Dat beweerde een lege staat vóór de gegevens er zijn (flushOutbox hertekent bij de start); de lading tekent zelf.
+  if (!_rapportArchief.length && _archiefVersie === null && body.querySelector('#rapp-archief-laden, .skelet')) return;
+  if (!_laadSkelet) body.removeAttribute('aria-busy'); // er staat inhoud en geen skelet meer: het vak is niet meer bezig
   if (!_rapportArchief.length) {
     body.innerHTML = '<div class="rapporten-leeg" style="color:var(--muted);font-size:0.82rem;padding:20px 0">Nog geen rapporten gearchiveerd.</div>';
     return;

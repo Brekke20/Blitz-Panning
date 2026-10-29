@@ -404,3 +404,31 @@ test.describe('Performance: dekking en rapporten', () => {
     await expect(page.locator('#toast')).toContainText('PDF-venster werd geblokkeerd'); // de stub gaf null terug
   });
 });
+
+// C1: het stijlblad en de gegevens starten tegelijk (niet na elkaar). Deterministisch zonder tijdmeting van de app: het antwoord op
+// dashboard.css wordt vastgehouden tot BEIDE gegevensverzoeken zijn aangekomen. Start de code de gegevens pas na het stijlblad, dan
+// komen die nooit binnen terwijl het stijlblad vastgehouden wordt: een noodtijd (korter dan de 3 s die de app zelf op het stijlblad
+// wacht) geeft het stijlblad dan toch vrij, en de gegevensverzoeken noteren dat het stijlblad al beantwoord was.
+test.describe('Performance: stijlblad en gegevens tegelijk (C1)', () => {
+  test('dashboard en dashboard-instellingen vertrekken terwijl dashboard.css nog niet beantwoord is; elk gegevensverzoek vertrekt één keer', async ({ page, verzoeken }) => {
+    const aangekomen = []; // { naam, stijlbladAlBeantwoord }
+    let stijlbladBeantwoord = false;
+    let open;
+    const beide = new Promise((r) => { open = r; });
+    const meld = (naam) => { aangekomen.push({ naam, stijlbladAlBeantwoord: stijlbladBeantwoord }); if (aangekomen.length >= 2) open(); };
+    await page.route('**/css/dashboard.css', async (route) => {
+      await Promise.race([beide, new Promise((r) => setTimeout(r, 2500))]);
+      stijlbladBeantwoord = true;
+      await route.continue();
+    });
+    await openPerformance(page, {
+      dashboard: (a) => { meld('dashboard'); return dashboardStub()(a); },
+      instellingen: (a) => { meld('dashboard-instellingen'); return grenzenStub()(a); },
+    });
+    expect(aangekomen.map(x => x.naam).sort()).toEqual(['dashboard', 'dashboard-instellingen']);
+    expect(aangekomen.map(x => x.stijlbladAlBeantwoord), 'beide gegevensverzoeken vertrokken vóór het stijlblad antwoordde').toEqual([false, false]);
+    await expect(tegel(page, 'interventies').locator('.tegel-waarde')).toHaveText('10');
+    expect(verzoeken.van('/api/dashboard', 'GET')).toHaveLength(1);
+    expect(verzoeken.van('/api/dashboard-instellingen', 'GET')).toHaveLength(1);
+  });
+});

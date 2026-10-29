@@ -1,5 +1,5 @@
 // Snelheidsmeting van de Open dag-stijl (glas = backdrop-filter): is de app op een gsm trager geworden? Buiten de suites; draai met
-//   node scripts/meet-snelheid.mjs [--voor=<map met public/ van de basis>] [--na=<map met public/>] [--runs=5] [--thema] [--url=<adres>]
+//   node scripts/meet-snelheid.mjs [--voor=<map met public/ van de basis>] [--na=<map met public/>] [--runs=5] [--thema] [--uur=<0-23>] [--url=<adres>] [--json=<bestand>]
 // Zonder --voor wordt enkel de huidige public/ (of --na) gemeten. Met --voor draaien de runs AFWISSELEND (voor, na, na, voor, ...) in
 // dezelfde sessie, zodat een trend in de belasting van de machine beide varianten raakt; de tabel toont de MEDIAAN en de spreiding.
 //
@@ -20,6 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import crypto from 'node:crypto';
+import os from 'node:os';
 import { chromium } from 'playwright-core';
 import { maakDummyData } from '../public/js/kern/testdata.js';
 
@@ -31,6 +32,26 @@ const NA = waarde('na') ? path.resolve(waarde('na')) : path.join(HIER, '..', 'pu
 const VOOR = waarde('voor') ? path.resolve(waarde('voor')) : null;
 const EIGEN_URL = waarde('url') || null;
 const THEMA = !!arg('thema');
+const JSON_UIT = waarde('json') ? path.resolve(waarde('json')) : null; // schrijft ook de tabel en de ruwe runs als JSON
+const START = Date.now();
+// --uur=<0-23>: pint het uur van Brussel (dus de hemel `data-hemel`: ochtend 5-10, middag 10-17, avond 17-21, nacht 21-5; kern/hemel.js) voor beide
+// varianten: een init-script verschuift enkel `Date` naar vandaag op dat uur + 5 minuten (daarna loopt de tijd gewoon door, de hemel blijft de run
+// lang gelijk); timers en requestAnimationFrame blijven echt. Zonder --uur geldt de echte klok, zoals voorheen. Met --thema (nepklok van
+// Playwright) staat die klok op 28 oktober van dat uur in plaats van 10:00.
+const UUR = waarde('uur');
+if (UUR !== undefined && !(/^\d{1,2}$/.test(UUR) && Number(UUR) <= 23)) throw new Error(`--uur moet een geheel getal van 0 tot 23 zijn (kreeg '${UUR}')`);
+const UUR_TEKST = UUR === undefined ? null : `${String(Number(UUR)).padStart(2, '0')}:05`;
+// De ISO-tijd (met de juiste zomer-/wintertijd-offset van Brussel) van vandaag op UUR_TEKST.
+function vastNuVoorUur() {
+  const dag = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Brussels' }).format(new Date()); // YYYY-MM-DD
+  const uurIn = new Intl.DateTimeFormat('nl-BE', { timeZone: 'Europe/Brussels', hour: 'numeric', hourCycle: 'h23' });
+  for (const offset of ['+01:00', '+02:00']) {
+    const iso = `${dag}T${UUR_TEKST}:00${offset}`;
+    if (Number(uurIn.format(new Date(iso))) === Number(UUR)) return iso;
+  }
+  throw new Error('geen geldige tijd voor --uur');
+}
+const VAST_NU = UUR_TEKST ? vastNuVoorUur() : null;
 const ALLEEN_LADEN = !!arg('laden'); // enkel de laadtijd (geen scrolmeting): voor veel runs achter elkaar
 
 const EXTRA_CSS = waarde('css') || ''; // enkel voor proeven (bv. --css=":root{--blur:60px !important}"): extra stijl bovenop de pagina, in elke variant
@@ -174,10 +195,20 @@ async function meetRun(variant) {
     localStorage.setItem('blitz_weergave', 'gsm');
     localStorage.setItem('blitz_theme', 'dark');
   });
+  if (VAST_NU) {
+    await context.addInitScript((vastNu) => {
+      if (window !== window.top) return;
+      const Echt = Date, verschil = Echt.parse(vastNu) - Echt.now();
+      window.Date = class extends Echt {
+        constructor(...a) { if (a.length === 0) super(Echt.now() + verschil); else super(...a); }
+        static now() { return Echt.now() + verschil; }
+      };
+    }, VAST_NU);
+  }
   if (EXTRA_CSS) await context.addInitScript((css) => { if (window !== window.top) return; document.addEventListener('DOMContentLoaded', () => { const st = document.createElement('style'); st.textContent = css; document.head.append(st); }); }, EXTRA_CSS);
   const page = await context.newPage();
   try {
-    if (THEMA) await page.clock.install({ time: new Date(`${new Date().getFullYear()}-10-28T10:00:00`) }); // binnen de periode van Halloween
+    if (THEMA) await page.clock.install({ time: new Date(`${new Date().getFullYear()}-10-28T${UUR_TEKST ? UUR_TEKST + ':00' : '10:00:00'}`) }); // binnen de periode van Halloween
     const cdp = await context.newCDPSession(page);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
     await page.goto('/' + (THEMA ? '?test&versiering=aan' : '?test'), { waitUntil: 'commit' });
@@ -189,7 +220,7 @@ async function meetRun(variant) {
       await page.waitForFunction(() => document.documentElement.dataset.eventAchtergrond === 'ja', null, { timeout: 30000 });
     }
     await new Promise(r => setTimeout(r, 1500)); // tickets tekenen, de laatste verzoeken laten uitrollen
-    const apparaat = await page.evaluate(() => ({ app: document.documentElement.dataset.apparaat, achtergrond: document.documentElement.dataset.eventAchtergrond || '-', blur: getComputedStyle(document.documentElement).getPropertyValue('--blur').trim(), tickets: document.querySelectorAll('#ticket-list .ticket').length, kaartFilter: getComputedStyle(document.querySelector('#ticket-list .ticket')).backdropFilter }));
+    const apparaat = await page.evaluate(() => ({ app: document.documentElement.dataset.apparaat, achtergrond: document.documentElement.dataset.eventAchtergrond || '-', hemel: document.documentElement.dataset.hemel || '-', blur: getComputedStyle(document.documentElement).getPropertyValue('--blur').trim(), tickets: document.querySelectorAll('#ticket-list .ticket').length, kaartFilter: getComputedStyle(document.querySelector('#ticket-list .ticket')).backdropFilter }));
     if (apparaat.app !== 'gsm') throw new Error(`geen gsm-weergave (${apparaat.app})`);
     const schermen = {};
     for (const [naam, tab] of ALLEEN_LADEN ? [] : [['wachtrij', null], ['kalender', '#tab-kalender'], ['ingepland', '#tab-gepland']]) {
@@ -232,6 +263,18 @@ try {
   console.log(`modus: ${THEMA ? 'thema-scene (halloween)' : 'hemel'}, ${RUNS} runs per variant, gsm 375x812 @2x, CPU 4x trager, ${JSON.stringify(runs[varianten[0]][0].info)}`);
   console.log(`weergave eerste run: ${JSON.stringify(runs[varianten[0]][0].apparaat)}`);
   console.table(rijen);
+  if (JSON_UIT) {
+    fs.mkdirSync(path.dirname(JSON_UIT), { recursive: true });
+    fs.writeFileSync(JSON_UIT, JSON.stringify({
+      meta: {
+        script: 'scripts/meet-snelheid.mjs', na: EIGEN_URL || NA, voor: VOOR, runs: RUNS, modus: THEMA ? 'thema' : 'hemel', alleenLaden: ALLEEN_LADEN, uur: UUR === undefined ? null : Number(UUR), vastNu: VAST_NU,
+        telefoon: '375x812 @2x, aanraking, CPU 4x trager, ?test', gestart: new Date(START).toISOString(), duurMs: Date.now() - START,
+        node: process.version, cpu: os.cpus()[0]?.model, kernen: os.cpus().length, geheugenGB: Math.round(os.totalmem() / 2 ** 30), os: `${os.platform()} ${os.release()}`,
+      },
+      rijen, runs, eersteRunApparaat: runs[varianten[0]][0].apparaat, eersteRunData: runs[varianten[0]][0].info,
+    }, null, 2));
+    console.log('JSON geschreven: ' + JSON_UIT);
+  }
 } finally {
   await browser.close();
   for (const srv of Object.values(servers)) srv.close();

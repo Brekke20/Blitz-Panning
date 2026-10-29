@@ -2,6 +2,7 @@
 // registreren zich via zetInlogUi (schermen/inloggen.js). Kent ook geen instellingen: andere modules hangen een
 // afmeldhaak aan (registreerAfmeldHaak). Raakt geen `window` aan (globalThis.location/localStorage, laat gebonden).
 import { toast } from './ui.js';
+import { neemVroeg } from './api.js';
 
 const CACHE_SLEUTEL = 'blitz_sessie_cache';
 const TESTROL_SLEUTEL = 'blitz_test_rol';
@@ -120,11 +121,13 @@ function vereis(naam) {
 // Eén auth-ik-verzoek, ingedeeld. Gooit nooit: alles wat geen bruikbaar antwoord is wordt een soort.
 //   ok (200 met gebruiker) · 401 · storing (503) · serverfout (andere status, of 200 zonder geldige JSON: captive portal, proxyfoutpagina)
 //   netwerk (fetch gooit). `ms` = hoe lang het verzoek duurde.
-async function haalAuthIk() {
+//   `vroeg` = de vroeg gestarte belofte uit index.html (O1) of null (dan wordt hier gefetcht). Uitkomsten en indeling zijn identiek;
+//   `ms` meet dan enkel de wachttijd vanaf nu (dus korter): de instellingensync krijgt daardoor meer budget (resterendSyncBudget), bewust.
+async function haalAuthIk(vroeg = null) {
   const t0 = Date.now();
   const klaar = (uitkomst) => ({ ...uitkomst, ms: Date.now() - t0 });
   let res;
-  try { res = await globalThis.fetch('/api/auth-ik'); } catch { return klaar({ soort: 'netwerk' }); }
+  try { res = await (vroeg ?? globalThis.fetch('/api/auth-ik')); } catch { return klaar({ soort: 'netwerk' }); }
   if (res.status === 503) return klaar({ soort: 'storing' });
   if (res.status === 401) {
     let body = null;
@@ -145,9 +148,13 @@ async function haalAuthIk() {
 export const KORTE_LIMIET_MS = 5000;
 let netwerkMs = 0;           // tijd die een opstart met gecachte sessie op auth-ik wachtte (voor het resterende synchronisatiebudget)
 let uitCacheGestart = false; // het laatste laadSessie startte uit de cache i.p.v. een geslaagd auth-ik
+let schermGezien = false; // sinds het laden van de pagina verscheen er een inlog-, wachtwoord- of "geen verbinding"-scherm (nooit teruggezet)
 
 export function laatsteOpstartNetwerkMs() { return netwerkMs; }
 export function startteUitCache() { return uitCacheGestart; }
+// O1: true zodra er sinds het laden van de pagina een inlog-, wachtwoord- of "geen verbinding"-scherm getoond werd. Dan hoort een vroeg gestart
+// verzoek (instellingenoverzicht) mogelijk bij een andere sessie of gebruiker en mag het niet meer gebruikt worden (kern/instellingen-sync.js).
+export function inlogschermGezien() { return schermGezien; }
 
 const WACHT_OP_TIJD = Symbol('auth-ik-te-traag');
 function metLimiet(belofte, ms) {
@@ -172,7 +179,9 @@ async function laad() {
   uitCacheGestart = false;
   for (let ronde = 0; ronde < MAX_RONDES; ronde++) {
     const cache = leesCache();
-    const aanvraag = haalAuthIk();
+    // Enkel de EERSTE ronde gebruikt het vroege verzoek (hoogstens één keer): na een inlog- of wachtwoordscherm, bij een nieuwe laadSessie
+    // (herlogin) en bij een herhaling halen we vers op.
+    const aanvraag = haalAuthIk(ronde === 0 ? neemVroeg('authIk') : null);
     const eerste = cache ? await metLimiet(aanvraag, KORTE_LIMIET_MS) : await aanvraag;
     if (eerste === WACHT_OP_TIJD) {
       netwerkMs = KORTE_LIMIET_MS;
@@ -190,16 +199,19 @@ async function laad() {
     if (uitkomst.soort === 'netwerk' || uitkomst.soort === 'storing' || uitkomst.soort === 'serverfout') {
       if (uitkomst.soort === 'storing') meldOpslagStoring();
       if (cache) { uitCacheGestart = true; return neemOver(cache, null, undefined); }
+      schermGezien = true;
       await vereis('toonGeenVerbinding')();
       continue;
     }
     if (uitkomst.soort === '401') {
       wisCache(); // de bewaarde gebruiker hoort bij een sessie die niet meer bestaat
+      schermGezien = true;
       await vereis('toonInloggen')({ setupNodig: uitkomst.body?.setupNodig === true });
       continue;
     }
     const data = uitkomst.data;
     if (data.moetWachtwoordWijzigen === true) {
+      schermGezien = true;
       await vereis('toonWachtwoordWijzigen')();
       continue;
     }

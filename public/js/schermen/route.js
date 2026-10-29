@@ -6,6 +6,7 @@
 import { toestand } from '../kern/toestand.js';
 import { magPlannenVoor, magSchrijvenVoor } from '../kern/sessie.js';
 import { toast, escHtml, registreerActies, strengeAfh } from '../kern/ui.js';
+import { bouwTicketsSkelet, bouwTicketsMelding } from '../kern/skelet.js';
 import { localISO, fmtSec, timeStrToMin, minToTimeStr, extractLocalHour } from '../kern/tijd.js';
 import { apiVerzoek, foutTekst } from '../kern/api.js';
 import { planItemsVanTechnieker, stopsVoorDag as selStopsVoorDag } from '../kern/selecties.js';
@@ -241,7 +242,18 @@ export function renderRouteList(date) {
   }
   sorteer?.vernietig(); sorteer = null;
   list.innerHTML = '';
-  if (!allStops.length) { list.innerHTML = '<div class="route-empty">Voeg tickets of installaties toe via de Kalender</div>'; return; }
+  list.removeAttribute('aria-busy');
+  if (!allStops.length) {
+    // L1: zolang de tickets onbekend zijn (geen bewaarde kopie, nog geen lading) is "Voeg tickets ... toe" een lege staat die liegt: een skelet
+    // in de lijst (onzichtbaar tot app.js na 150 ms het attribuut zet); de kaart blijft.
+    if (!afh.ticketsBekend()) {
+      list.setAttribute('aria-busy', 'true');
+      list.append(bouwTicketsSkelet('kaarten', { aantal: 3, variant: 'lijst' }), bouwTicketsMelding());
+      return;
+    }
+    list.innerHTML = '<div class="route-empty">Voeg tickets of installaties toe via de Kalender</div>';
+    return;
+  }
   if (routeVerouderdDatum === date && !(routeData && currentRouteDate === date)) {
     const hint = document.createElement('div');
     hint.className = 'route-tijdbalk route-hint';
@@ -415,6 +427,11 @@ export function renderRouteList(date) {
     stop.querySelector('.btn-ev-details')?.addEventListener('click', () => afh.openLocalEventDetail(entry.item));
     list.appendChild(stop);
   });
+  // Enkel eigen afspraken op de lijst terwijl de tickets nog onbekend zijn: de ticketstops ontbreken nog, dus een skelet onderaan (en aria-busy).
+  if (!afh.ticketsBekend() && !stops.length) {
+    list.setAttribute('aria-busy', 'true');
+    list.append(bouwTicketsSkelet('kaarten', { aantal: 1, variant: 'lijst' }), bouwTicketsMelding());
+  }
 
   // Eén sorteer-instantie per render: de vorige eerst vernietigen (geen dubbele listeners).
   // De .stop-kaartjes staan in DOM-volgorde 1:1 met allStops (stop-leg-regels zijn andere
@@ -768,6 +785,7 @@ export async function applyRouteOrder(date, orderedEntries) {
   renderRouteList(date);
   updateMap(date);
   afh.renderKalender();
+  toestand.raak('planning'); // de uren (item.uur) zijn hierboven in-place gewijzigd: markeert Kalender en Ingepland als verouderd (O3)
   updateRouteBtns(date);
   toast(volgordeAangepast
     ? 'ℹ️ Volgorde aangepast rond een vast tijdstip'

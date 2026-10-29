@@ -9,7 +9,7 @@ import { maakContext, veeg, samenvatting, negeerVenster } from './kliktest-veger
 // In testmodus (?test) staat alles op stubs en gaat er niets naar Zoho, TomTom of de mail; de fixture weigert dat ook zelf.
 // De overgeslagen knoppen (met reden) staan in OVERSLAAN in e2e/kliktest-veger.mjs.
 
-const tabNaam = (naam) => new RegExp(`^${naam}(\\s|$)`);
+const tabNaam = (naam) => new RegExp(`^${naam}(,|\\s|$)`);
 const SLEUTELS_TAB = (d) => !d.id.startsWith('tab-'); // de tabbladen zelf: zie e2e/kliktest.spec.mjs
 
 // Knoppen die in deze testopstelling terecht niets zichtbaars doen. Elk item heeft een reden; alles wat niet in de lijst staat, is een bevinding.

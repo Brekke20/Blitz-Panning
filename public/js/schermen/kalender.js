@@ -5,8 +5,9 @@
 // binnen functies, nooit op moduleniveau; de hoogste-niveau-effecten (observer, resize, visibilitychange) draaien
 // in `initKalender`. Alleen `kern/brug.js` wijst `window`-namen toe. De schermtoestand (`kalView`, auto-scrollsleutel; de datum is de gedeelde `gekozenDatum`) is module-privé; de knoppen lopen via data-actie-delegatie (C8).
 import { toestand } from '../kern/toestand.js';
-import { magPlannenVoor } from '../kern/sessie.js';
+import { magPlannenVoor, huidigeRechten, huidigeGebruiker } from '../kern/sessie.js';
 import { escHtml, zetPressed, registreerActies, registreerWijzigActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
+import { bouwTicketsMelding } from '../kern/skelet.js';
 import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, volgendeWerkdagVan, openingsDatum } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
 import {
@@ -47,8 +48,24 @@ let renderTeller = 0; // e2e telt hertekeningen hiermee, ook interne oproepen
 // Aantal keren dat renderKalender() draaide (voor e2e/kern.spec.mjs).
 export function renderTelling() { return renderTeller; }
 export function isMaandweergave() { return kalView === 'month'; }
-// Tabwissel naar Kalender: tekenen en naar de werkdag scrollen.
-export function activeerKalender() { renderKalender(); kalAutoScroll(true); }
+// Tabwissel naar Kalender: enkel hertekenen als er iets veranderd kan zijn sinds de vorige zichtbare render (O3), en altijd naar de werkdag scrollen.
+// Een directe renderKalender() (o.a. rapport-archief.js na een gewijzigd archief) tekent altijd; enkel dit tabpad kan overslaan.
+let _kalStaat = null;        // { zichtbaar, sleutel, archief, archiefLengte } van de laatste geslaagde render; null = nog niets (of mislukt)
+let _kalVerouderd = false;   // een invoer veranderde sinds de laatste render (markeerVerouderd)
+export function markeerVerouderd() { _kalVerouderd = true; }
+const kalZichtbaar = () => { const v = document.getElementById('view-kalender'); return !!v && v.classList.contains('active') && v.getClientRects().length > 0; };
+// Alles wat de render leest buiten de toestand-sleutels (die markeren zelf via app.js): de dag, de weergave, de indeling en het toestel,
+// het venster (de rasterhoogte wordt verborgen niet gemeten) en de rechten (magPlannenVoor).
+function kalSleutel() {
+  const a = window.apparaat || {}, g = huidigeGebruiker();
+  return JSON.stringify([localISO(new Date()), kalView, a.indeling, a.rol, a.planEigen, window.innerWidth, window.innerHeight,
+    gekozenIso(), toestand.get('activeAssigneeFilter'), huidigeRechten(), g?.rol ?? null, g?.zohoNaam ?? null]);
+}
+function kalIsVers() {
+  const s = _kalStaat, archief = afh.rapportArchief();
+  return !!s && s.zichtbaar && !_kalVerouderd && s.sleutel === kalSleutel() && s.archief === archief && s.archiefLengte === archief.length;
+}
+export function activeerKalender() { if (!kalIsVers()) renderKalender(); kalAutoScroll(true); }
 
 
 // Een app die open blijft (tablet 's nachts of in het weekend) schuift mee: ligt de gekozen datum vóór vandaag, dan wordt het vandaag.
@@ -470,7 +487,7 @@ function zetKalenderSamenvatting(zonderDatum) {
   const filter = toestand.get('activeAssigneeFilter');
   const dagen = zichtbareDagen(gekozenDatum(), { werkdagen: toestand.get('settings').werkdagen, tabletStaand: false, weekOffset: 0, dagOffset: 0 });
   const gepland = dagen.reduce((n, d) => n + planItemsVanTechnieker(toestand.get('planning')[localISO(d)], filter).length, 0);
-  zetSamenvatting('kalender', samenvattingVoor('kalender', { week: isoWeekNummer(gekozenDatum()), gepland, zonderDatum }));
+  zetSamenvatting('kalender', samenvattingVoor('kalender', { week: isoWeekNummer(gekozenDatum()), gepland, zonderDatum, geladen: afh.ticketsBekend() }));
 }
 
 function kalZetVandaagKnop() {
@@ -491,6 +508,13 @@ function kalZetLabel(tekst) {
   else knop.removeAttribute('aria-label');
 }
 export function renderKalender() {
+  _kalStaat = null; // een render die faalt laat niets onthouden: de volgende tabwissel tekent opnieuw
+  const zichtbaar = kalZichtbaar(), sleutel = kalSleutel(), archief = afh.rapportArchief();
+  _kalVerouderd = false;
+  renderKalenderInhoud();
+  _kalStaat = { zichtbaar, sleutel, archief, archiefLengte: archief.length };
+}
+function renderKalenderInhoud() {
   renderTeller++;
   kalZetVandaagKnop();
   afh.sjLog('renderKalender'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
@@ -544,6 +568,7 @@ export function renderKalender() {
   // Branch: week of maand
   if (kalView === 'month') {
     const mg = document.getElementById('week-grid');
+    mg.removeAttribute('aria-busy'); // de maandweergave heeft geen skelet (een lege cel beweert niets)
     mg.className = 'month-grid';
     mg.style.height = '';
     renderMonthView(today);
@@ -562,10 +587,17 @@ export function renderKalender() {
 
   const grid = document.getElementById('week-grid');
   const isDesktopTijdlijnWeek = window.apparaat.indeling !== 'smal';
+  // L1: zolang de tickets onbekend zijn (geen bewaarde kopie, nog geen lading) is "—" per dag en "0/x" in de kop een lege staat die op "niets
+  // gepland" lijkt: een skeletbalkje (DAG_SKELET) in precies de doos van die "—" (zelfde opvulling, één regel: de hoogte van de pagina en de
+  // plaats van de uren verspringen dus niet als de gegevens binnenkomen) en een blokje i.p.v. de capaciteit, onzichtbaar tot app.js het
+  // attribuut zet (150 ms). Een kolom met een afspraak of rapportkaart krijgt het niet: de "—" wordt daar ook weggehaald.
+  const ticketsLaden = !afh.ticketsBekend();
+  if (ticketsLaden) grid.setAttribute('aria-busy', 'true'); else grid.removeAttribute('aria-busy');
   // scrollpositie bewaren: innerHTML = '' zet die anders terug op 0 bij elke her-render (polling)
   const bewaardTop = grid.scrollTop, bewaardLeft = grid.scrollLeft;
   grid.className = isDesktopTijdlijnWeek ? 'week-grid tl-mode' : 'week-grid';
   grid.innerHTML = '';
+  if (ticketsLaden) grid.appendChild(bouwTicketsMelding()); // één "Laden…" voor schermlezers (niet per dagkolom)
   if (isDesktopTijdlijnWeek) kalPasGridHoogteAan(); else grid.style.height = '';
 
   // Post-launch feedback (2026-08-17): de uren staan vóór maandag in een eigen smalle kolom (zie
@@ -594,13 +626,13 @@ export function renderKalender() {
           <div class="day-hdr-name ${isToday ? 'today' : isPast ? 'past' : ''}">${day.toLocaleDateString('nl-BE', { weekday:'short' })}</div>
           <div class="day-hdr-num${isToday ? ' today' : ''}">${day.getDate()}</div>
         </div>
-        <div class="day-cap coord-only ${capFull ? 'full' : ''}">${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔒 Geblokkeerd' : capLabel}</div>
+        <div class="day-cap coord-only ${capFull ? 'full' : ''}">${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔒 Geblokkeerd' : ticketsLaden ? '<span class="skelet skelet--tickets skelet--cap" aria-hidden="true"><span class="skelet-blok"></span></span>' : capLabel}</div>
         <button class="day-block-btn coord-only ${holidayName ? 'holiday' : isDayBlocked ? 'blocked' : ''}" data-actie="kal-blok" data-date="${dateStr}">
           ${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔓 Blokkade beheren' : dayBlockCount > 0 ? `⏱ ${dayBlockCount} uitzondering${dayBlockCount > 1 ? 'en' : ''}` : '⏱ Beschikbaar'}
         </button>
       </div>
       <div class="day-body${holidayName ? ' holiday-day' : isDayBlocked ? ' blocked-day' : ''}" id="daybody-${dateStr}">
-        ${dayStops.length === 0 ? '<div class="day-empty">—</div>' : ''}
+        ${dayStops.length === 0 ? (ticketsLaden ? DAG_SKELET : '<div class="day-empty">—</div>') : ''}
       </div>`;
 
     // Lokale afspraken (import / manueel)
@@ -804,6 +836,9 @@ function kalToday() {
   toestand.spoel(); // eerst tekenen, daarna scrollen
   kalAutoScroll(true);
 }
+
+// Het skelet van een lege dagkolom: dezelfde doos als `.day-empty` ("—"), met een balkje i.p.v. de tekst (css/base.css, `.skelet--kal`).
+const DAG_SKELET = '<div class="day-empty skelet skelet--tickets skelet--kal" aria-hidden="true"><span class="skelet-blok"></span></div>';
 
 function renderMonthView(today) {
   // Maand = de maand van de gedeelde gekozen datum

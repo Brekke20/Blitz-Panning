@@ -17,6 +17,8 @@
 //    toont per variant de MEDIAAN van `--runs=<n>` (standaard 5) runs. Zonder `--voor` wordt enkel de huidige public/ gemeten.
 //    `--vertraging=0,150,400` kiest de serververtragingen. Voorbeeld:
 //      node scripts/meet-laden.mjs --voor=C:\tmp\blitz-voor\public --runs=5 --vertraging=150
+//  - `--na=<map met public/>` meet die map als "na"-variant in plaats van public/ van deze checkout (bv. een bevroren baseline-kopie);
+//    `--json=<bestand>` schrijft de tabel (alle rijen met de ruwe muurtijden), de wizard-meting en de meetomstandigheden ook als JSON weg.
 //  - Daarnaast: parse- en evaluatietijd van rapport-wizard.js onder 4x CPU-vertraging (dynamische import van een nieuwe
 //    URL, nadat het bestand zelf al opgehaald is; de imports van de wizard staan dan al in het modulegeheugen).
 import http from 'node:http';
@@ -24,11 +26,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import crypto from 'node:crypto';
+import os from 'node:os';
 import { chromium } from 'playwright-core';
 import { maakDummyData } from '../public/js/kern/testdata.js';
 
-const PUBLIC = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..', 'public');
 const arg = (naam) => process.argv.find(a => a.startsWith(`--${naam}=`))?.slice(naam.length + 3);
+const PUBLIC = arg('na') ? path.resolve(arg('na')) : path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..', 'public');
+const JSON_UIT = arg('json') ? path.resolve(arg('json')) : null;
+const START = Date.now();
 const VERTRAGINGEN = (arg('vertraging') || '0,150,400').split(',').map(Number);
 const RUNS = Math.max(1, Number(arg('runs') || 5));
 const VOOR = arg('voor') ? path.resolve(arg('voor')) : null;
@@ -41,6 +46,7 @@ const TOEGESTAAN = ['localhost', '127.0.0.1', 'cdnjs.cloudflare.com', 'cdn.jsdel
 const vreemdeHosts = [];
 const TICKETS = maakDummyData(Date.now());
 
+const GEBRUIKER = { id: 'u-test', email: 'b@test.be', naam: 'Test Beheerder', rol: 'beheerder' };
 let vertraging = 0;
 function maakServer(PUBLIC) {
 const server = http.createServer((req, res) => {
@@ -48,6 +54,13 @@ const server = http.createServer((req, res) => {
   const antwoord = () => {
     if (pad.startsWith('/api/')) {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      // /api/auth-ik: sinds de loginlaag (v2.x) toont de app zonder ingelogde gebruiker het inlogscherm; de stub geeft een beheerder (zoals meet-snelheid.mjs).
+      if (pad === '/api/auth-ik') return res.end(JSON.stringify({ gebruiker: GEBRUIKER, rechten: { beheer: true, plannen: true, alleSales: true }, moetWachtwoordWijzigen: false, lokaleDev: false }));
+      // /api/instellingen: een GELDIG overzicht (zelfde vorm als netlify/functions/instellingen.js en de e2e-stub `overzicht(...)`) met
+      // eigen.gebruikerId = het id van de gebruiker hierboven. Met `{}` gooit de app een vroeg overzicht (O1, enkel in de optimalisatie) weg en
+      // doet ze een tweede, seriële aanroep: de meting zou dan een kunstmatig trage warme start geven. De baseline vraagt het overzicht pas
+      // na auth-ik en negeert het vroege verzoek; ze krijgt hier dus hetzelfde antwoord. Een PUT slaagt neutraal.
+      if (pad === '/api/instellingen') return res.end(JSON.stringify(req.method === 'PUT' ? { versie: 2 } : (new URL(req.url, 'http://localhost').searchParams.get('overzicht') === '1' ? { eigen: { gebruikerId: GEBRUIKER.id, versie: 1, instellingen: {} }, techniekers: {} } : { versie: 1, instellingen: {} })));
       return res.end(JSON.stringify(pad === '/api/tickets' ? TICKETS : {}));
     }
     const bestand = path.normalize(path.join(PUBLIC, pad === '/' ? 'index.html' : pad));
@@ -102,8 +115,12 @@ async function bezoek(page) {
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Network.enable');
   const lopend = new Map();
-  let verzoeken = 0, bytes = 0;
-  cdp.on('Network.requestWillBeSent', (e) => { verzoeken++; lopend.set(e.requestId, e.request.url); });
+  let verzoeken = 0, bytes = 0, authIk = 0, instellingen = 0; // authIk/instellingen: aantal opstartverzoeken (controle van de stubs; informatief)
+  cdp.on('Network.requestWillBeSent', (e) => {
+    verzoeken++; lopend.set(e.requestId, e.request.url);
+    const p = new URL(e.request.url).pathname;
+    if (p === '/api/auth-ik') authIk++; else if (p === '/api/instellingen') instellingen++;
+  });
   cdp.on('Network.loadingFinished', (e) => { bytes += e.encodedDataLength || 0; });
   const t0 = Date.now();
   await page.goto('/', { waitUntil: 'commit' });
@@ -114,7 +131,7 @@ async function bezoek(page) {
   // Even laten uitrollen: late verzoeken (kaart, planning-sinds) horen bij het bezoek.
   await new Promise(r => setTimeout(r, 1500));
   await cdp.detach();
-  return { verzoeken, kB: Math.round(bytes / 1024), klaarMs, wandMs };
+  return { verzoeken, kB: Math.round(bytes / 1024), klaarMs, wandMs, authIk, instellingen };
 }
 
 async function meetProfiel(profiel, variant = 'na') {
@@ -183,6 +200,7 @@ try {
         rijen.push({
           'server (ms)': v, profiel, variant: VOOR ? variant : '-', runs: m.length,
           'verzoeken': mediaan(m.map(x => x.verzoeken)), 'kB': mediaan(m.map(x => x.kB)),
+          'auth-ik': mediaan(m.map(x => x.authIk)), 'instellingen': mediaan(m.map(x => x.instellingen)),
           'mediaan klaar (ms, performance.now)': mediaan(m.map(x => x.klaarMs)), 'mediaan klaar (ms, muurtijd)': mediaan(m.map(x => x.wandMs)),
           'alle muurtijden': m.map(x => x.wandMs).join(' '),
         });
@@ -193,6 +211,17 @@ try {
   const wizard = await meetWizardParse();
   if (vreemdeHosts.length) throw new Error('verzoeken naar niet-toegestane hosts: ' + [...new Set(vreemdeHosts)].join(', '));
   console.table(rijen);
+  if (JSON_UIT) {
+    fs.mkdirSync(path.dirname(JSON_UIT), { recursive: true });
+    fs.writeFileSync(JSON_UIT, JSON.stringify({
+      meta: {
+        script: 'scripts/meet-laden.mjs', gemetenMap: PUBLIC, voorMap: VOOR, runs: RUNS, vertragingenMs: VERTRAGINGEN, mediaan: 'mediaan van de runs; bij --voor afwisselend',
+        gestart: new Date(START).toISOString(), duurMs: Date.now() - START, node: process.version, cpu: os.cpus()[0]?.model, kernen: os.cpus().length, geheugenGB: Math.round(os.totalmem() / 2 ** 30), os: `${os.platform()} ${os.release()}`,
+      },
+      rijen, wizard,
+    }, null, 2));
+    console.log('JSON geschreven: ' + JSON_UIT);
+  }
   console.log(`rapport-wizard.js: ${wizard.grootteKB} kB, parse + evaluatie onder 4x CPU-vertraging: mediaan ${wizard.mediaanMs} ms (metingen ${wizard.metingen.join(', ')} ms)`);
   console.log(wizard.mediaanMs > 150 ? 'LET OP: boven 150 ms (vraag voor Brent, N2).' : 'Onder de 150 ms-grens (N2).');
 } finally {

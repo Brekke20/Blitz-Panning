@@ -1,0 +1,110 @@
+{
+  "meta": {
+    "script": "scripts/meet-laden.mjs",
+    "gemetenMap": "C:\\Users\\BRENT\\OneDrive - Hertsens Transport (Walding)\\Claude-Projects\\blitz-planning\\.claude\\worktrees\\optimalisatie\\public",
+    "voorMap": "C:\\Users\\BRENT\\blitz-baseline-2.5.1\\public",
+    "runs": 5,
+    "vertragingenMs": [
+      0
+    ],
+    "mediaan": "mediaan van de runs; bij --voor afwisselend",
+    "gestart": "2026-10-29T04:26:05.597Z",
+    "duurMs": 110108,
+    "node": "v24.18.0",
+    "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+    "kernen": 8,
+    "geheugenGB": 40,
+    "os": "win32 10.0.26200"
+  },
+  "rijen": [
+    {
+      "server (ms)": 0,
+      "profiel": "koud",
+      "variant": "voor",
+      "runs": 5,
+      "verzoeken": 142,
+      "kB": 1489,
+      "auth-ik": 1,
+      "instellingen": 1,
+      "mediaan klaar (ms, performance.now)": 434,
+      "mediaan klaar (ms, muurtijd)": 437,
+      "alle muurtijden": "652 429 461 402 437"
+    },
+    {
+      "server (ms)": 0,
+      "profiel": "koud",
+      "variant": "na",
+      "runs": 5,
+      "verzoeken": 142,
+      "kB": 1505,
+      "auth-ik": 1,
+      "instellingen": 1,
+      "mediaan klaar (ms, performance.now)": 476,
+      "mediaan klaar (ms, muurtijd)": 480,
+      "alle muurtijden": "480 475 480 438 2567"
+    },
+    {
+      "server (ms)": 0,
+      "profiel": "warm",
+      "variant": "voor",
+      "runs": 5,
+      "verzoeken": 142,
+      "kB": 36,
+      "auth-ik": 1,
+      "instellingen": 1,
+      "mediaan klaar (ms, performance.now)": 483,
+      "mediaan klaar (ms, muurtijd)": 487,
+      "alle muurtijden": "422 422 487 493 496"
+    },
+    {
+      "server (ms)": 0,
+      "profiel": "warm",
+      "variant": "na",
+      "runs": 5,
+      "verzoeken": 142,
+      "kB": 36,
+      "auth-ik": 1,
+      "instellingen": 1,
+      "mediaan klaar (ms, performance.now)": 452,
+      "mediaan klaar (ms, muurtijd)": 457,
+      "alle muurtijden": "382 389 506 458 457"
+    },
+    {
+      "server (ms)": 0,
+      "profiel": "warm + SW",
+      "variant": "voor",
+      "runs": 5,
+      "verzoeken": 159,
+      "kB": 6,
+      "auth-ik": 1,
+      "instellingen": 1,
+      "mediaan klaar (ms, performance.now)": 355,
+      "mediaan klaar (ms, muurtijd)": 357,
+      "alle muurtijden": "404 357 463 336 349"
+    },
+    {
+      "server (ms)": 0,
+      "profiel": "warm + SW",
+      "variant": "na",
+      "runs": 5,
+      "verzoeken": 182,
+      "kB": 6,
+      "auth-ik": 1,
+      "instellingen": 1,
+      "mediaan klaar (ms, performance.now)": 397,
+      "mediaan klaar (ms, muurtijd)": 402,
+      "alle muurtijden": "402 432 355 388 456"
+    }
+  ],
+  "wizard": {
+    "grootteKB": 84,
+    "mediaanMs": 11,
+    "metingen": [
+      8,
+      8,
+      11,
+      11,
+      11
+    ]
+  }
+}

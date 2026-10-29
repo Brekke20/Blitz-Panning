@@ -1,5 +1,5 @@
 // Tests voor kern/instellingen-sync.js (logins T16): de server is de bron, localStorage de synchrone cache.
-import { test, beforeEach, mock } from 'node:test';
+import { test, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   synchroniseerInstellingen, bewaarOpServer, wisInstellingenCache,
@@ -66,7 +66,8 @@ function nepApiVerzoek(antwoord = { ok: true, status: 200, data: { versie: 1 } }
 // Laadt de overzicht-cache van de module (techniekers-id's) voor bewaarOpServer.
 const laadCache = (gebruiker, opslag, overzicht) => synchroniseerInstellingen(gebruiker, { apiJson: nepApiJson({ overzicht }), opslag });
 
-beforeEach(() => wisInstellingenCache(maakOpslag())); // module-cache terug leeg
+beforeEach(() => { wisInstellingenCache(maakOpslag()); delete globalThis.__blitzVroeg; }); // module-cache terug leeg
+afterEach(() => { delete globalThis.__blitzVroeg; });
 
 test('planner: de serverwaarde overschrijft de lokale waarde onder blitz_settings en zet blitz_laatste_start', async () => {
   const opslag = maakOpslag({ blitz_settings: { startlocatie: 'Lokaal' } });
@@ -618,4 +619,160 @@ test('M4: met opties.velden gaan voor een andere persoon enkel die velden uit de
   const r = await bewaarOpServer('Roel', oudeLokaal, PLANNER, { apiVerzoek: api, opslag, velden: ['routeKleur', 'drukteKleuring', 'kaartStijl'] });
   assert.equal(r.ok, true);
   assert.deepEqual(api.puts, [{ gebruiker: 'u-roel', instellingen: { startlocatie: 'Server 1', duurMinuten: 90, laatsteStart: '15:00', routeKleur: '#222222', drukteKleuring: false } }]);
+});
+
+// ── O1: vroeg gestart instellingenoverzicht (index.html, kern/api.js neemVroeg) ──
+// Een Response-antwoord van het vroege verzoek; `neemVroeg` wordt ingespoten (de echte leest globalThis.__blitzVroeg).
+const vroegAntwoord = (status, json) => Promise.resolve(new Response(json === undefined ? null : JSON.stringify(json), { status }));
+const vroegOpties = (antwoord, extra = {}) => {
+  const genomen = [];
+  return { genomen, neemVroeg: (sleutel) => { genomen.push(sleutel); return antwoord; }, vroegToegestaan: () => true, ...extra };
+};
+// apiJson dat de aanroepen telt (de gewone aanroep na een genegeerd vroeg overzicht).
+function telApiJson(overzicht, put) {
+  const f = nepApiJson({ overzicht, put });
+  const gets = [];
+  const g = async (pad, opties) => { if ((opties?.methode ?? 'GET') === 'GET') gets.push(pad); return f(pad, opties); };
+  g.gets = gets; g.puts = f.puts;
+  return g;
+}
+const VROEG_ID = (id, inst) => ovz({ gebruikerId: id, versie: 1, instellingen: inst }, {});
+
+test('vroeg overzicht (2xx, zelfde gebruiker, toegestaan): gebruikt, geen gewone GET; de belofte is genomen', async () => {
+  const opslag = maakOpslag();
+  const api = telApiJson(VROEG_ID('u-pl', S({ startlocatie: 'Normaal' })));
+  const o = vroegOpties(vroegAntwoord(200, VROEG_ID('u-pl', S({ startlocatie: 'Vroeg' }))));
+  assert.equal(await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag, ...o }), true);
+  assert.deepEqual(api.gets, [], 'geen tweede overzichtsverzoek');
+  assert.deepEqual(o.genomen, ['instellingen']);
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Vroeg');
+  assert.equal(opslag.getItem(MARKER_SLEUTEL), 'u-pl');
+});
+
+test('vroeg overzicht van een ANDER gebruikerId (gedeelde tablet): genegeerd, de gewone aanroep levert de eigen instellingen; niets van A onder B', async () => {
+  const opslag = maakOpslag({ [MARKER_SLEUTEL]: 'u-a', blitz_settings: { startlocatie: 'Van A lokaal' } });
+  const api = telApiJson(VROEG_ID('u-pl', S({ startlocatie: 'Van B' })));
+  const o = vroegOpties(vroegAntwoord(200, VROEG_ID('u-a', S({ startlocatie: 'Van A server' }))));
+  await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag, ...o });
+  assert.equal(api.gets.length, 1, 'een gewone aanroep');
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Van B');
+  assert.equal(opslag.getItem(MARKER_SLEUTEL), 'u-pl');
+  assert.ok(!JSON.stringify(opslag.sleutels().map(k => opslag.getItem(k))).includes('Van A'));
+});
+
+for (const [naam, antwoord] of [
+  ['401', () => vroegAntwoord(401, { code: 'niet-ingelogd' })],
+  ['403', () => vroegAntwoord(403, { error: 'geen recht' })],
+  ['503 (opslag-storing)', () => vroegAntwoord(503, { code: 'opslag-storing' })],
+  ['500 zonder JSON', () => vroegAntwoord(500)],
+  ['200 met onleesbare body', () => Promise.resolve(new Response('<html>portal</html>', { status: 200 }))],
+  ['200 zonder eigen-blok', () => vroegAntwoord(200, { techniekers: {} })],
+  ['een netwerkfout (offline start)', () => Promise.reject(netFout())],
+  ['een time-out', () => Promise.reject(new DOMException('Time-out na 20 s', 'TimeoutError'))],
+]) {
+  test(`vroeg overzicht ${naam}: genegeerd, de gewone aanroep doet zijn werk`, async () => {
+    const opslag = maakOpslag();
+    const api = telApiJson(VROEG_ID('u-pl', S({ startlocatie: 'Normaal' })));
+    const vroeg = antwoord();
+    vroeg.catch(() => {}); // zoals het inline script: nooit "unhandled" vóór het genomen wordt
+    await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag, ...vroegOpties(vroeg) });
+    assert.equal(api.gets.length, 1);
+    assert.equal(opslag.json('blitz_settings').startlocatie, 'Normaal');
+  });
+}
+
+test('vroeg overzicht maar offline: ook de gewone aanroep faalt, de app start met de lokale cache (false, niets gewist of geschreven)', async () => {
+  const opslag = maakOpslag({ [MARKER_SLEUTEL]: 'u-pl', blitz_settings: { startlocatie: 'Lokaal' } });
+  const vroeg = Promise.reject(netFout()); vroeg.catch(() => {});
+  const api = nepApiJson({ overzicht: netFout() });
+  assert.equal(await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag, ...vroegOpties(vroeg) }), false);
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Lokaal');
+});
+
+test('vroeg overzicht van dezelfde gebruiker maar vroegToegestaan = false (inlogscherm tussen): genegeerd maar wel genomen', async () => {
+  const opslag = maakOpslag();
+  const api = telApiJson(VROEG_ID('u-pl', S({ startlocatie: 'Vers' })));
+  const o = vroegOpties(vroegAntwoord(200, VROEG_ID('u-pl', S({ startlocatie: 'Vroeg' }))), { vroegToegestaan: () => false });
+  await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag, ...o });
+  assert.deepEqual(o.genomen, ['instellingen'], 'toch genomen: hoogstens één keer');
+  assert.equal(api.gets.length, 1);
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Vers');
+});
+
+test('een inlogscherm dat opent TIJDENS het wachten op het vroege overzicht schakelt het uit (toelating na het wachten)', async () => {
+  const opslag = maakOpslag();
+  const api = telApiJson(VROEG_ID('u-pl', S({ startlocatie: 'Vers' })));
+  let toegestaan = true;
+  let antwoordt;
+  const vroeg = new Promise((r) => { antwoordt = r; });
+  const klaar = synchroniseerInstellingen(PLANNER, { apiJson: api, opslag, ...vroegOpties(vroeg, { vroegToegestaan: () => toegestaan }) });
+  await new Promise((r) => setImmediate(r));
+  toegestaan = false; // late 401 van auth-ik: het inlogscherm opent
+  antwoordt(new Response(JSON.stringify(VROEG_ID('u-pl', S({ startlocatie: 'Vroeg' }))), { status: 200 }));
+  await klaar;
+  assert.equal(api.gets.length, 1);
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Vers');
+});
+
+test('vroeg overzicht zonder gebruikers-id: genegeerd (geen id om mee te vergelijken)', async () => {
+  const opslag = maakOpslag();
+  const api = telApiJson(VROEG_ID('u-x', S({ startlocatie: 'Vers' })));
+  await synchroniseerInstellingen({ rol: 'planner' }, { apiJson: api, opslag, ...vroegOpties(vroegAntwoord(200, VROEG_ID('u-x', S({ startlocatie: 'Vroeg' })))) });
+  assert.equal(api.gets.length, 1);
+});
+
+test('vroeg overzicht dat nooit antwoordt: het budget stopt de synchronisatie (false), er wordt niets geschreven en niet opnieuw gevraagd', async () => {
+  const opslag = maakOpslag();
+  const api = telApiJson(VROEG_ID('u-pl', S()));
+  const vroeg = new Promise(() => {});
+  assert.equal(await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag, budgetMs: 30, ...vroegOpties(vroeg) }), false);
+  assert.deepEqual(api.gets, []);
+  assert.equal(opslag.sleutels().length, 0);
+});
+
+test('zonder vroeg overzicht (null): de gewone aanroep, zoals voorheen', async () => {
+  const opslag = maakOpslag();
+  const api = telApiJson(VROEG_ID('u-pl', S({ startlocatie: 'Normaal' })));
+  await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag, ...vroegOpties(null) });
+  assert.equal(api.gets.length, 1);
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Normaal');
+});
+
+test('met de echte neemVroeg: de globale belofte wordt hoogstens één keer gebruikt (een tweede synchronisatie doet de gewone aanroep)', async () => {
+  globalThis.__blitzVroeg = { authIk: null, instellingen: vroegAntwoord(200, VROEG_ID('u-pl', S({ startlocatie: 'Vroeg' }))), t: 1 };
+  const opslag = maakOpslag();
+  const api = telApiJson(VROEG_ID('u-pl', S({ startlocatie: 'Normaal' })));
+  await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag, vroegToegestaan: () => true });
+  assert.equal(api.gets.length, 0);
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Vroeg');
+  await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag, vroegToegestaan: () => true });
+  assert.equal(api.gets.length, 1, 'de tweede keer niet meer vroeg');
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Normaal');
+});
+
+test('standaard (zonder vroegToegestaan) wordt een vroeg overzicht nooit gebruikt', async () => {
+  globalThis.__blitzVroeg = { authIk: null, instellingen: vroegAntwoord(200, VROEG_ID('u-pl', S({ startlocatie: 'Vroeg' }))), t: 1 };
+  const opslag = maakOpslag();
+  const api = telApiJson(VROEG_ID('u-pl', S({ startlocatie: 'Normaal' })));
+  await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag });
+  assert.equal(api.gets.length, 1);
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Normaal');
+});
+
+// ── Gewone aanroep: het overzicht moet bij de gebruiker van de sessie horen (cache van A, cookie van B) ──
+test('gewone aanroep: overzicht van een ander gebruikerId dan de huidige gebruiker: niets toegepast of bewaard, false', async () => {
+  const opslag = maakOpslag({ [MARKER_SLEUTEL]: 'u-pl', blitz_settings: { startlocatie: 'Lokaal van A' } });
+  const api = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-b', versie: 1, instellingen: S({ startlocatie: 'Van B' }) }, {}) });
+  assert.equal(await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag }), false);
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Lokaal van A', 'de instellingen van B komen niet onder A');
+  assert.equal(opslag.getItem(MARKER_SLEUTEL), 'u-pl');
+  assert.deepEqual(api.puts, [], 'ook geen PUT (A zou anders onder B bewaard worden)');
+});
+
+test('gewone aanroep: overzicht van een ander gebruikerId zonder serverwaarde: de lokale waarde van A gaat niet omhoog onder B', async () => {
+  const opslag = maakOpslag({ blitz_settings: { startlocatie: 'Lokaal van A' } });
+  const api = nepApiJson({ overzicht: ovz({ gebruikerId: 'u-b', versie: 0, instellingen: null }, {}) });
+  assert.equal(await synchroniseerInstellingen(PLANNER, { apiJson: api, opslag }), false);
+  assert.deepEqual(api.puts, []);
+  assert.equal(opslag.json('blitz_settings').startlocatie, 'Lokaal van A');
 });

@@ -1,0 +1,3672 @@
+{
+  "meta": {
+    "script": "scripts/meet-interactie.mjs",
+    "gemetenMap": "C:\\Users\\BRENT\\OneDrive - Hertsens Transport (Walding)\\Claude-Projects\\blitz-planning\\.claude\\worktrees\\optimalisatie\\public",
+    "voorMap": "C:\\Users\\BRENT\\blitz-baseline-2.5.1\\public",
+    "runs": 7,
+    "profielen": [
+      "desktop"
+    ],
+    "mediaan": "mediaan van de runs; bij --voor afwisselend",
+    "klok": "Date vast op 2026-10-05T12:05:00+02:00 (daarna loopt de tijd door)",
+    "data": "30 wachtrijtickets + 28 geplande tickets",
+    "rol": "coordinator, ingelogd als beheerder (stub), ?test",
+    "desktop": "1440x900",
+    "telefoon": "375x812 @2x, aanraking, blitz_weergave=gsm, CPU 4x trager (Route-tab bestaat daar niet)",
+    "longtask": "sessie = vanaf de eerste handeling; laden = alles daarvoor (vanaf het begin van de pagina)",
+    "gestart": "2026-10-29T04:52:38.455Z",
+    "duurMs": 214832,
+    "node": "v24.18.0",
+    "playwright": "1.63.0",
+    "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+    "kernen": 8,
+    "geheugenGB": 40,
+    "os": "win32 10.0.26200"
+  },
+  "profielen": {
+    "desktop": {
+      "voor": {
+        "samenvatting": {
+          "tab kalender: eerste bezoek (ms)": {
+            "mediaan": 272.7,
+            "min": 148,
+            "max": 408.1,
+            "runs": 7
+          },
+          "tab kalender: herhaald bezoek (ms)": {
+            "mediaan": 227.4,
+            "min": 172.5,
+            "max": 290.2,
+            "runs": 7
+          },
+          "tab planning: eerste bezoek (ms)": {
+            "mediaan": 265.2,
+            "min": 133.2,
+            "max": 356.5,
+            "runs": 7
+          },
+          "tab planning: herhaald bezoek (ms)": {
+            "mediaan": 251.3,
+            "min": 148.3,
+            "max": 283.7,
+            "runs": 7
+          },
+          "tab gepland: eerste bezoek (ms)": {
+            "mediaan": 293.2,
+            "min": 251.9,
+            "max": 447.6,
+            "runs": 7
+          },
+          "tab gepland: herhaald bezoek (ms)": {
+            "mediaan": 139.8,
+            "min": 113,
+            "max": 178.4,
+            "runs": 7
+          },
+          "tab inventaris: eerste bezoek (ms)": {
+            "mediaan": 162.3,
+            "min": 44.6,
+            "max": 226.4,
+            "runs": 7
+          },
+          "tab inventaris: herhaald bezoek (ms)": {
+            "mediaan": 142.5,
+            "min": 129.7,
+            "max": 176.9,
+            "runs": 7
+          },
+          "tab rapporten: eerste bezoek (ms)": {
+            "mediaan": 73.3,
+            "min": 62.6,
+            "max": 107.6,
+            "runs": 7
+          },
+          "tab rapporten: herhaald bezoek (ms)": {
+            "mediaan": 72.5,
+            "min": 63.3,
+            "max": 75.5,
+            "runs": 7
+          },
+          "tab tickets: herhaald bezoek (ms)": {
+            "mediaan": 96.2,
+            "min": 69.8,
+            "max": 167.7,
+            "runs": 7
+          },
+          "week: naar de lege volgende week (ms)": {
+            "mediaan": 15.4,
+            "min": 10.3,
+            "max": 129,
+            "runs": 7
+          },
+          "week: terug naar de volle week (ms)": {
+            "mediaan": 25,
+            "min": 18.8,
+            "max": 37.7,
+            "runs": 7
+          },
+          "ticketdetail openen vanuit Wachtrij (ms)": {
+            "mediaan": 20,
+            "min": 7.6,
+            "max": 53,
+            "runs": 7
+          },
+          "ticketdetail openen vanuit Kalender (ms)": {
+            "mediaan": 51,
+            "min": 18.9,
+            "max": 73.9,
+            "runs": 7
+          },
+          "langste lange taak in de sessie (ms)": {
+            "mediaan": 100,
+            "min": 91,
+            "max": 189,
+            "runs": 7
+          },
+          "langste lange taak, lading + sessie (ms)": {
+            "mediaan": 101,
+            "min": 93,
+            "max": 189,
+            "runs": 7
+          },
+          "aantal lange taken in de sessie": {
+            "mediaan": 4,
+            "min": 3,
+            "max": 4,
+            "runs": 7
+          },
+          "som lange taken in de sessie (ms)": {
+            "mediaan": 302,
+            "min": 215,
+            "max": 470,
+            "runs": 7
+          },
+          "geheugen na laden (MB)": {
+            "mediaan": 3.4,
+            "min": 3.4,
+            "max": 3.4,
+            "runs": 7
+          },
+          "geheugen na sessie (MB)": {
+            "mediaan": 4,
+            "min": 3.9,
+            "max": 4,
+            "runs": 7
+          },
+          "geheugengroei in de sessie (MB)": {
+            "mediaan": 0.5,
+            "min": 0.5,
+            "max": 0.5,
+            "runs": 7
+          },
+          "console: fouten van de app": {
+            "mediaan": 0,
+            "min": 0,
+            "max": 0,
+            "runs": 7
+          },
+          "console: waarschuwingen van de app": {
+            "mediaan": 0,
+            "min": 0,
+            "max": 0,
+            "runs": 7
+          },
+          "console: geblokkeerde externe hosts": {
+            "mediaan": 33,
+            "min": 18,
+            "max": 33,
+            "runs": 7
+          },
+          "console: bekende testruis (service worker)": {
+            "mediaan": 2,
+            "min": 2,
+            "max": 2,
+            "runs": 7
+          },
+          "handelingen in de sessie": {
+            "mediaan": 29,
+            "min": 29,
+            "max": 29,
+            "runs": 7
+          },
+          "handelingen die niet klaar raakten (time-out)": {
+            "mediaan": 0,
+            "min": 0,
+            "max": 0,
+            "runs": 7
+          }
+        },
+        "runs": [
+          {
+            "metrics": {
+              "tab kalender: eerste bezoek (ms)": 408.1,
+              "tab kalender: herhaald bezoek (ms)": 290.2,
+              "tab planning: eerste bezoek (ms)": 356.5,
+              "tab planning: herhaald bezoek (ms)": 214.8,
+              "tab gepland: eerste bezoek (ms)": 447.6,
+              "tab gepland: herhaald bezoek (ms)": 167.3,
+              "tab inventaris: eerste bezoek (ms)": 210.4,
+              "tab inventaris: herhaald bezoek (ms)": 154.1,
+              "tab rapporten: eerste bezoek (ms)": 66.3,
+              "tab rapporten: herhaald bezoek (ms)": 73.9,
+              "tab tickets: herhaald bezoek (ms)": 167.7,
+              "week: naar de lege volgende week (ms)": 104.8,
+              "week: terug naar de volle week (ms)": 33.1,
+              "ticketdetail openen vanuit Wachtrij (ms)": 8.9,
+              "ticketdetail openen vanuit Kalender (ms)": 41.7,
+              "langste lange taak in de sessie (ms)": 189,
+              "langste lange taak, lading + sessie (ms)": 189,
+              "aantal lange taken in de sessie": 4,
+              "som lange taken in de sessie (ms)": 470,
+              "geheugen na laden (MB)": 3.4,
+              "geheugen na sessie (MB)": 4,
+              "geheugengroei in de sessie (MB)": 0.5,
+              "console: fouten van de app": 0,
+              "console: waarschuwingen van de app": 0,
+              "console: geblokkeerde externe hosts": 33,
+              "console: bekende testruis (service worker)": 2,
+              "handelingen in de sessie": 29,
+              "handelingen die niet klaar raakten (time-out)": 0
+            },
+            "stappen": [
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 408.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 356.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 447.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 210.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 66.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 167.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 290.2,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 104.8,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 33.1,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 9.9,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 21.8,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 114.1,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 59.7,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 41.5,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 41.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 282.7,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 10.3,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 7.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 311.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 253.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 161.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 120.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 63.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 62.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 176.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 173.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 187.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 84.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 100.7,
+                "gelukt": true
+              }
+            ],
+            "heapNaLadenMB": 3.44,
+            "heapNaSessieMB": 3.96
+          },
+          {
+            "metrics": {
+              "tab kalender: eerste bezoek (ms)": 272.7,
+              "tab kalender: herhaald bezoek (ms)": 227.4,
+              "tab planning: eerste bezoek (ms)": 209.2,
+              "tab planning: herhaald bezoek (ms)": 251.3,
+              "tab gepland: eerste bezoek (ms)": 293.2,
+              "tab gepland: herhaald bezoek (ms)": 128,
+              "tab inventaris: eerste bezoek (ms)": 156.1,
+              "tab inventaris: herhaald bezoek (ms)": 149.8,
+              "tab rapporten: eerste bezoek (ms)": 85,
+              "tab rapporten: herhaald bezoek (ms)": 72.5,
+              "tab tickets: herhaald bezoek (ms)": 88.3,
+              "week: naar de lege volgende week (ms)": 129,
+              "week: terug naar de volle week (ms)": 37.7,
+              "ticketdetail openen vanuit Wachtrij (ms)": 20,
+              "ticketdetail openen vanuit Kalender (ms)": 70.3,
+              "langste lange taak in de sessie (ms)": 125,
+              "langste lange taak, lading + sessie (ms)": 125,
+              "aantal lange taken in de sessie": 4,
+              "som lange taken in de sessie (ms)": 352,
+              "geheugen na laden (MB)": 3.4,
+              "geheugen na sessie (MB)": 3.9,
+              "geheugengroei in de sessie (MB)": 0.5,
+              "console: fouten van de app": 0,
+              "console: waarschuwingen van de app": 0,
+              "console: geblokkeerde externe hosts": 18,
+              "console: bekende testruis (service worker)": 2,
+              "handelingen in de sessie": 29,
+              "handelingen die niet klaar raakten (time-out)": 0
+            },
+            "stappen": [
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 272.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 209.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 293.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 156.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 85,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 88.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 227.4,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 129,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 43.3,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 134,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 20.7,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 14,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 37.7,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 63,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 77.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 141.6,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 31,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 9.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 290.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 172,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 116.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 139.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 60.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 96.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 330.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 139.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 159.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 84.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 74.5,
+                "gelukt": true
+              }
+            ],
+            "heapNaLadenMB": 3.45,
+            "heapNaSessieMB": 3.95
+          },
+          {
+            "metrics": {
+              "tab kalender: eerste bezoek (ms)": 261.8,
+              "tab kalender: herhaald bezoek (ms)": 172.5,
+              "tab planning: eerste bezoek (ms)": 178.2,
+              "tab planning: herhaald bezoek (ms)": 283.7,
+              "tab gepland: eerste bezoek (ms)": 251.9,
+              "tab gepland: herhaald bezoek (ms)": 116,
+              "tab inventaris: eerste bezoek (ms)": 146.3,
+              "tab inventaris: herhaald bezoek (ms)": 129.7,
+              "tab rapporten: eerste bezoek (ms)": 65.4,
+              "tab rapporten: herhaald bezoek (ms)": 75.5,
+              "tab tickets: herhaald bezoek (ms)": 105.9,
+              "week: naar de lege volgende week (ms)": 10.3,
+              "week: terug naar de volle week (ms)": 20.9,
+              "ticketdetail openen vanuit Wachtrij (ms)": 7.6,
+              "ticketdetail openen vanuit Kalender (ms)": 51,
+              "langste lange taak in de sessie (ms)": 100,
+              "langste lange taak, lading + sessie (ms)": 100,
+              "aantal lange taken in de sessie": 4,
+              "som lange taken in de sessie (ms)": 302,
+              "geheugen na laden (MB)": 3.4,
+              "geheugen na sessie (MB)": 4,
+              "geheugengroei in de sessie (MB)": 0.5,
+              "console: fouten van de app": 0,
+              "console: waarschuwingen van de app": 0,
+              "console: geblokkeerde externe hosts": 33,
+              "console: bekende testruis (service worker)": 2,
+              "handelingen in de sessie": 29,
+              "handelingen die niet klaar raakten (time-out)": 0
+            },
+            "stappen": [
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 261.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 178.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 251.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 146.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 65.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 60.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 172.5,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 102.2,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 23.6,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 10.3,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 20.9,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 10.1,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 17.8,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 23.3,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 78.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 137.9,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 9.1,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 138.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 263.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 94.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 111.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 80.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 193.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 303.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 137.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 147.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 70.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 105.9,
+                "gelukt": true
+              }
+            ],
+            "heapNaLadenMB": 3.44,
+            "heapNaSessieMB": 3.96
+          },
+          {
+            "metrics": {
+              "tab kalender: eerste bezoek (ms)": 276,
+              "tab kalender: herhaald bezoek (ms)": 211.7,
+              "tab planning: eerste bezoek (ms)": 265.2,
+              "tab planning: herhaald bezoek (ms)": 269.7,
+              "tab gepland: eerste bezoek (ms)": 256.6,
+              "tab gepland: herhaald bezoek (ms)": 139.8,
+              "tab inventaris: eerste bezoek (ms)": 177,
+              "tab inventaris: herhaald bezoek (ms)": 137.4,
+              "tab rapporten: eerste bezoek (ms)": 107.6,
+              "tab rapporten: herhaald bezoek (ms)": 65.5,
+              "tab tickets: herhaald bezoek (ms)": 125.5,
+              "week: naar de lege volgende week (ms)": 15.4,
+              "week: terug naar de volle week (ms)": 37.5,
+              "ticketdetail openen vanuit Wachtrij (ms)": 53,
+              "ticketdetail openen vanuit Kalender (ms)": 73.9,
+              "langste lange taak in de sessie (ms)": 95,
+              "langste lange taak, lading + sessie (ms)": 95,
+              "aantal lange taken in de sessie": 4,
+              "som lange taken in de sessie (ms)": 270,
+              "geheugen na laden (MB)": 3.4,
+              "geheugen na sessie (MB)": 4,
+              "geheugengroei in de sessie (MB)": 0.5,
+              "console: fouten van de app": 0,
+              "console: waarschuwingen van de app": 0,
+              "console: geblokkeerde externe hosts": 33,
+              "console: bekende testruis (service worker)": 2,
+              "handelingen in de sessie": 29,
+              "handelingen die niet klaar raakten (time-out)": 0
+            },
+            "stappen": [
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 276,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 265.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 256.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 177,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 107.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 83.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 269.6,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 26,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 37.5,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 15.4,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 20.9,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 14.7,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 48.7,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 71.3,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 76.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 143.9,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 46.5,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 59.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 211.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 274.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 150.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 134.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 56.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 200.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 264.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 129.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 140.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 74.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 125.5,
+                "gelukt": true
+              }
+            ],
+            "heapNaLadenMB": 3.44,
+            "heapNaSessieMB": 3.96
+          },
+          {
+            "metrics": {
+              "tab kalender: eerste bezoek (ms)": 227.4,
+              "tab kalender: herhaald bezoek (ms)": 220.8,
+              "tab planning: eerste bezoek (ms)": 133.2,
+              "tab planning: herhaald bezoek (ms)": 253.1,
+              "tab gepland: eerste bezoek (ms)": 292.3,
+              "tab gepland: herhaald bezoek (ms)": 160.3,
+              "tab inventaris: eerste bezoek (ms)": 162.3,
+              "tab inventaris: herhaald bezoek (ms)": 136.3,
+              "tab rapporten: eerste bezoek (ms)": 62.6,
+              "tab rapporten: herhaald bezoek (ms)": 63.3,
+              "tab tickets: herhaald bezoek (ms)": 96.2,
+              "week: naar de lege volgende week (ms)": 11.6,
+              "week: terug naar de volle week (ms)": 18.8,
+              "ticketdetail openen vanuit Wachtrij (ms)": 14.9,
+              "ticketdetail openen vanuit Kalender (ms)": 37.8,
+              "langste lange taak in de sessie (ms)": 91,
+              "langste lange taak, lading + sessie (ms)": 101,
+              "aantal lange taken in de sessie": 3,
+              "som lange taken in de sessie (ms)": 222,
+              "geheugen na laden (MB)": 3.4,
+              "geheugen na sessie (MB)": 4,
+              "geheugengroei in de sessie (MB)": 0.5,
+              "console: fouten van de app": 0,
+              "console: waarschuwingen van de app": 0,
+              "console: geblokkeerde externe hosts": 33,
+              "console: bekende testruis (service worker)": 2,
+              "handelingen in de sessie": 29,
+              "handelingen die niet klaar raakten (time-out)": 0
+            },
+            "stappen": [
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 227.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 133.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 292.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 162.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 62.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 96.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 220.8,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 24.2,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 22.3,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 9.6,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 18.1,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 11.6,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 18.8,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 69.1,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 6.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 198.4,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 16.3,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 13.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 293.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 186.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 155.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 101.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 77.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 51,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 319.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 165.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 171.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 49.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 76.4,
+                "gelukt": true
+              }
+            ],
+            "heapNaLadenMB": 3.44,
+            "heapNaSessieMB": 3.96
+          },
+          {
+            "metrics": {
+              "tab kalender: eerste bezoek (ms)": 284.4,
+              "tab kalender: herhaald bezoek (ms)": 289.6,
+              "tab planning: eerste bezoek (ms)": 329.3,
+              "tab planning: herhaald bezoek (ms)": 148.3,
+              "tab gepland: eerste bezoek (ms)": 400.1,
+              "tab gepland: herhaald bezoek (ms)": 178.4,
+              "tab inventaris: eerste bezoek (ms)": 226.4,
+              "tab inventaris: herhaald bezoek (ms)": 176.9,
+              "tab rapporten: eerste bezoek (ms)": 91.4,
+              "tab rapporten: herhaald bezoek (ms)": 70.2,
+              "tab tickets: herhaald bezoek (ms)": 69.8,
+              "week: naar de lege volgende week (ms)": 23.4,
+              "week: terug naar de volle week (ms)": 25,
+              "ticketdetail openen vanuit Wachtrij (ms)": 25.2,
+              "ticketdetail openen vanuit Kalender (ms)": 18.9,
+              "langste lange taak in de sessie (ms)": 147,
+              "langste lange taak, lading + sessie (ms)": 147,
+              "aantal lange taken in de sessie": 4,
+              "som lange taken in de sessie (ms)": 358,
+              "geheugen na laden (MB)": 3.4,
+              "geheugen na sessie (MB)": 4,
+              "geheugengroei in de sessie (MB)": 0.5,
+              "console: fouten van de app": 0,
+              "console: waarschuwingen van de app": 0,
+              "console: geblokkeerde externe hosts": 33,
+              "console: bekende testruis (service worker)": 2,
+              "handelingen in de sessie": 29,
+              "handelingen die niet klaar raakten (time-out)": 0
+            },
+            "stappen": [
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 284.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 329.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 400.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 226.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 91.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 136.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 316.2,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 23.4,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 25,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 14.7,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 23.2,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 185.1,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 27.7,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 31.1,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 6.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 44.2,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 39.5,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 10.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 289.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 170.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 194.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 122.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 69.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 45.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 125.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 162.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 231.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 70.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 69.8,
+                "gelukt": true
+              }
+            ],
+            "heapNaLadenMB": 3.45,
+            "heapNaSessieMB": 3.96
+          },
+          {
+            "metrics": {
+              "tab kalender: eerste bezoek (ms)": 148,
+              "tab kalender: herhaald bezoek (ms)": 241.1,
+              "tab planning: eerste bezoek (ms)": 312,
+              "tab planning: herhaald bezoek (ms)": 203.9,
+              "tab gepland: eerste bezoek (ms)": 346.5,
+              "tab gepland: herhaald bezoek (ms)": 113,
+              "tab inventaris: eerste bezoek (ms)": 44.6,
+              "tab inventaris: herhaald bezoek (ms)": 142.5,
+              "tab rapporten: eerste bezoek (ms)": 73.3,
+              "tab rapporten: herhaald bezoek (ms)": 74.7,
+              "tab tickets: herhaald bezoek (ms)": 96,
+              "week: naar de lege volgende week (ms)": 14.2,
+              "week: terug naar de volle week (ms)": 22.8,
+              "ticketdetail openen vanuit Wachtrij (ms)": 37.9,
+              "ticketdetail openen vanuit Kalender (ms)": 62.2,
+              "langste lange taak in de sessie (ms)": 93,
+              "langste lange taak, lading + sessie (ms)": 93,
+              "aantal lange taken in de sessie": 3,
+              "som lange taken in de sessie (ms)": 215,
+              "geheugen na laden (MB)": 3.4,
+              "geheugen na sessie (MB)": 4,
+              "geheugengroei in de sessie (MB)": 0.5,
+              "console: fouten van de app": 0,
+              "console: waarschuwingen van de app": 0,
+              "console: geblokkeerde externe hosts": 33,
+              "console: bekende testruis (service worker)": 2,
+              "handelingen in de sessie": 29,
+              "handelingen die niet klaar raakten (time-out)": 0
+            },
+            "stappen": [
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 148,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 312,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 346.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 44.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 73.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 91.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 241.1,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 104.4,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 22.8,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 14.2,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 20.5,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 11.5,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 38.8,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 40.7,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 83.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 96,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 67.7,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 8.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 354.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 197.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 93,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 160.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 82.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 59.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 210.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 133,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 124.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 66.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 120.7,
+                "gelukt": true
+              }
+            ],
+            "heapNaLadenMB": 3.44,
+            "heapNaSessieMB": 3.96
+          }
+        ],
+        "consoleBerichten": [
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Figtree:wght@400;500;600;700&display=swap"
+          },
+          {
+            "soort": "pageerror",
+            "tekst": "Failed to read the 'serviceWorker' property from 'Navigator': Service worker is disabled because the context is sandboxed and lacks the 'allow-same-origin' flag.",
+            "plek": ""
+          },
+          {
+            "soort": "warning",
+            "tekst": "Service Worker registration blocked by Playwright",
+            "plek": ""
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/85/131"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/86/130"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/85/130"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/86/131"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/84/130"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/84/131"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/85/129"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/87/130"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/87/129"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/86/129"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/86/132"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/87/131"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/84/129"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/84/132"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/85/132"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/87/132"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1367/2104"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1367/2105"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1368/2105"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1366/2104"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1368/2104"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1366/2105"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1367/2103"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1367/2106"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1368/2106"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1369/2104"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1368/2103"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1369/2105"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1366/2103"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1366/2106"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1369/2103"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1369/2106"
+          }
+        ]
+      },
+      "na": {
+        "samenvatting": {
+          "tab kalender: eerste bezoek (ms)": {
+            "mediaan": 277,
+            "min": 172.8,
+            "max": 392.9,
+            "runs": 7
+          },
+          "tab kalender: herhaald bezoek (ms)": {
+            "mediaan": 120,
+            "min": 78.3,
+            "max": 169.4,
+            "runs": 7
+          },
+          "tab planning: eerste bezoek (ms)": {
+            "mediaan": 291.3,
+            "min": 152.9,
+            "max": 383.2,
+            "runs": 7
+          },
+          "tab planning: herhaald bezoek (ms)": {
+            "mediaan": 336.3,
+            "min": 306.2,
+            "max": 416.9,
+            "runs": 7
+          },
+          "tab gepland: eerste bezoek (ms)": {
+            "mediaan": 342.4,
+            "min": 274.1,
+            "max": 469.4,
+            "runs": 7
+          },
+          "tab gepland: herhaald bezoek (ms)": {
+            "mediaan": 150.8,
+            "min": 84.4,
+            "max": 179.4,
+            "runs": 7
+          },
+          "tab inventaris: eerste bezoek (ms)": {
+            "mediaan": 202.8,
+            "min": 131.9,
+            "max": 266.4,
+            "runs": 7
+          },
+          "tab inventaris: herhaald bezoek (ms)": {
+            "mediaan": 141.3,
+            "min": 125.6,
+            "max": 213,
+            "runs": 7
+          },
+          "tab rapporten: eerste bezoek (ms)": {
+            "mediaan": 91,
+            "min": 72.6,
+            "max": 117.9,
+            "runs": 7
+          },
+          "tab rapporten: herhaald bezoek (ms)": {
+            "mediaan": 73.1,
+            "min": 56.6,
+            "max": 95.2,
+            "runs": 7
+          },
+          "tab tickets: herhaald bezoek (ms)": {
+            "mediaan": 111.4,
+            "min": 77.4,
+            "max": 122.1,
+            "runs": 7
+          },
+          "week: naar de lege volgende week (ms)": {
+            "mediaan": 21.4,
+            "min": 10.5,
+            "max": 92,
+            "runs": 7
+          },
+          "week: terug naar de volle week (ms)": {
+            "mediaan": 29.9,
+            "min": 19.1,
+            "max": 43.4,
+            "runs": 7
+          },
+          "ticketdetail openen vanuit Wachtrij (ms)": {
+            "mediaan": 21.3,
+            "min": 9.8,
+            "max": 57.4,
+            "runs": 7
+          },
+          "ticketdetail openen vanuit Kalender (ms)": {
+            "mediaan": 30,
+            "min": 23.4,
+            "max": 82.6,
+            "runs": 7
+          },
+          "langste lange taak in de sessie (ms)": {
+            "mediaan": 107,
+            "min": 72,
+            "max": 140,
+            "runs": 7
+          },
+          "langste lange taak, lading + sessie (ms)": {
+            "mediaan": 118,
+            "min": 91,
+            "max": 140,
+            "runs": 7
+          },
+          "aantal lange taken in de sessie": {
+            "mediaan": 4,
+            "min": 3,
+            "max": 5,
+            "runs": 7
+          },
+          "som lange taken in de sessie (ms)": {
+            "mediaan": 322,
+            "min": 192,
+            "max": 458,
+            "runs": 7
+          },
+          "geheugen na laden (MB)": {
+            "mediaan": 3.5,
+            "min": 3.5,
+            "max": 3.5,
+            "runs": 7
+          },
+          "geheugen na sessie (MB)": {
+            "mediaan": 4,
+            "min": 4,
+            "max": 4,
+            "runs": 7
+          },
+          "geheugengroei in de sessie (MB)": {
+            "mediaan": 0.5,
+            "min": 0.5,
+            "max": 0.5,
+            "runs": 7
+          },
+          "console: fouten van de app": {
+            "mediaan": 0,
+            "min": 0,
+            "max": 0,
+            "runs": 7
+          },
+          "console: waarschuwingen van de app": {
+            "mediaan": 0,
+            "min": 0,
+            "max": 0,
+            "runs": 7
+          },
+          "console: geblokkeerde externe hosts": {
+            "mediaan": 33,
+            "min": 33,
+            "max": 33,
+            "runs": 7
+          },
+          "console: bekende testruis (service worker)": {
+            "mediaan": 2,
+            "min": 2,
+            "max": 2,
+            "runs": 7
+          },
+          "handelingen in de sessie": {
+            "mediaan": 29,
+            "min": 29,
+            "max": 29,
+            "runs": 7
+          },
+          "handelingen die niet klaar raakten (time-out)": {
+            "mediaan": 0,
+            "min": 0,
+            "max": 0,
+            "runs": 7
+          }
+        },
+        "runs": [
+          {
+            "metrics": {
+              "tab kalender: eerste bezoek (ms)": 332.4,
+              "tab kalender: herhaald bezoek (ms)": 101.7,
+              "tab planning: eerste bezoek (ms)": 357.5,
+              "tab planning: herhaald bezoek (ms)": 367.9,
+              "tab gepland: eerste bezoek (ms)": 419.8,
+              "tab gepland: herhaald bezoek (ms)": 179.4,
+              "tab inventaris: eerste bezoek (ms)": 190.1,
+              "tab inventaris: herhaald bezoek (ms)": 213,
+              "tab rapporten: eerste bezoek (ms)": 117.9,
+              "tab rapporten: herhaald bezoek (ms)": 95.2,
+              "tab tickets: herhaald bezoek (ms)": 89.2,
+              "week: naar de lege volgende week (ms)": 92,
+              "week: terug naar de volle week (ms)": 43.4,
+              "ticketdetail openen vanuit Wachtrij (ms)": 57.4,
+              "ticketdetail openen vanuit Kalender (ms)": 30,
+              "langste lange taak in de sessie (ms)": 122,
+              "langste lange taak, lading + sessie (ms)": 122,
+              "aantal lange taken in de sessie": 4,
+              "som lange taken in de sessie (ms)": 372,
+              "geheugen na laden (MB)": 3.5,
+              "geheugen na sessie (MB)": 4,
+              "geheugengroei in de sessie (MB)": 0.5,
+              "console: fouten van de app": 0,
+              "console: waarschuwingen van de app": 0,
+              "console: geblokkeerde externe hosts": 33,
+              "console: bekende testruis (service worker)": 2,
+              "handelingen in de sessie": 29,
+              "handelingen die niet klaar raakten (time-out)": 0
+            },
+            "stappen": [
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 332.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 357.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 419.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 190.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 117.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 89.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 204.7,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 92,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 94.6,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 50.3,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 43.4,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 129.8,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 38.4,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 48.6,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 11.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 440.4,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 79.3,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 35.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 51.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 350.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 163,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 238.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 89.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 101.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 385.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 195.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 187.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 101.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 54.5,
+                "gelukt": true
+              }
+            ],
+            "heapNaLadenMB": 3.46,
+            "heapNaSessieMB": 3.97
+          },
+          {
+            "metrics": {
+              "tab kalender: eerste bezoek (ms)": 392.9,
+              "tab kalender: herhaald bezoek (ms)": 120,
+              "tab planning: eerste bezoek (ms)": 308.8,
+              "tab planning: herhaald bezoek (ms)": 306.2,
+              "tab gepland: eerste bezoek (ms)": 403,
+              "tab gepland: herhaald bezoek (ms)": 138.3,
+              "tab inventaris: eerste bezoek (ms)": 186.6,
+              "tab inventaris: herhaald bezoek (ms)": 170.5,
+              "tab rapporten: eerste bezoek (ms)": 91,
+              "tab rapporten: herhaald bezoek (ms)": 74.5,
+              "tab tickets: herhaald bezoek (ms)": 92,
+              "week: naar de lege volgende week (ms)": 61.9,
+              "week: terug naar de volle week (ms)": 24.1,
+              "ticketdetail openen vanuit Wachtrij (ms)": 39.9,
+              "ticketdetail openen vanuit Kalender (ms)": 23.4,
+              "langste lange taak in de sessie (ms)": 102,
+              "langste lange taak, lading + sessie (ms)": 108,
+              "aantal lange taken in de sessie": 5,
+              "som lange taken in de sessie (ms)": 458,
+              "geheugen na laden (MB)": 3.5,
+              "geheugen na sessie (MB)": 4,
+              "geheugengroei in de sessie (MB)": 0.5,
+              "console: fouten van de app": 0,
+              "console: waarschuwingen van de app": 0,
+              "console: geblokkeerde externe hosts": 33,
+              "console: bekende testruis (service worker)": 2,
+              "handelingen in de sessie": 29,
+              "handelingen die niet klaar raakten (time-out)": 0
+            },
+            "stappen": [
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 392.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 308.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 403,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 186.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 91,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 102.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 224.2,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 106.5,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 134.4,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 11.4,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 19.6,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 61.9,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 24.1,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 27.6,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 19.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 89.8,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 24.3,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 55.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 120,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 265.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 153.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 177.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 67.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 86.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 346.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 122.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 163.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 81.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 92,
+                "gelukt": true
+              }
+            ],
+            "heapNaLadenMB": 3.45,
+            "heapNaSessieMB": 3.97
+          },
+          {
+            "metrics": {
+              "tab kalender: eerste bezoek (ms)": 333.1,
+              "tab kalender: herhaald bezoek (ms)": 169.4,
+              "tab planning: eerste bezoek (ms)": 184.4,
+              "tab planning: herhaald bezoek (ms)": 416.9,
+              "tab gepland: eerste bezoek (ms)": 342.4,
+              "tab gepland: herhaald bezoek (ms)": 178.5,
+              "tab inventaris: eerste bezoek (ms)": 225.2,
+              "tab inventaris: herhaald bezoek (ms)": 167.7,
+              "tab rapporten: eerste bezoek (ms)": 90.3,
+              "tab rapporten: herhaald bezoek (ms)": 73.1,
+              "tab tickets: herhaald bezoek (ms)": 117.8,
+              "week: naar de lege volgende week (ms)": 15.7,
+              "week: terug naar de volle week (ms)": 42,
+              "ticketdetail openen vanuit Wachtrij (ms)": 9.8,
+              "ticketdetail openen vanuit Kalender (ms)": 82.6,
+              "langste lange taak in de sessie (ms)": 116,
+              "langste lange taak, lading + sessie (ms)": 116,
+              "aantal lange taken in de sessie": 4,
+              "som lange taken in de sessie (ms)": 322,
+              "geheugen na laden (MB)": 3.5,
+              "geheugen na sessie (MB)": 4,
+              "geheugengroei in de sessie (MB)": 0.5,
+              "console: fouten van de app": 0,
+              "console: waarschuwingen van de app": 0,
+              "console: geblokkeerde externe hosts": 33,
+              "console: bekende testruis (service worker)": 2,
+              "handelingen in de sessie": 29,
+              "handelingen die niet klaar raakten (time-out)": 0
+            },
+            "stappen": [
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 333.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 184.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 342.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 225.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 90.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 87.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 329.6,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 33.9,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 57.1,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 14.6,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 25.4,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 15.7,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 42,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 78,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 87.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 243.6,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 10.2,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 9.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 169.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 401.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 202.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 172.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 70.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 99.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 432,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 154.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 163.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 75.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 117.8,
+                "gelukt": true
+              }
+            ],
+            "heapNaLadenMB": 3.46,
+            "heapNaSessieMB": 3.97
+          },
+          {
+            "metrics": {
+              "tab kalender: eerste bezoek (ms)": 175.1,
+              "tab kalender: herhaald bezoek (ms)": 157.8,
+              "tab planning: eerste bezoek (ms)": 291.3,
+              "tab planning: herhaald bezoek (ms)": 323.9,
+              "tab gepland: eerste bezoek (ms)": 294.7,
+              "tab gepland: herhaald bezoek (ms)": 125.9,
+              "tab inventaris: eerste bezoek (ms)": 214.2,
+              "tab inventaris: herhaald bezoek (ms)": 130.5,
+              "tab rapporten: eerste bezoek (ms)": 83.3,
+              "tab rapporten: herhaald bezoek (ms)": 67,
+              "tab tickets: herhaald bezoek (ms)": 111.4,
+              "week: naar de lege volgende week (ms)": 16.9,
+              "week: terug naar de volle week (ms)": 19.1,
+              "ticketdetail openen vanuit Wachtrij (ms)": 24.1,
+              "ticketdetail openen vanuit Kalender (ms)": 31.9,
+              "langste lange taak in de sessie (ms)": 103,
+              "langste lange taak, lading + sessie (ms)": 121,
+              "aantal lange taken in de sessie": 3,
+              "som lange taken in de sessie (ms)": 243,
+              "geheugen na laden (MB)": 3.5,
+              "geheugen na sessie (MB)": 4,
+              "geheugengroei in de sessie (MB)": 0.5,
+              "console: fouten van de app": 0,
+              "console: waarschuwingen van de app": 0,
+              "console: geblokkeerde externe hosts": 33,
+              "console: bekende testruis (service worker)": 2,
+              "handelingen in de sessie": 29,
+              "handelingen die niet klaar raakten (time-out)": 0
+            },
+            "stappen": [
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 175.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 291.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 294.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 214.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 83.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 111.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 216.8,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 47.4,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 17.6,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 16.9,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 19.1,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 10.8,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 34.5,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 25,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 38.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 77,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 38.1,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 10.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 147.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 378.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 143.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 138.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 56.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 157.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 269,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 108.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 122.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 77.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 119.3,
+                "gelukt": true
+              }
+            ],
+            "heapNaLadenMB": 3.46,
+            "heapNaSessieMB": 3.97
+          },
+          {
+            "metrics": {
+              "tab kalender: eerste bezoek (ms)": 277,
+              "tab kalender: herhaald bezoek (ms)": 104.8,
+              "tab planning: eerste bezoek (ms)": 152.9,
+              "tab planning: herhaald bezoek (ms)": 344.7,
+              "tab gepland: eerste bezoek (ms)": 469.4,
+              "tab gepland: herhaald bezoek (ms)": 156,
+              "tab inventaris: eerste bezoek (ms)": 266.4,
+              "tab inventaris: herhaald bezoek (ms)": 125.6,
+              "tab rapporten: eerste bezoek (ms)": 94.1,
+              "tab rapporten: herhaald bezoek (ms)": 73.1,
+              "tab tickets: herhaald bezoek (ms)": 122.1,
+              "week: naar de lege volgende week (ms)": 21.4,
+              "week: terug naar de volle week (ms)": 41.4,
+              "ticketdetail openen vanuit Wachtrij (ms)": 10.4,
+              "ticketdetail openen vanuit Kalender (ms)": 50.4,
+              "langste lange taak in de sessie (ms)": 140,
+              "langste lange taak, lading + sessie (ms)": 140,
+              "aantal lange taken in de sessie": 4,
+              "som lange taken in de sessie (ms)": 340,
+              "geheugen na laden (MB)": 3.5,
+              "geheugen na sessie (MB)": 4,
+              "geheugengroei in de sessie (MB)": 0.5,
+              "console: fouten van de app": 0,
+              "console: waarschuwingen van de app": 0,
+              "console: geblokkeerde externe hosts": 33,
+              "console: bekende testruis (service worker)": 2,
+              "handelingen in de sessie": 29,
+              "handelingen die niet klaar raakten (time-out)": 0
+            },
+            "stappen": [
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 277,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 152.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 469.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 266.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 94.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 145.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 104.8,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 62.7,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 41.4,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 21.4,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 34.2,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 13.4,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 89.1,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 26.5,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 74.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 120.4,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 12.8,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 7.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 69.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 377.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 178.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 126.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 73.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 179.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 311.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 133.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 124.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 72.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 122.1,
+                "gelukt": true
+              }
+            ],
+            "heapNaLadenMB": 3.46,
+            "heapNaSessieMB": 3.97
+          },
+          {
+            "metrics": {
+              "tab kalender: eerste bezoek (ms)": 273.2,
+              "tab kalender: herhaald bezoek (ms)": 134.4,
+              "tab planning: eerste bezoek (ms)": 224,
+              "tab planning: herhaald bezoek (ms)": 334.2,
+              "tab gepland: eerste bezoek (ms)": 325.3,
+              "tab gepland: herhaald bezoek (ms)": 84.4,
+              "tab inventaris: eerste bezoek (ms)": 131.9,
+              "tab inventaris: herhaald bezoek (ms)": 141.3,
+              "tab rapporten: eerste bezoek (ms)": 72.6,
+              "tab rapporten: herhaald bezoek (ms)": 77.4,
+              "tab tickets: herhaald bezoek (ms)": 77.4,
+              "week: naar de lege volgende week (ms)": 10.5,
+              "week: terug naar de volle week (ms)": 19.1,
+              "ticketdetail openen vanuit Wachtrij (ms)": 21.3,
+              "ticketdetail openen vanuit Kalender (ms)": 27.1,
+              "langste lange taak in de sessie (ms)": 107,
+              "langste lange taak, lading + sessie (ms)": 118,
+              "aantal lange taken in de sessie": 4,
+              "som lange taken in de sessie (ms)": 276,
+              "geheugen na laden (MB)": 3.5,
+              "geheugen na sessie (MB)": 4,
+              "geheugengroei in de sessie (MB)": 0.5,
+              "console: fouten van de app": 0,
+              "console: waarschuwingen van de app": 0,
+              "console: geblokkeerde externe hosts": 33,
+              "console: bekende testruis (service worker)": 2,
+              "handelingen in de sessie": 29,
+              "handelingen die niet klaar raakten (time-out)": 0
+            },
+            "stappen": [
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 273.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 224,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 325.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 131.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 72.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 77.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 207.7,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 26.4,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 19.1,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 10.5,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 18.5,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 9.1,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 23.7,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 25.8,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 28.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 253.9,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 13.2,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 29.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 134.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 348.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 58.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 117.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 70.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 57.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 319.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 110.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 165.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 84.4,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 49.4,
+                "gelukt": true
+              }
+            ],
+            "heapNaLadenMB": 3.46,
+            "heapNaSessieMB": 3.97
+          },
+          {
+            "metrics": {
+              "tab kalender: eerste bezoek (ms)": 172.8,
+              "tab kalender: herhaald bezoek (ms)": 78.3,
+              "tab planning: eerste bezoek (ms)": 383.2,
+              "tab planning: herhaald bezoek (ms)": 336.3,
+              "tab gepland: eerste bezoek (ms)": 274.1,
+              "tab gepland: herhaald bezoek (ms)": 150.8,
+              "tab inventaris: eerste bezoek (ms)": 202.8,
+              "tab inventaris: herhaald bezoek (ms)": 133.4,
+              "tab rapporten: eerste bezoek (ms)": 103.7,
+              "tab rapporten: herhaald bezoek (ms)": 56.6,
+              "tab tickets: herhaald bezoek (ms)": 121.6,
+              "week: naar de lege volgende week (ms)": 24.9,
+              "week: terug naar de volle week (ms)": 29.9,
+              "ticketdetail openen vanuit Wachtrij (ms)": 12.1,
+              "ticketdetail openen vanuit Kalender (ms)": 23.7,
+              "langste lange taak in de sessie (ms)": 72,
+              "langste lange taak, lading + sessie (ms)": 91,
+              "aantal lange taken in de sessie": 3,
+              "som lange taken in de sessie (ms)": 192,
+              "geheugen na laden (MB)": 3.5,
+              "geheugen na sessie (MB)": 4,
+              "geheugengroei in de sessie (MB)": 0.5,
+              "console: fouten van de app": 0,
+              "console: waarschuwingen van de app": 0,
+              "console: geblokkeerde externe hosts": 33,
+              "console: bekende testruis (service worker)": 2,
+              "handelingen in de sessie": 29,
+              "handelingen die niet klaar raakten (time-out)": 0
+            },
+            "stappen": [
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 172.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 383.2,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 274.1,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 202.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 103.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 123.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 315.2,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 24.9,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 41.5,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 19.9,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 29.9,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "volgende",
+                "ms": 101.7,
+                "gelukt": true
+              },
+              {
+                "soort": "week",
+                "naam": "vorige",
+                "ms": 20.9,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 31.6,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "kalender",
+                "ms": 15.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 107.5,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 13.8,
+                "gelukt": true
+              },
+              {
+                "soort": "detail",
+                "naam": "tickets",
+                "ms": 10.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 50.8,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 321.9,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 117.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 140,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 62.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "kalender",
+                "ms": 78.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "planning",
+                "ms": 350.6,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "gepland",
+                "ms": 184.3,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "inventaris",
+                "ms": 126.7,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "rapporten",
+                "ms": 50.5,
+                "gelukt": true
+              },
+              {
+                "soort": "tab",
+                "naam": "tickets",
+                "ms": 121.6,
+                "gelukt": true
+              }
+            ],
+            "heapNaLadenMB": 3.45,
+            "heapNaSessieMB": 3.96
+          }
+        ],
+        "consoleBerichten": [
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Figtree:wght@400;500;600;700&display=swap"
+          },
+          {
+            "soort": "pageerror",
+            "tekst": "Failed to read the 'serviceWorker' property from 'Navigator': Service worker is disabled because the context is sandboxed and lacks the 'allow-same-origin' flag.",
+            "plek": ""
+          },
+          {
+            "soort": "warning",
+            "tekst": "Service Worker registration blocked by Playwright",
+            "plek": ""
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/85/131"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/86/130"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/85/130"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/86/131"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/84/130"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/84/131"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/85/129"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/86/129"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/85/132"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/86/132"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/84/129"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/87/130"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/84/132"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/87/131"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/87/132"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/8/87/129"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1367/2104"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1367/2105"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1368/2104"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1368/2105"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1366/2104"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1366/2105"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1367/2103"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1367/2106"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1369/2104"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1368/2103"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1369/2105"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1366/2103"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1368/2106"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1366/2106"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1369/2103"
+          },
+          {
+            "soort": "error",
+            "tekst": "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+            "plek": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1369/2106"
+          }
+        ]
+      }
+    }
+  }
+}

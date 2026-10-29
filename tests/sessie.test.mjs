@@ -1,4 +1,4 @@
-import { test, beforeEach, mock } from 'node:test';
+import { test, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 // sessie.js houdt module-toestand bij: elke test laadt een verse instantie.
@@ -38,7 +38,8 @@ const ok = (gebruiker, extra = {}) => ({
 const planner = { id: 'u1', email: 'p@x.be', naam: 'Pia', rol: 'planner' };
 const tim = { id: 'u2', email: 't@x.be', naam: 'Tim', rol: 'technieker', zohoNaam: 'Tim' };
 
-beforeEach(() => { delete globalThis.document; });
+beforeEach(() => { delete globalThis.document; delete globalThis.__blitzVroeg; });
+afterEach(() => { delete globalThis.__blitzVroeg; });
 
 test('200: huidigeGebruiker, cache en rechten worden bewaard', async () => {
   const { m, opslag } = await nieuweSessie({ antwoorden: [ok(planner)] });
@@ -388,4 +389,115 @@ test('magPlannenVoor: planner/beheerder elk ticket; technieker enkel met het vin
   const sales = await nieuweSessie({ antwoorden: [ok({ id: 'u4', email: 's@x.be', naam: 'S', rol: 'sales', magZelfPlannen: true, zohoNaam: 'Tim' })] });
   await sales.m.laadSessie();
   assert.equal(sales.m.magPlannenVoor('Tim'), false);
+});
+
+// ---- O1: vroeg gestarte auth-ik (index.html) ----
+const antwoord = (status, json) => new Response(json === undefined ? null : JSON.stringify(json), { status });
+// Zoals het inline script: een lopende aftakking, zodat een afgewezen vroege belofte nooit "unhandled" is vóór ze genomen wordt.
+const vroegBelofte = (p) => { p.catch(() => {}); return p; };
+const wacht = async (n = 10) => { for (let i = 0; i < n; i++) await new Promise((r) => setImmediate(r)); };
+
+test('vroeg auth-ik 200: de eerste ronde gebruikt het vroege antwoord, geen eigen fetch; hoogstens één keer', async () => {
+  globalThis.__blitzVroeg = { authIk: Promise.resolve(antwoord(200, ok(planner).json)), instellingen: null, t: 1 };
+  const { m, aanroepen } = await nieuweSessie({ antwoorden: [ok(planner)] });
+  assert.deepEqual(await m.laadSessie(), planner);
+  assert.equal(aanroepen.length, 0, 'het vroege antwoord vervangt het verzoek');
+  assert.equal(m.inlogschermGezien(), false);
+  assert.equal(globalThis.__blitzVroeg.authIk, null, 'de belofte is opgenomen');
+  await m.laadSessie(); // een volgende laadSessie (bv. herlogin) haalt vers op
+  assert.equal(aanroepen.length, 1);
+  assert.equal(aanroepen[0].pad, '/api/auth-ik');
+});
+
+test('vroeg auth-ik zonder cache en zonder wachttijd: ms is klein en de cache wordt gezet', async () => {
+  globalThis.__blitzVroeg = { authIk: Promise.resolve(antwoord(200, ok(tim).json)), instellingen: null, t: 1 };
+  const { m, opslag } = await nieuweSessie({ antwoorden: [] });
+  await m.laadSessie();
+  assert.deepEqual(JSON.parse(opslag.get('blitz_sessie_cache')), tim);
+  assert.equal(m.laatsteOpstartNetwerkMs(), 0); // zonder cache telt de wachttijd niet mee
+});
+
+test('vroeg auth-ik 401: inlogscherm, daarna een VERS auth-ik (niet opnieuw het vroege antwoord); inlogschermGezien is waar', async () => {
+  globalThis.__blitzVroeg = { authIk: Promise.resolve(antwoord(401, { code: 'niet-ingelogd', setupNodig: true })), instellingen: null, t: 1 };
+  const { m, aanroepen, opslag } = await nieuweSessie({ antwoorden: [ok(planner)], cache: tim });
+  const oproepen = [];
+  m.zetInlogUi({ toonInloggen: async (o) => { oproepen.push(o); assert.equal(aanroepen.length, 0); } });
+  assert.equal(m.inlogschermGezien(), false);
+  assert.deepEqual(await m.laadSessie(), planner);
+  assert.deepEqual(oproepen, [{ setupNodig: true }]);
+  assert.equal(aanroepen.length, 1);
+  assert.equal(aanroepen[0].pad, '/api/auth-ik');
+  assert.equal(m.inlogschermGezien(), true);
+  assert.deepEqual(JSON.parse(opslag.get('blitz_sessie_cache')), planner);
+});
+
+test('vroeg auth-ik moetWachtwoordWijzigen: wachtwoordscherm (inlogschermGezien), daarna vers auth-ik', async () => {
+  globalThis.__blitzVroeg = { authIk: Promise.resolve(antwoord(200, ok(planner, { moetWachtwoordWijzigen: true }).json)), instellingen: null, t: 1 };
+  const { m, aanroepen } = await nieuweSessie({ antwoorden: [ok(planner)] });
+  let n = 0;
+  m.zetInlogUi({ toonWachtwoordWijzigen: async () => { n++; } });
+  await m.laadSessie();
+  assert.equal(n, 1);
+  assert.equal(aanroepen.length, 1);
+  assert.equal(m.inlogschermGezien(), true);
+});
+
+for (const [naam, vroeg, verwacht] of [
+  ['503 (storing)', () => Promise.resolve(antwoord(503, { code: 'opslag-storing' })), 'storing'],
+  ['500 (serverfout)', () => Promise.resolve(antwoord(500, { error: 'stuk' })), 'serverfout'],
+  ['200 zonder geldige JSON (captive portal)', () => Promise.resolve(new Response('<html>portal</html>', { status: 200 })), 'serverfout'],
+  ['een netwerkfout (offline start)', () => Promise.reject(Object.assign(new TypeError('Failed to fetch'), { vanFetch: true })), 'netwerk'],
+  ['een time-out', () => Promise.reject(new DOMException('Time-out na 20 s', 'TimeoutError')), 'netwerk'],
+]) {
+  test(`vroeg auth-ik ${naam} met cache: start uit de cache, geen scherm, geen tweede verzoek (${verwacht})`, async () => {
+    globalThis.__blitzVroeg = { authIk: vroegBelofte(vroeg()), instellingen: null, t: 1 };
+    const { m, aanroepen } = await nieuweSessie({ antwoorden: [], cache: tim });
+    m.zetInlogUi({ toonInloggen: async () => assert.fail('geen loginscherm'), toonGeenVerbinding: async () => assert.fail('geen verbindingsscherm') });
+    assert.deepEqual(await m.laadSessie(), tim);
+    assert.equal(m.startteUitCache(), true);
+    assert.equal(aanroepen.length, 0);
+    assert.equal(m.inlogschermGezien(), false);
+  });
+
+  test(`vroeg auth-ik ${naam} zonder cache: "geen verbinding", daarna een vers verzoek`, async () => {
+    globalThis.__blitzVroeg = { authIk: vroegBelofte(vroeg()), instellingen: null, t: 1 };
+    const { m, aanroepen } = await nieuweSessie({ antwoorden: [ok(planner)] });
+    let n = 0;
+    m.zetInlogUi({ toonGeenVerbinding: async () => { n++; } });
+    assert.deepEqual(await m.laadSessie(), planner);
+    assert.equal(n, 1);
+    assert.equal(aanroepen.length, 1);
+    assert.equal(m.inlogschermGezien(), true);
+  });
+}
+
+test('vroeg auth-ik trager dan de korte limiet met cache: start uit de cache; het late 401 opent het inlogscherm (verwerkLaat) en haalt vers op', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    let antwoordt;
+    globalThis.__blitzVroeg = { authIk: new Promise((resolve) => { antwoordt = resolve; }), instellingen: null, t: 1 };
+    const { m, aanroepen } = await nieuweSessie({ antwoorden: [{ status: 401, json: { code: 'niet-ingelogd', setupNodig: false } }, ok(planner)], cache: tim });
+    const oproepen = [];
+    m.zetInlogUi({ toonInloggen: async (o) => { oproepen.push(o); } });
+    const belofte = m.laadSessie();
+    await wacht(5);
+    mock.timers.tick(m.KORTE_LIMIET_MS);
+    assert.deepEqual(await belofte, tim);
+    assert.equal(m.startteUitCache(), true);
+    assert.equal(oproepen.length, 0);
+    assert.equal(aanroepen.length, 0, 'tot hier geen eigen verzoek');
+    antwoordt(antwoord(401, { code: 'niet-ingelogd', setupNodig: false }));
+    await wacht(20);
+    assert.deepEqual(oproepen, [{ setupNodig: false }], 'het loginscherm opent');
+    assert.ok(aanroepen.length >= 1, 'de herlogin haalt vers op: het vroege antwoord is al genomen');
+    assert.equal(aanroepen[0].pad, '/api/auth-ik');
+    assert.equal(m.inlogschermGezien(), true);
+  } finally { mock.timers.reset(); }
+});
+
+test('zonder __blitzVroeg (oude index.html, ?test) fetcht de eerste ronde zelf, zoals voorheen', async () => {
+  const { m, aanroepen } = await nieuweSessie({ antwoorden: [ok(planner)] });
+  await m.laadSessie();
+  assert.equal(aanroepen.length, 1);
+  assert.equal(m.inlogschermGezien(), false);
 });

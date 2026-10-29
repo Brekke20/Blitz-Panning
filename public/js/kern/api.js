@@ -34,15 +34,35 @@ function maakInit({ methode = 'GET', body, headers, keepalive } = {}) {
   return init;
 }
 
+// Leest een antwoord uit tot { ok, status, data } (het "lees"-deel van apiVerzoek; ook voor een vroeg gestart verzoek, zie neemVroeg).
+// Gooit enkel bij een onleesbaar antwoord met status ok. Bij !ok is data het JSON-antwoord als dat leesbaar is, anders { error: 'HTTP <status>' }.
+export async function leesApiAntwoord(res) {
+  let data = null;
+  if (res.ok) data = await res.json();
+  else { try { data = await res.json(); } catch { data = { error: 'HTTP ' + res.status }; } }
+  return { ok: res.ok, status: res.status, data };
+}
+
 // Geeft { ok, status, data }. Gooit enkel bij een netwerkfout (of een onleesbaar antwoord bij status ok).
 // Bij !ok is data het JSON-antwoord als dat leesbaar is, anders { error: 'HTTP <status>' }.
 export async function apiVerzoek(pad, opties = {}) {
   const init = maakInit(opties);
   const res = Object.keys(init).length ? await haal(pad, init) : await haal(pad);
-  let data = null;
-  if (res.ok) data = await res.json();
-  else { try { data = await res.json(); } catch { data = { error: 'HTTP ' + res.status }; } }
-  return { ok: res.ok, status: res.status, data };
+  return leesApiAntwoord(res);
+}
+
+// Vroege opstartverzoeken (O1): het inline script in index.html start `/api/auth-ik` en (enkel met een bewaarde sessie)
+// `/api/instellingen?overzicht=1` al vóór de modules laden, en bewaart de beloftes in `globalThis.__blitzVroeg = { authIk, instellingen, t }`.
+// `neemVroeg('authIk' | 'instellingen')` geeft zo'n belofte (van een Response) hoogstens één keer terug en daarna `null`; ook `null` als het
+// script ontbreekt (oude index.html, ?test) of het verzoek niet gestart werd: de aanroeper doet dan gewoon zelf zijn verzoek.
+// Een TypeError van fetch krijgt `vanFetch = true`, zoals in kern/netwerk.js. Het vroege verzoek loopt buiten installeerFetchTimeout en
+// installeerApiBeveiliging om (het script heeft zelf dezelfde time-out van 20 s tot de antwoordkop); de X-Blitz-kop is enkel voor schrijven.
+export function neemVroeg(sleutel) {
+  const v = globalThis.__blitzVroeg;
+  const belofte = v && typeof v === 'object' ? v[sleutel] : null;
+  if (!belofte || typeof belofte.then !== 'function') return null;
+  v[sleutel] = null; // hoogstens één keer
+  return belofte.then(undefined, (e) => { if (e instanceof TypeError) { try { e.vanFetch = true; } catch { /* bevroren */ } } throw e; });
 }
 
 // Geeft de data, of gooit ApiFout (message 'HTTP <status>') bij !ok.

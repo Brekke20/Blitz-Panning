@@ -1,0 +1,39 @@
+{
+  "meta": {
+    "commando": "npx playwright test --workers=2 --grep-invert @contrast --repeat-each=2 e2e/kalender.spec.mjs e2e/wachtrij.spec.mjs e2e/ticketdetail.spec.mjs e2e/opstart-terugval.spec.mjs e2e/laden-en-rol.spec.mjs e2e/productie/opstart.spec.mjs e2e/productie/verbinding.spec.mjs e2e/sw/offline.spec.mjs",
+    "specs": [
+      "e2e/kalender.spec.mjs",
+      "e2e/wachtrij.spec.mjs",
+      "e2e/ticketdetail.spec.mjs",
+      "e2e/opstart-terugval.spec.mjs",
+      "e2e/laden-en-rol.spec.mjs",
+      "e2e/productie/opstart.spec.mjs",
+      "e2e/productie/verbinding.spec.mjs",
+      "e2e/sw/offline.spec.mjs"
+    ],
+    "duurSeconden": 398,
+    "retries": 0,
+    "playwright": "1.63.0",
+    "projecten": [
+      "chromium",
+      "sw"
+    ],
+    "opmerking": "Elke test draait 2x (--repeat-each=2), zonder retries; \"inconsistent\" = een test die in de ene herhaling slaagt en in de andere faalt (de echte flaky-aanwijzing, want Playwright telt flaky enkel bij een retry)."
+  },
+  "uniekeTests": 127,
+  "uitvoeringen": 254,
+  "playwrightStats": {
+    "startTime": "2026-10-28T23:28:06.631Z",
+    "duration": 394016.612,
+    "expected": 254,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "geslaagd": 254,
+  "mislukt": 0,
+  "flaky": 0,
+  "overgeslagen": 0,
+  "inconsistent": [],
+  "altijdMislukt": []
+}

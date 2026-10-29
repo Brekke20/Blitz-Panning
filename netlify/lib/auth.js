@@ -14,6 +14,7 @@ import { isTestVerzoek } from './testmodus.js';
 import { ROLLEN_LIJST, leesGebruikers, publiek } from './gebruikers.js';
 import { isLokaleDev, heeftNetlifyRuntime, TESTGEBRUIKERS } from './lokale-dev.js';
 import { v1Json, v2Json } from './http.js';
+import { meetOptioneel } from './meting.js';
 
 export const ROLLEN = [...ROLLEN_LIJST];
 
@@ -89,8 +90,11 @@ export function maakAuth({ getStore = standaardGetStore, env = process.env, nu =
       // Authenticatiegegevens staan altijd in de ECHTE store, ook bij een testverzoek.
       let gebruikers;
       try {
-        const store = await getStore({ name: 'blitz-data', consistency: 'strong' });
-        gebruikers = await leesGebruikers(store);
+        // Meting (S1): `blobs-auth` = getStore + leesGebruikers; zonder lopende meting een gewone doorgave.
+        gebruikers = await meetOptioneel('blobs-auth', async () => {
+          const store = await getStore({ name: 'blitz-data', consistency: 'strong' });
+          return leesGebruikers(store);
+        });
       } catch (e) {
         // Alleen het fouttype loggen: een Blobs-fout kan details bevatten.
         console.error('auth: opslag niet bereikbaar (' + (e?.name || 'Error') + ')');

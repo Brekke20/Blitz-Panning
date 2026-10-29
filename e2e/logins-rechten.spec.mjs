@@ -27,7 +27,7 @@ function volgTestRolKop(page) {
 const wisselaar = (page) => page.locator('#test-rol-wissel');
 const zichtbareTabs = (page) => page.locator('.tabs-inner .tab:visible');
 // Een tab kan een teller dragen ("Ingepland 1"): de naam moet aan het begin staan, gevolgd door niets of een getal.
-const tab = (page, naam) => page.getByRole('tab', { name: new RegExp(String.raw`^${naam}( \d+)?$`) });
+const tab = (page, naam) => page.getByRole('tab', { name: new RegExp(String.raw`^${naam}(, .+)?$`) });
 
 // Opent het detail van een ingepland ticket (p1, #1004, van Tim). Met `assignee` een kopie dat van een collega is.
 async function openPlanningDetail(page, assignee) {

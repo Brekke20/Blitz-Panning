@@ -9,6 +9,7 @@ import { TEST_MODE } from './kern/omgeving.js';
 import { loadFromCache, saveToCache } from './kern/opslag.js';
 import { heeftRol, huidigeGebruiker, eigenZohoNaam } from './kern/sessie.js';
 import { escHtml, toast } from './kern/ui.js';
+import { toonSkelet } from './kern/skelet.js';
 import { laadExcelJs } from './kern/exceljs.js';
 import { PRIJZEN, PRIJZEN_DEFAULTS, ONDERDEEL_CATEGORIEEN } from './prijzen.js';
 import { maakVerbruikWachtrij, WACHTRIJ_SLEUTEL } from './kern/verbruik-wachtrij.js';
@@ -38,19 +39,38 @@ const INV_CACHE_KEY = TEST_MODE ? 'blitz_inventaris_cache_test' : 'blitz_inventa
 const TYPE_LABEL = { aanvulling: 'Aanvulling', correctie: 'Correctie', verbruik: 'Verbruik' };
 
 // ── Laden ──
+// L2: het skelet van de eerste lading (nog geen kopie en nog geen lading): vervangt de vaste "Laden..."-regel van index.html, nooit over een
+// getekende voorraad. Eén handvat: de opstart en het openen van de tab laden bijna tegelijk.
+let _invSkelet = null;
+let _invBezig = 0; // lopende ladingen: zolang er geen gegevens zijn (geen kopie) en een lading loopt, tekent renderInventaris niets (zie daar)
+
+function stopInvSkelet() { if (_invSkelet) { _invSkelet.stop(); _invSkelet = null; } }
+/** Zijn de gegevens gekend (bewaarde kopie of een geslaagde lading)? */
+export function isInventarisGeladen() { return _invGeladen; }
+
 export async function loadInventaris() {
   const cached = loadFromCache(INV_CACHE_KEY);
   if (cached) { _invData = cached; _invGeladen = true; }
+  const body = document.getElementById('inventaris-body');
+  const laadEl = document.getElementById('inventaris-laden');
+  if (!_invGeladen && body && laadEl && !_invSkelet) {
+    _invSkelet = toonSkelet(body, { vorm: 'rijen', isLeeg: () => !_invGeladen && body.firstElementChild === laadEl && body.children.length === 1, verberg: [laadEl] });
+  }
+  _invBezig++;
   try {
     const res = await fetch(INV_API);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     _invData = data;
     _invGeladen = true;
+    stopInvSkelet(); // de gegevens zijn er: het skelet maakt plaats, ook als een andere lading nog loopt
     saveToCache(INV_CACHE_KEY, data);
     verwerkVerbruikWachtrij();
   } catch (err) {
     console.warn('Inventaris laden mislukt, laatst gekende stand blijft staan:', err);
+  } finally {
+    _invBezig--;
+    if (_invBezig === 0) stopInvSkelet(); // mislukt: pas als geen enkele lading meer loopt (anders valt een tweede lading terug op kale "Laden...")
   }
 }
 
@@ -62,6 +82,10 @@ export async function loadInventaris() {
 // state-overgangen (invStartEdit/invCancelEdit/invSaveEdit) roepen doRenderInventaris()
 // rechtstreeks aan en omzeilen deze bewuste bescherming.
 export function renderInventaris(persoon) {
+  // Nog geen gegevens (geen kopie, nog geen lading) en een lading loopt: niet tekenen. De abonnementen op de tickets tekenen anders een lege
+  // voorraad (allemaal nul) over de "Laden..."-regel of het skelet heen, vóór de voorraad er is; de lading tekent zelf zodra ze klaar is
+  // (ook als ze mislukt: dan met de lege stand zoals voorheen).
+  if (!_invGeladen && _invBezig > 0) return;
   if (_invZoekPersoon !== persoon) { _invZoek = ''; _invHistoriek = false; _invZoekPersoon = persoon; }
   if (_invEditActive && _invEditPersoon === persoon) return;
   if (_invEditActive && _invEditPersoon !== persoon) {
@@ -81,6 +105,7 @@ export function renderInventaris(persoon) {
 function doRenderInventaris(persoon) {
   const body = document.getElementById('inventaris-body');
   if (!body) return;
+  if (!_invSkelet) body.removeAttribute('aria-busy'); // er staat inhoud en geen skelet meer: het vak is niet meer bezig
 
   if (persoon === 'all') {
     body.innerHTML = renderSupervisorLog();

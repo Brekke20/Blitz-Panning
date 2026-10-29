@@ -2,7 +2,7 @@
 // aria-hidden op het skelet en een visueel verborgen "Laden…"; stop() ruimt alles op. Een kleine nep-DOM volstaat (geen jsdom in het project).
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { toonSkelet, bouwSkelet, SKELET_VERTRAGING_MS, SKELET_VORMEN } from '../public/js/kern/skelet.js';
+import { toonSkelet, bouwSkelet, SKELET_VERTRAGING_MS, SKELET_VORMEN, maakTicketsStand, bouwTicketsSkelet, bouwTicketsMelding, TICKETS_LADEN_ATTR } from '../public/js/kern/skelet.js';
 
 class NepEl {
   constructor(doc, tag) {
@@ -13,6 +13,7 @@ class NepEl {
   }
   get childElementCount() { return this.children.length; }
   append(...kinderen) { for (const k of kinderen) { k.parent = this; this.children.push(k); } }
+  prepend(...kinderen) { for (const k of kinderen) k.parent = this; this.children.unshift(...kinderen); }
   remove() { if (this.parent) { this.parent.children = this.parent.children.filter(k => k !== this); this.parent = null; } }
   setAttribute(n, w) { this.attrs.set(n, String(w)); }
   getAttribute(n) { return this.attrs.has(n) ? this.attrs.get(n) : null; }
@@ -137,4 +138,131 @@ test('elke vorm bouwt een aria-hidden skelet met blokken; een onbekende vorm val
 test('het skelet bevat geen tekst (alleen de aparte sr-only melding): geen servergegevens, geen innerHTML', () => {
   const doc = nepDoc();
   for (const vorm of SKELET_VORMEN) assert.equal(bouwSkelet(vorm, { doc }).zoek(k => k.textContent !== '').length, 0, vorm);
+});
+
+// ── L1: de tickets-stand en het skelet van Kalender, Ingepland en Route ──
+// Eén JS-timer per eerste lading zet een attribuut op <html>; CSS toont het skelet enkel onder dat attribuut. Zo stuurt een nepklok
+// (page.clock) de 150 ms deterministisch en begint een hertekening tijdens het laden de vertraging nooit opnieuw.
+const nepWortel = () => nepDoc().createElement('html');
+
+test('tickets-stand: begint onbekend; het attribuut komt pas na precies 150 ms, via één timer', () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const wortel = nepWortel();
+    const s = maakTicketsStand({ wortel });
+    assert.equal(s.stand(), 'onbekend');
+    assert.equal(s.isBekend(), false);
+    s.start();
+    mock.timers.tick(SKELET_VERTRAGING_MS - 1);
+    assert.equal(wortel.hasAttribute(TICKETS_LADEN_ATTR), false);
+    mock.timers.tick(1);
+    assert.equal(wortel.getAttribute(TICKETS_LADEN_ATTR), 'zichtbaar');
+    assert.equal(s.stand(), 'onbekend', 'het attribuut verandert de stand niet');
+  } finally { mock.timers.reset(); }
+});
+
+test('tickets-stand: start() is idempotent (een tweede aanroep begint de 150 ms niet opnieuw)', () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const wortel = nepWortel();
+    const s = maakTicketsStand({ wortel });
+    s.start();
+    mock.timers.tick(100);
+    s.start(); // bv. een hertekening of een tweede lading tijdens het wachten
+    mock.timers.tick(50);
+    assert.equal(wortel.getAttribute(TICKETS_LADEN_ATTR), 'zichtbaar', 'nog steeds 150 ms na de EERSTE start');
+  } finally { mock.timers.reset(); }
+});
+
+test('tickets-stand: bekend() vóór de vertraging: het attribuut komt er nooit; erna wordt het weggehaald', () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const wortel = nepWortel();
+    const s = maakTicketsStand({ wortel });
+    s.start();
+    mock.timers.tick(100);
+    assert.equal(s.bekend(), true, 'meldt dat dit de overgang onbekend → bekend was');
+    assert.equal(s.stand(), 'bekend');
+    assert.equal(s.isBekend(), true);
+    mock.timers.tick(1000);
+    assert.equal(wortel.hasAttribute(TICKETS_LADEN_ATTR), false, 'de timer is opgeruimd');
+
+    const w2 = nepWortel();
+    const s2 = maakTicketsStand({ wortel: w2 });
+    s2.start();
+    mock.timers.tick(200);
+    assert.equal(w2.getAttribute(TICKETS_LADEN_ATTR), 'zichtbaar');
+    s2.bekend();
+    assert.equal(w2.hasAttribute(TICKETS_LADEN_ATTR), false);
+    assert.equal(s2.bekend(), false, 'een tweede bekend() is geen overgang meer');
+  } finally { mock.timers.reset(); }
+});
+
+test('tickets-stand: mislukt() enkel zolang onbekend; wist het attribuut en telt als bekend voor de lege staat', () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const wortel = nepWortel();
+    const s = maakTicketsStand({ wortel });
+    s.start();
+    mock.timers.tick(300);
+    assert.equal(s.mislukt(), true);
+    assert.equal(s.stand(), 'mislukt');
+    assert.equal(s.isBekend(), true, 'na een mislukte eerste lading is de lege staat eerlijk: geen skelet meer');
+    assert.equal(wortel.hasAttribute(TICKETS_LADEN_ATTR), false);
+    assert.equal(s.mislukt(), false);
+    // Een latere geslaagde lading (poll) maakt er een gewone bekende stand van, maar is geen overgang uit 'onbekend'.
+    assert.equal(s.bekend(), false);
+    assert.equal(s.stand(), 'bekend');
+    // Een mislukte lading na een geslaagde verandert niets.
+    assert.equal(s.mislukt(), false);
+    assert.equal(s.stand(), 'bekend');
+  } finally { mock.timers.reset(); }
+});
+
+test('tickets-stand: bekend() zonder start() (bewaarde kopie) zet nooit een attribuut en start nadien niets meer', () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const wortel = nepWortel();
+    const s = maakTicketsStand({ wortel });
+    s.bekend();
+    s.start();
+    mock.timers.tick(1000);
+    assert.equal(wortel.hasAttribute(TICKETS_LADEN_ATTR), false);
+  } finally { mock.timers.reset(); }
+});
+
+test('tickets-stand: zonder wortel (node, geen document) geen fout', () => {
+  const s = maakTicketsStand({ wortel: null });
+  assert.doesNotThrow(() => { s.start(); s.bekend(); s.mislukt(); });
+});
+
+test('tickets-skelet: aria-hidden, onzichtbaar tot het attribuut (klasse skelet--tickets), met variant en zonder tekst', () => {
+  const doc = nepDoc();
+  const el = bouwTicketsSkelet('kaarten', { doc, aantal: 2, variant: 'kal' });
+  assert.equal(el.getAttribute('aria-hidden'), 'true');
+  assert.equal(el.dataset.skelet, 'kaarten');
+  assert.ok(el.className.split(' ').includes('skelet'));
+  assert.ok(el.className.split(' ').includes('skelet--tickets'));
+  assert.ok(el.className.split(' ').includes('skelet--kal'));
+  assert.equal(el.zoek(k => k.className.includes('skelet-kaart') && !k.className.includes('skelet-kaarten')).length, 2);
+  assert.equal(el.zoek(k => k.textContent !== '').length, 0);
+  assert.equal(bouwTicketsSkelet('kaarten', { doc }).className.includes('skelet--undefined'), false);
+});
+
+test('tickets-skelet met kop: een kopblok vóór de kaarten (de dagkop van Ingepland)', () => {
+  const doc = nepDoc();
+  const el = bouwTicketsSkelet('kaarten', { doc, aantal: 1, metKop: true });
+  const eerste = el.children[0];
+  assert.ok(eerste.className.includes('skelet-kop'), 'het kopblok staat vooraan in het skelet');
+  assert.ok(eerste.className.includes('skelet-blok'));
+});
+
+test('tickets-melding: één visueel verborgen "Laden…" met role=status, enkel zichtbaar voor schermlezers onder het attribuut', () => {
+  const doc = nepDoc();
+  const m = bouwTicketsMelding(doc);
+  assert.equal(m.getAttribute('role'), 'status');
+  assert.equal(m.textContent, 'Laden…');
+  assert.match(m.className, /sr-only/);
+  assert.match(m.className, /skelet-melding--tickets/);
+  assert.equal(m.getAttribute('aria-hidden'), null);
 });

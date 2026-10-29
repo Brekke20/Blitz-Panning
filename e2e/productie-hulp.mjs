@@ -149,7 +149,8 @@ export function ongemeldeSchrijfverzoeken(alle, paden) {
 
 // Opent de app zonder ?test. `technieker`: 'all' | 'Tim' | 'Roel' (bepaalt de verwachte wachtrijtelling).
 // `klok: false` laat de echte klok lopen (enkel voor tests die geen page.clock nodig hebben); standaard staat de nepklok aan.
-export async function startAppProductie(page, { rol = 'coordinator', technieker = 'all', overschrijf, vasteKlok = false, klok = true, voorNavigatie, loginRol = 'beheerder', versiering = false } = {}) {
+// `wachtOpApp: false`: niet wachten tot de wachtrij gevuld is (een test die zelf de login afwerkt, bv. e2e/productie/vroege-start.spec.mjs).
+export async function startAppProductie(page, { rol = 'coordinator', technieker = 'all', overschrijf, vasteKlok = false, klok = true, voorNavigatie, loginRol = 'beheerder', versiering = false, wachtOpApp = true } = {}) {
   await page.addInitScript(({ rol, technieker, versiering }) => {
     if (window !== window.top) return; // sandbox-iframes hebben geen localStorage
     const zet = (k, v) => { if (localStorage.getItem(k) === null) localStorage.setItem(k, v); };
@@ -171,7 +172,7 @@ export async function startAppProductie(page, { rol = 'coordinator', technieker 
   if (voorNavigatie) await voorNavigatie(page.context());
   await page.goto('/'); // bewust zonder ?test
   if (vasteKlok && klok) await page.clock.setFixedTime(new Date(VASTE_NU));
-  await expect(page.locator('#cnt-tickets')).toHaveText(String(TE_PLANNEN[technieker] ?? 0));
+  if (wachtOpApp) await expect(page.locator('#cnt-tickets')).toHaveText(String(TE_PLANNEN[technieker] ?? 0)); // false: een test die zelf de login afwerkt (of de start uit de cache)
   return alleenLezen(verzoeken);
 }
 
