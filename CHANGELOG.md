@@ -15,6 +15,9 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+### Fixed
+- Het verborgen spel Blitz Run opent nu ook voor verkopers en sales managers (5× snel tikken op het bliksem-icoon). Voorheen werd het enkel voor de andere rollen ingeschakeld.
+
 ## [2.6.0] — 2026-10-29
 
 ### Added
