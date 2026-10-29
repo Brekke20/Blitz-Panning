@@ -5,6 +5,7 @@ process.env.TZ = 'Europe/Brussels';
 import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { maakNepFetch, metGlobaleFetch, laadVers, v1Event, zetEnv } from './nep-fetch.mjs';
+import { zetMetingVoorTests } from '../netlify/lib/meting.js';
 
 const NU = Date.parse('2026-10-01T10:00:00.000Z');
 const CORS_V1 = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
@@ -768,4 +769,76 @@ test('planning-export: netwerkfout geeft 500 met de foutmelding', async () => {
   const { res, calls } = await draaiExport(exportEvent(), exportRouter({ tickets: NETWERKFOUT }));
   assert.equal(calls.length, 1);
   assert.deepEqual(ontleed(res), { status: 500, headers: CORS_V1, body: { error: 'netwerk' } });
+});
+
+// ---- S1: meting (Server-Timing + [meting]-logregel) voor tickets; enkel met de seam aan ----
+async function metMeting(werk) {
+  zetMetingVoorTests(true);
+  const regels = [];
+  const oud = console.log;
+  console.log = (...a) => regels.push(a.join(' '));
+  try {
+    const r = await werk();
+    const ruw = regels.filter(l => l.startsWith('[meting] '));
+    return { r, ruw, logs: ruw.map(l => JSON.parse(l.slice('[meting] '.length))) };
+  } finally {
+    console.log = oud;
+    zetMetingVoorTests(null);
+  }
+}
+const metLimiet = (obj, rest, gewicht) => new Response(JSON.stringify(obj), {
+  status: 200, headers: { 'Content-Type': 'application/json', 'X-Rate-Limit-Remaining-v3': rest, 'X-Rate-Limit-Request-Weight-v3': gewicht },
+});
+
+test('tickets + meting: zoho-n is exact het aantal Zoho-aanroepen (token en org inbegrepen), de limietkoppen gaan mee in het log, geen persoonsgegevens', async () => {
+  const pagina = [
+    { id: '1', status: 'Service in te plannen' }, { id: '2', status: 'Wachten op bevestiging planning' },
+    { id: '3', status: 'Geplande service' }, { id: '4', status: 'Gesloten' },
+    { id: '5', status: 'Wachten op planning' }, { id: '6', status: 'Geplande support' },
+  ];
+  const basis = ticketsRouter({ paginas: [pagina], details: DETAILS });
+  const router = (url) => {
+    if (url === `${DESK}/agents?limit=50`) return metLimiet(AGENTS, '2990', '3');
+    if (url.includes('/tickets?limit=100&from=0')) return metLimiet({ data: pagina }, '2987', '3');
+    return basis(url);
+  };
+  const { r, ruw, logs } = await metMeting(() => draaiTickets(v1Event('GET'), router));
+  assert.equal(r.calls.length, 9);
+  assert.equal(r.res.statusCode, 200);
+  const kop = r.res.headers['Server-Timing'];
+  assert.match(kop, /^auth;dur=\d+, kern;dur=\d+, zoho;dur=\d+;desc="n=9 max=5", zoho-token;dur=\d+, koud;dur=\d+, totaal;dur=\d+$/);
+  assert.deepEqual({ ...r.res.headers, 'Server-Timing': undefined }, { ...CORS_V1, 'Server-Timing': undefined });
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0].f, 'tickets');
+  assert.equal(logs[0].s, 200);
+  assert.equal(logs[0].zn, 9);
+  assert.equal(logs[0].zohoMax, 5);
+  assert.equal(logs[0].zohoRest, 2987);
+  assert.equal(logs[0].zohoGewicht, 3);
+  // nooit gebruiker, e-mail, tickets of sleutels in het log
+  for (const verboden of ['test-beheerder', 'b@test', 'Test Beheerder', 'Klant Een', 'een@x.be', 'Straat 1', 'SN1', 'Laadpaal', 'TOK', 'ORG1', 'SEC', 'refresh']) {
+    assert.ok(!ruw.join('\n').includes(verboden), `logregel bevat "${verboden}"`);
+  }
+});
+
+test('tickets + meting: een tweede aanroep met het token uit de cache heeft zoho-token 0 en n zonder tokenaanvraag', async () => {
+  const { fn, calls } = maakNepFetch(ticketsRouter({ paginas: [[]], details: {} }));
+  const mod = await laadVers('tickets');
+  const { r, logs } = await metMeting(async () => [
+    await metGlobaleFetch(fn, () => mod.handler(v1Event('GET'))),
+    await metGlobaleFetch(fn, () => mod.handler(v1Event('GET'))),
+  ]);
+  assert.equal(calls.length, 7); // 4 + 3 (token, org, agents, pagina; daarna org, agents, pagina)
+  assert.match(r[0].headers['Server-Timing'], /desc="n=4 max=1", zoho-token;dur=\d+/);
+  assert.match(r[1].headers['Server-Timing'], /desc="n=3 max=1", zoho-token;dur=0,/);
+  assert.deepEqual(logs.map(l => l.zn), [4, 3]);
+  assert.equal(logs[1].zohoToken, 0);
+});
+
+test('tickets + meting: een Zoho-fout (500 van de functie) behoudt het antwoord, krijgt de kop en wordt gelogd', async () => {
+  const { r, logs } = await metMeting(() => draaiTickets(v1Event('GET'), (url) => (url.includes('oauth') ? NETWERKFOUT() : undefined)));
+  assert.deepEqual(ontleed({ ...r.res, headers: { ...CORS_V1 } }), { status: 500, headers: CORS_V1, body: { error: 'netwerk' } });
+  assert.match(r.res.headers['Server-Timing'], /desc="n=1 max=1"/);
+  assert.equal(logs[0].s, 500);
+  assert.equal(logs[0].zn, 1);
 });
