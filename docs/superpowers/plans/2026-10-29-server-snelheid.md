@@ -255,7 +255,9 @@ Elke taak: probleem + bewijs, wijziging, verwachte winst (eerlijk), risico, zich
 - **Wijziging**: een los script `scripts/zoho-proef.mjs` (NIET `*.test.mjs`, dus nooit door `node --test` opgepikt; buiten `e2e/`). Het
   draait enkel met de vlag `--ik-heb-toestemming` en de Zoho-gegevens in de omgeving, op Brents pc of door een agent met zijn uitdrukkelijke
   ja. Harde poort: het omhulsel rond `fetch` weigert alles behalve GET naar `desk.zoho.eu` en de ene token-POST naar `accounts.zoho.eu`;
-  max 5 tegelijk; een plafond van 150 aanroepen per run (≈ 400 krediet). **De uitvoer bevat enkel aantallen, veldnamen, ja/nee en tijden,
+  hoogstens **2 tegelijk** (de app zelf doet al tot 5 detailverzoeken tegelijk; bij een Free-editie met limiet 5 zou een proefrun die
+  samenvalt met een poll de APP in `TOO_MANY_REQUESTS` duwen); bij een 429 of `TOO_MANY_REQUESTS` stopt de run meteen (geen herpoging);
+  een plafond van 150 aanroepen per run (≈ 400 krediet). **De uitvoer bevat enkel aantallen, veldnamen, ja/nee en tijden,
   nooit waarden** (de tickets bevatten klantgegevens).
 
   | Vraag | Aanroep (enkel GET) | Beslist |
@@ -274,7 +276,8 @@ Elke taak: probleem + bewijs, wijziging, verwachte winst (eerlijk), risico, zich
   een node-test op de poort).
 - **Zichtbaar**: nee.
 - **Acceptatie**: `tests/zoho-proef-poort.test.mjs`: het omhulsel weigert POST/PATCH/PUT/DELETE naar Desk, elke andere host, en een
-  aanroep boven het plafond; de uitvoerfunctie geeft voor een nepticket met waarden enkel sleutels/aantallen terug (string-scan op de
+  aanroep boven het plafond, en een derde gelijktijdige aanroep (wacht tot er één klaar is); na een nep-429 start er geen enkele
+  aanroep meer; de uitvoerfunctie geeft voor een nepticket met waarden enkel sleutels/aantallen terug (string-scan op de
   waarden). Het script zelf draait nooit in een test.
 - **Bestanden**: `scripts/zoho-proef.mjs` (nieuw), `tests/zoho-proef-poort.test.mjs` (nieuw); de uitkomst in
   `docs/server-snelheid/zoho-proef-<datum>.md` (enkel aantallen).
@@ -314,10 +317,12 @@ afmelden).
 - **Risico**: specs die vroeg de lege teksten lezen; render-tellers (O3-markering bij de mislukt-overgang); `strengeAfh` (nieuwe
   `afh`-sleutels: elke `init…`-aanroep en elke test die een `afh` bouwt).
 - **Acceptatie**:
-  - Uitbreiding `e2e/skelet.spec.mjs` (`?test`; `loadTickets` wacht daar 400 ms): Kalender, Ingepland en Route tonen na 150 ms een
-    `aria-hidden` skelet met `aria-busy` op de container en nooit "—", "Geen geplande service deze week" of "Voeg tickets ..."; daarna de
-    echte inhoud zonder skelet en zonder `aria-busy`; met een bewaarde kopie (productiefixture) nooit een skelet; bij een poll nooit; een
-    mislukte eerste lading (stub 500) → skelet weg, lege staat + bestaande foutmelding; `reducedMotion: 'reduce'` → geen animatie.
+  - Uitbreiding `e2e/skelet.spec.mjs` (`?test`; `loadTickets` wacht daar 400 ms), met vaste tijdstippen onder `page.clock` (geen
+    bemonstering): op t = 100 ms geen zichtbaar skelet (dekking 0); op t = 250 ms in Kalender, Ingepland en Route een zichtbaar
+    `aria-hidden` skelet met `aria-busy` op de container, en op dat moment geen "—", "Geen geplande service deze week" of "Voeg tickets ...";
+    na de gegevens (t ≥ 400 ms) de echte inhoud, geen skelet en geen `aria-busy`. Met een bewaarde kopie (productiefixture): op t = 250 ms
+    geen skelet. Een poll met een vertraagde stub (`page.clock.runFor` 5,5 min): halverwege het verzoek geen skelet. Een mislukte eerste
+    lading (stub 500) → skelet weg, lege staat + bestaande foutmelding. `reducedMotion: 'reduce'` → `animation-name` van de blokken `none`.
   - Lay-out: `boundingBox` van de balk boven de lijst ongewijzigd tussen skelet en inhoud; de eerste echte kaart begint op dezelfde y als
     het eerste skeletkaartje (± 2 px).
   - Bestaande specs groen: `e2e/kalender.spec.mjs:554,563`, `e2e/weekend.spec.mjs:65`, `e2e/route.spec.mjs:419,431` (zij wachten met
@@ -621,7 +626,8 @@ A1a of in één worktree.
 1. **Zoho-proef (S4)**: mag er een script draaien dat enkel LEEST in Zoho Desk (geen enkele wijziging, max ~150 aanroepen per run, en
    voor de passieve meting een werkdag lang elke 15 min), en wie draait het (jij op je pc, of een agent met jouw toestemming)?
 2. **Zoho-editie**: welke editie heeft de Blitz-portal (Free, Express, Standard, Professional, Enterprise)? Dat bepaalt hoeveel verzoeken
-   tegelijk mogen.
+   tegelijk mogen (Free 5, Express/Standard 10, Professional 15, Enterprise 25). Tot het antwoord er is: de app blijft op 5 tegelijk en de
+   Zoho-proef op 2.
 3. **Oude statusnamen**: worden 'Wachten op planning' en 'Geplande support' nog gebruikt, of mogen ze uit de lijst?
 4. **Netlify**: welk abonnement, en mag de functieregio naar de EU als de meting dat aanraadt (jij zet dat in Netlify)?
 5. **Blokkeren en rollen (enkel als A1c nodig blijkt)**: is het aanvaardbaar dat een blokkering of rolwijziging tot ~60 s nodig heeft om
