@@ -69,6 +69,21 @@ test.describe('O3: tab openen zonder wijziging', () => {
   });
 });
 
+test.describe('O3: herstel van de schermstaat bij de start', () => {
+  test('de Kalender-tab en de scrollstand van het raster komen na een herlaad terug (de eerste zichtbare opening tekent en scrollt)', async ({ page }) => {
+    await startApp(page, { overschrijf: seed() });
+    await open(page, 'kalender');
+    await page.evaluate(() => { document.getElementById('week-grid').scrollTop = 300; });
+    await expect.poll(() => page.evaluate(() => document.getElementById('week-grid').scrollTop)).toBe(300);
+    await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+    expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('blitz_schermstaat')).gridScrollTop)).toBe(300);
+    await page.reload();
+    await expect(page.locator('#view-kalender')).toHaveClass(/active/);
+    await expect(page.locator('.tl-ticket[data-ticket-id="p1"]')).toBeVisible(); // de kalender is getekend (de start tekende verborgen)
+    await expect.poll(() => page.evaluate(() => document.getElementById('week-grid').scrollTop)).toBe(300);
+  });
+});
+
 test.describe('O3: elke toestandssleutel die verandert terwijl het tabblad verborgen is, hertekent bij de volgende opening', () => {
   test('Kalender en Ingepland: alle sleutels uit SLEUTELS', async ({ page }) => {
     test.setTimeout(120000);
