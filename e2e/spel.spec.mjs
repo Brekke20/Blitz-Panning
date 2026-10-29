@@ -3,6 +3,7 @@ import path from 'node:path';
 import url from 'node:url';
 import { test, expect, startApp, snelTikken, metStilstaandeKlok, spelLogo } from './helpers.mjs';
 import { WERELD, SPELER } from '../public/js/spel/spel-logica.js';
+import { startSalesApp, SALES_GEBRUIKER, BEHEERDER } from './sales-hulp.mjs';
 
 const THEMAS_MAP = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..', 'netlify', 'themas');
 const pakket = (id) => JSON.parse(fs.readFileSync(path.join(THEMAS_MAP, `${id}.blitzthema.json`), 'utf8'));
@@ -241,5 +242,24 @@ test.describe('Blitz Run', () => {
     await page.keyboard.press('Space');
     await page.clock.runFor(1000);
     expect(await score(page)).toBeGreaterThan(0);
+  });
+
+  // Een verkoper start niet via `opstart()` maar via `sales-start.js` (rol-schil.js): het spel moet daar ook open kunnen.
+  for (const [naam, gebruiker] of [['een verkoper', SALES_GEBRUIKER], ['een sales manager', { ...SALES_GEBRUIKER, magAlleSales: true }]]) {
+    test(`${naam} opent het spel met vijf tikken en sluit het weer; elke tik telt één keer`, async ({ page, verzoeken }) => {
+      await startSalesApp(page, { gebruiker });
+      await openSpel(page);
+      await tikVijf(page); // sluiten met vijf tikken: een dubbele luisteraar zou het overlay in dezelfde tik weer sluiten
+      await expect(overlay(page)).not.toHaveClass(/open/);
+      await openSpel(page);
+      await page.keyboard.press('Escape');
+      await expect(overlay(page)).not.toHaveClass(/open/);
+      expect(verzoeken.onverwacht).toEqual([]);
+    });
+  }
+
+  test('een beheerder die naar de verkopersweergave wisselt, krijgt het spel niet dubbel (vijf tikken openen het)', async ({ page }) => {
+    await startSalesApp(page, { gebruiker: BEHEERDER });
+    await openSpel(page);
   });
 });

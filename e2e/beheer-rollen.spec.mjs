@@ -108,13 +108,13 @@ test.describe('Beheer: planner', () => {
     await verwachtFout(consoleFouten, '/api/instellingen', 403, 6); // de bedoelde 403's zijn geen echte fouten
   });
 
-  test('Performance: enkel het techniekers-deel (zes tegels, vier blokken, geen Sales), geen kleurgrenzen-paneel en niets schrijfbaars', async ({ page, verzoeken }) => {
+  test('Performance: enkel het techniekers-deel (zes tegels, vijf blokken met Factureerbaar, geen Sales), geen kleurgrenzen-paneel en niets schrijfbaars', async ({ page, verzoeken }) => {
     await startPlanner(page);
     await openBeheer(page);
     await page.getByRole('tab', { name: 'Performance', exact: true }).click();
     await expect(page.locator('.dash')).toBeVisible();
     await expect(page.locator('.tegels > .tegel')).toHaveCount(6);
-    expect(await kopjes(page).allTextContents()).toEqual(['Tijd & stiptheid', 'Kwaliteit', 'Onderdelen', 'Klant & planning']);
+    expect(await kopjes(page).allTextContents()).toEqual(['Tijd & stiptheid', 'Kwaliteit', 'Onderdelen', 'Factureerbaar', 'Klant & planning']);
     await expect(page.locator('.dash-blok--sales')).toHaveCount(0);
     await expect(page.locator('.dash-instellingen')).toHaveCount(0);
     await expect(page.locator('.dash-filters [data-arg="technieker"]')).toBeVisible();
@@ -217,7 +217,7 @@ test.describe('Beheer: sales manager', () => {
 });
 
 test.describe('Beheer: beheerder (ongewijzigd)', () => {
-  test('ziet alle zes de subtabs en in Performance alle vijf de blokken, de tegels en het kleurgrenzen-paneel', async ({ page }) => {
+  test('ziet alle zes de subtabs en in Performance alle zes de blokken, de tegels en het kleurgrenzen-paneel', async ({ page }) => {
     const backend = maakSalesBackend({ gebruiker: BEHEERDER, verkopers: ANDERE });
     await startApp(page, {
       loginRol: 'beheerder',
@@ -231,7 +231,7 @@ test.describe('Beheer: beheerder (ongewijzigd)', () => {
     await page.getByRole('tab', { name: 'Performance', exact: true }).click();
     await expect(page.locator('.dash')).toBeVisible();
     await expect(page.locator('.tegels > .tegel')).toHaveCount(6);
-    expect(await kopjes(page).allTextContents()).toEqual(['Tijd & stiptheid', 'Kwaliteit', 'Onderdelen', 'Klant & planning', 'Sales']);
+    expect(await kopjes(page).allTextContents()).toEqual(['Tijd & stiptheid', 'Kwaliteit', 'Onderdelen', 'Factureerbaar', 'Klant & planning', 'Sales']);
     await expect(page.locator('.dash-instellingen')).toBeVisible();
   });
 });

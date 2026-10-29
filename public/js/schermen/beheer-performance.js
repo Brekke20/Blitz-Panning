@@ -16,12 +16,13 @@ import { grenzenPaneelHtml, leesGrenzenUitRijen, voegGrenzenSamen, bewaarUitkoms
 import { renderTijd } from './beheer-performance-tijd.js';
 import { renderKwaliteit } from './beheer-performance-kwaliteit.js';
 import { renderOnderdelen } from './beheer-performance-onderdelen.js';
+import { renderFactureerbaar } from './beheer-performance-factureerbaar.js';
 import { renderKlant } from './beheer-performance-klant.js';
 import { renderSales } from './beheer-performance-sales.js';
 
 const CSS_PAD = '/css/dashboard.css';
 const CSS_WACHT_MS = 3000;
-const BLOKKEN = [renderTijd, renderKwaliteit, renderOnderdelen, renderKlant, renderSales]; // vaste volgorde
+const BLOKKEN = [renderTijd, renderKwaliteit, renderOnderdelen, renderFactureerbaar, renderKlant, renderSales]; // vaste volgorde
 // Wat deze rol van het dashboard ziet (de server geeft enkel dat deel): de beheerder alles, de planner het techniekers-deel (geen sales),
 // de sales manager enkel sales (geen tegels met techniekercijfers, geen technieker-/type-/herhaalfilter).
 const deelVoorRol = rol => (rol === 'sales' ? 'sales' : rol === 'planner' ? 'techniekers' : 'alles');

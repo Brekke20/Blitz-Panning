@@ -12,8 +12,14 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Unreleased]
 
+## [2.7.0] — 2026-10-29
+
 ### Added
-- (nog niets sinds de laatste release)
+- Beheer › Performance heeft een nieuwe kaart "Factureerbaar bedrag": onderdelen plus loon (met de uren) van de gekozen periode, volgens dezelfde regels als het rapportarchief. Niet aangerekende onderdelen, garantie en installaties tellen niet mee en staan als aparte regel; een hint meldt onderdelen zonder prijs en rapporten zonder start- of stoptijd. Zichtbaar voor beheerder en planner.
+- Sales: het venster "+ Lead" heeft twee optionele velden, Datum en Uur. Allebei ingevuld: de lead staat meteen vast in de agenda en de route (met dezelfde botsingswaarschuwing en "Toch vastleggen" als in de fiche); enkel één van de twee geeft een duidelijke melding. Staat de klant al in de lijst, dan wordt er geen uur op de bestaande lead gezet.
+
+### Fixed
+- Het verborgen spel Blitz Run opent nu ook voor verkopers en sales managers (5× snel tikken op het bliksem-icoon). Voorheen werd het enkel voor de andere rollen ingeschakeld.
 
 ## [2.6.0] — 2026-10-29
 

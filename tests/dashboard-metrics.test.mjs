@@ -139,7 +139,8 @@ test('structuur: versie, periodes, filters, alle zes blokken en de dekking', () 
   assert.equal(d.gegenereerd, NU);
   assert.deepEqual(d.filters, { van: '2026-10-01', tot: '2026-10-08', technieker: '', type: '', herhaalDagen: 30 });
   for (const b of ['kern', 'tijd', 'kwaliteit', 'onderdelen', 'klant', 'sales', 'dekking', 'opties']) assert.ok(d[b], b);
-  assert.deepEqual(Object.keys(d.dekking), ['tijd', 'kwaliteit', 'onderdelen', 'klant', 'sales']);
+  assert.deepEqual(Object.keys(d.dekking), ['tijd', 'kwaliteit', 'onderdelen', 'factureerbaar', 'klant', 'sales']);
+  assert.ok(d.factureerbaar);
   assert.deepEqual(d.dekking.tijd, d.tijd.dekking);
   assert.equal(d.dekking.tijd.rapporten, 12);
   assert.equal(d.dekking.tijd.zonderSlot, 2);            // h5 en h10

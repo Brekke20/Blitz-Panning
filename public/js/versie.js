@@ -1,7 +1,7 @@
 // public/js/versie.js
 // Het versienummer van de app, getoond onderaan Instellingen. Moet gelijk zijn aan "version" in
 // package.json (tests/versie.test.mjs bewaakt dat, zodat een release dit niet kan vergeten).
-export const APP_VERSIE = '2.6.0';
+export const APP_VERSIE = '2.7.0';
 
 // Leest het versienummer uit de broncode van versie.js (v2.1.6): zo kan de app na een nieuwe service worker nagaan of er echt een andere
 // release klaarstaat. null als de tekst er niet uitziet als dit bestand.
