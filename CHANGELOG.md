@@ -13,7 +13,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ## [Unreleased]
 
 ### Added
-- (nog niets sinds de laatste release)
+- Sales: het venster "+ Lead" heeft twee optionele velden, Datum en Uur. Allebei ingevuld: de lead staat meteen vast in de agenda en de route (met dezelfde botsingswaarschuwing en "Toch vastleggen" als in de fiche); enkel één van de twee geeft een duidelijke melding. Staat de klant al in de lijst, dan wordt er geen uur op de bestaande lead gezet.
 
 ## [2.6.0] — 2026-10-29
 
