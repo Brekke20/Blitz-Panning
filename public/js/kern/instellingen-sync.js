@@ -16,9 +16,16 @@
 // De markering wordt VÓÓR de PUT gezet (write-ahead) en na een geslaagde of definitief geweigerde PUT gewist: sluit de app midden
 // in de PUT, dan blijft het spoor staan.
 //
+// Vroeg overzicht (O1): index.html start bij een bewaarde sessie het overzicht al vóór de modules laden (kern/api.js `neemVroeg`). Het wordt
+// ALTIJD genomen (hoogstens één keer, ook als we het niet gebruiken) en enkel gebruikt als: de oproeper het toestaat (`vroegToegestaan`: de
+// sessie kwam uit de eerste ronde van laadSessie, dus geen inlog- of wachtwoordscherm ertussen, dezelfde cookie), het antwoord 2xx was én
+// `eigen.gebruikerId` gelijk is aan de huidige gebruiker (een gedeelde tablet: de instellingen van A komen nooit onder B). In elk ander geval
+// (401/403/503, een fout, een ander id) wordt het weggegooid en doet de gewone aanroep zijn werk, zodat de 401/503-afhandeling van
+// installeerApiBeveiliging exact blijft zoals voorheen. Het vroege verzoek telt mee in het tijdsbudget (`wacht`).
+//
 // Tijdsbudget: de app start pas na de synchronisatie; daarom loopt ze in totaal maximaal SYNC_BUDGET_MS. Daarna keert ze terug en
 // schrijft ze niets meer (ook niet als een late fetch later nog antwoordt): de app start met de lokale cache.
-import { apiJson as standaardApiJson, apiVerzoek as standaardApiVerzoek } from './api.js';
+import { apiJson as standaardApiJson, apiVerzoek as standaardApiVerzoek, neemVroeg as standaardNeemVroeg, leesApiAntwoord } from './api.js';
 import { settingsKey } from '../schermen/instellingen-logica.js';
 
 export const MARKER_SLEUTEL = 'blitz_instellingen_eigenaar';
@@ -196,7 +203,7 @@ function idVoorTechnieker(naam) {
 }
 
 // Geeft true als de synchronisatie volledig liep, false bij een mislukking, een onverwacht antwoord of het verlopen van het budget.
-export async function synchroniseerInstellingen(gebruiker, { apiJson = standaardApiJson, opslag = globalThis.localStorage, budgetMs = SYNC_BUDGET_MS } = {}) {
+export async function synchroniseerInstellingen(gebruiker, { apiJson = standaardApiJson, opslag = globalThis.localStorage, budgetMs = SYNC_BUDGET_MS, neemVroeg = standaardNeemVroeg, vroegToegestaan = () => false } = {}) {
   // Een vreemde marker ook zonder verbinding opruimen: een toestel dat offline start toont nooit de instellingen van een ander.
   if (typeof gebruiker?.id === 'string' && gebruiker.id) neemCacheOver(opslag, gebruiker.id);
 
@@ -205,16 +212,32 @@ export async function synchroniseerInstellingen(gebruiker, { apiJson = standaard
   const stop = new Promise((resolve) => { timer = setTimeout(() => { gestopt = true; resolve(STOP); }, budgetMs); });
   // `gestopt` verandert enkel tijdens een await: na elke wacht volstaat een controle om te garanderen dat er daarna niets meer geschreven wordt.
   const wacht = (belofte) => Promise.race([belofte, stop]);
+  const vroeg = neemVroeg('instellingen'); // altijd nemen: hoogstens één keer, ook als het hieronder genegeerd wordt
   try {
-    return await voerSynchronisatieUit(gebruiker, apiJson, opslag, wacht, () => gestopt);
+    return await voerSynchronisatieUit(gebruiker, apiJson, opslag, wacht, () => gestopt, vroeg, vroegToegestaan);
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function voerSynchronisatieUit(gebruiker, apiJson, opslag, wacht, isGestopt) {
-  let overzicht;
-  try { overzicht = await wacht(apiJson(`${PAD}?overzicht=1`)); } catch { return false; } // geen verbinding of 503: de app start met de lokale cache
+// Het vroege overzicht (zie bovenaan) als het bruikbaar is voor deze gebruiker, anders null.
+async function bruikbaarVroegOverzicht(vroeg, gebruiker, wacht, vroegToegestaan) {
+  if (!vroeg) return null;
+  let r;
+  try { r = await wacht(vroeg.then(leesApiAntwoord)); } catch { return null; } // netwerkfout, time-out of onleesbaar: gewoon opnieuw aanvragen
+  // De toelating wordt NA het wachten bepaald: een inlogscherm dat intussen opende (late 401 van auth-ik) schakelt het vroege overzicht uit.
+  if (!r || typeof r !== 'object' || !r.ok || !vroegToegestaan()) return null;
+  const eigen = r.data?.eigen;
+  if (!isObject(eigen) || typeof gebruiker?.id !== 'string' || !gebruiker.id || eigen.gebruikerId !== gebruiker.id) return null;
+  return r.data;
+}
+
+async function voerSynchronisatieUit(gebruiker, apiJson, opslag, wacht, isGestopt, vroeg = null, vroegToegestaan = () => false) {
+  let overzicht = await bruikbaarVroegOverzicht(vroeg, gebruiker, wacht, vroegToegestaan);
+  if (isGestopt()) return false; // het budget raakte op terwijl we op het vroege overzicht wachtten
+  if (!overzicht) {
+    try { overzicht = await wacht(apiJson(`${PAD}?overzicht=1`)); } catch { return false; } // geen verbinding of 503: de app start met de lokale cache
+  }
   if (isGestopt() || !isObject(overzicht) || !isObject(overzicht.eigen)) return false;
 
   const mijnId = typeof gebruiker?.id === 'string' && gebruiker.id ? gebruiker.id : overzicht.eigen.gebruikerId;

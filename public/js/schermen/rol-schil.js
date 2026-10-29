@@ -6,7 +6,7 @@ import './inloggen.js';                       // registreert de loginschermen bi
 import { toonGebruikersmenu } from './gebruikersmenu.js';
 import { toonRolwisselaar } from './rolwisselaar.js';  // testmodus op een lokale dev-server: kies de rol (logins T19)
 import { registreerTabs, tabsVoorRol, registreerStart, startVoorRol, zetActieveRol } from '../kern/navigatie.js';
-import { laadSessie, huidigeGebruiker, huidigeRechten, registreerAfmeldHaak, laatsteOpstartNetwerkMs, eigenZohoNaam } from '../kern/sessie.js';
+import { laadSessie, huidigeGebruiker, huidigeRechten, registreerAfmeldHaak, laatsteOpstartNetwerkMs, eigenZohoNaam, inlogschermGezien } from '../kern/sessie.js';
 import { claimToestel, geefToestelVrij } from '../kern/eigenaar.js';
 import { synchroniseerInstellingen, wisInstellingenCache, resterendSyncBudget } from '../kern/instellingen-sync.js';
 import { toast } from '../kern/ui.js';
@@ -153,7 +153,8 @@ export async function startNaInlog(opstart) {
   pasRolToe(gebruiker);
   toonRolwisselaar(); // enkel in ?test op een lokale dev-server; anders niets
   // Instellingen van de server in de lokale cache zetten (logins T16) vóór de app ze leest (met het budget dat na een trage auth-ik overblijft, zodat de opstart ≤ ~8 s blijft); faalt nooit hard: bij een fout start de app met de lokale cache.
-  try { await synchroniseerInstellingen(gebruiker, { budgetMs: resterendSyncBudget(laatsteOpstartNetwerkMs()) }); } catch (fout) { console.warn('Instellingen synchroniseren mislukt; de lokale cache wordt gebruikt:', fout); }
+  // O1: het vroeg gestarte overzicht (index.html) telt enkel als er geen inlog- of wachtwoordscherm tussen zat (dezelfde cookie, dezelfde gebruiker).
+  try { await synchroniseerInstellingen(gebruiker, { budgetMs: resterendSyncBudget(laatsteOpstartNetwerkMs()), vroegToegestaan: () => !inlogschermGezien() }); } catch (fout) { console.warn('Instellingen synchroniseren mislukt; de lokale cache wordt gebruikt:', fout); }
   const start = startVoorRol(gebruiker.rol);
   // Een rol met een eigen start (sales) houdt de schil verborgen tot die start de tabs, de kop en de eerste tab gezet heeft; de gewone opstart
   // toont de schil meteen (de tabs staan dan al op de rol).

@@ -1,8 +1,9 @@
-import { test, afterEach } from 'node:test';
+import { test, afterEach, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { ApiFout, zetFetch, apiVerzoek, apiJson, bewaarMetVersie, leesFout, foutTekst } from '../public/js/kern/api.js';
+import { ApiFout, zetFetch, apiVerzoek, apiJson, bewaarMetVersie, leesFout, foutTekst, leesApiAntwoord, neemVroeg } from '../public/js/kern/api.js';
 
-afterEach(() => zetFetch(null));
+beforeEach(() => { delete globalThis.__blitzVroeg; });
+afterEach(() => { zetFetch(null); delete globalThis.__blitzVroeg; });
 
 // Nep-fetch: antwoorden in volgorde; onthoudt de aanroepen.
 function nepFetch(...antwoorden) {
@@ -195,4 +196,47 @@ test('apiVerzoek: keepalive wordt doorgegeven aan fetch (enkel als gevraagd)', a
   await apiVerzoek('/api/x', { methode: 'DELETE' });
   assert.equal(f.aanroepen[0].init.keepalive, true);
   assert.equal(f.aanroepen[1].init.keepalive, undefined);
+});
+
+// ── Vroege opstartverzoeken (O1): leesApiAntwoord en neemVroeg ──
+test('leesApiAntwoord: geeft exact dezelfde { ok, status, data } als apiVerzoek (200, JSON-fout, onleesbare fout)', async () => {
+  const lees = (status, json) => ({ ok: status >= 200 && status < 300, status, json: async () => { if (json === undefined) throw new Error('geen json'); return json; } });
+  assert.deepEqual(await leesApiAntwoord(lees(200, { a: 1 })), { ok: true, status: 200, data: { a: 1 } });
+  assert.deepEqual(await leesApiAntwoord(lees(401, { code: 'niet-ingelogd' })), { ok: false, status: 401, data: { code: 'niet-ingelogd' } });
+  assert.deepEqual(await leesApiAntwoord(lees(500)), { ok: false, status: 500, data: { error: 'HTTP 500' } });
+  await assert.rejects(leesApiAntwoord(lees(200)), /geen json/); // 200 zonder leesbare JSON gooit, zoals apiVerzoek
+});
+
+test('neemVroeg: zonder globale __blitzVroeg (oude index.html, ?test) geeft null', () => {
+  assert.equal(neemVroeg('authIk'), null);
+  assert.equal(neemVroeg('instellingen'), null);
+});
+
+test('neemVroeg: geeft de belofte één keer terug, daarna null; de andere sleutel blijft beschikbaar', async () => {
+  const res = { ok: true, status: 200 };
+  globalThis.__blitzVroeg = { authIk: Promise.resolve(res), instellingen: Promise.resolve({ ok: true, status: 201 }), t: 1 };
+  const a = neemVroeg('authIk');
+  assert.equal(await a, res);
+  assert.equal(neemVroeg('authIk'), null);
+  assert.equal((await neemVroeg('instellingen')).status, 201);
+  assert.equal(neemVroeg('instellingen'), null);
+});
+
+test('neemVroeg: een niet gestarte sleutel (null) of een ongeldige waarde geeft null', () => {
+  globalThis.__blitzVroeg = { authIk: Promise.resolve({}), instellingen: null };
+  assert.equal(neemVroeg('instellingen'), null);
+  assert.equal(neemVroeg('onbekend'), null);
+  globalThis.__blitzVroeg = 'kapot';
+  assert.equal(neemVroeg('authIk'), null);
+});
+
+test('neemVroeg: een TypeError van fetch krijgt vanFetch = true (leesFout: offline); een time-out blijft een TimeoutError', async () => {
+  globalThis.__blitzVroeg = { authIk: Promise.reject(new TypeError('Failed to fetch')), instellingen: Promise.reject(new DOMException('Time-out na 20 s', 'TimeoutError')) };
+  const fout = await neemVroeg('authIk').then(() => null, (e) => e);
+  assert.ok(fout instanceof TypeError);
+  assert.equal(fout.vanFetch, true);
+  assert.deepEqual(leesFout(fout, { online: false }), { soort: 'offline', onzeker: true });
+  const tijd = await neemVroeg('instellingen').then(() => null, (e) => e);
+  assert.equal(tijd.name, 'TimeoutError');
+  assert.equal(tijd.vanFetch, undefined);
 });
