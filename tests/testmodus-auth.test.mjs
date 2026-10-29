@@ -28,3 +28,16 @@ test('zorgVoorTestkopie kopieert gebruikers, pogingen, laatste logins, noodroute
   const sleutels = [...testStore._data.keys()].filter(k => k !== '_testkopie');
   assert.deepEqual(sleutels, ['afspraken']);
 });
+
+test('zorgVoorTestkopie kopieert de ticket-momentopname (klantgegevens uit Zoho) en haar marker en slot NIET', async () => {
+  const echt = maakNepStore({
+    'tickets-snapshot': { v: 1, op: 1, tickets: [{ id: '1', contact: 'Klant', email: 'k@x.be' }], pendingTickets: [], plannedTickets: [] },
+    'tickets-snapshot-verouderd': { id: 'a', op: 1 }, 'tickets-snapshot-bezig': { id: 'b', op: 1 }, afspraken: { lijst: [1] },
+  });
+  const testStore = maakNepStore();
+  const getStore = ({ name }) => (name === 'blitz-data' ? echt : testStore);
+  await wisTestopslag(getStore); // de kopievlag staat per proces: een vorige test kan hem gezet hebben
+  await zorgVoorTestkopie(getStore, { gooiFout: true });
+  assert.deepEqual([...testStore._data.keys()].filter(k => k !== '_testkopie'), ['afspraken']);
+  await wisTestopslag(getStore);
+});

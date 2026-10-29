@@ -3,9 +3,11 @@
 // geladen wordt: in werkuren (ma-vr 07:00-19:00 Brusselse tijd) vanaf 90 s oud, daarbuiten ongeveer elk kwartier, en altijd
 // meteen als een wijzigende functie de momentopname als verouderd markeerde. Zo blijft het Zoho-verbruik op ongeveer 10 % van
 // de dagelijkse limiet. Netlify draait geplande functies enkel op de gepubliceerde productie-deploy, nooit op een tak of preview.
-// Geplande functie zonder eigen `config.path`, maar via de `/api/*`-redirect van netlify.toml wel van buitenaf aan te roepen.
-// Daarom: rij 'open' in de rechtentabel (de scheduler draagt geen sessie), onschadelijk (een aanroep doet hoogstens een lading
-// als die toch al aan de beurt was; slot en leeftijdsgrens begrenzen de belasting) en het antwoord en de logs bevatten nooit
+// Geplande functie zonder eigen `config.path`. Of ze via de `/api/*`-redirect van netlify.toml van buitenaf aanroepbaar is, is NIET
+// geverifieerd (de Netlify-documentatie zegt dat een geplande functie niet rechtstreeks via een URL te starten is); controleer dat na
+// de eerste deploy met `curl -i https://blitz-planning.netlify.app/api/tickets-vooraf`. Voor het geval het wel kan: rij 'open' in de
+// rechtentabel (de scheduler draagt geen sessie), onschadelijk (een aanroep doet hoogstens een lading als die toch al aan de beurt
+// was; het slot laat een verliezer niet laden en de leeftijdsgrens begrenst de belasting) en het antwoord en de logs bevatten nooit
 // ticketgegevens, enkel aantallen.
 import { maakZoho } from '../lib/zoho.js';
 import { haalTickets } from '../lib/tickets-ophalen.js';

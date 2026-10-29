@@ -4,8 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { maakNepStore } from './nep-blobs.mjs';
 import {
-  SNAPSHOT_SLEUTEL, VEROUDERD_SLEUTEL, BEZIG_SLEUTEL, VERS_MS, BEZIG_TTL_MS,
-  inWerkuren, isVers, moetVoorladen, markeerVerouderd, leverTickets, voorlaad,
+  SNAPSHOT_SLEUTEL, VEROUDERD_SLEUTEL, BEZIG_SLEUTEL, VERS_MS, BEZIG_TTL_MS, MAX_TERUGVAL_MS, FORCEER_MIN_MS,
+  isAuthFout, inWerkuren, isVers, moetVoorladen, markeerVerouderd, leverTickets, voorlaad,
 } from '../netlify/lib/tickets-snapshot.js';
 
 const NU = Date.parse('2026-10-28T10:00:00.000Z'); // woensdag 11:00 Brusselse tijd (CET)
@@ -14,8 +14,10 @@ const T = (id, status = 'Geplande service') => ({ id, status });
 const LIJSTEN = { tickets: [T('1', 'Service in te plannen')], pendingTickets: [], plannedTickets: [T('3')] };
 const NIEUW = { tickets: [T('9', 'Service in te plannen')], pendingTickets: [T('8', 'Wachten op bevestiging planning')], plannedTickets: [] };
 
-// dekt = de marker die de lading al meenam (null: er was geen marker)
+// dekt = het id van de marker die de lading al meenam (null: er was geen marker)
 const snap = (op, lijsten = LIJSTEN, dekt = null) => ({ v: 1, op, dekt, klaar: op + 4000, ...lijsten });
+const M = (id, op = NU) => ({ id, op }); // een stale-marker
+const markerNu = o => JSON.parse(o.store._data.get(VEROUDERD_SLEUTEL));
 
 // Klok die enkel verspringt als de test (of een nep-wacht) dat zegt.
 function klok(begin = NU) {
@@ -87,14 +89,25 @@ test('isVers: jonger dan 5 minuten en niet gemarkeerd', () => {
   assert.equal(isVers({ snapshot: snap(NU - VERS_MS), marker: null, nu: NU }), false);
 });
 
-test('isVers: onvers zodra de marker hoger is dan wat de lading al dekte; een lading die de marker al las blijft vers', () => {
-  const s = snap(NU - 60000); // dekt: geen marker gelezen
-  assert.equal(isVers({ snapshot: s, marker: null, nu: NU }), true);
-  assert.equal(isVers({ snapshot: s, marker: { op: NU - 120000 }, nu: NU }), false); // er is nu een marker die de lading niet kende
-  const gedekt = snap(NU - 60000, LIJSTEN, NU - 120000);
-  assert.equal(isVers({ snapshot: gedekt, marker: { op: NU - 120000 }, nu: NU }), true); // dezelfde marker: gedekt
-  assert.equal(isVers({ snapshot: gedekt, marker: { op: NU - 120000 + 1 }, nu: NU }), false); // een latere schrijfactie: niet gedekt
-  assert.equal(isVers({ snapshot: gedekt, marker: { op: NU - 1000 }, nu: NU }), false);
+test('isVers: onvers zodra de marker een andere is dan die de lading al dekte; dezelfde marker blijft vers', () => {
+  const s0 = snap(NU - 60000); // dekt: geen marker gelezen
+  assert.equal(isVers({ snapshot: s0, marker: null, nu: NU }), true);
+  assert.equal(isVers({ snapshot: s0, marker: M('m1'), nu: NU }), false); // er is nu een marker die de lading niet kende
+  const gedekt = snap(NU - 60000, LIJSTEN, 'm1');
+  assert.equal(isVers({ snapshot: gedekt, marker: M('m1'), nu: NU }), true); // dezelfde marker: gedekt
+  assert.equal(isVers({ snapshot: gedekt, marker: M('m2'), nu: NU }), false); // een latere schrijfactie: niet gedekt
+});
+
+test('isVers: een marker die TERUGvalt (trage schrijfactie landt als laatste: lagere op) of dezelfde op heeft maskeert niets', () => {
+  const gedekt = snap(NU - 60000, LIJSTEN, 'h'); // de lading las marker h (op 2000)
+  assert.equal(isVers({ snapshot: gedekt, marker: { id: 'r', op: 1500 }, nu: NU }), false); // r overschreef h met een lagere op
+  assert.equal(isVers({ snapshot: gedekt, marker: { id: 'x', op: 2000 }, nu: NU }), false); // zelfde op, ander id
+  assert.equal(isVers({ snapshot: gedekt, marker: { id: 'h', op: 2000 }, nu: NU }), true);
+});
+
+test('isVers: een oude marker zonder id (alleen op) telt via zijn op en dekt niets als de lading hem niet kende', () => {
+  assert.equal(isVers({ snapshot: snap(NU - 1000), marker: { op: 5 }, nu: NU }), false);
+  assert.equal(isVers({ snapshot: snap(NU - 1000, LIJSTEN, 'op:5'), marker: { op: 5 }, nu: NU }), true);
 });
 
 test('isVers: een kapotte of ontbrekende momentopname is nooit vers', () => {
@@ -131,19 +144,26 @@ test('moetVoorladen: buiten werkuren pas na 14 minuten (de planner tikt elke 2 m
 
 test('moetVoorladen: een stale-marker die de momentopname niet dekt dwingt een verversing af, ook buiten werkuren', () => {
   const nacht = Date.parse('2026-10-28T21:00:00Z');
-  assert.equal(moetVoorladen({ nu: nacht, snapshot: snap(nacht - 2 * MIN), marker: { op: nacht - MIN } }).ja, true);
-  assert.equal(moetVoorladen({ nu: nacht, snapshot: snap(nacht - 2 * MIN, LIJSTEN, nacht - MIN), marker: { op: nacht - MIN } }).ja, false);
+  assert.equal(moetVoorladen({ nu: nacht, snapshot: snap(nacht - 2 * MIN), marker: M('m1', nacht - MIN) }).ja, true);
+  assert.equal(moetVoorladen({ nu: nacht, snapshot: snap(nacht - 2 * MIN, LIJSTEN, 'm1'), marker: M('m1', nacht - MIN) }).ja, false);
 });
 
 // ---------------- markeerVerouderd ----------------
-test('markeerVerouderd: schrijft het tijdstip en laat een latere marker nooit terugvallen', async () => {
+test('markeerVerouderd: elke markering geeft een NIEUW id (ook in dezelfde ms of met een achterlopende klok) en een op die nooit terugvalt', async () => {
   const store = maakNepStore();
+  const ids = new Set();
+  const lees = () => JSON.parse(store._data.get(VEROUDERD_SLEUTEL));
   await markeerVerouderd({ store, nu: () => 5000 });
-  assert.deepEqual(JSON.parse(store._data.get(VEROUDERD_SLEUTEL)), { op: 5000 });
-  await markeerVerouderd({ store, nu: () => 3000 });
-  assert.deepEqual(JSON.parse(store._data.get(VEROUDERD_SLEUTEL)), { op: 5000 });
-  await markeerVerouderd({ store, nu: () => 9000 });
-  assert.deepEqual(JSON.parse(store._data.get(VEROUDERD_SLEUTEL)), { op: 9000 });
+  assert.equal(lees().op, 5000); ids.add(lees().id);
+  await markeerVerouderd({ store, nu: () => 5000 }); // zelfde ms
+  assert.ok(lees().op > 5000); ids.add(lees().id);
+  const na = lees().op;
+  await markeerVerouderd({ store, nu: () => 3000 }); // klok loopt achter
+  assert.ok(lees().op > na); ids.add(lees().id);
+  await markeerVerouderd({ store, nu: () => 90000 });
+  assert.equal(lees().op, 90000); ids.add(lees().id);
+  assert.equal(ids.size, 4);
+  for (const id of ids) assert.match(id, /^[0-9a-f-]{36}$/);
 });
 
 test('markeerVerouderd: een store die gooit geeft false en gooit zelf nooit (een Blobs-storing mag een planning niet laten mislukken)', async () => {
@@ -196,7 +216,7 @@ test('leverTickets: na een schrijfactie (marker) haalt de eerstvolgende aanvraag
   o.k.t = NU + 100; // de client vraagt meteen na de planning opnieuw
   const eerste = await levering(o);
   assert.equal(eerste.bron, 'live');
-  assert.equal(o.gelezen().dekt, NU);
+  assert.equal(o.gelezen().dekt, markerNu(o).id);
   o.k.t += 100;
   const tweede = await levering(o); // een collega, kort daarna
   assert.equal(tweede.bron, 'snapshot');
@@ -221,7 +241,7 @@ test('leverTickets: een schrijfactie TIJDENS een lading wordt nooit weggemaskeer
 });
 
 test('leverTickets: een momentopname geschreven NA de marker blijft vers (de planner ververste al)', async () => {
-  const o = opstelling({ snapshot: snap(NU - 10000, LIJSTEN, NU - 60000), marker: { op: NU - 60000 } });
+  const o = opstelling({ snapshot: snap(NU - 10000, LIJSTEN, 'm1'), marker: M('m1', NU - 60000) });
   const r = await levering(o);
   assert.equal(r.bron, 'snapshot');
 });
@@ -258,7 +278,7 @@ test('leverTickets: Zoho faalt maar er is een oude momentopname -> die wordt ges
   const o = opstelling({ snapshot: snap(NU - 20 * MIN) });
   const r = await levering(o, { haalLive: async () => { throw new Error('Zoho tickets-ophalen mislukt (500): {}'); } });
   assert.equal(r.bron, 'snapshot');
-  assert.equal(r.verouderd, true);
+  assert.equal(r.verouderd, true); // enkel hier: Zoho faalde
   assert.equal(r.leeftijdMs, 20 * MIN);
   assert.deepEqual(r.body, LIJSTEN);
   assert.ok(o.logs.some(l => l.includes('Zoho tickets-ophalen mislukt')), o.logs.join('|'));
@@ -273,21 +293,21 @@ test('leverTickets: Zoho faalt en er is geen momentopname -> de fout gaat naar d
 });
 
 // ---------------- leverTickets: stampede ----------------
-test('leverTickets: een lopende verversing (lock) en een enkel door ouderdom onvers geworden snapshot -> oude snapshot meteen, als verouderd, zonder Zoho', async () => {
+test('leverTickets: een lopende verversing (lock) en een enkel door ouderdom onvers geworden snapshot -> oude snapshot meteen zonder Zoho; NIET als "Zoho onbereikbaar" gemarkeerd', async () => {
   const o = opstelling({ snapshot: snap(NU - 6 * MIN), bezig: { id: 'ander', op: NU - 2000 } });
   const r = await levering(o);
   assert.equal(r.bron, 'snapshot');
-  assert.equal(r.verouderd, true);
+  assert.equal(r.verouderd, false); // verouderd betekent enkel: Zoho faalde (de client toont daarvoor een balk)
   assert.equal(o.aantalLive(), 0);
 });
 
 test('leverTickets: lopende verversing en een snapshot die onvers is door een schrijfactie -> wacht op de nieuwe en serveert die (geen tweede Zoho-lading)', async () => {
-  const o = opstelling({ snapshot: snap(NU - 60000), marker: { op: NU - 5000 }, bezig: { id: 'ander', op: NU - 3000 } });
+  const o = opstelling({ snapshot: snap(NU - 60000), marker: M('m1', NU - 5000), bezig: { id: 'ander', op: NU - 3000, dekt: 'm1' } });
   let gewacht = 0;
   const wacht = async ms => {
     o.k.t += ms; gewacht++;
     if (gewacht === 2) { // de andere lading is klaar
-      o.store._data.set(SNAPSHOT_SLEUTEL, JSON.stringify(snap(NU - 700, NIEUW, NU - 5000))); // de andere lading las de marker al
+      o.store._data.set(SNAPSHOT_SLEUTEL, JSON.stringify(snap(NU - 700, NIEUW, 'm1'))); // de andere lading las de marker al
       o.store._data.delete(BEZIG_SLEUTEL);
     }
   };
@@ -299,9 +319,9 @@ test('leverTickets: lopende verversing en een snapshot die onvers is door een sc
 });
 
 test('leverTickets: de wacht heeft een plafond; daarna haalt deze aanvraag zelf live op', async () => {
-  const o = opstelling({ snapshot: snap(NU - 60000), marker: { op: NU - 1000 }, bezig: { id: 'ander', op: NU } });
+  const o = opstelling({ snapshot: snap(NU - 60000), marker: M('m1', NU - 1000), bezig: { id: 'ander', op: NU, dekt: 'm1' } });
   let wachten = 0;
-  const wacht = async ms => { o.k.t += ms; wachten++; o.store._data.set(BEZIG_SLEUTEL, JSON.stringify({ id: 'ander', op: o.k.t })); };
+  const wacht = async ms => { o.k.t += ms; wachten++; o.store._data.set(BEZIG_SLEUTEL, JSON.stringify({ id: 'ander', op: o.k.t, dekt: 'm1' })); };
   const r = await levering(o, { wacht });
   assert.equal(r.bron, 'live');
   assert.ok(wachten >= 1 && wachten <= 30, `wachten=${wachten}`);
@@ -310,7 +330,7 @@ test('leverTickets: de wacht heeft een plafond; daarna haalt deze aanvraag zelf 
 });
 
 test('leverTickets: de andere verversing is klaar maar de nieuwe momentopname is nog niet vers genoeg -> zelf live (en niet eindeloos wachten)', async () => {
-  const o = opstelling({ snapshot: snap(NU - 60000), marker: { op: NU - 1000 }, bezig: { id: 'ander', op: NU } });
+  const o = opstelling({ snapshot: snap(NU - 60000), marker: M('m1', NU - 1000), bezig: { id: 'ander', op: NU, dekt: 'm1' } });
   const wacht = async ms => { o.k.t += ms; o.store._data.delete(BEZIG_SLEUTEL); };
   const r = await levering(o, { wacht });
   assert.equal(r.bron, 'live');
@@ -388,4 +408,179 @@ test('voorlaad: Blobs onbereikbaar -> mislukt zonder te gooien', async () => {
   const r = await voorladen(o, { haalStore: async () => { throw new Error('geen blobs'); } });
   assert.deepEqual(r, { resultaat: 'mislukt' });
   assert.equal(o.aantalLive(), 0); // zonder opslag heeft voorladen geen zin: geen Zoho-krediet verspillen
+});
+
+// ---------------- C1: leeftijdsgrens en authenticatiefouten ----------------
+test('terugval: precies onder de grens (60 min) wordt de oude momentopname geserveerd, op of boven de grens gaat de Zoho-fout door (de client toont zijn gewone fout)', async () => {
+  const fout = async () => { throw new Error('Zoho tickets-ophalen mislukt (500): {}'); };
+  const o1 = opstelling({ snapshot: snap(NU - MAX_TERUGVAL_MS + 1000) });
+  assert.equal((await levering(o1, { haalLive: fout })).verouderd, true);
+  const o2 = opstelling({ snapshot: snap(NU - MAX_TERUGVAL_MS) });
+  await assert.rejects(levering(o2, { haalLive: fout }), /Zoho tickets-ophalen mislukt \(500\)/);
+  const o3 = opstelling({ snapshot: snap(NU - 3 * 24 * 60 * MIN) });
+  await assert.rejects(levering(o3, { haalLive: fout }), /mislukt/);
+});
+
+test('terugval: een authenticatiefout van Zoho wordt NOOIT gemaskeerd, ook niet met een verse of jonge momentopname (de melding "Sessie met Zoho verlopen" moet blijven werken)', async () => {
+  const fouten = [
+    'Token refresh mislukt: {"error":"invalid_code"}',
+    'Token refresh mislukt',
+    'Zoho tickets-ophalen mislukt (401): {"errorCode":"INVALID_OAUTH"}',
+    'Zoho tickets-ophalen mislukt (403): {}',
+    'Zoho ticketdetail 7 mislukt (401): {}',
+    'Zoho Desk org ID niet gevonden',
+    'invalid_token',
+  ];
+  for (const tekst of fouten) {
+    // jonge momentopname, onvers door een schrijfactie, zodat er live geladen wordt
+    const o = opstelling({ snapshot: snap(NU - 60000), marker: M('m1', NU - 5000) });
+    await assert.rejects(levering(o, { haalLive: async () => { throw new Error(tekst); } }), e => e.message === tekst, tekst);
+    assert.equal(o.store._data.has(BEZIG_SLEUTEL), false);
+  }
+});
+
+test('isAuthFout: herkent token-, 401- en 403-fouten, geen gewone serverfouten en geen toevallige cijfers in een ticket-id', () => {
+  for (const t of ['Token refresh mislukt: {}', 'Zoho tickets-ophalen mislukt (401): {}', 'Zoho ticketdetail 9 mislukt (403): {}', 'invalid_token', 'Unauthorized', 'Zoho Desk org ID niet gevonden']) {
+    assert.equal(isAuthFout(new Error(t)), true, t);
+  }
+  for (const t of ['Zoho tickets-ophalen mislukt (500): {}', 'Zoho ticketdetail 4011 mislukt (500): {}', 'netwerk', 'Zoho reageert niet binnen 12 s']) {
+    assert.equal(isAuthFout(new Error(t)), false, t);
+  }
+  assert.equal(isAuthFout(null), false);
+});
+
+// ---------------- M4: Zoho blijft hangen ----------------
+test('hangende Zoho: na de time-out valt de aanvraag terug op de momentopname (binnen de grens) en geeft anders een duidelijke fout', async () => {
+  const hangt = () => new Promise(() => {});
+  const o = opstelling({ snapshot: snap(NU - 10 * MIN) });
+  const r = await levering(o, { haalLive: hangt, liveTimeoutMs: 20 });
+  assert.equal(r.bron, 'snapshot');
+  assert.equal(r.verouderd, true);
+  assert.equal(o.store._data.has(BEZIG_SLEUTEL), false);
+  const o2 = opstelling();
+  await assert.rejects(levering(o2, { haalLive: hangt, liveTimeoutMs: 20 }), /reageert niet/);
+  const o3 = opstelling({ snapshot: snap(NU - 2 * MAX_TERUGVAL_MS) });
+  await assert.rejects(levering(o3, { haalLive: hangt, liveTimeoutMs: 20 }), /reageert niet/);
+});
+
+test('een snelle Zoho-lading wordt door de time-out niet gehinderd (en de timer blijft niet hangen)', async () => {
+  const o = opstelling();
+  const r = await levering(o, { liveTimeoutMs: 5000 });
+  assert.equal(r.bron, 'live');
+});
+
+// ---------------- I2: Vernieuwen (?vers=1) ----------------
+test('forceren: een momentopname jonger dan 30 s wordt gewoon geserveerd (rem: hoogstens één geforceerde lading per 30 s voor alle gebruikers)', async () => {
+  const o = opstelling({ snapshot: snap(NU - FORCEER_MIN_MS + 1000) });
+  const r = await levering(o, { forceer: true });
+  assert.equal(r.bron, 'snapshot');
+  assert.equal(r.verouderd, false);
+  assert.equal(o.aantalLive(), 0);
+});
+
+test('forceren: vanaf 30 s oud (ook al is de momentopname nog "vers") komt er een echte Zoho-lading en wordt de momentopname herschreven', async () => {
+  const o = opstelling({ snapshot: snap(NU - FORCEER_MIN_MS) });
+  const r = await levering(o, { forceer: true });
+  assert.equal(r.bron, 'live');
+  assert.deepEqual(r.body, NIEUW);
+  assert.equal(o.gelezen().op, NU);
+  // direct erna forceert een volgende gebruiker niet opnieuw: hij krijgt de net geschreven momentopname
+  o.k.t += 5000;
+  const tweede = await levering(o, { forceer: true });
+  assert.equal(tweede.bron, 'snapshot');
+  assert.equal(o.aantalLive(), 1);
+});
+
+test('forceren: een door een schrijfactie onvers geworden momentopname wordt altijd live ververst, ook binnen 30 s', async () => {
+  const o = opstelling({ snapshot: snap(NU - 5000), marker: M('m1', NU - 1000) });
+  assert.equal((await levering(o, { forceer: true })).bron, 'live');
+});
+
+test('forceren: zonder forceer-vlag verandert er niets (vers = geserveerd)', async () => {
+  const o = opstelling({ snapshot: snap(NU - 2 * MIN) });
+  assert.equal((await levering(o)).bron, 'snapshot');
+});
+
+test('forceren: faalt Zoho dan geldt dezelfde terugval en dezelfde auth-regel', async () => {
+  const o = opstelling({ snapshot: snap(NU - 3 * MIN) });
+  const r = await levering(o, { forceer: true, haalLive: async () => { throw new Error('Zoho tickets-ophalen mislukt (502): {}'); } });
+  assert.equal(r.verouderd, true);
+  const o2 = opstelling({ snapshot: snap(NU - 3 * MIN) });
+  await assert.rejects(levering(o2, { forceer: true, haalLive: async () => { throw new Error('Zoho tickets-ophalen mislukt (401): {}'); } }), /401/);
+});
+
+// ---------------- M1: het slot houdt verliezers tegen ----------------
+// Een store waarvan het slot door een "andere aanvraag" overschreven wordt zodra wij het schrijven (wij verliezen de race).
+function storeMetSlotVerlies(o) {
+  const echt = o.store.setJSON.bind(o.store);
+  o.store.setJSON = async (sleutel, waarde) => {
+    await echt(sleutel, waarde);
+    if (sleutel === BEZIG_SLEUTEL && waarde.id !== 'ander') await echt(BEZIG_SLEUTEL, { id: 'ander', op: o.k.t, dekt: waarde.dekt });
+  };
+}
+
+test('M1 voorlaad: wie het slot verliest laadt niet (de planner laadt nooit dubbel)', async () => {
+  const o = opstelling({ snapshot: snap(NU - 10 * MIN) });
+  storeMetSlotVerlies(o);
+  const r = await voorlaad({ haalStore: o.haalStore, haalLive: o.haalLive, nu: o.k.nu, log: o.log });
+  assert.deepEqual(r, { resultaat: 'overgeslagen', reden: 'bezig' });
+  assert.equal(o.aantalLive(), 0);
+});
+
+test('M1 leverTickets: een slotverliezer met een bestaande (enkel te oude) momentopname serveert die, zonder dubbele Zoho-lading', async () => {
+  const o = opstelling({ snapshot: snap(NU - 6 * MIN) });
+  storeMetSlotVerlies(o);
+  const r = await levering(o);
+  assert.equal(r.bron, 'snapshot');
+  assert.equal(r.verouderd, false);
+  assert.equal(o.aantalLive(), 0);
+});
+
+test('M1 leverTickets: een slotverliezer zonder bruikbare momentopname wacht op de winnaar en serveert diens resultaat', async () => {
+  const o = opstelling();
+  storeMetSlotVerlies(o);
+  let stappen = 0;
+  const wacht = async ms => {
+    o.k.t += ms; stappen++;
+    if (stappen === 1) { o.store._data.set(SNAPSHOT_SLEUTEL, JSON.stringify(snap(o.k.t, NIEUW))); o.store._data.delete(BEZIG_SLEUTEL); }
+  };
+  const r = await levering(o, { wacht });
+  assert.equal(r.bron, 'snapshot');
+  assert.deepEqual(r.body, NIEUW);
+  assert.equal(o.aantalLive(), 0);
+});
+
+test('M1 leverTickets: de winnaar komt niet meer en het slot blijft hangen -> na de wachttijd laadt de verliezer toch zelf (nooit zonder tickets)', async () => {
+  const o = opstelling();
+  storeMetSlotVerlies(o);
+  const wacht = async ms => { o.k.t += ms; o.store._data.set(BEZIG_SLEUTEL, JSON.stringify({ id: 'ander', op: o.k.t, dekt: null })); };
+  const r = await levering(o, { wacht });
+  assert.equal(r.bron, 'live');
+  assert.equal(o.aantalLive(), 1);
+});
+
+test('M1: een kapotte schrijfactie op het slot (Blobs-storing) telt niet als verloren race: er wordt gewoon geladen', async () => {
+  const o = opstelling({ snapshot: snap(NU - 6 * MIN) });
+  const echt = o.store.setJSON.bind(o.store);
+  o.store.setJSON = async (sleutel, w) => { if (sleutel === BEZIG_SLEUTEL) throw new Error('storing'); return echt(sleutel, w); };
+  const r = await levering(o);
+  assert.equal(r.bron, 'live');
+  const o2 = opstelling({ snapshot: snap(NU - 10 * MIN) });
+  const echt2 = o2.store.setJSON.bind(o2.store);
+  o2.store.setJSON = async (sleutel, w) => { if (sleutel === BEZIG_SLEUTEL) throw new Error('storing'); return echt2(sleutel, w); };
+  const v = await voorlaad({ haalStore: o2.haalStore, haalLive: o2.haalLive, nu: o2.k.nu, log: o2.log });
+  assert.equal(v.resultaat, 'ververst');
+});
+
+test('M1: de levensduur van het slot dekt een trage lading (minstens 30 s)', () => {
+  assert.ok(BEZIG_TTL_MS >= 30000);
+});
+
+// ---------------- M5: niet wachten op een lading die onze wijziging niet bevat ----------------
+test('M5: een lopende lading die vóór onze schrijfactie begon (slot dekt de huidige marker niet) wordt niet afgewacht: meteen zelf laden', async () => {
+  const o = opstelling({ snapshot: snap(NU - 60000), marker: M('nieuw', NU - 1000), bezig: { id: 'ander', op: NU - 2000, dekt: 'oud' } });
+  let gewacht = 0;
+  const r = await levering(o, { wacht: async ms => { gewacht++; o.k.t += ms; } });
+  assert.equal(r.bron, 'live');
+  assert.equal(gewacht, 0);
 });

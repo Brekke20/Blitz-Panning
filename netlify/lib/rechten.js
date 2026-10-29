@@ -28,8 +28,9 @@ export const RECHTEN = {
   // tickets en setup controleren zelf geen methode: '*' houdt elke methode achter de login.
   'tickets':              { '*': INTERN, service: true },
   // Geplande voorlading van de tickets (momentopname in Blobs, elke 2 min; zie tickets-vooraf.js): de scheduler draagt geen sessie,
-  // dus 'open'. Onschadelijk: antwoord en logs bevatten enkel aantallen, en een aanroep van buitenaf doet enkel een lading als die
-  // toch aan de beurt was (leeftijdsgrens + slot). De ticketgegevens zelf blijven achter de rij 'tickets'.
+  // dus 'open'. Of ze van buitenaf via /api/ aanroepbaar is, is niet geverifieerd (controle na de eerste deploy); zo ja is ze
+  // onschadelijk: antwoord en logs bevatten enkel aantallen, en een aanroep doet enkel een lading als die toch aan de beurt was
+  // (leeftijdsgrens + slot). De ticketgegevens zelf blijven achter de rij 'tickets'.
   'tickets-vooraf':       { '*': 'open' },
   'planning-sinds':       { POST: INTERN },
   // Plannen: coördinator, en een technieker met "Mag zelf plannen" enkel voor zijn eigen tickets (planEigen).

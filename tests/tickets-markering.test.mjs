@@ -125,15 +125,38 @@ test('elke functie die een ticket in Zoho wijzigt gebruikt de stale-markering, b
   assert.ok(confirm.indexOf("status: 'Geplande support'") < confirm.indexOf('markeerVerouderd('));
 });
 
-test('geen enkele functie schrijft naar Zoho Desk zonder markering (nieuwe schrijvers vallen hier op)', () => {
-  // Alles wat via zoho.verzoek met een methode (PATCH/POST/PUT/DELETE) naar Zoho Desk schrijft. De uploads in rapport-zoho.js
-  // (bijlage-PDF via de achtergrondverwerking) veranderen het ticket niet in de lijst en staan buiten deze lijst: bewust.
-  const gevonden = readdirSync(new URL('../netlify/functions/', import.meta.url))
-    .filter(f => f.endsWith('.js'))
-    .filter(f => /zoho\.verzoek\([\s\S]{0,200}?methode:\s*'(POST|PATCH|PUT|DELETE)'/.test(lees(`../netlify/functions/${f}`)))
-    .map(f => f.replace(/\.js$/, ''))
-    .sort();
-  assert.deepEqual(gevonden, [...MARKEREN, 'confirm-afspraak'].sort());
+// Schrijvers naar Zoho Desk, in beide vormen: via zoho.verzoek(... methode: 'POST|PATCH|PUT|DELETE') en via een rauwe fetch naar Zoho
+// (ZOHO_DESK + method:). Bestanden uit netlify/functions en netlify/lib. Wat hier uitgezonderd is, verandert geen veld dat de ticketlijst toont.
+const UITZONDERINGEN = {
+  'netlify/lib/rapport-zoho.js': 'uploadt enkel een PDF-bijlage (rapport-verwerk-background en rapport-vangnet): het ticket verandert niet in de lijst',
+  'netlify/lib/zoho.js': 'gedeelde helper: de token-POST naar accounts.zoho.eu; verzoek() geeft de methode van de aanroeper door',
+  'netlify/functions/setup.js': 'OAuth-uitwisseling van de grant-code, geen ticket',
+};
+const SCHRIJFT_VIA_VERZOEK = /zoho\.verzoek\([\s\S]{0,200}?methode:\s*'(POST|PATCH|PUT|DELETE)'/;
+const SCHRIJFT_RAUW = /method:\s*'(POST|PATCH|PUT|DELETE)'/;
+const RAUW_NAAR_ZOHO = /ZOHO_DESK|desk\.zoho|accounts\.zoho/;
+
+function zohoSchrijvers() {
+  const uit = [];
+  for (const map of ['functions', 'lib']) {
+    for (const f of readdirSync(new URL(`../netlify/${map}/`, import.meta.url)).filter(n => n.endsWith('.js'))) {
+      const bron = lees(`../netlify/${map}/${f}`);
+      if (SCHRIJFT_VIA_VERZOEK.test(bron) || (RAUW_NAAR_ZOHO.test(bron) && SCHRIJFT_RAUW.test(bron))) uit.push(`netlify/${map}/${f}`);
+    }
+  }
+  return uit.sort();
+}
+
+test('geen enkel bestand schrijft naar Zoho Desk zonder markering of een uitdrukkelijke uitzondering (nieuwe schrijvers vallen hier op)', () => {
+  const verwacht = [...MARKEREN.map(n => `netlify/functions/${n}.js`), 'netlify/functions/confirm-afspraak.js', ...Object.keys(UITZONDERINGEN)].sort();
+  assert.deepEqual(zohoSchrijvers(), verwacht);
+});
+
+test('de scanner ziet beide schrijfvormen (een rauwe fetch-schrijver in lib en een zoho.verzoek-schrijver)', () => {
+  assert.match("zoho.verzoek(`/tickets/1`, { token, orgId, methode: 'PATCH', json: {} })", SCHRIJFT_VIA_VERZOEK);
+  assert.doesNotMatch("zoho.verzoek(`/tickets/1`, { token, orgId })", SCHRIJFT_VIA_VERZOEK);
+  assert.ok(RAUW_NAAR_ZOHO.test("fetch(`${ZOHO_DESK}/tickets`, { method: 'POST' })") && SCHRIJFT_RAUW.test("fetch(`${ZOHO_DESK}/tickets`, { method: 'POST' })"));
+  assert.ok(zohoSchrijvers().includes('netlify/lib/rapport-zoho.js')); // de bijlage-upload staat als uitzondering in de lijst
 });
 
 // ---------- /api/tickets met een momentopname ----------
@@ -205,6 +228,70 @@ test('tickets: Zoho faalt maar er is een (oude) momentopname -> 200 met X-Blitz-
   const stuk = await tickets(w => metRol('planner', w), { haalLive: async () => { throw new Error('Zoho tickets-ophalen mislukt (500): {}'); } });
   assert.equal(stuk.statusCode, 500);
   assert.deepEqual(JSON.parse(stuk.body), { error: 'Zoho tickets-ophalen mislukt (500): {}' });
+});
+
+test('tickets: Zoho faalt en de momentopname is ouder dan 60 min -> gewoon een 500 met de fouttekst (geen verouderd scherm voor altijd)', async () => {
+  zetSnapshot(NU - 61 * 60000);
+  mock.method(console, 'error', () => {});
+  const res = await tickets(w => metRol('planner', w), { haalLive: async () => { throw new Error('Zoho tickets-ophalen mislukt (500): {}'); } });
+  assert.equal(res.statusCode, 500);
+  assert.deepEqual(JSON.parse(res.body), { error: 'Zoho tickets-ophalen mislukt (500): {}' });
+  assert.equal(res.headers['X-Blitz-Verouderd'], undefined);
+});
+
+test('tickets: een Zoho-authenticatiefout blijft een 500 met de oorspronkelijke tekst, ook met een jonge momentopname (client toont "Sessie met Zoho verlopen")', async () => {
+  zetSnapshot(NU - 10 * 60000);
+  mock.method(console, 'error', () => {});
+  for (const tekst of ['Token refresh mislukt: {"error":"invalid_code"}', 'Zoho tickets-ophalen mislukt (401): {}']) {
+    const res = await tickets(w => metRol('planner', w), { haalLive: async () => { throw new Error(tekst); } });
+    assert.equal(res.statusCode, 500, tekst);
+    assert.deepEqual(JSON.parse(res.body), { error: tekst });
+    assert.match(JSON.parse(res.body).error, /401|invalid.token|invalid_code|Token refresh/i); // wat de client als auth herkent
+  }
+});
+
+test('tickets: een hangende Zoho valt na de time-out terug op de momentopname', async () => {
+  zetSnapshot(NU - 10 * 60000);
+  mock.method(console, 'error', () => {});
+  const res = await tickets(w => metRol('planner', w), { haalLive: () => new Promise(() => {}), liveTimeoutMs: 20 });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers['X-Blitz-Verouderd'], '1');
+});
+
+async function ticketsMetUrl(werk, query, opties) {
+  const mod = await laadVers('tickets');
+  const h = mod.maakHandler({ haalStore: async () => store, ...opties });
+  return werk(() => h({ ...v1Event('GET'), queryStringParameters: query }));
+}
+
+test('tickets: ?vers=1 (Vernieuwen) haalt live op zodra de momentopname 30 s of ouder is, ook als ze nog vers is, en schrijft ze opnieuw', async () => {
+  zetSnapshot(NU - 60000);
+  let live = 0;
+  const NIEUW = { tickets: [], pendingTickets: [{ id: '8' }], plannedTickets: [] };
+  const haalLive = async () => { live++; return structuredClone(NIEUW); };
+  const res = await ticketsMetUrl(w => metRol('planner', w), { vers: '1' }, { haalLive });
+  assert.equal(live, 1);
+  assert.deepEqual(JSON.parse(res.body), NIEUW);
+  assert.equal(res.headers['X-Blitz-Bron'], undefined);
+  // een tweede gebruiker die meteen daarna Vernieuwen indrukt: de rem geeft de net geschreven momentopname
+  const tweede = await ticketsMetUrl(w => metRol('beheerder', w), { vers: '1' }, { haalLive });
+  assert.equal(live, 1);
+  assert.deepEqual(JSON.parse(tweede.body), NIEUW);
+  assert.equal(tweede.headers['X-Blitz-Bron'], 'snapshot');
+  assert.equal(tweede.headers['X-Blitz-Verouderd'], undefined);
+});
+
+test('tickets: zonder ?vers=1 of met een andere waarde blijft een verse momentopname geserveerd; de rechten gelden ook voor ?vers=1', async () => {
+  zetSnapshot(NU - 60000);
+  const haalLive = async () => { throw new Error('mag niet'); };
+  for (const query of [undefined, {}, { vers: '0' }, { vers: 'ja' }]) {
+    const res = await ticketsMetUrl(w => metRol('planner', w), query, { haalLive });
+    assert.equal(res.headers['X-Blitz-Bron'], 'snapshot');
+  }
+  const anoniem = await ticketsMetUrl(w => metGeenSessie(w), { vers: '1' }, { haalLive });
+  assert.equal(anoniem.statusCode, 401);
+  const sales = await ticketsMetUrl(w => metRol('sales', w), { vers: '1' }, { haalLive });
+  assert.equal(sales.statusCode, 403);
 });
 
 test('tickets: na een planning (marker) haalt de eerstvolgende aanvraag live op, ook al is de momentopname jong', async () => {
