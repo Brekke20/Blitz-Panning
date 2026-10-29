@@ -34,7 +34,9 @@ async function volgSkeletten(page) {
 // na de start van de ticketlading; e2e/productie/skelet-tickets.spec.mjs test ze): ze horen niet bij de schermen die deze specs bekijken.
 // Enkel de drie containers van L1 (dagkolom, Ingepland, routelijst; de capaciteitskop in de dagkop): een skelet ergens anders telt gewoon mee.
 const TICKETS_VAKKEN = /^(daybody-|gep-body$|route-list$)|day-cap/;
-const gezien = async (page, { metWachtrij = false } = {}) => (await page.evaluate(() => window.__skeletten)).filter(s => !(s.tickets && TICKETS_VAKKEN.test(s.vak)) && (metWachtrij || s.vak !== 'ticket-list'));
+// Ook de overzichten Rapporten en Inventaris tonen bij de start een skelet (L2, ook als hun tab verborgen is): dat telt enkel mee in de L2-tests (metOverzichten).
+const OVERZICHT_VAKKEN = /^(rapp-archief-body|inventaris-body)$/;
+const gezien = async (page, { metWachtrij = false, metOverzichten = false } = {}) => (await page.evaluate(() => window.__skeletten)).filter(s => !(s.tickets && TICKETS_VAKKEN.test(s.vak)) && (metWachtrij || s.vak !== 'ticket-list') && (metOverzichten || !OVERZICHT_VAKKEN.test(s.vak)));
 
 const GEBRUIKERS = [
   { id: 'u-test', email: 'b@test.be', naam: 'Test Beheerder', rol: 'beheerder', actief: true, laatsteLogin: null, aangemaakt: '2026-09-01T08:00:00.000Z', moetWachtwoordWijzigen: false },
@@ -236,7 +238,19 @@ test.describe('skelet: Rapporten en Inventaris (L2)', () => {
     await expect(body.locator('.ticket')).toHaveCount(2);
     await expect(body.locator('.skelet')).toHaveCount(0);
     await expect(body).not.toHaveAttribute('aria-busy', /.*/);
-    expect((await gezien(page)).filter(s => s.vak === 'rapp-archief-body')).toHaveLength(1); // precies één skelet (de opstart- en de tablading delen het)
+    expect((await gezien(page, { metOverzichten: true })).filter(s => s.vak === 'rapp-archief-body')).toHaveLength(1); // precies één skelet (de opstart- en de tablading delen het)
+  });
+
+  test('Rapporten: tekent de lading van de tab vóór de opstartlading klaar is, dan verdwijnen skelet en aria-busy meteen', async ({ page }) => {
+    let aanvragen = 0;
+    const stub = async (a) => { aanvragen++; if (aanvragen === 1) await wacht(8000); return archiefStub(a); }; // de opstartlading is traag, de tablading snel
+    await startApp(page, { loginRol: 'beheerder', overschrijf: { 'rapport-archief': stub } });
+    const body = page.locator('#rapp-archief-body');
+    await expect(body.locator('.skelet[data-skelet="rijen"]')).toHaveCount(1); // de opstartlading toont het skelet
+    await page.getByRole('tab', { name: 'Rapporten', exact: true }).click();
+    await expect(body.locator('.ticket')).toHaveCount(2); // de tweede lading tekent
+    await expect(body.locator('.skelet')).toHaveCount(0);
+    await expect(body).not.toHaveAttribute('aria-busy', /.*/); // zonder te wachten op de opstartlading (nog onderweg)
   });
 
   test('Rapporten: een snelle lading toont nooit een skelet', async ({ page }) => {
@@ -244,7 +258,7 @@ test.describe('skelet: Rapporten en Inventaris (L2)', () => {
     await startApp(page, { loginRol: 'beheerder', overschrijf: { 'rapport-archief': archiefStub } });
     await page.getByRole('tab', { name: 'Rapporten', exact: true }).click();
     await expect(page.locator('#rapp-archief-body .ticket')).toHaveCount(2);
-    expect(await gezien(page)).toEqual([]);
+    expect(await gezien(page, { metOverzichten: true })).toEqual([]);
     await expect(page.locator('#rapp-archief-body')).not.toHaveAttribute('aria-busy', /.*/);
   });
 
@@ -255,13 +269,13 @@ test.describe('skelet: Rapporten en Inventaris (L2)', () => {
     await startApp(page, { loginRol: 'beheerder', overschrijf: { 'rapport-archief': stub } });
     await page.getByRole('tab', { name: 'Rapporten', exact: true }).click();
     await expect(page.locator('#rapp-archief-body .ticket')).toHaveCount(2);
-    const voor = (await gezien(page)).length;
+    const voor = (await gezien(page, { metOverzichten: true })).length;
     traag = true;
     await page.getByRole('tab', { name: 'Kalender', exact: true }).click();
     await page.getByRole('tab', { name: 'Rapporten', exact: true }).click();
     await page.waitForTimeout(400); // ruim voorbij 150 ms met het antwoord nog onderweg
     await expect(page.locator('#rapp-archief-body .ticket')).toHaveCount(2);
-    expect((await gezien(page)).length).toBe(voor);
+    expect((await gezien(page, { metOverzichten: true })).length).toBe(voor);
     await expect(page.locator('#rapp-archief-body .skelet')).toHaveCount(0);
   });
 
@@ -293,7 +307,7 @@ test.describe('skelet: Rapporten en Inventaris (L2)', () => {
     await startApp(page, { technieker: 'Tim', overschrijf: { inventaris: trager(inventarisStub, 1500) } });
     await kiesHoofdtab(page, /Inventaris/);
     await page.waitForTimeout(400);
-    expect((await gezien(page)).filter(s => s.vak === 'inventaris-body')).toEqual([]);
+    expect((await gezien(page, { metOverzichten: true })).filter(s => s.vak === 'inventaris-body')).toEqual([]);
     await expect(page.locator('#inv-edit-btn')).toBeVisible();
   });
 
@@ -302,7 +316,7 @@ test.describe('skelet: Rapporten en Inventaris (L2)', () => {
     await startApp(page, { technieker: 'Tim', overschrijf: { inventaris: inventarisStub } });
     await kiesHoofdtab(page, /Inventaris/);
     await expect(page.locator('#inv-edit-btn')).toBeVisible();
-    expect(await gezien(page)).toEqual([]);
+    expect(await gezien(page, { metOverzichten: true })).toEqual([]);
   });
 });
 

@@ -77,6 +77,8 @@ export async function laadRapportArchief() {
   }
 }
 
+function stopLaadSkelet() { if (_laadSkelet) { _laadSkelet.stop(); _laadSkelet = null; } }
+
 async function haalEnTeken(body, toondeLaden) {
   let tekst, data;
   try {
@@ -86,9 +88,11 @@ async function haalEnTeken(body, toondeLaden) {
     try { data = JSON.parse(tekst); } catch { throw new Error('Onleesbaar antwoord van de server'); }
     if (!Array.isArray(data?.rapports)) throw new Error('Onverwacht antwoord van de server');
   } catch (err) {
+    stopLaadSkelet(); // de foutregel komt er meteen: geen blijvende aria-busy, ook niet als een andere aanroep de eigenaar van het skelet is
     meldLaadFout(body, err, toondeLaden);
     return;
   }
+  stopLaadSkelet(); // de gegevens zijn er: het skelet (en aria-busy) maakt plaats vóór het tekenen, ook als de tabLading tekent vóór de opstartlading klaar is
   const versie = typeof data.versie === 'number' ? data.versie : 0;
   // De versie stijgt enkel. Een lagere versie is een verouderd antwoord (een oudere GET die later binnenkomt, of de lege terugval
   // van de server bij een opslagstoring: { versie: 0, rapports: [] }): lijst en versie blijven, zonder melding aan de gebruiker.
