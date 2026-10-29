@@ -47,15 +47,14 @@ Bronnen voor de details: `docs/optimalisatie/vergelijking-2.5.1.md` (cijfers en 
 
 **Niet gebouwd (volgende ronde)**
 - S2, S3 en S4 uit het plan Server-snelheid: onder meer de tickets bij Zoho parallel ophalen en de Zoho-proef. De Zoho-proef (S4) is geen test en draait enkel na een uitdrukkelijk ja van de eigenaar. De server wacht nu nog steeds in lock-step batches op Zoho; de duur van `/api/tickets` verandert dus niet door deze release (enkel de time-out is hoger en er is een meting bijgekomen).
-- Fase 2 van de laadverbetering.
+- Fase 2 van de laadverbetering (plan: zie de plannen onder docs/superpowers/plans/).
 - L3 (laadskelet voor het overige; niet aangeraakt).
 - Verbeteringen 4, 5, 7 en 8 van de optimalisatie (tickets vroeg opvragen, parallel ophalen, adressen eenmalig inlezen, routekaart pas laden bij Route).
-- Een versienummer-vergelijking of grotere ingreep in de service worker: de regel van 4 seconden blijft zoals die is.
 
 **Open vragen voor de eigenaar**
 1. Vervaging van de lijstkaarten op de gsm overdag weglaten: houden of terugdraaien na proef op een echte telefoon?
 2. Bij een laadfout in het rapportenarchief blijft de lijst staan met een melding: akkoord met dit gedrag?
-3. Mag de achtergrondservice eerst uit het geheugen starten? Dat verandert jouw regel dat de app tot 4 seconden op het netwerk wacht.
+3. Mag de achtergrondservice eerst uit het geheugen starten? Dat verandert de regel van de eigenaar dat de app tot 4 seconden op het netwerk wacht.
 4. Nog meer glas weglaten (enkel bespreken als een echte telefoon na deze release nog traag scrolt).
 5. Wat moet er gebeuren als een ticket tussen de lijst en het openen verdwijnt (nu mislukt de hele lijst; overslaan is robuuster maar verandert de uitkomst)?
 6. De Zoho-proef (S4): wanneer en onder welke voorwaarden mag die draaien?
