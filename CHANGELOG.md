@@ -15,6 +15,23 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ### Added
 - (nog niets sinds de laatste release)
 
+## [2.6.0] — 2026-10-29
+
+### Added
+- Kalender, Ingepland, Route, Rapporten en Inventaris tonen tijdens het laden grijze plaatsvervangers in plaats van "geen geplande service" of nullen. Pas als de gegevens er echt zijn, zie je wat er staat.
+
+### Changed
+- De app start sneller op een trage verbinding: de aanmelding en de instellingen worden opgevraagd terwijl de app zelf nog laadt.
+- Terugkeren naar de Kalender op de gsm gaat veel sneller, en ook Ingepland en Rapporten voelen vlotter. Een scherm wordt enkel nog opnieuw opgebouwd als er echt iets veranderd is.
+- Het scrollen door de lijstkaarten op de gsm is vlotter. Overdag zijn de kaarten daar niet langer lichtjes wazig; 's nachts, tijdens een themaweek, op de computer en op een liggende tablet blijft alles zoals het was.
+- Als de lijst met rapporten niet geladen kan worden, blijft de lijst die je al ziet staan en verschijnt er een melding, in plaats van een foutregel in de plaats van de hele lijst.
+- Beheer: de tabbladen Instellingen en Performance laden sneller, want hun gegevens worden tegelijk opgevraagd.
+- Achter de schermen krijgt het laden van de tickets meer tijd voordat de server opgeeft, en wordt per aanvraag bijgehouden hoe lang het duurt, zodat trage plekken makkelijker te vinden zijn. Je merkt hier niets van.
+
+### Fixed
+- Bij een trage aanmelding op een gedeelde tablet kon het gebeuren dat de instellingen onder de verkeerde gebruiker werden bewaard. Dat gebeurt niet meer.
+- De Kalender tekent zich opnieuw als de beschikbaarheid van een klant verandert; voorheen bleef de oude stand soms staan.
+
 ## [2.5.1] — 2026-10-28
 
 ### Changed
