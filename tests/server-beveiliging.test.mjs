@@ -17,7 +17,7 @@ import { ondertekenToken } from '../netlify/lib/sessie-token.js';
 const wortel = join(import.meta.dirname, '..');
 const ROLLEN = ['beheerder', 'planner', 'technieker', 'sales'];
 const METHODES = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
-const OPEN_FUNCTIES = ['confirm-afspraak', 'planning-export', 'activiteit-opruimen', 'sales-opruimen', 'auth-login', 'auth-uitloggen', 'auth-setup', 'auth-herstel', 'rapport-verwerk-background', 'rapport-vangnet'];
+const OPEN_FUNCTIES = ['confirm-afspraak', 'planning-export', 'activiteit-opruimen', 'sales-opruimen', 'tickets-vooraf', 'auth-login', 'auth-uitloggen', 'auth-setup', 'auth-herstel', 'rapport-verwerk-background', 'rapport-vangnet'];
 const WRAPPER_FUNCTIES = Object.keys(RECHTEN).filter(n => !OPEN_FUNCTIES.includes(n));
 
 afterEach(() => zetKernSpyVoorTests(null));
@@ -118,9 +118,9 @@ for (const naam of WRAPPER_FUNCTIES) {
 }
 
 test('OPTIONS op elke functie geeft 204 zonder login', async () => {
-  // activiteit-opruimen, sales-opruimen en rapport-vangnet zijn geplande functies zonder methodecontrole: OPTIONS zou de taak zelf draaien;
+  // activiteit-opruimen, sales-opruimen, tickets-vooraf en rapport-vangnet zijn geplande functies zonder methodecontrole: OPTIONS zou de taak zelf draaien;
   // rapport-verwerk-background is een achtergrondfunctie (altijd 202, eigen interne sleutel).
-  for (const naam of Object.keys(RECHTEN).filter(n => !['activiteit-opruimen', 'sales-opruimen', 'rapport-vangnet', 'rapport-verwerk-background'].includes(n))) {
+  for (const naam of Object.keys(RECHTEN).filter(n => !['activiteit-opruimen', 'sales-opruimen', 'tickets-vooraf', 'rapport-vangnet', 'rapport-verwerk-background'].includes(n))) {
     const f = await laad(naam);
     const r = await metGeenSessie(async () => ontleed(f, await roep(f, naam, 'OPTIONS', {})));
     assert.equal(r.status, 204, `${naam} OPTIONS`);
