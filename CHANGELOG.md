@@ -12,6 +12,9 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Unreleased]
 
+### Changed
+- De tickets staan nu vooraf klaar: de server haalt ze zelf op bij Zoho (elke 2 minuten tijdens de werkuren, maandag tot vrijdag 07:00 tot 19:00, en daarbuiten ongeveer elk kwartier) en bewaart ze. De app krijgt de lijst daardoor meteen (ongeveer 1 seconde) in plaats van na 4 tot 6 seconden. Plant, wijzigt of annuleert iemand via de app een ticket, of bevestigt een klant zijn afspraak, dan haalt de eerstvolgende aanvraag meteen de verse stand op uit Zoho. Wijzigingen die rechtstreeks in Zoho Desk gebeuren, verschijnen bij de eerstvolgende ronde (hoogstens enkele minuten later). Valt Zoho even uit, dan toont de app de laatste goede lijst in plaats van een fout. Het organisatienummer van Zoho wordt per server-instantie onthouden in plaats van bij elke lading opnieuw op te vragen.
+
 ## [2.7.0] — 2026-10-29
 
 ### Added
