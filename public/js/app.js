@@ -14,6 +14,7 @@ import { localISO, extractLocalHour, openingsDatum } from './kern/tijd.js';
 import { startTicketLogExport } from './kern/exceljs.js';
 import { toast, registreerActies, metBehoudScroll } from './kern/ui.js';
 import { toonSkelet, maakTicketsStand } from './kern/skelet.js';
+import { verouderdVanKoppen } from './kern/gegevens-stand.js';
 import { ticketsVanTechnieker } from './kern/selecties.js';
 import { maakDummyData } from './kern/testdata.js';
 import { sjLog, sjZetTab, startVerklikker } from './kern/verklikker.js';
@@ -267,7 +268,7 @@ function opstart() {
   registreerActies(document.body, {
     'persoon-menu': (el, e) => persoonskiezer.toggleMenu({ focus: e?.detail === 0 }), // detail 0: via het toetsenbord geopend, dan gaat de focus het menu in
     'vernieuw': () => {
-      loadTickets();
+      loadTickets({ vers: true }); // Vernieuwen leest Zoho echt opnieuw (?vers=1; de server remt tot één geforceerde lading per 30 s)
       // De beheerder in de werkruimte Sales: ook het open sales-scherm opnieuw laden.
       if (huidigeWerkruimte() === 'sales') import('./schermen/sales-schil.js').then(m => m.herlaadActief()).catch(() => {});
       if (huidigeRechten().beheer) persoonskiezer.laadLijsten({ ververs: true }).catch(() => {}); // ook de lijsten van de kiezer (na een mislukte lading)
@@ -601,7 +602,13 @@ let _laadVolgnr = 0;
 let _laatsteToegepast = 0;
 let _lokaleWijziging = 0;
 let _eigenToepassing = false;
-async function loadTickets({ stilleToast = false, stil = false, zonderCache = false, negeerSchrijfstand = false } = {}) {
+// De balk "Gegevens van HH:MM — Zoho even niet bereikbaar": zichtbaar zolang de laatst toegepaste ticketlading een terugval van de server was.
+function zetVerouderdBalk(info) {
+  const el = document.getElementById('tickets-verouderd');
+  if (!el) return;
+  if (info) { el.textContent = info.tekst; el.hidden = false; } else { el.hidden = true; el.textContent = ''; }
+}
+async function loadTickets({ stilleToast = false, stil = false, zonderCache = false, negeerSchrijfstand = false, vers = false } = {}) {
   const eersteLading = _eersteLading;
   const gebruikCache = _eersteLading && !zonderCache;
   _eersteLading = false;
@@ -619,14 +626,16 @@ async function loadTickets({ stilleToast = false, stil = false, zonderCache = fa
   const skelet = stil ? null : toonSkelet(document.getElementById('ticket-list'), { vorm: 'kaarten', aantal: 4, isLeeg: () => get('allTickets').length === 0, verberg: [legeTekstEl] });
   try {
     let data;
+    let verouderd = null; // { tekst } als de server op een oude momentopname terugviel (Zoho onbereikbaar)
     if (TEST_MODE) {
       await new Promise(r => setTimeout(r, 400));
       data = DUMMY_DATA;
     } else {
-      const res = await fetch('/api/tickets');
+      const res = await fetch(vers ? '/api/tickets?vers=1' : '/api/tickets');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       data = await res.json();
       if (data.error) throw new Error(data.error);
+      verouderd = verouderdVanKoppen(res.headers);
     }
 
     if (!TEST_MODE && !eersteLading) {
@@ -640,6 +649,7 @@ async function loadTickets({ stilleToast = false, stil = false, zonderCache = fa
       }
     }
     _laatsteToegepast = mijnNr;
+    zetVerouderdBalk(verouderd); // enkel bij een toegepaste lading: een weggegooide (achterhaalde) lading verandert de balk niet
     if (!TEST_MODE) saveToCache('blitz_tickets_cache', data);
     ticketsStand.bekend(); // VÓÓR het toepassen (zie ticketsStand): de renders van de abonnementen zien dan de echte lege staat
     applyTicketsData(data, { reconcile: true });

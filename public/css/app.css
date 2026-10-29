@@ -1110,6 +1110,16 @@
     /* Fix ronde 1: in het lichte thema is --orange donker (#a94a08); daar witte tekst (5,7:1) in plaats van de donkere tekst die op het lichte oranje van het donkere thema staat. --orange zelf blijft ongemoeid. */
     :root[data-theme="light"] #offline-banner { color: #fff; }
 
+    /* ── Zoho even niet bereikbaar (tickets uit de laatste goede momentopname van de server) ──
+       Klein en rustig: een afgeronde strook boven de inhoud, niet vastgeplakt (verschuift niets in de vaste kop of het dok). Kleuren zoals de
+       offline-banner (effen oranje met donkere tekst; in het lichte thema witte tekst op het donkere oranje). */
+    #tickets-verouderd {
+      display: block; margin: 8px 14px 0; padding: 6px 12px; border-radius: var(--r-kaart);
+      background: var(--orange); color: #1d1300; font-size: 0.78rem; font-weight: 600; line-height: 1.3;
+    }
+    #tickets-verouderd[hidden] { display: none; }
+    :root[data-theme="light"] #tickets-verouderd { color: #fff; }
+
     /* ── Outbox banner (rapport nog niet bevestigd verzonden) ──
        (T20) Verticale lijst i.p.v. één platte tekstregel -- per item ticketnummer, stap,
        pogingen, laatste fout en twee knoppen (Opnieuw proberen / Annuleren). */
