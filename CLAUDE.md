@@ -85,21 +85,15 @@ van 4 s serveert die kopie bij trage starts; zonder bump blijft die kopie op de 
 meerdere releases oud, met opgeloste bugs er nog in, en met kans op een mengeling van versies). Dit geldt ook voor
 bugfixes op `main` en voor een rollback.
 
-## Branchbeleid (sinds 2026-10-01, besluit van Brent) — LEES DIT VOOR JE IETS BOUWT
+## Branchbeleid (sinds 2026-10-29, besluit van Brent)
 
-Er lopen twee sporen naast elkaar. Houd ze strikt gescheiden.
+De refactor-tak is afgerond (live sinds v2.0.0); het oude tweesporenbeleid geldt niet meer.
 
-| Tak | Wat | Wat mag erop |
-|---|---|---|
-| `main` | de **live versie** (Netlify deployt bij elke push) | **alleen bugfixes** (PATCH, v1.10.x). Geen nieuwe functies, geen herstructurering, geen refactors. |
-| `refactor` | de **volledige refactor** in uitvoering, te beginnen met het planner-brein (`public/js/planner.js`). Worktree `.claude/worktrees/planner-brein` | alle structurele werk en nieuwe functies, tot de volledige refactor klaar en getest is |
-
-Regels:
-- **Nooit `refactor` (of een tak die ervan afstamt) mergen naar `main` of pushen naar `main`**, tot Brent uitdrukkelijk zegt dat de volledige refactor klaar en getest is. Een lokale pre-push-hook (`.git/hooks/pre-push`) blokkeert zo'n push. Omzeil die hook nooit (`--no-verify` is verboden).
-- Een nieuwe functie of structurele wijziging die Brent vraagt, hoort op `refactor`, niet op `main`. Twijfel je of iets een "bugfix" is: vraag het Brent.
-- **Elke bugfix op `main` wordt daarna ook in `refactor` binnengehaald** (`git merge main` vanuit de refactor-worktree), zodat de twee sporen niet uit elkaar groeien. Noteer het in de ledger van de refactor.
-- Versienummers: `main` krijgt PATCH-versies (1.10.2, 1.10.3, …). Op `refactor` wordt de versie **niet** opgehoogd en `CACHE_NAME` in `public/sw.js` niet aangepast; dat gebeurt pas bij de uiteindelijke release (vermoedelijk 2.0.0 of 1.11.0, beslissing bij Brent). Wijzigingen op `refactor` staan in `CHANGELOG.md` onder "Refactor-tak — nog niet uitgebracht".
-- Stand van de refactor en alle beslissingen: `docs/superpowers/specs/2026-09-30-planner-brein-design.md`, `docs/superpowers/plans/2026-10-01-planner-brein.md` en de ledger `.superpowers/sdd/2026-10-01-planner-brein/progress.md` in de refactor-worktree.
+- `main` is de **live versie**: Netlify deployt bij elke push. Nooit pushen naar `main` zonder uitdrukkelijk "ja" van Brent.
+- Elke wijziging (bugfix of nieuwe functie) krijgt een eigen werktak vanaf `main` (een worktree onder `.claude/worktrees/`).
+- De opzichter voegt afgewerkte takken lokaal samen in een releasetak (`release-X.Y.Z`), hoogt versie, `APP_VERSIE` en `CACHE_NAME` daar één keer op, draait de volledige testsuite en vraagt Brent dan of het live mag.
+- Werktakken zelf hogen de versie en `CACHE_NAME` niet op; ze schrijven hun regel onder `## [Unreleased]` in `CHANGELOG.md`.
+- Nooit `--no-verify`.
 
 ## Agent skills
 
