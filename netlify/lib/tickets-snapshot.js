@@ -20,6 +20,7 @@
 import { randomUUID } from 'node:crypto';
 import { getStore } from '@netlify/blobs';
 import { isTestVerzoek } from './testmodus.js';
+import { heeftNetlifyRuntime } from './lokale-dev.js';
 
 export const SNAPSHOT_SLEUTEL = 'tickets-snapshot';
 export const VEROUDERD_SLEUTEL = 'tickets-snapshot-verouderd';
@@ -134,7 +135,13 @@ export function metTicketsVerouderd(kern, { haalStore, nu } = {}) {
   };
 }
 // Altijd de ECHTE store, ook bij een testverzoek (de momentopname is Zoho-data, geen testdata).
-export const standaardStore = async () => getStore({ name: 'blitz-data', consistency: 'strong' });
+// Testnaad: zetStoreVoorTests(store) laat de functies (plan, comment, ...) in tests naar een nep-store schrijven; nooit in een runtime.
+let testStore = null;
+export function zetStoreVoorTests(store) {
+  if (heeftNetlifyRuntime(process.env)) throw new Error('zetStoreVoorTests is niet toegelaten in een Netlify-runtime');
+  testStore = store ?? null;
+}
+export const standaardStore = async () => testStore ?? getStore({ name: 'blitz-data', consistency: 'strong' });
 
 async function neemBezig(store, id, nu) {
   if (!store) return false;

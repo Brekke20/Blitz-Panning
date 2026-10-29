@@ -19,6 +19,7 @@ import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
 import { getStore } from '@netlify/blobs';
 import { beveiligV1 } from '../lib/beveiligd.js';
 import { alsV2 } from '../lib/v2-adapter.js';
+import { metTicketsVerouderd } from '../lib/tickets-snapshot.js';
 import { logVoorVerzoek } from '../lib/activiteit.js';
 import { eisEigenTicket } from '../lib/eigen-ticket.js';
 
@@ -386,7 +387,8 @@ async function kern(event, context, gebruiker, haalStore = getStore) {
 }
 
 // getStore is een testnaad (enkel voor de activiteitenlog).
+// Na elke wijzigende aanroep (ook een mislukte: er kan al iets in Zoho staan) markeert metTicketsVerouderd de ticket-momentopname als verouderd.
 export const maakHandler = ({ getStore: haalStore } = {}) =>
-  beveiligV1('propose', (event, context, gebruiker) => kern(event, context, gebruiker, haalStore));
+  beveiligV1('propose', metTicketsVerouderd((event, context, gebruiker) => kern(event, context, gebruiker, haalStore)));
 
 export default alsV2(maakHandler());

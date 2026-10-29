@@ -14,6 +14,7 @@ import { getStore } from '@netlify/blobs';
 import { controleerLink, datumInBrussel, bevestigingsNotitie } from '../lib/bevestigingslink.js';
 import { markeerBevestigd } from '../lib/voorstelregister.js';
 import { maakZoho } from '../lib/zoho.js';
+import { markeerVerouderd, standaardStore } from '../lib/tickets-snapshot.js';
 
 const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
@@ -223,6 +224,10 @@ export default async (req) => {
         ok: false,
       }), { status: 502, headers });
     }
+
+    // De status staat nu anders in Zoho: de ticket-momentopname is verouderd (enkel na een geslaagde, door de link bewezen wijziging;
+    // deze publieke functie kan het dus nooit door een ongeldige aanroep afdwingen). Gooit nooit.
+    await markeerVerouderd({ haalStore: standaardStore });
 
     const ip = clientIp(req);
     const timestamp = new Date().toLocaleString('nl-BE', { timeZone: 'Europe/Brussels' });
