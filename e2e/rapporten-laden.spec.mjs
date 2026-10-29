@@ -71,22 +71,34 @@ test.describe('rapportarchief laden (O6)', () => {
     expect(await kalenderTelling(page)).toBeGreaterThan(voorTelling);
   });
 
-  test('na een identiek antwoord opent een kalenderkaartje het rapport nog (het record blijft hetzelfde object)', async ({ page }) => {
+  test('na een identiek antwoord (zonder kalenderrender) opent een kalenderkaartje het rapport nog: het record blijft hetzelfde object', async ({ page }) => {
     const s = await startMetArchief(page, OK(3, RAPPORTEN));
     await tab(page, 'Kalender').click();
-    await expect(page.locator('.cal-ticket.afgerond', { hasText: '#1002' }).first()).toBeVisible();
-    await tab(page, 'Rapporten').click();
+    const kaart = page.locator('.cal-ticket.afgerond', { hasText: '#1002' }).first();
+    await expect(kaart).toBeVisible();
+    // De Kalender-tab blijft open: een tabwissel zou de kalender zelf hertekenen en de kaartjes een vers record geven.
     const voorTelling = await kalenderTelling(page);
-    await zetMerk(page);
-    await herlaad(page);
+    const voorAanroepen = s.stand.aanroepen;
+    await zetMerk(page); // in de (verborgen) archieflijst: weg zodra de lading verwerkt en getekend is
+    await page.evaluate(() => document.querySelector('[data-actie="rapport-herlaad"]').click());
+    await expect.poll(() => s.stand.aanroepen).toBe(voorAanroepen + 1);
     await merkWeg(page);
     expect(await kalenderTelling(page)).toBe(voorTelling); // de kalender is niet opnieuw getekend: de kaartjes houden hun oude record
-    expect(s.stand.aanroepen).toBeGreaterThanOrEqual(2);
-    await tab(page, 'Kalender').click();
-    const [popup] = await Promise.all([page.waitForEvent('popup'), page.locator('.cal-ticket.afgerond', { hasText: '#1002' }).first().click()]);
+    const [popup] = await Promise.all([page.waitForEvent('popup'), kaart.click()]);
     await popup.waitForLoadState('load');
     await expect.poll(() => popup.evaluate(() => document.querySelector('iframe')?.getAttribute('srcdoc') || '')).toContain('1002');
     await popup.close();
+  });
+
+  test('een lokaal gezette verzonden-stand verdwijnt bij een identiek antwoord: de verstuurknop is weer "Verstuur rapport"', async ({ page }) => {
+    await startMetArchief(page, OK(3, RAPPORTEN));
+    const knop = page.locator('.btn-verstuur-rapport').first();
+    await knop.click(); // testmodus: enkel lokaal, zet verzondenKlant
+    await expect(knop).toHaveText('✓ Verzonden');
+    expect(await page.evaluate(() => kern.rapportArchief.lijst()[0].verzondenKlant)).toBeTruthy();
+    await herlaad(page);
+    await expect(page.locator('.btn-verstuur-rapport').first()).toHaveText('✉️ Verstuur rapport');
+    expect(await page.evaluate(() => kern.rapportArchief.lijst()[0].verzondenKlant)).toBeUndefined();
   });
 
   for (const [naam, fout] of [
@@ -150,8 +162,10 @@ test.describe('rapportarchief laden (O6)', () => {
     for (const antwoord of [OK(0, []), OK(2, [rapport('r9', '9999')])]) {
       s.stand.antwoord = antwoord;
       const n = waarschuwingen.length;
+      await zetMerk(page);
       await herlaad(page);
       await expect.poll(() => waarschuwingen.length).toBe(n + 1);
+      await merkWeg(page); // de lijst wordt uit de lokale gegevens hertekend (een vergrendelde verstuurknop gaat weer open)
     }
     expect(waarschuwingen.every(w => w.includes('genegeerd'))).toBe(true);
     await expect(page.locator('#toast')).not.toContainText('mislukt');
@@ -170,6 +184,9 @@ test.describe('rapportarchief laden (O6)', () => {
     await startApp(page, { loginRol: 'beheerder', technieker: 'all', overschrijf: { 'rapport-archief': s.stub } });
     await tab(page, 'Rapporten').click();
     await expect(body(page)).toContainText('✕ Laden mislukt: Serverfout (HTTP 500)');
+    // De opstartlading en de lading van de tabklik falen allebei (elk een HTTP-fout en een consolefout): wacht op beide.
+    await expect.poll(() => s.stand.aanroepen).toBeGreaterThanOrEqual(2);
+    await expect.poll(() => consoleFouten.filter(f => f.includes('rapport-archief')).length).toBeGreaterThanOrEqual(2 * s.stand.aanroepen);
     await neemFoutenWeg(consoleFouten);
     expect(await versie(page)).toBeNull();
     s.stand.antwoord = OK(3, RAPPORTEN);

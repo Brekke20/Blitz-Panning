@@ -32,10 +32,11 @@ let _rapportFilter = 'alle'; // 'alle' | 'Interventie' | 'Installatie' | 'mijn'
 // steunt op die hertekening (zie schermen/rapport-verzenden.js: "Een latere hertekening zet de knop weer open").
 let _laatsteTekst = null;
 
-// Een mislukte lading laat lijst en versie ongemoeid: stond er al een lijst, dan blijft die staan met een melding; anders de foutregel.
-function meldLaadFout(body, err) {
-  if (_archiefVersie !== null) toast('✕ Rapporten vernieuwen mislukt: ' + foutTekst(err));
-  else body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">✕ Laden mislukt: ${foutTekst(err)}</div>`;
+// Een mislukte lading laat lijst en versie ongemoeid. Staat er een lijst op het scherm, dan blijft die staan met een melding. Is er nog
+// niets getekend (het scherm toont "Laden…", of er is nog nooit een lading geslaagd: dan staat er hooguit de lege-lijsttekst), dan komt de foutregel.
+function meldLaadFout(body, err, toondeLaden) {
+  if (toondeLaden || _archiefVersie === null) body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">✕ Laden mislukt: ${foutTekst(err)}</div>`;
+  else toast('✕ Rapporten vernieuwen mislukt: ' + foutTekst(err));
 }
 
 // Bij een byte-gelijk antwoord blijven de bestaande record-objecten bestaan (de kalenderkaartjes zoeken hun rapport met
@@ -64,7 +65,7 @@ export async function laadRapportArchief() {
     try { data = JSON.parse(tekst); } catch { throw new Error('Onleesbaar antwoord van de server'); }
     if (!Array.isArray(data?.rapports)) throw new Error('Onverwacht antwoord van de server');
   } catch (err) {
-    meldLaadFout(body, err);
+    meldLaadFout(body, err, toondeLaden);
     return;
   }
   const versie = typeof data.versie === 'number' ? data.versie : 0;
@@ -72,7 +73,7 @@ export async function laadRapportArchief() {
   // van de server bij een opslagstoring: { versie: 0, rapports: [] }): lijst en versie blijven, zonder melding aan de gebruiker.
   if (typeof _archiefVersie === 'number' && versie < _archiefVersie) {
     console.warn(`Rapportarchief: antwoord met versie ${versie} genegeerd (bekend: ${_archiefVersie})`);
-    if (toondeLaden) renderRapportArchief(); // geen blijvende "Laden…"
+    renderRapportArchief(); // uit de lokale, vertrouwde gegevens: geen blijvende "Laden…" en een vergrendelde verstuurknop gaat weer open
     return;
   }
   try {
