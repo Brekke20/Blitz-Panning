@@ -4,7 +4,7 @@ import { startSalesApp, kiesVerkoper, BEHEERDER } from './sales-hulp.mjs';
 // Kop B, taak 2: de beheerder wisselt van werkruimte via de persoonskiezer. Een technieker (of "Alle technici") = Techniek, een verkoper = Sales.
 // De hoofdtab "Sales" bestaat niet meer; de tabs wisselen en de beheerder blijft op het gelijkaardige scherm. De stubs zijn de echte sales-handlers.
 const zichtbareTabs = (page) => page.locator('.tabs-inner .tab:visible');
-const tab = (page, naam) => page.getByRole('tab', { name: new RegExp('^' + naam + '( [0-9]+)?$') }); // Wachtrij en Ingepland hebben een teller
+const tab = (page, naam) => page.getByRole('tab', { name: new RegExp('^' + naam + '(, .+)?$') }); // Wachtrij en Ingepland hebben een teller
 const knop = (page) => page.locator('#person-btn');
 const actieveTab = (page) => page.locator('.tab.active');
 const toast = (page) => page.locator('#toast');

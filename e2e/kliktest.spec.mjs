@@ -10,7 +10,7 @@ import { ROLLEN, startRol, labelsVan } from './kliktest-hulp.mjs';
 
 const VERWACHT_GSM = (rol) => rol.tabs.filter((naam) => naam !== 'Route'); // Route is alleen-groot: niet op een gsm
 // Een tab kan een teller dragen ("Ingepland 3"): daarom een patroon op het begin van de naam.
-const tabNaam = (naam) => new RegExp(`^${naam}(\\s|$)`);
+const tabNaam = (naam) => new RegExp(`^${naam}(,|\\s|$)`);
 const dokLabels = (page) => labelsVan(page.locator('.tabs-inner .tab:visible'));
 
 async function bladLabels(page) {
