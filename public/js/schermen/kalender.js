@@ -5,7 +5,7 @@
 // binnen functies, nooit op moduleniveau; de hoogste-niveau-effecten (observer, resize, visibilitychange) draaien
 // in `initKalender`. Alleen `kern/brug.js` wijst `window`-namen toe. De schermtoestand (`kalView`, auto-scrollsleutel; de datum is de gedeelde `gekozenDatum`) is module-privé; de knoppen lopen via data-actie-delegatie (C8).
 import { toestand } from '../kern/toestand.js';
-import { magPlannenVoor } from '../kern/sessie.js';
+import { magPlannenVoor, huidigeRechten, huidigeGebruiker } from '../kern/sessie.js';
 import { escHtml, zetPressed, registreerActies, registreerWijzigActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
 import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, volgendeWerkdagVan, openingsDatum } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
@@ -47,8 +47,24 @@ let renderTeller = 0; // e2e telt hertekeningen hiermee, ook interne oproepen
 // Aantal keren dat renderKalender() draaide (voor e2e/kern.spec.mjs).
 export function renderTelling() { return renderTeller; }
 export function isMaandweergave() { return kalView === 'month'; }
-// Tabwissel naar Kalender: tekenen en naar de werkdag scrollen.
-export function activeerKalender() { renderKalender(); kalAutoScroll(true); }
+// Tabwissel naar Kalender: enkel hertekenen als er iets veranderd kan zijn sinds de vorige zichtbare render (O3), en altijd naar de werkdag scrollen.
+// Een directe renderKalender() (o.a. rapport-archief.js na een gewijzigd archief) tekent altijd; enkel dit tabpad kan overslaan.
+let _kalStaat = null;        // { zichtbaar, sleutel, archief, archiefLengte } van de laatste geslaagde render; null = nog niets (of mislukt)
+let _kalVerouderd = false;   // een invoer veranderde sinds de laatste render (markeerVerouderd)
+export function markeerVerouderd() { _kalVerouderd = true; }
+const kalZichtbaar = () => { const v = document.getElementById('view-kalender'); return !!v && v.classList.contains('active') && v.getClientRects().length > 0; };
+// Alles wat de render leest buiten de toestand-sleutels (die markeren zelf via app.js): de dag, de weergave, de indeling en het toestel,
+// het venster (de rasterhoogte wordt verborgen niet gemeten) en de rechten (magPlannenVoor).
+function kalSleutel() {
+  const a = window.apparaat || {}, g = huidigeGebruiker();
+  return JSON.stringify([localISO(new Date()), kalView, a.indeling, a.rol, a.planEigen, window.innerWidth, window.innerHeight,
+    gekozenIso(), toestand.get('activeAssigneeFilter'), huidigeRechten(), g?.rol ?? null, g?.zohoNaam ?? null]);
+}
+function kalIsVers() {
+  const s = _kalStaat, archief = afh.rapportArchief();
+  return !!s && s.zichtbaar && !_kalVerouderd && s.sleutel === kalSleutel() && s.archief === archief && s.archiefLengte === archief.length;
+}
+export function activeerKalender() { if (!kalIsVers()) renderKalender(); kalAutoScroll(true); }
 
 
 // Een app die open blijft (tablet 's nachts of in het weekend) schuift mee: ligt de gekozen datum vóór vandaag, dan wordt het vandaag.
@@ -491,6 +507,13 @@ function kalZetLabel(tekst) {
   else knop.removeAttribute('aria-label');
 }
 export function renderKalender() {
+  _kalStaat = null; // een render die faalt laat niets onthouden: de volgende tabwissel tekent opnieuw
+  const zichtbaar = kalZichtbaar(), sleutel = kalSleutel(), archief = afh.rapportArchief();
+  _kalVerouderd = false;
+  renderKalenderInhoud();
+  _kalStaat = { zichtbaar, sleutel, archief, archiefLengte: archief.length };
+}
+function renderKalenderInhoud() {
   renderTeller++;
   kalZetVandaagKnop();
   afh.sjLog('renderKalender'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse

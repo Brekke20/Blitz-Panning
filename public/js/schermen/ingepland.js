@@ -5,6 +5,7 @@
 // `window`-namen toe.
 import { eventTekst } from './evenement-laag.js';
 import { toestand } from '../kern/toestand.js';
+import { huidigeRechten, huidigeGebruiker } from '../kern/sessie.js';
 import { escHtml, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
 import { localISO, getWeekStart, fmtDateShort, verschuifDatum } from '../kern/tijd.js';
 import { ticketsVanTechnieker } from '../kern/selecties.js';
@@ -31,7 +32,31 @@ export function initIngepland(afhankelijkheden) {
 // Brent-verzoek (proefperiode): Ingepland toont dezelfde week als de Kalender en de Route-tab (gedeelde `gekozenDatum`); ‹ › = één week.
 function gepNav(dir) { toestand.set('gekozenDatum', verschuifDatum(toestand.get('gekozenDatum'), { dagen: 7 * dir })); }
 
+// Tabwissel naar Ingepland: enkel hertekenen als er iets veranderd kan zijn sinds de vorige zichtbare render (O3); directe
+// renderGepland()-aanroepen tekenen altijd. Zelfde patroon als activeerKalender (schermen/kalender.js).
+let _gepStaat = null;        // { zichtbaar, sleutel } van de laatste geslaagde render; null = nog niets (of mislukt)
+let _gepVerouderd = false;   // een invoer veranderde sinds de laatste render (markeerVerouderd)
+export function markeerVerouderd() { _gepVerouderd = true; }
+const gepZichtbaar = () => { const v = document.getElementById('view-gepland'); return !!v && v.classList.contains('active') && v.getClientRects().length > 0; };
+// Wat de render leest buiten de toestand-sleutels (die markeren zelf via app.js): de dag (vandaag-kop), het venster en toestel, en de rechten.
+function gepSleutel() {
+  const a = window.apparaat || {}, g = huidigeGebruiker();
+  return JSON.stringify([localISO(new Date()), a.indeling, a.rol, a.planEigen, window.innerWidth, window.innerHeight,
+    toestand.get('gekozenDatum'), toestand.get('activeAssigneeFilter'), huidigeRechten(), g?.rol ?? null, g?.zohoNaam ?? null]);
+}
+export function activeerGepland() {
+  const s = _gepStaat;
+  if (!s || !s.zichtbaar || _gepVerouderd || s.sleutel !== gepSleutel()) renderGepland();
+}
+
 export function renderGepland() {
+  _gepStaat = null; // een render die faalt laat niets onthouden: de volgende tabwissel tekent opnieuw
+  const zichtbaar = gepZichtbaar(), sleutel = gepSleutel();
+  _gepVerouderd = false;
+  renderGeplandInhoud();
+  _gepStaat = { zichtbaar, sleutel };
+}
+function renderGeplandInhoud() {
   renderTeller++;
   afh.sjLog('renderGepland'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
   const today     = new Date(); today.setHours(0,0,0,0);
