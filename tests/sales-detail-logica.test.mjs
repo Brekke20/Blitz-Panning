@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { adresSoort } from '../public/js/sales/adres.js';
 import { pasLeadToe } from '../public/js/sales/lead-regels.js';
-import { valideerDetail, valideerVastUur, vindBotsingen } from '../public/js/schermen/sales-detail-logica.js';
+import { valideerDetail, valideerVastUur, valideerLeadUur, vindBotsingen } from '../public/js/schermen/sales-detail-logica.js';
 
 const geldig = (extra = {}) => ({ straat: 'Dorpsstraat', huisnr: '12', postcode: '3640', gemeente: 'Kinrooi', notitie: 'Bel eerst', duurMin: '45', ...extra });
 
@@ -175,4 +175,26 @@ test('routeHerberekend: enkel een voorgesteld of bevestigd bezoek dat van enkel 
   assert.equal(routeHerberekend({ ...postcode, status: 'te-plannen' }, { ...volledig, status: 'te-plannen' }), false);
   assert.equal(routeHerberekend(volledig, volledig), false);
   assert.equal(routeHerberekend(postcode, postcode), false);
+});
+
+// ---- valideerLeadUur (optionele Datum + Uur in "+ Lead") ----
+test('valideerLeadUur: beide leeg = geen afspraak (gedrag ongewijzigd)', () => {
+  assert.deepEqual(valideerLeadUur({ datum: '', start: '', vandaag: '2026-10-12' }), { geen: true });
+  assert.deepEqual(valideerLeadUur({ datum: '  ', start: null, vandaag: '2026-10-12' }), { geen: true });
+  assert.deepEqual(valideerLeadUur({ vandaag: '2026-10-12' }), { geen: true });
+});
+
+test('valideerLeadUur: beide geldig geeft het vaste uur', () => {
+  assert.deepEqual(valideerLeadUur({ datum: '2026-10-12', start: '09:30', vandaag: '2026-10-12' }), { vast: { datum: '2026-10-12', start: '09:30' } });
+});
+
+test('valideerLeadUur: enkel een datum of enkel een uur is een fout op het ontbrekende veld (geen half plan)', () => {
+  assert.deepEqual(valideerLeadUur({ datum: '2026-10-13', start: '', vandaag: '2026-10-12' }).fouten, { uur: 'Geef ook een uur op, of wis de datum' });
+  assert.deepEqual(valideerLeadUur({ datum: '', start: '09:30', vandaag: '2026-10-12' }).fouten, { datum: 'Geef ook een datum op, of wis het uur' });
+});
+
+test('valideerLeadUur: ongeldige waarden krijgen de foutteksten van het vaste uur, per veld', () => {
+  assert.deepEqual(valideerLeadUur({ datum: '2026-10-11', start: '09:30', vandaag: '2026-10-12' }).fouten, { datum: 'Kies een datum vanaf vandaag' });
+  assert.deepEqual(valideerLeadUur({ datum: '2026-10-13', start: '9:30', vandaag: '2026-10-12' }).fouten, { uur: 'Geef het uur als UU:MM' });
+  assert.deepEqual(valideerLeadUur({ datum: '2026-02-30', start: '25:00', vandaag: '2026-10-12' }).fouten, { datum: 'Kies een datum vanaf vandaag', uur: 'Geef het uur als UU:MM' });
 });

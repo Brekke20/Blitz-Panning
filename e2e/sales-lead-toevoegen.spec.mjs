@@ -169,6 +169,127 @@ test.describe('sales: lead manueel toevoegen', () => {
     await verwachtFout(consoleFouten, '/api/sales-import', 503);
   });
 
+  // ---- optionele Datum + Uur: de lead meteen als vast uur inplannen (klok: ma 5 okt 2026 09:00) ----
+  const bevestigdeKolom = (page) => lijst(page).locator('.sales-kolom[data-kolom="bevestigd"]');
+  const tePlannenKolom = (page) => lijst(page).locator('.sales-kolom[data-kolom="tePlannen"]');
+  const vulMinimum = (page) => vul(page, { Voornaam: 'Greet', Gsm: '0470 11 22 33', Postcode: '3500' });
+  const vulUur = async (page, datum, uur) => {
+    await venster(page).getByLabel('Datum', { exact: true }).fill(datum);
+    await venster(page).getByLabel('Uur', { exact: true }).fill(uur);
+  };
+  const opslaan = (page) => venster(page).getByRole('button', { name: 'Opslaan' }).click();
+
+  test('datum en uur leeg: niets wordt ingepland (geen PATCH, de lead blijft "te plannen")', async ({ page, verzoeken }) => {
+    await startSalesApp(page);
+    await plusLead(page).click();
+    await vulMinimum(page);
+    await opslaan(page);
+    await expect(venster(page)).toHaveCount(0);
+    await expect(tePlannenKolom(page).locator('.sales-kaart', { hasText: 'Greet' })).toBeVisible();
+    await expect(page.locator('#toast')).toHaveText('Lead toegevoegd');
+    expect(verzoeken.van('/api/sales-import', 'POST')).toHaveLength(1);
+    expect(verzoeken.van('/api/sales', 'PATCH')).toEqual([]);
+  });
+
+  test('datum en uur ingevuld: de lead is meteen een vast uur (Bevestigd), niet in het importverzoek en zichtbaar in de agenda', async ({ page, verzoeken }) => {
+    await startSalesApp(page);
+    await plusLead(page).click();
+    await vulMinimum(page);
+    await vulUur(page, '2026-10-06', '10:30');
+    await opslaan(page);
+    await expect(venster(page)).toHaveCount(0);
+    await expect(bevestigdeKolom(page).locator('.sales-kaart', { hasText: 'Greet' })).toContainText('10:30');
+    await expect(tePlannenKolom(page).locator('.sales-kaart')).toHaveCount(0);
+    await expect(page.locator('#toast')).toContainText('Lead toegevoegd');
+    await expect(page.locator('#toast')).toContainText('10:30');
+    // het uur zit niet in het importverzoek, dat blijft ongewijzigd; het vaste uur volgt als wijziging
+    expect(verzoeken.van('/api/sales-import', 'POST')[0].body.export.leads[0]).not.toHaveProperty('planning');
+    const patches = verzoeken.van('/api/sales', 'PATCH');
+    expect(patches).toHaveLength(1);
+    expect(patches[0].body.leads[0].velden).toEqual({ status: 'bevestigd', planning: { datum: '2026-10-06', start: '10:30', vast: true } });
+    await expect(plusLead(page)).toBeFocused();
+    await page.getByRole('tab', { name: 'Kalender', exact: true }).click();
+    const blok = page.locator('#view-sales-kalender .day-col[data-date="2026-10-06"] .tl-block.sales-bevestigd');
+    await expect(blok).toHaveCount(1);
+    await expect(blok).toContainText('Greet');
+    await expect(blok).toContainText('10:30');
+  });
+
+  test('enkel een datum of enkel een uur: een duidelijke melding op het lege veld en niets bewaard', async ({ page, verzoeken }) => {
+    await startSalesApp(page);
+    await plusLead(page).click();
+    await vulMinimum(page);
+    await venster(page).getByLabel('Datum', { exact: true }).fill('2026-10-06');
+    await opslaan(page);
+    await expect(venster(page)).toContainText('Geef ook een uur op, of wis de datum');
+    await expect(venster(page).getByLabel('Uur', { exact: true })).toBeFocused();
+    await venster(page).getByLabel('Datum', { exact: true }).fill('');
+    await venster(page).getByLabel('Uur', { exact: true }).fill('10:30');
+    await opslaan(page);
+    await expect(venster(page)).toContainText('Geef ook een datum op, of wis het uur');
+    await expect(venster(page).getByLabel('Datum', { exact: true })).toBeFocused();
+    expect(verzoeken.van('/api/sales-import')).toEqual([]);
+    expect(verzoeken.van('/api/sales', 'PATCH')).toEqual([]);
+    // een datum in het verleden wordt ook geweigerd
+    await venster(page).getByLabel('Datum', { exact: true }).fill('2026-10-01');
+    await opslaan(page);
+    await expect(venster(page)).toContainText('Kies een datum vanaf vandaag');
+    expect(verzoeken.van('/api/sales-import')).toEqual([]);
+  });
+
+  test('botsing met een vast uur: eerst de bevestigingsvraag; Terug bewaart de lead zonder uur, Toch vastleggen legt het uur vast', async ({ page, verzoeken }) => {
+    const bezet = lead('l2', 'Peeters', { status: 'bevestigd', planning: { datum: '2026-10-06', start: '10:00', vast: true } });
+    await startSalesApp(page, { leads: [bezet] });
+    await plusLead(page).click();
+    await vulMinimum(page);
+    await vulUur(page, '2026-10-06', '10:30');
+    await opslaan(page);
+    const dialoog = page.getByRole('alertdialog');
+    await expect(dialoog).toContainText('Botsing met een andere afspraak');
+    await expect(dialoog).toContainText('Test Peeters');
+    await expect(dialoog).toContainText('10:00');
+    await dialoog.getByRole('button', { name: 'Terug' }).click();
+    await expect(tePlannenKolom(page).locator('.sales-kaart', { hasText: 'Greet' })).toBeVisible();
+    await expect(page.locator('#toast')).toContainText('zonder vast uur');
+    expect(verzoeken.van('/api/sales', 'PATCH')).toEqual([]);
+
+    await plusLead(page).click();
+    await vul(page, { Voornaam: 'Hilde', Gsm: '0471 22 33 44', Postcode: '3500' });
+    await vulUur(page, '2026-10-06', '10:30');
+    await opslaan(page);
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Toch vastleggen' }).click();
+    await expect(bevestigdeKolom(page).locator('.sales-kaart', { hasText: 'Hilde' })).toContainText('10:30');
+    expect(verzoeken.van('/api/sales', 'PATCH')).toHaveLength(1);
+  });
+
+  test('een klant die al in de lijst staat: er wordt geen uur op de bestaande lead gezet, de fiche opent', async ({ page, verzoeken }) => {
+    await startSalesApp(page, { leads: [lead('l1', 'Verhaegen', { gsm: '32470112233' })] });
+    await plusLead(page).click();
+    await vul(page, { Voornaam: 'Greetje', Gsm: '+32 470 11 22 33', Postcode: '3500' });
+    await vulUur(page, '2026-10-06', '10:30');
+    await opslaan(page);
+    await expect(page.locator('#toast')).toContainText('Deze klant staat al in je lijst');
+    await expect(page.locator('.sales-overlay.open .mhdr-title')).toHaveText('Test Verhaegen');
+    await expect(lijst(page).locator('.sales-kaart')).toHaveCount(1);
+    await expect(bevestigdeKolom(page).locator('.sales-kaart')).toHaveCount(0);
+    expect(verzoeken.van('/api/sales', 'PATCH')).toEqual([]);
+  });
+
+  test('mislukt het vastleggen na het bewaren: de lead blijft, de melding wijst naar de fiche (niet opnieuw proberen in het venster)', async ({ page, verzoeken, consoleFouten }) => {
+    const echte = salesStubs();
+    const sales = async (v) => (v.methode === 'PATCH' ? { status: 503, json: { error: OPSLAG_TEKST, code: 'opslag-storing' } } : echte.sales(v));
+    await startSalesApp(page, { overschrijf: { ...echte, sales } });
+    await plusLead(page).click();
+    await vulMinimum(page);
+    await vulUur(page, '2026-10-06', '10:30');
+    await opslaan(page);
+    await expect(venster(page)).toHaveCount(0);
+    await expect(page.locator('#toast')).toContainText('het uur kon niet vastgelegd worden');
+    await expect(tePlannenKolom(page).locator('.sales-kaart', { hasText: 'Greet' })).toBeVisible();
+    expect(verzoeken.van('/api/sales-import', 'POST')).toHaveLength(1);
+    await verwachtFout(consoleFouten, '/api/sales', 503);
+  });
+
   test('Annuleren en Escape sluiten zonder iets te bewaren; de focus keert terug op "+ Lead"', async ({ page, verzoeken }) => {
     await startSalesApp(page);
     await plusLead(page).click();
