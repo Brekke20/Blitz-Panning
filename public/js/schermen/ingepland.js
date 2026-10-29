@@ -7,6 +7,7 @@ import { eventTekst } from './evenement-laag.js';
 import { toestand } from '../kern/toestand.js';
 import { huidigeRechten, huidigeGebruiker } from '../kern/sessie.js';
 import { escHtml, registreerActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
+import { bouwTicketsSkelet, bouwTicketsMelding } from '../kern/skelet.js';
 import { localISO, getWeekStart, fmtDateShort, verschuifDatum } from '../kern/tijd.js';
 import { ticketsVanTechnieker } from '../kern/selecties.js';
 import { zetSamenvatting } from './paginakop.js';
@@ -124,7 +125,14 @@ function renderGeplandInhoud() {
   }
   // Badge toont gefilterd gepland-aantal (alle weken); een lege getoonde week legt dat uit en biedt de sprong naar de dichtstbijzijnde week met service.
   const filteredGepland = ticketsVanTechnieker(allGepland, activeAssigneeFilter);
-  if (!any) {
+  // L1: zolang de tickets onbekend zijn (geen bewaarde kopie, nog geen lading) is "Geen geplande service deze week" een lege staat die
+  // liegt: een skelet (onzichtbaar tot app.js na 150 ms het attribuut zet) en geen "andere week"-hint.
+  const toonLaadSkelet = !any && !afh.ticketsBekend();
+  if (toonLaadSkelet) body.setAttribute('aria-busy', 'true'); else body.removeAttribute('aria-busy');
+  if (toonLaadSkelet) {
+    body.innerHTML = '';
+    body.append(bouwTicketsSkelet('kaarten', { aantal: 2, variant: 'lijst', metKop: true }), bouwTicketsMelding());
+  } else if (!any) {
     body.innerHTML = `<div class="empty">${escHtml(eventTekst('ingeplandLeeg', 'Geen geplande service deze week'))}</div>`;
     const datums = filteredGepland.filter(t => t.interventieDatum).map(t => localISO(new Date(t.interventieDatum))).sort();
     if (datums.length) {
@@ -142,5 +150,5 @@ function renderGeplandInhoud() {
   // voorgestelde tickets van dezelfde persoon met een datum in de getoonde week.
   const wachtBevestiging = ticketsVanTechnieker(toestand.get('allPending'), activeAssigneeFilter)
     .filter(t => t.status === 'Wachten op bevestiging planning' && t.interventieDatum && weekSleutels.has(localISO(new Date(t.interventieDatum)))).length;
-  zetSamenvatting('gepland', samenvattingVoor('gepland', { dezeWeek, wachtBevestiging }));
+  zetSamenvatting('gepland', samenvattingVoor('gepland', { dezeWeek, wachtBevestiging, geladen: afh.ticketsBekend() }));
 }

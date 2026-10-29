@@ -7,6 +7,7 @@
 import { toestand } from '../kern/toestand.js';
 import { magPlannenVoor, huidigeRechten, huidigeGebruiker } from '../kern/sessie.js';
 import { escHtml, zetPressed, registreerActies, registreerWijzigActies, maakActiveerbaar, strengeAfh } from '../kern/ui.js';
+import { bouwTicketsSkelet, bouwTicketsMelding } from '../kern/skelet.js';
 import { localISO, getWeekStart, fmtDateShort, verschuifDatum, weekVerschil, volgendeWerkdagVan, openingsDatum } from '../kern/tijd.js';
 import { blokkeringenVoor, planItemsVanTechnieker, eigenAfsprakenVoor } from '../kern/selecties.js';
 import {
@@ -486,7 +487,7 @@ function zetKalenderSamenvatting(zonderDatum) {
   const filter = toestand.get('activeAssigneeFilter');
   const dagen = zichtbareDagen(gekozenDatum(), { werkdagen: toestand.get('settings').werkdagen, tabletStaand: false, weekOffset: 0, dagOffset: 0 });
   const gepland = dagen.reduce((n, d) => n + planItemsVanTechnieker(toestand.get('planning')[localISO(d)], filter).length, 0);
-  zetSamenvatting('kalender', samenvattingVoor('kalender', { week: isoWeekNummer(gekozenDatum()), gepland, zonderDatum }));
+  zetSamenvatting('kalender', samenvattingVoor('kalender', { week: isoWeekNummer(gekozenDatum()), gepland, zonderDatum, geladen: afh.ticketsBekend() }));
 }
 
 function kalZetVandaagKnop() {
@@ -567,6 +568,7 @@ function renderKalenderInhoud() {
   // Branch: week of maand
   if (kalView === 'month') {
     const mg = document.getElementById('week-grid');
+    mg.removeAttribute('aria-busy'); // de maandweergave heeft geen skelet (een lege cel beweert niets)
     mg.className = 'month-grid';
     mg.style.height = '';
     renderMonthView(today);
@@ -585,10 +587,15 @@ function renderKalenderInhoud() {
 
   const grid = document.getElementById('week-grid');
   const isDesktopTijdlijnWeek = window.apparaat.indeling !== 'smal';
+  // L1: zolang de tickets onbekend zijn (geen bewaarde kopie, nog geen lading) is "—" per dag en "0/x" in de kop een lege staat die op "niets
+  // gepland" lijkt: een skeletkaartje per dagkolom (en een blokje i.p.v. de capaciteit), onzichtbaar tot app.js het attribuut zet (150 ms).
+  const ticketsLaden = !afh.ticketsBekend();
+  if (ticketsLaden) grid.setAttribute('aria-busy', 'true'); else grid.removeAttribute('aria-busy');
   // scrollpositie bewaren: innerHTML = '' zet die anders terug op 0 bij elke her-render (polling)
   const bewaardTop = grid.scrollTop, bewaardLeft = grid.scrollLeft;
   grid.className = isDesktopTijdlijnWeek ? 'week-grid tl-mode' : 'week-grid';
   grid.innerHTML = '';
+  if (ticketsLaden) grid.appendChild(bouwTicketsMelding()); // één "Laden…" voor schermlezers (niet per dagkolom)
   if (isDesktopTijdlijnWeek) kalPasGridHoogteAan(); else grid.style.height = '';
 
   // Post-launch feedback (2026-08-17): de uren staan vóór maandag in een eigen smalle kolom (zie
@@ -617,13 +624,13 @@ function renderKalenderInhoud() {
           <div class="day-hdr-name ${isToday ? 'today' : isPast ? 'past' : ''}">${day.toLocaleDateString('nl-BE', { weekday:'short' })}</div>
           <div class="day-hdr-num${isToday ? ' today' : ''}">${day.getDate()}</div>
         </div>
-        <div class="day-cap coord-only ${capFull ? 'full' : ''}">${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔒 Geblokkeerd' : capLabel}</div>
+        <div class="day-cap coord-only ${capFull ? 'full' : ''}">${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔒 Geblokkeerd' : ticketsLaden ? '<span class="skelet skelet--tickets skelet--cap" aria-hidden="true"><span class="skelet-blok"></span></span>' : capLabel}</div>
         <button class="day-block-btn coord-only ${holidayName ? 'holiday' : isDayBlocked ? 'blocked' : ''}" data-actie="kal-blok" data-date="${dateStr}">
           ${holidayName ? `🎌 ${holidayName}` : isDayBlocked ? '🔓 Blokkade beheren' : dayBlockCount > 0 ? `⏱ ${dayBlockCount} uitzondering${dayBlockCount > 1 ? 'en' : ''}` : '⏱ Beschikbaar'}
         </button>
       </div>
       <div class="day-body${holidayName ? ' holiday-day' : isDayBlocked ? ' blocked-day' : ''}" id="daybody-${dateStr}">
-        ${dayStops.length === 0 ? '<div class="day-empty">—</div>' : ''}
+        ${dayStops.length === 0 && !ticketsLaden ? '<div class="day-empty">—</div>' : ''}
       </div>`;
 
     // Lokale afspraken (import / manueel)
@@ -640,6 +647,8 @@ function renderKalenderInhoud() {
     );
 
     const dayBodyEl = col.querySelector('.day-body');
+    // Ook in een kolom met een afspraak of rapportkaart: anders leest een dag met enkel een afspraak als "geen tickets" (M-L1-2).
+    if (ticketsLaden) dayBodyEl.appendChild(bouwTicketsSkelet('kaarten', { aantal: 1, variant: 'kal' }));
     const isDesktopTijdlijn = window.apparaat.indeling !== 'smal';
     if (isDesktopTijdlijn) {
       dayBodyEl.appendChild(renderDayTimeline(dateStr, dayStops, dayEvents, dayReports, col.querySelector('.day-hdr')));

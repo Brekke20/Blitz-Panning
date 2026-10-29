@@ -57,6 +57,7 @@ const ROUTE_AFH = {
   telNummer: () => '',
   meervoud: (n, e, m) => `${n} ${n === 1 ? e : m}`,
   aankomstVoor: () => undefined,
+  ticketsBekend: () => true, // L1: de tickets zijn gekend (geen laadskelet in de lijst)
 };
 route.initRoute(ROUTE_AFH);
 toestand.set('settings', { vanTijd: '08:00', startlocatie: 'Start', drukteKleuring: false, werkdagen: [1, 2, 3, 4, 5] });

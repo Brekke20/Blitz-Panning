@@ -348,6 +348,33 @@
       .skelet-route-lijst { flex: none; }
       .skelet-kaartvlak { min-height: 180px; }
     }
+    /* L1: het skelet van Kalender, Ingepland en Route (kern/skelet.js: maakTicketsStand). Het staat vanaf het begin in de DOM (de plaats is
+       gereserveerd: geen sprong als het zichtbaar wordt) maar is onzichtbaar tot app.js na 150 ms html[data-tickets-laden="zichtbaar"] zet.
+       De vertraging zit in die ene JS-timer, NIET in CSS (animation-delay loopt in echte tijd: niet door een nepklok te sturen). De regel staat
+       op de .skelet-wortel en niet op .skelet-blok (daar staat onder reduced motion `animation: none !important`): het verschijnen is een stap
+       in dekking, geen beweging, dus ook met reduced motion zichtbaar. */
+    .skelet--tickets { opacity: 0; }
+    html[data-tickets-laden="zichtbaar"] .skelet--tickets { opacity: 1; }
+    .skelet--tickets .skelet-blok { animation-play-state: paused; }
+    html[data-tickets-laden="zichtbaar"] .skelet--tickets .skelet-blok { animation-play-state: running; }
+    /* De "Laden…" voor schermlezers (één per scherm): pas aanwezig zodra het skelet zichtbaar is. */
+    .skelet-melding--tickets { display: none; }
+    html[data-tickets-laden="zichtbaar"] .skelet-melding--tickets { display: block; }
+    /* Maten: één kolom (het raster van 240 px hieronder is voor de Wachtrij) en de opvulling van de echte kaart, zodat er niets verspringt. */
+    .skelet--kal, .skelet--lijst { width: 100%; }
+    .skelet--kal .skelet-kaarten, .skelet--lijst .skelet-kaarten { grid-template-columns: minmax(0, 1fr); }
+    .skelet--kal .skelet-kaarten { gap: 5px; }
+    .skelet--kal .skelet-kaart { padding: 8px 9px; border-radius: var(--r-ev); }
+    .skelet--lijst .skelet-kaarten { gap: 10px; }
+    .skelet--lijst .skelet-kaart { padding: 15px 18px; }
+    html[data-indeling="smal"] .skelet--lijst .skelet-kaarten { gap: 12px; }
+    html[data-indeling="smal"] .skelet--lijst .skelet-kaart { padding: 18px 20px; border-radius: 26px; }
+    #route-list .skelet--lijst .skelet-kaart { padding: 10px 12px; }
+    #route-list .skelet--lijst .skelet-kaarten { gap: 6px; }
+    .skelet-kop { height: 12px; width: 38%; margin: 11px 15px 8px; }
+    /* De kapitaalkop van de capaciteit in een dagkop (Kalender): een kort blokje i.p.v. "0/x". */
+    .skelet--cap { display: inline-block; vertical-align: middle; width: 3em; height: 0.8em; }
+
     /* Reduced motion: geen shimmer, enkel stille grijze blokken (de algemene regel hierboven zou hem anders eenmalig laten flitsen). */
     @media (prefers-reduced-motion: reduce) {
       .skelet-blok { animation: none !important; background: color-mix(in srgb, var(--text) 13%, transparent); }

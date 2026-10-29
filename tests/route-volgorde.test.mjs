@@ -66,6 +66,7 @@ route.initRoute({
   telNummer: () => '',
   meervoud: (n, e, m) => `${n} ${n === 1 ? e : m}`,
   aankomstVoor: () => undefined,
+  ticketsBekend: () => true, // L1: de tickets zijn gekend (geen laadskelet in de lijst)
   loadVoorstelStatus: async () => voorstelStatusOk,
   loadTickets: async () => { loadTicketsAantal++; },
   roundToNextQuarterStr,

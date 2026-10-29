@@ -12,6 +12,9 @@
 //  - Het vak krijgt aria-busy="true" zolang er geladen wordt (alleen als het die nog niet had: een eigenaar die zelf aria-busy beheert houdt dat).
 //    Het skelet zelf is aria-hidden; een visueel verborgen "Laden…" (.sr-only) meldt het wachten aan schermlezers.
 //  - stop() is idempotent en ruimt alles op (timer, skelet, verborgen elementen, aria-busy), ook als het skelet nooit getoond is.
+//  - Schermen die vanuit abonnementen tekenen (Kalender, Ingepland, Route: geen haakjes rond een verzoek) gebruiken `maakTicketsStand`:
+//    één timer per eerste lading zet `data-tickets-laden="zichtbaar"` op <html>; hun skelet (`bouwTicketsSkelet`) staat vanaf het begin in
+//    de DOM (de plaats is dus gereserveerd, geen sprong) maar is onzichtbaar tot dat attribuut er staat. Zie het blok L1 onderaan.
 // De uitzicht-regels (.skelet, .skelet-blok, shimmer, reduced motion) staan in css/base.css.
 
 export const SKELET_VERTRAGING_MS = 150;
@@ -113,4 +116,76 @@ export function toonSkelet(vak, { vorm = 'rijen', aantal, vertraging = SKELET_VE
 
   if (vertraging > 0) timer = setTimeout(toon, vertraging); else toon();
   return { stop, zichtbaar: () => el !== null && !gestopt };
+}
+
+// ── L1: Kalender, Ingepland en Route zolang de tickets nog onbekend zijn ──
+// Deze schermen tekenen vanuit toestand-abonnementen en hebben geen eigen verzoek om een timer omheen te zetten. Zonder bewaarde kopie van
+// de tickets zouden ze een lege staat tonen die op "niets gepland" lijkt, terwijl de gegevens nog onderweg zijn. De stand zegt of de
+// tickets al gekend zijn; app.js zet hem VÓÓR het toepassen van de gegevens op 'bekend' (het toepassen tekent de schermen synchroon).
+//
+//   'onbekend'  nog geen bewaarde kopie en nog geen geslaagde lading: de schermen tekenen een skelet (onzichtbaar tot het attribuut)
+//   'bekend'    de kopie is toegepast of een lading slaagde: echte inhoud, ook een echte lege staat
+//   'mislukt'   de eerste lading faalde zonder kopie: geen skelet meer, de lege staat en de bestaande foutmelding
+// De 150 ms zit bewust NIET in CSS (animation-delay loopt in echte tijd en is niet door een nepklok te sturen) maar in één JS-timer; een
+// hertekening tijdens het laden (afspraken of beschikbaarheid komen binnen) begint hem dus nooit opnieuw en laat het skelet niet flikkeren.
+export const TICKETS_LADEN_ATTR = 'data-tickets-laden';
+
+export function maakTicketsStand({ wortel = globalThis.document?.documentElement ?? null, vertraging = SKELET_VERTRAGING_MS } = {}) {
+  let stand = 'onbekend';
+  let gestart = false;
+  let timer = null;
+  const opruimen = () => {
+    if (timer !== null) { clearTimeout(timer); timer = null; }
+    wortel?.removeAttribute(TICKETS_LADEN_ATTR);
+  };
+  return {
+    stand: () => stand,
+    /** Zijn de tickets gekend of is de eerste lading definitief mislukt? Dan is de lege staat eerlijk en komt er geen skelet. */
+    isBekend: () => stand !== 'onbekend',
+    /** Start (hoogstens één keer, enkel zolang onbekend) de timer die het skelet na `vertraging` ms zichtbaar maakt. */
+    start() {
+      if (stand !== 'onbekend' || gestart) return;
+      gestart = true;
+      timer = setTimeout(() => {
+        timer = null;
+        if (stand === 'onbekend') wortel?.setAttribute(TICKETS_LADEN_ATTR, 'zichtbaar');
+      }, vertraging);
+    },
+    /** De tickets zijn gekend (kopie of lading). Geeft true als dit de overgang uit 'onbekend' was. */
+    bekend() {
+      const was = stand;
+      stand = 'bekend';
+      gestart = true; // een kopie of lading is er al: nooit meer een skelet starten
+      opruimen();
+      return was === 'onbekend';
+    },
+    /** De eerste lading faalde zonder kopie. Enkel uit 'onbekend'; geeft true als dat de overgang was. */
+    mislukt() {
+      if (stand !== 'onbekend') return false;
+      stand = 'mislukt';
+      opruimen();
+      return true;
+    },
+  };
+}
+
+/**
+ * Skelet voor een abonnementsscherm: een gewoon `bouwSkelet` met klasse `skelet--tickets` (onzichtbaar tot `data-tickets-laden` op <html>
+ * staat) en een `skelet--<variant>` voor de maten van dat scherm (kal = dagkolom, lijst = Ingepland en Route). `metKop`: een kopblok
+ * vooraan (de dagkop boven de kaarten van Ingepland), zodat de eerste echte kaart op dezelfde hoogte begint.
+ */
+export function bouwTicketsSkelet(vorm = 'kaarten', { doc = globalThis.document, aantal, variant, metKop = false } = {}) {
+  const el = bouwSkelet(vorm, { doc, aantal });
+  el.className += ' skelet--tickets' + (variant ? ` skelet--${variant}` : '');
+  if (metKop) el.prepend(blok(doc, 'skelet-kop'));
+  return el;
+}
+
+/** De ene "Laden…" voor schermlezers per scherm (niet per dagkolom): visueel verborgen en pas onder het attribuut aanwezig (CSS). */
+export function bouwTicketsMelding(doc = globalThis.document) {
+  const sr = doc.createElement('span');
+  sr.className = 'sr-only skelet-melding skelet-melding--tickets';
+  sr.setAttribute('role', 'status');
+  sr.textContent = 'Laden…';
+  return sr;
 }

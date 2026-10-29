@@ -46,6 +46,16 @@ test('ingepland: zonder wachtende geen tweede deel', () => {
   assert.equal(samenvattingVoor('gepland', { dezeWeek: 3, wachtBevestiging: 0 }), '3 afspraken deze week');
 });
 
+// L1: zolang de tickets nog onbekend zijn (geladen: false) beweert de kop niets over "niets gepland" of "geen afspraken".
+test('kalender: tickets nog onbekend: enkel de week, geen "nog niets gepland"', () => {
+  assert.equal(samenvattingVoor('kalender', { week: 44, gepland: 0, zonderDatum: 0, geladen: false }), 'Week 44');
+  assert.equal(samenvattingVoor('kalender', { week: 44, gepland: 0, zonderDatum: 0, geladen: true }), 'Week 44 · nog niets gepland');
+});
+test('ingepland: tickets nog onbekend: geen samenvatting', () => {
+  assert.equal(samenvattingVoor('gepland', { dezeWeek: 0, wachtBevestiging: 0, geladen: false }), '');
+  assert.equal(samenvattingVoor('gepland', { dezeWeek: 0, wachtBevestiging: 0, geladen: true }), 'Geen afspraken deze week');
+});
+
 // ── Inventaris ──
 test('inventaris: meervoud', () => {
   assert.equal(samenvattingVoor('inventaris', { onderGrens: 3 }), '3 producten onder hun meldgrens');

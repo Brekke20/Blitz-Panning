@@ -13,7 +13,7 @@ import { TEST_MODE } from './kern/omgeving.js';
 import { localISO, extractLocalHour, openingsDatum } from './kern/tijd.js';
 import { startTicketLogExport } from './kern/exceljs.js';
 import { toast, registreerActies, metBehoudScroll } from './kern/ui.js';
-import { toonSkelet } from './kern/skelet.js';
+import { toonSkelet, maakTicketsStand } from './kern/skelet.js';
 import { ticketsVanTechnieker } from './kern/selecties.js';
 import { maakDummyData } from './kern/testdata.js';
 import { sjLog, sjZetTab, startVerklikker } from './kern/verklikker.js';
@@ -200,11 +200,13 @@ function opstart() {
     openDetail: ticketdetail.openDetail, openLocalEventDetail: afspraken.openLocalEventDetail, removeLocalEvent: afspraken.removeLocalEvent, bevestigUitplannen: planacties.bevestigUitplannen,
     herOpenRapport: (...a) => herOpenRapport(...a), rapportArchief: () => _rapportArchief, matchRespToPerson: afspraken.matchRespToPerson, duurVoor,
     eersteVrijUur: capaciteit.eersteVrijUur, setTab, sjLog, toggleAssignRow: ticketdetail.toggleAssignRow, saveToewijzen: ticketdetail.saveToewijzen, openBlockModal: beschikbaarheid.openBlockModal,
+    ticketsBekend: () => ticketsStand.isBekend(),
   });
   // Ingepland-scherm (schermen/ingepland.js): week-knoppen en de afhankelijkheden van andere schermen; vóór koppelRenders().
   ingepland.initIngepland({
     openDetail: ticketdetail.openDetail, tijdslotLabelVoor: ticketdetail.tijdslotLabelVoor,
     contactActiesHtml: ticketdetail.contactActiesHtml, koppelAdresNavigatie: ticketdetail.koppelAdresNavigatie, sjLog,
+    ticketsBekend: () => ticketsStand.isBekend(),
   });
   // Route-scherm (schermen/route.js): de afhankelijkheden van andere schermen (R11); vóór koppelRenders().
   route.initRoute({
@@ -220,6 +222,7 @@ function opstart() {
     registerArrival: ticketdetail.registerArrival,
     openRapport: (...a) => openRapport(...a), bevestigUitplannen: planacties.bevestigUitplannen, openLocalEventDetail: afspraken.openLocalEventDetail, navigate,
     roundToNextQuarterStr: ticketdetailLogica.roundToNextQuarterStr, renderKalender: () => kalender.renderKalender(), testModus: () => TEST_MODE,
+    ticketsBekend: () => ticketsStand.isBekend(),
   });
   // Ticketdetail-scherm (schermen/ticketdetail.js): detail- en verzetvenster, toewijzen en aankomst; vóór koppelRenders().
   ticketdetail.initTicketdetail({
@@ -578,6 +581,12 @@ function _applyTicketsData(data, { reconcile = false } = {}) {
 // zonderCache: de bewaarde kopie wordt niet toegepast (een resync na een onzeker resultaat mag niets verouderds terugzetten).
 // De kopie geldt enkel voor de allereerste lading (offline start): een poll of "Vernieuwen" zet nooit verouderde data terug (N8).
 let _eersteLading = true;
+// L1: zijn de tickets al gekend? 'onbekend' tot de bewaarde kopie is toegepast of een lading slaagde; 'mislukt' na een mislukte eerste lading
+// zonder kopie (kern/skelet.js: maakTicketsStand). Kalender, Ingepland en Route tekenen een skelet zolang de stand 'onbekend' is, in plaats van een
+// lege staat die op "niets gepland" lijkt. Bewust geen toestand-sleutel (SLEUTELS wordt in O3 en e2e/tab-hertekenen.spec.mjs in een lus gebruikt).
+// De stand wordt telkens VÓÓR applyTicketsData op 'bekend' gezet: het toepassen tekent de schermen synchroon (de transactie spoelt aan het
+// einde), dus een render ná de regel zou het skelet nog zien waar de echte lege staat hoort.
+const ticketsStand = maakTicketsStand();
 // Bescherming tegen een verouderd antwoord (N7): een herlading mag geen lokale wijziging overschrijven die ná haar start begon
 // (plan-aanroep, route-volgorde, wijziging aan planning/tickets), en een oudere GET nooit het resultaat van een latere.
 let _laadVolgnr = 0;
@@ -595,8 +604,9 @@ async function loadTickets({ stilleToast = false, stil = false, zonderCache = fa
   if (!stil) document.getElementById('empty-tickets').textContent = 'Laden...';
   if (!TEST_MODE && gebruikCache) {
     const cached = loadFromCache('blitz_tickets_cache');
-    if (cached) applyTicketsData(cached);
+    if (cached) { ticketsStand.bekend(); applyTicketsData(cached); }
   }
+  ticketsStand.start(); // zonder kopie: na 150 ms wordt het skelet van Kalender, Ingepland en Route zichtbaar (één timer, idempotent)
   // Eerste lading zonder iets te tonen (geen bewaarde kopie): wachtrij-kaarten als skelet i.p.v. enkel "Laden..."; pas na 150 ms, en nooit als er al tickets staan.
   const skelet = stil ? null : toonSkelet(document.getElementById('ticket-list'), { vorm: 'kaarten', aantal: 4, isLeeg: () => get('allTickets').length === 0, verberg: [legeTekstEl] });
   try {
@@ -623,6 +633,7 @@ async function loadTickets({ stilleToast = false, stil = false, zonderCache = fa
     }
     _laatsteToegepast = mijnNr;
     if (!TEST_MODE) saveToCache('blitz_tickets_cache', data);
+    ticketsStand.bekend(); // VÓÓR het toepassen (zie ticketsStand): de renders van de abonnementen zien dan de echte lege staat
     applyTicketsData(data, { reconcile: true });
     laadPlanningSinds();
     // Geslaagde lading: 'Laden...' vervangen; bij een lege wachtrij (na het technieker-filter) de lege tekst; een lading met ongewijzigde data hertekent niet.
@@ -632,6 +643,9 @@ async function loadTickets({ stilleToast = false, stil = false, zonderCache = fa
     else if (!stilleToast) toast(`${get('allTickets').length} te plannen · ${get('allPending').length} wacht bevestiging · ${get('allGepland').length} gepland`);
   } catch (err) {
     buildPersonSelector(); // een mislukte lading verandert de toestand niet, dus geen abonnee-render: de kiezer toch (her)bouwen
+    // Eerste lading mislukt zonder kopie: geen skelet meer, de lege staat en de foutmelding hieronder. Er is geen toestandswijziging, dus geen
+    // abonnee-render: de schermen expliciet hertekenen (O3: Kalender en Ingepland slaan een tabwissel over als ze 'vers' zijn, dus markeren).
+    if (ticketsStand.mislukt()) hertekenNaMisluktEersteLading();
     const rauw = err.message || '';
     const msg = foutTekst(err) || '';
     const isAuth = /401|403|invalid.token|expired|unauthorized/i.test(rauw);
@@ -739,6 +753,19 @@ async function wisselWerkruimte(naar, { verkoper } = {}) {
 // uniforme render-keten aan (de plaatsen die ze schrijven, hertekenen zelf wat ze nodig hebben); wel markeren ze Kalender en Ingepland als verouderd (O3).
 // Het route-abonnement dekt wel planning en localEvents (etappe 3): elke in-place schrijf op planning roept raak('planning') aan.
 // De abonnees verwijzen via arrow-functies naar de renders van de schermmodules (kern.<scherm>.renderTelling() telt in de modules zelf).
+// De datum van de Route-tab (de datumkiezer, anders vandaag).
+const planDatum = () => document.getElementById('plan-date')?.value || localISO(new Date());
+// L1: na een mislukte eerste lading zonder kopie tekenen Kalender, Ingepland en Route hun echte lege staat in plaats van het skelet. Er is dan
+// geen toestandswijziging en dus geen abonnee-render: hier expliciet. Kalender en Ingepland slaan een tabwissel over als ze 'vers' zijn (O3):
+// markeren, en het zichtbare scherm meteen hertekenen. De routelijst hangt aan geen tab (ze tekent vanuit de abonnementen): altijd.
+function hertekenNaMisluktEersteLading() {
+  kalender.markeerVerouderd();
+  ingepland.markeerVerouderd();
+  const actief = document.querySelector('.view.active')?.id;
+  if (actief === 'view-kalender') kalender.renderKalender();
+  else if (actief === 'view-gepland') ingepland.renderGepland();
+  renderRouteList(planDatum());
+}
 function koppelRenders() {
   const st = toestand;
   st.spoel(); // beginwaarden van vóór de koppeling mogen niets hertekenen
@@ -747,7 +774,6 @@ function koppelRenders() {
   // een render van een zichtbaar scherm de markering weer wist); op ALLE sleutels, want de kalender is niet op planning, klantBeschikbaarheid,
   // voorstelStatus en settings geabonneerd maar toont ze wel.
   st.abonneer(SLEUTELS, () => { kalender.markeerVerouderd(); ingepland.markeerVerouderd(); });
-  const planDatum = () => document.getElementById('plan-date')?.value || localISO(new Date());
   st.abonneer(['activeAssigneeFilter'], () => updatePersonHeader());
   // Een technieker met "Mag zelf plannen" die de week van een collega (of iedereen) bekijkt: "Plan deze week" verdwijnt (CSS
   // html[data-plan-ander="ja"]); autoPlan en de server weigeren het hoe dan ook. Planner en beheerder: altijd 'nee'.

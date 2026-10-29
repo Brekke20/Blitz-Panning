@@ -23,14 +23,16 @@ async function volgSkeletten(page) {
     new MutationObserver((lijst) => {
       for (const m of lijst) for (const n of m.addedNodes) {
         if (n.nodeType === 1 && n.classList.contains('skelet')) {
-          window.__skeletten.push({ vorm: n.dataset.skelet, verborgen: n.getAttribute('aria-hidden'), busy: n.parentElement?.getAttribute('aria-busy'), vak: n.parentElement?.id || n.parentElement?.className });
+          window.__skeletten.push({ vorm: n.dataset.skelet, verborgen: n.getAttribute('aria-hidden'), busy: n.parentElement?.getAttribute('aria-busy'), vak: n.parentElement?.id || n.parentElement?.className, tickets: n.classList.contains('skelet--tickets') });
         }
       }
     }).observe(document, { childList: true, subtree: true });
   });
 }
 // De wachtrij (testmodus: dummy-tickets na 400 ms) toont bij de start zelf een skelet; de andere schermen worden zonder dat vak bekeken.
-const gezien = async (page, { metWachtrij = false } = {}) => (await page.evaluate(() => window.__skeletten)).filter(s => metWachtrij || s.vak !== 'ticket-list');
+// De skeletten van Kalender, Ingepland en Route (L1, `skelet--tickets`) staan zolang de tickets onbekend zijn al in de DOM (onzichtbaar tot 150 ms
+// na de start van de ticketlading; e2e/productie/skelet-tickets.spec.mjs test ze): ze horen niet bij de schermen die deze specs bekijken.
+const gezien = async (page, { metWachtrij = false } = {}) => (await page.evaluate(() => window.__skeletten)).filter(s => !s.tickets && (metWachtrij || s.vak !== 'ticket-list'));
 
 const GEBRUIKERS = [
   { id: 'u-test', email: 'b@test.be', naam: 'Test Beheerder', rol: 'beheerder', actief: true, laatsteLogin: null, aangemaakt: '2026-09-01T08:00:00.000Z', moetWachtwoordWijzigen: false },
