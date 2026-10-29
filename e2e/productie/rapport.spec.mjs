@@ -557,6 +557,23 @@ test.describe('rapport verzenden: onzeker resultaat, controle of de mail al weg 
     await eenVerzendingEnEenControle(page, verzoeken, z);
   });
 
+  // O6: de knop blijft na een onzeker resultaat bewust op slot tot een hertekening van het archief. "Herladen" met een byte-gelijk antwoord
+  // moet dat nog steeds doen (laadRapportArchief slaat enkel de kalenderrender over, nooit de archieflijst).
+  test('na een onzeker resultaat (knop op slot) opent "Herladen" met een identiek archief de knop weer, zonder tweede verzending', async ({ page, verzoeken }) => {
+    const z = await verstuurAfgebroken(page, verzoeken, { status: 200, json: { ok: true, verzonden: false, twijfel: true, tijdstip: null, uitgaand: [] } });
+    await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER);
+    await expect(verstuurKnop(page)).toBeDisabled();
+    const lijstVoor = await lokaleRapporten(page);
+    const kalenderVoor = await page.evaluate(() => kern.kalender.renderTelling());
+    await page.getByRole('button', { name: /Herladen/ }).click();
+    await expect(verstuurKnop(page)).toBeEnabled();
+    await expect(verstuurKnop(page)).toHaveText('✉️ Verstuur rapport');
+    expect(await lokaleRapporten(page)).toEqual(lijstVoor); // identiek antwoord: dezelfde lijst
+    expect(await page.evaluate(() => kern.kalender.renderTelling())).toBe(kalenderVoor); // enkel de kalender werd overgeslagen
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND]); // geen tweede verzending
+    expect(z.opnames['send-rapport'].map(o => 'preview' in o.body)).toEqual([true, false]);
+  });
+
   test('de controle zelf faalt (502): de waarschuwing "kijk dit na in Zoho" en de knop blijft uit', async ({ page, verzoeken }) => {
     const z = await verstuurAfgebroken(page, verzoeken, { status: 502, json: { error: 'Zoho threads ophalen mislukt (503)' } }, { httpFouten: [{ pad: MAILCHECK, status: 502 }] });
     await expect(toastTekst(page)).toHaveText(MAIL_ONZEKER);

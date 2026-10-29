@@ -1,7 +1,7 @@
 // public/js/rapport-archief.js
 // Overzicht van gearchiveerde rapporten (interventie + installatie), met filter op type en
 // Excel-export-aanroep (zie excel-export.js). Leest `R`/rapport-records uit de outbox-archivering.
-import { foutTekst } from './kern/api.js';
+import { foutTekst, ApiFout } from './kern/api.js';
 import { TEST_MODE } from './kern/omgeving.js';
 import { registreerActies, metBehoudScroll } from './kern/ui.js';
 import { sjLog, meldRenderFout } from './kern/verklikker.js';
@@ -27,22 +27,67 @@ export function zetArchiefVersie(v) { _archiefVersie = v; }
 // geen andere plek in de app leest of schrijft dit, dus geen window-bridge nodig.
 let _rapportFilter = 'alle'; // 'alle' | 'Interventie' | 'Installatie' | 'mijn'
 
+// Tekst van het laatste geslaagde antwoord (null = nog niets getekend, of de laatste tekening faalde): een byte-gelijk antwoord
+// hertekent de kalender niet (O6). De archieflijst zelf wordt altijd opnieuw getekend: de verstuurknop van het rapportmailpad
+// steunt op die hertekening (zie schermen/rapport-verzenden.js: "Een latere hertekening zet de knop weer open").
+let _laatsteTekst = null;
+
+// Een mislukte lading laat lijst en versie ongemoeid: stond er al een lijst, dan blijft die staan met een melding; anders de foutregel.
+function meldLaadFout(body, err) {
+  if (_archiefVersie !== null) toast('✕ Rapporten vernieuwen mislukt: ' + foutTekst(err));
+  else body.innerHTML = `<div style="color:var(--red);font-size:0.82rem">✕ Laden mislukt: ${foutTekst(err)}</div>`;
+}
+
+// Bij een byte-gelijk antwoord blijven de bestaande record-objecten bestaan (de kalenderkaartjes zoeken hun rapport met
+// `rapportArchief().indexOf(record)`; een nieuwe array zou ze -1 geven zolang de kalender niet hertekend wordt), maar ze krijgen wel
+// weer precies de serverstand (een lokaal gezette `verzonden*` verdwijnt zoals bij een gewone lading).
+function herstelInPlaats(oud, nieuw) {
+  nieuw.forEach((n, i) => {
+    const o = oud[i];
+    for (const k of Object.keys(o)) delete o[k];
+    Object.assign(o, n);
+  });
+}
+
 export async function laadRapportArchief() {
   const body = document.getElementById('rapp-archief-body');
   if (!body) return;
   // Bestaande inhoud blijft staan tijdens het herladen (geen inklappende pagina -> scrollsprong);
   // enkel bij een leeg overzicht tonen we "Laden…".
-  if (!body.children.length) body.innerHTML = '<div style="color:var(--muted);font-size:0.82rem">Laden…</div>';
+  const toondeLaden = !body.children.length;
+  if (toondeLaden) body.innerHTML = '<div style="color:var(--muted);font-size:0.82rem">Laden…</div>';
+  let tekst, data;
   try {
-    const res  = await fetch('/api/rapport-archief');
-    const data = await res.json();
+    const res = await fetch('/api/rapport-archief');
+    if (!res.ok) throw new ApiFout(res.status, null);
+    tekst = await res.text();
+    try { data = JSON.parse(tekst); } catch { throw new Error('Onleesbaar antwoord van de server'); }
+    if (!Array.isArray(data?.rapports)) throw new Error('Onverwacht antwoord van de server');
+  } catch (err) {
+    meldLaadFout(body, err);
+    return;
+  }
+  const versie = typeof data.versie === 'number' ? data.versie : 0;
+  // De versie stijgt enkel. Een lagere versie is een verouderd antwoord (een oudere GET die later binnenkomt, of de lege terugval
+  // van de server bij een opslagstoring: { versie: 0, rapports: [] }): lijst en versie blijven, zonder melding aan de gebruiker.
+  if (typeof _archiefVersie === 'number' && versie < _archiefVersie) {
+    console.warn(`Rapportarchief: antwoord met versie ${versie} genegeerd (bekend: ${_archiefVersie})`);
+    if (toondeLaden) renderRapportArchief(); // geen blijvende "Laden…"
+    return;
+  }
+  try {
     // Een leeg of kapot record in de lijst (null) mag het hele overzicht niet laten mislukken.
-    _rapportArchief = (Array.isArray(data.rapports) ? data.rapports : []).filter(r => r && typeof r === 'object');
-    _archiefVersie = data.versie || 0;
+    const lijst = data.rapports.filter(r => r && typeof r === 'object');
+    const gelijk = _laatsteTekst !== null && tekst === _laatsteTekst && lijst.length === _rapportArchief.length;
+    if (gelijk) herstelInPlaats(_rapportArchief, lijst);
+    else _rapportArchief = lijst;
+    _archiefVersie = versie;
     sjLog('laadRapportArchief:render'); // TIJDELIJK scrollsprong-verklikker (v1.8.0) — verwijderen na analyse
-    const render = () => { renderRapportArchief(); renderKalender(); };
+    const render = () => { renderRapportArchief(); if (!gelijk) renderKalender(); };
     // Scrollpositie behouden (her-render tijdens sync); metBehoudScroll komt uit kern/ui.js.
+    _laatsteTekst = null; // pas onthouden als de tekening lukte
     metBehoudScroll(render);
+    _laatsteTekst = tekst;
     toonMisluktMeldingen(_rapportArchief); // eenmalig per paginasessie, enkel technieker met persoon gekozen
   } catch (err) {
     meldRenderFout('rapport-archief', err); // eenmalig naar /api/client-log (niet in testmodus): de echte bron van zo'n fout achterhalen
