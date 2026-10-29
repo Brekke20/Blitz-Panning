@@ -196,7 +196,7 @@ test.describe('Performance: factureerbaar bedrag', () => {
     const punten = factureerbaarKaart(page).locator('.fact-let');
     await expect(punten).toContainText('1 onderdeel zonder prijs telt als € 0');
     await expect(punten).toContainText('2 rapporten zonder start- en stoptijd');
-    await expect(punten).toContainText('3 onderdelen als niet aangerekend gemarkeerd');
+    await expect(punten).not.toContainText('gemarkeerd');
   });
 
   test('zonder rapporten in de periode toont het blok de lege-toestand-zin', async ({ page }) => {

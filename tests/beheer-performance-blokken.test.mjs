@@ -80,7 +80,7 @@ test('Factureerbaar: aandachtspunten in goed enkelvoud en meervoud; zonder aanda
   const h = renderFactureerbaar({ factureerbaar: f }, ctx);
   assert.ok(h.includes('3 rapporten zonder start- en stoptijd'));
   assert.ok(h.includes('2 onderdelen zonder prijs tellen als € 0'));
-  assert.ok(h.includes('1 onderdeel als niet aangerekend gemarkeerd'));
+  assert.ok(!h.includes('gemarkeerd'), 'onderdelen die niet aangerekend zijn worden niet gemeld');
   assert.ok(h.includes('width:100%') && h.includes('· 100 %') && h.includes('· 0 %'), 'alles onderdelen');
   const schoon = renderFactureerbaar({ factureerbaar: { ...f, dekking: { rapporten: 3, zonderPrijs: 0, zonderWerktijd: 0, nietAangerekendeOnderdelen: 0 } } }, ctx);
   assert.ok(!schoon.includes('fact-let'));

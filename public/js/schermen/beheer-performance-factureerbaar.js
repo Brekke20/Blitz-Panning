@@ -24,7 +24,6 @@ function aandachtspunten(d) {
   const punten = [];
   if (getal(d.zonderPrijs) > 0) punten.push(`${meervoud(d.zonderPrijs, 'onderdeel', 'onderdelen')} zonder prijs ${d.zonderPrijs === 1 ? 'telt' : 'tellen'} als € 0`);
   if (getal(d.zonderWerktijd) > 0) punten.push(`${meervoud(d.zonderWerktijd, 'rapport', 'rapporten')} zonder start- en stoptijd: geen loon geteld`);
-  if (getal(d.nietAangerekendeOnderdelen) > 0) punten.push(`${meervoud(d.nietAangerekendeOnderdelen, 'onderdeel', 'onderdelen')} als niet aangerekend gemarkeerd: niet meegeteld`);
   return punten;
 }
 
