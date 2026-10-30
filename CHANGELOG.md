@@ -12,6 +12,16 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Unreleased]
 
+## [2.8.0] — 2026-10-30
+
+### Changed
+- De tickets staan nu vooraf klaar: de server haalt ze zelf op bij Zoho (elke 2 minuten tijdens de werkuren, maandag tot vrijdag 07:00 tot 19:00, en daarbuiten ongeveer elk kwartier) en bewaart ze. De app krijgt de lijst daardoor meteen (ongeveer 1 seconde) in plaats van na 4 tot 6 seconden. Plant, wijzigt of annuleert iemand via de app een ticket, of bevestigt een klant zijn afspraak, dan haalt de eerstvolgende aanvraag meteen de verse stand op uit Zoho. De knop Vernieuwen leest Zoho altijd echt opnieuw (hoogstens eens per 30 seconden voor iedereen samen; daarbinnen krijg je de lijst die net is opgehaald). Wijzigingen die rechtstreeks in Zoho Desk gebeuren, verschijnen bij de eerstvolgende ronde (hoogstens enkele minuten later) of meteen na Vernieuwen. Het organisatienummer van Zoho wordt per server-instantie onthouden in plaats van bij elke lading opnieuw op te vragen.
+- Valt Zoho even uit of antwoordt het niet binnen 12 seconden, dan toont de app de laatste goede lijst (hoogstens 60 minuten oud) met bovenaan een kleine balk "Gegevens van HH:MM — Zoho even niet bereikbaar". Is die lijst ouder, of is de Zoho-koppeling zelf verlopen, dan verschijnt zoals voorheen de foutmelding (en "Sessie met Zoho verlopen").
+- Beheer › Performance: de kaart "Factureerbaar bedrag" is opnieuw vormgegeven en past nu bij de rest van het dashboard. Het factureerbare bedrag staat groot links, rechts een balk met het aandeel onderdelen en loon (met de bedragen en de loonuren). Alle bedragen staan in hele euro's. De lange uitleg zit achter een i-knopje en onderaan staan in kleine letters enkel de aandachtspunten (met correct enkelvoud en meervoud, bv. "1 onderdeel zonder prijs telt als € 0"). De regel "niet aangerekend (garantie of installatie)" wordt niet meer getoond.
+
+### Fixed
+- De melding "Sessie met Zoho verlopen. Meld dit aan Brent" verschijnt weer wanneer de koppeling met Zoho echt verlopen is. De app las de foutuitleg van de server niet en toonde enkel een algemene fout.
+
 ## [2.7.0] — 2026-10-29
 
 ### Added

@@ -8,6 +8,7 @@ import { maakZoho } from '../lib/zoho.js';
 import { maakCors, v2Json, v2Methode } from '../lib/http.js';
 import { getStore } from '@netlify/blobs';
 import { beveiligV2 } from '../lib/beveiligd.js';
+import { metTicketsVerouderd } from '../lib/tickets-snapshot.js';
 import { logVoorVerzoek } from '../lib/activiteit.js';
 import { eisEigenTicket, STATUS_TE_PLANNEN, STATUS_PENDING, STATUS_GEPLAND } from '../lib/eigen-ticket.js';
 import { datumInBrussel } from '../lib/bevestigingslink.js';
@@ -63,8 +64,9 @@ const kern = async (req, context, gebruiker, haalStore = getStore) => {
 };
 
 // getStore is een testnaad (enkel voor de activiteitenlog).
+// Na elke wijzigende aanroep (ook een mislukte: er kan al iets in Zoho staan) markeert metTicketsVerouderd de ticket-momentopname als verouderd.
 export const maakHandler = ({ getStore: haalStore } = {}) =>
-  beveiligV2('plan-datum', (req, context, gebruiker) => kern(req, context, gebruiker, haalStore));
+  beveiligV2('plan-datum', metTicketsVerouderd((req, context, gebruiker) => kern(req, context, gebruiker, haalStore)));
 
 export default maakHandler();
 

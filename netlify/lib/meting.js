@@ -16,6 +16,8 @@
 //   zoho-token  daarvan enkel de tokenaanvraag (0 als het token uit de cache kwam)
 //   koud        process.uptime() in ms bij de eerste meting van de instantie, daarna 0
 //   totaal      van het begin van de wrapper tot het antwoord klaar is
+//   bron        enkel in de logregel van /api/tickets: 'snapshot' (momentopname uit Blobs) of 'live' (Zoho-lading); snapshotMs =
+//               de leeftijd van de geserveerde momentopname in ms (0 bij live). Andere functies hebben deze velden niet.
 // De Server-Timing-kop gaat enkel op antwoorden voor een ingelogde gebruiker (review M-S1-1); de logregel altijd.
 // In de logregel staan enkel functienaam, methode, status, tijden, aantallen, regio en de limietgetallen van Zoho:
 // nooit een gebruiker, e-mail, cookie, querystring of ticketgegevens.
@@ -62,6 +64,7 @@ export function maakMeting({
   const delen = new Map(); // naam -> som in ms
   const z = { n: 0, som: 0, token: 0, actief: 0, max: 0, rest: null, gewicht: null };
   let ingelogd = false;
+  let bron = null; // { bron, snapshotMs } enkel gezet door /api/tickets
   let totaal = null;
   let gesloten = false;
 
@@ -138,11 +141,16 @@ export function maakMeting({
 
   const deel = naam => (delen.has(naam) ? rond(delen.get(naam)) : null);
 
+  function zetBron(b, leeftijdMs) {
+    if (b === 'snapshot' || b === 'live') bron = { bron: b, snapshotMs: rond(leeftijdMs) };
+  }
+
   function logObject({ f, m, s } = {}) {
     sluit();
     const methode = typeof m === 'string' ? m.toUpperCase() : '';
     const gewesten = veilig(regio);
     return {
+      ...(bron ?? {}),
       f: typeof f === 'string' && /^[a-z0-9-]{1,60}$/.test(f) ? f : 'onbekend',
       m: /^[A-Z]{3,10}$/.test(methode) ? methode : 'ANDERE',
       s: Number.isInteger(s) && s >= 100 && s <= 599 ? s : null,
@@ -161,7 +169,7 @@ export function maakMeting({
     };
   }
 
-  return { meet, tel, zoho, sluit, kop, logObject, zetIngelogd: () => { ingelogd = true; }, isIngelogd: () => ingelogd };
+  return { meet, tel, zoho, sluit, kop, logObject, zetBron, zetIngelogd: () => { ingelogd = true; }, isIngelogd: () => ingelogd };
 }
 
 // De meting van het lopende verzoek (voor dieper gelegen code: auth.js, zoho.js), of null.

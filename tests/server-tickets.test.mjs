@@ -301,14 +301,16 @@ test('tickets: netwerkfout op een paginaaanvraag geeft 500', async () => {
   assert.deepEqual(ontleed(res).body, { error: 'netwerk' });
 });
 
-test('tickets: token wordt binnen één geladen module hergebruikt, het org-id niet', async () => {
+// BEWUSTE WIJZIGING (voorlading, 2026-10-30): tickets.js maakt zijn Zoho-instantie met `cacheOrgId: true`; het org-id is stabiel en
+// de aanroep kostte ~0,3 s per lading. Voorheen: tweede aanroep [ORG, agents, pagina]; nu: [agents, pagina].
+test('tickets: token én org-id worden binnen één geladen module hergebruikt', async () => {
   const { fn, calls } = maakNepFetch(ticketsRouter({ paginas: [[]], details: {} }));
   const mod = await laadVers('tickets');
   await metGlobaleFetch(fn, () => mod.handler(v1Event('GET')));
   await metGlobaleFetch(fn, () => mod.handler(v1Event('GET')));
   const u = uit(calls);
   assert.deepEqual(u.slice(0, 4), [TOKEN_CALL, ORG_CALL, get('/agents?limit=50'), get('/tickets?limit=100&from=0')]);
-  assert.deepEqual(u.slice(4), [ORG_CALL, get('/agents?limit=50'), get('/tickets?limit=100&from=0')]);
+  assert.deepEqual(u.slice(4), [get('/agents?limit=50'), get('/tickets?limit=100&from=0')]);
 });
 
 test('tickets: token verloopt na 55 minuten', async () => {
@@ -821,17 +823,18 @@ test('tickets + meting: zoho-n is exact het aantal Zoho-aanroepen (token en org 
   }
 });
 
-test('tickets + meting: een tweede aanroep met het token uit de cache heeft zoho-token 0 en n zonder tokenaanvraag', async () => {
+test('tickets + meting: een tweede aanroep met token en org-id uit de cache heeft zoho-token 0 en n zonder token- en org-aanvraag', async () => {
   const { fn, calls } = maakNepFetch(ticketsRouter({ paginas: [[]], details: {} }));
   const mod = await laadVers('tickets');
   const { r, logs } = await metMeting(async () => [
     await metGlobaleFetch(fn, () => mod.handler(v1Event('GET'))),
     await metGlobaleFetch(fn, () => mod.handler(v1Event('GET'))),
   ]);
-  assert.equal(calls.length, 7); // 4 + 3 (token, org, agents, pagina; daarna org, agents, pagina)
+  // Voorlading: het org-id wordt per instantie bewaard (voorheen 7 aanroepen: 4 + 3 met een tweede org-aanvraag).
+  assert.equal(calls.length, 6); // 4 + 2 (token, org, agents, pagina; daarna enkel agents, pagina)
   assert.match(r[0].headers['Server-Timing'], /desc="n=4 max=1", zoho-token;dur=\d+/);
-  assert.match(r[1].headers['Server-Timing'], /desc="n=3 max=1", zoho-token;dur=0,/);
-  assert.deepEqual(logs.map(l => l.zn), [4, 3]);
+  assert.match(r[1].headers['Server-Timing'], /desc="n=2 max=1", zoho-token;dur=0,/);
+  assert.deepEqual(logs.map(l => l.zn), [4, 2]);
   assert.equal(logs[1].zohoToken, 0);
 });
 

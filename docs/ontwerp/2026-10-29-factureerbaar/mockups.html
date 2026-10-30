@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="nl" data-theme="light" data-hemel="avond" data-apparaat="computer" data-nav="kolom">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Factureerbaar: vijf voorstellen</title>
+<!-- Ontwerpmockup (2026-10-29), geen app-code. Gebruikt de echte stijlbladen van de app; de kerncijfer-tegels en de kaart
+     "Top 10 onderdelen" zijn gemaakt met de echte renderers op e2e/fixtures/dashboard.json. Cijfers van Factureerbaar: voorbeeld uit de live app. -->
+<script>
+  (function () {
+    var q = new URLSearchParams(location.search), h = document.documentElement;
+    var gsm = q.has('gsm') || window.matchMedia('(max-width: 599px)').matches;
+    h.dataset.apparaat = gsm ? 'gsm' : 'computer';
+    h.dataset.nav = gsm ? 'dok' : 'kolom';
+    if (q.get('thema') === 'donker') h.removeAttribute('data-theme');
+    if (q.get('hemel')) h.dataset.hemel = q.get('hemel');
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../../../public/css/base.css">
+<link rel="stylesheet" href="../../../public/css/app.css">
+<link rel="stylesheet" href="../../../public/css/beheer.css">
+<link rel="stylesheet" href="../../../public/css/hemel.css">
+<link rel="stylesheet" href="../../../public/css/dashboard.css">
+<style>
+  /* ── Enkel voor deze mockuppagina ── */
+  html, body { min-height: 100%; }
+  body { font-family: var(--font-tekst); }
+  #hoofdinhoud { max-width: 1100px; width: 100%; min-width: 0; margin: 0 auto; padding: 24px 24px 64px; display: block; }
+  html[data-apparaat="gsm"] #hoofdinhoud { padding: 16px 12px 48px; }
+  .mk-kop h1 { font-family: var(--font-kop); font-size: var(--fs-xl); margin: 0 0 var(--sp-2); color: var(--tekst-op-hemel); }
+  .mk-kop p { margin: 0; font-size: var(--fs-sm); color: var(--tekst2-op-hemel); max-width: 70ch; }
+  .mk-knoppen { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
+  .mk-variant { margin-top: 48px; padding: 4px 0 8px; }
+  .mk-label { display: flex; align-items: baseline; gap: var(--sp-3); font-family: var(--font-kop); font-size: var(--fs-xl); font-weight: 700; color: var(--tekst-op-hemel); margin: 0; }
+  .mk-letter { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-pil); background: linear-gradient(180deg, #2df0bb, #00d49b); color: var(--on-groen); font-size: var(--fs-lg); flex: none; }
+  .mk-uitleg { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); color: var(--tekst2-op-hemel); max-width: 75ch; }
+  .mk-sprong { margin: var(--sp-5) 0 0; font-size: var(--fs-xs); color: var(--tekst2-op-hemel); font-style: italic; }
+  .mk-variant .dash-blok:first-child { margin-top: var(--sp-4); }
+
+  /* ── Gedeelde bouwstenen van de voorstellen (fx-) ── */
+  /* Blokkop met een i-knop; het uitleg-ballonnetje werkt met klikken/tikken (ook op gsm, geen hover nodig). */
+  .fx-kop { display: flex; align-items: center; gap: var(--sp-2); }
+  .fx-kaartkop { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+  .fx-info { position: relative; }
+  .fx-info > summary { list-style: none; cursor: pointer; display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-pil);
+    border: 1px solid var(--border-strong); background: var(--knop2); color: var(--viz-ink2); font: 600 13px/1 var(--font-tekst); }
+  .fx-info > summary::-webkit-details-marker { display: none; }
+  .fx-info > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .fx-bubbel { position: absolute; z-index: 5; top: 32px; left: -8px; width: min(320px, 80vw); padding: var(--sp-3) var(--sp-4);
+    background: var(--venster-effen); border: 1px solid var(--glas-rand); border-radius: var(--r-kaart); box-shadow: var(--glas-schaduw);
+    font-size: var(--fs-xs); color: var(--text); display: grid; gap: var(--sp-1); }
+  .fx-kaartkop .fx-bubbel { left: auto; right: -8px; }
+  .fx-info:not([open]) .fx-bubbel { display: none; }
+  /* gsm: het ballonnetje over de volle breedte van het blok of de kaart, nooit buiten het scherm */
+  html[data-apparaat="gsm"] .fx-info { position: static; }
+  html[data-apparaat="gsm"] :is(.dash-blok, .dash-kaart) { position: relative; }
+  html[data-apparaat="gsm"] .fx-bubbel { left: 0; right: 0; width: auto; top: 44px; }
+  .fx-bubbel ul { margin: 0; padding-left: 1.1em; display: grid; gap: 2px; }
+  .fx-let { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); margin: 0; font-size: var(--fs-xs); color: var(--viz-ink2); }
+  .fx-let span::before { content: "⚠ "; }
+  .fx-sub { margin: 0; font-size: var(--fs-xs); color: var(--viz-ink2); }
+  .fx-gedempt { color: var(--viz-ink2); }
+  .fx-bedrag { font-variant-numeric: tabular-nums; }
+
+  /* Verdeelbalk onderdelen | loon (categorische kleuren 1 en 2, net als de grafieken) */
+  .fx-verdeel { display: flex; gap: 2px; height: 14px; border-radius: var(--r-pil); overflow: hidden; }
+  .fx-verdeel > span { display: block; height: 100%; }
+  .fx-verdeel--dun { height: 8px; }
+  .fx-deel-1 { background: var(--viz-1); }
+  .fx-deel-2 { background: var(--viz-2); }
+  .fx-legende { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--viz-ink); }
+  .fx-legende li { display: grid; grid-template-columns: 12px 1fr auto; align-items: center; gap: var(--sp-2); }
+  .fx-legende b { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+  .fx-legende small { grid-column: 2 / -1; font-size: var(--fs-xs); color: var(--viz-ink2); margin-top: -4px; }
+
+  /* A: tegels met een ondertitel */
+  .fx-a .tegel-waarde--gedempt { color: var(--viz-ink2); }
+
+  /* B: groot bedrag links, verdeling rechts */
+  .fx-b { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr); gap: var(--sp-4) var(--sp-6); align-items: center; }
+  .fx-b-groot { display: flex; flex-direction: column; gap: var(--sp-1); }
+  .fx-b-groot .tegel-waarde { font-size: 2.75rem; }
+  .fx-b-verdeling { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+  .fx-b-voet { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-2) var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--viz-grid); font-size: var(--fs-sm); color: var(--viz-ink); }
+  @media (max-width: 640px) { .fx-b { grid-template-columns: 1fr; } .fx-b-groot .tegel-waarde { font-size: 2.25rem; } }
+
+  /* C: donut links, legende rechts */
+  .fx-donut { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-4) var(--sp-5); }
+  .fx-donut svg { flex: none; }
+  .fx-donut .fx-legende { flex: 1 1 180px; }
+  .fx-donut-groot { font-size: 15px; font-weight: 700; fill: var(--viz-ink); font-variant-numeric: tabular-nums; }
+  .fx-donut-klein { font-size: 8.5px; fill: var(--viz-ink2); }
+  .fx-c .dash-raster { align-items: stretch; }
+  .fx-swatch-grijs { background: var(--viz-overige); }
+  .fx-swatch-3 { background: var(--viz-3); }
+
+  /* D: opbouw zoals op een factuur */
+  .fx-bon { margin: 0; display: grid; gap: var(--sp-2); font-size: var(--fs-md); }
+  .fx-bon > div { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-3); }
+  .fx-bon dt { color: var(--viz-ink); }
+  .fx-bon dt small { display: block; font-size: var(--fs-xs); color: var(--viz-ink2); }
+  .fx-bon dd { margin: 0; color: var(--viz-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .fx-bon .fx-bon-totaal { border-top: 2px solid var(--viz-as); padding-top: var(--sp-2); margin-top: var(--sp-1); }
+  .fx-bon .fx-bon-totaal dt, .fx-bon .fx-bon-totaal dd { font-weight: 700; font-size: var(--fs-lg); }
+  .fx-toelichting { font-size: var(--fs-xs); color: var(--viz-ink2); }
+  .fx-toelichting > summary { cursor: pointer; width: max-content; padding: var(--sp-1) 0; }
+  .fx-toelichting > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .fx-toelichting ul { margin: var(--sp-2) 0 0; padding-left: 1.1em; display: grid; gap: 2px; }
+  .fx-groot-uren { font-size: var(--fs-2xl); font-weight: 600; color: var(--viz-ink2); font-variant-numeric: tabular-nums; line-height: 1.1; margin: 0; }
+
+  /* E: tegel Factureerbaar tussen de kerncijfers */
+  .fx-e-tegel .fx-verdeel { margin-top: var(--sp-1); }
+  .fx-e-tegel .fx-sub b { font-weight: 600; color: var(--viz-ink); }
+  .fx-nieuw { outline: 2px dashed var(--accent); outline-offset: 3px; }
+</style>
+</head>
+<body>
+<div id="hemel" aria-hidden="true"></div>
+<main id="hoofdinhoud">
+  <header class="mk-kop">
+    <h1>Factureerbaar: vijf voorstellen</h1>
+    <p>Zo zou het blok "Factureerbaar" in Beheer › Performance eruit kunnen zien. Elk voorstel staat op zijn plek in het dashboard, onder het blok Onderdelen. Bedragen overal in hele euro's, excl. btw.</p>
+    <div class="mk-knoppen" role="group" aria-label="Weergave">
+      <button type="button" class="filter-preset" data-thema="licht">Licht</button>
+      <button type="button" class="filter-preset" data-thema="donker">Donker</button>
+    </div>
+  </header>
+
+  <!-- ───────────── NU ───────────── -->
+  <section class="mk-variant" id="nu" aria-labelledby="nu-kop">
+    <h2 class="mk-label" id="nu-kop"><span class="mk-letter" style="background:var(--knop2);color:var(--viz-ink)">·</span>Nu (v2.7.0)</h2>
+    <p class="mk-uitleg">Ter vergelijking: één kaart in een blok wordt altijd zo breed als het scherm, met een lange uitlegzin en een kale lijst.</p>
+    <div class="dash"><section class="dash-blok dash-blok--factureerbaar" aria-labelledby="dash-blok-factureerbaar"><h2 class="dash-blok-kop" id="dash-blok-factureerbaar">Factureerbaar</h2><div class="dash-raster"><section class="dash-kaart"><h3 class="dash-kaart-kop">Factureerbaar bedrag</h3><p class="dash-uitleg">Onderdelen en loon van de gekozen periode, excl. btw, volgens de regels van het rapportarchief. Bij garantie en installatie telt het loon niet mee. 1 onderdeel zonder prijs tellen voor € 0 mee. 3 onderdelen als &quot;niet aangerekend&quot; gemarkeerd: niet meegeteld.</p><dl class="dash-feiten"><div><dt>Totaal</dt><dd>€ 2.314</dd></div><div><dt>Onderdelen</dt><dd>€ 843,63</dd></div><div><dt>Loon</dt><dd>€ 1.470 · 10u56 werk- en rijtijd</dd></div><div><dt>Niet aangerekend (garantie of installatie)</dt><dd>31u53 in 11 rapporten</dd></div></dl></section></div></section></div>
+  </section>
+
+  <!-- ───────────── A ───────────── -->
+  <section class="mk-variant" id="A" aria-labelledby="a-kop">
+    <h2 class="mk-label" id="a-kop"><span class="mk-letter">A</span>Tegelrij</h2>
+    <p class="mk-uitleg">Vier tegels in dezelfde stijl als de kerncijfers bovenaan. De uitleg zit achter de i-knop, de aandachtspunten in één korte regel.</p>
+    <div class="dash">
+      <section class="dash-blok dash-blok--onderdelen"><h2 class="dash-blok-kop">Onderdelen</h2><div class="dash-raster"><section class="dash-kaart"><h3 class="dash-kaart-kop">Top 10 onderdelen (aantal)</h3><p class="dash-uitleg">Totaal in de periode: 13 stuks, € 968. 1 onderdeel zonder prijs telt als € 0.</p><div class="balken-blok"><div class="balken" role="group" aria-label="Top 10 onderdelen (aantal)"><div class="balk-rij"><span class="balk-label">LED</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="LED: 7× · € 56,00"><title>LED: 7× · € 56,00</title><rect x="0" y="0" width="100%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">7× · € 56,00</span></div><div class="balk-rij"><span class="balk-label">Zekering</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="Zekering: 3× · € 37,50"><title>Zekering: 3× · € 37,50</title><rect x="0" y="0" width="42.86%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">3× · € 37,50</span></div><div class="balk-rij"><span class="balk-label">Controller - CHARX 3000</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="Controller - CHARX 3000: 1× · € 442,13"><title>Controller - CHARX 3000: 1× · € 442,13</title><rect x="0" y="0" width="14.29%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">1× · € 442,13</span></div><div class="balk-rij"><span class="balk-label">CT-klem 80A/1A</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="CT-klem 80A/1A: 1× · € 10,00"><title>CT-klem 80A/1A: 1× · € 10,00</title><rect x="0" y="0" width="14.29%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">1× · € 10,00</span></div><div class="balk-rij"><span class="balk-label">Onbekend deel</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="Onbekend deel: 1× · € 0,00"><title>Onbekend deel: 1× · € 0,00</title><rect x="0" y="0" width="14.29%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">1× · € 0,00</span></div></div><details class="tabel-twin"><summary>Tabel</summary><table aria-label="Top 10 onderdelen (aantal)"><caption>Top 10 onderdelen (aantal)</caption><thead><tr><th scope="col">Categorie</th><th scope="col" class="num">Waarde stuks</th></tr></thead><tbody><tr><th scope="row">LED</th><td class="num">7</td></tr><tr><th scope="row">Zekering</th><td class="num">3</td></tr><tr><th scope="row">Controller - CHARX 3000</th><td class="num">1</td></tr><tr><th scope="row">CT-klem 80A/1A</th><td class="num">1</td></tr><tr><th scope="row">Onbekend deel</th><td class="num">1</td></tr></tbody></table></details></div></section></div></section>
+      <section class="dash-blok fx-a" aria-labelledby="a-blok">
+        <div class="fx-kop">
+          <h2 class="dash-blok-kop" id="a-blok">Factureerbaar</h2>
+          <details class="fx-info"><summary aria-label="Hoe wordt dit berekend?">i</summary>
+            <div class="fx-bubbel"><strong>Hoe wordt dit berekend?</strong>
+              <ul><li>Onderdelen en loon van de gekozen periode, excl. btw.</li><li>Loon van garantie- en installatiebezoeken telt niet mee.</li></ul></div>
+          </details>
+        </div>
+        <div class="tegels">
+          <article class="tegel"><h3 class="tegel-kop">Factureerbaar</h3><p class="tegel-getal"><span class="tegel-waarde">€ 2.314</span></p><p class="fx-sub">onderdelen + loon, excl. btw</p></article>
+          <article class="tegel"><h3 class="tegel-kop">Onderdelen</h3><p class="tegel-getal"><span class="tegel-waarde">€ 844</span></p><p class="fx-sub">36 % van het totaal</p></article>
+          <article class="tegel"><h3 class="tegel-kop">Loon</h3><p class="tegel-getal"><span class="tegel-waarde">€ 1.470</span></p><p class="fx-sub">10u56 werk- en rijtijd</p></article>
+          <article class="tegel"><h3 class="tegel-kop">Niet aangerekend</h3><p class="tegel-getal"><span class="tegel-waarde tegel-waarde--gedempt">31u53</span></p><p class="fx-sub">in 11 rapporten (garantie of installatie)</p></article>
+        </div>
+        <p class="fx-let"><span>1 onderdeel zonder prijs telt als € 0</span><span>3 onderdelen niet aangerekend: niet meegeteld</span></p>
+      </section>
+    </div>
+  </section>
+
+  <!-- ───────────── B ───────────── -->
+  <section class="mk-variant" id="B" aria-labelledby="b-kop">
+    <h2 class="mk-label" id="b-kop"><span class="mk-letter">B</span>Groot bedrag met verdeelbalk</h2>
+    <p class="mk-uitleg">Eén groot bedrag dat meteen opvalt, met een balk die toont welk deel uit onderdelen en welk deel uit loon komt.</p>
+    <div class="dash">
+      <section class="dash-blok dash-blok--onderdelen"><h2 class="dash-blok-kop">Onderdelen</h2><div class="dash-raster"><section class="dash-kaart"><h3 class="dash-kaart-kop">Top 10 onderdelen (aantal)</h3><p class="dash-uitleg">Totaal in de periode: 13 stuks, € 968. 1 onderdeel zonder prijs telt als € 0.</p><div class="balken-blok"><div class="balken" role="group" aria-label="Top 10 onderdelen (aantal)"><div class="balk-rij"><span class="balk-label">LED</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="LED: 7× · € 56,00"><title>LED: 7× · € 56,00</title><rect x="0" y="0" width="100%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">7× · € 56,00</span></div><div class="balk-rij"><span class="balk-label">Zekering</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="Zekering: 3× · € 37,50"><title>Zekering: 3× · € 37,50</title><rect x="0" y="0" width="42.86%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">3× · € 37,50</span></div><div class="balk-rij"><span class="balk-label">Controller - CHARX 3000</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="Controller - CHARX 3000: 1× · € 442,13"><title>Controller - CHARX 3000: 1× · € 442,13</title><rect x="0" y="0" width="14.29%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">1× · € 442,13</span></div><div class="balk-rij"><span class="balk-label">CT-klem 80A/1A</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="CT-klem 80A/1A: 1× · € 10,00"><title>CT-klem 80A/1A: 1× · € 10,00</title><rect x="0" y="0" width="14.29%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">1× · € 10,00</span></div><div class="balk-rij"><span class="balk-label">Onbekend deel</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="Onbekend deel: 1× · € 0,00"><title>Onbekend deel: 1× · € 0,00</title><rect x="0" y="0" width="14.29%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">1× · € 0,00</span></div></div><details class="tabel-twin"><summary>Tabel</summary><table aria-label="Top 10 onderdelen (aantal)"><caption>Top 10 onderdelen (aantal)</caption><thead><tr><th scope="col">Categorie</th><th scope="col" class="num">Waarde stuks</th></tr></thead><tbody><tr><th scope="row">LED</th><td class="num">7</td></tr><tr><th scope="row">Zekering</th><td class="num">3</td></tr><tr><th scope="row">Controller - CHARX 3000</th><td class="num">1</td></tr><tr><th scope="row">CT-klem 80A/1A</th><td class="num">1</td></tr><tr><th scope="row">Onbekend deel</th><td class="num">1</td></tr></tbody></table></details></div></section></div></section>
+      <section class="dash-blok" aria-labelledby="b-blok">
+        <h2 class="dash-blok-kop" id="b-blok">Factureerbaar</h2>
+        <div class="dash-raster">
+          <section class="dash-kaart dash-kaart--breed">
+            <div class="fx-kaartkop">
+              <h3 class="dash-kaart-kop">Factureerbaar bedrag</h3>
+              <details class="fx-info"><summary aria-label="Hoe wordt dit berekend?">i</summary>
+                <div class="fx-bubbel"><strong>Hoe wordt dit berekend?</strong>
+                  <ul><li>Onderdelen en loon van de gekozen periode, excl. btw.</li><li>Loon van garantie- en installatiebezoeken telt niet mee.</li></ul></div>
+              </details>
+            </div>
+            <div class="fx-b">
+              <div class="fx-b-groot">
+                <span class="tegel-waarde">€ 2.314</span>
+                <p class="fx-sub">excl. btw</p>
+              </div>
+              <div class="fx-b-verdeling">
+                <div class="fx-verdeel" role="img" aria-label="Onderdelen € 844 (36 %), loon € 1.470 (64 %)"><span class="fx-deel-1" style="width:36%"></span><span class="fx-deel-2" style="width:64%"></span></div>
+                <ul class="fx-legende">
+                  <li><span class="swatch swatch--1"></span><span>Onderdelen <span class="fx-gedempt">· 36 %</span></span><b>€ 844</b></li>
+                  <li><span class="swatch swatch--2"></span><span>Loon <span class="fx-gedempt">· 64 %</span></span><b>€ 1.470</b><small>10u56 werk- en rijtijd</small></li>
+                </ul>
+              </div>
+            </div>
+            <div class="fx-b-voet">
+              <span><span class="fx-gedempt">Niet aangerekend (garantie of installatie):</span> 31u53 in 11 rapporten</span>
+              <p class="fx-let"><span>1 onderdeel zonder prijs telt als € 0</span><span>3 onderdelen niet aangerekend</span></p>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ───────────── C ───────────── -->
+  <section class="mk-variant" id="C" aria-labelledby="c-kop">
+    <h2 class="mk-label" id="c-kop"><span class="mk-letter">C</span>Twee donuts</h2>
+    <p class="mk-uitleg">Twee compacte kaarten naast elkaar, zoals de donut bij Sales: links waar het bedrag vandaan komt, rechts hoeveel werk- en rijtijd wel en niet aangerekend is.</p>
+    <div class="dash">
+      <section class="dash-blok dash-blok--onderdelen"><h2 class="dash-blok-kop">Onderdelen</h2><div class="dash-raster"><section class="dash-kaart"><h3 class="dash-kaart-kop">Top 10 onderdelen (aantal)</h3><p class="dash-uitleg">Totaal in de periode: 13 stuks, € 968. 1 onderdeel zonder prijs telt als € 0.</p><div class="balken-blok"><div class="balken" role="group" aria-label="Top 10 onderdelen (aantal)"><div class="balk-rij"><span class="balk-label">LED</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="LED: 7× · € 56,00"><title>LED: 7× · € 56,00</title><rect x="0" y="0" width="100%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">7× · € 56,00</span></div><div class="balk-rij"><span class="balk-label">Zekering</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="Zekering: 3× · € 37,50"><title>Zekering: 3× · € 37,50</title><rect x="0" y="0" width="42.86%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">3× · € 37,50</span></div><div class="balk-rij"><span class="balk-label">Controller - CHARX 3000</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="Controller - CHARX 3000: 1× · € 442,13"><title>Controller - CHARX 3000: 1× · € 442,13</title><rect x="0" y="0" width="14.29%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">1× · € 442,13</span></div><div class="balk-rij"><span class="balk-label">CT-klem 80A/1A</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="CT-klem 80A/1A: 1× · € 10,00"><title>CT-klem 80A/1A: 1× · € 10,00</title><rect x="0" y="0" width="14.29%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">1× · € 10,00</span></div><div class="balk-rij"><span class="balk-label">Onbekend deel</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="Onbekend deel: 1× · € 0,00"><title>Onbekend deel: 1× · € 0,00</title><rect x="0" y="0" width="14.29%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">1× · € 0,00</span></div></div><details class="tabel-twin"><summary>Tabel</summary><table aria-label="Top 10 onderdelen (aantal)"><caption>Top 10 onderdelen (aantal)</caption><thead><tr><th scope="col">Categorie</th><th scope="col" class="num">Waarde stuks</th></tr></thead><tbody><tr><th scope="row">LED</th><td class="num">7</td></tr><tr><th scope="row">Zekering</th><td class="num">3</td></tr><tr><th scope="row">Controller - CHARX 3000</th><td class="num">1</td></tr><tr><th scope="row">CT-klem 80A/1A</th><td class="num">1</td></tr><tr><th scope="row">Onbekend deel</th><td class="num">1</td></tr></tbody></table></details></div></section></div></section>
+      <section class="dash-blok fx-c" aria-labelledby="c-blok">
+        <h2 class="dash-blok-kop" id="c-blok">Factureerbaar</h2>
+        <div class="dash-raster">
+          <section class="dash-kaart">
+            <div class="fx-kaartkop">
+              <h3 class="dash-kaart-kop">Factureerbaar bedrag</h3>
+              <details class="fx-info"><summary aria-label="Hoe wordt dit berekend?">i</summary>
+                <div class="fx-bubbel"><strong>Hoe wordt dit berekend?</strong>
+                  <ul><li>Onderdelen en loon van de gekozen periode, excl. btw.</li><li>Loon van garantie- en installatiebezoeken telt niet mee.</li><li>1 onderdeel zonder prijs telt als € 0.</li><li>3 onderdelen niet aangerekend: niet meegeteld.</li></ul></div>
+              </details>
+            </div>
+            <div class="fx-donut">
+              <svg viewBox="0 0 100 100" width="132" height="132" role="img" aria-label="Factureerbaar € 2.314: onderdelen € 844, loon € 1.470">
+                <circle cx="50" cy="50" r="45" fill="none" stroke="var(--viz-1)" stroke-width="10" stroke-dasharray="101.09 181.65" stroke-dashoffset="-1" transform="rotate(-90 50 50)"/>
+                <circle cx="50" cy="50" r="45" fill="none" stroke="var(--viz-2)" stroke-width="10" stroke-dasharray="177.65 105.09" stroke-dashoffset="-104.09" transform="rotate(-90 50 50)"/>
+                <text class="fx-donut-groot" x="50" y="47" text-anchor="middle" dominant-baseline="central">€ 2.314</text>
+                <text class="fx-donut-klein" x="50" y="62" text-anchor="middle" dominant-baseline="central">excl. btw</text>
+              </svg>
+              <ul class="fx-legende">
+                <li><span class="swatch swatch--1"></span><span>Onderdelen</span><b>€ 844</b></li>
+                <li><span class="swatch swatch--2"></span><span>Loon</span><b>€ 1.470</b><small>10u56 werk- en rijtijd</small></li>
+              </ul>
+            </div>
+            <p class="fx-let"><span>1 onderdeel zonder prijs · 3 niet aangerekend</span></p>
+          </section>
+          <section class="dash-kaart">
+            <h3 class="dash-kaart-kop">Werk- en rijtijd</h3>
+            <div class="fx-donut">
+              <svg viewBox="0 0 100 100" width="132" height="132" role="img" aria-label="Werk- en rijtijd 42u49: aangerekend 10u56, niet aangerekend 31u53">
+                <circle cx="50" cy="50" r="45" fill="none" stroke="var(--viz-3)" stroke-width="10" stroke-dasharray="70.21 212.53" stroke-dashoffset="-1" transform="rotate(-90 50 50)"/>
+                <circle cx="50" cy="50" r="45" fill="none" stroke="var(--viz-overige)" stroke-width="10" stroke-dasharray="208.53 74.21" stroke-dashoffset="-73.21" transform="rotate(-90 50 50)"/>
+                <text class="fx-donut-groot" x="50" y="47" text-anchor="middle" dominant-baseline="central">42u49</text>
+                <text class="fx-donut-klein" x="50" y="62" text-anchor="middle" dominant-baseline="central">in totaal</text>
+              </svg>
+              <ul class="fx-legende">
+                <li><span class="swatch fx-swatch-3"></span><span>Aangerekend</span><b>10u56</b></li>
+                <li><span class="swatch fx-swatch-grijs"></span><span>Niet aangerekend</span><b>31u53</b><small>11 rapporten (garantie of installatie)</small></li>
+              </ul>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ───────────── D ───────────── -->
+  <section class="mk-variant" id="D" aria-labelledby="d-kop">
+    <h2 class="mk-label" id="d-kop"><span class="mk-letter">D</span>Opbouw zoals een factuur</h2>
+    <p class="mk-uitleg">Het bedrag opgebouwd zoals op een factuur: onderdelen plus loon, met een streep en het totaal. De uitleg klapt open onder "Hoe wordt dit berekend?".</p>
+    <div class="dash">
+      <section class="dash-blok dash-blok--onderdelen"><h2 class="dash-blok-kop">Onderdelen</h2><div class="dash-raster"><section class="dash-kaart"><h3 class="dash-kaart-kop">Top 10 onderdelen (aantal)</h3><p class="dash-uitleg">Totaal in de periode: 13 stuks, € 968. 1 onderdeel zonder prijs telt als € 0.</p><div class="balken-blok"><div class="balken" role="group" aria-label="Top 10 onderdelen (aantal)"><div class="balk-rij"><span class="balk-label">LED</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="LED: 7× · € 56,00"><title>LED: 7× · € 56,00</title><rect x="0" y="0" width="100%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">7× · € 56,00</span></div><div class="balk-rij"><span class="balk-label">Zekering</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="Zekering: 3× · € 37,50"><title>Zekering: 3× · € 37,50</title><rect x="0" y="0" width="42.86%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">3× · € 37,50</span></div><div class="balk-rij"><span class="balk-label">Controller - CHARX 3000</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="Controller - CHARX 3000: 1× · € 442,13"><title>Controller - CHARX 3000: 1× · € 442,13</title><rect x="0" y="0" width="14.29%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">1× · € 442,13</span></div><div class="balk-rij"><span class="balk-label">CT-klem 80A/1A</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="CT-klem 80A/1A: 1× · € 10,00"><title>CT-klem 80A/1A: 1× · € 10,00</title><rect x="0" y="0" width="14.29%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">1× · € 10,00</span></div><div class="balk-rij"><span class="balk-label">Onbekend deel</span><svg class="balk-svg" width="100%" height="16" role="img" aria-label="Onbekend deel: 1× · € 0,00"><title>Onbekend deel: 1× · € 0,00</title><rect x="0" y="0" width="14.29%" height="16" rx="4" fill="var(--viz-1)"/><rect x="0" y="0" width="4" height="16" fill="var(--viz-1)"/></svg><span class="balk-waarde">1× · € 0,00</span></div></div><details class="tabel-twin"><summary>Tabel</summary><table aria-label="Top 10 onderdelen (aantal)"><caption>Top 10 onderdelen (aantal)</caption><thead><tr><th scope="col">Categorie</th><th scope="col" class="num">Waarde stuks</th></tr></thead><tbody><tr><th scope="row">LED</th><td class="num">7</td></tr><tr><th scope="row">Zekering</th><td class="num">3</td></tr><tr><th scope="row">Controller - CHARX 3000</th><td class="num">1</td></tr><tr><th scope="row">CT-klem 80A/1A</th><td class="num">1</td></tr><tr><th scope="row">Onbekend deel</th><td class="num">1</td></tr></tbody></table></details></div></section></div></section>
+      <section class="dash-blok" aria-labelledby="d-blok">
+        <h2 class="dash-blok-kop" id="d-blok">Factureerbaar</h2>
+        <div class="dash-raster">
+          <section class="dash-kaart">
+            <h3 class="dash-kaart-kop">Factureerbaar bedrag</h3>
+            <dl class="fx-bon">
+              <div><dt>Onderdelen</dt><dd>€ 844</dd></div>
+              <div><dt>Loon <small>10u56 werk- en rijtijd</small></dt><dd>€ 1.470</dd></div>
+              <div class="fx-bon-totaal"><dt>Totaal excl. btw</dt><dd>€ 2.314</dd></div>
+            </dl>
+            <details class="fx-toelichting"><summary>Hoe wordt dit berekend?</summary>
+              <ul><li>Onderdelen en loon van de gekozen periode, excl. btw.</li><li>Loon van garantie- en installatiebezoeken telt niet mee.</li><li>1 onderdeel zonder prijs telt als € 0.</li><li>3 onderdelen niet aangerekend: niet meegeteld.</li></ul>
+            </details>
+          </section>
+          <section class="dash-kaart">
+            <h3 class="dash-kaart-kop">Niet aangerekend</h3>
+            <p class="fx-groot-uren">31u53</p>
+            <p class="fx-sub">werk- en rijtijd in 11 rapporten, garantie of installatie</p>
+          </section>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ───────────── E ───────────── -->
+  <section class="mk-variant" id="E" aria-labelledby="e-kop">
+    <h2 class="mk-label" id="e-kop"><span class="mk-letter">E</span>In de kerncijfers bovenaan</h2>
+    <p class="mk-uitleg">Geen apart blok meer: de tegel "Waarde onderdelen" bovenaan wordt "Factureerbaar" (gestippeld omrand), met een kleine verdeelbalk. De uitleg komt bij de voetnoten onderaan het dashboard.</p>
+    <div class="dash">
+      <div class="dash-inhoud">
+        <div class="tegels"><article class="tegel tegel--aantal tegel--interventies"><h3 class="tegel-kop">Interventies</h3><p class="tegel-getal"><span class="tegel-waarde">10</span></p><p class="tegel-verschil tegel-verschil--op" title="Ten opzichte van de vorige periode"><span class="tegel-verschil-pijl">↑ 42,9 %</span> <span class="tegel-verschil-woord">hoger</span></p></article><article class="tegel tegel--duur tegel--gemDuurMin"><h3 class="tegel-kop">Gemiddelde duur</h3><p class="tegel-getal"><span class="tegel-waarde">1u33</span></p><p class="tegel-verschil tegel-verschil--op tegel-verschil--slecht" title="Ten opzichte van de vorige periode"><span class="tegel-verschil-pijl">↑ 49,3 %</span> <span class="tegel-verschil-woord">slechter</span></p></article><article class="tegel tegel--ring tegel--opTijd"><h3 class="tegel-kop">% op tijd (alle bezoeken)</h3><figure class="ring ring--slecht"><svg class="ring-svg ring--slecht" viewBox="0 0 100 100" width="96" height="96" role="img" aria-label="% op tijd (alle bezoeken): 70 %"><circle class="ring-spoor" cx="50" cy="50" r="45" fill="none" stroke-width="10"/><circle class="ring-boog" cx="50" cy="50" r="45" fill="none" stroke-width="10" stroke-linecap="round" stroke-dasharray="197.92 282.74" transform="rotate(-90 50 50)"/><text class="ring-pct" x="50" y="50" text-anchor="middle" dominant-baseline="central">70%</text></svg><figcaption><span class="ring-status"><svg class="ring-icoon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="M8.5 8.5 L15.5 15.5 M15.5 8.5 L8.5 15.5"/></svg> Onder doel</span><span class="ring-n">7 van 10</span><span class="ring-sub">2 te vroeg · 7 op tijd · 1 te laat</span></figcaption></figure><p class="tegel-verschil tegel-verschil--neer tegel-verschil--slecht" title="Ten opzichte van de vorige periode"><span class="tegel-verschil-pijl">↓ 1,4 pt</span> <span class="tegel-verschil-woord">slechter</span></p></article><article class="tegel tegel--ring tegel--firstTimeFix"><h3 class="tegel-kop">First-time-fix</h3><figure class="ring ring--slecht"><svg class="ring-svg ring--slecht" viewBox="0 0 100 100" width="96" height="96" role="img" aria-label="First-time-fix: 60 %"><circle class="ring-spoor" cx="50" cy="50" r="45" fill="none" stroke-width="10"/><circle class="ring-boog" cx="50" cy="50" r="45" fill="none" stroke-width="10" stroke-linecap="round" stroke-dasharray="169.65 282.74" transform="rotate(-90 50 50)"/><text class="ring-pct" x="50" y="50" text-anchor="middle" dominant-baseline="central">60%</text></svg><figcaption><span class="ring-status"><svg class="ring-icoon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="M8.5 8.5 L15.5 15.5 M15.5 8.5 L8.5 15.5"/></svg> Onder doel</span><span class="ring-n">6 van 10</span></figcaption></figure><p class="tegel-verschil tegel-verschil--neer tegel-verschil--slecht" title="Ten opzichte van de vorige periode"><span class="tegel-verschil-pijl">↓ 25,7 pt</span> <span class="tegel-verschil-woord">slechter</span></p></article><article class="tegel tegel--aantal tegel--herhaalbezoeken"><h3 class="tegel-kop">Herhaalbezoeken</h3><p class="tegel-getal"><span class="tegel-waarde">4</span></p><p class="tegel-verschil tegel-verschil--op tegel-verschil--slecht" title="Ten opzichte van de vorige periode"><span class="tegel-verschil-pijl">↑ 100 %</span> <span class="tegel-verschil-woord">slechter</span></p></article><article class="tegel tegel--euro fx-e-tegel fx-nieuw"><h3 class="tegel-kop">Factureerbaar</h3><p class="tegel-getal"><span class="tegel-waarde">€ 2.314</span></p><div class="fx-verdeel fx-verdeel--dun" role="img" aria-label="Onderdelen € 844 (36 %), loon € 1.470 (64 %)"><span class="fx-deel-1" style="width:36%"></span><span class="fx-deel-2" style="width:64%"></span></div><p class="fx-sub"><span class="swatch swatch--1" style="width:8px;height:8px"></span> Onderdelen <b>€ 844</b><br><span class="swatch swatch--2" style="width:8px;height:8px"></span> Loon <b>€ 1.470</b><br>excl. btw · 10u56 loon</p></article></div>
+        <p class="mk-sprong">… de blokken Tijd, Kwaliteit, Onderdelen en Klant zoals nu …</p>
+        <ul class="dash-voetnoten" aria-label="Dekking en beperkingen">
+          <li>Factureerbaar: onderdelen en loon, excl. btw. Loon van garantie en installatie telt niet mee (31u53 in 11 rapporten).</li>
+          <li>1 onderdeel zonder prijs telt als € 0; 3 onderdelen niet aangerekend: niet meegeteld.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+<script>
+  (function () {
+    var h = document.documentElement;
+    function zet() {
+      var donker = !h.hasAttribute('data-theme');
+      document.querySelectorAll('[data-thema]').forEach(function (b) { b.setAttribute('aria-pressed', String((b.dataset.thema === 'donker') === donker)); });
+    }
+    document.querySelectorAll('[data-thema]').forEach(function (b) {
+      b.addEventListener('click', function () { if (b.dataset.thema === 'donker') h.removeAttribute('data-theme'); else h.setAttribute('data-theme', 'light'); zet(); });
+    });
+    zet();
+  })();
+</script>
+</body>
+</html>

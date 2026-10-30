@@ -329,6 +329,7 @@ export async function stubExtern(page, { overschrijf = {} } = {}) {
       return route.fulfill({
         status: antwoord.status,
         contentType: 'application/json',
+        ...(antwoord.headers ? { headers: antwoord.headers } : {}), // optioneel: extra antwoordkoppen (bv. X-Blitz-Verouderd van /api/tickets)
         body: JSON.stringify(antwoord.json),
       });
     });
