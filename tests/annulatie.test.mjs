@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   REDENEN, valideerAnnulatie, bouwAnnulatieMail, bouwAnnulatieNotitie,
+  bouwGeenReactieMail, bouwGeenReactieNotitie, statusNaAnnulatie,
 } from '../netlify/lib/annulatie.js';
 import { maakHandler } from '../netlify/functions/annuleer.js';
 
@@ -102,9 +103,60 @@ test('bouwAnnulatieMail: naam wordt geescaped', () => {
   assert.ok(!h.includes('<script>'));
   assert.match(h, /&lt;script&gt;/);
 });
-test('REDENEN: zes redenen, andere zonder klantzin', () => {
-  assert.equal(REDENEN.length, 6);
+test('REDENEN: zeven redenen (met "Geen reactie van de klant"), andere zonder klantzin, andere blijft laatste', () => {
+  assert.equal(REDENEN.length, 7);
   assert.equal(REDENEN.find(r => r.code === 'andere').klantzin, null);
+  assert.equal(REDENEN.at(-1).code, 'andere');
+  assert.equal(REDENEN.find(r => r.code === 'geenreactie').label, 'Geen reactie van de klant');
+});
+
+// ---- geen reactie van de klant ---------------------------------------------
+test('statusNaAnnulatie: geenreactie sluit het ticket (Gesloten - ov), elke andere reden zet het terug op Wachten op planning', () => {
+  assert.equal(statusNaAnnulatie('geenreactie'), 'Gesloten - ov');
+  for (const r of REDENEN.filter(x => x.code !== 'geenreactie')) assert.equal(statusNaAnnulatie(r.code), 'Wachten op planning', r.code);
+});
+
+test('bouwGeenReactieMail: afspraak vervalt, GEEN belofte van een nieuw voorstel, antwoorden op de mail heropent het ticket', () => {
+  const h = bouwGeenReactieMail({ naam: 'An', datum: '2026-10-14', tijdslot: '08:30–11:30' });
+  assert.match(h, /Beste An,/);
+  assert.match(h, /woensdag 14 oktober 2026/);
+  assert.match(h, /\(08:30–11:30\)/);
+  assert.match(h, /geen bevestiging/);
+  assert.match(h, /antwoord .{0,15}op deze e-?mail/i);
+  assert.match(h, /heropend/);
+  assert.match(h, /Het serviceteam van Blitz Power/);
+  // Geen enkele belofte dat Blitz zelf een nieuwe datum of een nieuw voorstel doet (dat staat in de standaard annulatiemail).
+  assert.doesNotMatch(h, /nieuwe datum/i);
+  assert.doesNotMatch(h, /nemen .{0,40}contact/i);
+  assert.doesNotMatch(h, /Helaas moeten we/);
+  assert.match(h, /doen (zelf )?geen nieuw voorstel/i);
+});
+
+test('bouwGeenReactieMail: uur zonder tijdslot, fallback zonder datum, naam geescaped', () => {
+  assert.match(bouwGeenReactieMail({ naam: 'An', datum: '2026-10-14', uur: '08:30' }), /\(om 08:30\)/);
+  assert.match(bouwGeenReactieMail({ naam: 'An' }), /\(tijdstip nog te bevestigen\)/);
+  const h = bouwGeenReactieMail({ naam: '<script>x</script>', datum: '2026-10-14' });
+  assert.ok(!h.includes('<script>'));
+  assert.match(h, /&lt;script&gt;/);
+});
+
+test('bouwAnnulatieMail met reden geenreactie geeft het geen-reactie-sjabloon (nooit "null" of de standaardtekst)', () => {
+  const h = bouwAnnulatieMail({ naam: 'An', datum: '2026-10-14', tijdslot: '08:30–11:30', reden: 'geenreactie', toelichting: '' });
+  assert.equal(h, bouwGeenReactieMail({ naam: 'An', datum: '2026-10-14', tijdslot: '08:30–11:30' }));
+  assert.ok(!h.includes('null'));
+});
+
+test('bouwGeenReactieNotitie: vervallen en gesloten, met en zonder mail, toelichting en geescaped', () => {
+  const basis = { datum: '2026-10-14', tijdslot: '08:30–11:30', door: 'Brent', tijdstip: '30/09/2026 15:12', toelichting: '', mailKlant: true, gemaild: ['a@x.be'] };
+  const m = bouwGeenReactieNotitie(basis);
+  assert.match(m, /Afspraak van 14\/10\/2026 08:30–11:30 vervallen: geen reactie van de klant/);
+  assert.match(m, /via Blitz Planning door Brent op 30\/09\/2026 15:12/);
+  assert.match(m, /Gesloten - ov/);
+  assert.match(m, /Klant verwittigd per mail: ja \(a@x\.be\)/);
+  const z = bouwGeenReactieNotitie({ ...basis, door: '', mailKlant: false, gemaild: [], toelichting: '<b>x</b>' });
+  assert.match(z, /via Blitz Planning op 30\/09\/2026 15:12/);
+  assert.match(z, /Toelichting: &lt;b&gt;x&lt;\/b&gt;\./);
+  assert.match(z, /Klant verwittigd per mail: nee/);
 });
 
 // ---- notitie ---------------------------------------------------------------
@@ -129,8 +181,9 @@ test('endpoint GET: redenenlijst zonder Zoho', async () => {
   const r = await h(new Request('http://x/api/annuleer'));
   const j = await r.json();
   assert.equal(r.status, 200);
-  assert.equal(j.redenen.length, 6);
+  assert.equal(j.redenen.length, 7);
   assert.equal(j.redenen[0].klantzin, undefined);
+  assert.ok(j.redenen.some(r => r.code === 'geenreactie' && r.label === 'Geen reactie van de klant'));
   assert.equal(calls.length, 0);
 });
 
@@ -289,4 +342,63 @@ test('endpoint echt: status Wachten op planning + mailKlant:false -> 200 opgerui
   const nota = calls.find(c => c.url.includes('/comments'));
   assert.match(JSON.parse(nota.body).content, /Vergrendeling opgeruimd.*Wachten op planning/);
   assert.equal(JSON.parse(w.get('blitz-data').get('voorstel-status')).status['555'], undefined);
+});
+
+// ---- endpoint: geen reactie van de klant -------------------------------------
+test('endpoint voorbeeld geenreactie: geen Zoho, html is het geen-reactie-sjabloon', async () => {
+  const { getStore } = maakWinkels();
+  const { fn, calls } = maakFetch();
+  const h = maakHandler({ getStore, fetch: fn });
+  const r = await h(post({ voorbeeld: true, naam: 'An', datum: '2026-10-14', tijdslot: '08:30–11:30', reden: 'geenreactie' }));
+  const j = await r.json();
+  assert.equal(r.status, 200);
+  assert.equal(j.html, bouwGeenReactieMail({ naam: 'An', datum: '2026-10-14', tijdslot: '08:30–11:30' }));
+  assert.equal(calls.length, 0);
+});
+
+test('endpoint echt geenreactie: eigen sjabloon via sendReply, DAARNA PATCH naar Gesloten - ov (datum gewist), antwoord geeft de status', async () => {
+  const w = maakWinkels({ 'blitz-data': { 'voorstel-status': REG } });
+  const { fn, calls } = maakFetch();
+  const r = await maakHandler({ getStore: w.getStore, fetch: fn })(post({ ticketId: '555', reden: 'geenreactie', toelichting: '', mailKlant: true, door: 'Brent' }));
+  const j = await r.json();
+  assert.equal(r.status, 200);
+  assert.equal(j.ok, true);
+  assert.equal(j.status, 'Gesloten - ov');
+  const replies = calls.filter(c => c.url.includes('/sendReply'));
+  assert.equal(replies.length, 2); // contact + klant
+  for (const rep of replies) assert.equal(JSON.parse(rep.body).content, bouwGeenReactieMail({ naam: 'An Peeters', datum: '2026-10-14', tijdslot: '08:30–11:30' }));
+  const patchIdx = calls.findIndex(c => c.method === 'PATCH');
+  assert.ok(patchIdx > calls.indexOf(replies.at(-1)), 'PATCH komt na de laatste sendReply');
+  assert.deepEqual(JSON.parse(calls[patchIdx].body), { status: 'Gesloten - ov', cf: { cf_interventie_datm: '' } });
+  assert.equal(JSON.parse(w.get('blitz-data').get('voorstel-status')).status['555'], undefined);
+});
+
+test('endpoint echt geenreactie met mailKlant:false: geen sendReply, wel PATCH Gesloten - ov', async () => {
+  const w = maakWinkels({ 'blitz-data': { 'voorstel-status': REG } });
+  const { fn, calls } = maakFetch();
+  const r = await maakHandler({ getStore: w.getStore, fetch: fn })(post({ ticketId: '555', reden: 'geenreactie', toelichting: '', mailKlant: false, door: 'Brent' }));
+  assert.equal(r.status, 200);
+  assert.equal(calls.filter(c => c.url.includes('/sendReply')).length, 0);
+  assert.deepEqual(JSON.parse(calls.find(c => c.method === 'PATCH').body), { status: 'Gesloten - ov', cf: { cf_interventie_datm: '' } });
+});
+
+test('endpoint testmodus geenreactie: nul fetch en het nep-antwoord geeft Gesloten - ov', async () => {
+  const w = maakWinkels({ 'blitz-data-test': { _testkopie: '{}' } });
+  const { fn, calls } = maakFetch();
+  const r = await maakHandler({ getStore: w.getStore, fetch: fn })(post({ ticketId: '555', reden: 'geenreactie', toelichting: '', mailKlant: true }, { 'X-Blitz-Test': '1' }));
+  const j = await r.json();
+  assert.equal(j.test, true);
+  assert.equal(j.status, 'Gesloten - ov');
+  assert.equal(calls.length, 0);
+});
+
+test('endpoint geenreactie op een ticket dat niet gepland staat: opruimen zonder PATCH en zonder status in het antwoord', async () => {
+  const w = maakWinkels({ 'blitz-data': { 'voorstel-status': REG } });
+  const { fn, calls } = maakFetch({ status: 'Wachten op planning' });
+  const r = await maakHandler({ getStore: w.getStore, fetch: fn })(post({ ticketId: '555', reden: 'geenreactie', toelichting: '', mailKlant: false, door: 'Brent' }));
+  const j = await r.json();
+  assert.equal(r.status, 200);
+  assert.equal(j.opgeruimd, true);
+  assert.equal(j.status, undefined);
+  assert.equal(calls.filter(c => c.method === 'PATCH').length, 0);
 });

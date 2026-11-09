@@ -1,6 +1,12 @@
 // Voorstelregister (blob `voorstel-status`): pure logica op een meegegeven store,
 // zodat het testbaar is met een nep-store.
-// Structuur: { versie, status: { [ticketId]: { contact?, klant?, installateur?, tijdslot?, tijdslotDatum?, bevestigd?: {door, tijdstip} } } }
+// Structuur: { versie, status: { [ticketId]: { contact?, klant?, installateur?, tijdslot?, tijdslotDatum?, bevestigd?: {door, tijdstip, wie?},
+//   afgewezen?: {door, tijdstip, opmerking?}, herinnering?: {datum, tijdstip, overgeslagen?} } } }
+// `afgewezen`: de klant meldde via de bevestigingspagina dat de voorgestelde datum niet lukt. De entry bestaat dan enkel nog uit dat
+// veld, zodat ze niets vergrendelt (heeftLopendVoorstel en isStopLocked kijken naar de tijdstippen per doelgroep en naar `bevestigd`);
+// het volgende voorstel (`reset: true`) wist ze.
+// `herinnering`: de automatische herinnering 3 dagen vooraf is voor de afspraakdatum `datum` verstuurd, of bewust overgeslagen
+// (`overgeslagen: 'mailantwoord'`: de klant antwoordde per mail). Eén herinnering per datum; een nieuw voorstel (reset) wist ze.
 
 const SLEUTEL = 'voorstel-status';
 const TIJDSLOT_RE = /^([01]\d|2[0-3]):[0-5]\d–([01]\d|2[0-3]):[0-5]\d$/;
@@ -41,9 +47,32 @@ export async function wisVoorstel(store, ticketId) {
   return { versie: nieuw.versie };
 }
 
-export async function markeerBevestigd(store, ticketId, { door, tijdstip }) {
+// `door`: contact | klant | installateur (via de bevestigingslink) of 'mail' (de planner registreerde een bevestiging per mail);
+// `wie` (enkel bij 'mail'): de naam van de planner, enkel bewaard als hij is meegegeven.
+export async function markeerBevestigd(store, ticketId, { door, tijdstip, wie }) {
   const current = await leesRegister(store);
-  const entry = { ...(current.status[ticketId] || {}), bevestigd: { door: door ?? null, tijdstip } };
+  const entry = { ...(current.status[ticketId] || {}), bevestigd: { door: door ?? null, tijdstip, ...(wie ? { wie } : {}) } };
+  const nieuw = { versie: current.versie + 1, status: { ...current.status, [ticketId]: entry } };
+  await store.setJSON(SLEUTEL, nieuw);
+  return { versie: nieuw.versie };
+}
+
+// De klant zegt dat de voorgestelde datum niet lukt: de hele entry wordt vervangen door enkel { afgewezen }.
+// `opmerking` (vrije tekst van de klant) komt enkel mee als ze ingevuld is. Gooit bij een schrijffout (de aanroeper vangt dat op).
+export async function markeerAfgewezen(store, ticketId, { door, tijdstip, opmerking }) {
+  const current = await leesRegister(store);
+  const afgewezen = { door: door ?? null, tijdstip, ...(opmerking ? { opmerking } : {}) };
+  const nieuw = { versie: current.versie + 1, status: { ...current.status, [ticketId]: { afgewezen } } };
+  await store.setJSON(SLEUTEL, nieuw);
+  return { versie: nieuw.versie };
+}
+
+// De automatische herinnering voor de afspraak van `datum` (YYYY-MM-DD) is verstuurd, of overgeslagen (`overgeslagen`: reden, bv.
+// 'mailantwoord'). Het voorstel zelf (per doelgroep, tijdslot) blijft staan. Gooit bij een schrijffout (de aanroeper vangt dat op).
+export async function markeerHerinnering(store, ticketId, { datum, tijdstip, overgeslagen }) {
+  const current = await leesRegister(store);
+  const herinnering = { datum, tijdstip, ...(overgeslagen ? { overgeslagen } : {}) };
+  const entry = { ...(current.status[ticketId] || {}), herinnering };
   const nieuw = { versie: current.versie + 1, status: { ...current.status, [ticketId]: entry } };
   await store.setJSON(SLEUTEL, nieuw);
   return { versie: nieuw.versie };

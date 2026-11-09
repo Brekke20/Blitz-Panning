@@ -3,6 +3,9 @@
 // headers, body) en het volledige antwoord. De mail-HTML staat als '<mail>' in die lijst en wordt apart
 // gecontroleerd: één goudkopie (tests/fixtures/propose-mail-contact.html) plus letterlijke fragmenten.
 // Nooit echte netwerkaanroepen of mails.
+// BEWUSTE wijziging van de goudkopie (voorstelmail met bevestigingslink): onder "Bevestig deze afspraak" staat nu een tweede,
+// secundaire knop "Deze datum lukt niet" (dezelfde getekende URL plus &keuze=nee) en de zin eronder is aangepast (netlify/lib/voorstelmail.js).
+// De mail zonder bevestigingslink is ongewijzigd.
 process.env.TZ = 'Europe/Brussels';
 import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -73,8 +76,13 @@ function controleerMail(mail, { naam = 'Jan Peeters', tijdslot = '09:00–12:00'
     assert.ok(mail.includes(`<a href="${link}"`), 'bevestigingslink');
     assert.ok(mail.includes('✅ Bevestig deze afspraak'), 'knop');
     assert.ok(mail.includes('Klik op de knop hierboven'), 'tekst bij knop');
+    // Bewuste wijziging (geen reactie / "datum lukt niet"): een tweede, secundaire knop met dezelfde getekende URL plus &keuze=nee.
+    assert.ok(mail.includes(`<a href="${link}&keuze=nee"`), 'tweede knop: dezelfde link met keuze=nee');
+    assert.ok(mail.includes('Deze datum lukt niet\n      </a>'), 'tekst van de tweede knop');
+    assert.ok(mail.includes('Lukt de datum niet? Kies dan "Deze datum lukt niet" of antwoord gewoon op deze e-mail.'), 'tekst onder de knoppen');
   } else {
     assert.ok(!mail.includes('Bevestig deze afspraak') && !mail.includes('/api/confirm-afspraak'), 'geen knop');
+    assert.ok(!mail.includes('Deze datum lukt niet') && !mail.includes('keuze=nee'), 'ook geen tweede knop zonder bevestigingslink');
     assert.ok(mail.includes('Gelieve deze afspraak te bevestigen door op deze e-mail te antwoorden.'), 'tekst zonder knop');
   }
 }

@@ -85,7 +85,7 @@ test.describe('annuleervenster openen en mailvoorbeeld', () => {
     await expect(page.locator('#annuleer-label')).toContainText('#1004 — Luc Wouters');
     await expect(page.locator('#annuleer-label')).toContainText(TIJDSLOT);
     await expect(venster(page).getByRole('radio', { name: REDEN_ZIEK })).toBeVisible();
-    await expect(venster(page).locator('input[name="ann-reden"]')).toHaveCount(6);
+    await expect(venster(page).locator('input[name="ann-reden"]')).toHaveCount(7);
     await expect(verstuurKnop(page)).toBeDisabled(); // nog geen reden
     await expect(page.locator('#annuleer-ontvangers')).toHaveText('Wordt verstuurd naar: luc@test.be');
     expect(z.opnames.annuleer).toEqual([{ methode: 'GET', body: null, query: {} }]);
@@ -180,6 +180,28 @@ test.describe('annuleren verzenden (verstuurAnnulatie)', () => {
     await expect.poll(() => registerLokaal(page)).toEqual({});
     await page.getByRole('tab', { name: /Wachtrij/ }).click();
     await expect(page.locator('#ticket-list .ticket').filter({ hasText: '#1004' })).toHaveCount(1);
+  });
+
+  test('"Geen reactie van de klant": het ticket sluit (Gesloten - ov) en verdwijnt uit planning, wachtrij en kalender', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/annuleer'] });
+    await openViaDetail(page);
+    await kiesReden(page, 'Geen reactie van de klant');
+    await expect(verstuurKnop(page)).toBeEnabled(); // geen toelichting nodig
+    await verstuurKnop(page).click();
+    await expect(toastTekst(page)).toHaveText('Ticket gesloten (geen reactie van de klant) — klant verwittigd per mail');
+
+    expect(annuleerPosts(z, 'echt')).toEqual([{ methode: 'POST', body: { ...VERSTUUR_JA, reden: 'geenreactie' }, query: {} }]);
+    expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER]);
+    await expect(page.locator('#annuleer-overlay')).not.toHaveClass(/open/);
+    await expect(page.locator('#det-overlay')).not.toHaveClass(/open/);
+    // Anders dan bij een gewone annulatie komt het ticket NIET terug in de wachtrij: het is gesloten.
+    await expect(page.locator('#cnt-tickets')).toHaveText('2');
+    expect(await planningVan(page)).toEqual({ '2026-10-09': ['g1'] });
+    expect(await lijstenVan(page)).toEqual({ tickets: ['t1', 't2', 't3'], pending: ['p2'] });
+    await page.getByRole('tab', { name: /Wachtrij/ }).click();
+    await expect(page.locator('#ticket-list .ticket').filter({ hasText: '#1004' })).toHaveCount(0);
+    await openKalender(page);
+    await expect(dag(page, '2026-10-07').locator('.tl-ticket[data-ticket-id="p1"]')).toHaveCount(0);
   });
 
   test('klant niet mailen (Nee): body met mailKlant false en andere toast', async ({ page, verzoeken }) => {

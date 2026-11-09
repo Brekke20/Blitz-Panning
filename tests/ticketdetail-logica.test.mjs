@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import {
   tijdslotVoor, roundToNextQuarterStr, cleanTicketSubject, joinNL, meervoud,
-  telNummer, bevestigdLabel, DOELGROEP_LABEL, heeftLopendVoorstel, detailUrgentie,
+  telNummer, bevestigdLabel, afgewezenLabel, DOELGROEP_LABEL, heeftLopendVoorstel, detailUrgentie,
 } from '../public/js/schermen/ticketdetail-logica.js';
 
 const inst = { vanTijd: '08:00', totTijd: '17:00', tijdslotMinuten: 180 };
@@ -82,6 +82,22 @@ test('bevestigdLabel: alle bronnen', () => {
   assert.equal(bevestigdLabel({ bevestigd: { door: 'installateur' } }), '✓ Bevestigd door installateur');
   assert.equal(bevestigdLabel({ bevestigd: { door: null } }), '✓ Bevestigd');
   assert.equal(bevestigdLabel({ bevestigd: { door: 'onbekend' } }), '✓ Bevestigd');
+  // Een planner registreerde een bevestiging per mail (knop "Bevestigd per mail"): geen ontvangersgroep, wel een eigen label.
+  assert.equal(bevestigdLabel({ bevestigd: { door: 'mail', tijdstip: 'T', wie: 'Petra' } }), '✓ Bevestigd per mail');
+  assert.equal(DOELGROEP_LABEL.mail, undefined, 'mail is geen ontvangersgroep');
+});
+
+test('afgewezenLabel: de klant meldde dat de datum niet lukt, met of zonder opmerking; anders null', () => {
+  assert.equal(afgewezenLabel(undefined), null);
+  assert.equal(afgewezenLabel({}), null);
+  assert.equal(afgewezenLabel({ klant: 'T1' }), null);
+  assert.equal(afgewezenLabel({ afgewezen: { door: 'klant', tijdstip: 'T' } }), '✗ Klant: datum lukt niet');
+  assert.equal(afgewezenLabel({ afgewezen: { door: 'klant', tijdstip: 'T', opmerking: '   ' } }), '✗ Klant: datum lukt niet');
+  assert.equal(afgewezenLabel({ afgewezen: { door: 'klant', tijdstip: 'T', opmerking: 'Liever na 20 oktober' } }), '✗ Klant: datum lukt niet — Liever na 20 oktober');
+  // Witruimte (ook regeleinden) in de opmerking wordt samengetrokken; een lange opmerking wordt afgekapt.
+  assert.equal(afgewezenLabel({ afgewezen: { opmerking: ' na\n  de  vakantie ' } }), '✗ Klant: datum lukt niet — na de vakantie');
+  const lang = afgewezenLabel({ afgewezen: { opmerking: 'a'.repeat(500) } });
+  assert.ok(lang.startsWith('✗ Klant: datum lukt niet — aaa') && lang.endsWith('…') && lang.length < 200);
 });
 
 test('heeftLopendVoorstel', () => {

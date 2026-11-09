@@ -9,12 +9,18 @@
 //   POST -> enkel bereikbaar door een echte klik op die knop (een <form>, geen link) -- voert
 //           de eigenlijke bevestiging uit: Zoho-status wijzigen + IP/tijdstip als interne notitie
 //           op het ticket vastleggen.
+// Tweede keuze op dezelfde pagina: "Deze datum lukt niet" (POST met actie=weiger en een optionele opmerking): het ticket gaat
+// terug naar 'Wachten op planning' (datum gewist), de opmerking komt als interne notitie op het ticket en het voorstelregister
+// markeert het voorstel als afgewezen. De handtekening van de link is voor beide keuzes dezelfde; `keuze=nee` in de URL (niet
+// ondertekend) klapt enkel het tweede formulier open en heeft nooit een ander effect.
 
-import { getStore } from '@netlify/blobs';
-import { controleerLink, datumInBrussel, bevestigingsNotitie } from '../lib/bevestigingslink.js';
-import { markeerBevestigd } from '../lib/voorstelregister.js';
+import { controleerLink, datumInBrussel, bevestigingsNotitie, afwijzingsNotitie } from '../lib/bevestigingslink.js';
+import { markeerBevestigd, markeerAfgewezen } from '../lib/voorstelregister.js';
+import { logActiviteit } from '../lib/activiteit.js';
 import { maakZoho } from '../lib/zoho.js';
 import { markeerVerouderd, standaardStore } from '../lib/tickets-snapshot.js';
+
+const MAX_OPMERKING = 1000;
 
 const ALLOWED_ORIGINS = [
   'https://blitz-planning.netlify.app',
@@ -52,6 +58,13 @@ function htmlPage({ title, message, ok, confirmForm }) {
   .icon{font-size:40px;margin-bottom:12px}
   .confirm-btn{display:inline-block;background:#00dfa3;color:#181e24;text-decoration:none;
     font-weight:700;font-size:14px;padding:12px 28px;border-radius:6px;border:none;cursor:pointer}
+  details{margin-top:22px;text-align:left}
+  summary{cursor:pointer;text-align:center;font-size:13px;color:#3a3a3a;text-decoration:underline}
+  details form{margin-top:14px}
+  label{display:block;font-size:13px;color:#3a3a3a;margin:0 0 6px}
+  textarea{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:8px 10px;border:1px solid #c9d0d8;border-radius:6px;resize:vertical;margin-bottom:12px}
+  .nee-btn{display:block;margin:0 auto;background:#fff;color:#3a3a3a;font-weight:600;font-size:13px;padding:10px 24px;
+    border-radius:6px;border:1px solid #c9d0d8;cursor:pointer}
 </style></head>
 <body><div class="card">
   <div class="icon">${ok ? '✅' : '⚠️'}</div>
@@ -61,17 +74,36 @@ function htmlPage({ title, message, ok, confirmForm }) {
 </div></body></html>`;
 }
 
-function confirmFormHtml(ticketId, date, exp, sig, d) {
-  // `d` is hier al door controleerLink() tegen de vaste lijst doelgroepen gecontroleerd, dus
-  // veilig om letterlijk in te voegen; bij een oude link (zonder d) laten we het veld weg.
-  return `<form method="POST" action="/api/confirm-afspraak">
-    <input type="hidden" name="ticketId" value="${ticketId}">
+// De getekende sleutel van de link als verborgen velden (in elk formulier hetzelfde).
+// `d` is hier al door controleerLink() tegen de vaste lijst doelgroepen gecontroleerd, dus
+// veilig om letterlijk in te voegen; bij een oude link (zonder d) laten we het veld weg.
+function sleutelVelden(ticketId, date, exp, sig, d) {
+  return `<input type="hidden" name="ticketId" value="${ticketId}">
     <input type="hidden" name="date" value="${date}">
     <input type="hidden" name="exp" value="${exp}">
     ${d ? `<input type="hidden" name="d" value="${d}">` : ''}
-    <input type="hidden" name="sig" value="${sig}">
+    <input type="hidden" name="sig" value="${sig}">`;
+}
+
+function confirmFormHtml(ticketId, date, exp, sig, d) {
+  return `<form method="POST" action="/api/confirm-afspraak">
+    ${sleutelVelden(ticketId, date, exp, sig, d)}
     <button type="submit" class="confirm-btn">✅ Ja, ik bevestig deze afspraak</button>
   </form>`;
+}
+
+// "Deze datum lukt niet": een uitklapbaar formulier met een optionele opmerking (zonder JavaScript te bedienen).
+function weigerFormHtml(ticketId, date, exp, sig, d, { open }) {
+  return `<details id="datum-lukt-niet"${open ? ' open' : ''}>
+    <summary>Deze datum lukt niet</summary>
+    <form method="POST" action="/api/confirm-afspraak">
+      ${sleutelVelden(ticketId, date, exp, sig, d)}
+      <input type="hidden" name="actie" value="weiger">
+      <label for="opmerking">Wanneer past het u beter?</label>
+      <textarea name="opmerking" maxlength="${MAX_OPMERKING}" id="opmerking" rows="3" placeholder="Optioneel"></textarea>
+      <button type="submit" class="nee-btn">Deze datum lukt niet</button>
+    </form>
+  </details>`;
 }
 
 async function addZohoComment(ticketId, accessToken, orgId, content) {
@@ -112,7 +144,7 @@ export default async (req) => {
   const headers = { ...corsHeaders(req), 'Content-Type': 'text/html; charset=utf-8' };
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
-  let ticketId, date, exp, sig, d;
+  let ticketId, date, exp, sig, d, actie = '', opmerking = '';
   if (req.method === 'POST') {
     // req.formData() kan throwen op een misvormde/corrupte body (verkeerde Content-Type,
     // afgebroken multipart-boundary, ...). Dit is een publiek, ongeauthenticeerd endpoint dat
@@ -127,6 +159,10 @@ export default async (req) => {
       exp = form.get('exp') || '';
       d = form.get('d') || '';
       sig = form.get('sig') || '';
+      const act = form.get('actie');
+      actie = typeof act === 'string' ? act : '';
+      const opm = form.get('opmerking');
+      opmerking = typeof opm === 'string' ? opm.trim().slice(0, MAX_OPMERKING) : '';
     } catch (e) {
       console.error('confirm-afspraak: ongeldige POST-body:', e);
       return new Response(htmlPage({
@@ -142,6 +178,8 @@ export default async (req) => {
     exp = url.searchParams.get('exp') || '';
     d = url.searchParams.get('d') || '';
     sig = url.searchParams.get('sig') || '';
+    // Niet ondertekend en enkel voor de weergave: `keuze=nee` klapt "Deze datum lukt niet" open.
+    actie = url.searchParams.get('keuze') === 'nee' ? 'nee' : '';
   }
 
   const { geldig: linkGeldig, doelgroep } = controleerLink({ ticketId, date, exp, d, sig });
@@ -155,17 +193,25 @@ export default async (req) => {
 
   if (req.method === 'GET') {
     // Enkel de bevestigingspagina tonen -- GEEN side-effects, veilig voor e-mail-scanners.
+    const nee = actie === 'nee';
+    const bevestig = confirmFormHtml(ticketId, date, exp, sig, d);
+    const weiger = weigerFormHtml(ticketId, date, exp, sig, d, { open: nee });
     return new Response(htmlPage({
-      title: 'Afspraak bevestigen',
-      message: 'Klik hieronder om deze afspraak te bevestigen.',
+      title: nee ? 'Deze datum lukt niet?' : 'Afspraak bevestigen',
+      message: nee
+        ? 'Laat ons hieronder weten wanneer het u beter past. Lukt de datum toch, dan kan u de afspraak ook bevestigen.'
+        : 'Klik hieronder om deze afspraak te bevestigen.',
       ok: true,
-      confirmForm: confirmFormHtml(ticketId, date, exp, sig, d),
+      confirmForm: nee ? weiger + bevestig : bevestig + weiger,
     }), { status: 200, headers });
   }
 
   if (req.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405, headers });
   }
+
+  // "Deze datum lukt niet": eigen afhandeling (onderaan dit bestand).
+  if (actie === 'weiger') return weigerAfspraak({ req, headers, ticketId, date, doelgroep, opmerking });
 
   // Vanaf hier: enkel bereikbaar via de POST die de "Ja, ik bevestig"-knop verstuurt.
   try {
@@ -231,18 +277,14 @@ export default async (req) => {
 
     const ip = clientIp(req);
     const timestamp = new Date().toLocaleString('nl-BE', { timeZone: 'Europe/Brussels' });
-    const cf = ticketData?.cf || {};
-    const email = doelgroep === 'klant' ? cf.cf_e_mail_eindklant
-      : doelgroep === 'installateur' ? cf.cf_e_mail_installateur
-      : doelgroep === 'contact' ? (ticketData?.contact?.email || ticketData?.contact?.emailId || ticketData?.email)
-      : null;
+    const email = emailVan(doelgroep, ticketData);
     await addZohoComment(ticketId, accessToken, orgId,
       bevestigingsNotitie({ date, doelgroep, email: email || '', tijdstip: timestamp, ip }));
 
     // Registreren wie bevestigd heeft (voor de planner). Vaste store: de externe link draagt
     // nooit de testheader. Mag de klant nooit een foutpagina opleveren -- enkel loggen.
     try {
-      const store = getStore({ name: 'blitz-data', consistency: 'strong' });
+      const store = await standaardStore();
       await markeerBevestigd(store, ticketId, { door: doelgroep, tijdstip: new Date().toISOString() });
     } catch (e) {
       console.error('confirm-afspraak: register bijwerken mislukt:', e);
@@ -262,5 +304,82 @@ export default async (req) => {
     ok: true,
   }), { status: 200, headers });
 };
+
+// Het e-mailadres van de ontvanger die de link kreeg (voor de interne notities); null bij een oude link.
+function emailVan(doelgroep, ticketData) {
+  const cf = ticketData?.cf || {};
+  return doelgroep === 'klant' ? cf.cf_e_mail_eindklant
+    : doelgroep === 'installateur' ? cf.cf_e_mail_installateur
+    : doelgroep === 'contact' ? (ticketData?.contact?.email || ticketData?.contact?.emailId || ticketData?.email)
+    : null;
+}
+
+const WEIGER_FOUTTEKST = 'Uw melding kon niet verwerkt worden. Antwoord op de e-mail of neem contact op met Blitz Power.';
+
+// POST met actie=weiger: de klant meldt dat de voorgestelde datum niet lukt. Zelfde controles als bevestigen (status
+// 'Wachten op bevestiging planning' en dezelfde datum, anders 409), maar met één verschil: lukt de statuscontrole zelf niet, dan
+// gebeurt er NIETS (een weigering wordt nooit blind uitgevoerd: ze zet het ticket terug en wist de datum). Volgorde: PATCH (status
+// terug, datum gewist), momentopname verouderd, interne notitie, register (afgewezen) en activiteitenlog. Notitie, register en log
+// zijn best-effort: de PATCH is de bron van waarheid, een fout daarna mag de klant geen foutpagina opleveren.
+async function weigerAfspraak({ req, headers, ticketId, date, doelgroep, opmerking }) {
+  const pagina = (status, title, message, ok) => new Response(htmlPage({ title, message, ok }), { status, headers });
+  const foutPagina = (status) => pagina(status, 'Er ging iets mis', WEIGER_FOUTTEKST, false);
+  try {
+    const { token: accessToken, orgId } = await zoho.haalToegang();
+
+    let ticketData;
+    try {
+      const statusRes = await zoho.verzoek(`/tickets/${ticketId}`, { token: accessToken, orgId });
+      if (!statusRes.ok) {
+        console.error('Ticket-status ophalen mislukt (confirm-afspraak, weigeren):', statusRes.status);
+        return foutPagina(502);
+      }
+      ticketData = await statusRes.json();
+    } catch (e) {
+      console.error('Ticket-status ophalen mislukt (confirm-afspraak, weigeren):', e);
+      return foutPagina(502);
+    }
+
+    if (ticketData?.status !== 'Wachten op bevestiging planning' || datumInBrussel(ticketData?.cf?.cf_interventie_datm) !== date) {
+      return pagina(409, 'Afspraak niet meer actueel',
+        'Deze afspraak is al bevestigd of niet meer actueel. Neem contact op met Blitz Power als u vragen heeft.', false);
+    }
+
+    const patchRes = await zoho.verzoek(`/tickets/${ticketId}`, {
+      token: accessToken, orgId, methode: 'PATCH', json: { status: 'Wachten op planning', cf: { cf_interventie_datm: '' } },
+    });
+    if (!patchRes.ok) {
+      const errBody = await patchRes.text().catch(() => '');
+      console.error('Zoho PATCH mislukt (confirm-afspraak, weigeren):', patchRes.status, errBody);
+      return foutPagina(502);
+    }
+
+    await markeerVerouderd({ haalStore: standaardStore });
+
+    const timestamp = new Date().toLocaleString('nl-BE', { timeZone: 'Europe/Brussels' });
+    await addZohoComment(ticketId, accessToken, orgId, afwijzingsNotitie({
+      date, doelgroep, email: emailVan(doelgroep, ticketData) || '', opmerking, tijdstip: timestamp, ip: clientIp(req),
+    }));
+
+    let store = null;
+    try {
+      store = await standaardStore();
+      await markeerAfgewezen(store, ticketId, { door: doelgroep, tijdstip: new Date().toISOString(), opmerking });
+    } catch (e) {
+      console.error('confirm-afspraak: register bijwerken mislukt:', e);
+    }
+    // De opmerking van de klant staat enkel in Zoho en het register, niet in het activiteitenlog. logActiviteit gooit nooit.
+    if (store) {
+      await logActiviteit(store, {
+        gebruiker: { id: null, naam: `Klant (${doelgroep || 'onbekend'})` },
+        actie: 'datum-lukt-niet', onderwerp: String(ticketId), details: date,
+      });
+    }
+  } catch (e) {
+    console.error('confirm-afspraak fout:', e);
+    return foutPagina(500);
+  }
+  return pagina(200, 'Bedankt voor uw melding', 'Bedankt! We zoeken een andere datum en laten het u weten.', true);
+}
 
 export const config = { path: '/api/confirm-afspraak' };

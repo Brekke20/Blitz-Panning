@@ -13,6 +13,7 @@ import { nextAvailableDay, zoekHaalbareDag } from './capaciteit.js';
 import { foutTekst } from '../kern/api.js';
 import { appConfirm } from '../app-dialog.js';
 import { zoekWoorden, filterOpZoek, isOverdue, sorteerWachtrij, urgentieVan } from './wachtrij-logica.js';
+import { afgewezenLabel } from './ticketdetail-logica.js';
 import { zetSamenvatting } from './paginakop.js';
 import { samenvattingVoor } from './paginakop-logica.js';
 
@@ -107,11 +108,14 @@ export function renderTickets() {
       : (kbPrefUur ? `🕐 ${kbPrefUur}` : '');
     const kbPrefTitle = [kbPrefDatum ? `Voorkeursdatum klant: ${kbPrefDatum}` : '', kbPrefUur ? `Voorkeursuur klant: ${kbPrefUur}` : '']
       .filter(Boolean).join(' — ');
+    // De klant meldde via de bevestigingspagina dat de voorgestelde datum niet lukt (register-veld `afgewezen`).
+    const afgewezen = afgewezenLabel(toestand.get('voorstelStatus')[t.id]);
     card.innerHTML = `
       <div class="t-body">
         <div class="t-top">
           <span class="tnum">#${escHtml(t.number)}</span>
           ${overdue ? `<span class="stag">Verlopen</span>` : ''}
+          ${afgewezen ? `<span class="stag" data-testid="wq-afgewezen" title="${escHtml(afgewezen)}">${escHtml(afgewezen)}</span>` : ''}
           ${t.priority ? `<span class="prtag ${escHtml((t.priority||'').toLowerCase())}">${escHtml(afh.prioLabel(t.priority))}</span>` : ''}
           ${t.assignee ? `<span class="atag">${escHtml(t.assignee)}</span>` : ''}
           ${kbPrefLabel ? `<span class="atag" title="${escHtml(kbPrefTitle)}" style="background:rgba(0,223,163,.15);color:var(--accent-ink);border:1px solid var(--accent)">${escHtml(kbPrefLabel)}</span>` : ''}

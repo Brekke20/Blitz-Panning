@@ -181,7 +181,7 @@ export async function startAppProductie(page, { rol = 'coordinator', technieker 
 //   const z = zohoStubs();  startAppProductie(page, { overschrijf: z.overschrijf });
 //   z.opnames.plan -> [{ methode, body, query }];  z.zetAntwoord('plan', { status: 500, json: {...} })
 // `antwoord` is een { status, json } of een functie ({ methode, body, query, pad }) => { status, json }.
-export const ZOHO_EINDPUNTEN = ['plan', 'plan-datum', 'propose', 'voorstel-status', 'annuleer', 'optimize', 'send-rapport', 'rapport-verzonden', 'rapport-archief', 'mail-check'];
+export const ZOHO_EINDPUNTEN = ['plan', 'plan-datum', 'propose', 'voorstel-status', 'annuleer', 'bevestig-handmatig', 'optimize', 'send-rapport', 'rapport-verzonden', 'rapport-archief', 'mail-check'];
 // Redenen van netlify/lib/annulatie.js (REDENEN, zonder klantzin); dit bestand mag geen netlify/-code importeren.
 const ANNULEER_REDENEN = [
   { code: 'ziek', label: 'Technieker ziek of onbeschikbaar' },
@@ -189,6 +189,7 @@ const ANNULEER_REDENEN = [
   { code: 'klant', label: 'Klant vroeg om te verzetten' },
   { code: 'weer', label: 'Weersomstandigheden' },
   { code: 'fout', label: 'Dubbele of foute planning' },
+  { code: 'geenreactie', label: 'Geen reactie van de klant' },
   { code: 'andere', label: 'Andere' },
 ];
 const TIJDSLOT_RE = /^([01]\d|2[0-3]):[0-5]\d–([01]\d|2[0-3]):[0-5]\d$/;
@@ -248,7 +249,8 @@ export function zohoStubs({ register, rapporten } = {}) {
         return { status: 200, json: { ok: true, versie: reg.versie } };
       };
     }
-    // annuleer.js: GET -> { redenen }, POST { voorbeeld: true } -> { html }, POST echt -> { ok, emailSent, fouten }.
+    // annuleer.js: GET -> { redenen }, POST { voorbeeld: true } -> { html }, POST echt -> { ok, emailSent, fouten } (bij de reden
+    // `geenreactie` ook `status: 'Gesloten - ov'`: het ticket wordt gesloten in plaats van terug in de wachtrij gezet).
     if (naam === 'annuleer') {
       antwoorden[naam] = ({ methode, body }) => {
         if (methode === 'GET') return { status: 200, json: { redenen: structuredClone(ANNULEER_REDENEN) } };
@@ -256,7 +258,22 @@ export function zohoStubs({ register, rapporten } = {}) {
         const status = { ...reg.status };
         delete status[body?.ticketId];
         reg = { versie: reg.versie + 1, status };
-        return { status: 200, json: { ok: true, emailSent: { contact: body?.mailKlant === true, klant: false, installateur: false }, fouten: [] } };
+        return {
+          status: 200,
+          json: {
+            ok: true, emailSent: { contact: body?.mailKlant === true, klant: false, installateur: false }, fouten: [],
+            ...(body?.reden === 'geenreactie' ? { status: 'Gesloten - ov' } : {}),
+          },
+        };
+      };
+    }
+    // bevestig-handmatig.js: POST { ticketId } -> { ok, status: 'Geplande support' } (de planner registreert een bevestiging per mail). Zoals de
+    // server zet het ook het register op `bevestigd: { door: 'mail', tijdstip, wie }`.
+    if (naam === 'bevestig-handmatig') {
+      antwoorden[naam] = ({ body }) => {
+        const entry = { ...(reg.status[body?.ticketId] || {}), bevestigd: { door: 'mail', tijdstip: '2026-10-05T07:00:00.000Z', wie: 'Test Planner' } };
+        reg = { versie: reg.versie + 1, status: { ...reg.status, [body?.ticketId]: entry } };
+        return { status: 200, json: { ok: true, status: 'Geplande support' } };
       };
     }
     // send-rapport.js: preview -> { preview: true, ontvangers: [{ doelgroep, naam, email, html }] }; echt ->

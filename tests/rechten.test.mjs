@@ -17,7 +17,7 @@ test('dekking: elke functie onder netlify/functions/ heeft een rij in RECHTEN', 
   const functies = readdirSync(join(wortel, 'netlify', 'functions'), { withFileTypes: true })
     .filter(d => d.isFile() && d.name.endsWith('.js'))
     .map(d => d.name.replace(/\.js$/, ''));
-  assert.equal(functies.length, 52); // tickets-vooraf (geplande voorlading) + themas + spel (Blitz Run) + 42 logins + dashboard, dashboard-instellingen + sales, postcode, sales-import, sales-opruimen + zoho-agenten
+  assert.equal(functies.length, 54); // tickets-vooraf (geplande voorlading) + themas + spel (Blitz Run) + 42 logins + dashboard, dashboard-instellingen + sales, postcode, sales-import, sales-opruimen + zoho-agenten + bevestig-handmatig + herinnering-bevestiging
   const ontbreekt = functies.filter(f => !Object.hasOwn(RECHTEN, f));
   assert.deepEqual(ontbreekt, []);
 });
@@ -39,13 +39,14 @@ test('matrix: tickets, planning-sinds', () => {
 });
 
 test('matrix: plan, propose, annuleer, plan-datum voor beheerder en planner (een technieker enkel via planEigen, zie verder)', () => {
-  for (const f of ['plan', 'propose', 'annuleer', 'plan-datum']) assert.deepEqual(rollen(f, 'POST'), [B, P], f);
+  for (const f of ['plan', 'propose', 'annuleer', 'plan-datum', 'bevestig-handmatig']) assert.deepEqual(rollen(f, 'POST'), [B, P], f);
+  for (const m of ['GET', 'PUT', 'PATCH', 'DELETE']) assert.deepEqual(rollen('bevestig-handmatig', m), [], `bevestig-handmatig ${m}`);
   assert.deepEqual(rollen('annuleer', 'GET'), [B, P]);
 });
 
 test('planEigen: de rijen waar een technieker met "Mag zelf plannen" ook mag (enkel eigen tickets, afgedwongen in de functie)', () => {
   const metPlanEigen = Object.keys(RECHTEN).filter(n => RECHTEN[n].planEigen === true).sort();
-  assert.deepEqual(metPlanEigen, ['annuleer', 'klantbeschikbaarheid', 'plan', 'plan-datum', 'propose', 'voorstel-status']);
+  assert.deepEqual(metPlanEigen, ['annuleer', 'bevestig-handmatig', 'klantbeschikbaarheid', 'plan', 'plan-datum', 'propose', 'voorstel-status']);
   // Niets anders krijgt het vlag: beheer, instellingen, TomTom enz. blijven zoals ze waren.
   for (const naam of metPlanEigen) assert.ok(Object.hasOwn(RECHTEN, naam));
   // De rol-lijst zelf blijft ongewijzigd (rolIsToegelaten kent het vlag niet): de wrapper voegt de technieker toe.
@@ -131,6 +132,10 @@ test('matrix: sales en postcode enkel voor beheerder en sales', () => {
 test('tickets-vooraf: open (geplande functie), de ticketgegevens zelf blijven achter de rij tickets', () => {
   for (const m of ['GET', 'POST']) assert.equal(rolIsToegelaten('tickets-vooraf', m, B), 'open', `tickets-vooraf ${m}`);
   assert.deepEqual(rollen('tickets', 'GET'), [B, P, T]); // ongewijzigd: geen sales, geen anoniem
+});
+
+test('herinnering-bevestiging: open (geplande functie zonder sessie), zonder rol- of methode-uitzondering', () => {
+  for (const m of ['GET', 'POST', 'PUT', 'DELETE']) for (const rol of [B, P, T, S]) assert.equal(rolIsToegelaten('herinnering-bevestiging', m, rol), 'open', `${m} ${rol}`);
 });
 
 test('matrix: sales-import enkel POST voor beheerder (enkel manuele lead) en sales; sales-opruimen is open', () => {
@@ -443,7 +448,7 @@ const technieker = (extra = {}) => ({ id: 'u-t', rol: T, naam: 'T', email: 't@b.
 
 test('wrapper planEigen: een technieker mét magZelfPlannen komt door (de functie controleert het ticket); zonder, met false of een niet-boolean krijgt hij 403', async () => {
   for (const [extra, toegelaten] of [[{ magZelfPlannen: true }, true], [{}, false], [{ magZelfPlannen: false }, false], [{ magZelfPlannen: 'ja' }, false], [{ magZelfPlannen: 1 }, false]]) {
-    for (const naam of ['plan-datum', 'propose', 'plan', 'annuleer', 'voorstel-status', 'klantbeschikbaarheid']) {
+    for (const naam of ['plan-datum', 'propose', 'plan', 'annuleer', 'bevestig-handmatig', 'voorstel-status', 'klantbeschikbaarheid']) {
       const methode = naam === 'klantbeschikbaarheid' ? 'PUT' : 'POST';
       const h = hSpy('kern');
       const res = await (naam === 'propose' || naam === 'plan'

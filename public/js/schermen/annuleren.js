@@ -18,6 +18,9 @@ import { renderKalender } from './kalender.js';
 import { renderGepland } from './ingepland.js';
 import { joinNL, DOELGROEP_LABEL } from './ticketdetail-logica.js';
 
+// Zoho-status van een ticket dat na "Geen reactie van de klant" gesloten is (zie netlify/lib/annulatie.js, STATUS_NA_GEEN_REACTIE).
+const STATUS_GESLOTEN_OV = 'Gesloten - ov';
+
 // Afhankelijkheden uit app.js en andere schermen (ingevuld door initAnnuleren); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('annuleren: initAnnuleren() is niet aangeroepen'); } });
 
@@ -293,15 +296,21 @@ export async function verstuurAnnulatie() {
     if (!planning[d].length) delete planning[d];
   });
   toestand.raak('planning'); // in-place splice/delete; de handmatige hertekening na loadVoorstelStatus blijft (R7)
-  tk.status = 'Wachten op planning';
+  // De server geeft de nieuwe status terug: 'Gesloten - ov' (reden "Geen reactie van de klant") haalt het ticket overal weg, elke andere
+  // annulatie zet het terug in de wachtrij ('Wachten op planning', ook voor een oud antwoord zonder status).
+  const gesloten = data.status === STATUS_GESLOTEN_OV;
+  tk.status = gesloten ? data.status : 'Wachten op planning';
   tk.interventieDatum = null;
   toestand.set('allPending', toestand.get('allPending').filter(t => t.id !== id));
   toestand.set('allGepland', toestand.get('allGepland').filter(t => t.id !== id));
-  if (!allTickets.some(t => t.id === id)) {
+  if (gesloten) {
+    const rest = allTickets.filter(t => t.id !== id);
+    allTickets.splice(0, allTickets.length, ...rest);
+  } else if (!allTickets.some(t => t.id === id)) {
     allTickets.push(tk);
     allTickets.sort((a, b) => (a.number || 0) - (b.number || 0));
   }
-  toestand.raak('allTickets'); // in-place push/sort (en tk.status wijzigde)
+  toestand.raak('allTickets'); // in-place push/sort of verwijderen (en tk.status wijzigde)
   document.getElementById('cnt-tickets').textContent = allTickets.length;
 
   s.busy = false;
@@ -325,6 +334,8 @@ export async function verstuurAnnulatie() {
   } else if (fouten.length) {
     const wie = joinNL([...new Set(fouten.map(f => DOELGROEP_LABEL[f.doelgroep] || f.doelgroep))]);
     delen.push(`Afspraak geannuleerd, maar de mail naar ${wie} kon niet verstuurd worden. Verwittig de klant zelf.`);
+  } else if (gesloten) {
+    delen.push('Ticket gesloten (geen reactie van de klant) — ' + (v.mailKlant ? 'klant verwittigd per mail' : 'klant niet gemaild'));
   } else {
     delen.push('Afspraak geannuleerd — ' + (v.mailKlant ? 'klant verwittigd per mail' : 'klant niet gemaild'));
   }

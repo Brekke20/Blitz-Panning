@@ -144,6 +144,80 @@ test.describe('ticketdetail: knoppen per toestand', () => {
     const detail = await open1004(page);
     await expect(detail.locator('#d-tags .mtag.confirmed-by')).toHaveText('✓ Bevestigd door klant');
   });
+
+  test('"Bevestigd per mail": enkel zichtbaar bij Wachten op bevestiging planning (#1004), niet bij de wachtrij (#1001)', async ({ page }) => {
+    await startApp(page);
+    const wachtrij = await open1001(page);
+    await expect(wachtrij.locator('#d-btn-bevestig-mail')).toBeHidden();
+    await wachtrij.getByRole('button', { name: 'Sluiten' }).click();
+    const detail = await open1004(page);
+    await expect(detail.locator('#d-btn-bevestig-mail')).toBeVisible();
+    await expect(detail.locator('#d-btn-bevestig-mail')).toHaveText(/Bevestigd per mail/);
+    await detail.getByRole('button', { name: 'Sluiten' }).click();
+    // #1005 wacht ook op bevestiging maar heeft geen afspraakdatum (staat in "zonder datum"): er is niets te bevestigen, dus geen knop.
+    await page.getByRole('button', { name: /zonder datum/ }).click();
+    await page.locator('#kal-no-date-section').getByText('#1005').first().click();
+    const zonderDatum = detailVan(page, /Firmware/);
+    await expect(zonderDatum).toBeVisible();
+    await expect(zonderDatum.locator('#d-btn-bevestig-mail')).toBeHidden();
+  });
+
+  test('"Bevestigd per mail" in testmodus: dialoog, daarna enkel lokaal bijgewerkt (Geplande support, label), geen verzoek naar de server', async ({ page, verzoeken }) => {
+    await startApp(page);
+    const detail = await open1004(page);
+    await detail.locator('#d-btn-bevestig-mail').click();
+    const dialoog = page.getByRole('alertdialog', { name: 'Ticket #1004 bevestigd per mail?' });
+    await expect(dialoog).toBeVisible();
+    await dialoog.getByRole('button', { name: 'Terug' }).click();
+    await expect(dialoog).toBeHidden();
+    expect(await page.evaluate(() => kern.toestand.get('allPending').some(t => t.id === 'p1'))).toBe(true);
+
+    await detail.locator('#d-btn-bevestig-mail').click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Ja, bevestigd per mail' }).click();
+    await expect(toast(page)).toHaveText('🧪 Testmodus — niet opgeslagen');
+    await expect(detail).toBeHidden();
+    const stand = await page.evaluate(() => ({
+      pending: kern.toestand.get('allPending').some(t => t.id === 'p1'),
+      gepland: kern.toestand.get('allGepland').find(t => t.id === 'p1')?.status,
+      register: kern.toestand.get('voorstelStatus').p1?.bevestigd?.door,
+    }));
+    expect(stand).toEqual({ pending: false, gepland: 'Geplande support', register: 'mail' });
+    const nuDetail = await open1004(page);
+    await expect(nuDetail.locator('#d-tags .mtag.confirmed-by')).toHaveText('✓ Bevestigd per mail');
+    await expect(nuDetail.locator('#d-btn-bevestig-mail')).toBeHidden();
+    await settle(page);
+    expect(verzoeken.van('/api/bevestig-handmatig')).toEqual([]);
+  });
+
+  test('"datum lukt niet": de klant weigerde de voorgestelde datum: label met opmerking in het detail en op de wachtrijkaart, niets vergrendeld', async ({ page }) => {
+    await startApp(page);
+    // Het ticket staat weer in de wachtrij (Zoho: 'Wachten op planning'); het register heeft enkel nog { afgewezen }.
+    await page.evaluate(() => {
+      kern.toestand.get('voorstelStatus').t1 = { afgewezen: { door: 'klant', tijdstip: '2026-10-05T07:00:00.000Z', opmerking: 'Liever na 20 oktober' } };
+      kern.toestand.raak('voorstelStatus');
+      kern.toestand.raak('allTickets'); // de wachtrij tekent opnieuw (ze is niet op voorstelStatus geabonneerd)
+    });
+    const kaart = page.locator('#ticket-list .ticket').filter({ hasText: '#1001' });
+    await expect(kaart.getByTestId('wq-afgewezen')).toHaveText('✗ Klant: datum lukt niet — Liever na 20 oktober');
+    const detail = await open1001(page);
+    await expect(detail.locator('#d-tags .mtag.declined-by')).toHaveText('✗ Klant: datum lukt niet — Liever na 20 oktober');
+    // Niets vergrendeld: gewoon weer inplannen, en geen "Afspraak annuleren" (er staat geen voorstel meer uit).
+    await expect(detail.locator('#d-plan-btn')).toHaveText('+ Voeg toe aan planning');
+    await expect(detail.locator('#d-btn-annuleer')).toBeHidden();
+    // Een ander ticket zonder afwijzing toont het label niet.
+    await detail.getByRole('button', { name: 'Sluiten' }).click();
+    await expect(page.locator('#ticket-list .ticket').filter({ hasText: '#1002' }).getByTestId('wq-afgewezen')).toHaveCount(0);
+  });
+
+  test('"datum lukt niet" zonder opmerking toont enkel het label, zonder streepje', async ({ page }) => {
+    await startApp(page);
+    await page.evaluate(() => {
+      kern.toestand.get('voorstelStatus').t1 = { afgewezen: { door: 'klant', tijdstip: '2026-10-05T07:00:00.000Z' } };
+      kern.toestand.raak('voorstelStatus');
+    });
+    const detail = await open1001(page);
+    await expect(detail.locator('#d-tags .mtag.declined-by')).toHaveText('✗ Klant: datum lukt niet');
+  });
 });
 
 test.describe('ticketdetail: plannen en uitplannen', () => {

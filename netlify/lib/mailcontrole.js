@@ -62,6 +62,24 @@ export function uitgaandeMails(threads, sindsMs, { marge = KLOKMARGE_MS, verwach
   return { uitgaand, twijfel };
 }
 
+// Inkomende klantmails op een ticket NA een tijdstip (de herinnering 3 dagen vooraf slaat over als de klant al per mail antwoordde):
+// direction 'in' (Zoho-threadveld, zie docs/integrations/zoho-desk-api-referentie.md §9.4), kanaal e-mail, niet privé en aangemaakt
+// STRIKT na `sindsMs` (het vroegste verzendtijdstip van het voorstel: wat ervoor kwam, zoals de mail die het ticket aanmaakte, is geen antwoord).
+// -> [{ van, tijdstip }] oplopend op tijd; `van` is het afzenderadres in kleine letters ('' als het onleesbaar is).
+export function inkomendeMailsNa(threads, sindsMs) {
+  const uit = [];
+  for (const th of Array.isArray(threads) ? threads : []) {
+    if (!th || typeof th !== 'object') continue;
+    if (String(th.direction || '').toLowerCase() !== 'in') continue;
+    if (String(th.channel || '').toUpperCase() !== 'EMAIL') continue;
+    if (String(th.visibility || '').toLowerCase() === 'private') continue;
+    const ms = Date.parse(th.createdTime);
+    if (Number.isNaN(ms) || ms <= sindsMs) continue;
+    uit.push({ van: adressenUit(th.fromEmailAddress)[0] ?? adressenUit(th.author?.email)[0] ?? '', tijdstip: th.createdTime, ms });
+  }
+  return uit.sort((a, b) => a.ms - b.ms).map(({ van, tijdstip }) => ({ van, tijdstip }));
+}
+
 // verwacht = lijst adressen (kleine letters) of leeg. Geeft { verzonden, twijfel, tijdstip, ontvangers? }.
 // Zonder verwachte ontvangers: verzonden zodra er één uitgaande mail is. Met: enkel als álle adressen een mail kregen.
 // `twijfel` blijft alleen waar als er niet (volledig) verzonden is: dan mag de oproeper nooit "niet verzonden" melden.

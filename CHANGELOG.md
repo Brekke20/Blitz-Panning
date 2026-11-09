@@ -12,6 +12,12 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Unreleased]
 
+### Added
+- Afspraak annuleren heeft een extra reden: "Geen reactie van de klant". Die stuurt een eigen mail (de voorgestelde afspraak vervalt, we doen zelf geen nieuw voorstel, en wie toch een afspraak wil antwoordt op de mail zodat het ticket heropent) en zet het ticket in Zoho op "Gesloten - ov" in plaats van terug op "Wachten op planning". In de app verdwijnt het ticket uit de wachtrij, de kalender en de planning.
+- De klant krijgt in de voorstelmail en op de bevestigingspagina een tweede keuze naast bevestigen: "Deze datum lukt niet", met een optionele opmerking ("Wanneer past het u beter?"). Het ticket gaat dan terug naar "Wachten op planning" (datum gewist), de opmerking komt als interne notitie in Zoho en de planner ziet in het ticketdetail en op de wachtrijkaart "✗ Klant: datum lukt niet — opmerking". Het volgende voorstel wist die melding. Een melding wordt nooit blind uitgevoerd: kan de status van het ticket niet gecontroleerd worden, dan gebeurt er niets.
+- Het ticketdetail heeft een knop "Bevestigd per mail" voor een klant die per mail antwoordde in plaats van op de knop te klikken. De knop staat enkel bij een ticket dat op bevestiging wacht, vraagt eerst een bevestiging en zet het ticket in Zoho op "Geplande support" (met een interne notitie "Bevestigd per mail, geregistreerd door …"). Daarna staat het ticket bij "Bevestigd" met het label "✓ Bevestigd per mail". Nieuwe server-functie `bevestig-handmatig` (planner en beheerder; een technieker met "Mag zelf plannen" enkel voor eigen tickets).
+- Automatische herinnering: elke dag rond 8 tot 9 uur (Brusselse tijd) krijgt een klant van wie het voorstel nog niet bevestigd is en wiens afspraak over 1 tot en met 3 kalenderdagen is, één herinneringsmail (zelfde ontvangers, links en twee knoppen als het voorstel). Per afspraakdatum komt er hoogstens één herinnering. Heeft de klant na het voorstel al per mail geantwoord, dan gaat er geen herinnering uit: er komt één interne notitie ("controleer en registreer de bevestiging") en het ticket wordt gemarkeerd, zodat het niet elke dag terugkomt. Een ticket dat bevestigd of afgewezen is, krijgt niets. Nieuwe geplande functie `herinnering-bevestiging`.
+
 ## [2.8.0] — 2026-10-30
 
 ### Changed
