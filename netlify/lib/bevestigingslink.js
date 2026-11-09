@@ -77,3 +77,15 @@ export function bevestigingsNotitie({ date, doelgroep, email, tijdstip, ip }) {
     : 'onbekende ontvanger (oude link)';
   return `Afspraak bevestigd voor ${escHtml(date)} door ${wie} via bevestigingslink op ${escHtml(tijdstip)} (Europe/Brussels). IP-adres: ${escHtml(ip)}.`;
 }
+
+// Interne Zoho-notitie als de klant via de link meldt dat de voorgestelde datum niet lukt (`date` YYYY-MM-DD). De opmerking van de klant
+// is vrije tekst en dus geëscaped; alles wat we zelf invoegen ook.
+export function afwijzingsNotitie({ date, doelgroep, email, opmerking, tijdstip, ip }) {
+  const wie = doelgroep
+    ? `${escHtml(doelgroep)}${email ? `, ${escHtml(email)}` : ''}`
+    : 'onbekende ontvanger, oude link';
+  const [j, m, d] = String(date ?? '').split('-');
+  const datum = j && m && d ? `${d}/${m}/${j}` : escHtml(date);
+  const tekst = String(opmerking ?? '').trim();
+  return `Klant (${wie}) meldt dat ${datum} niet lukt${tekst ? `: ${escHtml(tekst)}` : ''}. Via bevestigingslink op ${escHtml(tijdstip)} (Europe/Brussels). IP-adres: ${escHtml(ip)}. Het ticket staat weer op "Wachten op planning".`;
+}

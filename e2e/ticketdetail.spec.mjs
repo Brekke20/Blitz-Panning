@@ -144,6 +144,36 @@ test.describe('ticketdetail: knoppen per toestand', () => {
     const detail = await open1004(page);
     await expect(detail.locator('#d-tags .mtag.confirmed-by')).toHaveText('✓ Bevestigd door klant');
   });
+
+  test('"datum lukt niet": de klant weigerde de voorgestelde datum: label met opmerking in het detail en op de wachtrijkaart, niets vergrendeld', async ({ page }) => {
+    await startApp(page);
+    // Het ticket staat weer in de wachtrij (Zoho: 'Wachten op planning'); het register heeft enkel nog { afgewezen }.
+    await page.evaluate(() => {
+      kern.toestand.get('voorstelStatus').t1 = { afgewezen: { door: 'klant', tijdstip: '2026-10-05T07:00:00.000Z', opmerking: 'Liever na 20 oktober' } };
+      kern.toestand.raak('voorstelStatus');
+      kern.toestand.raak('allTickets'); // de wachtrij tekent opnieuw (ze is niet op voorstelStatus geabonneerd)
+    });
+    const kaart = page.locator('#ticket-list .ticket').filter({ hasText: '#1001' });
+    await expect(kaart.getByTestId('wq-afgewezen')).toHaveText('✗ Klant: datum lukt niet — Liever na 20 oktober');
+    const detail = await open1001(page);
+    await expect(detail.locator('#d-tags .mtag.declined-by')).toHaveText('✗ Klant: datum lukt niet — Liever na 20 oktober');
+    // Niets vergrendeld: gewoon weer inplannen, en geen "Afspraak annuleren" (er staat geen voorstel meer uit).
+    await expect(detail.locator('#d-plan-btn')).toHaveText('+ Voeg toe aan planning');
+    await expect(detail.locator('#d-btn-annuleer')).toBeHidden();
+    // Een ander ticket zonder afwijzing toont het label niet.
+    await detail.getByRole('button', { name: 'Sluiten' }).click();
+    await expect(page.locator('#ticket-list .ticket').filter({ hasText: '#1002' }).getByTestId('wq-afgewezen')).toHaveCount(0);
+  });
+
+  test('"datum lukt niet" zonder opmerking toont enkel het label, zonder streepje', async ({ page }) => {
+    await startApp(page);
+    await page.evaluate(() => {
+      kern.toestand.get('voorstelStatus').t1 = { afgewezen: { door: 'klant', tijdstip: '2026-10-05T07:00:00.000Z' } };
+      kern.toestand.raak('voorstelStatus');
+    });
+    const detail = await open1001(page);
+    await expect(detail.locator('#d-tags .mtag.declined-by')).toHaveText('✗ Klant: datum lukt niet');
+  });
 });
 
 test.describe('ticketdetail: plannen en uitplannen', () => {

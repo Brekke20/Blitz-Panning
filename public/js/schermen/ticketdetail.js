@@ -15,7 +15,7 @@ import { registreerVenster } from '../venster.js';
 import { appConfirm } from '../app-dialog.js';
 import { plusInplannen } from './wachtrij.js';
 import { renderKalender } from './kalender.js';
-import { tijdslotVoor, telNummer, detailUrgentie } from './ticketdetail-logica.js';
+import { tijdslotVoor, telNummer, detailUrgentie, afgewezenLabel } from './ticketdetail-logica.js';
 import { isOverdue } from './wachtrij-logica.js';
 import { getHolidayName } from '../kern/feestdagen.js';
 
@@ -145,6 +145,12 @@ export function openDetail(t) {
   if (blabel && vs?.bevestigd?.tijdstip) {
     const ts = new Date(vs.bevestigd.tijdstip).toLocaleString('nl-BE', {dateStyle:'short', timeStyle:'short'});
     tags.innerHTML += `<span class="mtag confirmed-by" title="${escHtml(ts)} — Via welke mail bevestigd werd, niet wie er fysiek op drukte">${escHtml(blabel)}</span>`;
+  }
+  // De klant meldde via de bevestigingspagina dat de voorgestelde datum niet lukt (het ticket staat dan weer te plannen).
+  const alabel = afgewezenLabel(vs);
+  if (alabel) {
+    const ts = vs.afgewezen.tijdstip ? new Date(vs.afgewezen.tijdstip).toLocaleString('nl-BE', {dateStyle:'short', timeStyle:'short'}) : '';
+    tags.innerHTML += `<span class="mtag declined-by" title="${escHtml(ts ? ts + ' — ' : '')}${escHtml(vs.afgewezen.opmerking || 'Geen opmerking van de klant')}">${escHtml(alabel)}</span>`;
   }
 
   const contactEl = document.getElementById('d-contact');

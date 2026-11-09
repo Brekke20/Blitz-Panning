@@ -14,6 +14,7 @@ import path   from 'node:path';
 import url    from 'node:url';
 import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
 import { maakBevestigingsUrl } from '../lib/bevestigingslink.js';
+import { bevestigKnoppenHtml, KEUZE_TEKST } from '../lib/voorstelmail.js';
 import { maakZoho, leesJsonVeilig } from '../lib/zoho.js';
 import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
 import { getStore } from '@netlify/blobs';
@@ -106,18 +107,12 @@ function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime
   // worden (bv. CONFIRM_LINK_SECRET nog niet gezet). De knop mag dan niet verschijnen, en de
   // begeleidende tekst moet zonder de knop even goed kloppen (geen "klik op de knop hierboven"
   // als er geen knop is).
-  const confirmButton = confirmUrl ? `<div style="text-align:center;margin:18px 0">
-      <a href="${confirmUrl}" style="display:inline-block;background:#00dfa3;color:#181e24;
-        text-decoration:none;font-weight:700;font-size:14px;padding:12px 28px;border-radius:6px">
-        ✅ Bevestig deze afspraak
-      </a>
-    </div>` : '';
+  // De twee knoppen ("Bevestig deze afspraak" en "Deze datum lukt niet") en de zin eronder komen uit netlify/lib/voorstelmail.js
+  // (gedeeld met de herinnering).
+  const confirmButton = bevestigKnoppenHtml(confirmUrl);
 
   const confirmParagraph = confirmUrl
-    ? `Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen, of
-      antwoord op deze e-mail. Komt het voorgestelde tijdstip u niet uit? Laat het ons dan weten via een
-      antwoord op deze e-mail, zodat we samen een alternatief zoeken. In bijlage vindt u onze
-      service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.`
+    ? `${KEUZE_TEKST} In bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.`
     : `Gelieve deze afspraak te bevestigen door op deze e-mail te antwoorden. Komt het voorgestelde
       tijdstip u niet uit? Laat het ons dan ook weten, zodat we samen een alternatief zoeken. In
       bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.`;

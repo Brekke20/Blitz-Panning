@@ -93,6 +93,18 @@ export function bevestigdLabel(vs) {
   return doorNaam ? `✓ Bevestigd door ${doorNaam}` : '✓ Bevestigd';
 }
 
+// Label als de klant via de bevestigingspagina meldde dat de voorgestelde datum niet lukt (register-veld `afgewezen`, zie
+// netlify/lib/voorstelregister.js). De opmerking van de klant is vrije tekst: witruimte wordt samengetrokken en een lange tekst
+// afgekapt (de volledige tekst staat als notitie op het ticket in Zoho). Altijd als tekst tonen (textContent of escHtml).
+const MAX_AFGEWEZEN_OPMERKING = 140;
+export function afgewezenLabel(vs) {
+  if (!vs?.afgewezen) return null;
+  const ruw = typeof vs.afgewezen.opmerking === 'string' ? vs.afgewezen.opmerking.replace(/\s+/g, ' ').trim() : '';
+  if (!ruw) return '✗ Klant: datum lukt niet';
+  const opmerking = ruw.length > MAX_AFGEWEZEN_OPMERKING ? ruw.slice(0, MAX_AFGEWEZEN_OPMERKING - 1) + '…' : ruw;
+  return `✗ Klant: datum lukt niet — ${opmerking}`;
+}
+
 // Staat er een lopend voorstel? `voorstelStatus` is een parameter (vroeger de global), zonder standaardwaarde: een vergeten argument faalt luid.
 export function heeftLopendVoorstel(t, voorstelStatus) {
   if (!t) return false;

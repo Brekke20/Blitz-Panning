@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { leesRegister, schrijfVoorstel, wisVoorstel, markeerBevestigd } from '../netlify/lib/voorstelregister.js';
+import { leesRegister, schrijfVoorstel, wisVoorstel, markeerBevestigd, markeerAfgewezen } from '../netlify/lib/voorstelregister.js';
 
 function nepStore() {
   const m = new Map();
@@ -72,4 +72,31 @@ test('markeerBevestigd bewaart door en tijdstip, ook met door:null', async () =>
   const r = await markeerBevestigd(s, '5', { door: null, tijdstip: 'TC' });
   assert.equal(r.versie, 2);
   assert.deepEqual((await leesRegister(s)).status['5'].bevestigd, { door: null, tijdstip: 'TC' });
+});
+
+test('markeerAfgewezen vervangt de entry door enkel { afgewezen } (geen voorstel-vergrendeling meer), met opmerking', async () => {
+  const s = nepStore();
+  await schrijfVoorstel(s, { ticketId: '7', doelgroepen: ['klant', 'contact'], tijdstip: 'T1', tijdslot: '08:30–11:30', tijdslotDatum: '2026-10-14' });
+  const r = await markeerAfgewezen(s, '7', { door: 'klant', tijdstip: 'TA', opmerking: 'Liever na 20 oktober' });
+  assert.equal(r.versie, 2);
+  assert.deepEqual((await leesRegister(s)).status['7'], { afgewezen: { door: 'klant', tijdstip: 'TA', opmerking: 'Liever na 20 oktober' } });
+});
+
+test('markeerAfgewezen: zonder opmerking blijft het veld weg, door mag null zijn, andere tickets blijven', async () => {
+  const s = nepStore();
+  await schrijfVoorstel(s, { ticketId: '8', doelgroepen: ['klant'], tijdstip: 'T1' });
+  await markeerAfgewezen(s, '7', { door: null, tijdstip: 'TA', opmerking: '' });
+  const reg = await leesRegister(s);
+  assert.deepEqual(reg.status['7'], { afgewezen: { door: null, tijdstip: 'TA' } });
+  assert.equal(reg.status['8'].klant, 'T1');
+});
+
+test('een volgend voorstel (reset) wist de afwijzing; zonder reset blijft ze staan', async () => {
+  const s = nepStore();
+  await markeerAfgewezen(s, '7', { door: 'klant', tijdstip: 'TA', opmerking: 'x' });
+  await schrijfVoorstel(s, { ticketId: '7', doelgroepen: ['klant'], tijdstip: 'T2', reset: true });
+  assert.deepEqual((await leesRegister(s)).status['7'], { klant: 'T2' });
+  await markeerAfgewezen(s, '7', { door: 'klant', tijdstip: 'TA', opmerking: 'x' });
+  await schrijfVoorstel(s, { ticketId: '7', doelgroepen: ['contact'], tijdstip: 'T3' });
+  assert.ok((await leesRegister(s)).status['7'].afgewezen);
 });

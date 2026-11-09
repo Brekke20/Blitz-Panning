@@ -15,6 +15,7 @@ const LABELS = Object.freeze({
   'plannen': 'Ingepland',
   'voorstel-verstuurd': 'Voorstel verstuurd',
   'annulatie': 'Geannuleerd',
+  'datum-lukt-niet': 'Datum lukt niet (klant)',
   'rapport-verstuurd': 'Rapport verstuurd',
   'rapport-opnieuw': 'Rapport opnieuw verstuurd',
   'rapport-geweigerd': 'Rapport geweigerd',
