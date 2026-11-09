@@ -189,6 +189,7 @@ const ANNULEER_REDENEN = [
   { code: 'klant', label: 'Klant vroeg om te verzetten' },
   { code: 'weer', label: 'Weersomstandigheden' },
   { code: 'fout', label: 'Dubbele of foute planning' },
+  { code: 'geenreactie', label: 'Geen reactie van de klant' },
   { code: 'andere', label: 'Andere' },
 ];
 const TIJDSLOT_RE = /^([01]\d|2[0-3]):[0-5]\d–([01]\d|2[0-3]):[0-5]\d$/;
@@ -248,7 +249,8 @@ export function zohoStubs({ register, rapporten } = {}) {
         return { status: 200, json: { ok: true, versie: reg.versie } };
       };
     }
-    // annuleer.js: GET -> { redenen }, POST { voorbeeld: true } -> { html }, POST echt -> { ok, emailSent, fouten }.
+    // annuleer.js: GET -> { redenen }, POST { voorbeeld: true } -> { html }, POST echt -> { ok, emailSent, fouten } (bij de reden
+    // `geenreactie` ook `status: 'Gesloten - ov'`: het ticket wordt gesloten in plaats van terug in de wachtrij gezet).
     if (naam === 'annuleer') {
       antwoorden[naam] = ({ methode, body }) => {
         if (methode === 'GET') return { status: 200, json: { redenen: structuredClone(ANNULEER_REDENEN) } };
@@ -256,7 +258,13 @@ export function zohoStubs({ register, rapporten } = {}) {
         const status = { ...reg.status };
         delete status[body?.ticketId];
         reg = { versie: reg.versie + 1, status };
-        return { status: 200, json: { ok: true, emailSent: { contact: body?.mailKlant === true, klant: false, installateur: false }, fouten: [] } };
+        return {
+          status: 200,
+          json: {
+            ok: true, emailSent: { contact: body?.mailKlant === true, klant: false, installateur: false }, fouten: [],
+            ...(body?.reden === 'geenreactie' ? { status: 'Gesloten - ov' } : {}),
+          },
+        };
       };
     }
     // send-rapport.js: preview -> { preview: true, ontvangers: [{ doelgroep, naam, email, html }] }; echt ->

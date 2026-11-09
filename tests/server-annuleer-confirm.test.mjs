@@ -7,7 +7,7 @@ import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { maakNepFetch, metGlobaleFetch, laadVers, zetEnv } from './nep-fetch.mjs';
 import { maakHandler } from '../netlify/functions/annuleer.js';
-import { REDENEN, bouwAnnulatieMail, bouwAnnulatieNotitie } from '../netlify/lib/annulatie.js';
+import { REDENEN, bouwAnnulatieMail, bouwAnnulatieNotitie, bouwGeenReactieMail, bouwGeenReactieNotitie } from '../netlify/lib/annulatie.js';
 import { tekenLink, bevestigingsNotitie } from '../netlify/lib/bevestigingslink.js';
 
 const NU = Date.parse('2026-10-01T10:00:00.000Z');
@@ -217,6 +217,30 @@ test('annuleer: volledige reeks met mail naar contact, klant en installateur (to
   assert.deepEqual(await antwoordJson(r.res), {
     status: 200, headers: CORS_ANN,
     body: { ok: true, emailSent: { contact: true, klant: true, installateur: true }, fouten: [] },
+  });
+  assert.equal(registerVan(r.winkels).status['555'], undefined);
+  assert.ok(registerVan(r.winkels).status['777']);
+});
+
+test('annuleer: geenreactie mailt het geen-reactie-sjabloon naar elk adres, DAARNA PATCH naar Gesloten - ov met gewiste datum, dan de eigen notitie', async () => {
+  const r = await draaiAnn(annReq({ ticketId: '555', reden: 'geenreactie', toelichting: '', mailKlant: true, door: 'Brent' }));
+  const mail = bouwGeenReactieMail({ naam: 'An Peeters', datum: '2026-10-14', tijdslot: '08:30–11:30', uur: null });
+  const notitie = bouwGeenReactieNotitie({
+    datum: '2026-10-14', tijdslot: '08:30–11:30', uur: null, door: 'Brent', tijdstip: TIJDSTIP_NU,
+    toelichting: '', mailKlant: true, gemaild: ['contact@x.be', 'klant@x.be', 'inst@x.be'],
+  });
+  assert.equal(notitie, 'Afspraak van 14/10/2026 08:30–11:30 vervallen: geen reactie van de klant. Ticket gesloten (Gesloten - ov) via Blitz Planning door Brent op 01/10/2026 12:00. Klant verwittigd per mail: ja (contact@x.be, klant@x.be, inst@x.be).');
+  assert.deepEqual(r.calls, [
+    TOKEN_CALL, ORG_CALL, getTicket('555'),
+    sendReply('555', 'contact@x.be', mail),
+    sendReply('555', 'klant@x.be', mail),
+    sendReply('555', 'inst@x.be', mail),
+    patch('555', { status: 'Gesloten - ov', cf: { cf_interventie_datm: '' } }),
+    comment('555', notitie),
+  ]);
+  assert.deepEqual(await antwoordJson(r.res), {
+    status: 200, headers: CORS_ANN,
+    body: { ok: true, emailSent: { contact: true, klant: true, installateur: true }, fouten: [], status: 'Gesloten - ov' },
   });
   assert.equal(registerVan(r.winkels).status['555'], undefined);
   assert.ok(registerVan(r.winkels).status['777']);

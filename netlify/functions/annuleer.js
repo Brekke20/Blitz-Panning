@@ -3,7 +3,9 @@
 //   POST { voorbeeld:true, naam, datum, tijdslot?, uur?, reden, toelichting? } -> { html }  (nooit Zoho)
 //   POST { ticketId, reden, toelichting, mailKlant, door } -> annuleert de afspraak:
 //        (optioneel) sendReply per ontvanger EERST, daarna PATCH status + datum wissen,
-//        interne notitie, register wissen.
+//        interne notitie, register wissen. Status na afloop: 'Wachten op planning', behalve bij reden `geenreactie`
+//        ("Geen reactie van de klant"): dan eigen mail en 'Gesloten - ov'. Enkel in dat laatste geval geeft het antwoord
+//        `status` terug (de client zet het ticket dan niet terug in de wachtrij maar haalt het weg).
 // Testmodus (X-Blitz-Test: 1): nooit Zoho; het register wordt wel gewist in de teststore.
 import { getStore } from '@netlify/blobs';
 import { isTestVerzoek, winkelNaam, nepZohoAntwoord, zorgVoorTestkopie } from '../lib/testmodus.js';
@@ -13,7 +15,8 @@ import { maakZoho } from '../lib/zoho.js';
 import { eisEigenTicket } from '../lib/eigen-ticket.js';
 import { maakCors, v2Json, v2Opties } from '../lib/http.js';
 import {
-  REDENEN, valideerAnnulatie, valideerRedenToelichting, bouwAnnulatieMail, bouwAnnulatieNotitie, escHtml,
+  REDENEN, valideerAnnulatie, valideerRedenToelichting, bouwAnnulatieMail, bouwAnnulatieNotitie, bouwGeenReactieNotitie,
+  statusNaAnnulatie, STATUS_NA_ANNULATIE, escHtml,
 } from '../lib/annulatie.js';
 import { beveiligV2 } from '../lib/beveiligd.js';
 import { metTicketsVerouderd } from '../lib/tickets-snapshot.js';
@@ -92,11 +95,16 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
     if (test) await zorgVoorTestkopie(haalStore);
     const store = haalStore({ name: winkelNaam(req), consistency: 'strong' });
 
+    // Enkel bij een gesloten ticket (geenreactie) komt `status` in het antwoord; anders blijft het antwoord zoals het was.
+    const nieuweStatus = statusNaAnnulatie(reden);
+    const statusDeel = nieuweStatus === STATUS_NA_ANNULATIE ? {} : { status: nieuweStatus };
+
     if (test) {
       await wisVoorstel(store, ticketId);
       return json(200, nepZohoAntwoord({
         ok: true, ticketId,
         emailSent: { contact: mailKlant, klant: false, installateur: false }, fouten: [],
+        ...statusDeel,
       }));
     }
 
@@ -216,7 +224,7 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
       // 2. PATCH NA sendReply.
       const patchRes = await zoho.verzoek(`/tickets/${ticketId}`, {
         token: accessToken, orgId, methode: 'PATCH',
-        json: { status: 'Wachten op planning', cf: { cf_interventie_datm: '' } },
+        json: { status: nieuweStatus, cf: { cf_interventie_datm: '' } },
       });
       if (!patchRes.ok) {
         const t = await patchRes.text().catch(() => '');
@@ -226,11 +234,13 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
 
       // 3. Interne notitie (enkel loggen bij fout).
       const gemaild = ontvangers.filter(o => emailSent[o.doelgroep]).map(o => o.email);
-      const notitie = bouwAnnulatieNotitie({
-        datum, tijdslot, uur, door, tijdstip: tijdstipNu(),
-        redenLabel: REDENEN.find(r => r.code === reden).label,
-        toelichting, mailKlant, gemaild,
-      });
+      const notitie = reden === 'geenreactie'
+        ? bouwGeenReactieNotitie({ datum, tijdslot, uur, door, tijdstip: tijdstipNu(), toelichting, mailKlant, gemaild })
+        : bouwAnnulatieNotitie({
+          datum, tijdslot, uur, door, tijdstip: tijdstipNu(),
+          redenLabel: REDENEN.find(r => r.code === reden).label,
+          toelichting, mailKlant, gemaild,
+        });
       await addZohoComment(ticketId, accessToken, orgId, notitie);
       await logVoorVerzoek(req, gebruiker, { actie: 'annulatie', onderwerp: ticketId, details: reden }, { getStore: haalStore });
 
@@ -240,12 +250,12 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
       } catch (e) {
         console.error('Register wissen mislukt na geslaagde annulatie:', e?.message || e);
         return json(200, {
-          ok: true, emailSent, fouten,
+          ok: true, emailSent, fouten, ...statusDeel,
           waarschuwing: 'Afspraak geannuleerd in Zoho, maar het voorstel-register kon niet bijgewerkt worden. Herlaad de planner.',
         });
       }
 
-      return json(200, { ok: true, emailSent, fouten });
+      return json(200, { ok: true, emailSent, fouten, ...statusDeel });
     } catch (err) {
       console.error('annuleer fout:', err);
       return json(500, { error: err.message });

@@ -12,6 +12,9 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Unreleased]
 
+### Added
+- Afspraak annuleren heeft een extra reden: "Geen reactie van de klant". Die stuurt een eigen mail (de voorgestelde afspraak vervalt, we doen zelf geen nieuw voorstel, en wie toch een afspraak wil antwoordt op de mail zodat het ticket heropent) en zet het ticket in Zoho op "Gesloten - ov" in plaats van terug op "Wachten op planning". In de app verdwijnt het ticket uit de wachtrij, de kalender en de planning.
+
 ## [2.8.0] — 2026-10-30
 
 ### Changed
