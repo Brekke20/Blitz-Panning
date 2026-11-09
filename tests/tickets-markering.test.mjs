@@ -109,7 +109,7 @@ test('plan-datum en comment markeren ook (elk achter hun eigen wrapper)', async 
 
 // Elke functie die een ticket in Zoho wijzigt moet de momentopname verouderen. Een nieuwe schrijvende Zoho-functie zonder
 // markering zou stilletjes een oud scherm tonen: deze lijst dwingt het af (voeg een nieuwe functie toe aan MARKEREN of motiveer).
-const MARKEREN = ['plan', 'plan-datum', 'propose', 'annuleer', 'comment', 'send-rapport'];
+const MARKEREN = ['plan', 'plan-datum', 'propose', 'annuleer', 'bevestig-handmatig', 'comment', 'send-rapport'];
 const lees = pad => readFileSync(new URL(pad, import.meta.url), 'utf8');
 
 test('elke functie die een ticket in Zoho wijzigt gebruikt de stale-markering, binnen de beveiliging', () => {

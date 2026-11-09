@@ -89,3 +89,17 @@ export function afwijzingsNotitie({ date, doelgroep, email, opmerking, tijdstip,
   const tekst = String(opmerking ?? '').trim();
   return `Klant (${wie}) meldt dat ${datum} niet lukt${tekst ? `: ${escHtml(tekst)}` : ''}. Via bevestigingslink op ${escHtml(tijdstip)} (Europe/Brussels). IP-adres: ${escHtml(ip)}. Het ticket staat weer op "Wachten op planning".`;
 }
+
+// Interne Zoho-notitie als de planner registreert dat de klant per mail bevestigde (knop "Bevestigd per mail"). `naam` is de naam van
+// de ingelogde planner (uit de sessie), `tijdstip` een kant-en-klare tekst (zie tijdstipNuBrussel).
+export function handmatigeBevestigingsNotitie({ naam, tijdstip }) {
+  return `Bevestigd per mail, geregistreerd door ${escHtml(String(naam ?? '').trim() || 'onbekend')} via Blitz Planning op ${escHtml(tijdstip)}.`;
+}
+
+// "01/10/2026 12:00" in Brusselse tijd (voor interne notities).
+export function tijdstipNuBrussel(nu = new Date()) {
+  return new Intl.DateTimeFormat('nl-BE', {
+    timeZone: 'Europe/Brussels', day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(nu).replace(',', '').replace(/\s+24:/, ' 00:');
+}

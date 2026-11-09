@@ -1,6 +1,6 @@
 // Voorstelregister (blob `voorstel-status`): pure logica op een meegegeven store,
 // zodat het testbaar is met een nep-store.
-// Structuur: { versie, status: { [ticketId]: { contact?, klant?, installateur?, tijdslot?, tijdslotDatum?, bevestigd?: {door, tijdstip},
+// Structuur: { versie, status: { [ticketId]: { contact?, klant?, installateur?, tijdslot?, tijdslotDatum?, bevestigd?: {door, tijdstip, wie?},
 //   afgewezen?: {door, tijdstip, opmerking?} } } }
 // `afgewezen`: de klant meldde via de bevestigingspagina dat de voorgestelde datum niet lukt. De entry bestaat dan enkel nog uit dat
 // veld, zodat ze niets vergrendelt (heeftLopendVoorstel en isStopLocked kijken naar de tijdstippen per doelgroep en naar `bevestigd`);
@@ -45,9 +45,11 @@ export async function wisVoorstel(store, ticketId) {
   return { versie: nieuw.versie };
 }
 
-export async function markeerBevestigd(store, ticketId, { door, tijdstip }) {
+// `door`: contact | klant | installateur (via de bevestigingslink) of 'mail' (de planner registreerde een bevestiging per mail);
+// `wie` (enkel bij 'mail'): de naam van de planner, enkel bewaard als hij is meegegeven.
+export async function markeerBevestigd(store, ticketId, { door, tijdstip, wie }) {
   const current = await leesRegister(store);
-  const entry = { ...(current.status[ticketId] || {}), bevestigd: { door: door ?? null, tijdstip } };
+  const entry = { ...(current.status[ticketId] || {}), bevestigd: { door: door ?? null, tijdstip, ...(wie ? { wie } : {}) } };
   const nieuw = { versie: current.versie + 1, status: { ...current.status, [ticketId]: entry } };
   await store.setJSON(SLEUTEL, nieuw);
   return { versie: nieuw.versie };

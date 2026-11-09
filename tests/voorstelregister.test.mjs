@@ -100,3 +100,11 @@ test('een volgend voorstel (reset) wist de afwijzing; zonder reset blijft ze sta
   await schrijfVoorstel(s, { ticketId: '7', doelgroepen: ['contact'], tijdstip: 'T3' });
   assert.ok((await leesRegister(s)).status['7'].afgewezen);
 });
+
+test('markeerBevestigd bewaart bij een bevestiging per mail ook wie het registreerde (enkel als `wie` is meegegeven)', async () => {
+  const s = nepStore();
+  await markeerBevestigd(s, '6', { door: 'mail', tijdstip: 'TM', wie: 'Petra Planner' });
+  assert.deepEqual((await leesRegister(s)).status['6'].bevestigd, { door: 'mail', tijdstip: 'TM', wie: 'Petra Planner' });
+  await markeerBevestigd(s, '6', { door: 'mail', tijdstip: 'TN', wie: '' });
+  assert.deepEqual((await leesRegister(s)).status['6'].bevestigd, { door: 'mail', tijdstip: 'TN' });
+});

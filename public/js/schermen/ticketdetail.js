@@ -5,7 +5,7 @@
 // afhankelijkheden van andere schermen via `initTicketdetail(afh)` (aan het begin van DOMContentLoaded). Raakt `document`
 // enkel binnen functies, nooit op moduleniveau. Alleen `kern/brug.js` wijst `window`-namen toe. De knoppen van het
 // detail- en verzetvenster lopen via data-actie-delegatie; de overlays sluiten via registreerBackdrop (inhoudsklik sluit niet).
-import { foutTekst } from '../kern/api.js';
+import { apiVerzoek, foutTekst } from '../kern/api.js';
 import { toestand } from '../kern/toestand.js';
 import { TEST_MODE } from '../kern/omgeving.js';
 import { magSchrijvenVoor, magPlannenVoor } from '../kern/sessie.js';
@@ -21,6 +21,8 @@ import { getHolidayName } from '../kern/feestdagen.js';
 
 // Afhankelijkheden uit app.js (ingevuld door initTicketdetail); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('ticketdetail: initTicketdetail() is niet aangeroepen'); } });
+
+const STATUS_WACHT_BEVESTIGING = 'Wachten op bevestiging planning';
 
 // Schermtoestand (voorheen globals in index.html).
 let activeTicket = null;
@@ -48,6 +50,7 @@ export function initTicketdetail(afhankelijkheden) {
     'det-fotos':      () => afh.openFotoModal(activeTicket?.id),
     'det-rapport':    () => afh.openRapport(activeTicket?.id, _detailDate),
     'det-annuleer':   () => afh.openAnnuleerVenster(activeTicket?.id, _detailDate),
+    'det-bevestig-mail': () => bevestigPerMail(),
     'det-verzet':     () => openRescheduleModal(),
     'verzet-sluit':   () => closeRescheduleModal(),
     'verzet-opslaan': () => saveReschedule(),
@@ -205,6 +208,8 @@ export function openDetail(t) {
 
   // Afspraak annuleren vervangt "Uit planning halen" zodra er een voorstel uitstaat.
   document.getElementById('d-btn-annuleer').style.display = magPlannen && afh.heeftLopendVoorstel(t) ? '' : 'none';
+  // "Bevestigd per mail": enkel zolang het ticket op de klant wacht (de klant antwoordde per mail in plaats van op de knop te klikken).
+  document.getElementById('d-btn-bevestig-mail').style.display = magPlannen && t.status === STATUS_WACHT_BEVESTIGING ? '' : 'none';
 
   // Gloed langs de rand van het venster in de kleur van het ticket (Open dag-stijl; enkel een attribuut voor de opmaak)
   const modal = document.querySelector('#det-overlay .modal');
@@ -311,6 +316,50 @@ export async function saveReschedule() {
   } catch (err) {
     toast('✕ Bijwerken in Zoho mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + foutTekst(err) + ')', 4000);
     afh.vraagResyncNaOnzeker(err); // W5-fix (N7): onzeker resultaat -> één gecoalesceerde herlading
+  }
+}
+
+// "Bevestigd per mail": de planner registreert dat de klant per mail bevestigd heeft. Vraagt eerst een bevestiging; de server zet het
+// ticket op 'Geplande support' (POST /api/bevestig-handmatig) en bewaart "door mail" in het voorstelregister. Daarna staat het ticket lokaal
+// bij "Bevestigd" (allGepland) en toont het label "✓ Bevestigd per mail". Testmodus (?test): enkel lokaal, niets naar de server.
+export async function bevestigPerMail() {
+  const t = activeTicket;
+  if (!t || t.status !== STATUS_WACHT_BEVESTIGING) return;
+  const ticketId = t.id;
+  const ok = await appConfirm({
+    titel: `Ticket #${t.number} bevestigd per mail?`,
+    tekst: 'De klant antwoordde per mail en bevestigde de afspraak. Het ticket gaat in Zoho op "Geplande support"; de klant krijgt hier geen mail van.',
+    bevestigLabel: 'Ja, bevestigd per mail',
+  });
+  if (!ok) return;
+  const knop = document.getElementById('d-btn-bevestig-mail');
+  knop.disabled = true;
+  try {
+    if (!TEST_MODE) {
+      const r = await apiVerzoek('/api/bevestig-handmatig', { methode: 'POST', body: { ticketId } });
+      if (r.status === 409) { toast('⚠ ' + (r.data?.error || 'Het ticket staat niet meer op "Wachten op bevestiging planning".'), 7000); return; }
+      if (!r.ok || r.data?.error) throw new Error(foutTekst(r.data?.error || 'HTTP ' + r.status));
+    }
+    // Lokaal bijwerken: het ticket verhuist van "wacht op bevestiging" naar "bevestigd"; het register toont "door mail".
+    const register = toestand.get('voorstelStatus');
+    register[ticketId] = { ...(register[ticketId] || {}), bevestigd: { door: 'mail', tijdstip: new Date().toISOString() } };
+    toestand.raak('voorstelStatus');
+    const pending = toestand.get('allPending');
+    const object = pending.find(x => x.id === ticketId) || t;
+    object.status = 'Geplande support';
+    t.status = 'Geplande support';
+    toestand.set('allPending', pending.filter(x => x.id !== ticketId));
+    const gepland = toestand.get('allGepland');
+    if (!gepland.some(x => x.id === ticketId)) toestand.set('allGepland', [...gepland, object]);
+    toestand.raak('allTickets');
+    sluitDetailStil();
+    toast(TEST_MODE ? '🧪 Testmodus — niet opgeslagen' : `✓ Ticket #${t.number} bevestigd per mail`);
+    if (!TEST_MODE) afh.loadVoorstelStatus().catch(() => {}); // de server heeft de naam van de planner erbij gezet (en de versie van het register)
+  } catch (err) {
+    toast('✕ Bevestigen mislukt. Probeer opnieuw; blijft het fout, meld dit. (Detail: ' + foutTekst(err) + ')', 6000);
+    afh.vraagResyncNaOnzeker(err); // een onzeker resultaat (time-out, 502): één gecoalesceerde herlading
+  } finally {
+    knop.disabled = false;
   }
 }
 

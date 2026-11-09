@@ -145,6 +145,43 @@ test.describe('ticketdetail: knoppen per toestand', () => {
     await expect(detail.locator('#d-tags .mtag.confirmed-by')).toHaveText('✓ Bevestigd door klant');
   });
 
+  test('"Bevestigd per mail": enkel zichtbaar bij Wachten op bevestiging planning (#1004), niet bij de wachtrij (#1001)', async ({ page }) => {
+    await startApp(page);
+    const wachtrij = await open1001(page);
+    await expect(wachtrij.locator('#d-btn-bevestig-mail')).toBeHidden();
+    await wachtrij.getByRole('button', { name: 'Sluiten' }).click();
+    const detail = await open1004(page);
+    await expect(detail.locator('#d-btn-bevestig-mail')).toBeVisible();
+    await expect(detail.locator('#d-btn-bevestig-mail')).toHaveText(/Bevestigd per mail/);
+  });
+
+  test('"Bevestigd per mail" in testmodus: dialoog, daarna enkel lokaal bijgewerkt (Geplande support, label), geen verzoek naar de server', async ({ page, verzoeken }) => {
+    await startApp(page);
+    const detail = await open1004(page);
+    await detail.locator('#d-btn-bevestig-mail').click();
+    const dialoog = page.getByRole('alertdialog', { name: 'Ticket #1004 bevestigd per mail?' });
+    await expect(dialoog).toBeVisible();
+    await dialoog.getByRole('button', { name: 'Terug' }).click();
+    await expect(dialoog).toBeHidden();
+    expect(await page.evaluate(() => kern.toestand.get('allPending').some(t => t.id === 'p1'))).toBe(true);
+
+    await detail.locator('#d-btn-bevestig-mail').click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Ja, bevestigd per mail' }).click();
+    await expect(toast(page)).toHaveText('🧪 Testmodus — niet opgeslagen');
+    await expect(detail).toBeHidden();
+    const stand = await page.evaluate(() => ({
+      pending: kern.toestand.get('allPending').some(t => t.id === 'p1'),
+      gepland: kern.toestand.get('allGepland').find(t => t.id === 'p1')?.status,
+      register: kern.toestand.get('voorstelStatus').p1?.bevestigd?.door,
+    }));
+    expect(stand).toEqual({ pending: false, gepland: 'Geplande support', register: 'mail' });
+    const nuDetail = await open1004(page);
+    await expect(nuDetail.locator('#d-tags .mtag.confirmed-by')).toHaveText('✓ Bevestigd per mail');
+    await expect(nuDetail.locator('#d-btn-bevestig-mail')).toBeHidden();
+    await settle(page);
+    expect(verzoeken.van('/api/bevestig-handmatig')).toEqual([]);
+  });
+
   test('"datum lukt niet": de klant weigerde de voorgestelde datum: label met opmerking in het detail en op de wachtrijkaart, niets vergrendeld', async ({ page }) => {
     await startApp(page);
     // Het ticket staat weer in de wachtrij (Zoho: 'Wachten op planning'); het register heeft enkel nog { afgewezen }.

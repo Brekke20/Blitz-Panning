@@ -30,6 +30,9 @@
 [functions.annuleer]
   timeout = 26
 
+[functions.bevestig-handmatig]
+  timeout = 26
+
 [functions.planning-sinds]
   timeout = 26
 

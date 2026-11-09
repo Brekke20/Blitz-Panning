@@ -89,6 +89,7 @@ export const DOELGROEP_LABEL = { contact: 'contactpersoon', klant: 'klant', inst
 export function bevestigdLabel(vs) {
   if (!vs?.bevestigd) return null;
   const { door } = vs.bevestigd;
+  if (door === 'mail') return '✓ Bevestigd per mail'; // de planner registreerde een antwoord per mail (geen ontvangersgroep)
   const doorNaam = door ? DOELGROEP_LABEL[door] : null;
   return doorNaam ? `✓ Bevestigd door ${doorNaam}` : '✓ Bevestigd';
 }

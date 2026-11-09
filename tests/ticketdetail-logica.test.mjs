@@ -82,6 +82,9 @@ test('bevestigdLabel: alle bronnen', () => {
   assert.equal(bevestigdLabel({ bevestigd: { door: 'installateur' } }), '✓ Bevestigd door installateur');
   assert.equal(bevestigdLabel({ bevestigd: { door: null } }), '✓ Bevestigd');
   assert.equal(bevestigdLabel({ bevestigd: { door: 'onbekend' } }), '✓ Bevestigd');
+  // Een planner registreerde een bevestiging per mail (knop "Bevestigd per mail"): geen ontvangersgroep, wel een eigen label.
+  assert.equal(bevestigdLabel({ bevestigd: { door: 'mail', tijdstip: 'T', wie: 'Petra' } }), '✓ Bevestigd per mail');
+  assert.equal(DOELGROEP_LABEL.mail, undefined, 'mail is geen ontvangersgroep');
 });
 
 test('afgewezenLabel: de klant meldde dat de datum niet lukt, met of zonder opmerking; anders null', () => {

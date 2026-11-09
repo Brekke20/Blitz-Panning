@@ -38,6 +38,9 @@ export const RECHTEN = {
   'plan-datum':           { POST: COORD, planEigen: true },
   'propose':              { POST: COORD, planEigen: true },
   'annuleer':             { GET: COORD, POST: COORD, planEigen: true },
+  // De planner registreert dat de klant per mail bevestigd heeft; een technieker met "Mag zelf plannen" enkel voor zijn eigen tickets
+  // (eisEigenTicket in de functie).
+  'bevestig-handmatig':   { POST: COORD, planEigen: true },
   'optimize':             { '*': ALLE },
   'matrix':               { POST: ALLE },
   'route':                { '*': ALLE },
