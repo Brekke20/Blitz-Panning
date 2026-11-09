@@ -209,7 +209,8 @@ export function openDetail(t) {
   // Afspraak annuleren vervangt "Uit planning halen" zodra er een voorstel uitstaat.
   document.getElementById('d-btn-annuleer').style.display = magPlannen && afh.heeftLopendVoorstel(t) ? '' : 'none';
   // "Bevestigd per mail": enkel zolang het ticket op de klant wacht (de klant antwoordde per mail in plaats van op de knop te klikken).
-  document.getElementById('d-btn-bevestig-mail').style.display = magPlannen && t.status === STATUS_WACHT_BEVESTIGING ? '' : 'none';
+  // Zonder afspraakdatum is er niets te bevestigen (de server weigert het ook).
+  document.getElementById('d-btn-bevestig-mail').style.display = magPlannen && t.status === STATUS_WACHT_BEVESTIGING && t.interventieDatum ? '' : 'none';
 
   // Gloed langs de rand van het venster in de kleur van het ticket (Open dag-stijl; enkel een attribuut voor de opmaak)
   const modal = document.querySelector('#det-overlay .modal');
@@ -324,7 +325,7 @@ export async function saveReschedule() {
 // bij "Bevestigd" (allGepland) en toont het label "✓ Bevestigd per mail". Testmodus (?test): enkel lokaal, niets naar de server.
 export async function bevestigPerMail() {
   const t = activeTicket;
-  if (!t || t.status !== STATUS_WACHT_BEVESTIGING) return;
+  if (!t || t.status !== STATUS_WACHT_BEVESTIGING || !t.interventieDatum) return;
   const ticketId = t.id;
   const ok = await appConfirm({
     titel: `Ticket #${t.number} bevestigd per mail?`,

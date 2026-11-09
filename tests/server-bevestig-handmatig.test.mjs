@@ -104,6 +104,18 @@ test('bevestig-handmatig: een ticket dat niet meer op Wachten op bevestiging pla
   }
 });
 
+test('bevestig-handmatig: een ticket op wachten zonder afspraakdatum geeft 409 (niets te bevestigen), zonder PATCH, notitie of registerwijziging', async () => {
+  for (const cf of [{}, { cf_interventie_datm: '' }, { cf_interventie_datm: null }, { cf_interventie_datm: 'kapot' }]) {
+    const r = await draai(post({ ticketId: '555' }), { opties: { ticket: TICKET({ cf }) } });
+    assert.deepEqual(r.calls, [TOKEN_CALL, ORG_CALL, getTicket('555')], JSON.stringify(cf));
+    assert.equal(r.status, 409);
+    assert.match(r.body.error, /geen afspraakdatum/);
+    assert.equal(register(r.store), undefined);
+  }
+  const zonderCf = await draai(post({ ticketId: '555' }), { opties: { ticket: { status: 'Wachten op bevestiging planning' } } });
+  assert.equal(zonderCf.status, 409);
+});
+
 test('bevestig-handmatig: PATCH-fout geeft 502 zonder notitie of registerwijziging', async () => {
   const r = await draai(post({ ticketId: '555' }), { opties: { patchRes: () => new Response('boem', { status: 500 }) } });
   assert.deepEqual(r.calls, [TOKEN_CALL, ORG_CALL, getTicket('555'), patch('555', { status: 'Geplande support' })]);

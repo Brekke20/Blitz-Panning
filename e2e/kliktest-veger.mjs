@@ -19,7 +19,6 @@ export const OVERSLAAN = [
   { patroon: (d) => d.actie === 'rapport-export' || d.id === 'inv-export-btn' || d.actie === 'sales-export' || /Excel export/.test(d.tekst), reden: 'Start een bestandsdownload (ExcelJS van het CDN); de export heeft eigen specs (excel-export in e2e/inventaris-weergave.spec.mjs en e2e/rapporten-null-records.spec.mjs).' },
   { patroon: (d) => d.actie === 'import-kies' || d.actie === 'afspraak-import' || d.actie === 'sales-import-kies' || d.actie === 'sales-export-laden', reden: 'Opent de bestandskiezer van het besturingssysteem; het importeren heeft eigen specs (e2e/afspraken.spec.mjs, e2e/sales-import.spec.mjs).' },
   { patroon: (d) => d.actie === 'foto-kies' || /Pakket uploaden|Foto toevoegen/.test(d.tekst), reden: 'Opent de bestandskiezer van het besturingssysteem (foto of themapakket); uploaden heeft eigen specs (e2e/fotos.spec.mjs, e2e/beheer-themas.spec.mjs).' },
-  { patroon: (d) => d.actie === 'det-bevestig-mail', reden: 'Bevestigd per mail zet het ticket op Geplande support en haalt het uit "wacht op bevestiging" (en uit de lijst zonder datum) waar de rest van de sweep op rekent; de dialoog en de gevolgen staan in e2e/ticketdetail.spec.mjs (testmodus) en e2e/productie/bevestig-handmatig.spec.mjs (verzoek en lijsten).' },
   { patroon: (d) => d.actie === 'wizard-print' || /printRapport|window\.print/.test(d.onclick) || /Afdrukken|Printen/.test(d.tekst), reden: 'window.print() opent het afdrukvenster van de browser; afdrukken heeft eigen specs (e2e/rapport-drukkopie-veilig.spec.mjs).' },
 ];
 

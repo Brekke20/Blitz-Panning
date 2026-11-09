@@ -1,7 +1,7 @@
 // /api/bevestig-handmatig
 //   POST { ticketId } -> de planner registreert dat de klant PER MAIL bevestigd heeft (de klant antwoordde op de voorstelmail in plaats
 //   van op de knop te klikken). Controleert dat het ticket in Zoho nog op 'Wachten op bevestiging planning' staat, zet het op
-//   'Geplande support' (dezelfde overgang als de bevestigingslink in confirm-afspraak.js), schrijft een interne notitie
+//   'Geplande support' (dezelfde overgang als de bevestigingslink in confirm-afspraak.js; het ticket moet ook een afspraakdatum hebben), schrijft een interne notitie
 //   ("Bevestigd per mail, geregistreerd door <planner>"), markeert het voorstelregister (`bevestigd: { door: 'mail', tijdstip, wie }`)
 //   en logt de actie. Antwoord: { ok, status: 'Geplande support' } (200), 409 als de status intussen anders is, 502 bij een Zoho-fout.
 // De naam van de planner komt uit de sessie, nooit uit het verzoek. Een technieker met "Mag zelf plannen" bevestigt enkel zijn eigen
@@ -10,7 +10,7 @@
 import { getStore } from '@netlify/blobs';
 import { isTestVerzoek, winkelNaam, nepZohoAntwoord, zorgVoorTestkopie } from '../lib/testmodus.js';
 import { markeerBevestigd } from '../lib/voorstelregister.js';
-import { handmatigeBevestigingsNotitie, tijdstipNuBrussel } from '../lib/bevestigingslink.js';
+import { handmatigeBevestigingsNotitie, tijdstipNuBrussel, datumInBrussel } from '../lib/bevestigingslink.js';
 import { maakZoho } from '../lib/zoho.js';
 import { eisEigenTicket } from '../lib/eigen-ticket.js';
 import { maakCors, v2Json, v2Opties } from '../lib/http.js';
@@ -78,6 +78,15 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
       if (ticketData.status !== STATUS_PENDING) {
         return json(409, {
           error: `Dit ticket staat niet (meer) op "${STATUS_PENDING}" in Zoho (status: ${ticketData.status || 'onbekend'}). Herlaad de planner.`,
+          zohoStatus: ticketData.status || null,
+        });
+      }
+
+      // Een afspraak zonder datum is niets om te bevestigen (en een 'Geplande support' zonder datum is een toestand die kalender en Ingepland niet
+      // verwachten); de bevestigingslink eist ook een datum die klopt.
+      if (!datumInBrussel(ticketData.cf?.cf_interventie_datm)) {
+        return json(409, {
+          error: 'Dit ticket heeft geen afspraakdatum in Zoho: er is niets te bevestigen. Plan het eerst in of herlaad de planner.',
           zohoStatus: ticketData.status || null,
         });
       }

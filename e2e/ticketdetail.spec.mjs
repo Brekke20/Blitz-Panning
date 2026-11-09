@@ -153,6 +153,13 @@ test.describe('ticketdetail: knoppen per toestand', () => {
     const detail = await open1004(page);
     await expect(detail.locator('#d-btn-bevestig-mail')).toBeVisible();
     await expect(detail.locator('#d-btn-bevestig-mail')).toHaveText(/Bevestigd per mail/);
+    await detail.getByRole('button', { name: 'Sluiten' }).click();
+    // #1005 wacht ook op bevestiging maar heeft geen afspraakdatum (staat in "zonder datum"): er is niets te bevestigen, dus geen knop.
+    await page.getByRole('button', { name: /zonder datum/ }).click();
+    await page.locator('#kal-no-date-section').getByText('#1005').first().click();
+    const zonderDatum = detailVan(page, /Firmware/);
+    await expect(zonderDatum).toBeVisible();
+    await expect(zonderDatum.locator('#d-btn-bevestig-mail')).toBeHidden();
   });
 
   test('"Bevestigd per mail" in testmodus: dialoog, daarna enkel lokaal bijgewerkt (Geplande support, label), geen verzoek naar de server', async ({ page, verzoeken }) => {
