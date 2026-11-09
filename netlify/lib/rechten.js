@@ -32,12 +32,19 @@ export const RECHTEN = {
   // onschadelijk: antwoord en logs bevatten enkel aantallen, en een aanroep doet enkel een lading als die toch aan de beurt was
   // (leeftijdsgrens + slot). De ticketgegevens zelf blijven achter de rij 'tickets'.
   'tickets-vooraf':       { '*': 'open' },
+  // Geplande herinnering 3 dagen voor de interventie (dagelijks 07:00 UTC; herinnering-bevestiging.js + lib/herinnering.js): de scheduler draagt
+  // geen sessie, dus 'open'. Of ze van buitenaf via /api/ aanroepbaar is, is niet geverifieerd (controle na de eerste deploy); zo ja is ze
+  // onschadelijk: hoogstens één herinnering per ticket en afspraakdatum (markering in het voorstelregister) en het antwoord bevat enkel aantallen.
+  'herinnering-bevestiging': { '*': 'open' },
   'planning-sinds':       { POST: INTERN },
   // Plannen: coördinator, en een technieker met "Mag zelf plannen" enkel voor zijn eigen tickets (planEigen).
   'plan':                 { POST: COORD, planEigen: true },
   'plan-datum':           { POST: COORD, planEigen: true },
   'propose':              { POST: COORD, planEigen: true },
   'annuleer':             { GET: COORD, POST: COORD, planEigen: true },
+  // De planner registreert dat de klant per mail bevestigd heeft; een technieker met "Mag zelf plannen" enkel voor zijn eigen tickets
+  // (eisEigenTicket in de functie).
+  'bevestig-handmatig':   { POST: COORD, planEigen: true },
   'optimize':             { '*': ALLE },
   'matrix':               { POST: ALLE },
   'route':                { '*': ALLE },

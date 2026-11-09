@@ -237,7 +237,7 @@ function opstart() {
   ticketdetail.initTicketdetail({
     renderKbSection: klantbeschikbaarheid.renderKbSection, openProposal: voorstel.openProposal, openAnnuleerVenster: annuleren.openAnnuleerVenster, openFotoModal: fotos.openFotoModal, openRapport: (...a) => openRapport(...a),
     addTicketToDate: planacties.addTicketToDate, bevestigUitplannen: planacties.bevestigUitplannen, vraagResyncNaOnzeker: planacties.vraagResyncNaOnzeker, navigate, kbBlocked: klantbeschikbaarheid.kbBlocked, kbPreferredTime: klantbeschikbaarheid.kbPreferredTime, prioLabel,
-    bevestigdLabel: ticketdetailLogica.bevestigdLabel,
+    bevestigdLabel: ticketdetailLogica.bevestigdLabel, loadVoorstelStatus: voorstel.loadVoorstelStatus,
     heeftLopendVoorstel: t => ticketdetailLogica.heeftLopendVoorstel(t, toestand.get('voorstelStatus')),
     computeArrivalTimes: (...a) => computeArrivalTimes(...a),
     eersteVrijUur: capaciteit.eersteVrijUur,

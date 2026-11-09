@@ -14,6 +14,7 @@ import path   from 'node:path';
 import url    from 'node:url';
 import { isTestVerzoek, nepZohoAntwoord } from '../lib/testmodus.js';
 import { maakBevestigingsUrl } from '../lib/bevestigingslink.js';
+import { bevestigKnoppenHtml, KEUZE_TEKST, cleanTicketSubject } from '../lib/voorstelmail.js';
 import { maakZoho, leesJsonVeilig } from '../lib/zoho.js';
 import { CORS_V1, v1Json, v1Methode } from '../lib/http.js';
 import { getStore } from '@netlify/blobs';
@@ -73,23 +74,8 @@ function roundToNextQuarter(timeStr) {
   return `${String(outH).padStart(2, '0')}:${String(outM).padStart(2, '0')}`;
 }
 
-// Kuist een ruwe (vaak doorgestuurde-mail-)ticket-titel op tot een klantvriendelijke
-// omschrijving voor gebruik in het afspraaksvoorstel-mailtje. Strip herhaalde forward-/
-// antwoord-prefixen (FW:/Fwd:/RE:, ongeacht hoofdletters, ook genest zoals "RE: FW: ...") en de
-// automatisch gegenereerde titel van een doorgestuurd contactformulier-bericht ("Nieuw
-// contactbericht van ..."). Blijft er niets bruikbaars over, dan een neutrale fallback-tekst
-// (UX-ronde 2026-09-22, item 2). Gedupliceerd t.o.v. dezelfde functie in public/index.html --
-// client en server delen geen module. De server kuist zelf nogmaals op (defense-in-depth), ook
-// al stuurt de client al een opgekuiste waarde: cleanTicketSubject() is idempotent, dus dubbel
-// toepassen is onschadelijk en beschermt tegen een toekomstig ander aanroeppad naar /api/propose.
-function cleanTicketSubject(raw) {
-  let s = String(raw || '').trim();
-  const prefixRe = /^(fw|fwd|re|aw|wg|tr)\s*:\s*/i;
-  let prev;
-  do { prev = s; s = s.replace(prefixRe, '').trim(); } while (s !== prev);
-  if (/^nieuw contactbericht van\b/i.test(s)) s = '';
-  return s || 'uw laadstation';
-}
+// cleanTicketSubject (de ticket-titel opkuisen voor de mail) staat sinds de herinnering in netlify/lib/voorstelmail.js (gedrag ongewijzigd).
+// De server kuist zelf nogmaals op (defense-in-depth), ook al stuurt de client al een opgekuiste waarde: de functie is idempotent.
 
 function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime, appointmentWindow, serienummer, confirmUrl }) {
   // SVG: 2 diagonale afgeronde lijnen in Blitz-brandkleur #00dfa3
@@ -106,18 +92,12 @@ function buildEmailHtml({ recipientName, subject, formattedDate, appointmentTime
   // worden (bv. CONFIRM_LINK_SECRET nog niet gezet). De knop mag dan niet verschijnen, en de
   // begeleidende tekst moet zonder de knop even goed kloppen (geen "klik op de knop hierboven"
   // als er geen knop is).
-  const confirmButton = confirmUrl ? `<div style="text-align:center;margin:18px 0">
-      <a href="${confirmUrl}" style="display:inline-block;background:#00dfa3;color:#181e24;
-        text-decoration:none;font-weight:700;font-size:14px;padding:12px 28px;border-radius:6px">
-        ✅ Bevestig deze afspraak
-      </a>
-    </div>` : '';
+  // De twee knoppen ("Bevestig deze afspraak" en "Deze datum lukt niet") en de zin eronder komen uit netlify/lib/voorstelmail.js
+  // (gedeeld met de herinnering).
+  const confirmButton = bevestigKnoppenHtml(confirmUrl);
 
   const confirmParagraph = confirmUrl
-    ? `Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen, of
-      antwoord op deze e-mail. Komt het voorgestelde tijdstip u niet uit? Laat het ons dan weten via een
-      antwoord op deze e-mail, zodat we samen een alternatief zoeken. In bijlage vindt u onze
-      service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.`
+    ? `${KEUZE_TEKST} In bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.`
     : `Gelieve deze afspraak te bevestigen door op deze e-mail te antwoorden. Komt het voorgestelde
       tijdstip u niet uit? Laat het ons dan ook weten, zodat we samen een alternatief zoeken. In
       bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.`;

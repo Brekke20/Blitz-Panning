@@ -7,8 +7,10 @@ import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { maakNepFetch, metGlobaleFetch, laadVers, zetEnv } from './nep-fetch.mjs';
 import { maakHandler } from '../netlify/functions/annuleer.js';
-import { REDENEN, bouwAnnulatieMail, bouwAnnulatieNotitie } from '../netlify/lib/annulatie.js';
-import { tekenLink, bevestigingsNotitie } from '../netlify/lib/bevestigingslink.js';
+import { REDENEN, bouwAnnulatieMail, bouwAnnulatieNotitie, bouwGeenReactieMail, bouwGeenReactieNotitie } from '../netlify/lib/annulatie.js';
+import { tekenLink, bevestigingsNotitie, afwijzingsNotitie } from '../netlify/lib/bevestigingslink.js';
+import { maakNepStore } from './nep-blobs.mjs';
+import { zetStoreVoorTests, VEROUDERD_SLEUTEL } from '../netlify/lib/tickets-snapshot.js';
 
 const NU = Date.parse('2026-10-01T10:00:00.000Z');
 const TIJDSTIP_NU = '01/10/2026 12:00';           // tijdstipNu() in annuleer, Brusselse tijd
@@ -217,6 +219,30 @@ test('annuleer: volledige reeks met mail naar contact, klant en installateur (to
   assert.deepEqual(await antwoordJson(r.res), {
     status: 200, headers: CORS_ANN,
     body: { ok: true, emailSent: { contact: true, klant: true, installateur: true }, fouten: [] },
+  });
+  assert.equal(registerVan(r.winkels).status['555'], undefined);
+  assert.ok(registerVan(r.winkels).status['777']);
+});
+
+test('annuleer: geenreactie mailt het geen-reactie-sjabloon naar elk adres, DAARNA PATCH naar Gesloten - ov met gewiste datum, dan de eigen notitie', async () => {
+  const r = await draaiAnn(annReq({ ticketId: '555', reden: 'geenreactie', toelichting: '', mailKlant: true, door: 'Brent' }));
+  const mail = bouwGeenReactieMail({ naam: 'An Peeters', datum: '2026-10-14', tijdslot: '08:30–11:30', uur: null });
+  const notitie = bouwGeenReactieNotitie({
+    datum: '2026-10-14', tijdslot: '08:30–11:30', uur: null, door: 'Brent', tijdstip: TIJDSTIP_NU,
+    toelichting: '', mailKlant: true, gemaild: ['contact@x.be', 'klant@x.be', 'inst@x.be'],
+  });
+  assert.equal(notitie, 'Afspraak van 14/10/2026 08:30–11:30 vervallen: geen reactie van de klant. Ticket gesloten (Gesloten - ov) via Blitz Planning door Brent op 01/10/2026 12:00. Klant verwittigd per mail: ja (contact@x.be, klant@x.be, inst@x.be).');
+  assert.deepEqual(r.calls, [
+    TOKEN_CALL, ORG_CALL, getTicket('555'),
+    sendReply('555', 'contact@x.be', mail),
+    sendReply('555', 'klant@x.be', mail),
+    sendReply('555', 'inst@x.be', mail),
+    patch('555', { status: 'Gesloten - ov', cf: { cf_interventie_datm: '' } }),
+    comment('555', notitie),
+  ]);
+  assert.deepEqual(await antwoordJson(r.res), {
+    status: 200, headers: CORS_ANN,
+    body: { ok: true, emailSent: { contact: true, klant: true, installateur: true }, fouten: [], status: 'Gesloten - ov' },
   });
   assert.equal(registerVan(r.winkels).status['555'], undefined);
   assert.ok(registerVan(r.winkels).status['777']);
@@ -847,4 +873,185 @@ test('confirm-afspraak: tokencache leeft in de module (één tokenaanvraag bij t
   // de link is na 56 minuten nog geldig (verloopt na 60)
   await metGlobaleFetch(fn, () => mod.default(postReq(linkParams())));
   assert.equal(uit(calls).filter(c => c.url.includes('oauth/v2/token')).length, 2);
+});
+
+// ======================================== confirm-afspraak: "Deze datum lukt niet" ====
+// GET toont twee formulieren (bevestigen en "Deze datum lukt niet", optioneel met een opmerking); `keuze=nee` klapt het tweede open.
+// GET blijft zonder gevolgen. POST met actie=weiger controleert status en datum zoals bevestigen, zet het ticket terug op
+// "Wachten op planning" (datum gewist), noteert de opmerking (geëscaped), markeert het register als afgewezen en logt het.
+const weigerReq = (over = {}, kop = {}) => postReq({ ...linkParams(), actie: 'weiger', opmerking: '', ...over }, kop);
+const TIJDSTIP_WEIGER = TIJDSTIP_BEVESTIGD; // zelfde klok en notatie als de bevestigingsnotitie
+const BEDANKT = verwachtPagina('Bedankt voor uw melding', 'Bedankt! We zoeken een andere datum en laten het u weten.', true);
+const MAAND_LOG = 'activiteit/2026-10';
+const WEIGER_FOUT = verwachtPagina('Er ging iets mis', 'Uw melding kon niet verwerkt worden. Antwoord op de e-mail of neem contact op met Blitz Power.', false);
+
+async function metTeststore(werk) {
+  const store = maakNepStore();
+  zetStoreVoorTests(store);
+  try { return await werk(store); } finally { zetStoreVoorTests(null); }
+}
+const registerEntry = (store, id = '555') => JSON.parse(store._data.get('voorstel-status') || '{"status":{}}').status[id];
+
+test('confirm-afspraak: GET toont twee formulieren; het tweede ("Deze datum lukt niet") is dicht en heeft een optioneel opmerkingveld (max 1000)', async () => {
+  const p = linkParams();
+  const r = await draaiCf(getReq(p), cfRouter());
+  assert.deepEqual(r.calls, []);
+  assert.equal(r.res.status, 200);
+  const tekst = await r.res.text();
+  assert.equal((tekst.match(/<form method="POST" action="\/api\/confirm-afspraak">/g) || []).length, 2);
+  assert.ok(tekst.includes('✅ Ja, ik bevestig deze afspraak'));
+  assert.ok(tekst.includes('name="actie" value="weiger"'));
+  assert.ok(tekst.includes('Wanneer past het u beter?'));
+  assert.match(tekst, /<textarea name="opmerking" maxlength="1000"[^>]*><\/textarea>/);
+  assert.ok(!tekst.includes('required'), 'de opmerking is optioneel');
+  assert.match(tekst, /<details id="datum-lukt-niet">/);
+  assert.ok(!/<details[^>]*\sopen/.test(tekst));
+  assert.ok(tekst.includes('Deze datum lukt niet'));
+  // Elk formulier draagt de volledige, getekende sleutel.
+  for (const [naam, waarde] of Object.entries(p)) assert.equal(tekst.split(`<input type="hidden" name="${naam}" value="${waarde}">`).length - 1, 2, naam);
+});
+
+test('confirm-afspraak: GET met keuze=nee opent het formulier "Deze datum lukt niet" (nog steeds zonder enige aanvraag)', async () => {
+  const r = await draaiCf(getReq({ ...linkParams(), keuze: 'nee' }), cfRouter());
+  assert.deepEqual(r.calls, []);
+  assert.equal(r.res.status, 200);
+  const tekst = await r.res.text();
+  assert.match(tekst, /<details id="datum-lukt-niet" open>/);
+  assert.ok(tekst.includes('Wanneer past het u beter?'));
+  assert.ok(tekst.includes('✅ Ja, ik bevestig deze afspraak'), 'bevestigen blijft mogelijk');
+  // `keuze` is geen deel van de handtekening: een andere waarde heeft nooit een ander effect dan het openklappen.
+  const ander = await draaiCf(getReq({ ...linkParams(), keuze: 'ja' }), cfRouter());
+  assert.deepEqual(ander.calls, []);
+  assert.ok(!/<details[^>]*\sopen/.test(await ander.res.text()));
+});
+
+test('confirm-afspraak: GET met oude link (zonder d) laat het d-veld in beide formulieren weg', async () => {
+  const p = { ticketId: '555', date: DATUM, exp: EXP, sig: tekenLink('555', DATUM, EXP), keuze: 'nee' };
+  const r = await draaiCf(getReq(p), cfRouter());
+  const tekst = await r.res.text();
+  assert.ok(!tekst.includes('name="d"'));
+  assert.ok(tekst.includes('name="actie" value="weiger"'));
+});
+
+test('confirm-afspraak: POST weiger zet het ticket terug op Wachten op planning (datum gewist), noteert de geëscapete opmerking, markeert het register en logt het', async () => {
+  await metTeststore(async (store) => {
+    const opmerking = 'Liever na 20 oktober <b>& "dank"</b>';
+    const r = await draaiCf(weigerReq({ opmerking: `  ${opmerking}  ` }, { 'x-nf-client-connection-ip': '203.0.113.9' }), cfRouter());
+    const notitie = afwijzingsNotitie({ date: DATUM, doelgroep: 'klant', email: 'klant@x.be', opmerking, tijdstip: TIJDSTIP_WEIGER, ip: '203.0.113.9' });
+    assert.deepEqual(r.calls, [
+      TOKEN_CALL, ORG_CALL, getTicket('555'),
+      patch('555', { status: 'Wachten op planning', cf: { cf_interventie_datm: '' } }),
+      comment('555', notitie),
+    ]);
+    assert.match(notitie, /^Klant \(klant, klant@x\.be\) meldt dat 14\/10\/2026 niet lukt: Liever na 20 oktober &lt;b&gt;&amp; &quot;dank&quot;&lt;\/b&gt;\./);
+    assert.ok(!notitie.includes('<b>'));
+    assert.equal(r.res.status, 200);
+    assert.deepEqual(leesPagina(await r.res.text()), BEDANKT);
+    // Register: enkel nog { afgewezen } (niets vergrendeld), met de getrimde opmerking.
+    assert.deepEqual(registerEntry(store), { afgewezen: { door: 'klant', tijdstip: new Date(NU).toISOString(), opmerking } });
+    // De ticket-momentopname is verouderd.
+    assert.ok(store._data.has(VEROUDERD_SLEUTEL));
+    // Activiteitenlog: één regel, zonder de opmerking van de klant.
+    const log = JSON.parse(store._data.get(MAAND_LOG)).items;
+    assert.equal(log.length, 1);
+    assert.deepEqual({ actie: log[0].actie, onderwerp: log[0].onderwerp, naam: log[0].naam, gebruikerId: log[0].gebruikerId }, { actie: 'datum-lukt-niet', onderwerp: '555', naam: 'Klant (klant)', gebruikerId: null });
+    assert.ok(!JSON.stringify(log).includes('oktober'));
+  });
+});
+
+test('confirm-afspraak: POST weiger zonder opmerking: notitie en register zonder opmerking; een te lange tekst wordt op 1000 tekens afgekapt', async () => {
+  await metTeststore(async (store) => {
+    const r = await draaiCf(weigerReq({ opmerking: '   ' }), cfRouter());
+    assert.equal(r.res.status, 200);
+    assert.equal(JSON.parse(r.calls[4].body).content, afwijzingsNotitie({ date: DATUM, doelgroep: 'klant', email: 'klant@x.be', opmerking: '', tijdstip: TIJDSTIP_WEIGER, ip: 'onbekend' }));
+    assert.ok(!JSON.parse(r.calls[4].body).content.includes('niet lukt:'));
+    assert.deepEqual(registerEntry(store), { afgewezen: { door: 'klant', tijdstip: new Date(NU).toISOString() } });
+    const lang = await draaiCf(weigerReq({ opmerking: 'a'.repeat(1500) }), cfRouter());
+    assert.equal(lang.res.status, 200);
+    assert.equal(registerEntry(store).afgewezen.opmerking.length, 1000);
+  });
+});
+
+test('confirm-afspraak: POST weiger per doelgroep (contact, installateur) en met een oude link (onbekende ontvanger)', async () => {
+  await metTeststore(async () => {
+    for (const [p, doelgroep, email] of [[linkParams({ d: 'contact' }), 'contact', 'contact@x.be'], [linkParams({ d: 'installateur' }), 'installateur', 'inst@x.be']]) {
+      const r = await draaiCf(postReq({ ...p, actie: 'weiger', opmerking: '' }), cfRouter());
+      assert.equal(r.res.status, 200);
+      assert.deepEqual(r.calls[4], comment('555', afwijzingsNotitie({ date: DATUM, doelgroep, email, opmerking: '', tijdstip: TIJDSTIP_WEIGER, ip: 'onbekend' })));
+    }
+    const oud = { ticketId: '555', date: DATUM, exp: EXP, sig: tekenLink('555', DATUM, EXP), actie: 'weiger', opmerking: '' };
+    const r = await draaiCf(postReq(oud), cfRouter());
+    assert.equal(r.res.status, 200);
+    assert.match(JSON.parse(r.calls[4].body).content, /Klant \(onbekende ontvanger, oude link\)/);
+  });
+});
+
+test('confirm-afspraak: POST weiger bij een verkeerde status of datum geeft 409 zonder PATCH, notitie of registerwijziging', async () => {
+  await metTeststore(async (store) => {
+    const cf = { cf_interventie_datm: '2026-10-14T06:30:00.000Z' };
+    for (const ticket of [
+      { status: 'Geplande support', cf },
+      { status: 'Wachten op planning', cf },
+      { status: 'Wachten op bevestiging planning', cf: { cf_interventie_datm: '2026-10-15T06:30:00.000Z' } },
+      { cf },
+    ]) {
+      const r = await draaiCf(weigerReq({ opmerking: 'x' }), cfRouter({ ticket }));
+      assert.deepEqual(r.calls, [TOKEN_CALL, ORG_CALL, getTicket('555')]);
+      assert.equal(r.res.status, 409);
+      assert.deepEqual(leesPagina(await r.res.text()), verwachtPagina('Afspraak niet meer actueel', 'Deze afspraak is al bevestigd of niet meer actueel. Neem contact op met Blitz Power als u vragen heeft.', false));
+    }
+    assert.equal(registerEntry(store), undefined);
+    assert.equal(store._data.has(VEROUDERD_SLEUTEL), false);
+  });
+});
+
+test('confirm-afspraak: POST weiger met een mislukte status-check wijzigt niets (anders dan bevestigen: een weigering wordt nooit blind uitgevoerd)', async () => {
+  const spy = mock.method(console, 'error', () => {});
+  for (const ticketRes of [() => new Response('boem', { status: 500 }), () => { throw new Error('netwerk'); }]) {
+    const r = await draaiCf(weigerReq({ opmerking: 'x' }), cfRouter({ ticketRes }));
+    assert.deepEqual(r.calls, [TOKEN_CALL, ORG_CALL, getTicket('555')]);
+    assert.equal(r.res.status, 502);
+    assert.deepEqual(leesPagina(await r.res.text()), WEIGER_FOUT);
+  }
+  assert.ok(spy.mock.calls.length >= 1);
+});
+
+test('confirm-afspraak: POST weiger met een PATCH-fout geeft 502 zonder notitie, markering of registerwijziging', async () => {
+  await metTeststore(async (store) => {
+    const spy = mock.method(console, 'error', () => {});
+    const r = await draaiCf(weigerReq({ opmerking: 'x' }), cfRouter({ patchRes: () => new Response('boem', { status: 500 }) }));
+    assert.deepEqual(r.calls, [TOKEN_CALL, ORG_CALL, getTicket('555'), patch('555', { status: 'Wachten op planning', cf: { cf_interventie_datm: '' } })]);
+    assert.equal(r.res.status, 502);
+    assert.deepEqual(leesPagina(await r.res.text()), WEIGER_FOUT);
+    assert.deepEqual(spy.mock.calls[0].arguments, ['Zoho PATCH mislukt (confirm-afspraak, weigeren):', 500, 'boem']);
+    assert.equal(registerEntry(store), undefined);
+    assert.equal(store._data.has(VEROUDERD_SLEUTEL), false);
+  });
+});
+
+test('confirm-afspraak: POST weiger met een ongeldige of verlopen link geeft 400 en nul aanvragen', async () => {
+  const r = await draaiCf(weigerReq({ sig: 'f'.repeat(64) }), cfRouter());
+  assert.deepEqual(r.calls, []);
+  assert.equal(r.res.status, 400);
+  const verlopen = await draaiCf(postReq({ ...linkParams({ exp: String(Math.floor(NU / 1000) - 1) }), actie: 'weiger', opmerking: '' }), cfRouter());
+  assert.deepEqual(verlopen.calls, []);
+  assert.equal(verlopen.res.status, 400);
+});
+
+test('confirm-afspraak: POST weiger zonder Blobs-omgeving: Zoho is wél gewijzigd, de klant krijgt de bedankpagina en de registerfout wordt gelogd; een falende notitie blokkeert niets', async () => {
+  const spy = mock.method(console, 'error', () => {});
+  const r = await draaiCf(weigerReq({ opmerking: 'x' }), cfRouter({ commentRes: () => new Response('nee', { status: 500 }) }));
+  assert.equal(r.calls.length, 5);
+  assert.equal(r.res.status, 200);
+  assert.deepEqual(leesPagina(await r.res.text()), BEDANKT);
+  assert.deepEqual(spy.mock.calls[0].arguments, ['Zoho ticket-comment mislukt:', 500, 'nee']);
+  assert.equal(spy.mock.calls[1].arguments[0], 'confirm-afspraak: register bijwerken mislukt:');
+});
+
+test('confirm-afspraak: POST met een onbekende actie blijft een gewone bevestiging', async () => {
+  mock.method(console, 'error', () => {});
+  const r = await draaiCf(postReq({ ...linkParams(), actie: 'iets-anders' }), cfRouter());
+  assert.deepEqual(r.calls[3], patch('555', { status: 'Geplande support' }));
+  assert.equal(r.res.status, 200);
+  assert.deepEqual(leesPagina(await r.res.text()), verwachtPagina('Afspraak bevestigd', 'Bedankt! Uw afspraak is bevestigd. We zien u graag op de voorgestelde datum.', true));
 });

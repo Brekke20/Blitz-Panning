@@ -1,14 +1,26 @@
 // Annuleren van een afspraak: vaste redenen, validatie, klantmail (HTML) en interne notitie.
 // Pure logica, geen netwerk; gebruikt door netlify/functions/annuleer.js.
+import { mailKader } from './mailkader.js';
 
+// `geenreactie` ("Geen reactie van de klant") is de enige reden die het ticket SLUIT (Zoho-status 'Gesloten - ov') in plaats van
+// terug te zetten op 'Wachten op planning', met een eigen mail (bouwGeenReactieMail) zonder klantzin. 'andere' blijft de laatste.
 export const REDENEN = [
   { code: 'ziek',       label: 'Technieker ziek of onbeschikbaar',  klantzin: 'Onze technieker is onverwacht niet beschikbaar.' },
   { code: 'onderdelen', label: 'Onderdelen niet op tijd geleverd',  klantzin: 'De nodige onderdelen zijn niet op tijd bij ons geleverd.' },
   { code: 'klant',      label: 'Klant vroeg om te verzetten',       klantzin: 'Zoals met u besproken, verplaatsen we deze afspraak.' },
   { code: 'weer',       label: 'Weersomstandigheden',               klantzin: 'De weersomstandigheden laten niet toe om de werken veilig uit te voeren.' },
   { code: 'fout',       label: 'Dubbele of foute planning',         klantzin: 'Door een fout in onze planning kan deze afspraak niet doorgaan.' },
+  { code: 'geenreactie', label: 'Geen reactie van de klant',        klantzin: null },
   { code: 'andere',     label: 'Andere',                            klantzin: null },
 ];
+
+export const STATUS_NA_GEEN_REACTIE = 'Gesloten - ov';
+export const STATUS_NA_ANNULATIE = 'Wachten op planning';
+
+// De Zoho-status waarop het ticket na de annulatie komt te staan.
+export function statusNaAnnulatie(reden) {
+  return reden === 'geenreactie' ? STATUS_NA_GEEN_REACTIE : STATUS_NA_ANNULATIE;
+}
 
 export const MAX_TOELICHTING = 1000;
 export const MAX_DOOR = 60;
@@ -53,50 +65,27 @@ function tijdDeel(tijdslot, uur) {
   return '(tijdstip nog te bevestigen)';
 }
 
-export function bouwAnnulatieMail({ naam, datum, tijdslot, uur, reden, toelichting }) {
-  const bolt = `<svg width="20" height="30" viewBox="0 0 20 30" xmlns="http://www.w3.org/2000/svg">` +
-    `<line x1="15" y1="2" x2="3" y2="16" stroke="#00dfa3" stroke-width="4" stroke-linecap="round"/>` +
-    `<line x1="17" y1="14" x2="5" y2="28" stroke="#00dfa3" stroke-width="4" stroke-linecap="round"/>` +
-    `</svg>`;
-
-  const r = REDENEN.find(x => x.code === reden);
-  const redenzin = r ? (r.code === 'andere' ? escHtml((toelichting || '').trim()) : r.klantzin) : '';
-
-  let afspraak = 'uw afspraak (tijdstip nog te bevestigen)';
+// "uw afspraak van <datum> (tijdslot)"-fragment, gedeeld door de annulatiemail en de geen-reactie-mail. `voorAfspraak` is de tekst vóór
+// "van <datum>" (bv. 'uw afspraak'); zonder geldige datum volgt de neutrale tekst.
+function afspraakFragment(voorAfspraak, { datum, tijdslot, uur }) {
   if (datum && /^\d{4}-\d{2}-\d{2}$/.test(datum)) {
     const d = new Date(`${datum}T12:00:00Z`).toLocaleDateString('nl-BE', {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels',
     });
-    afspraak = `uw afspraak van <strong style="color:#181e24">${escHtml(d)}</strong> ${tijdDeel(tijdslot, uur)}`;
+    return `${voorAfspraak} van <strong style="color:#181e24">${escHtml(d)}</strong> ${tijdDeel(tijdslot, uur)}`;
   }
+  return `${voorAfspraak} (tijdstip nog te bevestigen)`;
+}
 
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f2f2f2;font-family:Arial,Helvetica,sans-serif">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2f2;padding:32px 0">
-<tr><td>
-<table width="600" align="center" cellpadding="0" cellspacing="0"
-  style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.10)">
+export function bouwAnnulatieMail({ naam, datum, tijdslot, uur, reden, toelichting }) {
+  // Geen reactie van de klant: eigen sjabloon (geen klantzin, geen belofte van een nieuw voorstel).
+  if (reden === 'geenreactie') return bouwGeenReactieMail({ naam, datum, tijdslot, uur });
 
-  <!-- Header -->
-  <tr><td style="background:#181e24;padding:26px 32px">
-    <table cellpadding="0" cellspacing="0">
-    <tr>
-      <td style="padding-right:12px;vertical-align:middle">${bolt}</td>
-      <td style="vertical-align:middle">
-        <span style="font-family:'Arial Black',Arial,sans-serif;font-size:24px;font-weight:900;letter-spacing:4px;color:#00dfa3">BLITZ</span>
-        <span style="display:block;font-size:9px;color:#5a6472;letter-spacing:3px;margin-top:1px">POWER</span>
-      </td>
-    </tr>
-    </table>
-  </td></tr>
+  const r = REDENEN.find(x => x.code === reden);
+  const redenzin = r ? (r.code === 'andere' ? escHtml((toelichting || '').trim()) : r.klantzin) : '';
+  const afspraak = afspraakFragment('uw afspraak', { datum, tijdslot, uur });
 
-  <!-- Accent bar -->
-  <tr><td style="background:#00dfa3;height:3px;font-size:0;line-height:0">&nbsp;</td></tr>
-
-  <!-- Body -->
-  <tr><td style="padding:32px 36px 24px">
-    <p style="margin:0 0 16px;font-size:15px;color:#181e24">Beste ${escHtml(naam) || 'klant'},</p>
+  return mailKader(`    <p style="margin:0 0 16px;font-size:15px;color:#181e24">Beste ${escHtml(naam) || 'klant'},</p>
     <p style="margin:0 0 16px;font-size:15px;color:#3a3a3a;line-height:1.65">
       Helaas moeten we ${afspraak} annuleren. ${redenzin}
     </p>
@@ -106,22 +95,25 @@ export function bouwAnnulatieMail({ naam, datum, tijdslot, uur, reden, toelichti
     <p style="margin:0;font-size:14px;color:#3a3a3a;line-height:1.65">
       Met vriendelijke groeten,<br>
       <strong style="color:#181e24">Het serviceteam van Blitz Power</strong>
-    </p>
-  </td></tr>
+    </p>`);
+}
 
-  <!-- Footer -->
-  <tr><td style="background:#f7f7f7;border-top:1px solid #e8e8e8;padding:18px 36px">
-    <p style="margin:0;font-size:11px;color:#8a9aaa;line-height:2">
-      <strong style="color:#3a3a3a">Blitz Power BV</strong><br>
-      Tel: <a href="tel:+3233616404" style="color:#8a9aaa;text-decoration:none">+32 3 36 16 404</a> (Service &amp; Support)<br>
-      <a href="https://blitzpower.com" style="color:#00dfa3;text-decoration:none">www.blitzpower.com</a>
+// Mail bij "Geen reactie van de klant": het voorgestelde tijdstip is nooit bevestigd, dus de afspraak vervalt en het ticket sluit.
+// Bewust GEEN belofte van een nieuw voorstel of van contact door Blitz: wie toch een afspraak wil, antwoordt op deze mail
+// (Zoho heropent het ticket bij een klantantwoord).
+export function bouwGeenReactieMail({ naam, datum, tijdslot, uur }) {
+  const afspraak = afspraakFragment('de voorgestelde afspraak', { datum, tijdslot, uur });
+  return mailKader(`    <p style="margin:0 0 16px;font-size:15px;color:#181e24">Beste ${escHtml(naam) || 'klant'},</p>
+    <p style="margin:0 0 16px;font-size:15px;color:#3a3a3a;line-height:1.65">
+      Voor ${afspraak} kregen we geen bevestiging. Daarom vervalt deze afspraak en sluiten we uw ticket.
     </p>
-  </td></tr>
-
-</table>
-</td></tr>
-</table>
-</body></html>`;
+    <p style="margin:0 0 16px;font-size:15px;color:#3a3a3a;line-height:1.65">
+      We doen zelf geen nieuw voorstel. Heeft u toch nog een afspraak nodig? Antwoord dan gewoon op deze e-mail: uw ticket wordt dan heropend.
+    </p>
+    <p style="margin:0;font-size:14px;color:#3a3a3a;line-height:1.65">
+      Met vriendelijke groeten,<br>
+      <strong style="color:#181e24">Het serviceteam van Blitz Power</strong>
+    </p>`);
 }
 
 // `datum` YYYY-MM-DD; `tijdstip` is een kant-en-klare tekst (bv. "30/09/2026 15:12").
@@ -136,6 +128,24 @@ export function bouwAnnulatieNotitie({ datum, tijdslot, uur, door, tijdstip, red
   }
   const wie = door ? `via Blitz Planning door ${door}` : 'via Blitz Planning';
   let s = `Afspraak van ${wanneer} geannuleerd ${wie} op ${tijdstip}. Reden: ${redenLabel}.`;
+  if (toelichting) s += ` Toelichting: ${toelichting}.`;
+  const lijst = Array.isArray(gemaild) ? gemaild : [];
+  if (mailKlant && lijst.length) s += ` Klant verwittigd per mail: ja (${lijst.join(', ')}).`;
+  else s += ' Klant verwittigd per mail: nee.';
+  return escHtml(s);
+}
+
+// Interne notitie bij "Geen reactie van de klant" (zelfde invoer als bouwAnnulatieNotitie, zonder reden: die is hier altijd dezelfde).
+export function bouwGeenReactieNotitie({ datum, tijdslot, uur, door, tijdstip, toelichting, mailKlant, gemaild }) {
+  let wanneer = 'onbekende datum';
+  if (datum && /^\d{4}-\d{2}-\d{2}$/.test(datum)) {
+    const [j, m, d] = datum.split('-');
+    wanneer = `${d}/${m}/${j}`;
+    if (tijdslot) wanneer += ` ${tijdslot}`;
+    else if (uur) wanneer += ` ${uur}`;
+  }
+  const wie = door ? `via Blitz Planning door ${door}` : 'via Blitz Planning';
+  let s = `Afspraak van ${wanneer} vervallen: geen reactie van de klant. Ticket gesloten (${STATUS_NA_GEEN_REACTIE}) ${wie} op ${tijdstip}.`;
   if (toelichting) s += ` Toelichting: ${toelichting}.`;
   const lijst = Array.isArray(gemaild) ? gemaild : [];
   if (mailKlant && lijst.length) s += ` Klant verwittigd per mail: ja (${lijst.join(', ')}).`;

@@ -793,6 +793,7 @@
     .mtag.status   { background: var(--orange-dim); color: var(--orange); }
     .mtag.assignee { background: var(--blue-dim);   color: var(--blue); }
     .mtag.confirmed-by { background: var(--accent-dim); color: var(--accent-ink); }
+    .mtag.declined-by { background: var(--red-dim); color: var(--red); }
     .mbody { padding: 16px 20px; }
     .msec { margin-bottom: 18px; }
     .msec-title { font-size: var(--fs-2xs); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 9px; }

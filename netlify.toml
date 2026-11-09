@@ -30,6 +30,9 @@
 [functions.annuleer]
   timeout = 26
 
+[functions.bevestig-handmatig]
+  timeout = 26
+
 [functions.planning-sinds]
   timeout = 26
 
@@ -57,6 +60,11 @@
 
 [functions.tickets]
   timeout = 20
+
+# Dagelijkse herinnering 3 dagen voor de interventie (schema staat in de functie zelf): ticketlading (4 tot 6 s) en per ticket een paar Zoho-aanroepen;
+# de functie begint na 18 s geen nieuw ticket meer (lib/herinnering.js, tijdBudgetMs).
+[functions.herinnering-bevestiging]
+  timeout = 30
 
 # Geplande voorlading van de tickets (draait elke 2 minuten, schema staat in de functie zelf): een lading duurt 4 tot 6 s.
 [functions.tickets-vooraf]
