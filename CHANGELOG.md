@@ -12,6 +12,8 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Unreleased]
 
+## [2.9.0] — 2026-11-09
+
 ### Added
 - Afspraak annuleren heeft een extra reden: "Geen reactie van de klant". Die stuurt een eigen mail (de voorgestelde afspraak vervalt, we doen zelf geen nieuw voorstel, en wie toch een afspraak wil antwoordt op de mail zodat het ticket heropent) en zet het ticket in Zoho op "Gesloten - ov" in plaats van terug op "Wachten op planning". In de app verdwijnt het ticket uit de wachtrij, de kalender en de planning.
 - De klant krijgt in de voorstelmail en op de bevestigingspagina een tweede keuze naast bevestigen: "Deze datum lukt niet", met een optionele opmerking ("Wanneer past het u beter?"). Het ticket gaat dan terug naar "Wachten op planning" (datum gewist), de opmerking komt als interne notitie in Zoho en de planner ziet in het ticketdetail en op de wachtrijkaart "✗ Klant: datum lukt niet — opmerking". Het volgende voorstel wist die melding. Een melding wordt nooit blind uitgevoerd: kan de status van het ticket niet gecontroleerd worden, dan gebeurt er niets.
