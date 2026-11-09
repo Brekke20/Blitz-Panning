@@ -123,6 +123,10 @@ test('elke functie die een ticket in Zoho wijzigt gebruikt de stale-markering, b
   assert.match(confirm, /markeerVerouderd\(/);
   // De markering komt na de geslaagde PATCH (een ongeldige link mag ze niet afdwingen)
   assert.ok(confirm.indexOf("status: 'Geplande support'") < confirm.indexOf('markeerVerouderd('));
+  // De geplande herinnering (lib/herinnering.js, geen verzoek en dus geen metTicketsVerouderd) markeert zelf, na de PATCH die de status terugzet.
+  const herinnering = lees('../netlify/lib/herinnering.js');
+  assert.match(herinnering, /markeerVerouderd\(/);
+  assert.ok(herinnering.indexOf("methode: 'PATCH'") < herinnering.indexOf('markeerVerouderd({'));
 });
 
 // Schrijvers naar Zoho Desk, in beide vormen: via zoho.verzoek(... methode: 'POST|PATCH|PUT|DELETE') en via een rauwe fetch naar Zoho
@@ -148,7 +152,8 @@ function zohoSchrijvers() {
 }
 
 test('geen enkel bestand schrijft naar Zoho Desk zonder markering of een uitdrukkelijke uitzondering (nieuwe schrijvers vallen hier op)', () => {
-  const verwacht = [...MARKEREN.map(n => `netlify/functions/${n}.js`), 'netlify/functions/confirm-afspraak.js', ...Object.keys(UITZONDERINGEN)].sort();
+  // Naast de functies achter metTicketsVerouderd: confirm-afspraak (markeert zelf na de PATCH) en de geplande herinnering (idem, in lib/herinnering.js).
+  const verwacht = [...MARKEREN.map(n => `netlify/functions/${n}.js`), 'netlify/functions/confirm-afspraak.js', 'netlify/lib/herinnering.js', ...Object.keys(UITZONDERINGEN)].sort();
   assert.deepEqual(zohoSchrijvers(), verwacht);
 });
 

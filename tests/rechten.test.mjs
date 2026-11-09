@@ -17,7 +17,7 @@ test('dekking: elke functie onder netlify/functions/ heeft een rij in RECHTEN', 
   const functies = readdirSync(join(wortel, 'netlify', 'functions'), { withFileTypes: true })
     .filter(d => d.isFile() && d.name.endsWith('.js'))
     .map(d => d.name.replace(/\.js$/, ''));
-  assert.equal(functies.length, 53); // tickets-vooraf (geplande voorlading) + themas + spel (Blitz Run) + 42 logins + dashboard, dashboard-instellingen + sales, postcode, sales-import, sales-opruimen + zoho-agenten + bevestig-handmatig
+  assert.equal(functies.length, 54); // tickets-vooraf (geplande voorlading) + themas + spel (Blitz Run) + 42 logins + dashboard, dashboard-instellingen + sales, postcode, sales-import, sales-opruimen + zoho-agenten + bevestig-handmatig + herinnering-bevestiging
   const ontbreekt = functies.filter(f => !Object.hasOwn(RECHTEN, f));
   assert.deepEqual(ontbreekt, []);
 });
@@ -132,6 +132,10 @@ test('matrix: sales en postcode enkel voor beheerder en sales', () => {
 test('tickets-vooraf: open (geplande functie), de ticketgegevens zelf blijven achter de rij tickets', () => {
   for (const m of ['GET', 'POST']) assert.equal(rolIsToegelaten('tickets-vooraf', m, B), 'open', `tickets-vooraf ${m}`);
   assert.deepEqual(rollen('tickets', 'GET'), [B, P, T]); // ongewijzigd: geen sales, geen anoniem
+});
+
+test('herinnering-bevestiging: open (geplande functie zonder sessie), zonder rol- of methode-uitzondering', () => {
+  for (const m of ['GET', 'POST', 'PUT', 'DELETE']) for (const rol of [B, P, T, S]) assert.equal(rolIsToegelaten('herinnering-bevestiging', m, rol), 'open', `${m} ${rol}`);
 });
 
 test('matrix: sales-import enkel POST voor beheerder (enkel manuele lead) en sales; sales-opruimen is open', () => {

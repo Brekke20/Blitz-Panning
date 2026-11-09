@@ -30,3 +30,16 @@ export function bevestigKnoppenHtml(confirmUrl) {
 
 // De zin onder de knoppen (enkel met bevestigingslink).
 export const KEUZE_TEKST = `Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen. Lukt de datum niet? Kies dan "${NEE_KNOP_TEKST}" of antwoord gewoon op deze e-mail.`;
+
+// Kuist een ruwe (vaak doorgestuurde-mail-)ticket-titel op tot een klantvriendelijke omschrijving: strip herhaalde forward-/antwoordprefixen
+// (FW:/Fwd:/RE:/AW:/WG:/TR:, ook genest) en de automatische titel "Nieuw contactbericht van ..."; blijft er niets over, dan 'uw laadstation'.
+// Verhuisd uit propose.js (gedrag ongewijzigd) zodat de herinnering dezelfde omschrijving gebruikt. Idempotent. Gedupliceerd in
+// public/js/schermen/ticketdetail-logica.js (client en server delen geen module).
+export function cleanTicketSubject(raw) {
+  let s = String(raw || '').trim();
+  const prefixRe = /^(fw|fwd|re|aw|wg|tr)\s*:\s*/i;
+  let prev;
+  do { prev = s; s = s.replace(prefixRe, '').trim(); } while (s !== prev);
+  if (/^nieuw contactbericht van\b/i.test(s)) s = '';
+  return s || 'uw laadstation';
+}

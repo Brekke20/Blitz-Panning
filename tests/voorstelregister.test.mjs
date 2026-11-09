@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { leesRegister, schrijfVoorstel, wisVoorstel, markeerBevestigd, markeerAfgewezen } from '../netlify/lib/voorstelregister.js';
+import { leesRegister, schrijfVoorstel, wisVoorstel, markeerBevestigd, markeerAfgewezen, markeerHerinnering } from '../netlify/lib/voorstelregister.js';
 
 function nepStore() {
   const m = new Map();
@@ -107,4 +107,28 @@ test('markeerBevestigd bewaart bij een bevestiging per mail ook wie het registre
   assert.deepEqual((await leesRegister(s)).status['6'].bevestigd, { door: 'mail', tijdstip: 'TM', wie: 'Petra Planner' });
   await markeerBevestigd(s, '6', { door: 'mail', tijdstip: 'TN', wie: '' });
   assert.deepEqual((await leesRegister(s)).status['6'].bevestigd, { door: 'mail', tijdstip: 'TN' });
+});
+
+test('markeerHerinnering bewaart datum en tijdstip naast het voorstel (met overgeslagen enkel als meegegeven)', async () => {
+  const s = nepStore();
+  await schrijfVoorstel(s, { ticketId: '9', doelgroepen: ['klant'], tijdstip: 'T1', tijdslot: '08:30–11:30', tijdslotDatum: '2026-10-14' });
+  const r = await markeerHerinnering(s, '9', { datum: '2026-10-14', tijdstip: 'TH' });
+  assert.equal(r.versie, 2);
+  assert.deepEqual((await leesRegister(s)).status['9'], { klant: 'T1', tijdslot: '08:30–11:30', tijdslotDatum: '2026-10-14', herinnering: { datum: '2026-10-14', tijdstip: 'TH' } });
+  await markeerHerinnering(s, '9', { datum: '2026-10-14', tijdstip: 'TH2', overgeslagen: 'mailantwoord' });
+  assert.deepEqual((await leesRegister(s)).status['9'].herinnering, { datum: '2026-10-14', tijdstip: 'TH2', overgeslagen: 'mailantwoord' });
+});
+
+test('een volgend voorstel (reset) wist zowel de afwijzing als de herinnering; zonder reset blijft de herinnering', async () => {
+  const s = nepStore();
+  await schrijfVoorstel(s, { ticketId: '9', doelgroepen: ['klant'], tijdstip: 'T1' });
+  await markeerHerinnering(s, '9', { datum: '2026-10-14', tijdstip: 'TH' });
+  await markeerAfgewezen(s, '8', { door: 'klant', tijdstip: 'TA', opmerking: 'x' });
+  await schrijfVoorstel(s, { ticketId: '9', doelgroepen: ['contact'], tijdstip: 'T2' });
+  assert.ok((await leesRegister(s)).status['9'].herinnering);
+  await schrijfVoorstel(s, { ticketId: '9', doelgroepen: ['contact'], tijdstip: 'T3', reset: true });
+  await schrijfVoorstel(s, { ticketId: '8', doelgroepen: ['klant'], tijdstip: 'T3', reset: true });
+  const reg = await leesRegister(s);
+  assert.deepEqual(reg.status['9'], { contact: 'T3' });
+  assert.deepEqual(reg.status['8'], { klant: 'T3' });
 });
