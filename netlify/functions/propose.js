@@ -4,6 +4,8 @@
 // POST body:
 //   { ticketId, date, time, recipientName, subject, serienummer, appointmentWindow }
 //   time wordt afgerond naar het volgende kwartier.
+//   ontvangers (optioneel): { contact?, klant?, installateur? } booleans, ontbrekend = true; adressen (optioneel): { klant?, installateur? }
+//   (zie netlify/lib/ontvangers.js). Zonder deze velden gaat de mail naar alle ontvangers uit Zoho.
 //   appointmentWindow (optioneel, Task 9/Blok 1C): klant-vriendelijk tijdslot-label
 //   (bv. "10:00–13:00"), uitsluitend voor de e-mailweergave — heeft geen invloed op
 //   appointmentTime/interventieDatum, die blijven de exacte, afgeronde tijd.
@@ -23,6 +25,7 @@ import { alsV2 } from '../lib/v2-adapter.js';
 import { metTicketsVerouderd } from '../lib/tickets-snapshot.js';
 import { logVoorVerzoek } from '../lib/activiteit.js';
 import { eisEigenTicket } from '../lib/eigen-ticket.js';
+import { leesOntvangerKeuze, bepaalOntvangers } from '../lib/ontvangers.js';
 
 // De bevestigingslink wordt ondertekend via de gedeelde module bevestigingslink.js (dezelfde
 // als waarmee confirm-afspraak.js controleert), met de ontvanger (doelgroep) in de handtekening.
@@ -184,6 +187,9 @@ async function kern(event, context, gebruiker, haalStore = getStore) {
     if (!/^\d+$/.test(String(ticketId))) {
       return v1Json(400, { error: 'Ongeldig ticketId' }, CORS_V1);
     }
+    // Ontvangerskeuze en adressen valideren vóór de testmodus en vóór elke Zoho-aanroep.
+    const keuzeLezen = leesOntvangerKeuze(JSON.parse(event.body || '{}'));
+    if (!keuzeLezen.ok) return v1Json(400, { error: keuzeLezen.fout }, CORS_V1);
 
     // Testmodus: geen token, geen Zoho, geen mail -- meteen nep-succes in de vorm die de app
     // verwacht (interventieDatum + emailSent/ontvangers voor de toast en voorstel-status).
@@ -213,18 +219,11 @@ async function kern(event, context, gebruiker, haalStore = getStore) {
     const contactEmail      = ticketData.contact?.email || ticketData.contact?.emailId || ticketData.email || '';
     const klantEmail        = cf.cf_e_mail_eindklant || '';
     const installateurEmail = cf.cf_e_mail_installateur || '';
-    // Als klant en/of installateur hetzelfde adres hebben als de contactpersoon (of elkaar),
-    // telt dat als 1 ontvanger -- geen dubbele mail naar hetzelfde adres.
-    const seenEmails = new Set();
-    const ontvangers = [
-      { doelgroep: 'contact',      email: contactEmail },
-      { doelgroep: 'klant',        email: klantEmail },
-      { doelgroep: 'installateur', email: installateurEmail },
-    ].filter(o => {
-      const key = o.email.toLowerCase();
-      if (!o.email || seenEmails.has(key)) return false;
-      seenEmails.add(key);
-      return true;
+    // Eerst op de aangevinkte doelgroepen filteren, dan ontdubbelen (zelfde adres = 1 ontvanger, geen dubbele mail). Een nieuw of
+    // gewijzigd klant-/installateuradres gaat mee in de status-PATCH hieronder (cf: enkel wat echt wijzigt).
+    const { ontvangers, cf: nieuweAdresVelden } = bepaalOntvangers({
+      zoho: { contact: contactEmail, klant: klantEmail, installateur: installateurEmail },
+      keuze: keuzeLezen.keuze, adressen: keuzeLezen.adressen,
     });
 
     // Tijd afronden naar volgend kwartier
@@ -347,7 +346,7 @@ async function kern(event, context, gebruiker, haalStore = getStore) {
         token: accessToken, orgId, methode: 'PATCH',
         json: {
           status: 'Wachten op bevestiging planning',
-          cf:     { cf_interventie_datm: interventieDatum },
+          cf:     { cf_interventie_datm: interventieDatum, ...nieuweAdresVelden },
         },
       });
 
