@@ -31,6 +31,7 @@ const LABELS = Object.freeze({
   'notitie-toegevoegd': 'Notitie toegevoegd',
   'thema-upload': 'Thema geüpload',
   'thema-wijzig': 'Thema gewijzigd',
+  'claude-gekoppeld': 'Claude gekoppeld',
 });
 
 // Alle bekende actienamen (voor de keuzelijst), in de volgorde van de labels.

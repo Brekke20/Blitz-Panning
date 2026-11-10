@@ -114,6 +114,10 @@ export const RECHTEN = {
   'dashboard-instellingen': { GET: COORD, PUT: BEHEER },
   // Beheer, Gebruikers: de actieve Zoho-agenten (enkel namen) voor de keuzelijst "Zoho-naam"; enkel lezen.
   'zoho-agenten':         { GET: BEHEER },
+  // MCP-leesconnector (Claude), OAuth-endpoints: metadata, registratie en token hebben geen sessie (Claude roept ze aan), dus 'open'
+  // met eigen controles in de functie (PKCE, gehashte tokens, toegelaten redirect-URI's). authorize controleert zelf de sessiecookie
+  // (vereisGebruiker) en een HMAC-ondertekend consent-veld tegen CSRF.
+  'mcp-oauth':            { '*': 'open' },
 };
 
 // Gedeeld met de wrapper: de regel voor naam + methode (undefined = geen regel).

@@ -17,7 +17,7 @@ test('dekking: elke functie onder netlify/functions/ heeft een rij in RECHTEN', 
   const functies = readdirSync(join(wortel, 'netlify', 'functions'), { withFileTypes: true })
     .filter(d => d.isFile() && d.name.endsWith('.js'))
     .map(d => d.name.replace(/\.js$/, ''));
-  assert.equal(functies.length, 54); // tickets-vooraf (geplande voorlading) + themas + spel (Blitz Run) + 42 logins + dashboard, dashboard-instellingen + sales, postcode, sales-import, sales-opruimen + zoho-agenten + bevestig-handmatig + herinnering-bevestiging
+  assert.equal(functies.length, 55); // mcp-oauth (MCP-leesconnector) + tickets-vooraf (geplande voorlading) + themas + spel (Blitz Run) + 42 logins + dashboard, dashboard-instellingen + sales, postcode, sales-import, sales-opruimen + zoho-agenten + bevestig-handmatig + herinnering-bevestiging
   const ontbreekt = functies.filter(f => !Object.hasOwn(RECHTEN, f));
   assert.deepEqual(ontbreekt, []);
 });
