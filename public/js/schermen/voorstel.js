@@ -193,7 +193,14 @@ export function updateProposalPreview() {
           ✅ Bevestig deze afspraak
         </a>
       </div>
-      <p style="margin:0 0 10px;font-size:12px;color:#3a3a3a">Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen, of antwoord op deze e-mail. Komt het voorgestelde tijdstip u niet uit? Laat het ons dan weten via een antwoord op deze e-mail, zodat we samen een alternatief zoeken. In bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.</p>
+      <!-- Tweede knop: spiegelt bevestigKnoppenHtml() uit netlify/lib/voorstelmail.js (ook inert). -->
+      <div style="text-align:center;margin:0 0 14px">
+        <a href="#" data-actie="voorstel-inert" style="display:inline-block;color:#3a3a3a;
+          text-decoration:none;font-weight:600;font-size:12px;padding:8px 20px;border-radius:6px;border:1px solid #c9d0d8">
+          Deze datum lukt niet
+        </a>
+      </div>
+      <p style="margin:0 0 10px;font-size:12px;color:#3a3a3a">Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen. Lukt de datum niet? Kies dan "Deze datum lukt niet" of antwoord gewoon op deze e-mail. In bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.</p>
       <p style="margin:0;font-size:12px;color:#3a3a3a">Met vriendelijke groeten,<br><strong>Team Blitz Power — Service &amp; Support</strong></p>
     </div>
     <div style="background:#f7f7f7;border-top:1px solid #e8e8e8;padding:10px 18px;font-size:10px;color:#8a9aaa">

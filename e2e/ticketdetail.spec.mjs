@@ -425,9 +425,14 @@ test.describe('ticketdetail: voorstel (?test)', () => {
     });
     await expect(modal.locator('#proposal-preview')).toContainText('08:30–11:30');
     // Het anker "Bevestig deze afspraak" is inert: geen navigatie (geen #-hash) en het venster blijft open.
-    await modal.locator('#proposal-preview a[data-actie="voorstel-inert"]').click();
+    await modal.locator('#proposal-preview a[data-actie="voorstel-inert"]').first().click();
+    await modal.locator('#proposal-preview a[data-actie="voorstel-inert"]').last().click();
     expect(await page.evaluate(() => location.hash)).toBe('');
     await expect(page.locator('#proposal-overlay')).toHaveClass(/open/);
+    // Het voorbeeld toont ook de tweede knop van de echte mail (lib/voorstelmail.js), eveneens inert.
+    await expect(modal.locator('#proposal-preview a[data-actie="voorstel-inert"]')).toHaveCount(2);
+    await expect(modal.locator('#proposal-preview')).toContainText('Deze datum lukt niet');
+    await expect(modal.locator('#proposal-preview')).toContainText('Lukt de datum niet?');
   });
 });
 
