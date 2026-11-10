@@ -17,7 +17,7 @@ import { ondertekenToken } from '../netlify/lib/sessie-token.js';
 const wortel = join(import.meta.dirname, '..');
 const ROLLEN = ['beheerder', 'planner', 'technieker', 'sales'];
 const METHODES = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
-const OPEN_FUNCTIES = ['confirm-afspraak', 'planning-export', 'activiteit-opruimen', 'sales-opruimen', 'tickets-vooraf', 'herinnering-bevestiging', 'auth-login', 'auth-uitloggen', 'auth-setup', 'auth-herstel', 'rapport-verwerk-background', 'rapport-vangnet', 'mcp-oauth'];
+const OPEN_FUNCTIES = ['confirm-afspraak', 'planning-export', 'activiteit-opruimen', 'sales-opruimen', 'tickets-vooraf', 'herinnering-bevestiging', 'auth-login', 'auth-uitloggen', 'auth-setup', 'auth-herstel', 'rapport-verwerk-background', 'rapport-vangnet', 'mcp-oauth', 'mcp'];
 const WRAPPER_FUNCTIES = Object.keys(RECHTEN).filter(n => !OPEN_FUNCTIES.includes(n));
 
 afterEach(() => zetKernSpyVoorTests(null));

@@ -118,6 +118,10 @@ export const RECHTEN = {
   // met eigen controles in de functie (PKCE, gehashte tokens, toegelaten redirect-URI's). authorize controleert zelf de sessiecookie
   // (vereisGebruiker) en een HMAC-ondertekend consent-veld tegen CSRF.
   'mcp-oauth':            { '*': 'open' },
+  // MCP-leesconnector, het endpoint zelf (/api/mcp): Claude draagt geen sessiecookie maar een Bearer-access-token, dus 'open' met een
+  // EIGEN controle in de functie (vereisMcpGebruiker, netlify/lib/mcp-toegang.js: actieve gebruiker, zelfde sessieVersie). De rechten per
+  // rol (technieker enkel eigen rapporten en planning, sales geen gereedschappen) staan in netlify/lib/mcp-protocol.js. Enkel lezen.
+  'mcp':                  { '*': 'open' },
 };
 
 // Gedeeld met de wrapper: de regel voor naam + methode (undefined = geen regel).
