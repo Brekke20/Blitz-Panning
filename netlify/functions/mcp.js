@@ -9,11 +9,12 @@
 import { getStore } from '@netlify/blobs';
 import { vereisMcpGebruiker } from '../lib/mcp-toegang.js';
 import { behandelRpc } from '../lib/mcp-protocol.js';
+import { metLeesCache } from '../lib/mcp-data.js';
 import { beveiligV2 } from '../lib/beveiligd.js';
 import { maakCors } from '../lib/http.js';
 
 const MAX_BODY = 64 * 1024;
-const MAX_BATCH = 20;
+const MAX_BATCH = 5; // elk rapportgereedschap kan alle jaararchieven lezen: een batch klein houden (en de lezingen delen, metLeesCache)
 const CORS_ORIGINS = new Set(['https://claude.ai', 'https://claude.com']);
 
 function cors(req) {
@@ -74,7 +75,8 @@ export function maakHandler({ getStore: haalStore = getStore, nu = () => Date.no
       try { body = JSON.parse(tekst); } catch { return json(400, rpcFout(-32700, 'Parse error'), kop); }
 
       const store = await haalStore({ name: 'blitz-data', consistency: 'strong' });
-      const context = { gebruiker: auth.gebruiker, bronnen: { store, nu: new Date(tijd) } };
+      // Per verzoek een eigen leescache: een batch leest de rapportlijst en de jaararchieven één keer.
+      const context = { gebruiker: auth.gebruiker, bronnen: { store: metLeesCache(store), nu: new Date(tijd) } };
 
       if (Array.isArray(body)) {
         if (body.length === 0 || body.length > MAX_BATCH) return json(400, rpcFout(-32600, 'Invalid Request'), kop);

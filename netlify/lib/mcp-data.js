@@ -20,6 +20,27 @@ function geannuleerd(entry) {
   return entry.geannuleerd === true || effectieveStatus(entry) === 'geannuleerd';
 }
 
+// Leescache voor één HTTP-verzoek: de rapportlijst, elk jaararchief en de archieflijst worden hoogstens één keer gelezen,
+// ook als een batch meerdere rapportgereedschappen bevat. Maak er per verzoek een nieuwe (nooit op moduleniveau: dan zou
+// de cache tussen gebruikers en verzoeken blijven hangen). Alle andere sleutels gaan ongewijzigd naar de store.
+// De gecachte objecten worden gedeeld: de gereedschappen lezen ze enkel (vlakRapport en filters maken kopieën).
+export function metLeesCache(store) {
+  const cache = new Map();
+  const eenmaal = (sleutel, lees) => {
+    if (!cache.has(sleutel)) cache.set(sleutel, lees());
+    return cache.get(sleutel);
+  };
+  const isRapportSleutel = key => key === LIJST_KEY || String(key).startsWith(ARCHIEF_PREFIX);
+  return {
+    get: (key, opties) => (isRapportSleutel(key) && opties?.type === 'json'
+      ? eenmaal(`get:${key}`, () => store.get(key, opties))
+      : store.get(key, opties)),
+    list: (opties) => (opties?.prefix === ARCHIEF_PREFIX && Object.keys(opties).length === 1
+      ? eenmaal('list:archief', () => store.list(opties))
+      : store.list(opties)),
+  };
+}
+
 // Vroegste archiefjaar: uit store.list (prefix), anders een vaste ondergrens.
 const ARCHIEF_ONDERGRENS = 2024;
 async function vroegsteArchiefJaar(store) {

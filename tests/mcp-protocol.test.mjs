@@ -455,3 +455,43 @@ test('endpoint: tools/call schrijft niets behalve de eigen mcp-*-blobs', async (
   const vreemd = store._schrijfacties.filter(s => !s.key.startsWith('mcp-'));
   assert.deepEqual(vreemd, []);
 });
+
+// ---------- batch: grens en één lezing van de rapporten per verzoek (I4) ----------
+
+test('endpoint: batch van 6 berichten -> -32600, batch van 5 wordt verwerkt', async () => {
+  const { h, tokens } = await opzetEndpoint();
+  const zes = await post(h, [1, 2, 3, 4, 5, 6].map(i => rpc('ping', undefined, i)), { token: tokens.planner });
+  assert.equal(zes.status, 400);
+  assert.equal((await zes.json()).error.code, -32600);
+  const vijf = await post(h, [1, 2, 3, 4, 5].map(i => rpc('ping', undefined, i)), { token: tokens.planner });
+  assert.equal(vijf.status, 200);
+  assert.equal((await vijf.json()).length, 5);
+});
+
+test('endpoint: een batch van 5 rapportgereedschappen leest de rapportlijst en elk jaararchief maar één keer', async () => {
+  const { h, tokens, store } = await opzetEndpoint();
+  await store.setJSON('rapportlijst-archief-2025', { versie: 1, rapports: [rap('oud1', 'Jan Peeters', { datum: '2025-06-01' })] });
+  const gelezen = [];
+  const get = store.get.bind(store);
+  store.get = async (key, o) => { gelezen.push(key); return get(key, o); };
+  const batch = [
+    rpc('tools/call', { name: 'rapporten_zoeken', arguments: {} }, 1),
+    rpc('tools/call', { name: 'rapport_lezen', arguments: { id: 'oud1' } }, 2),
+    rpc('tools/call', { name: 'rapporten_tellen', arguments: { groepeer: 'oorzaak' } }, 3),
+    rpc('tools/call', { name: 'paal_historiek', arguments: { serienummer: '2201-AB' } }, 4),
+    rpc('tools/call', { name: 'rapporten_zoeken', arguments: { van: '2025-01-01', tot: '2025-12-31' } }, 5),
+  ];
+  const r = await post(h, batch, { token: tokens.planner });
+  assert.equal(r.status, 200);
+  const lijst = await r.json();
+  assert.equal(lijst.length, 5);
+  for (const x of lijst) assert.equal(x.result.isError, undefined, JSON.stringify(x));
+  assert.equal(lijst[1].result.structuredContent.rapport.id, 'oud1');
+  assert.equal(gelezen.filter(k => k === 'rapportlijst').length, 1);
+  assert.equal(gelezen.filter(k => k === 'rapportlijst-archief-2025').length, 1);
+  assert.equal(gelezen.filter(k => k === 'rapportlijst-archief-2026').length, 1);
+
+  // Een volgend verzoek leest opnieuw (geen cache over verzoeken heen).
+  await post(h, rpc('tools/call', { name: 'rapporten_zoeken', arguments: {} }), { token: tokens.planner });
+  assert.equal(gelezen.filter(k => k === 'rapportlijst').length, 2);
+});
