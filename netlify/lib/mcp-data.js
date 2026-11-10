@@ -2,7 +2,7 @@
 // Rol-blind: de aanroeper past de rechten (filterRapportenVoor) VOOR deze functies toe.
 // Enkel lezen, schrijft nooit naar de store.
 
-import { LIJST_KEY, effectieveStatus } from './rapportlijst.js';
+import { LIJST_KEY, effectieveStatus, stripZwareVelden } from './rapportlijst.js';
 import { ARCHIEF_PREFIX, archiefJaren, leesArchieven } from './rapport-jaararchief.js';
 
 export const MAX_RESULTATEN = 200;
@@ -106,6 +106,27 @@ export function vlakRapport(entry) {
   if (rd.probleemtype !== undefined && rd.probleemtype !== null && rd.probleemtype !== '') vlak.probleemtype = tekst(rd.probleemtype);
   if (rd.garantieStatus !== undefined && rd.garantieStatus !== null && rd.garantieStatus !== '') vlak.garantieStatus = tekst(rd.garantieStatus);
   return vlak;
+}
+
+// Laat elke tekst die een data-URL is (ingesloten foto, handtekening, schets) weg, ook dieper in het rapport.
+function zonderDataUrls(w) {
+  if (Array.isArray(w)) return w.filter(x => !(typeof x === 'string' && x.startsWith('data:'))).map(zonderDataUrls);
+  if (!w || typeof w !== 'object') return w;
+  const uit = {};
+  for (const [k, x] of Object.entries(w)) {
+    if (typeof x === 'string' && x.startsWith('data:')) continue;
+    uit[k] = zonderDataUrls(x);
+  }
+  return uit;
+}
+
+// Eén rapport volledig voor rapport_lezen: alle velden van de lijst-entry en het hele rapportData, zonder de zware velden
+// (HTML, handtekeningen, foto's: stripZwareVelden) en zonder andere data-URL's. De genormaliseerde velden van vlakRapport
+// (serienummer, oorzaken, onderdelen, ...) staan bovenaan zoals bij rapporten_zoeken.
+export function volledigRapport(entry) {
+  const { rapportData, ...rest } = entry && typeof entry === 'object' ? entry : {};
+  const rd = rapportData && typeof rapportData === 'object' ? zonderDataUrls(stripZwareVelden(rapportData)) : {};
+  return { ...zonderDataUrls(rest), ...vlakRapport(entry), rapportData: rd };
 }
 
 function pastBij(v, f) {

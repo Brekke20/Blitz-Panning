@@ -10,7 +10,7 @@
 // Enkel lezen: geen enkele functie hier schrijft naar de store; tickets komen enkel uit de bewaarde momentopname (nooit Zoho).
 // Foutteksten aan Claude zijn vast; een uitzondering logt enkel het fouttype (Blobs-fouten kunnen details bevatten).
 import pkg from '../../package.json' with { type: 'json' };
-import { laadRapporten, vlakRapport, zoekRapporten, telRapporten, paalHistoriek, normSerie, MAX_RESULTATEN } from './mcp-data.js';
+import { laadRapporten, volledigRapport, zoekRapporten, telRapporten, paalHistoriek, normSerie, MAX_RESULTATEN } from './mcp-data.js';
 import { filterRapportenVoor, isEigenNaam } from './eigen.js';
 import { SNAPSHOT_SLEUTEL, geldigeSnapshot } from './tickets-snapshot.js';
 import { leesRegister } from './voorstelregister.js';
@@ -181,7 +181,7 @@ async function rapportLezen(args, ctx) {
     const extra = ontbrekendeJaren.length ? ` (let op: het archief van ${ontbrekendeJaren.join(', ')} kon niet gelezen worden)` : '';
     return mislukt(`Rapport niet gevonden${extra}.`);
   }
-  return gelukt(metWaarschuwing({ rapport: vlakRapport(gevonden) }, ontbrekendeJaren));
+  return gelukt(metWaarschuwing({ rapport: volledigRapport(gevonden) }, ontbrekendeJaren));
 }
 
 async function rapportenTellen(args, ctx) {

@@ -185,6 +185,29 @@ test('rapport_lezen: technieker eigen ok; collega en onbekend -> isError met dez
   assert.equal(data(await roep(PLANNER, 'rapport_lezen', { id: 'p1' })).rapport.technieker, 'Piet Janssens');
 });
 
+test('rapport_lezen: het volledige rapport (ook installateur en andere velden) zonder foto\'s, handtekeningen of HTML', async () => {
+  const zwaar = rap('z1', 'Jan Peeters', { datum: '2026-03-07', facturatie: 'Klant', prioriteit: 'Hoog' }, {
+    installateur: 'Elektro Peeters', probleemtype: 'Laadt niet', garantieStatus: 'In garantie',
+    _html: '<html>rapport</html>', handtekeningTech: 'data:image/png;base64,AAAA', handtekeningKlant: 'data:image/png;base64,BBBB',
+    fotos: ['data:image/jpeg;base64,CCCC'], extra: { schets: 'data:image/png;base64,DDDD', opmerking: 'ok' },
+  });
+  const blobs = basisBlobs({ rapportlijst: { versie: 1, rapports: [...RAPPORTEN, zwaar] } });
+  const r = data(await roep(TECH, 'rapport_lezen', { id: 'z1' }, bron(blobs))).rapport;
+  assert.equal(r.id, 'z1');
+  assert.equal(r.serienummer, '2201-AB');
+  assert.equal(r.facturatie, 'Klant');
+  assert.equal(r.prioriteit, 'Hoog');
+  assert.equal(r.rapportData.installateur, 'Elektro Peeters');
+  assert.equal(r.rapportData.probleem, 'Laadt niet');
+  assert.equal(r.rapportData.extra.opmerking, 'ok');
+  for (const k of ['_html', 'handtekeningTech', 'handtekeningKlant', 'fotos']) assert.equal(Object.hasOwn(r.rapportData, k), false, k);
+  const tekst = JSON.stringify(r);
+  assert.ok(!tekst.includes('data:'), 'geen data-URL in het antwoord');
+  assert.ok(!tekst.includes('<html>'));
+  // nog steeds het technieker-filter: een rapport van een collega blijft onzichtbaar
+  assert.equal((await roep(TECH, 'rapport_lezen', { id: 'p1' }, bron(blobs))).result.isError, true);
+});
+
 test('paal_historiek: technieker enkel eigen bezoeken', async () => {
   const t = data(await roep(TECH, 'paal_historiek', { serienummer: ' 2201-ab ' }));
   assert.equal(t.serienummer, '2201-AB');
