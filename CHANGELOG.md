@@ -12,6 +12,8 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Unreleased]
 
+## [2.10.0] — 2026-11-10
+
 ### Added
 - Voorstel- en annuleervenster: de planner past de ontvangers aan. Per doelgroep (contactpersoon, klant, installateur) staat een vinkje en het adres; een collega die er ten onrechte tussen staat vink je uit. Het klant- en installateuradres zijn invoervelden: een later gekregen klantadres vul je in, een fout adres verbeter je. Het nieuwe of gewijzigde adres wordt in Zoho bewaard (in dezelfde update als de status). "Wordt verstuurd naar" volgt de keuze, een ongeldig adres houdt de verzendknop dicht en zonder aangevinkt adres wordt er niet gemaild (bij annuleren valt de keuze op "Nee"). Een uitgevinkt adres krijgt ook geen herinnering meer: die gaat enkel naar de doelgroepen die het voorstel effectief kregen.
 
