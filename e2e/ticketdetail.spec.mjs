@@ -808,6 +808,29 @@ test.describe('ticketdetail: voorstel, voorbeeld en ontvangers (?test)', () => {
     expect(verzoeken.van('/api/propose')).toEqual([]);
   });
 
+  test('testmodus: een uitgevinkte doelgroep komt niet in het register; een ingevuld klantadres wel (en het ticket volgt)', async ({ page, verzoeken }) => {
+    await startApp(page);
+    await page.evaluate(() => {
+      const t = kern.toestand.get('allPending').find(x => x.id === 'p1');
+      Object.assign(t, { email: 'contact@test.be', emailEindklant: '', emailInstallateur: 'inst@test.be' });
+    });
+    const detail = await open1004(page);
+    await detail.locator('#d-btn-proposal').click();
+    const modal = detailVan(page, '📨 Afspraakvoorstel');
+    await expect(modal.locator('#proposal-email')).toHaveText('Wordt verstuurd naar: contact@test.be, inst@test.be');
+    await modal.getByLabel('Installateur', { exact: true }).uncheck();
+    await modal.getByLabel('E-mailadres klant').fill('nieuw@klant.be');
+    await expect(modal.locator('#proposal-email')).toHaveText('Wordt verstuurd naar: contact@test.be, nieuw@klant.be');
+    await modal.getByRole('button', { name: '✉️ Verstuur voorstel' }).click();
+    await page.clock.runFor(600);
+    await expect(page.locator('#toast')).toHaveText('🧪 Testmodus — voorstel verstuurd (demo)');
+    const vs = await page.evaluate(() => kern.toestand.get('voorstelStatus').p1);
+    expect(Object.keys(vs).sort()).toEqual(['contact', 'klant', 'tijdslot', 'tijdslotDatum']);
+    expect(await page.evaluate(() => kern.toestand.get('allPending').find(x => x.id === 'p1').emailEindklant)).toBe('nieuw@klant.be');
+    await page.clock.runFor(1000);
+    expect(verzoeken.van('/api/propose')).toEqual([]);
+  });
+
   test('zonder enkel e-mailadres: waarschuwing, toast "status bijgewerkt (geen e-mail)" en register zonder doelgroepen', async ({ page, verzoeken }) => {
     await startApp(page);
     await page.evaluate(() => {

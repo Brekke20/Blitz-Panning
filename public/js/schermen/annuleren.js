@@ -16,7 +16,7 @@ import { registreerVenster } from '../venster.js';
 import { renderTickets } from './wachtrij.js';
 import { renderKalender } from './kalender.js';
 import { renderGepland } from './ingepland.js';
-import { joinNL, DOELGROEP_LABEL } from './ticketdetail-logica.js';
+import { joinNL, DOELGROEP_LABEL, ontvangerKeuze } from './ticketdetail-logica.js';
 
 // Zoho-status van een ticket dat na "Geen reactie van de klant" gesloten is (zie netlify/lib/annulatie.js, STATUS_NA_GEEN_REACTIE).
 const STATUS_GESLOTEN_OV = 'Gesloten - ov';
@@ -31,7 +31,7 @@ export function initAnnuleren(afhankelijkheden) {
     'annuleer-terug':    () => sluitAnnuleerVenster(),
     'annuleer-verstuur': () => verstuurAnnulatie(),
   });
-  registreerWijzigActies(document.body, { 'annuleer-wijzig': () => annuleerWijzig() });
+  registreerWijzigActies(document.body, { 'annuleer-wijzig': (el) => annuleerWijzig(el) });
   document.getElementById('annuleer-details').addEventListener('toggle', () => annuleerVoorbeeld());
   const overlay = document.getElementById('annuleer-overlay');
   registreerBackdrop(overlay, sluitAnnuleerVenster);
@@ -40,6 +40,22 @@ export function initAnnuleren(afhankelijkheden) {
 
 let _annuleerRedenen = null; // [{code,label}] -- één keer opgehaald
 let _ann = null;             // toestand van het openstaande venster
+
+// Ontvangers: per doelgroep een vinkje en een adres in het venster (de DOM is de waarheid), net als in het voorstelvenster; _ann.adres0 bewaart
+// de adressen van het ticket bij het openen (om een wijziging te herkennen). Het contactadres (Zoho-contact) is niet bewerkbaar.
+const DOELGROEPEN = ['contact', 'klant', 'installateur'];
+
+function leesOntvangerRijen() {
+  const rijen = {};
+  for (const d of DOELGROEPEN) {
+    rijen[d] = {
+      adres0: _ann.adres0[d],
+      aan: document.getElementById('annuleer-ontv-' + d).checked,
+      adres: d === 'contact' ? _ann.adres0.contact : document.getElementById('annuleer-adres-' + d).value,
+    };
+  }
+  return ontvangerKeuze(rijen);
+}
 
 // Enkel voor e2e in testmodus (E12: /api/annuleer is daar verboden): zet de redenenlijst vooraf, zodat er geen GET nodig is.
 // Buiten ?test gooit ze, zodat een console-aanroeper via window.kern de redenen van een klantmail niet kan vervangen.
@@ -103,18 +119,22 @@ export async function openAnnuleerVenster(ticketId, date, { mailStandaard = true
     }
   }
 
-  // Ontvangers: zelfde volgorde en ontdubbeling als het voorstel
-  const gezien = new Set();
-  const ontvangers = [ticket.email, ticket.emailEindklant, ticket.emailInstallateur].filter(m => {
-    if (!m) return false;
-    const k = m.toLowerCase();
-    if (gezien.has(k)) return false;
-    gezien.add(k);
-    return true;
-  });
-
   const naam = ticket.naamEindklant || ticket.contact || '';
-  _ann = { ticketId, ticket, datum, tijdslot, uur, naam, ontvangers, busy: false, seq: 0, timer: null };
+  const adres0 = { contact: ticket.email || '', klant: ticket.emailEindklant || '', installateur: ticket.emailInstallateur || '' };
+  _ann = { ticketId, ticket, datum, tijdslot, uur, naam, adres0, forceerdNee: false, busy: false, seq: 0, timer: null };
+  for (const d of DOELGROEPEN) {
+    const vink = document.getElementById('annuleer-ontv-' + d);
+    vink.checked = !!adres0[d];
+    vink.disabled = d === 'contact' && !adres0.contact;
+    delete vink.dataset.aangeraakt;
+    if (d === 'contact') document.getElementById('annuleer-adres-contact').textContent = adres0.contact || 'geen adres';
+    else {
+      const inv = document.getElementById('annuleer-adres-' + d);
+      inv.value = adres0[d];
+      inv.dataset.vorig = adres0[d];
+    }
+  }
+  const aantalOntvangers = leesOntvangerRijen().lijst.length;
 
   const datumTxt = datum ? new Date(datum + 'T12:00:00').toLocaleDateString('nl-BE', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
   const tijdTxt = tijdslot || (uur ? 'om ' + uur : '');
@@ -136,8 +156,8 @@ export async function openAnnuleerVenster(ticketId, date, { mailStandaard = true
   });
   document.getElementById('annuleer-toelichting').value = '';
   const ja = document.getElementById('annuleer-mail-ja'), nee = document.getElementById('annuleer-mail-nee');
-  ja.disabled = !ontvangers.length;
-  ja.checked = !!ontvangers.length && mailStandaard;
+  ja.disabled = !aantalOntvangers;
+  ja.checked = !!aantalOntvangers && mailStandaard;
   nee.checked = !ja.checked;
   document.getElementById('annuleer-details').open = false;
   document.getElementById('annuleer-frame').srcdoc = '';
@@ -153,20 +173,44 @@ function annuleerLees() {
   const toelichting = document.getElementById('annuleer-toelichting').value;
   const ja = document.getElementById('annuleer-mail-ja');
   const mailKlant = ja.checked && !ja.disabled;
-  const geldig = !!reden && toelichting.length <= 1000 && (reden !== 'andere' || toelichting.trim().length > 0);
-  return { reden, toelichting, mailKlant, geldig };
+  const keuze = leesOntvangerRijen();
+  // Een ongeldig adres blokkeert enkel als de klant gemaild wordt.
+  const geldig = !!reden && toelichting.length <= 1000 && (reden !== 'andere' || toelichting.trim().length > 0) && !(mailKlant && keuze.ongeldig.length);
+  return { reden, toelichting, mailKlant, geldig, keuze };
 }
 
-export function annuleerWijzig() {
+export function annuleerWijzig(el) {
   if (!_ann) return;
+  // Een adres dat in een leeg veld wordt ingetikt vinkt de doelgroep zelf aan (tenzij de planner het vinkje al aanraakte); een keuze op de
+  // mailradio is altijd bewust (een automatisch teruggezette 'Nee' komt dan niet meer vanzelf terug naar 'Ja').
+  const m = /^annuleer-(ontv|adres)-(klant|installateur|contact)$/.exec(el?.id || '');
+  if (m && m[1] === 'ontv') el.dataset.aangeraakt = '1';
+  if (m && m[1] === 'adres') {
+    const vink = document.getElementById('annuleer-ontv-' + m[2]);
+    const waarde = el.value.trim();
+    if (!vink.checked && !vink.dataset.aangeraakt && waarde && !el.dataset.vorig) vink.checked = true;
+    el.dataset.vorig = waarde;
+  }
+  if (el?.name === 'ann-mail') _ann.forceerdNee = false;
+  // Zonder aangevinkt adres kan er niet gemaild worden: 'Ja' valt dicht ('Nee' gekozen) en komt terug zodra er weer een adres aangevinkt is.
+  const ja = document.getElementById('annuleer-mail-ja'), nee = document.getElementById('annuleer-mail-nee');
+  const aantal = leesOntvangerRijen().lijst.length;
+  ja.disabled = !aantal;
+  if (!aantal && ja.checked) { nee.checked = true; _ann.forceerdNee = true; }
+  else if (aantal && _ann.forceerdNee && nee.checked) { ja.checked = true; _ann.forceerdNee = false; }
   const v = annuleerLees();
   const andere = v.reden === 'andere';
   document.getElementById('annuleer-hint').style.display = andere ? 'none' : '';
   document.getElementById('annuleer-toelichting-label').textContent = andere ? 'Toelichting (verplicht, komt in de mail aan de klant)' : 'Toelichting (optioneel)';
   document.getElementById('annuleer-toelichting').required = andere;
-  document.getElementById('annuleer-ontvangers').textContent = !_ann.ontvangers.length
-    ? 'Geen mailadres bekend'
-    : (v.mailKlant ? 'Wordt verstuurd naar: ' + _ann.ontvangers.join(', ') : 'De klant krijgt geen mail.');
+  const heeftAdres = DOELGROEPEN.some(d => _ann.adres0[d]);
+  document.getElementById('annuleer-ontvangers').textContent = !v.keuze.lijst.length
+    ? (heeftAdres ? 'Geen ontvanger aangevinkt' : 'Geen mailadres bekend')
+    : (v.mailKlant ? 'Wordt verstuurd naar: ' + v.keuze.lijst.join(', ') : 'De klant krijgt geen mail.');
+  for (const d of ['klant', 'installateur']) {
+    document.getElementById('annuleer-adres-' + d).closest('.ontv-rij').classList.toggle('ongeldig', v.mailKlant && v.keuze.ongeldig.includes(d));
+  }
+  document.getElementById('annuleer-adres-fout').style.display = v.mailKlant && v.keuze.ongeldig.length ? '' : 'none';
   document.getElementById('annuleer-verstuur').disabled = !v.geldig || _ann.busy;
   clearTimeout(_ann.timer);
   _ann.timer = setTimeout(annuleerVoorbeeld, 300);
@@ -258,6 +302,7 @@ export async function verstuurAnnulatie() {
       body: JSON.stringify({
         ticketId: s.ticketId, reden: v.reden, toelichting: v.toelichting, mailKlant: v.mailKlant,
         door: annuleerDoor(), naam: s.naam,
+        ...(v.mailKlant ? v.keuze.zendBody : {}), // enkel wat afwijkt: ontvangers (vinkjes) en adressen (nieuw of gewijzigd)
       }),
     });
     data = await res.json().catch(() => ({}));
@@ -299,6 +344,12 @@ export async function verstuurAnnulatie() {
   // De server geeft de nieuwe status terug: 'Gesloten - ov' (reden "Geen reactie van de klant") haalt het ticket overal weg, elke andere
   // annulatie zet het terug in de wachtrij ('Wachten op planning', ook voor een oud antwoord zonder status).
   const gesloten = data.status === STATUS_GESLOTEN_OV;
+  if (v.mailKlant) { // de server bewaarde een nieuw of gewijzigd klant-/installateuradres in Zoho (zelfde PATCH): het lokale ticket volgt
+    for (const t of new Set([s.ticket, tk])) {
+      if (v.keuze.adressen.klant) t.emailEindklant = v.keuze.adressen.klant;
+      if (v.keuze.adressen.installateur) t.emailInstallateur = v.keuze.adressen.installateur;
+    }
+  }
   tk.status = gesloten ? data.status : 'Wachten op planning';
   tk.interventieDatum = null;
   toestand.set('allPending', toestand.get('allPending').filter(t => t.id !== id));

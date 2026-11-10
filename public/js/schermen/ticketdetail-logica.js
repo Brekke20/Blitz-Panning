@@ -85,6 +85,47 @@ export function telNummer(tel) { return tel ? String(tel).replace(/\(0\)/g, '').
 // Namen van de ontvangersgroepen (sleutel in voorstelstatus/ontvangers, waarde in toasts en labels).
 export const DOELGROEP_LABEL = { contact: 'contactpersoon', klant: 'klant', installateur: 'installateur' };
 
+// ---- Ontvangers van een voorstel- of annuleermail (de rijen met vinkje en adres in beide vensters) ----
+// Zelfde regels als de server (netlify/lib/ontvangers.js): één adres, geen spaties, komma, puntkomma of regeleinden, max 254.
+const ADRES_RE = /^[^\s@,;<>()"'\\]+@[^\s@,;<>()"'\\]+\.[^\s@,;<>()"'\\]+$/;
+export function isGeldigAdres(adres) { return typeof adres === 'string' && adres.length <= 254 && ADRES_RE.test(adres); }
+
+const DOELGROEPEN = ['contact', 'klant', 'installateur'];
+
+// rijen: { contact, klant, installateur }, elk { adres0: adres in het ticket bij het openen, aan: vinkje, adres: huidige tekst }.
+// Het contactadres is niet bewerkbaar (adres = adres0). Geeft terug:
+//   lijst / doelgroepen: de adressen die de mail krijgen (aangevinkt, met adres, ontdubbeld hoofdletterongevoelig, volgorde contact, klant,
+//     installateur) en hun doelgroep; adresVan: het effectieve adres per doelgroep ('' als die doelgroep niets krijgt;
+//     een dubbel adres blijft hier staan, enkel de lijst ontdubbelt);
+//   ongeldig: aangevinkte doelgroepen met een ongeldig adres (verzenden kan dan niet);
+//   zendBody: enkel wat afwijkt van het serverstandaard (alles aan met het Zoho-adres): { ontvangers?: {contact,klant,installateur}, adressen?: {klant?,installateur?} };
+//     een aangevinkt maar leeg gemaakt veld gaat als false (anders valt de server terug op het Zoho-adres dat de planner net wiste).
+export function ontvangerKeuze(rijen) {
+  const effectief = {}; const adresVan = {}; const adressen = {}; const ongeldig = [];
+  for (const d of DOELGROEPEN) {
+    const r = rijen[d] || {};
+    const adres = String(r.adres ?? '').trim();
+    const heeft = !!r.aan && adres !== '';
+    effectief[d] = heeft;
+    adresVan[d] = heeft ? adres : '';
+    if (heeft && d !== 'contact') {
+      if (!isGeldigAdres(adres)) ongeldig.push(d);
+      else if (adres !== String(r.adres0 ?? '').trim()) adressen[d] = adres;
+    }
+  }
+  const gezien = new Set(); const lijst = []; const doelgroepen = [];
+  for (const d of DOELGROEPEN) {
+    if (!effectief[d]) continue;
+    const sleutel = adresVan[d].toLowerCase();
+    if (gezien.has(sleutel)) continue;
+    gezien.add(sleutel); lijst.push(adresVan[d]); doelgroepen.push(d);
+  }
+  const zendBody = {};
+  if (DOELGROEPEN.some(d => effectief[d] !== !!String(rijen[d]?.adres0 ?? '').trim())) zendBody.ontvangers = { ...effectief };
+  if (Object.keys(adressen).length) zendBody.adressen = adressen;
+  return { lijst, doelgroepen, effectief, adresVan, adressen, ongeldig, zendBody };
+}
+
 // Label voor bevestiging — toont via welke ontvanger een afspraak bevestigd werd.
 export function bevestigdLabel(vs) {
   if (!vs?.bevestigd) return null;

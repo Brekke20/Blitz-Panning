@@ -5,7 +5,7 @@
 // opgesomd (`schrijfLijst`). Echte foutvormen (netlify/functions/annuleer.js): 400/404/500 met `{ error }`, 409
 // `{ error, emailSent, nietGepland: true }` (mail gevraagd maar ticket niet meer gepland in Zoho), 502
 // `{ error, emailSent, fouten }` (Zoho-PATCH mislukt, mails kunnen al weg zijn), een Netlify-gateway-502 met HTML-body.
-import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, verwachtNetwerkFout, zohoStubs, OPSTART_SCHRIJVEN, settle, laatMailControleHerhalen, mailCheckQuery, openKalender } from '../productie-hulp.mjs';
+import { test, expect, startAppProductie, verwachtSchrijven, verwachtHttpFout, verwachtNetwerkFout, zohoStubs, OPSTART_SCHRIJVEN, settle, laatMailControleHerhalen, mailCheckQuery, openKalender, TICKETS_STUB } from '../productie-hulp.mjs';
 
 const START = 'POST /api/planning-sinds';
 const ANNULEER = 'POST /api/annuleer';
@@ -36,11 +36,11 @@ const SEED = { versie: 4, status: { p1: { contact: '2026-10-04T08:00:00.000Z', t
 const REDEN_ZIEK = 'Technieker ziek of onbeschikbaar';
 const ZONDER_MAIL = { contact: false, klant: false, installateur: false };
 
-async function start(page, verzoeken, { paden = [], register = SEED, httpFouten = [] } = {}) {
+async function start(page, verzoeken, { paden = [], register = SEED, httpFouten = [], stubs = {} } = {}) {
   verwachtSchrijven(verzoeken, [...OPSTART_SCHRIJVEN, ...paden]);
   if (httpFouten.length) verwachtHttpFout(verzoeken, httpFouten);
   const z = zohoStubs({ register });
-  await startAppProductie(page, { technieker: 'Tim', vasteKlok: true, overschrijf: z.overschrijf });
+  await startAppProductie(page, { technieker: 'Tim', vasteKlok: true, overschrijf: { ...z.overschrijf, ...stubs } });
   return z;
 }
 
@@ -650,5 +650,78 @@ test.describe('annuleren: onzeker resultaat, controle of de mail al weg is (Q1)'
     expect(annuleerPosts(z, 'echt')).toHaveLength(1);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, ANNULEER]);
     expect(mailCheckLijst(verzoeken)).toEqual([]);
+  });
+});
+
+// Tickets-stub met aangepaste velden voor #1004 (p1).
+const metP1 = (extra) => () => {
+  const t = structuredClone(TICKETS_STUB);
+  Object.assign(t.pendingTickets.find(x => x.id === 'p1'), extra);
+  return { status: 200, json: t };
+};
+
+test.describe('annuleren: ontvangers aanpassen (vinkjes en adressen)', () => {
+  const DRIE = { emailEindklant: 'klant@test.be', emailInstallateur: 'installateur@test.be' };
+
+  test('een vinkje uit: ontvangers.contact = false in de body en het adres verdwijnt uit "Wordt verstuurd naar"', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/annuleer'], stubs: { tickets: metP1(DRIE) } });
+    await openViaDetail(page);
+    await kiesReden(page);
+    await expect(page.locator('#annuleer-ontvangers')).toHaveText('Wordt verstuurd naar: luc@test.be, klant@test.be, installateur@test.be');
+    await venster(page).getByLabel('Contactpersoon').uncheck();
+    await expect(page.locator('#annuleer-ontvangers')).toHaveText('Wordt verstuurd naar: klant@test.be, installateur@test.be');
+    await verstuurKnop(page).click();
+    await expect(toastTekst(page)).toHaveText('Afspraak geannuleerd — klant verwittigd per mail');
+    expect(annuleerPosts(z, 'echt')).toEqual([{
+      methode: 'POST', body: { ...VERSTUUR_JA, ontvangers: { contact: false, klant: true, installateur: true } }, query: {},
+    }]);
+  });
+
+  test('een klantadres invullen (nog geen adres): vinkje gaat vanzelf aan, body bevat adressen.klant', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/annuleer'], stubs: { tickets: metP1({ emailEindklant: '', emailInstallateur: '' }) } });
+    await openViaDetail(page);
+    await kiesReden(page);
+    await expect(page.locator('#annuleer-ontvangers')).toHaveText('Wordt verstuurd naar: luc@test.be');
+    await venster(page).getByLabel('E-mailadres klant').fill('nieuw@klant.be');
+    await expect(venster(page).getByLabel('Klant', { exact: true })).toBeChecked();
+    await expect(page.locator('#annuleer-ontvangers')).toHaveText('Wordt verstuurd naar: luc@test.be, nieuw@klant.be');
+    await verstuurKnop(page).click();
+    await expect(toastTekst(page)).toHaveText('Afspraak geannuleerd — klant verwittigd per mail');
+    expect(annuleerPosts(z, 'echt')).toEqual([{
+      methode: 'POST',
+      body: { ...VERSTUUR_JA, ontvangers: { contact: true, klant: true, installateur: false }, adressen: { klant: 'nieuw@klant.be' } },
+      query: {},
+    }]);
+  });
+
+  test('een ongeldig adres houdt de verzendknop dicht zolang er gemaild wordt; "Nee" laat het toe', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/annuleer'], stubs: { tickets: metP1(DRIE) } });
+    await openViaDetail(page);
+    await kiesReden(page);
+    await expect(verstuurKnop(page)).toBeEnabled();
+    await venster(page).getByLabel('E-mailadres installateur').fill('kapot@');
+    await expect(verstuurKnop(page)).toBeDisabled();
+    await expect(venster(page).locator('#annuleer-adres-fout')).toBeVisible();
+    await venster(page).getByLabel('Nee, ik verwittig zelf').check();
+    await expect(verstuurKnop(page)).toBeEnabled();
+    await expect(venster(page).locator('#annuleer-adres-fout')).toBeHidden();
+    await venster(page).getByLabel('Ja', { exact: true }).check();
+    await expect(verstuurKnop(page)).toBeDisabled();
+    await venster(page).getByLabel('E-mailadres installateur').fill('goed@test.be');
+    await expect(verstuurKnop(page)).toBeEnabled();
+    expect(annuleerPosts(z, 'echt')).toEqual([]);
+  });
+
+  test('nul aangevinkt: "Ja" valt dicht en "Nee" staat aan; weer een adres aanvinken zet "Ja" terug', async ({ page, verzoeken }) => {
+    await start(page, verzoeken, { paden: ['/api/annuleer'], stubs: { tickets: metP1(DRIE) } });
+    await openViaDetail(page);
+    await kiesReden(page);
+    for (const naam of ['Contactpersoon', 'Klant', 'Installateur']) await venster(page).getByLabel(naam, { exact: true }).uncheck();
+    await expect(venster(page).getByLabel('Ja', { exact: true })).toBeDisabled();
+    await expect(venster(page).getByLabel('Nee, ik verwittig zelf')).toBeChecked();
+    await expect(page.locator('#annuleer-ontvangers')).toHaveText('Geen ontvanger aangevinkt');
+    await venster(page).getByLabel('Klant', { exact: true }).check();
+    await expect(venster(page).getByLabel('Ja', { exact: true })).toBeChecked();
+    await expect(page.locator('#annuleer-ontvangers')).toHaveText('Wordt verstuurd naar: klant@test.be');
   });
 });
