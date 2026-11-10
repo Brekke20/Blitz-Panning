@@ -200,3 +200,8 @@ html[data-nav="kolom"] .beheer-titel { display: none; }
   .bt-kaarten { grid-template-columns: minmax(0, 1fr); }
   .bt-acties .btn { flex: 1 1 100%; }
 }
+
+/* Gekoppelde Claude-toegangen (schermen/beheer-claude.js) */
+.bc { min-width: 0; }
+.bc-adres { flex: 1 1 16rem; min-width: 0; }
+.bc-lijst { margin-top: var(--sp-3); }

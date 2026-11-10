@@ -7,3 +7,4 @@ import './beheer-activiteit.js';
 import './beheer-systeemstatus.js';
 import './beheer-themas.js';
 import './beheer-performance.js';
+import './beheer-claude.js';

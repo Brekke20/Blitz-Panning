@@ -217,7 +217,7 @@ test.describe('Beheer: sales manager', () => {
 });
 
 test.describe('Beheer: beheerder (ongewijzigd)', () => {
-  test('ziet alle zes de subtabs en in Performance alle zes de blokken, de tegels en het kleurgrenzen-paneel', async ({ page }) => {
+  test('ziet alle zeven de subtabs en in Performance alle zes de blokken, de tegels en het kleurgrenzen-paneel', async ({ page }) => {
     const backend = maakSalesBackend({ gebruiker: BEHEERDER, verkopers: ANDERE });
     await startApp(page, {
       loginRol: 'beheerder',
@@ -227,7 +227,7 @@ test.describe('Beheer: beheerder (ongewijzigd)', () => {
       },
     });
     await openBeheer(page);
-    await expect(subtabs(page)).toHaveText(['Gebruikers', 'Instellingen', 'Beschikbaarheden', 'Activiteitenlog', 'Systeemstatus', "Thema's", 'Performance']);
+    await expect(subtabs(page)).toHaveText(['Gebruikers', 'Instellingen', 'Beschikbaarheden', 'Activiteitenlog', 'Systeemstatus', "Thema's", 'Performance', 'Claude']);
     await page.getByRole('tab', { name: 'Performance', exact: true }).click();
     await expect(page.locator('.dash')).toBeVisible();
     await expect(page.locator('.tegels > .tegel')).toHaveCount(6);

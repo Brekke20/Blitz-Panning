@@ -12,6 +12,9 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Unreleased]
 
+### Added
+- Claude-connector (enkel lezen): Claude kan na aanmelden met de Blitz-login planning, tickets en rapporten lezen en tellen; koppelingen intrekken in beheer.
+
 ## [2.9.0] — 2026-11-09
 
 ### Added

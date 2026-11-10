@@ -122,6 +122,9 @@ export const RECHTEN = {
   // EIGEN controle in de functie (vereisMcpGebruiker, netlify/lib/mcp-toegang.js: actieve gebruiker, zelfde sessieVersie). De rechten per
   // rol (technieker enkel eigen rapporten en planning, sales geen gereedschappen) staan in netlify/lib/mcp-protocol.js. Enkel lezen.
   'mcp':                  { '*': 'open' },
+  // Gekoppelde Claude-toegangen bekijken en intrekken: elke rol beheert de eigen koppelingen; de beheerder ziet en trekt alle in.
+  // De eigenaarscontrole (niet-beheerder: enkel eigen koppelingen, anders 403) staat in de functie.
+  'mcp-toegangen':        { GET: ALLE, DELETE: ALLE },
 };
 
 // Gedeeld met de wrapper: de regel voor naam + methode (undefined = geen regel).

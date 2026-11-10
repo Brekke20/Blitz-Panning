@@ -32,6 +32,7 @@ const LABELS = Object.freeze({
   'thema-upload': 'Thema geüpload',
   'thema-wijzig': 'Thema gewijzigd',
   'claude-gekoppeld': 'Claude gekoppeld',
+  'claude-ingetrokken': 'Claude ingetrokken',
 });
 
 // Alle bekende actienamen (voor de keuzelijst), in de volgorde van de labels.

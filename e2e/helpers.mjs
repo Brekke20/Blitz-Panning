@@ -269,6 +269,9 @@ function maakStandaardStubs() {
 
     // Beheer, Gebruikers: de actieve Zoho-agenten voor de keuzelijst Zoho-naam (nooit echt Zoho). Verzonnen namen.
     'zoho-agenten': () => json(200, { agenten: [{ naam: 'Roel' }, { naam: 'Sven Peeters' }, { naam: 'Tim' }] }),
+
+    // Gekoppelde Claude-toegangen (Beheer, tab Claude; Instellingen, Dit toestel voor wie geen beheerder is): standaard geen koppelingen.
+    'mcp-toegangen': ({ methode }) => (methode === 'GET' ? json(200, { toegangen: [] }) : json(404, { error: 'Deze koppeling bestaat niet (meer).' })),
   };
 }
 

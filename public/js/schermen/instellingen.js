@@ -199,6 +199,7 @@ function vulVersieringBlok() {
 }
 function vulToestelTab() {
   vulVersieringBlok();
+  vulClaudeBlok();
   const blok = document.getElementById('set-testdata-blok');
   if (blok) blok.style.display = TEST_MODE ? '' : 'none';
   const a = window.apparaat;
@@ -210,6 +211,16 @@ function vulToestelTab() {
   let w = 'auto';
   try { const o = localStorage.getItem('blitz_weergave'); if (o === 'gsm' || o === 'tablet' || o === 'computer') w = o; } catch {}
   document.querySelectorAll('input[name="set-weergave"]').forEach(r => { r.checked = r.value === w; });
+}
+// Gekoppelde Claude-toegangen: de beheerder heeft er een tab voor in Beheer, elke andere rol beheert de eigen koppeling hier.
+// Lazy geladen (enkel bij het openen van deze tab); een mislukte lading laat het blok verborgen.
+function vulClaudeBlok() {
+  const blok = document.getElementById('set-claude-blok');
+  if (!blok) return;
+  const toon = huidigeGebruiker()?.rol !== 'beheerder';
+  blok.hidden = !toon;
+  if (!toon) return;
+  import('./beheer-claude.js').then(m => m.toonClaudeToegangen(blok)).catch(() => { blok.hidden = true; });
 }
 // Direct bijwerken (naast de apparaatwijziging-listener): als de keuze de effectieve staat niet wijzigt
 // komt er geen event en zou "(handmatig: X)" achterblijven. vulToestelTab is goedkoop en idempotent.
