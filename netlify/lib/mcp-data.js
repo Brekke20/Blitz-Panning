@@ -3,7 +3,7 @@
 // Enkel lezen, schrijft nooit naar de store.
 
 import { LIJST_KEY, effectieveStatus } from './rapportlijst.js';
-import { archiefJaren, leesArchieven } from './rapport-jaararchief.js';
+import { ARCHIEF_PREFIX, archiefJaren, leesArchieven } from './rapport-jaararchief.js';
 
 export const MAX_RESULTATEN = 200;
 const ONBEKEND = '(onbekend)';
@@ -20,21 +20,38 @@ function geannuleerd(entry) {
   return entry.geannuleerd === true || effectieveStatus(entry) === 'geannuleerd';
 }
 
+// Vroegste archiefjaar: uit store.list (prefix), anders een vaste ondergrens.
+const ARCHIEF_ONDERGRENS = 2024;
+async function vroegsteArchiefJaar(store) {
+  try {
+    if (typeof store.list !== 'function') return ARCHIEF_ONDERGRENS;
+    const { blobs } = await store.list({ prefix: ARCHIEF_PREFIX });
+    const jaren = (blobs ?? []).map(b => Number(tekst(b.key).slice(ARCHIEF_PREFIX.length))).filter(j => Number.isInteger(j) && j > 1900);
+    return jaren.length ? Math.min(...jaren) : ARCHIEF_ONDERGRENS;
+  } catch {
+    return ARCHIEF_ONDERGRENS;
+  }
+}
+
 // Actieve lijst + jaararchieven van de periode, ontdubbeld op id (actief wint), geannuleerde eruit.
-export async function laadRapporten(store, { van, tot } = {}) {
+// Ontbrekende van = vroegste archief, ontbrekende tot = huidig jaar (nu, injecteerbaar).
+// Geeft { rapporten, ontbrekendeJaren }: archiefjaren die niet leesbaar waren (data dan onvolledig).
+export async function laadRapporten(store, { van, tot } = {}, { nu = new Date() } = {}) {
   const actief = (await store.get(LIJST_KEY, { type: 'json' }))?.rapports;
-  const { rapports: archief } = await leesArchieven(store, archiefJaren(van, tot));
+  const vanDatum = van || `${await vroegsteArchiefJaar(store)}-01-01`;
+  const totDatum = tot || `${nu.getFullYear()}-12-31`;
+  const { rapports: archief, fouten } = await leesArchieven(store, archiefJaren(vanDatum, totDatum));
   const gezien = new Set();
-  const uit = [];
+  const rapporten = [];
   for (const e of [...(Array.isArray(actief) ? actief : []), ...archief]) {
     if (!e || typeof e !== 'object') continue;
     const id = tekst(e.id);
     if (id && gezien.has(id)) continue;
     if (id) gezien.add(id);
     if (geannuleerd(e)) continue;
-    uit.push(e);
+    rapporten.push(e);
   }
-  return uit;
+  return { rapporten, ontbrekendeJaren: fouten.map(Number) };
 }
 
 function oorzakenVan(rd) {
@@ -62,7 +79,7 @@ export function vlakRapport(entry) {
     hersteld: tekst(entry.hersteld),
     nieuwInter: tekst(entry.nieuwInter),
     onderdelen: Array.isArray(rd.onderdelen)
-      ? rd.onderdelen.filter(p => p && p.naam).map(p => ({ naam: tekst(p.naam), aantal: p.aantal ?? p.qty ?? 1 }))
+      ? rd.onderdelen.filter(p => p && p.naam).map(p => ({ naam: tekst(p.naam), aantal: parseInt(p.aantal, 10) || 1 }))
       : [],
   };
   if (rd.probleemtype !== undefined && rd.probleemtype !== null && rd.probleemtype !== '') vlak.probleemtype = tekst(rd.probleemtype);
@@ -97,7 +114,7 @@ function gefilterd(rapporten, filters) {
 // Nieuwste eerst; afgekapt op `limiet` (standaard 200).
 export function zoekRapporten(rapporten, filters = {}, { limiet = MAX_RESULTATEN } = {}) {
   const max = Math.min(Math.max(1, Number(limiet) || MAX_RESULTATEN), MAX_RESULTATEN);
-  const alle = gefilterd(rapporten, filters).sort((a, b) => (a.datum < b.datum ? 1 : a.datum > b.datum ? -1 : 0));
+  const alle = gefilterd(rapporten, filters).sort((a, b) => (a.datum < b.datum ? 1 : a.datum > b.datum ? -1 : (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)));
   return { resultaten: alle.slice(0, max), totaal: alle.length, afgekapt: alle.length > max };
 }
 

@@ -24,19 +24,40 @@ test('zoeken op serienummer met afwijkende schrijfwijze', () => {
   assert.deepEqual(r.resultaten.map(x => x.id), ['1']);
 });
 
+const bron = () => nepStore({
+  rapportlijst: { versie: 1, rapports: [rap('a'), rap('b', { geannuleerd: true }), rap('c', { verwerking: { status: 'geannuleerd' } })] },
+  'rapportlijst-archief-2025': { versie: 1, rapports: [rap('a', { datum: '2025-05-05' }), rap('d', { datum: '2025-06-06' })] },
+  'rapportlijst-archief-2024': { versie: 1, rapports: [rap('z', { datum: '2024-01-01' })] },
+});
+const ids = r => r.rapporten.map(x => x.id).sort();
+const nu = new Date('2026-11-10');
+
 test('laadRapporten: archief + actief, ontdubbeld, geannuleerd eruit', async () => {
-  const store = nepStore({
-    rapportlijst: { versie: 1, rapports: [rap('a'), rap('b', { geannuleerd: true }), rap('c', { verwerking: { status: 'geannuleerd' } })] },
-    'rapportlijst-archief-2025': { versie: 1, rapports: [rap('a', { datum: '2025-05-05' }), rap('d', { datum: '2025-06-06' })] },
-    'rapportlijst-archief-2024': { versie: 1, rapports: [rap('z', { datum: '2024-01-01' })] },
-  });
-  const r = await laadRapporten(store, { van: '2025-01-01', tot: '2026-12-31' });
-  assert.deepEqual(r.map(x => x.id).sort(), ['a', 'd']);
+  const r = await laadRapporten(bron(), { van: '2025-01-01', tot: '2026-12-31' }, { nu });
+  assert.deepEqual(ids(r), ['a', 'd']);
+  assert.deepEqual(r.ontbrekendeJaren, []);
 });
 
-test('laadRapporten zonder archieven bij ontbrekende periode', async () => {
-  const store = nepStore({ rapportlijst: { versie: 1, rapports: [rap('a')] } });
-  assert.equal((await laadRapporten(store, {})).length, 1);
+test('laadRapporten: enkel van, enkel tot, geen periode nemen archieven mee', async () => {
+  assert.deepEqual(ids(await laadRapporten(bron(), { van: '2025-01-01' }, { nu })), ['a', 'd']);
+  assert.deepEqual(ids(await laadRapporten(bron(), { tot: '2025-12-31' }, { nu })), ['a', 'd', 'z']);
+  assert.deepEqual(ids(await laadRapporten(bron(), {}, { nu })), ['a', 'd', 'z']);
+});
+
+test('laadRapporten: vroegste jaar uit store.list', async () => {
+  const store = { ...bron(), async list() { return { blobs: [{ key: 'rapportlijst-archief-2022' }] }; } };
+  const blobs = { rapportlijst: { rapports: [] }, 'rapportlijst-archief-2022': { rapports: [rap('o', { datum: '2022-02-02' })] } };
+  store.get = async k => blobs[k] ?? null;
+  assert.deepEqual(ids(await laadRapporten(store, {}, { nu })), ['o']);
+});
+
+test('laadRapporten meldt onleesbare archiefjaren', async () => {
+  const b = bron();
+  const get = b.get;
+  b.get = async (k, o) => { if (k.endsWith('2025')) throw new Error('stuk'); return get(k, o); };
+  const r = await laadRapporten(b, { van: '2024-01-01', tot: '2025-12-31' }, { nu });
+  assert.deepEqual(r.ontbrekendeJaren, [2025]);
+  assert.deepEqual(ids(r), ['a', 'z']);
 });
 
 test('tellen per oorzaak telt beide', () => {
