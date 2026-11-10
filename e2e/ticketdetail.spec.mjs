@@ -819,7 +819,7 @@ test.describe('ticketdetail: voorstel, voorbeeld en ontvangers (?test)', () => {
     const modal = detailVan(page, '📨 Afspraakvoorstel');
     await expect(modal.locator('#proposal-email')).toHaveText('Wordt verstuurd naar: contact@test.be, inst@test.be');
     await modal.getByLabel('Installateur', { exact: true }).uncheck();
-    await modal.getByLabel('E-mailadres klant').fill('nieuw@klant.be');
+    await modal.getByLabel('Mailadres van de klant').fill('nieuw@klant.be');
     await expect(modal.locator('#proposal-email')).toHaveText('Wordt verstuurd naar: contact@test.be, nieuw@klant.be');
     await modal.getByRole('button', { name: '✉️ Verstuur voorstel' }).click();
     await page.clock.runFor(600);

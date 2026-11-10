@@ -682,7 +682,7 @@ test.describe('annuleren: ontvangers aanpassen (vinkjes en adressen)', () => {
     await openViaDetail(page);
     await kiesReden(page);
     await expect(page.locator('#annuleer-ontvangers')).toHaveText('Wordt verstuurd naar: luc@test.be');
-    await venster(page).getByLabel('E-mailadres klant').fill('nieuw@klant.be');
+    await venster(page).getByLabel('Mailadres van de klant').fill('nieuw@klant.be');
     await expect(venster(page).getByLabel('Klant', { exact: true })).toBeChecked();
     await expect(page.locator('#annuleer-ontvangers')).toHaveText('Wordt verstuurd naar: luc@test.be, nieuw@klant.be');
     await verstuurKnop(page).click();
@@ -699,7 +699,7 @@ test.describe('annuleren: ontvangers aanpassen (vinkjes en adressen)', () => {
     await openViaDetail(page);
     await kiesReden(page);
     await expect(verstuurKnop(page)).toBeEnabled();
-    await venster(page).getByLabel('E-mailadres installateur').fill('kapot@');
+    await venster(page).getByLabel('Mailadres van de installateur').fill('kapot@');
     await expect(verstuurKnop(page)).toBeDisabled();
     await expect(venster(page).locator('#annuleer-adres-fout')).toBeVisible();
     await venster(page).getByLabel('Nee, ik verwittig zelf').check();
@@ -707,7 +707,7 @@ test.describe('annuleren: ontvangers aanpassen (vinkjes en adressen)', () => {
     await expect(venster(page).locator('#annuleer-adres-fout')).toBeHidden();
     await venster(page).getByLabel('Ja', { exact: true }).check();
     await expect(verstuurKnop(page)).toBeDisabled();
-    await venster(page).getByLabel('E-mailadres installateur').fill('goed@test.be');
+    await venster(page).getByLabel('Mailadres van de installateur').fill('goed@test.be');
     await expect(verstuurKnop(page)).toBeEnabled();
     expect(annuleerPosts(z, 'echt')).toEqual([]);
   });

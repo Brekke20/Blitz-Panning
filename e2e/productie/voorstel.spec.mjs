@@ -692,7 +692,7 @@ test.describe('voorstel: ontvangers aanpassen (vinkjes en adressen)', () => {
     await vulIn(page, '2026-10-08', '10:00');
     await expect(venster(page).locator('#proposal-email')).toHaveText('Wordt verstuurd naar: luc@test.be');
     await expect(venster(page).getByLabel('Klant', { exact: true })).not.toBeChecked();
-    await venster(page).getByLabel('E-mailadres klant').fill('nieuw@klant.be');
+    await venster(page).getByLabel('Mailadres van de klant').fill('nieuw@klant.be');
     await expect(venster(page).getByLabel('Klant', { exact: true })).toBeChecked();
     await expect(venster(page).locator('#proposal-email')).toHaveText('Wordt verstuurd naar: luc@test.be, nieuw@klant.be');
     await verstuurKnop(page).click();
@@ -712,7 +712,7 @@ test.describe('voorstel: ontvangers aanpassen (vinkjes en adressen)', () => {
     antwoordVolgensBody(z, { contact: true, klant: true, installateur: true });
     await openVoorstel(page);
     await vulIn(page, '2026-10-08', '10:00');
-    await venster(page).getByLabel('E-mailadres klant').fill('verbeterd@test.be');
+    await venster(page).getByLabel('Mailadres van de klant').fill('verbeterd@test.be');
     await verstuurKnop(page).click();
     await expect(toastTekst(page)).toHaveText('✓ Voorstel verstuurd naar contactpersoon, klant en installateur');
     expect(z.opnames.propose.map(o => o.body)).toEqual([{ ...PROPOSE_BODY, adressen: { klant: 'verbeterd@test.be' } }]);
@@ -724,7 +724,7 @@ test.describe('voorstel: ontvangers aanpassen (vinkjes en adressen)', () => {
     await vulIn(page, '2026-10-08', '10:00');
     await expect(verstuurKnop(page)).toBeEnabled();
     for (const slecht of ['kapot', 'a@x.be, b@x.be', 'a b@x.be']) {
-      await venster(page).getByLabel('E-mailadres klant').fill(slecht);
+      await venster(page).getByLabel('Mailadres van de klant').fill(slecht);
       await expect(verstuurKnop(page)).toBeDisabled();
       await expect(venster(page).locator('#proposal-adres-fout')).toBeVisible();
     }
@@ -733,7 +733,7 @@ test.describe('voorstel: ontvangers aanpassen (vinkjes en adressen)', () => {
     await expect(venster(page).locator('#proposal-adres-fout')).toBeHidden();
     await venster(page).getByLabel('Klant', { exact: true }).check();
     await expect(verstuurKnop(page)).toBeDisabled();
-    await venster(page).getByLabel('E-mailadres klant').fill('goed@test.be');
+    await venster(page).getByLabel('Mailadres van de klant').fill('goed@test.be');
     await expect(verstuurKnop(page)).toBeEnabled();
     expect(z.opnames.propose).toEqual([]);
   });
