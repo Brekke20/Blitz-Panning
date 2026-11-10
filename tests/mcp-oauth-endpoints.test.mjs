@@ -3,7 +3,7 @@
 // Echte sessiecontrole (maakAuth + ondertekend cookie) op een nep-store: geen Blobs, geen netwerk.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { maakNepStore } from './nep-blobs.mjs';
 import { maakAuth } from '../netlify/lib/auth.js';
 import { ondertekenToken } from '../netlify/lib/sessie-token.js';
@@ -138,6 +138,8 @@ test('authorize zonder sessie: loginformulier (200) dat via /api/auth-login met 
   const html = await r.text();
   assert.ok(html.includes('/api/auth-login'));
   assert.ok(html.includes('X-Blitz'));
+  // zonder JS nooit een GET met het wachtwoord in de URL
+  assert.ok(html.includes('<form id="login" method="post">'));
   assert.ok(!html.includes('name="consent"'));
   assert.equal(r.headers.get('x-frame-options'), 'DENY');
   assert.match(r.headers.get('content-security-policy'), /frame-ancestors 'none'/);
@@ -249,6 +251,8 @@ test('POST authorize: vervalst, gewijzigd, verlopen, andere gebruiker of geen se
   const [payload, sig] = consent.split('.');
   const p = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
   assert.equal(p.r, REDIRECT); // het payload draagt de redirect_uri in veld r
+  // domeinscheiding: de handtekening is NIET de HMAC van het sessietoken-formaat (zelfde SESSIE_GEHEIM)
+  assert.notEqual(sig, createHmac('sha256', GEHEIM).update(payload).digest('base64url'));
   const gewijzigd = Buffer.from(JSON.stringify({ ...p, r: 'http://localhost:9999/cb' })).toString('base64url') + '.' + sig;
   const gevallen = [
     [{ consent: 'vervalst.handtekening', keuze: 'toestaan' }, o.cookie()],

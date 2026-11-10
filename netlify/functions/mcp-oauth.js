@@ -133,7 +133,7 @@ f.addEventListener('submit', async (e) => {
 
 const loginPagina = () => pagina(200, 'Aanmelden', `<h1>Aanmelden om Claude te koppelen</h1>`
   + `<p class="klein">Meld je aan met je Blitz Planning-account. Claude ziet je wachtwoord nooit.</p>`
-  + `<form id="login"><label for="email">E-mailadres</label><input id="email" name="email" type="email" autocomplete="username" required>`
+  + `<form id="login" method="post"><label for="email">E-mailadres</label><input id="email" name="email" type="email" autocomplete="username" required>`
   + `<label for="wachtwoord">Wachtwoord</label><input id="wachtwoord" name="wachtwoord" type="password" autocomplete="current-password" required>`
   + `<p id="melding" class="fout" role="alert"></p><div class="knoppen"><button class="hoofd" type="submit">Aanmelden</button></div></form>`,
 { script: LOGIN_SCRIPT });
