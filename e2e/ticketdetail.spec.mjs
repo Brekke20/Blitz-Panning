@@ -393,10 +393,10 @@ test.describe('ticketdetail: voorstel (?test)', () => {
     await expect(toast(page)).toHaveText('🧪 Testmodus — voorstel verstuurd (demo)');
     await expect(modal).toBeHidden();
     const vs = await page.evaluate(() => kern.toestand.get('voorstelStatus').p1);
-    // luc@test.be is zowel contact als eindklant: beide doelgroepen krijgen een tijdstip.
-    expect(Object.keys(vs).sort()).toEqual(['contact', 'klant', 'tijdslot', 'tijdslotDatum']);
+    // luc@test.be is zowel contact als eindklant: het adres telt eenmaal (zoals de server ontdubbelt), dus enkel contact krijgt een tijdstip
+    // (bewuste wijziging: de testmodus stempelde vroeger ook klant; het register volgt nu de doelgroepen die de mail echt krijgen).
+    expect(Object.keys(vs).sort()).toEqual(['contact', 'tijdslot', 'tijdslotDatum']);
     expect(vs.contact).toMatch(/^\d{4}-\d\d-\d\dT/);
-    expect(vs.klant).toBe(vs.contact);
     expect(vs.tijdslotDatum).toBe('2026-10-07');
     // Gemeten: tijdstip 10:00 met de standaard tijdslotgrootte (3 u) geeft 09:30–12:30.
     expect(vs.tijdslot).toBe('09:30–12:30');
