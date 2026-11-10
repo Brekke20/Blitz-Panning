@@ -1,8 +1,9 @@
 // /api/annuleer
 //   GET                         -> { redenen: [{code,label}] }   (geen Zoho)
 //   POST { voorbeeld:true, naam, datum, tijdslot?, uur?, reden, toelichting? } -> { html }  (nooit Zoho)
-//   POST { ticketId, reden, toelichting, mailKlant, door } -> annuleert de afspraak:
-//        (optioneel) sendReply per ontvanger EERST, daarna PATCH status + datum wissen,
+//   POST { ticketId, reden, toelichting, mailKlant, door[, ontvangers, adressen] } -> annuleert de afspraak:
+//        (optioneel) sendReply per aangevinkte ontvanger EERST (ontvangers/adressen: zie netlify/lib/ontvangers.js; een nieuw of gewijzigd
+//        klant-/installateuradres gaat mee in de PATCH, enkel bij mailKlant), daarna PATCH status + datum wissen,
 //        interne notitie, register wissen. Status na afloop: 'Wachten op planning', behalve bij reden `geenreactie`
 //        ("Geen reactie van de klant"): dan eigen mail en 'Gesloten - ov'. Enkel in dat laatste geval geeft het antwoord
 //        `status` terug (de client zet het ticket dan niet terug in de wachtrij maar haalt het weg).
@@ -13,6 +14,7 @@ import { leesRegister, wisVoorstel } from '../lib/voorstelregister.js';
 import { datumInBrussel } from '../lib/bevestigingslink.js';
 import { maakZoho } from '../lib/zoho.js';
 import { eisEigenTicket } from '../lib/eigen-ticket.js';
+import { leesOntvangerKeuze, bepaalOntvangers } from '../lib/ontvangers.js';
 import { maakCors, v2Json, v2Opties } from '../lib/http.js';
 import {
   REDENEN, valideerAnnulatie, valideerRedenToelichting, bouwAnnulatieMail, bouwAnnulatieNotitie, bouwGeenReactieNotitie,
@@ -91,6 +93,9 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
     const v = valideerAnnulatie(body, { test });
     if (!v.ok) return json(400, { error: v.fout });
     const { ticketId, reden, toelichting, mailKlant, door } = v.waarde;
+    // Ontvangerskeuze en adressen valideren vóór de testmodus en vóór elke Zoho-aanroep.
+    const keuzeLezen = leesOntvangerKeuze(body);
+    if (!keuzeLezen.ok) return json(400, { error: keuzeLezen.fout });
 
     if (test) await zorgVoorTestkopie(haalStore);
     const store = haalStore({ name: winkelNaam(req), consistency: 'strong' });
@@ -150,16 +155,11 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
       const contactEmail      = ticketData.contact?.email || ticketData.contact?.emailId || ticketData.email || '';
       const klantEmail        = cf.cf_e_mail_eindklant || '';
       const installateurEmail = cf.cf_e_mail_installateur || '';
-      const seenEmails = new Set();
-      const ontvangers = [
-        { doelgroep: 'contact',      email: contactEmail },
-        { doelgroep: 'klant',        email: klantEmail },
-        { doelgroep: 'installateur', email: installateurEmail },
-      ].filter(o => {
-        const key = o.email.toLowerCase();
-        if (!o.email || seenEmails.has(key)) return false;
-        seenEmails.add(key);
-        return true;
+      // Eerst op de aangevinkte doelgroepen filteren, dan ontdubbelen. Aangeleverde adressen tellen enkel mee (en worden enkel bewaard)
+      // als de klant gemaild wordt.
+      const { ontvangers, cf: nieuweAdresVelden } = bepaalOntvangers({
+        zoho: { contact: contactEmail, klant: klantEmail, installateur: installateurEmail },
+        keuze: keuzeLezen.keuze, adressen: mailKlant ? keuzeLezen.adressen : {},
       });
 
       // Datum/tijdslot: register-tijdslot enkel als het voor dezelfde datum gold.
@@ -224,7 +224,7 @@ export function maakHandler({ getStore: haalStore, fetch: doFetch }) {
       // 2. PATCH NA sendReply.
       const patchRes = await zoho.verzoek(`/tickets/${ticketId}`, {
         token: accessToken, orgId, methode: 'PATCH',
-        json: { status: nieuweStatus, cf: { cf_interventie_datm: '' } },
+        json: { status: nieuweStatus, cf: { cf_interventie_datm: '', ...(mailKlant ? nieuweAdresVelden : {}) } },
       });
       if (!patchRes.ok) {
         const t = await patchRes.text().catch(() => '');

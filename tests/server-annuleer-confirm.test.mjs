@@ -585,6 +585,80 @@ test('annuleer: tokencache per handlerinstantie (55 minuten), org-id wordt telke
   assert.equal(uit(calls).filter(c => c.url.includes('oauth/v2/token')).length, 2);
 });
 
+// ---- ontvangers aanpassen (vinkjes en adressen) ----
+const ANN_BASIS = { ticketId: '555', reden: 'weer', toelichting: '', mailKlant: true };
+const annMail = () => bouwAnnulatieMail({ naam: 'An Peeters', datum: '2026-10-14', tijdslot: '08:30–11:30', uur: null, reden: 'weer', toelichting: '' });
+const annNotitie = gemaild => bouwAnnulatieNotitie({
+  datum: '2026-10-14', tijdslot: '08:30–11:30', uur: null, door: '', tijdstip: TIJDSTIP_NU,
+  redenLabel: 'Weersomstandigheden', toelichting: '', mailKlant: true, gemaild,
+});
+
+test('annuleer: een uitgevinkte doelgroep krijgt geen sendReply; de rest wel', async () => {
+  const r = await draaiAnn(annReq({ ...ANN_BASIS, ontvangers: { contact: false, klant: true, installateur: false } }));
+  assert.deepEqual(r.calls, [
+    TOKEN_CALL, ORG_CALL, getTicket('555'),
+    sendReply('555', 'klant@x.be', annMail()),
+    patch('555', { status: 'Wachten op planning', cf: { cf_interventie_datm: '' } }),
+    comment('555', annNotitie(['klant@x.be'])),
+  ]);
+  assert.deepEqual((await antwoordJson(r.res)).body, { ok: true, emailSent: { contact: false, klant: true, installateur: false }, fouten: [] });
+});
+
+test('annuleer: alles uitgevinkt gedraagt zich als zonder adres: geen mail, wel PATCH en notitie', async () => {
+  const r = await draaiAnn(annReq({ ...ANN_BASIS, ontvangers: { contact: false, klant: false, installateur: false } }));
+  assert.deepEqual(r.calls.slice(2).map(c => c.method + ' ' + c.url.replace(DESK, '')), ['GET /tickets/555', 'PATCH /tickets/555', 'POST /tickets/555/comments']);
+  assert.deepEqual((await antwoordJson(r.res)).body, { ok: true, emailSent: { contact: false, klant: false, installateur: false }, fouten: [] });
+});
+
+test('annuleer: een uitgevinkt contact met hetzelfde adres als de klant slokt de klantmail niet op', async () => {
+  const router = annRouter({ ticket: TICKET({ contact: { email: 'zelfde@x.be', firstName: 'An', lastName: 'Peeters' }, cf: { ...CF, cf_e_mail_eindklant: 'ZELFDE@x.be', cf_e_mail_installateur: '' } }) });
+  const r = await draaiAnn(annReq({ ...ANN_BASIS, ontvangers: { contact: false } }), { router });
+  const replies = r.calls.filter(c => c.url.endsWith('/sendReply'));
+  assert.deepEqual(replies, [sendReply('555', 'ZELFDE@x.be', annMail())]);
+  assert.deepEqual((await antwoordJson(r.res)).body.emailSent, { contact: false, klant: true, installateur: false });
+});
+
+test('annuleer: een nieuw klantadres krijgt de mail en wordt in dezelfde PATCH bewaard', async () => {
+  const router = annRouter({ ticket: TICKET({ cf: { cf_interventie_datm: CF.cf_interventie_datm } }) });
+  const r = await draaiAnn(annReq({ ...ANN_BASIS, ontvangers: { contact: true, klant: true, installateur: false }, adressen: { klant: ' Nieuw@Klant.be ' } }), { router });
+  assert.deepEqual(r.calls, [
+    TOKEN_CALL, ORG_CALL, getTicket('555'),
+    sendReply('555', 'contact@x.be', annMail()),
+    sendReply('555', 'Nieuw@Klant.be', annMail()),
+    patch('555', { status: 'Wachten op planning', cf: { cf_interventie_datm: '', cf_e_mail_eindklant: 'Nieuw@Klant.be' } }),
+    comment('555', annNotitie(['contact@x.be', 'Nieuw@Klant.be'])),
+  ]);
+  assert.deepEqual((await antwoordJson(r.res)).body, { ok: true, emailSent: { contact: true, klant: true, installateur: false }, fouten: [] });
+});
+
+test('annuleer: een ongeldig adres geeft 400 vóór elke aanvraag (ook in testmodus); geen Zoho-schrijfactie', async () => {
+  for (const installateur of ['geen-adres', 'a@x.be, b@x.be', 'a@x.be;b@x.be', 'a b@x.be', 'a@x.be\r\nBcc: m@x.be', `${'a'.repeat(250)}@x.be`, 7]) {
+    for (const kop of [{}, { 'X-Blitz-Test': '1' }]) {
+      const r = await draaiAnn(annReq({ ...ANN_BASIS, adressen: { installateur } }, kop));
+      assert.deepEqual(r.calls, [], `geen aanvragen voor ${JSON.stringify(installateur)}`);
+      assert.equal(r.res.status, 400);
+      assert.match((await antwoordJson(r.res)).body.error, /e-mailadres/);
+    }
+  }
+  for (const ontvangers of [{ klant: 'ja' }, 'alles', [true]]) {
+    const r = await draaiAnn(annReq({ ...ANN_BASIS, ontvangers }));
+    assert.deepEqual(r.calls, []);
+    assert.equal(r.res.status, 400);
+  }
+});
+
+test('annuleer: een body zonder de nieuwe velden geeft het oude gedrag (alle ontvangers)', async () => {
+  const r = await draaiAnn(annReq(ANN_BASIS));
+  assert.deepEqual(r.calls.filter(c => c.url.endsWith('/sendReply')).map(c => JSON.parse(c.body).to), ['contact@x.be', 'klant@x.be', 'inst@x.be']);
+  assert.deepEqual(r.calls.find(c => c.method === 'PATCH'), patch('555', { status: 'Wachten op planning', cf: { cf_interventie_datm: '' } }));
+});
+
+test('annuleer: zonder klantmail (mailKlant false) worden aangeleverde adressen niet bewaard', async () => {
+  const r = await draaiAnn(annReq({ ...ANN_BASIS, mailKlant: false, adressen: { klant: 'nieuw@klant.be' } }));
+  assert.equal(r.calls.filter(c => c.url.endsWith('/sendReply')).length, 0);
+  assert.deepEqual(r.calls.find(c => c.method === 'PATCH'), patch('555', { status: 'Wachten op planning', cf: { cf_interventie_datm: '' } }));
+});
+
 // ============================================================ confirm-afspraak ====
 const BASIS = 'https://blitz-planning.netlify.app';
 const EXP = String(Math.floor(NU / 1000) + 3600);
