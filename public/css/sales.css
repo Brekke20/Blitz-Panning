@@ -289,3 +289,5 @@ html[data-nav="kolom"] .sales-route-nota { margin-right: 14px; border: 1px solid
     height: calc(100dvh - var(--sticky-top, 93px) - var(--dok-h) - 24px);
   }
 }
+
+.sales-claude { margin-top: var(--sp-4, 16px); }

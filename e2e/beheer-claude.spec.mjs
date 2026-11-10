@@ -1,6 +1,7 @@
 // Gekoppelde Claude-toegangen: beheertab "Claude" (beheerder: alle koppelingen) en het blok in Instellingen, tab "Dit toestel"
 // (andere rollen: de eigen koppeling). /api/mcp-toegangen is een stateful stub; alle gegevens zijn verzonnen.
 import { test, expect, startApp, kiesHoofdtab } from './helpers.mjs';
+import { startSalesApp } from './sales-hulp.mjs';
 
 const json = (status, obj) => ({ status, json: obj });
 const T = Date.parse('2026-10-01T09:30:00.000Z');
@@ -106,5 +107,16 @@ test.describe('Instellingen: eigen koppeling (geen beheerder)', () => {
     await expect(modal.locator('#set-tab-toestel')).toBeVisible();
     await expect(modal.locator('#set-claude-blok')).toBeHidden();
     expect(verzoeken.van('/api/mcp-toegangen')).toHaveLength(0);
+  });
+
+  test('een verkoper (sales) ziet het blok in het sales-instellingenvenster en trekt de eigen koppeling in', async ({ page }) => {
+    const stub = toegangenStub([RIJEN()[0]]);
+    await startSalesApp(page, { overschrijf: { 'mcp-toegangen': stub } });
+    await page.locator('header [data-actie="instellingen"]').click();
+    const blok = page.locator('#set-claude-blok');
+    await expect(blok.locator('tr[data-toegang="ta"]')).toBeVisible();
+    await blok.getByRole('button', { name: 'Intrekken' }).click();
+    await expect(blok.getByText('Nog niemand heeft Claude gekoppeld.')).toBeVisible();
+    expect(stub.verwijderd).toEqual(['ta']);
   });
 });

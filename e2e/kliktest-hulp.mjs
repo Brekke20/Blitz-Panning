@@ -71,7 +71,7 @@ export const SALES_LEADS = () => [
   lead('l7', 'Hermans', { status: 'afgewerkt', gemeente: 'Tongeren', resultaat: { soort: 'offerte', op: '2026-10-01T10:00:00.000Z' }, bezoeken: [{ datum: '2026-10-01', resultaat: 'offerte', op: '2026-10-01T10:00:00.000Z' }] }),
 ];
 
-const BEHEER_ALLES = ['Gebruikers', 'Instellingen', 'Beschikbaarheden', 'Activiteitenlog', 'Systeemstatus', "Thema's", 'Performance'];
+const BEHEER_ALLES = ['Gebruikers', 'Instellingen', 'Beschikbaarheden', 'Activiteitenlog', 'Systeemstatus', "Thema's", 'Performance', 'Claude'];
 const BEHEER_PLANNER = ['Instellingen', 'Beschikbaarheden', 'Performance'];
 const BEHEER_MANAGER = ['Instellingen', 'Performance'];
 

@@ -10,6 +10,14 @@ import { formulierWaarden, valideerSalesInstellingen, bouwBewaardObject } from '
 import { foutTekst } from './sales-tekst.js';
 import { el, veld } from './sales-dom.js';
 
+// Gekoppelde Claude-toegangen (beheer-claude.js): ook de verkoper trekt hier zijn eigen koppeling in (⚙ opent voor sales dit venster, niet
+// de gewone Instellingen). Lazy geladen; een mislukte lading laat het blok weg.
+function voegClaudeBlokToe(body) {
+  const blok = el('div', { class: 'sales-claude', id: 'set-claude-blok' });
+  body.append(blok);
+  import('./beheer-claude.js').then(m => m.toonClaudeToegangen(blok)).catch(() => { blok.hidden = true; });
+}
+
 export const INSTELLINGEN_NIET_GELADEN = 'Je instellingen konden niet geladen worden, dus je kunt ze nu niet wijzigen. Probeer het opnieuw.';
 
 /**
@@ -44,6 +52,7 @@ export async function openSalesInstellingen() {
         const melding = el('div', { class: 'sales-venster-fout', role: 'alert', text: INSTELLINGEN_NIET_GELADEN });
         const toonFoutTekst = (tekst) => { melding.textContent = tekst; };
         body.append(melding, el('div', { class: 'sales-acties' }, dicht, opnieuw));
+        voegClaudeBlokToe(body);
         return;
       }
       const fout = el('div', { class: 'sales-venster-fout', role: 'alert', hidden: true });
@@ -91,6 +100,7 @@ export async function openSalesInstellingen() {
         laadEigenInstellingen().catch(() => {}); // de server bewaart een opgeschoond object: de toestand volgt de serverstand
       });
       body.append(fout, form);
+      voegClaudeBlokToe(body);
     },
   });
 }

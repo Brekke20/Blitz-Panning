@@ -6,6 +6,8 @@ import { maakNepStore } from './nep-blobs.mjs';
 import { metRol, zetStandaard } from './auth-hulp.mjs';
 import { zoekToegang } from '../netlify/lib/mcp-oauth.js';
 import { leesActiviteit } from '../netlify/lib/activiteit.js';
+import { maakAuth } from '../netlify/lib/auth.js';
+import { ondertekenToken } from '../netlify/lib/sessie-token.js';
 import { RECHTEN } from '../netlify/lib/rechten.js';
 import { maakHandler, config } from '../netlify/functions/mcp-toegangen.js';
 
@@ -101,8 +103,26 @@ test('onbekend of ontbrekend id: 404 resp. 400', async () => {
   assert.equal((await metRol('beheerder', () => del(h))).status, 400);
 });
 
-test('technieker met onbekend id krijgt 404 (geen verschil zichtbaar tussen andermans en bestaat niet is niet nodig, wel geen 200)', async () => {
+test('technieker met onbekend id krijgt 404 (niets te lekken)', async () => {
   const { h } = opzet();
   const r = await metRol('technieker', () => del(h, 'bestaat-niet'));
-  assert.ok([403, 404].includes(r.status));
+  assert.equal(r.status, 404);
+});
+
+test('DELETE zonder X-Blitz-kop: 403 (CSRF) en de toegang blijft; met de kop lukt het (echte beveiligV2 + sessiecontrole)', async () => {
+  const GEHEIM = 'testgeheim-testgeheim';
+  const store = maakNepStore({
+    gebruikers: { versie: 1, gebruikers: [{ id: 'u-tim', naam: 'Tim', rol: 'technieker', actief: true, sessieVersie: 1 }] },
+    'mcp-toegang-ta': { id: 'ta', uid: 'u-tim', sessieVersie: 1, clientId: 'c1', clientNaam: 'Claude', aangemaakt: T0 - 5000 },
+  });
+  const getStore = () => store;
+  const auth = maakAuth({ getStore, env: { SESSIE_GEHEIM: GEHEIM }, nu: () => T0 });
+  const h = maakHandler({ getStore, nu: () => T0, auth });
+  const cookie = `blitz_sessie=${ondertekenToken({ uid: 'u-tim', sv: 1, exp: Math.floor(T0 / 1000) + 3600 }, GEHEIM)}`;
+  const zonder = await h(new Request(url('?id=ta'), { method: 'DELETE', headers: { cookie } }), {});
+  assert.equal(zonder.status, 403);
+  assert.ok(await store.get('mcp-toegang-ta', { type: 'json' }));
+  const met = await h(new Request(url('?id=ta'), { method: 'DELETE', headers: { cookie, 'X-Blitz': '1' } }), {});
+  assert.equal(met.status, 200);
+  assert.equal(await store.get('mcp-toegang-ta', { type: 'json' }), null);
 });
