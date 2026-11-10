@@ -5,7 +5,8 @@
 //   - enkel beheerder, planner en technieker krijgen gereedschappen; elke andere rol (sales, onbekend) krijgt een lege
 //     tools/list en -32601 op tools/call, VOOR er ook maar één blob gelezen wordt (filterRapportenVoor laat sales alles zien).
 //   - technieker: rapporten eerst door filterRapportenVoor (eigen rapporten), dan pas zoeken/tellen/historiek/opzoeken.
-//     Planning enkel met zijn eigen naam (isEigenNaam). Tickets: hetzelfde als GET /api/tickets hem geeft (ongefilterd).
+//     Planning: items op zijn eigen naam (isEigenNaam) plus afspraken zonder persoon (die toont de kalender ook aan iedereen,
+//     kern/selecties.js); nooit die van een collega en nooit een ticket zonder technieker. Tickets: hetzelfde als GET /api/tickets hem geeft (ongefilterd).
 // Enkel lezen: geen enkele functie hier schrijft naar de store; tickets komen enkel uit de bewaarde momentopname (nooit Zoho).
 // Foutteksten aan Claude zijn vast; een uitzondering logt enkel het fouttype (Blobs-fouten kunnen details bevatten).
 import pkg from '../../package.json' with { type: 'json' };
@@ -28,7 +29,7 @@ const INSTRUCTIES = [
   'Rapporten zijn interventie- en installatierapporten van techniekers (actief + jaararchieven); open tickets komen uit een momentopname van Zoho Desk (veld momentopname = tijdstip); planning = tickets met een interventiedatum en handmatige afspraken.',
   `De oorzaak van een storing komt uit een vaste lijst (${OORZAAK_LABELS.join(', ')}; oude rapporten kunnen nog Productfout of Configuratiefout hebben) en is dus betrouwbaar om te tellen.`,
   'Probleem en acties zijn vrije tekst: lees ze, maar tel er niet op. Serienummers worden genormaliseerd (spaties weg, hoofdletters).',
-  'Je ziet enkel wat de gekoppelde gebruiker in de tool mag zien (een technieker enkel zijn eigen rapporten en planning). Antwoorden zijn afgekapt op 200 items (afgekapt: true, totaal).',
+  'Je ziet enkel wat de gekoppelde gebruiker in de tool mag zien (een technieker enkel zijn eigen rapporten en planning, plus afspraken zonder persoon). Antwoorden zijn afgekapt op 200 items (afgekapt: true, totaal).',
 ].join('\n');
 
 // ---------- JSON-RPC ----------
@@ -299,8 +300,11 @@ async function planningLezen(args, { gebruiker, store, nu }) {
     ...(snapshot ? alleTickets(snapshot).map(t => ticketItem(t, register)) : []),
     ...afspraken.map(afspraakItem),
   ].filter(i => i && i.datum >= van && i.datum <= tot);
-  // Technieker: enkel items op zijn eigen naam (ook geen afspraken zonder persoon). Planner/beheerder: alles.
-  if (gebruiker?.rol === 'technieker') items = items.filter(i => isEigenNaam(gebruiker, i.technieker));
+  // Technieker: items op zijn eigen naam plus afspraken zonder persoon (zoals de kalender: kern/selecties.js toont een afspraak
+  // zonder persoon aan iedereen). Nooit een afspraak of ticket van een collega, nooit een ticket zonder technieker. Planner/beheerder: alles.
+  if (gebruiker?.rol === 'technieker') {
+    items = items.filter(i => isEigenNaam(gebruiker, i.technieker) || (i.soort === 'afspraak' && !i.technieker));
+  }
   if (technieker) items = items.filter(i => klein(i.technieker).includes(klein(technieker)));
   items.sort((a, b) => (a.datum + (a.uur || '')).localeCompare(b.datum + (b.uur || '')) || a.id.localeCompare(b.id));
 

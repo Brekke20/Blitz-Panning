@@ -299,11 +299,24 @@ test('planning_lezen planner: tickets met interventiedatum (Brusselse tijd) + af
   assert.deepEqual(filter.items.map(i => i.id), ['a2', 't4']);
 });
 
-test('planning_lezen technieker: enkel eigen naam (geen collega, geen afspraak zonder persoon)', async () => {
+test('planning_lezen technieker: eigen naam plus afspraken zonder persoon (voor iedereen, zoals de kalender), nooit van een collega', async () => {
   const t = data(await roep(TECH, 'planning_lezen', { van: '2026-11-12', tot: '2026-11-14' }));
-  assert.deepEqual(t.items.map(i => i.id), ['t3', 'a1', 't5']);
+  assert.deepEqual(t.items.map(i => i.id), ['t3', 'a1', 't5', 'a3']);
+  assert.equal(t.items.find(i => i.id === 'a3').technieker, null);
+  assert.ok(!t.items.some(i => i.id === 'a2' || i.id === 't4'), 'geen afspraak of ticket van collega Piet');
   const viaFilter = data(await roep(TECH, 'planning_lezen', { van: '2026-11-12', tot: '2026-11-14', technieker: 'Piet' }));
   assert.deepEqual(viaFilter.items, []);
+});
+
+test('planning_lezen technieker: afspraak met lege persoon zichtbaar, ticket zonder technieker niet', async () => {
+  const snapshot = structuredClone(SNAPSHOT);
+  snapshot.plannedTickets.push(ticket('t9', { status: 'Geplande service', assignee: '', interventieDatum: '2026-11-13T09:30:00.000Z' }));
+  const afspraken = structuredClone(AFSPRAKEN);
+  afspraken.afspraken.push({ id: 'a9', titel: 'Feestdag', datum: '2026-11-13', uur: '', einduur: '', type: 'Overige', persoon: '', notitie: '' });
+  const t = data(await roep(TECH, 'planning_lezen', { van: '2026-11-13', tot: '2026-11-13' }, bron(basisBlobs({ 'tickets-snapshot': snapshot, afspraken }))));
+  assert.deepEqual(t.items.map(i => i.id), ['a9', 't5']);
+  const p = data(await roep(PLANNER, 'planning_lezen', { van: '2026-11-13', tot: '2026-11-13' }, bron(basisBlobs({ 'tickets-snapshot': snapshot, afspraken }))));
+  assert.ok(p.items.some(i => i.id === 't9'), 'de planner ziet het niet-toegewezen ticket wel');
 });
 
 test('planning_lezen: zonder momentopname enkel afspraken + waarschuwing; foute periode -> isError', async () => {
