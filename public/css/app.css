@@ -1308,6 +1308,20 @@
     html[data-aanraak="ja"] .ann-optie input[type="radio"] { width: 22px; height: 22px; }
     html[data-aanraak="ja"] .ann-details summary { min-height: 44px; display: flex; align-items: center; }
 
+    /* ── Ontvangers van voorstel en annulering: per doelgroep een vinkje en een adres ── */
+    .ontv-rijen { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+    .ontv-rij { display: grid; grid-template-columns: minmax(0, 9.5rem) minmax(0, 1fr); gap: 8px; align-items: center; }
+    .ontv-vink { display: flex; gap: 8px; align-items: center; min-height: 32px; font-size: var(--fs-sm); color: var(--text); cursor: pointer; }
+    .ontv-vink input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--accent); margin: 0; }
+    .ontv-adres { min-width: 0; font-size: var(--fs-sm); overflow-wrap: anywhere; }
+    input.ontv-adres { min-height: 0; padding-top: 6px; padding-bottom: 6px; }
+    .ontv-rij.ongeldig input.ontv-adres { border-color: #f59e0b; }
+    .ontv-fout { font-size: var(--fs-xs); color: #f59e0b; padding: 0 0 6px; }
+    html[data-aanraak="ja"] .ontv-vink { min-height: 44px; }
+    html[data-aanraak="ja"] .ontv-vink input[type="checkbox"] { width: 22px; height: 22px; }
+    html[data-aanraak="ja"] input.ontv-adres { font-size: 16px; min-height: 44px; }
+    @media (max-width: 420px) { .ontv-rij { grid-template-columns: minmax(0, 1fr); gap: 2px; } }
+
     /* ── Gebruikersmenu (logins T15): knop in de kop na ⚙, menu zoals het persoonsmenu ── */
     .gebruiker-sel { position: relative; }
     .gebruiker-btn { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: -0.5px; color: var(--accent-ink); background: var(--accent-dim); }
