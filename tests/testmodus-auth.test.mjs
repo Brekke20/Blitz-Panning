@@ -41,3 +41,17 @@ test('zorgVoorTestkopie kopieert de ticket-momentopname (klantgegevens uit Zoho)
   assert.deepEqual([...testStore._data.keys()].filter(k => k !== '_testkopie'), ['afspraken']);
   await wisTestopslag(getStore);
 });
+
+test('zorgVoorTestkopie kopieert de Claude-koppelingen (mcp-*: clients, codes, tokens, toegangen) NIET', async () => {
+  const echt = maakNepStore({
+    'mcp-client-c1': { client_id: 'c1' }, 'mcp-code-abc': { uid: 'u1' }, 'mcp-acc-abc': { toegangId: 't1' },
+    'mcp-ref-abc': { toegangId: 't1' }, 'mcp-toegang-t1': { id: 't1', uid: 'u1' }, 'mcp-gebruikt-t1': { laatstGebruikt: 1 },
+    afspraken: { lijst: [1] },
+  });
+  const testStore = maakNepStore();
+  const getStore = ({ name }) => (name === 'blitz-data' ? echt : testStore);
+  await wisTestopslag(getStore); // de kopievlag staat per proces: een vorige test kan hem gezet hebben
+  await zorgVoorTestkopie(getStore, { gooiFout: true });
+  assert.deepEqual([...testStore._data.keys()].filter(k => k !== '_testkopie'), ['afspraken']);
+  await wisTestopslag(getStore);
+});

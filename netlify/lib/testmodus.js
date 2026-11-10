@@ -12,6 +12,7 @@ const NIET_KOPIEREN = [
   /^client-log/, /^foutenlog$/, /^rapport-verzend-status/, /^foto-/, /^rapport-inhoud\//,
   /^gebruikers$/, /^login-pogingen$/, /^login-laatst$/, /^herstel-noodroute$/, /^activiteit\//,
   /^sales\//, // verkopersleads (persoonsgegevens van klanten): nooit naar de testopslag kopiëren
+  /^mcp-/, // Claude-koppelingen (OAuth-clients, codes, tokenhashes, toegangen): authenticatiegegevens, enkel in de echte opslag
   /^tickets-snapshot/, // momentopname van de Zoho-tickets (namen, e-mails, telefoons en adressen van klanten): nooit naar de testopslag kopiëren
 ];
 
