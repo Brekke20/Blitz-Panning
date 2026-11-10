@@ -1,6 +1,6 @@
 # Eindreview-fixes — feat/mcp-claude-lezen (2026-11-10)
 
-Werktak: `feat/mcp-claude-lezen` (worktree `.claude/worktrees/mcp-claude-lezen`). Geen push, geen versie/CACHE_NAME-bump. Test-first: per punt eerst de falende test, dan de fix (uitzondering: T3 en de e2e van T6, zie onder).
+Werktak: `feat/mcp-claude-lezen` (worktree `.claude/worktrees/mcp-claude-lezen`). Geen push, geen versie/CACHE_NAME-bump. Test-first: per punt eerst de falende test, dan de fix. Kanttekeningen: in commit 1 (I1/I2/M5) was het "rood" een laadfout van het testbestand (de nieuwe export `markeerGebruikt` bestond nog niet), niet per test apart; T3 was meteen groen (dekking); de e2e van T6 is vóór de fix geschreven maar niet apart rood gedraaid.
 
 ## Per punt
 
@@ -13,7 +13,7 @@ Werktak: `feat/mcp-claude-lezen` (worktree `.claude/worktrees/mcp-claude-lezen`)
 
 **I2 — gebruikerscontrole bij verversen**
 - Eén gedeelde functie `geldigeGebruiker(store, toegang)` in `netlify/lib/mcp-oauth.js:30` (actief === true, sessieVersie gelijk, rol in ROLLEN_LIJST, niet moetWachtwoordWijzigen). Staat in mcp-oauth.js zodat er geen importcyclus is; `netlify/lib/mcp-toegang.js` gebruikt dezelfde functie (de oude inline controle is weg).
-- `ververs` (`:124`): ongeldig -> `trekIn` + invalid_grant. Een opslagfout bij het lezen van de gebruikers wordt NIET opgevangen (wordt 500 via de token-endpoint) en trekt niets in.
+- `ververs`: alle controles (client, toegang, vervaltijd, `geldigeGebruiker`) komen vóór het verbruiken van refresh- en access-blob. Ongeldig -> verbruiken + `trekIn` + invalid_grant. Een opslagfout bij het lezen van de gebruikers wordt NIET opgevangen (500 via de token-endpoint) en verbruikt/trekt niets: hetzelfde refresh token werkt bij een nieuwe poging (test).
 - `laatstGebruikt`: `zoekToegang` schrijft niets meer; nieuwe `markeerGebruikt` (`:158`) wordt door `vereisMcpGebruiker` pas na een geslaagde `geldigeGebruiker` aangeroepen.
 - Tests: ververs na sessieVersie+1, deactivatie, moetWachtwoordWijzigen, ongeldige rol, verwijderde gebruiker -> invalid_grant, toegang weg, geen nieuwe tokens; opslagfout -> rejects en toegang blijft; andere client -> toegang blijft. HTTP-niveau: grant_type=refresh_token succes (200, nieuw refresh, scope lezen) en invalid_grant na deactivatie / wachtwoordwijziging (koppeling weg). `mcp-toegang.test.mjs`: geweigerde gebruiker schrijft geen `mcp-gebruikt-*`, geldige wel; `zoekToegang` alleen schrijft nooit `mcp-gebruikt-*`. De bestaande laatstGebruikt-tests zijn omgezet naar zoekToegang + markeerGebruikt; `opzet()` in mcp-oauth.test.mjs zaait nu gebruiker u1.
 
@@ -28,7 +28,7 @@ Werktak: `feat/mcp-claude-lezen` (worktree `.claude/worktrees/mcp-claude-lezen`)
 **I5 — planning_lezen**
 - `netlify/lib/mcp-protocol.js:306` technieker: eigen naam OF (`soort === 'afspraak'` en geen persoon). Tickets zonder technieker blijven verborgen. Kopcommentaar en INSTRUCTIES aangepast.
 - Test aangepast (t3, a1, t5, a3; a2/t4 van collega niet) + nieuwe test: afspraak met `persoon: ''` zichtbaar, ticket met lege assignee niet (planner ziet het wel).
-- Zorg/afwijking: "Iedereen blokkeren" (beschikbaarheid, `scope: 'global'` in de availability-blob) en feestdagen (client-side berekend, `kern/feestdagen.js`) zitten helemaal niet in de afspraken-blob en dus niet in planning_lezen (ook niet voor de planner). De fix volgt de kalender (`kern/selecties.js:30`: afspraak zonder persoon = voor iedereen). Beschikbaarheid/feestdagen toevoegen zou een uitbreiding van het gereedschap zijn; niet gedaan.
+- Afwijking (nagekeken in `index.html`, `afspraken.js`, `beschikbaarheid.js`): een manuele afspraak zonder technieker heeft `persoon: null` (keuze "— Geen —" in `#man-persoon`); die zijn nu zichtbaar, zoals in de kalender (`kern/selecties.js:30`). "Iedereen" als blokkering bestaat enkel in de beschikbaarheid (`availability`, `scope: 'global'`) en feestdagen worden client-side berekend (`kern/feestdagen.js`): beide zitten niet in de afspraken-blob en dus (voor geen enkele rol) in planning_lezen. Ze toevoegen is een uitbreiding van het gereedschap; niet gedaan.
 
 **M2 — rapport_lezen volledig**
 - `netlify/lib/mcp-data.js:126` `volledigRapport`: alle entry-velden + volledig `rapportData` via bestaande `stripZwareVelden` (rapportlijst.js, al geëxporteerd) plus het wegfilteren van elke andere `data:`-tekst (diep); de genormaliseerde vlakRapport-velden staan bovenaan (bestaande tests blijven werken). `mcp-protocol.js` rapportLezen gebruikt het; technieker-filter ongewijzigd.
@@ -51,14 +51,16 @@ Werktak: `feat/mcp-claude-lezen` (worktree `.claude/worktrees/mcp-claude-lezen`)
 - f16184c fix(mcp): planning_lezen toont een technieker ook afspraken zonder persoon (I5)
 - 941878a fix(mcp): rapport_lezen geeft het volledige rapport zonder foto's, handtekeningen en HTML (M2)
 - f379d8a fix(mcp): unieke id's voor het Claude-blok (T6)
-- (laatste) fix(mcp): CHANGELOG en eindreview-fixverslag
+- 550501d fix(mcp): CHANGELOG (vervaltijd koppeling) en eindreview-fixverslag
+- (laatste) fix(mcp): ververs verbruikt het refresh token pas na de controles (opslagfout kost de koppeling niet) + verslag bijgewerkt
 
 ## Testuitvoer
-- `node --test` (zonder pad): tests 3999, pass 3999, fail 0 (54 s).
+- `node --test` (zonder pad), op de eind-HEAD: tests 3999, pass 3999, fail 0.
 - `npx playwright test e2e/beheer-claude.spec.mjs --project=chromium --workers=1`: 8 passed (26 s).
 
 ## Zorgen / afwijkingen
-- Refresh-rotatie verbruikt het refresh token vóór de gebruikerscontrole (behoud van "werkt één keer"). Bij een tijdelijke opslagfout op de gebruikersblob krijgt Claude een 500 en is het refresh token weg: de gebruiker moet dan opnieuw koppelen (de toegang zelf wordt niet ingetrokken). Bewuste keuze tegenover een groter replay-venster.
+- Refresh: de controles vóór het verbruiken maken het venster waarin twee gelijktijdige pogingen met hetzelfde refresh token allebei slagen twee lezingen langer (Blobs heeft geen atomaire lees-en-verwijder; was al gedocumenteerd voor codes). In ruil kost een tijdelijke opslagfout de koppeling niet.
+- Een koppeling die na dag 30 niet meer gebruikt wordt, blijft in "Gekoppelde Claude-toegangen" staan tot ze gebruikt of handmatig ingetrokken wordt (opruimen gebeurt bij gebruik; er is geen geplande opruiming).
 - Bij een geweigerde gebruiker op het access-token-pad (vereisMcpGebruiker) wordt niet ingetrokken (enkel 401); de eerstvolgende refresh trekt wel in.
 - `expires_in` blijft 3600 ook in het laatste uur vóór dag 30; het token wordt dan door zoekToegang vroeger geweigerd.
 - I5: zie hierboven (Iedereen blokkeren/feestdagen zitten niet in de afspraken-data).

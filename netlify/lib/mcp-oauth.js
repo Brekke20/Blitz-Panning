@@ -114,14 +114,20 @@ export async function ververs(store, { refreshToken, clientId } = {}, nu = Date.
   const sleutel = `mcp-ref-${hash(refreshToken)}`;
   const rec = await store.get(sleutel, { type: 'json' });
   if (!rec) return FOUT();
-  await store.delete(sleutel); // roteren: elk refresh token werkt één keer
-  if (rec.clientId !== clientId) return FOUT(); // een vreemde client trekt de toegang van een ander niet in
+  const verbruik = async () => {
+    await store.delete(sleutel); // roteren: elk refresh token werkt één keer
+    if (rec.accessHash) await store.delete(`mcp-acc-${rec.accessHash}`);
+  };
+  if (rec.clientId !== clientId) { await store.delete(sleutel); return FOUT(); } // een vreemde client trekt de toegang van een ander niet in
   const toegang = await store.get(`mcp-toegang-${rec.toegangId}`, { type: 'json' });
-  if (!toegang) return FOUT();
-  if (rec.accessHash) await store.delete(`mcp-acc-${rec.accessHash}`);
+  if (!toegang) { await verbruik(); return FOUT(); }
   // Na 30 dagen of bij een gebruiker die niet meer mag (gedeactiveerd, wachtwoord gewijzigd, ...): toegang opruimen.
-  // geldigeGebruiker gooit bij een opslagfout: dan 500 zonder intrekken (het refresh token is wel al verbruikt).
-  if (nu > rec.verlooptOp || toegangVerlopen(toegang, nu) || !(await geldigeGebruiker(store, toegang))) {
+  // De controles komen vóór het verbruiken: gooit geldigeGebruiker (opslagfout), dan wordt het een 500 en blijft alles
+  // ongewijzigd (zelfde refresh token werkt bij een nieuwe poging). Prijs: het venster waarin een gelijktijdige tweede
+  // poging met hetzelfde token ook slaagt, is twee lezingen langer (Blobs kent geen atomaire "lees en verwijder").
+  const ongeldig = nu > rec.verlooptOp || toegangVerlopen(toegang, nu) || !(await geldigeGebruiker(store, toegang));
+  await verbruik();
+  if (ongeldig) {
     await trekIn(store, toegang.id);
     return FOUT();
   }

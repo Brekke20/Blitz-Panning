@@ -268,7 +268,7 @@ test('ververs voor een verwijderde gebruiker: invalid_grant en de toegang is ing
   assert.equal((await lijstToegangen(store)).length, 0);
 });
 
-test('ververs: een opslagfout bij het lezen van de gebruikers trekt de toegang NIET in (gooit, wordt 500)', async () => {
+test('ververs: een opslagfout bij het lezen van de gebruikers verbruikt niets (gooit, wordt 500); daarna werkt hetzelfde token', async () => {
   const { store, c, code } = await opzet();
   const t = await ruil(store, c, code, {}, T0);
   const get = store.get.bind(store);
@@ -276,6 +276,8 @@ test('ververs: een opslagfout bij het lezen van de gebruikers trekt de toegang N
   await assert.rejects(ververs(store, { refreshToken: t.refresh_token, clientId: c.client_id }, T0 + 1000));
   store.get = get;
   assert.equal((await lijstToegangen(store)).length, 1, 'toegang blijft bestaan');
+  assert.ok(await zoekToegang(store, t.access_token, T0 + 1000), 'oud access token nog geldig');
+  assert.ok((await ververs(store, { refreshToken: t.refresh_token, clientId: c.client_id }, T0 + 2000)).access_token, 'zelfde refresh token werkt na herstel');
 });
 
 test('ververs met andere client trekt de toegang niet in', async () => {
