@@ -3,6 +3,8 @@
 // toont de beheerder alle koppelingen en iedereen anders enkel de eigen, en weigert andermans koppeling intrekken met 403).
 // Twee plekken: beheertab "Claude" (enkel beheerder) en Instellingen, tab "Dit toestel" (iedereen die geen beheerder is), zodat elke
 // rol de eigen koppeling kan intrekken. Beide gebruiken toonClaudeToegangen(container).
+// Het blok kan twee keer tegelijk in het document staan (bv. beheerpaneel en sales-venster): elke weergave krijgt eigen id's
+// (teller), zodat label for en aria-labelledby altijd naar het eigen veld en de eigen titel wijzen.
 // Veiligheid: namen komen uit de server (gebruikers, clients): alles gaat via textContent (h() uit beheer.js), nooit innerHTML.
 import { registreerBeheerTab, beheerVerzoek, beheerFoutTekst, h } from './beheer.js';
 import { toast } from '../kern/ui.js';
@@ -16,8 +18,13 @@ const datum = (ms) => (Number.isFinite(ms)
   ? new Date(ms).toLocaleString('nl-BE', { timeZone: 'Europe/Brussels', day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   : '—');
 
+let instanties = 0;
+
 export async function toonClaudeToegangen(container) {
   if (!container) return;
+  const n = ++instanties;
+  const adresId = `bc-adres-${n}`;
+  const titelId = `bc-titel-${n}`;
   const adres = `${globalThis.location.origin}/api/mcp`;
   const status = h('p', { class: 'bg-status', role: 'status' });
   const lijst = h('div', { class: 'bg-lijst bc-lijst' });
@@ -32,7 +39,7 @@ export async function toonClaudeToegangen(container) {
       status.textContent = 'Kopiëren lukte niet; kopieer het geselecteerde adres zelf.';
     }
   };
-  const veld = h('input', { class: 'set-input bc-adres', id: 'bc-adres', type: 'text', readonly: true, value: adres, 'aria-label': 'Connector-adres voor Claude' });
+  const veld = h('input', { class: 'set-input bc-adres', id: adresId, type: 'text', readonly: true, value: adres, 'aria-label': 'Connector-adres voor Claude' });
   const kopieerKnop = h('button', { type: 'button', class: 'btn btn--secondary', 'data-actie': 'claude-kopieer', text: 'Kopiëren', onclick: kopieer });
 
   async function intrekken(t, knop) {
@@ -81,11 +88,11 @@ export async function toonClaudeToegangen(container) {
     teken(r.data.toegangen);
   }
 
-  container.replaceChildren(h('section', { class: 'bc', 'aria-labelledby': 'bc-titel' },
-    h('h2', { class: 'bg-titel', id: 'bc-titel', text: 'Gekoppelde Claude-toegangen' }),
+  container.replaceChildren(h('section', { class: 'bc', 'aria-labelledby': titelId },
+    h('h2', { class: 'bg-titel', id: titelId, text: 'Gekoppelde Claude-toegangen' }),
     h('p', { class: 'bg-uitleg', text: UITLEG }),
     h('div', { class: 'set-field' },
-      h('label', { class: 'set-label', for: 'bc-adres', text: 'Connector-adres' }),
+      h('label', { class: 'set-label', for: adresId, text: 'Connector-adres' }),
       h('div', { class: 'bg-toolbar' }, veld, kopieerKnop)),
     status,
     lijst));

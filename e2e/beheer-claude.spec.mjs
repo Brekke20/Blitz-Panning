@@ -30,6 +30,26 @@ function toegangenStub(begin = RIJEN()) {
   return stub;
 }
 
+// Geen dubbele id's in het hele document, en elk label/aria-labelledby van een Claude-blok wijst naar een bestaand element in datzelfde blok.
+async function controleerIds(page) {
+  const r = await page.evaluate(() => {
+    const ids = [...document.querySelectorAll('[id]')].map(e => e.id);
+    const dubbel = ids.filter((id, i) => ids.indexOf(id) !== i);
+    const fouten = [];
+    for (const sec of document.querySelectorAll('section.bc')) {
+      const kop = document.getElementById(sec.getAttribute('aria-labelledby'));
+      if (!kop || !sec.contains(kop)) fouten.push('aria-labelledby ' + sec.getAttribute('aria-labelledby'));
+      const label = sec.querySelector('label[for]');
+      const veld = label && document.getElementById(label.htmlFor);
+      if (!veld || !sec.contains(veld) || !veld.classList.contains('bc-adres')) fouten.push('label for ' + label?.htmlFor);
+    }
+    return { dubbel, fouten, blokken: document.querySelectorAll('section.bc').length };
+  });
+  expect(r.dubbel).toEqual([]);
+  expect(r.fouten).toEqual([]);
+  return r.blokken;
+}
+
 async function openClaudeTab(page, stub) {
   await startApp(page, { overschrijf: { 'mcp-toegangen': stub } });
   await kiesHoofdtab(page, 'Beheer');
@@ -40,7 +60,9 @@ async function openClaudeTab(page, stub) {
 test.describe('Beheer: tab Claude (beheerder)', () => {
   test('toont het connector-adres en een rij per koppeling; namen worden als tekst getoond', async ({ page }) => {
     await openClaudeTab(page, toegangenStub());
-    await expect(page.locator('#bc-adres')).toHaveValue('http://localhost:3338/api/mcp');
+    await expect(page.locator('.bc .bc-adres')).toHaveValue('http://localhost:3338/api/mcp');
+    await expect(page.getByLabel('Connector-adres voor Claude')).toHaveValue('http://localhost:3338/api/mcp');
+    expect(await controleerIds(page)).toBe(1);
     await expect(page.locator('tr[data-toegang]')).toHaveCount(2);
     await expect(page.locator('tr[data-toegang="tb"]')).toContainText('Pia <b>Planner</b>');
     await expect(page.locator('tr[data-toegang="tb"] b')).toHaveCount(0);
@@ -94,6 +116,7 @@ test.describe('Instellingen: eigen koppeling (geen beheerder)', () => {
     await modal.getByRole('button', { name: 'Dit toestel', exact: true }).click();
     await expect(modal.locator('#set-claude-blok')).toBeVisible();
     await expect(modal.locator('tr[data-toegang="ta"]')).toBeVisible();
+    await controleerIds(page);
     await modal.locator('tr[data-toegang="ta"]').getByRole('button', { name: 'Intrekken' }).click();
     await expect(modal.getByText('Nog niemand heeft Claude gekoppeld.')).toBeVisible();
     expect(stub.verwijderd).toEqual(['ta']);
@@ -113,8 +136,10 @@ test.describe('Instellingen: eigen koppeling (geen beheerder)', () => {
     const stub = toegangenStub([RIJEN()[0]]);
     await startSalesApp(page, { overschrijf: { 'mcp-toegangen': stub } });
     await page.locator('header [data-actie="instellingen"]').click();
-    const blok = page.locator('#set-claude-blok');
+    const blok = page.locator('#sales-claude-blok');
     await expect(blok.locator('tr[data-toegang="ta"]')).toBeVisible();
+    await expect(blok.locator('.bc-adres')).toHaveValue('http://localhost:3338/api/mcp');
+    await controleerIds(page);
     await blok.getByRole('button', { name: 'Intrekken' }).click();
     await expect(blok.getByText('Nog niemand heeft Claude gekoppeld.')).toBeVisible();
     expect(stub.verwijderd).toEqual(['ta']);

@@ -11,9 +11,9 @@ import { foutTekst } from './sales-tekst.js';
 import { el, veld } from './sales-dom.js';
 
 // Gekoppelde Claude-toegangen (beheer-claude.js): ook de verkoper trekt hier zijn eigen koppeling in (⚙ opent voor sales dit venster, niet
-// de gewone Instellingen). Lazy geladen; een mislukte lading laat het blok weg.
+// de gewone Instellingen). Lazy geladen; een mislukte lading laat het blok weg. Eigen id (niet #set-claude-blok: dat staat al in index.html).
 function voegClaudeBlokToe(body) {
-  const blok = el('div', { class: 'sales-claude', id: 'set-claude-blok' });
+  const blok = el('div', { class: 'sales-claude', id: 'sales-claude-blok' });
   body.append(blok);
   import('./beheer-claude.js').then(m => m.toonClaudeToegangen(blok)).catch(() => { blok.hidden = true; });
 }
