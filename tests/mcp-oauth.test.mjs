@@ -143,12 +143,57 @@ test('trekIn maakt toegang en refresh ongeldig', async () => {
   assert.equal(await trekIn(store, toegang.id), false);
 });
 
-test('zoekToegang werkt laatstGebruikt bij', async () => {
+test('laatstGebruikt staat in een aparte blob en wordt hoogstens per 5 min bijgewerkt', async () => {
   const { store, c, code } = await opzet();
   const t = await ruil(store, c, code, {}, T0);
+  const [toegangId] = (await lijstToegangen(store)).map(x => x.id);
+  const toegangSleutel = `mcp-toegang-${toegangId}`;
+  const voor = store._data.get(toegangSleutel);
   const a = await zoekToegang(store, t.access_token, T0 + 5000);
   assert.equal(a.aangemaakt, T0);
-  const b = await zoekToegang(store, t.access_token, T0 + 9000);
-  assert.equal(b.laatstGebruikt, T0 + 5000);
-  assert.equal((await lijstToegangen(store))[0].laatstGebruikt, T0 + 9000);
+  assert.equal(a.laatstGebruikt, T0);
+  assert.ok(!store._schrijfacties.some(w => w.key.startsWith('mcp-gebruikt-')), 'binnen 5 min niet schrijven');
+  const b = await zoekToegang(store, t.access_token, T0 + 301_000);
+  assert.equal(b.laatstGebruikt, T0);
+  assert.equal((await lijstToegangen(store))[0].laatstGebruikt, T0 + 301_000);
+  const c2 = await zoekToegang(store, t.access_token, T0 + 400_000);
+  assert.equal(c2.laatstGebruikt, T0 + 301_000);
+  assert.equal(store._data.get(toegangSleutel), voor, 'toegangrecord blijft ongewijzigd');
+  assert.equal(store._schrijfacties.filter(w => w.key === toegangSleutel).length, 1);
+});
+
+// Hulp: de store roept `na` eenmalig aan nadat de toegang gelezen is (simuleert een gelijktijdige intrekking).
+function metHaak(store, na) {
+  const get = store.get.bind(store);
+  let gedaan = false;
+  store.get = async (key, o) => {
+    const r = await get(key, o);
+    if (!gedaan && key.startsWith('mcp-toegang-') && r) { gedaan = true; await na(); }
+    return r;
+  };
+  return store;
+}
+
+test('intrekken tijdens ververs wordt niet ongedaan gemaakt', async () => {
+  const { store, c, code } = await opzet();
+  const t = await ruil(store, c, code, {}, T0);
+  const [toegang] = await lijstToegangen(store);
+  metHaak(store, () => trekIn(store, toegang.id));
+  const n = await ververs(store, { refreshToken: t.refresh_token, clientId: c.client_id }, T0 + 1000);
+  assert.deepEqual(n, { fout: 'invalid_grant' });
+  assert.equal((await lijstToegangen(store)).length, 0);
+  assert.equal(store._data.has(`mcp-toegang-${toegang.id}`), false);
+  assert.equal(await zoekToegang(store, t.access_token, T0 + 1000), null);
+  assert.ok(![...store._data.keys()].some(k => k.startsWith('mcp-acc-') || k.startsWith('mcp-ref-')), 'geen losse tokens');
+});
+
+test('intrekken tijdens zoekToegang laat geen spookvermelding achter', async () => {
+  const { store, c, code } = await opzet();
+  const t = await ruil(store, c, code, {}, T0);
+  const [toegang] = await lijstToegangen(store);
+  metHaak(store, () => trekIn(store, toegang.id));
+  await zoekToegang(store, t.access_token, T0 + 400_000);
+  assert.equal((await lijstToegangen(store)).length, 0);
+  assert.equal(store._data.has(`mcp-gebruikt-${toegang.id}`), false);
+  assert.equal(await zoekToegang(store, t.access_token, T0 + 400_000), null);
 });

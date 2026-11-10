@@ -1,15 +1,16 @@
 // OAuth-kern voor de MCP-leesconnector: clientregistratie, autorisatiecode (PKCE S256),
 // access- en refresh-tokens. Tokens worden enkel als SHA-256-hash bewaard. `nu` is in milliseconden.
-// Blobs (allemaal onder `mcp-`): client-<id>, code-<hash>, acc-<hash>, ref-<hash>, toegang-<id>.
+// Blobs (allemaal onder `mcp-`): client-<id>, code-<hash>, acc-<hash>, ref-<hash>, toegang-<id> (eenmaal geschreven, nooit herschreven: zo kan intrekken niet ongedaan gemaakt worden),
+// gebruikt-<id> (laatstGebruikt, hoogstens eens per 5 min geschreven).
 // Netlify Blobs kent geen atomaire "lees en verwijder": een code die op exact hetzelfde moment twee keer
 // wordt ingewisseld kan in theorie twee keer slagen (smal venster; PKCE-verifier is nog steeds vereist).
 
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { wijzigBlob } from './blob-wijzig.js';
 
 export const ACCESS_TTL_S = 3600;
 export const REFRESH_TTL_S = 30 * 24 * 3600;
 export const CODE_TTL_S = 60;
+export const GEBRUIKT_THROTTLE_MS = 5 * 60 * 1000;
 
 const hash = t => createHash('sha256').update(String(t)).digest('hex');
 const nieuwToken = () => randomBytes(32).toString('base64url');
@@ -60,7 +61,7 @@ async function geefTokens(store, toegang, nu) {
   const accessHash = hash(access);
   const refreshHash = hash(refresh);
   await store.setJSON(`mcp-acc-${accessHash}`, { toegangId: toegang.id, verlooptOp: nu + ACCESS_TTL_S * 1000 });
-  await store.setJSON(`mcp-ref-${refreshHash}`, { toegangId: toegang.id, clientId: toegang.clientId, verlooptOp: nu + REFRESH_TTL_S * 1000 });
+  await store.setJSON(`mcp-ref-${refreshHash}`, { toegangId: toegang.id, clientId: toegang.clientId, accessHash, verlooptOp: nu + REFRESH_TTL_S * 1000 });
   return {
     tokens: { access_token: access, refresh_token: refresh, expires_in: ACCESS_TTL_S, token_type: 'Bearer' },
     accessHash, refreshHash,
@@ -80,11 +81,10 @@ export async function wisselCode(store, { code, clientId, redirectUri, codeVerif
   const client = await store.get(`mcp-client-${clientId}`, { type: 'json' });
   const toegang = {
     id: randomUUID(), uid: rec.uid, sessieVersie: rec.sessieVersie, clientId,
-    clientNaam: client?.client_name || '', aangemaakt: nu, laatstGebruikt: nu,
+    clientNaam: client?.client_name || '', aangemaakt: nu,
   };
-  const { tokens, accessHash, refreshHash } = await geefTokens(store, toegang, nu);
-  await store.setJSON(`mcp-toegang-${toegang.id}`, { ...toegang, accessHash, refreshHash });
-  return tokens;
+  await store.setJSON(`mcp-toegang-${toegang.id}`, toegang);
+  return (await geefTokens(store, toegang, nu)).tokens;
 }
 
 export async function ververs(store, { refreshToken, clientId } = {}, nu = Date.now()) {
@@ -97,17 +97,16 @@ export async function ververs(store, { refreshToken, clientId } = {}, nu = Date.
   const toegang = await store.get(`mcp-toegang-${rec.toegangId}`, { type: 'json' });
   if (!toegang) return FOUT();
 
-  if (toegang.accessHash) await store.delete(`mcp-acc-${toegang.accessHash}`);
+  if (rec.accessHash) await store.delete(`mcp-acc-${rec.accessHash}`);
   const { tokens, accessHash, refreshHash } = await geefTokens(store, toegang, nu);
-  const res = await wijzigBlob(store, `mcp-toegang-${toegang.id}`, {
-    leeg: null,
-    wijzig: h => (h ? { ...h, accessHash, refreshHash, laatstGebruikt: nu } : null),
-  });
-  if (!res.ok) return FOUT();
+  // Intrekken kan tussen lezen en schrijven gebeurd zijn: dan de nieuwe tokens meteen weer weg.
+  if (!(await store.get(`mcp-toegang-${toegang.id}`, { type: 'json' }))) {
+    await store.delete(`mcp-acc-${accessHash}`);
+    await store.delete(`mcp-ref-${refreshHash}`);
+    return FOUT();
+  }
   return tokens;
 }
-
-const publiek = ({ accessHash, refreshHash, ...rest }) => rest;
 
 export async function zoekToegang(store, accessToken, nu = Date.now()) {
   if (!accessToken) return null;
@@ -117,15 +116,16 @@ export async function zoekToegang(store, accessToken, nu = Date.now()) {
   if (nu > rec.verlooptOp) { await store.delete(sleutel); return null; }
   const toegang = await store.get(`mcp-toegang-${rec.toegangId}`, { type: 'json' });
   if (!toegang) return null;
-  // laatstGebruikt bijhouden is best-effort; de teruggegeven waarde is die van vóór deze aanroep
-  try {
-    await wijzigBlob(store, `mcp-toegang-${toegang.id}`, {
-      leeg: null,
-      wijzig: h => (h ? { ...h, laatstGebruikt: nu } : null),
-      controleer: () => true,
-    });
-  } catch { /* negeren */ }
-  return publiek(toegang);
+  const gebruiktSleutel = `mcp-gebruikt-${toegang.id}`;
+  const vorig = (await store.get(gebruiktSleutel, { type: 'json' }))?.laatstGebruikt ?? toegang.aangemaakt;
+  if (nu - vorig >= GEBRUIKT_THROTTLE_MS) {
+    // best-effort, aparte blob; verdwenen toegang (intrekken ertussen) laat geen spoor na
+    try {
+      await store.setJSON(gebruiktSleutel, { laatstGebruikt: nu });
+      if (!(await store.get(`mcp-toegang-${toegang.id}`, { type: 'json' }))) await store.delete(gebruiktSleutel);
+    } catch { /* negeren */ }
+  }
+  return { ...toegang, laatstGebruikt: vorig };
 }
 
 export async function lijstToegangen(store) {
@@ -133,7 +133,9 @@ export async function lijstToegangen(store) {
   const uit = [];
   for (const { key } of blobs) {
     const t = await store.get(key, { type: 'json' });
-    if (t) uit.push(publiek(t));
+    if (!t) continue;
+    const g = await store.get(`mcp-gebruikt-${t.id}`, { type: 'json' });
+    uit.push({ ...t, laatstGebruikt: g?.laatstGebruikt ?? t.aangemaakt });
   }
   return uit;
 }
@@ -141,10 +143,9 @@ export async function lijstToegangen(store) {
 export async function trekIn(store, toegangId) {
   if (!toegangId) return false;
   const sleutel = `mcp-toegang-${toegangId}`;
-  const t = await store.get(sleutel, { type: 'json' });
-  if (!t) return false;
-  await store.delete(sleutel); // zonder dit record zijn access- en refresh-token meteen waardeloos
-  if (t.accessHash) await store.delete(`mcp-acc-${t.accessHash}`);
-  if (t.refreshHash) await store.delete(`mcp-ref-${t.refreshHash}`);
+  if (!(await store.get(sleutel, { type: 'json' }))) return false;
+  // Zonder dit record zijn access- en refresh-token meteen waardeloos (restblobs verlopen vanzelf).
+  await store.delete(sleutel);
+  await store.delete(`mcp-gebruikt-${toegangId}`);
   return true;
 }
