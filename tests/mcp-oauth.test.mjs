@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { maakNepStore } from './nep-blobs.mjs';
 import {
-  registreerClient, maakCode, wisselCode, ververs, zoekToegang, lijstToegangen, trekIn,
+  registreerClient, maakCode, wisselCode, ververs, zoekToegang, markeerGebruikt, lijstToegangen, trekIn,
   ACCESS_TTL_S, REFRESH_TTL_S, CODE_TTL_S,
 } from '../netlify/lib/mcp-oauth.js';
 
@@ -13,8 +13,15 @@ const REDIRECT = 'https://claude.ai/api/mcp/auth_callback';
 const VERIFIER = 'v'.repeat(50);
 const CHALLENGE = createHash('sha256').update(VERIFIER).digest('base64url');
 
+const GEBRUIKER = { id: 'u1', email: 'a@b.be', naam: 'An', rol: 'planner', actief: true, sessieVersie: 3, wachtwoordHash: 'x' };
+const wijzigGebruiker = async (store, patch) => {
+  const b = await store.get('gebruikers', { type: 'json' });
+  b.gebruikers[0] = { ...b.gebruikers[0], ...patch };
+  await store.setJSON('gebruikers', b);
+};
+
 async function opzet() {
-  const store = maakNepStore();
+  const store = maakNepStore({ gebruikers: { versie: 1, gebruikers: [GEBRUIKER] } });
   const c = await registreerClient(store, { redirect_uris: [REDIRECT], client_name: 'Claude' });
   const code = await maakCode(store, { clientId: c.client_id, redirectUri: REDIRECT, codeChallenge: CHALLENGE, uid: 'u1', sessieVersie: 3 }, T0);
   return { store, c, code };
@@ -143,23 +150,31 @@ test('trekIn maakt toegang en refresh ongeldig', async () => {
   assert.equal(await trekIn(store, toegang.id), false);
 });
 
-test('laatstGebruikt staat in een aparte blob en wordt hoogstens per 5 min bijgewerkt', async () => {
+test('laatstGebruikt staat in een aparte blob en wordt hoogstens per 5 min bijgewerkt (markeerGebruikt)', async () => {
   const { store, c, code } = await opzet();
   const t = await ruil(store, c, code, {}, T0);
   const [toegangId] = (await lijstToegangen(store)).map(x => x.id);
   const toegangSleutel = `mcp-toegang-${toegangId}`;
   const voor = store._data.get(toegangSleutel);
-  const a = await zoekToegang(store, t.access_token, T0 + 5000);
+  const gebruik = async (nu) => { const x = await zoekToegang(store, t.access_token, nu); await markeerGebruikt(store, x, nu); return x; };
+  const a = await gebruik(T0 + 5000);
   assert.equal(a.aangemaakt, T0);
   assert.equal(a.laatstGebruikt, T0);
   assert.ok(!store._schrijfacties.some(w => w.key.startsWith('mcp-gebruikt-')), 'binnen 5 min niet schrijven');
-  const b = await zoekToegang(store, t.access_token, T0 + 301_000);
+  const b = await gebruik(T0 + 301_000);
   assert.equal(b.laatstGebruikt, T0);
   assert.equal((await lijstToegangen(store))[0].laatstGebruikt, T0 + 301_000);
-  const c2 = await zoekToegang(store, t.access_token, T0 + 400_000);
+  const c2 = await gebruik(T0 + 400_000);
   assert.equal(c2.laatstGebruikt, T0 + 301_000);
   assert.equal(store._data.get(toegangSleutel), voor, 'toegangrecord blijft ongewijzigd');
   assert.equal(store._schrijfacties.filter(w => w.key === toegangSleutel).length, 1);
+});
+
+test('zoekToegang zelf schrijft nooit laatstGebruikt (dat gebeurt pas na de gebruikerscontrole)', async () => {
+  const { store, c, code } = await opzet();
+  const t = await ruil(store, c, code, {}, T0);
+  assert.ok(await zoekToegang(store, t.access_token, T0 + 400_000));
+  assert.ok(!store._schrijfacties.some(w => w.key.startsWith('mcp-gebruikt-')));
 });
 
 // Hulp: de store roept `na` eenmalig aan nadat de toegang gelezen is (simuleert een gelijktijdige intrekking).
@@ -187,13 +202,107 @@ test('intrekken tijdens ververs wordt niet ongedaan gemaakt', async () => {
   assert.ok(![...store._data.keys()].some(k => k.startsWith('mcp-acc-') || k.startsWith('mcp-ref-')), 'geen losse tokens');
 });
 
-test('intrekken tijdens zoekToegang laat geen spookvermelding achter', async () => {
+test('intrekken tijdens zoekToegang + markeerGebruikt laat geen spookvermelding achter', async () => {
   const { store, c, code } = await opzet();
   const t = await ruil(store, c, code, {}, T0);
   const [toegang] = await lijstToegangen(store);
   metHaak(store, () => trekIn(store, toegang.id));
-  await zoekToegang(store, t.access_token, T0 + 400_000);
+  const x = await zoekToegang(store, t.access_token, T0 + 400_000);
+  await markeerGebruikt(store, x, T0 + 400_000);
   assert.equal((await lijstToegangen(store)).length, 0);
   assert.equal(store._data.has(`mcp-gebruikt-${toegang.id}`), false);
   assert.equal(await zoekToegang(store, t.access_token, T0 + 400_000), null);
+});
+
+// ---- I1: absolute vervaltijd 30 dagen na de toestemming ----
+const DAG = 24 * 3600 * 1000;
+
+test('absolute vervaltijd: ververs dag 29 lukt, ververs dag 31 -> invalid_grant en de toegang is weg', async () => {
+  const { store, c, code } = await opzet();
+  const t = await ruil(store, c, code, {}, T0);
+  const [toegang] = await lijstToegangen(store);
+  const n = await ververs(store, { refreshToken: t.refresh_token, clientId: c.client_id }, T0 + 29 * DAG);
+  assert.ok(n.access_token, 'dag 29 lukt');
+  // het nieuwe refresh token vervalt op aangemaakt + 30 dagen, niet op dag 29 + 30 dagen
+  const ref = [...store._data.keys()].find(k => k.startsWith('mcp-ref-'));
+  assert.equal(JSON.parse(store._data.get(ref)).verlooptOp, T0 + 30 * DAG);
+  assert.deepEqual(await ververs(store, { refreshToken: n.refresh_token, clientId: c.client_id }, T0 + 31 * DAG), { fout: 'invalid_grant' });
+  assert.equal(store._data.has(`mcp-toegang-${toegang.id}`), false, 'toegangsrecord opgeruimd');
+  assert.equal((await lijstToegangen(store)).length, 0);
+});
+
+test('absolute vervaltijd: een access token van vlak voor dag 30 werkt niet meer na dag 30, en de toegang wordt opgeruimd', async () => {
+  const { store, c, code } = await opzet();
+  const t = await ruil(store, c, code, {}, T0);
+  const [toegang] = await lijstToegangen(store);
+  const n = await ververs(store, { refreshToken: t.refresh_token, clientId: c.client_id }, T0 + 30 * DAG - 10 * 60 * 1000);
+  assert.ok(await zoekToegang(store, n.access_token, T0 + 30 * DAG - 1000), 'vlak voor dag 30 nog geldig');
+  assert.equal(await zoekToegang(store, n.access_token, T0 + 30 * DAG + 1000), null, 'na dag 30 weg, al is het access token zelf pas 10 min oud');
+  assert.equal(store._data.has(`mcp-toegang-${toegang.id}`), false);
+});
+
+// ---- I2: gebruikerscontrole bij verversen ----
+for (const [naam, patch] of [
+  ['wachtwoordwijziging (sessieVersie + 1)', { sessieVersie: 4 }],
+  ['deactivatie', { actief: false }],
+  ['moetWachtwoordWijzigen', { moetWachtwoordWijzigen: true }],
+  ['ongeldige rol', { rol: 'koning' }],
+]) {
+  test(`ververs na ${naam}: invalid_grant en de toegang is ingetrokken`, async () => {
+    const { store, c, code } = await opzet();
+    const t = await ruil(store, c, code, {}, T0);
+    const [toegang] = await lijstToegangen(store);
+    await wijzigGebruiker(store, patch);
+    assert.deepEqual(await ververs(store, { refreshToken: t.refresh_token, clientId: c.client_id }, T0 + 4000_000), { fout: 'invalid_grant' });
+    assert.equal(store._data.has(`mcp-toegang-${toegang.id}`), false);
+    assert.equal((await lijstToegangen(store)).length, 0);
+    assert.ok(![...store._data.keys()].some(k => k.startsWith('mcp-acc-') || k.startsWith('mcp-ref-')), 'geen nieuwe tokens');
+  });
+}
+
+test('ververs voor een verwijderde gebruiker: invalid_grant en de toegang is ingetrokken', async () => {
+  const { store, c, code } = await opzet();
+  const t = await ruil(store, c, code, {}, T0);
+  await store.setJSON('gebruikers', { versie: 2, gebruikers: [] });
+  assert.deepEqual(await ververs(store, { refreshToken: t.refresh_token, clientId: c.client_id }, T0 + 1000), { fout: 'invalid_grant' });
+  assert.equal((await lijstToegangen(store)).length, 0);
+});
+
+test('ververs: een opslagfout bij het lezen van de gebruikers trekt de toegang NIET in (gooit, wordt 500)', async () => {
+  const { store, c, code } = await opzet();
+  const t = await ruil(store, c, code, {}, T0);
+  const get = store.get.bind(store);
+  store.get = async (key, o) => { if (key === 'gebruikers') throw new Error('blobs hapert'); return get(key, o); };
+  await assert.rejects(ververs(store, { refreshToken: t.refresh_token, clientId: c.client_id }, T0 + 1000));
+  store.get = get;
+  assert.equal((await lijstToegangen(store)).length, 1, 'toegang blijft bestaan');
+});
+
+test('ververs met andere client trekt de toegang niet in', async () => {
+  const { store, c, code } = await opzet();
+  const t = await ruil(store, c, code, {}, T0);
+  assert.deepEqual(await ververs(store, { refreshToken: t.refresh_token, clientId: 'anders' }, T0), { fout: 'invalid_grant' });
+  assert.equal((await lijstToegangen(store)).length, 1);
+});
+
+// ---- M5: code_verifier volgens RFC 7636 (43-128 tekens uit [A-Za-z0-9-._~]) ----
+test('code_verifier van 42 of 129 tekens of met een ongeldig teken: invalid_grant, ook als de challenge erbij past; code is weg', async () => {
+  for (const verifier of ['a'.repeat(42), 'a'.repeat(129), 'a'.repeat(42) + ' ', 'a'.repeat(42) + '+', 'a'.repeat(42) + 'é']) {
+    const store = maakNepStore();
+    const challenge = createHash('sha256').update(verifier).digest('base64url');
+    const code = await maakCode(store, { clientId: 'c', redirectUri: REDIRECT, codeChallenge: challenge, uid: 'u1', sessieVersie: 1 }, T0);
+    assert.deepEqual(await wisselCode(store, { code, clientId: 'c', redirectUri: REDIRECT, codeVerifier: verifier }, T0), { fout: 'invalid_grant' }, JSON.stringify(verifier));
+    assert.equal((await store.list({ prefix: 'mcp-code-' })).blobs.length, 0);
+  }
+});
+
+test('code_verifier van exact 43 en 128 tekens met alle toegestane tekens werkt', async () => {
+  const basis = 'ABCxyz019-._~';
+  for (const len of [43, 128]) {
+    const verifier = basis.repeat(20).slice(0, len);
+    const store = maakNepStore();
+    const challenge = createHash('sha256').update(verifier).digest('base64url');
+    const code = await maakCode(store, { clientId: 'c', redirectUri: REDIRECT, codeChallenge: challenge, uid: 'u1', sessieVersie: 1 }, T0);
+    assert.ok((await wisselCode(store, { code, clientId: 'c', redirectUri: REDIRECT, codeVerifier: verifier }, T0)).access_token, String(len));
+  }
 });

@@ -110,3 +110,25 @@ test('opslagfout -> 401 (fail-closed), nooit een uitzondering', async () => {
     assert.deepEqual(await vereisMcpGebruiker(req(), { getStore: async () => { throw new Error('boem'); }, nu: T0 }), WEIGER);
   } finally { console.error = stil; }
 });
+
+test('geweigerde gebruiker (gedeactiveerd of andere sessieVersie): laatstGebruikt wordt niet bijgewerkt', async () => {
+  for (const patch of [{ actief: false }, { sessieVersie: 4 }]) {
+    const { store, opties, req } = await opzet();
+    await wijzig(store, patch);
+    store._schrijfacties.length = 0;
+    assert.deepEqual(await vereisMcpGebruiker(req(), { ...opties, nu: T0 + 10 * 60 * 1000 }), WEIGER);
+    assert.ok(!store._schrijfacties.some(w => w.key.startsWith('mcp-gebruikt-')), JSON.stringify(patch));
+  }
+});
+
+test('geldige gebruiker na meer dan 5 min: laatstGebruikt wordt wel bijgewerkt', async () => {
+  const { store, opties, req } = await opzet();
+  store._schrijfacties.length = 0;
+  assert.equal((await vereisMcpGebruiker(req(), { ...opties, nu: T0 + 10 * 60 * 1000 })).ok, true);
+  assert.ok(store._schrijfacties.some(w => w.key.startsWith('mcp-gebruikt-')));
+});
+
+test('toegang ouder dan 30 dagen -> 401', async () => {
+  const { opties, req } = await opzet();
+  assert.deepEqual(await vereisMcpGebruiker(req(), { ...opties, nu: T0 + 30 * 24 * 3600 * 1000 + 2000 }), WEIGER);
+});

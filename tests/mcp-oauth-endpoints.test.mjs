@@ -365,3 +365,65 @@ test('token: onbekend grant_type 400 unsupported_grant_type; ontbrekende velden 
   const r3 = await postForm(o.h, '/api/mcp-oauth/token', { grant_type: 'refresh_token', refresh_token: 'x'.repeat(11 * 1024), client_id: 'c' });
   assert.equal(r3.status, 400);
 });
+
+// ---- refresh via de token-endpoint (gebruikerscontrole) ----
+async function tokensVia(o) {
+  const c = await registreer(o.h);
+  const code = await codeVia(o, c.client_id);
+  const r = await postForm(o.h, '/api/mcp-oauth/token', {
+    grant_type: 'authorization_code', code, client_id: c.client_id, redirect_uri: REDIRECT, code_verifier: VERIFIER,
+  });
+  assert.equal(r.status, 200);
+  return { c, t: await r.json() };
+}
+const refreshVia = (o, c, refresh) => postForm(o.h, '/api/mcp-oauth/token', { grant_type: 'refresh_token', refresh_token: refresh, client_id: c.client_id });
+
+test('token grant_type=refresh_token (form): actieve gebruiker 200 met nieuwe tokens en scope lezen', async () => {
+  const o = opzet();
+  const { c, t } = await tokensVia(o);
+  o.klok.nu = T0 + 2 * 3600 * 1000;
+  const r = await refreshVia(o, c, t.refresh_token);
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('cache-control'), 'no-store');
+  const n = await r.json();
+  assert.ok(n.access_token && n.refresh_token && n.refresh_token !== t.refresh_token);
+  assert.equal(n.scope, 'lezen');
+});
+
+for (const [naam, patch] of [['gedeactiveerde gebruiker', { actief: false }], ['gewijzigd wachtwoord (sessieVersie + 1)', { sessieVersie: 4 }]]) {
+  test(`token grant_type=refresh_token voor een ${naam}: 400 invalid_grant en de koppeling is weg`, async () => {
+    const o = opzet();
+    const { c, t } = await tokensVia(o);
+    assert.equal((await o.store.list({ prefix: 'mcp-toegang-' })).blobs.length, 1);
+    const b = await o.store.get('gebruikers', { type: 'json' });
+    b.gebruikers[0] = { ...b.gebruikers[0], ...patch };
+    await o.store.setJSON('gebruikers', b);
+    const r = await refreshVia(o, c, t.refresh_token);
+    assert.equal(r.status, 400);
+    assert.deepEqual(await r.json(), { error: 'invalid_grant' });
+    assert.equal((await o.store.list({ prefix: 'mcp-toegang-' })).blobs.length, 0);
+  });
+}
+
+test('token grant_type=refresh_token na 30 dagen sinds de toestemming: 400 invalid_grant', async () => {
+  const o = opzet();
+  const { c, t } = await tokensVia(o);
+  o.klok.nu = T0 + 30 * 24 * 3600 * 1000 + 1000;
+  const r = await refreshVia(o, c, t.refresh_token);
+  assert.equal(r.status, 400);
+  assert.deepEqual(await r.json(), { error: 'invalid_grant' });
+});
+
+// ---- T3: POST authorize terwijl de gebruiker zijn wachtwoord moet wijzigen ----
+test('POST authorize met moetWachtwoordWijzigen (gezet na het tonen van de pagina): 403, geen redirect en geen code', async () => {
+  const o = opzet();
+  const c = await registreer(o.h);
+  const { consent } = await toestemmingsPagina(o, c.client_id);
+  const b = await o.store.get('gebruikers', { type: 'json' });
+  b.gebruikers[0].moetWachtwoordWijzigen = true;
+  await o.store.setJSON('gebruikers', b);
+  const r = await postForm(o.h, '/api/mcp-oauth/authorize', { consent, keuze: 'toestaan' }, { cookie: o.cookie() });
+  assert.equal(r.status, 403);
+  assert.equal(r.headers.get('location'), null);
+  assert.equal((await o.store.list({ prefix: 'mcp-code-' })).blobs.length, 0);
+});

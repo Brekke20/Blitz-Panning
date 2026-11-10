@@ -103,6 +103,8 @@ function pagina(status, titel, inhoud, { script = '' } = {}) {
       'X-Frame-Options': 'DENY',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'no-referrer',
+      // `form-action` ontbreekt bewust: het toestemmingsformulier post naar 'self' en krijgt dan een 302 naar claude.ai (of
+      // localhost voor Claude Code); browsers passen form-action ook op die redirect toe, dus 'self' zou het koppelen blokkeren.
       'Content-Security-Policy': `default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'`,
     },
   });

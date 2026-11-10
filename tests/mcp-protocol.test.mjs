@@ -350,7 +350,7 @@ async function opzetEndpoint() {
     tokens[g.rol] = (await wisselCode(store, { code, clientId: c.client_id, redirectUri: REDIRECT, codeVerifier: VERIFIER }, T0 + 1000)).access_token;
   }
   store._schrijfacties.length = 0;
-  // Meer dan 5 minuten na de toekenning: zoekToegang schrijft dan echt laatstGebruikt (mcp-gebruikt-*).
+  // Meer dan 5 minuten na de toekenning: vereisMcpGebruiker schrijft dan echt laatstGebruikt (mcp-gebruikt-*).
   const h = maakHandler({ getStore: async () => store, nu: () => T0 + 10 * 60 * 1000 });
   return { store, tokens, h };
 }

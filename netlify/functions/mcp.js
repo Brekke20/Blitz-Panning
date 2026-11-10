@@ -5,7 +5,7 @@
 // (netlify/lib/mcp-toegang.js: actieve gebruiker, zelfde sessieVersie als bij de toestemming). Zonder geldige token: 401 met
 // WWW-Authenticate naar de metadata (netlify/functions/mcp-oauth.js), vóór de body gelezen wordt.
 // De gereedschappen en de rechten per rol staan in netlify/lib/mcp-protocol.js. Geen sessie-ID, geen activiteitenlog per oproep
-// (het koppelen zelf staat al in het log; laatstGebruikt wordt door zoekToegang bijgehouden).
+// (het koppelen zelf staat al in het log; laatstGebruikt houdt vereisMcpGebruiker bij via markeerGebruikt).
 import { getStore } from '@netlify/blobs';
 import { vereisMcpGebruiker } from '../lib/mcp-toegang.js';
 import { behandelRpc } from '../lib/mcp-protocol.js';
