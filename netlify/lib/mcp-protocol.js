@@ -19,7 +19,7 @@ import { OORZAAK_LABELS } from '../../public/js/rapport-oorzaak.js';
 export const PROTOCOL_VERSIES = Object.freeze(['2025-06-18', '2025-03-26']);
 const STANDAARD_VERSIE = '2025-06-18';
 const LEESROLLEN = new Set(['beheerder', 'planner', 'technieker']);
-export const GROEPERINGEN = Object.freeze(['oorzaak', 'serienummer', 'technieker', 'maand', 'klant', 'interventieType']);
+export const GROEPERINGEN = Object.freeze(['oorzaak', 'serienummer', 'technieker', 'maand', 'klant', 'interventieType', 'probleemtype', 'garantieStatus']);
 const PLANNING_STANDAARD_DAGEN = 14;
 const PLANNING_MAX_DAGEN = 366;
 const MAX_TEKST = 200;
@@ -127,7 +127,7 @@ function periodeArg(args) {
   return { van, tot };
 }
 
-const RAPPORTFILTERS = ['serienummer', 'ticketNumber', 'technieker', 'oorzaak', 'interventieType', 'hersteld', 'tekst'];
+const RAPPORTFILTERS = ['serienummer', 'ticketNumber', 'technieker', 'oorzaak', 'interventieType', 'hersteld', 'tekst', 'probleemtype', 'garantieStatus'];
 function filtersArg(args) {
   const f = periodeArg(args);
   for (const k of RAPPORTFILTERS) f[k] = tekstArg(args, k);
@@ -329,6 +329,8 @@ const FILTERS = {
   oorzaak: s(`Oorzaak van de storing, exact een waarde uit de vaste lijst: ${OORZAAK_LABELS.join(', ')}.`),
   interventieType: s('Type bezoek: Interventie of Installatie.'),
   hersteld: s('Definitief hersteld: ja of nee.'),
+  probleemtype: s('Probleemtype van het ticket (Zoho), hoofdletterongevoelig exact; enkel nieuwe rapporten hebben dit.'),
+  garantieStatus: s('Garantiestatus van het ticket (Zoho), hoofdletterongevoelig exact; enkel nieuwe rapporten hebben dit.'),
   tekst: s('Zoekt (hoofdletterongevoelig) in probleem, acties, klant en adres.'),
 };
 const LEZEN = { readOnlyHint: true };
@@ -337,7 +339,7 @@ const GEREEDSCHAPPEN = [
   {
     name: 'rapporten_zoeken',
     title: 'Rapporten zoeken',
-    description: 'Zoekt interventie- en installatierapporten (nieuwste eerst) op periode, serienummer, ticket, technieker, oorzaak, type bezoek, hersteld of tekst. Hoogstens 200 resultaten (afgekapt, totaal).',
+    description: 'Zoekt interventie- en installatierapporten (nieuwste eerst) op periode, serienummer, ticket, technieker, oorzaak, type bezoek, probleemtype, garantiestatus, hersteld of tekst. Hoogstens 200 resultaten (afgekapt, totaal).',
     inputSchema: { type: 'object', properties: { ...FILTERS, limiet: { type: 'integer', minimum: 1, maximum: MAX_RESULTATEN, description: 'Maximum aantal resultaten (standaard 200).' } } },
     annotations: LEZEN,
     uitvoer: rapportenZoeken,
@@ -353,7 +355,7 @@ const GEREEDSCHAPPEN = [
   {
     name: 'rapporten_tellen',
     title: 'Rapporten tellen',
-    description: 'Telt rapporten per oorzaak, serienummer, technieker, maand, klant of type bezoek (aflopend), met dezelfde filters als rapporten_zoeken. Een rapport met twee oorzaken telt in beide. minimum: enkel groepen met minstens zoveel rapporten (bv. palen met 3 of meer bezoeken).',
+    description: 'Telt rapporten per oorzaak, serienummer, technieker, maand, klant, type bezoek, probleemtype of garantiestatus (aflopend; rapporten zonder die gegevens vallen onder (onbekend)), met dezelfde filters als rapporten_zoeken. Een rapport met twee oorzaken telt in beide. minimum: enkel groepen met minstens zoveel rapporten (bv. palen met 3 of meer bezoeken).',
     inputSchema: {
       type: 'object',
       properties: {

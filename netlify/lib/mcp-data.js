@@ -103,8 +103,10 @@ export function vlakRapport(entry) {
       ? rd.onderdelen.filter(p => p && p.naam).map(p => ({ naam: tekst(p.naam), aantal: parseInt(p.aantal, 10) || 1 }))
       : [],
   };
-  if (rd.probleemtype !== undefined && rd.probleemtype !== null && rd.probleemtype !== '') vlak.probleemtype = tekst(rd.probleemtype);
-  if (rd.garantieStatus !== undefined && rd.garantieStatus !== null && rd.garantieStatus !== '') vlak.garantieStatus = tekst(rd.garantieStatus);
+  const pt = entry.probleemtype ?? rd.probleemtype;
+  const gs = entry.garantieStatus ?? rd.garantieStatus;
+  if (pt !== undefined && pt !== null && pt !== '') vlak.probleemtype = tekst(pt);
+  if (gs !== undefined && gs !== null && gs !== '') vlak.garantieStatus = tekst(gs);
   return vlak;
 }
 
@@ -137,6 +139,8 @@ function pastBij(v, f) {
   if (f.technieker && !klein(v.technieker).includes(klein(f.technieker))) return false;
   if (f.oorzaak && !v.oorzaken.some(o => klein(o) === klein(f.oorzaak))) return false;
   if (f.interventieType && klein(v.interventieType) !== klein(f.interventieType)) return false;
+  if (f.probleemtype && klein(v.probleemtype || '') !== klein(f.probleemtype)) return false;
+  if (f.garantieStatus && klein(v.garantieStatus || '') !== klein(f.garantieStatus)) return false;
   if (f.hersteld && klein(v.hersteld) !== klein(f.hersteld)) return false;
   if (f.tekst) {
     const n = klein(f.tekst);
@@ -145,7 +149,7 @@ function pastBij(v, f) {
   return true;
 }
 
-const FILTERSLEUTELS = ['van', 'tot', 'serienummer', 'ticketNumber', 'technieker', 'oorzaak', 'interventieType', 'hersteld', 'tekst'];
+const FILTERSLEUTELS = ['van', 'tot', 'serienummer', 'ticketNumber', 'technieker', 'oorzaak', 'interventieType', 'hersteld', 'tekst', 'probleemtype', 'garantieStatus'];
 const enkelFilters = (o = {}) => Object.fromEntries(FILTERSLEUTELS.filter(k => o[k] !== undefined && o[k] !== null && o[k] !== '').map(k => [k, o[k]]));
 
 function gefilterd(rapporten, filters) {
@@ -168,6 +172,8 @@ function sleutelsVoor(v, groepeer) {
     case 'maand': return [/^\d{4}-\d{2}/.test(v.datum) ? v.datum.slice(0, 7) : ONBEKEND];
     case 'klant': return [v.klant.trim() || ONBEKEND];
     case 'interventieType': return [v.interventieType.trim() || ONBEKEND];
+    case 'probleemtype': return [(v.probleemtype || '').trim() || ONBEKEND];
+    case 'garantieStatus': return [(v.garantieStatus || '').trim() || ONBEKEND];
     default: throw new Error('onbekende groepering: ' + groepeer);
   }
 }

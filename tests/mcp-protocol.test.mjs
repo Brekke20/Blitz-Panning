@@ -244,7 +244,7 @@ test('rapporten_tellen: onbekende groepering, foute datum of minimum -> isError 
 });
 
 test('rapporten_tellen: elke groepering uit het schema werkt (geen isError)', async () => {
-  for (const groepeer of ['oorzaak', 'serienummer', 'technieker', 'maand', 'klant', 'interventieType']) {
+  for (const groepeer of ['oorzaak', 'serienummer', 'technieker', 'maand', 'klant', 'interventieType', 'probleemtype', 'garantieStatus']) {
     const r = data(await roep(PLANNER, 'rapporten_tellen', { groepeer }));
     assert.equal(r.groeperingOp, groepeer);
     assert.equal(r.totaalRapporten, 9, groepeer);
@@ -530,4 +530,22 @@ test('endpoint: een batch van 5 rapportgereedschappen leest de rapportlijst en e
   // Een volgend verzoek leest opnieuw (geen cache over verzoeken heen).
   await post(h, rpc('tools/call', { name: 'rapporten_zoeken', arguments: {} }), { token: tokens.planner });
   assert.equal(gelezen.filter(k => k === 'rapportlijst').length, 2);
+});
+
+test('rapporten_zoeken filtert op probleemtype en garantieStatus; rapporten_tellen groepeert, oude rapporten (onbekend)', async () => {
+  const lijst = [
+    rap('x1', 'Jan Peeters', { probleemtype: 'Laadt niet', garantieStatus: 'Binnen garantie' }),
+    rap('x2', 'Jan Peeters', { probleemtype: 'Display' }),
+    rap('x3', 'Jan Peeters'),
+  ];
+  const b = bron(basisBlobs({ rapportlijst: { versie: 1, rapports: lijst } }));
+  const z = data(await roep(PLANNER, 'rapporten_zoeken', { probleemtype: 'laadt niet' }, b));
+  assert.deepEqual(z.resultaten.map(x => x.id), ['x1']);
+  assert.equal(z.resultaten[0].garantieStatus, 'Binnen garantie');
+  const z2 = data(await roep(PLANNER, 'rapporten_zoeken', { garantieStatus: 'binnen garantie' }, b));
+  assert.deepEqual(z2.resultaten.map(x => x.id), ['x1']);
+  const t = data(await roep(PLANNER, 'rapporten_tellen', { groepeer: 'probleemtype' }, b));
+  assert.deepEqual(t.groepen, [{ sleutel: '(onbekend)', aantal: 1 }, { sleutel: 'Display', aantal: 1 }, { sleutel: 'Laadt niet', aantal: 1 }]);
+  const g = data(await roep(PLANNER, 'rapporten_tellen', { groepeer: 'garantieStatus' }, b));
+  assert.deepEqual(g.groepen, [{ sleutel: '(onbekend)', aantal: 2 }, { sleutel: 'Binnen garantie', aantal: 1 }]);
 });

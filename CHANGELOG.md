@@ -13,6 +13,7 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 ## [Unreleased]
 
 ### Added
+- Rapporten bewaren voortaan ook het probleemtype en de garantiestatus van het ticket (enkel nieuwe rapporten).
 - Claude-connector (enkel lezen): Claude kan na aanmelden met de Blitz-login planning, tickets en rapporten lezen en tellen; koppelingen intrekken in beheer. Een koppeling vervalt 30 dagen na het toestaan (daarna opnieuw toestaan) en meteen bij deactivatie of een wachtwoordwijziging.
 
 ## [2.9.0] — 2026-11-09

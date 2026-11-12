@@ -172,3 +172,18 @@ test('zetOpnieuw: onbekend id → gevonden false', () => {
   const uit = zetOpnieuw([{ id: 'a', verwerking: { status: 'mislukt' } }], 'zzz');
   assert.deepEqual([uit.gevonden, uit.zetten], [false, false]);
 });
+
+test('bouwEntry neemt probleemtype en garantieStatus over (getrimd, max 100 tekens, anders leeg)', () => {
+  const e = bouwEntry({ probleemtype: '  Laadt niet  ', garantieStatus: 'Binnen garantie' });
+  assert.equal(e.probleemtype, 'Laadt niet');
+  assert.equal(e.garantieStatus, 'Binnen garantie');
+  const lang = bouwEntry({ probleemtype: 'x'.repeat(150), garantieStatus: 'y'.repeat(101) });
+  assert.equal(lang.probleemtype.length, 100);
+  assert.equal(lang.garantieStatus.length, 100);
+  const leeg = bouwEntry({ id: 'a' });
+  assert.equal(leeg.probleemtype, '');
+  assert.equal(leeg.garantieStatus, '');
+  const fout = bouwEntry({ probleemtype: 5, garantieStatus: { a: 1 } });
+  assert.equal(fout.probleemtype, '');
+  assert.equal(fout.garantieStatus, '');
+});

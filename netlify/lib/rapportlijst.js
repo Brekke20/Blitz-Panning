@@ -30,6 +30,8 @@ export function stripZwareVelden(rapportData) {
   return rest;
 }
 
+const kortTekst = w => (typeof w === 'string' ? w.trim().slice(0, 100) : '');
+
 // Bouwt een lijst-entry uit een POST-body. `licht: true` laat de zware velden uit rapportData weg.
 export function bouwEntry(body, { nu = new Date(), licht = false } = {}) {
   const rapportData = body.rapportData || null;
@@ -49,6 +51,9 @@ export function bouwEntry(body, { nu = new Date(), licht = false } = {}) {
     prioriteit:      String(body.prioriteit       || ''),
     interventieType: String(body.interventieType  || 'Interventie'),
     totaalOnderdelen: parseFloat(body.totaalOnderdelen) || 0,
+    // Uit het Zoho-ticket (cf_probleemtype, cf_garantie_status); enkel nieuwe rapporten hebben ze.
+    probleemtype:    kortTekst(body.probleemtype),
+    garantieStatus:  kortTekst(body.garantieStatus),
     // Bewaar het volledige R-object om rapport te kunnen hergeneren
     rapportData:     licht ? stripZwareVelden(rapportData) : rapportData,
     // (T20) Gezet door outboxCancelItem() (public/js/outbox.js) wanneer een technieker een

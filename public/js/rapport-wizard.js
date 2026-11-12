@@ -1444,6 +1444,8 @@ export async function printRapport() {
           facturatie:       R.facturatie,
           prioriteit:       _wizTicket.priority || '',
           interventieType:  R.interventieType || 'Interventie',
+          probleemtype:     _wizTicket.probleemtype || '',
+          garantieStatus:   _wizTicket.garantieStatus || '',
           totaalOnderdelen: totaal,
           // R.fotos (losse dataUrl's) en de handtekeningen NIET meesturen -- die staan al
           // ingebakken als <img>-tags in `html`. De HTML zelf gaat apart mee (item.html) en wordt

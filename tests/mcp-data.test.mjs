@@ -114,9 +114,24 @@ test('vlakRapport optionele velden enkel indien aanwezig', () => {
   const v = vlakRapport(rap('1'));
   assert.equal('probleemtype' in v, false);
   assert.equal(v.serienummer, '2201-AB');
-  const w = vlakRapport(rap('1', {}, { probleemtype: 'Hardware', garantieStatus: 'Garantie' }));
+  const w = vlakRapport(rap('1', { probleemtype: 'Hardware', garantieStatus: 'Binnen garantie' }));
   assert.equal(w.probleemtype, 'Hardware');
-  assert.equal(w.garantieStatus, 'Garantie');
+  assert.equal(w.garantieStatus, 'Binnen garantie');
+});
+
+test('zoeken en tellen op probleemtype en garantieStatus; oude rapporten -> (onbekend)', () => {
+  const lijst = [
+    rap('1', { probleemtype: 'Laadt niet', garantieStatus: 'Binnen garantie' }),
+    rap('2', { probleemtype: 'laadt niet', garantieStatus: 'Buiten garantie' }),
+    rap('3', { probleemtype: 'Display' }),
+    rap('4'),
+  ];
+  assert.deepEqual(zoekRapporten(lijst, { probleemtype: 'LAADT NIET' }).resultaten.map(x => x.id).sort(), ['1', '2']);
+  assert.deepEqual(zoekRapporten(lijst, { garantieStatus: 'binnen garantie' }).resultaten.map(x => x.id), ['1']);
+  const p = telRapporten(lijst, { groepeer: 'probleemtype' });
+  assert.deepEqual(p.groepen, [{ sleutel: '(onbekend)', aantal: 1 }, { sleutel: 'Display', aantal: 1 }, { sleutel: 'Laadt niet', aantal: 1 }, { sleutel: 'laadt niet', aantal: 1 }]);
+  const g = telRapporten(lijst, { groepeer: 'garantieStatus' });
+  assert.deepEqual(g.groepen, [{ sleutel: '(onbekend)', aantal: 2 }, { sleutel: 'Binnen garantie', aantal: 1 }, { sleutel: 'Buiten garantie', aantal: 1 }]);
 });
 
 test('technieker: na filterRapportenVoor telt en historiek enkel eigen rapporten', async () => {
