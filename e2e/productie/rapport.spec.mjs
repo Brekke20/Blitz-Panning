@@ -159,7 +159,9 @@ test.describe('rapport verzenden: voorbeeld (voorbeeldRapport)', () => {
 });
 
 test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
-  test('contact en klant: één rapport-verzonden per doelgroep met de versieketen 4, 5; badge en toast', async ({ page, verzoeken }) => {
+  // Bugfix 2026-11-12: rapport-verzonden krijgt geen `versie` meer mee (een verouderde versie gaf een 409 terwijl de mail al
+  // weg was: tablet, #3746/#3998). De app schuift haar versie enkel door als het antwoord precies de volgende versie is.
+  test('contact en klant: één rapport-verzonden per doelgroep zonder versie; badge en toast', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { paden: ['/api/send-rapport', '/api/rapport-verzonden'] });
     z.zetAntwoord('send-rapport', ({ body }) => body.preview === true
       ? VOORBEELD(ontvanger('contact', 'c@y.be'), ontvanger('klant', 'x@y.be'))
@@ -174,8 +176,8 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     ]);
     expect('preview' in z.opnames['send-rapport'][1].body).toBe(false);
     expect(z.opnames['rapport-verzonden']).toEqual([
-      { methode: 'POST', body: { id: 'r1', doelgroep: 'contact', tijdstip: TIJDSTIP, versie: 4 }, query: {} },
-      { methode: 'POST', body: { id: 'r1', doelgroep: 'klant', tijdstip: TIJDSTIP, versie: 5 }, query: {} },
+      { methode: 'POST', body: { id: 'r1', doelgroep: 'contact', tijdstip: TIJDSTIP }, query: {} },
+      { methode: 'POST', body: { id: 'r1', doelgroep: 'klant', tijdstip: TIJDSTIP }, query: {} },
     ]);
     expect(verzoeken.van('/api/rapport-verzonden', 'POST')[0].headers['content-type']).toBe('application/json');
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN, VERZONDEN]);
@@ -188,7 +190,7 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     await expect(overlay(page)).not.toHaveClass(/open/);
   });
 
-  test('alle drie de doelgroepen: volgorde contact, klant, installateur en versieketen 4, 5, 6', async ({ page, verzoeken }) => {
+  test('alle drie de doelgroepen: volgorde contact, klant, installateur, zonder versie', async ({ page, verzoeken }) => {
     const z = await start(page, verzoeken, { paden: ['/api/send-rapport', '/api/rapport-verzonden'] });
     z.zetAntwoord('send-rapport', ({ body }) => body.preview === true
       ? VOORBEELD(ontvanger('contact', 'c@y.be'), ontvanger('klant', 'x@y.be'), ontvanger('installateur', 'i@y.be'))
@@ -196,7 +198,8 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     await openVoorbeeld(page);
     await bevestig(page);
     await expect(toastTekst(page)).toHaveText('✓ Rapport verstuurd naar contactpersoon, klant en installateur');
-    expect(z.opnames['rapport-verzonden'].map(o => [o.body.doelgroep, o.body.versie])).toEqual([['contact', 4], ['klant', 5], ['installateur', 6]]);
+    expect(z.opnames['rapport-verzonden'].map(o => [o.body.doelgroep, o.body.versie])).toEqual([['contact', undefined], ['klant', undefined], ['installateur', undefined]]);
+    expect(await page.evaluate(() => kern.rapportArchief.versie())).toBe(7);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN, VERZONDEN, VERZONDEN]);
     expect(await lokaleRapporten(page)).toEqual([{ ...RAPPORT, verzondenContact: TIJDSTIP, verzondenKlant: TIJDSTIP, verzondenInstallateur: TIJDSTIP }]);
   });
@@ -241,7 +244,7 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     await openVoorbeeld(page);
     await bevestig(page);
     await expect(toastTekst(page)).toHaveText('✓ Rapport verstuurd naar klant, maar status kon niet opgeslagen worden — NIET opnieuw versturen, herlaad eerst de pagina');
-    expect(z.opnames['rapport-verzonden']).toEqual([{ methode: 'POST', body: { id: 'r1', doelgroep: 'klant', tijdstip: TIJDSTIP, versie: 4 }, query: {} }]);
+    expect(z.opnames['rapport-verzonden']).toEqual([{ methode: 'POST', body: { id: 'r1', doelgroep: 'klant', tijdstip: TIJDSTIP }, query: {} }]);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN]);
     // Geen badge: lokaal niets gezet en de versie in de app ongewijzigd (HUIDIG GEDRAG: ook geen serverVersie overgenomen).
     expect(await lokaleRapporten(page)).toEqual([RAPPORT]);
@@ -249,8 +252,8 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     await expect(verstuurKnop(page)).toHaveText('✉️ Verstuur rapport');
   });
 
-  test('rapport-verzonden: 502 met HTML-body voor contact, daarna lukt klant niet meer met de oude versie: enkel klant mist', async ({ page, verzoeken }) => {
-    // Eerste doelgroep (contact) krijgt een gateway-502 (res.json() faalt), tweede (klant) slaagt met versie 4.
+  test('rapport-verzonden: 502 met HTML-body voor contact, klant lukt wel: enkel contact mist', async ({ page, verzoeken }) => {
+    // Eerste doelgroep (contact) krijgt een gateway-502 (res.json() faalt), tweede (klant) slaagt (antwoord versie 5).
     const z = await start(page, verzoeken, { paden: ['/api/send-rapport', '/api/rapport-verzonden'], httpFouten: [{ pad: '/api/rapport-verzonden', status: 502 }] });
     z.zetAntwoord('send-rapport', ({ body }) => body.preview === true
       ? VOORBEELD(ontvanger('contact', 'c@y.be'), ontvanger('klant', 'x@y.be'))
@@ -261,8 +264,8 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
     await bevestig(page);
     // B6: één melding met alle mail-weg-doelgroepen en de doelgroep waarvan de status niet opgeslagen werd.
     await expect(toastTekst(page)).toHaveText('✓ Rapport verstuurd naar contactpersoon en klant, maar status kon niet opgeslagen worden voor contactpersoon — NIET opnieuw versturen, herlaad eerst de pagina');
-    // Het contact-status-verzoek faalde: de volgende (klant) gebruikt dezelfde, ongewijzigde versie 4.
-    expect(z.opnames['rapport-verzonden'].map(o => [o.body.doelgroep, o.body.versie])).toEqual([['contact', 4], ['klant', 4]]);
+    // Geen versie meer in de body (bugfix 2026-11-12); het klant-antwoord (5 = 4 + 1) schuift de versie in de app door.
+    expect(z.opnames['rapport-verzonden'].map(o => [o.body.doelgroep, o.body.versie])).toEqual([['contact', undefined], ['klant', undefined]]);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN, VERZONDEN]);
     expect(await lokaleRapporten(page)).toEqual([{ ...RAPPORT, verzondenKlant: TIJDSTIP }]);
     expect(await page.evaluate(() => kern.rapportArchief.versie())).toBe(5);
@@ -303,7 +306,7 @@ test.describe('rapport verzenden: versturen (verstuurRapport)', () => {
       : VERZONDEN_OK({ contact: true }, { statusUpdated: false, statusFout: 'Zoho 500' }));
     await openVoorbeeld(page);
     await bevestig(page);
-    await expect(toastTekst(page)).toHaveText('✓ Rapport verstuurd naar contactpersoon ⚠ Ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: Zoho 500');
+    await expect(toastTekst(page)).toHaveText('✓ Rapport verstuurd naar contactpersoon ⚠ Ticketstatus in Zoho kon niet bijgewerkt worden: Zoho 500');
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN]);
     // De mail is wel verstuurd en de status staat opgeslagen: badge.
     expect(await lokaleRapporten(page)).toEqual([{ ...RAPPORT, verzondenContact: TIJDSTIP }]);
@@ -406,6 +409,28 @@ test.describe('rapport verzenden: vroege controles en ontbrekend ticketnummer', 
     ]);
     expect(await schrijfLijst(page, verzoeken)).toEqual([START, SEND, SEND, VERZONDEN]);
   });
+
+  // Bugfix 2026-11-12: een rapport met "nieuwe interventie nodig" vraagt de server het ticket op 'Open' te zetten; een
+  // installatierapport nooit (zelfde regel als het label "🔁 Nieuwe interventie" in het archief).
+  for (const [naam, extra, verwacht] of [
+    ['nieuwe interventie', { nieuwInter: 'ja' }, true],
+    ['installatie met nieuwInter ja', { nieuwInter: 'ja', interventieType: 'Installatie' }, false],
+    ['geen nieuwe interventie', { nieuwInter: 'nee' }, false],
+  ]) {
+    test(`verzending: ${naam} -> nieuweInterventie ${verwacht ? 'mee' : 'niet mee'} in de body`, async ({ page, verzoeken }) => {
+      const z = await startMet(page, verzoeken, [{ ...RAPPORT, ...extra }], ['/api/send-rapport', '/api/rapport-verzonden']);
+      z.zetAntwoord('send-rapport', ({ body }) => body.preview === true
+        ? VOORBEELD(ontvanger('contact', 'c@y.be'))
+        : VERZONDEN_OK({ contact: true }));
+      await openVoorbeeld(page);
+      await bevestig(page);
+      await expect(toastTekst(page)).toHaveText('✓ Rapport verstuurd naar contactpersoon');
+      expect(z.opnames['send-rapport'].map(o => o.body)).toEqual([
+        SEND_BODY_PREVIEW,
+        verwacht ? { ...SEND_BODY, nieuweInterventie: true } : SEND_BODY,
+      ]);
+    });
+  }
 });
 
 

@@ -12,6 +12,10 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Unreleased]
 
+### Fixed
+- Rapporten: na het versturen bleef soms "Verstuur rapport" staan terwijl de mail wel in Zoho stond (vooral vlak na het afwerken van een rapport op de tablet). Het vinkje "verzonden" wordt nu altijd bewaard.
+- Rapporten: staat in het rapport "nieuwe interventie nodig", dan gaat het ticket na het versturen terug naar 'Open' in plaats van 'Gesloten - ov'.
+
 ## [2.10.0] — 2026-11-10
 
 ### Added

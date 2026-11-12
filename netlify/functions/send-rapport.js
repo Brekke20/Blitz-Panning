@@ -3,7 +3,8 @@
 // verstuurt die naar klant en/of installateur (wie een e-mailadres heeft), via Zoho Desk
 // sendReply -- zelfde aanpak als propose.js. Manuele, bewuste actie vanuit het
 // Rapporten-tabblad, nooit automatisch.
-// POST body: { ticketId, html, ticketNumber, preview? }
+// POST body: { ticketId, html, ticketNumber, preview?, nieuweInterventie? }
+// nieuweInterventie: true -> het ticket gaat na de verzending naar 'Open' i.p.v. 'Gesloten - ov'.
 // preview: true -> bouwt de e-mail-inhoud per ontvanger op en geeft die terug zonder iets
 // te versturen (voor het voorbeeldvenster in de app); anders (of ontbrekend): echte verzending.
 
@@ -68,7 +69,10 @@ export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf, getS
     if (methodeAntwoord) return methodeAntwoord;
 
     try {
-      const { ticketId, html, ticketNumber, preview } = JSON.parse(event.body || '{}');
+      const { ticketId, html, ticketNumber, preview, nieuweInterventie } = JSON.parse(event.body || '{}');
+      // Bugfix 2026-11-12: is er volgens het rapport een nieuwe interventie nodig, dan gaat het ticket terug naar 'Open'
+      // (opnieuw te plannen) in plaats van naar 'Gesloten - ov'. Enkel een echte `true` telt.
+      const doelStatus = nieuweInterventie === true ? 'Open' : 'Gesloten - ov';
       if (!ticketId || !html) return v1Json(400, { error: 'ticketId en html zijn verplicht' }, CORS_V1);
       if (!/^\d+$/.test(String(ticketId))) return v1Json(400, { error: 'Ongeldig ticketId' }, CORS_V1);
 
@@ -171,7 +175,7 @@ export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf, getS
         }
       }
 
-      // Ticket-status -> Gesloten - ov, maar enkel als er effectief minstens één mail
+      // Ticket-status -> Gesloten - ov (of 'Open' bij een nieuwe interventie), maar enkel als er effectief minstens één mail
       // verstuurd is (anders zou een mislukte verzending het ticket toch al sluiten).
       // PATCH komt na de verzend-lus, zelfde reden als in propose.js: Zoho past de status
       // soms zelf aan na sendReply, dus de PATCH moet daarna komen om te garanderen dat de
@@ -183,13 +187,13 @@ export function maakHandler({ fetch = globaleFetch, maakPdf = standaardPdf, getS
         try {
           const patchRes = await zoho.verzoek(`/tickets/${ticketId}`, {
             token, orgId, methode: 'PATCH',
-            json: { status: 'Gesloten - ov' },
+            json: { status: doelStatus },
           });
           const patchData = await leesJsonVeilig(patchRes);
           if (!patchRes.ok) throw new Error(`Zoho PATCH fout (${patchRes.status}): ${JSON.stringify(patchData)}`);
           statusUpdated = true;
         } catch (patchErr) {
-          console.error('Ticketstatus naar Gesloten - ov zetten mislukt:', patchErr.message);
+          console.error(`Ticketstatus naar ${doelStatus} zetten mislukt:`, patchErr.message);
           statusFout = patchErr.message;
         }
       }

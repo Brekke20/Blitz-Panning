@@ -37,12 +37,12 @@ test('bouwVerzendMelding: mail weg én fouten gevuld (deel geweigerd)', () => {
 
 test('bouwVerzendMelding: mail weg én statusFout', () => {
   assert.deepEqual(bouwVerzendMelding({ verzonden: ['contact'], statusFout: 'Zoho 500' }),
-    { tekst: '✓ Rapport verstuurd naar contactpersoon ⚠ Ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: Zoho 500', duurMs: 8000 });
+    { tekst: '✓ Rapport verstuurd naar contactpersoon ⚠ Ticketstatus in Zoho kon niet bijgewerkt worden: Zoho 500', duurMs: 8000 });
 });
 
 test('bouwVerzendMelding: alle meldingen samen in één tekst', () => {
   const m = bouwVerzendMelding({ verzonden: ['contact'], nietOpgeslagen: ['klant'], fouten: [{ doelgroep: 'installateur', fout: 'x' }], statusFout: 'y' });
-  assert.equal(m.tekst, `✓ Rapport verstuurd naar contactpersoon en klant, ${NIET_OPGESLAGEN} voor klant — ${HERLAAD} ⚠ Niet verstuurd naar installateur: x ⚠ Ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: y`);
+  assert.equal(m.tekst, `✓ Rapport verstuurd naar contactpersoon en klant, ${NIET_OPGESLAGEN} voor klant — ${HERLAAD} ⚠ Niet verstuurd naar installateur: x ⚠ Ticketstatus in Zoho kon niet bijgewerkt worden: y`);
   assert.equal(m.duurMs, Math.min(15000, 8000 + (m.tekst.length - 200) * 25)); // lang: proportioneel (zie de duurtest hieronder)
 });
 
