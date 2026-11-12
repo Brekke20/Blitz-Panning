@@ -90,7 +90,8 @@ test('inkomendeMailsNa: een mail op exact hetzelfde tijdstip of ervoor telt niet
 // ============================================================ beoordeelTicket ====
 const NU = Date.parse('2026-10-11T08:00:00.000Z'); // 3 dagen vóór 14 oktober
 const TIJD1 = '2026-10-10T08:00:00.000Z';
-const ENTRY = { contact: TIJD1, klant: '2026-10-10T08:00:03.000Z', tijdslot: '08:30–11:30', tijdslotDatum: '2026-10-14' };
+// Alle drie de doelgroepen kregen het voorstel (de herinnering gaat enkel naar doelgroepen met een tijdstip in het register).
+const ENTRY = { contact: TIJD1, klant: '2026-10-10T08:00:03.000Z', installateur: '2026-10-10T08:00:05.000Z', tijdslot: '08:30–11:30', tijdslotDatum: '2026-10-14' };
 const TICKET = (over = {}) => ({
   id: '555', number: '1004', subject: 'FW: Laadpaal defect', status: 'Wachten op bevestiging planning',
   interventieDatum: '2026-10-14T06:30:00.000Z', email: 'contact@x.be', emailEindklant: 'klant@x.be', emailInstallateur: 'inst@x.be',
@@ -260,6 +261,30 @@ test('herinnering: een ticket 3 dagen vooraf zonder bevestiging of antwoord krij
 test('herinnering: dezelfde ontvanger onder twee doelgroepen (hoofdletterongevoelig) krijgt één mail; zonder adres geen mail', async () => {
   const { calls } = await draai({ tickets: [TICKET({ email: 'Klant@X.be', emailEindklant: 'klant@x.be', emailInstallateur: '' })] });
   assert.deepEqual(calls.filter(c => c.url.endsWith('/sendReply')).map(c => JSON.parse(c.body).to), ['Klant@X.be']);
+});
+
+test('herinnering: een doelgroep zonder tijdstip in het register (uitgevinkt in het voorstel) krijgt geen herinnering', async () => {
+  const register = { 555: { contact: TIJD1, klant: '2026-10-10T08:00:03.000Z', tijdslot: '08:30–11:30', tijdslotDatum: '2026-10-14' } };
+  const { r, calls, store } = await draai({ register });
+  assert.equal(r.verstuurd, 1);
+  assert.deepEqual(calls.filter(c => c.url.endsWith('/sendReply')).map(c => JSON.parse(c.body).to), ['contact@x.be', 'klant@x.be']);
+  assert.deepEqual(entryVan(store).herinnering, { datum: '2026-10-14', tijdstip: new Date(NU).toISOString() });
+});
+
+test('herinnering: eerst filteren op het register, dan ontdubbelen: een niet-gemaild contact met hetzelfde adres als de klant slokt de klantmail niet op', async () => {
+  const register = { 555: { klant: TIJD1, tijdslot: '08:30–11:30', tijdslotDatum: '2026-10-14' } };
+  const { calls } = await draai({ register, tickets: [TICKET({ email: 'zelfde@x.be', emailEindklant: 'ZELFDE@x.be', emailInstallateur: 'inst@x.be' })] });
+  const replies = calls.filter(c => c.url.endsWith('/sendReply')).map(c => JSON.parse(c.body));
+  assert.deepEqual(replies.map(x => x.to), ['ZELFDE@x.be']);
+  assert.ok(replies[0].content.includes('&d=klant&'));
+});
+
+test('herinnering: heeft geen enkele doelgroep met een adres een tijdstip, dan is er geen mail, geen PATCH en geen markering', async () => {
+  const register = { 555: { installateur: TIJD1, tijdslot: '08:30–11:30', tijdslotDatum: '2026-10-14' } };
+  const { r, calls, store } = await draai({ register, tickets: [TICKET({ emailInstallateur: '' })] });
+  assert.deepEqual(kort(calls), ['GET /tickets/555/threads?from=1&limit=100']);
+  assert.equal(r.verstuurd, 0);
+  assert.equal(entryVan(store).herinnering, undefined);
 });
 
 test('herinnering: zonder ZOHO_FROM_EMAIL volgt emailAddresses?limit=50 (eerste geldige adres)', async () => {

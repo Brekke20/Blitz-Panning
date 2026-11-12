@@ -761,6 +761,21 @@
       </div>
       <div class="set-field">
         <label class="set-label" id="proposal-email-label">Ontvangers</label>
+        <div class="ontv-rijen" id="proposal-rijen">
+          <div class="ontv-rij" data-doelgroep="contact">
+            <label class="ontv-vink"><input type="checkbox" id="proposal-ontv-contact" data-wijzig="voorstel-ontvanger"><span>Contactpersoon</span></label>
+            <span class="ontv-adres" id="proposal-adres-contact"></span>
+          </div>
+          <div class="ontv-rij" data-doelgroep="klant">
+            <label class="ontv-vink"><input type="checkbox" id="proposal-ontv-klant" data-wijzig="voorstel-ontvanger"><span>Klant</span></label>
+            <input class="set-input ontv-adres" type="text" inputmode="email" autocomplete="off" spellcheck="false" id="proposal-adres-klant" placeholder="e-mailadres klant" aria-label="Mailadres van de klant" data-invoer="voorstel-ontvanger" />
+          </div>
+          <div class="ontv-rij" data-doelgroep="installateur">
+            <label class="ontv-vink"><input type="checkbox" id="proposal-ontv-installateur" data-wijzig="voorstel-ontvanger"><span>Installateur</span></label>
+            <input class="set-input ontv-adres" type="text" inputmode="email" autocomplete="off" spellcheck="false" id="proposal-adres-installateur" placeholder="e-mailadres installateur" aria-label="Mailadres van de installateur" data-invoer="voorstel-ontvanger" />
+          </div>
+        </div>
+        <div class="ontv-fout" id="proposal-adres-fout" role="alert" style="display:none">⚠ Controleer het e-mailadres: één geldig adres per veld.</div>
         <div class="set-input" id="proposal-email" style="min-height:auto" role="region" aria-labelledby="proposal-email-label"></div>
       </div>
       <div id="proposal-no-email" style="display:none;font-size:0.78rem;color:#f59e0b;padding:4px 0 8px">
@@ -802,6 +817,21 @@
         <legend class="set-label">Klant verwittigen per mail?</legend>
         <label class="ann-optie"><input type="radio" name="ann-mail" id="annuleer-mail-ja" value="ja" checked data-wijzig="annuleer-wijzig"><span>Ja</span></label>
         <label class="ann-optie"><input type="radio" name="ann-mail" id="annuleer-mail-nee" value="nee" data-wijzig="annuleer-wijzig"><span>Nee, ik verwittig zelf</span></label>
+      <div class="ontv-rijen" id="annuleer-rijen">
+        <div class="ontv-rij" data-doelgroep="contact">
+          <label class="ontv-vink"><input type="checkbox" id="annuleer-ontv-contact" data-wijzig="annuleer-wijzig"><span>Contactpersoon</span></label>
+          <span class="ontv-adres" id="annuleer-adres-contact"></span>
+        </div>
+        <div class="ontv-rij" data-doelgroep="klant">
+          <label class="ontv-vink"><input type="checkbox" id="annuleer-ontv-klant" data-wijzig="annuleer-wijzig"><span>Klant</span></label>
+          <input class="set-input ontv-adres" type="text" inputmode="email" autocomplete="off" spellcheck="false" id="annuleer-adres-klant" placeholder="e-mailadres klant" aria-label="Mailadres van de klant" data-invoer="annuleer-wijzig" />
+        </div>
+        <div class="ontv-rij" data-doelgroep="installateur">
+          <label class="ontv-vink"><input type="checkbox" id="annuleer-ontv-installateur" data-wijzig="annuleer-wijzig"><span>Installateur</span></label>
+          <input class="set-input ontv-adres" type="text" inputmode="email" autocomplete="off" spellcheck="false" id="annuleer-adres-installateur" placeholder="e-mailadres installateur" aria-label="Mailadres van de installateur" data-invoer="annuleer-wijzig" />
+        </div>
+      </div>
+      <div class="ontv-fout" id="annuleer-adres-fout" role="alert" style="display:none">⚠ Controleer het e-mailadres: één geldig adres per veld.</div>
         <div class="ann-hint" id="annuleer-ontvangers" aria-live="polite"></div>
       </fieldset>
       <details class="ann-details" id="annuleer-details">

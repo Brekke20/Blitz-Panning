@@ -16,12 +16,58 @@ import { renderTickets } from './wachtrij.js';
 import { renderKalender } from './kalender.js';
 import { renderGepland } from './ingepland.js';
 import { bewaarVoorstelRegister, registerEntry, doelgroepenVoorAdressen } from './voorstel-register.js';
-import { tijdslotVoor, roundToNextQuarterStr, cleanTicketSubject, joinNL, DOELGROEP_LABEL } from './ticketdetail-logica.js';
+import { tijdslotVoor, roundToNextQuarterStr, cleanTicketSubject, joinNL, DOELGROEP_LABEL, ontvangerKeuze } from './ticketdetail-logica.js';
 
 // Afhankelijkheden uit app.js en andere schermen (ingevuld door initVoorstel); een vergeten init faalt luid.
 let afh = new Proxy({}, { get() { throw new Error('voorstel: initVoorstel() is niet aangeroepen'); } });
 
-let _proposalOntvangers = []; // ontvangerslijst berekend door openProposal(), gebruikt door updateProposalPreview()/sendProposal()
+// De ontvangers zijn per doelgroep (contact, klant, installateur) een vinkje en een adres in het venster (de DOM is de waarheid); hier staan
+// enkel de adressen van het ticket bij het openen (om een wijziging te herkennen) en of er een ongeldig adres staat (houdt de knop dicht).
+const DOELGROEPEN = ['contact', 'klant', 'installateur'];
+let _adres0 = { contact: '', klant: '', installateur: '' };
+let _heeftOngeldigAdres = false;
+
+function leesOntvangerRijen() {
+  const rijen = {};
+  for (const d of DOELGROEPEN) {
+    rijen[d] = {
+      adres0: _adres0[d],
+      aan: document.getElementById('proposal-ontv-' + d).checked,
+      adres: d === 'contact' ? _adres0.contact : document.getElementById('proposal-adres-' + d).value,
+    };
+  }
+  return ontvangerKeuze(rijen);
+}
+
+// Tekent de samenvatting ("Wordt verstuurd naar: …"), de waarschuwingen en de stand van de knop volgens de huidige keuze.
+function werkOntvangersBij() {
+  const keuze = leesOntvangerRijen();
+  document.getElementById('proposal-email').textContent = keuze.lijst.length
+    ? `Wordt verstuurd naar: ${keuze.lijst.join(', ')}`
+    : (DOELGROEPEN.some(d => _adres0[d]) ? 'Geen ontvanger aangevinkt — ticket wordt bijgewerkt maar er wordt geen mail verstuurd.'
+      : 'Geen gekend e-mailadres — ticket wordt bijgewerkt maar er wordt geen mail verstuurd.');
+  document.getElementById('proposal-no-email').style.display = keuze.lijst.length ? 'none' : '';
+  for (const d of ['klant', 'installateur']) {
+    document.getElementById('proposal-adres-' + d).closest('.ontv-rij').classList.toggle('ongeldig', keuze.ongeldig.includes(d));
+  }
+  document.getElementById('proposal-adres-fout').style.display = keuze.ongeldig.length ? '' : 'none';
+  _heeftOngeldigAdres = keuze.ongeldig.length > 0;
+  syncVoorstelKnop();
+  return keuze;
+}
+
+// Een vinkje of adres wijzigde: een adres dat in een leeg veld wordt ingetikt vinkt de doelgroep zelf aan (tenzij de planner het vinkje al aanraakte).
+function ontvangerGewijzigd(el) {
+  const m = /^proposal-(ontv|adres)-(klant|installateur|contact)$/.exec(el?.id || '');
+  if (m && m[1] === 'ontv') el.dataset.aangeraakt = '1';
+  if (m && m[1] === 'adres') {
+    const vink = document.getElementById('proposal-ontv-' + m[2]);
+    const waarde = el.value.trim();
+    if (!vink.checked && !vink.dataset.aangeraakt && waarde && !el.dataset.vorig) vink.checked = true;
+    el.dataset.vorig = waarde;
+  }
+  updateProposalPreview();
+}
 
 // De ene verzendknop van het voorstelvenster volgt de stand van het ticket dat het venster toont: 'bezig' (verzending of controle loopt),
 // 'dicht' (de mail is maar naar een deel van de ontvangers vertrokken: eerst in Zoho nakijken) of vrij. Zo blijft een vergrendeld ticket
@@ -31,7 +77,7 @@ function syncVoorstelKnop() {
   const knop = document.getElementById('proposal-send-btn');
   if (!knop) return;
   const stand = _knopStand.get(String(afh.actiefTicket()?.id ?? ''));
-  knop.disabled = !!stand;
+  knop.disabled = !!stand || _heeftOngeldigAdres;
   knop.textContent = stand === 'bezig' ? 'Bezig...' : '✉️ Verstuur voorstel';
 }
 function zetVoorstelKnop(ticketId, stand) {
@@ -46,7 +92,7 @@ export function initVoorstel(afhankelijkheden) {
     'voorstel-verstuur': () => sendProposal(),
     'voorstel-inert':    (el, e) => e.preventDefault(), // het voorbeeld-anker is inert: geen navigatie
   });
-  registreerWijzigActies(document.body, { 'voorstel-voorbeeld': () => updateProposalPreview() });
+  registreerWijzigActies(document.body, { 'voorstel-voorbeeld': () => updateProposalPreview(), 'voorstel-ontvanger': (el) => ontvangerGewijzigd(el) });
   const overlay = document.getElementById('proposal-overlay');
   registreerBackdrop(overlay, closeProposal);
   registreerVenster({ el: overlay, sluit: () => closeProposal() });
@@ -108,20 +154,22 @@ export function openProposal(ticketId, date, arrivalMin) {
   }
   document.getElementById('proposal-time').value = timeVal;
 
-  const contactEmail = afh.actiefTicket().email || null;
-  const seenEmails = new Set();
-  const ontvangers = [contactEmail, afh.actiefTicket().emailEindklant || null, afh.actiefTicket().emailInstallateur || null]
-    .filter(email => {
-      if (!email) return false;
-      const key = email.toLowerCase();
-      if (seenEmails.has(key)) return false;
-      seenEmails.add(key);
-      return true;
-    });
-  _proposalOntvangers = ontvangers;
-  document.getElementById('proposal-email').textContent = ontvangers.length
-    ? `Wordt verstuurd naar: ${ontvangers.join(', ')}`
-    : 'Geen gekend e-mailadres — ticket wordt bijgewerkt maar er wordt geen mail verstuurd.';
+  // Per doelgroep een vinkje (standaard aan als er een adres is) en het adres; het contactadres (Zoho-contact) is niet bewerkbaar.
+  const t = afh.actiefTicket();
+  _adres0 = { contact: t.email || '', klant: t.emailEindklant || '', installateur: t.emailInstallateur || '' };
+  for (const d of DOELGROEPEN) {
+    const vink = document.getElementById('proposal-ontv-' + d);
+    vink.checked = !!_adres0[d];
+    vink.disabled = d === 'contact' && !_adres0.contact;
+    delete vink.dataset.aangeraakt;
+    if (d === 'contact') document.getElementById('proposal-adres-contact').textContent = _adres0.contact || 'geen adres';
+    else {
+      const inv = document.getElementById('proposal-adres-' + d);
+      inv.value = _adres0[d];
+      inv.dataset.vorig = _adres0[d];
+    }
+  }
+  werkOntvangersBij();
 
   const name = afh.actiefTicket().naamEindklant || afh.actiefTicket().contact || '';
   document.getElementById('proposal-ticket-label').textContent =
@@ -134,6 +182,7 @@ export function openProposal(ticketId, date, arrivalMin) {
 
 export function updateProposalPreview() {
   if (!afh.actiefTicket()) return;
+  werkOntvangersBij();
   const date     = document.getElementById('proposal-date').value;
   const rawTime  = document.getElementById('proposal-time').value;
   // Weergave-tijdslot (Task 9, Blok 1C): de klant ziet nooit de exacte tijd, enkel het
@@ -156,8 +205,6 @@ export function updateProposalPreview() {
   const name     = escHtml(afh.actiefTicket().naamEindklant || afh.actiefTicket().contact || 'klant');
   const subj     = escHtml(cleanTicketSubject(afh.actiefTicket().subject));
   const sn       = escHtml(afh.actiefTicket().serienummer || '');
-
-  document.getElementById('proposal-no-email').style.display = _proposalOntvangers.length ? 'none' : '';
 
   const bolt = `<svg width="14" height="22" viewBox="0 0 14 22" xmlns="http://www.w3.org/2000/svg">`
     + `<line x1="9" y1="5" x2="6" y2="11" stroke="#00dfa3" stroke-width="3" stroke-linecap="round"/>`
@@ -193,7 +240,14 @@ export function updateProposalPreview() {
           ✅ Bevestig deze afspraak
         </a>
       </div>
-      <p style="margin:0 0 10px;font-size:12px;color:#3a3a3a">Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen, of antwoord op deze e-mail. Komt het voorgestelde tijdstip u niet uit? Laat het ons dan weten via een antwoord op deze e-mail, zodat we samen een alternatief zoeken. In bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.</p>
+      <!-- Tweede knop: spiegelt bevestigKnoppenHtml() uit netlify/lib/voorstelmail.js (ook inert). -->
+      <div style="text-align:center;margin:0 0 14px">
+        <a href="#" data-actie="voorstel-inert" style="display:inline-block;color:#3a3a3a;
+          text-decoration:none;font-weight:600;font-size:12px;padding:8px 20px;border-radius:6px;border:1px solid #c9d0d8">
+          Deze datum lukt niet
+        </a>
+      </div>
+      <p style="margin:0 0 10px;font-size:12px;color:#3a3a3a">Klik op de knop hierboven en bevestig op de volgende pagina om deze afspraak vast te leggen. Lukt de datum niet? Kies dan "Deze datum lukt niet" of antwoord gewoon op deze e-mail. In bijlage vindt u onze service voorwaarden — door de afspraak te bevestigen gaat u hiermee akkoord.</p>
       <p style="margin:0;font-size:12px;color:#3a3a3a">Met vriendelijke groeten,<br><strong>Team Blitz Power — Service &amp; Support</strong></p>
     </div>
     <div style="background:#f7f7f7;border-top:1px solid #e8e8e8;padding:10px 18px;font-size:10px;color:#8a9aaa">
@@ -203,6 +257,12 @@ export function updateProposalPreview() {
       Blitz Power BV &nbsp;·&nbsp; Tel: +32 3 36 16 404 &nbsp;·&nbsp;
       <span style="color:#00dfa3">www.blitzpower.com</span>
     </div>`;
+}
+
+// Een nieuw of gewijzigd klant-/installateuradres staat na het verzenden ook in Zoho: het lokale ticket volgt (tot de volgende lading).
+function bewaarNieuweAdressen(ticket, keuze) {
+  if (keuze.adressen.klant) ticket.emailEindklant = keuze.adressen.klant;
+  if (keuze.adressen.installateur) ticket.emailInstallateur = keuze.adressen.installateur;
 }
 
 export function closeProposal(e) {
@@ -217,6 +277,8 @@ export async function sendProposal() {
   const rawTime        = document.getElementById('proposal-time').value;
 
   if (!date) return toast('⚠ Selecteer een datum');
+  const keuze = leesOntvangerRijen();
+  if (keuze.ongeldig.length) return toast('⚠ Controleer het e-mailadres: één geldig adres per veld.');
 
   zetVoorstelKnop(ticketId, 'bezig');
 
@@ -235,29 +297,27 @@ export async function sendProposal() {
     // Nieuw voorstel vervangt de oude registerentry (geen oude doelgroepen/bevestiging laten staan).
     // Realistisch register-effect: doelgroepen met tijdstip, zodat 🔒 en de annuleerknop verschijnen.
     const nuIso = new Date().toISOString();
-    const lc = e => (e || '').toLowerCase();
-    const inLijst = e => !!e && _proposalOntvangers.some(o => lc(o) === lc(e));
     const regEntry = apptWindowSend ? { tijdslot: apptWindowSend, tijdslotDatum: date } : {};
-    if (inLijst(afh.actiefTicket().email)) regEntry.contact = nuIso;
-    if (inLijst(afh.actiefTicket().emailEindklant)) regEntry.klant = nuIso;
-    if (inLijst(afh.actiefTicket().emailInstallateur)) regEntry.installateur = nuIso;
+    for (const d of keuze.doelgroepen) regEntry[d] = nuIso; // enkel de doelgroepen die de mail krijgen (aangevinkt, ontdubbeld)
+    bewaarNieuweAdressen(afh.actiefTicket(), keuze);
     toestand.get('voorstelStatus')[ticketId] = regEntry;
     document.getElementById('proposal-overlay').classList.remove('open');
     zetVoorstelKnop(ticketId, null);
     // allTickets is toegewezen: koppelRenders hertekent wachtrij, kalender en route (voorstelStatus
     // en planning zijn dan al bijgewerkt: de flush volgt pas na dit synchrone blok).
-    toast(`🧪 Testmodus — ${_proposalOntvangers.length ? 'voorstel verstuurd (demo)' : 'status bijgewerkt (geen e-mail)'}`, 3500);
+    toast(`🧪 Testmodus — ${keuze.lijst.length ? 'voorstel verstuurd (demo)' : 'status bijgewerkt (geen e-mail)'}`, 3500);
     return;
   }
 
   // Q1 (etappe 7): begin van de verzending en de ontvangers, voor de controle na een onzeker resultaat (enkel in de catch gebruikt).
   const verzendStart = performance.now();
   const verzendStartWand = Date.now(); // I1: loopt door tijdens slaapstand, performance.now() niet
-  const verwachtAdressen = [..._proposalOntvangers];
+  const verwachtAdressen = [...keuze.lijst];
   let onzekerAntwoord = false; // een antwoord waaruit niet blijkt of de mail vertrok (onleesbaar, of een foutstatus zonder { error })
   // B4: de ticketadressen, het tijdslot en de datum van DEZE verzending, vastgelegd vóór de fetch (het actieve ticket kan intussen wisselen).
   const registerInvoer = {
-    ticketMails: { email: afh.actiefTicket().email, emailEindklant: afh.actiefTicket().emailEindklant, emailInstallateur: afh.actiefTicket().emailInstallateur },
+    // Enkel de adressen die de mail krijgen (een uitgevinkte doelgroep telt nooit mee bij het terugvinden van een mail).
+    ticketMails: { email: keuze.adresVan.contact, emailEindklant: keuze.adresVan.klant, emailInstallateur: keuze.adresVan.installateur },
     tijdslot: apptWindowSend, date,
   };
   try {
@@ -277,6 +337,7 @@ export async function sendProposal() {
         subject:       cleanTicketSubject(afh.actiefTicket().subject),
         serienummer:   afh.actiefTicket().serienummer || '',
         appointmentWindow: apptWindowSend,
+        ...keuze.zendBody, // enkel wat afwijkt: ontvangers (vinkjes) en adressen (nieuw of gewijzigd klant-/installateuradres)
       }),
     });
     let leesbaar = true;
@@ -315,6 +376,7 @@ export async function sendProposal() {
     }
     afh.actiefTicket().status           = 'Wachten op bevestiging planning';
     afh.actiefTicket().interventieDatum = data.interventieDatum;
+    bewaarNieuweAdressen(afh.actiefTicket(), keuze); // de server bewaarde ze in Zoho (zelfde PATCH)
 
     toestand.set('allTickets', toestand.get('allTickets').filter(t => t.id !== ticketId));
     if (!toestand.get('allPending').find(t => t.id === ticketId)) toestand.get('allPending').push({ ...afh.actiefTicket() });

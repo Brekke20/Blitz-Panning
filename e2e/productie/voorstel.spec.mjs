@@ -640,3 +640,101 @@ test.describe('voorstel: onzeker resultaat, controle of de mail al weg is (Q1)',
     expect(mailCheckLijst(verzoeken)).toEqual([]);
   });
 });
+
+test.describe('voorstel: ontvangers aanpassen (vinkjes en adressen)', () => {
+  const DRIE = { emailEindklant: 'klant@test.be', emailInstallateur: 'installateur@test.be' };
+  const antwoordVolgensBody = (z, emailSent) => z.zetAntwoord('propose', ({ body }) => ({
+    status: 200,
+    json: {
+      success: true, ticketId: body.ticketId, interventieDatum: body.utcInterventieDatum, appointmentTime: body.time,
+      emailSent, fouten: [], ontvangers: Object.keys(emailSent).filter(d => emailSent[d]),
+    },
+  }));
+
+  test('een vinkje uit: ontvangers.contact = false in de body en het adres verdwijnt uit "Wordt verstuurd naar"', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/propose', '/api/voorstel-status'], stubs: { tickets: metP1(DRIE) } });
+    antwoordVolgensBody(z, { contact: false, klant: true, installateur: true });
+    await openVoorstel(page);
+    await vulIn(page, '2026-10-08', '10:00');
+    await expect(venster(page).locator('#proposal-email')).toHaveText('Wordt verstuurd naar: luc@test.be, klant@test.be, installateur@test.be');
+    await venster(page).getByLabel('Contactpersoon').uncheck();
+    await expect(venster(page).locator('#proposal-email')).toHaveText('Wordt verstuurd naar: klant@test.be, installateur@test.be');
+    await verstuurKnop(page).click();
+    await expect(toastTekst(page)).toHaveText('✓ Voorstel verstuurd naar klant en installateur');
+
+    expect(z.opnames.propose).toEqual([{
+      methode: 'POST', body: { ...PROPOSE_BODY, ontvangers: { contact: false, klant: true, installateur: true } }, query: {},
+    }]);
+    await expect.poll(() => z.opnames['voorstel-status'].filter(o => o.methode === 'POST').length).toBe(1);
+    expect(z.opnames['voorstel-status'].filter(o => o.methode === 'POST').map(o => o.body.doelgroepen)).toEqual([['klant', 'installateur']]);
+  });
+
+  test('alles uitgevinkt: geen ontvangers, waarschuwing, body met drie keer false', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/propose', '/api/voorstel-status'], stubs: { tickets: metP1(DRIE) } });
+    antwoordVolgensBody(z, { contact: false, klant: false, installateur: false });
+    await openVoorstel(page);
+    await vulIn(page, '2026-10-08', '10:00');
+    for (const naam of ['Contactpersoon', 'Klant', 'Installateur']) await venster(page).getByLabel(naam, { exact: true }).uncheck();
+    await expect(venster(page).locator('#proposal-email')).toHaveText('Geen ontvanger aangevinkt — ticket wordt bijgewerkt maar er wordt geen mail verstuurd.');
+    await expect(venster(page).locator('#proposal-no-email')).toBeVisible();
+    await verstuurKnop(page).click();
+    await expect(toastTekst(page)).toHaveText('✓ Status bijgewerkt (geen e-mailadres)');
+    expect(z.opnames.propose.map(o => o.body.ontvangers)).toEqual([{ contact: false, klant: false, installateur: false }]);
+  });
+
+  test('een klantadres invullen (nog geen adres): vinkje gaat vanzelf aan, body bevat adressen.klant, het lokale ticket volgt', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, {
+      paden: ['/api/propose', '/api/voorstel-status'],
+      stubs: { tickets: metP1({ emailEindklant: '', emailInstallateur: '' }) },
+    });
+    antwoordVolgensBody(z, { contact: true, klant: true, installateur: false });
+    await openVoorstel(page);
+    await vulIn(page, '2026-10-08', '10:00');
+    await expect(venster(page).locator('#proposal-email')).toHaveText('Wordt verstuurd naar: luc@test.be');
+    await expect(venster(page).getByLabel('Klant', { exact: true })).not.toBeChecked();
+    await venster(page).getByLabel('Mailadres van de klant').fill('nieuw@klant.be');
+    await expect(venster(page).getByLabel('Klant', { exact: true })).toBeChecked();
+    await expect(venster(page).locator('#proposal-email')).toHaveText('Wordt verstuurd naar: luc@test.be, nieuw@klant.be');
+    await verstuurKnop(page).click();
+    await expect(toastTekst(page)).toHaveText('✓ Voorstel verstuurd naar contactpersoon en klant');
+
+    expect(z.opnames.propose).toEqual([{
+      methode: 'POST',
+      body: { ...PROPOSE_BODY, ontvangers: { contact: true, klant: true, installateur: false }, adressen: { klant: 'nieuw@klant.be' } },
+      query: {},
+    }]);
+    await expect.poll(() => z.opnames['voorstel-status'].filter(o => o.methode === 'POST').map(o => o.body.doelgroepen)).toEqual([['contact', 'klant']]);
+    expect(await page.evaluate(() => kern.toestand.get('allPending').find(t => t.id === 'p1').emailEindklant)).toBe('nieuw@klant.be');
+  });
+
+  test('een bestaand klantadres verbeteren: enkel adressen.klant in de body (geen ontvangers)', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/propose', '/api/voorstel-status'], stubs: { tickets: metP1(DRIE) } });
+    antwoordVolgensBody(z, { contact: true, klant: true, installateur: true });
+    await openVoorstel(page);
+    await vulIn(page, '2026-10-08', '10:00');
+    await venster(page).getByLabel('Mailadres van de klant').fill('verbeterd@test.be');
+    await verstuurKnop(page).click();
+    await expect(toastTekst(page)).toHaveText('✓ Voorstel verstuurd naar contactpersoon, klant en installateur');
+    expect(z.opnames.propose.map(o => o.body)).toEqual([{ ...PROPOSE_BODY, adressen: { klant: 'verbeterd@test.be' } }]);
+  });
+
+  test('een ongeldig adres houdt de verzendknop dicht (en een uitgevinkt ongeldig adres niet)', async ({ page, verzoeken }) => {
+    const z = await start(page, verzoeken, { paden: ['/api/propose', '/api/voorstel-status'], stubs: { tickets: metP1(DRIE) } });
+    await openVoorstel(page);
+    await vulIn(page, '2026-10-08', '10:00');
+    await expect(verstuurKnop(page)).toBeEnabled();
+    for (const slecht of ['kapot', 'a@x.be, b@x.be', 'a b@x.be']) {
+      await venster(page).getByLabel('Mailadres van de klant').fill(slecht);
+      await expect(verstuurKnop(page)).toBeDisabled();
+      await expect(venster(page).locator('#proposal-adres-fout')).toBeVisible();
+    }
+    await venster(page).getByLabel('Klant', { exact: true }).uncheck();
+    await expect(verstuurKnop(page)).toBeEnabled();
+    await expect(venster(page).locator('#proposal-adres-fout')).toBeHidden();
+    await venster(page).getByLabel('Klant', { exact: true }).check();
+    await expect(verstuurKnop(page)).toBeDisabled();
+    await venster(page).getByLabel('Mailadres van de klant').fill('goed@test.be');
+    await expect(verstuurKnop(page)).toBeEnabled();
+    expect(z.opnames.propose).toEqual([]);
+  });
+});

@@ -125,3 +125,75 @@ test('detailUrgentie: wacht op bevestiging = oranje, ingepland = groen, anders v
   assert.equal(detailUrgentie({ status: 'Service in te plannen', ingepland: false, overdue: false, priority: 'Low' }), 'groen');
   assert.equal(detailUrgentie({ status: 'Service in te plannen', ingepland: false, overdue: false, priority: null }), null);
 });
+
+// ---- ontvangers van een voorstel- of annuleermail ----
+import { isGeldigAdres, ontvangerKeuze } from '../public/js/schermen/ticketdetail-logica.js';
+
+const rij = (adres0, over = {}) => ({ adres0, aan: !!adres0, adres: adres0, ...over });
+const RIJEN = () => ({ contact: rij('c@x.be'), klant: rij('k@x.be'), installateur: rij('i@x.be') });
+
+test('isGeldigAdres: één adres; geen scheidingstekens, spaties of regeleinden', () => {
+  for (const a of ['a@x.be', 'jan.peeters+blitz@sub.firma.be']) assert.equal(isGeldigAdres(a), true, a);
+  for (const a of ['', 'a', 'a@b', 'a@x.be, b@x.be', 'a@x.be;b@x.be', 'a b@x.be', 'a@x.be\r\nBcc: m@x.be', `${'a'.repeat(250)}@x.be`, null, 5]) assert.equal(isGeldigAdres(a), false, String(a));
+});
+
+test('ontvangerKeuze: ongewijzigd = alles aan, lege zendBody (oude body blijft gelijk)', () => {
+  const k = ontvangerKeuze(RIJEN());
+  assert.deepEqual(k.lijst, ['c@x.be', 'k@x.be', 'i@x.be']);
+  assert.deepEqual(k.doelgroepen, ['contact', 'klant', 'installateur']);
+  assert.deepEqual(k.zendBody, {});
+  assert.deepEqual(k.ongeldig, []);
+});
+
+test('ontvangerKeuze: uitvinken geeft ontvangers.x = false en haalt het adres uit de lijst', () => {
+  const r = RIJEN(); r.contact.aan = false;
+  const k = ontvangerKeuze(r);
+  assert.deepEqual(k.lijst, ['k@x.be', 'i@x.be']);
+  assert.deepEqual(k.zendBody, { ontvangers: { contact: false, klant: true, installateur: true } });
+  assert.equal(k.adresVan.contact, '');
+});
+
+test('ontvangerKeuze: een nieuw klantadres (aangevinkt) gaat in adressen.klant; getrimd', () => {
+  const r = { contact: rij('c@x.be'), klant: rij('', { aan: true, adres: ' nieuw@klant.be ' }), installateur: rij('') };
+  const k = ontvangerKeuze(r);
+  assert.deepEqual(k.lijst, ['c@x.be', 'nieuw@klant.be']);
+  assert.deepEqual(k.zendBody, { ontvangers: { contact: true, klant: true, installateur: false }, adressen: { klant: 'nieuw@klant.be' } });
+});
+
+test('ontvangerKeuze: een gewijzigd adres op een bestaand adres: enkel adressen, geen ontvangers', () => {
+  const r = RIJEN(); r.installateur.adres = 'andere@inst.be';
+  assert.deepEqual(ontvangerKeuze(r).zendBody, { adressen: { installateur: 'andere@inst.be' } });
+});
+
+test('ontvangerKeuze: een aangevinkt maar leeggemaakt veld gaat als false (de server valt anders terug op het Zoho-adres)', () => {
+  const r = RIJEN(); r.klant.adres = '  ';
+  const k = ontvangerKeuze(r);
+  assert.deepEqual(k.zendBody, { ontvangers: { contact: true, klant: false, installateur: true } });
+  assert.deepEqual(k.lijst, ['c@x.be', 'i@x.be']);
+});
+
+test('ontvangerKeuze: een ongeldig aangevinkt adres staat in ongeldig; een uitgevinkt ongeldig adres niet', () => {
+  const r = RIJEN(); r.klant.adres = 'kapot';
+  assert.deepEqual(ontvangerKeuze(r).ongeldig, ['klant']);
+  r.klant.aan = false;
+  assert.deepEqual(ontvangerKeuze(r).ongeldig, []);
+  assert.equal(ontvangerKeuze(r).zendBody.adressen, undefined);
+});
+
+test('ontvangerKeuze: een dubbel adres telt eenmaal (eerste doelgroep); eerst filteren dan ontdubbelen', () => {
+  const r = { contact: rij('zelfde@x.be'), klant: rij('ZELFDE@x.be'), installateur: rij('') };
+  let k = ontvangerKeuze(r);
+  assert.deepEqual(k.lijst, ['zelfde@x.be']);
+  assert.deepEqual(k.doelgroepen, ['contact']);
+  r.contact.aan = false;
+  k = ontvangerKeuze(r);
+  assert.deepEqual(k.lijst, ['ZELFDE@x.be']);
+  assert.deepEqual(k.doelgroepen, ['klant']);
+});
+
+test('ontvangerKeuze: nul aangevinkt = lege lijst', () => {
+  const r = RIJEN(); for (const d of Object.keys(r)) r[d].aan = false;
+  const k = ontvangerKeuze(r);
+  assert.deepEqual(k.lijst, []);
+  assert.deepEqual(k.zendBody.ontvangers, { contact: false, klant: false, installateur: false });
+});

@@ -146,8 +146,10 @@ export function bouwOvergeslagenNotitie({ tijdstip, van }) {
 
 // ---------------------------------------------------------------- uitvoering
 
-// De ontvangers zoals het voorstel ze bepaalt: contactpersoon, eindklant, installateur; hetzelfde adres (hoofdletterongevoelig) maar één keer.
-function ontvangersVan(ticket) {
+// De ontvangers zoals het voorstel ze bepaalde: contactpersoon, eindklant, installateur, enkel de doelgroepen die het voorstel effectief kregen
+// (een tijdstip in het register: de planner kan een doelgroep uitvinken); hetzelfde adres (hoofdletterongevoelig) maar één keer. Eerst filteren,
+// dan ontdubbelen, zodat een niet-gemaild contact met hetzelfde adres als de klant de klantmail niet opslokt.
+function ontvangersVan(ticket, entry) {
   const gezien = new Set();
   return [
     { doelgroep: 'contact', email: ticket.email },
@@ -155,7 +157,7 @@ function ontvangersVan(ticket) {
     { doelgroep: 'installateur', email: ticket.emailInstallateur },
   ].filter(o => {
     const sleutel = String(o.email || '').toLowerCase();
-    if (!sleutel || gezien.has(sleutel)) return false;
+    if (!sleutel || !Number.isFinite(Date.parse(entry?.[o.doelgroep])) || gezien.has(sleutel)) return false;
     gezien.add(sleutel);
     return true;
   });
@@ -205,7 +207,7 @@ async function herinner({ ticket, beoordeling, entry, zoho, toegang, store, nu, 
     return;
   }
 
-  const ontvangers = ontvangersVan(ticket);
+  const ontvangers = ontvangersVan(ticket, entry);
   if (!ontvangers.length) { samenvatting.overgeslagen++; return; }
   const afzender = await fromAdres();
 

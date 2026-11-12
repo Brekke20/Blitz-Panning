@@ -638,3 +638,98 @@ test('propose: sleutelvolgorde van de uitgaande headers', async () => {
   assert.deepEqual(Object.keys(r.calls[4].headers), ['Authorization', 'orgId', 'Content-Type']); // sendReply
   assert.deepEqual(Object.keys(r.calls[5].headers), ['Authorization', 'orgId', 'Content-Type']); // PATCH
 });
+
+// ============================================== ontvangers aanpassen (vinkjes en adressen) ====
+const patchMet = (cf, utc = '2026-10-14T07:15:00.000Z') => ({
+  method: 'PATCH', url: `${DESK}/tickets/555`, headers: JSON_HEADERS,
+  body: JSON.stringify({ status: 'Wachten op bevestiging planning', cf: { cf_interventie_datm: utc, ...cf } }),
+});
+
+test('propose: een uitgevinkte doelgroep krijgt geen sendReply; de rest wel (met de eigen link)', async () => {
+  const r = await draai(post({ ...BODY, ontvangers: { contact: false, klant: true, installateur: true } }));
+  assert.deepEqual(r.calls, [
+    TOKEN_CALL, ORG_CALL, TICKET_CALL,
+    uploadCall(), replyCall('klant@x.be', 'ATT1'),
+    uploadCall(), replyCall('inst@x.be', 'ATT2'),
+    patchCall(),
+  ]);
+  assert.ok(r.mails[0].includes('&d=klant&'));
+  assert.ok(r.mails[1].includes('&d=installateur&'));
+  assert.deepEqual(JSON.parse(r.res.body), OK({
+    emailSent: { contact: false, klant: true, installateur: true }, ontvangers: ['klant', 'installateur'],
+  }));
+});
+
+test('propose: alles uitgevinkt gedraagt zich als zonder adres: geen mail, wel de status-PATCH', async () => {
+  const r = await draai(post({ ...BODY, ontvangers: { contact: false, klant: false, installateur: false } }));
+  assert.deepEqual(r.calls, [TOKEN_CALL, ORG_CALL, TICKET_CALL, patchCall()]);
+  assert.deepEqual(JSON.parse(r.res.body), OK({ emailSent: { contact: false, klant: false, installateur: false }, ontvangers: [] }));
+});
+
+test('propose: een uitgevinkt contact met hetzelfde adres als de klant slokt de klantmail niet op (eerst filteren, dan ontdubbelen)', async () => {
+  const ticket = { contact: { email: 'zelfde@x.be' }, cf: { cf_e_mail_eindklant: 'ZELFDE@x.be' } };
+  const r = await draai(post({ ...BODY, ontvangers: { contact: false, klant: true, installateur: true } }), { ticket });
+  assert.deepEqual(r.calls, [
+    TOKEN_CALL, ORG_CALL, TICKET_CALL,
+    uploadCall(), replyCall('ZELFDE@x.be', 'ATT1'),
+    patchCall(),
+  ]);
+  assert.ok(r.mails[0].includes('&d=klant&'));
+});
+
+test('propose: een nieuw klantadres (geen adres in Zoho) krijgt de mail en wordt in dezelfde PATCH bewaard', async () => {
+  const ticket = { contact: { email: 'contact@x.be' }, cf: {} };
+  const r = await draai(post({ ...BODY, ontvangers: { contact: true, klant: true, installateur: false }, adressen: { klant: '  Nieuw@Klant.be ' } }), { ticket });
+  assert.deepEqual(r.calls, [
+    TOKEN_CALL, ORG_CALL, TICKET_CALL,
+    uploadCall(), replyCall('contact@x.be', 'ATT1'),
+    uploadCall(), replyCall('Nieuw@Klant.be', 'ATT2'),
+    patchMet({ cf_e_mail_eindklant: 'Nieuw@Klant.be' }),
+  ]);
+  assert.deepEqual(JSON.parse(r.res.body), OK({
+    emailSent: { contact: true, klant: true, installateur: false }, ontvangers: ['contact', 'klant'],
+  }));
+});
+
+test('propose: een gewijzigd installateuradres vervangt het Zoho-adres; een gelijk adres (hoofdletterongevoelig) laat de PATCH ongemoeid', async () => {
+  let r = await draai(post({ ...BODY, adressen: { installateur: 'andere@inst.be', klant: 'KLANT@x.be' } }));
+  assert.deepEqual(r.calls.filter(c => c.url.endsWith('/sendReply')).map(c => JSON.parse(c.body).to), ['contact@x.be', 'KLANT@x.be', 'andere@inst.be']);
+  assert.deepEqual(r.calls.at(-1), patchMet({ cf_e_mail_installateur: 'andere@inst.be' }));
+});
+
+test('propose: een ongeldig adres geeft 400 vóór elke aanvraag (ook vóór de testmodus); geen Zoho-schrijfactie', async () => {
+  for (const klant of ['geen-adres', 'a@b', 'a@x.be, b@x.be', 'a@x.be;b@x.be', 'a b@x.be', 'a@x.be\r\nBcc: m@x.be', 'a@x.be\nBcc: m@x.be', `${'a'.repeat(250)}@x.be`, 42, {}, ['a@x.be']]) {
+    for (const kop of [undefined, { 'X-Blitz-Test': '1' }]) {
+      const r = await draai(post({ ...BODY, adressen: { klant } }, kop));
+      assert.deepEqual(r.calls, [], `geen aanvragen voor ${JSON.stringify(klant)}`);
+      assert.equal(r.res.statusCode, 400);
+      assert.match(JSON.parse(r.res.body).error, /e-mailadres/);
+    }
+  }
+  for (const ontvangers of [{ klant: 'ja' }, { contact: 1 }, 'alles', [true]]) {
+    const r = await draai(post({ ...BODY, ontvangers }));
+    assert.deepEqual(r.calls, []);
+    assert.equal(r.res.statusCode, 400);
+  }
+  const r = await draai(post({ ...BODY, adressen: 'x@y.be' }));
+  assert.deepEqual(r.calls, []);
+  assert.equal(r.res.statusCode, 400);
+});
+
+test('propose: een body zonder de nieuwe velden geeft exact het oude gedrag (alle drie de ontvangers)', async () => {
+  const r = await draai(post(BODY));
+  assert.deepEqual(r.calls, [
+    TOKEN_CALL, ORG_CALL, TICKET_CALL,
+    uploadCall(), replyCall('contact@x.be', 'ATT1'),
+    uploadCall(), replyCall('klant@x.be', 'ATT2'),
+    uploadCall(), replyCall('inst@x.be', 'ATT3'),
+    patchCall(),
+  ]);
+  assert.deepEqual(JSON.parse(r.res.body), OK());
+});
+
+test('propose: een leeg adres wist het Zoho-veld niet en overschrijft het adres niet', async () => {
+  const r = await draai(post({ ...BODY, adressen: { klant: '   ', installateur: '' } }));
+  assert.deepEqual(r.calls.at(-1), patchCall());
+  assert.equal(r.calls.filter(c => c.url.endsWith('/sendReply')).length, 3);
+});

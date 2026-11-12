@@ -393,10 +393,10 @@ test.describe('ticketdetail: voorstel (?test)', () => {
     await expect(toast(page)).toHaveText('🧪 Testmodus — voorstel verstuurd (demo)');
     await expect(modal).toBeHidden();
     const vs = await page.evaluate(() => kern.toestand.get('voorstelStatus').p1);
-    // luc@test.be is zowel contact als eindklant: beide doelgroepen krijgen een tijdstip.
-    expect(Object.keys(vs).sort()).toEqual(['contact', 'klant', 'tijdslot', 'tijdslotDatum']);
+    // luc@test.be is zowel contact als eindklant: het adres telt eenmaal (zoals de server ontdubbelt), dus enkel contact krijgt een tijdstip
+    // (bewuste wijziging: de testmodus stempelde vroeger ook klant; het register volgt nu de doelgroepen die de mail echt krijgen).
+    expect(Object.keys(vs).sort()).toEqual(['contact', 'tijdslot', 'tijdslotDatum']);
     expect(vs.contact).toMatch(/^\d{4}-\d\d-\d\dT/);
-    expect(vs.klant).toBe(vs.contact);
     expect(vs.tijdslotDatum).toBe('2026-10-07');
     // Gemeten: tijdstip 10:00 met de standaard tijdslotgrootte (3 u) geeft 09:30–12:30.
     expect(vs.tijdslot).toBe('09:30–12:30');
@@ -425,9 +425,14 @@ test.describe('ticketdetail: voorstel (?test)', () => {
     });
     await expect(modal.locator('#proposal-preview')).toContainText('08:30–11:30');
     // Het anker "Bevestig deze afspraak" is inert: geen navigatie (geen #-hash) en het venster blijft open.
-    await modal.locator('#proposal-preview a[data-actie="voorstel-inert"]').click();
+    await modal.locator('#proposal-preview a[data-actie="voorstel-inert"]').first().click();
+    await modal.locator('#proposal-preview a[data-actie="voorstel-inert"]').last().click();
     expect(await page.evaluate(() => location.hash)).toBe('');
     await expect(page.locator('#proposal-overlay')).toHaveClass(/open/);
+    // Het voorbeeld toont ook de tweede knop van de echte mail (lib/voorstelmail.js), eveneens inert.
+    await expect(modal.locator('#proposal-preview a[data-actie="voorstel-inert"]')).toHaveCount(2);
+    await expect(modal.locator('#proposal-preview')).toContainText('Deze datum lukt niet');
+    await expect(modal.locator('#proposal-preview')).toContainText('Lukt de datum niet?');
   });
 });
 
@@ -799,6 +804,29 @@ test.describe('ticketdetail: voorstel, voorbeeld en ontvangers (?test)', () => {
     const vs = await page.evaluate(() => kern.toestand.get('voorstelStatus').p1);
     // Geen contact-sleutel: de contactmail is leeg.
     expect(Object.keys(vs).sort()).toEqual(['installateur', 'klant', 'tijdslot', 'tijdslotDatum']);
+    await page.clock.runFor(1000);
+    expect(verzoeken.van('/api/propose')).toEqual([]);
+  });
+
+  test('testmodus: een uitgevinkte doelgroep komt niet in het register; een ingevuld klantadres wel (en het ticket volgt)', async ({ page, verzoeken }) => {
+    await startApp(page);
+    await page.evaluate(() => {
+      const t = kern.toestand.get('allPending').find(x => x.id === 'p1');
+      Object.assign(t, { email: 'contact@test.be', emailEindklant: '', emailInstallateur: 'inst@test.be' });
+    });
+    const detail = await open1004(page);
+    await detail.locator('#d-btn-proposal').click();
+    const modal = detailVan(page, '📨 Afspraakvoorstel');
+    await expect(modal.locator('#proposal-email')).toHaveText('Wordt verstuurd naar: contact@test.be, inst@test.be');
+    await modal.getByLabel('Installateur', { exact: true }).uncheck();
+    await modal.getByLabel('Mailadres van de klant').fill('nieuw@klant.be');
+    await expect(modal.locator('#proposal-email')).toHaveText('Wordt verstuurd naar: contact@test.be, nieuw@klant.be');
+    await modal.getByRole('button', { name: '✉️ Verstuur voorstel' }).click();
+    await page.clock.runFor(600);
+    await expect(page.locator('#toast')).toHaveText('🧪 Testmodus — voorstel verstuurd (demo)');
+    const vs = await page.evaluate(() => kern.toestand.get('voorstelStatus').p1);
+    expect(Object.keys(vs).sort()).toEqual(['contact', 'klant', 'tijdslot', 'tijdslotDatum']);
+    expect(await page.evaluate(() => kern.toestand.get('allPending').find(x => x.id === 'p1').emailEindklant)).toBe('nieuw@klant.be');
     await page.clock.runFor(1000);
     expect(verzoeken.van('/api/propose')).toEqual([]);
   });
