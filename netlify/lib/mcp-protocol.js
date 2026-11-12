@@ -31,7 +31,7 @@ const INSTRUCTIES = [
   'Rapporten zijn interventie- en installatierapporten van techniekers (actief + jaararchieven); open tickets komen uit een momentopname van Zoho Desk (veld momentopname = tijdstip); planning = tickets met een interventiedatum, handmatige afspraken, verlof, globale blokkades en Belgische feestdagen.',
   `De oorzaak van een storing komt uit een vaste lijst (${OORZAAK_LABELS.join(', ')}; oude rapporten kunnen nog Productfout of Configuratiefout hebben) en is dus betrouwbaar om te tellen.`,
   'Probleem en acties zijn vrije tekst: lees ze, maar tel er niet op. Serienummers worden genormaliseerd (spaties weg, hoofdletters).',
-  'Je ziet enkel wat de gekoppelde gebruiker in de tool mag zien (een technieker enkel zijn eigen rapporten en planning, plus afspraken zonder persoon). Antwoorden zijn afgekapt op 200 items (afgekapt: true, totaal).',
+  'Je ziet enkel wat de gekoppelde gebruiker in de tool mag zien (een technieker enkel zijn eigen rapporten en planning, plus afspraken zonder persoon, blokkades, feestdagen en enkel zijn eigen verlof: van een technieker zie je het verlof van andere techniekers niet, zeg dus nooit dat een collega zeker vrij is). Antwoorden zijn afgekapt op 200 items (afgekapt: true, totaal).',
 ].join('\n');
 
 // ---------- JSON-RPC ----------
@@ -424,7 +424,7 @@ const GEREEDSCHAPPEN = [
   {
     name: 'planning_lezen',
     title: 'Planning lezen',
-    description: 'Ingeplande tickets (met voorstel- en bevestigingsstatus), handmatige afspraken, afwezigheden (soort afwezig: verlof van een persoon, hele dag of van/tot), blokkades (soort blokkade: iedereen geblokkeerd) en Belgische feestdagen (soort feestdag) per dag, in Brusselse tijd. Gebruik dit ook voor "wie is vrij op ...?": een technieker is niet vrij bij een afwezigheid, blokkade of feestdag. Zonder periode: vandaag en de 13 dagen erna; hoogstens 366 dagen.',
+    description: 'Ingeplande tickets (met voorstel- en bevestigingsstatus), handmatige afspraken, afwezigheden (soort afwezig: verlof van een persoon, hele dag of van/tot), blokkades (soort blokkade: iedereen geblokkeerd) en Belgische feestdagen (soort feestdag) per dag, in Brusselse tijd. Gebruik dit ook voor "wie is vrij op ...?": een technieker is niet vrij bij een afwezigheid, blokkade of feestdag. Voor een gekoppelde technieker staat enkel zijn eigen verlof erin, niet dat van andere techniekers. Zonder periode: vandaag en de 13 dagen erna; hoogstens 366 dagen.',
     inputSchema: { type: 'object', properties: { ...PERIODE, technieker: s('Naam (of een deel ervan) van de technieker.') } },
     annotations: LEZEN,
     uitvoer: planningLezen,
