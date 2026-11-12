@@ -353,6 +353,67 @@ test('planning_lezen: zonder momentopname enkel afspraken + waarschuwing; foute 
   }
 });
 
+const BESCHIKBAAR = {
+  versie: 2,
+  exceptions: [
+    { id: 'v1', scope: 'person', person: 'Jan Peeters', date: '2026-11-16', kind: 'fullday', from: null, to: null, reason: 'Verlof' },
+    { id: 'v2', scope: 'person', person: 'Piet Janssens', date: '2026-11-16', kind: 'range', from: '13:00', to: '17:00', reason: 'Tandarts' },
+    { id: 'g1', scope: 'global', person: null, date: '2026-11-17', kind: 'fullday', from: null, to: null, reason: 'Teamdag' },
+    { id: 'g2', scope: 'global', person: null, date: '2026-11-18', kind: 'range', from: '08:00', to: '12:00', reason: 'Vergadering' },
+    { id: 'v3', scope: 'person', person: 'Jan Peeters', date: '2026-12-30', kind: 'range', from: '09:00', to: '11:30', reason: '' },
+  ],
+};
+const sleutelAfw = i => `${i.soort}:${i.id}:${i.datum}:${i.persoon ?? '-'}:${i.heleDag ? 'dag' : i.van + '-' + i.tot}`;
+
+test('planning_lezen planner: verlof, blokkades (hele dag en van/tot) en feestdagen', async () => {
+  const blobs = basisBlobs({ availability: BESCHIKBAAR });
+  const p = data(await roep(PLANNER, 'planning_lezen', { van: '2026-11-16', tot: '2026-11-18' }, bron(blobs)));
+  assert.deepEqual(p.items.map(sleutelAfw), [
+    'afwezig:v1:2026-11-16:Jan Peeters:dag',
+    'afwezig:v2:2026-11-16:Piet Janssens:13:00-17:00',
+    'blokkade:g1:2026-11-17:-:dag',
+    'blokkade:g2:2026-11-18:-:08:00-12:00',
+  ]);
+  assert.equal(p.items[0].reden, 'Verlof');
+  assert.equal(p.items[2].reden, 'Teamdag');
+  const f = data(await roep(PLANNER, 'planning_lezen', { van: '2026-11-11', tot: '2026-11-11' }, bron(blobs)));
+  assert.deepEqual(f.items, [{ soort: 'feestdag', id: 'feestdag-2026-11-11', datum: '2026-11-11', naam: 'Wapenstilstand' }]);
+  const b = data(await roep(BEHEER, 'planning_lezen', { van: '2026-11-16', tot: '2026-11-16' }, bron(blobs)));
+  assert.equal(b.items.length, 2);
+});
+
+test('planning_lezen technieker: globale blokkade, feestdag en eigen verlof, nooit het verlof van een collega (zoals de kalender)', async () => {
+  const blobs = basisBlobs({ availability: BESCHIKBAAR });
+  const t = data(await roep(TECH, 'planning_lezen', { van: '2026-11-16', tot: '2026-11-18' }, bron(blobs)));
+  assert.deepEqual(t.items.map(sleutelAfw), [
+    'afwezig:v1:2026-11-16:Jan Peeters:dag',
+    'blokkade:g1:2026-11-17:-:dag',
+    'blokkade:g2:2026-11-18:-:08:00-12:00',
+  ]);
+  const f = data(await roep(TECH, 'planning_lezen', { van: '2026-11-11', tot: '2026-11-11' }, bron(blobs)));
+  assert.deepEqual(f.items.map(i => i.soort), ['feestdag']);
+  const viaFilter = data(await roep(TECH, 'planning_lezen', { van: '2026-11-16', tot: '2026-11-18', technieker: 'Piet' }, bron(blobs)));
+  assert.deepEqual(viaFilter.items.map(i => i.id), ['g1', 'g2']);
+});
+
+test('planning_lezen: periode over de jaargrens geeft feestdagen van beide jaren; Pasen en Pinksteren 2026 en 2027', async () => {
+  const blobs = basisBlobs({ availability: BESCHIKBAAR });
+  const p = data(await roep(PLANNER, 'planning_lezen', { van: '2026-12-24', tot: '2027-01-02' }, bron(blobs)));
+  assert.deepEqual(p.items.map(i => `${i.soort}:${i.datum}:${i.naam ?? i.persoon}`), ['feestdag:2026-12-25:Kerstmis', 'afwezig:2026-12-30:Jan Peeters', 'feestdag:2027-01-01:Nieuwjaar']);
+  assert.deepEqual(p.items[1], { soort: 'afwezig', id: 'v3', datum: '2026-12-30', persoon: 'Jan Peeters', heleDag: false, van: '09:00', tot: '11:30', reden: null });
+  const namen = async (van, tot) => data(await roep(PLANNER, 'planning_lezen', { van, tot }, bron())).items.map(i => `${i.datum}:${i.naam}`);
+  assert.deepEqual(await namen('2026-04-01', '2026-06-01'), ['2026-04-06:Paasmaandag', '2026-05-01:Dag van de Arbeid', '2026-05-14:Hemelvaartsdag', '2026-05-25:Pinkstermaandag']);
+  assert.deepEqual(await namen('2027-03-01', '2027-05-31'), ['2027-03-29:Paasmaandag', '2027-05-01:Dag van de Arbeid', '2027-05-06:Hemelvaartsdag', '2027-05-17:Pinkstermaandag']);
+});
+
+test('planning_lezen: schrijft nooit (ook niet met beschikbaarheid en feestdagen)', async () => {
+  const store = maakNepStore(basisBlobs({ availability: BESCHIKBAAR }));
+  let schrijf = 0;
+  for (const m of ['set', 'setJSON', 'delete']) { const o = store[m]?.bind(store); if (o) store[m] = (...a) => { schrijf++; return o(...a); }; }
+  for (const g of [PLANNER, TECH]) data(await behandelRpc(rpc('tools/call', { name: 'planning_lezen', arguments: { van: '2026-11-11', tot: '2026-12-31' } }), { gebruiker: g, bronnen: { store, nu: NU } }));
+  assert.equal(schrijf, 0);
+});
+
 test('planning_lezen: zonder periode vanaf vandaag (Brussel) twee weken', async () => {
   const p = data(await roep(PLANNER, 'planning_lezen'));
   assert.equal(p.van, '2026-11-10');
