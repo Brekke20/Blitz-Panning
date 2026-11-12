@@ -12,9 +12,15 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Unreleased]
 
+## [2.11.0] — 2026-11-12
+
 ### Added
 - Rapporten bewaren voortaan ook het probleemtype en de garantiestatus van het ticket (enkel nieuwe rapporten).
 - Claude-connector (enkel lezen): Claude kan na aanmelden met de Blitz-login planning (ook verlof, blokkades en feestdagen), tickets en rapporten lezen en tellen; koppelingen intrekken in beheer. Een koppeling vervalt 30 dagen na het toestaan (daarna opnieuw toestaan) en meteen bij deactivatie of een wachtwoordwijziging.
+
+### Fixed
+- Rapporten: na het versturen bleef soms "Verstuur rapport" staan terwijl de mail wel in Zoho stond (vooral vlak na het afwerken van een rapport op de tablet). Het vinkje "verzonden" wordt nu altijd bewaard.
+- Rapporten: staat in het rapport "nieuwe interventie nodig", dan gaat het ticket na het versturen terug naar 'Open' in plaats van 'Gesloten - ov'.
 
 ## [2.10.0] — 2026-11-10
 

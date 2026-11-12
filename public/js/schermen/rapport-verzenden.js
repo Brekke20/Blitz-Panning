@@ -159,7 +159,9 @@ export async function verstuurRapport(rapportId, btn, ontvangers) {
     const res  = await fetch('/api/send-rapport', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ ticketId: r.ticketId, html, ticketNumber: r.ticketNumber }),
+      // Bugfix 2026-11-12: bij een nieuwe interventie zet de server het ticket op 'Open' i.p.v. 'Gesloten - ov'. Het veld gaat
+      // enkel mee als het waar is, zodat een gewone verzending dezelfde body houdt.
+      body:    JSON.stringify({ ticketId: r.ticketId, html, ticketNumber: r.ticketNumber, ...(vraagtNieuweInterventie(r) ? { nieuweInterventie: true } : {}) }),
     });
     let leesbaar = true;
     let data = await res.json().catch(() => null); // W5-fix: onleesbaar antwoord (bv. 502-HTML) wordt 'HTTP <status>'
@@ -183,13 +185,16 @@ export async function verstuurRapport(rapportId, btn, ontvangers) {
     for (const doelgroep of ['contact', 'klant', 'installateur']) {
       if (!data.emailSent?.[doelgroep]) continue;
       const tijdstip = new Date().toISOString();
-      const st = await schrijfRapportStatus({ rapportId, doelgroep, tijdstip, versie: afh.archiefVersie() });
+      // Bugfix 2026-11-12: zonder versiecontrole (de server zet enkel dit veld op dit item). Met de versie mee gaf een
+      // tussentijdse wijziging (bv. de Zoho-verwerking van een net bewaard rapport) een 409: mail weg, vinkje niet bewaard.
+      const st = await schrijfRapportStatus({ rapportId, doelgroep, tijdstip });
       if (!st.ok) {
         console.warn(`Rapport-verzonden opslaan voor ${doelgroep} mislukt:`, st.fout);
         emailedMaarNietOpgeslagen.push(doelgroep);
         continue;
       }
-      if (typeof st.versie === 'number') afh.zetArchiefVersie(st.versie);
+      // Zonder versiecontrole bewijst het antwoord niet dat het archief verder ongewijzigd is: enkel doorschuiven als het precies de volgende versie is.
+      if (typeof st.versie === 'number' && st.versie === afh.archiefVersie() + 1) afh.zetArchiefVersie(st.versie);
       const veld = doelgroep === 'contact' ? 'verzondenContact' : doelgroep === 'klant' ? 'verzondenKlant' : 'verzondenInstallateur';
       r[veld] = tijdstip;
       verzondenOntvangers.push(doelgroep);
@@ -215,6 +220,12 @@ export async function verstuurRapport(rapportId, btn, ontvangers) {
       toast('✕ ' + foutTekst(err) + ' — kijk in Zoho na of de mail vertrokken is, of herlaad de pagina en probeer opnieuw', 8000);
     }
   }
+}
+
+// Zelfde regel als het label "🔁 Nieuwe interventie" in rapport-archief.js: nieuwInter 'ja' en geen installatierapport.
+export function vraagtNieuweInterventie(r) {
+  const type = r?.interventieType || r?.rapportData?.interventieType || 'Interventie';
+  return type !== 'Installatie' && r?.nieuwInter === 'ja';
 }
 
 // De status-write per doelgroep (POST /api/rapport-verzonden). Gooit nooit. `versie` weglaten = geen versiecontrole (enkel het item op id).

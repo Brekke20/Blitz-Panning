@@ -42,7 +42,7 @@ export function bouwVerzendMelding({ verzonden = [], nietOpgeslagen = [], fouten
     duurMs = 8000;
   }
   if (statusFout) {
-    tekst += ` ⚠ Ticketstatus in Zoho kon niet naar "Gesloten - ov" gezet worden: ${statusFout}`;
+    tekst += ` ⚠ Ticketstatus in Zoho kon niet bijgewerkt worden: ${statusFout}`;
     duurMs = 8000;
   }
   // Een lange samengestelde melding blijft langer staan: 8 s tot 200 tekens, daarboven 25 ms extra per teken (max 15 s).

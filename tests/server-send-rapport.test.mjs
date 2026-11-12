@@ -569,3 +569,23 @@ test('de omgevingsvariabelen komen letterlijk in de token-aanvraag', async () =>
     assert.equal(r.calls[0].body, 'refresh_token=r%2Ft&client_id=c+id&client_secret=s%26s&grant_type=refresh_token');
   } finally { herstel(); }
 });
+
+// ---- bugfix 2026-11-12: nieuwe interventie -> 'Open' i.p.v. 'Gesloten - ov' ----
+test('nieuweInterventie: true -> de status-PATCH zet het ticket op Open', async () => {
+  const r = await draai(post({ ...BODY, nieuweInterventie: true }), { ticket: EEN });
+  assert.equal(r.res.statusCode, 200);
+  assert.deepEqual(antw(r.res).body, OK({ emailSent: ENKEL_CONTACT }));
+  assert.deepEqual(r.calls.at(-1), { ...PATCH_CALL, body: '{"status":"Open"}' });
+});
+
+test('nieuweInterventie: true + PATCH-fout: de foutlog noemt Open', async () => {
+  const r = await draai(post({ ...BODY, nieuweInterventie: true }), { ticket: EEN, patchRes: () => json({ errorCode: 'FORBIDDEN' }, 403) });
+  assert.deepEqual(r.gelogd, ['Ticketstatus naar Open zetten mislukt: Zoho PATCH fout (403): {"errorCode":"FORBIDDEN"}']);
+});
+
+test('nieuweInterventie die geen echte true is (bv. "ja" of false) -> blijft Gesloten - ov', async () => {
+  for (const waarde of ['ja', 'true', 1, false]) {
+    const r = await draai(post({ ...BODY, nieuweInterventie: waarde }), { ticket: EEN });
+    assert.deepEqual(r.calls.at(-1), PATCH_CALL, String(waarde));
+  }
+});

@@ -306,12 +306,10 @@ export function zohoStubs({ register, rapporten } = {}) {
         return { status: 200, json: id ? { versie: archief.versie, rapport: archief.rapports.find(r => r.id === id) || null } : structuredClone(archief) };
       };
     }
-    // rapport-verzonden.js: 409 bij een verkeerde versie, 404 bij een onbekend rapport, anders versie + 1 en het veld gezet.
+    // rapport-verzonden.js: 404 bij een onbekend rapport, anders versie + 1 en het veld gezet. Sinds de bugfix van 2026-11-12
+    // geen versiecontrole meer (een verouderde versie gaf een 409 terwijl de mail al weg was).
     if (naam === 'rapport-verzonden') {
       antwoorden[naam] = ({ body }) => {
-        if (typeof body?.versie === 'number' && body.versie !== archief.versie) {
-          return { status: 409, json: { error: 'Rapportarchief ondertussen gewijzigd, herlaad en probeer opnieuw', serverVersie: archief.versie } };
-        }
         const i = archief.rapports.findIndex(r => r.id === body?.id);
         if (i < 0) return { status: 404, json: { error: 'Rapport niet gevonden' } };
         const veld = body.doelgroep === 'contact' ? 'verzondenContact' : body.doelgroep === 'klant' ? 'verzondenKlant' : 'verzondenInstallateur';
