@@ -28,7 +28,7 @@ const INSTRUCTIES = [
   'Rapporten zijn interventie- en installatierapporten van techniekers (actief + jaararchieven); open tickets komen uit een momentopname van Zoho Desk (veld momentopname = tijdstip); planning = tickets met een interventiedatum, handmatige afspraken, verlof, globale blokkades en Belgische feestdagen.',
   `De oorzaak van een storing komt uit een vaste lijst (${OORZAAK_LABELS.join(', ')}; oude rapporten kunnen nog Productfout of Configuratiefout hebben) en is dus betrouwbaar om te tellen.`,
   'Probleem en acties zijn vrije tekst: lees ze, maar tel er niet op. Serienummers worden genormaliseerd (spaties weg, hoofdletters).',
-  'Je ziet enkel wat de gekoppelde gebruiker in de tool mag zien (ook een technieker ziet rapporten, planning en verlof van collegas). Antwoorden zijn afgekapt op 200 items (afgekapt: true, totaal).',
+  'Je ziet enkel wat de gekoppelde gebruiker in de tool mag zien (ook een technieker ziet rapporten, planning en verlof van andere techniekers). Antwoorden zijn afgekapt op 200 items (afgekapt: true, totaal).',
 ].join('\n');
 
 // ---------- JSON-RPC ----------
