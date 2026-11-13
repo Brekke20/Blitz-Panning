@@ -176,7 +176,7 @@ async function rapportLezen(args, ctx) {
   const id = tekstArg(args, 'id', { verplicht: true });
   const { rapporten, ontbrekendeJaren } = await eigenRapporten(ctx);
   const gevonden = rapporten.find(r => r && String(r.id ?? '') === id);
-    if (!gevonden) {
+  if (!gevonden) {
     const extra = ontbrekendeJaren.length ? ` (let op: het archief van ${ontbrekendeJaren.join(', ')} kon niet gelezen worden)` : '';
     return mislukt(`Rapport niet gevonden${extra}.`);
   }
