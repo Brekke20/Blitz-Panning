@@ -35,12 +35,24 @@ const zetToestel = (page, toestel, modus) => page.addInitScript(([gsm, m]) => {
 const nieuweVerzamelaar = () => ({ waarde: Infinity, waar: '', perVenster: {} });
 
 // Zet hemel en modus, voert de meting uit en eist dat de hemel intussen niet door de minuutcontrole is teruggezet.
+// De minuutcontrole van de app (hemel-laag.js, elke 60 s) zet de hemel terug naar het echte tijdstip; een lange meting (het dashboard op pc
+// duurt minuten) kan er dus een tegenkomen. Is de hemel intussen teruggezet, dan was de meting niet tegen de bedoelde hemel en doen we ze opnieuw
+// (hoogstens drie keer); de verzamelaars houden enkel het minimum bij, dus een herhaling kan niets verbergen. Een echte fout (de hemel bleef
+// staan en de meting faalt) valt meteen door.
 async function metHemel(page, hemel, modus, fn) {
-  await page.evaluate(([h, m]) => { document.documentElement.setAttribute('data-hemel', h); document.documentElement.setAttribute('data-theme', m); }, [hemel, modus]);
-  await expect(page.locator('html')).toHaveAttribute('data-hemel', hemel);
-  await wachtOpFrames(page, 2);
-  await fn();
-  await expect(page.locator('html'), 'de hemel bleef staan tijdens de meting').toHaveAttribute('data-hemel', hemel);
+  const hemelNu = () => page.evaluate(() => document.documentElement.getAttribute('data-hemel'));
+  for (let poging = 1; ; poging++) {
+    await page.evaluate(([h, m]) => { document.documentElement.setAttribute('data-hemel', h); document.documentElement.setAttribute('data-theme', m); }, [hemel, modus]);
+    await expect(page.locator('html')).toHaveAttribute('data-hemel', hemel);
+    await wachtOpFrames(page, 2);
+    let fout = null;
+    try { await fn(); } catch (e) { fout = e; }
+    if ((await hemelNu()) === hemel) {
+      if (fout) throw fout;
+      return;
+    }
+    if (poging >= 3) throw new Error(`de hemel werd ${poging} keer teruggezet tijdens de meting van ${hemel}${fout ? `: ${fout.message}` : ''}`);
+  }
 }
 
 // Geen overgangen of animaties tijdens het meten (een kaart kleurt anders 0,15 s lang van donker naar licht, een venster schuift in).
@@ -123,7 +135,9 @@ async function meetScrollend(page, wortelSels, label, verzamel) {
   for (let y = 0; ; y += stap) {
     await page.evaluate((to) => window.scrollTo(0, to), Math.min(y, hoogte));
     await wachtOpFrames(page, 2);
-    n += await controleerVlakken(page, wortelSels, `${label} y${Math.min(y, hoogte)}`, verzamel, { minimum: 0 });
+    // De sterren van de nachthemel (1 tot 1,5 px, vast op het scherm) tellen niet mee, net als in controleerLosseTekst: een ster achter een letter
+    // van de noot onderaan (bij 46% x 9% van het scherm) haalt de verhouding van die ene pixel omlaag en is geen leesprobleem.
+    n += await controleerVlakken(page, wortelSels, `${label} y${Math.min(y, hoogte)}`, verzamel, { minimum: 0, extraStijl: 'html #hemel { --sterren: none !important; }' });
     if (y >= hoogte) break;
   }
   await page.evaluate(() => window.scrollTo(0, 0));

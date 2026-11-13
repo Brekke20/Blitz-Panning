@@ -12,6 +12,9 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Unreleased]
 
+### Fixed
+- Contrasttest `@contrast dashboard dark gsm` faalde op de noot onderaan het dashboard: een ster van de nachthemel (46 % × 9 % van het scherm, 1,5 px) lag achter een letter en haalde die ene pixel naar 2,89:1. De app was in orde; de dashboardmeting slaat de sterren nu over, net als de meting van losse tekst. Ook herhaalt de hemelmeting nu (hoogstens drie keer) een meting waarvan de hemel door de minuutcontrole van de app werd teruggezet; de lange pc-dashboardtests faalden daar af en toe op. Geen wijziging in de app zelf.
+
 ## [2.10.0] — 2026-11-10
 
 ### Added
