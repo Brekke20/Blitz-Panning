@@ -3,16 +3,13 @@
 //
 // Rechten (fail-closed):
 //   - enkel beheerder, planner en technieker krijgen gereedschappen; elke andere rol (sales, onbekend) krijgt een lege
-//     tools/list en -32601 op tools/call, VOOR er ook maar één blob gelezen wordt (filterRapportenVoor laat sales alles zien).
-//   - technieker: rapporten eerst door filterRapportenVoor (eigen rapporten), dan pas zoeken/tellen/historiek/opzoeken.
-//     Planning: items op zijn eigen naam (isEigenNaam) plus afspraken zonder persoon (die toont de kalender ook aan iedereen,
-//     kern/selecties.js); nooit die van een collega en nooit een ticket zonder technieker. Afwezigheden: globale blokkades, feestdagen
-//     en enkel het eigen verlof (zoals de kalender: blokkeringenVoor in kern/selecties.js met de eigen naam als filter). Tickets: hetzelfde als GET /api/tickets hem geeft (ongefilterd).
+//     tools/list en -32601 op tools/call, VOOR er ook maar één blob gelezen wordt (sales zou anders alles zien).
+//   - technieker: ziet dezelfde rapporten, planning (afspraken, tickets, verlof) en tickets als planner en beheerder (besluit Brent 2026-11-13);
+//     er is dus geen eigen-filter meer (filterRapportenVoor/isEigenNaam blijven bestaan voor de app, lib/eigen.js).
 // Enkel lezen: geen enkele functie hier schrijft naar de store; tickets komen enkel uit de bewaarde momentopname (nooit Zoho).
 // Foutteksten aan Claude zijn vast; een uitzondering logt enkel het fouttype (Blobs-fouten kunnen details bevatten).
 import pkg from '../../package.json' with { type: 'json' };
 import { laadRapporten, volledigRapport, zoekRapporten, telRapporten, paalHistoriek, normSerie, MAX_RESULTATEN } from './mcp-data.js';
-import { filterRapportenVoor, isEigenNaam } from './eigen.js';
 import { SNAPSHOT_SLEUTEL, geldigeSnapshot } from './tickets-snapshot.js';
 import { leesRegister } from './voorstelregister.js';
 import { OORZAAK_LABELS } from '../../public/js/rapport-oorzaak.js';
@@ -31,7 +28,7 @@ const INSTRUCTIES = [
   'Rapporten zijn interventie- en installatierapporten van techniekers (actief + jaararchieven); open tickets komen uit een momentopname van Zoho Desk (veld momentopname = tijdstip); planning = tickets met een interventiedatum, handmatige afspraken, verlof, globale blokkades en Belgische feestdagen.',
   `De oorzaak van een storing komt uit een vaste lijst (${OORZAAK_LABELS.join(', ')}; oude rapporten kunnen nog Productfout of Configuratiefout hebben) en is dus betrouwbaar om te tellen.`,
   'Probleem en acties zijn vrije tekst: lees ze, maar tel er niet op. Serienummers worden genormaliseerd (spaties weg, hoofdletters).',
-  'Je ziet enkel wat de gekoppelde gebruiker in de tool mag zien (een technieker enkel zijn eigen rapporten en planning, plus afspraken zonder persoon, blokkades, feestdagen en enkel zijn eigen verlof: van een technieker zie je het verlof van andere techniekers niet, zeg dus nooit dat een collega zeker vrij is). Antwoorden zijn afgekapt op 200 items (afgekapt: true, totaal).',
+  'Je ziet enkel wat de gekoppelde gebruiker in de tool mag zien (ook een technieker ziet rapporten, planning en verlof van andere techniekers). Antwoorden zijn afgekapt op 200 items (afgekapt: true, totaal).',
 ].join('\n');
 
 // ---------- JSON-RPC ----------
@@ -146,9 +143,10 @@ function getalArg(args, sleutel, { min, max }) {
 }
 
 // ---------- rapporten (rechten vóór de data-functie) ----------
-async function eigenRapporten({ store, gebruiker, nu }, periode = {}) {
+async function eigenRapporten({ store, nu }, periode = {}) {
+  // Geen per-rol filter: elke rol met gereedschappen (beheerder, planner, technieker) ziet alle rapporten.
   const { rapporten, ontbrekendeJaren } = await laadRapporten(store, periode, { nu });
-  return { rapporten: filterRapportenVoor(gebruiker, rapporten), ontbrekendeJaren };
+  return { rapporten, ontbrekendeJaren };
 }
 
 function metWaarschuwing(data, ontbrekendeJaren) {
@@ -178,8 +176,7 @@ async function rapportLezen(args, ctx) {
   const id = tekstArg(args, 'id', { verplicht: true });
   const { rapporten, ontbrekendeJaren } = await eigenRapporten(ctx);
   const gevonden = rapporten.find(r => r && String(r.id ?? '') === id);
-  // Zelfde tekst voor een onbekend id en een rapport van een collega: verraadt niet dat het bestaat.
-  if (!gevonden) {
+    if (!gevonden) {
     const extra = ontbrekendeJaren.length ? ` (let op: het archief van ${ontbrekendeJaren.join(', ')} kon niet gelezen worden)` : '';
     return mislukt(`Rapport niet gevonden${extra}.`);
   }
@@ -327,12 +324,6 @@ async function planningLezen(args, { gebruiker, store, nu }) {
     ...uitzonderingen.map(afwezigheidItem),
   ].filter(i => i && i.datum >= van && i.datum <= tot);
   items.push(...feestdagItems(van, tot));
-  // Technieker: items op zijn eigen naam plus afspraken zonder persoon (zoals de kalender: kern/selecties.js toont een afspraak
-  // zonder persoon aan iedereen). Nooit een afspraak of ticket van een collega, nooit een ticket zonder technieker. Planner/beheerder: alles.
-  if (gebruiker?.rol === 'technieker') {
-    items = items.filter(i => i.soort === 'feestdag' || i.soort === 'blokkade' || (i.soort === 'afwezig' ? isEigenNaam(gebruiker, i.persoon)
-      : isEigenNaam(gebruiker, i.technieker) || (i.soort === 'afspraak' && !i.technieker)));
-  }
   // Het technieker-filter geldt voor tickets, afspraken en verlof; feestdagen en globale blokkades gelden voor iedereen en blijven staan.
   if (technieker) items = items.filter(i => i.soort === 'feestdag' || i.soort === 'blokkade' || klein(i.technieker ?? i.persoon).includes(klein(technieker)));
   const sorteerUur = i => i.uur || i.van || '';
@@ -424,7 +415,7 @@ const GEREEDSCHAPPEN = [
   {
     name: 'planning_lezen',
     title: 'Planning lezen',
-    description: 'Ingeplande tickets (met voorstel- en bevestigingsstatus), handmatige afspraken, afwezigheden (soort afwezig: verlof van een persoon, hele dag of van/tot), blokkades (soort blokkade: iedereen geblokkeerd) en Belgische feestdagen (soort feestdag) per dag, in Brusselse tijd. Gebruik dit ook voor "wie is vrij op ...?": een technieker is niet vrij bij een afwezigheid, blokkade of feestdag. Voor een gekoppelde technieker staat enkel zijn eigen verlof erin, niet dat van andere techniekers. Zonder periode: vandaag en de 13 dagen erna; hoogstens 366 dagen.',
+    description: 'Ingeplande tickets (met voorstel- en bevestigingsstatus), handmatige afspraken, afwezigheden (soort afwezig: verlof van een persoon, hele dag of van/tot), blokkades (soort blokkade: iedereen geblokkeerd) en Belgische feestdagen (soort feestdag) per dag, in Brusselse tijd. Gebruik dit ook voor "wie is vrij op ...?": een technieker is niet vrij bij een afwezigheid, blokkade of feestdag. Zonder periode: vandaag en de 13 dagen erna; hoogstens 366 dagen.',
     inputSchema: { type: 'object', properties: { ...PERIODE, technieker: s('Naam (of een deel ervan) van de technieker.') } },
     annotations: LEZEN,
     uitvoer: planningLezen,

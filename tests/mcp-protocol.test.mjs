@@ -157,31 +157,28 @@ test('onbekend gereedschap -> -32602', async () => {
 
 // ---------- rapporten + rechten ----------
 
-test('technieker rapporten_tellen groepeer serienummer: enkel eigen (3), planner alles (8)', async () => {
+test('technieker rapporten_tellen groepeer serienummer: alle rapporten (8 + 1), net als de planner', async () => {
   const t = data(await roep(TECH, 'rapporten_tellen', { groepeer: 'serienummer' }));
-  assert.deepEqual(t.groepen, [{ sleutel: '2201-AB', aantal: 3 }]);
-  assert.equal(t.totaalRapporten, 3);
+  assert.deepEqual(t.groepen, [{ sleutel: '2201-AB', aantal: 8 }, { sleutel: '9999-ZZ', aantal: 1 }]);
+  assert.equal(t.totaalRapporten, 9);
   const p = data(await roep(PLANNER, 'rapporten_tellen', { groepeer: 'serienummer' }));
-  assert.deepEqual(p.groepen, [{ sleutel: '2201-AB', aantal: 8 }, { sleutel: '9999-ZZ', aantal: 1 }]);
+  assert.deepEqual(t.groepen, p.groepen);
 });
 
-test('technieker: filter op technieker van een collega geeft niets terug (filter staat vóór het zoeken)', async () => {
+test('technieker: filter op technieker van een collega geeft hun rapporten wel terug', async () => {
   const z = data(await roep(TECH, 'rapporten_zoeken', { technieker: 'Piet' }));
-  assert.equal(z.totaal, 0);
-  const t = data(await roep(TECH, 'rapporten_tellen', { groepeer: 'oorzaak' }));
-  assert.deepEqual(t.groepen, [{ sleutel: 'Component defect', aantal: 3 }]);
+  assert.equal(z.totaal, 6);
+  const p = data(await roep(PLANNER, 'rapporten_zoeken', { technieker: 'Piet' }));
+  assert.equal(p.totaal, 6);
 });
 
-test('rapport_lezen: technieker eigen ok; collega en onbekend -> isError met dezelfde tekst', async () => {
+test('rapport_lezen: technieker leest eigen en collega-rapport; onbekend id -> isError', async () => {
   const eigen = data(await roep(TECH, 'rapport_lezen', { id: 'j3' }));
   assert.equal(eigen.rapport.id, 'j3');
   assert.equal(eigen.rapport.serienummer, '2201-AB');
-  const collega = await roep(TECH, 'rapport_lezen', { id: 'p1' });
+  assert.equal(data(await roep(TECH, 'rapport_lezen', { id: 'p1' })).rapport.technieker, 'Piet Janssens');
   const onbekend = await roep(TECH, 'rapport_lezen', { id: 'bestaat-niet' });
-  assert.equal(collega.result.isError, true);
   assert.equal(onbekend.result.isError, true);
-  assert.equal(collega.result.content[0].text, onbekend.result.content[0].text);
-  assert.ok(!JSON.stringify(collega).includes('Piet'));
   assert.equal(data(await roep(PLANNER, 'rapport_lezen', { id: 'p1' })).rapport.technieker, 'Piet Janssens');
 });
 
@@ -204,16 +201,17 @@ test('rapport_lezen: het volledige rapport (ook installateur en andere velden) z
   const tekst = JSON.stringify(r);
   assert.ok(!tekst.includes('data:'), 'geen data-URL in het antwoord');
   assert.ok(!tekst.includes('<html>'));
-  // nog steeds het technieker-filter: een rapport van een collega blijft onzichtbaar
-  assert.equal((await roep(TECH, 'rapport_lezen', { id: 'p1' }, bron(blobs))).result.isError, true);
+  // een technieker leest ook het rapport van een collega
+  assert.equal((await roep(TECH, 'rapport_lezen', { id: 'p1' }, bron(blobs))).result.isError, undefined);
 });
 
-test('paal_historiek: technieker enkel eigen bezoeken', async () => {
+test('paal_historiek: technieker ziet alle bezoeken aan de paal', async () => {
   const t = data(await roep(TECH, 'paal_historiek', { serienummer: ' 2201-ab ' }));
   assert.equal(t.serienummer, '2201-AB');
-  assert.deepEqual(t.bezoeken.map(b => b.id), ['j1', 'j2', 'j3']);
-  assert.deepEqual(t.oorzaken, [{ sleutel: 'Component defect', aantal: 3 }]);
   const p = data(await roep(PLANNER, 'paal_historiek', { serienummer: '2201-AB' }));
+  assert.equal(t.bezoeken.length, 8);
+  assert.deepEqual(t.bezoeken, p.bezoeken);
+  assert.deepEqual(t.oorzaken, p.oorzaken);
   assert.equal(p.bezoeken.length, 8);
   assert.equal((await roep(PLANNER, 'paal_historiek', {})).result.isError, true);
 });
@@ -322,22 +320,22 @@ test('planning_lezen planner: tickets met interventiedatum (Brusselse tijd) + af
   assert.deepEqual(filter.items.map(i => i.id), ['a2', 't4']);
 });
 
-test('planning_lezen technieker: eigen naam plus afspraken zonder persoon (voor iedereen, zoals de kalender), nooit van een collega', async () => {
+test('planning_lezen technieker: ziet ook afspraken en tickets van collegas, zoals de planner', async () => {
   const t = data(await roep(TECH, 'planning_lezen', { van: '2026-11-12', tot: '2026-11-14' }));
-  assert.deepEqual(t.items.map(i => i.id), ['t3', 'a1', 't5', 'a3']);
-  assert.equal(t.items.find(i => i.id === 'a3').technieker, null);
-  assert.ok(!t.items.some(i => i.id === 'a2' || i.id === 't4'), 'geen afspraak of ticket van collega Piet');
+  const p = data(await roep(PLANNER, 'planning_lezen', { van: '2026-11-12', tot: '2026-11-14' }));
+  assert.deepEqual(t.items, p.items);
+  assert.ok(t.items.some(i => i.id === 'a2') && t.items.some(i => i.id === 't4'), 'afspraak en ticket van collega Piet zichtbaar');
   const viaFilter = data(await roep(TECH, 'planning_lezen', { van: '2026-11-12', tot: '2026-11-14', technieker: 'Piet' }));
-  assert.deepEqual(viaFilter.items, []);
+  assert.deepEqual(viaFilter.items.map(i => i.id), ['a2', 't4']);
 });
 
-test('planning_lezen technieker: afspraak met lege persoon zichtbaar, ticket zonder technieker niet', async () => {
+test('planning_lezen technieker: afspraak met lege persoon en ticket zonder technieker zichtbaar', async () => {
   const snapshot = structuredClone(SNAPSHOT);
   snapshot.plannedTickets.push(ticket('t9', { status: 'Geplande service', assignee: '', interventieDatum: '2026-11-13T09:30:00.000Z' }));
   const afspraken = structuredClone(AFSPRAKEN);
   afspraken.afspraken.push({ id: 'a9', titel: 'Feestdag', datum: '2026-11-13', uur: '', einduur: '', type: 'Overige', persoon: '', notitie: '' });
   const t = data(await roep(TECH, 'planning_lezen', { van: '2026-11-13', tot: '2026-11-13' }, bron(basisBlobs({ 'tickets-snapshot': snapshot, afspraken }))));
-  assert.deepEqual(t.items.map(i => i.id), ['a9', 't5']);
+  assert.ok(t.items.some(i => i.id === 'a9') && t.items.some(i => i.id === 't9'));
   const p = data(await roep(PLANNER, 'planning_lezen', { van: '2026-11-13', tot: '2026-11-13' }, bron(basisBlobs({ 'tickets-snapshot': snapshot, afspraken }))));
   assert.ok(p.items.some(i => i.id === 't9'), 'de planner ziet het niet-toegewezen ticket wel');
 });
@@ -382,18 +380,17 @@ test('planning_lezen planner: verlof, blokkades (hele dag en van/tot) en feestda
   assert.equal(b.items.length, 2);
 });
 
-test('planning_lezen technieker: globale blokkade, feestdag en eigen verlof, nooit het verlof van een collega (zoals de kalender)', async () => {
+test('planning_lezen technieker: ook het verlof van een collega, net als de planner', async () => {
   const blobs = basisBlobs({ availability: BESCHIKBAAR });
   const t = data(await roep(TECH, 'planning_lezen', { van: '2026-11-16', tot: '2026-11-18' }, bron(blobs)));
-  assert.deepEqual(t.items.map(sleutelAfw), [
-    'afwezig:v1:2026-11-16:Jan Peeters:dag',
-    'blokkade:g1:2026-11-17:-:dag',
-    'blokkade:g2:2026-11-18:-:08:00-12:00',
-  ]);
+  const p = data(await roep(PLANNER, 'planning_lezen', { van: '2026-11-16', tot: '2026-11-18' }, bron(blobs)));
+  assert.deepEqual(t.items, p.items);
+  assert.ok(t.items.some(i => i.soort === 'afwezig' && i.id === 'v2' && i.persoon === 'Piet Janssens'), 'verlof van Piet zichtbaar');
+  assert.ok(t.items.some(i => i.id === 'v1') && t.items.some(i => i.id === 'g1') && t.items.some(i => i.id === 'g2'));
   const f = data(await roep(TECH, 'planning_lezen', { van: '2026-11-11', tot: '2026-11-11' }, bron(blobs)));
   assert.deepEqual(f.items.map(i => i.soort), ['feestdag']);
   const viaFilter = data(await roep(TECH, 'planning_lezen', { van: '2026-11-16', tot: '2026-11-18', technieker: 'Piet' }, bron(blobs)));
-  assert.deepEqual(viaFilter.items.map(i => i.id), ['g1', 'g2']);
+  assert.deepEqual(viaFilter.items.map(i => i.id).sort(), ['g1', 'g2', 'v2']);
 });
 
 test('planning_lezen: periode over de jaargrens geeft feestdagen van beide jaren; Pasen en Pinksteren 2026 en 2027', async () => {
@@ -525,10 +522,10 @@ test('endpoint: ongeldige JSON -> -32700; batch -> elk element apart', async () 
   assert.equal((await leeg.json()).error.code, -32600);
 });
 
-test('endpoint: rol uit de token (technieker telt enkel eigen, sales krijgt geen gereedschappen)', async () => {
+test('endpoint: rol uit de token (technieker telt alle rapporten, sales krijgt geen gereedschappen)', async () => {
   const { h, tokens } = await opzetEndpoint();
   const t = await (await post(h, rpc('tools/call', { name: 'rapporten_tellen', arguments: { groepeer: 'serienummer' } }), { token: tokens.technieker })).json();
-  assert.deepEqual(t.result.structuredContent.groepen, [{ sleutel: '2201-AB', aantal: 3 }]);
+  assert.deepEqual(t.result.structuredContent.groepen, [{ sleutel: '2201-AB', aantal: 8 }, { sleutel: '9999-ZZ', aantal: 1 }]);
   const s = await (await post(h, rpc('tools/list'), { token: tokens.sales })).json();
   assert.deepEqual(s.result.tools, []);
   const sc = await (await post(h, rpc('tools/call', { name: 'rapporten_zoeken', arguments: {} }), { token: tokens.sales })).json();

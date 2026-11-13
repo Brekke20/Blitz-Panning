@@ -41,7 +41,7 @@ Werkt enkel voor nieuwe rapporten; oude blijven zonder.
 - Aanmelden: **echte OAuth-aanmelding** met de Blitz-login.
 - Klantgegevens: **alles tonen** (namen, adressen, telefoon).
 - Login: **dezelfde Blitz-login** als de tool. Flow: loginpagina tool → "Claude toegang geven (enkel lezen)?" → Toestaan → Claude krijgt een eigen leessleutel (nooit het wachtwoord). Sleutel vervalt na ±30 dagen, ongeldig bij deactivatie/wachtwoordwijziging, intrekbaar in beheer ("Gekoppelde Claude-toegangen").
-- Wie mag koppelen: **iedereen, volgens eigen rechten** — technieker ziet enkel eigen rapporten (zelfde filter als `lib/eigen.js`), planner/beheer zien wat ze nu ook zien.
+- Wie mag koppelen: **beheerder, planner en technieker** (sales krijgt geen gereedschappen). Besluit Brent 2026-11-13: een technieker ziet via Claude ook de rapporten en de planning (afspraken, tickets, verlof) van collega's, net als planner/beheer; dit vervangt de eerdere beperking tot eigen rapporten (`lib/eigen.js`). Alles blijft enkel lezen.
 - Probleemtype + garantiestatus voortaan meebewaren: aanbevolen, nog te bevestigen bij het plan.
 
 ## Oorspronkelijke keuzes (ter info)
