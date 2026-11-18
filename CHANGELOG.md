@@ -12,6 +12,8 @@ ontwikkelgeschiedenis daarvoor staat wel in de git-historiek en in
 
 ## [Unreleased]
 
+## [2.11.1] — 2026-11-18
+
 ### Fixed
 - Geplande of in te plannen tickets waar lang niets op gebeurde, verdwenen soms uit de planning (bv. #3586): de tool stopte met zoeken na 200 tickets op rij zonder planningsstatus. Hij overloopt nu de volledige ticketlijst van Zoho (tot 3100 tickets, met een waarschuwing in de log als die grens ooit bereikt wordt) en haalt een ticket op een paginagrens niet meer dubbel op.
 
