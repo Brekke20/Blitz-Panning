@@ -15,6 +15,10 @@ const STATUS_PENDING    = ['Wachten op bevestiging planning'];
 const STATUS_GEPLAND    = ['Geplande service', 'Geplande support'];
 const RELEVANT = [...STATUS_TE_PLANNEN, ...STATUS_PENDING, ...STATUS_GEPLAND];
 
+// Ticketlijst: hoogstens 31 pagina's van 100 (Zoho's lijst telde er 911 op 2026-11-18); na pagina 0 drie tegelijk.
+const MAX_PAGINAS = 31;
+const PARALLEL    = 3;
+
 const mapTicket = agentMap => t => {
   const cf      = t.cf || {};
   const address = cf.cf_adres
@@ -64,34 +68,39 @@ export async function haalTickets(zoho) {
     agentMap[a.id] = agentNaam(a);
   }
 
-  // Stap 1: alle tickets ophalen via paginering (max 6 pagina's = 600 tickets)
-  // Paginering zonder statusType filter (Zoho filtert custom statuses er anders uit)
-  // Zodra een pagina 0 relevante tickets oplevert EN de vorige pagina ook 0 had, stoppen we vroeg.
-  let allRaw = [];
-  let emptyRelevantPages = 0;
-  for (let from = 0; from < 600; from += 100) {
+  // Stap 1: de VOLLEDIGE ticketlijst ophalen, tot de laatste (kortere) pagina.
+  // Paginering zonder statusType filter (Zoho filtert custom statuses er anders uit); de zoek-API mag de token niet.
+  // Nooit vroeg stoppen op "pagina's zonder relevante tickets": Zoho sorteert op klantactiviteit, dus een gepland
+  // ticket waar lang niets op gebeurde zakt diep weg (#3586 stond op plaats ±492 en viel zo uit de planning).
+  // Pagina 0 eerst, daarna PARALLEL pagina's tegelijk; een kortere pagina is de laatste.
+  const haalPagina = async from => {
     const res  = await zoho.verzoek(`/tickets?limit=100&from=${from}`, { token, orgId });
     if (!res.ok) {
       const errBody = await leesJsonVeilig(res);
       throw new Error(`Zoho tickets-ophalen mislukt (${res.status}): ${JSON.stringify(errBody)}`);
     }
     const data = await leesJsonVeilig(res);
-    const page = data.data || [];
-    const relevantOnPage = page.filter(t => RELEVANT.includes(t.status)).length;
-    allRaw = allRaw.concat(page);
-    if (page.length < 100) break; // laatste pagina
-    if (relevantOnPage === 0) {
-      emptyRelevantPages++;
-      if (emptyRelevantPages >= 2) break; // 2 lege pagina's op rij → stoppen
-    } else {
-      emptyRelevantPages = 0;
+    return data.data || [];
+  };
+  let allRaw = await haalPagina(0);
+  let laatsteVol = allRaw.length >= 100;
+  for (let from = 100; laatsteVol && from < MAX_PAGINAS * 100; from += PARALLEL * 100) {
+    const vanaf = Array.from({ length: PARALLEL }, (_, i) => from + i * 100).filter(f => f < MAX_PAGINAS * 100);
+    const paginas = await Promise.all(vanaf.map(haalPagina));
+    for (const page of paginas) {
+      if (!laatsteVol) break; // na een kortere pagina is de rest leeg
+      allRaw = allRaw.concat(page);
+      laatsteVol = page.length >= 100;
     }
   }
+  if (laatsteVol) {
+    console.warn(`tickets-ophalen: grens van ${MAX_PAGINAS * 100} tickets bereikt; tickets verder in de Zoho-lijst ontbreken mogelijk`);
+  }
 
-  // Stap 2: filteren op relevante statussen
-  const relevantIds = allRaw
+  // Stap 2: filteren op relevante statussen, ontdubbeld (de grens tussen pagina 0 en 1 overlapt in Zoho met één ticket)
+  const relevantIds = [...new Set(allRaw
     .filter(t => RELEVANT.includes(t.status))
-    .map(t => t.id);
+    .map(t => t.id))];
 
   // Stap 3: individueel ophalen voor cf custom fields (in batches van 5 om rate limiting te vermijden)
   const detailed = [];

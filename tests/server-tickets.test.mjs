@@ -157,15 +157,46 @@ test('tickets: ook een POST (geen methodecontrole) loopt door naar Zoho', async 
   assert.equal(res.statusCode, 200);
 });
 
-test('tickets: paginering stopt na twee opeenvolgende pagina\'s zonder relevante tickets', async () => {
+// Bewust gewijzigd (fix #3586, 2026-11-18): vroeger stopte de lus na twee volle pagina's zonder relevant ticket.
+// Een gepland ticket waar lang niets op gebeurde (in Zoho's lijst op plaats ±492) viel daardoor uit de planning.
+// Nu loopt de lus tot de laatste (kortere) pagina; pagina 0 komt eerst, daarna drie pagina's tegelijk.
+test('tickets: een relevant ticket na drie pagina\'s zonder relevante tickets wordt toch opgehaald', async () => {
   const { res, calls } = await draaiTickets(v1Event('GET'), ticketsRouter({
-    paginas: [lijst(100, 'Gesloten'), lijst(100, 'Gesloten', 100), lijst(100, 'Gesloten', 200)], details: {},
+    paginas: [lijst(100, 'Gesloten'), lijst(100, 'Gesloten', 100), lijst(100, 'Gesloten', 200), [{ id: '6', status: 'Geplande support' }]],
+    details: DETAILS,
   }));
   assert.deepEqual(calls, [
     TOKEN_CALL, ORG_CALL, get('/agents?limit=50'),
     get('/tickets?limit=100&from=0'), get('/tickets?limit=100&from=100'),
+    get('/tickets?limit=100&from=200'), get('/tickets?limit=100&from=300'),
+    get('/tickets/6'),
   ]);
-  assert.deepEqual(ontleed(res).body, { tickets: [], pendingTickets: [], plannedTickets: [] });
+  assert.deepEqual(ontleed(res).body, { tickets: [], pendingTickets: [], plannedTickets: [MAP_6] });
+});
+
+test('tickets: een ticket dat op twee pagina\'s staat (verschoven grens) wordt maar één keer opgehaald', async () => {
+  const p0 = [...lijst(99, 'Gesloten'), { id: '6', status: 'Geplande support' }];
+  const p1 = [{ id: '6', status: 'Geplande support' }, { id: '5', status: 'Wachten op planning' }];
+  const { res, calls } = await draaiTickets(v1Event('GET'), ticketsRouter({ paginas: [p0, p1], details: DETAILS }));
+  assert.deepEqual(calls.filter(c => /\/tickets\/\d+$/.test(c.url)).map(c => c.url), [`${DESK}/tickets/6`, `${DESK}/tickets/5`]);
+  assert.deepEqual(ontleed(res).body, { tickets: [MAP_5], pendingTickets: [], plannedTickets: [MAP_6] });
+});
+
+test('tickets: na pagina 0 worden drie pagina\'s tegelijk gevraagd', async () => {
+  let bezig = 0; let max = 0;
+  const basis = ticketsRouter({ paginas: [lijst(100, 'Gesloten'), lijst(100, 'Gesloten', 100), lijst(100, 'Gesloten', 200), lijst(100, 'Gesloten', 300), lijst(5, 'Gesloten', 400)], details: {} });
+  const router = async (url) => {
+    if (!url.includes('/tickets?limit=100')) return basis(url);
+    bezig++; max = Math.max(max, bezig);
+    await tick();
+    bezig--;
+    return basis(url);
+  };
+  const { calls } = await draaiTickets(v1Event('GET'), router);
+  assert.equal(max, 3);
+  // 400 is kort: de lus stopt na het tweede blok (400, 500, 600); 500 en 600 zijn leeg en onschadelijk.
+  assert.deepEqual(calls.filter(c => c.url.includes('/tickets?limit=100')).map(c => c.url.split('from=')[1]),
+    ['0', '100', '200', '300', '400', '500', '600']);
 });
 
 test('tickets: een relevante pagina zet de lege-teller terug en een kortere pagina is de laatste', async () => {
@@ -183,11 +214,22 @@ test('tickets: een relevante pagina zet de lege-teller terug en een kortere pagi
   assert.deepEqual(ontleed(res).body, { tickets: [MAP_1], pendingTickets: [MAP_2], plannedTickets: [] });
 });
 
-test('tickets: maximaal 6 pagina\'s (600 tickets), ook bij steeds volle relevante pagina\'s', async () => {
-  const paginas = Array.from({ length: 8 }, (_, i) => lijst(100, 'Gesloten', i * 100).map((t, k) => (k === 0 ? { ...t, status: 'Geplande service' } : t)));
+// Bewust gewijzigd (fix #3586): de grens was 6 pagina's (600 tickets); Zoho's lijst telt er al 911.
+// Nu 31 pagina's (3100 tickets), en wie de grens raakt krijgt een waarschuwing in de log in plaats van stil verlies.
+test('tickets: maximaal 31 pagina\'s (3100 tickets) en een waarschuwing als de grens bereikt is', async () => {
+  const waarsch = mock.method(console, 'warn', () => {});
+  const paginas = Array.from({ length: 34 }, (_, i) => lijst(100, 'Gesloten', i * 100));
   const { calls } = await draaiTickets(v1Event('GET'), ticketsRouter({ paginas, details: {} }));
   const pagCalls = calls.filter(c => c.url.includes('/tickets?limit=100'));
-  assert.deepEqual(pagCalls.map(c => c.url.split('from=')[1]), ['0', '100', '200', '300', '400', '500']);
+  assert.deepEqual(pagCalls.map(c => c.url.split('from=')[1]), Array.from({ length: 31 }, (_, i) => String(i * 100)));
+  assert.equal(waarsch.mock.callCount(), 1);
+  assert.match(waarsch.mock.calls[0].arguments[0], /3100/);
+});
+
+test('tickets: geen waarschuwing als de laatste pagina kort is', async () => {
+  const waarsch = mock.method(console, 'warn', () => {});
+  await draaiTickets(v1Event('GET'), ticketsRouter({ paginas: [lijst(100, 'Gesloten'), lijst(3, 'Gesloten', 100)], details: {} }));
+  assert.equal(waarsch.mock.callCount(), 0);
 });
 
 test('tickets: detailaanvragen in batches van vijf', async () => {
